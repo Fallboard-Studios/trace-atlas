@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { GLOBAL_LFO_TARGET_IDS, DRIFT_GROUP_IDS } from '../types/lfo';
 
@@ -680,5 +680,175 @@ describe('useAudioStore - volume / setVolume / setMuted (docs/specs/GLOBAL_VOLUM
     const state = useAudioStore.getState();
     expect('preMuteVolume' in state).toBe(false);
     expect('setPreMuteVolume' in state).toBe(false);
+  });
+});
+
+describe('useAudioStore - audioLoad / soundingRobotIds (docs/specs/AUDIO_LOAD_BUDGET.md §3, §4)', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  /** Stub `(pointer: coarse)` — jsdom has no matchMedia of its own. */
+  function stubCoarsePointer(coarse: boolean) {
+    window.matchMedia = vi.fn((query: string) => ({
+      matches: query === '(pointer: coarse)' && coarse,
+    })) as unknown as typeof window.matchMedia;
+  }
+
+  /** Load a fresh copy of the store as if the page had booted with this query string. */
+  async function loadFreshWithQuery(query: string) {
+    window.history.replaceState({}, '', `/${query}`);
+    vi.resetModules();
+    return import('./audioStore');
+  }
+
+  beforeEach(() => {
+    window.history.replaceState({}, '', '/');
+    window.matchMedia = originalMatchMedia;
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+    window.matchMedia = originalMatchMedia;
+    vi.resetModules();
+  });
+
+  describe('audioLoad at boot', () => {
+    it('is 1 (Full, today’s behavior) with no params on a desktop-like device', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      expect(useAudioStore.getState().audioLoad).toBe(1);
+    });
+
+    it('is 0.2 with ?load=light, 0.6 with ?load=standard, 1 with ?load=full', async () => {
+      expect((await loadFreshWithQuery('?load=light')).useAudioStore.getState().audioLoad).toBe(0.2);
+      expect((await loadFreshWithQuery('?load=standard')).useAudioStore.getState().audioLoad).toBe(0.6);
+      expect((await loadFreshWithQuery('?load=full')).useAudioStore.getState().audioLoad).toBe(1);
+    });
+
+    it('is a percent with ?load=45', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('?load=45');
+      expect(useAudioStore.getState().audioLoad).toBe(0.45);
+    });
+
+    it('falls back to detection for an invalid ?load=', async () => {
+      expect((await loadFreshWithQuery('?load=bogus')).useAudioStore.getState().audioLoad).toBe(1);
+      stubCoarsePointer(true);
+      expect((await loadFreshWithQuery('?load=bogus')).useAudioStore.getState().audioLoad).toBe(0.2);
+    });
+
+    it('defaults to Light (0.2) on a coarse-pointer, phone-like device', async () => {
+      stubCoarsePointer(true);
+      const { useAudioStore } = await loadFreshWithQuery('');
+      expect(useAudioStore.getState().audioLoad).toBe(0.2);
+    });
+
+    it('lets ?load= override detection in both directions', async () => {
+      stubCoarsePointer(true);
+      expect((await loadFreshWithQuery('?load=full')).useAudioStore.getState().audioLoad).toBe(1);
+      stubCoarsePointer(false);
+      expect((await loadFreshWithQuery('?load=light')).useAudioStore.getState().audioLoad).toBe(0.2);
+    });
+
+    it('reads ?load= among other params', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('?debug&seed=bravo&x=-150&y=90&load=standard');
+      expect(useAudioStore.getState().audioLoad).toBe(0.6);
+    });
+
+    it('does not throw when matchMedia is missing or throws — it just reads as a non-phone', async () => {
+      // @ts-expect-error — simulating an environment without matchMedia
+      window.matchMedia = undefined;
+      expect((await loadFreshWithQuery('')).useAudioStore.getState().audioLoad).toBe(1);
+      window.matchMedia = (() => {
+        throw new Error('no matchMedia here');
+      }) as unknown as typeof window.matchMedia;
+      expect((await loadFreshWithQuery('')).useAudioStore.getState().audioLoad).toBe(1);
+    });
+  });
+
+  describe('setAudioLoad', () => {
+    it('sets the dial to exactly the given value', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      useAudioStore.getState().setAudioLoad(0.37);
+      expect(useAudioStore.getState().audioLoad).toBe(0.37);
+    });
+
+    it('clamps to [0, 1] and treats NaN as Full', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      useAudioStore.getState().setAudioLoad(-1);
+      expect(useAudioStore.getState().audioLoad).toBe(0);
+      useAudioStore.getState().setAudioLoad(2);
+      expect(useAudioStore.getState().audioLoad).toBe(1);
+      useAudioStore.getState().setAudioLoad(0.4);
+      useAudioStore.getState().setAudioLoad(NaN);
+      expect(useAudioStore.getState().audioLoad).toBe(1);
+    });
+
+    it('is a plain state write: no engine call, and no other field changes', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      vi.clearAllMocks();
+      const before = { ...useAudioStore.getState() };
+
+      useAudioStore.getState().setAudioLoad(0.2);
+
+      for (const fn of Object.values(AudioEngine)) expect(fn).not.toHaveBeenCalled();
+      const after = useAudioStore.getState();
+      expect(after.audioLoad).toBe(0.2);
+      expect({ ...after, audioLoad: before.audioLoad }).toEqual(before);
+    });
+  });
+
+  describe('soundingRobotIds', () => {
+    it('defaults to an empty list', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      expect(useAudioStore.getState().soundingRobotIds).toEqual([]);
+    });
+
+    it('is written by setSoundingRobotIds', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      useAudioStore.getState().setSoundingRobotIds(['r1', 'r2']);
+      expect(useAudioStore.getState().soundingRobotIds).toEqual(['r1', 'r2']);
+    });
+
+    it('does not write, and so does not notify subscribers, when the set is unchanged', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      useAudioStore.getState().setSoundingRobotIds(['r1', 'r2']);
+      const stored = useAudioStore.getState().soundingRobotIds;
+      const listener = vi.fn();
+      const unsubscribe = useAudioStore.subscribe(listener);
+
+      useAudioStore.getState().setSoundingRobotIds(['r1', 'r2']); // same content, new array
+      useAudioStore.getState().setSoundingRobotIds(stored); // the very same array
+
+      expect(listener).not.toHaveBeenCalled();
+      expect(useAudioStore.getState().soundingRobotIds).toBe(stored);
+
+      useAudioStore.getState().setSoundingRobotIds(['r2', 'r1']); // a different order IS a change (arrival order matters)
+      expect(listener).toHaveBeenCalledTimes(1);
+      unsubscribe();
+    });
+
+    it('treats a shrunken or emptied set as a change', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      useAudioStore.getState().setSoundingRobotIds(['r1', 'r2']);
+      useAudioStore.getState().setSoundingRobotIds(['r1']);
+      expect(useAudioStore.getState().soundingRobotIds).toEqual(['r1']);
+      useAudioStore.getState().setSoundingRobotIds([]);
+      expect(useAudioStore.getState().soundingRobotIds).toEqual([]);
+    });
+
+    it('is not changed by setAudioLoad (only the budget system derives it)', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      useAudioStore.getState().setSoundingRobotIds(['r1']);
+      useAudioStore.getState().setAudioLoad(0.1);
+      expect(useAudioStore.getState().soundingRobotIds).toEqual(['r1']);
+    });
+  });
+
+  it('stays JSON-serialisable with both fields set (state holds no runtime objects)', async () => {
+    const { useAudioStore } = await loadFreshWithQuery('?load=light');
+    useAudioStore.getState().setSoundingRobotIds(['r1', 'r2']);
+    const roundTripped = JSON.parse(JSON.stringify(useAudioStore.getState()));
+    expect(roundTripped.audioLoad).toBe(0.2);
+    expect(roundTripped.soundingRobotIds).toEqual(['r1', 'r2']);
   });
 });

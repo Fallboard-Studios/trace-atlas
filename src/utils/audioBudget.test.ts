@@ -16,6 +16,7 @@ import {
 } from '../constants';
 import { GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS } from '../types/lfo';
 import {
+  clampAudioLoad,
   detectDefaultAudioLoad,
   lfoAllowed,
   latencyForLoad,
@@ -185,6 +186,27 @@ describe('loadToLimits', () => {
     it('treats NaN as Full (the safe, today’s-behavior default)', () => {
       expect(loadToLimits(NaN)).toEqual(loadToLimits(1));
     });
+  });
+});
+
+// ========================================
+// clampAudioLoad
+// ========================================
+
+describe('clampAudioLoad', () => {
+  it('leaves a value already on the dial alone', () => {
+    for (const t of dial) expect(clampAudioLoad(t)).toBe(t);
+  });
+
+  it('clamps to [0, 1], including infinities', () => {
+    expect(clampAudioLoad(-0.5)).toBe(0);
+    expect(clampAudioLoad(-Infinity)).toBe(0);
+    expect(clampAudioLoad(1.5)).toBe(1);
+    expect(clampAudioLoad(Infinity)).toBe(1);
+  });
+
+  it('treats NaN as Full, matching loadToLimits', () => {
+    expect(clampAudioLoad(NaN)).toBe(1);
   });
 });
 

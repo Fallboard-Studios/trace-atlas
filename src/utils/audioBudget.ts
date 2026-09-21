@@ -44,12 +44,6 @@ export interface LoadLimits {
 // HELPERS
 // ========================================
 
-/** Clamp to the dial's 0–1 range; NaN is Full, the safe "today's behavior" default. */
-function clampLoad(audioLoad: number): number {
-  if (Number.isNaN(audioLoad)) return AUDIO_LOAD_PRESETS.full;
-  return Math.min(1, Math.max(0, audioLoad));
-}
-
 const lerp = (from: number, to: number, t: number): number => from + (to - from) * t;
 
 /**
@@ -70,9 +64,15 @@ function robotLfoCap(load: number): number {
 // FUNCTIONS
 // ========================================
 
+/** Clamp to the dial's 0–1 range; NaN is Full, the safe "today's behavior" default. */
+export function clampAudioLoad(audioLoad: number): number {
+  if (Number.isNaN(audioLoad)) return AUDIO_LOAD_PRESETS.full;
+  return Math.min(1, Math.max(0, audioLoad));
+}
+
 /** One dial in, every cap out — linear for the counts, thresholds for the booleans. */
 export function loadToLimits(audioLoad: number): LoadLimits {
-  const load = clampLoad(audioLoad);
+  const load = clampAudioLoad(audioLoad);
   return {
     maxAudibleRobots: Math.round(lerp(LOAD_AUDIBLE_ROBOTS_MIN, MAX_ROBOTS, load)),
     maxPolyphony: Math.round(lerp(LOAD_POLYPHONY_MIN, MAX_POLYPHONY, load)),
@@ -110,7 +110,7 @@ export function parseLoadParam(raw: string | null | undefined): number | null {
  * percent, otherwise a whole percent. `parseLoadParam(loadToSearchParam(x))` gives back x to the percent.
  */
 export function loadToSearchParam(audioLoad: number): string {
-  const percent = Math.round(clampLoad(audioLoad) * 100);
+  const percent = Math.round(clampAudioLoad(audioLoad) * 100);
   const preset = PRESET_NAMES.find((name) => Math.round(AUDIO_LOAD_PRESETS[name] * 100) === percent);
   return preset ?? String(percent);
 }
