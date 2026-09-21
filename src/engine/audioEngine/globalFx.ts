@@ -18,6 +18,11 @@ let _globalLimiter: Tone.Limiter | null = null;
 // Master output gain controlling overall volume (used by setMasterVolume/getMasterVolume)
 let _masterGain: Tone.Gain | null = null;
 let _masterVolume = 1;
+// Read-only output taps for the `?debug` overlay (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md). Nothing here
+// exists unless attachOutputTaps() is called.
+let _tapsWanted = false;
+let _preTap: Tone.Analyser | null = null;
+let _masterTap: Tone.Analyser | null = null;
 
 /** Ramp duration for a live LPF/HPF frequency change — same declick rationale as
  *  AudioEngine.ts's own VOLUME_RAMP_SECONDS: short enough to feel instant while dragging, long
@@ -183,6 +188,89 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
  *  front of the chain. */
 export function getGlobalChainEntry(): Tone.EQ3 | null {
   return _globalEQ;
+}
+
+// ========================================
+// OUTPUT TAPS (read-only diagnostics)
+// ========================================
+// Two analysers for the `?debug` overlay, to tell a silent graph from loss after the graph
+// (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md): one on EQ3's output (what the voices hand the chain) and one on
+// masterGain's output (what the destination receives). They only listen — they connect to nothing and
+// never to the destination, and they exist only between attachOutputTaps() and detachOutputTaps().
+
+/** One buffer must cover a whole sampler interval, or a quiet gap between two samples goes unseen:
+ *  32768 samples ≈ 0.68 s at 48 kHz (0.74 s at 44.1 kHz) against the 500 ms sampler. */
+export const OUTPUT_TAP_SIZE = 32768;
+
+/** Feed `tap` from `source`. A failure is warned about, never thrown — a diagnostic must not break audio. */
+function connectTap(source: Tone.ToneAudioNode | null, tap: Tone.Analyser | null, label: string): void {
+  if (!source || !tap) return;
+  try {
+    source.connect(tap);
+  } catch (err) {
+    devWarn(`[AudioEngine] output tap connect failed (${label})`, err);
+  }
+}
+
+/** Build any missing tap whose source node exists, and (re)connect it. Does nothing unless taps were requested. */
+function connectTapsIfWanted(): void {
+  if (!_tapsWanted) return;
+  const AnalyserCtor = getToneCtor<Tone.Analyser>('Analyser');
+  if (!AnalyserCtor) return;
+  try {
+    if (_globalEQ) _preTap ??= new AnalyserCtor('waveform', OUTPUT_TAP_SIZE);
+    if (_masterGain) _masterTap ??= new AnalyserCtor('waveform', OUTPUT_TAP_SIZE);
+  } catch (err) {
+    devWarn('[AudioEngine] output tap construction failed', err);
+    return;
+  }
+  connectTap(_globalEQ, _preTap, 'pre-chain');
+  connectTap(_masterGain, _masterTap, 'master');
+}
+
+/** Start listening: taps are built and connected as soon as the chain they listen to exists. */
+export function attachOutputTaps(): void {
+  _tapsWanted = true;
+  connectTapsIfWanted();
+}
+
+function releaseTap(source: Tone.ToneAudioNode | null, tap: Tone.Analyser | null): void {
+  if (!tap) return;
+  try {
+    source?.disconnect(tap);
+  } catch (err) {
+    devWarn('[AudioEngine] output tap disconnect failed', err);
+  }
+  try {
+    tap.dispose();
+  } catch (err) {
+    devWarn('[AudioEngine] output tap dispose failed', err);
+  }
+}
+
+/** Stop listening: disconnect and dispose both taps. Safe with nothing attached, and safe to repeat. */
+export function detachOutputTaps(): void {
+  _tapsWanted = false;
+  releaseTap(_globalEQ, _preTap);
+  releaseTap(_masterGain, _masterTap);
+  _preTap = null;
+  _masterTap = null;
+}
+
+function readTap(tap: Tone.Analyser | null): Float32Array | null {
+  if (!tap) return null;
+  try {
+    const value = tap.getValue();
+    return (Array.isArray(value) ? value[0] : value) ?? null;
+  } catch (err) {
+    devWarn('[AudioEngine] output tap read failed', err);
+    return null;
+  }
+}
+
+/** The latest buffer from each tap, or null for a tap that is not attached or cannot be read. Never throws. */
+export function readOutputTaps(): { pre: Float32Array | null; master: Float32Array | null } {
+  return { pre: readTap(_preTap), master: readTap(_masterTap) };
 }
 
 /** Reverb generates its impulse response asynchronously — AudioEngine.start()
