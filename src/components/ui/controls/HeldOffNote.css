@@ -1,0 +1,8 @@
+/* "Held off by Audio Load" — muted, small, sits with the greyed-out controls it explains. */
+.held-off-note {
+  margin: 0;
+  padding: 2px 8px 6px;
+  font-size: var(--font-size-label-lore);
+  font-style: italic;
+  color: var(--color-text-muted);
+}
