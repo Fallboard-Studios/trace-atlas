@@ -178,6 +178,11 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
   } catch (err) {
     devWarn('[AudioEngine] wireGlobalFxChain failed', err);
   }
+
+  // disconnectAllFxNodes() above dropped every output of every FX node — including any diagnostic tap.
+  // Put the taps back (and build them, if they were asked for before this chain existed). A no-op
+  // unless attachOutputTaps() was called, so with `?debug` off this changes nothing.
+  connectTapsIfWanted();
 }
 
 /** The live chain-entry node — EQ3, first in both Natural and Controlled
