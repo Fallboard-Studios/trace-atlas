@@ -62,6 +62,21 @@ const phaseFallbacks = new Map<string, PhaseFallback>();
  */
 const connectedSignals = new Map<string, unknown>();
 
+/**
+ * Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §1.4): an optional predicate the budget system installs saying
+ * whether an LFO may be connected right now — `(target, robotId, connectedRobotLfos)`, where the count is the audio-rate
+ * robot LFOs already connected, not including the one being asked about. `null` (the default) allows everything.
+ * A tier only SUSPENDS: it never edits an LFO's stored settings, it just declines to connect it.
+ */
+type LfoPolicy = (target: LfoTargetId, robotId: string | undefined, connectedRobotLfos: number) => boolean;
+let policy: LfoPolicy | null = null;
+
+/** Every LFO a caller asked to connect, so a policy change can restore the ones it had suspended. Cleared by an explicit disconnect. */
+const requested = new Map<string, { target: LfoTargetId; robotId?: string }>();
+
+/** "Held off": requested (rate > 0) but not connected because of the policy. An LFO at rate 0 is never held off. */
+const heldOff = new Set<string>();
+
 /** Phase modulates around this center (degrees) — the midpoint of the 0-360 range
  * ROBOT_DATA_GRID.md's Phase field documents. Depth scales how far it swings from
  * there, not around the layer's own current phase value (that would require
@@ -287,6 +302,67 @@ function stopPhaseFallback(key: string): void {
   phaseFallbacks.delete(key);
 }
 
+/** Audio-rate robot LFOs currently connected (phase LFOs poll at control rate and are not in connectedSignals), excluding `exceptKey`. */
+function connectedRobotLfoCount(exceptKey?: string): number {
+  let count = 0;
+  for (const key of connectedSignals.keys()) {
+    if (key !== exceptKey && requested.get(key)?.robotId) count++;
+  }
+  return count;
+}
+
+function isAllowed(target: LfoTargetId, robotId: string | undefined, key: string): boolean {
+  return policy === null || policy(target, robotId, connectedRobotLfoCount(key));
+}
+
+/** Take an LFO out of the audio graph (disconnect, drop drift, stop the oscillator) WITHOUT forgetting it was requested. */
+function suspendConnection(key: string): void {
+  if (phaseFallbacks.has(key)) {
+    stopPhaseFallback(key);
+  } else if (connectedSignals.has(key)) {
+    connectedSignals.delete(key);
+    detachDrift(key);
+    try {
+      activeLfos.get(key)?.disconnect();
+    } catch (err) {
+      devWarn('[lfoEngine] suspendConnection: disconnect failed', err);
+    }
+  }
+  activeLfos.get(key)?.stop();
+}
+
+/** Install (or with `null` remove) the Audio Load policy. Does not itself change any connection — call reconcileLfos(). */
+function setLfoPolicy(next: LfoPolicy | null): void {
+  policy = next;
+}
+
+/**
+ * Re-apply the policy to every LFO that was requested: connect and start the ones it now allows (rate > 0 only — an LFO
+ * at rate 0 is never connected here and never held off), suspend the ones it now refuses. Stored settings are never
+ * touched. Idempotent.
+ */
+function reconcileLfos(): void {
+  for (const [key, { target, robotId }] of [...requested]) {
+    if (getLfoSettings(target, robotId).rate <= 0) {
+      heldOff.delete(key);
+      continue;
+    }
+    const connected = connectedSignals.has(key) || phaseFallbacks.has(key);
+    if (isAllowed(target, robotId, key)) {
+      heldOff.delete(key);
+      if (!connected && connectLfoTarget(target, robotId)) start(target, robotId);
+    } else {
+      if (connected) suspendConnection(key);
+      heldOff.add(key);
+    }
+  }
+}
+
+/** Instance keys (e.g. `lpf.Q`, `robot-3:layer0.detune`) of LFOs requested but held off by the policy. */
+function getHeldOffLfoKeys(): string[] {
+  return [...heldOff];
+}
+
 /**
  * Connect this target's LFO to its live modulation destination. Returns
  * false — never throws — when: a robot-scoped target is called without a
@@ -299,6 +375,19 @@ function stopPhaseFallback(key: string): void {
 function connectLfoTarget(target: LfoTargetId, robotId?: string): boolean {
   const key = instanceKey(target, robotId);
 
+  // A robot-scoped target needs a robotId to resolve against — nothing to record or connect without one.
+  if (isRobotTarget(target) && !robotId) return false;
+
+  // Audio Load policy: remember the request, then decline (and mark held off) if the budget says no.
+  requested.set(key, { target, robotId });
+  if (!isAllowed(target, robotId, key)) {
+    suspendConnection(key);
+    if (getLfoSettings(target, robotId).rate > 0) heldOff.add(key);
+    else heldOff.delete(key);
+    return false;
+  }
+  heldOff.delete(key);
+
   const phaseMatch = /^layer(\d+)\.phase$/.exec(target);
   if (phaseMatch) {
     if (!robotId) return false;
@@ -310,7 +399,6 @@ function connectLfoTarget(target: LfoTargetId, robotId?: string): boolean {
 
   // signal's type is inferred from AudioEngine's own return types (Tasks 9/10) —
   // no local `any` needed here even though that union isn't re-exported by name.
-  if (isRobotTarget(target) && !robotId) return false;
   const signal = isRobotTarget(target)
     ? AudioEngine.getRobotModulationTarget(robotId!, target as RobotLfoTargetId)
     : AudioEngine.getGlobalModulationTarget(target as GlobalLfoTargetId);
@@ -379,6 +467,10 @@ function connectLfoTarget(target: LfoTargetId, robotId?: string): boolean {
 /** Reverse connectLfoTarget: disconnects the live node, or cancels the phase-polling schedule. Safe/no-op if nothing was connected. */
 function disconnectLfoTarget(target: LfoTargetId, robotId?: string): void {
   const key = instanceKey(target, robotId);
+  // An explicit disconnect (the user set the rate to 0, or the robot is gone) withdraws the request too,
+  // so a later reconcile never brings it back. The budget's own suspensions use suspendConnection instead.
+  requested.delete(key);
+  heldOff.delete(key);
   if (phaseFallbacks.has(key)) {
     stopPhaseFallback(key);
     return;
@@ -433,6 +525,9 @@ export const lfoEngine = {
   connectLfoTarget,
   disconnectLfoTarget,
   disposeRobotLfos,
+  setLfoPolicy,
+  reconcileLfos,
+  getHeldOffLfoKeys,
   setGlobalRateDrift,
   setGlobalDepthDrift,
 };
