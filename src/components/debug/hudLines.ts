@@ -46,7 +46,7 @@ export function buildHudLines(snapshot: DiagSnapshot, world: HudWorld, uptimeMs:
     `${seed} @ ${coords}   up ${formatUptime(uptimeMs)}`,
     `ctx ${timing.ctxState}   clock ${clock}   transport ${info.transport}`,
     `latency ${info.latencyHint}   ahead ${info.lookAheadMs}ms   base ${ms(info.baseLatencyMs)}`,
-    `voices ${info.voices}/${info.maxVoices}   LFOs ${info.globalLfosOn}/${info.globalLfosTotal}`,
+    `voices ${info.voices}/${info.maxVoices}   audible ${info.audibleRobots}/${info.totalRobots}   LFOs ${info.globalLfosOn}/${info.globalLfosTotal}`,
     `fps ${fps}   lag ${ms(timing.lagMs)} (max ${ms(timing.maxLagMs)})`,
   ];
 

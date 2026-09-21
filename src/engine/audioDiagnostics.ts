@@ -6,6 +6,9 @@ import * as Tone from 'tone';
 
 import { AudioEngine } from './AudioEngine';
 import { useAudioStore } from '../stores/audioStore';
+import { useLocaleStore } from '../stores/localeStore';
+import { getActiveLocaleId } from '../utils/localeHelpers';
+import { isRobotAudible } from '../utils/robotAudibility';
 import {
   SAMPLE_INTERVAL_MS,
   initDiagState,
@@ -28,6 +31,10 @@ export interface DiagInfo {
   transport: string;
   globalLfosOn: number;
   globalLfosTotal: number;
+  /** Robots in the active locale that `isRobotAudible` lets sound right now (not muted / not solo-excluded). */
+  audibleRobots: number;
+  /** Size of the active locale's roster. 0 until robots have spawned. */
+  totalRobots: number;
 }
 
 export interface DiagSnapshot {
@@ -62,6 +69,8 @@ function emptyInfo(): DiagInfo {
     transport: '?',
     globalLfosOn: 0,
     globalLfosTotal: 0,
+    audibleRobots: 0,
+    totalRobots: 0,
   };
 }
 
@@ -84,6 +93,20 @@ function readRawContext(): RawContext {
 const toMs = (seconds: number | undefined): number | null =>
   typeof seconds === 'number' && Number.isFinite(seconds) ? Math.round(seconds * 1000) : null;
 
+/**
+ * Audible robots in the active locale, read straight off the store at the sample tick (no
+ * subscription, so the overlay's render cadence is unchanged). Same rule as the engine's
+ * `triggerWithCap` gate: not muted, and not excluded by another robot's solo.
+ */
+function readRobotAudibility(): { audibleRobots: number; totalRobots: number } {
+  const robots = useLocaleStore.getState().locales[getActiveLocaleId()]?.robots ?? [];
+  const anySolo = robots.some((r) => r.audioMode === 'solo');
+  return {
+    audibleRobots: robots.filter((r) => isRobotAudible(r.audioMode, anySolo)).length,
+    totalRobots: robots.length,
+  };
+}
+
 function readInfo(): DiagInfo {
   const context = Tone.getContext();
   const raw = readRawContext();
@@ -98,6 +121,7 @@ function readInfo(): DiagInfo {
     transport: Tone.getTransport().state,
     globalLfosOn: globalLfo.filter((l) => l.rate > 0).length,
     globalLfosTotal: globalLfo.length,
+    ...readRobotAudibility(),
   };
 }
 

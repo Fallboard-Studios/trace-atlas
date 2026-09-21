@@ -20,6 +20,8 @@ const baseInfo: DiagInfo = {
   transport: 'started',
   globalLfosOn: 5,
   globalLfosTotal: 7,
+  audibleRobots: 5,
+  totalRobots: 12,
 };
 
 const snap = (timing: Partial<DiagState> = {}, info: Partial<DiagInfo> = {}): DiagSnapshot => ({
@@ -87,6 +89,28 @@ describe('buildHudLines', () => {
     expect(text).toContain('58');
     expect(text).toContain('4ms');
     expect(text).toContain('220ms');
+  });
+
+  it('shows how many robots are audible out of the roster', () => {
+    const lines = buildHudLines(snap({}, { audibleRobots: 7, totalRobots: 12 }), world, 0);
+    expect(lines.some((l) => l.includes('audible 7/12'))).toBe(true);
+  });
+
+  it('reads "audible 0/0" before any robot exists, and "0/12" when all are silenced', () => {
+    const empty = buildHudLines(snap({}, { audibleRobots: 0, totalRobots: 0 }), world, 0).join('\n');
+    expect(empty).toContain('audible 0/0');
+    expect(empty).not.toMatch(/NaN|undefined|null/);
+
+    const silent = buildHudLines(snap({}, { audibleRobots: 0, totalRobots: 12 }), world, 0).join('\n');
+    expect(silent).toContain('audible 0/12');
+  });
+
+  it('keeps the audible count on the same line as the voice count (no extra line to scroll)', () => {
+    const before = buildHudLines(snap({}, { audibleRobots: 0, totalRobots: 0 }), world, 0).length;
+    const after = buildHudLines(snap({}, { audibleRobots: 5, totalRobots: 12 }), world, 0).length;
+    expect(after).toBe(before);
+    const voicesLine = buildHudLines(snap(), world, 0).find((l) => l.startsWith('voices'));
+    expect(voicesLine).toContain('audible 5/12');
   });
 
   it('renders unknown values as a dash rather than "null" or "NaN"', () => {

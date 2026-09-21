@@ -37,6 +37,8 @@ const makeSnapshot = (ctxState = 'running'): DiagSnapshot => ({
     transport: 'started',
     globalLfosOn: 5,
     globalLfosTotal: 7,
+    audibleRobots: 4,
+    totalRobots: 12,
   },
 });
 
