@@ -5,7 +5,7 @@ import gsap from 'gsap';
 import * as Tone from 'tone';
 
 import { AudioEngine } from './AudioEngine';
-import { attachOutputTaps, detachOutputTaps, readOutputTaps } from './audioEngine/globalFx';
+import { attachOutputTaps, detachOutputTaps, getMasterVolume, readOutputTaps } from './audioEngine/globalFx';
 import { useAudioStore } from '../stores/audioStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
@@ -220,6 +220,21 @@ function readPlaybackStats(raw: RawContext): PlaybackReading | null {
   }
 }
 
+/**
+ * Would silence be a fault right now? Only when every excuse is ruled out: notes are in flight, the master is not
+ * muted (its volume is above 0), the transport is started and the context is running. Any one false and a silent
+ * master is expected. Known false positive: a sounding robot whose own volume is 0 is genuine silence with notes in
+ * flight — accepted for a debug tool.
+ */
+function expectSound(raw: RawContext): boolean {
+  return (
+    AudioEngine.getPolyphonyStats().voices > 0 &&
+    getMasterVolume() > 0 &&
+    Tone.getTransport().state === 'started' &&
+    raw.state === 'running'
+  );
+}
+
 /** Reduce one tap's buffer to a reading; null when the tap gave nothing or the buffer is empty. */
 function measureTap(buffer: Float32Array | null): LevelReading | null {
   return buffer ? measureLevel(buffer) : null;
@@ -238,6 +253,9 @@ function sample(): void {
     frames,
     hidden: typeof document !== 'undefined' && document.hidden,
     playback: playbackReading,
+    master: outputLevels.master,
+    pre: outputLevels.pre,
+    expectSound: expectSound(raw),
   });
   publish();
 }

@@ -32,7 +32,7 @@ const fakeRaw = {
 
 vi.mock('tone', () => ({
   getContext: () => ({ rawContext: fakeRaw, state: fakeRaw.state, latencyHint: 'playback', lookAhead: 0.1 }),
-  getTransport: () => ({ state: 'started' }),
+  getTransport: () => ({ state: fakeTransportState }),
 }));
 
 const tickerCallbacks = new Set<() => void>();
@@ -46,10 +46,13 @@ vi.mock('gsap', () => ({
 }));
 
 vi.mock('./AudioEngine', () => ({
-  AudioEngine: { getPolyphonyStats: () => ({ voices: 3, maxVoices: 16, step: 1 }) },
+  AudioEngine: { getPolyphonyStats: () => ({ voices: fakeVoices, maxVoices: 16, step: 1 }) },
 }));
 
 // Only the fields readInfo reads. `audioLoad` / `soundingRobotIds` are live, so a test can change them between samples.
+// Notes in flight and the transport state, live so a test can change them between samples.
+let fakeVoices = 3;
+let fakeTransportState = 'started';
 let fakeAudioLoad = 1;
 let fakeSoundingIds: string[] = [];
 vi.mock('../stores/audioStore', () => ({
@@ -83,8 +86,10 @@ const tapSpies = {
   attach: vi.fn(),
   detach: vi.fn(),
   read: vi.fn((): TapBuffers => ({ pre: null, master: null })),
+  volume: vi.fn(() => 1), // the master volume (0 = muted)
 };
 vi.mock('./audioEngine/globalFx', () => ({
+  getMasterVolume: () => tapSpies.volume(),
   attachOutputTaps: () => tapSpies.attach(),
   detachOutputTaps: () => tapSpies.detach(),
   readOutputTaps: () => tapSpies.read(),
@@ -124,6 +129,9 @@ describe('audioDiagnostics runtime', () => {
     fakeLocales = { L1: { robots: [] } };
     fakeAudioLoad = 1;
     fakeSoundingIds = [];
+    fakeVoices = 3;
+    fakeTransportState = 'started';
+    tapSpies.volume.mockReset();
     tapSpies.attach.mockClear();
     tapSpies.detach.mockClear();
     tapSpies.read.mockReset();
@@ -328,6 +336,96 @@ describe('audioDiagnostics runtime', () => {
       tapSpies.read.mockReturnValue({ pre: null, master: buffer(0) });
       advance();
       expect(levels().outputMaster?.peak).toBe(0);
+    });
+  });
+
+  describe('silence and non-finite events through the sampler', () => {
+    const silentMasterLivePre = () =>
+      tapSpies.read.mockReturnValue({ pre: Float32Array.from([0.2, -0.2]), master: new Float32Array(64) });
+    const texts = () => diag.getDiagnosticsSnapshot().timing.events.map((e) => e.text);
+    const silentEvent = () => texts().some((t) => /^master output silent for 3s while notes sound \(pre-chain normal\)$/.test(t));
+    const timing = () => diag.getDiagnosticsSnapshot().timing;
+    /** 4.5 s of samples: past the 3 s the event needs, however the first silent sample lines up. */
+    const settle = () => {
+      for (let i = 0; i < 9; i++) advance();
+    };
+
+    it('raises "silent while notes sound" when the master reads silent for 3 s with notes sounding, the master unmuted, the transport started and the context running', () => {
+      silentMasterLivePre();
+      settle();
+      expect(silentEvent()).toBe(true);
+      expect(timing().silentActive).toBe(true);
+    });
+
+    it('does not raise it when no notes are sounding (voices 0)', () => {
+      fakeVoices = 0;
+      silentMasterLivePre();
+      settle();
+      expect(silentEvent()).toBe(false);
+      expect(timing().silentActive).toBe(false);
+    });
+
+    it('does not raise it when the master is muted (master volume 0) — that silence is expected', () => {
+      tapSpies.volume.mockReturnValue(0);
+      silentMasterLivePre();
+      settle();
+      expect(silentEvent()).toBe(false);
+      expect(timing().silentActive).toBe(false);
+    });
+
+    it('does not raise it when the transport is not started', () => {
+      fakeTransportState = 'stopped';
+      silentMasterLivePre();
+      settle();
+      expect(silentEvent()).toBe(false);
+    });
+
+    it('does not raise it when the AudioContext is not running', () => {
+      fakeRaw.state = 'suspended';
+      silentMasterLivePre();
+      settle();
+      expect(silentEvent()).toBe(false);
+    });
+
+    it('does not raise it while the master is audible', () => {
+      tapSpies.read.mockReturnValue({ pre: Float32Array.from([0.2, -0.2]), master: Float32Array.from([0.3, -0.3]) });
+      settle();
+      expect(silentEvent()).toBe(false);
+    });
+
+    it('does not raise it when the taps give no reading at all (a tap that is not attached is no information)', () => {
+      settle(); // the default mock returns null for both taps
+      expect(silentEvent()).toBe(false);
+    });
+
+    it('logs the recovery, and clears the active flag, once the master is audible again', () => {
+      silentMasterLivePre();
+      settle();
+      tapSpies.read.mockReturnValue({ pre: Float32Array.from([0.2, -0.2]), master: Float32Array.from([0.3, -0.3]) });
+      advance();
+      expect(texts().at(-1)).toMatch(/^master output audible again after /);
+      expect(timing().silentActive).toBe(false);
+    });
+
+    it('raises a non-finite event, and sets the flag, when a tap reads NaN — and clears both when it reads clean', () => {
+      tapSpies.read.mockReturnValue({ pre: null, master: Float32Array.from([0.5, NaN, -0.5]) });
+      advance();
+      expect(texts()).toContain('non-finite samples in master output');
+      expect(timing().masterNonFinite).toBe(true);
+
+      tapSpies.read.mockReturnValue({ pre: null, master: Float32Array.from([0.5, -0.5]) });
+      advance();
+      expect(texts().at(-1)).toBe('master output finite again');
+      expect(timing().masterNonFinite).toBe(false);
+    });
+
+    it('takes the events and the published levels from the same single read of the taps', () => {
+      tapSpies.read.mockClear();
+      tapSpies.read.mockReturnValue({ pre: null, master: Float32Array.from([0.5, NaN]) });
+      advance();
+      expect(tapSpies.read).toHaveBeenCalledTimes(1);
+      expect(diag.getDiagnosticsSnapshot().info.outputMaster?.nonFinite).toBe(1);
+      expect(timing().masterNonFinite).toBe(true);
     });
   });
 

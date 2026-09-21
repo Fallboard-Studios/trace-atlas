@@ -34,6 +34,7 @@ export function hudStatus({ timing }: DiagSnapshot): 'ok' | 'bad' {
   if (timing.clockRate !== null && timing.clockRate < STALL_RATE_THRESHOLD) return 'bad';
   if (timing.fps !== null && timing.fps === 0) return 'bad';
   if (timing.underrunActive) return 'bad';
+  if (timing.silentActive || timing.masterNonFinite || timing.preNonFinite) return 'bad';
   return 'ok';
 }
 

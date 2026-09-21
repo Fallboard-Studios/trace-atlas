@@ -58,6 +58,24 @@ describe('hudStatus', () => {
   });
 });
 
+describe('hudStatus — silent output and non-finite samples', () => {
+  it('is bad while the master is silent with notes sounding, and ok again afterwards', () => {
+    expect(hudStatus(snap({ silentActive: true }))).toBe('bad');
+    expect(hudStatus(snap({ silentActive: false }))).toBe('ok');
+  });
+
+  it('is bad while either tap holds non-finite samples', () => {
+    expect(hudStatus(snap({ masterNonFinite: true }))).toBe('bad');
+    expect(hudStatus(snap({ preNonFinite: true }))).toBe('bad');
+    expect(hudStatus(snap({ masterNonFinite: false, preNonFinite: false }))).toBe('ok');
+  });
+
+  it('still reports the existing and underrun conditions alongside', () => {
+    expect(hudStatus(snap({ ctxState: 'suspended' }))).toBe('bad');
+    expect(hudStatus(snap({ underrunActive: true, silentActive: false }))).toBe('bad');
+  });
+});
+
 describe('hudStatus — playback underruns', () => {
   it('is bad while underruns are occurring, and ok again once they have stopped', () => {
     expect(hudStatus(snap({ underrunActive: true }))).toBe('bad');
