@@ -300,17 +300,91 @@ The desktop gates are recorded in [PERFORMANCE.md](../PERFORMANCE.md#audio-load-
 - `charlie` vs `bravo`: whether the LFO tiers matter on the phone as they do on the desktop.
 - If Light is **not** enough, that is a finding, not a failure: the spec's further levers are lazy voice chains (Phase B — measured a weak lever on its own), a lower robot floor than 2–4, and a raised Tone `lookAhead` (17.2.4, deliberately held).
 
-**Crawford's results (by ear) — to be filled in verbatim, then read plainly.**
+**Crawford's results (by ear), run 2026-09-21 — recorded verbatim below, then read plainly.** The table is a short summary of his notes; his own words follow it unedited. The overlay readings are **my transcription of his screenshots**, which arrived unlabelled and were matched to runs by the overlay's `load`, `latency` and world lines and by the phone clock. One run per row (three takes for run 7, several attempts for run 8); run 1 had no screenshots.
 
-| # | URL suffix | Dropouts | Clicks vs before | Overlay at the moment of clicks | Notes |
+| # | URL suffix | Dropouts | Clicks (his words, shortened) | Overlay at the moment of clicks | Notes |
 |---|---|---|---|---|---|
-| 1 | charlie · light | | | | |
-| 2 | charlie · standard | | | | |
-| 3 | charlie · standard + playback | | | | |
-| 4 | charlie · full | | | | |
-| 5 | bravo · light | | | | |
-| 6 | bravo · standard | | | | |
-| 7 | bravo · standard + playback | | | | |
-| 8 | bravo · full | | | | |
+| 1 | charlie · light | none | none — "all green, no distortion at all for 7 minutes" | no screenshots; all green | |
+| 2 | charlie · standard | none (a moment of silence at 2:22 when he tapped away from the tab) | "very occasional clicks, like one every few seconds" 0:50–1:30; more ~2:00–2:15; again from 4:34; "too much for my requirements" | never red | low battery, not charging (see conditions) |
+| 3 | charlie · standard + playback | none | "A few clicks starting around 3:44 til 3:55, but not many" | never red | charging |
+| 4 | charlie · full | none | light clicks from 0:32; more ~1:15; clear ~1:40–2:00; clicks even in the ~3:35 quiet part; more ~4:30 | never red | charging |
+| 5 | bravo · light | none | "Very light clicks" from ~0:40, on and off; "pretty bad" ~4:50 | never red | charging |
+| 6 | bravo · standard | one, ~4:55–5:02 | "bad at 1:05", clean for 10 s ~2:05, "really bad around 2:50 - 4:50" | never red | charging |
+| 7 | bravo · standard + playback | take 1: out ~0:40 and silent until he changed coordinates at ~4:55; take 2: out ~1:00; take 3: out ~0:30; take 4 (reported afterwards): none reported by 1:15, then ~3 s of distortion (may still have been running) | take 1: light clicks from ~0:15; red seen "several times around 1:20"; take 4: "havent' had any distortion yet til 1:15" | see transcription (takes 1–3; no screenshots of take 4 yet) | power button (~3:20), mute/unmute and tempo did not recover it; new coordinates did, after ~6 s |
+| 8 | bravo · full | out by 0:32 (one second back at ~0:40), then out; a refresh, a second try and a Chrome restart played nothing | "Opened to distortion and UI issues" | see transcription | charging |
 
-**Plain reading:** *(pending — which part of Light does the work, whether Standard needs `playback`, and what remains if Light is not enough)*.
+**Crawford's notes, verbatim** (typos and all; the run order is his):
+
+```text
+?debug&seed=charlie&x=200&y=-30&load=light
+No issues (all green, no distortion at all for 7 minutes
+
+http://192.168.12.231:4173/trace-atlas/?debug&seed=charlie&x=200&y=-30&load=standard
+Around :50 - 1:30 there were very occasional clicks, like one every few seconds, here are some sample screenshots of the time. Again around 2:00 there were more, but the soon dissipated (like around 2:15) At 2:22 i accidentally tapped away to a screenshot editing screen, went immediately back, and audio was stopped for just a moment before picking up seeming without issue, and i'm ok with it taking a moment to get its bearings when taken out of focus. Around 4:34 clicking started back up. Overall, nothing turned red, and while the clicking was too much for my requirements, it was not too bad given the state of things.
+
+http://192.168.12.231:4173/trace-atlas/?debug&seed=charlie&x=200&y=-30&load=standard&latency=playback
+A few clicks starting around 3:44 til 3:55, but not many. Nothing turned red, nothing else to report.
+
+http://192.168.12.231:4173/trace-atlas/?debug&seed=charlie&x=200&y=-30&load=full
+Clicks start around 0:32, but only a little. A little uptick around 1:15, but clear again around 1:40 til around 2:00, then just light clicks. Even at the 3:35ish quiet part there were clicks. Around 4:30 there were even more clicks for a little bit. Never turned red.
+
+http://192.168.12.231:4173/trace-atlas/?debug&seed=bravo&x=-150&y=90&load=light
+Very light clicks started around 0:40 for about 20 seconds. Again starting at 1:50 - 2:00. Very light clicks til about 3:00 when it picked up a bit til around 3:30, when it went back to very light clicks continually, around 4:50 it got pretty bad.
+
+http://192.168.12.231:4173/trace-atlas/?debug&seed=bravo&x=-150&y=90&load=standard
+A few clicks start at 0:50, it's bad at 1:05, but gradually gets better til about 1:30, then it picks back up again until 2:05. Then it's clean for 10 seconds! Then it's bad again for a while. It's really bad around 2:50 - 4:50, and around 4:55 it cut out til 5:02
+
+http://192.168.12.231:4173/trace-atlas/?debug&seed=bravo&x=-150&y=90&load=standard&latency=playback
+Light clicks start around :15. Completely cut out around 0:40. I see now that i might have missed red before because it flashes really quickly, but this time i saw it several times around 1:20 or so. At 3:20ish i hit the power button to see if that would get sound back. It did not, nor did mute/unmute, or changing tempo. Retransmitting to new AS and coords did, with about a 6 second delay, which i did around 4:55.
+
+I ran it a second time, this time it made it til about 1:00 before cutting out.
+Third time, it started off scratchy, had some ui issues, and at :30 it cut out entirely
+
+(sent afterwards, as two separate messages, while this was being recorded:)
+i'm running http://192.168.12.231:4173/trace-atlas/?debug&seed=bravo&x=-150&y=90&load=standard&latency=playback again, and now i havent' had any distortion yet til 1:15 in
+and then it was only for like 3 seconds
+
+http://192.168.12.231:4173/trace-atlas/?debug&seed=bravo&x=-150&y=90&load=full
+
+Opened to distortion and UI issues recorded. Completely out by 0:32, but came in briefly at 0:40 for one second tops. Then out again indefinitely.
+
+I refreshed, and it loaded without playing anything. Tried again, still nothing. Restarted chrome, still nothing.
+```
+
+**Conditions visible in the screenshots** (the protocol asked for the phone unplugged, brightness fixed, and a cool-down between runs; none of this was asked of him, it is what the status bar shows):
+- **Charging.** The lightning bolt is in the status bar in every screenshot from 12:39 on — runs 3 to 8 — so all bravo runs were on a charging phone. Run 2's screenshots (12:00–12:03) show no bolt, a battery icon that has gone red by 12:03, and what looks like the battery-saver icon; that run was on a nearly empty battery.
+- **Back to back.** Phone-clock start times from the screenshots: run 2 ≈ 11:59, run 3 ≈ 12:35, run 4 ≈ 1:08, run 5 ≈ 1:17, run 6 ≈ 1:27, run 7 ≈ 1:36 / 1:43 / 1:44 (three takes), run 8 ≈ 1:50 onward. The bravo runs were about ten minutes apart, five minutes each, and the worst ones came last.
+- **Stopwatch offset.** The overlay's `up` and his stopwatch can differ by a few seconds (the context starts 1–8 s into `up`), so matches "to the second" below are approximate.
+
+**Overlay transcription** (mine, from the screenshots; `up` is the overlay's uptime; `poly` is used/cap; "start-up" events are the ones stamped 0:01–0:08):
+
+| Run | Shots (`up`) | Sounding · poly | Audio clock | Events beyond start-up | fps · lag |
+|---|---|---|---|---|---|
+| 2 charlie standard | 4 (0:57–4:42) | 7–8 of 8 · 6–10/12 | x1.00 | `2:22 audio clock stalled (x0.24), recovered after 1.5s` (his tap-away); start-up `stalled (x0.49)` for 0.9 s | 38–60 · ≤ 7 ms (max 399) |
+| 3 charlie standard + playback | 1 (3:46) | 5 of 8 · 3/12 | x0.97 | none; `latency playback … base 21ms` | 56 · 3 ms (max 236) |
+| 4 charlie full | 6 (0:34–4:37) | 3–8 of 12 · 2–10/16 | x1.00–1.01 | none | 45–57 · ≤ 12 ms (max 249) |
+| 5 bravo light | 5 (0:56–4:52) | 4 of 4, standing by 0–3 · 4–7/8 | x0.96–1.06 | none; `latency playback … base 21ms` | 33–46 · ≤ 45 ms (max 124) |
+| 6 bravo standard | 8 (0:54–4:58) | 1–7 of 8 · 2–11/12 | x1.00–1.01 | none; start-up `audio clock stalled (x0.01)` 0.5 s only | 35–59 · ≤ 1 ms (max 29→106) |
+| 7 take 1 (bravo standard + playback) | 8 (0:19–4:56) | 4–8 of 8 · 5–12/12 | x0.96 → x0.68 (up 1:19, 1:27) → x0.94–1.02 | `audio clock stalled` at up 1:02 (x0.45), 1:13 (x0.28), 1:18 (x0.43), 1:19 (x0.47), 1:27 (x0.47), each recovering in 0.4–0.5 s; `main thread stalled` ~1501 ms at 3:22, ~579 ms at 4:24, ~715 ms at 4:44; start-up main-thread stall ~1049 ms | 16–52 · ≤ 24 ms (fps 16 at up 1:19) |
+| 7 take 2 | 1 (0:53) | 7 of 8 · 6/12 | x0.98 | start-up main-thread stall ~915 ms | 37 · 0 |
+| 7 take 3 | 1 (0:34) | 7 of 8 · 6/12 | x0.86 | `UI frames stopped/resumed` three times, main-thread stall ~1300 ms, all at start-up | 32 · 0 |
+| 8 bravo full, first take | 2 (0:12, 0:45) | 4 → 8 of 12 · 7 → **15/16** | x1.00–1.01 | start-up main-thread stall ~1077 ms + `UI frames stopped/resumed` | 43–52 · 0–4 ms |
+| 8 bravo full, the three later attempts (1:52–1:53, 12–15 s after load) | 3 (0:12–0:15) | 4 of 12 · 4–7/16 | x0.88–1.04 | start-up main-thread stalls ~0.9–1.2 s; one start-up `audio clock stalled (x0.01)` 0.6 s | 27–38 · ≤ 25 ms |
+
+Every run shows `context suspended → running` a few seconds in. Every screenshot has `LFOs 5/7` on bravo and `0/7` on charlie, and the `latency … base …ms` line matched the preset (playback 21 ms, interactive 5 ms).
+
+**Plain reading** (n = 1 per row, by ear, with the confounders above — suggestive, not established):
+
+1. **Light is the only preset that was clean or nearly clean on both worlds.** `charlie` was clean for seven minutes. `bravo` had very light clicks throughout and got "pretty bad" at ~4:50, but no full dropout in five minutes; on 2026-09-20 the same world with no preset (today's behavior) dropped out three or more times. Every other preset clicked more or dropped out on the same world. The direction matches the desktop numbers (Light −29 % / −37 %).
+2. **Which part of Light does the work cannot be separated from this run.** Light changes several things at once (4 robots, 8 notes, no drift, no filter LFOs, robot-LFO cap 4, `playback`), and only one pair on the phone differs in a single lever (runs 2 vs 3, latency). What the rows do say: on `charlie` (no global LFOs) Light was clean, Standard + playback nearly clean, Standard in waves and Full lightly clicking, so on that world the robot cap and the latency hint both look like they matter. On `bravo` (five global LFOs) the presets that keep the filter LFOs — Standard, with or without `playback` — were the ones that failed hard, and Light, which drops them, did not; that fits the desktop cost of filter-frequency/Q LFOs (≈ +0.06 each) but the 4-robot cap is a second difference and cannot be told apart from it here.
+3. **Decision J (does Standard need `playback`) is not settled.** On `charlie` it helped a little (waves of clicks → a few clicks at 3:44–3:55). On `bravo` the first three takes looked worse: all cut out within a minute, whereas Standard without it held until ~4:55. But the first three ran third in a row on a charging, warming phone, and the Standard-without-`playback` run ran before them, so an order effect was as likely as a `playback` effect. **A fourth take of the same URL, run afterwards, was clean until 1:15 and then distorted for only ~3 s** (his report; no screenshots yet, and whether it was cooled, unplugged or still running is not known). So the same URL has now ranged from out-by-0:30 to clean-past-a-minute: run-to-run variance on the phone is large, and one take per preset cannot rank Standard against Standard + `playback`. The run that would settle it — several takes of each, alternating, unplugged and cooled — was not done.
+4. **What the overlay showed, and what it could not.**
+   - Clicks in every run left **no event** in the log: after the start-up lines nothing is recorded, though he heard clicks in runs 2 to 6. The stall detector flags stalls of roughly 0.4 s and up; clicks are shorter. A quiet log does not mean clean audio.
+   - **Run 6's dropout left no trace.** At `up` 4:58 — inside his 4:55–5:02 silence, give or take the stopwatch offset — the overlay reads `ctx running`, `clock x1.01`, `fps 38`, `lag 0ms`, `sounding 7/8`, and nothing was logged. That answers the open question from 2026-09-20 for this dropout: silence with everything the overlay measures looking normal.
+   - **Run 7 take 1 did record real audio-thread starvation**, at the time he saw red (~1:20): five windows between `up` 1:02 and 1:27 where the audio clock ran at ×0.28–0.47 of real time, the readout at ×0.68 and fps down to 16 at 1:19. But he was already silent at ~0:40, before the first flagged stall, and after 1:27 no further stalls were logged while it stayed silent for minutes: at `up` 2:52 and 3:30 the context was `running` with the clock at x0.94–0.95. So the long silence was not an audio-clock stall.
+   - **Run 8: silence while the app saw nothing wrong.** The three later attempts (12–15 s after load; they match his "refreshed … tried again … restarted Chrome") show notes being triggered (`poly` 4–7/16, `sounding` 4/12), `ctx running` and a clock at x0.88–1.04, while he heard nothing. Nothing the overlay measures distinguishes them from a working start.
+5. **Recovery, and a correction to what I said earlier this session.** Power off/on, mute/unmute and a tempo change did not bring the sound back; retransmitting to new coordinates did, after ~6 s. I first read that as pointing at a fault latched in the global FX chain. From the code that does not hold: `buildGlobalFxChain` runs once (`loadInstruments`), and an Attenuation Style or locale change only pushes new *values* to the same nodes (`regenerateGlobalAudioFromSeed` → `applyGlobalAudioToEngine`), while the recovery screenshot still says `bravo` and `LFOs 5/7` — the seed was pinned by the URL and only the coordinates changed. So the FX chain and the LFO set were not rebuilt or changed. What else a locale switch replaces (the roster and its voice chains are the obvious candidate) has **not been checked**; per-robot state is a candidate, the output stream is another, and neither is tested. What can be said: the 1.5 s `main thread stalled` at up 3:22 lines up with his power-button press, consistent with the power cycle's heavy re-registration of every voice chain — and it did not help.
+6. **What remains if Light is not enough.** Light still clicked on `bravo`, and clicks happen in quiet moments: run 4's screenshot at `up` 3:32 — his "3:35ish quiet part" — reads `audible 3/12`, `voices 2/16`; run 6 was "really bad around 2:50 - 4:50" with `poly` 3–9/12. So the cost is not only the robots sounding: the always-on graph (~1,000 nodes, all 12 robots' voice chains built) is a candidate, which would make the spec's deferred Phase B (lazy voice chains; measured a weak lever on desktop) worth re-measuring on the phone rather than dismissing. The other levers already named — a lower robot floor than 2–4 and a raised Tone `lookAhead` (17.2.4, held) — stand.
+7. **Confounders to weigh before leaning on any of this.** Charging on runs 3 to 8, a nearly empty battery on run 2, back-to-back runs with the worst last, one run per cell (and the one cell with four takes ranging from out-by-0:30 to nearly clean), judged by ear, and a phone whose Chrome could not play anything after run 8 even after a restart (whether other apps could was not reported).
+
+**Not decided here** (Crawford's calls): whether Standard takes `playback` (decision J), what to do about Standard's missed desktop gate ([PERFORMANCE.md](../PERFORMANCE.md#decision-for-crawford-plan-task-24-report-a-missed-gate-do-not-re-tune)), and whether to re-run the `bravo` Standard / Standard + `playback` / Full runs unplugged, cooled, and in a different order.

@@ -1,6 +1,6 @@
 # Implementation Plan: Audio Load Budget
 
-Source spec: [docs/specs/AUDIO_LOAD_BUDGET.md](../specs/AUDIO_LOAD_BUDGET.md) (implemented 2026-09-20/21; see "As Shipped" at the end — task 25, the phone run, is Crawford's). Covers [Roadmap 17.2.6](../todo/roadmap.md#1726-performance-audio-load-budget). Background and measurements: [docs/todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md).
+Source spec: [docs/specs/AUDIO_LOAD_BUDGET.md](../specs/AUDIO_LOAD_BUDGET.md) (implemented 2026-09-20/21; see "As Shipped" at the end — task 25, the phone run, was Crawford's and is recorded 2026-09-21). Covers [Roadmap 17.2.6](../todo/roadmap.md#1726-performance-audio-load-budget). Background and measurements: [docs/todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md).
 
 ## Overview
 
@@ -586,7 +586,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (docs only; ~45 minutes of runs)
 
-- [ ] **Task 25: Phone protocol and Crawford's run**
+- [x] **Task 25: Phone protocol and Crawford's run**
 
   **Description:** Prepare everything Crawford needs for the Pixel (spec §5.3 criterion 6), then record what he reports. The run itself is his.
 
@@ -659,7 +659,7 @@ None blocking. For Crawford at the checkpoints: the lore/label copy for the Audi
 
 ## As Shipped — deviations (2026-09-21)
 
-Tasks 1–24 and 26 are done (task-level boxes above are ticked); **task 25 is prepared and waits on Crawford's phone run**. Each task's acceptance criteria were met and are evidenced by its commit message and tests (the per-criterion boxes were not ticked individually). Order of work followed the plan; Checkpoint A was reported and continued, **Checkpoint C (task 11) stopped on a missed gate and resumed on Crawford's decision (option 2, spec decision M)**, Checkpoints B, D, E and the task-24 gate were run as written.
+Tasks 1–26 are done (task-level boxes above are ticked); **task 25's phone run was done by Crawford on 2026-09-21 and is recorded with a plain reading in the scratchy-audio doc — the reading leaves decision J and the missed task-24 gate open**. Each task's acceptance criteria were met and are evidenced by its commit message and tests (the per-criterion boxes were not ticked individually). Order of work followed the plan; Checkpoint A was reported and continued, **Checkpoint C (task 11) stopped on a missed gate and resumed on Crawford's decision (option 2, spec decision M)**, Checkpoints B, D, E and the task-24 gate were run as written.
 
 Deviations, by task (the full list with reasons is in [the spec's §8](../specs/AUDIO_LOAD_BUDGET.md#8-as-shipped-2026-09-21)):
 - **Task 2** was a rewrite, not a promotion — the scratch scripts had not been kept. Later additions: the `audible` and caps columns (tasks 1 and 10), `world@page` for same-session A/B builds (task 24).
