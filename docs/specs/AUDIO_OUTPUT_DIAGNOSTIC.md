@@ -8,7 +8,7 @@
 > - Dev server: `npm run dev`
 > - Phone preview over the LAN: `npm run build && npx vite preview --host --port 4173`, then on the phone `http://<pc-ip>:4173/trace-atlas/?debug&seed=bravo&x=-150&y=90&load=full` (`ipconfig` for the address)
 
-**Status:** Draft v1 for review — nothing built. Written 2026-09-21 on branch `bugs/scratchy-audio-phones`. Approved in principle by Crawford as decision **P** in [AUDIO_LOAD_BUDGET.md §7](AUDIO_LOAD_BUDGET.md#decisions-resolved-2026-09-20-crawford) (the full version, including a second tap before the FX chain and a hook so taps survive the Natural/Controlled Decay toggle). Roadmap: a follow-up to 17.2.6, not a new phase.
+**Status:** Draft v2 — approved by Crawford 2026-09-21 (the four open questions resolved as proposed, §7); plan and tasks in [docs/tasks/AUDIO_OUTPUT_DIAGNOSTIC.md](../tasks/AUDIO_OUTPUT_DIAGNOSTIC.md); nothing built. Written 2026-09-21 on branch `bugs/scratchy-audio-phones`. Approved in principle by Crawford as decision **P** in [AUDIO_LOAD_BUDGET.md §7](AUDIO_LOAD_BUDGET.md#decisions-resolved-2026-09-20-crawford) (the full version, including a second tap before the FX chain and a hook so taps survive the Natural/Controlled Decay toggle). Roadmap: a follow-up to 17.2.6, not a new phase.
 
 ---
 
@@ -149,7 +149,7 @@ Vitest; tests co-located (`audioHealth.test.ts`, `audioDiagnostics.test.ts`, `gl
 * **Mutation checks (each must be seen to fail):** remove the re-attach hook → the toggle test fails; drop the `voices > 0` term → the not-raised test fails; drop the master-volume guard → the mute test fails; change `SILENT_EVENT_AFTER_MS` semantics (`>=` vs `>`) → the boundary test fails; construct analysers in `buildGlobalFxChain` → the zero-analysers test fails.
 
 ### 5.3 Success criteria
-1. **No cost without `?debug` (deterministic).** With diagnostics never started, no analyser is constructed by `buildGlobalFxChain`, `wireGlobalFxChain(false)` or `wireGlobalFxChain(true)`, and the **whole existing suite passes with no existing test modified** (152 files / 3191 tests before this work).
+1. **No cost without `?debug` (deterministic).** With diagnostics never started, no analyser is constructed by `buildGlobalFxChain`, `wireGlobalFxChain(false)` or `wireGlobalFxChain(true)`, and the **whole existing suite passes with no existing test case or assertion altered** (152 files / 3191 tests before this work; adding a mock or setup to a test file so it can import a changed module is allowed).
 2. **Order-independent (deterministic).** Taps are connected whether the overlay started before or after the chain was built.
 3. **Survives the toggle (deterministic).** Both taps stay connected across `wireGlobalFxChain(true)` and `(false)`; removing the hook makes the test fail.
 4. **Level math (deterministic)** as in §5.2, including NaN/Inf handling and the empty buffer.
@@ -179,7 +179,7 @@ Vitest; tests co-located (`audioHealth.test.ts`, `audioDiagnostics.test.ts`, `gl
 
 ## 7. Open Questions & Risks
 
-### Open questions (for Crawford)
+### Open questions — all four resolved 2026-09-21 (Crawford accepted the proposals as written)
 
 1. **Thresholds.** Silent = master peak below **−80 dBFS** for **3 s**. Both are constants; tighter/looser? (Every observed dropout was seconds to minutes, so 3 s should lose nothing.)
 2. **Underrun logging.** Proposed: one "began" and one "stopped" edge event per burst (quiet ≥ 1 s ends a burst), plus the running total in the line, so a click storm cannot flush the 8-line log. Alternative: the line only, no events.
