@@ -40,7 +40,8 @@ const POLL_MS = 500;
 
 const HELP = `Usage: npm run perf:audio -- [flags]
 
-  --world <spec>     one pinned world, name:x:y (e.g. charlie:200:-30). Appending a query string carries it
+  --world <spec>     one pinned world, name:x:y (e.g. charlie:200:-30). An optional @page names another page under --url
+                     (two builds served side by side: charlie:200:-30@pre.html). Appending a query string carries it
                      into the page URL, so variants of one world can be A/B-ed: charlie:200:-30?load=light
   --worlds <list>    comma-separated worlds, run one after another in fresh browsers
                      (e.g. charlie:200:-30,bravo:-150:90). One of --world / --worlds is required.

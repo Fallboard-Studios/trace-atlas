@@ -9,7 +9,7 @@
 // WORLD SPECS AND URLS
 // ========================================
 
-const WORLD_SPEC = /^([^:?\s]+):(-?\d+):(-?\d+)(?:\?(.*))?$/;
+const WORLD_SPEC = /^([^:?@\s]+):(-?\d+):(-?\d+)(?:@([^?\s]+))?(?:\?(.*))?$/;
 
 /**
  * Parse `name:x:y` (optionally `name:x:y?extra=query`) into a pinned world. `name` becomes `?seed=`,
@@ -22,8 +22,8 @@ export function parseWorldSpec(spec) {
   if (!match) {
     throw new Error(`Invalid world "${trimmed}" — expected name:x:y with integer coordinates, e.g. charlie:200:-30`);
   }
-  const [, seed, x, y, query] = match;
-  return { label: trimmed, seed, x: Number(x), y: Number(y), query: query ?? '' };
+  const [, seed, x, y, page, query] = match;
+  return { label: trimmed, seed, x: Number(x), y: Number(y), ...(page ? { page } : {}), query: query ?? '' };
 }
 
 /** Parse a comma-separated list of world specs; empty entries are skipped, an empty list is an error. */
@@ -54,7 +54,7 @@ export function buildPageUrl(baseUrl, world, { debug = true } = {}) {
   if (debug) parts.push('debug');
   parts.push(`seed=${encodeURIComponent(world.seed)}`, `x=${world.x}`, `y=${world.y}`);
   if (world.query) parts.push(world.query);
-  const url = new URL(baseUrl);
+  const url = world.page ? new URL(world.page, baseUrl) : new URL(baseUrl);
   url.hash = '';
   url.search = `?${parts.join('&')}`;
   return url.toString();

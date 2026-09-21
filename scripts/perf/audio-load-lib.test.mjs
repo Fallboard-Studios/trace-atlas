@@ -61,12 +61,20 @@ describe('parseWorldSpec', () => {
     expect(parseWorldSpec('charlie:200:-30?load=light&latency=playback').query).toBe('load=light&latency=playback');
   });
 
+  it('carries an optional page after @, so two builds served side by side can be A/B-ed in one invocation', () => {
+    expect(parseWorldSpec('charlie:200:-30@pre.html')).toMatchObject({ seed: 'charlie', x: 200, y: -30, page: 'pre.html', query: '' });
+    const both = parseWorldSpec('bravo:-150:90@builds/pre.html?load=full');
+    expect(both).toMatchObject({ x: -150, y: 90, page: 'builds/pre.html', query: 'load=full' });
+    expect(both.label).toBe('bravo:-150:90@builds/pre.html?load=full');
+    expect(parseWorldSpec('charlie:200:-30').page).toBeUndefined();
+  });
+
   it('ignores surrounding whitespace', () => {
     expect(parseWorldSpec('  charlie:200:-30  ')).toMatchObject({ seed: 'charlie', x: 200, y: -30 });
   });
 
   it('rejects specs that are not name:x:y with integer coordinates', () => {
-    for (const bad of ['', 'charlie', 'charlie:200', ':200:-30', 'charlie:a:b', 'charlie:1.5:2', 'charlie:200:-30:9', 'charlie:200:']) {
+    for (const bad of ['charlie:200:-30@', 'charlie:200:-30@ x', '', 'charlie', 'charlie:200', ':200:-30', 'charlie:a:b', 'charlie:1.5:2', 'charlie:200:-30:9', 'charlie:200:']) {
       expect(() => parseWorldSpec(bad), bad).toThrow(/world/i);
     }
   });
@@ -130,6 +138,15 @@ describe('buildPageUrl', () => {
   it('appends the world’s extra query after the pinned params', () => {
     const url = buildPageUrl(base, parseWorldSpec('charlie:200:-30?load=light'));
     expect(url).toBe('http://localhost:4173/trace-atlas/?debug&seed=charlie&x=200&y=-30&load=light');
+  });
+
+  it('resolves the world page against the base URL, keeping the pinned params', () => {
+    const url = buildPageUrl(base, parseWorldSpec('charlie:200:-30@pre.html?load=full'));
+    expect(url).toBe('http://localhost:4173/trace-atlas/pre.html?debug&seed=charlie&x=200&y=-30&load=full');
+  });
+
+  it('keeps the base URL page when the world names none', () => {
+    expect(buildPageUrl('http://localhost:4173/trace-atlas/index.html', world)).toBe('http://localhost:4173/trace-atlas/index.html?debug&seed=charlie&x=200&y=-30');
   });
 
   it('can leave the overlay off', () => {
