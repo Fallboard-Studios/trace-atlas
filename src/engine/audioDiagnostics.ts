@@ -170,14 +170,37 @@ function publish(): void {
 }
 
 /**
+ * Tone's `rawContext` is a `standardized-audio-context` wrapper, not the browser's own AudioContext, and it does not
+ * forward `playbackStats` (found in the real browser: the overlay read `underruns n/a` on Chrome 153). The wrapper
+ * keeps the native context in TypeScript-private fields, so look there too — reading a private field of a
+ * dependency is fragile, which is why every step is defensive and the worst case is `n/a`.
+ */
+const NATIVE_CONTEXT_FIELDS = ['_nativeAudioContext', '_nativeContext'] as const;
+
+/** The first `playbackStats` object found on the context itself (a later wrapper may forward it) or on its native context. */
+function findPlaybackStats(raw: RawContext): Record<string, unknown> | null {
+  const holders: unknown[] = [raw, ...NATIVE_CONTEXT_FIELDS.map((key) => (raw as unknown as Record<string, unknown>)[key])];
+  for (const holder of holders) {
+    try {
+      if (!holder || typeof holder !== 'object') continue;
+      const stats = (holder as { playbackStats?: unknown }).playbackStats;
+      if (stats && typeof stats === 'object') return stats as Record<string, unknown>;
+    } catch {
+      // A holder whose playbackStats cannot be read is skipped; the next one may still answer.
+    }
+  }
+  return null;
+}
+
+/**
  * Read `AudioContext.playbackStats` without ever writing to it: null when the API is absent, the getter throws, or the
  * underrun count is not a finite number; any other unreadable field becomes NaN (the overlay shows a dash).
  * `resetLatency()` is deliberately never called — it would move the browser's own measurement interval.
  */
 function readPlaybackStats(raw: RawContext): PlaybackReading | null {
   try {
-    const stats = raw.playbackStats as Record<string, unknown> | undefined | null;
-    if (!stats || typeof stats !== 'object') return null;
+    const stats = findPlaybackStats(raw);
+    if (!stats) return null;
     const field = (key: string): number => {
       const value = stats[key];
       return typeof value === 'number' && Number.isFinite(value) ? value : NaN;

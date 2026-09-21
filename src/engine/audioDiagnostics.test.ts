@@ -14,6 +14,10 @@ const fakeRaw = {
   baseLatency: 0.02,
   // AudioContext.playbackStats: absent unless a test sets it (the API is Chrome 146+).
   playbackStats: undefined as unknown,
+  // Tone's context is a standardized-audio-context wrapper, which keeps the NATIVE context (the one that has
+  // playbackStats) in TypeScript-private fields. Absent unless a test sets them.
+  _nativeAudioContext: undefined as unknown,
+  _nativeContext: undefined as unknown,
   listeners: new Map<string, Listener[]>(),
   addEventListener(name: string, cb: Listener) {
     this.listeners.set(name, [...(this.listeners.get(name) ?? []), cb]);
@@ -113,6 +117,8 @@ describe('audioDiagnostics runtime', () => {
     fakeRaw.listeners.clear();
     // A plain writable property again, even if an earlier test replaced it with a throwing getter.
     Object.defineProperty(fakeRaw, 'playbackStats', { value: undefined, writable: true, configurable: true });
+    fakeRaw._nativeAudioContext = undefined;
+    fakeRaw._nativeContext = undefined;
     tickerCallbacks.clear();
     fakeActiveLocaleId = 'L1';
     fakeLocales = { L1: { robots: [] } };
@@ -347,6 +353,59 @@ describe('audioDiagnostics runtime', () => {
     it('publishes null when the API is absent, and does not throw', () => {
       expect(() => advance()).not.toThrow();
       expect(playback()).toBeNull();
+    });
+
+    describe('finding the stats behind Tone’s wrapper (found in the real browser: the wrapper does not forward them)', () => {
+      it('reads them from the native context the wrapper keeps in _nativeAudioContext', () => {
+        fakeRaw._nativeAudioContext = { playbackStats: stats(4) };
+        advance();
+        expect(playback()).toEqual(stats(4));
+      });
+
+      it('falls back to _nativeContext (the base-class field) when _nativeAudioContext is not there', () => {
+        fakeRaw._nativeContext = { playbackStats: stats(6) };
+        advance();
+        expect(playback()).toEqual(stats(6));
+      });
+
+      it('prefers the context’s own playbackStats over the native fields, in case a later wrapper forwards them', () => {
+        fakeRaw.playbackStats = stats(1);
+        fakeRaw._nativeAudioContext = { playbackStats: stats(9) };
+        advance();
+        expect(playback()?.underrunEvents).toBe(1);
+      });
+
+      it('skips a holder whose playbackStats throws and carries on to the next one', () => {
+        Object.defineProperty(fakeRaw, 'playbackStats', {
+          get() {
+            throw new Error('not allowed here');
+          },
+          configurable: true,
+        });
+        fakeRaw._nativeAudioContext = { playbackStats: stats(2) };
+        advance();
+        expect(playback()).toEqual(stats(2));
+      });
+
+      it('ignores a native field that is not an object, or has no playbackStats, and reads null', () => {
+        fakeRaw._nativeAudioContext = 'not a context';
+        fakeRaw._nativeContext = {};
+        expect(() => advance()).not.toThrow();
+        expect(playback()).toBeNull();
+      });
+
+      it('publishes null when the native context has playbackStats that is not an object', () => {
+        fakeRaw._nativeAudioContext = { playbackStats: 42 };
+        advance();
+        expect(playback()).toBeNull();
+      });
+
+      it('skips a holder whose playbackStats is not an object and carries on to the next one', () => {
+        fakeRaw.playbackStats = 42;
+        fakeRaw._nativeAudioContext = { playbackStats: stats(3) };
+        advance();
+        expect(playback()).toEqual(stats(3));
+      });
     });
 
     it('publishes null, and does not throw, when reading playbackStats throws', () => {
