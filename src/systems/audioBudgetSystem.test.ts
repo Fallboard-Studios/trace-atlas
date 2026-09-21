@@ -12,6 +12,7 @@ import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DockingState } from '../types/Robot';
 import type { Robot } from '../types/Robot';
 import { MAX_POLYPHONY } from '../constants';
+import { resolveInitialAudioLoad } from '../utils/audioBudget';
 import { isRobotAudible } from '../utils/robotAudibility';
 
 // ========================================
@@ -414,6 +415,153 @@ describe('audioBudgetSystem', () => {
       expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(8);
       setRoster(roster(7)); // and it keeps reacting afterwards
       expect(sounding()).toEqual(['r1', 'r2', 'r3', 'r4']);
+    });
+  });
+
+  // Decision H: the chosen preset is mirrored into the URL (replaceState, other params kept) so a reload keeps it.
+  describe('URL mirror', () => {
+    const originalMatchMedia = window.matchMedia;
+    const setUrl = (search: string, hash = '') => window.history.replaceState({}, '', `/trace-atlas/${search}${hash}`);
+    const phone = () => {
+      window.matchMedia = vi.fn((q: string) => ({ matches: q === '(pointer: coarse)' })) as unknown as typeof window.matchMedia;
+    };
+
+    beforeEach(() => {
+      setUrl('');
+    });
+
+    afterEach(() => {
+      window.history.replaceState({}, '', '/');
+      window.matchMedia = originalMatchMedia;
+    });
+
+    it('writes ?load= when the dial changes, leaving seed, x, y, debug and latency intact', () => {
+      setUrl('?debug&seed=bravo&x=-150&y=90&latency=playback');
+      startAudioBudget();
+
+      useAudioStore.getState().setAudioLoad(0.2);
+
+      expect(window.location.search).toBe('?debug&seed=bravo&x=-150&y=90&latency=playback&load=light');
+    });
+
+    it('keeps the path and the hash, and adds no history entries', () => {
+      setUrl('?debug', '#section');
+      startAudioBudget();
+      const entries = window.history.length;
+      const push = vi.spyOn(window.history, 'pushState');
+
+      useAudioStore.getState().setAudioLoad(0.6);
+      useAudioStore.getState().setAudioLoad(0.45);
+
+      expect(window.location.pathname).toBe('/trace-atlas/');
+      expect(window.location.hash).toBe('#section');
+      expect(window.location.search).toBe('?debug&load=45');
+      expect(window.history.length).toBe(entries);
+      expect(push).not.toHaveBeenCalled();
+      push.mockRestore();
+    });
+
+    it('writes the preset name at a preset and a whole percent between presets', () => {
+      startAudioBudget();
+      const at = (load: number) => {
+        useAudioStore.getState().setAudioLoad(load);
+        return window.location.search;
+      };
+      expect(at(0.2)).toBe('?load=light');
+      expect(at(0.6)).toBe('?load=standard');
+      expect(at(0.37)).toBe('?load=37');
+      expect(at(1)).toBe(''); // Full is the desktop default and ?load= was absent at boot, so it is removed
+    });
+
+    it('removes ?load= when set back to Full on a desktop, if it was absent at boot', () => {
+      startAudioBudget();
+      useAudioStore.getState().setAudioLoad(0.2);
+      expect(window.location.search).toBe('?load=light');
+
+      useAudioStore.getState().setAudioLoad(1);
+
+      expect(window.location.search).toBe('');
+    });
+
+    it('keeps ?load=full explicit when ?load= was present at boot', () => {
+      setUrl('?load=light');
+      useAudioStore.setState({ audioLoad: 0.2 });
+      startAudioBudget();
+
+      useAudioStore.getState().setAudioLoad(1);
+
+      expect(window.location.search).toBe('?load=full');
+    });
+
+    it('on a phone (auto-default Light), Full is NOT the default so it stays explicit, and Light is removed', () => {
+      phone();
+      useAudioStore.setState({ audioLoad: 0.2 });
+      startAudioBudget();
+
+      useAudioStore.getState().setAudioLoad(1);
+      expect(window.location.search).toBe('?load=full');
+
+      useAudioStore.getState().setAudioLoad(0.2);
+      expect(window.location.search).toBe(''); // a reload gives Light again, so no param is needed
+    });
+
+    it('does not touch the URL merely by starting', () => {
+      setUrl('?debug&load=standard');
+      const replace = vi.spyOn(window.history, 'replaceState');
+      startAudioBudget();
+      expect(replace).not.toHaveBeenCalled();
+      replace.mockRestore();
+    });
+
+    it('does not rewrite the URL when the value it would write is already there', () => {
+      setUrl('?load=light');
+      useAudioStore.setState({ audioLoad: 0.2 });
+      startAudioBudget();
+      const replace = vi.spyOn(window.history, 'replaceState');
+
+      useAudioStore.getState().setAudioLoad(0.2004); // still "light" at whole-percent resolution
+      useAudioStore.getState().setAudioLoad(0.2);
+
+      expect(replace).not.toHaveBeenCalled();
+      replace.mockRestore();
+    });
+
+    it('a reload reads back exactly the dial that was left, for every whole percent, on desktop and phone', () => {
+      for (const isPhone of [false, true]) {
+        window.matchMedia = originalMatchMedia;
+        if (isPhone) phone();
+        setUrl('?debug');
+        startAudioBudget();
+        for (let percent = 0; percent <= 100; percent++) {
+          useAudioStore.getState().setAudioLoad(percent / 100);
+          expect(
+            resolveInitialAudioLoad({ search: window.location.search, coarsePointer: isPhone }),
+            `${isPhone ? 'phone' : 'desktop'} ${percent}%`,
+          ).toBe(percent / 100);
+        }
+        stopAudioBudget();
+      }
+    });
+
+    it('stops mirroring after stopAudioBudget', () => {
+      startAudioBudget();
+      stopAudioBudget();
+      useAudioStore.getState().setAudioLoad(0.2);
+      expect(window.location.search).toBe('');
+    });
+
+    it('survives replaceState throwing (a sandboxed frame): the dial and the budget still update', () => {
+      const replace = vi.spyOn(window.history, 'replaceState').mockImplementation(() => {
+        throw new Error('SecurityError');
+      });
+      setRoster(roster(6));
+      startAudioBudget();
+
+      expect(() => useAudioStore.getState().setAudioLoad(0.2)).not.toThrow();
+
+      expect(useAudioStore.getState().audioLoad).toBe(0.2);
+      expect(sounding()).toHaveLength(4);
+      replace.mockRestore();
     });
   });
 });

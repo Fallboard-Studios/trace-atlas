@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   AUDIO_LOAD_PRESETS,
@@ -18,6 +18,7 @@ import { GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS } from '../types/lfo';
 import {
   clampAudioLoad,
   describeLimits,
+  detectCoarsePointer,
   detectDefaultAudioLoad,
   lfoAllowed,
   latencyForLoad,
@@ -28,6 +29,7 @@ import {
   presetForLoad,
   reconcileSounding,
   resolveInitialAudioLoad,
+  withLoadParam,
 } from './audioBudget';
 
 // ========================================
@@ -209,6 +211,82 @@ describe('clampAudioLoad', () => {
 
   it('treats NaN as Full, matching loadToLimits', () => {
     expect(clampAudioLoad(NaN)).toBe(1);
+  });
+});
+
+// ========================================
+// withLoadParam
+// ========================================
+
+describe('withLoadParam', () => {
+  it('adds ?load= to an empty query', () => {
+    expect(withLoadParam('', 'light')).toBe('?load=light');
+  });
+
+  it('appends after the other params and leaves them byte-for-byte alone (a bare ?debug stays bare)', () => {
+    expect(withLoadParam('?debug&seed=bravo&x=-150&y=90', 'light')).toBe('?debug&seed=bravo&x=-150&y=90&load=light');
+    expect(withLoadParam('?seed=a%20b&latency=playback', '45')).toBe('?seed=a%20b&latency=playback&load=45');
+  });
+
+  it('replaces an existing load in place, keeping its position', () => {
+    expect(withLoadParam('?load=full&debug', 'light')).toBe('?load=light&debug');
+    expect(withLoadParam('?debug&load=full&seed=x', 'standard')).toBe('?debug&load=standard&seed=x');
+  });
+
+  it('collapses a repeated load to one', () => {
+    expect(withLoadParam('?load=a&x=1&load=b', 'light')).toBe('?load=light&x=1');
+  });
+
+  it('removes load when given null, and the whole query when nothing else is left', () => {
+    expect(withLoadParam('?debug&load=light', null)).toBe('?debug');
+    expect(withLoadParam('?load=light', null)).toBe('');
+    expect(withLoadParam('', null)).toBe('');
+    expect(withLoadParam('?debug', null)).toBe('?debug');
+  });
+
+  it('accepts a query without the leading ?', () => {
+    expect(withLoadParam('debug&load=full', 'light')).toBe('?debug&load=light');
+  });
+
+  it('does not touch a param that merely starts with "load" or another key ending in load', () => {
+    expect(withLoadParam('?loader=1&preload=2', 'light')).toBe('?loader=1&preload=2&load=light');
+    expect(withLoadParam('?loader=1&load=full', null)).toBe('?loader=1');
+  });
+
+  it('round-trips through resolveInitialAudioLoad for every whole percent', () => {
+    for (let percent = 0; percent <= 100; percent++) {
+      const load = percent / 100;
+      const search = withLoadParam('?debug', loadToSearchParam(load));
+      expect(resolveInitialAudioLoad({ search, coarsePointer: false }), `${percent}%`).toBe(load);
+    }
+  });
+});
+
+// ========================================
+// detectCoarsePointer
+// ========================================
+
+describe('detectCoarsePointer', () => {
+  const original = window.matchMedia;
+  afterEach(() => {
+    window.matchMedia = original;
+  });
+
+  it('reads (pointer: coarse)', () => {
+    window.matchMedia = vi.fn((q: string) => ({ matches: q === '(pointer: coarse)' })) as unknown as typeof window.matchMedia;
+    expect(detectCoarsePointer()).toBe(true);
+    window.matchMedia = vi.fn(() => ({ matches: false })) as unknown as typeof window.matchMedia;
+    expect(detectCoarsePointer()).toBe(false);
+  });
+
+  it('is false, without throwing, when matchMedia is missing or throws', () => {
+    // @ts-expect-error — simulating an environment without matchMedia
+    window.matchMedia = undefined;
+    expect(detectCoarsePointer()).toBe(false);
+    window.matchMedia = (() => {
+      throw new Error('boom');
+    }) as unknown as typeof window.matchMedia;
+    expect(detectCoarsePointer()).toBe(false);
   });
 });
 

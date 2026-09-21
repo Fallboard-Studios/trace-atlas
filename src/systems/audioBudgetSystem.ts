@@ -6,7 +6,16 @@ import { useAttenuationStyleStore } from '../stores/attenuationStyleStore';
 import { useAudioStore } from '../stores/audioStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { MAX_POLYPHONY } from '../constants';
-import { loadToLimits, orderByArrival, reconcileSounding } from '../utils/audioBudget';
+import {
+  detectCoarsePointer,
+  detectDefaultAudioLoad,
+  loadToLimits,
+  loadToSearchParam,
+  orderByArrival,
+  parseLoadParam,
+  reconcileSounding,
+  withLoadParam,
+} from '../utils/audioBudget';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 import { isRobotAudible } from '../utils/robotAudibility';
 
@@ -25,6 +34,9 @@ let arrivalOrder: readonly string[] = [];
 /** The set currently pushed to the engine and the store. */
 let sounding: readonly string[] = [];
 let pushedPolyphony: number | null = null;
+/** URL mirror (decision H): the load the device would default to, and whether a valid ?load= was in the URL at boot. */
+let defaultLoad = 1;
+let bootHadLoadParam = false;
 
 // ========================================
 // INTERNAL FUNCTIONS
@@ -69,6 +81,24 @@ function reconcile(force = false): void {
   }
 }
 
+/**
+ * Mirror the dial into the address bar with history.replaceState (no history entries), so a reload keeps it and a
+ * link can carry it. Every other param is preserved. `?load=` is omitted when the value equals what a reload would
+ * default to anyway AND the param was absent at boot — so Full on a desktop drops it, while Full on a phone (whose
+ * auto-default is Light) stays explicit. A no-op outside a browser; a throwing replaceState (sandboxed frame) is ignored.
+ */
+function mirrorLoadToUrl(audioLoad: number): void {
+  if (typeof window === 'undefined') return;
+  const isDefault = Math.round(audioLoad * 100) === Math.round(defaultLoad * 100);
+  const search = withLoadParam(window.location.search, isDefault && !bootHadLoadParam ? null : loadToSearchParam(audioLoad));
+  if (search === window.location.search) return;
+  try {
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${search}${window.location.hash}`);
+  } catch {
+    // Not fatal: the dial still works, it just is not mirrored.
+  }
+}
+
 function onPossibleRosterChange(): void {
   const next = signature();
   if (next === lastSignature) return;
@@ -91,6 +121,10 @@ export function startAudioBudget(): void {
   sounding = [];
   pushedPolyphony = null;
   lastSignature = signature();
+  if (typeof window !== 'undefined') {
+    defaultLoad = detectDefaultAudioLoad({ coarsePointer: detectCoarsePointer() });
+    bootHadLoadParam = parseLoadParam(new URLSearchParams(window.location.search).get('load')) !== null;
+  }
   reconcile(true); // always establish the engine's set, even when it is empty
 
   unsubscribers = [
@@ -98,7 +132,10 @@ export function startAudioBudget(): void {
     // The active locale id lives in the Attenuation Style store, so a locale switch needs its own listener.
     useAttenuationStyleStore.subscribe(onPossibleRosterChange),
     useAudioStore.subscribe((state, prev) => {
-      if (state.audioLoad !== prev.audioLoad) reconcile();
+      if (state.audioLoad !== prev.audioLoad) {
+        reconcile();
+        mirrorLoadToUrl(state.audioLoad);
+      }
     }),
   ];
 }

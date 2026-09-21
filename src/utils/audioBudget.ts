@@ -142,6 +142,36 @@ export function loadToSearchParam(audioLoad: number): string {
   return presetForLoad(audioLoad) ?? String(Math.round(clampAudioLoad(audioLoad) * 100));
 }
 
+/**
+ * `search` with its `load` param set to `value` — or removed when `value` is null — and every other param left
+ * byte-for-byte alone (a bare `?debug` stays bare, which URLSearchParams would not preserve). An existing `load`
+ * is replaced in place (repeats collapse to one); otherwise it is appended. Returns "" when nothing is left.
+ */
+export function withLoadParam(search: string, value: string | null): string {
+  const parts = search.replace(/^\?/, '').split('&').filter(Boolean);
+  const isLoad = (part: string): boolean => part.split('=')[0] === 'load';
+  const next: string[] = [];
+  let placed = false;
+  for (const part of parts) {
+    if (!isLoad(part)) next.push(part);
+    else if (!placed && value !== null) {
+      next.push(`load=${value}`);
+      placed = true;
+    }
+  }
+  if (!placed && value !== null) next.push(`load=${value}`);
+  return next.length > 0 ? `?${next.join('&')}` : '';
+}
+
+/** Whether the primary pointer is coarse (phone-like). Browser-only; false without matchMedia or if it throws. */
+export function detectCoarsePointer(): boolean {
+  try {
+    return typeof window !== 'undefined' && (window.matchMedia?.('(pointer: coarse)').matches ?? false);
+  } catch {
+    return false;
+  }
+}
+
 /** Phone-like devices (a coarse primary pointer) default to Light; everything else to Full (decision D). */
 export function detectDefaultAudioLoad(env: { coarsePointer: boolean }): number {
   return env.coarsePointer ? AUDIO_LOAD_PRESETS.light : AUDIO_LOAD_PRESETS.full;

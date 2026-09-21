@@ -9,7 +9,7 @@ import { volumePositionToGain } from '../engine/audioEngine/volumeTaper';
 import { lfoEngine } from '../engine/lfoEngine';
 import { generateGlobalAudioSettings, generateGlobalLfoSettings, generatePingVarianceAutomation } from '../utils/globalAudioSeed';
 import { AUDIO_LOAD_PRESETS } from '../constants';
-import { clampAudioLoad, resolveInitialAudioLoad } from '../utils/audioBudget';
+import { clampAudioLoad, detectCoarsePointer, resolveInitialAudioLoad } from '../utils/audioBudget';
 import { generateLocaleBpm } from '../utils/localeBpmSeed';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from './attenuationStyleStore';
 import { useLocaleStore } from './localeStore';
@@ -89,13 +89,7 @@ const PING_VARIANCE_AUTOMATION_UNSEEDED = -1;
  */
 function readInitialAudioLoad(): number {
   if (typeof window === 'undefined') return AUDIO_LOAD_PRESETS.full;
-  let coarsePointer = false;
-  try {
-    coarsePointer = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-  } catch {
-    // No matchMedia (or it threw): treat as a non-phone device.
-  }
-  return resolveInitialAudioLoad({ search: window.location.search, coarsePointer });
+  return resolveInitialAudioLoad({ search: window.location.search, coarsePointer: detectCoarsePointer() });
 }
 
 export interface AudioStore {
