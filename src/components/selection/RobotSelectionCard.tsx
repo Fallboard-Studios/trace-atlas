@@ -3,9 +3,10 @@ import { RobotBody } from '@/components/robot/RobotBody';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { useUIStore } from '@/stores/uiStore';
+import { useAudioStore } from '@/stores/audioStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
-import { isRobotAudible } from '@/utils/robotAudibility';
+import { getAudibilityState, isRobotSounding } from '@/utils/robotAudibility';
 import {
   BATTERY_READOUT_SCHEMA,
   JOB_TYPE_LABELS,
@@ -66,6 +67,9 @@ export const RobotSelectionCard = memo(function RobotSelectionCard({ robotId }: 
   // locale (audioSwells.ts's 16n modulation ticks included, ~8-9x/sec) the way subscribing to the
   // whole array did.
   const anySolo = useLocaleStore((s) => (s.locales[localeId]?.robots ?? []).some((r) => r.audioMode === 'solo'));
+  // Same discipline for the Audio Load budget: a boolean for THIS robot, never the whole soundingRobotIds
+  // array, so another robot entering or leaving the set does not re-render this card.
+  const isSounding = useAudioStore((s) => isRobotSounding(s.soundingRobotIds, robotId));
 
   // Defensive only — RobotsTab only ever renders a robotId that exists in the locale's roster
   // (fixed at 12, created once at locale load, never removed).
@@ -75,9 +79,7 @@ export const RobotSelectionCard = memo(function RobotSelectionCard({ robotId }: 
   const displayName = robot.name || robot.id;
   const jobLabel = robot.job ? JOB_TYPE_LABELS[robot.job.type] : UNASSIGNED_JOB_LABEL;
   const dockingLabel = DOCKING_STATE_LABELS[robot.docking];
-  const statusLabel = isRobotAudible(robot.audioMode, anySolo)
-    ? AUDIBILITY_LABELS.emitting
-    : AUDIBILITY_LABELS.disabled;
+  const statusLabel = AUDIBILITY_LABELS[getAudibilityState(robot.audioMode, anySolo, isSounding)];
   // BATTERY_READOUT_SCHEMA is one shared, static object (robotSelectionConfig.ts) — reused as-is
   // by RobotDisplaySection, where only one robot is ever shown at a time. Here, every robot in the
   // list renders its own SliderLinear from it simultaneously, so `id` must be made unique per

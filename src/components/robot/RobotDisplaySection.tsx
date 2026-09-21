@@ -3,9 +3,10 @@ import { RobotBody } from '@/components/robot/RobotBody';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
+import { useAudioStore } from '@/stores/audioStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
-import { isRobotAudible } from '@/utils/robotAudibility';
+import { getAudibilityState, isRobotSounding } from '@/utils/robotAudibility';
 import {
   ROBOT_SELECTION_ROW_SCHEMAS,
   BATTERY_READOUT_SCHEMA,
@@ -47,7 +48,8 @@ function RobotDisplaySectionInner({ robot }: RobotDisplaySectionProps) {
   // RobotSelectionCard.tsx already uses for the identical isRobotAudible call.
   const anySolo = useLocaleStore((s) => (s.locales[localeId]?.robots ?? []).some((r) => r.audioMode === 'solo'));
   const companyAssignmentSchema = useMemo(() => buildCompanyAssignmentSchema(companies), [companies]);
-  const statusLabel = isRobotAudible(robot.audioMode, anySolo) ? AUDIBILITY_LABELS.emitting : AUDIBILITY_LABELS.disabled;
+  const isSounding = useAudioStore((s) => isRobotSounding(s.soundingRobotIds, robot.id)); // per-robot boolean, not the whole list
+  const statusLabel = AUDIBILITY_LABELS[getAudibilityState(robot.audioMode, anySolo, isSounding)];
 
   const handleCompanyChange = useCallback((value: string) => {
     useLocaleStore.getState().assignRobotToCompany(localeId, robot.id, value === FREELANCE_VALUE ? null : value);
