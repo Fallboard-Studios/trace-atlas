@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from './localeStore';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -80,6 +80,43 @@ describe('localeStore', () => {
     it('default locale coordinates are integers — CoordsInput.tsx and SectorSettingsDrawer.tsx both assume coordinates are integers system-wide (docs/specs/SECTOR_SETTINGS.md); a decimal default renders as a multi-decimal value on first load, before any user edit rounds it', () => {
       expect(Number.isInteger(DEFAULT_LOCALE.coordinates.x)).toBe(true);
       expect(Number.isInteger(DEFAULT_LOCALE.coordinates.y)).toBe(true);
+    });
+
+    describe('?x= / ?y= coordinate override (docs/PROCEDURAL_GENERATION.md)', () => {
+      // The default locale's coordinates are computed once at module load, so
+      // each case loads a fresh copy of both modules with the override already set.
+      async function loadFreshWithOverride(override: { x: number | null; y: number | null }) {
+        vi.resetModules();
+        const seed = await import('../utils/seedUtils');
+        seed.setLocaleCoordinateOverride(override);
+        return import('./localeStore');
+      }
+
+      afterEach(() => {
+        vi.resetModules();
+      });
+
+      it('uses both overridden axes for the default locale, and derives dayStartTimestamp from the overridden x', async () => {
+        const fresh = await loadFreshWithOverride({ x: -5, y: 777 });
+        expect(fresh.DEFAULT_LOCALE.coordinates).toEqual({ x: -5, y: 777 });
+        // abs(-5 % 24) === 5 hours into the day
+        expect(computeLocaleHour(fresh.DEFAULT_LOCALE.dayStartTimestamp)).toBeCloseTo(5, 0);
+      });
+
+      it('pins only the overridden axis and leaves the other on its random default', async () => {
+        const fresh = await loadFreshWithOverride({ x: 30, y: null });
+        expect(fresh.DEFAULT_LOCALE.coordinates.x).toBe(30);
+        expect(Number.isInteger(fresh.DEFAULT_LOCALE.coordinates.y)).toBe(true);
+      });
+
+      it('registers the locale noise map from the overridden coordinates (same map as an explicit locale at those coordinates)', async () => {
+        const fresh = await loadFreshWithOverride({ x: 41, y: 42 });
+        const { tryGetLocaleNoiseMap, getLocaleNoiseMap } = await import('../utils/noiseMaps');
+        const registered = tryGetLocaleNoiseMap(fresh.DEFAULT_LOCALE_ID);
+        const reference = getLocaleNoiseMap('reference-locale', 41, 42);
+        expect(registered).not.toBeNull();
+        expect(registered!(0.3, 0.7)).toBe(reference(0.3, 0.7));
+      });
     });
 
     it('has a dayStartTimestamp computed from its own x coordinate, per docs/specs/ATTENUATION_STYLE.md §1.1', () => {
