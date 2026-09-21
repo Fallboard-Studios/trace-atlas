@@ -388,6 +388,79 @@ describe('stepDiag — master output silent while notes sound', () => {
   });
 });
 
+describe('stepDiag — gaps between notes pause the silent count instead of resetting it', () => {
+  const level = (peak: number): LevelReading => ({ peak, rms: peak / 2, nonFinite: 0 });
+  /** Master silent, pre-chain live, silence otherwise a fault; `notes` says whether notes are in flight this tick. */
+  const silent = (n: number, notes: boolean | undefined, extra: Partial<DiagSample> = {}) =>
+    healthy(n, { master: level(0), pre: level(0.1), expectSound: true, notesSounding: notes, ...extra });
+  const texts = (s: DiagState) => s.events.map((e) => e.text);
+  const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+  const SILENT_TEXT = 'master output silent for 3s while notes sound (pre-chain normal)';
+
+  it('counts only the time notes are in flight: a gap adds nothing, and does not restart the count', () => {
+    // notes 0 … 1500 ms (1500 ms counted), a gap 2000 … 3500 ms, notes again from 4000 ms
+    const samples = [...range(0, 3).map((n) => silent(n, true)), ...range(4, 7).map((n) => silent(n, false)), ...range(8, 10).map((n) => silent(n, true))];
+    const s = run(samples);
+    expect(s.events).toEqual([]); // counted: 1500 + 0 (resume) + 500 + 500 = 2500 ms
+
+    expect(texts(stepDiag(s, silent(11, true)))).toEqual([SILENT_TEXT]); // 3000 ms counted
+  });
+
+  it('does not let a gap add the time it lasted when notes resume (the resume sample adds nothing)', () => {
+    // one counted sample, a 20-sample gap, then one counted sample: still nearly nothing counted
+    const s = run([silent(0, true), ...range(1, 20).map((n) => silent(n, false)), silent(21, true), silent(22, true)]);
+    expect(s.events).toEqual([]);
+  });
+
+  it('never raises the event from a gap alone, however long', () => {
+    const s = run(range(0, 60).map((n) => silent(n, false)));
+    expect(s.events).toEqual([]);
+    expect(s.silentActive).toBe(false);
+  });
+
+  it('fires with notes coming and going: four samples of notes, two of gap, repeated', () => {
+    const cycle = (c: number) => [0, 1, 2, 3].map((k) => silent(c * 6 + k, true)).concat([4, 5].map((k) => silent(c * 6 + k, false)));
+    const s = run([...cycle(0), ...cycle(1), ...cycle(2)]);
+    expect(texts(s)).toEqual([SILENT_TEXT]); // 3 × 500 ms per cycle counted: fires in the second cycle
+    expect(s.silentActive).toBe(true);
+  });
+
+  it('keeps an active silence active through gaps, and reports the wall-clock length when the sound returns', () => {
+    const active = run(range(0, 6).map((n) => silent(n, true))); // fired at 3000 ms
+    expect(active.silentActive).toBe(true);
+
+    const gap = [...range(7, 12).map((n) => silent(n, false))];
+    const paused = gap.reduce(stepDiag, active);
+    expect(paused.silentActive).toBe(true);
+    expect(paused.events).toHaveLength(1);
+
+    const recovered = stepDiag(paused, healthy(13, { master: level(0.1), pre: level(0.1), expectSound: true, notesSounding: true }));
+    expect(texts(recovered).at(-1)).toBe('master output audible again after 6.0s'); // 0 … 6000 ms (last sample before recovery)
+  });
+
+  it('still restarts the count when the master turns audible during a gap', () => {
+    const audibleGap = healthy(4, { master: level(0.1), pre: level(0.1), expectSound: true, notesSounding: false });
+    const s = run([...range(0, 3).map((n) => silent(n, true)), audibleGap, ...range(5, 10).map((n) => silent(n, true))]);
+    expect(s.events).toEqual([]); // restarted at 2500 ms: only 2500 ms counted by 5000 ms
+  });
+
+  it('still restarts the count when sound stops being expected, gap or not (muted, transport stopped, context suspended)', () => {
+    const muted = silent(4, false, { expectSound: false });
+    const s = run([...range(0, 3).map((n) => silent(n, true)), muted, ...range(5, 10).map((n) => silent(n, true))]);
+    expect(s.events).toEqual([]);
+  });
+
+  it('treats an unset notesSounding as "notes are sounding", so callers that only know expectSound keep working', () => {
+    const s = run(range(0, 6).map((n) => silent(n, undefined)));
+    expect(texts(s)).toEqual([SILENT_TEXT]);
+  });
+
+  it('a gap before any silent sample changes nothing', () => {
+    const s = run([silent(0, false), silent(1, false), ...range(2, 8).map((n) => silent(n, true))]);
+    expect(texts(s)).toEqual([SILENT_TEXT]); // counting starts at the first sample with notes
+  });
+});
+
 describe('stepDiag — non-finite samples in an output tap', () => {
   const finite: LevelReading = { peak: 0.1, rms: 0.05, nonFinite: 0 };
   const broken = (count = 3): LevelReading => ({ peak: 0.1, rms: 0.05, nonFinite: count });

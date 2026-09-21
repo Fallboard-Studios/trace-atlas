@@ -357,12 +357,23 @@ describe('audioDiagnostics runtime', () => {
       expect(timing().silentActive).toBe(true);
     });
 
-    it('does not raise it when no notes are sounding (voices 0)', () => {
+    it('does not raise it when no notes are ever sounding (voices always 0)', () => {
       fakeVoices = 0;
       silentMasterLivePre();
       settle();
       expect(silentEvent()).toBe(false);
       expect(timing().silentActive).toBe(false);
+    });
+
+    it('still raises it when notes come and go — gaps between notes pause the count rather than restart it (found in the real browser)', () => {
+      silentMasterLivePre();
+      // four samples of notes, two of gap, repeated: never 3 s of continuous notes, but plenty of counted silence
+      for (let i = 0; i < 24; i++) {
+        fakeVoices = i % 6 < 4 ? 3 : 0;
+        advance();
+      }
+      expect(silentEvent()).toBe(true);
+      expect(timing().silentActive).toBe(true);
     });
 
     it('does not raise it when the master is muted (master volume 0) — that silence is expected', () => {

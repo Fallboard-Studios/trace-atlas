@@ -221,18 +221,14 @@ function readPlaybackStats(raw: RawContext): PlaybackReading | null {
 }
 
 /**
- * Would silence be a fault right now? Only when every excuse is ruled out: notes are in flight, the master is not
- * muted (its volume is above 0), the transport is started and the context is running. Any one false and a silent
- * master is expected. Known false positive: a sounding robot whose own volume is 0 is genuine silence with notes in
- * flight — accepted for a debug tool.
+ * Would silence be a fault right now, gaps between notes aside? Only when the master is not muted (its volume is
+ * above 0), the transport is started and the context is running. Any one false and a silent master is expected.
+ * Whether notes are in flight is reported separately (`notesSounding`), because a gap between notes must pause the
+ * silent count, not restart it. Known false positive: a sounding robot whose own volume is 0 is genuine silence with
+ * notes in flight — accepted for a debug tool.
  */
 function expectSound(raw: RawContext): boolean {
-  return (
-    AudioEngine.getPolyphonyStats().voices > 0 &&
-    getMasterVolume() > 0 &&
-    Tone.getTransport().state === 'started' &&
-    raw.state === 'running'
-  );
+  return getMasterVolume() > 0 && Tone.getTransport().state === 'started' && raw.state === 'running';
 }
 
 /** Reduce one tap's buffer to a reading; null when the tap gave nothing or the buffer is empty. */
@@ -256,6 +252,7 @@ function sample(): void {
     master: outputLevels.master,
     pre: outputLevels.pre,
     expectSound: expectSound(raw),
+    notesSounding: AudioEngine.getPolyphonyStats().voices > 0,
   });
   publish();
 }

@@ -45,8 +45,13 @@ export interface DiagSample {
   master?: LevelReading | null;
   /** The pre-chain (EQ3 output) level this tick; only used to say where a silence is, so null/undefined reads "unknown". */
   pre?: LevelReading | null;
-  /** True when silence would be a fault: notes are sounding, the master is not muted, the transport is started, the context is running. */
+  /** True when silence would be a fault apart from note gaps: the master is not muted, the transport is started, the context is running. */
   expectSound?: boolean;
+  /**
+   * Whether notes are in flight this tick. A gap between notes (false) is no evidence either way, so it pauses the
+   * silent count rather than restarting it. Unset means "sounding", so a caller that only knows `expectSound` still works.
+   */
+  notesSounding?: boolean;
 }
 
 /**
@@ -100,6 +105,10 @@ export interface DiagState {
   underrunLastRiseMs: number | null;
   /** Wall time of the first sample of the current run of "master silent while sound is expected"; null when not in one. */
   silentSinceMs: number | null;
+  /** How much of that run has been counted toward SILENT_EVENT_AFTER_MS — only time with notes in flight; gaps add nothing. */
+  silentCountedMs: number;
+  /** Whether the previous sample was counted (so the next one may add the interval between them). */
+  silentLastCounted: boolean;
   /** True from the sample where that run reached SILENT_EVENT_AFTER_MS until it ends — what the red overlay status reads. */
   silentActive: boolean;
   /** True while the master tap's latest reading held non-finite (NaN / ±Infinity) samples. */
@@ -130,6 +139,8 @@ export function initDiagState(startWallMs: number): DiagState {
     underrunBurstStartCount: 0,
     underrunLastRiseMs: null,
     silentSinceMs: null,
+    silentCountedMs: 0,
+    silentLastCounted: false,
     silentActive: false,
     masterNonFinite: false,
     preNonFinite: false,
@@ -191,22 +202,34 @@ function preChainState(pre: LevelReading | null | undefined): 'normal' | 'silent
 /**
  * Fold the master output level into an edge-triggered "silent while notes sound" event (docs/specs/
  * AUDIO_OUTPUT_DIAGNOSTIC.md). Silent means the master peak is below SILENT_PEAK_THRESHOLD *and* silence would be a
- * fault (`expectSound`); it must hold continuously for SILENT_EVENT_AFTER_MS, and any break restarts the count.
+ * fault (`expectSound`); SILENT_EVENT_AFTER_MS of it must be counted, and any break restarts the count.
+ *
+ * Only time with notes in flight is counted. A gap between notes (`notesSounding: false`) is no evidence either
+ * way, so it PAUSES the count — it neither adds to it nor restarts it, and the sample that resumes adds nothing
+ * either, so a gap's length is never mistaken for silence. (Found in the real browser: requiring notes at every
+ * sample let the ordinary gaps between notes restart the count, and a real silence went unreported for 9 s.)
+ * Muting, a stopped transport, a suspended context or an audible master still restart it.
  *
  * No master reading is no information: it never raises the event and restarts a count that has not fired yet, but it
  * does not end an event that has (that would claim the sound came back). When an active silence ends, the message
  * says why: the master became audible, or it is still silent but no longer unexpected (muted, notes stopped).
  * Not gated on a hidden tab — the audio thread is not throttled.
  */
+function resetSilence(state: DiagState): DiagState {
+  return { ...state, silentSinceMs: null, silentCountedMs: 0, silentLastCounted: false };
+}
+
 function stepSilence(state: DiagState, sample: DiagSample, previousWallMs: number | null): DiagState {
   const master = sample.master;
-  if (!master) return state.silentActive ? state : { ...state, silentSinceMs: null };
+  if (!master) return state.silentActive ? state : resetSilence(state);
 
   const quiet = master.peak < SILENT_PEAK_THRESHOLD;
   if (quiet && sample.expectSound === true) {
+    if (sample.notesSounding === false) return { ...state, silentLastCounted: false }; // a gap: pause
     const since = state.silentSinceMs ?? sample.wallMs;
-    const counting = { ...state, silentSinceMs: since };
-    if (state.silentActive || sample.wallMs - since < SILENT_EVENT_AFTER_MS) return counting;
+    const gained = state.silentLastCounted && previousWallMs !== null ? sample.wallMs - previousWallMs : 0;
+    const counting = { ...state, silentSinceMs: since, silentCountedMs: state.silentCountedMs + gained, silentLastCounted: true };
+    if (state.silentActive || counting.silentCountedMs < SILENT_EVENT_AFTER_MS) return counting;
     return noteDiagEvent(
       { ...counting, silentActive: true },
       sample.wallMs,
@@ -219,9 +242,9 @@ function stepSilence(state: DiagState, sample: DiagSample, previousWallMs: numbe
     const text = quiet
       ? `silence no longer unexpected after ${seconds.toFixed(1)}s`
       : `master output audible again after ${seconds.toFixed(1)}s`;
-    return noteDiagEvent({ ...state, silentActive: false, silentSinceMs: null }, sample.wallMs, text);
+    return noteDiagEvent({ ...resetSilence(state), silentActive: false }, sample.wallMs, text);
   }
-  return { ...state, silentSinceMs: null };
+  return resetSilence(state);
 }
 
 /**
