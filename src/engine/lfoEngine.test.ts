@@ -1344,6 +1344,87 @@ describe('lfoEngine', () => {
     });
   });
 
+  // Audio Load Budget (plan task 20): the engine tells a subscriber when the held-off set changes, so the UI can grey a robot
+  // LFO out the moment the user enables it over the cap (that action goes straight to lfoEngine, not through the budget system).
+  describe('subscribeHeldOff', () => {
+    async function setup() {
+      const { AudioEngine } = await import('./AudioEngine');
+      (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal(0));
+      (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal(0));
+      const { lfoEngine } = await import('./lfoEngine');
+      const listener = vi.fn();
+      const unsubscribe = lfoEngine.subscribeHeldOff(listener);
+      const ask = (target: 'lpf.Q' | 'eq3.low') => {
+        lfoEngine.setLfoRate(target, 1);
+        return lfoEngine.connectLfoTarget(target);
+      };
+      return { lfoEngine, listener, unsubscribe, ask };
+    }
+    const blockFilters = (target: string) => !/^(lpf|hpf)\./.test(target);
+
+    it('fires when a connection is refused and the LFO becomes held off, by which time the key is already readable', async () => {
+      const { lfoEngine, listener, ask } = await setup();
+      lfoEngine.setLfoPolicy(blockFilters);
+      let seen: string[] = [];
+      listener.mockImplementation(() => { seen = lfoEngine.getHeldOffLfoKeys(); });
+
+      ask('lpf.Q');
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(seen).toEqual(['lpf.Q']);
+    });
+
+    it('does not fire when nothing changes: an allowed connection, a repeated refusal, or a steady reconcile', async () => {
+      const { lfoEngine, listener, ask } = await setup();
+      lfoEngine.setLfoPolicy(blockFilters);
+      ask('eq3.low');
+      expect(listener).not.toHaveBeenCalled();
+
+      ask('lpf.Q');
+      listener.mockClear();
+      ask('lpf.Q'); // refused again — already held off
+      lfoEngine.reconcileLfos();
+      lfoEngine.reconcileLfos();
+
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('fires when a reconcile clears the held-off LFO, and when an explicit disconnect withdraws it', async () => {
+      const { lfoEngine, listener, ask } = await setup();
+      lfoEngine.setLfoPolicy(blockFilters);
+      ask('lpf.Q');
+      listener.mockClear();
+
+      lfoEngine.setLfoPolicy(null);
+      lfoEngine.reconcileLfos();
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
+
+      lfoEngine.setLfoPolicy(blockFilters);
+      lfoEngine.reconcileLfos(); // held off again
+      listener.mockClear();
+      lfoEngine.disconnectLfoTarget('lpf.Q');
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops firing after unsubscribe, and one throwing listener neither breaks the engine nor starves the others', async () => {
+      const { lfoEngine, listener, unsubscribe, ask } = await setup();
+      const bad = vi.fn(() => { throw new Error('listener bug'); });
+      const good = vi.fn();
+      lfoEngine.subscribeHeldOff(bad);
+      lfoEngine.subscribeHeldOff(good);
+      lfoEngine.setLfoPolicy(blockFilters);
+
+      expect(() => ask('lpf.Q')).not.toThrow();
+      expect(good).toHaveBeenCalledTimes(1);
+
+      unsubscribe();
+      listener.mockClear();
+      lfoEngine.disconnectLfoTarget('lpf.Q');
+      expect(listener).not.toHaveBeenCalled();
+    });
+  });
+
   // Audio Load Budget (plan task 18): drift ("stacked" LFOs) is the first tier to go. While it is off no drift link is
   // attached to any LFO, existing links are torn down, and turning it back on re-attaches drift to whatever is connected
   // — the seeded/edited drift AMOUNTS and every LFO's own settings are never touched.

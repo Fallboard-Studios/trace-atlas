@@ -118,6 +118,11 @@ export interface AudioStore {
   /** Robots currently allowed to sound under the Audio Load budget, in admission order. Derived, and
    *  written only by audioBudgetSystem (via `setSoundingRobotIds`) — never edited by hand. */
   soundingRobotIds: string[];
+  /** Instance keys (`lpf.Q`, `robot-3:layer0.detune`) of LFOs the user (or the seed) asked for but the Audio Load dial is holding off.
+   *  Derived; written only by audioBudgetSystem, which mirrors lfoEngine's held-off set. */
+  heldOffLfoKeys: string[];
+  /** Whether the dial currently holds drift ("stacked" LFOs) off — the drift sliders grey out while it does. Derived. */
+  driftHeldOff: boolean;
   setBPM: (bpm: number) => void;
   /**
    * Reseed `bpm` for the given (newly built) locale — draws a fresh value
@@ -158,6 +163,10 @@ export interface AudioStore {
   /** Writes the derived sounding set. Skips the write entirely — no new state, no subscriber
    *  notification — when the ids (and their order) are unchanged. */
   setSoundingRobotIds: (ids: readonly string[]) => void;
+  /** Writes the held-off LFO keys; skips the write when the same LFOs are held off (in any order). */
+  setHeldOffLfoKeys: (keys: readonly string[]) => void;
+  /** Writes whether drift is held off; skips the write when unchanged. */
+  setDriftHeldOff: (heldOff: boolean) => void;
   /**
    * Swap the compressor's chain position — false (default) = "Natural Decay"
    * (compressor after Delay+Reverb), true = "Controlled Decay" (compressor
@@ -206,6 +215,8 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   pingVarianceAutomation: PING_VARIANCE_AUTOMATION_UNSEEDED, // real value assigned by the first regenerateGlobalAudioFromSeed call below (module-load AS-sync)
   audioLoad: readInitialAudioLoad(),
   soundingRobotIds: [],
+  heldOffLfoKeys: [],
+  driftHeldOff: false,
 
   setBPM: (bpm) => {
     set({ bpm });
@@ -283,6 +294,14 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     const current = get().soundingRobotIds;
     if (ids.length === current.length && ids.every((id, i) => id === current[i])) return;
     set({ soundingRobotIds: [...ids] });
+  },
+  setHeldOffLfoKeys: (keys) => {
+    const current = get().heldOffLfoKeys;
+    const sameSet = keys.length === current.length && keys.every((key) => current.includes(key));
+    if (!sameSet) set({ heldOffLfoKeys: [...keys] });
+  },
+  setDriftHeldOff: (heldOff) => {
+    if (get().driftHeldOff !== heldOff) set({ driftHeldOff: heldOff });
   },
 
   regenerateGlobalAudioFromSeed: (attenuationStyleId, attenuationStyleName) => {

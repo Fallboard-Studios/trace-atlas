@@ -359,7 +359,7 @@ function setLfoPolicy(next: LfoPolicy | null): void {
  * at rate 0 is never connected here and never held off), suspend the ones it now refuses. Stored settings are never
  * touched. Idempotent.
  */
-function reconcileLfos(): void {
+function reconcilePasses(): void {
   // Pass 1 — suspend. Robot LFOs go newest-CONNECTED first, so a falling cap drops the most recent ones (LIFO, matching
   // robot admission) and stops as soon as the newest is allowed again (allowed = fewer than the cap are connected).
   // connectedSignals is a Map, and delete-then-set moves a key to the end, so its order IS connection order.
@@ -393,11 +393,53 @@ function reconcileLfos(): void {
     }
     if (isAllowed(target, robotId, key)) {
       heldOff.delete(key);
-      if (connectLfoTarget(target, robotId)) start(target, robotId);
+      if (connectOne(target, robotId)) start(target, robotId);
     } else {
       heldOff.add(key);
     }
   }
+}
+
+type HeldOffListener = () => void;
+const heldOffListeners = new Set<HeldOffListener>();
+let lastHeldOffSignature = "";
+
+/** Tell subscribers the held-off set changed — once per real change (a repeated refusal or a steady reconcile is silent). */
+function emitHeldOffIfChanged(): void {
+  const signature = [...heldOff].join("|");
+  if (signature === lastHeldOffSignature) return;
+  lastHeldOffSignature = signature;
+  for (const listener of [...heldOffListeners]) {
+    try {
+      listener();
+    } catch (err) {
+      devWarn("[lfoEngine] held-off listener threw", err); // one bad subscriber must not break the engine or starve the rest
+    }
+  }
+}
+
+/** Be told (after the fact, with the new set already readable via getHeldOffLfoKeys) whenever the held-off set changes. */
+function subscribeHeldOff(listener: HeldOffListener): () => void {
+  heldOffListeners.add(listener);
+  return () => {
+    heldOffListeners.delete(listener);
+  };
+}
+
+function connectLfoTarget(target: LfoTargetId, robotId?: string): boolean {
+  const connected = connectOne(target, robotId);
+  emitHeldOffIfChanged();
+  return connected;
+}
+
+function disconnectLfoTarget(target: LfoTargetId, robotId?: string): void {
+  disconnectOne(target, robotId);
+  emitHeldOffIfChanged();
+}
+
+function reconcileLfos(): void {
+  reconcilePasses();
+  emitHeldOffIfChanged();
 }
 
 /** Instance keys (e.g. `lpf.Q`, `robot-3:layer0.detune`) of LFOs requested but held off by the policy. */
@@ -414,7 +456,7 @@ function getHeldOffLfoKeys(): string[] {
  * is handled entirely separately via the manual-polling fallback above,
  * since no live Signal exists for it at all.
  */
-function connectLfoTarget(target: LfoTargetId, robotId?: string): boolean {
+function connectOne(target: LfoTargetId, robotId?: string): boolean {
   const key = instanceKey(target, robotId);
 
   // A robot-scoped target needs a robotId to resolve against — nothing to record or connect without one.
@@ -507,7 +549,7 @@ function connectLfoTarget(target: LfoTargetId, robotId?: string): boolean {
 }
 
 /** Reverse connectLfoTarget: disconnects the live node, or cancels the phase-polling schedule. Safe/no-op if nothing was connected. */
-function disconnectLfoTarget(target: LfoTargetId, robotId?: string): void {
+function disconnectOne(target: LfoTargetId, robotId?: string): void {
   const key = instanceKey(target, robotId);
   // An explicit disconnect (the user set the rate to 0, or the robot is gone) withdraws the request too,
   // so a later reconcile never brings it back. The budget's own suspensions use suspendConnection instead.
@@ -526,7 +568,7 @@ function disconnectLfoTarget(target: LfoTargetId, robotId?: string): void {
     devWarn('[lfoEngine] disconnectLfoTarget: disconnect failed', err);
   }
   // A freed robot-LFO slot goes to the oldest held-off LFO now, not at the next dial change.
-  if (wasConnectedRobotLfo && heldOff.size > 0) reconcileLfos();
+  if (wasConnectedRobotLfo && heldOff.size > 0) reconcilePasses();
 }
 
 /**
@@ -574,6 +616,7 @@ export const lfoEngine = {
   setDriftEnabled,
   reconcileLfos,
   getHeldOffLfoKeys,
+  subscribeHeldOff,
   setGlobalRateDrift,
   setGlobalDepthDrift,
 };
