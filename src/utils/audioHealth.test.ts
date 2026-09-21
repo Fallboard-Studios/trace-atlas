@@ -14,6 +14,7 @@ import {
   MAX_EVENTS,
   type DiagSample,
   type DiagState,
+  type PlaybackReading,
 } from './audioHealth';
 
 // ========================================
@@ -165,6 +166,118 @@ describe('formatUptime', () => {
     expect(formatUptime(0)).toBe('0:00');
     expect(formatUptime(65_000)).toBe('1:05');
     expect(formatUptime(605_400)).toBe('10:05');
+  });
+});
+
+describe('stepDiag — playback underruns (AudioContext.playbackStats)', () => {
+  /** A playbackStats reading with the given underrun count; the latency figures are irrelevant to the events. */
+  const stats = (underrunEvents: number): PlaybackReading => ({
+    underrunEvents,
+    underrunDuration: 0,
+    totalDuration: 10,
+    averageLatency: 0.02,
+    minimumLatency: 0.01,
+    maximumLatency: 0.03,
+  });
+  /** A healthy sample n intervals in, carrying a playbackStats reading (or none). */
+  const withStats = (n: number, playback: PlaybackReading | null | undefined, extra: Partial<DiagSample> = {}) =>
+    healthy(n, { playback, ...extra });
+  const texts = (s: DiagState) => s.events.map((e) => e.text);
+
+  it('logs nothing while the count does not move', () => {
+    const s = run([withStats(0, stats(0)), withStats(1, stats(0)), withStats(2, stats(0))]);
+    expect(s.events).toEqual([]);
+    expect(s.underrunActive).toBe(false);
+  });
+
+  it('treats the first reading as history: underruns from before the overlay started are not an event', () => {
+    const s = run([withStats(0, stats(7)), withStats(1, stats(7))]);
+    expect(s.events).toEqual([]);
+    expect(s.underrunActive).toBe(false);
+  });
+
+  it('reports a rise between the very first sample and the second (the first sample is a baseline, not skipped)', () => {
+    const s = run([withStats(0, stats(0)), withStats(1, stats(2))]);
+    expect(texts(s)).toEqual(['playback underruns began (2 total)']);
+    expect(s.underrunActive).toBe(true);
+  });
+
+  it('logs exactly one "began" event however many further underruns arrive while the burst lasts', () => {
+    const s = run([withStats(0, stats(0)), withStats(1, stats(1)), withStats(2, stats(4)), withStats(3, stats(9))]);
+    expect(texts(s)).toEqual(['playback underruns began (1 total)']);
+    expect(s.underrunActive).toBe(true);
+  });
+
+  it('logs one "stopped" event once the count has been flat for a full second, with the burst length and how many were added', () => {
+    const s = run([
+      withStats(0, stats(0)),
+      withStats(1, stats(2)), // burst begins at 500 ms
+      withStats(2, stats(5)), // last rise at 1000 ms
+      withStats(3, stats(5)), // 500 ms flat: not over yet
+    ]);
+    expect(texts(s)).toEqual(['playback underruns began (2 total)']);
+    expect(s.underrunActive).toBe(true);
+
+    const over = stepDiag(s, withStats(4, stats(5))); // 1000 ms flat
+    expect(texts(over)).toEqual(['playback underruns began (2 total)', 'playback underruns stopped after 0.5s (+5)']);
+    expect(over.underrunActive).toBe(false);
+  });
+
+  it('reports only the underruns added during the burst, not the running total', () => {
+    const s = run([withStats(0, stats(3)), withStats(1, stats(5)), withStats(2, stats(5)), withStats(3, stats(5))]);
+    expect(texts(s)).toEqual(['playback underruns began (5 total)', 'playback underruns stopped after 0.0s (+2)']);
+  });
+
+  it('logs nothing further while the count stays flat after a burst has ended', () => {
+    const s = run([withStats(0, stats(0)), withStats(1, stats(3)), withStats(2, stats(3)), withStats(3, stats(3)), withStats(4, stats(3)), withStats(5, stats(3))]);
+    expect(s.events).toHaveLength(2);
+  });
+
+  it('starts a new burst, with its own "began" event, when underruns resume after a quiet spell', () => {
+    const s = run([
+      withStats(0, stats(0)),
+      withStats(1, stats(1)),
+      withStats(2, stats(1)),
+      withStats(3, stats(1)), // stopped
+      withStats(4, stats(2)), // resumes
+    ]);
+    expect(texts(s)).toEqual([
+      'playback underruns began (1 total)',
+      'playback underruns stopped after 0.0s (+1)',
+      'playback underruns began (2 total)',
+    ]);
+    expect(s.underrunActive).toBe(true);
+  });
+
+  it('never logs, and never throws, when the API is absent (null or undefined readings)', () => {
+    const s = run([withStats(0, null), withStats(1, undefined), withStats(2, null)]);
+    expect(s.events).toEqual([]);
+    expect(s.underrunActive).toBe(false);
+  });
+
+  it('a missing reading mid-burst neither ends the burst nor moves its baseline', () => {
+    const s = run([withStats(0, stats(0)), withStats(1, stats(2)), withStats(2, null), withStats(3, null), withStats(4, null)]);
+    expect(texts(s)).toEqual(['playback underruns began (2 total)']);
+    expect(s.underrunActive).toBe(true);
+  });
+
+  it('treats a count that goes down (a new AudioContext) as a fresh baseline: no event, and any burst is closed', () => {
+    const s = run([withStats(0, stats(0)), withStats(1, stats(4)), withStats(2, stats(1))]);
+    expect(texts(s)).toEqual(['playback underruns began (4 total)']);
+    expect(s.underrunActive).toBe(false);
+
+    const again = stepDiag(s, withStats(3, stats(2))); // rises from the new baseline
+    expect(texts(again).at(-1)).toBe('playback underruns began (2 total)');
+  });
+
+  it('ignores a non-finite count rather than treating it as a rise', () => {
+    const s = run([withStats(0, stats(0)), withStats(1, stats(NaN)), withStats(2, stats(Infinity))]);
+    expect(s.events).toEqual([]);
+  });
+
+  it('still logs while the tab is hidden: underruns happen on the audio thread, which the browser does not throttle', () => {
+    const s = run([withStats(0, stats(0), { hidden: true }), withStats(1, stats(3), { hidden: true })]);
+    expect(texts(s)).toEqual(['playback underruns began (3 total)']);
   });
 });
 

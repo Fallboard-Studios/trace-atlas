@@ -19,6 +19,9 @@ export const LAG_EVENT_THRESHOLD_MS = 500;
 /** Events kept in the on-screen log (oldest dropped first). */
 export const MAX_EVENTS = 8;
 
+/** Playback underruns must stop rising for this long before a burst counts as over (two sampler ticks). */
+export const UNDERRUN_QUIET_MS = 1000;
+
 // ========================================
 // TYPES
 // ========================================
@@ -30,6 +33,21 @@ export interface DiagSample {
   ctxState: string;
   frames: number;
   hidden: boolean;
+  /** The browser's own playback statistics for this tick; null/undefined when the API is absent or unreadable. */
+  playback?: PlaybackReading | null;
+}
+
+/**
+ * `AudioContext.playbackStats` (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md), read-only. Counts and durations are
+ * cumulative since the context was created; the latency figures are in seconds (verified, task 1).
+ */
+export interface PlaybackReading {
+  underrunEvents: number;
+  underrunDuration: number;
+  totalDuration: number;
+  averageLatency: number;
+  minimumLatency: number;
+  maximumLatency: number;
 }
 
 /** One analyser buffer, reduced. `peak` and `rms` are linear (0–1) and exclude non-finite samples. */
@@ -60,6 +78,14 @@ export interface DiagState {
   maxLagMs: number;
   clockStalledSinceMs: number | null;
   framesStoppedSinceMs: number | null;
+  /** The last playback underrun count seen; null until the first reading (that one is history, not an event). */
+  lastUnderrunCount: number | null;
+  /** True from the sample where the underrun count rose until it has been flat for UNDERRUN_QUIET_MS. */
+  underrunActive: boolean;
+  underrunBurstStartMs: number | null;
+  /** The underrun count just before the current burst began. */
+  underrunBurstStartCount: number;
+  underrunLastRiseMs: number | null;
   events: DiagEvent[];
 }
 
@@ -78,6 +104,11 @@ export function initDiagState(startWallMs: number): DiagState {
     maxLagMs: 0,
     clockStalledSinceMs: null,
     framesStoppedSinceMs: null,
+    lastUnderrunCount: null,
+    underrunActive: false,
+    underrunBurstStartMs: null,
+    underrunBurstStartCount: 0,
+    underrunLastRiseMs: null,
     events: [],
   };
 }
@@ -86,6 +117,45 @@ export function initDiagState(startWallMs: number): DiagState {
 export function noteDiagEvent(state: DiagState, wallMs: number, text: string): DiagState {
   const events = [...state.events, { atMs: wallMs - state.startWallMs, text }].slice(-MAX_EVENTS);
   return { ...state, events };
+}
+
+/**
+ * Fold the browser's playback-underrun count into the state, edge-triggered like the other events: one "began" when
+ * the count first rises, one "stopped" once it has been flat for UNDERRUN_QUIET_MS — so a click storm cannot flush
+ * the log. The first reading is a baseline (underruns from before the overlay started are history), a missing or
+ * non-finite reading changes nothing, and a count that goes *down* means a new AudioContext: a fresh baseline, with
+ * any open burst closed silently. Deliberately not gated on a hidden tab — underruns happen on the audio thread,
+ * which the browser does not throttle.
+ */
+function stepUnderruns(state: DiagState, wallMs: number, playback: PlaybackReading | null | undefined): DiagState {
+  if (!playback) return state;
+  const count = playback.underrunEvents;
+  if (!Number.isFinite(count)) return state;
+
+  const last = state.lastUnderrunCount;
+  if (last === null) return { ...state, lastUnderrunCount: count };
+  if (count < last) return { ...state, lastUnderrunCount: count, underrunActive: false };
+
+  if (count > last) {
+    const risen = { ...state, lastUnderrunCount: count, underrunLastRiseMs: wallMs };
+    if (state.underrunActive) return risen;
+    return noteDiagEvent(
+      { ...risen, underrunActive: true, underrunBurstStartMs: wallMs, underrunBurstStartCount: last },
+      wallMs,
+      `playback underruns began (${count} total)`,
+    );
+  }
+
+  const quietForMs = state.underrunLastRiseMs === null ? 0 : wallMs - state.underrunLastRiseMs;
+  if (state.underrunActive && quietForMs >= UNDERRUN_QUIET_MS) {
+    const burstSeconds = ((state.underrunLastRiseMs ?? wallMs) - (state.underrunBurstStartMs ?? wallMs)) / 1000;
+    return noteDiagEvent(
+      { ...state, underrunActive: false },
+      wallMs,
+      `playback underruns stopped after ${burstSeconds.toFixed(1)}s (+${count - state.underrunBurstStartCount})`,
+    );
+  }
+  return state;
 }
 
 /**
@@ -99,7 +169,8 @@ export function noteDiagEvent(state: DiagState, wallMs: number, text: string): D
 export function stepDiag(state: DiagState, sample: DiagSample): DiagState {
   const previous = state.last;
   if (!previous) {
-    return { ...state, last: sample, ctxState: sample.ctxState };
+    // The first sample still carries a playback count: it becomes the baseline a later rise is measured from.
+    return stepUnderruns({ ...state, last: sample, ctxState: sample.ctxState }, sample.wallMs, sample.playback);
   }
 
   const dtMs = sample.wallMs - previous.wallMs;
@@ -147,7 +218,7 @@ export function stepDiag(state: DiagState, sample: DiagSample): DiagState {
     }
   }
 
-  return next;
+  return stepUnderruns(next, sample.wallMs, sample.playback);
 }
 
 /** Milliseconds as `m:ss`. */
