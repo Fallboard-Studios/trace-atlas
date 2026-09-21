@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { memo, useCallback, useMemo } from 'react';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
+import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
 import { Lfo } from '@/components/ui/controls/Lfo';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
@@ -34,6 +35,9 @@ interface AudioSettingSectionProps {
   onVolumeChange: (pct: number) => void;
   onVolumeLfoChange: (value: LfoValue) => void;
   disabled?: boolean;
+  /** Audio Load Budget: this robot's Volume LFO is held off by the dial — its LFO frame greys out (values kept) with a label.
+   *  A plain prop, not a store read: this component stays presentational, and the company panel simply omits it. */
+  volumeLfoHeldOff?: boolean;
   /** Optional inline style forwarded to this section's own AccordionContainer — trait-color
    *  scoping (getTraitColorStyle('output'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this section always renders in
@@ -59,7 +63,7 @@ interface AudioSettingSectionProps {
  * field to target ('volume'), so `selected`/`isTargeted` are effectively constant, but the same
  * click/focus-to-select wiring is kept for consistency with every other LFO-tied control group.
  */
-function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, onVolumeLfoChange, disabled, style }: AudioSettingSectionProps) {
+function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, onVolumeLfoChange, disabled, volumeLfoHeldOff, style }: AudioSettingSectionProps) {
   const { transitioning, select, isTargeted, displayValue, displayLabel } = useLfoTargetGroup({
     groupId: 'robotOptions.volume',
     fields: [{ field: 'volume', label: VOLUME_SCHEMA.humanLabel!, lfoValue: value.volumeLfo }],
@@ -118,8 +122,9 @@ function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, on
             schema={lfoSchema}
             value={displayValue}
             onChange={onVolumeLfoChange}
-            disabled={disabled || transitioning}
+            disabled={disabled || transitioning || volumeLfoHeldOff}
           />
+          {volumeLfoHeldOff && <HeldOffNote />}
         </div>
       </DirectionalPanel>
     </AccordionContainer>

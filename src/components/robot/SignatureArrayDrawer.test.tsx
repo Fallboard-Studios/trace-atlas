@@ -449,4 +449,73 @@ describe('SignatureArrayDrawer', () => {
       expect(callsFor('robotOptions.layer2.gain')).toBe(0);
     });
   });
+
+  // Audio Load Budget (plan task 22): held-off layer LFOs and Robot Drift grey out, values kept, with a label.
+  describe('Audio Load: held-off LFOs and drift', () => {
+    const HELD = 'Held off by Audio Load';
+    const rateIn = (el: HTMLElement) => within(el).getByRole('slider', { name: 'Rate' });
+    const disabled = (el: HTMLElement) => el.getAttribute('data-disabled') !== null;
+    const lfoValue = { shape: 'sine' as const, rate: 2, depth: 40 };
+
+    beforeEach(() => {
+      useAudioStore.setState({ driftHeldOff: false });
+    });
+
+    it('greys the layer frame whose displayed target is held off (values kept, label shown) and no other layer', () => {
+      const { container } = renderOpen(
+        <SignatureArrayDrawer {...noop} value={makeValue({ lfoSettings: { 'layer0.gain': lfoValue } })} heldOffTargets={{ 'layer0.gain': true }} />,
+      );
+      const layer0 = layerSection(container, 'layer0');
+      expect(disabled(rateIn(layer0))).toBe(true);
+      expect(rateIn(layer0).getAttribute('aria-valuenow')).toBe('2');
+      expect(within(layer0).getByText(HELD)).toBeTruthy();
+      for (const key of ['layer1', 'layer2'] as const) {
+        expect(disabled(rateIn(layerSection(container, key)))).toBe(false);
+        expect(within(layerSection(container, key)).queryByText(HELD)).toBeNull();
+      }
+    });
+
+    it('follows the selected target: a held-off Detune greys the frame only once Detune is selected', async () => {
+      const { container } = renderOpen(<SignatureArrayDrawer {...noop} value={makeValue()} heldOffTargets={{ 'layer0.detune': true }} />);
+      const layer0 = layerSection(container, 'layer0');
+      expect(disabled(rateIn(layer0))).toBe(false); // showing Gain
+
+      await act(async () => {
+        within(layer0).getByRole('slider', { name: /Detune/ }).focus();
+      });
+
+      await waitFor(() => expect(disabled(rateIn(layerSection(container, 'layer0')))).toBe(true));
+      expect(within(layerSection(container, 'layer0')).getByText(HELD)).toBeTruthy();
+    });
+
+    it('is fully editable with nothing held off, or when the prop is omitted (company options)', () => {
+      const { container } = renderOpen(<SignatureArrayDrawer {...noop} value={makeValue()} />);
+      for (const key of ['layer0', 'layer1', 'layer2'] as const) expect(disabled(rateIn(layerSection(container, key)))).toBe(false);
+      expect(screen.queryByText(HELD)).toBeNull();
+    });
+
+    it('greys Robot Drift while the drift tier is off (values kept), and restores it', () => {
+      useAudioStore.setState((s) => ({
+        globalAudio: { ...s.globalAudio, lfoDrift: { ...s.globalAudio.lfoDrift, robots: { rateDrift: 0.3, depthDrift: -0.2 } } },
+        driftHeldOff: true,
+      }));
+      renderOpen(<SignatureArrayDrawer {...noop} value={makeValue()} />);
+      const rateDrift = screen.getByRole('slider', { name: 'Rate Drift' });
+      const depthDrift = screen.getByRole('slider', { name: 'Depth Drift' });
+      expect(disabled(rateDrift)).toBe(true);
+      expect(disabled(depthDrift)).toBe(true);
+      expect(rateDrift.getAttribute('aria-valuenow')).toBe('30');
+      expect(screen.getByText(HELD)).toBeTruthy();
+
+      act(() => useAudioStore.setState({ driftHeldOff: false }));
+
+      expect(disabled(screen.getByRole('slider', { name: 'Rate Drift' }))).toBe(false);
+      expect(screen.queryByText(HELD)).toBeNull();
+    });
+
+    it("Robot Drift still ignores the drawer's own disabled prop — only the drift tier greys it", () => {
+      renderOpen(<SignatureArrayDrawer {...noop} value={makeValue()} disabled />);
+      expect(disabled(screen.getByRole('slider', { name: 'Rate Drift' }))).toBe(false);
+    });
+  });
 });
