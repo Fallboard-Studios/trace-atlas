@@ -369,6 +369,71 @@ These rules exist because uncontaminated data was the whole point.
 
 Verified 2026-09-20 (production build of `35ff6a8`): a 60 s `charlie` run reads ≈ 0.34 mean (the known ≈ 0.33), callback interval 10.67 ms, audible robots climbing 3.5 → 8 over the first minute (matching the battery-cycle simulation in the spec); `bravo` ≈ 0.53 (known ≈ 0.55); both work from `http://<lan-ip>:4173/`; runs leave no Chrome process behind.
 
+## Pre-change baseline for roadmap 17.2.6 — Audio Load Budget (2026-09-20)
+
+The reference every Audio Load result is compared against ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md) §5.3 criteria 1 and 4; plan task 3). **Nothing in the product was changed to take it.** It also tests the spec's central inference — that render load tracks how many robots are sounding — which until now rested on a simulation and one time series.
+
+**Code measured:** `4bab2ea` (clean tree). Its product code is identical to `35ff6a8`; against `main` the only product difference is the overlay's `audible n/12` reading. Production build served by `vite preview`, headless Chrome 153.0.8010.52, desktop, no throttle, `npm run perf:audio` (above).
+
+**Method:** worlds `charlie:200:-30` and `bravo:-150:90`; **3 runs each**, a **240 s series** after an 8 s warm-up, **15 s buckets**; a fresh Chrome per run, foreground, one call at a time, nothing else running; start order rotated between rounds (charlie→bravo, bravo→charlie, charlie→bravo); orphaned-Chrome count 0 before and after every run. Plus one **spot re-run** of `charlie` afterwards (see "Noise band"). The audio callback interval read 10.67 ms in every bucket of every run (one bucket 10.69) — no deadline-miss doubling at stock, though single samples touched 0.99 (below).
+
+### Headline numbers
+
+| | charlie (0 global LFOs) | bravo (5 global LFOs) |
+|---|---|---|
+| **Peak window** (highest 15 s bucket mean) — the number Light must beat by ≥ 25 % | **0.414** median; runs 0.414 / 0.381 / 0.416 (spot re-run 0.404) | **0.558** median; runs 0.558 / 0.550 / 0.585 |
+| Overall mean | **0.327** median; runs 0.330 / 0.324 / 0.327 (spot re-run 0.342) | **0.488** median; runs 0.486 / 0.488 / 0.506 |
+| Highest single sample | 0.99 / 0.71 / 0.66 (spot 0.83) | 0.99 / 0.99 / 0.99 |
+| Peak window of the 3-run average | 0.400 (at 45 s) | 0.558 (at 135 s) |
+| r(audible, capacity), per run | 0.89 / 0.89 / 0.91 (spot 0.94) | 0.76 / 0.74 / 0.77 |
+
+### The waves — per-bucket means over the 3 runs (audible robots are identical run to run)
+
+| t (s) | audible | charlie cap (run range) | bravo cap (run range) |
+|---:|---:|---|---|
+| 0 | 3.5 / 4.5 | 0.302 (0.289–0.312) | 0.516 (0.485–0.550) |
+| 15 | 5.0 / 7.1 | 0.319 (0.305–0.327) | 0.530 (0.519–0.541) |
+| 30 | 6.2 / 7.6 | 0.366 (0.361–0.370) | 0.533 (0.510–0.562) |
+| 45 | 7.8 / 7.8 | 0.400 (0.371–0.416) | 0.534 (0.504–0.558) |
+| 60 | 7.1 / 5.4 | 0.371 (0.364–0.375) | 0.511 (0.474–0.559) |
+| 75 | 3.9 / 1.8 | 0.291 (0.278–0.305) | 0.441 (0.417–0.462) |
+| 90 | 4.7 / 3.5 | 0.303 (0.295–0.317) | 0.422 (0.414–0.431) |
+| 105 | 6.4 / 3.9 | 0.355 (0.334–0.397) | 0.437 (0.426–0.458) |
+| 120 | 6.5 / 5.7 | 0.342 (0.329–0.364) | 0.490 (0.473–0.519) |
+| 135 | 7.1 / 7.7 | 0.366 (0.358–0.381) | 0.558 (0.541–0.585) |
+| 150 | 5.5 / 6.1 | 0.330 (0.324–0.335) | 0.518 (0.503–0.538) |
+| 165 | 4.0 / 5.4 | 0.320 (0.313–0.329) | 0.528 (0.512–0.541) |
+| 180 | 2.1 / 4.4 | 0.264 (0.251–0.274) | 0.498 (0.477–0.512) |
+| 195 | 3.1 / 5.0 | 0.262 (0.257–0.265) | 0.458 (0.428–0.475) |
+| 210 | 5.2 / 5.6 | 0.306 (0.297–0.321) | 0.474 (0.434–0.509) |
+| 225 | 6.3 / 3.8 | 0.333 (0.330–0.336) | 0.453 (0.432–0.475) |
+
+(Audible robots are shown charlie / bravo. A pinned world replays the same robot lifecycle, so this series repeats across runs to within ±0.1 — only capacity varies.)
+
+### Does load track audible robots? — the reading
+
+| Correlation (Pearson r over 15 s buckets) | charlie | bravo | both worlds |
+|---|---|---|---|
+| per run | 0.89 / 0.89 / 0.91 | 0.76 / 0.74 / 0.77 | |
+| pooled over the 3 runs (48 buckets) | **0.89** | **0.74** | |
+| on the 3-run-averaged capacity (16 buckets) | 0.94 | 0.83 | |
+| both worlds pooled, raw (96 buckets) | | | **0.38** |
+| both worlds pooled, world means removed | | | **0.81** |
+
+**Reading: yes, strongly, within a world.** Capacity follows the audible count through every wave — bravo dips from 0.53 to 0.44 exactly where audible robots drop from 7.8 to 1.8, and charlie's two lowest buckets (0.262 and 0.264, at 195 s and 180 s) are the two lowest audible counts (3.1 and 2.1) — and the fitted slope is the same in both worlds, **≈ 2 capacity points per audible robot** (charlie ≈ 0.209 + 0.0223 × audible, bravo ≈ 0.385 + 0.0204 × audible). bravo sits ≈ 0.17 above charlie at the same audible count; that offset is the 5 global LFOs, and it is why the **raw pooled r is only 0.38** — it compares a bravo bucket with a charlie bucket, so the world difference swamps the robot effect. That figure is below the plan's "~0.5" line but it is not the relevant test: the caps act *within* a world, and once the world offset is removed the pooled r is 0.81.
+
+**Caveats, so the number is not over-read.** The runs are not independent samples of the relationship: the audible series is the same each run, so pooling three runs repeats the same x values with different noise on y, and adjacent buckets in a time series are autocorrelated, so treat r as descriptive, not as a significance test. "Audible" is eligibility (`isRobotAudible`), not notes actually sounding; it is a proxy. A correlation is not a controlled test — that is what plan task 11 (caps alone, `charlie`) does.
+
+**What this predicts for the gates (a model, not a measurement).** With the fitted slope, capping `charlie` at Light's 4 robots would pull its peak bucket from ≈ 0.40 to ≈ 0.30 — a **≈ 25 % reduction, right on the ≥ 25 % gate**. Capping at Standard's 8 robots would do **almost nothing** on `charlie`, whose audible robots average at most 7.8 per bucket — so the ≥ 10 % Standard gate on `charlie` looks out of reach for the robot cap alone (only the polyphony cap of 12, drift and filter LFOs — none of which `charlie` has — could contribute). `bravo` should gain more than `charlie` at Light (drift and the filter LFOs come off as well). Plan task 11 tests this on `charlie`; a Standard shortfall there would be expected and is a decision for Crawford, not a tuning target.
+
+### Noise band
+
+Across all four `charlie` runs the peak window spans 0.381–0.416 and the overall mean 0.324–0.342 (the spot re-run sat 0.012 above the three-round range), so **≈ ±0.02 on a run's overall mean and ±0.02 on its peak window** — the band that "Full within ±0.03 of baseline" (§5.3 criterion 1) has to be read against. Single-sample spikes to ≈ 0.99 occur in most runs (every `bravo` run, one `charlie` run) without the callback interval leaving 10.67 ms; the peak window, being a 15 s mean, is unaffected by them.
+
+### Decision line for Crawford (plan task 3)
+
+The plan says to stop if the correlation is weak (|r| < ~0.5). **The per-world and within-world correlations are 0.74–0.94 — the spec's premise holds — but the raw both-worlds-pooled figure the plan literally asks for is 0.38**, for the confounded reason above. This is recorded as a judgment call for review at Checkpoint A, not silently reinterpreted; the work continues to plan task 4 (measurement only) and stops at Checkpoint A before any product change.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
