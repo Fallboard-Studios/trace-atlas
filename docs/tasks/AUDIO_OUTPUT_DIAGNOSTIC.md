@@ -62,7 +62,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
 ### Phase 0: Prove the assumption
 
-- [ ] **Task 1: Probe — an analyser with no output connection is processed; a `disconnect()` drops it; units of `playbackStats`**
+- [x] **Task 1: Probe — an analyser with no output connection is processed; a `disconnect()` drops it; units of `playbackStats`**
 
   **Description:** A throwaway page driven over CDP in headless Chrome 153 (real time, foreground; the perf harness's pattern) builds `Oscillator(440 Hz) → Gain(0.5) → destination` and attaches a native `AnalyserNode` (`fftSize` 32768) fed from the gain and connected to nothing. It reads the buffer, then calls `gain.disconnect()` and reads again, and reads `playbackStats` after a few seconds. This is the one assumption (spec §0.3) the design cannot survive being wrong about; nothing is committed but the result.
 
@@ -82,7 +82,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
   **Estimated scope:** XS
 
 ### Checkpoint 0: the design's foundation holds
-- [ ] Task 1's three results recorded; the first is a pass. Otherwise stop and report to Crawford.
+- [x] Task 1's three results recorded; the first is a pass (see "Task results"). Otherwise stop and report to Crawford.
 
 ### Phase 1: Slice A — the level readout, end to end
 
@@ -418,9 +418,23 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 ## Open Questions
 
 None blocking. For Crawford:
-- Do you want a **phone build after Checkpoint A or B**, before all three slices are done? (Recommended if you may get a chance to test tonight: the level line and the underrun line are useful on their own.)
-- What Chrome version is on the Pixel (`chrome://version`)? `playbackStats` shipped in Chrome 146; an older browser would show `underruns n/a` and only the level taps would answer.
+- ~~Phone build after Checkpoint A or B?~~ **Answered 2026-09-21: the phone build can wait until the end.**
+- ~~What Chrome version is on the Pixel?~~ **Answered 2026-09-21: Chrome 153** — `playbackStats` (shipped in 146) will be there, and desktop Chrome 153 was probed with it present.
 
 ## Task results
 
-*(Filled in as tasks complete: Task 1's three probe results; Tasks 6, 9 and 13's real-browser readings; the Task 16 phone run.)*
+*(Filled in as tasks complete: Tasks 6, 9 and 13's real-browser readings; the Task 16 phone run.)*
+
+### Task 1 — the probe (2026-09-21, headless Chrome 153.0.0.0 on Windows, 48 kHz; a throwaway CDP script in real time, never committed; Chrome process count 43 before and 43 after)
+
+A page builds `Oscillator(440 Hz) → Gain(0.5) → destination`, plus a native `AnalyserNode` (`fftSize` 32768) fed from the gain and connected to **nothing**.
+
+| Step | Peak read from the analyser | Meaning |
+|---|---|---|
+| A. running, 2 s | **0.49999994** | An analyser with no output connection **is processed** (spec assumption 3 holds). |
+| B. `gain.gain = 0`, 1.5 s | 0 | Real silence flowing in reads as 0 (a processed analyser sees silence). |
+| C. `gain.gain = 0.5`, 1.5 s | 0.49999967 | Back to the signal. |
+| D. `gain.disconnect()`, 2 s (> the 0.68 s buffer) | **0** | After a rewire drops the tap, the analyser reads **silence, not a stale buffer** — so a dropped tap would raise a *false silent event*, which is why Task 4's hook matters. |
+| E. reconnected, 1.5 s | 0.49999958 | Reconnecting restores it. |
+
+`AudioContext.playbackStats` on the same context: `totalDuration` 1.013 → 4.012 over 3.004 s of wall time, so **the units are seconds**; `averageLatency` 0.0434 → 0.0438 (≈ 43 ms) against `baseLatency` 0.010 and `outputLatency` 0.040; `minimumLatency` 0, `maximumLatency` 0.0451; `underrunEvents` 0 and `underrunDuration` 0 in this calm run.
