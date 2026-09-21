@@ -388,6 +388,84 @@ describe('stepDiag — master output silent while notes sound', () => {
   });
 });
 
+describe('stepDiag — non-finite samples in an output tap', () => {
+  const finite: LevelReading = { peak: 0.1, rms: 0.05, nonFinite: 0 };
+  const broken = (count = 3): LevelReading => ({ peak: 0.1, rms: 0.05, nonFinite: count });
+  const at = (n: number, master: LevelReading | null | undefined, pre: LevelReading | null | undefined, extra: Partial<DiagSample> = {}) =>
+    healthy(n, { master, pre, ...extra });
+  const texts = (s: DiagState) => s.events.map((e) => e.text);
+
+  it('logs one event when the master tap first shows a non-finite sample, and one when it clears', () => {
+    let s = run([at(0, finite, finite), at(1, finite, finite)]);
+    expect(s.events).toEqual([]);
+    expect(s.masterNonFinite).toBe(false);
+
+    s = stepDiag(s, at(2, broken(), finite));
+    expect(texts(s)).toEqual(['non-finite samples in master output']);
+    expect(s.masterNonFinite).toBe(true);
+
+    s = stepDiag(s, at(3, broken(9), finite)); // still non-finite: nothing more
+    expect(s.events).toHaveLength(1);
+
+    s = stepDiag(s, at(4, finite, finite));
+    expect(texts(s)).toEqual(['non-finite samples in master output', 'master output finite again']);
+    expect(s.masterNonFinite).toBe(false);
+  });
+
+  it('does the same for the pre-chain tap, independently of the master', () => {
+    let s = run([at(0, finite, finite), at(1, finite, broken())]);
+    expect(texts(s)).toEqual(['non-finite samples in pre-chain output']);
+    expect(s.preNonFinite).toBe(true);
+    expect(s.masterNonFinite).toBe(false);
+
+    s = stepDiag(s, at(2, finite, finite));
+    expect(texts(s)).toEqual(['non-finite samples in pre-chain output', 'pre-chain output finite again']);
+  });
+
+  it('tracks both taps at once, master first, and clearing one leaves the other flagged', () => {
+    let s = run([at(0, finite, finite), at(1, broken(), broken())]);
+    expect(texts(s)).toEqual(['non-finite samples in master output', 'non-finite samples in pre-chain output']);
+
+    s = stepDiag(s, at(2, finite, broken()));
+    expect(texts(s).at(-1)).toBe('master output finite again');
+    expect(s.masterNonFinite).toBe(false);
+    expect(s.preNonFinite).toBe(true);
+  });
+
+  it('reports it from the very first sample, which has no predecessor', () => {
+    const s = run([at(0, broken(), null)]);
+    expect(texts(s)).toEqual(['non-finite samples in master output']);
+  });
+
+  it('treats a missing reading as no information: it raises nothing, and does not clear a flag that is set', () => {
+    expect(run([at(0, null, undefined), at(1, undefined, null)]).events).toEqual([]);
+
+    const s = run([at(0, finite, finite), at(1, broken(), finite), at(2, null, finite), at(3, undefined, finite)]);
+    expect(texts(s)).toEqual(['non-finite samples in master output']);
+    expect(s.masterNonFinite).toBe(true);
+
+    const cleared = stepDiag(s, at(4, finite, finite));
+    expect(texts(cleared).at(-1)).toBe('master output finite again');
+  });
+
+  it('still reports it while the tab is hidden: the audio thread is not throttled', () => {
+    const s = run([at(0, finite, finite, { hidden: true }), at(1, broken(), finite, { hidden: true })]);
+    expect(texts(s)).toEqual(['non-finite samples in master output']);
+  });
+
+  it('is independent of the silent event: an all-NaN master is both non-finite and (after 3 s) silent', () => {
+    // measureLevel gives peak 0 for a buffer with nothing finite in it, so the two conditions arrive together.
+    const nan: LevelReading = { peak: 0, rms: 0, nonFinite: 32768 };
+    const s = run(Array.from({ length: 8 }, (_, i) => at(i, nan, finite, { expectSound: true })));
+    expect(texts(s)).toEqual([
+      'non-finite samples in master output',
+      'master output silent for 3s while notes sound (pre-chain normal)',
+    ]);
+    expect(s.masterNonFinite).toBe(true);
+    expect(s.silentActive).toBe(true);
+  });
+});
+
 describe('measureLevel', () => {
   it('reads silence as peak 0, rms 0 and no non-finite samples', () => {
     expect(measureLevel(new Float32Array(1024))).toEqual({ peak: 0, rms: 0, nonFinite: 0 });

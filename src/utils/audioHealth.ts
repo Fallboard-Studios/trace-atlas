@@ -102,6 +102,10 @@ export interface DiagState {
   silentSinceMs: number | null;
   /** True from the sample where that run reached SILENT_EVENT_AFTER_MS until it ends — what the red overlay status reads. */
   silentActive: boolean;
+  /** True while the master tap's latest reading held non-finite (NaN / ±Infinity) samples. */
+  masterNonFinite: boolean;
+  /** True while the pre-chain tap's latest reading held non-finite samples. */
+  preNonFinite: boolean;
   events: DiagEvent[];
 }
 
@@ -127,6 +131,8 @@ export function initDiagState(startWallMs: number): DiagState {
     underrunLastRiseMs: null,
     silentSinceMs: null,
     silentActive: false,
+    masterNonFinite: false,
+    preNonFinite: false,
     events: [],
   };
 }
@@ -219,6 +225,30 @@ function stepSilence(state: DiagState, sample: DiagSample, previousWallMs: numbe
 }
 
 /**
+ * One tap's non-finite flag, edge-triggered: an event when a reading first holds NaN / ±Infinity, another when it
+ * next reads clean. A missing reading is no information — it raises nothing and does not clear a flag that is set
+ * (that would claim the samples are finite when nobody looked). Not gated on a hidden tab.
+ */
+function stepTapNonFinite(
+  state: DiagState,
+  wallMs: number,
+  reading: LevelReading | null | undefined,
+  flag: 'masterNonFinite' | 'preNonFinite',
+  label: string,
+): DiagState {
+  if (!reading) return state;
+  const bad = reading.nonFinite > 0;
+  if (bad === state[flag]) return state;
+  return noteDiagEvent({ ...state, [flag]: bad }, wallMs, bad ? `non-finite samples in ${label}` : `${label} finite again`);
+}
+
+/** Both taps' non-finite flags, master first. Independent of the silent event: an all-NaN buffer reads peak 0, so both can arrive together. */
+function stepNonFinite(state: DiagState, sample: DiagSample): DiagState {
+  const master = stepTapNonFinite(state, sample.wallMs, sample.master, 'masterNonFinite', 'master output');
+  return stepTapNonFinite(master, sample.wallMs, sample.pre, 'preNonFinite', 'pre-chain output');
+}
+
+/**
  * Fold one sample into the state. Continuous readouts (clock rate, fps, lag) are recomputed every
  * sample; events are edge-triggered (one on entering a bad condition, one on leaving it) so a long
  * dropout produces two lines, not one per sample.
@@ -231,7 +261,7 @@ export function stepDiag(state: DiagState, sample: DiagSample): DiagState {
   if (!previous) {
     // The first sample still carries a playback count: it becomes the baseline a later rise is measured from.
     const first = stepUnderruns({ ...state, last: sample, ctxState: sample.ctxState }, sample.wallMs, sample.playback);
-    return stepSilence(first, sample, null);
+    return stepNonFinite(stepSilence(first, sample, null), sample);
   }
 
   const dtMs = sample.wallMs - previous.wallMs;
@@ -279,7 +309,7 @@ export function stepDiag(state: DiagState, sample: DiagSample): DiagState {
     }
   }
 
-  return stepSilence(stepUnderruns(next, sample.wallMs, sample.playback), sample, previous.wallMs);
+  return stepNonFinite(stepSilence(stepUnderruns(next, sample.wallMs, sample.playback), sample, previous.wallMs), sample);
 }
 
 /** Milliseconds as `m:ss`. */
