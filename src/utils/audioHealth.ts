@@ -32,6 +32,14 @@ export interface DiagSample {
   hidden: boolean;
 }
 
+/** One analyser buffer, reduced. `peak` and `rms` are linear (0–1) and exclude non-finite samples. */
+export interface LevelReading {
+  peak: number;
+  rms: number;
+  /** How many NaN / ±Infinity samples the buffer held. */
+  nonFinite: number;
+}
+
 export interface DiagEvent {
   /** Milliseconds since the diagnostics started. */
   atMs: number;
@@ -148,4 +156,36 @@ export function formatUptime(ms: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+/**
+ * Peak, RMS and non-finite count of one analyser buffer (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md §4).
+ * NaN and ±Infinity are counted but kept out of peak and RMS — one bad sample must not turn the
+ * whole reading into NaN, because the point is to say *that* it went non-finite, not to lose the
+ * level. RMS is over the finite samples only. An empty buffer has nothing to measure: `null`.
+ */
+export function measureLevel(samples: ArrayLike<number>): LevelReading | null {
+  if (samples.length === 0) return null;
+
+  let peak = 0;
+  let sumSquares = 0;
+  let finite = 0;
+  let nonFinite = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const value = samples[i];
+    if (!Number.isFinite(value)) {
+      nonFinite++;
+      continue;
+    }
+    const magnitude = Math.abs(value);
+    if (magnitude > peak) peak = magnitude;
+    sumSquares += value * value;
+    finite++;
+  }
+  return { peak, rms: finite > 0 ? Math.sqrt(sumSquares / finite) : 0, nonFinite };
+}
+
+/** A linear peak as dBFS; a zero peak is `-Infinity` (never NaN). */
+export function peakToDb(peak: number): number {
+  return peak > 0 ? 20 * Math.log10(peak) : -Infinity;
 }

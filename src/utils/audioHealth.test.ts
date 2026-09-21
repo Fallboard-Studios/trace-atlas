@@ -8,6 +8,8 @@ import {
   stepDiag,
   noteDiagEvent,
   formatUptime,
+  measureLevel,
+  peakToDb,
   SAMPLE_INTERVAL_MS,
   MAX_EVENTS,
   type DiagSample,
@@ -163,5 +165,62 @@ describe('formatUptime', () => {
     expect(formatUptime(0)).toBe('0:00');
     expect(formatUptime(65_000)).toBe('1:05');
     expect(formatUptime(605_400)).toBe('10:05');
+  });
+});
+
+describe('measureLevel', () => {
+  it('reads silence as peak 0, rms 0 and no non-finite samples', () => {
+    expect(measureLevel(new Float32Array(1024))).toEqual({ peak: 0, rms: 0, nonFinite: 0 });
+  });
+
+  it('reads a sine of amplitude a as peak a and rms a / sqrt(2)', () => {
+    const amplitude = 0.5;
+    const cycles = 100;
+    const length = 4800; // whole cycles, so the rms has no partial-cycle bias
+    const sine = Float32Array.from({ length }, (_, i) => amplitude * Math.sin((2 * Math.PI * cycles * i) / length));
+    const level = measureLevel(sine)!;
+    expect(level.peak).toBeCloseTo(amplitude, 3);
+    expect(level.rms).toBeCloseTo(amplitude / Math.SQRT2, 3);
+    expect(level.nonFinite).toBe(0);
+  });
+
+  it('takes the peak from the absolute value, so a negative excursion counts', () => {
+    expect(measureLevel([-0.9, 0.2])!.peak).toBeCloseTo(0.9, 6);
+  });
+
+  it('counts NaN and both infinities and leaves peak and rms to the finite samples alone', () => {
+    const level = measureLevel([0.25, NaN, -0.5, Infinity, 0.1, -Infinity])!;
+    expect(level.nonFinite).toBe(3);
+    expect(level.peak).toBeCloseTo(0.5, 6);
+    // rms over the three finite samples: sqrt((0.25² + 0.5² + 0.1²) / 3)
+    expect(level.rms).toBeCloseTo(Math.sqrt((0.0625 + 0.25 + 0.01) / 3), 6);
+  });
+
+  it('reads a buffer with nothing finite in it as peak 0, rms 0 and every sample counted', () => {
+    expect(measureLevel([NaN, Infinity, NaN])).toEqual({ peak: 0, rms: 0, nonFinite: 3 });
+  });
+
+  it('returns null for an empty buffer (there is nothing to measure)', () => {
+    expect(measureLevel([])).toBeNull();
+    expect(measureLevel(new Float32Array(0))).toBeNull();
+  });
+
+  it('measures a single sample', () => {
+    const level = measureLevel([-0.4])!;
+    expect(level.peak).toBeCloseTo(0.4, 6);
+    expect(level.rms).toBeCloseTo(0.4, 6);
+    expect(level.nonFinite).toBe(0);
+  });
+});
+
+describe('peakToDb', () => {
+  it('converts a linear peak to dBFS', () => {
+    expect(peakToDb(1)).toBeCloseTo(0, 6);
+    expect(peakToDb(0.5)).toBeCloseTo(-6.0206, 3);
+    expect(peakToDb(1e-4)).toBeCloseTo(-80, 6);
+  });
+
+  it('reads a zero peak as -Infinity rather than NaN', () => {
+    expect(peakToDb(0)).toBe(-Infinity);
   });
 });
