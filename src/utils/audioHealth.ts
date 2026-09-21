@@ -22,6 +22,12 @@ export const MAX_EVENTS = 8;
 /** Playback underruns must stop rising for this long before a burst counts as over (two sampler ticks). */
 export const UNDERRUN_QUIET_MS = 1000;
 
+/** A master-output peak below this (linear, −80 dBFS) counts as silence. Strict: a peak of exactly this is audible. */
+export const SILENT_PEAK_THRESHOLD = 1e-4;
+
+/** How long the master must stay silent, while notes are expected, before it is logged. Every dropout seen on the phone lasted seconds. */
+export const SILENT_EVENT_AFTER_MS = 3000;
+
 // ========================================
 // TYPES
 // ========================================
@@ -35,6 +41,12 @@ export interface DiagSample {
   hidden: boolean;
   /** The browser's own playback statistics for this tick; null/undefined when the API is absent or unreadable. */
   playback?: PlaybackReading | null;
+  /** The master output (masterGain's output) level this tick; null/undefined when there is no reading — never treated as silence. */
+  master?: LevelReading | null;
+  /** The pre-chain (EQ3 output) level this tick; only used to say where a silence is, so null/undefined reads "unknown". */
+  pre?: LevelReading | null;
+  /** True when silence would be a fault: notes are sounding, the master is not muted, the transport is started, the context is running. */
+  expectSound?: boolean;
 }
 
 /**
@@ -86,6 +98,10 @@ export interface DiagState {
   /** The underrun count just before the current burst began. */
   underrunBurstStartCount: number;
   underrunLastRiseMs: number | null;
+  /** Wall time of the first sample of the current run of "master silent while sound is expected"; null when not in one. */
+  silentSinceMs: number | null;
+  /** True from the sample where that run reached SILENT_EVENT_AFTER_MS until it ends — what the red overlay status reads. */
+  silentActive: boolean;
   events: DiagEvent[];
 }
 
@@ -109,6 +125,8 @@ export function initDiagState(startWallMs: number): DiagState {
     underrunBurstStartMs: null,
     underrunBurstStartCount: 0,
     underrunLastRiseMs: null,
+    silentSinceMs: null,
+    silentActive: false,
     events: [],
   };
 }
@@ -158,6 +176,48 @@ function stepUnderruns(state: DiagState, wallMs: number, playback: PlaybackReadi
   return state;
 }
 
+/** Where the pre-chain tap stood when the master went silent: live means the silence is inside the FX chain. */
+function preChainState(pre: LevelReading | null | undefined): 'normal' | 'silent' | 'unknown' {
+  if (!pre) return 'unknown';
+  return pre.peak < SILENT_PEAK_THRESHOLD ? 'silent' : 'normal';
+}
+
+/**
+ * Fold the master output level into an edge-triggered "silent while notes sound" event (docs/specs/
+ * AUDIO_OUTPUT_DIAGNOSTIC.md). Silent means the master peak is below SILENT_PEAK_THRESHOLD *and* silence would be a
+ * fault (`expectSound`); it must hold continuously for SILENT_EVENT_AFTER_MS, and any break restarts the count.
+ *
+ * No master reading is no information: it never raises the event and restarts a count that has not fired yet, but it
+ * does not end an event that has (that would claim the sound came back). When an active silence ends, the message
+ * says why: the master became audible, or it is still silent but no longer unexpected (muted, notes stopped).
+ * Not gated on a hidden tab — the audio thread is not throttled.
+ */
+function stepSilence(state: DiagState, sample: DiagSample, previousWallMs: number | null): DiagState {
+  const master = sample.master;
+  if (!master) return state.silentActive ? state : { ...state, silentSinceMs: null };
+
+  const quiet = master.peak < SILENT_PEAK_THRESHOLD;
+  if (quiet && sample.expectSound === true) {
+    const since = state.silentSinceMs ?? sample.wallMs;
+    const counting = { ...state, silentSinceMs: since };
+    if (state.silentActive || sample.wallMs - since < SILENT_EVENT_AFTER_MS) return counting;
+    return noteDiagEvent(
+      { ...counting, silentActive: true },
+      sample.wallMs,
+      `master output silent for ${SILENT_EVENT_AFTER_MS / 1000}s while notes sound (pre-chain ${preChainState(sample.pre)})`,
+    );
+  }
+
+  if (state.silentActive && state.silentSinceMs !== null) {
+    const seconds = ((previousWallMs ?? sample.wallMs) - state.silentSinceMs) / 1000;
+    const text = quiet
+      ? `silence no longer unexpected after ${seconds.toFixed(1)}s`
+      : `master output audible again after ${seconds.toFixed(1)}s`;
+    return noteDiagEvent({ ...state, silentActive: false, silentSinceMs: null }, sample.wallMs, text);
+  }
+  return { ...state, silentSinceMs: null };
+}
+
 /**
  * Fold one sample into the state. Continuous readouts (clock rate, fps, lag) are recomputed every
  * sample; events are edge-triggered (one on entering a bad condition, one on leaving it) so a long
@@ -170,7 +230,8 @@ export function stepDiag(state: DiagState, sample: DiagSample): DiagState {
   const previous = state.last;
   if (!previous) {
     // The first sample still carries a playback count: it becomes the baseline a later rise is measured from.
-    return stepUnderruns({ ...state, last: sample, ctxState: sample.ctxState }, sample.wallMs, sample.playback);
+    const first = stepUnderruns({ ...state, last: sample, ctxState: sample.ctxState }, sample.wallMs, sample.playback);
+    return stepSilence(first, sample, null);
   }
 
   const dtMs = sample.wallMs - previous.wallMs;
@@ -218,7 +279,7 @@ export function stepDiag(state: DiagState, sample: DiagSample): DiagState {
     }
   }
 
-  return stepUnderruns(next, sample.wallMs, sample.playback);
+  return stepSilence(stepUnderruns(next, sample.wallMs, sample.playback), sample, previous.wallMs);
 }
 
 /** Milliseconds as `m:ss`. */

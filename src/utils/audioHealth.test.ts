@@ -14,6 +14,7 @@ import {
   MAX_EVENTS,
   type DiagSample,
   type DiagState,
+  type LevelReading,
   type PlaybackReading,
 } from './audioHealth';
 
@@ -278,6 +279,112 @@ describe('stepDiag — playback underruns (AudioContext.playbackStats)', () => {
   it('still logs while the tab is hidden: underruns happen on the audio thread, which the browser does not throttle', () => {
     const s = run([withStats(0, stats(0), { hidden: true }), withStats(1, stats(3), { hidden: true })]);
     expect(texts(s)).toEqual(['playback underruns began (3 total)']);
+  });
+});
+
+describe('stepDiag — master output silent while notes sound', () => {
+  const level = (peak: number): LevelReading => ({ peak, rms: peak / 2, nonFinite: 0 });
+  /** A sample n intervals in where the master reads silent, the pre-chain tap is live, and notes are expected. */
+  const silentAt = (n: number, extra: Partial<DiagSample> = {}) =>
+    healthy(n, { master: level(0), pre: level(0.1), expectSound: true, ...extra });
+  const audibleAt = (n: number, extra: Partial<DiagSample> = {}) =>
+    healthy(n, { master: level(0.1), pre: level(0.1), expectSound: true, ...extra });
+  const silentRun = (from: number, to: number, extra: Partial<DiagSample> = {}) =>
+    Array.from({ length: to - from + 1 }, (_, i) => silentAt(from + i, extra));
+  const texts = (s: DiagState) => s.events.map((e) => e.text);
+  const SILENT_TEXT = 'master output silent for 3s while notes sound (pre-chain normal)';
+
+  it('logs nothing until the master has been silent for a full 3 s — the very first sample starts the count', () => {
+    const s = run(silentRun(0, 5)); // 0 … 2500 ms
+    expect(s.events).toEqual([]);
+    expect(s.silentActive).toBe(false);
+
+    const fired = stepDiag(s, silentAt(6)); // 3000 ms exactly
+    expect(texts(fired)).toEqual([SILENT_TEXT]);
+    expect(fired.silentActive).toBe(true);
+  });
+
+  it('logs exactly one event however long the silence continues', () => {
+    const s = run(silentRun(0, 30));
+    expect(texts(s)).toEqual([SILENT_TEXT]);
+    expect(s.silentActive).toBe(true);
+  });
+
+  it('logs one recovery event with the length of the silence once the master is audible again', () => {
+    const s = run([...silentRun(0, 8), audibleAt(9)]); // silent 0 … 4000 ms, audible at 4500 ms
+    expect(texts(s)).toEqual([SILENT_TEXT, 'master output audible again after 4.0s']);
+    expect(s.silentActive).toBe(false);
+  });
+
+  it('logs nothing more while it stays audible after a recovery', () => {
+    const s = run([...silentRun(0, 8), ...Array.from({ length: 10 }, (_, i) => audibleAt(9 + i))]);
+    expect(s.events).toHaveLength(2);
+  });
+
+  it('says whether the pre-chain tap was still live (silence is inside the chain) or also silent (upstream)', () => {
+    expect(texts(run(silentRun(0, 6, { pre: level(0.1) })))).toEqual([SILENT_TEXT]);
+    expect(texts(run(silentRun(0, 6, { pre: level(0) })))).toEqual([
+      'master output silent for 3s while notes sound (pre-chain silent)',
+    ]);
+  });
+
+  it('says "unknown" for the pre-chain tap when there is no reading from it', () => {
+    const expected = ['master output silent for 3s while notes sound (pre-chain unknown)'];
+    expect(texts(run(silentRun(0, 6, { pre: null })))).toEqual(expected);
+    expect(texts(run(silentRun(0, 6, { pre: undefined })))).toEqual(expected);
+  });
+
+  it('does not raise it when no sound is expected (no notes, master muted, transport stopped…)', () => {
+    expect(run(silentRun(0, 30, { expectSound: false })).events).toEqual([]);
+    expect(run(silentRun(0, 30, { expectSound: undefined })).events).toEqual([]);
+  });
+
+  it('restarts the 3 s count after any break in the condition', () => {
+    // silent 0 … 2000 ms, one audible sample at 2500 ms, silent again from 3000 ms
+    const s = run([...silentRun(0, 4), audibleAt(5), ...silentRun(6, 11)]);
+    expect(s.events).toEqual([]); // 5500 − 3000 = 2500 ms since the restart
+
+    expect(texts(stepDiag(s, silentAt(12)))).toEqual([SILENT_TEXT]); // 6000 − 3000 = 3000 ms
+  });
+
+  it('restarts the count when sound stops being expected, and again when it is expected', () => {
+    const s = run([...silentRun(0, 4), silentAt(5, { expectSound: false }), ...silentRun(6, 11)]);
+    expect(s.events).toEqual([]);
+  });
+
+  it('closes an active silence with a different message when it stops being unexpected (e.g. the user muted)', () => {
+    const s = run([...silentRun(0, 8), silentAt(9, { expectSound: false })]);
+    expect(texts(s)).toEqual([SILENT_TEXT, 'silence no longer unexpected after 4.0s']);
+    expect(s.silentActive).toBe(false);
+  });
+
+  it('never raises it without a master reading, and a gap in the readings restarts the count', () => {
+    expect(run(Array.from({ length: 30 }, (_, i) => healthy(i, { master: null, expectSound: true }))).events).toEqual([]);
+    expect(run(Array.from({ length: 30 }, (_, i) => healthy(i, { expectSound: true }))).events).toEqual([]);
+
+    const gap = run([...silentRun(0, 4), healthy(5, { master: null, expectSound: true }), ...silentRun(6, 11)]);
+    expect(gap.events).toEqual([]);
+  });
+
+  it('a missing reading during an active silence neither ends it nor claims it is audible', () => {
+    const s = run([...silentRun(0, 8), healthy(9, { master: null, expectSound: true }), healthy(10, { master: null })]);
+    expect(texts(s)).toEqual([SILENT_TEXT]);
+    expect(s.silentActive).toBe(true);
+
+    // ... and the silence still remembers when it began, so the eventual recovery reports its length. Like the
+    // clock-stall event, the length runs to the last sample before the sound came back (5000 ms, an unread gap
+    // included), because the silence is only known to have ended by then.
+    const recovered = stepDiag(s, audibleAt(11));
+    expect(texts(recovered)).toEqual([SILENT_TEXT, 'master output audible again after 5.0s']);
+  });
+
+  it('treats a peak of exactly -80 dBFS as audible, and anything below it as silent', () => {
+    expect(run(silentRun(0, 20, { master: level(1e-4) })).events).toEqual([]);
+    expect(texts(run(silentRun(0, 6, { master: level(9.99e-5) })))).toEqual([SILENT_TEXT]);
+  });
+
+  it('still raises it while the tab is hidden: the audio thread is not throttled', () => {
+    expect(texts(run(silentRun(0, 6, { hidden: true })))).toEqual([SILENT_TEXT]);
   });
 });
 
