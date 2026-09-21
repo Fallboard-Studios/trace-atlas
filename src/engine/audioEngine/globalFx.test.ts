@@ -62,16 +62,31 @@ vi.mock('tone', () => ({
     toDestination: vi.fn(),
     threshold: { value: -12 },
   })),
-  // Read-only output taps (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md). Each instance has its own spies.
-  Analyser: vi.fn((type: string, size: number) => ({
+  // The read-only output taps (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md) are NATIVE AnalyserNodes made from Tone's raw
+  // context: Tone.Analyser cannot be used, because it sets fftSize = 2 * size and caps size at 16384, so it can neither
+  // build a 32768 window nor read more than half of one (found in the real-browser check, Task 6).
+  getContext: vi.fn(() => ({ rawContext: { createAnalyser: () => createAnalyser() } })),
+}));
+
+/** A native AnalyserNode stand-in that enforces the real API's fftSize limit (a power of two, 32..32768). */
+function makeFakeAnalyser() {
+  let fftSize = 2048;
+  return {
+    get fftSize() {
+      return fftSize;
+    },
+    set fftSize(value: number) {
+      if (value < 32 || value > 32768) throw new RangeError(`fftSize ${value} is out of range`);
+      fftSize = value;
+    },
     connect: vi.fn(),
     disconnect: vi.fn(),
-    dispose: vi.fn(),
-    getValue: vi.fn(() => new Float32Array(size).fill(0.25)),
-    type,
-    size,
-  })),
-}));
+    getFloatTimeDomainData: vi.fn((buffer: Float32Array) => {
+      buffer.fill(0.25);
+    }),
+  };
+}
+const createAnalyser = vi.fn(() => makeFakeAnalyser());
 
 vi.mock('@/utils/helpers', () => ({
   devLog: vi.fn(),
@@ -222,27 +237,27 @@ describe('globalFx', () => {
   });
 
   describe('output taps (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md)', () => {
-    type Spy = { connect: Mock; disconnect: Mock; dispose: Mock; getValue: Mock };
-    const analysers = (): Spy[] => (Tone.Analyser as unknown as AnyMock).mock.results.map((r) => r.value as Spy);
+    type FakeAnalyser = ReturnType<typeof makeFakeAnalyser>;
+    const analysers = (): FakeAnalyser[] => createAnalyser.mock.results.map((r) => r.value as FakeAnalyser);
     /** The analysers a node has been asked to feed. */
-    const tapsFedBy = (node: { connect: Mock }): Spy[] =>
-      node.connect.mock.calls.map((call) => call[0] as Spy).filter((target) => analysers().includes(target));
+    const tapsFedBy = (node: { connect: Mock }): FakeAnalyser[] =>
+      node.connect.mock.calls.map((call) => call[0] as FakeAnalyser).filter((target) => analysers().includes(target));
 
-    it('constructs no Analyser while nothing has asked for the taps (the ?debug-off case)', async () => {
+    it('creates no analyser while nothing has asked for the taps (the ?debug-off case)', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       globalFx.wireGlobalFxChain(true);
       globalFx.wireGlobalFxChain(false);
-      expect(Tone.Analyser).not.toHaveBeenCalled();
+      expect(createAnalyser).not.toHaveBeenCalled();
     });
 
-    it('attachOutputTaps() after the build constructs two waveform analysers of OUTPUT_TAP_SIZE', async () => {
+    it('attachOutputTaps() after the build creates two analysers, each with the largest window Web Audio allows', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       globalFx.attachOutputTaps();
-      expect(Tone.Analyser).toHaveBeenCalledTimes(2);
-      expect(Tone.Analyser).toHaveBeenNthCalledWith(1, 'waveform', globalFx.OUTPUT_TAP_SIZE);
-      expect(Tone.Analyser).toHaveBeenNthCalledWith(2, 'waveform', globalFx.OUTPUT_TAP_SIZE);
+      expect(createAnalyser).toHaveBeenCalledTimes(2);
+      expect(globalFx.OUTPUT_TAP_SIZE).toBe(32768);
+      for (const tap of analysers()) expect(tap.fftSize).toBe(globalFx.OUTPUT_TAP_SIZE);
     });
 
     it('feeds one analyser from EQ3 (pre-chain) and a different one from masterGain (master)', async () => {
@@ -263,34 +278,44 @@ describe('globalFx', () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       globalFx.attachOutputTaps();
-      for (const tap of analysers()) {
-        expect(tap.connect).not.toHaveBeenCalled();
-        expect(tap).not.toHaveProperty('toDestination');
-      }
+      for (const tap of analysers()) expect(tap.connect).not.toHaveBeenCalled();
     });
 
-    it('is idempotent: asking twice still constructs only two analysers', async () => {
+    it('is idempotent: asking twice still creates only two analysers', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       globalFx.attachOutputTaps();
       globalFx.attachOutputTaps();
-      expect(Tone.Analyser).toHaveBeenCalledTimes(2);
+      expect(createAnalyser).toHaveBeenCalledTimes(2);
     });
 
-    it('reads each tap as its own Float32Array: pre from the EQ3 tap, master from the masterGain tap', async () => {
+    it('reads each tap as a full-window Float32Array: pre from the EQ3 tap, master from the masterGain tap', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const eq = lastInstance(Tone.EQ3);
       const masterGain = lastInstance(Tone.Gain);
       globalFx.attachOutputTaps();
-      const preBuffer = new Float32Array([0.1, 0.2]);
-      const masterBuffer = new Float32Array([0.3, 0.4]);
-      tapsFedBy(eq)[0].getValue.mockReturnValue(preBuffer);
-      tapsFedBy(masterGain)[0].getValue.mockReturnValue(masterBuffer);
+      tapsFedBy(eq)[0].getFloatTimeDomainData.mockImplementation((buffer: Float32Array) => buffer.fill(0.1));
+      tapsFedBy(masterGain)[0].getFloatTimeDomainData.mockImplementation((buffer: Float32Array) => buffer.fill(0.3));
 
       const { pre, master } = globalFx.readOutputTaps();
-      expect(pre).toBe(preBuffer);
-      expect(master).toBe(masterBuffer);
+      // Full window: the whole fftSize, not half of it (Tone.Analyser halved it, leaving unseen gaps).
+      expect(pre).toHaveLength(globalFx.OUTPUT_TAP_SIZE);
+      expect(master).toHaveLength(globalFx.OUTPUT_TAP_SIZE);
+      expect(pre![0]).toBeCloseTo(0.1, 6);
+      expect(pre!.at(-1)).toBeCloseTo(0.1, 6);
+      expect(master![0]).toBeCloseTo(0.3, 6);
+    });
+
+    it('reuses one buffer per tap across reads instead of allocating ~128 KB every sampler tick', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.attachOutputTaps();
+      const first = globalFx.readOutputTaps();
+      const second = globalFx.readOutputTaps();
+      expect(second.pre).toBe(first.pre);
+      expect(second.master).toBe(first.master);
+      expect(first.pre).not.toBe(first.master);
     });
 
     it('reads null for both taps before anything is attached', async () => {
@@ -299,34 +324,35 @@ describe('globalFx', () => {
       expect(globalFx.readOutputTaps()).toEqual({ pre: null, master: null });
     });
 
-    it('takes the first channel when the analyser answers per channel', async () => {
+    it('reads null for a tap whose analyser throws, without throwing itself', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const masterGain = lastInstance(Tone.Gain);
       globalFx.attachOutputTaps();
-      const left = new Float32Array([0.5]);
-      const right = new Float32Array([0.6]);
-      tapsFedBy(masterGain)[0].getValue.mockReturnValue([left, right]);
-      expect(globalFx.readOutputTaps().master).toBe(left);
-    });
-
-    it('reads null for a tap whose getValue throws, without throwing itself', async () => {
-      const globalFx = await import('./globalFx');
-      globalFx.buildGlobalFxChain();
-      const masterGain = lastInstance(Tone.Gain);
-      globalFx.attachOutputTaps();
-      tapsFedBy(masterGain)[0].getValue.mockImplementation(() => {
+      tapsFedBy(masterGain)[0].getFloatTimeDomainData.mockImplementation(() => {
         throw new Error('analyser gone');
       });
       expect(() => globalFx.readOutputTaps()).not.toThrow();
       expect(globalFx.readOutputTaps().master).toBeNull();
+      expect(globalFx.readOutputTaps().pre).not.toBeNull();
     });
 
     it('does nothing, and does not throw, when the FX nodes have not been built yet', async () => {
       const globalFx = await import('./globalFx');
       expect(() => globalFx.attachOutputTaps()).not.toThrow();
-      expect(Tone.Analyser).not.toHaveBeenCalled();
+      expect(createAnalyser).not.toHaveBeenCalled();
       expect(globalFx.readOutputTaps()).toEqual({ pre: null, master: null });
+    });
+
+    it('warns instead of throwing when an analyser cannot be created, and reads null', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      createAnalyser.mockImplementationOnce(() => {
+        throw new Error('no analyser for you');
+      });
+      expect(() => globalFx.attachOutputTaps()).not.toThrow();
+      expect(devWarn).toHaveBeenCalled();
+      expect(globalFx.readOutputTaps().pre).toBeNull();
     });
 
     it('warns instead of throwing when connecting a tap fails', async () => {
@@ -340,7 +366,7 @@ describe('globalFx', () => {
       expect(devWarn).toHaveBeenCalled();
     });
 
-    it('detachOutputTaps() disconnects each tap from its source, disposes it, and reads null afterwards', async () => {
+    it('detachOutputTaps() disconnects each tap from its source and reads null afterwards', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const eq = lastInstance(Tone.EQ3);
@@ -353,8 +379,6 @@ describe('globalFx', () => {
 
       expect(eq.disconnect).toHaveBeenCalledWith(preTap);
       expect(masterGain.disconnect).toHaveBeenCalledWith(masterTap);
-      expect(preTap.dispose).toHaveBeenCalledTimes(1);
-      expect(masterTap.dispose).toHaveBeenCalledTimes(1);
       expect(globalFx.readOutputTaps()).toEqual({ pre: null, master: null });
     });
 
@@ -365,7 +389,6 @@ describe('globalFx', () => {
       globalFx.attachOutputTaps();
       globalFx.detachOutputTaps();
       expect(() => globalFx.detachOutputTaps()).not.toThrow();
-      for (const tap of analysers()) expect(tap.dispose).toHaveBeenCalledTimes(1);
     });
 
     it('a tap can be attached again after a detach, on fresh analysers', async () => {
@@ -374,14 +397,14 @@ describe('globalFx', () => {
       globalFx.attachOutputTaps();
       globalFx.detachOutputTaps();
       globalFx.attachOutputTaps();
-      expect(Tone.Analyser).toHaveBeenCalledTimes(4);
+      expect(createAnalyser).toHaveBeenCalledTimes(4);
     });
 
     describe('surviving a rewire (the re-attach hook at the end of wireGlobalFxChain)', () => {
       /** Was the last thing done between `source` and a tap a connect — i.e. after the source's last disconnect? */
       const tapStillConnected = (source: { connect: Mock; disconnect: Mock }): boolean => {
         const tapConnects = source.connect.mock.calls.map((call, i) =>
-          analysers().includes(call[0] as Spy) ? source.connect.mock.invocationCallOrder[i] : -1,
+          analysers().includes(call[0] as FakeAnalyser) ? source.connect.mock.invocationCallOrder[i] : -1,
         );
         const lastTapConnect = Math.max(-1, ...tapConnects);
         const lastDisconnect = Math.max(-1, ...source.disconnect.mock.invocationCallOrder);
@@ -391,13 +414,13 @@ describe('globalFx', () => {
       it('taps asked for before the chain exists are built and connected once the chain is built', async () => {
         const globalFx = await import('./globalFx');
         globalFx.attachOutputTaps();
-        expect(Tone.Analyser).not.toHaveBeenCalled(); // nothing to listen to yet
+        expect(createAnalyser).not.toHaveBeenCalled(); // nothing to listen to yet
 
         globalFx.buildGlobalFxChain();
         const eq = lastInstance(Tone.EQ3);
         const masterGain = lastInstance(Tone.Gain);
 
-        expect(Tone.Analyser).toHaveBeenCalledTimes(2);
+        expect(createAnalyser).toHaveBeenCalledTimes(2);
         expect(tapsFedBy(eq)).toHaveLength(1);
         expect(tapsFedBy(masterGain)).toHaveLength(1);
         expect(tapStillConnected(eq)).toBe(true);
@@ -420,7 +443,7 @@ describe('globalFx', () => {
         expect(tapStillConnected(masterGain)).toBe(true);
       });
 
-      it('reconnects the same two analysers rather than building new ones', async () => {
+      it('reconnects the same two analysers rather than making new ones', async () => {
         const globalFx = await import('./globalFx');
         globalFx.buildGlobalFxChain();
         const eq = lastInstance(Tone.EQ3);
@@ -430,7 +453,7 @@ describe('globalFx', () => {
         globalFx.wireGlobalFxChain(true);
         globalFx.wireGlobalFxChain(false);
 
-        expect(Tone.Analyser).toHaveBeenCalledTimes(2);
+        expect(createAnalyser).toHaveBeenCalledTimes(2);
         expect(tapsFedBy(eq).every((tap) => tap === preTap)).toBe(true);
       });
 
@@ -440,7 +463,7 @@ describe('globalFx', () => {
         const eq = lastInstance(Tone.EQ3);
         globalFx.attachOutputTaps();
         eq.connect.mockImplementation((target: unknown) => {
-          if (analysers().includes(target as Spy)) throw new Error('refused');
+          if (analysers().includes(target as FakeAnalyser)) throw new Error('refused');
           return eq;
         });
 
@@ -461,10 +484,10 @@ describe('globalFx', () => {
         globalFx.wireGlobalFxChain(true);
 
         const tapConnects = (node: { connect: Mock }, from: number) =>
-          node.connect.mock.calls.slice(from).filter((call) => analysers().includes(call[0] as Spy));
+          node.connect.mock.calls.slice(from).filter((call) => analysers().includes(call[0] as FakeAnalyser));
         expect(tapConnects(eq, eqCallsBefore)).toHaveLength(0);
         expect(tapConnects(masterGain, masterCallsBefore)).toHaveLength(0);
-        expect(Tone.Analyser).toHaveBeenCalledTimes(2);
+        expect(createAnalyser).toHaveBeenCalledTimes(2);
       });
     });
 
