@@ -229,3 +229,26 @@ Loaded from the PC's preview server over the LAN (after the insecure-context `cr
 So a world with **no LFOs** still swings ±0.1–0.2 (about ±30%) over a ~1–2 minute cycle — far above the ±0.02 same-world noise floor — consistent with load tracking the number of robots sounding at once (per-note synth work), not only the static graph. **Not yet correlated directly:** the audible-robot count isn't shown anywhere yet (the overlay could show it), and n = 1.
 
 **Consequence for "build voice chains only for audible robots":** it removes only the *idle* cost of muted robots (measured earlier: 12 robots ≈ 24% vs 3 robots ≈ 16–20% when quiet — a few points of render capacity, less as more robots wake). At the peaks that cause the clicks, ~8 of 12 robots are audible, so it frees only ~4 idle chains exactly when relief is needed. The earlier claim that it is "likely the biggest win" is **not supported** by this data. Levers aimed at the peaks: cap simultaneously *audible* robots and/or polyphony (a quality setting), cheaper per-note synth cost, `latencyHint: 'playback'`.
+
+---
+
+## What each kind of LFO costs (2026-09-20, desktop; scoping "turn LFOs down on lighter presets")
+
+"Stacked LFOs" in this codebase = the **drift** subsystem (`src/engine/lfoDrift.ts`): shared secondary LFO pools modulate every connected primary LFO's rate and depth through a Gain pair, so a world doesn't sound identical forever. Drift amounts are seeded non-zero for every seed tried, so drift is live whenever any LFO is connected.
+
+**Method:** throwaway builds (source restored, never committed) on the calm world `charlie:200:-30` (0 LFOs at stock, so each variant's cost is additive), mean render capacity over 20 s after an 8 s warm-up, 3 rounds interleaved with a rotated start order, foreground, no orphaned Chrome. Compared as **differences from the same-round stock run** because absolute levels wander between rounds with the robot waves (stock ranged 0.30–0.41).
+
+| Variant (charlie) | Δ vs same-round stock, rounds 1 / 2 / 3 | Mean Δ |
+|---|---|---|
+| 3 EQ-gain LFOs (`eq3.low/mid/high`) | +.03 / +.00 / +.02 | **+0.02** (≈ +0.006 each — nearly free) |
+| 2 filter-**frequency** LFOs (`lpf/hpf.frequency`) | +.22 / +.06 / +.09 | **+0.12** (≈ +0.06 each) |
+| 2 filter-**Q** LFOs (`lpf/hpf.Q`) | +.13 / +.18 / +.06 | **+0.12** (≈ +0.06 each) |
+| all 7 global LFOs | +.16 / +.25 / +.16 | **+0.19** |
+| all 7, **drift removed** | +.10 / +.06 / +.08 | **+0.08** |
+| **51 robot LFOs** connected (every seeded, connectable robot LFO; 77 had rate > 0, the rest can't attach) | saturated: capacity ≈ **1.0**, callback interval **10.7 → 19–20 ms** (deadline misses, on desktop) | ≫ |
+
+**Reading (n = 3; same-round noise ≈ ±0.05; parts do not sum exactly to the whole, so treat as ordering, not arithmetic):**
+- **Drift is roughly half of the global-LFO cost** (0.19 → 0.08 with it removed). It is the single cheapest thing to switch off.
+- **Modulating a filter's frequency or Q is expensive; modulating EQ gains is nearly free.** This fits — but does not prove — the earlier hypothesis that audio-rate modulation forces per-sample biquad recomputation (EQ3's bands are gains; the filters are biquads).
+- **Robot LFOs are absent by default** (`spawnSystem` seeds their settings but nothing connects them until a user edits one in Robot Options), so they are not today's cost. But 51 at once overloads the audio thread even on this desktop, so an unbounded user-enabled count is a real hazard. Per-target-type robot costs (gain / detune / pulse width / phase) were **not** separated.
+- The `robotlfo` variant needed its connections delayed a few seconds after power-on (robots spawn after `powerController.start()` runs); the first attempt connected zero and was discarded.

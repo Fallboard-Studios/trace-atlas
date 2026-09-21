@@ -985,19 +985,20 @@ Sequenced last because its cause is unknown and its numbers are the least trustw
 
 ## 17.2.6 Performance: Audio Load Budget
 
-Requested by Crawford, 2026-09-20 — added to the 17.2.x series after the phone investigation ([docs/todo/scratchy-audio-phones.md](scratchy-audio-phones.md)) showed the Pixel 8 clicking and dropping out while the `?debug` overlay stayed green (audio thread missing its buffer deadline is the working, unproven explanation). High priority. **Specced, awaiting approval:** [docs/specs/AUDIO_LOAD_BUDGET.md](../specs/AUDIO_LOAD_BUDGET.md); tasks not yet written.
+Requested by Crawford, 2026-09-20 — added to the 17.2.x series after the phone investigation ([docs/todo/scratchy-audio-phones.md](scratchy-audio-phones.md)) showed the Pixel 8 clicking and dropping out while the `?debug` overlay stayed green (the audio thread missing its buffer deadline is the working, unproven explanation). High priority. **Specced (draft v2, Crawford's decisions folded in), awaiting final approval:** [docs/specs/AUDIO_LOAD_BUDGET.md](../specs/AUDIO_LOAD_BUDGET.md); tasks not yet written.
 
-Measured on desktop with pinned worlds (`?seed=&x=&y=`): render load follows the seed's global-LFO count and, in ~1–2 minute waves, how many robots are sounding at once (simulation + a 4-minute time series). Nothing today limits sounding robots except the fixed 12-robot roster and `MAX_POLYPHONY = 16`.
+Measured on desktop with pinned worlds (`?seed=&x=&y=`): render load follows how many robots are sounding at once (in ~1–2 minute waves), the seed's global LFOs — half of whose cost is **drift** ("stacked" LFOs), and filter-frequency/Q LFOs cost ~10× EQ-gain LFOs — and, if a user enables many, robot LFOs (51 saturate the audio thread even on desktop). Nothing today limits any of these except the fixed 12-robot roster and `MAX_POLYPHONY = 16`.
 
 ### Restructure
 
-- One user-adjustable **Audio Load** dial (Light / Standard / Full presets plus a fine slider, in Audio Rig → Transport & Composition) caps both the number of robots that may sound at once and the polyphony ceiling. Over-budget robots stand by (silent, otherwise unchanged) first-come-first-served; Full equals today's behavior exactly.
-- Default chosen automatically — lighter on phone-like devices — with `?load=` to pin it for testing and later sharing.
+- One user-adjustable **Audio Load** dial (Light / Standard / Full presets plus a fine slider, in Audio Rig → Transport & Composition, next to Tempo) lowers cost in four ways: caps on **audible robots** and **polyphony**; **LFO tiers** (drift off on Standard and below, filter-frequency/Q LFOs off on Light, cheap EQ-gain LFOs kept, robot LFOs capped by count); and the **latency hint** (Light selects `playback`, applied at page load only — a context's hint is fixed at creation).
+- Over-budget robots stand by (silent, otherwise unchanged) first-come-first-served; **solo always sounds**. Full equals today's behavior exactly. LFO tiers only suspend connections — no stored value is ever changed.
+- Default chosen automatically — lighter on phone-like devices — with `?load=` to pin it for testing and later sharing; the chosen preset is mirrored into the URL (pending Crawford's confirmation) so a reload keeps it. No persistence work.
 - Gating is at the note trigger only; no voice teardown (lazy voice chains is a deferred Phase B, measured to be a weak lever on its own).
 
 ### About
 
-Sequenced alongside 17.2.4 (`playback` latency, which helped the heavy world on the phone in one run) rather than after it: the two are independent levers. The global-LFO cost, the largest seed-dependent driver, is a separate item.
+Absorbs the preset-driven part of 17.2.4 (`playback` latency, which helped the heavy world on the phone in one run); a raised Tone `lookAhead` stays held. Independent of 17.2.3/17.2.5.
 
 ## 17.3 Styling Overhaul: Robot Views
 
