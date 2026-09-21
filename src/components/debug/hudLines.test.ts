@@ -161,6 +161,44 @@ describe('buildHudLines', () => {
     });
   });
 
+  describe('output level line', () => {
+    const outLine = (info: Partial<DiagInfo>) => buildHudLines(snap({}, info), world, 0).find((l) => l.startsWith('out'));
+    const level = (peak: number, rms: number, nonFinite = 0) => ({ peak, rms, nonFinite });
+
+    it('reads master peak, master rms and pre-chain peak in dB, one decimal', () => {
+      const line = outLine({ outputMaster: level(0.25, 0.1), outputPre: level(0.5, 0.2) });
+      expect(line).toBe('out -12.0dB rms -20.0dB  pre -6.0dB  fin ok');
+    });
+
+    it('reads a zero level as -inf, not as a number or NaN', () => {
+      expect(outLine({ outputMaster: level(0, 0), outputPre: level(0, 0) })).toBe('out -inf rms -inf  pre -inf  fin ok');
+    });
+
+    it('shows a dash for a tap with no reading, never null, undefined or NaN', () => {
+      expect(outLine({})).toBe('out - rms -  pre -  fin -');
+      expect(outLine({ outputMaster: null, outputPre: null })).toBe('out - rms -  pre -  fin -');
+      expect(outLine({ outputMaster: level(0.5, 0.25), outputPre: null })).toBe('out -6.0dB rms -12.0dB  pre -  fin ok');
+    });
+
+    it('flags non-finite samples from either tap', () => {
+      expect(outLine({ outputMaster: level(0.5, 0.25, 3), outputPre: level(0.5, 0.25) })).toMatch(/fin NaN!$/);
+      expect(outLine({ outputMaster: level(0.5, 0.25), outputPre: level(0.5, 0.25, 1) })).toMatch(/fin NaN!$/);
+    });
+
+    it('stays within 52 characters even at the quietest realistic levels with a non-finite flag', () => {
+      const line = outLine({ outputMaster: level(1e-6, 1e-6, 2), outputPre: level(1e-6, 1e-6) })!;
+      expect(line).toBe('out -120.0dB rms -120.0dB  pre -120.0dB  fin NaN!');
+      expect(line.length).toBeLessThanOrEqual(52);
+    });
+
+    it('adds exactly one line and leaves every existing line where it was', () => {
+      const without = buildHudLines(snap(), world, 0).filter((l) => !l.startsWith('out'));
+      const withLevels = buildHudLines(snap({}, { outputMaster: level(0.5, 0.25), outputPre: level(0.5, 0.25) }), world, 0);
+      expect(withLevels.filter((l) => l.startsWith('out'))).toHaveLength(1);
+      expect(withLevels.filter((l) => !l.startsWith('out'))).toEqual(without);
+    });
+  });
+
   it('renders unknown values as a dash rather than "null" or "NaN"', () => {
     const text = buildHudLines(
       snap({ clockRate: null, fps: null }, { baseLatencyMs: null }),

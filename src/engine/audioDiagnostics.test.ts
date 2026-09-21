@@ -70,6 +70,20 @@ vi.mock('../utils/localeHelpers', () => ({
   getActiveLocaleId: () => fakeActiveLocaleId,
 }));
 
+// The two read-only output taps (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md). This module only attaches, reads and
+// detaches them; their Tone plumbing is tested in globalFx.test.ts.
+type TapBuffers = { pre: Float32Array | null; master: Float32Array | null };
+const tapSpies = {
+  attach: vi.fn(),
+  detach: vi.fn(),
+  read: vi.fn((): TapBuffers => ({ pre: null, master: null })),
+};
+vi.mock('./audioEngine/globalFx', () => ({
+  attachOutputTaps: () => tapSpies.attach(),
+  detachOutputTaps: () => tapSpies.detach(),
+  readOutputTaps: () => tapSpies.read(),
+}));
+
 // ========================================
 // HELPERS
 // ========================================
@@ -100,6 +114,10 @@ describe('audioDiagnostics runtime', () => {
     fakeLocales = { L1: { robots: [] } };
     fakeAudioLoad = 1;
     fakeSoundingIds = [];
+    tapSpies.attach.mockClear();
+    tapSpies.detach.mockClear();
+    tapSpies.read.mockReset();
+    tapSpies.read.mockReturnValue({ pre: null, master: null });
     vi.resetModules();
     diag = await import('./audioDiagnostics');
     stop = diag.startAudioDiagnostics();
@@ -227,6 +245,79 @@ describe('audioDiagnostics runtime', () => {
       fakeAudioLoad = 0.6;
       fakeSoundingIds = ['a', 'b'];
       expect(budget()).toEqual({ audioLoad: 0.6, soundingRobots: 2, maxAudibleRobots: 8 });
+    });
+  });
+
+  describe('output taps', () => {
+    const buffer = (...values: number[]) => Float32Array.from(values);
+    const levels = () => {
+      const { outputPre, outputMaster } = diag.getDiagnosticsSnapshot().info;
+      return { outputPre, outputMaster };
+    };
+
+    it('attaches the taps once when diagnostics start, and detaches them only when the last handle stops', () => {
+      expect(tapSpies.attach).toHaveBeenCalledTimes(1);
+
+      const second = diag.startAudioDiagnostics();
+      expect(tapSpies.attach).toHaveBeenCalledTimes(1); // ref-counted, like the sampler itself
+
+      second();
+      expect(tapSpies.detach).not.toHaveBeenCalled();
+      stop();
+      expect(tapSpies.detach).toHaveBeenCalledTimes(1);
+      stop = () => {}; // afterEach's stop() is now a no-op
+    });
+
+    it('publishes null for both taps until they have produced a buffer', () => {
+      expect(levels()).toEqual({ outputPre: null, outputMaster: null });
+    });
+
+    it('reads both taps once per sample and publishes each one measured', () => {
+      tapSpies.read.mockClear();
+      tapSpies.read.mockReturnValue({ pre: buffer(0.25, -0.25), master: buffer(0.5, -0.5) });
+      advance();
+      expect(tapSpies.read).toHaveBeenCalledTimes(1);
+      expect(levels()).toEqual({
+        outputPre: { peak: 0.25, rms: 0.25, nonFinite: 0 },
+        outputMaster: { peak: 0.5, rms: 0.5, nonFinite: 0 },
+      });
+    });
+
+    it('does not read the taps again for an AudioContext statechange (only the sampler tick reads them)', () => {
+      advance();
+      tapSpies.read.mockClear();
+      fakeRaw.state = 'suspended';
+      fakeRaw.fire('statechange');
+      expect(tapSpies.read).not.toHaveBeenCalled();
+    });
+
+    it('publishes null for a tap that is not attached or cannot be read, and still measures the other', () => {
+      tapSpies.read.mockReturnValue({ pre: null, master: buffer(0.5, -0.5) });
+      advance();
+      expect(levels().outputPre).toBeNull();
+      expect(levels().outputMaster).toEqual({ peak: 0.5, rms: 0.5, nonFinite: 0 });
+    });
+
+    it('publishes null for an empty buffer (there is nothing to measure)', () => {
+      tapSpies.read.mockReturnValue({ pre: new Float32Array(0), master: new Float32Array(0) });
+      advance();
+      expect(levels()).toEqual({ outputPre: null, outputMaster: null });
+    });
+
+    it('carries the non-finite count through, without letting it corrupt peak or rms', () => {
+      tapSpies.read.mockReturnValue({ pre: null, master: buffer(0.5, NaN, -0.5) });
+      advance();
+      expect(levels().outputMaster).toEqual({ peak: 0.5, rms: 0.5, nonFinite: 1 });
+    });
+
+    it('follows the buffers from one sample to the next', () => {
+      tapSpies.read.mockReturnValue({ pre: null, master: buffer(0.5) });
+      advance();
+      expect(levels().outputMaster?.peak).toBe(0.5);
+
+      tapSpies.read.mockReturnValue({ pre: null, master: buffer(0) });
+      advance();
+      expect(levels().outputMaster?.peak).toBe(0);
     });
   });
 

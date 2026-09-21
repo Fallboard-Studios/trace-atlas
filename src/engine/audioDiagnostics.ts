@@ -5,6 +5,7 @@ import gsap from 'gsap';
 import * as Tone from 'tone';
 
 import { AudioEngine } from './AudioEngine';
+import { attachOutputTaps, detachOutputTaps, readOutputTaps } from './audioEngine/globalFx';
 import { useAudioStore } from '../stores/audioStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
@@ -13,9 +14,11 @@ import { isRobotAudible } from '../utils/robotAudibility';
 import {
   SAMPLE_INTERVAL_MS,
   initDiagState,
+  measureLevel,
   noteDiagEvent,
   stepDiag,
   type DiagState,
+  type LevelReading,
 } from '../utils/audioHealth';
 
 // ========================================
@@ -42,6 +45,10 @@ export interface DiagInfo {
   soundingRobots: number;
   /** The robot cap the dial allows (`loadToLimits(audioLoad).maxAudibleRobots`). */
   maxAudibleRobots: number;
+  /** Level of what the voices hand the FX chain (EQ3's output) in the last sample; null when that tap is not attached or has nothing to read. */
+  outputPre?: LevelReading | null;
+  /** Level of what the destination receives (masterGain's output) in the last sample; null likewise. */
+  outputMaster?: LevelReading | null;
 }
 
 export interface DiagSnapshot {
@@ -66,6 +73,10 @@ let onTick: (() => void) | null = null;
 let timing: DiagState = initDiagState(0);
 let snapshot: DiagSnapshot = { timing, info: emptyInfo() };
 
+/** The output-tap readings from the latest sampler tick. Read once per tick (in `sample`), not per publish, so an
+ *  AudioContext statechange never triggers a second read of a ~128 KB buffer. */
+let outputLevels: { pre: LevelReading | null; master: LevelReading | null } = { pre: null, master: null };
+
 function emptyInfo(): DiagInfo {
   return {
     latencyHint: '?',
@@ -81,6 +92,8 @@ function emptyInfo(): DiagInfo {
     audioLoad: NaN,
     soundingRobots: NaN,
     maxAudibleRobots: NaN,
+    outputPre: null,
+    outputMaster: null,
   };
 }
 
@@ -136,6 +149,8 @@ function readInfo(): DiagInfo {
     audioLoad: audio.audioLoad,
     soundingRobots: audio.soundingRobotIds.length,
     maxAudibleRobots: loadToLimits(audio.audioLoad).maxAudibleRobots,
+    outputPre: outputLevels.pre,
+    outputMaster: outputLevels.master,
   };
 }
 
@@ -144,7 +159,15 @@ function publish(): void {
   for (const listener of listeners) listener();
 }
 
+/** Reduce one tap's buffer to a reading; null when the tap gave nothing or the buffer is empty. */
+function measureTap(buffer: Float32Array | null): LevelReading | null {
+  return buffer ? measureLevel(buffer) : null;
+}
+
 function sample(): void {
+  const taps = readOutputTaps();
+  outputLevels = { pre: measureTap(taps.pre), master: measureTap(taps.master) };
+
   const raw = readRawContext();
   timing = stepDiag(timing, {
     wallMs: performance.now(),
@@ -170,6 +193,8 @@ export function startAudioDiagnostics(): () => void {
     const startedAt = performance.now();
     frames = 0;
     timing = initDiagState(startedAt);
+    outputLevels = { pre: null, master: null };
+    attachOutputTaps();
 
     onTick = () => { frames++; };
     gsap.ticker.add(onTick);
@@ -198,6 +223,8 @@ export function startAudioDiagnostics(): () => void {
 
     if (intervalId !== null) clearInterval(intervalId);
     intervalId = null;
+    detachOutputTaps();
+    outputLevels = { pre: null, master: null };
     if (onTick) gsap.ticker.remove(onTick);
     onTick = null;
     if (onStatechange) statechangeTarget?.removeEventListener('statechange', onStatechange);

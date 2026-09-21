@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { formatUptime, STALL_RATE_THRESHOLD } from '../../utils/audioHealth';
+import { formatUptime, peakToDb, STALL_RATE_THRESHOLD } from '../../utils/audioHealth';
 import type { DiagInfo, DiagSnapshot } from '../../engine/audioDiagnostics';
 
 // ========================================
@@ -43,6 +43,24 @@ function budgetLine({ audioLoad, soundingRobots, maxAudibleRobots, audibleRobots
   return `load ${load} · sounding ${count(soundingRobots)}/${count(maxAudibleRobots)} · standing by ${standingBy} · poly ${count(voices)}/${count(maxVoices)}`;
 }
 
+/** A linear level as dB with one decimal; `-inf` for silence, `-` when there is no reading. */
+function db(level: number | undefined): string {
+  if (!isKnown(level)) return DASH;
+  const value = peakToDb(level);
+  return value === -Infinity ? '-inf' : `${value.toFixed(1)}dB`;
+}
+
+/**
+ * The output taps in one line (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md): master peak and RMS, the pre-chain peak,
+ * and whether either tap saw a non-finite sample. Comparing `out` with `pre` at a dropout says whether the
+ * silence is inside the FX chain (pre live, out silent) or upstream of it (both silent).
+ */
+function outputLine({ outputMaster, outputPre }: DiagInfo): string {
+  const nonFinite = (outputMaster?.nonFinite ?? 0) + (outputPre?.nonFinite ?? 0);
+  const finite = nonFinite > 0 ? 'NaN!' : outputMaster || outputPre ? 'ok' : DASH;
+  return `out ${db(outputMaster?.peak)} rms ${db(outputMaster?.rms)}  pre ${db(outputPre?.peak)}  fin ${finite}`;
+}
+
 /** The HUD's text, one string per line. `uptimeMs` is the time since diagnostics started. */
 export function buildHudLines(snapshot: DiagSnapshot, world: HudWorld, uptimeMs: number): string[] {
   const { timing, info } = snapshot;
@@ -58,6 +76,7 @@ export function buildHudLines(snapshot: DiagSnapshot, world: HudWorld, uptimeMs:
     `voices ${info.voices}/${info.maxVoices}   audible ${info.audibleRobots}/${info.totalRobots}   LFOs ${info.globalLfosOn}/${info.globalLfosTotal}`,
     budgetLine(info),
     `fps ${fps}   lag ${ms(timing.lagMs)} (max ${ms(timing.maxLagMs)})`,
+    outputLine(info),
   ];
 
   if (timing.events.length === 0) {
