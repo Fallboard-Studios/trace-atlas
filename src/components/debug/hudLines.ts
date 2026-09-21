@@ -2,7 +2,7 @@
 // IMPORTS
 // ========================================
 import { formatUptime, STALL_RATE_THRESHOLD } from '../../utils/audioHealth';
-import type { DiagSnapshot } from '../../engine/audioDiagnostics';
+import type { DiagInfo, DiagSnapshot } from '../../engine/audioDiagnostics';
 
 // ========================================
 // TYPES
@@ -21,6 +21,8 @@ export interface HudWorld {
 
 const DASH = '-';
 const ms = (value: number | null): string => (value === null ? DASH : `${Math.round(value)}ms`);
+const isKnown = (value: number | undefined): value is number => typeof value === 'number' && Number.isFinite(value);
+const count = (value: number | undefined): string => (isKnown(value) ? String(Math.round(value)) : DASH);
 
 // ========================================
 // FUNCTIONS
@@ -32,6 +34,13 @@ export function hudStatus({ timing }: DiagSnapshot): 'ok' | 'bad' {
   if (timing.clockRate !== null && timing.clockRate < STALL_RATE_THRESHOLD) return 'bad';
   if (timing.fps !== null && timing.fps === 0) return 'bad';
   return 'ok';
+}
+
+/** The Audio Load budget in one line: the dial, robots sounding out of the cap, robots standing by, and notes used out of the live ceiling. */
+function budgetLine({ audioLoad, soundingRobots, maxAudibleRobots, audibleRobots, voices, maxVoices }: DiagInfo): string {
+  const load = isKnown(audioLoad) ? `${Math.round(audioLoad * 100)}%` : DASH;
+  const standingBy = isKnown(audibleRobots) && isKnown(soundingRobots) ? String(Math.max(0, audibleRobots - soundingRobots)) : DASH;
+  return `load ${load} · sounding ${count(soundingRobots)}/${count(maxAudibleRobots)} · standing by ${standingBy} · poly ${count(voices)}/${count(maxVoices)}`;
 }
 
 /** The HUD's text, one string per line. `uptimeMs` is the time since diagnostics started. */
@@ -47,6 +56,7 @@ export function buildHudLines(snapshot: DiagSnapshot, world: HudWorld, uptimeMs:
     `ctx ${timing.ctxState}   clock ${clock}   transport ${info.transport}`,
     `latency ${info.latencyHint}   ahead ${info.lookAheadMs}ms   base ${ms(info.baseLatencyMs)}`,
     `voices ${info.voices}/${info.maxVoices}   audible ${info.audibleRobots}/${info.totalRobots}   LFOs ${info.globalLfosOn}/${info.globalLfosTotal}`,
+    budgetLine(info),
     `fps ${fps}   lag ${ms(timing.lagMs)} (max ${ms(timing.maxLagMs)})`,
   ];
 

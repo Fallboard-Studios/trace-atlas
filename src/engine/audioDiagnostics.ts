@@ -8,6 +8,7 @@ import { AudioEngine } from './AudioEngine';
 import { useAudioStore } from '../stores/audioStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
+import { loadToLimits } from '../utils/audioBudget';
 import { isRobotAudible } from '../utils/robotAudibility';
 import {
   SAMPLE_INTERVAL_MS,
@@ -35,6 +36,12 @@ export interface DiagInfo {
   audibleRobots: number;
   /** Size of the active locale's roster. 0 until robots have spawned. */
   totalRobots: number;
+  /** The Audio Load dial, 0–1 (docs/specs/AUDIO_LOAD_BUDGET.md). NaN until the first sample. */
+  audioLoad: number;
+  /** Robots the budget currently lets sound (`soundingRobotIds`). */
+  soundingRobots: number;
+  /** The robot cap the dial allows (`loadToLimits(audioLoad).maxAudibleRobots`). */
+  maxAudibleRobots: number;
 }
 
 export interface DiagSnapshot {
@@ -71,6 +78,9 @@ function emptyInfo(): DiagInfo {
     globalLfosTotal: 0,
     audibleRobots: 0,
     totalRobots: 0,
+    audioLoad: NaN,
+    soundingRobots: NaN,
+    maxAudibleRobots: NaN,
   };
 }
 
@@ -111,7 +121,8 @@ function readInfo(): DiagInfo {
   const context = Tone.getContext();
   const raw = readRawContext();
   const poly = AudioEngine.getPolyphonyStats();
-  const globalLfo = Object.values(useAudioStore.getState().globalLfo) as Array<{ rate: number }>;
+  const audio = useAudioStore.getState();
+  const globalLfo = Object.values(audio.globalLfo) as Array<{ rate: number }>;
   return {
     latencyHint: String(context.latencyHint ?? '?'),
     lookAheadMs: Math.round(context.lookAhead * 1000),
@@ -122,6 +133,9 @@ function readInfo(): DiagInfo {
     globalLfosOn: globalLfo.filter((l) => l.rate > 0).length,
     globalLfosTotal: globalLfo.length,
     ...readRobotAudibility(),
+    audioLoad: audio.audioLoad,
+    soundingRobots: audio.soundingRobotIds.length,
+    maxAudibleRobots: loadToLimits(audio.audioLoad).maxAudibleRobots,
   };
 }
 

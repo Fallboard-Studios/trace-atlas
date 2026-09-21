@@ -22,6 +22,9 @@ const baseInfo: DiagInfo = {
   globalLfosTotal: 7,
   audibleRobots: 5,
   totalRobots: 12,
+  audioLoad: 1,
+  soundingRobots: 5,
+  maxAudibleRobots: 12,
 };
 
 const snap = (timing: Partial<DiagState> = {}, info: Partial<DiagInfo> = {}): DiagSnapshot => ({
@@ -111,6 +114,51 @@ describe('buildHudLines', () => {
     expect(after).toBe(before);
     const voicesLine = buildHudLines(snap(), world, 0).find((l) => l.startsWith('voices'));
     expect(voicesLine).toContain('audible 5/12');
+  });
+
+  describe('Audio Load caps line', () => {
+    const capsLine = (info: Partial<DiagInfo>) =>
+      buildHudLines(snap({}, info), world, 0).find((l) => l.startsWith('load'));
+
+    it('reads dial · sounding n/cap · standing by n · poly used/cap', () => {
+      const line = capsLine({ audioLoad: 0.2, soundingRobots: 4, maxAudibleRobots: 4, audibleRobots: 6, voices: 3, maxVoices: 8 });
+      expect(line).toBe('load 20% · sounding 4/4 · standing by 2 · poly 3/8');
+    });
+
+    it('at Full reads sounding n/12 and poly n/16 — the same 16 as today’s voices line', () => {
+      const info = { audioLoad: 1, soundingRobots: 7, maxAudibleRobots: 12, audibleRobots: 7, voices: 3, maxVoices: 16 };
+      expect(capsLine(info)).toBe('load 100% · sounding 7/12 · standing by 0 · poly 3/16');
+      expect(buildHudLines(snap({}, info), world, 0).join('\n')).toContain('voices 3/16');
+    });
+
+    it('sits directly under the voices line', () => {
+      const lines = buildHudLines(snap(), world, 0);
+      const voices = lines.findIndex((l) => l.startsWith('voices'));
+      expect(lines[voices + 1]).toMatch(/^load /);
+    });
+
+    it('rounds the dial to a whole percent', () => {
+      expect(capsLine({ audioLoad: 0.455 })).toMatch(/^load 46%/);
+      expect(capsLine({ audioLoad: 0.6 })).toMatch(/^load 60%/);
+      expect(capsLine({ audioLoad: 0 })).toMatch(/^load 0%/);
+    });
+
+    it('never shows a negative standing-by count, even if the sounding set briefly outruns the audible count', () => {
+      expect(capsLine({ audibleRobots: 3, soundingRobots: 5 })).toContain('standing by 0');
+    });
+
+    it('shows a dash for any unknown value, never NaN, null or undefined', () => {
+      const line = capsLine({
+        audioLoad: NaN,
+        soundingRobots: NaN,
+        maxAudibleRobots: Infinity,
+        audibleRobots: NaN,
+        voices: undefined as unknown as number,
+        maxVoices: NaN,
+      });
+      expect(line).toBe('load - · sounding -/- · standing by - · poly -/-');
+      expect(line).not.toMatch(/NaN|null|undefined|Infinity/);
+    });
   });
 
   it('renders unknown values as a dash rather than "null" or "NaN"', () => {

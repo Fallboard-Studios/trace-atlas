@@ -39,6 +39,9 @@ const makeSnapshot = (ctxState = 'running'): DiagSnapshot => ({
     globalLfosTotal: 7,
     audibleRobots: 4,
     totalRobots: 12,
+    audioLoad: 1,
+    soundingRobots: 4,
+    maxAudibleRobots: 12,
   },
 });
 
