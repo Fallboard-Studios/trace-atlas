@@ -6,9 +6,9 @@
 > - Lint: `npm run lint`
 > - Unit tests: `npm test` (single file: `npx vitest run <path>`)
 > - Dev server: `npm run dev` — a phone on the LAN needs the **production** build instead: `npm run build && npx vite preview --host --port 4173`, then `http://<pc-ip>:4173/trace-atlas/?debug&…` (a phone over plain http is an insecure context — see [docs/PERFORMANCE.md](../PERFORMANCE.md))
-> - Render-capacity measurement (Task 1 promotes the scratch script into the repo): `npm run perf:audio` — see §5.3
+> - Render-capacity measurement (plan Task 2 promotes the scratch script into the repo): `npm run perf:audio` — see §5.3
 
-Source of intent: [Roadmap 17.2.6](../todo/roadmap.md#1726-performance-audio-load-budget), requested by Crawford 2026-09-20 after the phone investigation in [docs/todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md). No separate intent doc — that investigation and §1.1 below are the motivation, and the design decisions in §7 were made by Crawford in the same session. **Status: draft v3, 2026-09-20 — every open question is resolved except J (Standard's latency hint, §7); awaiting final approval, nothing implemented.** Task breakdown: not yet written (gated behind approval of this spec).
+Source of intent: [Roadmap 17.2.6](../todo/roadmap.md#1726-performance-audio-load-budget), requested by Crawford 2026-09-20 after the phone investigation in [docs/todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md). No separate intent doc — that investigation and §1.1 below are the motivation, and the design decisions in §7 were made by Crawford in the same session. **Status: draft v4, 2026-09-20 — every open question is resolved (J: Standard stays `interactive`); awaiting Crawford's final approval of this spec and its plan, nothing implemented.** Task breakdown: [docs/tasks/AUDIO_LOAD_BUDGET.md](../tasks/AUDIO_LOAD_BUDGET.md) (26 tasks in 7 phases).
 
 ---
 
@@ -75,9 +75,9 @@ Crawford's question: should the lighter presets turn off stacked LFOs first, the
 | Standard (0.6) | off | on | on | **12** (placeholder) |
 | Full (1.0) | on | on | on | unlimited (today) |
 
-Between the presets the slider interpolates by thresholds (§4.2). The robot-LFO caps are **placeholders**: only "51 overloads" was measured; Task 1 measures cost per robot-LFO target type to set them.
+Between the presets the slider interpolates by thresholds (§4.2). The robot-LFO caps are **placeholders**: only "51 overloads" was measured; Task 4 of the plan measures cost per audio-rate robot-LFO target type (`volume`, layer `gain`, `detune`, `pulseWidth`) to set them. **`layerN.phase` robot LFOs are not counted toward the cap**: they run on a control-rate `scheduleRepeat` poll (`lfoEngine`'s `phaseFallbacks`), not an audio-rate connection, and were not part of the measured cost.
 
-**A tier only suspends; it never edits the user's or the seed's values.** A suppressed LFO keeps its stored settings and simply isn't connected — the same "off via the parameter, not a deleted setting" pattern the Audio Rig and Layer toggles already follow. Raising the dial reconnects them. While an LFO is held off its controls are **greyed out (disabled)** — still showing the stored value, so the user can see what will return — with a short "Held off by Audio Load" label; raising the dial re-enables them (decision L). The consequence, accepted: an LFO can't be edited while it is held off.
+**A tier only suspends; it never edits the user's or the seed's values.** A suppressed LFO keeps its stored settings and simply isn't connected — the same "off via the parameter, not a deleted setting" pattern the Audio Rig and Layer toggles already follow. Raising the dial reconnects them. While an LFO is held off its controls are **greyed out (disabled)** — still showing the stored value, so the user can see what will return — with a short "Held off by Audio Load" label; raising the dial re-enables them (decision L). The consequence, accepted: an LFO can't be edited while it is held off. The **drift sliders** (the per-group Rate/Depth Drift controls in the Audio Rig and Robot Drift in Robot Options) are the "stacked LFO" controls and grey out the same way while the drift tier holds drift off. "Held off" means *requested but not connected because of the dial*: an LFO at `rate = 0` is never held off, so a user can always turn one on; one turned on beyond the robot-LFO cap greys out after the attempt.
 
 ### 1.5 Latency follows the preset — at load time only
 
@@ -225,7 +225,7 @@ export function lfoAllowed(
 ### 4.2 The dial, anchors, thresholds and presets
 
 ```typescript
-// constants/index.ts — STARTING values; Task 1 calibrates them against measured render capacity (§5.3).
+// constants/index.ts — STARTING values; plan Tasks 4 and 11 calibrate them against measured render capacity (§5.3).
 export const LOAD_AUDIBLE_ROBOTS_MIN = 2;           // at audioLoad = 0
 export const LOAD_POLYPHONY_MIN = 6;                // at audioLoad = 0
 // at audioLoad = 1: MAX_ROBOTS (12) and MAX_POLYPHONY (16) — i.e. exactly today.
@@ -294,7 +294,7 @@ Thresholds below are **proposed** and are fixed before implementation the way `A
 1. **Full is a no-op (deterministic).** With `audioLoad = 1` and the system running, every existing test passes unmodified; the engine gate never blocks a note that would have played before; no LFO or drift connection is suppressed.
 2. **The caps hold (deterministic).** At any `audioLoad`, `soundingRobotIds.length ≤ maxAudibleRobots` after every reconcile across simulated lifecycle runs; no note from a robot outside the set triggers; the connected robot-LFO count never exceeds `maxRobotLfos`.
 3. **No re-render storm (deterministic).** Over a simulated 200-measure lifecycle run, `soundingRobotIds` is written only on real changes, and `RobotSelectionCard` renders no more often than before.
-4. **Render-capacity gate (desktop, measured).** Using `npm run perf:audio` on pinned worlds `charlie:200:-30` and `bravo:-150:90` (bravo has 5 running global LFOs, so it exercises the LFO tiers), **3 runs each in the foreground, one at a time**, a 4-minute time series per run, no orphaned Chrome before/after: **Light lowers the peak-window render capacity (the highest 15-second bucket mean) by ≥ 25% versus Full**, and **Standard by ≥ 10%**; and, on `bravo`, **Standard's mean is ≥ 0.10 below Full's** (drift alone was measured at ≈ 0.10 for seven LFOs). **Full is within ±0.03 of the pre-change baseline** taken in the same session (A/B, per `perf-harness-measurement-hygiene`). The pre-change baseline is recorded *first* (Task 1).
+4. **Render-capacity gate (desktop, measured).** Using `npm run perf:audio` on pinned worlds `charlie:200:-30` and `bravo:-150:90` (bravo has 5 running global LFOs, so it exercises the LFO tiers), **3 runs each in the foreground, one at a time**, a 4-minute time series per run, no orphaned Chrome before/after: **Light lowers the peak-window render capacity (the highest 15-second bucket mean) by ≥ 25% versus Full**, and **Standard by ≥ 10%**; and, on `bravo`, **Standard's mean is ≥ 0.10 below Full's** (drift alone was measured at ≈ 0.10 for seven LFOs). **Full is within ±0.03 of the pre-change baseline** taken in the same session (A/B, per `perf-harness-measurement-hygiene`). The pre-change baseline is recorded *first* (plan Task 3).
 5. **Robot-LFO safety (desktop, measured).** With the cap at its Standard value and every robot's seeded LFOs requested (the stress case), the audio callback interval stays ≈ 10.7 ms (no doubling) and capacity stays < 0.9.
 6. **Phone check (Crawford, by ear — recorded, not gated).** On the Pixel with `?debug&load=light`, both `charlie` and `bravo` for 5 minutes: report full dropouts (target: none) and click frequency versus today's, and note the overlay's `robots n/cap` reading when clicks occur. Also compare `light` against `standard` and against `standard&latency=playback` to see which part of Light does the work. If Light is not enough, that is a finding (further levers), not a failure of the spec.
 7. **UI (manual + tests).** The control is present next to Tempo, preset ↔ slider stay in sync, the derived-limits line is correct, a robot silenced by the budget is never labelled "Emitting", and a suppressed LFO is greyed out and says why.
@@ -332,12 +332,14 @@ Thresholds below are **proposed** and are fixed before implementation the way `A
 - **G. Latency related to the presets:** yes, at load time only (§1.5).
 - **H. The chosen preset is mirrored into the URL** (`history.replaceState`, other params kept): yes — so a reload keeps it and so the latency half of the presets survives without persistence; also groundwork for sharing.
 - **I. LFO reduction — cut by cost:** confirmed. Stacked LFOs (drift) off on the middle preset, more off on Light; drift first, then filter-frequency/Q LFOs, keeping the nearly-free EQ-gain LFOs; robot LFOs capped by count rather than switched off (§1.4).
-- **K. Robot-LFO caps come from measurement** (cost per robot-LFO target type in Task 1), not from the 4 / 12 placeholders: yes.
+- **K. Robot-LFO caps come from measurement** (cost per robot-LFO target type, plan Task 4), not from the 4 / 12 placeholders: yes.
 - **L. A held-off LFO is greyed out** (disabled, values still shown, "Held off by Audio Load" label): yes — chosen over the more editable "note only" alternative I had recommended.
 
-### Open questions (need Crawford before tasks are written — my recommendation first)
+- **J. Standard's latency hint: `interactive`** (unchanged from today). Only Light selects `playback`. Revisit only if the phone A/B (`load=standard` vs `load=standard&latency=playback`, §5.3 item 6) shows the hint matters at Standard.
 
-- **J. Standard's latency hint (the only open question).** The choices are `interactive` (today's default; smallest output buffer, lowest delay, most exposed to glitches), `balanced` (a middle buffer; **not tested**, and headless desktop Chrome reports the same base latency as `interactive`), and `playback` (largest buffer, most glitch-tolerant, a little more delay). Only Light is set to `playback` so far, on one phone run of evidence. Recommend Standard stay `interactive` until a phone A/B (`load=standard` vs `load=standard&latency=playback`, §5.3 item 6) shows the hint matters at that level; the phone's `base` reading in the overlay would show how big the difference really is there.
+### Open questions
+
+None remaining. (Small points the task plan resolved — drift controls grey out too, phase LFOs are not counted toward the robot-LFO cap, "held off" means requested-but-not-connected — are recorded in §1.4 and §1.7 below and in the plan's "Spec addenda".)
 
 ### Risks
 
@@ -349,7 +351,7 @@ Thresholds below are **proposed** and are fixed before implementation the way `A
 - **Auto-detection misclassifies.** A capable tablet defaulted to Light, or a weak laptop defaulted to Full. Mitigation: the control and `?load=` are always there, and the overlay shows the level in force.
 - **Store-subscription churn.** `updateRobot` rewrites the locale on every battery tick and swell write; a naive subscription would run 12×/measure. Mitigation: subscribe to a signature of `id:audioMode:docking`, and write only on change (§4.4, criterion 3).
 - **Measurement hygiene.** Time series are noisy run to run (same-world stock ranged 0.30–0.41 across rounds); the gates compare same-session A/B, ≥ 3 runs, pinned worlds. A single run is not evidence.
-- **The link between audible robots and the load waves is an inference** (a simulation plus one time series). Task 1 should add the audible count to the overlay and log it against render capacity, and the spec is to be revised if the correlation is weak.
+- **The link between audible robots and the load waves is an inference** (a simulation plus one time series). Plan Tasks 1–3 add the audible count to the overlay and log it against render capacity before any product change, and the spec is to be revised if the correlation is weak.
 
 ### Phase B (deferred, not scheduled)
 
