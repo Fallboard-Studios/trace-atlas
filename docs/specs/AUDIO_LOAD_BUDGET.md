@@ -8,7 +8,7 @@
 > - Dev server: `npm run dev` — a phone on the LAN needs the **production** build instead: `npm run build && npx vite preview --host --port 4173`, then `http://<pc-ip>:4173/trace-atlas/?debug&…` (a phone over plain http is an insecure context — see [docs/PERFORMANCE.md](../PERFORMANCE.md))
 > - Render-capacity measurement (plan Task 2 promotes the scratch script into the repo): `npm run perf:audio` — see §5.3
 
-Source of intent: [Roadmap 17.2.6](../todo/roadmap.md#1726-performance-audio-load-budget), requested by Crawford 2026-09-20 after the phone investigation in [docs/todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md). No separate intent doc — that investigation and §1.1 below are the motivation, and the design decisions in §7 were made by Crawford in the same session. **Status: draft v4, 2026-09-20 — every open question is resolved (J: Standard stays `interactive`); awaiting Crawford's final approval of this spec and its plan, nothing implemented.** Task breakdown: [docs/tasks/AUDIO_LOAD_BUDGET.md](../tasks/AUDIO_LOAD_BUDGET.md) (26 tasks in 7 phases).
+Source of intent: [Roadmap 17.2.6](../todo/roadmap.md#1726-performance-audio-load-budget), requested by Crawford 2026-09-20 after the phone investigation in [docs/todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md). No separate intent doc — that investigation and §1.1 below are the motivation, and the design decisions in §7 were made by Crawford in the same session. **Status: implemented 2026-09-20/21 on `bugs/scratchy-audio-phones` (tasks 1–24 and 26; see "As Shipped" at the end); one desktop gate missed (Standard's mean on `bravo`), and the phone check (criterion 6, Crawford's run — protocol prepared) is still pending.** Draft v4 resolved every open question (J: Standard stays `interactive`); decision M (2026-09-21) re-set the render-capacity gates. Task breakdown: [docs/tasks/AUDIO_LOAD_BUDGET.md](../tasks/AUDIO_LOAD_BUDGET.md) (26 tasks in 7 phases).
 
 ---
 
@@ -358,3 +358,30 @@ None remaining. (Small points the task plan resolved — drift controls grey out
 ### Phase B (deferred, not scheduled)
 
 Release voice chains for robots that have stood by for longer than a grace period, and rebuild on admission (staggered, from store state — `reReserveVoice` already rebuilds from the store). It needs its own spec: §1.7 lists everything that assumes a live voice, build spikes on a company-wide unmute must be staggered to avoid a scheduling-lookahead pause, and its measured benefit is small. Revisit only if Phase A leaves a gap.
+
+---
+
+## 8. As Shipped (2026-09-21)
+
+Implemented as described above, task by task, one commit each on `bugs/scratchy-audio-phones` (not pushed), test-first with mutation-checked gates. What differs from the draft, and what is still open:
+
+**Deviations from the draft**
+1. **`eligible` is passed in arrival order, not roster order** (§4.1). "The earliest waiter" cannot be derived from roster order, so `reconcileSounding` takes the eligible ids in the order they became eligible, kept by a new pure helper `orderByArrival` (a robot that docks and undocks re-queues at the back).
+2. **`stopAudioBudget()` releases every restriction** (engine set → `null`, ceiling → `MAX_POLYPHONY`, `soundingRobotIds` cleared, LFO policy removed, drift on), so a stopped system can never leave robots silenced.
+3. **The robot-LFO cap has a finite ceiling below Full** (`ROBOT_LFO_CAP_CEILING` = 12 × 10 = 120 audio-rate targets) and is `Infinity` only at exactly 1; the Light / Standard values 4 / 12 are the measured ones (decision K; plan task 4).
+4. **`LOAD_PLAYBACK_BELOW = 0.4`** — the spec said only "Light → `playback`"; the threshold is the boundary of Light's zone.
+5. **The URL mirror's omission rule is "the value equals what a reload would default to, and `?load=` was absent at boot"** (§1.5, decision H). On a desktop that is the plan's "Full removes it"; on a phone (auto-default Light) Full stays explicit, because dropping it would revert to Light on reload.
+6. **Held-off state reaches the store through `lfoEngine.subscribeHeldOff`** (not only the budget system), because a user enabling a robot LFO over the cap goes straight to `lfoEngine`. `lfoEngine.reconcileLfos` is two passes (suspend newest-connected first; connect in request order) and a freed robot-LFO slot is re-admitted at once. `heldOffLfoKeys` and `driftHeldOff` are in `audioStore`; the policy is `(target, robotId, connectedRobotLfos) → boolean` built from `lfoAllowed`.
+7. **`describeLimits` also names a tight robot-LFO limit** ("… · 4 robot LFOs · …", shown only while it is ≤ Standard's), which the §4.5 example omitted.
+8. **Robot Options plumbing** keeps the sections store-free: `RobotOptionsTab` reads per-robot booleans (a shallow record of the robot's own 13 LFO targets) and passes `volumeLfoHeldOff` / `heldOffTargets`; the company panel passes nothing (no single robot to grey against). `LfoTargetGroup` gained an optional `heldOff` field map.
+9. **Roadmap of the drift tier:** drift suppression detaches links and prevents new ones; the shared pools are app-lifetime and are never disposed (disconnected pool oscillators are not rendered).
+10. **Verification tooling added:** `npm run perf:audio` (rewritten from the unkept scratch scripts), the overlay's `audible` and caps lines, `parseBudgetFromHud`, and `world@page` entries for same-session A/B builds.
+
+**Measured outcome** ([PERFORMANCE.md](../PERFORMANCE.md)): baseline (charlie peak window 0.414, bravo 0.558); robot LFO ≈ +0.012 capacity each with drift off (pulseWidth ≈ 0.08, drift +0.085 on 12); caps alone on `charlie` −18 % (Light) / −1 % (Standard) → gates re-set (decision M); finished feature vs the pre-feature build, same session: **Light −29 % (charlie) / −37 % (bravo), Standard −13 % peak but only −0.069 mean on bravo (gate ≥ 0.10 MISSED), Full within ±0.03**, robot-LFO stress at the caps < 0.9 with no interval doubling. Light does better than the caps alone because of the boot-time `playback` hint.
+
+**Still open**
+- **Phone check (§5.3 criterion 6)** — Crawford's run; protocol and results table in [todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md). It also settles decision J (does Standard need `playback`?).
+- **Standard's mean on `bravo`** — accept and re-set, take filter LFOs off at Standard, or give Standard `playback` (options in PERFORMANCE.md).
+- **Cap 12 vs 8 for Standard's robot LFOs, and whether a `pulseWidth` LFO (≈ 7× the cost) should count as several slots** — raised at Checkpoint A, unanswered; shipped at 12 and a plain count.
+- **Lore copy** ("Standing by", "Held off by Audio Load", the Audio Load panel labels) is first-pass invented text to confirm in the manual check; the panel layout was checked at 390 px and 1280 px in a real browser but not on a phone.
+- **Not done, deliberately:** the two new specs are not yet in `CLAUDE.md`'s reference list (offered, not requested); Phase B (lazy voice chains) stays deferred.

@@ -290,6 +290,7 @@ Built for the phone-only scratchy / cutting-out audio ([docs/todo/scratchy-audio
 |---|---|
 | `?debug` | Shows a small read-only overlay (bottom-left, no controls, hidden from assistive tech, `pointer-events: none`) — see below. |
 | `?latency=interactive|balanced|playback` | Installs the Tone context with that Web Audio `latencyHint` instead of Tone's default `interactive`. Invalid values are ignored. `src/engine/audioContextSetup.ts` — it must stay `main.tsx`'s first app import. Roadmap 17.2.4 territory: Chrome Android's low-latency path is known to glitch on complex graphs and `playback` is the usual mitigation, **unverified for this app**. Does not change Tone's `lookAhead` (still 100 ms). |
+| `?load=light\|standard\|full` or `?load=0..100` | The **Audio Load** dial at page load ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md)): caps audible robots, polyphony, LFO tiers, and — for Light — selects the `playback` latency hint. Invalid or absent: Light on a phone-like device (coarse pointer), Full elsewhere. Changing the dial in the app mirrors the choice back into this param (`history.replaceState`). An explicit `?latency=` still wins over the preset's hint. |
 | `?seed=<word>&x=<int>&y=<int>` | Pins the whole generated world ([PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md)). Print any of these into a bug report and the HUD echoes what was loaded. |
 
 Combine them, e.g. `?debug&latency=playback&seed=bravo&x=-150&y=90`. Known worlds (desktop render capacity, [scratchy-audio-phones.md](todo/scratchy-audio-phones.md)): `charlie:200:-30` ≈ 0.33 (calm, 0 global LFOs), `alpha:12:68` ≈ 0.37, `delta:5:-180` ≈ 0.50, `bravo:-150:90` ≈ 0.55 (heavy, 5 LFOs).
@@ -301,6 +302,7 @@ bravo @ -150,90   up 1:32
 ctx running   clock x1.00   transport started
 latency interactive   ahead 100ms   base 11ms
 voices 3/16   audible 5/12   LFOs 5/7
+load 100% · sounding 5/12 · standing by 0 · poly 3/16
 fps 58   lag 4ms (max 220ms)
 1:31 audio clock stalled (x0.00)
 1:52 audio clock recovered after 20.0s
@@ -316,6 +318,7 @@ The border turns red when any failure signature is live. Each line answers one q
 | `lag` (`max`) | How late the 500 ms sampler tick ran — a main-thread stall meter. ≥ 500 ms is logged as "main thread stalled". |
 | `voices n/16` | `activeVoices` against `MAX_POLYPHONY`. Pinned at 16 with sound gone = the stuck-voice-counter hypothesis. |
 | `audible n/12` | Robots in the active locale that `isRobotAudible` lets sound right now (not muted, not excluded by a solo), out of the roster — `0/0` before any robot has spawned. Sampled at the 500 ms tick, so it costs no store subscription. Added for the Audio Load Budget work ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md)): the load waves are hypothesised to follow how many robots sound at once, and this is the series to check that against. |
+| `load n% · sounding a/b · standing by c · poly u/v` | The Audio Load budget: the dial, robots the budget lets sound out of the cap the dial allows, robots eligible but standing by, and notes in use out of the *live* polyphony ceiling (`v` is 16 at Full, 8 at Light). `sounding` never exceeds `b`; at Full it reads `sounding n/12` and `poly n/16`. Sampled at the 500 ms tick; a dash means unknown. `perf:audio` reads this line too (mean and max `sounding` per bucket). |
 | `LFOs n/7` | Global LFOs with rate > 0 — the measured load driver. |
 | `latency … ahead … base` | The hint actually installed, Tone's `lookAhead`, and `baseLatency`. (`outputLatency` is not shown: Tone's standardized-audio-context wrapper doesn't expose it.) |
 

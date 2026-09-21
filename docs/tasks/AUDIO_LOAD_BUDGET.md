@@ -1,6 +1,6 @@
 # Implementation Plan: Audio Load Budget
 
-Source spec: [docs/specs/AUDIO_LOAD_BUDGET.md](../specs/AUDIO_LOAD_BUDGET.md) (draft v4, every §7 question resolved 2026-09-20; **awaiting Crawford's approval of the spec and this plan before any code**). Covers [Roadmap 17.2.6](../todo/roadmap.md#1726-performance-audio-load-budget). Background and measurements: [docs/todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md).
+Source spec: [docs/specs/AUDIO_LOAD_BUDGET.md](../specs/AUDIO_LOAD_BUDGET.md) (implemented 2026-09-20/21; see "As Shipped" at the end — task 25, the phone run, is Crawford's). Covers [Roadmap 17.2.6](../todo/roadmap.md#1726-performance-audio-load-budget). Background and measurements: [docs/todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md).
 
 ## Overview
 
@@ -75,7 +75,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
 ### Phase 1: Measure first (only diagnostic product code)
 
-- [ ] **Task 1: Overlay — audible-robot count**
+- [x] **Task 1: Overlay — audible-robot count**
 
   **Description:** Add one line to the `?debug` overlay showing how many robots are currently audible (`isRobotAudible` over the active locale's robots) out of the roster, so the load waves can be correlated with robot activity on desktop and read off the phone at the moment clicks start. Read at the existing 500 ms sample (in `audioDiagnostics.readInfo`) — no store subscription.
 
@@ -95,7 +95,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (4 files)
 
-- [ ] **Task 2: `perf:audio` — promote the render-capacity script into the repo**
+- [x] **Task 2: `perf:audio` — promote the render-capacity script into the repo**
 
   **Description:** Turn the session's scratch scripts (`audioload.mjs`, `timeseries.mjs`) into `scripts/perf/audio-load.mjs` with an `npm run perf:audio` entry, following `scripts/perf/profile.mjs`'s conventions (Node built-ins only, CDP over `WebSocket`, `--help`, its own temp profile). It polls `WebAudio.getRealtimeData` and reports render capacity per time bucket, optionally reading the overlay's `audible n/12` (Task 1) so both series line up.
 
@@ -116,7 +116,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (3 files)
 
-- [ ] **Task 3: Record the PRE-change baseline and test the correlation**
+- [x] **Task 3: Record the PRE-change baseline and test the correlation**
 
   **Description:** No product change. On the untouched build, record what everything after this is measured against, and test the spec's central inference — that render load tracks how many robots are sounding. This is the reference for spec §5.3 criteria 4 and 1 ("Full within ±0.03").
 
@@ -136,7 +136,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (1 file; ~25 minutes of runs)
 
-- [ ] **Task 4: Measure robot-LFO cost per target type (decision K)**
+- [x] **Task 4: Measure robot-LFO cost per target type (decision K)**
 
   **Description:** Decision K says the robot-LFO caps come from data, not the 4 / 12 placeholders. Only "51 at once saturates the audio thread" is known. Using throwaway builds (recipe from this session's `robotlfo` variant, connecting N robot LFOs of *one target type* a few seconds after power-on, since robots spawn after `powerController.start()`), measure the cost of each audio-rate robot target type — `volume`, layer `gain`, layer `detune`, layer `pulseWidth`. (`layerN.phase` uses a control-rate `scheduleRepeat` poll and is excluded from the cap — see Task 19.)
 
@@ -162,7 +162,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
 ### Phase 2: Pure core (no behavior change; nothing wired)
 
-- [ ] **Task 5: The dial — limits, presets, params, detection**
+- [x] **Task 5: The dial — limits, presets, params, detection**
 
   **Description:** Create `src/utils/audioBudget.ts` with the pure dial logic and its constants: `loadToLimits(audioLoad)` (counts interpolate linearly, booleans switch at thresholds), the preset table, `latencyForLoad`, `parseLoadParam` / `loadToSearchParam`, `detectDefaultAudioLoad(env)`, and `resolveInitialAudioLoad(env)` (`?load=` beats detection). The module imports only constants (no Tone, no stores) so `audioContextSetup` can use it before Tone loads. Robot-LFO caps use the values chosen in Task 4.
 
@@ -182,7 +182,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (3 files)
 
-- [ ] **Task 6: Admission and the LFO predicate — pure**
+- [x] **Task 6: Admission and the LFO predicate — pure**
 
   **Description:** Add `reconcileSounding(previous, eligible, soloIds, maxAudibleRobots)` and `lfoAllowed(target, scope, limits, connectedRobotLfos)` to `audioBudget.ts`. `reconcileSounding` is first-come-first-served with solo priority (spec §1.3): incumbents keep slots, newly eligible robots are admitted in order while there is room, a freed slot goes to the earliest waiter, a lowered cap evicts last-in-first-out, and a solo robot is admitted immediately (evicting the newest non-solo when full). `lfoAllowed` classifies a target (global filter frequency/Q vs EQ gain vs robot) against the limits.
 
@@ -209,7 +209,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
 ### Phase 3: Caps end to end (no UI)
 
-- [ ] **Task 7: `audioStore` — `audioLoad` and `soundingRobotIds`**
+- [x] **Task 7: `audioStore` — `audioLoad` and `soundingRobotIds`**
 
   **Description:** Add the two serialisable fields to `audioStore.ts`: `audioLoad` (0–1, initialised through `resolveInitialAudioLoad` reading `window.location` and `matchMedia('(pointer: coarse)')` at module load, browser-only, same pattern as `seedUtils`) with `setAudioLoad` (clamps), and `soundingRobotIds: string[]` (derived; written only by the budget system). No engine effect yet.
 
@@ -229,7 +229,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (2 files)
 
-- [ ] **Task 8: Engine — sounding-set gate and dynamic polyphony cap**
+- [x] **Task 8: Engine — sounding-set gate and dynamic polyphony cap**
 
   **Description:** In `AudioEngine.ts` add module state `soundingRobots: ReadonlySet<string> | null` (default `null`) and `polyphonyCap` (default `MAX_POLYPHONY`), plus `setSoundingRobots(ids | null)` and `setPolyphonyCap(n)`. In `triggerWithCap`, after the existing `isRobotAudible` check and before the polyphony test, return `false` for a robot outside a non-null sounding set (so a standing-by robot never consumes a slot), and compare `activeVoices` against `polyphonyCap`. `getPolyphonyStats().maxVoices` reports the live cap. The cap applies to new triggers only; nothing forcibly releases counts.
 
@@ -249,7 +249,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (2 files)
 
-- [ ] **Task 9: `audioBudgetSystem` — the sounding set and polyphony, live**
+- [x] **Task 9: `audioBudgetSystem` — the sounding set and polyphony, live**
 
   **Description:** New `src/systems/audioBudgetSystem.ts`: `startAudioBudget()` / `stopAudioBudget()` (module-singleton pair, idempotent, mirroring `startRobotLifecycle`). It subscribes to `useLocaleStore` through an `id:audioMode:docking` **signature** of the active locale's robots and to `useAudioStore.audioLoad`. On change it computes eligibility (`isRobotAudible`), calls `reconcileSounding`, and — only if the result differs — pushes it to `AudioEngine.setSoundingRobots`, writes `soundingRobotIds`, and pushes `loadToLimits(...).maxPolyphony` via `setPolyphonyCap`. Started once from `main.tsx` before first power-on; not torn down by a power cycle.
 
@@ -270,7 +270,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (3 files)
 
-- [ ] **Task 10: Overlay — the caps line**
+- [x] **Task 10: Overlay — the caps line**
 
   **Description:** Show the budget in `?debug`: `sounding n/cap`, `poly used/cap`, `load <n>%`, and how many robots are standing by. Read from the store/engine at the existing 500 ms sample.
 
@@ -289,7 +289,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (4 files)
 
-- [ ] **Task 11: Caps-only measurement — the decision gate**
+- [x] **Task 11: Caps-only measurement — the decision gate**
 
   **Description:** Before building UI and LFO tiers on top of this, measure whether the caps alone move the needle. `charlie` has no global LFOs at stock, so its Light/Standard/Full difference here *is* the robot + polyphony effect. Record the results and report to Crawford.
 
@@ -315,7 +315,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
 ### Phase 4: Controls and status
 
-- [ ] **Task 12: Audibility state — "Standing by"**
+- [x] **Task 12: Audibility state — "Standing by"**
 
   **Description:** Today the cards decide "Emitting" versus "Disabled" from `isRobotAudible` alone (`AUDIBILITY_LABELS` has two states). Add a pure `getAudibilityState(audioMode, anySolo, isSounding)` returning `'emitting' | 'limited' | 'disabled'` beside `isRobotAudible`, and a third `AUDIBILITY_LABELS.limited` ("Standing by", lore label first-pass invented, confirmed in the manual check) plus its status colour mapping.
 
@@ -334,7 +334,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (4 files)
 
-- [ ] **Task 13: Cards show "Standing by"**
+- [x] **Task 13: Cards show "Standing by"**
 
   **Description:** `RobotSelectionCard` and `RobotDisplaySection` use the new state. Each reads it through a **boolean per-robot selector** (`soundingRobotIds.includes(id)`), never the whole array, to avoid the re-render storms this repo has hit before.
 
@@ -353,7 +353,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (4 files)
 
-- [ ] **Task 14: Control schemas and the readout**
+- [x] **Task 14: Control schemas and the readout**
 
   **Description:** In `audioRigConfig.ts`, beside `BPM_SCHEMA`/`DECAY_MODE_SCHEMA`, add `AUDIO_LOAD_PRESET_SCHEMA` (radio: Light / Standard / Full), `AUDIO_LOAD_SCHEMA` (`sliderLinear` 0–100%) and `AUDIO_LOAD_PANEL_SCHEMA` (`directionalPanel`, first-pass lore copy). Add a pure `describeLimits(limits)` in `audioBudget.ts` producing the readout string ("Up to 4 robots · 8 notes · no drift or filter LFOs · latency: Playback (applies on next load)").
 
@@ -372,7 +372,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (4 files)
 
-- [ ] **Task 15: The Audio Load panel in Transport & Composition**
+- [x] **Task 15: The Audio Load panel in Transport & Composition**
 
   **Description:** Wire the schemas into `AudioRigDrawer.tsx` as a panel next to Tempo (decision F). The radio and slider are two views of one stored number: choosing a preset sets the slider; dragging the slider off a preset leaves the radio with no option selected. The readout line shows `describeLimits`. No engine calls here — the store write is enough, the budget system reacts.
 
@@ -392,7 +392,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small–Medium (2–3 files)
 
-- [ ] **Task 16: Mirror the preset into the URL (decision H)**
+- [x] **Task 16: Mirror the preset into the URL (decision H)**
 
   **Description:** When `audioLoad` changes, keep the address bar in sync with `history.replaceState`, preserving every other param, so a reload keeps the choice and links can later be shared. No storage is used. Lives beside the budget system as a store subscriber; a no-op outside a browser.
 
@@ -419,7 +419,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
 ### Phase 5: LFO tiers
 
-- [ ] **Task 17: `lfoEngine` policy and reconcile (global kinds)**
+- [x] **Task 17: `lfoEngine` policy and reconcile (global kinds)**
 
   **Description:** New behavior for `lfoEngine.ts`: a policy predicate supplied by the budget system (`lfoEngine.setLfoPolicy(fn)`, `null` = allow everything, the default). `connectLfoTarget` returns `false` for a disallowed target and records it as **held off**; `lfoEngine.reconcileLfos()` connects newly allowed LFOs that have `rate > 0` (and starts them) and disconnects newly disallowed ones. Stored settings (`settingsByKey`, `activeLfos`) are never modified. This task covers the global filter-frequency/Q versus EQ-gain split; drift and robots follow.
 
@@ -440,7 +440,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small–Medium (2 files)
 
-- [ ] **Task 18: The drift tier ("stacked" LFOs)**
+- [x] **Task 18: The drift tier ("stacked" LFOs)**
 
   **Description:** Drift links are attached inside `connectLfoTarget` (`attachDrift`) and torn down in `disconnectLfoTarget` (`detachDrift`). Add a drift-suppressed flag in `lfoDrift.ts`: while set, `attachDrift` is a no-op; setting it detaches every existing link; clearing it re-attaches drift for every currently connected primary (`lfoEngine` supplies the list). The seeded/edited drift *amounts* (`globalAudio.lfoDrift`) are never touched.
 
@@ -460,7 +460,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (3 files)
 
-- [ ] **Task 19: The robot-LFO cap**
+- [x] **Task 19: The robot-LFO cap**
 
   **Description:** Cap the number of audio-rate robot LFOs that are connected at once at `maxRobotLfos` (values from Task 4). Count `connectedSignals` entries with a `robotId:` key; **`layerN.phase` LFOs are excluded** (they run on a control-rate `scheduleRepeat` poll, `phaseFallbacks`, not an audio-rate connection). A connection over the cap is refused and held off; when the cap falls, the most recently connected robot LFOs are dropped first (last-in-first-out, matching robot admission); when it rises, held-off ones with `rate > 0` reconnect in request order.
 
@@ -480,7 +480,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (2 files)
 
-- [ ] **Task 20: The budget system drives the LFO tiers**
+- [x] **Task 20: The budget system drives the LFO tiers**
 
   **Description:** Extend `audioBudgetSystem` so a change of `audioLoad` also (a) installs the LFO policy from `loadToLimits` and calls `lfoEngine.reconcileLfos()`, (b) sets/clears drift suppression, and (c) writes the held-off state to `audioStore` — `heldOffLfoKeys: string[]` (instance keys, e.g. `lpf.Q`, `robot-3:layer0.detune`) and `driftHeldOff: boolean` — **only when they change**. The engine reports held-off keys through a small read function.
 
@@ -500,7 +500,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Medium (5 files)
 
-- [ ] **Task 21: Greyed-out LFO controls — Audio Rig**
+- [x] **Task 21: Greyed-out LFO controls — Audio Rig**
 
   **Description:** In the Audio Rig, a held-off global LFO frame is **greyed out** (decision L): controls disabled via the existing `Lfo` `disabled` prop, stored values still displayed, with a short "Held off by Audio Load" label. The Drift sliders (per-group Rate/Depth Drift beneath the EQ/LPF/HPF blocks) grey out the same way while drift is held off. Each frame reads its state through a boolean selector on `heldOffLfoKeys` / `driftHeldOff`.
 
@@ -519,7 +519,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Medium (4–5 files)
 
-- [ ] **Task 22: Greyed-out LFO controls — Robot Options**
+- [x] **Task 22: Greyed-out LFO controls — Robot Options**
 
   **Description:** Same treatment for the per-robot LFO frames in Robot Options (Volume LFO in `AudioSettingSection`, the per-layer LFO frames and **Robot Drift** in `SignatureArrayDrawer`): held-off (over the robot-LFO cap) frames grey out with the label; Robot Drift greys with the drift tier.
 
@@ -545,7 +545,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
 ### Phase 6: Latency
 
-- [ ] **Task 23: Latency hint from the boot-time preset**
+- [x] **Task 23: Latency hint from the boot-time preset**
 
   **Description:** `audioContextSetup.ts` currently reads only `?latency=`. It now also resolves the *initial* audio load through `resolveInitialAudioLoad` (pure, no Tone or store import — it must run before any Tone node exists) and installs `latencyForLoad(load)`: Light → `playback`; Standard and Full leave Tone's default alone (decision J: `interactive`). An explicit `?latency=` still wins. The overlay's `latency` line already shows the hint in force.
 
@@ -567,7 +567,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
 ### Phase 7: Prove it, hand to Crawford, document
 
-- [ ] **Task 24: Full desktop measurement gates**
+- [x] **Task 24: Full desktop measurement gates**
 
   **Description:** Measure the finished feature against the pre-change baseline (Task 3) with spec §5.3 criteria 1, 4 and 5. No product change unless a gate is missed, in which case report to Crawford — do not re-tune to pass.
 
@@ -603,7 +603,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Estimated scope:** Small (1 file; waits on Crawford)
 
-- [ ] **Task 26: Docs and roadmap close-out**
+- [x] **Task 26: Docs and roadmap close-out**
 
   **Description:** Bring the docs in line with what shipped, recording deviations from this plan.
 
@@ -654,3 +654,22 @@ Folded into the spec in the same commit as this plan:
 ## Open Questions
 
 None blocking. For Crawford at the checkpoints: the lore/label copy for the Audio Load panel and "Standing by" (Checkpoint D), and whether to add the two new specs to `CLAUDE.md`'s reference list (Task 26).
+
+---
+
+## As Shipped — deviations (2026-09-21)
+
+Tasks 1–24 and 26 are done (task-level boxes above are ticked); **task 25 is prepared and waits on Crawford's phone run**. Each task's acceptance criteria were met and are evidenced by its commit message and tests (the per-criterion boxes were not ticked individually). Order of work followed the plan; Checkpoint A was reported and continued, **Checkpoint C (task 11) stopped on a missed gate and resumed on Crawford's decision (option 2, spec decision M)**, Checkpoints B, D, E and the task-24 gate were run as written.
+
+Deviations, by task (the full list with reasons is in [the spec's §8](../specs/AUDIO_LOAD_BUDGET.md#8-as-shipped-2026-09-21)):
+- **Task 2** was a rewrite, not a promotion — the scratch scripts had not been kept. Later additions: the `audible` and caps columns (tasks 1 and 10), `world@page` for same-session A/B builds (task 24).
+- **Task 3**'s literal both-worlds-pooled correlation (0.38) was below the plan's ~0.5 stop line because `bravo`'s LFOs add an offset; the within-world figures (0.74–0.94) were used and the call was flagged.
+- **Task 6** added `orderByArrival` (eligible ids in arrival order). **Task 9**: `stopAudioBudget()` releases restrictions; the system also watches the Attenuation Style store for locale switches.
+- **Task 11** missed both gates (Light −18 %, Standard −1 %); Crawford chose to keep the anchors and re-set the gates.
+- **Task 12**: there was no audibility colour mapping to extend; `isRobotSounding` (empty list = budget not running = sounding) was added for the cards' per-robot boolean selectors.
+- **Task 14**'s readout includes the tight robot-LFO limit. **Task 16**'s omission rule is default-based (correct on phones).
+- **Task 17/19/20**: the policy carries the connected robot-LFO count; `reconcileLfos` is two-pass and re-admits a freed slot; `lfoEngine.subscribeHeldOff` mirrors held-off state into the store. **Task 18**'s tests live in `lfoEngine.test.ts` (that is where the Tone mocks are), not a new `lfoDrift.test.ts`.
+- **Tasks 21–22**: a shared `HeldOffNote`; `LfoTargetGroup.heldOff` and the Robot Options props keep the sections store-free.
+- **Task 23** was checked in a real browser (`?load=light` → `playback`, one live realtime context).
+- **Task 24**: one gate missed (Standard's mean on `bravo`, 0.069 vs ≥ 0.10); everything else met.
+- **Task 26** records the close-out; `CLAUDE.md`'s reference list was left alone (offered, not requested).

@@ -252,6 +252,12 @@ locale load:
   and `'none'` when created `Active`, so muting is consistent from the very first tick, not just
   after a robot's first dock/undock cycle.
 
+## Audibility and the Audio Load Budget
+
+Whether a robot is *heard* is now two independent things. **`audioMode`** (mute / solo, `isRobotAudible` in `src/utils/robotAudibility.ts`, unchanged) is the lifecycle's and the user's switch: `landOnDocked` mutes, `landOnActive` unmutes, and a user can override either. **The Audio Load budget** ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)) then caps how many *eligible* robots may sound at once (2–12 by the dial; all 12 at Full): `audioBudgetSystem` admits them first come, first served, and one that is eligible but over the cap **stands by** — silent, shown as "Standing by" on its card, otherwise unchanged.
+
+Standing-by robots keep the whole lifecycle: they swim, drain, dock, recharge, drift pitch and keep their reserved voice and registered melody; only the note trigger is gated (`triggerWithCap`). So the battery cycle is what supplies the turnover — a robot docking (`audioMode: 'mute'`) frees its slot for the earliest waiter within a measure or two. An explicit unmute of a docked robot when the set is full does not jump the queue (it shows "Standing by" until a slot frees); a soloed robot always sounds. The lifecycle code itself is untouched — the budget system only reads `audioMode` and `docking` through a signature and writes nothing back to a robot.
+
 ## Existing-System Guards
 
 One already-shipping system needed a `docking === Active` guard added, since it was not

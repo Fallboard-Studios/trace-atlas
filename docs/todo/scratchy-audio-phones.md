@@ -1,6 +1,6 @@
 # Scratchy / Cutting-Out Audio on Phones — Investigation State
 
-Opened 2026-09-18 on branch `bugs/scratchy-audio-phones` (cut from `main` after PR #484 merged roadmap 17.2.1/17.2.2). **Nothing is changed or committed for this issue yet** — this file is the handoff. Related: [17.2.4](roadmap.md#1724-performance-audio-scheduling-headroom-tone-lookahead) (Tone `lookAhead`), [17.2.5](roadmap.md#1725-performance-idle-paint--composite-cost), [PERFORMANCE.md](../PERFORMANCE.md).
+Opened 2026-09-18 on branch `bugs/scratchy-audio-phones` (cut from `main` after PR #484 merged roadmap 17.2.1/17.2.2). **Status (2026-09-21): the diagnostics (`?debug`, `?latency=`, `?x=`/`?y=`, `npm run perf:audio`) and the Audio Load Budget ([roadmap 17.2.6](roadmap.md#1726-performance-audio-load-budget)) are implemented and committed on this branch; the phone check is pending — see the last section.** The rest of this file is the investigation history and handoff, kept as written. Related: [17.2.4](roadmap.md#1724-performance-audio-scheduling-headroom-tone-lookahead) (Tone `lookAhead`), [17.2.5](roadmap.md#1725-performance-idle-paint--composite-cost), [PERFORMANCE.md](../PERFORMANCE.md).
 
 ## The report
 
@@ -27,7 +27,7 @@ Crawford, on a **Pixel 8, incognito Chrome**, after 17.2.2 went live (`main`): v
 - "Load depends on the world seed" — **retraction is itself unproven (corrected 2026-09-19).** Single runs of the same `?seed=` gave 72% and 29% (and 55% vs 34%) and were written off as measurement noise. But `?seed=` only pinned the Attenuation Style (global FX chain); the default locale's **coordinates were still random per load**, so those runs had different robots/BPM/day phase and were **not the same world**. The swings may have been noise, or genuinely different worlds — the data can't say. Interleaved, repeated runs at ~24% only show robot count has a weak effect. Re-tested with the world fully pinned (`?seed=<word>&x=<int>&y=<int>`, added 2026-09-19 — see [PROCEDURAL_GENERATION.md](../PROCEDURAL_GENERATION.md)): **the world does matter** — see "Pinned-world measurement" at the end of this file.
 - Single-run comparisons of any audio-load number are unreliable here. Use ≥3 interleaved rounds, and see the hygiene rules in the memory note `perf-harness-measurement-hygiene`.
 
-## How to measure (the scratch scripts are gone; recreate from this)
+## How to measure (this recipe is now `npm run perf:audio` — see [PERFORMANCE.md](../PERFORMANCE.md); the original steps are kept below)
 
 All drive headless Chrome over CDP (Node 24 built-in `WebSocket`, no dependency), load `vite preview` of a production build, click `button[aria-label="Power on"]`, wait ~8 s. `?seed=<word>&x=<int>&y=<int>` pins the otherwise-random world. **`?seed=` alone does not** — it fixes the Attenuation Style (global FX chain) but the locale coordinates, and so the robots, BPM and day phase, stay random per load. Pin both for any A/B.
 
@@ -260,6 +260,10 @@ The scratch scripts above are now `npm run perf:audio` ([PERFORMANCE.md](../PERF
 - **Load does track how many robots are audible** (pre-change baseline, code `4bab2ea`, 3 runs per world × 240 s): per-world r = 0.74–0.94, ≈ **2 capacity points per audible robot** in both `charlie` and `bravo`; `bravo` sits ≈ 0.17 higher at the same audible count (its 5 global LFOs). Peak window (highest 15 s bucket mean): `charlie` **0.414**, `bravo` **0.558**; overall mean 0.327 / 0.488; noise band ≈ ±0.02. The raw both-worlds-pooled r is only 0.38 because of that world offset (0.81 once removed) — recorded as a judgment call for Checkpoint A. This confirms, with a controlled-enough series, the "waves follow sounding robots" inference above.
 - **A robot LFO costs ≈ +0.012 render capacity each (drift off), linear in count** — `volume`/`gain`/`detune` alike (`gain`: +0.0119 / +0.0114 / +0.0117 per LFO at N = 4 / 12 / 28); **28 of them do not double the callback interval** (10.69 ms; capacity ≈ 0.66 mean). **A `pulseWidth` LFO costs ≈ 0.08 (≈ 7×)** but a world has only 0–2 pulse layers. **Drift adds ≈ 0.085 on top of 12 robot LFOs** — it is what makes the *first* robot LFO expensive (the shared drift pool of 8 LFOs). Robot-LFO caps therefore stay **4 (Light) / 12 (Standard)**, now measured rather than assumed; Standard's margin to the 0.9 criterion is thin under pessimistic inputs (cap 8 is the alternative).
 - The earlier "51 robot LFOs saturate" is consistent: 51 × 0.012 ≈ +0.6 on a 0.34 stock.
+
+## Desktop results of the finished Audio Load Budget (2026-09-21, plan task 24)
+
+Same-session interleaved A/B against the pre-feature build, 3 runs per arm per world (full tables in [PERFORMANCE.md](../PERFORMANCE.md#audio-load-budget--the-finished-feature-against-the-gates-2026-09-21-plan-task-24)). **Light** lowers the peak render capacity by **29 % on `charlie`** and **37 % on `bravo`** (the boot-time `playback` latency hint accounts for much of it — caps alone gave −18 % on `charlie`); **Standard** by 13 % (peak, `bravo`) but only 0.069 in the mean (gate ≥ 0.10 **missed**) and ≈ 0 on `charlie`; **Full is unchanged** (±0.03 of the pre-feature build). Robot-LFO stress at the shipped caps stays < 0.9 with no callback-interval doubling (36 `detune` LFOs requested: 4 connect at Light, 12 at Standard; uncapped at Full the same 36 saturate at 0.99). The phone is the check that matters — next section.
 
 ## Phone protocol for the Audio Load Budget — Crawford's run (plan task 25, prepared 2026-09-21)
 
