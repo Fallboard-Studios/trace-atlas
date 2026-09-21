@@ -102,6 +102,13 @@ let initialized = false;
 let instrumentsLoaded = false;
 // Reservation state
 let activeVoices = 0;
+// Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §4.3) — pushed in by audioBudgetSystem, never read from a
+// store here (AudioEngine imports the stores dynamically for load-order reasons). Both default to "no
+// restriction", so the engine behaves exactly as before until something pushes them.
+// Robots allowed to sound; null = every robot (no budget running).
+let soundingRobots: ReadonlySet<string> | null = null;
+// Simultaneous-note ceiling; MAX_POLYPHONY = Full.
+let polyphonyCap = MAX_POLYPHONY;
 // Global FX chain (compressor, reverb/delay/limiter/EQ/filters, master
 // gain) lives in src/engine/audioEngine/globalFx.ts as its own module state.
 // Unsubscribe handle for the BeatClock measure listener; prevents duplicate
@@ -321,7 +328,13 @@ export function triggerWithCap(params: NoteParams): boolean {
     devWarn('[AudioEngine] triggerWithCap.audioMode failed', err);
   }
 
-  if (activeVoices >= MAX_POLYPHONY) {
+  // Audio-load budget: a robot standing by (eligible, but over the budget) neither triggers nor takes a
+  // polyphony slot. After the mute/solo check above and before the cap below, so it never counts against it.
+  if (soundingRobots !== null && !soundingRobots.has(robotId)) {
+    return false;
+  }
+
+  if (activeVoices >= polyphonyCap) {
     return false;
   }
 
@@ -1034,9 +1047,27 @@ export const AudioEngine = {
   getPolyphonyStats(): { voices: number; maxVoices: number; step: number } {
     return {
       voices: activeVoices,
-      maxVoices: MAX_POLYPHONY,
+      maxVoices: polyphonyCap,
       step: (stepCounter % 16) + 1,
     };
+  },
+
+  /**
+   * Audio Load Budget: the robots allowed to sound. Standing-by robots are refused in triggerWithCap (no
+   * trigger, no polyphony slot). `null` lifts the restriction; an empty list silences everyone. Copies the
+   * ids, so later mutation of the caller's array changes nothing. Survives killAll() (a power cycle).
+   */
+  setSoundingRobots(ids: Iterable<string> | null): void {
+    soundingRobots = ids === null ? null : new Set(ids);
+  },
+
+  /**
+   * Audio Load Budget: the simultaneous-note ceiling, clamped to [0, MAX_POLYPHONY] (NaN → MAX_POLYPHONY).
+   * Applies to NEW triggers only — lowering it below the notes already sounding never forcibly releases
+   * them (that could strand the voice counter); the counter drains as each release fires. Survives killAll().
+   */
+  setPolyphonyCap(cap: number): void {
+    polyphonyCap = Number.isNaN(cap) ? MAX_POLYPHONY : Math.min(MAX_POLYPHONY, Math.max(0, Math.floor(cap)));
   },
 
   /** Returns the current AudioContext time (seconds). Use for note scheduling offsets. */
