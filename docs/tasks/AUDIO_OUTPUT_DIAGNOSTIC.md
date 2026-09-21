@@ -86,7 +86,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
 ### Phase 1: Slice A — the level readout, end to end
 
-- [ ] **Task 2: Pure level maths — `measureLevel`, `peakToDb`**
+- [x] **Task 2: Pure level maths — `measureLevel`, `peakToDb`**
 
   **Description:** In `audioHealth.ts` add `LevelReading` (`peak`, `rms`, `nonFinite`), `measureLevel(samples)` and `peakToDb(peak)` exactly as sketched in spec §4. NaN and ±Infinity are counted and excluded from peak and RMS; an empty buffer is `null`.
 
@@ -106,7 +106,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 3: Output taps in `globalFx` — attach, detach, read**
+- [x] **Task 3: Output taps in `globalFx` — attach, detach, read** *(built with native `AnalyserNode`s, not `Tone.Analyser` — see "Task 6" under Task results)*
 
   **Description:** Add `OUTPUT_TAP_SIZE = 32768`, `attachOutputTaps()`, `detachOutputTaps()` and `readOutputTaps()` to `globalFx.ts` for the case where the chain already exists. Two `Tone.Analyser('waveform', OUTPUT_TAP_SIZE)` nodes: EQ3's output → *pre*, `masterGain`'s output → *master*. `attachOutputTaps` also sets a module "wanted" flag (used by Task 4). `readOutputTaps` returns the two buffers, narrowing Tone's `Float32Array | Float32Array[]` union (confirmed from the typings: `getValue(): Float32Array | Float32Array[]`). Every construction is guarded like the existing ones.
 
@@ -128,7 +128,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
   **Estimated scope:** M
 
-- [ ] **Task 4: The re-attach hook — taps survive a rewire and an early start**
+- [x] **Task 4: The re-attach hook — taps survive a rewire and an early start**
 
   **Description:** Call a small `connectTapsIfWanted()` at the end of `wireGlobalFxChain` (both topologies). It reconnects the taps if they were requested and the nodes exist, and does nothing otherwise. This is the one production-path touch (spec §0.6): it covers the Natural/Controlled Decay toggle (`disconnectAllFxNodes` drops every output of every FX node) and "attach before the chain is built" (build calls wire).
 
@@ -148,7 +148,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 5: Slice A shell and overlay — sample the taps, show the level line**
+- [x] **Task 5: Slice A shell and overlay — sample the taps, show the level line**
 
   **Description:** `startAudioDiagnostics()` attaches the taps on the first reference and the last stop handle detaches them. Each `sample()` reads the two taps once, runs `measureLevel` on each, and stores the readings in a module variable; `readInfo()` puts them into `DiagInfo` (`outputPre`, `outputMaster`, `null` in `emptyInfo`). `buildHudLines` gains one line, ≤ 52 characters, e.g. `out -12.3dB rms -20.1  pre -13.0dB  fin ok` (unknown → `-`, silence → `-inf`, any non-finite → `fin NaN!`); the exact format is fixed by the tests written first. No other existing line changes. `audioDiagnostics.test.ts` gains a `vi.mock('./audioEngine/globalFx', …)` because its Tone mock has no constructors.
 
@@ -169,7 +169,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
   **Estimated scope:** M
 
-- [ ] **Task 6: Real browser — levels are live, mute splits the taps, the toggle does not break them**
+- [x] **Task 6: Real browser — levels are live, mute splits the taps, the toggle does not break them**
 
   **Description:** Production build, headless Chrome 153 over CDP (foreground, one call, process count before and after), `?debug&seed=charlie&x=200&y=-30`, power on. Read the overlay text. For the toggle, click the Natural/Controlled Decay control in the Audio Rig; if driving the UI is impractical, run the same check against `npm run dev` and flip it with a dynamic `import()` of the store. A throwaway script; only the results are recorded.
 
@@ -189,8 +189,8 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
   **Estimated scope:** S
 
 ### Checkpoint A: levels end to end
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all pass; Task 6's results recorded.
-- [ ] **Optional phone build 1** (level line only): Crawford runs `npm run build && npx vite preview --host --port 4173` and loads `?debug&seed=bravo&x=-150&y=90&load=full`. Review with Crawford before continuing.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all pass; Task 6's results recorded. (One intermittent unrelated test failure that passes in isolation — see "Task results".)
+- [ ] **Optional phone build 1** *(Crawford: the phone build can wait until the end)* (level line only): Crawford runs `npm run build && npx vite preview --host --port 4173` and loads `?debug&seed=bravo&x=-150&y=90&load=full`. Review with Crawford before continuing.
 
 ### Phase 2: Slice B — the browser's playback stats, end to end
 
@@ -438,3 +438,23 @@ A page builds `Oscillator(440 Hz) → Gain(0.5) → destination`, plus a native 
 | E. reconnected, 1.5 s | 0.49999958 | Reconnecting restores it. |
 
 `AudioContext.playbackStats` on the same context: `totalDuration` 1.013 → 4.012 over 3.004 s of wall time, so **the units are seconds**; `averageLatency` 0.0434 → 0.0438 (≈ 43 ms) against `baseLatency` 0.010 and `outputLatency` 0.040; `minimumLatency` 0, `maximumLatency` 0.0451; `underrunEvents` 0 and `underrunDuration` 0 in this calm run.
+
+### Task 6 — real browser, slice A (2026-09-21, production build, headless Chrome 153, `?debug&seed=charlie&x=200&y=-30`; Chrome process count 43 before and 43 after)
+
+**The first run failed, and that is the finding.** On the build of `1b12ab4` (taps made with `Tone.Analyser`) the overlay read `out - rms -  pre -  fin -` after 10 s — neither tap produced a reading. Cause, from Tone's source (`node_modules/tone/build/esm/component/analysis/Analyser.js`): `Tone.Analyser` sets `fftSize = 2 × size` and caps `size` at 16384, so the requested 32768 asked the browser for an `fftSize` of 65536, which it rejects; the error was caught and warned (dev-only) and the mocked unit tests could not see it. Even at Tone's maximum it fills its size-long buffer from only the older half of the `fftSize` window, leaving unseen gaps between 500 ms samples.
+
+**Correction (commit `551408d`, test first, seven mutants killed):** the taps are native `AnalyserNode`s made from Tone's raw context, `fftSize` = `OUTPUT_TAP_SIZE` = 32768, with a same-length buffer allocated once and reused — the configuration Task 1 probed. This **deviates from the spec's "Tone `Analyser`"** (§1, §4) and Task 3's description above; it is recorded for the As Shipped section (Task 15). The unit-test mock now enforces the real `fftSize` limit, so this class of bug fails in the unit tests too.
+
+Second run, on the corrected build (a first attempt at the unmute step failed only because the toggle's accessible name does not change — the same "Mute" toggle unmutes; a driver slip, not an app fault):
+
+| Step | `out` (master peak · rms) | `pre` (pre-chain peak) | Overlay |
+|---|---|---|---|
+| running, 4–10 s | −13.8 … −16.9 dB · −23.2 … −24.1 dB | −7.6 … −12.8 dB | `fin ok`, not red |
+| **muted**, 4 s and 10 s | **−inf · −inf** | −7.4 dB, −10.2 dB (**still live**) | `fin ok`, not red |
+| unmuted, 4 s | −15.0 dB · −23.9 dB | −11.5 dB | `fin ok` |
+| Controlled Decay, 4 s | −15.2 dB · −24.4 dB | −9.9 dB | `fin ok` |
+| Natural Decay, 4 s | −12.9 dB · −23.5 dB | −4.4 dB | `fin ok` |
+
+Levels were live within ~2 s of power-on. **Muting silences `out` while `pre` stays live — the two-tap discrimination, seen for real** — and both taps survive the Natural ↔ Controlled Decay toggle in both directions (the re-attach hook working in the production bundle). No non-finite flags, no console errors.
+
+**Checkpoint A full suite:** 152 files, 3235 tests (3191 before this work), one intermittent failure — `src/systems/idleSystem.test.ts › pickDestination › generates destinations in center area (not just edges)`, a statistical assertion (at least 20 of 100 random destinations in the centre) in code this work does not touch. It passed 17/17 in five isolated runs, and it is not in backlog #29. Noticed, not touched.
