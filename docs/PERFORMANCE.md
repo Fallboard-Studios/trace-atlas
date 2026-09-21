@@ -434,6 +434,88 @@ Across all four `charlie` runs the peak window spans 0.381–0.416 and the overa
 
 The plan says to stop if the correlation is weak (|r| < ~0.5). **The per-world and within-world correlations are 0.74–0.94 — the spec's premise holds — but the raw both-worlds-pooled figure the plan literally asks for is 0.38**, for the confounded reason above. This is recorded as a judgment call for review at Checkpoint A, not silently reinterpreted; the work continues to plan task 4 (measurement only) and stops at Checkpoint A before any product change.
 
+## Robot-LFO cost by target type — where the robot-LFO caps come from (2026-09-20)
+
+Spec decision K: the per-tier robot-LFO caps come from measurement, not the spec's 4 / 12 placeholders ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md) §1.4; plan task 4). Before this, only "51 connected at once saturate the audio thread" was known.
+
+**Method.** Throwaway build (recipe below; never committed). World `charlie:200:-30` (0 global LFOs, so any change is the robot LFOs). Every arm is the *same build* with a different query string; a few seconds after the roster and voices exist, N robot LFOs of **one target type** are connected and started (rate 1 Hz, depth 50 %, sine). 10 arms × **3 interleaved rounds** (start order rotated by 3 each round), each a **60 s series after a 12 s warm-up**, fresh Chrome each, foreground one call at a time, orphaned-Chrome count 0 before and after every call. Every figure is a **difference from the same round's stock arm** (stock overall mean 0.338 / 0.339 / 0.334 over the three rounds), never an absolute level. Code measured: `b9aac16` + the throwaway patches (tree clean before, restored after; scratch build deleted).
+
+Two switches were needed, and the second changed the design of the measurement:
+- **`?rlfo=<type>&n=<N>`** — the injector. `connectLfoTarget` is what counts, so N is the number that *actually connected* (checked from the page title): on `charlie`, `volume` has 12 targets, `gain` and `detune` 28 each (layers with gain 0 have no node), and **`pulseWidth` only 1** — only pulse-type layers have a width to modulate, and across six pinned worlds there were 0, 0, 0, 0, 1 and 2 of them.
+- **`?nodrift`** — makes `lfoDrift.attachDrift` a no-op. A first pass with drift on showed the cost was **not** linear in N (4 LFOs ≈ +0.12, 12 ≈ +0.22): the first robot LFO instantiates the robot drift group's shared pool of 8 always-running LFOs, and each robot LFO gets two drift Gains, one an audio-rate connection into the LFO's own frequency. **Light and Standard both switch drift off** (spec §1.4), and those are the tiers the caps apply to, so the cap-relevant cost is the drift-off cost. The drift-on figures are kept as an add-on measurement.
+
+### Results — drift off (Δ overall capacity vs same-round stock)
+
+| Arm | round 1 / 2 / 3 | mean Δ | per LFO | max callback interval |
+|---|---|---|---|---|
+| `volume` N = 4 | +0.068 / +0.014 / +0.091 | **+0.057** | +0.014 | 10.67 ms |
+| `volume` N = 12 | +0.132 / +0.113 / +0.142 | **+0.129** | +0.011 | 10.67 ms |
+| `gain` N = 4 | +0.035 / +0.048 / +0.059 | **+0.048** | +0.012 | 10.67 ms |
+| `gain` N = 12 | +0.134 / +0.136 / +0.142 | **+0.137** | +0.011 | 10.67 ms |
+| `gain` N = 28 (all available) | +0.338 / +0.291 / +0.355 | **+0.328** | +0.012 | 10.69 ms |
+| `detune` N = 4 | +0.050 / +0.038 / +0.056 | **+0.048** | +0.012 | 10.67 ms |
+| `detune` N = 12 | +0.174 / +0.157 / +0.163 | **+0.165** | +0.014 | 10.67 ms |
+| `pulseWidth` N = 1 (all available) | +0.091 / +0.073 / +0.076 | **+0.080** | **+0.080** | 10.67 ms |
+
+- **An audio-rate robot LFO costs about +0.012 render capacity each** (0.011–0.015 across `volume`, `gain`, `detune`), **linear in N**: `gain` gives +0.0119 / +0.0114 / +0.0117 per LFO at N = 4 / 12 / 28, and the marginal cost from 12 to 28 is the same as from 0 to 12. The N = 4 arms are noisy (round-to-round spread up to ±0.04); N = 12 and 28 are tight (±0.01–0.03), so per-LFO numbers lean on those.
+- **A `pulseWidth` LFO costs ≈ 0.08 — about 7× any other robot LFO** (all three rounds: 0.073–0.091). It is bounded by how many pulse layers a world has (0–2 in the worlds seen; a robot with all three layers `pulse` could in principle offer more), so it cannot dominate a realistic mix, but it is the one target where a count-based cap under-charges.
+- **No deadline misses up to 28 LFOs**: the callback interval stayed 10.67 ms (10.69 at N = 28) — no doubling — and capacity peaked ≈ 0.72 (overall mean 0.66, against a 0.34 stock).
+- Consistent with the earlier "51 saturates": 51 × 0.012 ≈ +0.60 on a 0.34 stock ≈ 0.94 even with drift off, and > 1 with it on.
+
+### Drift add-on (why the drift tier also bounds robot LFOs)
+
+`gain` N = 12 with drift **on**: **+0.222** (+0.201 / +0.225 / +0.239) versus **+0.137** with drift off — **drift adds ≈ +0.085**, about 60 % on top of the LFOs themselves (≈ +0.007 per LFO on top of ≈ +0.012). An exploratory first pass on an earlier build (drift on, round 1 only) read stock 0.357 → `volume` N = 4 0.477 (+0.120), N = 12 0.582 (+0.225), `gain` N = 4 0.474 (+0.117), N = 12 0.557 (+0.200): the same picture, and what exposed the non-linearity. **At Full, robot LFOs are uncapped and carry drift, so the hazard there is real** (spec: Full is today's behaviour, unchanged).
+
+### The cap values — chosen from this
+
+**`ROBOT_LFO_CAP_LIGHT = 4` and `ROBOT_LFO_CAP_STANDARD = 12`** — the spec's placeholders, *confirmed by the measurement rather than assumed*. The criterion (spec §5.3.5: the worst realistic mix at each cap keeps capacity < 0.9 with no interval doubling) with pessimistic inputs — cost per LFO 0.0146 (the highest observed marginal), **two of the slots being `pulseWidth`** (0.08 each), and each tier's baseline taken as the *heaviest* known world's peak with only the robot-count saving:
+
+| Tier | Baseline (bravo peak, estimated) | + worst mix at the cap | Worst realistic capacity | Margin to 0.9 |
+|---|---|---|---|---|
+| Light, cap 4 | ≈ 0.48 (0.558 − 3.8 robots × 0.020) | 2 × 0.0146 + 2 × 0.08 | **≈ 0.67** | 0.23 |
+| Standard, cap 12 | ≈ 0.56 (8 robots ≈ no saving on a 7.8-robot peak) | 10 × 0.0146 + 2 × 0.08 | **≈ 0.86** | 0.04 |
+
+Both pass, but **Standard's margin is thin under these pessimistic inputs** (it ignores the ≈ 0.08 that dropping drift saves on `bravo` — the earlier all-seven-LFOs figure, +0.11 for drift, scaled to its five — so the realistic figure is nearer 0.78). Cap 8 would give ≈ 0.81 and is the obvious alternative if a wider margin is wanted; the choice between 12 and 8 is Crawford's call at Checkpoint A. These baselines are *estimates from the fitted slope* — the real check is plan task 24's stress run (every robot's seeded LFOs requested at the shipped caps), and each cap is a one-line constant. **Not decided here:** whether `pulseWidth` LFOs should count as several slots (≈ 6) because they cost ≈ 7× — that would change spec §1.4 from a plain count to a weighted one, and is raised for review, not adopted.
+
+### Patch recipe (throwaway — reproduce, never commit)
+
+From a clean tree: create `src/measureRobotLfos.ts`, add `import './measureRobotLfos'` to `src/main.tsx` after the `lfoDebug` import, add the one-line early return to `attachDrift` in `src/engine/lfoDrift.ts`, then `npx vite build --outDir <scratch>/dist-rlfo --emptyOutDir`, then `git checkout -- src/main.tsx src/engine/lfoDrift.ts && rm src/measureRobotLfos.ts` and confirm `git status` is clean. Serve it with `npx vite preview --outDir <scratch>/dist-rlfo --port 4173` and drive it with `--worlds "charlie:200:-30,charlie:200:-30?rlfo=gain&n=12&nodrift,…"`. The page title reports what connected (`rlfo:gain n=12 connected=12 drift=off`) — read it from `http://127.0.0.1:9334/json` during a short run to confirm before a measured batch.
+
+```ts
+// src/measureRobotLfos.ts — THROWAWAY (never committed). Inert without ?rlfo, so the stock arm is the same build.
+import { lfoEngine } from './engine/lfoEngine';
+import { AudioEngine } from './engine/AudioEngine';
+import { useLocaleStore } from './stores/localeStore';
+import { getActiveLocaleId } from './utils/localeHelpers';
+import type { RobotLfoTargetId } from './types/lfo';
+
+const params = new URLSearchParams(window.location.search);
+const kind = params.get('rlfo');            // volume | gain | detune | pulseWidth
+const wanted = Number(params.get('n') ?? 0);
+
+if (kind && wanted > 0) {
+  const started = performance.now();
+  const timer = setInterval(() => {
+    if (performance.now() - started > 60000) { clearInterval(timer); document.title = `rlfo:${kind} TIMEOUT`; return; }
+    const robots = useLocaleStore.getState().locales[getActiveLocaleId()]?.robots ?? [];
+    if (robots.length < 12) return;                                            // robots spawn AFTER power-on
+    if (!robots.every((r) => AudioEngine.getRobotModulationTarget(r.id, 'volume'))) return;
+    clearInterval(timer);
+    const targets: Array<{ target: RobotLfoTargetId; id: string }> = [];
+    if (kind === 'volume') for (const r of robots) targets.push({ target: 'volume', id: r.id });
+    else for (let layer = 0; layer < 3; layer++) for (const r of robots) targets.push({ target: `layer${layer}.${kind}` as RobotLfoTargetId, id: r.id });
+    let connected = 0;
+    for (const { target, id } of targets) {
+      if (connected >= wanted) break;
+      lfoEngine.setLfoRate(target, 1, id); lfoEngine.setLfoDepth(target, 50, id); lfoEngine.setLfoShape(target, 'sine', id);
+      if (lfoEngine.connectLfoTarget(target, id)) { lfoEngine.start(target, id); connected++; }
+    }
+    document.title = `rlfo:${kind} n=${wanted} connected=${connected} drift=${params.has('nodrift') ? 'off' : 'on'}`;
+  }, 250);
+}
+// lfoDrift.ts, first line of attachDrift:  if (new URLSearchParams(window.location.search).has('nodrift')) return;
+```
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
