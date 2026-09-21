@@ -122,7 +122,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Acceptance criteria:**
   - [ ] A dated section in `docs/PERFORMANCE.md`: worlds `charlie:200:-30` and `bravo:-150:90`, **3 runs each, 4-minute series, 15-second buckets**, run in the foreground one call at a time with no orphaned Chrome before/after, rotated start order, code measured named by commit.
-  - [ ] Per world: per-bucket mean/max capacity, the **peak-window value** (highest bucket mean — the number Light must beat by ≥ 25%) and the overall mean, with the run-to-run spread stated.
+  - [ ] Per world: per-bucket mean/max capacity, the **peak-window value** (highest bucket mean — the number Light must beat — see task 11 for the revised gate) and the overall mean, with the run-to-run spread stated.
   - [ ] The **correlation** between audible robots and capacity is computed and stated (a plain Pearson r over the buckets, per world and pooled), with an honest reading.
   - [ ] **Decision line for Crawford:** if the correlation is weak (|r| < ~0.5), stop and report before Phase 2 — the spec's premise would need revisiting (spec §7 risk).
 
@@ -295,8 +295,8 @@ Independent chains that could run in parallel (each is small, so sequential nume
 
   **Acceptance criteria:**
   - [ ] `charlie:200:-30` with `?load=light`, `?load=standard`, `?load=full` (the last equals Task 3's baseline within ±0.03), 3 interleaved rounds, 4-minute series, foreground, no orphaned Chrome, recorded in `docs/PERFORMANCE.md` next to the baseline.
-  - [ ] **Peak-window (highest bucket mean) reduction versus Full: Light ≥ 25%, Standard ≥ 10%** (spec §5.3 criterion 4 — on `charlie` this is entirely the caps).
-  - [ ] If either threshold is missed, **stop and report** with the numbers and the correlation from Task 3; do not proceed to Phase 4 without Crawford's call (the thresholds are not re-tuned to pass).
+  - [x] ~~Peak-window reduction versus Full: Light ≥ 25%, Standard ≥ 10%~~ — **measured 2026-09-21: Light 18.2%, Standard −1.2% (both missed); stopped and reported (PERFORMANCE.md "Caps-only measurement").** Crawford's call (option 2, spec decision M): anchors stay 4 / 8; the gate becomes **Light ≥ 15% on `charlie`** (met: 18.2%, range 13.4–22.2%) with **no `charlie` gate for Standard** (its 8-robot cap is inert there; Standard is judged on `bravo` in task 24).
+  - [x] If a threshold is missed, stop and report — done; work resumed on Crawford's decision.
 
   **Verification:**
   - [ ] Orphan check empty; `git status` clean.
@@ -572,7 +572,7 @@ Independent chains that could run in parallel (each is small, so sequential nume
   **Description:** Measure the finished feature against the pre-change baseline (Task 3) with spec §5.3 criteria 1, 4 and 5. No product change unless a gate is missed, in which case report to Crawford — do not re-tune to pass.
 
   **Acceptance criteria:**
-  - [ ] Criterion 4 on `charlie` and `bravo`: **Light lowers the peak-window capacity ≥ 25% and Standard ≥ 10% versus Full**; on `bravo`, **Standard's mean is ≥ 0.10 below Full's**. 3 runs each, 4-minute series, interleaved, same session, foreground, no orphaned Chrome.
+  - [ ] Criterion 4 (revised, spec decision M): **Light lowers the peak-window capacity ≥ 25% on `bravo` and ≥ 15% on `charlie` versus Full**; **Standard lowers `bravo`'s peak window ≥ 10% and its mean ≥ 0.10** (no `charlie` gate for Standard). 3 runs each, 4-minute series, interleaved, same session, foreground, no orphaned Chrome.
   - [ ] Criterion 1: **Full is within ±0.03 of the Task 3 baseline** (same-session A/B against a build of the pre-feature commit), and the full suite passes with no test modified for the sake of Full.
   - [ ] Criterion 5: the robot-LFO stress case (throwaway variant per Task 4's recipe requesting every robot's seeded LFOs) at Standard's and Light's caps keeps the callback interval ≈ 10.7 ms and capacity < 0.9.
   - [ ] Results, and any missed gate, recorded in `docs/PERFORMANCE.md` with the code measured named by commit.
