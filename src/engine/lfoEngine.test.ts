@@ -1190,6 +1190,195 @@ describe('lfoEngine', () => {
     });
   });
 
+  // Audio Load Budget (plan task 18): drift ("stacked" LFOs) is the first tier to go. While it is off no drift link is
+  // attached to any LFO, existing links are torn down, and turning it back on re-attaches drift to whatever is connected
+  // — the seeded/edited drift AMOUNTS and every LFO's own settings are never touched.
+  describe('drift tier (setDriftEnabled)', () => {
+    async function setup() {
+      const { AudioEngine } = await import('./AudioEngine');
+      (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal(0));
+      (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal(0));
+      const { lfoEngine } = await import('./lfoEngine');
+      const Tone = await import('tone');
+      const gainCtor = Tone.Gain as unknown as ReturnType<typeof vi.fn>;
+      const lfoCtor = Tone.LFO as unknown as ReturnType<typeof vi.fn>;
+      return {
+        lfoEngine,
+        /** Tone.Gain instances constructed since this call — the drift links' per-primary attenuators (2 per link). */
+        gainMark: () => gainCtor.mock.results.length,
+        gainsSince: (mark: number) => gainCtor.mock.results.slice(mark).map((r) => r.value as MockGainInstance),
+        poolDisposals: () =>
+          lfoCtor.mock.results.filter((r, i) => typeof lfoCtor.mock.calls[i][0] === 'object' && (r.value as MockLfoInstance).dispose.mock.calls.length > 0).length,
+      };
+    }
+
+    /** A connected robot LFO with a non-zero rate and depth, the way applyLayerLfo leaves one. */
+    function connectRobot(lfoEngine: Awaited<ReturnType<typeof setup>>['lfoEngine'], target: 'layer0.gain' | 'layer0.detune' | 'volume' = 'layer0.gain') {
+      lfoEngine.setLfoRate(target, 2, 'robot-a');
+      lfoEngine.setLfoDepth(target, 50, 'robot-a');
+      return lfoEngine.connectLfoTarget(target, 'robot-a');
+    }
+
+    it('by default (never called) attaches drift exactly as before: two attenuators per connected LFO', async () => {
+      const { lfoEngine, gainMark, gainsSince } = await setup();
+      const mark = gainMark();
+      connectRobot(lfoEngine);
+      expect(gainsSince(mark)).toHaveLength(2);
+    });
+
+    it('while off, a newly connected LFO gets no drift link: no attenuators and no drift pool are constructed', async () => {
+      const { lfoEngine, gainMark, gainsSince } = await setup();
+      lfoEngine.setDriftEnabled(false);
+      const mark = gainMark();
+
+      const poolDelta = await poolConstructionCountDelta(() => {
+        expect(connectRobot(lfoEngine)).toBe(true); // the LFO itself still connects
+      });
+
+      expect(gainsSince(mark)).toHaveLength(0);
+      expect(poolDelta).toBe(0);
+    });
+
+    it('applies to global-chain LFOs as well as robot ones', async () => {
+      const { lfoEngine, gainMark, gainsSince } = await setup();
+      lfoEngine.setDriftEnabled(false);
+      const mark = gainMark();
+      lfoEngine.setLfoRate('eq3.low', 1);
+      lfoEngine.setLfoDepth('eq3.low', 50);
+      expect(lfoEngine.connectLfoTarget('eq3.low')).toBe(true);
+      expect(gainsSince(mark)).toHaveLength(0);
+    });
+
+    it('turning it off tears down every existing drift link (both attenuators, robot and global)', async () => {
+      const { lfoEngine, gainMark, gainsSince } = await setup();
+      const mark = gainMark();
+      connectRobot(lfoEngine, 'layer0.gain');
+      connectRobot(lfoEngine, 'layer0.detune');
+      lfoEngine.setLfoRate('eq3.low', 1);
+      lfoEngine.setLfoDepth('eq3.low', 50);
+      lfoEngine.connectLfoTarget('eq3.low');
+      const links = gainsSince(mark);
+      expect(links).toHaveLength(6);
+
+      lfoEngine.setDriftEnabled(false);
+
+      for (const gain of links) {
+        expect(gain.disconnect).toHaveBeenCalled();
+        expect(gain.dispose).toHaveBeenCalled();
+      }
+    });
+
+    it('turning it back on re-attaches drift to every connected LFO, carrying the current drift amounts', async () => {
+      const { lfoEngine, gainMark, gainsSince } = await setup();
+      lfoEngine.setGlobalRateDrift('robots', 0.5);
+      const first = gainMark();
+      connectRobot(lfoEngine, 'layer0.gain');
+      connectRobot(lfoEngine, 'layer0.detune');
+      const [rateGainBefore] = gainsSince(first);
+      expect(rateGainBefore.gain.value).not.toBe(0); // the amount really is applied
+      lfoEngine.setDriftEnabled(false);
+
+      const mark = gainMark();
+      lfoEngine.setDriftEnabled(true);
+
+      const relinked = gainsSince(mark);
+      expect(relinked).toHaveLength(4); // 2 connected LFOs × 2 attenuators
+      expect(relinked[0].gain.value).toBeCloseTo(rateGainBefore.gain.value, 10);
+    });
+
+    it('re-uses the drift pools rather than rebuilding them, and never disposes them', async () => {
+      const { lfoEngine, poolDisposals } = await setup();
+      connectRobot(lfoEngine);
+      lfoEngine.setDriftEnabled(false);
+
+      const poolDelta = await poolConstructionCountDelta(() => lfoEngine.setDriftEnabled(true));
+
+      expect(poolDelta).toBe(0);
+      expect(poolDisposals()).toBe(0);
+    });
+
+    it('a down/up round trip leaves every LFO setting and drift amount exactly as it was', async () => {
+      const { lfoEngine, gainMark, gainsSince } = await setup();
+      lfoEngine.setGlobalRateDrift('robots', 0.4);
+      lfoEngine.setGlobalDepthDrift('robots', -0.3);
+      const first = gainMark();
+      lfoEngine.setLfoRate('layer0.gain', 3.25, 'robot-a');
+      lfoEngine.setLfoDepth('layer0.gain', 61, 'robot-a');
+      lfoEngine.setLfoShape('layer0.gain', 'sawtooth', 'robot-a');
+      lfoEngine.connectLfoTarget('layer0.gain', 'robot-a');
+      const [rateBefore, depthBefore] = gainsSince(first);
+      const settingsBefore = { ...lfoEngine.getLfoSettings('layer0.gain', 'robot-a') };
+      const amounts = [rateBefore.gain.value, depthBefore.gain.value];
+
+      lfoEngine.setDriftEnabled(false);
+      lfoEngine.setDriftEnabled(true);
+
+      expect(lfoEngine.getLfoSettings('layer0.gain', 'robot-a')).toEqual(settingsBefore);
+      const [rateAfter, depthAfter] = gainsSince(first).slice(-2);
+      expect([rateAfter.gain.value, depthAfter.gain.value]).toEqual(amounts);
+    });
+
+    it('only re-attaches to LFOs that are connected — a held-off one waits until it is', async () => {
+      const { lfoEngine, gainMark, gainsSince } = await setup();
+      lfoEngine.setLfoRate('lpf.frequency', 1);
+      lfoEngine.setLfoDepth('lpf.frequency', 50);
+      lfoEngine.setLfoPolicy((target) => target !== 'lpf.frequency');
+      expect(lfoEngine.connectLfoTarget('lpf.frequency')).toBe(false); // held off
+      connectRobot(lfoEngine);
+      lfoEngine.setDriftEnabled(false);
+
+      const mark = gainMark();
+      lfoEngine.setDriftEnabled(true);
+
+      expect(gainsSince(mark)).toHaveLength(2); // the one robot LFO only
+    });
+
+    it('an LFO brought back by reconcileLfos while drift is off gets no drift link', async () => {
+      const { lfoEngine, gainMark, gainsSince } = await setup();
+      lfoEngine.setLfoPolicy(() => false);
+      connectRobot(lfoEngine); // refused, held off
+      lfoEngine.setDriftEnabled(false);
+      lfoEngine.setLfoPolicy(null);
+      const mark = gainMark();
+
+      lfoEngine.reconcileLfos();
+
+      expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
+      expect(gainsSince(mark)).toHaveLength(0);
+    });
+
+    it('is idempotent in both directions, and turning it on when it was never off changes nothing', async () => {
+      const { lfoEngine, gainMark, gainsSince } = await setup();
+      connectRobot(lfoEngine);
+      const mark = gainMark();
+
+      lfoEngine.setDriftEnabled(true); // was never off
+      expect(gainsSince(mark)).toHaveLength(0);
+
+      lfoEngine.setDriftEnabled(false);
+      const afterOff = gainMark();
+      lfoEngine.setDriftEnabled(false);
+      expect(gainsSince(afterOff)).toHaveLength(0);
+
+      lfoEngine.setDriftEnabled(true);
+      const afterOn = gainMark();
+      lfoEngine.setDriftEnabled(true);
+      expect(gainsSince(afterOn)).toHaveLength(0);
+    });
+
+    it('never adds drift to a phase LFO (it polls at control rate), whichever way the switch goes', async () => {
+      const { lfoEngine, gainMark, gainsSince } = await setup();
+      lfoEngine.setLfoRate('layer0.phase', 1, 'robot-a');
+      lfoEngine.connectLfoTarget('layer0.phase', 'robot-a');
+      const mark = gainMark();
+
+      lfoEngine.setDriftEnabled(false);
+      lfoEngine.setDriftEnabled(true);
+
+      expect(gainsSince(mark)).toHaveLength(0);
+    });
+  });
+
   describe('drift pool (Task 4 — structural, inert: both Gains stay at 0, nothing audible changes)', () => {
     describe('pool construction', () => {
       it('constructs no pool oscillator on module load or when only reading/setting rate, depth, or shape', async () => {

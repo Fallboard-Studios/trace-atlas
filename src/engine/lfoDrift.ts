@@ -93,6 +93,13 @@ const DRIFT_POOL_SIZE: Record<DriftGroupId, number> = {
  *  in the UI (only the drift AMOUNT, rateDrift/depthDrift, is user-facing). */
 const DRIFT_RATE_HZ = 0.03;
 
+/**
+ * Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §1.4): drift is the first tier to go. While suppressed, attachDrift is a
+ * no-op (so no link, no attenuator pair and no lazily-built pool) and every existing link has been torn down. Only the
+ * LINKS are suspended — the seeded/edited drift AMOUNTS (globalRateDriftByGroup/globalDepthDriftByGroup) are untouched.
+ */
+let driftSuppressed = false;
+
 // ========================================
 // FUNCTIONS
 // ========================================
@@ -141,6 +148,7 @@ function getOrCreateDriftPool(group: DriftGroupId): Tone.LFO[] {
  * make drift audible; this wiring alone is deliberately inert.
  */
 export function attachDrift(key: string, lfo: Tone.LFO, group: DriftGroupId): void {
+  if (driftSuppressed) return;
   if (driftLinks.has(key)) return;
   const pool = getOrCreateDriftPool(group);
   const poolLfo = pool[Math.floor(alea(key)() * pool.length)];
@@ -252,6 +260,20 @@ export function detachDrift(key: string): void {
  * §1.3 — cross-group isolation). Safe no-op with zero primaries connected in
  * this group, even while other groups have primaries and nonzero amounts.
  */
+export function isDriftSuppressed(): boolean {
+  return driftSuppressed;
+}
+
+/**
+ * Suppress or restore drift. Suppressing detaches every existing link (the pools are shared and app-lifetime — never
+ * disposed). Restoring only clears the flag: lfoEngine, which knows what is connected, re-attaches each primary.
+ */
+export function setDriftSuppressed(suppressed: boolean): void {
+  if (suppressed === driftSuppressed) return;
+  driftSuppressed = suppressed;
+  if (suppressed) for (const key of [...driftLinks.keys()]) detachDrift(key);
+}
+
 export function setGlobalRateDrift(group: DriftGroupId, value: number): void {
   globalRateDriftByGroup[group] = clamp(value, -1, 1);
   for (const [key, link] of driftLinks) {

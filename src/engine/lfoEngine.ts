@@ -16,6 +16,8 @@ import {
   refreshDepthDriftGain,
   setGlobalRateDrift,
   setGlobalDepthDrift,
+  isDriftSuppressed,
+  setDriftSuppressed,
 } from './lfoDrift';
 
 import type { OscillatorLayer } from '../types/layeredAudio';
@@ -331,6 +333,22 @@ function suspendConnection(key: string): void {
   activeLfos.get(key)?.stop();
 }
 
+/**
+ * Turn drift ("stacked" LFOs) off or back on for the Audio Load budget. Off: every drift link is torn down and new
+ * connections get none. On: drift is re-attached to every LFO that is connected right now, at the current drift amounts.
+ * Idempotent; stored LFO settings and drift amounts are never touched.
+ */
+function setDriftEnabled(enabled: boolean): void {
+  if (enabled !== isDriftSuppressed()) return;
+  setDriftSuppressed(!enabled);
+  if (!enabled) return;
+  for (const key of connectedSignals.keys()) {
+    const lfo = activeLfos.get(key);
+    const request = requested.get(key);
+    if (lfo && request) attachDrift(key, lfo, driftGroupForTarget(request.target));
+  }
+}
+
 /** Install (or with `null` remove) the Audio Load policy. Does not itself change any connection — call reconcileLfos(). */
 function setLfoPolicy(next: LfoPolicy | null): void {
   policy = next;
@@ -526,6 +544,7 @@ export const lfoEngine = {
   disconnectLfoTarget,
   disposeRobotLfos,
   setLfoPolicy,
+  setDriftEnabled,
   reconcileLfos,
   getHeldOffLfoKeys,
   setGlobalRateDrift,
