@@ -28,6 +28,7 @@ import {
   buildPageUrl,
   chooseRealtimeContext,
   parseAudibleFromHud,
+  parseBudgetFromHud,
   parseWorldList,
   parseWorldSpec,
   rotateList,
@@ -214,12 +215,15 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
       const t = (performance.now() - start) / 1000;
       if (t >= seconds) break; // a final sample past the end would form a one-sample bucket that could win "peak window"
       const { realtimeData } = await send('WebAudio.getRealtimeData', { contextId });
-      const hud = parseAudibleFromHud(await evaluate(`document.querySelector('.audio-debug-hud')?.textContent ?? ''`));
+      const hudText = await evaluate(`document.querySelector('.audio-debug-hud')?.textContent ?? ''`);
+      const hud = parseAudibleFromHud(hudText);
+      const budget = parseBudgetFromHud(hudText);
       samples.push({
         t,
         capacity: realtimeData?.renderCapacity,
         intervalMs: typeof realtimeData?.callbackIntervalMean === 'number' ? realtimeData.callbackIntervalMean * 1000 : null,
         audible: hud ? hud.audible : null,
+        sounding: budget ? budget.sounding : null,
       });
     }
 
@@ -252,6 +256,8 @@ function report(run) {
     'max cap': Number(fixed(b.maxCapacity, 3)),
     'interval (ms)': fixed(b.meanIntervalMs, 2),
     audible: fixed(b.audible, 1),
+    sounding: fixed(b.sounding, 1),
+    'max snd': b.maxSounding ?? '-',
   })));
   const { summary } = run;
   console.log(

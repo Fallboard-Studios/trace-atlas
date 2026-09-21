@@ -71,7 +71,8 @@ const usable = (value) => typeof value === 'number' && Number.isFinite(value);
  * Group samples (`{ t, capacity, intervalMs, audible }`, `t` in seconds since the series began) into
  * fixed-width buckets. A sample on a boundary belongs to the later bucket. Samples without a usable
  * capacity are dropped; buckets that received none (a polling gap) are omitted. `audible` is the mean of
- * the readings the overlay supplied in the bucket, or null when there were none.
+ * the readings the overlay supplied in the bucket, or null when there were none; `sounding` and `maxSounding`
+ * are the mean and the maximum of the budget line's sounding-robot count (the maximum is what shows a cap held).
  */
 export function bucketSamples(samples, bucketSec) {
   if (!Number.isFinite(bucketSec) || bucketSec <= 0) {
@@ -91,6 +92,7 @@ export function bucketSamples(samples, bucketSec) {
       const capacities = group.map((s) => s.capacity);
       const intervals = group.map((s) => s.intervalMs).filter(usable);
       const audible = group.map((s) => s.audible).filter(usable);
+      const sounding = group.map((s) => s.sounding).filter(usable);
       return {
         startSec: index * bucketSec,
         samples: group.length,
@@ -98,6 +100,8 @@ export function bucketSamples(samples, bucketSec) {
         maxCapacity: Math.max(...capacities),
         meanIntervalMs: intervals.length ? mean(intervals) : null,
         audible: audible.length ? mean(audible) : null,
+        sounding: sounding.length ? mean(sounding) : null,
+        maxSounding: sounding.length ? Math.max(...sounding) : null,
       };
     });
 }
@@ -162,6 +166,17 @@ export function audibleCapacityCorrelation(buckets) {
 export function parseAudibleFromHud(text) {
   const match = /audible (\d+)\/(\d+)/.exec(text ?? '');
   return match ? { audible: Number(match[1]), total: Number(match[2]) } : null;
+}
+
+/**
+ * Read the Audio Load caps line off the `?debug` overlay (`load 20% · sounding 4/4 · standing by 2 · poly 3/8`), or null
+ * when it is absent (an older build) or shows dashes.
+ */
+export function parseBudgetFromHud(text) {
+  const match = /load (\d+)% · sounding (\d+)\/(\d+) · standing by (\d+) · poly (\d+)\/(\d+)/.exec(text ?? '');
+  if (!match) return null;
+  const [loadPct, sounding, cap, standingBy, poly, polyCap] = match.slice(1).map(Number);
+  return { loadPct, sounding, cap, standingBy, poly, polyCap };
 }
 
 /**

@@ -8,6 +8,7 @@ import {
   buildPageUrl,
   chooseRealtimeContext,
   parseAudibleFromHud,
+  parseBudgetFromHud,
   parseWorldList,
   parseWorldSpec,
   pearson,
@@ -349,6 +350,65 @@ describe('parseAudibleFromHud', () => {
     expect(parseAudibleFromHud(null)).toBeNull();
     expect(parseAudibleFromHud(undefined)).toBeNull();
     expect(parseAudibleFromHud('voices 3/16   LFOs 5/7')).toBeNull();
+  });
+});
+
+describe('parseBudgetFromHud', () => {
+  const line = 'load 20% · sounding 4/4 · standing by 2 · poly 3/8';
+
+  it('reads the dial, sounding/cap, standing by and poly/ceiling off the caps line', () => {
+    expect(parseBudgetFromHud(`voices 3/8   audible 6/12   LFOs 0/7
+${line}
+fps 58`)).toEqual({
+      loadPct: 20, sounding: 4, cap: 4, standingBy: 2, poly: 3, polyCap: 8,
+    });
+  });
+
+  it('reads Full', () => {
+    expect(parseBudgetFromHud('load 100% · sounding 7/12 · standing by 0 · poly 3/16')).toEqual({
+      loadPct: 100, sounding: 7, cap: 12, standingBy: 0, poly: 3, polyCap: 16,
+    });
+  });
+
+  it('still finds the line when the overlay text has no newlines (textContent joins the divs)', () => {
+    expect(parseBudgetFromHud(`ctx running${line}fps 58`)?.sounding).toBe(4);
+  });
+
+  it('returns null when the line is absent (an older build), unparseable, or shows dashes', () => {
+    expect(parseBudgetFromHud('')).toBeNull();
+    expect(parseBudgetFromHud(null)).toBeNull();
+    expect(parseBudgetFromHud(undefined)).toBeNull();
+    expect(parseBudgetFromHud('voices 3/16   audible 5/12')).toBeNull();
+    expect(parseBudgetFromHud('load - · sounding -/- · standing by - · poly -/-')).toBeNull();
+  });
+});
+
+describe('bucketSamples — budget columns', () => {
+  it('averages the sounding count and keeps the maximum, which is what shows a cap being honored', () => {
+    const samples = [
+      { t: 0, capacity: 0.3, intervalMs: 10, audible: 6, sounding: 2 },
+      { t: 1, capacity: 0.3, intervalMs: 10, audible: 6, sounding: 4 },
+      { t: 2, capacity: 0.3, intervalMs: 10, audible: 6, sounding: 3 },
+    ];
+    const [bucket] = bucketSamples(samples, 15);
+    expect(bucket.sounding).toBeCloseTo(3, 10);
+    expect(bucket.maxSounding).toBe(4);
+  });
+
+  it('reports null for both when no sample carried a reading (an older build, or no overlay)', () => {
+    const [bucket] = bucketSamples(series(15, () => 0.3), 15);
+    expect(bucket.sounding).toBeNull();
+    expect(bucket.maxSounding).toBeNull();
+  });
+
+  it('uses only the samples that had a reading, and counts 0 as a reading', () => {
+    const samples = [
+      { t: 0, capacity: 0.3, intervalMs: 10, audible: null, sounding: null },
+      { t: 1, capacity: 0.3, intervalMs: 10, audible: null, sounding: 0 },
+    ];
+    const [bucket] = bucketSamples(samples, 15);
+    expect(bucket.sounding).toBe(0);
+    expect(bucket.maxSounding).toBe(0);
   });
 });
 
