@@ -257,7 +257,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
 ### Phase 3: Slice C — silence and non-finite events, and the red status
 
-- [ ] **Task 10: Pure silent-while-sounding event**
+- [x] **Task 10: Pure silent-while-sounding event**
 
   **Description:** Add `SILENT_PEAK_THRESHOLD = 1e-4` (−80 dBFS) and `SILENT_EVENT_AFTER_MS = 3000`, optional `DiagSample` fields `master`, `pre` (`LevelReading | null`) and `expectSound`, and the state to time the condition. The event reads "master output silent for 3s while notes sound (pre-chain normal | silent | unknown)"; a recovery event carries the duration. The condition is `master.peak < threshold && expectSound`, and any break in it resets the timer.
 
@@ -276,7 +276,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 11: Pure non-finite events**
+- [x] **Task 11: Pure non-finite events**
 
   **Description:** One event when a tap first shows non-finite samples ("non-finite samples in master output" / "…in pre-chain output") and one when it clears, per tap, edge-triggered like the other events.
 
@@ -294,7 +294,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 12: Slice C shell and overlay — `expectSound`, the readings into `stepDiag`, red status**
+- [x] **Task 12: Slice C shell and overlay — `expectSound`, the readings into `stepDiag`, red status**
 
   **Description:** In `sample()`, pass the readings already taken in Task 5, plus `expectSound = voices > 0 && getMasterVolume() > 0 && transport 'started' && context 'running'`, into `stepDiag`. `hudStatus` becomes `'bad'` while the silent condition or a non-finite tap is active, in addition to the existing and underrun conditions. The volume-0 false positive (a sounding robot whose own volume is 0) is accepted and documented, not handled.
 
@@ -313,7 +313,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
   **Estimated scope:** M
 
-- [ ] **Task 13: Real browser — mute and toggle raise nothing; a forced silence raises the event**
+- [ ] **Task 13: Real browser — mute and toggle raise nothing; a forced silence raises the event** *(stopped at a gate: mute and toggle met; the forced-silence timing criterion was missed — see "Task 13" under Task results)*
 
   **Description:** Same headless setup (production build for the mute and toggle checks; the dev server for the forced silence, which needs a dynamic `import()` of `globalFx`). Forced silence: disconnect the chain entry (`getGlobalChainEntry().disconnect()`), which silences everything after EQ3, then restore with `wireGlobalFxChain(false)`. Note that this also drops the pre tap's own connection, so the real-browser run exercises the "both silent" branch; the "pre normal, master silent" branch is covered by Task 10's unit tests.
 
@@ -438,6 +438,16 @@ A page builds `Oscillator(440 Hz) → Gain(0.5) → destination`, plus a native 
 | E. reconnected, 1.5 s | 0.49999958 | Reconnecting restores it. |
 
 `AudioContext.playbackStats` on the same context: `totalDuration` 1.013 → 4.012 over 3.004 s of wall time, so **the units are seconds**; `averageLatency` 0.0434 → 0.0438 (≈ 43 ms) against `baseLatency` 0.010 and `outputLatency` 0.040; `minimumLatency` 0, `maximumLatency` 0.0451; `underrunEvents` 0 and `underrunDuration` 0 in this calm run.
+
+### Task 13 — real browser, slice C (2026-09-21, production build and `vite` dev server of `f6dd863`, headless Chrome 153, `?debug&seed=charlie&x=200&y=-30`; Chrome process count 43 before and 43 after each production run) — **one criterion MISSED; stopped at the gate for Crawford's decision**
+
+**Met — mute and toggle raise nothing (production build).** A 12 s mute: `out` `-inf`, `pre` live (−6.7 dB), **no event and never red**. Unmute, then Controlled and Natural Decay for 8 s each: no event, never red, the whole event log empty. No console errors.
+
+**Forced silence (dev server).** From the page: `import()` of `globalFx`, `getGlobalChainEntry().disconnect()` (EQ3 no longer feeds the chain), then `attachOutputTaps()` so the hook reconnects EQ3 to the pre-chain tap — pre stays live, everything after EQ3 is silent, notes keep being scheduled.
+- **Run 1:** `out` fell −13 → −116 → −229 → … → `-inf` (the reverb and delay tails rang out for ≈ 1.7 s), `pre` stayed live (−5 … −15 dB). About **6.5–7 s after the cut** the overlay went red and logged `0:23 master output silent for 3s while notes sound (pre-chain normal)`. After `wireGlobalFxChain(false)` the level returned within 1 s, the border cleared and `0:26 master output audible again after 6.0s` was logged. So the event's wording, the pre-chain reading, the red status and the recovery all work.
+- **Run 2 (same steps, `voices` logged each second):** **no event within 9 s.** `voices` read 4, 3, **0**, 6, 5, **0**, 7, 7, 3 — notes in flight fell to 0 twice, and each time the 3 s count restarted, because `expectSound` requires `voices > 0` at *every* sample.
+
+**Criterion "raises the silent event within about 3.5 s of the disconnect": MISSED** — ≈ 6.5–7 s in one run, not within 9 s in the other. Two causes. (1) The FX tails keep the master above −80 dBFS for ≈ 1.7 s after a cut — a property of this test, not a defect. (2) **The real finding: the instantaneous `voices > 0` term lets any gap between notes restart the count.** With 3–4 robots sounding (this run: `audible 3/12`) gaps are frequent; on the phone's `bravo` runs (7–8 sounding) `poly` was never 0 in about 25 transcribed screenshots, but the same fragility applies whenever few robots sound. This is spec §7's own risk ("missed silence between notes"), now measured. Nothing was tuned; the options are in the report to Crawford, and Task 13 stays unticked until he decides.
 
 ### Task 9 — real browser, slice B (2026-09-21, production build of `03f0cd0`, headless Chrome 153, `?debug&seed=charlie&x=200&y=-30`, 90 s; Chrome process count not higher afterwards)
 
