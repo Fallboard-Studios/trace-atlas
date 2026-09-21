@@ -29,6 +29,37 @@ export const MIN_LEAD = 0.1;
  */
 export const MAX_POLYPHONY = 16;
 
+// ========================================
+// AUDIO LOAD BUDGET (docs/specs/AUDIO_LOAD_BUDGET.md §4.2)
+// ========================================
+// One 0–1 dial ("Audio Load") lowers audio cost. At 1 (Full) every limit equals today's behavior:
+// MAX_ROBOTS audible robots, MAX_POLYPHONY notes, drift and every LFO on, unlimited robot LFOs.
+// Counts interpolate linearly between the floor and Full; the booleans switch at the thresholds below.
+
+/** Audible robots allowed at audioLoad = 0 (rises linearly to MAX_ROBOTS at 1). */
+export const LOAD_AUDIBLE_ROBOTS_MIN = 2;
+/** Simultaneous notes allowed at audioLoad = 0 (rises linearly to MAX_POLYPHONY at 1). */
+export const LOAD_POLYPHONY_MIN = 6;
+/** The three named dial positions. */
+export const AUDIO_LOAD_PRESETS = { light: 0.2, standard: 0.6, full: 1 } as const;
+/** Drift ("stacked" LFOs) is on at/above this dial position — measured as the cheapest big win, so it goes first. */
+export const LOAD_DRIFT_MIN = 0.8;
+/** Global filter-frequency/Q LFOs are on at/above this dial position (EQ-gain LFOs are nearly free and always on). */
+export const LOAD_FILTER_LFOS_MIN = 0.4;
+/** Below this dial position (Light's zone) the AudioContext latency hint is "playback"; at/above it, "interactive". */
+export const LOAD_PLAYBACK_BELOW = 0.4;
+/**
+ * Audio-rate robot LFOs that may be connected at once at Light and Standard. Measured, not guessed
+ * (docs/PERFORMANCE.md "Robot-LFO cost by target type"): each costs ≈ +0.012 render capacity with drift off.
+ */
+export const ROBOT_LFO_CAP_LIGHT = 4;
+export const ROBOT_LFO_CAP_STANDARD = 12;
+/**
+ * The most audio-rate robot LFOs that could ever connect (volume + 3 layers × gain/detune/pulseWidth,
+ * per robot) — the finite value the cap climbs to just short of Full, where it becomes unlimited.
+ */
+export const ROBOT_LFO_CAP_CEILING = MAX_ROBOTS * 10;
+
 /**
  * Fixed size of the harmony palette — every hour-equivalent's `TIME_PITCHES` entry
  * (harmonySystem.ts) is exactly 8 notes, structurally enforced by the `EighthNotes`
