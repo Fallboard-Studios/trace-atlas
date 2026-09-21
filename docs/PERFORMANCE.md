@@ -516,6 +516,65 @@ if (kind && wanted > 0) {
 // lfoDrift.ts, first line of attachDrift:  if (new URLSearchParams(window.location.search).has('nodrift')) return;
 ```
 
+## Caps-only measurement for roadmap 17.2.6 — the plan-task-11 decision gate (2026-09-21)
+
+**Result: both thresholds are missed. The work stops here for Crawford's call; nothing was tuned to pass** ([tasks/AUDIO_LOAD_BUDGET.md](tasks/AUDIO_LOAD_BUDGET.md) task 11, [specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md) §5.3 criterion 4).
+
+**What was measured.** The audible-robot cap and the polyphony ceiling *alone* — the sounding-set gate, `audioBudgetSystem` and the dial exist; no UI, no LFO tiers yet. `charlie:200:-30` has no global LFOs, so its Light / Standard / Full difference here *is* the robot + polyphony effect. Code `90dfc09`, clean tree, production build. **`?load=light`, `?load=standard`, `?load=full`, 3 interleaved rounds each** (start order full/standard/light rotated across five foreground calls), **240 s series, 15 s buckets, 8 s warm-up**, `npm run perf:audio`, orphaned-Chrome count 0 before and after every call.
+
+| | Light (0.2: 4 robots, 8 notes) | Standard (0.6: 8 robots, 12 notes) | Full (1: today) |
+|---|---|---|---|
+| **Peak window** (highest 15 s bucket mean), per run | 0.323 / 0.323 / 0.332 | 0.378 / 0.413 / 0.399 | 0.415 / 0.383 / 0.395 |
+| **Peak window, median** | **0.323** | **0.399** | **0.395** |
+| **Reduction vs Full** (median; mean of runs) | **18.2 %** (18.1 %) — range 13.4–22.2 % | **−1.2 %** (0.1 %) — range −7.9 to +8.8 % | — |
+| **Gate** | ≥ 25 % — **missed** | ≥ 10 % — **missed** | |
+| Overall mean, per run | 0.300 / 0.301 / 0.306 | 0.315 / 0.334 / 0.327 | 0.331 / 0.334 / 0.327 |
+| Overall mean vs Full (median) | −0.029 | −0.003 | — |
+| Cap held? (max sounding robots in any sample) | 4 of 4 ✓ | 8 of 8 ✓ | 8 (roster peak) |
+| Max callback interval | 10.67 ms | 10.67 ms | 10.67 ms |
+
+**Full versus the Task 3 baseline** (`charlie`, code `4bab2ea`, an earlier session): peak-window median 0.395 vs 0.414 (−0.019) and overall-mean median 0.331 vs 0.327 (+0.004) — **within ±0.03**, so Full is unchanged by the feature. (Criterion 1 asks for a same-session A/B against a build of the pre-feature commit; that is plan task 24's job — this cross-session comparison is a sanity check, not that gate.)
+
+### The waves — per-bucket capacity (3-run mean) with mean robots sounding
+
+| t (s) | audible | Light cap (sounding) | Standard cap (sounding) | Full cap (sounding) |
+|---:|---:|---|---|---|
+| 0 | 3.5 | 0.294 (3.4) | 0.301 (3.5) | 0.325 (3.5) |
+| 15 | 5.0 | 0.310 (4.0) | 0.317 (5.0) | 0.314 (5.0) |
+| 30 | 6.2 | 0.318 (4.0) | 0.358 (6.3) | 0.373 (6.2) |
+| 45 | 7.8 | 0.316 (4.0) | 0.392 (7.8) | 0.381 (7.8) |
+| 60 | 7.1 | 0.310 (4.0) | 0.356 (7.0) | 0.385 (7.0) |
+| 75 | 3.9 | 0.299 (3.7) | 0.296 (3.9) | 0.296 (3.9) |
+| 90 | 4.7 | 0.305 (3.9) | 0.307 (4.7) | 0.310 (4.7) |
+| 105 | 6.4 | 0.310 (4.0) | 0.345 (6.5) | 0.352 (6.4) |
+| 120 | 6.5 | 0.316 (4.0) | 0.356 (6.4) | 0.361 (6.5) |
+| 135 | 7.1 | 0.313 (4.0) | 0.375 (7.1) | 0.383 (7.1) |
+| 150 | 5.5 | 0.311 (4.0) | 0.346 (5.5) | 0.330 (5.5) |
+| 165 | 4.0 | 0.304 (3.6) | 0.308 (4.0) | 0.315 (4.0) |
+| 180 | 2.1 | 0.267 (2.1) | 0.257 (2.1) | 0.271 (2.1) |
+| 195 | 3.1 | 0.271 (3.1) | 0.266 (3.1) | 0.269 (3.1) |
+| 210 | 5.2 | 0.289 (4.0) | 0.301 (5.2) | 0.303 (5.2) |
+| 225 | 6.3 | 0.298 (4.0) | 0.328 (6.3) | 0.320 (6.3) |
+
+### Why the gates are missed — the mechanism works; the anchors are the issue
+
+- **The lever is real and the cap does exactly what it should.** Light flattens the waves: capacity stays 0.29–0.32 while Full climbs to 0.38, and Light's cost at 4 sounding robots (≈ 0.29–0.32) is the same as Full's at about 4 audible robots (≈ 0.30–0.32; e.g. 0.296 and 0.315 in the 3.9- and 4.0-audible buckets). The link confirmed in Task 3 holds: r(audible, capacity) is 0.82–0.94 per run for Standard and Full, and 0.65–0.75 for Light, where the cap flattens the relationship as intended.
+- **A 4-robot ceiling has a floor of ≈ 0.31, and the gate asks for ≤ 0.296** (25 % under Full's 0.395). Full itself only reads that low at ≈ 3.9 audible robots or fewer. The Task 3 fit predicted the 4-robot level at ≈ 0.30 (≈ 25 %, "right on the gate"); the measured Light peak window is 0.323, ≈ 0.02 higher — the peak window is the highest of 16 noisy bucket means, biased upward by a run's noise (±0.02). So the prediction was optimistic by about that much, and Light lands at ≈ 18 %, not ≈ 25 %.
+- **Standard's 8-robot cap does nothing on this world** because `charlie`'s audible robots peak at 7.8 (mean) — Standard is within run-to-run noise (±0.03 per bucket) of Full in every bucket, as the Task 3 write-up forecast. Only Standard's polyphony ceiling (12) differs, and it has no measurable effect.
+- Neither miss is noise: the three Light runs (0.323 / 0.323 / 0.332) are all below 0.34 and all above 0.296; the Standard runs straddle Full's.
+
+### What would meet the gates (from this data; not tested, not adopted)
+
+Reading the Full column as "capacity at n audible robots": **≥ 25 % needs Light at about 3 robots** (Full at 3.1–3.9 audible reads 0.27–0.30; ≤ 0.296 is the target), and **≥ 10 % needs Standard at about 6 robots** (Full at ≤ 6.4 audible reads ≤ 0.352; target ≤ 0.356). Today's interpolation is `round(2 + 10·t)` robots (Light 4, Standard 8), so this is a change of anchors (for example Light 3 / Standard 6 / Full 12), not of mechanism.
+
+### Decision for Crawford (plan task 11: stop and report)
+
+1. **Change the anchors** — e.g. Light 3 robots, Standard 6 — and re-run this same protocol (≈ 40 minutes) to confirm. This keeps the thresholds; the cost is a quieter Light and Standard (fewer robots heard at once, more "Standing by").
+2. **Keep 4 / 8 and re-set the gates** — Light ≈ 15–18 % on robots alone; Standard's ≥ 10 % is then met (if at all) through the LFO tiers on `bravo` rather than on `charlie`. The spec's criterion 4 already has a `bravo` mean condition for Standard; the robot cap only matters there when many robots are audible.
+3. **Judge on `bravo` first** — Light also removes drift and the filter LFOs there (worth ≈ 0.08–0.19 in the Task 4 data), so Light very likely clears 25 % on `bravo` regardless. The `charlie`-only gate exists to isolate the robot lever; it was always the strict one.
+
+The plan says not to proceed to Phase 4 without this call, and none of the UI, LFO-tier, latency or documentation tasks (12–26) has been started.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
