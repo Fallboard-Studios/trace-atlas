@@ -575,6 +575,60 @@ Reading the Full column as "capacity at n audible robots": **≥ 25 % needs Ligh
 
 The plan says not to proceed to Phase 4 without this call, and none of the UI, LFO-tier, latency or documentation tasks (12–26) has been started.
 
+## Audio Load Budget — the finished feature against the gates (2026-09-21, plan task 24)
+
+The whole feature measured against the pre-feature build ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md) §5.3 criteria 1, 4, 5, with criterion 4 as revised by decision M). **One gate is missed: Standard's mean on `bravo`. Nothing was tuned to pass.**
+
+**Code measured.** Current = `6e4f8eb` (product code identical to `5df69fb`: caps, LFO tiers, drift tier, UI, URL mirror, boot-time latency). Pre-feature = `4bab2ea` (the commit whose product code is `main` plus only the overlay's `audible` reading), built from a temporary checkout of `src` at that commit and served **beside** the current build in the same directory (`pre.html`; the perf script now accepts `world@page`). Production builds, `npm run perf:audio`, headless Chrome 153. **Same session, interleaved**: 12 foreground calls of two 4-minute runs (15 s buckets, 8 s warm-up), alternating worlds and rotating order so every arm has exactly **3 runs** on each of `charlie:200:-30` and `bravo:-150:90`; orphaned-Chrome count 0 before and after every call.
+
+### Results (per-run peak windows / overall means; medians in brackets)
+
+| World · arm | Peak window | Overall mean | Max sounding | Callback interval (max bucket mean) |
+|---|---|---|---|---|
+| `charlie` Light | 0.266 / 0.274 / 0.265 (**0.266**) | 0.236 / 0.250 / 0.237 (0.237) | 4 of 4 | 21.33 ms (Light's own context) |
+| `charlie` Standard | 0.379 / 0.396 / 0.403 (0.396) | 0.317 / 0.329 / 0.330 (0.329) | 8 of 8 | 11.07 ms |
+| `charlie` Full | 0.375 / 0.359 / 0.392 (**0.375**) | 0.310 / 0.315 / 0.334 (0.315) | 8 | 10.67 ms |
+| `charlie` pre-feature | 0.361 / 0.355 / 0.376 (**0.361**) | 0.314 / 0.312 / 0.314 (0.314) | – | 10.67 ms |
+| `bravo` Light | 0.329 / 0.332 / 0.316 (**0.329**) | 0.290 / 0.306 / 0.287 (0.290) | 4 of 4 | 21.34 ms |
+| `bravo` Standard | 0.444 / 0.456 / 0.468 (**0.456**) | 0.384 / 0.402 / 0.392 (**0.392**) | 8 of 8 | 11.06 ms |
+| `bravo` Full | 0.499 / 0.527 / 0.525 (**0.525**) | 0.460 / 0.468 / 0.461 (**0.461**) | 8 | 10.67 ms |
+| `bravo` pre-feature | 0.533 / 0.569 / 0.533 (**0.533**) | 0.462 / 0.488 / 0.456 (0.462) | – | 10.67 ms |
+
+### The gates
+
+| Gate (spec §5.3, revised by decision M) | Measured | |
+|---|---|---|
+| **Criterion 4 — Light lowers the peak window ≥ 25 % on `bravo`** | **37.3 %** (per-run range 33.5–40.1 %) | met |
+| **Criterion 4 — Light lowers the peak window ≥ 15 % on `charlie`** (robots, polyphony and — new — the latency hint) | **29.0 %** (23.6–32.6 %) | met |
+| **Criterion 4 — Standard lowers `bravo`'s peak window ≥ 10 %** | **13.2 %** (mean of runs 11.8 %; per-run range 6.2–15.7 %) | met, but thin: the most pessimistic pairing of runs is 6.2 % |
+| **Criterion 4 — Standard lowers `bravo`'s mean ≥ 0.10** | **0.069** (0.461 → 0.392) | **MISSED** |
+| Criterion 4 — no `charlie` gate for Standard | −5.7 % peak, −0.014 mean (Standard ≈ Full there) | informational |
+| **Criterion 1 — Full within ±0.03 of the pre-feature build, same session** | `charlie` mean Δ +0.002, peak Δ +0.014; `bravo` mean Δ −0.001, peak Δ −0.008 | met |
+| Criterion 2 — the caps hold | max robots sounding 4 of 4 (Light) and 8 of 8 (Standard) in every run | met |
+
+### Criterion 5 — robot-LFO stress at the shipped caps
+
+Throwaway build (same recipe as the Task 4 injector; never committed) on `bravo`, requesting up to 99 `detune` LFOs through `lfoEngine` the way the user would (36 exist), so the Audio Load policy decides what connects. Preflight: **Light connects 4 of 36, Standard 12 of 36**, the rest held off. 3 interleaved 60 s runs each:
+
+| Arm | Peak windows | Overall means | Callback interval | Verdict |
+|---|---|---|---|---|
+| Light (cap 4) | 0.509 / 0.506 / 0.503 | 0.495 / 0.486 / 0.485 | 21.33–21.35 ms (its own base — no doubling) | **< 0.9, no deadline misses — met** |
+| Standard (cap 12) | 0.708 / 0.725 / 0.699 | 0.684 / 0.687 / 0.694 | 10.67–10.72 ms | **< 0.9, no doubling — met** |
+| Full, uncapped, same 36 LFOs (one run, for context) | 0.994 | 0.988 | 11.3–11.6 ms | saturated — the hazard the caps prevent |
+
+### What this says
+
+- **Light works better than the caps alone predicted, because of the latency hint.** Task 11 measured Light at −18 % on `charlie` with the caps only (peak 0.323); with the boot-time `playback` context it is −29 % (0.266). Different sessions, so the ≈ 0.06 difference is indicative, not a controlled A/B — but it is the size of the effect, and it is why Light's callback interval is 21.33 ms (a 1024-frame buffer) rather than 10.67 ms.
+- **Standard is the weak preset, and the caps are not why.** On `charlie` it is indistinguishable from Full (its 8-robot cap is inert there). On `bravo` it does lower the peak (−13 %) and the mean (−0.069) — that is drift coming off; `bravo`'s 5 global LFOs cost ≈ 0.11–0.19 in the earlier global-LFO measurements ([todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md): all 7 ≈ +0.19, drift ≈ half of it) — but **not by the 0.10 the spec asked for**, and the filter LFOs, which Standard keeps, are the other big share. It also keeps the `interactive` latency (decision J), the lever that helped Light most.
+- Standard's per-run peak reductions (6–16 %) straddle the 10 % gate, so even the met peak gate should not be leaned on.
+
+### Decision for Crawford (plan task 24: report a missed gate, do not re-tune)
+
+The missed gate is the mean on `bravo` under Standard. Levers that are already measured or built, none applied here:
+1. **Accept it and re-set the gate** to what Standard delivers (≈ 0.07). Standard then means "drift off, half the robots"; Light is the preset that actually relieves a phone.
+2. **Take the filter-frequency/Q LFOs off at Standard too** (raise `LOAD_FILTER_LFOS_MIN` from 0.4 to just above 0.6). The earlier global-LFO measurements put them at ≈ +0.06 each; on `bravo` that could close the gap but leaves Standard with only the EQ-gain LFOs.
+3. **Give Standard the `playback` latency** (decision J was "interactive until the phone A/B says otherwise"). The phone protocol (plan task 25) already includes `load=standard&latency=playback` to answer exactly this; deciding after that run costs nothing.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
