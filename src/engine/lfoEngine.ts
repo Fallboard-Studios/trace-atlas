@@ -360,17 +360,41 @@ function setLfoPolicy(next: LfoPolicy | null): void {
  * touched. Idempotent.
  */
 function reconcileLfos(): void {
+  // Pass 1 — suspend. Robot LFOs go newest-CONNECTED first, so a falling cap drops the most recent ones (LIFO, matching
+  // robot admission) and stops as soon as the newest is allowed again (allowed = fewer than the cap are connected).
+  // connectedSignals is a Map, and delete-then-set moves a key to the end, so its order IS connection order.
+  const newestConnectedRobotKey = (): string | undefined =>
+    [...connectedSignals.keys()].filter((key) => requested.get(key)?.robotId).at(-1);
+  for (let key = newestConnectedRobotKey(); key !== undefined; key = newestConnectedRobotKey()) {
+    const { target, robotId } = requested.get(key)!;
+    if (isAllowed(target, robotId, key)) break;
+    suspendConnection(key);
+    heldOff.add(key);
+  }
+  // Anything else connected that the policy now refuses (global filter LFOs, or a robot LFO refused for another reason).
+  for (const key of [...connectedSignals.keys(), ...phaseFallbacks.keys()]) {
+    const request = requested.get(key);
+    if (request && !isAllowed(request.target, request.robotId, key)) {
+      suspendConnection(key);
+      if (getLfoSettings(request.target, request.robotId).rate > 0) heldOff.add(key);
+    }
+  }
+
+  // Pass 2 — connect, in REQUEST order, everything requested (rate > 0) that is not connected and is now allowed. An LFO at
+  // rate 0 is never connected here and never held off.
   for (const [key, { target, robotId }] of [...requested]) {
     if (getLfoSettings(target, robotId).rate <= 0) {
       heldOff.delete(key);
       continue;
     }
-    const connected = connectedSignals.has(key) || phaseFallbacks.has(key);
+    if (connectedSignals.has(key) || phaseFallbacks.has(key)) {
+      heldOff.delete(key);
+      continue;
+    }
     if (isAllowed(target, robotId, key)) {
       heldOff.delete(key);
-      if (!connected && connectLfoTarget(target, robotId)) start(target, robotId);
+      if (connectLfoTarget(target, robotId)) start(target, robotId);
     } else {
-      if (connected) suspendConnection(key);
       heldOff.add(key);
     }
   }
@@ -493,6 +517,7 @@ function disconnectLfoTarget(target: LfoTargetId, robotId?: string): void {
     stopPhaseFallback(key);
     return;
   }
+  const wasConnectedRobotLfo = connectedSignals.has(key) && robotId !== undefined;
   connectedSignals.delete(key);
   detachDrift(key);
   try {
@@ -500,6 +525,8 @@ function disconnectLfoTarget(target: LfoTargetId, robotId?: string): void {
   } catch (err) {
     devWarn('[lfoEngine] disconnectLfoTarget: disconnect failed', err);
   }
+  // A freed robot-LFO slot goes to the oldest held-off LFO now, not at the next dial change.
+  if (wasConnectedRobotLfo && heldOff.size > 0) reconcileLfos();
 }
 
 /**
