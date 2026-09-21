@@ -260,3 +260,53 @@ The scratch scripts above are now `npm run perf:audio` ([PERFORMANCE.md](../PERF
 - **Load does track how many robots are audible** (pre-change baseline, code `4bab2ea`, 3 runs per world × 240 s): per-world r = 0.74–0.94, ≈ **2 capacity points per audible robot** in both `charlie` and `bravo`; `bravo` sits ≈ 0.17 higher at the same audible count (its 5 global LFOs). Peak window (highest 15 s bucket mean): `charlie` **0.414**, `bravo` **0.558**; overall mean 0.327 / 0.488; noise band ≈ ±0.02. The raw both-worlds-pooled r is only 0.38 because of that world offset (0.81 once removed) — recorded as a judgment call for Checkpoint A. This confirms, with a controlled-enough series, the "waves follow sounding robots" inference above.
 - **A robot LFO costs ≈ +0.012 render capacity each (drift off), linear in count** — `volume`/`gain`/`detune` alike (`gain`: +0.0119 / +0.0114 / +0.0117 per LFO at N = 4 / 12 / 28); **28 of them do not double the callback interval** (10.69 ms; capacity ≈ 0.66 mean). **A `pulseWidth` LFO costs ≈ 0.08 (≈ 7×)** but a world has only 0–2 pulse layers. **Drift adds ≈ 0.085 on top of 12 robot LFOs** — it is what makes the *first* robot LFO expensive (the shared drift pool of 8 LFOs). Robot-LFO caps therefore stay **4 (Light) / 12 (Standard)**, now measured rather than assumed; Standard's margin to the 0.9 criterion is thin under pessimistic inputs (cap 8 is the alternative).
 - The earlier "51 robot LFOs saturate" is consistent: 51 × 0.012 ≈ +0.6 on a 0.34 stock.
+
+## Phone protocol for the Audio Load Budget — Crawford's run (plan task 25, prepared 2026-09-21)
+
+The desktop gates are recorded in [PERFORMANCE.md](../PERFORMANCE.md#audio-load-budget--the-finished-feature-against-the-gates-2026-09-21-plan-task-24); **the phone is the check that matters** (spec §5.3 criterion 6 — by ear, recorded, not gated). Everything below was verified from the PC over the LAN address on 2026-09-21: all eight URLs load and power on from `http://<lan-ip>:4173` (an insecure context, as the phone will see it), read the expected preset and latency in the overlay, and leave one live realtime AudioContext.
+
+**Set-up.** PC and phone on the same Wi-Fi. On the PC: `npm run build && npx vite preview --host --port 4173` (a Windows firewall prompt may need allowing), then `ipconfig` for the IPv4 address. Use the same Chrome on the Pixel 8 as before (incognito, as in the original report). Keep the phone unplugged, screen on, brightness fixed, and let it cool between runs — heat throttles the audio thread too.
+
+**URL matrix.** Base `http://<pc-ip>:4173/trace-atlas/?debug&seed=…&x=…&y=…`. Tap the power rocker, then leave it alone for **5 minutes each**. Suggested order (calm world first, the control last so a bad run does not colour the next):
+
+| # | World | Suffix after the pinned world | What it is |
+|---|---|---|---|
+| 1 | `charlie` (`seed=charlie&x=200&y=-30`) | `&load=light` | Light: 4 robots, 8 notes, no drift, no filter LFOs, **playback** latency |
+| 2 | `charlie` | `&load=standard` | Standard: 8 robots, 12 notes, no drift, `interactive` latency |
+| 3 | `charlie` | `&load=standard&latency=playback` | Standard with Light's latency only |
+| 4 | `charlie` | `&load=full` | Full = today's behavior (the control) |
+| 5–8 | `bravo` (`seed=bravo&x=-150&y=90`) | the same four suffixes | `bravo` has 5 global LFOs — the heavy world |
+
+(On the phone a URL with **no** `load=` defaults to Light automatically — a coarse-pointer device. In the app the control is Fleet Params → Transport & Composition → Audio Load; the chosen preset is mirrored into the address bar, and its latency applies on the next load.)
+
+**What to write down for each run** (a screenshot of the overlay at the bad moment is worth a paragraph):
+
+| Field | How |
+|---|---|
+| Full dropouts | none / how many / the longest, roughly |
+| Clicks compared with before (run 4, or the original report) | by ear: none / fewer / same / more; are they in waves? |
+| The overlay **at the moment clicks start**: `sounding n/cap`, `audible n/12`, `poly used/cap` | read `load … · sounding … · standing by … · poly …` and the `voices … audible …` line |
+| The overlay's `latency … base …ms` line | confirms which context you actually got (playback ≈ 21 ms, interactive ≈ 11 ms on the PC) |
+| Anything else | the red border, the event log text, `clock x…`, `lag …` |
+
+**What each comparison answers.**
+- 4 vs 2 vs 1: how much of the relief needs Light's *everything*, versus Standard's caps-and-drift alone.
+- 2 vs 3: **does `playback` matter at Standard?** (decision J left Standard on `interactive` pending exactly this.) If 3 is clean and 2 is not, Standard should take `playback`.
+- 3 vs 1: what the tighter caps and the filter-LFO tier add on top of the latency hint.
+- `charlie` vs `bravo`: whether the LFO tiers matter on the phone as they do on the desktop.
+- If Light is **not** enough, that is a finding, not a failure: the spec's further levers are lazy voice chains (Phase B — measured a weak lever on its own), a lower robot floor than 2–4, and a raised Tone `lookAhead` (17.2.4, deliberately held).
+
+**Crawford's results (by ear) — to be filled in verbatim, then read plainly.**
+
+| # | URL suffix | Dropouts | Clicks vs before | Overlay at the moment of clicks | Notes |
+|---|---|---|---|---|---|
+| 1 | charlie · light | | | | |
+| 2 | charlie · standard | | | | |
+| 3 | charlie · standard + playback | | | | |
+| 4 | charlie · full | | | | |
+| 5 | bravo · light | | | | |
+| 6 | bravo · standard | | | | |
+| 7 | bravo · standard + playback | | | | |
+| 8 | bravo · full | | | | |
+
+**Plain reading:** *(pending — which part of Light does the work, whether Standard needs `playback`, and what remains if Light is not enough)*.
