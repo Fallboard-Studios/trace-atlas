@@ -42,6 +42,12 @@ import { setGlobalAttenuationStyleSeedOverride } from './utils/seedUtils'
 // file's own DEV_TUNING-gated registration runs; import.meta.env.DEV makes
 // the whole thing dead code Vite strips from production builds.
 import './engine/lfoDebug'
+import { startAudioBudget } from './systems/audioBudgetSystem'
+
+// Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §4.4): started once, before the first power-on, so the
+// dial's caps are in force from the first note. Purely event-driven (store subscriptions) — no timers — and
+// deliberately not torn down by a power cycle.
+startAudioBudget()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
