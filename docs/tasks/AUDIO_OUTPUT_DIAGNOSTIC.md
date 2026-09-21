@@ -194,7 +194,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
 ### Phase 2: Slice B — the browser's playback stats, end to end
 
-- [ ] **Task 7: Pure underrun events**
+- [x] **Task 7: Pure underrun events**
 
   **Description:** In `audioHealth.ts` add `PlaybackReading` (`underrunEvents`, `underrunDuration`, `totalDuration`, `averageLatency`, `minimumLatency`, `maximumLatency`), an optional `DiagSample.playback`, the state it needs, and edge events in `stepDiag`: one "playback underruns began (n total)" when the count rises, none while it keeps rising, one "underruns stopped after X s (+Y)" after `UNDERRUN_QUIET_MS = 1000` (two samples) without a rise. A count that goes *down* (a new context) is a new baseline, not an event.
 
@@ -213,7 +213,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 8: Slice B shell and overlay — read `playbackStats`, show the line, red on underruns**
+- [x] **Task 8: Slice B shell and overlay — read `playbackStats`, show the line, red on underruns** *(the reader also looks behind Tone's wrapper — see "Task 9" under Task results)*
 
   **Description:** In `audioDiagnostics.ts` add a defensive `readPlaybackStats(raw)` (absent, throwing or non-numeric → `null`; latency and duration converted seconds → milliseconds for display; `resetLatency()` never called), pass the reading into `stepDiag`, and publish it in `DiagInfo`. `buildHudLines` gains one line, ≤ 52 characters: `underruns 3 (12ms) · lat 21ms (20-34)`, or `underruns n/a` when the API is absent. `hudStatus` goes `'bad'` while underruns are active.
 
@@ -233,7 +233,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
   **Estimated scope:** M
 
-- [ ] **Task 9: Real browser — the stats line renders with real numbers**
+- [x] **Task 9: Real browser — the stats line renders with real numbers**
 
   **Description:** Same headless setup as Task 6. Read the overlay for a minute or two.
 
@@ -252,8 +252,8 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
   **Estimated scope:** XS
 
 ### Checkpoint B: playback stats end to end
-- [ ] Gates pass (`build:types`, `lint`, `npm test`, `npm run build`); Task 9's results recorded.
-- [ ] **Optional phone build 2** (level line + underrun line). Review with Crawford before continuing.
+- [x] Gates pass (`build:types`, `lint`, `npm test`, `npm run build`); Task 9's results recorded. (One intermittent failure, the known #29 test, passing in isolation.)
+- [ ] **Optional phone build 2** *(Crawford: the phone build can wait until the end)* (level line + underrun line). Review with Crawford before continuing.
 
 ### Phase 3: Slice C — silence and non-finite events, and the red status
 
@@ -438,6 +438,14 @@ A page builds `Oscillator(440 Hz) → Gain(0.5) → destination`, plus a native 
 | E. reconnected, 1.5 s | 0.49999958 | Reconnecting restores it. |
 
 `AudioContext.playbackStats` on the same context: `totalDuration` 1.013 → 4.012 over 3.004 s of wall time, so **the units are seconds**; `averageLatency` 0.0434 → 0.0438 (≈ 43 ms) against `baseLatency` 0.010 and `outputLatency` 0.040; `minimumLatency` 0, `maximumLatency` 0.0451; `underrunEvents` 0 and `underrunDuration` 0 in this calm run.
+
+### Task 9 — real browser, slice B (2026-09-21, production build of `03f0cd0`, headless Chrome 153, `?debug&seed=charlie&x=200&y=-30`, 90 s; Chrome process count not higher afterwards)
+
+**A second real-browser finding: the first run read `underruns n/a` for the whole 90 s.** Tone's `rawContext` is a `standardized-audio-context` wrapper, not the browser's own `AudioContext`, and it does not forward `playbackStats` (Task 1's probe used a native context, which is why it saw the API). The native context sits in the wrapper's TypeScript-private `_nativeAudioContext` (and `_nativeContext`). **Correction (commit `03f0cd0`, test first, five mutants killed):** `readPlaybackStats` looks on the context itself first, then on those fields, skipping any holder that throws or whose `playbackStats` is not an object; `n/a` remains the fallback. Reading a private field of a dependency is fragile — a `standardized-audio-context` upgrade could quietly return the overlay to `n/a` — which is why every step is defensive and the line says `n/a` rather than showing zeros. To be listed under As Shipped (Task 15).
+
+Corrected run: 18 readings, 5 s apart, all `underruns 0 (0ms) · lat 44ms (0-47)`, with `out` −12 … −17 dB alongside; no events, never red, no console errors. **A calm desktop run therefore shows 0 underruns in 90 s and an average output latency of 44 ms (min 0, max 47)** — the baseline to hold the phone against. No underrun burst was provoked on desktop; the burst logic stays covered by Task 7's unit tests and the phone provides the real thing (the robot-LFO stress recipe in `docs/PERFORMANCE.md` could provoke one, if wanted).
+
+**Checkpoint B full suite:** 152 files, 3272 tests, one intermittent failure — `CompanyCrudControls › Rename Submit button › is (normally) enabled immediately after selecting a company…`, the second test on backlog #29's list; 45/45 in three isolated runs.
 
 ### Task 6 — real browser, slice A (2026-09-21, production build, headless Chrome 153, `?debug&seed=charlie&x=200&y=-30`; Chrome process count 43 before and 43 after)
 
