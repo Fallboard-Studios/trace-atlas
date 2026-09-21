@@ -80,7 +80,7 @@ function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
 function resetAudioStore() {
   const globalLfo = {} as Record<GlobalLfoTargetId, ReturnType<typeof buildLfoValue>>;
   for (const target of GLOBAL_LFO_TARGET_IDS) globalLfo[target] = buildLfoValue(target);
-  useAudioStore.setState({ globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS }, globalLfo });
+  useAudioStore.setState({ globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS }, globalLfo, audioLoad: 1, soundingRobotIds: [] });
 }
 
 function buildLfoValue(target: GlobalLfoTargetId) {
@@ -770,6 +770,106 @@ describe('AudioRigDrawer', () => {
       expect(tempoRow).toBeTruthy();
       expect(pingRow).toBeTruthy();
       expect(tempoRow).not.toBe(pingRow);
+    });
+  });
+
+  // Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §4.5, decision F) — next to Tempo in Transport & Composition.
+  describe('Audio Load panel', () => {
+    const presetRadio = (name: string) => screen.getByRole('radio', { name });
+    const loadSlider = () => screen.getByRole('slider', { name: 'Audio Load' });
+    const selectedPresets = () =>
+      ['Light', 'Standard', 'Full'].filter((name) => presetRadio(name).getAttribute('aria-checked') === 'true');
+
+    it('renders inside Transport & Composition, in its own Audio Load panel', () => {
+      renderOpen(<AudioRigDrawer />);
+      const panel = loadSlider().closest('.sc-directional-panel')!;
+      expect(panel.querySelector('.sc-dual-label__human')?.textContent).toBe('Audio Load');
+      expect(loadSlider().closest('.sc-accordion')?.textContent).toContain('Transport & Composition');
+      // ... next to Tempo: the same accordion, a different panel
+      const tempoPanel = screen.getByRole('slider', { name: 'Tempo' }).closest('.sc-directional-panel');
+      expect(tempoPanel).not.toBe(panel);
+      expect(tempoPanel!.closest('.sc-accordion')).toBe(loadSlider().closest('.sc-accordion'));
+    });
+
+    it('shows the store’s dial as a percent, with the matching preset selected', () => {
+      useAudioStore.setState({ audioLoad: 0.2 });
+      renderOpen(<AudioRigDrawer />);
+      expect(loadSlider().getAttribute('aria-valuenow')).toBe('20');
+      expect(selectedPresets()).toEqual(['Light']);
+    });
+
+    it('selecting a preset sets audioLoad to its value and the slider follows', () => {
+      renderOpen(<AudioRigDrawer />);
+      fireEvent.click(presetRadio('Light'));
+      expect(useAudioStore.getState().audioLoad).toBe(0.2);
+      expect(loadSlider().getAttribute('aria-valuenow')).toBe('20');
+      fireEvent.click(presetRadio('Standard'));
+      expect(useAudioStore.getState().audioLoad).toBe(0.6);
+      expect(loadSlider().getAttribute('aria-valuenow')).toBe('60');
+      fireEvent.click(presetRadio('Full'));
+      expect(useAudioStore.getState().audioLoad).toBe(1);
+      expect(selectedPresets()).toEqual(['Full']);
+    });
+
+    it('dragging the slider updates audioLoad and clears the radio selection when it lands between presets', () => {
+      renderOpen(<AudioRigDrawer />);
+      expect(selectedPresets()).toEqual(['Full']);
+      loadSlider().focus();
+      fireEvent.keyDown(loadSlider(), { key: 'ArrowLeft' });
+
+      expect(useAudioStore.getState().audioLoad).toBeCloseTo(0.99, 5);
+      expect(selectedPresets()).toEqual([]);
+    });
+
+    it('re-selects a preset when the slider lands exactly on it', () => {
+      useAudioStore.setState({ audioLoad: 0.59 });
+      renderOpen(<AudioRigDrawer />);
+      expect(selectedPresets()).toEqual([]);
+      loadSlider().focus();
+      fireEvent.keyDown(loadSlider(), { key: 'ArrowRight' });
+      expect(useAudioStore.getState().audioLoad).toBeCloseTo(0.6, 5);
+      expect(selectedPresets()).toEqual(['Standard']);
+    });
+
+    it('shows what the position means, live, in a readout line', () => {
+      useAudioStore.setState({ audioLoad: 1 });
+      renderOpen(<AudioRigDrawer />);
+      const panel = loadSlider().closest('.sc-directional-panel')!;
+      expect(panel.textContent).toContain('Up to 12 robots · 16 notes · all LFOs and drift');
+
+      fireEvent.click(presetRadio('Light'));
+      expect(panel.textContent).toContain('Up to 4 robots · 8 notes · no drift or filter LFOs');
+      expect(panel.textContent).toContain('latency: Playback (applies on next load)');
+    });
+
+    it('is a plain store write: no engine call from the panel (the budget system reacts)', () => {
+      renderOpen(<AudioRigDrawer />);
+      const before = { ...useAudioStore.getState() };
+      fireEvent.click(presetRadio('Light'));
+      const after = useAudioStore.getState();
+      expect({ ...after, audioLoad: before.audioLoad }).toEqual(before);
+    });
+
+    it('renders enabled, with keyboard and radio semantics from the shared primitives', () => {
+      renderOpen(<AudioRigDrawer />);
+      expect(loadSlider().getAttribute('data-disabled')).toBeNull();
+      expect(presetRadio('Light').getAttribute('data-disabled')).toBeNull();
+    });
+
+    it('a change of audioLoad re-renders only the Audio Load controls, not Tempo or any effect control', () => {
+      renderOpen(<AudioRigDrawer />);
+      const calls = (id: string) =>
+        (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.filter(([schema]) => schema.id === id).length;
+      const tempoBefore = calls('audioRig.bpm');
+      const delayBefore = calls('delay.wet');
+      const loadBefore = calls('audioRig.audioLoad');
+      expect(loadBefore).toBeGreaterThan(0);
+
+      act(() => useAudioStore.getState().setAudioLoad(0.3));
+
+      expect(calls('audioRig.audioLoad')).toBeGreaterThan(loadBefore);
+      expect(calls('audioRig.bpm')).toBe(tempoBefore);
+      expect(calls('delay.wet')).toBe(delayBefore);
     });
   });
 

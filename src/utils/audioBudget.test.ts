@@ -25,6 +25,7 @@ import {
   loadToSearchParam,
   orderByArrival,
   parseLoadParam,
+  presetForLoad,
   reconcileSounding,
   resolveInitialAudioLoad,
 } from './audioBudget';
@@ -208,6 +209,36 @@ describe('clampAudioLoad', () => {
 
   it('treats NaN as Full, matching loadToLimits', () => {
     expect(clampAudioLoad(NaN)).toBe(1);
+  });
+});
+
+// ========================================
+// presetForLoad
+// ========================================
+
+describe('presetForLoad', () => {
+  it('names the preset a dial position sits on', () => {
+    expect(presetForLoad(0.2)).toBe('light');
+    expect(presetForLoad(0.6)).toBe('standard');
+    expect(presetForLoad(1)).toBe('full');
+  });
+
+  it('is null between presets, so a slider dragged off a preset leaves the radio with nothing selected', () => {
+    for (const t of [0, 0.19, 0.21, 0.45, 0.59, 0.61, 0.99]) expect(presetForLoad(t), String(t)).toBeNull();
+  });
+
+  it('agrees with loadToSearchParam about which positions are presets (same whole-percent rounding)', () => {
+    for (const t of dial) {
+      const named = ['light', 'standard', 'full'].includes(loadToSearchParam(t));
+      expect(presetForLoad(t) !== null, String(t)).toBe(named);
+    }
+    expect(presetForLoad(0.2004)).toBe('light');
+  });
+
+  it('treats out-of-range values by clamping and NaN as Full', () => {
+    expect(presetForLoad(7)).toBe('full');
+    expect(presetForLoad(NaN)).toBe('full');
+    expect(presetForLoad(-1)).toBeNull();
   });
 });
 

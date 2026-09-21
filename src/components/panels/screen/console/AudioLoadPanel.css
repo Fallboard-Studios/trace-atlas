@@ -1,0 +1,8 @@
+/* One line saying what the current Audio Load position means (describeLimits) — plain muted copy under the controls. */
+.audio-load-panel__readout {
+  margin: 0;
+  padding: 4px 8px 8px;
+  font-size: var(--font-size-label-lore);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}

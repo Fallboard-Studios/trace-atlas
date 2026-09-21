@@ -126,13 +126,20 @@ export function parseLoadParam(raw: string | null | undefined): number | null {
 }
 
 /**
+ * The preset a dial position sits on — judged at whole-percent resolution, like the slider — or null when it is
+ * between presets (so a slider dragged off a preset leaves the radio with nothing selected).
+ */
+export function presetForLoad(audioLoad: number): keyof typeof AUDIO_LOAD_PRESETS | null {
+  const percent = Math.round(clampAudioLoad(audioLoad) * 100);
+  return PRESET_NAMES.find((name) => Math.round(AUDIO_LOAD_PRESETS[name] * 100) === percent) ?? null;
+}
+
+/**
  * The `?load=` value for a dial position: a preset's name when the value rounds to that preset's
  * percent, otherwise a whole percent. `parseLoadParam(loadToSearchParam(x))` gives back x to the percent.
  */
 export function loadToSearchParam(audioLoad: number): string {
-  const percent = Math.round(clampAudioLoad(audioLoad) * 100);
-  const preset = PRESET_NAMES.find((name) => Math.round(AUDIO_LOAD_PRESETS[name] * 100) === percent);
-  return preset ?? String(percent);
+  return presetForLoad(audioLoad) ?? String(Math.round(clampAudioLoad(audioLoad) * 100));
 }
 
 /** Phone-like devices (a coarse primary pointer) default to Light; everything else to Full (decision D). */
