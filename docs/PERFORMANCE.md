@@ -49,6 +49,7 @@ The default step sequence: power on → open Fleet Params → open each of its a
 - **Throttling is main-thread only.** `Emulation.setCPUThrottlingRate` does not slow compositor or raster worker threads. Treat throttled numbers as a *relative* signal for main-thread work, not a phone simulator.
 - **Headless Chrome's raster/compositing path differs from a phone GPU's.** Paint and compositing figures (roadmap 17.2.5) are directional until confirmed on real hardware.
 - **Audio isn't measured directly.** Headless Chrome has no real audio output (`--mute-audio` is on). The 100 ms threshold is the *proxy* for an audible pause; confirm by ear on a real device.
+- **The world is random per load unless pinned.** For like-for-like comparisons (especially audio load) load `?seed=<word>&x=<int>&y=<int>` — `?seed=` alone leaves the locale coordinates random, so robots, BPM and day phase still differ between runs (see [PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md)). The harness does not add these params itself; pass them via `--url`. Baselines recorded before 2026-09-19 were taken on random worlds.
 - **Run-to-run variance is large** (e.g. Probes at 4× throttle: 2.3 s in one run, 3.9 s in another — background robot/swell activity differs per run). Run 3× and compare medians, and only trust differences bigger than that spread.
 - **Trace durations overlap.** A `FunctionCall` contains its own layouts, so compare an event's total across runs, never across event names.
 - **Trace `RasterTask` totals are unstable** between runs (worker-thread events); ignore them.
@@ -280,6 +281,55 @@ Because the component changed twice after the first post-change measurement, the
 | 3 — open robot detail, 4× | total ≤ 1,142 ms | **453 ms** (386–538) | **PASS** |
 
 **Machine drift, and why the first-open numbers moved.** This session's numbers ran ~15–35% higher than the first post-change session across the board, including `power on` (584 → 666 ms at 1×, 2,151 → 2,878 ms at 4×), which has nothing to do with accordions — so cross-session comparisons of absolute numbers are unreliable here. To separate machine from code, the previous component version (`6fb88b7`) and the final code were run back to back in the same session at 1×: EQ & Filters first open 199 vs 201 ms, Source 166 vs 146 ms, Probes 164 vs 191 ms, `power on` 685 vs 686 ms — the same within run-to-run noise, so the settle and measure changes cost nothing measurable. Final-build first-open numbers, 1× (this session): EQ & Filters 197 ms, Source 151 ms, Output 90 ms, Time & Space 72 ms, all detail sections other than Source 0; 4×: EQ & Filters 1,284 ms, Source 1,158 ms, Output 573 ms, Time & Space 385 ms.
+
+## Diagnosing audio on a real phone — `?debug`, `?latency=`, pinned worlds
+
+Built for the phone-only scratchy / cutting-out audio ([docs/todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md)), where the headless harness above can't see the audio thread. All three are URL params, read once at load, opt-in, and change nothing when absent.
+
+| Param | Effect |
+|---|---|
+| `?debug` | Shows a small read-only overlay (bottom-left, no controls, hidden from assistive tech, `pointer-events: none`) — see below. |
+| `?latency=interactive|balanced|playback` | Installs the Tone context with that Web Audio `latencyHint` instead of Tone's default `interactive`. Invalid values are ignored. `src/engine/audioContextSetup.ts` — it must stay `main.tsx`'s first app import. Roadmap 17.2.4 territory: Chrome Android's low-latency path is known to glitch on complex graphs and `playback` is the usual mitigation, **unverified for this app**. Does not change Tone's `lookAhead` (still 100 ms). |
+| `?seed=<word>&x=<int>&y=<int>` | Pins the whole generated world ([PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md)). Print any of these into a bug report and the HUD echoes what was loaded. |
+
+Combine them, e.g. `?debug&latency=playback&seed=bravo&x=-150&y=90`. Known worlds (desktop render capacity, [scratchy-audio-phones.md](todo/scratchy-audio-phones.md)): `charlie:200:-30` ≈ 0.33 (calm, 0 global LFOs), `alpha:12:68` ≈ 0.37, `delta:5:-180` ≈ 0.50, `bravo:-150:90` ≈ 0.55 (heavy, 5 LFOs).
+
+### Reading the overlay
+
+```
+bravo @ -150,90   up 1:32
+ctx running   clock x1.00   transport started
+latency interactive   ahead 100ms   base 11ms
+voices 3/16   LFOs 5/7
+fps 58   lag 4ms (max 220ms)
+1:31 audio clock stalled (x0.00)
+1:52 audio clock recovered after 20.0s
+```
+
+The border turns red when any failure signature is live. Each line answers one question from the investigation:
+
+| Reading | Meaning |
+|---|---|
+| `ctx` (`running` / `suspended` / `interrupted`) | AudioContext state. The app never resumes a suspended context (no `statechange` handler); changes are logged from the context's own `statechange` event, so transient states aren't missed. |
+| `clock xN` | Audio-clock seconds advanced per wall second over the last 500 ms. ~1.00 is healthy; **below 0.5 while `ctx` says `running`** is logged as "audio clock stalled" — the audio thread isn't advancing. |
+| `fps` | GSAP ticker ticks/second. **0** logs "UI frames stopped" — the page's animation loop froze. |
+| `lag` (`max`) | How late the 500 ms sampler tick ran — a main-thread stall meter. ≥ 500 ms is logged as "main thread stalled". |
+| `voices n/16` | `activeVoices` against `MAX_POLYPHONY`. Pinned at 16 with sound gone = the stuck-voice-counter hypothesis. |
+| `LFOs n/7` | Global LFOs with rate > 0 — the measured load driver. |
+| `latency … ahead … base` | The hint actually installed, Tone's `lookAhead`, and `baseLatency`. (`outputLatency` is not shown: Tone's standardized-audio-context wrapper doesn't expose it.) |
+
+**Telling the causes apart** (what to note when the sound drops):
+
+- `clock` stalls, `ctx` still `running`, `fps`/`lag` fine → audio-thread starvation.
+- `ctx` goes `suspended`/`interrupted` → the OS/browser took the context; the app should resume it.
+- `lag` spikes and `fps` → 0, `clock` keeps ~1.00 → a main-thread stall (audio is scheduled from the main thread, so it can starve even though the audio thread is fine).
+- `voices` pinned at 16 with everything else healthy → the voice counter, not the audio path.
+
+Verified in headless Chrome (2026-09-19): a deliberate 2 s main-thread freeze logs `main thread stalled ~1639 ms` while `clock` stays ~x1.01, so the two cases are distinguishable; a no-param load creates one realtime AudioContext and `?latency=playback` replaces Tone's default one (which `setContext(…, true)` closes) — Tone's own import creates a default `interactive` context before this module runs, hence the dispose.
+
+### Getting it onto a phone
+
+`npm run build && npx vite preview --host --port 4173`, then open `http://<pc-lan-ip>:4173/trace-atlas/?debug&…` on the phone (same Wi-Fi; a Windows firewall prompt may need allowing). A production build is the right target — the dev server is unminified and slower. Or deploy the branch. **A phone loading `http://<lan-ip>` is an insecure context** (only https and localhost are secure), where `crypto.randomUUID` does not exist. Before 2026-09-20 that made `AudioEngine.start()` throw in `beatClock.scheduleRepeat`, so the power rocker snapped back and the tablet never powered on; all id generation now goes through `generateUUID()` (`src/utils/randomId.ts`, falls back to `crypto.getRandomValues`). Any *new* secure-context-only API (`crypto.subtle`, `navigator.clipboard`, `navigator.wakeLock`, service workers, …) will break the same way on a LAN phone — you can reproduce that on the PC by loading the preview from its LAN IP instead of `localhost`. The overlay's cost is one 500 ms timer and one GSAP ticker callback, only while `?debug` is on.
 
 ## Recording a new baseline
 

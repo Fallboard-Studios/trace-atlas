@@ -983,6 +983,22 @@ Measured with nothing open at 4× throttle (blank hub, powered on, 6 s window): 
 
 Sequenced last because its cause is unknown and its numbers are the least trustworthy in headless Chrome; 17.2.1's harness is what turns it into something measurable. Likely overlaps with [18](#18-cabinetry-verification-accessibility--performance)'s own performance check — this series' findings should land first so that pass verifies a UI that's already been through them.
 
+## 17.2.6 Performance: Audio Load Budget
+
+Requested by Crawford, 2026-09-20 — added to the 17.2.x series after the phone investigation ([docs/todo/scratchy-audio-phones.md](scratchy-audio-phones.md)) showed the Pixel 8 clicking and dropping out while the `?debug` overlay stayed green (audio thread missing its buffer deadline is the working, unproven explanation). High priority. **Specced, awaiting approval:** [docs/specs/AUDIO_LOAD_BUDGET.md](../specs/AUDIO_LOAD_BUDGET.md); tasks not yet written.
+
+Measured on desktop with pinned worlds (`?seed=&x=&y=`): render load follows the seed's global-LFO count and, in ~1–2 minute waves, how many robots are sounding at once (simulation + a 4-minute time series). Nothing today limits sounding robots except the fixed 12-robot roster and `MAX_POLYPHONY = 16`.
+
+### Restructure
+
+- One user-adjustable **Audio Load** dial (Light / Standard / Full presets plus a fine slider, in Audio Rig → Transport & Composition) caps both the number of robots that may sound at once and the polyphony ceiling. Over-budget robots stand by (silent, otherwise unchanged) first-come-first-served; Full equals today's behavior exactly.
+- Default chosen automatically — lighter on phone-like devices — with `?load=` to pin it for testing and later sharing.
+- Gating is at the note trigger only; no voice teardown (lazy voice chains is a deferred Phase B, measured to be a weak lever on its own).
+
+### About
+
+Sequenced alongside 17.2.4 (`playback` latency, which helped the heavy world on the phone in one run) rather than after it: the two are independent levers. The global-LFO cost, the largest seed-dependent driver, is a separate item.
+
 ## 17.3 Styling Overhaul: Robot Views
 
 Requested by Crawford, 2026-09-16. High priority — third of the 17.1–17.5 series (see 17.1). Not yet interviewed/specced. Scope: Robot Selection (`RobotsTab`, `RobotSelectionCard` — 15.2) and Robot Options (`RobotDisplaySection`, `PingControlsDrawer`, `PingContourDrawer`, `SignatureArrayDrawer` — 15.3) together, since both share the same robot-detail visual language.

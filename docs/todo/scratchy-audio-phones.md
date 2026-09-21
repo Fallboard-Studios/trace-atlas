@@ -24,12 +24,12 @@ Crawford, on a **Pixel 8, incognito Chrome**, after 17.2.2 went live (`main`): v
 
 ## Retracted earlier claims (so nobody re-derives them)
 
-- "Load depends on the world seed" — **wrong.** Single runs of the same `?seed=` gave 72% and 29% (and 55% vs 34%); the swings (17%–79%) were measurement noise, most likely system activity right after fresh builds. Interleaved, repeated runs on a quiet machine are stable at ~24%.
+- "Load depends on the world seed" — **retraction is itself unproven (corrected 2026-09-19).** Single runs of the same `?seed=` gave 72% and 29% (and 55% vs 34%) and were written off as measurement noise. But `?seed=` only pinned the Attenuation Style (global FX chain); the default locale's **coordinates were still random per load**, so those runs had different robots/BPM/day phase and were **not the same world**. The swings may have been noise, or genuinely different worlds — the data can't say. Interleaved, repeated runs at ~24% only show robot count has a weak effect. Re-tested with the world fully pinned (`?seed=<word>&x=<int>&y=<int>`, added 2026-09-19 — see [PROCEDURAL_GENERATION.md](../PROCEDURAL_GENERATION.md)): **the world does matter** — see "Pinned-world measurement" at the end of this file.
 - Single-run comparisons of any audio-load number are unreliable here. Use ≥3 interleaved rounds, and see the hygiene rules in the memory note `perf-harness-measurement-hygiene`.
 
 ## How to measure (the scratch scripts are gone; recreate from this)
 
-All drive headless Chrome over CDP (Node 24 built-in `WebSocket`, no dependency), load `vite preview` of a production build, click `button[aria-label="Power on"]`, wait ~8 s. `?seed=<word>` pins the otherwise-random world.
+All drive headless Chrome over CDP (Node 24 built-in `WebSocket`, no dependency), load `vite preview` of a production build, click `button[aria-label="Power on"]`, wait ~8 s. `?seed=<word>&x=<int>&y=<int>` pins the otherwise-random world. **`?seed=` alone does not** — it fixes the Attenuation Style (global FX chain) but the locale coordinates, and so the robots, BPM and day phase, stay random per load. Pin both for any A/B.
 
 1. **Render-thread time per quantum** — `Tracing.start` with `includedCategories: ['webaudio','audio']`; sum `dur` of `RealtimeAudioDestinationHandler::Render` events (thread `AudioOutputDevice`). Budget = 128/48000 s = 2.67 ms. This is light. Adding `disabled-by-default-webaudio.audionode` gives per-handler timings (`GainHandler::Process`, `OscillatorHandler::Process`, `ConvolverHandler::Process`, …) but **the tracing itself inflates load ~3×** — use it only for the relative breakdown.
 2. **DevTools "Web Audio" panel data** — `WebAudio.enable`, capture `WebAudio.contextCreated` (the `realtime` one), then **poll** `WebAudio.getRealtimeData({contextId})` every ~500 ms (`contextRealtimeDataChanged` events do not arrive on their own). Fields: `renderCapacity` (0–1), `callbackIntervalMean`, `callbackIntervalVariance` (seconds).
@@ -89,3 +89,143 @@ Nothing was changed or reproduced on desktop for this; the following is code rea
 - **`statechange` → resume** handler (small, TDD-able), if the WebAudio panel shows suspension.
 - **Headroom:** compensate or soft-limit the recirculating delay/reverb stage so maxed settings distort gracefully instead of hitting the limiter hard; consider a lower ceiling than 0.95 for delay feedback.
 - The earlier options (opt-in `?latency=playback`; build voice chains only for audible robots) still stand for the *scratchy* symptom.
+
+---
+
+## Pinned-world measurement — 2026-09-19 (the world DOES matter)
+
+Re-ran the audio-load measurement with the world fully pinned (`?seed=<w>&x=<n>&y=<n>`, new the same day). This settles the earlier retraction the other way: **audio render load varies substantially between worlds, far more than run-to-run noise.**
+
+**Method.** Production build of the working tree (uncommitted `?x=`/`?y=` change plus an unrelated uncommitted CSS edit), `vite preview`, headless Chrome 153 on the desktop (no throttle; audio thread isn't throttled anyway). One fresh Chrome per run; click Power on; 8 s warm-up; then poll `WebAudio.getRealtimeData` every 500 ms for 20 s (~40 samples) and take the mean/max `renderCapacity`. 3 rounds, run one at a time in the foreground, start order rotated each round, `alpha` included twice per round as a same-world repeat; no orphaned Chrome before or after. Pin verified in-browser via the header's `@ x, y` readout. The script was scratch and is not kept — recreate from "How to measure" above.
+
+| World (`seed:x:y`) | Runs | Mean render capacity per run | Mean of runs |
+|---|---|---|---|
+| `charlie:200:-30` | 3 | 0.358, 0.307, 0.321 | **0.329** |
+| `alpha:12:68` | 6 | 0.398, 0.358, 0.384, 0.353, 0.380, 0.361 | **0.372** |
+| `delta:5:-180` | 3 | 0.513, 0.483, 0.495 | **0.497** |
+| `bravo:-150:90` | 3 | 0.560, 0.550, 0.550 | **0.553** |
+
+- **Within a world the spread is tiny** (`alpha`: 0.353–0.398, i.e. ±0.02; `bravo`: 0.550–0.560). **Between worlds it is 0.33 → 0.55, ~1.7×.** So a pinned world is a reproducible benchmark, and the earlier 29%/72% swings on `?seed=` alone are most plausibly *different worlds*, not noise.
+- **Callback interval** was 10.67 ms in every run (constant), so no scheduling jitter shows up on desktop; the load difference is render cost.
+- **Peaks are not world-specific and are noisy:** max single-poll values reached 0.99 even in the cheap worlds (`charlie` 0.989, `alpha` 0.994 in round 3) while their means stayed ~0.3–0.4 — brief spikes, unexplained; don't read anything into a single max.
+- **Absolute numbers are higher than the earlier 0.28 mean** (that was a random world, a 10.0 ms interval, a different session and measurement path) — compare across worlds within this table, not against the old figure.
+
+**What this changes.** The Pixel 8's audio has been running an *unpinned, random* world each load; a heavy world (≈0.55 here, on a desktop core) leaves much less headroom on a phone core than a light one (≈0.33). That fits "scratchy on some loads" but is still **not proof of overload on the phone**. Also, "maxed effects → silent until refresh" may be a separate latched-fault bug; this data doesn't address it.
+
+**Not yet known — the next questions.**
+1. **What makes `bravo`/`delta` heavier than `charlie`?** Candidates (none checked): which/how many robots start active (2–4 of 12), waveform/oscillator-layer mix, seeded global FX values (delay feedback/wet, reverb decay/wet, filter Q), how many global LFOs start active. The seed-only-derived global FX (Attenuation Style map) and the coordinate-derived robots (locale map) can be separated by holding `seed` fixed and varying only `x`/`y` (and vice versa).
+2. **Does the phone reproduce the ranking?** Load the same pinned URLs on the Pixel: a world that's heavy here should be the scratchy one there. That, plus the phone's WebAudio-panel render capacity, would finally tie the report to a cause.
+
+Suggested phone A/B URLs (light → heavy): `?seed=charlie&x=200&y=-30`, `?seed=alpha&x=12&y=68`, `?seed=delta&x=5&y=-180`, `?seed=bravo&x=-150&y=90`.
+
+---
+
+## What makes a world heavy — global LFOs (2026-09-19, follow-up)
+
+Follow-up to the pinned-world measurement above. Same method (headless Chrome, 20 s of `renderCapacity` polling after an 8 s warm-up, one Chrome per run, foreground, no orphans, ≥3 interleaved rounds).
+
+**1. It's the seed (Attenuation Style), not the coordinates.** Crossing two seeds with two coordinate pairs (3 rounds):
+
+| `?seed=` | @ 200,-30 | @ -150,90 |
+|---|---|---|
+| `charlie` | 0.339, 0.327, 0.302 → **0.323** | 0.341, 0.322, 0.335 → **0.333** |
+| `bravo` | 0.546, 0.503, 0.536 → **0.528** | 0.554, 0.600, 0.568 → **0.574** |
+
+The seed moves the load by ~0.22; the coordinates by ≤ ~0.05 (robots, BPM and day phase barely matter). So the cost lives in what the **Attenuation Style noise map** seeds: the global Audio Rig chain, the **global LFOs**, audio swells.
+
+**2. The seeded values line up with the number of running global LFOs** (computed offline from `generateGlobalAudioSettings`/`generateGlobalLfoSettings`; `LFO_QUIET_THRESHOLD = 0.34` gives each of the 7 targets a ~34% chance of loading at rate 0):
+
+| Seed | Global LFOs running (of 7) | Mean render capacity |
+|---|---|---|
+| `charlie` | 0 | ~0.33 |
+| `alpha` | 1 | ~0.37 |
+| `delta` | 7 | ~0.50 |
+| `bravo` | 5 | ~0.55 |
+
+Delay/reverb/filter/EQ values do **not** track the ranking (e.g. `delta` has the longest reverb and a wet delay yet is lighter than `bravo`).
+
+**3. Ablation — the LFOs are causal, in both directions.** Two throwaway builds (source restored afterwards, not committed) that set `LFO_QUIET_THRESHOLD` to force every global LFO off / on; run interleaved against stock in the same session (3 rounds):
+
+| Variant | Mean render capacity per run | Mean |
+|---|---|---|
+| `bravo` stock (5 LFOs on) | 0.592, 0.582, 0.534 | **0.569** |
+| `bravo`, all global LFOs off | 0.398, 0.384, 0.452 | **0.411** |
+| `charlie` stock (0 on) | 0.316, 0.300, 0.329 | **0.315** |
+| `charlie`, all 7 global LFOs on | 0.450, 0.454, 0.499 | **0.468** |
+
+Roughly **+0.02–0.03 of render capacity per running global LFO** — enough to take a quiet world (0.32) to a heavy one (0.47–0.57). Two things this doesn't explain: `bravo` with LFOs off (0.41) is still above `charlie` (0.32), so something else in the seeded chain adds ~0.1 (candidates: reverb decay/wet, filter values — unchecked); and `delta` (7 LFOs, 0.50) is lighter than `bravo` (5 LFOs, 0.55), so it isn't purely a count.
+
+**Mechanism — hypothesis, NOT tested.** Global LFOs are `Tone.LFO`s connected straight onto the target's `Signal`/`Param` (`connectLfoTarget`, `src/engine/lfoEngine.ts`), i.e. audio-rate modulation of EQ3 gains and LPF/HPF frequency/Q. A Web Audio `BiquadFilterNode` whose frequency/Q/gain is driven by a connected signal typically has to recompute its coefficients every sample instead of once per 128-frame quantum, which would be expensive and would scale per modulated filter. (For contrast, `layerN.phase` LFOs already use a control-rate polling fallback via `scheduleRepeat`.) Confirm before acting — e.g. a scratch build that drives the same targets from a `scheduleRepeat` at ~30–60 Hz instead, measured against stock.
+
+**Implication for the phone.** A random seed loads 0–7 global LFOs; the heavy ones cost about half as much again as the quiet ones on a desktop core. That fits "scratchy on some loads" on the Pixel but is **still unproven there** — the phone A/B (URLs above) is the missing check. `charlie`/`alpha` should be the calm ones and `bravo`/`delta` the scratchy ones if this is the cause.
+
+**Options (all touch the audio/animation architecture → ask Crawford first; none started):**
+- Drive global LFO targets at control rate (scheduled `setValueAtTime`/`linearRampToValueAtTime` steps on the transport) instead of audio-rate connection — the likely real fix if the mechanism holds.
+- Cap or lower the number of global LFOs a fresh seed starts with (`LFO_QUIET_THRESHOLD`) — trivial, but only shifts the starting load; a user can still turn them all on.
+- Adaptive: fall back to fewer/slower LFOs when the context reports high render capacity (needs a reliable signal; `renderCapacity` isn't available as a JS API in Chrome 153 desktop).
+
+---
+
+## Pixel 8 A/B and what a power cycle clears (2026-09-19, Crawford's report + code reading)
+
+**Phone results (by ear, no DevTools data):**
+- `charlie` (calm world: 0 global LFOs, ~0.33 on desktop): fine for ~2 min, then **cut out completely**. After ~30 s of silence Crawford flipped the power rocker off, then on: **~30 s later sound returned, with some scratches, and eventually ran clean again.**
+- `bravo` (heavy world: 5 global LFOs, ~0.55 on desktop): **scratchy from the start**; at ~1 min it began **losing all sound for seconds at a time**; at ~90 s it was **gone for ~30 s**, **came back on its own** and stayed scratchy ("almost never clean").
+
+**What this supports (still by ear — not measured):**
+- The world/LFO ranking holds for **scratchiness** (bravo worse than charlie from the first second), which fits audio-thread load.
+- **Total dropouts happen in the calm world too, and get worse with time** (charlie ~2 min, bravo ~1 min, dropouts lengthening) — so LFO count alone doesn't explain them; a heavy world just reaches them sooner. A heat/throttling ramp or accumulating load fits; nothing here tests it.
+- **The bravo silence ended without any intervention**, so at least that failure is not a permanent latch.
+
+**What a power off→on actually does** (`powerController.ts`, `AudioEngine.killAll()/start()`): it does **not** rebuild the global FX chain (`instrumentsLoaded` survives; the delay/reverb/filter/EQ nodes are the same ones) and does not recreate the AudioContext. It **does**: `transport.cancel()`+stop+reset, `activeVoices = 0`, `resetBeatClock()`, then on start `await Tone.start()` (which resumes a suspended context), transport start, re-prime global LFOs, restart melody playback/harmony, and `reRegisterAllRobotsAudio` (releases and re-reserves **every robot's voice chain** — heavy main-thread work, a plausible reason sound took ~30 s to return).
+
+**Effect on the hypotheses:**
+- **Latched Inf/NaN in the delay/reverb/filter loop — now unlikely.** A power cycle wouldn't clear it (same FX nodes) and sound came back. (A NaN confined to a per-robot voice chain would be cleared, so that variant is not excluded.)
+- **Still open, all cleared by a power cycle:** a suspended/interrupted AudioContext that `Tone.start()` resumed (the app never listens for `statechange`); `activeVoices` pinned at 16 (its release timeouts run on the main thread, so long stalls delay them); stale transport/scheduler state; or a voice-chain-level fault. The bravo self-recovery favours a stall/starvation that eventually cleared over a hard fault.
+- **Missing, and now the key discriminator:** does the UI keep animating during a dropout (audio-only failure) or freeze (main-thread stall)? What does the WebAudio panel say about context state and render capacity? Neither was captured.
+
+---
+
+## Diagnostic tools built (2026-09-19) — `?debug` overlay and `?latency=` switch
+
+Approved by Crawford after the phone A/B above; full usage and how to read the overlay are in [PERFORMANCE.md](../PERFORMANCE.md#diagnosing-audio-on-a-real-phone--debug-latency-pinned-worlds). Summary:
+
+- **`?debug`** — read-only overlay (context state, audio-clock rate, UI frame rate, main-thread lag, active voices, active global LFOs, latency hint, plus an edge-triggered event log with timestamps: "audio clock stalled/recovered", "main thread stalled", "UI frames stopped/resumed", `AudioContext` `statechange`). Meant to be left on and read *after* a dropout, or screenshotted.
+- **`?latency=playback|balanced|interactive`** — opt-in A/B of the Web Audio latency hint (default unchanged). Installed before any Tone node exists (`src/engine/audioContextSetup.ts`).
+- Verified in headless Chrome: HUD values match the offline computation (`charlie` LFOs 0/7, `bravo` 5/7); a forced 2 s main-thread freeze shows as "main thread stalled ~1639 ms" with the audio clock unaffected (x1.01), so main-thread and audio-thread stalls are distinguishable. **Not yet run on the Pixel.**
+
+**Suggested phone protocol** (same pinned worlds, so runs are comparable): load `…/?debug&seed=charlie&x=200&y=-30` and `…/?debug&seed=bravo&x=-150&y=90`, let each run until it drops out, and note the overlay's red border, the event log, and `ctx` / `clock` / `fps` / `lag` / `voices` at that moment. Then repeat with `&latency=playback` added. Open questions each answers: which dropout signature (audio-thread stall vs suspended context vs main-thread stall vs voices pinned at 16), and whether `playback` changes scratchiness or the dropouts.
+
+---
+
+## Pixel 8 with `?debug` and `?latency=` (2026-09-20, by ear, one run each)
+
+Loaded from the PC's preview server over the LAN (after the insecure-context `crypto.randomUUID` fix above). Pinned worlds. Times are minutes:seconds from power-on.
+
+| Run | Clicks | Full dropouts | Overlay stripe |
+|---|---|---|---|
+| `charlie`, default (`interactive`) | Waves: increasing from ~0:30 for ~1 min, cleared; a few clicks ~2:00 for ~1 min; then only occasional clicks to 5:00 | None | Never red |
+| `charlie`, `&latency=playback` | "Same experience" as above | None | Never red |
+| `bravo`, default | Clicky almost immediately; bad by 0:30; **out at 0:40, silent until ~1:20**; very clicky after; bad again ~2:20; intermittent dropouts to 3:00; **15 s total dropout at 3:00** | 3+ | **not reported** — see open question |
+| `bravo`, `&latency=playback` | Clicky throughout; a clear moment ~1:20–1:30; a little clickier ~1:50 and ~2:30 | **None** | Never red |
+
+**Reading (n = 1 per row, judged by ear — suggestive, not established):**
+- On the heavy world, `playback` removed the full dropouts and reduced (but did not remove) the clicking. On the calm world it made no noticeable difference.
+- Clicks come in **waves that clear on their own** (charlie ~0:30–1:30, again ~2:00–3:00) — not a steady load. Something that varies over time: phone clock speed/heat, other processes, or app activity that varies (robots waking/docking, swells, harmony changes). Not identified.
+- The earlier `charlie` total cutout at ~2:00 (2026-09-19, before the overlay existed) **did not recur** in either run today, so that dropout is intermittent on the calm world.
+- Even the calm world (≈0.33 render capacity on desktop) clicks on the phone, so the *baseline* graph (~1,000 nodes, all 12 robots' voice chains built) is likely near the phone's budget by itself; global LFOs push it over.
+- `playoutStats` / `renderCapacity` JS APIs are absent in Chrome 153 desktop, so the overlay cannot count glitches directly; whether the Pixel's Chrome has them is unknown.
+
+**Open question — decisive:** what did the overlay show during `bravo` (default)'s total dropouts (0:40–1:20, 3:00)? If the stripe stayed green — `ctx running`, `clock` ≈ x1.00, `fps` and `lag` fine — while silent, the failure is downstream of everything the overlay measures (the device output stream, or silence inside the graph). If red, its event log says which signature it was.
+
+---
+
+## Load follows how many robots are *sounding*, in waves (2026-09-20, desktop; found while scoping "voice chains only when audible")
+
+**Simulation** of the Docked↔Active battery cycle with the real constants (`docs/ROBOT_LIFECYCLE.md`; 200 random rosters; job surcharge picked uniformly, cap 3 per type — an approximation, the real assignment is affinity-scored): audible robots (= `audioMode` not `mute` ≈ `Active`, plus the `Departing` hold) do not stay at the initial 2–4. Mean by measure: 2 → 4.3 (m5) → 6.4 (m10) → **7.9 (m15) → 8.5 (m20)** → 4.4 (m30, the first cohort all departing) → ~5.5–6.4 thereafter (range ~4–8, occasionally 10–12). At 60 BPM a measure is 4 s, so the first peak is ~1:00–1:20 and the dip ~2:00 — **which lines up with the phone's `charlie` click waves** (rising from ~0:30, clearing ~1:30–2:00, a few more 2:00–3:00). The world's real BPM is seeded per locale, so the time axis is approximate.
+
+**Measurement** (`charlie:200:-30`, 0 global LFOs, production build, desktop, mean render capacity per ~15 s bucket, one 4-minute run):
+`0.36 → 0.37 → 0.40 → 0.46 (t≈65 s) → 0.46 → 0.35 → 0.32 (t≈110 s) → 0.49 → 0.48 (t≈130–140 s, max 0.99) → 0.41 → 0.33 → 0.32 → 0.27 → 0.27 (t≈205–220 s) → 0.33`.
+So a world with **no LFOs** still swings ±0.1–0.2 (about ±30%) over a ~1–2 minute cycle — far above the ±0.02 same-world noise floor — consistent with load tracking the number of robots sounding at once (per-note synth work), not only the static graph. **Not yet correlated directly:** the audible-robot count isn't shown anywhere yet (the overlay could show it), and n = 1.
+
+**Consequence for "build voice chains only for audible robots":** it removes only the *idle* cost of muted robots (measured earlier: 12 robots ≈ 24% vs 3 robots ≈ 16–20% when quiet — a few points of render capacity, less as more robots wake). At the peaks that cause the clicks, ~8 of 12 robots are audible, so it frees only ~4 idle chains exactly when relief is needed. The earlier claim that it is "likely the biggest win" is **not supported** by this data. Levers aimed at the peaks: cap simultaneously *audible* robots and/or polyphony (a quality setting), cheaper per-note synth cost, `latencyHint: 'playback'`.
