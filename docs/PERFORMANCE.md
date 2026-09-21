@@ -300,7 +300,7 @@ Combine them, e.g. `?debug&latency=playback&seed=bravo&x=-150&y=90`. Known world
 bravo @ -150,90   up 1:32
 ctx running   clock x1.00   transport started
 latency interactive   ahead 100ms   base 11ms
-voices 3/16   LFOs 5/7
+voices 3/16   audible 5/12   LFOs 5/7
 fps 58   lag 4ms (max 220ms)
 1:31 audio clock stalled (x0.00)
 1:52 audio clock recovered after 20.0s
@@ -315,6 +315,7 @@ The border turns red when any failure signature is live. Each line answers one q
 | `fps` | GSAP ticker ticks/second. **0** logs "UI frames stopped" — the page's animation loop froze. |
 | `lag` (`max`) | How late the 500 ms sampler tick ran — a main-thread stall meter. ≥ 500 ms is logged as "main thread stalled". |
 | `voices n/16` | `activeVoices` against `MAX_POLYPHONY`. Pinned at 16 with sound gone = the stuck-voice-counter hypothesis. |
+| `audible n/12` | Robots in the active locale that `isRobotAudible` lets sound right now (not muted, not excluded by a solo), out of the roster — `0/0` before any robot has spawned. Sampled at the 500 ms tick, so it costs no store subscription. Added for the Audio Load Budget work ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md)): the load waves are hypothesised to follow how many robots sound at once, and this is the series to check that against. |
 | `LFOs n/7` | Global LFOs with rate > 0 — the measured load driver. |
 | `latency … ahead … base` | The hint actually installed, Tone's `lookAhead`, and `baseLatency`. (`outputLatency` is not shown: Tone's standardized-audio-context wrapper doesn't expose it.) |
 
@@ -330,6 +331,43 @@ Verified in headless Chrome (2026-09-19): a deliberate 2 s main-thread freeze lo
 ### Getting it onto a phone
 
 `npm run build && npx vite preview --host --port 4173`, then open `http://<pc-lan-ip>:4173/trace-atlas/?debug&…` on the phone (same Wi-Fi; a Windows firewall prompt may need allowing). A production build is the right target — the dev server is unminified and slower. Or deploy the branch. **A phone loading `http://<lan-ip>` is an insecure context** (only https and localhost are secure), where `crypto.randomUUID` does not exist. Before 2026-09-20 that made `AudioEngine.start()` throw in `beatClock.scheduleRepeat`, so the power rocker snapped back and the tablet never powered on; all id generation now goes through `generateUUID()` (`src/utils/randomId.ts`, falls back to `crypto.getRandomValues`). Any *new* secure-context-only API (`crypto.subtle`, `navigator.clipboard`, `navigator.wakeLock`, service workers, …) will break the same way on a LAN phone — you can reproduce that on the PC by loading the preview from its LAN IP instead of `localhost`. The overlay's cost is one 500 ms timer and one GSAP ticker callback, only while `?debug` is on.
+
+## Audio render-capacity series — `npm run perf:audio`
+
+Where `npm run perf` above measures the main thread, this measures the **audio thread**: it drives headless Chrome over the DevTools Protocol (Node's built-in `WebSocket`, no dependency), loads a served production build of a pinned world, powers it on, waits out a warm-up, then polls the DevTools "Web Audio" panel's `WebAudio.getRealtimeData` every 500 ms. *Render capacity* is the fraction of each audio callback's deadline that rendering takes (0–1; near 1.0 the thread misses deadlines, heard as clicks and dropouts). Built for roadmap 17.2.6 ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md)); it replaces the scratch-script recipe in [todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md).
+
+```
+npm run build && npx vite preview --port 4173                                 # terminal 1 — a production build
+npm run perf:audio -- --world charlie:200:-30 --seconds 240 --bucket 15       # terminal 2
+```
+
+One row per time bucket — mean and max capacity, mean callback interval, and the overlay's audible-robot count — then the **peak window** (the highest bucket mean; the number the Audio Load gates compare), the overall mean and max, and `r(audible, capacity)`, the Pearson correlation between the per-bucket audible count and capacity (`-` when either is constant). `--help` documents every flag:
+
+| Flag | Meaning |
+|---|---|
+| `--world name:x:y` / `--worlds a,b,c` | Pinned world(s): `name` is `?seed=`, `x`/`y` the integer locale coordinates. `--worlds` runs them one after another, each in a fresh Chrome. |
+| `charlie:200:-30?load=light` | Anything after `?` rides along into the page URL, so variants of one world (a `?load=` preset, `?latency=`) can be A/B-ed within one session. |
+| `--rot n` | Rotates the start order of `--worlds` left by `n`, for interleaved rounds. |
+| `--seconds` / `--bucket` / `--warmup` | Series length (240), bucket width (15), warm-up after power-on (8) — all seconds. |
+| `--url` | Base URL of the served build (default `http://localhost:4173/trace-atlas/`). A LAN address works too — the insecure-context case a phone hits. Any query on it is replaced. |
+| `--no-debug` | Leave `?debug` off: no overlay, so no audible column. (The overlay's own cost is one 500 ms timer and one GSAP ticker callback.) |
+| `--json path` | Also write each run's buckets and summary to a file, e.g. to pool the correlation across runs. |
+
+Only the bucketing, statistics and URL/world handling are unit-tested (`scripts/perf/audio-load-lib.mjs`); the Chrome plumbing is verified by real runs. The audio context polled is the most recently created, not-yet-destroyed *realtime* one, so `?latency=` (which replaces Tone's default context with a second one) polls the right context.
+
+### Measurement hygiene
+
+These rules exist because uncontaminated data was the whole point.
+
+- **Foreground, one call at a time.** Never overlap two runs, and don't run tests, builds or anything else CPU-heavy while one is going — the audio thread shares the machine.
+- **Check for orphaned Chrome before and after** — the count must be 0:
+  `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -match 'trace-atlas-perf' } | Measure-Object`. The script closes Chrome with `Browser.close` (then `taskkill /T` as a fallback) and removes its temp profile.
+- **A/B within one session, interleaved, ≥ 3 rounds.** Same-world stock capacity drifts run to run (0.30–0.41 across rounds in the 2026-09-19 data), so compare *differences from same-round stock*, rotate the start order with `--rot`, and never compare absolute numbers across sessions. A single run is not evidence.
+- **Name the code measured by commit**, and build variants from a clean tree (patch → `vite build --outDir <scratch>` → `git checkout --` the patched files); never commit a throwaway measurement variant.
+- **Test a metric by reintroducing the problem it should catch** before trusting it on a fix.
+- The audio thread is not throttled by Chrome's CPU throttling, so `perf:audio` takes no throttle flag.
+
+Verified 2026-09-20 (production build of `35ff6a8`): a 60 s `charlie` run reads ≈ 0.34 mean (the known ≈ 0.33), callback interval 10.67 ms, audible robots climbing 3.5 → 8 over the first minute (matching the battery-cycle simulation in the spec); `bravo` ≈ 0.53 (known ≈ 0.55); both work from `http://<lan-ip>:4173/`; runs leave no Chrome process behind.
 
 ## Recording a new baseline
 
