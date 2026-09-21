@@ -17,6 +17,7 @@ import {
 import { GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS } from '../types/lfo';
 import {
   clampAudioLoad,
+  describeLimits,
   detectDefaultAudioLoad,
   lfoAllowed,
   latencyForLoad,
@@ -207,6 +208,64 @@ describe('clampAudioLoad', () => {
 
   it('treats NaN as Full, matching loadToLimits', () => {
     expect(clampAudioLoad(NaN)).toBe(1);
+  });
+});
+
+// ========================================
+// describeLimits
+// ========================================
+
+describe('describeLimits', () => {
+  it('at Light reads what is capped, what is off, and that latency changes on the next load', () => {
+    expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.light))).toBe(
+      'Up to 4 robots · 8 notes · no drift or filter LFOs · 4 robot LFOs · latency: Playback (applies on next load)',
+    );
+  });
+
+  it('at Standard drops the filter-LFO and latency clauses (only drift is off, latency is unchanged)', () => {
+    expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.standard))).toBe(
+      'Up to 8 robots · 12 notes · no drift · 12 robot LFOs',
+    );
+  });
+
+  it('at Full says everything is on and never mentions a robot-LFO limit or latency', () => {
+    expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.full))).toBe('Up to 12 robots · 16 notes · all LFOs and drift');
+  });
+
+  it('mentions the load-time latency caveat only when the hint differs from interactive', () => {
+    for (const t of dial) {
+      const limits = loadToLimits(t);
+      const text = describeLimits(limits);
+      expect(text.includes('latency:'), `${t}`).toBe(limits.latencyHint !== 'interactive');
+      expect(text.includes('applies on next load'), `${t}`).toBe(limits.latencyHint !== 'interactive');
+    }
+  });
+
+  it('names each LFO tier correctly on both sides of the thresholds', () => {
+    expect(describeLimits(loadToLimits(LOAD_FILTER_LFOS_MIN - 0.01))).toContain('no drift or filter LFOs');
+    expect(describeLimits(loadToLimits(LOAD_FILTER_LFOS_MIN))).toMatch(/no drift(?! or)/);
+    expect(describeLimits(loadToLimits(LOAD_DRIFT_MIN - 0.01))).toContain('no drift');
+    expect(describeLimits(loadToLimits(LOAD_DRIFT_MIN))).toContain('all LFOs and drift');
+  });
+
+  it('shows the robot-LFO limit only while it is tight (at most Standard’s), never Infinity', () => {
+    expect(describeLimits(loadToLimits(0.4))).toContain('8 robot LFOs');
+    expect(describeLimits(loadToLimits(0.8))).not.toMatch(/robot LFOs/);
+    expect(describeLimits(loadToLimits(0.99))).not.toMatch(/robot LFOs/);
+  });
+
+  it('is well-formed across the whole dial: starts "Up to n robots", never Infinity, NaN or undefined', () => {
+    for (const t of dial) {
+      const text = describeLimits(loadToLimits(t));
+      expect(text, `${t}`).toMatch(/^Up to \d+ robots · \d+ notes · /);
+      expect(text, `${t}`).not.toMatch(/Infinity|NaN|undefined|null/);
+    }
+  });
+
+  it('uses the right counts for the limits it is given', () => {
+    const text = describeLimits({ ...loadToLimits(1), maxAudibleRobots: 7, maxPolyphony: 11 });
+    expect(text).toContain('Up to 7 robots');
+    expect(text).toContain('11 notes');
   });
 });
 

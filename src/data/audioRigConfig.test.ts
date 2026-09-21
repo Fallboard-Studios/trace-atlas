@@ -12,8 +12,12 @@ import {
   AUDIO_RIG_ACCORDION_GROUPS,
   TRANSPORT_COMPOSITION_ACCORDION_SCHEMA,
   SPEED_AUTOMATION_PANEL_SCHEMA,
+  AUDIO_LOAD_PRESET_SCHEMA,
+  AUDIO_LOAD_SCHEMA,
+  AUDIO_LOAD_PANEL_SCHEMA,
   type AudioRigEffectKey,
 } from './audioRigConfig';
+import { AUDIO_LOAD_PRESETS } from '../constants';
 import { DRIFT_GROUP_IDS } from '../types/lfo';
 import { GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
 import type { ControlSchema } from '@/types/controls';
@@ -623,4 +627,78 @@ describe('SPEED_AUTOMATION_PANEL_SCHEMA (Task 1)', () => {
 // block keeps its own independent Cabinetry facade. See PanelGroup.test.tsx
 // for that component's own coverage, and AudioRigDrawer.test.tsx for the
 // "each block gets its own facade" structural assertions.
+
+// ========================================
+// AUDIO LOAD (docs/specs/AUDIO_LOAD_BUDGET.md §4.5)
+// ========================================
+
+describe('AUDIO_LOAD_PRESET_SCHEMA', () => {
+  it('is a radio in the audioRig.* namespace offering exactly Light, Standard and Full', () => {
+    expect(AUDIO_LOAD_PRESET_SCHEMA).toMatchObject({ type: 'radio', id: 'audioRig.audioLoadPreset' });
+    expect(AUDIO_LOAD_PRESET_SCHEMA.options.map((o) => o.label)).toEqual(['Light', 'Standard', 'Full']);
+  });
+
+  it('uses the preset names audioBudget.ts parses (?load=light|standard|full) as its option values', () => {
+    expect(AUDIO_LOAD_PRESET_SCHEMA.options.map((o) => o.value)).toEqual(['light', 'standard', 'full']);
+    expect(Object.keys(AUDIO_LOAD_PRESETS)).toEqual(AUDIO_LOAD_PRESET_SCHEMA.options.map((o) => o.value));
+  });
+
+  it('has a non-empty invented loreLabel and a humanLabel', () => {
+    expect(AUDIO_LOAD_PRESET_SCHEMA.loreLabel).toBeTruthy();
+    expect(AUDIO_LOAD_PRESET_SCHEMA.humanLabel).toBeTruthy();
+  });
+});
+
+describe('AUDIO_LOAD_SCHEMA', () => {
+  it('is a horizontal linear slider, 0-100 %, whole steps, in the audioRig.* namespace', () => {
+    expect(AUDIO_LOAD_SCHEMA).toMatchObject({
+      type: 'sliderLinear',
+      id: 'audioRig.audioLoad',
+      min: 0,
+      max: 100,
+      step: 1,
+      unit: '%',
+      orientation: 'horizontal',
+    });
+  });
+
+  it('spans the whole dial: every preset lands on a whole slider step inside its range', () => {
+    for (const value of Object.values(AUDIO_LOAD_PRESETS)) {
+      const percent = value * 100;
+      expect(percent).toBeGreaterThanOrEqual(AUDIO_LOAD_SCHEMA.min);
+      expect(percent).toBeLessThanOrEqual(AUDIO_LOAD_SCHEMA.max);
+      expect(Number.isInteger(percent)).toBe(true);
+    }
+  });
+
+  it('has a non-empty invented loreLabel and the humanLabel Audio Load', () => {
+    expect(AUDIO_LOAD_SCHEMA.loreLabel).toBeTruthy();
+    expect(AUDIO_LOAD_SCHEMA.humanLabel).toBe('Audio Load');
+  });
+});
+
+describe('AUDIO_LOAD_PANEL_SCHEMA', () => {
+  it('is a responsive directionalPanel named Audio Load in the audioRig.* namespace', () => {
+    expect(AUDIO_LOAD_PANEL_SCHEMA).toMatchObject({
+      type: 'directionalPanel',
+      orientation: 'responsive',
+      humanLabel: 'Audio Load',
+    });
+    expect(AUDIO_LOAD_PANEL_SCHEMA.id).toMatch(/^audioRig\./);
+    expect(AUDIO_LOAD_PANEL_SCHEMA.loreLabel).toBeTruthy();
+  });
+
+  it('gives all three schemas distinct ids, none of which is part of AUDIO_RIG_CONFIG (bare Rig-wide meta-settings, like Tempo)', () => {
+    const ids = [AUDIO_LOAD_PRESET_SCHEMA.id, AUDIO_LOAD_SCHEMA.id, AUDIO_LOAD_PANEL_SCHEMA.id];
+    expect(new Set(ids).size).toBe(3);
+    const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [b.panel.id, ...b.params.map((p) => p.schema.id)]);
+    for (const id of ids) expect(allConfigSchemaIds).not.toContain(id);
+  });
+
+  it('keeps all three JSON-serializable', () => {
+    for (const schema of [AUDIO_LOAD_PRESET_SCHEMA, AUDIO_LOAD_SCHEMA, AUDIO_LOAD_PANEL_SCHEMA]) {
+      expect(() => JSON.stringify(schema)).not.toThrow();
+    }
+  });
+});
 

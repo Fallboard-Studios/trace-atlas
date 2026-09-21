@@ -88,6 +88,26 @@ export function latencyForLoad(audioLoad: number): LoadLatencyHint {
   return loadToLimits(audioLoad).latencyHint;
 }
 
+const LATENCY_LABELS: Record<LoadLatencyHint, string> = { playback: 'Playback', interactive: 'Interactive' };
+
+/**
+ * One line saying what a dial position means, for the Audio Load readout — e.g. "Up to 4 robots · 8 notes · no drift
+ * or filter LFOs · 4 robot LFOs · latency: Playback (applies on next load)". The robot-LFO limit is shown only while
+ * it is tight (at most Standard's); the latency clause only when the hint differs from interactive, with the caveat
+ * that a context's latency is fixed at load. Never prints Infinity or NaN.
+ */
+export function describeLimits(limits: LoadLimits): string {
+  const parts = [`Up to ${limits.maxAudibleRobots} robots`, `${limits.maxPolyphony} notes`];
+  if (limits.driftEnabled && limits.filterLfosEnabled) parts.push('all LFOs and drift');
+  else if (!limits.driftEnabled && !limits.filterLfosEnabled) parts.push('no drift or filter LFOs');
+  else parts.push(limits.driftEnabled ? 'no filter LFOs' : 'no drift');
+  if (Number.isFinite(limits.maxRobotLfos) && limits.maxRobotLfos <= ROBOT_LFO_CAP_STANDARD) {
+    parts.push(`${limits.maxRobotLfos} robot LFOs`);
+  }
+  if (limits.latencyHint !== 'interactive') parts.push(`latency: ${LATENCY_LABELS[limits.latencyHint]} (applies on next load)`);
+  return parts.join(' · ');
+}
+
 const PRESET_NAMES = Object.keys(AUDIO_LOAD_PRESETS) as Array<keyof typeof AUDIO_LOAD_PRESETS>;
 const PERCENT = /^\d+(\.\d+)?$/;
 
