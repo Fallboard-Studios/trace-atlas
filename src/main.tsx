@@ -1,6 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
+// MUST stay the first app import: it installs the Tone context for `?latency=` before any module
+// constructs a Tone node (Tone creates its global context lazily on first use).
+import './engine/audioContextSetup'
 import App from './App.tsx'
 // Self-hosted (npm @fontsource/rajdhani, not a Google Fonts CDN link) — no
 // external network request at runtime. Weights 500-700 only (docs/specs/
