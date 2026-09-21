@@ -12,6 +12,8 @@ const fakeRaw = {
   currentTime: 0,
   state: 'running' as string,
   baseLatency: 0.02,
+  // AudioContext.playbackStats: absent unless a test sets it (the API is Chrome 146+).
+  playbackStats: undefined as unknown,
   listeners: new Map<string, Listener[]>(),
   addEventListener(name: string, cb: Listener) {
     this.listeners.set(name, [...(this.listeners.get(name) ?? []), cb]);
@@ -109,6 +111,8 @@ describe('audioDiagnostics runtime', () => {
     fakeRaw.currentTime = 0;
     fakeRaw.state = 'running';
     fakeRaw.listeners.clear();
+    // A plain writable property again, even if an earlier test replaced it with a throwing getter.
+    Object.defineProperty(fakeRaw, 'playbackStats', { value: undefined, writable: true, configurable: true });
     tickerCallbacks.clear();
     fakeActiveLocaleId = 'L1';
     fakeLocales = { L1: { robots: [] } };
@@ -318,6 +322,92 @@ describe('audioDiagnostics runtime', () => {
       tapSpies.read.mockReturnValue({ pre: null, master: buffer(0) });
       advance();
       expect(levels().outputMaster?.peak).toBe(0);
+    });
+  });
+
+  describe('playback stats (AudioContext.playbackStats)', () => {
+    const stats = (underrunEvents: number, overrides: Record<string, unknown> = {}) => ({
+      underrunEvents,
+      underrunDuration: 0.012,
+      totalDuration: 30,
+      averageLatency: 0.021,
+      minimumLatency: 0.02,
+      maximumLatency: 0.034,
+      ...overrides,
+    });
+    const playback = () => diag.getDiagnosticsSnapshot().info.playback;
+    const events = () => diag.getDiagnosticsSnapshot().timing.events.map((e) => e.text);
+
+    it('publishes the reading when the context has playbackStats', () => {
+      fakeRaw.playbackStats = stats(2);
+      advance();
+      expect(playback()).toEqual(stats(2));
+    });
+
+    it('publishes null when the API is absent, and does not throw', () => {
+      expect(() => advance()).not.toThrow();
+      expect(playback()).toBeNull();
+    });
+
+    it('publishes null, and does not throw, when reading playbackStats throws', () => {
+      Object.defineProperty(fakeRaw, 'playbackStats', {
+        get() {
+          throw new Error('not allowed here');
+        },
+        configurable: true,
+      });
+      expect(() => advance()).not.toThrow();
+      expect(playback()).toBeNull();
+    });
+
+    it('publishes null when the underrun count is not a finite number', () => {
+      fakeRaw.playbackStats = stats(NaN);
+      advance();
+      expect(playback()).toBeNull();
+      fakeRaw.playbackStats = { underrunEvents: 'many' };
+      advance();
+      expect(playback()).toBeNull();
+    });
+
+    it('keeps the reading but turns an unreadable latency or duration field into NaN', () => {
+      fakeRaw.playbackStats = stats(1, { averageLatency: undefined, maximumLatency: 'slow' });
+      advance();
+      expect(playback()?.underrunEvents).toBe(1);
+      expect(playback()?.averageLatency).toBeNaN();
+      expect(playback()?.maximumLatency).toBeNaN();
+      expect(playback()?.minimumLatency).toBe(0.02);
+    });
+
+    it('only ever reads the stats: it never calls resetLatency (which would move the browser’s own interval)', () => {
+      const resetLatency = vi.fn();
+      fakeRaw.playbackStats = { ...stats(0), resetLatency };
+      advance();
+      advance();
+      advance();
+      expect(resetLatency).not.toHaveBeenCalled();
+    });
+
+    it('logs a "began" event and marks underruns active when the count rises, and a "stopped" event once it is flat for a second', () => {
+      fakeRaw.playbackStats = stats(0);
+      advance(); // baseline
+      fakeRaw.playbackStats = stats(3);
+      advance();
+      expect(events().at(-1)).toBe('playback underruns began (3 total)');
+      expect(diag.getDiagnosticsSnapshot().timing.underrunActive).toBe(true);
+
+      advance(); // flat, 500 ms
+      expect(diag.getDiagnosticsSnapshot().timing.underrunActive).toBe(true);
+      advance(); // flat, 1000 ms
+      expect(events().at(-1)).toMatch(/^playback underruns stopped after 0\.0s \(\+3\)$/);
+      expect(diag.getDiagnosticsSnapshot().timing.underrunActive).toBe(false);
+    });
+
+    it('logs nothing and stays inactive when the API is absent throughout', () => {
+      advance();
+      advance();
+      advance();
+      expect(events().filter((text) => /underrun/.test(text))).toEqual([]);
+      expect(diag.getDiagnosticsSnapshot().timing.underrunActive).toBe(false);
     });
   });
 

@@ -33,6 +33,7 @@ export function hudStatus({ timing }: DiagSnapshot): 'ok' | 'bad' {
   if (timing.ctxState !== 'running') return 'bad';
   if (timing.clockRate !== null && timing.clockRate < STALL_RATE_THRESHOLD) return 'bad';
   if (timing.fps !== null && timing.fps === 0) return 'bad';
+  if (timing.underrunActive) return 'bad';
   return 'ok';
 }
 
@@ -61,6 +62,26 @@ function outputLine({ outputMaster, outputPre }: DiagInfo): string {
   return `out ${db(outputMaster?.peak)} rms ${db(outputMaster?.rms)}  pre ${db(outputPre?.peak)}  fin ${finite}`;
 }
 
+/** Seconds as whole milliseconds; `-` when the value is not a finite number. */
+const msNum = (seconds: number): string => (Number.isFinite(seconds) ? String(Math.round(seconds * 1000)) : DASH);
+const withUnit = (value: string): string => (value === DASH ? DASH : `${value}ms`);
+
+/**
+ * The browser's own playback statistics in one line (`AudioContext.playbackStats`): underruns so far, their total
+ * duration, and the average (min-max) output latency. Rising underruns while the `out` level is normal mean the
+ * graph is fine and the output could not be fed; a flat count with silence points downstream of the app.
+ * `n/a` when the browser has no playbackStats (Chrome before 146).
+ */
+function underrunLine({ playback }: DiagInfo): string {
+  if (!playback) return 'underruns n/a';
+  const events = Number.isFinite(playback.underrunEvents) ? String(Math.round(playback.underrunEvents)) : DASH;
+  const range =
+    Number.isFinite(playback.minimumLatency) && Number.isFinite(playback.maximumLatency)
+      ? `${msNum(playback.minimumLatency)}-${msNum(playback.maximumLatency)}`
+      : DASH;
+  return `underruns ${events} (${withUnit(msNum(playback.underrunDuration))}) · lat ${withUnit(msNum(playback.averageLatency))} (${range})`;
+}
+
 /** The HUD's text, one string per line. `uptimeMs` is the time since diagnostics started. */
 export function buildHudLines(snapshot: DiagSnapshot, world: HudWorld, uptimeMs: number): string[] {
   const { timing, info } = snapshot;
@@ -77,6 +98,7 @@ export function buildHudLines(snapshot: DiagSnapshot, world: HudWorld, uptimeMs:
     budgetLine(info),
     `fps ${fps}   lag ${ms(timing.lagMs)} (max ${ms(timing.maxLagMs)})`,
     outputLine(info),
+    underrunLine(info),
   ];
 
   if (timing.events.length === 0) {

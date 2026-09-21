@@ -58,6 +58,18 @@ describe('hudStatus', () => {
   });
 });
 
+describe('hudStatus — playback underruns', () => {
+  it('is bad while underruns are occurring, and ok again once they have stopped', () => {
+    expect(hudStatus(snap({ underrunActive: true }))).toBe('bad');
+    expect(hudStatus(snap({ underrunActive: false }))).toBe('ok');
+  });
+
+  it('still reports the existing bad conditions when underruns are not active', () => {
+    expect(hudStatus(snap({ ctxState: 'suspended', underrunActive: false }))).toBe('bad');
+    expect(hudStatus(snap({ clockRate: 0.1, underrunActive: false }))).toBe('bad');
+  });
+});
+
 describe('buildHudLines', () => {
   it('shows the pinned world, so a screenshot identifies what was loaded', () => {
     const text = buildHudLines(snap(), world, 65_000).join('\n');
@@ -196,6 +208,59 @@ describe('buildHudLines', () => {
       const withLevels = buildHudLines(snap({}, { outputMaster: level(0.5, 0.25), outputPre: level(0.5, 0.25) }), world, 0);
       expect(withLevels.filter((l) => l.startsWith('out'))).toHaveLength(1);
       expect(withLevels.filter((l) => !l.startsWith('out'))).toEqual(without);
+    });
+  });
+
+  describe('underruns line', () => {
+    const underrunLine = (info: Partial<DiagInfo>) =>
+      buildHudLines(snap({}, info), world, 0).find((l) => l.startsWith('underruns'));
+    const reading = (overrides: Partial<NonNullable<DiagInfo['playback']>> = {}) => ({
+      underrunEvents: 3,
+      underrunDuration: 0.012,
+      totalDuration: 30,
+      averageLatency: 0.021,
+      minimumLatency: 0.02,
+      maximumLatency: 0.034,
+      ...overrides,
+    });
+
+    it('reads the count, the total underrun time and the average (min-max) latency in milliseconds', () => {
+      expect(underrunLine({ playback: reading() })).toBe('underruns 3 (12ms) · lat 21ms (20-34)');
+    });
+
+    it('reads a calm context as zero underruns', () => {
+      expect(underrunLine({ playback: reading({ underrunEvents: 0, underrunDuration: 0, minimumLatency: 0 }) })).toBe(
+        'underruns 0 (0ms) · lat 21ms (0-34)',
+      );
+    });
+
+    it('says n/a when the browser has no playbackStats (absent, null or undefined)', () => {
+      expect(underrunLine({ playback: null })).toBe('underruns n/a');
+      expect(underrunLine({})).toBe('underruns n/a');
+    });
+
+    it('shows a dash for an unreadable latency, and one dash for a range with an unknown end, never NaN, null or undefined', () => {
+      const line = underrunLine({ playback: reading({ averageLatency: NaN, minimumLatency: NaN, maximumLatency: Infinity }) })!;
+      expect(line).toBe('underruns 3 (12ms) · lat - (-)');
+      expect(line).not.toMatch(/NaN|null|undefined|Infinity/);
+      expect(underrunLine({ playback: reading({ maximumLatency: NaN }) })).toBe('underruns 3 (12ms) · lat 21ms (-)');
+    });
+
+    it('shows a dash for an unreadable count or total underrun time', () => {
+      expect(underrunLine({ playback: reading({ underrunEvents: NaN, underrunDuration: NaN }) })).toBe('underruns - (-) · lat 21ms (20-34)');
+    });
+
+    it('stays within 52 characters for large counts and latencies', () => {
+      const line = underrunLine({ playback: reading({ underrunEvents: 99999, underrunDuration: 12.3456, averageLatency: 0.5, minimumLatency: 0.1, maximumLatency: 0.9 }) })!;
+      expect(line).toBe('underruns 99999 (12346ms) · lat 500ms (100-900)');
+      expect(line.length).toBeLessThanOrEqual(52);
+    });
+
+    it('sits directly under the output level line, and adds exactly one line', () => {
+      const lines = buildHudLines(snap({}, { playback: reading() }), world, 0);
+      const out = lines.findIndex((l) => l.startsWith('out'));
+      expect(lines[out + 1]).toMatch(/^underruns /);
+      expect(lines.filter((l) => l.startsWith('underruns'))).toHaveLength(1);
     });
   });
 

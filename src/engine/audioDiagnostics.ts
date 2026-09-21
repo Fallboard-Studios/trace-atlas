@@ -19,6 +19,7 @@ import {
   stepDiag,
   type DiagState,
   type LevelReading,
+  type PlaybackReading,
 } from '../utils/audioHealth';
 
 // ========================================
@@ -49,6 +50,8 @@ export interface DiagInfo {
   outputPre?: LevelReading | null;
   /** Level of what the destination receives (masterGain's output) in the last sample; null likewise. */
   outputMaster?: LevelReading | null;
+  /** The browser's playback statistics (`AudioContext.playbackStats`); null when the API is absent or unreadable. */
+  playback?: PlaybackReading | null;
 }
 
 export interface DiagSnapshot {
@@ -77,6 +80,9 @@ let snapshot: DiagSnapshot = { timing, info: emptyInfo() };
  *  AudioContext statechange never triggers a second read of a ~128 KB buffer. */
 let outputLevels: { pre: LevelReading | null; master: LevelReading | null } = { pre: null, master: null };
 
+/** The playback statistics from the latest sampler tick (null when the API is absent or unreadable). */
+let playbackReading: PlaybackReading | null = null;
+
 function emptyInfo(): DiagInfo {
   return {
     latencyHint: '?',
@@ -94,6 +100,7 @@ function emptyInfo(): DiagInfo {
     maxAudibleRobots: NaN,
     outputPre: null,
     outputMaster: null,
+    playback: null,
   };
 }
 
@@ -105,6 +112,8 @@ type RawContext = {
   currentTime: number;
   state: string;
   baseLatency?: number;
+  /** `AudioContext.playbackStats` — Chrome 146+; anything else may be absent, so it is read defensively. */
+  playbackStats?: unknown;
   addEventListener?: (name: string, cb: () => void) => void;
   removeEventListener?: (name: string, cb: () => void) => void;
 };
@@ -151,12 +160,41 @@ function readInfo(): DiagInfo {
     maxAudibleRobots: loadToLimits(audio.audioLoad).maxAudibleRobots,
     outputPre: outputLevels.pre,
     outputMaster: outputLevels.master,
+    playback: playbackReading,
   };
 }
 
 function publish(): void {
   snapshot = { timing, info: readInfo() };
   for (const listener of listeners) listener();
+}
+
+/**
+ * Read `AudioContext.playbackStats` without ever writing to it: null when the API is absent, the getter throws, or the
+ * underrun count is not a finite number; any other unreadable field becomes NaN (the overlay shows a dash).
+ * `resetLatency()` is deliberately never called — it would move the browser's own measurement interval.
+ */
+function readPlaybackStats(raw: RawContext): PlaybackReading | null {
+  try {
+    const stats = raw.playbackStats as Record<string, unknown> | undefined | null;
+    if (!stats || typeof stats !== 'object') return null;
+    const field = (key: string): number => {
+      const value = stats[key];
+      return typeof value === 'number' && Number.isFinite(value) ? value : NaN;
+    };
+    const underrunEvents = field('underrunEvents');
+    if (Number.isNaN(underrunEvents)) return null;
+    return {
+      underrunEvents,
+      underrunDuration: field('underrunDuration'),
+      totalDuration: field('totalDuration'),
+      averageLatency: field('averageLatency'),
+      minimumLatency: field('minimumLatency'),
+      maximumLatency: field('maximumLatency'),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Reduce one tap's buffer to a reading; null when the tap gave nothing or the buffer is empty. */
@@ -169,12 +207,14 @@ function sample(): void {
   outputLevels = { pre: measureTap(taps.pre), master: measureTap(taps.master) };
 
   const raw = readRawContext();
+  playbackReading = readPlaybackStats(raw);
   timing = stepDiag(timing, {
     wallMs: performance.now(),
     ctxTime: raw.currentTime,
     ctxState: raw.state,
     frames,
     hidden: typeof document !== 'undefined' && document.hidden,
+    playback: playbackReading,
   });
   publish();
 }
@@ -194,6 +234,7 @@ export function startAudioDiagnostics(): () => void {
     frames = 0;
     timing = initDiagState(startedAt);
     outputLevels = { pre: null, master: null };
+    playbackReading = null;
     attachOutputTaps();
 
     onTick = () => { frames++; };
@@ -225,6 +266,7 @@ export function startAudioDiagnostics(): () => void {
     intervalId = null;
     detachOutputTaps();
     outputLevels = { pre: null, master: null };
+    playbackReading = null;
     if (onTick) gsap.ticker.remove(onTick);
     onTick = null;
     if (onStatechange) statechangeTarget?.removeEventListener('statechange', onStatechange);
