@@ -659,7 +659,7 @@ None blocking. For Crawford at the checkpoints: the lore/label copy for the Audi
 
 ## As Shipped — deviations (2026-09-21)
 
-Tasks 1–26 are done (task-level boxes above are ticked); **task 25's phone run was done by Crawford on 2026-09-21 and is recorded with a plain reading in the scratchy-audio doc — the reading leaves decision J and the missed task-24 gate open**. Each task's acceptance criteria were met and are evidenced by its commit message and tests (the per-criterion boxes were not ticked individually). Order of work followed the plan; Checkpoint A was reported and continued, **Checkpoint C (task 11) stopped on a missed gate and resumed on Crawford's decision (option 2, spec decision M)**, Checkpoints B, D, E and the task-24 gate were run as written.
+Tasks 1–26 are done (task-level boxes above are ticked); **task 25's phone run was done by Crawford on 2026-09-21 and is recorded with a plain reading in the scratchy-audio doc — the reading was followed on 2026-09-21 by Crawford's decisions: Standard's latency stays `interactive` pending a rested re-run, and the missed task-24 gate is accepted and re-set (spec §7 J and N)**. Each task's acceptance criteria were met and are evidenced by its commit message and tests (the per-criterion boxes were not ticked individually). Order of work followed the plan; Checkpoint A was reported and continued, **Checkpoint C (task 11) stopped on a missed gate and resumed on Crawford's decision (option 2, spec decision M)**, Checkpoints B, D, E and the task-24 gate were run as written.
 
 Deviations, by task (the full list with reasons is in [the spec's §8](../specs/AUDIO_LOAD_BUDGET.md#8-as-shipped-2026-09-21)):
 - **Task 2** was a rewrite, not a promotion — the scratch scripts had not been kept. Later additions: the `audible` and caps columns (tasks 1 and 10), `world@page` for same-session A/B builds (task 24).
@@ -671,5 +671,5 @@ Deviations, by task (the full list with reasons is in [the spec's §8](../specs/
 - **Task 17/19/20**: the policy carries the connected robot-LFO count; `reconcileLfos` is two-pass and re-admits a freed slot; `lfoEngine.subscribeHeldOff` mirrors held-off state into the store. **Task 18**'s tests live in `lfoEngine.test.ts` (that is where the Tone mocks are), not a new `lfoDrift.test.ts`.
 - **Tasks 21–22**: a shared `HeldOffNote`; `LfoTargetGroup.heldOff` and the Robot Options props keep the sections store-free.
 - **Task 23** was checked in a real browser (`?load=light` → `playback`, one live realtime context).
-- **Task 24**: one gate missed (Standard's mean on `bravo`, 0.069 vs ≥ 0.10); everything else met.
+- **Task 24**: one gate missed (Standard's mean on `bravo`, 0.069 vs ≥ 0.10; accepted and re-set on 2026-09-21, spec decision N); everything else met.
 - **Task 26** records the close-out; `CLAUDE.md`'s reference list was left alone (offered, not requested).

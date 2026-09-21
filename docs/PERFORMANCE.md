@@ -632,6 +632,8 @@ The missed gate is the mean on `bravo` under Standard. Levers that are already m
 2. **Take the filter-frequency/Q LFOs off at Standard too** (raise `LOAD_FILTER_LFOS_MIN` from 0.4 to just above 0.6). The earlier global-LFO measurements put them at ≈ +0.06 each; on `bravo` that could close the gap but leaves Standard with only the EQ-gain LFOs.
 3. **Give Standard the `playback` latency** (decision J was "interactive until the phone A/B says otherwise"). The phone protocol (plan task 25) already includes `load=standard&latency=playback` to answer exactly this; deciding after that run costs nothing.
 
+**Decided 2026-09-21 (Crawford): option 1 — accept it and re-set the gate to what Standard delivers** (0.069; spec decision N). Option 3 is deferred with decision J (the phone A/B was inconclusive — see [scratchy-audio-phones.md](todo/scratchy-audio-phones.md)), and option 2 stays the documented lever if a rested phone re-run shows Standard still failing on `bravo`.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
