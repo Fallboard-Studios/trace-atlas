@@ -14,12 +14,16 @@ import {
   ROBOT_LFO_CAP_LIGHT,
   ROBOT_LFO_CAP_STANDARD,
 } from '../constants';
+import { GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS } from '../types/lfo';
 import {
   detectDefaultAudioLoad,
+  lfoAllowed,
   latencyForLoad,
   loadToLimits,
   loadToSearchParam,
+  orderByArrival,
   parseLoadParam,
+  reconcileSounding,
   resolveInitialAudioLoad,
 } from './audioBudget';
 
@@ -303,5 +307,296 @@ describe('resolveInitialAudioLoad', () => {
 
   it('uses the first ?load= if it is repeated', () => {
     expect(resolveInitialAudioLoad({ search: '?load=light&load=full', ...desktop })).toBe(0.2);
+  });
+});
+
+// ========================================
+// orderByArrival
+// ========================================
+
+describe('orderByArrival', () => {
+  it('keeps still-eligible robots in the order they arrived and appends newly eligible ones in roster order', () => {
+    expect(orderByArrival(['c', 'a'], ['a', 'b', 'c', 'd'])).toEqual(['c', 'a', 'b', 'd']);
+  });
+
+  it('drops robots that are no longer eligible', () => {
+    expect(orderByArrival(['a', 'b', 'c'], ['a', 'c'])).toEqual(['a', 'c']);
+  });
+
+  it('re-queues a robot that left and came back at the back of the line', () => {
+    const afterLeaving = orderByArrival(['a', 'b', 'c'], ['b', 'c']);
+    expect(orderByArrival(afterLeaving, ['a', 'b', 'c'])).toEqual(['b', 'c', 'a']);
+  });
+
+  it('returns the same array when nothing changed, so callers can skip work', () => {
+    const previous = ['b', 'a'];
+    expect(orderByArrival(previous, ['a', 'b'])).toBe(previous);
+  });
+
+  it('handles empty inputs and repeated ids in the eligible list', () => {
+    expect(orderByArrival([], [])).toEqual([]);
+    expect(orderByArrival([], ['a', 'b'])).toEqual(['a', 'b']);
+    expect(orderByArrival(['a'], [])).toEqual([]);
+    expect(orderByArrival([], ['a', 'a', 'b'])).toEqual(['a', 'b']);
+  });
+});
+
+// ========================================
+// reconcileSounding
+// ========================================
+
+describe('reconcileSounding', () => {
+  // `eligible` is in ARRIVAL order (see orderByArrival) — that order is what makes admission first-come-first-served.
+  const none: string[] = [];
+
+  describe('first come, first served', () => {
+    it('admits eligible robots in order up to the cap and leaves the rest waiting', () => {
+      expect(reconcileSounding(none, ['a', 'b', 'c', 'd', 'e'], none, 3)).toEqual(['a', 'b', 'c']);
+    });
+
+    it('admits everyone when the cap is not reached', () => {
+      expect(reconcileSounding(none, ['a', 'b'], none, 4)).toEqual(['a', 'b']);
+    });
+
+    it('lets incumbents keep their slot even when earlier-arrived robots are waiting', () => {
+      // c is sounding; a and b arrived (waited) earlier in the list but c holds a slot.
+      expect(reconcileSounding(['c'], ['a', 'b', 'c', 'd'], none, 2)).toEqual(['c', 'a']);
+    });
+
+    it('gives a freed slot to the earliest waiter, not to roster (alphabetical) order', () => {
+      // a, b sounding at cap 2; q then p arrived and wait. a leaves — q (earliest waiter) gets the slot, not p.
+      const afterDeparture = reconcileSounding(['a', 'b'], ['b', 'q', 'p'], none, 2);
+      expect(afterDeparture).toEqual(['b', 'q']);
+    });
+
+    it('does not let an explicit unmute jump the queue: a robot that just became eligible waits behind earlier waiters', () => {
+      const arrival = orderByArrival(['a', 'b', 'c'], ['a', 'b', 'c', 'z']); // z just un-docked
+      expect(reconcileSounding(['a', 'b'], arrival, none, 2)).toEqual(['a', 'b']);
+    });
+
+    it('drops robots that are no longer eligible and hands their slots to waiters', () => {
+      expect(reconcileSounding(['a', 'b', 'c'], ['a', 'c', 'd', 'e'], none, 3)).toEqual(['a', 'c', 'd']);
+    });
+
+    it('drops everyone when nobody is eligible', () => {
+      expect(reconcileSounding(['a', 'b'], none, none, 4)).toEqual([]);
+    });
+  });
+
+  describe('changing the cap', () => {
+    it('evicts last-in, first-out when the cap is lowered', () => {
+      expect(reconcileSounding(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd'], none, 2)).toEqual(['a', 'b']);
+    });
+
+    it('admits waiters, in order, when the cap is raised', () => {
+      expect(reconcileSounding(['a', 'b'], ['a', 'b', 'c', 'd', 'e'], none, 4)).toEqual(['a', 'b', 'c', 'd']);
+    });
+
+    it('a cap of 0 silences everyone', () => {
+      expect(reconcileSounding(['a', 'b'], ['a', 'b', 'c'], none, 0)).toEqual([]);
+    });
+
+    it('treats a fractional cap as its floor and a NaN cap as no cap', () => {
+      expect(reconcileSounding(none, ['a', 'b', 'c'], none, 2.9)).toEqual(['a', 'b']);
+      expect(reconcileSounding(none, ['a', 'b', 'c'], none, NaN)).toEqual(['a', 'b', 'c']);
+      expect(reconcileSounding(none, ['a', 'b', 'c'], none, Infinity)).toEqual(['a', 'b', 'c']);
+    });
+  });
+
+  describe('solo always sounds', () => {
+    it('admits a soloed robot immediately and evicts the newest non-solo robot when full', () => {
+      expect(reconcileSounding(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd', 's'], ['s'], 4)).toEqual(['a', 'b', 'c', 's']);
+    });
+
+    it('admits a solo into a free slot without evicting anyone', () => {
+      expect(reconcileSounding(['a'], ['a', 's'], ['s'], 4)).toEqual(['a', 's']);
+    });
+
+    it('never lets a later solo evict an earlier solo', () => {
+      // s1 and s2 are soloed; the newest NON-solo (b) goes, not s2.
+      expect(reconcileSounding(['s1', 'a', 's2', 'b'], ['s1', 'a', 's2', 'b', 's3'], ['s1', 's2', 's3'], 4))
+        .toEqual(['s1', 'a', 's2', 's3']);
+    });
+
+    it('makes a later solo wait when every slot already holds a solo (first-come among solos)', () => {
+      expect(reconcileSounding(['s1', 's2'], ['s1', 's2', 's3'], ['s1', 's2', 's3'], 2)).toEqual(['s1', 's2']);
+    });
+
+    it('caps more solos than slots at the limit, first-come', () => {
+      expect(reconcileSounding(none, ['s1', 's2', 's3', 's4', 's5'], ['s1', 's2', 's3', 's4', 's5'], 3))
+        .toEqual(['s1', 's2', 's3']);
+    });
+
+    it('never lets a later non-solo arrival evict a solo', () => {
+      expect(reconcileSounding(['s'], ['s', 'a'], ['s'], 1)).toEqual(['s']);
+    });
+
+    it('when the cap is lowered, evicts non-solo robots newest-first before touching any solo', () => {
+      expect(reconcileSounding(['a', 's', 'b', 'c'], ['a', 's', 'b', 'c'], ['s'], 2)).toEqual(['a', 's']);
+      expect(reconcileSounding(['a', 's'], ['a', 's'], ['s'], 1)).toEqual(['s']);
+    });
+
+    it('when only solos remain and the cap is still lower, evicts the newest solo', () => {
+      expect(reconcileSounding(['s1', 's2', 's3'], ['s1', 's2', 's3'], ['s1', 's2', 's3'], 2)).toEqual(['s1', 's2']);
+    });
+
+    it('ignores a soloId that is not eligible', () => {
+      expect(reconcileSounding(none, ['a'], ['ghost'], 2)).toEqual(['a']);
+    });
+  });
+
+  describe('reference stability and purity', () => {
+    it('returns the very same array when nothing changed (so the caller can skip the store write)', () => {
+      const previous = ['a', 'b'];
+      expect(reconcileSounding(previous, ['a', 'b', 'c'], none, 2)).toBe(previous); // full, c still waiting
+      expect(reconcileSounding(previous, ['a', 'b'], none, 5)).toBe(previous); // room to spare, nobody waiting
+    });
+
+    it('returns the same empty array reference for empty-to-empty', () => {
+      const previous: string[] = [];
+      expect(reconcileSounding(previous, none, none, 3)).toBe(previous);
+      expect(reconcileSounding(previous, ['a'], none, 0)).toBe(previous);
+    });
+
+    it('returns a new array (not the previous one) when the set changed, and never mutates its inputs', () => {
+      const previous = ['a', 'b'];
+      const eligible = ['a', 'b', 'c'];
+      const solo: string[] = [];
+      const result = reconcileSounding(previous, eligible, solo, 3);
+      expect(result).not.toBe(previous);
+      expect(result).toEqual(['a', 'b', 'c']);
+      expect(previous).toEqual(['a', 'b']);
+      expect(eligible).toEqual(['a', 'b', 'c']);
+    });
+
+    it('never puts an id in twice, even if the eligible list repeats it', () => {
+      expect(reconcileSounding(none, ['a', 'a', 'b', 'b'], none, 4)).toEqual(['a', 'b']);
+      expect(reconcileSounding(['a'], ['a', 'a'], ['a', 'a'], 4)).toEqual(['a']);
+    });
+  });
+
+  describe('invariants over random sequences (property check)', () => {
+    /** Small deterministic PRNG so a failure is reproducible. */
+    const makeRandom = (seed: number) => () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l'];
+
+    it('holds for every step of many random eligibility / solo / cap changes', () => {
+      for (let seed = 1; seed <= 60; seed++) {
+        const random = makeRandom(seed);
+        let sounding: readonly string[] = [];
+        let arrival: readonly string[] = [];
+        for (let step = 0; step < 80; step++) {
+          const eligibleNow = ids.filter(() => random() < 0.55);
+          const soloIds = eligibleNow.filter(() => random() < 0.12);
+          const cap = Math.floor(random() * 14);
+          arrival = orderByArrival(arrival, eligibleNow);
+
+          const next = reconcileSounding(sounding, arrival, soloIds, cap);
+          const label = `seed ${seed} step ${step} cap ${cap}`;
+
+          // Never exceeds the cap, only sounds eligible robots, no duplicates.
+          expect(next.length, label).toBeLessThanOrEqual(cap);
+          expect(next.every((id) => eligibleNow.includes(id)), label).toBe(true);
+          expect(new Set(next).size, label).toBe(next.length);
+
+          // Work-conserving: an empty slot never coexists with a waiting robot.
+          if (next.length < cap) expect(next.length, label).toBe(eligibleNow.length);
+
+          // Solo priority: a waiting solo implies no non-solo holds a slot (a non-solo would have been evicted).
+          const waitingSolo = soloIds.some((id) => !next.includes(id));
+          if (waitingSolo && cap > 0) expect(next.every((id) => soloIds.includes(id)), label).toBe(true);
+
+          // Incumbents that survive keep their relative order.
+          const survivors = sounding.filter((id) => next.includes(id));
+          expect(next.filter((id) => survivors.includes(id)), label).toEqual(survivors);
+
+          // A fixed point: feeding the result back in with the same inputs changes nothing.
+          expect(reconcileSounding(next, arrival, soloIds, cap), label).toBe(next);
+
+          sounding = next;
+        }
+      }
+    });
+  });
+});
+
+// ========================================
+// lfoAllowed
+// ========================================
+
+describe('lfoAllowed', () => {
+  const light = loadToLimits(AUDIO_LOAD_PRESETS.light);
+  const standard = loadToLimits(AUDIO_LOAD_PRESETS.standard);
+  const full = loadToLimits(AUDIO_LOAD_PRESETS.full);
+
+  describe('global targets', () => {
+    it('always allows the nearly-free EQ-gain LFOs, even on Light', () => {
+      for (const target of ['eq3.low', 'eq3.mid', 'eq3.high'] as const) {
+        expect(lfoAllowed(target, 'global', light, 0), target).toBe(true);
+      }
+    });
+
+    it('allows filter-frequency and Q LFOs only when the dial enables filter LFOs', () => {
+      for (const target of ['lpf.frequency', 'lpf.Q', 'hpf.frequency', 'hpf.Q'] as const) {
+        expect(lfoAllowed(target, 'global', light, 0), `${target} on Light`).toBe(false);
+        expect(lfoAllowed(target, 'global', standard, 0), `${target} on Standard`).toBe(true);
+        expect(lfoAllowed(target, 'global', full, 0), `${target} on Full`).toBe(true);
+      }
+    });
+
+    it('classifies every global target, and only the four filter ones are suspended on Light', () => {
+      const blocked = GLOBAL_LFO_TARGET_IDS.filter((t) => !lfoAllowed(t, 'global', light, 0));
+      expect(blocked).toEqual(['lpf.frequency', 'lpf.Q', 'hpf.frequency', 'hpf.Q']);
+    });
+
+    it('is not affected by how many robot LFOs are connected', () => {
+      expect(lfoAllowed('lpf.Q', 'global', standard, 999)).toBe(true);
+      expect(lfoAllowed('eq3.low', 'global', light, 999)).toBe(true);
+    });
+  });
+
+  describe('robot targets', () => {
+    const audioRateTargets = ROBOT_LFO_TARGET_IDS.filter((t) => !t.endsWith('.phase'));
+
+    it('allows a connection only while fewer than maxRobotLfos are connected', () => {
+      for (const target of audioRateTargets) {
+        expect(lfoAllowed(target, 'robot', light, 0), `${target} at 0`).toBe(true);
+        expect(lfoAllowed(target, 'robot', light, light.maxRobotLfos - 1), `${target} just under`).toBe(true);
+        expect(lfoAllowed(target, 'robot', light, light.maxRobotLfos), `${target} at the cap`).toBe(false);
+        expect(lfoAllowed(target, 'robot', light, light.maxRobotLfos + 5), `${target} over the cap`).toBe(false);
+      }
+    });
+
+    it('uses each tier’s own cap: Light 4, Standard 12', () => {
+      expect(lfoAllowed('volume', 'robot', light, ROBOT_LFO_CAP_LIGHT - 1)).toBe(true);
+      expect(lfoAllowed('volume', 'robot', light, ROBOT_LFO_CAP_LIGHT)).toBe(false);
+      expect(lfoAllowed('volume', 'robot', standard, ROBOT_LFO_CAP_STANDARD - 1)).toBe(true);
+      expect(lfoAllowed('volume', 'robot', standard, ROBOT_LFO_CAP_STANDARD)).toBe(false);
+    });
+
+    it('never refuses at Full (unlimited), however many are connected', () => {
+      expect(lfoAllowed('layer0.gain', 'robot', full, 0)).toBe(true);
+      expect(lfoAllowed('layer0.gain', 'robot', full, 10_000)).toBe(true);
+    });
+
+    it('never counts or refuses layerN.phase LFOs — they poll at control rate, not audio rate', () => {
+      for (const target of ['layer0.phase', 'layer1.phase', 'layer2.phase'] as const) {
+        expect(lfoAllowed(target, 'robot', light, 0), target).toBe(true);
+        expect(lfoAllowed(target, 'robot', light, 999), `${target} over any cap`).toBe(true);
+      }
+    });
+
+    it('a cap of zero refuses every audio-rate robot LFO but still allows phase LFOs', () => {
+      const zero = { ...light, maxRobotLfos: 0 };
+      expect(lfoAllowed('volume', 'robot', zero, 0)).toBe(false);
+      expect(lfoAllowed('layer1.phase', 'robot', zero, 0)).toBe(true);
+    });
+
+    it('is not affected by the filter-LFO switch', () => {
+      expect(lfoAllowed('volume', 'robot', { ...standard, filterLfosEnabled: false }, 0)).toBe(true);
+    });
   });
 });

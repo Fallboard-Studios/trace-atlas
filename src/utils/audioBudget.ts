@@ -15,6 +15,7 @@ import {
   ROBOT_LFO_CAP_LIGHT,
   ROBOT_LFO_CAP_STANDARD,
 } from '../constants';
+import type { LfoTargetId } from '../types/lfo';
 
 // ========================================
 // TYPES
@@ -123,4 +124,107 @@ export function detectDefaultAudioLoad(env: { coarsePointer: boolean }): number 
 export function resolveInitialAudioLoad(env: { search: string; coarsePointer: boolean }): number {
   const pinned = parseLoadParam(new URLSearchParams(env.search).get('load'));
   return pinned ?? detectDefaultAudioLoad(env);
+}
+
+// ========================================
+// ADMISSION — which robots sound when more are eligible than slots
+// ========================================
+
+const unique = (ids: readonly string[]): string[] => [...new Set(ids)];
+
+const sameOrder = (a: readonly string[], b: readonly string[]): boolean =>
+  a.length === b.length && a.every((id, i) => id === b[i]);
+
+function lastIndexWhere(ids: readonly string[], test: (id: string) => boolean): number {
+  for (let i = ids.length - 1; i >= 0; i--) if (test(ids[i])) return i;
+  return -1;
+}
+
+/**
+ * The eligible robots in the order they became eligible: robots already queued keep their place, newly
+ * eligible ones join the back in roster order, and robots that left drop out (so one that docks and
+ * undocks re-queues at the back). This ordering is what makes admission first-come-first-served —
+ * `reconcileSounding` only ever sees the result. Returns `previousOrder` itself when nothing changed.
+ */
+export function orderByArrival(previousOrder: readonly string[], eligibleNow: readonly string[]): readonly string[] {
+  const eligible = unique(eligibleNow);
+  const eligibleSet = new Set(eligible);
+  const kept = previousOrder.filter((id) => eligibleSet.has(id));
+  const keptSet = new Set(kept);
+  const next = [...kept, ...eligible.filter((id) => !keptSet.has(id))];
+  return sameOrder(next, previousOrder) ? previousOrder : next;
+}
+
+/**
+ * First-come-first-served admission with solo priority (docs/specs/AUDIO_LOAD_BUDGET.md §1.3).
+ * `previous` is the current sounding set in admission order; `eligible` is every robot `isRobotAudible`
+ * allows, **in arrival order** (see `orderByArrival`); `soloIds` the soloed subset.
+ *
+ * Still-eligible members keep their slot; if the cap fell, the newest non-solo robots go first (then the
+ * newest solo). Each eligible solo is then admitted — into a free slot, or by evicting the newest non-solo
+ * robot, never another solo (a solo that finds only solos waits, first-come). Finally the remaining
+ * eligible robots fill any free slots in arrival order, so a freed slot goes to the earliest waiter.
+ * Returns `previous` itself (same reference) when nothing changed, so the caller can skip the store write.
+ * A NaN cap means no cap.
+ */
+export function reconcileSounding(
+  previous: readonly string[],
+  eligible: readonly string[],
+  soloIds: readonly string[],
+  maxAudibleRobots: number,
+): readonly string[] {
+  const cap = Number.isNaN(maxAudibleRobots) ? Infinity : Math.max(0, Math.floor(maxAudibleRobots));
+  const arrival = unique(eligible);
+  const eligibleSet = new Set(arrival);
+  const solo = new Set(soloIds.filter((id) => eligibleSet.has(id)));
+  const isNonSolo = (id: string): boolean => !solo.has(id);
+
+  const next = unique(previous).filter((id) => eligibleSet.has(id));
+
+  while (next.length > cap) {
+    const newestNonSolo = lastIndexWhere(next, isNonSolo);
+    next.splice(newestNonSolo === -1 ? next.length - 1 : newestNonSolo, 1);
+  }
+
+  for (const id of arrival) {
+    if (!solo.has(id) || next.includes(id)) continue;
+    if (next.length >= cap) {
+      const newestNonSolo = lastIndexWhere(next, isNonSolo);
+      if (newestNonSolo === -1) continue; // every slot holds a solo — this one waits
+      next.splice(newestNonSolo, 1);
+    }
+    next.push(id);
+  }
+
+  for (const id of arrival) {
+    if (next.length >= cap) break;
+    if (!next.includes(id)) next.push(id);
+  }
+
+  return sameOrder(next, previous) ? previous : next;
+}
+
+// ========================================
+// LFO TIERS
+// ========================================
+
+const FILTER_TARGET = /^(lpf|hpf)\./;
+const PHASE_TARGET = /^layer\d+\.phase$/;
+
+/**
+ * May this LFO be connected right now? EQ-gain global LFOs are always allowed (nearly free); the
+ * filter-frequency/Q ones only when the dial enables them; a robot LFO only while fewer than
+ * `maxRobotLfos` audio-rate robot LFOs are connected. `connectedRobotLfos` counts those already connected,
+ * not including the one being asked about. `layerN.phase` LFOs are never counted or refused — they poll
+ * at control rate (lfoEngine's phase fallback), not as an audio-rate connection.
+ */
+export function lfoAllowed(
+  target: LfoTargetId,
+  scope: 'global' | 'robot',
+  limits: LoadLimits,
+  connectedRobotLfos: number,
+): boolean {
+  if (scope === 'global') return FILTER_TARGET.test(target) ? limits.filterLfosEnabled : true;
+  if (PHASE_TARGET.test(target)) return true;
+  return connectedRobotLfos < limits.maxRobotLfos;
 }
