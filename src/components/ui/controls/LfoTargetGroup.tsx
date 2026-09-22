@@ -104,6 +104,7 @@ function LfoTargetGroupInner<F extends string = string>({
           value={displayValue}
           onChange={handleLfoChange}
           disabled={disabled || transitioning || targetHeldOff}
+          heldOff={targetHeldOff}
         />
         {targetHeldOff && <HeldOffNote />}
       </div>
