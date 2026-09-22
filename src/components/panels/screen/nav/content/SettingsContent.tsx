@@ -1,3 +1,4 @@
+import { AudioLoadPanel } from '../../console/AudioLoadPanel';
 import { SectorSettingsDrawer } from '../../console/SectorSettingsDrawer';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { BPM_SCHEMA } from '@/data/audioRigConfig';
@@ -21,10 +22,9 @@ const VOLUME_SCHEMA: SliderLinearSchema = {
  * Settings branch content (docs/specs/NAV_LAYOUT_REWRITE.md §2) — routes on
  * uiStore.selectedSettingsLeaf (added in Task 11; not part of the spec's original §1.3 field
  * list, since Settings isn't an "entity" the way a robot/company is, so selectedSection doesn't
- * fit it). `volume`/`tempo` have real content (Tasks 11/12); `quality`, and the bare Settings
- * category itself, still fall back to SectorSettingsDrawer — today's actual ConsolePanel
- * behavior for the whole `settings` tile, preserved as-is until Task 13 relocates Quality here
- * too (the last one, after which the fallback should only ever mean "sectorSettings" or bare).
+ * fit it). `volume`/`tempo`/`quality` all have real content now (Tasks 11-13); the bare Settings
+ * category itself and `sectorSettings` both fall back to SectorSettingsDrawer, matching today's
+ * actual ConsolePanel behavior for the whole `settings` tile.
  */
 export function SettingsContent() {
   const selectedSettingsLeaf = useUIStore((s) => s.selectedSettingsLeaf);
@@ -50,6 +50,12 @@ export function SettingsContent() {
     // Relocated from AudioRigDrawer.tsx verbatim (Task 12) — bpm is stored and displayed in the
     // same BPM units, no scaling, matching BPM_SCHEMA's own doc comment.
     return <SliderLinear schema={BPM_SCHEMA} value={bpm} onChange={(v) => useAudioStore.getState().setBPM(v)} />;
+  }
+
+  if (selectedSettingsLeaf === 'quality') {
+    // Relocated from AudioRigDrawer.tsx unchanged (Task 13) — AudioLoadPanel is a fully
+    // self-contained, prop-less component; only where it's rendered from changed.
+    return <AudioLoadPanel />;
   }
 
   return <SectorSettingsDrawer />;

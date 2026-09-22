@@ -894,7 +894,11 @@ describe('AudioRigDrawer', () => {
     expect(screen.queryByRole('slider', { name: 'Tempo' })).toBeNull();
   });
 
-  // Audio Load panel tests moved to AudioLoadPanel.test.tsx (code-review follow-up, 2026-09-22).
+  it('renders no Audio Load panel — relocated to Settings -> Quality (docs/tasks/NAV_LAYOUT_REWRITE.md Task 13; see AudioLoadPanel.test.tsx)', () => {
+    renderOpen(<AudioRigDrawer />);
+    expect(screen.queryByRole('slider', { name: 'Robot Load' })).toBeNull();
+    expect(screen.queryByRole('slider', { name: 'Effects Load' })).toBeNull();
+  });
 
   // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 9) — each of the 4
   // top-level accordions is scoped to its own trait via getTraitColorStyle, applied directly to

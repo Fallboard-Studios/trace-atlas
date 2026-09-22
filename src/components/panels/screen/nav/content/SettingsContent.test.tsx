@@ -4,13 +4,18 @@ import { SettingsContent } from './SettingsContent';
 import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 
-// SectorSettingsDrawer has its own full test suite (SectorSettingsDrawer.test.tsx) — this file is
-// about SettingsContent's own leaf-routing, not re-testing its content. Also pulls in real
+// SectorSettingsDrawer/AudioLoadPanel each have their own full test suite
+// (SectorSettingsDrawer.test.tsx, AudioLoadPanel.test.tsx) — this file is about
+// SettingsContent's own leaf-routing, not re-testing their content. Also avoids pulling in real
 // Tone.js/AudioEngine paths that throw in this jsdom env, same boundary ConsolePanel.test.tsx
 // already draws.
 vi.mock('../../console/SectorSettingsDrawer', () => ({
   SectorSettingsDrawer: () => <div data-testid="sector-settings-drawer-stub" />,
   default: () => <div data-testid="sector-settings-drawer-stub" />,
+}));
+vi.mock('../../console/AudioLoadPanel', () => ({
+  AudioLoadPanel: () => <div data-testid="audio-load-panel-stub" />,
+  default: () => <div data-testid="audio-load-panel-stub" />,
 }));
 
 const UI_INITIAL_STATE = useUIStore.getState();
@@ -51,12 +56,6 @@ describe('SettingsContent — routes Settings leaves to their content (docs/task
     expect(screen.getByRole('slider', { name: /volume/i }).getAttribute('data-disabled')).toBe('');
   });
 
-  it('falls back to SectorSettingsDrawer for leaves not yet relocated (quality) — no regression from today\'s always-show-SectorSettingsDrawer behavior', () => {
-    useUIStore.getState().setSelectedSettingsLeaf('quality');
-    render(<SettingsContent />);
-    expect(screen.getByTestId('sector-settings-drawer-stub')).toBeTruthy();
-  });
-
   it('shows SectorSettingsDrawer when selectedSettingsLeaf is "sectorSettings"', () => {
     useUIStore.getState().setSelectedSettingsLeaf('sectorSettings');
     render(<SettingsContent />);
@@ -94,5 +93,22 @@ describe('SettingsContent — Tempo leaf (docs/tasks/NAV_LAYOUT_REWRITE.md Task 
   it('renders exactly once — no duplicate Tempo slider left behind anywhere', () => {
     render(<SettingsContent />);
     expect(screen.getAllByRole('slider', { name: /tempo/i })).toHaveLength(1);
+  });
+});
+
+describe('SettingsContent — Quality leaf (docs/tasks/NAV_LAYOUT_REWRITE.md Task 13)', () => {
+  beforeEach(() => {
+    useUIStore.setState(UI_INITIAL_STATE, true);
+    useUIStore.getState().setSelectedSettingsLeaf('quality');
+  });
+
+  it('shows AudioLoadPanel when selectedSettingsLeaf is "quality"', () => {
+    render(<SettingsContent />);
+    expect(screen.getByTestId('audio-load-panel-stub')).toBeTruthy();
+  });
+
+  it('shows only AudioLoadPanel — no SectorSettingsDrawer fallback leaking through for this leaf', () => {
+    render(<SettingsContent />);
+    expect(screen.queryByTestId('sector-settings-drawer-stub')).toBeNull();
   });
 });

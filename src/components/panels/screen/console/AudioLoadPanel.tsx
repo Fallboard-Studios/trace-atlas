@@ -10,12 +10,16 @@ import { describeLimits, effectsLoadToLimits, presetForLoads, robotLoadToLimits 
 import './AudioLoadPanel.css';
 
 /**
- * The Audio Load control (docs/specs/AUDIO_LOAD_BUDGET.md §4.5), next to Tempo in Transport & Composition. A preset
- * radio and two fine sliders (Robot Load, Effects Load) are three views of TWO stored numbers
- * (audioStore.robotLoad/effectsLoad): choosing a preset sets both sliders; dragging either slider off a shared
- * preset leaves the radio with nothing selected (presetForLoads requires both axes to agree). A plain store write —
- * no engine call here; audioBudgetSystem reacts to the dials. Its own component (not inline in AudioRigDrawer) so a
- * change of either dial re-renders only this panel, never the rest of the drawer.
+ * The Audio Load control (docs/specs/AUDIO_LOAD_BUDGET.md §4.5) — rendered from Settings -> Quality
+ * (docs/tasks/NAV_LAYOUT_REWRITE.md Task 13, SettingsContent.tsx). Previously sat inside
+ * AudioRigDrawer's Transport & Composition accordion, next to a Tempo slider that itself relocated
+ * to Settings -> Tempo (Task 12) — both moved out once "Quality"/"Tempo" became real tree leaves.
+ * A preset radio and two fine sliders (Robot Load, Effects Load) are three views of TWO stored
+ * numbers (audioStore.robotLoad/effectsLoad): choosing a preset sets both sliders; dragging either
+ * slider off a shared preset leaves the radio with nothing selected (presetForLoads requires both
+ * axes to agree). A plain store write — no engine call here; audioBudgetSystem reacts to the
+ * dials. Its own component (not inline in its host) so a change of either dial re-renders only
+ * this panel.
  */
 export const AudioLoadPanel = memo(function AudioLoadPanel() {
   const robotLoad = useAudioStore((s) => s.robotLoad);

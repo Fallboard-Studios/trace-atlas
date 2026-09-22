@@ -1,6 +1,5 @@
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { AudioLoadPanel } from './AudioLoadPanel';
 import { useAudioStore } from '@/stores/audioStore';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
@@ -311,7 +310,6 @@ export function AudioRigDrawer() {
             />
           </div>
         </DirectionalPanel>
-        <AudioLoadPanel />
       </AccordionContainer>
 
       {AUDIO_RIG_ACCORDION_GROUPS.map((group) => (
