@@ -1,6 +1,8 @@
 import Header from '@/components/panels/screen/Header';
 import WorldView from '@/components/panels/screen/worldView/WorldView';
 import ContentPane from '@/components/panels/screen/console/ContentPane';
+import NavPanel from '@/components/panels/screen/nav/NavPanel';
+import NavToggleButton from '@/components/panels/screen/nav/NavToggleButton';
 import { SCREEN_VIEWPORT_ID } from '@/utils/helpers';
 import './ScreenViewport.css';
 
@@ -18,6 +20,8 @@ function ScreenViewport({ isPoweredOn }: ScreenViewportProps) {
       <div className="screen-content">
         {isPoweredOn && <Header />}
         {isPoweredOn && <WorldView />}
+        {isPoweredOn && <NavPanel />}
+        {isPoweredOn && <NavToggleButton />}
         {isPoweredOn && <ContentPane />}
       </div>
 
