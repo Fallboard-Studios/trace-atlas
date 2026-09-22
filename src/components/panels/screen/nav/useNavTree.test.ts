@@ -220,6 +220,44 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
 
     expect(useUIStore.getState().selectedSettingsLeaf).toBeNull();
   });
+
+  it('selecting a Fleet Params effect leaf sets activeHubTile to audioRig and selectedFleetParamsEffect to the matching AudioRigEffectKey (Task 14)', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('fleetParams.eqFilters.eq'));
+    expect(useUIStore.getState().activeHubTile).toBe('audioRig');
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('eq3');
+
+    act(() => result.current.select('fleetParams.eqFilters.hpf'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('filterHPF');
+
+    act(() => result.current.select('fleetParams.eqFilters.lpf'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('filterLPF');
+
+    act(() => result.current.select('fleetParams.timeSpace.reverb'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('reverb');
+
+    act(() => result.current.select('fleetParams.timeSpace.delay'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('delay');
+
+    act(() => result.current.select('fleetParams.output.compression'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('compressor');
+
+    act(() => result.current.select('fleetParams.output.limiter'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('limiter');
+  });
+
+  it('selecting the bare "fleetParams" parent, or one of its 3 category groups, clears selectedFleetParamsEffect back to null', () => {
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('fleetParams.eqFilters.eq'));
+
+    act(() => result.current.select('fleetParams'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
+
+    act(() => result.current.select('fleetParams.output.limiter'));
+    act(() => result.current.select('fleetParams.eqFilters'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
+  });
 });
 
 describe('useNavTree — toggleExpand accordion-of-one within the Probes branch (Task 3 AC2)', () => {

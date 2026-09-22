@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { HubTile } from '@/types/hub';
+import type { AudioRigEffectKey } from '@/data/audioRigConfig';
 
 // ========================================
 // TYPES
@@ -21,6 +22,13 @@ export type FleetParamsGroup = 'eqFilters' | 'timeSpace' | 'output';
  *  component reads this to pick which of the 4 leaf contents (Volume/Quality/Tempo/Sector
  *  Settings) to render. */
 export type SettingsLeaf = 'volume' | 'quality' | 'tempo' | 'sectorSettings';
+/** Which Fleet Params effect leaf is currently selected — added in Task 14
+ *  (docs/tasks/NAV_LAYOUT_REWRITE.md), same reasoning as SettingsLeaf: Fleet Params' 3 groups
+ *  (EQ & Filters/Time & Space/Output) are category-only per spec §7 Q5, and the 7 real leaves
+ *  underneath them (EQ/HPF/LPF/Reverb/Delay/Compression/Limiter) all map onto AUDIO_RIG_CONFIG's
+ *  own AudioRigEffectKey — reused directly rather than a parallel string union. FleetParamsContent
+ *  reads this to pick which effect's AudioRigEffectPanel to render. */
+export type SelectedFleetParamsEffect = AudioRigEffectKey;
 
 export interface UIStore {
   activeView: ActiveView;
@@ -64,6 +72,8 @@ export interface UIStore {
   expandedFleetParamsGroup: FleetParamsGroup | null;
   /** Which of Settings' 4 children is selected — see SettingsLeaf's own doc comment. */
   selectedSettingsLeaf: SettingsLeaf | null;
+  /** Which Fleet Params effect leaf is selected — see SelectedFleetParamsEffect's own doc comment. */
+  selectedFleetParamsEffect: SelectedFleetParamsEffect | null;
   setActiveLocaleLocalTime: (t: number | null) => void;
   setActiveView: (v: ActiveView) => void;
   setTheme: (t: Theme) => void;
@@ -82,6 +92,7 @@ export interface UIStore {
   setExpandedCompanyId: (id: string | null) => void;
   setExpandedFleetParamsGroup: (g: FleetParamsGroup | null) => void;
   setSelectedSettingsLeaf: (l: SettingsLeaf | null) => void;
+  setSelectedFleetParamsEffect: (e: SelectedFleetParamsEffect | null) => void;
 }
 
 // ========================================
@@ -106,6 +117,7 @@ export const useUIStore = create<UIStore>((set) => ({
   expandedCompanyId: null,
   expandedFleetParamsGroup: null,
   selectedSettingsLeaf: null,
+  selectedFleetParamsEffect: null,
 
   setActiveView: (v) => set({ activeView: v }),
   setTheme: (t) => set({ theme: t }),
@@ -125,6 +137,7 @@ export const useUIStore = create<UIStore>((set) => ({
   setExpandedCompanyId: (id) => set({ expandedCompanyId: id }),
   setExpandedFleetParamsGroup: (g) => set({ expandedFleetParamsGroup: g }),
   setSelectedSettingsLeaf: (l) => set({ selectedSettingsLeaf: l }),
+  setSelectedFleetParamsEffect: (e) => set({ selectedFleetParamsEffect: e }),
 }));
 
 // ========================================

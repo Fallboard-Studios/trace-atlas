@@ -281,3 +281,31 @@ describe('uiStore — selectedSettingsLeaf (which Settings child is open, docs/t
     expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
   });
 });
+
+describe('uiStore — selectedFleetParamsEffect (which effect leaf is open, docs/tasks/NAV_LAYOUT_REWRITE.md Task 14)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('defaults to null — no effect leaf chosen until one is selected', () => {
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
+  });
+
+  it('setSelectedFleetParamsEffect sets one of the 7 AudioRigEffectKeys', () => {
+    useUIStore.getState().setSelectedFleetParamsEffect('eq3');
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('eq3');
+  });
+
+  it('setSelectedFleetParamsEffect(null) clears back to no leaf chosen', () => {
+    useUIStore.getState().setSelectedFleetParamsEffect('delay');
+    useUIStore.getState().setSelectedFleetParamsEffect(null);
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
+  });
+
+  it('is independent of selectedSettingsLeaf — Fleet Params and Settings are different branches', () => {
+    useUIStore.getState().setSelectedSettingsLeaf('quality');
+    useUIStore.getState().setSelectedFleetParamsEffect('compressor');
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('compressor');
+  });
+});

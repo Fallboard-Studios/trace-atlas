@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useLocaleStore } from '@/stores/localeStore';
-import { useUIStore, type RobotSection, type FleetParamsGroup, type SettingsLeaf } from '@/stores/uiStore';
+import { useUIStore, type RobotSection, type FleetParamsGroup, type SettingsLeaf, type SelectedFleetParamsEffect } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { NAV_TREE_SCHEMA, type NavTreeNodeSchema } from '@/data/navTreeConfig';
 
@@ -27,6 +27,22 @@ function asFleetParamsGroup(value: string | undefined): FleetParamsGroup | null 
 const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['volume', 'quality', 'tempo', 'sectorSettings'];
 function asSettingsLeaf(value: string | undefined): SettingsLeaf | null {
   return value && (SETTINGS_LEAVES as readonly string[]).includes(value) ? (value as SettingsLeaf) : null;
+}
+
+/** Maps a Fleet Params leaf's own node-id segment (navTreeConfig.ts's own naming, e.g. 'eq',
+ *  'hpf') to its matching AudioRigEffectKey ('eq3', 'filterHPF') — the two don't share the same
+ *  spelling, so this is a real translation, not just a type-narrowing filter like the others. */
+const FLEET_PARAMS_LEAF_TO_EFFECT_KEY: Record<string, SelectedFleetParamsEffect> = {
+  eq: 'eq3',
+  hpf: 'filterHPF',
+  lpf: 'filterLPF',
+  reverb: 'reverb',
+  delay: 'delay',
+  compression: 'compressor',
+  limiter: 'limiter',
+};
+function asFleetParamsEffectKey(value: string | undefined): SelectedFleetParamsEffect | null {
+  return value ? (FLEET_PARAMS_LEAF_TO_EFFECT_KEY[value] ?? null) : null;
 }
 
 const SECTION_CHILDREN: Omit<NavTreeNodeSchema, 'id'>[] = [
@@ -108,6 +124,7 @@ export function useNavTree(): UseNavTreeResult {
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const selectedSection = useUIStore((s) => s.selectedSection);
   const selectedSettingsLeaf = useUIStore((s) => s.selectedSettingsLeaf);
+  const selectedFleetParamsEffect = useUIStore((s) => s.selectedFleetParamsEffect);
   const expandedProbeId = useUIStore((s) => s.expandedProbeId);
   const expandedCompanyId = useUIStore((s) => s.expandedCompanyId);
   const expandedFleetParamsGroup = useUIStore((s) => s.expandedFleetParamsGroup);
@@ -118,6 +135,7 @@ export function useNavTree(): UseNavTreeResult {
   const selectAllRobots = useUIStore((s) => s.selectAllRobots);
   const setSelectedSection = useUIStore((s) => s.setSelectedSection);
   const setSelectedSettingsLeaf = useUIStore((s) => s.setSelectedSettingsLeaf);
+  const setSelectedFleetParamsEffect = useUIStore((s) => s.setSelectedFleetParamsEffect);
   const setExpandedProbeId = useUIStore((s) => s.setExpandedProbeId);
   const setExpandedCompanyId = useUIStore((s) => s.setExpandedCompanyId);
   const setExpandedFleetParamsGroup = useUIStore((s) => s.setExpandedFleetParamsGroup);
@@ -144,6 +162,7 @@ export function useNavTree(): UseNavTreeResult {
     if (branch === 'fleetParams') {
       setActiveHubTile('audioRig');
       setSelectedSection(null);
+      setSelectedFleetParamsEffect(asFleetParamsEffectKey(section));
       return;
     }
     if (branch === 'probes') {
@@ -207,7 +226,13 @@ export function useNavTree(): UseNavTreeResult {
       if (!entityId) return activeHubTile === 'settings' && selectedSettingsLeaf === null;
       return activeHubTile === 'settings' && selectedSettingsLeaf === asSettingsLeaf(entityId);
     }
-    if (branch === 'fleetParams') return !entityId && activeHubTile === 'audioRig';
+    if (branch === 'fleetParams') {
+      // Bare 'fleetParams' and a group category node (e.g. 'fleetParams.eqFilters') currently
+      // read identical state (both need selectedFleetParamsEffect === null) — same ambiguity
+      // isSelected('probes')/isSelected('probes.all') already documents above.
+      if (!section) return activeHubTile === 'audioRig' && selectedFleetParamsEffect === null;
+      return activeHubTile === 'audioRig' && selectedFleetParamsEffect === asFleetParamsEffectKey(section);
+    }
     if (branch === 'probes') {
       if (!entityId) return activeHubTile === 'robots' && selectedRobotId === null;
       // 'probes.all' vs the bare 'probes' browse view currently read identical
