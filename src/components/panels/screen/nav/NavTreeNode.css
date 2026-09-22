@@ -1,0 +1,9 @@
+.nav-tree-node__name {
+  all: unset;
+  cursor: pointer;
+}
+
+.nav-tree-node__toggle {
+  all: unset;
+  cursor: pointer;
+}
