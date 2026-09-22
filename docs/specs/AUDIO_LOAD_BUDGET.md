@@ -36,6 +36,8 @@ The user-visible pattern matches: clicks come in waves that clear on their own, 
 
 ### 1.2 What's changing
 
+**Update 2026-09-22:** shipped as **two independent sliders** — Robot Load (items 1, 2 and 4 below) and Effects Load (item 3) — instead of the single dial this section originally described, per Crawford's request. The three preset buttons still set both sliders to the same value in one click, reproducing the single-dial behavior below exactly whenever a user only clicks presets; dragging either slider moves only its own axis. Everything in §1.3–§1.7 below, written against "the dial," still applies — read it as applying to whichever axis (Robot Load or Effects Load) governs that item, now moved independently. See `docs/AUDIO_SYSTEM.md`'s Audio Load Budget section for the current two-slider API names.
+
 A single user-adjustable **Audio Load** setting — one 0–100% dial with three named presets (Light / Standard / Full) — lowers audio cost in four ways together:
 
 1. **`maxAudibleRobots`** — how many robots may *sound* at once (2–12). A robot eligible to sound (not muted, not excluded by solo) but over the limit **stands by**: silent, otherwise unchanged — it still swims, drains and recharges. Only its audio is withheld.
