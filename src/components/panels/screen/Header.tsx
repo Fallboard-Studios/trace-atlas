@@ -4,22 +4,13 @@ import { useEffect, useRef } from 'react';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { Toggle } from '@/components/ui/controls/Toggle';
-import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
-import { HEADER_NAV_SCHEMA } from '@/data/headerNavConfig';
 import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import type { ToggleSchema, SliderLinearSchema } from '@/types/controls';
-import type { HubTile } from '@/types/hub';
 
 import './Header.css';
-
-/** No JS-side constant for --touch-target-size (index.css) existed before
- *  this feature — the nav RadioButton's boxSize needs the same literal
- *  44px, so it's defined once here rather than duplicated.
- *  docs/specs/HEADER_HUB_CONSOLIDATION.md §1.4. */
-const TOUCH_TARGET_SIZE = 44;
 
 /** humanLabel: 'Mute' feeds the switch's accessible name (resolveAccessibleName).
  *  The Toggle usage below still passes text facade content instead of relying
@@ -59,13 +50,12 @@ const VOLUME_SCHEMA: SliderLinearSchema = {
  * the original spec's ResizeObserver-driven row merge — see
  * docs/tasks/HEADER_HUB_CONSOLIDATION.md's "Post-implementation follow-up".
  *
- * The nav RadioButton (docs/todo/backlog.md #1) is a single instance, not
- * duplicated per breakpoint — .header itself is a 2-area CSS Grid
- * ("rocker"/"nav") that repositions .header__row--nav from its own full-width
- * row below .rocker-spacer (<430px) to sitting beside it (≥430px), purely via
- * grid-template-areas. .rocker-spacer's own internal layout (volume + status,
- * ScreenViewport.css) is untouched by this — it's one atomic grid item either
- * way, not itself part of the grid restructuring.
+ * Navigation moved out entirely to NavTree (docs/specs/NAV_LAYOUT_REWRITE.md
+ * Task 10) — Header keeps only the power rocker (rendered by SleeveContainer,
+ * unaffected), the Mute toggle, the volume slider (relocates to Settings ->
+ * Volume in Task 11), and the status readout row. The old nav RadioButton's
+ * .header__row--nav grid area and handleNavChange/handleNavDeselect wiring
+ * are gone; headerNavConfig.ts (its schema) is deleted alongside this.
  */
 function Header() {
   const headerRef = useRef<HTMLElement>(null);
@@ -73,7 +63,6 @@ function Header() {
   const isPoweredOn = useUIStore((s) => s.isPoweredOn);
   const activeLocaleLocalTime = useUIStore((s) => s.activeLocaleLocalTime);
   const activeLocaleTemperature = useUIStore((s) => s.activeLocaleTemperature);
-  const activeHubTile = useUIStore((s) => s.activeHubTile);
 
   const isMuted = useAudioStore((s) => s.isMuted);
   const volume = useAudioStore((s) => s.volume);
@@ -97,33 +86,6 @@ function Header() {
   const handleVolumeChange = (pct: number) => {
     if (!isPoweredOn) return;
     useAudioStore.getState().setVolume(pct / 100);
-  };
-
-  // A genuine selection of a different tile — never fires for a re-click of
-  // the already-active option (RadioButton's own onChange never sees that
-  // event; see handleNavDeselect below). Selecting 'robots' fresh (e.g. from
-  // Audio Rig) also clears selectedRobotId defensively, so it always lands
-  // on the list rather than some stale detail view from an earlier visit.
-  const handleNavChange = (next: string) => {
-    const tile = next as HubTile;
-    useUIStore.getState().setActiveHubTile(tile);
-    if (tile === 'robots') useUIStore.getState().selectRobot(null);
-  };
-
-  // Re-clicking the already-active option (RadioButton's onChange swallows
-  // this event — docs/specs/HEADER_HUB_CONSOLIDATION.md's RadioButton
-  // onDeselect addition exists specifically for it). Deep in a robot's
-  // detail screen, this drops to the list rather than blanking all the way
-  // out, matching the interview's confirmed behavior; from anywhere else,
-  // it's a second way back to the blank hub alongside the existing per-tile
-  // Back button.
-  const handleNavDeselect = () => {
-    const { activeHubTile, selectedRobotId } = useUIStore.getState();
-    if (activeHubTile === 'robots' && selectedRobotId) {
-      useUIStore.getState().selectRobot(null);
-    } else {
-      useUIStore.getState().setActiveHubTile(null);
-    }
   };
 
   const _localTime = activeLocaleLocalTime ?? 0;
@@ -186,15 +148,6 @@ function Header() {
               {activeLocaleTemperature !== null ? `${activeLocaleTemperature}°C` : 'CORRUPT TEMPERATURE'}
             </span>
           </div>
-        </div>
-        <div className="header__row header__row--nav">
-          <RadioButton
-            schema={HEADER_NAV_SCHEMA}
-            value={activeHubTile ?? ''}
-            onChange={handleNavChange}
-            onDeselect={handleNavDeselect}
-            boxSize={TOUCH_TARGET_SIZE}
-          />
         </div>
       </div>
     </header>

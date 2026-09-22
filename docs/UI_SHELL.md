@@ -17,6 +17,14 @@ Trace Atlas's UI is a "Sleeve & Glass" tablet shell. `Tablet.tsx` composes two d
 
 ## Console Navigation
 
+**2026-09-22 — in progress:** the description below (Header's `RadioButton` nav group,
+`headerNavConfig.ts`) is the pre-rewrite model and is now stale as of Task 10 (`headerNavConfig.ts`
+deleted, Header's nav `RadioButton` removed) — navigation lives in a new schema-driven tree,
+`NavTree`/`NavPanel`/`ContentPane` (`src/components/panels/screen/nav/`, `src/data/navTreeConfig.ts`),
+docked left on desktop/tablet and slide-off on mobile. See `docs/specs/NAV_LAYOUT_REWRITE.md` and
+`docs/tasks/NAV_LAYOUT_REWRITE.md` for the full design; this section gets a complete rewrite once
+that work ships (Task 22), not a line-by-line patch mid-implementation.
+
 Navigation between the three surviving tiles (`robots`, `audioRig`, `settings` — the old `session` and `composition` tabs are gone entirely, not stubbed: Session's job is absorbed by Session Storage's background persistence engine, Phase 12, not yet built; Composition is deferred to a future version) lives in `Header`'s row 3 nav group (`src/data/headerNavConfig.ts`'s `HEADER_NAV_SCHEMA`, a `RadioButtonSchema`), not a tile grid inside the console. This replaced `HubNav` (`docs/specs/HEADER_HUB_CONSOLIDATION.md` — `HubNav.tsx`/`hubNavConfig.ts`/`HubNavItem` are deleted, not just hidden), which itself had replaced the old `ConsoleNavigation` `Tabs.Root` bar back in Roadmap Phase 3 (Hub).
 
 Selecting a nav option replaces `Console`'s content with that tile's full screen (`ConsolePanel` switches on `uiStore.activeHubTile`); re-clicking the nav group's already-active option (`RadioButton`'s `onDeselect`, added specifically for this) returns to the blank hub. Per-tile Back buttons were later removed from every top-level tile (Robots list, Audio Rig, Sector Settings) once Header's nav group alone was enough to reach the blank hub from any of them — `ConsolePanel` now renders a Back button only for the nested robot-detail view (see below), which Header's nav has no direct one-step path back from. Either way, `ConsolePanel`/`Console` render nothing at all in the blank state (not an empty wrapper), so `WorldView`'s robots show through unobstructed and reach clicks with no pointer-events special-casing needed. `activeHubTile` defaults to `null`, so the app opens blank rather than on a pre-selected tile. "Drawer" is reserved for panels nested *inside* a tile's screen (e.g. the four drawers inside Robot Options — see below), not for the tiles themselves.

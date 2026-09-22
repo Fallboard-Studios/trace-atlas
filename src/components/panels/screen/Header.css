@@ -5,15 +5,11 @@
    code once this restyle superseded it; see
    docs/tasks/HEADER_HUB_CONSOLIDATION.md's "Post-implementation follow-up").
    Horizontal deadzone clearance (padding-left: var(--sleeve-bar-width))
-   lives on .rocker-spacer in ScreenViewport.css, not here — Task 9's
-   original "applied once to the whole header" placement moved once the
-   secondary nav row was added outside that wrapper.
+   lives on .rocker-spacer in ScreenViewport.css, not here.
 
-   display: grid (was flex-direction: column) — docs/todo/backlog.md #1:
-   .rocker-spacer and .header__row--nav are this grid's only 2 items,
-   named "rocker"/"nav", letting the single nav RadioButton instance move
-   between its own full-width row (<430px) and sitting beside .rocker-spacer
-   (≥430px) via grid-template-areas alone — no second DOM instance needed.
+   The old nav RadioButton row (.header__row--nav, docs/todo/backlog.md #1)
+   is gone — navigation moved to NavTree (docs/specs/NAV_LAYOUT_REWRITE.md
+   Task 10). Header now lays out just .header__row--volume/--status.
    ---------------------------------------- */
 .header {
   --color-surface: rgba(26, 26, 26, 0.75);
@@ -150,47 +146,9 @@ sized wrapper (same reasoning audio-rig-drawer__param-row/signature-array-
 }
 
 
-/* Single instance, no .primary/.secondary split (docs/todo/backlog.md #1) —
-   grid-area: nav is what actually repositions this between .header's own
-   two grid-template-areas states, above. */
-.header__row--nav {
-  grid-area: nav;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-  width: 100%;
-  grid-column: 1 / span 3;
-  grid-row: 3 / span 1;
-}
-
-@media screen and (min-width: 600px) {
-  .header__row--nav {
-    grid-column: 2 / span 2;
-    grid-row: 2 / span 1;
-  }
-}
-
-@media screen and (min-width: 48em) {
-  .header__row--nav {
-    grid-column: 3 / span 1;
-    grid-row: 1 / span 1;
-    order: 2;
-  }
-}
-
-
-.header__row--nav .sc-radio-button__root {
-  justify-content: center;
-}
-
 @media screen and (min-width: 48em) {
   .header__row--volume {
     flex-direction: row;
-  }
-
-  .header__row--nav .sc-radio-button__root {
-    justify-content: flex-end;
   }
 }
 

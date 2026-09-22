@@ -55,15 +55,6 @@ function findHeaderHeightObserver(headerEl: Element): MockResizeObserver {
   return found;
 }
 
-/** Header renders exactly one nav RadioButton instance (docs/todo/backlog.md #1 —
- *  the group used to render twice, .primary/.secondary, swapped via a CSS media
- *  query; deduplicated to a single .header__row--nav that CSS Grid repositions
- *  instead). Kept as a named helper (rather than a bare screen.getByRole call at
- *  each call site) so every existing call site below reads the same either way. */
-function getNavRadio(name: string): HTMLElement {
-  return screen.getByRole('radio', { name });
-}
-
 let originalResizeObserver: typeof ResizeObserver;
 
 describe('Header', () => {
@@ -162,57 +153,10 @@ describe('Header', () => {
     expect((screen.getByRole('switch', { name: /mute/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('renders 3 nav options, exactly once each — a single shared instance, not duplicated per breakpoint', () => {
+  it('renders no nav RadioButton — navigation now lives entirely in NavTree (docs/tasks/NAV_LAYOUT_REWRITE.md Task 10)', () => {
     render(<Header />);
-    expect(screen.getAllByRole('radio', { name: 'Probes' })).toHaveLength(1);
-    expect(screen.getAllByRole('radio', { name: 'Fleet Params' })).toHaveLength(1);
-    expect(screen.getAllByRole('radio', { name: 'Nav & Comms' })).toHaveLength(1);
-  });
-
-  it('renders exactly one .header__row--nav element — no .primary/.secondary split', () => {
-    const { container } = render(<Header />);
-    expect(container.querySelectorAll('.header__row--nav')).toHaveLength(1);
-    expect(container.querySelectorAll('.primary')).toHaveLength(0);
-    expect(container.querySelectorAll('.secondary')).toHaveLength(0);
-  });
-
-  it('selecting a nav option calls setActiveHubTile', () => {
-    render(<Header />);
-    fireEvent.click(getNavRadio('Fleet Params'));
-    expect(useUIStore.getState().activeHubTile).toBe('audioRig');
-  });
-
-  it('re-selecting the active nav option clears activeHubTile back to null (deselect-to-empty, via RadioButton\'s onDeselect)', () => {
-    useUIStore.setState({ activeHubTile: 'settings' });
-    render(<Header />);
-    fireEvent.click(getNavRadio('Nav & Comms'));
-    expect(useUIStore.getState().activeHubTile).toBeNull();
-  });
-
-  it('re-selecting Robots while selectedRobotId is set drops to the list instead of blanking all the way out', () => {
-    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'robot-3' });
-    render(<Header />);
-    // Clicking the already-active 'Robots' option fires RadioButton's
-    // onDeselect (not onChange) — handleNavDeselect must still recognize the
-    // robots+selectedRobotId case and drop to the list, not blank
-    // activeHubTile to null.
-    fireEvent.click(getNavRadio('Probes'));
-    expect(useUIStore.getState().selectedRobotId).toBeNull();
-    expect(useUIStore.getState().activeHubTile).toBe('robots');
-  });
-
-  it('re-selecting Robots while selectedRobotId is already null blanks all the way out, same as any other tile', () => {
-    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: null });
-    render(<Header />);
-    fireEvent.click(getNavRadio('Probes'));
-    expect(useUIStore.getState().activeHubTile).toBeNull();
-  });
-
-  it('selecting a non-robots tile does not touch selectedRobotId', () => {
-    useUIStore.setState({ activeHubTile: null, selectedRobotId: 'robot-3' });
-    render(<Header />);
-    fireEvent.click(getNavRadio('Fleet Params'));
-    expect(useUIStore.getState().selectedRobotId).toBe('robot-3');
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('radiogroup')).toBeNull();
   });
 
   it('renders no restart, pause/play, or BPM readouts', () => {
