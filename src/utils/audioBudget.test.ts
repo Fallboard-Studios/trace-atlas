@@ -20,6 +20,7 @@ import {
   describeLimits,
   detectCoarsePointer,
   detectDefaultAudioLoad,
+  effectsLoadToLimits,
   lfoAllowed,
   latencyForLoad,
   loadToLimits,
@@ -27,9 +28,13 @@ import {
   orderByArrival,
   parseLoadParam,
   presetForLoad,
+  presetForLoads,
   reconcileSounding,
   resolveInitialAudioLoad,
+  resolveInitialEffectsLoad,
+  robotLoadToLimits,
   withLoadParam,
+  withParam,
 } from './audioBudget';
 
 // ========================================
@@ -721,6 +726,124 @@ describe('reconcileSounding', () => {
         }
       }
     });
+  });
+});
+
+// ========================================
+// robotLoadToLimits / effectsLoadToLimits (the two-slider split)
+// ========================================
+
+describe('robotLoadToLimits', () => {
+  it('agrees with loadToLimits on the robot-axis fields across the whole dial', () => {
+    for (const t of dial) {
+      const combined = loadToLimits(t);
+      const robot = robotLoadToLimits(t);
+      expect(robot).toEqual({
+        maxAudibleRobots: combined.maxAudibleRobots,
+        maxPolyphony: combined.maxPolyphony,
+        latencyHint: combined.latencyHint,
+      });
+    }
+  });
+});
+
+describe('effectsLoadToLimits', () => {
+  it('agrees with loadToLimits on the effects-axis fields across the whole dial', () => {
+    for (const t of dial) {
+      const combined = loadToLimits(t);
+      const effects = effectsLoadToLimits(t);
+      expect(effects).toEqual({
+        driftEnabled: combined.driftEnabled,
+        filterLfosEnabled: combined.filterLfosEnabled,
+        maxRobotLfos: combined.maxRobotLfos,
+      });
+    }
+  });
+});
+
+describe('loadToLimits as the merge of both axes', () => {
+  it('equals robotLoadToLimits(x) + effectsLoadToLimits(x) merged, for any x', () => {
+    for (const t of dial) {
+      expect(loadToLimits(t)).toEqual({ ...robotLoadToLimits(t), ...effectsLoadToLimits(t) });
+    }
+  });
+
+  it('lets the two axes move independently when combined by hand (not through loadToLimits)', () => {
+    const merged = { ...robotLoadToLimits(AUDIO_LOAD_PRESETS.full), ...effectsLoadToLimits(AUDIO_LOAD_PRESETS.light) };
+    expect(merged.maxAudibleRobots).toBe(12);
+    expect(merged.maxPolyphony).toBe(16);
+    expect(merged.latencyHint).toBe('interactive');
+    expect(merged.driftEnabled).toBe(false);
+    expect(merged.filterLfosEnabled).toBe(false);
+    expect(merged.maxRobotLfos).toBe(ROBOT_LFO_CAP_LIGHT);
+  });
+});
+
+// ========================================
+// presetForLoads
+// ========================================
+
+describe('presetForLoads', () => {
+  it('names the preset only when both axes sit on the same one', () => {
+    expect(presetForLoads(AUDIO_LOAD_PRESETS.light, AUDIO_LOAD_PRESETS.light)).toBe('light');
+    expect(presetForLoads(AUDIO_LOAD_PRESETS.standard, AUDIO_LOAD_PRESETS.standard)).toBe('standard');
+    expect(presetForLoads(AUDIO_LOAD_PRESETS.full, AUDIO_LOAD_PRESETS.full)).toBe('full');
+  });
+
+  it('is null when the axes disagree, even if each alone sits on a preset', () => {
+    expect(presetForLoads(AUDIO_LOAD_PRESETS.full, AUDIO_LOAD_PRESETS.light)).toBeNull();
+    expect(presetForLoads(AUDIO_LOAD_PRESETS.light, AUDIO_LOAD_PRESETS.standard)).toBeNull();
+  });
+
+  it('is null when neither axis sits on a preset', () => {
+    expect(presetForLoads(0.45, 0.45)).toBeNull();
+  });
+});
+
+// ========================================
+// withParam (the generalized form withLoadParam wraps)
+// ========================================
+
+describe('withParam', () => {
+  it('behaves exactly like withLoadParam when the name is "load"', () => {
+    for (const [search, value] of [
+      ['', 'light'],
+      ['?debug&seed=bravo', 'light'],
+      ['?load=full&debug', 'light'],
+      ['?debug&load=light', null],
+    ] as const) {
+      expect(withParam(search, 'load', value)).toBe(withLoadParam(search, value));
+    }
+  });
+
+  it('operates on a different key without disturbing an existing load param', () => {
+    expect(withParam('?load=standard', 'fxLoad', 'light')).toBe('?load=standard&fxLoad=light');
+    expect(withParam('?load=standard&fxLoad=full', 'fxLoad', 'light')).toBe('?load=standard&fxLoad=light');
+    expect(withParam('?load=standard&fxLoad=full', 'fxLoad', null)).toBe('?load=standard');
+  });
+});
+
+// ========================================
+// resolveInitialEffectsLoad
+// ========================================
+
+describe('resolveInitialEffectsLoad', () => {
+  const desktop = { coarsePointer: false };
+  const phone = { coarsePointer: true };
+
+  it('uses a valid ?fxLoad= over everything else', () => {
+    expect(resolveInitialEffectsLoad({ search: '?fxLoad=light&load=full', ...desktop })).toBe(0.2);
+    expect(resolveInitialEffectsLoad({ search: '?fxLoad=45', ...desktop })).toBe(0.45);
+  });
+
+  it('falls back to ?load= when ?fxLoad= is absent or invalid', () => {
+    expect(resolveInitialEffectsLoad({ search: '?load=standard', ...desktop })).toBe(0.6);
+    expect(resolveInitialEffectsLoad({ search: '?fxLoad=bogus&load=standard', ...desktop })).toBe(0.6);
+  });
+
+  it('falls back to device detection when neither param is present', () => {
+    expect(resolveInitialEffectsLoad({ search: '', ...desktop })).toBe(1);
+    expect(resolveInitialEffectsLoad({ search: '', ...phone })).toBe(0.2);
   });
 });
 

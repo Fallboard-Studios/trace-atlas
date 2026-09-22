@@ -24,21 +24,32 @@ import type { LfoTargetId } from '../types/lfo';
 /** The two Web Audio latency categories the budget chooses between. */
 export type LoadLatencyHint = 'playback' | 'interactive';
 
-/** Every cap the Audio Load dial sets (docs/specs/AUDIO_LOAD_BUDGET.md §4.1). */
-export interface LoadLimits {
+/**
+ * The caps the Robot Load slider sets (docs/specs/AUDIO_LOAD_BUDGET.md §1.2, "shipped as two sliders"
+ * note): how much is sounding at once, plus the boot-time latency hint (an output-buffer concern, not
+ * a modulation-cost one, so it rides this axis rather than the effects one).
+ */
+export interface RobotLoadLimits {
   /** How many robots may sound at once (LOAD_AUDIBLE_ROBOTS_MIN..MAX_ROBOTS). */
   maxAudibleRobots: number;
   /** Simultaneous-note ceiling (LOAD_POLYPHONY_MIN..MAX_POLYPHONY). */
   maxPolyphony: number;
+  /** Only meaningful at page load — a context's latencyHint is fixed at creation. */
+  latencyHint: LoadLatencyHint;
+}
+
+/** The caps the Effects Load slider sets: LFO/drift modulation cost. */
+export interface EffectsLoadLimits {
   /** Drift ("stacked" LFOs). */
   driftEnabled: boolean;
   /** Global lpf/hpf frequency + Q LFOs (EQ-gain LFOs are always allowed). */
   filterLfosEnabled: boolean;
   /** Audio-rate robot LFOs connected at once; Infinity only at exactly Full. */
   maxRobotLfos: number;
-  /** Only meaningful at page load — a context's latencyHint is fixed at creation. */
-  latencyHint: LoadLatencyHint;
 }
+
+/** Every cap either Audio Load slider sets, combined — what `describeLimits` and the diagnostics HUD read. */
+export type LoadLimits = RobotLoadLimits & EffectsLoadLimits;
 
 // ========================================
 // HELPERS
@@ -70,17 +81,34 @@ export function clampAudioLoad(audioLoad: number): number {
   return Math.min(1, Math.max(0, audioLoad));
 }
 
-/** One dial in, every cap out — linear for the counts, thresholds for the booleans. */
-export function loadToLimits(audioLoad: number): LoadLimits {
-  const load = clampAudioLoad(audioLoad);
+/** The Robot Load slider in, its caps out — linear for the counts, threshold for the latency hint. */
+export function robotLoadToLimits(robotLoad: number): RobotLoadLimits {
+  const load = clampAudioLoad(robotLoad);
   return {
     maxAudibleRobots: Math.round(lerp(LOAD_AUDIBLE_ROBOTS_MIN, MAX_ROBOTS, load)),
     maxPolyphony: Math.round(lerp(LOAD_POLYPHONY_MIN, MAX_POLYPHONY, load)),
+    latencyHint: load < LOAD_PLAYBACK_BELOW ? 'playback' : 'interactive',
+  };
+}
+
+/** The Effects Load slider in, its caps out — thresholds for the booleans, a tiered climb for the robot-LFO cap. */
+export function effectsLoadToLimits(effectsLoad: number): EffectsLoadLimits {
+  const load = clampAudioLoad(effectsLoad);
+  return {
     driftEnabled: load >= LOAD_DRIFT_MIN,
     filterLfosEnabled: load >= LOAD_FILTER_LFOS_MIN,
     maxRobotLfos: robotLfoCap(load),
-    latencyHint: load < LOAD_PLAYBACK_BELOW ? 'playback' : 'interactive',
   };
+}
+
+/**
+ * One dial in, every cap out — the combined view `describeLimits` and the diagnostics HUD read.
+ * Equivalent to merging `robotLoadToLimits(audioLoad)` and `effectsLoadToLimits(audioLoad)` at the
+ * SAME position on both axes — the shape the single Audio Load dial had before it shipped as two
+ * independent sliders (docs/specs/AUDIO_LOAD_BUDGET.md §1.2).
+ */
+export function loadToLimits(audioLoad: number): LoadLimits {
+  return { ...robotLoadToLimits(audioLoad), ...effectsLoadToLimits(audioLoad) };
 }
 
 /** The latency hint for a dial position (used at page load, before any Tone node exists). */
@@ -135,6 +163,17 @@ export function presetForLoad(audioLoad: number): keyof typeof AUDIO_LOAD_PRESET
 }
 
 /**
+ * The preset the shared radio shows selected: only when BOTH the Robot Load and Effects Load sliders
+ * sit on the SAME preset — the two-slider extension of `presetForLoad`'s "off a preset leaves the
+ * radio unselected" rule. Clicking a preset sets both sliders to it, so this is selected right after;
+ * dragging either slider away from the other desyncs them and clears the radio.
+ */
+export function presetForLoads(robotLoad: number, effectsLoad: number): keyof typeof AUDIO_LOAD_PRESETS | null {
+  const robotPreset = presetForLoad(robotLoad);
+  return robotPreset !== null && robotPreset === presetForLoad(effectsLoad) ? robotPreset : null;
+}
+
+/**
  * The `?load=` value for a dial position: a preset's name when the value rounds to that preset's
  * percent, otherwise a whole percent. `parseLoadParam(loadToSearchParam(x))` gives back x to the percent.
  */
@@ -143,24 +182,29 @@ export function loadToSearchParam(audioLoad: number): string {
 }
 
 /**
- * `search` with its `load` param set to `value` — or removed when `value` is null — and every other param left
- * byte-for-byte alone (a bare `?debug` stays bare, which URLSearchParams would not preserve). An existing `load`
+ * `search` with its `name` param set to `value` — or removed when `value` is null — and every other param left
+ * byte-for-byte alone (a bare `?debug` stays bare, which URLSearchParams would not preserve). An existing `name`
  * is replaced in place (repeats collapse to one); otherwise it is appended. Returns "" when nothing is left.
  */
-export function withLoadParam(search: string, value: string | null): string {
+export function withParam(search: string, name: string, value: string | null): string {
   const parts = search.replace(/^\?/, '').split('&').filter(Boolean);
-  const isLoad = (part: string): boolean => part.split('=')[0] === 'load';
+  const isParam = (part: string): boolean => part.split('=')[0] === name;
   const next: string[] = [];
   let placed = false;
   for (const part of parts) {
-    if (!isLoad(part)) next.push(part);
+    if (!isParam(part)) next.push(part);
     else if (!placed && value !== null) {
-      next.push(`load=${value}`);
+      next.push(`${name}=${value}`);
       placed = true;
     }
   }
-  if (!placed && value !== null) next.push(`load=${value}`);
+  if (!placed && value !== null) next.push(`${name}=${value}`);
   return next.length > 0 ? `?${next.join('&')}` : '';
+}
+
+/** `withParam` fixed to the `load` (robot-axis) key — kept as its own name since every existing caller/URL uses it. */
+export function withLoadParam(search: string, value: string | null): string {
+  return withParam(search, 'load', value);
 }
 
 /** Whether the primary pointer is coarse (phone-like). Browser-only; false without matchMedia or if it throws. */
@@ -177,10 +221,20 @@ export function detectDefaultAudioLoad(env: { coarsePointer: boolean }): number 
   return env.coarsePointer ? AUDIO_LOAD_PRESETS.light : AUDIO_LOAD_PRESETS.full;
 }
 
-/** The dial position at page load: a valid `?load=` wins, otherwise device detection. */
+/** The Robot Load slider's position at page load: a valid `?load=` wins, otherwise device detection. */
 export function resolveInitialAudioLoad(env: { search: string; coarsePointer: boolean }): number {
   const pinned = parseLoadParam(new URLSearchParams(env.search).get('load'));
   return pinned ?? detectDefaultAudioLoad(env);
+}
+
+/**
+ * The Effects Load slider's position at page load: a valid `?fxLoad=` wins, otherwise it falls back to
+ * whatever the Robot Load slider resolves to (`?load=`, then device detection) — so an existing
+ * `?load=` link still pins both sliders together, and `?fxLoad=` is only needed to pin them apart.
+ */
+export function resolveInitialEffectsLoad(env: { search: string; coarsePointer: boolean }): number {
+  const pinned = parseLoadParam(new URLSearchParams(env.search).get('fxLoad'));
+  return pinned ?? resolveInitialAudioLoad(env);
 }
 
 // ========================================
