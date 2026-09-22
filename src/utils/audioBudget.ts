@@ -102,18 +102,21 @@ export function effectsLoadToLimits(effectsLoad: number): EffectsLoadLimits {
 }
 
 /**
- * One dial in, every cap out — the combined view `describeLimits` and the diagnostics HUD read.
- * Equivalent to merging `robotLoadToLimits(audioLoad)` and `effectsLoadToLimits(audioLoad)` at the
- * SAME position on both axes — the shape the single Audio Load dial had before it shipped as two
- * independent sliders (docs/specs/AUDIO_LOAD_BUDGET.md §1.2).
+ * One dial in, every cap out — merges `robotLoadToLimits(audioLoad)` and `effectsLoadToLimits(audioLoad)`
+ * at the SAME position on both axes, the shape the single Audio Load dial had before it shipped as two
+ * independent sliders (docs/specs/AUDIO_LOAD_BUDGET.md §1.2). No production caller moves both axes
+ * together anymore — `AudioLoadPanel`/`audioDiagnostics` merge the two split functions with each
+ * slider's own independent value instead. Kept only so `audioBudget.test.ts`'s pre-split coverage
+ * (which asserts the combined shape at one shared dial position) still exercises real code; code-review
+ * finding 2026-09-22.
  */
 export function loadToLimits(audioLoad: number): LoadLimits {
   return { ...robotLoadToLimits(audioLoad), ...effectsLoadToLimits(audioLoad) };
 }
 
-/** The latency hint for a dial position (used at page load, before any Tone node exists). */
+/** The latency hint for a Robot Load slider position (used at page load, before any Tone node exists). */
 export function latencyForLoad(audioLoad: number): LoadLatencyHint {
-  return loadToLimits(audioLoad).latencyHint;
+  return robotLoadToLimits(audioLoad).latencyHint;
 }
 
 const LATENCY_LABELS: Record<LoadLatencyHint, string> = { playback: 'Playback', interactive: 'Interactive' };
