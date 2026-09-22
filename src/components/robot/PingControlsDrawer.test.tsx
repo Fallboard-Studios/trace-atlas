@@ -11,16 +11,6 @@ vi.mock('@/constants', async (importOriginal) => {
 });
 
 import { PingControlsDrawer, type PingControlsValue } from './PingControlsDrawer';
-import { openAllAccordions } from '@/testUtils/openAccordions';
-
-// AccordionContainer only mounts a section's controls once it has been opened (docs/specs/ACCORDION_LAZY_MOUNT.md), and
-// every assertion in this file is about controls inside that section — so each render expands it first, exactly as a
-// user would before touching a control. A test asserting that a section is *closed* would use plain render().
-function renderOpen(ui: React.ReactElement) {
-  const result = render(ui);
-  openAllAccordions(result.container);
-  return result;
-}
 
 
 function makeValue(overrides: Partial<PingControlsValue> = {}): PingControlsValue {
@@ -40,8 +30,8 @@ describe('PingControlsDrawer', () => {
     mockDevTuning = true;
   });
 
-  it('wraps its content in exactly one Melody accordion, containing 2 nested panels — Phrasing and Frequency (DIRECTIONAL_PANEL_WIRING Task 6)', () => {
-    const { container } = renderOpen(
+  it('renders 2 nested panels — Phrasing and Frequency — with no accordion wrapper (docs/tasks/NAV_LAYOUT_REWRITE.md Task 15: the "Melody" label now lives on the tree node itself, not this drawer)', () => {
+    const { container } = render(
       <PingControlsDrawer
         value={makeValue()}
         onDensityChange={() => {}}
@@ -53,15 +43,15 @@ describe('PingControlsDrawer', () => {
         onPitchRepeatChange={() => {}}
       />
     );
-    expect(container.querySelectorAll('.sc-accordion')).toHaveLength(1);
-    expect(screen.getAllByText('Melody')).toHaveLength(1);
+    expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
+    expect(screen.queryByText('Melody')).toBeNull();
     expect(screen.getByText('Phrasing')).toBeTruthy();
     expect(screen.getByText('Frequency')).toBeTruthy();
     expect(screen.queryByText('Ping Controls')).toBeNull(); // old flat accordion label is gone
   });
 
   it('Density, Motif Length, and Pitch Repeat render inside the Phrasing panel; Octave Min/Max and Note Variance render inside the Frequency panel', () => {
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue()}
         onDensityChange={() => {}}
@@ -90,7 +80,7 @@ describe('PingControlsDrawer', () => {
 
   it('changing Density calls onDensityChange', () => {
     const onDensityChange = vi.fn();
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue()}
         onDensityChange={onDensityChange}
@@ -110,7 +100,7 @@ describe('PingControlsDrawer', () => {
 
   it('changing Motif Length calls onMotifLengthChange with the raw number, no object wrapping', () => {
     const onMotifLengthChange = vi.fn();
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue({ rhythmicMotifLength: 4 })}
         onDensityChange={() => {}}
@@ -129,7 +119,7 @@ describe('PingControlsDrawer', () => {
   });
 
   it('Motif Length slider reaches 0 and stays interactive there — never disabled purely because its own value is 0', () => {
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue({ rhythmicMotifLength: 0 })}
         onDensityChange={() => {}}
@@ -149,7 +139,7 @@ describe('PingControlsDrawer', () => {
 
   it('changing Octave Range Min calls onOctaveMinChange', () => {
     const onOctaveMinChange = vi.fn();
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue({ octaveRange: [3, 5] })}
         onDensityChange={() => {}}
@@ -169,7 +159,7 @@ describe('PingControlsDrawer', () => {
 
   it('changing Octave Range Max calls onOctaveMaxChange', () => {
     const onOctaveMaxChange = vi.fn();
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue({ octaveRange: [3, 5] })}
         onDensityChange={() => {}}
@@ -189,7 +179,7 @@ describe('PingControlsDrawer', () => {
 
   it('changing Note Variance calls onNoteVarianceChange with the raw number, no object wrapping', () => {
     const onNoteVarianceChange = vi.fn();
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue({ noteVariance: 3 })}
         onDensityChange={() => {}}
@@ -208,7 +198,7 @@ describe('PingControlsDrawer', () => {
   });
 
   it('Note Variance slider reaches 0 and stays interactive there — never disabled purely because its own value is 0', () => {
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue({ noteVariance: 0 })}
         onDensityChange={() => {}}
@@ -228,7 +218,7 @@ describe('PingControlsDrawer', () => {
 
   it('changing Pitch Repeat calls onPitchRepeatChange', () => {
     const onPitchRepeatChange = vi.fn();
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue({ pitchRepeat: 50, rhythmicMotifLength: 8 })}
         onDensityChange={() => {}}
@@ -247,7 +237,7 @@ describe('PingControlsDrawer', () => {
   });
 
   it('Pitch Repeat is disabled when rhythmicMotifLength is 0, even though generationDisabled is otherwise false', () => {
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue({ rhythmicMotifLength: 0 })}
         onDensityChange={() => {}}
@@ -267,7 +257,7 @@ describe('PingControlsDrawer', () => {
   });
 
   it('Pitch Repeat is enabled when rhythmicMotifLength is nonzero and nothing else disables generation', () => {
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue({ rhythmicMotifLength: 8 })}
         onDensityChange={() => {}}
@@ -285,7 +275,7 @@ describe('PingControlsDrawer', () => {
 
   it('Reset Melody is a plain one-click Button when onResetMelody is provided - no confirmation dialog', () => {
     const onResetMelody = vi.fn();
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue()}
         onDensityChange={() => {}}
@@ -306,7 +296,7 @@ describe('PingControlsDrawer', () => {
   });
 
   it('omits the Reset Melody button entirely when onResetMelody is not provided (company mode)', () => {
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue()}
         onDensityChange={() => {}}
@@ -323,7 +313,7 @@ describe('PingControlsDrawer', () => {
   });
 
   it('renders the Click Track toggle regardless of mode — unlike Reset Melody, it has a company-scoped meaning', () => {
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue()}
         onDensityChange={() => {}}
@@ -340,7 +330,7 @@ describe('PingControlsDrawer', () => {
   });
 
   it('shows "Click Track" as the toggle\'s own facade content, not external label text', () => {
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue()}
         onDensityChange={() => {}}
@@ -358,7 +348,7 @@ describe('PingControlsDrawer', () => {
 
   it('omits the Click Track toggle entirely when DEV_TUNING is false — never reachable in a production build', () => {
     mockDevTuning = false;
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue()}
         onDensityChange={() => {}}
@@ -376,7 +366,7 @@ describe('PingControlsDrawer', () => {
 
   it('toggling Click Track calls onClickTrackActiveChange', () => {
     const onClickTrackActiveChange = vi.fn();
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue({ clickTrackActive: false })}
         onDensityChange={() => {}}
@@ -395,7 +385,7 @@ describe('PingControlsDrawer', () => {
   });
 
   it('disables Density/Motif Length/Octave Range/Note Variance/Reset Melody, but not the Click Track toggle itself, while Click Track is active', () => {
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue({ clickTrackActive: true })}
         onDensityChange={() => {}}
@@ -418,7 +408,7 @@ describe('PingControlsDrawer', () => {
   });
 
   it('disables every internal control, including Click Track, when disabled is true', () => {
-    renderOpen(
+    render(
       <PingControlsDrawer
         value={makeValue()}
         onDensityChange={() => {}}
@@ -440,11 +430,13 @@ describe('PingControlsDrawer', () => {
   });
 
   // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 10) — an optional
-  // `style` prop forwarded to this drawer's own AccordionContainer, for trait-color scoping
-  // (getTraitColorStyle('composition'), applied at the RobotOptionsTab call site in Task 12).
+  // `style` prop forwarded to this drawer's own root (Task 15, docs/tasks/NAV_LAYOUT_REWRITE.md:
+  // moved from the now-removed AccordionContainer wrapper to the plain .ping-controls-drawer
+  // root), for trait-color scoping (getTraitColorStyle('composition'), applied at the
+  // RobotOptionsTab call site in Task 12).
   describe('style prop', () => {
     function renderDrawer(style?: CSSProperties) {
-      return renderOpen(
+      return render(
         <PingControlsDrawer
           value={makeValue()}
           onDensityChange={() => {}}
@@ -459,16 +451,16 @@ describe('PingControlsDrawer', () => {
       );
     }
 
-    it('forwards a caller-supplied style to the drawer\'s own AccordionContainer root', () => {
+    it('forwards a caller-supplied style to the drawer\'s own root', () => {
       const { container } = renderDrawer({ '--color-accent-a': '#68cb97', '--color-accent-b': '#a9e583' } as CSSProperties);
-      const root = container.querySelector('.sc-accordion') as HTMLElement;
+      const root = container.querySelector('.ping-controls-drawer') as HTMLElement;
       expect(root.style.getPropertyValue('--color-accent-a')).toBe('#68cb97');
       expect(root.style.getPropertyValue('--color-accent-b')).toBe('#a9e583');
     });
 
     it('renders with no inline style when the prop is omitted — existing consumers unaffected', () => {
       const { container } = renderDrawer(undefined);
-      const root = container.querySelector('.sc-accordion') as HTMLElement;
+      const root = container.querySelector('.ping-controls-drawer') as HTMLElement;
       expect(root.getAttribute('style')).toBeNull();
     });
   });
