@@ -3,14 +3,12 @@ import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero';
-import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
 import { LfoTargetGroup } from '@/components/ui/controls/LfoTargetGroup';
 import { withHeldOffClass } from '@/components/ui/controls/activeClass';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
 import {
-  SOURCE_ACCORDION_SCHEMA,
   SIGNATURE_ARRAY_CONFIG,
   type SignatureArrayLayerBlock,
   type SignatureArrayParamSchema,
@@ -92,12 +90,12 @@ interface SignatureArrayDrawerProps {
    *  everything but Robot Drift); the caller must keep it referentially stable while no flag flips (RobotOptionsTab does, via a
    *  shallow selector). Omitted for a company (no single robot to grey against) = nothing held off. */
   heldOffTargets?: Partial<Record<RobotLfoTargetId, boolean>>;
-  /** Optional inline style forwarded to this drawer's own AccordionContainer — trait-color
-   *  scoping (getTraitColorStyle('spectral'), Roadmap Phase 14), applied identically at both the
+  /** Optional inline style forwarded to this drawer's own root — trait-color scoping
+   *  (getTraitColorStyle('spectral'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this drawer always renders in
    *  Spectral, whether it's editing one robot or a company's bulk baseline. Robot Drift's own
-   *  controls, rendered inside this same accordion, inherit it via ordinary CSS cascade with no
-   *  wiring of their own. See docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5/§1.6. */
+   *  controls, rendered inside this same root, inherit it via ordinary CSS cascade with no wiring
+   *  of their own. See docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5/§1.6. */
   style?: CSSProperties;
 }
 
@@ -231,17 +229,16 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
 const SignatureArrayLayer = memo(SignatureArrayLayerInner);
 
 /**
- * One Source AccordionContainer wrapping 3 DirectionalPanels, one per fixed layer slot (Baseline/
- * Coaxial/Harmonic), plus the Robot Drift panel — docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 8,
- * replacing the former single "Signature Array" accordion around 3 unlabeled layer divs. Robot
- * Drift was moved here from AudioRigDrawer's Transport & Composition accordion in a follow-up
- * fix, landing last, after Harmonic — see RobotDriftPanel below.
+ * 3 DirectionalPanels, one per fixed layer slot (Baseline/Coaxial/Harmonic), plus the Robot Drift
+ * panel — docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 8. No AccordionContainer wrapper as of Task
+ * 17 (docs/tasks/NAV_LAYOUT_REWRITE.md) — this drawer's content is now a probe's own "Source" tree
+ * leaf, and the tree node itself carries that label, so there's no accordion header left to show
+ * it on. Robot Drift lands last, after Harmonic — see RobotDriftPanel below.
  *
  * Otherwise purely presentational as of Roadmap Phase 10 (Task 16) — no `robot` prop, no store
  * access beyond RobotDriftPanel's own global lfoDrift subscription; both RobotOptionsTab (robot
  * mode) and CompanyOptionsSection (company mode) derive `value` and wire each callback through
- * robotOptionsActions.applyLayersContinuous/applyLayersStructural/applyLayerLfo themselves
- * (`SignatureArrayDrawerProps` is unchanged — neither call site needed any edit).
+ * robotOptionsActions.applyLayersContinuous/applyLayersStructural/applyLayerLfo themselves.
  * Dragging Coaxial/Harmonic's own Gain to 0 mutes the layer (eventually excluded from the
  * composite voice, see AudioEngine.reserveVoice's filterAudibleLayers) without discarding its
  * Type/Detune/Phase/Interval configuration — there's no separate Active toggle.
@@ -257,6 +254,21 @@ const SignatureArrayLayer = memo(SignatureArrayLayerInner);
  * `React.memo`-wrapped so an edit to one layer doesn't cascade into its 2 siblings (docs/todo/
  * backlog.md #27 follow-up) — this component's own job is just deriving `layers` and building the
  * 3 shared, stable per-index handlers every layer instance calls into.
+ *
+ * LFO-target-selection behavior change (Task 17's own flagged design question, spec R2): each
+ * layer's LfoTargetGroup instance keeps its own selected-target state as component-local
+ * (useLfoTargetGroup's `useState`, never uiStore — matches this repo's established "selection is
+ * local, ephemeral state" precedent). Under the old AccordionContainer, that state survived a
+ * collapse/reopen because AccordionContainer's lazy-mount kept a once-opened section's content
+ * mounted, just visually hidden. Under the new tree-nav content model, ContentPane genuinely
+ * unmounts this whole drawer whenever the selection moves elsewhere (a different section, a
+ * different probe) and remounts it fresh on return — so a layer's own LFO target selection now
+ * resets to its default (the group's first field) every time you navigate away from Source and
+ * back, rather than surviving the round trip. Confirmed as the intended behavior, not a bug: it's
+ * the direct, by-construction consequence of "exactly one thing mounted at a time" replacing
+ * "everything mounted, most of it hidden" — the same trade-off the intent doc's own rationale
+ * (docs/intent/nav-layout-rewrite.md, "Why now") already named as the reason this rewrite
+ * supersedes the old mass-simultaneous-mount problem rather than needing to separately fix it.
  */
 function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChange, onLfoChange, disabled, heldOffTargets, style }: SignatureArrayDrawerProps) {
   const layers = value.layers ?? [];
@@ -288,29 +300,27 @@ function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChan
   }, [onLfoChange]);
 
   return (
-    <AccordionContainer schema={SOURCE_ACCORDION_SCHEMA} style={style}>
-      <div className="signature-array-drawer">
-        {SIGNATURE_ARRAY_CONFIG.map((block, idx) => {
-          const layer = layers[idx];
-          if (!layer) return null;
-          return (
-            <SignatureArrayLayer
-              key={block.key}
-              block={block}
-              idx={idx}
-              layer={layer}
-              lfoSettings={value.lfoSettings}
-              heldOffTargets={heldOffTargets}
-              disabled={disabled}
-              onTypeChange={handleTypeChange}
-              onParamChange={handleParamChange}
-              onLfoFieldChange={handleLfoFieldChange}
-            />
-          );
-        })}
-        <RobotDriftPanel />
-      </div>
-    </AccordionContainer>
+    <div className="signature-array-drawer" style={style}>
+      {SIGNATURE_ARRAY_CONFIG.map((block, idx) => {
+        const layer = layers[idx];
+        if (!layer) return null;
+        return (
+          <SignatureArrayLayer
+            key={block.key}
+            block={block}
+            idx={idx}
+            layer={layer}
+            lfoSettings={value.lfoSettings}
+            heldOffTargets={heldOffTargets}
+            disabled={disabled}
+            onTypeChange={handleTypeChange}
+            onParamChange={handleParamChange}
+            onLfoFieldChange={handleLfoFieldChange}
+          />
+        );
+      })}
+      <RobotDriftPanel />
+    </div>
   );
 }
 
