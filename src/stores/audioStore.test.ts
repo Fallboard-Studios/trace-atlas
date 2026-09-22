@@ -683,7 +683,7 @@ describe('useAudioStore - volume / setVolume / setMuted (docs/specs/GLOBAL_VOLUM
   });
 });
 
-describe('useAudioStore - audioLoad / soundingRobotIds (docs/specs/AUDIO_LOAD_BUDGET.md §3, §4)', () => {
+describe('useAudioStore - robotLoad / effectsLoad / soundingRobotIds (docs/specs/AUDIO_LOAD_BUDGET.md §3, §4)', () => {
   const originalMatchMedia = window.matchMedia;
 
   /** Stub `(pointer: coarse)` — jsdom has no matchMedia of its own. */
@@ -712,88 +712,96 @@ describe('useAudioStore - audioLoad / soundingRobotIds (docs/specs/AUDIO_LOAD_BU
     vi.resetModules();
   });
 
-  describe('audioLoad at boot', () => {
-    it('is 1 (Full, today’s behavior) with no params on a desktop-like device', async () => {
+  describe('robotLoad / effectsLoad at boot', () => {
+    it('are both 1 (Full, today’s behavior) with no params on a desktop-like device', async () => {
       const { useAudioStore } = await loadFreshWithQuery('');
-      expect(useAudioStore.getState().audioLoad).toBe(1);
+      expect(useAudioStore.getState().robotLoad).toBe(1);
+      expect(useAudioStore.getState().effectsLoad).toBe(1);
     });
 
-    it('is 0.2 with ?load=light, 0.6 with ?load=standard, 1 with ?load=full', async () => {
-      expect((await loadFreshWithQuery('?load=light')).useAudioStore.getState().audioLoad).toBe(0.2);
-      expect((await loadFreshWithQuery('?load=standard')).useAudioStore.getState().audioLoad).toBe(0.6);
-      expect((await loadFreshWithQuery('?load=full')).useAudioStore.getState().audioLoad).toBe(1);
+    it('?load= pins both axes together: 0.2 with light, 0.6 with standard, 1 with full', async () => {
+      for (const [preset, value] of [
+        ['light', 0.2],
+        ['standard', 0.6],
+        ['full', 1],
+      ] as const) {
+        const { useAudioStore } = await loadFreshWithQuery(`?load=${preset}`);
+        expect(useAudioStore.getState().robotLoad).toBe(value);
+        expect(useAudioStore.getState().effectsLoad).toBe(value);
+      }
     });
 
-    it('is a percent with ?load=45', async () => {
-      const { useAudioStore } = await loadFreshWithQuery('?load=45');
-      expect(useAudioStore.getState().audioLoad).toBe(0.45);
+    it('?fxLoad= pins the effects axis independently of ?load=', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('?load=full&fxLoad=light');
+      expect(useAudioStore.getState().robotLoad).toBe(1);
+      expect(useAudioStore.getState().effectsLoad).toBe(0.2);
     });
 
-    it('falls back to detection for an invalid ?load=', async () => {
-      expect((await loadFreshWithQuery('?load=bogus')).useAudioStore.getState().audioLoad).toBe(1);
+    it('falls back to detection for an invalid ?load=, on both axes', async () => {
+      expect((await loadFreshWithQuery('?load=bogus')).useAudioStore.getState().robotLoad).toBe(1);
+      expect((await loadFreshWithQuery('?load=bogus')).useAudioStore.getState().effectsLoad).toBe(1);
       stubCoarsePointer(true);
-      expect((await loadFreshWithQuery('?load=bogus')).useAudioStore.getState().audioLoad).toBe(0.2);
+      expect((await loadFreshWithQuery('?load=bogus')).useAudioStore.getState().robotLoad).toBe(0.2);
+      expect((await loadFreshWithQuery('?load=bogus')).useAudioStore.getState().effectsLoad).toBe(0.2);
     });
 
-    it('defaults to Light (0.2) on a coarse-pointer, phone-like device', async () => {
+    it('default to Light (0.2) on a coarse-pointer, phone-like device', async () => {
       stubCoarsePointer(true);
       const { useAudioStore } = await loadFreshWithQuery('');
-      expect(useAudioStore.getState().audioLoad).toBe(0.2);
-    });
-
-    it('lets ?load= override detection in both directions', async () => {
-      stubCoarsePointer(true);
-      expect((await loadFreshWithQuery('?load=full')).useAudioStore.getState().audioLoad).toBe(1);
-      stubCoarsePointer(false);
-      expect((await loadFreshWithQuery('?load=light')).useAudioStore.getState().audioLoad).toBe(0.2);
-    });
-
-    it('reads ?load= among other params', async () => {
-      const { useAudioStore } = await loadFreshWithQuery('?debug&seed=bravo&x=-150&y=90&load=standard');
-      expect(useAudioStore.getState().audioLoad).toBe(0.6);
+      expect(useAudioStore.getState().robotLoad).toBe(0.2);
+      expect(useAudioStore.getState().effectsLoad).toBe(0.2);
     });
 
     it('does not throw when matchMedia is missing or throws — it just reads as a non-phone', async () => {
       // @ts-expect-error — simulating an environment without matchMedia
       window.matchMedia = undefined;
-      expect((await loadFreshWithQuery('')).useAudioStore.getState().audioLoad).toBe(1);
+      expect((await loadFreshWithQuery('')).useAudioStore.getState().robotLoad).toBe(1);
       window.matchMedia = (() => {
         throw new Error('no matchMedia here');
       }) as unknown as typeof window.matchMedia;
-      expect((await loadFreshWithQuery('')).useAudioStore.getState().audioLoad).toBe(1);
+      expect((await loadFreshWithQuery('')).useAudioStore.getState().effectsLoad).toBe(1);
     });
   });
 
-  describe('setAudioLoad', () => {
-    it('sets the dial to exactly the given value', async () => {
+  describe('setRobotLoad / setEffectsLoad', () => {
+    it('each set their own axis to exactly the given value, leaving the other alone', async () => {
       const { useAudioStore } = await loadFreshWithQuery('');
-      useAudioStore.getState().setAudioLoad(0.37);
-      expect(useAudioStore.getState().audioLoad).toBe(0.37);
+      useAudioStore.getState().setRobotLoad(0.37);
+      expect(useAudioStore.getState().robotLoad).toBe(0.37);
+      expect(useAudioStore.getState().effectsLoad).toBe(1);
+      useAudioStore.getState().setEffectsLoad(0.12);
+      expect(useAudioStore.getState().effectsLoad).toBe(0.12);
+      expect(useAudioStore.getState().robotLoad).toBe(0.37);
     });
 
-    it('clamps to [0, 1] and treats NaN as Full', async () => {
+    it('each clamp to [0, 1] and treat NaN as Full', async () => {
       const { useAudioStore } = await loadFreshWithQuery('');
-      useAudioStore.getState().setAudioLoad(-1);
-      expect(useAudioStore.getState().audioLoad).toBe(0);
-      useAudioStore.getState().setAudioLoad(2);
-      expect(useAudioStore.getState().audioLoad).toBe(1);
-      useAudioStore.getState().setAudioLoad(0.4);
-      useAudioStore.getState().setAudioLoad(NaN);
-      expect(useAudioStore.getState().audioLoad).toBe(1);
+      useAudioStore.getState().setRobotLoad(-1);
+      expect(useAudioStore.getState().robotLoad).toBe(0);
+      useAudioStore.getState().setRobotLoad(2);
+      expect(useAudioStore.getState().robotLoad).toBe(1);
+      useAudioStore.getState().setRobotLoad(0.4);
+      useAudioStore.getState().setRobotLoad(NaN);
+      expect(useAudioStore.getState().robotLoad).toBe(1);
+
+      useAudioStore.getState().setEffectsLoad(-1);
+      expect(useAudioStore.getState().effectsLoad).toBe(0);
+      useAudioStore.getState().setEffectsLoad(2);
+      expect(useAudioStore.getState().effectsLoad).toBe(1);
     });
 
-    it('is a plain state write: no engine call, and no other field changes', async () => {
+    it('are plain state writes: no engine call, and no other field changes', async () => {
       const { useAudioStore } = await loadFreshWithQuery('');
       const { AudioEngine } = await import('../engine/AudioEngine');
       vi.clearAllMocks();
       const before = { ...useAudioStore.getState() };
 
-      useAudioStore.getState().setAudioLoad(0.2);
+      useAudioStore.getState().setRobotLoad(0.2);
 
       for (const fn of Object.values(AudioEngine)) expect(fn).not.toHaveBeenCalled();
       const after = useAudioStore.getState();
-      expect(after.audioLoad).toBe(0.2);
-      expect({ ...after, audioLoad: before.audioLoad }).toEqual(before);
+      expect(after.robotLoad).toBe(0.2);
+      expect({ ...after, robotLoad: before.robotLoad }).toEqual(before);
     });
   });
 
@@ -836,10 +844,11 @@ describe('useAudioStore - audioLoad / soundingRobotIds (docs/specs/AUDIO_LOAD_BU
       expect(useAudioStore.getState().soundingRobotIds).toEqual([]);
     });
 
-    it('is not changed by setAudioLoad (only the budget system derives it)', async () => {
+    it('is not changed by setRobotLoad/setEffectsLoad (only the budget system derives it)', async () => {
       const { useAudioStore } = await loadFreshWithQuery('');
       useAudioStore.getState().setSoundingRobotIds(['r1']);
-      useAudioStore.getState().setAudioLoad(0.1);
+      useAudioStore.getState().setRobotLoad(0.1);
+      useAudioStore.getState().setEffectsLoad(0.1);
       expect(useAudioStore.getState().soundingRobotIds).toEqual(['r1']);
     });
   });
@@ -848,7 +857,8 @@ describe('useAudioStore - audioLoad / soundingRobotIds (docs/specs/AUDIO_LOAD_BU
     const { useAudioStore } = await loadFreshWithQuery('?load=light');
     useAudioStore.getState().setSoundingRobotIds(['r1', 'r2']);
     const roundTripped = JSON.parse(JSON.stringify(useAudioStore.getState()));
-    expect(roundTripped.audioLoad).toBe(0.2);
+    expect(roundTripped.robotLoad).toBe(0.2);
+    expect(roundTripped.effectsLoad).toBe(0.2);
     expect(roundTripped.soundingRobotIds).toEqual(['r1', 'r2']);
   });
 });
