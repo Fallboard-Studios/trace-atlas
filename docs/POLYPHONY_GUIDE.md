@@ -6,7 +6,7 @@ Source of truth: [`src/engine/AudioEngine.ts`](../src/engine/AudioEngine.ts).
 
 ## Current Behavior
 
-- `MAX_POLYPHONY = 16` — a single global cap on simultaneously **triggered** notes. It is the **ceiling**: the *live* cap (`polyphonyCap`, default `MAX_POLYPHONY`) can be lowered by the Audio Load dial through `AudioEngine.setPolyphonyCap()` (6..16; 8 at Light, 12 at Standard) — see "Audio Load Budget" below.
+- `MAX_POLYPHONY = 16` — a single global cap on simultaneously **triggered** notes. It is the **ceiling**: the *live* cap (`polyphonyCap`, default `MAX_POLYPHONY`) can be lowered by the Robot Load slider through `AudioEngine.setPolyphonyCap()` (6..16; 8 at Light, 12 at Standard) — see "Audio Load Budget" below.
 - `activeVoices` — module-scoped counter tracking currently active note windows.
 - `triggerWithCap()` returns `false` and skips the note when the cap is reached — notes are dropped, never steal an existing voice.
 - Each robot gets its own **reserved composite voice** via `AudioEngine.reserveVoice()`. Reservation is **not** capped by `MAX_POLYPHONY` — a robot can hold a reserved voice indefinitely without ever triggering a note; only the act of triggering counts against the cap.
