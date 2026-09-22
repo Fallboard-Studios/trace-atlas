@@ -338,7 +338,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
 ### Phase 4: Docs and handoff
 
-- [ ] **Task 14: Documentation and the two corrections**
+- [x] **Task 14: Documentation and the two corrections**
 
   **Description:** `docs/PERFORMANCE.md` — the `?debug` overlay section gains the two new lines and the reading table from spec §1, plus the underrun semantics as actually observed (units, what a calm desktop run shows). `docs/AUDIO_SYSTEM.md` "Debug Tools" gains one line and a link. `docs/todo/scratchy-audio-phones.md` gets a dated correction note beside each of the two claims that `playoutStats` / `renderCapacity` are absent (the name checked was the old one; `playbackStats` is present on Chrome 153) — **append a note, do not rewrite the history**. `docs/todo/roadmap.md` 17.2.6 gets one sentence. Every path, constant and function named is checked against the code first.
 
@@ -356,7 +356,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
   **Estimated scope:** M
 
-- [ ] **Task 15: As Shipped and the phone handoff**
+- [x] **Task 15: As Shipped and the phone handoff** *(the handoff is in [todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md), where Task 16's results land)*
 
   **Description:** Add an "As Shipped" section to the spec and an "As Shipped — deviations" section to this file (the pattern the Audio Load Budget set), tick the task boxes, and write the handoff for Crawford: the exact LAN-preview commands, the URLs, what each new overlay line means (the reading table), what to screenshot at a dropout, and a request to note the phone's Chrome version (`chrome://version`) so an `n/a` on the underrun line can be read correctly.
 
@@ -390,8 +390,8 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
   **Estimated scope:** S (waits on Crawford)
 
 ### Checkpoint D: complete
-- [ ] Spec §5.3 criteria 1–11 met, or each miss reported and Crawford has decided; criterion 12 is his run.
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` pass. Not pushed.
+- [x] Spec §5.3 criteria 1–11 met, or each miss reported and Crawford has decided; criterion 12 is his run (task 16, open).
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` pass. Not pushed.
 
 ## Risks and Mitigations
 
@@ -438,6 +438,19 @@ A page builds `Oscillator(440 Hz) → Gain(0.5) → destination`, plus a native 
 | E. reconnected, 1.5 s | 0.49999958 | Reconnecting restores it. |
 
 `AudioContext.playbackStats` on the same context: `totalDuration` 1.013 → 4.012 over 3.004 s of wall time, so **the units are seconds**; `averageLatency` 0.0434 → 0.0438 (≈ 43 ms) against `baseLatency` 0.010 and `outputLatency` 0.040; `minimumLatency` 0, `maximumLatency` 0.0451; `underrunEvents` 0 and `underrunDuration` 0 in this calm run.
+
+## As Shipped — deviations (2026-09-21)
+
+Tasks 1–15 are done (task-level boxes above are ticked); **task 16, the phone run, is Crawford's**. Each task's acceptance criteria were met and are evidenced by its commit message and tests. The order followed the plan; the Task 13 gate was stopped on, reported, and resumed on Crawford's choice of option 1. The full list with reasons is in [the spec's §8](../specs/AUDIO_OUTPUT_DIAGNOSTIC.md#8-as-shipped-2026-09-21); by task:
+
+- **Task 1** also probed what happens after a `disconnect()` (a dropped analyser reads silence, not a stale buffer) — the reason for Task 4.
+- **Task 3** (and 4, 5) — the taps became native `AnalyserNode`s, not `Tone.Analyser`, after Task 6's real-browser run showed no readings (commit `551408d`).
+- **Task 7** — one test added while planning the mutants, because a `+N` that reported the running total slipped past every test whose burst started at 0.
+- **Task 8** — the `playbackStats` reader also looks behind Tone's wrapper after Task 9's real-browser run read `n/a` (commit `03f0cd0`).
+- **Task 10** — one of my own expectations was wrong (5.0 s, not 4.0 s, across an unread gap) and was corrected; the mutants were then re-run against a clean baseline. Semantics added: a missing reading is no information, and a separate closing message when silence stops being unexpected.
+- **Task 12/13** — Task 13's forced-silence check missed its "≈ 3.5 s" criterion; the cause was `voices > 0` being required at every sample. Fixed as option 1 (commit `03f85ec`): `expectSound` lost its voices term, a separate `notesSounding` pauses the count during gaps. The criterion was revised in writing.
+- **Tasks 6, 9, 13** used throwaway CDP scripts (never committed); the dev server was used for the forced silence.
+- **Test count:** 3191 before this work, 3316 after. One intermittent unrelated failure (`idleSystem`) and one known backlog #29 failure were seen and passed in isolation.
 
 ### Task 13 — real browser, slice C (2026-09-21, production build and `vite` dev server of `f6dd863`, headless Chrome 153, `?debug&seed=charlie&x=200&y=-30`; Chrome process count 43 before and 43 after each production run) — **one criterion MISSED; stopped at the gate for Crawford's decision**
 

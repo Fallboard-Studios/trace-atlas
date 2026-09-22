@@ -8,7 +8,7 @@
 > - Dev server: `npm run dev`
 > - Phone preview over the LAN: `npm run build && npx vite preview --host --port 4173`, then on the phone `http://<pc-ip>:4173/trace-atlas/?debug&seed=bravo&x=-150&y=90&load=full` (`ipconfig` for the address)
 
-**Status:** Draft v2 — approved by Crawford 2026-09-21 (the four open questions resolved as proposed, §7); plan and tasks in [docs/tasks/AUDIO_OUTPUT_DIAGNOSTIC.md](../tasks/AUDIO_OUTPUT_DIAGNOSTIC.md); nothing built. Written 2026-09-21 on branch `bugs/scratchy-audio-phones`. Approved in principle by Crawford as decision **P** in [AUDIO_LOAD_BUDGET.md §7](AUDIO_LOAD_BUDGET.md#decisions-resolved-2026-09-20-crawford) (the full version, including a second tap before the FX chain and a hook so taps survive the Natural/Controlled Decay toggle). Roadmap: a follow-up to 17.2.6, not a new phase.
+**Status:** Implemented 2026-09-21 on `bugs/scratchy-audio-phones` (not pushed) — see [§8 As Shipped](#8-as-shipped-2026-09-21). Approved by Crawford 2026-09-21 (the four open questions resolved as proposed, §7); plan and tasks in [docs/tasks/AUDIO_OUTPUT_DIAGNOSTIC.md](../tasks/AUDIO_OUTPUT_DIAGNOSTIC.md). The phone run is Crawford's (plan task 16). Written 2026-09-21 on branch `bugs/scratchy-audio-phones`. Approved in principle by Crawford as decision **P** in [AUDIO_LOAD_BUDGET.md §7](AUDIO_LOAD_BUDGET.md#decisions-resolved-2026-09-20-crawford) (the full version, including a second tap before the FX chain and a hook so taps survive the Natural/Controlled Decay toggle). Roadmap: a follow-up to 17.2.6, not a new phase.
 
 ---
 
@@ -153,7 +153,7 @@ Vitest; tests co-located (`audioHealth.test.ts`, `audioDiagnostics.test.ts`, `gl
 2. **Order-independent (deterministic).** Taps are connected whether the overlay started before or after the chain was built.
 3. **Survives the toggle (deterministic).** Both taps stay connected across `wireGlobalFxChain(true)` and `(false)`; removing the hook makes the test fail.
 4. **Level math (deterministic)** as in §5.2, including NaN/Inf handling and the empty buffer.
-5. **Silent event (deterministic):** fires only after ≥ 3 s of continuous silence with notes sounding, master volume > 0, transport started, context running; once on entry and once on exit; names the pre-chain state.
+5. **Silent event (deterministic):** fires only after ≥ 3 s of continuous silence with notes sounding, master volume > 0, transport started, context running; once on entry and once on exit; names the pre-chain state. *Revised 2026-09-21 (§8): the 3 s is counted time — only time with notes in flight; a gap between notes pauses the count instead of restarting it.*
 6. **Non-finite (deterministic):** one entry and one exit event per tap; overlay red while present.
 7. **Playback stats (deterministic):** absent → `n/a`, no events, no error; present → totals and latency formatted; one "began" / one "stopped" event per underrun burst; the sampler never calls `resetLatency`.
 8. **Overlay fits:** at most two new lines, each ≤ 52 characters; existing line formats unchanged.
@@ -199,3 +199,23 @@ Vitest; tests co-located (`audioHealth.test.ts`, `audioDiagnostics.test.ts`, `gl
 
 ### Not in scope
 Any fix for the dropouts; lazy voice chains (Phase B); changes to the Audio Load presets or LFO caps; persistence; a per-voice tap; a Web Audio panel replacement.
+
+---
+
+## 8. As Shipped (2026-09-21)
+
+Implemented as specified, task by task, one commit each on `bugs/scratchy-audio-phones` (not pushed), test-first with mutation-checked gates (suite 3191 → 3316 tests, all green at the end). Five things differ from this draft; three were found only by the real-browser checks, which is what they were for.
+
+**Deviations from the draft**
+1. **The taps are native `AnalyserNode`s, not `Tone.Analyser`** (§1, §4). Tone's wrapper sets `fftSize = 2 × size`, caps `size` at 16384 and fills its buffer from only the older half of the window, so the 32768 window the spec wanted could not be built (the browser rejected it; the mocked unit tests could not see that). They are made from Tone's raw context with `fftSize` = `OUTPUT_TAP_SIZE` = 32768 and one reused buffer — the configuration probed in task 1. The unit-test mock now enforces the real `fftSize` limit.
+2. **`playbackStats` is read from behind Tone's wrapper** (§1.4). Tone's `rawContext` is a `standardized-audio-context` wrapper that does not forward the API, so the overlay first read `underruns n/a`; the reader now looks on the context, then on the wrapper's TypeScript-private `_nativeAudioContext` / `_nativeContext`. **Fragile**: a `standardized-audio-context` upgrade could quietly return the line to `n/a` (which it says, rather than showing zeros).
+3. **The silent event counts time with notes in flight; gaps pause the count** (§1.2, criterion 5). Requiring `voices > 0` at every sample let ordinary gaps between notes restart the 3 s count — in the forced-silence check a real silence went unreported for 9 s. `expectSound` is now only "master unmuted, transport started, context running", a separate `notesSounding` carries the note state, and a gap adds nothing and restarts nothing (Crawford's option 1). The forced-silence check then raised it in 3 of 3 runs, 5–8 s after the cut (FX tail-out ≈ 2 s + 3 s counted + any gaps) — the originally planned "≈ 3.5 s" assumed instant silence and no gaps.
+4. **Small additions the draft left implicit:** a missing master reading is "no information" (it never raises the event, restarts a count that has not fired, and does not end one that has); when an active silence stops being a fault (muted, transport stopped) it logs `silence no longer unexpected after Xs` rather than claiming the sound is audible; the first playbackStats reading is a baseline, not an event, and a count that goes down (a new context) is a fresh baseline; the unknown latency range collapses to a single dash.
+5. **Overlay wording:** the line reads `out -12.3dB rms -20.1dB  pre -6.0dB  fin ok` (the draft's example said `finite ok`, and gave rms without a unit) and `underruns 3 (12ms) · lat 21ms (20-34)`; both are at most 52 characters.
+
+**Measured** (production build and dev server, headless Chrome 153, `charlie:200:-30`; details in [PERFORMANCE.md](../PERFORMANCE.md#reading-the-output-taps-and-the-playback-stats) and the plan's Task results): levels live within ~2 s; muting drops `out` to `-inf` while `pre` stays live, with no event; both taps survive the Natural ↔ Controlled Decay toggle; a calm 90 s run reads `underruns 0 (0ms) · lat 44ms (0-47)`; a forced silence after EQ3 raised the event with `(pre-chain normal)`, turned the border red and cleared on restore.
+
+**Still open**
+- **The phone run (§5.3 criterion 12)** — Crawford's; the handoff and an empty results table are in [todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md). The Pixel is on Chrome 153, so `playbackStats` is expected; an `n/a` there would mean the wrapper's private field has moved.
+- **Known limits, unchanged:** a sounding robot whose own volume is 0 reads as a silent-while-sounding event; the two analysers sit on the graph of the device under suspicion; "downstream of the app" is by exclusion.
+- **Not done, deliberately:** no fix for the dropouts themselves; no change to the Audio Load presets.

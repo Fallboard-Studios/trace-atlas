@@ -410,3 +410,35 @@ Every run shows `context suspended → running` a few seconds in. Every screensh
 2. **Standard's missed gate — accepted and re-set** to what Standard delivers (0.069). Taking the filter LFOs off at Standard stays the recorded lever if a rested re-run shows Standard still failing on `bravo`.
 3. **More phone runs — not now.** He may run more if he has the chance.
 4. **Master-output diagnostic — approved to build,** the full version: master and pre-chain level, finite check, a silent-while-sounding event and a playback-stats probe, under `?debug` only.
+
+## Phone protocol for the output diagnostic — Crawford's run (plan task 16, prepared 2026-09-21)
+
+The diagnostic is built ([specs/AUDIO_OUTPUT_DIAGNOSTIC.md](../specs/AUDIO_OUTPUT_DIAGNOSTIC.md) §8; how to read it: [PERFORMANCE.md](../PERFORMANCE.md#reading-the-output-taps-and-the-playback-stats)). It exists to answer one question the previous run could not: **when the sound drops out with every earlier overlay reading normal, is it silent inside the graph, or lost after it?**
+
+**Set-up.** Same as the last run: on the PC `npm run build && npx vite preview --host --port 4173`, then `ipconfig` for the IPv4 address. On the Pixel (**Chrome 153**, so `playbackStats` is expected): **unplugged** with at least about 50 % battery, rested, playing through the **phone speaker**, one tab, stopwatch started at the power tap. The overlay is two lines taller than before and its log still holds the last 8 events.
+
+**URLs** — base `http://<pc-ip>:4173/trace-atlas/?debug`, then:
+
+| # | Suffix | Why |
+|---|---|---|
+| 1 | `&seed=bravo&x=-150&y=90&load=full` | The world and preset that dropped out three times. |
+| 2 | `&seed=bravo&x=-150&y=90&load=light` | The preset that was clean: does it stay green, with `underruns` flat? |
+| 3 | `&seed=charlie&x=200&y=-30&load=full` | The calm baseline. |
+
+Take as many as you have time for; a run that drops out is worth more than a clean one.
+
+**What to write down, and screenshot at any click or a dropout** — the two new lines and the event log:
+- **`out … pre … fin`** — `out` is what the destination receives, `pre` what the voices hand the FX chain. During a silence: `out` at `-inf` (or below −80 dB) means the graph itself is silent — then is `pre` still live (the fault is inside the FX chain) or also silent (upstream)? `out` at a normal level means the graph is fine and the loss is after it.
+- **`underruns n (Dms) · lat …`** — does the count **rise while you hear clicks**? That would mean the clicks are output underruns. A flat count during a silence with a normal `out` points downstream of the app.
+- **Events** — `master output silent for 3s while notes sound (pre-chain …)`, `playback underruns began/stopped …`, `non-finite samples …`; and whether the border went red.
+- If the line reads **`underruns n/a`** on the phone, say so: it would mean the wrapper's private field the reader relies on has moved.
+
+**Crawford's results — to be filled in verbatim, then read plainly.**
+
+| # | URL suffix | Dropouts | `out` / `pre` at the dropout | `underruns` (start → at the dropout) | Events | Notes |
+|---|---|---|---|---|---|---|
+| 1 | bravo · full | | | | | |
+| 2 | bravo · light | | | | | |
+| 3 | charlie · full | | | | | |
+
+**Plain reading:** *(pending — silent graph or lost after it, whether the clicks are underruns, and what that leaves for the dropouts)*.
