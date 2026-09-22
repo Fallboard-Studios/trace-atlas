@@ -49,17 +49,19 @@ vi.mock('./AudioEngine', () => ({
   AudioEngine: { getPolyphonyStats: () => ({ voices: fakeVoices, maxVoices: 16, step: 1 }) },
 }));
 
-// Only the fields readInfo reads. `audioLoad` / `soundingRobotIds` are live, so a test can change them between samples.
-// Notes in flight and the transport state, live so a test can change them between samples.
+// Only the fields readInfo reads. `robotLoad`/`effectsLoad` / `soundingRobotIds` are live, so a test can change
+// them between samples. Notes in flight and the transport state, live so a test can change them between samples.
 let fakeVoices = 3;
 let fakeTransportState = 'started';
-let fakeAudioLoad = 1;
+let fakeRobotLoad = 1;
+let fakeEffectsLoad = 1;
 let fakeSoundingIds: string[] = [];
 vi.mock('../stores/audioStore', () => ({
   useAudioStore: {
     getState: () => ({
       globalLfo: { a: { rate: 1 }, b: { rate: 0 }, c: { rate: 2.5 } },
-      audioLoad: fakeAudioLoad,
+      robotLoad: fakeRobotLoad,
+      effectsLoad: fakeEffectsLoad,
       soundingRobotIds: fakeSoundingIds,
     }),
   },
@@ -127,7 +129,8 @@ describe('audioDiagnostics runtime', () => {
     tickerCallbacks.clear();
     fakeActiveLocaleId = 'L1';
     fakeLocales = { L1: { robots: [] } };
-    fakeAudioLoad = 1;
+    fakeRobotLoad = 1;
+    fakeEffectsLoad = 1;
     fakeSoundingIds = [];
     fakeVoices = 3;
     fakeTransportState = 'started';
@@ -162,7 +165,8 @@ describe('audioDiagnostics runtime', () => {
       globalLfosTotal: 3,
       audibleRobots: 0,
       totalRobots: 0,
-      audioLoad: 1,
+      robotLoad: 1,
+      effectsLoad: 1,
       soundingRobots: 0,
       maxAudibleRobots: 12,
     });
@@ -242,27 +246,33 @@ describe('audioDiagnostics runtime', () => {
   describe('Audio Load budget readout', () => {
     const budget = () => {
       advance();
-      const { audioLoad, soundingRobots, maxAudibleRobots } = diag.getDiagnosticsSnapshot().info;
-      return { audioLoad, soundingRobots, maxAudibleRobots };
+      const { robotLoad, effectsLoad, soundingRobots, maxAudibleRobots } = diag.getDiagnosticsSnapshot().info;
+      return { robotLoad, effectsLoad, soundingRobots, maxAudibleRobots };
     };
 
-    it('reads the dial, how many robots are sounding, and the robot cap the dial allows', () => {
-      fakeAudioLoad = 0.2;
+    it('reads the robot dial, how many robots are sounding, and the robot cap it allows', () => {
+      fakeRobotLoad = 0.2;
       fakeSoundingIds = ['a', 'b', 'c'];
-      expect(budget()).toEqual({ audioLoad: 0.2, soundingRobots: 3, maxAudibleRobots: 4 });
+      expect(budget()).toEqual({ robotLoad: 0.2, effectsLoad: 1, soundingRobots: 3, maxAudibleRobots: 4 });
     });
 
-    it('shows the Full cap of 12 at audioLoad 1', () => {
-      expect(budget()).toEqual({ audioLoad: 1, soundingRobots: 0, maxAudibleRobots: 12 });
+    it('shows the Full cap of 12 at robotLoad 1', () => {
+      expect(budget()).toEqual({ robotLoad: 1, effectsLoad: 1, soundingRobots: 0, maxAudibleRobots: 12 });
     });
 
-    it('follows a live change of the dial and of the sounding set within one sample', () => {
-      fakeAudioLoad = 0.2;
+    it('follows a live change of the robot dial and of the sounding set within one sample', () => {
+      fakeRobotLoad = 0.2;
       expect(budget().maxAudibleRobots).toBe(4);
 
-      fakeAudioLoad = 0.6;
+      fakeRobotLoad = 0.6;
       fakeSoundingIds = ['a', 'b'];
-      expect(budget()).toEqual({ audioLoad: 0.6, soundingRobots: 2, maxAudibleRobots: 8 });
+      expect(budget()).toEqual({ robotLoad: 0.6, effectsLoad: 1, soundingRobots: 2, maxAudibleRobots: 8 });
+    });
+
+    it('reads effectsLoad independently of robotLoad — maxAudibleRobots does not follow it', () => {
+      fakeRobotLoad = 1;
+      fakeEffectsLoad = 0.2;
+      expect(budget()).toEqual({ robotLoad: 1, effectsLoad: 0.2, soundingRobots: 0, maxAudibleRobots: 12 });
     });
   });
 

@@ -9,7 +9,7 @@ import { attachOutputTaps, detachOutputTaps, getMasterVolume, readOutputTaps } f
 import { useAudioStore } from '../stores/audioStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
-import { loadToLimits } from '../utils/audioBudget';
+import { robotLoadToLimits } from '../utils/audioBudget';
 import { isRobotAudible } from '../utils/robotAudibility';
 import {
   SAMPLE_INTERVAL_MS,
@@ -40,11 +40,13 @@ export interface DiagInfo {
   audibleRobots: number;
   /** Size of the active locale's roster. 0 until robots have spawned. */
   totalRobots: number;
-  /** The Audio Load dial, 0–1 (docs/specs/AUDIO_LOAD_BUDGET.md). NaN until the first sample. */
-  audioLoad: number;
+  /** The Robot Load slider, 0–1 (docs/specs/AUDIO_LOAD_BUDGET.md). NaN until the first sample. */
+  robotLoad: number;
+  /** The Effects Load slider, 0–1. NaN until the first sample. */
+  effectsLoad: number;
   /** Robots the budget currently lets sound (`soundingRobotIds`). */
   soundingRobots: number;
-  /** The robot cap the dial allows (`loadToLimits(audioLoad).maxAudibleRobots`). */
+  /** The robot cap robotLoad allows (`robotLoadToLimits(robotLoad).maxAudibleRobots`). */
   maxAudibleRobots: number;
   /** Level of what the voices hand the FX chain (EQ3's output) in the last sample; null when that tap is not attached or has nothing to read. */
   outputPre?: LevelReading | null;
@@ -95,7 +97,8 @@ function emptyInfo(): DiagInfo {
     globalLfosTotal: 0,
     audibleRobots: 0,
     totalRobots: 0,
-    audioLoad: NaN,
+    robotLoad: NaN,
+    effectsLoad: NaN,
     soundingRobots: NaN,
     maxAudibleRobots: NaN,
     outputPre: null,
@@ -155,9 +158,10 @@ function readInfo(): DiagInfo {
     globalLfosOn: globalLfo.filter((l) => l.rate > 0).length,
     globalLfosTotal: globalLfo.length,
     ...readRobotAudibility(),
-    audioLoad: audio.audioLoad,
+    robotLoad: audio.robotLoad,
+    effectsLoad: audio.effectsLoad,
     soundingRobots: audio.soundingRobotIds.length,
-    maxAudibleRobots: loadToLimits(audio.audioLoad).maxAudibleRobots,
+    maxAudibleRobots: robotLoadToLimits(audio.robotLoad).maxAudibleRobots,
     outputPre: outputLevels.pre,
     outputMaster: outputLevels.master,
     playback: playbackReading,

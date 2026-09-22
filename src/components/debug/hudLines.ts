@@ -38,11 +38,11 @@ export function hudStatus({ timing }: DiagSnapshot): 'ok' | 'bad' {
   return 'ok';
 }
 
-/** The Audio Load budget in one line: the dial, robots sounding out of the cap, robots standing by, and notes used out of the live ceiling. */
-function budgetLine({ audioLoad, soundingRobots, maxAudibleRobots, audibleRobots, voices, maxVoices }: DiagInfo): string {
-  const load = isKnown(audioLoad) ? `${Math.round(audioLoad * 100)}%` : DASH;
+/** The Audio Load budget in one line: both dials, robots sounding out of the cap, robots standing by, and notes used out of the live ceiling. */
+function budgetLine({ robotLoad, effectsLoad, soundingRobots, maxAudibleRobots, audibleRobots, voices, maxVoices }: DiagInfo): string {
+  const pct = (load: number): string => (isKnown(load) ? `${Math.round(load * 100)}%` : DASH);
   const standingBy = isKnown(audibleRobots) && isKnown(soundingRobots) ? String(Math.max(0, audibleRobots - soundingRobots)) : DASH;
-  return `load ${load} · sounding ${count(soundingRobots)}/${count(maxAudibleRobots)} · standing by ${standingBy} · poly ${count(voices)}/${count(maxVoices)}`;
+  return `load ${pct(robotLoad)}·fx ${pct(effectsLoad)} · sounding ${count(soundingRobots)}/${count(maxAudibleRobots)} · standing by ${standingBy} · poly ${count(voices)}/${count(maxVoices)}`;
 }
 
 /** A linear level as dB with one decimal; `-inf` for silence, `-` when there is no reading. */

@@ -22,7 +22,8 @@ const baseInfo: DiagInfo = {
   globalLfosTotal: 7,
   audibleRobots: 5,
   totalRobots: 12,
-  audioLoad: 1,
+  robotLoad: 1,
+  effectsLoad: 1,
   soundingRobots: 5,
   maxAudibleRobots: 12,
 };
@@ -150,14 +151,27 @@ describe('buildHudLines', () => {
     const capsLine = (info: Partial<DiagInfo>) =>
       buildHudLines(snap({}, info), world, 0).find((l) => l.startsWith('load'));
 
-    it('reads dial · sounding n/cap · standing by n · poly used/cap', () => {
-      const line = capsLine({ audioLoad: 0.2, soundingRobots: 4, maxAudibleRobots: 4, audibleRobots: 6, voices: 3, maxVoices: 8 });
-      expect(line).toBe('load 20% · sounding 4/4 · standing by 2 · poly 3/8');
+    it('reads robot dial·effects dial · sounding n/cap · standing by n · poly used/cap', () => {
+      const line = capsLine({
+        robotLoad: 0.2,
+        effectsLoad: 1,
+        soundingRobots: 4,
+        maxAudibleRobots: 4,
+        audibleRobots: 6,
+        voices: 3,
+        maxVoices: 8,
+      });
+      expect(line).toBe('load 20%·fx 100% · sounding 4/4 · standing by 2 · poly 3/8');
+    });
+
+    it('shows the two dials independently, not tied to each other', () => {
+      expect(capsLine({ robotLoad: 1, effectsLoad: 0.2 })).toMatch(/^load 100%·fx 20% /);
+      expect(capsLine({ robotLoad: 0.2, effectsLoad: 1 })).toMatch(/^load 20%·fx 100% /);
     });
 
     it('at Full reads sounding n/12 and poly n/16 — the same 16 as today’s voices line', () => {
-      const info = { audioLoad: 1, soundingRobots: 7, maxAudibleRobots: 12, audibleRobots: 7, voices: 3, maxVoices: 16 };
-      expect(capsLine(info)).toBe('load 100% · sounding 7/12 · standing by 0 · poly 3/16');
+      const info = { robotLoad: 1, effectsLoad: 1, soundingRobots: 7, maxAudibleRobots: 12, audibleRobots: 7, voices: 3, maxVoices: 16 };
+      expect(capsLine(info)).toBe('load 100%·fx 100% · sounding 7/12 · standing by 0 · poly 3/16');
       expect(buildHudLines(snap({}, info), world, 0).join('\n')).toContain('voices 3/16');
     });
 
@@ -167,10 +181,11 @@ describe('buildHudLines', () => {
       expect(lines[voices + 1]).toMatch(/^load /);
     });
 
-    it('rounds the dial to a whole percent', () => {
-      expect(capsLine({ audioLoad: 0.455 })).toMatch(/^load 46%/);
-      expect(capsLine({ audioLoad: 0.6 })).toMatch(/^load 60%/);
-      expect(capsLine({ audioLoad: 0 })).toMatch(/^load 0%/);
+    it('rounds each dial to a whole percent', () => {
+      expect(capsLine({ robotLoad: 0.455 })).toMatch(/^load 46%/);
+      expect(capsLine({ robotLoad: 0.6 })).toMatch(/^load 60%/);
+      expect(capsLine({ robotLoad: 0 })).toMatch(/^load 0%/);
+      expect(capsLine({ effectsLoad: 0.455 })).toMatch(/^load \d+%·fx 46%/);
     });
 
     it('never shows a negative standing-by count, even if the sounding set briefly outruns the audible count', () => {
@@ -179,14 +194,15 @@ describe('buildHudLines', () => {
 
     it('shows a dash for any unknown value, never NaN, null or undefined', () => {
       const line = capsLine({
-        audioLoad: NaN,
+        robotLoad: NaN,
+        effectsLoad: NaN,
         soundingRobots: NaN,
         maxAudibleRobots: Infinity,
         audibleRobots: NaN,
         voices: undefined as unknown as number,
         maxVoices: NaN,
       });
-      expect(line).toBe('load - · sounding -/- · standing by - · poly -/-');
+      expect(line).toBe('load -·fx - · sounding -/- · standing by - · poly -/-');
       expect(line).not.toMatch(/NaN|null|undefined|Infinity/);
     });
   });
