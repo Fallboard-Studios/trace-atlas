@@ -189,6 +189,37 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
     expect(useUIStore.getState().selectedRobotId).toBeNull();
     expect(useUIStore.getState().activeHubTile).toBe('robots');
   });
+
+  it('selecting a Settings leaf (settings.volume) sets activeHubTile and selectedSettingsLeaf (Task 11)', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('settings.volume'));
+
+    expect(useUIStore.getState().activeHubTile).toBe('settings');
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('volume');
+  });
+
+  it('selecting each of the other 3 Settings leaves sets selectedSettingsLeaf accordingly', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('settings.quality'));
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
+
+    act(() => result.current.select('settings.tempo'));
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('tempo');
+
+    act(() => result.current.select('settings.sectorSettings'));
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('sectorSettings');
+  });
+
+  it('selecting the bare "settings" parent clears selectedSettingsLeaf back to null', () => {
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('settings.volume'));
+
+    act(() => result.current.select('settings'));
+
+    expect(useUIStore.getState().selectedSettingsLeaf).toBeNull();
+  });
 });
 
 describe('useNavTree — toggleExpand accordion-of-one within the Probes branch (Task 3 AC2)', () => {

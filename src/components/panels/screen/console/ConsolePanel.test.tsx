@@ -23,12 +23,12 @@ vi.mock('./AudioRigDrawer', () => ({
   AudioRigDrawer: () => <div data-testid="audio-rig-drawer-stub" />,
   default: () => <div data-testid="audio-rig-drawer-stub" />,
 }));
-// SectorSettingsDrawer has its own full test suite
-// (SectorSettingsDrawer.test.tsx) — this file is about ConsolePanel's own
-// tile switch, not re-testing its content.
-vi.mock('./SectorSettingsDrawer', () => ({
-  SectorSettingsDrawer: () => <div data-testid="sector-settings-drawer-stub" />,
-  default: () => <div data-testid="sector-settings-drawer-stub" />,
+// SettingsContent has its own full test suite (SettingsContent.test.tsx,
+// docs/tasks/NAV_LAYOUT_REWRITE.md Task 11) — this file is about ConsolePanel's own tile
+// switch, not re-testing its content.
+vi.mock('../nav/content/SettingsContent', () => ({
+  SettingsContent: () => <div data-testid="settings-content-stub" />,
+  default: () => <div data-testid="settings-content-stub" />,
 }));
 // CompanyManager has its own full test suite (CompanyManager.test.tsx) — this
 // is Task 1's placeholder 'companies' tile entry (docs/tasks/NAV_LAYOUT_REWRITE.md),
@@ -79,10 +79,10 @@ describe('ConsolePanel', () => {
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
   });
 
-  it('renders SectorSettingsDrawer when settings is active, with no Back button', () => {
+  it('renders SettingsContent when settings is active, with no Back button', () => {
     useUIStore.getState().setActiveHubTile('settings');
     render(<ConsolePanel />);
-    expect(screen.getByTestId('sector-settings-drawer-stub')).toBeTruthy();
+    expect(screen.getByTestId('settings-content-stub')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
   });
 

@@ -70,27 +70,9 @@ describe('Header', () => {
     document.documentElement.style.removeProperty('--header-height');
   });
 
-  it('renders exactly one volume slider bound to audioStore.volume (as the shared Cabinetry SliderLinear, displayed 0-100%)', () => {
+  it('renders no volume slider — relocated to Settings -> Volume (docs/tasks/NAV_LAYOUT_REWRITE.md Task 11; see SettingsContent.test.tsx)', () => {
     render(<Header />);
-    const slider = screen.getByRole('slider', { name: /volume/i });
-    expect(slider.getAttribute('aria-valuenow')).toBe('60');
-    expect(slider.getAttribute('aria-valuemin')).toBe('0');
-    expect(slider.getAttribute('aria-valuemax')).toBe('100');
-  });
-
-  it('stepping the volume slider with the keyboard calls setVolume, observable as a real store update', () => {
-    render(<Header />);
-    const slider = screen.getByRole('slider', { name: /volume/i });
-    slider.focus();
-    fireEvent.keyDown(slider, { key: 'ArrowRight' });
-    expect(useAudioStore.getState().volume).toBeGreaterThan(0.6);
-  });
-
-  it('disables the volume slider when powered off', () => {
-    useUIStore.setState({ isPoweredOn: false });
-    render(<Header />);
-    const slider = screen.getByRole('slider', { name: /volume/i });
-    expect(slider.getAttribute('data-disabled')).toBe('');
+    expect(screen.queryByRole('slider', { name: /volume/i })).toBeNull();
   });
 
   it('renders the local time as HH:MM', () => {

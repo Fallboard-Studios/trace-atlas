@@ -26,11 +26,10 @@
   border-bottom: var(--border-width) solid var(--border-color);
 }
 
-/* Row-direction flex: the Mute toggle (content-sized — see .header__mute-
-   facade below) sits first at its own natural width, the slider afterward
-   claims the rest of the row via flex-grow (below). Row-direction flex items
-   don't stretch along the main axis by default, so the toggle's width is
-   naturally left alone here — only the slider needs an explicit flex rule. */
+/* Mute toggle alone now — the volume slider relocated to Settings -> Volume
+   (docs/specs/NAV_LAYOUT_REWRITE.md Task 11). Content-sized (see
+   .header__mute-facade below); no flex-grow child left to claim the rest of
+   the row. */
 .header__row--volume {
   grid-area: volume;
   display: flex;
@@ -62,41 +61,6 @@
   .header__row--volume {
     max-width: 640px;
   }
-}
-
-/* SliderLinear's own self-fit assumes an externally-determined, non-content-
-sized wrapper (same reasoning audio-rig-drawer__param-row/signature-array-
-   drawer__param's column-flex stretch relies on) — flex-grow is this row's
-   own way of giving it that, now that it shares the row with Mute instead of
-   being the row's sole child. min-width: 0 lets it actually shrink below its
-   own natural content width when the row is tight, standard flex-item fix
-   for a child that would otherwise refuse to shrink past its content size.
-
-   align-self: stretch is the part actually fixing the "doesn't shrink to 3
-   boxes on a fast resize down to ~320px" bug: below 480px .header__row--volume
-   is column-direction with align-items: center (above), and align-items only
-   stretches a flex item's CROSS axis — which in a column container is WIDTH.
-   Un-stretched, this wrapper's width falls back to its own fit-content size,
-   which is a direct function of however many boxes SliderLinear last
-   rendered — exactly the "measuring my own consequence" circularity
-   useVoxelTrackBoxCount.ts's own doc comment says the horizontal
-   self-observation case must never be under (it explicitly assumes "a plain
-   block box [that] fills whatever its containing block gives it, regardless
-   of its own children's size"). A slow drag masks this because every
-   intermediate frame's ResizeObserver callback nudges the box count down by
-   roughly one step at a time, each new (still content-derived, but now
-   slightly smaller) width narrowly staying ahead of the shrinking viewport;
-   a single fast resize/snap skips straight to the final width with no
-   intermediate frames to ratchet down through, so the wrapper is left
-   holding its old, much-too-wide fit-content size and never re-measures
-   smaller. Restored to the default (align-self: auto) at ≥480px below, where
-   the row becomes flex-direction: row and flex-grow/shrink (not align-items)
-   already correctly governs this same axis without the fix's help. */
-.header__row--volume .sc-slider-linear {
-  flex: 1 1 auto;
-  min-width: 0;
-  width: 100%;
-  align-self: stretch;
 }
 
 /* Mute's facade — both possible strings ('Volume/Mute' unmuted, 'Volume

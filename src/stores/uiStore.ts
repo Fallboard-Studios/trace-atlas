@@ -14,6 +14,13 @@ export type RobotSection = 'volume' | 'melody' | 'envelope' | 'source';
 /** Which of Fleet Params' 3 groups is peeked open — its own accordion-of-one
  *  level, independent of expandedProbeId/expandedCompanyId. */
 export type FleetParamsGroup = 'eqFilters' | 'timeSpace' | 'output';
+/** Which of Settings' 4 children is currently selected — added in Task 11
+ *  (docs/tasks/NAV_LAYOUT_REWRITE.md), beyond the spec's original §1.3 field list. Settings
+ *  isn't an "entity" the way a robot/company/All-Probes is (RobotSection's own doc comment),
+ *  so it needs its own field rather than reusing selectedSection; ContentPane's Settings content
+ *  component reads this to pick which of the 4 leaf contents (Volume/Quality/Tempo/Sector
+ *  Settings) to render. */
+export type SettingsLeaf = 'volume' | 'quality' | 'tempo' | 'sectorSettings';
 
 export interface UIStore {
   activeView: ActiveView;
@@ -55,6 +62,8 @@ export interface UIStore {
   expandedCompanyId: string | null;
   /** Accordion-of-one within Fleet Params' 3 groups. */
   expandedFleetParamsGroup: FleetParamsGroup | null;
+  /** Which of Settings' 4 children is selected — see SettingsLeaf's own doc comment. */
+  selectedSettingsLeaf: SettingsLeaf | null;
   setActiveLocaleLocalTime: (t: number | null) => void;
   setActiveView: (v: ActiveView) => void;
   setTheme: (t: Theme) => void;
@@ -72,6 +81,7 @@ export interface UIStore {
   setExpandedProbeId: (id: string | null) => void;
   setExpandedCompanyId: (id: string | null) => void;
   setExpandedFleetParamsGroup: (g: FleetParamsGroup | null) => void;
+  setSelectedSettingsLeaf: (l: SettingsLeaf | null) => void;
 }
 
 // ========================================
@@ -95,6 +105,7 @@ export const useUIStore = create<UIStore>((set) => ({
   expandedProbeId: null,
   expandedCompanyId: null,
   expandedFleetParamsGroup: null,
+  selectedSettingsLeaf: null,
 
   setActiveView: (v) => set({ activeView: v }),
   setTheme: (t) => set({ theme: t }),
@@ -113,6 +124,7 @@ export const useUIStore = create<UIStore>((set) => ({
   setExpandedProbeId: (id) => set({ expandedProbeId: id }),
   setExpandedCompanyId: (id) => set({ expandedCompanyId: id }),
   setExpandedFleetParamsGroup: (g) => set({ expandedFleetParamsGroup: g }),
+  setSelectedSettingsLeaf: (l) => set({ selectedSettingsLeaf: l }),
 }));
 
 // ========================================

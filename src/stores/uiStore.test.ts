@@ -253,3 +253,31 @@ describe('uiStore — expandedFleetParamsGroup (accordion-of-one within Fleet Pa
     expect(useUIStore.getState().expandedFleetParamsGroup).toBe('timeSpace');
   });
 });
+
+describe('uiStore — selectedSettingsLeaf (which Settings child is open, docs/tasks/NAV_LAYOUT_REWRITE.md Task 11)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('defaults to null — no Settings leaf chosen until one is selected', () => {
+    expect(useUIStore.getState().selectedSettingsLeaf).toBeNull();
+  });
+
+  it('setSelectedSettingsLeaf sets one of the 4 Settings leaves', () => {
+    useUIStore.getState().setSelectedSettingsLeaf('volume');
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('volume');
+  });
+
+  it('setSelectedSettingsLeaf(null) clears back to no leaf chosen', () => {
+    useUIStore.getState().setSelectedSettingsLeaf('tempo');
+    useUIStore.getState().setSelectedSettingsLeaf(null);
+    expect(useUIStore.getState().selectedSettingsLeaf).toBeNull();
+  });
+
+  it('is independent of selectedSection — Settings is not an entity with robot/company sections', () => {
+    useUIStore.getState().setSelectedSection('melody');
+    useUIStore.getState().setSelectedSettingsLeaf('quality');
+    expect(useUIStore.getState().selectedSection).toBe('melody');
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
+  });
+});

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { RobotsTab } from './RobotsTab';
 import { RobotOptionsTab } from './RobotOptionsTab';
 import { AudioRigDrawer } from './AudioRigDrawer';
-import { SectorSettingsDrawer } from './SectorSettingsDrawer';
+import { SettingsContent } from '../nav/content/SettingsContent';
 import { CompanyManager } from '@/components/company/CompanyManager';
 import { Button } from '@/components/ui/controls/Button';
 import type { ButtonSchema } from '@/types/controls';
@@ -23,7 +23,7 @@ const BACK_SCHEMA: ButtonSchema = { id: 'hubNavBack', type: 'button', loreLabel:
 const TILE_CONTENT: Record<HubTile, (selectedRobotId: string | null) => ReactNode> = {
   robots: (selectedRobotId) => (selectedRobotId ? <RobotOptionsTab /> : <RobotsTab />),
   audioRig: () => <AudioRigDrawer />,
-  settings: () => <SectorSettingsDrawer />,
+  settings: () => <SettingsContent />,
   // Placeholder entry (Nav & Layout Rewrite Task 1, docs/tasks/NAV_LAYOUT_REWRITE.md)
   // — keeps the build green now that HubTile has a 4th value. Real relocation
   // of Companies CRUD into per-node tree interactions is Task 20.

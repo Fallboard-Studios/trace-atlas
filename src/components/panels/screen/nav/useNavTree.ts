@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useLocaleStore } from '@/stores/localeStore';
-import { useUIStore, type RobotSection, type FleetParamsGroup } from '@/stores/uiStore';
+import { useUIStore, type RobotSection, type FleetParamsGroup, type SettingsLeaf } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { NAV_TREE_SCHEMA, type NavTreeNodeSchema } from '@/data/navTreeConfig';
 
@@ -22,6 +22,11 @@ function asRobotSection(value: string | undefined): RobotSection | null {
 const FLEET_PARAMS_GROUPS: readonly FleetParamsGroup[] = ['eqFilters', 'timeSpace', 'output'];
 function asFleetParamsGroup(value: string | undefined): FleetParamsGroup | null {
   return value && (FLEET_PARAMS_GROUPS as readonly string[]).includes(value) ? (value as FleetParamsGroup) : null;
+}
+
+const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['volume', 'quality', 'tempo', 'sectorSettings'];
+function asSettingsLeaf(value: string | undefined): SettingsLeaf | null {
+  return value && (SETTINGS_LEAVES as readonly string[]).includes(value) ? (value as SettingsLeaf) : null;
 }
 
 const SECTION_CHILDREN: Omit<NavTreeNodeSchema, 'id'>[] = [
@@ -102,6 +107,7 @@ export function useNavTree(): UseNavTreeResult {
   const selectedRobotId = useUIStore((s) => s.selectedRobotId);
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const selectedSection = useUIStore((s) => s.selectedSection);
+  const selectedSettingsLeaf = useUIStore((s) => s.selectedSettingsLeaf);
   const expandedProbeId = useUIStore((s) => s.expandedProbeId);
   const expandedCompanyId = useUIStore((s) => s.expandedCompanyId);
   const expandedFleetParamsGroup = useUIStore((s) => s.expandedFleetParamsGroup);
@@ -111,6 +117,7 @@ export function useNavTree(): UseNavTreeResult {
   const selectCompany = useUIStore((s) => s.selectCompany);
   const selectAllRobots = useUIStore((s) => s.selectAllRobots);
   const setSelectedSection = useUIStore((s) => s.setSelectedSection);
+  const setSelectedSettingsLeaf = useUIStore((s) => s.setSelectedSettingsLeaf);
   const setExpandedProbeId = useUIStore((s) => s.setExpandedProbeId);
   const setExpandedCompanyId = useUIStore((s) => s.setExpandedCompanyId);
   const setExpandedFleetParamsGroup = useUIStore((s) => s.setExpandedFleetParamsGroup);
@@ -131,6 +138,7 @@ export function useNavTree(): UseNavTreeResult {
     if (branch === 'settings') {
       setActiveHubTile('settings');
       setSelectedSection(null);
+      setSelectedSettingsLeaf(asSettingsLeaf(entityId));
       return;
     }
     if (branch === 'fleetParams') {
@@ -195,7 +203,10 @@ export function useNavTree(): UseNavTreeResult {
     const [branch, entityId, section] = id.split('.');
     const wantedSection = asRobotSection(section);
 
-    if (branch === 'settings') return !entityId && activeHubTile === 'settings';
+    if (branch === 'settings') {
+      if (!entityId) return activeHubTile === 'settings' && selectedSettingsLeaf === null;
+      return activeHubTile === 'settings' && selectedSettingsLeaf === asSettingsLeaf(entityId);
+    }
     if (branch === 'fleetParams') return !entityId && activeHubTile === 'audioRig';
     if (branch === 'probes') {
       if (!entityId) return activeHubTile === 'robots' && selectedRobotId === null;
