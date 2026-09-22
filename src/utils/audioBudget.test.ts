@@ -69,14 +69,14 @@ describe('loadToLimits', () => {
     });
   });
 
-  it('at Standard (0.6) is 8 robots, 12 notes, no drift, filter LFOs on, Standard’s robot-LFO cap, interactive latency (decision J)', () => {
+  it('at Standard (0.6) is 8 robots, 12 notes, no drift, filter LFOs on, Standard’s robot-LFO cap, playback latency (decision J)', () => {
     expect(loadToLimits(AUDIO_LOAD_PRESETS.standard)).toEqual({
       maxAudibleRobots: 8,
       maxPolyphony: 12,
       driftEnabled: false,
       filterLfosEnabled: true,
       maxRobotLfos: ROBOT_LFO_CAP_STANDARD,
-      latencyHint: 'interactive',
+      latencyHint: 'playback',
     });
   });
 
@@ -166,10 +166,21 @@ describe('loadToLimits', () => {
       expect(loadToLimits(LOAD_DRIFT_MIN + 1e-9).driftEnabled).toBe(true);
     });
 
-    it('drops the latency hint to playback strictly below LOAD_PLAYBACK_BELOW (0.4)', () => {
-      expect(LOAD_PLAYBACK_BELOW).toBe(0.4);
+    it('drops the latency hint to playback strictly below LOAD_PLAYBACK_BELOW (0.61)', () => {
+      // Decision J (docs/specs/AUDIO_LOAD_BUDGET.md §7): the Pixel 8 phone run measured playback
+      // giving Standard 6.6x fewer output underruns than interactive on bravo (1227 -> 186), the
+      // same real cost (~266ms average output latency) Light already ships unremarked. The
+      // threshold sits strictly above Standard's dial value (0.6) so Standard gets playback too,
+      // and strictly below Full's (1) so Full is untouched.
+      expect(LOAD_PLAYBACK_BELOW).toBe(0.61);
       expect(loadToLimits(LOAD_PLAYBACK_BELOW - 1e-9).latencyHint).toBe('playback');
       expect(loadToLimits(LOAD_PLAYBACK_BELOW).latencyHint).toBe('interactive');
+    });
+
+    it('gives Standard the playback hint too (decision J); Full still gets interactive', () => {
+      expect(loadToLimits(AUDIO_LOAD_PRESETS.light).latencyHint).toBe('playback');
+      expect(loadToLimits(AUDIO_LOAD_PRESETS.standard).latencyHint).toBe('playback');
+      expect(loadToLimits(AUDIO_LOAD_PRESETS.full).latencyHint).toBe('interactive');
     });
 
     it('turns features on in the order drift last: filter LFOs before drift', () => {
@@ -331,9 +342,9 @@ describe('describeLimits', () => {
     );
   });
 
-  it('at Standard drops the filter-LFO and latency clauses (only drift is off, latency is unchanged)', () => {
+  it('at Standard drops the filter-LFO clause (only drift is off) but keeps the latency clause (decision J: Standard is playback too)', () => {
     expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.standard))).toBe(
-      'Up to 8 robots · 12 notes · no drift · 12 robot LFOs',
+      'Up to 8 robots · 12 notes · no drift · 12 robot LFOs · latency: Playback (applies on next load)',
     );
   });
 
@@ -383,9 +394,9 @@ describe('describeLimits', () => {
 // ========================================
 
 describe('latencyForLoad', () => {
-  it('is playback for Light and interactive for Standard and Full', () => {
+  it('is playback for Light and Standard, interactive for Full (decision J)', () => {
     expect(latencyForLoad(AUDIO_LOAD_PRESETS.light)).toBe('playback');
-    expect(latencyForLoad(AUDIO_LOAD_PRESETS.standard)).toBe('interactive');
+    expect(latencyForLoad(AUDIO_LOAD_PRESETS.standard)).toBe('playback');
     expect(latencyForLoad(AUDIO_LOAD_PRESETS.full)).toBe('interactive');
   });
 

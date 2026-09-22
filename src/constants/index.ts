@@ -46,8 +46,14 @@ export const AUDIO_LOAD_PRESETS = { light: 0.2, standard: 0.6, full: 1 } as cons
 export const LOAD_DRIFT_MIN = 0.8;
 /** Global filter-frequency/Q LFOs are on at/above this dial position (EQ-gain LFOs are nearly free and always on). */
 export const LOAD_FILTER_LFOS_MIN = 0.4;
-/** Below this dial position (Light's zone) the AudioContext latency hint is "playback"; at/above it, "interactive". */
-export const LOAD_PLAYBACK_BELOW = 0.4;
+/**
+ * Below this dial position the AudioContext latency hint is "playback"; at/above it, "interactive".
+ * Above Standard's anchor (0.6) so Light AND Standard both get it (decision J,
+ * docs/specs/AUDIO_LOAD_BUDGET.md §7: the Pixel 8 phone run measured playback giving Standard 6.6x
+ * fewer output underruns than interactive on bravo, at the same ~266ms average output latency cost
+ * Light already ships unremarked); below Full's (1) so Full is untouched.
+ */
+export const LOAD_PLAYBACK_BELOW = 0.61;
 /**
  * Audio-rate robot LFOs that may be connected at once at Light and Standard. Measured, not guessed
  * (docs/PERFORMANCE.md "Robot-LFO cost by target type"): each costs ≈ +0.012 render capacity with drift off.

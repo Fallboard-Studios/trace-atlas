@@ -107,19 +107,22 @@ describe('audioContextSetup (boot-time Audio Load preset)', () => {
     expect(fresh.appliedLatencyHint).toBe('playback');
   });
 
-  it("?load=standard and ?load=full install nothing (Tone's interactive default stays)", async () => {
-    for (const load of ['standard', 'full']) {
-      setContext.mockClear();
-      const fresh = await loadFreshWithQuery(`?load=${load}`);
-      expect(setContext, load).not.toHaveBeenCalled();
-      expect(fresh.appliedLatencyHint, load).toBeNull();
-    }
+  it("?load=full installs nothing (Tone's interactive default stays); ?load=standard installs playback (decision J)", async () => {
+    setContext.mockClear();
+    const full = await loadFreshWithQuery('?load=full');
+    expect(setContext).not.toHaveBeenCalled();
+    expect(full.appliedLatencyHint).toBeNull();
+
+    setContext.mockClear();
+    const standard = await loadFreshWithQuery('?load=standard');
+    expect(setContext).toHaveBeenCalled();
+    expect(standard.appliedLatencyHint).toBe('playback');
   });
 
-  it('follows the dial threshold for a custom percent: 39 % is playback, 40 % is not', async () => {
-    expect((await loadFreshWithQuery('?load=39')).appliedLatencyHint).toBe('playback');
+  it('follows the dial threshold for a custom percent: 60 % is playback, 61 % is not (decision J: the threshold sits above Standard’s anchor)', async () => {
+    expect((await loadFreshWithQuery('?load=60')).appliedLatencyHint).toBe('playback');
     setContext.mockClear();
-    expect((await loadFreshWithQuery('?load=40')).appliedLatencyHint).toBeNull();
+    expect((await loadFreshWithQuery('?load=61')).appliedLatencyHint).toBeNull();
     expect(setContext).not.toHaveBeenCalled();
   });
 
