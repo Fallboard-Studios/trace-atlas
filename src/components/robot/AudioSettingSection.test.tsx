@@ -363,13 +363,28 @@ describe('AudioSettingSection', () => {
     const depth = () => screen.getByRole('slider', { name: 'Depth' });
     const props = { onAudioModeChange: () => {}, onVolumeChange: () => {}, onVolumeLfoChange: () => {} };
 
-    it('greys out the LFO (controls disabled, stored values kept) and shows the label when held off', () => {
-      renderOpen(<AudioSettingSection {...props} value={makeValue({ volumeLfo: { shape: 'sine', rate: 4, depth: 55 } })} volumeLfoHeldOff />);
+    it('greys out the LFO (controls disabled, shows 0 not the stored value) and shows the label when held off', () => {
+      const { container } = renderOpen(<AudioSettingSection {...props} value={makeValue({ volumeLfo: { shape: 'sine', rate: 4, depth: 55 } })} volumeLfoHeldOff />);
       expect(rate().getAttribute('data-disabled')).not.toBeNull();
       expect(depth().getAttribute('data-disabled')).not.toBeNull();
+      // 0, not the real stored value (4/55) — a held-off control should read as visibly "off".
+      // The real value is kept in the store, untouched, and returns once it's re-enabled.
+      expect(rate().getAttribute('aria-valuenow')).toBe('0');
+      expect(depth().getAttribute('aria-valuenow')).toBe('0');
+      expect(screen.getByText(HELD)).toBeTruthy();
+      expect(container.querySelector('.sc-lfo.sc-held-off')).toBeTruthy();
+    });
+
+    it('restores the real stored value (not 0) once the prop flips back', () => {
+      const { rerender } = renderOpen(
+        <AudioSettingSection {...props} value={makeValue({ volumeLfo: { shape: 'sine', rate: 4, depth: 55 } })} volumeLfoHeldOff />,
+      );
+      expect(rate().getAttribute('aria-valuenow')).toBe('0');
+
+      rerender(<AudioSettingSection {...props} value={makeValue({ volumeLfo: { shape: 'sine', rate: 4, depth: 55 } })} volumeLfoHeldOff={false} />);
+
       expect(rate().getAttribute('aria-valuenow')).toBe('4');
       expect(depth().getAttribute('aria-valuenow')).toBe('55');
-      expect(screen.getByText(HELD)).toBeTruthy();
     });
 
     it('leaves Audio Setting and Volume editable — only the LFO is held off', () => {

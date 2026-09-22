@@ -123,6 +123,7 @@ function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, on
             value={displayValue}
             onChange={onVolumeLfoChange}
             disabled={disabled || transitioning || volumeLfoHeldOff}
+            heldOff={volumeLfoHeldOff}
           />
           {volumeLfoHeldOff && <HeldOffNote />}
         </div>
