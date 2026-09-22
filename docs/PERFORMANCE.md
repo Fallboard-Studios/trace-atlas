@@ -304,11 +304,13 @@ latency interactive   ahead 100ms   base 11ms
 voices 3/16   audible 5/12   LFOs 5/7
 load 100% · sounding 5/12 · standing by 0 · poly 3/16
 fps 58   lag 4ms (max 220ms)
+out -12.3dB rms -20.1dB  pre -6.0dB  fin ok
+underruns 0 (0ms) · lat 44ms (0-47)
 1:31 audio clock stalled (x0.00)
 1:52 audio clock recovered after 20.0s
 ```
 
-The border turns red when any failure signature is live. Each line answers one question from the investigation:
+The border turns red when any failure signature is live: the context is not running, the audio clock stalls, the UI frames stop, playback underruns are occurring, the master is silent while notes sound, or an output tap holds non-finite samples. Each line answers one question from the investigation:
 
 | Reading | Meaning |
 |---|---|
@@ -321,6 +323,8 @@ The border turns red when any failure signature is live. Each line answers one q
 | `load n% · sounding a/b · standing by c · poly u/v` | The Audio Load budget: the dial, robots the budget lets sound out of the cap the dial allows, robots eligible but standing by, and notes in use out of the *live* polyphony ceiling (`v` is 16 at Full, 8 at Light). `sounding` never exceeds `b`; at Full it reads `sounding n/12` and `poly n/16`. Sampled at the 500 ms tick; a dash means unknown. `perf:audio` reads this line too (mean and max `sounding` per bucket). |
 | `LFOs n/7` | Global LFOs with rate > 0 — the measured load driver. |
 | `latency … ahead … base` | The hint actually installed, Tone's `lookAhead`, and `baseLatency`. (`outputLatency` is not shown: Tone's standardized-audio-context wrapper doesn't expose it.) |
+| `out … rms …  pre …  fin …` | **Output level taps** ([specs/AUDIO_OUTPUT_DIAGNOSTIC.md](specs/AUDIO_OUTPUT_DIAGNOSTIC.md)): `out` is the peak (dBFS) and `rms` the RMS of what the destination receives (`masterGain`'s output, so after the limiter and after volume/mute); `pre` is the peak of what the voices hand the FX chain (EQ3's output). Each reading is the last 32768 samples (≈ 0.68 s at 48 kHz) from a native `AnalyserNode`. `-inf` is silence, `-` means no reading. `fin ok` means every sample was finite; **`fin NaN!`** means a tap saw NaN/±Infinity. |
+| `underruns n (Dms) · lat Ams (min-max)` | **The browser's own playback statistics** (`AudioContext.playbackStats`, Chrome 146+): playback underruns since the context was created, their total duration, and the average output latency with its min–max. `underruns n/a` when the browser has no such API. A calm desktop run reads `underruns 0 (0ms) · lat 44ms (0-47)`. |
 
 **Telling the causes apart** (what to note when the sound drops):
 
@@ -328,12 +332,38 @@ The border turns red when any failure signature is live. Each line answers one q
 - `ctx` goes `suspended`/`interrupted` → the OS/browser took the context; the app should resume it.
 - `lag` spikes and `fps` → 0, `clock` keeps ~1.00 → a main-thread stall (audio is scheduled from the main thread, so it can starve even though the audio thread is fine).
 - `voices` pinned at 16 with everything else healthy → the voice counter, not the audio path.
+- Everything above reads healthy but it is silent → look at the output taps and the stats (below).
+
+### Reading the output taps and the playback stats
+
+Added because three `bravo` dropouts on the Pixel left **every** reading above normal (`ctx running`, `clock` ≈ x1.00, notes being scheduled, no event) — so what fails is something those readings do not measure ([todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md)). The question is whether the sound is **silent inside the graph** or **lost after it**:
+
+| `out` | `pre` | `underruns` | Reading |
+|---|---|---|---|
+| silent, notes sounding | normal | — | The fault is **inside** LPF → HPF → Delay → Reverb → Compressor → Limiter → master. |
+| silent | silent | — | **Upstream**: the voices or EQ3 produce nothing although notes are scheduled. |
+| normal | normal | count rising | The graph is fine and the **output underran**: load or scheduling, not a silent node. Clicks are underruns. |
+| normal | normal | flat | The graph is fine and the browser reports no underrun: the loss is **downstream** (OS/device) and invisible to the app. |
+| — | — | `n/a` | Chrome before 146 has no `playbackStats`; the level taps still answer graph-vs-not. |
+| `fin NaN!` | either | — | A NaN/Inf is latched; the tap that shows it first locates it. |
+
+Events (edge-triggered, so a long dropout logs two lines, not one per sample):
+
+- `master output silent for 3s while notes sound (pre-chain normal|silent|unknown)` — the master peak was below −80 dBFS (`SILENT_PEAK_THRESHOLD`, strict) for `SILENT_EVENT_AFTER_MS` (3 s) of **counted** time, and the border turns red. Only time with notes in flight counts: a gap between notes **pauses** the count (it neither adds nor restarts it — found in the real browser, where requiring notes at every sample let ordinary gaps hide a real silence). A mute, a stopped transport, a suspended context or an audible master restarts it, so none of those raise it. Recovery: `master output audible again after Xs`, or `silence no longer unexpected after Xs` when it stopped being a fault (e.g. the user muted).
+- `non-finite samples in master output` / `… in pre-chain output`, and `… finite again`, per tap.
+- `playback underruns began (n total)` and `playback underruns stopped after Xs (+N)` — one pair per burst; a burst ends when the count has been flat for `UNDERRUN_QUIET_MS` (1 s), so a click storm cannot flush the 8-line log. The border is red while underruns are occurring.
+
+**Limits.** It cannot see the Android output stream itself, so "downstream" is by exclusion. A sounding robot whose own volume is 0 is genuine silence with notes in flight and will read as a silent-while-sounding event. The silent event trails a real silence by the FX tail-out (about 2 s: the reverb and delay ring out) plus the 3 s counted, plus any note gaps — 5–8 s in the forced-silence checks. The two analysers sit on the graph of the device under suspicion (debug-only, read-only, a 128 KB buffer reused each tick).
+
+**Two things the real browser taught** (2026-09-21, headless Chrome 153): the taps are native `AnalyserNode`s, not `Tone.Analyser` — Tone's wrapper sets `fftSize = 2 × size`, caps `size` at 16384 and reads only the older half of the window; and Tone's `rawContext` is a `standardized-audio-context` wrapper that does not forward `playbackStats`, so the overlay reads it from the wrapper's private `_nativeAudioContext` / `_nativeContext` fields. That is fragile: a `standardized-audio-context` upgrade could quietly turn the line back into `n/a`, which is why it says `n/a` rather than showing zeros.
+
+Verified (2026-09-21, production build, headless Chrome 153, `charlie:200:-30`): `out` ≈ −12 … −17 dB, `rms` ≈ −23 dB and `pre` ≈ −4 … −13 dB while robots sound, live within ~2 s of power-on; **muting the master drops `out` to `-inf` while `pre` stays live and raises no event**; both taps survive flipping Natural ↔ Controlled Decay (which disconnects every FX node); a calm 90 s run shows `underruns 0 (0ms) · lat 44ms (0-47)`. On the dev server, cutting the chain after EQ3 raised the silent event in 3 of 3 runs (5–8 s after the cut, `pre-chain normal`), turned the border red, and cleared on restore.
 
 Verified in headless Chrome (2026-09-19): a deliberate 2 s main-thread freeze logs `main thread stalled ~1639 ms` while `clock` stays ~x1.01, so the two cases are distinguishable; a no-param load creates one realtime AudioContext and `?latency=playback` replaces Tone's default one (which `setContext(…, true)` closes) — Tone's own import creates a default `interactive` context before this module runs, hence the dispose.
 
 ### Getting it onto a phone
 
-`npm run build && npx vite preview --host --port 4173`, then open `http://<pc-lan-ip>:4173/trace-atlas/?debug&…` on the phone (same Wi-Fi; a Windows firewall prompt may need allowing). A production build is the right target — the dev server is unminified and slower. Or deploy the branch. **A phone loading `http://<lan-ip>` is an insecure context** (only https and localhost are secure), where `crypto.randomUUID` does not exist. Before 2026-09-20 that made `AudioEngine.start()` throw in `beatClock.scheduleRepeat`, so the power rocker snapped back and the tablet never powered on; all id generation now goes through `generateUUID()` (`src/utils/randomId.ts`, falls back to `crypto.getRandomValues`). Any *new* secure-context-only API (`crypto.subtle`, `navigator.clipboard`, `navigator.wakeLock`, service workers, …) will break the same way on a LAN phone — you can reproduce that on the PC by loading the preview from its LAN IP instead of `localhost`. The overlay's cost is one 500 ms timer and one GSAP ticker callback, only while `?debug` is on.
+`npm run build && npx vite preview --host --port 4173`, then open `http://<pc-lan-ip>:4173/trace-atlas/?debug&…` on the phone (same Wi-Fi; a Windows firewall prompt may need allowing). A production build is the right target — the dev server is unminified and slower. Or deploy the branch. **A phone loading `http://<lan-ip>` is an insecure context** (only https and localhost are secure), where `crypto.randomUUID` does not exist. Before 2026-09-20 that made `AudioEngine.start()` throw in `beatClock.scheduleRepeat`, so the power rocker snapped back and the tablet never powered on; all id generation now goes through `generateUUID()` (`src/utils/randomId.ts`, falls back to `crypto.getRandomValues`). Any *new* secure-context-only API (`crypto.subtle`, `navigator.clipboard`, `navigator.wakeLock`, service workers, …) will break the same way on a LAN phone — you can reproduce that on the PC by loading the preview from its LAN IP instead of `localhost`. The overlay's cost is one 500 ms timer and one GSAP ticker callback, only while `?debug` is on — plus the two output-tap analysers, which are created only then (with `?debug` absent `buildGlobalFxChain` and `wireGlobalFxChain` construct none).
 
 ## Audio render-capacity series — `npm run perf:audio`
 

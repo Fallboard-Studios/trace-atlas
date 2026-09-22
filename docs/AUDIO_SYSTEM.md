@@ -573,3 +573,5 @@ console.log('Current measure:', getCurrentMeasure());
 console.log('Current beat:', getCurrentBeat());
 console.log('Current hour:', getCurrentHour());
 ```
+
+For audio that goes wrong on a real device, load the app with `?debug`: a read-only overlay shows the context state, audio-clock rate, main-thread lag, the Audio Load budget, and — from `src/engine/audioDiagnostics.ts` — the output level at two points in the graph (after EQ3 and after `masterGain`), silent-while-sounding and non-finite events, and the browser's own playback-underrun counts. How to read it: [PERFORMANCE.md](PERFORMANCE.md#reading-the-output-taps-and-the-playback-stats); design: [specs/AUDIO_OUTPUT_DIAGNOSTIC.md](specs/AUDIO_OUTPUT_DIAGNOSTIC.md). The taps live in `src/engine/audioEngine/globalFx.ts` (`attachOutputTaps` / `detachOutputTaps` / `readOutputTaps`) and are re-attached at the end of `wireGlobalFxChain`, which disconnects every FX node whenever the Natural/Controlled Decay toggle flips.
