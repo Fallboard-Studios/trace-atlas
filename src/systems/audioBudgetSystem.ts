@@ -11,13 +11,14 @@ import type { LoadLimits } from '../utils/audioBudget';
 import {
   detectCoarsePointer,
   detectDefaultAudioLoad,
+  effectsLoadToLimits,
   lfoAllowed,
-  loadToLimits,
   loadToSearchParam,
   orderByArrival,
   parseLoadParam,
   reconcileSounding,
-  withLoadParam,
+  robotLoadToLimits,
+  withParam,
 } from '../utils/audioBudget';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 import { isRobotAudible } from '../utils/robotAudibility';
@@ -37,9 +38,12 @@ let arrivalOrder: readonly string[] = [];
 /** The set currently pushed to the engine and the store. */
 let sounding: readonly string[] = [];
 let pushedPolyphony: number | null = null;
-/** URL mirror (decision H): the load the device would default to, and whether a valid ?load= was in the URL at boot. */
-let defaultLoad = 1;
+/** URL mirror (decision H), one pair per axis: the load the device would default to, and whether a valid
+ *  ?load=/?fxLoad= was in the URL at boot. */
+let defaultRobotLoad = 1;
 let bootHadLoadParam = false;
+let defaultEffectsLoad = 1;
+let bootHadFxLoadParam = false;
 /** The tier-relevant part of the limits last applied to lfoEngine, so roster churn and irrelevant dial nudges do nothing. */
 let appliedTierKey = '';
 
@@ -74,7 +78,8 @@ function reconcile(force = false): void {
   const anySolo = robots.some((r) => r.audioMode === 'solo');
   const eligible = robots.filter((r) => isRobotAudible(r.audioMode, anySolo)).map((r) => r.id);
   const soloIds = robots.filter((r) => r.audioMode === 'solo').map((r) => r.id);
-  const limits = loadToLimits(useAudioStore.getState().audioLoad);
+  const { robotLoad, effectsLoad } = useAudioStore.getState();
+  const limits: LoadLimits = { ...robotLoadToLimits(robotLoad), ...effectsLoadToLimits(effectsLoad) };
 
   arrivalOrder = orderByArrival(arrivalOrder, eligible);
   const next = reconcileSounding(sounding, arrivalOrder, soloIds, limits.maxAudibleRobots);
@@ -112,15 +117,26 @@ function applyLfoTiers(limits: LoadLimits, force = false): void {
 }
 
 /**
- * Mirror the dial into the address bar with history.replaceState (no history entries), so a reload keeps it and a
- * link can carry it. Every other param is preserved. `?load=` is omitted when the value equals what a reload would
- * default to anyway AND the param was absent at boot — so Full on a desktop drops it, while Full on a phone (whose
- * auto-default is Light) stays explicit. A no-op outside a browser; a throwing replaceState (sandboxed frame) is ignored.
+ * One axis's mirrored search-param value: omitted when the value equals what a reload would default to
+ * anyway AND the param was absent at boot — so Full on a desktop drops it, while Full on a phone (whose
+ * auto-default is Light) stays explicit.
  */
-function mirrorLoadToUrl(audioLoad: number): void {
+function mirroredParamValue(load: number, defaultForAxis: number, hadParamAtBoot: boolean): string | null {
+  const isDefault = Math.round(load * 100) === Math.round(defaultForAxis * 100);
+  return isDefault && !hadParamAtBoot ? null : loadToSearchParam(load);
+}
+
+/**
+ * Mirror both sliders into the address bar with history.replaceState (no history entries), so a reload keeps
+ * them and a link can carry them. Every other param is preserved. `?load=` (robotLoad) and `?fxLoad=`
+ * (effectsLoad) are mirrored independently, each against its own axis's default/boot-param state — the same
+ * rule `?load=` already used alone, now applied twice. A no-op outside a browser; a throwing replaceState
+ * (sandboxed frame) is ignored.
+ */
+function mirrorLoadToUrl(robotLoad: number, effectsLoad: number): void {
   if (typeof window === 'undefined') return;
-  const isDefault = Math.round(audioLoad * 100) === Math.round(defaultLoad * 100);
-  const search = withLoadParam(window.location.search, isDefault && !bootHadLoadParam ? null : loadToSearchParam(audioLoad));
+  let search = withParam(window.location.search, 'load', mirroredParamValue(robotLoad, defaultRobotLoad, bootHadLoadParam));
+  search = withParam(search, 'fxLoad', mirroredParamValue(effectsLoad, defaultEffectsLoad, bootHadFxLoadParam));
   if (search === window.location.search) return;
   try {
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${search}${window.location.hash}`);
@@ -141,7 +157,7 @@ function onPossibleRosterChange(): void {
 // ========================================
 
 /**
- * Start budgeting: subscribe to the active locale's robots (through a signature) and to `audioLoad`,
+ * Start budgeting: subscribe to the active locale's robots (through a signature) and to `robotLoad`/`effectsLoad`,
  * and push the sounding set and polyphony ceiling to the engine, writing `soundingRobotIds` only when the
  * set really changes. Idempotent. Started once from main.tsx before first power-on.
  */
@@ -152,8 +168,12 @@ export function startAudioBudget(): void {
   pushedPolyphony = null;
   lastSignature = signature();
   if (typeof window !== 'undefined') {
-    defaultLoad = detectDefaultAudioLoad({ coarsePointer: detectCoarsePointer() });
-    bootHadLoadParam = parseLoadParam(new URLSearchParams(window.location.search).get('load')) !== null;
+    const defaultLoad = detectDefaultAudioLoad({ coarsePointer: detectCoarsePointer() });
+    defaultRobotLoad = defaultLoad;
+    defaultEffectsLoad = defaultLoad;
+    const params = new URLSearchParams(window.location.search);
+    bootHadLoadParam = parseLoadParam(params.get('load')) !== null;
+    bootHadFxLoadParam = parseLoadParam(params.get('fxLoad')) !== null;
   }
   reconcile(true); // always establish the engine's set, even when it is empty
 
@@ -164,9 +184,9 @@ export function startAudioBudget(): void {
     // The active locale id lives in the Attenuation Style store, so a locale switch needs its own listener.
     useAttenuationStyleStore.subscribe(onPossibleRosterChange),
     useAudioStore.subscribe((state, prev) => {
-      if (state.audioLoad !== prev.audioLoad) {
+      if (state.robotLoad !== prev.robotLoad || state.effectsLoad !== prev.effectsLoad) {
         reconcile();
-        mirrorLoadToUrl(state.audioLoad);
+        mirrorLoadToUrl(state.robotLoad, state.effectsLoad);
       }
     }),
   ];

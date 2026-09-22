@@ -14,7 +14,7 @@ import { DockingState } from '../types/Robot';
 import type { LfoTargetId } from '../types/lfo';
 import type { Robot } from '../types/Robot';
 import { MAX_POLYPHONY } from '../constants';
-import { resolveInitialAudioLoad } from '../utils/audioBudget';
+import { resolveInitialAudioLoad, resolveInitialEffectsLoad } from '../utils/audioBudget';
 import { isRobotAudible } from '../utils/robotAudibility';
 
 // ========================================
@@ -90,7 +90,7 @@ const enginePoly = vi.spyOn(AudioEngine, 'setPolyphonyCap');
 describe('audioBudgetSystem', () => {
   beforeEach(() => {
     stopAudioBudget();
-    useAudioStore.setState({ audioLoad: 1, soundingRobotIds: [], heldOffLfoKeys: [], driftHeldOff: false });
+    useAudioStore.setState({ robotLoad: 1, effectsLoad: 1, soundingRobotIds: [], heldOffLfoKeys: [], driftHeldOff: false });
     setRoster([]);
     AudioEngine.setSoundingRobots(null);
     AudioEngine.setPolyphonyCap(MAX_POLYPHONY);
@@ -103,9 +103,9 @@ describe('audioBudgetSystem', () => {
     AudioEngine.setPolyphonyCap(MAX_POLYPHONY);
   });
 
-  describe('admission under a budget (Light: 4 robots, 8 notes)', () => {
+  describe('admission under a budget (Light robot load: 4 robots, 8 notes)', () => {
     beforeEach(() => {
-      useAudioStore.setState({ audioLoad: 0.2 });
+      useAudioStore.setState({ robotLoad: 0.2 });
     });
 
     it('lets exactly 4 of 6 eligible robots sound, the other 2 waiting in arrival order', () => {
@@ -179,16 +179,16 @@ describe('audioBudgetSystem', () => {
     });
   });
 
-  describe('changing the dial', () => {
-    it('lowering audioLoad evicts the newest robots first and raising it admits waiters in order', () => {
+  describe('changing the dial (robotLoad — maxAudibleRobots/maxPolyphony are robot-axis only)', () => {
+    it('lowering robotLoad evicts the newest robots first and raising it admits waiters in order', () => {
       setRoster(roster(6));
       startAudioBudget();
       expect(sounding()).toEqual(['r1', 'r2', 'r3', 'r4', 'r5', 'r6']); // Full: everyone sounds
 
-      useAudioStore.getState().setAudioLoad(0.2);
+      useAudioStore.getState().setRobotLoad(0.2);
       expect(sounding()).toEqual(['r1', 'r2', 'r3', 'r4']);
 
-      useAudioStore.getState().setAudioLoad(0.6); // 8 robots
+      useAudioStore.getState().setRobotLoad(0.6); // 8 robots
       expect(sounding()).toEqual(['r1', 'r2', 'r3', 'r4', 'r5', 'r6']);
     });
 
@@ -196,13 +196,13 @@ describe('audioBudgetSystem', () => {
       startAudioBudget();
       expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(16);
 
-      useAudioStore.getState().setAudioLoad(0.2);
+      useAudioStore.getState().setRobotLoad(0.2);
       expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(8);
 
-      useAudioStore.getState().setAudioLoad(0.6);
+      useAudioStore.getState().setRobotLoad(0.6);
       expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(12);
 
-      useAudioStore.getState().setAudioLoad(1);
+      useAudioStore.getState().setRobotLoad(1);
       expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(16);
     });
 
@@ -210,15 +210,27 @@ describe('audioBudgetSystem', () => {
       startAudioBudget();
       enginePoly.mockClear();
 
-      useAudioStore.getState().setAudioLoad(0.2);
-      useAudioStore.getState().setAudioLoad(0.21); // still 8 notes
-      useAudioStore.getState().setAudioLoad(0.19); // still 8 notes
+      useAudioStore.getState().setRobotLoad(0.2);
+      useAudioStore.getState().setRobotLoad(0.21); // still 8 notes
+      useAudioStore.getState().setRobotLoad(0.19); // still 8 notes
 
       expect(enginePoly).toHaveBeenCalledTimes(1);
     });
+
+    it('does not affect admission or polyphony — only effectsLoad moving does not either', () => {
+      setRoster(roster(6));
+      startAudioBudget();
+      useAudioStore.getState().setRobotLoad(0.2);
+      expect(sounding()).toEqual(['r1', 'r2', 'r3', 'r4']);
+
+      useAudioStore.getState().setEffectsLoad(0);
+
+      expect(sounding()).toEqual(['r1', 'r2', 'r3', 'r4']); // unchanged: effectsLoad doesn't touch admission
+      expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(8); // unchanged: effectsLoad doesn't touch polyphony
+    });
   });
 
-  describe('Full (audioLoad = 1) is unchanged behavior', () => {
+  describe('Full (robotLoad = effectsLoad = 1) is unchanged behavior', () => {
     it('lets every eligible robot sound and the ceiling stay at MAX_POLYPHONY', () => {
       setRoster(roster(12));
       startAudioBudget();
@@ -240,7 +252,7 @@ describe('audioBudgetSystem', () => {
 
   describe('roster and locale changes', () => {
     it('follows a brand-new roster (a world transition) and drops robots that no longer exist', () => {
-      useAudioStore.setState({ audioLoad: 0.2 });
+      useAudioStore.setState({ robotLoad: 0.2 });
       setRoster(roster(6));
       startAudioBudget();
 
@@ -250,7 +262,7 @@ describe('audioBudgetSystem', () => {
     });
 
     it('ignores robots in locales other than the active one', () => {
-      useAudioStore.setState({ audioLoad: 0.2 });
+      useAudioStore.setState({ robotLoad: 0.2 });
       useLocaleStore.setState({
         locales: {
           [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: roster(2) },
@@ -310,7 +322,7 @@ describe('audioBudgetSystem', () => {
     });
 
     it('writes the store only for real set changes across a simulated 200-measure lifecycle run', () => {
-      useAudioStore.setState({ audioLoad: 0.2 }); // Light: at most 4 sound
+      useAudioStore.setState({ robotLoad: 0.2 }); // Light: at most 4 sound
       vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
 
       // A mixed roster with staggered batteries so robots depart, dock and land across the run.
@@ -368,7 +380,7 @@ describe('audioBudgetSystem', () => {
     });
 
     it('stopAudioBudget unsubscribes everything and releases the restrictions', () => {
-      useAudioStore.setState({ audioLoad: 0.2 });
+      useAudioStore.setState({ robotLoad: 0.2 });
       setRoster(roster(6));
       startAudioBudget();
       expect(sounding()).toHaveLength(4);
@@ -381,7 +393,7 @@ describe('audioBudgetSystem', () => {
       engineSet.mockClear();
       enginePoly.mockClear();
       setRoster(roster(8)); // roster change after stop
-      useAudioStore.getState().setAudioLoad(0.5); // dial change after stop
+      useAudioStore.getState().setRobotLoad(0.5); // dial change after stop
       expect(engineSet).not.toHaveBeenCalled();
       expect(enginePoly).not.toHaveBeenCalled();
       expect(sounding()).toEqual([]);
@@ -406,7 +418,7 @@ describe('audioBudgetSystem', () => {
     });
 
     it('is not torn down by a power cycle: AudioEngine.killAll() leaves the set and the ceiling alone', () => {
-      useAudioStore.setState({ audioLoad: 0.2 });
+      useAudioStore.setState({ robotLoad: 0.2 });
       setRoster(roster(6));
       startAudioBudget();
       const before = sounding();
@@ -439,8 +451,8 @@ describe('audioBudgetSystem', () => {
       subscribeHeldOff.mockReset();
     });
 
-    it('installs the policy for the dial in force at start, before anything can connect (boot at ?load=light)', () => {
-      useAudioStore.setState({ audioLoad: 0.2 });
+    it('installs the policy for the dial in force at start, before anything can connect (boot at ?fxLoad=light)', () => {
+      useAudioStore.setState({ effectsLoad: 0.2 });
       startAudioBudget();
 
       expect(policy()('lpf.Q', undefined, 0)).toBe(false); // filter LFOs off on Light
@@ -464,7 +476,7 @@ describe('audioBudgetSystem', () => {
 
     it('moving the dial across each threshold flips exactly that tier', () => {
       startAudioBudget();
-      const set = (load: number) => useAudioStore.getState().setAudioLoad(load);
+      const set = (load: number) => useAudioStore.getState().setEffectsLoad(load);
 
       set(0.6); // Standard
       expect(policy()('lpf.Q', undefined, 0)).toBe(true);
@@ -485,7 +497,7 @@ describe('audioBudgetSystem', () => {
       startAudioBudget();
       vi.clearAllMocks();
 
-      useAudioStore.getState().setAudioLoad(0.2);
+      useAudioStore.getState().setEffectsLoad(0.2);
 
       const order = (fn: { mock: { invocationCallOrder: number[] } }) => fn.mock.invocationCallOrder[0];
       expect(setPolicy).toHaveBeenCalled();
@@ -494,12 +506,12 @@ describe('audioBudgetSystem', () => {
     });
 
     it('does not re-run the tiers for a dial change that leaves every tier limit where it was', () => {
-      useAudioStore.setState({ audioLoad: 0.5 });
+      useAudioStore.setState({ effectsLoad: 0.5 });
       startAudioBudget();
       vi.clearAllMocks();
 
-      useAudioStore.getState().setAudioLoad(0.51); // same filter/drift state, same robot-LFO cap
-      useAudioStore.getState().setAudioLoad(0.52);
+      useAudioStore.getState().setEffectsLoad(0.51); // same filter/drift state, same robot-LFO cap
+      useAudioStore.getState().setEffectsLoad(0.52);
 
       expect(setPolicy).not.toHaveBeenCalled();
       expect(reconcileLfos).not.toHaveBeenCalled();
@@ -517,9 +529,19 @@ describe('audioBudgetSystem', () => {
       expect(reconcileLfos).not.toHaveBeenCalled();
     });
 
+    it('does not re-run the tiers when robotLoad changes — only effectsLoad drives them', () => {
+      startAudioBudget();
+      vi.clearAllMocks();
+
+      useAudioStore.getState().setRobotLoad(0.2);
+
+      expect(setPolicy).not.toHaveBeenCalled();
+      expect(reconcileLfos).not.toHaveBeenCalled();
+    });
+
     it('marks drift held off exactly while the dial keeps it off, writing the flag only on a real change', () => {
       startAudioBudget();
-      // Count real value transitions. (The system sets driftHeldOff from inside the audioLoad notification, so Zustand hands an
+      // Count real value transitions. (The system sets driftHeldOff from inside the effectsLoad notification, so Zustand hands an
       // outside observer the same change twice — once with the nested `prev`, once with the outer one — hence tracking the last value seen.)
       let writes = 0;
       let last = store().driftHeldOff;
@@ -530,11 +552,11 @@ describe('audioBudgetSystem', () => {
         }
       });
 
-      for (let percent = 100; percent >= 0; percent--) useAudioStore.getState().setAudioLoad(percent / 100);
+      for (let percent = 100; percent >= 0; percent--) useAudioStore.getState().setEffectsLoad(percent / 100);
       expect(store().driftHeldOff).toBe(true);
       expect(writes).toBe(1);
 
-      for (let percent = 0; percent <= 100; percent++) useAudioStore.getState().setAudioLoad(percent / 100);
+      for (let percent = 0; percent <= 100; percent++) useAudioStore.getState().setEffectsLoad(percent / 100);
       expect(store().driftHeldOff).toBe(false);
       expect(writes).toBe(2);
       unsubscribe();
@@ -542,7 +564,7 @@ describe('audioBudgetSystem', () => {
 
     describe('held-off LFOs mirrored into the store', () => {
       it('writes the engine’s held-off keys whenever the engine reports a change — e.g. a robot LFO enabled over the cap', () => {
-        useAudioStore.setState({ audioLoad: 0.2 });
+        useAudioStore.setState({ effectsLoad: 0.2 });
         startAudioBudget();
         const onChange = subscribeHeldOff.mock.calls.at(-1)![0];
 
@@ -577,14 +599,14 @@ describe('audioBudgetSystem', () => {
         expect(store().heldOffLfoKeys).toEqual(['lpf.Q']);
 
         getHeldOff.mockReturnValue([]);
-        useAudioStore.getState().setAudioLoad(0.7); // any tier change re-syncs
-        useAudioStore.getState().setAudioLoad(1);
+        useAudioStore.getState().setEffectsLoad(0.7); // any tier change re-syncs
+        useAudioStore.getState().setEffectsLoad(1);
         expect(store().heldOffLfoKeys).toEqual([]);
       });
     });
 
     it('stopAudioBudget lifts every tier: policy removed, drift back on, reconciled, held-off state cleared, listener released', () => {
-      useAudioStore.setState({ audioLoad: 0.2 });
+      useAudioStore.setState({ effectsLoad: 0.2 });
       const unsubscribeEngine = vi.fn();
       subscribeHeldOff.mockImplementation(() => unsubscribeEngine);
       getHeldOff.mockReturnValue(['lpf.Q']);
@@ -620,11 +642,11 @@ describe('audioBudgetSystem', () => {
       window.matchMedia = originalMatchMedia;
     });
 
-    it('writes ?load= when the dial changes, leaving seed, x, y, debug and latency intact', () => {
+    it('writes ?load= when robotLoad changes, leaving seed, x, y, debug and latency intact', () => {
       setUrl('?debug&seed=bravo&x=-150&y=90&latency=playback');
       startAudioBudget();
 
-      useAudioStore.getState().setAudioLoad(0.2);
+      useAudioStore.getState().setRobotLoad(0.2);
 
       expect(window.location.search).toBe('?debug&seed=bravo&x=-150&y=90&latency=playback&load=light');
     });
@@ -635,8 +657,8 @@ describe('audioBudgetSystem', () => {
       const entries = window.history.length;
       const push = vi.spyOn(window.history, 'pushState');
 
-      useAudioStore.getState().setAudioLoad(0.6);
-      useAudioStore.getState().setAudioLoad(0.45);
+      useAudioStore.getState().setRobotLoad(0.6);
+      useAudioStore.getState().setRobotLoad(0.45);
 
       expect(window.location.pathname).toBe('/trace-atlas/');
       expect(window.location.hash).toBe('#section');
@@ -649,7 +671,7 @@ describe('audioBudgetSystem', () => {
     it('writes the preset name at a preset and a whole percent between presets', () => {
       startAudioBudget();
       const at = (load: number) => {
-        useAudioStore.getState().setAudioLoad(load);
+        useAudioStore.getState().setRobotLoad(load);
         return window.location.search;
       };
       expect(at(0.2)).toBe('?load=light');
@@ -660,33 +682,35 @@ describe('audioBudgetSystem', () => {
 
     it('removes ?load= when set back to Full on a desktop, if it was absent at boot', () => {
       startAudioBudget();
-      useAudioStore.getState().setAudioLoad(0.2);
+      useAudioStore.getState().setRobotLoad(0.2);
       expect(window.location.search).toBe('?load=light');
 
-      useAudioStore.getState().setAudioLoad(1);
+      useAudioStore.getState().setRobotLoad(1);
 
       expect(window.location.search).toBe('');
     });
 
     it('keeps ?load=full explicit when ?load= was present at boot', () => {
       setUrl('?load=light');
-      useAudioStore.setState({ audioLoad: 0.2 });
+      useAudioStore.setState({ robotLoad: 0.2 });
       startAudioBudget();
 
-      useAudioStore.getState().setAudioLoad(1);
+      useAudioStore.getState().setRobotLoad(1);
 
       expect(window.location.search).toBe('?load=full');
     });
 
     it('on a phone (auto-default Light), Full is NOT the default so it stays explicit, and Light is removed', () => {
       phone();
-      useAudioStore.setState({ audioLoad: 0.2 });
+      // effectsLoad also starts at the phone's own default (Light) and is never touched below, so it stays
+      // at its default throughout and never needs mirroring — isolating this test to robotLoad/?load= alone.
+      useAudioStore.setState({ robotLoad: 0.2, effectsLoad: 0.2 });
       startAudioBudget();
 
-      useAudioStore.getState().setAudioLoad(1);
+      useAudioStore.getState().setRobotLoad(1);
       expect(window.location.search).toBe('?load=full');
 
-      useAudioStore.getState().setAudioLoad(0.2);
+      useAudioStore.getState().setRobotLoad(0.2);
       expect(window.location.search).toBe(''); // a reload gives Light again, so no param is needed
     });
 
@@ -700,25 +724,25 @@ describe('audioBudgetSystem', () => {
 
     it('does not rewrite the URL when the value it would write is already there', () => {
       setUrl('?load=light');
-      useAudioStore.setState({ audioLoad: 0.2 });
+      useAudioStore.setState({ robotLoad: 0.2 });
       startAudioBudget();
       const replace = vi.spyOn(window.history, 'replaceState');
 
-      useAudioStore.getState().setAudioLoad(0.2004); // still "light" at whole-percent resolution
-      useAudioStore.getState().setAudioLoad(0.2);
+      useAudioStore.getState().setRobotLoad(0.2004); // still "light" at whole-percent resolution
+      useAudioStore.getState().setRobotLoad(0.2);
 
       expect(replace).not.toHaveBeenCalled();
       replace.mockRestore();
     });
 
-    it('a reload reads back exactly the dial that was left, for every whole percent, on desktop and phone', () => {
+    it('a reload reads back exactly the robotLoad that was left, for every whole percent, on desktop and phone', () => {
       for (const isPhone of [false, true]) {
         window.matchMedia = originalMatchMedia;
         if (isPhone) phone();
         setUrl('?debug');
         startAudioBudget();
         for (let percent = 0; percent <= 100; percent++) {
-          useAudioStore.getState().setAudioLoad(percent / 100);
+          useAudioStore.getState().setRobotLoad(percent / 100);
           expect(
             resolveInitialAudioLoad({ search: window.location.search, coarsePointer: isPhone }),
             `${isPhone ? 'phone' : 'desktop'} ${percent}%`,
@@ -731,7 +755,7 @@ describe('audioBudgetSystem', () => {
     it('stops mirroring after stopAudioBudget', () => {
       startAudioBudget();
       stopAudioBudget();
-      useAudioStore.getState().setAudioLoad(0.2);
+      useAudioStore.getState().setRobotLoad(0.2);
       expect(window.location.search).toBe('');
     });
 
@@ -742,11 +766,58 @@ describe('audioBudgetSystem', () => {
       setRoster(roster(6));
       startAudioBudget();
 
-      expect(() => useAudioStore.getState().setAudioLoad(0.2)).not.toThrow();
+      expect(() => useAudioStore.getState().setRobotLoad(0.2)).not.toThrow();
 
-      expect(useAudioStore.getState().audioLoad).toBe(0.2);
+      expect(useAudioStore.getState().robotLoad).toBe(0.2);
       expect(sounding()).toHaveLength(4);
       replace.mockRestore();
+    });
+
+    describe('?fxLoad= mirrors effectsLoad independently, the same way ?load= mirrors robotLoad', () => {
+      it('does not add fxLoad while effectsLoad stays at its own default (Full on desktop), even as robotLoad moves', () => {
+        startAudioBudget();
+
+        useAudioStore.getState().setRobotLoad(0.2);
+
+        expect(window.location.search).toBe('?load=light'); // effectsLoad untouched, still Full: no fxLoad
+      });
+
+      it('adds ?fxLoad= once effectsLoad moves off its own default, even while robotLoad stays put', () => {
+        startAudioBudget();
+
+        useAudioStore.getState().setEffectsLoad(0.2);
+
+        expect(window.location.search).toBe('?fxLoad=light'); // robotLoad untouched, still Full: no load
+      });
+
+      it('removes ?fxLoad= again once effectsLoad returns to its own default', () => {
+        startAudioBudget();
+        useAudioStore.getState().setEffectsLoad(0.2);
+        expect(window.location.search).toBe('?fxLoad=light');
+
+        useAudioStore.getState().setEffectsLoad(1);
+
+        expect(window.location.search).toBe('');
+      });
+
+      it('keeps ?load= and ?fxLoad= both explicit when both move off default, alongside other params', () => {
+        setUrl('?debug');
+        startAudioBudget();
+
+        useAudioStore.getState().setRobotLoad(0.6);
+        useAudioStore.getState().setEffectsLoad(0.2);
+
+        expect(window.location.search).toBe('?debug&load=standard&fxLoad=light');
+      });
+
+      it('reads back independently on reload, for robotLoad via ?load= and effectsLoad via ?fxLoad=', () => {
+        startAudioBudget();
+        useAudioStore.getState().setRobotLoad(0.6);
+        useAudioStore.getState().setEffectsLoad(0.2);
+
+        expect(resolveInitialAudioLoad({ search: window.location.search, coarsePointer: false })).toBe(0.6);
+        expect(resolveInitialEffectsLoad({ search: window.location.search, coarsePointer: false })).toBe(0.2);
+      });
     });
   });
 });
