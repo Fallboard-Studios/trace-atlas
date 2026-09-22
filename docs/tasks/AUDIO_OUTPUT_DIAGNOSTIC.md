@@ -313,14 +313,14 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
   **Estimated scope:** M
 
-- [ ] **Task 13: Real browser — mute and toggle raise nothing; a forced silence raises the event** *(stopped at a gate: mute and toggle met; the forced-silence timing criterion was missed — see "Task 13" under Task results)*
+- [x] **Task 13: Real browser — mute and toggle raise nothing; a forced silence raises the event** *(the forced-silence timing criterion was missed at first; resolved with Crawford's option 1 — see "Task 13" under Task results)*
 
   **Description:** Same headless setup (production build for the mute and toggle checks; the dev server for the forced silence, which needs a dynamic `import()` of `globalFx`). Forced silence: disconnect the chain entry (`getGlobalChainEntry().disconnect()`), which silences everything after EQ3, then restore with `wireGlobalFxChain(false)`. Note that this also drops the pre tap's own connection, so the real-browser run exercises the "both silent" branch; the "pre normal, master silent" branch is covered by Task 10's unit tests.
 
   **Acceptance criteria:**
   - [ ] Muting the master for > 10 s raises **no** silent event and does not turn the overlay red.
   - [ ] Flipping Natural ↔ Controlled Decay raises **no** silent event.
-  - [ ] Forced silence raises the silent event within about 3.5 s of the disconnect, the overlay goes red, and after the restore a recovery event appears and the border clears.
+  - [ ] Forced silence raises the silent event, the overlay goes red, and after the restore a recovery event appears and the border clears. *(Revised 2026-09-21 after the first run: the original "within about 3.5 s" assumed instant silence and no gaps between notes; the event now comes after the FX tail-out (≈ 2 s here) plus 3 s of counted silence plus any note gaps — 5–8 s observed.)*
   - [ ] No console errors; process count unchanged.
 
   **Verification:**
@@ -333,8 +333,8 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
   **Estimated scope:** S
 
 ### Checkpoint C: all events
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all pass; Task 13's results recorded.
-- [ ] Spec §5.3 criteria 1–9 met, or each miss reported with the evidence. Review with Crawford before docs.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all pass (152 files, 3316 tests); Task 13's results recorded.
+- [x] Spec §5.3 criteria 1–9 met, or each miss reported with the evidence. (One miss, the forced-silence timing, reported and resolved with Crawford's option 1; the spec's criteria 5 and 9 wording changes are listed for the As Shipped section.)
 
 ### Phase 4: Docs and handoff
 
@@ -447,7 +447,9 @@ A page builds `Oscillator(440 Hz) → Gain(0.5) → destination`, plus a native 
 - **Run 1:** `out` fell −13 → −116 → −229 → … → `-inf` (the reverb and delay tails rang out for ≈ 1.7 s), `pre` stayed live (−5 … −15 dB). About **6.5–7 s after the cut** the overlay went red and logged `0:23 master output silent for 3s while notes sound (pre-chain normal)`. After `wireGlobalFxChain(false)` the level returned within 1 s, the border cleared and `0:26 master output audible again after 6.0s` was logged. So the event's wording, the pre-chain reading, the red status and the recovery all work.
 - **Run 2 (same steps, `voices` logged each second):** **no event within 9 s.** `voices` read 4, 3, **0**, 6, 5, **0**, 7, 7, 3 — notes in flight fell to 0 twice, and each time the 3 s count restarted, because `expectSound` requires `voices > 0` at *every* sample.
 
-**Criterion "raises the silent event within about 3.5 s of the disconnect": MISSED** — ≈ 6.5–7 s in one run, not within 9 s in the other. Two causes. (1) The FX tails keep the master above −80 dBFS for ≈ 1.7 s after a cut — a property of this test, not a defect. (2) **The real finding: the instantaneous `voices > 0` term lets any gap between notes restart the count.** With 3–4 robots sounding (this run: `audible 3/12`) gaps are frequent; on the phone's `bravo` runs (7–8 sounding) `poly` was never 0 in about 25 transcribed screenshots, but the same fragility applies whenever few robots sound. This is spec §7's own risk ("missed silence between notes"), now measured. Nothing was tuned; the options are in the report to Crawford, and Task 13 stays unticked until he decides.
+**Criterion "raises the silent event within about 3.5 s of the disconnect": MISSED** — ≈ 6.5–7 s in one run, not within 9 s in the other. Two causes. (1) The FX tails keep the master above −80 dBFS for ≈ 1.7 s after a cut — a property of this test, not a defect. (2) **The real finding: the instantaneous `voices > 0` term lets any gap between notes restart the count.** With 3–4 robots sounding (this run: `audible 3/12`) gaps are frequent; on the phone's `bravo` runs (7–8 sounding) `poly` was never 0 in about 25 transcribed screenshots, but the same fragility applies whenever few robots sound. This is spec §7's own risk ("missed silence between notes"), now measured. Nothing was tuned; the options went to Crawford.
+
+**Resolution (Crawford chose option 1, 2026-09-21): gaps between notes now pause the count instead of restarting it** (commit `03f85ec`, test first, eight mutants killed). `expectSound` no longer includes `voices > 0`; a separate `notesSounding` does, and a gap adds nothing to the count and does not restart it (muting, a stopped transport, a suspended context and an audible master still do). Re-run on the dev server, same forced silence, **three times: the event fired every time**, 8, 5 and 6 uptime seconds after the cut (±1 s), each `(pre-chain normal)`; the overlay went red and cleared on restore each time, with the recovery logged (`audible again after 7.4s / 7.5s / 7.0s`). Those latencies are the FX tail-out (≈ 2 s here) plus 3 s of counted silence plus any note gaps; the run with two zero-`voices` samples took longest. **The criterion is revised accordingly** (it assumed instant silence and no note gaps). Checkpoint C full suite afterwards: 152 files, 3316 tests, all green.
 
 ### Task 9 — real browser, slice B (2026-09-21, production build of `03f0cd0`, headless Chrome 153, `?debug&seed=charlie&x=200&y=-30`, 90 s; Chrome process count not higher afterwards)
 
