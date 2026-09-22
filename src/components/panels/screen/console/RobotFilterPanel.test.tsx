@@ -81,6 +81,16 @@ describe('RobotFilterPanel', () => {
     expect(screen.getByTestId('company-manager-mock')).toBeTruthy();
   });
 
+  // docs/tasks/NAV_LAYOUT_REWRITE.md Task 18 — this component's filter controls were already
+  // never behind an AccordionContainer (its responsive shell is its own GSAP slide-over, not an
+  // accordion; verified against the actual source, not the task doc's own description, which
+  // assumed a since-superseded accordion). This guard locks that in explicitly, matching this
+  // migration's own "confirm zero remaining AccordionContainer" convention for every consumer.
+  it('renders no accordion anywhere — filter controls are always reachable, no collapsed section to open first', () => {
+    const { container } = render(<RobotFilterPanel />);
+    expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
+  });
+
   describe('desktop tier', () => {
     it('renders no toggle button', () => {
       render(<RobotFilterPanel />);

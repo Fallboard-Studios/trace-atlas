@@ -4,14 +4,12 @@ import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
 import { Lfo } from '@/components/ui/controls/Lfo';
-import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { useLfoTargetGroup } from '@/components/ui/controls/useLfoTargetGroup';
 import { withActiveClass } from '@/components/ui/controls/activeClass';
 import {
   AUDIO_SETTING_SCHEMA,
   VOLUME_SCHEMA,
-  VOLUME_ACCORDION_SCHEMA,
   VOLUME_ROW_PANEL_SCHEMA,
   VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA,
 } from '@/data/robotOptionsConfig';
@@ -38,8 +36,8 @@ interface AudioSettingSectionProps {
   /** Audio Load Budget: this robot's Volume LFO is held off by the dial — its LFO frame greys out (values kept) with a label.
    *  A plain prop, not a store read: this component stays presentational, and the company panel simply omits it. */
   volumeLfoHeldOff?: boolean;
-  /** Optional inline style forwarded to this section's own AccordionContainer — trait-color
-   *  scoping (getTraitColorStyle('output'), Roadmap Phase 14), applied identically at both the
+  /** Optional inline style forwarded to this section's own root — trait-color scoping
+   *  (getTraitColorStyle('output'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this section always renders in
    *  Output, whether it's editing one robot or a company's bulk baseline. See
    *  docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
@@ -53,15 +51,18 @@ interface AudioSettingSectionProps {
  * to different value/onChange sources. No `robot` prop, no store access — a pure value/onChange
  * component, same contract every other refactored Robot Options section uses.
  *
- * Wrapped in its own Volume accordion (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.2) — the
- * one Robot Options section that didn't have an accordion before this phase. Volume renders
- * through `useLfoTargetGroup` called directly (the hook, not the shared `<LfoTargetGroup>`
- * wrapper component) so this component can hand-compose a layout `LfoTargetGroup` has no way to
- * produce on its own: Audio Setting + Volume stacked in one column, beside (desktop) or above
- * (mobile/tablet) the shared Lfo display — the same escape hatch `AudioRigLfoGroup`
- * (`AudioRigDrawer.tsx`) already uses for its own custom composition needs. There's only one
- * field to target ('volume'), so `selected`/`isTargeted` are effectively constant, but the same
- * click/focus-to-select wiring is kept for consistency with every other LFO-tied control group.
+ * No AccordionContainer wrapper as of Task 18's own follow-up (docs/tasks/NAV_LAYOUT_REWRITE.md —
+ * this section is a probe's/company's own "Volume" tree leaf per spec §2's mapping table, found as
+ * a 6th real AccordionContainer consumer the plan's own Tasks 14-18 list of 5 missed; migrated the
+ * same way as the other 5 rather than left behind, since Checkpoint 3's own "zero remaining
+ * consumers" grep check wouldn't otherwise hold). Volume renders through `useLfoTargetGroup`
+ * called directly (the hook, not the shared `<LfoTargetGroup>` wrapper component) so this
+ * component can hand-compose a layout `LfoTargetGroup` has no way to produce on its own: Audio
+ * Setting + Volume stacked in one column, beside (desktop) or above (mobile/tablet) the shared Lfo
+ * display — the same escape hatch `AudioRigLfoGroup` (`AudioRigDrawer.tsx`) already uses for its
+ * own custom composition needs. There's only one field to target ('volume'), so
+ * `selected`/`isTargeted` are effectively constant, but the same click/focus-to-select wiring is
+ * kept for consistency with every other LFO-tied control group.
  */
 function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, onVolumeLfoChange, disabled, volumeLfoHeldOff, style }: AudioSettingSectionProps) {
   const { transitioning, select, isTargeted, displayValue, displayLabel } = useLfoTargetGroup({
@@ -90,7 +91,7 @@ function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, on
   );
 
   return (
-    <AccordionContainer schema={VOLUME_ACCORDION_SCHEMA} style={style}>
+    <div className="audio-setting-section" style={style}>
       <DirectionalPanel schema={VOLUME_ROW_PANEL_SCHEMA}>
         <DirectionalPanel schema={VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA}>
           <div className="audio-setting-section__row">
@@ -128,7 +129,7 @@ function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, on
           {volumeLfoHeldOff && <HeldOffNote />}
         </div>
       </DirectionalPanel>
-    </AccordionContainer>
+    </div>
   );
 }
 
