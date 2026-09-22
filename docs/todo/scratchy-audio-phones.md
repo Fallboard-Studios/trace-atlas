@@ -433,12 +433,41 @@ Take as many as you have time for; a run that drops out is worth more than a cle
 - **Events** — `master output silent for 3s while notes sound (pre-chain …)`, `playback underruns began/stopped …`, `non-finite samples …`; and whether the border went red.
 - If the line reads **`underruns n/a`** on the phone, say so: it would mean the wrapper's private field the reader relies on has moved.
 
-**Crawford's results — to be filled in verbatim, then read plainly.**
+**Crawford's results (2026-09-21, by ear plus 17 screenshots), verbatim, then read plainly.** Each run was one continuous session on the phone; no full silent-graph dropout occurred in any of the three (the event log never showed `master output silent…`, and `out`/`pre` stayed at normal dB levels — never `-inf` — in every screenshot). The distortion he reports is heard, not read off a dropout.
 
-| # | URL suffix | Dropouts | `out` / `pre` at the dropout | `underruns` (start → at the dropout) | Events | Notes |
-|---|---|---|---|---|---|---|
-| 1 | bravo · full | | | | | |
-| 2 | bravo · light | | | | | |
-| 3 | charlie · full | | | | | |
+```text
+http://192.168.12.231:4173/trace-atlas/?debug&seed=bravo&x=-150&y=90&load=full
+8 seconds in or so it started distorting, lasted for a good 20 seconds or so. Then it was ok for
+quite a while audio wise, but I did see some red. Lots of red, some clicks around 1:30, and again
+at 2:10ish. Lots of red around 2:30. Just always lots of red, and around 3:20 it got badly
+distorted until 4:00ish. Around 4:10 it's really clean for like 10 or 15 seconds. By 4:45 it was
+distorting alot again
 
-**Plain reading:** *(pending — silent graph or lost after it, whether the clicks are underruns, and what that leaves for the dropouts)*.
+http://192.168.12.231:4173/trace-atlas/?debug&seed=bravo&x=-150&y=90&load=light
+One click at 3:06. A few after 3:30. Single clicks at a time though, very light. Screen grabbed
+one red right at the end, around 4:40.
+
+http://192.168.12.231:4173/trace-atlas/?debug&seed=charlie&x=200&y=-30&load=full
+3 seconds in or so we got a red but i didn't hear a click. 1:06, heard a single click, one or two
+more by 1:30. A single click at 2:10. One around 3:03. Had one click during the famous quiet
+section around 3:20. Three around 4:52.
+```
+
+**Overlay transcription** (mine, from the 17 screenshots — 8 for run 1, 3 for run 2, 6 for run 3, matched by world, `load`, and the overlay's `up` clock):
+
+| Run | Shots (`up`) | `underruns` (start → end) | Longest burst logged | `out` / `pre` range | `lat` |
+|---|---|---|---|---|---|
+| 1 bravo · full | 0:14 → 5:02 | 78 → **2246** | `stopped after 40.0s (+1434)` (the ~3:20–4:00 storm); `stopped after 15.0s (+319)` (~4:45) | −11…−16 dB / −4…+10 dB, never `-inf` | 22ms (5–24) |
+| 2 bravo · light | 3:10 → 4:39 | 2 → **9** | `stopped after 1.0s (+14)` | −12…−16 dB / −5…+11 dB | **266ms (21–309)** |
+| 3 charlie · full | 0:46 → 5:04 | 1 → **82** | `stopped after 3.0s (+5)`, `1.5s (+12)` | −11…−19 dB / −18…+10 dB | 25ms (5–28) |
+
+Every shot read `ctx running`, `fin ok`, and the `latency` line confirmed the requested preset (`playback` on Light with `base 21ms`, `interactive` with `base 5ms` on Full).
+
+**Plain reading:**
+
+1. **The clicks are playback underruns.** The browser's own count tracks what he heard and saw as red closely enough to call this settled: run 1 (constant heavy distortion, "always lots of red") reached 2246 underruns with a 40-second, 1434-underrun burst sitting right under his "badly distorted until 4:00ish"; run 3 (occasional single clicks) reached only 82, with the bursts he could time (3:03, ~3:20, 4:52) matching small multi-underrun bursts in the log; run 2 (very light, single clicks) reached only 9. This is the discriminator the diagnostic was built to give, and on this data it comes out clean.
+2. **No full dropout this session, on any preset.** All three runs stayed audible throughout — no `-inf`, no silent event, no red for "silence." The earlier `bravo` dropouts (Standard ~4:55, two `bravo` Full takes) may be a rarer failure than the everyday clicking; this run doesn't rule them out, since 3 sessions is a small sample and the log only keeps the last 8 events (an event outside a screenshot's window would not be caught here).
+3. **Light is a large, real improvement on `bravo`.** 9 underruns against 2246 over a comparable stretch — roughly a 200×+ difference — for a world where Full was reported as "always lots of red." That is a stronger, more direct confirmation than the desktop capacity numbers gave alone.
+4. **`charlie` · Full clicks about as much as `bravo` · Light**, by ear and by count (82 vs 9, but over similar wall time and both "light single clicks") — consistent with the calm world already being close to a phone's budget even without Light's caps (flagged in the 2026-09-20 desktop notes).
+5. **Open — the Light latency figure.** `lat` on Light read **266 ms average (21–309 range)**, against ~22–25 ms on both Full runs. `resetLatency()` is never called, so this is the average over the whole run; if one early large value is baked in, it could be pulling the average up rather than reflecting steady-state latency. Not yet explained — worth another Light run to see whether the average settles, and whether `minimumLatency`/`maximumLatency` narrow over time.
+6. **What this doesn't answer.** Whether `bravo` still drops out completely under some condition (heat, a longer session, a particular locale event) is untested here — this was three single runs, by ear, with no rest/unplugged discipline recorded for this batch specifically.

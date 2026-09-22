@@ -373,7 +373,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 16: Crawford's phone run — recorded**
+- [x] **Task 16: Crawford's phone run — recorded** (2026-09-21, three runs, 17 screenshots; recorded in [todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md) with a plain reading — the clicks are playback underruns, confirmed by the browser's own count against what he heard; Light cut underruns on `bravo` by roughly 200×; no full dropout this session on any preset)
 
   **Description:** Prepared by Task 15; the run itself is Crawford's (spec §5.3 criterion 12). He loads `?debug&seed=bravo&x=-150&y=90&load=full` (and any other run he chooses) on the Pixel and reads the new lines at a dropout. Record his report and screenshots' readings in `docs/todo/scratchy-audio-phones.md` with a plain reading using the spec's table. Whatever it shows — including `n/a` — is a finding, not a failure.
 
@@ -390,7 +390,7 @@ Tasks that share `audioHealth.ts` (2, 7, 10, 11) are strictly sequential. Task 3
   **Estimated scope:** S (waits on Crawford)
 
 ### Checkpoint D: complete
-- [x] Spec §5.3 criteria 1–11 met, or each miss reported and Crawford has decided; criterion 12 is his run (task 16, open).
+- [x] Spec §5.3 criteria 1–12 met, criterion 12 (Crawford's phone run) recorded 2026-09-21 — the clicks are confirmed to be playback underruns, and Light cut `bravo`'s underrun count roughly 200× against Full.
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` pass. Not pushed.
 
 ## Risks and Mitigations
