@@ -13,6 +13,18 @@ interface LfoProps {
   value: LfoValue;
   onChange: (value: LfoValue) => void;
   disabled?: boolean;
+  /**
+   * Audio Load Budget: true when the dial (not any other reason a caller might pass `disabled`)
+   * is why this LFO is inert. Every real caller already passes `disabled` too whenever this is
+   * true, so this never changes interactivity on its own — it only changes what's DISPLAYED: Rate
+   * and Depth both read 0 and Shape shows no selection, instead of the real stored value, so a
+   * held-off control reads as visually "off" rather than showing a value that isn't actually
+   * running. Also adds the `sc-held-off` class (LfoTargetGroup.css / HeldOffNote.css), which
+   * overrides the trait-accent custom properties to a flat white/black look. Never mutates
+   * `value` itself — `onChange` still ever fires with the real object, so raising the dial and
+   * reconnecting needs no separate restore step. Omitted/false: shows the real value, unchanged.
+   */
+  heldOff?: boolean;
 }
 
 const SHAPE_OPTIONS = LFO_SHAPES.map((shape) => ({ value: shape, label: shape.toUpperCase() }));
@@ -35,7 +47,7 @@ const RATE_STEP = 0.05;
  * plain `isActive` class, now driven by `rate > 0` rather than a separate
  * flag, so a consumer can still write `.sc-lfo.isActive { ... }`.
  */
-function LfoInner({ schema, value, onChange, disabled }: LfoProps) {
+function LfoInner({ schema, value, onChange, disabled, heldOff }: LfoProps) {
   // Memoized (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md follow-up, found live via React
   // DevTools "highlight updates"): these 3 schema objects used to be constructed fresh, inline,
   // on every render of Lfo — unlike every other primitive's schema in this codebase, which is
@@ -85,24 +97,31 @@ function LfoInner({ schema, value, onChange, disabled }: LfoProps) {
     latest.current.onChange({ ...latest.current.value, depth });
   }, []);
 
+  // Only the DISPLAYED value is overridden — `value` itself (and the onChange handlers above,
+  // which all close over it via `latest`) is untouched, so a later reconnect uses the real
+  // stored setting with no restore step of its own.
+  const shapeDisplay = heldOff ? '' : value.shape;
+  const rateDisplay = heldOff ? 0 : value.rate;
+  const depthDisplay = heldOff ? 0 : value.depth;
+
   return (
-    <div className={withActiveClass('sc-lfo', value.rate > 0)}>
+    <div className={withActiveClass(heldOff ? 'sc-lfo sc-held-off' : 'sc-lfo', !heldOff && value.rate > 0)}>
       <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
       <RadioButton
         schema={shapeSchema}
-        value={value.shape}
+        value={shapeDisplay}
         onChange={handleShapeChange}
         disabled={disabled}
       />
       <SliderLinear
         schema={rateSchema}
-        value={value.rate}
+        value={rateDisplay}
         onChange={handleRateChange}
         disabled={disabled}
       />
       <SliderLinear
         schema={depthSchema}
-        value={value.depth}
+        value={depthDisplay}
         onChange={handleDepthChange}
         disabled={disabled}
       />
