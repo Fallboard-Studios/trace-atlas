@@ -8,8 +8,8 @@
 }
 
 /*
- * Held-off look: flat white/black, in place of whatever trait/robot accent color this control
- * would otherwise inherit (getTraitColorStyle / getRobotColorStyle, docs/specs/
+ * Held-off look: a monochrome (grayscale) accent, in place of whatever trait/robot accent color
+ * this control would otherwise inherit (getTraitColorStyle / getRobotColorStyle, docs/specs/
  * COLOR_SCHEME_TRAIT_THEMING.md) — a held-off control should read as visually "off" at a glance,
  * distinct from every colored control around it. Applied on the ancestor element wrapping the
  * CabinetBox-based controls (Lfo's own root; the two drift-slider rows), one commit alongside
@@ -19,16 +19,19 @@
  * Re-declares CabinetBox.css's own 4 accent custom properties (--color-accent-a/-b/-gradient
  * plus --color-accent itself, never derived as a nested var() of the other two — see
  * buildAccentStyle's own comment in traitColors.ts for why that specific pattern breaks the
- * cascade) and the 2 the front face reads directly (--color-surface, --color-text-primary).
+ * cascade). Deliberately does NOT touch --color-surface/--color-text-primary: those are what
+ * CabinetBox.css's front face (.sc-cabinet-box__front, the part carrying real content/labels)
+ * reads directly, and a flat white/black front face there read as a harsh, out-of-place block
+ * rather than a muted "off" look — confirmed against the real running app, 2026-09-22. Leaving
+ * them alone keeps the front face on its normal dark surface/light text, so only the
+ * accent-driven backing/walls/glow (the box's own material, not its content) go monochrome.
  * Ordinary CSS inheritance does the rest: every CabinetBox/VoxelTrack box beneath a
  * `.sc-held-off` ancestor picks these up in place of whatever it would otherwise inherit, with
  * no change needed in CabinetBox.css, VoxelTrack.css or RadioButton.css themselves.
  */
 .sc-held-off {
-  --color-accent-a: #ffffff;
-  --color-accent-b: #ffffff;
-  --color-accent: #ffffff;
-  --color-accent-gradient: #ffffff;
-  --color-surface: #ffffff;
-  --color-text-primary: #000000;
+  --color-accent-a: #5c6570;
+  --color-accent-b: #8a94a0;
+  --color-accent: color-mix(in srgb, #5c6570 50%, #8a94a0 50%);
+  --color-accent-gradient: linear-gradient(135deg, #5c6570, #8a94a0);
 }
