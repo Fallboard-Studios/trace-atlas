@@ -1,9 +1,7 @@
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAudioStore } from '@/stores/audioStore';
-import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
-import { PanelGroup } from '@/components/ui/controls/PanelGroup';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderLog } from '@/components/ui/controls/SliderLog';
@@ -15,15 +13,12 @@ import { useLfoTargetGroup } from '@/components/ui/controls/useLfoTargetGroup';
 import { withActiveClass, withHeldOffClass } from '@/components/ui/controls/activeClass';
 import {
   AUDIO_RIG_CONFIG,
-  AUDIO_RIG_ACCORDION_GROUPS,
-  TRANSPORT_COMPOSITION_ACCORDION_SCHEMA,
   SPEED_AUTOMATION_PANEL_SCHEMA,
   DECAY_MODE_SCHEMA,
   LFO_DRIFT_GROUPS,
   PING_VARIANCE_AUTOMATION_SCHEMA,
   type AudioRigParamSchema,
   type AudioRigEffectKey,
-  type AudioRigAccordionGroupKey,
 } from '@/data/audioRigConfig';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import type { Trait } from '@/types/traits';
@@ -38,11 +33,11 @@ import './AudioRigDrawer.css';
 import '@/components/ui/controls/LfoTargetGroup.css';
 
 /**
- * Trait for each of the 3 AUDIO_RIG_ACCORDION_GROUPS entries (Roadmap Phase 14, docs/specs/
- * COLOR_SCHEME_TRAIT_THEMING.md §1.5/§1.6) — applied directly to each group's own
- * AccordionContainer via its style prop (Task 7), not a wrapper element. Every nested
- * DirectionalPanel/param (including each effect's own per-target and Drift LFO controls)
- * inherits the color via ordinary CSS cascade with no code of its own.
+ * Trait per individual effect (Roadmap Phase 14, docs/specs/COLOR_SCHEME_TRAIT_THEMING.md
+ * §1.5/§1.6) — previously applied once per AUDIO_RIG_ACCORDION_GROUPS group (3 accordions, cascading
+ * to every nested effect); now applied directly on each AudioRigEffectPanel's own wrapper (Task 14,
+ * docs/tasks/NAV_LAYOUT_REWRITE.md — each effect is its own tree leaf, standalone, with no group
+ * accordion left to inherit the color from).
  */
 // Hoisted to module scope (docs/todo/backlog.md #27 follow-up, 2026-09-15) — these 2 don't depend
 // on any prop/state, so a plain module-level constant is the correct, minimal fix, matching this
@@ -51,10 +46,14 @@ import '@/components/ui/controls/LfoTargetGroup.css';
 const COMPRESSOR_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.compressor.topRow', type: 'directionalPanel', orientation: 'responsive' };
 const COMPRESSOR_BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.compressor.bottomRow', type: 'directionalPanel', orientation: 'responsive' };
 
-const AUDIO_RIG_GROUP_TRAIT: Record<AudioRigAccordionGroupKey, Trait> = {
-  eqFilters: 'spectral',
-  timeSpace: 'timeSpace',
-  output: 'output',
+const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
+  eq3: 'spectral',
+  filterLPF: 'spectral',
+  filterHPF: 'spectral',
+  delay: 'timeSpace',
+  reverb: 'timeSpace',
+  compressor: 'output',
+  limiter: 'output',
 };
 
 /** Dispatches a param's ControlSchema to its matching primitive. Covers only
@@ -236,54 +235,17 @@ function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange, driftContent
 }
 
 /**
- * Live Audio Rig console — resolves docs/tasks/AUDIO_RIG.md Task 10/11 (V1:
- * bypass + params + nested LFO accordions), docs/tasks/AUDIO_RIG_V2.md Task
- * 11 (V2: Decay control), and docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 2
- * (regrouping into 4 top-level accordions of nested DirectionalPanels).
- * Renders purely from AUDIO_RIG_CONFIG/AUDIO_RIG_ACCORDION_GROUPS, wired to
- * audioStore's setGlobalAudio/setCompressorBeforeDelay — every control here
- * is live, not presentational. The rig-wide bypass switch and each effect's
- * own Enabled toggle were removed: every effect's "off" state is fully
- * expressible through its own sliders (wet=0, a filter's passthrough
- * frequency, etc.), so a separate on/off flag was redundant. The Decay Mode
- * radio isn't part of AUDIO_RIG_CONFIG's per-effect params (it binds a
- * top-level GlobalAudioSettings field, compressorBeforeDelay, not one
- * nested under `compressor`) — it's a special case rendered inside the
- * Compressor block's own panel, under its other params.
- *
- * Structure: Transport & Composition (Speed & Automation panel — Tempo +
- * Automatic Effects) as its own top-level accordion, then
- * AUDIO_RIG_ACCORDION_GROUPS' 3 accordions (EQ & Filters, Time & Space,
- * Output), each wrapping its blockKeys' blocks via the shared AudioRigEffectPanel component
- * helper — its wrapper changed from its own AccordionContainer to a
- * DirectionalPanel nested inside its group's shared accordion. Delay and
- * Reverb no longer hand-compose a paired topRow (docs/specs/
- * AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.7) — every one of their params falls
- * through to the same flat params-map every non-special-cased block uses,
- * each its own full-width row, at every breakpoint. Compressor/Limiter keep
- * the original flat params-map (Compressor's own topRow/bottomRow pairing is
- * a separate, still-special-cased layout — §1.8). EQ & Filters is special-cased
- * (by AUDIO_RIG_ACCORDION_GROUPS' own `key` field, not its raw accordion id)
- * into a flattened row/column layout (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md
- * §1.5) — eq3, filterLPF, and filterHPF are 3 direct siblings of one shared
- * PanelGroup (orientation="responsive"), stacking one-per-row on
- * mobile/tablet and sharing one row as equal thirds on desktop
- * (PanelGroup.css's own default flex: 1 1 0 — no per-block override); Time &
- * Space wraps its own blockKeys in the same kind of tier-driven PanelGroup;
- * Output wraps its own blockKeys in a fixed-column PanelGroup — Compressor
- * and Limiter never share a row, but still get a real gap between them.
- * Each group's PanelGroup is a plain flex wrapper, not a DirectionalPanel —
- * it claims no Cabinetry facade of its own, so every block's own
- * DirectionalPanel (block.panel) inside AudioRigEffectPanel stays top-level and
- * keeps its own independent facade: a real visible box per block, with a
- * real gap between boxes, not one shared surface with extra internal
- * padding (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md's "Separate facades"
- * amendment — a shared DirectionalPanel here was tried first and reverted;
- * Crawford confirmed live in the browser that its gap didn't read as a
- * visible boundary). The 'robots' LFO_DRIFT_GROUPS entry (Robot Drift) no
- * longer renders here — it moved to SignatureArrayDrawer's own Source
- * accordion, since it's a robot-facing control even though the value it
- * edits (globalAudio.lfoDrift.robots) is still global, not per-robot.
+ * Automatic Effects fallback content — resolves docs/tasks/AUDIO_RIG.md Task 10/11, docs/tasks/
+ * AUDIO_RIG_V2.md Task 11, and docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 2 historically, but as
+ * of Task 14 (docs/tasks/NAV_LAYOUT_REWRITE.md) this component's own scope has shrunk to just the
+ * one control that never got a tree leaf of its own: Ping Variance Automation ("Automatic
+ * Effects"). Every real effect (EQ, HPF, LPF, Delay, Reverb, Compressor, Limiter) moved out to
+ * its own AudioRigEffectPanel instance, rendered directly by FleetParamsContent.tsx when a
+ * specific effect leaf is selected — this component (and its former AccordionContainer wrapper,
+ * now removed) is FleetParamsContent's own fallback for the bare 'fleetParams' selection and its
+ * 3 still-category-only groups (EQ & Filters/Time & Space/Output), none of which has doc-content
+ * wired yet (spec §7 Q4, deferred). No accordion left — AudioRigEffectPanel below carries its own
+ * per-effect trait color directly now that there's no group accordion to cascade one down.
  */
 export function AudioRigDrawer() {
   const pingVarianceAutomation = useAudioStore((s) => s.pingVarianceAutomation);
@@ -291,54 +253,23 @@ export function AudioRigDrawer() {
 
   // Stabilized (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12) — SliderLinear is now
   // React.memo'd (Task 6); an inline `(v) => setPingVarianceAutomation(v / 100)` here would have
-  // been a fresh function every render, defeating that memo regardless. setBPM needs no
-  // equivalent wrap — it's already a stable Zustand store action, passed directly below.
+  // been a fresh function every render, defeating that memo regardless.
   const handlePingVarianceChange = useCallback(
     (v: number) => setPingVarianceAutomation(v / 100),
     [setPingVarianceAutomation],
   );
 
   return (
-    <div className="audio-rig-drawer">
-      <AccordionContainer schema={TRANSPORT_COMPOSITION_ACCORDION_SCHEMA} style={getTraitColorStyle('composition')}>
-        <DirectionalPanel schema={SPEED_AUTOMATION_PANEL_SCHEMA}>
-          <div className="audio-rig-drawer__param-row">
-            <SliderLinear
-              schema={PING_VARIANCE_AUTOMATION_SCHEMA}
-              value={pingVarianceAutomation * 100}
-              onChange={handlePingVarianceChange}
-            />
-          </div>
-        </DirectionalPanel>
-      </AccordionContainer>
-
-      {AUDIO_RIG_ACCORDION_GROUPS.map((group) => (
-        <AccordionContainer key={group.accordion.id} schema={group.accordion} style={getTraitColorStyle(AUDIO_RIG_GROUP_TRAIT[group.key])}>
-          {group.key === 'eqFilters' ? (
-            // Flattened (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.5) — eq3, filterLPF, and
-            // filterHPF are 3 direct siblings of one PanelGroup, no intermediate grouping panel
-            // and no shared facade (each keeps its own — see the "Separate facades" amendment).
-            // Stacks one-per-row on mobile/tablet; on desktop they share one row as equal thirds
-            // via PanelGroup.css's own default flex: 1 1 0 — no per-block override needed (a
-            // straight 40/30/30 desktop split was tried and reverted; equal shares are exactly
-            // what the shared equal-share contract already gives every other row for free).
-            <PanelGroup orientation="responsive">
-              {(['eq3', 'filterLPF', 'filterHPF'] as const).map((key) => <AudioRigEffectPanel key={key} effectKey={key} />)}
-            </PanelGroup>
-          ) : group.key === 'timeSpace' ? (
-            <PanelGroup orientation="responsive">
-              {group.blockKeys.map((key) => <AudioRigEffectPanel key={key} effectKey={key} />)}
-            </PanelGroup>
-          ) : (
-            // 'output' — Compressor beside Limiter, fixed column (never shares a row, at any
-            // breakpoint), wrapped so the two blocks get a real gap between them instead of
-            // sitting flush with no spacing relationship at all.
-            <PanelGroup orientation="column">
-              {group.blockKeys.map((key) => <AudioRigEffectPanel key={key} effectKey={key} />)}
-            </PanelGroup>
-          )}
-        </AccordionContainer>
-      ))}
+    <div className="audio-rig-drawer" style={getTraitColorStyle('composition')}>
+      <DirectionalPanel schema={SPEED_AUTOMATION_PANEL_SCHEMA}>
+        <div className="audio-rig-drawer__param-row">
+          <SliderLinear
+            schema={PING_VARIANCE_AUTOMATION_SCHEMA}
+            value={pingVarianceAutomation * 100}
+            onChange={handlePingVarianceChange}
+          />
+        </div>
+      </DirectionalPanel>
     </div>
   );
 }
@@ -348,24 +279,25 @@ interface AudioRigEffectPanelProps {
 }
 
 /**
- * One effect block's own body (AudioRigLfoGroup-or-plain-params-map, plus the compressor-only
- * Decay Mode radio) — shared by every AUDIO_RIG_ACCORDION_GROUPS entry's flat stack and EQ &
- * Filters' own flattened row/column layout in AudioRigDrawer above.
+ * One effect's own full content (AudioRigLfoGroup-or-plain-params-map, plus the compressor-only
+ * Decay Mode radio) — as of Task 14 (docs/tasks/NAV_LAYOUT_REWRITE.md), this is a standalone,
+ * exported component: FleetParamsContent.tsx renders exactly one instance directly, for whichever
+ * effect leaf (EQ/HPF/LPF/Reverb/Delay/Compression/Limiter) is currently selected in the tree —
+ * no group accordion wraps it anymore, so it carries its own per-effect trait color
+ * (AUDIO_RIG_EFFECT_TRAIT) directly rather than inheriting one via cascade.
  *
- * A real component (not a plain function called from AudioRigDrawer's own render, which is what
- * this was before) so it can subscribe to only ITS OWN slice of globalAudio, via its own
+ * A real component (not a plain function called from a parent's own render, which is what this
+ * was originally) so it can subscribe to only ITS OWN slice of globalAudio, via its own
  * `effectKey`-scoped selector (bugfix, found via a manual re-render sweep, backlog item 18):
  * audioSwells.ts's own 16n tick (~8-9x/sec) writes to exactly one effect key at a time via
  * setGlobalAudio, and setGlobalAudio's own spread-one-key implementation (audioStore.ts)
  * already preserves every sibling effect's own object reference untouched — so subscribing to
- * the WHOLE globalAudio object (the old AudioRigDrawer-level select every panel used to share)
- * re-rendered all 7 panels on every tick, live or idle, regardless of which single effect the
- * active swell was actually targeting. Each panel now re-renders only when its own effect's
- * settings actually change. compressorBeforeDelay/lfoDrift are selected the same way — read
- * unconditionally every render (same call site regardless of effectKey, never skipped) so the
- * hook call itself never branches, only the selector's own returned value does.
+ * the WHOLE globalAudio object would re-render on every tick regardless of which single effect
+ * the active swell was actually targeting. compressorBeforeDelay/lfoDrift are selected the same
+ * way — read unconditionally every render (same call site regardless of effectKey, never
+ * skipped) so the hook call itself never branches, only the selector's own returned value does.
  */
-function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
+export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   const block = AUDIO_RIG_CONFIG.find((b) => b.key === effectKey)!;
   // Every param field on every effect is a number (GLOBAL_CHAIN_GRID.md has
   // no string/boolean params) — this cast is read-only and narrow, matching
@@ -427,7 +359,7 @@ function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   );
 
   return (
-    <div className="audio-rig-drawer__effect-block" key={block.key}>
+    <div className="audio-rig-drawer__effect-block" style={getTraitColorStyle(AUDIO_RIG_EFFECT_TRAIT[effectKey])}>
       <DirectionalPanel schema={block.panel}>
         {lfoFields.length > 0 ? (
           <AudioRigLfoGroup

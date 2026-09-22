@@ -17,11 +17,12 @@ vi.mock('./RobotOptionsTab', () => ({
   RobotOptionsTab: () => <div data-testid="robot-options-stub" />,
   default: () => <div data-testid="robot-options-stub" />,
 }));
-// AudioRigDrawer has its own full test suite (AudioRigDrawer.test.tsx) — this
-// file is about ConsolePanel's own tile switch, not re-testing its content.
-vi.mock('./AudioRigDrawer', () => ({
-  AudioRigDrawer: () => <div data-testid="audio-rig-drawer-stub" />,
-  default: () => <div data-testid="audio-rig-drawer-stub" />,
+// FleetParamsContent has its own full test suite (FleetParamsContent.test.tsx,
+// docs/tasks/NAV_LAYOUT_REWRITE.md Task 14) — this file is about ConsolePanel's own tile
+// switch, not re-testing its content.
+vi.mock('../nav/content/FleetParamsContent', () => ({
+  FleetParamsContent: () => <div data-testid="fleet-params-content-stub" />,
+  default: () => <div data-testid="fleet-params-content-stub" />,
 }));
 // SettingsContent has its own full test suite (SettingsContent.test.tsx,
 // docs/tasks/NAV_LAYOUT_REWRITE.md Task 11) — this file is about ConsolePanel's own tile
@@ -72,10 +73,10 @@ describe('ConsolePanel', () => {
     expect(screen.getByRole('button', { name: 'Back' })).toBeTruthy();
   });
 
-  it('renders AudioRigDrawer when audioRig is active, with no Back button', () => {
+  it('renders FleetParamsContent when audioRig is active, with no Back button', () => {
     useUIStore.getState().setActiveHubTile('audioRig');
     render(<ConsolePanel />);
-    expect(screen.getByTestId('audio-rig-drawer-stub')).toBeTruthy();
+    expect(screen.getByTestId('fleet-params-content-stub')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
   });
 

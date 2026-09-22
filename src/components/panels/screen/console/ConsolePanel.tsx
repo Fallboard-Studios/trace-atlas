@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { RobotsTab } from './RobotsTab';
 import { RobotOptionsTab } from './RobotOptionsTab';
-import { AudioRigDrawer } from './AudioRigDrawer';
+import { FleetParamsContent } from '../nav/content/FleetParamsContent';
 import { SettingsContent } from '../nav/content/SettingsContent';
 import { CompanyManager } from '@/components/company/CompanyManager';
 import { Button } from '@/components/ui/controls/Button';
@@ -22,7 +22,7 @@ const BACK_SCHEMA: ButtonSchema = { id: 'hubNavBack', type: 'button', loreLabel:
  */
 const TILE_CONTENT: Record<HubTile, (selectedRobotId: string | null) => ReactNode> = {
   robots: (selectedRobotId) => (selectedRobotId ? <RobotOptionsTab /> : <RobotsTab />),
-  audioRig: () => <AudioRigDrawer />,
+  audioRig: () => <FleetParamsContent />,
   settings: () => <SettingsContent />,
   // Placeholder entry (Nav & Layout Rewrite Task 1, docs/tasks/NAV_LAYOUT_REWRITE.md)
   // — keeps the build green now that HubTile has a 4th value. Real relocation
