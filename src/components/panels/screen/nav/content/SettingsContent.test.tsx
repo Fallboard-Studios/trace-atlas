@@ -51,7 +51,7 @@ describe('SettingsContent — routes Settings leaves to their content (docs/task
     expect(screen.getByRole('slider', { name: /volume/i }).getAttribute('data-disabled')).toBe('');
   });
 
-  it('falls back to SectorSettingsDrawer for leaves not yet relocated (quality/tempo) — no regression from today\'s always-show-SectorSettingsDrawer behavior', () => {
+  it('falls back to SectorSettingsDrawer for leaves not yet relocated (quality) — no regression from today\'s always-show-SectorSettingsDrawer behavior', () => {
     useUIStore.getState().setSelectedSettingsLeaf('quality');
     render(<SettingsContent />);
     expect(screen.getByTestId('sector-settings-drawer-stub')).toBeTruthy();
@@ -66,5 +66,33 @@ describe('SettingsContent — routes Settings leaves to their content (docs/task
   it('shows SectorSettingsDrawer as the default when no Settings leaf is selected yet (bare "Settings" click)', () => {
     render(<SettingsContent />);
     expect(screen.getByTestId('sector-settings-drawer-stub')).toBeTruthy();
+  });
+});
+
+describe('SettingsContent — Tempo leaf (docs/tasks/NAV_LAYOUT_REWRITE.md Task 12)', () => {
+  beforeEach(() => {
+    useUIStore.setState(UI_INITIAL_STATE, true);
+    useAudioStore.setState({ bpm: 72 });
+    useUIStore.getState().setPowerOn();
+    useUIStore.getState().setSelectedSettingsLeaf('tempo');
+  });
+
+  it('shows the BPM slider, live-bound to audioStore.bpm, showing the store value directly (no scaling)', () => {
+    render(<SettingsContent />);
+    const slider = screen.getByRole('slider', { name: /tempo/i });
+    expect(slider.getAttribute('aria-valuenow')).toBe('72');
+  });
+
+  it('dragging it calls setBPM directly with the dragged value — no conversion', () => {
+    render(<SettingsContent />);
+    const slider = screen.getByRole('slider', { name: /tempo/i });
+    slider.focus();
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    expect(useAudioStore.getState().bpm).toBeGreaterThan(72);
+  });
+
+  it('renders exactly once — no duplicate Tempo slider left behind anywhere', () => {
+    render(<SettingsContent />);
+    expect(screen.getAllByRole('slider', { name: /tempo/i })).toHaveLength(1);
   });
 });

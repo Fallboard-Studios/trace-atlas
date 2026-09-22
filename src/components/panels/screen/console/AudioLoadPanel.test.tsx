@@ -44,12 +44,13 @@ import { GLOBAL_LFO_TARGET_IDS, type GlobalLfoTargetId } from '@/types/lfo';
 import { openAllAccordions } from '@/testUtils/openAccordions';
 
 /**
- * The Audio Load panel (docs/specs/AUDIO_LOAD_BUDGET.md §4.5, decision F) — next to Tempo in Transport &
+ * The Audio Load panel (docs/specs/AUDIO_LOAD_BUDGET.md §4.5, decision F) — inside Transport &
  * Composition. Shipped as two independent sliders 2026-09-22: Robot Load (robotLoad) and Effects Load
  * (effectsLoad), with one shared preset radio that sets both. Extracted from AudioRigDrawer.test.tsx
  * (code-review follow-up, 2026-09-22) — still renders the full drawer, not AudioLoadPanel in isolation,
- * since several assertions here are about the panel's placement WITHIN the drawer (next to Tempo, inside
- * Transport & Composition).
+ * since some assertions here are about the panel's placement WITHIN the drawer. Originally sat next
+ * to a Tempo slider that also lived in this accordion — Tempo relocated to Settings -> Tempo
+ * (docs/tasks/NAV_LAYOUT_REWRITE.md Task 12); AudioLoadPanel itself relocates in Task 13.
  */
 
 // AccordionContainer only mounts a section's controls once it has been opened (docs/specs/ACCORDION_LAZY_MOUNT.md), and
@@ -96,10 +97,6 @@ describe('Audio Load panel', () => {
     expect(panel.querySelector('.sc-dual-label__human')?.textContent).toBe('Audio Load');
     expect(effectsSlider().closest('.sc-directional-panel')).toBe(panel);
     expect(panel.closest('.sc-accordion')?.textContent).toContain('Transport & Composition');
-    // ... next to Tempo: the same accordion, a different panel
-    const tempoPanel = screen.getByRole('slider', { name: 'Tempo' }).closest('.sc-directional-panel');
-    expect(tempoPanel).not.toBe(panel);
-    expect(tempoPanel!.closest('.sc-accordion')).toBe(panel.closest('.sc-accordion'));
   });
 
   it('shows the store’s two dials as percents, with the matching preset selected when both agree', () => {

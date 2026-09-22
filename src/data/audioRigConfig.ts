@@ -311,18 +311,17 @@ export const TRANSPORT_COMPOSITION_ACCORDION_SCHEMA: AccordionSchema =
   accordionSchema('transportComposition', 'CHRONOMETRIC CONTROL ARRAY', 'Transport & Composition');
 
 /**
- * Wraps PING_VARIANCE_AUTOMATION_SCHEMA + BPM_SCHEMA — today's two bare
- * `audio-rig-drawer__master-row` sliders, given a panel of their own inside Transport &
- * Composition. No prior accordion to inherit copy from (intent doc) — first-pass invented lore,
- * same "confirm during manual check" treatment as LFO_DRIFT_GROUPS' own labels.
+ * Wraps PING_VARIANCE_AUTOMATION_SCHEMA — originally paired with BPM_SCHEMA too (both bare
+ * `audio-rig-drawer__master-row` sliders), until Tempo relocated to Settings -> Tempo
+ * (docs/tasks/NAV_LAYOUT_REWRITE.md Task 12); now wraps Automatic Effects alone. No prior
+ * accordion to inherit copy from (intent doc) — first-pass invented lore, same "confirm during
+ * manual check" treatment as LFO_DRIFT_GROUPS' own labels.
  */
 export const SPEED_AUTOMATION_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'audioRig.speedAutomation',
   type: 'directionalPanel',
   loreLabel: 'CHRONOMETRIC CONTROL ARRAY',
   humanLabel: 'Speed & Automation',
-  // 'responsive', not fixed 'row' — 2 stacked rows (Tempo, Automatic Effects) on
-  // mobile/tablet, 1 shared row on desktop. docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.9.
   orientation: 'responsive',
 };
 

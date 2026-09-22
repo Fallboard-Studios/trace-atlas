@@ -155,7 +155,8 @@ describe('AudioRigDrawer', () => {
       fireEvent.click(trigger(/EQ & Filters/i));
 
       expect(screen.getByRole('slider', { name: 'Low' })).toBeTruthy();
-      // Tempo lives in Transport & Composition and Threshold in Output — both still never opened.
+      // Tempo no longer renders in this drawer at all (relocated to Settings -> Tempo, Task 12);
+      // Threshold lives in Output, still never opened.
       expect(screen.queryByRole('slider', { name: 'Tempo' })).toBeNull();
       expect(screen.queryAllByRole('slider', { name: 'Threshold' })).toHaveLength(0);
       // Every cabinet box mounted inside a section sits in the one that was opened.
@@ -888,67 +889,9 @@ describe('AudioRigDrawer', () => {
     });
   });
 
-  describe('Tempo slider (BPM Control Task 5)', () => {
-    it('renders exactly once, showing the store\'s current bpm directly — no scaling', () => {
-      useAudioStore.setState({ bpm: 72 });
-      renderOpen(<AudioRigDrawer />);
-      const slider = screen.getByRole('slider', { name: 'Tempo' });
-      expect(slider.getAttribute('aria-valuenow')).toBe('72');
-    });
-
-    it('dragging it calls setBPM directly with the dragged value — no conversion', () => {
-      useAudioStore.setState({ bpm: 72 });
-      renderOpen(<AudioRigDrawer />);
-      const slider = screen.getByRole('slider', { name: 'Tempo' });
-      slider.focus();
-      fireEvent.keyDown(slider, { key: 'ArrowRight' });
-
-      const newValue = Number(slider.getAttribute('aria-valuenow'));
-      expect(newValue).not.toBe(72); // the key press actually moved it
-      expect(useAudioStore.getState().bpm).toBe(newValue);
-    });
-
-    it('renders enabled — no rig-wide bypass left to disable it', () => {
-      renderOpen(<AudioRigDrawer />);
-      const slider = screen.getByRole('slider', { name: 'Tempo' });
-      expect(slider.getAttribute('data-disabled')).toBeNull();
-    });
-
-    it('renders inside Transport & Composition\'s Speed & Automation panel — no longer a bare control outside any accordion', () => {
-      renderOpen(<AudioRigDrawer />);
-      const slider = screen.getByRole('slider', { name: 'Tempo' });
-      const panel = slider.closest('.sc-directional-panel');
-      expect(panel!.querySelector('.sc-dual-label__human')?.textContent).toBe('Speed & Automation');
-      expect(slider.closest('.sc-accordion')?.textContent).toContain('Transport & Composition');
-    });
-
-    it('renders before Automatic Effects, inside the same Speed & Automation panel', () => {
-      renderOpen(<AudioRigDrawer />);
-      const pingSlider = screen.getByRole('slider', { name: 'Automatic Effects' });
-      const tempoSlider = screen.getByRole('slider', { name: 'Tempo' });
-      const pingPanel = pingSlider.closest('.sc-directional-panel');
-      const tempoPanel = tempoSlider.closest('.sc-directional-panel');
-      expect(tempoPanel).toBe(pingPanel);
-      // DOM order: Tempo comes before Automatic Effects within the shared panel.
-      expect(tempoSlider.compareDocumentPosition(pingSlider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    });
-
-    it('renders inside its own .audio-rig-drawer__param-row — a dedicated single-control wrapper, matching every other param in this drawer, so its own live box-count measurement reads its own fair share of the panel rather than the whole shared Speed & Automation panel', () => {
-      renderOpen(<AudioRigDrawer />);
-      const slider = screen.getByRole('slider', { name: 'Tempo' });
-      expect(slider.closest('.audio-rig-drawer__param-row')).toBeTruthy();
-    });
-
-    it("Tempo and Automatic Effects each get their own separate .audio-rig-drawer__param-row — not sharing one wrapper between them", () => {
-      renderOpen(<AudioRigDrawer />);
-      const tempoSlider = screen.getByRole('slider', { name: 'Tempo' });
-      const pingSlider = screen.getByRole('slider', { name: 'Automatic Effects' });
-      const tempoRow = tempoSlider.closest('.audio-rig-drawer__param-row');
-      const pingRow = pingSlider.closest('.audio-rig-drawer__param-row');
-      expect(tempoRow).toBeTruthy();
-      expect(pingRow).toBeTruthy();
-      expect(tempoRow).not.toBe(pingRow);
-    });
+  it('renders no Tempo slider — relocated to Settings -> Tempo (docs/tasks/NAV_LAYOUT_REWRITE.md Task 12; see SettingsContent.test.tsx)', () => {
+    renderOpen(<AudioRigDrawer />);
+    expect(screen.queryByRole('slider', { name: 'Tempo' })).toBeNull();
   });
 
   // Audio Load panel tests moved to AudioLoadPanel.test.tsx (code-review follow-up, 2026-09-22).

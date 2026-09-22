@@ -22,7 +22,6 @@ import {
   DECAY_MODE_SCHEMA,
   LFO_DRIFT_GROUPS,
   PING_VARIANCE_AUTOMATION_SCHEMA,
-  BPM_SCHEMA,
   type AudioRigParamSchema,
   type AudioRigEffectKey,
   type AudioRigAccordionGroupKey,
@@ -290,8 +289,6 @@ function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange, driftContent
 export function AudioRigDrawer() {
   const pingVarianceAutomation = useAudioStore((s) => s.pingVarianceAutomation);
   const setPingVarianceAutomation = useAudioStore((s) => s.setPingVarianceAutomation);
-  const bpm = useAudioStore((s) => s.bpm);
-  const setBPM = useAudioStore((s) => s.setBPM);
 
   // Stabilized (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12) — SliderLinear is now
   // React.memo'd (Task 6); an inline `(v) => setPingVarianceAutomation(v / 100)` here would have
@@ -306,13 +303,6 @@ export function AudioRigDrawer() {
     <div className="audio-rig-drawer">
       <AccordionContainer schema={TRANSPORT_COMPOSITION_ACCORDION_SCHEMA} style={getTraitColorStyle('composition')}>
         <DirectionalPanel schema={SPEED_AUTOMATION_PANEL_SCHEMA}>
-          <div className="audio-rig-drawer__param-row">
-            <SliderLinear
-              schema={BPM_SCHEMA}
-              value={bpm}
-              onChange={setBPM}
-            />
-          </div>
           <div className="audio-rig-drawer__param-row">
             <SliderLinear
               schema={PING_VARIANCE_AUTOMATION_SCHEMA}
