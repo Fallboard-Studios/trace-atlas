@@ -471,3 +471,34 @@ Every shot read `ctx running`, `fin ok`, and the `latency` line confirmed the re
 4. **`charlie` · Full clicks about as much as `bravo` · Light**, by ear and by count (82 vs 9, but over similar wall time and both "light single clicks") — consistent with the calm world already being close to a phone's budget even without Light's caps (flagged in the 2026-09-20 desktop notes).
 5. **Open — the Light latency figure.** `lat` on Light read **266 ms average (21–309 range)**, against ~22–25 ms on both Full runs. `resetLatency()` is never called, so this is the average over the whole run; if one early large value is baked in, it could be pulling the average up rather than reflecting steady-state latency. Not yet explained — worth another Light run to see whether the average settles, and whether `minimumLatency`/`maximumLatency` narrow over time.
 6. **What this doesn't answer.** Whether `bravo` still drops out completely under some condition (heat, a longer session, a particular locale event) is untested here — this was three single runs, by ear, with no rest/unplugged discipline recorded for this batch specifically.
+
+## Standard, and decision J — Crawford's follow-up run (2026-09-21, same session, `bravo` only)
+
+Two more runs, back to back with the three above, to answer the missed Standard gate and decision J directly with underrun counts rather than render capacity.
+
+```text
+http://192.168.12.231:4173/trace-atlas/?debug&seed=bravo&x=-150&y=90&load=standard
+Two audible clicks around 0:30. Got a couple of clicks at 2:15ish. Got a few around 3:00 and again
+at 3:15. Lot's of red around 3:55. Clicking becoming pretty regular since then. Long red one at
+the end there, 22 seconds.
+
+http://192.168.12.231:4173/trace-atlas/?debug&seed=bravo&x=-150&y=90&load=standard&latency=playback
+I heard 2 or 3 clicks between 2:00 and 2:10, but by 2:20 they started getting regular til 2:40.
+2:50 they started coming back. Then it was just minor clicks til 4:10. At 4:30 it started picking
+up again.
+```
+
+**Overlay transcription** (18 screenshots — 11 for Standard, 7 for Standard + `playback`):
+
+| Run | Shots (`up`) | `underruns` (start → end) | Longest burst logged | `lat` |
+|---|---|---|---|---|
+| Standard (`interactive`) | 0:40 → 5:13 | 2 → **1227** | `stopped after 22.0s (+557)` at 5:12 — his "long red one … 22 seconds" | 22–25ms (5–28) |
+| Standard + `playback` | 2:12 → 5:03 | 4 → **186** | `stopped after 7.0s (+35)` at 3:03 | **266ms (21–309)**, unchanged across all 7 shots |
+
+**Ranking on `bravo` over a comparable ~5-minute stretch, fewest underruns to most:** Light **9** ≪ Standard + `playback` **186** ≪ Standard (`interactive`) **1227** ≪ Full **2246**.
+
+**Decision J is answered: `playback` helps Standard by a lot, on `bravo`.** 186 underruns against 1227 — about 6.6× fewer — for the same preset, same world, same session, only the latency hint different. Standard on `interactive` is closer to Full than to Light; Standard with `playback` sits meaningfully closer to Light, though still roughly 20× worse than Light itself. This is the first head-to-head, same-session comparison of the two hints at Standard, and it favours `playback` clearly.
+
+**The Light-latency question from the earlier run is resolved, not just narrowed.** `lat 266ms (21–309)` was flagged as unexplained and possibly an early-value artifact skewing the average. It is not: the exact same figure — `266ms (21–309)`, to the millisecond — appears across all 7 screenshots of this run and all 3 of the earlier `bravo` · Light run, from two separate page loads with fresh `AudioContext`s. That rules out a stale reading or a one-off spike: the `playback` latency hint on this phone produces a **real, repeatable ≈266 ms average output latency** (min 21 ms, matching the requested 21 ms buffer; max 309 ms), a long way past the ~22–25 ms this phone reports under `interactive`. `playback` is winning on underruns while costing a large, consistent latency penalty — for this app (a generative soundscape, not something played to a beat the user taps along to) that trade is probably the right one, but it is a real cost, not a rounding error.
+
+**Not yet known:** whether `charlie` (the calm world) shows the same Standard-vs-`playback` gap, or whether it's `bravo`-specific like the earlier LFO-driven load was.
