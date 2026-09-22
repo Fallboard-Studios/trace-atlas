@@ -7,6 +7,13 @@ import type { HubTile } from '@/types/hub';
 
 export type ActiveView = 'ocean' | 'robot' | 'composition' | 'fx' | 'settings';
 export type Theme = 'dark' | 'light';
+/** A leaf section within whatever entity is selected (a robot, a company, or
+ *  the implicit "All Probes" bulk-edit target) — docs/specs/NAV_LAYOUT_REWRITE.md
+ *  §1.3. null when a category/entity node itself is selected, no section chosen. */
+export type RobotSection = 'volume' | 'melody' | 'envelope' | 'source';
+/** Which of Fleet Params' 3 groups is peeked open — its own accordion-of-one
+ *  level, independent of expandedProbeId/expandedCompanyId. */
+export type FleetParamsGroup = 'eqFilters' | 'timeSpace' | 'output';
 
 export interface UIStore {
   activeView: ActiveView;
@@ -37,6 +44,17 @@ export interface UIStore {
    *  those stay driven by selectedCompanyId alone. */
   allRobotsSelected: boolean;
   activeHubTile: HubTile | null;
+  /** Nav & Layout Rewrite additive state (docs/specs/NAV_LAYOUT_REWRITE.md §1.3) —
+   *  a handful of per-level fields, not a single opaque node-id scheme. */
+  selectedSection: RobotSection | null;
+  /** Mobile only; desktop/tablet ignore this and stay docked-open. */
+  isNavPanelOpen: boolean;
+  /** Accordion-of-one within the Probes branch — peek-without-navigating expansion. */
+  expandedProbeId: string | null;
+  /** Accordion-of-one within the Companies branch. */
+  expandedCompanyId: string | null;
+  /** Accordion-of-one within Fleet Params' 3 groups. */
+  expandedFleetParamsGroup: FleetParamsGroup | null;
   setActiveLocaleLocalTime: (t: number | null) => void;
   setActiveView: (v: ActiveView) => void;
   setTheme: (t: Theme) => void;
@@ -49,6 +67,11 @@ export interface UIStore {
   selectAllRobots: () => void;
   setActiveHubTile: (tile: HubTile | null) => void;
   setActiveLocaleTemperature: (t: number | null) => void;
+  setSelectedSection: (s: RobotSection | null) => void;
+  setNavPanelOpen: (open: boolean) => void;
+  setExpandedProbeId: (id: string | null) => void;
+  setExpandedCompanyId: (id: string | null) => void;
+  setExpandedFleetParamsGroup: (g: FleetParamsGroup | null) => void;
 }
 
 // ========================================
@@ -67,6 +90,11 @@ export const useUIStore = create<UIStore>((set) => ({
   selectedCompanyId: null,
   allRobotsSelected: true,
   activeHubTile: null,
+  selectedSection: null,
+  isNavPanelOpen: false,
+  expandedProbeId: null,
+  expandedCompanyId: null,
+  expandedFleetParamsGroup: null,
 
   setActiveView: (v) => set({ activeView: v }),
   setTheme: (t) => set({ theme: t }),
@@ -80,6 +108,11 @@ export const useUIStore = create<UIStore>((set) => ({
   selectAllRobots: () => set({ allRobotsSelected: true, selectedCompanyId: null }),
   setActiveHubTile: (tile) => set({ activeHubTile: tile }),
   setActiveLocaleTemperature: (t) => set({ activeLocaleTemperature: t }),
+  setSelectedSection: (s) => set({ selectedSection: s }),
+  setNavPanelOpen: (open) => set({ isNavPanelOpen: open }),
+  setExpandedProbeId: (id) => set({ expandedProbeId: id }),
+  setExpandedCompanyId: (id) => set({ expandedCompanyId: id }),
+  setExpandedFleetParamsGroup: (g) => set({ expandedFleetParamsGroup: g }),
 }));
 
 // ========================================

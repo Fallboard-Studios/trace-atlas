@@ -111,3 +111,145 @@ describe('uiStore — allRobotsSelected ("All" button in the company row)', () =
     expect(useUIStore.getState().selectedRobotId).toBe('robot-0-xyz');
   });
 });
+
+describe('uiStore — selectedSection (docs/specs/NAV_LAYOUT_REWRITE.md §1.3)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('defaults to null — no section chosen until a leaf is selected', () => {
+    expect(useUIStore.getState().selectedSection).toBeNull();
+  });
+
+  it('setSelectedSection sets one of the 4 leaf sections', () => {
+    useUIStore.getState().setSelectedSection('melody');
+    expect(useUIStore.getState().selectedSection).toBe('melody');
+  });
+
+  it('setSelectedSection(null) clears back to no section chosen', () => {
+    useUIStore.getState().setSelectedSection('envelope');
+    useUIStore.getState().setSelectedSection(null);
+    expect(useUIStore.getState().selectedSection).toBeNull();
+  });
+
+  it('is independent of selectedRobotId and selectedCompanyId', () => {
+    useUIStore.getState().selectRobot('robot-0-xyz');
+    useUIStore.getState().selectCompany('company-0-abc');
+    useUIStore.getState().setSelectedSection('source');
+    expect(useUIStore.getState().selectedRobotId).toBe('robot-0-xyz');
+    expect(useUIStore.getState().selectedCompanyId).toBe('company-0-abc');
+    expect(useUIStore.getState().selectedSection).toBe('source');
+  });
+});
+
+describe('uiStore — isNavPanelOpen (mobile-only nav slide state, docs/specs/NAV_LAYOUT_REWRITE.md §1.3)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('defaults to false — closed until the mobile hamburger opens it', () => {
+    expect(useUIStore.getState().isNavPanelOpen).toBe(false);
+  });
+
+  it('setNavPanelOpen(true) opens it', () => {
+    useUIStore.getState().setNavPanelOpen(true);
+    expect(useUIStore.getState().isNavPanelOpen).toBe(true);
+  });
+
+  it('setNavPanelOpen(false) closes it again', () => {
+    useUIStore.getState().setNavPanelOpen(true);
+    useUIStore.getState().setNavPanelOpen(false);
+    expect(useUIStore.getState().isNavPanelOpen).toBe(false);
+  });
+});
+
+describe('uiStore — expandedProbeId (accordion-of-one within the Probes branch)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('defaults to null — nothing expanded', () => {
+    expect(useUIStore.getState().expandedProbeId).toBeNull();
+  });
+
+  it('setExpandedProbeId sets the expanded probe, replacing any other', () => {
+    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
+    expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
+    useUIStore.getState().setExpandedProbeId('robot-1-abc');
+    expect(useUIStore.getState().expandedProbeId).toBe('robot-1-abc');
+  });
+
+  it('setExpandedProbeId(null) collapses back to nothing expanded', () => {
+    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
+    useUIStore.getState().setExpandedProbeId(null);
+    expect(useUIStore.getState().expandedProbeId).toBeNull();
+  });
+
+  it('is independent of expandedCompanyId and expandedFleetParamsGroup', () => {
+    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
+    useUIStore.getState().setExpandedCompanyId('company-0-abc');
+    useUIStore.getState().setExpandedFleetParamsGroup('eqFilters');
+    expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
+  });
+});
+
+describe('uiStore — expandedCompanyId (accordion-of-one within the Companies branch)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('defaults to null — nothing expanded', () => {
+    expect(useUIStore.getState().expandedCompanyId).toBeNull();
+  });
+
+  it('setExpandedCompanyId sets the expanded company, replacing any other', () => {
+    useUIStore.getState().setExpandedCompanyId('company-0-abc');
+    expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
+    useUIStore.getState().setExpandedCompanyId('company-1-def');
+    expect(useUIStore.getState().expandedCompanyId).toBe('company-1-def');
+  });
+
+  it('setExpandedCompanyId(null) collapses back to nothing expanded', () => {
+    useUIStore.getState().setExpandedCompanyId('company-0-abc');
+    useUIStore.getState().setExpandedCompanyId(null);
+    expect(useUIStore.getState().expandedCompanyId).toBeNull();
+  });
+
+  it('is independent of expandedProbeId — expanding a probe never collapses an expanded company', () => {
+    useUIStore.getState().setExpandedCompanyId('company-0-abc');
+    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
+    expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
+  });
+});
+
+describe('uiStore — expandedFleetParamsGroup (accordion-of-one within Fleet Params)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('defaults to null — nothing expanded', () => {
+    expect(useUIStore.getState().expandedFleetParamsGroup).toBeNull();
+  });
+
+  it('setExpandedFleetParamsGroup sets one of the 3 groups, replacing any other', () => {
+    useUIStore.getState().setExpandedFleetParamsGroup('eqFilters');
+    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('eqFilters');
+    useUIStore.getState().setExpandedFleetParamsGroup('timeSpace');
+    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('timeSpace');
+  });
+
+  it('setExpandedFleetParamsGroup(null) collapses back to nothing expanded', () => {
+    useUIStore.getState().setExpandedFleetParamsGroup('output');
+    useUIStore.getState().setExpandedFleetParamsGroup(null);
+    expect(useUIStore.getState().expandedFleetParamsGroup).toBeNull();
+  });
+
+  it('is independent of expandedProbeId and expandedCompanyId — its own level, own accordion-of-one', () => {
+    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
+    useUIStore.getState().setExpandedCompanyId('company-0-abc');
+    useUIStore.getState().setExpandedFleetParamsGroup('timeSpace');
+    expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
+    expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
+    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('timeSpace');
+  });
+});

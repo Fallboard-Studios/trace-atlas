@@ -17,5 +17,10 @@
  * HubNavItem (the old {schema, target} pairing HUB_NAV_ITEMS used) is gone
  * along with it; HEADER_NAV_SCHEMA's RadioButtonSchema.options entries use
  * HubTile values directly as each option's own value.
+ *
+ * `companies` added for the Navigation & Layout Rewrite
+ * (docs/specs/NAV_LAYOUT_REWRITE.md §1.4/Q1) — Companies becomes its own
+ * top-level tree branch rather than nesting inside `robots`, keeping
+ * ConsolePanel's `Record<HubTile, ...>` exhaustiveness guarantee intact.
  */
-export type HubTile = 'robots' | 'audioRig' | 'settings';
+export type HubTile = 'robots' | 'audioRig' | 'settings' | 'companies';

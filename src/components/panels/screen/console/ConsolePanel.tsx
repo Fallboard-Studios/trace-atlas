@@ -3,6 +3,7 @@ import { RobotsTab } from './RobotsTab';
 import { RobotOptionsTab } from './RobotOptionsTab';
 import { AudioRigDrawer } from './AudioRigDrawer';
 import { SectorSettingsDrawer } from './SectorSettingsDrawer';
+import { CompanyManager } from '@/components/company/CompanyManager';
 import { Button } from '@/components/ui/controls/Button';
 import type { ButtonSchema } from '@/types/controls';
 import type { HubTile } from '@/types/hub';
@@ -23,6 +24,10 @@ const TILE_CONTENT: Record<HubTile, (selectedRobotId: string | null) => ReactNod
   robots: (selectedRobotId) => (selectedRobotId ? <RobotOptionsTab /> : <RobotsTab />),
   audioRig: () => <AudioRigDrawer />,
   settings: () => <SectorSettingsDrawer />,
+  // Placeholder entry (Nav & Layout Rewrite Task 1, docs/tasks/NAV_LAYOUT_REWRITE.md)
+  // — keeps the build green now that HubTile has a 4th value. Real relocation
+  // of Companies CRUD into per-node tree interactions is Task 20.
+  companies: () => <CompanyManager />,
 };
 
 export function ConsolePanel() {

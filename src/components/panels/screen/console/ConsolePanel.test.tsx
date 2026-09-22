@@ -30,6 +30,13 @@ vi.mock('./SectorSettingsDrawer', () => ({
   SectorSettingsDrawer: () => <div data-testid="sector-settings-drawer-stub" />,
   default: () => <div data-testid="sector-settings-drawer-stub" />,
 }));
+// CompanyManager has its own full test suite (CompanyManager.test.tsx) — this
+// is Task 1's placeholder 'companies' tile entry (docs/tasks/NAV_LAYOUT_REWRITE.md),
+// unchanged content, just a new HubTile value routed to it.
+vi.mock('@/components/company/CompanyManager', () => ({
+  CompanyManager: () => <div data-testid="company-manager-stub" />,
+  default: () => <div data-testid="company-manager-stub" />,
+}));
 
 describe('ConsolePanel', () => {
   // Explicit reset before each test, not relying on declaration order — runs
@@ -76,6 +83,13 @@ describe('ConsolePanel', () => {
     useUIStore.getState().setActiveHubTile('settings');
     render(<ConsolePanel />);
     expect(screen.getByTestId('sector-settings-drawer-stub')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
+  });
+
+  it('renders CompanyManager when companies is active, with no Back button — Task 1 placeholder entry, real relocation is a later task', () => {
+    useUIStore.getState().setActiveHubTile('companies');
+    render(<ConsolePanel />);
+    expect(screen.getByTestId('company-manager-stub')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
   });
 
