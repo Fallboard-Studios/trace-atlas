@@ -6,7 +6,7 @@ Source of truth: [`src/engine/AudioEngine.ts`](../src/engine/AudioEngine.ts).
 
 ## Current Behavior
 
-- `MAX_POLYPHONY = 16` — a single global cap on simultaneously **triggered** notes.
+- `MAX_POLYPHONY = 16` — a single global cap on simultaneously **triggered** notes. It is the **ceiling**: the *live* cap (`polyphonyCap`, default `MAX_POLYPHONY`) can be lowered by the Audio Load dial through `AudioEngine.setPolyphonyCap()` (6..16; 8 at Light, 12 at Standard) — see "Audio Load Budget" below.
 - `activeVoices` — module-scoped counter tracking currently active note windows.
 - `triggerWithCap()` returns `false` and skips the note when the cap is reached — notes are dropped, never steal an existing voice.
 - Each robot gets its own **reserved composite voice** via `AudioEngine.reserveVoice()`. Reservation is **not** capped by `MAX_POLYPHONY` — a robot can hold a reserved voice indefinitely without ever triggering a note; only the act of triggering counts against the cap.
@@ -24,12 +24,13 @@ Source of truth: [`src/engine/AudioEngine.ts`](../src/engine/AudioEngine.ts).
 
 `AudioEngine.scheduleNote()` resolves velocity and `audioMode` policy (see [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md)'s Note Resolution Pipeline) before delegating to `triggerWithCap(params: NoteParams): boolean`, which:
 
-1. Rejects immediately if `activeVoices >= MAX_POLYPHONY`.
-2. Re-checks `audioMode` (mute / solo) as a safety net, in case a caller bypassed `scheduleNote`.
-3. Increments `activeVoices`.
-4. Verifies the robot has a reserved composite voice — rejects (rolling back the counter) if not.
-5. Validates the resolved note string against `/^[A-Ga-g][b#]{0,2}\d+$/` — rejects (rolling back) on an invalid note.
-6. Applies the current pan value, triggers the composite voice, and schedules its release.
+1. Checks `audioMode` (mute / solo) — the sole enforcement point (`scheduleNote` only applies the `highlight` attenuation).
+2. **Audio Load gate:** rejects a robot outside a non-null sounding set (`soundingRobots`, pushed by `audioBudgetSystem`) — it never triggers and never consumes a slot. Checked *before* the cap so a standing-by robot cannot use up polyphony the sounding ones need.
+3. Rejects if `activeVoices >= polyphonyCap` (the live cap, default `MAX_POLYPHONY`).
+4. Increments `activeVoices`.
+5. Verifies the robot has a reserved composite voice — rejects (rolling back the counter) if not.
+6. Validates the resolved note string against `/^[A-Ga-g][b#]{0,2}\d+$/` — rejects (rolling back) on an invalid note.
+7. Applies the current pan value, triggers the composite voice, and schedules its release.
 
 If any step after the increment fails, `activeVoices` is rolled back so the slot isn't left permanently occupied.
 
@@ -48,9 +49,17 @@ AudioEngine.scheduleNote({ robotId, note, duration, time, velocity }); // void �
 AudioEngine.reserveVoice(robotId, descriptor, phase, detune, pulseWidth); // boolean
 AudioEngine.releaseVoice(robotId);
 AudioEngine.reReserveVoice(robotId); // boolean
-AudioEngine.getPolyphonyStats(); // { voices: number; maxVoices: number; step: number }
+AudioEngine.getPolyphonyStats(); // { voices: number; maxVoices: number; step: number } — maxVoices is the LIVE cap
 AudioEngine.getVoiceForRobot(robotId);
+AudioEngine.setSoundingRobots(ids | null); // Audio Load: robots allowed to sound; null = no restriction (default)
+AudioEngine.setPolyphonyCap(n);            // Audio Load: live ceiling, clamped to [0, MAX_POLYPHONY]; NaN -> MAX_POLYPHONY
 ```
+
+## Audio Load Budget
+
+Both inputs are **pushed in** by `audioBudgetSystem` — the engine never reads a store for them, which keeps the existing engine ↔ `audioStore` load-order constraint intact — and both default to "no restriction", so the engine behaves exactly as before until something pushes them (Full is a no-op). The set is copied on the way in; `killAll()` resets `activeVoices` but leaves the set and the cap in force, so a power cycle keeps the budget.
+
+The cap applies to **new triggers only**. Lowering it below the notes already sounding blocks new notes without touching the counter — the counter drains as each scheduled release fires — because forcibly releasing counts could strand `activeVoices`, the failure mode the release-scheduling note above describes. Robots over the budget "stand by": gated at the trigger, they keep their reserved voice and registered melody. See [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget) for the whole feature.
 
 ## Timing
 

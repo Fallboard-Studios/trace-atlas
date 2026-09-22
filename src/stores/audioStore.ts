@@ -8,6 +8,8 @@ import { wireGlobalFxChain } from '../engine/audioEngine/globalFx';
 import { volumePositionToGain } from '../engine/audioEngine/volumeTaper';
 import { lfoEngine } from '../engine/lfoEngine';
 import { generateGlobalAudioSettings, generateGlobalLfoSettings, generatePingVarianceAutomation } from '../utils/globalAudioSeed';
+import { AUDIO_LOAD_PRESETS } from '../constants';
+import { clampAudioLoad, detectCoarsePointer, resolveInitialAudioLoad, resolveInitialEffectsLoad } from '../utils/audioBudget';
 import { generateLocaleBpm } from '../utils/localeBpmSeed';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from './attenuationStyleStore';
 import { useLocaleStore } from './localeStore';
@@ -80,6 +82,25 @@ function buildDefaultGlobalLfo(): Record<GlobalLfoTargetId, LfoSettings> {
  *  same static default, never a genuinely-seeded value. */
 const PING_VARIANCE_AUTOMATION_UNSEEDED = -1;
 
+/**
+ * The Robot Load slider's position at page load (docs/specs/AUDIO_LOAD_BUDGET.md §4.2): a valid `?load=`
+ * wins, otherwise Light on a coarse-pointer (phone-like) device and Full elsewhere. Browser-only, read
+ * once at module load like seedUtils' URL params; anything without a window is Full (today's behavior).
+ */
+function readInitialRobotLoad(): number {
+  if (typeof window === 'undefined') return AUDIO_LOAD_PRESETS.full;
+  return resolveInitialAudioLoad({ search: window.location.search, coarsePointer: detectCoarsePointer() });
+}
+
+/**
+ * The Effects Load slider's position at page load: a valid `?fxLoad=` wins, then `?load=` (so an
+ * existing `?load=` link keeps pinning both sliders together), then device detection.
+ */
+function readInitialEffectsLoad(): number {
+  if (typeof window === 'undefined') return AUDIO_LOAD_PRESETS.full;
+  return resolveInitialEffectsLoad({ search: window.location.search, coarsePointer: detectCoarsePointer() });
+}
+
 export interface AudioStore {
   bpm: number;
   globalAudio: GlobalAudioSettings;
@@ -99,6 +120,22 @@ export interface AudioStore {
    *  first call), then carried forward across every future Attenuation Style
    *  switch — freely draggable via the Audio Rig slider at any time. */
   pingVarianceAutomation: number;
+  /** The Robot Load slider, [0, 1] — 1 (Full) is today's behavior exactly; lower values cap audible
+   *  robots, polyphony and (at load time) latency. Initialised at boot from `?load=` / device detection,
+   *  changed only through `setRobotLoad`. docs/specs/AUDIO_LOAD_BUDGET.md. */
+  robotLoad: number;
+  /** The Effects Load slider, [0, 1] — 1 (Full) is today's behavior exactly; lower values cap drift,
+   *  filter LFOs and the robot-LFO count. Initialised at boot from `?fxLoad=` / `?load=` / device
+   *  detection, changed only through `setEffectsLoad`. docs/specs/AUDIO_LOAD_BUDGET.md. */
+  effectsLoad: number;
+  /** Robots currently allowed to sound under the Audio Load budget, in admission order. Derived, and
+   *  written only by audioBudgetSystem (via `setSoundingRobotIds`) — never edited by hand. */
+  soundingRobotIds: string[];
+  /** Instance keys (`lpf.Q`, `robot-3:layer0.detune`) of LFOs the user (or the seed) asked for but the Audio Load dial is holding off.
+   *  Derived; written only by audioBudgetSystem, which mirrors lfoEngine's held-off set. */
+  heldOffLfoKeys: string[];
+  /** Whether the dial currently holds drift ("stacked" LFOs) off — the drift sliders grey out while it does. Derived. */
+  driftHeldOff: boolean;
   setBPM: (bpm: number) => void;
   /**
    * Reseed `bpm` for the given (newly built) locale — draws a fresh value
@@ -133,6 +170,19 @@ export interface AudioStore {
    *  on its own next tick (both for scaling a newly-created swell's peak
    *  and for the 0%-forced-return check). */
   setPingVarianceAutomation: (value: number) => void;
+  /** Sets the Robot Load slider, clamped to [0, 1] (NaN → Full). A plain state write — the budget
+   *  system reacts to it; nothing here touches the engine. Leaves effectsLoad untouched. */
+  setRobotLoad: (robotLoad: number) => void;
+  /** Sets the Effects Load slider, clamped to [0, 1] (NaN → Full). A plain state write — the budget
+   *  system reacts to it; nothing here touches the engine. Leaves robotLoad untouched. */
+  setEffectsLoad: (effectsLoad: number) => void;
+  /** Writes the derived sounding set. Skips the write entirely — no new state, no subscriber
+   *  notification — when the ids (and their order) are unchanged. */
+  setSoundingRobotIds: (ids: readonly string[]) => void;
+  /** Writes the held-off LFO keys; skips the write when the same LFOs are held off (in any order). */
+  setHeldOffLfoKeys: (keys: readonly string[]) => void;
+  /** Writes whether drift is held off; skips the write when unchanged. */
+  setDriftHeldOff: (heldOff: boolean) => void;
   /**
    * Swap the compressor's chain position — false (default) = "Natural Decay"
    * (compressor after Delay+Reverb), true = "Controlled Decay" (compressor
@@ -179,6 +229,11 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   isMuted: false,
   volume: 1,
   pingVarianceAutomation: PING_VARIANCE_AUTOMATION_UNSEEDED, // real value assigned by the first regenerateGlobalAudioFromSeed call below (module-load AS-sync)
+  robotLoad: readInitialRobotLoad(),
+  effectsLoad: readInitialEffectsLoad(),
+  soundingRobotIds: [],
+  heldOffLfoKeys: [],
+  driftHeldOff: false,
 
   setBPM: (bpm) => {
     set({ bpm });
@@ -248,6 +303,25 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   },
   setPingVarianceAutomation: (value) => {
     set({ pingVarianceAutomation: value });
+  },
+  setRobotLoad: (robotLoad) => {
+    set({ robotLoad: clampAudioLoad(robotLoad) });
+  },
+  setEffectsLoad: (effectsLoad) => {
+    set({ effectsLoad: clampAudioLoad(effectsLoad) });
+  },
+  setSoundingRobotIds: (ids) => {
+    const current = get().soundingRobotIds;
+    if (ids.length === current.length && ids.every((id, i) => id === current[i])) return;
+    set({ soundingRobotIds: [...ids] });
+  },
+  setHeldOffLfoKeys: (keys) => {
+    const current = get().heldOffLfoKeys;
+    const sameSet = keys.length === current.length && keys.every((key) => current.includes(key));
+    if (!sameSet) set({ heldOffLfoKeys: [...keys] });
+  },
+  setDriftHeldOff: (heldOff) => {
+    if (get().driftHeldOff !== heldOff) set({ driftHeldOff: heldOff });
   },
 
   regenerateGlobalAudioFromSeed: (attenuationStyleId, attenuationStyleName) => {

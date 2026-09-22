@@ -50,7 +50,7 @@ Guardrails (must not be relaxed)
 - UI Shell: "All interactive UI (transport, navigation, controls) lives inside ScreenViewport only — never in the decorative SleeveContainer."
 
 Reference docs
-- `docs/AUDIO_SYSTEM.md`: AudioEngine architecture, MIN_LEAD, polyphony rules, and scheduling examples.
+- `docs/AUDIO_SYSTEM.md`: AudioEngine architecture, MIN_LEAD, polyphony rules, scheduling examples, and the Audio Load Budget (the dial that caps sounding robots, polyphony and LFOs).
 - `docs/BEAT_CLOCK.md`: How to initialize and use the BeatClock/Transport for measure-based scheduling.
 - `docs/MELODY_SYSTEM.md`: Melody generation rules and step/registry semantics for robot melodies.
 - `docs/HARMONY_SYSTEM.md`: Harmony progression rules and chord selection used by the systems.

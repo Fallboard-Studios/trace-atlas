@@ -158,7 +158,7 @@ Melody generation creates unique, procedurally-generated patterns for each robot
 Polyphony management controls the maximum number of simultaneous audio voices to prevent audio distortion, CPU overload, and maintain musical clarity.
 
 **Key principles:**
-- Global `MAX_POLYPHONY` limit (default `MAX_POLYPHONY = 16`)
+- Global polyphony ceiling — `MAX_POLYPHONY = 16` at Full; the Robot Load slider can lower the *live* ceiling (`setPolyphonyCap`, see [Audio Load Budget](#audio-load-budget))
 - Per-robot isolated composite voice (each robot owns its own sub-bus)
 - Fail-fast skipping when limit exceeded
 - Transport-based voice release scheduling
@@ -172,6 +172,22 @@ Polyphony management controls the maximum number of simultaneous audio voices to
 **For complete implementation details, see [POLYPHONY_GUIDE.md](POLYPHONY_GUIDE.md).**
 
 **Skipped Notes debug counter — removed.** A bottom-left, dev-only overlay (`SkippedNotesCounter.tsx`) once showed how many note triggers were rejected per measure, backed by a `useDebugStore` rolling history. Originally added to diagnose the voice-release stall bug (see [BPM_CONTROL.md](tasks/BPM_CONTROL.md)'s "Post-launch addition: Skipped Notes debug counter"), then removed entirely (2026-09-16, Crawford's own request) along with `debugStore.ts` — `triggerWithCap`, `startMelodyPlayback`, and `playRegisteredEvents` no longer count skip reasons at all.
+
+## Audio Load Budget
+
+**Update 2026-09-22:** shipped as **two independent sliders**, Robot Load (`audioStore.robotLoad`) and Effects Load (`audioStore.effectsLoad`), each 0–1 with the same Light 0.2 / Standard 0.6 / Full 1 anchors. Robot Load drives `maxAudibleRobots`, `maxPolyphony`, and the boot-time latency hint; Effects Load drives drift, filter LFOs, and the robot-LFO cap. The three preset buttons still set both sliders together to one value, reproducing the original single-dial behavior exactly; dragging either slider alone moves only its own axis. Everything below that still describes one axis's mechanics is unchanged in substance — it now runs twice, once per axis. Built for the phone-only clicking and dropouts in [todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md). Full (both sliders) is exactly today's original behavior; everything is opt-down. Spec: [specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md); plan and deviations: [tasks/AUDIO_LOAD_BUDGET.md](tasks/AUDIO_LOAD_BUDGET.md); measurements: [PERFORMANCE.md](PERFORMANCE.md).
+
+**The pure core** — `src/utils/audioBudget.ts` (constants only: no Tone, no stores, so `audioContextSetup` can use it before any Tone node exists). `robotLoadToLimits(robotLoad)` maps the Robot Load slider to `RobotLoadLimits`: `maxAudibleRobots` (2..12) and `maxPolyphony` (6..16) interpolate linearly; `latencyHint` is `playback` below `LOAD_PLAYBACK_BELOW` (0.4). `effectsLoadToLimits(effectsLoad)` maps the Effects Load slider to `EffectsLoadLimits`: `driftEnabled` switches on at `LOAD_DRIFT_MIN` (0.8), `filterLfosEnabled` at `LOAD_FILTER_LFOS_MIN` (0.4); `maxRobotLfos` runs `ROBOT_LFO_CAP_LIGHT` 4 → `ROBOT_LFO_CAP_STANDARD` 12 → a finite `ROBOT_LFO_CAP_CEILING` (120) just short of Full and `Infinity` only at exactly 1. `loadToLimits(x)` merges both at the same `x` — the combined `LoadLimits` shape `describeLimits` and the diagnostics HUD read. `reconcileSounding` decides which robots sound (below), `lfoAllowed` classifies an LFO, and `parseLoadParam` / `loadToSearchParam` / `withLoadParam` (a `withParam` wrapper) / `resolveInitialAudioLoad` / `resolveInitialEffectsLoad` / `detectCoarsePointer` handle `?load=` / `?fxLoad=` and phone detection (a coarse primary pointer defaults both to Light).
+
+**Which robots sound — first come, first served, solo excepted.** `audioBudgetSystem` (`src/systems/audioBudgetSystem.ts`, `startAudioBudget()` from `main.tsx`, before first power-on; not torn down by a power cycle) watches an `id:audioMode:docking` *signature* of the active locale's robots (not the robots — `updateRobot` rewrites the locale on every battery tick and swell write) plus `robotLoad` and the active-locale id (`effectsLoad` changes don't affect admission). It keeps eligible robots (`isRobotAudible`) in **arrival order** (`orderByArrival`), runs `reconcileSounding`, and pushes only real changes to `AudioEngine.setSoundingRobots()` and `audioStore.soundingRobotIds`. Incumbents keep their slot; a freed slot goes to the earliest waiter; a lowered cap evicts newest first; a soloed robot is admitted at once by evicting the newest non-solo robot; an explicit unmute of a docked robot does not jump the queue. Over-budget robots **stand by** — silent, but they keep swimming, draining and recharging (`isRobotAudible` is unchanged; the cards read the third state through `getAudibilityState` / `isRobotSounding`).
+
+**Why gating is at the note trigger only.** `triggerWithCap` returns `false` for a robot outside a non-null sounding set, after the mute/solo check and before the polyphony test, so a standing-by robot never consumes a slot. No voice is built, released or rebuilt, so there is no build spike and no click when a robot changes state (releasing voice chains for standing-by robots is a deferred "Phase B" — measured a weak lever on its own). The cap applies to *new triggers only*: lowering `setPolyphonyCap` below the notes already sounding never forcibly releases them, which could strand the voice counter. `setSoundingRobots(null)` and the `MAX_POLYPHONY` default mean the engine behaves exactly as before until something pushes; `killAll()` leaves both alone.
+
+**LFO tiers — cut by cost, suspended never edited.** The system installs a policy on `lfoEngine.setLfoPolicy()` built from `lfoAllowed`: EQ-gain global LFOs always; filter-frequency/Q ones above 0.4 (of Effects Load); audio-rate robot LFOs up to the cap (`layerN.phase` LFOs poll at control rate and are never counted); `lfoEngine.setDriftEnabled()` switches drift ("stacked" LFOs) off below 0.8 (of Effects Load) — none of this reacts to Robot Load. `lfoEngine.reconcileLfos()` re-applies the policy to every *requested* LFO in two passes — suspend (robot LFOs newest-connected first) then connect (request order) — and a freed robot-LFO slot goes to the oldest held-off LFO at once. A tier only **suspends**: stored settings and drift amounts are never touched, an LFO at rate 0 is never held off, and an explicit disconnect withdraws the request. "Held off" (requested, rate > 0, not connected because of the dial) is published as `audioStore.heldOffLfoKeys` (instance keys such as `lpf.Q`, `robot-3:layer0.detune`) and `driftHeldOff` through `lfoEngine.subscribeHeldOff`, which notifies once per real change — so a robot LFO the user enables over the cap greys out immediately.
+
+**Latency is a load-time decision.** A context's `latencyHint` is fixed at creation, so `audioContextSetup.ts` resolves it at page load: an explicit `?latency=` wins, otherwise the boot-time Robot Load preset (`?load=`, or detection) — Light installs `playback`, Standard and Full leave Tone's default. Changing either slider live never touches the context. Both sliders are mirrored into the address bar independently (`history.replaceState`, other params kept) — `?load=` for Robot Load, `?fxLoad=` for Effects Load, each omitted while at its own default — so a reload keeps them.
+
+**UI.** The Audio Load panel (`AudioLoadPanel.tsx`, Fleet Params → Transport & Composition, next to Tempo) is one preset radio plus two 0–100 % sliders (Robot Load, Effects Load) over the two stored numbers, plus a `describeLimits` readout of their merged limits. Held-off LFO frames and the drift sliders grey out (controls disabled, stored values kept) with a "Held off by Audio Load" label (`HeldOffNote`), in the Audio Rig and in Robot Options; cards show "Standing by". The `?debug` overlay shows `audible n/12` and `load 20%·fx 100% · sounding 4/4 · standing by 2 · poly 3/8`.
 
 ## Layered / Composite Voices and Visual Mapping
 
@@ -240,6 +256,12 @@ export const lfoEngine = {
   stop: (target, robotId?: string) => void,   // always safe — idempotent if already stopped or never created
   connectLfoTarget: (target, robotId?: string) => boolean,
   disconnectLfoTarget: (target, robotId?: string) => void,
+  // Audio Load Budget (see the section above): a policy decides what may connect; reconcile re-applies it.
+  setLfoPolicy: (fn: ((target, robotId, connectedRobotLfos) => boolean) | null) => void,
+  setDriftEnabled: (enabled: boolean) => void,
+  reconcileLfos: () => void,
+  getHeldOffLfoKeys: () => string[],
+  subscribeHeldOff: (listener: () => void) => () => void,
 }
 ```
 
@@ -551,3 +573,5 @@ console.log('Current measure:', getCurrentMeasure());
 console.log('Current beat:', getCurrentBeat());
 console.log('Current hour:', getCurrentHour());
 ```
+
+For audio that goes wrong on a real device, load the app with `?debug`: a read-only overlay shows the context state, audio-clock rate, main-thread lag, the Audio Load budget, and — from `src/engine/audioDiagnostics.ts` — the output level at two points in the graph (after EQ3 and after `masterGain`), silent-while-sounding and non-finite events, and the browser's own playback-underrun counts. How to read it: [PERFORMANCE.md](PERFORMANCE.md#reading-the-output-taps-and-the-playback-stats); design: [specs/AUDIO_OUTPUT_DIAGNOSTIC.md](specs/AUDIO_OUTPUT_DIAGNOSTIC.md). The taps live in `src/engine/audioEngine/globalFx.ts` (`attachOutputTaps` / `detachOutputTaps` / `readOutputTaps`) and are re-attached at the end of `wireGlobalFxChain`, which disconnects every FX node whenever the Natural/Controlled Decay toggle flips.

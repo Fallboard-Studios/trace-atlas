@@ -5,7 +5,9 @@ import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
+import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
 import { LfoTargetGroup } from '@/components/ui/controls/LfoTargetGroup';
+import { withHeldOffClass } from '@/components/ui/controls/activeClass';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
 import {
   SOURCE_ACCORDION_SCHEMA,
@@ -39,19 +41,29 @@ function RobotDriftPanel() {
   const rateDrift = useAudioStore((s) => s.globalAudio.lfoDrift.robots.rateDrift);
   const depthDrift = useAudioStore((s) => s.globalAudio.lfoDrift.robots.depthDrift);
   const setGlobalLfoDrift = useAudioStore((s) => s.setGlobalLfoDrift);
+  // Audio Load Budget: greys out (values kept) while the dial keeps drift off. Its own condition — the drawer's `disabled` prop
+  // still has no bearing on this global control.
+  const driftHeldOff = useAudioStore((s) => s.driftHeldOff);
 
   return (
     <DirectionalPanel schema={ROBOTS_DRIFT_GROUP.panel}>
-      <SliderCenteredZero
-        schema={ROBOTS_DRIFT_GROUP.rateSchema}
-        value={rateDrift * 100}
-        onChange={(v) => setGlobalLfoDrift('robots', { rateDrift: v / 100 })}
-      />
-      <SliderCenteredZero
-        schema={ROBOTS_DRIFT_GROUP.depthSchema}
-        value={depthDrift * 100}
-        onChange={(v) => setGlobalLfoDrift('robots', { depthDrift: v / 100 })}
-      />
+      <div className={withHeldOffClass('signature-array-drawer__param', driftHeldOff)}>
+        <SliderCenteredZero
+          schema={ROBOTS_DRIFT_GROUP.rateSchema}
+          value={driftHeldOff ? 0 : rateDrift * 100}
+          onChange={(v) => setGlobalLfoDrift('robots', { rateDrift: v / 100 })}
+          disabled={driftHeldOff}
+        />
+      </div>
+      <div className={withHeldOffClass('signature-array-drawer__param', driftHeldOff)}>
+        <SliderCenteredZero
+          schema={ROBOTS_DRIFT_GROUP.depthSchema}
+          value={driftHeldOff ? 0 : depthDrift * 100}
+          onChange={(v) => setGlobalLfoDrift('robots', { depthDrift: v / 100 })}
+          disabled={driftHeldOff}
+        />
+      </div>
+      {driftHeldOff && <HeldOffNote />}
     </DirectionalPanel>
   );
 }
@@ -76,6 +88,10 @@ interface SignatureArrayDrawerProps {
   onStructuralChange: (layers: OscillatorLayer[]) => void;
   onLfoChange: (target: RobotLfoTargetId, value: LfoValue) => void;
   disabled?: boolean;
+  /** Audio Load Budget: which of THIS robot's LFO targets the dial is holding off. Plain data (the drawer stays store-free for
+   *  everything but Robot Drift); the caller must keep it referentially stable while no flag flips (RobotOptionsTab does, via a
+   *  shallow selector). Omitted for a company (no single robot to grey against) = nothing held off. */
+  heldOffTargets?: Partial<Record<RobotLfoTargetId, boolean>>;
   /** Optional inline style forwarded to this drawer's own AccordionContainer — trait-color
    *  scoping (getTraitColorStyle('spectral'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this drawer always renders in
@@ -100,6 +116,7 @@ interface SignatureArrayLayerProps {
   idx: number;
   layer: OscillatorLayer;
   lfoSettings: SignatureArrayValue['lfoSettings'];
+  heldOffTargets?: Partial<Record<RobotLfoTargetId, boolean>>;
   disabled?: boolean;
   onTypeChange: (idx: number, type: WaveformType) => void;
   onParamChange: (idx: number, field: SignatureArrayParamSchema['field'], value: number) => void;
@@ -132,7 +149,7 @@ interface SignatureArrayLayerProps {
  * genuinely per-layer stable slice would need its own follow-up (each layer's own LFO target set
  * is statically fixed per `SIGNATURE_ARRAY_CONFIG`, so it's possible, just out of scope here).
  */
-function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, disabled, onTypeChange, onParamChange, onLfoFieldChange }: SignatureArrayLayerProps) {
+function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTargets, disabled, onTypeChange, onParamChange, onLfoFieldChange }: SignatureArrayLayerProps) {
   const handleTypeChange = useCallback((v: string) => onTypeChange(idx, v as WaveformType), [idx, onTypeChange]);
 
   // 'pulse' only — Tone.js's OmniOscillator.width getter returns undefined for every other type
@@ -149,6 +166,12 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, disabled, on
     label: (p.schema as SliderLinearSchema | SliderCenteredZeroSchema).humanLabel ?? p.field,
     lfoValue: lfoSettings?.[p.lfoTarget!] ?? DEFAULT_LFO_SETTINGS[p.lfoTarget!],
   })), [lfoParams, lfoSettings]);
+
+  // Per-field held-off flags for this layer's LFO group, stable while none of them flips (LfoTargetGroup is memoized).
+  const heldOff = useMemo(
+    () => Object.fromEntries(lfoParams.map((p) => [p.field, heldOffTargets?.[p.lfoTarget!] === true])),
+    [lfoParams, heldOffTargets],
+  );
 
   const handleLfoChange = useCallback(
     (field: string, v: LfoValue) => onLfoFieldChange(idx, lfoParams.find((p) => p.field === field)!.lfoTarget!, v),
@@ -197,6 +220,7 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, disabled, on
           fields={fields}
           onLfoChange={handleLfoChange}
           disabled={disabled}
+          heldOff={heldOff}
           renderField={renderField}
         />
       </div>
@@ -234,7 +258,7 @@ const SignatureArrayLayer = memo(SignatureArrayLayerInner);
  * backlog.md #27 follow-up) — this component's own job is just deriving `layers` and building the
  * 3 shared, stable per-index handlers every layer instance calls into.
  */
-function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChange, onLfoChange, disabled, style }: SignatureArrayDrawerProps) {
+function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChange, onLfoChange, disabled, heldOffTargets, style }: SignatureArrayDrawerProps) {
   const layers = value.layers ?? [];
 
   // Ref-cached "latest layers" (docs/todo/backlog.md #27 follow-up, 2026-09-15) — the 3 handlers
@@ -276,6 +300,7 @@ function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChan
               idx={idx}
               layer={layer}
               lfoSettings={value.lfoSettings}
+              heldOffTargets={heldOffTargets}
               disabled={disabled}
               onTypeChange={handleTypeChange}
               onParamChange={handleParamChange}

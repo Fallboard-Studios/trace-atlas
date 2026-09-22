@@ -1,5 +1,6 @@
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { AudioLoadPanel } from './AudioLoadPanel';
 import { useAudioStore } from '@/stores/audioStore';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
@@ -9,9 +10,10 @@ import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderLog } from '@/components/ui/controls/SliderLog';
 import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero';
 import { Stepper } from '@/components/ui/controls/Stepper';
+import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
 import { Lfo } from '@/components/ui/controls/Lfo';
 import { useLfoTargetGroup } from '@/components/ui/controls/useLfoTargetGroup';
-import { withActiveClass } from '@/components/ui/controls/activeClass';
+import { withActiveClass, withHeldOffClass } from '@/components/ui/controls/activeClass';
 import {
   AUDIO_RIG_CONFIG,
   AUDIO_RIG_ACCORDION_GROUPS,
@@ -160,6 +162,8 @@ function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange, driftContent
   // another value from that same set), and `fields` is mapped 1:1 from `params` above — same
   // "guaranteed to be found" reasoning findParam() documents for its own call sites.
   const selectedTarget = params.find((p) => p.field === selected)!.lfoTarget;
+  // Audio Load Budget: a boolean for THIS frame's displayed target, never the whole list — the frame re-renders only when it flips.
+  const heldOff = useAudioStore((s) => s.heldOffLfoKeys.includes(selectedTarget));
 
   // "Taken from slider children" (docs/tasks/DIRECTIONAL_PANEL_WIRING.md follow-up fix): any
   // vertical-oriented slider in the group renders its own row (eq3's Low/Mid/High today, per
@@ -223,8 +227,10 @@ function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange, driftContent
           schema={lfoDisplaySchema}
           value={displayValue}
           onChange={handleLfoChange}
-          disabled={transitioning}
+          disabled={transitioning || heldOff}
+          heldOff={heldOff}
         />
+        {heldOff && <HeldOffNote />}
       </div>
       {driftContent}
     </DirectionalPanel>
@@ -315,6 +321,7 @@ export function AudioRigDrawer() {
             />
           </div>
         </DirectionalPanel>
+        <AudioLoadPanel />
       </AccordionContainer>
 
       {AUDIO_RIG_ACCORDION_GROUPS.map((group) => (
@@ -384,6 +391,8 @@ function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   const driftGroup = LFO_DRIFT_GROUPS.find((g) => g.group === effectKey); // undefined for non-LFO blocks
   const drift = useAudioStore((s) => (driftGroup ? s.globalAudio.lfoDrift[driftGroup.group] : undefined));
   const setGlobalLfoDrift = useAudioStore((s) => s.setGlobalLfoDrift);
+  // While the Audio Load dial keeps drift off, its sliders grey out (values kept). A boolean, so only a flip re-renders.
+  const driftHeldOff = useAudioStore((s) => s.driftHeldOff);
   const compressorBeforeDelay = useAudioStore((s) => (effectKey === 'compressor' ? s.globalAudio.compressorBeforeDelay : undefined));
   const setCompressorBeforeDelay = useAudioStore((s) => s.setCompressorBeforeDelay);
 
@@ -440,20 +449,23 @@ function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
             fieldOnChange={fieldOnChange}
             driftContent={driftGroup && drift && (
               <>
-                <div className="audio-rig-drawer__param-row">
+                <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
                   <SliderCenteredZero
                     schema={driftGroup.rateSchema}
-                    value={drift.rateDrift * 100}
+                    value={driftHeldOff ? 0 : drift.rateDrift * 100}
                     onChange={handleRateDriftChange}
+                    disabled={driftHeldOff}
                   />
                 </div>
-                <div className="audio-rig-drawer__param-row">
+                <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
                   <SliderCenteredZero
                     schema={driftGroup.depthSchema}
-                    value={drift.depthDrift * 100}
+                    value={driftHeldOff ? 0 : drift.depthDrift * 100}
                     onChange={handleDepthDriftChange}
+                    disabled={driftHeldOff}
                   />
                 </div>
+                {driftHeldOff && <HeldOffNote />}
               </>
             )}
           />

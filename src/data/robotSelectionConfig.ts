@@ -9,6 +9,7 @@
  */
 import type { DualLabelSchema, SliderLinearSchema } from '@/types/controls';
 import type { JobType, DockingState, Robot } from '@/types/Robot';
+import type { AudibilityState } from '@/utils/robotAudibility';
 import type { StatusLightState } from '@/utils/statusLightColors';
 
 // ========================================
@@ -99,7 +100,9 @@ export const AUDIO_STATUS_COLOR_MAP: Record<AudioMode, StatusLightState> = {
  * every other value-label map in this file for consistency, even though only humanLabel is ever
  * rendered — best-guess drafts, pending review (see docs/reference/ROBOT_DATA_GRID.md).
  */
-export const AUDIBILITY_LABELS: Record<'emitting' | 'disabled', ValueLabel> = {
+export const AUDIBILITY_LABELS: Record<AudibilityState, ValueLabel> = {
   emitting: { loreLabel: 'ACOUSTIC EMISSION ACTIVE', humanLabel: 'Emitting' },
+  // Audio Load budget (docs/specs/AUDIO_LOAD_BUDGET.md): eligible to sound but held back — first-pass invented lore copy, to be confirmed in the manual check.
+  limited: { loreLabel: 'ACOUSTIC EMISSION HELD IN RESERVE', humanLabel: 'Standing by' },
   disabled: { loreLabel: 'ACOUSTIC EMISSION SUPPRESSED', humanLabel: 'Disabled' },
 };

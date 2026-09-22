@@ -9,6 +9,7 @@ import { COMPANY_NAME_INPUT_SCHEMA, CREATE_COMPANY_SCHEMA, RENAME_COMPANY_SCHEMA
 import { MAX_COMPANIES } from '@/constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '@/constants/accentColors';
 import type { Company } from '@/types/Company';
+import { generateUUID } from '@/utils/randomId';
 
 import './CompanyCrudControls.css';
 
@@ -140,7 +141,7 @@ export function CompanyCrudControls() {
 
   const handleCreate = () => {
     const color = pickRandomCompanyColor(companies.map((c) => c.color));
-    const company: Company = { id: crypto.randomUUID(), name: createNameDraft.trim(), color, robotIds: [] };
+    const company: Company = { id: generateUUID(), name: createNameDraft.trim(), color, robotIds: [] };
     useLocaleStore.getState().addCompany(localeId, company);
     setCreateNameDraft(suggestCompanyName());
   };

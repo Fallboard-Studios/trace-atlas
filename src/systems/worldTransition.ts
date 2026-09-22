@@ -14,6 +14,7 @@ import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { DAY_DURATION_MS } from '../constants/time';
 import type { AttenuationStyle } from '../types/attenuationStyle';
 import type { Locale } from '../types/locale';
+import { generateUUID } from '../utils/randomId';
 
 // ========================================
 // TYPES
@@ -36,7 +37,7 @@ export interface RetransmitInput {
  *  deleted outright. See docs/specs/ATTENUATION_STYLE.md §1.1. */
 function buildAttenuationStyle(name: string): AttenuationStyle {
   return {
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     name,
     locales: [],
   };
@@ -51,7 +52,7 @@ function buildAttenuationStyle(name: string): AttenuationStyle {
  *  docs/specs/ATTENUATION_STYLE.md §1.1/§3). */
 function buildLocale(attenuationStyleId: string, coordinates: { x: number; y: number }): Locale {
   return {
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     attenuationStyleId,
     name: `Plot ${coordinates.x}, ${coordinates.y}`,
     coordinates,

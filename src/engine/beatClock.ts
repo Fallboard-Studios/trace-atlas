@@ -3,6 +3,7 @@
 // ========================================
 import { devWarn } from '../utils/helpers';
 import { DAY_CYCLE_MEASURES } from '../constants';
+import { generateUUID } from '../utils/randomId';
 
 // Minimal transport-like interface to avoid importing Tone.js here.
 interface TransportLike {
@@ -151,7 +152,7 @@ export function getCurrentHour(): number {
  * @returns A schedule ID that can be passed to cancelSchedule
  */
 export function scheduleRepeat(interval: string, callback: () => void): string {
-  const scheduleId = `schedule-${crypto.randomUUID()}`;
+  const scheduleId = `schedule-${generateUUID()}`;
 
   // If transport isn't ready, persist the requested interval+callback so it
   // can be registered once initBeatClock provides the transport instance.

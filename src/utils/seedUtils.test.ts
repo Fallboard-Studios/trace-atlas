@@ -13,11 +13,87 @@ import {
   resolveDefaultAttenuationStyleName,
   setGlobalAttenuationStyleSeedOverride,
   randomCoordinate,
+  parseCoordinateParam,
+  getLocaleCoordinateOverride,
+  setLocaleCoordinateOverride,
 } from './seedUtils';
 
 // ========================================
 // TESTS
 // ========================================
+
+describe('parseCoordinateParam', () => {
+  it('parses plain and negative integers', () => {
+    expect(parseCoordinateParam('12')).toBe(12);
+    expect(parseCoordinateParam('-68')).toBe(-68);
+    expect(parseCoordinateParam('0')).toBe(0);
+  });
+
+  it('rejects null, empty, decimals, and non-numeric text (coordinates are integers system-wide)', () => {
+    expect(parseCoordinateParam(null)).toBeNull();
+    expect(parseCoordinateParam('')).toBeNull();
+    expect(parseCoordinateParam('12.5')).toBeNull();
+    expect(parseCoordinateParam('abc')).toBeNull();
+    expect(parseCoordinateParam('12abc')).toBeNull();
+    expect(parseCoordinateParam(' 12')).toBeNull();
+    expect(parseCoordinateParam('1e3')).toBeNull();
+  });
+});
+
+describe('locale coordinate override', () => {
+  afterEach(() => {
+    setLocaleCoordinateOverride({ x: null, y: null });
+  });
+
+  it('is unset by default', () => {
+    expect(getLocaleCoordinateOverride()).toEqual({ x: null, y: null });
+  });
+
+  it('can be set per axis and cleared', () => {
+    setLocaleCoordinateOverride({ x: 12, y: null });
+    expect(getLocaleCoordinateOverride()).toEqual({ x: 12, y: null });
+
+    setLocaleCoordinateOverride({ x: null, y: null });
+    expect(getLocaleCoordinateOverride()).toEqual({ x: null, y: null });
+  });
+
+  describe('boot-time ?x= / ?y= URL params', () => {
+    afterEach(() => {
+      window.history.replaceState({}, '', '/');
+      vi.resetModules();
+    });
+
+    async function loadFreshWithQuery(query: string) {
+      window.history.replaceState({}, '', `/${query}`);
+      vi.resetModules();
+      return import('./seedUtils');
+    }
+
+    it('reads both axes from the URL', async () => {
+      const fresh = await loadFreshWithQuery('?x=12&y=-68');
+      expect(fresh.getLocaleCoordinateOverride()).toEqual({ x: 12, y: -68 });
+    });
+
+    it('reads a single axis and leaves the other unset', async () => {
+      const fresh = await loadFreshWithQuery('?x=5');
+      expect(fresh.getLocaleCoordinateOverride()).toEqual({ x: 5, y: null });
+    });
+
+    it('ignores invalid values per axis', async () => {
+      const fresh = await loadFreshWithQuery('?x=1.5&y=7');
+      expect(fresh.getLocaleCoordinateOverride()).toEqual({ x: null, y: 7 });
+    });
+
+    it('is independent of ?seed=', async () => {
+      const fresh = await loadFreshWithQuery('?seed=foo&x=3&y=4');
+      expect(fresh.getGlobalAttenuationStyleSeedOverride()).toBe('foo');
+      expect(fresh.getLocaleCoordinateOverride()).toEqual({ x: 3, y: 4 });
+
+      const seedOnly = await loadFreshWithQuery('?seed=foo');
+      expect(seedOnly.getLocaleCoordinateOverride()).toEqual({ x: null, y: null });
+    });
+  });
+});
 
 describe('randomCoordinate', () => {
   it('returns an integer', () => {

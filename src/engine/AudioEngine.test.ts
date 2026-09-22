@@ -382,6 +382,220 @@ describe('AudioEngine - Polyphony Management', () => {
     });
   });
 
+  // Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §4.3): two module-state inputs the budget system
+  // pushes in — the set of robots allowed to sound, and a dynamic polyphony ceiling. Both default to
+  // "no restriction" so the engine behaves exactly as before until (and unless) something pushes them.
+  describe('Audio Load Budget gate (sounding set + dynamic polyphony cap)', () => {
+    const play = async (robotId = 'test', note = 'C4') => {
+      const { triggerWithCap } = await import('./AudioEngine');
+      return triggerWithCap({ robotId, note, duration: '4n', time: 0, velocity: 0.8 });
+    };
+
+    /** How many times any synth was told to play `note` — how the tests see whether a trigger reached the audio graph. */
+    const synthTriggersFor = async (note: string) => {
+      const Tone = await import('tone');
+      let count = 0;
+      for (const result of (Tone.Synth as unknown as any).mock.results) {
+        result.value?.triggerAttackRelease?.mock?.calls?.forEach((call: any) => {
+          if (call[0] === note) count++;
+        });
+      }
+      return count;
+    };
+
+    /** Fire every scheduled voice release, as the AudioContext clock reaching them would. */
+    const fireAllReleases = async () => {
+      const Tone = await import('tone');
+      const contexts = (Tone.getContext as unknown as ReturnType<typeof vi.fn>).mock.results as Array<{ value: { setTimeout: ReturnType<typeof vi.fn> } }>;
+      contexts.forEach((result) => {
+        result.value.setTimeout.mock.calls.forEach((call: unknown[]) => (call[0] as () => void)());
+        result.value.setTimeout.mockClear();
+      });
+    };
+
+    describe('defaults', () => {
+      it('plays every robot and reports the full ceiling while nothing has been pushed', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        expect(await play()).toBe(true);
+        expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(MAX_POLYPHONY);
+      });
+    });
+
+    describe('sounding set', () => {
+      it('plays a robot that is in the set (control: the note reaches a synth)', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        AudioEngine.setSoundingRobots(['test']);
+
+        expect(await play('test', 'G8')).toBe(true);
+
+        expect(AudioEngine.getPolyphonyStats().voices).toBe(1);
+        expect(await synthTriggersFor('G8')).toBeGreaterThan(0);
+      });
+
+      it('never triggers a robot that is outside the set, and it consumes no polyphony slot', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        AudioEngine.setSoundingRobots(['someone-else']);
+
+        expect(await play('test', 'G9')).toBe(false);
+
+        expect(AudioEngine.getPolyphonyStats().voices).toBe(0);
+        expect(await synthTriggersFor('G9')).toBe(0);
+      });
+
+      it('a standing-by robot hammering the trigger never uses up slots the sounding robots need', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        AudioEngine.reserveVoice('waiting', TEST_LAYERED, TEST_ADSR);
+        AudioEngine.setSoundingRobots(['test']);
+
+        for (let i = 0; i < MAX_POLYPHONY * 3; i++) expect(await play('waiting')).toBe(false);
+
+        expect(AudioEngine.getPolyphonyStats().voices).toBe(0);
+        for (let i = 0; i < MAX_POLYPHONY; i++) expect(await play('test')).toBe(true);
+      });
+
+      it('an empty set silences everyone — it is not the same as having no set', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        AudioEngine.setSoundingRobots([]);
+        expect(await play()).toBe(false);
+      });
+
+      it('null removes the restriction again', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        AudioEngine.setSoundingRobots(['someone-else']);
+        expect(await play()).toBe(false);
+
+        AudioEngine.setSoundingRobots(null);
+
+        expect(await play()).toBe(true);
+      });
+
+      it('takes effect on the very next note, in both directions', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        AudioEngine.setSoundingRobots(['test']);
+        expect(await play()).toBe(true);
+        AudioEngine.setSoundingRobots(['other']);
+        expect(await play()).toBe(false);
+        AudioEngine.setSoundingRobots(['test', 'other']);
+        expect(await play()).toBe(true);
+      });
+
+      it('copies the ids it is given — mutating the caller’s array afterwards changes nothing', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        const ids = ['test'];
+        AudioEngine.setSoundingRobots(ids);
+        ids.length = 0;
+        expect(await play()).toBe(true);
+      });
+
+      it('applies whether or not the locale has any robots in the store', async () => {
+        // This suite runs with an empty locale, so the mute/solo check is skipped entirely — the gate must not be.
+        const { AudioEngine } = await import('./AudioEngine');
+        AudioEngine.setSoundingRobots(['other']);
+        expect(await play('test')).toBe(false);
+      });
+    });
+
+    describe('dynamic polyphony cap', () => {
+      it('accepts exactly `cap` simultaneous notes and refuses the rest', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        AudioEngine.setPolyphonyCap(3);
+
+        const results = [];
+        for (let i = 0; i < 6; i++) results.push(await play());
+
+        expect(results).toEqual([true, true, true, false, false, false]);
+      });
+
+      it('reports the live cap as maxVoices', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        AudioEngine.setPolyphonyCap(8);
+        expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(8);
+        AudioEngine.setPolyphonyCap(MAX_POLYPHONY);
+        expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(MAX_POLYPHONY);
+      });
+
+      it('lowering the cap below the notes already sounding blocks new notes without touching the counter', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        for (let i = 0; i < 5; i++) expect(await play()).toBe(true);
+
+        AudioEngine.setPolyphonyCap(2);
+
+        expect(AudioEngine.getPolyphonyStats().voices).toBe(5); // not forcibly decremented, not stranded
+        expect(await play()).toBe(false);
+        expect(AudioEngine.getPolyphonyStats().voices).toBe(5);
+      });
+
+      it('lets the counter drain naturally after a lowered cap, then admits up to the new cap', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        for (let i = 0; i < 5; i++) await play();
+        AudioEngine.setPolyphonyCap(2);
+
+        await fireAllReleases();
+
+        expect(AudioEngine.getPolyphonyStats().voices).toBe(0);
+        expect(await play()).toBe(true);
+        expect(await play()).toBe(true);
+        expect(await play()).toBe(false);
+      });
+
+      it('raising the cap restores normal behavior immediately', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        AudioEngine.setPolyphonyCap(1);
+        expect(await play()).toBe(true);
+        expect(await play()).toBe(false);
+
+        AudioEngine.setPolyphonyCap(MAX_POLYPHONY);
+
+        expect(await play()).toBe(true);
+      });
+
+      it('clamps to [0, MAX_POLYPHONY], floors fractions, and treats NaN as the full ceiling', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        AudioEngine.setPolyphonyCap(99);
+        expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(MAX_POLYPHONY);
+        AudioEngine.setPolyphonyCap(2.9);
+        expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(2);
+        AudioEngine.setPolyphonyCap(-5);
+        expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(0);
+        expect(await play()).toBe(false);
+        AudioEngine.setPolyphonyCap(NaN);
+        expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(MAX_POLYPHONY);
+      });
+    });
+
+    describe('killAll', () => {
+      it('still resets the voice counter, and leaves the gate and the cap in force', async () => {
+        const { AudioEngine } = await import('./AudioEngine');
+        AudioEngine.setPolyphonyCap(4);
+        AudioEngine.setSoundingRobots(['other']);
+        AudioEngine.setSoundingRobots(['test']);
+        await play();
+        await play();
+        expect(AudioEngine.getPolyphonyStats().voices).toBe(2);
+
+        AudioEngine.killAll();
+
+        expect(AudioEngine.getPolyphonyStats().voices).toBe(0);
+        expect(AudioEngine.getPolyphonyStats().maxVoices).toBe(4);
+        AudioEngine.setSoundingRobots(['other']);
+        AudioEngine.killAll();
+        expect(await play()).toBe(false); // the set survived a power cycle
+      });
+    });
+
+    it('applies the gate before the polyphony cap, so a blocked robot is not counted even when the cap is also full', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      AudioEngine.setPolyphonyCap(1);
+      AudioEngine.setSoundingRobots(['test']);
+      expect(await play('test')).toBe(true); // fills the only slot
+      AudioEngine.reserveVoice('waiting', TEST_LAYERED, TEST_ADSR);
+
+      expect(await play('waiting')).toBe(false);
+
+      expect(AudioEngine.getPolyphonyStats().voices).toBe(1);
+    });
+  });
+
   // Bug: changing BPM while notes are sounding made playback "peter out" —
   // only already-triggered notes finished, then nothing new played. Root
   // cause: scheduleVoiceRelease computed a real-seconds voice-release delay

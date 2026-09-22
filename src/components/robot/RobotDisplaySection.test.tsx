@@ -25,6 +25,7 @@ vi.mock('@/components/ui/controls/RadioButton', async (importOriginal) => {
 
 import { RobotDisplaySection } from './RobotDisplaySection';
 import { useLocaleStore } from '@/stores/localeStore';
+import { useAudioStore } from '@/stores/audioStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import type { Robot } from '@/types/Robot';
@@ -66,6 +67,7 @@ describe('RobotDisplaySection', () => {
     vi.restoreAllMocks();
     useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
     useUIStore.getState().setActiveLocaleLocalTime(null);
+    useAudioStore.setState({ soundingRobotIds: [] });
   });
 
   it('renders the same sunlight/time-agnostic robot avatar RobotSelectionCard uses (ignoreDaylight passed through)', () => {
@@ -145,6 +147,34 @@ describe('RobotDisplaySection', () => {
 
       expect(screen.getByText('Disabled')).toBeTruthy();
       expect(screen.queryByText('Emitting')).toBeNull();
+    });
+
+    it('reads "Standing by" for an eligible robot the Audio Load budget is holding back, and "Emitting" once it is admitted', () => {
+      const robot = makeRobot({ id: 'r1', audioMode: 'none' });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      useAudioStore.setState({ soundingRobotIds: ['other'] });
+      render(<RobotDisplaySection robot={robot} />);
+      expect(screen.getByText('Standing by')).toBeTruthy();
+      expect(screen.queryByText('Emitting')).toBeNull();
+
+      act(() => useAudioStore.setState({ soundingRobotIds: ['other', 'r1'] }));
+      expect(screen.getByText('Emitting')).toBeTruthy();
+      expect(screen.queryByText('Standing by')).toBeNull();
+    });
+
+    it('still reads "Disabled" for a muted robot outside the sounding set, and "Emitting" while the list is empty', () => {
+      const muted = makeRobot({ id: 'm1', audioMode: 'mute' });
+      useLocaleStore.getState().addRobot(localeId, muted);
+      useAudioStore.setState({ soundingRobotIds: ['other'] });
+      const { unmount } = render(<RobotDisplaySection robot={muted} />);
+      expect(screen.getByText('Disabled')).toBeTruthy();
+      unmount();
+
+      const audible = makeRobot({ id: 'a1', audioMode: 'none' });
+      useLocaleStore.getState().addRobot(localeId, audible);
+      useAudioStore.setState({ soundingRobotIds: [] });
+      render(<RobotDisplaySection robot={audible} />);
+      expect(screen.getByText('Emitting')).toBeTruthy();
     });
 
     it('flips to "Disabled" once another robot in the same locale is soloed, and back once that solo is cleared', () => {

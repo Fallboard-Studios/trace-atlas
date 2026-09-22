@@ -2,6 +2,7 @@
 // IMPORTS
 // ========================================
 import alea from 'alea';
+import { generateUUID } from '../utils/randomId';
 import type { MelodyEvent, NoteDuration } from '../types/Robot';
 import {
   RHYTHMIC_DENSITY_MIN,
@@ -511,7 +512,7 @@ export function generateMelodyForRobot(
     }
 
     melody.push({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       startStep: onsets[i] + 1, // 1-indexed to match existing MelodyEvent convention
       length: pickDurationForGap(durationUnits, rand),
       noteIndex,

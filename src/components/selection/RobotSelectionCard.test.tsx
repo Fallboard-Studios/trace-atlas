@@ -1,5 +1,6 @@
+import { Profiler } from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 
 // Exposes VoxelTrack's own timelineKeyPrefix prop as a data attribute — real GSAP/CabinetBox
 // internals aren't relevant here, only whether two simultaneously-rendered cards' battery
@@ -14,6 +15,7 @@ vi.mock('@/components/ui/controls/VoxelTrack', () => ({
 import { RobotSelectionCard } from './RobotSelectionCard';
 import { useUIStore } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
+import { useAudioStore } from '@/stores/audioStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { JOB_TYPE_LABELS, UNASSIGNED_JOB_LABEL, DOCKING_STATE_LABELS, AUDIBILITY_LABELS } from '@/data/robotSelectionConfig';
 import type { Robot } from '@/types/Robot';
@@ -61,6 +63,7 @@ describe('RobotSelectionCard', () => {
     useUIStore.getState().selectRobot(null);
     useUIStore.getState().setActiveLocaleLocalTime(null);
     useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+    useAudioStore.setState({ soundingRobotIds: [] });
   });
 
   it("renders the robot's name", () => {
@@ -160,6 +163,63 @@ describe('RobotSelectionCard', () => {
 
       render(<RobotSelectionCard robotId="r2" />);
       expect(screen.getByText(`Active · ${AUDIBILITY_LABELS.emitting.humanLabel}`)).toBeTruthy();
+    });
+
+    describe('Audio Load budget: "Standing by"', () => {
+      it('reads Standing by for an eligible robot outside the sounding set', () => {
+        useAudioStore.setState({ soundingRobotIds: ['someone-else'] });
+        renderCard({ docking: 'active', audioMode: 'none' });
+        expect(screen.getByText(`Active · ${AUDIBILITY_LABELS.limited.humanLabel}`)).toBeTruthy();
+        expect(screen.queryByText(/Emitting/)).toBeNull();
+      });
+
+      it('reads Emitting for a robot in the sounding set', () => {
+        useAudioStore.setState({ soundingRobotIds: ['r1', 'someone-else'] });
+        renderCard({ id: 'r1', audioMode: 'none' });
+        expect(screen.getByText(`Active · ${AUDIBILITY_LABELS.emitting.humanLabel}`)).toBeTruthy();
+      });
+
+      it('still reads Disabled for a muted robot that is not in the set', () => {
+        useAudioStore.setState({ soundingRobotIds: ['someone-else'] });
+        renderCard({ audioMode: 'mute' });
+        expect(screen.getByText(`Active · ${AUDIBILITY_LABELS.disabled.humanLabel}`)).toBeTruthy();
+      });
+
+      it('reads Emitting while the sounding list is empty (budget not running: Full is unchanged)', () => {
+        useAudioStore.setState({ soundingRobotIds: [] });
+        renderCard({ audioMode: 'none' });
+        expect(screen.getByText(`Active · ${AUDIBILITY_LABELS.emitting.humanLabel}`)).toBeTruthy();
+      });
+
+      it('updates live when a slot frees and the robot is admitted, and when it is evicted again', () => {
+        useAudioStore.setState({ soundingRobotIds: ['other'] });
+        renderCard({ id: 'r1', audioMode: 'none' });
+        expect(screen.getByText(/Standing by/)).toBeTruthy();
+
+        act(() => useAudioStore.setState({ soundingRobotIds: ['other', 'r1'] }));
+        expect(screen.getByText(/Emitting/)).toBeTruthy();
+
+        act(() => useAudioStore.setState({ soundingRobotIds: ['other'] }));
+        expect(screen.getByText(/Standing by/)).toBeTruthy();
+      });
+
+      it('does not re-render when an UNRELATED robot enters or leaves the sounding set', () => {
+        useAudioStore.setState({ soundingRobotIds: ['r1', 'other-a'] });
+        const commits = { count: 0 };
+        const robot = makeRobot({ id: 'r1', audioMode: 'none' });
+        useLocaleStore.getState().addRobot(localeId, robot);
+        render(
+          <Profiler id="card" onRender={() => { commits.count++; }}>
+            <RobotSelectionCard robotId="r1" />
+          </Profiler>,
+        );
+        const initial = commits.count;
+
+        act(() => useAudioStore.setState({ soundingRobotIds: ['r1', 'other-a', 'other-b'] })); // another robot admitted
+        act(() => useAudioStore.setState({ soundingRobotIds: ['r1', 'other-b'] })); // another robot leaves
+
+        expect(commits.count).toBe(initial);
+      });
     });
   });
 

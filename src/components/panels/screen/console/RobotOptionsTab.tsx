@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { RobotDisplaySection } from '@/components/robot/RobotDisplaySection';
 import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
 import { PingControlsDrawer, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
@@ -7,6 +8,7 @@ import { SignatureArrayDrawer, type SignatureArrayValue } from '@/components/rob
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { useUIStore } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
+import { useAudioStore } from '@/stores/audioStore';
 import { regenerateMelody } from '@/engine/regenerateMelody';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE } from '@/engine/melodyGenerator';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
@@ -17,6 +19,7 @@ import {
   applyAudioMode, applyVolume, applyVolumeLfo,
 } from '@/systems/robotOptionsActions';
 import type { LfoValue } from '@/types/controls';
+import { ROBOT_LFO_TARGET_IDS } from '@/types/lfo';
 import type { Robot, ADSREnvelope } from '@/types/Robot';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 
@@ -115,6 +118,14 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
 
   const robotColorStyle = useMemo(() => getRobotColorStyle(robot.identityColor), [robot.identityColor]);
 
+  // Audio Load Budget: which of THIS robot's LFOs the dial is holding off, as plain props for the store-free sections. Selected as
+  // booleans (a shallow-compared record of this robot's own 13 targets), never the whole list, so another robot's LFO entering or
+  // leaving it re-renders nothing here; the record keeps its reference until one of THESE flags flips.
+  const volumeLfoHeldOff = useAudioStore((s) => s.heldOffLfoKeys.includes(`${robot.id}:${VOLUME_LFO_TARGET}`));
+  const heldOffTargets = useAudioStore(
+    useShallow((s) => Object.fromEntries(ROBOT_LFO_TARGET_IDS.map((target) => [target, s.heldOffLfoKeys.includes(`${robot.id}:${target}`)]))),
+  );
+
   const audioSettingValue: AudioSettingValue = useMemo(() => ({
     audioMode: robot.audioMode ?? 'none',
     masterVolume: robot.masterVolume,
@@ -166,6 +177,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
         onAudioModeChange={handleAudioModeChange}
         onVolumeChange={handleVolumeChange}
         onVolumeLfoChange={handleVolumeLfoChange}
+        volumeLfoHeldOff={volumeLfoHeldOff}
         style={OUTPUT_STYLE}
       />
       <PingControlsDrawer
@@ -190,6 +202,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
         onContinuousChange={handleLayersContinuousChange}
         onStructuralChange={handleLayersStructuralChange}
         onLfoChange={handleLayerLfoChange}
+        heldOffTargets={heldOffTargets}
         style={SPECTRAL_STYLE}
       />
     </div>

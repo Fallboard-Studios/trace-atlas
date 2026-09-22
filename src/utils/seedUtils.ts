@@ -51,6 +51,52 @@ export function getGlobalAttenuationStyleSeedOverride(): string | null {
 }
 
 /**
+ * Parse a `?x=` / `?y=` coordinate URL param. Coordinates are integers
+ * system-wide (docs/specs/SECTOR_SETTINGS.md), so only a plain optionally
+ * negative integer string is accepted — anything else (empty, decimal,
+ * exponent, trailing text) returns `null`, i.e. "not overridden".
+ */
+export function parseCoordinateParam(raw: string | null | undefined): number | null {
+  if (raw === null || raw === undefined || !/^-?\d+$/.test(raw)) return null;
+  return Number(raw);
+}
+
+export interface LocaleCoordinateOverride {
+  x: number | null;
+  y: number | null;
+}
+
+// Module-level override for the default locale's starting coordinates. Each
+// axis is independent: an unset axis (null) stays random. `?seed=` alone pins
+// only the Attenuation Style — the locale noise map is seeded from
+// `${seed}:${x}:${y}` (noiseMaps.ts), so a reproducible world needs the
+// coordinates pinned too (docs/PROCEDURAL_GENERATION.md).
+let LOCALE_COORDINATE_OVERRIDE: LocaleCoordinateOverride = { x: null, y: null };
+
+// Initialize from the URL `?x=` / `?y=` params (browser only), same as `?seed=` above.
+if (typeof window !== 'undefined') {
+  const params = new URLSearchParams(window.location.search);
+  LOCALE_COORDINATE_OVERRIDE = {
+    x: parseCoordinateParam(params.get('x')),
+    y: parseCoordinateParam(params.get('y')),
+  };
+}
+
+/**
+ * Set or clear the default locale's coordinate override. Only affects a
+ * default locale built AFTER the call (localeStore reads it once at module
+ * load), so it is mainly useful before that module is imported, and in tests.
+ */
+export function setLocaleCoordinateOverride(override: LocaleCoordinateOverride): void {
+  LOCALE_COORDINATE_OVERRIDE = { x: override.x, y: override.y };
+}
+
+/** Return the current coordinate override; an axis is `null` when not overridden. */
+export function getLocaleCoordinateOverride(): LocaleCoordinateOverride {
+  return { ...LOCALE_COORDINATE_OVERRIDE };
+}
+
+/**
  * Generate a fresh random alphanumeric Attenuation Style name (lowercase
  * a-z0-9, 8 chars). No lore/flavor generation yet — nothing in the UI
  * displays the raw name today; a lore-style generator can replace this

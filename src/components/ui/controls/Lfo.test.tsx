@@ -152,6 +152,48 @@ describe('Lfo', () => {
     });
   });
 
+  describe('heldOff (Audio Load Budget)', () => {
+    it('shows Rate and Depth as 0 and Shape deselected, regardless of the real stored value', () => {
+      render(<Lfo schema={schema} value={value} onChange={() => {}} disabled heldOff />);
+      const [rateSlider, depthSlider] = screen.getAllByRole('slider');
+      expect(rateSlider.getAttribute('aria-valuenow')).toBe('0');
+      expect(depthSlider.getAttribute('aria-valuenow')).toBe('0');
+      for (const name of ['TRIANGLE', 'SINE', 'SQUARE', 'SAWTOOTH']) {
+        expect(screen.getByRole('radio', { name }).getAttribute('aria-checked')).toBe('false');
+      }
+    });
+
+    it('shows the real stored value when heldOff is false, even while otherwise disabled', () => {
+      render(<Lfo schema={schema} value={value} onChange={() => {}} disabled heldOff={false} />);
+      const [rateSlider, depthSlider] = screen.getAllByRole('slider');
+      expect(rateSlider.getAttribute('aria-valuenow')).toBe('2');
+      expect(depthSlider.getAttribute('aria-valuenow')).toBe('40');
+      expect(screen.getByRole('radio', { name: 'SINE' }).getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('omits the isActive class when heldOff is true, even though the real rate is > 0', () => {
+      const { container } = render(<Lfo schema={schema} value={value} onChange={() => {}} disabled heldOff />);
+      expect(container.querySelector('.sc-lfo.isActive')).toBeNull();
+    });
+
+    it('adds the sc-held-off class to the component root when heldOff is true, and omits it otherwise', () => {
+      const { container, rerender } = render(<Lfo schema={schema} value={value} onChange={() => {}} disabled heldOff />);
+      expect(container.querySelector('.sc-lfo.sc-held-off')).toBeTruthy();
+
+      rerender(<Lfo schema={schema} value={value} onChange={() => {}} />);
+      expect(container.querySelector('.sc-lfo.sc-held-off')).toBeNull();
+    });
+
+    it('never mutates the value it hands to onChange — the real stored value is what a later reconnect would use', () => {
+      // heldOff always ships with disabled=true from every real caller, so this can't fire from a
+      // user interaction, but the contract still matters: nothing here should replace `value`
+      // itself, only what child controls are shown.
+      const onChange = vi.fn();
+      render(<Lfo schema={schema} value={value} onChange={onChange} heldOff />);
+      expect(onChange).not.toHaveBeenCalled();
+    });
+  });
+
   describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 10)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((Lfo as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));

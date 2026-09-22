@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { GLOBAL_LFO_TARGET_IDS, DRIFT_GROUP_IDS } from '../types/lfo';
 
@@ -680,5 +680,258 @@ describe('useAudioStore - volume / setVolume / setMuted (docs/specs/GLOBAL_VOLUM
     const state = useAudioStore.getState();
     expect('preMuteVolume' in state).toBe(false);
     expect('setPreMuteVolume' in state).toBe(false);
+  });
+});
+
+describe('useAudioStore - robotLoad / effectsLoad / soundingRobotIds (docs/specs/AUDIO_LOAD_BUDGET.md §3, §4)', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  /** Stub `(pointer: coarse)` — jsdom has no matchMedia of its own. */
+  function stubCoarsePointer(coarse: boolean) {
+    window.matchMedia = vi.fn((query: string) => ({
+      matches: query === '(pointer: coarse)' && coarse,
+    })) as unknown as typeof window.matchMedia;
+  }
+
+  /** Load a fresh copy of the store as if the page had booted with this query string. */
+  async function loadFreshWithQuery(query: string) {
+    window.history.replaceState({}, '', `/${query}`);
+    vi.resetModules();
+    return import('./audioStore');
+  }
+
+  beforeEach(() => {
+    window.history.replaceState({}, '', '/');
+    window.matchMedia = originalMatchMedia;
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+    window.matchMedia = originalMatchMedia;
+    vi.resetModules();
+  });
+
+  describe('robotLoad / effectsLoad at boot', () => {
+    it('are both 1 (Full, today’s behavior) with no params on a desktop-like device', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      expect(useAudioStore.getState().robotLoad).toBe(1);
+      expect(useAudioStore.getState().effectsLoad).toBe(1);
+    });
+
+    it('?load= pins both axes together: 0.2 with light, 0.6 with standard, 1 with full', async () => {
+      for (const [preset, value] of [
+        ['light', 0.2],
+        ['standard', 0.6],
+        ['full', 1],
+      ] as const) {
+        const { useAudioStore } = await loadFreshWithQuery(`?load=${preset}`);
+        expect(useAudioStore.getState().robotLoad).toBe(value);
+        expect(useAudioStore.getState().effectsLoad).toBe(value);
+      }
+    });
+
+    it('?fxLoad= pins the effects axis independently of ?load=', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('?load=full&fxLoad=light');
+      expect(useAudioStore.getState().robotLoad).toBe(1);
+      expect(useAudioStore.getState().effectsLoad).toBe(0.2);
+    });
+
+    it('falls back to detection for an invalid ?load=, on both axes', async () => {
+      expect((await loadFreshWithQuery('?load=bogus')).useAudioStore.getState().robotLoad).toBe(1);
+      expect((await loadFreshWithQuery('?load=bogus')).useAudioStore.getState().effectsLoad).toBe(1);
+      stubCoarsePointer(true);
+      expect((await loadFreshWithQuery('?load=bogus')).useAudioStore.getState().robotLoad).toBe(0.2);
+      expect((await loadFreshWithQuery('?load=bogus')).useAudioStore.getState().effectsLoad).toBe(0.2);
+    });
+
+    it('default to Light (0.2) on a coarse-pointer, phone-like device', async () => {
+      stubCoarsePointer(true);
+      const { useAudioStore } = await loadFreshWithQuery('');
+      expect(useAudioStore.getState().robotLoad).toBe(0.2);
+      expect(useAudioStore.getState().effectsLoad).toBe(0.2);
+    });
+
+    it('does not throw when matchMedia is missing or throws — it just reads as a non-phone', async () => {
+      // @ts-expect-error — simulating an environment without matchMedia
+      window.matchMedia = undefined;
+      expect((await loadFreshWithQuery('')).useAudioStore.getState().robotLoad).toBe(1);
+      window.matchMedia = (() => {
+        throw new Error('no matchMedia here');
+      }) as unknown as typeof window.matchMedia;
+      expect((await loadFreshWithQuery('')).useAudioStore.getState().effectsLoad).toBe(1);
+    });
+  });
+
+  describe('setRobotLoad / setEffectsLoad', () => {
+    it('each set their own axis to exactly the given value, leaving the other alone', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      useAudioStore.getState().setRobotLoad(0.37);
+      expect(useAudioStore.getState().robotLoad).toBe(0.37);
+      expect(useAudioStore.getState().effectsLoad).toBe(1);
+      useAudioStore.getState().setEffectsLoad(0.12);
+      expect(useAudioStore.getState().effectsLoad).toBe(0.12);
+      expect(useAudioStore.getState().robotLoad).toBe(0.37);
+    });
+
+    it('each clamp to [0, 1] and treat NaN as Full', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      useAudioStore.getState().setRobotLoad(-1);
+      expect(useAudioStore.getState().robotLoad).toBe(0);
+      useAudioStore.getState().setRobotLoad(2);
+      expect(useAudioStore.getState().robotLoad).toBe(1);
+      useAudioStore.getState().setRobotLoad(0.4);
+      useAudioStore.getState().setRobotLoad(NaN);
+      expect(useAudioStore.getState().robotLoad).toBe(1);
+
+      useAudioStore.getState().setEffectsLoad(-1);
+      expect(useAudioStore.getState().effectsLoad).toBe(0);
+      useAudioStore.getState().setEffectsLoad(2);
+      expect(useAudioStore.getState().effectsLoad).toBe(1);
+    });
+
+    it('are plain state writes: no engine call, and no other field changes', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      vi.clearAllMocks();
+      const before = { ...useAudioStore.getState() };
+
+      useAudioStore.getState().setRobotLoad(0.2);
+
+      for (const fn of Object.values(AudioEngine)) expect(fn).not.toHaveBeenCalled();
+      const after = useAudioStore.getState();
+      expect(after.robotLoad).toBe(0.2);
+      expect({ ...after, robotLoad: before.robotLoad }).toEqual(before);
+    });
+  });
+
+  describe('soundingRobotIds', () => {
+    it('defaults to an empty list', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      expect(useAudioStore.getState().soundingRobotIds).toEqual([]);
+    });
+
+    it('is written by setSoundingRobotIds', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      useAudioStore.getState().setSoundingRobotIds(['r1', 'r2']);
+      expect(useAudioStore.getState().soundingRobotIds).toEqual(['r1', 'r2']);
+    });
+
+    it('does not write, and so does not notify subscribers, when the set is unchanged', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      useAudioStore.getState().setSoundingRobotIds(['r1', 'r2']);
+      const stored = useAudioStore.getState().soundingRobotIds;
+      const listener = vi.fn();
+      const unsubscribe = useAudioStore.subscribe(listener);
+
+      useAudioStore.getState().setSoundingRobotIds(['r1', 'r2']); // same content, new array
+      useAudioStore.getState().setSoundingRobotIds(stored); // the very same array
+
+      expect(listener).not.toHaveBeenCalled();
+      expect(useAudioStore.getState().soundingRobotIds).toBe(stored);
+
+      useAudioStore.getState().setSoundingRobotIds(['r2', 'r1']); // a different order IS a change (arrival order matters)
+      expect(listener).toHaveBeenCalledTimes(1);
+      unsubscribe();
+    });
+
+    it('treats a shrunken or emptied set as a change', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      useAudioStore.getState().setSoundingRobotIds(['r1', 'r2']);
+      useAudioStore.getState().setSoundingRobotIds(['r1']);
+      expect(useAudioStore.getState().soundingRobotIds).toEqual(['r1']);
+      useAudioStore.getState().setSoundingRobotIds([]);
+      expect(useAudioStore.getState().soundingRobotIds).toEqual([]);
+    });
+
+    it('is not changed by setRobotLoad/setEffectsLoad (only the budget system derives it)', async () => {
+      const { useAudioStore } = await loadFreshWithQuery('');
+      useAudioStore.getState().setSoundingRobotIds(['r1']);
+      useAudioStore.getState().setRobotLoad(0.1);
+      useAudioStore.getState().setEffectsLoad(0.1);
+      expect(useAudioStore.getState().soundingRobotIds).toEqual(['r1']);
+    });
+  });
+
+  it('stays JSON-serialisable with both fields set (state holds no runtime objects)', async () => {
+    const { useAudioStore } = await loadFreshWithQuery('?load=light');
+    useAudioStore.getState().setSoundingRobotIds(['r1', 'r2']);
+    const roundTripped = JSON.parse(JSON.stringify(useAudioStore.getState()));
+    expect(roundTripped.robotLoad).toBe(0.2);
+    expect(roundTripped.effectsLoad).toBe(0.2);
+    expect(roundTripped.soundingRobotIds).toEqual(['r1', 'r2']);
+  });
+});
+
+describe('useAudioStore - held-off LFOs (docs/specs/AUDIO_LOAD_BUDGET.md §1.4, plan task 20)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('starts with nothing held off and drift not held off', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    expect(useAudioStore.getState().heldOffLfoKeys).toEqual([]);
+    expect(useAudioStore.getState().driftHeldOff).toBe(false);
+  });
+
+  it('setHeldOffLfoKeys writes the instance keys', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setHeldOffLfoKeys(['lpf.Q', 'robot-3:layer0.detune']);
+    expect(useAudioStore.getState().heldOffLfoKeys).toEqual(['lpf.Q', 'robot-3:layer0.detune']);
+  });
+
+  it('does not write, and so does not notify subscribers, when the same LFOs are held off — in any order', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setHeldOffLfoKeys(['a', 'b']);
+    const stored = useAudioStore.getState().heldOffLfoKeys;
+    const listener = vi.fn();
+    const unsubscribe = useAudioStore.subscribe(listener);
+
+    useAudioStore.getState().setHeldOffLfoKeys(['a', 'b']);
+    useAudioStore.getState().setHeldOffLfoKeys(['b', 'a']);
+
+    expect(listener).not.toHaveBeenCalled();
+    expect(useAudioStore.getState().heldOffLfoKeys).toBe(stored);
+    unsubscribe();
+  });
+
+  it('writes when the membership changes, including emptying', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setHeldOffLfoKeys(['a', 'b']);
+    useAudioStore.getState().setHeldOffLfoKeys(['a']);
+    expect(useAudioStore.getState().heldOffLfoKeys).toEqual(['a']);
+    useAudioStore.getState().setHeldOffLfoKeys([]);
+    expect(useAudioStore.getState().heldOffLfoKeys).toEqual([]);
+  });
+
+  it('copies the keys it is given', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const keys = ['a'];
+    useAudioStore.getState().setHeldOffLfoKeys(keys);
+    keys.push('b');
+    expect(useAudioStore.getState().heldOffLfoKeys).toEqual(['a']);
+  });
+
+  it('setDriftHeldOff writes only when the flag changes', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const listener = vi.fn();
+    const unsubscribe = useAudioStore.subscribe(listener);
+
+    useAudioStore.getState().setDriftHeldOff(false); // already false
+    expect(listener).not.toHaveBeenCalled();
+
+    useAudioStore.getState().setDriftHeldOff(true);
+    expect(useAudioStore.getState().driftHeldOff).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
+  });
+
+  it('stays JSON-serialisable with both set', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setHeldOffLfoKeys(['lpf.Q']);
+    useAudioStore.getState().setDriftHeldOff(true);
+    const roundTripped = JSON.parse(JSON.stringify(useAudioStore.getState()));
+    expect(roundTripped.heldOffLfoKeys).toEqual(['lpf.Q']);
+    expect(roundTripped.driftHeldOff).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo, type ReactNode } from 'react';
+import { HeldOffNote } from './HeldOffNote';
 import { Lfo } from './Lfo';
 import { DirectionalPanel } from './DirectionalPanel';
 import { withActiveClass } from './activeClass';
@@ -30,6 +31,10 @@ export interface LfoTargetGroupProps<F extends string = string> {
    *  column). Defaults to 'column'; SignatureArrayDrawer passes 'row' for its own Gain/Detune/
    *  Phase/Interval fields, which are schema-'vertical'. */
   sliderPanelOrientation?: PanelOrientation;
+  /** Audio Load Budget: per field, whether that field's LFO is held off by the dial. The shared display greys out (disabled,
+   *  values kept) with a label while the TARGETED field is held off. Plain data — this component stays store-free — so the
+   *  caller must pass a referentially stable object (this component is memoized). Omitted = nothing held off. */
+  heldOff?: Readonly<Record<string, boolean>>;
 }
 
 /**
@@ -51,11 +56,13 @@ function LfoTargetGroupInner<F extends string = string>({
   disabled,
   driftContent,
   sliderPanelOrientation = 'column',
+  heldOff,
 }: LfoTargetGroupProps<F>) {
   const { selected, transitioning, select, isTargeted, displayValue, displayLabel } = useLfoTargetGroup({
     groupId,
     fields,
   });
+  const targetHeldOff = heldOff?.[selected] === true;
 
   // Memoized (docs/todo/backlog.md #27 follow-up, 2026-09-15) — these 2 used to be constructed
   // fresh, inline, on every render, unlike every other primitive's schema in this codebase, which
@@ -96,8 +103,10 @@ function LfoTargetGroupInner<F extends string = string>({
           schema={lfoSchema}
           value={displayValue}
           onChange={handleLfoChange}
-          disabled={disabled || transitioning}
+          disabled={disabled || transitioning || targetHeldOff}
+          heldOff={targetHeldOff}
         />
+        {targetHeldOff && <HeldOffNote />}
       </div>
       {driftContent}
     </div>

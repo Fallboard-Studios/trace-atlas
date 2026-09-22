@@ -26,6 +26,13 @@ vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
 });
 
+// Call-through spy: useLfoTargetGroup runs once per render of an LFO group (AudioRigLfoGroup), so its calls count that
+// component's own re-renders — which the memoized controls inside it would otherwise hide.
+vi.mock('@/components/ui/controls/useLfoTargetGroup', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/ui/controls/useLfoTargetGroup')>();
+  return { ...actual, useLfoTargetGroup: vi.fn(actual.useLfoTargetGroup) };
+});
+
 vi.mock('../../../../engine/lfoEngine', () => ({
   lfoEngine: {
     getLfoSettings: vi.fn(),
@@ -43,10 +50,12 @@ vi.mock('../../../../engine/lfoEngine', () => ({
 
 import { AudioRigDrawer } from './AudioRigDrawer';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
+import { useLfoTargetGroup } from '@/components/ui/controls/useLfoTargetGroup';
 import { useAudioStore } from '@/stores/audioStore';
 import { ACCENT_COLORS } from '@/constants/accentColors';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
+import { LFO_DRIFT_GROUPS } from '@/data/audioRigConfig';
 import { GLOBAL_LFO_TARGET_IDS, type GlobalLfoTargetId } from '@/types/lfo';
 import { openAllAccordions } from '@/testUtils/openAccordions';
 
@@ -80,7 +89,15 @@ function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
 function resetAudioStore() {
   const globalLfo = {} as Record<GlobalLfoTargetId, ReturnType<typeof buildLfoValue>>;
   for (const target of GLOBAL_LFO_TARGET_IDS) globalLfo[target] = buildLfoValue(target);
-  useAudioStore.setState({ globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS }, globalLfo });
+  useAudioStore.setState({
+    globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS },
+    globalLfo,
+    robotLoad: 1,
+    effectsLoad: 1,
+    soundingRobotIds: [],
+    heldOffLfoKeys: [],
+    driftHeldOff: false,
+  });
 }
 
 function buildLfoValue(target: GlobalLfoTargetId) {
@@ -508,6 +525,167 @@ describe('AudioRigDrawer', () => {
     });
   });
 
+  // Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §1.4, decision L; plan task 21): an LFO the dial is holding off is
+  // greyed out — controls disabled, stored values still shown, a "Held off by Audio Load" label — and drift's own sliders
+  // grey out the same way while the drift tier is off. Nothing is edited; raising the dial brings it all back.
+  describe('Audio Load: held-off LFOs and drift', () => {
+    const HELD_OFF = 'Held off by Audio Load';
+    const frames = (container: HTMLElement) => Array.from(container.querySelectorAll<HTMLElement>('.sc-lfo-target-group__display'));
+    const rateOf = (frame: HTMLElement) => within(frame).getByRole('slider', { name: 'Rate' });
+    const depthOf = (frame: HTMLElement) => within(frame).getByRole('slider', { name: 'Depth' });
+    const isDisabled = (el: HTMLElement) => el.getAttribute('data-disabled') !== null;
+    const callsFor = (schemaId: string) =>
+      (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.filter(([schema]) => schema.id === schemaId).length;
+    // One Rate Drift and one Depth Drift per LFO-bearing block (eq3, low-pass, high-pass); Robot Drift lives in Robot Options.
+    const driftSliders = () => [
+      ...screen.getAllByRole('slider', { name: 'Rate Drift' }),
+      ...screen.getAllByRole('slider', { name: 'Depth Drift' }),
+    ];
+
+    it('greys out a shared LFO frame whose displayed target is held off: controls disabled, stored values kept, label shown', () => {
+      useAudioStore.setState((s) => ({
+        globalLfo: { ...s.globalLfo, 'lpf.frequency': { shape: 'square', rate: 3, depth: 45 } },
+        heldOffLfoKeys: ['lpf.frequency'],
+      }));
+      const { container } = renderOpen(<AudioRigDrawer />);
+      const [, lpf] = frames(container);
+
+      expect(isDisabled(rateOf(lpf))).toBe(true);
+      expect(isDisabled(depthOf(lpf))).toBe(true);
+      // Shows 0, not the real stored value (3/45) — a held-off control should read as visibly
+      // "off", not as if it's still running at whatever it was set to. The real value is kept in
+      // the store (untouched by this display-only override) and reappears the moment it's re-enabled.
+      expect(rateOf(lpf).getAttribute('aria-valuenow')).toBe('0');
+      expect(depthOf(lpf).getAttribute('aria-valuenow')).toBe('0');
+      expect(within(lpf).getByText(HELD_OFF)).toBeTruthy();
+      expect(lpf.querySelector('.sc-lfo.sc-held-off')).toBeTruthy();
+    });
+
+    it('restores the real stored value (not 0) the moment the frame stops being held off', () => {
+      useAudioStore.setState((s) => ({
+        globalLfo: { ...s.globalLfo, 'lpf.frequency': { shape: 'square', rate: 3, depth: 45 } },
+        heldOffLfoKeys: ['lpf.frequency'],
+      }));
+      const { container } = renderOpen(<AudioRigDrawer />);
+      const [, lpf] = frames(container);
+      expect(rateOf(lpf).getAttribute('aria-valuenow')).toBe('0');
+
+      act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
+
+      expect(rateOf(frames(container)[1]).getAttribute('aria-valuenow')).toBe('3');
+      expect(depthOf(frames(container)[1]).getAttribute('aria-valuenow')).toBe('45');
+      expect(frames(container)[1].querySelector('.sc-lfo.sc-held-off')).toBeNull();
+    });
+
+    it('leaves every other frame enabled and unlabelled — EQ-gain LFOs stay editable while all four filter LFOs are held off (Light)', () => {
+      useAudioStore.setState({ heldOffLfoKeys: ['lpf.frequency', 'lpf.Q', 'hpf.frequency', 'hpf.Q'] });
+      const { container } = renderOpen(<AudioRigDrawer />);
+      const [eq] = frames(container);
+
+      expect(isDisabled(rateOf(eq))).toBe(false);
+      expect(within(eq).queryByText(HELD_OFF)).toBeNull();
+    });
+
+    it('a frame with nothing held off is enabled and unlabelled (Full, or before the budget runs)', () => {
+      const { container } = renderOpen(<AudioRigDrawer />);
+      for (const frame of frames(container)) {
+        expect(isDisabled(rateOf(frame))).toBe(false);
+        expect(within(frame).queryByText(HELD_OFF)).toBeNull();
+      }
+      expect(screen.queryByText(HELD_OFF)).toBeNull();
+    });
+
+    it('re-enables the moment the LFO stops being held off, with no reload', () => {
+      useAudioStore.setState({ heldOffLfoKeys: ['lpf.frequency'] });
+      const { container } = renderOpen(<AudioRigDrawer />);
+      expect(isDisabled(rateOf(frames(container)[1]))).toBe(true);
+
+      act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
+
+      expect(isDisabled(rateOf(frames(container)[1]))).toBe(false);
+      expect(within(frames(container)[1]).queryByText(HELD_OFF)).toBeNull();
+    });
+
+    it('follows which target the frame is showing: a held-off Resonance greys the frame only once Resonance is selected', async () => {
+      useAudioStore.setState({ heldOffLfoKeys: ['lpf.Q'] });
+      const { container } = renderOpen(<AudioRigDrawer />);
+      expect(isDisabled(rateOf(frames(container)[1]))).toBe(false); // showing Frequency
+
+      await act(async () => {
+        screen.getAllByRole('slider', { name: 'Resonance' })[0].focus(); // LPF's own row
+      });
+
+      await waitFor(() => {
+        expect(isDisabled(rateOf(frames(container)[1]))).toBe(true);
+      });
+      expect(within(frames(container)[1]).getByText(HELD_OFF)).toBeTruthy();
+    });
+
+    it('greys out every drift slider, with a label per drift group, while the drift tier is off — and restores them', () => {
+      useAudioStore.setState({ driftHeldOff: true });
+      renderOpen(<AudioRigDrawer />);
+
+      const sliders = driftSliders();
+      expect(sliders).toHaveLength(6); // eq3, low-pass, high-pass × rate + depth
+      for (const slider of sliders) expect(isDisabled(slider)).toBe(true);
+      expect(screen.getAllByText(HELD_OFF)).toHaveLength(3);
+
+      act(() => useAudioStore.setState({ driftHeldOff: false }));
+
+      for (const slider of driftSliders()) expect(isDisabled(slider)).toBe(false);
+      expect(screen.queryByText(HELD_OFF)).toBeNull();
+    });
+
+    it('shows 0, not the real stored drift amount, while greyed out — and the real value returns once re-enabled', () => {
+      useAudioStore.setState((s) => ({
+        globalAudio: { ...s.globalAudio, lfoDrift: { ...s.globalAudio.lfoDrift, eq3: { rateDrift: 0.4, depthDrift: -0.25 } } },
+        driftHeldOff: true,
+      }));
+      renderOpen(<AudioRigDrawer />);
+      const eq3 = LFO_DRIFT_GROUPS.find((g) => g.group === 'eq3')!;
+      const rateSlider = screen.getAllByRole('slider', { name: eq3.rateSchema.humanLabel })[0];
+      const depthSlider = screen.getAllByRole('slider', { name: eq3.depthSchema.humanLabel })[0];
+      expect(rateSlider.getAttribute('aria-valuenow')).toBe('0');
+      expect(depthSlider.getAttribute('aria-valuenow')).toBe('0');
+      expect(rateSlider.closest('.audio-rig-drawer__param-row')?.classList.contains('sc-held-off')).toBe(true);
+
+      act(() => useAudioStore.setState({ driftHeldOff: false }));
+
+      const restored = screen.getAllByRole('slider', { name: eq3.rateSchema.humanLabel })[0];
+      const depthRestored = screen.getAllByRole('slider', { name: eq3.depthSchema.humanLabel })[0];
+      expect(restored.getAttribute('aria-valuenow')).toBe('40');
+      expect(depthRestored.getAttribute('aria-valuenow')).toBe('-25');
+      expect(restored.closest('.audio-rig-drawer__param-row')?.classList.contains('sc-held-off')).toBe(false);
+    });
+
+    it('the drift flag does not disturb the memoized LFO controls inside a frame', () => {
+      renderOpen(<AudioRigDrawer />);
+      const eqRate = callsFor('audioRig.eq3.lfo.rate');
+      expect(eqRate).toBeGreaterThan(0);
+
+      act(() => useAudioStore.setState({ driftHeldOff: true }));
+
+      expect(callsFor('audioRig.eq3.lfo.rate')).toBe(eqRate);
+    });
+
+    it('an unrelated LFO entering or leaving the held-off list does not re-render a frame at all (a per-frame boolean selector, not the whole list)', () => {
+      renderOpen(<AudioRigDrawer />);
+      const groupRenders = (groupId: string) =>
+        (useLfoTargetGroup as ReturnType<typeof vi.fn>).mock.calls.filter(([args]) => args.groupId === groupId).length;
+      const eqBefore = groupRenders('audioRig.eq3');
+      const lpfBefore = groupRenders('audioRig.filterLPF');
+      expect(eqBefore).toBeGreaterThan(0);
+
+      // hpf.Q is not the displayed target of eq3 or low-pass (each shows its group's first field), so neither may re-render.
+      act(() => useAudioStore.setState({ heldOffLfoKeys: ['hpf.Q'] }));
+      act(() => useAudioStore.setState({ heldOffLfoKeys: ['hpf.Q', 'eq3.mid'] }));
+      act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
+
+      expect(groupRenders('audioRig.eq3')).toBe(eqBefore);
+      expect(groupRenders('audioRig.filterLPF')).toBe(lpfBefore);
+    });
+  });
+
   describe('Reverb (Task 11)', () => {
     it('renders no dampening slider — dead, removed', () => {
       renderOpen(<AudioRigDrawer />);
@@ -772,6 +950,8 @@ describe('AudioRigDrawer', () => {
       expect(tempoRow).not.toBe(pingRow);
     });
   });
+
+  // Audio Load panel tests moved to AudioLoadPanel.test.tsx (code-review follow-up, 2026-09-22).
 
   // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 9) — each of the 4
   // top-level accordions is scoped to its own trait via getTraitColorStyle, applied directly to

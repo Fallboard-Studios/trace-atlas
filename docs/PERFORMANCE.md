@@ -49,6 +49,7 @@ The default step sequence: power on → open Fleet Params → open each of its a
 - **Throttling is main-thread only.** `Emulation.setCPUThrottlingRate` does not slow compositor or raster worker threads. Treat throttled numbers as a *relative* signal for main-thread work, not a phone simulator.
 - **Headless Chrome's raster/compositing path differs from a phone GPU's.** Paint and compositing figures (roadmap 17.2.5) are directional until confirmed on real hardware.
 - **Audio isn't measured directly.** Headless Chrome has no real audio output (`--mute-audio` is on). The 100 ms threshold is the *proxy* for an audible pause; confirm by ear on a real device.
+- **The world is random per load unless pinned.** For like-for-like comparisons (especially audio load) load `?seed=<word>&x=<int>&y=<int>` — `?seed=` alone leaves the locale coordinates random, so robots, BPM and day phase still differ between runs (see [PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md)). The harness does not add these params itself; pass them via `--url`. Baselines recorded before 2026-09-19 were taken on random worlds.
 - **Run-to-run variance is large** (e.g. Probes at 4× throttle: 2.3 s in one run, 3.9 s in another — background robot/swell activity differs per run). Run 3× and compare medians, and only trust differences bigger than that spread.
 - **Trace durations overlap.** A `FunctionCall` contains its own layouts, so compare an event's total across runs, never across event names.
 - **Trace `RasterTask` totals are unstable** between runs (worker-thread events); ignore them.
@@ -280,6 +281,388 @@ Because the component changed twice after the first post-change measurement, the
 | 3 — open robot detail, 4× | total ≤ 1,142 ms | **453 ms** (386–538) | **PASS** |
 
 **Machine drift, and why the first-open numbers moved.** This session's numbers ran ~15–35% higher than the first post-change session across the board, including `power on` (584 → 666 ms at 1×, 2,151 → 2,878 ms at 4×), which has nothing to do with accordions — so cross-session comparisons of absolute numbers are unreliable here. To separate machine from code, the previous component version (`6fb88b7`) and the final code were run back to back in the same session at 1×: EQ & Filters first open 199 vs 201 ms, Source 166 vs 146 ms, Probes 164 vs 191 ms, `power on` 685 vs 686 ms — the same within run-to-run noise, so the settle and measure changes cost nothing measurable. Final-build first-open numbers, 1× (this session): EQ & Filters 197 ms, Source 151 ms, Output 90 ms, Time & Space 72 ms, all detail sections other than Source 0; 4×: EQ & Filters 1,284 ms, Source 1,158 ms, Output 573 ms, Time & Space 385 ms.
+
+## Diagnosing audio on a real phone — `?debug`, `?latency=`, pinned worlds
+
+Built for the phone-only scratchy / cutting-out audio ([docs/todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md)), where the headless harness above can't see the audio thread. All three are URL params, read once at load, opt-in, and change nothing when absent.
+
+| Param | Effect |
+|---|---|
+| `?debug` | Shows a small read-only overlay (bottom-left, no controls, hidden from assistive tech, `pointer-events: none`) — see below. |
+| `?latency=interactive|balanced|playback` | Installs the Tone context with that Web Audio `latencyHint` instead of Tone's default `interactive`. Invalid values are ignored. `src/engine/audioContextSetup.ts` — it must stay `main.tsx`'s first app import. Roadmap 17.2.4 territory: Chrome Android's low-latency path is known to glitch on complex graphs and `playback` is the usual mitigation, **unverified for this app**. Does not change Tone's `lookAhead` (still 100 ms). |
+| `?load=light\|standard\|full` or `?load=0..100` | The **Audio Load** dial at page load ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md)): caps audible robots, polyphony, LFO tiers, and — for Light — selects the `playback` latency hint. Invalid or absent: Light on a phone-like device (coarse pointer), Full elsewhere. Changing the dial in the app mirrors the choice back into this param (`history.replaceState`). An explicit `?latency=` still wins over the preset's hint. |
+| `?seed=<word>&x=<int>&y=<int>` | Pins the whole generated world ([PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md)). Print any of these into a bug report and the HUD echoes what was loaded. |
+
+Combine them, e.g. `?debug&latency=playback&seed=bravo&x=-150&y=90`. Known worlds (desktop render capacity, [scratchy-audio-phones.md](todo/scratchy-audio-phones.md)): `charlie:200:-30` ≈ 0.33 (calm, 0 global LFOs), `alpha:12:68` ≈ 0.37, `delta:5:-180` ≈ 0.50, `bravo:-150:90` ≈ 0.55 (heavy, 5 LFOs).
+
+### Reading the overlay
+
+```
+bravo @ -150,90   up 1:32
+ctx running   clock x1.00   transport started
+latency interactive   ahead 100ms   base 11ms
+voices 3/16   audible 5/12   LFOs 5/7
+load 100% · sounding 5/12 · standing by 0 · poly 3/16
+fps 58   lag 4ms (max 220ms)
+out -12.3dB rms -20.1dB  pre -6.0dB  fin ok
+underruns 0 (0ms) · lat 44ms (0-47)
+1:31 audio clock stalled (x0.00)
+1:52 audio clock recovered after 20.0s
+```
+
+The border turns red when any failure signature is live: the context is not running, the audio clock stalls, the UI frames stop, playback underruns are occurring, the master is silent while notes sound, or an output tap holds non-finite samples. Each line answers one question from the investigation:
+
+| Reading | Meaning |
+|---|---|
+| `ctx` (`running` / `suspended` / `interrupted`) | AudioContext state. The app never resumes a suspended context (no `statechange` handler); changes are logged from the context's own `statechange` event, so transient states aren't missed. |
+| `clock xN` | Audio-clock seconds advanced per wall second over the last 500 ms. ~1.00 is healthy; **below 0.5 while `ctx` says `running`** is logged as "audio clock stalled" — the audio thread isn't advancing. |
+| `fps` | GSAP ticker ticks/second. **0** logs "UI frames stopped" — the page's animation loop froze. |
+| `lag` (`max`) | How late the 500 ms sampler tick ran — a main-thread stall meter. ≥ 500 ms is logged as "main thread stalled". |
+| `voices n/16` | `activeVoices` against `MAX_POLYPHONY`. Pinned at 16 with sound gone = the stuck-voice-counter hypothesis. |
+| `audible n/12` | Robots in the active locale that `isRobotAudible` lets sound right now (not muted, not excluded by a solo), out of the roster — `0/0` before any robot has spawned. Sampled at the 500 ms tick, so it costs no store subscription. Added for the Audio Load Budget work ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md)): the load waves are hypothesised to follow how many robots sound at once, and this is the series to check that against. |
+| `load n% · sounding a/b · standing by c · poly u/v` | The Audio Load budget: the dial, robots the budget lets sound out of the cap the dial allows, robots eligible but standing by, and notes in use out of the *live* polyphony ceiling (`v` is 16 at Full, 8 at Light). `sounding` never exceeds `b`; at Full it reads `sounding n/12` and `poly n/16`. Sampled at the 500 ms tick; a dash means unknown. `perf:audio` reads this line too (mean and max `sounding` per bucket). |
+| `LFOs n/7` | Global LFOs with rate > 0 — the measured load driver. |
+| `latency … ahead … base` | The hint actually installed, Tone's `lookAhead`, and `baseLatency`. (`outputLatency` is not shown: Tone's standardized-audio-context wrapper doesn't expose it.) |
+| `out … rms …  pre …  fin …` | **Output level taps** ([specs/AUDIO_OUTPUT_DIAGNOSTIC.md](specs/AUDIO_OUTPUT_DIAGNOSTIC.md)): `out` is the peak (dBFS) and `rms` the RMS of what the destination receives (`masterGain`'s output, so after the limiter and after volume/mute); `pre` is the peak of what the voices hand the FX chain (EQ3's output). Each reading is the last 32768 samples (≈ 0.68 s at 48 kHz) from a native `AnalyserNode`. `-inf` is silence, `-` means no reading. `fin ok` means every sample was finite; **`fin NaN!`** means a tap saw NaN/±Infinity. |
+| `underruns n (Dms) · lat Ams (min-max)` | **The browser's own playback statistics** (`AudioContext.playbackStats`, Chrome 146+): playback underruns since the context was created, their total duration, and the average output latency with its min–max. `underruns n/a` when the browser has no such API. A calm desktop run reads `underruns 0 (0ms) · lat 44ms (0-47)`. |
+
+**Telling the causes apart** (what to note when the sound drops):
+
+- `clock` stalls, `ctx` still `running`, `fps`/`lag` fine → audio-thread starvation.
+- `ctx` goes `suspended`/`interrupted` → the OS/browser took the context; the app should resume it.
+- `lag` spikes and `fps` → 0, `clock` keeps ~1.00 → a main-thread stall (audio is scheduled from the main thread, so it can starve even though the audio thread is fine).
+- `voices` pinned at 16 with everything else healthy → the voice counter, not the audio path.
+- Everything above reads healthy but it is silent → look at the output taps and the stats (below).
+
+### Reading the output taps and the playback stats
+
+Added because three `bravo` dropouts on the Pixel left **every** reading above normal (`ctx running`, `clock` ≈ x1.00, notes being scheduled, no event) — so what fails is something those readings do not measure ([todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md)). The question is whether the sound is **silent inside the graph** or **lost after it**:
+
+| `out` | `pre` | `underruns` | Reading |
+|---|---|---|---|
+| silent, notes sounding | normal | — | The fault is **inside** LPF → HPF → Delay → Reverb → Compressor → Limiter → master. |
+| silent | silent | — | **Upstream**: the voices or EQ3 produce nothing although notes are scheduled. |
+| normal | normal | count rising | The graph is fine and the **output underran**: load or scheduling, not a silent node. Clicks are underruns. |
+| normal | normal | flat | The graph is fine and the browser reports no underrun: the loss is **downstream** (OS/device) and invisible to the app. |
+| — | — | `n/a` | Chrome before 146 has no `playbackStats`; the level taps still answer graph-vs-not. |
+| `fin NaN!` | either | — | A NaN/Inf is latched; the tap that shows it first locates it. |
+
+Events (edge-triggered, so a long dropout logs two lines, not one per sample):
+
+- `master output silent for 3s while notes sound (pre-chain normal|silent|unknown)` — the master peak was below −80 dBFS (`SILENT_PEAK_THRESHOLD`, strict) for `SILENT_EVENT_AFTER_MS` (3 s) of **counted** time, and the border turns red. Only time with notes in flight counts: a gap between notes **pauses** the count (it neither adds nor restarts it — found in the real browser, where requiring notes at every sample let ordinary gaps hide a real silence). A mute, a stopped transport, a suspended context or an audible master restarts it, so none of those raise it. Recovery: `master output audible again after Xs`, or `silence no longer unexpected after Xs` when it stopped being a fault (e.g. the user muted).
+- `non-finite samples in master output` / `… in pre-chain output`, and `… finite again`, per tap.
+- `playback underruns began (n total)` and `playback underruns stopped after Xs (+N)` — one pair per burst; a burst ends when the count has been flat for `UNDERRUN_QUIET_MS` (1 s), so a click storm cannot flush the 8-line log. The border is red while underruns are occurring.
+
+**Limits.** It cannot see the Android output stream itself, so "downstream" is by exclusion. A sounding robot whose own volume is 0 is genuine silence with notes in flight and will read as a silent-while-sounding event. The silent event trails a real silence by the FX tail-out (about 2 s: the reverb and delay ring out) plus the 3 s counted, plus any note gaps — 5–8 s in the forced-silence checks. The two analysers sit on the graph of the device under suspicion (debug-only, read-only, a 128 KB buffer reused each tick).
+
+**Two things the real browser taught** (2026-09-21, headless Chrome 153): the taps are native `AnalyserNode`s, not `Tone.Analyser` — Tone's wrapper sets `fftSize = 2 × size`, caps `size` at 16384 and reads only the older half of the window; and Tone's `rawContext` is a `standardized-audio-context` wrapper that does not forward `playbackStats`, so the overlay reads it from the wrapper's private `_nativeAudioContext` / `_nativeContext` fields. That is fragile: a `standardized-audio-context` upgrade could quietly turn the line back into `n/a`, which is why it says `n/a` rather than showing zeros.
+
+Verified (2026-09-21, production build, headless Chrome 153, `charlie:200:-30`): `out` ≈ −12 … −17 dB, `rms` ≈ −23 dB and `pre` ≈ −4 … −13 dB while robots sound, live within ~2 s of power-on; **muting the master drops `out` to `-inf` while `pre` stays live and raises no event**; both taps survive flipping Natural ↔ Controlled Decay (which disconnects every FX node); a calm 90 s run shows `underruns 0 (0ms) · lat 44ms (0-47)`. On the dev server, cutting the chain after EQ3 raised the silent event in 3 of 3 runs (5–8 s after the cut, `pre-chain normal`), turned the border red, and cleared on restore.
+
+Verified in headless Chrome (2026-09-19): a deliberate 2 s main-thread freeze logs `main thread stalled ~1639 ms` while `clock` stays ~x1.01, so the two cases are distinguishable; a no-param load creates one realtime AudioContext and `?latency=playback` replaces Tone's default one (which `setContext(…, true)` closes) — Tone's own import creates a default `interactive` context before this module runs, hence the dispose.
+
+### Getting it onto a phone
+
+`npm run build && npx vite preview --host --port 4173`, then open `http://<pc-lan-ip>:4173/trace-atlas/?debug&…` on the phone (same Wi-Fi; a Windows firewall prompt may need allowing). A production build is the right target — the dev server is unminified and slower. Or deploy the branch. **A phone loading `http://<lan-ip>` is an insecure context** (only https and localhost are secure), where `crypto.randomUUID` does not exist. Before 2026-09-20 that made `AudioEngine.start()` throw in `beatClock.scheduleRepeat`, so the power rocker snapped back and the tablet never powered on; all id generation now goes through `generateUUID()` (`src/utils/randomId.ts`, falls back to `crypto.getRandomValues`). Any *new* secure-context-only API (`crypto.subtle`, `navigator.clipboard`, `navigator.wakeLock`, service workers, …) will break the same way on a LAN phone — you can reproduce that on the PC by loading the preview from its LAN IP instead of `localhost`. The overlay's cost is one 500 ms timer and one GSAP ticker callback, only while `?debug` is on — plus the two output-tap analysers, which are created only then (with `?debug` absent `buildGlobalFxChain` and `wireGlobalFxChain` construct none).
+
+## Audio render-capacity series — `npm run perf:audio`
+
+Where `npm run perf` above measures the main thread, this measures the **audio thread**: it drives headless Chrome over the DevTools Protocol (Node's built-in `WebSocket`, no dependency), loads a served production build of a pinned world, powers it on, waits out a warm-up, then polls the DevTools "Web Audio" panel's `WebAudio.getRealtimeData` every 500 ms. *Render capacity* is the fraction of each audio callback's deadline that rendering takes (0–1; near 1.0 the thread misses deadlines, heard as clicks and dropouts). Built for roadmap 17.2.6 ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md)); it replaces the scratch-script recipe in [todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md).
+
+```
+npm run build && npx vite preview --port 4173                                 # terminal 1 — a production build
+npm run perf:audio -- --world charlie:200:-30 --seconds 240 --bucket 15       # terminal 2
+```
+
+One row per time bucket — mean and max capacity, mean callback interval, and the overlay's audible-robot count — then the **peak window** (the highest bucket mean; the number the Audio Load gates compare), the overall mean and max, and `r(audible, capacity)`, the Pearson correlation between the per-bucket audible count and capacity (`-` when either is constant). `--help` documents every flag:
+
+| Flag | Meaning |
+|---|---|
+| `--world name:x:y` / `--worlds a,b,c` | Pinned world(s): `name` is `?seed=`, `x`/`y` the integer locale coordinates. `--worlds` runs them one after another, each in a fresh Chrome. |
+| `charlie:200:-30?load=light` | Anything after `?` rides along into the page URL, so variants of one world (a `?load=` preset, `?latency=`) can be A/B-ed within one session. |
+| `--rot n` | Rotates the start order of `--worlds` left by `n`, for interleaved rounds. |
+| `--seconds` / `--bucket` / `--warmup` | Series length (240), bucket width (15), warm-up after power-on (8) — all seconds. |
+| `--url` | Base URL of the served build (default `http://localhost:4173/trace-atlas/`). A LAN address works too — the insecure-context case a phone hits. Any query on it is replaced. |
+| `--no-debug` | Leave `?debug` off: no overlay, so no audible column. (The overlay's own cost is one 500 ms timer and one GSAP ticker callback.) |
+| `--json path` | Also write each run's buckets and summary to a file, e.g. to pool the correlation across runs. |
+
+Only the bucketing, statistics and URL/world handling are unit-tested (`scripts/perf/audio-load-lib.mjs`); the Chrome plumbing is verified by real runs. The audio context polled is the most recently created, not-yet-destroyed *realtime* one, so `?latency=` (which replaces Tone's default context with a second one) polls the right context.
+
+### Measurement hygiene
+
+These rules exist because uncontaminated data was the whole point.
+
+- **Foreground, one call at a time.** Never overlap two runs, and don't run tests, builds or anything else CPU-heavy while one is going — the audio thread shares the machine.
+- **Check for orphaned Chrome before and after** — the count must be 0:
+  `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object { $_.CommandLine -match 'trace-atlas-perf' } | Measure-Object`. The script closes Chrome with `Browser.close` (then `taskkill /T` as a fallback) and removes its temp profile.
+- **A/B within one session, interleaved, ≥ 3 rounds.** Same-world stock capacity drifts run to run (0.30–0.41 across rounds in the 2026-09-19 data), so compare *differences from same-round stock*, rotate the start order with `--rot`, and never compare absolute numbers across sessions. A single run is not evidence.
+- **Name the code measured by commit**, and build variants from a clean tree (patch → `vite build --outDir <scratch>` → `git checkout --` the patched files); never commit a throwaway measurement variant.
+- **Test a metric by reintroducing the problem it should catch** before trusting it on a fix.
+- The audio thread is not throttled by Chrome's CPU throttling, so `perf:audio` takes no throttle flag.
+
+Verified 2026-09-20 (production build of `35ff6a8`): a 60 s `charlie` run reads ≈ 0.34 mean (the known ≈ 0.33), callback interval 10.67 ms, audible robots climbing 3.5 → 8 over the first minute (matching the battery-cycle simulation in the spec); `bravo` ≈ 0.53 (known ≈ 0.55); both work from `http://<lan-ip>:4173/`; runs leave no Chrome process behind.
+
+## Pre-change baseline for roadmap 17.2.6 — Audio Load Budget (2026-09-20)
+
+The reference every Audio Load result is compared against ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md) §5.3 criteria 1 and 4; plan task 3). **Nothing in the product was changed to take it.** It also tests the spec's central inference — that render load tracks how many robots are sounding — which until now rested on a simulation and one time series.
+
+**Code measured:** `4bab2ea` (clean tree). Its product code is identical to `35ff6a8`; against `main` the only product difference is the overlay's `audible n/12` reading. Production build served by `vite preview`, headless Chrome 153.0.8010.52, desktop, no throttle, `npm run perf:audio` (above).
+
+**Method:** worlds `charlie:200:-30` and `bravo:-150:90`; **3 runs each**, a **240 s series** after an 8 s warm-up, **15 s buckets**; a fresh Chrome per run, foreground, one call at a time, nothing else running; start order rotated between rounds (charlie→bravo, bravo→charlie, charlie→bravo); orphaned-Chrome count 0 before and after every run. Plus one **spot re-run** of `charlie` afterwards (see "Noise band"). The audio callback interval read 10.67 ms in every bucket of every run (one bucket 10.69) — no deadline-miss doubling at stock, though single samples touched 0.99 (below).
+
+### Headline numbers
+
+| | charlie (0 global LFOs) | bravo (5 global LFOs) |
+|---|---|---|
+| **Peak window** (highest 15 s bucket mean) — the number Light must beat by ≥ 25 % | **0.414** median; runs 0.414 / 0.381 / 0.416 (spot re-run 0.404) | **0.558** median; runs 0.558 / 0.550 / 0.585 |
+| Overall mean | **0.327** median; runs 0.330 / 0.324 / 0.327 (spot re-run 0.342) | **0.488** median; runs 0.486 / 0.488 / 0.506 |
+| Highest single sample | 0.99 / 0.71 / 0.66 (spot 0.83) | 0.99 / 0.99 / 0.99 |
+| Peak window of the 3-run average | 0.400 (at 45 s) | 0.558 (at 135 s) |
+| r(audible, capacity), per run | 0.89 / 0.89 / 0.91 (spot 0.94) | 0.76 / 0.74 / 0.77 |
+
+### The waves — per-bucket means over the 3 runs (audible robots are identical run to run)
+
+| t (s) | audible | charlie cap (run range) | bravo cap (run range) |
+|---:|---:|---|---|
+| 0 | 3.5 / 4.5 | 0.302 (0.289–0.312) | 0.516 (0.485–0.550) |
+| 15 | 5.0 / 7.1 | 0.319 (0.305–0.327) | 0.530 (0.519–0.541) |
+| 30 | 6.2 / 7.6 | 0.366 (0.361–0.370) | 0.533 (0.510–0.562) |
+| 45 | 7.8 / 7.8 | 0.400 (0.371–0.416) | 0.534 (0.504–0.558) |
+| 60 | 7.1 / 5.4 | 0.371 (0.364–0.375) | 0.511 (0.474–0.559) |
+| 75 | 3.9 / 1.8 | 0.291 (0.278–0.305) | 0.441 (0.417–0.462) |
+| 90 | 4.7 / 3.5 | 0.303 (0.295–0.317) | 0.422 (0.414–0.431) |
+| 105 | 6.4 / 3.9 | 0.355 (0.334–0.397) | 0.437 (0.426–0.458) |
+| 120 | 6.5 / 5.7 | 0.342 (0.329–0.364) | 0.490 (0.473–0.519) |
+| 135 | 7.1 / 7.7 | 0.366 (0.358–0.381) | 0.558 (0.541–0.585) |
+| 150 | 5.5 / 6.1 | 0.330 (0.324–0.335) | 0.518 (0.503–0.538) |
+| 165 | 4.0 / 5.4 | 0.320 (0.313–0.329) | 0.528 (0.512–0.541) |
+| 180 | 2.1 / 4.4 | 0.264 (0.251–0.274) | 0.498 (0.477–0.512) |
+| 195 | 3.1 / 5.0 | 0.262 (0.257–0.265) | 0.458 (0.428–0.475) |
+| 210 | 5.2 / 5.6 | 0.306 (0.297–0.321) | 0.474 (0.434–0.509) |
+| 225 | 6.3 / 3.8 | 0.333 (0.330–0.336) | 0.453 (0.432–0.475) |
+
+(Audible robots are shown charlie / bravo. A pinned world replays the same robot lifecycle, so this series repeats across runs to within ±0.1 — only capacity varies.)
+
+### Does load track audible robots? — the reading
+
+| Correlation (Pearson r over 15 s buckets) | charlie | bravo | both worlds |
+|---|---|---|---|
+| per run | 0.89 / 0.89 / 0.91 | 0.76 / 0.74 / 0.77 | |
+| pooled over the 3 runs (48 buckets) | **0.89** | **0.74** | |
+| on the 3-run-averaged capacity (16 buckets) | 0.94 | 0.83 | |
+| both worlds pooled, raw (96 buckets) | | | **0.38** |
+| both worlds pooled, world means removed | | | **0.81** |
+
+**Reading: yes, strongly, within a world.** Capacity follows the audible count through every wave — bravo dips from 0.53 to 0.44 exactly where audible robots drop from 7.8 to 1.8, and charlie's two lowest buckets (0.262 and 0.264, at 195 s and 180 s) are the two lowest audible counts (3.1 and 2.1) — and the fitted slope is the same in both worlds, **≈ 2 capacity points per audible robot** (charlie ≈ 0.209 + 0.0223 × audible, bravo ≈ 0.385 + 0.0204 × audible). bravo sits ≈ 0.17 above charlie at the same audible count; that offset is the 5 global LFOs, and it is why the **raw pooled r is only 0.38** — it compares a bravo bucket with a charlie bucket, so the world difference swamps the robot effect. That figure is below the plan's "~0.5" line but it is not the relevant test: the caps act *within* a world, and once the world offset is removed the pooled r is 0.81.
+
+**Caveats, so the number is not over-read.** The runs are not independent samples of the relationship: the audible series is the same each run, so pooling three runs repeats the same x values with different noise on y, and adjacent buckets in a time series are autocorrelated, so treat r as descriptive, not as a significance test. "Audible" is eligibility (`isRobotAudible`), not notes actually sounding; it is a proxy. A correlation is not a controlled test — that is what plan task 11 (caps alone, `charlie`) does.
+
+**What this predicts for the gates (a model, not a measurement).** With the fitted slope, capping `charlie` at Light's 4 robots would pull its peak bucket from ≈ 0.40 to ≈ 0.30 — a **≈ 25 % reduction, right on the ≥ 25 % gate**. Capping at Standard's 8 robots would do **almost nothing** on `charlie`, whose audible robots average at most 7.8 per bucket — so the ≥ 10 % Standard gate on `charlie` looks out of reach for the robot cap alone (only the polyphony cap of 12, drift and filter LFOs — none of which `charlie` has — could contribute). `bravo` should gain more than `charlie` at Light (drift and the filter LFOs come off as well). Plan task 11 tests this on `charlie`; a Standard shortfall there would be expected and is a decision for Crawford, not a tuning target.
+
+### Noise band
+
+Across all four `charlie` runs the peak window spans 0.381–0.416 and the overall mean 0.324–0.342 (the spot re-run sat 0.012 above the three-round range), so **≈ ±0.02 on a run's overall mean and ±0.02 on its peak window** — the band that "Full within ±0.03 of baseline" (§5.3 criterion 1) has to be read against. Single-sample spikes to ≈ 0.99 occur in most runs (every `bravo` run, one `charlie` run) without the callback interval leaving 10.67 ms; the peak window, being a 15 s mean, is unaffected by them.
+
+### Decision line for Crawford (plan task 3)
+
+The plan says to stop if the correlation is weak (|r| < ~0.5). **The per-world and within-world correlations are 0.74–0.94 — the spec's premise holds — but the raw both-worlds-pooled figure the plan literally asks for is 0.38**, for the confounded reason above. This is recorded as a judgment call for review at Checkpoint A, not silently reinterpreted; the work continues to plan task 4 (measurement only) and stops at Checkpoint A before any product change.
+
+## Robot-LFO cost by target type — where the robot-LFO caps come from (2026-09-20)
+
+Spec decision K: the per-tier robot-LFO caps come from measurement, not the spec's 4 / 12 placeholders ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md) §1.4; plan task 4). Before this, only "51 connected at once saturate the audio thread" was known.
+
+**Method.** Throwaway build (recipe below; never committed). World `charlie:200:-30` (0 global LFOs, so any change is the robot LFOs). Every arm is the *same build* with a different query string; a few seconds after the roster and voices exist, N robot LFOs of **one target type** are connected and started (rate 1 Hz, depth 50 %, sine). 10 arms × **3 interleaved rounds** (start order rotated by 3 each round), each a **60 s series after a 12 s warm-up**, fresh Chrome each, foreground one call at a time, orphaned-Chrome count 0 before and after every call. Every figure is a **difference from the same round's stock arm** (stock overall mean 0.338 / 0.339 / 0.334 over the three rounds), never an absolute level. Code measured: `b9aac16` + the throwaway patches (tree clean before, restored after; scratch build deleted).
+
+Two switches were needed, and the second changed the design of the measurement:
+- **`?rlfo=<type>&n=<N>`** — the injector. `connectLfoTarget` is what counts, so N is the number that *actually connected* (checked from the page title): on `charlie`, `volume` has 12 targets, `gain` and `detune` 28 each (layers with gain 0 have no node), and **`pulseWidth` only 1** — only pulse-type layers have a width to modulate, and across six pinned worlds there were 0, 0, 0, 0, 1 and 2 of them.
+- **`?nodrift`** — makes `lfoDrift.attachDrift` a no-op. A first pass with drift on showed the cost was **not** linear in N (4 LFOs ≈ +0.12, 12 ≈ +0.22): the first robot LFO instantiates the robot drift group's shared pool of 8 always-running LFOs, and each robot LFO gets two drift Gains, one an audio-rate connection into the LFO's own frequency. **Light and Standard both switch drift off** (spec §1.4), and those are the tiers the caps apply to, so the cap-relevant cost is the drift-off cost. The drift-on figures are kept as an add-on measurement.
+
+### Results — drift off (Δ overall capacity vs same-round stock)
+
+| Arm | round 1 / 2 / 3 | mean Δ | per LFO | max callback interval |
+|---|---|---|---|---|
+| `volume` N = 4 | +0.068 / +0.014 / +0.091 | **+0.057** | +0.014 | 10.67 ms |
+| `volume` N = 12 | +0.132 / +0.113 / +0.142 | **+0.129** | +0.011 | 10.67 ms |
+| `gain` N = 4 | +0.035 / +0.048 / +0.059 | **+0.048** | +0.012 | 10.67 ms |
+| `gain` N = 12 | +0.134 / +0.136 / +0.142 | **+0.137** | +0.011 | 10.67 ms |
+| `gain` N = 28 (all available) | +0.338 / +0.291 / +0.355 | **+0.328** | +0.012 | 10.69 ms |
+| `detune` N = 4 | +0.050 / +0.038 / +0.056 | **+0.048** | +0.012 | 10.67 ms |
+| `detune` N = 12 | +0.174 / +0.157 / +0.163 | **+0.165** | +0.014 | 10.67 ms |
+| `pulseWidth` N = 1 (all available) | +0.091 / +0.073 / +0.076 | **+0.080** | **+0.080** | 10.67 ms |
+
+- **An audio-rate robot LFO costs about +0.012 render capacity each** (0.011–0.015 across `volume`, `gain`, `detune`), **linear in N**: `gain` gives +0.0119 / +0.0114 / +0.0117 per LFO at N = 4 / 12 / 28, and the marginal cost from 12 to 28 is the same as from 0 to 12. The N = 4 arms are noisy (round-to-round spread up to ±0.04); N = 12 and 28 are tight (±0.01–0.03), so per-LFO numbers lean on those.
+- **A `pulseWidth` LFO costs ≈ 0.08 — about 7× any other robot LFO** (all three rounds: 0.073–0.091). It is bounded by how many pulse layers a world has (0–2 in the worlds seen; a robot with all three layers `pulse` could in principle offer more), so it cannot dominate a realistic mix, but it is the one target where a count-based cap under-charges.
+- **No deadline misses up to 28 LFOs**: the callback interval stayed 10.67 ms (10.69 at N = 28) — no doubling — and capacity peaked ≈ 0.72 (overall mean 0.66, against a 0.34 stock).
+- Consistent with the earlier "51 saturates": 51 × 0.012 ≈ +0.60 on a 0.34 stock ≈ 0.94 even with drift off, and > 1 with it on.
+
+### Drift add-on (why the drift tier also bounds robot LFOs)
+
+`gain` N = 12 with drift **on**: **+0.222** (+0.201 / +0.225 / +0.239) versus **+0.137** with drift off — **drift adds ≈ +0.085**, about 60 % on top of the LFOs themselves (≈ +0.007 per LFO on top of ≈ +0.012). An exploratory first pass on an earlier build (drift on, round 1 only) read stock 0.357 → `volume` N = 4 0.477 (+0.120), N = 12 0.582 (+0.225), `gain` N = 4 0.474 (+0.117), N = 12 0.557 (+0.200): the same picture, and what exposed the non-linearity. **At Full, robot LFOs are uncapped and carry drift, so the hazard there is real** (spec: Full is today's behaviour, unchanged).
+
+### The cap values — chosen from this
+
+**`ROBOT_LFO_CAP_LIGHT = 4` and `ROBOT_LFO_CAP_STANDARD = 12`** — the spec's placeholders, *confirmed by the measurement rather than assumed*. The criterion (spec §5.3.5: the worst realistic mix at each cap keeps capacity < 0.9 with no interval doubling) with pessimistic inputs — cost per LFO 0.0146 (the highest observed marginal), **two of the slots being `pulseWidth`** (0.08 each), and each tier's baseline taken as the *heaviest* known world's peak with only the robot-count saving:
+
+| Tier | Baseline (bravo peak, estimated) | + worst mix at the cap | Worst realistic capacity | Margin to 0.9 |
+|---|---|---|---|---|
+| Light, cap 4 | ≈ 0.48 (0.558 − 3.8 robots × 0.020) | 2 × 0.0146 + 2 × 0.08 | **≈ 0.67** | 0.23 |
+| Standard, cap 12 | ≈ 0.56 (8 robots ≈ no saving on a 7.8-robot peak) | 10 × 0.0146 + 2 × 0.08 | **≈ 0.86** | 0.04 |
+
+Both pass, but **Standard's margin is thin under these pessimistic inputs** (it ignores the ≈ 0.08 that dropping drift saves on `bravo` — the earlier all-seven-LFOs figure, +0.11 for drift, scaled to its five — so the realistic figure is nearer 0.78). Cap 8 would give ≈ 0.81 and is the obvious alternative if a wider margin is wanted; the choice between 12 and 8 is Crawford's call at Checkpoint A. These baselines are *estimates from the fitted slope* — the real check is plan task 24's stress run (every robot's seeded LFOs requested at the shipped caps), and each cap is a one-line constant. **Not decided here:** whether `pulseWidth` LFOs should count as several slots (≈ 6) because they cost ≈ 7× — that would change spec §1.4 from a plain count to a weighted one, and is raised for review, not adopted.
+
+### Patch recipe (throwaway — reproduce, never commit)
+
+From a clean tree: create `src/measureRobotLfos.ts`, add `import './measureRobotLfos'` to `src/main.tsx` after the `lfoDebug` import, add the one-line early return to `attachDrift` in `src/engine/lfoDrift.ts`, then `npx vite build --outDir <scratch>/dist-rlfo --emptyOutDir`, then `git checkout -- src/main.tsx src/engine/lfoDrift.ts && rm src/measureRobotLfos.ts` and confirm `git status` is clean. Serve it with `npx vite preview --outDir <scratch>/dist-rlfo --port 4173` and drive it with `--worlds "charlie:200:-30,charlie:200:-30?rlfo=gain&n=12&nodrift,…"`. The page title reports what connected (`rlfo:gain n=12 connected=12 drift=off`) — read it from `http://127.0.0.1:9334/json` during a short run to confirm before a measured batch.
+
+```ts
+// src/measureRobotLfos.ts — THROWAWAY (never committed). Inert without ?rlfo, so the stock arm is the same build.
+import { lfoEngine } from './engine/lfoEngine';
+import { AudioEngine } from './engine/AudioEngine';
+import { useLocaleStore } from './stores/localeStore';
+import { getActiveLocaleId } from './utils/localeHelpers';
+import type { RobotLfoTargetId } from './types/lfo';
+
+const params = new URLSearchParams(window.location.search);
+const kind = params.get('rlfo');            // volume | gain | detune | pulseWidth
+const wanted = Number(params.get('n') ?? 0);
+
+if (kind && wanted > 0) {
+  const started = performance.now();
+  const timer = setInterval(() => {
+    if (performance.now() - started > 60000) { clearInterval(timer); document.title = `rlfo:${kind} TIMEOUT`; return; }
+    const robots = useLocaleStore.getState().locales[getActiveLocaleId()]?.robots ?? [];
+    if (robots.length < 12) return;                                            // robots spawn AFTER power-on
+    if (!robots.every((r) => AudioEngine.getRobotModulationTarget(r.id, 'volume'))) return;
+    clearInterval(timer);
+    const targets: Array<{ target: RobotLfoTargetId; id: string }> = [];
+    if (kind === 'volume') for (const r of robots) targets.push({ target: 'volume', id: r.id });
+    else for (let layer = 0; layer < 3; layer++) for (const r of robots) targets.push({ target: `layer${layer}.${kind}` as RobotLfoTargetId, id: r.id });
+    let connected = 0;
+    for (const { target, id } of targets) {
+      if (connected >= wanted) break;
+      lfoEngine.setLfoRate(target, 1, id); lfoEngine.setLfoDepth(target, 50, id); lfoEngine.setLfoShape(target, 'sine', id);
+      if (lfoEngine.connectLfoTarget(target, id)) { lfoEngine.start(target, id); connected++; }
+    }
+    document.title = `rlfo:${kind} n=${wanted} connected=${connected} drift=${params.has('nodrift') ? 'off' : 'on'}`;
+  }, 250);
+}
+// lfoDrift.ts, first line of attachDrift:  if (new URLSearchParams(window.location.search).has('nodrift')) return;
+```
+
+## Caps-only measurement for roadmap 17.2.6 — the plan-task-11 decision gate (2026-09-21)
+
+**Result: both thresholds are missed. The work stops here for Crawford's call; nothing was tuned to pass** ([tasks/AUDIO_LOAD_BUDGET.md](tasks/AUDIO_LOAD_BUDGET.md) task 11, [specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md) §5.3 criterion 4).
+
+**What was measured.** The audible-robot cap and the polyphony ceiling *alone* — the sounding-set gate, `audioBudgetSystem` and the dial exist; no UI, no LFO tiers yet. `charlie:200:-30` has no global LFOs, so its Light / Standard / Full difference here *is* the robot + polyphony effect. Code `90dfc09`, clean tree, production build. **`?load=light`, `?load=standard`, `?load=full`, 3 interleaved rounds each** (start order full/standard/light rotated across five foreground calls), **240 s series, 15 s buckets, 8 s warm-up**, `npm run perf:audio`, orphaned-Chrome count 0 before and after every call.
+
+| | Light (0.2: 4 robots, 8 notes) | Standard (0.6: 8 robots, 12 notes) | Full (1: today) |
+|---|---|---|---|
+| **Peak window** (highest 15 s bucket mean), per run | 0.323 / 0.323 / 0.332 | 0.378 / 0.413 / 0.399 | 0.415 / 0.383 / 0.395 |
+| **Peak window, median** | **0.323** | **0.399** | **0.395** |
+| **Reduction vs Full** (median; mean of runs) | **18.2 %** (18.1 %) — range 13.4–22.2 % | **−1.2 %** (0.1 %) — range −7.9 to +8.8 % | — |
+| **Gate** | ≥ 25 % — **missed** | ≥ 10 % — **missed** | |
+| Overall mean, per run | 0.300 / 0.301 / 0.306 | 0.315 / 0.334 / 0.327 | 0.331 / 0.334 / 0.327 |
+| Overall mean vs Full (median) | −0.029 | −0.003 | — |
+| Cap held? (max sounding robots in any sample) | 4 of 4 ✓ | 8 of 8 ✓ | 8 (roster peak) |
+| Max callback interval | 10.67 ms | 10.67 ms | 10.67 ms |
+
+**Full versus the Task 3 baseline** (`charlie`, code `4bab2ea`, an earlier session): peak-window median 0.395 vs 0.414 (−0.019) and overall-mean median 0.331 vs 0.327 (+0.004) — **within ±0.03**, so Full is unchanged by the feature. (Criterion 1 asks for a same-session A/B against a build of the pre-feature commit; that is plan task 24's job — this cross-session comparison is a sanity check, not that gate.)
+
+### The waves — per-bucket capacity (3-run mean) with mean robots sounding
+
+| t (s) | audible | Light cap (sounding) | Standard cap (sounding) | Full cap (sounding) |
+|---:|---:|---|---|---|
+| 0 | 3.5 | 0.294 (3.4) | 0.301 (3.5) | 0.325 (3.5) |
+| 15 | 5.0 | 0.310 (4.0) | 0.317 (5.0) | 0.314 (5.0) |
+| 30 | 6.2 | 0.318 (4.0) | 0.358 (6.3) | 0.373 (6.2) |
+| 45 | 7.8 | 0.316 (4.0) | 0.392 (7.8) | 0.381 (7.8) |
+| 60 | 7.1 | 0.310 (4.0) | 0.356 (7.0) | 0.385 (7.0) |
+| 75 | 3.9 | 0.299 (3.7) | 0.296 (3.9) | 0.296 (3.9) |
+| 90 | 4.7 | 0.305 (3.9) | 0.307 (4.7) | 0.310 (4.7) |
+| 105 | 6.4 | 0.310 (4.0) | 0.345 (6.5) | 0.352 (6.4) |
+| 120 | 6.5 | 0.316 (4.0) | 0.356 (6.4) | 0.361 (6.5) |
+| 135 | 7.1 | 0.313 (4.0) | 0.375 (7.1) | 0.383 (7.1) |
+| 150 | 5.5 | 0.311 (4.0) | 0.346 (5.5) | 0.330 (5.5) |
+| 165 | 4.0 | 0.304 (3.6) | 0.308 (4.0) | 0.315 (4.0) |
+| 180 | 2.1 | 0.267 (2.1) | 0.257 (2.1) | 0.271 (2.1) |
+| 195 | 3.1 | 0.271 (3.1) | 0.266 (3.1) | 0.269 (3.1) |
+| 210 | 5.2 | 0.289 (4.0) | 0.301 (5.2) | 0.303 (5.2) |
+| 225 | 6.3 | 0.298 (4.0) | 0.328 (6.3) | 0.320 (6.3) |
+
+### Why the gates are missed — the mechanism works; the anchors are the issue
+
+- **The lever is real and the cap does exactly what it should.** Light flattens the waves: capacity stays 0.29–0.32 while Full climbs to 0.38, and Light's cost at 4 sounding robots (≈ 0.29–0.32) is the same as Full's at about 4 audible robots (≈ 0.30–0.32; e.g. 0.296 and 0.315 in the 3.9- and 4.0-audible buckets). The link confirmed in Task 3 holds: r(audible, capacity) is 0.82–0.94 per run for Standard and Full, and 0.65–0.75 for Light, where the cap flattens the relationship as intended.
+- **A 4-robot ceiling has a floor of ≈ 0.31, and the gate asks for ≤ 0.296** (25 % under Full's 0.395). Full itself only reads that low at ≈ 3.9 audible robots or fewer. The Task 3 fit predicted the 4-robot level at ≈ 0.30 (≈ 25 %, "right on the gate"); the measured Light peak window is 0.323, ≈ 0.02 higher — the peak window is the highest of 16 noisy bucket means, biased upward by a run's noise (±0.02). So the prediction was optimistic by about that much, and Light lands at ≈ 18 %, not ≈ 25 %.
+- **Standard's 8-robot cap does nothing on this world** because `charlie`'s audible robots peak at 7.8 (mean) — Standard is within run-to-run noise (±0.03 per bucket) of Full in every bucket, as the Task 3 write-up forecast. Only Standard's polyphony ceiling (12) differs, and it has no measurable effect.
+- Neither miss is noise: the three Light runs (0.323 / 0.323 / 0.332) are all below 0.34 and all above 0.296; the Standard runs straddle Full's.
+
+### What would meet the gates (from this data; not tested, not adopted)
+
+Reading the Full column as "capacity at n audible robots": **≥ 25 % needs Light at about 3 robots** (Full at 3.1–3.9 audible reads 0.27–0.30; ≤ 0.296 is the target), and **≥ 10 % needs Standard at about 6 robots** (Full at ≤ 6.4 audible reads ≤ 0.352; target ≤ 0.356). Today's interpolation is `round(2 + 10·t)` robots (Light 4, Standard 8), so this is a change of anchors (for example Light 3 / Standard 6 / Full 12), not of mechanism.
+
+### Decision for Crawford (plan task 11: stop and report)
+
+1. **Change the anchors** — e.g. Light 3 robots, Standard 6 — and re-run this same protocol (≈ 40 minutes) to confirm. This keeps the thresholds; the cost is a quieter Light and Standard (fewer robots heard at once, more "Standing by").
+2. **Keep 4 / 8 and re-set the gates** — Light ≈ 15–18 % on robots alone; Standard's ≥ 10 % is then met (if at all) through the LFO tiers on `bravo` rather than on `charlie`. The spec's criterion 4 already has a `bravo` mean condition for Standard; the robot cap only matters there when many robots are audible.
+3. **Judge on `bravo` first** — Light also removes drift and the filter LFOs there (worth ≈ 0.08–0.19 in the Task 4 data), so Light very likely clears 25 % on `bravo` regardless. The `charlie`-only gate exists to isolate the robot lever; it was always the strict one.
+
+The plan says not to proceed to Phase 4 without this call, and none of the UI, LFO-tier, latency or documentation tasks (12–26) has been started.
+
+## Audio Load Budget — the finished feature against the gates (2026-09-21, plan task 24)
+
+The whole feature measured against the pre-feature build ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md) §5.3 criteria 1, 4, 5, with criterion 4 as revised by decision M). **One gate is missed: Standard's mean on `bravo`. Nothing was tuned to pass.**
+
+**Code measured.** Current = `6e4f8eb` (product code identical to `5df69fb`: caps, LFO tiers, drift tier, UI, URL mirror, boot-time latency). Pre-feature = `4bab2ea` (the commit whose product code is `main` plus only the overlay's `audible` reading), built from a temporary checkout of `src` at that commit and served **beside** the current build in the same directory (`pre.html`; the perf script now accepts `world@page`). Production builds, `npm run perf:audio`, headless Chrome 153. **Same session, interleaved**: 12 foreground calls of two 4-minute runs (15 s buckets, 8 s warm-up), alternating worlds and rotating order so every arm has exactly **3 runs** on each of `charlie:200:-30` and `bravo:-150:90`; orphaned-Chrome count 0 before and after every call.
+
+### Results (per-run peak windows / overall means; medians in brackets)
+
+| World · arm | Peak window | Overall mean | Max sounding | Callback interval (max bucket mean) |
+|---|---|---|---|---|
+| `charlie` Light | 0.266 / 0.274 / 0.265 (**0.266**) | 0.236 / 0.250 / 0.237 (0.237) | 4 of 4 | 21.33 ms (Light's own context) |
+| `charlie` Standard | 0.379 / 0.396 / 0.403 (0.396) | 0.317 / 0.329 / 0.330 (0.329) | 8 of 8 | 11.07 ms |
+| `charlie` Full | 0.375 / 0.359 / 0.392 (**0.375**) | 0.310 / 0.315 / 0.334 (0.315) | 8 | 10.67 ms |
+| `charlie` pre-feature | 0.361 / 0.355 / 0.376 (**0.361**) | 0.314 / 0.312 / 0.314 (0.314) | – | 10.67 ms |
+| `bravo` Light | 0.329 / 0.332 / 0.316 (**0.329**) | 0.290 / 0.306 / 0.287 (0.290) | 4 of 4 | 21.34 ms |
+| `bravo` Standard | 0.444 / 0.456 / 0.468 (**0.456**) | 0.384 / 0.402 / 0.392 (**0.392**) | 8 of 8 | 11.06 ms |
+| `bravo` Full | 0.499 / 0.527 / 0.525 (**0.525**) | 0.460 / 0.468 / 0.461 (**0.461**) | 8 | 10.67 ms |
+| `bravo` pre-feature | 0.533 / 0.569 / 0.533 (**0.533**) | 0.462 / 0.488 / 0.456 (0.462) | – | 10.67 ms |
+
+### The gates
+
+| Gate (spec §5.3, revised by decision M) | Measured | |
+|---|---|---|
+| **Criterion 4 — Light lowers the peak window ≥ 25 % on `bravo`** | **37.3 %** (per-run range 33.5–40.1 %) | met |
+| **Criterion 4 — Light lowers the peak window ≥ 15 % on `charlie`** (robots, polyphony and — new — the latency hint) | **29.0 %** (23.6–32.6 %) | met |
+| **Criterion 4 — Standard lowers `bravo`'s peak window ≥ 10 %** | **13.2 %** (mean of runs 11.8 %; per-run range 6.2–15.7 %) | met, but thin: the most pessimistic pairing of runs is 6.2 % |
+| **Criterion 4 — Standard lowers `bravo`'s mean ≥ 0.10** | **0.069** (0.461 → 0.392) | **MISSED** |
+| Criterion 4 — no `charlie` gate for Standard | −5.7 % peak, −0.014 mean (Standard ≈ Full there) | informational |
+| **Criterion 1 — Full within ±0.03 of the pre-feature build, same session** | `charlie` mean Δ +0.002, peak Δ +0.014; `bravo` mean Δ −0.001, peak Δ −0.008 | met |
+| Criterion 2 — the caps hold | max robots sounding 4 of 4 (Light) and 8 of 8 (Standard) in every run | met |
+
+### Criterion 5 — robot-LFO stress at the shipped caps
+
+Throwaway build (same recipe as the Task 4 injector; never committed) on `bravo`, requesting up to 99 `detune` LFOs through `lfoEngine` the way the user would (36 exist), so the Audio Load policy decides what connects. Preflight: **Light connects 4 of 36, Standard 12 of 36**, the rest held off. 3 interleaved 60 s runs each:
+
+| Arm | Peak windows | Overall means | Callback interval | Verdict |
+|---|---|---|---|---|
+| Light (cap 4) | 0.509 / 0.506 / 0.503 | 0.495 / 0.486 / 0.485 | 21.33–21.35 ms (its own base — no doubling) | **< 0.9, no deadline misses — met** |
+| Standard (cap 12) | 0.708 / 0.725 / 0.699 | 0.684 / 0.687 / 0.694 | 10.67–10.72 ms | **< 0.9, no doubling — met** |
+| Full, uncapped, same 36 LFOs (one run, for context) | 0.994 | 0.988 | 11.3–11.6 ms | saturated — the hazard the caps prevent |
+
+### What this says
+
+- **Light works better than the caps alone predicted, because of the latency hint.** Task 11 measured Light at −18 % on `charlie` with the caps only (peak 0.323); with the boot-time `playback` context it is −29 % (0.266). Different sessions, so the ≈ 0.06 difference is indicative, not a controlled A/B — but it is the size of the effect, and it is why Light's callback interval is 21.33 ms (a 1024-frame buffer) rather than 10.67 ms.
+- **Standard is the weak preset, and the caps are not why.** On `charlie` it is indistinguishable from Full (its 8-robot cap is inert there). On `bravo` it does lower the peak (−13 %) and the mean (−0.069) — that is drift coming off; `bravo`'s 5 global LFOs cost ≈ 0.11–0.19 in the earlier global-LFO measurements ([todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md): all 7 ≈ +0.19, drift ≈ half of it) — but **not by the 0.10 the spec asked for**, and the filter LFOs, which Standard keeps, are the other big share. These render-capacity numbers were measured with `interactive` latency (decision J, at the time); a same-session phone comparison on 2026-09-21 gave Standard `playback` 6.6× fewer output underruns than `interactive` on `bravo` (1227 vs 186 over ~5 min), and Standard now ships with `playback` — see [scratchy-audio-phones.md](todo/scratchy-audio-phones.md) "Standard, and decision J" and [AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md) §7 J. This desktop table was not re-measured with `playback`, so its numbers describe the pre-decision-J build.
+- Standard's per-run peak reductions (6–16 %) straddle the 10 % gate, so even the met peak gate should not be leaned on.
+
+### Decision for Crawford (plan task 24: report a missed gate, do not re-tune)
+
+The missed gate is the mean on `bravo` under Standard. Levers that are already measured or built, none applied here:
+1. **Accept it and re-set the gate** to what Standard delivers (≈ 0.07). Standard then means "drift off, half the robots"; Light is the preset that actually relieves a phone.
+2. **Take the filter-frequency/Q LFOs off at Standard too** (raise `LOAD_FILTER_LFOS_MIN` from 0.4 to just above 0.6). The earlier global-LFO measurements put them at ≈ +0.06 each; on `bravo` that could close the gap but leaves Standard with only the EQ-gain LFOs.
+3. **Give Standard the `playback` latency** (decision J was "interactive until the phone A/B says otherwise"). The phone protocol (plan task 25) already includes `load=standard&latency=playback` to answer exactly this; deciding after that run costs nothing.
+
+**Decided 2026-09-21 (Crawford): option 1 — accept it and re-set the gate to what Standard delivers** (0.069; spec decision N). **Option 3 was resolved later the same day**: the output diagnostic's underrun counts gave a clean same-session `bravo` comparison (Standard/`interactive` 1227 vs Standard/`playback` 186), and Standard now ships with `playback` (decision J, [scratchy-audio-phones.md](todo/scratchy-audio-phones.md) "Standard, and decision J"). The 0.069 mean figure above predates that change and was not re-measured with `playback`; option 2 (filter LFOs off at Standard) stays the documented lever if that gap still matters once re-measured.
 
 ## Recording a new baseline
 

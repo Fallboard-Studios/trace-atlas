@@ -4,7 +4,7 @@ import type { Locale, LocaleState } from '../types/locale';
 import { DEFAULT_LOCALE_ID } from './attenuationStyleStore';
 import { DAY_DURATION_MS } from '../constants/time';
 import { getLocaleNoiseMap, evictLocaleNoiseMap } from '../utils/noiseMaps';
-import { randomCoordinate } from '../utils/seedUtils';
+import { randomCoordinate, getLocaleCoordinateOverride } from '../utils/seedUtils';
 import { AudioEngine } from '../engine/AudioEngine';
 import { lfoEngine } from '../engine/lfoEngine';
 import {
@@ -63,7 +63,17 @@ function clampToggleValue(v: unknown, min: number, max: number): { active: boole
 // Still rounded to an integer because CoordsInput.tsx/SectorSettingsDrawer.tsx
 // both assume coordinates are integers system-wide (docs/specs/SECTOR_SETTINGS.md)
 // — randomCoordinate() already rounds, so this stays true without extra work.
-const DEFAULT_LOCALE_COORDINATES = { x: randomCoordinate(), y: randomCoordinate() };
+//
+// `?x=` / `?y=` (seedUtils.ts) pin either axis for reproducible bug repros/
+// profiling: `?seed=` alone only pins the Attenuation Style, and the locale
+// noise map (robots, BPM, idle/interaction) is seeded from the coordinates
+// too. An unset axis stays random. This is a boot-time override only —
+// Sector Settings' own "Random" button still calls randomCoordinate() ungated.
+const coordinateOverride = getLocaleCoordinateOverride();
+const DEFAULT_LOCALE_COORDINATES = {
+  x: coordinateOverride.x ?? randomCoordinate(),
+  y: coordinateOverride.y ?? randomCoordinate(),
+};
 
 const DEFAULT_LOCALE: Locale = {
   id: DEFAULT_LOCALE_ID,

@@ -1,0 +1,24 @@
+/* Diagnostic overlay for ?debug — deliberately plain (literal colors, system monospace) so it is
+   legible on any world/theme and never depends on the app's own tokens or fonts being intact. */
+.audio-debug-hud {
+  position: fixed;
+  left: 4px;
+  bottom: 4px;
+  z-index: 2147483000;
+  max-width: calc(100vw - 8px);
+  padding: 4px 6px;
+  border-left: 3px solid #3ddc84;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #d8f5e4;
+  font: 10px/1.35 ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  user-select: none;
+}
+
+.audio-debug-hud--bad {
+  border-left-color: #ff4d4d;
+  color: #ffe1e1;
+}

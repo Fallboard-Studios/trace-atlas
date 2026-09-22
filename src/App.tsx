@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 
 import Tablet from './components/tablet/Tablet';
+import AudioDebugHud from './components/debug/AudioDebugHud';
 
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import useLocaleStore from '@/stores/localeStore';
 import { generateRealWorldGradients } from '@/utils/realWorldGradient';
+import { isDebugEnabled } from '@/utils/debugParams';
 
 import './App.css';
 
@@ -37,6 +39,7 @@ function App() {
       <div className="real-world" style={realWorldStyle}>
         <Tablet />
       </div>
+      {isDebugEnabled() && <AudioDebugHud />}
     </div>
   );
 }

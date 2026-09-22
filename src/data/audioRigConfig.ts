@@ -326,6 +326,63 @@ export const SPEED_AUTOMATION_PANEL_SCHEMA: DirectionalPanelSchema = {
   orientation: 'responsive',
 };
 
+// ========================================
+// AUDIO LOAD (docs/specs/AUDIO_LOAD_BUDGET.md §4.5, shipped as two independent sliders 2026-09-22)
+// ========================================
+// Bare Rig-wide meta-settings, like BPM_SCHEMA/DECAY_MODE_SCHEMA: they never join AUDIO_RIG_CONFIG's
+// array. The radio and the two sliders are three views of two stored numbers (audioStore.robotLoad,
+// audioStore.effectsLoad): choosing a preset sets both sliders to it; dragging either slider away from
+// the other leaves the radio unselected (presetForLoads requires both to agree).
+// Lore labels are first-pass invented copy, to be confirmed in the manual check.
+
+/** Light / Standard / Full — values are the preset names audioBudget.ts parses for `?load=`. */
+export const AUDIO_LOAD_PRESET_SCHEMA: RadioButtonSchema = {
+  id: 'audioRig.audioLoadPreset',
+  type: 'radio',
+  loreLabel: 'ACOUSTIC LOAD PROTOCOL',
+  humanLabel: 'Preset',
+  options: [
+    { value: 'light', label: 'Light' },
+    { value: 'standard', label: 'Standard' },
+    { value: 'full', label: 'Full' },
+  ],
+};
+
+/** The Robot Load fine dial (audible robots, polyphony, boot-time latency), 0–100 % — 100 % (Full) is today's behavior exactly. */
+export const AUDIO_ROBOT_LOAD_SCHEMA: SliderLinearSchema = {
+  id: 'audioRig.robotLoad',
+  type: 'sliderLinear',
+  loreLabel: 'ACOUSTIC LOAD CEILING',
+  humanLabel: 'Robot Load',
+  min: 0,
+  max: 100,
+  step: 1,
+  unit: '%',
+  orientation: 'horizontal',
+};
+
+/** The Effects Load fine dial (drift, filter LFOs, robot-LFO count), 0–100 % — 100 % (Full) is today's behavior exactly. */
+export const AUDIO_EFFECTS_LOAD_SCHEMA: SliderLinearSchema = {
+  id: 'audioRig.effectsLoad',
+  type: 'sliderLinear',
+  loreLabel: 'MODULATION LOAD CEILING',
+  humanLabel: 'Effects Load',
+  min: 0,
+  max: 100,
+  step: 1,
+  unit: '%',
+  orientation: 'horizontal',
+};
+
+/** Wraps the preset radio, the slider and the readout, next to Tempo in Transport & Composition. */
+export const AUDIO_LOAD_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'audioRig.audioLoadPanel',
+  type: 'directionalPanel',
+  loreLabel: 'ACOUSTIC LOAD MANAGEMENT',
+  humanLabel: 'Audio Load',
+  orientation: 'responsive',
+};
+
 /**
  * The 3 remaining top-level accordions, each grouping a fixed set of AUDIO_RIG_CONFIG block keys
  * (looked up by key at render time — AudioRigDrawer.tsx no longer maps AUDIO_RIG_CONFIG directly).

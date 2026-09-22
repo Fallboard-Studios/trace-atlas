@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { memo } from 'react';
+import { memo, Profiler } from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // RobotDisplaySection/PingControlsDrawer/PingContourDrawer/SignatureArrayDrawer pull in real
@@ -44,6 +44,7 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
     value: { audioMode: string; masterVolume: number };
     onAudioModeChange: (mode: string) => void;
     onVolumeChange: (pct: number) => void;
+    volumeLfoHeldOff?: boolean;
     style?: { [key: string]: string };
   }) => {
     renderCounts.audioSettingSection();
@@ -52,6 +53,7 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         data-testid="audio-setting-section-stub"
         data-audio-mode={props.value.audioMode}
         data-master-volume={props.value.masterVolume}
+        data-volume-held-off={String(props.volumeLfoHeldOff)}
         {...styleAttrs(props.style)}
       >
         <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
@@ -103,10 +105,10 @@ vi.mock('@/components/robot/PingContourDrawer', () => ({
   }),
 }));
 vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
-  SignatureArrayDrawer: memo((props: { value: { layers: unknown[] }; onContinuousChange: (v: unknown) => void; style?: { [key: string]: string } }) => {
+  SignatureArrayDrawer: memo((props: { value: { layers: unknown[] }; onContinuousChange: (v: unknown) => void; heldOffTargets?: Record<string, boolean>; style?: { [key: string]: string } }) => {
     renderCounts.signatureArrayDrawer();
     return (
-      <div data-testid="signature-array-drawer-stub" data-layer-count={props.value.layers.length} {...styleAttrs(props.style)}>
+      <div data-testid="signature-array-drawer-stub" data-layer-count={props.value.layers.length} data-held-off-targets={JSON.stringify(props.heldOffTargets ?? {})} {...styleAttrs(props.style)}>
         <button onClick={() => props.onContinuousChange([{ type: 'sine', gain: 1, detune: 0, phase: 0 }])}>probe-layers</button>
       </div>
     );
@@ -116,6 +118,7 @@ vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
 import { RobotOptionsTab } from './RobotOptionsTab';
 import { useUIStore } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
+import { useAudioStore } from '@/stores/audioStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import * as robotOptionsActions from '@/systems/robotOptionsActions';
 import * as regenerateMelodyModule from '@/engine/regenerateMelody';
@@ -160,6 +163,7 @@ describe('RobotOptionsTab', () => {
   beforeEach(() => {
     useUIStore.getState().selectRobot(null);
     useLocaleStore.getState().setLocaleData(localeId, { robots: [] } as unknown as Partial<Locale>);
+    useAudioStore.setState({ heldOffLfoKeys: [] });
     vi.restoreAllMocks();
   });
 
@@ -472,6 +476,88 @@ describe('RobotOptionsTab', () => {
 
       expect(rootA.style.getPropertyValue('--color-accent-a')).not.toBe(rootB.style.getPropertyValue('--color-accent-a'));
       expect(traitStyleA).toBe(traitStyleB);
+    });
+  });
+
+  // Audio Load Budget (plan task 22): the tab owns the store access and the robot id, so it turns the held-off keys into plain
+  // per-robot props for the (store-free) sections.
+  describe('Audio Load: held-off LFOs for THIS robot', () => {
+    function mountRobot() {
+      const robot = makeRobot('r1');
+      useLocaleStore.getState().addRobot(localeId, robot);
+      useUIStore.getState().selectRobot(robot.id);
+      return render(<RobotOptionsTab />);
+    }
+    const volumeHeldOff = () => screen.getByTestId('audio-setting-section-stub').getAttribute('data-volume-held-off');
+    const heldTargets = () => JSON.parse(screen.getByTestId('signature-array-drawer-stub').getAttribute('data-held-off-targets')!);
+
+    it('passes nothing held off when the list is empty (Full, or the budget not running)', () => {
+      mountRobot();
+      expect(volumeHeldOff()).toBe('false');
+      expect(Object.values(heldTargets()).some(Boolean)).toBe(false);
+    });
+
+    it("marks this robot's Volume LFO held off when its key is in the list", () => {
+      useAudioStore.setState({ heldOffLfoKeys: ['r1:volume'] });
+      mountRobot();
+      expect(volumeHeldOff()).toBe('true');
+    });
+
+    it("marks this robot's layer LFO targets held off by instance key (robotId:target)", () => {
+      useAudioStore.setState({ heldOffLfoKeys: ['r1:layer1.detune', 'r1:layer0.gain'] });
+      mountRobot();
+      expect(heldTargets()['layer1.detune']).toBe(true);
+      expect(heldTargets()['layer0.gain']).toBe(true);
+      expect(heldTargets()['layer2.gain']).toBe(false);
+    });
+
+    it("ignores another robot's held-off LFOs and global ones", () => {
+      useAudioStore.setState({ heldOffLfoKeys: ['r2:volume', 'r2:layer0.gain', 'lpf.Q'] });
+      mountRobot();
+      expect(volumeHeldOff()).toBe('false');
+      expect(Object.values(heldTargets()).some(Boolean)).toBe(false);
+    });
+
+    it('updates as soon as the robot is over the cap and again when it clears', () => {
+      mountRobot();
+      act(() => useAudioStore.setState({ heldOffLfoKeys: ['r1:volume'] }));
+      expect(volumeHeldOff()).toBe('true');
+      act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
+      expect(volumeHeldOff()).toBe('false');
+    });
+
+    it("does not re-render the sections when ANOTHER robot's LFO enters or leaves the held-off list", () => {
+      mountRobot();
+      const before = {
+        audio: renderCounts.audioSettingSection.mock.calls.length,
+        signature: renderCounts.signatureArrayDrawer.mock.calls.length,
+      };
+
+      act(() => useAudioStore.setState({ heldOffLfoKeys: ['r2:volume'] }));
+      act(() => useAudioStore.setState({ heldOffLfoKeys: ['r2:volume', 'r3:layer0.gain', 'lpf.Q'] }));
+      act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
+
+      expect(renderCounts.audioSettingSection.mock.calls.length).toBe(before.audio);
+      expect(renderCounts.signatureArrayDrawer.mock.calls.length).toBe(before.signature);
+    });
+
+    it("does not even re-render the tab itself for another robot's held-off LFO (a per-robot boolean selector, not the whole list)", () => {
+      const robot = makeRobot('r1');
+      useLocaleStore.getState().addRobot(localeId, robot);
+      useUIStore.getState().selectRobot(robot.id);
+      const commits = { count: 0 };
+      render(
+        <Profiler id="tab" onRender={() => { commits.count++; }}>
+          <RobotOptionsTab />
+        </Profiler>,
+      );
+      const initial = commits.count;
+
+      act(() => useAudioStore.setState({ heldOffLfoKeys: ['r2:volume'] }));
+      act(() => useAudioStore.setState({ heldOffLfoKeys: ['r2:volume', 'r3:layer0.gain'] }));
+      act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
+
+      expect(commits.count).toBe(initial);
     });
   });
 

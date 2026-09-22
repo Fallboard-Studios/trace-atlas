@@ -12,6 +12,7 @@ import { VARIANT_CONF, selectVariantFromSeed } from '../components/actors/factor
 import { calcSilhouetteSize } from '../components/actors/silhouetteUtils';
 import { getLocaleNoiseMap, getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
+import { generateUUID } from '../utils/randomId';
 import type { ColorShift } from '../utils/colorUtils';
 
 // ========================================
@@ -108,7 +109,7 @@ export function createFactory(
   position: { x: number; y: number },
   row = 0,
   scale: number = 0.9 + Math.random() * 0.2, // 0.9–1.1
-  id: string = crypto.randomUUID(),
+  id: string = generateUUID(),
   asShift: ColorShift = { hueShift: 0, satShift: 0 },
 ): Actor {
   // Use the same availableTypes that Factory.tsx will use, so the variant —

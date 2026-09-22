@@ -18,6 +18,11 @@ let _globalLimiter: Tone.Limiter | null = null;
 // Master output gain controlling overall volume (used by setMasterVolume/getMasterVolume)
 let _masterGain: Tone.Gain | null = null;
 let _masterVolume = 1;
+// Read-only output taps for the `?debug` overlay (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md). Nothing here
+// exists unless attachOutputTaps() is called.
+let _tapsWanted = false;
+let _preTap: OutputTap | null = null;
+let _masterTap: OutputTap | null = null;
 
 /** Ramp duration for a live LPF/HPF frequency change — same declick rationale as
  *  AudioEngine.ts's own VOLUME_RAMP_SECONDS: short enough to feel instant while dragging, long
@@ -173,6 +178,11 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
   } catch (err) {
     devWarn('[AudioEngine] wireGlobalFxChain failed', err);
   }
+
+  // disconnectAllFxNodes() above dropped every output of every FX node — including any diagnostic tap.
+  // Put the taps back (and build them, if they were asked for before this chain existed). A no-op
+  // unless attachOutputTaps() was called, so with `?debug` off this changes nothing.
+  connectTapsIfWanted();
 }
 
 /** The live chain-entry node — EQ3, first in both Natural and Controlled
@@ -183,6 +193,104 @@ export function wireGlobalFxChain(controlledDecay: boolean): void {
  *  front of the chain. */
 export function getGlobalChainEntry(): Tone.EQ3 | null {
   return _globalEQ;
+}
+
+// ========================================
+// OUTPUT TAPS (read-only diagnostics)
+// ========================================
+// Two analysers for the `?debug` overlay, to tell a silent graph from loss after the graph
+// (docs/specs/AUDIO_OUTPUT_DIAGNOSTIC.md): one on EQ3's output (what the voices hand the chain) and one on
+// masterGain's output (what the destination receives). They only listen — they connect to nothing and
+// never to the destination, and they exist only between attachOutputTaps() and detachOutputTaps().
+//
+// They are NATIVE AnalyserNodes made from Tone's raw context, not Tone.Analyser: that wrapper sets
+// fftSize = 2 * size and caps size at 16384, so it cannot build the window below, and it fills its size-long
+// buffer from only the older half of the fftSize window. Found in the real-browser check (audio output
+// diagnostic task 6); the native configuration is the one probed in headless Chrome 153 (task 1).
+
+/** fftSize of each tap — the largest Web Audio allows — and the length of the buffer read from it. One buffer
+ *  must cover a whole sampler interval, or a quiet gap between two samples goes unseen: 32768 samples ≈ 0.68 s
+ *  at 48 kHz (0.74 s at 44.1 kHz) against the 500 ms sampler. */
+export const OUTPUT_TAP_SIZE = 32768;
+
+/** A native analyser and the one buffer it is read into — reused every tick rather than allocating ~128 KB each time. */
+interface OutputTap {
+  node: AnalyserNode;
+  buffer: Float32Array<ArrayBuffer>;
+}
+
+function createTap(): OutputTap {
+  const context = Tone.getContext().rawContext as unknown as BaseAudioContext;
+  const node = context.createAnalyser();
+  node.fftSize = OUTPUT_TAP_SIZE;
+  return { node, buffer: new Float32Array(OUTPUT_TAP_SIZE) };
+}
+
+/** Feed `tap` from `source`. A failure is warned about, never thrown — a diagnostic must not break audio. */
+function connectTap(source: Tone.ToneAudioNode | null, tap: OutputTap | null, label: string): void {
+  if (!source || !tap) return;
+  try {
+    source.connect(tap.node);
+  } catch (err) {
+    devWarn(`[AudioEngine] output tap connect failed (${label})`, err);
+  }
+}
+
+/** Build any missing tap whose source node exists, and (re)connect it. Does nothing unless taps were requested. */
+function connectTapsIfWanted(): void {
+  if (!_tapsWanted) return;
+  try {
+    if (_globalEQ) _preTap ??= createTap();
+    if (_masterGain) _masterTap ??= createTap();
+  } catch (err) {
+    devWarn('[AudioEngine] output tap construction failed', err);
+    return;
+  }
+  connectTap(_globalEQ, _preTap, 'pre-chain');
+  connectTap(_masterGain, _masterTap, 'master');
+}
+
+/** Start listening: taps are built and connected as soon as the chain they listen to exists. */
+export function attachOutputTaps(): void {
+  _tapsWanted = true;
+  connectTapsIfWanted();
+}
+
+function releaseTap(source: Tone.ToneAudioNode | null, tap: OutputTap | null): void {
+  if (!tap) return;
+  try {
+    source?.disconnect(tap.node);
+  } catch (err) {
+    devWarn('[AudioEngine] output tap disconnect failed', err);
+  }
+}
+
+/** Stop listening: disconnect both taps and drop them. Safe with nothing attached, and safe to repeat. */
+export function detachOutputTaps(): void {
+  _tapsWanted = false;
+  releaseTap(_globalEQ, _preTap);
+  releaseTap(_masterGain, _masterTap);
+  _preTap = null;
+  _masterTap = null;
+}
+
+function readTap(tap: OutputTap | null): Float32Array | null {
+  if (!tap) return null;
+  try {
+    tap.node.getFloatTimeDomainData(tap.buffer);
+    return tap.buffer;
+  } catch (err) {
+    devWarn('[AudioEngine] output tap read failed', err);
+    return null;
+  }
+}
+
+/**
+ * The latest full window from each tap, or null for a tap that is not attached or cannot be read. Never throws.
+ * Each buffer is reused by the next read, so use it (e.g. measureLevel) before reading again.
+ */
+export function readOutputTaps(): { pre: Float32Array | null; master: Float32Array | null } {
+  return { pre: readTap(_preTap), master: readTap(_masterTap) };
 }
 
 /** Reverb generates its impulse response asynchronously — AudioEngine.start()
