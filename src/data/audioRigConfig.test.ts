@@ -13,7 +13,8 @@ import {
   TRANSPORT_COMPOSITION_ACCORDION_SCHEMA,
   SPEED_AUTOMATION_PANEL_SCHEMA,
   AUDIO_LOAD_PRESET_SCHEMA,
-  AUDIO_LOAD_SCHEMA,
+  AUDIO_ROBOT_LOAD_SCHEMA,
+  AUDIO_EFFECTS_LOAD_SCHEMA,
   AUDIO_LOAD_PANEL_SCHEMA,
   type AudioRigEffectKey,
 } from './audioRigConfig';
@@ -649,11 +650,11 @@ describe('AUDIO_LOAD_PRESET_SCHEMA', () => {
   });
 });
 
-describe('AUDIO_LOAD_SCHEMA', () => {
+describe('AUDIO_ROBOT_LOAD_SCHEMA', () => {
   it('is a horizontal linear slider, 0-100 %, whole steps, in the audioRig.* namespace', () => {
-    expect(AUDIO_LOAD_SCHEMA).toMatchObject({
+    expect(AUDIO_ROBOT_LOAD_SCHEMA).toMatchObject({
       type: 'sliderLinear',
-      id: 'audioRig.audioLoad',
+      id: 'audioRig.robotLoad',
       min: 0,
       max: 100,
       step: 1,
@@ -665,15 +666,48 @@ describe('AUDIO_LOAD_SCHEMA', () => {
   it('spans the whole dial: every preset lands on a whole slider step inside its range', () => {
     for (const value of Object.values(AUDIO_LOAD_PRESETS)) {
       const percent = value * 100;
-      expect(percent).toBeGreaterThanOrEqual(AUDIO_LOAD_SCHEMA.min);
-      expect(percent).toBeLessThanOrEqual(AUDIO_LOAD_SCHEMA.max);
+      expect(percent).toBeGreaterThanOrEqual(AUDIO_ROBOT_LOAD_SCHEMA.min);
+      expect(percent).toBeLessThanOrEqual(AUDIO_ROBOT_LOAD_SCHEMA.max);
       expect(Number.isInteger(percent)).toBe(true);
     }
   });
 
-  it('has a non-empty invented loreLabel and the humanLabel Audio Load', () => {
-    expect(AUDIO_LOAD_SCHEMA.loreLabel).toBeTruthy();
-    expect(AUDIO_LOAD_SCHEMA.humanLabel).toBe('Audio Load');
+  it('has a non-empty invented loreLabel and the humanLabel Robot Load', () => {
+    expect(AUDIO_ROBOT_LOAD_SCHEMA.loreLabel).toBeTruthy();
+    expect(AUDIO_ROBOT_LOAD_SCHEMA.humanLabel).toBe('Robot Load');
+  });
+});
+
+describe('AUDIO_EFFECTS_LOAD_SCHEMA', () => {
+  it('is a horizontal linear slider, 0-100 %, whole steps, in the audioRig.* namespace', () => {
+    expect(AUDIO_EFFECTS_LOAD_SCHEMA).toMatchObject({
+      type: 'sliderLinear',
+      id: 'audioRig.effectsLoad',
+      min: 0,
+      max: 100,
+      step: 1,
+      unit: '%',
+      orientation: 'horizontal',
+    });
+  });
+
+  it('spans the whole dial: every preset lands on a whole slider step inside its range', () => {
+    for (const value of Object.values(AUDIO_LOAD_PRESETS)) {
+      const percent = value * 100;
+      expect(percent).toBeGreaterThanOrEqual(AUDIO_EFFECTS_LOAD_SCHEMA.min);
+      expect(percent).toBeLessThanOrEqual(AUDIO_EFFECTS_LOAD_SCHEMA.max);
+      expect(Number.isInteger(percent)).toBe(true);
+    }
+  });
+
+  it('has a non-empty invented loreLabel and the humanLabel Effects Load', () => {
+    expect(AUDIO_EFFECTS_LOAD_SCHEMA.loreLabel).toBeTruthy();
+    expect(AUDIO_EFFECTS_LOAD_SCHEMA.humanLabel).toBe('Effects Load');
+  });
+
+  it('has a distinct id and loreLabel from AUDIO_ROBOT_LOAD_SCHEMA', () => {
+    expect(AUDIO_EFFECTS_LOAD_SCHEMA.id).not.toBe(AUDIO_ROBOT_LOAD_SCHEMA.id);
+    expect(AUDIO_EFFECTS_LOAD_SCHEMA.loreLabel).not.toBe(AUDIO_ROBOT_LOAD_SCHEMA.loreLabel);
   });
 });
 
@@ -688,15 +722,15 @@ describe('AUDIO_LOAD_PANEL_SCHEMA', () => {
     expect(AUDIO_LOAD_PANEL_SCHEMA.loreLabel).toBeTruthy();
   });
 
-  it('gives all three schemas distinct ids, none of which is part of AUDIO_RIG_CONFIG (bare Rig-wide meta-settings, like Tempo)', () => {
-    const ids = [AUDIO_LOAD_PRESET_SCHEMA.id, AUDIO_LOAD_SCHEMA.id, AUDIO_LOAD_PANEL_SCHEMA.id];
-    expect(new Set(ids).size).toBe(3);
+  it('gives all four schemas distinct ids, none of which is part of AUDIO_RIG_CONFIG (bare Rig-wide meta-settings, like Tempo)', () => {
+    const ids = [AUDIO_LOAD_PRESET_SCHEMA.id, AUDIO_ROBOT_LOAD_SCHEMA.id, AUDIO_EFFECTS_LOAD_SCHEMA.id, AUDIO_LOAD_PANEL_SCHEMA.id];
+    expect(new Set(ids).size).toBe(4);
     const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [b.panel.id, ...b.params.map((p) => p.schema.id)]);
     for (const id of ids) expect(allConfigSchemaIds).not.toContain(id);
   });
 
-  it('keeps all three JSON-serializable', () => {
-    for (const schema of [AUDIO_LOAD_PRESET_SCHEMA, AUDIO_LOAD_SCHEMA, AUDIO_LOAD_PANEL_SCHEMA]) {
+  it('keeps all four JSON-serializable', () => {
+    for (const schema of [AUDIO_LOAD_PRESET_SCHEMA, AUDIO_ROBOT_LOAD_SCHEMA, AUDIO_EFFECTS_LOAD_SCHEMA, AUDIO_LOAD_PANEL_SCHEMA]) {
       expect(() => JSON.stringify(schema)).not.toThrow();
     }
   });
