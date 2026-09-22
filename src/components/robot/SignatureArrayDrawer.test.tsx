@@ -461,14 +461,17 @@ describe('SignatureArrayDrawer', () => {
       useAudioStore.setState({ driftHeldOff: false });
     });
 
-    it('greys the layer frame whose displayed target is held off (values kept, label shown) and no other layer', () => {
+    it('greys the layer frame whose displayed target is held off (shows 0, not the stored value; label shown) and no other layer', () => {
       const { container } = renderOpen(
         <SignatureArrayDrawer {...noop} value={makeValue({ lfoSettings: { 'layer0.gain': lfoValue } })} heldOffTargets={{ 'layer0.gain': true }} />,
       );
       const layer0 = layerSection(container, 'layer0');
       expect(disabled(rateIn(layer0))).toBe(true);
-      expect(rateIn(layer0).getAttribute('aria-valuenow')).toBe('2');
+      // 0, not the real stored value (2) — a held-off control should read as visibly "off". The
+      // real value is kept in the store, untouched, and returns once it's re-enabled.
+      expect(rateIn(layer0).getAttribute('aria-valuenow')).toBe('0');
       expect(within(layer0).getByText(HELD)).toBeTruthy();
+      expect(layer0.querySelector('.sc-lfo.sc-held-off')).toBeTruthy();
       for (const key of ['layer1', 'layer2'] as const) {
         expect(disabled(rateIn(layerSection(container, key)))).toBe(false);
         expect(within(layerSection(container, key)).queryByText(HELD)).toBeNull();
@@ -494,7 +497,7 @@ describe('SignatureArrayDrawer', () => {
       expect(screen.queryByText(HELD)).toBeNull();
     });
 
-    it('greys Robot Drift while the drift tier is off (values kept), and restores it', () => {
+    it('greys Robot Drift while the drift tier is off, showing 0 (not the stored value), and restores it', () => {
       useAudioStore.setState((s) => ({
         globalAudio: { ...s.globalAudio, lfoDrift: { ...s.globalAudio.lfoDrift, robots: { rateDrift: 0.3, depthDrift: -0.2 } } },
         driftHeldOff: true,
@@ -504,12 +507,18 @@ describe('SignatureArrayDrawer', () => {
       const depthDrift = screen.getByRole('slider', { name: 'Depth Drift' });
       expect(disabled(rateDrift)).toBe(true);
       expect(disabled(depthDrift)).toBe(true);
-      expect(rateDrift.getAttribute('aria-valuenow')).toBe('30');
+      // 0, not the real stored value (30/-20) — a held-off control should read as visibly "off".
+      // The real value is kept in the store, untouched, and returns once it's re-enabled.
+      expect(rateDrift.getAttribute('aria-valuenow')).toBe('0');
+      expect(depthDrift.getAttribute('aria-valuenow')).toBe('0');
       expect(screen.getByText(HELD)).toBeTruthy();
+      expect(rateDrift.closest('.signature-array-drawer__param')?.classList.contains('sc-held-off')).toBe(true);
 
       act(() => useAudioStore.setState({ driftHeldOff: false }));
 
       expect(disabled(screen.getByRole('slider', { name: 'Rate Drift' }))).toBe(false);
+      expect(screen.getByRole('slider', { name: 'Rate Drift' }).getAttribute('aria-valuenow')).toBe('30');
+      expect(screen.getByRole('slider', { name: 'Depth Drift' }).getAttribute('aria-valuenow')).toBe('-20');
       expect(screen.queryByText(HELD)).toBeNull();
     });
 

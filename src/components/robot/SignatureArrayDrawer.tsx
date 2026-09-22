@@ -7,6 +7,7 @@ import { AccordionContainer } from '@/components/ui/controls/AccordionContainer'
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
 import { LfoTargetGroup } from '@/components/ui/controls/LfoTargetGroup';
+import { withHeldOffClass } from '@/components/ui/controls/activeClass';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
 import {
   SOURCE_ACCORDION_SCHEMA,
@@ -46,18 +47,22 @@ function RobotDriftPanel() {
 
   return (
     <DirectionalPanel schema={ROBOTS_DRIFT_GROUP.panel}>
-      <SliderCenteredZero
-        schema={ROBOTS_DRIFT_GROUP.rateSchema}
-        value={rateDrift * 100}
-        onChange={(v) => setGlobalLfoDrift('robots', { rateDrift: v / 100 })}
-        disabled={driftHeldOff}
-      />
-      <SliderCenteredZero
-        schema={ROBOTS_DRIFT_GROUP.depthSchema}
-        value={depthDrift * 100}
-        onChange={(v) => setGlobalLfoDrift('robots', { depthDrift: v / 100 })}
-        disabled={driftHeldOff}
-      />
+      <div className={withHeldOffClass('signature-array-drawer__param', driftHeldOff)}>
+        <SliderCenteredZero
+          schema={ROBOTS_DRIFT_GROUP.rateSchema}
+          value={driftHeldOff ? 0 : rateDrift * 100}
+          onChange={(v) => setGlobalLfoDrift('robots', { rateDrift: v / 100 })}
+          disabled={driftHeldOff}
+        />
+      </div>
+      <div className={withHeldOffClass('signature-array-drawer__param', driftHeldOff)}>
+        <SliderCenteredZero
+          schema={ROBOTS_DRIFT_GROUP.depthSchema}
+          value={driftHeldOff ? 0 : depthDrift * 100}
+          onChange={(v) => setGlobalLfoDrift('robots', { depthDrift: v / 100 })}
+          disabled={driftHeldOff}
+        />
+      </div>
       {driftHeldOff && <HeldOffNote />}
     </DirectionalPanel>
   );
