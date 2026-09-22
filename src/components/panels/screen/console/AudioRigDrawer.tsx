@@ -13,7 +13,7 @@ import { Stepper } from '@/components/ui/controls/Stepper';
 import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
 import { Lfo } from '@/components/ui/controls/Lfo';
 import { useLfoTargetGroup } from '@/components/ui/controls/useLfoTargetGroup';
-import { withActiveClass } from '@/components/ui/controls/activeClass';
+import { withActiveClass, withHeldOffClass } from '@/components/ui/controls/activeClass';
 import {
   AUDIO_RIG_CONFIG,
   AUDIO_RIG_ACCORDION_GROUPS,
@@ -228,6 +228,7 @@ function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange, driftContent
           value={displayValue}
           onChange={handleLfoChange}
           disabled={transitioning || heldOff}
+          heldOff={heldOff}
         />
         {heldOff && <HeldOffNote />}
       </div>
@@ -448,18 +449,18 @@ function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
             fieldOnChange={fieldOnChange}
             driftContent={driftGroup && drift && (
               <>
-                <div className="audio-rig-drawer__param-row">
+                <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
                   <SliderCenteredZero
                     schema={driftGroup.rateSchema}
-                    value={drift.rateDrift * 100}
+                    value={driftHeldOff ? 0 : drift.rateDrift * 100}
                     onChange={handleRateDriftChange}
                     disabled={driftHeldOff}
                   />
                 </div>
-                <div className="audio-rig-drawer__param-row">
+                <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
                   <SliderCenteredZero
                     schema={driftGroup.depthSchema}
-                    value={drift.depthDrift * 100}
+                    value={driftHeldOff ? 0 : drift.depthDrift * 100}
                     onChange={handleDepthDriftChange}
                     disabled={driftHeldOff}
                   />

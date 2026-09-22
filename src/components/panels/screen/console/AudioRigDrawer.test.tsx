@@ -544,9 +544,29 @@ describe('AudioRigDrawer', () => {
 
       expect(isDisabled(rateOf(lpf))).toBe(true);
       expect(isDisabled(depthOf(lpf))).toBe(true);
-      expect(rateOf(lpf).getAttribute('aria-valuenow')).toBe('3'); // still shows what will return
-      expect(depthOf(lpf).getAttribute('aria-valuenow')).toBe('45');
+      // Shows 0, not the real stored value (3/45) — a held-off control should read as visibly
+      // "off", not as if it's still running at whatever it was set to. The real value is kept in
+      // the store (untouched by this display-only override) and reappears the moment it's re-enabled.
+      expect(rateOf(lpf).getAttribute('aria-valuenow')).toBe('0');
+      expect(depthOf(lpf).getAttribute('aria-valuenow')).toBe('0');
       expect(within(lpf).getByText(HELD_OFF)).toBeTruthy();
+      expect(lpf.querySelector('.sc-lfo.sc-held-off')).toBeTruthy();
+    });
+
+    it('restores the real stored value (not 0) the moment the frame stops being held off', () => {
+      useAudioStore.setState((s) => ({
+        globalLfo: { ...s.globalLfo, 'lpf.frequency': { shape: 'square', rate: 3, depth: 45 } },
+        heldOffLfoKeys: ['lpf.frequency'],
+      }));
+      const { container } = renderOpen(<AudioRigDrawer />);
+      const [, lpf] = frames(container);
+      expect(rateOf(lpf).getAttribute('aria-valuenow')).toBe('0');
+
+      act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
+
+      expect(rateOf(frames(container)[1]).getAttribute('aria-valuenow')).toBe('3');
+      expect(depthOf(frames(container)[1]).getAttribute('aria-valuenow')).toBe('45');
+      expect(frames(container)[1].querySelector('.sc-lfo.sc-held-off')).toBeNull();
     });
 
     it('leaves every other frame enabled and unlabelled — EQ-gain LFOs stay editable while all four filter LFOs are held off (Light)', () => {
@@ -608,14 +628,26 @@ describe('AudioRigDrawer', () => {
       expect(screen.queryByText(HELD_OFF)).toBeNull();
     });
 
-    it('keeps the stored drift amounts displayed while greyed out', () => {
+    it('shows 0, not the real stored drift amount, while greyed out — and the real value returns once re-enabled', () => {
       useAudioStore.setState((s) => ({
         globalAudio: { ...s.globalAudio, lfoDrift: { ...s.globalAudio.lfoDrift, eq3: { rateDrift: 0.4, depthDrift: -0.25 } } },
         driftHeldOff: true,
       }));
       renderOpen(<AudioRigDrawer />);
       const eq3 = LFO_DRIFT_GROUPS.find((g) => g.group === 'eq3')!;
-      expect(screen.getAllByRole('slider', { name: eq3.rateSchema.humanLabel })[0].getAttribute('aria-valuenow')).toBe('40');
+      const rateSlider = screen.getAllByRole('slider', { name: eq3.rateSchema.humanLabel })[0];
+      const depthSlider = screen.getAllByRole('slider', { name: eq3.depthSchema.humanLabel })[0];
+      expect(rateSlider.getAttribute('aria-valuenow')).toBe('0');
+      expect(depthSlider.getAttribute('aria-valuenow')).toBe('0');
+      expect(rateSlider.closest('.audio-rig-drawer__param-row')?.classList.contains('sc-held-off')).toBe(true);
+
+      act(() => useAudioStore.setState({ driftHeldOff: false }));
+
+      const restored = screen.getAllByRole('slider', { name: eq3.rateSchema.humanLabel })[0];
+      const depthRestored = screen.getAllByRole('slider', { name: eq3.depthSchema.humanLabel })[0];
+      expect(restored.getAttribute('aria-valuenow')).toBe('40');
+      expect(depthRestored.getAttribute('aria-valuenow')).toBe('-25');
+      expect(restored.closest('.audio-rig-drawer__param-row')?.classList.contains('sc-held-off')).toBe(false);
     });
 
     it('the drift flag does not disturb the memoized LFO controls inside a frame', () => {
