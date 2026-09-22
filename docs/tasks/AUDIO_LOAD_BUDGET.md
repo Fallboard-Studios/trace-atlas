@@ -671,5 +671,5 @@ Deviations, by task (the full list with reasons is in [the spec's §8](../specs/
 - **Task 17/19/20**: the policy carries the connected robot-LFO count; `reconcileLfos` is two-pass and re-admits a freed slot; `lfoEngine.subscribeHeldOff` mirrors held-off state into the store. **Task 18**'s tests live in `lfoEngine.test.ts` (that is where the Tone mocks are), not a new `lfoDrift.test.ts`.
 - **Tasks 21–22**: a shared `HeldOffNote`; `LfoTargetGroup.heldOff` and the Robot Options props keep the sections store-free.
 - **Task 23** was checked in a real browser (`?load=light` → `playback`, one live realtime context).
-- **Task 24**: one gate missed (Standard's mean on `bravo`, 0.069 vs ≥ 0.10; accepted and re-set on 2026-09-21, spec decision N); everything else met.
+- **Task 24**: one gate missed (Standard's mean on `bravo`, 0.069 vs ≥ 0.10; accepted and re-set on 2026-09-21, spec decision N); everything else met. *(That figure was measured with Standard on `interactive`; decision J later shipped `playback` for Standard too — see spec §7 J — and this desktop table was not re-measured against the new build.)*
 - **Task 26** records the close-out; `CLAUDE.md`'s reference list was left alone (offered, not requested).
