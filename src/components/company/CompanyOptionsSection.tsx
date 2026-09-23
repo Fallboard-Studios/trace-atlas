@@ -16,6 +16,7 @@ import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
 import { VOLUME_LFO_TARGET } from '@/data/robotOptionsConfig';
 import { LFO_RATE_MIN, LFO_DEPTH_MIN } from '@/types/lfo';
 import { getTraitColorStyle, getDisabledTraitColorStyle } from '@/utils/traitColors';
+import type { RobotSection } from '@/stores/uiStore';
 import type { ADSREnvelope, Robot } from '@/types/Robot';
 import type { CompanyOptionsSnapshot } from '@/types/Company';
 import type { RobotLfoTargetId } from '@/types/lfo';
@@ -133,8 +134,19 @@ const DISABLED_SIGNATURE_ARRAY: SignatureArrayValue = {
  * per-section values) is what actually stops the CASCADE into its 4 children; genuinely reducing
  * this component's own re-execution rate would need a deeper store restructuring (e.g. per-robot
  * selectors instead of one whole-locale array), out of scope here.
+ *
+ * `section` prop (Task 19, docs/tasks/NAV_LAYOUT_REWRITE.md): optional, additive to the original
+ * zero-prop shape RobotsTab.tsx's own call site still uses unchanged. Omitted or null renders all
+ * 4 sections (today's behavior, unchanged); one of the 4 RobotSection values narrows rendering to
+ * that single section — the "Probes -> All Probes -> Volume/Melody/Envelope/Source" leaf content
+ * ProbesContent.tsx binds to, reusing this component's existing allRobotsSelected-driven
+ * "broadcast to every robot in the locale" mode rather than any new bulk-edit wiring.
  */
-export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
+interface CompanyOptionsSectionProps {
+  section?: RobotSection | null;
+}
+
+export const CompanyOptionsSection = memo(function CompanyOptionsSection({ section = null }: CompanyOptionsSectionProps = {}) {
   const localeId = getActiveLocaleId();
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const allRobotsSelected = useUIStore((s) => s.allRobotsSelected);
@@ -361,48 +373,79 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
     patchSnapshot({ lfoSettings: { ...resolved?.lfoSettings, [target]: value } });
   }, [localeId, patchSnapshot]);
 
-  return (
-    <div className="company-options-section">
-      <AudioSettingSection
-        value={audioSettingValue}
-        disabled={!active}
-        style={active ? OUTPUT_ACTIVE_STYLE : OUTPUT_DISABLED_STYLE}
-        onAudioModeChange={handleAudioModeChange}
-        onVolumeChange={handleVolumeChange}
-        onVolumeLfoChange={handleVolumeLfoChange}
-      />
-
-      <PingControlsDrawer
-        value={pingControlsValue}
-        disabled={!active}
-        style={active ? COMPOSITION_ACTIVE_STYLE : COMPOSITION_DISABLED_STYLE}
-        onDensityChange={handleDensityChange}
-        onMotifLengthChange={handleMotifLengthChange}
-        onOctaveMinChange={handleOctaveMinChange}
-        onOctaveMaxChange={handleOctaveMaxChange}
-        onNoteVarianceChange={handleNoteVarianceChange}
-        onPitchRepeatChange={handlePitchRepeatChange}
-        onClickTrackActiveChange={handleClickTrackActiveChange}
-        // No onResetMelody — omitted entirely in company mode, it has no company-scoped meaning.
-      />
-
-      <PingContourDrawer
-        value={adsrValue}
-        disabled={!active}
-        style={active ? TIME_SPACE_ACTIVE_STYLE : TIME_SPACE_DISABLED_STYLE}
-        onChange={handleAdsrChange}
-      />
-
-      <SignatureArrayDrawer
-        value={signatureArrayValue}
-        disabled={!active}
-        style={active ? SPECTRAL_ACTIVE_STYLE : SPECTRAL_DISABLED_STYLE}
-        onContinuousChange={handleLayersContinuousChange}
-        onStructuralChange={handleLayersStructuralChange}
-        onLfoChange={handleLayerLfoChange}
-      />
-    </div>
+  const audioSetting = (
+    <AudioSettingSection
+      value={audioSettingValue}
+      disabled={!active}
+      style={active ? OUTPUT_ACTIVE_STYLE : OUTPUT_DISABLED_STYLE}
+      onAudioModeChange={handleAudioModeChange}
+      onVolumeChange={handleVolumeChange}
+      onVolumeLfoChange={handleVolumeLfoChange}
+    />
   );
+
+  const pingControls = (
+    <PingControlsDrawer
+      value={pingControlsValue}
+      disabled={!active}
+      style={active ? COMPOSITION_ACTIVE_STYLE : COMPOSITION_DISABLED_STYLE}
+      onDensityChange={handleDensityChange}
+      onMotifLengthChange={handleMotifLengthChange}
+      onOctaveMinChange={handleOctaveMinChange}
+      onOctaveMaxChange={handleOctaveMaxChange}
+      onNoteVarianceChange={handleNoteVarianceChange}
+      onPitchRepeatChange={handlePitchRepeatChange}
+      onClickTrackActiveChange={handleClickTrackActiveChange}
+      // No onResetMelody — omitted entirely in company mode, it has no company-scoped meaning.
+    />
+  );
+
+  const pingContour = (
+    <PingContourDrawer
+      value={adsrValue}
+      disabled={!active}
+      style={active ? TIME_SPACE_ACTIVE_STYLE : TIME_SPACE_DISABLED_STYLE}
+      onChange={handleAdsrChange}
+    />
+  );
+
+  const signatureArray = (
+    <SignatureArrayDrawer
+      value={signatureArrayValue}
+      disabled={!active}
+      style={active ? SPECTRAL_ACTIVE_STYLE : SPECTRAL_DISABLED_STYLE}
+      onContinuousChange={handleLayersContinuousChange}
+      onStructuralChange={handleLayersStructuralChange}
+      onLfoChange={handleLayerLfoChange}
+    />
+  );
+
+  let content;
+  switch (section) {
+    case 'volume':
+      content = audioSetting;
+      break;
+    case 'melody':
+      content = pingControls;
+      break;
+    case 'envelope':
+      content = pingContour;
+      break;
+    case 'source':
+      content = signatureArray;
+      break;
+    default:
+      content = (
+        <>
+          {audioSetting}
+          {pingControls}
+          {pingContour}
+          {signatureArray}
+        </>
+      );
+  }
+
+  return <div className="company-options-section">{content}</div>;
 });
 
 export default CompanyOptionsSection;

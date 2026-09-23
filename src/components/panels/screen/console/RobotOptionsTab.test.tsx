@@ -123,6 +123,7 @@ import { getActiveLocaleId } from '@/utils/localeHelpers';
 import * as robotOptionsActions from '@/systems/robotOptionsActions';
 import * as regenerateMelodyModule from '@/engine/regenerateMelody';
 import type { Robot } from '@/types/Robot';
+import type { RobotSection } from '@/stores/uiStore';
 import type { Locale } from '@/types/locale';
 import { ACCENT_COLORS } from '@/constants/accentColors';
 
@@ -162,10 +163,17 @@ describe('RobotOptionsTab', () => {
   // ConsolePanel.test.tsx already documents and uses).
   beforeEach(() => {
     useUIStore.getState().selectRobot(null);
+    useUIStore.getState().setSelectedSection(null);
     useLocaleStore.getState().setLocaleData(localeId, { robots: [] } as unknown as Partial<Locale>);
     useAudioStore.setState({ heldOffLfoKeys: [] });
     vi.restoreAllMocks();
   });
+
+  function selectRobotWithSection(robot: Robot, section: RobotSection | null) {
+    useLocaleStore.getState().addRobot(localeId, robot);
+    useUIStore.getState().selectRobot(robot.id);
+    useUIStore.getState().setSelectedSection(section);
+  }
 
   it('renders the not-selected fallback when no robot is selected', () => {
     useUIStore.getState().selectRobot(null);
@@ -174,39 +182,79 @@ describe('RobotOptionsTab', () => {
     expect(screen.queryByTestId('robot-display-section-stub')).toBeNull();
   });
 
-  it('renders RobotDisplaySection, AudioSettingSection, plus all 3 drawers when a robot is selected', () => {
+  // Task 19 (docs/tasks/NAV_LAYOUT_REWRITE.md) — RobotOptionsTab became leaf-aware: the bare
+  // "Probe N" tree node (selectedSection === null) shows only RobotDisplaySection, and each of
+  // its 4 children (Volume/Melody/Envelope/Source) shows exactly the one matching drawer, per
+  // spec §2's Node → Content Mapping table. Replaces the old "renders all 5 stacked" behavior.
+  it('renders only RobotDisplaySection when a robot is selected and no section is chosen — the bare Probe N node', () => {
     const robot = makeRobot();
-    useLocaleStore.getState().addRobot(localeId, robot);
-    useUIStore.getState().selectRobot(robot.id);
+    selectRobotWithSection(robot, null);
 
     render(<RobotOptionsTab />);
 
     expect(screen.getByTestId('robot-display-section-stub')).toBeTruthy();
-    expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
-    expect(screen.getByTestId('ping-controls-drawer-stub')).toBeTruthy();
-    expect(screen.getByTestId('ping-contour-drawer-stub')).toBeTruthy();
-    expect(screen.getByTestId('signature-array-drawer-stub')).toBeTruthy();
+    expect(screen.queryByTestId('audio-setting-section-stub')).toBeNull();
+    expect(screen.queryByTestId('ping-controls-drawer-stub')).toBeNull();
+    expect(screen.queryByTestId('ping-contour-drawer-stub')).toBeNull();
+    expect(screen.queryByTestId('signature-array-drawer-stub')).toBeNull();
   });
 
-  describe('AudioSettingSection extraction (docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 5)', () => {
-    it('renders as a direct sibling between RobotDisplaySection and PingControlsDrawer', () => {
-      const robot = makeRobot();
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
-      render(<RobotOptionsTab />);
+  it('renders only AudioSettingSection when selectedSection is "volume" — Probe N -> Volume', () => {
+    const robot = makeRobot();
+    selectRobotWithSection(robot, 'volume');
 
-      const displaySection = screen.getByTestId('robot-display-section-stub');
-      const audioSetting = screen.getByTestId('audio-setting-section-stub');
-      const pingControls = screen.getByTestId('ping-controls-drawer-stub');
+    render(<RobotOptionsTab />);
 
-      expect(displaySection.compareDocumentPosition(audioSetting) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(audioSetting.compareDocumentPosition(pingControls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    });
+    expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
+    expect(screen.queryByTestId('robot-display-section-stub')).toBeNull();
+    expect(screen.queryByTestId('ping-controls-drawer-stub')).toBeNull();
+    expect(screen.queryByTestId('ping-contour-drawer-stub')).toBeNull();
+    expect(screen.queryByTestId('signature-array-drawer-stub')).toBeNull();
+  });
 
+  it('renders only PingControlsDrawer when selectedSection is "melody" — Probe N -> Melody', () => {
+    const robot = makeRobot();
+    selectRobotWithSection(robot, 'melody');
+
+    render(<RobotOptionsTab />);
+
+    expect(screen.getByTestId('ping-controls-drawer-stub')).toBeTruthy();
+    expect(screen.queryByTestId('robot-display-section-stub')).toBeNull();
+    expect(screen.queryByTestId('audio-setting-section-stub')).toBeNull();
+    expect(screen.queryByTestId('ping-contour-drawer-stub')).toBeNull();
+    expect(screen.queryByTestId('signature-array-drawer-stub')).toBeNull();
+  });
+
+  it('renders only PingContourDrawer when selectedSection is "envelope" — Probe N -> Envelope', () => {
+    const robot = makeRobot();
+    selectRobotWithSection(robot, 'envelope');
+
+    render(<RobotOptionsTab />);
+
+    expect(screen.getByTestId('ping-contour-drawer-stub')).toBeTruthy();
+    expect(screen.queryByTestId('robot-display-section-stub')).toBeNull();
+    expect(screen.queryByTestId('audio-setting-section-stub')).toBeNull();
+    expect(screen.queryByTestId('ping-controls-drawer-stub')).toBeNull();
+    expect(screen.queryByTestId('signature-array-drawer-stub')).toBeNull();
+  });
+
+  it('renders only SignatureArrayDrawer when selectedSection is "source" — Probe N -> Source', () => {
+    const robot = makeRobot();
+    selectRobotWithSection(robot, 'source');
+
+    render(<RobotOptionsTab />);
+
+    expect(screen.getByTestId('signature-array-drawer-stub')).toBeTruthy();
+    expect(screen.queryByTestId('robot-display-section-stub')).toBeNull();
+    expect(screen.queryByTestId('audio-setting-section-stub')).toBeNull();
+    expect(screen.queryByTestId('ping-controls-drawer-stub')).toBeNull();
+    expect(screen.queryByTestId('ping-contour-drawer-stub')).toBeNull();
+  });
+
+  describe('AudioSettingSection (Volume leaf)', () => {
     it("derives its value from the selected robot's audioMode/masterVolume", () => {
       const robot = makeRobot('r1', { audioMode: 'mute', masterVolume: 0.42 });
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
+      selectRobotWithSection(robot, 'volume');
       render(<RobotOptionsTab />);
 
       const stub = screen.getByTestId('audio-setting-section-stub');
@@ -216,8 +264,7 @@ describe('RobotOptionsTab', () => {
 
     it('defaults audioMode to \'none\' when the robot has none set', () => {
       const robot = makeRobot('r1', { audioMode: undefined });
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
+      selectRobotWithSection(robot, 'volume');
       render(<RobotOptionsTab />);
 
       expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-audio-mode')).toBe('none');
@@ -225,8 +272,7 @@ describe('RobotOptionsTab', () => {
 
     it('wires onAudioModeChange straight through to robotOptionsActions.applyAudioMode', () => {
       const robot = makeRobot();
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
+      selectRobotWithSection(robot, 'volume');
       const applySpy = vi.spyOn(robotOptionsActions, 'applyAudioMode').mockImplementation(() => {});
       render(<RobotOptionsTab />);
 
@@ -237,8 +283,7 @@ describe('RobotOptionsTab', () => {
 
     it('wires onVolumeChange straight through to robotOptionsActions.applyVolume', () => {
       const robot = makeRobot();
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
+      selectRobotWithSection(robot, 'volume');
       const applySpy = vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
       render(<RobotOptionsTab />);
 
@@ -254,157 +299,150 @@ describe('RobotOptionsTab', () => {
     expect(screen.getByText('Robot not found')).toBeTruthy();
   });
 
-  it('derives PingControlsDrawer\'s value from the selected robot', () => {
-    const robot = makeRobot();
-    useLocaleStore.getState().addRobot(localeId, robot);
-    useUIStore.getState().selectRobot(robot.id);
-    render(<RobotOptionsTab />);
+  describe('PingControlsDrawer (Melody leaf)', () => {
+    it('derives PingControlsDrawer\'s value from the selected robot', () => {
+      const robot = makeRobot();
+      selectRobotWithSection(robot, 'melody');
+      render(<RobotOptionsTab />);
 
-    expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-density')).toBe('42');
-  });
-
-  it('derives PingControlsDrawer\'s pitchRepeat value from the selected robot', () => {
-    const robot = makeRobot();
-    useLocaleStore.getState().addRobot(localeId, robot);
-    useUIStore.getState().selectRobot(robot.id);
-    render(<RobotOptionsTab />);
-
-    expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-pitch-repeat')).toBe('33');
-  });
-
-  it('derives PingControlsDrawer\'s rhythmicMotifLength/noteVariance as plain numbers from the robot\'s {active, value} fields', () => {
-    const robot = makeRobot('r1', {
-      rhythmicMotifLength: { active: true, value: 6 },
-      noteVariance: { active: true, value: 2 },
+      expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-density')).toBe('42');
     });
-    useLocaleStore.getState().addRobot(localeId, robot);
-    useUIStore.getState().selectRobot(robot.id);
-    render(<RobotOptionsTab />);
 
-    expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-motif-length')).toBe('6');
-    expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-note-variance')).toBe('2');
+    it('derives PingControlsDrawer\'s pitchRepeat value from the selected robot', () => {
+      const robot = makeRobot();
+      selectRobotWithSection(robot, 'melody');
+      render(<RobotOptionsTab />);
+
+      expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-pitch-repeat')).toBe('33');
+    });
+
+    it('derives PingControlsDrawer\'s rhythmicMotifLength/noteVariance as plain numbers from the robot\'s {active, value} fields', () => {
+      const robot = makeRobot('r1', {
+        rhythmicMotifLength: { active: true, value: 6 },
+        noteVariance: { active: true, value: 2 },
+      });
+      selectRobotWithSection(robot, 'melody');
+      render(<RobotOptionsTab />);
+
+      expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-motif-length')).toBe('6');
+      expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-note-variance')).toBe('2');
+    });
+
+    it('falls back to the invariant-correct defaults\' .value when the robot has never had these fields set', () => {
+      const robot = makeRobot(); // rhythmicMotifLength/noteVariance both omitted
+      selectRobotWithSection(robot, 'melody');
+      render(<RobotOptionsTab />);
+
+      // DEFAULT_RHYTHMIC_MOTIF_LENGTH = { active: true, value: 8 }, DEFAULT_NOTE_VARIANCE = { active: false, value: 0 }
+      expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-motif-length')).toBe('8');
+      expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-note-variance')).toBe('0');
+    });
+
+    it('wires PingControlsDrawer\'s onMotifLengthChange straight through to robotOptionsActions.applyMotifLength', () => {
+      const robot = makeRobot();
+      selectRobotWithSection(robot, 'melody');
+      const applySpy = vi.spyOn(robotOptionsActions, 'applyMotifLength').mockImplementation(() => {});
+      render(<RobotOptionsTab />);
+
+      fireEvent.click(screen.getByText('probe-motif-length'));
+
+      expect(applySpy).toHaveBeenCalledWith(robot, localeId, 6);
+    });
+
+    it('wires PingControlsDrawer\'s onNoteVarianceChange straight through to robotOptionsActions.applyNoteVariance', () => {
+      const robot = makeRobot();
+      selectRobotWithSection(robot, 'melody');
+      const applySpy = vi.spyOn(robotOptionsActions, 'applyNoteVariance').mockImplementation(() => {});
+      render(<RobotOptionsTab />);
+
+      fireEvent.click(screen.getByText('probe-note-variance'));
+
+      expect(applySpy).toHaveBeenCalledWith(robot, localeId, 0);
+    });
+
+    it('wires PingControlsDrawer\'s onDensityChange to robotOptionsActions.applyDensity', () => {
+      const robot = makeRobot();
+      selectRobotWithSection(robot, 'melody');
+      const applySpy = vi.spyOn(robotOptionsActions, 'applyDensity').mockImplementation(() => {});
+      render(<RobotOptionsTab />);
+
+      fireEvent.click(screen.getByText('probe-density'));
+
+      expect(applySpy).toHaveBeenCalledWith(robot, localeId, 77);
+    });
+
+    it('wires PingControlsDrawer\'s onPitchRepeatChange to robotOptionsActions.applyPitchRepeat', () => {
+      const robot = makeRobot();
+      selectRobotWithSection(robot, 'melody');
+      const applySpy = vi.spyOn(robotOptionsActions, 'applyPitchRepeat').mockImplementation(() => {});
+      render(<RobotOptionsTab />);
+
+      fireEvent.click(screen.getByText('probe-pitch-repeat'));
+
+      expect(applySpy).toHaveBeenCalledWith(robot, localeId, 88);
+    });
+
+    it('wires PingControlsDrawer\'s onResetMelody to regenerateMelody directly (not a robotOptionsActions function)', () => {
+      const robot = makeRobot();
+      selectRobotWithSection(robot, 'melody');
+      const regenSpy = vi.spyOn(regenerateMelodyModule, 'regenerateMelody').mockImplementation(() => {});
+      render(<RobotOptionsTab />);
+
+      fireEvent.click(screen.getByText('probe-reset-melody'));
+
+      expect(regenSpy).toHaveBeenCalledWith(robot, localeId);
+    });
+
+    it('derives PingControlsDrawer\'s clickTrackActive from the robot and wires onClickTrackActiveChange to applyClickTrackActive', () => {
+      const robot = { ...makeRobot(), clickTrackActive: true };
+      selectRobotWithSection(robot, 'melody');
+      const applySpy = vi.spyOn(robotOptionsActions, 'applyClickTrackActive').mockImplementation(() => {});
+      render(<RobotOptionsTab />);
+
+      expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-click-track-active')).toBe('true');
+
+      fireEvent.click(screen.getByText('probe-click-track'));
+
+      expect(applySpy).toHaveBeenCalledWith(robot, localeId, true);
+    });
   });
 
-  it('falls back to the invariant-correct defaults\' .value when the robot has never had these fields set', () => {
-    const robot = makeRobot(); // rhythmicMotifLength/noteVariance both omitted
-    useLocaleStore.getState().addRobot(localeId, robot);
-    useUIStore.getState().selectRobot(robot.id);
-    render(<RobotOptionsTab />);
+  describe('PingContourDrawer (Envelope leaf)', () => {
+    it('derives its value from the robot\'s audioAttributes.adsr and wires onChange to applyAdsr', () => {
+      const robot = makeRobot();
+      selectRobotWithSection(robot, 'envelope');
+      const applySpy = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
+      render(<RobotOptionsTab />);
 
-    // DEFAULT_RHYTHMIC_MOTIF_LENGTH = { active: true, value: 8 }, DEFAULT_NOTE_VARIANCE = { active: false, value: 0 }
-    expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-motif-length')).toBe('8');
-    expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-note-variance')).toBe('0');
+      expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-attack')).toBe('0.01');
+
+      fireEvent.click(screen.getByText('probe-adsr'));
+
+      expect(applySpy).toHaveBeenCalledWith(robot, localeId, { attack: 0.9, decay: 0.1, sustain: 0.5, release: 0.2 });
+    });
   });
 
-  it('wires PingControlsDrawer\'s onMotifLengthChange straight through to robotOptionsActions.applyMotifLength', () => {
-    const robot = makeRobot();
-    useLocaleStore.getState().addRobot(localeId, robot);
-    useUIStore.getState().selectRobot(robot.id);
-    const applySpy = vi.spyOn(robotOptionsActions, 'applyMotifLength').mockImplementation(() => {});
-    render(<RobotOptionsTab />);
+  describe('SignatureArrayDrawer (Source leaf)', () => {
+    it('derives its value from the robot\'s layers and wires onContinuousChange to applyLayersContinuous', () => {
+      const robot = makeRobot();
+      selectRobotWithSection(robot, 'source');
+      const applySpy = vi.spyOn(robotOptionsActions, 'applyLayersContinuous').mockImplementation(() => {});
+      render(<RobotOptionsTab />);
 
-    fireEvent.click(screen.getByText('probe-motif-length'));
+      expect(screen.getByTestId('signature-array-drawer-stub').getAttribute('data-layer-count')).toBe('1');
 
-    expect(applySpy).toHaveBeenCalledWith(robot, localeId, 6);
-  });
+      fireEvent.click(screen.getByText('probe-layers'));
 
-  it('wires PingControlsDrawer\'s onNoteVarianceChange straight through to robotOptionsActions.applyNoteVariance', () => {
-    const robot = makeRobot();
-    useLocaleStore.getState().addRobot(localeId, robot);
-    useUIStore.getState().selectRobot(robot.id);
-    const applySpy = vi.spyOn(robotOptionsActions, 'applyNoteVariance').mockImplementation(() => {});
-    render(<RobotOptionsTab />);
-
-    fireEvent.click(screen.getByText('probe-note-variance'));
-
-    expect(applySpy).toHaveBeenCalledWith(robot, localeId, 0);
-  });
-
-  it('wires PingControlsDrawer\'s onDensityChange to robotOptionsActions.applyDensity', () => {
-    const robot = makeRobot();
-    useLocaleStore.getState().addRobot(localeId, robot);
-    useUIStore.getState().selectRobot(robot.id);
-    const applySpy = vi.spyOn(robotOptionsActions, 'applyDensity').mockImplementation(() => {});
-    render(<RobotOptionsTab />);
-
-    fireEvent.click(screen.getByText('probe-density'));
-
-    expect(applySpy).toHaveBeenCalledWith(robot, localeId, 77);
-  });
-
-  it('wires PingControlsDrawer\'s onPitchRepeatChange to robotOptionsActions.applyPitchRepeat', () => {
-    const robot = makeRobot();
-    useLocaleStore.getState().addRobot(localeId, robot);
-    useUIStore.getState().selectRobot(robot.id);
-    const applySpy = vi.spyOn(robotOptionsActions, 'applyPitchRepeat').mockImplementation(() => {});
-    render(<RobotOptionsTab />);
-
-    fireEvent.click(screen.getByText('probe-pitch-repeat'));
-
-    expect(applySpy).toHaveBeenCalledWith(robot, localeId, 88);
-  });
-
-  it('wires PingControlsDrawer\'s onResetMelody to regenerateMelody directly (not a robotOptionsActions function)', () => {
-    const robot = makeRobot();
-    useLocaleStore.getState().addRobot(localeId, robot);
-    useUIStore.getState().selectRobot(robot.id);
-    const regenSpy = vi.spyOn(regenerateMelodyModule, 'regenerateMelody').mockImplementation(() => {});
-    render(<RobotOptionsTab />);
-
-    fireEvent.click(screen.getByText('probe-reset-melody'));
-
-    expect(regenSpy).toHaveBeenCalledWith(robot, localeId);
-  });
-
-  it('derives PingControlsDrawer\'s clickTrackActive from the robot and wires onClickTrackActiveChange to applyClickTrackActive', () => {
-    const robot = { ...makeRobot(), clickTrackActive: true };
-    useLocaleStore.getState().addRobot(localeId, robot);
-    useUIStore.getState().selectRobot(robot.id);
-    const applySpy = vi.spyOn(robotOptionsActions, 'applyClickTrackActive').mockImplementation(() => {});
-    render(<RobotOptionsTab />);
-
-    expect(screen.getByTestId('ping-controls-drawer-stub').getAttribute('data-click-track-active')).toBe('true');
-
-    fireEvent.click(screen.getByText('probe-click-track'));
-
-    expect(applySpy).toHaveBeenCalledWith(robot, localeId, true);
-  });
-
-  it('derives PingContourDrawer\'s value from the robot\'s audioAttributes.adsr and wires onChange to applyAdsr', () => {
-    const robot = makeRobot();
-    useLocaleStore.getState().addRobot(localeId, robot);
-    useUIStore.getState().selectRobot(robot.id);
-    const applySpy = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
-    render(<RobotOptionsTab />);
-
-    expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-attack')).toBe('0.01');
-
-    fireEvent.click(screen.getByText('probe-adsr'));
-
-    expect(applySpy).toHaveBeenCalledWith(robot, localeId, { attack: 0.9, decay: 0.1, sustain: 0.5, release: 0.2 });
-  });
-
-  it('derives SignatureArrayDrawer\'s value from the robot\'s layers and wires onContinuousChange to applyLayersContinuous', () => {
-    const robot = makeRobot();
-    useLocaleStore.getState().addRobot(localeId, robot);
-    useUIStore.getState().selectRobot(robot.id);
-    const applySpy = vi.spyOn(robotOptionsActions, 'applyLayersContinuous').mockImplementation(() => {});
-    render(<RobotOptionsTab />);
-
-    expect(screen.getByTestId('signature-array-drawer-stub').getAttribute('data-layer-count')).toBe('1');
-
-    fireEvent.click(screen.getByText('probe-layers'));
-
-    expect(applySpy).toHaveBeenCalledWith(robot, localeId, [{ type: 'sine', gain: 1, detune: 0, phase: 0 }]);
+      expect(applySpy).toHaveBeenCalledWith(robot, localeId, [{ type: 'sine', gain: 1, detune: 0, phase: 0 }]);
+    });
   });
 
   // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 12) — the robot-options
   // root carries the robot's own identity color; each of the 4 drawers gets its own trait color.
   describe('trait/robot color scoping', () => {
-    it('scopes the robot-options root to the selected robot\'s own identityColor', () => {
+    it('scopes the robot-options root to the selected robot\'s own identityColor, regardless of which leaf is showing', () => {
       const robot = makeRobot('r1', { identityColor: '#68cb97' });
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
+      selectRobotWithSection(robot, null);
       const { container } = render(<RobotOptionsTab />);
 
       const root = container.querySelector('.robot-options') as HTMLElement;
@@ -414,8 +452,7 @@ describe('RobotOptionsTab', () => {
 
     it('gives AudioSettingSection the Output trait\'s style (burnt orange/orange)', () => {
       const robot = makeRobot();
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
+      selectRobotWithSection(robot, 'volume');
       render(<RobotOptionsTab />);
 
       const stub = screen.getByTestId('audio-setting-section-stub');
@@ -425,8 +462,7 @@ describe('RobotOptionsTab', () => {
 
     it('gives PingControlsDrawer the Composition trait\'s style (emerald/lime)', () => {
       const robot = makeRobot();
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
+      selectRobotWithSection(robot, 'melody');
       render(<RobotOptionsTab />);
 
       const stub = screen.getByTestId('ping-controls-drawer-stub');
@@ -436,8 +472,7 @@ describe('RobotOptionsTab', () => {
 
     it('gives PingContourDrawer the Time/Space trait\'s style (purple/pink)', () => {
       const robot = makeRobot();
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
+      selectRobotWithSection(robot, 'envelope');
       render(<RobotOptionsTab />);
 
       const stub = screen.getByTestId('ping-contour-drawer-stub');
@@ -447,8 +482,7 @@ describe('RobotOptionsTab', () => {
 
     it('gives SignatureArrayDrawer the Spectral trait\'s style (cyan/indigo)', () => {
       const robot = makeRobot();
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
+      selectRobotWithSection(robot, 'source');
       render(<RobotOptionsTab />);
 
       const stub = screen.getByTestId('signature-array-drawer-stub');
@@ -456,10 +490,9 @@ describe('RobotOptionsTab', () => {
       expect(stub.getAttribute('data-style-b')).toBe(ACCENT_COLORS.indigo);
     });
 
-    it('gives two different robots two different root colors, while both get the same 4 trait colors on their drawers', () => {
+    it('gives two different robots two different root colors, while both get the same trait color on their Source leaf', () => {
       const robotA = makeRobot('r1', { identityColor: ACCENT_COLORS.red });
-      useLocaleStore.getState().addRobot(localeId, robotA);
-      useUIStore.getState().selectRobot(robotA.id);
+      selectRobotWithSection(robotA, 'source');
       const { container: containerA, unmount } = render(<RobotOptionsTab />);
       const rootA = containerA.querySelector('.robot-options') as HTMLElement;
       expect(rootA.style.getPropertyValue('--color-accent-a')).toBe(ACCENT_COLORS.red);
@@ -467,8 +500,7 @@ describe('RobotOptionsTab', () => {
       unmount();
 
       const robotB = makeRobot('r2', { identityColor: ACCENT_COLORS.purple });
-      useLocaleStore.getState().addRobot(localeId, robotB);
-      useUIStore.getState().selectRobot(robotB.id);
+      selectRobotWithSection(robotB, 'source');
       const { container: containerB } = render(<RobotOptionsTab />);
       const rootB = containerB.querySelector('.robot-options') as HTMLElement;
       expect(rootB.style.getPropertyValue('--color-accent-a')).toBe(ACCENT_COLORS.purple);
@@ -480,71 +512,87 @@ describe('RobotOptionsTab', () => {
   });
 
   // Audio Load Budget (plan task 22): the tab owns the store access and the robot id, so it turns the held-off keys into plain
-  // per-robot props for the (store-free) sections.
+  // per-robot props for the (store-free) sections. Task 19 made the tab leaf-aware, so — unlike
+  // before — AudioSettingSection (Volume) and SignatureArrayDrawer (Source) are never mounted at
+  // the same time; each assertion below mounts the one leaf it needs.
   describe('Audio Load: held-off LFOs for THIS robot', () => {
-    function mountRobot() {
+    function mountRobot(section: RobotSection) {
       const robot = makeRobot('r1');
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
+      selectRobotWithSection(robot, section);
       return render(<RobotOptionsTab />);
     }
     const volumeHeldOff = () => screen.getByTestId('audio-setting-section-stub').getAttribute('data-volume-held-off');
     const heldTargets = () => JSON.parse(screen.getByTestId('signature-array-drawer-stub').getAttribute('data-held-off-targets')!);
 
-    it('passes nothing held off when the list is empty (Full, or the budget not running)', () => {
-      mountRobot();
+    it('passes nothing held off for Volume when the list is empty (Full, or the budget not running)', () => {
+      mountRobot('volume');
       expect(volumeHeldOff()).toBe('false');
+    });
+
+    it('passes nothing held off for Source layer targets when the list is empty', () => {
+      mountRobot('source');
       expect(Object.values(heldTargets()).some(Boolean)).toBe(false);
     });
 
     it("marks this robot's Volume LFO held off when its key is in the list", () => {
       useAudioStore.setState({ heldOffLfoKeys: ['r1:volume'] });
-      mountRobot();
+      mountRobot('volume');
       expect(volumeHeldOff()).toBe('true');
     });
 
     it("marks this robot's layer LFO targets held off by instance key (robotId:target)", () => {
       useAudioStore.setState({ heldOffLfoKeys: ['r1:layer1.detune', 'r1:layer0.gain'] });
-      mountRobot();
+      mountRobot('source');
       expect(heldTargets()['layer1.detune']).toBe(true);
       expect(heldTargets()['layer0.gain']).toBe(true);
       expect(heldTargets()['layer2.gain']).toBe(false);
     });
 
-    it("ignores another robot's held-off LFOs and global ones", () => {
+    it("ignores another robot's held-off LFOs and global ones for Volume", () => {
       useAudioStore.setState({ heldOffLfoKeys: ['r2:volume', 'r2:layer0.gain', 'lpf.Q'] });
-      mountRobot();
+      mountRobot('volume');
       expect(volumeHeldOff()).toBe('false');
+    });
+
+    it("ignores another robot's held-off LFOs and global ones for Source", () => {
+      useAudioStore.setState({ heldOffLfoKeys: ['r2:volume', 'r2:layer0.gain', 'lpf.Q'] });
+      mountRobot('source');
       expect(Object.values(heldTargets()).some(Boolean)).toBe(false);
     });
 
     it('updates as soon as the robot is over the cap and again when it clears', () => {
-      mountRobot();
+      mountRobot('volume');
       act(() => useAudioStore.setState({ heldOffLfoKeys: ['r1:volume'] }));
       expect(volumeHeldOff()).toBe('true');
       act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
       expect(volumeHeldOff()).toBe('false');
     });
 
-    it("does not re-render the sections when ANOTHER robot's LFO enters or leaves the held-off list", () => {
-      mountRobot();
-      const before = {
-        audio: renderCounts.audioSettingSection.mock.calls.length,
-        signature: renderCounts.signatureArrayDrawer.mock.calls.length,
-      };
+    it("does not re-render AudioSettingSection when ANOTHER robot's LFO enters or leaves the held-off list", () => {
+      mountRobot('volume');
+      const before = renderCounts.audioSettingSection.mock.calls.length;
 
       act(() => useAudioStore.setState({ heldOffLfoKeys: ['r2:volume'] }));
       act(() => useAudioStore.setState({ heldOffLfoKeys: ['r2:volume', 'r3:layer0.gain', 'lpf.Q'] }));
       act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
 
-      expect(renderCounts.audioSettingSection.mock.calls.length).toBe(before.audio);
-      expect(renderCounts.signatureArrayDrawer.mock.calls.length).toBe(before.signature);
+      expect(renderCounts.audioSettingSection.mock.calls.length).toBe(before);
+    });
+
+    it("does not re-render SignatureArrayDrawer when ANOTHER robot's LFO enters or leaves the held-off list", () => {
+      mountRobot('source');
+      const before = renderCounts.signatureArrayDrawer.mock.calls.length;
+
+      act(() => useAudioStore.setState({ heldOffLfoKeys: ['r2:volume'] }));
+      act(() => useAudioStore.setState({ heldOffLfoKeys: ['r2:volume', 'r3:layer0.gain', 'lpf.Q'] }));
+      act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
+
+      expect(renderCounts.signatureArrayDrawer.mock.calls.length).toBe(before);
     });
 
     it("does not even re-render the tab itself for another robot's held-off LFO (a per-robot boolean selector, not the whole list)", () => {
       const robot = makeRobot('r1');
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
+      selectRobotWithSection(robot, 'volume');
       const commits = { count: 0 };
       render(
         <Profiler id="tab" onRender={() => { commits.count++; }}>
@@ -561,68 +609,11 @@ describe('RobotOptionsTab', () => {
     });
   });
 
-  describe('re-render cascade regression (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 6)', () => {
-    // The end-to-end proof this whole plan exists for: a single-field edit anywhere in the panel
-    // used to re-render all 5 sections, not just the one the user touched (backlog item 27).
-    // Mutates the store directly (`updateRobot`), the same way a real slider drag eventually
-    // does via `applyDensity`/etc., without invoking the real `regenerateMelody`/AudioEngine
-    // machinery those actions also call — this test is about RobotOptionsTab's own re-render
-    // wiring, not melody regeneration.
-    //
-    // RobotDisplaySection is deliberately excluded from the "stayed flat" assertions below — per
-    // spec §1.2.3/Task 5, its sole prop is the *entire* `robot` object, which is always a new
-    // reference on every edit regardless of which field changed, so it's expected to re-render
-    // every time (not one of "the accordions" the reported symptom was about; see Task 5's own
-    // tests for the documented limitation in isolation).
-    function callCounts() {
-      return {
-        audioSettingSection: renderCounts.audioSettingSection.mock.calls.length,
-        pingControlsDrawer: renderCounts.pingControlsDrawer.mock.calls.length,
-        pingContourDrawer: renderCounts.pingContourDrawer.mock.calls.length,
-        signatureArrayDrawer: renderCounts.signatureArrayDrawer.mock.calls.length,
-      };
-    }
-
-    it('re-rendering after a Density-only edit leaves the other 3 accordion-wrapped sections un-re-rendered', () => {
-      const robot = makeRobot();
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
-      render(<RobotOptionsTab />);
-
-      const countsAfterMount = callCounts();
-
-      act(() => {
-        useLocaleStore.getState().updateRobot(localeId, robot.id, { rhythmicDensity: 91 });
-      });
-
-      const countsAfterEdit = callCounts();
-      // The edited section re-renders (its own value genuinely changed)...
-      expect(countsAfterEdit.pingControlsDrawer).toBeGreaterThan(countsAfterMount.pingControlsDrawer);
-      // ...but none of the other 3 accordion-wrapped sections do — this is the cascade this plan fixes.
-      expect(countsAfterEdit.audioSettingSection).toBe(countsAfterMount.audioSettingSection);
-      expect(countsAfterEdit.pingContourDrawer).toBe(countsAfterMount.pingContourDrawer);
-      expect(countsAfterEdit.signatureArrayDrawer).toBe(countsAfterMount.signatureArrayDrawer);
-    });
-
-    it('re-rendering after an ADSR-only edit leaves the other 3 accordion-wrapped sections un-re-rendered', () => {
-      const robot = makeRobot();
-      useLocaleStore.getState().addRobot(localeId, robot);
-      useUIStore.getState().selectRobot(robot.id);
-      render(<RobotOptionsTab />);
-
-      const countsAfterMount = callCounts();
-
-      act(() => {
-        useLocaleStore.getState().updateRobot(localeId, robot.id, {
-          audioAttributes: { ...robot.audioAttributes, adsr: { attack: 0.9, decay: 0.1, sustain: 0.5, release: 0.2 } },
-        });
-      });
-
-      const countsAfterEdit = callCounts();
-      expect(countsAfterEdit.pingContourDrawer).toBeGreaterThan(countsAfterMount.pingContourDrawer);
-      expect(countsAfterEdit.audioSettingSection).toBe(countsAfterMount.audioSettingSection);
-      expect(countsAfterEdit.pingControlsDrawer).toBe(countsAfterMount.pingControlsDrawer);
-      expect(countsAfterEdit.signatureArrayDrawer).toBe(countsAfterMount.signatureArrayDrawer);
-    });
-  });
+  // The old "re-render cascade regression" describe block (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md
+  // Task 6) asserted that editing one field left the OTHER 3 accordion-wrapped sections un-re-rendered
+  // while they all stayed mounted side by side. Task 19 (docs/tasks/NAV_LAYOUT_REWRITE.md) made this
+  // tab leaf-aware — only one of the 4 sections is ever mounted at a time now, so "the other 3 didn't
+  // re-render" is trivially true (they were never mounted) and proves nothing. Dropped rather than kept
+  // as a vacuous pass, mirroring the same lazy-mount test-obsolescence precedent from the
+  // AccordionContainer migration (Task 14, AudioRigDrawer.test.tsx).
 });

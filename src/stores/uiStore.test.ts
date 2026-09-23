@@ -343,3 +343,31 @@ describe('uiStore — expandedTopLevelBranch (bugfix: the 4 top-level tree nodes
     expect(useUIStore.getState().expandedFleetParamsGroup).toBe('eqFilters');
   });
 });
+
+describe('uiStore — allProbesSelected (which Probes content view is active, docs/tasks/NAV_LAYOUT_REWRITE.md Task 19)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('defaults to false — bare "Probes" (the browse list) is the default, not the All Probes bulk-edit view', () => {
+    expect(useUIStore.getState().allProbesSelected).toBe(false);
+  });
+
+  it('setAllProbesSelected(true) sets it', () => {
+    useUIStore.getState().setAllProbesSelected(true);
+    expect(useUIStore.getState().allProbesSelected).toBe(true);
+  });
+
+  it('setAllProbesSelected(false) clears it', () => {
+    useUIStore.getState().setAllProbesSelected(true);
+    useUIStore.getState().setAllProbesSelected(false);
+    expect(useUIStore.getState().allProbesSelected).toBe(false);
+  });
+
+  it('is independent of allRobotsSelected — a different flag for a different concern (nav content routing vs. the RobotsTab company filter)', () => {
+    useUIStore.getState().selectCompany('company-0-abc'); // clears allRobotsSelected
+    useUIStore.getState().setAllProbesSelected(true);
+    expect(useUIStore.getState().allRobotsSelected).toBe(false);
+    expect(useUIStore.getState().allProbesSelected).toBe(true);
+  });
+});

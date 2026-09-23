@@ -37,6 +37,12 @@ export type SelectedFleetParamsEffect = AudioRigEffectKey;
  *  top-level node's own +/- button was a silent no-op and its children could never render, found
  *  live by Crawford after Checkpoint 3. */
 export type TopLevelBranch = 'settings' | 'fleetParams' | 'probes' | 'companies';
+/** True when the nav tree's "All Probes" leaf is selected — the bulk-edit target covering
+ *  every robot in the locale, distinct from bare "Probes" (the browse list), which also has
+ *  selectedRobotId === null. Added in Task 19 (docs/tasks/NAV_LAYOUT_REWRITE.md): without this
+ *  flag, "Probes" and "All Probes" are indistinguishable from state alone. Unrelated to
+ *  allRobotsSelected, which drives the pre-existing RobotsTab company filter, not nav content
+ *  routing — selecting "All Probes" in the tree does not imply that filter is set, and vice versa. */
 
 export interface UIStore {
   activeView: ActiveView;
@@ -84,6 +90,8 @@ export interface UIStore {
   selectedFleetParamsEffect: SelectedFleetParamsEffect | null;
   /** Which top-level branch is expanded — see TopLevelBranch's own doc comment. */
   expandedTopLevelBranch: TopLevelBranch | null;
+  /** Whether the "All Probes" bulk-edit leaf is selected — see its own doc comment above. */
+  allProbesSelected: boolean;
   setActiveLocaleLocalTime: (t: number | null) => void;
   setActiveView: (v: ActiveView) => void;
   setTheme: (t: Theme) => void;
@@ -104,6 +112,7 @@ export interface UIStore {
   setSelectedSettingsLeaf: (l: SettingsLeaf | null) => void;
   setSelectedFleetParamsEffect: (e: SelectedFleetParamsEffect | null) => void;
   setExpandedTopLevelBranch: (b: TopLevelBranch | null) => void;
+  setAllProbesSelected: (v: boolean) => void;
 }
 
 // ========================================
@@ -130,6 +139,7 @@ export const useUIStore = create<UIStore>((set) => ({
   selectedSettingsLeaf: null,
   selectedFleetParamsEffect: null,
   expandedTopLevelBranch: null,
+  allProbesSelected: false,
 
   setActiveView: (v) => set({ activeView: v }),
   setTheme: (t) => set({ theme: t }),
@@ -151,6 +161,7 @@ export const useUIStore = create<UIStore>((set) => ({
   setSelectedSettingsLeaf: (l) => set({ selectedSettingsLeaf: l }),
   setSelectedFleetParamsEffect: (e) => set({ selectedFleetParamsEffect: e }),
   setExpandedTopLevelBranch: (b) => set({ expandedTopLevelBranch: b }),
+  setAllProbesSelected: (v) => set({ allProbesSelected: v }),
 }));
 
 // ========================================

@@ -922,4 +922,88 @@ describe('CompanyOptionsSection', () => {
   it('is a React.memo-wrapped component', () => {
     expect((CompanyOptionsSection as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
   });
+
+  // Task 19 (docs/tasks/NAV_LAYOUT_REWRITE.md) — an optional `section` prop, additive to every
+  // test above (all of which call <CompanyOptionsSection /> with no props and keep rendering all
+  // 4 sections, RobotsTab.tsx's own call site, untouched until Task 20). When provided, narrows
+  // rendering to exactly one of the 4 sections — the "Probes -> All Probes -> Volume" etc. leaf
+  // content ProbesContent.tsx binds to. `section={null}` (the bare "All Probes" node, no leaf
+  // chosen yet) renders all 4, same as omitting the prop entirely.
+  describe('section prop (leaf-narrowing, Task 19)', () => {
+    it('with no section prop, still renders all 4 sections — legacy behavior for RobotsTab.tsx\'s existing call site', () => {
+      selectActiveCompany();
+      render(<CompanyOptionsSection />);
+
+      expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
+      expect(screen.getByTestId('ping-controls-drawer-stub')).toBeTruthy();
+      expect(screen.getByTestId('ping-contour-drawer-stub')).toBeTruthy();
+      expect(screen.getByTestId('signature-array-drawer-stub')).toBeTruthy();
+    });
+
+    it('with section={null}, renders all 4 sections — the bare "All Probes" node before a leaf is chosen', () => {
+      selectActiveCompany();
+      render(<CompanyOptionsSection section={null} />);
+
+      expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
+      expect(screen.getByTestId('ping-controls-drawer-stub')).toBeTruthy();
+      expect(screen.getByTestId('ping-contour-drawer-stub')).toBeTruthy();
+      expect(screen.getByTestId('signature-array-drawer-stub')).toBeTruthy();
+    });
+
+    it('with section="volume", renders only AudioSettingSection', () => {
+      selectActiveCompany();
+      render(<CompanyOptionsSection section="volume" />);
+
+      expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
+      expect(screen.queryByTestId('ping-controls-drawer-stub')).toBeNull();
+      expect(screen.queryByTestId('ping-contour-drawer-stub')).toBeNull();
+      expect(screen.queryByTestId('signature-array-drawer-stub')).toBeNull();
+    });
+
+    it('with section="melody", renders only PingControlsDrawer', () => {
+      selectActiveCompany();
+      render(<CompanyOptionsSection section="melody" />);
+
+      expect(screen.getByTestId('ping-controls-drawer-stub')).toBeTruthy();
+      expect(screen.queryByTestId('audio-setting-section-stub')).toBeNull();
+      expect(screen.queryByTestId('ping-contour-drawer-stub')).toBeNull();
+      expect(screen.queryByTestId('signature-array-drawer-stub')).toBeNull();
+    });
+
+    it('with section="envelope", renders only PingContourDrawer', () => {
+      selectActiveCompany();
+      render(<CompanyOptionsSection section="envelope" />);
+
+      expect(screen.getByTestId('ping-contour-drawer-stub')).toBeTruthy();
+      expect(screen.queryByTestId('audio-setting-section-stub')).toBeNull();
+      expect(screen.queryByTestId('ping-controls-drawer-stub')).toBeNull();
+      expect(screen.queryByTestId('signature-array-drawer-stub')).toBeNull();
+    });
+
+    it('with section="source", renders only SignatureArrayDrawer', () => {
+      selectActiveCompany();
+      render(<CompanyOptionsSection section="source" />);
+
+      expect(screen.getByTestId('signature-array-drawer-stub')).toBeTruthy();
+      expect(screen.queryByTestId('audio-setting-section-stub')).toBeNull();
+      expect(screen.queryByTestId('ping-controls-drawer-stub')).toBeNull();
+      expect(screen.queryByTestId('ping-contour-drawer-stub')).toBeNull();
+    });
+
+    it('narrowed to section="volume" under allRobotsSelected still broadcasts applyVolume once per robot in the locale (Task 19 AC2 — the "All Probes" bulk-edit target)', () => {
+      const r1 = makeRobot({ id: 'r1', companyId: 'c1' });
+      const r2 = makeRobot({ id: 'r2', companyId: undefined }); // Freelance
+      useLocaleStore.getState().addRobot(localeId, r1);
+      useLocaleStore.getState().addRobot(localeId, r2);
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
+      useUIStore.getState().selectAllRobots();
+      const applyVolumeSpy = vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
+
+      render(<CompanyOptionsSection section="volume" />);
+      fireEvent.click(screen.getByText('probe-volume'));
+
+      expect(applyVolumeSpy).toHaveBeenCalledTimes(2);
+      expect(applyVolumeSpy.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
+    });
+  });
 });

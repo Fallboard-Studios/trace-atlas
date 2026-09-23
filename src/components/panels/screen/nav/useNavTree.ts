@@ -134,6 +134,7 @@ export function useNavTree(): UseNavTreeResult {
   const expandedCompanyId = useUIStore((s) => s.expandedCompanyId);
   const expandedFleetParamsGroup = useUIStore((s) => s.expandedFleetParamsGroup);
   const expandedTopLevelBranch = useUIStore((s) => s.expandedTopLevelBranch);
+  const allProbesSelected = useUIStore((s) => s.allProbesSelected);
 
   const setActiveHubTile = useUIStore((s) => s.setActiveHubTile);
   const selectRobot = useUIStore((s) => s.selectRobot);
@@ -146,6 +147,7 @@ export function useNavTree(): UseNavTreeResult {
   const setExpandedCompanyId = useUIStore((s) => s.setExpandedCompanyId);
   const setExpandedFleetParamsGroup = useUIStore((s) => s.setExpandedFleetParamsGroup);
   const setExpandedTopLevelBranch = useUIStore((s) => s.setExpandedTopLevelBranch);
+  const setAllProbesSelected = useUIStore((s) => s.setAllProbesSelected);
 
   const nodes = useMemo(
     () =>
@@ -175,14 +177,17 @@ export function useNavTree(): UseNavTreeResult {
     if (branch === 'probes') {
       setActiveHubTile('robots');
       if (!entityId) {
+        setAllProbesSelected(false);
         selectRobot(null);
         setSelectedSection(null);
         return;
       }
       if (entityId === 'all') {
+        setAllProbesSelected(true);
         selectAllRobots();
         selectRobot(null);
       } else {
+        setAllProbesSelected(false);
         selectRobot(entityId);
       }
       setSelectedSection(asRobotSection(section));
@@ -253,13 +258,9 @@ export function useNavTree(): UseNavTreeResult {
       return activeHubTile === 'audioRig' && selectedFleetParamsEffect === asFleetParamsEffectKey(section);
     }
     if (branch === 'probes') {
-      if (!entityId) return activeHubTile === 'robots' && selectedRobotId === null;
-      // 'probes.all' vs the bare 'probes' browse view currently read identical
-      // underlying state when nothing else distinguishes them (both need
-      // selectedRobotId === null) — Task 19 is specifically scoped to give
-      // "All Probes" its own real selection signal.
+      if (!entityId) return activeHubTile === 'robots' && selectedRobotId === null && !allProbesSelected;
       if (entityId === 'all') {
-        return activeHubTile === 'robots' && selectedRobotId === null && selectedSection === wantedSection;
+        return activeHubTile === 'robots' && allProbesSelected && selectedSection === wantedSection;
       }
       return activeHubTile === 'robots' && selectedRobotId === entityId && selectedSection === wantedSection;
     }

@@ -6,7 +6,7 @@ import { PingControlsDrawer, type PingControlsValue } from '@/components/robot/P
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
 import { SignatureArrayDrawer, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
-import { useUIStore } from '@/stores/uiStore';
+import { useUIStore, type RobotSection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { regenerateMelody } from '@/engine/regenerateMelody';
@@ -54,6 +54,7 @@ const SPECTRAL_STYLE = getTraitColorStyle('spectral');
  */
 export function RobotOptionsTab() {
   const selectedRobotId = useUIStore((s) => s.selectedRobotId);
+  const selectedSection = useUIStore((s) => s.selectedSection);
 
   // Localize the active locale id and look up the selected robot safely.
   // Call hooks unconditionally to satisfy the rules-of-hooks linter.
@@ -77,12 +78,17 @@ export function RobotOptionsTab() {
     return <div className="robot-options-empty">Robot not found</div>;
   }
 
-  return <RobotOptionsPanel robot={robot} localeId={localeId} />;
+  return <RobotOptionsPanel robot={robot} localeId={localeId} section={selectedSection} />;
 }
 
 interface RobotOptionsPanelProps {
   robot: Robot;
   localeId: string;
+  /** Which of the robot's 4 leaf sections to show — null shows RobotDisplaySection alone (the
+   *  bare "Probe N" tree node). Added Task 19 (docs/tasks/NAV_LAYOUT_REWRITE.md), spec §2's
+   *  Node → Content Mapping table: exactly one of the 5 sections renders at a time now, not all
+   *  5 stacked. */
+  section: RobotSection | null;
 }
 
 /**
@@ -110,7 +116,7 @@ interface RobotOptionsPanelProps {
  * instead of closing over `robot`, keyed only on `[robot.id, localeId]` — stable for the life of
  * this component instance.
  */
-function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
+function RobotOptionsPanel({ robot, localeId, section }: RobotOptionsPanelProps) {
   const latestRobot = useRef(robot);
   useEffect(() => {
     latestRobot.current = robot;
@@ -169,42 +175,64 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   const handleLayersStructuralChange = useCallback((layers: SignatureArrayValue['layers']) => applyLayersStructural(latestRobot.current, localeId, layers), [localeId]);
   const handleLayerLfoChange = useCallback((target: Parameters<typeof applyLayerLfo>[2], value: LfoValue) => applyLayerLfo(latestRobot.current, localeId, target, value), [localeId]);
 
+  let content;
+  switch (section) {
+    case 'volume':
+      content = (
+        <AudioSettingSection
+          value={audioSettingValue}
+          onAudioModeChange={handleAudioModeChange}
+          onVolumeChange={handleVolumeChange}
+          onVolumeLfoChange={handleVolumeLfoChange}
+          volumeLfoHeldOff={volumeLfoHeldOff}
+          style={OUTPUT_STYLE}
+        />
+      );
+      break;
+    case 'melody':
+      content = (
+        <PingControlsDrawer
+          value={pingControlsValue}
+          onDensityChange={handleDensityChange}
+          onMotifLengthChange={handleMotifLengthChange}
+          onPitchRepeatChange={handlePitchRepeatChange}
+          onOctaveMinChange={handleOctaveMinChange}
+          onOctaveMaxChange={handleOctaveMaxChange}
+          onNoteVarianceChange={handleNoteVarianceChange}
+          onResetMelody={handleResetMelody}
+          onClickTrackActiveChange={handleClickTrackActiveChange}
+          style={COMPOSITION_STYLE}
+        />
+      );
+      break;
+    case 'envelope':
+      content = (
+        <PingContourDrawer
+          value={robot.audioAttributes.adsr}
+          onChange={handleAdsrChange}
+          style={TIME_SPACE_STYLE}
+        />
+      );
+      break;
+    case 'source':
+      content = (
+        <SignatureArrayDrawer
+          value={signatureArrayValue}
+          onContinuousChange={handleLayersContinuousChange}
+          onStructuralChange={handleLayersStructuralChange}
+          onLfoChange={handleLayerLfoChange}
+          heldOffTargets={heldOffTargets}
+          style={SPECTRAL_STYLE}
+        />
+      );
+      break;
+    default:
+      content = <RobotDisplaySection robot={robot} />;
+  }
+
   return (
     <div className="robot-options" style={robotColorStyle}>
-      <RobotDisplaySection robot={robot} />
-      <AudioSettingSection
-        value={audioSettingValue}
-        onAudioModeChange={handleAudioModeChange}
-        onVolumeChange={handleVolumeChange}
-        onVolumeLfoChange={handleVolumeLfoChange}
-        volumeLfoHeldOff={volumeLfoHeldOff}
-        style={OUTPUT_STYLE}
-      />
-      <PingControlsDrawer
-        value={pingControlsValue}
-        onDensityChange={handleDensityChange}
-        onMotifLengthChange={handleMotifLengthChange}
-        onPitchRepeatChange={handlePitchRepeatChange}
-        onOctaveMinChange={handleOctaveMinChange}
-        onOctaveMaxChange={handleOctaveMaxChange}
-        onNoteVarianceChange={handleNoteVarianceChange}
-        onResetMelody={handleResetMelody}
-        onClickTrackActiveChange={handleClickTrackActiveChange}
-        style={COMPOSITION_STYLE}
-      />
-      <PingContourDrawer
-        value={robot.audioAttributes.adsr}
-        onChange={handleAdsrChange}
-        style={TIME_SPACE_STYLE}
-      />
-      <SignatureArrayDrawer
-        value={signatureArrayValue}
-        onContinuousChange={handleLayersContinuousChange}
-        onStructuralChange={handleLayersStructuralChange}
-        onLfoChange={handleLayerLfoChange}
-        heldOffTargets={heldOffTargets}
-        style={SPECTRAL_STYLE}
-      />
+      {content}
     </div>
   );
 }

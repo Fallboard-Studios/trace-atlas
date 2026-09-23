@@ -4,18 +4,12 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { ConsolePanel } from './ConsolePanel';
 import { useUIStore } from '@/stores/uiStore';
 
-// RobotsTab/RobotOptionsTab pull in real Tone.js/AudioEngine and GSAP, both of
-// which throw in this jsdom test environment — the same boundary
-// ScreenViewport.test.tsx draws around its Tone/GSAP-touching children. This
-// test is about ConsolePanel's own grid/tile/nested-detail switch, not about
-// re-testing those components.
-vi.mock('./RobotsTab', () => ({
-  RobotsTab: () => <div data-testid="robots-list-stub" />,
-  default: () => <div data-testid="robots-list-stub" />,
-}));
-vi.mock('./RobotOptionsTab', () => ({
-  RobotOptionsTab: () => <div data-testid="robot-options-stub" />,
-  default: () => <div data-testid="robot-options-stub" />,
+// ProbesContent has its own full test suite (ProbesContent.test.tsx,
+// docs/tasks/NAV_LAYOUT_REWRITE.md Task 19) — this file is about ConsolePanel's own tile
+// switch, not re-testing its content.
+vi.mock('../nav/content/ProbesContent', () => ({
+  ProbesContent: () => <div data-testid="probes-content-stub" />,
+  default: () => <div data-testid="probes-content-stub" />,
 }));
 // FleetParamsContent has its own full test suite (FleetParamsContent.test.tsx,
 // docs/tasks/NAV_LAYOUT_REWRITE.md Task 14) — this file is about ConsolePanel's own tile
@@ -57,19 +51,19 @@ describe('ConsolePanel', () => {
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
   });
 
-  it('renders RobotsTab (the list) when robots is active and no robot is selected, with no Back button — Header\'s nav already gets back to the blank hub from here', () => {
+  it('renders ProbesContent when robots is active and no robot is selected, with no Back button — Header\'s nav already gets back to the blank hub from here', () => {
     useUIStore.getState().setActiveHubTile('robots');
     useUIStore.getState().selectRobot(null);
     render(<ConsolePanel />);
-    expect(screen.getByTestId('robots-list-stub')).toBeTruthy();
+    expect(screen.getByTestId('probes-content-stub')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
   });
 
-  it('renders RobotOptionsTab (the robot detail view) with a Back button when robots is active and a robot is selected — the one nesting level Header\'s nav has no direct equivalent for', () => {
+  it('renders ProbesContent with a Back button when robots is active and a robot is selected — the one nesting level Header\'s nav has no direct equivalent for (ProbesContent itself, not ConsolePanel, decides what to show for a selected robot — Task 19)', () => {
     useUIStore.getState().setActiveHubTile('robots');
     useUIStore.getState().selectRobot('r1');
     render(<ConsolePanel />);
-    expect(screen.getByTestId('robot-options-stub')).toBeTruthy();
+    expect(screen.getByTestId('probes-content-stub')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Back' })).toBeTruthy();
   });
 

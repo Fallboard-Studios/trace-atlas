@@ -190,6 +190,34 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
     expect(useUIStore.getState().activeHubTile).toBe('robots');
   });
 
+  it('selecting probes.all sets allProbesSelected — disambiguates it from the bare "probes" browse list (Task 19)', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('probes.all'));
+
+    expect(useUIStore.getState().allProbesSelected).toBe(true);
+  });
+
+  it('selecting the bare "probes" parent clears allProbesSelected — back to the browse list, not All Probes', () => {
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('probes.all'));
+
+    act(() => result.current.select('probes'));
+
+    expect(useUIStore.getState().allProbesSelected).toBe(false);
+  });
+
+  it('selecting a specific probes.<id> clears allProbesSelected', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('probes.all'));
+
+    act(() => result.current.select('probes.r1'));
+
+    expect(useUIStore.getState().allProbesSelected).toBe(false);
+    expect(useUIStore.getState().selectedRobotId).toBe('r1');
+  });
+
   it('selecting a Settings leaf (settings.volume) sets activeHubTile and selectedSettingsLeaf (Task 11)', () => {
     const { result } = renderHook(() => useNavTree());
 
@@ -257,6 +285,48 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
     act(() => result.current.select('fleetParams.output.limiter'));
     act(() => result.current.select('fleetParams.eqFilters'));
     expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
+  });
+});
+
+describe('useNavTree — isSelected disambiguates bare "probes" (browse list) from "probes.all" (All Probes bulk-edit) via allProbesSelected (Task 19)', () => {
+  beforeEach(resetStores);
+
+  it('neither is selected before anything is chosen', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    expect(result.current.isSelected('probes')).toBe(false);
+    expect(result.current.isSelected('probes.all')).toBe(false);
+  });
+
+  it('after selecting probes.all, isSelected is true for "probes.all" and false for bare "probes"', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('probes.all'));
+
+    expect(result.current.isSelected('probes.all')).toBe(true);
+    expect(result.current.isSelected('probes')).toBe(false);
+  });
+
+  it('after selecting the bare "probes" browse list, isSelected is true for "probes" and false for "probes.all"', () => {
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('probes.all'));
+
+    act(() => result.current.select('probes'));
+
+    expect(result.current.isSelected('probes')).toBe(true);
+    expect(result.current.isSelected('probes.all')).toBe(false);
+  });
+
+  it('after selecting a specific robot, neither "probes" nor "probes.all" is selected', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('probes.all'));
+
+    act(() => result.current.select('probes.r1'));
+
+    expect(result.current.isSelected('probes')).toBe(false);
+    expect(result.current.isSelected('probes.all')).toBe(false);
+    expect(result.current.isSelected('probes.r1')).toBe(true);
   });
 });
 
