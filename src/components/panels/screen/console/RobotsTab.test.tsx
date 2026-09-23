@@ -204,6 +204,80 @@ describe('RobotsTab', () => {
     });
   });
 
+  // Bugfix, found in code review (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20) — deleting
+  // RobotFilterPanel/CompanyButtonRow removed the only UI that both set AND visibly showed the
+  // active company filter. Without this indicator, a filter set earlier (via the Companies tree
+  // branch) silently shortens this list with no way to tell why, or to reset it from here — the
+  // old empty-state message only explained a fully-empty filtered result, never a partial one.
+  describe('active filter indicator', () => {
+    function seedRobotsAndCompany() {
+      useLocaleStore.getState().addRobot(localeId, { ...makeRobot('r1', 'Alpha'), companyId: 'c1' } as unknown as Robot);
+      useLocaleStore.getState().addRobot(localeId, makeRobot('r2', 'Beta') as unknown as Robot);
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
+    }
+
+    it('shows no indicator when All is selected (the default) — nothing filtered, nothing to show', () => {
+      resetStores();
+      useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+      seedRobotsAndCompany();
+
+      render(<RobotsTab />);
+
+      expect(screen.queryByText(/Filtered by/)).toBeNull();
+      expect(screen.queryByRole('button', { name: /clear filter/i })).toBeNull();
+    });
+
+    it('names the active company filter, with members present', () => {
+      resetStores();
+      useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+      seedRobotsAndCompany();
+      useUIStore.getState().selectCompany('c1');
+
+      render(<RobotsTab />);
+
+      expect(screen.getByText('Filtered by Iron Consortium')).toBeTruthy();
+    });
+
+    it('also shows when the filtered result is empty — not just the existing empty-state message', () => {
+      resetStores();
+      useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+      useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Alpha') as unknown as Robot);
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
+      useUIStore.getState().selectCompany('c1');
+
+      render(<RobotsTab />);
+
+      expect(screen.getByText('Filtered by Iron Consortium')).toBeTruthy();
+      expect(screen.getByRole('button', { name: /clear filter/i })).toBeTruthy();
+    });
+
+    it('clicking Clear Filter reverts to showing every robot', () => {
+      resetStores();
+      useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+      seedRobotsAndCompany();
+      useUIStore.getState().selectCompany('c1');
+      const { container } = render(<RobotsTab />);
+
+      fireEvent.click(screen.getByRole('button', { name: /clear filter/i }));
+
+      expect(useUIStore.getState().selectedCompanyId).toBeNull();
+      expect(useUIStore.getState().allRobotsSelected).toBe(true);
+      expect(Array.from(container.querySelectorAll('.robot-selection-card__name')).map((el) => el.textContent)).toEqual(['Alpha', 'Beta']);
+    });
+
+    it('clicking Clear Filter removes the indicator itself', () => {
+      resetStores();
+      useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+      seedRobotsAndCompany();
+      useUIStore.getState().selectCompany('c1');
+      render(<RobotsTab />);
+
+      fireEvent.click(screen.getByRole('button', { name: /clear filter/i }));
+
+      expect(screen.queryByText(/Filtered by/)).toBeNull();
+    });
+  });
+
   describe('re-render cascade regression (docs/todo/backlog.md #27 follow-up, 2026-09-15)', () => {
     // The end-to-end proof this whole fix exists for: `updateRobot` (localeStore.ts) hands back a
     // new top-level `robots` array reference on every write to ANY robot in the locale (battery

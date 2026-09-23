@@ -1,10 +1,16 @@
 import { useRef } from 'react';
 import { RobotSelectionCard } from '@/components/selection/RobotSelectionCard';
+import { Button } from '@/components/ui/controls/Button';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { filterRobotsByCompanyFocus } from '@/utils/robotListFilter';
+import type { ButtonSchema } from '@/types/controls';
 import './RobotsTab.css';
+
+// Plain schema constant, no domain config file — this is console-screen chrome (a filter reset
+// action), the same pattern ConsolePanel.tsx's own BACK_SCHEMA already uses.
+const CLEAR_FILTER_SCHEMA: ButtonSchema = { id: 'robotsTab.clearFilter', type: 'button', loreLabel: 'RESET UNIT ROSTER', humanLabel: 'Clear Filter' };
 
 interface RosterEntry {
   id: string;
@@ -65,17 +71,31 @@ function useRobotRoster(localeId: string): RosterEntry[] {
  * the bottom of this tab. This IS a real workflow change from before (filtering the robot list by
  * company now means a trip to the Companies branch first), a deliberate trade-off Crawford
  * confirmed rather than keeping a duplicate filter control here.
+ *
+ * Found in code review: deleting RobotFilterPanel/CompanyButtonRow removed the only UI that both
+ * set AND visibly showed the active filter — without it, a filter set earlier from the Companies
+ * branch would silently shorten this list with no indication why, and no way back except another
+ * trip to the tree. The "Filtered by {name}"/Clear Filter row below closes that gap without
+ * reintroducing the deleted button-row UI: it's a read-only indicator plus one reset action, not
+ * a company picker.
  */
 export function RobotsTab() {
   const localeId = getActiveLocaleId();
   const roster = useRobotRoster(localeId);
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
+  const selectAllRobots = useUIStore((s) => s.selectAllRobots);
   const filteredRoster = filterRobotsByCompanyFocus(roster, selectedCompanyId);
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
 
   return (
     <div className="robots-tab" role="region" aria-label="Robots">
+      {selectedCompany && (
+        <div className="robots-tab__filter">
+          <span className="robots-tab__filter-label">Filtered by {selectedCompany.name}</span>
+          <Button schema={CLEAR_FILTER_SCHEMA} onClick={selectAllRobots} />
+        </div>
+      )}
       {filteredRoster.length === 0 && selectedCompany ? (
         // A real company selected, filtered down to zero members — explain the empty space
         // rather than rendering a bare, unexplained empty list. All/Reset never filters, so

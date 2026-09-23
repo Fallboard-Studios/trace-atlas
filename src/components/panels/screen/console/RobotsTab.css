@@ -31,3 +31,13 @@
   text-align: center;
   color: var(--color-text-muted);
 }
+
+.robots-tab__filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.robots-tab__filter-label {
+  color: var(--color-text-muted);
+}

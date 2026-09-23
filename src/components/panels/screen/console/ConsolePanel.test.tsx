@@ -97,4 +97,19 @@ describe('ConsolePanel', () => {
     expect(useUIStore.getState().selectedRobotId).toBeNull();
     expect(useUIStore.getState().activeHubTile).toBe('robots');
   });
+
+  // Bugfix, found in code review — Back used to clear only selectedRobotId, leaving a section
+  // left open on the robot being left (e.g. Volume) stuck in state; picking a different robot
+  // from the browse list that Back returns to would then show that stale section's content
+  // instead of RobotDisplaySection. Now fixed at the uiStore.selectRobot level (see its own
+  // comment), so this is a regression guard on the Back button specifically, not the fix itself.
+  it('back from a selected robot\'s editor also clears selectedSection — a stale leaf must not leak onto the next robot picked from the list', () => {
+    useUIStore.getState().setActiveHubTile('robots');
+    useUIStore.getState().selectRobot('r1');
+    useUIStore.getState().setSelectedSection('volume');
+    render(<ConsolePanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(useUIStore.getState().selectedSection).toBeNull();
+  });
 });

@@ -165,6 +165,28 @@ describe('uiStore — selectedSection (docs/specs/NAV_LAYOUT_REWRITE.md §1.3)',
     expect(useUIStore.getState().selectedCompanyId).toBe('company-0-abc');
     expect(useUIStore.getState().selectedSection).toBe('source');
   });
+
+  // Bugfix, found in code review (docs/tasks/NAV_LAYOUT_REWRITE.md work) — selectRobot is called
+  // directly, outside useNavTree's own select() (which always follows it with a fresh
+  // setSelectedSection call), from two real, non-tree sites: RobotSelectionCard's browse-list
+  // click and ConsolePanel's inline Back button. Without this reset, a section left open on a
+  // previously-viewed robot (e.g. Volume) leaked onto the next robot picked from the browse list,
+  // showing its AudioSettingSection instead of RobotDisplaySection on first click. Fixed at the
+  // store level, not at each call site, so no future non-tree caller can reintroduce the same gap
+  // — useNavTree.select() itself calls setSelectedSection right after selectRobot, which still
+  // wins (last write), so tree-driven selection is unaffected.
+  it('selectRobot(id) resets selectedSection to null — switching which robot is selected always drops a previously-open leaf', () => {
+    useUIStore.getState().setSelectedSection('volume');
+    useUIStore.getState().selectRobot('robot-1-def');
+    expect(useUIStore.getState().selectedSection).toBeNull();
+  });
+
+  it('selectRobot(null) (the Back button case) also resets selectedSection', () => {
+    useUIStore.getState().selectRobot('robot-0-xyz');
+    useUIStore.getState().setSelectedSection('envelope');
+    useUIStore.getState().selectRobot(null);
+    expect(useUIStore.getState().selectedSection).toBeNull();
+  });
 });
 
 describe('uiStore — isNavPanelOpen (mobile-only nav slide state, docs/specs/NAV_LAYOUT_REWRITE.md §1.3)', () => {

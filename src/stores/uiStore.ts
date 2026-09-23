@@ -99,6 +99,7 @@ export interface UIStore {
   setFullscreen: (f: boolean) => void;
   setPowerOn: () => void;
   setPowerOff: () => void;
+  /** Also resets selectedSection to null — see its own implementation comment. */
   selectRobot: (id: string | null) => void;
   selectCompany: (id: string) => void;
   selectAllRobots: () => void;
@@ -153,7 +154,15 @@ export const useUIStore = create<UIStore>((set) => ({
   setPowerOn: () => set({ isPoweredOn: true }),
   setPowerOff: () => set({ isPoweredOn: false }),
   setActiveLocaleLocalTime: (t) => set({ activeLocaleLocalTime: t }),
-  selectRobot: (id) => set({ selectedRobotId: id }),
+  // Bugfix, found in code review — resets selectedSection whenever which robot is selected
+  // changes (including to null, the Back-button/browse-list case), closing a gap the 2 non-tree
+  // call sites (RobotSelectionCard's card click, ConsolePanel's Back button) both had: neither
+  // followed selectRobot with its own setSelectedSection(null) the way useNavTree.select() always
+  // does for tree-driven selection, so a section left open on a previously-viewed robot leaked
+  // onto the next one picked from the browse list. useNavTree.select() itself calls
+  // setSelectedSection right after selectRobot, which still wins (last write) — tree-driven
+  // selection is unaffected by this reset.
+  selectRobot: (id) => set({ selectedRobotId: id, selectedSection: null }),
   selectCompany: (id) => set({ selectedCompanyId: id, allRobotsSelected: false }),
   selectAllRobots: () => set({ allRobotsSelected: true, selectedCompanyId: null }),
   clearSelectedCompany: () => set({ selectedCompanyId: null }),

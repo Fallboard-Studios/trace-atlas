@@ -35,9 +35,14 @@
   color: var(--color-text-muted);
 }
 
+/* Explicit z-index, matching this codebase's own layering convention (Header uses --z-header:
+   40, NavToggleButton uses 10) rather than relying only on Radix's Portal rendering after #root
+   in <body> — that DOM-order stacking is correct today (neither #root nor <body> establishes a
+   competing stacking context), but an explicit value here doesn't depend on that staying true. */
 .company-delete-confirm__overlay {
   position: fixed;
   inset: 0;
+  z-index: 100;
   background: rgb(0 0 0 / 60%);
 }
 
@@ -45,6 +50,7 @@
   position: fixed;
   top: 50%;
   left: 50%;
+  z-index: 100;
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;

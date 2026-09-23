@@ -90,7 +90,7 @@ function useIdentityRoster(localeId: string, key: 'robots' | 'companies'): Ident
     const next = (s.locales[localeId]?.[key] ?? []).map((entry) => ({
       id: entry.id,
       name: entry.name,
-      color: (entry as { color?: string }).color,
+      color: 'color' in entry ? entry.color : undefined,
     }));
     if (identityRosterEqual(prevRef.current, next)) return prevRef.current;
     prevRef.current = next;
