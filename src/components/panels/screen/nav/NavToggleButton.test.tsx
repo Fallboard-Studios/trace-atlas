@@ -28,13 +28,13 @@ describe('NavToggleButton — persistent mobile reopen affordance (docs/tasks/NA
   it('renders on mobile', () => {
     stubMatchMedia(true);
     render(<NavToggleButton />);
-    expect(screen.queryByRole('button')).toBeTruthy();
+    expect(screen.queryByRole('switch')).toBeTruthy();
   });
 
   it('does not render above the mobile breakpoint', () => {
     stubMatchMedia(false);
     render(<NavToggleButton />);
-    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('switch')).toBeNull();
   });
 
   it('clicking it toggles isNavPanelOpen', () => {
@@ -42,21 +42,21 @@ describe('NavToggleButton — persistent mobile reopen affordance (docs/tasks/NA
     useUIStore.getState().setNavPanelOpen(false);
     render(<NavToggleButton />);
 
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByRole('switch'));
     expect(useUIStore.getState().isNavPanelOpen).toBe(true);
 
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByRole('switch'));
     expect(useUIStore.getState().isNavPanelOpen).toBe(false);
   });
 
-  it("aria-expanded reflects the panel's current open/closed state", () => {
+  it("aria-checked reflects the panel's current open/closed state (Toggle/Radix Switch, not aria-expanded)", () => {
     stubMatchMedia(true);
     useUIStore.getState().setNavPanelOpen(false);
     render(<NavToggleButton />);
 
-    expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false');
 
-    fireEvent.click(screen.getByRole('button'));
-    expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(screen.getByRole('switch'));
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true');
   });
 });

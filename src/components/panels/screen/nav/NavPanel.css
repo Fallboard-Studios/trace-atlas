@@ -1,3 +1,24 @@
 .nav-panel {
   will-change: transform;
+  display: flex;
+  width: fit-content;
+  position: relative;
+  top: 32px;
+  left: 16px;
+}
+
+/* Oblique Cabinetry facade wrapper — only ever rendered as .nav-panel's one
+   child (NavPanel.tsx). display: block + height: auto (overriding
+   CabinetBox.css's own fixed height: var(--cabinet-box-height) default by
+   selector specificity) lets the front face size itself to NavTree's own
+   real content height, matching autoHeight's expectation — same pattern
+   DirectionalPanel.css uses for its own facade. Padding moved here from
+   .nav-panel itself (was padding: var(--spacing-lg) directly on the
+   sliding/inert panel) so it frames the box's real content instead of the
+   slide-transform host. */
+.nav-panel>.sc-cabinet-box>.sc-cabinet-box__front {
+  display: block;
+  width: auto;
+  height: auto;
+  padding: 64px var(--spacing-lg) var(--spacing-lg);
 }

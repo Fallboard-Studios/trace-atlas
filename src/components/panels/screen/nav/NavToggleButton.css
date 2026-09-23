@@ -1,4 +1,5 @@
 .nav-toggle-button {
   position: fixed;
   z-index: 10;
+  top: calc(var(--power-corner-height) + 32px);
 }

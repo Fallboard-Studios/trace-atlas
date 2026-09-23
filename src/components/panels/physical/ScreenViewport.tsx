@@ -20,8 +20,8 @@ function ScreenViewport({ isPoweredOn }: ScreenViewportProps) {
       <div className="screen-content">
         {isPoweredOn && <Header />}
         {isPoweredOn && <WorldView />}
-        {isPoweredOn && <NavPanel />}
         {isPoweredOn && <NavToggleButton />}
+        {isPoweredOn && <NavPanel />}
         {isPoweredOn && <ContentPane />}
       </div>
 

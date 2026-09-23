@@ -43,7 +43,7 @@
 
   /* Power Rocker layout */
   --power-switch-coefficient: 70px;
-  --power-switch-width: 50px;
+  --power-switch-width: 55px;
   --power-switch-height: calc(var(--power-switch-width) * 2);
   /* --power-corner-margin-coefficient: calc(var(--power-switch-width) * (20px / var(--power-switch-coefficient))); */
   --power-corner-margin-width: 10px;
@@ -101,6 +101,7 @@
   --spacing-sm: 8px;
   --spacing-md: 12px;
   --spacing-lg: 16px;
+  --spacing-xl: 24px;
   --transport-separator-height: 24px;
 
   /* SliderLinear/SliderLog/SliderCenteredZero's default vertical track height

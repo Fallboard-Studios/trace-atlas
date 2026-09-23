@@ -1,6 +1,14 @@
 import { ConsolePanel } from './ConsolePanel';
+import { Button } from '@/components/ui/controls/Button';
 import { useUIStore } from '@/stores/uiStore';
+import type { ButtonSchema } from '@/types/controls';
 import './ContentPane.css';
+
+// Same schema-driven Button primitive ConsolePanel.tsx's own Back button
+// uses (BACK_SCHEMA there) — this control gets the identical Oblique
+// Cabinetry facade/accessible-name/disabled handling instead of a bare
+// `<button>`.
+const CLOSE_SCHEMA: ButtonSchema = { id: 'contentPaneClose', type: 'button', humanLabel: 'Close' };
 
 /**
  * Repurposed from Console.tsx (spec §7 Q6, docs/specs/NAV_LAYOUT_REWRITE.md Task 8) — the single
@@ -31,9 +39,9 @@ export function ContentPane() {
 
   return (
     <div className="content-pane">
-      <button type="button" className="content-pane__close" onClick={handleClose}>
-        Close
-      </button>
+      <div className="content-pane__close">
+        <Button schema={CLOSE_SCHEMA} onClick={handleClose} />
+      </div>
       <ConsolePanel />
     </div>
   );

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { NavTree } from './NavTree';
+import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { useCabinetTier } from '@/components/ui/controls/useCabinetBoxHeight';
 import { useUIStore } from '@/stores/uiStore';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
@@ -78,7 +79,16 @@ export function NavPanel() {
 
   return (
     <div className="nav-panel" data-testid="nav-panel" data-open={open} ref={panelRef} inert={isMobile && !isOpen ? true : undefined}>
-      <NavTree />
+      {/* Oblique Cabinetry facade — decorative only, matching DirectionalPanel's
+         and Header's own top-level facade (permanently popped, non-animating:
+         `popped` + `skipMountAnimation` + `autoHeight`). Nested inside
+         .nav-panel rather than replacing it — .nav-panel itself stays the
+         GSAP slide target (panelRef, xPercent) and inert/data-open host, none
+         of which this facade participates in. See DirectionalPanel.tsx's own
+         comment and docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */}
+      <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-nav-panel-facade">
+        <NavTree />
+      </CabinetBox>
     </div>
   );
 }

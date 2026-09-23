@@ -11,8 +11,6 @@
   pointer-events: none;
   z-index: calc(var(--z-header) - 1);
   background: var(--color-sleeve);
-  /* Right-edge highlight on the straight sections above/below the jut */
-
 }
 
 .sleeve-container::after {
@@ -39,18 +37,19 @@
    top of the tablet — see Tablet.css's position: relative (the containing
    block this positions against) and ScreenViewport.css's corner exclusion
    (Task 8). The corner is taller (--power-corner-height) than the base
-   64px sleeve bar, so the root's own height is overridden to match its
-   actual tallest content rather than leaving a stale 64px claim that
-   doesn't match what's inside it.
+   sleeve bar (a flat 8px, set below), so the root's own height is
+   overridden to match its actual tallest content rather than leaving a
+   stale claim that doesn't match what's inside it.
    The root inherits the base rule's solid background — that's fine at
-   the current --power-corner-width (a flat 200px, confirmed by Crawford):
-   it no longer spans the full tablet width, so the solid fill stays
-   scoped near the corner/strip's own footprint instead of painting a
-   rectangle across content further right. (An earlier version of this
-   rule set background: transparent to fix exactly that full-width case,
-   back when the sleeve still spanned 100% — no longer needed at 200px,
-   removed. If the sleeve's width ever goes back to spanning the full
-   tablet, this needs to come back too.) */
+   the current --power-corner-width (well under 100px, computed from
+   --power-switch-width): it no longer spans the full tablet width, so
+   the solid fill stays scoped near the corner/strip's own footprint
+   instead of painting a rectangle across content further right. (An
+   earlier version of this rule set background: transparent to fix
+   exactly that full-width case, back when the sleeve still spanned
+   100% — no longer needed now that the corner is narrow. If the
+   sleeve's width ever goes back to spanning the full tablet, this needs
+   to come back too.) */
 .sleeve-container--cutaway {
   position: absolute;
   top: 0;
