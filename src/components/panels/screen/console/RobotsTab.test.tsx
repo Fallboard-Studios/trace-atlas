@@ -204,56 +204,11 @@ describe('RobotsTab', () => {
     });
   });
 
-  // Roadmap: Robot Selection Filter Panel — CompanyManager no longer renders as a direct
-  // descendant of .robots-tab, beneath the list; it's nested inside the new RobotFilterPanel,
-  // which itself renders alongside (before) the list inside a shared .robots-tab__body row.
-  it('renders RobotFilterPanel (containing CompanyManager) before the robot card list, inside .robots-tab__body', () => {
-    resetStores();
-    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One') as unknown as Robot);
-
-    const { container } = render(<RobotsTab />);
-
-    const body = container.querySelector('.robots-tab__body');
-    const panel = container.querySelector('.robot-filter-panel');
-    const list = container.querySelector('.robots-tab__list');
-    const manager = container.querySelector('.company-manager');
-    expect(body).toBeTruthy();
-    expect(panel).toBeTruthy();
-    expect(list).toBeTruthy();
-    expect(manager).toBeTruthy();
-
-    // Both the panel and the list live inside .robots-tab__body, panel first.
-    expect(body!.contains(panel!)).toBe(true);
-    expect(body!.contains(list!)).toBe(true);
-    expect(panel!.compareDocumentPosition(list!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // CompanyManager is nested inside the panel, not a direct sibling of the list anymore.
-    expect(panel!.contains(manager!)).toBe(true);
-  });
-
-  // Roadmap: Robot Selection Filter Panel — CompanyOptionsSection moved out of CompanyManager to
-  // be RobotsTab's own direct child, in the same relative position CompanyManager used to render
-  // it (beneath the robot card list, following CompanyManager itself).
-  it('renders CompanyOptionsSection directly, following CompanyManager', () => {
-    resetStores();
-    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One') as unknown as Robot);
-
-    const { container } = render(<RobotsTab />);
-
-    const manager = container.querySelector('.company-manager');
-    const optionsSection = container.querySelector('.company-options-section');
-    expect(manager).toBeTruthy();
-    expect(optionsSection).toBeTruthy();
-    expect(manager!.compareDocumentPosition(optionsSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // Direct child of .robots-tab, not nested inside .company-manager anymore.
-    expect(container.querySelector('.company-manager .company-options-section')).toBeNull();
-  });
-
   describe('re-render cascade regression (docs/todo/backlog.md #27 follow-up, 2026-09-15)', () => {
     // The end-to-end proof this whole fix exists for: `updateRobot` (localeStore.ts) hands back a
     // new top-level `robots` array reference on every write to ANY robot in the locale (battery
     // ticks, audio swells, field edits), even though it preserves each untouched robot's own
     // object reference. Before this fix, RobotsTab subscribed to that whole array directly, so it
-    // (and everything statically composed beneath it — RobotFilterPanel, CompanyOptionsSection)
     // re-executed on every single one of those writes, regardless of whether the edited robot was
     // even visible in the current filter. useRobotRoster's own custom-equality selector should
     // make RobotsTab's own body bail unless the SET of robot ids or their companyId assignments

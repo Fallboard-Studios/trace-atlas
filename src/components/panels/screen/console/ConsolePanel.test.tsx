@@ -25,12 +25,12 @@ vi.mock('../nav/content/SettingsContent', () => ({
   SettingsContent: () => <div data-testid="settings-content-stub" />,
   default: () => <div data-testid="settings-content-stub" />,
 }));
-// CompanyManager has its own full test suite (CompanyManager.test.tsx) — this
-// is Task 1's placeholder 'companies' tile entry (docs/tasks/NAV_LAYOUT_REWRITE.md),
-// unchanged content, just a new HubTile value routed to it.
-vi.mock('@/components/company/CompanyManager', () => ({
-  CompanyManager: () => <div data-testid="company-manager-stub" />,
-  default: () => <div data-testid="company-manager-stub" />,
+// CompaniesContent has its own full test suite (CompaniesContent.test.tsx,
+// docs/tasks/NAV_LAYOUT_REWRITE.md Task 20) — this file is about ConsolePanel's own tile
+// switch, not re-testing its content.
+vi.mock('../nav/content/CompaniesContent', () => ({
+  CompaniesContent: () => <div data-testid="companies-content-stub" />,
+  default: () => <div data-testid="companies-content-stub" />,
 }));
 
 describe('ConsolePanel', () => {
@@ -81,10 +81,10 @@ describe('ConsolePanel', () => {
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
   });
 
-  it('renders CompanyManager when companies is active, with no Back button — Task 1 placeholder entry, real relocation is a later task', () => {
+  it('renders CompaniesContent when companies is active, with no Back button', () => {
     useUIStore.getState().setActiveHubTile('companies');
     render(<ConsolePanel />);
-    expect(screen.getByTestId('company-manager-stub')).toBeTruthy();
+    expect(screen.getByTestId('companies-content-stub')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
   });
 

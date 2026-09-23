@@ -1,4 +1,5 @@
 import { useNavTree } from './useNavTree';
+import { getRobotColorStyle } from '@/utils/traitColors';
 import type { NavTreeNodeSchema } from '@/data/navTreeConfig';
 import './NavTreeNode.css';
 
@@ -35,6 +36,7 @@ export function NavTreeNode({ node, depth, focusedId }: NavTreeNodeProps) {
       aria-level={depth}
       tabIndex={tabIndex}
       data-nav-node-id={node.id}
+      style={node.color ? getRobotColorStyle(node.color) : undefined}
     >
       <button type="button" className="nav-tree-node__name" onClick={() => select(node.id)}>
         {node.humanLabel}

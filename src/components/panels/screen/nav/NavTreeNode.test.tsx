@@ -124,3 +124,25 @@ describe('NavTreeNode — recursion (Task 4 AC3)', () => {
     expect(screen.queryByRole('button', { name: 'Volume' })).toBeNull();
   });
 });
+
+describe('NavTreeNode — company color-coding (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20, spec §7 Q3)', () => {
+  beforeEach(() => {
+    mockIsExpanded.mockReset().mockReturnValue(false);
+    mockIsSelected.mockReset().mockReturnValue(false);
+    mockSelect.mockReset();
+    mockToggleExpand.mockReset();
+  });
+
+  it('applies the node\'s own color as the row\'s accent style when set', () => {
+    const node: NavTreeNodeSchema = { id: 'companies.c1', humanLabel: 'Acme Corp', color: '#4f6d7a' };
+    render(<NavTreeNode node={node} depth={2} />);
+
+    expect(screen.getByRole('treeitem').style.getPropertyValue('--color-accent-a')).toBe('#4f6d7a');
+  });
+
+  it('leaves no accent style on a node with no color — every non-company node today', () => {
+    render(<NavTreeNode node={LEAF} depth={1} />);
+
+    expect(screen.getByRole('treeitem').style.getPropertyValue('--color-accent-a')).toBe('');
+  });
+});

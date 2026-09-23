@@ -24,6 +24,10 @@ export interface NavTreeNodeSchema {
   /** Key into whatever doc-content store the Q4 follow-up spec settles on —
    *  stubbed here, not wired (spec §7 Q4). */
   docId?: string;
+  /** Tree-row tint (Task 20, spec §7 Q3) — set only on a company's own top-level
+   *  companies.<id> node (its Company.color), never on that company's section
+   *  children. Every other branch/node leaves this undefined. */
+  color?: string;
 }
 
 export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [

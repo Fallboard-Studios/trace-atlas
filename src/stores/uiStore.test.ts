@@ -82,6 +82,31 @@ describe('uiStore — selectedCompanyId (Roadmap Phase 10)', () => {
   });
 });
 
+describe('uiStore — clearSelectedCompany (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — the bare "Companies" tree node)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('clears selectedCompanyId back to null', () => {
+    useUIStore.getState().selectCompany('company-0-abc');
+    useUIStore.getState().clearSelectedCompany();
+    expect(useUIStore.getState().selectedCompanyId).toBeNull();
+  });
+
+  it('never touches allRobotsSelected — distinct from selectAllRobots, a different concern (the Companies tree vs. the Robots tab\'s own company filter)', () => {
+    useUIStore.getState().selectCompany('company-0-abc'); // clears allRobotsSelected to false
+    useUIStore.getState().clearSelectedCompany();
+    expect(useUIStore.getState().allRobotsSelected).toBe(false);
+  });
+
+  it('is a no-op on selectedRobotId', () => {
+    useUIStore.getState().selectRobot('robot-0-xyz');
+    useUIStore.getState().selectCompany('company-0-abc');
+    useUIStore.getState().clearSelectedCompany();
+    expect(useUIStore.getState().selectedRobotId).toBe('robot-0-xyz');
+  });
+});
+
 describe('uiStore — allRobotsSelected ("All" button in the company row)', () => {
   beforeEach(() => {
     useUIStore.setState(INITIAL_STATE, true);

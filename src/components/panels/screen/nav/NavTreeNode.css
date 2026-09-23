@@ -1,3 +1,13 @@
+.nav-tree-node {
+  /* Company rows only (Task 20, spec §7 Q3) — getRobotColorStyle sets --color-accent-a inline on
+     a company's own row when node.color is present. Custom properties inherit by default, which
+     would otherwise bleed this tint onto that company's own section children (nested
+     .nav-tree-node rows with no color of their own) — the explicit transparent declaration here
+     resets it on every row, so only a row with its OWN inline override ever shows a tint. */
+  --color-accent-a: transparent;
+  border-left: 3px solid var(--color-accent-a);
+}
+
 .nav-tree-node__name {
   all: unset;
   cursor: pointer;

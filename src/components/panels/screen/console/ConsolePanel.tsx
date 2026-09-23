@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { ProbesContent } from '../nav/content/ProbesContent';
 import { FleetParamsContent } from '../nav/content/FleetParamsContent';
 import { SettingsContent } from '../nav/content/SettingsContent';
-import { CompanyManager } from '@/components/company/CompanyManager';
+import { CompaniesContent } from '../nav/content/CompaniesContent';
 import { Button } from '@/components/ui/controls/Button';
 import type { ButtonSchema } from '@/types/controls';
 import type { HubTile } from '@/types/hub';
@@ -24,10 +24,7 @@ const TILE_CONTENT: Record<HubTile, () => ReactNode> = {
   robots: () => <ProbesContent />,
   audioRig: () => <FleetParamsContent />,
   settings: () => <SettingsContent />,
-  // Placeholder entry (Nav & Layout Rewrite Task 1, docs/tasks/NAV_LAYOUT_REWRITE.md)
-  // — keeps the build green now that HubTile has a 4th value. Real relocation
-  // of Companies CRUD into per-node tree interactions is Task 20.
-  companies: () => <CompanyManager />,
+  companies: () => <CompaniesContent />,
 };
 
 export function ConsolePanel() {

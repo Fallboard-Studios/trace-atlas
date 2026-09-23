@@ -67,23 +67,31 @@ function sectionChildNodes(entityBranchPrefix: string): NavTreeNodeSchema[] {
 interface IdentityEntry {
   id: string;
   name?: string;
+  /** Only ever populated for companies (Company.color) — Task 20's tree-row tint. Robots have no
+   *  equivalent field on this generic roster; always undefined for the 'robots' key. */
+  color?: string;
 }
 
 function identityRosterEqual(a: IdentityEntry[], b: IdentityEntry[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    if (a[i].id !== b[i].id || a[i].name !== b[i].name) return false;
+    if (a[i].id !== b[i].id || a[i].name !== b[i].name || a[i].color !== b[i].color) return false;
   }
   return true;
 }
 
 /** Same custom-equality technique RobotsTab.tsx's useRobotRoster uses — robots' own array
  *  reference is replaced on every audio-swell tick even when identity/name are unchanged, so a
- *  plain selector here would rebuild the tree continuously. Only id/name matter for tree nodes. */
+ *  plain selector here would rebuild the tree continuously. Only id/name/color matter for tree
+ *  nodes. */
 function useIdentityRoster(localeId: string, key: 'robots' | 'companies'): IdentityEntry[] {
   const prevRef = useRef<IdentityEntry[]>([]);
   return useLocaleStore((s) => {
-    const next = (s.locales[localeId]?.[key] ?? []).map((entry) => ({ id: entry.id, name: entry.name }));
+    const next = (s.locales[localeId]?.[key] ?? []).map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      color: (entry as { color?: string }).color,
+    }));
     if (identityRosterEqual(prevRef.current, next)) return prevRef.current;
     prevRef.current = next;
     return next;
@@ -104,6 +112,7 @@ function buildCompaniesSubtree(schema: NavTreeNodeSchema, companies: IdentityEnt
   const perCompanyNodes: NavTreeNodeSchema[] = companies.map((c) => ({
     id: `companies.${c.id}`,
     humanLabel: c.name ?? c.id,
+    color: c.color,
     children: sectionChildNodes(`companies.${c.id}`),
   }));
   return { ...schema, children: perCompanyNodes };
@@ -139,6 +148,7 @@ export function useNavTree(): UseNavTreeResult {
   const setActiveHubTile = useUIStore((s) => s.setActiveHubTile);
   const selectRobot = useUIStore((s) => s.selectRobot);
   const selectCompany = useUIStore((s) => s.selectCompany);
+  const clearSelectedCompany = useUIStore((s) => s.clearSelectedCompany);
   const selectAllRobots = useUIStore((s) => s.selectAllRobots);
   const setSelectedSection = useUIStore((s) => s.setSelectedSection);
   const setSelectedSettingsLeaf = useUIStore((s) => s.setSelectedSettingsLeaf);
@@ -196,6 +206,7 @@ export function useNavTree(): UseNavTreeResult {
     if (branch === 'companies') {
       setActiveHubTile('companies');
       if (!entityId) {
+        clearSelectedCompany();
         setSelectedSection(null);
         return;
       }

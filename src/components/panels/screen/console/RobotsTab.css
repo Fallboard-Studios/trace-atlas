@@ -2,38 +2,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  /* Contains RobotFilterPanel's absolute positioning off-desktop (RobotFilterPanel.css) — scoped
-     to this screen's own box, not the browser viewport, since the console renders inside a
-     simulated physical screen bezel (ScreenViewport/SleeveContainer). */
-  position: relative;
-}
-
-/* Roadmap: Robot Selection Filter Panel Polish §1.3 — CSS Grid, not flex, so RobotFilterPanel can
-   be position: sticky (a sticky element still occupies its own flex/grid track unless something
-   else removes it from flow, unlike position: absolute) while still costing the list zero layout
-   width off-desktop: .robot-filter-panel and .robots-tab__list/.robots-tab__empty share grid cell
-   (1, 1) by default (mobile/tablet — the panel overlays the list, layered via z-index), and this
-   rule widens to a second column, off-desktop's shared cell becoming the list's own, once
-   RobotFilterPanel's own data-tier reads 'desktop' (:has() reads that attribute directly — no new
-   prop threaded through RobotsTab.tsx for it). */
-.robots-tab__body {
-  /* Shared by RobotFilterPanel.css's panel and toggle (siblings, so it has to live on their parent):
-     where they stick while scrolling — just under the header, see --console-header-clearance in
-     ConsolePanel.css. */
-  --robot-filter-stick-top: var(--spacing-lg);
-  /* Off-desktop only: the sticky toggle (RobotFilterPanel.css) shares cell (1, 1) with the list
-     rather than taking a row of its own (a sticky element can't leave its own grid area), so the
-     list is pushed down by the toggle's height + --spacing-lg to sit 16px below it. The button's
-     height isn't a token anywhere — this is an estimate; adjust if the gap looks off. */
-  --robot-filter-toggle-height: 44px;
-  display: grid;
-  grid-template-columns: 1fr;
-  align-items: start;
-  gap: 12px;
-}
-
-.robots-tab__body:has(> .robot-filter-panel[data-tier='desktop']) {
-  grid-template-columns: 260px 1fr;
 }
 
 .robots-tab__list {
@@ -43,10 +11,7 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  grid-column: 1;
-  grid-row: 1;
   min-width: 0;
-  margin-top: calc(var(--robot-filter-toggle-height) + var(--spacing-lg) + 8px);
   /* Bugfix, found live: selecting a real company (filterRobotsByCompanyFocus, formerly
      sortRobotsByCompanyFocus's own reorder-to-the-end behavior before Roadmap: Robot Selection
      Filter Panel) moved/removed cards' actual DOM position, not just their size, and the
@@ -61,26 +26,8 @@
   overflow-anchor: none;
 }
 
-.robots-tab__body:has(> .robot-filter-panel[data-tier='desktop']) .robots-tab__list {
-  grid-column: 2;
-  margin-top: 0;
-  /* no toggle on desktop — the panel is its own sidebar column */
-}
-
-/* Replaces .robots-tab__list (as RobotFilterPanel's own sibling in .robots-tab__body) when a
-   selected company has zero members — same grid-cell-sharing reasoning as the list itself, so the
-   panel's own position is unaffected by which of the two currently renders. */
 .robots-tab__empty {
-  grid-column: 1;
-  grid-row: 1;
-  min-width: 0;
-  margin: calc(var(--robot-filter-toggle-height) + var(--spacing-lg)) 0 0;
   padding: 24px 16px;
   text-align: center;
   color: var(--color-text-muted);
-}
-
-.robots-tab__body:has(> .robot-filter-panel[data-tier='desktop']) .robots-tab__empty {
-  grid-column: 2;
-  margin-top: 0;
 }

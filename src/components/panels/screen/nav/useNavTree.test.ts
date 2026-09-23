@@ -15,8 +15,8 @@ function makeRobot(id: string, name?: string): Robot {
   return { id, name } as unknown as Robot;
 }
 
-function makeCompany(id: string, name: string): Company {
-  return { id, name, color: '#fff', robotIds: [] };
+function makeCompany(id: string, name: string, color = '#fff'): Company {
+  return { id, name, color, robotIds: [] };
 }
 
 function resetStores() {
@@ -82,6 +82,24 @@ describe('useNavTree — dynamic tree merging (docs/tasks/NAV_LAYOUT_REWRITE.md 
       'companies.c1.envelope',
       'companies.c1.source',
     ]);
+  });
+
+  it('carries each company\'s own identity color onto its tree node — the tree row\'s color-coding home (Task 20, spec §7 Q3)', () => {
+    useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp', '#4f6d7a'));
+    useLocaleStore.getState().addCompany(localeId, makeCompany('c2', 'Beta Inc', '#7a4f6d'));
+
+    const { result } = renderHook(() => useNavTree());
+
+    expect(findNode('companies.c1', result.current.nodes)?.color).toBe('#4f6d7a');
+    expect(findNode('companies.c2', result.current.nodes)?.color).toBe('#7a4f6d');
+  });
+
+  it('never puts a color on a company\'s own section children — only the company row itself is tinted', () => {
+    useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp', '#4f6d7a'));
+
+    const { result } = renderHook(() => useNavTree());
+
+    expect(findNode('companies.c1.volume', result.current.nodes)?.color).toBeUndefined();
   });
 
   it('tracks the live roster — adding a robot after mount updates nodes without a remount', () => {
@@ -162,6 +180,17 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
 
     expect(useUIStore.getState().selectedCompanyId).toBe('c1');
     expect(useUIStore.getState().selectedSection).toBe('melody');
+  });
+
+  it('selecting the bare "companies" parent clears selectedCompanyId — back to the Create form, not a stale Company X (Task 20)', () => {
+    useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp'));
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('companies.c1'));
+
+    act(() => result.current.select('companies'));
+
+    expect(useUIStore.getState().selectedCompanyId).toBeNull();
+    expect(useUIStore.getState().activeHubTile).toBe('companies');
   });
 
   it('selecting the 4 static top-level branches sets activeHubTile to their mapped HubTile', () => {
