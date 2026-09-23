@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useLocaleStore } from '@/stores/localeStore';
-import { useUIStore, type RobotSection, type FleetParamsGroup, type SettingsLeaf, type SelectedFleetParamsEffect } from '@/stores/uiStore';
+import { useUIStore, type RobotSection, type FleetParamsGroup, type SettingsLeaf, type SelectedFleetParamsEffect, type TopLevelBranch } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { NAV_TREE_SCHEMA, type NavTreeNodeSchema } from '@/data/navTreeConfig';
 
@@ -43,6 +43,11 @@ const FLEET_PARAMS_LEAF_TO_EFFECT_KEY: Record<string, SelectedFleetParamsEffect>
 };
 function asFleetParamsEffectKey(value: string | undefined): SelectedFleetParamsEffect | null {
   return value ? (FLEET_PARAMS_LEAF_TO_EFFECT_KEY[value] ?? null) : null;
+}
+
+const TOP_LEVEL_BRANCHES: readonly TopLevelBranch[] = ['settings', 'fleetParams', 'probes', 'companies'];
+function asTopLevelBranch(value: string): TopLevelBranch | null {
+  return (TOP_LEVEL_BRANCHES as readonly string[]).includes(value) ? (value as TopLevelBranch) : null;
 }
 
 const SECTION_CHILDREN: Omit<NavTreeNodeSchema, 'id'>[] = [
@@ -128,6 +133,7 @@ export function useNavTree(): UseNavTreeResult {
   const expandedProbeId = useUIStore((s) => s.expandedProbeId);
   const expandedCompanyId = useUIStore((s) => s.expandedCompanyId);
   const expandedFleetParamsGroup = useUIStore((s) => s.expandedFleetParamsGroup);
+  const expandedTopLevelBranch = useUIStore((s) => s.expandedTopLevelBranch);
 
   const setActiveHubTile = useUIStore((s) => s.setActiveHubTile);
   const selectRobot = useUIStore((s) => s.selectRobot);
@@ -139,6 +145,7 @@ export function useNavTree(): UseNavTreeResult {
   const setExpandedProbeId = useUIStore((s) => s.setExpandedProbeId);
   const setExpandedCompanyId = useUIStore((s) => s.setExpandedCompanyId);
   const setExpandedFleetParamsGroup = useUIStore((s) => s.setExpandedFleetParamsGroup);
+  const setExpandedTopLevelBranch = useUIStore((s) => s.setExpandedTopLevelBranch);
 
   const nodes = useMemo(
     () =>
@@ -194,6 +201,14 @@ export function useNavTree(): UseNavTreeResult {
 
   function toggleExpand(id: string): void {
     const [branch, entityId] = id.split('.');
+    if (!entityId) {
+      // Bare single-segment id — one of the 4 top-level branch roots (settings/fleetParams/
+      // probes/companies). Bugfix: this case was missing entirely, so every top-level node's own
+      // +/- button was a silent no-op and its children could never render.
+      const topLevel = asTopLevelBranch(branch);
+      if (topLevel) setExpandedTopLevelBranch(expandedTopLevelBranch === topLevel ? null : topLevel);
+      return;
+    }
     if (branch === 'probes' && entityId) {
       setExpandedProbeId(expandedProbeId === entityId ? null : entityId);
       return;
@@ -206,12 +221,16 @@ export function useNavTree(): UseNavTreeResult {
     if (group) {
       setExpandedFleetParamsGroup(expandedFleetParamsGroup === group ? null : group);
     }
-    // Top-level branch roots and static leaves with no dedicated accordion-of-one
-    // field (settings.*) have nothing to toggle in Phase 1 — no-op.
+    // Static leaves with no dedicated accordion-of-one field (settings.*) have nothing to
+    // toggle — no-op.
   }
 
   function isExpanded(id: string): boolean {
     const [branch, entityId] = id.split('.');
+    if (!entityId) {
+      const topLevel = asTopLevelBranch(branch);
+      return topLevel ? expandedTopLevelBranch === topLevel : false;
+    }
     if (branch === 'probes' && entityId) return expandedProbeId === entityId;
     if (branch === 'companies' && entityId) return expandedCompanyId === entityId;
     if (branch === 'fleetParams' && entityId) return expandedFleetParamsGroup === entityId;

@@ -309,3 +309,37 @@ describe('uiStore — selectedFleetParamsEffect (which effect leaf is open, docs
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('compressor');
   });
 });
+
+describe('uiStore — expandedTopLevelBranch (bugfix: the 4 top-level tree nodes had no expansion state at all, so their +/- never worked)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('defaults to null — nothing expanded', () => {
+    expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
+  });
+
+  it('setExpandedTopLevelBranch sets one of the 4 top-level branches, replacing any other', () => {
+    useUIStore.getState().setExpandedTopLevelBranch('settings');
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('settings');
+    useUIStore.getState().setExpandedTopLevelBranch('fleetParams');
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('fleetParams');
+  });
+
+  it('setExpandedTopLevelBranch(null) collapses back to nothing expanded', () => {
+    useUIStore.getState().setExpandedTopLevelBranch('probes');
+    useUIStore.getState().setExpandedTopLevelBranch(null);
+    expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
+  });
+
+  it('is independent of the per-branch expandedXxxId fields — its own level, own accordion-of-one', () => {
+    useUIStore.getState().setExpandedTopLevelBranch('probes');
+    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
+    useUIStore.getState().setExpandedCompanyId('company-0-abc');
+    useUIStore.getState().setExpandedFleetParamsGroup('eqFilters');
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
+    expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
+    expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
+    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('eqFilters');
+  });
+});

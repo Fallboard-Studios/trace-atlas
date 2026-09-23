@@ -29,6 +29,14 @@ export type SettingsLeaf = 'volume' | 'quality' | 'tempo' | 'sectorSettings';
  *  own AudioRigEffectKey — reused directly rather than a parallel string union. FleetParamsContent
  *  reads this to pick which effect's AudioRigEffectPanel to render. */
 export type SelectedFleetParamsEffect = AudioRigEffectKey;
+/** Which of the 4 top-level tree branches is peeked open — its own accordion-of-one level,
+ *  independent of every per-branch expandedXxxId field below (those track which CHILD within an
+ *  already-expanded branch is peeked open, not whether the branch itself is). Bugfix: this field
+ *  was missing entirely through Tasks 1-18 — isExpanded/toggleExpand (useNavTree.ts) had no case
+ *  for a bare single-segment node id ('settings', 'fleetParams', 'probes', 'companies'), so every
+ *  top-level node's own +/- button was a silent no-op and its children could never render, found
+ *  live by Crawford after Checkpoint 3. */
+export type TopLevelBranch = 'settings' | 'fleetParams' | 'probes' | 'companies';
 
 export interface UIStore {
   activeView: ActiveView;
@@ -74,6 +82,8 @@ export interface UIStore {
   selectedSettingsLeaf: SettingsLeaf | null;
   /** Which Fleet Params effect leaf is selected — see SelectedFleetParamsEffect's own doc comment. */
   selectedFleetParamsEffect: SelectedFleetParamsEffect | null;
+  /** Which top-level branch is expanded — see TopLevelBranch's own doc comment. */
+  expandedTopLevelBranch: TopLevelBranch | null;
   setActiveLocaleLocalTime: (t: number | null) => void;
   setActiveView: (v: ActiveView) => void;
   setTheme: (t: Theme) => void;
@@ -93,6 +103,7 @@ export interface UIStore {
   setExpandedFleetParamsGroup: (g: FleetParamsGroup | null) => void;
   setSelectedSettingsLeaf: (l: SettingsLeaf | null) => void;
   setSelectedFleetParamsEffect: (e: SelectedFleetParamsEffect | null) => void;
+  setExpandedTopLevelBranch: (b: TopLevelBranch | null) => void;
 }
 
 // ========================================
@@ -118,6 +129,7 @@ export const useUIStore = create<UIStore>((set) => ({
   expandedFleetParamsGroup: null,
   selectedSettingsLeaf: null,
   selectedFleetParamsEffect: null,
+  expandedTopLevelBranch: null,
 
   setActiveView: (v) => set({ activeView: v }),
   setTheme: (t) => set({ theme: t }),
@@ -138,6 +150,7 @@ export const useUIStore = create<UIStore>((set) => ({
   setExpandedFleetParamsGroup: (g) => set({ expandedFleetParamsGroup: g }),
   setSelectedSettingsLeaf: (l) => set({ selectedSettingsLeaf: l }),
   setSelectedFleetParamsEffect: (e) => set({ selectedFleetParamsEffect: e }),
+  setExpandedTopLevelBranch: (b) => set({ expandedTopLevelBranch: b }),
 }));
 
 // ========================================

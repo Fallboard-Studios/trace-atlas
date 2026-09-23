@@ -346,3 +346,57 @@ describe('useNavTree — toggleExpand accordion-of-one within Fleet Params group
     expect(useUIStore.getState().expandedFleetParamsGroup).toBe('output');
   });
 });
+
+describe('useNavTree — toggleExpand/isExpanded on the 4 top-level branches (bugfix: no case existed for a bare single-segment id, so every top-level +/- was a silent no-op and children never rendered)', () => {
+  beforeEach(resetStores);
+
+  it('toggling a top-level branch expands it', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.toggleExpand('settings'));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('settings');
+    expect(result.current.isExpanded('settings')).toBe(true);
+  });
+
+  it('toggling a different top-level branch collapses the previous one — accordion-of-one', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.toggleExpand('settings'));
+    act(() => result.current.toggleExpand('probes'));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
+    expect(result.current.isExpanded('settings')).toBe(false);
+    expect(result.current.isExpanded('probes')).toBe(true);
+  });
+
+  it('toggling an already-expanded top-level branch collapses it', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.toggleExpand('fleetParams'));
+    act(() => result.current.toggleExpand('fleetParams'));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
+    expect(result.current.isExpanded('fleetParams')).toBe(false);
+  });
+
+  it('each of the 4 top-level branches can be independently expanded', () => {
+    const { result } = renderHook(() => useNavTree());
+    for (const id of ['settings', 'fleetParams', 'probes', 'companies']) {
+      act(() => result.current.toggleExpand(id));
+      expect(result.current.isExpanded(id), id).toBe(true);
+      act(() => result.current.toggleExpand(id)); // collapse before the next one
+    }
+  });
+
+  it('is independent of the per-branch expandedXxxId fields — expanding Probes itself never touches which probe is peeked open', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.toggleExpand('probes.r1'));
+    act(() => result.current.toggleExpand('probes'));
+
+    expect(useUIStore.getState().expandedProbeId).toBe('r1');
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
+  });
+});
