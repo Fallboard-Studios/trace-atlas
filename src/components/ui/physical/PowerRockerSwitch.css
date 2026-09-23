@@ -5,12 +5,16 @@
    by .sleeve-jut in SleeveContainer.css.
    ---------------------------------------- */
 .rocker-panel {
+  --rocker-light-width: calc(var(--power-switch-width) * (37px / var(--power-switch-coefficient)));
+  --rocker-light-height: calc(var(--power-switch-width) * (13px / var(--power-switch-coefficient)));
+
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-sm, 8px);
   pointer-events: auto;
   z-index: 1;
+  /* transform: scale(calc(var(--power-switch-width) / var(--power-switch-coefficient))); */
 }
 
 /* ----------------------------------------
@@ -21,8 +25,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 58px;
-  height: 27px;
+  width: calc(var(--power-switch-width) * (58px / var(--power-switch-coefficient)));
+  height: calc(var(--power-switch-width) * (27px / var(--power-switch-coefficient)));
   background: rgba(0, 0, 0, 0.5);
   border-radius: 3px;
   box-shadow:
@@ -35,8 +39,9 @@
    Indicator light — rectangular translucent lens
    ---------------------------------------- */
 .rocker-light {
-  width: 37px;
-  height: 13px;
+
+  width: var(--rocker-light-width);
+  height: var(--rocker-light-height);
   border-radius: 2px;
   background: currentColor;
   /* Fine dot-grid overlaid on the solid colour simulates a physical
@@ -116,8 +121,12 @@
    ---------------------------------------- */
 .rocker-el {
   /* 12px wider than the 37px indicator light = 53px (×1.33); 1:2 ratio = 106px tall */
-  width: 53px;
-  height: 106px;
+  --rocker-light-width-coefficient: calc((var(--spacing-lg, 16px) + var(--rocker-light-width)));
+  --rocker-button-width: calc(var(--power-switch-width) * (var(--rocker-light-width-coefficient) / var(--power-switch-coefficient)));
+  --rocker-button-width: calc(var(--rocker-light-width) * 1.33);
+  --rocker-button-height: calc(var(--rocker-button-width) * 2);
+  width: var(--rocker-button-width);
+  height: var(--rocker-button-height);
   display: block;
   padding: 0;
   border: none;

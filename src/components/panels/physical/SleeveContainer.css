@@ -2,8 +2,8 @@
 
 .sleeve-container {
   position: relative;
-  height: var(--sleeve-width);
-  width: var(--sleeve-bar-width);
+  height: var(--power-corner-height);
+  width: var(--power-corner-width);
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -12,19 +12,19 @@
   z-index: calc(var(--z-header) - 1);
   background: var(--color-sleeve);
   /* Right-edge highlight on the straight sections above/below the jut */
-  box-shadow: inset 1px 1px 1px rgba(255, 255, 255, 0.08);
+
 }
 
 .sleeve-container::after {
   content: "";
   position: absolute;
-  top: 12px;
+  top: 8px;
   right: 0;
   bottom: 0;
   width: 100%;
-  border-radius: 0 0 var(--sleeve-border-radius) 0;
+  border-radius: 0 0 var(--sleeve-border-radius) var(--sleeve-border-radius);
   z-index: -1;
-  box-shadow: 0 6px 5px rgba(0, 0, 0, 0.55);
+  box-shadow: -1px 6px 5px rgba(0, 0, 0, 0.55);
 }
 
 .sleeve-container:not(.sleeve-container--cutaway) {
@@ -43,7 +43,7 @@
    actual tallest content rather than leaving a stale 64px claim that
    doesn't match what's inside it.
    The root inherits the base rule's solid background — that's fine at
-   the current --sleeve-bar-width (a flat 200px, confirmed by Crawford):
+   the current --power-corner-width (a flat 200px, confirmed by Crawford):
    it no longer spans the full tablet width, so the solid fill stays
    scoped near the corner/strip's own footprint instead of painting a
    rectangle across content further right. (An earlier version of this
@@ -54,9 +54,22 @@
 .sleeve-container--cutaway {
   position: absolute;
   top: 0;
-  left: 0;
+  right: 0;
   height: var(--power-corner-height);
-  border-radius: 0 0 var(--sleeve-border-radius) 0;
+  border-radius: 0 var(--sleeve-border-radius) var(--sleeve-border-radius);
+
+}
+
+.sleeve-container--cutaway::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 3px;
+  width: 100%;
+  border-radius: 0 var(--sleeve-border-radius) 0 0;
+  z-index: -1;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08);
 }
 
 .sleeve-container__power-corner {
@@ -77,7 +90,7 @@
   height: 12px;
   background: var(--color-sleeve);
   pointer-events: none;
-  z-index: calc(var(--z-header) - 1);
+  z-index: calc(var(--z-header) - 2);
   overflow-y: visible;
   width: 100%;
   max-width: 100%;
@@ -95,17 +108,12 @@
 }
 
 .sleeve-container__top-strip {
-  --offset: calc(var(--sleeve-bar-width) + 0px);
   position: absolute;
   top: 0;
-  right: 0;
-  left: var(--offset);
-  width: calc(var(--tablet-max-width) + 32px - var(--offset));
-  max-width: calc(var(--tablet-max-width) + 32px - var(--offset));
-}
-
-.sleeve-container__top-strip.sleeve-container-strip::after {
-  box-shadow: inset -1px 1px 1px rgba(255, 255, 255, 0.08), 0 2px 5px rgba(0, 0, 0, 0.55);
+  left: 0;
+  right: var(--power-corner-width);
+  width: calc(var(--tablet-max-width) + 32px - var(--power-corner-width));
+  max-width: calc(var(--tablet-max-width) + 32px - var(--power-corner-width));
 }
 
 .sleeve-container__bottom-strip {

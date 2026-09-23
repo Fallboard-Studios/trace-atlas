@@ -4,7 +4,7 @@
    row merge (the original spec's useHeaderRowFit approach — removed as dead
    code once this restyle superseded it; see
    docs/tasks/HEADER_HUB_CONSOLIDATION.md's "Post-implementation follow-up").
-   Horizontal deadzone clearance (padding-left: var(--sleeve-bar-width))
+   Horizontal deadzone clearance (padding-left: var(--power-corner-width))
    lives on .rocker-spacer in ScreenViewport.css, not here.
 
    The old nav RadioButton row (.header__row--nav, docs/todo/backlog.md #1)

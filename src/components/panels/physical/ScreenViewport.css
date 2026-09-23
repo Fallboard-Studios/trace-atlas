@@ -115,9 +115,9 @@
 
 /* Reserve space for SleeveContainer's cutaway (Task 7/8 of
    docs/tasks/LAYOUT.md, simplified after Crawford fixed the sleeve's width
-   at --sleeve-bar-width instead of spanning the rest of the top): the
+   at --power-corner-width instead of spanning the rest of the top): the
    entire "shared area with the power switch" is now just x: 0..
-   --sleeve-bar-width, at any height — nothing in the sleeve extends past
+   --power-corner-width, at any height — nothing in the sleeve extends past
    that width at all. A single horizontal push clears the corner and the
    strip in one move; no separate vertical (padding-top) exclusion is
    needed. .header (formerly .transport-bar, docs/specs/
@@ -127,14 +127,14 @@
    Console.css's own --header-height clearance below makes. */
 .screen-content .rocker-spacer {
   display: grid;
-  grid-template-columns: calc(var(--sleeve-bar-width) - var(--spacing-md)) 1fr 1fr;
+  grid-template-columns: calc(var(--power-corner-width) - var(--spacing-md)) 1fr 1fr;
   grid-template-rows: auto auto;
   gap: var(--spacing-md);
 }
 
 @media screen and (min-width: 350px) {
   .screen-content .rocker-spacer {
-    grid-template-columns: var(--sleeve-bar-width) 1fr 1fr;
+    grid-template-columns: var(--power-corner-width) 1fr 1fr;
   }
 }
 
@@ -149,6 +149,6 @@
     display: flex;
     flex-direction: row;
     align-items: flex-start;
-    padding-left: calc(var(--sleeve-bar-width) + var(--spacing-md));
+    padding-left: calc(var(--power-corner-width) + var(--spacing-md));
   }
 }
