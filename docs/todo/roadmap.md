@@ -1085,3 +1085,29 @@ Requested by Crawford, 2026-09-16. Depends on [20](#20-session-storage) (Session
 ### About
 
 Session Storage (20) makes a shareable link *possible* — the URL query string already carries a compressed, resolvable session payload — but today the only way to get one is to manually copy the browser's own address bar, and the only way to load one is to paste it there and reload. This phase adds explicit Export (generate and copy the current session's shareable link) and Import (paste a link or raw payload and apply it) controls to `SectorSettingsDrawer`, so sharing a session is a deliberate, discoverable in-app action rather than an address-bar trick a user has to already know about. Directly closes the "shareable link" half `docs/todo/backlog.md`'s existing Attenuation Style presets note is waiting on — Crawford wants to update the in-app preset list with current, shareable links once this lands.
+
+## 22. Navigation & Layout Rewrite
+
+Number assigned by Crawford 2026-09-23. Source of intent: [docs/intent/nav-layout-rewrite.md](../intent/nav-layout-rewrite.md). Source spec/task plan: [docs/specs/NAV_LAYOUT_REWRITE.md](../specs/NAV_LAYOUT_REWRITE.md), [docs/tasks/NAV_LAYOUT_REWRITE.md](../tasks/NAV_LAYOUT_REWRITE.md) — 22 tasks, one commit each, on `feature/nav-layout-rewrite`.
+
+### Restructure
+
+- Replaces the flat 3-tile `Header` `RadioButton` nav (Robots/Audio Rig/Sector Settings) with a schema-driven, hand-rolled ARIA tree (`NavTree`/`NavPanel`/`NavToggleButton`/`ContentPane`, `src/data/navTreeConfig.ts`) — docked left on desktop/tablet, an off-canvas slide-over on mobile. 4 top-level branches: Settings, Fleet Params, Probes, Companies (`HubTile` gains a 4th value).
+- Relocates Volume/Tempo/Quality out of `Header`/`AudioRigDrawer` into a new Settings branch; Sector Settings moves in unchanged.
+- Retires `AccordionContainer` entirely — its 6 real consumers (`AudioRigDrawer`, `PingControlsDrawer`, `PingContourDrawer`, `SignatureArrayDrawer`, `RobotFilterPanel` — already accordion-free by the time this shipped — and `AudioSettingSection`, found mid-migration) each became one tree leaf's content instead of a collapsible section; the component, `accordionAnimation.ts`, `src/testUtils/openAccordions.ts`, and the `AccordionSchema` `ControlSchema` variant are deleted (`CONTROL_SCHEMA_TYPES` 14 → 13).
+- Wires the Probes branch's dynamic per-robot subtree and a new "All Probes" bulk-edit leaf, and the Companies branch's dynamic per-company subtree with CRUD (Create/Rename/Delete, the app's first confirmation dialog — Radix `AlertDialog`) relocated in from the old `CompanyManager`/`CompanyButtonRow`.
+
+**Done** — full suite green (3371 tests, `feature/nav-layout-rewrite` tip `ce329a7`), `build:types`/`lint`/`build` all clean throughout. Checkpoint 4 (manual click-through across all 4 branches at mobile/tablet/desktop widths, a screen-reader pass, `prefers-reduced-motion` verification, and final review with Crawford) is **not yet done** — this phase is implementation-complete, not merge-ready. Three deviations from the original plan, each confirmed with Crawford rather than assumed:
+- **`CompanyManager`/`CompanyButtonRow` were deleted outright, not migrated**, and `RobotFilterPanel` (the Robots tab's own company-filter sidebar) was deleted alongside them — the plan's own file list never mentioned `RobotFilterPanel` depended on `CompanyManager` for an unrelated, pre-existing feature (filtering the robot browse list by company). Filtering that list by company now means visiting the Companies branch first — a real workflow change, not an oversight.
+- **Two new `uiStore` fields beyond the plan's original §1.3 list**, both following its own established per-field pattern rather than one generic node-id scheme: `allProbesSelected` (disambiguates the bare "Probes" browse node from the "All Probes" bulk-edit leaf, both of which otherwise read `selectedRobotId === null`) and `clearSelectedCompany` (resets `selectedCompanyId` alone when navigating to the bare "Companies" node, without touching the unrelated `allRobotsSelected` flag). `selectedSettingsLeaf`/`selectedFleetParamsEffect`/`expandedTopLevelBranch` were also added beyond the original list, earlier in implementation (Tasks 11/14, and a live bugfix respectively).
+- **A live bug, found by Crawford in the browser, not by any test**: the top-level branch nodes' own `+`/`−` expand button was a silent no-op from Task 3 onward through Checkpoint 3 — `useNavTree`'s `toggleExpand`/`isExpanded` had a case for every per-child accordion-of-one field but none for a bare single-segment node id (the branch roots themselves). Masked because `NavTree.test.tsx`'s own hand-written fake `useNavTree` mock was, in this one respect, more correct than the real hook it stood in for.
+
+### About
+
+Confirmed via `/interview-me`, 2026-09-22 — full intent/spec/task trio agreed before implementation began. Supersedes/moots the unmerged `bug/view-change-slowdown` branch (roadmap [17.2.1](#1721-performance-view-switch-profiling-harness--baseline)) — the new one-node-mounted-at-a-time content model sidesteps that branch's perf problem by construction, so it was never merged into this work.
+
+### Docs
+
+- `docs/UI_SHELL.md`'s "Console Navigation" section rewritten in full — the old 3-tile model description replaced with the tree model as shipped, including the Node → Content Mapping table and every `uiStore` field this phase added.
+- `docs/COMPONENT_LIBRARY.md` updated: primitive count 14 → 13, `AccordionContainer`'s table row removed, its own subsection folded into a historical note (its detailed "Lazy mounting" internals summarized rather than kept in full, per this phase's own task doc).
+- `CLAUDE.md`'s `COMPONENT_LIBRARY.md` reference bullet updated to match (14 → 13); its `UI_SHELL.md` bullet needed no edit — still an accurate one-line summary.

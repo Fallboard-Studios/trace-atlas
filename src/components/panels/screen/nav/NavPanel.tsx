@@ -8,8 +8,8 @@ import { setTimeline, killTimeline } from '@/animation/timelineMap';
 import './NavPanel.css';
 
 const TIMELINE_KEY = 'nav-panel-slide';
-// Matches ACCORDION_DURATION (accordionAnimation.ts) — no dedicated constant of its own since
-// this is the only consumer so far; split out if a second one needs the same value.
+// No dedicated shared constant — this is the only consumer so far; split out if a second one
+// needs the same value.
 const SLIDE_DURATION = 0.25;
 
 /**
