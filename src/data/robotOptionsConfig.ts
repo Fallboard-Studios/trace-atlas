@@ -12,7 +12,6 @@
  * RobotDisplaySection.tsx.
  */
 import type {
-  AccordionSchema,
   ButtonSchema,
   ControlSchema,
   DirectionalPanelSchema,
@@ -37,7 +36,7 @@ import {
 } from '@/constants';
 
 // ========================================
-// ROBOT DISPLAY (not an AccordionContainer — always-visible header content)
+// ROBOT DISPLAY (not collapsible — always-visible header content)
 // ========================================
 
 /** Confirmed during /interview-me: all 4 audioMode values, not the grid prose's stale 3 — a
@@ -80,23 +79,11 @@ export const VOLUME_SCHEMA: SliderLinearSchema = {
 export const VOLUME_LFO_TARGET: RobotLfoTargetId = 'volume';
 
 /**
- * docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.2 — replaces the old, accordion-less
- * ROBOT_OUTPUT_PANEL_SCHEMA (removed same task once AudioSettingSection.tsx switched over):
- * Volume gets a real accordion it didn't have before. `id` is deliberately not
- * 'robotOptions.volume' — that's VOLUME_SCHEMA's own id already, and this needs to be distinct.
- */
-export const VOLUME_ACCORDION_SCHEMA: AccordionSchema = {
-  id: 'robotOptions.volumeAccordion',
-  type: 'accordion',
-  loreLabel: 'PROBE ACOUSTIC AMPLITUDE',
-  humanLabel: 'Volume',
-};
-
-/**
  * Wraps VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (below) beside the Volume LFO display — 'responsive'
  * so mobile/tablet stacks everything into one column (Audio Setting, Volume, LFO, in that order)
  * and desktop splits into 2 side-by-side columns. Unlabeled — pure layout, top-level inside
- * VOLUME_ACCORDION_SCHEMA (gets its own Cabinetry facade, same as every other top-level panel).
+ * AudioSettingSection's own root (no accordion wrapper — removed docs/tasks/
+ * NAV_LAYOUT_REWRITE.md Task 18).
  */
 export const VOLUME_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'robotOptions.volumeRow',
@@ -118,18 +105,6 @@ export const VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA: DirectionalPanelSchema = {
 // ========================================
 // PING CONTROLS
 // ========================================
-
-/**
- * DirectionalPanel wiring (docs/tasks/DIRECTIONAL_PANEL_WIRING.md) — supersedes the old flat
- * "Ping Controls" AccordionSchema (removed, Task 9): it splits into this Melody accordion
- * wrapping 2 panels (PHRASING_PANEL_SCHEMA, FREQUENCY_PANEL_SCHEMA below).
- */
-export const MELODY_ACCORDION_SCHEMA: AccordionSchema = {
-  id: 'robotOptions.melody',
-  type: 'accordion',
-  loreLabel: 'MELODIC SUBSYSTEM',
-  humanLabel: 'Melody',
-};
 
 /**
  * Density, Motif Length, Pitch Repeat, plus the dev-only Click Track toggle and Reset Melody
@@ -280,21 +255,9 @@ export const RESET_MELODY_SCHEMA: ButtonSchema = {
 // ========================================
 
 /**
- * DirectionalPanel wiring (docs/tasks/DIRECTIONAL_PANEL_WIRING.md) — new top-level accordion that
- * wraps PING_CONTOUR_PANEL_SCHEMA below.
- */
-export const ENVELOPE_ACCORDION_SCHEMA: AccordionSchema = {
-  id: 'robotOptions.envelope',
-  type: 'accordion',
-  loreLabel: 'AMPLITUDE ENVELOPE STAGE',
-  humanLabel: 'Envelope',
-};
-
-/**
  * DirectionalPanel wiring (docs/tasks/DIRECTIONAL_PANEL_WIRING.md) — supersedes the old flat
- * "Ping Contour" AccordionSchema (removed, Task 9). Keeps that schema's exact loreLabel/
- * humanLabel verbatim — the whole "Ping Contour" accordion becomes one panel nested inside the
- * new Envelope accordion, not relabeled. Fixed 'column' (was 'row') as of
+ * "Ping Contour" accordion-typed schema (removed, Task 9; its own successor accordion, Envelope,
+ * was itself removed docs/tasks/NAV_LAYOUT_REWRITE.md Task 16). Fixed 'column' (was 'row') as of
  * docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4 — wraps 2 responsive sub-rows
  * (Attack+Decay, Sustain+Release — inline in PingContourDrawer.tsx, matching Compressor's own
  * topRow/bottomRow precedent in audioRigConfig.ts) instead of holding all 4 sliders directly.
@@ -360,19 +323,6 @@ export const RELEASE_SCHEMA: SliderLogSchema = {
 // SIGNATURE ARRAY — 3 fixed layers (Baseline/Coaxial/Harmonic)
 // ========================================
 
-/**
- * DirectionalPanel wiring (docs/tasks/DIRECTIONAL_PANEL_WIRING.md) — supersedes the old flat
- * "Signature Array" AccordionSchema (removed, Task 9): each layer becomes its own panel
- * (SignatureArrayLayerBlock.panel below) nested inside this new Source accordion, instead of the
- * 3 layers sharing one "Signature Array" accordion.
- */
-export const SOURCE_ACCORDION_SCHEMA: AccordionSchema = {
-  id: 'robotOptions.source',
-  type: 'accordion',
-  loreLabel: 'ACOUSTIC SOURCE ARRAY',
-  humanLabel: 'Source',
-};
-
 export type SignatureArrayLayerKey = 'layer0' | 'layer1' | 'layer2';
 
 export interface SignatureArrayParamSchema {
@@ -386,9 +336,9 @@ export interface SignatureArrayLayerBlock {
   key: SignatureArrayLayerKey;
   humanLabel: 'Baseline' | 'Coaxial' | 'Harmonic';
   loreLabel: string;
-  /** DirectionalPanel wiring (docs/tasks/DIRECTIONAL_PANEL_WIRING.md) — this layer's own panel,
-   *  nested inside SOURCE_ACCORDION_SCHEMA. Reuses this block's own humanLabel/loreLabel verbatim
-   *  (Baseline/Coaxial/Harmonic already had exactly the right per-layer label; no new copy). */
+  /** DirectionalPanel wiring (docs/tasks/DIRECTIONAL_PANEL_WIRING.md) — this layer's own panel.
+   *  Reuses this block's own humanLabel/loreLabel verbatim (Baseline/Coaxial/Harmonic already had
+   *  exactly the right per-layer label; no new copy). */
   panel: DirectionalPanelSchema;
   params: SignatureArrayParamSchema[];
 }

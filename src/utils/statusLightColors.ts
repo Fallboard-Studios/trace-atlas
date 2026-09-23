@@ -1,8 +1,7 @@
 /**
  * The single color source for every status-light dot/lens in the app —
- * AccordionContainer's content-active light, PowerRockerSwitch's power light,
- * and AudioStatusBadge (Roadmap Phase 8) all resolve their color through this
- * module rather than hardcoding hex. Confirmed during intake: off=purple,
+ * PowerRockerSwitch's power light and AudioStatusBadge (Roadmap Phase 8) both
+ * resolve their color through this module rather than hardcoding hex. Confirmed during intake: off=purple,
  * mute/inactive=red, solo/active=green, highlight/transitioning=amber,
  * sourced from colorTheme.json's existing vent/alert/indicator/strut families
  * rather than invented hex — the same colorTheme.json + hslToString() pattern

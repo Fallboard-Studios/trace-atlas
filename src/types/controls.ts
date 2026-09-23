@@ -118,10 +118,6 @@ export interface DualLabelSchema extends ControlSchemaBase {
   type: 'dualLabel';
 }
 
-export interface AccordionSchema extends ControlSchemaBase {
-  type: 'accordion';
-}
-
 export interface LfoSchema extends ControlSchemaBase {
   type: 'lfo';
 }
@@ -153,17 +149,20 @@ export type ControlSchema =
   | StepperSchema | StepperWithToggleSchema
   | SliderLinearSchema | SliderLogSchema | SliderCenteredZeroSchema
   | RadioButtonSchema | ToggleSchema | TextInputSchema | CoordsInputSchema
-  | ButtonSchema | DualLabelSchema | AccordionSchema | LfoSchema
+  | ButtonSchema | DualLabelSchema | LfoSchema
   | DirectionalPanelSchema;
 
 /** Every ControlSchema discriminant, paired with the union per the pattern
  *  src/types/lfo.ts established (LFO_SHAPES, ROBOT_LFO_TARGET_IDS) — makes
- *  "all 14 variants covered, no duplicates" a runtime-testable assertion. */
+ *  "all 13 variants covered, no duplicates" a runtime-testable assertion.
+ *  Was 14 until the 'accordion' variant was removed docs/tasks/
+ *  NAV_LAYOUT_REWRITE.md Task 21, once its last real accordion-wrapper consumer was migrated
+ *  away from it. */
 export const CONTROL_SCHEMA_TYPES: readonly ControlSchema['type'][] = [
   'stepper', 'stepperToggle',
   'sliderLinear', 'sliderLog', 'sliderCenteredZero',
   'radio', 'toggle', 'textInput', 'coordsInput',
-  'button', 'dualLabel', 'accordion', 'lfo',
+  'button', 'dualLabel', 'lfo',
   'directionalPanel',
 ];
 

@@ -18,7 +18,7 @@ const SLIDE_DURATION = 0.25;
  * (useCabinetTier, useCabinetBoxHeight.ts) rather than inventing a new breakpoint — 'mobile' is
  * the slide-off tier, 'tablet'/'desktop' are permanently docked and ignore isNavPanelOpen
  * entirely. The slide animates via a timelineMap-registered GSAP timeline, respecting
- * prefers-reduced-motion the same way AccordionContainer's getAccordionDuration does. Selecting
+ * prefers-reduced-motion the same way the app's other GSAP timelines do. Selecting
  * any node (a change to activeHubTile/selectedRobotId/selectedCompanyId/selectedSection) closes
  * the panel again, but only on mobile — desktop/tablet's docked panel stays open regardless.
  */

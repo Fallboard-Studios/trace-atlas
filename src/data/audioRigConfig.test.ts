@@ -3,14 +3,15 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
+// Namespace import (not named) so the cleanup assertion below can check for the removed
+// accordion exports without importing something that no longer exists.
+import * as audioRigConfigModule from './audioRigConfig';
 import {
   AUDIO_RIG_CONFIG,
   DECAY_MODE_SCHEMA,
   LFO_DRIFT_GROUPS,
   PING_VARIANCE_AUTOMATION_SCHEMA,
   BPM_SCHEMA,
-  AUDIO_RIG_ACCORDION_GROUPS,
-  TRANSPORT_COMPOSITION_ACCORDION_SCHEMA,
   SPEED_AUTOMATION_PANEL_SCHEMA,
   AUDIO_LOAD_PRESET_SCHEMA,
   AUDIO_ROBOT_LOAD_SCHEMA,
@@ -545,52 +546,10 @@ describe('LfoDriftGroupSchema.panel (DirectionalPanel wiring, Tasks 1-2)', () =>
   });
 });
 
-describe('AUDIO_RIG_ACCORDION_GROUPS (new top-level accordions, Task 1)', () => {
-  it('has exactly 3 entries, in EQ & Filters / Time & Space / Output order', () => {
-    expect(AUDIO_RIG_ACCORDION_GROUPS.map((g) => g.accordion.humanLabel)).toEqual([
-      'EQ & Filters', 'Time & Space', 'Output',
-    ]);
-  });
-
-  it('carries a stable key per entry, matching each group\'s own concept — used to special-case EQ & Filters\' own internal layout without relying on a raw accordion id string', () => {
-    expect(AUDIO_RIG_ACCORDION_GROUPS.map((g) => g.key)).toEqual(['eqFilters', 'timeSpace', 'output']);
-  });
-
-  it('groups the correct block keys per accordion, in order', () => {
-    expect(AUDIO_RIG_ACCORDION_GROUPS.map((g) => g.blockKeys)).toEqual([
-      ['eq3', 'filterLPF', 'filterHPF'],
-      ['delay', 'reverb'],
-      ['compressor', 'limiter'],
-    ]);
-  });
-
-  it('every accordion has type accordion and a unique id in the audioRig.* namespace', () => {
-    for (const group of AUDIO_RIG_ACCORDION_GROUPS) {
-      expect(group.accordion.type, group.accordion.humanLabel).toBe('accordion');
-      expect(group.accordion.id, group.accordion.humanLabel).toMatch(/^audioRig\./);
-    }
-    const ids = AUDIO_RIG_ACCORDION_GROUPS.map((g) => g.accordion.id);
-    expect(new Set(ids).size).toBe(ids.length);
-  });
-
-  it("blockKeys across all 3 groups cover exactly the 7 effect keys once each, minus none, no duplicates", () => {
-    const allKeys = AUDIO_RIG_ACCORDION_GROUPS.flatMap((g) => g.blockKeys);
-    expect([...allKeys].sort()).toEqual([...EFFECT_KEYS].sort());
-    expect(new Set(allKeys).size).toBe(allKeys.length);
-  });
-});
-
-describe('TRANSPORT_COMPOSITION_ACCORDION_SCHEMA (Task 1)', () => {
-  it('is an accordion schema with humanLabel Transport & Composition', () => {
-    expect(TRANSPORT_COMPOSITION_ACCORDION_SCHEMA).toMatchObject({
-      id: 'audioRig.transportComposition',
-      type: 'accordion',
-      humanLabel: 'Transport & Composition',
-    });
-  });
-
-  it('has a non-empty invented loreLabel', () => {
-    expect(TRANSPORT_COMPOSITION_ACCORDION_SCHEMA.loreLabel).toBeTruthy();
+describe('AUDIO_RIG_ACCORDION_GROUPS / TRANSPORT_COMPOSITION_ACCORDION_SCHEMA no longer exist (docs/tasks/NAV_LAYOUT_REWRITE.md Task 21 cleanup — the old accordion schema type itself is gone)', () => {
+  it('are not exported by the module', () => {
+    expect('AUDIO_RIG_ACCORDION_GROUPS' in audioRigConfigModule).toBe(false);
+    expect('TRANSPORT_COMPOSITION_ACCORDION_SCHEMA' in audioRigConfigModule).toBe(false);
   });
 });
 

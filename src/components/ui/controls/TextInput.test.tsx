@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mocked the same way every other CabinetBox consumer's own test file does
-// (Button/Toggle/RadioButton/AccordionContainer/DirectionalPanel) — isolates
+// (Button/Toggle/RadioButton/DirectionalPanel) — isolates
 // this file's assertions about TextInput's own facade wiring from
 // CabinetBox's already-proven internals (11.1.1/DirectionalPanel's own
 // autoHeight, roadmap 11.1.9). Extended to also capture skipMountAnimation/

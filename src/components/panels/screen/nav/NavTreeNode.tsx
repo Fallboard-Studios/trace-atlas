@@ -15,9 +15,9 @@ interface NavTreeNodeProps {
 /**
  * One tree row, recursive (docs/specs/NAV_LAYOUT_REWRITE.md §5.2) — a name button (click =
  * select) and a separate +/- button (click = toggle-expand only, stopPropagation'ed so it never
- * also fires select). `aria-expanded` is left `undefined` (not `false`) on leaf nodes, matching
- * AccordionContainer's own existing precedent: real open/closed state on a node that can never
- * expand isn't a meaningful thing to announce. `data-nav-node-id` lets NavTree (Task 5) find and
+ * also fires select). `aria-expanded` is left `undefined` (not `false`) on leaf nodes — real
+ * open/closed state on a node that can never expand isn't a meaningful thing to announce.
+ * `data-nav-node-id` lets NavTree (Task 5) find and
  * imperatively focus() the roving-tabindex target after an arrow-key move.
  */
 export function NavTreeNode({ node, depth, focusedId }: NavTreeNodeProps) {

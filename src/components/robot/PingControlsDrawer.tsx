@@ -75,7 +75,7 @@ interface PingControlsDrawerProps {
 
 /**
  * 2 DirectionalPanels — Phrasing (Density, Motif Length, Pitch Repeat, the dev-only Click Track
- * toggle, Reset Melody) and Frequency (Octave Range, Note Variance). No AccordionContainer wrapper
+ * toggle, Reset Melody) and Frequency (Octave Range, Note Variance). No accordion wrapper
  * as of Task 15 (docs/tasks/NAV_LAYOUT_REWRITE.md) — this drawer's content is now a probe's own
  * "Melody" tree leaf, and the tree node itself carries the "Melody" label, so there's no longer an
  * accordion header to show it on. Purely presentational — no `robot` prop, no store access; both

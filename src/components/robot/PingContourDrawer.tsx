@@ -35,7 +35,7 @@ interface PingContourDrawerProps {
 
 /**
  * One Ping Contour DirectionalPanel, editing the robot's single shared ADSR envelope. No
- * AccordionContainer wrapper as of Task 16 (docs/tasks/NAV_LAYOUT_REWRITE.md) — this drawer's
+ * accordion wrapper as of Task 16 (docs/tasks/NAV_LAYOUT_REWRITE.md) — this drawer's
  * content is now a probe's own "Envelope" tree leaf, and the tree node itself carries that label,
  * so there's no accordion header left to show it on ("Ping Contour" is the panel's own internal
  * label, unrelated to the removed accordion's). Purely presentational — no `robot` prop, no store

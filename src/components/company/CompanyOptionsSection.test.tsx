@@ -16,7 +16,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 // Roadmap Phase 14 — every mock below also reads `props.style`'s two custom properties onto
 // data-* attributes, the same styleAttrs helper RobotOptionsTab.test.tsx uses, so this file's own
 // trait-color tests can assert on what CompanyOptionsSection actually passed down without needing
-// the real drawer/AccordionContainer to mount.
+// the real drawer to mount.
 function styleAttrs(style?: { [key: string]: string }) {
   return { 'data-style-a': style?.['--color-accent-a'], 'data-style-b': style?.['--color-accent-b'] };
 }

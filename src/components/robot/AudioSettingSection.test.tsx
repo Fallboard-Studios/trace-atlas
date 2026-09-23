@@ -271,7 +271,7 @@ describe('AudioSettingSection', () => {
 
   // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 11) — an optional
   // `style` prop forwarded to this section's own root (Task 18 follow-up, docs/tasks/
-  // NAV_LAYOUT_REWRITE.md: moved from the now-removed AccordionContainer wrapper to the plain
+  // NAV_LAYOUT_REWRITE.md: moved from the now-removed accordion wrapper to the plain
   // .audio-setting-section root), for trait-color scoping (getTraitColorStyle('output'), applied
   // at the RobotOptionsTab call site in Task 12).
   describe('style prop', () => {

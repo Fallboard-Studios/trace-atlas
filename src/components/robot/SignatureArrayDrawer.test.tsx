@@ -4,8 +4,8 @@ import { render, screen, fireEvent, within, waitFor, act } from '@testing-librar
 
 // Same reasoning as AudioRigDrawer.test.tsx: the shared vitest.setup.ts GSAP mock's timeline
 // object has no kill() method, and useLfoTargetGroup's unmount/reselect cleanup calls
-// killTimeline on an already-registered entry — mock timelineMap directly, matching
-// AccordionContainer.test.tsx's own established convention.
+// killTimeline on an already-registered entry — mock timelineMap directly, the established
+// convention every GSAP-timeline test in this codebase uses.
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));
 
 // The Robot Drift panel (docs/tasks/DIRECTIONAL_PANEL_WIRING.md "some fixes" follow-up) reads/
@@ -282,8 +282,8 @@ describe('SignatureArrayDrawer', () => {
     });
 
     // Confirmed, intentional behavior (docs/tasks/NAV_LAYOUT_REWRITE.md Task 17, spec R2 — see
-    // this file's own top-of-component doc comment): under the old AccordionContainer, a layer's
-    // selected LFO target survived a collapse/reopen because AccordionContainer's lazy-mount kept
+    // this file's own top-of-component doc comment): under the old accordion wrapper, a layer's
+    // selected LFO target survived a collapse/reopen because its lazy-mount kept
     // the content mounted, just hidden. Now that this drawer only exists in the DOM while its tree
     // leaf is the selected one, ContentPane genuinely unmounts it on navigating away and remounts
     // it fresh on return — so the selection resets to the group's first field every time, rather
@@ -381,7 +381,7 @@ describe('SignatureArrayDrawer', () => {
 
   // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 11) — an optional
   // `style` prop forwarded to this drawer's own root (Task 17, docs/tasks/NAV_LAYOUT_REWRITE.md:
-  // moved from the now-removed AccordionContainer wrapper to the plain .signature-array-drawer
+  // moved from the now-removed accordion wrapper to the plain .signature-array-drawer
   // root), for trait-color scoping (getTraitColorStyle('spectral'), applied at the
   // RobotOptionsTab call site in Task 12). Also proves Robot Drift (rendered inside this same
   // root) inherits it via cascade, per spec §1.6.

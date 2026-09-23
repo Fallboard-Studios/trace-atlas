@@ -117,13 +117,6 @@ describe('LfoTargetGroup', () => {
     expect(screen.getByText('Low')).toBeTruthy();
   });
 
-  it('renders no AccordionContainer anywhere inside itself', () => {
-    const { container } = render(
-      <LfoTargetGroup groupId="audioRig.eq3" fields={FIELDS} onLfoChange={() => {}} renderField={renderField} />,
-    );
-    expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
-  });
-
   describe('sliders panel (docs/tasks/DIRECTIONAL_PANEL_WIRING.md follow-up: column[sliders-panel, Lfo, driftContent])', () => {
     it('wraps the field rows in their own DirectionalPanel, defaulting to column orientation', () => {
       const { container } = render(

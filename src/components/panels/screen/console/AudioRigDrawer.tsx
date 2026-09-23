@@ -241,8 +241,8 @@ function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange, driftContent
  * one control that never got a tree leaf of its own: Ping Variance Automation ("Automatic
  * Effects"). Every real effect (EQ, HPF, LPF, Delay, Reverb, Compressor, Limiter) moved out to
  * its own AudioRigEffectPanel instance, rendered directly by FleetParamsContent.tsx when a
- * specific effect leaf is selected — this component (and its former AccordionContainer wrapper,
- * now removed) is FleetParamsContent's own fallback for the bare 'fleetParams' selection and its
+ * specific effect leaf is selected — this component (and its former accordion wrapper, now
+ * removed) is FleetParamsContent's own fallback for the bare 'fleetParams' selection and its
  * 3 still-category-only groups (EQ & Filters/Time & Space/Output), none of which has doc-content
  * wired yet (spec §7 Q4, deferred). No accordion left — AudioRigEffectPanel below carries its own
  * per-effect trait color directly now that there's no group accordion to cascade one down.

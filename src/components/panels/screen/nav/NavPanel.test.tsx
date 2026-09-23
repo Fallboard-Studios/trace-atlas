@@ -7,8 +7,8 @@ import { setTimeline, killTimeline } from '@/animation/timelineMap';
 vi.mock('./NavTree', () => ({ NavTree: () => <div data-testid="nav-tree-stub" /> }));
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));
 
-// Local gsap mock (overrides vitest.setup.ts's shared one, same pattern
-// AccordionContainer.test.tsx uses) — captures each .to() call's vars so the
+// Local gsap mock (overrides vitest.setup.ts's shared one, same pattern other
+// GSAP-timeline tests in this codebase use) — captures each .to() call's vars so the
 // prefers-reduced-motion duration assertion below can inspect it directly.
 let lastToVars: Record<string, unknown> | undefined;
 vi.mock('gsap', () => {

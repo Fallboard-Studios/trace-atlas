@@ -33,7 +33,7 @@ vi.mock('@/components/robot/RobotDisplaySection', () => ({
 }));
 // Roadmap Phase 14 (Task 12) — every mock below also reads `props.style`'s two custom
 // properties onto data-* attributes, so this file's own trait/robot-color tests can assert on
-// what RobotOptionsTab actually passed down without needing the real drawer/AccordionContainer
+// what RobotOptionsTab actually passed down without needing the real drawer components
 // to mount (this file's whole point is isolating RobotOptionsTab's own wiring).
 function styleAttrs(style?: { [key: string]: string }) {
   return { 'data-style-a': style?.['--color-accent-a'], 'data-style-b': style?.['--color-accent-b'] };
@@ -615,5 +615,5 @@ describe('RobotOptionsTab', () => {
   // tab leaf-aware — only one of the 4 sections is ever mounted at a time now, so "the other 3 didn't
   // re-render" is trivially true (they were never mounted) and proves nothing. Dropped rather than kept
   // as a vacuous pass, mirroring the same lazy-mount test-obsolescence precedent from the
-  // AccordionContainer migration (Task 14, AudioRigDrawer.test.tsx).
+  // accordion-removal migration (Task 14, AudioRigDrawer.test.tsx).
 });

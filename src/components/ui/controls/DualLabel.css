@@ -20,8 +20,8 @@
    row at its overflow floor) — fires when the nearest sc-control container
    ancestor (set on each of the 11 leaf controls' own root, docs/specs/
    TYPE_SCALE.md §1.4) is too narrow for the default label sizes above.
-   AccordionContainer/DirectionalPanel never establish an sc-control
-   container, so this never fires for their own DualLabel usage. */
+   DirectionalPanel never establishes an sc-control
+   container, so this never fires for its own DualLabel usage. */
 @container sc-control (max-width: 120px) {
   .sc-dual-label__lore,
   .sc-dual-label__human {

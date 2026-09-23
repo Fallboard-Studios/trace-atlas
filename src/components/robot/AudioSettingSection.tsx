@@ -51,10 +51,10 @@ interface AudioSettingSectionProps {
  * to different value/onChange sources. No `robot` prop, no store access — a pure value/onChange
  * component, same contract every other refactored Robot Options section uses.
  *
- * No AccordionContainer wrapper as of Task 18's own follow-up (docs/tasks/NAV_LAYOUT_REWRITE.md —
+ * No accordion wrapper as of Task 18's own follow-up (docs/tasks/NAV_LAYOUT_REWRITE.md —
  * this section is a probe's/company's own "Volume" tree leaf per spec §2's mapping table, found as
- * a 6th real AccordionContainer consumer the plan's own Tasks 14-18 list of 5 missed; migrated the
- * same way as the other 5 rather than left behind, since Checkpoint 3's own "zero remaining
+ * a 6th real accordion-migration consumer the plan's own Tasks 14-18 list of 5 missed; migrated
+ * the same way as the other 5 rather than left behind, since Checkpoint 3's own "zero remaining
  * consumers" grep check wouldn't otherwise hold). Volume renders through `useLfoTargetGroup`
  * called directly (the hook, not the shared `<LfoTargetGroup>` wrapper component) so this
  * component can hand-compose a layout `LfoTargetGroup` has no way to produce on its own: Audio

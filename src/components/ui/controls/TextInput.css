@@ -33,8 +33,8 @@
    facade, there's no nesting-context here to gate it. Direct-child
    combinators used for consistency with every prior facade rule and as
    free defensive scoping — TextInput's own content (DualLabel + a native
-   <input>) never contains a nested CabinetBox, so unlike DirectionalPanel/
-   AccordionContainer there's no real selector-scoping ambiguity to solve
+   <input>) never contains a nested CabinetBox, so unlike DirectionalPanel
+   there's no real selector-scoping ambiguity to solve
    here. See docs/specs/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.1/§1.3. */
 .sc-text-input-facade > .sc-cabinet-box {
   width: 100%;

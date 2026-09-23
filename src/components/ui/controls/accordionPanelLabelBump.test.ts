@@ -7,48 +7,17 @@ import { describe, expect, it } from 'vitest';
 import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 
 // TYPE_SCALE.md Task 7 — the direct fix for the named "accordion/directional-
-// panel labels read too small" complaint (spec §1.6). Both stay --font-sans
+// panel labels read too small" complaint (spec §1.6). Stays --font-sans
 // (Rajdhani, untouched here — confirmed by the "no container-type" guard
-// below, the same signal §1.4/§1.5 use to mean "not a leaf control") but get
-// an explicit size + weight bump on their own DualLabel human label only.
+// below, the same signal §1.4/§1.5 use to mean "not a leaf control") but gets
+// an explicit size + weight bump on its own DualLabel human label only.
+//
+// This file's own accordion-wrapper label-bump half was removed
+// docs/tasks/NAV_LAYOUT_REWRITE.md Task 21, once the accordion wrapper's own stylesheet was
+// deleted (zero consumers remained) — DirectionalPanel.css's own bump below is unaffected by
+// that removal.
 
 const controlsDir = dirname(fileURLToPath(import.meta.url));
-
-describe('AccordionContainer.css label bump', () => {
-  const cssSource = readFileSync(resolve(controlsDir, 'AccordionContainer.css'), 'utf-8');
-
-  it('bumps the trigger label (scoped to .sc-accordion__row, not the bare selector) to heading-sm/medium weight', () => {
-    const body = getCssRuleBody(cssSource, '.sc-accordion__row .sc-dual-label__human');
-    expect(body).not.toBeNull();
-    expect(body).toContain('font-size: var(--font-size-heading-sm);');
-    expect(body).toContain('font-weight: var(--font-weight-medium);');
-  });
-
-  it('leaves the lore caption untouched — no rule targets .sc-accordion__row .sc-dual-label__lore', () => {
-    expect(getCssRuleBody(cssSource, '.sc-accordion__row .sc-dual-label__lore')).toBeNull();
-  });
-
-  it('does not bump every .sc-dual-label__human in the app — only ones inside .sc-accordion__row', () => {
-    // A bare, unscoped rule would leak into every nested control's own
-    // label. This asserts the ONLY human-label rule in the file is the
-    // scoped one above by checking the bare selector has no rule of its own
-    // here (AccordionContainer.css never defines .sc-dual-label__human
-    // outside the .sc-accordion__row scope — that selector belongs to
-    // DualLabel.css, not here).
-    expect(getCssRuleBody(cssSource, '.sc-dual-label__human')).toBeNull();
-  });
-
-  it("tokenizes the indicator glyph's weight to --font-weight-medium (same 600 value, not renumbered)", () => {
-    const body = getCssRuleBody(cssSource, '.sc-accordion__indicator');
-    expect(body).toContain('font-weight: var(--font-weight-medium);');
-    expect(body).not.toContain('font-weight: 600;');
-  });
-
-  it('gains no container-type/container-name (out of scope per spec §1.4 — this stays chrome, not a leaf control)', () => {
-    expect(cssSource).not.toContain('container-type');
-    expect(cssSource).not.toContain('container-name');
-  });
-});
 
 describe('DirectionalPanel.css label bump', () => {
   const cssSource = readFileSync(resolve(controlsDir, 'DirectionalPanel.css'), 'utf-8');

@@ -134,7 +134,7 @@ describe('PingContourDrawer', () => {
 
   // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 10) — an optional
   // `style` prop forwarded to this drawer's own root (Task 16, docs/tasks/NAV_LAYOUT_REWRITE.md:
-  // moved from the now-removed AccordionContainer wrapper to the plain .ping-contour-drawer
+  // moved from the now-removed accordion wrapper to the plain .ping-contour-drawer
   // root), for trait-color scoping (getTraitColorStyle('timeSpace'), applied at the
   // RobotOptionsTab call site in Task 12).
   describe('style prop', () => {
@@ -164,8 +164,8 @@ describe('PingContourDrawer', () => {
     // memoized children's independent one, and the 2 inline DirectionalPanel schemas this task
     // also hoists to module scope have no observable path to a measurable win today either (their
     // own `children` are freshly constructed by this drawer on every real re-render regardless,
-    // which is exactly the "conditional benefit" DirectionalPanel/AccordionContainer's own
-    // memoization was documented to have in docs/specs/OBLIQUE_CABINETRY_MEMOIZATION.md §1.3) —
+    // which is exactly the "conditional benefit" DirectionalPanel's own memoization was
+    // documented to have in docs/specs/OBLIQUE_CABINETRY_MEMOIZATION.md §1.3) —
     // so the structural check is what's provable in isolation here.
     it('is a React.memo-wrapped component', () => {
       expect((PingContourDrawer as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));

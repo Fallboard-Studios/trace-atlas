@@ -1,8 +1,7 @@
 /**
  * Pop/flat transition timing for CabinetBox. Respects prefers-reduced-motion
- * the same way accordionAnimation.ts (AccordionContainer) and
- * PowerRockerSwitch.css do — the box still pops/flattens, but the transition
- * snaps instead of animating.
+ * the same way PowerRockerSwitch.css and NavPanel.tsx's own GSAP slide do —
+ * the box still pops/flattens, but the transition snaps instead of animating.
  *
  * Direction-dependent DURATION (2026-09-09 follow-up): popping OUT
  * (flattening) uses the shorter CABINET_POP_DURATION_OUT instead of

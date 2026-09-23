@@ -431,7 +431,7 @@ describe('PingControlsDrawer', () => {
 
   // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 10) — an optional
   // `style` prop forwarded to this drawer's own root (Task 15, docs/tasks/NAV_LAYOUT_REWRITE.md:
-  // moved from the now-removed AccordionContainer wrapper to the plain .ping-controls-drawer
+  // moved from the now-removed accordion wrapper to the plain .ping-controls-drawer
   // root), for trait-color scoping (getTraitColorStyle('composition'), applied at the
   // RobotOptionsTab call site in Task 12).
   describe('style prop', () => {

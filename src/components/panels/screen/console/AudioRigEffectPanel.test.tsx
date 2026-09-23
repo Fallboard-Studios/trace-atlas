@@ -53,7 +53,7 @@ import { GLOBAL_LFO_TARGET_IDS, type GlobalLfoTargetId } from '@/types/lfo';
  * (docs/tasks/NAV_LAYOUT_REWRITE.md Task 14) once each effect became its own standalone tree
  * leaf, rendered directly rather than nested inside a shared group accordion. Every test below
  * renders one (or, where cross-effect isolation is the point, two) AudioRigEffectPanel instance(s)
- * directly — no AccordionContainer, no PanelGroup, no lazy-mount/opening concept left, since
+ * directly — no accordion wrapper, no PanelGroup, no lazy-mount/opening concept left, since
  * there's no longer a collapsed section to open. Tests that were purely about the now-removed
  * accordion/group-sharing structure (top-level accordion order, lazy mount, EQ & Filters/Time &
  * Space/Output's shared PanelGroup layout and facades) are dropped, not ported — that structure

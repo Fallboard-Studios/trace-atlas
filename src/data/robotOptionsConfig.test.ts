@@ -16,12 +16,8 @@ import {
   SUSTAIN_SCHEMA,
   RELEASE_SCHEMA,
   SIGNATURE_ARRAY_CONFIG,
-  VOLUME_ACCORDION_SCHEMA,
   VOLUME_ROW_PANEL_SCHEMA,
   VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA,
-  MELODY_ACCORDION_SCHEMA,
-  ENVELOPE_ACCORDION_SCHEMA,
-  SOURCE_ACCORDION_SCHEMA,
   PHRASING_PANEL_SCHEMA,
   RHYTHM_PANEL_SCHEMA,
   FREQUENCY_PANEL_SCHEMA,
@@ -286,28 +282,12 @@ describe('vertical slider verticalHeight budget (roadmap 13 — "Vertical Slider
 // ========================================
 
 describe('ROBOT_OUTPUT_PANEL_SCHEMA no longer exists (Task 2 cleanup)', () => {
-  it('is not exported by the module — fully superseded by VOLUME_ACCORDION_SCHEMA + the 2 new panels', () => {
+  it('is not exported by the module — fully superseded by AudioSettingSection\'s own panels', () => {
     expect((robotOptionsConfigModule as Record<string, unknown>).ROBOT_OUTPUT_PANEL_SCHEMA).toBeUndefined();
   });
 });
 
-describe('VOLUME_ACCORDION_SCHEMA / VOLUME_ROW_PANEL_SCHEMA / VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.2)', () => {
-  it('VOLUME_ACCORDION_SCHEMA is an accordion labeled Volume / Probe Acoustic Amplitude', () => {
-    // Source types invented lore strings in ALL-CAPS throughout this file (e.g.
-    // MELODY_ACCORDION_SCHEMA's 'MELODIC SUBSYSTEM') — DualLabel.css applies
-    // text-transform: uppercase regardless, so this is a source-style convention, not a
-    // behavior difference from the title-case phrasing Crawford used when describing it.
-    expect(VOLUME_ACCORDION_SCHEMA).toMatchObject({
-      type: 'accordion',
-      humanLabel: 'Volume',
-      loreLabel: 'PROBE ACOUSTIC AMPLITUDE',
-    });
-  });
-
-  it("VOLUME_ACCORDION_SCHEMA's id does not collide with VOLUME_SCHEMA's own id", () => {
-    expect(VOLUME_ACCORDION_SCHEMA.id).not.toBe(VOLUME_SCHEMA.id);
-  });
-
+describe('VOLUME_ROW_PANEL_SCHEMA / VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.2)', () => {
   it('VOLUME_ROW_PANEL_SCHEMA is a responsive-orientation directionalPanel, unlabeled', () => {
     expect(VOLUME_ROW_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'responsive' });
     expect(VOLUME_ROW_PANEL_SCHEMA.loreLabel).toBeUndefined();
@@ -320,40 +300,24 @@ describe('VOLUME_ACCORDION_SCHEMA / VOLUME_ROW_PANEL_SCHEMA / VOLUME_SETTINGS_CO
     expect(VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA.humanLabel).toBeUndefined();
   });
 
-  it('all 3 new ids are unique and in the robotOptions.* namespace', () => {
-    const ids = [VOLUME_ACCORDION_SCHEMA.id, VOLUME_ROW_PANEL_SCHEMA.id, VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA.id];
+  it('both ids are unique and in the robotOptions.* namespace', () => {
+    const ids = [VOLUME_ROW_PANEL_SCHEMA.id, VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA.id];
     ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
-    expect(new Set(ids).size).toBe(3);
+    expect(new Set(ids).size).toBe(2);
   });
 
-  it('all 3 remain JSON-serializable', () => {
-    expect(() => JSON.stringify(VOLUME_ACCORDION_SCHEMA)).not.toThrow();
+  it('both remain JSON-serializable', () => {
     expect(() => JSON.stringify(VOLUME_ROW_PANEL_SCHEMA)).not.toThrow();
     expect(() => JSON.stringify(VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA)).not.toThrow();
   });
 });
 
-describe('MELODY_ACCORDION_SCHEMA / ENVELOPE_ACCORDION_SCHEMA / SOURCE_ACCORDION_SCHEMA (Task 3)', () => {
-  it('are accordion schemas with the confirmed humanLabels, in the robotOptions.* namespace', () => {
-    expect(MELODY_ACCORDION_SCHEMA.type).toBe('accordion');
-    expect(MELODY_ACCORDION_SCHEMA.humanLabel).toBe('Melody');
-    expect(MELODY_ACCORDION_SCHEMA.id).toMatch(/^robotOptions\./);
-
-    expect(ENVELOPE_ACCORDION_SCHEMA.type).toBe('accordion');
-    expect(ENVELOPE_ACCORDION_SCHEMA.humanLabel).toBe('Envelope');
-    expect(ENVELOPE_ACCORDION_SCHEMA.id).toMatch(/^robotOptions\./);
-
-    expect(SOURCE_ACCORDION_SCHEMA.type).toBe('accordion');
-    expect(SOURCE_ACCORDION_SCHEMA.humanLabel).toBe('Source');
-    expect(SOURCE_ACCORDION_SCHEMA.id).toMatch(/^robotOptions\./);
-  });
-
-  it('each has a non-empty invented loreLabel, and all 3 ids are unique', () => {
-    for (const schema of [MELODY_ACCORDION_SCHEMA, ENVELOPE_ACCORDION_SCHEMA, SOURCE_ACCORDION_SCHEMA]) {
-      expect(schema.loreLabel, schema.humanLabel).toBeTruthy();
-    }
-    const ids = [MELODY_ACCORDION_SCHEMA.id, ENVELOPE_ACCORDION_SCHEMA.id, SOURCE_ACCORDION_SCHEMA.id];
-    expect(new Set(ids).size).toBe(3);
+describe('VOLUME/MELODY/ENVELOPE/SOURCE_ACCORDION_SCHEMA no longer exist (docs/tasks/NAV_LAYOUT_REWRITE.md Task 21 cleanup — the old accordion schema type itself is gone)', () => {
+  it('are not exported by the module', () => {
+    expect('VOLUME_ACCORDION_SCHEMA' in robotOptionsConfigModule).toBe(false);
+    expect('MELODY_ACCORDION_SCHEMA' in robotOptionsConfigModule).toBe(false);
+    expect('ENVELOPE_ACCORDION_SCHEMA' in robotOptionsConfigModule).toBe(false);
+    expect('SOURCE_ACCORDION_SCHEMA' in robotOptionsConfigModule).toBe(false);
   });
 });
 

@@ -162,7 +162,7 @@ body {
    TYPE_SCALE.md Task 2) — zero real <h1> consumers. The base button {...}
    rule was ALSO removed there, incorrectly assumed dead in the same way —
    real bare <button> elements DO exist throughout the app (RadioButton's own
-   option buttons, AccordionContainer's trigger, Toggle's switch, Stepper's
+   option buttons, NavTreeNode's expand/collapse trigger, Toggle's switch, Stepper's
    +/- buttons, PowerRockerSwitch's confirm dialog), and that rule's
    `font-family: inherit;` line was the only thing letting any of them pick
    up the page's set font at all — browsers' UA stylesheets give button/

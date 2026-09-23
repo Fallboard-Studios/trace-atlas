@@ -9,8 +9,8 @@ import { ACCENT_COLORS } from '@/constants/accentColors';
  * AudioRigDrawer — as of Task 14 (docs/tasks/NAV_LAYOUT_REWRITE.md), this component's own scope
  * has shrunk to just Automatic Effects (Ping Variance Automation), the one control that never got
  * a tree leaf of its own. Every real effect (EQ, HPF, LPF, Delay, Reverb, Compressor, Limiter)
- * moved to AudioRigEffectPanel, tested standalone in AudioRigEffectPanel.test.tsx. No
- * AccordionContainer, no LFO group, no Tone-touching code left in this component at all — the
+ * moved to AudioRigEffectPanel, tested standalone in AudioRigEffectPanel.test.tsx. No accordion
+ * wrapper, no LFO group, no Tone-touching code left in this component at all — the
  * heavy lfoEngine/timelineMap/accessibleName-spy mocks the pre-Task-14 version of this file
  * needed are gone too, since nothing here exercises any of that anymore.
  */
@@ -41,7 +41,7 @@ describe('AudioRigDrawer', () => {
     expect(screen.queryByRole('slider', { name: 'Threshold' })).toBeNull();
   });
 
-  it('renders no accordion anywhere — AccordionContainer no longer appears in this file at all (Task 14)', () => {
+  it('renders no accordion anywhere — no collapsed wrapper appears in this file at all (Task 14)', () => {
     const { container } = render(<AudioRigDrawer />);
     expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
     expect(screen.queryByRole('button')).toBeNull();
@@ -73,7 +73,7 @@ describe('AudioRigDrawer', () => {
       expect(slider.getAttribute('data-disabled')).toBeNull();
     });
 
-    it('renders inside its own Speed & Automation panel — no accordion wraps it (Task 14: Transport & Composition\'s own AccordionContainer was removed too)', () => {
+    it('renders inside its own Speed & Automation panel — no accordion wraps it (Task 14: Transport & Composition\'s own accordion wrapper was removed too)', () => {
       render(<AudioRigDrawer />);
       const slider = screen.getByRole('slider', { name: 'Automatic Effects' });
       const panel = slider.closest('.sc-directional-panel');

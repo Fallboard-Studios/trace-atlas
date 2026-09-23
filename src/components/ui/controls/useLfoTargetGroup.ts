@@ -45,7 +45,8 @@ export interface UseLfoTargetGroupResult<F extends string = string> {
  * Owns the shared-LFO-display selection/transition state machine (docs/specs/
  * LFO_CONSOLIDATED_DISPLAY.md §1.3) — which field is targeted, and the explicit transition
  * state a target swap goes through before committing. Selection is local ephemeral state,
- * never Zustand (mirrors AccordionContainer.tsx's own open/closed precedent). The transition
+ * never Zustand (the same "selection is local, ephemeral state" precedent this repo uses
+ * elsewhere). The transition
  * itself is a timelineMap-registered GSAP timeline, not a raw timer (CLAUDE.md forbids
  * setTimeout/setInterval/requestAnimationFrame for musical/UI timing here) — today a
  * 0-duration scaffold; a future pass adds real crossfade timing without changing this state

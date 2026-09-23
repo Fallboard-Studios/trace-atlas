@@ -230,7 +230,7 @@ const SignatureArrayLayer = memo(SignatureArrayLayerInner);
 
 /**
  * 3 DirectionalPanels, one per fixed layer slot (Baseline/Coaxial/Harmonic), plus the Robot Drift
- * panel — docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 8. No AccordionContainer wrapper as of Task
+ * panel — docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 8. No accordion wrapper as of Task
  * 17 (docs/tasks/NAV_LAYOUT_REWRITE.md) — this drawer's content is now a probe's own "Source" tree
  * leaf, and the tree node itself carries that label, so there's no accordion header left to show
  * it on. Robot Drift lands last, after Harmonic — see RobotDriftPanel below.
@@ -258,8 +258,8 @@ const SignatureArrayLayer = memo(SignatureArrayLayerInner);
  * LFO-target-selection behavior change (Task 17's own flagged design question, spec R2): each
  * layer's LfoTargetGroup instance keeps its own selected-target state as component-local
  * (useLfoTargetGroup's `useState`, never uiStore — matches this repo's established "selection is
- * local, ephemeral state" precedent). Under the old AccordionContainer, that state survived a
- * collapse/reopen because AccordionContainer's lazy-mount kept a once-opened section's content
+ * local, ephemeral state" precedent). Under the old accordion wrapper, that state survived a
+ * collapse/reopen because its lazy-mount kept a once-opened section's content
  * mounted, just visually hidden. Under the new tree-nav content model, ContentPane genuinely
  * unmounts this whole drawer whenever the selection moves elsewhere (a different section, a
  * different probe) and remounts it fresh on return — so a layer's own LFO target selection now
