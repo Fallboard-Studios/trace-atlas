@@ -547,6 +547,64 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
   });
 });
 
+describe('useNavTree — select() auto-expands every ancestor row (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 14, spec §1.6)', () => {
+  beforeEach(resetStores);
+
+  it('selecting a deep probe subsection expands the top-level branch, the probe, and its section in one step', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('probes.r1.source.probeDrift'));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
+    expect(useUIStore.getState().expandedProbeId).toBe('r1');
+    expect(useUIStore.getState().expandedProbeSection).toBe('source');
+  });
+
+  it('selecting a deep company subsection expands the top-level branch, the company, and its section in one step', () => {
+    useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp'));
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('companies.c1.melody.rhythm'));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('companies');
+    expect(useUIStore.getState().expandedCompanyId).toBe('c1');
+    expect(useUIStore.getState().expandedCompanySection).toBe('melody');
+  });
+
+  it('selecting a Fleet Params leaf expands the top-level branch and its own group', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('fleetParams.timeSpace.reverb'));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('fleetParams');
+    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('timeSpace');
+  });
+
+  it('selecting a Settings leaf expands the Settings top-level branch', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('settings.tempo'));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('settings');
+  });
+
+  it('selecting a leaf in one branch does not disturb another branch\'s own expand state — no stale accordion-open state leaks across branches', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('probes.r1.envelope'));
+    act(() => result.current.select('fleetParams.eqFilters.eq'));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('fleetParams');
+    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('eqFilters');
+    // The probe's own expand state is untouched — switching branches doesn't collapse it, only
+    // expandedTopLevelBranch (the accordion-of-one for which top-level row is peeked) moves on.
+    expect(useUIStore.getState().expandedProbeId).toBe('r1');
+    expect(useUIStore.getState().expandedProbeSection).toBe('envelope');
+  });
+});
+
 describe('useNavTree — isSelected disambiguates bare "probes" (browse list) from "probes.all" (All Probes bulk-edit) via allProbesSelected (Task 19)', () => {
   beforeEach(resetStores);
 

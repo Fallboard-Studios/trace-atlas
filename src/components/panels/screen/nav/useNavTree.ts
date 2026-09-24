@@ -244,9 +244,35 @@ export function useNavTree(): UseNavTreeResult {
   function select(id: string): void {
     const [branch, entityId, section, subsection] = id.split('.');
 
+    // Ancestor auto-expand (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 14, spec §1.6) —
+    // selecting any node reveals it in the tree, expanding every ancestor row needed to show it,
+    // the same as if the user had clicked each +/- along the way.
+    const topLevel = asTopLevelBranch(branch);
+    if (topLevel) setExpandedTopLevelBranch(topLevel);
+    if ((branch === 'probes' || branch === 'companies') && entityId) {
+      const sec = asRobotSection(section);
+      if (branch === 'probes') {
+        setExpandedProbeId(entityId);
+        if (sec) setExpandedProbeSection(sec);
+      } else {
+        setExpandedCompanyId(entityId);
+        if (sec) setExpandedCompanySection(sec);
+      }
+    }
+    if (branch === 'fleetParams' && entityId) {
+      const group = asFleetParamsGroup(entityId);
+      if (group) setExpandedFleetParamsGroup(group);
+    }
+
     if (branch === 'settings') {
       setActiveHubTile('settings');
       setSelectedSection(null);
+      // Bugfix, Task 14 (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md) — selectedSubsection wasn't
+      // being cleared alongside selectedSection here, so a Probes/Companies subsection selected
+      // before navigating to Settings/Fleet Params stayed stale in the store (found via the
+      // cross-branch integration test; harmless today since ContentPane only renders one branch's
+      // content at a time, but stale state waiting to bite the next feature that reads it).
+      setSelectedSubsection(null);
       // First-leaf-on-parent-select (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.6) — selecting
       // the bare branch itself opens its first leaf (Volume) rather than leaving nothing open;
       // the view/accordion model always has exactly one section open, never "nothing selected."
@@ -256,6 +282,7 @@ export function useNavTree(): UseNavTreeResult {
     if (branch === 'fleetParams') {
       setActiveHubTile('audioRig');
       setSelectedSection(null);
+      setSelectedSubsection(null); // Bugfix, Task 14 — same stale-selectedSubsection gap as settings above.
       // First-leaf-on-parent-select (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.6) — the bare
       // branch opens the overall first leaf; a category group (no `section` segment) opens ITS OWN
       // first child, not always the same one; a real leaf resolves as before.
