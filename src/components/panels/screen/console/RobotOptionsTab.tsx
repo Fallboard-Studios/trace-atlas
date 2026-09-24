@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSectionObserver } from '../nav/useSectionObserver';
+import { useAccordionOpenState } from '../nav/useAccordionOpenState';
 import { RobotDisplaySection } from '@/components/robot/RobotDisplaySection';
 import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
 import { PingControlsRhythmSection, PingControlsFrequencySection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
@@ -16,7 +17,7 @@ import { regenerateMelody } from '@/engine/regenerateMelody';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE } from '@/engine/melodyGenerator';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
 import { VOLUME_LFO_TARGET, SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
-import { FIRST_SUBSECTION_OF, SOURCE_OSCILLATOR_SUBSECTIONS, OSCILLATOR_LABELS } from '@/data/robotSubsectionConfig';
+import { SOURCE_OSCILLATOR_SUBSECTIONS, OSCILLATOR_LABELS } from '@/data/robotSubsectionConfig';
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo, applyClickTrackActive,
@@ -57,8 +58,6 @@ function sectionAnchorRef(id: string) {
  */
 export function RobotOptionsTab() {
   const selectedRobotId = useUIStore((s) => s.selectedRobotId);
-  const selectedSection = useUIStore((s) => s.selectedSection);
-  const selectedSubsection = useUIStore((s) => s.selectedSubsection);
 
   // Localize the active locale id and look up the selected robot safely.
   // Call hooks unconditionally to satisfy the rules-of-hooks linter.
@@ -82,21 +81,12 @@ export function RobotOptionsTab() {
     return <div className="robot-options-empty">Robot not found</div>;
   }
 
-  return (
-    <RobotOptionsPanel
-      robot={robot}
-      localeId={localeId}
-      section={selectedSection}
-      subsection={selectedSubsection}
-    />
-  );
+  return <RobotOptionsPanel robot={robot} localeId={localeId} />;
 }
 
 interface RobotOptionsPanelProps {
   robot: Robot;
   localeId: string;
-  section: RobotSection | null;
-  subsection: RobotSubsection | null;
 }
 
 /**
@@ -105,13 +95,17 @@ interface RobotOptionsPanelProps {
  *
  * Stacked view (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, Task 11) — replaces the old
  * `switch (section)` (one leaf rendered) with RobotDisplaySection at top (unwrapped), followed by
- * all 4 sections' worth of subsections stacked, each wrapped in a controlled AccordionContainer.
- * Exactly one subsection is open at a time, derived from `section`/`subsection` (spec §1.5) —
- * `section` null (nothing selected yet) falls back to 'volume', and `subsection` null falls back
- * to that section's own first child, so something is always open. Each subsection's real content
- * only mounts once its own anchor has been scrolled near (useSectionObserver's lazy-mount gate).
+ * all 4 sections' worth of subsections stacked, each wrapped in an accordion. Each accordion's
+ * open/closed state is manual and independent (`useAccordionOpenState`) — a nav click only
+ * scrolls to a section, and scrollspy only updates `selectedSection`/`selectedSubsection` for tree
+ * highlighting; neither opens or closes an accordion (Crawford's own follow-up call, 2026-09-24,
+ * reversing this pass's original derived-single-open-accordion design). Output's Audio Settings
+ * opens by default on mount, and again whenever `robot.id` changes — switching to a different
+ * robot doesn't carry over which accordions were left open on the last one. Each subsection's real
+ * content only mounts once its own anchor has been scrolled near (useSectionObserver's lazy-mount
+ * gate) — unaffected by any of the above.
  */
-function RobotOptionsPanel({ robot, localeId, section, subsection }: RobotOptionsPanelProps) {
+function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   const latestRobot = useRef(robot);
   useEffect(() => {
     latestRobot.current = robot;
@@ -182,11 +176,6 @@ function RobotOptionsPanel({ robot, localeId, section, subsection }: RobotOption
     [localeId],
   );
 
-  // Derived-open (spec §1.5) — `section`/`subsection` null falls back to the first leaf in tree
-  // order, so exactly one subsection is always open, never "nothing selected."
-  const openSection = section ?? 'volume';
-  const openSubsection = subsection ?? FIRST_SUBSECTION_OF[openSection];
-
   const prefix = `probes.${robot.id}`;
   const subsectionIds = useMemo(() => [
     `${prefix}.volume.audioSettings`,
@@ -207,16 +196,7 @@ function RobotOptionsPanel({ robot, localeId, section, subsection }: RobotOption
     setSelectedSubsection(sub);
   });
 
-  function makeOnOpenChange(sec: RobotSection, sub: RobotSubsection) {
-    return (open: boolean) => {
-      if (open) {
-        setSelectedSection(sec);
-        setSelectedSubsection(sub);
-      } else {
-        setSelectedSubsection(null);
-      }
-    };
-  }
+  const { isOpen, setOpen } = useAccordionOpenState(`${prefix}.volume.audioSettings`, robot.id);
 
   return (
     <div className="robot-options" style={robotColorStyle} ref={sectionAnchorRef(prefix)}>
@@ -226,8 +206,8 @@ function RobotOptionsPanel({ robot, localeId, section, subsection }: RobotOption
         <div ref={sectionAnchorRef(`${prefix}.volume.audioSettings`)}>
           <AccordionContainer
             schema={{ id: `${prefix}.volume.audioSettings`, type: 'accordion', humanLabel: 'Audio Settings' } satisfies AccordionSchema}
-            open={openSubsection === 'audioSettings'}
-            onOpenChange={makeOnOpenChange('volume', 'audioSettings')}
+            open={isOpen(`${prefix}.volume.audioSettings`)}
+            onOpenChange={(open) => setOpen(`${prefix}.volume.audioSettings`, open)}
             style={OUTPUT_STYLE}
           >
             {hasApproached(`${prefix}.volume.audioSettings`) ? (
@@ -247,8 +227,8 @@ function RobotOptionsPanel({ robot, localeId, section, subsection }: RobotOption
         <div ref={sectionAnchorRef(`${prefix}.melody.rhythm`)}>
           <AccordionContainer
             schema={{ id: `${prefix}.melody.rhythm`, type: 'accordion', humanLabel: 'Rhythm' } satisfies AccordionSchema}
-            open={openSubsection === 'rhythm'}
-            onOpenChange={makeOnOpenChange('melody', 'rhythm')}
+            open={isOpen(`${prefix}.melody.rhythm`)}
+            onOpenChange={(open) => setOpen(`${prefix}.melody.rhythm`, open)}
             style={COMPOSITION_STYLE}
           >
             {hasApproached(`${prefix}.melody.rhythm`) ? (
@@ -266,8 +246,8 @@ function RobotOptionsPanel({ robot, localeId, section, subsection }: RobotOption
         <div ref={sectionAnchorRef(`${prefix}.melody.frequency`)}>
           <AccordionContainer
             schema={{ id: `${prefix}.melody.frequency`, type: 'accordion', humanLabel: 'Frequency' } satisfies AccordionSchema}
-            open={openSubsection === 'frequency'}
-            onOpenChange={makeOnOpenChange('melody', 'frequency')}
+            open={isOpen(`${prefix}.melody.frequency`)}
+            onOpenChange={(open) => setOpen(`${prefix}.melody.frequency`, open)}
             style={COMPOSITION_STYLE}
           >
             {hasApproached(`${prefix}.melody.frequency`) ? (
@@ -286,8 +266,8 @@ function RobotOptionsPanel({ robot, localeId, section, subsection }: RobotOption
         <div ref={sectionAnchorRef(`${prefix}.envelope.pingContour`)}>
           <AccordionContainer
             schema={{ id: `${prefix}.envelope.pingContour`, type: 'accordion', humanLabel: 'Ping Contour' } satisfies AccordionSchema}
-            open={openSubsection === 'pingContour'}
-            onOpenChange={makeOnOpenChange('envelope', 'pingContour')}
+            open={isOpen(`${prefix}.envelope.pingContour`)}
+            onOpenChange={(open) => setOpen(`${prefix}.envelope.pingContour`, open)}
             style={TIME_SPACE_STYLE}
           >
             {hasApproached(`${prefix}.envelope.pingContour`) ? (
@@ -305,8 +285,8 @@ function RobotOptionsPanel({ robot, localeId, section, subsection }: RobotOption
             <div key={sub} ref={sectionAnchorRef(id)}>
               <AccordionContainer
                 schema={{ id, type: 'accordion', humanLabel: OSCILLATOR_LABELS[sub] } satisfies AccordionSchema}
-                open={openSubsection === sub}
-                onOpenChange={makeOnOpenChange('source', sub)}
+                open={isOpen(id)}
+                onOpenChange={(open) => setOpen(id, open)}
                 style={SPECTRAL_STYLE}
               >
                 {hasApproached(id) && layer ? (
@@ -328,8 +308,8 @@ function RobotOptionsPanel({ robot, localeId, section, subsection }: RobotOption
         <div ref={sectionAnchorRef(`${prefix}.source.probeDrift`)}>
           <AccordionContainer
             schema={{ id: `${prefix}.source.probeDrift`, type: 'accordion', humanLabel: 'Probe Drift' } satisfies AccordionSchema}
-            open={openSubsection === 'probeDrift'}
-            onOpenChange={makeOnOpenChange('source', 'probeDrift')}
+            open={isOpen(`${prefix}.source.probeDrift`)}
+            onOpenChange={(open) => setOpen(`${prefix}.source.probeDrift`, open)}
             style={SPECTRAL_STYLE}
           >
             {hasApproached(`${prefix}.source.probeDrift`) ? <RobotDriftPanel /> : null}

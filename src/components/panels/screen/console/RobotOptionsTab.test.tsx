@@ -203,37 +203,55 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     expect(screen.getByRole('button', { name: 'Rhythm' }).getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('selecting a mid-level section (melody, no subsection) opens its first child (Rhythm) only', () => {
-    const robot = makeRobot();
-    selectRobot(robot, 'melody', null);
-    render(<RobotOptionsTab />);
-
-    expect(screen.getByRole('button', { name: 'Rhythm' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Frequency' }).getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('false');
-  });
-
-  it('selecting a specific subsection (source.probeDrift) opens only it, closing whatever else was open — single-open, view-wide', () => {
+  it('selecting a subsection via the nav tree (selectedSection/selectedSubsection) does not open or close any accordion — nav selection only drives tree highlighting now', () => {
     const robot = makeRobot();
     selectRobot(robot, 'source', 'probeDrift');
     render(<RobotOptionsTab />);
 
-    expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByRole('button', { name: 'Baseline Oscillator' }).getAttribute('aria-expanded')).toBe('false');
+    // Audio Settings still opens by default — the tree selection has no bearing on which
+    // accordion is open (Crawford's own follow-up call, 2026-09-24).
+    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('clicking a different subsection\'s trigger opens only it and updates selectedSection/selectedSubsection', () => {
+  it('clicking a subsection\'s own trigger opens it directly, without touching selectedSection/selectedSubsection or closing any other open accordion', () => {
     const robot = makeRobot();
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Ping Contour' }));
 
-    expect(useUIStore.getState().selectedSection).toBe('envelope');
-    expect(useUIStore.getState().selectedSubsection).toBe('pingContour');
     expect(screen.getByRole('button', { name: 'Ping Contour' }).getAttribute('aria-expanded')).toBe('true');
+    // Audio Settings (the default-open one) stays open too — multiple accordions can be open at once.
+    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(useUIStore.getState().selectedSection).toBeNull();
+    expect(useUIStore.getState().selectedSubsection).toBeNull();
+  });
+
+  it('clicking an already-open accordion closes it, leaving "all closed" as a legal state', () => {
+    const robot = makeRobot();
+    selectRobot(robot);
+    render(<RobotOptionsTab />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Audio Settings' }));
+
     expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('switching to a different robot resets accordion state back to the default (Audio Settings open only)', () => {
+    const robotA = makeRobot('r1');
+    const robotB = makeRobot('r2');
+    useLocaleStore.getState().addRobot(localeId, robotB);
+    selectRobot(robotA);
+    const { rerender } = render(<RobotOptionsTab />);
+    fireEvent.click(screen.getByRole('button', { name: 'Ping Contour' }));
+    expect(screen.getByRole('button', { name: 'Ping Contour' }).getAttribute('aria-expanded')).toBe('true');
+
+    act(() => useUIStore.getState().selectRobot('r2'));
+    rerender(<RobotOptionsTab />);
+
+    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Ping Contour' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('a subsection\'s real content is not in the DOM until its own anchor has been approached', () => {
@@ -253,7 +271,7 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
   });
 
-  it('manually scrolling a subsection into view (scrollspy) updates selectedSection/selectedSubsection', () => {
+  it('manually scrolling a subsection into view (scrollspy) updates selectedSection/selectedSubsection for tree highlighting, without touching any accordion\'s open state', () => {
     const robot = makeRobot();
     selectRobot(robot);
     render(<RobotOptionsTab />);
@@ -262,6 +280,8 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
     expect(useUIStore.getState().selectedSection).toBe('source');
     expect(useUIStore.getState().selectedSubsection).toBe('coaxialOscillator');
+    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Coaxial Oscillator' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   describe('AudioSettingSection (Output -> Audio Settings)', () => {
