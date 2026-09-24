@@ -16,6 +16,7 @@ import { regenerateMelody } from '@/engine/regenerateMelody';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE } from '@/engine/melodyGenerator';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
 import { VOLUME_LFO_TARGET, SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
+import { FIRST_SUBSECTION_OF, SOURCE_OSCILLATOR_SUBSECTIONS, OSCILLATOR_LABELS } from '@/data/robotSubsectionConfig';
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo, applyClickTrackActive,
@@ -35,23 +36,6 @@ const OUTPUT_STYLE = getTraitColorStyle('output');
 const COMPOSITION_STYLE = getTraitColorStyle('composition');
 const TIME_SPACE_STYLE = getTraitColorStyle('timeSpace');
 const SPECTRAL_STYLE = getTraitColorStyle('spectral');
-
-/** Each section's own first child, in tree order — matches useNavTree.ts's SUBSECTION_CHILDREN
- *  ordering. Used both for the derived-open fallback (spec §1.5) and for "selecting a mid-level
- *  section opens its own first leaf" (spec §1.6). */
-const FIRST_SUBSECTION_OF: Record<RobotSection, RobotSubsection> = {
-  volume: 'audioSettings',
-  melody: 'rhythm',
-  envelope: 'pingContour',
-  source: 'baselineOscillator',
-};
-
-const SOURCE_OSCILLATOR_SUBSECTIONS = ['baselineOscillator', 'coaxialOscillator', 'harmonicOscillator'] as const;
-const OSCILLATOR_LABELS: Record<(typeof SOURCE_OSCILLATOR_SUBSECTIONS)[number], string> = {
-  baselineOscillator: 'Baseline Oscillator',
-  coaxialOscillator: 'Coaxial Oscillator',
-  harmonicOscillator: 'Harmonic Oscillator',
-};
 
 function sectionAnchorRef(id: string) {
   return (el: HTMLDivElement | null) => {
