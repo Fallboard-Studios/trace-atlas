@@ -524,16 +524,26 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('limiter');
   });
 
-  it('selecting the bare "fleetParams" parent, or one of its 3 category groups, clears selectedFleetParamsEffect back to null', () => {
+  it('selecting the bare "fleetParams" parent opens the first leaf overall (3-Band EQ) — first-leaf-on-parent-select, docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.6', () => {
     const { result } = renderHook(() => useNavTree());
-    act(() => result.current.select('fleetParams.eqFilters.eq'));
+    act(() => result.current.select('fleetParams.output.limiter'));
 
     act(() => result.current.select('fleetParams'));
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
 
-    act(() => result.current.select('fleetParams.output.limiter'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('eq3');
+  });
+
+  it('selecting a category group opens ITS OWN first child, not always the overall first leaf', () => {
+    const { result } = renderHook(() => useNavTree());
+
     act(() => result.current.select('fleetParams.eqFilters'));
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('eq3');
+
+    act(() => result.current.select('fleetParams.timeSpace'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('reverb');
+
+    act(() => result.current.select('fleetParams.output'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('compressor');
   });
 });
 

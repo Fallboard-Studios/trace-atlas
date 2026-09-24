@@ -38,6 +38,15 @@ function asFleetParamsGroup(value: string | undefined): FleetParamsGroup | null 
   return value && (FLEET_PARAMS_GROUPS as readonly string[]).includes(value) ? (value as FleetParamsGroup) : null;
 }
 
+/** Each group's own first child, in tree order — docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.6's
+ *  first-leaf-on-parent-select, one entry per FleetParamsGroup so a group click opens its own
+ *  first leaf rather than always the same one. */
+const FLEET_PARAMS_GROUP_FIRST_LEAF: Record<FleetParamsGroup, SelectedFleetParamsEffect> = {
+  eqFilters: 'eq3',
+  timeSpace: 'reverb',
+  output: 'compressor',
+};
+
 const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['volume', 'quality', 'tempo', 'sectorSettings'];
 function asSettingsLeaf(value: string | undefined): SettingsLeaf | null {
   return value && (SETTINGS_LEAVES as readonly string[]).includes(value) ? (value as SettingsLeaf) : null;
@@ -247,6 +256,18 @@ export function useNavTree(): UseNavTreeResult {
     if (branch === 'fleetParams') {
       setActiveHubTile('audioRig');
       setSelectedSection(null);
+      // First-leaf-on-parent-select (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.6) — the bare
+      // branch opens the overall first leaf; a category group (no `section` segment) opens ITS OWN
+      // first child, not always the same one; a real leaf resolves as before.
+      if (!entityId) {
+        setSelectedFleetParamsEffect(FLEET_PARAMS_GROUP_FIRST_LEAF.eqFilters);
+        return;
+      }
+      const group = asFleetParamsGroup(entityId);
+      if (!section) {
+        setSelectedFleetParamsEffect(group ? FLEET_PARAMS_GROUP_FIRST_LEAF[group] : null);
+        return;
+      }
       setSelectedFleetParamsEffect(asFleetParamsEffectKey(section));
       return;
     }
