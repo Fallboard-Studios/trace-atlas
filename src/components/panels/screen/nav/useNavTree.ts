@@ -238,7 +238,10 @@ export function useNavTree(): UseNavTreeResult {
     if (branch === 'settings') {
       setActiveHubTile('settings');
       setSelectedSection(null);
-      setSelectedSettingsLeaf(asSettingsLeaf(entityId));
+      // First-leaf-on-parent-select (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.6) — selecting
+      // the bare branch itself opens its first leaf (Volume) rather than leaving nothing open;
+      // the view/accordion model always has exactly one section open, never "nothing selected."
+      setSelectedSettingsLeaf(entityId ? asSettingsLeaf(entityId) : SETTINGS_LEAVES[0]);
       return;
     }
     if (branch === 'fleetParams') {

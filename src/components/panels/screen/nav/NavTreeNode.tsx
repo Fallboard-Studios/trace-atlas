@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/controls/Button';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { Toggle } from '@/components/ui/controls/Toggle';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
+import { scrollToSection } from '@/utils/sectionRefs';
 import type { ButtonSchema, ToggleSchema } from '@/types/controls';
 import type { NavTreeNodeSchema } from '@/data/navTreeConfig';
 import './NavTreeNode.css';
@@ -67,7 +68,16 @@ export function NavTreeNode({ node, depth, focusedId }: NavTreeNodeProps) {
       style={colorStyle}
     >
       <div className="nav-tree-node__row">
-        <Button schema={nameSchema} onClick={() => select(node.id)} />
+        <Button
+          schema={nameSchema}
+          onClick={() => {
+            select(node.id);
+            // Instant jump, never GSAP (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.6) — a no-op
+            // via sectionRefs' own contract for a branch not yet migrated to the view model, or a
+            // section that hasn't lazy-mounted an anchor yet.
+            scrollToSection(node.id);
+          }}
+        />
         {hasChildren && (
           <Toggle schema={toggleSchema} value={expanded} onChange={() => toggleExpand(node.id)}>
             <span aria-hidden="true">{expanded ? '−' : '+'}</span>

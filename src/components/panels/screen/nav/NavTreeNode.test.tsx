@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { NavTreeNode } from './NavTreeNode';
 import { TRAIT_COLORS } from '@/utils/traitColors';
+import { scrollToSection } from '@/utils/sectionRefs';
 import type { NavTreeNodeSchema } from '@/data/navTreeConfig';
+
+vi.mock('@/utils/sectionRefs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/sectionRefs')>();
+  return { ...actual, scrollToSection: vi.fn() };
+});
 
 const mockIsExpanded = vi.fn();
 const mockIsSelected = vi.fn();
@@ -77,6 +83,7 @@ describe('NavTreeNode — selection vs. expansion, decoupled (Task 4 AC1/AC2)', 
     mockIsSelected.mockReset().mockReturnValue(false);
     mockSelect.mockReset();
     mockToggleExpand.mockReset();
+    vi.mocked(scrollToSection).mockClear();
   });
 
   it('clicking a node\'s name selects it and does not toggle expansion', () => {
@@ -95,6 +102,20 @@ describe('NavTreeNode — selection vs. expansion, decoupled (Task 4 AC1/AC2)', 
     expect(mockToggleExpand).toHaveBeenCalledTimes(1);
     expect(mockToggleExpand).toHaveBeenCalledWith('settings');
     expect(mockSelect).not.toHaveBeenCalled();
+  });
+
+  it('clicking a node\'s name also scrolls to its section anchor (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 7, spec §1.6) — a no-op via sectionRefs\' own contract if that section hasn\'t lazy-mounted an anchor yet', () => {
+    render(<NavTreeNode node={LEAF} depth={2} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
+
+    expect(scrollToSection).toHaveBeenCalledWith('settings.volume');
+  });
+
+  it('clicking the +/- toggle never scrolls — only a name click does', () => {
+    render(<NavTreeNode node={CATEGORY} depth={1} />);
+    fireEvent.click(screen.getByRole('switch', { name: /expand settings/i }));
+
+    expect(scrollToSection).not.toHaveBeenCalled();
   });
 });
 

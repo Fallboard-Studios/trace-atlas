@@ -489,13 +489,13 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
     expect(useUIStore.getState().selectedSettingsLeaf).toBe('sectorSettings');
   });
 
-  it('selecting the bare "settings" parent clears selectedSettingsLeaf back to null', () => {
+  it('selecting the bare "settings" parent opens its first leaf (Volume) — first-leaf-on-parent-select, docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.6, replacing the old swap-model\'s "nothing selected" fallback', () => {
     const { result } = renderHook(() => useNavTree());
-    act(() => result.current.select('settings.volume'));
+    act(() => result.current.select('settings.tempo'));
 
     act(() => result.current.select('settings'));
 
-    expect(useUIStore.getState().selectedSettingsLeaf).toBeNull();
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('volume');
   });
 
   it('selecting a Fleet Params effect leaf sets activeHubTile to audioRig and selectedFleetParamsEffect to the matching AudioRigEffectKey (Task 14)', () => {
