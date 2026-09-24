@@ -148,3 +148,105 @@ function PingControlsDrawerInner({
 export const PingControlsDrawer = memo(PingControlsDrawerInner);
 
 export default PingControlsDrawer;
+
+// ========================================
+// SPLIT SECTIONS (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 9)
+// ========================================
+// Rhythm/Frequency each become their own top-level tree leaf under the new nav panel view model
+// (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §2) — independently mountable, each wrapped in its
+// own accordion by RobotOptionsTab (Task 11)/CompanyOptionsSection (Task 13), instead of one fixed
+// drawer always rendering both. PHRASING_PANEL_SCHEMA is retired: Rhythm absorbs everything that
+// used to sit inside or beside it (Density/Motif Length/Pitch Repeat, the dev-only Click Track
+// toggle, Reset Melody) as its own top-level accordion boundary. PingControlsDrawer above stays
+// exactly as it was — RobotOptionsTab/CompanyOptionsSection still render it directly until Task
+// 11/13 rewire them onto these 2 pieces instead.
+
+export interface PingControlsRhythmSectionProps {
+  value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'clickTrackActive'>;
+  onDensityChange: (value: number) => void;
+  onMotifLengthChange: (value: number) => void;
+  onPitchRepeatChange: (value: number) => void;
+  onClickTrackActiveChange: (active: boolean) => void;
+  /** Undefined omits the Reset Melody button entirely — same company-mode opt-out as
+   *  PingControlsDrawer's own prop above. */
+  onResetMelody?: () => void;
+  disabled?: boolean;
+  style?: CSSProperties;
+}
+
+function PingControlsRhythmSectionInner({
+  value,
+  onDensityChange,
+  onMotifLengthChange,
+  onPitchRepeatChange,
+  onClickTrackActiveChange,
+  onResetMelody,
+  disabled,
+  style,
+}: PingControlsRhythmSectionProps) {
+  // Same cross-field gating PingControlsDrawer's own PHRASING_PANEL_SCHEMA content used —
+  // Click Track playing would otherwise let every other control here silently overwrite it.
+  const generationDisabled = disabled || value.clickTrackActive;
+  const pitchRepeatDisabled = generationDisabled || value.rhythmicMotifLength === 0;
+
+  return (
+    <div style={style}>
+      <DirectionalPanel schema={RHYTHM_PANEL_SCHEMA}>
+        {/* Dev-only — a testing aid, not something a production build's audience should see or
+            be able to reach. */}
+        {DEV_TUNING && (
+          <Toggle schema={CLICK_TRACK_SCHEMA} value={value.clickTrackActive} onChange={onClickTrackActiveChange} disabled={disabled}>
+            Click Track
+          </Toggle>
+        )}
+        <SliderLinear schema={DENSITY_SCHEMA} value={value.rhythmicDensity} onChange={onDensityChange} disabled={generationDisabled} />
+        <SliderLinear schema={MOTIF_LENGTH_SCHEMA} value={value.rhythmicMotifLength} onChange={onMotifLengthChange} disabled={generationDisabled} />
+        <SliderLinear
+          schema={PITCH_REPEAT_SCHEMA}
+          value={value.pitchRepeat}
+          onChange={onPitchRepeatChange}
+          disabled={pitchRepeatDisabled}
+        />
+        {onResetMelody && <Button schema={RESET_MELODY_SCHEMA} onClick={onResetMelody} disabled={generationDisabled} />}
+      </DirectionalPanel>
+    </div>
+  );
+}
+
+export const PingControlsRhythmSection = memo(PingControlsRhythmSectionInner);
+
+export interface PingControlsFrequencySectionProps {
+  value: Pick<PingControlsValue, 'octaveRange' | 'noteVariance' | 'clickTrackActive'>;
+  onOctaveMinChange: (value: number) => void;
+  onOctaveMaxChange: (value: number) => void;
+  onNoteVarianceChange: (value: number) => void;
+  disabled?: boolean;
+  style?: CSSProperties;
+}
+
+function PingControlsFrequencySectionInner({
+  value,
+  onOctaveMinChange,
+  onOctaveMaxChange,
+  onNoteVarianceChange,
+  disabled,
+  style,
+}: PingControlsFrequencySectionProps) {
+  const [octMin, octMax] = value.octaveRange;
+  // Frequency's own controls were already gated by Click Track before this split (both lived
+  // under one drawer) — clickTrackActive is threaded in explicitly now that Click Track's own
+  // toggle lives in the Rhythm section instead, not this one.
+  const generationDisabled = disabled || value.clickTrackActive;
+
+  return (
+    <div style={style}>
+      <DirectionalPanel schema={FREQUENCY_PANEL_SCHEMA}>
+        <SliderLinear schema={OCTAVE_RANGE_MIN_SCHEMA} value={octMin} onChange={onOctaveMinChange} disabled={generationDisabled} />
+        <SliderLinear schema={OCTAVE_RANGE_MAX_SCHEMA} value={octMax} onChange={onOctaveMaxChange} disabled={generationDisabled} />
+        <SliderLinear schema={NOTE_VARIANCE_SCHEMA} value={value.noteVariance} onChange={onNoteVarianceChange} disabled={generationDisabled} />
+      </DirectionalPanel>
+    </div>
+  );
+}
+
+export const PingControlsFrequencySection = memo(PingControlsFrequencySectionInner);
