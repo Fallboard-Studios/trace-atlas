@@ -35,6 +35,7 @@
 @media screen and (min-width: 48em) {
   .console-panel__content {
     --console-header-clearance: 195px;
+    padding-left: 220px;
   }
 }
 
