@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 import Header from './Header';
@@ -14,8 +14,45 @@ function setStoreFixtures() {
     activeLocaleTemperature: -45,
     activeHubTile: null,
     selectedRobotId: null,
+    isNavPanelOpen: false,
   });
 }
+
+/** Stubs window.matchMedia for the three min-width queries Header's own nav-clearance shift reads
+ *  (HEADER_NAV_CLEARANCE_MIN_WIDTH = 400px, HEADER_NAV_CLEARANCE_WIDE_MIN_WIDTH = 640px,
+ *  NAV_PANEL_DOCK_MIN_WIDTH = 768px — see useNavPanelSlideAway.ts/NavPanel.test.tsx's own stub
+ *  convention for the last one). atLeast640 defaults false (narrow tier) when omitted. */
+function stubMatchMedia({ atLeast400, atLeast640 = false, docked }: { atLeast400: boolean; atLeast640?: boolean; docked: boolean }) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('768px') ? docked : query.includes('640px') ? atLeast640 : query.includes('400px') ? atLeast400 : false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  });
+}
+
+// Local gsap mock (overrides vitest.setup.ts's shared one, same pattern NavPanel.test.tsx's own
+// nav-panel-slide tween test uses) — captures the nav-clearance effect's own .to() call so the
+// tests below can assert its exact xPercent/x, while still supporting CabinetBox's own
+// timeline().fromTo() chain and top-level gsap.set() (3 real CabinetBox instances render inside
+// Header: the header facade, Mute's own box, and the volume slider's voxel-track boxes).
+let lastToVars: Record<string, unknown> | undefined;
+vi.mock('gsap', () => {
+  const chainable = {
+    set: (_target?: unknown, _vars?: unknown) => chainable,
+    to: (_target: unknown, vars: Record<string, unknown>) => {
+      lastToVars = vars;
+      return chainable;
+    },
+    fromTo: (_a?: unknown, _b?: unknown, _config?: unknown) => chainable,
+    kill: () => {},
+  };
+  return { default: { timeline: vi.fn(() => chainable), set: vi.fn() } };
+});
 
 // Controllable ResizeObserver mock — exercises the --header-height
 // measurement effect (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.6, Task 9).
@@ -203,5 +240,75 @@ describe('Header', () => {
     const root = container.querySelector('header') as HTMLElement;
     expect(root.style.getPropertyValue('--color-accent-a')).toBe(ACCENT_COLORS.teal);
     expect(root.style.getPropertyValue('--color-accent-b')).toBe(ACCENT_COLORS.green);
+  });
+
+  // NavPanel's own slide-off overlaps Header's volume slider between HEADER_NAV_CLEARANCE_MIN_WIDTH
+  // (400px) and NavPanel's own dock breakpoint (NAV_PANEL_DOCK_MIN_WIDTH, 768px — see
+  // useNavPanelSlideAway.ts). Header.tsx shifts its own cabinet box right in that range so Mute
+  // stays reachable while NavPanel is open.
+  describe('.header>.sc-cabinet-box nav-clearance shift', () => {
+    beforeEach(() => {
+      lastToVars = undefined;
+    });
+
+    it('shifts right (xPercent: 100, x: -154) in the narrow clearance tier (400-639px) when NavPanel opens', () => {
+      stubMatchMedia({ atLeast400: true, atLeast640: false, docked: false });
+      setStoreFixtures();
+      render(<Header />);
+
+      act(() => {
+        useUIStore.getState().setNavPanelOpen(true);
+      });
+
+      expect(lastToVars?.xPercent).toBe(100);
+      expect(lastToVars?.x).toBe(-154);
+    });
+
+    it('shifts right (xPercent: 100, x: -188) in the wide clearance tier (>=640px) when NavPanel opens', () => {
+      stubMatchMedia({ atLeast400: true, atLeast640: true, docked: false });
+      setStoreFixtures();
+      render(<Header />);
+
+      act(() => {
+        useUIStore.getState().setNavPanelOpen(true);
+      });
+
+      expect(lastToVars?.xPercent).toBe(100);
+      expect(lastToVars?.x).toBe(-188);
+    });
+
+    it('shifts back (xPercent: 0, x: 0) when NavPanel closes again within the clearance range', () => {
+      stubMatchMedia({ atLeast400: true, docked: false });
+      setStoreFixtures();
+      useUIStore.setState({ isNavPanelOpen: true });
+      render(<Header />);
+
+      act(() => {
+        useUIStore.getState().setNavPanelOpen(false);
+      });
+
+      expect(lastToVars?.xPercent).toBe(0);
+      expect(lastToVars?.x).toBe(0);
+    });
+
+    it('never shifts below the clearance range (<400px wide), even with NavPanel open', () => {
+      stubMatchMedia({ atLeast400: false, docked: false });
+      setStoreFixtures();
+      useUIStore.setState({ isNavPanelOpen: true });
+      render(<Header />);
+
+      expect(lastToVars?.xPercent).toBe(0);
+      expect(lastToVars?.x).toBe(0);
+    });
+
+    it('never shifts once NavPanel is permanently docked (>=768px wide), even with isNavPanelOpen true', () => {
+      stubMatchMedia({ atLeast400: true, docked: true });
+      setStoreFixtures();
+      useUIStore.setState({ isNavPanelOpen: true });
+      render(<Header />);
+
+      expect(lastToVars?.xPercent).toBe(0);
+      expect(lastToVars?.x).toBe(0);
+    });
   });
 });

@@ -1,5 +1,5 @@
+import { useIsNavPanelSlideAway } from './useNavPanelSlideAway';
 import { Toggle } from '@/components/ui/controls/Toggle';
-import { useCabinetTier } from '@/components/ui/controls/useCabinetBoxHeight';
 import { useUIStore } from '@/stores/uiStore';
 import type { ToggleSchema } from '@/types/controls';
 import './NavToggleButton.css';
@@ -10,11 +10,13 @@ import './NavToggleButton.css';
 const NAV_TOGGLE_SCHEMA: ToggleSchema = { id: 'navToggle', type: 'toggle', humanLabel: 'Navigation' };
 
 /**
- * Persistent hamburger/reopen affordance for NavPanel's mobile slide-off (docs/specs/
- * NAV_LAYOUT_REWRITE.md Task 7) — renders only on the mobile Cabinet breakpoint tier;
- * tablet/desktop's permanently-docked NavPanel needs no reopen trigger at all, so this renders
- * nothing there rather than an inert button. Lives inside ScreenViewport as NavPanel's sibling
- * (never SleeveContainer, CLAUDE.md), reachable regardless of what ContentPane shows.
+ * Persistent hamburger/reopen affordance for NavPanel's slide-off state (docs/specs/
+ * NAV_LAYOUT_REWRITE.md Task 7) — renders only below NAV_PANEL_DOCK_MIN_WIDTH
+ * (useNavPanelSlideAway.ts, NavPanel's own breakpoint); the permanently-docked NavPanel at or
+ * above it needs no reopen trigger at all, so this renders nothing there rather than an inert
+ * button.
+ * Lives inside ScreenViewport as NavPanel's sibling (never SleeveContainer, CLAUDE.md), reachable
+ * regardless of what ContentPane shows.
  *
  * Renders through the shared `Toggle` primitive (an icon facade, ☰/✕ — same
  * `children`-replaces-DualLabel pattern Header's Mute Toggle already uses)
@@ -23,11 +25,11 @@ const NAV_TOGGLE_SCHEMA: ToggleSchema = { id: 'navToggle', type: 'toggle', human
  * handling every other binary control in the app already gets.
  */
 export function NavToggleButton() {
-  const tier = useCabinetTier();
+  const isSlideAway = useIsNavPanelSlideAway();
   const isOpen = useUIStore((s) => s.isNavPanelOpen);
   const setNavPanelOpen = useUIStore((s) => s.setNavPanelOpen);
 
-  if (tier !== 'mobile') return null;
+  if (!isSlideAway) return null;
 
   return (
     <div className="nav-toggle-button">

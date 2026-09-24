@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { NavTree } from './NavTree';
+import { useIsNavPanelSlideAway } from './useNavPanelSlideAway';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
-import { useCabinetTier } from '@/components/ui/controls/useCabinetBoxHeight';
 import { useUIStore } from '@/stores/uiStore';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
 import './NavPanel.css';
@@ -15,17 +15,16 @@ const SLIDE_DURATION = 0.25;
 
 /**
  * Docked (desktop/tablet) vs. slide-off (mobile) shell around NavTree (docs/specs/
- * NAV_LAYOUT_REWRITE.md §Task 6). Reuses the existing Oblique Cabinetry breakpoint tiers
- * (useCabinetTier, useCabinetBoxHeight.ts) rather than inventing a new breakpoint — 'mobile' is
- * the slide-off tier, 'tablet'/'desktop' are permanently docked and ignore isNavPanelOpen
- * entirely. The slide animates via a timelineMap-registered GSAP timeline, respecting
- * prefers-reduced-motion the same way the app's other GSAP timelines do. Selecting
- * any node (a change to activeHubTile/selectedRobotId/selectedCompanyId/selectedSection) closes
- * the panel again, but only on mobile — desktop/tablet's docked panel stays open regardless.
+ * NAV_LAYOUT_REWRITE.md §Task 6). Below NAV_PANEL_DOCK_MIN_WIDTH (useNavPanelSlideAway.ts,
+ * its own breakpoint independent of the shared Oblique Cabinetry tier) is the slide-off state;
+ * at or above it the panel is permanently docked and ignores isNavPanelOpen entirely. The slide
+ * animates via a timelineMap-registered GSAP timeline, respecting prefers-reduced-motion the
+ * same way the app's other GSAP timelines do. Selecting any node (a change to
+ * activeHubTile/selectedRobotId/selectedCompanyId/selectedSection) closes the panel again, but
+ * only while slid-off — the permanently docked state stays open regardless.
  */
 export function NavPanel() {
-  const tier = useCabinetTier();
-  const isMobile = tier === 'mobile';
+  const isMobile = useIsNavPanelSlideAway();
   const isOpen = useUIStore((s) => s.isNavPanelOpen);
   const activeHubTile = useUIStore((s) => s.activeHubTile);
   const selectedRobotId = useUIStore((s) => s.selectedRobotId);

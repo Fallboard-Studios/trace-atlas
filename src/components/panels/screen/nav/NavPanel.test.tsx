@@ -25,16 +25,17 @@ vi.mock('gsap', () => {
   return { default: { timeline: vi.fn(() => chainable), set: vi.fn() } };
 });
 
-/** Stubs window.matchMedia for the mobile (640px)/tablet (1024px) Cabinet
- *  breakpoint queries (useCabinetBoxHeight.test.ts's own convention) plus
- *  prefers-reduced-motion, independently controllable. */
-function stubMatchMedia(initial: { mobile: boolean; tablet: boolean; reducedMotion: boolean }) {
+/** Stubs window.matchMedia for NavPanel's own dock breakpoint (useNavPanelSlideAway.ts,
+ *  min-width query, NAV_PANEL_DOCK_MIN_WIDTH = 768px, independent of the shared Cabinet tier)
+ *  plus prefers-reduced-motion, independently controllable. `mobile: true` means below the dock
+ *  breakpoint, i.e. the min-width query doesn't match. */
+function stubMatchMedia(initial: { mobile: boolean; reducedMotion: boolean }) {
   const state = { ...initial };
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     configurable: true,
     value: vi.fn().mockImplementation((query: string) => {
-      const matches = query.includes('reduced-motion') ? state.reducedMotion : query.includes('640px') ? state.mobile : state.tablet;
+      const matches = query.includes('reduced-motion') ? state.reducedMotion : !state.mobile;
       return {
         matches,
         media: query,
@@ -62,7 +63,7 @@ describe('NavPanel — docked (desktop/tablet) vs. slide-off (mobile) (docs/task
   });
 
   it('above the breakpoint, renders open regardless of isNavPanelOpen — desktop/tablet ignores it entirely', () => {
-    stubMatchMedia({ mobile: false, tablet: false, reducedMotion: false });
+    stubMatchMedia({ mobile: false, reducedMotion: false });
     useUIStore.getState().setNavPanelOpen(false);
 
     render(<NavPanel />);
@@ -72,7 +73,7 @@ describe('NavPanel — docked (desktop/tablet) vs. slide-off (mobile) (docs/task
   });
 
   it('below the breakpoint with isNavPanelOpen false, renders closed and inert', () => {
-    stubMatchMedia({ mobile: true, tablet: true, reducedMotion: false });
+    stubMatchMedia({ mobile: true, reducedMotion: false });
     useUIStore.getState().setNavPanelOpen(false);
 
     render(<NavPanel />);
@@ -82,7 +83,7 @@ describe('NavPanel — docked (desktop/tablet) vs. slide-off (mobile) (docs/task
   });
 
   it('below the breakpoint with isNavPanelOpen true, renders open and not inert', () => {
-    stubMatchMedia({ mobile: true, tablet: true, reducedMotion: false });
+    stubMatchMedia({ mobile: true, reducedMotion: false });
     useUIStore.getState().setNavPanelOpen(true);
 
     render(<NavPanel />);
@@ -103,7 +104,7 @@ describe('NavPanel — selecting a node auto-closes the panel on mobile only (Ta
   });
 
   it('on mobile, a selection change (selectedRobotId) closes the panel', () => {
-    stubMatchMedia({ mobile: true, tablet: true, reducedMotion: false });
+    stubMatchMedia({ mobile: true, reducedMotion: false });
     useUIStore.getState().setNavPanelOpen(true);
     render(<NavPanel />);
 
@@ -115,7 +116,7 @@ describe('NavPanel — selecting a node auto-closes the panel on mobile only (Ta
   });
 
   it('on desktop/tablet, a selection change leaves isNavPanelOpen untouched', () => {
-    stubMatchMedia({ mobile: false, tablet: false, reducedMotion: false });
+    stubMatchMedia({ mobile: false, reducedMotion: false });
     useUIStore.getState().setNavPanelOpen(true);
     render(<NavPanel />);
 
@@ -127,7 +128,7 @@ describe('NavPanel — selecting a node auto-closes the panel on mobile only (Ta
   });
 
   it('does not close on mount, only on a real subsequent selection change', () => {
-    stubMatchMedia({ mobile: true, tablet: true, reducedMotion: false });
+    stubMatchMedia({ mobile: true, reducedMotion: false });
     useUIStore.getState().setNavPanelOpen(true);
 
     render(<NavPanel />);
@@ -147,7 +148,7 @@ describe('NavPanel — GSAP timeline lifecycle (Task 6)', () => {
   });
 
   it('registers a timeline in timelineMap when isNavPanelOpen changes on mobile', () => {
-    stubMatchMedia({ mobile: true, tablet: true, reducedMotion: false });
+    stubMatchMedia({ mobile: true, reducedMotion: false });
     useUIStore.getState().setNavPanelOpen(false);
     render(<NavPanel />);
 
@@ -159,7 +160,7 @@ describe('NavPanel — GSAP timeline lifecycle (Task 6)', () => {
   });
 
   it('kills its timeline on unmount — no orphaned GSAP instance', () => {
-    stubMatchMedia({ mobile: true, tablet: true, reducedMotion: false });
+    stubMatchMedia({ mobile: true, reducedMotion: false });
     const { unmount } = render(<NavPanel />);
 
     unmount();
@@ -168,7 +169,7 @@ describe('NavPanel — GSAP timeline lifecycle (Task 6)', () => {
   });
 
   it('respects prefers-reduced-motion — the slide tween gets duration 0', () => {
-    stubMatchMedia({ mobile: true, tablet: true, reducedMotion: true });
+    stubMatchMedia({ mobile: true, reducedMotion: true });
     useUIStore.getState().setNavPanelOpen(false);
     render(<NavPanel />);
 
@@ -180,7 +181,7 @@ describe('NavPanel — GSAP timeline lifecycle (Task 6)', () => {
   });
 
   it('animates with a nonzero duration when reduced motion is not requested', () => {
-    stubMatchMedia({ mobile: true, tablet: true, reducedMotion: false });
+    stubMatchMedia({ mobile: true, reducedMotion: false });
     useUIStore.getState().setNavPanelOpen(false);
     render(<NavPanel />);
 

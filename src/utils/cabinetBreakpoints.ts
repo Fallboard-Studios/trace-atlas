@@ -8,8 +8,8 @@
  * prose more than once as this value was tuned. See
  * docs/specs/OBLIQUE_CABINETRY_FOUNDATION.md §1.3/§7.
  */
-export const CABINET_BREAKPOINT_MOBILE_MAX = 640;
-export const CABINET_BREAKPOINT_TABLET_MAX = 1024;
+export const CABINET_BREAKPOINT_MOBILE_MAX = 639;
+export const CABINET_BREAKPOINT_TABLET_MAX = 1023;
 
 export const CABINET_BOX_HEIGHT = {
   mobile: 32,

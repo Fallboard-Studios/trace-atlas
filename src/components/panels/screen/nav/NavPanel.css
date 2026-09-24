@@ -2,9 +2,11 @@
   will-change: transform;
   display: flex;
   width: fit-content;
-  position: relative;
-  top: 32px;
+  position: absolute;
+  top: calc(var(--power-corner-height) + 32px);
   left: 16px;
+  max-width: calc(100% - 32px);
+  z-index: 2;
   /* If the tree grows taller than the screen (many expanded branches), let this box scroll
      internally instead of running off-screen with no way to reach the rest — .screen-content's
      own overflow: hidden (ScreenViewport.css) would otherwise just clip it silently.
@@ -20,7 +22,14 @@
      also subtracting --header-height, the same live-measured custom property (Header.tsx's own
      ResizeObserver effect) ContentPane.css already reads for this identical "reserve space for
      what .header occupies above me" problem. */
-  max-height: calc(100% - var(--header-height, var(--power-corner-height)) - 76px);
+  max-height: calc(100% - var(--header-height, var(--power-corner-height)) - 104px);
+}
+
+@media screen and (min-width: 400px) {
+  .nav-panel {
+    top: 44px;
+    max-height: calc(100% - 104px);
+  }
 }
 
 /* Oblique Cabinetry facade wrapper — only ever rendered as .nav-panel's one
@@ -40,4 +49,5 @@
   max-height: calc(100vh - var(--power-corner-height) - 32px);
   overflow: scroll;
   scrollbar-gutter: stable;
+  background-color: var(--color-bg);
 }
