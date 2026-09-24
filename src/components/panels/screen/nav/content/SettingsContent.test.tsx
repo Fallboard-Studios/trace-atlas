@@ -29,10 +29,9 @@ const UI_INITIAL_STATE = useUIStore.getState();
 const SECTION_IDS = ['settings.volume', 'settings.quality', 'settings.tempo', 'settings.sectorSettings'];
 
 function openAndApproach(leaf: 'volume' | 'quality' | 'tempo' | 'sectorSettings') {
-  act(() => {
-    useUIStore.getState().setSelectedSettingsLeaf(leaf);
-    approachSection(`settings.${leaf}`);
-  });
+  // Lazy-mount is driven purely by approach now — an accordion's own open/closed state (manual,
+  // independent per accordion) has no bearing on whether its content is in the DOM.
+  act(() => approachSection(`settings.${leaf}`));
 }
 
 describe('SettingsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 7)', () => {
@@ -62,14 +61,14 @@ describe('SettingsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     expect(screen.getByRole('button', { name: 'Sector Settings' }).getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('selecting Tempo opens only Tempo\'s accordion, closing whichever else was open — single-open-accordion, view-wide', () => {
+  it('selecting a leaf via the nav tree (selectedSettingsLeaf) does not open or close any accordion — nav selection only drives tree highlighting now', () => {
     useUIStore.getState().setSelectedSettingsLeaf('tempo');
     render(<SettingsContent />);
 
-    expect(screen.getByRole('button', { name: 'Tempo' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Volume' }).getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByRole('button', { name: 'Quality' }).getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByRole('button', { name: 'Sector Settings' }).getAttribute('aria-expanded')).toBe('false');
+    // Volume still opens by default — selecting Tempo in the tree has no bearing on which
+    // accordion is open (Crawford's own follow-up call, 2026-09-24).
+    expect(screen.getByRole('button', { name: 'Volume' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Tempo' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('a section\'s real content is not in the DOM until its anchor has been approached (lazy-mount gate)', () => {
@@ -86,17 +85,26 @@ describe('SettingsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     expect(screen.getByRole('slider', { name: /volume/i })).toBeTruthy();
   });
 
-  it('clicking an accordion trigger directly opens it and calls setSelectedSettingsLeaf, closing the previously open one', () => {
+  it('clicking an accordion trigger opens it directly, without touching selectedSettingsLeaf or closing any other open accordion', () => {
     render(<SettingsContent />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Tempo' }));
 
-    expect(useUIStore.getState().selectedSettingsLeaf).toBe('tempo');
     expect(screen.getByRole('button', { name: 'Tempo' }).getAttribute('aria-expanded')).toBe('true');
+    // Volume (the default-open one) stays open too — multiple accordions can be open at once.
+    expect(screen.getByRole('button', { name: 'Volume' }).getAttribute('aria-expanded')).toBe('true');
+    expect(useUIStore.getState().selectedSettingsLeaf).toBeNull();
+  });
+
+  it('clicking an already-open accordion closes it, leaving "all closed" as a legal state', () => {
+    render(<SettingsContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
+
     expect(screen.getByRole('button', { name: 'Volume' }).getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('manually scrolling a section into view (scrollspy) updates selectedSettingsLeaf without ever calling scrollToSection', async () => {
+  it('manually scrolling a section into view (scrollspy) updates selectedSettingsLeaf for tree highlighting, without ever calling scrollToSection or touching any accordion\'s open state', async () => {
     const { scrollToSection } = await import('@/utils/sectionRefs');
     render(<SettingsContent />);
 
@@ -104,6 +112,10 @@ describe('SettingsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
     expect(useUIStore.getState().selectedSettingsLeaf).toBe('tempo');
     expect(scrollToSection).not.toHaveBeenCalled();
+    // Scrollspy never opens/closes an accordion — Volume (default-open) is unaffected, and Tempo
+    // stays closed despite now being the "selected" (highlighted) leaf.
+    expect(screen.getByRole('button', { name: 'Volume' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Tempo' }).getAttribute('aria-expanded')).toBe('false');
   });
 });
 

@@ -1,6 +1,7 @@
 import { AudioLoadPanel } from '../../console/AudioLoadPanel';
 import { SectorSettingsDrawer } from '../../console/SectorSettingsDrawer';
 import { useSectionObserver } from '../useSectionObserver';
+import { useAccordionOpenState } from '../useAccordionOpenState';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
@@ -45,13 +46,14 @@ function sectionAnchorRef(id: string) {
 /**
  * Settings branch content (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2) — replaces the old
  * content-swap model (one leaf rendered, gated on selectedSettingsLeaf) with a single scrollable
- * view stacking all 4 leaves, each wrapped in a controlled accordion. Exactly one is open at a
- * time, derived from selectedSettingsLeaf (spec §1.5) — null (nothing selected yet) falls back to
- * Volume, the first leaf in tree order, so something is always open. Each section's real content
+ * view stacking all 4 leaves, each wrapped in an accordion. Each accordion's open/closed state is
+ * manual and independent (`useAccordionOpenState`) — a nav click only scrolls to a section, and
+ * scrollspy only updates `selectedSettingsLeaf` for tree highlighting; neither opens or closes an
+ * accordion (Crawford's own follow-up call, 2026-09-24, reversing this pass's original derived-
+ * single-open-accordion design). Volume opens by default on mount. Each section's real content
  * only mounts once its anchor has been scrolled near (useSectionObserver's lazy-mount gate, §7 Q5).
  */
 export function SettingsContent() {
-  const selectedSettingsLeaf = useUIStore((s) => s.selectedSettingsLeaf);
   const setSelectedSettingsLeaf = useUIStore((s) => s.setSelectedSettingsLeaf);
   const isPoweredOn = useUIStore((s) => s.isPoweredOn);
   const volume = useAudioStore((s) => s.volume);
@@ -63,7 +65,7 @@ export function SettingsContent() {
     if (leaf) setSelectedSettingsLeaf(leaf);
   });
 
-  const openLeaf = selectedSettingsLeaf ?? SETTINGS_LEAVES[0];
+  const { isOpen, setOpen } = useAccordionOpenState(SETTINGS_ACCORDION_SCHEMAS[SETTINGS_LEAVES[0]].id);
 
   function renderLeafContent(leaf: SettingsLeaf) {
     if (leaf === 'volume') {
@@ -96,13 +98,12 @@ export function SettingsContent() {
     <div ref={sectionAnchorRef('settings')}>
       {SETTINGS_LEAVES.map((leaf) => {
         const id = SETTINGS_ACCORDION_SCHEMAS[leaf].id;
-        const isOpen = openLeaf === leaf;
         return (
           <div key={id} ref={sectionAnchorRef(id)}>
             <AccordionContainer
               schema={SETTINGS_ACCORDION_SCHEMAS[leaf]}
-              open={isOpen}
-              onOpenChange={(open) => setSelectedSettingsLeaf(open ? leaf : null)}
+              open={isOpen(id)}
+              onOpenChange={(open) => setOpen(id, open)}
             >
               {hasApproached(id) ? renderLeafContent(leaf) : null}
             </AccordionContainer>
