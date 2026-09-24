@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { NavTree } from './NavTree';
+import { NavStatusBlock } from './NavStatusBlock';
 import { useIsNavPanelSlideAway } from './useNavPanelSlideAway';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { useUIStore } from '@/stores/uiStore';
@@ -86,6 +87,7 @@ export function NavPanel() {
          of which this facade participates in. See DirectionalPanel.tsx's own
          comment and docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */}
       <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-nav-panel-facade">
+        <NavStatusBlock />
         <NavTree />
       </CabinetBox>
     </div>
