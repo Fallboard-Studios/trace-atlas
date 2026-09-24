@@ -49,9 +49,9 @@ export function NavStatusBlock() {
 
   return (
     <div className="nav-status-block" role="status">
-      <span className="seed-row">{styleName} @ {x}, {y}.</span>
-      <span className="robot-count-row">{emittingCount} of {maxAudibleRobots} Probes active.</span>
       <span className="time-temp-row">{formatClock(localTime)} {tempLabel}</span>
+      <span className="robot-count-row">{emittingCount} of {maxAudibleRobots} Probes active.</span>
+      <span className="seed-row">Viewing {styleName} @ ({x}, {y}).</span>
     </div>
   );
 }

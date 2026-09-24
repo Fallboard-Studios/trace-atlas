@@ -42,12 +42,13 @@
    sliding/inert panel) so it frames the box's real content instead of the
    slide-transform host. */
 .nav-panel>.sc-cabinet-box>.sc-cabinet-box__front {
+  --color-surface: rgba(26, 26, 26, 0.75);
   display: block;
   width: auto;
   height: auto;
-  padding: 64px var(--spacing-lg) var(--spacing-lg);
+  padding: 32px var(--spacing-lg) var(--spacing-lg);
   max-height: calc(100vh - var(--power-corner-height) - 32px);
   overflow: scroll;
   scrollbar-gutter: stable;
-  background-color: var(--color-bg);
+  background-color: var(--color-surface);
 }
