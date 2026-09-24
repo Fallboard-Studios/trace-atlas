@@ -29,10 +29,11 @@ vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
 });
 
-import { SignatureArrayDrawer, type SignatureArrayValue } from './SignatureArrayDrawer';
+import { SignatureArrayDrawer, SignatureArrayLayer, RobotDriftPanel, type SignatureArrayValue } from './SignatureArrayDrawer';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import { useAudioStore } from '@/stores/audioStore';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
+import { SIGNATURE_ARRAY_CONFIG } from '@/data/robotOptionsConfig';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 import type { Robot } from '@/types/Robot';
 
@@ -544,5 +545,70 @@ describe('SignatureArrayDrawer', () => {
       render(<SignatureArrayDrawer {...noop} value={makeValue()} disabled />);
       expect(disabled(screen.getByRole('slider', { name: 'Rate Drift' }))).toBe(false);
     });
+  });
+});
+
+describe('SignatureArrayLayer — exported standalone (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10)', () => {
+  const layers = makeLayers();
+
+  function renderLayer(idx: 0 | 1 | 2, overrides: Partial<Parameters<typeof SignatureArrayLayer>[0]> = {}) {
+    return render(
+      <SignatureArrayLayer
+        block={SIGNATURE_ARRAY_CONFIG[idx]}
+        idx={idx}
+        layer={layers[idx]}
+        lfoSettings={undefined}
+        onTypeChange={() => {}}
+        onParamChange={() => {}}
+        onLfoFieldChange={() => {}}
+        {...overrides}
+      />,
+    );
+  }
+
+  it('renders the Baseline layer\'s own panel identically to the combined drawer\'s own Baseline section', () => {
+    const { container } = renderLayer(0);
+    expect(screen.getByText('Baseline')).toBeTruthy();
+    expect(container.querySelector('[data-layer-key="layer0"]')).toBeTruthy();
+  });
+
+  it('renders the Harmonic layer standalone, with no Baseline/Coaxial content anywhere', () => {
+    renderLayer(2);
+    expect(screen.getByText('Harmonic')).toBeTruthy();
+    expect(screen.queryByText('Baseline')).toBeNull();
+    expect(screen.queryByText('Coaxial')).toBeNull();
+  });
+
+  it('changing the layer\'s Type radio calls onTypeChange with this layer\'s own idx', () => {
+    const onTypeChange = vi.fn();
+    renderLayer(0, { onTypeChange }); // layer0 starts as 'sine' (makeLayers())
+    const layerEl = screen.getByText('Baseline').closest('.sc-directional-panel') as HTMLElement;
+    const squareOption = within(layerEl).getByRole('radio', { name: 'BINARY' });
+
+    fireEvent.click(squareOption);
+
+    expect(onTypeChange).toHaveBeenCalledWith(0, 'square');
+  });
+
+  it('is independently mountable — mounting only one layer works with no cross-layer dependency', () => {
+    expect(() => renderLayer(0)).not.toThrow();
+  });
+});
+
+describe('RobotDriftPanel — exported standalone (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10, renamed "Probe Drift" as a nav label only — this component\'s own name is unaffected)', () => {
+  beforeEach(() => {
+    useAudioStore.setState((s) => ({
+      globalAudio: { ...s.globalAudio, lfoDrift: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS.lfoDrift } },
+    }));
+  });
+
+  it('renders the Rate Drift/Depth Drift sliders, bound to the same global lfoDrift.robots slice the combined drawer used', () => {
+    render(<RobotDriftPanel />);
+    expect(screen.getByRole('slider', { name: 'Rate Drift' })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: 'Depth Drift' })).toBeTruthy();
+  });
+
+  it('is independently mountable — no SignatureArrayDrawer/layer content required', () => {
+    expect(() => render(<RobotDriftPanel />)).not.toThrow();
   });
 });

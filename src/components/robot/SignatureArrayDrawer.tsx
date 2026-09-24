@@ -35,7 +35,12 @@ const ROBOTS_DRIFT_GROUP = LFO_DRIFT_GROUPS.find((g) => g.group === 'robots')!;
  * component (not inlined in SignatureArrayDrawer's own render) purely to keep the store subscription
  * out of a component whose own doc comment promises "no store access" for everything else in it.
  */
-function RobotDriftPanel() {
+/** Exported standalone (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10) — becomes its own
+ *  independently-mountable tree leaf ("Probe Drift" — nav label only, this component's own name
+ *  is unaffected). Behavior/internals unchanged from its pre-Task-10 role inside
+ *  SignatureArrayDrawer, which keeps rendering it directly until Task 11/13 rewire onto this
+ *  export instead. */
+export function RobotDriftPanel() {
   const rateDrift = useAudioStore((s) => s.globalAudio.lfoDrift.robots.rateDrift);
   const depthDrift = useAudioStore((s) => s.globalAudio.lfoDrift.robots.depthDrift);
   const setGlobalLfoDrift = useAudioStore((s) => s.setGlobalLfoDrift);
@@ -109,7 +114,7 @@ function paramValue(layer: OscillatorLayer, field: SignatureArrayParamSchema['fi
   }
 }
 
-interface SignatureArrayLayerProps {
+export interface SignatureArrayLayerProps {
   block: SignatureArrayLayerBlock;
   idx: number;
   layer: OscillatorLayer;
@@ -226,7 +231,13 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
   );
 }
 
-const SignatureArrayLayer = memo(SignatureArrayLayerInner);
+/** Exported standalone (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10) — becomes Baseline/
+ *  Coaxial/Harmonic Oscillator's own independently-mountable tree leaf, one instance per fixed
+ *  SIGNATURE_ARRAY_CONFIG slot (block/idx together identify which). Already isolated per layer
+ *  internally (see this component's own doc comment above) — the split here is exposing it, not
+ *  rebuilding it. SignatureArrayDrawer keeps rendering its own 3 instances directly until Task
+ *  11/13 rewire onto this export instead. */
+export const SignatureArrayLayer = memo(SignatureArrayLayerInner);
 
 /**
  * 3 DirectionalPanels, one per fixed layer slot (Baseline/Coaxial/Harmonic), plus the Robot Drift
