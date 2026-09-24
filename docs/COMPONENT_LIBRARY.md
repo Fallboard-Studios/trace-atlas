@@ -214,6 +214,41 @@ Wraps exactly one Radix `Accordion.Root type="single" collapsible` + one `Item` 
 
 Its 5 pre-removal consumers (`AudioRigDrawer`, `PingControlsDrawer`, `PingContourDrawer`, `SignatureArrayDrawer`, `AudioSettingSection`) are not restored as-is — each view's own content component (Settings/Fleet Params/`RobotOptionsTab`/`CompanyOptionsSection`) now authors its own fresh `AccordionSchema` values at the new, finer subsection granularity and wires `open`/`onOpenChange` to `useAccordionOpenState` (`src/components/panels/screen/nav/useAccordionOpenState.ts`) — manual, independent per-accordion state, not derived from nav selection; see `UI_SHELL.md`'s "Content model" for why. The old per-drawer accordion config constants (`VOLUME_ACCORDION_SCHEMA`, `AUDIO_RIG_ACCORDION_GROUPS`, etc.) stay retired — they matched the old, coarser leaf granularity and have no home in the new model. Full design history: `docs/specs/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md`, `docs/specs/ACCORDION_LAZY_MOUNT.md`, `docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md`.
 
+## Display-only primitives (no `ControlSchema`)
+
+Not part of the 15-primitive `ControlSchema` inventory above, and not a "shared composition
+component" either (below) — those compose *several already-rendered primitives*; this is a single
+leaf with no schema, no `id`, and no `value`/`onChange` pair at all, the first primitive in this
+directory shaped that way.
+
+### `Textbox`
+
+`src/components/ui/controls/Textbox.tsx` renders trusted, first-party HTML content (lore/
+description copy) with color theming that tracks whichever item it's about. Props:
+`{ html: string; cabinetry?: boolean; trait?: Trait }`.
+
+- **`html`** is sanitized via `DOMPurify.sanitize` unconditionally, on every render, before being
+  rendered with `dangerouslySetInnerHTML` on an inner `.sc-textbox__content` element — never
+  skipped, even though the data is always first-party/trusted (defense-in-depth).
+- **`cabinetry`** (default `false`) wraps the content in the same permanently-popped, non-animating
+  `CabinetBox` facade `TextInput`/`DirectionalPanel`'s own top-level instances use
+  (`popped`/`skipMountAnimation`/`autoHeight` all literal `true`) when `true`; when `false`, no
+  `CabinetBox` is rendered at all — not a flat/hidden one. `CabinetBox`'s `timelineKey` is built
+  from React's own `useId()` (`` `cabinet-textbox-${id}` ``) rather than a schema id, since none
+  exists here. The root additionally carries the literal class `hasCabinetry` (not translated to
+  this codebase's usual `sc-`/BEM convention — a deliberate, explicitly-requested exact name) when
+  `cabinetry` is `true`.
+- **`trait`** is an already-resolved `Trait` id (`src/types/traits.ts`), matching every other
+  trait-aware component (`NavTreeNode`, `AudioSettingSection`, ...) — `Textbox` never derives a
+  trait from `html` or any item id itself. Omitted, it falls back to `getTraitColorStyle('header')`
+  — the same pair `index.css`'s own app-wide ambient default and `Header.tsx` use. The resolved
+  accent style is applied on `Textbox`'s own root (`.sc-textbox`), so both the cabinetry facade (if
+  present) and any other descendant reading `--color-accent-*` inherit it via plain CSS cascade.
+
+Ships with no real data-driven consumer as of this writing — a later phase wires it into actual
+robot/company lore or description data and chooses that consumer's own `trait` value. Full design
+rationale: `docs/specs/TEXTBOX_COMPONENT.md`.
+
 ## Shared composition components
 
 Not part of the 15-primitive `ControlSchema` inventory above — these compose several already-rendered primitives (caller-rendered sliders, one `Lfo`) rather than rendering from a single schema-driven leaf. No new `ControlSchema` variant was added for either.
