@@ -58,7 +58,7 @@ Reference docs
 - `docs/ANIMATION_SYSTEM.md`: GSAP timeline patterns, `timelineMap` lifecycle, and ref registry usage.
 - `docs/BUILDING_DESIGN.md`: Factory and placement rules, production cooldowns, and placement algorithms.
 - `docs/ROBOT_DESIGN.md`: Robot visual design, audio→visual attribute mapping (synth/ADSR/phase/detune), and SVG generation rules.
-- `docs/COMPONENT_LIBRARY.md`: The 13 stateless UI primitives in `src/components/ui/controls/` and the `ControlSchema` contract they consume — the Design System foundation later drawer phases build on.
+- `docs/COMPONENT_LIBRARY.md`: The 14 stateless UI primitives in `src/components/ui/controls/` and the `ControlSchema` contract they consume — the Design System foundation later drawer phases build on.
 - `docs/CONTRIBUTION_GUIDE.md`: PR process, testing expectations, and where to record exceptions.
 - `docs/UI_SHELL.md`: Sleeve & Glass UI architecture, console navigation, and `uiStore` responsibilities.
 - `docs/PROCEDURAL_GENERATION.md`: Seeded/deterministic world generation — noise-map registry, `getSeededVal`, and dataId conventions.
