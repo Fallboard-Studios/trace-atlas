@@ -18,6 +18,7 @@ import {
   type CoordsInputSchema,
   type ButtonSchema,
   type DualLabelSchema,
+  type AccordionSchema,
   type LfoSchema,
   type DirectionalPanelSchema,
   type PanelOrientation,
@@ -29,9 +30,9 @@ import {
 // ========================================
 
 describe('CONTROL_SCHEMA_TYPES', () => {
-  it('has exactly 13 entries, no duplicates (was 14 until \'accordion\' was removed, docs/tasks/NAV_LAYOUT_REWRITE.md Task 21)', () => {
-    expect(CONTROL_SCHEMA_TYPES).toHaveLength(13);
-    expect(new Set(CONTROL_SCHEMA_TYPES).size).toBe(13);
+  it('has exactly 14 entries, no duplicates', () => {
+    expect(CONTROL_SCHEMA_TYPES).toHaveLength(14);
+    expect(new Set(CONTROL_SCHEMA_TYPES).size).toBe(14);
   });
 
   it('matches the ControlSchema union discriminants exactly', () => {
@@ -40,7 +41,7 @@ describe('CONTROL_SCHEMA_TYPES', () => {
         'stepper', 'stepperToggle',
         'sliderLinear', 'sliderLog', 'sliderCenteredZero',
         'radio', 'toggle', 'textInput', 'coordsInput',
-        'button', 'dualLabel', 'lfo',
+        'button', 'dualLabel', 'accordion', 'lfo',
         'directionalPanel',
       ].sort()
     );
@@ -60,16 +61,17 @@ describe('ControlSchema variants', () => {
     const coordsInput: CoordsInputSchema = { id: 'sectorCoords', type: 'coordsInput' };
     const button: ButtonSchema = { id: 'resetMelody', type: 'button' };
     const dualLabel: DualLabelSchema = { id: 'jobData', type: 'dualLabel' };
+    const accordion: AccordionSchema = { id: 'pingControls', type: 'accordion' };
     const lfo: LfoSchema = { id: 'volumeLfo', type: 'lfo' };
     const directionalPanel: DirectionalPanelSchema = { id: 'eq3Panel', type: 'directionalPanel', orientation: 'row' };
 
     const variants: ControlSchema[] = [
       stepper, stepperToggle, sliderLinear, sliderLog, sliderCenteredZero,
-      radio, toggle, textInput, coordsInput, button, dualLabel, lfo,
+      radio, toggle, textInput, coordsInput, button, dualLabel, accordion, lfo,
       directionalPanel,
     ];
 
-    expect(variants).toHaveLength(13);
+    expect(variants).toHaveLength(14);
   });
 
   it('accepts loreLabel and/or humanLabel on the shared base, both optional', () => {

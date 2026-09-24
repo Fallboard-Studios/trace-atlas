@@ -1,0 +1,117 @@
+/* Outer border/radius/overflow chrome removed (roadmap 11.1.7) — the
+   permanently-popped facade CabinetBox nested inside .sc-accordion__trigger
+   is now the section's only visible edge. See
+   docs/specs/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md §1.2/§1.6. */
+.sc-accordion {}
+
+/* A transparent, full-width click target — the same "real interactive
+   element stays in charge, CabinetBox renders the visuals" split every
+   prior Cabinetry item uses (Button.css's own .sc-button, Toggle.css's own
+   .sc-toggle__root), except full-width here rather than width: fit-content,
+   since the facade spans the whole row rather than shrink-wrapping its own
+   content. */
+.sc-accordion__trigger {
+  width: 100%;
+  display: block;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sc-accordion__trigger:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* Stretches the outer facade CabinetBox — an inline-flex element by default
+   (CabinetBox.css) — to the trigger's own full width, then overrides the
+   front face's default centered/content-sized layout to a left-aligned row
+   that fills that width. Direct-child combinators, not descendant
+   selectors: the inner toggle box's own front (nested one level deeper,
+   inside .sc-accordion__row) must never match either rule. See
+   docs/specs/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md §1.4. */
+.sc-accordion__trigger>.sc-cabinet-box {
+  width: 100%;
+}
+
+.sc-accordion__trigger>.sc-cabinet-box>.sc-cabinet-box__front {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 0 12px;
+}
+
+/* Plain layout row inside the facade's own front face — toggle box, then
+   the label, mirroring the original trigger's own left-to-right order and
+   15px gap. No CabinetBox of its own, no state. */
+.sc-accordion__row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  width: 100%;
+}
+
+/* Sizes the inner toggle box to a fixed square, matching Toggle.css's own
+   .sc-toggle__root .sc-cabinet-box__front override exactly (roadmap
+   11.1.2 §1.2) — --cabinet-accordion-toggle-size is computed once in
+   AccordionContainer.tsx from the same imported CABINET_TOGGLE_BOX_SIZE
+   constant Toggle.tsx exports, not a second hand-typed 32px literal. Scoped
+   to .sc-accordion__row specifically so the outer facade's own full-width
+   front (above) is untouched. See
+   docs/specs/OBLIQUE_CABINETRY_ACCORDION_CONTAINER.md §1.3/§1.4. */
+.sc-accordion__row .sc-cabinet-box__front {
+  width: var(--cabinet-accordion-toggle-size);
+  height: var(--cabinet-accordion-toggle-size);
+  padding: 0;
+}
+
+.sc-accordion__indicator {
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+}
+
+/* Direct fix for the "accordion labels read too small" complaint
+   (docs/specs/TYPE_SCALE.md §1.6) — scoped to .sc-accordion__row
+   specifically (not a bare .sc-dual-label__human rule) so a nested
+   control's own DualLabel, rendered somewhere inside this section's
+   children, is never caught. Stays --font-sans (Rajdhani, inherited from
+   :root) — this file never establishes the sc-control size container and
+   never moves to --font-controls, since it's chrome, not a leaf control
+   (§1.5). Only the human label is bumped; the lore caption stays at its
+   normal small-caption size, preserving the existing size contrast between
+   the two. */
+.sc-accordion__row .sc-dual-label__human {
+  font-size: var(--font-size-heading-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+/* overflow-y here is closed-state-only baseline. The open state's
+   overflow-y: visible (needed so the oblique CabinetBox facades in the
+   content don't get clipped on their right edge) is NOT a CSS rule keyed
+   off Radix's [data-state] — that attribute flips synchronously with the
+   click, before the GSAP height tween below even starts/finishes, so a
+   plain attribute selector made the overflow change visible mid-animation
+   instead of hidden by it. AccordionContainer.tsx's animateTo() sets
+   overflow-y: visible as the first step of the open timeline and hidden
+   only in the close timeline's onComplete, so the switch always happens
+   while height is 0 either way and is never seen. */
+.sc-accordion__content {
+  overflow-y: hidden;
+  height: 0;
+}
+
+/* Closed-state baseline, same reasoning as .sc-accordion__content's own
+   comment above: opacity is owned by animateTo()'s GSAP timeline, not a
+   [data-state] selector, so it can be sequenced against the height tween
+   (height first then fade in on open, fade out then height on close)
+   instead of snapping the instant Radix's data-state flips. */
+.sc-accordion__content-inner {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-accordion__content {
+    transition: none;
+  }
+}
