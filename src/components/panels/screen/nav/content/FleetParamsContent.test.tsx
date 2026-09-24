@@ -31,11 +31,9 @@ const LEAF_IDS = [
 ];
 
 function openAndApproach(id: string) {
-  act(() => {
-    const leaf = LEAF_ID_TO_EFFECT[id];
-    useUIStore.getState().setSelectedFleetParamsEffect(leaf);
-    approachSection(id);
-  });
+  // Lazy-mount is driven purely by approach — an accordion's own open/closed state (manual,
+  // independent per accordion) has no bearing on whether its content is in the DOM.
+  act(() => approachSection(id));
 }
 
 const LEAF_ID_TO_EFFECT: Record<string, import('@/data/audioRigConfig').AudioRigEffectKey> = {
@@ -85,24 +83,23 @@ describe('FleetParamsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CO
     expect(screen.getByRole('button', { name: 'Reverb' }).getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('clicking a leaf trigger opens only it and sets selectedFleetParamsEffect', () => {
+  it('clicking a leaf trigger opens it directly, without touching selectedFleetParamsEffect', () => {
     render(<FleetParamsContent />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Reverb' }));
 
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('reverb');
     expect(screen.getByRole('button', { name: 'Reverb' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: '3-Band EQ' }).getAttribute('aria-expanded')).toBe('false');
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
   });
 
-  it('cross-group single-open: opening Limiter (Output group) closes a previously-open Reverb (Time & Space group)', () => {
+  it('opening a second leaf across groups does not close a previously-open one — multiple can be open at once, no cross-group single-open anymore', () => {
     render(<FleetParamsContent />);
     fireEvent.click(screen.getByRole('button', { name: 'Reverb' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Limiter' }));
 
     expect(screen.getByRole('button', { name: 'Limiter' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Reverb' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Reverb' }).getAttribute('aria-expanded')).toBe('true');
   });
 
   it('a leaf\'s real content (AudioRigEffectPanel) is not in the DOM until its anchor has been approached', () => {
@@ -119,7 +116,7 @@ describe('FleetParamsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CO
     expect(stub.getAttribute('data-effect-key')).toBe('eq3');
   });
 
-  it('manually scrolling a leaf into view (scrollspy) updates selectedFleetParamsEffect without ever calling scrollToSection', async () => {
+  it('manually scrolling a leaf into view (scrollspy) updates selectedFleetParamsEffect for tree highlighting, without ever calling scrollToSection or touching any accordion\'s open state', async () => {
     const { scrollToSection } = await import('@/utils/sectionRefs');
     render(<FleetParamsContent />);
 
@@ -127,6 +124,8 @@ describe('FleetParamsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CO
 
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('delay');
     expect(scrollToSection).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: '3-Band EQ' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Delay' }).getAttribute('aria-expanded')).toBe('false');
   });
 });
 

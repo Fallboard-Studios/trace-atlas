@@ -1,5 +1,6 @@
 import { AudioRigDrawer, AudioRigEffectPanel } from '../../console/AudioRigDrawer';
 import { useSectionObserver } from '../useSectionObserver';
+import { useAccordionOpenState } from '../useAccordionOpenState';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { useUIStore, type FleetParamsGroup } from '@/stores/uiStore';
@@ -54,7 +55,6 @@ const FLEET_PARAMS_GROUPS: FleetParamsGroupDef[] = [
 ];
 
 const ALL_LEAVES = FLEET_PARAMS_GROUPS.flatMap((g) => g.leaves);
-const FIRST_EFFECT = ALL_LEAVES[0].effectKey;
 
 function sectionAnchorRef(id: string) {
   return (el: HTMLDivElement | null) => {
@@ -67,14 +67,14 @@ function sectionAnchorRef(id: string) {
  * Fleet Params branch content (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2) — replaces the
  * content-swap model with a single scrollable view stacking all 3 groups × their leaves. Groups
  * are heading-only (no accordion of their own, spec §2's "mid-level (group)" row); each of the 7
- * leaves gets its own controlled accordion, exactly one open at a time across the WHOLE view, not
- * per group — opening Limiter (Output) closes an open Reverb (Time & Space) just as it would close
- * a sibling within the same group. AudioRigDrawer (Automatic Effects) is not part of the accordion
- * model — it renders unwrapped, same as every branch's own non-accordion top content (matches this
- * component's pre-Task-8 fallback role, not a new tree leaf).
+ * leaves gets its own accordion with manual, independent open/closed state
+ * (`useAccordionOpenState`) — opening one never closes another, and a nav click/scrollspy only
+ * scrolls/updates `selectedFleetParamsEffect` for tree highlighting, never an accordion's own
+ * state (Crawford's own follow-up call, 2026-09-24). AudioRigDrawer (Automatic Effects) is not
+ * part of the accordion model — it renders unwrapped, same as every branch's own non-accordion top
+ * content (matches this component's pre-Task-8 fallback role, not a new tree leaf).
  */
 export function FleetParamsContent() {
-  const selectedFleetParamsEffect = useUIStore((s) => s.selectedFleetParamsEffect);
   const setSelectedFleetParamsEffect = useUIStore((s) => s.setSelectedFleetParamsEffect);
 
   const leafIds = ALL_LEAVES.map((l) => l.id);
@@ -83,7 +83,7 @@ export function FleetParamsContent() {
     if (leaf) setSelectedFleetParamsEffect(leaf.effectKey);
   });
 
-  const openEffect = selectedFleetParamsEffect ?? FIRST_EFFECT;
+  const { isOpen, setOpen } = useAccordionOpenState(ALL_LEAVES[0].id);
 
   return (
     <div ref={sectionAnchorRef('fleetParams')}>
@@ -93,13 +93,12 @@ export function FleetParamsContent() {
           <div ref={sectionAnchorRef(group.nodeId)}>{group.humanLabel}</div>
           {group.leaves.map((leaf) => {
             const schema: AccordionSchema = { id: leaf.id, type: 'accordion', humanLabel: leaf.humanLabel };
-            const isOpen = openEffect === leaf.effectKey;
             return (
               <div key={leaf.id} ref={sectionAnchorRef(leaf.id)}>
                 <AccordionContainer
                   schema={schema}
-                  open={isOpen}
-                  onOpenChange={(open) => setSelectedFleetParamsEffect(open ? leaf.effectKey : null)}
+                  open={isOpen(leaf.id)}
+                  onOpenChange={(open) => setOpen(leaf.id, open)}
                 >
                   {hasApproached(leaf.id) ? <AudioRigEffectPanel effectKey={leaf.effectKey} /> : null}
                 </AccordionContainer>
