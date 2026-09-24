@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
@@ -16,15 +17,30 @@ vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: 
 // needs a distinct id: it keys both the Radix item and the timelineMap entry.
 const schema = (id: string, humanLabel: string): AccordionSchema => ({ id, type: 'accordion', humanLabel });
 
+// AccordionContainer is controlled (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 4) — every
+// render needs its own open/onOpenChange, exactly like a real caller's derived-open-section state.
+// openAllAccordions itself only clicks DOM triggers, so this wrapper is the only thing that changed
+// versus the old uncontrolled usage.
+function Controlled({ id, humanLabel, initialOpen = false, children }: {
+  id: string; humanLabel: string; initialOpen?: boolean; children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(initialOpen);
+  return (
+    <AccordionContainer schema={schema(id, humanLabel)} open={open} onOpenChange={setOpen}>
+      {children}
+    </AccordionContainer>
+  );
+}
+
 const expandedOf = (name: string) => screen.getByRole('button', { name: new RegExp(name) }).getAttribute('aria-expanded');
 
 describe('openAllAccordions', () => {
   it('expands every collapsed accordion in the tree', () => {
     render(
       <>
-        <AccordionContainer schema={schema('a', 'Alpha')}><p>alpha body</p></AccordionContainer>
-        <AccordionContainer schema={schema('b', 'Bravo')}><p>bravo body</p></AccordionContainer>
-        <AccordionContainer schema={schema('c', 'Charlie')}><p>charlie body</p></AccordionContainer>
+        <Controlled id="a" humanLabel="Alpha"><p>alpha body</p></Controlled>
+        <Controlled id="b" humanLabel="Bravo"><p>bravo body</p></Controlled>
+        <Controlled id="c" humanLabel="Charlie"><p>charlie body</p></Controlled>
       </>,
     );
     expect(['Alpha', 'Bravo', 'Charlie'].map(expandedOf)).toEqual(['false', 'false', 'false']);
@@ -37,8 +53,8 @@ describe('openAllAccordions', () => {
   it('leaves an already-open accordion open instead of toggling it closed', () => {
     render(
       <>
-        <AccordionContainer schema={schema('a', 'Alpha')} defaultOpen><p>alpha body</p></AccordionContainer>
-        <AccordionContainer schema={schema('b', 'Bravo')}><p>bravo body</p></AccordionContainer>
+        <Controlled id="a" humanLabel="Alpha" initialOpen><p>alpha body</p></Controlled>
+        <Controlled id="b" humanLabel="Bravo"><p>bravo body</p></Controlled>
       </>,
     );
 
@@ -49,7 +65,7 @@ describe('openAllAccordions', () => {
   });
 
   it('is idempotent — calling it again does not collapse anything', () => {
-    render(<AccordionContainer schema={schema('a', 'Alpha')}><p>alpha body</p></AccordionContainer>);
+    render(<Controlled id="a" humanLabel="Alpha"><p>alpha body</p></Controlled>);
 
     openAllAccordions();
     openAllAccordions();
@@ -62,7 +78,7 @@ describe('openAllAccordions', () => {
     render(
       <>
         <button type="button" aria-expanded="false" onClick={onClick}>Disclosure that is not an accordion</button>
-        <AccordionContainer schema={schema('a', 'Alpha')}><p>alpha body</p></AccordionContainer>
+        <Controlled id="a" humanLabel="Alpha"><p>alpha body</p></Controlled>
       </>,
     );
 
@@ -76,9 +92,9 @@ describe('openAllAccordions', () => {
     const { container } = render(
       <>
         <div data-testid="scope">
-          <AccordionContainer schema={schema('in', 'Inside')}><p>inside body</p></AccordionContainer>
+          <Controlled id="in" humanLabel="Inside"><p>inside body</p></Controlled>
         </div>
-        <AccordionContainer schema={schema('out', 'Outside')}><p>outside body</p></AccordionContainer>
+        <Controlled id="out" humanLabel="Outside"><p>outside body</p></Controlled>
       </>,
     );
     const scope = container.querySelector<HTMLElement>('[data-testid="scope"]')!;
@@ -91,9 +107,9 @@ describe('openAllAccordions', () => {
 
   it('opens an accordion nested inside another accordion\'s content', () => {
     render(
-      <AccordionContainer schema={schema('outer', 'Outer')}>
-        <AccordionContainer schema={schema('inner', 'Inner')}><p>inner body</p></AccordionContainer>
-      </AccordionContainer>,
+      <Controlled id="outer" humanLabel="Outer">
+        <Controlled id="inner" humanLabel="Inner"><p>inner body</p></Controlled>
+      </Controlled>,
     );
 
     openAllAccordions();
