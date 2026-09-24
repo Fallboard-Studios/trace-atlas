@@ -1,6 +1,17 @@
 .screen-viewport {
   position: relative;
   flex: 1 1 auto;
+  /* A flex item's default min-height is auto (its content's intrinsic size) — without this, tall
+     descendant content (NavPanel's expanded tree, NavPanel.css's own overflow-y: auto) grows THIS
+     element past its flex:1 share of .tablet's fixed height instead of being clamped to it, which
+     then propagates: .screen-content's height: 100% (ScreenViewport.css below) resolves against
+     that inflated, content-based height instead of the real available screen space, so NavPanel's
+     own max-height: calc(100% - 32px) never gets a genuinely bounded value to constrain against —
+     its scroll range ends wherever the ancestor chain happened to stop growing, not at the real
+     bottom of the screen. Same bug class ConsolePanel.css's own .console-panel__content documents
+     and fixes; found live (Crawford: Companies never scrolls into view no matter how far down the
+     nav tree scrolls). */
+  min-height: 0;
   overflow: hidden;
 }
 

@@ -50,25 +50,33 @@ function asTopLevelBranch(value: string): TopLevelBranch | null {
   return (TOP_LEVEL_BRANCHES as readonly string[]).includes(value) ? (value as TopLevelBranch) : null;
 }
 
+// trait per section (experimental, Crawford's own request) — matches AudioSettingSection/
+// PingControlsDrawer/PingContourDrawer/SignatureArrayDrawer's own per-section
+// getTraitColorStyle calls (output/composition/timeSpace/spectral respectively), so a
+// probes.<id>.<section> or companies.<id>.<section> row colors itself the same as the actual
+// section content it opens into.
 const SECTION_CHILDREN: Omit<NavTreeNodeSchema, 'id'>[] = [
-  { humanLabel: 'Volume' },
-  { humanLabel: 'Melody' },
-  { humanLabel: 'Envelope' },
-  { humanLabel: 'Source' },
+  { humanLabel: 'Volume', trait: 'output' },
+  { humanLabel: 'Melody', trait: 'composition' },
+  { humanLabel: 'Envelope', trait: 'timeSpace' },
+  { humanLabel: 'Source', trait: 'spectral' },
 ];
 
 function sectionChildNodes(entityBranchPrefix: string): NavTreeNodeSchema[] {
   return ROBOT_SECTIONS.map((section, i) => ({
     id: `${entityBranchPrefix}.${section}`,
-    humanLabel: SECTION_CHILDREN[i].humanLabel,
+    ...SECTION_CHILDREN[i],
   }));
 }
 
 interface IdentityEntry {
   id: string;
   name?: string;
-  /** Only ever populated for companies (Company.color) — Task 20's tree-row tint. Robots have no
-   *  equivalent field on this generic roster; always undefined for the 'robots' key. */
+  /** A robot's own Robot.identityColor, or a company's own Company.color — both are a single
+   *  literal per-entity tint (Task 20's original company tree-row tint, extended to robots per
+   *  Crawford's own follow-up request). Read generically here so buildProbesSubtree/
+   *  buildCompaniesSubtree don't need to know which underlying field name their own entity type
+   *  uses. */
   color?: string;
 }
 
@@ -90,7 +98,10 @@ function useIdentityRoster(localeId: string, key: 'robots' | 'companies'): Ident
     const next = (s.locales[localeId]?.[key] ?? []).map((entry) => ({
       id: entry.id,
       name: entry.name,
-      color: 'color' in entry ? entry.color : undefined,
+      // Company.color (Task 20) or Robot.identityColor (Crawford's own follow-up request) —
+      // whichever this entry's own type actually has. Never both: 'color' in entry narrows to
+      // Company, 'identityColor' in entry narrows to Robot.
+      color: 'color' in entry ? entry.color : 'identityColor' in entry ? entry.identityColor : undefined,
     }));
     if (identityRosterEqual(prevRef.current, next)) return prevRef.current;
     prevRef.current = next;
@@ -103,6 +114,7 @@ function buildProbesSubtree(schema: NavTreeNodeSchema, robots: IdentityEntry[]):
   const perRobotNodes: NavTreeNodeSchema[] = robots.map((r) => ({
     id: `probes.${r.id}`,
     humanLabel: r.name ?? r.id,
+    color: r.color,
     children: sectionChildNodes(`probes.${r.id}`),
   }));
   return { ...schema, children: allProbesNode ? [allProbesNode, ...perRobotNodes] : perRobotNodes };

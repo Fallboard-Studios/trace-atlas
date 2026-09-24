@@ -123,3 +123,45 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
     }
   });
 });
+
+describe('NAV_TREE_SCHEMA — trait color-coding (experimental, Crawford\'s own request)', () => {
+  it('each of the 4 top-level branches has its own assigned trait', () => {
+    expect(findNode('settings')?.trait).toBe('spectral');
+    expect(findNode('fleetParams')?.trait).toBe('timeSpace');
+    expect(findNode('probes')?.trait).toBe('output');
+    expect(findNode('companies')?.trait).toBe('company');
+  });
+
+  it('Fleet Params\' 3 category groups carry the same trait as their real content elsewhere (AudioRigDrawer.tsx\'s own AUDIO_RIG_EFFECT_TRAIT)', () => {
+    expect(findNode('fleetParams.eqFilters')?.trait).toBe('spectral');
+    expect(findNode('fleetParams.timeSpace')?.trait).toBe('timeSpace');
+    expect(findNode('fleetParams.output')?.trait).toBe('output');
+  });
+
+  it('Fleet Params\' individual leaves have no trait of their own — they inherit their own group\'s', () => {
+    expect(findNode('fleetParams.eqFilters.eq')?.trait).toBeUndefined();
+    expect(findNode('fleetParams.timeSpace.reverb')?.trait).toBeUndefined();
+    expect(findNode('fleetParams.output.limiter')?.trait).toBeUndefined();
+  });
+
+  it('Settings -> Sector Settings carries \'seed\', matching SectorSettingsDrawer.tsx\'s own getTraitColorStyle call', () => {
+    expect(findNode('settings.sectorSettings')?.trait).toBe('seed');
+  });
+
+  it('Settings -> Volume/Quality/Tempo each have their own explicit trait override, distinct from Settings\' own spectral (Crawford\'s own picks)', () => {
+    expect(findNode('settings.volume')?.trait).toBe('output');
+    expect(findNode('settings.quality')?.trait).toBe('seed');
+    expect(findNode('settings.tempo')?.trait).toBe('composition');
+  });
+
+  it('Probes -> All Probes carries \'header\', overriding Probes\' own output default (Crawford\'s own pick)', () => {
+    expect(findNode('probes.all')?.trait).toBe('header');
+  });
+
+  it('Probes -> All Probes\' 4 leaves carry the same output/composition/timeSpace/spectral mapping the per-robot/per-company section children use (useNavTree.ts\'s own SECTION_CHILDREN) — unaffected by All Probes\' own header override', () => {
+    expect(findNode('probes.all.volume')?.trait).toBe('output');
+    expect(findNode('probes.all.melody')?.trait).toBe('composition');
+    expect(findNode('probes.all.envelope')?.trait).toBe('timeSpace');
+    expect(findNode('probes.all.source')?.trait).toBe('spectral');
+  });
+});

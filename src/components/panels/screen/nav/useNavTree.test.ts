@@ -11,8 +11,8 @@ import type { Locale } from '@/types/locale';
 const localeId = getActiveLocaleId();
 const UI_INITIAL_STATE = useUIStore.getState();
 
-function makeRobot(id: string, name?: string): Robot {
-  return { id, name } as unknown as Robot;
+function makeRobot(id: string, name?: string, identityColor?: string): Robot {
+  return { id, name, identityColor } as unknown as Robot;
 }
 
 function makeCompany(id: string, name: string, color = '#fff'): Company {
@@ -100,6 +100,38 @@ describe('useNavTree — dynamic tree merging (docs/tasks/NAV_LAYOUT_REWRITE.md 
     const { result } = renderHook(() => useNavTree());
 
     expect(findNode('companies.c1.volume', result.current.nodes)?.color).toBeUndefined();
+  });
+
+  it('carries each robot\'s own identityColor onto its tree node, same as a company\'s color (Crawford\'s own follow-up request)', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One', '#123456'));
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r2', 'Unit Two', '#abcdef'));
+
+    const { result } = renderHook(() => useNavTree());
+
+    expect(findNode('probes.r1', result.current.nodes)?.color).toBe('#123456');
+    expect(findNode('probes.r2', result.current.nodes)?.color).toBe('#abcdef');
+  });
+
+  it('never puts a color on a robot\'s own section children — only the robot row itself is tinted', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One', '#123456'));
+
+    const { result } = renderHook(() => useNavTree());
+
+    expect(findNode('probes.r1.volume', result.current.nodes)?.color).toBeUndefined();
+  });
+
+  it('each section child (probes/companies) carries the same trait its real content uses elsewhere (output/composition/timeSpace/spectral)', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp'));
+
+    const { result } = renderHook(() => useNavTree());
+
+    for (const prefix of ['probes.r1', 'companies.c1']) {
+      expect(findNode(`${prefix}.volume`, result.current.nodes)?.trait).toBe('output');
+      expect(findNode(`${prefix}.melody`, result.current.nodes)?.trait).toBe('composition');
+      expect(findNode(`${prefix}.envelope`, result.current.nodes)?.trait).toBe('timeSpace');
+      expect(findNode(`${prefix}.source`, result.current.nodes)?.trait).toBe('spectral');
+    }
   });
 
   it('tracks the live roster — adding a robot after mount updates nodes without a remount', () => {

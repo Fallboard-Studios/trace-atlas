@@ -5,6 +5,22 @@
   position: relative;
   top: 32px;
   left: 16px;
+  /* If the tree grows taller than the screen (many expanded branches), let this box scroll
+     internally instead of running off-screen with no way to reach the rest — .screen-content's
+     own overflow: hidden (ScreenViewport.css) would otherwise just clip it silently.
+     Bugfix, found live via Playwright (Crawford: "Companies doesn't even make it on screen" —
+     confirmed by measuring real bounding boxes, not guessed): an earlier version of this rule
+     only subtracted this element's own `top: 32px` offset, on the wrong assumption that
+     .nav-panel starts near .screen-content's own top edge. It doesn't — .header (a sticky
+     sibling, ~109px tall) sits above it in flow first, so .nav-panel's real start position is
+     `headerHeight + 32px` down from .screen-content's top. Sizing the box to `100% - 32px`
+     regardless left it ~headerHeight px too tall, running its own bottom edge straight past
+     .screen-content's clipped boundary — silently cut off by that ancestor's overflow: hidden
+     before .nav-panel's own overflow-y: auto below ever got a chance to scroll to it. Fixed by
+     also subtracting --header-height, the same live-measured custom property (Header.tsx's own
+     ResizeObserver effect) ContentPane.css already reads for this identical "reserve space for
+     what .header occupies above me" problem. */
+  max-height: calc(100% - var(--header-height, var(--power-corner-height)) - 76px);
 }
 
 /* Oblique Cabinetry facade wrapper — only ever rendered as .nav-panel's one
@@ -21,4 +37,7 @@
   width: auto;
   height: auto;
   padding: 64px var(--spacing-lg) var(--spacing-lg);
+  max-height: calc(100vh - var(--power-corner-height) - 32px);
+  overflow: scroll;
+  scrollbar-gutter: stable;
 }

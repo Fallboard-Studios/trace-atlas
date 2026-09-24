@@ -1,5 +1,9 @@
 import { useNavTree } from './useNavTree';
-import { getRobotColorStyle } from '@/utils/traitColors';
+import { Button } from '@/components/ui/controls/Button';
+import { CabinetBox } from '@/components/ui/controls/CabinetBox';
+import { Toggle } from '@/components/ui/controls/Toggle';
+import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
+import type { ButtonSchema, ToggleSchema } from '@/types/controls';
 import type { NavTreeNodeSchema } from '@/data/navTreeConfig';
 import './NavTreeNode.css';
 
@@ -27,6 +31,30 @@ export function NavTreeNode({ node, depth, focusedId }: NavTreeNodeProps) {
   const selected = isSelected(node.id);
   const tabIndex = focusedId === undefined ? undefined : focusedId === node.id ? 0 : -1;
 
+  // Experimental (Crawford's own request) — node.color (a company's own literal identity
+  // color) wins over node.trait (one of the 4 top-level branches' assigned Trait) when both
+  // would apply, though today no node ever has both set. Neither set (every other node) means
+  // no inline style at all here, so this row simply inherits whichever ancestor's row last set
+  // the 4 --color-accent-* custom properties — the "child without an assigned trait uses its
+  // parent's colors" behavior falls straight out of ordinary CSS cascade/inheritance, no extra
+  // plumbing needed. See navTreeConfig.ts's own `trait` field comment.
+  const colorStyle = node.color
+    ? getRobotColorStyle(node.color)
+    : node.trait
+      ? getTraitColorStyle(node.trait)
+      : undefined;
+
+  // Experimental — reusing the shared Button/Toggle primitives in place of the row's old bare
+  // <button>s (Crawford's own request, "might not keep any of this"). Recreated every render
+  // (not hoisted module-level, unlike every other schema in this codebase) since each depends on
+  // this node's own id/label/expanded state.
+  const nameSchema: ButtonSchema = { id: `${node.id}-name`, type: 'button', humanLabel: node.humanLabel };
+  const toggleSchema: ToggleSchema = {
+    id: `${node.id}-toggle`,
+    type: 'toggle',
+    humanLabel: expanded ? `Collapse ${node.humanLabel}` : `Expand ${node.humanLabel}`,
+  };
+
   return (
     <div
       className="nav-tree-node"
@@ -36,29 +64,29 @@ export function NavTreeNode({ node, depth, focusedId }: NavTreeNodeProps) {
       aria-level={depth}
       tabIndex={tabIndex}
       data-nav-node-id={node.id}
-      style={node.color ? getRobotColorStyle(node.color) : undefined}
+      style={colorStyle}
     >
-      <button type="button" className="nav-tree-node__name" onClick={() => select(node.id)}>
-        {node.humanLabel}
-      </button>
-      {hasChildren && (
-        <button
-          type="button"
-          className="nav-tree-node__toggle"
-          aria-label={expanded ? `Collapse ${node.humanLabel}` : `Expand ${node.humanLabel}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleExpand(node.id);
-          }}
-        >
-          {expanded ? '−' : '+'}
-        </button>
-      )}
+      <div className="nav-tree-node__row">
+        <Button schema={nameSchema} onClick={() => select(node.id)} />
+        {hasChildren && (
+          <Toggle schema={toggleSchema} value={expanded} onChange={() => toggleExpand(node.id)}>
+            <span aria-hidden="true">{expanded ? '−' : '+'}</span>
+          </Toggle>
+        )}
+      </div>
       {hasChildren && expanded && (
-        <div role="group">
-          {node.children!.map((child) => (
-            <NavTreeNode key={child.id} node={child} depth={depth + 1} focusedId={focusedId} />
-          ))}
+        <div className="nav-tree-node__group" role="group">
+          {/* Oblique Cabinetry facade — decorative only, same non-animating
+             top-level facade pattern DirectionalPanel/Header/NavPanel already
+             use (`popped` + `skipMountAnimation` + `autoHeight`). Unique
+             timelineKey per node — unlike Header/NavPanel's one static
+             instance, many of these can be mounted simultaneously (one per
+             expanded branch), so they need distinct timelineMap entries. */}
+          <CabinetBox popped skipMountAnimation autoHeight timelineKey={`cabinet-nav-tree-group-${node.id}`}>
+            {node.children!.map((child) => (
+              <NavTreeNode key={child.id} node={child} depth={depth + 1} focusedId={focusedId} />
+            ))}
+          </CabinetBox>
         </div>
       )}
     </div>
