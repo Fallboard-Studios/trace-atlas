@@ -391,6 +391,114 @@ describe('uiStore — expandedTopLevelBranch (bugfix: the 4 top-level tree nodes
   });
 });
 
+describe('uiStore — selectedSubsection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 1)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('defaults to null — no subsection chosen until a leaf is selected', () => {
+    expect(useUIStore.getState().selectedSubsection).toBeNull();
+  });
+
+  it('setSelectedSubsection sets one of the 8 subsections', () => {
+    useUIStore.getState().setSelectedSubsection('probeDrift');
+    expect(useUIStore.getState().selectedSubsection).toBe('probeDrift');
+  });
+
+  it('setSelectedSubsection(null) clears back to no subsection chosen', () => {
+    useUIStore.getState().setSelectedSubsection('rhythm');
+    useUIStore.getState().setSelectedSubsection(null);
+    expect(useUIStore.getState().selectedSubsection).toBeNull();
+  });
+
+  it('is independent of selectedSection', () => {
+    useUIStore.getState().setSelectedSection('melody');
+    useUIStore.getState().setSelectedSubsection('frequency');
+    expect(useUIStore.getState().selectedSection).toBe('melody');
+    expect(useUIStore.getState().selectedSubsection).toBe('frequency');
+  });
+
+  it('selectRobot(id) resets selectedSubsection to null — mirrors the existing selectedSection reset so a stale subsection never leaks onto the next robot', () => {
+    useUIStore.getState().setSelectedSubsection('coaxialOscillator');
+    useUIStore.getState().selectRobot('robot-1-def');
+    expect(useUIStore.getState().selectedSubsection).toBeNull();
+  });
+
+  it('selectRobot(null) (the Back button case) also resets selectedSubsection', () => {
+    useUIStore.getState().selectRobot('robot-0-xyz');
+    useUIStore.getState().setSelectedSubsection('pingContour');
+    useUIStore.getState().selectRobot(null);
+    expect(useUIStore.getState().selectedSubsection).toBeNull();
+  });
+});
+
+describe('uiStore — expandedProbeSection (accordion-of-one within an expanded probe, docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 1)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('defaults to null — nothing expanded', () => {
+    expect(useUIStore.getState().expandedProbeSection).toBeNull();
+  });
+
+  it('setExpandedProbeSection sets one of the 4 sections, replacing any other', () => {
+    useUIStore.getState().setExpandedProbeSection('melody');
+    expect(useUIStore.getState().expandedProbeSection).toBe('melody');
+    useUIStore.getState().setExpandedProbeSection('source');
+    expect(useUIStore.getState().expandedProbeSection).toBe('source');
+  });
+
+  it('setExpandedProbeSection(null) collapses back to nothing expanded', () => {
+    useUIStore.getState().setExpandedProbeSection('envelope');
+    useUIStore.getState().setExpandedProbeSection(null);
+    expect(useUIStore.getState().expandedProbeSection).toBeNull();
+  });
+
+  it('is independent of expandedCompanySection — one level deeper than expandedProbeId/expandedCompanyId, matching their own split', () => {
+    useUIStore.getState().setExpandedProbeSection('melody');
+    useUIStore.getState().setExpandedCompanySection('source');
+    expect(useUIStore.getState().expandedProbeSection).toBe('melody');
+    expect(useUIStore.getState().expandedCompanySection).toBe('source');
+  });
+
+  it('is independent of expandedProbeId', () => {
+    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
+    useUIStore.getState().setExpandedProbeSection('volume');
+    expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
+    expect(useUIStore.getState().expandedProbeSection).toBe('volume');
+  });
+});
+
+describe('uiStore — expandedCompanySection (accordion-of-one within an expanded company, docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 1)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('defaults to null — nothing expanded', () => {
+    expect(useUIStore.getState().expandedCompanySection).toBeNull();
+  });
+
+  it('setExpandedCompanySection sets one of the 4 sections, replacing any other', () => {
+    useUIStore.getState().setExpandedCompanySection('envelope');
+    expect(useUIStore.getState().expandedCompanySection).toBe('envelope');
+    useUIStore.getState().setExpandedCompanySection('volume');
+    expect(useUIStore.getState().expandedCompanySection).toBe('volume');
+  });
+
+  it('setExpandedCompanySection(null) collapses back to nothing expanded', () => {
+    useUIStore.getState().setExpandedCompanySection('source');
+    useUIStore.getState().setExpandedCompanySection(null);
+    expect(useUIStore.getState().expandedCompanySection).toBeNull();
+  });
+
+  it('is independent of expandedCompanyId', () => {
+    useUIStore.getState().setExpandedCompanyId('company-0-abc');
+    useUIStore.getState().setExpandedCompanySection('melody');
+    expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
+    expect(useUIStore.getState().expandedCompanySection).toBe('melody');
+  });
+});
+
 describe('uiStore — allProbesSelected (which Probes content view is active, docs/tasks/NAV_LAYOUT_REWRITE.md Task 19)', () => {
   beforeEach(() => {
     useUIStore.setState(INITIAL_STATE, true);

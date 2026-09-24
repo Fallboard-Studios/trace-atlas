@@ -29,6 +29,19 @@ export type SettingsLeaf = 'volume' | 'quality' | 'tempo' | 'sectorSettings';
  *  own AudioRigEffectKey — reused directly rather than a parallel string union. FleetParamsContent
  *  reads this to pick which effect's AudioRigEffectPanel to render. */
 export type SelectedFleetParamsEffect = AudioRigEffectKey;
+/** The 4th tree level under a robot's/company's RobotSection — docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md
+ *  §1.3/§1.4. Flat union rather than nested per-section, because a subsection is always read
+ *  alongside its already-known parent RobotSection — no ambiguity from flattening (no subsection
+ *  name collides across sections). Shared by Probes and Companies, same as RobotSection itself. */
+export type RobotSubsection =
+  | 'audioSettings'
+  | 'rhythm'
+  | 'frequency'
+  | 'pingContour'
+  | 'baselineOscillator'
+  | 'coaxialOscillator'
+  | 'harmonicOscillator'
+  | 'probeDrift';
 /** Which of the 4 top-level tree branches is peeked open — its own accordion-of-one level,
  *  independent of every per-branch expandedXxxId field below (those track which CHILD within an
  *  already-expanded branch is peeked open, not whether the branch itself is). Bugfix: this field
@@ -76,6 +89,10 @@ export interface UIStore {
   /** Nav & Layout Rewrite additive state (docs/specs/NAV_LAYOUT_REWRITE.md §1.3) —
    *  a handful of per-level fields, not a single opaque node-id scheme. */
   selectedSection: RobotSection | null;
+  /** The open great-grandchild, when one is selected — null when only a RobotSection (or
+   *  nothing) is selected. Shared by Probes and Companies, same reasoning as selectedSection.
+   *  docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.3. */
+  selectedSubsection: RobotSubsection | null;
   /** Mobile only; desktop/tablet ignore this and stay docked-open. */
   isNavPanelOpen: boolean;
   /** Accordion-of-one within the Probes branch — peek-without-navigating expansion. */
@@ -84,6 +101,13 @@ export interface UIStore {
   expandedCompanyId: string | null;
   /** Accordion-of-one within Fleet Params' 3 groups. */
   expandedFleetParamsGroup: FleetParamsGroup | null;
+  /** Which section (if any) has ITS OWN children expanded in the tree, within whichever probe is
+   *  itself expanded (expandedProbeId) — the tree-row analog of expandedFleetParamsGroup, one
+   *  level deeper. docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.3. */
+  expandedProbeSection: RobotSection | null;
+  /** Same as expandedProbeSection, for the Companies branch — separate field per branch, matching
+   *  expandedProbeId/expandedCompanyId's own existing split. */
+  expandedCompanySection: RobotSection | null;
   /** Which of Settings' 4 children is selected — see SettingsLeaf's own doc comment. */
   selectedSettingsLeaf: SettingsLeaf | null;
   /** Which Fleet Params effect leaf is selected — see SelectedFleetParamsEffect's own doc comment. */
@@ -111,10 +135,13 @@ export interface UIStore {
   setActiveHubTile: (tile: HubTile | null) => void;
   setActiveLocaleTemperature: (t: number | null) => void;
   setSelectedSection: (s: RobotSection | null) => void;
+  setSelectedSubsection: (s: RobotSubsection | null) => void;
   setNavPanelOpen: (open: boolean) => void;
   setExpandedProbeId: (id: string | null) => void;
   setExpandedCompanyId: (id: string | null) => void;
   setExpandedFleetParamsGroup: (g: FleetParamsGroup | null) => void;
+  setExpandedProbeSection: (s: RobotSection | null) => void;
+  setExpandedCompanySection: (s: RobotSection | null) => void;
   setSelectedSettingsLeaf: (l: SettingsLeaf | null) => void;
   setSelectedFleetParamsEffect: (e: SelectedFleetParamsEffect | null) => void;
   setExpandedTopLevelBranch: (b: TopLevelBranch | null) => void;
@@ -138,10 +165,13 @@ export const useUIStore = create<UIStore>((set) => ({
   allRobotsSelected: true,
   activeHubTile: null,
   selectedSection: null,
+  selectedSubsection: null,
   isNavPanelOpen: false,
   expandedProbeId: null,
   expandedCompanyId: null,
   expandedFleetParamsGroup: null,
+  expandedProbeSection: null,
+  expandedCompanySection: null,
   selectedSettingsLeaf: null,
   selectedFleetParamsEffect: null,
   expandedTopLevelBranch: null,
@@ -162,17 +192,20 @@ export const useUIStore = create<UIStore>((set) => ({
   // onto the next one picked from the browse list. useNavTree.select() itself calls
   // setSelectedSection right after selectRobot, which still wins (last write) — tree-driven
   // selection is unaffected by this reset.
-  selectRobot: (id) => set({ selectedRobotId: id, selectedSection: null }),
+  selectRobot: (id) => set({ selectedRobotId: id, selectedSection: null, selectedSubsection: null }),
   selectCompany: (id) => set({ selectedCompanyId: id, allRobotsSelected: false }),
   selectAllRobots: () => set({ allRobotsSelected: true, selectedCompanyId: null }),
   clearSelectedCompany: () => set({ selectedCompanyId: null }),
   setActiveHubTile: (tile) => set({ activeHubTile: tile }),
   setActiveLocaleTemperature: (t) => set({ activeLocaleTemperature: t }),
   setSelectedSection: (s) => set({ selectedSection: s }),
+  setSelectedSubsection: (s) => set({ selectedSubsection: s }),
   setNavPanelOpen: (open) => set({ isNavPanelOpen: open }),
   setExpandedProbeId: (id) => set({ expandedProbeId: id }),
   setExpandedCompanyId: (id) => set({ expandedCompanyId: id }),
   setExpandedFleetParamsGroup: (g) => set({ expandedFleetParamsGroup: g }),
+  setExpandedProbeSection: (s) => set({ expandedProbeSection: s }),
+  setExpandedCompanySection: (s) => set({ expandedCompanySection: s }),
   setSelectedSettingsLeaf: (l) => set({ selectedSettingsLeaf: l }),
   setSelectedFleetParamsEffect: (e) => set({ selectedFleetParamsEffect: e }),
   setExpandedTopLevelBranch: (b) => set({ expandedTopLevelBranch: b }),
