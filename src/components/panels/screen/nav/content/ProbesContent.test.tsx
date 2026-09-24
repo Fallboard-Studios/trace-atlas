@@ -12,9 +12,7 @@ vi.mock('../../console/RobotOptionsTab', () => ({
   RobotOptionsTab: () => <div data-testid="robot-options-tab-stub" />,
 }));
 vi.mock('@/components/company/CompanyOptionsSection', () => ({
-  CompanyOptionsSection: ({ section }: { section?: string | null }) => (
-    <div data-testid="company-options-section-stub" data-section={section ?? 'none'} />
-  ),
+  CompanyOptionsSection: () => <div data-testid="company-options-section-stub" />,
 }));
 
 const UI_INITIAL_STATE = useUIStore.getState();
@@ -50,24 +48,6 @@ describe('ProbesContent — routes the Probes branch to the browse list, a singl
     expect(screen.getByTestId('company-options-section-stub')).toBeTruthy();
     expect(screen.queryByTestId('robots-tab-stub')).toBeNull();
     expect(screen.queryByTestId('robot-options-tab-stub')).toBeNull();
-  });
-
-  it('passes the bare All Probes node through as section=null (all 4 drawers)', () => {
-    useUIStore.getState().setAllProbesSelected(true);
-    useUIStore.getState().setSelectedSection(null);
-
-    render(<ProbesContent />);
-
-    expect(screen.getByTestId('company-options-section-stub').getAttribute('data-section')).toBe('none');
-  });
-
-  it('threads selectedSection through to CompanyOptionsSection under All Probes — "Probes -> All Probes -> Volume"', () => {
-    useUIStore.getState().setAllProbesSelected(true);
-    useUIStore.getState().setSelectedSection('volume');
-
-    render(<ProbesContent />);
-
-    expect(screen.getByTestId('company-options-section-stub').getAttribute('data-section')).toBe('volume');
   });
 
   it('prefers a specific selected robot over allProbesSelected — selecting Probe N after All Probes leaves All Probes', () => {

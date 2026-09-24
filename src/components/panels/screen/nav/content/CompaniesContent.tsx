@@ -3,24 +3,27 @@ import { CompanyOptionsSection } from '@/components/company/CompanyOptionsSectio
 import { useUIStore } from '@/stores/uiStore';
 
 /**
- * Companies branch content (docs/specs/NAV_LAYOUT_REWRITE.md §2, Task 20) — routes on
- * uiStore.selectedCompanyId/selectedSection. No company selected (the bare "Companies" category
- * node) shows CompanyCreateForm; a selected company with no section shows CompanyRenameDeleteForm
- * (Rename/Delete + the read-only summary); a selected company WITH a section shows
- * CompanyOptionsSection narrowed to that section — reusing its existing
- * selectedCompanyId-driven broadcast binding unchanged (Task 19's own `section` prop).
+ * Companies branch content (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, Task 13) — routes on
+ * uiStore.selectedCompanyId. No company selected (the bare "Companies" category node) shows
+ * CompanyCreateForm; a selected company shows CompanyRenameDeleteForm (Rename/Delete + the
+ * read-only summary — "the update and delete sections," unwrapped, never itself accordion-wrapped)
+ * followed by CompanyOptionsSection's own stacked-view/accordion sections underneath, always
+ * together now — the old either/or split (Rename/Delete form OR one narrowed section) is retired
+ * along with CompanyOptionsSection's own `section` prop: it reads selectedSection/
+ * selectedSubsection from uiStore directly now, matching RobotOptionsTab's own pattern.
  */
 export function CompaniesContent() {
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
-  const selectedSection = useUIStore((s) => s.selectedSection);
 
   if (!selectedCompanyId) {
     return <CompanyCreateForm />;
   }
-  if (selectedSection) {
-    return <CompanyOptionsSection section={selectedSection} />;
-  }
-  return <CompanyRenameDeleteForm />;
+  return (
+    <>
+      <CompanyRenameDeleteForm />
+      <CompanyOptionsSection />
+    </>
+  );
 }
 
 export default CompaniesContent;

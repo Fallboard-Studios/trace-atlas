@@ -1,24 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { CompaniesContent } from './CompaniesContent';
 import { useUIStore } from '@/stores/uiStore';
 
 // CompanyCreateForm/CompanyRenameDeleteForm/CompanyOptionsSection each have their own full test
-// suite — this file is about CompaniesContent's own routing between the 3, not re-testing their
+// suite — this file is about CompaniesContent's own routing between them, not re-testing their
 // content.
 vi.mock('@/components/company/CompanyCrudControls', () => ({
   CompanyCreateForm: () => <div data-testid="company-create-form-stub" />,
   CompanyRenameDeleteForm: () => <div data-testid="company-rename-delete-form-stub" />,
 }));
 vi.mock('@/components/company/CompanyOptionsSection', () => ({
-  CompanyOptionsSection: ({ section }: { section?: string | null }) => (
-    <div data-testid="company-options-section-stub" data-section={section ?? 'none'} />
-  ),
+  CompanyOptionsSection: () => <div data-testid="company-options-section-stub" />,
 }));
 
 const UI_INITIAL_STATE = useUIStore.getState();
 
-describe('CompaniesContent — routes the Companies branch to Create, Rename/Delete, or the bulk-edit drawers (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20)', () => {
+describe('CompaniesContent — routes the Companies branch to Create, or Rename/Delete + the stacked sections (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 13)', () => {
   beforeEach(() => {
     useUIStore.setState(UI_INITIAL_STATE, true);
   });
@@ -31,36 +29,23 @@ describe('CompaniesContent — routes the Companies branch to Create, Rename/Del
     expect(screen.queryByTestId('company-options-section-stub')).toBeNull();
   });
 
-  it('shows CompanyRenameDeleteForm when a company is selected and no section is chosen — "Companies -> Company X"', () => {
+  it('shows CompanyRenameDeleteForm together with CompanyOptionsSection\'s stacked sections whenever a company is selected — no more either/or split (spec §2: "the update and delete sections followed by sliders")', () => {
     useUIStore.getState().selectCompany('c1');
 
     render(<CompaniesContent />);
 
     expect(screen.getByTestId('company-rename-delete-form-stub')).toBeTruthy();
-    expect(screen.queryByTestId('company-create-form-stub')).toBeNull();
-    expect(screen.queryByTestId('company-options-section-stub')).toBeNull();
-  });
-
-  it('shows CompanyOptionsSection narrowed to the selected section — "Companies -> Company X -> Volume"', () => {
-    useUIStore.getState().selectCompany('c1');
-    useUIStore.getState().setSelectedSection('volume');
-
-    render(<CompaniesContent />);
-
-    expect(screen.getByTestId('company-options-section-stub').getAttribute('data-section')).toBe('volume');
-    expect(screen.queryByTestId('company-rename-delete-form-stub')).toBeNull();
+    expect(screen.getByTestId('company-options-section-stub')).toBeTruthy();
     expect(screen.queryByTestId('company-create-form-stub')).toBeNull();
   });
 
-  it('switches back to CompanyRenameDeleteForm when navigating from a section back to the bare company node', () => {
+  it('keeps showing both together regardless of which section is selected — CompanyOptionsSection now reads selection from uiStore directly, not a narrowing prop', () => {
     useUIStore.getState().selectCompany('c1');
     useUIStore.getState().setSelectedSection('melody');
-    const { rerender } = render(<CompaniesContent />);
-    expect(screen.getByTestId('company-options-section-stub')).toBeTruthy();
 
-    act(() => useUIStore.getState().setSelectedSection(null));
-    rerender(<CompaniesContent />);
+    render(<CompaniesContent />);
 
     expect(screen.getByTestId('company-rename-delete-form-stub')).toBeTruthy();
+    expect(screen.getByTestId('company-options-section-stub')).toBeTruthy();
   });
 });

@@ -1,27 +1,29 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
-import { PingControlsDrawer, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
+import { PingControlsRhythmSection, PingControlsFrequencySection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
-import { SignatureArrayDrawer, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
+import { SignatureArrayLayer, RobotDriftPanel, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
+import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
+import { useSectionObserver } from '@/components/panels/screen/nav/useSectionObserver';
+import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { useLocaleStore } from '@/stores/localeStore';
-import { useUIStore } from '@/stores/uiStore';
+import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
-import { resolveCompanyOptions, diffCompoundField, diffLayerField } from '@/systems/companyOptions';
+import { resolveCompanyOptions, diffCompoundField } from '@/systems/companyOptions';
 import {
   applyAudioMode, applyVolume, applyVolumeLfo,
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo, applyClickTrackActive,
 } from '@/systems/robotOptionsActions';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
-import { VOLUME_LFO_TARGET } from '@/data/robotOptionsConfig';
+import { VOLUME_LFO_TARGET, SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
+import { FIRST_SUBSECTION_OF, SOURCE_OSCILLATOR_SUBSECTIONS, OSCILLATOR_LABELS } from '@/data/robotSubsectionConfig';
 import { LFO_RATE_MIN, LFO_DEPTH_MIN } from '@/types/lfo';
 import { getTraitColorStyle, getDisabledTraitColorStyle } from '@/utils/traitColors';
-import type { RobotSection } from '@/stores/uiStore';
-import type { ADSREnvelope, Robot } from '@/types/Robot';
+import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
 import type { CompanyOptionsSnapshot } from '@/types/Company';
 import type { RobotLfoTargetId } from '@/types/lfo';
-import type { LfoValue } from '@/types/controls';
-import type { OscillatorLayer } from '@/types/layeredAudio';
+import type { LfoValue, AccordionSchema } from '@/types/controls';
 
 import './CompanyOptionsSection.css';
 
@@ -64,92 +66,52 @@ const DISABLED_SIGNATURE_ARRAY: SignatureArrayValue = {
   lfoSettings: {},
 };
 
-/**
- * "Company mode" call site for AudioSettingSection/PingControlsDrawer/PingContourDrawer/
- * SignatureArrayDrawer (Roadmap Phase 10) — the counterpart to RobotOptionsTab's "robot mode."
- * Each of the 4 gets the identical trait style RobotOptionsTab passes it when active
- * (output/composition/timeSpace/spectral, Roadmap Phase 14) — a Volume/Melody/Envelope/Source
- * accordion always renders in its own domain trait regardless of whether it's editing one robot
- * or a company's bulk baseline, matching the robot detail page rather than CompanyManager's own
- * Company blue/plum (which stays reserved for CompanyManager's own chrome — the button row and
- * CRUD controls — see CompanyManager.tsx's own root style).
- * With no company selected, or a selected company with zero members (nothing to derive a
- * baseline from, nothing to broadcast to), every section renders disabled with a placeholder
- * value — and, since 2026-09-13, its own accordion facade switches to
- * getDisabledTraitColorStyle (the trait's own 2 tones, desaturated rather than replaced —
- * traitColors.ts) instead of the full-saturation style, so a section reading as inert visually
- * matches its own placeholder content rather than showing full color for controls that can't
- * actually be edited. With a non-empty company selected, each section's value comes from
- * resolveCompanyOptions(company.lastEditedOptions, members[0]), and every edit broadcasts
- * through the exact same robotOptionsActions functions RobotOptionsTab uses — once per member —
- * then patches only the touched field into the company's own lastEditedOptions snapshot. A
- * company edit is a one-time broadcast, never a standing link: editing a member robot
- * individually afterward (even via its own Robot Options screen) never touches lastEditedOptions
- * and is never reverted by this panel.
- *
- * CompanyButtonRow's "All" option (uiStore.allRobotsSelected) is a third mode, mutually
- * exclusive with selectedCompanyId: `members` becomes every robot in the locale regardless of
- * company (Freelance included), and the broadcast/snapshot machinery reruns identically against
- * that wider set — same resolveCompanyOptions call, same per-member applyXxx loop — just fed
- * `locale.allRobotsLastEditedOptions` instead of a Company's own snapshot, since there is no
- * Company object for "All" to bind to. Deliberately never touches any individual company's
- * lastEditedOptions, and vice versa — the two snapshots are independent.
- *
- * Every compound value (volumeLfo, rhythmicMotifLength, noteVariance, adsr, layers, per-layer
- * lfoSettings) arrives from its drawer as a *whole* replacement object/array built by spreading
- * `resolved` — the panel's own shared baseline — with just the one touched field set (e.g. Ping
- * Contour's Attack slider fires `{ ...adsr, attack: v }`). Broadcasting that whole object to every
- * member would silently overwrite each member's own untouched sub-fields (their own Decay/
- * Sustain/Release, their own other 2 signature layers, etc.) with whatever `resolved` held. Each
- * such handler instead diffs the old vs. new value (diffCompoundField/diffLayerField, both in
- * systems/companyOptions.ts) to find the single field that changed, then merges just that field
- * onto each member's own current value before calling the matching applyXxx — so a broadcast edit
- * only ever touches the one attribute the user actually changed, member by member.
- *
- * **Memoization (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md follow-up, 2026-09-15):** found live
- * (React DevTools "highlight updates") still cascading heavily even after RobotOptionsTab's own
- * fix — `members`/`resolved`/`pingControlsValue` were rebuilt fresh every render, and every
- * `onXChange` handler was a fresh inline closure, same shape as RobotOptionsTab's own bug. Worse
- * here: `robots` (this component's own store subscription) is the *whole locale's* robot array,
- * which gets a new reference on *any* robot edit anywhere in the locale — not just an edit to a
- * member of the currently-selected company — so without memoization this component re-rendered,
- * and re-cascaded into all 4 (already-memoized) sections, on every single field edit happening
- * anywhere in the app. `members`/`resolved`/`pingControlsValue` are now `useMemo`'d against their
- * own real inputs, and every handler reads the latest `members`/`resolved`/`company`/
- * `allRobotsSelected`/`allRobotsLastEditedOptions` from a ref (updated in an effect, never mutated
- * during render) rather than closing over them directly — the same "stable callback identity,
- * fresh values read at call time" pattern `RobotOptionsTab.tsx`/`Lfo.tsx` already use, needed here
- * because every one of those values can change on an edit this component's own concern has nothing
- * to do with.
- *
- * Also wrapped in `React.memo` (docs/todo/backlog.md #27 follow-up), matching `CompanyManager.tsx`
- * — this component takes zero props, rendered directly by `RobotsTab`, so an empty prop list can
- * never differ. **Known limitation, documented rather than silently claimed as fixed:** this does
- * NOT stop this component's own top-level body from re-executing on every robots-array change —
- * its own `useLocaleStore` subscription to the whole locale's `robots` array (needed to compute
- * `members`) triggers independently of any parent-driven memo bail, on every robot edit anywhere
- * in the locale (`CompanyManager.tsx`'s own doc comment: audioSwells ticks, ~8-9x/sec). The memo
- * wrap here is still correct — it stops *this* component from being forced to re-render by
- * `RobotsTab`'s own churn for no reason of its own — but the fix above (narrowly-`useMemo`'d
- * per-section values) is what actually stops the CASCADE into its 4 children; genuinely reducing
- * this component's own re-execution rate would need a deeper store restructuring (e.g. per-robot
- * selectors instead of one whole-locale array), out of scope here.
- *
- * `section` prop (Task 19, docs/tasks/NAV_LAYOUT_REWRITE.md): optional, additive to the original
- * zero-prop shape RobotsTab.tsx's own call site still uses unchanged. Omitted or null renders all
- * 4 sections (today's behavior, unchanged); one of the 4 RobotSection values narrows rendering to
- * that single section — the "Probes -> All Probes -> Volume/Melody/Envelope/Source" leaf content
- * ProbesContent.tsx binds to, reusing this component's existing allRobotsSelected-driven
- * "broadcast to every robot in the locale" mode rather than any new bulk-edit wiring.
- */
-interface CompanyOptionsSectionProps {
-  section?: RobotSection | null;
+function sectionAnchorRef(id: string) {
+  return (el: HTMLDivElement | null) => {
+    if (el) setSectionRef(id, el);
+    else clearSectionRef(id);
+  };
 }
 
-export const CompanyOptionsSection = memo(function CompanyOptionsSection({ section = null }: CompanyOptionsSectionProps = {}) {
+/**
+ * "Company mode" call site for AudioSettingSection/PingControlsRhythmSection/
+ * PingControlsFrequencySection/PingContourDrawer/SignatureArrayLayer/RobotDriftPanel (Roadmap
+ * Phase 10) — the counterpart to RobotOptionsTab's "robot mode." Stacked view (docs/specs/
+ * NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, Task 13) mirrors RobotOptionsTab's own Task 11 pattern
+ * directly: all 4 sections' worth of subsections stacked, each in a controlled AccordionContainer,
+ * exactly one open at a time across the whole view. No top metadata block here (unlike
+ * RobotDisplaySection) — CompanyRenameDeleteForm plays that role, rendered by CompaniesContent.tsx
+ * above this component, not inside it; the bare "All Probes" call site (ProbesContent.tsx) has no
+ * equivalent at all.
+ *
+ * Reads `allRobotsSelected`/`selectedCompanyId` directly from uiStore (no more `section` prop —
+ * both real call sites, ProbesContent and CompaniesContent, now render this prop-less and let it
+ * derive its own node-id prefix: `probes.all.*` under All Probes, `companies.<id>.*` under a
+ * selected company) — CompanyButtonRow's "All" option is a third mode, mutually exclusive with
+ * selectedCompanyId: `members` becomes every robot in the locale regardless of company (Freelance
+ * included), fed `locale.allRobotsLastEditedOptions` instead of a Company's own snapshot.
+ *
+ * With no company selected, or a selected company with zero members (nothing to derive a baseline
+ * from, nothing to broadcast to), every section renders disabled with a placeholder value — and its
+ * own accordion gets getDisabledTraitColorStyle (the trait's own 2 tones, desaturated rather than
+ * replaced) instead of the full-saturation style. With a non-empty company selected, each section's
+ * value comes from resolveCompanyOptions(company.lastEditedOptions, members[0]), and every edit
+ * broadcasts through the exact same robotOptionsActions functions RobotOptionsTab uses — once per
+ * member — then patches only the touched field into the company's own lastEditedOptions snapshot.
+ * Since SignatureArrayLayer/PingControlsRhythmSection/FrequencySection (Tasks 9/10) already report
+ * *which* field/layer-index changed directly, rather than a whole compound object, layer edits no
+ * longer need companyOptions.ts's diffLayerField to reverse-engineer that from an old/new
+ * comparison — only genuinely-compound single-control values (ADSR, an LfoValue) still go through
+ * diffCompoundField, unchanged from before this split.
+ */
+export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
   const localeId = getActiveLocaleId();
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const allRobotsSelected = useUIStore((s) => s.allRobotsSelected);
+  const selectedSection = useUIStore((s) => s.selectedSection);
+  const selectedSubsection = useUIStore((s) => s.selectedSubsection);
+  const setSelectedSection = useUIStore((s) => s.setSelectedSection);
+  const setSelectedSubsection = useUIStore((s) => s.setSelectedSubsection);
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
   // Subscribe to the raw robots array (a stable reference — Zustand's default equality check is
   // by reference, and this only changes when the store's own robots array does) and filter
@@ -169,6 +131,11 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection({ secti
   const active = allRobotsSelected ? members.length > 0 : Boolean(company) && members.length > 0;
   const lastEditedOptions = allRobotsSelected ? allRobotsLastEditedOptions : company?.lastEditedOptions;
 
+  // The tree-node-id prefix this instance's subsections live under — 'probes.all' broadcasting to
+  // every robot, or 'companies.<id>' for a specific company. Never both at once (mutually
+  // exclusive store fields, uiStore.ts's own selectCompany/selectAllRobots).
+  const prefix = allRobotsSelected ? 'probes.all' : `companies.${selectedCompanyId ?? ''}`;
+
   // Keyed on firstMember specifically, not the wrapping `members` array — `members` itself gets a
   // new array reference on ANY robots-array change (even one that doesn't touch this company at
   // all, since `.filter()` above always returns a fresh array), but resolveCompanyOptions only
@@ -182,12 +149,9 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection({ secti
   );
 
   // `resolved` bundles every field into one shared snapshot object, so passing it directly to all
-  // 4 sections would make ANY field edit on members[0] invalidate all 4 at once — the identical
+  // sections would make ANY field edit on members[0] invalidate all of them at once — the identical
   // whole-object cascade RobotOptionsTab's own fix already solved for `robot`. Each section instead
-  // gets its own narrowly-`useMemo`'d value, keyed only on the specific sub-fields it actually
-  // uses, so an edit to (say) `resolved.adsr` alone doesn't also produce new-reference `audioMode`/
-  // `masterVolume`/`volumeLfo` for `AudioSettingSection`. Confirmed live via this same cascade
-  // regression test going RED for exactly this reason before this split.
+  // gets its own narrowly-`useMemo`'d value, keyed only on the specific sub-fields it actually uses.
   //
   // Each field is destructured to its own local *before* the memo, rather than read as
   // `resolved.field` inside the memo callback — React Compiler statically infers a `useMemo`
@@ -207,7 +171,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection({ secti
 
   // PingControlsValue's rhythmicMotifLength/noteVariance are plain numbers (docs/specs/
   // STEPPER_TO_SLIDER.md §7.3) but resolved/CompanyOptionsSnapshot still carry the {active, value}
-  // shape — flatten to .value here, the one place this section derives PingControlsDrawer's value.
+  // shape — flatten to .value here, the one place this section derives PingControls' value.
   const resolvedRhythmicDensity = resolved?.rhythmicDensity;
   const resolvedRhythmicMotifLength = resolved?.rhythmicMotifLength;
   const resolvedNoteVariance = resolved?.noteVariance;
@@ -244,7 +208,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection({ secti
   // `company`/`allRobotsSelected`/`allRobotsLastEditedOptions` directly — those change reference
   // on edits unrelated to any single handler's own concern (see the doc comment above), so
   // closing over them directly would make every handler unstable on every edit, defeating the
-  // 4 sections' own memoization regardless of which field the user actually touched.
+  // sections' own memoization regardless of which field the user actually touched.
   const latest = useRef({ members, resolved, company, allRobotsSelected, allRobotsLastEditedOptions });
   useEffect(() => {
     latest.current = { members, resolved, company, allRobotsSelected, allRobotsLastEditedOptions };
@@ -336,33 +300,31 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection({ secti
     patchSnapshot({ adsr });
   }, [localeId, patchSnapshot]);
 
-  const handleLayersContinuousChange = useCallback((layers: OscillatorLayer[]) => {
-    const { members, resolved } = latest.current;
-    const diff = resolved ? diffLayerField(resolved.layers, layers) : null;
-    members.forEach((m) => {
-      const memberOwn = resolveCompanyOptions(undefined, m).layers;
-      const memberLayers = diff
-        ? memberOwn.map((l, i) => (i === diff.idx ? { ...l, ...diff.patch } : l))
-        : layers;
-      applyLayersContinuous(m, localeId, memberLayers);
+  // Layer edits arrive already-narrowed to one idx/field (SignatureArrayLayer's own onParamChange/
+  // onTypeChange, Task 10) — no more diffLayerField reverse-engineering which layer/field changed
+  // from a whole-array comparison; each member's own OTHER layers/fields are preserved simply by
+  // reading that member's own current layers before patching the one touched index.
+  const handleLayerTypeChange = useCallback((idx: number, type: WaveformType) => {
+    latest.current.members.forEach((m) => {
+      const memberLayers = resolveCompanyOptions(undefined, m).layers;
+      applyLayersStructural(m, localeId, memberLayers.map((l, i) => (i === idx ? { ...l, type } : l)));
     });
-    patchSnapshot({ layers });
+    const { resolved } = latest.current;
+    const baseline = resolved?.layers ?? DISABLED_SIGNATURE_ARRAY.layers;
+    patchSnapshot({ layers: baseline.map((l, i) => (i === idx ? { ...l, type } : l)) });
   }, [localeId, patchSnapshot]);
 
-  const handleLayersStructuralChange = useCallback((layers: OscillatorLayer[]) => {
-    const { members, resolved } = latest.current;
-    const diff = resolved ? diffLayerField(resolved.layers, layers) : null;
-    members.forEach((m) => {
-      const memberOwn = resolveCompanyOptions(undefined, m).layers;
-      const memberLayers = diff
-        ? memberOwn.map((l, i) => (i === diff.idx ? { ...l, ...diff.patch } : l))
-        : layers;
-      applyLayersStructural(m, localeId, memberLayers);
+  const handleLayerParamChange = useCallback((idx: number, field: SignatureArrayParamSchema['field'], v: number) => {
+    latest.current.members.forEach((m) => {
+      const memberLayers = resolveCompanyOptions(undefined, m).layers;
+      applyLayersContinuous(m, localeId, memberLayers.map((l, i) => (i === idx ? { ...l, [field]: v } : l)));
     });
-    patchSnapshot({ layers });
+    const { resolved } = latest.current;
+    const baseline = resolved?.layers ?? DISABLED_SIGNATURE_ARRAY.layers;
+    patchSnapshot({ layers: baseline.map((l, i) => (i === idx ? { ...l, [field]: v } : l)) });
   }, [localeId, patchSnapshot]);
 
-  const handleLayerLfoChange = useCallback((target: RobotLfoTargetId, value: LfoValue) => {
+  const handleLayerLfoFieldChange = useCallback((target: RobotLfoTargetId, value: LfoValue) => {
     const { members, resolved } = latest.current;
     const oldValue = resolved?.lfoSettings?.[target] ?? { ...DEFAULT_LFO_SETTINGS[target] };
     const patch = diffCompoundField(oldValue, value);
@@ -373,79 +335,161 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection({ secti
     patchSnapshot({ lfoSettings: { ...resolved?.lfoSettings, [target]: value } });
   }, [localeId, patchSnapshot]);
 
-  const audioSetting = (
-    <AudioSettingSection
-      value={audioSettingValue}
-      disabled={!active}
-      style={active ? OUTPUT_ACTIVE_STYLE : OUTPUT_DISABLED_STYLE}
-      onAudioModeChange={handleAudioModeChange}
-      onVolumeChange={handleVolumeChange}
-      onVolumeLfoChange={handleVolumeLfoChange}
-    />
-  );
+  // Derived-open (spec §1.5) — null section/subsection falls back to the first leaf in tree order,
+  // so exactly one subsection is always open, never "nothing selected."
+  const openSection = selectedSection ?? 'volume';
+  const openSubsection = selectedSubsection ?? FIRST_SUBSECTION_OF[openSection as RobotSection];
 
-  const pingControls = (
-    <PingControlsDrawer
-      value={pingControlsValue}
-      disabled={!active}
-      style={active ? COMPOSITION_ACTIVE_STYLE : COMPOSITION_DISABLED_STYLE}
-      onDensityChange={handleDensityChange}
-      onMotifLengthChange={handleMotifLengthChange}
-      onOctaveMinChange={handleOctaveMinChange}
-      onOctaveMaxChange={handleOctaveMaxChange}
-      onNoteVarianceChange={handleNoteVarianceChange}
-      onPitchRepeatChange={handlePitchRepeatChange}
-      onClickTrackActiveChange={handleClickTrackActiveChange}
-      // No onResetMelody — omitted entirely in company mode, it has no company-scoped meaning.
-    />
-  );
+  const subsectionIds = useMemo(() => [
+    `${prefix}.volume.audioSettings`,
+    `${prefix}.melody.rhythm`,
+    `${prefix}.melody.frequency`,
+    `${prefix}.envelope.pingContour`,
+    `${prefix}.source.baselineOscillator`,
+    `${prefix}.source.coaxialOscillator`,
+    `${prefix}.source.harmonicOscillator`,
+    `${prefix}.source.probeDrift`,
+  ], [prefix]);
 
-  const pingContour = (
-    <PingContourDrawer
-      value={adsrValue}
-      disabled={!active}
-      style={active ? TIME_SPACE_ACTIVE_STYLE : TIME_SPACE_DISABLED_STYLE}
-      onChange={handleAdsrChange}
-    />
-  );
+  const { hasApproached } = useSectionObserver(subsectionIds, (id) => {
+    const segments = id.split('.'); // [branch, entityId, section, subsection]
+    const sec = segments[2] as RobotSection;
+    const sub = segments[3] as RobotSubsection;
+    setSelectedSection(sec);
+    setSelectedSubsection(sub);
+  });
 
-  const signatureArray = (
-    <SignatureArrayDrawer
-      value={signatureArrayValue}
-      disabled={!active}
-      style={active ? SPECTRAL_ACTIVE_STYLE : SPECTRAL_DISABLED_STYLE}
-      onContinuousChange={handleLayersContinuousChange}
-      onStructuralChange={handleLayersStructuralChange}
-      onLfoChange={handleLayerLfoChange}
-    />
-  );
-
-  let content;
-  switch (section) {
-    case 'volume':
-      content = audioSetting;
-      break;
-    case 'melody':
-      content = pingControls;
-      break;
-    case 'envelope':
-      content = pingContour;
-      break;
-    case 'source':
-      content = signatureArray;
-      break;
-    default:
-      content = (
-        <>
-          {audioSetting}
-          {pingControls}
-          {pingContour}
-          {signatureArray}
-        </>
-      );
+  function makeOnOpenChange(sec: RobotSection, sub: RobotSubsection) {
+    return (open: boolean) => {
+      if (open) {
+        setSelectedSection(sec);
+        setSelectedSubsection(sub);
+      } else {
+        setSelectedSubsection(null);
+      }
+    };
   }
 
-  return <div className="company-options-section">{content}</div>;
+  return (
+    <div className="company-options-section">
+      <div ref={sectionAnchorRef(`${prefix}.volume`)}>
+        <div ref={sectionAnchorRef(`${prefix}.volume.audioSettings`)}>
+          <AccordionContainer
+            schema={{ id: `${prefix}.volume.audioSettings`, type: 'accordion', humanLabel: 'Audio Settings' } satisfies AccordionSchema}
+            open={openSubsection === 'audioSettings'}
+            onOpenChange={makeOnOpenChange('volume', 'audioSettings')}
+            style={active ? OUTPUT_ACTIVE_STYLE : OUTPUT_DISABLED_STYLE}
+          >
+            {hasApproached(`${prefix}.volume.audioSettings`) ? (
+              <AudioSettingSection
+                value={audioSettingValue}
+                disabled={!active}
+                onAudioModeChange={handleAudioModeChange}
+                onVolumeChange={handleVolumeChange}
+                onVolumeLfoChange={handleVolumeLfoChange}
+              />
+            ) : null}
+          </AccordionContainer>
+        </div>
+      </div>
+
+      <div ref={sectionAnchorRef(`${prefix}.melody`)}>
+        <div ref={sectionAnchorRef(`${prefix}.melody.rhythm`)}>
+          <AccordionContainer
+            schema={{ id: `${prefix}.melody.rhythm`, type: 'accordion', humanLabel: 'Rhythm' } satisfies AccordionSchema}
+            open={openSubsection === 'rhythm'}
+            onOpenChange={makeOnOpenChange('melody', 'rhythm')}
+            style={active ? COMPOSITION_ACTIVE_STYLE : COMPOSITION_DISABLED_STYLE}
+          >
+            {hasApproached(`${prefix}.melody.rhythm`) ? (
+              <PingControlsRhythmSection
+                value={pingControlsValue}
+                disabled={!active}
+                onDensityChange={handleDensityChange}
+                onMotifLengthChange={handleMotifLengthChange}
+                onPitchRepeatChange={handlePitchRepeatChange}
+                onClickTrackActiveChange={handleClickTrackActiveChange}
+                // No onResetMelody — omitted entirely in company mode, it has no company-scoped meaning.
+              />
+            ) : null}
+          </AccordionContainer>
+        </div>
+        <div ref={sectionAnchorRef(`${prefix}.melody.frequency`)}>
+          <AccordionContainer
+            schema={{ id: `${prefix}.melody.frequency`, type: 'accordion', humanLabel: 'Frequency' } satisfies AccordionSchema}
+            open={openSubsection === 'frequency'}
+            onOpenChange={makeOnOpenChange('melody', 'frequency')}
+            style={active ? COMPOSITION_ACTIVE_STYLE : COMPOSITION_DISABLED_STYLE}
+          >
+            {hasApproached(`${prefix}.melody.frequency`) ? (
+              <PingControlsFrequencySection
+                value={pingControlsValue}
+                disabled={!active}
+                onOctaveMinChange={handleOctaveMinChange}
+                onOctaveMaxChange={handleOctaveMaxChange}
+                onNoteVarianceChange={handleNoteVarianceChange}
+              />
+            ) : null}
+          </AccordionContainer>
+        </div>
+      </div>
+
+      <div ref={sectionAnchorRef(`${prefix}.envelope`)}>
+        <div ref={sectionAnchorRef(`${prefix}.envelope.pingContour`)}>
+          <AccordionContainer
+            schema={{ id: `${prefix}.envelope.pingContour`, type: 'accordion', humanLabel: 'Ping Contour' } satisfies AccordionSchema}
+            open={openSubsection === 'pingContour'}
+            onOpenChange={makeOnOpenChange('envelope', 'pingContour')}
+            style={active ? TIME_SPACE_ACTIVE_STYLE : TIME_SPACE_DISABLED_STYLE}
+          >
+            {hasApproached(`${prefix}.envelope.pingContour`) ? (
+              <PingContourDrawer value={adsrValue} disabled={!active} onChange={handleAdsrChange} />
+            ) : null}
+          </AccordionContainer>
+        </div>
+      </div>
+
+      <div ref={sectionAnchorRef(`${prefix}.source`)}>
+        {SOURCE_OSCILLATOR_SUBSECTIONS.map((sub, idx) => {
+          const layer = signatureArrayValue.layers[idx];
+          const id = `${prefix}.source.${sub}`;
+          return (
+            <div key={sub} ref={sectionAnchorRef(id)}>
+              <AccordionContainer
+                schema={{ id, type: 'accordion', humanLabel: OSCILLATOR_LABELS[sub] } satisfies AccordionSchema}
+                open={openSubsection === sub}
+                onOpenChange={makeOnOpenChange('source', sub)}
+                style={active ? SPECTRAL_ACTIVE_STYLE : SPECTRAL_DISABLED_STYLE}
+              >
+                {hasApproached(id) && layer ? (
+                  <SignatureArrayLayer
+                    block={SIGNATURE_ARRAY_CONFIG[idx]}
+                    idx={idx}
+                    layer={layer}
+                    lfoSettings={signatureArrayValue.lfoSettings}
+                    disabled={!active}
+                    onTypeChange={handleLayerTypeChange}
+                    onParamChange={handleLayerParamChange}
+                    onLfoFieldChange={(_idx, target, value) => handleLayerLfoFieldChange(target, value)}
+                  />
+                ) : null}
+              </AccordionContainer>
+            </div>
+          );
+        })}
+        <div ref={sectionAnchorRef(`${prefix}.source.probeDrift`)}>
+          <AccordionContainer
+            schema={{ id: `${prefix}.source.probeDrift`, type: 'accordion', humanLabel: 'Probe Drift' } satisfies AccordionSchema}
+            open={openSubsection === 'probeDrift'}
+            onOpenChange={makeOnOpenChange('source', 'probeDrift')}
+            style={active ? SPECTRAL_ACTIVE_STYLE : SPECTRAL_DISABLED_STYLE}
+          >
+            {hasApproached(`${prefix}.source.probeDrift`) ? <RobotDriftPanel /> : null}
+          </AccordionContainer>
+        </div>
+      </div>
+    </div>
+  );
 });
 
 export default CompanyOptionsSection;
