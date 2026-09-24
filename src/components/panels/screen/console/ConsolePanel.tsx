@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { RobotsTab } from './RobotsTab';
-import { RobotOptionsTab } from './RobotOptionsTab';
-import { AudioRigDrawer } from './AudioRigDrawer';
-import { SectorSettingsDrawer } from './SectorSettingsDrawer';
+import { ProbesContent } from '../nav/content/ProbesContent';
+import { FleetParamsContent } from '../nav/content/FleetParamsContent';
+import { SettingsContent } from '../nav/content/SettingsContent';
+import { CompaniesContent } from '../nav/content/CompaniesContent';
 import { Button } from '@/components/ui/controls/Button';
 import type { ButtonSchema } from '@/types/controls';
 import type { HubTile } from '@/types/hub';
@@ -15,14 +15,16 @@ const BACK_SCHEMA: ButtonSchema = { id: 'hubNavBack', type: 'button', loreLabel:
  * One entry per HubTile, keyed by a Record so TypeScript itself enforces
  * every tile is covered — a new HubTile value that's missing an entry here
  * is a compile error, not a silent blank render. Adding a future tile is one
- * new entry, not a switch case to remember. `selectedRobotId` is threaded
- * through for `robots`, which nests a list/detail switch of its own; other
- * tiles ignore it.
+ * new entry, not a switch case to remember. `robots`' own list/detail (and,
+ * since Task 19, All Probes bulk-edit) switch lives inside ProbesContent
+ * itself now, reading selectedRobotId/allProbesSelected straight from
+ * uiStore — no passthrough parameter needed here anymore.
  */
-const TILE_CONTENT: Record<HubTile, (selectedRobotId: string | null) => ReactNode> = {
-  robots: (selectedRobotId) => (selectedRobotId ? <RobotOptionsTab /> : <RobotsTab />),
-  audioRig: () => <AudioRigDrawer />,
-  settings: () => <SectorSettingsDrawer />,
+const TILE_CONTENT: Record<HubTile, () => ReactNode> = {
+  robots: () => <ProbesContent />,
+  audioRig: () => <FleetParamsContent />,
+  settings: () => <SettingsContent />,
+  companies: () => <CompaniesContent />,
 };
 
 export function ConsolePanel() {
@@ -54,7 +56,7 @@ export function ConsolePanel() {
           <Button schema={BACK_SCHEMA} onClick={() => selectRobot(null)} />
         </div>
       )}
-      <div className="console-panel__content">{TILE_CONTENT[activeHubTile](selectedRobotId)}</div>
+      <div className="console-panel__content">{TILE_CONTENT[activeHubTile]()}</div>
     </div>
   );
 }

@@ -15,7 +15,7 @@
  * block instead of a nested accordion per param — this file no longer
  * carries a per-param accordion schema of its own.
  */
-import type { ControlSchema, AccordionSchema, DirectionalPanelSchema, PanelOrientation, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema } from '@/types/controls';
+import type { ControlSchema, DirectionalPanelSchema, PanelOrientation, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema } from '@/types/controls';
 import type { GlobalLfoTargetId, DriftGroupId } from '@/types/lfo';
 
 // ========================================
@@ -37,9 +37,8 @@ export interface AudioRigEffectBlock {
   /** Matches GlobalAudioSettings' own key. */
   key: AudioRigEffectKey;
   /** DirectionalPanel wiring (docs/tasks/DIRECTIONAL_PANEL_WIRING.md) — supersedes this block's
-   *  old `accordion: AccordionSchema` field (removed, Task 2): every block now renders as a
-   *  DirectionalPanel nested inside one of AUDIO_RIG_ACCORDION_GROUPS'/
-   *  TRANSPORT_COMPOSITION_ACCORDION_SCHEMA's top-level accordions instead of owning its own. */
+   *  old `accordion:` field (its own accordion-typed schema, removed Task 2); every block's own
+   *  top-level accordion wrapper was later removed too (docs/tasks/NAV_LAYOUT_REWRITE.md Task 14). */
   panel: DirectionalPanelSchema;
   params: AudioRigParamSchema[];
 }
@@ -48,15 +47,8 @@ export interface AudioRigEffectBlock {
 // HELPERS
 // ========================================
 
-/** `id` was `key: AudioRigEffectKey`-typed until docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 1 —
- *  loosened to `string` so it can also build the 4 top-level accordions in
- *  AUDIO_RIG_ACCORDION_GROUPS/TRANSPORT_COMPOSITION_ACCORDION_SCHEMA below, none of which are
- *  AudioRigEffectKeys. */
-function accordionSchema(id: string, loreLabel: string, humanLabel: string): AccordionSchema {
-  return { id: `audioRig.${id}`, type: 'accordion', loreLabel, humanLabel };
-}
-
-/** DirectionalPanel counterpart to accordionSchema() above — same id/loreLabel/humanLabel
+/** DirectionalPanel counterpart to the old accordionSchema() helper (removed
+ *  docs/tasks/NAV_LAYOUT_REWRITE.md Task 21) — same id/loreLabel/humanLabel
  *  shape, plus the orientation every DirectionalPanel needs. */
 function panelSchema(key: AudioRigEffectKey, loreLabel: string, humanLabel: string, orientation: PanelOrientation): DirectionalPanelSchema {
   return { id: `audioRig.${key}`, type: 'directionalPanel', loreLabel, humanLabel, orientation };
@@ -204,7 +196,7 @@ export const DECAY_MODE_SCHEMA: RadioButtonSchema = {
 export interface LfoDriftGroupSchema {
   group: DriftGroupId;
   /** DirectionalPanel wiring (docs/tasks/DIRECTIONAL_PANEL_WIRING.md) — supersedes this entry's
-   *  old `accordion: AccordionSchema` field (removed, Task 2). Only the 'robots' entry's `.panel`
+   *  old `accordion:` field (its own accordion-typed schema, removed Task 2). Only the 'robots' entry's `.panel`
    *  is actually read post-wiring (AudioRigDrawer.tsx nests it inside Transport & Composition);
    *  the eq3/filterLPF/filterHPF entries keep it for schema-shape consistency across this array,
    *  same as their `.accordion` field was unused by the drawer before this restructure. */
@@ -302,27 +294,17 @@ export const BPM_SCHEMA: SliderLinearSchema = {
 // ========================================
 
 /**
- * The 4th top-level accordion — not keyed to any AudioRigEffectBlock, wraps
- * SPEED_AUTOMATION_PANEL_SCHEMA (Automatic Effects + Tempo) and the 'robots' LFO_DRIFT_GROUPS
- * entry's own panel. Built via the same accordionSchema() helper every other top-level accordion
- * uses (loosened to take a plain `id: string` above).
- */
-export const TRANSPORT_COMPOSITION_ACCORDION_SCHEMA: AccordionSchema =
-  accordionSchema('transportComposition', 'CHRONOMETRIC CONTROL ARRAY', 'Transport & Composition');
-
-/**
- * Wraps PING_VARIANCE_AUTOMATION_SCHEMA + BPM_SCHEMA — today's two bare
- * `audio-rig-drawer__master-row` sliders, given a panel of their own inside Transport &
- * Composition. No prior accordion to inherit copy from (intent doc) — first-pass invented lore,
- * same "confirm during manual check" treatment as LFO_DRIFT_GROUPS' own labels.
+ * Wraps PING_VARIANCE_AUTOMATION_SCHEMA — originally paired with BPM_SCHEMA too (both bare
+ * `audio-rig-drawer__master-row` sliders), until Tempo relocated to Settings -> Tempo
+ * (docs/tasks/NAV_LAYOUT_REWRITE.md Task 12); now wraps Automatic Effects alone. No prior
+ * accordion to inherit copy from (intent doc) — first-pass invented lore, same "confirm during
+ * manual check" treatment as LFO_DRIFT_GROUPS' own labels.
  */
 export const SPEED_AUTOMATION_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'audioRig.speedAutomation',
   type: 'directionalPanel',
   loreLabel: 'CHRONOMETRIC CONTROL ARRAY',
   humanLabel: 'Speed & Automation',
-  // 'responsive', not fixed 'row' — 2 stacked rows (Tempo, Automatic Effects) on
-  // mobile/tablet, 1 shared row on desktop. docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.9.
   orientation: 'responsive',
 };
 
@@ -382,20 +364,6 @@ export const AUDIO_LOAD_PANEL_SCHEMA: DirectionalPanelSchema = {
   humanLabel: 'Audio Load',
   orientation: 'responsive',
 };
-
-/**
- * The 3 remaining top-level accordions, each grouping a fixed set of AUDIO_RIG_CONFIG block keys
- * (looked up by key at render time — AudioRigDrawer.tsx no longer maps AUDIO_RIG_CONFIG directly).
- * Order matches docs/intent/directional-panel-wiring.md's Outcome table: EQ & Filters, Time &
- * Space, Output.
- */
-export type AudioRigAccordionGroupKey = 'eqFilters' | 'timeSpace' | 'output';
-
-export const AUDIO_RIG_ACCORDION_GROUPS: { key: AudioRigAccordionGroupKey; accordion: AccordionSchema; blockKeys: AudioRigEffectKey[] }[] = [
-  { key: 'eqFilters', accordion: accordionSchema('eqFilters', 'SPECTRAL CONDITIONING SUITE', 'EQ & Filters'), blockKeys: ['eq3', 'filterLPF', 'filterHPF'] },
-  { key: 'timeSpace', accordion: accordionSchema('timeSpace', 'TEMPORAL-SPATIAL PROCESSING SUITE', 'Time & Space'), blockKeys: ['delay', 'reverb'] },
-  { key: 'output', accordion: accordionSchema('output', 'TERMINAL SIGNAL CONDITIONING', 'Output'), blockKeys: ['compressor', 'limiter'] },
-];
 
 // EQ & Filters, Time & Space, and Output no longer share one DirectionalPanel
 // per group (EQ_FILTERS_ROW_PANEL_SCHEMA / TIME_SPACE_COLUMN_PANEL_SCHEMA /

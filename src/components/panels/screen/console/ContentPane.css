@@ -1,5 +1,5 @@
-.console {
-   /* position: absolute (not a grid row) — see .screen-content's own comment
+.content-pane {
+  /* position: absolute (not a grid row) — see .screen-content's own comment
      (ScreenViewport.css) for why. inset: 0 gives it the full screen area;
      margin-top pushes just its top edge down to clear both obstacles that
      sit in that space: Header (--header-height, a live JS-measured value —
@@ -10,28 +10,36 @@
      same deliberate simplicity trade-off this rule always made — the
      corner only occupies the left ~190px, so the rest of the width gets
      more clearance than it strictly needs, in exchange for one clearance
-     value instead of a width-dependent one. This used to be a bare
-     var(--power-corner-height): safe only because the single-row
-     TransportBar it replaced (--transport-height, 48px) always stayed
-     under the corner's own 100px. Header's 3-row layout does not reliably
-     stay under 100px, so this now takes the taller of the two real
-     obstacles instead of assuming the corner always wins. The
+     value instead of a width-dependent one. The
      var(--header-height, var(--power-corner-height)) fallback covers the
      one frame before Header's own ResizeObserver has fired at all — never
      a 0/undefined margin, always at least the old safe constant.
      Applied here rather than on .console-panel__back specifically — this
      whole element (and everything inside it) only ever renders once a tile
-     is active (Console.tsx returns null otherwise), so there's a single
-     screen shape to protect, not a separate grid-state case to also cover. */
-   position: absolute;
-   inset: 0;
-   /* Renders above WorldView (z-index: 0, a full-bleed backdrop behind
+     is active (ContentPane.tsx returns null otherwise), so there's a single
+     screen shape to protect, not a separate grid-state case to also cover.
+     Ported from Console.css unchanged (docs/tasks/NAV_LAYOUT_REWRITE.md Task 8). */
+  position: absolute;
+  inset: 0;
+  /* Renders above WorldView (z-index: 0, a full-bleed backdrop behind
      everything) rather than relying on DOM-order stacking. */
-   z-index: 1;
-   /* border: yellow 1px solid; */
-   /* Every descendant surface (accordion triggers, buttons, effect blocks,
+  z-index: 1;
+  /* Every descendant surface (accordion triggers, buttons, effect blocks,
      text inputs, ...) paints its background from var(--color-surface) —
      overriding it here cascades a "glass" translucency through all of them
      at once, letting the robot world read through the hub's own chrome. */
-   --color-surface: rgba(26, 26, 26, 0.75);
+  --color-surface: rgba(26, 26, 26, 0.75);
+}
+
+.content-pane__close {
+  position: absolute;
+  z-index: 2;
+  right: var(--spacing-lg);
+  top: 140px;
+}
+
+@media screen and (min-width: 40em) {
+  .content-pane__close {
+    top: 180px;
+  }
 }

@@ -1,6 +1,17 @@
 .screen-viewport {
   position: relative;
   flex: 1 1 auto;
+  /* A flex item's default min-height is auto (its content's intrinsic size) — without this, tall
+     descendant content (NavPanel's expanded tree, NavPanel.css's own overflow-y: auto) grows THIS
+     element past its flex:1 share of .tablet's fixed height instead of being clamped to it, which
+     then propagates: .screen-content's height: 100% (ScreenViewport.css below) resolves against
+     that inflated, content-based height instead of the real available screen space, so NavPanel's
+     own max-height: calc(100% - 32px) never gets a genuinely bounded value to constrain against —
+     its scroll range ends wherever the ancestor chain happened to stop growing, not at the real
+     bottom of the screen. Same bug class ConsolePanel.css's own .console-panel__content documents
+     and fixes; found live (Crawford: Companies never scrolls into view no matter how far down the
+     nav tree scrolls). */
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -111,44 +122,4 @@
      hidden, not auto: a future sizing bug fails as a visible clip, not a
      silent scrollbar appearing where none should. */
   overflow: hidden;
-}
-
-/* Reserve space for SleeveContainer's cutaway (Task 7/8 of
-   docs/tasks/LAYOUT.md, simplified after Crawford fixed the sleeve's width
-   at --sleeve-bar-width instead of spanning the rest of the top): the
-   entire "shared area with the power switch" is now just x: 0..
-   --sleeve-bar-width, at any height — nothing in the sleeve extends past
-   that width at all. A single horizontal push clears the corner and the
-   strip in one move; no separate vertical (padding-top) exclusion is
-   needed. .header (formerly .transport-bar, docs/specs/
-   HEADER_HUB_CONSOLIDATION.md Task 9) is the only element anywhere near
-   that width; WorldView/Console stay full-width, untouched. Applied once to
-   the whole 3-row header rather than per-row, same simplicity trade-off
-   Console.css's own --header-height clearance below makes. */
-.screen-content .rocker-spacer {
-  display: grid;
-  grid-template-columns: calc(var(--sleeve-bar-width) - var(--spacing-md)) 1fr 1fr;
-  grid-template-rows: auto auto;
-  gap: var(--spacing-md);
-}
-
-@media screen and (min-width: 350px) {
-  .screen-content .rocker-spacer {
-    grid-template-columns: var(--sleeve-bar-width) 1fr 1fr;
-  }
-}
-
-@media screen and (min-width: 600px) {
-  .screen-content .rocker-spacer {
-    padding-right: var(--spacing-md);
-  }
-}
-
-@media screen and (min-width: 48em) {
-  .screen-content .rocker-spacer {
-    display: flex;
-    flex-direction: row;
-    align-items: flex-start;
-    padding-left: calc(var(--sleeve-bar-width) + var(--spacing-md));
-  }
 }

@@ -10,7 +10,7 @@ import App from './App.tsx'
 // TYPE_SCALE.md §1.3) — 300/400 are dropped app-wide; --font-weight-regular
 // (500) is the new document-wide floor. index.css's --font-sans token is the
 // only consumer, applied as the chrome/structural default (large titles,
-// AccordionContainer/DirectionalPanel, page shell), replacing the prior
+// DirectionalPanel, page shell), replacing the prior
 // system-ui stack. latin/latin-ext subsets only (not the plain weight-only
 // files, which also bundle Devanagari glyphs the app never uses — latin-ext
 // still covers accented Latin characters at a fraction of Devanagari's

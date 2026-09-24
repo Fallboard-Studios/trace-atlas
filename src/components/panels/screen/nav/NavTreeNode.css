@@ -1,0 +1,52 @@
+.nav-tree-node {
+  /* Company rows only (Task 20, spec §7 Q3) — getRobotColorStyle sets all 4 accent custom
+     properties inline on a company's own row when node.color is present (traitColors.ts's own
+     doc comment: "every descendant... inherits all 4 accent properties via cascade" — relied on
+     intentionally elsewhere, e.g. RobotOptionsTab scoping its 4 drawer children). Left unreset
+     here, that same inheritance would bleed a company's tint onto its own section children
+     (nested .nav-tree-node rows with no color of their own) — resetting all 4 on every row means
+     only a row with its OWN inline override ever shows one. Only -a is actually used below
+     today; the other 3 are reset too so a future rule added here (e.g. a hover fill using
+     --color-accent-gradient) doesn't silently reopen the same leak through an unreset property.
+     */
+  --color-accent-a: transparent;
+  --color-accent-b: transparent;
+  --color-accent: transparent;
+  --color-accent-gradient: transparent;
+  margin-bottom: 8px;
+}
+
+.nav-tree-node__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.nav-tree-node__row:has(.sc-toggle) {
+  margin-right: 44px;
+}
+
+/* Toggle's own root (Toggle.css's .sc-toggle) defaults to width: 100% —
+   correct for its usual "own row" consumers, but it would otherwise stretch
+   to fill the rest of .nav-tree-node__row's width and force itself onto its
+   own line as a block-level flex container. Same override precedent as
+   Header.css's .header__row--volume .sc-toggle (that one pins to a fixed
+   --mute-width; this one just falls back to its natural content-sized
+   width since the +/- glyph has no fixed target width of its own). */
+.nav-tree-node__row .sc-toggle {
+  width: fit-content;
+}
+
+/* Oblique Cabinetry facade wrapper — only ever rendered as .nav-tree-node__group's
+   one child (NavTreeNode.tsx). display: block + height: auto (overriding
+   CabinetBox.css's own fixed height: var(--cabinet-box-height) default by
+   selector specificity) lets the front face size itself to the nested rows'
+   own real content height, matching autoHeight's expectation — same pattern
+   DirectionalPanel.css/NavPanel.css use for their own facades. */
+.nav-tree-node__group>.sc-cabinet-box>.sc-cabinet-box__front {
+  display: block;
+  width: auto;
+  height: auto;
+  padding: 8px 12px;
+}

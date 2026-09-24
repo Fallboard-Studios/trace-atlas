@@ -1,26 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { useSectionObserver } from '../nav/useSectionObserver';
+import { useAccordionOpenState } from '../nav/useAccordionOpenState';
 import { RobotDisplaySection } from '@/components/robot/RobotDisplaySection';
 import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
-import { PingControlsDrawer, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
+import { PingControlsRhythmSection, PingControlsFrequencySection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
-import { SignatureArrayDrawer, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
+import { SignatureArrayLayer, RobotDriftPanel, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
+import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
+import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
-import { useUIStore } from '@/stores/uiStore';
+import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { regenerateMelody } from '@/engine/regenerateMelody';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE } from '@/engine/melodyGenerator';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
-import { VOLUME_LFO_TARGET } from '@/data/robotOptionsConfig';
+import { VOLUME_LFO_TARGET, SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
+import { SOURCE_OSCILLATOR_SUBSECTIONS, OSCILLATOR_LABELS } from '@/data/robotSubsectionConfig';
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo, applyClickTrackActive,
   applyAudioMode, applyVolume, applyVolumeLfo,
 } from '@/systems/robotOptionsActions';
-import type { LfoValue } from '@/types/controls';
-import { ROBOT_LFO_TARGET_IDS } from '@/types/lfo';
-import type { Robot, ADSREnvelope } from '@/types/Robot';
+import type { LfoValue, AccordionSchema } from '@/types/controls';
+import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId } from '@/types/lfo';
+import type { Robot, ADSREnvelope, WaveformType } from '@/types/Robot';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 
 import './RobotOptionsTab.css';
@@ -33,24 +38,23 @@ const COMPOSITION_STYLE = getTraitColorStyle('composition');
 const TIME_SPACE_STYLE = getTraitColorStyle('timeSpace');
 const SPECTRAL_STYLE = getTraitColorStyle('spectral');
 
+function sectionAnchorRef(id: string) {
+  return (el: HTMLDivElement | null) => {
+    if (el) setSectionRef(id, el);
+    else clearSectionRef(id);
+  };
+}
+
 /**
  * Robot Options screen (Roadmap Phase 9) — reached by selecting a robot from the Robot Selection
- * hub tile (Phase 8), scoped entirely to that robot. Replaces the old Tabs.Root shell
- * (RobotMetaTab/RobotAudioTab/RobotOscillatorsTab, all removed) with RobotDisplaySection followed
- * by AudioSettingSection and the 3 schema-driven drawers, stacked. Renamed from
- * RobotEditorTab.tsx — it stopped being a tabbed "editor" and became the Robot Options screen
- * (confirmed via /interview-me).
+ * hub tile (Phase 8), scoped entirely to that robot.
  *
- * This is the "robot mode" call site for AudioSettingSection/PingControlsDrawer/
- * PingContourDrawer/SignatureArrayDrawer (Roadmap Phase 10, Task 17) — each component's `value`
- * is derived directly from `robot`, and each callback is wired to the matching
- * robotOptionsActions function. The company-broadcast call site, CompanyOptionsSection, wires the
- * same components to a company's resolved snapshot instead.
- *
- * AudioSettingSection was previously rendered inside RobotDisplaySection (mixed into its avatar/
- * meta-data card); docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 5 extracted it out to render here
- * as its own top-level Output panel, directly after RobotDisplaySection and before Melody
- * (PingControlsDrawer) — same derived value/handlers as before, just rendered one level up.
+ * This is the "robot mode" call site for AudioSettingSection/PingControlsRhythmSection/
+ * PingControlsFrequencySection/PingContourDrawer/SignatureArrayLayer/RobotDriftPanel (Roadmap
+ * Phase 10; docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 11) — each component's `value` is
+ * derived directly from `robot`, and each callback is wired to the matching robotOptionsActions
+ * function. The company-broadcast call site, CompanyOptionsSection, wires the same components to a
+ * company's resolved snapshot instead.
  */
 export function RobotOptionsTab() {
   const selectedRobotId = useUIStore((s) => s.selectedRobotId);
@@ -87,34 +91,28 @@ interface RobotOptionsPanelProps {
 
 /**
  * Split out from RobotOptionsTab (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 6) so every
- * useMemo/useCallback below can be called unconditionally against a guaranteed-defined `robot` —
- * RobotOptionsTab's own early returns (no robot selected / not found) happen before this ever
- * mounts, so there's no `robot`-possibly-undefined case to guard against here. Re-renders on
- * every robot field edit just like RobotOptionsTab itself did (its own `robot` prop is, by
- * construction, always a new reference whenever anything about the robot changes) — the point of
- * the memoization below isn't to stop THIS component's own body from re-executing, but to keep
- * the 3 derived value objects and every onChange handed to the 4 accordion-wrapped sections
- * referentially stable across an edit to an *unrelated* field, so those already-`React.memo`'d
- * sections (AudioSettingSection/PingControlsDrawer/PingContourDrawer/SignatureArrayDrawer) can
- * actually bail.
+ * useMemo/useCallback below can be called unconditionally against a guaranteed-defined `robot`.
  *
- * Every `applyXxx(robot, localeId, ...)` handler needs the CURRENT robot at call time, but can't
- * simply close over `robot` directly and depend on it in `useCallback` — `robot` is a new
- * reference on every edit, including edits to fields a given handler has nothing to do with, so
- * `useCallback([robot, localeId])` would make literally every handler unstable on every edit,
- * defeating every section's own memo regardless of which field actually changed (found live
- * while writing this task's own cascade test — AudioSettingSection kept re-rendering on a
- * Density-only edit for exactly this reason). Fixed the same way `Lfo.tsx` stabilizes its own
- * per-field handlers (item 26 round 1): a ref holds the latest `robot`, updated in an effect (not
- * mutated during render — react-hooks/refs), and every handler reads `latestRobot.current`
- * instead of closing over `robot`, keyed only on `[robot.id, localeId]` — stable for the life of
- * this component instance.
+ * Stacked view (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, Task 11) — replaces the old
+ * `switch (section)` (one leaf rendered) with RobotDisplaySection at top (unwrapped), followed by
+ * all 4 sections' worth of subsections stacked, each wrapped in an accordion. Each accordion's
+ * open/closed state is manual and independent (`useAccordionOpenState`) — a nav click only
+ * scrolls to a section, and scrollspy only updates `selectedSection`/`selectedSubsection` for tree
+ * highlighting; neither opens or closes an accordion (Crawford's own follow-up call, 2026-09-24,
+ * reversing this pass's original derived-single-open-accordion design). Output's Audio Settings
+ * opens by default on mount, and again whenever `robot.id` changes — switching to a different
+ * robot doesn't carry over which accordions were left open on the last one. Each subsection's real
+ * content only mounts once its own anchor has been scrolled near (useSectionObserver's lazy-mount
+ * gate) — unaffected by any of the above.
  */
 function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   const latestRobot = useRef(robot);
   useEffect(() => {
     latestRobot.current = robot;
   });
+
+  const setSelectedSection = useUIStore((s) => s.setSelectedSection);
+  const setSelectedSubsection = useUIStore((s) => s.setSelectedSubsection);
 
   const robotColorStyle = useMemo(() => getRobotColorStyle(robot.identityColor), [robot.identityColor]);
 
@@ -165,46 +163,159 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
 
   const handleAdsrChange = useCallback((adsr: ADSREnvelope) => applyAdsr(latestRobot.current, localeId, adsr), [localeId]);
 
-  const handleLayersContinuousChange = useCallback((layers: SignatureArrayValue['layers']) => applyLayersContinuous(latestRobot.current, localeId, layers), [localeId]);
-  const handleLayersStructuralChange = useCallback((layers: SignatureArrayValue['layers']) => applyLayersStructural(latestRobot.current, localeId, layers), [localeId]);
-  const handleLayerLfoChange = useCallback((target: Parameters<typeof applyLayerLfo>[2], value: LfoValue) => applyLayerLfo(latestRobot.current, localeId, target, value), [localeId]);
+  const handleLayerTypeChange = useCallback((idx: number, type: WaveformType) => {
+    const layers = latestRobot.current.audioAttributes.layers ?? [];
+    applyLayersStructural(latestRobot.current, localeId, layers.map((l, i) => (i === idx ? { ...l, type } : l)));
+  }, [localeId]);
+  const handleLayerParamChange = useCallback((idx: number, field: SignatureArrayParamSchema['field'], v: number) => {
+    const layers = latestRobot.current.audioAttributes.layers ?? [];
+    applyLayersContinuous(latestRobot.current, localeId, layers.map((l, i) => (i === idx ? { ...l, [field]: v } : l)));
+  }, [localeId]);
+  const handleLayerLfoFieldChange = useCallback(
+    (_idx: number, target: RobotLfoTargetId, value: LfoValue) => applyLayerLfo(latestRobot.current, localeId, target, value),
+    [localeId],
+  );
+
+  const prefix = `probes.${robot.id}`;
+  const subsectionIds = useMemo(() => [
+    `${prefix}.volume.audioSettings`,
+    `${prefix}.melody.rhythm`,
+    `${prefix}.melody.frequency`,
+    `${prefix}.envelope.pingContour`,
+    `${prefix}.source.baselineOscillator`,
+    `${prefix}.source.coaxialOscillator`,
+    `${prefix}.source.harmonicOscillator`,
+    `${prefix}.source.probeDrift`,
+  ], [prefix]);
+
+  const { hasApproached } = useSectionObserver(subsectionIds, (id) => {
+    const segments = id.split('.'); // ['probes', robotId, section, subsection]
+    const sec = segments[2] as RobotSection;
+    const sub = segments[3] as RobotSubsection;
+    setSelectedSection(sec);
+    setSelectedSubsection(sub);
+  });
+
+  const { isOpen, setOpen } = useAccordionOpenState(`${prefix}.volume.audioSettings`, robot.id);
 
   return (
-    <div className="robot-options" style={robotColorStyle}>
+    <div className="robot-options" style={robotColorStyle} ref={sectionAnchorRef(prefix)}>
       <RobotDisplaySection robot={robot} />
-      <AudioSettingSection
-        value={audioSettingValue}
-        onAudioModeChange={handleAudioModeChange}
-        onVolumeChange={handleVolumeChange}
-        onVolumeLfoChange={handleVolumeLfoChange}
-        volumeLfoHeldOff={volumeLfoHeldOff}
-        style={OUTPUT_STYLE}
-      />
-      <PingControlsDrawer
-        value={pingControlsValue}
-        onDensityChange={handleDensityChange}
-        onMotifLengthChange={handleMotifLengthChange}
-        onPitchRepeatChange={handlePitchRepeatChange}
-        onOctaveMinChange={handleOctaveMinChange}
-        onOctaveMaxChange={handleOctaveMaxChange}
-        onNoteVarianceChange={handleNoteVarianceChange}
-        onResetMelody={handleResetMelody}
-        onClickTrackActiveChange={handleClickTrackActiveChange}
-        style={COMPOSITION_STYLE}
-      />
-      <PingContourDrawer
-        value={robot.audioAttributes.adsr}
-        onChange={handleAdsrChange}
-        style={TIME_SPACE_STYLE}
-      />
-      <SignatureArrayDrawer
-        value={signatureArrayValue}
-        onContinuousChange={handleLayersContinuousChange}
-        onStructuralChange={handleLayersStructuralChange}
-        onLfoChange={handleLayerLfoChange}
-        heldOffTargets={heldOffTargets}
-        style={SPECTRAL_STYLE}
-      />
+
+      <div ref={sectionAnchorRef(`${prefix}.volume`)}>
+        <div ref={sectionAnchorRef(`${prefix}.volume.audioSettings`)}>
+          <AccordionContainer
+            schema={{ id: `${prefix}.volume.audioSettings`, type: 'accordion', humanLabel: 'Audio Settings' } satisfies AccordionSchema}
+            open={isOpen(`${prefix}.volume.audioSettings`)}
+            onOpenChange={(open) => setOpen(`${prefix}.volume.audioSettings`, open)}
+            style={OUTPUT_STYLE}
+          >
+            {hasApproached(`${prefix}.volume.audioSettings`) ? (
+              <AudioSettingSection
+                value={audioSettingValue}
+                onAudioModeChange={handleAudioModeChange}
+                onVolumeChange={handleVolumeChange}
+                onVolumeLfoChange={handleVolumeLfoChange}
+                volumeLfoHeldOff={volumeLfoHeldOff}
+              />
+            ) : null}
+          </AccordionContainer>
+        </div>
+      </div>
+
+      <div ref={sectionAnchorRef(`${prefix}.melody`)}>
+        <div ref={sectionAnchorRef(`${prefix}.melody.rhythm`)}>
+          <AccordionContainer
+            schema={{ id: `${prefix}.melody.rhythm`, type: 'accordion', humanLabel: 'Rhythm' } satisfies AccordionSchema}
+            open={isOpen(`${prefix}.melody.rhythm`)}
+            onOpenChange={(open) => setOpen(`${prefix}.melody.rhythm`, open)}
+            style={COMPOSITION_STYLE}
+          >
+            {hasApproached(`${prefix}.melody.rhythm`) ? (
+              <PingControlsRhythmSection
+                value={pingControlsValue}
+                onDensityChange={handleDensityChange}
+                onMotifLengthChange={handleMotifLengthChange}
+                onPitchRepeatChange={handlePitchRepeatChange}
+                onClickTrackActiveChange={handleClickTrackActiveChange}
+                onResetMelody={handleResetMelody}
+              />
+            ) : null}
+          </AccordionContainer>
+        </div>
+        <div ref={sectionAnchorRef(`${prefix}.melody.frequency`)}>
+          <AccordionContainer
+            schema={{ id: `${prefix}.melody.frequency`, type: 'accordion', humanLabel: 'Frequency' } satisfies AccordionSchema}
+            open={isOpen(`${prefix}.melody.frequency`)}
+            onOpenChange={(open) => setOpen(`${prefix}.melody.frequency`, open)}
+            style={COMPOSITION_STYLE}
+          >
+            {hasApproached(`${prefix}.melody.frequency`) ? (
+              <PingControlsFrequencySection
+                value={pingControlsValue}
+                onOctaveMinChange={handleOctaveMinChange}
+                onOctaveMaxChange={handleOctaveMaxChange}
+                onNoteVarianceChange={handleNoteVarianceChange}
+              />
+            ) : null}
+          </AccordionContainer>
+        </div>
+      </div>
+
+      <div ref={sectionAnchorRef(`${prefix}.envelope`)}>
+        <div ref={sectionAnchorRef(`${prefix}.envelope.pingContour`)}>
+          <AccordionContainer
+            schema={{ id: `${prefix}.envelope.pingContour`, type: 'accordion', humanLabel: 'Ping Contour' } satisfies AccordionSchema}
+            open={isOpen(`${prefix}.envelope.pingContour`)}
+            onOpenChange={(open) => setOpen(`${prefix}.envelope.pingContour`, open)}
+            style={TIME_SPACE_STYLE}
+          >
+            {hasApproached(`${prefix}.envelope.pingContour`) ? (
+              <PingContourDrawer value={robot.audioAttributes.adsr} onChange={handleAdsrChange} />
+            ) : null}
+          </AccordionContainer>
+        </div>
+      </div>
+
+      <div ref={sectionAnchorRef(`${prefix}.source`)}>
+        {SOURCE_OSCILLATOR_SUBSECTIONS.map((sub, idx) => {
+          const layer = signatureArrayValue.layers[idx];
+          const id = `${prefix}.source.${sub}`;
+          return (
+            <div key={sub} ref={sectionAnchorRef(id)}>
+              <AccordionContainer
+                schema={{ id, type: 'accordion', humanLabel: OSCILLATOR_LABELS[sub] } satisfies AccordionSchema}
+                open={isOpen(id)}
+                onOpenChange={(open) => setOpen(id, open)}
+                style={SPECTRAL_STYLE}
+              >
+                {hasApproached(id) && layer ? (
+                  <SignatureArrayLayer
+                    block={SIGNATURE_ARRAY_CONFIG[idx]}
+                    idx={idx}
+                    layer={layer}
+                    lfoSettings={signatureArrayValue.lfoSettings}
+                    heldOffTargets={heldOffTargets}
+                    onTypeChange={handleLayerTypeChange}
+                    onParamChange={handleLayerParamChange}
+                    onLfoFieldChange={handleLayerLfoFieldChange}
+                  />
+                ) : null}
+              </AccordionContainer>
+            </div>
+          );
+        })}
+        <div ref={sectionAnchorRef(`${prefix}.source.probeDrift`)}>
+          <AccordionContainer
+            schema={{ id: `${prefix}.source.probeDrift`, type: 'accordion', humanLabel: 'Probe Drift' } satisfies AccordionSchema}
+            open={isOpen(`${prefix}.source.probeDrift`)}
+            onOpenChange={(open) => setOpen(`${prefix}.source.probeDrift`, open)}
+            style={SPECTRAL_STYLE}
+          >
+            {hasApproached(`${prefix}.source.probeDrift`) ? <RobotDriftPanel /> : null}
+          </AccordionContainer>
+        </div>
+      </div>
     </div>
   );
 }

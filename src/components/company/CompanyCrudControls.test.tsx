@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
-import { CompanyCrudControls } from './CompanyCrudControls';
+import { CompanyCreateForm, CompanyRenameDeleteForm } from './CompanyCrudControls';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
@@ -11,7 +11,7 @@ import { ADJECTIVES, COMPANY_NOUNS } from '@/systems/spawnSystem';
 import type { Company } from '@/types/Company';
 import type { Locale } from '@/types/locale';
 
-describe('CompanyCrudControls', () => {
+describe('CompanyCreateForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — the bare "Companies" tree node)', () => {
   const localeId = getActiveLocaleId();
 
   afterEach(() => {
@@ -19,15 +19,15 @@ describe('CompanyCrudControls', () => {
     useUIStore.getState().selectAllRobots();
   });
 
-  it("Create's name input pre-fills with a generated \"Adjective Noun\" suggestion", () => {
-    render(<CompanyCrudControls />);
+  it('name input pre-fills with a generated "Adjective Noun" suggestion', () => {
+    render(<CompanyCreateForm />);
     const input = screen.getByRole('textbox', { name: /new company name/i }) as HTMLInputElement;
     expect(input.value.split(' ')).toHaveLength(2);
   });
 
   it('clicking Create calls addCompany with the current draft name and an empty robotIds', () => {
     const addSpy = vi.spyOn(useLocaleStore.getState(), 'addCompany');
-    render(<CompanyCrudControls />);
+    render(<CompanyCreateForm />);
 
     const input = screen.getByRole('textbox', { name: /new company name/i }) as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'Custom Name' } });
@@ -42,42 +42,42 @@ describe('CompanyCrudControls', () => {
     expect(company.id.length).toBeGreaterThan(0);
   });
 
-  it('Create is disabled once the locale already has MAX_COMPANIES companies', () => {
+  it('is disabled once the locale already has MAX_COMPANIES companies', () => {
     for (let i = 0; i < MAX_COMPANIES; i++) {
       useLocaleStore.getState().addCompany(localeId, { id: `c${i}`, name: `Company ${i}`, color: '#4f6d7a', robotIds: [] });
     }
-    render(<CompanyCrudControls />);
+    render(<CompanyCreateForm />);
     expect((screen.getByRole('button', { name: /^create\b/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('Create is enabled below the MAX_COMPANIES cap', () => {
+  it('is enabled below the MAX_COMPANIES cap', () => {
     useLocaleStore.getState().addCompany(localeId, { id: 'c0', name: 'Company 0', color: '#4f6d7a', robotIds: [] });
-    render(<CompanyCrudControls />);
+    render(<CompanyCreateForm />);
     expect((screen.getByRole('button', { name: /^create\b/i }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('the Create name input is also disabled once the locale already has MAX_COMPANIES companies', () => {
+  it('the name input is also disabled once the locale already has MAX_COMPANIES companies', () => {
     for (let i = 0; i < MAX_COMPANIES; i++) {
       useLocaleStore.getState().addCompany(localeId, { id: `c${i}`, name: `Company ${i}`, color: '#4f6d7a', robotIds: [] });
     }
-    render(<CompanyCrudControls />);
+    render(<CompanyCreateForm />);
     expect((screen.getByRole('textbox', { name: /new company name/i }) as HTMLInputElement).disabled).toBe(true);
   });
 
-  it('Create is disabled when the name draft is blank', () => {
-    render(<CompanyCrudControls />);
+  it('is disabled when the name draft is blank', () => {
+    render(<CompanyCreateForm />);
     fireEvent.change(screen.getByRole('textbox', { name: /new company name/i }), { target: { value: '' } });
     expect((screen.getByRole('button', { name: /^create\b/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('Create is disabled when the name draft is whitespace-only', () => {
-    render(<CompanyCrudControls />);
+  it('is disabled when the name draft is whitespace-only', () => {
+    render(<CompanyCreateForm />);
     fireEvent.change(screen.getByRole('textbox', { name: /new company name/i }), { target: { value: '   ' } });
     expect((screen.getByRole('button', { name: /^create\b/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('Create is enabled again once real (non-whitespace) text is entered', () => {
-    render(<CompanyCrudControls />);
+  it('is enabled again once real (non-whitespace) text is entered', () => {
+    render(<CompanyCreateForm />);
     const input = screen.getByRole('textbox', { name: /new company name/i });
     fireEvent.change(input, { target: { value: '   ' } });
     fireEvent.change(input, { target: { value: '  Iron Consortium  ' } });
@@ -90,7 +90,7 @@ describe('CompanyCrudControls', () => {
   describe('color generation', () => {
     it('assigns a color from ROBOT_IDENTITY_COLOR_NAMES\' resolved hex set', () => {
       const addSpy = vi.spyOn(useLocaleStore.getState(), 'addCompany');
-      render(<CompanyCrudControls />);
+      render(<CompanyCreateForm />);
       fireEvent.click(screen.getByRole('button', { name: /^create\b/i }));
 
       const [, company] = addSpy.mock.calls[0] as [string, Company];
@@ -102,7 +102,7 @@ describe('CompanyCrudControls', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: ACCENT_COLORS.blue, robotIds: [] });
       useLocaleStore.getState().addCompany(localeId, { id: 'c2', name: 'Null Syndicate', color: ACCENT_COLORS.plum, robotIds: [] });
       const addSpy = vi.spyOn(useLocaleStore.getState(), 'addCompany');
-      render(<CompanyCrudControls />);
+      render(<CompanyCreateForm />);
       fireEvent.click(screen.getByRole('button', { name: /^create\b/i }));
 
       const [, company] = addSpy.mock.calls[0] as [string, Company];
@@ -120,7 +120,7 @@ describe('CompanyCrudControls', () => {
         id: 'c1', name: 'Iron Consortium', color: ACCENT_COLORS[ROBOT_IDENTITY_COLOR_NAMES[0]], robotIds: [],
       });
       const addSpy = vi.spyOn(useLocaleStore.getState(), 'addCompany');
-      render(<CompanyCrudControls />);
+      render(<CompanyCreateForm />);
       fireEvent.click(screen.getByRole('button', { name: /^create\b/i }));
 
       const [, company] = addSpy.mock.calls[0] as [string, Company];
@@ -132,7 +132,7 @@ describe('CompanyCrudControls', () => {
 
   it('clicking Create trims surrounding whitespace from the stored name', () => {
     const addSpy = vi.spyOn(useLocaleStore.getState(), 'addCompany');
-    render(<CompanyCrudControls />);
+    render(<CompanyCreateForm />);
 
     fireEvent.change(screen.getByRole('textbox', { name: /new company name/i }), { target: { value: '  Iron Consortium  ' } });
     fireEvent.click(screen.getByRole('button', { name: /^create\b/i }));
@@ -145,28 +145,28 @@ describe('CompanyCrudControls', () => {
   // draft, so both the visible text and the accessible name change together.
   describe('Create button label', () => {
     it('is exactly "Create" when the draft is blank', () => {
-      render(<CompanyCrudControls />);
+      render(<CompanyCreateForm />);
       fireEvent.change(screen.getByRole('textbox', { name: /new company name/i }), { target: { value: '' } });
 
       expect(screen.getByRole('button', { name: 'Create' })).toBeTruthy();
     });
 
     it('is exactly "Create" when the draft is whitespace-only', () => {
-      render(<CompanyCrudControls />);
+      render(<CompanyCreateForm />);
       fireEvent.change(screen.getByRole('textbox', { name: /new company name/i }), { target: { value: '   ' } });
 
       expect(screen.getByRole('button', { name: 'Create' })).toBeTruthy();
     });
 
     it('is "Create {draft}" — the raw, as-typed draft — when non-blank', () => {
-      render(<CompanyCrudControls />);
+      render(<CompanyCreateForm />);
       fireEvent.change(screen.getByRole('textbox', { name: /new company name/i }), { target: { value: 'Glass Crew' } });
 
       expect(screen.getByRole('button', { name: 'Create Glass Crew' })).toBeTruthy();
     });
 
     it('updates live as the draft is typed, with no click required', () => {
-      render(<CompanyCrudControls />);
+      render(<CompanyCreateForm />);
       const input = screen.getByRole('textbox', { name: /new company name/i });
 
       fireEvent.change(input, { target: { value: 'Glass Crew' } });
@@ -178,8 +178,23 @@ describe('CompanyCrudControls', () => {
     });
   });
 
+  it('renders with no accordion wrapper — no collapse/expand trigger, no aria-expanded anywhere', () => {
+    render(<CompanyCreateForm />);
+    expect(screen.queryByRole('button', { name: /manage companies/i })).toBeNull();
+    expect(document.querySelector('[aria-expanded]')).toBeNull();
+  });
+});
+
+describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — a specific "Company X" tree node)', () => {
+  const localeId = getActiveLocaleId();
+
+  afterEach(() => {
+    useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+    useUIStore.getState().selectAllRobots();
+  });
+
   it('Rename input is disabled when no company is selected', () => {
-    render(<CompanyCrudControls />);
+    render(<CompanyRenameDeleteForm />);
     expect((screen.getByRole('textbox', { name: /rename company/i }) as HTMLInputElement).disabled).toBe(true);
   });
 
@@ -190,7 +205,7 @@ describe('CompanyCrudControls', () => {
   it('Rename input is enabled and pre-filled with a generated suggestion — never the selected company\'s own current name', () => {
     useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
     useUIStore.getState().selectCompany('c1');
-    render(<CompanyCrudControls />);
+    render(<CompanyRenameDeleteForm />);
 
     const renameInput = screen.getByRole('textbox', { name: /rename company/i }) as HTMLInputElement;
     expect(renameInput.disabled).toBe(false);
@@ -202,14 +217,14 @@ describe('CompanyCrudControls', () => {
   // "{current name} > {draft}", so both the visible text and the accessible name change together.
   describe('Rename button label', () => {
     it('is exactly "Rename" when no company is selected', () => {
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
       expect(screen.getByRole('button', { name: 'Rename' })).toBeTruthy();
     });
 
     it('is exactly "Rename" when the draft is edited back to blank', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
 
       fireEvent.change(screen.getByRole('textbox', { name: /rename company/i }), { target: { value: '   ' } });
 
@@ -219,7 +234,7 @@ describe('CompanyCrudControls', () => {
     it('is "Rename {current name} > {draft}" once a company is selected (the auto-suggested draft, with no typing needed)', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
 
       const draft = (screen.getByRole('textbox', { name: /rename company/i }) as HTMLInputElement).value;
       expect(screen.getByRole('button', { name: `Rename Iron Consortium > ${draft}` })).toBeTruthy();
@@ -228,7 +243,7 @@ describe('CompanyCrudControls', () => {
     it('updates live as the draft is typed, with no click required', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
 
       fireEvent.change(screen.getByRole('textbox', { name: /rename company/i }), { target: { value: 'Null Wisp' } });
 
@@ -238,7 +253,7 @@ describe('CompanyCrudControls', () => {
     it('reads "Rename {just-committed name} > {new suggestion}" immediately after a successful submit — the "always two different names" property holds on the very next render', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
 
       fireEvent.change(screen.getByRole('textbox', { name: /rename company/i }), { target: { value: 'Null Wisp' } });
       fireEvent.click(screen.getByRole('button', { name: 'Rename Iron Consortium > Null Wisp' }));
@@ -249,21 +264,18 @@ describe('CompanyCrudControls', () => {
     });
   });
 
-  // Rename is staged, like Create — editing alone no longer calls updateCompany; a separate
-  // Submit button (matching Create's own Create button) does, and only when clicked.
+  // Rename is staged, like Create — editing alone doesn't call updateCompany; a separate Submit
+  // button does, and only when clicked.
   describe('Rename Submit button', () => {
     it('is disabled when no company is selected', () => {
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
       expect((screen.getByRole('button', { name: /^rename\b/i }) as HTMLButtonElement).disabled).toBe(true);
     });
 
-    // docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 1 — the draft now auto-suggests a fresh name
-    // on selection (see the input-level test above), so Submit is normally enabled immediately,
-    // not disabled — the opposite of this suite's pre-Task-1 behavior.
     it('is (normally) enabled immediately after selecting a company — the auto-suggested draft differs from the current name', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
       expect((screen.getByRole('button', { name: /^rename\b/i }) as HTMLButtonElement).disabled).toBe(false);
     });
 
@@ -277,7 +289,7 @@ describe('CompanyCrudControls', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: coincidentalName, color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
       const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
 
       const renameInput = screen.getByRole('textbox', { name: /rename company/i }) as HTMLInputElement;
       expect(renameInput.value).toBe(coincidentalName);
@@ -288,7 +300,7 @@ describe('CompanyCrudControls', () => {
     it('becomes enabled once the draft is edited to something new', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
 
       fireEvent.change(screen.getByRole('textbox', { name: /rename company/i }), { target: { value: 'Renamed' } });
 
@@ -298,7 +310,7 @@ describe('CompanyCrudControls', () => {
     it('is disabled again when the draft is edited back to blank', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
 
       fireEvent.change(screen.getByRole('textbox', { name: /rename company/i }), { target: { value: '   ' } });
 
@@ -309,7 +321,7 @@ describe('CompanyCrudControls', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
       const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateCompany');
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
 
       fireEvent.change(screen.getByRole('textbox', { name: /rename company/i }), { target: { value: 'Renamed' } });
       expect(updateSpy).not.toHaveBeenCalled();
@@ -322,7 +334,7 @@ describe('CompanyCrudControls', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
       const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateCompany');
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
 
       fireEvent.change(screen.getByRole('textbox', { name: /rename company/i }), { target: { value: '  Renamed  ' } });
       fireEvent.click(screen.getByRole('button', { name: /^rename\b/i }));
@@ -334,7 +346,7 @@ describe('CompanyCrudControls', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useLocaleStore.getState().addCompany(localeId, { id: 'c2', name: 'Null Syndicate', color: '#7a4f6d', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
 
       fireEvent.change(screen.getByRole('textbox', { name: /rename company/i }), { target: { value: 'Unsubmitted Edit' } });
       act(() => { useUIStore.getState().selectCompany('c2'); });
@@ -346,13 +358,10 @@ describe('CompanyCrudControls', () => {
       expect(newDraft.split(' ')).toHaveLength(2);
     });
 
-    // docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 1 — mirrors handleCreate's own reroll after a
-    // successful create, so the "always two different names" property holds continuously rather
-    // than only right after selecting a company.
     it('rerolls the draft to a new generated suggestion immediately after a successful submit', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
 
       fireEvent.change(screen.getByRole('textbox', { name: /rename company/i }), { target: { value: 'Renamed' } });
       fireEvent.click(screen.getByRole('button', { name: /^rename\b/i }));
@@ -365,129 +374,151 @@ describe('CompanyCrudControls', () => {
     it('does NOT reset an in-progress draft when an unrelated field of the same selected company changes elsewhere', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
-      render(<CompanyCrudControls />);
+      render(<CompanyRenameDeleteForm />);
 
       fireEvent.change(screen.getByRole('textbox', { name: /rename company/i }), { target: { value: 'Unsubmitted Edit' } });
-      // A robot getting (re)assigned into/out of this same company — same selectedCompanyId,
-      // but a brand-new Company object reference — must not clobber the draft above.
       act(() => { useLocaleStore.getState().updateCompany(localeId, 'c1', { color: '#123456' }); });
 
       expect((screen.getByRole('textbox', { name: /rename company/i }) as HTMLInputElement).value).toBe('Unsubmitted Edit');
     });
   });
 
-  it('Delete is disabled when no company is selected', () => {
-    render(<CompanyCrudControls />);
-    expect((screen.getByRole('button', { name: /^delete\b/i }) as HTMLButtonElement).disabled).toBe(true);
-  });
+  describe('summary (the "RobotDisplaySection-equivalent" read-only glance)', () => {
+    it('shows the selected company\'s name and current member count', () => {
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
+      useUIStore.getState().selectCompany('c1');
+      render(<CompanyRenameDeleteForm />);
 
-  it('Delete is enabled when a company is selected', () => {
-    useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
-    useUIStore.getState().selectCompany('c1');
-    render(<CompanyCrudControls />);
-    expect((screen.getByRole('button', { name: /^delete\b/i }) as HTMLButtonElement).disabled).toBe(false);
-  });
-
-  it('Delete stays disabled when selectedCompanyId points at a company that no longer exists (e.g. after a reseed regenerated companies with fresh ids)', () => {
-    // No companies at all in this locale, but selectedCompanyId is a stale leftover id — uiStore
-    // isn't reset by a locale reseed, so this is a real reachable state, not a hypothetical one.
-    useUIStore.getState().selectCompany('stale-id-from-before-reseed');
-    render(<CompanyCrudControls />);
-    expect((screen.getByRole('button', { name: /^delete\b/i }) as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  // docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 4 — the Delete button's own label previews
-  // which company it'll remove, so both the visible text and the accessible name change together.
-  describe('Delete button label', () => {
-    it('is exactly "Delete" when no company is selected', () => {
-      render(<CompanyCrudControls />);
-      expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy();
+      expect(screen.getByText('Iron Consortium')).toBeTruthy();
+      expect(screen.getByText('2 robots')).toBeTruthy();
     });
 
-    it('is "Delete {selected company\'s name}" when a company is selected', () => {
+    it('uses singular "robot" for exactly one member', () => {
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
+      useUIStore.getState().selectCompany('c1');
+      render(<CompanyRenameDeleteForm />);
+
+      expect(screen.getByText('1 robot')).toBeTruthy();
+    });
+
+    it('renders nothing when no company is selected', () => {
+      render(<CompanyRenameDeleteForm />);
+      expect(screen.queryByText(/robots?$/)).toBeNull();
+    });
+  });
+
+  describe('Delete', () => {
+    it('is disabled when no company is selected', () => {
+      render(<CompanyRenameDeleteForm />);
+      expect((screen.getByRole('button', { name: /^delete\b/i }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('is enabled when a company is selected', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
-      render(<CompanyCrudControls />);
-
-      expect(screen.getByRole('button', { name: 'Delete Iron Consortium' })).toBeTruthy();
+      render(<CompanyRenameDeleteForm />);
+      expect((screen.getByRole('button', { name: /^delete\b/i }) as HTMLButtonElement).disabled).toBe(false);
     });
 
-    it('updates to the newly-selected company\'s own name when the selection changes — no stale name left over', () => {
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
-      useLocaleStore.getState().addCompany(localeId, { id: 'c2', name: 'Null Syndicate', color: '#7a4f6d', robotIds: [] });
-      useUIStore.getState().selectCompany('c1');
-      render(<CompanyCrudControls />);
-      expect(screen.getByRole('button', { name: 'Delete Iron Consortium' })).toBeTruthy();
-
-      act(() => { useUIStore.getState().selectCompany('c2'); });
-
-      expect(screen.getByRole('button', { name: 'Delete Null Syndicate' })).toBeTruthy();
-      expect(screen.queryByRole('button', { name: 'Delete Iron Consortium' })).toBeNull();
+    it('stays disabled when selectedCompanyId points at a company that no longer exists (e.g. after a reseed regenerated companies with fresh ids)', () => {
+      useUIStore.getState().selectCompany('stale-id-from-before-reseed');
+      render(<CompanyRenameDeleteForm />);
+      expect((screen.getByRole('button', { name: /^delete\b/i }) as HTMLButtonElement).disabled).toBe(true);
     });
 
-    it('reverts to exactly "Delete" once the selection is cleared', () => {
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
-      useUIStore.getState().selectCompany('c1');
-      render(<CompanyCrudControls />);
-      expect(screen.getByRole('button', { name: 'Delete Iron Consortium' })).toBeTruthy();
+    describe('button label', () => {
+      it('is exactly "Delete" when no company is selected', () => {
+        render(<CompanyRenameDeleteForm />);
+        expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy();
+      });
 
-      act(() => { useUIStore.getState().selectAllRobots(); });
+      it('is "Delete {selected company\'s name}" when a company is selected', () => {
+        useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
+        useUIStore.getState().selectCompany('c1');
+        render(<CompanyRenameDeleteForm />);
 
-      expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Delete Iron Consortium' })).toBeTruthy();
+      });
     });
-  });
 
-  it('Rename input stays disabled when selectedCompanyId points at a company that no longer exists', () => {
-    useUIStore.getState().selectCompany('stale-id-from-before-reseed');
-    render(<CompanyCrudControls />);
-    expect((screen.getByRole('textbox', { name: /rename company/i }) as HTMLInputElement).disabled).toBe(true);
-  });
+    // spec §7 Q2 — the app's first confirmation dialog. Clicking Delete no longer calls
+    // removeCompany directly; it opens a Radix AlertDialog, and only confirming inside it commits.
+    describe('confirmation dialog (spec §7 Q2)', () => {
+      it('clicking Delete opens a confirmation dialog instead of deleting immediately', () => {
+        useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
+        useUIStore.getState().selectCompany('c1');
+        const removeSpy = vi.spyOn(useLocaleStore.getState(), 'removeCompany');
+        render(<CompanyRenameDeleteForm />);
 
-  it('clicking Delete calls removeCompany then selectAllRobots, in that order', () => {
-    useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
-    useUIStore.getState().selectCompany('c1');
-    const calls: string[] = [];
-    const removeSpy = vi.spyOn(useLocaleStore.getState(), 'removeCompany').mockImplementation(() => { calls.push('removeCompany'); });
-    const selectAllSpy = vi.spyOn(useUIStore.getState(), 'selectAllRobots').mockImplementation(() => { calls.push('selectAllRobots'); });
-    render(<CompanyCrudControls />);
+        fireEvent.click(screen.getByRole('button', { name: /^delete\b/i }));
 
-    fireEvent.click(screen.getByRole('button', { name: /^delete\b/i }));
+        expect(screen.getByRole('alertdialog')).toBeTruthy();
+        expect(removeSpy).not.toHaveBeenCalled();
+      });
 
-    expect(calls).toEqual(['removeCompany', 'selectAllRobots']);
-    // Restored explicitly — these spies replace the store's own actions in place and would
-    // otherwise leak into every later test in this file.
-    removeSpy.mockRestore();
-    selectAllSpy.mockRestore();
-  });
+      it('the dialog names the company being deleted', () => {
+        useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
+        useUIStore.getState().selectCompany('c1');
+        render(<CompanyRenameDeleteForm />);
 
-  it('after deleting the selected company, the selection falls back to All (not an empty/None state)', () => {
-    useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
-    useUIStore.getState().selectCompany('c1');
-    render(<CompanyCrudControls />);
+        fireEvent.click(screen.getByRole('button', { name: /^delete\b/i }));
 
-    fireEvent.click(screen.getByRole('button', { name: /^delete\b/i }));
+        expect(screen.getByRole('alertdialog').textContent).toContain('Iron Consortium');
+      });
 
-    expect(useUIStore.getState().allRobotsSelected).toBe(true);
-    expect(useUIStore.getState().selectedCompanyId).toBeNull();
-  });
+      it('clicking Cancel closes the dialog and leaves the company untouched', () => {
+        useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
+        useUIStore.getState().selectCompany('c1');
+        const removeSpy = vi.spyOn(useLocaleStore.getState(), 'removeCompany');
+        render(<CompanyRenameDeleteForm />);
 
-  // Roadmap: Robot Selection Filter Panel — the AccordionContainer wrap (docs/specs/
-  // COMPANY_SECTION_ENHANCEMENTS.md §1.1) is removed; Create/Rename/Delete render directly, no
-  // longer collapsed behind a "Manage Companies" toggle.
-  it('renders with no accordion wrapper — no collapse/expand trigger, no aria-expanded anywhere', () => {
-    render(<CompanyCrudControls />);
-    expect(screen.queryByRole('button', { name: /manage companies/i })).toBeNull();
-    expect(document.querySelector('[aria-expanded]')).toBeNull();
-  });
+        fireEvent.click(screen.getByRole('button', { name: /^delete\b/i }));
+        fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
 
-  it('clicking Delete calls removeCompany with the currently selected company\'s id', () => {
-    useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
-    useUIStore.getState().selectCompany('c1');
-    const removeSpy = vi.spyOn(useLocaleStore.getState(), 'removeCompany').mockImplementation(() => {});
-    render(<CompanyCrudControls />);
+        expect(screen.queryByRole('alertdialog')).toBeNull();
+        expect(removeSpy).not.toHaveBeenCalled();
+        expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')).toBeTruthy();
+      });
 
-    fireEvent.click(screen.getByRole('button', { name: /^delete\b/i }));
+      it('confirming inside the dialog calls removeCompany with the selected company\'s id, then selectAllRobots', () => {
+        useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
+        useUIStore.getState().selectCompany('c1');
+        const calls: string[] = [];
+        const removeSpy = vi.spyOn(useLocaleStore.getState(), 'removeCompany').mockImplementation(() => { calls.push('removeCompany'); });
+        const selectAllSpy = vi.spyOn(useUIStore.getState(), 'selectAllRobots').mockImplementation(() => { calls.push('selectAllRobots'); });
+        render(<CompanyRenameDeleteForm />);
 
-    expect(removeSpy).toHaveBeenCalledWith(localeId, 'c1');
+        fireEvent.click(screen.getByRole('button', { name: /^delete\b/i }));
+        act(() => fireEvent.click(screen.getAllByRole('button', { name: /^delete$/i })[0])); // the dialog's own Confirm/Delete action
+
+        expect(removeSpy).toHaveBeenCalledWith(localeId, 'c1');
+        expect(calls).toEqual(['removeCompany', 'selectAllRobots']);
+        removeSpy.mockRestore();
+        selectAllSpy.mockRestore();
+      });
+
+      it('confirming closes the dialog', () => {
+        useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
+        useUIStore.getState().selectCompany('c1');
+        render(<CompanyRenameDeleteForm />);
+
+        fireEvent.click(screen.getByRole('button', { name: /^delete\b/i }));
+        act(() => fireEvent.click(screen.getAllByRole('button', { name: /^delete$/i })[0]));
+
+        expect(screen.queryByRole('alertdialog')).toBeNull();
+      });
+
+      it('after confirming, the selection falls back to All (not an empty/None state)', () => {
+        useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
+        useUIStore.getState().selectCompany('c1');
+        render(<CompanyRenameDeleteForm />);
+
+        act(() => fireEvent.click(screen.getByRole('button', { name: /^delete\b/i })));
+        act(() => fireEvent.click(screen.getAllByRole('button', { name: /^delete$/i })[0]));
+
+        expect(useUIStore.getState().allRobotsSelected).toBe(true);
+        expect(useUIStore.getState().selectedCompanyId).toBeNull();
+      });
+    });
   });
 });

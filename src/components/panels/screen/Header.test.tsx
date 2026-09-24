@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 import Header from './Header';
@@ -14,8 +14,45 @@ function setStoreFixtures() {
     activeLocaleTemperature: -45,
     activeHubTile: null,
     selectedRobotId: null,
+    isNavPanelOpen: false,
   });
 }
+
+/** Stubs window.matchMedia for the three min-width queries Header's own nav-clearance shift reads
+ *  (HEADER_NAV_CLEARANCE_MIN_WIDTH = 400px, HEADER_NAV_CLEARANCE_WIDE_MIN_WIDTH = 640px,
+ *  NAV_PANEL_DOCK_MIN_WIDTH = 768px — see useNavPanelSlideAway.ts/NavPanel.test.tsx's own stub
+ *  convention for the last one). atLeast640 defaults false (narrow tier) when omitted. */
+function stubMatchMedia({ atLeast400, atLeast640 = false, docked }: { atLeast400: boolean; atLeast640?: boolean; docked: boolean }) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('768px') ? docked : query.includes('640px') ? atLeast640 : query.includes('400px') ? atLeast400 : false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  });
+}
+
+// Local gsap mock (overrides vitest.setup.ts's shared one, same pattern NavPanel.test.tsx's own
+// nav-panel-slide tween test uses) — captures the nav-clearance effect's own .to() call so the
+// tests below can assert its exact xPercent/x, while still supporting CabinetBox's own
+// timeline().fromTo() chain and top-level gsap.set() (3 real CabinetBox instances render inside
+// Header: the header facade, Mute's own box, and the volume slider's voxel-track boxes).
+let lastToVars: Record<string, unknown> | undefined;
+vi.mock('gsap', () => {
+  const chainable = {
+    set: (_target?: unknown, _vars?: unknown) => chainable,
+    to: (_target: unknown, vars: Record<string, unknown>) => {
+      lastToVars = vars;
+      return chainable;
+    },
+    fromTo: (_a?: unknown, _b?: unknown, _config?: unknown) => chainable,
+    kill: () => {},
+  };
+  return { default: { timeline: vi.fn(() => chainable), set: vi.fn() } };
+});
 
 // Controllable ResizeObserver mock — exercises the --header-height
 // measurement effect (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.6, Task 9).
@@ -55,15 +92,6 @@ function findHeaderHeightObserver(headerEl: Element): MockResizeObserver {
   return found;
 }
 
-/** Header renders exactly one nav RadioButton instance (docs/todo/backlog.md #1 —
- *  the group used to render twice, .primary/.secondary, swapped via a CSS media
- *  query; deduplicated to a single .header__row--nav that CSS Grid repositions
- *  instead). Kept as a named helper (rather than a bare screen.getByRole call at
- *  each call site) so every existing call site below reads the same either way. */
-function getNavRadio(name: string): HTMLElement {
-  return screen.getByRole('radio', { name });
-}
-
 let originalResizeObserver: typeof ResizeObserver;
 
 describe('Header', () => {
@@ -79,7 +107,7 @@ describe('Header', () => {
     document.documentElement.style.removeProperty('--header-height');
   });
 
-  it('renders exactly one volume slider bound to audioStore.volume (as the shared Cabinetry SliderLinear, displayed 0-100%)', () => {
+  it('renders a master volume slider bound to audioStore.volume, always visible alongside Mute (moved back after Task 11 per Crawford\'s follow-up call — still also present at Settings -> Volume, see SettingsContent.test.tsx)', () => {
     render(<Header />);
     const slider = screen.getByRole('slider', { name: /volume/i });
     expect(slider.getAttribute('aria-valuenow')).toBe('60');
@@ -125,27 +153,24 @@ describe('Header', () => {
     expect(muteSwitch.getAttribute('aria-checked')).toBe('false');
   });
 
-  it('marks "Volume/Mute" as the visible facade text when not muted (both strings stay in the DOM — see the test below — only data-visible flips), and no separate "Mute" text', () => {
+  it('renders the unmuted speaker icon when not muted, and no separate "Mute" text', () => {
     useAudioStore.setState({ isMuted: false });
     render(<Header />);
-    expect(screen.getByText('Volume/Mute').getAttribute('data-visible')).toBe('true');
-    expect(screen.getByText('Volume Muted').getAttribute('data-visible')).toBeNull();
+    expect(screen.getByText('🔊')).toBeTruthy();
+    expect(screen.queryByText('🔇')).toBeNull();
     expect(screen.queryByText('Mute')).toBeNull();
   });
 
-  it('marks "Volume Muted" as the visible facade text when muted', () => {
+  it('renders the muted speaker icon when muted', () => {
     useAudioStore.setState({ isMuted: true });
     render(<Header />);
-    expect(screen.getByText('Volume Muted').getAttribute('data-visible')).toBe('true');
-    expect(screen.getByText('Volume/Mute').getAttribute('data-visible')).toBeNull();
+    expect(screen.getByText('🔇')).toBeTruthy();
+    expect(screen.queryByText('🔊')).toBeNull();
   });
 
-  it('keeps both facade strings in the DOM regardless of mute state, so the box never resizes when toggled — only the state-matching one is visible', () => {
-    useAudioStore.setState({ isMuted: false });
-    const { container } = render(<Header />);
-    const spans = container.querySelectorAll('.header__mute-facade-text');
-    expect(spans).toHaveLength(2);
-    expect(Array.from(spans).map((el) => el.textContent)).toEqual(['Volume/Mute', 'Volume Muted']);
+  it('marks the mute icon aria-hidden, since the switch\'s own aria-label already carries the accessible name', () => {
+    render(<Header />);
+    expect(screen.getByText('🔊').getAttribute('aria-hidden')).toBe('true');
   });
 
   it('clicking mute flips audioStore.isMuted, independent of volume', () => {
@@ -162,57 +187,10 @@ describe('Header', () => {
     expect((screen.getByRole('switch', { name: /mute/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('renders 3 nav options, exactly once each — a single shared instance, not duplicated per breakpoint', () => {
+  it('renders no nav RadioButton — navigation now lives entirely in NavTree (docs/tasks/NAV_LAYOUT_REWRITE.md Task 10)', () => {
     render(<Header />);
-    expect(screen.getAllByRole('radio', { name: 'Probes' })).toHaveLength(1);
-    expect(screen.getAllByRole('radio', { name: 'Fleet Params' })).toHaveLength(1);
-    expect(screen.getAllByRole('radio', { name: 'Nav & Comms' })).toHaveLength(1);
-  });
-
-  it('renders exactly one .header__row--nav element — no .primary/.secondary split', () => {
-    const { container } = render(<Header />);
-    expect(container.querySelectorAll('.header__row--nav')).toHaveLength(1);
-    expect(container.querySelectorAll('.primary')).toHaveLength(0);
-    expect(container.querySelectorAll('.secondary')).toHaveLength(0);
-  });
-
-  it('selecting a nav option calls setActiveHubTile', () => {
-    render(<Header />);
-    fireEvent.click(getNavRadio('Fleet Params'));
-    expect(useUIStore.getState().activeHubTile).toBe('audioRig');
-  });
-
-  it('re-selecting the active nav option clears activeHubTile back to null (deselect-to-empty, via RadioButton\'s onDeselect)', () => {
-    useUIStore.setState({ activeHubTile: 'settings' });
-    render(<Header />);
-    fireEvent.click(getNavRadio('Nav & Comms'));
-    expect(useUIStore.getState().activeHubTile).toBeNull();
-  });
-
-  it('re-selecting Robots while selectedRobotId is set drops to the list instead of blanking all the way out', () => {
-    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'robot-3' });
-    render(<Header />);
-    // Clicking the already-active 'Robots' option fires RadioButton's
-    // onDeselect (not onChange) — handleNavDeselect must still recognize the
-    // robots+selectedRobotId case and drop to the list, not blank
-    // activeHubTile to null.
-    fireEvent.click(getNavRadio('Probes'));
-    expect(useUIStore.getState().selectedRobotId).toBeNull();
-    expect(useUIStore.getState().activeHubTile).toBe('robots');
-  });
-
-  it('re-selecting Robots while selectedRobotId is already null blanks all the way out, same as any other tile', () => {
-    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: null });
-    render(<Header />);
-    fireEvent.click(getNavRadio('Probes'));
-    expect(useUIStore.getState().activeHubTile).toBeNull();
-  });
-
-  it('selecting a non-robots tile does not touch selectedRobotId', () => {
-    useUIStore.setState({ activeHubTile: null, selectedRobotId: 'robot-3' });
-    render(<Header />);
-    fireEvent.click(getNavRadio('Fleet Params'));
-    expect(useUIStore.getState().selectedRobotId).toBe('robot-3');
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('radiogroup')).toBeNull();
   });
 
   it('renders no restart, pause/play, or BPM readouts', () => {
@@ -262,5 +240,75 @@ describe('Header', () => {
     const root = container.querySelector('header') as HTMLElement;
     expect(root.style.getPropertyValue('--color-accent-a')).toBe(ACCENT_COLORS.teal);
     expect(root.style.getPropertyValue('--color-accent-b')).toBe(ACCENT_COLORS.green);
+  });
+
+  // NavPanel's own slide-off overlaps Header's volume slider between HEADER_NAV_CLEARANCE_MIN_WIDTH
+  // (400px) and NavPanel's own dock breakpoint (NAV_PANEL_DOCK_MIN_WIDTH, 768px — see
+  // useNavPanelSlideAway.ts). Header.tsx shifts its own cabinet box right in that range so Mute
+  // stays reachable while NavPanel is open.
+  describe('.header>.sc-cabinet-box nav-clearance shift', () => {
+    beforeEach(() => {
+      lastToVars = undefined;
+    });
+
+    it('shifts right (xPercent: 100, x: -154) in the narrow clearance tier (400-639px) when NavPanel opens', () => {
+      stubMatchMedia({ atLeast400: true, atLeast640: false, docked: false });
+      setStoreFixtures();
+      render(<Header />);
+
+      act(() => {
+        useUIStore.getState().setNavPanelOpen(true);
+      });
+
+      expect(lastToVars?.xPercent).toBe(100);
+      expect(lastToVars?.x).toBe(-154);
+    });
+
+    it('shifts right (xPercent: 100, x: -188) in the wide clearance tier (>=640px) when NavPanel opens', () => {
+      stubMatchMedia({ atLeast400: true, atLeast640: true, docked: false });
+      setStoreFixtures();
+      render(<Header />);
+
+      act(() => {
+        useUIStore.getState().setNavPanelOpen(true);
+      });
+
+      expect(lastToVars?.xPercent).toBe(100);
+      expect(lastToVars?.x).toBe(-188);
+    });
+
+    it('shifts back (xPercent: 0, x: 0) when NavPanel closes again within the clearance range', () => {
+      stubMatchMedia({ atLeast400: true, docked: false });
+      setStoreFixtures();
+      useUIStore.setState({ isNavPanelOpen: true });
+      render(<Header />);
+
+      act(() => {
+        useUIStore.getState().setNavPanelOpen(false);
+      });
+
+      expect(lastToVars?.xPercent).toBe(0);
+      expect(lastToVars?.x).toBe(0);
+    });
+
+    it('never shifts below the clearance range (<400px wide), even with NavPanel open', () => {
+      stubMatchMedia({ atLeast400: false, docked: false });
+      setStoreFixtures();
+      useUIStore.setState({ isNavPanelOpen: true });
+      render(<Header />);
+
+      expect(lastToVars?.xPercent).toBe(0);
+      expect(lastToVars?.x).toBe(0);
+    });
+
+    it('never shifts once NavPanel is permanently docked (>=768px wide), even with isNavPanelOpen true', () => {
+      stubMatchMedia({ atLeast400: true, docked: true });
+      setStoreFixtures();
+      useUIStore.setState({ isNavPanelOpen: true });
+      render(<Header />);
+
+      expect(lastToVars?.xPercent).toBe(0);
+      expect(lastToVars?.x).toBe(0);
+    });
   });
 });

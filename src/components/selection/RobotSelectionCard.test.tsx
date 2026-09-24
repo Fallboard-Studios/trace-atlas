@@ -229,6 +229,19 @@ describe('RobotSelectionCard', () => {
     expect(useUIStore.getState().selectedRobotId).toBe('r1');
   });
 
+  // Bugfix, found in code review (docs/tasks/NAV_LAYOUT_REWRITE.md work) — this card calls
+  // selectRobot directly, outside the nav tree's own select() (which always follows it with a
+  // fresh setSelectedSection call). A section left open on a previously-viewed robot used to leak
+  // onto whichever robot was picked next from this list, showing its content leaf immediately
+  // instead of RobotDisplaySection. Fixed at the uiStore.selectRobot level (see its own comment) —
+  // this guards the browse-list entry point specifically.
+  it('clicking the card clears a section left open on a previously-viewed robot', () => {
+    useUIStore.getState().setSelectedSection('volume');
+    renderCard({ id: 'r1' });
+    fireEvent.click(screen.getByRole('button'));
+    expect(useUIStore.getState().selectedSection).toBeNull();
+  });
+
   it('pressing Enter on the card selects the robot', () => {
     renderCard({ id: 'r1' });
     fireEvent.keyDown(screen.getByRole('button'), { key: 'Enter' });

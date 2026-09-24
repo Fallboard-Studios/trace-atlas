@@ -5,6 +5,7 @@
   min-height: 0;
   color: var(--text-color, #e6eef0);
   width: 100%;
+  padding-left: var(--spacing-lg);
 }
 
 .console-panel__back {
@@ -18,33 +19,10 @@
 
 .console-panel__content {
   flex: 1;
-  /* A flex item's default min-height is auto (its content's intrinsic
-     size), which lets tall content (many expanded accordions, a long
-     robot list, ...) grow this element past its flex:1 share instead of
-     being constrained to it — so overflow-y: auto below never actually
-     gets a bounded box to overflow against, and never shows a scrollbar.
-     (.console itself, one level up, doesn't need the same fix now that
-     it's absolutely positioned — Console.css — but this flex item still
-     does; that failure mode is specific to flex/grid track sizing.) */
   min-height: 0;
   overflow-y: auto;
-  /* Bugfix: reserves the vertical scrollbar's own gutter width unconditionally, whether or not a
-     scrollbar is actually showing right now. Without this, RobotsTab's desktop-tier filter panel
-     (RobotFilterPanel.css) narrows .robots-tab__list's own available width just enough that its
-     auto-fill grid (minmax(300px, 1fr)) sits right at a column-count boundary — showing the
-     scrollbar here reclaims/loses ~15-17px of width, which can flip that grid between one column
-     count and the next, changing its total height enough to cross this element's own overflow
-     threshold, toggling the scrollbar again: an infinite show/hide flicker (reported live,
-     desktop only — the filter panel's width is exactly what made this grid narrow enough to be
-     sensitive to a scrollbar-width's worth of change; the single-column pre-filter-panel layout
-     never was). scrollbar-gutter: stable breaks the loop at its root cause — the available
-     content width no longer depends on whether a scrollbar is currently rendered at all. */
   scrollbar-gutter: stable;
-  /* Space reserved above the scrolling content for the header floating over this element's top
-     edge. A custom property (not just padding-top) because position: sticky offsets inside this
-     scroller are measured from its edge, not from below its padding — anything that should stick
-     "just under the header" (RobotFilterPanel.css) reads this same value instead of guessing. */
-  --console-header-clearance: 335px;
+  --console-header-clearance: 180px;
   padding: var(--console-header-clearance) 8px 8px;
 }
 

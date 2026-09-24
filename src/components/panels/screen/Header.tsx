@@ -1,53 +1,75 @@
-import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useGSAP } from '@gsap/react';
+import gsap from 'gsap';
 
-import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
-import { useLocaleStore } from '@/stores/localeStore';
+import { NAV_PANEL_DOCK_MIN_WIDTH } from './nav/useNavPanelSlideAway';
+import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { Toggle } from '@/components/ui/controls/Toggle';
-import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
-import { HEADER_NAV_SCHEMA } from '@/data/headerNavConfig';
 import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { getTraitColorStyle } from '@/utils/traitColors';
+import { setTimeline, killTimeline } from '@/animation/timelineMap';
 import type { ToggleSchema, SliderLinearSchema } from '@/types/controls';
-import type { HubTile } from '@/types/hub';
 
 import './Header.css';
 
-/** No JS-side constant for --touch-target-size (index.css) existed before
- *  this feature — the nav RadioButton's boxSize needs the same literal
- *  44px, so it's defined once here rather than duplicated.
- *  docs/specs/HEADER_HUB_CONSOLIDATION.md §1.4. */
-const TOUCH_TARGET_SIZE = 44;
+const NAV_CLEARANCE_TIMELINE_KEY = 'header-cabinet-nav-clearance';
+// Same duration NavPanel.tsx's own slide-away tween uses — no dedicated shared constant (single
+// consumer each), but kept numerically identical so the two read as one synchronized motion.
+const NAV_CLEARANCE_SLIDE_DURATION = 0.25;
+// Below this, NavPanel is slid fully off-canvas when closed rather than partially — this clearance
+// behavior only applies in the band where a NOW-open NavPanel would otherwise sit directly under
+// Header's own volume slider. Deliberately independent of NAV_PANEL_DOCK_MIN_WIDTH's own lower
+// bound (there isn't one — NavPanel slides away for any width below it); this is Header's own
+// range, min-width query to match this codebase's mobile-first CSS convention.
+const HEADER_NAV_CLEARANCE_MIN_WIDTH = 400;
+// How much of .header>.sc-cabinet-box (Mute's own box) stays visible to the left of the power
+// rocker once shifted — just enough for Mute; Volume scrolls out from under it. Two tiers within
+// the clearance range itself (Crawford's spec) — HEADER_NAV_CLEARANCE_WIDE_MIN_WIDTH is its own
+// breakpoint, independent of both HEADER_NAV_CLEARANCE_MIN_WIDTH and NAV_PANEL_DOCK_MIN_WIDTH.
+const HEADER_NAV_CLEARANCE_VISIBLE_WIDTH_NARROW = 154;
+const HEADER_NAV_CLEARANCE_VISIBLE_WIDTH_WIDE = 188;
+const HEADER_NAV_CLEARANCE_WIDE_MIN_WIDTH = 640;
+
+/** Live match for an arbitrary media query — local to Header since it's the only consumer of a
+ *  min-width query outside the shared Cabinet tier / NavPanel dock breakpoint (useCabinetTier,
+ *  useNavPanelSlideAway.ts); split out if a second call site needs the same thing. */
+function useMatchesMediaQuery(query: string): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      if (typeof window.matchMedia !== 'function') return () => { };
+      const mql = window.matchMedia(query);
+      mql.addEventListener('change', listener);
+      return () => mql.removeEventListener('change', listener);
+    },
+    () => (typeof window.matchMedia === 'function' ? window.matchMedia(query).matches : false),
+  );
+}
 
 /** humanLabel: 'Mute' feeds the switch's accessible name (resolveAccessibleName).
- *  The Toggle usage below still passes text facade content instead of relying
- *  on the external DualLabel row, doing double duty as row 1's own "Volume"
- *  label since the slider itself carries its own now (see VOLUME_SCHEMA
- *  below) — loreLabel added per Crawford's own request (2026-09-16) to
- *  resolve the flagged gap (docs/specs/HEADER_HUB_CONSOLIDATION.md §7 item #2),
- *  even though it renders alongside the facade text rather than replacing it. */
+ *  The Toggle usage below passes an icon facade (🔇/🔊, swapped on isMuted)
+ *  instead of relying on the external DualLabel row — loreLabel added per
+ *  Crawford's own request (2026-09-16) to resolve the flagged gap
+ *  (docs/specs/HEADER_HUB_CONSOLIDATION.md §7 item #2), even though it
+ *  renders alongside the facade icon rather than replacing it. */
 const MUTE_SCHEMA: ToggleSchema = { id: 'headerMute', type: 'toggle', loreLabel: 'SIGNAL SUPPRESSION [c]', humanLabel: 'Mute' };
 
-/** Row 1's volume slider, the shared Cabinetry SliderLinear (same primitive
- *  the robot detail page's own Volume control uses, see
- *  AudioSettingSection.tsx/VOLUME_SCHEMA) instead of a bare Radix slider.
- *  0-100 display range, 1% steps — audioStore.volume itself is 0..1, so
- *  Header converts pct/100 on write and volume*100 on read, same
- *  display-vs-storage split VOLUME_SCHEMA's own doc-comment describes.
- *  Previously shipped with no humanLabel/loreLabel (the Mute toggle beside it
- *  was the only visible "Volume" cue) — both added per Crawford's own request
- *  (2026-09-16) to resolve the flagged gap (docs/specs/HEADER_HUB_CONSOLIDATION.md
- *  §7 item #2), even though it now sits alongside Mute's own facade text. */
-const VOLUME_SCHEMA: SliderLinearSchema = {
-  id: 'headerVolume',
+/** Distinct id from SettingsContent.tsx's own VOLUME_SCHEMA ('headerVolume')
+ *  — Header is always mounted, so if Settings -> Volume is open at the same
+ *  time both SliderLinears are live simultaneously; sharing an id would
+ *  collide in timelineMap (same bug class Toggle's own timelineKey comment
+ *  describes for RadioButton). Same range/step/unit, same audioStore.volume
+ *  binding — just a second, always-visible control on the same value. */
+const MASTER_VOLUME_SCHEMA: SliderLinearSchema = {
+  id: 'masterVolume',
   min: 0,
   max: 100,
   step: 1,
   unit: '%',
   orientation: 'horizontal',
   type: 'sliderLinear',
+  humanLabel: 'Volume'
 };
 
 /**
@@ -59,24 +81,64 @@ const VOLUME_SCHEMA: SliderLinearSchema = {
  * the original spec's ResizeObserver-driven row merge — see
  * docs/tasks/HEADER_HUB_CONSOLIDATION.md's "Post-implementation follow-up".
  *
- * The nav RadioButton (docs/todo/backlog.md #1) is a single instance, not
- * duplicated per breakpoint — .header itself is a 2-area CSS Grid
- * ("rocker"/"nav") that repositions .header__row--nav from its own full-width
- * row below .rocker-spacer (<430px) to sitting beside it (≥430px), purely via
- * grid-template-areas. .rocker-spacer's own internal layout (volume + status,
- * ScreenViewport.css) is untouched by this — it's one atomic grid item either
- * way, not itself part of the grid restructuring.
+ * Navigation moved out entirely to NavTree (docs/specs/NAV_LAYOUT_REWRITE.md
+ * Task 10) — Header keeps the power rocker (rendered by SleeveContainer,
+ * unaffected), a master volume slider, the Mute toggle, and the status
+ * readout row. The volume slider briefly relocated to Settings -> Volume
+ * only (Task 11) and was moved back here (still also in
+ * SettingsContent.tsx) per Crawford's own follow-up call — volume should
+ * always be reachable alongside Mute, not gated behind a nav selection.
  */
 function Header() {
   const headerRef = useRef<HTMLElement>(null);
 
   const isPoweredOn = useUIStore((s) => s.isPoweredOn);
-  const activeLocaleLocalTime = useUIStore((s) => s.activeLocaleLocalTime);
-  const activeLocaleTemperature = useUIStore((s) => s.activeLocaleTemperature);
-  const activeHubTile = useUIStore((s) => s.activeHubTile);
 
   const isMuted = useAudioStore((s) => s.isMuted);
   const volume = useAudioStore((s) => s.volume);
+
+  const isNavPanelOpen = useUIStore((s) => s.isNavPanelOpen);
+  // In range: at least HEADER_NAV_CLEARANCE_MIN_WIDTH wide, but still below NavPanel's own dock
+  // breakpoint (NAV_PANEL_DOCK_MIN_WIDTH, useNavPanelSlideAway.ts) — once NavPanel is permanently
+  // docked, it no longer overlaps Header's own volume slider at all, so there's nothing to clear.
+  const isAtLeastClearanceWidth = useMatchesMediaQuery(`(min-width: ${HEADER_NAV_CLEARANCE_MIN_WIDTH}px)`);
+  const isNavPanelDocked = useMatchesMediaQuery(`(min-width: ${NAV_PANEL_DOCK_MIN_WIDTH}px)`);
+  const isAtLeastClearanceWideWidth = useMatchesMediaQuery(`(min-width: ${HEADER_NAV_CLEARANCE_WIDE_MIN_WIDTH}px)`);
+  const inNavClearanceRange = isAtLeastClearanceWidth && !isNavPanelDocked;
+  const shiftForNavPanel = inNavClearanceRange && isNavPanelOpen;
+  const clearanceVisibleWidth = isAtLeastClearanceWideWidth ? HEADER_NAV_CLEARANCE_VISIBLE_WIDTH_WIDE : HEADER_NAV_CLEARANCE_VISIBLE_WIDTH_NARROW;
+
+  const { contextSafe } = useGSAP({ dependencies: [] });
+
+  useEffect(() => () => killTimeline(NAV_CLEARANCE_TIMELINE_KEY), []);
+
+  const animateNavClearance = contextSafe((shift: boolean, visibleWidth: number) => {
+    // .sc-cabinet-box is CabinetBox's own DOM root (CabinetBox.tsx) — it renders no forwarded
+    // ref, so this reads it straight off the DOM the same way NavTree.tsx's own roving-tabindex
+    // focus effect already does (rootRef.current?.querySelector(...)), rather than adding ref
+    // plumbing to a component with many other unrelated consumers.
+    const el = headerRef.current?.querySelector<HTMLElement>('.sc-cabinet-box');
+    if (!el) return;
+    killTimeline(NAV_CLEARANCE_TIMELINE_KEY);
+    const prefersReducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const duration = prefersReducedMotion ? 0 : NAV_CLEARANCE_SLIDE_DURATION;
+    const tl = gsap.timeline();
+    // xPercent (relative to the box's OWN rendered width) combined with a fixed x nudge, GSAP's
+    // usual way to compose "100% of my own size, plus a fixed pixel offset" into one transform —
+    // this reads as "slide right by my own width, then back left by visibleWidth".
+    // .header__row--volume's own padding-right already reserves clearance up to the power rocker
+    // (calc(var(--power-corner-width) + var(--spacing-md)), Header.css) — the box's real right
+    // edge already sits flush against the rocker's left edge regardless of breakpoint/slider
+    // width, so this shift always leaves exactly visibleWidth px of the box's left edge (Mute)
+    // visible before the rocker, with no separate need to read --power-corner-width here directly.
+    tl.to(el, { xPercent: shift ? 100 : 0, x: shift ? -visibleWidth : 0, duration, ease: 'power2.out' });
+    setTimeline(NAV_CLEARANCE_TIMELINE_KEY, tl);
+  });
+
+  useEffect(() => {
+    animateNavClearance(shiftForNavPanel, clearanceVisibleWidth);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shiftForNavPanel, clearanceVisibleWidth]);
 
   // Console.css's vertical deadzone clearance (margin-top) needs Header's
   // real rendered height, which varies by breakpoint/content — no longer
@@ -99,40 +161,6 @@ function Header() {
     useAudioStore.getState().setVolume(pct / 100);
   };
 
-  // A genuine selection of a different tile — never fires for a re-click of
-  // the already-active option (RadioButton's own onChange never sees that
-  // event; see handleNavDeselect below). Selecting 'robots' fresh (e.g. from
-  // Audio Rig) also clears selectedRobotId defensively, so it always lands
-  // on the list rather than some stale detail view from an earlier visit.
-  const handleNavChange = (next: string) => {
-    const tile = next as HubTile;
-    useUIStore.getState().setActiveHubTile(tile);
-    if (tile === 'robots') useUIStore.getState().selectRobot(null);
-  };
-
-  // Re-clicking the already-active option (RadioButton's onChange swallows
-  // this event — docs/specs/HEADER_HUB_CONSOLIDATION.md's RadioButton
-  // onDeselect addition exists specifically for it). Deep in a robot's
-  // detail screen, this drops to the list rather than blanking all the way
-  // out, matching the interview's confirmed behavior; from anywhere else,
-  // it's a second way back to the blank hub alongside the existing per-tile
-  // Back button.
-  const handleNavDeselect = () => {
-    const { activeHubTile, selectedRobotId } = useUIStore.getState();
-    if (activeHubTile === 'robots' && selectedRobotId) {
-      useUIStore.getState().selectRobot(null);
-    } else {
-      useUIStore.getState().setActiveHubTile(null);
-    }
-  };
-
-  const _localTime = activeLocaleLocalTime ?? 0;
-  const localHour = Math.floor(_localTime);
-  const localMinute = Math.floor((_localTime % 1) * 60);
-  const hh = String(Math.max(0, Math.min(23, localHour))).padStart(2, '0');
-  const mm = String(Math.max(0, Math.min(59, localMinute))).padStart(2, '0');
-  const currentAttenuationStyle = useAttenuationStyleStore(selectCurrentAttenuationStyle);
-  const currentLocaleId = currentAttenuationStyle?.currentLocaleId;
   // .coordinates specifically, not the whole locale object (bugfix, found live — same class as
   // SectorSettingsDrawer.tsx's own fix): coordinates is the only field this component ever reads
   // off the locale, but selecting the whole object meant a fresh reference — and a re-render here,
@@ -141,11 +169,15 @@ function Header() {
   // object every time it changes `robots`. .coordinates itself keeps its own reference across
   // those writes (updateRobot only ever spreads it through, untouched), so narrowing to it
   // directly lets Header skip re-rendering for all of that ambient churn.
-  const coordinates = useLocaleStore((s) => (currentLocaleId ? s.locales[currentLocaleId]?.coordinates : undefined));
 
   return (
     <header ref={headerRef} className="header" style={getTraitColorStyle('header')}>
-      <div className="rocker-spacer">
+      {/* Oblique Cabinetry facade — decorative only, matching
+         DirectionalPanel's own top-level facade (permanently popped,
+         non-animating: `popped` + `skipMountAnimation` + `autoHeight`, no
+         value/state tie-in). See DirectionalPanel.tsx's own comment and
+         docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */}
+      <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-facade">
         <div className="header__row header__row--volume">
           <Toggle
             schema={MUTE_SCHEMA}
@@ -153,50 +185,21 @@ function Header() {
             onChange={(v) => useAudioStore.getState().setMuted(v)}
             disabled={!isPoweredOn}
           >
-            {/* Both possible strings render stacked in the same grid cell
-             (Header.css) — the box's content-sized width always reflects
-             whichever is wider, so it never resizes as isMuted flips; only
-             the one matching the current state stays visible. */}
-            <span className="header__mute-facade">
-              <span className="header__mute-facade-text" data-visible={!isMuted ? 'true' : undefined}>Volume/Mute</span>
-              <span className="header__mute-facade-text" data-visible={isMuted ? 'true' : undefined}>Volume Muted</span>
-            </span>
+            {/* Single glyph, swapped on isMuted — unlike the old two-string
+               text facade, both icons render at the same intrinsic width so
+               there's no box-resize-on-toggle concern to guard against.
+               aria-hidden: the switch's own aria-label (resolveAccessibleName
+               above) already carries the accessible name. */}
+            <span className="header__mute-icon" aria-hidden="true">{isMuted ? '🔇' : '🔊'}</span>
           </Toggle>
           <SliderLinear
-            schema={VOLUME_SCHEMA}
+            schema={MASTER_VOLUME_SCHEMA}
             value={volume * 100}
             onChange={handleVolumeChange}
             disabled={!isPoweredOn}
           />
         </div>
-        <div className="header__row header__row--status">
-          <div className="header__status__row">
-            <span className="header__coordinates">
-              <VisuallyHidden>Coordinates: </VisuallyHidden>
-              @ {coordinates?.x ?? 'CORRUPT X'}, {coordinates?.y ?? 'CORRUPT Y'}
-            </span>
-          </div>
-          <div className="header__status__row">
-            <span className="header__time">
-              <VisuallyHidden>Local time: </VisuallyHidden>
-              {hh}:{mm}
-            </span>
-            <span className="header__temp">
-              <VisuallyHidden>Temperature: </VisuallyHidden>
-              {activeLocaleTemperature !== null ? `${activeLocaleTemperature}°C` : 'CORRUPT TEMPERATURE'}
-            </span>
-          </div>
-        </div>
-        <div className="header__row header__row--nav">
-          <RadioButton
-            schema={HEADER_NAV_SCHEMA}
-            value={activeHubTile ?? ''}
-            onChange={handleNavChange}
-            onDeselect={handleNavDeselect}
-            boxSize={TOUCH_TARGET_SIZE}
-          />
-        </div>
-      </div>
+      </CabinetBox>
     </header>
   );
 }

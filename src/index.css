@@ -41,31 +41,15 @@
   --font-weight-medium: 600;
   --font-weight-bold: 700;
 
-  /* Sleeve layout */
-  --sleeve-width: 64px;
-  /* Cutaway geometry (Task 7 of docs/tasks/LAYOUT.md, refined per Crawford's
-     follow-up spec after reviewing a screenshot). PowerRockerSwitch's own
-     rendered footprint is ~150x60px. It sits centered in a sleeve corner
-     with --power-corner-margin of breathing room on all four sides — the
-     corner block ends up ~190x100px. The thin strip running along the rest
-     of the top matches that same margin as its own height, so the sleeve's
-     bottom edge is a deliberate stepped line (tall under the switch, short
-     everywhere else), not two independently-chosen numbers. Lives at :root
-     (not scoped to .sleeve-container) because ScreenViewport.css (Task 8)
-     is a sibling under .tablet, not a descendant, and needs the same values. */
-  --power-switch-width: 70px;
-  --power-switch-height: 140px;
-  --power-corner-margin: 20px;
+  /* Power Rocker layout */
+  --power-switch-coefficient: 70px;
+  --power-switch-width: 55px;
+  --power-switch-height: calc(var(--power-switch-width) * 2);
+  /* --power-corner-margin-coefficient: calc(var(--power-switch-width) * (20px / var(--power-switch-coefficient))); */
+  --power-corner-margin-width: 10px;
+  --power-corner-margin: calc(var(--power-switch-width) * (var(--power-corner-margin-width) / var(--power-switch-coefficient)));
   --power-corner-width: calc(var(--power-switch-width) + (var(--power-corner-margin) * 2));
   --power-corner-height: calc(var(--power-switch-height) + (var(--power-corner-margin) * 2));
-  /* The sleeve's own outer width (both instances) — no longer 100%, confirmed
-     by Crawford after a screenshot review. It's a flat value rather than
-     derived from --power-corner-width because it deliberately includes a
-     small margin of strip beyond the corner, not just the corner itself.
-     Named separately from --power-corner-width so ScreenViewport.css's
-     TransportBar exclusion (the whole "shared area with the power switch",
-     at any height) and SleeveContainer.css's own width share one source. */
-  --sleeve-bar-width: 110px;
   --sleeve-border-radius: 3px;
   --color-sleeve: #292b2e;
 
@@ -117,6 +101,7 @@
   --spacing-sm: 8px;
   --spacing-md: 12px;
   --spacing-lg: 16px;
+  --spacing-xl: 24px;
   --transport-separator-height: 24px;
 
   /* SliderLinear/SliderLog/SliderCenteredZero's default vertical track height
@@ -162,7 +147,7 @@ body {
    TYPE_SCALE.md Task 2) — zero real <h1> consumers. The base button {...}
    rule was ALSO removed there, incorrectly assumed dead in the same way —
    real bare <button> elements DO exist throughout the app (RadioButton's own
-   option buttons, AccordionContainer's trigger, Toggle's switch, Stepper's
+   option buttons, NavTreeNode's expand/collapse trigger, Toggle's switch, Stepper's
    +/- buttons, PowerRockerSwitch's confirm dialog), and that rule's
    `font-family: inherit;` line was the only thing letting any of them pick
    up the page's set font at all — browsers' UA stylesheets give button/
@@ -204,5 +189,11 @@ button:focus-visible {
 
   button {
     background-color: #f9f9f9;
+  }
+}
+
+@media screen and (min-width: 40em) {
+  :root {
+    --power-switch-width: 70px;
   }
 }

@@ -93,7 +93,7 @@ describe('index.css type-scale tokens', () => {
     // browsers' UA stylesheets give button/input/select/textarea their own
     // NON-inheriting default font, so that line was the only thing letting
     // real native buttons throughout the app (RadioButton's own option
-    // buttons, AccordionContainer's trigger, Toggle's switch, Stepper's
+    // buttons, NavTreeNode's expand/collapse trigger, Toggle's switch, Stepper's
     // +/- buttons, PowerRockerSwitch's confirm dialog) pick up the page's
     // set font at all. Without it, every one of those falls back to the
     // browser's own default UI font (Arial, on Windows Chrome) instead of

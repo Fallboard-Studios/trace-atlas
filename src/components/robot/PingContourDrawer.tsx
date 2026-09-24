@@ -2,10 +2,8 @@ import type { CSSProperties } from 'react';
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { SliderLog } from '@/components/ui/controls/SliderLog';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
-import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import {
-  ENVELOPE_ACCORDION_SCHEMA,
   PING_CONTOUR_PANEL_SCHEMA,
   ATTACK_SCHEMA,
   DECAY_SCHEMA,
@@ -27,22 +25,23 @@ interface PingContourDrawerProps {
   value: ADSREnvelope;
   onChange: (next: ADSREnvelope) => void;
   disabled?: boolean;
-  /** Optional inline style forwarded to this drawer's own AccordionContainer — trait-color
-   *  scoping (getTraitColorStyle('timeSpace'), Roadmap Phase 14), applied identically at both
-   *  the RobotOptionsTab and CompanyOptionsSection call sites — this drawer always renders in
+  /** Optional inline style forwarded to this drawer's own root — trait-color scoping
+   *  (getTraitColorStyle('timeSpace'), Roadmap Phase 14), applied identically at both the
+   *  RobotOptionsTab and CompanyOptionsSection call sites — this drawer always renders in
    *  Time/Space, whether it's editing one robot or a company's bulk baseline. See
    *  docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
   style?: CSSProperties;
 }
 
 /**
- * One Envelope AccordionContainer wrapping one Ping Contour DirectionalPanel, editing the
- * robot's single shared ADSR envelope. Purely presentational as of Roadmap Phase 10 (Task 15),
- * regrouped by docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 7 — no `robot` prop, no store access;
- * both RobotOptionsTab (robot mode) and CompanyOptionsSection (company mode) derive `value` and
- * wire `onChange` through robotOptionsActions.applyAdsr themselves, which is what calls
- * AudioEngine.updateVoiceEnvelope (never reReserveVoice, so there's no audio dropout).
- * `PingContourDrawerProps` is unchanged — neither call site needed any edit for this restructure.
+ * One Ping Contour DirectionalPanel, editing the robot's single shared ADSR envelope. No
+ * accordion wrapper as of Task 16 (docs/tasks/NAV_LAYOUT_REWRITE.md) — this drawer's
+ * content is now a probe's own "Envelope" tree leaf, and the tree node itself carries that label,
+ * so there's no accordion header left to show it on ("Ping Contour" is the panel's own internal
+ * label, unrelated to the removed accordion's). Purely presentational — no `robot` prop, no store
+ * access; both RobotOptionsTab (robot mode) and CompanyOptionsSection (company mode) derive
+ * `value` and wire `onChange` through robotOptionsActions.applyAdsr themselves, which is what
+ * calls AudioEngine.updateVoiceEnvelope (never reReserveVoice, so there's no audio dropout).
  */
 function PingContourDrawerInner({ value: adsr, onChange, disabled, style }: PingContourDrawerProps) {
   // Bugfix, found live (docs/todo/backlog.md #27 follow-up, 2026-09-15): these 4 handlers used to
@@ -66,7 +65,7 @@ function PingContourDrawerInner({ value: adsr, onChange, disabled, style }: Ping
   const handleSustainChange = useCallback((pct: number) => onChange({ ...latestAdsr.current, sustain: pct / 100 }), [onChange]);
 
   return (
-    <AccordionContainer schema={ENVELOPE_ACCORDION_SCHEMA} style={style}>
+    <div className="ping-contour-drawer" style={style}>
       <DirectionalPanel schema={PING_CONTOUR_PANEL_SCHEMA}>
         <DirectionalPanel schema={TOP_ROW_SCHEMA}>
           <SliderLog schema={ATTACK_SCHEMA} value={adsr.attack} onChange={handleAttackChange} disabled={disabled} />
@@ -77,7 +76,7 @@ function PingContourDrawerInner({ value: adsr, onChange, disabled, style }: Ping
           <SliderLog schema={RELEASE_SCHEMA} value={adsr.release} onChange={handleReleaseChange} disabled={disabled} />
         </DirectionalPanel>
       </DirectionalPanel>
-    </AccordionContainer>
+    </div>
   );
 }
 

@@ -1,9 +1,8 @@
 // ========================================
 // IMPORTS
 // ========================================
-import type { RadioButtonSchema, ButtonSchema, TextInputSchema, DualLabelSchema } from '../types/controls';
+import type { RadioButtonSchema, ButtonSchema, TextInputSchema } from '../types/controls';
 import type { Company } from '../types/Company';
-import { ACCENT_COLORS } from '../constants/accentColors';
 
 // ========================================
 // COMPANY ASSIGNMENT (RadioButton)
@@ -42,46 +41,8 @@ export function buildCompanyAssignmentSchema(companies: Company[]): RadioButtonS
 }
 
 // ========================================
-// COMPANY MANAGER — BUTTON ROW / CRUD
+// COMPANY CRUD (create/rename/delete)
 // ========================================
-
-/** Distinct sentinel from FREELANCE_VALUE — two different UI surfaces (the robot-to-company
- *  assignment RadioButton vs. this row's own "view/edit this company's options" RadioButton),
- *  each with its own meaning: "every robot regardless of company," not "no company"/
- *  "unaffiliated." Never reaches uiStore directly (translated to the selectAllRobots action at
- *  the CompanyButtonRow boundary) — see uiStore.ts's allRobotsSelected. */
-export const ALL_VALUE = '__all__';
-
-/** CompanyButtonRow reuses the RadioButton primitive — a company button row is exactly "one
- *  active among many, click to select," which RadioButton already implements (including the
- *  active-state styling), rather than reinventing that with a list of independent Buttons.
- *
- *  Order is All, then the per-company list (Roadmap: Robot Selection Filter Panel). All is the
- *  default selection — it shows every robot including freelancers and keeps bulk-edit armed for
- *  the whole roster (CompanyOptionsSection's own `allRobotsSelected` branch). There is no
- *  Reset/None option (removed 2026-09-18): the selection is always All or one company. All gets
- *  its own fixed green accent, same as every company option's own `color` (docs/specs/
- *  COMPANY_SECTION_ENHANCEMENTS.md §1.3); there is no "ambient fallback, no color" option anywhere
- *  in this row. */
-export function buildCompanyButtonRowSchema(companies: Company[]): RadioButtonSchema {
-  return {
-    id: 'company.buttonRow',
-    type: 'radio',
-    loreLabel: 'UNIT ROSTER',
-    humanLabel: 'Companies',
-    options: [
-      { value: ALL_VALUE, label: 'All', color: ACCENT_COLORS.green },
-      ...companies.map((c) => ({ value: c.id, label: c.name, color: c.color })),
-    ],
-  };
-}
-
-export const COMPANY_SELECTION_HEADER_SCHEMA: DualLabelSchema = {
-  id: 'company.selectionHeader',
-  type: 'dualLabel',
-  loreLabel: 'UNIT ROSTER',
-  humanLabel: 'Companies',
-};
 
 /** Shared by both Create and Rename — both are locally-staged draft values, not committed to the
  *  store until their own button is clicked (Rename's own Submit button, added alongside Create's

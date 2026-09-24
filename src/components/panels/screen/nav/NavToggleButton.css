@@ -1,0 +1,12 @@
+.nav-toggle-button {
+  position: fixed;
+  z-index: 10;
+  top: calc(var(--power-corner-height) + 32px);
+  left: 24px;
+}
+
+@media screen and (min-width: 400px) {
+  .nav-toggle-button {
+    top: 36px;
+  }
+}

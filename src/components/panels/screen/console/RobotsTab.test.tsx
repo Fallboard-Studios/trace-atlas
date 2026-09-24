@@ -204,48 +204,78 @@ describe('RobotsTab', () => {
     });
   });
 
-  // Roadmap: Robot Selection Filter Panel — CompanyManager no longer renders as a direct
-  // descendant of .robots-tab, beneath the list; it's nested inside the new RobotFilterPanel,
-  // which itself renders alongside (before) the list inside a shared .robots-tab__body row.
-  it('renders RobotFilterPanel (containing CompanyManager) before the robot card list, inside .robots-tab__body', () => {
-    resetStores();
-    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One') as unknown as Robot);
+  // Bugfix, found in code review (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20) — deleting
+  // RobotFilterPanel/CompanyButtonRow removed the only UI that both set AND visibly showed the
+  // active company filter. Without this indicator, a filter set earlier (via the Companies tree
+  // branch) silently shortens this list with no way to tell why, or to reset it from here — the
+  // old empty-state message only explained a fully-empty filtered result, never a partial one.
+  describe('active filter indicator', () => {
+    function seedRobotsAndCompany() {
+      useLocaleStore.getState().addRobot(localeId, { ...makeRobot('r1', 'Alpha'), companyId: 'c1' } as unknown as Robot);
+      useLocaleStore.getState().addRobot(localeId, makeRobot('r2', 'Beta') as unknown as Robot);
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
+    }
 
-    const { container } = render(<RobotsTab />);
+    it('shows no indicator when All is selected (the default) — nothing filtered, nothing to show', () => {
+      resetStores();
+      useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+      seedRobotsAndCompany();
 
-    const body = container.querySelector('.robots-tab__body');
-    const panel = container.querySelector('.robot-filter-panel');
-    const list = container.querySelector('.robots-tab__list');
-    const manager = container.querySelector('.company-manager');
-    expect(body).toBeTruthy();
-    expect(panel).toBeTruthy();
-    expect(list).toBeTruthy();
-    expect(manager).toBeTruthy();
+      render(<RobotsTab />);
 
-    // Both the panel and the list live inside .robots-tab__body, panel first.
-    expect(body!.contains(panel!)).toBe(true);
-    expect(body!.contains(list!)).toBe(true);
-    expect(panel!.compareDocumentPosition(list!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // CompanyManager is nested inside the panel, not a direct sibling of the list anymore.
-    expect(panel!.contains(manager!)).toBe(true);
-  });
+      expect(screen.queryByText(/Filtered by/)).toBeNull();
+      expect(screen.queryByRole('button', { name: /clear filter/i })).toBeNull();
+    });
 
-  // Roadmap: Robot Selection Filter Panel — CompanyOptionsSection moved out of CompanyManager to
-  // be RobotsTab's own direct child, in the same relative position CompanyManager used to render
-  // it (beneath the robot card list, following CompanyManager itself).
-  it('renders CompanyOptionsSection directly, following CompanyManager', () => {
-    resetStores();
-    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One') as unknown as Robot);
+    it('names the active company filter, with members present', () => {
+      resetStores();
+      useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+      seedRobotsAndCompany();
+      useUIStore.getState().selectCompany('c1');
 
-    const { container } = render(<RobotsTab />);
+      render(<RobotsTab />);
 
-    const manager = container.querySelector('.company-manager');
-    const optionsSection = container.querySelector('.company-options-section');
-    expect(manager).toBeTruthy();
-    expect(optionsSection).toBeTruthy();
-    expect(manager!.compareDocumentPosition(optionsSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // Direct child of .robots-tab, not nested inside .company-manager anymore.
-    expect(container.querySelector('.company-manager .company-options-section')).toBeNull();
+      expect(screen.getByText('Filtered by Iron Consortium')).toBeTruthy();
+    });
+
+    it('also shows when the filtered result is empty — not just the existing empty-state message', () => {
+      resetStores();
+      useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+      useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Alpha') as unknown as Robot);
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
+      useUIStore.getState().selectCompany('c1');
+
+      render(<RobotsTab />);
+
+      expect(screen.getByText('Filtered by Iron Consortium')).toBeTruthy();
+      expect(screen.getByRole('button', { name: /clear filter/i })).toBeTruthy();
+    });
+
+    it('clicking Clear Filter reverts to showing every robot', () => {
+      resetStores();
+      useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+      seedRobotsAndCompany();
+      useUIStore.getState().selectCompany('c1');
+      const { container } = render(<RobotsTab />);
+
+      fireEvent.click(screen.getByRole('button', { name: /clear filter/i }));
+
+      expect(useUIStore.getState().selectedCompanyId).toBeNull();
+      expect(useUIStore.getState().allRobotsSelected).toBe(true);
+      expect(Array.from(container.querySelectorAll('.robot-selection-card__name')).map((el) => el.textContent)).toEqual(['Alpha', 'Beta']);
+    });
+
+    it('clicking Clear Filter removes the indicator itself', () => {
+      resetStores();
+      useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+      seedRobotsAndCompany();
+      useUIStore.getState().selectCompany('c1');
+      render(<RobotsTab />);
+
+      fireEvent.click(screen.getByRole('button', { name: /clear filter/i }));
+
+      expect(screen.queryByText(/Filtered by/)).toBeNull();
+    });
   });
 
   describe('re-render cascade regression (docs/todo/backlog.md #27 follow-up, 2026-09-15)', () => {
@@ -253,7 +283,6 @@ describe('RobotsTab', () => {
     // new top-level `robots` array reference on every write to ANY robot in the locale (battery
     // ticks, audio swells, field edits), even though it preserves each untouched robot's own
     // object reference. Before this fix, RobotsTab subscribed to that whole array directly, so it
-    // (and everything statically composed beneath it — RobotFilterPanel, CompanyOptionsSection)
     // re-executed on every single one of those writes, regardless of whether the edited robot was
     // even visible in the current filter. useRobotRoster's own custom-equality selector should
     // make RobotsTab's own body bail unless the SET of robot ids or their companyId assignments

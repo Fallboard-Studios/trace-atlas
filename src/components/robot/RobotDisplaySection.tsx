@@ -25,7 +25,7 @@ interface RobotDisplaySectionProps {
 }
 
 /**
- * Robot Options' always-visible header block (not an AccordionContainer — see
+ * Robot Options' always-visible header block (not collapsible/accordion-wrapped — see
  * docs/specs/ROBOT_OPTIONS.md §1). Redesigned Roadmap 15.3: a centered, day/night-invariant avatar
  * (RobotBody, ignoreDaylight) inside a 3-column/2-row grid — Name/Job in row 1, Docking/Status in
  * row 2, all four keeping their DualLabel lore/human captions (unlike sibling Phase 15.2's

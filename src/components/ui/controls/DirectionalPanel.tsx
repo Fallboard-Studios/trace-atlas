@@ -30,8 +30,7 @@ const DirectionalPanelNestingContext = createContext(false);
 /**
  * A pure layout container — groups already-rendered controls into a row or
  * column flex box. No value/onChange, no state of its own beyond 'auto'
- * orientation's own measured resolution (unlike AccordionContainer's
- * open/closed useState). 'row' is the default orientation when
+ * orientation's own measured resolution. 'row' is the default orientation when
  * schema.orientation is omitted, and 'row' never wraps (docs/specs/
  * DIRECTIONAL_PANEL.md §1.4) — an overflowing row is solved with a nested
  * DirectionalPanel, not a wrap prop on this one. 'auto' resolves via
@@ -101,6 +100,6 @@ function DirectionalPanelInner({ schema, children }: DirectionalPanelProps) {
 // AudioRigDrawer.tsx's own <DirectionalPanel schema={...}>{...inline JSX...}</DirectionalPanel>),
 // so this memo is correct to add (never harmful) but does not itself produce a measurable win
 // until/unless a caller's own children construction becomes referentially stable — the
-// conditional-benefit case spec §1.3 describes, same shape Toggle/AccordionContainer's own
-// facade `children` already document.
+// conditional-benefit case spec §1.3 describes, same shape Toggle's own facade `children`
+// already documents.
 export const DirectionalPanel = memo(DirectionalPanelInner);

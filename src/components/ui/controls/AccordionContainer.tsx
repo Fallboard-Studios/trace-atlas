@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { memo, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import * as Accordion from '@radix-ui/react-accordion';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
@@ -6,7 +6,7 @@ import gsap from 'gsap';
 import { CabinetBox } from './CabinetBox';
 import { CABINET_TOGGLE_BOX_SIZE } from './Toggle';
 import { DualLabel } from './DualLabel';
-import { getAccordionDuration, getAccordionFadeDuration, FIRST_OPEN_MAX_SETTLE_TICKS } from './accordionAnimation';
+import { getAccordionDuration, getAccordionFadeDuration } from './accordionAnimation';
 import { withActiveClass } from './activeClass';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
 import type { AccordionSchema } from '@/types/controls';
@@ -15,7 +15,12 @@ import './AccordionContainer.css';
 interface AccordionContainerProps {
   schema: AccordionSchema;
   children: ReactNode;
-  defaultOpen?: boolean;
+  /** Controlled — docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.5/§5.2. The caller (a view's own
+   *  derived-open-section logic) owns which section is open; this component only answers "open or
+   *  closed" for whatever it's handed and animates the transition. Replaces the old uncontrolled
+   *  `defaultOpen`/internal useState. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   /** Optional inline style applied to the outer Accordion.Root — this phase's only consumer is
    *  trait-color scoping (getTraitColorStyle/getRobotColorStyle, src/utils/traitColors.ts,
    *  Roadmap Phase 14), but the prop itself is generic, matching CabinetBox's own precedent of
@@ -43,8 +48,11 @@ const cabinetTokens = {
  * A single independent collapsible section — wraps exactly one Radix
  * Accordion.Root (type="single" collapsible) + one Item, not a group
  * coordinator. A drawer wanting several independently-open sections renders
- * multiple AccordionContainer instances side by side. Open/closed is local
- * ephemeral UI state (spec §3) — presentational, not a domain value.
+ * multiple AccordionContainer instances side by side. `open` is fully
+ * controlled by the caller (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.5) —
+ * this component owns no open/closed state of its own, and mounts whatever
+ * `children` it's given unconditionally; lazy-mount-on-approach is the
+ * caller's own concern (useSectionObserver), not this component's.
  * Expand/collapse animates via a GSAP timeline registered in timelineMap,
  * following PowerRockerSwitch.tsx's pattern, and respects
  * prefers-reduced-motion the same way PowerRockerSwitch.css does.
@@ -60,22 +68,13 @@ const cabinetTokens = {
  * nest one CabinetBox inside another's front face; see §1.1/§1.4 for why
  * that's safe and how the two fronts stay independently styleable.
  */
-function AccordionContainerInner({ schema, children, defaultOpen = false, style }: AccordionContainerProps) {
-  const [open, setOpen] = useState(defaultOpen);
-  // Whether this section has EVER been opened. Its children are only built once it has, and never torn down again —
-  // collapsing just hides them — so a section that's been opened behaves exactly as every section did before this
-  // existed. Never goes back to false. A section mounted already-open (defaultOpen) builds its content immediately.
-  // See docs/specs/ACCORDION_LAZY_MOUNT.md §1.
-  const [hasOpened, setHasOpened] = useState(defaultOpen);
-  // Set by handleValueChange on a FIRST open, consumed by the layout effect below. A ref rather than state: it's a
-  // one-shot handoff from an event handler to the next commit, never rendered.
-  const pendingFirstOpenAnimation = useRef(false);
+function AccordionContainerInner({ schema, children, open, onOpenChange, style }: AccordionContainerProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const contentInnerRef = useRef<HTMLDivElement>(null);
   const timelineKey = `accordion-${schema.id}`;
-  // A first open waits, tick by tick on GSAP's own clock, for its new content to settle before building its tween (see the
-  // layout effect below). Each wait is a tiny timeline registered under this key, so a toggle or unmount cancels it.
-  const startKey = `${timelineKey}-start`;
+  // Skips the animate-on-[open]-change effect's very first run (the mount itself), which would
+  // otherwise immediately re-tween to the same state the mount effect below already set instantly.
+  const isFirstRender = useRef(true);
 
   // GSAP's own context.revert() (from useGSAP/contextSafe below) only kills the underlying GSAP
   // tween it tracked — it has no knowledge of our separate timelineMap registry, so this manual
@@ -83,31 +82,30 @@ function AccordionContainerInner({ schema, children, defaultOpen = false, style 
   useEffect(() => {
     return () => {
       killTimeline(timelineKey);
-      killTimeline(startKey);
     };
-  }, [timelineKey, startKey]);
+  }, [timelineKey]);
 
   // No mount-time animation here — this hook call exists purely to get `contextSafe`, so
-  // animateTo() below (called from handleValueChange, not from this callback) is tracked by
-  // GSAP's own context and reverted on unmount, on top of the killTimeline dedup calls it
-  // already makes.
+  // animateTo() below is tracked by GSAP's own context and reverted on unmount, on top of the
+  // killTimeline dedup calls it already makes.
   const { contextSafe } = useGSAP({ dependencies: [] });
 
   // If mounted already-open, the content still needs its height/overflow
   // (see animateTo()) freed from the CSS closed-state default (height: 0,
   // overflow-y: hidden), and the content-inner's own opacity raised off its
-  // CSS closed-state default (0) — animateTo() only runs from user
-  // interaction (handleValueChange), so without this the section renders
-  // visually collapsed/invisible, and the oblique facades inside it clipped,
-  // despite aria-expanded="true" on mount.
+  // CSS closed-state default (0) — animateTo() only runs on a subsequent
+  // `open` change, so without this the section renders visually collapsed/
+  // invisible, and the oblique facades inside it clipped, despite
+  // aria-expanded="true" on mount.
   useEffect(() => {
-    if (defaultOpen && contentRef.current) {
+    if (open && contentRef.current) {
       contentRef.current.style.height = 'auto';
       contentRef.current.style.overflowY = 'visible';
       if (contentInnerRef.current) contentInnerRef.current.style.opacity = '1';
     }
-    // Intentionally mount-only: defaultOpen only describes the initial
-    // state: post-mount opens/closes go through animateTo() instead.
+    // Intentionally mount-only: the initial `open` value only describes the
+    // mount-time state — every later change goes through the [open] effect
+    // below instead.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -123,8 +121,6 @@ function AccordionContainerInner({ schema, children, defaultOpen = false, style 
     const innerEl = contentInnerRef.current;
     if (!el) return;
     killTimeline(timelineKey);
-    // Any toggle supersedes a first-open start that has not fired yet, so a stale one can never reopen a closed section.
-    killTimeline(startKey);
 
     const prefersReducedMotion = typeof window.matchMedia === 'function'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -171,52 +167,22 @@ function AccordionContainerInner({ schema, children, defaultOpen = false, style 
     setTimeline(timelineKey, tl);
   });
 
-  // First open only: the content wasn't in the DOM when the click happened, and animateTo() reads el.scrollHeight —
-  // calling it now would measure an empty wrapper (height 0), tween to nothing, and snap open at the end. So the
-  // animation waits until React has committed the content. A layout effect (not useEffect, not a timer) runs after the
-  // DOM update but before paint, so the tween still starts in the frame the user clicked, with no flash of an
-  // open-but-empty section. Deps are [hasOpened] only: animateTo is a fresh closure every render, and this must fire
-  // exactly once per first open.
-  useLayoutEffect(() => {
-    if (!pendingFirstOpenAnimation.current) return;
-    pendingFirstOpenAnimation.current = false;
-    // Don't build the tween now — wait for the section to settle first. Measured in real Chrome
-    // (docs/PERFORMANCE.md): a freshly-mounted section's controls do a heavy mount, then a second wave of work once their
-    // ResizeObservers fire and their box counts re-fit, all while a tween created here would already be running. GSAP
-    // stamps a new timeline with its *last tick's* time, so that heavy work ate most of the 250 ms before the first
-    // rendered frame — the two heaviest sections opened in 3 frames instead of ~12, then snapped by however much the
-    // content had grown since it was measured. So poll on GSAP's own ticks (no timers) until two consecutive ticks read
-    // the same height, then build the real tween from "now" against that settled height. A cap keeps it bounded.
-    let lastHeight = -1;
-    let ticks = 0;
-    const startWhenSettled = () => {
-      const height = measureContentHeight();
-      ticks += 1;
-      if (height === lastHeight || ticks >= FIRST_OPEN_MAX_SETTLE_TICKS) {
-        animateTo(true);
-        return;
-      }
-      lastHeight = height;
-      const next = gsap.timeline();
-      next.call(startWhenSettled);
-      setTimeline(startKey, next);
-    };
-    const start = gsap.timeline();
-    start.call(startWhenSettled);
-    setTimeline(startKey, start);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasOpened]);
-
-  function handleValueChange(value: string) {
-    const nextOpen = value === schema.id;
-    setOpen(nextOpen);
-    if (nextOpen && !hasOpened) {
-      // Content not built yet — build it now (batched with setOpen into one render), animate after that commit.
-      pendingFirstOpenAnimation.current = true;
-      setHasOpened(true);
+  // Animates every open/close after the mount itself, however it was triggered — a click on this
+  // section's own trigger (handleValueChange below) or an external onOpenChange elsewhere in the
+  // view (spec §1.5's derived, single-open-accordion model means most closes are actually driven
+  // by a SIBLING's own click, not this section's). `open` is the single source of truth; this
+  // effect is the only place that reacts to it changing.
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
       return;
     }
-    animateTo(nextOpen); // content already built: the original synchronous path, unchanged
+    animateTo(open);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  function handleValueChange(value: string) {
+    onOpenChange(value === schema.id);
   }
 
   return (
@@ -258,7 +224,7 @@ function AccordionContainerInner({ schema, children, defaultOpen = false, style 
           </Accordion.Trigger>
         </Accordion.Header>
         <Accordion.Content ref={contentRef} className="sc-accordion__content" forceMount>
-          <div className="sc-accordion__content-inner" ref={contentInnerRef}>{hasOpened ? children : null}</div>
+          <div className="sc-accordion__content-inner" ref={contentInnerRef}>{children}</div>
         </Accordion.Content>
       </Accordion.Item>
     </Accordion.Root>

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 
 // Mocked the same way every other CabinetBox consumer's own test file does
-// (Button/Toggle/RadioButton/AccordionContainer) — isolates this file's
+// (Button/Toggle/RadioButton) — isolates this file's
 // assertions about DirectionalPanel's own facade-vs-nested wiring from
 // CabinetBox's already-proven internals (11.1.1/this phase's own Task 1).
 vi.mock('./CabinetBox', () => ({

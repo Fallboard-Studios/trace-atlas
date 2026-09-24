@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { TextInput } from '@/components/ui/controls/TextInput';
 import { Button } from '@/components/ui/controls/Button';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -14,8 +15,11 @@ import { generateUUID } from '@/utils/randomId';
 import './CompanyCrudControls.css';
 
 // Distinct schema clones for the Create/Rename inputs — same shared COMPANY_NAME_INPUT_SCHEMA
-// shape, but each needs its own humanLabel: both inputs are mounted simultaneously, so sharing
-// one accessible name ("Company Name") would make them ambiguous to query and to a screen reader.
+// shape, but each needs its own humanLabel: CompanyCreateForm and CompanyRenameDeleteForm render
+// at different tree nodes (the bare "Companies" node vs. a specific "Company X" node) and are
+// never mounted simultaneously, but keep distinct ids/labels anyway — matches every other schema
+// clone in this file (RENAME_COMPANY_SCHEMA etc.), and keeps each accessible name unambiguous if
+// that ever changes.
 const CREATE_NAME_SCHEMA = { ...COMPANY_NAME_INPUT_SCHEMA, id: 'company.name.create', humanLabel: 'New Company Name' };
 const RENAME_NAME_SCHEMA = { ...COMPANY_NAME_INPUT_SCHEMA, id: 'company.name.rename', humanLabel: 'Rename Company' };
 
@@ -49,94 +53,38 @@ function pickRandomCompanyColor(existingColors: string[]): string {
 }
 
 /**
- * Create/Rename/Delete for Companies (Roadmap Phase 10). Both Create's and Rename's name fields
- * are local, staged component state — neither commits to the store until its own button is
- * clicked. Create's is pre-filled with a generated suggestion the user can accept as-is or edit
- * first; Rename's is pre-filled with the selected company's current name (was bound live,
- * updating the store on every keystroke, until a Submit button was added to match Create).
- * Unlike every seeded ID elsewhere in this app, a user-created company's id has no seed to derive
- * from (the user's choice to create it isn't reproducible world generation) —
- * crypto.randomUUID() is the right tool here, not a violation of the app's seeded-generation
- * rule.
- *
- * Was wrapped in its own AccordionContainer, collapsed by default (docs/specs/
- * COMPANY_SECTION_ENHANCEMENTS.md §1.1); that wrap was removed (Roadmap: Robot Selection Filter
- * Panel) — Create/Rename/Delete now render directly, always visible, no toggle. CompanyButtonRow
- * stays outside this component regardless, rendered by CompanyManager above.
+ * Create half of Companies CRUD (Roadmap Phase 10; relocated into the nav tree by
+ * docs/tasks/NAV_LAYOUT_REWRITE.md Task 20, spec §2 — this is the bare "Companies" tree node's
+ * own content). Split out of the old combined CompanyCrudControls (which rendered Create AND
+ * Rename/Delete together, gated on whether a company was selected) since the tree now shows one
+ * or the other depending on which node is selected, never both. The name field is local, staged
+ * component state — it doesn't commit to the store until Create is clicked. Pre-filled with a
+ * generated suggestion the user can accept as-is or edit first. Unlike every seeded id elsewhere
+ * in this app, a user-created company's id has no seed to derive from (the user's choice to
+ * create it isn't reproducible world generation) — crypto.randomUUID() (via generateUUID) is the
+ * right tool here, not a violation of the app's seeded-generation rule.
  */
-export function CompanyCrudControls() {
+export function CompanyCreateForm() {
   const localeId = getActiveLocaleId();
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
-  const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
-  const selectAllRobots = useUIStore((s) => s.selectAllRobots);
-  const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
 
   const [createNameDraft, setCreateNameDraft] = useState(suggestCompanyName);
-
-  // Rename's own staged draft (Create's own pattern, extended here) — not committed to the store
-  // until Submit is clicked, matching Create's own "not live" behavior instead of Rename's old
-  // one (a TextInput bound live to the selected company's name, updating the store on every
-  // keystroke). Reset to a FRESH generated suggestion (suggestCompanyName — the same generator
-  // Create's own draft uses), never the selected company's own current name (docs/tasks/
-  // COMPANY_CRUD_BUTTON_PREVIEW.md Task 1) — so the Rename button can always preview two
-  // different names without the user typing anything first. Reset whenever the SELECTION itself
-  // changes (tracked by id, not the resolved Company object) — narrower than that would mean an
-  // unrelated update to the same company elsewhere (e.g. a robot reassigned into/out of it via
-  // RobotSelectionCard, which also produces a new Company object reference) clobbers an
-  // in-progress, not-yet-submitted rename edit — this only resets on an actual switch of which
-  // company is selected, done during render rather than a useEffect, same reasoning
-  // SectorSettingsDrawer's own draft-reset comment gives (avoids an extra, avoidable render pass).
-  const [renameDraft, setRenameDraft] = useState(() => (selectedCompany ? suggestCompanyName() : ''));
-  const [lastSeenSelectedCompanyId, setLastSeenSelectedCompanyId] = useState(selectedCompanyId);
-  if (selectedCompanyId !== lastSeenSelectedCompanyId) {
-    setLastSeenSelectedCompanyId(selectedCompanyId);
-    setRenameDraft(selectedCompany ? suggestCompanyName() : '');
-  }
 
   const atCap = companies.length >= MAX_COMPANIES;
   // A "visible string" — not blank, not whitespace-only. The input itself is never disabled for
   // this reason (only the cap disables the input) — disabling it on blank would make it
   // impossible to type a first character back in.
   const nameIsBlank = createNameDraft.trim().length === 0;
-  // selectedCompany, not selectedCompanyId — uiStore isn't reset by a locale reseed, so
-  // selectedCompanyId can point at a company that no longer exists (regenerated with a fresh id,
-  // or simply gone) even when the id itself is non-null. Gating on the resolved company object
-  // covers both "nothing selected" and "selection is stale" in one check.
-  const hasSelectedCompany = Boolean(selectedCompany);
-  // Same "visible string" rule as Create's nameIsBlank, plus a no-op guard: Submit disabled when
-  // the trimmed draft exactly matches the selected company's current name, so a no-change click
-  // (or a stray click right after a successful rename, before the draft's own reset above lands)
-  // never fires a pointless store write.
-  const renameIsBlank = renameDraft.trim().length === 0;
-  const renameUnchanged = hasSelectedCompany && renameDraft.trim() === selectedCompany?.name;
 
   // Previews what clicking Create will do (docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 2) — the
   // raw, as-typed draft, not trimmed (matches nameIsBlank's own trim-only-for-the-blank-check
   // convention: what's displayed once non-blank is "as typed"). A per-render clone, not a mutation
-  // of the shared CREATE_COMPANY_SCHEMA constant — same pattern CREATE_NAME_SCHEMA/RENAME_NAME_SCHEMA
-  // already use above, just computed per-render here since it depends on component state.
-  // Button.tsx's own resolveAccessibleName/DualLabel both read schema.humanLabel directly, so this
-  // one field drives both the accessible name and the visible text with no other change needed.
+  // of the shared CREATE_COMPANY_SCHEMA constant. Button.tsx's own resolveAccessibleName/DualLabel
+  // both read schema.humanLabel directly, so this one field drives both the accessible name and
+  // the visible text with no other change needed.
   const createSchema = {
     ...CREATE_COMPANY_SCHEMA,
     humanLabel: nameIsBlank ? CREATE_COMPANY_SCHEMA.humanLabel : `${CREATE_COMPANY_SCHEMA.humanLabel} ${createNameDraft}`,
-  };
-  // Same pattern as createSchema above (docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 3).
-  // renameIsBlank already coincides with "nothing selected," since the draft is forced to '' on
-  // deselect — no separate hasSelectedCompany branch needed in the condition itself.
-  // selectedCompany?.name ?? '' in the true branch is defensive typing only (TypeScript can't
-  // otherwise prove selectedCompany is defined whenever !renameIsBlank, even though it always is
-  // by construction) — not a reachable '' case in practice.
-  const renameSchema = {
-    ...RENAME_COMPANY_SCHEMA,
-    humanLabel: renameIsBlank
-      ? RENAME_COMPANY_SCHEMA.humanLabel
-      : `${RENAME_COMPANY_SCHEMA.humanLabel} ${selectedCompany?.name ?? ''} > ${renameDraft}`,
-  };
-  // Same pattern once more (docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 4).
-  const deleteSchema = {
-    ...DELETE_COMPANY_SCHEMA,
-    humanLabel: selectedCompany ? `${DELETE_COMPANY_SCHEMA.humanLabel} ${selectedCompany.name}` : DELETE_COMPANY_SCHEMA.humanLabel,
   };
 
   const handleCreate = () => {
@@ -146,29 +94,113 @@ export function CompanyCrudControls() {
     setCreateNameDraft(suggestCompanyName());
   };
 
+  return (
+    <div className="company-create-form">
+      <TextInput schema={CREATE_NAME_SCHEMA} value={createNameDraft} onChange={setCreateNameDraft} disabled={atCap} />
+      <Button schema={createSchema} onClick={handleCreate} disabled={atCap || nameIsBlank} />
+    </div>
+  );
+}
+
+/**
+ * A read-only glance at the selected company — name, its own identity color swatch, and current
+ * member count — the "RobotDisplaySection-equivalent summary" spec §2's Node -> Content Mapping
+ * table calls for on a bare "Company X" tree node. Genuinely needed, not just decorative: Rename's
+ * own input below is pre-filled with a fresh SUGGESTED name (docs/tasks/
+ * COMPANY_CRUD_BUTTON_PREVIEW.md Task 1), never the company's actual current name, so without this
+ * summary there would be no visible read-only display of what the company is actually called
+ * right now (Delete's own button label is the only other place it survives). Minimal by design —
+ * the spec names no further fields, and this mirrors RobotDisplaySection's own scope (a handful of
+ * read-only identity rows, not a full editor).
+ */
+function CompanySummary({ company }: { company: Company }) {
+  const robotCount = company.robotIds.length;
+  return (
+    <div className="company-summary">
+      <span className="company-summary__swatch" style={{ backgroundColor: company.color }} aria-hidden="true" />
+      <span className="company-summary__name">{company.name}</span>
+      <span className="company-summary__count">{robotCount} {robotCount === 1 ? 'robot' : 'robots'}</span>
+    </div>
+  );
+}
+
+/**
+ * Rename/Delete half of Companies CRUD (Roadmap Phase 10; relocated into the nav tree by
+ * docs/tasks/NAV_LAYOUT_REWRITE.md Task 20, spec §2 — this is a specific "Company X" tree node's
+ * own content, rendered only once a company is actually selected). Split out of the old combined
+ * CompanyCrudControls the same way CompanyCreateForm was — see that component's own doc comment.
+ *
+ * Rename's draft is local, staged component state (not committed until Submit is clicked),
+ * reset to a FRESH generated suggestion — never the selected company's own current name — whenever
+ * the selection itself changes (tracked by id, not the resolved Company object, so an unrelated
+ * update to the same company elsewhere, e.g. a robot reassigned into/out of it, never clobbers an
+ * in-progress unsubmitted edit).
+ *
+ * Delete gains a confirmation step here (spec §7 Q2, the app's first confirmation dialog) — a
+ * Radix AlertDialog, since no existing Dialog/Modal primitive exists in
+ * src/components/ui/controls/ to reuse. Its Cancel/Action buttons are Radix's own plain rendered
+ * `<button>`s (not the schema-driven Button component): Button.tsx neither forwards a ref nor
+ * spreads arbitrary props, so it can't compose with Radix's `asChild` slot pattern — a deliberate,
+ * narrow deviation from the app's ControlSchema convention at this one boundary, not a precedent
+ * for skipping it elsewhere. The outer Delete trigger itself IS the normal schema-driven Button;
+ * only opening state (never itself calling removeCompany) — confirming or cancelling inside the
+ * dialog is what actually commits or discards.
+ */
+export function CompanyRenameDeleteForm() {
+  const localeId = getActiveLocaleId();
+  const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
+  const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
+  const selectAllRobots = useUIStore((s) => s.selectAllRobots);
+  const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
+
+  // See CompanyCrudControls' own pre-split history for why this resets on SELECTION change
+  // (tracked by id) rather than on every render where the resolved Company object differs.
+  const [renameDraft, setRenameDraft] = useState(() => (selectedCompany ? suggestCompanyName() : ''));
+  const [lastSeenSelectedCompanyId, setLastSeenSelectedCompanyId] = useState(selectedCompanyId);
+  if (selectedCompanyId !== lastSeenSelectedCompanyId) {
+    setLastSeenSelectedCompanyId(selectedCompanyId);
+    setRenameDraft(selectedCompany ? suggestCompanyName() : '');
+  }
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // selectedCompany, not selectedCompanyId — uiStore isn't reset by a locale reseed, so
+  // selectedCompanyId can point at a company that no longer exists even when the id itself is
+  // non-null. Gating on the resolved company object covers both "nothing selected" and "selection
+  // is stale" in one check.
+  const hasSelectedCompany = Boolean(selectedCompany);
+  const renameIsBlank = renameDraft.trim().length === 0;
+  const renameUnchanged = hasSelectedCompany && renameDraft.trim() === selectedCompany?.name;
+
+  const renameSchema = {
+    ...RENAME_COMPANY_SCHEMA,
+    humanLabel: renameIsBlank
+      ? RENAME_COMPANY_SCHEMA.humanLabel
+      : `${RENAME_COMPANY_SCHEMA.humanLabel} ${selectedCompany?.name ?? ''} > ${renameDraft}`,
+  };
+  const deleteSchema = {
+    ...DELETE_COMPANY_SCHEMA,
+    humanLabel: selectedCompany ? `${DELETE_COMPANY_SCHEMA.humanLabel} ${selectedCompany.name}` : DELETE_COMPANY_SCHEMA.humanLabel,
+  };
+
   const handleRenameSubmit = () => {
     if (!selectedCompany) return;
     useLocaleStore.getState().updateCompany(localeId, selectedCompany.id, { name: renameDraft.trim() });
-    // Reroll to a fresh suggestion immediately, mirroring handleCreate's own post-create reroll —
-    // keeps the "always two different names" promise true on the very next render, not just
-    // before submit (docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 1).
     setRenameDraft(suggestCompanyName());
   };
 
-  const handleDelete = () => {
+  const handleConfirmDelete = () => {
     if (!selectedCompany) return;
     useLocaleStore.getState().removeCompany(localeId, selectedCompany.id);
     selectAllRobots();
+    setConfirmOpen(false);
   };
 
   return (
-    <div className="company-crud-controls">
-      <div className="company-crud-controls__create">
-        <TextInput schema={CREATE_NAME_SCHEMA} value={createNameDraft} onChange={setCreateNameDraft} disabled={atCap} />
-        <Button schema={createSchema} onClick={handleCreate} disabled={atCap || nameIsBlank} />
-      </div>
+    <div className="company-rename-delete-form">
+      {selectedCompany && <CompanySummary company={selectedCompany} />}
 
-      <div className="company-crud-controls__rename">
+      <div className="company-rename-delete-form__rename">
         <TextInput
           schema={RENAME_NAME_SCHEMA}
           value={renameDraft}
@@ -182,9 +214,27 @@ export function CompanyCrudControls() {
         />
       </div>
 
-      <Button schema={deleteSchema} onClick={handleDelete} disabled={!hasSelectedCompany} />
+      <Button schema={deleteSchema} onClick={() => setConfirmOpen(true)} disabled={!hasSelectedCompany} />
+
+      <AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="company-delete-confirm__overlay" />
+          <AlertDialog.Content className="company-delete-confirm__content">
+            <AlertDialog.Title className="company-delete-confirm__title">
+              Delete {selectedCompany?.name}?
+            </AlertDialog.Title>
+            <AlertDialog.Description className="company-delete-confirm__description">
+              Its member robots become Freelance. This can&apos;t be undone.
+            </AlertDialog.Description>
+            <div className="company-delete-confirm__actions">
+              <AlertDialog.Cancel className="company-delete-confirm__cancel">Cancel</AlertDialog.Cancel>
+              <AlertDialog.Action className="company-delete-confirm__confirm" onClick={handleConfirmDelete}>
+                Delete
+              </AlertDialog.Action>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
     </div>
   );
 }
-
-export default CompanyCrudControls;

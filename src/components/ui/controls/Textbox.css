@@ -1,0 +1,27 @@
+.sc-textbox {
+  color: var(--color-text-primary);
+}
+
+.sc-textbox__content {
+  font-family: var(--font-sans);
+}
+
+/* Oblique Cabinetry facade wrapper, only present when cabinetry={true} (hasCabinetry, Textbox.tsx)
+   — unlike TextInput's unconditional facade, this one genuinely doesn't exist in the DOM when
+   cabinetry is false, so no ":not(.hasCabinetry)" guard is needed on these rules. */
+.sc-textbox.hasCabinetry > .sc-cabinet-box {
+  width: 100%;
+}
+
+/* display: block + height: auto (overrides CabinetBox.css's own fixed height: var(--cabinet-box-height)
+   default by selector specificity) lets the front face size itself to .sc-textbox__content's real
+   content height — exactly what CabinetBox.tsx's autoHeight prop expects its left-face wall to be
+   measured against. Same 12px/14px padding TextInput/DirectionalPanel's own top-level facades use
+   (docs/specs/OBLIQUE_CABINETRY_TEXT_INPUT.md §1.2) — both frame a block of content, not one
+   centered inline line (Button's horizontal-only default). */
+.sc-textbox.hasCabinetry > .sc-cabinet-box > .sc-cabinet-box__front {
+  display: block;
+  width: 100%;
+  height: auto;
+  padding: 12px 14px;
+}

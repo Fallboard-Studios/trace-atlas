@@ -4,68 +4,63 @@
    row merge (the original spec's useHeaderRowFit approach — removed as dead
    code once this restyle superseded it; see
    docs/tasks/HEADER_HUB_CONSOLIDATION.md's "Post-implementation follow-up").
-   Horizontal deadzone clearance (padding-left: var(--sleeve-bar-width))
-   lives on .rocker-spacer in ScreenViewport.css, not here — Task 9's
-   original "applied once to the whole header" placement moved once the
-   secondary nav row was added outside that wrapper.
+   Horizontal deadzone clearance (padding-left: var(--power-corner-width))
+   lives on .rocker-spacer in ScreenViewport.css, not here.
 
-   display: grid (was flex-direction: column) — docs/todo/backlog.md #1:
-   .rocker-spacer and .header__row--nav are this grid's only 2 items,
-   named "rocker"/"nav", letting the single nav RadioButton instance move
-   between its own full-width row (<430px) and sitting beside .rocker-spacer
-   (≥430px) via grid-template-areas alone — no second DOM instance needed.
+   The old nav RadioButton row (.header__row--nav, docs/todo/backlog.md #1)
+   is gone — navigation moved to NavTree (docs/specs/NAV_LAYOUT_REWRITE.md
+   Task 10). Header now lays out just .header__row--volume/--status.
    ---------------------------------------- */
 .header {
   --color-surface: rgba(26, 26, 26, 0.75);
   position: sticky;
-  top: 12px;
-  width: 100%;
+  top: 20px;
+  width: auto;
   z-index: var(--z-header);
   display: flex;
-  flex-direction: column;
+  justify-content: flex-end;
+  padding-right: var(--rocker-column-width);
   gap: var(--spacing-md);
-  padding: var(--spacing-lg) var(--spacing-md);
-  box-sizing: border-box;
-  background: var(--color-surface);
-  border-bottom: var(--border-width) solid var(--border-color);
+  pointer-events: none;
 }
 
-/* Row-direction flex: the Mute toggle (content-sized — see .header__mute-
-   facade below) sits first at its own natural width, the slider afterward
-   claims the rest of the row via flex-grow (below). Row-direction flex items
-   don't stretch along the main axis by default, so the toggle's width is
-   naturally left alone here — only the slider needs an explicit flex rule. */
+@media screen and (min-width: 40em) {
+  .header {
+    top: 32px;
+  }
+}
+
+/* Oblique Cabinetry facade — decorative only (CabinetBox.tsx's `popped` +
+   `skipMountAnimation` + `autoHeight`, wired in Header.tsx), same pattern
+   DirectionalPanel.css uses for its own top-level facade. No width:100%
+   override here (unlike .sc-directional-panel-facade>.sc-cabinet-box) —
+   .header itself is already auto/content-width (sticky, right-anchored via
+   justify-content: flex-end above), so the facade should hug the row's own
+   content width, not stretch to fill .header's cross axis. */
+.header>.sc-cabinet-box>.sc-cabinet-box__front {
+  display: block;
+  width: auto;
+  height: auto;
+  padding: 0;
+}
+
+/* Row-direction flex (≥48em, below): the master volume slider claims the
+   rest of the row via flex-grow (below), the Mute toggle sits after it at
+   its own content-sized width (icon facade — see .header__mute-icon below).
+   Volume moved back here alongside Settings -> Volume's own copy (Crawford's
+   follow-up call after docs/specs/NAV_LAYOUT_REWRITE.md Task 11) — always
+   reachable next to Mute, not gated behind a nav selection. */
 .header__row--volume {
-  grid-area: volume;
+  --mute-width: 60px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  flex-wrap: wrap;
+  justify-content: center;
+  flex-wrap: nowrap;
   gap: var(--spacing-sm);
-  width: 100%;
-  max-width: 220px;
-  grid-column: 2 / span 2;
-  grid-row: 1 / span 1;
-}
-
-@media screen and (min-width: 600px) {
-  .header__row--volume {
-    grid-column: 2 / span 1;
-    gap: var(--spacing-lg);
-    order: 1;
-  }
-}
-
-@media screen and (min-width: 48em) {
-  .header__row--volume {
-    max-width: 205px;
-  }
-}
-
-@media screen and (min-width: 64em) {
-  .header__row--volume {
-    max-width: 640px;
-  }
+  padding: var(--spacing-sm) calc(var(--power-corner-width) + var(--spacing-md)) var(--spacing-sm) var(--spacing-md);
+  background-color: var(--color-bg);
+  pointer-events: all;
 }
 
 /* SliderLinear's own self-fit assumes an externally-determined, non-content-
@@ -97,106 +92,76 @@ sized wrapper (same reasoning audio-rig-drawer__param-row/signature-array-
    the row becomes flex-direction: row and flex-grow/shrink (not align-items)
    already correctly governs this same axis without the fix's help. */
 .header__row--volume .sc-slider-linear {
+  --slider-width: 130px;
   flex: 1 1 auto;
-  min-width: 0;
-  width: 100%;
+  min-width: var(--slider-width);
+  width: fit-content;
+  max-width: var(--slider-width);
   align-self: stretch;
 }
 
-/* Mute's facade — both possible strings ('Volume/Mute' unmuted, 'Volume
-   Muted' muted) stacked in the same grid cell so the box's content-sized
-   width is always driven by whichever renders wider; only the state-matching
-   span is actually visible. visibility (not display: none) keeps both in
-   the intrinsic-size calculation while excluding the hidden one from the
-   accessibility tree and paint. */
-.header__mute-facade {
-  position: relative;
-  display: grid;
+.header__row--volume .sc-toggle {
+  min-width: var(--mute-width);
+  width: var(--mute-width);
 }
 
-.header__mute-facade-text {
-  grid-area: 1 / 1;
-  white-space: nowrap;
-  visibility: hidden;
+/* Mute's icon facade — a single glyph (🔇/🔊, swapped on isMuted in
+   Header.tsx) rather than stacked text, so no width-stability hack is
+   needed here the way the old two-string facade required. */
+.header__mute-icon {
+  line-height: 1;
 }
 
-.header__mute-facade-text[data-visible='true'] {
-  visibility: visible;
-}
-
-.header__row--status {
-  grid-area: status;
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-sm);
-  grid-column: 2 / span 2;
-  grid-row: 2 / span 1;
-  min-width: 100px;
-}
-
-@media screen and (min-width: 600px) {
-  .header__row--status {
-    align-items: flex-end;
-    grid-column: 3 / span 1;
-    grid-row: 1 / span 1;
-  }
-}
-
-@media screen and (min-width: 48em) {
-  .header__row--status {
-    grid-column: 4 / span 1;
-    order: 3;
-  }
-}
-
-
-/* Single instance, no .primary/.secondary split (docs/todo/backlog.md #1) —
-   grid-area: nav is what actually repositions this between .header's own
-   two grid-template-areas states, above. */
-.header__row--nav {
-  grid-area: nav;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-  width: 100%;
-  grid-column: 1 / span 3;
-  grid-row: 3 / span 1;
-}
-
-@media screen and (min-width: 600px) {
-  .header__row--nav {
-    grid-column: 2 / span 2;
-    grid-row: 2 / span 1;
-  }
-}
-
-@media screen and (min-width: 48em) {
-  .header__row--nav {
-    grid-column: 3 / span 1;
-    grid-row: 1 / span 1;
-    order: 2;
-  }
-}
-
-
-.header__row--nav .sc-radio-button__root {
-  justify-content: center;
-}
-
-@media screen and (min-width: 48em) {
+@media screen and (min-width: 40em) {
   .header__row--volume {
-    flex-direction: row;
-  }
-
-  .header__row--nav .sc-radio-button__root {
-    justify-content: flex-end;
+    gap: var(--spacing-lg);
   }
 }
 
-@media screen and (min-width: 1220px) {
+@media screen and (min-width: 400px) {
+  .header__row--volume .sc-slider-linear {
+    --slider-width: 136px;
+  }
+}
+
+@media screen and (min-width: 440px) {
+  .header__row--volume .sc-slider-linear {
+    --slider-width: 178px;
+  }
+}
+
+@media screen and (min-width: 480px) {
+  .header__row--volume .sc-slider-linear {
+    --slider-width: 220px;
+  }
+}
+
+@media screen and (min-width: 40em) {
   .header__row--volume {
-    max-width: 640px;
+    padding: var(--spacing-sm) calc(var(--power-corner-width) + var(--spacing-md)) var(--spacing-sm) var(--spacing-lg);
+    gap: var(--spacing-xl);
+  }
+
+  .header__row--volume .sc-slider-linear {
+    --slider-width: 164px;
+  }
+}
+
+@media screen and (min-width: 840px) {
+  .header__row--volume .sc-slider-linear {
+    --slider-width: 220px;
+  }
+}
+
+@media screen and (min-width: 900px) {
+  .header__row--volume .sc-slider-linear {
+    --slider-width: 264px;
+  }
+}
+
+@media screen and (min-width: 64em) {
+  .header__row--volume .sc-slider-linear {
+    --slider-width: 316px;
   }
 }
 
