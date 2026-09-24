@@ -118,15 +118,9 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
         // Probes' itself has no established trait elsewhere in the app, unlike its own 4 leaves
         // below.
         trait: 'header',
-        // Matches AudioSettingSection/PingControlsDrawer/PingContourDrawer/SignatureArrayDrawer's
-        // own per-section getTraitColorStyle calls (output/composition/timeSpace/spectral) — the
-        // same mapping useNavTree.ts's own SECTION_CHILDREN uses for per-robot/per-company nodes.
-        children: [
-          { id: 'probes.all.volume', humanLabel: 'Volume', trait: 'output' },
-          { id: 'probes.all.melody', humanLabel: 'Melody', trait: 'composition' },
-          { id: 'probes.all.envelope', humanLabel: 'Envelope', trait: 'timeSpace' },
-          { id: 'probes.all.source', humanLabel: 'Source', trait: 'spectral' },
-        ],
+        // Section children are NOT authored here — "All Probes" is a bulk-edit entity like any
+        // robot, so useNavTree.ts's buildProbesSubtree generates its 4 sections (and their
+        // subsections) via the same sectionChildNodes() every per-robot node uses.
       },
     ],
   },

@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useLocaleStore } from '@/stores/localeStore';
-import { useUIStore, type RobotSection, type FleetParamsGroup, type SettingsLeaf, type SelectedFleetParamsEffect, type TopLevelBranch } from '@/stores/uiStore';
+import { useUIStore, type RobotSection, type RobotSubsection, type FleetParamsGroup, type SettingsLeaf, type SelectedFleetParamsEffect, type TopLevelBranch } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { NAV_TREE_SCHEMA, type NavTreeNodeSchema } from '@/data/navTreeConfig';
 
@@ -17,6 +17,20 @@ import { NAV_TREE_SCHEMA, type NavTreeNodeSchema } from '@/data/navTreeConfig';
 const ROBOT_SECTIONS: readonly RobotSection[] = ['volume', 'melody', 'envelope', 'source'];
 function asRobotSection(value: string | undefined): RobotSection | null {
   return value && (ROBOT_SECTIONS as readonly string[]).includes(value) ? (value as RobotSection) : null;
+}
+
+const ROBOT_SUBSECTIONS: readonly RobotSubsection[] = [
+  'audioSettings',
+  'rhythm',
+  'frequency',
+  'pingContour',
+  'baselineOscillator',
+  'coaxialOscillator',
+  'harmonicOscillator',
+  'probeDrift',
+];
+function asRobotSubsection(value: string | undefined): RobotSubsection | null {
+  return value && (ROBOT_SUBSECTIONS as readonly string[]).includes(value) ? (value as RobotSubsection) : null;
 }
 
 const FLEET_PARAMS_GROUPS: readonly FleetParamsGroup[] = ['eqFilters', 'timeSpace', 'output'];
@@ -55,17 +69,42 @@ function asTopLevelBranch(value: string): TopLevelBranch | null {
 // getTraitColorStyle calls (output/composition/timeSpace/spectral respectively), so a
 // probes.<id>.<section> or companies.<id>.<section> row colors itself the same as the actual
 // section content it opens into.
+// 'Volume' renders as 'Output' (label-only rename, docs/intent/nav-panel-views-and-content.md
+// §New 4th tree level) — the id segment stays 'volume', matching RobotSection's own value.
 const SECTION_CHILDREN: Omit<NavTreeNodeSchema, 'id'>[] = [
-  { humanLabel: 'Volume', trait: 'output' },
+  { humanLabel: 'Output', trait: 'output' },
   { humanLabel: 'Melody', trait: 'composition' },
   { humanLabel: 'Envelope', trait: 'timeSpace' },
   { humanLabel: 'Source', trait: 'spectral' },
 ];
 
+// The 4th tree level (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §5.1) — shared by Probes and
+// Companies, same as SECTION_CHILDREN itself. 'Robot Drift' renders as 'Probe Drift' — this is a
+// brand-new node, not a rename of an existing tree label; RobotDriftPanel's own identifier is
+// unaffected.
+const SUBSECTION_CHILDREN: Record<RobotSection, { id: RobotSubsection; humanLabel: string }[]> = {
+  volume: [{ id: 'audioSettings', humanLabel: 'Audio Settings' }],
+  melody: [
+    { id: 'rhythm', humanLabel: 'Rhythm' },
+    { id: 'frequency', humanLabel: 'Frequency' },
+  ],
+  envelope: [{ id: 'pingContour', humanLabel: 'Ping Contour' }],
+  source: [
+    { id: 'baselineOscillator', humanLabel: 'Baseline Oscillator' },
+    { id: 'coaxialOscillator', humanLabel: 'Coaxial Oscillator' },
+    { id: 'harmonicOscillator', humanLabel: 'Harmonic Oscillator' },
+    { id: 'probeDrift', humanLabel: 'Probe Drift' },
+  ],
+};
+
 function sectionChildNodes(entityBranchPrefix: string): NavTreeNodeSchema[] {
   return ROBOT_SECTIONS.map((section, i) => ({
     id: `${entityBranchPrefix}.${section}`,
     ...SECTION_CHILDREN[i],
+    children: SUBSECTION_CHILDREN[section].map((leaf) => ({
+      id: `${entityBranchPrefix}.${section}.${leaf.id}`,
+      humanLabel: leaf.humanLabel,
+    })),
   }));
 }
 
@@ -110,7 +149,13 @@ function useIdentityRoster(localeId: string, key: 'robots' | 'companies'): Ident
 }
 
 function buildProbesSubtree(schema: NavTreeNodeSchema, robots: IdentityEntry[]): NavTreeNodeSchema {
-  const allProbesNode = schema.children?.find((c) => c.id === 'probes.all');
+  const allProbesStatic = schema.children?.find((c) => c.id === 'probes.all');
+  // "All Probes" is a bulk-edit entity like any robot — its section children need the same
+  // sectionChildNodes()-generated 4th level, not the static (now-stale) shape NAV_TREE_SCHEMA
+  // used to hardcode for it.
+  const allProbesNode: NavTreeNodeSchema | undefined = allProbesStatic
+    ? { ...allProbesStatic, children: sectionChildNodes('probes.all') }
+    : undefined;
   const perRobotNodes: NavTreeNodeSchema[] = robots.map((r) => ({
     id: `probes.${r.id}`,
     humanLabel: r.name ?? r.id,
@@ -149,11 +194,14 @@ export function useNavTree(): UseNavTreeResult {
   const selectedRobotId = useUIStore((s) => s.selectedRobotId);
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const selectedSection = useUIStore((s) => s.selectedSection);
+  const selectedSubsection = useUIStore((s) => s.selectedSubsection);
   const selectedSettingsLeaf = useUIStore((s) => s.selectedSettingsLeaf);
   const selectedFleetParamsEffect = useUIStore((s) => s.selectedFleetParamsEffect);
   const expandedProbeId = useUIStore((s) => s.expandedProbeId);
   const expandedCompanyId = useUIStore((s) => s.expandedCompanyId);
   const expandedFleetParamsGroup = useUIStore((s) => s.expandedFleetParamsGroup);
+  const expandedProbeSection = useUIStore((s) => s.expandedProbeSection);
+  const expandedCompanySection = useUIStore((s) => s.expandedCompanySection);
   const expandedTopLevelBranch = useUIStore((s) => s.expandedTopLevelBranch);
   const allProbesSelected = useUIStore((s) => s.allProbesSelected);
 
@@ -163,11 +211,14 @@ export function useNavTree(): UseNavTreeResult {
   const clearSelectedCompany = useUIStore((s) => s.clearSelectedCompany);
   const selectAllRobots = useUIStore((s) => s.selectAllRobots);
   const setSelectedSection = useUIStore((s) => s.setSelectedSection);
+  const setSelectedSubsection = useUIStore((s) => s.setSelectedSubsection);
   const setSelectedSettingsLeaf = useUIStore((s) => s.setSelectedSettingsLeaf);
   const setSelectedFleetParamsEffect = useUIStore((s) => s.setSelectedFleetParamsEffect);
   const setExpandedProbeId = useUIStore((s) => s.setExpandedProbeId);
   const setExpandedCompanyId = useUIStore((s) => s.setExpandedCompanyId);
   const setExpandedFleetParamsGroup = useUIStore((s) => s.setExpandedFleetParamsGroup);
+  const setExpandedProbeSection = useUIStore((s) => s.setExpandedProbeSection);
+  const setExpandedCompanySection = useUIStore((s) => s.setExpandedCompanySection);
   const setExpandedTopLevelBranch = useUIStore((s) => s.setExpandedTopLevelBranch);
   const setAllProbesSelected = useUIStore((s) => s.setAllProbesSelected);
 
@@ -182,7 +233,7 @@ export function useNavTree(): UseNavTreeResult {
   );
 
   function select(id: string): void {
-    const [branch, entityId, section] = id.split('.');
+    const [branch, entityId, section, subsection] = id.split('.');
 
     if (branch === 'settings') {
       setActiveHubTile('settings');
@@ -202,6 +253,7 @@ export function useNavTree(): UseNavTreeResult {
         setAllProbesSelected(false);
         selectRobot(null);
         setSelectedSection(null);
+        setSelectedSubsection(null);
         return;
       }
       if (entityId === 'all') {
@@ -213,6 +265,7 @@ export function useNavTree(): UseNavTreeResult {
         selectRobot(entityId);
       }
       setSelectedSection(asRobotSection(section));
+      setSelectedSubsection(asRobotSubsection(subsection));
       return;
     }
     if (branch === 'companies') {
@@ -220,15 +273,17 @@ export function useNavTree(): UseNavTreeResult {
       if (!entityId) {
         clearSelectedCompany();
         setSelectedSection(null);
+        setSelectedSubsection(null);
         return;
       }
       selectCompany(entityId);
       setSelectedSection(asRobotSection(section));
+      setSelectedSubsection(asRobotSubsection(subsection));
     }
   }
 
   function toggleExpand(id: string): void {
-    const [branch, entityId] = id.split('.');
+    const [branch, entityId, section] = id.split('.');
     if (!entityId) {
       // Bare single-segment id — one of the 4 top-level branch roots (settings/fleetParams/
       // probes/companies). Bugfix: this case was missing entirely, so every top-level node's own
@@ -237,12 +292,24 @@ export function useNavTree(): UseNavTreeResult {
       if (topLevel) setExpandedTopLevelBranch(expandedTopLevelBranch === topLevel ? null : topLevel);
       return;
     }
-    if (branch === 'probes' && entityId) {
+    if (branch === 'probes' && entityId && !section) {
       setExpandedProbeId(expandedProbeId === entityId ? null : entityId);
       return;
     }
-    if (branch === 'companies' && entityId) {
+    if (branch === 'companies' && entityId && !section) {
       setExpandedCompanyId(expandedCompanyId === entityId ? null : entityId);
+      return;
+    }
+    // A 3-segment id (probes.<id>.<section> / companies.<id>.<section>) — the accordion-of-one
+    // one level deeper than expandedProbeId/expandedCompanyId, docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.3.
+    if (branch === 'probes' && entityId && section) {
+      const sec = asRobotSection(section);
+      if (sec) setExpandedProbeSection(expandedProbeSection === sec ? null : sec);
+      return;
+    }
+    if (branch === 'companies' && entityId && section) {
+      const sec = asRobotSection(section);
+      if (sec) setExpandedCompanySection(expandedCompanySection === sec ? null : sec);
       return;
     }
     const group = branch === 'fleetParams' ? asFleetParamsGroup(entityId) : null;
@@ -254,20 +321,23 @@ export function useNavTree(): UseNavTreeResult {
   }
 
   function isExpanded(id: string): boolean {
-    const [branch, entityId] = id.split('.');
+    const [branch, entityId, section] = id.split('.');
     if (!entityId) {
       const topLevel = asTopLevelBranch(branch);
       return topLevel ? expandedTopLevelBranch === topLevel : false;
     }
-    if (branch === 'probes' && entityId) return expandedProbeId === entityId;
-    if (branch === 'companies' && entityId) return expandedCompanyId === entityId;
+    if (branch === 'probes' && entityId && !section) return expandedProbeId === entityId;
+    if (branch === 'companies' && entityId && !section) return expandedCompanyId === entityId;
+    if (branch === 'probes' && entityId && section) return expandedProbeSection === asRobotSection(section);
+    if (branch === 'companies' && entityId && section) return expandedCompanySection === asRobotSection(section);
     if (branch === 'fleetParams' && entityId) return expandedFleetParamsGroup === entityId;
     return false;
   }
 
   function isSelected(id: string): boolean {
-    const [branch, entityId, section] = id.split('.');
+    const [branch, entityId, section, subsection] = id.split('.');
     const wantedSection = asRobotSection(section);
+    const wantedSubsection = asRobotSubsection(subsection);
 
     if (branch === 'settings') {
       if (!entityId) return activeHubTile === 'settings' && selectedSettingsLeaf === null;
@@ -283,13 +353,28 @@ export function useNavTree(): UseNavTreeResult {
     if (branch === 'probes') {
       if (!entityId) return activeHubTile === 'robots' && selectedRobotId === null && !allProbesSelected;
       if (entityId === 'all') {
-        return activeHubTile === 'robots' && allProbesSelected && selectedSection === wantedSection;
+        return (
+          activeHubTile === 'robots' &&
+          allProbesSelected &&
+          selectedSection === wantedSection &&
+          selectedSubsection === wantedSubsection
+        );
       }
-      return activeHubTile === 'robots' && selectedRobotId === entityId && selectedSection === wantedSection;
+      return (
+        activeHubTile === 'robots' &&
+        selectedRobotId === entityId &&
+        selectedSection === wantedSection &&
+        selectedSubsection === wantedSubsection
+      );
     }
     if (branch === 'companies') {
       if (!entityId) return activeHubTile === 'companies' && selectedCompanyId === null;
-      return activeHubTile === 'companies' && selectedCompanyId === entityId && selectedSection === wantedSection;
+      return (
+        activeHubTile === 'companies' &&
+        selectedCompanyId === entityId &&
+        selectedSection === wantedSection &&
+        selectedSubsection === wantedSubsection
+      );
     }
     return false;
   }

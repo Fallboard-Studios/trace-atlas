@@ -158,6 +158,194 @@ describe('useNavTree — dynamic tree merging (docs/tasks/NAV_LAYOUT_REWRITE.md 
   });
 });
 
+describe('useNavTree — 4th tree level, subsection children (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 2)', () => {
+  beforeEach(resetStores);
+
+  it('each robot section has the right subsection children: Output->1, Melody->2, Envelope->1, Source->4', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+
+    expect(findNode('probes.r1.volume', result.current.nodes)?.children?.map((c) => c.id)).toEqual([
+      'probes.r1.volume.audioSettings',
+    ]);
+    expect(findNode('probes.r1.melody', result.current.nodes)?.children?.map((c) => c.id)).toEqual([
+      'probes.r1.melody.rhythm',
+      'probes.r1.melody.frequency',
+    ]);
+    expect(findNode('probes.r1.envelope', result.current.nodes)?.children?.map((c) => c.id)).toEqual([
+      'probes.r1.envelope.pingContour',
+    ]);
+    expect(findNode('probes.r1.source', result.current.nodes)?.children?.map((c) => c.id)).toEqual([
+      'probes.r1.source.baselineOscillator',
+      'probes.r1.source.coaxialOscillator',
+      'probes.r1.source.harmonicOscillator',
+      'probes.r1.source.probeDrift',
+    ]);
+  });
+
+  it('companies get the identical subsection shape as probes, via the same shared sectionChildNodes', () => {
+    useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp'));
+    const { result } = renderHook(() => useNavTree());
+
+    expect(findNode('companies.c1.melody', result.current.nodes)?.children?.map((c) => c.id)).toEqual([
+      'companies.c1.melody.rhythm',
+      'companies.c1.melody.frequency',
+    ]);
+    expect(findNode('companies.c1.source', result.current.nodes)?.children?.map((c) => c.id)).toEqual([
+      'companies.c1.source.baselineOscillator',
+      'companies.c1.source.coaxialOscillator',
+      'companies.c1.source.harmonicOscillator',
+      'companies.c1.source.probeDrift',
+    ]);
+  });
+
+  it('"All Probes" (probes.all) also gains the 4th level — it is a bulk-edit entity like any robot, not a static leaf', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    expect(findNode('probes.all.source', result.current.nodes)?.children?.map((c) => c.id)).toEqual([
+      'probes.all.source.baselineOscillator',
+      'probes.all.source.coaxialOscillator',
+      'probes.all.source.harmonicOscillator',
+      'probes.all.source.probeDrift',
+    ]);
+  });
+
+  it('"All Probes" section children keep the same output/composition/timeSpace/spectral trait mapping as a real robot\'s, unaffected by its own header override', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    expect(findNode('probes.all.volume', result.current.nodes)?.trait).toBe('output');
+    expect(findNode('probes.all.melody', result.current.nodes)?.trait).toBe('composition');
+    expect(findNode('probes.all.envelope', result.current.nodes)?.trait).toBe('timeSpace');
+    expect(findNode('probes.all.source', result.current.nodes)?.trait).toBe('spectral');
+  });
+
+  it('renames "Volume" to "Output" and "Robot Drift" to "Probe Drift" as humanLabels only — id segments stay volume/probeDrift', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+
+    const volumeNode = findNode('probes.r1.volume', result.current.nodes);
+    expect(volumeNode?.humanLabel).toBe('Output');
+    expect(volumeNode?.id).toBe('probes.r1.volume');
+
+    const probeDriftNode = findNode('probes.r1.source.probeDrift', result.current.nodes);
+    expect(probeDriftNode?.humanLabel).toBe('Probe Drift');
+    expect(probeDriftNode?.id).toBe('probes.r1.source.probeDrift');
+  });
+});
+
+describe('useNavTree — select() maps a subsection id to selectedSubsection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 2)', () => {
+  beforeEach(resetStores);
+
+  it('selecting probes.<id>.source.probeDrift sets selectedSection AND selectedSubsection', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('probes.r1.source.probeDrift'));
+
+    expect(useUIStore.getState().selectedRobotId).toBe('r1');
+    expect(useUIStore.getState().selectedSection).toBe('source');
+    expect(useUIStore.getState().selectedSubsection).toBe('probeDrift');
+  });
+
+  it('selecting companies.<id>.melody.rhythm sets selectedSection AND selectedSubsection, equivalent mapping to probes', () => {
+    useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp'));
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('companies.c1.melody.rhythm'));
+
+    expect(useUIStore.getState().selectedCompanyId).toBe('c1');
+    expect(useUIStore.getState().selectedSection).toBe('melody');
+    expect(useUIStore.getState().selectedSubsection).toBe('rhythm');
+  });
+
+  it('selecting a mid-level section (no subsection) clears selectedSubsection back to null', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('probes.r1.source.probeDrift'));
+
+    act(() => result.current.select('probes.r1.melody'));
+
+    expect(useUIStore.getState().selectedSection).toBe('melody');
+    expect(useUIStore.getState().selectedSubsection).toBeNull();
+  });
+
+  it('selecting the bare robot (no section) clears both selectedSection and selectedSubsection', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('probes.r1.source.probeDrift'));
+
+    act(() => result.current.select('probes.r1'));
+
+    expect(useUIStore.getState().selectedSection).toBeNull();
+    expect(useUIStore.getState().selectedSubsection).toBeNull();
+  });
+});
+
+describe('useNavTree — isSelected on a full 4-segment subsection id (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 2)', () => {
+  beforeEach(resetStores);
+
+  it('is true only for the exact selected subsection, false for its siblings and its own parent section', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('probes.r1.source.probeDrift'));
+
+    expect(result.current.isSelected('probes.r1.source.probeDrift')).toBe(true);
+    expect(result.current.isSelected('probes.r1.source.baselineOscillator')).toBe(false);
+    expect(result.current.isSelected('probes.r1.source')).toBe(false);
+  });
+});
+
+describe('useNavTree — toggleExpand/isExpanded accordion-of-one for a section within an expanded probe/company (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 2)', () => {
+  beforeEach(resetStores);
+
+  it('expanding probes.<id>.melody sets expandedProbeSection, independent of expandedProbeId', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.toggleExpand('probes.r1'));
+    act(() => result.current.toggleExpand('probes.r1.melody'));
+
+    expect(useUIStore.getState().expandedProbeId).toBe('r1');
+    expect(useUIStore.getState().expandedProbeSection).toBe('melody');
+    expect(result.current.isExpanded('probes.r1.melody')).toBe(true);
+  });
+
+  it('expanding a different section under the same probe clears the previously-expanded one — accordion-of-one', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.toggleExpand('probes.r1.melody'));
+    act(() => result.current.toggleExpand('probes.r1.source'));
+
+    expect(useUIStore.getState().expandedProbeSection).toBe('source');
+    expect(result.current.isExpanded('probes.r1.melody')).toBe(false);
+    expect(result.current.isExpanded('probes.r1.source')).toBe(true);
+  });
+
+  it('expandedProbeSection and expandedCompanySection are independent of each other', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp'));
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.toggleExpand('probes.r1.melody'));
+    act(() => result.current.toggleExpand('companies.c1.source'));
+
+    expect(useUIStore.getState().expandedProbeSection).toBe('melody');
+    expect(useUIStore.getState().expandedCompanySection).toBe('source');
+  });
+
+  it('toggling an already-expanded section again collapses it', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.toggleExpand('probes.r1.melody'));
+    act(() => result.current.toggleExpand('probes.r1.melody'));
+
+    expect(useUIStore.getState().expandedProbeSection).toBeNull();
+  });
+});
+
 describe('useNavTree — select() maps generic node ids to typed uiStore fields (Task 3 AC1)', () => {
   beforeEach(resetStores);
 

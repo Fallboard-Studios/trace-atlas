@@ -69,14 +69,9 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
     expect(probes?.children?.map((c) => c.id)).toEqual(['probes.all']);
   });
 
-  it('Probes -> All Probes has the 4 bulk-edit leaf children: Volume/Melody/Envelope/Source', () => {
+  it('Probes -> All Probes has no static children — it is a bulk-edit entity like any robot, and useNavTree.ts\'s buildProbesSubtree generates its 4 sections (and their subsections) via sectionChildNodes(), same as useNavTree.test.ts covers for per-robot/per-company nodes (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 2)', () => {
     const all = findNode('probes.all');
-    expect(all?.children?.map((c) => c.id)).toEqual([
-      'probes.all.volume',
-      'probes.all.melody',
-      'probes.all.envelope',
-      'probes.all.source',
-    ]);
+    expect(all?.children).toBeUndefined();
   });
 
   it('Companies is a static parent with no static children — per-company subtrees are generated at render time', () => {
@@ -112,10 +107,6 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
       'fleetParams.output.limiter', // Task 14
       'probes', // Task 18/19
       'probes.all', // Task 19
-      'probes.all.volume', // Task 19
-      'probes.all.melody', // Task 19
-      'probes.all.envelope', // Task 19
-      'probes.all.source', // Task 19
       'companies', // Task 20
     ];
     for (const id of idsReferencedByLaterTasks) {
@@ -158,10 +149,7 @@ describe('NAV_TREE_SCHEMA — trait color-coding (experimental, Crawford\'s own 
     expect(findNode('probes.all')?.trait).toBe('header');
   });
 
-  it('Probes -> All Probes\' 4 leaves carry the same output/composition/timeSpace/spectral mapping the per-robot/per-company section children use (useNavTree.ts\'s own SECTION_CHILDREN) — unaffected by All Probes\' own header override', () => {
-    expect(findNode('probes.all.volume')?.trait).toBe('output');
-    expect(findNode('probes.all.melody')?.trait).toBe('composition');
-    expect(findNode('probes.all.envelope')?.trait).toBe('timeSpace');
-    expect(findNode('probes.all.source')?.trait).toBe('spectral');
-  });
+  // "All Probes"' 4 section leaves' output/composition/timeSpace/spectral trait mapping is now
+  // covered where they're generated — useNavTree.ts's own SECTION_CHILDREN, exercised by
+  // useNavTree.test.ts — not here, since they're no longer part of the static schema.
 });
