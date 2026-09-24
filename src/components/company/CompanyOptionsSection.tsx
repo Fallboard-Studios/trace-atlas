@@ -5,6 +5,7 @@ import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
 import { SignatureArrayLayer, RobotDriftPanel, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { useSectionObserver } from '@/components/panels/screen/nav/useSectionObserver';
+import { useAccordionOpenState } from '@/components/panels/screen/nav/useAccordionOpenState';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
@@ -17,7 +18,7 @@ import {
 } from '@/systems/robotOptionsActions';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
 import { VOLUME_LFO_TARGET, SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
-import { FIRST_SUBSECTION_OF, SOURCE_OSCILLATOR_SUBSECTIONS, OSCILLATOR_LABELS } from '@/data/robotSubsectionConfig';
+import { SOURCE_OSCILLATOR_SUBSECTIONS, OSCILLATOR_LABELS } from '@/data/robotSubsectionConfig';
 import { LFO_RATE_MIN, LFO_DEPTH_MIN } from '@/types/lfo';
 import { getTraitColorStyle, getDisabledTraitColorStyle } from '@/utils/traitColors';
 import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
@@ -78,11 +79,15 @@ function sectionAnchorRef(id: string) {
  * PingControlsFrequencySection/PingContourDrawer/SignatureArrayLayer/RobotDriftPanel (Roadmap
  * Phase 10) — the counterpart to RobotOptionsTab's "robot mode." Stacked view (docs/specs/
  * NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, Task 13) mirrors RobotOptionsTab's own Task 11 pattern
- * directly: all 4 sections' worth of subsections stacked, each in a controlled AccordionContainer,
- * exactly one open at a time across the whole view. No top metadata block here (unlike
- * RobotDisplaySection) — CompanyRenameDeleteForm plays that role, rendered by CompaniesContent.tsx
- * above this component, not inside it; the bare "All Probes" call site (ProbesContent.tsx) has no
- * equivalent at all.
+ * directly: all 4 sections' worth of subsections stacked, each in its own accordion with manual,
+ * independent open/closed state (`useAccordionOpenState`) — a nav click only scrolls to a section,
+ * and scrollspy only updates `selectedSection`/`selectedSubsection` for tree highlighting; neither
+ * opens or closes an accordion (Crawford's own follow-up call, 2026-09-24, reversing this pass's
+ * original derived-single-open-accordion design). Audio Settings opens by default on mount, and
+ * again whenever `prefix` changes (switching between All Probes/a different company). No top
+ * metadata block here (unlike RobotDisplaySection) — CompanyRenameDeleteForm plays that role,
+ * rendered by CompaniesContent.tsx above this component, not inside it; the bare "All Probes" call
+ * site (ProbesContent.tsx) has no equivalent at all.
  *
  * Reads `allRobotsSelected`/`selectedCompanyId` directly from uiStore (no more `section` prop —
  * both real call sites, ProbesContent and CompaniesContent, now render this prop-less and let it
@@ -108,8 +113,6 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
   const localeId = getActiveLocaleId();
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const allRobotsSelected = useUIStore((s) => s.allRobotsSelected);
-  const selectedSection = useUIStore((s) => s.selectedSection);
-  const selectedSubsection = useUIStore((s) => s.selectedSubsection);
   const setSelectedSection = useUIStore((s) => s.setSelectedSection);
   const setSelectedSubsection = useUIStore((s) => s.setSelectedSubsection);
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
@@ -335,11 +338,6 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
     patchSnapshot({ lfoSettings: { ...resolved?.lfoSettings, [target]: value } });
   }, [localeId, patchSnapshot]);
 
-  // Derived-open (spec §1.5) — null section/subsection falls back to the first leaf in tree order,
-  // so exactly one subsection is always open, never "nothing selected."
-  const openSection = selectedSection ?? 'volume';
-  const openSubsection = selectedSubsection ?? FIRST_SUBSECTION_OF[openSection as RobotSection];
-
   const subsectionIds = useMemo(() => [
     `${prefix}.volume.audioSettings`,
     `${prefix}.melody.rhythm`,
@@ -359,16 +357,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
     setSelectedSubsection(sub);
   });
 
-  function makeOnOpenChange(sec: RobotSection, sub: RobotSubsection) {
-    return (open: boolean) => {
-      if (open) {
-        setSelectedSection(sec);
-        setSelectedSubsection(sub);
-      } else {
-        setSelectedSubsection(null);
-      }
-    };
-  }
+  const { isOpen, setOpen } = useAccordionOpenState(`${prefix}.volume.audioSettings`, prefix);
 
   return (
     <div className="company-options-section">
@@ -376,8 +365,8 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
         <div ref={sectionAnchorRef(`${prefix}.volume.audioSettings`)}>
           <AccordionContainer
             schema={{ id: `${prefix}.volume.audioSettings`, type: 'accordion', humanLabel: 'Audio Settings' } satisfies AccordionSchema}
-            open={openSubsection === 'audioSettings'}
-            onOpenChange={makeOnOpenChange('volume', 'audioSettings')}
+            open={isOpen(`${prefix}.volume.audioSettings`)}
+            onOpenChange={(open) => setOpen(`${prefix}.volume.audioSettings`, open)}
             style={active ? OUTPUT_ACTIVE_STYLE : OUTPUT_DISABLED_STYLE}
           >
             {hasApproached(`${prefix}.volume.audioSettings`) ? (
@@ -397,8 +386,8 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
         <div ref={sectionAnchorRef(`${prefix}.melody.rhythm`)}>
           <AccordionContainer
             schema={{ id: `${prefix}.melody.rhythm`, type: 'accordion', humanLabel: 'Rhythm' } satisfies AccordionSchema}
-            open={openSubsection === 'rhythm'}
-            onOpenChange={makeOnOpenChange('melody', 'rhythm')}
+            open={isOpen(`${prefix}.melody.rhythm`)}
+            onOpenChange={(open) => setOpen(`${prefix}.melody.rhythm`, open)}
             style={active ? COMPOSITION_ACTIVE_STYLE : COMPOSITION_DISABLED_STYLE}
           >
             {hasApproached(`${prefix}.melody.rhythm`) ? (
@@ -417,8 +406,8 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
         <div ref={sectionAnchorRef(`${prefix}.melody.frequency`)}>
           <AccordionContainer
             schema={{ id: `${prefix}.melody.frequency`, type: 'accordion', humanLabel: 'Frequency' } satisfies AccordionSchema}
-            open={openSubsection === 'frequency'}
-            onOpenChange={makeOnOpenChange('melody', 'frequency')}
+            open={isOpen(`${prefix}.melody.frequency`)}
+            onOpenChange={(open) => setOpen(`${prefix}.melody.frequency`, open)}
             style={active ? COMPOSITION_ACTIVE_STYLE : COMPOSITION_DISABLED_STYLE}
           >
             {hasApproached(`${prefix}.melody.frequency`) ? (
@@ -438,8 +427,8 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
         <div ref={sectionAnchorRef(`${prefix}.envelope.pingContour`)}>
           <AccordionContainer
             schema={{ id: `${prefix}.envelope.pingContour`, type: 'accordion', humanLabel: 'Ping Contour' } satisfies AccordionSchema}
-            open={openSubsection === 'pingContour'}
-            onOpenChange={makeOnOpenChange('envelope', 'pingContour')}
+            open={isOpen(`${prefix}.envelope.pingContour`)}
+            onOpenChange={(open) => setOpen(`${prefix}.envelope.pingContour`, open)}
             style={active ? TIME_SPACE_ACTIVE_STYLE : TIME_SPACE_DISABLED_STYLE}
           >
             {hasApproached(`${prefix}.envelope.pingContour`) ? (
@@ -457,8 +446,8 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
             <div key={sub} ref={sectionAnchorRef(id)}>
               <AccordionContainer
                 schema={{ id, type: 'accordion', humanLabel: OSCILLATOR_LABELS[sub] } satisfies AccordionSchema}
-                open={openSubsection === sub}
-                onOpenChange={makeOnOpenChange('source', sub)}
+                open={isOpen(id)}
+                onOpenChange={(open) => setOpen(id, open)}
                 style={active ? SPECTRAL_ACTIVE_STYLE : SPECTRAL_DISABLED_STYLE}
               >
                 {hasApproached(id) && layer ? (
@@ -480,8 +469,8 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
         <div ref={sectionAnchorRef(`${prefix}.source.probeDrift`)}>
           <AccordionContainer
             schema={{ id: `${prefix}.source.probeDrift`, type: 'accordion', humanLabel: 'Probe Drift' } satisfies AccordionSchema}
-            open={openSubsection === 'probeDrift'}
-            onOpenChange={makeOnOpenChange('source', 'probeDrift')}
+            open={isOpen(`${prefix}.source.probeDrift`)}
+            onOpenChange={(open) => setOpen(`${prefix}.source.probeDrift`, open)}
             style={active ? SPECTRAL_ACTIVE_STYLE : SPECTRAL_DISABLED_STYLE}
           >
             {hasApproached(`${prefix}.source.probeDrift`) ? <RobotDriftPanel /> : null}

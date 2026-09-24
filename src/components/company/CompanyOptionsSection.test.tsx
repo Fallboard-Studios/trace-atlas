@@ -203,13 +203,36 @@ describe('CompanyOptionsSection', () => {
     expect(screen.getByRole('button', { name: 'Rhythm' }).getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('clicking a different subsection opens only it and updates selectedSection/selectedSubsection', () => {
+  it('clicking a subsection\'s own trigger opens it directly, without touching selectedSection/selectedSubsection or closing any other open accordion', () => {
     render(<CompanyOptionsSection />);
     fireEvent.click(screen.getByRole('button', { name: 'Probe Drift' }));
-    expect(useUIStore.getState().selectedSection).toBe('source');
-    expect(useUIStore.getState().selectedSubsection).toBe('probeDrift');
     expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('false');
+    // Audio Settings (the default-open one) stays open too — multiple accordions can be open at once.
+    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(useUIStore.getState().selectedSection).toBeNull();
+    expect(useUIStore.getState().selectedSubsection).toBeNull();
+  });
+
+  it('selecting a subsection via the nav tree does not open or close any accordion — nav selection only drives tree highlighting now', () => {
+    render(<CompanyOptionsSection />);
+    act(() => {
+      useUIStore.getState().setSelectedSection('source');
+      useUIStore.getState().setSelectedSubsection('probeDrift');
+    });
+    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('switching entity (All Probes -> a company) resets accordion state back to the default', () => {
+    const { rerender } = render(<CompanyOptionsSection />);
+    fireEvent.click(screen.getByRole('button', { name: 'Probe Drift' }));
+    expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('true');
+
+    act(() => selectActiveCompany());
+    rerender(<CompanyOptionsSection />);
+
+    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('a subsection\'s real content is not in the DOM until its own anchor has been approached', () => {
