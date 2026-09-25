@@ -190,12 +190,12 @@ Task 3 (UnderlineLinkNavRow.tsx/.css/.test.tsx)            │              │
   **Description:** Add `UnderlineLink` to `docs/COMPONENT_LIBRARY.md`'s primitive list, spot-checked against the actually-shipped `UnderlineLink.tsx`/`UnderlineLinkNavRow.tsx` (Tasks 1/3), not this plan's draft — note its GSAP+`timelineMap` pop mechanism (mirroring `CabinetBox` in simplified form) and that it carries no text of its own.
 
   **Acceptance criteria:**
-  - [ ] `docs/COMPONENT_LIBRARY.md` documents `UnderlineLink`'s props and its use inside `UnderlineLinkNavRow` for the nav tree's two deepest levels.
-  - [ ] No claim in the new entry is contradicted by the actual shipped source (spot-checked directly).
+  - [x] `docs/COMPONENT_LIBRARY.md` documents `UnderlineLink`'s props and its use inside `UnderlineLinkNavRow` for the nav tree's two deepest levels.
+  - [x] No claim in the new entry is contradicted by the actual shipped source (spot-checked directly).
 
   **Verification:**
-  - [ ] Manual review — spot-checked directly against the shipped `UnderlineLink.tsx`/`UnderlineLinkNavRow.tsx`.
-  - [ ] `npm run build:types`, `npm run lint` clean (docs-only change).
+  - [x] Manual review — spot-checked directly against the shipped `UnderlineLink.tsx`/`UnderlineLinkNavRow.tsx`/`NavTreeNode.tsx`/`useNavTree.ts`.
+  - [x] `npm run build:types`, `npm run lint` clean (docs-only change).
 
   **Dependencies:** Task 4.
 
@@ -204,10 +204,10 @@ Task 3 (UnderlineLinkNavRow.tsx/.css/.test.tsx)            │              │
   **Estimated scope:** XS (docs only)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm run build` all clean; `npm test` full suite passes.
-- [ ] All acceptance criteria across all 6 tasks are met.
-- [ ] `docs/COMPONENT_LIBRARY.md` reflects the shipped feature.
-- [ ] Manual visual + keyboard pass completed by Crawford directly against the running app (this plan's tasks list manual checks at Tasks 4/5; no automated browser tooling is assumed available, matching this repo's own precedent in `docs/tasks/OBLIQUE_CABINETRY_FOUNDATION.md`).
+- [x] `npm run build:types`, `npm run lint`, `npm run build` all clean; `npm test` full suite passes (same 5 pre-existing unrelated failures as noted at the Phase 3 checkpoint).
+- [x] All acceptance criteria across all 6 tasks are met, except the manual browser checks noted below.
+- [x] `docs/COMPONENT_LIBRARY.md` reflects the shipped feature.
+- [ ] **Manual visual + keyboard pass by Crawford, against the running app, is still outstanding** — no browser automation was available in this implementing session (Tasks 4/5's own verification items). This is the one item this checklist cannot mark done on its own.
 
 ## Risks and Mitigations
 
