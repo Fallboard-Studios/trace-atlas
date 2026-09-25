@@ -118,9 +118,9 @@ Tasks 1 and 2 don't read each other's output and could be done in either order; 
   **Estimated scope:** M (one file, but the full structural rewrite of its render + observer wiring)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every acceptance criterion across Tasks 1-3 holds simultaneously (Tempo/Automatic Intensity work correctly, inside the new uniform 4-group-accordion structure, inside the spectral outer panel).
-- [ ] Manual pass through all 4 groups in the running app, per Task 3's manual check.
+- [x] `npm run build:types`, `npm run lint`, `npm run build` all clean. `npm test` (full suite) has 18 pre-existing failures unrelated to this rework (separate uncommitted content-pass WIP in `navTreeConfig.ts`/`useNavTree.ts`, plus pre-existing flaky media-query tests) — confirmed via `git stash` that they fail identically without this rework's changes.
+- [x] Every acceptance criterion across Tasks 1-3 holds simultaneously (Tempo/Automatic Intensity work correctly, inside the new uniform 4-group-accordion structure, inside the spectral outer panel) — verified by the 22-test `FleetParamsContent.test.tsx` suite.
+- [ ] Manual pass through all 4 groups in the running app, per Task 3's manual check — **not yet performed**, pending Crawford.
 - [ ] Review with human — this closes out `docs/specs/FLEET_PARAMS_CONTENT_REWORK.md`.
 
 ## Risks and Mitigations
