@@ -29,9 +29,9 @@ vi.mock('./useNavTree', async (importOriginal) => {
   };
 });
 
-vi.mock('./UnderlineLinkNavRow', () => ({
-  UnderlineLinkNavRow: ({ node, onClick, color }: { node: { id: string; humanLabel: string }; onClick: () => void; color: string }) => (
-    <button data-testid="underline-link-nav-row" data-node-id={node.id} data-color={color} onClick={onClick}>
+vi.mock('./NavCabinetRow', () => ({
+  NavCabinetRow: ({ node, onClick, color }: { node: { id: string; humanLabel: string }; onClick: () => void; color: string }) => (
+    <button data-testid="nav-cabinet-row" data-node-id={node.id} data-color={color} onClick={onClick}>
       {node.humanLabel}
     </button>
   ),
@@ -222,12 +222,13 @@ describe('NavTreeNode — row-chrome dispatch for the deepest 2 tree levels (doc
     mockToggleExpand.mockReset();
   });
 
-  it('a node matching isDeepestTwoLevels renders UnderlineLinkNavRow, not Button/CabinetBox/Toggle', () => {
+  it('a node matching isDeepestTwoLevels renders NavCabinetRow, not Button/CabinetBox/Toggle', () => {
     const node: NavTreeNodeSchema = { id: 'fleetParams.pacing.tempo', humanLabel: 'Tempo' };
     const { container } = render(<NavTreeNode node={node} depth={3} />);
 
-    expect(screen.getByTestId('underline-link-nav-row')).toBeTruthy();
-    // No CabinetBox chrome anywhere — confirms the Button branch didn't also render.
+    expect(screen.getByTestId('nav-cabinet-row')).toBeTruthy();
+    // No CabinetBox chrome anywhere — confirms the Button branch didn't also render (NavCabinetRow
+    // itself is mocked, so a real .sc-cabinet-box here would only come from the Button branch).
     expect(container.querySelector('.sc-cabinet-box')).toBeNull();
     expect(screen.queryByRole('switch')).toBeNull();
   });
@@ -235,30 +236,30 @@ describe('NavTreeNode — row-chrome dispatch for the deepest 2 tree levels (doc
   it('a branch/entity node is unaffected — still Button+CabinetBox, Toggle present when it has children', () => {
     render(<NavTreeNode node={CATEGORY} depth={1} />);
 
-    expect(screen.queryByTestId('underline-link-nav-row')).toBeNull();
+    expect(screen.queryByTestId('nav-cabinet-row')).toBeNull();
     expect(screen.getByRole('button', { name: 'Settings' })).toBeTruthy();
     expect(screen.getByRole('switch', { name: /expand settings/i })).toBeTruthy();
   });
 
-  it('clicking an UnderlineLinkNavRow selects it and scrolls to its section anchor, same as a Button row', () => {
+  it('clicking a NavCabinetRow selects it and scrolls to its section anchor, same as a Button row', () => {
     const node: NavTreeNodeSchema = { id: 'fleetParams.pacing.tempo', humanLabel: 'Tempo' };
     render(<NavTreeNode node={node} depth={3} />);
-    fireEvent.click(screen.getByTestId('underline-link-nav-row'));
+    fireEvent.click(screen.getByTestId('nav-cabinet-row'));
 
     expect(mockSelect).toHaveBeenCalledWith('fleetParams.pacing.tempo');
     expect(scrollToSection).toHaveBeenCalledWith('fleetParams.pacing.tempo');
   });
 
-  it('an untraited leaf beneath a traited mid-level node receives that ancestor\'s resolved color as UnderlineLinkNavRow\'s color prop', () => {
+  it('an untraited leaf beneath a traited mid-level node receives that ancestor\'s resolved color as NavCabinetRow\'s color prop', () => {
     mockIsExpanded.mockReturnValue(true);
     const leaf: NavTreeNodeSchema = { id: 'fleetParams.pacing.tempo', humanLabel: 'Tempo' };
     const pacing: NavTreeNodeSchema = { id: 'fleetParams.pacing', humanLabel: 'Pacing', trait: 'composition', children: [leaf] };
     render(<NavTreeNode node={pacing} depth={2} />);
 
     const [a] = TRAIT_COLORS.composition;
-    // Both Pacing (its own trait) and Tempo (inheriting Pacing's) render as underline rows here —
+    // Both Pacing (its own trait) and Tempo (inheriting Pacing's) render as cabinet rows here —
     // scope to the leaf specifically, not Pacing's own (also-matching) row.
-    const rows = screen.getAllByTestId('underline-link-nav-row');
+    const rows = screen.getAllByTestId('nav-cabinet-row');
     const tempoRow = rows.find((r) => r.getAttribute('data-node-id') === 'fleetParams.pacing.tempo')!;
     expect(tempoRow.getAttribute('data-color')).toContain(a);
   });
@@ -273,7 +274,7 @@ describe('NavTreeNode — row-chrome dispatch for the deepest 2 tree levels (doc
     render(<NavTreeNode node={settingsBranch} depth={1} />);
 
     const [seedA] = TRAIT_COLORS.seed;
-    const row = screen.getByTestId('underline-link-nav-row');
+    const row = screen.getByTestId('nav-cabinet-row');
     expect(row.getAttribute('data-color')).toContain(seedA);
   });
 

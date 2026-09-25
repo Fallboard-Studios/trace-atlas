@@ -1,5 +1,5 @@
 import { useNavTree, isDeepestTwoLevels, isCollapsible } from './useNavTree';
-import { UnderlineLinkNavRow } from './UnderlineLinkNavRow';
+import { NavCabinetRow } from './NavCabinetRow';
 import { Button } from '@/components/ui/controls/Button';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { Toggle } from '@/components/ui/controls/Toggle';
@@ -11,7 +11,7 @@ import './NavTreeNode.css';
 
 /** Fallback used only when neither a node nor any of its ancestors ever resolved a trait/color —
  *  shouldn't happen in practice (every top-level branch carries its own trait), but keeps
- *  UnderlineLinkNavRow's required `color` prop defined regardless. */
+ *  NavCabinetRow's required `color` prop defined regardless. */
 const DEFAULT_UNDERLINE_COLOR = 'var(--color-accent)';
 
 interface NavTreeNodeProps {
@@ -54,7 +54,7 @@ export function NavTreeNode({ node, depth, focusedId, inheritedColor }: NavTreeN
   // NOT inherit via CSS cascade despite appearances (docs/specs/
   // NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.2's finding); branch/entity rows are unaffected by
   // that (their own Button/CabinetBox chrome never needed cross-row inheritance to look right),
-  // but the deepest 2 levels' own UnderlineLink color does need a real resolved value — see
+  // but the deepest 2 levels' own NavCabinetRow color does need a real resolved value — see
   // resolvedColor below, computed in JS and threaded via the inheritedColor prop instead.
   const ownColorStyle = node.color
     ? getRobotColorStyle(node.color)
@@ -62,7 +62,7 @@ export function NavTreeNode({ node, depth, focusedId, inheritedColor }: NavTreeN
       ? getTraitColorStyle(node.trait)
       : undefined;
   // This node's own resolved color if it has one, else whatever it was itself handed — relayed
-  // to children regardless of whether THIS row is an UnderlineLink row, so a color set several
+  // to children regardless of whether THIS row is a NavCabinetRow, so a color set several
   // levels up still reaches an untraited leaf several levels down. getTraitColorStyle/
   // getRobotColorStyle both always set --color-accent (traitColors.ts's own buildAccentStyle) —
   // typed as plain CSSProperties there since most callers apply it as an inline style wholesale
@@ -95,7 +95,7 @@ export function NavTreeNode({ node, depth, focusedId, inheritedColor }: NavTreeN
       style={ownColorStyle}
     >
       {useUnderlineChrome ? (
-        <UnderlineLinkNavRow
+        <NavCabinetRow
           node={node}
           color={resolvedColor}
           onClick={() => {
