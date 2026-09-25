@@ -179,6 +179,19 @@ describe('FleetParamsContent — 4 uniform group accordions (docs/tasks/FLEET_PA
     expect(screen.getByTestId('audio-rig-drawer-stub')).toBeTruthy();
   });
 
+  it('renders the Tempo slider and Automatic Intensity together inside one shared panel, not two separate ones', () => {
+    render(<FleetParamsContent />);
+    approachLeaf('fleetParams.pacing.tempo');
+    approachLeaf('fleetParams.pacing.automaticEffects');
+
+    const slider = screen.getByRole('slider', { name: /tempo/i });
+    const drawerStub = screen.getByTestId('audio-rig-drawer-stub');
+    const panel = slider.closest('.sc-directional-panel');
+
+    expect(panel).not.toBeNull();
+    expect(panel!.contains(drawerStub)).toBe(true);
+  });
+
   it("scrolling to a group's own anchor (scrollspy) sets selectedFleetParamsEffect to that group's first leaf", () => {
     render(<FleetParamsContent />);
 

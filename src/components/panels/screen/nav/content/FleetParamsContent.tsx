@@ -3,15 +3,25 @@ import { useSectionObserver } from '../useSectionObserver';
 import { useAccordionOpenState } from '../useAccordionOpenState';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
+import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { BPM_SCHEMA, type AudioRigEffectKey } from '@/data/audioRigConfig';
 import { useUIStore, type FleetParamsGroup, type SelectedFleetParamsEffect } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { getTraitColorStyle } from '@/utils/traitColors';
-import type { AccordionSchema } from '@/types/controls';
+import type { AccordionSchema, DirectionalPanelSchema } from '@/types/controls';
 import type { Trait } from '@/types/traits';
 import './FleetParamsContent.css';
+
+/** Groups Tempo and Automatic Intensity into one shared panel (Crawford's own follow-up call,
+ *  2026-09-25) — restores the pairing BPM_SCHEMA/PING_VARIANCE_AUTOMATION_SCHEMA originally had
+ *  before Tempo moved out to its own leaf (see audioRigConfig.ts's own SPEED_AUTOMATION_PANEL_SCHEMA
+ *  comment). Top-level (not nested in anything else at this point), so it's the one CabinetBox
+ *  facade both leaves render inside — AudioRigDrawer's own internal DirectionalPanel becomes
+ *  nested once rendered here and loses its own separate facade, by design (one shared box, not
+ *  two). Pacing-only: the other 3 groups' leaves each keep their own separate panel. */
+const PACING_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.row', type: 'directionalPanel', orientation: 'responsive' };
 
 interface FleetParamsLeaf {
   id: string;
@@ -99,7 +109,11 @@ function sectionAnchorRef(id: string) {
  *  AudioRigEffectPanel path unchanged. */
 function renderLeaf(effectKey: SelectedFleetParamsEffect, bpm: number) {
   if (effectKey === 'tempo') {
-    return <SliderLinear schema={BPM_SCHEMA} value={bpm} onChange={(v) => useAudioStore.getState().setBPM(v)} />;
+    return (
+      <div className="audio-rig-drawer__param-row">
+        <SliderLinear schema={BPM_SCHEMA} value={bpm} onChange={(v) => useAudioStore.getState().setBPM(v)} />
+      </div>
+    );
   }
   if (effectKey === 'automaticEffects') {
     return <AudioRigDrawer />;
@@ -168,11 +182,21 @@ export function FleetParamsContent() {
                     humanDescription={PLACEHOLDER_HUMAN}
                     trait={group.trait}
                   />
-                  {group.leaves.map((leaf) => (
-                    <div key={leaf.id} ref={sectionAnchorRef(leaf.id)}>
-                      {leafHasApproached(leaf.id) ? renderLeaf(leaf.effectKey, bpm) : null}
-                    </div>
-                  ))}
+                  {group.id === 'pacing' ? (
+                    <DirectionalPanel schema={PACING_ROW_SCHEMA}>
+                      {group.leaves.map((leaf) => (
+                        <div key={leaf.id} ref={sectionAnchorRef(leaf.id)}>
+                          {leafHasApproached(leaf.id) ? renderLeaf(leaf.effectKey, bpm) : null}
+                        </div>
+                      ))}
+                    </DirectionalPanel>
+                  ) : (
+                    group.leaves.map((leaf) => (
+                      <div key={leaf.id} ref={sectionAnchorRef(leaf.id)}>
+                        {leafHasApproached(leaf.id) ? renderLeaf(leaf.effectKey, bpm) : null}
+                      </div>
+                    ))
+                  )}
                 </>
               ) : null}
             </AccordionContainer>
