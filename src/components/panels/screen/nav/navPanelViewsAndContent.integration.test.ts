@@ -65,7 +65,9 @@ describe('Nav panel — cross-branch regression (docs/tasks/NAV_PANEL_VIEWS_AND_
 
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('companies');
     expect(useUIStore.getState().expandedCompanyId).toBe('c1');
-    expect(useUIStore.getState().expandedCompanySection).toBe('source');
+    // Its own section is already always-expanded once the company itself is — no separate field
+    // to set (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3).
+    expect(result.current.isExpanded('companies.c1.source')).toBe(true);
     expect(useUIStore.getState().selectedCompanyId).toBe('c1');
     expect(useUIStore.getState().selectedSection).toBe('source');
     expect(useUIStore.getState().selectedSubsection).toBe('probeDrift');

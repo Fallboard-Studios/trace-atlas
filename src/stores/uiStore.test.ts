@@ -232,10 +232,9 @@ describe('uiStore — expandedProbeId (accordion-of-one within the Probes branch
     expect(useUIStore.getState().expandedProbeId).toBeNull();
   });
 
-  it('is independent of expandedCompanyId and expandedFleetParamsGroup', () => {
+  it('is independent of expandedCompanyId', () => {
     useUIStore.getState().setExpandedProbeId('robot-0-xyz');
     useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    useUIStore.getState().setExpandedFleetParamsGroup('eqFilters');
     expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
   });
 });
@@ -269,38 +268,6 @@ describe('uiStore — expandedCompanyId (accordion-of-one within the Companies b
   });
 });
 
-describe('uiStore — expandedFleetParamsGroup (accordion-of-one within Fleet Params)', () => {
-  beforeEach(() => {
-    useUIStore.setState(INITIAL_STATE, true);
-  });
-
-  it('defaults to null — nothing expanded', () => {
-    expect(useUIStore.getState().expandedFleetParamsGroup).toBeNull();
-  });
-
-  it('setExpandedFleetParamsGroup sets one of the 3 groups, replacing any other', () => {
-    useUIStore.getState().setExpandedFleetParamsGroup('eqFilters');
-    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('eqFilters');
-    useUIStore.getState().setExpandedFleetParamsGroup('timeSpace');
-    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('timeSpace');
-  });
-
-  it('setExpandedFleetParamsGroup(null) collapses back to nothing expanded', () => {
-    useUIStore.getState().setExpandedFleetParamsGroup('output');
-    useUIStore.getState().setExpandedFleetParamsGroup(null);
-    expect(useUIStore.getState().expandedFleetParamsGroup).toBeNull();
-  });
-
-  it('is independent of expandedProbeId and expandedCompanyId — its own level, own accordion-of-one', () => {
-    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
-    useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    useUIStore.getState().setExpandedFleetParamsGroup('timeSpace');
-    expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
-    expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
-    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('timeSpace');
-  });
-});
-
 describe('uiStore — selectedSettingsLeaf (which Settings child is open, docs/tasks/NAV_LAYOUT_REWRITE.md Task 11)', () => {
   beforeEach(() => {
     useUIStore.setState(INITIAL_STATE, true);
@@ -310,13 +277,13 @@ describe('uiStore — selectedSettingsLeaf (which Settings child is open, docs/t
     expect(useUIStore.getState().selectedSettingsLeaf).toBeNull();
   });
 
-  it('setSelectedSettingsLeaf sets one of the 4 Settings leaves', () => {
-    useUIStore.getState().setSelectedSettingsLeaf('volume');
-    expect(useUIStore.getState().selectedSettingsLeaf).toBe('volume');
+  it('setSelectedSettingsLeaf sets one of the 2 Settings leaves', () => {
+    useUIStore.getState().setSelectedSettingsLeaf('quality');
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
   });
 
   it('setSelectedSettingsLeaf(null) clears back to no leaf chosen', () => {
-    useUIStore.getState().setSelectedSettingsLeaf('tempo');
+    useUIStore.getState().setSelectedSettingsLeaf('sectorSettings');
     useUIStore.getState().setSelectedSettingsLeaf(null);
     expect(useUIStore.getState().selectedSettingsLeaf).toBeNull();
   });
@@ -383,11 +350,9 @@ describe('uiStore — expandedTopLevelBranch (bugfix: the 4 top-level tree nodes
     useUIStore.getState().setExpandedTopLevelBranch('probes');
     useUIStore.getState().setExpandedProbeId('robot-0-xyz');
     useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    useUIStore.getState().setExpandedFleetParamsGroup('eqFilters');
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
     expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
     expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
-    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('eqFilters');
   });
 });
 
@@ -429,73 +394,6 @@ describe('uiStore — selectedSubsection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT
     useUIStore.getState().setSelectedSubsection('pingContour');
     useUIStore.getState().selectRobot(null);
     expect(useUIStore.getState().selectedSubsection).toBeNull();
-  });
-});
-
-describe('uiStore — expandedProbeSection (accordion-of-one within an expanded probe, docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 1)', () => {
-  beforeEach(() => {
-    useUIStore.setState(INITIAL_STATE, true);
-  });
-
-  it('defaults to null — nothing expanded', () => {
-    expect(useUIStore.getState().expandedProbeSection).toBeNull();
-  });
-
-  it('setExpandedProbeSection sets one of the 4 sections, replacing any other', () => {
-    useUIStore.getState().setExpandedProbeSection('melody');
-    expect(useUIStore.getState().expandedProbeSection).toBe('melody');
-    useUIStore.getState().setExpandedProbeSection('source');
-    expect(useUIStore.getState().expandedProbeSection).toBe('source');
-  });
-
-  it('setExpandedProbeSection(null) collapses back to nothing expanded', () => {
-    useUIStore.getState().setExpandedProbeSection('envelope');
-    useUIStore.getState().setExpandedProbeSection(null);
-    expect(useUIStore.getState().expandedProbeSection).toBeNull();
-  });
-
-  it('is independent of expandedCompanySection — one level deeper than expandedProbeId/expandedCompanyId, matching their own split', () => {
-    useUIStore.getState().setExpandedProbeSection('melody');
-    useUIStore.getState().setExpandedCompanySection('source');
-    expect(useUIStore.getState().expandedProbeSection).toBe('melody');
-    expect(useUIStore.getState().expandedCompanySection).toBe('source');
-  });
-
-  it('is independent of expandedProbeId', () => {
-    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
-    useUIStore.getState().setExpandedProbeSection('volume');
-    expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
-    expect(useUIStore.getState().expandedProbeSection).toBe('volume');
-  });
-});
-
-describe('uiStore — expandedCompanySection (accordion-of-one within an expanded company, docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 1)', () => {
-  beforeEach(() => {
-    useUIStore.setState(INITIAL_STATE, true);
-  });
-
-  it('defaults to null — nothing expanded', () => {
-    expect(useUIStore.getState().expandedCompanySection).toBeNull();
-  });
-
-  it('setExpandedCompanySection sets one of the 4 sections, replacing any other', () => {
-    useUIStore.getState().setExpandedCompanySection('envelope');
-    expect(useUIStore.getState().expandedCompanySection).toBe('envelope');
-    useUIStore.getState().setExpandedCompanySection('volume');
-    expect(useUIStore.getState().expandedCompanySection).toBe('volume');
-  });
-
-  it('setExpandedCompanySection(null) collapses back to nothing expanded', () => {
-    useUIStore.getState().setExpandedCompanySection('source');
-    useUIStore.getState().setExpandedCompanySection(null);
-    expect(useUIStore.getState().expandedCompanySection).toBeNull();
-  });
-
-  it('is independent of expandedCompanyId', () => {
-    useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    useUIStore.getState().setExpandedCompanySection('melody');
-    expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
-    expect(useUIStore.getState().expandedCompanySection).toBe('melody');
   });
 });
 

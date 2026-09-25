@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useLocaleStore } from '@/stores/localeStore';
-import { useUIStore, type RobotSection, type RobotSubsection, type FleetParamsGroup, type SettingsLeaf, type SelectedFleetParamsEffect, type TopLevelBranch } from '@/stores/uiStore';
+import { useUIStore, type RobotSection, type RobotSubsection, type FleetParamsGroup, type SettingsLeaf, type SettingsSubsection, type SelectedFleetParamsEffect, type TopLevelBranch } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { NAV_TREE_SCHEMA, type NavTreeNodeSchema } from '@/data/navTreeConfig';
 
@@ -33,7 +33,7 @@ function asRobotSubsection(value: string | undefined): RobotSubsection | null {
   return value && (ROBOT_SUBSECTIONS as readonly string[]).includes(value) ? (value as RobotSubsection) : null;
 }
 
-const FLEET_PARAMS_GROUPS: readonly FleetParamsGroup[] = ['eqFilters', 'timeSpace', 'output'];
+const FLEET_PARAMS_GROUPS: readonly FleetParamsGroup[] = ['pacing', 'eqFilters', 'timeSpace', 'output'];
 function asFleetParamsGroup(value: string | undefined): FleetParamsGroup | null {
   return value && (FLEET_PARAMS_GROUPS as readonly string[]).includes(value) ? (value as FleetParamsGroup) : null;
 }
@@ -42,14 +42,20 @@ function asFleetParamsGroup(value: string | undefined): FleetParamsGroup | null 
  *  first-leaf-on-parent-select, one entry per FleetParamsGroup so a group click opens its own
  *  first leaf rather than always the same one. */
 const FLEET_PARAMS_GROUP_FIRST_LEAF: Record<FleetParamsGroup, SelectedFleetParamsEffect> = {
+  pacing: 'tempo',
   eqFilters: 'eq3',
   timeSpace: 'reverb',
   output: 'compressor',
 };
 
-const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['volume', 'quality', 'tempo', 'sectorSettings'];
+const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['quality', 'sectorSettings'];
 function asSettingsLeaf(value: string | undefined): SettingsLeaf | null {
   return value && (SETTINGS_LEAVES as readonly string[]).includes(value) ? (value as SettingsLeaf) : null;
+}
+
+const SETTINGS_SUBSECTIONS: readonly SettingsSubsection[] = ['robotLoad', 'effectsLoad', 'attenuationStyle', 'coordinates'];
+function asSettingsSubsection(value: string | undefined): SettingsSubsection | null {
+  return value && (SETTINGS_SUBSECTIONS as readonly string[]).includes(value) ? (value as SettingsSubsection) : null;
 }
 
 /** Maps a Fleet Params leaf's own node-id segment (navTreeConfig.ts's own naming, e.g. 'eq',
@@ -63,6 +69,10 @@ const FLEET_PARAMS_LEAF_TO_EFFECT_KEY: Record<string, SelectedFleetParamsEffect>
   delay: 'delay',
   compression: 'compressor',
   limiter: 'limiter',
+  // Pacing's own 2 children — id segment and SelectedFleetParamsEffect value happen to share the
+  // same spelling here, unlike the effect leaves above.
+  tempo: 'tempo',
+  automaticEffects: 'automaticEffects',
 };
 function asFleetParamsEffectKey(value: string | undefined): SelectedFleetParamsEffect | null {
   return value ? (FLEET_PARAMS_LEAF_TO_EFFECT_KEY[value] ?? null) : null;
@@ -71,6 +81,47 @@ function asFleetParamsEffectKey(value: string | undefined): SelectedFleetParamsE
 const TOP_LEVEL_BRANCHES: readonly TopLevelBranch[] = ['settings', 'fleetParams', 'probes', 'companies'];
 function asTopLevelBranch(value: string): TopLevelBranch | null {
   return (TOP_LEVEL_BRANCHES as readonly string[]).includes(value) ? (value as TopLevelBranch) : null;
+}
+
+/** True for exactly the 2 tree levels docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md gives
+ *  auto-expand + UnderlineLink chrome to: a Settings/Fleet Params mid-level node (2 segments,
+ *  entityId is a valid SettingsLeaf/FleetParamsGroup) and its own leaf children (3 segments, same
+ *  branch); a Probes/Companies section-level node (3 segments, `section` is a valid RobotSection)
+ *  and its own subsection children (4 segments, same branch+section). A plain function of the id
+ *  string alone — no store state needed — reusing the existing asSettingsLeaf/asFleetParamsGroup/
+ *  asRobotSection guards rather than inventing new id vocabulary. Exported standalone (not part of
+ *  UseNavTreeResult) so NavTreeNode/NavTree can use it without an extra useNavTree() call. */
+export function isDeepestTwoLevels(id: string): boolean {
+  const [branch, entityId, section] = id.split('.');
+  if (branch === 'settings' && entityId && asSettingsLeaf(entityId)) return true;
+  if (branch === 'fleetParams' && entityId && asFleetParamsGroup(entityId)) return true;
+  if ((branch === 'probes' || branch === 'companies') && section && asRobotSection(section)) return true;
+  return false;
+}
+
+/** True for exactly the "auto-expand" tier — the UPPER of the 2 levels isDeepestTwoLevels covers
+ *  (a mid-level Settings/Fleet Params node, or a Probes/Companies section node): always rendered
+ *  expanded once its own ancestor (branch, or entity) is expanded, no independent collapse. A
+ *  strict subset of isDeepestTwoLevels — a node with children of its own (no further `section`
+ *  segment for Settings/Fleet Params, exactly one `section` segment for Probes/Companies) as
+ *  opposed to isDeepestTwoLevels' leaf shapes, which have no children. */
+export function isAutoExpandTier(id: string): boolean {
+  const [branch, entityId, section, subsection] = id.split('.');
+  if (branch === 'settings' && entityId && !section) return asSettingsLeaf(entityId) !== null;
+  if (branch === 'fleetParams' && entityId && !section) return asFleetParamsGroup(entityId) !== null;
+  // A 4th (subsection) segment means this id is a leaf CHILD of the section node, not the
+  // section node itself — must be excluded, or e.g. 'probes.r1.melody.rhythm' would be
+  // misidentified as its own parent 'probes.r1.melody' (found via a failing test, not assumed).
+  if ((branch === 'probes' || branch === 'companies') && entityId && section && !subsection) return asRobotSection(section) !== null;
+  return false;
+}
+
+/** The negation of isAutoExpandTier — whether a node's own +/- toggle should render at all.
+ *  Branch ids, entity ids, and leaf/subsection ids (which never have children in the first place)
+ *  are all collapsible/no-op-collapsible as before this feature; only the auto-expand tier itself
+ *  loses its independent toggle. */
+export function isCollapsible(id: string): boolean {
+  return !isAutoExpandTier(id);
 }
 
 // trait per section (experimental, Crawford's own request) — matches AudioSettingSection/
@@ -82,7 +133,7 @@ function asTopLevelBranch(value: string): TopLevelBranch | null {
 // §New 4th tree level) — the id segment stays 'volume', matching RobotSection's own value.
 const SECTION_CHILDREN: Omit<NavTreeNodeSchema, 'id'>[] = [
   { humanLabel: 'Output', trait: 'output' },
-  { humanLabel: 'Melody', trait: 'composition' },
+  { humanLabel: 'Composition', trait: 'composition' },
   { humanLabel: 'Envelope', trait: 'timeSpace' },
   { humanLabel: 'Source', trait: 'spectral' },
 ];
@@ -92,12 +143,12 @@ const SECTION_CHILDREN: Omit<NavTreeNodeSchema, 'id'>[] = [
 // brand-new node, not a rename of an existing tree label; RobotDriftPanel's own identifier is
 // unaffected.
 const SUBSECTION_CHILDREN: Record<RobotSection, { id: RobotSubsection; humanLabel: string }[]> = {
-  volume: [{ id: 'audioSettings', humanLabel: 'Audio Settings' }],
+  volume: [{ id: 'audioSettings', humanLabel: 'Dynamics' }],
   melody: [
     { id: 'rhythm', humanLabel: 'Rhythm' },
-    { id: 'frequency', humanLabel: 'Frequency' },
+    { id: 'frequency', humanLabel: 'Pitches' },
   ],
-  envelope: [{ id: 'pingContour', humanLabel: 'Ping Contour' }],
+  envelope: [{ id: 'pingContour', humanLabel: 'Contour' }],
   source: [
     { id: 'baselineOscillator', humanLabel: 'Baseline Oscillator' },
     { id: 'coaxialOscillator', humanLabel: 'Coaxial Oscillator' },
@@ -205,12 +256,10 @@ export function useNavTree(): UseNavTreeResult {
   const selectedSection = useUIStore((s) => s.selectedSection);
   const selectedSubsection = useUIStore((s) => s.selectedSubsection);
   const selectedSettingsLeaf = useUIStore((s) => s.selectedSettingsLeaf);
+  const selectedSettingsSubsection = useUIStore((s) => s.selectedSettingsSubsection);
   const selectedFleetParamsEffect = useUIStore((s) => s.selectedFleetParamsEffect);
   const expandedProbeId = useUIStore((s) => s.expandedProbeId);
   const expandedCompanyId = useUIStore((s) => s.expandedCompanyId);
-  const expandedFleetParamsGroup = useUIStore((s) => s.expandedFleetParamsGroup);
-  const expandedProbeSection = useUIStore((s) => s.expandedProbeSection);
-  const expandedCompanySection = useUIStore((s) => s.expandedCompanySection);
   const expandedTopLevelBranch = useUIStore((s) => s.expandedTopLevelBranch);
   const allProbesSelected = useUIStore((s) => s.allProbesSelected);
 
@@ -222,12 +271,10 @@ export function useNavTree(): UseNavTreeResult {
   const setSelectedSection = useUIStore((s) => s.setSelectedSection);
   const setSelectedSubsection = useUIStore((s) => s.setSelectedSubsection);
   const setSelectedSettingsLeaf = useUIStore((s) => s.setSelectedSettingsLeaf);
+  const setSelectedSettingsSubsection = useUIStore((s) => s.setSelectedSettingsSubsection);
   const setSelectedFleetParamsEffect = useUIStore((s) => s.setSelectedFleetParamsEffect);
   const setExpandedProbeId = useUIStore((s) => s.setExpandedProbeId);
   const setExpandedCompanyId = useUIStore((s) => s.setExpandedCompanyId);
-  const setExpandedFleetParamsGroup = useUIStore((s) => s.setExpandedFleetParamsGroup);
-  const setExpandedProbeSection = useUIStore((s) => s.setExpandedProbeSection);
-  const setExpandedCompanySection = useUIStore((s) => s.setExpandedCompanySection);
   const setExpandedTopLevelBranch = useUIStore((s) => s.setExpandedTopLevelBranch);
   const setAllProbesSelected = useUIStore((s) => s.setAllProbesSelected);
 
@@ -246,22 +293,17 @@ export function useNavTree(): UseNavTreeResult {
 
     // Ancestor auto-expand (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 14, spec §1.6) —
     // selecting any node reveals it in the tree, expanding every ancestor row needed to show it,
-    // the same as if the user had clicked each +/- along the way.
+    // the same as if the user had clicked each +/- along the way. Only the entity level
+    // (expandedProbeId/expandedCompanyId) and the branch level (expandedTopLevelBranch) need a
+    // write here — the tier directly beneath them (Settings'/Fleet Params' own mid-level
+    // children, Probes'/Companies' own section-level children) is always expanded once its
+    // ancestor is, per isAutoExpandTier above; there is nothing left to set for it (docs/specs/
+    // NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3).
     const topLevel = asTopLevelBranch(branch);
     if (topLevel) setExpandedTopLevelBranch(topLevel);
     if ((branch === 'probes' || branch === 'companies') && entityId) {
-      const sec = asRobotSection(section);
-      if (branch === 'probes') {
-        setExpandedProbeId(entityId);
-        if (sec) setExpandedProbeSection(sec);
-      } else {
-        setExpandedCompanyId(entityId);
-        if (sec) setExpandedCompanySection(sec);
-      }
-    }
-    if (branch === 'fleetParams' && entityId) {
-      const group = asFleetParamsGroup(entityId);
-      if (group) setExpandedFleetParamsGroup(group);
+      if (branch === 'probes') setExpandedProbeId(entityId);
+      else setExpandedCompanyId(entityId);
     }
 
     if (branch === 'settings') {
@@ -274,9 +316,16 @@ export function useNavTree(): UseNavTreeResult {
       // content at a time, but stale state waiting to bite the next feature that reads it).
       setSelectedSubsection(null);
       // First-leaf-on-parent-select (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.6) — selecting
-      // the bare branch itself opens its first leaf (Volume) rather than leaving nothing open;
-      // the view/accordion model always has exactly one section open, never "nothing selected."
-      setSelectedSettingsLeaf(entityId ? asSettingsLeaf(entityId) : SETTINGS_LEAVES[0]);
+      // the bare branch itself opens its first leaf (Performance) rather than leaving nothing
+      // open; the view/accordion model always has exactly one section open, never "nothing
+      // selected."
+      if (!entityId) {
+        setSelectedSettingsLeaf(SETTINGS_LEAVES[0]);
+        setSelectedSettingsSubsection(null);
+        return;
+      }
+      setSelectedSettingsLeaf(asSettingsLeaf(entityId));
+      setSelectedSettingsSubsection(section ? asSettingsSubsection(section) : null);
       return;
     }
     if (branch === 'fleetParams') {
@@ -334,6 +383,7 @@ export function useNavTree(): UseNavTreeResult {
   }
 
   function toggleExpand(id: string): void {
+    if (isAutoExpandTier(id)) return; // always expanded once visible — not independently collapsible, §1.3
     const [branch, entityId, section] = id.split('.');
     if (!entityId) {
       // Bare single-segment id — one of the 4 top-level branch roots (settings/fleetParams/
@@ -349,29 +399,11 @@ export function useNavTree(): UseNavTreeResult {
     }
     if (branch === 'companies' && entityId && !section) {
       setExpandedCompanyId(expandedCompanyId === entityId ? null : entityId);
-      return;
     }
-    // A 3-segment id (probes.<id>.<section> / companies.<id>.<section>) — the accordion-of-one
-    // one level deeper than expandedProbeId/expandedCompanyId, docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.3.
-    if (branch === 'probes' && entityId && section) {
-      const sec = asRobotSection(section);
-      if (sec) setExpandedProbeSection(expandedProbeSection === sec ? null : sec);
-      return;
-    }
-    if (branch === 'companies' && entityId && section) {
-      const sec = asRobotSection(section);
-      if (sec) setExpandedCompanySection(expandedCompanySection === sec ? null : sec);
-      return;
-    }
-    const group = branch === 'fleetParams' ? asFleetParamsGroup(entityId) : null;
-    if (group) {
-      setExpandedFleetParamsGroup(expandedFleetParamsGroup === group ? null : group);
-    }
-    // Static leaves with no dedicated accordion-of-one field (settings.*) have nothing to
-    // toggle — no-op.
   }
 
   function isExpanded(id: string): boolean {
+    if (isAutoExpandTier(id)) return true; // §1.3 — no ancestor state needs setting first
     const [branch, entityId, section] = id.split('.');
     if (!entityId) {
       const topLevel = asTopLevelBranch(branch);
@@ -379,9 +411,6 @@ export function useNavTree(): UseNavTreeResult {
     }
     if (branch === 'probes' && entityId && !section) return expandedProbeId === entityId;
     if (branch === 'companies' && entityId && !section) return expandedCompanyId === entityId;
-    if (branch === 'probes' && entityId && section) return expandedProbeSection === asRobotSection(section);
-    if (branch === 'companies' && entityId && section) return expandedCompanySection === asRobotSection(section);
-    if (branch === 'fleetParams' && entityId) return expandedFleetParamsGroup === entityId;
     return false;
   }
 
@@ -392,12 +421,17 @@ export function useNavTree(): UseNavTreeResult {
 
     if (branch === 'settings') {
       if (!entityId) return activeHubTile === 'settings' && selectedSettingsLeaf === null;
-      return activeHubTile === 'settings' && selectedSettingsLeaf === asSettingsLeaf(entityId);
+      const leafMatches = activeHubTile === 'settings' && selectedSettingsLeaf === asSettingsLeaf(entityId);
+      if (!section) return leafMatches && selectedSettingsSubsection === null;
+      return leafMatches && selectedSettingsSubsection === asSettingsSubsection(section);
     }
     if (branch === 'fleetParams') {
-      // Bare 'fleetParams' and a group category node (e.g. 'fleetParams.eqFilters') currently
-      // read identical state (both need selectedFleetParamsEffect === null) — same ambiguity
-      // isSelected('probes')/isSelected('probes.all') already documents above.
+      // Bare 'fleetParams' and any bare category node (e.g. 'fleetParams.pacing',
+      // 'fleetParams.eqFilters') currently read identical (both need selectedFleetParamsEffect
+      // === null) — same ambiguity isSelected('probes')/isSelected('probes.all') already
+      // documents above. Harmless in practice: select() always resolves a category click to a
+      // real first-leaf effect value (FLEET_PARAMS_GROUP_FIRST_LEAF), never leaves this null edge
+      // state behind.
       if (!section) return activeHubTile === 'audioRig' && selectedFleetParamsEffect === null;
       return activeHubTile === 'audioRig' && selectedFleetParamsEffect === asFleetParamsEffectKey(section);
     }
