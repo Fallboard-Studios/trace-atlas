@@ -7,7 +7,9 @@ import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { BPM_SCHEMA, type AudioRigEffectKey } from '@/data/audioRigConfig';
 import { useUIStore, type FleetParamsGroup } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
+import { getTraitColorStyle } from '@/utils/traitColors';
 import type { AccordionSchema } from '@/types/controls';
+import './FleetParamsContent.css';
 
 /** Tempo (relocated from Settings -> Tempo) and Automatic Effects (AudioRigDrawer, relocated from
  *  this component's own former unwrapped top content) both live inside this one shared accordion
@@ -112,7 +114,7 @@ export function FleetParamsContent() {
   const { isOpen, setOpen } = useAccordionOpenState(PACING_ACCORDION_SCHEMA.id);
 
   return (
-    <div ref={sectionAnchorRef('fleetParams')}>
+    <div ref={sectionAnchorRef('fleetParams')} className="fleet-params-content" style={getTraitColorStyle('spectral')}>
       <div ref={sectionAnchorRef(PACING_ACCORDION_SCHEMA.id)}>
         <AccordionContainer
           schema={PACING_ACCORDION_SCHEMA}

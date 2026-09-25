@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { installIntersectionObserverStub, approachSection } from '@/testUtils/intersectionObserverStub';
 import { clearSectionRef } from '@/utils/sectionRefs';
+import { getTraitColorStyle } from '@/utils/traitColors';
 
 vi.mock('@/utils/sectionRefs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/utils/sectionRefs')>();
@@ -189,5 +190,32 @@ describe('FleetParamsContent — every leaf routes to its correct AudioRigEffect
     openAndApproach(id);
 
     expect(screen.getByTestId('audio-rig-effect-panel-stub').getAttribute('data-effect-key')).toBe(effectKey);
+  });
+});
+
+describe('FleetParamsContent — outer wrapper panel (docs/tasks/FLEET_PARAMS_CONTENT_REWORK.md Task 2)', () => {
+  beforeEach(() => {
+    useUIStore.setState(UI_INITIAL_STATE, true);
+    installIntersectionObserverStub();
+    LEAF_IDS.forEach(clearSectionRef);
+  });
+
+  it('wraps the whole section in a single "fleet-params-content" panel carrying the spectral trait\'s accent colors', () => {
+    const { container } = render(<FleetParamsContent />);
+
+    const wrapper = container.querySelector('.fleet-params-content') as HTMLElement | null;
+    expect(wrapper).not.toBeNull();
+    const expected = getTraitColorStyle('spectral') as Record<string, string>;
+    expect(wrapper!.style.getPropertyValue('--color-accent-a')).toBe(expected['--color-accent-a']);
+    expect(wrapper!.style.getPropertyValue('--color-accent-b')).toBe(expected['--color-accent-b']);
+  });
+
+  it('the outer wrapper is a plain, always-open container — not an accordion trigger/region of its own', () => {
+    const { container } = render(<FleetParamsContent />);
+
+    const wrapper = container.querySelector('.fleet-params-content') as HTMLElement | null;
+    expect(wrapper!.tagName).toBe('DIV');
+    expect(wrapper!.getAttribute('role')).not.toBe('region');
+    expect(wrapper!.querySelector(':scope > button[aria-expanded]')).toBeNull();
   });
 });
