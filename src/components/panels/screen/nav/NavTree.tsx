@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { NavTreeNode } from './NavTreeNode';
-import { useNavTree } from './useNavTree';
+import { useNavTree, isCollapsible } from './useNavTree';
 import type { NavTreeNodeSchema } from '@/data/navTreeConfig';
 import './NavTree.css';
 
@@ -86,9 +86,12 @@ export function NavTree() {
         break;
       case 'ArrowLeft':
         e.preventDefault();
-        if (row.hasChildren && isExpanded(row.id)) {
+        if (row.hasChildren && isExpanded(row.id) && isCollapsible(row.id)) {
           toggleExpand(row.id);
         } else if (row.parentId) {
+          // Also covers the auto-expand tier (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md
+          // §1.3) — it's always expanded and has no toggle of its own, so Left moves focus up
+          // instead of silently no-op'ing.
           setFocusedId(row.parentId);
         }
         break;

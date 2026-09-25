@@ -131,43 +131,43 @@ Task 3 (UnderlineLinkNavRow.tsx/.css/.test.tsx)            │              │
 
 ### Phase 3: Wiring the tree (depends on Tasks 2 and/or 3)
 
-- [ ] **Task 4: `NavTreeNode.tsx` — row-chrome dispatch + ancestor color threading**
+- [x] **Task 4: `NavTreeNode.tsx` — row-chrome dispatch + ancestor color threading**
 
   **Description:** Per spec §5.3: `NavTreeNode` gains an `inheritedColor?: string` prop (undefined at the root call in `NavTree.tsx`). For each node it renders, it resolves its own color (`node.color`/`node.trait` via the existing `getRobotColorStyle`/`getTraitColorStyle`, unchanged) — if the node has no color/trait of its own, it uses `inheritedColor` instead. It passes its own resolved color down to every child it recurses into as that child's `inheritedColor`. When `isDeepestTwoLevels(node.id)` (Task 2's export) is true, it renders `UnderlineLinkNavRow` (Task 3) instead of the existing `Button`+`CabinetBox` branch, passing the resolved color through. The existing `Toggle` (+/-) is now gated on `hasChildren && isCollapsible(node.id)` (Task 2's export) instead of `hasChildren` alone — `aria-expanded` stays driven by `isExpanded()` regardless, so an auto-expand-tier row still correctly announces `aria-expanded="true"` even with no visible toggle control.
 
   **Acceptance criteria:**
-  - [ ] A node matching `isDeepestTwoLevels` renders `UnderlineLinkNavRow`, not `Button`/`CabinetBox`/`Toggle`.
-  - [ ] A branch or entity node (robot/"All Probes"/company) is unaffected — still `Button`+`CabinetBox`, `Toggle` present when it has children, `inheritedColor` accepted but unused by rows that already resolve their own trait/color.
-  - [ ] An untraited leaf node beneath a traited mid-level node (e.g. `fleetParams.pacing.tempo` beneath `fleetParams.pacing`, `settings.quality.robotLoad` beneath `settings.quality`) receives that ancestor's resolved color as `UnderlineLinkNavRow`'s `color` prop — asserted directly against the prop value, not inferred from rendered CSS (jsdom doesn't resolve `color-mix()`, matching `CabinetBox.test.tsx`'s own documented caveat).
-  - [ ] A node with its own explicit `trait` (e.g. `fleetParams.pacing` itself) uses its own resolved color, ignoring any `inheritedColor` it was passed.
-  - [ ] An auto-expand-tier row (`isCollapsible(node.id) === false`) renders no `Toggle`, but its own `role="treeitem"` div still carries `aria-expanded="true"`.
-  - [ ] A branch/entity row's own `aria-expanded` behavior (toggle present, reflects real click state) is unchanged from before this task.
+  - [x] A node matching `isDeepestTwoLevels` renders `UnderlineLinkNavRow`, not `Button`/`CabinetBox`/`Toggle`.
+  - [x] A branch or entity node (robot/"All Probes"/company) is unaffected — still `Button`+`CabinetBox`, `Toggle` present when it has children, `inheritedColor` accepted but unused by rows that already resolve their own trait/color.
+  - [x] An untraited leaf node beneath a traited mid-level node (e.g. `fleetParams.pacing.tempo` beneath `fleetParams.pacing`, `settings.quality.robotLoad` beneath `settings.quality`) receives that ancestor's resolved color as `UnderlineLinkNavRow`'s `color` prop — asserted directly against the prop value, not inferred from rendered CSS (jsdom doesn't resolve `color-mix()`, matching `CabinetBox.test.tsx`'s own documented caveat).
+  - [x] A node with its own explicit `trait` (e.g. `fleetParams.pacing` itself) uses its own resolved color, ignoring any `inheritedColor` it was passed.
+  - [x] An auto-expand-tier row (`isCollapsible(node.id) === false`) renders no `Toggle`, but its own `role="treeitem"` div still carries `aria-expanded="true"`.
+  - [x] A branch/entity row's own `aria-expanded` behavior (toggle present, reflects real click state) is unchanged from before this task.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/NavTreeNode.test.tsx` passes, covering every acceptance criterion above.
-  - [ ] `npm run build:types`, `npm run lint` clean.
-  - [ ] `npm run build` clean.
-  - [ ] Manual check (`npm run dev`): expand each of the 4 branches; confirm Settings'/Fleet Params' own mid-level children (and Probes'/Companies' own section-level children, once a robot/company is expanded) already show expanded with no separate click, render as plain text + underline, and are visibly shorter than the rows above them; hover/focus/tab through several at different depths and confirm each pops with the correct color, including an untraited leaf beneath a traited parent; confirm `prefers-reduced-motion` makes the pop snap instead of animating.
+  - [x] `npx vitest run src/components/panels/screen/nav/NavTreeNode.test.tsx` passes (23/23), covering every acceptance criterion above.
+  - [x] `npm run build:types`, `npm run lint` clean (required one fix: `getTraitColorStyle`/`getRobotColorStyle` are typed to return plain `CSSProperties`, so reading `['--color-accent']` back out needed a local cast — `traitColors.ts` itself is unchanged).
+  - [x] `npm run build` clean.
+  - [ ] **Manual check not performed** (`npm run dev` + real browser) — no browser automation tool available in this session. Still needed before this ships for real: expand each of the 4 branches and confirm the new chrome/auto-expand/color behavior visually, per the description above.
 
   **Dependencies:** Task 2, Task 3.
 
-  **Files:** `src/components/panels/screen/nav/NavTreeNode.tsx`, `src/components/panels/screen/nav/NavTreeNode.css`, `src/components/panels/screen/nav/NavTreeNode.test.tsx`
+  **Files:** `src/components/panels/screen/nav/NavTreeNode.tsx`, `src/components/panels/screen/nav/NavTreeNode.test.tsx` (`.css` ended up untouched — no new row-level CSS was needed beyond `UnderlineLinkNavRow.css`, already shipped in Task 3)
 
   **Estimated scope:** M (3 files — the highest-risk task in this plan: first real composition of the new predicate, the new row component, and ancestor-color threading through existing recursion all at once; flagged explicitly, matching `CabinetBox`'s own Task 5 precedent in the Cabinetry plan)
 
-- [ ] **Task 5: `NavTree.tsx` — `ArrowLeft` respects non-collapsible rows**
+- [x] **Task 5: `NavTree.tsx` — `ArrowLeft` respects non-collapsible rows**
 
   **Description:** Per spec §5.4: `ArrowLeft`'s existing `if (row.hasChildren && isExpanded(row.id)) { toggleExpand(row.id); }` gains an `isCollapsible(row.id)` (Task 2's export) check — `if (row.hasChildren && isExpanded(row.id) && isCollapsible(row.id))` — so that a focused auto-expand-tier row falls through to the existing `else if (row.parentId) { setFocusedId(row.parentId); }` branch instead of silently no-op'ing. `ArrowRight` needs no change (already correct — `isExpanded()` is unconditionally `true` for this tier, so its "already expanded, move into first child" branch fires with no special-casing).
 
   **Acceptance criteria:**
-  - [ ] `ArrowLeft` on a focused auto-expand-tier row moves focus to its parent row.
-  - [ ] `ArrowLeft` on a focused, expanded, collapsible row (branch or entity) still collapses it exactly as before this task.
-  - [ ] `ArrowRight` behavior is unchanged (regression-covered, not just asserted unchanged by omission).
+  - [x] `ArrowLeft` on a focused auto-expand-tier row moves focus to its parent row.
+  - [x] `ArrowLeft` on a focused, expanded, collapsible row (branch or entity) still collapses it exactly as before this task.
+  - [x] `ArrowRight` behavior is unchanged (regression-covered, not just asserted unchanged by omission — the full pre-existing `NavTree.test.tsx` suite, unmodified in its assertions, still passes).
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/NavTree.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
-  - [ ] Manual check (`npm run dev`): keyboard-navigate into an auto-expand-tier row and press Left — focus should move up to the parent row, not do nothing.
+  - [x] `npx vitest run src/components/panels/screen/nav/NavTree.test.tsx` passes (12/12). Required extending the test file's own `vi.mock('./useNavTree', ...)` to spread the real (not mocked) `isDeepestTwoLevels`/`isAutoExpandTier`/`isCollapsible` exports via `importOriginal`, plus a swappable fixture (`setFakeNodes`) so a real branch/mid-level/leaf-shaped id could be exercised alongside the file's existing generic `a`/`a.1` fixture.
+  - [x] `npm run build:types`, `npm run lint` clean.
+  - [ ] **Manual check not performed** — same environment limitation as Task 4. Still needed: keyboard-navigate into an auto-expand-tier row and press Left — focus should move up to the parent row, not do nothing.
 
   **Dependencies:** Task 2.
 
@@ -176,9 +176,9 @@ Task 3 (UnderlineLinkNavRow.tsx/.css/.test.tsx)            │              │
   **Estimated scope:** S (2 files, a single added condition plus its regression test)
 
 ### Checkpoint: Tree wiring complete — first visible change
-- [ ] `npm run build:types`, `npm run lint`, `npm run build` all clean; `npm test` full suite passes.
-- [ ] The nav panel visibly shows the new chrome/auto-expand behavior end to end in the running app (Task 4's manual check).
-- [ ] Keyboard navigation (arrow keys) works correctly through every tree depth, including the new non-collapsible tier (Task 5's manual check).
+- [x] `npm run build:types`, `npm run lint`, `npm run build` all clean; `npm test` full suite passes (same 5 pre-existing, unrelated failing files as before this work — `cabinetBreakpoints.test.ts`, `Header.test.tsx`, `useCabinetBoxHeight.test.ts`, `useResponsivePanelOrientation.test.ts`, `NavStatusBlock.test.tsx` — confirmed pre-existing earlier this session, not caused by this feature).
+- [ ] **The nav panel's new chrome/auto-expand behavior has not been visually confirmed in the running app** — no browser automation available in this session (Tasks 4/5's own manual-check items). Outstanding before merge.
+- [ ] Keyboard navigation manual check — same limitation.
 - [ ] Review with human before proceeding.
 
 ---
