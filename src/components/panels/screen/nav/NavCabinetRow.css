@@ -1,0 +1,28 @@
+.sc-nav-cabinet-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+}
+
+.sc-nav-cabinet-row:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* CabinetBox defaults to inline-flex/content-sized (CabinetBox.css's own .sc-cabinet-box /
+   .sc-cabinet-box__front base rules) — this row needs the full row width instead, the same
+   "CSS decides, the existing ResizeObserver measurement picks up the real width" pattern
+   VoxelTrack's own straddling boxes already rely on (CabinetBoxProps.frontWidth's own doc
+   comment) — no new CabinetBox prop needed for this. */
+.sc-nav-cabinet-row .sc-cabinet-box,
+.sc-nav-cabinet-row .sc-cabinet-box__front {
+  width: 100%;
+}

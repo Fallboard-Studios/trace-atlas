@@ -49,7 +49,7 @@ vi.mock('gsap', () => {
       return chainable;
     },
     fromTo: (_a?: unknown, _b?: unknown, _config?: unknown) => chainable,
-    kill: () => {},
+    kill: () => { },
   };
   return { default: { timeline: vi.fn(() => chainable), set: vi.fn() } };
 });
@@ -71,7 +71,7 @@ class MockResizeObserver {
     this.observedTargets.push(target);
   }
 
-  unobserve() {}
+  unobserve() { }
   disconnect() {
     this.disconnected = true;
   }
@@ -144,7 +144,7 @@ describe('Header', () => {
     useUIStore.setState({ activeLocaleTemperature: null });
     render(<Header />);
     expect(screen.queryByText(/°C/)).toBeNull();
-    expect(screen.getByText('CORRUPT TEMPERATURE')).toBeTruthy();
+    expect(screen.getByText('NO TEMP')).toBeTruthy();
   });
 
   it('renders mute as a switch reflecting audioStore.isMuted', () => {

@@ -12,23 +12,35 @@ export type Theme = 'dark' | 'light';
  *  the implicit "All Probes" bulk-edit target) — docs/specs/NAV_LAYOUT_REWRITE.md
  *  §1.3. null when a category/entity node itself is selected, no section chosen. */
 export type RobotSection = 'volume' | 'melody' | 'envelope' | 'source';
-/** Which of Fleet Params' 3 groups is peeked open — its own accordion-of-one
- *  level, independent of expandedProbeId/expandedCompanyId. */
-export type FleetParamsGroup = 'eqFilters' | 'timeSpace' | 'output';
-/** Which of Settings' 4 children is currently selected — added in Task 11
+/** Fleet Params' 4 mid-level groups — used to type-narrow a tree node id segment
+ *  (useNavTree.ts's `asFleetParamsGroup`), not to back any expand-tracking store field: all 4
+ *  are always expanded once Fleet Params itself is expanded (docs/specs/
+ *  NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3) — there is no independent per-group toggle
+ *  state anymore. */
+export type FleetParamsGroup = 'pacing' | 'eqFilters' | 'timeSpace' | 'output';
+/** Which of Settings' 2 children is currently selected — added in Task 11
  *  (docs/tasks/NAV_LAYOUT_REWRITE.md), beyond the spec's original §1.3 field list. Settings
  *  isn't an "entity" the way a robot/company/All-Probes is (RobotSection's own doc comment),
  *  so it needs its own field rather than reusing selectedSection; ContentPane's Settings content
- *  component reads this to pick which of the 4 leaf contents (Volume/Quality/Tempo/Sector
- *  Settings) to render. */
-export type SettingsLeaf = 'volume' | 'quality' | 'tempo' | 'sectorSettings';
+ *  component reads this to pick which of the 2 leaf contents (Performance/Presets) to render.
+ *  Volume was removed (Header already carries its own always-visible volume slider) and Tempo
+ *  moved to Fleet Params -> Pacing. */
+export type SettingsLeaf = 'quality' | 'sectorSettings';
+/** The 3rd tree level under a Settings leaf — Quality's Robot Load/Effects Load (AudioLoadPanel's
+ *  own AUDIO_ROBOT_LOAD_SCHEMA/AUDIO_EFFECTS_LOAD_SCHEMA) and Presets' Attenuation Style/
+ *  Coordinates (SectorSettingsDrawer's own ATTENUATION_STYLE_SCHEMA/COORDS_SCHEMA) — pure scroll/
+ *  highlight targets around controls that already exist in those panels, not new UI. Flat union,
+ *  same reasoning as RobotSubsection: no name collides across the 2 parent leaves. */
+export type SettingsSubsection = 'robotLoad' | 'effectsLoad' | 'attenuationStyle' | 'coordinates';
 /** Which Fleet Params effect leaf is currently selected — added in Task 14
- *  (docs/tasks/NAV_LAYOUT_REWRITE.md), same reasoning as SettingsLeaf: Fleet Params' 3 groups
- *  (EQ & Filters/Time & Space/Output) are category-only per spec §7 Q5, and the 7 real leaves
- *  underneath them (EQ/HPF/LPF/Reverb/Delay/Compression/Limiter) all map onto AUDIO_RIG_CONFIG's
- *  own AudioRigEffectKey — reused directly rather than a parallel string union. FleetParamsContent
- *  reads this to pick which effect's AudioRigEffectPanel to render. */
-export type SelectedFleetParamsEffect = AudioRigEffectKey;
+ *  (docs/tasks/NAV_LAYOUT_REWRITE.md), same reasoning as SettingsLeaf: Fleet Params' 4 groups
+ *  (Pacing/EQ & Filters/Time & Space/Output) are category-only per spec §7 Q5, and the 7 real
+ *  effect leaves underneath EQ & Filters/Time & Space/Output (EQ/HPF/LPF/Reverb/Delay/Compression/
+ *  Limiter) all map onto AUDIO_RIG_CONFIG's own AudioRigEffectKey — reused directly rather than a
+ *  parallel string union. 'tempo'/'automaticEffects' are Pacing's own 2 children — unlike the
+ *  other 3 groups' leaves, they share one accordion in the content view (FleetParamsContent),
+ *  since neither is a real AudioRigEffectPanel/AudioRigEffectKey. */
+export type SelectedFleetParamsEffect = AudioRigEffectKey | 'tempo' | 'automaticEffects';
 /** The 4th tree level under a robot's/company's RobotSection — docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md
  *  §1.3/§1.4. Flat union rather than nested per-section, because a subsection is always read
  *  alongside its already-known parent RobotSection — no ambiguity from flattening (no subsection
@@ -99,17 +111,11 @@ export interface UIStore {
   expandedProbeId: string | null;
   /** Accordion-of-one within the Companies branch. */
   expandedCompanyId: string | null;
-  /** Accordion-of-one within Fleet Params' 3 groups. */
-  expandedFleetParamsGroup: FleetParamsGroup | null;
-  /** Which section (if any) has ITS OWN children expanded in the tree, within whichever probe is
-   *  itself expanded (expandedProbeId) — the tree-row analog of expandedFleetParamsGroup, one
-   *  level deeper. docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.3. */
-  expandedProbeSection: RobotSection | null;
-  /** Same as expandedProbeSection, for the Companies branch — separate field per branch, matching
-   *  expandedProbeId/expandedCompanyId's own existing split. */
-  expandedCompanySection: RobotSection | null;
-  /** Which of Settings' 4 children is selected — see SettingsLeaf's own doc comment. */
+  /** Which of Settings' 2 children is selected — see SettingsLeaf's own doc comment. */
   selectedSettingsLeaf: SettingsLeaf | null;
+  /** Which Settings subsection (3rd tree level) is selected — see SettingsSubsection's own doc
+   *  comment. null when only a SettingsLeaf (or nothing) is selected. */
+  selectedSettingsSubsection: SettingsSubsection | null;
   /** Which Fleet Params effect leaf is selected — see SelectedFleetParamsEffect's own doc comment. */
   selectedFleetParamsEffect: SelectedFleetParamsEffect | null;
   /** Which top-level branch is expanded — see TopLevelBranch's own doc comment. */
@@ -139,10 +145,8 @@ export interface UIStore {
   setNavPanelOpen: (open: boolean) => void;
   setExpandedProbeId: (id: string | null) => void;
   setExpandedCompanyId: (id: string | null) => void;
-  setExpandedFleetParamsGroup: (g: FleetParamsGroup | null) => void;
-  setExpandedProbeSection: (s: RobotSection | null) => void;
-  setExpandedCompanySection: (s: RobotSection | null) => void;
   setSelectedSettingsLeaf: (l: SettingsLeaf | null) => void;
+  setSelectedSettingsSubsection: (s: SettingsSubsection | null) => void;
   setSelectedFleetParamsEffect: (e: SelectedFleetParamsEffect | null) => void;
   setExpandedTopLevelBranch: (b: TopLevelBranch | null) => void;
   setAllProbesSelected: (v: boolean) => void;
@@ -169,10 +173,8 @@ export const useUIStore = create<UIStore>((set) => ({
   isNavPanelOpen: false,
   expandedProbeId: null,
   expandedCompanyId: null,
-  expandedFleetParamsGroup: null,
-  expandedProbeSection: null,
-  expandedCompanySection: null,
   selectedSettingsLeaf: null,
+  selectedSettingsSubsection: null,
   selectedFleetParamsEffect: null,
   expandedTopLevelBranch: null,
   allProbesSelected: false,
@@ -203,10 +205,8 @@ export const useUIStore = create<UIStore>((set) => ({
   setNavPanelOpen: (open) => set({ isNavPanelOpen: open }),
   setExpandedProbeId: (id) => set({ expandedProbeId: id }),
   setExpandedCompanyId: (id) => set({ expandedCompanyId: id }),
-  setExpandedFleetParamsGroup: (g) => set({ expandedFleetParamsGroup: g }),
-  setExpandedProbeSection: (s) => set({ expandedProbeSection: s }),
-  setExpandedCompanySection: (s) => set({ expandedCompanySection: s }),
   setSelectedSettingsLeaf: (l) => set({ selectedSettingsLeaf: l }),
+  setSelectedSettingsSubsection: (s) => set({ selectedSettingsSubsection: s }),
   setSelectedFleetParamsEffect: (e) => set({ selectedFleetParamsEffect: e }),
   setExpandedTopLevelBranch: (b) => set({ expandedTopLevelBranch: b }),
   setAllProbesSelected: (v) => set({ allProbesSelected: v }),

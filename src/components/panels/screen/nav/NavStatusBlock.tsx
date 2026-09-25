@@ -45,7 +45,7 @@ export function NavStatusBlock() {
   const styleName = attenuationStyle?.name ?? 'CORRUPT NAME';
   const x = coordinates?.x ?? '?';
   const y = coordinates?.y ?? '?';
-  const tempLabel = temperature !== null ? `${temperature}°C` : 'CORRUPT TEMPERATURE';
+  const tempLabel = temperature !== null ? `${temperature}°C` : 'NO TEMP';
 
   return (
     <div className="nav-status-block" role="status">

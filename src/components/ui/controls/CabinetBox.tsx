@@ -103,6 +103,28 @@ interface CabinetBoxProps {
    *  wall's own scaleX/scaleY tween touches height). See
    *  docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1.1. */
   autoHeight?: boolean;
+  /** Optional per-instance color override — a single already-resolved CSS color string (a
+   *  color-mix() expression, hex, or var() reference; NOT a Trait or 2-tone pair — no new color
+   *  derivation happens here). When provided, overrides --color-accent/--color-surface for THIS
+   *  instance's backing, both walls, AND front face (unlike Button's accent-only-on-front
+   *  precedent, which only makes sense when the front carries real text distinguishing it as
+   *  "live"). Omitted, every rule falls back to the existing global --color-accent/--color-surface
+   *  exactly as before this prop existed — every current consumer (Button/Toggle/RadioButton/
+   *  VoxelTrack/AccordionContainer) omits it and is unaffected. First consumer: NavCabinetRow
+   *  (nav panel polish), which needs a full box tinted in a resolved trait/robot color rather than
+   *  the single ambient accent. See docs/specs/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.2/§4.1. */
+  color?: string;
+  /** Optional — false skips the 44px minimum-touch-target floor this component otherwise always
+   *  applies to --cabinet-box-height (added `ffec8fd` for Header's own touch-sized controls; see
+   *  this file's own "floors ... at 44px" test coverage). Defaults to true — every existing
+   *  consumer keeps today's floor unconditionally, zero behavior change. Only correct to pass
+   *  false when THIS box is not itself the touch/click target — e.g. NavCabinetRow, where the real
+   *  interactive element is the row's own wrapping <button>, and the CabinetBox nested inside it
+   *  is purely decorative, the same "real interactive element stays in charge, decorative child
+   *  renders the visuals" split Button.tsx's own .sc-button/CabinetBox split already established.
+   *  Do not pass false for any box that IS itself the real touch target. See
+   *  docs/specs/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.3. */
+  enforceMinTouchHeight?: boolean;
   /** Optional — Button nests its own DualLabel here; Toggle renders a bare,
    *  textless box and omits this entirely. See
    *  docs/specs/OBLIQUE_CABINETRY_TOGGLE.md §1.3. */
@@ -129,7 +151,7 @@ interface CabinetBoxProps {
  * attribute (the latter is main-thread/paint-bound and visibly lagged the
  * front face's own compositor-driven transform under load).
  */
-function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, popDistance, frontWidth, frontHeight, zIndex, skipMountAnimation, autoHeight, children }: CabinetBoxProps) {
+function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, popDistance, frontWidth, frontHeight, zIndex, skipMountAnimation, autoHeight, color, enforceMinTouchHeight = true, children }: CabinetBoxProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const frontRef = useRef<HTMLDivElement>(null);
   // Both walls are plain <div>s (not SVG <polygon>s) — see
@@ -375,8 +397,9 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
   // hand-synced sources down to this one. Same "JS-owned value applied as
   // an inline style" pattern App.tsx's own realWorldGradient already uses.
   const cabinetTokens = {
-    '--cabinet-box-height': `${Math.max(boxHeight, 44)}px`,
+    '--cabinet-box-height': `${Math.max(boxHeight, enforceMinTouchHeight ? 44 : 0)}px`,
     '--cabinet-pop-distance': `${resolvedPopDistance}px`,
+    ...(color !== undefined ? { '--cabinet-box-color': color } : {}),
     ...(zIndex !== undefined ? { zIndex } : {}),
   } as CSSProperties;
 

@@ -184,12 +184,12 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     expect(screen.getByTestId('robot-display-section-stub')).toBeTruthy();
   });
 
-  it('renders all 8 subsection accordion triggers as shells: Audio Settings, Rhythm, Frequency, Ping Contour, Baseline/Coaxial/Harmonic Oscillator, Probe Drift', () => {
+  it('renders all 8 subsection accordion triggers as shells: Dynamics, Rhythm, Pitches, Contour, Baseline/Coaxial/Harmonic Oscillator, Probe Drift', () => {
     const robot = makeRobot();
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    for (const label of ['Audio Settings', 'Rhythm', 'Frequency', 'Ping Contour', 'Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator', 'Probe Drift']) {
+    for (const label of ['Dynamics', 'Rhythm', 'Pitches', 'Contour', 'Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator', 'Probe Drift']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
   });
@@ -199,7 +199,7 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: 'Rhythm' }).getAttribute('aria-expanded')).toBe('false');
   });
 
@@ -210,7 +210,7 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
     // Audio Settings still opens by default — the tree selection has no bearing on which
     // accordion is open (Crawford's own follow-up call, 2026-09-24).
-    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('false');
   });
 
@@ -219,11 +219,11 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ping Contour' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Contour' }));
 
-    expect(screen.getByRole('button', { name: 'Ping Contour' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Contour' }).getAttribute('aria-expanded')).toBe('true');
     // Audio Settings (the default-open one) stays open too — multiple accordions can be open at once.
-    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
     expect(useUIStore.getState().selectedSection).toBeNull();
     expect(useUIStore.getState().selectedSubsection).toBeNull();
   });
@@ -233,9 +233,9 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Audio Settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Dynamics' }));
 
-    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('switching to a different robot resets accordion state back to the default (Audio Settings open only)', () => {
@@ -244,14 +244,14 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     useLocaleStore.getState().addRobot(localeId, robotB);
     selectRobot(robotA);
     const { rerender } = render(<RobotOptionsTab />);
-    fireEvent.click(screen.getByRole('button', { name: 'Ping Contour' }));
-    expect(screen.getByRole('button', { name: 'Ping Contour' }).getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Contour' }));
+    expect(screen.getByRole('button', { name: 'Contour' }).getAttribute('aria-expanded')).toBe('true');
 
     act(() => useUIStore.getState().selectRobot('r2'));
     rerender(<RobotOptionsTab />);
 
-    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Ping Contour' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Contour' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('a subsection\'s real content is not in the DOM until its own anchor has been approached', () => {
@@ -280,7 +280,7 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
     expect(useUIStore.getState().selectedSection).toBe('source');
     expect(useUIStore.getState().selectedSubsection).toBe('coaxialOscillator');
-    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: 'Coaxial Oscillator' }).getAttribute('aria-expanded')).toBe('false');
   });
 

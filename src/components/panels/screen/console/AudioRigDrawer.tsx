@@ -235,17 +235,16 @@ function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange, driftContent
 }
 
 /**
- * Automatic Effects fallback content — resolves docs/tasks/AUDIO_RIG.md Task 10/11, docs/tasks/
+ * Automatic Effects content — resolves docs/tasks/AUDIO_RIG.md Task 10/11, docs/tasks/
  * AUDIO_RIG_V2.md Task 11, and docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 2 historically, but as
- * of Task 14 (docs/tasks/NAV_LAYOUT_REWRITE.md) this component's own scope has shrunk to just the
- * one control that never got a tree leaf of its own: Ping Variance Automation ("Automatic
- * Effects"). Every real effect (EQ, HPF, LPF, Delay, Reverb, Compressor, Limiter) moved out to
- * its own AudioRigEffectPanel instance, rendered directly by FleetParamsContent.tsx when a
- * specific effect leaf is selected — this component (and its former accordion wrapper, now
- * removed) is FleetParamsContent's own fallback for the bare 'fleetParams' selection and its
- * 3 still-category-only groups (EQ & Filters/Time & Space/Output), none of which has doc-content
- * wired yet (spec §7 Q4, deferred). No accordion left — AudioRigEffectPanel below carries its own
- * per-effect trait color directly now that there's no group accordion to cascade one down.
+ * of Task 14 (docs/tasks/NAV_LAYOUT_REWRITE.md) this component's own scope shrank to just the one
+ * control that never got a tree leaf of its own: Ping Variance Automation ("Automatic Effects").
+ * Every real effect (EQ, HPF, LPF, Delay, Reverb, Compressor, Limiter) moved out to its own
+ * AudioRigEffectPanel instance, rendered directly by FleetParamsContent.tsx when a specific effect
+ * leaf is selected. This component now lives inside FleetParamsContent's own Pacing accordion,
+ * alongside the Tempo slider (relocated from Settings -> Tempo). AudioRigEffectPanel below carries
+ * its own per-effect trait color directly since there's no group accordion to cascade one down to
+ * EQ & Filters/Time & Space/Output's still-category-only groups.
  */
 export function AudioRigDrawer() {
   const pingVarianceAutomation = useAudioStore((s) => s.pingVarianceAutomation);

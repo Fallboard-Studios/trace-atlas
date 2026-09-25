@@ -6,6 +6,7 @@ import { useAttenuationStyleStore } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import * as localeTemperature from '@/utils/localeTemperature';
+import * as localeTemperatureStep from '@/utils/localeTemperatureStep';
 import type { AttenuationStyle } from '@/types/attenuationStyle';
 import type { Locale } from '@/types/locale';
 
@@ -72,19 +73,48 @@ describe('AttenuationStyleView — temperature wiring (docs/specs/HEADER_HUB_CON
     expect(spy).toHaveBeenCalledWith(TEST_LOCALE.id, TEST_LOCALE.coordinates.x, TEST_LOCALE.coordinates.y, hour);
   });
 
-  it('updates temperature again on the next 1s wall-clock tick, without a second timer', async () => {
+  // DAY_DURATION_MS is 360_000ms for a 24h in-world day, so 1 in-world hour
+  // = 15_000ms real time and one half-hour slot = 7_500ms real time.
+  it('does not step temperature while the in-world clock stays within the same half-hour slot', async () => {
     vi.useFakeTimers({ now: Date.now() });
-    setStoreFixtures(); // re-apply under fake time, so dayStartTimestamp is relative to the faked "now"
-    const spy = vi.spyOn(localeTemperature, 'computeLocaleTemperature');
+    // dayStartTimestamp chosen so mount lands at hour 1.0 (slot 2), well
+    // clear of the next boundary at hour 1.5.
+    useAttenuationStyleStore.setState({ attenuationStyles: [TEST_ATTENUATION_STYLE], currentAttenuationStyleId: TEST_ATTENUATION_STYLE.id });
+    useLocaleStore.setState({ locales: { [TEST_LOCALE.id]: { ...TEST_LOCALE, dayStartTimestamp: Date.now() - 15_000 } } });
+    useUIStore.setState({ activeLocaleLocalTime: null, activeLocaleTemperature: null });
+    const computeSpy = vi.spyOn(localeTemperature, 'computeLocaleTemperature');
+    const stepSpy = vi.spyOn(localeTemperatureStep, 'stepLocaleTemperature');
 
     render(<AttenuationStyleView attenuationStyleId={TEST_ATTENUATION_STYLE.id} />);
-    const callsAfterMount = spy.mock.calls.length;
-    expect(callsAfterMount).toBe(1); // the immediate tick() call on mount
+    expect(computeSpy.mock.calls.length).toBe(1); // the immediate tick() call on mount
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000); // hour advances to ~1.2 — still slot 2
+    });
+    expect(computeSpy.mock.calls.length).toBe(1); // no re-sample
+    expect(stepSpy.mock.calls.length).toBe(0); // no boundary crossed yet
+  });
+
+  it('steps temperature by one random-walk step exactly when the in-world clock crosses a half-hour boundary, without a second timer', async () => {
+    vi.useFakeTimers({ now: Date.now() });
+    // dayStartTimestamp chosen so mount lands just before hour 1.5 (slot 2);
+    // the next 1s wall-clock tick pushes it past the boundary into slot 3.
+    useAttenuationStyleStore.setState({ attenuationStyles: [TEST_ATTENUATION_STYLE], currentAttenuationStyleId: TEST_ATTENUATION_STYLE.id });
+    useLocaleStore.setState({ locales: { [TEST_LOCALE.id]: { ...TEST_LOCALE, dayStartTimestamp: Date.now() - 22_350 } } });
+    useUIStore.setState({ activeLocaleLocalTime: null, activeLocaleTemperature: null });
+    const computeSpy = vi.spyOn(localeTemperature, 'computeLocaleTemperature');
+    const stepSpy = vi.spyOn(localeTemperatureStep, 'stepLocaleTemperature');
+
+    render(<AttenuationStyleView attenuationStyleId={TEST_ATTENUATION_STYLE.id} />);
+    const seeded = useUIStore.getState().activeLocaleTemperature;
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1000);
     });
-    expect(spy.mock.calls.length).toBe(2); // exactly one more call from the 1s interval, not a second timer firing independently
+
+    expect(stepSpy.mock.calls.length).toBe(1); // exactly one step, on the tick that crosses the boundary
+    expect(stepSpy).toHaveBeenCalledWith(TEST_LOCALE.id, TEST_LOCALE.coordinates.x, TEST_LOCALE.coordinates.y, 3, seeded);
+    expect(computeSpy.mock.calls.length).toBe(1); // never re-sampled from noise after the initial seed
   });
 
   it('does not set temperature to a stale/garbage value when the locale is not found (early-return branch)', () => {

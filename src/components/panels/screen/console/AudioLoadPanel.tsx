@@ -7,7 +7,18 @@ import { AUDIO_EFFECTS_LOAD_SCHEMA, AUDIO_LOAD_PANEL_SCHEMA, AUDIO_LOAD_PRESET_S
 import { AUDIO_LOAD_PRESETS } from '@/constants';
 import { useAudioStore } from '@/stores/audioStore';
 import { describeLimits, effectsLoadToLimits, presetForLoads, robotLoadToLimits } from '@/utils/audioBudget';
+import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import './AudioLoadPanel.css';
+
+/** Ref callback registering/clearing a nav scroll anchor (src/utils/sectionRefs.ts) — matches
+ *  navTreeConfig.ts's own settings.quality.robotLoad/effectsLoad tree node ids (Settings ->
+ *  Performance's own 3rd tree level). */
+function sectionAnchorRef(id: string) {
+  return (el: HTMLDivElement | null) => {
+    if (el) setSectionRef(id, el);
+    else clearSectionRef(id);
+  };
+}
 
 /**
  * The Audio Load control (docs/specs/AUDIO_LOAD_BUDGET.md §4.5) — rendered from Settings -> Quality
@@ -46,10 +57,10 @@ export const AudioLoadPanel = memo(function AudioLoadPanel() {
       <div className="audio-rig-drawer__param-row">
         <RadioButton schema={AUDIO_LOAD_PRESET_SCHEMA} value={presetForLoads(robotLoad, effectsLoad) ?? ''} onChange={handlePreset} />
       </div>
-      <div className="audio-rig-drawer__param-row">
+      <div className="audio-rig-drawer__param-row" ref={sectionAnchorRef('settings.quality.robotLoad')}>
         <SliderLinear schema={AUDIO_ROBOT_LOAD_SCHEMA} value={Math.round(robotLoad * 100)} onChange={handleRobotSlider} />
       </div>
-      <div className="audio-rig-drawer__param-row">
+      <div className="audio-rig-drawer__param-row" ref={sectionAnchorRef('settings.quality.effectsLoad')}>
         <SliderLinear schema={AUDIO_EFFECTS_LOAD_SCHEMA} value={Math.round(effectsLoad * 100)} onChange={handleEffectsSlider} />
       </div>
       <p className="audio-load-panel__readout">

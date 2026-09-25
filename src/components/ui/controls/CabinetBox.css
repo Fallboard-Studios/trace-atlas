@@ -45,7 +45,12 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: var(--color-accent-gradient);
+  /* --cabinet-box-color (optional, per-instance override — CabinetBox.tsx's own `color` prop,
+     docs/specs/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.2/§5.1) is a single already-resolved
+     color, not a 2-tone pair, so an overridden instance renders a solid fill here instead of the
+     default diagonal gradient — the same "gradient of identical stops = solid fill" simplification
+     getRobotColorStyle already relies on elsewhere in this codebase. */
+  background: var(--cabinet-box-color, var(--color-accent-gradient));
   opacity: .4;
   pointer-events: none;
   z-index: -1;
@@ -129,7 +134,8 @@
 }
 
 .sc-cabinet-box__top-face {
-  background-color: color-mix(in srgb, var(--color-accent) 100%, white 20%);
+  /* --cabinet-box-color override, see .sc-cabinet-box__backing's own comment above. */
+  background-color: color-mix(in srgb, var(--cabinet-box-color, var(--color-accent)) 100%, white 20%);
 }
 
 /* No background-color here anymore — see CabinetBox.tsx's own
@@ -142,7 +148,8 @@
   position: absolute;
   inset: 0;
   transform-origin: top left;
-  background-color: color-mix(in srgb, var(--color-accent) 100%, black 25%);
+  /* --cabinet-box-color override, see .sc-cabinet-box__backing's own comment above. */
+  background-color: color-mix(in srgb, var(--cabinet-box-color, var(--color-accent)) 100%, black 25%);
 }
 
 .sc-cabinet-box__front {
@@ -160,6 +167,10 @@
      and reads as the "live" surface; VoxelTrack's textless boxes and
      Toggle's bare box stay on this default. See Button.css's own comment,
      2026-09-09. */
-  background-color: var(--color-surface);
+  /* --cabinet-box-color override, see .sc-cabinet-box__backing's own comment above — unlike
+     Button's own accent-only-on-front precedent, an override here applies even though the front
+     face may carry no text (NavCabinetRow's own case), since the whole point of that consumer is
+     a solid trait-colored indicator, not a "this carries text" cue. */
+  background-color: var(--cabinet-box-color, var(--color-surface));
   color: var(--color-text-primary);
 }

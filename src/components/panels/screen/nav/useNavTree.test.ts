@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useNavTree } from './useNavTree';
+import { useNavTree, isDeepestTwoLevels, isAutoExpandTier, isCollapsible } from './useNavTree';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
@@ -296,53 +296,44 @@ describe('useNavTree — isSelected on a full 4-segment subsection id (docs/task
   });
 });
 
-describe('useNavTree — toggleExpand/isExpanded accordion-of-one for a section within an expanded probe/company (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 2)', () => {
+describe('useNavTree — Probes/Companies section-level auto-expand (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3)', () => {
   beforeEach(resetStores);
 
-  it('expanding probes.<id>.melody sets expandedProbeSection, independent of expandedProbeId', () => {
+  it('every section under an expanded probe (e.g. probes.<id>.melody) is already expanded — no separate toggle needed', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     const { result } = renderHook(() => useNavTree());
 
     act(() => result.current.toggleExpand('probes.r1'));
-    act(() => result.current.toggleExpand('probes.r1.melody'));
 
     expect(useUIStore.getState().expandedProbeId).toBe('r1');
-    expect(useUIStore.getState().expandedProbeSection).toBe('melody');
     expect(result.current.isExpanded('probes.r1.melody')).toBe(true);
-  });
-
-  it('expanding a different section under the same probe clears the previously-expanded one — accordion-of-one', () => {
-    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
-    const { result } = renderHook(() => useNavTree());
-
-    act(() => result.current.toggleExpand('probes.r1.melody'));
-    act(() => result.current.toggleExpand('probes.r1.source'));
-
-    expect(useUIStore.getState().expandedProbeSection).toBe('source');
-    expect(result.current.isExpanded('probes.r1.melody')).toBe(false);
     expect(result.current.isExpanded('probes.r1.source')).toBe(true);
   });
 
-  it('expandedProbeSection and expandedCompanySection are independent of each other', () => {
+  it('toggleExpand on a section node is a no-op — not independently collapsible', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.toggleExpand('probes.r1'));
+
+    act(() => result.current.toggleExpand('probes.r1.melody'));
+
+    expect(result.current.isExpanded('probes.r1.melody')).toBe(true);
+  });
+
+  it('a company section node behaves the same way as a probe section node', () => {
     useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp'));
     const { result } = renderHook(() => useNavTree());
 
-    act(() => result.current.toggleExpand('probes.r1.melody'));
-    act(() => result.current.toggleExpand('companies.c1.source'));
+    act(() => result.current.toggleExpand('companies.c1'));
 
-    expect(useUIStore.getState().expandedProbeSection).toBe('melody');
-    expect(useUIStore.getState().expandedCompanySection).toBe('source');
+    expect(result.current.isExpanded('companies.c1.envelope')).toBe(true);
   });
 
-  it('toggling an already-expanded section again collapses it', () => {
+  it('a section node is expanded regardless of whether its own probe has been explicitly toggled — visibility only depends on the section itself being visible in the tree at all', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     const { result } = renderHook(() => useNavTree());
 
-    act(() => result.current.toggleExpand('probes.r1.melody'));
-    act(() => result.current.toggleExpand('probes.r1.melody'));
-
-    expect(useUIStore.getState().expandedProbeSection).toBeNull();
+    expect(result.current.isExpanded('probes.r1.melody')).toBe(true);
   });
 });
 
@@ -467,35 +458,75 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
     expect(useUIStore.getState().selectedRobotId).toBe('r1');
   });
 
-  it('selecting a Settings leaf (settings.volume) sets activeHubTile and selectedSettingsLeaf (Task 11)', () => {
-    const { result } = renderHook(() => useNavTree());
-
-    act(() => result.current.select('settings.volume'));
-
-    expect(useUIStore.getState().activeHubTile).toBe('settings');
-    expect(useUIStore.getState().selectedSettingsLeaf).toBe('volume');
-  });
-
-  it('selecting each of the other 3 Settings leaves sets selectedSettingsLeaf accordingly', () => {
+  it('selecting a Settings leaf (settings.quality) sets activeHubTile and selectedSettingsLeaf (Task 11)', () => {
     const { result } = renderHook(() => useNavTree());
 
     act(() => result.current.select('settings.quality'));
-    expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
 
-    act(() => result.current.select('settings.tempo'));
-    expect(useUIStore.getState().selectedSettingsLeaf).toBe('tempo');
+    expect(useUIStore.getState().activeHubTile).toBe('settings');
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
+  });
+
+  it('selecting the other Settings leaf sets selectedSettingsLeaf accordingly', () => {
+    const { result } = renderHook(() => useNavTree());
 
     act(() => result.current.select('settings.sectorSettings'));
     expect(useUIStore.getState().selectedSettingsLeaf).toBe('sectorSettings');
   });
 
-  it('selecting the bare "settings" parent opens its first leaf (Volume) — first-leaf-on-parent-select, docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.6, replacing the old swap-model\'s "nothing selected" fallback', () => {
+  it('selecting the bare "settings" parent opens its first leaf (Quality) — first-leaf-on-parent-select, docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.6, replacing the old swap-model\'s "nothing selected" fallback', () => {
     const { result } = renderHook(() => useNavTree());
-    act(() => result.current.select('settings.tempo'));
+    act(() => result.current.select('settings.sectorSettings'));
 
     act(() => result.current.select('settings'));
 
-    expect(useUIStore.getState().selectedSettingsLeaf).toBe('volume');
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
+    expect(useUIStore.getState().selectedSettingsSubsection).toBeNull();
+  });
+
+  it('selecting a Settings subsection (3rd tree level) sets selectedSettingsLeaf AND selectedSettingsSubsection, and isSelected reports only the exact node', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('settings.quality.robotLoad'));
+
+    expect(useUIStore.getState().activeHubTile).toBe('settings');
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
+    expect(useUIStore.getState().selectedSettingsSubsection).toBe('robotLoad');
+    expect(result.current.isSelected('settings.quality.robotLoad')).toBe(true);
+    expect(result.current.isSelected('settings.quality.effectsLoad')).toBe(false);
+    expect(result.current.isSelected('settings.quality')).toBe(false);
+  });
+
+  it('selecting a Settings leaf clears any previously-selected subsection back to null', () => {
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('settings.sectorSettings.coordinates'));
+
+    act(() => result.current.select('settings.sectorSettings'));
+
+    expect(useUIStore.getState().selectedSettingsSubsection).toBeNull();
+    expect(result.current.isSelected('settings.sectorSettings')).toBe(true);
+  });
+
+  it('selecting a Settings subsection auto-expands the Settings branch — both of Settings\' own children are already always-expanded (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3)', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('settings.sectorSettings.attenuationStyle'));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('settings');
+    expect(result.current.isExpanded('settings.sectorSettings')).toBe(true);
+    expect(result.current.isExpanded('settings.quality')).toBe(true);
+  });
+
+  it('both Settings leaves are always expanded simultaneously, with no independent toggle — toggleExpand on either is a no-op', () => {
+    const { result } = renderHook(() => useNavTree());
+    expect(result.current.isExpanded('settings.quality')).toBe(true);
+    expect(result.current.isExpanded('settings.sectorSettings')).toBe(true);
+
+    act(() => result.current.toggleExpand('settings.quality'));
+    act(() => result.current.toggleExpand('settings.sectorSettings'));
+
+    expect(result.current.isExpanded('settings.quality')).toBe(true);
+    expect(result.current.isExpanded('settings.sectorSettings')).toBe(true);
   });
 
   it('selecting a Fleet Params effect leaf sets activeHubTile to audioRig and selectedFleetParamsEffect to the matching AudioRigEffectKey (Task 14)', () => {
@@ -536,6 +567,9 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
   it('selecting a category group opens ITS OWN first child, not always the overall first leaf', () => {
     const { result } = renderHook(() => useNavTree());
 
+    act(() => result.current.select('fleetParams.pacing'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('tempo');
+
     act(() => result.current.select('fleetParams.eqFilters'));
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('eq3');
 
@@ -545,12 +579,40 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
     act(() => result.current.select('fleetParams.output'));
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('compressor');
   });
+
+  it('selecting Pacing\'s own 2 children (Tempo, Automatic Effects) sets selectedFleetParamsEffect accordingly, and isSelected reports only the exact node', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('fleetParams.pacing.tempo'));
+    expect(useUIStore.getState().activeHubTile).toBe('audioRig');
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('tempo');
+    expect(result.current.isSelected('fleetParams.pacing.tempo')).toBe(true);
+    expect(result.current.isSelected('fleetParams.pacing.automaticEffects')).toBe(false);
+    expect(result.current.isSelected('fleetParams.pacing')).toBe(false);
+
+    act(() => result.current.select('fleetParams.pacing.automaticEffects'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('automaticEffects');
+    expect(result.current.isSelected('fleetParams.pacing.automaticEffects')).toBe(true);
+    expect(result.current.isSelected('fleetParams.pacing.tempo')).toBe(false);
+  });
+
+  it('all 4 Fleet Params groups (including Pacing) are always expanded simultaneously, with no independent toggle', () => {
+    const { result } = renderHook(() => useNavTree());
+    expect(result.current.isExpanded('fleetParams.pacing')).toBe(true);
+    expect(result.current.isExpanded('fleetParams.eqFilters')).toBe(true);
+
+    act(() => result.current.toggleExpand('fleetParams.pacing'));
+    act(() => result.current.toggleExpand('fleetParams.eqFilters'));
+
+    expect(result.current.isExpanded('fleetParams.pacing')).toBe(true);
+    expect(result.current.isExpanded('fleetParams.eqFilters')).toBe(true);
+  });
 });
 
 describe('useNavTree — select() auto-expands every ancestor row (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 14, spec §1.6)', () => {
   beforeEach(resetStores);
 
-  it('selecting a deep probe subsection expands the top-level branch, the probe, and its section in one step', () => {
+  it('selecting a deep probe subsection expands the top-level branch and the probe — its section is already always-expanded, no separate field needed', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     const { result } = renderHook(() => useNavTree());
 
@@ -558,10 +620,10 @@ describe('useNavTree — select() auto-expands every ancestor row (docs/tasks/NA
 
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
     expect(useUIStore.getState().expandedProbeId).toBe('r1');
-    expect(useUIStore.getState().expandedProbeSection).toBe('source');
+    expect(result.current.isExpanded('probes.r1.source')).toBe(true);
   });
 
-  it('selecting a deep company subsection expands the top-level branch, the company, and its section in one step', () => {
+  it('selecting a deep company subsection expands the top-level branch and the company — its section is already always-expanded', () => {
     useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp'));
     const { result } = renderHook(() => useNavTree());
 
@@ -569,22 +631,22 @@ describe('useNavTree — select() auto-expands every ancestor row (docs/tasks/NA
 
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('companies');
     expect(useUIStore.getState().expandedCompanyId).toBe('c1');
-    expect(useUIStore.getState().expandedCompanySection).toBe('melody');
+    expect(result.current.isExpanded('companies.c1.melody')).toBe(true);
   });
 
-  it('selecting a Fleet Params leaf expands the top-level branch and its own group', () => {
+  it('selecting a Fleet Params leaf expands the top-level branch — its own group is already always-expanded', () => {
     const { result } = renderHook(() => useNavTree());
 
     act(() => result.current.select('fleetParams.timeSpace.reverb'));
 
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('fleetParams');
-    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('timeSpace');
+    expect(result.current.isExpanded('fleetParams.timeSpace')).toBe(true);
   });
 
   it('selecting a Settings leaf expands the Settings top-level branch', () => {
     const { result } = renderHook(() => useNavTree());
 
-    act(() => result.current.select('settings.tempo'));
+    act(() => result.current.select('settings.sectorSettings'));
 
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('settings');
   });
@@ -597,11 +659,10 @@ describe('useNavTree — select() auto-expands every ancestor row (docs/tasks/NA
     act(() => result.current.select('fleetParams.eqFilters.eq'));
 
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('fleetParams');
-    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('eqFilters');
     // The probe's own expand state is untouched — switching branches doesn't collapse it, only
     // expandedTopLevelBranch (the accordion-of-one for which top-level row is peeked) moves on.
     expect(useUIStore.getState().expandedProbeId).toBe('r1');
-    expect(useUIStore.getState().expandedProbeSection).toBe('envelope');
+    expect(result.current.isExpanded('probes.r1.envelope')).toBe(true);
   });
 });
 
@@ -706,31 +767,32 @@ describe('useNavTree — toggleExpand accordion-of-one within Companies, indepen
   });
 });
 
-describe('useNavTree — toggleExpand accordion-of-one within Fleet Params groups (Task 3 AC3)', () => {
+describe('useNavTree — Fleet Params groups are always expanded (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3)', () => {
   beforeEach(resetStores);
 
-  it('expanding a Fleet Params group sets expandedFleetParamsGroup, clearing a different expanded group', () => {
+  it('every group is expanded from the start — no toggle needed, and toggling one has no effect on the others', () => {
     const { result } = renderHook(() => useNavTree());
+    expect(result.current.isExpanded('fleetParams.eqFilters')).toBe(true);
+    expect(result.current.isExpanded('fleetParams.timeSpace')).toBe(true);
 
     act(() => result.current.toggleExpand('fleetParams.eqFilters'));
-    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('eqFilters');
-
     act(() => result.current.toggleExpand('fleetParams.timeSpace'));
-    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('timeSpace');
+
+    expect(result.current.isExpanded('fleetParams.eqFilters')).toBe(true);
+    expect(result.current.isExpanded('fleetParams.timeSpace')).toBe(true);
   });
 
-  it('is independent of expandedProbeId/expandedCompanyId — its own level, own accordion-of-one', () => {
+  it('is independent of expandedProbeId/expandedCompanyId — entity-level toggling is unaffected', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp'));
     const { result } = renderHook(() => useNavTree());
 
     act(() => result.current.toggleExpand('probes.r1'));
     act(() => result.current.toggleExpand('companies.c1'));
-    act(() => result.current.toggleExpand('fleetParams.output'));
 
     expect(useUIStore.getState().expandedProbeId).toBe('r1');
     expect(useUIStore.getState().expandedCompanyId).toBe('c1');
-    expect(useUIStore.getState().expandedFleetParamsGroup).toBe('output');
+    expect(result.current.isExpanded('fleetParams.output')).toBe(true);
   });
 });
 
@@ -785,5 +847,77 @@ describe('useNavTree — toggleExpand/isExpanded on the 4 top-level branches (bu
 
     expect(useUIStore.getState().expandedProbeId).toBe('r1');
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
+  });
+});
+
+describe('isDeepestTwoLevels (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §2/§5.1) — plain exported predicate, no store state needed', () => {
+  it('is true for every Settings/Fleet Params mid-level node', () => {
+    for (const id of ['settings.quality', 'settings.sectorSettings', 'fleetParams.pacing', 'fleetParams.eqFilters', 'fleetParams.timeSpace', 'fleetParams.output']) {
+      expect(isDeepestTwoLevels(id), id).toBe(true);
+    }
+  });
+
+  it('is true for every Settings/Fleet Params leaf node (3-segment ids)', () => {
+    for (const id of ['settings.quality.robotLoad', 'settings.sectorSettings.attenuationStyle', 'fleetParams.pacing.tempo', 'fleetParams.eqFilters.eq']) {
+      expect(isDeepestTwoLevels(id), id).toBe(true);
+    }
+  });
+
+  it('is true for every Probes/Companies section node (3-segment ids)', () => {
+    for (const id of ['probes.r1.melody', 'probes.all.envelope', 'companies.c1.source']) {
+      expect(isDeepestTwoLevels(id), id).toBe(true);
+    }
+  });
+
+  it('is true for every Probes/Companies subsection node (4-segment ids)', () => {
+    for (const id of ['probes.r1.melody.rhythm', 'companies.c1.source.probeDrift']) {
+      expect(isDeepestTwoLevels(id), id).toBe(true);
+    }
+  });
+
+  it('is false for every branch id, entity id, and non-tree-shaped id', () => {
+    for (const id of ['settings', 'fleetParams', 'probes', 'companies', 'probes.r1', 'probes.all', 'companies.c1']) {
+      expect(isDeepestTwoLevels(id), id).toBe(false);
+    }
+  });
+});
+
+describe('isAutoExpandTier (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3/§5.1) — the UPPER of isDeepestTwoLevels\' 2 levels only', () => {
+  it('is true for every Settings/Fleet Params mid-level node', () => {
+    for (const id of ['settings.quality', 'settings.sectorSettings', 'fleetParams.pacing', 'fleetParams.eqFilters', 'fleetParams.timeSpace', 'fleetParams.output']) {
+      expect(isAutoExpandTier(id), id).toBe(true);
+    }
+  });
+
+  it('is true for every Probes/Companies section node', () => {
+    for (const id of ['probes.r1.melody', 'probes.all.envelope', 'companies.c1.source']) {
+      expect(isAutoExpandTier(id), id).toBe(true);
+    }
+  });
+
+  it('is false for a leaf/subsection node (the LOWER of the 2 levels — no children of its own, nothing to auto-expand)', () => {
+    for (const id of ['settings.quality.robotLoad', 'fleetParams.pacing.tempo', 'probes.r1.melody.rhythm', 'companies.c1.source.probeDrift']) {
+      expect(isAutoExpandTier(id), id).toBe(false);
+    }
+  });
+
+  it('is false for every branch id and entity id', () => {
+    for (const id of ['settings', 'fleetParams', 'probes', 'companies', 'probes.r1', 'probes.all', 'companies.c1']) {
+      expect(isAutoExpandTier(id), id).toBe(false);
+    }
+  });
+});
+
+describe('isCollapsible — the negation of isAutoExpandTier', () => {
+  it('is false exactly where isAutoExpandTier is true', () => {
+    for (const id of ['settings.quality', 'fleetParams.pacing', 'probes.r1.melody', 'companies.c1.source']) {
+      expect(isCollapsible(id), id).toBe(false);
+    }
+  });
+
+  it('is true for branch ids, entity ids, and leaf/subsection ids', () => {
+    for (const id of ['settings', 'probes', 'probes.r1', 'companies.c1', 'settings.quality.robotLoad', 'probes.r1.melody.rhythm']) {
+      expect(isCollapsible(id), id).toBe(true);
+    }
   });
 });

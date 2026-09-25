@@ -48,7 +48,7 @@
   height: auto;
   padding: 32px var(--spacing-lg) var(--spacing-lg);
   max-height: calc(100vh - var(--power-corner-height) - 32px);
-  overflow: scroll;
+  overflow: auto;
   scrollbar-gutter: stable;
   background-color: var(--color-surface);
 }

@@ -27,6 +27,9 @@ export const LOCALE_TEMPERATURE_RANGE = { min: -120, max: -30 };
  * Rounded to the nearest whole degree for display. A pure function: never
  * stored on the Locale object itself, called fresh on every tick
  * (AttenuationStyleView.tsx). docs/specs/HEADER_HUB_CONSOLIDATION.md §1.3.
+ *
+ * Only used as the initial/reseed value on locale change — subsequent
+ * updates are stepLocaleTemperature's random walk (localeTemperatureStep.ts).
  */
 export function computeLocaleTemperature(localeId: string, x: number, y: number, hour: number): number {
   const noiseMap = getLocaleNoiseMap(localeId, x, y);

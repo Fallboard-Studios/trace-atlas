@@ -135,7 +135,7 @@ export const FREQUENCY_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'robotOptions.frequency',
   type: 'directionalPanel',
   loreLabel: 'PITCH FREQUENCY MATRIX',
-  humanLabel: 'Frequency',
+  humanLabel: 'Pitches',
   orientation: 'responsive',
 };
 
@@ -266,7 +266,7 @@ export const PING_CONTOUR_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'robotOptions.pingContour',
   type: 'directionalPanel',
   loreLabel: 'PING CONTOUR',
-  humanLabel: 'Ping Contour',
+  humanLabel: 'Contour',
   orientation: 'column',
 };
 

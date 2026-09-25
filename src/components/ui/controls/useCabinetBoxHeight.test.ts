@@ -6,8 +6,8 @@ import { useCabinetBoxHeight, useVoxelTrackGap } from './useCabinetBoxHeight';
 /**
  * Stubs window.matchMedia so the mobile (max-width: 640px) and tablet
  * (max-width: 1024px) queries can be controlled independently, and their
- * 'change' listeners triggered manually — generalizes the single-query
- * stubMatchMedia pattern used elsewhere in this codebase to 2 independent queries.
+ * 'change' listeners triggered manually — generalizes AccordionContainer.
+ * test.tsx's own single-query stubMatchMedia to 2 independent queries.
  */
 function stubMatchMedia(initial: { mobile: boolean; tablet: boolean }) {
   const state = { ...initial };

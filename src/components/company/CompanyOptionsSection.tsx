@@ -364,7 +364,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
       <div ref={sectionAnchorRef(`${prefix}.volume`)}>
         <div ref={sectionAnchorRef(`${prefix}.volume.audioSettings`)}>
           <AccordionContainer
-            schema={{ id: `${prefix}.volume.audioSettings`, type: 'accordion', humanLabel: 'Audio Settings' } satisfies AccordionSchema}
+            schema={{ id: `${prefix}.volume.audioSettings`, type: 'accordion', humanLabel: 'Dynamics' } satisfies AccordionSchema}
             open={isOpen(`${prefix}.volume.audioSettings`)}
             onOpenChange={(open) => setOpen(`${prefix}.volume.audioSettings`, open)}
             style={active ? OUTPUT_ACTIVE_STYLE : OUTPUT_DISABLED_STYLE}
@@ -405,7 +405,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
         </div>
         <div ref={sectionAnchorRef(`${prefix}.melody.frequency`)}>
           <AccordionContainer
-            schema={{ id: `${prefix}.melody.frequency`, type: 'accordion', humanLabel: 'Frequency' } satisfies AccordionSchema}
+            schema={{ id: `${prefix}.melody.frequency`, type: 'accordion', humanLabel: 'Pitches' } satisfies AccordionSchema}
             open={isOpen(`${prefix}.melody.frequency`)}
             onOpenChange={(open) => setOpen(`${prefix}.melody.frequency`, open)}
             style={active ? COMPOSITION_ACTIVE_STYLE : COMPOSITION_DISABLED_STYLE}
@@ -426,7 +426,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
       <div ref={sectionAnchorRef(`${prefix}.envelope`)}>
         <div ref={sectionAnchorRef(`${prefix}.envelope.pingContour`)}>
           <AccordionContainer
-            schema={{ id: `${prefix}.envelope.pingContour`, type: 'accordion', humanLabel: 'Ping Contour' } satisfies AccordionSchema}
+            schema={{ id: `${prefix}.envelope.pingContour`, type: 'accordion', humanLabel: 'Contour' } satisfies AccordionSchema}
             open={isOpen(`${prefix}.envelope.pingContour`)}
             onOpenChange={(open) => setOpen(`${prefix}.envelope.pingContour`, open)}
             style={active ? TIME_SPACE_ACTIVE_STYLE : TIME_SPACE_DISABLED_STYLE}

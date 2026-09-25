@@ -2,6 +2,7 @@ import { useState, useEffect, startTransition } from 'react';
 import LocaleView from './LocaleView';
 import { computeLocaleHour } from '@/constants/time';
 import { computeLocaleTemperature } from '@/utils/localeTemperature';
+import { stepLocaleTemperature } from '@/utils/localeTemperatureStep';
 
 import { useAttenuationStyleStore } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -23,10 +24,21 @@ function AttenuationStyleView({ attenuationStyleId }: AttenuationStyleViewProps)
   });
 
   useEffect(() => {
+    // Temperature rides this same 1s interval (no second timer — see
+    // docs/specs/HEADER_HUB_CONSOLIDATION.md §1.3) but only steps when the
+    // in-world clock crosses a half-hour boundary (top or bottom of the
+    // hour), not on a fixed wall-clock cadence — a slower, small-random-walk
+    // step keyed to game time rather than local time's own per-second
+    // update. Reset on locale change so a switch starts fresh from a
+    // freshly-computed seed value instead of an old locale's walk.
+    let temperature: number | null = null;
+    let halfHourSlot: number | null = null;
+
     const tick = () => {
       const locale = useLocaleStore.getState().locales[localeId];
       if (!locale) return;
       const hour = computeLocaleHour(locale.dayStartTimestamp);
+      const slot = Math.floor(hour * 2); // 0-47, one per half-hour of the 24h in-world day
       // Wrapped in startTransition (docs/todo/backlog.md item 25): this one tick fans out
       // into a re-render of every FactoryInner/RobotBody (and anything else) subscribed to
       // activeLocaleLocalTime — every one of them in a single synchronized React commit, by
@@ -43,14 +55,21 @@ function AttenuationStyleView({ attenuationStyleId }: AttenuationStyleViewProps)
         // local time, computed directly from its own dayStartTimestamp. One
         // computation, two consumers (local state below, uiStore here).
         useUIStore.getState().setActiveLocaleLocalTime(hour);
-        // Same tick, same hour, same locale object — temperature is purely
-        // decorative (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.3) and drifts
-        // continuously because it samples at this live hour rather than a
-        // fixed offset, so it rides the same 1s cadence as local time instead
-        // of a separate timer.
-        useUIStore.getState().setActiveLocaleTemperature(
-          computeLocaleTemperature(localeId, locale.coordinates.x, locale.coordinates.y, hour),
-        );
+
+        if (temperature === null) {
+          // First tick after mount/locale-change: seed from the pure noise
+          // function, same as before.
+          temperature = computeLocaleTemperature(localeId, locale.coordinates.x, locale.coordinates.y, hour);
+          halfHourSlot = slot;
+          useUIStore.getState().setActiveLocaleTemperature(temperature);
+        } else if (slot !== halfHourSlot) {
+          // Crossed the top or bottom of the in-world hour: one small
+          // walk step (seeded off this locale's own coordinates, not a
+          // fresh noise sample).
+          temperature = stepLocaleTemperature(localeId, locale.coordinates.x, locale.coordinates.y, slot, temperature);
+          halfHourSlot = slot;
+          useUIStore.getState().setActiveLocaleTemperature(temperature);
+        }
       });
     };
 

@@ -280,6 +280,59 @@ describe('CabinetBox', () => {
     expect(wrapper.style.getPropertyValue('--cabinet-box-height')).toBe('44px');
   });
 
+  describe('color override (docs/specs/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.2/§5.1)', () => {
+    it('applies no --cabinet-box-color inline style when color is omitted', () => {
+      const { container } = render(<CabinetBox popped={false} timelineKey="test-box" />);
+      const wrapper = container.querySelector('.sc-cabinet-box') as HTMLElement;
+      expect(wrapper.style.getPropertyValue('--cabinet-box-color')).toBe('');
+    });
+
+    it('applies the color prop as a --cabinet-box-color inline custom property', () => {
+      const { container } = render(<CabinetBox popped={false} timelineKey="test-box" color="#ff0000" />);
+      const wrapper = container.querySelector('.sc-cabinet-box') as HTMLElement;
+      expect(wrapper.style.getPropertyValue('--cabinet-box-color')).toBe('#ff0000');
+    });
+
+    it("CabinetBox.css's backing/top-face/left-face-inner/front rules all read var(--cabinet-box-color, <default>) — source-scan, since jsdom doesn't resolve color-mix()/cascaded custom properties (this file's own existing caveat)", async () => {
+      const { readFileSync } = await import('node:fs');
+      const { dirname, join } = await import('node:path');
+      const { fileURLToPath } = await import('node:url');
+      const thisFile = fileURLToPath(import.meta.url);
+      const source = readFileSync(join(dirname(thisFile), 'CabinetBox.css'), 'utf-8');
+      expect(source).toMatch(/\.sc-cabinet-box__backing\s*{[^}]*var\(--cabinet-box-color,\s*var\(--color-accent-gradient\)\)/);
+      expect(source).toMatch(/\.sc-cabinet-box__top-face\s*{[^}]*var\(--cabinet-box-color,\s*var\(--color-accent\)\)/);
+      expect(source).toMatch(/\.sc-cabinet-box__left-face-inner\s*{[^}]*var\(--cabinet-box-color,\s*var\(--color-accent\)\)/);
+      expect(source).toMatch(/\.sc-cabinet-box__front\s*{[^}]*var\(--cabinet-box-color,\s*var\(--color-surface\)\)/);
+    });
+  });
+
+  describe('enforceMinTouchHeight (docs/specs/NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.3/§5.1)', () => {
+    it('enforceMinTouchHeight={false} lets --cabinet-box-height go below the 44px floor', () => {
+      const { container } = render(
+        <CabinetBox popped={false} timelineKey="test-box" boxHeight={4} enforceMinTouchHeight={false}>x</CabinetBox>,
+      );
+      const wrapper = container.querySelector('.sc-cabinet-box') as HTMLElement;
+      expect(wrapper.style.getPropertyValue('--cabinet-box-height')).toBe('4px');
+    });
+
+    it('enforceMinTouchHeight={false} has no effect when boxHeight is already above 44px', () => {
+      const { container } = render(
+        <CabinetBox popped={false} timelineKey="test-box" boxHeight={60} enforceMinTouchHeight={false}>x</CabinetBox>,
+      );
+      const wrapper = container.querySelector('.sc-cabinet-box') as HTMLElement;
+      expect(wrapper.style.getPropertyValue('--cabinet-box-height')).toBe('60px');
+    });
+
+    it('defaults to true (the floor applies) when omitted, independent of the color prop', () => {
+      const { container } = render(
+        <CabinetBox popped={false} timelineKey="test-box" boxHeight={4} color="#00ff00">x</CabinetBox>,
+      );
+      const wrapper = container.querySelector('.sc-cabinet-box') as HTMLElement;
+      expect(wrapper.style.getPropertyValue('--cabinet-box-height')).toBe('44px');
+      expect(wrapper.style.getPropertyValue('--cabinet-box-color')).toBe('#00ff00');
+    });
+  });
+
   describe('wall rendering (roadmap 11.1.1 follow-up — two fixed-skew, scale-tweened divs, replacing SVG polygons; docs/specs/OBLIQUE_CABINETRY_WALL_RENDERING.md)', () => {
     it('the top-face and left-face elements are plain <div>s, not SVG polygons', () => {
       const { container } = render(<CabinetBox popped={false} timelineKey="test-box">x</CabinetBox>);

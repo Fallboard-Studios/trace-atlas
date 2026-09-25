@@ -53,15 +53,36 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
     id: 'settings',
     humanLabel: 'Settings',
     trait: 'spectral',
-    // Volume/Quality/Tempo below are Crawford's own explicit per-leaf picks (2026-09-23) — unlike
-    // Fleet Params'/Sector Settings', these 3 have no single established trait elsewhere in the
-    // app to match; each one simply overrides Settings' own spectral default with a distinct trait.
+    // Quality below is Crawford's own explicit per-leaf pick (2026-09-23) — unlike Fleet Params'/
+    // Sector Settings', it has no single established trait elsewhere in the app to match; it
+    // simply overrides Settings' own spectral default with a distinct trait. Volume was removed
+    // (Header already carries its own always-visible volume slider) and Tempo moved to Fleet
+    // Params -> Pacing.
     children: [
-      { id: 'settings.volume', humanLabel: 'Volume', trait: 'output' },
-      { id: 'settings.quality', humanLabel: 'Quality', trait: 'seed' },
-      { id: 'settings.tempo', humanLabel: 'Tempo', trait: 'composition' },
-      // Matches SectorSettingsDrawer.tsx's own getTraitColorStyle('seed') call.
-      { id: 'settings.sectorSettings', humanLabel: 'Sector Settings', trait: 'seed' },
+      {
+        id: 'settings.quality',
+        humanLabel: 'Performance',
+        trait: 'seed',
+        // Robot Load/Effects Load — already-existing labeled rows inside AudioLoadPanel.tsx
+        // (AUDIO_ROBOT_LOAD_SCHEMA/AUDIO_EFFECTS_LOAD_SCHEMA), just given their own scroll/
+        // highlight anchor in the tree.
+        children: [
+          { id: 'settings.quality.robotLoad', humanLabel: 'Robot Load' },
+          { id: 'settings.quality.effectsLoad', humanLabel: 'Effects Load' },
+        ],
+      },
+      {
+        // Matches SectorSettingsDrawer.tsx's own getTraitColorStyle('seed') call.
+        id: 'settings.sectorSettings',
+        humanLabel: 'Presets',
+        trait: 'seed',
+        // Attenuation Style/Coordinates — already-existing labeled rows inside
+        // SectorSettingsDrawer.tsx (ATTENUATION_STYLE_SCHEMA/COORDS_SCHEMA), same treatment.
+        children: [
+          { id: 'settings.sectorSettings.attenuationStyle', humanLabel: 'Attenuation Style' },
+          { id: 'settings.sectorSettings.coordinates', humanLabel: 'Coordinates' },
+        ],
+      },
     ],
   },
   {
@@ -69,6 +90,20 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
     humanLabel: 'Fleet Params',
     trait: 'timeSpace',
     children: [
+      {
+        // A single shared accordion (Tempo, relocated from Settings -> Tempo, + Automatic
+        // Effects), unlike the 3 groups below whose leaves each get their own accordion — Tempo/
+        // Automatic Effects are pure scroll/highlight anchors within that one accordion, not
+        // separate accordions of their own. Matches AudioRigDrawer.tsx's own
+        // getTraitColorStyle('composition') call for Automatic Effects.
+        id: 'fleetParams.pacing',
+        humanLabel: 'Pacing',
+        trait: 'composition',
+        children: [
+          { id: 'fleetParams.pacing.tempo', humanLabel: 'Tempo' },
+          { id: 'fleetParams.pacing.automaticEffects', humanLabel: 'Automatic Effects' },
+        ],
+      },
       {
         id: 'fleetParams.eqFilters',
         humanLabel: 'EQ & Filters',
