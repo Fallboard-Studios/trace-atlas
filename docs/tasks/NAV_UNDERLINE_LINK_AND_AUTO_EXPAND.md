@@ -98,23 +98,23 @@ Task 3 (UnderlineLinkNavRow.tsx/.css/.test.tsx)            │              │
 
 ### Phase 2: The new row component (depends only on Task 1)
 
-- [ ] **Task 3: `UnderlineLinkNavRow` — the deepest-two-levels row**
+- [x] **Task 3: `UnderlineLinkNavRow` — the deepest-two-levels row**
 
   **Description:** Add `src/components/panels/screen/nav/UnderlineLinkNavRow.tsx`/`.css` per spec §4/§5.3: a transparent `<button>` click target (mirroring `Button.css`'s own `.sc-button` split) wrapping a `DualLabel` (humanLabel only, no loreLabel) and an `UnderlineLink` beneath it. Local `hovered`/`focused`/`pressed` state computed exactly like `Button.tsx` (`onMouseEnter`/`onMouseLeave`/`onFocus`/`onBlur`/`onPointerDown`/`onPointerUp`/`onPointerCancel`/`onPointerLeave`, `popped = hovered || focused || pressed` — no `disabled` concept for a nav row), passed straight into `UnderlineLink`'s `popped` prop. Takes `{ node, onClick, color }` props — `onClick` is the row's own `select(node.id)` + `scrollToSection(node.id)` pairing, supplied by the caller (`NavTreeNode.tsx`, Task 4), not computed here. Row height is a first-pass value, noticeably shorter than a full `CabinetBox` row (spec's Boundaries — no fixed number specified here either; pick one, confirmed later in visual review).
 
   **Acceptance criteria:**
-  - [ ] Renders `DualLabel` with `humanLabel` only (no `loreLabel` passed).
-  - [ ] Renders `UnderlineLink`, passing the `color` prop straight through.
-  - [ ] `fireEvent.mouseEnter`/`mouseLeave` toggles the popped state passed to `UnderlineLink`.
-  - [ ] `fireEvent.focus`/`blur` toggles it independently of hover.
-  - [ ] `fireEvent.pointerDown`/`pointerUp` toggles it independently of hover/focus.
-  - [ ] Clicking the row calls the supplied `onClick` exactly once.
-  - [ ] No `CabinetBox`/`Button` anywhere in this file — confirmed via import statements, not just visual inspection.
+  - [x] Renders `DualLabel` with `humanLabel` only (no `loreLabel` passed).
+  - [x] Renders `UnderlineLink`, passing the `color` prop straight through.
+  - [x] `fireEvent.mouseEnter`/`mouseLeave` toggles the popped state passed to `UnderlineLink`.
+  - [x] `fireEvent.focus`/`blur` toggles it independently of hover.
+  - [x] `fireEvent.pointerDown`/`pointerUp` toggles it independently of hover/focus.
+  - [x] Clicking the row calls the supplied `onClick` exactly once.
+  - [x] No `CabinetBox`/`Button` anywhere in this file — confirmed via import statements, not just visual inspection.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/UnderlineLinkNavRow.test.tsx` passes, `UnderlineLink` mocked (`vi.mock('@/components/ui/controls/UnderlineLink', ...)`, rendering `data-popped={popped}` — mirroring `Button.test.tsx`'s own choice to mock `CabinetBox`) so this file tests only the row's own event-to-state logic, not `UnderlineLink`'s already-proven internals (Task 1).
-  - [ ] `npm run build:types`, `npm run lint` clean.
-  - [ ] Manual check: none applicable yet — not wired into `NavTreeNode` until Task 4.
+  - [x] `npx vitest run src/components/panels/screen/nav/UnderlineLinkNavRow.test.tsx` passes (12/12), `UnderlineLink` mocked (`vi.mock('@/components/ui/controls/UnderlineLink', ...)`, rendering `data-popped={popped}` — mirroring `Button.test.tsx`'s own choice to mock `CabinetBox`) so this file tests only the row's own event-to-state logic, not `UnderlineLink`'s already-proven internals (Task 1).
+  - [x] `npm run build:types`, `npm run lint` clean.
+  - [x] Manual check: none applicable yet — not wired into `NavTreeNode` until Task 4.
 
   **Dependencies:** Task 1.
 
@@ -123,8 +123,8 @@ Task 3 (UnderlineLinkNavRow.tsx/.css/.test.tsx)            │              │
   **Estimated scope:** S (3 files, mechanical wiring against an already-proven `UnderlineLink` from Task 1 — same relationship `Button` (Task 6 of the Cabinetry plan) had to `CabinetBox`)
 
 ### Checkpoint: New row component ships
-- [ ] `npm run build:types`, `npm run lint` clean; `UnderlineLinkNavRow.test.tsx` passes.
-- [ ] `UnderlineLinkNavRow` renders and responds to hover/focus/press correctly in isolation, with zero real consumers yet — no visual change in the running app.
+- [x] `npm run build:types`, `npm run lint` clean; `UnderlineLinkNavRow.test.tsx` passes.
+- [x] `UnderlineLinkNavRow` renders and responds to hover/focus/press correctly in isolation, with zero real consumers yet — no visual change in the running app.
 - [ ] Review with human before proceeding.
 
 ---
