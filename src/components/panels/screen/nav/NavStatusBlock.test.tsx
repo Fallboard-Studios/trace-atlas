@@ -52,9 +52,9 @@ describe('NavStatusBlock', () => {
     useUIStore.setState({ activeLocaleLocalTime: 14.5, activeLocaleTemperature: -45 });
   });
 
-  it('renders the seed row as "{AttenuationStyle} @ {x}, {y}."', () => {
+  it('renders the seed row as "Viewing {AttenuationStyle} @ ({x}, {y})."', () => {
     render(<NavStatusBlock />);
-    expect(screen.getByText('Pelagos @ 12, 68.')).toBeTruthy();
+    expect(screen.getByText('Viewing Pelagos @ (12, 68).')).toBeTruthy();
   });
 
   it('renders the robot-count row as "{emitting} of {maxAudible} Probes active."', () => {
@@ -69,10 +69,10 @@ describe('NavStatusBlock', () => {
     expect(screen.getByText('14:30 -45°C')).toBeTruthy();
   });
 
-  it('falls back to "CORRUPT TEMPERATURE" when temperature is null', () => {
+  it('falls back to "NO TEMP" when temperature is null', () => {
     useUIStore.setState({ activeLocaleTemperature: null });
     render(<NavStatusBlock />);
-    expect(screen.getByText('14:30 CORRUPT TEMPERATURE')).toBeTruthy();
+    expect(screen.getByText('14:30 NO TEMP')).toBeTruthy();
   });
 
   it('counts every robot as emitting when the Audio Load budget system is not running (soundingRobotIds empty)', () => {

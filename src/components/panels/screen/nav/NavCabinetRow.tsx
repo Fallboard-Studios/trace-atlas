@@ -11,7 +11,7 @@ import './NavCabinetRow.css';
  *  NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §4 — Crawford has already flagged he's unsure this
  *  reads well this thin; tune later, don't silently change it now). */
 const NAV_CABINET_ROW_BOX_HEIGHT = 4;
-const NAV_CABINET_ROW_POP_DISTANCE = 4;
+const NAV_CABINET_ROW_POP_DISTANCE = 2;
 
 interface NavCabinetRowProps {
   node: NavTreeNodeSchema;

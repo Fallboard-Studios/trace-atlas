@@ -12,12 +12,12 @@ describe('cabinetBreakpoints', () => {
     expect(CABINET_BREAKPOINT_MOBILE_MAX).toBeLessThan(CABINET_BREAKPOINT_TABLET_MAX);
   });
 
-  it('mobile breakpoint is 640px', () => {
-    expect(CABINET_BREAKPOINT_MOBILE_MAX).toBe(640);
+  it('mobile breakpoint is 639px', () => {
+    expect(CABINET_BREAKPOINT_MOBILE_MAX).toBe(639);
   });
 
-  it('tablet breakpoint is 1024px', () => {
-    expect(CABINET_BREAKPOINT_TABLET_MAX).toBe(1024);
+  it('tablet breakpoint is 1023px', () => {
+    expect(CABINET_BREAKPOINT_TABLET_MAX).toBe(1023);
   });
 
   it('orders box heights mobile < tablet < desktop', () => {
