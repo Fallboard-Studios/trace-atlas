@@ -78,11 +78,11 @@ describe('PingContourDrawer', () => {
     expect(newAdsr.sustain).toBeGreaterThanOrEqual(0);
   });
 
-  it('renders its controls inside one Ping Contour panel, with no accordion wrapper (docs/tasks/NAV_LAYOUT_REWRITE.md Task 16: the "Envelope" label now lives on the tree node itself, not this drawer)', () => {
+  it('renders its controls inside one Contour panel, with no accordion wrapper (docs/tasks/NAV_LAYOUT_REWRITE.md Task 16: the "Envelope" label now lives on the tree node itself, not this drawer)', () => {
     const { container } = render(<PingContourDrawer value={adsr} onChange={() => {}} />);
     expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
     expect(screen.queryByText('Envelope')).toBeNull();
-    const pingContourPanel = screen.getByText('Ping Contour').closest('.sc-directional-panel');
+    const pingContourPanel = screen.getByText('Contour').closest('.sc-directional-panel');
     expect(pingContourPanel).not.toBeNull();
     expect(pingContourPanel!.contains(screen.getByRole('slider', { name: /attack/i }))).toBe(true);
   });

@@ -46,7 +46,7 @@ describe('PingControlsDrawer', () => {
     expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
     expect(screen.queryByText('Melody')).toBeNull();
     expect(screen.getByText('Phrasing')).toBeTruthy();
-    expect(screen.getByText('Frequency')).toBeTruthy();
+    expect(screen.getByText('Pitches')).toBeTruthy();
     expect(screen.queryByText('Ping Controls')).toBeNull(); // old flat accordion label is gone
   });
 
@@ -65,7 +65,7 @@ describe('PingControlsDrawer', () => {
       />
     );
     const phrasingPanel = screen.getByText('Phrasing').closest('.sc-directional-panel')!;
-    const frequencyPanel = screen.getByText('Frequency').closest('.sc-directional-panel')!;
+    const frequencyPanel = screen.getByText('Pitches').closest('.sc-directional-panel')!;
 
     expect(phrasingPanel.contains(screen.getByRole('slider', { name: /density/i }))).toBe(true);
     expect(phrasingPanel.contains(screen.getByRole('slider', { name: /motif length/i }))).toBe(true);
@@ -608,7 +608,7 @@ describe('PingControlsFrequencySection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.m
 
   it('renders Frequency\'s label and its 3 sliders (Octave Range Min/Max, Note Variance), identical to today\'s standalone panel', () => {
     renderSection();
-    expect(screen.getByText('Frequency')).toBeTruthy();
+    expect(screen.getByText('Pitches')).toBeTruthy();
     expect(screen.getByRole('slider', { name: /octave range min/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /octave range max/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /note variance/i })).toBeTruthy();

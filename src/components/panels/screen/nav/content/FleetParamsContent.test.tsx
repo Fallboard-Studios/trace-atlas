@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { FleetParamsContent } from './FleetParamsContent';
 import { useUIStore } from '@/stores/uiStore';
+import { useAudioStore } from '@/stores/audioStore';
 import { installIntersectionObserverStub, approachSection } from '@/testUtils/intersectionObserverStub';
 import { clearSectionRef } from '@/utils/sectionRefs';
 
@@ -21,6 +22,7 @@ vi.mock('../../console/AudioRigDrawer', () => ({
 
 const UI_INITIAL_STATE = useUIStore.getState();
 const LEAF_IDS = [
+  'fleetParams.pacing',
   'fleetParams.eqFilters.eq',
   'fleetParams.eqFilters.hpf',
   'fleetParams.eqFilters.lpf',
@@ -53,17 +55,19 @@ describe('FleetParamsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CO
     LEAF_IDS.forEach(clearSectionRef);
   });
 
-  it('always renders AudioRigDrawer (Automatic Effects) unwrapped, regardless of which leaf is open', () => {
+  it('mounts AudioRigDrawer (Automatic Effects) inside the Pacing accordion once its anchor is approached, regardless of which other leaf is open', () => {
     render(<FleetParamsContent />);
+    act(() => approachSection('fleetParams.pacing'));
     expect(screen.getByTestId('audio-rig-drawer-stub')).toBeTruthy();
 
     act(() => useUIStore.getState().setSelectedFleetParamsEffect('limiter'));
     expect(screen.getByTestId('audio-rig-drawer-stub')).toBeTruthy();
   });
 
-  it('renders all 3 group headings and all 7 leaf accordion triggers as shells', () => {
+  it('renders the Pacing accordion trigger, all 3 group headings, and all 7 leaf accordion triggers as shells', () => {
     render(<FleetParamsContent />);
 
+    expect(screen.getByRole('button', { name: 'Pacing' })).toBeTruthy();
     expect(screen.getByText('EQ & Filters')).toBeTruthy();
     expect(screen.getByText('Time & Space')).toBeTruthy();
     expect(screen.getByText('Output')).toBeTruthy();
@@ -76,11 +80,22 @@ describe('FleetParamsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CO
     expect(screen.getByRole('button', { name: 'Limiter' })).toBeTruthy();
   });
 
-  it('opens the first leaf (3-Band EQ) by default when no effect is selected yet', () => {
+  it('opens Pacing by default when no effect is selected yet — it is first in tree order, above EQ & Filters', () => {
     render(<FleetParamsContent />);
 
-    expect(screen.getByRole('button', { name: '3-Band EQ' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Pacing' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: '3-Band EQ' }).getAttribute('aria-expanded')).toBe('false');
     expect(screen.getByRole('button', { name: 'Reverb' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('mounts the Tempo slider inside the Pacing accordion once its anchor is approached, live-bound to audioStore.bpm', () => {
+    useAudioStore.setState({ bpm: 72 });
+    render(<FleetParamsContent />);
+
+    act(() => approachSection('fleetParams.pacing'));
+
+    const slider = screen.getByRole('slider', { name: /tempo/i });
+    expect(slider.getAttribute('aria-valuenow')).toBe('72');
   });
 
   it('clicking a leaf trigger opens it directly, without touching selectedFleetParamsEffect', () => {
@@ -124,8 +139,41 @@ describe('FleetParamsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CO
 
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('delay');
     expect(scrollToSection).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: '3-Band EQ' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Pacing' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: 'Delay' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('manually scrolling Pacing into view (scrollspy) updates selectedFleetParamsEffect to \'tempo\' — Pacing\'s own first child', () => {
+    render(<FleetParamsContent />);
+
+    act(() => approachSection('fleetParams.pacing'));
+
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('tempo');
+  });
+
+  it('renders the Tempo and Automatic Effects content inside Pacing\'s one shared accordion, once approached', () => {
+    render(<FleetParamsContent />);
+
+    // Tempo/Automatic Effects are pure scroll anchors inside Pacing's one shared accordion, not
+    // separate accordion triggers of their own — matches navTreeConfig.ts's own Pacing children,
+    // which route through the SAME 'fleetParams.pacing' accordion in this content component.
+    expect(screen.getByRole('button', { name: 'Pacing' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Tempo' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Automatic Effects' })).toBeNull();
+
+    act(() => approachSection('fleetParams.pacing'));
+
+    expect(screen.getByRole('slider', { name: 'Tempo' })).toBeTruthy();
+    expect(screen.getByTestId('audio-rig-drawer-stub')).toBeTruthy();
+  });
+
+  it('manually scrolling Automatic Effects into view (scrollspy) updates selectedFleetParamsEffect to \'automaticEffects\', even though its anchor only exists after Pacing itself had already approached', () => {
+    render(<FleetParamsContent />);
+    act(() => approachSection('fleetParams.pacing'));
+
+    act(() => approachSection('fleetParams.pacing.automaticEffects'));
+
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('automaticEffects');
   });
 });
 

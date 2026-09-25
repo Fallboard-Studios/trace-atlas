@@ -296,7 +296,8 @@ export const BPM_SCHEMA: SliderLinearSchema = {
 /**
  * Wraps PING_VARIANCE_AUTOMATION_SCHEMA — originally paired with BPM_SCHEMA too (both bare
  * `audio-rig-drawer__master-row` sliders), until Tempo relocated to Settings -> Tempo
- * (docs/tasks/NAV_LAYOUT_REWRITE.md Task 12); now wraps Automatic Effects alone. No prior
+ * (docs/tasks/NAV_LAYOUT_REWRITE.md Task 12; Tempo and Automatic Effects both now live together
+ * in Fleet Params -> Pacing); now wraps Automatic Effects alone. No prior
  * accordion to inherit copy from (intent doc) — first-pass invented lore, same "confirm during
  * manual check" treatment as LFO_DRIFT_GROUPS' own labels.
  */

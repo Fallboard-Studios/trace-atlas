@@ -19,26 +19,52 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
     expect(NAV_TREE_SCHEMA.map((n) => n.id)).toEqual(['settings', 'fleetParams', 'probes', 'companies']);
   });
 
-  it('Settings has 4 leaf children: volume, quality, tempo, sectorSettings, namespaced by branch', () => {
+  it('Settings has 2 leaf children: quality, sectorSettings, namespaced by branch', () => {
     const settings = findNode('settings');
     expect(settings?.humanLabel).toBe('Settings');
     expect(settings?.children?.map((c) => c.id)).toEqual([
-      'settings.volume',
       'settings.quality',
-      'settings.tempo',
       'settings.sectorSettings',
     ]);
-    expect(settings?.children?.every((c) => c.children === undefined)).toBe(true);
   });
 
-  it('Fleet Params has 3 category groups (EQ & Filters, Time & Space, Output), each with their own leaves', () => {
+  it('Settings -> Quality has Robot Load/Effects Load children (already-existing AudioLoadPanel.tsx rows, given their own tree anchor)', () => {
+    const quality = findNode('settings.quality');
+    expect(quality?.children?.map((c) => c.id)).toEqual([
+      'settings.quality.robotLoad',
+      'settings.quality.effectsLoad',
+    ]);
+    expect(quality?.children?.map((c) => c.humanLabel)).toEqual(['Robot Load', 'Effects Load']);
+  });
+
+  it('Settings -> Presets has Attenuation Style/Coordinates children (already-existing SectorSettingsDrawer.tsx rows, given their own tree anchor)', () => {
+    const sectorSettings = findNode('settings.sectorSettings');
+    expect(sectorSettings?.children?.map((c) => c.id)).toEqual([
+      'settings.sectorSettings.attenuationStyle',
+      'settings.sectorSettings.coordinates',
+    ]);
+    expect(sectorSettings?.children?.map((c) => c.humanLabel)).toEqual(['Attenuation Style', 'Coordinates']);
+  });
+
+  it('Fleet Params has Pacing plus 3 category groups (EQ & Filters, Time & Space, Output), each with their own leaves', () => {
     const fleetParams = findNode('fleetParams');
     expect(fleetParams?.humanLabel).toBe('Fleet Params');
     expect(fleetParams?.children?.map((c) => c.id)).toEqual([
+      'fleetParams.pacing',
       'fleetParams.eqFilters',
       'fleetParams.timeSpace',
       'fleetParams.output',
     ]);
+  });
+
+  it('Fleet Params -> Pacing has Tempo/Automatic Effects children, sharing one accordion in the content view unlike the 3 groups below it', () => {
+    const pacing = findNode('fleetParams.pacing');
+    expect(pacing?.humanLabel).toBe('Pacing');
+    expect(pacing?.children?.map((c) => c.id)).toEqual([
+      'fleetParams.pacing.tempo',
+      'fleetParams.pacing.automaticEffects',
+    ]);
+    expect(pacing?.children?.map((c) => c.humanLabel)).toEqual(['Tempo', 'Automatic Effects']);
   });
 
   it('Fleet Params -> EQ & Filters has EQ/HPF/LPF leaves in that order', () => {
@@ -94,10 +120,9 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
 
   it('every leaf id referenced by later migration tasks (11-20, docs/tasks/NAV_LAYOUT_REWRITE.md) exists in the schema — catches a typo early', () => {
     const idsReferencedByLaterTasks = [
-      'settings.volume', // Task 11
-      'settings.tempo', // Task 12
       'settings.quality', // Task 13
       'settings.sectorSettings', // spec §2
+      'fleetParams.pacing',
       'fleetParams.eqFilters.eq', // Task 14
       'fleetParams.eqFilters.hpf', // Task 14
       'fleetParams.eqFilters.lpf', // Task 14
@@ -139,10 +164,12 @@ describe('NAV_TREE_SCHEMA — trait color-coding (experimental, Crawford\'s own 
     expect(findNode('settings.sectorSettings')?.trait).toBe('seed');
   });
 
-  it('Settings -> Volume/Quality/Tempo each have their own explicit trait override, distinct from Settings\' own spectral (Crawford\'s own picks)', () => {
-    expect(findNode('settings.volume')?.trait).toBe('output');
+  it('Settings -> Quality has its own explicit trait override, distinct from Settings\' own spectral (Crawford\'s own pick)', () => {
     expect(findNode('settings.quality')?.trait).toBe('seed');
-    expect(findNode('settings.tempo')?.trait).toBe('composition');
+  });
+
+  it('Fleet Params -> Pacing carries \'composition\', matching AudioRigDrawer.tsx\'s own getTraitColorStyle(\'composition\') call for Automatic Effects', () => {
+    expect(findNode('fleetParams.pacing')?.trait).toBe('composition');
   });
 
   it('Probes -> All Probes carries \'header\', overriding Probes\' own output default (Crawford\'s own pick)', () => {

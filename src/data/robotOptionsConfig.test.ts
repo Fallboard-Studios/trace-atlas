@@ -324,7 +324,7 @@ describe('VOLUME/MELODY/ENVELOPE/SOURCE_ACCORDION_SCHEMA no longer exist (docs/t
 describe('PHRASING_PANEL_SCHEMA / FREQUENCY_PANEL_SCHEMA (Task 3)', () => {
   it('carry the confirmed humanLabels and directionalPanel type — new labels, not derived from the old flat "Ping Controls" accordion', () => {
     expect(PHRASING_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'column', humanLabel: 'Phrasing' });
-    expect(FREQUENCY_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'responsive', humanLabel: 'Frequency' });
+    expect(FREQUENCY_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'responsive', humanLabel: 'Pitches' });
   });
 
   it('neither reuses "Ping Controls" as its own label text', () => {
@@ -360,9 +360,9 @@ describe('PING_CONTOUR_PANEL_SCHEMA (DirectionalPanel wiring, Tasks 3+9)', () =>
     expect(PING_CONTOUR_PANEL_SCHEMA.orientation).toBe('column');
   });
 
-  it('has loreLabel/humanLabel byte-identical to the old PING_CONTOUR_ACCORDION_SCHEMA\'s text — verbatim preservation across the type swap', () => {
+  it('has the confirmed loreLabel/humanLabel', () => {
     expect(PING_CONTOUR_PANEL_SCHEMA.loreLabel).toBe('PING CONTOUR');
-    expect(PING_CONTOUR_PANEL_SCHEMA.humanLabel).toBe('Ping Contour');
+    expect(PING_CONTOUR_PANEL_SCHEMA.humanLabel).toBe('Contour');
   });
 });
 

@@ -192,14 +192,14 @@ describe('CompanyOptionsSection', () => {
 
   it('renders all 8 subsection accordion triggers as shells, regardless of active/disabled', () => {
     render(<CompanyOptionsSection />);
-    for (const label of ['Audio Settings', 'Rhythm', 'Frequency', 'Ping Contour', 'Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator', 'Probe Drift']) {
+    for (const label of ['Dynamics', 'Rhythm', 'Pitches', 'Contour', 'Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator', 'Probe Drift']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
   });
 
   it('opens Audio Settings by default when no section is chosen — first-leaf fallback (spec §1.5)', () => {
     render(<CompanyOptionsSection />);
-    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: 'Rhythm' }).getAttribute('aria-expanded')).toBe('false');
   });
 
@@ -208,7 +208,7 @@ describe('CompanyOptionsSection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Probe Drift' }));
     expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('true');
     // Audio Settings (the default-open one) stays open too — multiple accordions can be open at once.
-    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
     expect(useUIStore.getState().selectedSection).toBeNull();
     expect(useUIStore.getState().selectedSubsection).toBeNull();
   });
@@ -219,7 +219,7 @@ describe('CompanyOptionsSection', () => {
       useUIStore.getState().setSelectedSection('source');
       useUIStore.getState().setSelectedSubsection('probeDrift');
     });
-    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('false');
   });
 
@@ -231,7 +231,7 @@ describe('CompanyOptionsSection', () => {
     act(() => selectActiveCompany());
     rerender(<CompanyOptionsSection />);
 
-    expect(screen.getByRole('button', { name: 'Audio Settings' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('false');
   });
 
