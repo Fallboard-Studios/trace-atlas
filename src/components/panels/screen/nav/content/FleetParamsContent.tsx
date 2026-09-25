@@ -3,43 +3,54 @@ import { useSectionObserver } from '../useSectionObserver';
 import { useAccordionOpenState } from '../useAccordionOpenState';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
+import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { BPM_SCHEMA, type AudioRigEffectKey } from '@/data/audioRigConfig';
-import { useUIStore, type FleetParamsGroup } from '@/stores/uiStore';
+import { useUIStore, type FleetParamsGroup, type SelectedFleetParamsEffect } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import type { AccordionSchema } from '@/types/controls';
+import type { Trait } from '@/types/traits';
 import './FleetParamsContent.css';
-
-/** Tempo (relocated from Settings -> Tempo) and Automatic Effects (AudioRigDrawer, relocated from
- *  this component's own former unwrapped top content) both live inside this one shared accordion
- *  — unlike the 3 groups below, whose leaves each get their own accordion. Matches
- *  navTreeConfig.ts's own fleetParams.pacing children (ids/labels). */
-const PACING_ACCORDION_SCHEMA: AccordionSchema = { id: 'fleetParams.pacing', type: 'accordion', humanLabel: 'Pacing' };
-const PACING_TEMPO_ID = 'fleetParams.pacing.tempo';
-const PACING_AUTOMATIC_EFFECTS_ID = 'fleetParams.pacing.automaticEffects';
 
 interface FleetParamsLeaf {
   id: string;
   humanLabel: string;
-  effectKey: AudioRigEffectKey;
+  effectKey: SelectedFleetParamsEffect;
 }
 
 interface FleetParamsGroupDef {
   id: FleetParamsGroup;
   nodeId: string;
   humanLabel: string;
+  /** Colors this group's own accordion (docs/specs/FLEET_PARAMS_CONTENT_REWORK.md §1.5) — the same
+   *  4 values already assigned to these groups in navTreeConfig.ts and AudioRigDrawer.tsx's own
+   *  AUDIO_RIG_EFFECT_TRAIT, restated here at group granularity rather than a parallel lookup map. */
+  trait: Trait;
   leaves: FleetParamsLeaf[];
 }
 
-/** Matches navTreeConfig.ts's own fleetParams subtree (ids/labels) and useNavTree.ts's
+/** Matches navTreeConfig.ts's own fleetParams subtree (ids/labels/traits) and useNavTree.ts's
  *  FLEET_PARAMS_GROUP_FIRST_LEAF ordering — kept as one flat source here since this content
- *  component, not the tree, decides stacking/accordion order. */
+ *  component, not the tree, decides stacking/accordion order. All 4 groups render identically:
+ *  one accordion -> one group IntroPanel -> N leaf sections with no accordion of their own
+ *  (docs/specs/FLEET_PARAMS_CONTENT_REWORK.md). */
 const FLEET_PARAMS_GROUPS: FleetParamsGroupDef[] = [
+  {
+    id: 'pacing',
+    nodeId: 'fleetParams.pacing',
+    humanLabel: 'Pacing',
+    trait: 'composition',
+    leaves: [
+      { id: 'fleetParams.pacing.tempo', humanLabel: 'Tempo', effectKey: 'tempo' },
+      { id: 'fleetParams.pacing.automaticEffects', humanLabel: 'Automatic Intensity', effectKey: 'automaticEffects' },
+    ],
+  },
   {
     id: 'eqFilters',
     nodeId: 'fleetParams.eqFilters',
     humanLabel: 'EQ & Filters',
+    trait: 'spectral',
     leaves: [
       { id: 'fleetParams.eqFilters.eq', humanLabel: '3-Band EQ', effectKey: 'eq3' },
       { id: 'fleetParams.eqFilters.hpf', humanLabel: 'High-Pass Filter', effectKey: 'filterHPF' },
@@ -50,6 +61,7 @@ const FLEET_PARAMS_GROUPS: FleetParamsGroupDef[] = [
     id: 'timeSpace',
     nodeId: 'fleetParams.timeSpace',
     humanLabel: 'Time & Space',
+    trait: 'timeSpace',
     leaves: [
       { id: 'fleetParams.timeSpace.reverb', humanLabel: 'Reverb', effectKey: 'reverb' },
       { id: 'fleetParams.timeSpace.delay', humanLabel: 'Delay', effectKey: 'delay' },
@@ -59,6 +71,7 @@ const FLEET_PARAMS_GROUPS: FleetParamsGroupDef[] = [
     id: 'output',
     nodeId: 'fleetParams.output',
     humanLabel: 'Output',
+    trait: 'output',
     leaves: [
       { id: 'fleetParams.output.compression', humanLabel: 'Compressor', effectKey: 'compressor' },
       { id: 'fleetParams.output.limiter', humanLabel: 'Limiter', effectKey: 'limiter' },
@@ -68,6 +81,9 @@ const FLEET_PARAMS_GROUPS: FleetParamsGroupDef[] = [
 
 const ALL_LEAVES = FLEET_PARAMS_GROUPS.flatMap((g) => g.leaves);
 
+const PLACEHOLDER_LORE = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.';
+const PLACEHOLDER_HUMAN = 'Placeholder copy — real lore/human descriptions land in a later pass.';
+
 function sectionAnchorRef(id: string) {
   return (el: HTMLDivElement | null) => {
     if (el) setSectionRef(id, el);
@@ -75,86 +91,94 @@ function sectionAnchorRef(id: string) {
   };
 }
 
+/** Tempo and Automatic Intensity aren't generic AudioRigEffectPanel leaves — Tempo is
+ *  audioStore.bpm (a separate top-level field, not part of the globalAudio effect chain
+ *  AudioRigEffectPanel reads) and Automatic Intensity has no AUDIO_RIG_CONFIG block of its own
+ *  (its real control lives inside AudioRigDrawer, relocated from Settings -> Tempo verbatim, see
+ *  docs/specs/FLEET_PARAMS_CONTENT_REWORK.md §1.4). Every other leaf falls through to the generic
+ *  AudioRigEffectPanel path unchanged. */
+function renderLeaf(effectKey: SelectedFleetParamsEffect, bpm: number) {
+  if (effectKey === 'tempo') {
+    return <SliderLinear schema={BPM_SCHEMA} value={bpm} onChange={(v) => useAudioStore.getState().setBPM(v)} />;
+  }
+  if (effectKey === 'automaticEffects') {
+    return <AudioRigDrawer />;
+  }
+  return <AudioRigEffectPanel effectKey={effectKey as AudioRigEffectKey} />;
+}
+
 /**
- * Fleet Params branch content (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2) — replaces the
- * content-swap model with a single scrollable view stacking Pacing above the 3 EQ & Filters/
- * Time & Space/Output groups × their leaves. Pacing has its own 2 tree children (Tempo, Automatic
- * Effects) but only ONE shared accordion — those 2 children are pure scroll/highlight anchors
- * within it, not separate accordions of their own, unlike the 3 groups below it (heading-only, no
- * accordion of their own, spec §2's "mid-level (group)" row) whose 7 leaves each get a real
- * accordion. Every accordion has manual, independent open/closed state (`useAccordionOpenState`)
- * — opening one never closes another, and a nav click/scrollspy only scrolls/updates
- * `selectedFleetParamsEffect` for tree highlighting, never an accordion's own state (Crawford's
- * own follow-up call, 2026-09-24).
+ * Fleet Params branch content (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, docs/specs/
+ * FLEET_PARAMS_CONTENT_REWORK.md) — a single scrollable view: one always-open, spectral-traited
+ * outer panel holding the section's own IntroPanel, then all 4 groups (Pacing, EQ & Filters, Time
+ * & Space, Output) stacked identically — each its own accordion (colored by its own trait), each
+ * containing a group-level IntroPanel plus its leaves as plain anchor divs, no leaf ever getting
+ * an accordion of its own. Every group accordion has manual, independent open/closed state
+ * (`useAccordionOpenState`) — opening one never closes another, and a nav click/scrollspy only
+ * scrolls/updates `selectedFleetParamsEffect` for tree highlighting, never an accordion's own
+ * state (Crawford's own follow-up call, 2026-09-24). A leaf's own scroll anchor only exists in the
+ * DOM once its group's own anchor has approached (its content is lazy-mounted behind that same
+ * gate) — the 2-tier `useSectionObserver` below mirrors that.
  */
 export function FleetParamsContent() {
   const setSelectedFleetParamsEffect = useUIStore((s) => s.setSelectedFleetParamsEffect);
   const bpm = useAudioStore((s) => s.bpm);
 
-  const leafIds = ALL_LEAVES.map((l) => l.id);
-  const sectionIds = [PACING_ACCORDION_SCHEMA.id, ...leafIds];
-  const { hasApproached } = useSectionObserver(sectionIds, (id) => {
-    if (id === PACING_ACCORDION_SCHEMA.id) {
-      setSelectedFleetParamsEffect('tempo');
-      return;
-    }
+  const groupIds = FLEET_PARAMS_GROUPS.map((g) => g.nodeId);
+  const { hasApproached: groupHasApproached } = useSectionObserver(['fleetParams', ...groupIds], (id) => {
+    const group = FLEET_PARAMS_GROUPS.find((g) => g.nodeId === id);
+    if (group) setSelectedFleetParamsEffect(group.leaves[0].effectKey);
+  });
+
+  // Included here only once a group has approached, so this observer's own effect (keyed on this
+  // array's contents) re-runs and finds each group's leaf anchors right after they mount.
+  const approachedLeafIds = FLEET_PARAMS_GROUPS
+    .filter((g) => groupHasApproached(g.nodeId))
+    .flatMap((g) => g.leaves.map((l) => l.id));
+  const { hasApproached: leafHasApproached } = useSectionObserver(approachedLeafIds, (id) => {
     const leaf = ALL_LEAVES.find((l) => l.id === id);
     if (leaf) setSelectedFleetParamsEffect(leaf.effectKey);
   });
 
-  // Pacing's own 2 children (Tempo, Automatic Effects) only exist in the DOM once Pacing's own
-  // content has mounted (the hasApproached gate below) — included here only once available, so
-  // this observer's own effect (keyed on this array's contents) re-runs and finds them right
-  // after they mount, matching SettingsContent.tsx's own 2-tier subsection pattern.
-  const pacingSubsectionIds = hasApproached(PACING_ACCORDION_SCHEMA.id) ? [PACING_TEMPO_ID, PACING_AUTOMATIC_EFFECTS_ID] : [];
-  useSectionObserver(pacingSubsectionIds, (id) => {
-    setSelectedFleetParamsEffect(id === PACING_TEMPO_ID ? 'tempo' : 'automaticEffects');
-  });
-
-  const { isOpen, setOpen } = useAccordionOpenState(PACING_ACCORDION_SCHEMA.id);
+  const { isOpen, setOpen } = useAccordionOpenState(FLEET_PARAMS_GROUPS[0].nodeId);
 
   return (
     <div ref={sectionAnchorRef('fleetParams')} className="fleet-params-content" style={getTraitColorStyle('spectral')}>
-      <div ref={sectionAnchorRef(PACING_ACCORDION_SCHEMA.id)}>
-        <AccordionContainer
-          schema={PACING_ACCORDION_SCHEMA}
-          open={isOpen(PACING_ACCORDION_SCHEMA.id)}
-          onOpenChange={(open) => setOpen(PACING_ACCORDION_SCHEMA.id, open)}
-        >
-          {hasApproached(PACING_ACCORDION_SCHEMA.id) ? (
-            <>
-              {/* Relocated from Settings -> Tempo verbatim (Task 12 originally) — bpm is stored
-                  and displayed in the same BPM units, no scaling, matching BPM_SCHEMA's own doc
-                  comment. */}
-              <div ref={sectionAnchorRef(PACING_TEMPO_ID)}>
-                <SliderLinear schema={BPM_SCHEMA} value={bpm} onChange={(v) => useAudioStore.getState().setBPM(v)} />
-              </div>
-              <div ref={sectionAnchorRef(PACING_AUTOMATIC_EFFECTS_ID)}>
-                <AudioRigDrawer />
-              </div>
-            </>
-          ) : null}
-        </AccordionContainer>
-      </div>
-      {FLEET_PARAMS_GROUPS.map((group) => (
-        <div key={group.nodeId}>
-          <div ref={sectionAnchorRef(group.nodeId)}>{group.humanLabel}</div>
-          {group.leaves.map((leaf) => {
-            const schema: AccordionSchema = { id: leaf.id, type: 'accordion', humanLabel: leaf.humanLabel };
-            return (
-              <div key={leaf.id} ref={sectionAnchorRef(leaf.id)}>
-                <AccordionContainer
-                  schema={schema}
-                  open={isOpen(leaf.id)}
-                  onOpenChange={(open) => setOpen(leaf.id, open)}
-                >
-                  {hasApproached(leaf.id) ? <AudioRigEffectPanel effectKey={leaf.effectKey} /> : null}
-                </AccordionContainer>
-              </div>
-            );
-          })}
-        </div>
-      ))}
+      <IntroPanel
+        loreLabel="Fleet Params LORE TITLE"
+        loreDescription={PLACEHOLDER_LORE}
+        humanDescription={PLACEHOLDER_HUMAN}
+        trait="spectral"
+      />
+      {FLEET_PARAMS_GROUPS.map((group) => {
+        const schema: AccordionSchema = { id: group.nodeId, type: 'accordion', humanLabel: group.humanLabel };
+        return (
+          <div key={group.nodeId} ref={sectionAnchorRef(group.nodeId)}>
+            <AccordionContainer
+              schema={schema}
+              open={isOpen(group.nodeId)}
+              onOpenChange={(open) => setOpen(group.nodeId, open)}
+              style={getTraitColorStyle(group.trait)}
+            >
+              {groupHasApproached(group.nodeId) ? (
+                <>
+                  <IntroPanel
+                    loreLabel={`${group.humanLabel} LORE TITLE`}
+                    loreDescription={PLACEHOLDER_LORE}
+                    humanDescription={PLACEHOLDER_HUMAN}
+                    trait={group.trait}
+                  />
+                  {group.leaves.map((leaf) => (
+                    <div key={leaf.id} ref={sectionAnchorRef(leaf.id)}>
+                      {leafHasApproached(leaf.id) ? renderLeaf(leaf.effectKey, bpm) : null}
+                    </div>
+                  ))}
+                </>
+              ) : null}
+            </AccordionContainer>
+          </div>
+        );
+      })}
     </div>
   );
 }

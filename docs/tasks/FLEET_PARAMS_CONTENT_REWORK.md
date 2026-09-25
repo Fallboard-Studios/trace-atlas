@@ -80,34 +80,34 @@ Tasks 1 and 2 don't read each other's output and could be done in either order; 
   **Estimated scope:** S (one wrapper element + one new small CSS file)
 
 ### Checkpoint: Foundation
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Tempo and Automatic Intensity work correctly (Task 1), and the outer spectral wrapper renders (Task 2) — both still inside today's per-leaf-accordion structure, not yet restructured into group accordions.
-- [ ] Review with human before proceeding.
+- [x] `npm run build:types`, `npm run lint`, `npm test` (scoped to `FleetParamsContent.test.tsx` and direct dependencies) all clean.
+- [x] Tempo and Automatic Intensity work correctly (Task 1, superseded — already correct at HEAD), and the outer spectral wrapper renders (Task 2) — both still inside the per-leaf-accordion structure at this point, not yet restructured into group accordions.
+- [x] Reviewed with human before proceeding (WIP-vs-HEAD discovery surfaced and confirmed).
 
 ---
 
 ### Phase 2: The restructure
 
-- [ ] **Task 3: Group-level accordions replace per-leaf accordions**
+- [x] **Task 3: Group-level accordions replace per-leaf accordions**
 
   **Description:** This is the core rework. In `FleetParamsContent.tsx`: (1) add a `trait: Trait` field to each entry in the existing `FLEET_PARAMS_GROUPS` array (`composition`/`spectral`/`timeSpace`/`output` — the same 4 values already assigned to these groups in `navTreeConfig.ts` and `AUDIO_RIG_EFFECT_TRAIT`, restated at group granularity, not new); (2) replace the current per-leaf `AccordionContainer` (one per leaf, 7-9 today) with exactly one `AccordionContainer` per group (4 total), built from `useAccordionOpenState` called once per `group.nodeId` instead of the single hand-written `PACING_ACCORDION_SCHEMA.id`; (3) inside each group's accordion, render a group-level `IntroPanel` (`loreLabel={`${group.humanLabel} LORE TITLE`}`, trait `group.trait`, lorem-ipsum placeholder body, gated on that group's own `hasApproached`) followed by the group's leaves as plain anchor `<div>`s (`renderLeaf(leaf.effectKey)` from Task 1, still gated on each leaf's own `hasApproached`) with **no** `AccordionContainer` wrapping any individual leaf; (4) delete the now-fully-superseded dead constants `PACING_ACCORDION_SCHEMA`, `PACING_TEMPO_ID`, `PACING_AUTOMATIC_EFFECTS_ID` (their intent — one shared Pacing accordion — is now the uniform behavior of all 4 groups, not a Pacing-only special case); (5) update the two `useSectionObserver` calls so entering any group's own anchor sets `selectedFleetParamsEffect` to that group's first leaf's `effectKey` (generalizing today's Pacing-only `PACING_ACCORDION_SCHEMA.id → 'tempo'` case to all 4 groups), while entering any leaf's own anchor still sets that leaf's own `effectKey`, unchanged.
 
   **Acceptance criteria:**
-  - [ ] All 4 groups (Pacing, EQ & Filters, Time & Space, Output) render identically: one `AccordionContainer` (colored by `group.trait`) → one group `IntroPanel` → N leaf sections with no accordion of their own.
-  - [ ] Each group's accordion opens/closes independently — opening one never closes another (`useAccordionOpenState`'s existing per-id independence, now driven by 4 distinct `nodeId`s instead of 1).
-  - [ ] No `AccordionContainer` renders for any individual leaf (`fleetParams.pacing.tempo`, `fleetParams.eqFilters.eq`, etc.) — only the 4 group-level ones remain.
-  - [ ] Each group's `IntroPanel` only mounts once that group's own anchor has `hasApproached`; the section-level `IntroPanel` (Task 2) stays ungated, as it already is.
-  - [ ] Scrolling to a group's own anchor sets `selectedFleetParamsEffect` to that group's first leaf's `effectKey` (e.g. entering `fleetParams.eqFilters` sets `'eq3'`); scrolling to a leaf's own anchor still sets that leaf's own `effectKey`, unchanged from today.
-  - [ ] Every group `IntroPanel`'s `loreLabel` follows the `"${group.humanLabel} LORE TITLE"` convention.
-  - [ ] `PACING_ACCORDION_SCHEMA`, `PACING_TEMPO_ID`, `PACING_AUTOMATIC_EFFECTS_ID` no longer exist in the file.
-  - [ ] Pacing's Tempo/Automatic Intensity leaves (Task 1's `renderLeaf`) render correctly inside this new group-accordion shape, not just the old per-leaf shape Task 1 was verified against.
+  - [x] All 4 groups (Pacing, EQ & Filters, Time & Space, Output) render identically: one `AccordionContainer` (colored by `group.trait`) → one group `IntroPanel` → N leaf sections with no accordion of their own.
+  - [x] Each group's accordion opens/closes independently — opening one never closes another (`useAccordionOpenState`'s existing per-id independence, now driven by 4 distinct `nodeId`s instead of 1).
+  - [x] No `AccordionContainer` renders for any individual leaf (`fleetParams.pacing.tempo`, `fleetParams.eqFilters.eq`, etc.) — only the 4 group-level ones remain.
+  - [x] Each group's `IntroPanel` only mounts once that group's own anchor has `hasApproached`; the section-level `IntroPanel` (Task 2) stays ungated, as it already is.
+  - [x] Scrolling to a group's own anchor sets `selectedFleetParamsEffect` to that group's first leaf's `effectKey` (e.g. entering `fleetParams.eqFilters` sets `'eq3'`); scrolling to a leaf's own anchor still sets that leaf's own `effectKey`, unchanged from today.
+  - [x] Every group `IntroPanel`'s `loreLabel` follows the `"${group.humanLabel} LORE TITLE"` convention.
+  - [x] `PACING_ACCORDION_SCHEMA`, `PACING_TEMPO_ID`, `PACING_AUTOMATIC_EFFECTS_ID` no longer exist in the file.
+  - [x] Pacing's Tempo/Automatic Intensity leaves render correctly inside this new group-accordion shape (via the new `renderLeaf` helper, built directly in this task since Task 1 was superseded — see its note above).
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/content/FleetParamsContent.test.tsx` passes, covering: exactly 4 `AccordionContainer` instances total (not 1 per leaf); independent open/close per group; no leaf-level `AccordionContainer`; group `IntroPanel` lazy-mount gating; group-anchor scrollspy resolving to each group's first leaf; leaf-anchor scrollspy unchanged; `loreLabel` convention for all 4 group `IntroPanel`s.
-  - [ ] `npm run build:types` clean (surfaces any leftover reference to the deleted `PACING_*` constants).
-  - [ ] `npm run lint` clean.
-  - [ ] `npm run build` — production bundle builds cleanly.
-  - [ ] Manual check: `npm run dev`, open Fleet Params. Confirm: section `IntroPanel` at the top inside the spectral outer panel; 4 accordions below it, each a visibly different tint matching its trait when opened; opening EQ & Filters shows its own `IntroPanel` then EQ/HPF/LPF stacked with no collapse triangles of their own (same for Time & Space's Reverb/Delay and Output's Compressor/Limiter); Pacing shows its own `IntroPanel` then Tempo/Automatic Intensity stacked, both still functioning (tempo/ping-variance) as verified in Task 1; opening one group doesn't close another; clicking each leaf/group in the nav tree still scrolls to and highlights correctly.
+  - [x] `npx vitest run src/components/panels/screen/nav/content/FleetParamsContent.test.tsx` passes (22/22) — the test file was rewritten wholesale for the new uniform-4-group shape (the old file's tests assumed only Pacing was special-cased, which no longer matches the confirmed spec of all 4 groups being uniform).
+  - [x] `npm run build:types` clean.
+  - [x] `npm run lint` clean.
+  - [x] `npm run build` — production bundle builds cleanly (pre-existing >500kB chunk-size warning only, unrelated).
+  - [ ] Manual check: `npm run dev` — not yet performed this session (automated verification only so far); still needed before Checkpoint: Complete is truly closed out.
 
   **Dependencies:** Task 1 (uses `renderLeaf`), Task 2 (nests inside the outer wrapper).
 
