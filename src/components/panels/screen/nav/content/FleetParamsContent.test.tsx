@@ -5,6 +5,8 @@ import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { installIntersectionObserverStub, approachSection } from '@/testUtils/intersectionObserverStub';
 import { clearSectionRef } from '@/utils/sectionRefs';
+import { getTraitColorStyle } from '@/utils/traitColors';
+import type { Trait } from '@/types/traits';
 
 vi.mock('@/utils/sectionRefs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/utils/sectionRefs')>();
@@ -21,24 +23,20 @@ vi.mock('../../console/AudioRigDrawer', () => ({
 }));
 
 const UI_INITIAL_STATE = useUIStore.getState();
-const LEAF_IDS = [
-  'fleetParams.pacing',
-  'fleetParams.eqFilters.eq',
-  'fleetParams.eqFilters.hpf',
-  'fleetParams.eqFilters.lpf',
-  'fleetParams.timeSpace.reverb',
-  'fleetParams.timeSpace.delay',
-  'fleetParams.output.compression',
-  'fleetParams.output.limiter',
-];
+const AUDIO_INITIAL_STATE = useAudioStore.getState();
 
-function openAndApproach(id: string) {
-  // Lazy-mount is driven purely by approach — an accordion's own open/closed state (manual,
-  // independent per accordion) has no bearing on whether its content is in the DOM.
-  act(() => approachSection(id));
-}
+const GROUP_IDS = ['fleetParams.pacing', 'fleetParams.eqFilters', 'fleetParams.timeSpace', 'fleetParams.output'];
+const GROUP_LABELS: Record<string, string> = {
+  'fleetParams.pacing': 'Pacing',
+  'fleetParams.eqFilters': 'EQ & Filters',
+  'fleetParams.timeSpace': 'Time & Space',
+  'fleetParams.output': 'Output',
+};
+const GROUP_TRAITS: Trait[] = ['composition', 'spectral', 'timeSpace', 'output'];
 
-const LEAF_ID_TO_EFFECT: Record<string, import('@/data/audioRigConfig').AudioRigEffectKey> = {
+const LEAF_ID_TO_EFFECT: Record<string, string> = {
+  'fleetParams.pacing.tempo': 'tempo',
+  'fleetParams.pacing.automaticEffects': 'automaticEffects',
   'fleetParams.eqFilters.eq': 'eq3',
   'fleetParams.eqFilters.hpf': 'filterHPF',
   'fleetParams.eqFilters.lpf': 'filterLPF',
@@ -47,147 +45,185 @@ const LEAF_ID_TO_EFFECT: Record<string, import('@/data/audioRigConfig').AudioRig
   'fleetParams.output.compression': 'compressor',
   'fleetParams.output.limiter': 'limiter',
 };
+const LEAF_IDS = Object.keys(LEAF_ID_TO_EFFECT);
+const ALL_SECTION_IDS = ['fleetParams', ...GROUP_IDS, ...LEAF_IDS];
 
-describe('FleetParamsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 8)', () => {
-  beforeEach(() => {
-    useUIStore.setState(UI_INITIAL_STATE, true);
-    installIntersectionObserverStub();
-    LEAF_IDS.forEach(clearSectionRef);
-  });
+function groupIdOf(leafId: string): string {
+  return leafId.split('.').slice(0, 2).join('.');
+}
 
-  it('mounts AudioRigDrawer (Automatic Effects) inside the Pacing accordion once its anchor is approached, regardless of which other leaf is open', () => {
+function approach(id: string) {
+  act(() => approachSection(id));
+}
+
+// A leaf's own scroll anchor only exists in the DOM once its group has approached (leaves are
+// lazy-mounted behind their group's own approach gate) — mirrors real scroll order.
+function approachLeaf(leafId: string) {
+  approach(groupIdOf(leafId));
+  approach(leafId);
+}
+
+beforeEach(() => {
+  useUIStore.setState(UI_INITIAL_STATE, true);
+  useAudioStore.setState(AUDIO_INITIAL_STATE, true);
+  installIntersectionObserverStub();
+  ALL_SECTION_IDS.forEach(clearSectionRef);
+});
+
+describe('FleetParamsContent — 4 uniform group accordions (docs/tasks/FLEET_PARAMS_CONTENT_REWORK.md Task 3)', () => {
+  it('renders exactly 4 accordion triggers — one per group — and no per-leaf accordion trigger for any of the 9 leaves', () => {
     render(<FleetParamsContent />);
-    act(() => approachSection('fleetParams.pacing'));
-    expect(screen.getByTestId('audio-rig-drawer-stub')).toBeTruthy();
 
-    act(() => useUIStore.getState().setSelectedFleetParamsEffect('limiter'));
-    expect(screen.getByTestId('audio-rig-drawer-stub')).toBeTruthy();
+    Object.values(GROUP_LABELS).forEach((label) => {
+      expect(screen.getByRole('button', { name: label })).toBeTruthy();
+    });
+    ['Tempo', 'Automatic Intensity', '3-Band EQ', 'High-Pass Filter', 'Low-Pass Filter', 'Reverb', 'Delay', 'Compressor', 'Limiter'].forEach((label) => {
+      expect(screen.queryByRole('button', { name: label })).toBeNull();
+    });
   });
 
-  it('renders the Pacing accordion trigger, all 3 group headings, and all 7 leaf accordion triggers as shells', () => {
-    render(<FleetParamsContent />);
-
-    expect(screen.getByRole('button', { name: 'Pacing' })).toBeTruthy();
-    expect(screen.getByText('EQ & Filters')).toBeTruthy();
-    expect(screen.getByText('Time & Space')).toBeTruthy();
-    expect(screen.getByText('Output')).toBeTruthy();
-    expect(screen.getByRole('button', { name: '3-Band EQ' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'High-Pass Filter' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Low-Pass Filter' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Reverb' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Delay' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Compressor' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Limiter' })).toBeTruthy();
-  });
-
-  it('opens Pacing by default when no effect is selected yet — it is first in tree order, above EQ & Filters', () => {
+  it('opens Pacing by default — the first group in order', () => {
     render(<FleetParamsContent />);
 
     expect(screen.getByRole('button', { name: 'Pacing' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: '3-Band EQ' }).getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByRole('button', { name: 'Reverb' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'EQ & Filters' }).getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('mounts the Tempo slider inside the Pacing accordion once its anchor is approached, live-bound to audioStore.bpm', () => {
-    useAudioStore.setState({ bpm: 72 });
+  it('each group accordion opens/closes independently — opening one does not close another', () => {
     render(<FleetParamsContent />);
 
-    act(() => approachSection('fleetParams.pacing'));
+    fireEvent.click(screen.getByRole('button', { name: 'EQ & Filters' }));
 
-    const slider = screen.getByRole('slider', { name: /tempo/i });
-    expect(slider.getAttribute('aria-valuenow')).toBe('72');
+    expect(screen.getByRole('button', { name: 'EQ & Filters' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Pacing' }).getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('clicking a leaf trigger opens it directly, without touching selectedFleetParamsEffect', () => {
+  it('clicking a group trigger opens it directly without touching selectedFleetParamsEffect', () => {
     render(<FleetParamsContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reverb' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Output' }));
 
-    expect(screen.getByRole('button', { name: 'Reverb' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Output' }).getAttribute('aria-expanded')).toBe('true');
     expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
   });
 
-  it('opening a second leaf across groups does not close a previously-open one — multiple can be open at once, no cross-group single-open anymore', () => {
-    render(<FleetParamsContent />);
-    fireEvent.click(screen.getByRole('button', { name: 'Reverb' }));
+  it('colors each group accordion root with its own trait, in group order (composition/spectral/timeSpace/output)', () => {
+    const { container } = render(<FleetParamsContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Limiter' }));
-
-    expect(screen.getByRole('button', { name: 'Limiter' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Reverb' }).getAttribute('aria-expanded')).toBe('true');
+    const roots = container.querySelectorAll('.sc-accordion');
+    expect(roots.length).toBe(4);
+    roots.forEach((root, i) => {
+      const expected = getTraitColorStyle(GROUP_TRAITS[i]) as Record<string, string>;
+      expect((root as HTMLElement).style.getPropertyValue('--color-accent-a')).toBe(expected['--color-accent-a']);
+      expect((root as HTMLElement).style.getPropertyValue('--color-accent-b')).toBe(expected['--color-accent-b']);
+    });
   });
 
-  it('a leaf\'s real content (AudioRigEffectPanel) is not in the DOM until its anchor has been approached', () => {
+  it('renders the section-level IntroPanel ungated — present before any group has approached', () => {
     render(<FleetParamsContent />);
+
+    expect(screen.getByText('Fleet Params LORE TITLE')).toBeTruthy();
+  });
+
+  it("a group's IntroPanel and its leaves are not in the DOM until that group's own anchor has approached", () => {
+    render(<FleetParamsContent />);
+
+    expect(screen.queryByText('EQ & Filters LORE TITLE')).toBeNull();
     expect(screen.queryByTestId('audio-rig-effect-panel-stub')).toBeNull();
   });
 
-  it('mounts a leaf\'s AudioRigEffectPanel once its anchor is approached, bound to the right effect key', () => {
+  it("mounts a group's own IntroPanel once that group's anchor has approached, labeled per the LORE TITLE convention", () => {
     render(<FleetParamsContent />);
 
-    act(() => approachSection('fleetParams.eqFilters.eq'));
+    approach('fleetParams.eqFilters');
 
-    const stub = screen.getByTestId('audio-rig-effect-panel-stub');
-    expect(stub.getAttribute('data-effect-key')).toBe('eq3');
+    expect(screen.getByText('EQ & Filters LORE TITLE')).toBeTruthy();
   });
 
-  it('manually scrolling a leaf into view (scrollspy) updates selectedFleetParamsEffect for tree highlighting, without ever calling scrollToSection or touching any accordion\'s open state', async () => {
-    const { scrollToSection } = await import('@/utils/sectionRefs');
+  it.each(Object.entries(LEAF_ID_TO_EFFECT).filter(([id]) => !id.includes('.pacing.')))(
+    '%s -> AudioRigEffectPanel effectKey=%s, once its own leaf anchor has approached',
+    (leafId, effectKey) => {
+      render(<FleetParamsContent />);
+      approachLeaf(leafId);
+
+      expect(screen.getByTestId('audio-rig-effect-panel-stub').getAttribute('data-effect-key')).toBe(effectKey);
+    },
+  );
+
+  it('renders the Tempo slider, live-bound to audioStore.bpm, once its own leaf anchor has approached', () => {
+    useAudioStore.setState({ bpm: 88 });
     render(<FleetParamsContent />);
 
-    act(() => approachSection('fleetParams.timeSpace.delay'));
+    approachLeaf('fleetParams.pacing.tempo');
 
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('delay');
-    expect(scrollToSection).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Pacing' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Delay' }).getAttribute('aria-expanded')).toBe('false');
+    const slider = screen.getByRole('slider', { name: /tempo/i });
+    expect(slider.getAttribute('aria-valuenow')).toBe('88');
   });
 
-  it('manually scrolling Pacing into view (scrollspy) updates selectedFleetParamsEffect to \'tempo\' — Pacing\'s own first child', () => {
+  it('dragging the Tempo slider calls setBPM with the new value', () => {
+    render(<FleetParamsContent />);
+    approachLeaf('fleetParams.pacing.tempo');
+    const setBPM = vi.spyOn(useAudioStore.getState(), 'setBPM');
+
+    const slider = screen.getByRole('slider', { name: /tempo/i });
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+
+    expect(setBPM).toHaveBeenCalled();
+  });
+
+  it('renders AudioRigDrawer for Automatic Intensity once its own leaf anchor has approached', () => {
     render(<FleetParamsContent />);
 
-    act(() => approachSection('fleetParams.pacing'));
+    approachLeaf('fleetParams.pacing.automaticEffects');
+
+    expect(screen.getByTestId('audio-rig-drawer-stub')).toBeTruthy();
+  });
+
+  it('renders the Tempo slider and Automatic Intensity together inside one shared panel, not two separate ones', () => {
+    render(<FleetParamsContent />);
+    approachLeaf('fleetParams.pacing.tempo');
+    approachLeaf('fleetParams.pacing.automaticEffects');
+
+    const slider = screen.getByRole('slider', { name: /tempo/i });
+    const drawerStub = screen.getByTestId('audio-rig-drawer-stub');
+    const panel = slider.closest('.sc-directional-panel');
+
+    expect(panel).not.toBeNull();
+    expect(panel!.contains(drawerStub)).toBe(true);
+  });
+
+  it("scrolling to a group's own anchor (scrollspy) sets selectedFleetParamsEffect to that group's first leaf", () => {
+    render(<FleetParamsContent />);
+
+    approach('fleetParams.eqFilters');
+
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('eq3');
+  });
+
+  it("scrolling to Pacing's own anchor (scrollspy) sets selectedFleetParamsEffect to 'tempo' — Pacing's own first leaf", () => {
+    render(<FleetParamsContent />);
+
+    approach('fleetParams.pacing');
 
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('tempo');
   });
 
-  it('renders the Tempo and Automatic Effects content inside Pacing\'s one shared accordion, once approached', () => {
+  it("scrolling to a leaf's own anchor (scrollspy) sets selectedFleetParamsEffect to that leaf's effectKey", () => {
     render(<FleetParamsContent />);
 
-    // Tempo/Automatic Effects are pure scroll anchors inside Pacing's one shared accordion, not
-    // separate accordion triggers of their own — matches navTreeConfig.ts's own Pacing children,
-    // which route through the SAME 'fleetParams.pacing' accordion in this content component.
-    expect(screen.getByRole('button', { name: 'Pacing' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Tempo' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Automatic Effects' })).toBeNull();
+    approachLeaf('fleetParams.timeSpace.delay');
 
-    act(() => approachSection('fleetParams.pacing'));
-
-    expect(screen.getByRole('slider', { name: 'Tempo' })).toBeTruthy();
-    expect(screen.getByTestId('audio-rig-drawer-stub')).toBeTruthy();
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('delay');
   });
 
-  it('manually scrolling Automatic Effects into view (scrollspy) updates selectedFleetParamsEffect to \'automaticEffects\', even though its anchor only exists after Pacing itself had already approached', () => {
+  it('scrollspy never calls scrollToSection and never touches any accordion\'s own open state', async () => {
+    const { scrollToSection } = await import('@/utils/sectionRefs');
     render(<FleetParamsContent />);
-    act(() => approachSection('fleetParams.pacing'));
 
-    act(() => approachSection('fleetParams.pacing.automaticEffects'));
+    approach('fleetParams.output');
 
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('automaticEffects');
-  });
-});
-
-describe('FleetParamsContent — every leaf routes to its correct AudioRigEffectPanel effectKey', () => {
-  beforeEach(() => {
-    useUIStore.setState(UI_INITIAL_STATE, true);
-    installIntersectionObserverStub();
-    LEAF_IDS.forEach(clearSectionRef);
-  });
-
-  it.each(Object.entries(LEAF_ID_TO_EFFECT))('%s -> %s', (id, effectKey) => {
-    render(<FleetParamsContent />);
-    openAndApproach(id);
-
-    expect(screen.getByTestId('audio-rig-effect-panel-stub').getAttribute('data-effect-key')).toBe(effectKey);
+    expect(scrollToSection).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Pacing' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Output' }).getAttribute('aria-expanded')).toBe('false');
   });
 });

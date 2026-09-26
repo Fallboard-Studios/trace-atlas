@@ -1,0 +1,8 @@
+/* One always-open, spectral-traited panel wrapping the entire Fleet Params section — see
+   docs/specs/FLEET_PARAMS_CONTENT_REWORK.md §1.3. Its trait-derived accent custom properties
+   (--color-accent-a/-b/etc.) are applied inline via getTraitColorStyle('spectral'); this class
+   carries no color of its own, only layout. */
+.fleet-params-content {
+  display: flex;
+  flex-direction: column;
+}

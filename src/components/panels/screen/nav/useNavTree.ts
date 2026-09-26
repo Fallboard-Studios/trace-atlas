@@ -69,8 +69,6 @@ const FLEET_PARAMS_LEAF_TO_EFFECT_KEY: Record<string, SelectedFleetParamsEffect>
   delay: 'delay',
   compression: 'compressor',
   limiter: 'limiter',
-  // Pacing's own 2 children — id segment and SelectedFleetParamsEffect value happen to share the
-  // same spelling here, unlike the effect leaves above.
   tempo: 'tempo',
   automaticEffects: 'automaticEffects',
 };
@@ -132,7 +130,7 @@ export function isCollapsible(id: string): boolean {
 // 'Volume' renders as 'Output' (label-only rename, docs/intent/nav-panel-views-and-content.md
 // §New 4th tree level) — the id segment stays 'volume', matching RobotSection's own value.
 const SECTION_CHILDREN: Omit<NavTreeNodeSchema, 'id'>[] = [
-  { humanLabel: 'Output', trait: 'output' },
+  { humanLabel: 'Levels', trait: 'output' },
   { humanLabel: 'Composition', trait: 'composition' },
   { humanLabel: 'Envelope', trait: 'timeSpace' },
   { humanLabel: 'Source', trait: 'spectral' },
