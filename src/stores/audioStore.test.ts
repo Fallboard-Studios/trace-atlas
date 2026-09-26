@@ -521,6 +521,90 @@ describe('useAudioStore - pingVarianceAutomation / setPingVarianceAutomation', (
   });
 });
 
+describe('useAudioStore - swellFrequency / setSwellFrequency (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('seeds into [2, 8] on module load (the first regenerateGlobalAudioFromSeed call)', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { swellFrequency } = useAudioStore.getState();
+    expect(swellFrequency).toBeGreaterThanOrEqual(2);
+    expect(swellFrequency).toBeLessThanOrEqual(8);
+  });
+
+  it('setSwellFrequency updates the store directly — a plain write, no AudioEngine call', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    const reverbCallsBefore = vi.mocked(AudioEngine.setGlobalReverb).mock.calls.length;
+
+    useAudioStore.getState().setSwellFrequency(20);
+    expect(useAudioStore.getState().swellFrequency).toBe(20);
+
+    expect(vi.mocked(AudioEngine.setGlobalReverb).mock.calls.length).toBe(reverbCallsBefore);
+  });
+
+  it('carries the seeded value forward across a later Attenuation Style switch — does not reseed', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const seeded = useAudioStore.getState().swellFrequency;
+
+    useAudioStore.getState().regenerateGlobalAudioFromSeed('a-different-as-id', 'Zenith');
+
+    expect(useAudioStore.getState().swellFrequency).toBe(seeded);
+  });
+
+  it('carries a hand-dragged value forward across a later Attenuation Style switch too', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setSwellFrequency(20); // outside the [2, 8] seed range, so it's unambiguous
+
+    useAudioStore.getState().regenerateGlobalAudioFromSeed('a-different-as-id', 'Zenith');
+
+    expect(useAudioStore.getState().swellFrequency).toBe(20);
+  });
+});
+
+describe('useAudioStore - swellDuration / setSwellDuration (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('seeds into [2, 8] on module load (the first regenerateGlobalAudioFromSeed call)', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { swellDuration } = useAudioStore.getState();
+    expect(swellDuration).toBeGreaterThanOrEqual(2);
+    expect(swellDuration).toBeLessThanOrEqual(8);
+  });
+
+  it('setSwellDuration updates the store directly — a plain write, no AudioEngine call', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    const reverbCallsBefore = vi.mocked(AudioEngine.setGlobalReverb).mock.calls.length;
+
+    useAudioStore.getState().setSwellDuration(20);
+    expect(useAudioStore.getState().swellDuration).toBe(20);
+
+    expect(vi.mocked(AudioEngine.setGlobalReverb).mock.calls.length).toBe(reverbCallsBefore);
+  });
+
+  it('carries the seeded value forward across a later Attenuation Style switch — does not reseed', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const seeded = useAudioStore.getState().swellDuration;
+
+    useAudioStore.getState().regenerateGlobalAudioFromSeed('a-different-as-id', 'Zenith');
+
+    expect(useAudioStore.getState().swellDuration).toBe(seeded);
+  });
+
+  it('carries a hand-dragged value forward across a later Attenuation Style switch too', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setSwellDuration(20); // outside the [2, 8] seed range, so it's unambiguous
+
+    useAudioStore.getState().regenerateGlobalAudioFromSeed('a-different-as-id', 'Zenith');
+
+    expect(useAudioStore.getState().swellDuration).toBe(20);
+  });
+});
+
 describe('useAudioStore - regenerateBpmFromSeed (docs/specs/BPM_CONTROL.md §1.3)', () => {
   beforeEach(() => {
     vi.resetModules();
