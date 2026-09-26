@@ -52,17 +52,35 @@ import type { Company } from '@/types/Company';
 /** Each pool (global, robot) is capped independently — never a shared budget. */
 export const MAX_CONCURRENT_SWELLS_PER_POOL = 5;
 
-/** Per-measure probability a pool rolls a new swell, calibrated so an average
- *  gap of ~3-4 measures emerges (confirmed via interview) — NOT a fixed
- *  "every N measures" timer. First-pass placeholder, same caveat as every
- *  other probability-threshold field in this app (DELAY_QUIET_THRESHOLD,
- *  LFO_QUIET_THRESHOLD) — tune during the manual/audible checkpoint. */
-export const SWELL_TRIGGER_CHANCE = 0.28; // ~= 1 / 3.5
+/** Ticks per whole measure — the 16n scheduleRepeat cadence startAudioSwells
+ *  already runs tickAudioSwells at (docs/specs/
+ *  AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3). Not re-derived from
+ *  BeatClock at runtime — a fixed subdivision this file's own scheduling
+ *  cadence depends on. */
+const TICKS_PER_MEASURE = 16;
+
+/**
+ * Frequency's per-tick trigger probability, replacing the old fixed,
+ * once-per-whole-measure trigger roll (docs/specs/
+ * AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3). frequency is swells/measure
+ * directly — over TICKS_PER_MEASURE independent per-tick trials with
+ * probability p, the expected number of successes per measure is
+ * TICKS_PER_MEASURE * p, so solving for p gives frequency / TICKS_PER_MEASURE.
+ * An approximation (an expected rate, not a guarantee of exactly `frequency`
+ * triggers every single measure), same "average gap" framing the old
+ * per-measure chance's own comment used. frequency values above
+ * TICKS_PER_MEASURE are clamped to 1 — a per-tick probability can't exceed 1,
+ * so "24 times a measure" and "16 times a measure" are behaviorally identical
+ * (at most one trigger per tick) — an accepted, documented ceiling, not a bug.
+ */
+export function frequencyToPerTickChance(frequency: number): number {
+  return Math.min(1, frequency / TICKS_PER_MEASURE);
+}
 
 /** Second, small chance — evaluated only when the robot pool's own trigger
  *  above already succeeded — that this pick becomes company-wide (§1.5)
  *  instead of single-robot. Unconfirmed exact value, same first-pass caveat
- *  as SWELL_TRIGGER_CHANCE (§7). */
+ *  every other placeholder probability in this file has (§7). */
 export const SWELL_COMPANY_CHANCE = 0.15; // placeholder — needs a manual audible pass
 
 /** Rising-phase and falling-phase measure counts are drawn INDEPENDENTLY from
@@ -363,18 +381,13 @@ let swellScheduleId: string | null = null;
  *  iterating, since a company-wide ActiveSwell is stored under multiple keys. */
 const activeSwells = new Map<string, ActiveSwell>();
 
-/** The whole-measure number the trigger/selection draws last ran for — set
- *  by tickAudioSwells so a tick landing mid-measure (see below) never rolls
- *  a second time before the next whole measure begins. -1 (no measure is
- *  ever negative) so the very first tick of a session always rolls. */
-let lastRolledMeasure = -1;
-
 export function startAudioSwells(localeId: string): void {
   if (swellScheduleId !== null) return; // already running — same idempotent guard startRobotLifecycle uses
-  // 16n, not once-per-measure: tickAudioSwells's own advance step needs
-  // sub-measure resolution for a smooth ramp (16 updates/measure) — the
-  // trigger/selection draws still only run once per whole measure, gated
-  // inside tickAudioSwells itself via lastRolledMeasure.
+  // 16n: tickAudioSwells's advance step needs sub-measure resolution for a
+  // smooth ramp (16 updates/measure), and trigger/selection now also rolls on
+  // every one of those same ticks (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
+  // §1.3 — frequencyToPerTickChance derives its per-tick probability from
+  // this exact TICKS_PER_MEASURE cadence).
   swellScheduleId = scheduleRepeat('16n', () => tickAudioSwells(localeId, getCurrentMeasurePrecise()));
 }
 
@@ -383,7 +396,6 @@ export function stopAudioSwells(): void {
     cancelSchedule(swellScheduleId);
     swellScheduleId = null;
   }
-  lastRolledMeasure = -1;
   activeSwells.clear(); // no partial swells survive a locale/AS change
 }
 
@@ -412,12 +424,14 @@ function activeSwellCount(pool: SwellPool): number {
 }
 
 /** One 16n tick's worth of Audio Swell evaluation — `measure` may be
- *  fractional (sub-measure precision) for a smooth ramp; trigger/selection
- *  is internally gated to once per whole measure regardless. Pure with
- *  respect to its `measure` input (not read from BeatClock directly) so
- *  tests can drive it without a real transport — see startAudioSwells for
- *  the BeatClock-wired entry point. Mirrors tickRobotLifecycle's own shape
- *  (robotSystems.ts), generalized from once-per-measure to 16n. */
+ *  fractional (sub-measure precision) for a smooth ramp. Pure with respect to
+ *  its `measure` input (not read from BeatClock directly) so tests can drive
+ *  it without a real transport — see startAudioSwells for the BeatClock-wired
+ *  entry point. Mirrors tickRobotLifecycle's own shape (robotSystems.ts).
+ *  Trigger/selection now rolls on every tick, not just once per whole measure
+ *  (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3) — frequencyToPerTickChance
+ *  derives a per-tick probability from swellFrequency so the long-run rate
+ *  still matches "swells per measure", without needing a once-per-measure gate. */
 export function tickAudioSwells(localeId: string, measure: number): void {
   const as = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   if (!as) return;
@@ -432,24 +446,20 @@ export function tickAudioSwells(localeId: string, measure: number): void {
   // either way — automation never cancels a swell outright the way a
   // disabled effect does. Smooth, sub-measure interpolation from whatever
   // fractional `measure` this tick carries (16n resolution in production;
-  // tests may pass any real number). Trigger/selection stays gated to once
-  // per WHOLE measure — SWELL_TRIGGER_CHANCE etc. are documented as
-  // per-measure probabilities, and re-rolling them 16x a measure would
-  // multiply the effective trigger rate and break the ~3-4-measure average
-  // gap the spec calls for.
+  // tests may pass any real number).
   const automation = useAudioStore.getState().pingVarianceAutomation;
+  const frequency = useAudioStore.getState().swellFrequency;
   advanceActiveSwells(localeId, measure, automation);
 
-  const wholeMeasure = Math.floor(measure);
-  if (wholeMeasure !== lastRolledMeasure) {
-    lastRolledMeasure = wholeMeasure;
-    // automation is never 0 past this point in the tick — the `> 0` check
-    // below is the one and only place that matters for the trigger/selection
-    // side; magnitude scaling at each call site never sees a 0 automation.
-    if (automation > 0) {
-      maybeStartGlobalSwell(noiseMap, wholeMeasure, automation);
-      maybeStartRobotSwell(localeId, noiseMap, wholeMeasure, automation);
-    }
+  // frequency is the sole on/off switch for new-swell starts (docs/specs/
+  // AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3) — automation/Intensity no
+  // longer gates this at all, only scales magnitude once a swell is already
+  // starting. Every tick gets its own independent trigger roll now (below),
+  // using this same fractional `measure` as the noise offset so successive
+  // ticks within one whole measure diverge from each other.
+  if (frequency > 0) {
+    maybeStartGlobalSwell(noiseMap, measure, automation, frequency);
+    maybeStartRobotSwell(localeId, noiseMap, measure, automation, frequency);
   }
 }
 
@@ -494,11 +504,11 @@ function clampGlobalPeak(target: SwellGlobalTargetId, currentValue: number, peak
   return peakDelta;
 }
 
-function maybeStartGlobalSwell(noiseMap: NoiseFunction2D, measure: number, automation: number): void {
+function maybeStartGlobalSwell(noiseMap: NoiseFunction2D, measure: number, automation: number, frequency: number): void {
   if (activeSwellCount('global') >= MAX_CONCURRENT_SWELLS_PER_POOL) return;
 
   const triggerRoll = getSeededVal(noiseMap, 'audioSwell.trigger.global', measure, 0, 1);
-  if (triggerRoll >= SWELL_TRIGGER_CHANCE) return;
+  if (triggerRoll >= frequencyToPerTickChance(frequency)) return;
 
   const eligible = SWELL_GLOBAL_TARGET_IDS.filter(isGlobalTargetEligible);
   if (eligible.length === 0) return;
@@ -551,11 +561,11 @@ function isRobotAttributeEligible(robot: Robot, attribute: SwellRobotAttributeId
  * §7 item 6 leaves the exact company-selection mechanics for
  * Plan/Tasks to settle — this is that settling).
  */
-function maybeStartRobotSwell(localeId: string, noiseMap: NoiseFunction2D, measure: number, automation: number): void {
+function maybeStartRobotSwell(localeId: string, noiseMap: NoiseFunction2D, measure: number, automation: number, frequency: number): void {
   if (activeSwellCount('robot') >= MAX_CONCURRENT_SWELLS_PER_POOL) return;
 
   const triggerRoll = getSeededVal(noiseMap, 'audioSwell.trigger.robot', measure, 0, 1);
-  if (triggerRoll >= SWELL_TRIGGER_CHANCE) return;
+  if (triggerRoll >= frequencyToPerTickChance(frequency)) return;
 
   const robots = useLocaleStore.getState().getLocaleById(localeId)?.robots ?? [];
   const companies = useLocaleStore.getState().getLocaleById(localeId)?.companies ?? [];

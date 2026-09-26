@@ -30,6 +30,7 @@ import {
   tickAudioSwells,
   getActiveSwellSnapshot,
   pickSwellPeakDelta,
+  frequencyToPerTickChance,
   MAX_CONCURRENT_SWELLS_PER_POOL,
   DEFAULT_SWELL_DURATION_RANGE,
   MIX_SWELL_DURATION_RANGE,
@@ -130,7 +131,12 @@ beforeEach(() => {
   // this file meaningful once Task 3 wires scaleSwellPeakByAutomation in —
   // those tests assert an UNSCALED peak; automation-scaling itself gets its
   // own dedicated describe block below, which sets a different value per test.
-  useAudioStore.setState({ globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS }, pingVarianceAutomation: 1 });
+  // swellFrequency: 4 gives a per-tick trigger chance of 4/16 = 0.25
+  // (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3) — close enough to
+  // the old fixed SWELL_TRIGGER_CHANCE (0.28) that every existing
+  // ALWAYS_MIN(succeeds)/ALWAYS_MID(fails) fixture below still behaves
+  // identically; individual trigger-mechanism tests override this explicitly.
+  useAudioStore.setState({ globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS }, pingVarianceAutomation: 1, swellFrequency: 4 });
   useLocaleStore.getState().setLocaleData(LOCALE_ID, { robots: [], companies: [] } as unknown as Partial<Locale>);
   // Real AudioEngine voice calls need a live Tone context this jsdom test
   // environment doesn't have — no-op them, matching robotOptionsActions.test.ts's
@@ -205,36 +211,31 @@ describe('smooth sub-measure advance (16n ticking)', () => {
     expect(useAudioStore.getState().globalAudio.eq3.low).toBeCloseTo(12 * (0.9375 / 3));
   });
 
-  it('rolls the trigger/selection at most once per whole measure, even when ticked 16 times within it', () => {
+  it('rolls the trigger/selection on every tick, not just once per whole measure (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — replaces the old once-per-whole-measure gate)', () => {
     for (let i = 0; i < 16; i++) {
       vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
       tickAudioSwells(LOCALE_ID, i / 16); // all 16 ticks land within measure 0
     }
-    expect(getActiveSwellSnapshot('global')).toHaveLength(1); // only the first tick's roll took effect
+    // Every eligible global target gets picked in turn, one per tick, well
+    // before all 16 ticks are consumed — proves each tick rolled and picked
+    // independently rather than only the first one taking effect.
+    expect(getActiveSwellSnapshot('global').length).toBeGreaterThan(1);
   });
 
-  it('can roll a new trigger again once a new whole measure begins', () => {
-    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0); // measure 0 -> picks eq3.low
-    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0.5); // still measure 0 -> gated, no new pick
-    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 1); // new whole measure -> eq3.low now excluded -> picks eq3.mid
+  it('a non-first tick within a whole measure can trigger a new swell — direct regression guard that the once-per-measure gate is gone', () => {
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MAX); // measure 0's own tick: draw 1, fails (>= chance)
+    tickAudioSwells(LOCALE_ID, 0);
+    expect(getActiveSwellSnapshot('global')).toEqual([]);
 
-    const targets = getActiveSwellSnapshot('global').map((s) => s.globalTarget).sort();
-    expect(targets).toEqual(['eq3.low', 'eq3.mid']);
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN); // still measure 0, a later tick: draw 0, succeeds
+    tickAudioSwells(LOCALE_ID, 0.5);
+    expect(getActiveSwellSnapshot('global')).toHaveLength(1);
   });
 });
 
-describe('pingVarianceAutomation gate (docs/tasks/PING-VARIANCE-AUTOMATION.md Task 3)', () => {
-  // Renamed/adapted from the former audioSwellsEnabled (Sector Settings
-  // toggle) describe block — tickAudioSwells now reads pingVarianceAutomation
-  // instead. The old "finish naturally while disabled mid-ramp" test that
-  // used to live here is deleted, not adapted, as of Task 4 — 0% now forces
-  // an early return instead (see the 'pingVarianceAutomation forced return
-  // at 0%' describe block below).
-  it('starts no new swell (global or robot) at automation 0, even when the trigger draw would otherwise succeed', () => {
-    useAudioStore.setState({ pingVarianceAutomation: 0 });
+describe('swellFrequency gate (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — takes over the on/off role pingVarianceAutomation used to have)', () => {
+  it('starts no new swell (global or robot) at frequency 0, even when the trigger draw would otherwise succeed', () => {
+    useAudioStore.setState({ swellFrequency: 0 });
     useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot());
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
 
@@ -244,15 +245,24 @@ describe('pingVarianceAutomation gate (docs/tasks/PING-VARIANCE-AUTOMATION.md Ta
     expect(getActiveSwellSnapshot('robot')).toEqual([]);
   });
 
-  it('resumes starting new swells once automation is nonzero again', () => {
-    useAudioStore.setState({ pingVarianceAutomation: 0 });
+  it('resumes starting new swells once frequency is nonzero again', () => {
+    useAudioStore.setState({ swellFrequency: 0 });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
     tickAudioSwells(LOCALE_ID, 0);
     expect(getActiveSwellSnapshot('global')).toEqual([]);
 
-    useAudioStore.setState({ pingVarianceAutomation: 1 });
+    useAudioStore.setState({ swellFrequency: 4 });
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 1); // a new whole measure — free to roll again
+    tickAudioSwells(LOCALE_ID, 1);
+
+    expect(getActiveSwellSnapshot('global')).toHaveLength(1);
+  });
+
+  it('Intensity (pingVarianceAutomation) no longer gates new swells on its own — nonzero frequency at Intensity\'s new floor (0.01) still starts swells', () => {
+    useAudioStore.setState({ pingVarianceAutomation: 0.01, swellFrequency: 4 });
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+
+    tickAudioSwells(LOCALE_ID, 0);
 
     expect(getActiveSwellSnapshot('global')).toHaveLength(1);
   });
@@ -261,6 +271,29 @@ describe('pingVarianceAutomation gate (docs/tasks/PING-VARIANCE-AUTOMATION.md Ta
     const thisFile = fileURLToPath(import.meta.url);
     const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
     expect(source).not.toMatch(/audioSwellsEnabled/);
+  });
+
+  it('no longer reads SWELL_TRIGGER_CHANCE or lastRolledMeasure anywhere in this module (source-scan regression guard, docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §3)', () => {
+    const thisFile = fileURLToPath(import.meta.url);
+    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
+    expect(source).not.toMatch(/SWELL_TRIGGER_CHANCE/);
+    expect(source).not.toMatch(/lastRolledMeasure/);
+  });
+});
+
+describe('frequencyToPerTickChance (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3)', () => {
+  it('divides frequency by the 16-tick-per-measure cadence', () => {
+    expect(frequencyToPerTickChance(4)).toBeCloseTo(0.25);
+    expect(frequencyToPerTickChance(8)).toBeCloseTo(0.5);
+  });
+
+  it('clamps to 1 once frequency reaches the 16-tick cadence — 16 and 24 are behaviorally identical', () => {
+    expect(frequencyToPerTickChance(16)).toBe(1);
+    expect(frequencyToPerTickChance(24)).toBe(1);
+  });
+
+  it('returns 0 at frequency 0', () => {
+    expect(frequencyToPerTickChance(0)).toBe(0);
   });
 });
 
@@ -411,7 +444,14 @@ describe('pingVarianceAutomation forced return at 0% (Task 4)', () => {
     const r1Before = useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume;
     const r2Before = useLocaleStore.getState().getRobotById(LOCALE_ID, 'r2')!.masterVolume;
 
-    useAudioStore.setState({ pingVarianceAutomation: 0 });
+    // swellFrequency: 0 alongside pingVarianceAutomation: 0 — not because
+    // forcing depends on it (Task 5 keys the forced-return check on
+    // automation only; frequency's own on/off role isn't wired in until
+    // Task 6), but because Task 5 also made every tick roll its own
+    // independent trigger against real (unmocked) noise from here on, and
+    // this test's remaining assertions only care about the one company-wide
+    // swell already in flight — silencing new starts keeps it that way.
+    useAudioStore.setState({ pingVarianceAutomation: 0, swellFrequency: 0 });
     tickAudioSwells(LOCALE_ID, 1); // forcing tick — both members convert together
 
     expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBeCloseTo(r1Before);
@@ -484,7 +524,7 @@ describe('pingVarianceAutomation forced return at 0% (Task 4)', () => {
   });
 });
 
-describe('trigger gating (SWELL_TRIGGER_CHANCE)', () => {
+describe('trigger gating (frequencyToPerTickChance, swellFrequency: 4 -> 0.25 chance)', () => {
   it('does not start a swell when the seeded trigger draw lands well above the trigger chance', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID); // draw = 0.5
     tickAudioSwells(LOCALE_ID, 10);
@@ -493,6 +533,13 @@ describe('trigger gating (SWELL_TRIGGER_CHANCE)', () => {
 
   it('starts a swell when the seeded trigger draw lands at the bottom of the range', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN); // draw = 0
+    tickAudioSwells(LOCALE_ID, 10);
+    expect(getActiveSwellSnapshot('global')).toHaveLength(1);
+  });
+
+  it('a higher swellFrequency raises the per-tick trigger chance — a draw that fails at frequency 4 succeeds at frequency 16 (chance 1)', () => {
+    useAudioStore.setState({ swellFrequency: 16 });
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID); // draw = 0.5, fails at chance 0.25, succeeds at chance 1
     tickAudioSwells(LOCALE_ID, 10);
     expect(getActiveSwellSnapshot('global')).toHaveLength(1);
   });
