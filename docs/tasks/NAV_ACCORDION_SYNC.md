@@ -154,21 +154,21 @@ Task 1 (accordionSync.ts registry)          Task 2 (expandNavAncestorsForId extr
 
 ### Phase 3: Integration — nav click drives content
 
-- [ ] **Task 5: `NavTreeNode.tsx` — nav click opens the target accordion**
+- [x] **Task 5: `NavTreeNode.tsx` — nav click opens the target accordion**
 
   **Description:** Both of `NavTreeNode.tsx`'s click handlers (the plain `Button` row's `onClick` and `NavCabinetRow`'s `onClick` prop) add one call after their existing `select(node.id)`/`scrollToSection(node.id)`: `openAccordionFromNav(node.id, { closeSiblings: useCabinetTier() === 'mobile' })` (spec §2.1/§2.3, Architecture Decisions above). A miss (an id with no registered accordion — e.g. the "Pitches" leaf, spec §1.2) is already a safe no-op per Task 1's contract, so no special-casing is needed here.
 
   **Acceptance criteria:**
-  - [ ] Clicking a nav row whose id is a registered, closed accordion (in a test wiring a real `useAccordionOpenState` instance alongside the tree, or mocking `accordionSync`) results in that accordion becoming open.
-  - [ ] On a mobile viewport (`useCabinetTier() === 'mobile'`, mocked in the test), clicking a nav row for an accordion in the same view as another already-open accordion closes the other one first — verified via the owning `useAccordionOpenState` instance's `isOpen` for the sibling id.
-  - [ ] On a non-mobile viewport (`'tablet'` or `'desktop'`), the same click leaves sibling accordions open.
-  - [ ] Clicking a nav row for an id with no registered accordion (e.g. a branch/entity row, or the "Pitches" leaf) does not throw and preserves all existing `select`/`scrollToSection` behavior exactly as before this task.
-  - [ ] `select(node.id)` and `scrollToSection(node.id)` are still called exactly as before — this task only adds a third call, never reorders or removes the first two.
-  - [ ] Both click-handler call sites (`Button` row and `NavCabinetRow` row) get the identical new call — asserted for both, not just one.
+  - [x] Clicking a nav row whose id is a registered, closed accordion (in a test wiring a real `useAccordionOpenState` instance alongside the tree, or mocking `accordionSync`) results in that accordion becoming open.
+  - [x] On a mobile viewport (`useCabinetTier() === 'mobile'`, mocked in the test), clicking a nav row for an accordion in the same view as another already-open accordion closes the other one first — verified via the owning `useAccordionOpenState` instance's `isOpen` for the sibling id.
+  - [x] On a non-mobile viewport (`'tablet'` or `'desktop'`), the same click leaves sibling accordions open.
+  - [x] Clicking a nav row for an id with no registered accordion (e.g. a branch/entity row, or the "Pitches" leaf) does not throw and preserves all existing `select`/`scrollToSection` behavior exactly as before this task.
+  - [x] `select(node.id)` and `scrollToSection(node.id)` are still called exactly as before — this task only adds a third call, never reorders or removes the first two.
+  - [x] Both click-handler call sites (`Button` row and `NavCabinetRow` row) get the identical new call — asserted for both, not just one.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/NavTreeNode.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav/NavTreeNode.test.tsx` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
   - [ ] Manual check (live browser): on a narrow/mobile-width window, open one accordion in a robot's options, then click a different nav leaf within the same robot — confirm the first accordion closes and the new target opens, expanded and scrolled into view, with its own nav row popped. Widen to desktop width and repeat — confirm the first accordion stays open alongside the newly opened one. Click the "Pitches" leaf (or any leaf with no live accordion) and confirm no crash and existing scroll/select behavior still works.
 
   **Dependencies:** Task 1, Task 3, Task 4.
@@ -178,10 +178,10 @@ Task 1 (accordionSync.ts registry)          Task 2 (expandNavAncestorsForId extr
   **Estimated scope:** S (one file, one new call at two existing call sites)
 
 ### Checkpoint: Integration
-- [ ] `npm run build:types`, `npm run lint`, `npm test` all clean — full suite.
-- [ ] `npm run build` clean (production bundle).
-- [ ] The full feature is provable end-to-end via the automated suite: nav click → target accordion opens (+ mobile sibling-closing) → target nav row pops; accordion open/close (from any source) → nav ancestor expansion + pop, close never collapsing nav state.
-- [ ] Manual check from Task 5 above — flagged for the human before merge.
+- [x] `npm run build:types`, `npm run lint`, `npm test` all clean — full suite (17 pre-existing, unrelated failures — same known set as every prior checkpoint in this run; zero new failures).
+- [x] `npm run build` clean (production bundle).
+- [x] The full feature is provable end-to-end via the automated suite: nav click → target accordion opens (+ mobile sibling-closing) → target nav row pops; accordion open/close (from any source) → nav ancestor expansion + pop, close never collapsing nav state.
+- [ ] Manual check from Task 5 above — **not performed in this session; no live browser was used.** Flagged for the human before merge.
 - [ ] Reviewed with human before proceeding to Phase 4.
 
 ---
