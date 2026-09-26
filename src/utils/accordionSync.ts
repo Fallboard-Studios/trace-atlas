@@ -8,18 +8,27 @@
  * Mirrors sectionRefs.ts's own module-level-Map shape and silent-replace-on-collision contract.
  *
  * Also sequences nav-click navigation (found live, after the first pass shipped): a nav click must
- * (1) switch views without popping open that view's own default accordion, (2) expand the actual
- * clicked target, (3) only THEN scroll to it — scrolling before the accordion's open-tween finishes
- * scrolls to the wrong (pre-expansion) position. Two mechanisms support this:
- * - `onSettled` on `openAccordionFromNav` fires once the target accordion has genuinely finished
- *   opening (immediately if it was already open, otherwise once its GSAP tween completes —
- *   AccordionContainer.tsx calls `notifyAccordionAnimationComplete` from that tween's onComplete).
- * - The "pending nav target" queue handles clicking into a view that hasn't mounted yet (so nothing
- *   is registered at click time): the request waits until the matching accordion registers, at
- *   which point it's fulfilled the same way. `useAccordionOpenState` also consults
- *   `hasPendingNavTargetFor` before computing its own mount-time default-open state, so the
- *   about-to-be-fulfilled pending target is the ONLY thing that opens — not both it and the view's
- *   usual default.
+ * (1) switch views without popping open that view's own default accordion, (2) expand every real
+ * accordion between the clicked target and the top of its own nesting — e.g. clicking "Baseline
+ * Oscillator" (nested inside the "Source" accordion) must open Source, THEN Baseline Oscillator, not
+ * just the one exact id match — and (3) only THEN scroll to it, once the whole chain has actually
+ * finished opening (scrolling before an open-tween finishes lands on the pre-expansion position).
+ * Mechanisms:
+ * - `getRegisteredChain` walks `id`'s own dot-segments from the top down and collects every
+ *   registered ancestor-or-self accordion, in outer-to-inner order — the same lookup covers both
+ *   "no accordion of its own, only an ancestor has one" (Fleet Params' leaves) and "nested inside
+ *   another accordion" (Source's own children) as one mechanism.
+ * - `openAccordionFromNav`'s `onSettled` fires only once every accordion in that chain has opened
+ *   and settled, each waiting for the previous one's GSAP tween to complete (or immediately if it
+ *   was already open) before the next one opens — never simultaneously, so Source is visibly open
+ *   before Baseline Oscillator starts expanding inside it.
+ * - The "pending nav target" queue handles clicking into a view that hasn't mounted yet (nothing is
+ *   registered at click time): the request waits until `useAccordionOpenState`'s own mount-time
+ *   registration batch finishes (`attemptFulfillPendingNavTarget`, called once per batch, never per
+ *   individual id — a chain's outer members can register after its inner ones within the same
+ *   batch, so fulfilling on the very first match would risk opening only the inner one). It also
+ *   consults `hasPendingNavTargetFor` before computing its own mount-time default-open state, so
+ *   the about-to-be-fulfilled pending target is the ONLY thing that opens, not it and the default.
  */
 
 export interface AccordionEntry {
@@ -33,6 +42,11 @@ interface PendingNavTarget {
   id: string;
   closeSiblings: boolean;
   onSettled?: () => void;
+}
+
+interface ChainLink {
+  id: string;
+  entry: AccordionEntry;
 }
 
 // ========================================
@@ -53,29 +67,41 @@ function isAncestorOrSelf(ancestorOrSelfId: string, id: string): boolean {
   return id === ancestorOrSelfId || id.startsWith(`${ancestorOrSelfId}.`);
 }
 
-/** Walks `id` up its own dot-segment ancestry (dropping trailing `.segment`s) until it finds a
- *  registered entry, or returns undefined if nothing in the chain is registered. */
-function findRegisteredAncestorOrSelf(id: string): { id: string; entry: AccordionEntry } | undefined {
-  let candidate = id;
-  while (candidate) {
-    const entry = registry.get(candidate);
-    if (entry) return { id: candidate, entry };
-    const lastDot = candidate.lastIndexOf('.');
-    if (lastDot === -1) return undefined;
-    candidate = candidate.slice(0, lastDot);
+/** Every registered accordion along `id`'s own dot-segment path, outermost first — e.g. for
+ *  'probes.r1.source.baselineOscillator' with both 'probes.r1.source' (the Source group) and the
+ *  full id itself registered, returns both, Source first. An id with no accordion of its own but a
+ *  registered ancestor (Fleet Params' leaves) returns just that ancestor; an id with nothing
+ *  registered anywhere in its own path returns an empty array. */
+function getRegisteredChain(id: string): ChainLink[] {
+  const segments = id.split('.');
+  const chain: ChainLink[] = [];
+  let prefix = '';
+  for (const segment of segments) {
+    prefix = prefix ? `${prefix}.${segment}` : segment;
+    const entry = registry.get(prefix);
+    if (entry) chain.push({ id: prefix, entry });
   }
-  return undefined;
+  return chain;
 }
 
-/** Opens `entry` and, if `onSettled` is given, calls it once the open has genuinely taken visible
- *  effect — immediately if `entry` was already open (nothing will animate), otherwise once its
- *  open-tween's completion is reported via `notifyAccordionAnimationComplete`. */
-function openAndSettle(id: string, entry: AccordionEntry, closeSiblings: boolean, onSettled?: () => void): void {
+/** Opens every link in `chain` in order, each waiting for the previous one to genuinely finish
+ *  opening before the next one starts — immediately if a link was already open (nothing will
+ *  animate), otherwise once its GSAP tween's completion is reported via
+ *  `notifyAccordionAnimationComplete`. `closeSiblings` applies only to the first (outermost) link —
+ *  applying it again at an inner link would immediately re-close the outer one it shares a
+ *  `useAccordionOpenState` instance with. Calls `onSettled` once every link has settled, or
+ *  immediately if `chain` is empty. */
+function openChainSequentially(chain: ChainLink[], closeSiblings: boolean, onSettled?: () => void, index = 0): void {
+  if (index >= chain.length) {
+    onSettled?.();
+    return;
+  }
+  const { id, entry } = chain[index];
   const wasOpen = entry.isOpen;
-  entry.open(closeSiblings);
-  if (!onSettled) return;
-  if (wasOpen) onSettled();
-  else onceAccordionAnimationComplete(id, onSettled);
+  entry.open(index === 0 ? closeSiblings : false);
+  const openNext = () => openChainSequentially(chain, closeSiblings, onSettled, index + 1);
+  if (wasOpen) openNext();
+  else onceAccordionAnimationComplete(id, openNext);
 }
 
 // ========================================
@@ -83,16 +109,10 @@ function openAndSettle(id: string, entry: AccordionEntry, closeSiblings: boolean
 // ========================================
 
 /** Store an id's accordion entry, replacing any stale entry under the same id — matches
- *  sectionRefs.ts's own setSectionRef contract exactly. Also fulfills a queued pending nav target
- *  (see module doc comment) if this newly-registered id is that target's own id or an ancestor of
- *  it — the view that was just navigated to has now mounted and registered its accordions. */
+ *  sectionRefs.ts's own setSectionRef contract exactly. Does not itself attempt to fulfill a
+ *  pending nav target — see `attemptFulfillPendingNavTarget`, called once per registration batch. */
 export function registerAccordion(id: string, entry: AccordionEntry): void {
   registry.set(id, entry);
-  if (pendingNavTarget && isAncestorOrSelf(id, pendingNavTarget.id)) {
-    const { closeSiblings, onSettled } = pendingNavTarget;
-    pendingNavTarget = null;
-    openAndSettle(id, entry, closeSiblings, onSettled);
-  }
 }
 
 /** Remove an id's own entry. Safe to call for an id that was never registered. */
@@ -150,30 +170,49 @@ export function onceAccordionAnimationComplete(id: string, cb: () => void): void
 /** True when a queued pending nav target (see module doc comment) would resolve to one of `ids` —
  *  used by `useAccordionOpenState` to suppress its own mount-time default-open when a nav click
  *  that hasn't been fulfilled yet is about to be, by one of the ids it's about to register, so the
- *  pending target ends up the ONLY accordion that opens rather than opening alongside the default. */
+ *  pending target ends up the ONLY accordion (or accordion chain) that opens rather than opening
+ *  alongside the default. */
 export function hasPendingNavTargetFor(ids: string[]): boolean {
   return !!pendingNavTarget && ids.some((id) => isAncestorOrSelf(id, pendingNavTarget!.id));
 }
 
-/** Direction 1's entry point (nav click → open content accordion, spec §2.1) — opens `id`'s own
- *  accordion if registered; otherwise walks up its ancestor ids (dropping trailing `.segment`s)
- *  until it finds one that is, since some nav ids (e.g. Fleet Params' individual leaves — 3-Band
- *  EQ, High-Pass Filter — render as plain anchors with no accordion of their own, only their
- *  parent group does) should open their nearest ancestor's accordion instead of doing nothing.
+/** Called by `useAccordionOpenState` once per registration batch (mount, or an `ids`/`resetKey`
+ *  change), after every id in that batch has been registered — never per individual
+ *  `registerAccordion` call, since a chain's outer accordion can register after its inner one
+ *  within the same batch (e.g. Source's own children are registered before Source itself), and
+ *  fulfilling on the first match found would risk opening only the inner accordion. A no-op if
+ *  nothing is queued, or if the queued target still doesn't resolve to anything registered yet
+ *  (some other, not-yet-mounted view is still the real destination). */
+export function attemptFulfillPendingNavTarget(): void {
+  if (!pendingNavTarget) return;
+  const chain = getRegisteredChain(pendingNavTarget.id);
+  if (chain.length === 0) return;
+  const { closeSiblings, onSettled } = pendingNavTarget;
+  pendingNavTarget = null;
+  openChainSequentially(chain, closeSiblings, onSettled);
+}
+
+/** Direction 1's entry point (nav click → open content accordion, spec §2.1) — opens every real
+ *  accordion along `id`'s own nesting, outermost first (see `getRegisteredChain`/
+ *  `openChainSequentially`): this covers both an id with no accordion of its own but a registered
+ *  ancestor (Fleet Params' individual leaves — 3-Band EQ, High-Pass Filter — render as plain
+ *  anchors, only their parent group has an accordion) and an id nested inside another accordion
+ *  (Source's own oscillator/drift children) as the same mechanism.
  *
- * If nothing in `id`'s ancestry is registered yet — most commonly because the nav click is
+ * If nothing in `id`'s own path is registered yet — most commonly because the nav click is
  * switching into a view that hasn't mounted (and so hasn't registered any of its accordions) yet —
- * the request is queued as a pending nav target and fulfilled the moment a matching id registers
- * (see `registerAccordion`), rather than silently doing nothing.
+ * the request is queued as a pending nav target and fulfilled once `useAccordionOpenState`'s own
+ * mount-time registration batch completes (`attemptFulfillPendingNavTarget`), rather than silently
+ * doing nothing.
  *
- * `opts.onSettled`, if given, fires once the eventual target has genuinely finished opening —
- * immediately if it was already open, otherwise once its GSAP open-tween completes. Used to defer
+ * `opts.onSettled`, if given, fires once every accordion in the resolved chain has genuinely
+ * finished opening, each waiting for the previous one's tween before the next starts. Used to defer
  * scrolling until the target's final (post-expansion) position is stable. */
 export function openAccordionFromNav(id: string, opts: { closeSiblings: boolean; onSettled?: () => void }): void {
-  const found = findRegisteredAncestorOrSelf(id);
-  if (found) {
+  const chain = getRegisteredChain(id);
+  if (chain.length > 0) {
     pendingNavTarget = null;
-    openAndSettle(found.id, found.entry, opts.closeSiblings, opts.onSettled);
+    openChainSequentially(chain, opts.closeSiblings, opts.onSettled);
     return;
   }
   pendingNavTarget = { id, closeSiblings: opts.closeSiblings, onSettled: opts.onSettled };

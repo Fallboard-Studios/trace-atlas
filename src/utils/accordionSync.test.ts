@@ -10,6 +10,7 @@ import {
   notifyAccordionAnimationComplete,
   hasPendingNavTargetFor,
   clearPendingNavTarget,
+  attemptFulfillPendingNavTarget,
 } from './accordionSync';
 
 function makeEntry(initialOpen: boolean) {
@@ -159,30 +160,47 @@ describe('accordionSync — pending nav target queue (bug: a nav click switching
     expect(hasPendingNavTargetFor(['fleetParams.pacing', 'fleetParams.timeSpace'])).toBe(false);
   });
 
-  it('fulfills the queued request the moment a matching id registers, passing through closeSiblings', () => {
+  it('fulfills the queued request once attemptFulfillPendingNavTarget runs after a matching id registers, passing through closeSiblings', () => {
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: true });
+    const entry = makeEntry(false);
+    registerAccordion('fleetParams.eqFilters', entry);
+
+    attemptFulfillPendingNavTarget();
+
+    expect(entry.open).toHaveBeenCalledWith(true);
+  });
+
+  it('registerAccordion alone does NOT fulfill — fulfillment only happens via attemptFulfillPendingNavTarget, called once per batch (a chain\'s outer accordion can register after its inner one within the same batch)', () => {
     openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: true });
     const entry = makeEntry(false);
 
     registerAccordion('fleetParams.eqFilters', entry);
 
-    expect(entry.open).toHaveBeenCalledWith(true);
+    expect(entry.open).not.toHaveBeenCalled();
   });
 
   it('clears the pending target once fulfilled — a later, unrelated registration is unaffected', () => {
     openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false });
     registerAccordion('fleetParams.eqFilters', makeEntry(false));
+    attemptFulfillPendingNavTarget();
 
     const laterEntry = makeEntry(false);
     registerAccordion('probes.r1.volume.audioSettings', laterEntry);
+    attemptFulfillPendingNavTarget();
 
     expect(laterEntry.open).not.toHaveBeenCalled();
     unregisterAccordion('probes.r1.volume.audioSettings');
+  });
+
+  it('a repeated attemptFulfillPendingNavTarget call with nothing (newly) queued is a safe no-op', () => {
+    expect(() => attemptFulfillPendingNavTarget()).not.toThrow();
   });
 
   it('calls onSettled once the fulfilling registration\'s own animation completes', () => {
     const onSettled = vi.fn();
     openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false, onSettled });
     registerAccordion('fleetParams.eqFilters', makeEntry(false));
+    attemptFulfillPendingNavTarget();
     expect(onSettled).not.toHaveBeenCalled();
 
     notifyAccordionAnimationComplete('fleetParams.eqFilters');
@@ -237,18 +255,107 @@ describe('openAccordionFromNav — ancestor fallback (bug: clicking a leaf with 
     expect(() => openAccordionFromNav('probes.r1.melody.pitches', { closeSiblings: false })).not.toThrow();
   });
 
-  it('prefers the exact id over any ancestor when the exact id IS registered', () => {
+  it('opens BOTH when the exact id and an ancestor are each independently registered — a genuinely nested accordion, not a fallback (bug: Source\'s own children have a real accordion each, but Source itself, their parent, was never told to open)', () => {
     const exactEntry = makeEntry(false);
-    const ancestorEntry = makeEntry(false);
+    const ancestorEntry = makeEntry(true); // already open, so it settles immediately and the inner one opens next
     registerAccordion('fleetParams.eqFilters.eq', exactEntry);
     registerAccordion('fleetParams.eqFilters', ancestorEntry);
 
     openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false });
 
+    expect(ancestorEntry.open).toHaveBeenCalledWith(false);
     expect(exactEntry.open).toHaveBeenCalledWith(false);
-    expect(ancestorEntry.open).not.toHaveBeenCalled();
 
     unregisterAccordion('fleetParams.eqFilters.eq');
+  });
+});
+
+describe('accordionSync — nested accordion chains (bug: Source is a real accordion; its own children — the oscillators, Probe Drift — are each their own nested accordion too; clicking a child must open Source THEN the child, in that order, not just the one exact match)', () => {
+  afterEach(() => {
+    unregisterAccordion('probes.r1.source');
+    unregisterAccordion('probes.r1.source.baselineOscillator');
+    clearPendingNavTarget();
+  });
+
+  it('opens the outer (Source) accordion before the inner (child) one — never simultaneously', () => {
+    const source = makeEntry(false);
+    const child = makeEntry(false);
+    registerAccordion('probes.r1.source', source);
+    registerAccordion('probes.r1.source.baselineOscillator', child);
+
+    openAccordionFromNav('probes.r1.source.baselineOscillator', { closeSiblings: false });
+
+    expect(source.open).toHaveBeenCalledWith(false);
+    // The child must NOT be told to open yet — Source hasn't settled (it was closed, so it needs
+    // its own GSAP tween to complete first).
+    expect(child.open).not.toHaveBeenCalled();
+  });
+
+  it('opens the inner (child) accordion only after the outer (Source) one settles', () => {
+    const source = makeEntry(false);
+    const child = makeEntry(false);
+    registerAccordion('probes.r1.source', source);
+    registerAccordion('probes.r1.source.baselineOscillator', child);
+    openAccordionFromNav('probes.r1.source.baselineOscillator', { closeSiblings: false });
+
+    notifyAccordionAnimationComplete('probes.r1.source');
+
+    expect(child.open).toHaveBeenCalledWith(false);
+  });
+
+  it('opens the inner accordion immediately (no wait) when the outer one was already open', () => {
+    const source = makeEntry(true);
+    const child = makeEntry(false);
+    registerAccordion('probes.r1.source', source);
+    registerAccordion('probes.r1.source.baselineOscillator', child);
+
+    openAccordionFromNav('probes.r1.source.baselineOscillator', { closeSiblings: false });
+
+    expect(child.open).toHaveBeenCalledWith(false);
+  });
+
+  it('closeSiblings applies only to the outer link — the inner one never gets closeSiblings, which would immediately re-close the just-opened outer accordion (they share one useAccordionOpenState instance)', () => {
+    const source = makeEntry(false);
+    const child = makeEntry(false);
+    registerAccordion('probes.r1.source', source);
+    registerAccordion('probes.r1.source.baselineOscillator', child);
+    openAccordionFromNav('probes.r1.source.baselineOscillator', { closeSiblings: true });
+
+    expect(source.open).toHaveBeenCalledWith(true);
+
+    notifyAccordionAnimationComplete('probes.r1.source');
+
+    expect(child.open).toHaveBeenCalledWith(false);
+  });
+
+  it('onSettled fires only once BOTH links have settled, not after just the outer one', () => {
+    const source = makeEntry(false);
+    const child = makeEntry(false);
+    registerAccordion('probes.r1.source', source);
+    registerAccordion('probes.r1.source.baselineOscillator', child);
+    const onSettled = vi.fn();
+    openAccordionFromNav('probes.r1.source.baselineOscillator', { closeSiblings: false, onSettled });
+
+    notifyAccordionAnimationComplete('probes.r1.source');
+    expect(onSettled).not.toHaveBeenCalled();
+
+    notifyAccordionAnimationComplete('probes.r1.source.baselineOscillator');
+    expect(onSettled).toHaveBeenCalledTimes(1);
+  });
+
+  it('a pending nav target for a nested id, fulfilled once both levels have registered, opens outer then inner in order', () => {
+    openAccordionFromNav('probes.r1.source.baselineOscillator', { closeSiblings: false });
+    const source = makeEntry(false);
+    const child = makeEntry(false);
+    // Registered in the SAME order useAccordionOpenState's real accordionIds list uses — the child
+    // leaf appears before the wrapping Source accordion (spread order in RobotOptionsTab.tsx).
+    registerAccordion('probes.r1.source.baselineOscillator', child);
+    registerAccordion('probes.r1.source', source);
+
+    attemptFulfillPendingNavTarget();
+
+    expect(source.open).toHaveBeenCalledWith(false);
+    expect(child.open).not.toHaveBeenCalled(); // Source hasn't settled yet
   });
 });
 

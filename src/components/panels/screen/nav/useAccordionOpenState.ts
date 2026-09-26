@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { expandNavAncestorsForId } from './useNavTree';
-import { registerAccordion, unregisterAccordion, updateAccordionOpen, hasPendingNavTargetFor } from '@/utils/accordionSync';
+import {
+  registerAccordion, unregisterAccordion, updateAccordionOpen, hasPendingNavTargetFor, attemptFulfillPendingNavTarget,
+} from '@/utils/accordionSync';
 
 export interface UseAccordionOpenStateResult {
   isOpen: (id: string) => boolean;
@@ -134,6 +136,11 @@ export function useAccordionOpenState(ids: string[], defaultOpenId: string | nul
       });
       registeredIdsRef.current.add(id);
     }
+    // Once per batch, never per individual id above — a nested accordion's own outer ancestor
+    // (e.g. Source) can register after its inner children within this same loop, so attempting
+    // fulfillment on the first match found would risk opening only the inner one (docs/specs/
+    // NAV_ACCORDION_SYNC.md's nested-accordion follow-up fix).
+    attemptFulfillPendingNavTarget();
     return () => {
       for (const id of registeredIdsRef.current) unregisterAccordion(id);
       registeredIdsRef.current = new Set();
