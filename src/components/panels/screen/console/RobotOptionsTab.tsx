@@ -213,16 +213,26 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   // opening — see src/utils/viewFade.ts.
   const [startHidden] = useState(() => hasPendingNavTargetFor(accordionIds));
 
+  // useCallback, not an inline arrow function — an inline ref callback's identity changes every
+  // render, which makes React re-invoke it (null, then the element again) on every single
+  // re-render, not just mount/unmount. That would re-run the imperative `opacity = '0'` set below
+  // on every re-render too, fighting GSAP's own inline-style tween once fadeInView() starts
+  // animating opacity back up and making the fade look instant (found live). Keyed on `prefix` (it
+  // changes when switching robots, the one case this ref genuinely needs to re-run for) — startHidden
+  // never changes after mount, so it doesn't need to be a dependency.
+  const rootRef = useCallback((el: HTMLDivElement | null) => {
+    if (el) {
+      setSectionRef(prefix, el);
+      if (startHidden) el.style.opacity = '0';
+    } else {
+      clearSectionRef(prefix);
+    }
+    setViewFadeRoot(el);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- startHidden is intentionally excluded, see comment above
+  }, [prefix]);
+
   return (
-    <div
-      className="robot-options"
-      style={startHidden ? { ...robotColorStyle, opacity: 0 } : robotColorStyle}
-      ref={(el) => {
-        if (el) setSectionRef(prefix, el);
-        else clearSectionRef(prefix);
-        setViewFadeRoot(el);
-      }}
-    >
+    <div className="robot-options" style={robotColorStyle} ref={rootRef}>
       <RobotDisplaySection robot={robot} />
 
       <div ref={sectionAnchorRef(`${prefix}.volume`)}>

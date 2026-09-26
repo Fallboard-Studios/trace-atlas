@@ -370,12 +370,19 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
   // actually finished opening — see src/utils/viewFade.ts.
   const [startHidden] = useState(() => hasPendingNavTargetFor(accordionIds));
 
+  // useCallback with an empty dependency array — a stable ref identity, unlike a plain inline
+  // arrow function (which React re-invokes with null then the element again on every single
+  // re-render, not just mount/unmount). Setting opacity via the JSX style prop instead would be
+  // reapplied on every re-render too, fighting GSAP's own inline-style tween once fadeInView()
+  // starts animating opacity back up and making the fade look instant (found live).
+  const rootRef = useCallback((el: HTMLDivElement | null) => {
+    if (el && startHidden) el.style.opacity = '0';
+    setViewFadeRoot(el);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- startHidden never changes after mount
+  }, []);
+
   return (
-    <div
-      className="company-options-section"
-      style={startHidden ? { opacity: 0 } : undefined}
-      ref={setViewFadeRoot}
-    >
+    <div className="company-options-section" ref={rootRef}>
       <div ref={sectionAnchorRef(`${prefix}.volume`)}>
         <div ref={sectionAnchorRef(`${prefix}.volume.audioSettings`)}>
           <AccordionContainer

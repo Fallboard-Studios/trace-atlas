@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { AudioRigDrawer, AudioRigEffectPanel } from '../../console/AudioRigDrawer';
 import { useSectionObserver } from '../useSectionObserver';
 import { useAccordionOpenState } from '../useAccordionOpenState';
@@ -202,16 +202,24 @@ export function FleetParamsContent() {
   // accordion chain has actually finished opening — see src/utils/viewFade.ts.
   const [startHidden] = useState(() => hasPendingNavTargetFor(groupIds));
 
+  // useCallback with an empty dependency array — a stable ref identity, unlike a plain inline
+  // arrow function (which React re-invokes with null then the element again on every single
+  // re-render, not just mount/unmount). Setting opacity via the JSX style prop instead would be
+  // reapplied on every re-render too, fighting GSAP's own inline-style tween once fadeInView()
+  // starts animating opacity back up and making the fade look instant (found live).
+  const rootRef = useCallback((el: HTMLDivElement | null) => {
+    if (el) {
+      setSectionRef('fleetParams', el);
+      if (startHidden) el.style.opacity = '0';
+    } else {
+      clearSectionRef('fleetParams');
+    }
+    setViewFadeRoot(el);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- startHidden never changes after mount
+  }, []);
+
   return (
-    <div
-      ref={(el) => {
-        if (el) setSectionRef('fleetParams', el);
-        else clearSectionRef('fleetParams');
-        setViewFadeRoot(el);
-      }}
-      className="fleet-params-content"
-      style={startHidden ? { ...getTraitColorStyle('spectral'), opacity: 0 } : getTraitColorStyle('spectral')}
-    >
+    <div ref={rootRef} className="fleet-params-content" style={getTraitColorStyle('spectral')}>
       <IntroPanel
         loreLabel="Fleet Params LORE TITLE"
         loreDescription={PLACEHOLDER_LORE}

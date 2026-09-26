@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { AudioLoadPanel } from '../../console/AudioLoadPanel';
 import { SectorSettingsDrawer } from '../../console/SectorSettingsDrawer';
 import { useSectionObserver } from '../useSectionObserver';
@@ -99,6 +99,22 @@ export function SettingsContent() {
   // accordion has actually finished opening — see src/utils/viewFade.ts.
   const [startHidden] = useState(() => hasPendingNavTargetFor(sectionIds));
 
+  // useCallback with an empty dependency array — a stable ref identity, unlike a plain inline
+  // arrow function (which React re-invokes with null then the element again on every single
+  // re-render, not just mount/unmount). Setting opacity via the JSX style prop instead would be
+  // reapplied on every re-render too, fighting GSAP's own inline-style tween once fadeInView()
+  // starts animating opacity back up and making the fade look instant (found live).
+  const rootRef = useCallback((el: HTMLDivElement | null) => {
+    if (el) {
+      setSectionRef('settings', el);
+      if (startHidden) el.style.opacity = '0';
+    } else {
+      clearSectionRef('settings');
+    }
+    setViewFadeRoot(el);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- startHidden never changes after mount
+  }, []);
+
   function renderLeafContent(leaf: SettingsLeaf) {
     if (leaf === 'quality') {
       // Relocated from AudioRigDrawer.tsx unchanged (Task 13) — AudioLoadPanel is a fully
@@ -109,14 +125,7 @@ export function SettingsContent() {
   }
 
   return (
-    <div
-      ref={(el) => {
-        if (el) setSectionRef('settings', el);
-        else clearSectionRef('settings');
-        setViewFadeRoot(el);
-      }}
-      className="settings-content"
-      style={startHidden ? { ...getTraitColorStyle('seed'), opacity: 0 } : getTraitColorStyle('seed')}
+    <div ref={rootRef} className="settings-content" style={getTraitColorStyle('seed')}
     >
       <IntroPanel
         loreLabel="Settings LORE TITLE"
