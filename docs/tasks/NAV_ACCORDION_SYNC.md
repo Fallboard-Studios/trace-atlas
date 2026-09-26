@@ -188,18 +188,18 @@ Task 1 (accordionSync.ts registry)          Task 2 (expandNavAncestorsForId extr
 
 ### Phase 4: Docs
 
-- [ ] **Task 6: `docs/UI_SHELL.md` — document the registry**
+- [x] **Task 6: `docs/UI_SHELL.md` — document the registry**
 
   **Description:** Add a short section alongside the existing `sectionRefs`/`scrollToSection` description covering: `accordionSync.ts`'s purpose (a live mirror of accordion open state, never the source of truth), which two directions it serves, and the fact that `useAccordionOpenState` remains the sole owner of real accordion state (2026-09-24 decision, unchanged by this feature). Spot-checked every named identifier against the final shipped source from Tasks 1–5.
 
   **Acceptance criteria:**
-  - [ ] Names `accordionSync.ts`, `registerAccordion`/`unregisterAccordion`/`isAccordionOpen`/`subscribeAccordionOpen`/`openAccordionFromNav`, and `expandNavAncestorsForId` exactly matching shipped source.
-  - [ ] Explicitly states the registry is a mirror, not a store — `useAccordionOpenState`'s local `useState` remains authoritative.
-  - [ ] Notes the mobile-only sibling-closing behavior and that desktop is unaffected.
+  - [x] Names `accordionSync.ts`, `registerAccordion`/`unregisterAccordion`/`isAccordionOpen`/`subscribeAccordionOpen`/`openAccordionFromNav`, and `expandNavAncestorsForId` exactly matching shipped source.
+  - [x] Explicitly states the registry is a mirror, not a store — `useAccordionOpenState`'s local `useState` remains authoritative.
+  - [x] Notes the mobile-only sibling-closing behavior and that desktop is unaffected.
 
   **Verification:**
-  - [ ] Manual review — every documented name/behavior spot-checked directly against the final shipped code from Tasks 1–5.
-  - [ ] `npm run build:types`, `npm run lint` clean (docs-only change; full `npm test`/`npm run build` already reconfirmed clean at Checkpoint: Integration).
+  - [x] Manual review — every documented name/behavior spot-checked directly against the final shipped code from Tasks 1–5.
+  - [x] `npm run build:types`, `npm run lint` clean (docs-only change; full `npm test`/`npm run build` already reconfirmed clean at Checkpoint: Integration).
 
   **Dependencies:** Task 1, Task 2, Task 3, Task 4, Task 5.
 
@@ -208,11 +208,11 @@ Task 1 (accordionSync.ts registry)          Task 2 (expandNavAncestorsForId extr
   **Estimated scope:** XS (docs only)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint` clean (post-docs-change spot check); full `npm test`/`npm run build` confirmed clean at Checkpoint: Integration.
-- [ ] All automated acceptance criteria across all 6 tasks are met.
-- [ ] `docs/UI_SHELL.md` reflects the shipped API — every documented name spot-checked against source.
-- [ ] Manual/live-browser check from Task 5 completed and confirmed by Crawford.
-- [ ] Ready for human review / PR.
+- [x] `npm run build:types`, `npm run lint` clean (post-docs-change spot check); full `npm test`/`npm run build` confirmed clean at Checkpoint: Integration.
+- [x] All automated acceptance criteria across all 6 tasks are met.
+- [x] `docs/UI_SHELL.md` reflects the shipped API — every documented name spot-checked against source.
+- [ ] **Manual/live-browser check from Task 5 was not performed in this session — no live browser was used. Flagged for Crawford before merge.**
+- [ ] Ready for human review / PR, pending the manual check above.
 
 ## Risks and Mitigations
 
