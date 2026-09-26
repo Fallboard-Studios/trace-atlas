@@ -520,3 +520,46 @@ describe('accordionSync — sole-immediate-child fallback (bug: Probes/Companies
     expect(pingContour.open).toHaveBeenCalledWith(false);
   });
 });
+
+describe('accordionSync — sibling (parent-deferred) fallback (bug: clicking "Pitches" did nothing — its content was merged into the sibling "Composition" accordion, so "Pitches" itself has no accordion or accordion-bearing descendant anywhere in its own id path)', () => {
+  afterEach(() => {
+    unregisterAccordion('probes.r1.melody.rhythm');
+    clearPendingNavTarget();
+  });
+
+  it('clicking "Pitches" (probes.r1.melody.frequency) opens "Composition" (probes.r1.melody.rhythm) — its sibling\'s accordion', () => {
+    const composition = makeEntry(false);
+    registerAccordion('probes.r1.melody.rhythm', composition);
+
+    openAccordionFromNav('probes.r1.melody.frequency', { closeSiblings: false });
+
+    expect(composition.open).toHaveBeenCalledWith(false);
+  });
+
+  it('a genuinely dead-end id (no accordion anywhere in its own path, its parent\'s path, or any deeper ancestor) still safely no-ops', () => {
+    expect(() => openAccordionFromNav('probes.r1.melody.somethingFullyImaginary', { closeSiblings: false })).not.toThrow();
+  });
+
+  it('does not affect an id that already resolves on its own (Source\'s own children keep opening their real nested chain, not a sibling guess)', () => {
+    const source = makeEntry(true);
+    const child = makeEntry(false);
+    registerAccordion('probes.r1.source', source);
+    registerAccordion('probes.r1.source.baselineOscillator', child);
+
+    openAccordionFromNav('probes.r1.source.baselineOscillator', { closeSiblings: false });
+
+    expect(child.open).toHaveBeenCalledWith(false);
+    unregisterAccordion('probes.r1.source');
+    unregisterAccordion('probes.r1.source.baselineOscillator');
+  });
+
+  it('works through the pending-nav-target queue for a cross-view "Pitches" click too', () => {
+    openAccordionFromNav('probes.r1.melody.frequency', { closeSiblings: false });
+    const composition = makeEntry(false);
+    registerAccordion('probes.r1.melody.rhythm', composition);
+
+    attemptFulfillPendingNavTarget();
+
+    expect(composition.open).toHaveBeenCalledWith(false);
+  });
+});

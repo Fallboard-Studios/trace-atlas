@@ -96,9 +96,16 @@ function resolveSoleImmediateAccordionChild(id: string): string | undefined {
  *  'probes.r1.source.baselineOscillator' with both 'probes.r1.source' (the Source group) and the
  *  full id itself registered, returns both, Source first. An id with no accordion of its own but a
  *  registered ancestor (Fleet Params' leaves) returns just that ancestor. An id with no accordion
- *  anywhere in its own ancestry falls back to its sole immediate registered child, if any
- *  (`resolveSoleImmediateAccordionChild` — Probes/Companies' Volume/Melody/Envelope section nodes).
- *  Returns an empty array only if neither resolves anything. */
+ *  anywhere in its own ancestry falls back, in order:
+ *  1. Its sole immediate registered child, if any (`resolveSoleImmediateAccordionChild` —
+ *     Probes/Companies' Volume/Melody/Envelope section nodes, which have no accordion of their own,
+ *     only their one subsection leaf does).
+ *  2. Its own parent id's resolution, if `id` itself has 3+ segments — for an id whose content was
+ *     merged entirely into a SIBLING's accordion instead of an ancestor or descendant of its own
+ *     (Fleet Params' "Pitches" leaf, merged into the "Composition" accordion its sibling "Rhythm"
+ *     owns): resolving the parent tries that parent's own sole-immediate-child next, which finds
+ *     the sibling. Each recursive step strips one segment, so this always terminates.
+ *  Returns an empty array only if none of these resolve anything. */
 function getRegisteredChain(id: string): ChainLink[] {
   const segments = id.split('.');
   const chain: ChainLink[] = [];
@@ -109,8 +116,14 @@ function getRegisteredChain(id: string): ChainLink[] {
     if (entry) chain.push({ id: prefix, entry });
   }
   if (chain.length > 0) return chain;
+
   const child = resolveSoleImmediateAccordionChild(id);
-  return child ? getRegisteredChain(child) : chain;
+  if (child) return getRegisteredChain(child);
+
+  if (segments.length >= 3) {
+    return getRegisteredChain(segments.slice(0, -1).join('.'));
+  }
+  return chain;
 }
 
 /** Opens every link in `chain` in order, each waiting for the previous one to genuinely finish

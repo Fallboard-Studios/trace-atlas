@@ -385,7 +385,8 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
       <div ref={sectionAnchorRef(`${prefix}.melody`)}>
         {/* Rhythm/Pitches merged into one "Composition" accordion (docs/reference/
             layout-updates.md) — see RobotOptionsTab.tsx's own matching comment for why this
-            reuses the '.rhythm' id rather than introducing a new one. */}
+            reuses the '.rhythm' id rather than introducing a new one, and for why
+            noteVarianceAnchorId below gives "Pitches" a real scroll target. */}
         <div ref={sectionAnchorRef(`${prefix}.melody.rhythm`)}>
           <AccordionContainer
             schema={{ id: `${prefix}.melody.rhythm`, type: 'accordion', humanLabel: 'Composition' } satisfies AccordionSchema}
@@ -404,6 +405,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
                 onOctaveMaxChange={handleOctaveMaxChange}
                 onNoteVarianceChange={handleNoteVarianceChange}
                 // No onResetMelody — omitted entirely in company mode, it has no company-scoped meaning.
+                noteVarianceAnchorId={`${prefix}.melody.frequency`}
               />
             ) : null}
           </AccordionContainer>

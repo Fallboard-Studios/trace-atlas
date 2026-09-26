@@ -230,8 +230,11 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
       <div ref={sectionAnchorRef(`${prefix}.melody`)}>
         {/* Rhythm/Pitches merged into one "Composition" accordion, 3 two-field rows
             (docs/reference/layout-updates.md) — reuses the old '.rhythm' id (no new tree/
-            scrollspy id introduced); the nav tree's separate "Pitches" leaf has no distinct
-            anchor left to scroll to now that its content is interleaved into these same rows. */}
+            scrollspy id introduced); the nav tree's separate "Pitches" leaf has no accordion or
+            top-level anchor of its own anymore, but PingControlsCompositionSection registers a
+            real anchor around its own Note Variance slider under that id (`.melody.frequency`),
+            so a nav click on "Pitches" opens this Composition accordion (accordionSync's own
+            sole-immediate-child/sibling fallback) and scrolls to that slider specifically. */}
         <div ref={sectionAnchorRef(`${prefix}.melody.rhythm`)}>
           <AccordionContainer
             schema={{ id: `${prefix}.melody.rhythm`, type: 'accordion', humanLabel: 'Composition' } satisfies AccordionSchema}
@@ -249,6 +252,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
                 onOctaveMaxChange={handleOctaveMaxChange}
                 onNoteVarianceChange={handleNoteVarianceChange}
                 onResetMelody={handleResetMelody}
+                noteVarianceAnchorId={`${prefix}.melody.frequency`}
               />
             ) : null}
           </AccordionContainer>

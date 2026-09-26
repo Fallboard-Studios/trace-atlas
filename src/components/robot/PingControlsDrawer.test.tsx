@@ -782,4 +782,33 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
     );
     expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--color-accent-a')).toBe('#68cb97');
   });
+
+  it('registers a scroll anchor around Note Variance when noteVarianceAnchorId is given — "Pitches" has no accordion or anchor of its own anymore', async () => {
+    const { getSectionRef, clearSectionRef } = await import('@/utils/sectionRefs');
+    render(
+      <PingControlsCompositionSection
+        value={makeValue()}
+        onDensityChange={() => {}}
+        onMotifLengthChange={() => {}}
+        onPitchRepeatChange={() => {}}
+        onOctaveMinChange={() => {}}
+        onOctaveMaxChange={() => {}}
+        onNoteVarianceChange={() => {}}
+        noteVarianceAnchorId="probes.r1.melody.frequency"
+      />,
+    );
+
+    const anchor = getSectionRef('probes.r1.melody.frequency');
+    expect(anchor).toBeTruthy();
+    expect(anchor?.querySelector('[role="slider"][aria-label*="Note Variance" i]')).toBeTruthy();
+
+    clearSectionRef('probes.r1.melody.frequency');
+  });
+
+  it('registers no anchor when noteVarianceAnchorId is omitted', async () => {
+    const { getSectionRef } = await import('@/utils/sectionRefs');
+    renderSection();
+
+    expect(getSectionRef('probes.r1.melody.frequency')).toBeUndefined();
+  });
 });
