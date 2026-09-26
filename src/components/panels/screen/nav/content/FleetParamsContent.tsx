@@ -2,11 +2,12 @@ import { AudioRigDrawer, AudioRigEffectPanel } from '../../console/AudioRigDrawe
 import { useSectionObserver } from '../useSectionObserver';
 import { useAccordionOpenState } from '../useAccordionOpenState';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
+import { SliderLog } from '@/components/ui/controls/SliderLog';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
-import { BPM_SCHEMA, type AudioRigEffectKey } from '@/data/audioRigConfig';
+import { BPM_SCHEMA, SWELL_FREQUENCY_SCHEMA, SWELL_DURATION_SCHEMA, type AudioRigEffectKey } from '@/data/audioRigConfig';
 import { useUIStore, type FleetParamsGroup, type SelectedFleetParamsEffect } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { getTraitColorStyle } from '@/utils/traitColors';
@@ -14,14 +15,20 @@ import type { AccordionSchema, DirectionalPanelSchema } from '@/types/controls';
 import type { Trait } from '@/types/traits';
 import './FleetParamsContent.css';
 
-/** Groups Tempo and Automatic Intensity into one shared panel (Crawford's own follow-up call,
- *  2026-09-25) — restores the pairing BPM_SCHEMA/PING_VARIANCE_AUTOMATION_SCHEMA originally had
- *  before Tempo moved out to its own leaf. Top-level (not nested in anything else at this point),
- *  so it's the one CabinetBox facade both leaves render inside — AudioRigDrawer no longer wraps
- *  itself in its own panel at all as of docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1,
- *  so this is the only panel wrapping it now. Pacing-only: the other 3 groups' leaves each keep
- *  their own separate panel. */
-const PACING_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.row', type: 'directionalPanel', orientation: 'responsive' };
+/**
+ * Pacing's 4 leaves (Tempo, Frequency, Duration, Automatic Intensity) render as 2 rows of 2
+ * instead of each getting its own panel (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md) —
+ * top row Tempo+Frequency, bottom row Duration+Intensity — same 'responsive'-orientation
+ * DirectionalPanel shape AudioRigDrawer.tsx's own COMPRESSOR_TOP_ROW_SCHEMA/
+ * COMPRESSOR_BOTTOM_ROW_SCHEMA already establish for a 2-control row (side-by-side on desktop,
+ * stacked on mobile/tablet). Top-level (not nested in anything else at this point), so each is
+ * the one CabinetBox facade its 2 leaves render inside — AudioRigDrawer no longer wraps itself in
+ * its own panel at all as of docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1, so this is
+ * the only panel wrapping it now. Pacing-only: the other 3 groups' leaves each keep their own
+ * separate panel.
+ */
+const PACING_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.topRow', type: 'directionalPanel', orientation: 'responsive' };
+const PACING_BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.bottomRow', type: 'directionalPanel', orientation: 'responsive' };
 
 interface FleetParamsLeaf {
   id: string;
@@ -53,6 +60,8 @@ const FLEET_PARAMS_GROUPS: FleetParamsGroupDef[] = [
     trait: 'composition',
     leaves: [
       { id: 'fleetParams.pacing.tempo', humanLabel: 'Tempo', effectKey: 'tempo' },
+      { id: 'fleetParams.pacing.frequency', humanLabel: 'Frequency', effectKey: 'swellFrequency' },
+      { id: 'fleetParams.pacing.duration', humanLabel: 'Duration', effectKey: 'swellDuration' },
       { id: 'fleetParams.pacing.automaticEffects', humanLabel: 'Automatic Intensity', effectKey: 'automaticEffects' },
     ],
   },
@@ -101,17 +110,35 @@ function sectionAnchorRef(id: string) {
   };
 }
 
-/** Tempo and Automatic Intensity aren't generic AudioRigEffectPanel leaves — Tempo is
- *  audioStore.bpm (a separate top-level field, not part of the globalAudio effect chain
- *  AudioRigEffectPanel reads) and Automatic Intensity has no AUDIO_RIG_CONFIG block of its own
- *  (its real control lives inside AudioRigDrawer, relocated from Settings -> Tempo verbatim, see
- *  docs/specs/FLEET_PARAMS_CONTENT_REWORK.md §1.4). Every other leaf falls through to the generic
- *  AudioRigEffectPanel path unchanged. */
-function renderLeaf(effectKey: SelectedFleetParamsEffect, bpm: number) {
+/** Tempo, Frequency, Duration, and Automatic Intensity aren't generic AudioRigEffectPanel leaves —
+ *  Tempo/Frequency/Duration are separate top-level audioStore fields (not part of the globalAudio
+ *  effect chain AudioRigEffectPanel reads), and Automatic Intensity has no AUDIO_RIG_CONFIG block
+ *  of its own (its real control lives inside AudioRigDrawer, relocated from Settings -> Tempo
+ *  verbatim, see docs/specs/FLEET_PARAMS_CONTENT_REWORK.md §1.4). Every other leaf falls through
+ *  to the generic AudioRigEffectPanel path unchanged. Frequency/Duration's own values are passed
+ *  in as plain data (same shape Tempo's `bpm` already uses) rather than each having renderLeaf
+ *  call its own useAudioStore hook — renderLeaf is a plain function, not a component, so a
+ *  conditional hook call here would violate the Rules of Hooks (docs/specs/
+ *  AUTOMATION_FREQUENCY_DURATION_SPLIT.md §4's own explicit warning against this shape). */
+function renderLeaf(effectKey: SelectedFleetParamsEffect, bpm: number, swellFrequency: number, swellDuration: number) {
   if (effectKey === 'tempo') {
     return (
       <div className="audio-rig-drawer__param-row">
         <SliderLinear schema={BPM_SCHEMA} value={bpm} onChange={(v) => useAudioStore.getState().setBPM(v)} />
+      </div>
+    );
+  }
+  if (effectKey === 'swellFrequency') {
+    return (
+      <div className="audio-rig-drawer__param-row">
+        <SliderLog schema={SWELL_FREQUENCY_SCHEMA} value={swellFrequency} onChange={(v) => useAudioStore.getState().setSwellFrequency(v)} />
+      </div>
+    );
+  }
+  if (effectKey === 'swellDuration') {
+    return (
+      <div className="audio-rig-drawer__param-row">
+        <SliderLinear schema={SWELL_DURATION_SCHEMA} value={swellDuration} onChange={(v) => useAudioStore.getState().setSwellDuration(v)} />
       </div>
     );
   }
@@ -137,6 +164,8 @@ function renderLeaf(effectKey: SelectedFleetParamsEffect, bpm: number) {
 export function FleetParamsContent() {
   const setSelectedFleetParamsEffect = useUIStore((s) => s.setSelectedFleetParamsEffect);
   const bpm = useAudioStore((s) => s.bpm);
+  const swellFrequency = useAudioStore((s) => s.swellFrequency);
+  const swellDuration = useAudioStore((s) => s.swellDuration);
 
   const groupIds = FLEET_PARAMS_GROUPS.map((g) => g.nodeId);
   const { hasApproached: groupHasApproached } = useSectionObserver(['fleetParams', ...groupIds], (id) => {
@@ -183,17 +212,26 @@ export function FleetParamsContent() {
                     trait={group.trait}
                   />
                   {group.id === 'pacing' ? (
-                    <DirectionalPanel schema={PACING_ROW_SCHEMA}>
-                      {group.leaves.map((leaf) => (
-                        <div key={leaf.id} ref={sectionAnchorRef(leaf.id)}>
-                          {leafHasApproached(leaf.id) ? renderLeaf(leaf.effectKey, bpm) : null}
-                        </div>
-                      ))}
-                    </DirectionalPanel>
+                    <>
+                      <DirectionalPanel schema={PACING_TOP_ROW_SCHEMA}>
+                        {group.leaves.slice(0, 2).map((leaf) => (
+                          <div key={leaf.id} ref={sectionAnchorRef(leaf.id)}>
+                            {leafHasApproached(leaf.id) ? renderLeaf(leaf.effectKey, bpm, swellFrequency, swellDuration) : null}
+                          </div>
+                        ))}
+                      </DirectionalPanel>
+                      <DirectionalPanel schema={PACING_BOTTOM_ROW_SCHEMA}>
+                        {group.leaves.slice(2, 4).map((leaf) => (
+                          <div key={leaf.id} ref={sectionAnchorRef(leaf.id)}>
+                            {leafHasApproached(leaf.id) ? renderLeaf(leaf.effectKey, bpm, swellFrequency, swellDuration) : null}
+                          </div>
+                        ))}
+                      </DirectionalPanel>
+                    </>
                   ) : (
                     group.leaves.map((leaf) => (
                       <div key={leaf.id} ref={sectionAnchorRef(leaf.id)}>
-                        {leafHasApproached(leaf.id) ? renderLeaf(leaf.effectKey, bpm) : null}
+                        {leafHasApproached(leaf.id) ? renderLeaf(leaf.effectKey, bpm, swellFrequency, swellDuration) : null}
                       </div>
                     ))
                   )}
