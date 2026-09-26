@@ -66,6 +66,8 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
         trait: 'composition',
         children: [
           { id: 'fleetParams.pacing.tempo', humanLabel: 'Tempo' },
+          { id: 'fleetParams.pacing.frequency', humanLabel: 'Frequency' },
+          { id: 'fleetParams.pacing.duration', humanLabel: 'Duration' },
           { id: 'fleetParams.pacing.automaticEffects', humanLabel: 'Automatic Intensity' },
         ],
       },

@@ -40,7 +40,7 @@ export type SettingsSubsection = 'robotLoad' | 'effectsLoad' | 'attenuationStyle
  *  parallel string union. 'tempo'/'automaticEffects' are Pacing's own 2 children — unlike the
  *  other 3 groups' leaves, they share one accordion in the content view (FleetParamsContent),
  *  since neither is a real AudioRigEffectPanel/AudioRigEffectKey. */
-export type SelectedFleetParamsEffect = AudioRigEffectKey | 'tempo' | 'automaticEffects';
+export type SelectedFleetParamsEffect = AudioRigEffectKey | 'tempo' | 'automaticEffects' | 'swellFrequency' | 'swellDuration';
 /** The 4th tree level under a robot's/company's RobotSection — docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md
  *  §1.3/§1.4. Flat union rather than nested per-section, because a subsection is always read
  *  alongside its already-known parent RobotSection — no ambiguity from flattening (no subsection
