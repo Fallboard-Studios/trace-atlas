@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
 import { PingControlsCompositionSection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
@@ -7,6 +7,8 @@ import { AccordionContainer } from '@/components/ui/controls/AccordionContainer'
 import { useSectionObserver } from '@/components/panels/screen/nav/useSectionObserver';
 import { useAccordionOpenState } from '@/components/panels/screen/nav/useAccordionOpenState';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
+import { hasPendingNavTargetFor } from '@/utils/accordionSync';
+import { setViewFadeRoot } from '@/utils/viewFade';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
@@ -359,8 +361,21 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
   const accordionIds = useMemo(() => [...subsectionIds, `${prefix}.source`], [subsectionIds, prefix]);
   const { isOpen, setOpen } = useAccordionOpenState(accordionIds, `${prefix}.volume.audioSettings`, prefix);
 
+  // Starts hidden only when a nav click was already mid-flight targeting one of this view's own
+  // accordions at the moment of this component's OWN first mount — i.e. arriving here from a
+  // genuinely different view. Evaluated once (lazy useState initializer), never re-evaluated on
+  // later re-renders, so switching between "All Probes"/a company (the same mounted instance,
+  // reset via resetKey above) never re-hides an already-visible view. NavTreeNode's own onSettled
+  // callback (scroll, then fadeInView) is what reveals it again once the target accordion(s) have
+  // actually finished opening — see src/utils/viewFade.ts.
+  const [startHidden] = useState(() => hasPendingNavTargetFor(accordionIds));
+
   return (
-    <div className="company-options-section">
+    <div
+      className="company-options-section"
+      style={startHidden ? { opacity: 0 } : undefined}
+      ref={setViewFadeRoot}
+    >
       <div ref={sectionAnchorRef(`${prefix}.volume`)}>
         <div ref={sectionAnchorRef(`${prefix}.volume.audioSettings`)}>
           <AccordionContainer

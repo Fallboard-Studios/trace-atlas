@@ -7,6 +7,7 @@ import { useCabinetTier } from '@/components/ui/controls/useCabinetBoxHeight';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 import { scrollToSection } from '@/utils/sectionRefs';
 import { openAccordionFromNav } from '@/utils/accordionSync';
+import { fadeInView } from '@/utils/viewFade';
 import type { ButtonSchema, ToggleSchema } from '@/types/controls';
 import type { NavTreeNodeSchema } from '@/data/navTreeConfig';
 import './NavTreeNode.css';
@@ -106,9 +107,17 @@ export function NavTreeNode({ node, depth, focusedId, inheritedColor }: NavTreeN
             // Opens node.id's content accordion, if it has one (docs/specs/NAV_ACCORDION_SYNC.md
             // §2.1) — a safe no-op for an id with no registered accordion (a branch/entity row, or
             // a leaf merged away like "Pitches"). Mobile-only closes this view's other open
-            // accordions first. Scrolling is deferred to onSettled — scrolling before the target
-            // has actually finished expanding lands on its pre-expansion position (found live).
-            openAccordionFromNav(node.id, { closeSiblings: isMobile, onSettled: () => scrollToSection(node.id) });
+            // accordions first. Scrolling (and, once scrolled, fading a freshly-arrived view back
+            // in) is deferred to onSettled — scrolling before the target has actually finished
+            // expanding lands on its pre-expansion position (found live). fadeInView is a no-op
+            // when this navigation didn't switch into a different view (nothing was hidden).
+            openAccordionFromNav(node.id, {
+              closeSiblings: isMobile,
+              onSettled: () => {
+                scrollToSection(node.id);
+                fadeInView();
+              },
+            });
           }}
         />
       ) : (
@@ -121,7 +130,13 @@ export function NavTreeNode({ node, depth, focusedId, inheritedColor }: NavTreeN
               // no-op via sectionRefs' own contract for a branch not yet migrated to the view
               // model, or a section that hasn't lazy-mounted an anchor yet. Deferred to onSettled,
               // same reasoning as the NavCabinetRow branch above.
-              openAccordionFromNav(node.id, { closeSiblings: isMobile, onSettled: () => scrollToSection(node.id) });
+              openAccordionFromNav(node.id, {
+                closeSiblings: isMobile,
+                onSettled: () => {
+                  scrollToSection(node.id);
+                  fadeInView();
+                },
+              });
             }}
           />
           {showToggle && (

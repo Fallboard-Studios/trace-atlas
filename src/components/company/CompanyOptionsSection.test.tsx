@@ -4,6 +4,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { CompanyOptionsSection } from './CompanyOptionsSection';
 import { installIntersectionObserverStub, approachSection } from '@/testUtils/intersectionObserverStub';
 import { clearSectionRef } from '@/utils/sectionRefs';
+import { openAccordionFromNav, clearPendingNavTarget } from '@/utils/accordionSync';
 
 // AudioSettingSection/PingControlsRhythmSection/PingControlsFrequencySection/PingContourDrawer/
 // SignatureArrayLayer/RobotDriftPanel pull in real Tone.js/AudioEngine machinery — mocked here the
@@ -190,6 +191,28 @@ describe('CompanyOptionsSection', () => {
     for (const label of ['Levels', 'Composition', 'Envelope', 'Source']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
+  });
+
+  describe('view-fade-in on arrival from a different view', () => {
+    afterEach(() => {
+      clearPendingNavTarget();
+    });
+
+    it('renders normally (no opacity override) when no nav click was mid-flight', () => {
+      const { container } = render(<CompanyOptionsSection />);
+
+      const root = container.querySelector('.company-options-section') as HTMLElement;
+      expect(root.style.opacity).toBe('');
+    });
+
+    it('starts at opacity 0 when a nav click was already queued for one of this view\'s accordions', () => {
+      openAccordionFromNav('probes.all.envelope.pingContour', { closeSiblings: false });
+
+      const { container } = render(<CompanyOptionsSection />);
+
+      const root = container.querySelector('.company-options-section') as HTMLElement;
+      expect(root.style.opacity).toBe('0');
+    });
   });
 
   it('renders Source\'s own 4 nested accordion triggers', () => {

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AudioRigDrawer, AudioRigEffectPanel } from '../../console/AudioRigDrawer';
 import { useSectionObserver } from '../useSectionObserver';
 import { useAccordionOpenState } from '../useAccordionOpenState';
@@ -7,6 +8,8 @@ import { AccordionContainer } from '@/components/ui/controls/AccordionContainer'
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
+import { hasPendingNavTargetFor } from '@/utils/accordionSync';
+import { setViewFadeRoot } from '@/utils/viewFade';
 import { BPM_SCHEMA, SWELL_FREQUENCY_SCHEMA, SWELL_DURATION_SCHEMA, type AudioRigEffectKey } from '@/data/audioRigConfig';
 import { useUIStore, type FleetParamsGroup, type SelectedFleetParamsEffect } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
@@ -192,8 +195,23 @@ export function FleetParamsContent() {
 
   const { isOpen, setOpen } = useAccordionOpenState(groupIds, FLEET_PARAMS_GROUPS[0].nodeId);
 
+  // Starts hidden only when a nav click was already mid-flight targeting one of this view's own
+  // accordions at the moment of this component's OWN first mount — i.e. arriving here from a
+  // genuinely different view. Evaluated once (lazy useState initializer). NavTreeNode's own
+  // onSettled callback (scroll, then fadeInView) is what reveals it again once the target
+  // accordion chain has actually finished opening — see src/utils/viewFade.ts.
+  const [startHidden] = useState(() => hasPendingNavTargetFor(groupIds));
+
   return (
-    <div ref={sectionAnchorRef('fleetParams')} className="fleet-params-content" style={getTraitColorStyle('spectral')}>
+    <div
+      ref={(el) => {
+        if (el) setSectionRef('fleetParams', el);
+        else clearSectionRef('fleetParams');
+        setViewFadeRoot(el);
+      }}
+      className="fleet-params-content"
+      style={startHidden ? { ...getTraitColorStyle('spectral'), opacity: 0 } : getTraitColorStyle('spectral')}
+    >
       <IntroPanel
         loreLabel="Fleet Params LORE TITLE"
         loreDescription={PLACEHOLDER_LORE}

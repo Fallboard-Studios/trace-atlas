@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSectionObserver } from '../nav/useSectionObserver';
 import { useAccordionOpenState } from '../nav/useAccordionOpenState';
@@ -9,6 +9,8 @@ import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
 import { SignatureArrayLayer, RobotDriftPanel, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
+import { hasPendingNavTargetFor } from '@/utils/accordionSync';
+import { setViewFadeRoot } from '@/utils/viewFade';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -202,8 +204,25 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   const accordionIds = useMemo(() => [...subsectionIds, `${prefix}.source`], [subsectionIds, prefix]);
   const { isOpen, setOpen } = useAccordionOpenState(accordionIds, `${prefix}.volume.audioSettings`, robot.id);
 
+  // Starts hidden only when a nav click was already mid-flight targeting one of this view's own
+  // accordions at the moment of this component's OWN first mount — i.e. arriving here from a
+  // genuinely different view. Evaluated once (lazy useState initializer), never re-evaluated on
+  // later re-renders, so switching robots (the same mounted instance, reset via resetKey above)
+  // never re-hides an already-visible view. NavTreeNode's own onSettled callback (scroll, then
+  // fadeInView) is what reveals it again once the target accordion(s) have actually finished
+  // opening — see src/utils/viewFade.ts.
+  const [startHidden] = useState(() => hasPendingNavTargetFor(accordionIds));
+
   return (
-    <div className="robot-options" style={robotColorStyle} ref={sectionAnchorRef(prefix)}>
+    <div
+      className="robot-options"
+      style={startHidden ? { ...robotColorStyle, opacity: 0 } : robotColorStyle}
+      ref={(el) => {
+        if (el) setSectionRef(prefix, el);
+        else clearSectionRef(prefix);
+        setViewFadeRoot(el);
+      }}
+    >
       <RobotDisplaySection robot={robot} />
 
       <div ref={sectionAnchorRef(`${prefix}.volume`)}>

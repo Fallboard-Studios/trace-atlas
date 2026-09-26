@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { memo } from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { RobotOptionsTab } from './RobotOptionsTab';
 import { installIntersectionObserverStub, approachSection } from '@/testUtils/intersectionObserverStub';
 import { clearSectionRef } from '@/utils/sectionRefs';
+import { openAccordionFromNav, clearPendingNavTarget } from '@/utils/accordionSync';
 
 // RobotDisplaySection/PingControlsRhythmSection/PingControlsFrequencySection/PingContourDrawer/
 // SignatureArrayLayer/RobotDriftPanel pull in real Tone.js/AudioEngine and GSAP, both of which
@@ -419,6 +420,32 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
       openAndApproach('probes.r1.source.probeDrift');
 
       expect(screen.getByTestId('robot-drift-panel-stub')).toBeTruthy();
+    });
+  });
+
+  describe('view-fade-in on arrival from a different view', () => {
+    afterEach(() => {
+      clearPendingNavTarget();
+    });
+
+    it('renders normally (no opacity override) when no nav click was mid-flight', () => {
+      const robot = makeRobot();
+      selectRobot(robot);
+      const { container } = render(<RobotOptionsTab />);
+
+      const root = container.querySelector('.robot-options') as HTMLElement;
+      expect(root.style.opacity).toBe('');
+    });
+
+    it('starts at opacity 0 when a nav click was already queued for one of this robot\'s accordions', () => {
+      openAccordionFromNav('probes.r1.envelope.pingContour', { closeSiblings: false });
+      const robot = makeRobot('r1');
+      selectRobot(robot);
+
+      const { container } = render(<RobotOptionsTab />);
+
+      const root = container.querySelector('.robot-options') as HTMLElement;
+      expect(root.style.opacity).toBe('0');
     });
   });
 

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AudioLoadPanel } from '../../console/AudioLoadPanel';
 import { SectorSettingsDrawer } from '../../console/SectorSettingsDrawer';
 import { useSectionObserver } from '../useSectionObserver';
@@ -6,6 +7,8 @@ import { AccordionContainer } from '@/components/ui/controls/AccordionContainer'
 import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { getTraitColorStyle } from '@/utils/traitColors';
+import { hasPendingNavTargetFor } from '@/utils/accordionSync';
+import { setViewFadeRoot } from '@/utils/viewFade';
 import { useUIStore, type SettingsLeaf, type SettingsSubsection } from '@/stores/uiStore';
 import type { AccordionSchema } from '@/types/controls';
 import './SettingsContent.css';
@@ -89,6 +92,13 @@ export function SettingsContent() {
 
   const { isOpen, setOpen } = useAccordionOpenState(sectionIds, SETTINGS_ACCORDION_SCHEMAS[SETTINGS_LEAVES[0]].id);
 
+  // Starts hidden only when a nav click was already mid-flight targeting one of this view's own
+  // accordions at the moment of this component's OWN first mount — i.e. arriving here from a
+  // genuinely different view. Evaluated once (lazy useState initializer). NavTreeNode's own
+  // onSettled callback (scroll, then fadeInView) is what reveals it again once the target
+  // accordion has actually finished opening — see src/utils/viewFade.ts.
+  const [startHidden] = useState(() => hasPendingNavTargetFor(sectionIds));
+
   function renderLeafContent(leaf: SettingsLeaf) {
     if (leaf === 'quality') {
       // Relocated from AudioRigDrawer.tsx unchanged (Task 13) — AudioLoadPanel is a fully
@@ -99,7 +109,15 @@ export function SettingsContent() {
   }
 
   return (
-    <div ref={sectionAnchorRef('settings')} className="settings-content" style={getTraitColorStyle('seed')}>
+    <div
+      ref={(el) => {
+        if (el) setSectionRef('settings', el);
+        else clearSectionRef('settings');
+        setViewFadeRoot(el);
+      }}
+      className="settings-content"
+      style={startHidden ? { ...getTraitColorStyle('seed'), opacity: 0 } : getTraitColorStyle('seed')}
+    >
       <IntroPanel
         loreLabel="Settings LORE TITLE"
         loreDescription={PLACEHOLDER_LORE}

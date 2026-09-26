@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { NavTreeNode } from './NavTreeNode';
 import { TRAIT_COLORS } from '@/utils/traitColors';
 import { scrollToSection } from '@/utils/sectionRefs';
+import { fadeInView } from '@/utils/viewFade';
 import type { NavTreeNodeSchema } from '@/data/navTreeConfig';
 
 vi.mock('@/utils/sectionRefs', async (importOriginal) => {
@@ -22,6 +23,7 @@ vi.mock('@/components/ui/controls/useCabinetBoxHeight', async (importOriginal) =
   const actual = await importOriginal<typeof import('@/components/ui/controls/useCabinetBoxHeight')>();
   return { ...actual, useCabinetTier: mockUseCabinetTier };
 });
+vi.mock('@/utils/viewFade', () => ({ fadeInView: vi.fn() }));
 
 const mockIsExpanded = vi.fn();
 const mockIsSelected = vi.fn();
@@ -318,6 +320,7 @@ describe('NavTreeNode — nav click opens the target accordion (docs/tasks/NAV_A
     mockSelect.mockReset();
     mockToggleExpand.mockReset();
     vi.mocked(scrollToSection).mockClear();
+    vi.mocked(fadeInView).mockClear();
     mockOpenAccordionFromNav.mockClear();
     mockUseCabinetTier.mockReset().mockReturnValue('desktop');
   });
@@ -383,6 +386,23 @@ describe('NavTreeNode — nav click opens the target accordion (docs/tasks/NAV_A
     onSettled();
 
     expect(scrollToSection).toHaveBeenCalledWith('settings.volume');
+  });
+
+  it('does NOT fade the view in immediately — that must also wait for onSettled', () => {
+    render(<NavTreeNode node={LEAF} depth={2} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
+
+    expect(fadeInView).not.toHaveBeenCalled();
+  });
+
+  it('fades the view in once onSettled fires, after scrolling', () => {
+    render(<NavTreeNode node={LEAF} depth={2} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
+    const { onSettled } = mockOpenAccordionFromNav.mock.calls[0][1];
+
+    onSettled();
+
+    expect(fadeInView).toHaveBeenCalledTimes(1);
   });
 
   it('does not throw for an id with no registered accordion (e.g. a branch/entity row, or a merged-away leaf)', () => {
