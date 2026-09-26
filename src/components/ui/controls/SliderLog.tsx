@@ -48,7 +48,9 @@ function SliderLogInner({ schema, value, onChange, disabled, verticalHeight }: S
   const states = useMemo(() => computeVoxelBoxStates(t, 0, 1, boxCount), [t, boxCount]);
 
   const valueLabel = (
-    <span className="sc-slider-log__value">{formatDisplayValue(value)}{schema.unit}</span>
+    <span className="sc-slider-log__value">
+      {schema.formatValue ? schema.formatValue(value) : `${formatDisplayValue(value)}${schema.unit ?? ''}`}
+    </span>
   );
 
   return (
