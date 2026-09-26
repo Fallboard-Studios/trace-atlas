@@ -144,15 +144,16 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
 const LFO_QUIET_THRESHOLD = 0.34;
 
 /**
- * Ping Variance Automation's own seeded-default range — [33%, 66%] as a
+ * Ping Variance Automation's own seeded-default range — [10%, 60%] as a
  * fraction — same "bounded/legible default, freely draggable afterward"
  * convention every other seeded Rig field follows (e.g. DELAY_QUIET_THRESHOLD
- * above). docs/specs/PING-VARIANCE-AUTOMATION.md §1.2.
+ * above). Narrowed from [33%, 66%] once Intensity's on/off role moved to the
+ * new Frequency field (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2).
  */
-const PING_VARIANCE_AUTOMATION_SEED_RANGE = { min: 0.33, max: 0.66 };
+const PING_VARIANCE_AUTOMATION_SEED_RANGE = { min: 0.10, max: 0.60 };
 
 /**
- * Seeded starting value for audioStore's pingVarianceAutomation, [0.33, 0.66]
+ * Seeded starting value for audioStore's pingVarianceAutomation, [0.10, 0.60]
  * as a fraction. Sampled once per session, not once per Attenuation Style
  * switch — audioStore.ts's regenerateGlobalAudioFromSeed is responsible for
  * only calling this on the very first seed and carrying the value forward on
@@ -171,6 +172,47 @@ export function generatePingVarianceAutomation(attenuationStyleId: string, atten
   // (a much finer grid than a whole percent), silently reintroducing a
   // subtler version of the off-grid bug this quantization pass exists to fix.
   return quantizeToStep(raw * 100, 0, 1) / 100;
+}
+
+/**
+ * Frequency's own seeded-default range — [2, 8] swells/measure, same domain
+ * the slider itself uses directly (no fraction/percent split, unlike
+ * pingVarianceAutomation). docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5.
+ */
+const SWELL_FREQUENCY_SEED_RANGE = { min: 2, max: 8 };
+
+/**
+ * Duration's own seeded-default range — [2, 8] measures, same domain the
+ * slider itself uses directly. docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5.
+ */
+const SWELL_DURATION_SEED_RANGE = { min: 2, max: 8 };
+
+/**
+ * Seeded starting value for audioStore's swellFrequency, [2, 8]. Sampled once
+ * per session, carried forward across later Attenuation Style switches, same
+ * sentinel-gated mechanism pingVarianceAutomation already uses
+ * (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5). No quantization
+ * step — unlike pingVarianceAutomation, this field has no fraction-to-percent
+ * split creating an off-grid rounding risk.
+ */
+export function generateSwellFrequency(attenuationStyleId: string, attenuationStyleName: string): number {
+  const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
+  return getSeededVal(
+    noiseMap, 'globalAudio.swellFrequency', 0,
+    SWELL_FREQUENCY_SEED_RANGE.min, SWELL_FREQUENCY_SEED_RANGE.max
+  );
+}
+
+/**
+ * Seeded starting value for audioStore's swellDuration, [2, 8] measures. Same
+ * seed-once/carry-forward treatment as generateSwellFrequency above.
+ */
+export function generateSwellDuration(attenuationStyleId: string, attenuationStyleName: string): number {
+  const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
+  return getSeededVal(
+    noiseMap, 'globalAudio.swellDuration', 0,
+    SWELL_DURATION_SEED_RANGE.min, SWELL_DURATION_SEED_RANGE.max
+  );
 }
 
 /**

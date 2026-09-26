@@ -477,11 +477,11 @@ describe('useAudioStore - pingVarianceAutomation / setPingVarianceAutomation', (
     vi.resetModules();
   });
 
-  it('seeds into [0.33, 0.66] on module load (the first regenerateGlobalAudioFromSeed call)', async () => {
+  it('seeds into [0.10, 0.60] on module load (the first regenerateGlobalAudioFromSeed call) — docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2, narrowed from [0.33, 0.66]', async () => {
     const { useAudioStore } = await import('./audioStore');
     const { pingVarianceAutomation } = useAudioStore.getState();
-    expect(pingVarianceAutomation).toBeGreaterThanOrEqual(0.33);
-    expect(pingVarianceAutomation).toBeLessThanOrEqual(0.66);
+    expect(pingVarianceAutomation).toBeGreaterThanOrEqual(0.10);
+    expect(pingVarianceAutomation).toBeLessThanOrEqual(0.60);
   });
 
   it('setPingVarianceAutomation updates the store directly — a plain write, no AudioEngine call', async () => {
@@ -506,7 +506,7 @@ describe('useAudioStore - pingVarianceAutomation / setPingVarianceAutomation', (
 
   it('carries a hand-dragged value forward across a later Attenuation Style switch too', async () => {
     const { useAudioStore } = await import('./audioStore');
-    useAudioStore.getState().setPingVarianceAutomation(0.9); // outside the [0.33, 0.66] seed range, so it's unambiguous
+    useAudioStore.getState().setPingVarianceAutomation(0.9); // outside the [0.10, 0.60] seed range, so it's unambiguous
 
     useAudioStore.getState().regenerateGlobalAudioFromSeed('a-different-as-id', 'Zenith');
 
