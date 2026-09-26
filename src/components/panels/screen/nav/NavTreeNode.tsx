@@ -3,8 +3,10 @@ import { NavCabinetRow } from './NavCabinetRow';
 import { Button } from '@/components/ui/controls/Button';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { Toggle } from '@/components/ui/controls/Toggle';
+import { useCabinetTier } from '@/components/ui/controls/useCabinetBoxHeight';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 import { scrollToSection } from '@/utils/sectionRefs';
+import { openAccordionFromNav } from '@/utils/accordionSync';
 import type { ButtonSchema, ToggleSchema } from '@/types/controls';
 import type { NavTreeNodeSchema } from '@/data/navTreeConfig';
 import './NavTreeNode.css';
@@ -41,6 +43,7 @@ interface NavTreeNodeProps {
  */
 export function NavTreeNode({ node, depth, focusedId, inheritedColor }: NavTreeNodeProps) {
   const { isExpanded, isSelected, select, toggleExpand } = useNavTree();
+  const isMobile = useCabinetTier() === 'mobile';
   const hasChildren = !!node.children && node.children.length > 0;
   const expanded = hasChildren ? isExpanded(node.id) : false;
   const selected = isSelected(node.id);
@@ -101,6 +104,11 @@ export function NavTreeNode({ node, depth, focusedId, inheritedColor }: NavTreeN
           onClick={() => {
             select(node.id);
             scrollToSection(node.id);
+            // Opens node.id's content accordion, if it has one (docs/specs/NAV_ACCORDION_SYNC.md
+            // §2.1) — a safe no-op for an id with no registered accordion (a branch/entity row, or
+            // a leaf merged away like "Pitches"). Mobile-only closes this view's other open
+            // accordions first.
+            openAccordionFromNav(node.id, { closeSiblings: isMobile });
           }}
         />
       ) : (
@@ -113,6 +121,7 @@ export function NavTreeNode({ node, depth, focusedId, inheritedColor }: NavTreeN
               // no-op via sectionRefs' own contract for a branch not yet migrated to the view
               // model, or a section that hasn't lazy-mounted an anchor yet.
               scrollToSection(node.id);
+              openAccordionFromNav(node.id, { closeSiblings: isMobile });
             }}
           />
           {showToggle && (
