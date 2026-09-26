@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { NavTreeNode } from './NavTreeNode';
 import { TRAIT_COLORS } from '@/utils/traitColors';
-import { scrollToSection } from '@/utils/sectionRefs';
+import { scrollToSectionSettled } from '@/utils/sectionRefs';
 import { fadeInView } from '@/utils/viewFade';
 import type { NavTreeNodeSchema } from '@/data/navTreeConfig';
 
 vi.mock('@/utils/sectionRefs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/utils/sectionRefs')>();
-  return { ...actual, scrollToSection: vi.fn() };
+  return { ...actual, scrollToSectionSettled: vi.fn() };
 });
 
 const { mockOpenAccordionFromNav, mockUseCabinetTier } = vi.hoisted(() => ({
@@ -110,7 +110,7 @@ describe('NavTreeNode — selection vs. expansion, decoupled (Task 4 AC1/AC2)', 
     mockIsSelected.mockReset().mockReturnValue(false);
     mockSelect.mockReset();
     mockToggleExpand.mockReset();
-    vi.mocked(scrollToSection).mockClear();
+    vi.mocked(scrollToSectionSettled).mockClear();
     mockOpenAccordionFromNav.mockClear();
   });
 
@@ -139,14 +139,14 @@ describe('NavTreeNode — selection vs. expansion, decoupled (Task 4 AC1/AC2)', 
 
     onSettled();
 
-    expect(scrollToSection).toHaveBeenCalledWith('settings.volume');
+    expect(scrollToSectionSettled).toHaveBeenCalledWith('settings.volume', fadeInView);
   });
 
   it('clicking the +/- toggle never scrolls — only a name click does', () => {
     render(<NavTreeNode node={CATEGORY} depth={1} />);
     fireEvent.click(screen.getByRole('switch', { name: /expand settings/i }));
 
-    expect(scrollToSection).not.toHaveBeenCalled();
+    expect(scrollToSectionSettled).not.toHaveBeenCalled();
   });
 });
 
@@ -239,7 +239,7 @@ describe('NavTreeNode — row-chrome dispatch for the deepest 2 tree levels (doc
     mockIsSelected.mockReset().mockReturnValue(false);
     mockSelect.mockReset();
     mockToggleExpand.mockReset();
-    vi.mocked(scrollToSection).mockClear();
+    vi.mocked(scrollToSectionSettled).mockClear();
     mockOpenAccordionFromNav.mockClear();
   });
 
@@ -271,7 +271,7 @@ describe('NavTreeNode — row-chrome dispatch for the deepest 2 tree levels (doc
     onSettled();
 
     expect(mockSelect).toHaveBeenCalledWith('fleetParams.pacing.tempo');
-    expect(scrollToSection).toHaveBeenCalledWith('fleetParams.pacing.tempo');
+    expect(scrollToSectionSettled).toHaveBeenCalledWith('fleetParams.pacing.tempo', fadeInView);
   });
 
   it('an untraited leaf beneath a traited mid-level node receives that ancestor\'s resolved color as NavCabinetRow\'s color prop', () => {
@@ -319,7 +319,7 @@ describe('NavTreeNode — nav click opens the target accordion (docs/tasks/NAV_A
     mockIsSelected.mockReset().mockReturnValue(false);
     mockSelect.mockReset();
     mockToggleExpand.mockReset();
-    vi.mocked(scrollToSection).mockClear();
+    vi.mocked(scrollToSectionSettled).mockClear();
     vi.mocked(fadeInView).mockClear();
     mockOpenAccordionFromNav.mockClear();
     mockUseCabinetTier.mockReset().mockReturnValue('desktop');
@@ -375,34 +375,28 @@ describe('NavTreeNode — nav click opens the target accordion (docs/tasks/NAV_A
     render(<NavTreeNode node={LEAF} depth={2} />);
     fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
 
-    expect(scrollToSection).not.toHaveBeenCalled();
+    expect(scrollToSectionSettled).not.toHaveBeenCalled();
   });
 
-  it('scrolls only once openAccordionFromNav\'s own onSettled callback fires', () => {
+  it('scrolls (via scrollToSectionSettled, passing fadeInView as its own onDone) only once openAccordionFromNav\'s own onSettled callback fires', () => {
     render(<NavTreeNode node={LEAF} depth={2} />);
     fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
     const { onSettled } = mockOpenAccordionFromNav.mock.calls[0][1];
 
     onSettled();
 
-    expect(scrollToSection).toHaveBeenCalledWith('settings.volume');
+    // fadeInView itself only actually runs once scrollToSectionSettled's own corrective re-scroll
+    // has settled (proven directly in sectionRefs.test.ts) — here we only need to confirm
+    // NavTreeNode hands it off as the onDone callback, not that it calls fadeInView itself.
+    expect(scrollToSectionSettled).toHaveBeenCalledWith('settings.volume', fadeInView);
   });
 
-  it('does NOT fade the view in immediately — that must also wait for onSettled', () => {
+  it('does NOT scroll (or hand off the fade) immediately — that must also wait for onSettled', () => {
     render(<NavTreeNode node={LEAF} depth={2} />);
     fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
 
+    expect(scrollToSectionSettled).not.toHaveBeenCalled();
     expect(fadeInView).not.toHaveBeenCalled();
-  });
-
-  it('fades the view in once onSettled fires, after scrolling', () => {
-    render(<NavTreeNode node={LEAF} depth={2} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
-    const { onSettled } = mockOpenAccordionFromNav.mock.calls[0][1];
-
-    onSettled();
-
-    expect(fadeInView).toHaveBeenCalledTimes(1);
   });
 
   it('does not throw for an id with no registered accordion (e.g. a branch/entity row, or a merged-away leaf)', () => {

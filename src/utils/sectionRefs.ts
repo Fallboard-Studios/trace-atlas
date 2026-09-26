@@ -41,3 +41,28 @@ export function scrollToSection(id: string): void {
   if (!el) return;
   el.scrollIntoView({ behavior: 'auto', block: 'start' });
 }
+
+/** `scrollToSection`, plus a corrective re-scroll once layout has actually settled, then `onDone`
+ *  (found live: the initial scroll routinely landed short of the target, or drifted away from it
+ *  entirely). Root cause — the section a nav click scrolls to is very often un-approached at that
+ *  exact moment (`useSectionObserver`'s lazy-mount gate never had a reason to fire before the
+ *  target was ever scrolled near), so the FIRST scroll positions the page against a still-mostly-
+ *  empty placeholder. The real content mounts only once the IntersectionObserver's own callback
+ *  fires — asynchronously, on the browser's own schedule, not synchronously with the scroll call —
+ *  growing/shrinking the page around the target afterward and leaving the initial scroll stale.
+ *
+ * Two nested `requestAnimationFrame` calls (not a loop, not musical timing — CLAUDE.md's
+ * timer/rAF guardrail doesn't apply here) wait through at least one full layout+paint cycle, which
+ * is reliably enough time for that intersection callback and the resulting React re-render to have
+ * already happened, before re-measuring and correcting the scroll position. `onDone` (typically
+ * `fadeInView`) is called only after this correction, not before — otherwise the view would reveal
+ * itself mid-shift instead of after it. */
+export function scrollToSectionSettled(id: string, onDone?: () => void): void {
+  scrollToSection(id);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      scrollToSection(id);
+      onDone?.();
+    });
+  });
+}

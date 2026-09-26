@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));
 
-import { setSectionRef, getSectionRef, clearSectionRef, scrollToSection } from './sectionRefs';
+import { setSectionRef, getSectionRef, clearSectionRef, scrollToSection, scrollToSectionSettled } from './sectionRefs';
 import { setTimeline } from '@/animation/timelineMap';
 
 function makeEl(): HTMLElement {
@@ -79,5 +79,85 @@ describe('scrollToSection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 5)', (
     scrollToSection('probes.r1.volume');
 
     expect(setTimeline).not.toHaveBeenCalled();
+  });
+});
+
+describe('scrollToSectionSettled — corrective re-scroll after layout settles (bug: the initial scroll routinely landed away from the target once its lazy-mounted content grew the page around it afterward)', () => {
+  let rafCallbacks: FrameRequestCallback[] = [];
+
+  beforeEach(() => {
+    rafCallbacks = [];
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      rafCallbacks.push(cb);
+      return rafCallbacks.length;
+    });
+  });
+
+  afterEach(() => {
+    clearSectionRef('probes.r1.volume');
+    vi.unstubAllGlobals();
+  });
+
+  function flushOneRaf() {
+    const pending = rafCallbacks;
+    rafCallbacks = [];
+    pending.forEach((cb) => cb(0));
+  }
+
+  it('scrolls immediately, once, before any rAF fires', () => {
+    const el = makeEl();
+    setSectionRef('probes.r1.volume', el);
+
+    scrollToSectionSettled('probes.r1.volume');
+
+    expect(el.scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not scroll again until two animation frames have elapsed', () => {
+    const el = makeEl();
+    setSectionRef('probes.r1.volume', el);
+    scrollToSectionSettled('probes.r1.volume');
+    vi.mocked(el.scrollIntoView).mockClear();
+
+    flushOneRaf();
+
+    expect(el.scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it('scrolls a second, corrective time after two animation frames have elapsed', () => {
+    const el = makeEl();
+    setSectionRef('probes.r1.volume', el);
+    scrollToSectionSettled('probes.r1.volume');
+    vi.mocked(el.scrollIntoView).mockClear();
+
+    flushOneRaf();
+    flushOneRaf();
+
+    expect(el.scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onDone only after the corrective re-scroll, never before', () => {
+    const el = makeEl();
+    setSectionRef('probes.r1.volume', el);
+    const onDone = vi.fn();
+
+    scrollToSectionSettled('probes.r1.volume', onDone);
+    expect(onDone).not.toHaveBeenCalled();
+
+    flushOneRaf();
+    expect(onDone).not.toHaveBeenCalled();
+
+    flushOneRaf();
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not throw when no ref is registered, and still calls onDone once settled', () => {
+    const onDone = vi.fn();
+
+    expect(() => scrollToSectionSettled('probes.never-mounted.volume', onDone)).not.toThrow();
+    flushOneRaf();
+    flushOneRaf();
+
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 });
