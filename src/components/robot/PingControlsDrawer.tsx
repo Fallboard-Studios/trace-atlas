@@ -18,6 +18,7 @@ import {
   RESET_MELODY_SCHEMA,
 } from '@/data/robotOptionsConfig';
 import { DEV_TUNING } from '@/constants';
+import type { DirectionalPanelSchema } from '@/types/controls';
 
 import './PingControlsDrawer.css';
 
@@ -250,3 +251,75 @@ function PingControlsFrequencySectionInner({
 }
 
 export const PingControlsFrequencySection = memo(PingControlsFrequencySectionInner);
+
+// ========================================
+// COMPOSITION (docs/reference/layout-updates.md — merges Rhythm/Pitches into one "Composition"
+// accordion, 3 two-field rows, Click Track's UI toggle removed entirely)
+// ========================================
+// Row schemas hoisted to module scope, same "schema is always a stable reference" convention
+// PingContourDrawer.tsx's own TOP_ROW_SCHEMA/BOTTOM_ROW_SCHEMA already establish.
+const COMPOSITION_ROW1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.composition.row1', type: 'directionalPanel', orientation: 'responsive' };
+const COMPOSITION_ROW2_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.composition.row2', type: 'directionalPanel', orientation: 'responsive' };
+const COMPOSITION_ROW3_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.composition.row3', type: 'directionalPanel', orientation: 'responsive' };
+
+export interface PingControlsCompositionSectionProps {
+  value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'octaveRange'>;
+  onDensityChange: (value: number) => void;
+  onMotifLengthChange: (value: number) => void;
+  onPitchRepeatChange: (value: number) => void;
+  onOctaveMinChange: (value: number) => void;
+  onOctaveMaxChange: (value: number) => void;
+  onNoteVarianceChange: (value: number) => void;
+  /** Undefined omits the Reset Melody button entirely — same company-mode opt-out every other
+   *  section here uses (it has no company-scoped meaning). */
+  onResetMelody?: () => void;
+  disabled?: boolean;
+  style?: CSSProperties;
+}
+
+/**
+ * Replaces the old Rhythm/Pitches split (2 separate accordions) with one "Composition" accordion's
+ * worth of plain content, laid out as 3 rows of 2 fields each: Density+Motif Length, Pitch
+ * Repeat+Note Variance, Octave Min+Octave Max (docs/reference/layout-updates.md). The dev-only
+ * Click Track toggle is dropped entirely, per that same instruction — `clickTrackActive` itself
+ * (the underlying store field/engine wiring, `src/engine/clickTrack.ts`) is untouched, just no
+ * longer reachable from this UI. Reset Melody lands at the end, below all 3 rows (an explicit
+ * placement choice, not dictated by the outline — revisit if it reads oddly once seen live).
+ */
+function PingControlsCompositionSectionInner({
+  value,
+  onDensityChange,
+  onMotifLengthChange,
+  onPitchRepeatChange,
+  onOctaveMinChange,
+  onOctaveMaxChange,
+  onNoteVarianceChange,
+  onResetMelody,
+  disabled,
+  style,
+}: PingControlsCompositionSectionProps) {
+  const [octMin, octMax] = value.octaveRange;
+  // Pitch Repeat still needs a tiled motif to lock cells within — no cell concept exists when
+  // Motif Length is off (docs/specs/PITCH_REPEAT.md) — unrelated to the removed Click Track gate.
+  const pitchRepeatDisabled = disabled || value.rhythmicMotifLength === 0;
+
+  return (
+    <div style={style}>
+      <DirectionalPanel schema={COMPOSITION_ROW1_SCHEMA}>
+        <SliderLinear schema={DENSITY_SCHEMA} value={value.rhythmicDensity} onChange={onDensityChange} disabled={disabled} />
+        <SliderLinear schema={MOTIF_LENGTH_SCHEMA} value={value.rhythmicMotifLength} onChange={onMotifLengthChange} disabled={disabled} />
+      </DirectionalPanel>
+      <DirectionalPanel schema={COMPOSITION_ROW2_SCHEMA}>
+        <SliderLinear schema={PITCH_REPEAT_SCHEMA} value={value.pitchRepeat} onChange={onPitchRepeatChange} disabled={pitchRepeatDisabled} />
+        <SliderLinear schema={NOTE_VARIANCE_SCHEMA} value={value.noteVariance} onChange={onNoteVarianceChange} disabled={disabled} />
+      </DirectionalPanel>
+      <DirectionalPanel schema={COMPOSITION_ROW3_SCHEMA}>
+        <SliderLinear schema={OCTAVE_RANGE_MIN_SCHEMA} value={octMin} onChange={onOctaveMinChange} disabled={disabled} />
+        <SliderLinear schema={OCTAVE_RANGE_MAX_SCHEMA} value={octMax} onChange={onOctaveMaxChange} disabled={disabled} />
+      </DirectionalPanel>
+      {onResetMelody && <Button schema={RESET_MELODY_SCHEMA} onClick={onResetMelody} disabled={disabled} />}
+    </div>
+  );
+}
+
+export const PingControlsCompositionSection = memo(PingControlsCompositionSectionInner);

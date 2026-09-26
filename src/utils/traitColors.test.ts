@@ -153,6 +153,7 @@ describe('getRobotColorStyle', () => {
       '--color-accent-b': '#abc123',
       '--color-accent': 'color-mix(in srgb, #abc123 50%, #abc123 50%)',
       '--color-accent-gradient': 'linear-gradient(135deg, #abc123, #abc123)',
+      '--color-text-primary': 'rgba(255, 255, 255, 0.87)',
     });
   });
 
@@ -165,6 +166,34 @@ describe('getRobotColorStyle', () => {
       '--color-accent-b': '#ffffff',
       '--color-accent': 'color-mix(in srgb, #ffffff 50%, #ffffff 50%)',
       '--color-accent-gradient': 'linear-gradient(135deg, #ffffff, #ffffff)',
+      '--color-text-primary': '#12161a',
     });
+  });
+
+  // Bugfix (docs/reference/layout-updates.md — Probes section: "colors are wrong internally...
+  // text on buttons needs to be visible"): CabinetBox's front face always reads
+  // --color-text-primary for its label text (CabinetBox.css), and a robot's identityColor can be
+  // any hue — including light ones a fixed white-ish text color disappears against once that
+  // color becomes the front face's own background (RadioButton.css's [data-state='on'] tint,
+  // CabinetBox.css's own rest-state hint). getRobotColorStyle now picks a readable
+  // --color-text-primary override per identityColor via WCAG relative luminance, the same helper
+  // getDisabledTraitColorStyle already uses for its own lighter/darker resolution.
+  it('overrides --color-text-primary to a dark color when identityColor is light (luminance > 0.5)', () => {
+    expect((getRobotColorStyle('#ffffff') as Record<string, string>)['--color-text-primary']).toBe('#12161a');
+    expect((getRobotColorStyle('#fef08a') as Record<string, string>)['--color-text-primary']).toBe('#12161a'); // pale yellow
+  });
+
+  it('keeps the default light --color-text-primary when identityColor is dark (luminance <= 0.5)', () => {
+    expect((getRobotColorStyle('#12161a') as Record<string, string>)['--color-text-primary']).toBe('rgba(255, 255, 255, 0.87)');
+    expect((getRobotColorStyle('#1a237e') as Record<string, string>)['--color-text-primary']).toBe('rgba(255, 255, 255, 0.87)'); // deep indigo
+  });
+
+  // Regression: many existing test fixtures build a Robot via `as unknown as Robot` and omit
+  // identityColor (a required field in practice, but not enforced at test-fixture time) — this
+  // must not throw the way a raw relativeLuminance(undefined) call would.
+  it('does not throw and falls back to the default light text for an undefined/malformed identityColor', () => {
+    expect(() => getRobotColorStyle(undefined as unknown as string)).not.toThrow();
+    expect((getRobotColorStyle(undefined as unknown as string) as Record<string, string>)['--color-text-primary']).toBe('rgba(255, 255, 255, 0.87)');
+    expect((getRobotColorStyle('not-a-color') as Record<string, string>)['--color-text-primary']).toBe('rgba(255, 255, 255, 0.87)');
   });
 });

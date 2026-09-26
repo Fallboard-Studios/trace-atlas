@@ -40,6 +40,24 @@ export function buildCompanyAssignmentSchema(companies: Company[]): RadioButtonS
   };
 }
 
+/**
+ * "Which company do you want to view/edit" — the Companies content section's own "Company
+ * Selection" row (docs/reference/layout-updates.md), distinct from buildCompanyAssignmentSchema
+ * above (which assigns a ROBOT to a company and offers Freelance). No Freelance option here —
+ * there's no "no company" entity to select into on this screen, only real companies. Selecting an
+ * option calls uiStore.selectCompany directly (CompaniesContent.tsx), the same store action a
+ * nav-tree click on a company node already calls.
+ */
+export function buildCompanySelectionSchema(companies: Company[]): RadioButtonSchema {
+  return {
+    id: 'company.select',
+    type: 'radio',
+    loreLabel: 'REGISTERED CONSORTIA',
+    humanLabel: 'Company Selection',
+    options: companies.map((c) => ({ value: c.id, label: c.name, color: c.color })),
+  };
+}
+
 // ========================================
 // COMPANY CRUD (create/rename/delete)
 // ========================================

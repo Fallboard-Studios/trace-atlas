@@ -18,7 +18,7 @@ import { clearSectionRef } from '@/utils/sectionRefs';
 // diff-and-preserve broadcast logic, not a stub shortcut.
 const renderCounts = {
   audioSettingSection: vi.fn(),
-  pingControlsRhythm: vi.fn(),
+  pingControlsComposition: vi.fn(),
   pingContourDrawer: vi.fn(),
 };
 
@@ -46,36 +46,32 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
   }),
 }));
 vi.mock('@/components/robot/PingControlsDrawer', () => ({
-  PingControlsRhythmSection: memo((props: {
-    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; clickTrackActive: boolean };
+  PingControlsCompositionSection: memo((props: {
+    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number };
     onDensityChange: (v: number) => void;
     onMotifLengthChange: (v: number) => void;
     onPitchRepeatChange: (v: number) => void;
-    onClickTrackActiveChange: (v: boolean) => void;
+    onOctaveMinChange: (v: number) => void;
+    onNoteVarianceChange: (v: number) => void;
     disabled?: boolean;
   }) => {
-    renderCounts.pingControlsRhythm();
+    renderCounts.pingControlsComposition();
     return (
       <div
-        data-testid="ping-controls-rhythm-stub"
+        data-testid="ping-controls-composition-stub"
         data-density={props.value.rhythmicDensity}
         data-motif-length={props.value.rhythmicMotifLength}
         data-pitch-repeat={props.value.pitchRepeat}
-        data-click-track-active={String(props.value.clickTrackActive)}
+        data-note-variance={props.value.noteVariance}
         data-disabled={props.disabled ? '' : undefined}
       >
         <button onClick={() => props.onDensityChange(77)}>probe-density</button>
         <button onClick={() => props.onMotifLengthChange(12)}>probe-motif-length</button>
         <button onClick={() => props.onPitchRepeatChange(90)}>probe-pitch-repeat</button>
-        <button onClick={() => props.onClickTrackActiveChange(!props.value.clickTrackActive)}>probe-click-track</button>
+        <button onClick={() => props.onOctaveMinChange(4)}>probe-octave-min</button>
       </div>
     );
   }),
-  PingControlsFrequencySection: memo((props: { value: { noteVariance: number }; onOctaveMinChange: (v: number) => void; onNoteVarianceChange: (v: number) => void; disabled?: boolean }) => (
-    <div data-testid="ping-controls-frequency-stub" data-note-variance={props.value.noteVariance} data-disabled={props.disabled ? '' : undefined}>
-      <button onClick={() => props.onOctaveMinChange(4)}>probe-octave-min</button>
-    </div>
-  )),
 }));
 vi.mock('@/components/robot/PingContourDrawer', () => ({
   PingContourDrawer: memo((props: { value: { attack: number }; onChange: (next: unknown) => void; disabled?: boolean }) => {
@@ -157,7 +153,6 @@ function allSubsectionIds(prefix: string) {
   return [
     `${prefix}.volume.audioSettings`,
     `${prefix}.melody.rhythm`,
-    `${prefix}.melody.frequency`,
     `${prefix}.envelope.pingContour`,
     `${prefix}.source.baselineOscillator`,
     `${prefix}.source.coaxialOscillator`,
@@ -190,25 +185,32 @@ describe('CompanyOptionsSection', () => {
     useUIStore.getState().selectCompany('c1');
   }
 
-  it('renders all 8 subsection accordion triggers as shells, regardless of active/disabled', () => {
+  it('renders the top-level accordion triggers as shells, regardless of active/disabled', () => {
     render(<CompanyOptionsSection />);
-    for (const label of ['Dynamics', 'Rhythm', 'Pitches', 'Contour', 'Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator', 'Probe Drift']) {
+    for (const label of ['Levels', 'Composition', 'Envelope', 'Source']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
   });
 
-  it('opens Audio Settings by default when no section is chosen — first-leaf fallback (spec §1.5)', () => {
+  it('renders Source\'s own 4 nested accordion triggers', () => {
     render(<CompanyOptionsSection />);
-    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Rhythm' }).getAttribute('aria-expanded')).toBe('false');
+    for (const label of ['Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator', 'Probe Drift']) {
+      expect(screen.getByRole('button', { name: label })).toBeTruthy();
+    }
+  });
+
+  it('opens Levels by default when no section is chosen — first-leaf fallback (spec §1.5)', () => {
+    render(<CompanyOptionsSection />);
+    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Composition' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('clicking a subsection\'s own trigger opens it directly, without touching selectedSection/selectedSubsection or closing any other open accordion', () => {
     render(<CompanyOptionsSection />);
     fireEvent.click(screen.getByRole('button', { name: 'Probe Drift' }));
     expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('true');
-    // Audio Settings (the default-open one) stays open too — multiple accordions can be open at once.
-    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
+    // Levels (the default-open one) stays open too — multiple accordions can be open at once.
+    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
     expect(useUIStore.getState().selectedSection).toBeNull();
     expect(useUIStore.getState().selectedSubsection).toBeNull();
   });
@@ -219,7 +221,7 @@ describe('CompanyOptionsSection', () => {
       useUIStore.getState().setSelectedSection('source');
       useUIStore.getState().setSelectedSubsection('probeDrift');
     });
-    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('false');
   });
 
@@ -231,7 +233,7 @@ describe('CompanyOptionsSection', () => {
     act(() => selectActiveCompany());
     rerender(<CompanyOptionsSection />);
 
-    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('false');
   });
 

@@ -4,7 +4,7 @@ import { useSectionObserver } from '../nav/useSectionObserver';
 import { useAccordionOpenState } from '../nav/useAccordionOpenState';
 import { RobotDisplaySection } from '@/components/robot/RobotDisplaySection';
 import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
-import { PingControlsRhythmSection, PingControlsFrequencySection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
+import { PingControlsCompositionSection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
 import { SignatureArrayLayer, RobotDriftPanel, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
@@ -20,7 +20,7 @@ import { VOLUME_LFO_TARGET, SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSche
 import { SOURCE_OSCILLATOR_SUBSECTIONS, OSCILLATOR_LABELS } from '@/data/robotSubsectionConfig';
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
-  applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo, applyClickTrackActive,
+  applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo,
   applyAudioMode, applyVolume, applyVolumeLfo,
 } from '@/systems/robotOptionsActions';
 import type { LfoValue, AccordionSchema } from '@/types/controls';
@@ -159,7 +159,6 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   const handleOctaveMaxChange = useCallback((v: number) => applyOctaveMax(latestRobot.current, localeId, v), [localeId]);
   const handleNoteVarianceChange = useCallback((v: number) => applyNoteVariance(latestRobot.current, localeId, v), [localeId]);
   const handleResetMelody = useCallback(() => regenerateMelody(latestRobot.current, localeId), [localeId]);
-  const handleClickTrackActiveChange = useCallback((v: boolean) => applyClickTrackActive(latestRobot.current, localeId, v), [localeId]);
 
   const handleAdsrChange = useCallback((adsr: ADSREnvelope) => applyAdsr(latestRobot.current, localeId, adsr), [localeId]);
 
@@ -180,7 +179,6 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   const subsectionIds = useMemo(() => [
     `${prefix}.volume.audioSettings`,
     `${prefix}.melody.rhythm`,
-    `${prefix}.melody.frequency`,
     `${prefix}.envelope.pingContour`,
     `${prefix}.source.baselineOscillator`,
     `${prefix}.source.coaxialOscillator`,
@@ -205,7 +203,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
       <div ref={sectionAnchorRef(`${prefix}.volume`)}>
         <div ref={sectionAnchorRef(`${prefix}.volume.audioSettings`)}>
           <AccordionContainer
-            schema={{ id: `${prefix}.volume.audioSettings`, type: 'accordion', humanLabel: 'Dynamics' } satisfies AccordionSchema}
+            schema={{ id: `${prefix}.volume.audioSettings`, type: 'accordion', humanLabel: 'Levels' } satisfies AccordionSchema}
             open={isOpen(`${prefix}.volume.audioSettings`)}
             onOpenChange={(open) => setOpen(`${prefix}.volume.audioSettings`, open)}
             style={OUTPUT_STYLE}
@@ -224,38 +222,27 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
       </div>
 
       <div ref={sectionAnchorRef(`${prefix}.melody`)}>
+        {/* Rhythm/Pitches merged into one "Composition" accordion, 3 two-field rows
+            (docs/reference/layout-updates.md) — reuses the old '.rhythm' id (no new tree/
+            scrollspy id introduced); the nav tree's separate "Pitches" leaf has no distinct
+            anchor left to scroll to now that its content is interleaved into these same rows. */}
         <div ref={sectionAnchorRef(`${prefix}.melody.rhythm`)}>
           <AccordionContainer
-            schema={{ id: `${prefix}.melody.rhythm`, type: 'accordion', humanLabel: 'Rhythm' } satisfies AccordionSchema}
+            schema={{ id: `${prefix}.melody.rhythm`, type: 'accordion', humanLabel: 'Composition' } satisfies AccordionSchema}
             open={isOpen(`${prefix}.melody.rhythm`)}
             onOpenChange={(open) => setOpen(`${prefix}.melody.rhythm`, open)}
             style={COMPOSITION_STYLE}
           >
             {hasApproached(`${prefix}.melody.rhythm`) ? (
-              <PingControlsRhythmSection
+              <PingControlsCompositionSection
                 value={pingControlsValue}
                 onDensityChange={handleDensityChange}
                 onMotifLengthChange={handleMotifLengthChange}
                 onPitchRepeatChange={handlePitchRepeatChange}
-                onClickTrackActiveChange={handleClickTrackActiveChange}
-                onResetMelody={handleResetMelody}
-              />
-            ) : null}
-          </AccordionContainer>
-        </div>
-        <div ref={sectionAnchorRef(`${prefix}.melody.frequency`)}>
-          <AccordionContainer
-            schema={{ id: `${prefix}.melody.frequency`, type: 'accordion', humanLabel: 'Pitches' } satisfies AccordionSchema}
-            open={isOpen(`${prefix}.melody.frequency`)}
-            onOpenChange={(open) => setOpen(`${prefix}.melody.frequency`, open)}
-            style={COMPOSITION_STYLE}
-          >
-            {hasApproached(`${prefix}.melody.frequency`) ? (
-              <PingControlsFrequencySection
-                value={pingControlsValue}
                 onOctaveMinChange={handleOctaveMinChange}
                 onOctaveMaxChange={handleOctaveMaxChange}
                 onNoteVarianceChange={handleNoteVarianceChange}
+                onResetMelody={handleResetMelody}
               />
             ) : null}
           </AccordionContainer>
@@ -265,7 +252,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
       <div ref={sectionAnchorRef(`${prefix}.envelope`)}>
         <div ref={sectionAnchorRef(`${prefix}.envelope.pingContour`)}>
           <AccordionContainer
-            schema={{ id: `${prefix}.envelope.pingContour`, type: 'accordion', humanLabel: 'Contour' } satisfies AccordionSchema}
+            schema={{ id: `${prefix}.envelope.pingContour`, type: 'accordion', humanLabel: 'Envelope' } satisfies AccordionSchema}
             open={isOpen(`${prefix}.envelope.pingContour`)}
             onOpenChange={(open) => setOpen(`${prefix}.envelope.pingContour`, open)}
             style={TIME_SPACE_STYLE}
@@ -278,43 +265,55 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
       </div>
 
       <div ref={sectionAnchorRef(`${prefix}.source`)}>
-        {SOURCE_OSCILLATOR_SUBSECTIONS.map((sub, idx) => {
-          const layer = signatureArrayValue.layers[idx];
-          const id = `${prefix}.source.${sub}`;
-          return (
-            <div key={sub} ref={sectionAnchorRef(id)}>
-              <AccordionContainer
-                schema={{ id, type: 'accordion', humanLabel: OSCILLATOR_LABELS[sub] } satisfies AccordionSchema}
-                open={isOpen(id)}
-                onOpenChange={(open) => setOpen(id, open)}
-                style={SPECTRAL_STYLE}
-              >
-                {hasApproached(id) && layer ? (
-                  <SignatureArrayLayer
-                    block={SIGNATURE_ARRAY_CONFIG[idx]}
-                    idx={idx}
-                    layer={layer}
-                    lfoSettings={signatureArrayValue.lfoSettings}
-                    heldOffTargets={heldOffTargets}
-                    onTypeChange={handleLayerTypeChange}
-                    onParamChange={handleLayerParamChange}
-                    onLfoFieldChange={handleLayerLfoFieldChange}
-                  />
-                ) : null}
-              </AccordionContainer>
-            </div>
-          );
-        })}
-        <div ref={sectionAnchorRef(`${prefix}.source.probeDrift`)}>
-          <AccordionContainer
-            schema={{ id: `${prefix}.source.probeDrift`, type: 'accordion', humanLabel: 'Probe Drift' } satisfies AccordionSchema}
-            open={isOpen(`${prefix}.source.probeDrift`)}
-            onOpenChange={(open) => setOpen(`${prefix}.source.probeDrift`, open)}
-            style={SPECTRAL_STYLE}
-          >
-            {hasApproached(`${prefix}.source.probeDrift`) ? <RobotDriftPanel /> : null}
-          </AccordionContainer>
-        </div>
+        {/* New wrapping parent accordion (docs/reference/layout-updates.md) — the 4 accordions
+            inside it (3 oscillators + Drift) are unchanged, just nested one level deeper instead
+            of sitting as flat siblings. No hasApproached gate of its own: each child accordion
+            already lazy-mounts its own content, so the parent can render its 4 (cheap, shell-only
+            until individually approached) children unconditionally. */}
+        <AccordionContainer
+          schema={{ id: `${prefix}.source.group`, type: 'accordion', humanLabel: 'Source' } satisfies AccordionSchema}
+          open={isOpen(`${prefix}.source.group`)}
+          onOpenChange={(open) => setOpen(`${prefix}.source.group`, open)}
+          style={SPECTRAL_STYLE}
+        >
+          {SOURCE_OSCILLATOR_SUBSECTIONS.map((sub, idx) => {
+            const layer = signatureArrayValue.layers[idx];
+            const id = `${prefix}.source.${sub}`;
+            return (
+              <div key={sub} ref={sectionAnchorRef(id)}>
+                <AccordionContainer
+                  schema={{ id, type: 'accordion', humanLabel: OSCILLATOR_LABELS[sub] } satisfies AccordionSchema}
+                  open={isOpen(id)}
+                  onOpenChange={(open) => setOpen(id, open)}
+                  style={SPECTRAL_STYLE}
+                >
+                  {hasApproached(id) && layer ? (
+                    <SignatureArrayLayer
+                      block={SIGNATURE_ARRAY_CONFIG[idx]}
+                      idx={idx}
+                      layer={layer}
+                      lfoSettings={signatureArrayValue.lfoSettings}
+                      heldOffTargets={heldOffTargets}
+                      onTypeChange={handleLayerTypeChange}
+                      onParamChange={handleLayerParamChange}
+                      onLfoFieldChange={handleLayerLfoFieldChange}
+                    />
+                  ) : null}
+                </AccordionContainer>
+              </div>
+            );
+          })}
+          <div ref={sectionAnchorRef(`${prefix}.source.probeDrift`)}>
+            <AccordionContainer
+              schema={{ id: `${prefix}.source.probeDrift`, type: 'accordion', humanLabel: 'Probe Drift' } satisfies AccordionSchema}
+              open={isOpen(`${prefix}.source.probeDrift`)}
+              onOpenChange={(open) => setOpen(`${prefix}.source.probeDrift`, open)}
+              style={SPECTRAL_STYLE}
+            >
+              {hasApproached(`${prefix}.source.probeDrift`) ? <RobotDriftPanel /> : null}
+            </AccordionContainer>
+          </div>
+        </AccordionContainer>
       </div>
     </div>
   );

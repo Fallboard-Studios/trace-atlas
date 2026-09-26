@@ -8,7 +8,15 @@ import { AUDIO_LOAD_PRESETS } from '@/constants';
 import { useAudioStore } from '@/stores/audioStore';
 import { describeLimits, effectsLoadToLimits, presetForLoads, robotLoadToLimits } from '@/utils/audioBudget';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
+import type { DirectionalPanelSchema } from '@/types/controls';
 import './AudioLoadPanel.css';
+
+// 2 nested rows (docs/reference/layout-updates.md — "Audio Profiles accordion"): Preset paired
+// with its own live description, Robot Load paired with Effects Load below it. Nested (not
+// top-level), same pattern AudioRigDrawer.tsx's own COMPRESSOR_TOP_ROW_SCHEMA/
+// COMPRESSOR_BOTTOM_ROW_SCHEMA use inside the compressor's own top-level panel.
+const AUDIO_LOAD_PRESET_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.audioLoadPanel.presetRow', type: 'directionalPanel', orientation: 'responsive' };
+const AUDIO_LOAD_SLIDERS_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.audioLoadPanel.slidersRow', type: 'directionalPanel', orientation: 'responsive' };
 
 /** Ref callback registering/clearing a nav scroll anchor (src/utils/sectionRefs.ts) — matches
  *  navTreeConfig.ts's own settings.quality.robotLoad/effectsLoad tree node ids (Settings ->
@@ -54,18 +62,22 @@ export const AudioLoadPanel = memo(function AudioLoadPanel() {
 
   return (
     <DirectionalPanel schema={AUDIO_LOAD_PANEL_SCHEMA}>
-      <div className="audio-rig-drawer__param-row">
-        <RadioButton schema={AUDIO_LOAD_PRESET_SCHEMA} value={presetForLoads(robotLoad, effectsLoad) ?? ''} onChange={handlePreset} />
-      </div>
-      <div className="audio-rig-drawer__param-row" ref={sectionAnchorRef('settings.quality.robotLoad')}>
-        <SliderLinear schema={AUDIO_ROBOT_LOAD_SCHEMA} value={Math.round(robotLoad * 100)} onChange={handleRobotSlider} />
-      </div>
-      <div className="audio-rig-drawer__param-row" ref={sectionAnchorRef('settings.quality.effectsLoad')}>
-        <SliderLinear schema={AUDIO_EFFECTS_LOAD_SCHEMA} value={Math.round(effectsLoad * 100)} onChange={handleEffectsSlider} />
-      </div>
-      <p className="audio-load-panel__readout">
-        {describeLimits({ ...robotLoadToLimits(robotLoad), ...effectsLoadToLimits(effectsLoad) })}
-      </p>
+      <DirectionalPanel schema={AUDIO_LOAD_PRESET_ROW_SCHEMA}>
+        <div className="audio-rig-drawer__param-row">
+          <RadioButton schema={AUDIO_LOAD_PRESET_SCHEMA} value={presetForLoads(robotLoad, effectsLoad) ?? ''} onChange={handlePreset} />
+        </div>
+        <p className="audio-load-panel__readout">
+          {describeLimits({ ...robotLoadToLimits(robotLoad), ...effectsLoadToLimits(effectsLoad) })}
+        </p>
+      </DirectionalPanel>
+      <DirectionalPanel schema={AUDIO_LOAD_SLIDERS_ROW_SCHEMA}>
+        <div className="audio-rig-drawer__param-row" ref={sectionAnchorRef('settings.quality.robotLoad')}>
+          <SliderLinear schema={AUDIO_ROBOT_LOAD_SCHEMA} value={Math.round(robotLoad * 100)} onChange={handleRobotSlider} />
+        </div>
+        <div className="audio-rig-drawer__param-row" ref={sectionAnchorRef('settings.quality.effectsLoad')}>
+          <SliderLinear schema={AUDIO_EFFECTS_LOAD_SCHEMA} value={Math.round(effectsLoad * 100)} onChange={handleEffectsSlider} />
+        </div>
+      </DirectionalPanel>
     </DirectionalPanel>
   );
 });

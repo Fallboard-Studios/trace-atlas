@@ -172,12 +172,36 @@ export function getDisabledTraitColorStyle(trait: Trait): CSSProperties {
   return buildAccentStyle(desaturateHex(lighter, 0.8), desaturateHex(darker, 0.6));
 }
 
+/** The app's own default light text color (index.css's `--color-text-primary`) and its dark
+ *  background color (`--color-bg`), reused here as the 2 candidate text colors below — not new
+ *  values invented for this. */
+const LIGHT_TEXT_COLOR = 'rgba(255, 255, 255, 0.87)';
+const DARK_TEXT_COLOR = '#12161a';
+
 /**
  * A robot's own identity color reuses the identical mechanism with both slots set to the same
  * value — color-mix()-ing a color with itself returns itself, and a 2-stop gradient of identical
  * stops renders as a solid fill, so every existing consumer (outline, backing, front-face gradient)
  * already does the right thing with no special-casing.
+ *
+ * Also overrides `--color-text-primary` (docs/reference/layout-updates.md — Probes section
+ * bugfix): CabinetBox's front face always reads that variable for its own label text, but an
+ * identityColor is drawn from a much wider range than the hand-picked, contrast-checked
+ * ACCENT_COLORS trait pairs — a light identityColor becoming the front face's own background
+ * (RadioButton.css's selected-state tint, CabinetBox.css's rest-state hint) made the label
+ * disappear against the app's fixed light-text default. Resolved by WCAG relative luminance, the
+ * same helper getDisabledTraitColorStyle already uses for its own lighter/darker resolution —
+ * light identityColor gets dark text, dark identityColor keeps the default light text.
  */
 export function getRobotColorStyle(identityColor: string): CSSProperties {
-  return buildAccentStyle(identityColor, identityColor);
+  // Guarded, not trusted: real Robot.identityColor is a required field, but plenty of existing
+  // test fixtures build a Robot via `as unknown as Robot` and omit it — relativeLuminance() parses
+  // its argument as a #rrggbb hex string, which would throw on undefined/malformed input where the
+  // old plain pass-through (buildAccentStyle never parses its arguments) never did. Falls back to
+  // the default light text rather than skip the accent properties entirely.
+  const isValidHex = /^#[0-9a-fA-F]{6}$/.test(identityColor ?? '');
+  return {
+    ...buildAccentStyle(identityColor, identityColor),
+    '--color-text-primary': isValidHex && relativeLuminance(identityColor) > 0.5 ? DARK_TEXT_COLOR : LIGHT_TEXT_COLOR,
+  } as CSSProperties;
 }

@@ -1,0 +1,7 @@
+/* One always-open, seed-traited panel wrapping the entire Settings section — same pattern as
+   FleetParamsContent.css's own .fleet-params-content. Trait-derived accent custom properties are
+   applied inline via getTraitColorStyle('seed'); this class carries layout only. */
+.settings-content {
+  display: flex;
+  flex-direction: column;
+}

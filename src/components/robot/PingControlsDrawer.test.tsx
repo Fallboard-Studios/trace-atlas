@@ -10,7 +10,7 @@ vi.mock('@/constants', async (importOriginal) => {
   return { ...actual, get DEV_TUNING() { return mockDevTuning; } };
 });
 
-import { PingControlsDrawer, PingControlsRhythmSection, PingControlsFrequencySection, type PingControlsValue } from './PingControlsDrawer';
+import { PingControlsDrawer, PingControlsRhythmSection, PingControlsFrequencySection, PingControlsCompositionSection, type PingControlsValue } from './PingControlsDrawer';
 
 
 function makeValue(overrides: Partial<PingControlsValue> = {}): PingControlsValue {
@@ -679,5 +679,107 @@ describe('PingControlsDrawer — old combined component, unchanged (docs/tasks/N
     // what's actually varied. This structural check is what's provable in isolation.
   it('is a React.memo-wrapped component', () => {
     expect((PingControlsDrawer as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+  });
+});
+
+describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — merges Rhythm/Pitches into one accordion, Click Track UI removed', () => {
+  function renderSection(overrides: Partial<PingControlsValue> = {}, extra: { onResetMelody?: () => void; disabled?: boolean } = {}) {
+    const value = makeValue(overrides);
+    return render(
+      <PingControlsCompositionSection
+        value={value}
+        onDensityChange={() => {}}
+        onMotifLengthChange={() => {}}
+        onPitchRepeatChange={() => {}}
+        onOctaveMinChange={() => {}}
+        onOctaveMaxChange={() => {}}
+        onNoteVarianceChange={() => {}}
+        {...extra}
+      />,
+    );
+  }
+
+  it('renders Density, Motif Length, Pitch Repeat, Note Variance, Octave Min, Octave Max — no Click Track toggle anywhere', () => {
+    renderSection({}, { onResetMelody: () => {} });
+
+    expect(screen.getByRole('slider', { name: /density/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /motif length/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /pitch repeat/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /note variance/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /octave.*min/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /octave.*max/i })).toBeTruthy();
+    expect(screen.queryByRole('switch', { name: /Click Track/i })).toBeNull();
+  });
+
+  it('omits Reset Melody when onResetMelody is not provided (company mode)', () => {
+    renderSection();
+    expect(screen.queryByRole('button', { name: 'Reset Melody' })).toBeNull();
+  });
+
+  it('renders Reset Melody when onResetMelody is provided (robot mode)', () => {
+    renderSection({}, { onResetMelody: () => {} });
+    expect(screen.getByRole('button', { name: 'Reset Melody' })).toBeTruthy();
+  });
+
+  it('changing each field calls its own onChange with the raw number', () => {
+    const onDensityChange = vi.fn();
+    const onMotifLengthChange = vi.fn();
+    const onPitchRepeatChange = vi.fn();
+    const onOctaveMinChange = vi.fn();
+    const onOctaveMaxChange = vi.fn();
+    const onNoteVarianceChange = vi.fn();
+    render(
+      <PingControlsCompositionSection
+        value={makeValue({ rhythmicMotifLength: 4, pitchRepeat: 10 })}
+        onDensityChange={onDensityChange}
+        onMotifLengthChange={onMotifLengthChange}
+        onPitchRepeatChange={onPitchRepeatChange}
+        onOctaveMinChange={onOctaveMinChange}
+        onOctaveMaxChange={onOctaveMaxChange}
+        onNoteVarianceChange={onNoteVarianceChange}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('slider', { name: /density/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /motif length/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /pitch repeat/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /octave.*min/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /octave.*max/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /note variance/i }), { key: 'ArrowRight' });
+
+    expect(onDensityChange).toHaveBeenCalledWith(51);
+    expect(onMotifLengthChange).toHaveBeenCalledWith(5);
+    expect(onPitchRepeatChange).toHaveBeenCalledWith(11);
+    expect(onOctaveMinChange).toHaveBeenCalled();
+    expect(onOctaveMaxChange).toHaveBeenCalled();
+    expect(onNoteVarianceChange).toHaveBeenCalled();
+  });
+
+  it('Pitch Repeat is disabled when rhythmicMotifLength is 0', () => {
+    renderSection({ rhythmicMotifLength: 0 });
+    expect(screen.getByRole('slider', { name: /pitch repeat/i }).getAttribute('data-disabled')).toBe('');
+    expect(screen.getByRole('slider', { name: /density/i }).getAttribute('data-disabled')).toBeNull();
+  });
+
+  it('disables every internal control when disabled is true', () => {
+    renderSection({}, { disabled: true });
+    expect(screen.getByRole('slider', { name: /density/i }).getAttribute('data-disabled')).toBe('');
+    expect(screen.getByRole('slider', { name: /note variance/i }).getAttribute('data-disabled')).toBe('');
+  });
+
+  it('forwards an optional style to its own root', () => {
+    const { container } = render(
+      <PingControlsCompositionSection
+        value={makeValue()}
+        onDensityChange={() => {}}
+        onMotifLengthChange={() => {}}
+        onPitchRepeatChange={() => {}}
+        onOctaveMinChange={() => {}}
+        onOctaveMaxChange={() => {}}
+        onNoteVarianceChange={() => {}}
+        style={{ '--color-accent-a': '#68cb97' } as CSSProperties}
+      />,
+    );
+    expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--color-accent-a')).toBe('#68cb97');
   });
 });

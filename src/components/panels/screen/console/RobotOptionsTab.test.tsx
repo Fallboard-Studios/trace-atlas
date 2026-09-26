@@ -35,37 +35,29 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
   )),
 }));
 vi.mock('@/components/robot/PingControlsDrawer', () => ({
-  PingControlsRhythmSection: memo((props: {
-    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; clickTrackActive: boolean };
+  PingControlsCompositionSection: memo((props: {
+    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number };
     onDensityChange: (v: number) => void;
     onMotifLengthChange: (v: number) => void;
     onPitchRepeatChange: (v: number) => void;
+    onOctaveMinChange: (v: number) => void;
+    onOctaveMaxChange: (v: number) => void;
+    onNoteVarianceChange: (v: number) => void;
     onResetMelody?: () => void;
-    onClickTrackActiveChange: (v: boolean) => void;
   }) => (
     <div
-      data-testid="ping-controls-rhythm-stub"
+      data-testid="ping-controls-composition-stub"
       data-density={props.value.rhythmicDensity}
       data-motif-length={props.value.rhythmicMotifLength}
       data-pitch-repeat={props.value.pitchRepeat}
-      data-click-track-active={String(props.value.clickTrackActive)}
+      data-note-variance={props.value.noteVariance}
     >
       <button onClick={() => props.onDensityChange(77)}>probe-density</button>
       <button onClick={() => props.onMotifLengthChange(6)}>probe-motif-length</button>
       <button onClick={() => props.onPitchRepeatChange(88)}>probe-pitch-repeat</button>
-      {props.onResetMelody && <button onClick={props.onResetMelody}>probe-reset-melody</button>}
-      <button onClick={() => props.onClickTrackActiveChange(true)}>probe-click-track</button>
-    </div>
-  )),
-  PingControlsFrequencySection: memo((props: {
-    value: { noteVariance: number };
-    onOctaveMinChange: (v: number) => void;
-    onOctaveMaxChange: (v: number) => void;
-    onNoteVarianceChange: (v: number) => void;
-  }) => (
-    <div data-testid="ping-controls-frequency-stub" data-note-variance={props.value.noteVariance}>
       <button onClick={() => props.onOctaveMinChange(4)}>probe-octave-min</button>
       <button onClick={() => props.onNoteVarianceChange(0)}>probe-note-variance</button>
+      {props.onResetMelody && <button onClick={props.onResetMelody}>probe-reset-melody</button>}
     </div>
   )),
 }));
@@ -130,7 +122,6 @@ function makeRobot(id = 'r1', overrides: Partial<Robot> = {}): Robot {
 const SUBSECTION_IDS = (id: string) => [
   `probes.${id}.volume.audioSettings`,
   `probes.${id}.melody.rhythm`,
-  `probes.${id}.melody.frequency`,
   `probes.${id}.envelope.pingContour`,
   `probes.${id}.source.baselineOscillator`,
   `probes.${id}.source.coaxialOscillator`,
@@ -184,23 +175,33 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     expect(screen.getByTestId('robot-display-section-stub')).toBeTruthy();
   });
 
-  it('renders all 8 subsection accordion triggers as shells: Dynamics, Rhythm, Pitches, Contour, Baseline/Coaxial/Harmonic Oscillator, Probe Drift', () => {
+  it('renders the top-level accordion triggers as shells: Levels, Composition, Envelope, Source', () => {
     const robot = makeRobot();
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    for (const label of ['Dynamics', 'Rhythm', 'Pitches', 'Contour', 'Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator', 'Probe Drift']) {
+    for (const label of ['Levels', 'Composition', 'Envelope', 'Source']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
   });
 
-  it('opens Output\'s Audio Settings accordion by default when no section is chosen — first-leaf fallback (spec §1.5)', () => {
+  it('renders Source\'s own 4 nested accordion triggers once Source is approached', () => {
     const robot = makeRobot();
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Rhythm' }).getAttribute('aria-expanded')).toBe('false');
+    for (const label of ['Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator', 'Probe Drift']) {
+      expect(screen.getByRole('button', { name: label })).toBeTruthy();
+    }
+  });
+
+  it('opens Output\'s Levels accordion by default when no section is chosen — first-leaf fallback (spec §1.5)', () => {
+    const robot = makeRobot();
+    selectRobot(robot);
+    render(<RobotOptionsTab />);
+
+    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Composition' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('selecting a subsection via the nav tree (selectedSection/selectedSubsection) does not open or close any accordion — nav selection only drives tree highlighting now', () => {
@@ -208,9 +209,9 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     selectRobot(robot, 'source', 'probeDrift');
     render(<RobotOptionsTab />);
 
-    // Audio Settings still opens by default — the tree selection has no bearing on which
+    // Levels still opens by default — the tree selection has no bearing on which
     // accordion is open (Crawford's own follow-up call, 2026-09-24).
-    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('false');
   });
 
@@ -219,11 +220,11 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Contour' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Envelope' }));
 
-    expect(screen.getByRole('button', { name: 'Contour' }).getAttribute('aria-expanded')).toBe('true');
-    // Audio Settings (the default-open one) stays open too — multiple accordions can be open at once.
-    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Envelope' }).getAttribute('aria-expanded')).toBe('true');
+    // Levels (the default-open one) stays open too — multiple accordions can be open at once.
+    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
     expect(useUIStore.getState().selectedSection).toBeNull();
     expect(useUIStore.getState().selectedSubsection).toBeNull();
   });
@@ -233,30 +234,30 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dynamics' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Levels' }));
 
-    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('switching to a different robot resets accordion state back to the default (Audio Settings open only)', () => {
+  it('switching to a different robot resets accordion state back to the default (Levels open only)', () => {
     const robotA = makeRobot('r1');
     const robotB = makeRobot('r2');
     useLocaleStore.getState().addRobot(localeId, robotB);
     selectRobot(robotA);
     const { rerender } = render(<RobotOptionsTab />);
-    fireEvent.click(screen.getByRole('button', { name: 'Contour' }));
-    expect(screen.getByRole('button', { name: 'Contour' }).getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Envelope' }));
+    expect(screen.getByRole('button', { name: 'Envelope' }).getAttribute('aria-expanded')).toBe('true');
 
     act(() => useUIStore.getState().selectRobot('r2'));
     rerender(<RobotOptionsTab />);
 
-    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Contour' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Envelope' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('a subsection\'s real content is not in the DOM until its own anchor has been approached', () => {
     const robot = makeRobot();
-    selectRobot(robot); // Audio Settings open by default, but not yet approached
+    selectRobot(robot); // Levels open by default, but not yet approached
     render(<RobotOptionsTab />);
     expect(screen.queryByTestId('audio-setting-section-stub')).toBeNull();
   });
@@ -280,7 +281,7 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
     expect(useUIStore.getState().selectedSection).toBe('source');
     expect(useUIStore.getState().selectedSubsection).toBe('coaxialOscillator');
-    expect(screen.getByRole('button', { name: 'Dynamics' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: 'Coaxial Oscillator' }).getAttribute('aria-expanded')).toBe('false');
   });
 
@@ -321,18 +322,18 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     });
   });
 
-  describe('PingControlsRhythmSection/FrequencySection (Melody)', () => {
-    it('derives Rhythm\'s value from the selected robot', () => {
+  describe('PingControlsCompositionSection (Composition)', () => {
+    it('derives its value from the selected robot', () => {
       const robot = makeRobot();
       selectRobot(robot, 'melody', 'rhythm');
       render(<RobotOptionsTab />);
       openAndApproach('probes.r1.melody.rhythm');
 
-      expect(screen.getByTestId('ping-controls-rhythm-stub').getAttribute('data-density')).toBe('42');
-      expect(screen.getByTestId('ping-controls-rhythm-stub').getAttribute('data-pitch-repeat')).toBe('33');
+      expect(screen.getByTestId('ping-controls-composition-stub').getAttribute('data-density')).toBe('42');
+      expect(screen.getByTestId('ping-controls-composition-stub').getAttribute('data-pitch-repeat')).toBe('33');
     });
 
-    it('wires Rhythm\'s onDensityChange to robotOptionsActions.applyDensity', () => {
+    it('wires onDensityChange to robotOptionsActions.applyDensity', () => {
       const robot = makeRobot();
       selectRobot(robot, 'melody', 'rhythm');
       const applySpy = vi.spyOn(robotOptionsActions, 'applyDensity').mockImplementation(() => {});
@@ -344,7 +345,7 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
       expect(applySpy).toHaveBeenCalledWith(robot, localeId, 77);
     });
 
-    it('wires Rhythm\'s onResetMelody to regenerateMelody directly (not a robotOptionsActions function)', () => {
+    it('wires onResetMelody to regenerateMelody directly (not a robotOptionsActions function)', () => {
       const robot = makeRobot();
       selectRobot(robot, 'melody', 'rhythm');
       const regenSpy = vi.spyOn(regenerateMelodyModule, 'regenerateMelody').mockImplementation(() => {});
@@ -356,12 +357,12 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
       expect(regenSpy).toHaveBeenCalledWith(robot, localeId);
     });
 
-    it('wires Frequency\'s onOctaveMinChange to robotOptionsActions.applyOctaveMin, independently of Rhythm', () => {
+    it('wires onOctaveMinChange to robotOptionsActions.applyOctaveMin', () => {
       const robot = makeRobot();
-      selectRobot(robot, 'melody', 'frequency');
+      selectRobot(robot, 'melody', 'rhythm');
       const applySpy = vi.spyOn(robotOptionsActions, 'applyOctaveMin').mockImplementation(() => {});
       render(<RobotOptionsTab />);
-      openAndApproach('probes.r1.melody.frequency');
+      openAndApproach('probes.r1.melody.rhythm');
 
       fireEvent.click(screen.getByText('probe-octave-min'));
 

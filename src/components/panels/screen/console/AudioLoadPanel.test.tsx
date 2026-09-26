@@ -43,9 +43,12 @@ describe('Audio Load panel', () => {
 
   it('renders its own Audio Load panel, with both sliders and the preset radio present', () => {
     render(<AudioLoadPanel />);
-    const panel = robotSlider().closest('.sc-directional-panel')!;
-    expect(panel.querySelector('.sc-dual-label__human')?.textContent).toBe('Audio Load');
-    expect(effectsSlider().closest('.sc-directional-panel')).toBe(panel);
+    // "Audio Load" is the outer top-level panel's own label; Robot Load/Effects Load now nest one
+    // level deeper, in their own shared row (docs/reference/layout-updates.md), so they're checked
+    // separately rather than off the outer panel's own closest('.sc-directional-panel').
+    expect(screen.getByText('Audio Load')).toBeTruthy();
+    const slidersPanel = robotSlider().closest('.sc-directional-panel')!;
+    expect(effectsSlider().closest('.sc-directional-panel')).toBe(slidersPanel);
     expect(presetRadio('Light')).toBeTruthy();
   });
 
@@ -118,7 +121,9 @@ describe('Audio Load panel', () => {
   it('shows what the position means, live, in a readout line combining both dials', () => {
     useAudioStore.setState({ robotLoad: 1, effectsLoad: 1 });
     render(<AudioLoadPanel />);
-    const panel = robotSlider().closest('.sc-directional-panel')!;
+    // The readout now sits alongside the preset radio, in its own row (docs/reference/
+    // layout-updates.md) — a sibling of the sliders' own row, not the same panel as the sliders.
+    const panel = presetRadio('Full').closest('.sc-directional-panel')!;
     expect(panel.textContent).toContain('Up to 12 robots · 16 notes · all LFOs and drift');
 
     fireEvent.click(presetRadio('Light'));

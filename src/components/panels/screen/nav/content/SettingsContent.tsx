@@ -3,21 +3,30 @@ import { SectorSettingsDrawer } from '../../console/SectorSettingsDrawer';
 import { useSectionObserver } from '../useSectionObserver';
 import { useAccordionOpenState } from '../useAccordionOpenState';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
+import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
+import { getTraitColorStyle } from '@/utils/traitColors';
 import { useUIStore, type SettingsLeaf, type SettingsSubsection } from '@/stores/uiStore';
 import type { AccordionSchema } from '@/types/controls';
+import './SettingsContent.css';
 
 /** Tree order — matches navTreeConfig.ts's own `settings` children. First-leaf-on-parent-select
  *  (spec §1.6) reads this array's [0] via useNavTree.ts's own SETTINGS_LEAVES[0]; kept identical
  *  here as the stacking order, so "first in tree order" and "first stacked" never drift apart.
  *  Volume was removed (Header already carries its own always-visible volume slider) and Tempo
- *  moved to Fleet Params -> Pacing (FleetParamsContent.tsx). */
+ *  moved to Fleet Params -> Pacing (FleetParamsContent.tsx). Labels match navTreeConfig.ts's own
+ *  settings.quality/settings.sectorSettings humanLabels ("Audio Profile"/"Audio Seeds",
+ *  docs/reference/layout-updates.md) — renamed from "Performance"/"Presets" to catch up with the
+ *  nav tree's own already-renamed labels. */
 const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['quality', 'sectorSettings'];
 
 const SETTINGS_ACCORDION_SCHEMAS: Record<SettingsLeaf, AccordionSchema> = {
-  quality: { id: 'settings.quality', type: 'accordion', humanLabel: 'Performance' },
-  sectorSettings: { id: 'settings.sectorSettings', type: 'accordion', humanLabel: 'Presets' },
+  quality: { id: 'settings.quality', type: 'accordion', humanLabel: 'Audio Profile' },
+  sectorSettings: { id: 'settings.sectorSettings', type: 'accordion', humanLabel: 'Audio Seeds' },
 };
+
+const PLACEHOLDER_LORE = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.';
+const PLACEHOLDER_HUMAN = 'Placeholder copy — real lore/human descriptions land in a later pass.';
 
 /** Matches navTreeConfig.ts's own settings.quality/settings.sectorSettings children (ids/labels)
  *  — AudioLoadPanel/SectorSettingsDrawer already render Robot Load/Effects Load and Attenuation
@@ -90,7 +99,13 @@ export function SettingsContent() {
   }
 
   return (
-    <div ref={sectionAnchorRef('settings')}>
+    <div ref={sectionAnchorRef('settings')} className="settings-content" style={getTraitColorStyle('seed')}>
+      <IntroPanel
+        loreLabel="Settings LORE TITLE"
+        loreDescription={PLACEHOLDER_LORE}
+        humanDescription={PLACEHOLDER_HUMAN}
+        trait="seed"
+      />
       {SETTINGS_LEAVES.map((leaf) => {
         const id = SETTINGS_ACCORDION_SCHEMAS[leaf].id;
         return (
@@ -99,8 +114,19 @@ export function SettingsContent() {
               schema={SETTINGS_ACCORDION_SCHEMAS[leaf]}
               open={isOpen(id)}
               onOpenChange={(open) => setOpen(id, open)}
+              style={getTraitColorStyle('seed')}
             >
-              {hasApproached(id) ? renderLeafContent(leaf) : null}
+              {hasApproached(id) ? (
+                <>
+                  <IntroPanel
+                    loreLabel={`${SETTINGS_ACCORDION_SCHEMAS[leaf].humanLabel} LORE TITLE`}
+                    loreDescription={PLACEHOLDER_LORE}
+                    humanDescription={PLACEHOLDER_HUMAN}
+                    trait="seed"
+                  />
+                  {renderLeafContent(leaf)}
+                </>
+              ) : null}
             </AccordionContainer>
           </div>
         );
