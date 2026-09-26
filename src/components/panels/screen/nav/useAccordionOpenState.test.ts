@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useAccordionOpenState } from './useAccordionOpenState';
+import { isAccordionOpen, unregisterAccordion } from '@/utils/accordionSync';
+import { useUIStore } from '@/stores/uiStore';
 
 describe('useAccordionOpenState (manual, independent accordion open state — no auto-open/close from nav clicks or scrollspy)', () => {
   it('defaults to nothing open when no defaultOpenId is given', () => {
@@ -86,5 +88,121 @@ describe('useAccordionOpenState (manual, independent accordion open state — no
 
       expect(result.current.isOpen('b')).toBe(true);
     });
+  });
+});
+
+describe('useAccordionOpenState — accordionSync registration (docs/tasks/NAV_ACCORDION_SYNC.md Task 3)', () => {
+  afterEach(() => {
+    unregisterAccordion('probes.r1.volume.audioSettings');
+    unregisterAccordion('probes.r1.melody.rhythm');
+    useUIStore.setState({ expandedTopLevelBranch: null, expandedProbeId: null, expandedCompanyId: null });
+  });
+
+  it('registers defaultOpenId with accordionSync on mount', () => {
+    renderHook(() => useAccordionOpenState('probes.r1.volume.audioSettings'));
+
+    expect(isAccordionOpen('probes.r1.volume.audioSettings')).toBe(true);
+  });
+
+  it('registers a previously-unregistered id when setOpen(id, true) is called', () => {
+    const { result } = renderHook(() => useAccordionOpenState(null));
+
+    act(() => result.current.setOpen('probes.r1.melody.rhythm', true));
+
+    expect(isAccordionOpen('probes.r1.melody.rhythm')).toBe(true);
+  });
+
+  it('setOpen(id, false) is reflected in accordionSync', () => {
+    const { result } = renderHook(() => useAccordionOpenState('probes.r1.volume.audioSettings'));
+
+    act(() => result.current.setOpen('probes.r1.volume.audioSettings', false));
+
+    expect(isAccordionOpen('probes.r1.volume.audioSettings')).toBe(false);
+  });
+
+  it('unmounting unregisters every id this instance registered', () => {
+    const { result, unmount } = renderHook(() => useAccordionOpenState('probes.r1.volume.audioSettings'));
+    act(() => result.current.setOpen('probes.r1.melody.rhythm', true));
+
+    unmount();
+
+    expect(isAccordionOpen('probes.r1.volume.audioSettings')).toBe(false);
+    expect(isAccordionOpen('probes.r1.melody.rhythm')).toBe(false);
+  });
+
+  it('setOpen(id, true) expands nav ancestors for that id via expandNavAncestorsForId', () => {
+    const { result } = renderHook(() => useAccordionOpenState(null));
+
+    act(() => result.current.setOpen('probes.r1.volume.audioSettings', true));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
+    expect(useUIStore.getState().expandedProbeId).toBe('r1');
+  });
+
+  it('setOpen(id, false) does NOT touch nav ancestor expansion', () => {
+    const { result } = renderHook(() => useAccordionOpenState('probes.r1.volume.audioSettings'));
+    useUIStore.setState({ expandedTopLevelBranch: null, expandedProbeId: null });
+
+    act(() => result.current.setOpen('probes.r1.volume.audioSettings', false));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
+    expect(useUIStore.getState().expandedProbeId).toBeNull();
+  });
+});
+
+describe('useAccordionOpenState — openExclusive (docs/tasks/NAV_ACCORDION_SYNC.md Task 3)', () => {
+  afterEach(() => {
+    unregisterAccordion('probes.r1.volume.audioSettings');
+    unregisterAccordion('probes.r1.melody.rhythm');
+    useUIStore.setState({ expandedTopLevelBranch: null, expandedProbeId: null, expandedCompanyId: null });
+  });
+
+  it('with closeSiblings=false, behaves like setOpen(id, true) — no sibling closing', () => {
+    const { result } = renderHook(() => useAccordionOpenState('probes.r1.volume.audioSettings'));
+    act(() => result.current.setOpen('probes.r1.melody.rhythm', true));
+
+    act(() => result.current.openExclusive('probes.r1.volume.audioSettings', false));
+
+    expect(result.current.isOpen('probes.r1.volume.audioSettings')).toBe(true);
+    expect(result.current.isOpen('probes.r1.melody.rhythm')).toBe(true);
+  });
+
+  it('with closeSiblings=true, closes every other currently-open id and opens the target, in one state update', () => {
+    const { result } = renderHook(() => useAccordionOpenState('probes.r1.volume.audioSettings'));
+    act(() => result.current.setOpen('probes.r1.melody.rhythm', true));
+
+    act(() => result.current.openExclusive('probes.r1.volume.audioSettings', true));
+
+    expect(result.current.isOpen('probes.r1.volume.audioSettings')).toBe(true);
+    expect(result.current.isOpen('probes.r1.melody.rhythm')).toBe(false);
+  });
+
+  it('openExclusive also expands nav ancestors for the target id', () => {
+    const { result } = renderHook(() => useAccordionOpenState(null));
+
+    act(() => result.current.openExclusive('probes.r1.volume.audioSettings', true));
+
+    expect(useUIStore.getState().expandedProbeId).toBe('r1');
+  });
+});
+
+describe("useAccordionOpenState — resetKey leaves accordionSync reflecting only the current key's ids (docs/tasks/NAV_ACCORDION_SYNC.md Task 3)", () => {
+  afterEach(() => {
+    unregisterAccordion('probes.r1.volume.audioSettings');
+    unregisterAccordion('probes.r1.melody.rhythm');
+  });
+
+  it('unregisters ids opened under the previous resetKey when it changes, while the default id re-registers under the new key', () => {
+    const { result, rerender } = renderHook(
+      ({ resetKey }: { resetKey: string }) => useAccordionOpenState('probes.r1.volume.audioSettings', resetKey),
+      { initialProps: { resetKey: 'r1' } },
+    );
+    act(() => result.current.setOpen('probes.r1.melody.rhythm', true));
+    expect(isAccordionOpen('probes.r1.melody.rhythm')).toBe(true);
+
+    rerender({ resetKey: 'r2' });
+
+    expect(isAccordionOpen('probes.r1.melody.rhythm')).toBe(false);
+    expect(isAccordionOpen('probes.r1.volume.audioSettings')).toBe(true);
   });
 });

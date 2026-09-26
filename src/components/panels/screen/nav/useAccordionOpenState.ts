@@ -1,8 +1,14 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { expandNavAncestorsForId } from './useNavTree';
+import { registerAccordion, unregisterAccordion, updateAccordionOpen } from '@/utils/accordionSync';
 
 export interface UseAccordionOpenStateResult {
   isOpen: (id: string) => boolean;
   setOpen: (id: string, open: boolean) => void;
+  /** Opens `id`; when closeSiblings is true, closes every other id this hook instance currently
+   *  manages first, in the same state update (docs/specs/NAV_ACCORDION_SYNC.md §2.1/§2.2 — the
+   *  mobile nav-click path, scoped to this view instance's own ids only, never cross-view). */
+  openExclusive: (id: string, closeSiblings: boolean) => void;
 }
 
 /**
@@ -13,6 +19,16 @@ export interface UseAccordionOpenStateResult {
  * still scrolls to a section (`scrollToSection`, `NavTreeNode.tsx`) and scrollspy still updates
  * `selectedSection`/`selectedSubsection` for tree highlighting and the lazy-mount gate
  * (`useSectionObserver`) — neither touches this hook's own state.
+ *
+ * Every id this instance manages is also mirrored into `accordionSync`'s registry (docs/specs/
+ * NAV_ACCORDION_SYNC.md §1.3/§6.2) — registered on mount (`defaultOpenId`) and on every
+ * `setOpen`/`openExclusive` call, unregistered on unmount or when a `resetKey` change resets this
+ * instance back to its default. The registry is a mirror, never the source of truth — this hook's
+ * own React state remains authoritative. Opening an id (from either `setOpen` or `openExclusive`)
+ * also calls `expandNavAncestorsForId` so the corresponding nav row's branch/entity ancestors are
+ * expanded even if the accordion was opened by clicking its own header rather than a nav link;
+ * closing never does this — nav-tree state must never collapse as a side effect of closing an
+ * accordion (spec §3.1/§3.2).
  *
  * `defaultOpenId` opens exactly one accordion on mount (so the view isn't all-collapsed on first
  * render); after that, `setOpen` is the only thing that changes state, and closing every open
@@ -29,6 +45,7 @@ export function useAccordionOpenState(defaultOpenId: string | null, resetKey?: s
     [defaultOpenId],
   );
   const [openIds, setOpenIds] = useState<Record<string, boolean>>(makeDefault);
+  const registeredIdsRef = useRef<Set<string>>(new Set());
 
   // React's own "adjusting state during render" pattern for resetting state when a prop changes,
   // without needing the caller to remount via `key` — avoids an extra render-then-effect flash.
@@ -42,9 +59,59 @@ export function useAccordionOpenState(defaultOpenId: string | null, resetKey?: s
   }
 
   const isOpen = useCallback((id: string) => !!openIds[id], [openIds]);
-  const setOpen = useCallback((id: string, open: boolean) => {
-    setOpenIds((prev) => ({ ...prev, [id]: open }));
+
+  // Ref-to-latest-callback (not a circular useCallback dependency) — syncRegistry's own registered
+  // `open` entry needs to invoke openExclusive, which is itself defined below in terms of
+  // syncRegistry; a ref sidesteps the ordering entirely and is always current by call time.
+  const openExclusiveRef = useRef<(id: string, closeSiblings: boolean) => void>(() => {});
+
+  const syncRegistry = useCallback((id: string, isOpenValue: boolean) => {
+    registerAccordion(id, {
+      isOpen: isOpenValue,
+      open: (closeSiblings: boolean) => openExclusiveRef.current(id, closeSiblings),
+    });
+    registeredIdsRef.current.add(id);
+    updateAccordionOpen(id, isOpenValue);
   }, []);
 
-  return { isOpen, setOpen };
+  const setOpen = useCallback((id: string, open: boolean) => {
+    setOpenIds((prev) => ({ ...prev, [id]: open }));
+    syncRegistry(id, open);
+    if (open) expandNavAncestorsForId(id);
+  }, [syncRegistry]);
+
+  const openExclusive = useCallback((id: string, closeSiblings: boolean) => {
+    setOpenIds((prev) => {
+      if (!closeSiblings) return { ...prev, [id]: true };
+      const next: Record<string, boolean> = {};
+      for (const key of Object.keys(prev)) next[key] = false;
+      next[id] = true;
+      return next;
+    });
+    if (closeSiblings) {
+      for (const key of registeredIdsRef.current) {
+        if (key !== id) syncRegistry(key, false);
+      }
+    }
+    syncRegistry(id, true);
+    expandNavAncestorsForId(id);
+  }, [syncRegistry]);
+
+  useEffect(() => {
+    openExclusiveRef.current = openExclusive;
+  }, [openExclusive]);
+
+  // Registers defaultOpenId on mount and whenever a resetKey change gives this instance a fresh
+  // default; unregisters every id this instance had registered first — so a resetKey change never
+  // leaves accordionSync reflecting a stale mix of the previous and current entity's ids.
+  useEffect(() => {
+    if (defaultOpenId) syncRegistry(defaultOpenId, true);
+    return () => {
+      for (const id of registeredIdsRef.current) unregisterAccordion(id);
+      registeredIdsRef.current = new Set();
+    };
+    // resetKey isn't read in the effect body but intentionally re-triggers registration whenever it changes.
+  }, [defaultOpenId, resetKey, syncRegistry]);
+
+  return { isOpen, setOpen, openExclusive };
 }
