@@ -57,14 +57,16 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
     ]);
   });
 
-  it('Fleet Params -> Pacing has Tempo/Automatic Effects children, sharing one accordion in the content view unlike the 3 groups below it', () => {
+  it('Fleet Params -> Pacing has Tempo/Frequency/Duration/Automatic Intensity children, sharing one accordion in the content view unlike the 3 groups below it (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md)', () => {
     const pacing = findNode('fleetParams.pacing');
     expect(pacing?.humanLabel).toBe('Pacing');
     expect(pacing?.children?.map((c) => c.id)).toEqual([
       'fleetParams.pacing.tempo',
+      'fleetParams.pacing.frequency',
+      'fleetParams.pacing.duration',
       'fleetParams.pacing.automaticEffects',
     ]);
-    expect(pacing?.children?.map((c) => c.humanLabel)).toEqual(['Tempo', 'Automatic Effects']);
+    expect(pacing?.children?.map((c) => c.humanLabel)).toEqual(['Tempo', 'Frequency', 'Duration', 'Automatic Intensity']);
   });
 
   it('Fleet Params -> EQ & Filters has EQ/HPF/LPF leaves in that order', () => {

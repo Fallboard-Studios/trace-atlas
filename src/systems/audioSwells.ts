@@ -52,28 +52,47 @@ import type { Company } from '@/types/Company';
 /** Each pool (global, robot) is capped independently — never a shared budget. */
 export const MAX_CONCURRENT_SWELLS_PER_POOL = 5;
 
-/** Per-measure probability a pool rolls a new swell, calibrated so an average
- *  gap of ~3-4 measures emerges (confirmed via interview) — NOT a fixed
- *  "every N measures" timer. First-pass placeholder, same caveat as every
- *  other probability-threshold field in this app (DELAY_QUIET_THRESHOLD,
- *  LFO_QUIET_THRESHOLD) — tune during the manual/audible checkpoint. */
-export const SWELL_TRIGGER_CHANCE = 0.28; // ~= 1 / 3.5
+/** Ticks per whole measure — the 16n scheduleRepeat cadence startAudioSwells
+ *  already runs tickAudioSwells at (docs/specs/
+ *  AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3). Not re-derived from
+ *  BeatClock at runtime — a fixed subdivision this file's own scheduling
+ *  cadence depends on. */
+const TICKS_PER_MEASURE = 16;
+
+/**
+ * Frequency's per-tick trigger probability, replacing the old fixed,
+ * once-per-whole-measure trigger roll (docs/specs/
+ * AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3). frequency is swells/measure
+ * directly — over TICKS_PER_MEASURE independent per-tick trials with
+ * probability p, the expected number of successes per measure is
+ * TICKS_PER_MEASURE * p, so solving for p gives frequency / TICKS_PER_MEASURE.
+ * An approximation (an expected rate, not a guarantee of exactly `frequency`
+ * triggers every single measure), same "average gap" framing the old
+ * per-measure chance's own comment used. frequency values above
+ * TICKS_PER_MEASURE are clamped to 1 — a per-tick probability can't exceed 1,
+ * so "24 times a measure" and "16 times a measure" are behaviorally identical
+ * (at most one trigger per tick) — an accepted, documented ceiling, not a bug.
+ */
+export function frequencyToPerTickChance(frequency: number): number {
+  return Math.min(1, frequency / TICKS_PER_MEASURE);
+}
 
 /** Second, small chance — evaluated only when the robot pool's own trigger
  *  above already succeeded — that this pick becomes company-wide (§1.5)
  *  instead of single-robot. Unconfirmed exact value, same first-pass caveat
- *  as SWELL_TRIGGER_CHANCE (§7). */
+ *  every other placeholder probability in this file has (§7). */
 export const SWELL_COMPANY_CHANCE = 0.15; // placeholder — needs a manual audible pass
 
-/** Rising-phase and falling-phase measure counts are drawn INDEPENDENTLY from
- *  each other (never mirrored) — every global target except delay.wet/
- *  reverb.wet uses this range. 1 measure is a hard floor on any phase for any
- *  attribute, full stop (docs/specs/AUDIO_SWELLS.md §1.5). */
-export const DEFAULT_SWELL_DURATION_RANGE = { min: 3, max: 6 };
-/** delay.wet / reverb.wet only — both min and max widen. */
-export const MIX_SWELL_DURATION_RANGE = { min: 6, max: 12 };
-
-const MIX_SWELL_TARGETS: readonly SwellGlobalTargetId[] = ['delay.wet', 'reverb.wet'];
+/** The fraction of Duration's total a swell's rising phase gets — the
+ *  falling phase gets the remainder. Randomized per swell within this bound
+ *  rather than fixed at 0.5, so splits still vary (up to ~20/80 skew either
+ *  direction) even though the total is now a single deterministic value
+ *  (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4) — replaces the
+ *  former per-target duration-range constants' independent-per-phase draws
+ *  (docs/specs/AUDIO_SWELLS.md §1.5), including delay.wet/reverb.wet's old
+ *  2x-longer treatment — one flat Duration now applies to every target. */
+const SWELL_SPLIT_MIN_FRACTION = 0.2;
+const SWELL_SPLIT_MAX_FRACTION = 0.8;
 
 /** Every direction/magnitude draw covers AT LEAST 50% of the attribute's full
  *  range and AT MOST the true edge (§1.5) — the shared floor fraction every
@@ -327,27 +346,41 @@ function peakDeltaCappedByFraction(
 /**
  * The literal last step of every swell's peak calculation
  * (docs/specs/PING-VARIANCE-AUTOMATION.md §1.3) — multiplies an
- * already-clamped, already-direction-picked delta by the automation
- * fraction. Safe by construction: peakDelta and (peakDelta * automation)
- * always share a sign (or automation collapses it to exactly 0), and
- * |peakDelta * automation| <= |peakDelta|, so this can only ever shrink a
- * swell toward its base value, never push it past a bound an earlier clamp
- * already enforced. Called at every swell-creation call site (global,
- * single-robot, and once per member for company-wide), always after that
- * site's own attribute-specific clamp — never before, never instead of one.
+ * already-clamped, already-direction-picked delta by the Intensity fraction
+ * (renamed from `automation` in docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
+ * §1.2, now that it's magnitude-only — on/off moved to swellFrequency).
+ * Safe by construction: peakDelta and (peakDelta * intensity) always share a
+ * sign (or intensity collapses it to exactly 0), and |peakDelta * intensity|
+ * <= |peakDelta|, so this can only ever shrink a swell toward its base value,
+ * never push it past a bound an earlier clamp already enforced. Called at
+ * every swell-creation call site (global, single-robot, and once per member
+ * for company-wide), always after that site's own attribute-specific clamp —
+ * never before, never instead of one.
  */
-function scaleSwellPeakByAutomation(peakDelta: number, automation: number): number {
-  return peakDelta * automation;
+function scaleSwellPeakByAutomation(peakDelta: number, intensity: number): number {
+  return peakDelta * intensity;
 }
 
-function pickPhaseMeasures(
+/**
+ * Splits Duration's total into [risingMeasures, fallingMeasures]
+ * (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4) — replaces the
+ * former per-phase-draw helper's two independent draws with one shared
+ * total and a single ratio draw. Each phase is floored at 1 measure (the
+ * existing hard minimum, docs/specs/AUDIO_SWELLS.md §1.5); for a
+ * `totalMeasures` below 2, both floors can't be honored simultaneously and
+ * the realized total may exceed the requested one at that extreme — an
+ * accepted rounding edge, not a bug.
+ */
+function pickSwellSplit(
   noiseMap: NoiseFunction2D,
   dataId: string,
   offset: number,
-  range: { min: number; max: number },
-): number {
-  const raw = getSeededVal(noiseMap, dataId, offset, range.min, range.max);
-  return Math.max(1, Math.round(raw)); // 1-measure hard floor, full stop
+  totalMeasures: number,
+): [risingMeasures: number, fallingMeasures: number] {
+  const risingFraction = getSeededVal(noiseMap, `${dataId}.split`, offset, SWELL_SPLIT_MIN_FRACTION, SWELL_SPLIT_MAX_FRACTION);
+  const rising = Math.max(1, Math.round(totalMeasures * risingFraction));
+  const falling = Math.max(1, Math.round(totalMeasures - rising));
+  return [rising, falling];
 }
 
 // ========================================
@@ -363,18 +396,13 @@ let swellScheduleId: string | null = null;
  *  iterating, since a company-wide ActiveSwell is stored under multiple keys. */
 const activeSwells = new Map<string, ActiveSwell>();
 
-/** The whole-measure number the trigger/selection draws last ran for — set
- *  by tickAudioSwells so a tick landing mid-measure (see below) never rolls
- *  a second time before the next whole measure begins. -1 (no measure is
- *  ever negative) so the very first tick of a session always rolls. */
-let lastRolledMeasure = -1;
-
 export function startAudioSwells(localeId: string): void {
   if (swellScheduleId !== null) return; // already running — same idempotent guard startRobotLifecycle uses
-  // 16n, not once-per-measure: tickAudioSwells's own advance step needs
-  // sub-measure resolution for a smooth ramp (16 updates/measure) — the
-  // trigger/selection draws still only run once per whole measure, gated
-  // inside tickAudioSwells itself via lastRolledMeasure.
+  // 16n: tickAudioSwells's advance step needs sub-measure resolution for a
+  // smooth ramp (16 updates/measure), and trigger/selection now also rolls on
+  // every one of those same ticks (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
+  // §1.3 — frequencyToPerTickChance derives its per-tick probability from
+  // this exact TICKS_PER_MEASURE cadence).
   swellScheduleId = scheduleRepeat('16n', () => tickAudioSwells(localeId, getCurrentMeasurePrecise()));
 }
 
@@ -383,7 +411,6 @@ export function stopAudioSwells(): void {
     cancelSchedule(swellScheduleId);
     swellScheduleId = null;
   }
-  lastRolledMeasure = -1;
   activeSwells.clear(); // no partial swells survive a locale/AS change
 }
 
@@ -412,44 +439,47 @@ function activeSwellCount(pool: SwellPool): number {
 }
 
 /** One 16n tick's worth of Audio Swell evaluation — `measure` may be
- *  fractional (sub-measure precision) for a smooth ramp; trigger/selection
- *  is internally gated to once per whole measure regardless. Pure with
- *  respect to its `measure` input (not read from BeatClock directly) so
- *  tests can drive it without a real transport — see startAudioSwells for
- *  the BeatClock-wired entry point. Mirrors tickRobotLifecycle's own shape
- *  (robotSystems.ts), generalized from once-per-measure to 16n. */
+ *  fractional (sub-measure precision) for a smooth ramp. Pure with respect to
+ *  its `measure` input (not read from BeatClock directly) so tests can drive
+ *  it without a real transport — see startAudioSwells for the BeatClock-wired
+ *  entry point. Mirrors tickRobotLifecycle's own shape (robotSystems.ts).
+ *  Trigger/selection now rolls on every tick, not just once per whole measure
+ *  (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3) — frequencyToPerTickChance
+ *  derives a per-tick probability from swellFrequency so the long-run rate
+ *  still matches "swells per measure", without needing a once-per-measure gate. */
 export function tickAudioSwells(localeId: string, measure: number): void {
   const as = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   if (!as) return;
   const noiseMap = getAttenuationStyleNoiseMap(as.id, as.name);
 
-  // Read once per tick — threaded through to advanceActiveSwells (the
-  // 0%-forced-return check, §1.4) and, below, to both pools' swell-creation
-  // call sites (magnitude scaling, §1.3). Advance runs every tick regardless
-  // of automation's value: a still-rising swell gets force-converted at
-  // exactly 0 (see maybeForceGlobalSwellReturn/maybeForceRobotSwellReturn),
-  // but a swell already falling always keeps riding its own ramp to base
-  // either way — automation never cancels a swell outright the way a
-  // disabled effect does. Smooth, sub-measure interpolation from whatever
-  // fractional `measure` this tick carries (16n resolution in production;
-  // tests may pass any real number). Trigger/selection stays gated to once
-  // per WHOLE measure — SWELL_TRIGGER_CHANCE etc. are documented as
-  // per-measure probabilities, and re-rolling them 16x a measure would
-  // multiply the effective trigger rate and break the ~3-4-measure average
-  // gap the spec calls for.
-  const automation = useAudioStore.getState().pingVarianceAutomation;
-  advanceActiveSwells(localeId, measure, automation);
+  // Intensity is read once per tick and threaded only to the magnitude-
+  // scaling call sites below (§1.2) — it no longer has any gating role.
+  // frequency is threaded to advanceActiveSwells (the 0-forced-return check,
+  // re-keyed from Intensity in docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
+  // §1.3) and to both pools' swell-creation call sites' own trigger roll.
+  // Advance runs every tick regardless of frequency's value: a still-rising
+  // swell gets force-converted at exactly 0 (see maybeForceGlobalSwellReturn/
+  // maybeForceRobotSwellReturn), but a swell already falling always keeps
+  // riding its own ramp to base either way — frequency never cancels a swell
+  // outright the way a disabled effect does. Smooth, sub-measure
+  // interpolation from whatever fractional `measure` this tick carries (16n
+  // resolution in production; tests may pass any real number).
+  const intensity = useAudioStore.getState().pingVarianceAutomation;
+  const frequency = useAudioStore.getState().swellFrequency;
+  const duration = useAudioStore.getState().swellDuration;
+  advanceActiveSwells(localeId, measure, frequency);
 
-  const wholeMeasure = Math.floor(measure);
-  if (wholeMeasure !== lastRolledMeasure) {
-    lastRolledMeasure = wholeMeasure;
-    // automation is never 0 past this point in the tick — the `> 0` check
-    // below is the one and only place that matters for the trigger/selection
-    // side; magnitude scaling at each call site never sees a 0 automation.
-    if (automation > 0) {
-      maybeStartGlobalSwell(noiseMap, wholeMeasure, automation);
-      maybeStartRobotSwell(localeId, noiseMap, wholeMeasure, automation);
-    }
+  // frequency is the sole on/off switch for new-swell starts (docs/specs/
+  // AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3) — Intensity no longer gates
+  // this at all, only scales magnitude once a swell is already starting.
+  // Every tick gets its own independent trigger roll now (below), using this
+  // same fractional `measure` as the noise offset so successive ticks within
+  // one whole measure diverge from each other. duration is Duration's own
+  // total-swell-length value, threaded to pickSwellSplit at each
+  // swell-creation call site (§1.4).
+  if (frequency > 0) {
+    maybeStartGlobalSwell(noiseMap, measure, intensity, frequency, duration);
+    maybeStartRobotSwell(localeId, noiseMap, measure, intensity, frequency, duration);
   }
 }
 
@@ -494,11 +524,11 @@ function clampGlobalPeak(target: SwellGlobalTargetId, currentValue: number, peak
   return peakDelta;
 }
 
-function maybeStartGlobalSwell(noiseMap: NoiseFunction2D, measure: number, automation: number): void {
+function maybeStartGlobalSwell(noiseMap: NoiseFunction2D, measure: number, intensity: number, frequency: number, duration: number): void {
   if (activeSwellCount('global') >= MAX_CONCURRENT_SWELLS_PER_POOL) return;
 
   const triggerRoll = getSeededVal(noiseMap, 'audioSwell.trigger.global', measure, 0, 1);
-  if (triggerRoll >= SWELL_TRIGGER_CHANCE) return;
+  if (triggerRoll >= frequencyToPerTickChance(frequency)) return;
 
   const eligible = SWELL_GLOBAL_TARGET_IDS.filter(isGlobalTargetEligible);
   if (eligible.length === 0) return;
@@ -513,12 +543,10 @@ function maybeStartGlobalSwell(noiseMap: NoiseFunction2D, measure: number, autom
     clampGlobalPeak(
       target, currentValue, pickSwellPeakDelta(noiseMap, `audioSwell.peak.${target}`, measure, range, currentValue)
     ),
-    automation,
+    intensity,
   );
 
-  const durationRange = MIX_SWELL_TARGETS.includes(target) ? MIX_SWELL_DURATION_RANGE : DEFAULT_SWELL_DURATION_RANGE;
-  const risingMeasures = pickPhaseMeasures(noiseMap, `audioSwell.rising.${target}`, measure, durationRange);
-  const fallingMeasures = pickPhaseMeasures(noiseMap, `audioSwell.falling.${target}`, measure, durationRange);
+  const [risingMeasures, fallingMeasures] = pickSwellSplit(noiseMap, `audioSwell.duration.${target}`, measure, duration);
 
   activeSwells.set(target, {
     pool: 'global',
@@ -551,25 +579,25 @@ function isRobotAttributeEligible(robot: Robot, attribute: SwellRobotAttributeId
  * §7 item 6 leaves the exact company-selection mechanics for
  * Plan/Tasks to settle — this is that settling).
  */
-function maybeStartRobotSwell(localeId: string, noiseMap: NoiseFunction2D, measure: number, automation: number): void {
+function maybeStartRobotSwell(localeId: string, noiseMap: NoiseFunction2D, measure: number, intensity: number, frequency: number, duration: number): void {
   if (activeSwellCount('robot') >= MAX_CONCURRENT_SWELLS_PER_POOL) return;
 
   const triggerRoll = getSeededVal(noiseMap, 'audioSwell.trigger.robot', measure, 0, 1);
-  if (triggerRoll >= SWELL_TRIGGER_CHANCE) return;
+  if (triggerRoll >= frequencyToPerTickChance(frequency)) return;
 
   const robots = useLocaleStore.getState().getLocaleById(localeId)?.robots ?? [];
   const companies = useLocaleStore.getState().getLocaleById(localeId)?.companies ?? [];
 
   const companyRoll = getSeededVal(noiseMap, 'audioSwell.company.chance', measure, 0, 1);
   if (companyRoll < SWELL_COMPANY_CHANCE && companies.length > 0) {
-    startCompanyWideSwell(companies, robots, noiseMap, measure, automation);
+    startCompanyWideSwell(companies, robots, noiseMap, measure, intensity, duration);
     return;
   }
 
-  startSingleRobotSwell(robots, noiseMap, measure, automation);
+  startSingleRobotSwell(robots, noiseMap, measure, intensity, duration);
 }
 
-function startSingleRobotSwell(robots: Robot[], noiseMap: NoiseFunction2D, measure: number, automation: number): void {
+function startSingleRobotSwell(robots: Robot[], noiseMap: NoiseFunction2D, measure: number, intensity: number, duration: number): void {
   // Robot selection spans the whole roster (docs/specs/AUDIO_SWELLS.md §3) —
   // the 17x12 pool, never scoped to one robot.
   const eligiblePairs: { robot: Robot; attribute: SwellRobotAttributeId }[] = [];
@@ -591,15 +619,11 @@ function startSingleRobotSwell(robots: Robot[], noiseMap: NoiseFunction2D, measu
     clampVolumeDownward(
       attribute, currentValue, robotPeakDeltaForDirection(attribute, noiseMap, dataId, measure, range, currentValue, goingUp)
     ),
-    automation,
+    intensity,
   );
 
-  // Robot attributes have no mix-style duration exception — always the default range.
-  const risingMeasures = pickPhaseMeasures(
-    noiseMap, `audioSwell.rising.${robot.id}.${attribute}`, measure, DEFAULT_SWELL_DURATION_RANGE
-  );
-  const fallingMeasures = pickPhaseMeasures(
-    noiseMap, `audioSwell.falling.${robot.id}.${attribute}`, measure, DEFAULT_SWELL_DURATION_RANGE
+  const [risingMeasures, fallingMeasures] = pickSwellSplit(
+    noiseMap, `audioSwell.duration.${robot.id}.${attribute}`, measure, duration
   );
 
   const member: SwellMember = { robotId: robot.id, baseValue: currentValue, peakDelta };
@@ -624,7 +648,7 @@ function startSingleRobotSwell(robots: Robot[], noiseMap: NoiseFunction2D, measu
  * picked attribute, no swell starts this tick at all — not a re-roll, not a
  * fallback to a different company/attribute or to the single-robot path.
  */
-function startCompanyWideSwell(companies: Company[], robots: Robot[], noiseMap: NoiseFunction2D, measure: number, automation: number): void {
+function startCompanyWideSwell(companies: Company[], robots: Robot[], noiseMap: NoiseFunction2D, measure: number, intensity: number, duration: number): void {
   const companyIndex = Math.min(
     companies.length - 1,
     Math.floor(getSeededVal(noiseMap, 'audioSwell.company.pick', measure, 0, companies.length))
@@ -643,8 +667,7 @@ function startCompanyWideSwell(companies: Company[], robots: Robot[], noiseMap: 
   if (memberRobots.length === 0) return; // no swell starts this tick (§1.5)
 
   const goingUp = getSeededVal(noiseMap, 'audioSwell.company.direction', measure, 0, 1) < 0.5;
-  const risingMeasures = pickPhaseMeasures(noiseMap, 'audioSwell.company.rising', measure, DEFAULT_SWELL_DURATION_RANGE);
-  const fallingMeasures = pickPhaseMeasures(noiseMap, 'audioSwell.company.falling', measure, DEFAULT_SWELL_DURATION_RANGE);
+  const [risingMeasures, fallingMeasures] = pickSwellSplit(noiseMap, 'audioSwell.company.duration', measure, duration);
 
   const range = ROBOT_SWELL_FIELD_RANGE[attribute];
   const members: SwellMember[] = memberRobots.map((robot) => {
@@ -655,7 +678,7 @@ function startCompanyWideSwell(companies: Company[], robots: Robot[], noiseMap: 
         attribute, currentValue,
         robotPeakDeltaForDirection(attribute, noiseMap, dataId, measure, range, currentValue, goingUp)
       ),
-      automation,
+      intensity,
     );
     return { robotId: robot.id, baseValue: currentValue, peakDelta };
   });
@@ -726,20 +749,22 @@ function robotPeakDeltaForDirection(
 // ADVANCE / WRITE-BACK
 // ========================================
 
-function advanceActiveSwells(localeId: string, measure: number, automation: number): void {
+function advanceActiveSwells(localeId: string, measure: number, frequency: number): void {
   const processed = new Set<ActiveSwell>();
   for (const swell of activeSwells.values()) {
     if (processed.has(swell)) continue;
     processed.add(swell);
-    if (swell.pool === 'global') advanceGlobalSwell(swell.globalTarget!, swell, measure, automation);
-    else advanceRobotSwell(swell, localeId, measure, automation);
+    if (swell.pool === 'global') advanceGlobalSwell(swell.globalTarget!, swell, measure, frequency);
+    else advanceRobotSwell(swell, localeId, measure, frequency);
   }
 }
 
 /**
- * 0%-forced-return (docs/specs/PING-VARIANCE-AUTOMATION.md §1.4): a swell
- * still in its rising phase when automation is exactly 0 is converted in
- * place to ride its own already-drawn fallingMeasures back to base, reusing
+ * 0-forced-return (docs/specs/PING-VARIANCE-AUTOMATION.md §1.4, re-keyed from
+ * automation to frequency in docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
+ * §1.3): a swell still in its rising phase when frequency is exactly 0 is
+ * converted in place to ride its own already-drawn fallingMeasures back to
+ * base, reusing
  * the falling-phase formula below completely unchanged rather than a new
  * snap/curve. Setting risingMeasures to 0 and startMeasure to `measure` (now)
  * makes this tick's elapsed time 0, so the falling formula evaluates to
@@ -753,8 +778,8 @@ function advanceActiveSwells(localeId: string, measure: number, automation: numb
  * swell already falling — naturally or because it was forced earlier — is
  * correctly left untouched: it's already walking to base.
  */
-function maybeForceGlobalSwellReturn(swell: ActiveSwell, target: SwellGlobalTargetId, measure: number, automation: number): void {
-  if (automation !== 0 || swell.phase !== 'rising') return;
+function maybeForceGlobalSwellReturn(swell: ActiveSwell, target: SwellGlobalTargetId, measure: number, frequency: number): void {
+  if (frequency !== 0 || swell.phase !== 'rising') return;
   const currentValue = readGlobalValue(target);
   swell.peakDelta = currentValue - swell.baseValue!;
   swell.risingMeasures = 0;
@@ -769,8 +794,8 @@ function maybeForceGlobalSwellReturn(swell: ActiveSwell, target: SwellGlobalTarg
  *  longer exists is simply skipped here; the main advance loop below already
  *  skips writing/reading such a member too, so a stale peakDelta on it is
  *  never observed. */
-function maybeForceRobotSwellReturn(swell: ActiveSwell, localeId: string, measure: number, automation: number): void {
-  if (automation !== 0 || swell.phase !== 'rising') return;
+function maybeForceRobotSwellReturn(swell: ActiveSwell, localeId: string, measure: number, frequency: number): void {
+  if (frequency !== 0 || swell.phase !== 'rising') return;
   const attribute = swell.robotAttribute!;
   for (const member of swell.members!) {
     const robot = useLocaleStore.getState().getRobotById(localeId, member.robotId);
@@ -783,10 +808,10 @@ function maybeForceRobotSwellReturn(swell: ActiveSwell, localeId: string, measur
   swell.phase = 'falling';
 }
 
-function advanceGlobalSwell(key: string, swell: ActiveSwell, measure: number, automation: number): void {
+function advanceGlobalSwell(key: string, swell: ActiveSwell, measure: number, frequency: number): void {
   const target = swell.globalTarget!;
 
-  maybeForceGlobalSwellReturn(swell, target, measure, automation);
+  maybeForceGlobalSwellReturn(swell, target, measure, frequency);
 
   const baseValue = swell.baseValue!;
   const peakDelta = swell.peakDelta!;
@@ -837,11 +862,11 @@ function advanceGlobalSwell(key: string, swell: ActiveSwell, measure: number, au
  * time only (docs/specs/AUDIO_SWELLS.md §7, an explicitly deferred open
  * question, not addressed this task).
  */
-function advanceRobotSwell(swell: ActiveSwell, localeId: string, measure: number, automation: number): void {
+function advanceRobotSwell(swell: ActiveSwell, localeId: string, measure: number, frequency: number): void {
   const attribute = swell.robotAttribute!;
   const members = swell.members!;
 
-  maybeForceRobotSwellReturn(swell, localeId, measure, automation);
+  maybeForceRobotSwellReturn(swell, localeId, measure, frequency);
 
   const elapsed = measure - swell.startMeasure;
   const total = swell.risingMeasures + swell.fallingMeasures;

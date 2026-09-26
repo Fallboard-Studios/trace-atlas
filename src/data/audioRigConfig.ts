@@ -15,8 +15,9 @@
  * block instead of a nested accordion per param — this file no longer
  * carries a per-param accordion schema of its own.
  */
-import type { ControlSchema, DirectionalPanelSchema, PanelOrientation, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema } from '@/types/controls';
+import type { ControlSchema, DirectionalPanelSchema, PanelOrientation, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema, SliderLogSchema } from '@/types/controls';
 import type { GlobalLfoTargetId, DriftGroupId } from '@/types/lfo';
+import { formatDisplayValue } from '@/components/ui/controls/formatDisplayValue';
 
 // ========================================
 // TYPES
@@ -257,10 +258,61 @@ export const PING_VARIANCE_AUTOMATION_SCHEMA: SliderLinearSchema = {
   type: 'sliderLinear',
   loreLabel: 'PING VARIANCE AUTOMATION',
   humanLabel: 'Automatic Effects',
-  min: 0,
+  min: 1, // was 0 — docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2: Intensity no longer doubles as an on/off gate (Frequency took over that role), so it can never reach 0
   max: 100,
   step: 1,
   unit: '%',
+  orientation: 'horizontal',
+};
+
+/**
+ * "x times per measure when above 1, every x measures (calculated) when
+ * below 1" (docs/intent/automation-frequency-duration-split.md). 0 reads as
+ * "Off" (Frequency's on/off role, docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
+ * §1.3), not "0.0/measure" or "every Infinity measures". Below 1, "every x
+ * measures" uses 1/value, rounded via the same formatDisplayValue every other
+ * slider's readout already uses.
+ */
+function formatSwellFrequency(value: number): string {
+  if (value === 0) return 'Off';
+  if (value >= 1) return `${formatDisplayValue(value)}/measure`;
+  return `every ${formatDisplayValue(1 / value)} measures`;
+}
+
+/**
+ * "Frequency" — takes over Ping Variance Automation's former on/off role (0
+ * = off) and replaces the fixed per-measure trigger chance with a real rate
+ * (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3). sliderLog so the
+ * useful range spans "once every 12 measures" to "4 times a measure" without
+ * crowding out the sub-1 end. A bare Rig-wide meta-setting, like
+ * PING_VARIANCE_AUTOMATION_SCHEMA above — not a per-effect param.
+ */
+export const SWELL_FREQUENCY_SCHEMA: SliderLogSchema = {
+  id: 'audioRig.swellFrequency',
+  type: 'sliderLog',
+  loreLabel: 'PING RECURRENCE',
+  humanLabel: 'Frequency',
+  min: 0,
+  max: 24,
+  orientation: 'horizontal',
+  formatValue: formatSwellFrequency,
+};
+
+/**
+ * "Duration" — total swell length in measures (rising + falling together),
+ * replacing the former per-swell-randomized independent phase-length picks
+ * (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4). A bare Rig-wide
+ * meta-setting, like PING_VARIANCE_AUTOMATION_SCHEMA above.
+ */
+export const SWELL_DURATION_SCHEMA: SliderLinearSchema = {
+  id: 'audioRig.swellDuration',
+  type: 'sliderLinear',
+  loreLabel: 'PING SUSTAIN',
+  humanLabel: 'Duration',
+  min: 1,
+  max: 24,
+  step: 1,
+  unit: ' measures',
   orientation: 'horizontal',
 };
 
@@ -286,27 +338,6 @@ export const BPM_SCHEMA: SliderLinearSchema = {
   step: 1,
   unit: 'BPM',
   orientation: 'horizontal',
-};
-
-// ========================================
-// DIRECTIONAL PANEL WIRING — new top-level accordions
-// (docs/specs/DIRECTIONAL_PANEL_WIRING.md §4.1)
-// ========================================
-
-/**
- * Wraps PING_VARIANCE_AUTOMATION_SCHEMA — originally paired with BPM_SCHEMA too (both bare
- * `audio-rig-drawer__master-row` sliders), until Tempo relocated to Settings -> Tempo
- * (docs/tasks/NAV_LAYOUT_REWRITE.md Task 12; Tempo and Automatic Effects both now live together
- * in Fleet Params -> Pacing); now wraps Automatic Effects alone. No prior
- * accordion to inherit copy from (intent doc) — first-pass invented lore, same "confirm during
- * manual check" treatment as LFO_DRIFT_GROUPS' own labels.
- */
-export const SPEED_AUTOMATION_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'audioRig.speedAutomation',
-  type: 'directionalPanel',
-  loreLabel: 'CHRONOMETRIC CONTROL ARRAY',
-  humanLabel: 'Speed & Automation',
-  orientation: 'responsive',
 };
 
 // ========================================

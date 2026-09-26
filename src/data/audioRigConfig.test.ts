@@ -11,8 +11,9 @@ import {
   DECAY_MODE_SCHEMA,
   LFO_DRIFT_GROUPS,
   PING_VARIANCE_AUTOMATION_SCHEMA,
+  SWELL_FREQUENCY_SCHEMA,
+  SWELL_DURATION_SCHEMA,
   BPM_SCHEMA,
-  SPEED_AUTOMATION_PANEL_SCHEMA,
   AUDIO_LOAD_PRESET_SCHEMA,
   AUDIO_ROBOT_LOAD_SCHEMA,
   AUDIO_EFFECTS_LOAD_SCHEMA,
@@ -315,11 +316,11 @@ describe('LFO_DRIFT_GROUPS', () => {
 });
 
 describe('PING_VARIANCE_AUTOMATION_SCHEMA', () => {
-  it('is a linear slider, 0-100%, id audioRig.pingVarianceAutomation', () => {
+  it('is a linear slider, 1-100%, id audioRig.pingVarianceAutomation (min raised from 0 — docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2, Intensity no longer doubles as an on/off gate)', () => {
     expect(PING_VARIANCE_AUTOMATION_SCHEMA).toMatchObject({
       id: 'audioRig.pingVarianceAutomation',
       type: 'sliderLinear',
-      min: 0,
+      min: 1,
       max: 100,
       unit: '%',
     });
@@ -345,6 +346,75 @@ describe('PING_VARIANCE_AUTOMATION_SCHEMA', () => {
 
   it('remains JSON-serializable', () => {
     expect(() => JSON.stringify(PING_VARIANCE_AUTOMATION_SCHEMA)).not.toThrow();
+  });
+});
+
+describe('SWELL_FREQUENCY_SCHEMA (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3, §1.6)', () => {
+  it('is a log slider, 0-24, id audioRig.swellFrequency', () => {
+    expect(SWELL_FREQUENCY_SCHEMA).toMatchObject({
+      id: 'audioRig.swellFrequency',
+      type: 'sliderLog',
+      min: 0,
+      max: 24,
+    });
+  });
+
+  it('is not part of AUDIO_RIG_CONFIG\'s per-effect array — a bare, Rig-wide meta-setting', () => {
+    const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [
+      b.panel.id,
+      ...b.params.map((p) => p.schema.id),
+    ]);
+    expect(allConfigSchemaIds).not.toContain(SWELL_FREQUENCY_SCHEMA.id);
+  });
+
+  it('supplies a formatValue function (the only sliderLog schema in this file that does)', () => {
+    expect(typeof SWELL_FREQUENCY_SCHEMA.formatValue).toBe('function');
+  });
+
+  describe('formatValue (formatSwellFrequency)', () => {
+    it('reads "Off" at exactly 0 — Frequency\'s on/off value', () => {
+      expect(SWELL_FREQUENCY_SCHEMA.formatValue!(0)).toBe('Off');
+    });
+
+    it('reads as "N/measure" at or above 1', () => {
+      expect(SWELL_FREQUENCY_SCHEMA.formatValue!(4)).toBe('4/measure');
+    });
+
+    it('reads as "N/measure" exactly at the 1 boundary', () => {
+      expect(SWELL_FREQUENCY_SCHEMA.formatValue!(1)).toBe('1/measure');
+    });
+
+    it('reads as "every N measures" below 1, using the reciprocal', () => {
+      expect(SWELL_FREQUENCY_SCHEMA.formatValue!(0.25)).toBe('every 4 measures');
+    });
+
+    it('caps the reciprocal at 3 decimal places, same as every other displayed value in this app', () => {
+      expect(SWELL_FREQUENCY_SCHEMA.formatValue!(0.3)).toBe('every 3.333 measures');
+    });
+  });
+});
+
+describe('SWELL_DURATION_SCHEMA (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4)', () => {
+  it('is a linear slider, 1-24 measures, id audioRig.swellDuration', () => {
+    expect(SWELL_DURATION_SCHEMA).toMatchObject({
+      id: 'audioRig.swellDuration',
+      type: 'sliderLinear',
+      min: 1,
+      max: 24,
+      step: 1,
+    });
+  });
+
+  it('is not part of AUDIO_RIG_CONFIG\'s per-effect array — a bare, Rig-wide meta-setting', () => {
+    const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [
+      b.panel.id,
+      ...b.params.map((p) => p.schema.id),
+    ]);
+    expect(allConfigSchemaIds).not.toContain(SWELL_DURATION_SCHEMA.id);
+  });
+
+  it('remains JSON-serializable', () => {
+    expect(() => JSON.stringify(SWELL_DURATION_SCHEMA)).not.toThrow();
   });
 });
 
@@ -553,30 +623,9 @@ describe('AUDIO_RIG_ACCORDION_GROUPS / TRANSPORT_COMPOSITION_ACCORDION_SCHEMA no
   });
 });
 
-describe('SPEED_AUTOMATION_PANEL_SCHEMA (Task 1)', () => {
-  it('is a responsive-orientation directionalPanel with humanLabel Speed & Automation (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.9 — 2 rows on mobile/tablet, 1 row on desktop)', () => {
-    expect(SPEED_AUTOMATION_PANEL_SCHEMA).toMatchObject({
-      type: 'directionalPanel',
-      orientation: 'responsive',
-      humanLabel: 'Speed & Automation',
-    });
-  });
-
-  it('has a non-empty invented loreLabel and an id in the audioRig.* namespace', () => {
-    expect(SPEED_AUTOMATION_PANEL_SCHEMA.loreLabel).toBeTruthy();
-    expect(SPEED_AUTOMATION_PANEL_SCHEMA.id).toMatch(/^audioRig\./);
-  });
-
-  it('is not part of AUDIO_RIG_CONFIG\'s per-effect array — it is a bare, new panel, not an effect param', () => {
-    const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [
-      b.panel.id,
-      ...b.params.map((p) => p.schema.id),
-    ]);
-    expect(allConfigSchemaIds).not.toContain(SPEED_AUTOMATION_PANEL_SCHEMA.id);
-  });
-
-  it('remains JSON-serializable', () => {
-    expect(() => JSON.stringify(SPEED_AUTOMATION_PANEL_SCHEMA)).not.toThrow();
+describe('SPEED_AUTOMATION_PANEL_SCHEMA no longer exists (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1 — Intensity no longer self-wraps in its own panel, now that it shares FleetParamsContent\'s own Pacing row with Frequency/Duration)', () => {
+  it('is not exported by the module', () => {
+    expect('SPEED_AUTOMATION_PANEL_SCHEMA' in audioRigConfigModule).toBe(false);
   });
 });
 

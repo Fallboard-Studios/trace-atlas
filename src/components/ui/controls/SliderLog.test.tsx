@@ -162,6 +162,28 @@ describe('SliderLog component', () => {
     expect(screen.getByText('5s')).toBeTruthy();
   });
 
+  describe('formatValue (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.6)', () => {
+    it('uses formatValue for the displayed label when present, ignoring unit entirely', () => {
+      const formatValue = (v: number) => `custom:${v}`;
+      const formattedSchema: SliderLogSchema = { ...schema, formatValue };
+      render(<SliderLog schema={formattedSchema} value={2} onChange={() => {}} />);
+      expect(screen.getByText('custom:2')).toBeTruthy();
+      expect(screen.queryByText('2s')).toBeNull();
+    });
+
+    it('falls back to formatDisplayValue(value) + unit when formatValue is absent — regression guard', () => {
+      render(<SliderLog schema={schema} value={2} onChange={() => {}} />);
+      expect(screen.getByText('2s')).toBeTruthy();
+    });
+
+    it('passes the raw (unrounded) value to formatValue, not the pre-rounded display value', () => {
+      const formatValue = vi.fn((v: number) => `raw:${v}`);
+      const formattedSchema: SliderLogSchema = { ...schema, formatValue };
+      render(<SliderLog schema={formattedSchema} value={4.999999999999999} onChange={() => {}} />);
+      expect(formatValue).toHaveBeenCalledWith(4.999999999999999);
+    });
+  });
+
   it('onChange receives the mapped display value, never the raw internal t', () => {
     const onChange = vi.fn();
     render(<SliderLog schema={schema} value={0} onChange={onChange} />);

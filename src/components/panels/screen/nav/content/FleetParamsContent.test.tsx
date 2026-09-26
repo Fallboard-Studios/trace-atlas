@@ -36,6 +36,8 @@ const GROUP_TRAITS: Trait[] = ['composition', 'spectral', 'timeSpace', 'output']
 
 const LEAF_ID_TO_EFFECT: Record<string, string> = {
   'fleetParams.pacing.tempo': 'tempo',
+  'fleetParams.pacing.frequency': 'swellFrequency',
+  'fleetParams.pacing.duration': 'swellDuration',
   'fleetParams.pacing.automaticEffects': 'automaticEffects',
   'fleetParams.eqFilters.eq': 'eq3',
   'fleetParams.eqFilters.hpf': 'filterHPF',
@@ -77,7 +79,7 @@ describe('FleetParamsContent — 4 uniform group accordions (docs/tasks/FLEET_PA
     Object.values(GROUP_LABELS).forEach((label) => {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     });
-    ['Tempo', 'Automatic Intensity', '3-Band EQ', 'High-Pass Filter', 'Low-Pass Filter', 'Reverb', 'Delay', 'Compressor', 'Limiter'].forEach((label) => {
+    ['Tempo', 'Frequency', 'Duration', 'Automatic Intensity', '3-Band EQ', 'High-Pass Filter', 'Low-Pass Filter', 'Reverb', 'Delay', 'Compressor', 'Limiter'].forEach((label) => {
       expect(screen.queryByRole('button', { name: label })).toBeNull();
     });
   });
@@ -179,17 +181,78 @@ describe('FleetParamsContent — 4 uniform group accordions (docs/tasks/FLEET_PA
     expect(screen.getByTestId('audio-rig-drawer-stub')).toBeTruthy();
   });
 
-  it('renders the Tempo slider and Automatic Intensity together inside one shared panel, not two separate ones', () => {
+  it('renders Tempo and Frequency together inside one shared top row panel (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md)', () => {
     render(<FleetParamsContent />);
     approachLeaf('fleetParams.pacing.tempo');
-    approachLeaf('fleetParams.pacing.automaticEffects');
+    approachLeaf('fleetParams.pacing.frequency');
 
-    const slider = screen.getByRole('slider', { name: /tempo/i });
-    const drawerStub = screen.getByTestId('audio-rig-drawer-stub');
-    const panel = slider.closest('.sc-directional-panel');
+    const tempoSlider = screen.getByRole('slider', { name: /tempo/i });
+    const frequencySlider = screen.getByRole('slider', { name: /frequency/i });
+    const panel = tempoSlider.closest('.sc-directional-panel');
 
     expect(panel).not.toBeNull();
-    expect(panel!.contains(drawerStub)).toBe(true);
+    expect(panel!.contains(frequencySlider)).toBe(true);
+  });
+
+  it('renders Duration and Automatic Intensity together inside one shared bottom row panel, separate from the Tempo/Frequency row', () => {
+    render(<FleetParamsContent />);
+    approachLeaf('fleetParams.pacing.duration');
+    approachLeaf('fleetParams.pacing.automaticEffects');
+    approachLeaf('fleetParams.pacing.tempo');
+
+    const durationSlider = screen.getByRole('slider', { name: /duration/i });
+    const drawerStub = screen.getByTestId('audio-rig-drawer-stub');
+    const tempoSlider = screen.getByRole('slider', { name: /tempo/i });
+    const bottomPanel = durationSlider.closest('.sc-directional-panel');
+
+    expect(bottomPanel).not.toBeNull();
+    expect(bottomPanel!.contains(drawerStub)).toBe(true);
+    expect(bottomPanel!.contains(tempoSlider)).toBe(false);
+  });
+
+  it('renders the Frequency slider, live-bound to audioStore.swellFrequency, once its own leaf anchor has approached', () => {
+    // SliderLog's aria-valuenow reflects its internal normalized t (0-1, per
+    // Radix Slider.Root), not the raw display value — assert the formatted
+    // display text instead, same convention SliderLog.test.tsx itself uses.
+    useAudioStore.setState({ swellFrequency: 8 });
+    render(<FleetParamsContent />);
+
+    approachLeaf('fleetParams.pacing.frequency');
+
+    expect(screen.getByRole('slider', { name: /frequency/i })).toBeTruthy();
+    expect(screen.getByText('8/measure')).toBeTruthy();
+  });
+
+  it('dragging the Frequency slider calls setSwellFrequency with the new value', () => {
+    render(<FleetParamsContent />);
+    approachLeaf('fleetParams.pacing.frequency');
+    const setSwellFrequency = vi.spyOn(useAudioStore.getState(), 'setSwellFrequency');
+
+    const slider = screen.getByRole('slider', { name: /frequency/i });
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+
+    expect(setSwellFrequency).toHaveBeenCalled();
+  });
+
+  it('renders the Duration slider, live-bound to audioStore.swellDuration, once its own leaf anchor has approached', () => {
+    useAudioStore.setState({ swellDuration: 8 });
+    render(<FleetParamsContent />);
+
+    approachLeaf('fleetParams.pacing.duration');
+
+    const slider = screen.getByRole('slider', { name: /duration/i });
+    expect(slider.getAttribute('aria-valuenow')).toBe('8');
+  });
+
+  it('dragging the Duration slider calls setSwellDuration with the new value', () => {
+    render(<FleetParamsContent />);
+    approachLeaf('fleetParams.pacing.duration');
+    const setSwellDuration = vi.spyOn(useAudioStore.getState(), 'setSwellDuration');
+
+    const slider = screen.getByRole('slider', { name: /duration/i });
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+
+    expect(setSwellDuration).toHaveBeenCalled();
   });
 
   it("scrolling to a group's own anchor (scrollspy) sets selectedFleetParamsEffect to that group's first leaf", () => {

@@ -3,7 +3,6 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 import { AudioRigDrawer } from './AudioRigDrawer';
 import { useAudioStore } from '@/stores/audioStore';
-import { ACCENT_COLORS } from '@/constants/accentColors';
 
 /**
  * AudioRigDrawer — as of Task 14 (docs/tasks/NAV_LAYOUT_REWRITE.md), this component's own scope
@@ -13,6 +12,11 @@ import { ACCENT_COLORS } from '@/constants/accentColors';
  * wrapper, no LFO group, no Tone-touching code left in this component at all — the
  * heavy lfoEngine/timelineMap/accessibleName-spy mocks the pre-Task-14 version of this file
  * needed are gone too, since nothing here exercises any of that anymore.
+ *
+ * As of docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1, this component no longer wraps
+ * itself in an outer `.audio-rig-drawer` div or its own DirectionalPanel — it renders a bare
+ * `.audio-rig-drawer__param-row` only, since it now shares FleetParamsContent's own Pacing row
+ * panel with Frequency/Duration/Tempo instead of owning a panel of its own.
  */
 function resetAudioStore() {
   useAudioStore.setState({ pingVarianceAutomation: 0 });
@@ -73,11 +77,10 @@ describe('AudioRigDrawer', () => {
       expect(slider.getAttribute('data-disabled')).toBeNull();
     });
 
-    it('renders inside its own Speed & Automation panel — no accordion wraps it (Task 14: Transport & Composition\'s own accordion wrapper was removed too)', () => {
+    it('renders no panel or accordion of its own — a bare .audio-rig-drawer__param-row, no .sc-directional-panel, no .sc-accordion (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1)', () => {
       render(<AudioRigDrawer />);
       const slider = screen.getByRole('slider', { name: 'Automatic Effects' });
-      const panel = slider.closest('.sc-directional-panel');
-      expect(panel!.querySelector('.sc-dual-label__human')?.textContent).toBe('Speed & Automation');
+      expect(slider.closest('.sc-directional-panel')).toBeNull();
       expect(slider.closest('.sc-accordion')).toBeNull();
     });
 
@@ -86,23 +89,10 @@ describe('AudioRigDrawer', () => {
       const slider = screen.getByRole('slider', { name: 'Automatic Effects' });
       expect(slider.closest('.audio-rig-drawer__param-row')).toBeTruthy();
     });
-  });
 
-  // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 9) — the Composition
-  // trait, applied directly to .audio-rig-drawer's own root now that there's no accordion to
-  // apply it to (Task 14, docs/tasks/NAV_LAYOUT_REWRITE.md).
-  describe('trait color scoping', () => {
-    it('scopes its root to the Composition trait (emerald/lime)', () => {
+    it('no longer renders an outer .audio-rig-drawer wrapper div (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1)', () => {
       const { container } = render(<AudioRigDrawer />);
-      const root = container.querySelector('.audio-rig-drawer') as HTMLElement;
-      expect(root.style.getPropertyValue('--color-accent-a')).toBe(ACCENT_COLORS.emerald);
-      expect(root.style.getPropertyValue('--color-accent-b')).toBe(ACCENT_COLORS.lime);
-    });
-
-    it('does not add any inline style to the nested Speed & Automation panel — the color reaches it purely via cascade', () => {
-      const { container } = render(<AudioRigDrawer />);
-      const panel = container.querySelector('.sc-directional-panel') as HTMLElement;
-      expect(panel.getAttribute('style')).toBeNull();
+      expect(container.querySelector('.audio-rig-drawer')).toBeNull();
     });
   });
 });

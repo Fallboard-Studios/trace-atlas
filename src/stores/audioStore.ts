@@ -7,7 +7,7 @@ import { AudioEngine } from '../engine/AudioEngine';
 import { wireGlobalFxChain } from '../engine/audioEngine/globalFx';
 import { volumePositionToGain } from '../engine/audioEngine/volumeTaper';
 import { lfoEngine } from '../engine/lfoEngine';
-import { generateGlobalAudioSettings, generateGlobalLfoSettings, generatePingVarianceAutomation } from '../utils/globalAudioSeed';
+import { generateGlobalAudioSettings, generateGlobalLfoSettings, generatePingVarianceAutomation, generateSwellFrequency, generateSwellDuration } from '../utils/globalAudioSeed';
 import { AUDIO_LOAD_PRESETS } from '../constants';
 import { clampAudioLoad, detectCoarsePointer, resolveInitialAudioLoad, resolveInitialEffectsLoad } from '../utils/audioBudget';
 import { generateLocaleBpm } from '../utils/localeBpmSeed';
@@ -82,6 +82,12 @@ function buildDefaultGlobalLfo(): Record<GlobalLfoTargetId, LfoSettings> {
  *  same static default, never a genuinely-seeded value. */
 const PING_VARIANCE_AUTOMATION_UNSEEDED = -1;
 
+/** Same shape as PING_VARIANCE_AUTOMATION_UNSEEDED, for the two new Pacing
+ *  fields (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5) — outside
+ *  each field's real [2, 8] domain. */
+const SWELL_FREQUENCY_UNSEEDED = -1;
+const SWELL_DURATION_UNSEEDED = -1;
+
 /**
  * The Robot Load slider's position at page load (docs/specs/AUDIO_LOAD_BUDGET.md §4.2): a valid `?load=`
  * wins, otherwise Light on a coarse-pointer (phone-like) device and Full elsewhere. Browser-only, read
@@ -120,6 +126,19 @@ export interface AudioStore {
    *  first call), then carried forward across every future Attenuation Style
    *  switch — freely draggable via the Audio Rig slider at any time. */
   pingVarianceAutomation: number;
+  /** Swells per measure ([0, 24], sliderLog) — the Audio Rig's Pacing
+   *  "Frequency" slider (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
+   *  §1.3). 0 is the sole on/off switch for the whole Audio Swells system
+   *  (replacing pingVarianceAutomation's former on/off role). Seeded once
+   *  per session, then carried forward across every future Attenuation
+   *  Style switch, same as pingVarianceAutomation. */
+  swellFrequency: number;
+  /** Total swell length in measures ([1, 24], sliderLinear) — the Audio
+   *  Rig's Pacing "Duration" slider. Replaces the former per-swell-randomized
+   *  independent rising/falling picks with one shared total; the rising/
+   *  falling split within that total still varies per swell. Seeded once
+   *  per session, carried forward like swellFrequency/pingVarianceAutomation. */
+  swellDuration: number;
   /** The Robot Load slider, [0, 1] — 1 (Full) is today's behavior exactly; lower values cap audible
    *  robots, polyphony and (at load time) latency. Initialised at boot from `?load=` / device detection,
    *  changed only through `setRobotLoad`. docs/specs/AUDIO_LOAD_BUDGET.md. */
@@ -170,6 +189,10 @@ export interface AudioStore {
    *  on its own next tick (both for scaling a newly-created swell's peak
    *  and for the 0%-forced-return check). */
   setPingVarianceAutomation: (value: number) => void;
+  /** Sets the Audio Rig "Frequency" slider — a plain state write, no AudioEngine call. */
+  setSwellFrequency: (value: number) => void;
+  /** Sets the Audio Rig "Duration" slider — a plain state write, no AudioEngine call. */
+  setSwellDuration: (value: number) => void;
   /** Sets the Robot Load slider, clamped to [0, 1] (NaN → Full). A plain state write — the budget
    *  system reacts to it; nothing here touches the engine. Leaves effectsLoad untouched. */
   setRobotLoad: (robotLoad: number) => void;
@@ -229,6 +252,8 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   isMuted: false,
   volume: 1,
   pingVarianceAutomation: PING_VARIANCE_AUTOMATION_UNSEEDED, // real value assigned by the first regenerateGlobalAudioFromSeed call below (module-load AS-sync)
+  swellFrequency: SWELL_FREQUENCY_UNSEEDED, // real value assigned by the first regenerateGlobalAudioFromSeed call below (module-load AS-sync)
+  swellDuration: SWELL_DURATION_UNSEEDED, // real value assigned by the first regenerateGlobalAudioFromSeed call below (module-load AS-sync)
   robotLoad: readInitialRobotLoad(),
   effectsLoad: readInitialEffectsLoad(),
   soundingRobotIds: [],
@@ -304,6 +329,12 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   setPingVarianceAutomation: (value) => {
     set({ pingVarianceAutomation: value });
   },
+  setSwellFrequency: (value) => {
+    set({ swellFrequency: value });
+  },
+  setSwellDuration: (value) => {
+    set({ swellDuration: value });
+  },
   setRobotLoad: (robotLoad) => {
     set({ robotLoad: clampAudioLoad(robotLoad) });
   },
@@ -353,7 +384,22 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     const pingVarianceAutomation = get().pingVarianceAutomation === PING_VARIANCE_AUTOMATION_UNSEEDED
       ? generatePingVarianceAutomation(attenuationStyleId, attenuationStyleName)
       : undefined;
-    set({ globalAudio, ...(pingVarianceAutomation !== undefined ? { pingVarianceAutomation } : {}) });
+    // swellFrequency/swellDuration join the same seed-once/carry-forward
+    // group as pingVarianceAutomation above (docs/specs/
+    // AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5) — same sentinel-gated
+    // mechanism, duplicated for each field.
+    const swellFrequency = get().swellFrequency === SWELL_FREQUENCY_UNSEEDED
+      ? generateSwellFrequency(attenuationStyleId, attenuationStyleName)
+      : undefined;
+    const swellDuration = get().swellDuration === SWELL_DURATION_UNSEEDED
+      ? generateSwellDuration(attenuationStyleId, attenuationStyleName)
+      : undefined;
+    set({
+      globalAudio,
+      ...(pingVarianceAutomation !== undefined ? { pingVarianceAutomation } : {}),
+      ...(swellFrequency !== undefined ? { swellFrequency } : {}),
+      ...(swellDuration !== undefined ? { swellDuration } : {}),
+    });
     applyGlobalAudioToEngine(globalAudio);
   },
 

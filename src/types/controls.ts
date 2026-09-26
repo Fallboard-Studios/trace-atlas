@@ -75,6 +75,15 @@ export interface SliderLogSchema extends ControlSchemaBase, SliderVerticalHeight
   max: number;
   unit?: string;
   orientation: SliderOrientation;
+  /** Optional per-value display override (docs/specs/
+   *  AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.6) — when present, replaces
+   *  the default `formatDisplayValue(value) + unit` label entirely with this
+   *  function's return value. The raw `value`/`onChange`/slider-thumb-position
+   *  math (sliderLogValueToT/sliderLogTToValue) is completely unaffected —
+   *  this only changes what text renders next to the track. Optional so
+   *  every existing SliderLog schema (Attack/Decay/Release, etc.) keeps its
+   *  current plain-number-plus-unit display with zero changes. */
+  formatValue?: (value: number) => string;
 }
 
 export interface SliderCenteredZeroSchema extends ControlSchemaBase, SliderVerticalHeightProp {
