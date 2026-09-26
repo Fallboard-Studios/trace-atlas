@@ -279,6 +279,16 @@ describe('swellFrequency gate (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
     expect(source).not.toMatch(/SWELL_TRIGGER_CHANCE/);
     expect(source).not.toMatch(/lastRolledMeasure/);
   });
+
+  it('no longer uses the identifier "automation" anywhere in this module outside a comment naming the superseded PING-VARIANCE-AUTOMATION.md spec (source-scan regression guard — magnitude scaling is now parameter "intensity", docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2)', () => {
+    const thisFile = fileURLToPath(import.meta.url);
+    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
+    const codeLines = source
+      .split('\n')
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)); // drop comment-only lines
+    const codeWithoutComments = codeLines.join('\n');
+    expect(codeWithoutComments).not.toMatch(/\bautomation\b/);
+  });
 });
 
 describe('frequencyToPerTickChance (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3)', () => {
@@ -390,7 +400,7 @@ describe('pingVarianceAutomation magnitude scaling (Task 3)', () => {
   });
 });
 
-describe('pingVarianceAutomation forced return at 0% (Task 4)', () => {
+describe('swellFrequency forced return at 0 (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — re-keyed from pingVarianceAutomation, Task 4 of PING-VARIANCE-AUTOMATION.md)', () => {
   it('forces a rising global swell into its falling phase with no jump, then lands exactly on baseValue after its own original fallingMeasures', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
     tickAudioSwells(LOCALE_ID, 0); // eq3.low: base 0, peak 12, rising 3, falling 3
@@ -399,9 +409,9 @@ describe('pingVarianceAutomation forced return at 0% (Task 4)', () => {
     const valueBeforeForcing = useAudioStore.getState().globalAudio.eq3.low;
     expect(valueBeforeForcing).toBeCloseTo(4); // 12 * (1/3)
 
-    useAudioStore.setState({ pingVarianceAutomation: 0 });
+    useAudioStore.setState({ swellFrequency: 0 });
 
-    tickAudioSwells(LOCALE_ID, 1); // the forcing tick itself — same measure, automation now 0
+    tickAudioSwells(LOCALE_ID, 1); // the forcing tick itself — same measure, frequency now 0
     expect(useAudioStore.getState().globalAudio.eq3.low).toBeCloseTo(valueBeforeForcing); // no audible jump
     const swell = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
     expect(swell.phase).toBe('falling');
@@ -420,7 +430,7 @@ describe('pingVarianceAutomation forced return at 0% (Task 4)', () => {
     const valueBeforeForcing = useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume;
     expect(valueBeforeForcing).toBeCloseTo(0.1 + 0.5 * (1 / 3));
 
-    useAudioStore.setState({ pingVarianceAutomation: 0 });
+    useAudioStore.setState({ swellFrequency: 0 });
 
     tickAudioSwells(LOCALE_ID, 1); // forcing tick
     expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBeCloseTo(valueBeforeForcing);
@@ -444,14 +454,7 @@ describe('pingVarianceAutomation forced return at 0% (Task 4)', () => {
     const r1Before = useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume;
     const r2Before = useLocaleStore.getState().getRobotById(LOCALE_ID, 'r2')!.masterVolume;
 
-    // swellFrequency: 0 alongside pingVarianceAutomation: 0 — not because
-    // forcing depends on it (Task 5 keys the forced-return check on
-    // automation only; frequency's own on/off role isn't wired in until
-    // Task 6), but because Task 5 also made every tick roll its own
-    // independent trigger against real (unmocked) noise from here on, and
-    // this test's remaining assertions only care about the one company-wide
-    // swell already in flight — silencing new starts keeps it that way.
-    useAudioStore.setState({ pingVarianceAutomation: 0, swellFrequency: 0 });
+    useAudioStore.setState({ swellFrequency: 0 });
     tickAudioSwells(LOCALE_ID, 1); // forcing tick — both members convert together
 
     expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBeCloseTo(r1Before);
@@ -465,17 +468,17 @@ describe('pingVarianceAutomation forced return at 0% (Task 4)', () => {
     expect(getActiveSwellSnapshot('robot')).toEqual([]);
   });
 
-  it('leaves a swell already in its falling phase untouched when automation drops to 0 — no re-forcing', () => {
+  it('leaves a swell already in its falling phase untouched when frequency drops to 0 — no re-forcing', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
     tickAudioSwells(LOCALE_ID, 0); // eq3.low creates, rising 3 / falling 3
 
-    tickAudioSwells(LOCALE_ID, 3); // falling phase's first tick, naturally (automation still 1)
+    tickAudioSwells(LOCALE_ID, 3); // falling phase's first tick, naturally (frequency still nonzero)
     const swellBefore = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
     expect(swellBefore.phase).toBe('falling');
     const { peakDelta: peakDeltaBefore, startMeasure: startMeasureBefore } = swellBefore;
 
-    useAudioStore.setState({ pingVarianceAutomation: 0 });
-    tickAudioSwells(LOCALE_ID, 4); // still falling, automation now 0
+    useAudioStore.setState({ swellFrequency: 0 });
+    tickAudioSwells(LOCALE_ID, 4); // still falling, frequency now 0
 
     const swellAfter = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
     expect(swellAfter.peakDelta).toBe(peakDeltaBefore);
@@ -483,11 +486,11 @@ describe('pingVarianceAutomation forced return at 0% (Task 4)', () => {
     expect(swellAfter.phase).toBe('falling');
   });
 
-  it('does not re-derive peakDelta on an already-forced (now-falling) swell across repeated ticks at automation 0', () => {
+  it('does not re-derive peakDelta on an already-forced (now-falling) swell across repeated ticks at frequency 0', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
     tickAudioSwells(LOCALE_ID, 0);
     tickAudioSwells(LOCALE_ID, 1);
-    useAudioStore.setState({ pingVarianceAutomation: 0 });
+    useAudioStore.setState({ swellFrequency: 0 });
     tickAudioSwells(LOCALE_ID, 1); // forcing tick
     const { peakDelta, startMeasure } = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
 
@@ -499,16 +502,16 @@ describe('pingVarianceAutomation forced return at 0% (Task 4)', () => {
     expect(swellLater.startMeasure).toBe(startMeasure);
   });
 
-  it('does not interrupt, reverse, or resume a forced return when automation goes back to nonzero before it completes', () => {
+  it('does not interrupt, reverse, or resume a forced return when frequency goes back to nonzero before it completes', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
     tickAudioSwells(LOCALE_ID, 0);
     tickAudioSwells(LOCALE_ID, 1);
-    useAudioStore.setState({ pingVarianceAutomation: 0 });
+    useAudioStore.setState({ swellFrequency: 0 });
     tickAudioSwells(LOCALE_ID, 1); // forced into falling, riding 3 measures back to base
     const forced = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
     const { peakDelta, startMeasure, risingMeasures, fallingMeasures } = forced;
 
-    useAudioStore.setState({ pingVarianceAutomation: 1 }); // back to nonzero before the forced fall completes
+    useAudioStore.setState({ swellFrequency: 4 }); // back to nonzero before the forced fall completes
     tickAudioSwells(LOCALE_ID, 2); // still mid forced-fall
 
     const stillForced = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
