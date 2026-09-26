@@ -59,4 +59,22 @@ describe('ProbesContent — routes the Probes branch to the browse list, a singl
     expect(screen.getByTestId('robot-options-tab-stub')).toBeTruthy();
     expect(screen.queryByTestId('company-options-section-stub')).toBeNull();
   });
+
+  it('wraps the browse list (RobotsTab) in a "Probes" section IntroPanel — not shown for a selected robot or All Probes', () => {
+    render(<ProbesContent />);
+    expect(screen.getByText('Probes LORE TITLE')).toBeTruthy();
+  });
+
+  it('wraps All Probes (CompanyOptionsSection) in its own "All Probes" IntroPanel', () => {
+    useUIStore.getState().setAllProbesSelected(true);
+    render(<ProbesContent />);
+    expect(screen.getByText('All Probes LORE TITLE')).toBeTruthy();
+  });
+
+  it('renders no section-level IntroPanel for a selected robot (Individual Probes)', () => {
+    useUIStore.getState().selectRobot('r1');
+    render(<ProbesContent />);
+    expect(screen.queryByText('Probes LORE TITLE')).toBeNull();
+    expect(screen.queryByText('All Probes LORE TITLE')).toBeNull();
+  });
 });
