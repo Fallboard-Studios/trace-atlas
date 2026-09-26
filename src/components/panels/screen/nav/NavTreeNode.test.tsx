@@ -109,6 +109,7 @@ describe('NavTreeNode — selection vs. expansion, decoupled (Task 4 AC1/AC2)', 
     mockSelect.mockReset();
     mockToggleExpand.mockReset();
     vi.mocked(scrollToSection).mockClear();
+    mockOpenAccordionFromNav.mockClear();
   });
 
   it('clicking a node\'s name selects it and does not toggle expansion', () => {
@@ -129,9 +130,12 @@ describe('NavTreeNode — selection vs. expansion, decoupled (Task 4 AC1/AC2)', 
     expect(mockSelect).not.toHaveBeenCalled();
   });
 
-  it('clicking a node\'s name also scrolls to its section anchor (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 7, spec §1.6) — a no-op via sectionRefs\' own contract if that section hasn\'t lazy-mounted an anchor yet', () => {
+  it('clicking a node\'s name scrolls to its section anchor once its accordion has settled open (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 7, spec §1.6, later resequenced so scroll never fires before the target has finished expanding) — a no-op via sectionRefs\' own contract if that section hasn\'t lazy-mounted an anchor yet', () => {
     render(<NavTreeNode node={LEAF} depth={2} />);
     fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
+    const { onSettled } = mockOpenAccordionFromNav.mock.calls[0][1];
+
+    onSettled();
 
     expect(scrollToSection).toHaveBeenCalledWith('settings.volume');
   });
@@ -233,6 +237,8 @@ describe('NavTreeNode — row-chrome dispatch for the deepest 2 tree levels (doc
     mockIsSelected.mockReset().mockReturnValue(false);
     mockSelect.mockReset();
     mockToggleExpand.mockReset();
+    vi.mocked(scrollToSection).mockClear();
+    mockOpenAccordionFromNav.mockClear();
   });
 
   it('a node matching isDeepestTwoLevels renders NavCabinetRow, not Button/CabinetBox/Toggle', () => {
@@ -254,10 +260,13 @@ describe('NavTreeNode — row-chrome dispatch for the deepest 2 tree levels (doc
     expect(screen.getByRole('switch', { name: /expand settings/i })).toBeTruthy();
   });
 
-  it('clicking a NavCabinetRow selects it and scrolls to its section anchor, same as a Button row', () => {
+  it('clicking a NavCabinetRow selects it, and scrolls to its section anchor once its accordion has settled open, same as a Button row', () => {
     const node: NavTreeNodeSchema = { id: 'fleetParams.pacing.tempo', humanLabel: 'Tempo' };
     render(<NavTreeNode node={node} depth={3} />);
     fireEvent.click(screen.getByTestId('nav-cabinet-row'));
+    const { onSettled } = mockOpenAccordionFromNav.mock.calls[0][1];
+
+    onSettled();
 
     expect(mockSelect).toHaveBeenCalledWith('fleetParams.pacing.tempo');
     expect(scrollToSection).toHaveBeenCalledWith('fleetParams.pacing.tempo');
@@ -333,7 +342,7 @@ describe('NavTreeNode — nav click opens the target accordion (docs/tasks/NAV_A
     render(<NavTreeNode node={LEAF} depth={2} />);
     fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
 
-    expect(mockOpenAccordionFromNav).toHaveBeenCalledWith('settings.volume', { closeSiblings: true });
+    expect(mockOpenAccordionFromNav).toHaveBeenCalledWith('settings.volume', expect.objectContaining({ closeSiblings: true }));
   });
 
   it('passes closeSiblings: false on a tablet viewport', () => {
@@ -341,7 +350,7 @@ describe('NavTreeNode — nav click opens the target accordion (docs/tasks/NAV_A
     render(<NavTreeNode node={LEAF} depth={2} />);
     fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
 
-    expect(mockOpenAccordionFromNav).toHaveBeenCalledWith('settings.volume', { closeSiblings: false });
+    expect(mockOpenAccordionFromNav).toHaveBeenCalledWith('settings.volume', expect.objectContaining({ closeSiblings: false }));
   });
 
   it('passes closeSiblings: false on a desktop viewport', () => {
@@ -349,14 +358,30 @@ describe('NavTreeNode — nav click opens the target accordion (docs/tasks/NAV_A
     render(<NavTreeNode node={LEAF} depth={2} />);
     fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
 
-    expect(mockOpenAccordionFromNav).toHaveBeenCalledWith('settings.volume', { closeSiblings: false });
+    expect(mockOpenAccordionFromNav).toHaveBeenCalledWith('settings.volume', expect.objectContaining({ closeSiblings: false }));
   });
 
-  it('still calls select and scrollToSection exactly as before — the new call is additive, not a replacement', () => {
+  it('still calls select — unchanged from before', () => {
     render(<NavTreeNode node={LEAF} depth={2} />);
     fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
 
     expect(mockSelect).toHaveBeenCalledWith('settings.volume');
+  });
+
+  it('does NOT scroll immediately — scrolling must wait for the accordion to settle (jankiness fix: scrolling before the accordion finishes expanding lands on the pre-expansion position)', () => {
+    render(<NavTreeNode node={LEAF} depth={2} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
+
+    expect(scrollToSection).not.toHaveBeenCalled();
+  });
+
+  it('scrolls only once openAccordionFromNav\'s own onSettled callback fires', () => {
+    render(<NavTreeNode node={LEAF} depth={2} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Volume' }));
+    const { onSettled } = mockOpenAccordionFromNav.mock.calls[0][1];
+
+    onSettled();
+
     expect(scrollToSection).toHaveBeenCalledWith('settings.volume');
   });
 

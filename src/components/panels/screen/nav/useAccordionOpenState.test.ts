@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useAccordionOpenState } from './useAccordionOpenState';
-import { isAccordionOpen, unregisterAccordion } from '@/utils/accordionSync';
+import { isAccordionOpen, unregisterAccordion, openAccordionFromNav, clearPendingNavTarget } from '@/utils/accordionSync';
 import { useUIStore } from '@/stores/uiStore';
 
 describe('useAccordionOpenState (manual, independent accordion open state — no auto-open/close from nav clicks or scrollspy)', () => {
@@ -190,6 +190,38 @@ describe('useAccordionOpenState — every managed id registers up front, not jus
 
     expect(isAccordionOpen('fleetParams.eqFilters')).toBe(true);
     expect(result.current.isOpen('fleetParams.eqFilters')).toBe(true);
+  });
+});
+
+describe('useAccordionOpenState — suppresses its own default-open when a pending nav target is about to be fulfilled (bug: switching into a fresh view opened BOTH the clicked target and the view\'s usual default at once)', () => {
+  afterEach(() => {
+    unregisterAccordion('fleetParams.pacing');
+    unregisterAccordion('fleetParams.eqFilters');
+    clearPendingNavTarget();
+  });
+
+  it('opens defaultOpenId normally when nothing is pending', () => {
+    renderHook(() => useAccordionOpenState(['fleetParams.pacing', 'fleetParams.eqFilters'], 'fleetParams.pacing'));
+
+    expect(isAccordionOpen('fleetParams.pacing')).toBe(true);
+  });
+
+  it('does NOT open defaultOpenId when a pending nav target matches one of this instance\'s ids', () => {
+    // Simulates a nav click into this not-yet-mounted view, queued before mount.
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false });
+
+    renderHook(() => useAccordionOpenState(['fleetParams.pacing', 'fleetParams.eqFilters'], 'fleetParams.pacing'));
+
+    expect(isAccordionOpen('fleetParams.pacing')).toBe(false);
+  });
+
+  it('the pending target itself opens instead, exactly once — not alongside the default', () => {
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false });
+
+    renderHook(() => useAccordionOpenState(['fleetParams.pacing', 'fleetParams.eqFilters'], 'fleetParams.pacing'));
+
+    expect(isAccordionOpen('fleetParams.eqFilters')).toBe(true);
+    expect(isAccordionOpen('fleetParams.pacing')).toBe(false);
   });
 });
 

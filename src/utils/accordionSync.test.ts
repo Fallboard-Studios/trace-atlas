@@ -7,6 +7,9 @@ import {
   isAccordionOpen,
   subscribeAccordionOpen,
   openAccordionFromNav,
+  notifyAccordionAnimationComplete,
+  hasPendingNavTargetFor,
+  clearPendingNavTarget,
 } from './accordionSync';
 
 function makeEntry(initialOpen: boolean) {
@@ -78,12 +81,138 @@ describe('openAccordionFromNav (docs/tasks/NAV_ACCORDION_SYNC.md Task 1)', () =>
 
   it('is a no-op, not a throw, for an id with no registered accordion — e.g. a leaf merged away like "Pitches"', () => {
     expect(() => openAccordionFromNav('probes.r1.melody.pitches', { closeSiblings: false })).not.toThrow();
+    clearPendingNavTarget();
+  });
+});
+
+describe('openAccordionFromNav — onSettled (docs: nav-click sequencing fix — scroll must wait for the accordion to actually finish opening)', () => {
+  afterEach(() => {
+    unregisterAccordion('probes.r1.volume.audioSettings');
+    clearPendingNavTarget();
+  });
+
+  it('calls onSettled immediately when the target was already open — nothing will animate', () => {
+    const entry = makeEntry(true);
+    registerAccordion('probes.r1.volume.audioSettings', entry);
+    const onSettled = vi.fn();
+
+    openAccordionFromNav('probes.r1.volume.audioSettings', { closeSiblings: false, onSettled });
+
+    expect(onSettled).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT call onSettled immediately when the target was closed — waits for the animation-complete signal', () => {
+    const entry = makeEntry(false);
+    registerAccordion('probes.r1.volume.audioSettings', entry);
+    const onSettled = vi.fn();
+
+    openAccordionFromNav('probes.r1.volume.audioSettings', { closeSiblings: false, onSettled });
+
+    expect(onSettled).not.toHaveBeenCalled();
+  });
+
+  it('calls onSettled once notifyAccordionAnimationComplete fires for the opened id', () => {
+    const entry = makeEntry(false);
+    registerAccordion('probes.r1.volume.audioSettings', entry);
+    const onSettled = vi.fn();
+    openAccordionFromNav('probes.r1.volume.audioSettings', { closeSiblings: false, onSettled });
+
+    notifyAccordionAnimationComplete('probes.r1.volume.audioSettings');
+
+    expect(onSettled).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onSettled against the resolved ANCESTOR id, not the original leaf id, when falling back', () => {
+    registerAccordion('fleetParams.eqFilters', makeEntry(false));
+    const onSettled = vi.fn();
+
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false, onSettled });
+    notifyAccordionAnimationComplete('fleetParams.eqFilters.eq'); // wrong id — must not fire
+    expect(onSettled).not.toHaveBeenCalled();
+
+    notifyAccordionAnimationComplete('fleetParams.eqFilters'); // the actual resolved ancestor
+    expect(onSettled).toHaveBeenCalledTimes(1);
+
+    unregisterAccordion('fleetParams.eqFilters');
+  });
+});
+
+describe('accordionSync — pending nav target queue (bug: a nav click switching into a not-yet-mounted view found nothing registered and silently did nothing, opening only that view\'s own mount-time default instead)', () => {
+  afterEach(() => {
+    unregisterAccordion('fleetParams.eqFilters');
+    clearPendingNavTarget();
+  });
+
+  it('hasPendingNavTargetFor is false with nothing queued', () => {
+    expect(hasPendingNavTargetFor(['fleetParams.eqFilters'])).toBe(false);
+  });
+
+  it('queues the request when nothing in the id\'s ancestry is registered yet, reported via hasPendingNavTargetFor', () => {
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false });
+
+    expect(hasPendingNavTargetFor(['fleetParams.eqFilters'])).toBe(true);
+  });
+
+  it('hasPendingNavTargetFor is false for an unrelated id list', () => {
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false });
+
+    expect(hasPendingNavTargetFor(['fleetParams.pacing', 'fleetParams.timeSpace'])).toBe(false);
+  });
+
+  it('fulfills the queued request the moment a matching id registers, passing through closeSiblings', () => {
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: true });
+    const entry = makeEntry(false);
+
+    registerAccordion('fleetParams.eqFilters', entry);
+
+    expect(entry.open).toHaveBeenCalledWith(true);
+  });
+
+  it('clears the pending target once fulfilled — a later, unrelated registration is unaffected', () => {
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false });
+    registerAccordion('fleetParams.eqFilters', makeEntry(false));
+
+    const laterEntry = makeEntry(false);
+    registerAccordion('probes.r1.volume.audioSettings', laterEntry);
+
+    expect(laterEntry.open).not.toHaveBeenCalled();
+    unregisterAccordion('probes.r1.volume.audioSettings');
+  });
+
+  it('calls onSettled once the fulfilling registration\'s own animation completes', () => {
+    const onSettled = vi.fn();
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false, onSettled });
+    registerAccordion('fleetParams.eqFilters', makeEntry(false));
+    expect(onSettled).not.toHaveBeenCalled();
+
+    notifyAccordionAnimationComplete('fleetParams.eqFilters');
+
+    expect(onSettled).toHaveBeenCalledTimes(1);
+  });
+
+  it('a fresh openAccordionFromNav call replaces (not stacks) an unfulfilled pending target', () => {
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false });
+    openAccordionFromNav('fleetParams.pacing', { closeSiblings: false });
+
+    expect(hasPendingNavTargetFor(['fleetParams.eqFilters'])).toBe(false);
+    expect(hasPendingNavTargetFor(['fleetParams.pacing'])).toBe(true);
+  });
+
+  it('clearPendingNavTarget cancels a queued request without fulfilling it', () => {
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false });
+
+    clearPendingNavTarget();
+    const entry = makeEntry(false);
+    registerAccordion('fleetParams.eqFilters', entry);
+
+    expect(entry.open).not.toHaveBeenCalled();
   });
 });
 
 describe('openAccordionFromNav — ancestor fallback (bug: clicking a leaf with no accordion of its own, e.g. Fleet Params\' "3-Band EQ", did nothing instead of opening its parent group)', () => {
   afterEach(() => {
     unregisterAccordion('fleetParams.eqFilters');
+    clearPendingNavTarget();
   });
 
   it('opens the nearest registered ancestor when the exact id has no accordion of its own', () => {

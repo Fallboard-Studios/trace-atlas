@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { expandNavAncestorsForId } from './useNavTree';
-import { registerAccordion, unregisterAccordion, updateAccordionOpen } from '@/utils/accordionSync';
+import { registerAccordion, unregisterAccordion, updateAccordionOpen, hasPendingNavTargetFor } from '@/utils/accordionSync';
 
 export interface UseAccordionOpenStateResult {
   isOpen: (id: string) => boolean;
@@ -44,11 +44,23 @@ export interface UseAccordionOpenStateResult {
  * only `defaultOpenId` was ever registered eagerly, so a nav click on an accordion nobody had
  * manually toggled yet found no registry entry and silently did nothing — the only accordion a nav
  * click could ever open was whichever one happened to already be open).
+ *
+ * If a nav click is already mid-flight targeting one of `ids` when this instance first mounts (a
+ * cross-view click — the target view didn't exist yet at click time, so `accordionSync` queued it
+ * as a pending nav target instead of finding it registered), the usual `defaultOpenId` open is
+ * skipped for that mount: `accordionSync`'s own pending-target fulfillment (triggered by this
+ * instance's own mount-time registration below) becomes the only thing that opens, rather than
+ * opening alongside — and immediately fighting the layout of — the view's usual default (found
+ * live: switching into a fresh view showed both the clicked target AND the default-open accordion
+ * expanded at once).
  */
 export function useAccordionOpenState(ids: string[], defaultOpenId: string | null, resetKey?: string): UseAccordionOpenStateResult {
+  const idsKey = ids.join('|');
+
   const makeDefault = useCallback(
-    (): Record<string, boolean> => (defaultOpenId ? { [defaultOpenId]: true } : {}),
-    [defaultOpenId],
+    (): Record<string, boolean> => (defaultOpenId && !hasPendingNavTargetFor(ids) ? { [defaultOpenId]: true } : {}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `ids` intentionally compared by content (idsKey), not object identity
+    [defaultOpenId, idsKey],
   );
   const [openIds, setOpenIds] = useState<Record<string, boolean>>(makeDefault);
   const registeredIdsRef = useRef<Set<string>>(new Set());
@@ -106,8 +118,6 @@ export function useAccordionOpenState(ids: string[], defaultOpenId: string | nul
   useEffect(() => {
     openExclusiveRef.current = openExclusive;
   }, [openExclusive]);
-
-  const idsKey = ids.join('|');
 
   // Registers every id this instance manages on mount and whenever `ids`/`resetKey` change,
   // unregistering everything this instance had registered first — so a resetKey change never
