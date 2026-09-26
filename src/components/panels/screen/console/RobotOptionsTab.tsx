@@ -194,12 +194,12 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
     setSelectedSubsection(sub);
   });
 
-  // Every real accordion id this view renders — subsectionIds' 7 leaves plus the wrapping
-  // 'source.group' parent accordion, which has no scrollspy anchor of its own but is a real,
-  // independently-toggleable accordion (docs/specs/NAV_ACCORDION_SYNC.md bug fix: every id must
-  // register with accordionSync up front, not just defaultOpenId, or a nav click on a never-
-  // toggled accordion silently no-ops).
-  const accordionIds = useMemo(() => [...subsectionIds, `${prefix}.source.group`], [subsectionIds, prefix]);
+  // Every real accordion id this view renders — subsectionIds' 7 leaves plus the wrapping Source
+  // parent accordion, which shares its id with the nav tree's own "Source" node
+  // (`${prefix}.source`, not a separate '.group' suffix) — bug found live: openAccordionFromNav
+  // only ever walks UP an id's ancestry, so a nav click on "Source" (id `${prefix}.source`) could
+  // never resolve to a differently-named `${prefix}.source.group` accordion.
+  const accordionIds = useMemo(() => [...subsectionIds, `${prefix}.source`], [subsectionIds, prefix]);
   const { isOpen, setOpen } = useAccordionOpenState(accordionIds, `${prefix}.volume.audioSettings`, robot.id);
 
   return (
@@ -277,9 +277,9 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
             already lazy-mounts its own content, so the parent can render its 4 (cheap, shell-only
             until individually approached) children unconditionally. */}
         <AccordionContainer
-          schema={{ id: `${prefix}.source.group`, type: 'accordion', humanLabel: 'Source' } satisfies AccordionSchema}
-          open={isOpen(`${prefix}.source.group`)}
-          onOpenChange={(open) => setOpen(`${prefix}.source.group`, open)}
+          schema={{ id: `${prefix}.source`, type: 'accordion', humanLabel: 'Source' } satisfies AccordionSchema}
+          open={isOpen(`${prefix}.source`)}
+          onOpenChange={(open) => setOpen(`${prefix}.source`, open)}
           style={SPECTRAL_STYLE}
         >
           {SOURCE_OSCILLATOR_SUBSECTIONS.map((sub, idx) => {
