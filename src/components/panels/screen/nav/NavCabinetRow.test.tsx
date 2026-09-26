@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 
 vi.mock('@/components/ui/controls/CabinetBox', () => ({
   CabinetBox: ({
@@ -34,6 +34,7 @@ vi.mock('@/components/ui/controls/CabinetBox', () => ({
 }));
 
 import { NavCabinetRow } from './NavCabinetRow';
+import { registerAccordion, unregisterAccordion, updateAccordionOpen } from '@/utils/accordionSync';
 import type { NavTreeNodeSchema } from '@/data/navTreeConfig';
 
 function makeNode(overrides: Partial<NavTreeNodeSchema> = {}): NavTreeNodeSchema {
@@ -151,5 +152,54 @@ describe('NavCabinetRow', () => {
   it('passes a unique timelineKey derived from the node id', () => {
     render(<NavCabinetRow node={makeNode({ id: 'settings.quality.robotLoad' })} onClick={() => { }} color="#123456" />);
     expect(screen.getByTestId('cabinet-box').getAttribute('data-timeline-key')).toContain('settings.quality.robotLoad');
+  });
+});
+
+describe('NavCabinetRow — accordionSync pop signal (docs/tasks/NAV_ACCORDION_SYNC.md Task 4)', () => {
+  afterEach(() => {
+    unregisterAccordion('fleetParams.pacing.tempo');
+  });
+
+  it('pops when its node.id is registered as open in accordionSync at mount', () => {
+    registerAccordion('fleetParams.pacing.tempo', { isOpen: true, open: () => {} });
+
+    render(<NavCabinetRow node={makeNode()} onClick={() => { }} color="#123456" />);
+
+    expect(screen.getByTestId('cabinet-box').getAttribute('data-popped')).toBe('true');
+  });
+
+  it('does not pop when its node.id is registered as closed', () => {
+    registerAccordion('fleetParams.pacing.tempo', { isOpen: false, open: () => {} });
+
+    render(<NavCabinetRow node={makeNode()} onClick={() => { }} color="#123456" />);
+
+    expect(screen.getByTestId('cabinet-box').getAttribute('data-popped')).toBe('false');
+  });
+
+  it('still pops on hover/focus/press when its accordion is registered as closed — independent conditions', () => {
+    registerAccordion('fleetParams.pacing.tempo', { isOpen: false, open: () => {} });
+
+    render(<NavCabinetRow node={makeNode()} onClick={() => { }} color="#123456" />);
+    fireEvent.mouseEnter(screen.getByRole('button'));
+
+    expect(screen.getByTestId('cabinet-box').getAttribute('data-popped')).toBe('true');
+  });
+
+  it('behaves exactly as before (hover/focus/press only) for an id never registered in accordionSync', () => {
+    render(<NavCabinetRow node={makeNode()} onClick={() => { }} color="#123456" />);
+
+    expect(screen.getByTestId('cabinet-box').getAttribute('data-popped')).toBe('false');
+    fireEvent.mouseEnter(screen.getByRole('button'));
+    expect(screen.getByTestId('cabinet-box').getAttribute('data-popped')).toBe('true');
+  });
+
+  it('re-renders and pops when accordionSync state changes for its id after mount — proves the subscription fires, not just the initial snapshot', () => {
+    registerAccordion('fleetParams.pacing.tempo', { isOpen: false, open: () => {} });
+    render(<NavCabinetRow node={makeNode()} onClick={() => { }} color="#123456" />);
+    expect(screen.getByTestId('cabinet-box').getAttribute('data-popped')).toBe('false');
+
+    act(() => updateAccordionOpen('fleetParams.pacing.tempo', true));
+
+    expect(screen.getByTestId('cabinet-box').getAttribute('data-popped')).toBe('true');
   });
 });
