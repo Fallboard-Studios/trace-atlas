@@ -49,46 +49,11 @@ export interface NavTreeNodeSchema {
 }
 
 export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
-  {
-    id: 'settings',
-    humanLabel: 'Settings',
-    trait: 'spectral',
-    // Quality below is Crawford's own explicit per-leaf pick (2026-09-23) — unlike Fleet Params'/
-    // Sector Settings', it has no single established trait elsewhere in the app to match; it
-    // simply overrides Settings' own spectral default with a distinct trait. Volume was removed
-    // (Header already carries its own always-visible volume slider) and Tempo moved to Fleet
-    // Params -> Pacing.
-    children: [
-      {
-        id: 'settings.quality',
-        humanLabel: 'Performance',
-        trait: 'seed',
-        // Robot Load/Effects Load — already-existing labeled rows inside AudioLoadPanel.tsx
-        // (AUDIO_ROBOT_LOAD_SCHEMA/AUDIO_EFFECTS_LOAD_SCHEMA), just given their own scroll/
-        // highlight anchor in the tree.
-        children: [
-          { id: 'settings.quality.robotLoad', humanLabel: 'Robot Load' },
-          { id: 'settings.quality.effectsLoad', humanLabel: 'Effects Load' },
-        ],
-      },
-      {
-        // Matches SectorSettingsDrawer.tsx's own getTraitColorStyle('seed') call.
-        id: 'settings.sectorSettings',
-        humanLabel: 'Presets',
-        trait: 'seed',
-        // Attenuation Style/Coordinates — already-existing labeled rows inside
-        // SectorSettingsDrawer.tsx (ATTENUATION_STYLE_SCHEMA/COORDS_SCHEMA), same treatment.
-        children: [
-          { id: 'settings.sectorSettings.attenuationStyle', humanLabel: 'Attenuation Style' },
-          { id: 'settings.sectorSettings.coordinates', humanLabel: 'Coordinates' },
-        ],
-      },
-    ],
-  },
+
   {
     id: 'fleetParams',
     humanLabel: 'Fleet Params',
-    trait: 'timeSpace',
+    trait: 'spectral',
     children: [
       {
         // A single shared accordion (Tempo, relocated from Settings -> Tempo, + Automatic
@@ -101,7 +66,7 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
         trait: 'composition',
         children: [
           { id: 'fleetParams.pacing.tempo', humanLabel: 'Tempo' },
-          { id: 'fleetParams.pacing.automaticEffects', humanLabel: 'Automatic Effects' },
+          { id: 'fleetParams.pacing.automaticEffects', humanLabel: 'Automatic Intensity' },
         ],
       },
       {
@@ -165,5 +130,41 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
     trait: 'company',
     // No static children — per-company nodes are generated at render time.
     // Clicking this parent node itself opens the Create form (spec §2).
+  },
+  {
+    id: 'settings',
+    humanLabel: 'Settings',
+    trait: 'seed',
+    // Quality below is Crawford's own explicit per-leaf pick (2026-09-23) — unlike Fleet Params'/
+    // Sector Settings', it has no single established trait elsewhere in the app to match; it
+    // simply overrides Settings' own spectral default with a distinct trait. Volume was removed
+    // (Header already carries its own always-visible volume slider) and Tempo moved to Fleet
+    // Params -> Pacing.
+    children: [
+      {
+        id: 'settings.quality',
+        humanLabel: 'Audio Profile',
+        trait: 'seed',
+        // Robot Load/Effects Load — already-existing labeled rows inside AudioLoadPanel.tsx
+        // (AUDIO_ROBOT_LOAD_SCHEMA/AUDIO_EFFECTS_LOAD_SCHEMA), just given their own scroll/
+        // highlight anchor in the tree.
+        children: [
+          { id: 'settings.quality.robotLoad', humanLabel: 'Robot Load' },
+          { id: 'settings.quality.effectsLoad', humanLabel: 'Effects Load' },
+        ],
+      },
+      {
+        // Matches SectorSettingsDrawer.tsx's own getTraitColorStyle('seed') call.
+        id: 'settings.sectorSettings',
+        humanLabel: 'Audio Seeds',
+        trait: 'seed',
+        // Attenuation Style/Coordinates — already-existing labeled rows inside
+        // SectorSettingsDrawer.tsx (ATTENUATION_STYLE_SCHEMA/COORDS_SCHEMA), same treatment.
+        children: [
+          { id: 'settings.sectorSettings.attenuationStyle', humanLabel: 'Attenuation Style' },
+          { id: 'settings.sectorSettings.coordinates', humanLabel: 'Coordinates' },
+        ],
+      },
+    ],
   },
 ];

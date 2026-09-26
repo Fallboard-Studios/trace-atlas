@@ -45,7 +45,7 @@ export const AUDIO_SETTING_SCHEMA: RadioButtonSchema = {
   id: 'robotOptions.audioSetting',
   type: 'radio',
   loreLabel: 'PROBE DIAGNOSTICS',
-  humanLabel: 'Audio Setting',
+  humanLabel: 'Monitor Mode',
   options: [
     { value: 'none', label: 'Auto' },
     { value: 'mute', label: 'Mute' },
