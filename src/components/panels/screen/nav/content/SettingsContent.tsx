@@ -87,7 +87,7 @@ export function SettingsContent() {
     }
   });
 
-  const { isOpen, setOpen } = useAccordionOpenState(SETTINGS_ACCORDION_SCHEMAS[SETTINGS_LEAVES[0]].id);
+  const { isOpen, setOpen } = useAccordionOpenState(sectionIds, SETTINGS_ACCORDION_SCHEMAS[SETTINGS_LEAVES[0]].id);
 
   function renderLeafContent(leaf: SettingsLeaf) {
     if (leaf === 'quality') {

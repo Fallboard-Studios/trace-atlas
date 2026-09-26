@@ -81,6 +81,48 @@ describe('openAccordionFromNav (docs/tasks/NAV_ACCORDION_SYNC.md Task 1)', () =>
   });
 });
 
+describe('openAccordionFromNav — ancestor fallback (bug: clicking a leaf with no accordion of its own, e.g. Fleet Params\' "3-Band EQ", did nothing instead of opening its parent group)', () => {
+  afterEach(() => {
+    unregisterAccordion('fleetParams.eqFilters');
+  });
+
+  it('opens the nearest registered ancestor when the exact id has no accordion of its own', () => {
+    const groupEntry = makeEntry(false);
+    registerAccordion('fleetParams.eqFilters', groupEntry);
+
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false });
+
+    expect(groupEntry.open).toHaveBeenCalledWith(false);
+  });
+
+  it('passes closeSiblings through to the ancestor\'s open call', () => {
+    const groupEntry = makeEntry(false);
+    registerAccordion('fleetParams.eqFilters', groupEntry);
+
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: true });
+
+    expect(groupEntry.open).toHaveBeenCalledWith(true);
+  });
+
+  it('still no-ops when no ancestor in the chain has a registered accordion either', () => {
+    expect(() => openAccordionFromNav('probes.r1.melody.pitches', { closeSiblings: false })).not.toThrow();
+  });
+
+  it('prefers the exact id over any ancestor when the exact id IS registered', () => {
+    const exactEntry = makeEntry(false);
+    const ancestorEntry = makeEntry(false);
+    registerAccordion('fleetParams.eqFilters.eq', exactEntry);
+    registerAccordion('fleetParams.eqFilters', ancestorEntry);
+
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false });
+
+    expect(exactEntry.open).toHaveBeenCalledWith(false);
+    expect(ancestorEntry.open).not.toHaveBeenCalled();
+
+    unregisterAccordion('fleetParams.eqFilters.eq');
+  });
+});
+
 describe('isAccordionOpen — miss safety (docs/tasks/NAV_ACCORDION_SYNC.md Task 1)', () => {
   it('returns false, not undefined and not a throw, for an unregistered id', () => {
     expect(isAccordionOpen('probes.never-registered.section')).toBe(false);

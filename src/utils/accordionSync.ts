@@ -62,9 +62,24 @@ export function subscribeAccordionOpen(id: string, cb: () => void): () => void {
   return () => set!.delete(cb);
 }
 
-/** Direction 1's entry point (nav click → open content accordion, spec §2.1) — a safe no-op if
- *  `id` isn't registered, matching scrollToSection's own no-op-on-unregistered-id contract (an id
- *  like the merged-away "Pitches" leaf has no accordion to open). */
+/** Direction 1's entry point (nav click → open content accordion, spec §2.1) — opens `id`'s own
+ *  accordion if registered; otherwise walks up its ancestor ids (dropping trailing `.segment`s)
+ *  until it finds one that is, since some nav ids (e.g. Fleet Params' individual leaves — 3-Band
+ *  EQ, High-Pass Filter — render as plain anchors with no accordion of their own, only their
+ *  parent group does) should open their nearest ancestor's accordion instead of doing nothing. A
+ *  safe no-op if nothing in the chain is registered, matching scrollToSection's own
+ *  no-op-on-unregistered-id contract (an id like the merged-away "Pitches" leaf has no accordion
+ *  anywhere in its ancestry either). */
 export function openAccordionFromNav(id: string, opts: { closeSiblings: boolean }): void {
-  registry.get(id)?.open(opts.closeSiblings);
+  let candidate = id;
+  while (candidate) {
+    const entry = registry.get(candidate);
+    if (entry) {
+      entry.open(opts.closeSiblings);
+      return;
+    }
+    const lastDot = candidate.lastIndexOf('.');
+    if (lastDot === -1) return;
+    candidate = candidate.slice(0, lastDot);
+  }
 }

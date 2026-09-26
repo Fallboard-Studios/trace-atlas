@@ -351,7 +351,12 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
     setSelectedSubsection(sub);
   });
 
-  const { isOpen, setOpen } = useAccordionOpenState(`${prefix}.volume.audioSettings`, prefix);
+  // Every real accordion id this view renders — subsectionIds' 7 leaves plus the wrapping
+  // 'source.group' parent accordion (docs/specs/NAV_ACCORDION_SYNC.md bug fix: every id must
+  // register with accordionSync up front, not just defaultOpenId, or a nav click on a never-
+  // toggled accordion silently no-ops).
+  const accordionIds = useMemo(() => [...subsectionIds, `${prefix}.source.group`], [subsectionIds, prefix]);
+  const { isOpen, setOpen } = useAccordionOpenState(accordionIds, `${prefix}.volume.audioSettings`, prefix);
 
   return (
     <div className="company-options-section">

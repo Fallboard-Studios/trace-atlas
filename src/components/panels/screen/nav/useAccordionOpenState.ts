@@ -38,8 +38,14 @@ export interface UseAccordionOpenStateResult {
  * component instance that gets reused across different entities without remounting (e.g.
  * `RobotOptionsTab`'s `RobotOptionsPanel`, `CompanyOptionsSection`'s own `prefix`), so switching
  * to a different robot/company doesn't carry over which accordions were left open on the last one.
+ *
+ * `ids` is the full list of accordion ids this instance manages — every one of them is registered
+ * with `accordionSync` up front, on mount and whenever `ids`/`resetKey` change (bug fix: previously
+ * only `defaultOpenId` was ever registered eagerly, so a nav click on an accordion nobody had
+ * manually toggled yet found no registry entry and silently did nothing — the only accordion a nav
+ * click could ever open was whichever one happened to already be open).
  */
-export function useAccordionOpenState(defaultOpenId: string | null, resetKey?: string): UseAccordionOpenStateResult {
+export function useAccordionOpenState(ids: string[], defaultOpenId: string | null, resetKey?: string): UseAccordionOpenStateResult {
   const makeDefault = useCallback(
     (): Record<string, boolean> => (defaultOpenId ? { [defaultOpenId]: true } : {}),
     [defaultOpenId],
@@ -101,17 +107,29 @@ export function useAccordionOpenState(defaultOpenId: string | null, resetKey?: s
     openExclusiveRef.current = openExclusive;
   }, [openExclusive]);
 
-  // Registers defaultOpenId on mount and whenever a resetKey change gives this instance a fresh
-  // default; unregisters every id this instance had registered first — so a resetKey change never
-  // leaves accordionSync reflecting a stale mix of the previous and current entity's ids.
+  const idsKey = ids.join('|');
+
+  // Registers every id this instance manages on mount and whenever `ids`/`resetKey` change,
+  // unregistering everything this instance had registered first — so a resetKey change never
+  // leaves accordionSync reflecting a stale mix of the previous and current entity's ids. Reads
+  // `openIds` only at the moment this effect (re-)runs, intentionally excluded from the dependency
+  // array: subsequent open/close changes are already kept in sync precisely, per id, by
+  // setOpen/openExclusive's own syncRegistry calls above — re-running this whole-list effect on
+  // every single open/close would just be redundant churn.
   useEffect(() => {
-    if (defaultOpenId) syncRegistry(defaultOpenId, true);
+    for (const id of ids) {
+      registerAccordion(id, {
+        isOpen: !!openIds[id],
+        open: (closeSiblings: boolean) => openExclusiveRef.current(id, closeSiblings),
+      });
+      registeredIdsRef.current.add(id);
+    }
     return () => {
       for (const id of registeredIdsRef.current) unregisterAccordion(id);
       registeredIdsRef.current = new Set();
     };
-    // resetKey isn't read in the effect body but intentionally re-triggers registration whenever it changes.
-  }, [defaultOpenId, resetKey, syncRegistry]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey, resetKey]);
 
   return { isOpen, setOpen, openExclusive };
 }

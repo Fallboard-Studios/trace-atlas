@@ -190,7 +190,7 @@ export function FleetParamsContent() {
     if (leaf) setSelectedFleetParamsEffect(leaf.effectKey);
   });
 
-  const { isOpen, setOpen } = useAccordionOpenState(FLEET_PARAMS_GROUPS[0].nodeId);
+  const { isOpen, setOpen } = useAccordionOpenState(groupIds, FLEET_PARAMS_GROUPS[0].nodeId);
 
   return (
     <div ref={sectionAnchorRef('fleetParams')} className="fleet-params-content" style={getTraitColorStyle('spectral')}>
