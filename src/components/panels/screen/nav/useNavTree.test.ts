@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useNavTree, isDeepestTwoLevels, isAutoExpandTier, isCollapsible } from './useNavTree';
+import { useNavTree, isDeepestTwoLevels, isAutoExpandTier, isCollapsible, expandNavAncestorsForId } from './useNavTree';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
@@ -919,5 +919,41 @@ describe('isCollapsible — the negation of isAutoExpandTier', () => {
     for (const id of ['settings', 'probes', 'probes.r1', 'companies.c1', 'settings.quality.robotLoad', 'probes.r1.melody.rhythm']) {
       expect(isCollapsible(id), id).toBe(true);
     }
+  });
+});
+
+describe('expandNavAncestorsForId (docs/tasks/NAV_ACCORDION_SYNC.md Task 2)', () => {
+  beforeEach(resetStores);
+
+  it('is callable with no hook/component context — plain function, no rendered hook required', () => {
+    expect(() => expandNavAncestorsForId('probes.r1.melody.rhythm')).not.toThrow();
+  });
+
+  it('sets expandedTopLevelBranch and expandedProbeId for a probes id', () => {
+    expandNavAncestorsForId('probes.r1.melody.rhythm');
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
+    expect(useUIStore.getState().expandedProbeId).toBe('r1');
+  });
+
+  it('sets expandedTopLevelBranch and expandedCompanyId for a companies id', () => {
+    expandNavAncestorsForId('companies.c1.envelope');
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('companies');
+    expect(useUIStore.getState().expandedCompanyId).toBe('c1');
+  });
+
+  it('sets expandedTopLevelBranch for a settings id and does not touch expandedProbeId/expandedCompanyId', () => {
+    expandNavAncestorsForId('settings.quality');
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('settings');
+    expect(useUIStore.getState().expandedProbeId).toBeNull();
+    expect(useUIStore.getState().expandedCompanyId).toBeNull();
+  });
+
+  it('is a no-op for an id with an unrecognized branch segment', () => {
+    expandNavAncestorsForId('notARealBranch.foo');
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
   });
 });
