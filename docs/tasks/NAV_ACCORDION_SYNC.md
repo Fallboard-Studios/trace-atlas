@@ -98,25 +98,25 @@ Task 1 (accordionSync.ts registry)          Task 2 (expandNavAncestorsForId extr
 
 ### Phase 2: Core wiring — each direction's own half
 
-- [ ] **Task 3: `useAccordionOpenState.ts` — registration, ancestor-expand on open, `openExclusive`**
+- [x] **Task 3: `useAccordionOpenState.ts` — registration, ancestor-expand on open, `openExclusive`**
 
   **Description:** `useAccordionOpenState` registers every id in its current `openIds` keys with `accordionSync.registerAccordion` on mount/id-set change (each entry's `isOpen` reads that id's current `openIds[id]`; each entry's `open(closeSiblings)` calls the hook's own state setter), and unregisters on unmount (mirroring `sectionRefs.ts`'s own register-on-mount/clear-on-unmount convention, spec §1.3/§6.2). `setOpen(id, open)` calls `updateAccordionOpen(id, open)` after its existing `setOpenIds` update, and — only when `open === true` — calls `expandNavAncestorsForId(id)` (Task 2). A new `openExclusive(id, closeSiblings)` method: when `closeSiblings` is `true`, sets every other id this instance currently manages to closed and `id` to open in one `setOpenIds` update (spec §2.2, scoped to this hook instance's own ids only — never cross-view); when `false`, behaves like `setOpen(id, true)`. `openExclusive` also calls `updateAccordionOpen`/`expandNavAncestorsForId` exactly as `setOpen`'s open path does.
 
   **Acceptance criteria:**
-  - [ ] Mounting the hook with a non-null `defaultOpenId` registers that id with `accordionSync`, and `isAccordionOpen(defaultOpenId)` (from `accordionSync`) returns `true` immediately.
-  - [ ] Calling `setOpen(id, true)` for a previously-unregistered id registers it and makes `isAccordionOpen(id)` return `true`.
-  - [ ] Calling `setOpen(id, false)` makes `isAccordionOpen(id)` return `false`.
-  - [ ] Unmounting the hook unregisters every id it had registered — `isAccordionOpen(id)` returns `false` afterward for each.
-  - [ ] `setOpen(id, true)` calls `expandNavAncestorsForId(id)` exactly once; `setOpen(id, false)` does **not** call it (spec §3.1/§3.2 — closing must never touch nav-ancestor expansion).
-  - [ ] `openExclusive(id, true)` on a hook instance with multiple ids currently open closes every other id and opens `id` — verified via `isOpen(otherId) === false` for each previously-open sibling and `isOpen(id) === true`, in one state update (not two renders).
-  - [ ] `openExclusive(id, false)` behaves identically to `setOpen(id, true)` — no sibling closing.
-  - [ ] `openExclusive(id, true)` also calls `expandNavAncestorsForId(id)`.
-  - [ ] `resetKey`-driven resets (existing behavior) still unregister/re-register correctly — mounting two different `resetKey`s in sequence (e.g. switching robots) leaves `accordionSync` reflecting only the current key's ids, not a stale mix of both.
-  - [ ] Every existing `useAccordionOpenState.test.ts` test (the 8 already listed in the file, covering `isOpen`/`setOpen`/`resetKey`) still passes unmodified.
+  - [x] Mounting the hook with a non-null `defaultOpenId` registers that id with `accordionSync`, and `isAccordionOpen(defaultOpenId)` (from `accordionSync`) returns `true` immediately.
+  - [x] Calling `setOpen(id, true)` for a previously-unregistered id registers it and makes `isAccordionOpen(id)` return `true`.
+  - [x] Calling `setOpen(id, false)` makes `isAccordionOpen(id)` return `false`.
+  - [x] Unmounting the hook unregisters every id it had registered — `isAccordionOpen(id)` returns `false` afterward for each.
+  - [x] `setOpen(id, true)` calls `expandNavAncestorsForId(id)` exactly once; `setOpen(id, false)` does **not** call it (spec §3.1/§3.2 — closing must never touch nav-ancestor expansion).
+  - [x] `openExclusive(id, true)` on a hook instance with multiple ids currently open closes every other id and opens `id` — verified via `isOpen(otherId) === false` for each previously-open sibling and `isOpen(id) === true`, in one state update (not two renders).
+  - [x] `openExclusive(id, false)` behaves identically to `setOpen(id, true)` — no sibling closing.
+  - [x] `openExclusive(id, true)` also calls `expandNavAncestorsForId(id)`.
+  - [x] `resetKey`-driven resets (existing behavior) still unregister/re-register correctly — mounting two different `resetKey`s in sequence (e.g. switching robots) leaves `accordionSync` reflecting only the current key's ids, not a stale mix of both.
+  - [x] Every existing `useAccordionOpenState.test.ts` test (the 8 already listed in the file, covering `isOpen`/`setOpen`/`resetKey`) still passes unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/useAccordionOpenState.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav/useAccordionOpenState.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 1, Task 2.
 
@@ -124,19 +124,19 @@ Task 1 (accordionSync.ts registry)          Task 2 (expandNavAncestorsForId extr
 
   **Estimated scope:** M (one file, three new behaviors added to an existing hook, registration lifecycle needs a `useEffect`)
 
-- [ ] **Task 4: `NavCabinetRow.tsx` — registry-subscribed pop signal**
+- [x] **Task 4: `NavCabinetRow.tsx` — registry-subscribed pop signal**
 
   **Description:** `NavCabinetRow`'s `popped` computation (currently `hovered || focused || pressed`) gains a fourth OR'd condition read via `useSyncExternalStore(subscribeAccordionOpen bound to node.id, isAccordionOpen bound to node.id)` (spec §3.1/§6.3). No change to the existing hover/focus/press state or handlers. `node.id` is already a prop-derived value already in scope (via the existing `node` prop) — no new prop needed on `NavCabinetRow` itself.
 
   **Acceptance criteria:**
-  - [ ] A `NavCabinetRow` whose `node.id` is registered as open in `accordionSync` (via a test calling `registerAccordion`/`updateAccordionOpen` directly, or via `useAccordionOpenState` in an integration test) renders with its pop state active, with no hover/focus/press.
-  - [ ] A `NavCabinetRow` still pops on hover/focus/press exactly as before, independent of registry state — existing hover/focus/press tests in `NavCabinetRow.test.tsx` pass unmodified.
-  - [ ] When the registry's state for `node.id` changes after mount (simulating an accordion opening elsewhere while this row is already rendered), the row re-renders and pops without requiring a remount — proving the `useSyncExternalStore` subscription actually fires, not just that the initial snapshot is correct.
-  - [ ] A `NavCabinetRow` for an id never registered in `accordionSync` behaves exactly as it does today (hover/focus/press only) — the no-op-on-miss contract from Task 1 flows through correctly.
+  - [x] A `NavCabinetRow` whose `node.id` is registered as open in `accordionSync` (via a test calling `registerAccordion`/`updateAccordionOpen` directly, or via `useAccordionOpenState` in an integration test) renders with its pop state active, with no hover/focus/press.
+  - [x] A `NavCabinetRow` still pops on hover/focus/press exactly as before, independent of registry state — existing hover/focus/press tests in `NavCabinetRow.test.tsx` pass unmodified.
+  - [x] When the registry's state for `node.id` changes after mount (simulating an accordion opening elsewhere while this row is already rendered), the row re-renders and pops without requiring a remount — proving the `useSyncExternalStore` subscription actually fires, not just that the initial snapshot is correct.
+  - [x] A `NavCabinetRow` for an id never registered in `accordionSync` behaves exactly as it does today (hover/focus/press only) — the no-op-on-miss contract from Task 1 flows through correctly.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/NavCabinetRow.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav/NavCabinetRow.test.tsx` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 1.
 
@@ -145,9 +145,9 @@ Task 1 (accordionSync.ts registry)          Task 2 (expandNavAncestorsForId extr
   **Estimated scope:** S (one file, one new hook call, one OR'd condition)
 
 ### Checkpoint: Core wiring
-- [ ] `npm run build:types`, `npm run lint`, `npm test` all clean.
-- [ ] Direction 2 (accordion open/close → nav pop + ancestor expand) is fully provable end-to-end via unit tests: opening an accordion via `useAccordionOpenState.setOpen`/`openExclusive` is observable both as `accordionSync.isAccordionOpen` flipping true and as `uiStore`'s `expandedTopLevelBranch`/`expandedProbeId`/`expandedCompanyId` updating; closing only reverts the pop signal.
-- [ ] `NavCabinetRow` correctly reflects registry state without needing any nav-click wiring yet (Task 5 not started).
+- [x] `npm run build:types`, `npm run lint`, `npm test` all clean (full suite: 18 pre-existing, unrelated failures confirmed identical before and after this phase's changes; zero new failures).
+- [x] Direction 2 (accordion open/close → nav pop + ancestor expand) is fully provable end-to-end via unit tests: opening an accordion via `useAccordionOpenState.setOpen`/`openExclusive` is observable both as `accordionSync.isAccordionOpen` flipping true and as `uiStore`'s `expandedTopLevelBranch`/`expandedProbeId`/`expandedCompanyId` updating; closing only reverts the pop signal.
+- [x] `NavCabinetRow` correctly reflects registry state without needing any nav-click wiring yet (Task 5 not started).
 - [ ] Reviewed with human before proceeding to Phase 3.
 
 ---
