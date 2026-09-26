@@ -32,8 +32,6 @@ import {
   pickSwellPeakDelta,
   frequencyToPerTickChance,
   MAX_CONCURRENT_SWELLS_PER_POOL,
-  DEFAULT_SWELL_DURATION_RANGE,
-  MIX_SWELL_DURATION_RANGE,
   VOLUME_SWELL_DOWNWARD_FLOOR,
   SWELL_COMPANY_CHANCE,
   DETUNE_SWELL_MAX_SWING_FRACTION,
@@ -136,7 +134,14 @@ beforeEach(() => {
   // the old fixed SWELL_TRIGGER_CHANCE (0.28) that every existing
   // ALWAYS_MIN(succeeds)/ALWAYS_MID(fails) fixture below still behaves
   // identically; individual trigger-mechanism tests override this explicitly.
-  useAudioStore.setState({ globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS }, pingVarianceAutomation: 1, swellFrequency: 4 });
+  // swellDuration: 15 — chosen so that under ALWAYS_MIN (every draw within a
+  // tick, including pickSwellSplit's own ratio draw, forced to its range
+  // minimum, SWELL_SPLIT_MIN_FRACTION = 0.2) risingMeasures comes out to
+  // exactly 3, matching every pre-existing "rising 3" fixture value this file
+  // already relies on; fallingMeasures is then 15 - 3 = 12 (was 3 under the
+  // old independent-draw mechanism — every completion tick below that used to
+  // read "+ 3" for the falling leg now reads "+ 12").
+  useAudioStore.setState({ globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS }, pingVarianceAutomation: 1, swellFrequency: 4, swellDuration: 15 });
   useLocaleStore.getState().setLocaleData(LOCALE_ID, { robots: [], companies: [] } as unknown as Partial<Locale>);
   // Real AudioEngine voice calls need a live Tone context this jsdom test
   // environment doesn't have — no-op them, matching robotOptionsActions.test.ts's
@@ -202,7 +207,7 @@ describe('startAudioSwells / stopAudioSwells', () => {
 describe('smooth sub-measure advance (16n ticking)', () => {
   it('interpolates continuously within a single measure from a fractional measure input, not just at whole-measure boundaries', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0); // eq3.low: base 0, peak 12, rising 3, falling 3
+    tickAudioSwells(LOCALE_ID, 0); // eq3.low: base 0, peak 12, rising 3, falling 12
 
     tickAudioSwells(LOCALE_ID, 0.5); // half a measure into the 3-measure rise
     expect(useAudioStore.getState().globalAudio.eq3.low).toBeCloseTo(12 * (0.5 / 3));
@@ -403,7 +408,7 @@ describe('pingVarianceAutomation magnitude scaling (Task 3)', () => {
 describe('swellFrequency forced return at 0 (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3 — re-keyed from pingVarianceAutomation, Task 4 of PING-VARIANCE-AUTOMATION.md)', () => {
   it('forces a rising global swell into its falling phase with no jump, then lands exactly on baseValue after its own original fallingMeasures', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0); // eq3.low: base 0, peak 12, rising 3, falling 3
+    tickAudioSwells(LOCALE_ID, 0); // eq3.low: base 0, peak 12, rising 3, falling 12
 
     tickAudioSwells(LOCALE_ID, 1); // partway into rising
     const valueBeforeForcing = useAudioStore.getState().globalAudio.eq3.low;
@@ -416,7 +421,7 @@ describe('swellFrequency forced return at 0 (docs/specs/AUTOMATION_FREQUENCY_DUR
     const swell = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
     expect(swell.phase).toBe('falling');
 
-    tickAudioSwells(LOCALE_ID, 1 + 3); // rides its own original fallingMeasures (3) back to base
+    tickAudioSwells(LOCALE_ID, 1 + 12); // rides its own original fallingMeasures (12) back to base
     expect(useAudioStore.getState().globalAudio.eq3.low).toBe(0);
     expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'eq3.low')).toBe(false);
   });
@@ -424,7 +429,7 @@ describe('swellFrequency forced return at 0 (docs/specs/AUTOMATION_FREQUENCY_DUR
   it('forces a rising single-robot swell the same way', () => {
     useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ masterVolume: 0.1 })); // up: floor 0.6, peak 0.6 via ALWAYS_MIN
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0); // base 0.1, peak 0.6 (peakDelta 0.5), rising 3, falling 3
+    tickAudioSwells(LOCALE_ID, 0); // base 0.1, peak 0.6 (peakDelta 0.5), rising 3, falling 12
 
     tickAudioSwells(LOCALE_ID, 1);
     const valueBeforeForcing = useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume;
@@ -437,7 +442,7 @@ describe('swellFrequency forced return at 0 (docs/specs/AUTOMATION_FREQUENCY_DUR
     const swell = getActiveSwellSnapshot('robot').find((s) => s.robotAttribute === 'volume')!;
     expect(swell.phase).toBe('falling');
 
-    tickAudioSwells(LOCALE_ID, 1 + 3);
+    tickAudioSwells(LOCALE_ID, 1 + 12);
     expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBe(0.1);
     expect(getActiveSwellSnapshot('robot').some((s) => s.robotAttribute === 'volume')).toBe(false);
   });
@@ -448,7 +453,7 @@ describe('swellFrequency forced return at 0 (docs/specs/AUTOMATION_FREQUENCY_DUR
     useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1', 'r2'] }));
 
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0); // company-wide volume swell, rising 3 / falling 3
+    tickAudioSwells(LOCALE_ID, 0); // company-wide volume swell, rising 3 / falling 12
 
     tickAudioSwells(LOCALE_ID, 1); // partway into rising
     const r1Before = useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume;
@@ -462,7 +467,7 @@ describe('swellFrequency forced return at 0 (docs/specs/AUTOMATION_FREQUENCY_DUR
     const swell = getActiveSwellSnapshot('robot').find((s) => s.companyId === 'c1')!;
     expect(swell.phase).toBe('falling');
 
-    tickAudioSwells(LOCALE_ID, 1 + 3);
+    tickAudioSwells(LOCALE_ID, 1 + 12);
     expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBe(0.1);
     expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r2')!.masterVolume).toBe(0.9);
     expect(getActiveSwellSnapshot('robot')).toEqual([]);
@@ -470,7 +475,7 @@ describe('swellFrequency forced return at 0 (docs/specs/AUTOMATION_FREQUENCY_DUR
 
   it('leaves a swell already in its falling phase untouched when frequency drops to 0 — no re-forcing', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0); // eq3.low creates, rising 3 / falling 3
+    tickAudioSwells(LOCALE_ID, 0); // eq3.low creates, rising 3 / falling 12
 
     tickAudioSwells(LOCALE_ID, 3); // falling phase's first tick, naturally (frequency still nonzero)
     const swellBefore = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
@@ -599,7 +604,7 @@ describe('concurrency cap', () => {
 describe('ramp lifecycle', () => {
   it('has phase "rising" then "falling" only — the tick right after risingMeasures elapses is already falling, no hold tick', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0); // eq3.low: base 0, peak 12, rising 3, falling 3 (all draws forced to their floor)
+    tickAudioSwells(LOCALE_ID, 0); // eq3.low: base 0, peak 12, rising 3, falling 12 (all draws forced to their floor)
 
     let snap = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
     expect(snap.phase).toBe('rising');
@@ -615,13 +620,13 @@ describe('ramp lifecycle', () => {
 
   it('interpolates during rising/falling and returns to exactly baseValue on completion, removing the swell', () => {
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0); // eq3.low: base 0, peak 12, rising 3, falling 3
+    tickAudioSwells(LOCALE_ID, 0); // eq3.low: base 0, peak 12, rising 3, falling 12
 
     tickAudioSwells(LOCALE_ID, 3); // falling phase's first tick — progress 0 -> value === peak
     expect(useAudioStore.getState().globalAudio.eq3.low).toBeCloseTo(12);
     expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'eq3.low')).toBe(true);
 
-    tickAudioSwells(LOCALE_ID, 6); // falling completes
+    tickAudioSwells(LOCALE_ID, 15); // falling completes
     expect(useAudioStore.getState().globalAudio.eq3.low).toBe(0);
     expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'eq3.low')).toBe(false);
   });
@@ -652,8 +657,9 @@ describe('ramp lifecycle', () => {
   });
 });
 
-describe('duration ranges (full pipeline, real seeded noise)', () => {
-  it('draws risingMeasures/fallingMeasures independently, within [3,6] for non-mix targets and [6,12] for delay.wet/reverb.wet', () => {
+describe('Duration — pickSwellSplit (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.4, full pipeline, real seeded noise)', () => {
+  it('risingMeasures + fallingMeasures always equals swellDuration (within the 1-measure-per-phase rounding floor), for every swell type including delay.wet/reverb.wet', () => {
+    useAudioStore.setState({ swellDuration: 10 });
     const samples: { target: string; rising: number; falling: number }[] = [];
     for (let measure = 0; measure < 300 && samples.length < MAX_CONCURRENT_SWELLS_PER_POOL; measure++) {
       tickAudioSwells(LOCALE_ID, measure);
@@ -666,16 +672,48 @@ describe('duration ranges (full pipeline, real seeded noise)', () => {
 
     expect(samples.length).toBeGreaterThan(0);
     for (const { target, rising, falling } of samples) {
-      const isMix = target === 'delay.wet' || target === 'reverb.wet';
-      const range = isMix ? MIX_SWELL_DURATION_RANGE : DEFAULT_SWELL_DURATION_RANGE;
-      expect(rising, `${target} rising`).toBeGreaterThanOrEqual(range.min);
-      expect(rising, `${target} rising`).toBeLessThanOrEqual(range.max);
-      expect(falling, `${target} falling`).toBeGreaterThanOrEqual(range.min);
-      expect(falling, `${target} falling`).toBeLessThanOrEqual(range.max);
+      expect(rising, `${target} rising`).toBeGreaterThanOrEqual(1);
+      expect(falling, `${target} falling`).toBeGreaterThanOrEqual(1);
+      expect(rising + falling, `${target} total`).toBe(10);
     }
-    // Independence: real 2D noise sampled at two different x-coordinates
-    // (different dataId strings) essentially never ties exactly.
-    expect(samples.some((s) => s.rising !== s.falling)).toBe(true);
+  });
+
+  it('the rising/falling split varies across swells rather than always landing 50/50, but never exceeds the documented [0.2, 0.8] bound either direction', () => {
+    useAudioStore.setState({ swellDuration: 20 }); // large enough that rounding noise doesn't obscure the bound
+    const ratios: number[] = [];
+    for (let measure = 0; measure < 300 && ratios.length < MAX_CONCURRENT_SWELLS_PER_POOL; measure++) {
+      tickAudioSwells(LOCALE_ID, measure);
+      for (const swell of getActiveSwellSnapshot('global')) {
+        const total = swell.risingMeasures + swell.fallingMeasures;
+        if (!ratios.includes(swell.risingMeasures / total)) ratios.push(swell.risingMeasures / total);
+      }
+    }
+
+    expect(ratios.length).toBeGreaterThan(1); // proves real variety, not one fixed ratio every time
+    expect(ratios.some((r) => Math.abs(r - 0.5) > 0.01)).toBe(true); // not always symmetric
+    for (const ratio of ratios) {
+      expect(ratio).toBeGreaterThanOrEqual(0.2 - 0.05); // small tolerance for rounding at the edge
+      expect(ratio).toBeLessThanOrEqual(0.8 + 0.05);
+    }
+  });
+
+  it('applies the exact same total to delay.wet/reverb.wet as every other target — no more 2x mix-target treatment', () => {
+    const pickReverbNoiseMap = noiseMapForDataIds({ 'audioSwell.trigger.global': -1, 'audioSwell.target.global': 1 }); // clamped to the last eligible index -> reverb.wet
+    useAudioStore.setState({ swellDuration: 9 });
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(pickReverbNoiseMap);
+    tickAudioSwells(LOCALE_ID, 0);
+
+    const swell = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'reverb.wet')!;
+    expect(swell.risingMeasures + swell.fallingMeasures).toBe(9);
+  });
+
+  it('pickPhaseMeasures, DEFAULT_SWELL_DURATION_RANGE, MIX_SWELL_DURATION_RANGE, MIX_SWELL_TARGETS no longer exist anywhere in this module (source-scan regression guard)', () => {
+    const thisFile = fileURLToPath(import.meta.url);
+    const source = readFileSync(join(dirname(thisFile), 'audioSwells.ts'), 'utf-8');
+    expect(source).not.toMatch(/pickPhaseMeasures/);
+    expect(source).not.toMatch(/DEFAULT_SWELL_DURATION_RANGE/);
+    expect(source).not.toMatch(/MIX_SWELL_DURATION_RANGE/);
+    expect(source).not.toMatch(/MIX_SWELL_TARGETS/);
   });
 });
 
@@ -887,7 +925,7 @@ describe('robot pool — ramp lifecycle and write path', () => {
     expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBeCloseTo(0.6);
     expect(getActiveSwellSnapshot('robot').some((s) => s.robotAttribute === 'volume')).toBe(true);
 
-    tickAudioSwells(LOCALE_ID, 6); // falling completes
+    tickAudioSwells(LOCALE_ID, 15); // falling completes
     expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBe(0.1);
     expect(getActiveSwellSnapshot('robot').some((s) => s.robotAttribute === 'volume')).toBe(false);
   });
@@ -1079,13 +1117,13 @@ describe('robot pool — company-wide swells', () => {
     useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1', 'r2'] }));
 
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0); // creates the company swell (volume, rising 3 / falling 3 under ALWAYS_MIN)
+    tickAudioSwells(LOCALE_ID, 0); // creates the company swell (volume, rising 3 / falling 12 under ALWAYS_MIN)
 
     // Force this measure's own trigger draw to fail (real noise would
     // otherwise decide it non-deterministically, per session's random AS
     // name seed, and could spuriously start an unrelated swell here).
     vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MID);
-    tickAudioSwells(LOCALE_ID, 6); // both members' shared window completes on the same measure
+    tickAudioSwells(LOCALE_ID, 15); // both members' shared window completes on the same measure
 
     expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBe(0.1);
     expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r2')!.masterVolume).toBe(0.9);
