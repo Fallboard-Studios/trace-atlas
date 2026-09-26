@@ -67,11 +67,38 @@ function isAncestorOrSelf(ancestorOrSelfId: string, id: string): boolean {
   return id === ancestorOrSelfId || id.startsWith(`${ancestorOrSelfId}.`);
 }
 
+/** For an id with no accordion of its own anywhere in its ancestry, and no accordion at its exact
+ *  id either — Probes/Companies' Volume/Melody/Envelope section nodes (`probes.<id>.<section>`)
+ *  are exactly this: real nav-tree nodes with no accordion of their own, only their one subsection
+ *  leaf (`probes.<id>.<section>.<subsection>`) has one. Resolves to that single immediate child if
+ *  there is exactly one registered one level deeper; returns undefined if there are zero (nothing
+ *  to resolve to) or more than one (ambiguous — guessing which one the user meant would be wrong).
+ *
+ *  Scoped to ids with 3+ dot-segments (`branch.entity.section[...]`) — a 2-segment entity id (a
+ *  whole robot/company, `probes.<id>`) almost always has several equally-valid deeper accordions,
+ *  and silently picking one instead of the view's own intentional default-open accordion would be
+ *  a real regression on the single most common nav action (selecting a robot/company at all). A
+ *  1-segment branch id (`probes`) is excluded for the same reason. */
+function resolveSoleImmediateAccordionChild(id: string): string | undefined {
+  if (id.split('.').length < 3) return undefined;
+  const prefix = `${id}.`;
+  const expectedSegmentCount = id.split('.').length + 1;
+  let candidate: string | undefined;
+  for (const key of registry.keys()) {
+    if (!key.startsWith(prefix) || key.split('.').length !== expectedSegmentCount) continue;
+    if (candidate !== undefined) return undefined;
+    candidate = key;
+  }
+  return candidate;
+}
+
 /** Every registered accordion along `id`'s own dot-segment path, outermost first — e.g. for
  *  'probes.r1.source.baselineOscillator' with both 'probes.r1.source' (the Source group) and the
  *  full id itself registered, returns both, Source first. An id with no accordion of its own but a
- *  registered ancestor (Fleet Params' leaves) returns just that ancestor; an id with nothing
- *  registered anywhere in its own path returns an empty array. */
+ *  registered ancestor (Fleet Params' leaves) returns just that ancestor. An id with no accordion
+ *  anywhere in its own ancestry falls back to its sole immediate registered child, if any
+ *  (`resolveSoleImmediateAccordionChild` — Probes/Companies' Volume/Melody/Envelope section nodes).
+ *  Returns an empty array only if neither resolves anything. */
 function getRegisteredChain(id: string): ChainLink[] {
   const segments = id.split('.');
   const chain: ChainLink[] = [];
@@ -81,7 +108,9 @@ function getRegisteredChain(id: string): ChainLink[] {
     const entry = registry.get(prefix);
     if (entry) chain.push({ id: prefix, entry });
   }
-  return chain;
+  if (chain.length > 0) return chain;
+  const child = resolveSoleImmediateAccordionChild(id);
+  return child ? getRegisteredChain(child) : chain;
 }
 
 /** Opens every link in `chain` in order, each waiting for the previous one to genuinely finish

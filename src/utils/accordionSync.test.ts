@@ -343,6 +343,20 @@ describe('accordionSync — nested accordion chains (bug: Source is a real accor
     expect(onSettled).toHaveBeenCalledTimes(1);
   });
 
+  it('a nav click on "Source" itself (already directly registered) is unaffected by the sole-immediate-child fallback', () => {
+    // Regression guard: Source has its own direct accordion match (id fix from the prior session),
+    // so the fallback below must never override that with one of Source's own children.
+    const source = makeEntry(false);
+    const child = makeEntry(false);
+    registerAccordion('probes.r1.source', source);
+    registerAccordion('probes.r1.source.baselineOscillator', child);
+
+    openAccordionFromNav('probes.r1.source', { closeSiblings: false });
+
+    expect(source.open).toHaveBeenCalledWith(false);
+    expect(child.open).not.toHaveBeenCalled();
+  });
+
   it('a pending nav target for a nested id, fulfilled once both levels have registered, opens outer then inner in order', () => {
     openAccordionFromNav('probes.r1.source.baselineOscillator', { closeSiblings: false });
     const source = makeEntry(false);
@@ -424,5 +438,85 @@ describe('subscribeAccordionOpen/updateAccordionOpen (docs/tasks/NAV_ACCORDION_S
 
   it('updateAccordionOpen for an unregistered id does not throw', () => {
     expect(() => updateAccordionOpen('probes.never-registered.section', true)).not.toThrow();
+  });
+});
+
+describe('accordionSync — sole-immediate-child fallback (bug: Probes/Companies\' Volume/Melody/Envelope nav section nodes have no accordion of their own — only their single subsection leaf does — so clicking them found nothing, and only the view\'s own default accordion opened instead)', () => {
+  afterEach(() => {
+    unregisterAccordion('probes.r1.envelope.pingContour');
+    unregisterAccordion('probes.r1.melody.rhythm');
+    unregisterAccordion('probes.r1.volume.audioSettings');
+    unregisterAccordion('probes.r1.source');
+    unregisterAccordion('probes.r1.source.baselineOscillator');
+    unregisterAccordion('probes.r1.source.coaxialOscillator');
+    clearPendingNavTarget();
+  });
+
+  it('clicking "Envelope" (no accordion of its own) opens its sole child, "Envelope > Ping Contour"', () => {
+    const pingContour = makeEntry(false);
+    registerAccordion('probes.r1.envelope.pingContour', pingContour);
+
+    openAccordionFromNav('probes.r1.envelope', { closeSiblings: false });
+
+    expect(pingContour.open).toHaveBeenCalledWith(false);
+  });
+
+  it('clicking "Melody" (Composition merged, no accordion of its own) opens its sole registered child, "Composition"', () => {
+    const composition = makeEntry(false);
+    registerAccordion('probes.r1.melody.rhythm', composition);
+
+    openAccordionFromNav('probes.r1.melody', { closeSiblings: false });
+
+    expect(composition.open).toHaveBeenCalledWith(false);
+  });
+
+  it('clicking "Volume" opens its sole registered child, "Levels"', () => {
+    const levels = makeEntry(false);
+    registerAccordion('probes.r1.volume.audioSettings', levels);
+
+    openAccordionFromNav('probes.r1.volume', { closeSiblings: false });
+
+    expect(levels.open).toHaveBeenCalledWith(false);
+  });
+
+  it('does NOT resolve when there are 2+ immediate children — refuses to guess (Source, before its own id fix, would have been ambiguous like this)', () => {
+    const child1 = makeEntry(false);
+    const child2 = makeEntry(false);
+    registerAccordion('probes.r1.source.baselineOscillator', child1);
+    registerAccordion('probes.r1.source.coaxialOscillator', child2);
+
+    expect(() => openAccordionFromNav('probes.r1.source', { closeSiblings: false })).not.toThrow();
+    expect(child1.open).not.toHaveBeenCalled();
+    expect(child2.open).not.toHaveBeenCalled();
+  });
+
+  it('does NOT apply to a bare entity id (a whole robot/company) — selecting a robot must keep opening the view\'s own intentional default, never guess one of its several accordions', () => {
+    const levels = makeEntry(false);
+    registerAccordion('probes.r1.volume.audioSettings', levels);
+
+    openAccordionFromNav('probes.r1', { closeSiblings: false });
+
+    expect(levels.open).not.toHaveBeenCalled();
+    unregisterAccordion('probes.r1.volume.audioSettings');
+  });
+
+  it('does NOT apply to a bare branch id', () => {
+    const levels = makeEntry(false);
+    registerAccordion('probes.r1.volume.audioSettings', levels);
+
+    openAccordionFromNav('probes', { closeSiblings: false });
+
+    expect(levels.open).not.toHaveBeenCalled();
+    unregisterAccordion('probes.r1.volume.audioSettings');
+  });
+
+  it('works through the pending-nav-target queue too — a cross-view click on "Envelope" resolves once the view mounts and registers', () => {
+    openAccordionFromNav('probes.r1.envelope', { closeSiblings: false });
+    const pingContour = makeEntry(false);
+    registerAccordion('probes.r1.envelope.pingContour', pingContour);
+
+    attemptFulfillPendingNavTarget();
+
+    expect(pingContour.open).toHaveBeenCalledWith(false);
   });
 });
