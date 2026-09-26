@@ -1,9 +1,3 @@
-.audio-rig-drawer {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
 .audio-rig-drawer__master-row {
   display: flex;
   justify-content: flex-end;

@@ -34,6 +34,13 @@ interface FleetParamsLeaf {
   id: string;
   humanLabel: string;
   effectKey: SelectedFleetParamsEffect;
+  /** Pacing-only — which of its 2 rows this leaf renders in (docs/specs/
+   *  AUTOMATION_FREQUENCY_DURATION_SPLIT.md). Row membership lives on the
+   *  leaf itself rather than being inferred from array position, so
+   *  reordering or inserting a Pacing leaf can't silently drop one from
+   *  either row. Undefined for every other group's leaves, which don't
+   *  split into rows at all. */
+  row?: 'top' | 'bottom';
 }
 
 interface FleetParamsGroupDef {
@@ -59,10 +66,10 @@ const FLEET_PARAMS_GROUPS: FleetParamsGroupDef[] = [
     humanLabel: 'Pacing',
     trait: 'composition',
     leaves: [
-      { id: 'fleetParams.pacing.tempo', humanLabel: 'Tempo', effectKey: 'tempo' },
-      { id: 'fleetParams.pacing.frequency', humanLabel: 'Frequency', effectKey: 'swellFrequency' },
-      { id: 'fleetParams.pacing.duration', humanLabel: 'Duration', effectKey: 'swellDuration' },
-      { id: 'fleetParams.pacing.automaticEffects', humanLabel: 'Automatic Intensity', effectKey: 'automaticEffects' },
+      { id: 'fleetParams.pacing.tempo', humanLabel: 'Tempo', effectKey: 'tempo', row: 'top' },
+      { id: 'fleetParams.pacing.frequency', humanLabel: 'Frequency', effectKey: 'swellFrequency', row: 'top' },
+      { id: 'fleetParams.pacing.duration', humanLabel: 'Duration', effectKey: 'swellDuration', row: 'bottom' },
+      { id: 'fleetParams.pacing.automaticEffects', humanLabel: 'Automatic Intensity', effectKey: 'automaticEffects', row: 'bottom' },
     ],
   },
   {
@@ -214,14 +221,14 @@ export function FleetParamsContent() {
                   {group.id === 'pacing' ? (
                     <>
                       <DirectionalPanel schema={PACING_TOP_ROW_SCHEMA}>
-                        {group.leaves.slice(0, 2).map((leaf) => (
+                        {group.leaves.filter((leaf) => leaf.row === 'top').map((leaf) => (
                           <div key={leaf.id} ref={sectionAnchorRef(leaf.id)}>
                             {leafHasApproached(leaf.id) ? renderLeaf(leaf.effectKey, bpm, swellFrequency, swellDuration) : null}
                           </div>
                         ))}
                       </DirectionalPanel>
                       <DirectionalPanel schema={PACING_BOTTOM_ROW_SCHEMA}>
-                        {group.leaves.slice(2, 4).map((leaf) => (
+                        {group.leaves.filter((leaf) => leaf.row === 'bottom').map((leaf) => (
                           <div key={leaf.id} ref={sectionAnchorRef(leaf.id)}>
                             {leafHasApproached(leaf.id) ? renderLeaf(leaf.effectKey, bpm, swellFrequency, swellDuration) : null}
                           </div>
