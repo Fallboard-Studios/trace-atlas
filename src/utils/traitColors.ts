@@ -194,8 +194,14 @@ const DARK_TEXT_COLOR = '#12161a';
  * light identityColor gets dark text, dark identityColor keeps the default light text.
  */
 export function getRobotColorStyle(identityColor: string): CSSProperties {
+  // Guarded, not trusted: real Robot.identityColor is a required field, but plenty of existing
+  // test fixtures build a Robot via `as unknown as Robot` and omit it — relativeLuminance() parses
+  // its argument as a #rrggbb hex string, which would throw on undefined/malformed input where the
+  // old plain pass-through (buildAccentStyle never parses its arguments) never did. Falls back to
+  // the default light text rather than skip the accent properties entirely.
+  const isValidHex = /^#[0-9a-fA-F]{6}$/.test(identityColor ?? '');
   return {
     ...buildAccentStyle(identityColor, identityColor),
-    '--color-text-primary': relativeLuminance(identityColor) > 0.5 ? DARK_TEXT_COLOR : LIGHT_TEXT_COLOR,
+    '--color-text-primary': isValidHex && relativeLuminance(identityColor) > 0.5 ? DARK_TEXT_COLOR : LIGHT_TEXT_COLOR,
   } as CSSProperties;
 }

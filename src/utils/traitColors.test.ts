@@ -187,4 +187,13 @@ describe('getRobotColorStyle', () => {
     expect((getRobotColorStyle('#12161a') as Record<string, string>)['--color-text-primary']).toBe('rgba(255, 255, 255, 0.87)');
     expect((getRobotColorStyle('#1a237e') as Record<string, string>)['--color-text-primary']).toBe('rgba(255, 255, 255, 0.87)'); // deep indigo
   });
+
+  // Regression: many existing test fixtures build a Robot via `as unknown as Robot` and omit
+  // identityColor (a required field in practice, but not enforced at test-fixture time) — this
+  // must not throw the way a raw relativeLuminance(undefined) call would.
+  it('does not throw and falls back to the default light text for an undefined/malformed identityColor', () => {
+    expect(() => getRobotColorStyle(undefined as unknown as string)).not.toThrow();
+    expect((getRobotColorStyle(undefined as unknown as string) as Record<string, string>)['--color-text-primary']).toBe('rgba(255, 255, 255, 0.87)');
+    expect((getRobotColorStyle('not-a-color') as Record<string, string>)['--color-text-primary']).toBe('rgba(255, 255, 255, 0.87)');
+  });
 });
