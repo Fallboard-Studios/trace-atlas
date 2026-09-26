@@ -13,7 +13,6 @@ import { useLfoTargetGroup } from '@/components/ui/controls/useLfoTargetGroup';
 import { withActiveClass, withHeldOffClass } from '@/components/ui/controls/activeClass';
 import {
   AUDIO_RIG_CONFIG,
-  SPEED_AUTOMATION_PANEL_SCHEMA,
   DECAY_MODE_SCHEMA,
   LFO_DRIFT_GROUPS,
   PING_VARIANCE_AUTOMATION_SCHEMA,
@@ -241,10 +240,16 @@ function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange, driftContent
  * control that never got a tree leaf of its own: Ping Variance Automation ("Automatic Effects").
  * Every real effect (EQ, HPF, LPF, Delay, Reverb, Compressor, Limiter) moved out to its own
  * AudioRigEffectPanel instance, rendered directly by FleetParamsContent.tsx when a specific effect
- * leaf is selected. This component now lives inside FleetParamsContent's own Pacing accordion,
- * alongside the Tempo slider (relocated from Settings -> Tempo). AudioRigEffectPanel below carries
- * its own per-effect trait color directly since there's no group accordion to cascade one down to
- * EQ & Filters/Time & Space/Output's still-category-only groups.
+ * leaf is selected.
+ *
+ * As of docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1, this component's own outer
+ * wrapper (`.audio-rig-drawer` div + its own Speed & Automation DirectionalPanel) is gone too —
+ * Intensity now shares a 2x2 Pacing row with Frequency/Duration/Tempo, and a panel-inside-a-panel
+ * would result if this component kept wrapping itself. FleetParamsContent.tsx's own
+ * `PACING_BOTTOM_ROW_SCHEMA` DirectionalPanel is the only panel wrapping this slider now — same
+ * "the call site owns the panel, not the leaf" shape AudioRigEffectPanel's siblings already use.
+ * The Composition trait color reaches this slider purely via cascade, from FleetParamsContent's
+ * own Pacing AccordionContainer — this component applies no trait style of its own anymore.
  */
 export function AudioRigDrawer() {
   const pingVarianceAutomation = useAudioStore((s) => s.pingVarianceAutomation);
@@ -259,16 +264,12 @@ export function AudioRigDrawer() {
   );
 
   return (
-    <div className="audio-rig-drawer" style={getTraitColorStyle('composition')}>
-      <DirectionalPanel schema={SPEED_AUTOMATION_PANEL_SCHEMA}>
-        <div className="audio-rig-drawer__param-row">
-          <SliderLinear
-            schema={PING_VARIANCE_AUTOMATION_SCHEMA}
-            value={pingVarianceAutomation * 100}
-            onChange={handlePingVarianceChange}
-          />
-        </div>
-      </DirectionalPanel>
+    <div className="audio-rig-drawer__param-row">
+      <SliderLinear
+        schema={PING_VARIANCE_AUTOMATION_SCHEMA}
+        value={pingVarianceAutomation * 100}
+        onChange={handlePingVarianceChange}
+      />
     </div>
   );
 }

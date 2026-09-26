@@ -16,11 +16,11 @@ import './FleetParamsContent.css';
 
 /** Groups Tempo and Automatic Intensity into one shared panel (Crawford's own follow-up call,
  *  2026-09-25) — restores the pairing BPM_SCHEMA/PING_VARIANCE_AUTOMATION_SCHEMA originally had
- *  before Tempo moved out to its own leaf (see audioRigConfig.ts's own SPEED_AUTOMATION_PANEL_SCHEMA
- *  comment). Top-level (not nested in anything else at this point), so it's the one CabinetBox
- *  facade both leaves render inside — AudioRigDrawer's own internal DirectionalPanel becomes
- *  nested once rendered here and loses its own separate facade, by design (one shared box, not
- *  two). Pacing-only: the other 3 groups' leaves each keep their own separate panel. */
+ *  before Tempo moved out to its own leaf. Top-level (not nested in anything else at this point),
+ *  so it's the one CabinetBox facade both leaves render inside — AudioRigDrawer no longer wraps
+ *  itself in its own panel at all as of docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1,
+ *  so this is the only panel wrapping it now. Pacing-only: the other 3 groups' leaves each keep
+ *  their own separate panel. */
 const PACING_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.row', type: 'directionalPanel', orientation: 'responsive' };
 
 interface FleetParamsLeaf {

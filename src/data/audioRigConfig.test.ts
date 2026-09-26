@@ -14,7 +14,6 @@ import {
   SWELL_FREQUENCY_SCHEMA,
   SWELL_DURATION_SCHEMA,
   BPM_SCHEMA,
-  SPEED_AUTOMATION_PANEL_SCHEMA,
   AUDIO_LOAD_PRESET_SCHEMA,
   AUDIO_ROBOT_LOAD_SCHEMA,
   AUDIO_EFFECTS_LOAD_SCHEMA,
@@ -624,30 +623,9 @@ describe('AUDIO_RIG_ACCORDION_GROUPS / TRANSPORT_COMPOSITION_ACCORDION_SCHEMA no
   });
 });
 
-describe('SPEED_AUTOMATION_PANEL_SCHEMA (Task 1)', () => {
-  it('is a responsive-orientation directionalPanel with humanLabel Speed & Automation (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.9 — 2 rows on mobile/tablet, 1 row on desktop)', () => {
-    expect(SPEED_AUTOMATION_PANEL_SCHEMA).toMatchObject({
-      type: 'directionalPanel',
-      orientation: 'responsive',
-      humanLabel: 'Speed & Automation',
-    });
-  });
-
-  it('has a non-empty invented loreLabel and an id in the audioRig.* namespace', () => {
-    expect(SPEED_AUTOMATION_PANEL_SCHEMA.loreLabel).toBeTruthy();
-    expect(SPEED_AUTOMATION_PANEL_SCHEMA.id).toMatch(/^audioRig\./);
-  });
-
-  it('is not part of AUDIO_RIG_CONFIG\'s per-effect array — it is a bare, new panel, not an effect param', () => {
-    const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [
-      b.panel.id,
-      ...b.params.map((p) => p.schema.id),
-    ]);
-    expect(allConfigSchemaIds).not.toContain(SPEED_AUTOMATION_PANEL_SCHEMA.id);
-  });
-
-  it('remains JSON-serializable', () => {
-    expect(() => JSON.stringify(SPEED_AUTOMATION_PANEL_SCHEMA)).not.toThrow();
+describe('SPEED_AUTOMATION_PANEL_SCHEMA no longer exists (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1 — Intensity no longer self-wraps in its own panel, now that it shares FleetParamsContent\'s own Pacing row with Frequency/Duration)', () => {
+  it('is not exported by the module', () => {
+    expect('SPEED_AUTOMATION_PANEL_SCHEMA' in audioRigConfigModule).toBe(false);
   });
 });
 
