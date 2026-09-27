@@ -130,22 +130,9 @@ describe('Header', () => {
     expect(slider.getAttribute('data-disabled')).toBe('');
   });
 
-  it('renders the local time as HH:MM', () => {
-    render(<Header />);
-    expect(screen.getByText(/14:30/)).toBeTruthy();
-  });
-
-  it('renders temperature as an integer °C reading', () => {
-    render(<Header />);
-    expect(screen.getByText(/-45°C/)).toBeTruthy();
-  });
-
-  it('falls back to a placeholder when temperature has not been set yet (null)', () => {
-    useUIStore.setState({ activeLocaleTemperature: null });
-    render(<Header />);
-    expect(screen.queryByText(/°C/)).toBeNull();
-    expect(screen.getByText('NO TEMP')).toBeTruthy();
-  });
+  // Time/temp status readout moved to NavStatusBlock (nav/NavStatusBlock.tsx) as part of
+  // a232a48 "header now interacts with nav panel" — Header no longer renders it at all.
+  // See NavStatusBlock.test.tsx for the equivalent coverage (HH:MM, °C, NO TEMP fallback).
 
   it('renders mute as a switch reflecting audioStore.isMuted', () => {
     render(<Header />);

@@ -15,8 +15,8 @@ function findNode(id: string, nodes: NavTreeNodeSchema[] = NAV_TREE_SCHEMA): Nav
 }
 
 describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.md §2/§5.1)', () => {
-  it('has exactly 4 top-level branches: settings, fleetParams, probes, companies', () => {
-    expect(NAV_TREE_SCHEMA.map((n) => n.id)).toEqual(['settings', 'fleetParams', 'probes', 'companies']);
+  it('has exactly 4 top-level branches: fleetParams, probes, companies, settings', () => {
+    expect(NAV_TREE_SCHEMA.map((n) => n.id)).toEqual(['fleetParams', 'probes', 'companies', 'settings']);
   });
 
   it('Settings has 2 leaf children: quality, sectorSettings, namespaced by branch', () => {
@@ -144,8 +144,12 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
 
 describe('NAV_TREE_SCHEMA — trait color-coding (experimental, Crawford\'s own request)', () => {
   it('each of the 4 top-level branches has its own assigned trait', () => {
-    expect(findNode('settings')?.trait).toBe('spectral');
-    expect(findNode('fleetParams')?.trait).toBe('timeSpace');
+    // Settings moved to 'seed' and Fleet Params to 'spectral' in the nav style refresh
+    // (db17282) — Settings no longer defaults its leaves to spectral (Quality/Sector
+    // Settings both already override to 'seed' explicitly), and Fleet Params' own default
+    // now matches its EQ & Filters group instead of Time & Space.
+    expect(findNode('settings')?.trait).toBe('seed');
+    expect(findNode('fleetParams')?.trait).toBe('spectral');
     expect(findNode('probes')?.trait).toBe('output');
     expect(findNode('companies')?.trait).toBe('company');
   });
