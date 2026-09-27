@@ -107,20 +107,20 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
 
   **Estimated scope:** S
 
-- [ ] **Task 4: `refs.test.ts` — full `Map`-wrapper contract**
+- [x] **Task 4: `refs.test.ts` — full `Map`-wrapper contract**
 
   **Description:** New `src/utils/refs.test.ts`. Trivial wrapper, but currently has zero coverage; full contract per spec §3.2.
 
   **Acceptance criteria:**
-  - [ ] `setRef`/`getRef` round-trip for a given key.
-  - [ ] `getRef` on an unset key returns `undefined`.
-  - [ ] `deleteRef` removes a key (subsequent `getRef` is `undefined`) and is a safe no-op on an already-absent key.
-  - [ ] `clearRefs` empties the registry — `getRef` for any previously-set key returns `undefined` afterward.
-  - [ ] No production file modified.
+  - [x] `setRef`/`getRef` round-trip for a given key.
+  - [x] `getRef` on an unset key returns `undefined`.
+  - [x] `deleteRef` removes a key (subsequent `getRef` is `undefined`) and is a safe no-op on an already-absent key.
+  - [x] `clearRefs` empties the registry — `getRef` for any previously-set key returns `undefined` afterward.
+  - [x] No production file modified.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/refs.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/refs.test.ts` passes (5 tests).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
