@@ -65,6 +65,7 @@ import { CABINET_TOGGLE_BOX_SIZE } from './Toggle';
 import { getAccordionDuration, ACCORDION_DURATION } from './accordionAnimation';
 import { withActiveClass } from './activeClass';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
+import { onceAccordionAnimationComplete } from '@/utils/accordionSync';
 import type { AccordionSchema } from '@/types/controls';
 
 const schema: AccordionSchema = { id: 'pingControls', type: 'accordion', humanLabel: 'Ping Controls' };
@@ -334,6 +335,27 @@ describe('AccordionContainer', () => {
       );
       expect(fadeStepIndex).toBeGreaterThanOrEqual(0);
       expect(heightStepIndex).toBeGreaterThan(fadeStepIndex);
+    });
+
+    it('notifies accordionSync once the open height-tween completes, keyed on this accordion\'s own id (nav-click scroll-sequencing fix)', () => {
+      render(<Controlled>Content</Controlled>);
+      const onComplete = vi.fn();
+      onceAccordionAnimationComplete(schema.id, onComplete);
+
+      fireEvent.click(screen.getByRole('button'));
+
+      // The local gsap mock (top of file) fires each `to()` step's onComplete synchronously.
+      expect(onComplete).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT notify accordionSync on close — only the open direction matters for scroll positioning', () => {
+      render(<Controlled initialOpen>Content</Controlled>);
+      const onComplete = vi.fn();
+      onceAccordionAnimationComplete(schema.id, onComplete);
+
+      fireEvent.click(screen.getByRole('button')); // close
+
+      expect(onComplete).not.toHaveBeenCalled();
     });
   });
 

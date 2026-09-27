@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
+import { isAccordionOpen, subscribeAccordionOpen } from '@/utils/accordionSync';
 import type { NavTreeNodeSchema } from '@/data/navTreeConfig';
 import './NavCabinetRow.css';
 
@@ -38,7 +39,14 @@ export function NavCabinetRow({ node, onClick, color }: NavCabinetRowProps) {
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [pressed, setPressed] = useState(false);
-  const popped = hovered || focused || pressed;
+  // Live mirror of this row's own accordion open state (docs/specs/NAV_ACCORDION_SYNC.md §3.1) —
+  // pops the row whenever its content-pane accordion is open, from any source (a nav click or the
+  // accordion's own header), independent of hover/focus/press.
+  const sectionOpen = useSyncExternalStore(
+    (cb) => subscribeAccordionOpen(node.id, cb),
+    () => isAccordionOpen(node.id),
+  );
+  const popped = hovered || focused || pressed || sectionOpen;
 
   return (
     <button

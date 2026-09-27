@@ -9,6 +9,7 @@ import { DualLabel } from './DualLabel';
 import { getAccordionDuration, getAccordionFadeDuration } from './accordionAnimation';
 import { withActiveClass } from './activeClass';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
+import { notifyAccordionAnimationComplete } from '@/utils/accordionSync';
 import type { AccordionSchema } from '@/types/controls';
 import './AccordionContainer.css';
 
@@ -144,6 +145,10 @@ function AccordionContainerInner({ schema, children, open, onOpenChange, style }
         ease: 'power2.out',
         onComplete: () => {
           el.style.height = 'auto';
+          // Nav-click sequencing (docs/specs/NAV_ACCORDION_SYNC.md's follow-up fix) — a queued
+          // scroll waits for this, since scrolling before the tween finishes lands on the
+          // pre-expansion position.
+          notifyAccordionAnimationComplete(schema.id);
         },
       });
       if (innerEl) {

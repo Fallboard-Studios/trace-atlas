@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { FleetParamsContent } from './FleetParamsContent';
 import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { installIntersectionObserverStub, approachSection } from '@/testUtils/intersectionObserverStub';
 import { clearSectionRef } from '@/utils/sectionRefs';
+import { openAccordionFromNav, clearPendingNavTarget } from '@/utils/accordionSync';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import type { Trait } from '@/types/traits';
 
@@ -70,6 +71,28 @@ beforeEach(() => {
   useAudioStore.setState(AUDIO_INITIAL_STATE, true);
   installIntersectionObserverStub();
   ALL_SECTION_IDS.forEach(clearSectionRef);
+});
+
+describe('FleetParamsContent — view-fade-in on arrival from a different view', () => {
+  afterEach(() => {
+    clearPendingNavTarget();
+  });
+
+  it('renders normally (no opacity override) when no nav click was mid-flight', () => {
+    const { container } = render(<FleetParamsContent />);
+
+    const root = container.querySelector('.fleet-params-content') as HTMLElement;
+    expect(root.style.opacity).toBe('');
+  });
+
+  it('starts at opacity 0 when a nav click was already queued for one of this view\'s accordions', () => {
+    openAccordionFromNav('fleetParams.eqFilters.eq', { closeSiblings: false });
+
+    const { container } = render(<FleetParamsContent />);
+
+    const root = container.querySelector('.fleet-params-content') as HTMLElement;
+    expect(root.style.opacity).toBe('0');
+  });
 });
 
 describe('FleetParamsContent — 4 uniform group accordions (docs/tasks/FLEET_PARAMS_CONTENT_REWORK.md Task 3)', () => {

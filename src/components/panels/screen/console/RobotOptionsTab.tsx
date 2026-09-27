@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSectionObserver } from '../nav/useSectionObserver';
 import { useAccordionOpenState } from '../nav/useAccordionOpenState';
@@ -9,6 +9,8 @@ import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
 import { SignatureArrayLayer, RobotDriftPanel, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
+import { hasPendingNavTargetFor } from '@/utils/accordionSync';
+import { setViewFadeRoot } from '@/utils/viewFade';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -194,10 +196,43 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
     setSelectedSubsection(sub);
   });
 
-  const { isOpen, setOpen } = useAccordionOpenState(`${prefix}.volume.audioSettings`, robot.id);
+  // Every real accordion id this view renders — subsectionIds' 7 leaves plus the wrapping Source
+  // parent accordion, which shares its id with the nav tree's own "Source" node
+  // (`${prefix}.source`, not a separate '.group' suffix) — bug found live: openAccordionFromNav
+  // only ever walks UP an id's ancestry, so a nav click on "Source" (id `${prefix}.source`) could
+  // never resolve to a differently-named `${prefix}.source.group` accordion.
+  const accordionIds = useMemo(() => [...subsectionIds, `${prefix}.source`], [subsectionIds, prefix]);
+  const { isOpen, setOpen } = useAccordionOpenState(accordionIds, `${prefix}.volume.audioSettings`, robot.id);
+
+  // Starts hidden only when a nav click was already mid-flight targeting one of this view's own
+  // accordions at the moment of this component's OWN first mount — i.e. arriving here from a
+  // genuinely different view. Evaluated once (lazy useState initializer), never re-evaluated on
+  // later re-renders, so switching robots (the same mounted instance, reset via resetKey above)
+  // never re-hides an already-visible view. NavTreeNode's own onSettled callback (scroll, then
+  // fadeInView) is what reveals it again once the target accordion(s) have actually finished
+  // opening — see src/utils/viewFade.ts.
+  const [startHidden] = useState(() => hasPendingNavTargetFor(accordionIds));
+
+  // useCallback, not an inline arrow function — an inline ref callback's identity changes every
+  // render, which makes React re-invoke it (null, then the element again) on every single
+  // re-render, not just mount/unmount. That would re-run the imperative `opacity = '0'` set below
+  // on every re-render too, fighting GSAP's own inline-style tween once fadeInView() starts
+  // animating opacity back up and making the fade look instant (found live). Keyed on `prefix` (it
+  // changes when switching robots, the one case this ref genuinely needs to re-run for) — startHidden
+  // never changes after mount, so it doesn't need to be a dependency.
+  const rootRef = useCallback((el: HTMLDivElement | null) => {
+    if (el) {
+      setSectionRef(prefix, el);
+      if (startHidden) el.style.opacity = '0';
+    } else {
+      clearSectionRef(prefix);
+    }
+    setViewFadeRoot(el);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- startHidden is intentionally excluded, see comment above
+  }, [prefix]);
 
   return (
-    <div className="robot-options" style={robotColorStyle} ref={sectionAnchorRef(prefix)}>
+    <div className="robot-options" style={robotColorStyle} ref={rootRef}>
       <RobotDisplaySection robot={robot} />
 
       <div ref={sectionAnchorRef(`${prefix}.volume`)}>
@@ -224,8 +259,11 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
       <div ref={sectionAnchorRef(`${prefix}.melody`)}>
         {/* Rhythm/Pitches merged into one "Composition" accordion, 3 two-field rows
             (docs/reference/layout-updates.md) — reuses the old '.rhythm' id (no new tree/
-            scrollspy id introduced); the nav tree's separate "Pitches" leaf has no distinct
-            anchor left to scroll to now that its content is interleaved into these same rows. */}
+            scrollspy id introduced); the nav tree's separate "Pitches" leaf has no accordion or
+            top-level anchor of its own anymore, but PingControlsCompositionSection registers a
+            real anchor around its own Note Variance slider under that id (`.melody.frequency`),
+            so a nav click on "Pitches" opens this Composition accordion (accordionSync's own
+            sole-immediate-child/sibling fallback) and scrolls to that slider specifically. */}
         <div ref={sectionAnchorRef(`${prefix}.melody.rhythm`)}>
           <AccordionContainer
             schema={{ id: `${prefix}.melody.rhythm`, type: 'accordion', humanLabel: 'Composition' } satisfies AccordionSchema}
@@ -243,6 +281,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
                 onOctaveMaxChange={handleOctaveMaxChange}
                 onNoteVarianceChange={handleNoteVarianceChange}
                 onResetMelody={handleResetMelody}
+                noteVarianceAnchorId={`${prefix}.melody.frequency`}
               />
             ) : null}
           </AccordionContainer>
@@ -271,9 +310,9 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
             already lazy-mounts its own content, so the parent can render its 4 (cheap, shell-only
             until individually approached) children unconditionally. */}
         <AccordionContainer
-          schema={{ id: `${prefix}.source.group`, type: 'accordion', humanLabel: 'Source' } satisfies AccordionSchema}
-          open={isOpen(`${prefix}.source.group`)}
-          onOpenChange={(open) => setOpen(`${prefix}.source.group`, open)}
+          schema={{ id: `${prefix}.source`, type: 'accordion', humanLabel: 'Source' } satisfies AccordionSchema}
+          open={isOpen(`${prefix}.source`)}
+          onOpenChange={(open) => setOpen(`${prefix}.source`, open)}
           style={SPECTRAL_STYLE}
         >
           {SOURCE_OSCILLATOR_SUBSECTIONS.map((sub, idx) => {

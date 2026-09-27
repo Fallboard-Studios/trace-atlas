@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import { AudioLoadPanel } from '../../console/AudioLoadPanel';
 import { SectorSettingsDrawer } from '../../console/SectorSettingsDrawer';
 import { useSectionObserver } from '../useSectionObserver';
@@ -6,6 +7,8 @@ import { AccordionContainer } from '@/components/ui/controls/AccordionContainer'
 import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { getTraitColorStyle } from '@/utils/traitColors';
+import { hasPendingNavTargetFor } from '@/utils/accordionSync';
+import { setViewFadeRoot } from '@/utils/viewFade';
 import { useUIStore, type SettingsLeaf, type SettingsSubsection } from '@/stores/uiStore';
 import type { AccordionSchema } from '@/types/controls';
 import './SettingsContent.css';
@@ -87,7 +90,30 @@ export function SettingsContent() {
     }
   });
 
-  const { isOpen, setOpen } = useAccordionOpenState(SETTINGS_ACCORDION_SCHEMAS[SETTINGS_LEAVES[0]].id);
+  const { isOpen, setOpen } = useAccordionOpenState(sectionIds, SETTINGS_ACCORDION_SCHEMAS[SETTINGS_LEAVES[0]].id);
+
+  // Starts hidden only when a nav click was already mid-flight targeting one of this view's own
+  // accordions at the moment of this component's OWN first mount — i.e. arriving here from a
+  // genuinely different view. Evaluated once (lazy useState initializer). NavTreeNode's own
+  // onSettled callback (scroll, then fadeInView) is what reveals it again once the target
+  // accordion has actually finished opening — see src/utils/viewFade.ts.
+  const [startHidden] = useState(() => hasPendingNavTargetFor(sectionIds));
+
+  // useCallback with an empty dependency array — a stable ref identity, unlike a plain inline
+  // arrow function (which React re-invokes with null then the element again on every single
+  // re-render, not just mount/unmount). Setting opacity via the JSX style prop instead would be
+  // reapplied on every re-render too, fighting GSAP's own inline-style tween once fadeInView()
+  // starts animating opacity back up and making the fade look instant (found live).
+  const rootRef = useCallback((el: HTMLDivElement | null) => {
+    if (el) {
+      setSectionRef('settings', el);
+      if (startHidden) el.style.opacity = '0';
+    } else {
+      clearSectionRef('settings');
+    }
+    setViewFadeRoot(el);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- startHidden never changes after mount
+  }, []);
 
   function renderLeafContent(leaf: SettingsLeaf) {
     if (leaf === 'quality') {
@@ -99,7 +125,8 @@ export function SettingsContent() {
   }
 
   return (
-    <div ref={sectionAnchorRef('settings')} className="settings-content" style={getTraitColorStyle('seed')}>
+    <div ref={rootRef} className="settings-content" style={getTraitColorStyle('seed')}
+    >
       <IntroPanel
         loreLabel="Settings LORE TITLE"
         loreDescription={PLACEHOLDER_LORE}

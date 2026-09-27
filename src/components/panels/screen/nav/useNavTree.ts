@@ -122,6 +122,28 @@ export function isCollapsible(id: string): boolean {
   return !isAutoExpandTier(id);
 }
 
+/** Ancestor auto-expand (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 14, spec §1.6) — expands
+ *  every ancestor row needed to reveal `id` in the tree, the same as if the user had clicked each
+ *  +/- along the way. Only the entity level (expandedProbeId/expandedCompanyId) and the branch
+ *  level (expandedTopLevelBranch) ever need a write — the tier directly beneath them is always
+ *  expanded once its own ancestor is, per isAutoExpandTier above.
+ *
+ *  Extracted out of select()'s own body (docs/specs/NAV_ACCORDION_SYNC.md §7 open question 2) so
+ *  useAccordionOpenState.ts can reuse the exact same logic when an accordion opens from any
+ *  source, not just a nav click — without duplicating this id-parsing a second time. Implemented
+ *  via useUIStore.getState() rather than hook-bound setters so it's callable outside a component. */
+export function expandNavAncestorsForId(id: string): void {
+  const [branch, entityId] = id.split('.');
+  const { setExpandedTopLevelBranch, setExpandedProbeId, setExpandedCompanyId } = useUIStore.getState();
+
+  const topLevel = asTopLevelBranch(branch);
+  if (topLevel) setExpandedTopLevelBranch(topLevel);
+  if ((branch === 'probes' || branch === 'companies') && entityId) {
+    if (branch === 'probes') setExpandedProbeId(entityId);
+    else setExpandedCompanyId(entityId);
+  }
+}
+
 // trait per section (experimental, Crawford's own request) — matches AudioSettingSection/
 // PingControlsDrawer/PingContourDrawer/SignatureArrayDrawer's own per-section
 // getTraitColorStyle calls (output/composition/timeSpace/spectral respectively), so a
@@ -289,20 +311,10 @@ export function useNavTree(): UseNavTreeResult {
   function select(id: string): void {
     const [branch, entityId, section, subsection] = id.split('.');
 
-    // Ancestor auto-expand (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 14, spec §1.6) —
-    // selecting any node reveals it in the tree, expanding every ancestor row needed to show it,
-    // the same as if the user had clicked each +/- along the way. Only the entity level
-    // (expandedProbeId/expandedCompanyId) and the branch level (expandedTopLevelBranch) need a
-    // write here — the tier directly beneath them (Settings'/Fleet Params' own mid-level
-    // children, Probes'/Companies' own section-level children) is always expanded once its
-    // ancestor is, per isAutoExpandTier above; there is nothing left to set for it (docs/specs/
-    // NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3).
-    const topLevel = asTopLevelBranch(branch);
-    if (topLevel) setExpandedTopLevelBranch(topLevel);
-    if ((branch === 'probes' || branch === 'companies') && entityId) {
-      if (branch === 'probes') setExpandedProbeId(entityId);
-      else setExpandedCompanyId(entityId);
-    }
+    // Ancestor auto-expand — extracted to expandNavAncestorsForId (docs/specs/
+    // NAV_ACCORDION_SYNC.md §7 open question 2) so useAccordionOpenState.ts can reuse the exact
+    // same logic when an accordion opens from any source, not just a nav click.
+    expandNavAncestorsForId(id);
 
     if (branch === 'settings') {
       setActiveHubTile('settings');
