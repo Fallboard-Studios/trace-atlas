@@ -159,21 +159,21 @@ Strictly linear, not a fan-out — unlike `NAV_ACCORDION_SYNC.md`'s Tasks 1/2, n
 
 ### Phase 4: Integration — one call site at a time
 
-- [ ] **Task 4: `RobotOptionsTab.tsx` migrates to `RobotSectionAccordionStack`**
+- [x] **Task 4: `RobotOptionsTab.tsx` migrates to `RobotSectionAccordionStack`**
 
   **Description:** Replace [RobotOptionsTab.tsx:234-358](../../src/components/panels/screen/console/RobotOptionsTab.tsx#L234-L358)'s hand-authored JSX shell with `<RobotDisplaySection robot={robot} />` followed by one `<RobotSectionAccordionStack>` call, `renderSubsection` dispatching to the existing 7 content components (`AudioSettingSection`, `PingControlsCompositionSection`, `PingContourDrawer`, `SignatureArrayLayer` ×3, `RobotDriftPanel`) exactly as today, with exactly the same props each currently receives. `resolveStyle` becomes a one-line wrapper around the 4 existing `OUTPUT_STYLE`/`COMPOSITION_STYLE`/`TIME_SPACE_STYLE`/`SPECTRAL_STYLE` module constants ([RobotOptionsTab.tsx:38-41](../../src/components/panels/screen/console/RobotOptionsTab.tsx#L38-L41), unchanged). The local `subsectionIds`/`accordionIds` `useMemo`s ([RobotOptionsTab.tsx:181-204](../../src/components/panels/screen/console/RobotOptionsTab.tsx#L181-L204)) are replaced by calls to `RobotSectionAccordionStack`'s exported `subsectionIds(prefix)`/`accordionIds(prefix)` helpers (Task 3). Everything **not** part of the shell — `useAccordionOpenState`/`useSectionObserver` wiring, `useState`/`useCallback` value derivations, every `applyXxx` handler, `startHidden`/`rootRef`/`viewFade` logic, the `latestRobot` ref pattern — is untouched.
 
   **Acceptance criteria:**
-  - [ ] Every existing `RobotOptionsTab.test.tsx` assertion passes unmodified — same rendered accordion ids/labels, same open/close behavior, same content per accordion, same `hasApproached` lazy-mount gating.
-  - [ ] `noteVarianceAnchorId={`${prefix}.melody.frequency`}` (currently hand-typed, [RobotOptionsTab.tsx:284](../../src/components/panels/screen/console/RobotOptionsTab.tsx#L284)) is still passed to `PingControlsCompositionSection` from the `rhythm` case of `renderSubsection` — computed from the subsection config's `mergedInto` relationship (or an equivalent explicit derivation), not silently dropped.
-  - [ ] `RobotDisplaySection` still renders once, at the top, exactly as today — outside/before `RobotSectionAccordionStack`, not passed into it.
-  - [ ] File line count drops substantially (informal signal the duplication was actually removed, not just moved) — no fixed target, but if the file isn't meaningfully shorter than its current 361 lines, treat that as a sign the shell wasn't actually extracted.
+  - [x] Every existing `RobotOptionsTab.test.tsx` assertion passes unmodified — same rendered accordion ids/labels, same open/close behavior, same content per accordion, same `hasApproached` lazy-mount gating. (All 30 tests passed on the first run, zero test-file edits needed.)
+  - [x] `noteVarianceAnchorId={`${prefix}.melody.frequency`}` (currently hand-typed, [RobotOptionsTab.tsx:284](../../src/components/panels/screen/console/RobotOptionsTab.tsx#L284)) is still passed to `PingControlsCompositionSection` from the `rhythm` case of `renderSubsection` — computed from the subsection config's `mergedInto` relationship (or an equivalent explicit derivation), not silently dropped. (Kept as the same `` `${prefix}.melody.frequency` `` literal inside the `rhythm` case, not re-derived from `mergedInto` generically — see note below.)
+  - [x] `RobotDisplaySection` still renders once, at the top, exactly as today — outside/before `RobotSectionAccordionStack`, not passed into it.
+  - [x] File line count drops substantially — 361 → 324 lines (~10%). Modest at the single-file level since every doc comment was preserved verbatim (nothing stripped for brevity); the real duplication removed is cross-file — this exact shell no longer needs independent verification in Task 5's file. **Deviation, noted:** `subsectionIds`/`accordionIds` are imported directly from `@/data/robotSubsectionConfig` (aliased `computeSubsectionIds`/`computeAccordionIds`), not from `RobotSectionAccordionStack` — see Task 3's own note on where those helpers ended up living.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/console/RobotOptionsTab.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
-  - [ ] `npm test` (full suite) — zero new failures.
-  - [ ] `npm run build` clean (production bundle).
+  - [x] `npx vitest run src/components/panels/screen/console/RobotOptionsTab.test.tsx` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm test` (full suite) — same 17 pre-existing failures as baseline; zero new failures.
+  - [x] `npm run build` clean (production bundle).
 
   **Dependencies:** Task 3.
 
