@@ -103,13 +103,17 @@ describe('Nav panel — rename-correctness guard (docs/tasks/NAV_PANEL_VIEWS_AND
     expect(uiStoreSource).toContain("'volume' | 'melody' | 'envelope' | 'source'");
   });
 
-  it('the tree renders "Output" and "Probe Drift" as humanLabels in useNavTree.ts, not as id segments', () => {
-    const useNavTreeSource = readSource('./useNavTree.ts');
-    expect(useNavTreeSource).toContain("humanLabel: 'Output'");
-    expect(useNavTreeSource).toContain("humanLabel: 'Probe Drift'");
-    // The id segment itself is still 'volume' — SECTION_CHILDREN maps onto ROBOT_SECTIONS
-    // positionally, so 'Output' never becomes a literal id anywhere in this file.
-    expect(useNavTreeSource).not.toMatch(/id:\s*`[^`]*\.output[.`]/i);
+  it('the tree renders "Output" and "Probe Drift" as navLabels in robotSubsectionConfig.ts, not as id segments', () => {
+    // Moved here from useNavTree.ts by docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md — the
+    // section/subsection label table (formerly useNavTree.ts's own SECTION_CHILDREN/
+    // SUBSECTION_CHILDREN) now lives in robotSubsectionConfig.ts as ROBOT_SECTIONS_CONFIG,
+    // consumed by useNavTree.ts's sectionChildNodes() rather than hand-typed there directly.
+    const configSource = readSource('../../../../data/robotSubsectionConfig.ts');
+    expect(configSource).toContain("navLabel: 'Output'");
+    expect(configSource).toContain("navLabel: 'Probe Drift'");
+    // The id segment itself is still 'volume' — ROBOT_SECTIONS_CONFIG's own id/navLabel are
+    // separate fields, so 'Output' never becomes a literal id anywhere in this file.
+    expect(configSource).not.toMatch(/id:\s*'[^']*output[.']/i);
   });
 
   it('RobotDriftPanel and the lfoDrift.robots field name are untouched by the Probe Drift rename', () => {
