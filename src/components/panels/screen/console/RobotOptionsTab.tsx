@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { CSSProperties } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSectionObserver } from '../nav/useSectionObserver';
 import { useAccordionOpenState } from '../nav/useAccordionOpenState';
+import { RobotSectionAccordionStack } from '../nav/RobotSectionAccordionStack';
 import { RobotDisplaySection } from '@/components/robot/RobotDisplaySection';
 import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
 import { PingControlsCompositionSection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
 import { SignatureArrayLayer, RobotDriftPanel, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
-import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { hasPendingNavTargetFor } from '@/utils/accordionSync';
 import { setViewFadeRoot } from '@/utils/viewFade';
@@ -19,15 +20,16 @@ import { regenerateMelody } from '@/engine/regenerateMelody';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE } from '@/engine/melodyGenerator';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
 import { VOLUME_LFO_TARGET, SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
-import { SOURCE_OSCILLATOR_SUBSECTIONS, OSCILLATOR_LABELS } from '@/data/robotSubsectionConfig';
+import { SOURCE_OSCILLATOR_SUBSECTIONS, subsectionIds as computeSubsectionIds, accordionIds as computeAccordionIds } from '@/data/robotSubsectionConfig';
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo,
   applyAudioMode, applyVolume, applyVolumeLfo,
 } from '@/systems/robotOptionsActions';
-import type { LfoValue, AccordionSchema } from '@/types/controls';
+import type { LfoValue } from '@/types/controls';
 import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId } from '@/types/lfo';
 import type { Robot, ADSREnvelope, WaveformType } from '@/types/Robot';
+import type { Trait } from '@/types/traits';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 
 import './RobotOptionsTab.css';
@@ -39,6 +41,18 @@ const OUTPUT_STYLE = getTraitColorStyle('output');
 const COMPOSITION_STYLE = getTraitColorStyle('composition');
 const TIME_SPACE_STYLE = getTraitColorStyle('timeSpace');
 const SPECTRAL_STYLE = getTraitColorStyle('spectral');
+
+// The only 4 traits ROBOT_SECTIONS_CONFIG ever uses for this view — a plain switch over a fixed
+// module-level style, not a Record<Trait, ...> (this view has no style for company/seed/header).
+function resolveRobotOptionsStyle(trait: Trait): CSSProperties {
+  switch (trait) {
+    case 'output': return OUTPUT_STYLE;
+    case 'composition': return COMPOSITION_STYLE;
+    case 'timeSpace': return TIME_SPACE_STYLE;
+    case 'spectral': return SPECTRAL_STYLE;
+    default: return {};
+  }
+}
 
 function sectionAnchorRef(id: string) {
   return (el: HTMLDivElement | null) => {
@@ -97,15 +111,19 @@ interface RobotOptionsPanelProps {
  *
  * Stacked view (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, Task 11) — replaces the old
  * `switch (section)` (one leaf rendered) with RobotDisplaySection at top (unwrapped), followed by
- * all 4 sections' worth of subsections stacked, each wrapped in an accordion. Each accordion's
- * open/closed state is manual and independent (`useAccordionOpenState`) — a nav click only
- * scrolls to a section, and scrollspy only updates `selectedSection`/`selectedSubsection` for tree
- * highlighting; neither opens or closes an accordion (Crawford's own follow-up call, 2026-09-24,
- * reversing this pass's original derived-single-open-accordion design). Output's Audio Settings
- * opens by default on mount, and again whenever `robot.id` changes — switching to a different
- * robot doesn't carry over which accordions were left open on the last one. Each subsection's real
- * content only mounts once its own anchor has been scrolled near (useSectionObserver's lazy-mount
- * gate) — unaffected by any of the above.
+ * all 4 sections' worth of subsections stacked, each wrapped in an accordion, via
+ * RobotSectionAccordionStack (docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md) — this component
+ * owns only value derivation, action wiring, and dispatching each subsection id to its own content
+ * component (renderSubsection below); the accordion/anchor/nesting shell itself lives in that
+ * shared component, alongside CompanyOptionsSection's own "company mode" call site. Each
+ * accordion's open/closed state is manual and independent (`useAccordionOpenState`) — a nav click
+ * only scrolls to a section, and scrollspy only updates `selectedSection`/`selectedSubsection` for
+ * tree highlighting; neither opens or closes an accordion (Crawford's own follow-up call,
+ * 2026-09-24, reversing this pass's original derived-single-open-accordion design). Output's Audio
+ * Settings opens by default on mount, and again whenever `robot.id` changes — switching to a
+ * different robot doesn't carry over which accordions were left open on the last one. Each
+ * subsection's real content only mounts once its own anchor has been scrolled near
+ * (useSectionObserver's lazy-mount gate) — unaffected by any of the above.
  */
 function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   const latestRobot = useRef(robot);
@@ -178,17 +196,9 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   );
 
   const prefix = `probes.${robot.id}`;
-  const subsectionIds = useMemo(() => [
-    `${prefix}.volume.audioSettings`,
-    `${prefix}.melody.rhythm`,
-    `${prefix}.envelope.pingContour`,
-    `${prefix}.source.baselineOscillator`,
-    `${prefix}.source.coaxialOscillator`,
-    `${prefix}.source.harmonicOscillator`,
-    `${prefix}.source.probeDrift`,
-  ], [prefix]);
+  const subsectionIdList = useMemo(() => computeSubsectionIds(prefix), [prefix]);
 
-  const { hasApproached } = useSectionObserver(subsectionIds, (id) => {
+  const { hasApproached } = useSectionObserver(subsectionIdList, (id) => {
     const segments = id.split('.'); // ['probes', robotId, section, subsection]
     const sec = segments[2] as RobotSection;
     const sub = segments[3] as RobotSubsection;
@@ -196,13 +206,8 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
     setSelectedSubsection(sub);
   });
 
-  // Every real accordion id this view renders — subsectionIds' 7 leaves plus the wrapping Source
-  // parent accordion, which shares its id with the nav tree's own "Source" node
-  // (`${prefix}.source`, not a separate '.group' suffix) — bug found live: openAccordionFromNav
-  // only ever walks UP an id's ancestry, so a nav click on "Source" (id `${prefix}.source`) could
-  // never resolve to a differently-named `${prefix}.source.group` accordion.
-  const accordionIds = useMemo(() => [...subsectionIds, `${prefix}.source`], [subsectionIds, prefix]);
-  const { isOpen, setOpen } = useAccordionOpenState(accordionIds, `${prefix}.volume.audioSettings`, robot.id);
+  const accordionIdList = useMemo(() => computeAccordionIds(prefix), [prefix]);
+  const { isOpen, setOpen } = useAccordionOpenState(accordionIdList, `${prefix}.volume.audioSettings`, robot.id);
 
   // Starts hidden only when a nav click was already mid-flight targeting one of this view's own
   // accordions at the moment of this component's OWN first mount — i.e. arriving here from a
@@ -211,7 +216,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   // never re-hides an already-visible view. NavTreeNode's own onSettled callback (scroll, then
   // fadeInView) is what reveals it again once the target accordion(s) have actually finished
   // opening — see src/utils/viewFade.ts.
-  const [startHidden] = useState(() => hasPendingNavTargetFor(accordionIds));
+  const [startHidden] = useState(() => hasPendingNavTargetFor(accordionIdList));
 
   // useCallback, not an inline arrow function — an inline ref callback's identity changes every
   // render, which makes React re-invoke it (null, then the element again) on every single
@@ -231,129 +236,87 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- startHidden is intentionally excluded, see comment above
   }, [prefix]);
 
+  // Dispatches each subsection id to its own content component, exactly as the pre-consolidation
+  // JSX did per accordion — RobotSectionAccordionStack calls this only once a subsection's own id
+  // hasApproached (its lazy-mount gate), so no hasApproached check is needed here.
+  const renderSubsection = useCallback((subsectionId: RobotSubsection): ReactNode => {
+    switch (subsectionId) {
+      case 'audioSettings':
+        return (
+          <AudioSettingSection
+            value={audioSettingValue}
+            onAudioModeChange={handleAudioModeChange}
+            onVolumeChange={handleVolumeChange}
+            onVolumeLfoChange={handleVolumeLfoChange}
+            volumeLfoHeldOff={volumeLfoHeldOff}
+          />
+        );
+      case 'rhythm':
+        // Rhythm/Pitches merged into one "Composition" accordion, 3 two-field rows
+        // (docs/reference/layout-updates.md) — reuses the old '.rhythm' id (no new tree/scrollspy
+        // id introduced); the nav tree's separate "Pitches" leaf has no accordion or top-level
+        // anchor of its own anymore, but PingControlsCompositionSection registers a real anchor
+        // around its own Note Variance slider under that id (`.melody.frequency`), so a nav click
+        // on "Pitches" opens this Composition accordion (accordionSync's own sole-immediate-child/
+        // sibling fallback) and scrolls to that slider specifically.
+        return (
+          <PingControlsCompositionSection
+            value={pingControlsValue}
+            onDensityChange={handleDensityChange}
+            onMotifLengthChange={handleMotifLengthChange}
+            onPitchRepeatChange={handlePitchRepeatChange}
+            onOctaveMinChange={handleOctaveMinChange}
+            onOctaveMaxChange={handleOctaveMaxChange}
+            onNoteVarianceChange={handleNoteVarianceChange}
+            onResetMelody={handleResetMelody}
+            noteVarianceAnchorId={`${prefix}.melody.frequency`}
+          />
+        );
+      case 'pingContour':
+        return <PingContourDrawer value={robot.audioAttributes.adsr} onChange={handleAdsrChange} />;
+      case 'baselineOscillator':
+      case 'coaxialOscillator':
+      case 'harmonicOscillator': {
+        const idx = SOURCE_OSCILLATOR_SUBSECTIONS.indexOf(subsectionId);
+        const layer = signatureArrayValue.layers[idx];
+        return layer ? (
+          <SignatureArrayLayer
+            block={SIGNATURE_ARRAY_CONFIG[idx]}
+            idx={idx}
+            layer={layer}
+            lfoSettings={signatureArrayValue.lfoSettings}
+            heldOffTargets={heldOffTargets}
+            onTypeChange={handleLayerTypeChange}
+            onParamChange={handleLayerParamChange}
+            onLfoFieldChange={handleLayerLfoFieldChange}
+          />
+        ) : null;
+      }
+      case 'probeDrift':
+        return <RobotDriftPanel />;
+      default:
+        return null;
+    }
+  }, [
+    audioSettingValue, handleAudioModeChange, handleVolumeChange, handleVolumeLfoChange, volumeLfoHeldOff,
+    pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
+    handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, handleResetMelody, prefix,
+    robot.audioAttributes.adsr, handleAdsrChange,
+    signatureArrayValue, heldOffTargets, handleLayerTypeChange, handleLayerParamChange, handleLayerLfoFieldChange,
+  ]);
+
   return (
     <div className="robot-options" style={robotColorStyle} ref={rootRef}>
       <RobotDisplaySection robot={robot} />
-
-      <div ref={sectionAnchorRef(`${prefix}.volume`)}>
-        <div ref={sectionAnchorRef(`${prefix}.volume.audioSettings`)}>
-          <AccordionContainer
-            schema={{ id: `${prefix}.volume.audioSettings`, type: 'accordion', humanLabel: 'Levels' } satisfies AccordionSchema}
-            open={isOpen(`${prefix}.volume.audioSettings`)}
-            onOpenChange={(open) => setOpen(`${prefix}.volume.audioSettings`, open)}
-            style={OUTPUT_STYLE}
-          >
-            {hasApproached(`${prefix}.volume.audioSettings`) ? (
-              <AudioSettingSection
-                value={audioSettingValue}
-                onAudioModeChange={handleAudioModeChange}
-                onVolumeChange={handleVolumeChange}
-                onVolumeLfoChange={handleVolumeLfoChange}
-                volumeLfoHeldOff={volumeLfoHeldOff}
-              />
-            ) : null}
-          </AccordionContainer>
-        </div>
-      </div>
-
-      <div ref={sectionAnchorRef(`${prefix}.melody`)}>
-        {/* Rhythm/Pitches merged into one "Composition" accordion, 3 two-field rows
-            (docs/reference/layout-updates.md) — reuses the old '.rhythm' id (no new tree/
-            scrollspy id introduced); the nav tree's separate "Pitches" leaf has no accordion or
-            top-level anchor of its own anymore, but PingControlsCompositionSection registers a
-            real anchor around its own Note Variance slider under that id (`.melody.frequency`),
-            so a nav click on "Pitches" opens this Composition accordion (accordionSync's own
-            sole-immediate-child/sibling fallback) and scrolls to that slider specifically. */}
-        <div ref={sectionAnchorRef(`${prefix}.melody.rhythm`)}>
-          <AccordionContainer
-            schema={{ id: `${prefix}.melody.rhythm`, type: 'accordion', humanLabel: 'Composition' } satisfies AccordionSchema}
-            open={isOpen(`${prefix}.melody.rhythm`)}
-            onOpenChange={(open) => setOpen(`${prefix}.melody.rhythm`, open)}
-            style={COMPOSITION_STYLE}
-          >
-            {hasApproached(`${prefix}.melody.rhythm`) ? (
-              <PingControlsCompositionSection
-                value={pingControlsValue}
-                onDensityChange={handleDensityChange}
-                onMotifLengthChange={handleMotifLengthChange}
-                onPitchRepeatChange={handlePitchRepeatChange}
-                onOctaveMinChange={handleOctaveMinChange}
-                onOctaveMaxChange={handleOctaveMaxChange}
-                onNoteVarianceChange={handleNoteVarianceChange}
-                onResetMelody={handleResetMelody}
-                noteVarianceAnchorId={`${prefix}.melody.frequency`}
-              />
-            ) : null}
-          </AccordionContainer>
-        </div>
-      </div>
-
-      <div ref={sectionAnchorRef(`${prefix}.envelope`)}>
-        <div ref={sectionAnchorRef(`${prefix}.envelope.pingContour`)}>
-          <AccordionContainer
-            schema={{ id: `${prefix}.envelope.pingContour`, type: 'accordion', humanLabel: 'Envelope' } satisfies AccordionSchema}
-            open={isOpen(`${prefix}.envelope.pingContour`)}
-            onOpenChange={(open) => setOpen(`${prefix}.envelope.pingContour`, open)}
-            style={TIME_SPACE_STYLE}
-          >
-            {hasApproached(`${prefix}.envelope.pingContour`) ? (
-              <PingContourDrawer value={robot.audioAttributes.adsr} onChange={handleAdsrChange} />
-            ) : null}
-          </AccordionContainer>
-        </div>
-      </div>
-
-      <div ref={sectionAnchorRef(`${prefix}.source`)}>
-        {/* New wrapping parent accordion (docs/reference/layout-updates.md) — the 4 accordions
-            inside it (3 oscillators + Drift) are unchanged, just nested one level deeper instead
-            of sitting as flat siblings. No hasApproached gate of its own: each child accordion
-            already lazy-mounts its own content, so the parent can render its 4 (cheap, shell-only
-            until individually approached) children unconditionally. */}
-        <AccordionContainer
-          schema={{ id: `${prefix}.source`, type: 'accordion', humanLabel: 'Source' } satisfies AccordionSchema}
-          open={isOpen(`${prefix}.source`)}
-          onOpenChange={(open) => setOpen(`${prefix}.source`, open)}
-          style={SPECTRAL_STYLE}
-        >
-          {SOURCE_OSCILLATOR_SUBSECTIONS.map((sub, idx) => {
-            const layer = signatureArrayValue.layers[idx];
-            const id = `${prefix}.source.${sub}`;
-            return (
-              <div key={sub} ref={sectionAnchorRef(id)}>
-                <AccordionContainer
-                  schema={{ id, type: 'accordion', humanLabel: OSCILLATOR_LABELS[sub] } satisfies AccordionSchema}
-                  open={isOpen(id)}
-                  onOpenChange={(open) => setOpen(id, open)}
-                  style={SPECTRAL_STYLE}
-                >
-                  {hasApproached(id) && layer ? (
-                    <SignatureArrayLayer
-                      block={SIGNATURE_ARRAY_CONFIG[idx]}
-                      idx={idx}
-                      layer={layer}
-                      lfoSettings={signatureArrayValue.lfoSettings}
-                      heldOffTargets={heldOffTargets}
-                      onTypeChange={handleLayerTypeChange}
-                      onParamChange={handleLayerParamChange}
-                      onLfoFieldChange={handleLayerLfoFieldChange}
-                    />
-                  ) : null}
-                </AccordionContainer>
-              </div>
-            );
-          })}
-          <div ref={sectionAnchorRef(`${prefix}.source.probeDrift`)}>
-            <AccordionContainer
-              schema={{ id: `${prefix}.source.probeDrift`, type: 'accordion', humanLabel: 'Probe Drift' } satisfies AccordionSchema}
-              open={isOpen(`${prefix}.source.probeDrift`)}
-              onOpenChange={(open) => setOpen(`${prefix}.source.probeDrift`, open)}
-              style={SPECTRAL_STYLE}
-            >
-              {hasApproached(`${prefix}.source.probeDrift`) ? <RobotDriftPanel /> : null}
-            </AccordionContainer>
-          </div>
-        </AccordionContainer>
-      </div>
+      <RobotSectionAccordionStack
+        prefix={prefix}
+        isOpen={isOpen}
+        setOpen={setOpen}
+        hasApproached={hasApproached}
+        sectionAnchorRef={sectionAnchorRef}
+        resolveStyle={resolveRobotOptionsStyle}
+        renderSubsection={renderSubsection}
+      />
     </div>
   );
 }
