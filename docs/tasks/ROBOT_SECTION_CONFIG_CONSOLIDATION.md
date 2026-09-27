@@ -215,17 +215,17 @@ Strictly linear, not a fan-out — unlike `NAV_ACCORDION_SYNC.md`'s Tasks 1/2, n
 
 ### Phase 5: Docs
 
-- [ ] **Task 6: `docs/UI_SHELL.md` — document `ROBOT_SECTIONS_CONFIG`/`RobotSectionAccordionStack`**
+- [x] **Task 6: `docs/UI_SHELL.md` — document `ROBOT_SECTIONS_CONFIG`/`RobotSectionAccordionStack`**
 
   **Description:** Add a short note to `UI_SHELL.md`'s "Content model" section (alongside its existing `accordionSync`/`sectionRefs` descriptions) naming `ROBOT_SECTIONS_CONFIG` (`src/data/robotSubsectionConfig.ts`) as the single source for Probes/Companies' section/subsection shape, and `RobotSectionAccordionStack` as the shared shell both `RobotOptionsTab`/`CompanyOptionsSection` render through. Spot-check every named identifier against the final shipped source from Tasks 1–5, matching `NAV_ACCORDION_SYNC.md`'s own Task 6 convention for landing docs last.
 
   **Acceptance criteria:**
-  - [ ] Names `ROBOT_SECTIONS_CONFIG`, `RobotSectionAccordionStack`, and the `mergedInto`/`ownAccordionLabel` special cases (§1.3) exactly matching shipped source.
-  - [ ] Explicitly notes that `COMPONENT_LIBRARY.md`'s existing description of `RobotOptionsTab`/`CompanyOptionsSection` as separate hand-authored views (if it says that anywhere) is now stale and should be corrected in the same pass, or flagged if out of this task's own file scope.
+  - [x] Names `ROBOT_SECTIONS_CONFIG`, `RobotSectionAccordionStack`, and the `mergedInto`/`ownAccordionLabel` special cases (§1.3) exactly matching shipped source.
+  - [x] Explicitly notes that `COMPONENT_LIBRARY.md`'s existing description of `RobotOptionsTab`/`CompanyOptionsSection` as separate hand-authored views was stale — found it (line 215's `AccordionContainer` entry) and corrected it in the same pass, rather than flagging it as out of scope.
 
   **Verification:**
-  - [ ] Manual review — every documented name/behavior spot-checked directly against the final shipped code from Tasks 1–5.
-  - [ ] `npm run build:types`, `npm run lint` clean (docs-only change; full `npm test`/`npm run build` already reconfirmed clean at Checkpoint: Integration Complete).
+  - [x] Manual review — every documented name/behavior spot-checked directly against the final shipped code from Tasks 1–5.
+  - [x] `npm run build:types`, `npm run lint` clean (docs-only change; full `npm test`/`npm run build` already reconfirmed clean at Checkpoint: Integration Complete).
 
   **Dependencies:** Task 1, Task 2, Task 3, Task 4, Task 5.
 
@@ -234,11 +234,11 @@ Strictly linear, not a fan-out — unlike `NAV_ACCORDION_SYNC.md`'s Tasks 1/2, n
   **Estimated scope:** XS (docs only)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint` clean (post-docs-change spot check); full `npm test`/`npm run build` confirmed clean at Checkpoint: Integration Complete.
-- [ ] All automated acceptance criteria across all 6 tasks are met.
-- [ ] `docs/UI_SHELL.md` reflects the shipped API — every documented name spot-checked against source.
-- [ ] **Manual/live-browser check from Task 4/5's own checkpoint was performed** (or, if not, explicitly re-flagged here — do not let it silently lapse between checkpoints).
-- [ ] Ready for human review / PR.
+- [x] `npm run build:types`, `npm run lint` clean (post-docs-change spot check); full `npm test`/`npm run build` confirmed clean at Checkpoint: Integration Complete.
+- [x] All automated acceptance criteria across all 6 tasks are met.
+- [x] `docs/UI_SHELL.md` reflects the shipped API — every documented name spot-checked against source.
+- [ ] **Manual/live-browser check from Task 4/5's own checkpoint was NOT performed in this session — no live browser was used. Flagged for Crawford before merge**, per that checkpoint's own note — not silently lapsed, explicitly carried forward here.
+- [ ] Ready for human review / PR, pending the manual check above and Crawford's own review of all 6 tasks (per his instruction to continue straight through without per-checkpoint review, saving one full review for the end).
 
 ## Risks and Mitigations
 
