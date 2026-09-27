@@ -194,7 +194,7 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
 
   **Estimated scope:** XS
 
-- [ ] **Task 8: `swimAnimation.test.ts` — no-ref path, timeline replacement, offset math, propeller count**
+- [x] **Task 8: `swimAnimation.test.ts` — no-ref path, timeline replacement, offset math, propeller count**
 
   **Description:** New `src/animation/swimAnimation.test.ts`. Runs against `vitest.setup.ts`'s global GSAP mock; uses real `refs.ts`/`timelineMap.ts` (unmocked) to register a fake ref and observe timeline replacement. Per spec §3.3.
 
@@ -220,20 +220,20 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
 
   **Estimated scope:** M (one file, but several distinct behaviors — no-ref path, replacement, offset math, propeller count — each needs its own fake-ref/DOM setup)
 
-- [ ] **Task 9: `timelineMap.test.ts` — registry lifecycle**
+- [x] **Task 9: `timelineMap.test.ts` — registry lifecycle**
 
   **Description:** New `src/animation/timelineMap.test.ts`. Runs against the global GSAP mock; construct fake timelines via the mocked `gsap.timeline()`. Per spec §3.3.
 
   **Acceptance criteria:**
-  - [ ] `setTimeline`/`getTimeline` round-trip for a given id.
-  - [ ] `setTimeline` on an id already present calls `.kill()` on the *previous* timeline before overwriting it.
-  - [ ] `killTimeline` on a present id calls `.kill()` and removes the entry (`getTimeline` afterward is `undefined`); on an absent id it's a safe no-op.
-  - [ ] `killAllTimelines` calls `.kill()` on every entry and empties the map (`timelineMap.size === 0`, `getTimeline` for any previously-set id is `undefined`).
-  - [ ] No production file modified.
+  - [x] `setTimeline`/`getTimeline` round-trip for a given id.
+  - [x] `setTimeline` on an id already present calls `.kill()` on the *previous* timeline before overwriting it — **mutation-tested**: removing `setTimeline`'s own `existing.kill()` call was caught.
+  - [x] `killTimeline` on a present id calls `.kill()` and removes the entry (`getTimeline` afterward is `undefined`); on an absent id it's a safe no-op.
+  - [x] `killAllTimelines` calls `.kill()` on every entry and empties the map (`timelineMap.size === 0`, `getTimeline` for any previously-set id is `undefined`).
+  - [x] No production file modified.
 
   **Verification:**
-  - [ ] `npx vitest run src/animation/timelineMap.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/animation/timelineMap.test.ts` passes (5 tests).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
