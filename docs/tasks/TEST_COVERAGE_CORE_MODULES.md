@@ -243,21 +243,21 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
 
 #### Robot Visuals
 
-- [ ] **Task 10: `robotShapeVariants.test.tsx` — one shared parametrized file for all 4 variants**
+- [x] **Task 10: `robotShapeVariants.test.tsx` — one shared parametrized file for all 4 variants**
 
-  **Description:** New `src/components/robot/robotShapeVariants.test.tsx`, `describe.each` over `RobotAngular`/`RobotIndustrial`/`RobotOrganic`/`RobotSleek` — confirmed by direct read that all four share an identical `RobotSVGProps` contract and the same `detailLevel`/`dimOpacity`/`.propeller` behavior. Per spec §3.4/§5.3. **One file for four production files — do not split into four test files.**
+  **Description:** New `src/components/robot/robotShapeVariants.test.tsx`, `describe.each` over `RobotAngular`/`RobotIndustrial`/`RobotOrganic`/`RobotSleek` — confirmed by direct read that all four share an identical `RobotSVGProps` contract and the same `detailLevel`/`dimOpacity`/`.propeller` behavior. Per spec §3.4/§5.3. **One file for four production files — do not split into four test files.** Every `render()` call wraps its component in `<svg>...</svg>`, matching the established convention in `Robot.test.tsx`/`RobotBody.test.tsx` — a bare root `<g>` triggers a harmless-but-noisy "unrecognized tag" jsdom warning otherwise.
 
   **Acceptance criteria:**
-  - [ ] Each of the 4 variants renders without throwing given typical `colors`/`scale`/`detailLevel` props.
-  - [ ] Each variant renders its `.details`-classed group only when `detailLevel > 0.5` (assert both `detailLevel = 0.5` → absent and `detailLevel = 0.6` → present — the guard is a strict `>`).
-  - [ ] Each variant applies `dimOpacity` (default `1` when omitted) as the `opacity` attribute on its viewport group(s) — assert both the default and an explicit non-default value (e.g. `0.4`).
-  - [ ] Each variant's root `<g transform="scale(...)">` reflects `scale * (1 + scaleBias)` — default (no `shapeParams`, `scaleBias = 0`) produces `scale(${scale})`; a supplied `scaleBias` changes the rendered value predictably.
-  - [ ] Each variant renders a `.propeller`-classed element (the element `swimAnimation.ts`'s own code queries for).
-  - [ ] No production file modified (`RobotAngular.tsx`/`RobotIndustrial.tsx`/`RobotOrganic.tsx`/`RobotSleek.tsx` all read-only).
+  - [x] Each of the 4 variants renders without throwing given typical `colors`/`scale`/`detailLevel` props.
+  - [x] Each variant renders its `.details`-classed group only when `detailLevel > 0.5` (assert both `detailLevel = 0.5` → absent and `detailLevel = 0.6` → present — the guard is a strict `>`) — **mutation-tested** (on `RobotAngular`, representative of all 4): changing `detailLevel > 0.5` to `>= 0.5` was caught by the `0.5` case.
+  - [x] Each variant applies `dimOpacity` (default `1` when omitted) as the `opacity` attribute on its viewport group(s) — assert both the default and an explicit non-default value (`0.4`). (Selector note: `[opacity="1"]` uniquely identifies the dimOpacity group in the default case — every other opacity attribute in these components is a static decorative value below 1.)
+  - [x] Each variant's root `<g transform="scale(...)">` reflects `scale * (1 + scaleBias)` — default (no `shapeParams`, `scaleBias = 0`) produces `scale(${scale})`; a supplied `scaleBias` changes the rendered value predictably.
+  - [x] Each variant renders a `.propeller`-classed element (the element `swimAnimation.ts`'s own code queries for).
+  - [x] No production file modified (`RobotAngular.tsx`/`RobotIndustrial.tsx`/`RobotOrganic.tsx`/`RobotSleek.tsx` all read-only) — confirmed via `git diff --exit-code` after the mutation check.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/robot/robotShapeVariants.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/robot/robotShapeVariants.test.tsx` passes (24 tests — 6 per variant × 4).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
