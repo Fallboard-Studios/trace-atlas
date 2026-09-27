@@ -77,20 +77,21 @@ Strictly linear, not a fan-out — unlike `NAV_ACCORDION_SYNC.md`'s Tasks 1/2, n
 
 ### Phase 2: Nav tree migrates to the table
 
-- [ ] **Task 2: `useNavTree.ts` — `sectionChildNodes()` reads `ROBOT_SECTIONS_CONFIG`**
+- [x] **Task 2: `useNavTree.ts` — `sectionChildNodes()` reads `ROBOT_SECTIONS_CONFIG`**
 
   **Description:** Delete `ROBOT_SECTIONS` ([useNavTree.ts:17](../../src/components/panels/screen/nav/useNavTree.ts#L17)), `SECTION_CHILDREN`, and `SUBSECTION_CHILDREN` ([useNavTree.ts:154-178](../../src/components/panels/screen/nav/useNavTree.ts#L154-L178)); rewrite `sectionChildNodes()` ([useNavTree.ts:180-189](../../src/components/panels/screen/nav/useNavTree.ts#L180-L189)) to map over `ROBOT_SECTIONS_CONFIG` per [spec §3.1](../specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md#31-usenavtreets-reads-the-table-instead-of-its-own-literals). The generated `NavTreeNodeSchema[]` shape (id/humanLabel/trait/children) must be pixel-for-pixel identical to today's output — this task changes *where* the tree's labels come from, never what the tree renders. No other function in `useNavTree.ts` (`select`, `isExpanded`, `expandNavAncestorsForId`, `isAutoExpandTier`, `isDeepestTwoLevels`, `isCollapsible`, `buildProbesSubtree`, `buildCompaniesSubtree`) changes.
 
   **Acceptance criteria:**
-  - [ ] `sectionChildNodes('probes.r1')` produces the exact same `NavTreeNodeSchema[]` tree (same ids, `humanLabel`s, `trait`s, nesting) as today's implementation, for at least one robot id and one company id — asserted directly, not just "the app looks the same."
-  - [ ] The 4th-level "Pitches" (`frequency`) node still renders as its own nav-tree leaf (`probes.r1.melody.frequency`, `humanLabel: 'Pitches'`) even though it now carries `mergedInto` in the data table — `mergedInto` affects only the *content/accordion* side (Tasks 4/5), never nav-tree node generation, which still gets one tree node per subsection regardless of `mergedInto`.
-  - [ ] Every existing `useNavTree.test.ts` assertion about rendered tree shape/labels/ids for Probes/Companies subtrees passes unmodified.
-  - [ ] Any existing test that imports `ROBOT_SECTIONS`/`SECTION_CHILDREN`/`SUBSECTION_CHILDREN` directly (check `useNavTree.test.ts` for this at task start — spec §7 open question 5) is ported to test `ROBOT_SECTIONS_CONFIG` in `robotSubsectionConfig.test.ts` instead, not deleted outright.
+  - [x] `sectionChildNodes('probes.r1')` produces the exact same `NavTreeNodeSchema[]` tree (same ids, `humanLabel`s, `trait`s, nesting) as today's implementation, for at least one robot id and one company id — asserted directly, not just "the app looks the same." (Existing `useNavTree.test.ts` coverage already asserts this per-id/per-trait for both `probes.r1` and `companies.c1`/`probes.all` — a redundant new test was not added; see Checkpoint note.)
+  - [x] The 4th-level "Pitches" (`frequency`) node still renders as its own nav-tree leaf (`probes.r1.melody.frequency`, `humanLabel: 'Pitches'`) even though it now carries `mergedInto` in the data table — `mergedInto` affects only the *content/accordion* side (Tasks 4/5), never nav-tree node generation, which still gets one tree node per subsection regardless of `mergedInto`.
+  - [x] Every existing `useNavTree.test.ts` assertion about rendered tree shape/labels/ids for Probes/Companies subtrees passes unmodified.
+  - [x] `ROBOT_SECTIONS`/`SECTION_CHILDREN`/`SUBSECTION_CHILDREN` are not imported directly by any test — nothing to port (checked at task start, per spec §7 open question 5).
+  - [x] **Deviation from the plan, applied and noted:** `ROBOT_SECTIONS` (the local array) is *not* deleted outright as originally planned — it's still read by `asRobotSection`, an unrelated id-parsing type guard the spec's own file citation missed. Kept, but now derived as `ROBOT_SECTIONS_CONFIG.map((s) => s.id)` instead of a second hand-typed literal — satisfies the same "one source of truth" goal without breaking `asRobotSection`.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/useNavTree.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
-  - [ ] `npm test` (full suite) — zero new failures.
+  - [x] `npx vitest run src/components/panels/screen/nav/useNavTree.test.ts` passes (1 pre-existing failure, unchanged from baseline — see below).
+  - [x] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm test` (full suite) — same 17 named pre-existing failures as baseline, confirmed via git-stash A/B; zero new failures.
 
   **Dependencies:** Task 1.
 
@@ -99,10 +100,10 @@ Strictly linear, not a fan-out — unlike `NAV_ACCORDION_SYNC.md`'s Tasks 1/2, n
   **Estimated scope:** S (one file's internals rewritten against an already-correct table; no new behavior)
 
 ### Checkpoint: Nav Tree Migrated
-- [ ] `npm run build:types`, `npm run lint`, `npm test` all clean.
-- [ ] The nav tree (Probes/Companies branches) is provably unchanged in rendered shape — `useNavTree.test.ts`'s own coverage is the proof, not a manual click-through at this checkpoint (that comes later, at Phase 4's own checkpoint, once there's something new to actually look at).
-- [ ] `RobotOptionsTab.tsx`/`CompanyOptionsSection.tsx` are still byte-for-byte unchanged from `main` — confirms this phase's own claimed scope (nav tree only) was honored.
-- [ ] Reviewed with human before proceeding to Phase 3.
+- [x] `npm run build:types`, `npm run lint`, `npm test` all clean (mod. pre-existing failures, unchanged).
+- [x] The nav tree (Probes/Companies branches) is provably unchanged in rendered shape — `useNavTree.test.ts`'s own coverage is the proof, not a manual click-through at this checkpoint (that comes later, at Phase 4's own checkpoint, once there's something new to actually look at).
+- [x] `RobotOptionsTab.tsx`/`CompanyOptionsSection.tsx` are still byte-for-byte unchanged from `main` — confirms this phase's own claimed scope (nav tree only) was honored.
+- [ ] Reviewed with human before proceeding to Phase 3. **(Proceeding per Crawford's instruction to continue through Phase 4 without stopping; full review deferred to the end.)**
 
 ---
 
