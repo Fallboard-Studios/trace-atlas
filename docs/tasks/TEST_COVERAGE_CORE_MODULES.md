@@ -151,21 +151,21 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
 
 #### UI / Animation Math
 
-- [ ] **Task 6: `sliderLogMath.test.ts` — epsilon-floor curve, `min = 0` edge case**
+- [x] **Task 6: `sliderLogMath.test.ts` — epsilon-floor curve, `min = 0` edge case**
 
   **Description:** New `src/components/ui/controls/sliderLogMath.test.ts`. Per spec §3.3.
 
   **Acceptance criteria:**
-  - [ ] `sliderLogValueToT(value, min, max)` with `value <= min` returns exactly `0` — **named risk:** `sliderLogValueToT(0, 0, 100)` must be `0`, not `NaN`/`-Infinity` from a raw `log(0/floor)`.
-  - [ ] `sliderLogValueToT(max, min, max)` returns exactly `1`.
-  - [ ] `sliderLogTToValue(t, min, max)` with `t <= 0` returns exactly `min` — **named risk**, same `min = 0` case: must return exactly `0`, not `LOG_EPSILON` or `NaN`.
-  - [ ] `sliderLogTToValue(1, min, max)` returns `max`.
-  - [ ] Round-trip: for at least 2 `(min, max)` pairs (including `min = 0`) and several sample values between `min` and `max`, `sliderLogTToValue(sliderLogValueToT(v, min, max), min, max) ≈ v` (within floating-point tolerance).
-  - [ ] No production file modified.
+  - [x] `sliderLogValueToT(value, min, max)` with `value <= min` returns exactly `0` — **named risk:** `sliderLogValueToT(0, 0, 100)` must be `0`, not `NaN`/`-Infinity` from a raw `log(0/floor)`.
+  - [x] `sliderLogValueToT(max, min, max)` returns exactly `1`.
+  - [x] `sliderLogTToValue(t, min, max)` with `t <= 0` returns exactly `min` — **named risk**, same `min = 0` case: must return exactly `0`, not `LOG_EPSILON` or `NaN`.
+  - [x] `sliderLogTToValue(1, min, max)` returns `max`.
+  - [x] Round-trip: for 2 `(min, max)` pairs (including `min = 0`) and 5 sample values each between `min` and `max`, `sliderLogTToValue(sliderLogValueToT(v, min, max), min, max) ≈ v` (within floating-point tolerance).
+  - [x] No production file modified.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/ui/controls/sliderLogMath.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/ui/controls/sliderLogMath.test.ts` passes (6 tests).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
