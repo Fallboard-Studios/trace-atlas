@@ -267,21 +267,23 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
 
 #### World / Actors
 
-- [ ] **Task 11: `factoryVariants.test.ts` — bubble eligibility, variant weighting, seeded determinism**
+- [x] **Task 11: `factoryVariants.test.ts` — bubble eligibility, variant weighting, seeded determinism**
 
   **Description:** New `src/components/actors/factoryVariants.test.ts`. Per spec §3.5.
 
+  **Open Question 1 resolved:** pinned a literal regression snapshot (`toMatchInlineSnapshot()`, Vitest-populated via `-u` from real output, then re-run unpinned to confirm stability) rather than only the weaker determinism property — the stronger guard for the file's own "PRNG draw order must not change" warning.
+
   **Acceptance criteria:**
-  - [ ] `isBubbleEligible`: each of the 4 `BUBBLE_PURPOSES` (`heavyIndustry`, `chemicalProcessing`, `pipeWorks`, `storageLogistics`) returns `true`; `observationComms` returns `false`; `undefined` returns `true` (documented fallback).
-  - [ ] `getVariantFromNoise`: with the default 5-variant list, a `noiseValue` near `0` resolves to `Monolith` (first/heaviest-weighted) and near `1` resolves to `Warehouse` (last); a custom shorter `availableTypes` list re-weights correctly per the triangular-number weighting; a `noiseValue` of exactly `1` still resolves to the last entry via the final fallback `return`, not `undefined`.
-  - [ ] **Named risk — PRNG draw order:** calling `selectVariantFromSeed` twice with an identical `(actorId, x, row)` produces byte-identical output on every field (determinism). If practical, one full known-seed output is pinned as a literal regression value (Open Question 1 in the spec leaves the exact form to this task).
-  - [ ] `frontCornerX` is always an integer in `[25, 75]` inclusive, checked across at least 3 different seeds.
-  - [ ] `beltCourseCount` is `0` when the resolved variant's `maxBeltCourses` is `0` (e.g. `Warehouse`), and otherwise an integer in `[0, maxBeltCourses]`.
-  - [ ] No production file modified.
+  - [x] `isBubbleEligible`: each of the 4 `BUBBLE_PURPOSES` (`heavyIndustry`, `chemicalProcessing`, `pipeWorks`, `storageLogistics`) returns `true`; `observationComms` returns `false`; `undefined` returns `true` (documented fallback).
+  - [x] `getVariantFromNoise`: with the default 5-variant list, a `noiseValue` near `0` resolves to `Monolith` (first/heaviest-weighted) and near `1` resolves to `Warehouse` (last); a custom shorter `availableTypes` list re-weights correctly per the triangular-number weighting; a `noiseValue` of exactly `1` still resolves to the last entry via the final fallback `return`, not `undefined`.
+  - [x] **Named risk — PRNG draw order:** calling `selectVariantFromSeed` twice with an identical `(actorId, x, row)` produces byte-identical output on every field (determinism), plus one pinned known-seed snapshot — **mutation-tested**: swapping the `hueShift`/`satShift` draw order (lines 231–232) was caught by the pinned snapshot.
+  - [x] `frontCornerX` is always an integer in `[25, 75]` inclusive, checked across 5 different seeds.
+  - [x] `beltCourseCount` is `0` when the resolved variant's `maxBeltCourses` is `0` (`Warehouse`, forced via a single-entry `availableTypes`), and otherwise an integer in `[0, maxBeltCourses]` (checked against `Skyscraper`'s `maxBeltCourses: 3`, across 5 seeds).
+  - [x] No production file modified — confirmed via `git diff --exit-code` after the mutation check.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/actors/factoryVariants.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/actors/factoryVariants.test.ts` passes (15 tests).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
