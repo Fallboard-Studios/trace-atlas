@@ -173,20 +173,20 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
 
   **Estimated scope:** S
 
-- [ ] **Task 7: `accordionAnimation.test.ts` — reduced-motion branching + documented invariants**
+- [x] **Task 7: `accordionAnimation.test.ts` — reduced-motion branching + documented invariants**
 
   **Description:** New `src/components/ui/controls/accordionAnimation.test.ts`. Per spec §3.3.
 
   **Acceptance criteria:**
-  - [ ] `getAccordionDuration(true)` returns `0`; `getAccordionDuration(false)` returns `ACCORDION_DURATION` (`0.25`).
-  - [ ] `getAccordionFadeDuration(true)` returns `0`; `getAccordionFadeDuration(false)` returns `ACCORDION_FADE_DURATION` (`0.15`).
-  - [ ] `ACCORDION_FADE_DURATION < ACCORDION_DURATION` (pins the file's own "fade is sequenced, never simultaneous" invariant).
-  - [ ] `FIRST_OPEN_MAX_SETTLE_TICKS` is a positive integer.
-  - [ ] No production file modified.
+  - [x] `getAccordionDuration(true)` returns `0`; `getAccordionDuration(false)` returns `ACCORDION_DURATION` (`0.25`).
+  - [x] `getAccordionFadeDuration(true)` returns `0`; `getAccordionFadeDuration(false)` returns `ACCORDION_FADE_DURATION` (`0.15`).
+  - [x] `ACCORDION_FADE_DURATION < ACCORDION_DURATION` (pins the file's own "fade is sequenced, never simultaneous" invariant).
+  - [x] `FIRST_OPEN_MAX_SETTLE_TICKS` is a positive integer.
+  - [x] No production file modified.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/ui/controls/accordionAnimation.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/ui/controls/accordionAnimation.test.ts` passes (6 tests).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
