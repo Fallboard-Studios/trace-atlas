@@ -21,6 +21,10 @@ moot through later, unrelated work. Those are pruned outright below rather than 
 closed-and-noted — git log is the record of what shipped; this file only tracks what's
 still actionable. Anything genuinely still open is carried forward unchanged.
 
+Going forward, a fully-closed item moves to [docs/todo/archive/backlog-archive.md](archive/backlog-archive.md)
+instead of being pruned outright, keeping the closure's own detail around. Item numbers are
+never reused or renumbered when an item moves.
+
 ## Open items
 
 ### 1. Onload: Better Power-Off Background
