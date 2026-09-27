@@ -312,11 +312,11 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
   **Estimated scope:** S
 
 ### Checkpoint: Complete
-- [ ] All 12 new test files pass individually (`npx vitest run <file>` for each).
-- [ ] Full `npm test` is clean: 12 new files add coverage with zero regressions to the existing suite. Note any *pre-existing* flaky failures explicitly (e.g. the known `audioSwells.test.ts`/`CompanyCrudControls.test.tsx`/`factoryPlacementSystem.test.ts` intermittent-under-parallel-run failures — see `docs/todo/backlog.md` item 15) rather than treating them as caused by this work.
-- [ ] `npm run build:types`, `npm run lint`, `npm run build` all clean.
-- [ ] Zero production files were modified across all 12 tasks — verified by diff review, not just each task's own self-report.
-- [ ] Any real bug found during test-writing (see Risks below) is reported to Crawford, not silently fixed in this phase's own commits.
+- [x] All 12 new test files pass individually (`npx vitest run <file>` for each).
+- [x] Full `npm test` is clean: 187 files / 3904 tests, all green — 12 new files added, zero regressions to the existing suite. **No pre-existing flaky failures hit on this run** (the known `audioSwells.test.ts`/`CompanyCrudControls.test.tsx`/`factoryPlacementSystem.test.ts` intermittent-under-parallel-run failures — `docs/todo/backlog.md` item 15 — happened not to reproduce this run; still a known, unrelated intermittency, not something this phase fixed).
+- [x] `npm run build:types`, `npm run lint`, `npm run build` all clean.
+- [x] Zero production files were modified across all 12 tasks — verified by `git diff --name-only main...tests/core-modules-coverage`, not just each task's own self-report. The one non-test file this branch touches is `vitest.setup.ts` (Task 8's deliberate, spec-permitted `.play()` mock addition).
+- [x] No real production bug was found during test-writing — every mutation check targeted the test's own assertion strength, not a live discrepancy between shipped behavior and its own documentation/comments. The one real finding (`vitest.setup.ts`'s missing `.play()`) is a test-infrastructure gap, not a production bug, and was fixed within the spec's own explicit allowance rather than left open.
 - [ ] Reviewed with human before merge.
 
 ## Risks and Mitigations
