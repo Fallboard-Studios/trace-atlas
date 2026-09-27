@@ -181,22 +181,22 @@ Strictly linear, not a fan-out — unlike `NAV_ACCORDION_SYNC.md`'s Tasks 1/2, n
 
   **Estimated scope:** M (one file, but the highest-stakes rewrite in this plan — must reproduce ~200 lines of existing JSX behavior exactly through the new shared shell)
 
-- [ ] **Task 5: `CompanyOptionsSection.tsx` migrates to `RobotSectionAccordionStack`**
+- [x] **Task 5: `CompanyOptionsSection.tsx` migrates to `RobotSectionAccordionStack`**
 
   **Description:** Same migration as Task 4, applied to [CompanyOptionsSection.tsx:384-500](../../src/components/company/CompanyOptionsSection.tsx#L384-L500). `resolveStyle` here is the existing `active ? XXX_ACTIVE_STYLE : XXX_DISABLED_STYLE` ternary per trait ([CompanyOptionsSection.tsx:37-44](../../src/components/company/CompanyOptionsSection.tsx#L37-L44)), unchanged in logic, just relocated into the `resolveStyle` prop. `disabled={!active}` is still threaded into each content component's own props by `renderSubsection` exactly as today — `RobotSectionAccordionStack` itself has no `disabled` concept of its own, it only decides *which* accordion/content renders, never whether a control inside it is interactive. No `RobotDisplaySection` equivalent exists for this call site (per spec §1.1/`docs/UI_SHELL.md`, `CompanyRenameDeleteForm` plays that role one level up, in `CompaniesContent.tsx` — outside this component entirely, untouched).
 
   **Acceptance criteria:**
-  - [ ] Every existing `CompanyOptionsSection.test.tsx` assertion passes unmodified — same rendered accordion ids/labels, same active/disabled styling and control-disabling behavior, same content per accordion.
-  - [ ] `noteVarianceAnchorId` handling matches Task 4's own resolution exactly (both call sites derive it the same way — this is the one place a divergence between the two integrations would be easy to miss).
-  - [ ] `resolveStyle` correctly threads `active` (this component's own state, not `RobotSectionAccordionStack`'s concern) into the active/disabled trait-style choice.
-  - [ ] File line count drops substantially, same informal signal as Task 4.
-  - [ ] `RobotSectionAccordionStack`'s own test suite (Task 3) still passes unmodified — this task should require zero changes to the shared component itself; if it turns out to, that's a sign Task 3's contract was incomplete, and the fix belongs in Task 3's own file with its own test coverage, not a `CompanyOptionsSection`-specific escape hatch bolted onto the shared component.
+  - [x] Every existing `CompanyOptionsSection.test.tsx` assertion passes unmodified — same rendered accordion ids/labels, same active/disabled styling and control-disabling behavior, same content per accordion. (All 24 tests passed on the first run.)
+  - [x] `noteVarianceAnchorId` handling matches Task 4's own resolution exactly (both call sites derive it the same way — this is the one place a divergence between the two integrations would be easy to miss). (Both use the identical `` `${prefix}.melody.frequency` `` literal inside the `rhythm` case.)
+  - [x] `resolveStyle` correctly threads `active` (this component's own state, not `RobotSectionAccordionStack`'s concern) into the active/disabled trait-style choice.
+  - [x] File line count drops substantially, same informal signal as Task 4. (504 → 464 lines, ~8%; same cross-file-dedup caveat as Task 4 — the shell itself is no longer duplicated at all, which is the real win.)
+  - [x] `RobotSectionAccordionStack`'s own test suite (Task 3) still passes unmodified — this task required zero changes to the shared component itself (confirmed: `RobotSectionAccordionStack.tsx`/`.test.tsx` untouched by this commit).
 
   **Verification:**
-  - [ ] `npx vitest run src/components/company/CompanyOptionsSection.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
-  - [ ] `npm test` (full suite) — zero new failures.
-  - [ ] `npm run build` clean (production bundle).
+  - [x] `npx vitest run src/components/company/CompanyOptionsSection.test.tsx` passes (pre-existing `act()` warning noise, confirmed identical via git-stash A/B — 106 occurrences before and after, not introduced by this task).
+  - [x] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm test` (full suite) — same 17 pre-existing failures as baseline; zero new failures.
+  - [x] `npm run build` clean (production bundle).
 
   **Dependencies:** Task 4 (sequential, not because of a real code dependency, but per the Architecture Decisions above — proving the shell against one 499-line suite before trusting it with the second, 520-line one).
 
@@ -205,11 +205,11 @@ Strictly linear, not a fan-out — unlike `NAV_ACCORDION_SYNC.md`'s Tasks 1/2, n
   **Estimated scope:** M (mirrors Task 4's shape and risk)
 
 ### Checkpoint: Integration Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Both `RobotOptionsTab.tsx` and `CompanyOptionsSection.tsx` render through `RobotSectionAccordionStack` — no hand-authored accordion JSX or hand-typed `subsectionIds`/`accordionIds` array remains in either file.
-- [ ] `RobotSectionAccordionStack.tsx` required zero call-site-specific special-casing to serve both — if it did, that's worth surfacing to the human before Task 6, not quietly shipped.
-- [ ] **Manual check (live browser) — not automated, flagged for Crawford before merge**, matching `NAV_ACCORDION_SYNC.md`'s own precedent: open a robot's Options and a company's Options side by side (or in sequence); confirm every accordion opens/closes/labels/scrolls identically to `main`, confirm the Source parent accordion still nests its 4 children correctly, confirm clicking "Pitches" in the nav still opens Composition and scrolls to Note Variance (the exact behavior `59959b5` shipped, per this session's earlier `/context-engineering` summary) in both robot mode and company/All-Probes mode.
-- [ ] Reviewed with human before proceeding to Phase 5.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (mod. the same 17 pre-existing test failures, unchanged throughout every task in this plan).
+- [x] Both `RobotOptionsTab.tsx` and `CompanyOptionsSection.tsx` render through `RobotSectionAccordionStack` — no hand-authored accordion JSX or hand-typed `subsectionIds`/`accordionIds` array remains in either file.
+- [x] `RobotSectionAccordionStack.tsx` required zero call-site-specific special-casing to serve both — confirmed, not just assumed: the file is untouched since Task 3's own commit.
+- [ ] **Manual check (live browser) — not performed in this session; no live browser was used. Flagged for Crawford before merge**, matching `NAV_ACCORDION_SYNC.md`'s own precedent: open a robot's Options and a company's Options side by side (or in sequence); confirm every accordion opens/closes/labels/scrolls identically to `main`, confirm the Source parent accordion still nests its 4 children correctly, confirm clicking "Pitches" in the nav still opens Composition and scrolls to Note Variance (the exact behavior `59959b5` shipped) in both robot mode and company/All-Probes mode.
+- [ ] Reviewed with human before proceeding to Phase 5. **(Proceeding per Crawford's instruction to continue past Phase 4; full review, including the manual check above, deferred to the end.)**
 
 ---
 
