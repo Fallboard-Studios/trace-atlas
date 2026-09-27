@@ -1,0 +1,81 @@
+import type { CSSProperties, ReactNode } from 'react';
+import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
+import { ROBOT_SECTIONS_CONFIG } from '@/data/robotSubsectionConfig';
+import type { RobotSection, RobotSubsection } from '@/stores/uiStore';
+import type { Trait } from '@/types/traits';
+import type { AccordionSchema } from '@/types/controls';
+
+export interface RobotSectionAccordionStackProps {
+  /** e.g. `probes.${robot.id}`, `probes.all`, `companies.${id}` — every id this stack renders is
+   *  built from this plus ROBOT_SECTIONS_CONFIG's own section/subsection ids. */
+  prefix: string;
+  isOpen: (id: string) => boolean;
+  setOpen: (id: string, open: boolean) => void;
+  /** Lazy-mount gate (useSectionObserver) — a subsection's renderSubsection() result is only
+   *  rendered once its id has approached. */
+  hasApproached: (id: string) => boolean;
+  sectionAnchorRef: (id: string) => (el: HTMLDivElement | null) => void;
+  /** Resolves an accordion's style from its owning section's trait — RobotOptionsTab passes a
+   *  fixed per-trait style, CompanyOptionsSection's own active/disabled variant. */
+  resolveStyle: (trait: Trait) => CSSProperties;
+  renderSubsection: (subsectionId: RobotSubsection, sectionId: RobotSection) => ReactNode;
+}
+
+/**
+ * Shared shell for the Probes/Companies stacked-accordion view (docs/specs/
+ * ROBOT_SECTION_CONFIG_CONSOLIDATION.md) — both RobotOptionsTab.tsx (robot mode) and
+ * CompanyOptionsSection.tsx (company/All-Probes broadcast mode) render through this instead of
+ * each hand-authoring the same accordion/anchor/nesting shell. Renders ROBOT_SECTIONS_CONFIG
+ * directly: a section with its own wrapping accordion (`ownAccordionLabel` set — only 'source'
+ * today) nests its subsections' own accordions inside one additional outer AccordionContainer;
+ * every other section renders its single accordion-bearing subsection with no section-level
+ * wrapping accordion at all, matching today's shipped shape exactly (spec §1.3). Callers own all
+ * value/handler/disabled-state logic — this component only decides which accordions exist, their
+ * ids/labels/nesting, and when their content mounts.
+ */
+export function RobotSectionAccordionStack({
+  prefix, isOpen, setOpen, hasApproached, sectionAnchorRef, resolveStyle, renderSubsection,
+}: RobotSectionAccordionStackProps) {
+  return (
+    <>
+      {ROBOT_SECTIONS_CONFIG.map((section) => {
+        const sectionId = `${prefix}.${section.id}`;
+        const style = resolveStyle(section.trait);
+
+        const subsectionAccordions = section.subsections
+          .filter((sub) => !sub.mergedInto)
+          .map((sub) => {
+            const id = `${sectionId}.${sub.id}`;
+            const schema: AccordionSchema = { id, type: 'accordion', humanLabel: sub.accordionLabel! };
+            return (
+              <div key={sub.id} ref={sectionAnchorRef(id)}>
+                <AccordionContainer
+                  schema={schema}
+                  open={isOpen(id)}
+                  onOpenChange={(open) => setOpen(id, open)}
+                  style={style}
+                >
+                  {hasApproached(id) ? renderSubsection(sub.id, section.id) : null}
+                </AccordionContainer>
+              </div>
+            );
+          });
+
+        return (
+          <div key={section.id} ref={sectionAnchorRef(sectionId)}>
+            {section.ownAccordionLabel ? (
+              <AccordionContainer
+                schema={{ id: sectionId, type: 'accordion', humanLabel: section.ownAccordionLabel } satisfies AccordionSchema}
+                open={isOpen(sectionId)}
+                onOpenChange={(open) => setOpen(sectionId, open)}
+                style={style}
+              >
+                {subsectionAccordions}
+              </AccordionContainer>
+            ) : subsectionAccordions}
+          </div>
+        );
+      })}
+    </>
+  );
+}

@@ -8,6 +8,8 @@ import {
   FIRST_SUBSECTION_OF,
   SOURCE_OSCILLATOR_SUBSECTIONS,
   OSCILLATOR_LABELS,
+  subsectionIds,
+  accordionIds,
 } from './robotSubsectionConfig';
 
 // ========================================
@@ -125,5 +127,38 @@ describe('SOURCE_OSCILLATOR_SUBSECTIONS / OSCILLATOR_LABELS (derived from ROBOT_
       const sub = source.subsections.find((s) => s.id === id)!;
       expect(OSCILLATOR_LABELS[id]).toBe(sub.accordionLabel);
     }
+  });
+});
+
+describe('subsectionIds', () => {
+  it('lists exactly the 7 accordion-bearing subsection ids, in tree order, excluding frequency', () => {
+    expect(subsectionIds('probes.r1')).toEqual([
+      'probes.r1.volume.audioSettings',
+      'probes.r1.melody.rhythm',
+      'probes.r1.envelope.pingContour',
+      'probes.r1.source.baselineOscillator',
+      'probes.r1.source.coaxialOscillator',
+      'probes.r1.source.harmonicOscillator',
+      'probes.r1.source.probeDrift',
+    ]);
+  });
+
+  it('reflects whatever prefix is given — company/All-Probes mode included', () => {
+    expect(subsectionIds('companies.c1')[0]).toBe('companies.c1.volume.audioSettings');
+  });
+});
+
+describe('accordionIds', () => {
+  it("lists the 7 subsection ids plus source's own wrapping accordion id, in order", () => {
+    expect(accordionIds('probes.r1')).toEqual([
+      'probes.r1.volume.audioSettings',
+      'probes.r1.melody.rhythm',
+      'probes.r1.envelope.pingContour',
+      'probes.r1.source.baselineOscillator',
+      'probes.r1.source.coaxialOscillator',
+      'probes.r1.source.harmonicOscillator',
+      'probes.r1.source.probeDrift',
+      'probes.r1.source',
+    ]);
   });
 });

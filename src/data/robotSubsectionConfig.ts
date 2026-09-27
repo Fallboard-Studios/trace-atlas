@@ -107,3 +107,24 @@ export const OSCILLATOR_LABELS: Record<(typeof SOURCE_OSCILLATOR_SUBSECTIONS)[nu
   coaxialOscillator: accordionLabelOf('coaxialOscillator'),
   harmonicOscillator: accordionLabelOf('harmonicOscillator'),
 };
+
+/** Every accordion-bearing subsection id RobotSectionAccordionStack renders for `prefix`, in tree
+ *  order — excludes a subsection merged into a sibling (mergedInto set, e.g. 'frequency'/Pitches,
+ *  which has no accordion of its own). Lives alongside ROBOT_SECTIONS_CONFIG (not in
+ *  RobotSectionAccordionStack.tsx) since it's a pure derivation of this table, not
+ *  component-specific logic — also keeps that file component-only for React Fast Refresh. */
+export function subsectionIds(prefix: string): string[] {
+  return ROBOT_SECTIONS_CONFIG.flatMap((section) => section.subsections
+    .filter((sub) => !sub.mergedInto)
+    .map((sub) => `${prefix}.${section.id}.${sub.id}`));
+}
+
+/** Every real AccordionContainer id RobotSectionAccordionStack renders for `prefix` —
+ *  subsectionIds() plus each section's own wrapping accordion id, for a section that has one
+ *  (only 'source' today). */
+export function accordionIds(prefix: string): string[] {
+  const wrapping = ROBOT_SECTIONS_CONFIG
+    .filter((section) => section.ownAccordionLabel)
+    .map((section) => `${prefix}.${section.id}`);
+  return [...subsectionIds(prefix), ...wrapping];
+}
