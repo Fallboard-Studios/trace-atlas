@@ -43,23 +43,23 @@ Strictly linear, not a fan-out — unlike `NAV_ACCORDION_SYNC.md`'s Tasks 1/2, n
 
 ### Phase 1: Foundation — the data table
 
-- [ ] **Task 1: `robotSubsectionConfig.ts` — extend to `ROBOT_SECTIONS_CONFIG`**
+- [x] **Task 1: `robotSubsectionConfig.ts` — extend to `ROBOT_SECTIONS_CONFIG`**
 
   **Description:** Replace the file's current narrow exports (`FIRST_SUBSECTION_OF`, `SOURCE_OSCILLATOR_SUBSECTIONS`, `OSCILLATOR_LABELS`) with the full `ROBOT_SECTIONS_CONFIG: RobotSectionEntry[]` table from [spec §2](../specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md#2-target-data-model), covering all 4 `RobotSection`s and their subsections — including `source`'s `ownAccordionLabel` (the one section with its own wrapping accordion) and `frequency`'s `mergedInto: 'rhythm'` (the one subsection with no accordion of its own, per spec §1.3). Re-implement the 3 old exports as one-line derived reads over the new table (Architecture Decisions above) so **zero other file needs to change in this task** — every existing import of `FIRST_SUBSECTION_OF`/`SOURCE_OSCILLATOR_SUBSECTIONS`/`OSCILLATOR_LABELS` keeps working unmodified. This task adds and extends; it does not yet delete anything from `useNavTree.ts`, `RobotOptionsTab.tsx`, or `CompanyOptionsSection.tsx` (Tasks 2/4/5).
 
   **Acceptance criteria:**
-  - [ ] Every `id`/`navLabel`/`accordionLabel`/`trait`/`ownAccordionLabel`/`mergedInto` value in `ROBOT_SECTIONS_CONFIG` is verified, at the moment this task is implemented, against current `main` source (`useNavTree.ts`'s `SECTION_CHILDREN`/`SUBSECTION_CHILDREN`, `RobotOptionsTab.tsx`'s/`CompanyOptionsSection.tsx`'s inline `AccordionSchema` literals) — not copied from the spec's own §2 code block without re-checking, in case `main` has moved since the spec was written (spec §7 open question 3).
-  - [ ] `ROBOT_SECTIONS_CONFIG` has exactly 4 entries (`volume`, `melody`, `envelope`, `source`), in that order, matching `useNavTree.ts`'s current `ROBOT_SECTIONS` array order.
-  - [ ] `volume`, `melody`, `envelope` each have `ownAccordionLabel: undefined`; `source` has `ownAccordionLabel: 'Source'`.
-  - [ ] `melody`'s subsections are `[{ id: 'rhythm', ... }, { id: 'frequency', mergedInto: 'rhythm', accordionLabel: undefined, ... }]`, in that order.
-  - [ ] Every subsection other than `frequency` has a defined `accordionLabel` and no `mergedInto`.
-  - [ ] `firstSubsectionOf('volume')` returns `'audioSettings'`, `firstSubsectionOf('melody')` returns `'rhythm'`, etc. — behaviorally identical to the old `FIRST_SUBSECTION_OF` record for all 4 keys.
-  - [ ] The re-implemented `SOURCE_OSCILLATOR_SUBSECTIONS`/`OSCILLATOR_LABELS` (or their direct replacements, if call sites are updated in this same task rather than kept as compatibility shims — implementer's choice, either is acceptable as long as no *other* file changes) produce byte-identical values to today's.
-  - [ ] Every existing test in `robotSubsectionConfig.test.ts` (if any exist yet — check first) passes unmodified, or is extended (not rewritten) to cover the new table.
+  - [x] Every `id`/`navLabel`/`accordionLabel`/`trait`/`ownAccordionLabel`/`mergedInto` value in `ROBOT_SECTIONS_CONFIG` is verified, at the moment this task is implemented, against current `main` source (`useNavTree.ts`'s `SECTION_CHILDREN`/`SUBSECTION_CHILDREN`, `RobotOptionsTab.tsx`'s/`CompanyOptionsSection.tsx`'s inline `AccordionSchema` literals) — not copied from the spec's own §2 code block without re-checking, in case `main` has moved since the spec was written (spec §7 open question 3). **Discovery**: `useNavTree.ts`'s own `SECTION_CHILDREN` (the thing transcribed) already disagrees with 2 pre-existing tests about the volume section's label (`'Levels'` in source vs. `'Output'` expected by tests) — transcribed the shipped value (`'Levels'`) per this task's zero-behavior-change scope; see the commit message and this plan's own closing note for detail. Not fixed here.
+  - [x] `ROBOT_SECTIONS_CONFIG` has exactly 4 entries (`volume`, `melody`, `envelope`, `source`), in that order, matching `useNavTree.ts`'s current `ROBOT_SECTIONS` array order.
+  - [x] `volume`, `melody`, `envelope` each have `ownAccordionLabel: undefined`; `source` has `ownAccordionLabel: 'Source'`.
+  - [x] `melody`'s subsections are `[{ id: 'rhythm', ... }, { id: 'frequency', mergedInto: 'rhythm', accordionLabel: undefined, ... }]`, in that order.
+  - [x] Every subsection other than `frequency` has a defined `accordionLabel` and no `mergedInto`.
+  - [x] `firstSubsectionOf('volume')` returns `'audioSettings'`, `firstSubsectionOf('melody')` returns `'rhythm'`, etc. — behaviorally identical to the old `FIRST_SUBSECTION_OF` record for all 4 keys.
+  - [x] The re-implemented `SOURCE_OSCILLATOR_SUBSECTIONS`/`OSCILLATOR_LABELS` (or their direct replacements, if call sites are updated in this same task rather than kept as compatibility shims — implementer's choice, either is acceptable as long as no *other* file changes) produce byte-identical values to today's.
+  - [x] Every existing test in `robotSubsectionConfig.test.ts` (if any exist yet — check first) passes unmodified, or is extended (not rewritten) to cover the new table. (None existed; new file added.)
 
   **Verification:**
-  - [ ] `npx vitest run src/data/robotSubsectionConfig.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/data/robotSubsectionConfig.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
@@ -68,10 +68,10 @@ Strictly linear, not a fan-out — unlike `NAV_ACCORDION_SYNC.md`'s Tasks 1/2, n
   **Estimated scope:** S (one file extended, one test file extended; zero consumers touched)
 
 ### Checkpoint: Foundation
-- [ ] `npm run build:types`, `npm run lint` clean.
-- [ ] `ROBOT_SECTIONS_CONFIG` is fully correct and independently tested — no real consumer reads it yet (`useNavTree.ts`, `RobotOptionsTab.tsx`, `CompanyOptionsSection.tsx` are all byte-for-byte unchanged from `main`).
-- [ ] `npm test` (full suite) shows zero new failures — nothing could have regressed, since nothing that renders UI was touched, but confirm anyway before building on top of this table.
-- [ ] Reviewed with human before proceeding to Phase 2.
+- [x] `npm run build:types`, `npm run lint` clean.
+- [x] `ROBOT_SECTIONS_CONFIG` is fully correct and independently tested — no real consumer reads it yet (`useNavTree.ts`, `RobotOptionsTab.tsx`, `CompanyOptionsSection.tsx` are all byte-for-byte unchanged from `main`).
+- [x] `npm test` (full suite) shows zero new failures — 18 pre-existing failures across 7 files, confirmed identical with these changes stashed (baseline for every later checkpoint in this plan).
+- [ ] Reviewed with human before proceeding to Phase 2. **(Crawford asked to continue through Phase 4 without stopping for review at each checkpoint — proceeding per that instruction; full review deferred to the end.)**
 
 ---
 
