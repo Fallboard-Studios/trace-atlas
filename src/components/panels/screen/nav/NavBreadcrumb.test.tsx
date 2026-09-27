@@ -60,35 +60,35 @@ describe('NavBreadcrumb — a read-only "where am I" readout outside the nav tre
     expect(container.firstChild).toBeNull();
   });
 
-  it('shows "Root" alone for a bare top-level branch', () => {
+  it('shows the branch label alone for a bare top-level branch', () => {
     select('probes');
     render(<NavBreadcrumb />);
-    expect(screen.getByRole('status').textContent).toBe('Root / Probes');
+    expect(screen.getByRole('status').textContent).toBe('Probes');
   });
 
   it('shows the full path for a deep All Probes selection', () => {
     select('probes.all.melody');
     render(<NavBreadcrumb />);
-    expect(screen.getByRole('status').textContent).toBe('Root / Probes / All Probes / Composition');
+    expect(screen.getByRole('status').textContent).toBe('Probes / All Probes / Composition');
   });
 
   it('shows a specific robot by its own name, not its id', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     select('probes.r1');
     render(<NavBreadcrumb />);
-    expect(screen.getByRole('status').textContent).toBe('Root / Probes / Unit One');
+    expect(screen.getByRole('status').textContent).toBe('Probes / Unit One');
   });
 
   it('stops at the group for a Fleet Params leaf 3 levels deep — the leaf itself (Reverb) is trimmed', () => {
     select('fleetParams.timeSpace.reverb');
     render(<NavBreadcrumb />);
-    expect(screen.getByRole('status').textContent).toBe('Root / Fleet Params / Time & Space');
+    expect(screen.getByRole('status').textContent).toBe('Fleet Params / Time & Space');
   });
 
   it('shows the bare Companies node (the create-form state)', () => {
     select('companies');
     render(<NavBreadcrumb />);
-    expect(screen.getByRole('status').textContent).toBe('Root / Companies');
+    expect(screen.getByRole('status').textContent).toBe('Companies');
   });
 
   it('goes back to rendering nothing once cleared back to the blank state', () => {
