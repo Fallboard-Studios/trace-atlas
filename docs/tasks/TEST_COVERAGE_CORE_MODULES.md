@@ -86,20 +86,20 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
 
 #### Utils
 
-- [ ] **Task 3: `getSeededVal.test.ts` — determinism + range remap**
+- [x] **Task 3: `getSeededVal.test.ts` — determinism + range remap**
 
   **Description:** New `src/utils/getSeededVal.test.ts`. Per spec §3.2.
 
   **Acceptance criteria:**
-  - [ ] `precomputeDataX(dataId)` is deterministic: same `dataId` (and same mocked seed-override state) produces the same output on repeated calls; a different `dataId` produces a different output.
-  - [ ] Mocking `getGlobalAttenuationStyleSeedOverride()` to two different values, with the same `dataId`, produces two different `precomputeDataX` outputs — proves the override is actually folded into the key, not ignored.
-  - [ ] `getSeededVal(noiseMap, dataId, offset, min, max)` with a stub `noiseMap` returning a fixed value: `-1 → min`, `1 → max`, `0 → (min+max)/2`.
-  - [ ] Default `offset`/`min`/`max` (`0`/`0`/`1`) behave as documented.
-  - [ ] No production file modified.
+  - [x] `precomputeDataX(dataId)` is deterministic: same `dataId` (and same mocked seed-override state) produces the same output on repeated calls; a different `dataId` produces a different output.
+  - [x] Mocking `getGlobalAttenuationStyleSeedOverride()` to two different values, with the same `dataId`, produces two different `precomputeDataX` outputs — proves the override is actually folded into the key, not ignored.
+  - [x] `getSeededVal(noiseMap, dataId, offset, min, max)` with a stub `noiseMap` returning a fixed value: `-1 → min`, `1 → max`, `0 → (min+max)/2`.
+  - [x] Default `offset`/`min`/`max` (`0`/`0`/`1`) behave as documented.
+  - [x] No production file modified.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/getSeededVal.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/getSeededVal.test.ts` passes (7 tests).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
