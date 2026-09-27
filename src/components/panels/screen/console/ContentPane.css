@@ -31,15 +31,16 @@
   --color-surface: rgba(26, 26, 26, 0.75);
 }
 
-.content-pane__close {
+/* The blank/landing state's own card (ContentPane.tsx, activeHubTile === null) — sized to its
+   own content and anchored top-right, deliberately NOT inset: 0 like .content-pane above. Full-
+   bleed here would sit over WorldView and swallow every click, breaking Robot.tsx's own
+   click-to-select handling (see ContentPane.tsx's comment). top reuses .content-pane's own
+   header-clearance formula; right keeps it clear of NavPanel, which is left-docked. */
+.content-pane__home {
   position: absolute;
-  z-index: 2;
+  z-index: 1;
+  top: calc(var(--header-height, var(--power-corner-height)) + var(--spacing-lg));
   right: var(--spacing-lg);
-  top: 140px;
-}
-
-@media screen and (min-width: 40em) {
-  .content-pane__close {
-    top: 180px;
-  }
+  width: min(420px, calc(100% - 32px));
+  --color-surface: rgba(26, 26, 26, 0.75);
 }

@@ -5,14 +5,21 @@ import { NavTree } from './NavTree';
 import { NavStatusBlock } from './NavStatusBlock';
 import { useIsNavPanelSlideAway } from './useNavPanelSlideAway';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
+import { Button } from '@/components/ui/controls/Button';
 import { useUIStore } from '@/stores/uiStore';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
+import type { ButtonSchema } from '@/types/controls';
 import './NavPanel.css';
 
 const TIMELINE_KEY = 'nav-panel-slide';
 // No dedicated shared constant — this is the only consumer so far; split out if a second one
 // needs the same value.
 const SLIDE_DURATION = 0.25;
+
+// Relocated from ContentPane.tsx's own former "Close" button (docs/specs/NAV_LAYOUT_REWRITE.md
+// Task 8) — same schema-driven Button primitive, same reset behavior, just renamed and moved
+// above NavTree so it's always reachable rather than only appearing once a tile is active.
+const HOME_SCHEMA: ButtonSchema = { id: 'navPanelHome', type: 'button', humanLabel: 'Home' };
 
 /**
  * Docked (desktop/tablet) vs. slide-off (mobile) shell around NavTree (docs/specs/
@@ -32,9 +39,20 @@ export function NavPanel() {
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const selectedSection = useUIStore((s) => s.selectedSection);
   const setNavPanelOpen = useUIStore((s) => s.setNavPanelOpen);
+  const setActiveHubTile = useUIStore((s) => s.setActiveHubTile);
+  const selectRobot = useUIStore((s) => s.selectRobot);
+  const selectAllRobots = useUIStore((s) => s.selectAllRobots);
+  const setSelectedSection = useUIStore((s) => s.setSelectedSection);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const isFirstSelectionEffect = useRef(true);
+
+  function handleHome() {
+    setActiveHubTile(null);
+    selectRobot(null);
+    selectAllRobots();
+    setSelectedSection(null);
+  }
 
   const { contextSafe } = useGSAP({ dependencies: [] });
 
@@ -88,6 +106,9 @@ export function NavPanel() {
          comment and docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */}
       <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-nav-panel-facade">
         <NavStatusBlock />
+        <div className="nav-panel__home">
+          <Button schema={HOME_SCHEMA} onClick={handleHome} />
+        </div>
         <NavTree />
       </CabinetBox>
     </div>
