@@ -31,6 +31,7 @@ vi.mock('gsap', () => {
     call(fn?: () => void): TimelineObj;
     eventCallback(): TimelineObj;
     kill(): void;
+    play(): TimelineObj;
   }
 
   const noop = (): TimelineObj => {
@@ -74,6 +75,15 @@ vi.mock('gsap', () => {
       // getting killed) unconditionally on mount, in every test file that
       // renders a Button/Toggle without a local gsap mock of its own.
       kill: () => { },
+      // swimAnimation.ts's createSwimTimeline() builds its timeline `paused:
+      // true` (so it can register the timeline via setTimeline() before
+      // anything plays) and calls tl.play() itself right before returning —
+      // missing until 2026-09-27, same masking pattern as .kill()'s own gap
+      // above: no consumer's test exercised this call path until
+      // swimAnimation.test.ts (docs/tasks/TEST_COVERAGE_CORE_MODULES.md
+      // Task 8) became the first test to invoke createSwimTimeline for real
+      // rather than mocking swimAnimation.ts itself.
+      play: () => obj as TimelineObj,
     };
     return obj as TimelineObj;
   };
