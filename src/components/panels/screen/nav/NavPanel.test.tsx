@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import { NavPanel } from './NavPanel';
 import { useUIStore } from '@/stores/uiStore';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
@@ -9,7 +9,10 @@ vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: 
 
 // Local gsap mock (overrides vitest.setup.ts's shared one, same pattern other
 // GSAP-timeline tests in this codebase use) — captures each .to() call's vars so the
-// prefers-reduced-motion duration assertion below can inspect it directly.
+// prefers-reduced-motion duration assertion below can inspect it directly, while still
+// supporting CabinetBox's own timeline().fromTo() chain (Header.test.tsx's own comment
+// documents the same need: real CabinetBox instances — the nav-panel facade and, since the
+// relocated Home button, its own CabinetBox too — render inside this tree).
 let lastToVars: Record<string, unknown> | undefined;
 vi.mock('gsap', () => {
   const chainable = {
@@ -17,6 +20,7 @@ vi.mock('gsap', () => {
       lastToVars = vars;
       return chainable;
     },
+    fromTo: (_a?: unknown, _b?: unknown, _config?: unknown) => chainable,
     set: () => chainable,
     kill: () => {},
   };
@@ -190,5 +194,57 @@ describe('NavPanel — GSAP timeline lifecycle (Task 6)', () => {
     });
 
     expect(lastToVars?.duration).toBeGreaterThan(0);
+  });
+});
+
+// Relocated from ContentPane.test.tsx's own former "always-present close button" block (Task 8)
+// — same reset behavior, just renamed to "Home" and always present here (NavPanel renders
+// regardless of activeHubTile, unlike the old ContentPane host).
+describe('NavPanel — Home button (relocated from ContentPane\'s former Close button)', () => {
+  beforeEach(() => {
+    resetUIStore();
+    lastToVars = undefined;
+    vi.clearAllMocks();
+    stubMatchMedia({ mobile: false, reducedMotion: false });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('shows a Home button even when nothing is selected', () => {
+    render(<NavPanel />);
+    expect(screen.getByRole('button', { name: 'Home' })).toBeTruthy();
+  });
+
+  it('clicking Home clears activeHubTile back to the blank hub', () => {
+    useUIStore.getState().setActiveHubTile('audioRig');
+    render(<NavPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+
+    expect(useUIStore.getState().activeHubTile).toBeNull();
+  });
+
+  it('clicking Home also clears selectedRobotId/selectedSection back to the blank/landing state', () => {
+    useUIStore.getState().setActiveHubTile('robots');
+    useUIStore.getState().selectRobot('r1');
+    useUIStore.getState().setSelectedSection('volume');
+    render(<NavPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+
+    expect(useUIStore.getState().selectedRobotId).toBeNull();
+    expect(useUIStore.getState().selectedSection).toBeNull();
+  });
+
+  it('clicking Home resets company selection back to "All" (allRobotsSelected)', () => {
+    useUIStore.getState().setActiveHubTile('companies');
+    useUIStore.getState().selectCompany('c1');
+    render(<NavPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+
+    expect(useUIStore.getState().selectedCompanyId).toBeNull();
+    expect(useUIStore.getState().allRobotsSelected).toBe(true);
   });
 });

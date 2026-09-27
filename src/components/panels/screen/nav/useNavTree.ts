@@ -74,6 +74,14 @@ const FLEET_PARAMS_LEAF_TO_EFFECT_KEY: Record<string, SelectedFleetParamsEffect>
   compression: 'compressor',
   limiter: 'limiter',
   tempo: 'tempo',
+  // Bugfix: Pacing's own 'frequency'/'duration' leaves (navTreeConfig.ts) were missing here,
+  // unlike every other Fleet Params leaf — asFleetParamsEffectKey fell back to null for both, so
+  // select('fleetParams.pacing.frequency') set selectedFleetParamsEffect to null instead of
+  // 'swellFrequency' (same for duration/'swellDuration'), and isSelected(...) could never read
+  // true for the real selection, only for the unrelated null-effect gap state its own comment
+  // documents. Found via useNavTree.test.ts's new selectedPath coverage, not assumed.
+  frequency: 'swellFrequency',
+  duration: 'swellDuration',
   automaticEffects: 'automaticEffects',
 };
 function asFleetParamsEffectKey(value: string | undefined): SelectedFleetParamsEffect | null {
@@ -238,6 +246,59 @@ function buildCompaniesSubtree(schema: NavTreeNodeSchema, companies: IdentityEnt
   return { ...schema, children: perCompanyNodes };
 }
 
+/**
+ * Depth-first search for whichever single node's own id currently satisfies `isSelected` — the
+ * root-to-node ancestor chain leading to it, for anything that wants a "where am I" readout
+ * (NavBreadcrumb) without re-parsing ids itself, matching the "id-parsing stays centralized here"
+ * boundary the rest of this file already documents. `isSelected` is an exact match per id, not a
+ * hierarchical one (a leaf's own isSelected() doesn't imply its parent's — see that function's own
+ * comments), so at most one id is expected to match at a time; this walk defensively keeps the
+ * DEEPEST match if more than one ever does, rather than an arbitrary/shorter one — isSelected's own
+ * comment documents one known case where a bare branch and a bare category node can briefly both
+ * read true (selectedFleetParamsEffect === null), currently harmless only because select() never
+ * leaves it that way, but a breadcrumb reading the same state a different way (a scroll-driven
+ * update, not a click) shouldn't have to assume that stays true forever.
+ */
+function findSelectedPath(
+  nodes: NavTreeNodeSchema[],
+  isSelected: (id: string) => boolean,
+  ancestors: NavTreeNodeSchema[] = [],
+): NavTreeNodeSchema[] | null {
+  let best: NavTreeNodeSchema[] | null = null;
+  for (const node of nodes) {
+    const path = [...ancestors, node];
+    if (isSelected(node.id) && (!best || path.length > best.length)) {
+      best = path;
+    }
+    if (node.children) {
+      const childBest = findSelectedPath(node.children, isSelected, path);
+      if (childBest && (!best || childBest.length > best.length)) {
+        best = childBest;
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Drops a trailing leaf (a node with no children of its own) from the end of findSelectedPath's
+ * result, so NavBreadcrumb reads as "the lowest-level PARENT the user is under" rather than the
+ * exact selected field itself (Crawford's own call — e.g. Fleet Params' "Reverb" or a robot's
+ * "Rhythm" subsection is one level too specific; the group/section that HOUSES it — "Time & Space",
+ * "Composition" — is the meaningful stopping point, matching where the accordion boundary actually
+ * sits). A node that itself has children (a bare branch, a robot/company entity, a section with its
+ * own subsections, a Fleet Params/Settings category) is never dropped — there's nothing to trim to.
+ * A loop, not a single pop, for correctness rather than assuming a leaf's own parent always has
+ * children — though in this tree's actual shape it only ever runs once.
+ */
+function trimToLowestParent(path: NavTreeNodeSchema[]): NavTreeNodeSchema[] {
+  const trimmed = [...path];
+  while (trimmed.length > 1 && !(trimmed[trimmed.length - 1].children?.length)) {
+    trimmed.pop();
+  }
+  return trimmed;
+}
+
 export interface UseNavTreeResult {
   /** The full tree — NAV_TREE_SCHEMA's static branches with Probes'/Companies' dynamic
    *  per-entity subtrees spliced in. */
@@ -246,6 +307,11 @@ export interface UseNavTreeResult {
   isSelected: (id: string) => boolean;
   select: (id: string) => void;
   toggleExpand: (id: string) => void;
+  /** Root-to-node ancestor chain of whichever node isSelected() currently matches (see
+   *  findSelectedPath above), trimmed of a trailing childless leaf (trimToLowestParent) — [] when
+   *  nothing in the tree is selected, which includes the true blank/landing state
+   *  (activeHubTile === null) and is also what a caller should treat as "no breadcrumb to show." */
+  selectedPath: NavTreeNodeSchema[];
 }
 
 export function useNavTree(): UseNavTreeResult {
@@ -457,5 +523,7 @@ export function useNavTree(): UseNavTreeResult {
     return false;
   }
 
-  return { nodes, isExpanded, isSelected, select, toggleExpand };
+  const selectedPath = trimToLowestParent(findSelectedPath(nodes, isSelected) ?? []);
+
+  return { nodes, isExpanded, isSelected, select, toggleExpand, selectedPath };
 }

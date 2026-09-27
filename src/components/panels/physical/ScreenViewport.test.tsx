@@ -23,15 +23,19 @@ vi.mock('@/components/panels/screen/nav/NavPanel', () => ({
 vi.mock('@/components/panels/screen/nav/NavToggleButton', () => ({
   default: () => <div data-testid="nav-toggle-button-stub" />,
 }));
+vi.mock('@/components/panels/screen/nav/NavBreadcrumb', () => ({
+  default: () => <div data-testid="nav-breadcrumb-stub" />,
+}));
 
 describe('ScreenViewport', () => {
-  it('renders Header, WorldView, NavPanel, NavToggleButton, and ContentPane when powered on', () => {
+  it('renders Header, WorldView, NavPanel, NavToggleButton, ContentPane, and NavBreadcrumb when powered on', () => {
     render(<ScreenViewport isPoweredOn={true} />);
     expect(screen.getByTestId('header-stub')).toBeTruthy();
     expect(screen.getByTestId('world-view-stub')).toBeTruthy();
     expect(screen.getByTestId('nav-panel-stub')).toBeTruthy();
     expect(screen.getByTestId('nav-toggle-button-stub')).toBeTruthy();
     expect(screen.getByTestId('content-pane-stub')).toBeTruthy();
+    expect(screen.getByTestId('nav-breadcrumb-stub')).toBeTruthy();
   });
 
   it('renders none of them when powered off', () => {
@@ -41,5 +45,6 @@ describe('ScreenViewport', () => {
     expect(screen.queryByTestId('nav-panel-stub')).toBeNull();
     expect(screen.queryByTestId('nav-toggle-button-stub')).toBeNull();
     expect(screen.queryByTestId('content-pane-stub')).toBeNull();
+    expect(screen.queryByTestId('nav-breadcrumb-stub')).toBeNull();
   });
 });

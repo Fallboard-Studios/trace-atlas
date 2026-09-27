@@ -580,7 +580,7 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('compressor');
   });
 
-  it('selecting Pacing\'s own 2 children (Tempo, Automatic Effects) sets selectedFleetParamsEffect accordingly, and isSelected reports only the exact node', () => {
+  it('selecting Pacing\'s own 4 children (Tempo, Frequency, Duration, Automatic Effects) each sets selectedFleetParamsEffect accordingly, and isSelected reports only the exact node', () => {
     const { result } = renderHook(() => useNavTree());
 
     act(() => result.current.select('fleetParams.pacing.tempo'));
@@ -594,6 +594,21 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('automaticEffects');
     expect(result.current.isSelected('fleetParams.pacing.automaticEffects')).toBe(true);
     expect(result.current.isSelected('fleetParams.pacing.tempo')).toBe(false);
+  });
+
+  it('bugfix regression: selecting Frequency/Duration sets selectedFleetParamsEffect to swellFrequency/swellDuration, not null — FLEET_PARAMS_LEAF_TO_EFFECT_KEY was missing both, so a click silently deselected everything instead of selecting the clicked leaf', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('fleetParams.pacing.frequency'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('swellFrequency');
+    expect(result.current.isSelected('fleetParams.pacing.frequency')).toBe(true);
+    expect(result.current.isSelected('fleetParams.pacing.duration')).toBe(false);
+    expect(result.current.isSelected('fleetParams.pacing.tempo')).toBe(false);
+
+    act(() => result.current.select('fleetParams.pacing.duration'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('swellDuration');
+    expect(result.current.isSelected('fleetParams.pacing.duration')).toBe(true);
+    expect(result.current.isSelected('fleetParams.pacing.frequency')).toBe(false);
   });
 
   it('all 4 Fleet Params groups (including Pacing) are always expanded simultaneously, with no independent toggle', () => {
@@ -705,6 +720,97 @@ describe('useNavTree — isSelected disambiguates bare "probes" (browse list) fr
     expect(result.current.isSelected('probes')).toBe(false);
     expect(result.current.isSelected('probes.all')).toBe(false);
     expect(result.current.isSelected('probes.r1')).toBe(true);
+  });
+});
+
+describe('useNavTree — selectedPath, the root-to-node ancestor chain for NavBreadcrumb', () => {
+  beforeEach(resetStores);
+
+  it('is empty when nothing is selected (the true blank/landing state)', () => {
+    const { result } = renderHook(() => useNavTree());
+    expect(result.current.selectedPath).toEqual([]);
+  });
+
+  it('is a single entry for a bare top-level branch — browsing the Probes list', () => {
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('probes'));
+    expect(result.current.selectedPath.map((n) => n.id)).toEqual(['probes']);
+  });
+
+  it('is a single entry for the bare Companies node (the create-form state)', () => {
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('companies'));
+    expect(result.current.selectedPath.map((n) => n.id)).toEqual(['companies']);
+  });
+
+  it('resolves All Probes down to a selected section, by id and by label', () => {
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('probes.all.melody'));
+
+    expect(result.current.selectedPath.map((n) => n.id)).toEqual(['probes', 'probes.all', 'probes.all.melody']);
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Probes', 'All Probes', 'Composition']);
+  });
+
+  it('resolves a specific robot by its own name, not its id', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('probes.r1'));
+
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Probes', 'Unit One']);
+  });
+
+  it('selecting a Fleet Params group heading resolves straight through to its first leaf internally, but selectedPath stops at the group — trimToLowestParent drops the trailing leaf (Reverb, no children of its own)', () => {
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('fleetParams.timeSpace'));
+
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('reverb'); // select() itself still resolves to the real first leaf (FLEET_PARAMS_GROUP_FIRST_LEAF) — only the displayed path is trimmed
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Fleet Params', 'Time & Space']);
+  });
+
+  it('a Fleet Params leaf 3 levels deep also stops at its own group — the leaf itself (Reverb) is trimmed off', () => {
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('fleetParams.timeSpace.reverb'));
+
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Fleet Params', 'Time & Space']);
+  });
+
+  it('a Probes/Companies subsection leaf (4 real segments) stops at its own section — the subsection itself (Rhythm, no children) is trimmed off, matching the group-level trim above', () => {
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('probes.all.melody.rhythm'));
+
+    expect(useUIStore.getState().selectedSubsection).toBe('rhythm'); // the real, untrimmed selection
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Probes', 'All Probes', 'Composition']);
+  });
+
+  it('a node that itself has children is never trimmed, even as the deepest match — a bare robot entity (2 segments) stays whole', () => {
+    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('probes.r1'));
+
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Probes', 'Unit One']);
+  });
+
+  it('is empty again once cleared back to the blank state via the bare branch selecting nothing new', () => {
+    const { result } = renderHook(() => useNavTree());
+    act(() => result.current.select('fleetParams.timeSpace.reverb'));
+    act(() => useUIStore.getState().setActiveHubTile(null));
+
+    expect(result.current.selectedPath).toEqual([]);
+  });
+
+  it('deterministically picks the deepest — then first-in-tree-order — match for the known bare-branch/bare-category ambiguity isSelected() itself documents (selectedFleetParamsEffect === null while activeHubTile is audioRig, a state select() itself never leaves behind, but selectedPath must still resolve something sane if it ever occurs)', () => {
+    const { result } = renderHook(() => useNavTree());
+    act(() => useUIStore.getState().setActiveHubTile('audioRig'));
+
+    // Every one of Fleet Params' 4 category nodes reads isSelected() === true here alongside the
+    // bare branch itself (all share the same "selectedFleetParamsEffect === null" condition) — a
+    // real ambiguity in isSelected, not a bug in selectedPath's own resolution. selectedPath picks
+    // the deepest (2-segment category over the 1-segment branch), then whichever comes first in
+    // NAV_TREE_SCHEMA's own order (Pacing) among the tied 2-segment nodes, rather than an
+    // unstable/undefined pick. (Before the FLEET_PARAMS_LEAF_TO_EFFECT_KEY bugfix above, this same
+    // null-effect gap also falsely matched 'fleetParams.pacing.frequency' one level deeper — this
+    // assertion is what caught that bug in the first place.)
+    expect(result.current.selectedPath.map((n) => n.id)).toEqual(['fleetParams', 'fleetParams.pacing']);
   });
 });
 

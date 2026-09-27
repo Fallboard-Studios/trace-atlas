@@ -117,7 +117,7 @@
 
 .sleeve-container__bottom-strip {
   bottom: 0;
-  height: 32px;
+  height: var(--spacing-2xl);
 }
 
 .sleeve-container__bottom-strip::before {

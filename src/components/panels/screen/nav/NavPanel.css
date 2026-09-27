@@ -22,13 +22,13 @@
      also subtracting --header-height, the same live-measured custom property (Header.tsx's own
      ResizeObserver effect) ContentPane.css already reads for this identical "reserve space for
      what .header occupies above me" problem. */
-  max-height: calc(100% - var(--header-height, var(--power-corner-height)) - 104px);
+  max-height: calc(100% - var(--header-height, var(--power-corner-height)) - 132px);
 }
 
 @media screen and (min-width: 400px) {
   .nav-panel {
     top: 44px;
-    max-height: calc(100% - 104px);
+    max-height: calc(100% - 118px);
   }
 }
 
@@ -41,6 +41,13 @@
    .nav-panel itself (was padding: var(--spacing-lg) directly on the
    sliding/inert panel) so it frames the box's real content instead of the
    slide-transform host. */
+/* Relocated from ContentPane.css's own .content-pane__close (now just spacing here, since this
+   sits in normal flow between NavStatusBlock and NavTree rather than being absolutely positioned
+   over the content pane). */
+.nav-panel__home {
+  margin-bottom: var(--spacing-lg);
+}
+
 .nav-panel>.sc-cabinet-box>.sc-cabinet-box__front {
   --color-surface: rgba(26, 26, 26, 0.75);
   display: block;
