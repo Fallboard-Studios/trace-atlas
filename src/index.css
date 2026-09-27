@@ -102,6 +102,7 @@
   --spacing-md: 12px;
   --spacing-lg: 16px;
   --spacing-xl: 24px;
+  --spacing-2xl: 32px;
   --transport-separator-height: 24px;
 
   /* SliderLinear/SliderLog/SliderCenteredZero's default vertical track height

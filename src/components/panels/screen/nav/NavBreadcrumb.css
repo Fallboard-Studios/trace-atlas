@@ -1,0 +1,63 @@
+/* Passive "where am I" readout — deliberately pointer-events: none (nothing inside is
+   interactive, read-only display per Crawford's own call) so it never intercepts a click meant
+   for WorldView underneath, same reasoning as .content-pane__home. Anchored to .screen-content
+   (position: absolute — that container is ScreenViewport.css's own position: relative context),
+   not position: fixed against the viewport — same convention NavPanel/ContentPane already use, so
+   it stays correctly placed within the tablet shell rather than the browser window, and other
+   content (WorldView, ContentPane) can render underneath it at the bottom edge. */
+.nav-breadcrumb {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px 4px 0 0;
+  background: var(--color-bg);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* Front-truncates ("...long/path") instead of the CSS default end-truncation — the deepest,
+   most-relevant segment is always the tail of the string, so that's what should stay visible when
+   it doesn't fit. direction: rtl + text-align: left is the standard trick for a start-ellipsis on
+   LTR content: overflow is clipped from the (now visually left) start of the run, leaving the end
+   of the string — nothing here is actually right-to-left text. */
+.nav-breadcrumb__text {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+
+/* Full-width along the bottom, matching NavPanel's own off-canvas breakpoint
+   (useIsNavPanelSlideAway) — not a new one. safe-area-inset-bottom clears the iOS home-indicator
+   gesture area; no existing precedent for it elsewhere in this codebase, so this is a fresh need,
+   not a copy. */
+.nav-breadcrumb--mobile {
+  left: 0;
+  right: 0;
+  bottom: var(--spacing-2xl);
+  justify-content: center;
+  border-radius: 0;
+  border-width: 1px 0 0;
+  padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+  width: 100%;
+}
+
+/* Docked (desktop/tablet) — bottom-left of .screen-content, sized to its own content rather than
+   full-bleed. Note: the ?debug overlay (AudioDebugHud.css) occupies roughly the same corner of the
+   real viewport (it's position: fixed, a 4px/4px offset, not scoped to .screen-content) — both are
+   passive/non-interactive, so an occasional visual overlap when both are on screen (opt-in ?debug
+   only) is a known, accepted minor collision, not fixed here. */
+.nav-breadcrumb--desktop {
+  left: 14px;
+  bottom: var(--spacing-2xl);
+  max-width: min(480px, calc(100vw - 32px));
+}
