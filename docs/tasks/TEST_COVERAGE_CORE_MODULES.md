@@ -60,23 +60,23 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
 
   **Estimated scope:** S (one new file, pure functions plus one light Tone stub)
 
-- [ ] **Task 2: `lfoDrift.test.ts` — drift pools, attach/detach, silence guard, suppression**
+- [x] **Task 2: `lfoDrift.test.ts` — drift pools, attach/detach, silence guard, suppression**
 
   **Description:** New `src/engine/lfoDrift.test.ts`, `vi.mock('tone', ...)` reusing `lfoEngine.test.ts`'s established fake (`LFO`/`Gain` with Signal-like/Param-like connect-reset simulation). Real (unmocked) `lfoShared.ts` runs underneath. Per spec §3.1.
 
   **Acceptance criteria:**
-  - [ ] `driftGroupForTarget`: `'eq3.'`/`'lpf.'`/`'hpf.'`-prefixed targets route to `'eq3'`/`'filterLPF'`/`'filterHPF'`; anything else routes to `'robots'`.
-  - [ ] `attachDrift` on a fresh key creates a link (verified via a subsequent successful `refreshRateDriftGain`/`refreshDepthDriftGain` call); calling it twice for the same key is idempotent (no second pool-oscillator `connect`).
-  - [ ] `detachDrift` on an unlinked key is a safe no-op; on a linked key it disconnects and disposes both Gains and removes the key (a subsequent refresh call for that key becomes a no-op again).
-  - [ ] **Named risk — depth silence guard:** a primary with `amplitude.value <= 0` has `depthDriftConnected === false` (disconnecting if it was previously connected); a primary with `amplitude.value > 0` connects lazily only on the 0→nonzero transition, and its Gain value follows `globalDepthDriftByGroup[group] * swing.max`.
-  - [ ] `setGlobalRateDrift`/`setGlobalDepthDrift` clamp to `[-1, 1]`, refresh only links in the given group (a link in a different group is provably untouched), and are safe no-ops with zero links in the target group.
-  - [ ] `setDriftSuppressed(true)` detaches every currently-linked key; `attachDrift` while suppressed is a no-op; `setDriftSuppressed(false)` clears the flag only (does not itself re-attach anything); `isDriftSuppressed()` reflects the current flag.
-  - [ ] A group's drift pool is built lazily on first `attachDrift` for that group and reused (not rebuilt) on a second `attachDrift` in the same group — assert the mocked `Tone.LFO` constructor is called exactly `DRIFT_POOL_SIZE[group]` times total across two calls, not twice that.
-  - [ ] No production file modified.
+  - [x] `driftGroupForTarget`: `'eq3.'`/`'lpf.'`/`'hpf.'`-prefixed targets route to `'eq3'`/`'filterLPF'`/`'filterHPF'`; anything else routes to `'robots'`.
+  - [x] `attachDrift` on a fresh key creates a link (verified via a subsequent successful `refreshRateDriftGain`/`refreshDepthDriftGain` call); calling it twice for the same key is idempotent — **mutation-tested**: removing `lfoDrift.ts`'s own `if (driftLinks.has(key)) return;` guard was caught by asserting no second `Gain` pair is constructed (an earlier draft of this assertion checked `Tone.LFO` call counts instead, which passed even with the guard removed — `getOrCreateDriftPool`'s own separate idempotency masked it; fixed to check the actual thing the guard protects).
+  - [x] `detachDrift` on an unlinked key is a safe no-op; on a linked key it disconnects and disposes both Gains and removes the key (a subsequent refresh call for that key becomes a no-op again).
+  - [x] **Named risk — depth silence guard:** a primary with `amplitude.value <= 0` has `depthDriftConnected === false` (disconnecting if it was previously connected); a primary with `amplitude.value > 0` connects lazily only on the 0→nonzero transition, and its Gain value follows `globalDepthDriftByGroup[group] * swing.max`.
+  - [x] `setGlobalRateDrift`/`setGlobalDepthDrift` clamp to `[-1, 1]`, refresh only links in the given group (a link in a different group is provably untouched), and are safe no-ops with zero links in the target group.
+  - [x] `setDriftSuppressed(true)` detaches every currently-linked key; `attachDrift` while suppressed is a no-op; `setDriftSuppressed(false)` clears the flag only (does not itself re-attach anything); `isDriftSuppressed()` reflects the current flag.
+  - [x] A group's drift pool is built lazily on first `attachDrift` for that group and reused (not rebuilt) on a second `attachDrift` in the same group — verified per-group (`eq3`=3, `filterLPF`=2, `filterHPF`=2, `robots`=8), each group's pool sized and built independently.
+  - [x] No production file modified — confirmed via `git diff --exit-code` after the mutation check above, not just self-report.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/lfoDrift.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/lfoDrift.test.ts` passes (16 tests).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None (imports real `lfoShared.ts`, which is stable, unmodified production code).
 
