@@ -3,6 +3,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore, type RobotSection, type RobotSubsection, type FleetParamsGroup, type SettingsLeaf, type SettingsSubsection, type SelectedFleetParamsEffect, type TopLevelBranch } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { NAV_TREE_SCHEMA, type NavTreeNodeSchema } from '@/data/navTreeConfig';
+import { ROBOT_SECTIONS_CONFIG } from '@/data/robotSubsectionConfig';
 
 /**
  * Resolves the Navigation & Layout Rewrite's tree (docs/specs/NAV_LAYOUT_REWRITE.md §1.5/§3) —
@@ -14,7 +15,10 @@ import { NAV_TREE_SCHEMA, type NavTreeNodeSchema } from '@/data/navTreeConfig';
  * read this hook's typed isSelected/isExpanded/select/toggleExpand instead (spec §1.5).
  */
 
-const ROBOT_SECTIONS: readonly RobotSection[] = ['volume', 'melody', 'envelope', 'source'];
+// Derived from ROBOT_SECTIONS_CONFIG (docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md), not a
+// second hand-typed list — asRobotSection below is a pure id-parsing type guard, independent of
+// sectionChildNodes' own use of the config further down.
+const ROBOT_SECTIONS: readonly RobotSection[] = ROBOT_SECTIONS_CONFIG.map((s) => s.id);
 function asRobotSection(value: string | undefined): RobotSection | null {
   return value && (ROBOT_SECTIONS as readonly string[]).includes(value) ? (value as RobotSection) : null;
 }
@@ -144,46 +148,25 @@ export function expandNavAncestorsForId(id: string): void {
   }
 }
 
-// trait per section (experimental, Crawford's own request) — matches AudioSettingSection/
-// PingControlsDrawer/PingContourDrawer/SignatureArrayDrawer's own per-section
-// getTraitColorStyle calls (output/composition/timeSpace/spectral respectively), so a
-// probes.<id>.<section> or companies.<id>.<section> row colors itself the same as the actual
-// section content it opens into.
-// 'Volume' renders as 'Output' (label-only rename, docs/intent/nav-panel-views-and-content.md
-// §New 4th tree level) — the id segment stays 'volume', matching RobotSection's own value.
-const SECTION_CHILDREN: Omit<NavTreeNodeSchema, 'id'>[] = [
-  { humanLabel: 'Levels', trait: 'output' },
-  { humanLabel: 'Composition', trait: 'composition' },
-  { humanLabel: 'Envelope', trait: 'timeSpace' },
-  { humanLabel: 'Source', trait: 'spectral' },
-];
-
-// The 4th tree level (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §5.1) — shared by Probes and
-// Companies, same as SECTION_CHILDREN itself. 'Robot Drift' renders as 'Probe Drift' — this is a
-// brand-new node, not a rename of an existing tree label; RobotDriftPanel's own identifier is
-// unaffected.
-const SUBSECTION_CHILDREN: Record<RobotSection, { id: RobotSubsection; humanLabel: string }[]> = {
-  volume: [{ id: 'audioSettings', humanLabel: 'Dynamics' }],
-  melody: [
-    { id: 'rhythm', humanLabel: 'Rhythm' },
-    { id: 'frequency', humanLabel: 'Pitches' },
-  ],
-  envelope: [{ id: 'pingContour', humanLabel: 'Contour' }],
-  source: [
-    { id: 'baselineOscillator', humanLabel: 'Baseline Oscillator' },
-    { id: 'coaxialOscillator', humanLabel: 'Coaxial Oscillator' },
-    { id: 'harmonicOscillator', humanLabel: 'Harmonic Oscillator' },
-    { id: 'probeDrift', humanLabel: 'Probe Drift' },
-  ],
-};
-
+// Section/subsection id, nav-row label, and trait now come from ROBOT_SECTIONS_CONFIG
+// (docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md) — previously two locally-hand-typed tables
+// here (SECTION_CHILDREN/SUBSECTION_CHILDREN) that independently restated the same ids/labels
+// RobotOptionsTab.tsx/CompanyOptionsSection.tsx also hand-typed for their own accordions. trait
+// per section (experimental, Crawford's own request) matches AudioSettingSection/
+// PingControlsDrawer/PingContourDrawer/SignatureArrayDrawer's own per-section getTraitColorStyle
+// calls (output/composition/timeSpace/spectral respectively), so a probes.<id>.<section> or
+// companies.<id>.<section> row colors itself the same as the actual section content it opens
+// into. Each subsection's *nav-row* label (navLabel) is used here — never accordionLabel, which
+// is the content view's own accordion-trigger text and may legitimately differ (e.g. 'rhythm'
+// reads 'Rhythm' in the tree, 'Composition' as its accordion trigger).
 function sectionChildNodes(entityBranchPrefix: string): NavTreeNodeSchema[] {
-  return ROBOT_SECTIONS.map((section, i) => ({
-    id: `${entityBranchPrefix}.${section}`,
-    ...SECTION_CHILDREN[i],
-    children: SUBSECTION_CHILDREN[section].map((leaf) => ({
-      id: `${entityBranchPrefix}.${section}.${leaf.id}`,
-      humanLabel: leaf.humanLabel,
+  return ROBOT_SECTIONS_CONFIG.map((section) => ({
+    id: `${entityBranchPrefix}.${section.id}`,
+    humanLabel: section.navLabel,
+    trait: section.trait,
+    children: section.subsections.map((sub) => ({
+      id: `${entityBranchPrefix}.${section.id}.${sub.id}`,
+      humanLabel: sub.navLabel,
     })),
   }));
 }
