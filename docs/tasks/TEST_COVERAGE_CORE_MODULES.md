@@ -38,21 +38,21 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
 
 #### Audio / Engine
 
-- [ ] **Task 1: `lfoShared.test.ts` — pure helpers + `connectAdditively`/`isAudioContextRunning`**
+- [x] **Task 1: `lfoShared.test.ts` — pure helpers + `connectAdditively`/`isAudioContextRunning`**
 
   **Description:** New `src/engine/lfoShared.test.ts`. `clamp`/`centeredSwingFromRange` are pure and need no mocking; `isAudioContextRunning` needs a `Tone.getContext` stub; `connectAdditively` uses plain fake Signal-like/Param-like destination objects plus a `connect` spy on the source, per spec §3.1/§5.1.
 
   **Acceptance criteria:**
-  - [ ] `clamp`: below-range, above-range, and in-range inputs all return the expected clamped value.
-  - [ ] `centeredSwingFromRange`: a value near `min` gets a swing bounded by its distance to `min`; a value near `max` gets a swing bounded by its distance to `max`; a value at the midpoint gets `±halfSpan` (half the total range).
-  - [ ] `centeredSwingFromRange` with a non-finite `currentValue` (`NaN`, `Infinity`) returns `{ min: 0, max: 0 }` — the named risk from the file's own comment ("connecting an LFO whose output is NaN poisons the live Web Audio graph").
-  - [ ] `isAudioContextRunning` returns `true` when `Tone.getContext()` reports `{ state: 'running' }`, `false` for `'suspended'`, and `false` (not a thrown error) when `Tone.getContext` itself throws.
-  - [ ] `connectAdditively`: `destination.override` is set to `false` before `.connect()` fires; the destination's pre-connect `value` is restored after `.connect()`; a non-finite pre-connect value is **not** written back.
-  - [ ] No production file modified.
+  - [x] `clamp`: below-range, above-range, and in-range inputs all return the expected clamped value.
+  - [x] `centeredSwingFromRange`: a value near `min` gets a swing bounded by its distance to `min`; a value near `max` gets a swing bounded by its distance to `max`; a value at the midpoint gets `±halfSpan` (half the total range).
+  - [x] `centeredSwingFromRange` with a non-finite `currentValue` (`NaN`, `Infinity`) returns `{ min: 0, max: 0 }` — the named risk from the file's own comment ("connecting an LFO whose output is NaN poisons the live Web Audio graph").
+  - [x] `isAudioContextRunning` returns `true` when `Tone.getContext()` reports `{ state: 'running' }`, `false` for `'suspended'`, and `false` (not a thrown error) when `Tone.getContext` itself throws.
+  - [x] `connectAdditively`: `destination.override` is set to `false` before `.connect()` fires; the destination's pre-connect `value` is restored after `.connect()`; a non-finite pre-connect value is **not** written back.
+  - [x] No production file modified.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/lfoShared.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/lfoShared.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
