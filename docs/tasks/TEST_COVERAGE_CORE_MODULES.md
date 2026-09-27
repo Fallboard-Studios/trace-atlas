@@ -128,20 +128,20 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
 
   **Estimated scope:** XS (one file, ~4 trivial assertions)
 
-- [ ] **Task 5: `helpers.test.ts` — `swallow`/`devWarn`/`getScreenViewportDomNode`**
+- [x] **Task 5: `helpers.test.ts` — `swallow`/`devWarn`/`getScreenViewportDomNode`**
 
-  **Description:** New `src/utils/helpers.test.ts`. `devWarn`'s `DEV_TUNING` gate needs a per-test `vi.mock('@/constants', ...)` for both branches, per spec §3.2.
+  **Description:** New `src/utils/helpers.test.ts`. `devWarn`'s `DEV_TUNING` gate needs a per-test `vi.doMock('../constants', ...)` + `vi.resetModules()` + dynamic re-import for both branches (a plain top-level `vi.mock` can't vary per-test), per spec §3.2.
 
   **Acceptance criteria:**
-  - [ ] `swallow(err, ctx)` calls `console.warn` (spy) with a message containing `ctx` when provided, and the `'ignored error'` fallback when `ctx` is omitted.
-  - [ ] `swallow` does not itself throw even when the mocked `console.warn` is set to throw (the file's own defensive `try/catch`).
-  - [ ] `devWarn(...)` calls `console.warn` when `DEV_TUNING` is mocked `true`, and does not call it when mocked `false`.
-  - [ ] `getScreenViewportDomNode()` returns the element when a DOM node with `id="screen-viewport"` exists (jsdom), and `null` when it doesn't.
-  - [ ] No production file modified.
+  - [x] `swallow(err, ctx)` calls `console.warn` (spy) with a message containing `ctx` when provided, and the `'ignored error'` fallback when `ctx` is omitted.
+  - [x] `swallow` does not itself throw even when the mocked `console.warn` is set to throw (the file's own defensive `try/catch`).
+  - [x] `devWarn(...)` calls `console.warn` when `DEV_TUNING` is mocked `true`, and does not call it when mocked `false` — **mutation-tested**: removing the `if (DEV_TUNING)` gate in `helpers.ts` was caught by the false-branch test.
+  - [x] `getScreenViewportDomNode()` returns the element when a DOM node with `id="screen-viewport"` exists (jsdom), and `null` when it doesn't.
+  - [x] No production file modified — confirmed via `git diff --exit-code` after the mutation check.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/helpers.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/helpers.test.ts` passes (7 tests).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
