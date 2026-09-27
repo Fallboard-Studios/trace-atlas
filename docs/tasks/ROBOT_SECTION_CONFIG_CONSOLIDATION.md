@@ -109,7 +109,7 @@ Strictly linear, not a fan-out — unlike `NAV_ACCORDION_SYNC.md`'s Tasks 1/2, n
 
 ### Phase 3: Shared shell — built and tested in isolation
 
-- [ ] **Task 3: `RobotSectionAccordionStack.tsx` — the shared accordion-stack component**
+- [x] **Task 3: `RobotSectionAccordionStack.tsx` — the shared accordion-stack component**
 
   **Description:** New component, `src/components/panels/screen/nav/RobotSectionAccordionStack.tsx`, implementing [spec §3.2](../specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md#32-robotoptionstabtsx--companyoptionssectiontsx-map-over-the-table-instead-of-hand-authoring-jsx)'s shell extraction per the Architecture Decisions above (a component, not a hook). Props:
 
@@ -130,18 +130,18 @@ Strictly linear, not a fan-out — unlike `NAV_ACCORDION_SYNC.md`'s Tasks 1/2, n
   Ships with **no real caller yet** — tested via a fake `renderSubsection` (e.g. returning a marker `<div data-testid={...}>`) and fake `isOpen`/`setOpen`/`hasApproached`/`sectionAnchorRef` implementations, mirroring `accordionSync.ts`'s own Task 1 precedent in `NAV_ACCORDION_SYNC.md` (independently correct and testable before Tasks 4/5 trust it with real, tested UI).
 
   **Acceptance criteria:**
-  - [ ] `accordionIds('probes.r1')` returns exactly the 8 ids today's `RobotOptionsTab.tsx` hand-builds (7 subsection ids + `` `probes.r1.source` ``), in the same order.
-  - [ ] `subsectionIds('probes.r1')` returns exactly the 7 ids today's `RobotOptionsTab.tsx` hand-builds — `frequency`/Pitches excluded.
-  - [ ] Rendering `<RobotSectionAccordionStack>` with a fake `renderSubsection` produces one `AccordionContainer` per non-merged subsection, each with the correct `id`/`humanLabel` (from `accordionLabel`) and correct `open`/`onOpenChange` wired to the passed `isOpen`/`setOpen`.
-  - [ ] The `source` section's 4 subsections render nested inside one additional outer `AccordionContainer` (`id: `${prefix}.source``, `humanLabel: 'Source'`) — verified structurally (the outer accordion's content contains the 4 inner ones), not just "4 accordions exist somewhere."
-  - [ ] `volume`/`melody`/`envelope` render their single accordion-bearing subsection with **no** wrapping accordion at the section-level id — only a plain anchor `<div>` at `` `${prefix}.<section>` ``, matching today.
-  - [ ] `frequency` (or any subsection with `mergedInto` set, tested generically) produces no `AccordionContainer` and does not appear in the rendered output at all.
-  - [ ] `renderSubsection` is called with `hasApproached(id)` gating its result exactly as today's `hasApproached(...) ? <Content/> : null` pattern — i.e., the component itself calls `hasApproached` and only invokes `renderSubsection` (or renders its result) when true, matching the lazy-mount contract from `docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md`.
-  - [ ] `resolveStyle(trait)` is applied to each accordion's `style` prop exactly where `RobotOptionsTab.tsx`/`CompanyOptionsSection.tsx` currently apply their own module-level style constants.
+  - [x] `accordionIds('probes.r1')` returns exactly the 8 ids today's `RobotOptionsTab.tsx` hand-builds (7 subsection ids + `` `probes.r1.source` ``), in the same order. **Deviation, noted:** `subsectionIds`/`accordionIds` live in `robotSubsectionConfig.ts`, not this component file — they're pure derivations of `ROBOT_SECTIONS_CONFIG` with no dependency on React, and keeping them out of the `.tsx` file avoided a real `react-refresh/only-export-components` lint warning at zero cost. `sectionIds(prefix)` (mentioned in the plan's own description) was not added — nothing needed it; only the 2 actually-consumed helpers were built (scope discipline).
+  - [x] `subsectionIds('probes.r1')` returns exactly the 7 ids today's `RobotOptionsTab.tsx` hand-builds — `frequency`/Pitches excluded.
+  - [x] Rendering `<RobotSectionAccordionStack>` with a fake `renderSubsection` produces one `AccordionContainer` per non-merged subsection, each with the correct `id`/`humanLabel` (from `accordionLabel`) and correct `open`/`onOpenChange` wired to the passed `isOpen`/`setOpen`.
+  - [x] The `source` section's 4 subsections render nested inside one additional outer `AccordionContainer` (`id: `${prefix}.source``, `humanLabel: 'Source'`) — verified structurally (the outer accordion's content contains the 4 inner ones), not just "4 accordions exist somewhere."
+  - [x] `volume`/`melody`/`envelope` render their single accordion-bearing subsection with **no** wrapping accordion at the section-level id — only a plain anchor `<div>` at `` `${prefix}.<section>` ``, matching today.
+  - [x] `frequency` (or any subsection with `mergedInto` set, tested generically) produces no `AccordionContainer` and does not appear in the rendered output at all.
+  - [x] `renderSubsection` is called with `hasApproached(id)` gating its result exactly as today's `hasApproached(...) ? <Content/> : null` pattern — i.e., the component itself calls `hasApproached` and only invokes `renderSubsection` (or renders its result) when true, matching the lazy-mount contract from `docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md`.
+  - [x] `resolveStyle(trait)` is applied to each accordion's `style` prop exactly where `RobotOptionsTab.tsx`/`CompanyOptionsSection.tsx` currently apply their own module-level style constants.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/RobotSectionAccordionStack.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav/RobotSectionAccordionStack.test.tsx` passes (11 tests; `subsectionIds`/`accordionIds` coverage lives in `robotSubsectionConfig.test.ts` instead, alongside the table they derive from).
+  - [x] `npm run build:types`, `npm run lint` clean (zero warnings, not just zero errors).
 
   **Dependencies:** Task 1 (reads `ROBOT_SECTIONS_CONFIG`). Does not depend on Task 2 functionally, but is sequenced after it per the Architecture Decisions above.
 
@@ -150,10 +150,10 @@ Strictly linear, not a fan-out — unlike `NAV_ACCORDION_SYNC.md`'s Tasks 1/2, n
   **Estimated scope:** M (one new file, genuinely new composition logic — the `source`-nesting and `mergedInto`-skipping special cases are the real complexity in this whole plan, per spec §1.3)
 
 ### Checkpoint: Shared Shell Built
-- [ ] `npm run build:types`, `npm run lint`, `npm test` all clean.
-- [ ] `RobotSectionAccordionStack` is fully correct and tested in isolation, with no real caller yet — `RobotOptionsTab.tsx`/`CompanyOptionsSection.tsx` are still byte-for-byte unchanged from `main`.
-- [ ] The `source`-wrapping and `frequency`-merging special cases (spec §1.3) are each covered by a dedicated, named test — not incidentally exercised by a broader test.
-- [ ] Reviewed with human before proceeding to Phase 4.
+- [x] `npm run build:types`, `npm run lint`, `npm test` all clean (mod. the same 17 pre-existing failures, unchanged).
+- [x] `RobotSectionAccordionStack` is fully correct and tested in isolation, with no real caller yet — `RobotOptionsTab.tsx`/`CompanyOptionsSection.tsx` are still byte-for-byte unchanged from `main`.
+- [x] The `source`-wrapping and `frequency`-merging special cases (spec §1.3) are each covered by a dedicated, named test — not incidentally exercised by a broader test.
+- [ ] Reviewed with human before proceeding to Phase 4. **(Proceeding per Crawford's instruction; full review deferred to the end.)**
 
 ---
 
