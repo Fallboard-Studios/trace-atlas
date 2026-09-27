@@ -53,7 +53,7 @@ export interface RobotSectionEntry {
  *  directly instead of each hand-declaring their own order. */
 export const ROBOT_SECTIONS_CONFIG: RobotSectionEntry[] = [
   {
-    id: 'volume', navLabel: 'Levels', trait: 'output',
+    id: 'volume', navLabel: 'Output', trait: 'output',
     subsections: [
       { id: 'audioSettings', navLabel: 'Dynamics', accordionLabel: 'Levels' },
     ],

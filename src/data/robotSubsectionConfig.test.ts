@@ -21,7 +21,7 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
 
   it('gives every section its current nav-tree label and trait', () => {
     const byId = Object.fromEntries(ROBOT_SECTIONS_CONFIG.map((s) => [s.id, s]));
-    expect(byId.volume).toMatchObject({ navLabel: 'Levels', trait: 'output' });
+    expect(byId.volume).toMatchObject({ navLabel: 'Output', trait: 'output' });
     expect(byId.melody).toMatchObject({ navLabel: 'Composition', trait: 'composition' });
     expect(byId.envelope).toMatchObject({ navLabel: 'Envelope', trait: 'timeSpace' });
     expect(byId.source).toMatchObject({ navLabel: 'Source', trait: 'spectral' });
