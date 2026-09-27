@@ -196,24 +196,27 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
 
 - [ ] **Task 8: `swimAnimation.test.ts` — no-ref path, timeline replacement, offset math, propeller count**
 
-  **Description:** New `src/animation/swimAnimation.test.ts`. Runs against `vitest.setup.ts`'s global GSAP mock (no local mock needed); uses real `refs.ts`/`timelineMap.ts` (unmocked) to register a fake ref and observe timeline replacement. Per spec §3.3.
+  **Description:** New `src/animation/swimAnimation.test.ts`. Runs against `vitest.setup.ts`'s global GSAP mock; uses real `refs.ts`/`timelineMap.ts` (unmocked) to register a fake ref and observe timeline replacement. Per spec §3.3.
+
+  **Real gap found in shared test infrastructure, not in `swimAnimation.ts`:** `createSwimTimeline` calls `tl.play()` (it builds the timeline `paused: true` so it can register it via `setTimeline` before anything plays, then plays it right before returning) — no prior consumer's test exercised this call, so `vitest.setup.ts`'s global GSAP mock had no `.play()` method, same masking pattern as its own documented `.kill()`/`.set()` gaps. Per spec §4 ("touch `vitest.setup.ts` only... to add a mock that must be global"), added `play: () => obj as TimelineObj` to the mock (+ the `TimelineObj` interface), with a comment matching the file's existing style. **Full suite re-run after the change: 183 files / 3858 tests, all green** — confirmed safe before proceeding, not just assumed.
 
   **Acceptance criteria:**
-  - [ ] Calling `createSwimTimeline` for a robot id with no registered ref does not throw, returns a timeline (the GSAP mock's shape), and — when `onComplete` is supplied — schedules it via the mocked `gsap.delayedCall` (assert `delayedCall` was called with the estimated duration and the callback; per `vitest.setup.ts`'s own mock, it does **not** auto-fire, unlike `.timeline()`'s `onComplete`).
-  - [ ] With a real ref registered (via `setRef`) and a prior timeline already stored under `` `swim-${robot.id}` ``, calling `createSwimTimeline` again removes the prior timeline from `timelineMap` (`killTimeline` was called) and registers the new one under the same key.
-  - [ ] **Named risk — absolute vs. relative offsets:** when `targetDirection` differs from the robot's current `direction` (a flip is needed), the propulsion/propeller/tilt tweens' start offset is `ORIENTATION_DURATION - PROPULSION_OVERLAP`, not `0` — assert via the position argument passed to the mocked timeline's `.to()` calls, comparing the flip-needed vs. no-flip-needed cases.
-  - [ ] With a fake ref whose `.querySelector('.propeller')` returns an element, the propeller tween's `repeat` value is `Math.ceil(duration / PROPELLER_ROTATION_SPEED) - 1`.
-  - [ ] With no `.propeller` child present, no propeller tween is attempted and nothing throws.
-  - [ ] `calculateDuration`'s output (exercised indirectly) matches `distance / SWIM_SPEED` for a known `from`/`to` pair.
-  - [ ] No production file modified (including `refs.ts`/`timelineMap.ts`, used read/write but not edited).
+  - [x] Calling `createSwimTimeline` for a robot id with no registered ref does not throw, returns a timeline (the GSAP mock's shape), and — when `onComplete` is supplied — schedules it via the mocked `gsap.delayedCall` (assert `delayedCall` was called with the estimated duration and the callback; per `vitest.setup.ts`'s own mock, it does **not** auto-fire, unlike `.timeline()`'s `onComplete`).
+  - [x] With a real ref registered (via `setRef`) and a prior timeline already stored under `` `swim-${robot.id}` ``, calling `createSwimTimeline` again removes the prior timeline from `timelineMap` (`killTimeline` was called) and registers the new one under the same key.
+  - [x] **Named risk — absolute vs. relative offsets:** when `targetDirection` differs from the robot's current `direction` (a flip is needed), the propulsion tween's start offset is `ORIENTATION_DURATION - PROPULSION_OVERLAP`, not `0` — **mutation-tested**: hardcoding `propulsionStart = 0` in `swimAnimation.ts` was caught by this assertion.
+  - [x] With a fake ref whose `.querySelector('.propeller')` returns an element, the propeller tween's `repeat` value is `Math.ceil(duration / PROPELLER_ROTATION_SPEED) - 1`.
+  - [x] With no `.propeller` child present, no propeller tween is attempted and nothing throws.
+  - [x] `calculateDuration`'s output (exercised indirectly) matches `distance / SWIM_SPEED` for a known (diagonal) `from`/`to` pair.
+  - [x] No production file modified — `swimAnimation.ts` confirmed via `git diff --exit-code` after the mutation check; `refs.ts`/`timelineMap.ts` used read/write only. `vitest.setup.ts` was modified, deliberately and within the spec's own allowance (above).
 
   **Verification:**
-  - [ ] `npx vitest run src/animation/swimAnimation.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/animation/swimAnimation.test.ts` passes (7 tests).
+  - [x] `npm run build:types`, `npm run lint` clean.
+  - [x] Full `npx vitest run` (whole suite): 183 files / 3858 tests, all green after the `vitest.setup.ts` change.
 
   **Dependencies:** None.
 
-  **Files:** `src/animation/swimAnimation.test.ts`
+  **Files:** `src/animation/swimAnimation.test.ts`, `vitest.setup.ts` (added a missing `.play()` no-op to the global GSAP mock — see above)
 
   **Estimated scope:** M (one file, but several distinct behaviors — no-ref path, replacement, offset math, propeller count — each needs its own fake-ref/DOM setup)
 
