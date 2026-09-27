@@ -29,10 +29,18 @@ export interface RobotSubsectionEntry {
   mergedInto?: RobotSubsection;
 }
 
+/** The only 4 Trait values ROBOT_SECTIONS_CONFIG ever uses — narrower than Trait itself (which
+ *  also covers company/seed/header, used elsewhere in the app) so a consumer's own trait->style
+ *  mapping (RobotOptionsTab.tsx/CompanyOptionsSection.tsx) can be a Record<RobotOptionsTrait, ...>
+ *  literal instead of a switch with a silent default — TypeScript then refuses to compile if a
+ *  new section here ever uses a trait neither mapping handles, rather than silently rendering an
+ *  unstyled accordion at runtime. */
+export type RobotOptionsTrait = Extract<Trait, 'output' | 'composition' | 'timeSpace' | 'spectral'>;
+
 export interface RobotSectionEntry {
   id: RobotSection;
   navLabel: string;
-  trait: Trait;
+  trait: RobotOptionsTrait;
   /** Present only for a section that wraps its subsections in its OWN accordion ('source') — its
    *  value is that wrapping accordion's trigger label. Absent for volume/melody/envelope, whose
    *  single accordion-bearing subsection's own accordion is that section's only chrome. */
@@ -74,39 +82,14 @@ export const ROBOT_SECTIONS_CONFIG: RobotSectionEntry[] = [
   },
 ];
 
-/** Each section's own first child, in tree order — derived from ROBOT_SECTIONS_CONFIG rather than
- *  a second hand-typed table. Kept as a Record (not a function) so no existing/future call site
- *  needs to change shape. */
-export const FIRST_SUBSECTION_OF: Record<RobotSection, RobotSubsection> = Object.fromEntries(
-  ROBOT_SECTIONS_CONFIG.map((section) => [section.id, section.subsections[0].id]),
-) as Record<RobotSection, RobotSubsection>;
-
 /**
  * Source's 3 fixed oscillator layer slots, in SIGNATURE_ARRAY_CONFIG order — Probe Drift is
  * handled separately (it isn't a layer index). Kept as its own small literal rather than derived
  * by filtering ROBOT_SECTIONS_CONFIG: this is a structural fact about which RobotSubsection ids
  * are oscillator layers (fixed by the domain model — a new layer would require a RobotSubsection
- * type change touching many files, not just this one), distinct from the display-label
- * duplication OSCILLATOR_LABELS below actually fixes.
+ * type change touching many files, not just this one).
  */
 export const SOURCE_OSCILLATOR_SUBSECTIONS = ['baselineOscillator', 'coaxialOscillator', 'harmonicOscillator'] as const;
-
-function accordionLabelOf(id: RobotSubsection): string {
-  for (const section of ROBOT_SECTIONS_CONFIG) {
-    const sub = section.subsections.find((s) => s.id === id);
-    if (sub?.accordionLabel) return sub.accordionLabel;
-  }
-  throw new Error(`No accordion label registered for subsection "${id}"`);
-}
-
-/** Values now come from ROBOT_SECTIONS_CONFIG itself — previously a second, independently-typed
- *  literal that had drifted into an exact word-for-word duplicate of useNavTree.ts's own copy
- *  (docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md §1.1). */
-export const OSCILLATOR_LABELS: Record<(typeof SOURCE_OSCILLATOR_SUBSECTIONS)[number], string> = {
-  baselineOscillator: accordionLabelOf('baselineOscillator'),
-  coaxialOscillator: accordionLabelOf('coaxialOscillator'),
-  harmonicOscillator: accordionLabelOf('harmonicOscillator'),
-};
 
 /** Every accordion-bearing subsection id RobotSectionAccordionStack renders for `prefix`, in tree
  *  order — excludes a subsection merged into a sibling (mergedInto set, e.g. 'frequency'/Pitches,

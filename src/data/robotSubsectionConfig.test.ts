@@ -5,9 +5,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
   ROBOT_SECTIONS_CONFIG,
-  FIRST_SUBSECTION_OF,
   SOURCE_OSCILLATOR_SUBSECTIONS,
-  OSCILLATOR_LABELS,
   subsectionIds,
   accordionIds,
 } from './robotSubsectionConfig';
@@ -97,36 +95,9 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
   });
 });
 
-describe('FIRST_SUBSECTION_OF (derived from ROBOT_SECTIONS_CONFIG)', () => {
-  it('maps every RobotSection to its own first subsection id, unchanged from before this table existed', () => {
-    expect(FIRST_SUBSECTION_OF).toEqual({
-      volume: 'audioSettings',
-      melody: 'rhythm',
-      envelope: 'pingContour',
-      source: 'baselineOscillator',
-    });
-  });
-});
-
-describe('SOURCE_OSCILLATOR_SUBSECTIONS / OSCILLATOR_LABELS (derived from ROBOT_SECTIONS_CONFIG)', () => {
+describe('SOURCE_OSCILLATOR_SUBSECTIONS', () => {
   it('lists exactly the 3 oscillator layer ids, in layer order, excluding probeDrift', () => {
     expect(SOURCE_OSCILLATOR_SUBSECTIONS).toEqual(['baselineOscillator', 'coaxialOscillator', 'harmonicOscillator']);
-  });
-
-  it('gives every oscillator subsection its accordion label, unchanged from before this table existed', () => {
-    expect(OSCILLATOR_LABELS).toEqual({
-      baselineOscillator: 'Baseline Oscillator',
-      coaxialOscillator: 'Coaxial Oscillator',
-      harmonicOscillator: 'Harmonic Oscillator',
-    });
-  });
-
-  it("OSCILLATOR_LABELS' values come from ROBOT_SECTIONS_CONFIG itself, not a second independently-typed copy", () => {
-    const source = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'source')!;
-    for (const id of SOURCE_OSCILLATOR_SUBSECTIONS) {
-      const sub = source.subsections.find((s) => s.id === id)!;
-      expect(OSCILLATOR_LABELS[id]).toBe(sub.accordionLabel);
-    }
   });
 });
 

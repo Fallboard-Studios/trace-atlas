@@ -1,8 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
-import { ROBOT_SECTIONS_CONFIG } from '@/data/robotSubsectionConfig';
+import { ROBOT_SECTIONS_CONFIG, type RobotOptionsTrait } from '@/data/robotSubsectionConfig';
 import type { RobotSection, RobotSubsection } from '@/stores/uiStore';
-import type { Trait } from '@/types/traits';
 import type { AccordionSchema } from '@/types/controls';
 
 export interface RobotSectionAccordionStackProps {
@@ -16,8 +15,11 @@ export interface RobotSectionAccordionStackProps {
   hasApproached: (id: string) => boolean;
   sectionAnchorRef: (id: string) => (el: HTMLDivElement | null) => void;
   /** Resolves an accordion's style from its owning section's trait — RobotOptionsTab passes a
-   *  fixed per-trait style, CompanyOptionsSection's own active/disabled variant. */
-  resolveStyle: (trait: Trait) => CSSProperties;
+   *  fixed per-trait style, CompanyOptionsSection's own active/disabled variant. Narrower than the
+   *  app-wide Trait type — RobotOptionsTrait is exactly the 4 values ROBOT_SECTIONS_CONFIG can
+   *  produce, so a caller's own Record<RobotOptionsTrait, ...> mapping is compiler-enforced
+   *  exhaustive rather than needing a silent default case. */
+  resolveStyle: (trait: RobotOptionsTrait) => CSSProperties;
   renderSubsection: (subsectionId: RobotSubsection, sectionId: RobotSection) => ReactNode;
 }
 

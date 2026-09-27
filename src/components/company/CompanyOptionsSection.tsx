@@ -20,14 +20,16 @@ import {
 } from '@/systems/robotOptionsActions';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
 import { VOLUME_LFO_TARGET, SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
-import { SOURCE_OSCILLATOR_SUBSECTIONS, subsectionIds as computeSubsectionIds, accordionIds as computeAccordionIds } from '@/data/robotSubsectionConfig';
+import {
+  SOURCE_OSCILLATOR_SUBSECTIONS, subsectionIds as computeSubsectionIds, accordionIds as computeAccordionIds,
+  type RobotOptionsTrait,
+} from '@/data/robotSubsectionConfig';
 import { LFO_RATE_MIN, LFO_DEPTH_MIN } from '@/types/lfo';
 import { getTraitColorStyle, getDisabledTraitColorStyle } from '@/utils/traitColors';
 import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
 import type { CompanyOptionsSnapshot } from '@/types/Company';
 import type { RobotLfoTargetId } from '@/types/lfo';
 import type { LfoValue } from '@/types/controls';
-import type { Trait } from '@/types/traits';
 
 import './CompanyOptionsSection.css';
 
@@ -43,6 +45,23 @@ const TIME_SPACE_ACTIVE_STYLE = getTraitColorStyle('timeSpace');
 const TIME_SPACE_DISABLED_STYLE = getDisabledTraitColorStyle('timeSpace');
 const SPECTRAL_ACTIVE_STYLE = getTraitColorStyle('spectral');
 const SPECTRAL_DISABLED_STYLE = getDisabledTraitColorStyle('spectral');
+
+// Record<RobotOptionsTrait, ...>, not a switch with a default — RobotOptionsTrait is exactly the
+// 4 values ROBOT_SECTIONS_CONFIG can produce, so these object literals are compiler-checked
+// exhaustive: a future section added there with a trait missing here fails npm run build:types,
+// rather than silently rendering an unstyled accordion at runtime (found in code review, 2026-09-27).
+const ACTIVE_TRAIT_STYLES: Record<RobotOptionsTrait, CSSProperties> = {
+  output: OUTPUT_ACTIVE_STYLE,
+  composition: COMPOSITION_ACTIVE_STYLE,
+  timeSpace: TIME_SPACE_ACTIVE_STYLE,
+  spectral: SPECTRAL_ACTIVE_STYLE,
+};
+const DISABLED_TRAIT_STYLES: Record<RobotOptionsTrait, CSSProperties> = {
+  output: OUTPUT_DISABLED_STYLE,
+  composition: COMPOSITION_DISABLED_STYLE,
+  timeSpace: TIME_SPACE_DISABLED_STYLE,
+  spectral: SPECTRAL_DISABLED_STYLE,
+};
 
 // Placeholder values shown when there's nothing to derive real ones from — a selected company
 // with zero members (nothing to broadcast to, nothing to resolve a baseline from). Kept structurally complete (e.g. 3 layer slots, not an empty array) so the panel's
@@ -370,15 +389,9 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- startHidden never changes after mount
   }, []);
 
-  const resolveStyle = useCallback((trait: Trait): CSSProperties => {
-    switch (trait) {
-      case 'output': return active ? OUTPUT_ACTIVE_STYLE : OUTPUT_DISABLED_STYLE;
-      case 'composition': return active ? COMPOSITION_ACTIVE_STYLE : COMPOSITION_DISABLED_STYLE;
-      case 'timeSpace': return active ? TIME_SPACE_ACTIVE_STYLE : TIME_SPACE_DISABLED_STYLE;
-      case 'spectral': return active ? SPECTRAL_ACTIVE_STYLE : SPECTRAL_DISABLED_STYLE;
-      default: return {};
-    }
-  }, [active]);
+  const resolveStyle = useCallback((trait: RobotOptionsTrait): CSSProperties => (
+    active ? ACTIVE_TRAIT_STYLES[trait] : DISABLED_TRAIT_STYLES[trait]
+  ), [active]);
 
   // Dispatches each subsection id to its own content component, exactly as the pre-consolidation
   // JSX did per accordion — RobotSectionAccordionStack calls this only once a subsection's own id

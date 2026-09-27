@@ -20,7 +20,10 @@ import { regenerateMelody } from '@/engine/regenerateMelody';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE } from '@/engine/melodyGenerator';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
 import { VOLUME_LFO_TARGET, SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
-import { SOURCE_OSCILLATOR_SUBSECTIONS, subsectionIds as computeSubsectionIds, accordionIds as computeAccordionIds } from '@/data/robotSubsectionConfig';
+import {
+  SOURCE_OSCILLATOR_SUBSECTIONS, subsectionIds as computeSubsectionIds, accordionIds as computeAccordionIds,
+  type RobotOptionsTrait,
+} from '@/data/robotSubsectionConfig';
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo,
@@ -29,7 +32,6 @@ import {
 import type { LfoValue } from '@/types/controls';
 import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId } from '@/types/lfo';
 import type { Robot, ADSREnvelope, WaveformType } from '@/types/Robot';
-import type { Trait } from '@/types/traits';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 
 import './RobotOptionsTab.css';
@@ -42,16 +44,18 @@ const COMPOSITION_STYLE = getTraitColorStyle('composition');
 const TIME_SPACE_STYLE = getTraitColorStyle('timeSpace');
 const SPECTRAL_STYLE = getTraitColorStyle('spectral');
 
-// The only 4 traits ROBOT_SECTIONS_CONFIG ever uses for this view — a plain switch over a fixed
-// module-level style, not a Record<Trait, ...> (this view has no style for company/seed/header).
-function resolveRobotOptionsStyle(trait: Trait): CSSProperties {
-  switch (trait) {
-    case 'output': return OUTPUT_STYLE;
-    case 'composition': return COMPOSITION_STYLE;
-    case 'timeSpace': return TIME_SPACE_STYLE;
-    case 'spectral': return SPECTRAL_STYLE;
-    default: return {};
-  }
+// Record<RobotOptionsTrait, ...>, not a switch with a default — RobotOptionsTrait is exactly the
+// 4 values ROBOT_SECTIONS_CONFIG can produce, so this object literal is compiler-checked exhaustive:
+// a future section added there with a trait missing here fails npm run build:types, rather than
+// silently rendering an unstyled accordion at runtime (found in code review, 2026-09-27).
+const TRAIT_STYLES: Record<RobotOptionsTrait, CSSProperties> = {
+  output: OUTPUT_STYLE,
+  composition: COMPOSITION_STYLE,
+  timeSpace: TIME_SPACE_STYLE,
+  spectral: SPECTRAL_STYLE,
+};
+function resolveRobotOptionsStyle(trait: RobotOptionsTrait): CSSProperties {
+  return TRAIT_STYLES[trait];
 }
 
 function sectionAnchorRef(id: string) {
