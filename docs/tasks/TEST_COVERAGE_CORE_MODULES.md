@@ -291,19 +291,19 @@ Task 11 (factoryVariants.test.ts) Task 12 (LocaleView.test.tsx)
 
   **Estimated scope:** M (one file, several distinct pure functions plus a determinism/regression check)
 
-- [ ] **Task 12: `LocaleView.test.tsx` — existence guard + prop pass-through**
+- [x] **Task 12: `LocaleView.test.tsx` — existence guard + prop pass-through**
 
   **Description:** New `src/components/panels/screen/worldView/LocaleView.test.tsx`. Mocks `@/stores/localeStore`'s `useLocaleStore` and `./OceanScene` (asserting `OceanScene` receives `localTime`). Per spec §3.5.
 
   **Acceptance criteria:**
-  - [ ] With `localeId` present in the mocked store's `locales` map, renders the `.locale-view` wrapper and the mocked `OceanScene` with the passed-through `localTime` prop.
-  - [ ] With `localeId` absent from `locales`, renders nothing (`null`) and `OceanScene` is never invoked.
-  - [ ] The mocked store selector returns a plain boolean (matching the real `localeId in s.locales` shape) — no assertion needed on *why* this avoids extra re-renders (out of reach of a single-render RTL test per spec §3.5), just that the mock's shape matches production.
-  - [ ] No production file modified.
+  - [x] With `localeId` present in the mocked store's `locales` map, renders the `.locale-view` wrapper and the mocked `OceanScene` with the passed-through `localTime` prop.
+  - [x] With `localeId` absent from `locales`, renders nothing (`null`) and `OceanScene` is never invoked — **mutation-tested**: removing the `if (!localeExists) return null;` guard was caught.
+  - [x] The mocked store selector returns a plain boolean (matching the real `localeId in s.locales` shape) — no assertion needed on *why* this avoids extra re-renders, just that the mock's shape matches production.
+  - [x] No production file modified — confirmed via `git diff --exit-code` after the mutation check.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/worldView/LocaleView.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/worldView/LocaleView.test.tsx` passes (2 tests).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
