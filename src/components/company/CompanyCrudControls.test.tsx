@@ -272,6 +272,14 @@ describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — 
       expect((screen.getByRole('button', { name: /^rename\b/i }) as HTMLButtonElement).disabled).toBe(true);
     });
 
+    // KNOWN FLAKY (2026-09-27): suggestCompanyName draws from real Math.random() here, unmocked —
+    // 10 adjectives x 8 nouns = 80 combos, so there's a real ~1/80 (1.25%) chance per run the
+    // auto-suggested draft coincidentally matches 'Iron Consortium' exactly, which is precisely the
+    // "stays disabled" case the next test below covers deliberately (with Math.random mocked to
+    // force it). If this fails, re-run once to confirm before treating it as a regression — it's
+    // the "(normally)" in this test's own name landing on the rare branch, not a broken
+    // renameUnchanged guard. Don't auto-retry it repeatedly on failure, and don't edit the
+    // assertion.
     it('is (normally) enabled immediately after selecting a company — the auto-suggested draft differs from the current name', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');

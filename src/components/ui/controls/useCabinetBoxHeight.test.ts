@@ -4,8 +4,8 @@ import { renderHook, act } from '@testing-library/react';
 import { useCabinetBoxHeight, useVoxelTrackGap } from './useCabinetBoxHeight';
 
 /**
- * Stubs window.matchMedia so the mobile (max-width: 640px) and tablet
- * (max-width: 1024px) queries can be controlled independently, and their
+ * Stubs window.matchMedia so the mobile (max-width: 639px) and tablet
+ * (max-width: 1023px) queries can be controlled independently, and their
  * 'change' listeners triggered manually — generalizes AccordionContainer.
  * test.tsx's own single-query stubMatchMedia to 2 independent queries.
  */
@@ -14,7 +14,7 @@ function stubMatchMedia(initial: { mobile: boolean; tablet: boolean }) {
   const listeners = new Map<string, Set<(e: { matches: boolean }) => void>>();
 
   function queryKind(query: string): 'mobile' | 'tablet' {
-    return query.includes('640px') ? 'mobile' : 'tablet';
+    return query.includes('639px') ? 'mobile' : 'tablet';
   }
 
   Object.defineProperty(window, 'matchMedia', {
