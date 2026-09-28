@@ -231,7 +231,7 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
 
   **Estimated scope:** S (2 files)
 
-- [ ] **Task 6: `sessionStore.ts` — session UI state**
+- [x] **Task 6: `sessionStore.ts` — session UI state**
 
   **Description:** New Zustand store per spec §2/§4.4: `currentSessionName: string` (the Session Name input's value, initialized to a freshly generated word-list name using the same mechanism `spawnSystem.ts` uses for robot/company names) and `currentLoadedSessionName: string | null` (which named session, if any, is currently loaded — drives Task 7's slot choice). Both fields plain and serializable; this store is itself never persisted.
 
