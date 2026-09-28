@@ -65,6 +65,14 @@ function extractGlobalSwellBaseValueIfActive(target: string): number | undefined
   return undefined;
 }
 
+/** Clean up floating-point representation errors by rounding to the appropriate number
+ *  of decimal places. E.g., -0.42000000000000004 → -0.42. For 2 decimal places: round to
+ *  nearest 0.01 by shifting, rounding, and shifting back. */
+function cleanupFloatingPoint(value: number, decimalPlaces: number): number {
+  const factor = Math.pow(10, decimalPlaces);
+  return Math.round(value * factor) / factor;
+}
+
 /** Apply swell base values to globalAudio fields if swells are active, so persisted
  *  global audio always contains normalized data regardless of swell phase. */
 function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioStore.getState>['globalAudio']) {
@@ -149,23 +157,23 @@ function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioSto
     threshold: quantizeToStep(toCapture.limiter.threshold, GLOBAL_AUDIO_SEED_RANGES['limiter.threshold'].min, 1),
   };
 
-  // Quantize lfoDrift fields to 0.01 (1% precision in -1..1 range)
+  // Quantize lfoDrift fields to 0.01 (1% precision in -1..1 range) and clean up floating-point noise
   toCapture.lfoDrift = {
     eq3: {
-      rateDrift: quantizeToStep(toCapture.lfoDrift.eq3.rateDrift, -1, 0.01),
-      depthDrift: quantizeToStep(toCapture.lfoDrift.eq3.depthDrift, -1, 0.01),
+      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.eq3.rateDrift, -1, 0.01), 2),
+      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.eq3.depthDrift, -1, 0.01), 2),
     },
     filterLPF: {
-      rateDrift: quantizeToStep(toCapture.lfoDrift.filterLPF.rateDrift, -1, 0.01),
-      depthDrift: quantizeToStep(toCapture.lfoDrift.filterLPF.depthDrift, -1, 0.01),
+      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.filterLPF.rateDrift, -1, 0.01), 2),
+      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.filterLPF.depthDrift, -1, 0.01), 2),
     },
     filterHPF: {
-      rateDrift: quantizeToStep(toCapture.lfoDrift.filterHPF.rateDrift, -1, 0.01),
-      depthDrift: quantizeToStep(toCapture.lfoDrift.filterHPF.depthDrift, -1, 0.01),
+      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.filterHPF.rateDrift, -1, 0.01), 2),
+      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.filterHPF.depthDrift, -1, 0.01), 2),
     },
     robots: {
-      rateDrift: quantizeToStep(toCapture.lfoDrift.robots.rateDrift, -1, 0.01),
-      depthDrift: quantizeToStep(toCapture.lfoDrift.robots.depthDrift, -1, 0.01),
+      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.robots.rateDrift, -1, 0.01), 2),
+      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.robots.depthDrift, -1, 0.01), 2),
     },
   };
 
@@ -193,10 +201,10 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
   }
   if (!deepEqual(adsrToCapture, baseline.audioAttributes.adsr)) diff.adsr = adsrToCapture;
 
-  // Apply swell base values to layer fields if swells are active
+  // Apply swell base values to layer fields if swells are active, with floating-point cleanup
   const layersToCapture = live.audioAttributes.layers?.map((layer, layerIndex) => ({
     ...layer,
-    gain: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.gain` as SwellRobotAttributeId) ?? layer.gain,
+    gain: cleanupFloatingPoint(extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.gain` as SwellRobotAttributeId) ?? layer.gain, 2),
     detune: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.detune` as SwellRobotAttributeId) ?? layer.detune,
     phase: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.phase` as SwellRobotAttributeId) ?? layer.phase,
     pulseWidth: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.pulseWidth` as SwellRobotAttributeId) ?? layer.pulseWidth,
