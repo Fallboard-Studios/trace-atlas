@@ -207,9 +207,11 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
 
 ### Phase 2: Headless persistence
 
-- [ ] **Task 5: `sessionStorageEngine.ts` — the `localStorage` layer**
+- [x] **Task 5: `sessionStorageEngine.ts` — the `localStorage` layer**
 
   **Description:** Implement the storage API from spec §4.3: `saveNamedSession` (overwrite-by-name), `saveAutosaveSlot`, `deleteNamedSession`, `listSessions`, `loadSession`, under one versioned namespaced key (`trace-atlas.sessions.v1`). Fails soft on corrupted/missing data, per the codebase's `swallow`/`devWarn` convention.
+
+  **Implementation note:** `saveAutosaveSlot` ended up taking an `AutosaveWriteMode` (`'rotating' | 'draft'`) rather than the spec's literal `AutosaveSlotId` — the FIFO rotation cursor (`nextRotatingIndex`) is fully encapsulated inside this module rather than leaking "which of the 5 slots is next" to the caller (Task 7). Matches spec §7 item 4's own note that the schema was a first-pass proposal, not load-bearing.
 
   **Acceptance criteria:**
   - [ ] `saveNamedSession('foo', payloadA)` then `saveNamedSession('foo', payloadB)` leaves exactly one entry named `'foo'` holding `payloadB`.
