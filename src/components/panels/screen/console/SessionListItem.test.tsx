@@ -1,17 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
+const rebuiltPayload = { marker: 'rebuilt-live-state' };
+
 vi.mock('@/utils/sessionDiff', () => ({
   applySessionPayload: vi.fn(),
+  buildSessionPayload: vi.fn(() => rebuiltPayload),
 }));
 vi.mock('@/utils/sessionStorageEngine', () => ({
   deleteNamedSession: vi.fn(),
+  saveNamedSession: vi.fn(),
 }));
 
 import { SessionListItem } from './SessionListItem';
 import { useSessionStore } from '@/stores/sessionStore';
-import { applySessionPayload } from '@/utils/sessionDiff';
-import { deleteNamedSession } from '@/utils/sessionStorageEngine';
+import { applySessionPayload, buildSessionPayload } from '@/utils/sessionDiff';
+import { deleteNamedSession, saveNamedSession } from '@/utils/sessionStorageEngine';
 import type { SessionEntry } from '@/types/session';
 
 const fakePayload = {
@@ -36,16 +40,16 @@ describe('SessionListItem', () => {
     expect(screen.getByRole('button', { name: /Delete Deep Dive/i })).toBeTruthy();
   });
 
-  it('an autosave-slot entry renders "AttenuationStyle @ (x, y)" (derived from its own payload) and a Load button only, no Delete', () => {
+  it('an autosave-slot entry renders "AttenuationStyle @ (x, y) (Autosaved Session)" and a Load button (unsuffixed) only, no Delete', () => {
     render(<SessionListItem entry={makeEntry({ name: 'unsaved-0' })} />);
-    expect(screen.getByText('Iron Drift @ (12, -34)')).toBeTruthy();
+    expect(screen.getByText('Iron Drift @ (12, -34) (Autosaved Session)')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Load Iron Drift @ \(12, -34\)/i })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Delete/i })).toBeNull();
   });
 
-  it('the draft slot renders the same "AttenuationStyle @ (x, y)" label, with no Delete button', () => {
+  it('the draft slot renders the same "AttenuationStyle @ (x, y) (Autosaved Session)" label, with no Delete button', () => {
     render(<SessionListItem entry={makeEntry({ name: 'draft' })} />);
-    expect(screen.getByText('Iron Drift @ (12, -34)')).toBeTruthy();
+    expect(screen.getByText('Iron Drift @ (12, -34) (Autosaved Session)')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Delete/i })).toBeNull();
   });
 
@@ -54,11 +58,16 @@ describe('SessionListItem', () => {
       name: 'unsaved-1',
       payload: { attenuationStyleName: 'Null Guild', coordinates: { x: 0, y: 0 } } as unknown as SessionEntry['payload'],
     })} />);
-    expect(screen.getByText('Null Guild @ (0, 0)')).toBeTruthy();
+    expect(screen.getByText('Null Guild @ (0, 0) (Autosaved Session)')).toBeTruthy();
     unmount();
 
     render(<SessionListItem entry={makeEntry({ name: 'unsaved-2' })} />);
-    expect(screen.getByText('Iron Drift @ (12, -34)')).toBeTruthy();
+    expect(screen.getByText('Iron Drift @ (12, -34) (Autosaved Session)')).toBeTruthy();
+  });
+
+  it('a named entry never shows the "(Autosaved Session)" suffix', () => {
+    render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+    expect(screen.queryByText(/Autosaved Session/)).toBeNull();
   });
 
   it('clicking Load on a named entry applies the payload immediately (no confirmation) and sets currentLoadedSessionName to its name', () => {
@@ -77,6 +86,54 @@ describe('SessionListItem', () => {
 
     expect(applySessionPayload).toHaveBeenCalledWith(fakePayload);
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+  });
+
+  it('when this entry is the currently-loaded session, the Load button becomes "Update {name}" instead', () => {
+    useSessionStore.setState({ currentLoadedSessionName: 'Deep Dive' });
+    render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+
+    expect(screen.queryByRole('button', { name: /^Load Deep Dive/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /Update Deep Dive/i })).toBeTruthy();
+  });
+
+  it('a different (not-currently-loaded) named entry still shows Load, even while another session is loaded', () => {
+    useSessionStore.setState({ currentLoadedSessionName: 'Some Other Session' });
+    render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+
+    expect(screen.getByRole('button', { name: /Load Deep Dive/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Update Deep Dive/i })).toBeNull();
+  });
+
+  it('an autosave-slot entry never shows "Update", even if currentLoadedSessionName happens to match its raw name', () => {
+    // Shouldn't occur in practice (loading an autosave slot always sets currentLoadedSessionName
+    // to null), but guards against isCurrentlyLoaded ever keying off the raw slot id.
+    useSessionStore.setState({ currentLoadedSessionName: 'unsaved-0' });
+    render(<SessionListItem entry={makeEntry({ name: 'unsaved-0' })} />);
+
+    expect(screen.queryByRole('button', { name: /Update/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Load/i })).toBeTruthy();
+  });
+
+  it('clicking Update saves the current live state back into this same named entry, without reloading it', () => {
+    useSessionStore.setState({ currentLoadedSessionName: 'Deep Dive' });
+    const onChange = vi.fn();
+    render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Update Deep Dive/i }));
+
+    expect(buildSessionPayload).toHaveBeenCalledTimes(1);
+    expect(saveNamedSession).toHaveBeenCalledWith('Deep Dive', rebuiltPayload);
+    expect(applySessionPayload).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('clicking Update does not change currentLoadedSessionName', () => {
+    useSessionStore.setState({ currentLoadedSessionName: 'Deep Dive' });
+    render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Update Deep Dive/i }));
+
+    expect(useSessionStore.getState().currentLoadedSessionName).toBe('Deep Dive');
   });
 
   it('clicking Delete opens a confirmation dialog without deleting anything yet', () => {

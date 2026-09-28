@@ -39,3 +39,12 @@ export const DELETE_SESSION_SCHEMA: ButtonSchema = {
   loreLabel: 'PURGE ARCHIVE',
   humanLabel: 'Delete',
 };
+
+/** Shown instead of LOAD_SESSION_SCHEMA on whichever row is the currently-loaded named session —
+ *  clicking it overwrites that same entry with the live state instead of reloading it. */
+export const UPDATE_SESSION_SCHEMA: ButtonSchema = {
+  id: 'session.update',
+  type: 'button',
+  loreLabel: 'OVERWRITE ARCHIVE',
+  humanLabel: 'Update',
+};
