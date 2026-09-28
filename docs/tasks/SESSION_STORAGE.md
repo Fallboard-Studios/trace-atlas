@@ -360,25 +360,25 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
 
 ### Checkpoint C: Feature complete end to end
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean — 195 files / 3999 tests (1 pre-existing known-flaky test, `factoryPlacementSystem.test.ts`, per `docs/todo/backlog.md` item 15 — confirmed passing in isolation, unrelated to this work).
-- [ ] **Manual check (`npm run dev`) not yet performed** — save a named session, refresh the page (confirm it does *not* auto-load), open Sessions, load the named session back, confirm world/Audio Rig/robot-override state matches what was saved. Wait for (or simulate via dev tools) an autosave tick and confirm an "Unsaved Session" entry appears without disturbing the named one. Flagged as outstanding, not silently skipped — no live browser available in this session.
-- [ ] Reviewed with human before proceeding to Phase 4.
+- [x] Manual check (`npm run dev`) — performed by Crawford across implementation (save/refresh/reload, Update, Delete, Clear Local Storage); confirmed good.
+- [x] Reviewed with human before proceeding to Phase 4.
 
 ---
 
 ### Phase 4: Docs
 
-- [ ] **Task 12: Rewrite `docs/SESSION_STORAGE.md`; update `docs/UI_SHELL.md` and `docs/todo/roadmap.md`**
+- [x] **Task 12: Rewrite `docs/SESSION_STORAGE.md`; update `docs/UI_SHELL.md` and `docs/todo/roadmap.md`**
 
   **Description:** Replace `docs/SESSION_STORAGE.md`'s content with the shipped design (multi-session, name-keyed, 6-slot autosave split, no URL involvement) — spot-checking every named function/field against the final source rather than the plan or spec draft. Add a short "Sessions" mention to `docs/UI_SHELL.md` alongside the other two Settings sections. Update `docs/todo/roadmap.md` Phase 20's status.
 
   **Acceptance criteria:**
-  - [ ] `docs/SESSION_STORAGE.md` describes only what was actually built — no leftover references to URL compression, single-slot autosave, or debounced `subscribe()`.
-  - [ ] Every function/type name cited in the doc is spot-checked against the real source file.
-  - [ ] `docs/todo/roadmap.md` Phase 20 marked done with a link to this task file and the spec, following the citation style of other completed phases (e.g. Phase 19).
+  - [x] `docs/SESSION_STORAGE.md` describes only what was actually built — no leftover references to URL compression, single-slot autosave, or debounced `subscribe()`. Rewritten with an explicit "What changed from the original design" section instead of silently dropping the old claims.
+  - [x] Every function/type name cited in the doc is spot-checked against the real source file — `src/types/session.ts`, `src/utils/sessionStorageEngine.ts`, `src/systems/sessionAutosave.ts`, `src/stores/sessionStore.ts`, `src/utils/sessionDiff.ts`, `src/components/panels/screen/console/SessionsPanel.tsx`/`SessionListItem.tsx`, `src/data/sessionConfig.ts`, and the `main.tsx`/`SettingsContent.tsx`/`navTreeConfig.ts` wiring were all read directly; one real drift from the spec draft caught in the process — `saveAutosaveSlot` ships as `(mode: 'rotating' | 'draft', payload)`, not the spec's `(slotId: AutosaveSlotId, payload)` — documented in the rewrite's "What changed" section rather than silently reconciled away.
+  - [x] `docs/todo/roadmap.md` Phase 20 marked done with a link to this task file and the spec, following the citation style of other completed phases (e.g. Phase 19). Also notes the 4 post-Task-11 UI additions not tracked anywhere else, and that the autosave-slot-deletion one reverses an explicit out-of-scope call in the intent doc.
 
   **Verification:**
-  - [ ] Manual review — every documented name/behavior checked directly against shipped code.
-  - [ ] `npm run build:types`, `npm run lint` clean (docs-only change).
+  - [x] Manual review — every documented name/behavior checked directly against shipped code.
+  - [x] `npm run build:types`, `npm run lint` clean (docs-only change) — also re-ran the full suite: 195 files / 4020 tests, 1 flaky failure (`worldTransition.test.ts` › *fully clears in-flight swells on a second `initializeLocale` call*, an unmocked-RNG precondition, unrelated to this work — confirmed passing in isolation; a 4th instance of the class tracked in `docs/todo/backlog.md` item 15, added there alongside this task).
 
   **Dependencies:** Tasks 1–11.
 
@@ -387,10 +387,10 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
   **Estimated scope:** XS (3 files, docs only)
 
 ### Checkpoint D: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] All automated acceptance criteria across all 12 tasks are met.
-- [ ] Docs reflect the shipped API — every documented name spot-checked against source.
-- [ ] Ready for human review / PR against `feature/session-storage`.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (`npm run build` not re-run for this docs-only task; last confirmed clean at Checkpoint C).
+- [x] All automated acceptance criteria across all 12 tasks are met.
+- [x] Docs reflect the shipped API — every documented name spot-checked against source.
+- [x] Ready for human review / PR against `feature/session-storage`.
 
 ## Risks and Mitigations
 

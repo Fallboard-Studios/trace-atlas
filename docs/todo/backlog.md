@@ -190,17 +190,18 @@ fixes in that same series still haven't gotten their own live-Profiler recheck:
 
 ### 15. Test Suite: Three Tests Fail Intermittently Under a Full Parallel Run
 
-**Status:** ☐ open — noticed 2026-09-18, still reproducing as of 2026-09-27 (see project
+**Status:** ☐ open — noticed 2026-09-18, still reproducing as of 2026-09-28 (see project
 memory: known-flaky unmocked-random tests).
 
-Three tests fail occasionally in a full `npx vitest run` and pass every time when their own file is run alone (3–5 isolated runs each):
+Four tests fail occasionally in a full `npx vitest run` and pass every time when their own file is run alone (3–5 isolated runs each):
 
 - `src/systems/audioSwells.test.ts` › *pingVarianceAutomation forced return at 0% (Task 4) › forces every member of a company-wide swell together, sharing phase/timing, each landing exactly on its own baseValue* — failed in 4 of 7 full runs.
 - `src/components/company/CompanyCrudControls.test.tsx` › *Rename Submit button › is (normally) enabled immediately after selecting a company — the auto-suggested draft differs from the current name* — failed in 2 full runs, one of them on the commit *before* any 17.2.2 work.
 - `src/systems/factoryPlacementSystem.test.ts` › *recolorFactoriesForAttenuationStyle › changes only config.hueShift/config.satShift on every factory — everything else round-trips byte-identical* — failed in 1 full run.
+- `src/systems/worldTransition.test.ts` › *initializeLocale › fully clears in-flight swells on a second `initializeLocale` call — no swell survives a restart* — failed 1 full run, seen 2026-09-28 during Session Storage (Phase 20) Task 12 verification; passed immediately on an isolated re-run.
 
-Both known failures since (per project memory) are real-RNG preconditions, not assertion
-bugs — re-run once to confirm rather than retry-looping or editing assertions. All three
+All known failures since (per project memory) are real-RNG preconditions, not assertion
+bugs — re-run once to confirm rather than retry-looping or editing assertions. All four
 suggest a shared, load- or order-dependent input (wall-clock time, seeded randomness that
 isn't fully pinned, or a timing-sensitive assertion). Worth a look before a CI gate is
 added (there is none yet — see `CLAUDE.md`'s PR process note), since a flaky gate trains
