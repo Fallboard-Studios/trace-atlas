@@ -339,7 +339,7 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
 
   **Estimated scope:** M (4 files)
 
-- [ ] **Task 11: `main.tsx` boot wiring + boot-regression test**
+- [x] **Task 11: `main.tsx` boot wiring + boot-regression test**
 
   **Description:** Call `startSessionAutosave()` at app boot, alongside `startAudioBudget()`. Add an explicit regression test proving the "never auto-load" requirement holds with the real boot path in place.
 
@@ -359,8 +359,8 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
   **Estimated scope:** S (2 files)
 
 ### Checkpoint C: Feature complete end to end
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Manual check (`npm run dev`): save a named session, refresh the page (confirm it does *not* auto-load), open Sessions, load the named session back, confirm world/Audio Rig/robot-override state matches what was saved. Wait for (or simulate via dev tools) an autosave tick and confirm an "Unsaved Session" entry appears without disturbing the named one.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean — 195 files / 3999 tests (1 pre-existing known-flaky test, `factoryPlacementSystem.test.ts`, per `docs/todo/backlog.md` item 15 — confirmed passing in isolation, unrelated to this work).
+- [ ] **Manual check (`npm run dev`) not yet performed** — save a named session, refresh the page (confirm it does *not* auto-load), open Sessions, load the named session back, confirm world/Audio Rig/robot-override state matches what was saved. Wait for (or simulate via dev tools) an autosave tick and confirm an "Unsaved Session" entry appears without disturbing the named one. Flagged as outstanding, not silently skipped — no live browser available in this session.
 - [ ] Reviewed with human before proceeding to Phase 4.
 
 ---
