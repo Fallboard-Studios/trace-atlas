@@ -2,7 +2,6 @@ import type { CSSProperties } from 'react';
 import { memo } from 'react';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { Toggle } from '@/components/ui/controls/Toggle';
-import { Button } from '@/components/ui/controls/Button';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import {
   PHRASING_PANEL_SCHEMA,
@@ -15,7 +14,6 @@ import {
   OCTAVE_RANGE_MIN_SCHEMA,
   OCTAVE_RANGE_MAX_SCHEMA,
   NOTE_VARIANCE_SCHEMA,
-  RESET_MELODY_SCHEMA,
 } from '@/data/robotOptionsConfig';
 import { DEV_TUNING } from '@/constants';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
@@ -45,7 +43,7 @@ export interface PingControlsValue {
   /**
    * Testing-only: whether the robot's (or, in company mode, every broadcast member's) real
    * melody is currently overridden by the fixed click-track pattern (see
-   * src/engine/clickTrack.ts). Unlike onResetMelody, this one *is* company-scoped — broadcasting
+   * src/engine/clickTrack.ts). This one *is* company-scoped — broadcasting
    * it turns the click track on/off for every member at once, e.g. to check tempo consistency
    * across a whole company. The toggle itself only renders behind `DEV_TUNING` (see below) — a
    * production build can never set this true.
@@ -62,10 +60,6 @@ interface PingControlsDrawerProps {
   onOctaveMaxChange: (value: number) => void;
   onNoteVarianceChange: (value: number) => void;
   onClickTrackActiveChange: (active: boolean) => void;
-  /** Undefined omits the Reset Melody button entirely — it has no company-scoped meaning
-   *  (Roadmap Phase 10's company panel never renders it), so absence, not disabling, is how a
-   *  caller opts it out. */
-  onResetMelody?: () => void;
   disabled?: boolean;
   /** Optional inline style forwarded to this drawer's own root — trait-color scoping
    *  (getTraitColorStyle('composition'), Roadmap Phase 14), applied identically at both the
@@ -77,7 +71,7 @@ interface PingControlsDrawerProps {
 
 /**
  * 2 DirectionalPanels — Phrasing (Density, Motif Length, Pitch Repeat, the dev-only Click Track
- * toggle, Reset Melody) and Frequency (Octave Range, Note Variance). No accordion wrapper
+ * toggle) and Frequency (Octave Range, Note Variance). No accordion wrapper
  * as of Task 15 (docs/tasks/NAV_LAYOUT_REWRITE.md) — this drawer's content is now a probe's own
  * "Melody" tree leaf, and the tree node itself carries the "Melody" label, so there's no longer an
  * accordion header to show it on. Purely presentational — no `robot` prop, no store access; both
@@ -95,7 +89,6 @@ function PingControlsDrawerInner({
   onOctaveMinChange,
   onOctaveMaxChange,
   onNoteVarianceChange,
-  onResetMelody,
   onClickTrackActiveChange,
   disabled,
   style,
@@ -133,7 +126,6 @@ function PingControlsDrawerInner({
             disabled={pitchRepeatDisabled}
           />
         </DirectionalPanel>
-        {onResetMelody && <Button schema={RESET_MELODY_SCHEMA} onClick={onResetMelody} disabled={generationDisabled} />}
       </DirectionalPanel>
       <DirectionalPanel schema={FREQUENCY_PANEL_SCHEMA}>
         <SliderLinear schema={OCTAVE_RANGE_MIN_SCHEMA} value={octMin} onChange={onOctaveMinChange} disabled={generationDisabled} />
@@ -159,7 +151,7 @@ export default PingControlsDrawer;
 // own accordion by RobotOptionsTab (Task 11)/CompanyOptionsSection (Task 13), instead of one fixed
 // drawer always rendering both. PHRASING_PANEL_SCHEMA is retired: Rhythm absorbs everything that
 // used to sit inside or beside it (Density/Motif Length/Pitch Repeat, the dev-only Click Track
-// toggle, Reset Melody) as its own top-level accordion boundary. PingControlsDrawer above stays
+// toggle) as its own top-level accordion boundary. PingControlsDrawer above stays
 // exactly as it was — RobotOptionsTab/CompanyOptionsSection still render it directly until Task
 // 11/13 rewire them onto these 2 pieces instead.
 
@@ -169,9 +161,6 @@ export interface PingControlsRhythmSectionProps {
   onMotifLengthChange: (value: number) => void;
   onPitchRepeatChange: (value: number) => void;
   onClickTrackActiveChange: (active: boolean) => void;
-  /** Undefined omits the Reset Melody button entirely — same company-mode opt-out as
-   *  PingControlsDrawer's own prop above. */
-  onResetMelody?: () => void;
   disabled?: boolean;
   style?: CSSProperties;
 }
@@ -182,7 +171,6 @@ function PingControlsRhythmSectionInner({
   onMotifLengthChange,
   onPitchRepeatChange,
   onClickTrackActiveChange,
-  onResetMelody,
   disabled,
   style,
 }: PingControlsRhythmSectionProps) {
@@ -209,7 +197,6 @@ function PingControlsRhythmSectionInner({
           onChange={onPitchRepeatChange}
           disabled={pitchRepeatDisabled}
         />
-        {onResetMelody && <Button schema={RESET_MELODY_SCHEMA} onClick={onResetMelody} disabled={generationDisabled} />}
       </DirectionalPanel>
     </div>
   );
@@ -271,9 +258,6 @@ export interface PingControlsCompositionSectionProps {
   onOctaveMinChange: (value: number) => void;
   onOctaveMaxChange: (value: number) => void;
   onNoteVarianceChange: (value: number) => void;
-  /** Undefined omits the Reset Melody button entirely — same company-mode opt-out every other
-   *  section here uses (it has no company-scoped meaning). */
-  onResetMelody?: () => void;
   disabled?: boolean;
   style?: CSSProperties;
   /** Scroll anchor id for the Note Variance slider specifically — the nav tree's "Pitches" leaf
@@ -290,8 +274,7 @@ export interface PingControlsCompositionSectionProps {
  * Repeat+Note Variance, Octave Min+Octave Max (docs/reference/layout-updates.md). The dev-only
  * Click Track toggle is dropped entirely, per that same instruction — `clickTrackActive` itself
  * (the underlying store field/engine wiring, `src/engine/clickTrack.ts`) is untouched, just no
- * longer reachable from this UI. Reset Melody lands at the end, below all 3 rows (an explicit
- * placement choice, not dictated by the outline — revisit if it reads oddly once seen live).
+ * longer reachable from this UI.
  */
 function PingControlsCompositionSectionInner({
   value,
@@ -301,7 +284,6 @@ function PingControlsCompositionSectionInner({
   onOctaveMinChange,
   onOctaveMaxChange,
   onNoteVarianceChange,
-  onResetMelody,
   disabled,
   style,
   noteVarianceAnchorId,
@@ -332,7 +314,6 @@ function PingControlsCompositionSectionInner({
         <SliderLinear schema={OCTAVE_RANGE_MIN_SCHEMA} value={octMin} onChange={onOctaveMinChange} disabled={disabled} />
         <SliderLinear schema={OCTAVE_RANGE_MAX_SCHEMA} value={octMax} onChange={onOctaveMaxChange} disabled={disabled} />
       </DirectionalPanel>
-      {onResetMelody && <Button schema={RESET_MELODY_SCHEMA} onClick={onResetMelody} disabled={disabled} />}
     </div>
   );
 }

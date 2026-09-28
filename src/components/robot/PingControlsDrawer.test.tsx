@@ -61,7 +61,6 @@ describe('PingControlsDrawer', () => {
         onNoteVarianceChange={() => {}}
         onClickTrackActiveChange={() => {}}
         onPitchRepeatChange={() => {}}
-        onResetMelody={() => {}}
       />
     );
     const phrasingPanel = screen.getByText('Phrasing').closest('.sc-directional-panel')!;
@@ -71,7 +70,7 @@ describe('PingControlsDrawer', () => {
     expect(phrasingPanel.contains(screen.getByRole('slider', { name: /motif length/i }))).toBe(true);
     expect(phrasingPanel.contains(screen.getByRole('slider', { name: /pitch repeat/i }))).toBe(true);
     expect(phrasingPanel.contains(screen.getByRole('switch', { name: /Click Track/i }))).toBe(true);
-    expect(phrasingPanel.contains(screen.getByRole('button', { name: 'Reset Melody' }))).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Reset Melody' })).toBeNull();
 
     expect(frequencyPanel.contains(screen.getByRole('slider', { name: /octave range min/i }))).toBe(true);
     expect(frequencyPanel.contains(screen.getByRole('slider', { name: /octave range max/i }))).toBe(true);
@@ -273,29 +272,7 @@ describe('PingControlsDrawer', () => {
     expect(screen.getByRole('slider', { name: /pitch repeat/i }).getAttribute('data-disabled')).toBeNull();
   });
 
-  it('Reset Melody is a plain one-click Button when onResetMelody is provided - no confirmation dialog', () => {
-    const onResetMelody = vi.fn();
-    render(
-      <PingControlsDrawer
-        value={makeValue()}
-        onDensityChange={() => {}}
-        onMotifLengthChange={() => {}}
-        onOctaveMinChange={() => {}}
-        onOctaveMaxChange={() => {}}
-        onNoteVarianceChange={() => {}}
-        onClickTrackActiveChange={() => {}}
-        onPitchRepeatChange={() => {}}
-        onResetMelody={onResetMelody}
-      />
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Reset Melody' }));
-
-    expect(onResetMelody).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('alertdialog')).toBeNull();
-  });
-
-  it('omits the Reset Melody button entirely when onResetMelody is not provided (company mode)', () => {
+  it('never renders a Reset Melody button — removed entirely (Deterministic Robot Melody Generation, Task 8)', () => {
     render(
       <PingControlsDrawer
         value={makeValue()}
@@ -312,7 +289,7 @@ describe('PingControlsDrawer', () => {
     expect(screen.queryByRole('button', { name: 'Reset Melody' })).toBeNull();
   });
 
-  it('renders the Click Track toggle regardless of mode — unlike Reset Melody, it has a company-scoped meaning', () => {
+  it('renders the Click Track toggle regardless of mode', () => {
     render(
       <PingControlsDrawer
         value={makeValue()}
@@ -384,7 +361,7 @@ describe('PingControlsDrawer', () => {
     expect(onClickTrackActiveChange).toHaveBeenCalledWith(true);
   });
 
-  it('disables Density/Motif Length/Octave Range/Note Variance/Reset Melody, but not the Click Track toggle itself, while Click Track is active', () => {
+  it('disables Density/Motif Length/Octave Range/Note Variance, but not the Click Track toggle itself, while Click Track is active', () => {
     render(
       <PingControlsDrawer
         value={makeValue({ clickTrackActive: true })}
@@ -395,14 +372,12 @@ describe('PingControlsDrawer', () => {
         onNoteVarianceChange={() => {}}
         onClickTrackActiveChange={() => {}}
         onPitchRepeatChange={() => {}}
-        onResetMelody={() => {}}
       />
     );
 
     expect(screen.getByRole('slider', { name: /density/i }).getAttribute('data-disabled')).toBe('');
     expect(screen.getByRole('slider', { name: /motif length/i }).getAttribute('data-disabled')).toBe('');
     expect(screen.getByRole('slider', { name: /octave range min/i }).getAttribute('data-disabled')).toBe('');
-    expect((screen.getByRole('button', { name: 'Reset Melody' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('switch', { name: /Click Track/i }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.getByRole('slider', { name: /pitch repeat/i }).getAttribute('data-disabled')).toBe('');
   });
@@ -467,12 +442,12 @@ describe('PingControlsDrawer', () => {
 
 });
 
-describe('PingControlsRhythmSection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 9) — Rhythm absorbs Phrasing\'s siblings: Click Track + Reset Melody', () => {
+describe('PingControlsRhythmSection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 9) — Rhythm absorbs Phrasing\'s sibling: Click Track', () => {
   beforeEach(() => {
     mockDevTuning = true;
   });
 
-  function renderSection(overrides: Partial<PingControlsValue> = {}, extra: { onResetMelody?: () => void; disabled?: boolean } = {}) {
+  function renderSection(overrides: Partial<PingControlsValue> = {}, extra: { disabled?: boolean } = {}) {
     return render(
       <PingControlsRhythmSection
         value={makeValue(overrides)}
@@ -491,17 +466,16 @@ describe('PingControlsRhythmSection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md T
     expect(screen.getByText('Rhythm')).toBeTruthy();
   });
 
-  it('renders Density, Motif Length, Pitch Repeat, the dev-only Click Track toggle, and Reset Melody', () => {
-    renderSection({}, { onResetMelody: () => {} });
+  it('renders Density, Motif Length, Pitch Repeat, and the dev-only Click Track toggle', () => {
+    renderSection();
 
     expect(screen.getByRole('slider', { name: /density/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /motif length/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /pitch repeat/i })).toBeTruthy();
     expect(screen.getByRole('switch', { name: /Click Track/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Reset Melody' })).toBeTruthy();
   });
 
-  it('omits Reset Melody when onResetMelody is not provided (company mode)', () => {
+  it('never renders a Reset Melody button — removed entirely (Deterministic Robot Melody Generation, Task 8)', () => {
     renderSection();
     expect(screen.queryByRole('button', { name: 'Reset Melody' })).toBeNull();
   });
@@ -541,12 +515,11 @@ describe('PingControlsRhythmSection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md T
     expect(screen.getByRole('slider', { name: /density/i }).getAttribute('data-disabled')).toBeNull();
   });
 
-  it('disables Density/Motif Length/Pitch Repeat/Reset Melody, but not the Click Track toggle itself, while Click Track is active', () => {
-    renderSection({ clickTrackActive: true }, { onResetMelody: () => {} });
+  it('disables Density/Motif Length/Pitch Repeat, but not the Click Track toggle itself, while Click Track is active', () => {
+    renderSection({ clickTrackActive: true });
 
     expect(screen.getByRole('slider', { name: /density/i }).getAttribute('data-disabled')).toBe('');
     expect(screen.getByRole('slider', { name: /motif length/i }).getAttribute('data-disabled')).toBe('');
-    expect((screen.getByRole('button', { name: 'Reset Melody' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('switch', { name: /Click Track/i }) as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -683,7 +656,7 @@ describe('PingControlsDrawer — old combined component, unchanged (docs/tasks/N
 });
 
 describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — merges Rhythm/Pitches into one accordion, Click Track UI removed', () => {
-  function renderSection(overrides: Partial<PingControlsValue> = {}, extra: { onResetMelody?: () => void; disabled?: boolean } = {}) {
+  function renderSection(overrides: Partial<PingControlsValue> = {}, extra: { disabled?: boolean } = {}) {
     const value = makeValue(overrides);
     return render(
       <PingControlsCompositionSection
@@ -700,7 +673,7 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
   }
 
   it('renders Density, Motif Length, Pitch Repeat, Note Variance, Octave Min, Octave Max — no Click Track toggle anywhere', () => {
-    renderSection({}, { onResetMelody: () => {} });
+    renderSection();
 
     expect(screen.getByRole('slider', { name: /density/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /motif length/i })).toBeTruthy();
@@ -711,14 +684,9 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
     expect(screen.queryByRole('switch', { name: /Click Track/i })).toBeNull();
   });
 
-  it('omits Reset Melody when onResetMelody is not provided (company mode)', () => {
+  it('never renders a Reset Melody button — removed entirely (Deterministic Robot Melody Generation, Task 8)', () => {
     renderSection();
     expect(screen.queryByRole('button', { name: 'Reset Melody' })).toBeNull();
-  });
-
-  it('renders Reset Melody when onResetMelody is provided (robot mode)', () => {
-    renderSection({}, { onResetMelody: () => {} });
-    expect(screen.getByRole('button', { name: 'Reset Melody' })).toBeTruthy();
   });
 
   it('changing each field calls its own onChange with the raw number', () => {
