@@ -3,7 +3,7 @@
 // ========================================
 import { useSessionStore } from '../stores/sessionStore';
 import { buildSessionPayload } from '../utils/sessionDiff';
-import { saveAutosaveSlot } from '../utils/sessionStorageEngine';
+import { saveNamedSessionAutosave, saveUnsavedAutosave, promoteUnsavedHistoryOnBoot } from '../utils/sessionStorageEngine';
 
 // ========================================
 // CONSTANTS
@@ -19,8 +19,12 @@ let intervalId: ReturnType<typeof setInterval> | null = null;
 
 function tick(): void {
   const payload = buildSessionPayload();
-  const mode = useSessionStore.getState().currentLoadedSessionName === null ? 'rotating' : 'draft';
-  saveAutosaveSlot(mode, payload);
+  const loadedName = useSessionStore.getState().currentLoadedSessionName;
+  if (loadedName !== null) {
+    saveNamedSessionAutosave(loadedName, payload);
+  } else {
+    saveUnsavedAutosave(payload);
+  }
 }
 
 // ========================================
@@ -30,12 +34,16 @@ function tick(): void {
 /**
  * Starts the 5-minute background autosave tick — idempotent, module-singleton, mirroring
  * startAudioBudget()'s shape. Every tick: with no session currently loaded
- * (sessionStore.currentLoadedSessionName === null), writes to the 5-slot rotating FIFO; with one
- * loaded, writes to the single draft slot instead, never touching the named entry itself
- * (docs/specs/SESSION_STORAGE.md §1, §4.4).
+ * (sessionStore.currentLoadedSessionName === null), writes into the unsaved "current" bucket's
+ * own rotating history; with one loaded, writes into that session's own rotating history instead,
+ * never touching the named entry itself (docs/specs/SESSION_AUTOSAVE_HISTORY.md §4.4). Before the
+ * first tick can ever fire, promotes whatever the unsaved "current" bucket held from the previous
+ * boot into "last" -- this runs exactly once per real app boot, since the idempotency guard below
+ * prevents a second start from doing anything at all, promotion included.
  */
 export function startSessionAutosave(): void {
   if (intervalId !== null) return;
+  promoteUnsavedHistoryOnBoot();
   intervalId = setInterval(tick, SESSION_AUTOSAVE_INTERVAL_MS);
 }
 

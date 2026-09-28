@@ -6,13 +6,15 @@ vi.mock('../utils/sessionDiff', () => ({
   buildSessionPayload: vi.fn(() => fakePayload),
 }));
 vi.mock('../utils/sessionStorageEngine', () => ({
-  saveAutosaveSlot: vi.fn(),
+  saveNamedSessionAutosave: vi.fn(),
+  saveUnsavedAutosave: vi.fn(),
+  promoteUnsavedHistoryOnBoot: vi.fn(),
 }));
 
 import { startSessionAutosave, stopSessionAutosave, SESSION_AUTOSAVE_INTERVAL_MS } from './sessionAutosave';
 import { useSessionStore } from '../stores/sessionStore';
 import { buildSessionPayload } from '../utils/sessionDiff';
-import { saveAutosaveSlot } from '../utils/sessionStorageEngine';
+import { saveNamedSessionAutosave, saveUnsavedAutosave, promoteUnsavedHistoryOnBoot } from '../utils/sessionStorageEngine';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -29,37 +31,32 @@ describe('sessionAutosave', () => {
   it('does not write anything before the first interval elapses', () => {
     startSessionAutosave();
     vi.advanceTimersByTime(SESSION_AUTOSAVE_INTERVAL_MS - 1);
-    expect(saveAutosaveSlot).not.toHaveBeenCalled();
+    expect(saveUnsavedAutosave).not.toHaveBeenCalled();
+    expect(saveNamedSessionAutosave).not.toHaveBeenCalled();
   });
 
-  it('with no session loaded, 5 consecutive ticks write "rotating" 5 times', () => {
+  it('with no session loaded, 5 consecutive ticks call saveUnsavedAutosave 5 times, never saveNamedSessionAutosave', () => {
     startSessionAutosave();
     for (let i = 0; i < 5; i++) vi.advanceTimersByTime(SESSION_AUTOSAVE_INTERVAL_MS);
 
-    expect(saveAutosaveSlot).toHaveBeenCalledTimes(5);
-    for (const call of vi.mocked(saveAutosaveSlot).mock.calls) {
-      expect(call[0]).toBe('rotating');
-      expect(call[1]).toBe(fakePayload);
+    expect(saveUnsavedAutosave).toHaveBeenCalledTimes(5);
+    expect(saveNamedSessionAutosave).not.toHaveBeenCalled();
+    for (const call of vi.mocked(saveUnsavedAutosave).mock.calls) {
+      expect(call[0]).toBe(fakePayload);
     }
   });
 
-  it('a 6th tick still writes "rotating" (the slot engine, not this module, owns the FIFO wrap)', () => {
-    startSessionAutosave();
-    for (let i = 0; i < 6; i++) vi.advanceTimersByTime(SESSION_AUTOSAVE_INTERVAL_MS);
-    expect(saveAutosaveSlot).toHaveBeenCalledTimes(6);
-    expect(vi.mocked(saveAutosaveSlot).mock.calls[5][0]).toBe('rotating');
-  });
-
-  it('with a session loaded, ticks write "draft" and never call saveNamedSession-shaped ("rotating") writes', () => {
+  it('with a session loaded, ticks call saveNamedSessionAutosave with that session\'s name, never saveUnsavedAutosave', () => {
     useSessionStore.getState().setCurrentLoadedSessionName('my-saved-session');
     startSessionAutosave();
     vi.advanceTimersByTime(SESSION_AUTOSAVE_INTERVAL_MS);
 
-    expect(saveAutosaveSlot).toHaveBeenCalledTimes(1);
-    expect(saveAutosaveSlot).toHaveBeenCalledWith('draft', fakePayload);
+    expect(saveNamedSessionAutosave).toHaveBeenCalledTimes(1);
+    expect(saveNamedSessionAutosave).toHaveBeenCalledWith('my-saved-session', fakePayload);
+    expect(saveUnsavedAutosave).not.toHaveBeenCalled();
   });
 
-  it('switching currentLoadedSessionName to a different name between ticks still writes "draft" (not a new mode)', () => {
+  it("switching which named session is loaded mid-run writes subsequent ticks into the newly-loaded session's own history", () => {
     useSessionStore.getState().setCurrentLoadedSessionName('session-a');
     startSessionAutosave();
     vi.advanceTimersByTime(SESSION_AUTOSAVE_INTERVAL_MS);
@@ -67,12 +64,12 @@ describe('sessionAutosave', () => {
     useSessionStore.getState().setCurrentLoadedSessionName('session-b');
     vi.advanceTimersByTime(SESSION_AUTOSAVE_INTERVAL_MS);
 
-    expect(saveAutosaveSlot).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(saveAutosaveSlot).mock.calls[0][0]).toBe('draft');
-    expect(vi.mocked(saveAutosaveSlot).mock.calls[1][0]).toBe('draft');
+    expect(saveNamedSessionAutosave).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(saveNamedSessionAutosave).mock.calls[0][0]).toBe('session-a');
+    expect(vi.mocked(saveNamedSessionAutosave).mock.calls[1][0]).toBe('session-b');
   });
 
-  it('switching from loaded back to unloaded between ticks switches the mode back to "rotating"', () => {
+  it('switching from loaded back to unloaded between ticks switches the write target back to the unsaved bucket', () => {
     useSessionStore.getState().setCurrentLoadedSessionName('session-a');
     startSessionAutosave();
     vi.advanceTimersByTime(SESSION_AUTOSAVE_INTERVAL_MS);
@@ -80,25 +77,25 @@ describe('sessionAutosave', () => {
     useSessionStore.getState().setCurrentLoadedSessionName(null);
     vi.advanceTimersByTime(SESSION_AUTOSAVE_INTERVAL_MS);
 
-    expect(vi.mocked(saveAutosaveSlot).mock.calls[0][0]).toBe('draft');
-    expect(vi.mocked(saveAutosaveSlot).mock.calls[1][0]).toBe('rotating');
+    expect(saveNamedSessionAutosave).toHaveBeenCalledTimes(1);
+    expect(saveUnsavedAutosave).toHaveBeenCalledTimes(1);
   });
 
   it('calling startSessionAutosave twice does not double the tick rate (idempotent)', () => {
     startSessionAutosave();
     startSessionAutosave();
     vi.advanceTimersByTime(SESSION_AUTOSAVE_INTERVAL_MS);
-    expect(saveAutosaveSlot).toHaveBeenCalledTimes(1);
+    expect(saveUnsavedAutosave).toHaveBeenCalledTimes(1);
   });
 
   it('stopSessionAutosave stops all further writes', () => {
     startSessionAutosave();
     vi.advanceTimersByTime(SESSION_AUTOSAVE_INTERVAL_MS);
-    expect(saveAutosaveSlot).toHaveBeenCalledTimes(1);
+    expect(saveUnsavedAutosave).toHaveBeenCalledTimes(1);
 
     stopSessionAutosave();
     vi.advanceTimersByTime(SESSION_AUTOSAVE_INTERVAL_MS * 3);
-    expect(saveAutosaveSlot).toHaveBeenCalledTimes(1);
+    expect(saveUnsavedAutosave).toHaveBeenCalledTimes(1);
   });
 
   it('calling stopSessionAutosave when never started does not throw', () => {
@@ -109,5 +106,23 @@ describe('sessionAutosave', () => {
     startSessionAutosave();
     vi.advanceTimersByTime(SESSION_AUTOSAVE_INTERVAL_MS);
     expect(buildSessionPayload).toHaveBeenCalledTimes(1);
+  });
+
+  it('startSessionAutosave calls promoteUnsavedHistoryOnBoot exactly once', () => {
+    startSessionAutosave();
+    expect(promoteUnsavedHistoryOnBoot).toHaveBeenCalledTimes(1);
+  });
+
+  it('promoteUnsavedHistoryOnBoot runs before any tick could fire (called synchronously, not deferred to the interval)', () => {
+    startSessionAutosave();
+    expect(promoteUnsavedHistoryOnBoot).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(SESSION_AUTOSAVE_INTERVAL_MS - 1);
+    expect(promoteUnsavedHistoryOnBoot).toHaveBeenCalledTimes(1);
+  });
+
+  it('calling startSessionAutosave a second time in a row does not call promoteUnsavedHistoryOnBoot again (idempotency guard covers it)', () => {
+    startSessionAutosave();
+    startSessionAutosave();
+    expect(promoteUnsavedHistoryOnBoot).toHaveBeenCalledTimes(1);
   });
 });
