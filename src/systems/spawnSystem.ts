@@ -384,6 +384,77 @@ export function generateRobotLfoSettings(noiseMap: NoiseFunction2D, offset: numb
 }
 
 /**
+ * A robot's audio-relevant seeded fields — exactly the shape spawnRobot's own "copy an earlier
+ * sibling" branch reads from a live Robot object, extracted so it can be replayed for baseline
+ * comparison (Session Storage, docs/specs/SESSION_STORAGE.md) without touching the store spawnRobot
+ * itself reads from.
+ */
+export interface RobotAudioBaseline {
+  audioAttributes: AudioAttributes;
+  octaveRange: [number, number];
+  rhythmicDensity: number;
+  rhythmicMotifLength: ToggleValue;
+  noteVariance: ToggleValue;
+  pitchRepeat: number;
+  lfoSettings: Record<RobotLfoTargetId, LfoSettings>;
+}
+
+/**
+ * Replays spawnRobot's exact generate-or-copy decision tree for one robot at `spawnCount`, given
+ * the baselines already computed for every earlier robot in the same roster (`priorBaselines`, in
+ * spawn order) — pure, no store read/write. Deliberately NOT a refactor of spawnRobot itself (see
+ * this function's own file-level context in docs/tasks/SESSION_STORAGE.md Task 2): spawnRobot's
+ * copy branch depends on the live store's accumulated `robots` array, so replaying it purely means
+ * taking that pool as an explicit argument instead. Mirrors spawnRobot's own 'robot.copyChance'/
+ * 'robot.copySource' dataIds and the 0.30 threshold exactly — any divergence here would silently
+ * break Session Storage's "an untouched robot's diff is always empty" guarantee. Only the
+ * real-noiseMap path is replayed; spawnRobot's own no-noiseMap `alea(...)` fallback (used only when
+ * a locale/coordinates don't exist yet) has nothing meaningful to diff against, so it's not mirrored
+ * here.
+ */
+export function generateRobotAudioBaseline(
+  noiseMap: NoiseFunction2D,
+  spawnCount: number,
+  priorBaselines: readonly RobotAudioBaseline[],
+): RobotAudioBaseline {
+  const copyRoll = getSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1);
+  const shouldCopy = copyRoll < 0.30 && priorBaselines.length > 0;
+
+  if (shouldCopy) {
+    const srcIdx = Math.min(
+      priorBaselines.length - 1,
+      Math.floor(getSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, priorBaselines.length))
+    );
+    return priorBaselines[srcIdx];
+  }
+
+  const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
+  const octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
+  const lfoSettings = generateRobotLfoSettings(noiseMap, spawnCount);
+  const rhythmicDensity = Math.round(getSeededVal(noiseMap, 'robot.rhythmicDensity', spawnCount, 0, 100));
+  const motifRaw = getSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', spawnCount, 0, 1);
+  const rhythmicMotifLength = seedToggleValue(motifRaw, RHYTHMIC_MOTIF_LENGTH_OFF_THRESHOLD);
+  const noteVarianceRaw = getSeededVal(noiseMap, 'robot.noteVariance.active', spawnCount, 0, 1);
+  const noteVariance = seedToggleValue(noteVarianceRaw, NOTE_VARIANCE_OFF_THRESHOLD);
+  const pitchRepeat = Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', spawnCount, 0, 100));
+
+  return { audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, lfoSettings };
+}
+
+/**
+ * Replays generateRobotAudioBaseline above for a full `count`-robot roster in spawn order, purely
+ * from the noise map. Used by sessionDiff.ts to compute what a locale's whole roster would look
+ * like from the seed alone, to diff a live roster against.
+ */
+export function generateRobotRosterBaseline(noiseMap: NoiseFunction2D, count: number): RobotAudioBaseline[] {
+  const baselines: RobotAudioBaseline[] = [];
+  for (let i = 0; i < count; i++) {
+    baselines.push(generateRobotAudioBaseline(noiseMap, i, baselines));
+  }
+  return baselines;
+}
+
+/**
  * Create and add a single robot with randomized attributes, registering its
  * melody with AudioEngine. The roster is fixed-size now (see
  * spawnInitialRoster) — this no longer enforces any max/min bounce; callers
