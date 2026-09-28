@@ -180,18 +180,20 @@ Tasks 1 and 2 have no dependency on each other and could be done in either order
 
 ### Phase 3: Close the octave gap
 
-- [ ] **Task 5: `applyOctaveMin`/`applyOctaveMax` call `regenerateMelody`**
+- [x] **Task 5: `applyOctaveMin`/`applyOctaveMax` call `regenerateMelody`** — done, commit `750ae11`
 
   **Description:** Per spec §4.6 — both functions gain a `regenerateMelody({ ...robot, octaveRange: next }, localeId)` call, mirroring `applyDensity`'s existing shape in the same file.
 
   **Acceptance criteria:**
-  - [ ] `applyOctaveMin`/`applyOctaveMax` each call `regenerateMelody` exactly once, with the robot's *updated* `octaveRange` (not the pre-edit one).
-  - [ ] The existing min-`<=`-max clamping behavior in both functions is unchanged.
-  - [ ] Assertions mirror the existing `applyDensity`/`applyPitchRepeat`/`applyMotifLength`/`applyNoteVariance` tests already in `robotOptionsActions.test.ts`.
+  - [x] `applyOctaveMin`/`applyOctaveMax` each call `regenerateMelody` exactly once, with the robot's *updated* `octaveRange` (not the pre-edit one).
+  - [x] The existing min-`<=`-max clamping behavior in both functions is unchanged.
+  - [x] Assertions mirror the existing `applyDensity`/`applyPitchRepeat`/`applyMotifLength`/`applyNoteVariance` tests already in `robotOptionsActions.test.ts`. (Replaced the old regression test that asserted the opposite — "neither ... regenerates the melody — unchanged from today" — since reversing that exact behavior is this task's whole point.)
+  - [x] Confirmed the company bulk-edit path (`CompanyOptionsSection.test.tsx`) inherits this automatically — full file re-run, 24/24 still pass.
+  - [x] Mutation-checked: passed the pre-edit `robot` (not the updated one) to `regenerateMelody` in `applyOctaveMin`, confirmed the octave-min test failed, reverted.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/robotOptionsActions.test.ts`
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/robotOptionsActions.test.ts` — 23 passed
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 1-4 (needs a working, deterministic `regenerateMelody`).
 
@@ -200,8 +202,8 @@ Tasks 1 and 2 have no dependency on each other and could be done in either order
   **Estimated scope:** S
 
 ### Checkpoint C: Octave gap closed
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Reviewed with human before proceeding to Phase 4.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean — 195 files / 4044 tests.
+- [ ] Reviewed with human before proceeding to Phase 4 — proceeding per Crawford's explicit sequential-implementation direction; flagged, not silently skipped.
 
 ### Phase 4: Remove Reset Melody
 
