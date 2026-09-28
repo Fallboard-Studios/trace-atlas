@@ -28,7 +28,12 @@ interface SessionListItemProps {
 export function SessionListItem({ entry, onChange }: SessionListItemProps) {
   const isAutosave = isAutosaveSlotName(entry.name);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const label = isAutosave ? 'Unsaved Session' : entry.name;
+  // Autosave slots have no user-given name to distinguish them by, and a generic "Unsaved
+  // Session" label repeated across all 6 slots made them indistinguishable in the list — the
+  // payload's own attenuationStyleName/coordinates identify which world each one is from instead.
+  const label = isAutosave
+    ? `${entry.payload.attenuationStyleName} @ (${entry.payload.coordinates.x}, ${entry.payload.coordinates.y})`
+    : entry.name;
 
   const handleLoad = () => {
     applySessionPayload(entry.payload);
