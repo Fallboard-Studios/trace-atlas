@@ -5,11 +5,12 @@ import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
 import { generateRobotRosterBaseline, generateCompanyRosterBaseline, type RobotAudioBaseline } from '../systems/spawnSystem';
 import type { RobotAudioOverrideDiff, CompanyDiff, SessionPayload } from '../types/session';
-import { ROBOT_LFO_TARGET_IDS } from '../types/lfo';
+import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoSettings } from '../types/lfo';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
-import { useAudioStore } from '../stores/audioStore';
+import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
 import { getLocaleNoiseMap } from './noiseMaps';
+import { retransmitWorld } from '../systems/worldTransition';
 
 // ========================================
 // FUNCTIONS
@@ -122,4 +123,102 @@ export function buildSessionPayload(): SessionPayload {
     companyDiffs,
     userCreatedCompanies,
   };
+}
+
+/** Builds the Partial<Robot> update object for one robot's override diff — merging into the
+ *  live audioAttributes/lfoSettings rather than replacing them wholesale, since a diff only ever
+ *  carries the fields that actually changed. */
+function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<Robot> {
+  const updates: Partial<Robot> = {};
+  if (diff.adsr !== undefined || diff.layers !== undefined || diff.filterFreq !== undefined) {
+    updates.audioAttributes = {
+      ...robot.audioAttributes,
+      ...(diff.adsr !== undefined ? { adsr: diff.adsr } : {}),
+      ...(diff.layers !== undefined ? { layers: diff.layers } : {}),
+      ...(diff.filterFreq !== undefined ? { filterFreq: diff.filterFreq } : {}),
+    };
+  }
+  if (diff.octaveRange !== undefined) updates.octaveRange = diff.octaveRange;
+  if (diff.rhythmicDensity !== undefined) updates.rhythmicDensity = diff.rhythmicDensity;
+  if (diff.rhythmicMotifLength !== undefined) updates.rhythmicMotifLength = diff.rhythmicMotifLength;
+  if (diff.noteVariance !== undefined) updates.noteVariance = diff.noteVariance;
+  if (diff.pitchRepeat !== undefined) updates.pitchRepeat = diff.pitchRepeat;
+  if (diff.name !== undefined) updates.name = diff.name;
+  if (diff.lfoSettings !== undefined) {
+    updates.lfoSettings = { ...robot.lfoSettings, ...diff.lfoSettings } as Record<RobotLfoTargetId, LfoSettings>;
+  }
+  return updates;
+}
+
+/** Reapplies a company's target membership (diff.robotIds — the FULL final list, not a delta)
+ *  onto the freshly-regenerated locale: removes every current member not in the target list
+ *  (back to Freelance) and assigns every target member, via localeStore.assignRobotToCompany —
+ *  never a direct robotIds write, which would leave member robots' own companyId out of sync
+ *  (docs/specs/SESSION_STORAGE.md §7 item 8). */
+function reapplyCompanyMembership(localeId: string, companyId: string, targetRobotIds: string[]): void {
+  const currentMembers = useLocaleStore.getState().getLocaleById(localeId)?.companies.find((c) => c.id === companyId)?.robotIds ?? [];
+  for (const robotId of currentMembers) {
+    if (!targetRobotIds.includes(robotId)) useLocaleStore.getState().assignRobotToCompany(localeId, robotId, null);
+  }
+  for (const robotId of targetRobotIds) {
+    useLocaleStore.getState().assignRobotToCompany(localeId, robotId, companyId);
+  }
+}
+
+/**
+ * Regenerates the world from payload.attenuationStyleName/coordinates via worldTransition.ts's
+ * existing retransmitWorld — never a parallel regeneration path (spec §7 risk 7) — then overlays
+ * globalAudio, every robot override, every company diff, and every user-created company on top.
+ */
+export function applySessionPayload(payload: SessionPayload): void {
+  // worldTransition.ts's createNewAttenuationStyle always tries to CREATE a new Attenuation
+  // Style for a given name (never "reuse the existing one with this name") and doesn't check
+  // whether that creation actually succeeded — attenuationStyleStore.addAttenuationStyle silently
+  // refuses (returns false, does not append) when the name is already taken. Passing
+  // attenuationStyleName whenever it's unchanged from the CURRENTLY active one — which is the
+  // common case for loading a session, e.g. reloading your own recent save — would hit that
+  // silent-refusal path and corrupt the store (currentAttenuationStyleId left dangling after the
+  // old entry is removed). Omitting attenuationStyleName when it's unchanged routes through
+  // retransmitWorld's coordsOnly branch instead, which explicitly preserves the current
+  // Attenuation Style untouched — exactly correct for this case, and the one this codebase's own
+  // UI already relies on (SectorSettingsDrawer only ever sends attenuationStyleName when the
+  // field was actually edited). A payload naming a DIFFERENT Attenuation Style still uses the
+  // normal path; the same collision risk could in principle recur if that different name happens
+  // to already exist elsewhere in the store, which is not handled here (see docs/specs/
+  // SESSION_STORAGE.md §7 item 8's follow-up note).
+  const currentAttenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
+  const attenuationStyleUnchanged = currentAttenuationStyle?.name === payload.attenuationStyleName;
+  retransmitWorld(
+    attenuationStyleUnchanged
+      ? { coordinates: payload.coordinates }
+      : { attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates },
+  );
+
+  useAudioStore.setState({ globalAudio: payload.globalAudio });
+  applyGlobalAudioToEngine(payload.globalAudio);
+
+  const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
+  const localeId = attenuationStyle?.currentLocaleId;
+  if (!localeId) return;
+  const freshLocale = useLocaleStore.getState().getLocaleById(localeId);
+  if (!freshLocale) return;
+
+  for (const robot of freshLocale.robots) {
+    const diff = payload.robotOverrides[robot.id];
+    if (!diff) continue;
+    const updates = buildRobotUpdates(robot, diff);
+    if (Object.keys(updates).length > 0) useLocaleStore.getState().updateRobot(localeId, robot.id, updates);
+  }
+
+  for (const company of freshLocale.companies) {
+    const diff = payload.companyDiffs[company.id];
+    if (!diff) continue;
+    if (diff.name !== undefined) useLocaleStore.getState().updateCompany(localeId, company.id, { name: diff.name });
+    if (diff.robotIds !== undefined) reapplyCompanyMembership(localeId, company.id, diff.robotIds);
+  }
+
+  for (const company of payload.userCreatedCompanies) {
+    useLocaleStore.getState().addCompany(localeId, company);
+    reapplyCompanyMembership(localeId, company.id, company.robotIds);
+  }
 }
