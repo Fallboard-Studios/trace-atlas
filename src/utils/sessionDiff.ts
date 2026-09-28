@@ -216,7 +216,14 @@ export function applySessionPayload(payload: SessionPayload): void {
     // just spawned it with, not the overridden ones applied above, even though compositionSeed
     // (never diffed, always re-derived identically from the seed) makes the regenerated result
     // exactly match what the robot sounded like at save time.
-    regenerateMelody({ ...robot, ...updates }, localeId);
+    // Re-reads from the store rather than spreading `{ ...robot, ...updates }` by hand: updateRobot
+    // above normalizes several of these same fields (rhythmicDensity/pitchRepeat/rhythmicMotifLength/
+    // noteVariance/octaveRange are all clamped or reshaped there) -- regenerating from the raw,
+    // pre-normalization `updates` object could feed regenerateMelody a value that diverges from
+    // what's actually persisted (code review follow-up, confirmed by a reproduction test with an
+    // out-of-range diff value).
+    const updatedRobot = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
+    if (updatedRobot) regenerateMelody(updatedRobot, localeId);
   }
 
   for (const company of freshLocale.companies) {

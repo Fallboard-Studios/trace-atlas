@@ -23,6 +23,8 @@ import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSyste
 import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
 import { stopAudioSwells } from '../systems/audioSwells';
+import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
+import { RHYTHMIC_DENSITY_MAX } from '../constants';
 
 afterEach(() => {
   stopRobotLifecycle();
@@ -352,6 +354,50 @@ describe('applySessionPayload', () => {
     // MelodyEvent.id is a fresh crypto.randomUUID() by design, never seeded -- strip before comparing.
     const stripIds = (melody: typeof editedMelody) => melody.map(({ id: _id, ...rest }) => rest);
     expect(stripIds(restoredRobot.melody)).toEqual(stripIds(editedMelody));
+  });
+
+  it('regenerates melody from the store\'s NORMALIZED attribute value, not the raw diff, when a diff carries an out-of-range value (code review follow-up)', () => {
+    // localeStore.ts's updateRobot clamps rhythmicDensity to [RHYTHMIC_DENSITY_MIN,
+    // RHYTHMIC_DENSITY_MAX] before persisting it. applySessionPayload must feed that SAME
+    // clamped value into regenerateMelody -- not the raw, unclamped diff value -- or the
+    // persisted rhythmicDensity and the melody actually generated from it would silently
+    // diverge (the robot would show density 100 but sound like density 150).
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+    const payload = buildSessionPayload();
+    const outOfRangeValue = RHYTHMIC_DENSITY_MAX + 50;
+    const outOfRangePayload = {
+      ...payload,
+      robotOverrides: {
+        ...payload.robotOverrides,
+        [robot.id]: { ...payload.robotOverrides[robot.id], rhythmicDensity: outOfRangeValue },
+      },
+    };
+
+    applySessionPayload(outOfRangePayload);
+
+    const restoredRobot = currentLocale()!.robots.find((r) => r.id === robot.id)!;
+    expect(restoredRobot.rhythmicDensity).toBe(RHYTHMIC_DENSITY_MAX); // store-level clamp, already true today
+
+    const expectedRand = buildSeededComposition(restoredRobot.compositionSeed, {
+      rhythmicDensity: RHYTHMIC_DENSITY_MAX,
+      rhythmicMotifLength: restoredRobot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+      noteVariance: restoredRobot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
+      pitchRepeat: restoredRobot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
+      octaveRange: restoredRobot.octaveRange,
+    });
+    const expectedMelody = generateMelodyForRobot({
+      octaveMin: restoredRobot.octaveRange[0],
+      octaveMax: restoredRobot.octaveRange[1],
+      rhythmicDensity: RHYTHMIC_DENSITY_MAX,
+      rhythmicMotifLength: restoredRobot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+      noteVariance: restoredRobot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
+      pitchRepeat: restoredRobot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
+      rand: expectedRand,
+    });
+    const stripIds = (melody: typeof expectedMelody) => melody.map(({ id: _id, ...rest }) => rest);
+    expect(stripIds(restoredRobot.melody)).toEqual(stripIds(expectedMelody));
   });
 
   it('restores a renamed company after a full save/wipe/load round trip', () => {
