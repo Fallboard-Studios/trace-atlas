@@ -11,6 +11,8 @@ import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stor
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
 import { getLocaleNoiseMap } from './noiseMaps';
+import { quantizeToStep } from './math';
+import { GLOBAL_AUDIO_SEED_RANGES } from '../data/globalAudioSeedRanges';
 import { retransmitWorld } from '../systems/worldTransition';
 import { regenerateMelody } from '../engine/regenerateMelody';
 import { getActiveSwellSnapshot } from '../systems/audioSwells';
@@ -114,6 +116,58 @@ function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioSto
   if (reverbWetSwell !== undefined) {
     toCapture.reverb = { ...toCapture.reverb, wet: reverbWetSwell };
   }
+
+  // Quantize all fields to eliminate floating-point rounding errors
+  toCapture.eq3 = {
+    low: quantizeToStep(toCapture.eq3.low, GLOBAL_AUDIO_SEED_RANGES['eq3.low'].min, 0.5),
+    mid: quantizeToStep(toCapture.eq3.mid, GLOBAL_AUDIO_SEED_RANGES['eq3.mid'].min, 0.5),
+    high: quantizeToStep(toCapture.eq3.high, GLOBAL_AUDIO_SEED_RANGES['eq3.high'].min, 0.5),
+  };
+  toCapture.filterLPF = {
+    ...toCapture.filterLPF,
+    frequency: quantizeToStep(toCapture.filterLPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterLPF.frequency'].min, 1),
+    Q: quantizeToStep(toCapture.filterLPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterLPF.Q'].min, 0.01),
+  };
+  toCapture.filterHPF = {
+    ...toCapture.filterHPF,
+    frequency: quantizeToStep(toCapture.filterHPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterHPF.frequency'].min, 1),
+    Q: quantizeToStep(toCapture.filterHPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterHPF.Q'].min, 0.01),
+  };
+  toCapture.delay = {
+    ...toCapture.delay,
+    delayTime: quantizeToStep(toCapture.delay.delayTime, GLOBAL_AUDIO_SEED_RANGES['delay.delayTime'].min, 0.001),
+    feedback: quantizeToStep(toCapture.delay.feedback, GLOBAL_AUDIO_SEED_RANGES['delay.feedback'].min, 0.01),
+    wet: quantizeToStep(toCapture.delay.wet, GLOBAL_AUDIO_SEED_RANGES['delay.wet'].min, 0.01),
+  };
+  toCapture.reverb = {
+    ...toCapture.reverb,
+    decay: quantizeToStep(toCapture.reverb.decay, GLOBAL_AUDIO_SEED_RANGES['reverb.decay'].min, 0.01),
+    preDelay: quantizeToStep(toCapture.reverb.preDelay, GLOBAL_AUDIO_SEED_RANGES['reverb.preDelay'].min, 0.01),
+    wet: quantizeToStep(toCapture.reverb.wet, GLOBAL_AUDIO_SEED_RANGES['reverb.wet'].min, 0.01),
+  };
+  toCapture.limiter = {
+    threshold: quantizeToStep(toCapture.limiter.threshold, GLOBAL_AUDIO_SEED_RANGES['limiter.threshold'].min, 1),
+  };
+
+  // Quantize lfoDrift fields to 0.01 (1% precision in -1..1 range)
+  toCapture.lfoDrift = {
+    eq3: {
+      rateDrift: quantizeToStep(toCapture.lfoDrift.eq3.rateDrift, -1, 0.01),
+      depthDrift: quantizeToStep(toCapture.lfoDrift.eq3.depthDrift, -1, 0.01),
+    },
+    filterLPF: {
+      rateDrift: quantizeToStep(toCapture.lfoDrift.filterLPF.rateDrift, -1, 0.01),
+      depthDrift: quantizeToStep(toCapture.lfoDrift.filterLPF.depthDrift, -1, 0.01),
+    },
+    filterHPF: {
+      rateDrift: quantizeToStep(toCapture.lfoDrift.filterHPF.rateDrift, -1, 0.01),
+      depthDrift: quantizeToStep(toCapture.lfoDrift.filterHPF.depthDrift, -1, 0.01),
+    },
+    robots: {
+      rateDrift: quantizeToStep(toCapture.lfoDrift.robots.rateDrift, -1, 0.01),
+      depthDrift: quantizeToStep(toCapture.lfoDrift.robots.depthDrift, -1, 0.01),
+    },
+  };
 
   return toCapture;
 }
