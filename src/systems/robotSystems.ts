@@ -188,6 +188,21 @@ export function stepRobotLifecycle(roster: RobotLifecycleSnapshot[], measure: nu
 }
 
 /**
+ * Replays fromMeasure+1 .. toMeasure inclusive via stepRobotLifecycle, in a tight loop -- zero
+ * side effects, zero store access. toMeasure < fromMeasure + 1 is a no-op (returns roster
+ * unchanged). Always called with fromMeasure = the locale's own createdAtMeasure in practice (per
+ * the "always replay from creation" decision) -- this function itself doesn't enforce that,
+ * callers do. The one caller-facing entry point for headless lifecycle replay.
+ */
+export function replayLifecycle(roster: RobotLifecycleSnapshot[], fromMeasure: number, toMeasure: number, noiseMap: NoiseFunction2D): RobotLifecycleSnapshot[] {
+  let working = roster;
+  for (let measure = fromMeasure + 1; measure <= toMeasure; measure++) {
+    working = stepRobotLifecycle(working, measure, noiseMap);
+  }
+  return working;
+}
+
+/**
  * One measure's worth of Battery/Docking evaluation for every robot in a locale.
  * Pure with respect to its inputs (measure is passed in, not read from BeatClock
  * directly) so tests can drive it without a real transport — see

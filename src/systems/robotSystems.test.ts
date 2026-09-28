@@ -12,6 +12,7 @@ import {
   landOnActive,
   landOnDocked,
   stepRobotLifecycle,
+  replayLifecycle,
 } from './robotSystems';
 import type { RobotLifecycleSnapshot } from './robotSystems';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
@@ -938,6 +939,60 @@ describe('robotSystems', () => {
           expect(field in result).toBe(false);
         }
       });
+    });
+  });
+
+  describe('replayLifecycle (pure, docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md Task 5)', () => {
+    const TEST_NOISE_MAP = getLocaleNoiseMap('robot-lifecycle-replay-test-locale', 7, 7);
+
+    function makeSnapshot(overrides: Partial<RobotLifecycleSnapshot> = {}): RobotLifecycleSnapshot {
+      return {
+        id: overrides.id ?? 'robot-1',
+        docking: DockingState.Active,
+        batteryLevel: 100,
+        octaveRange: [3, 4],
+        melody: overrides.melody ?? makeRobot().melody,
+        dockCycleCount: overrides.dockCycleCount ?? 0,
+        ...overrides,
+      };
+    }
+
+    it('toMeasure < fromMeasure + 1 is a no-op -- returns the roster unchanged', () => {
+      const snap = makeSnapshot({ batteryLevel: 50, job: undefined });
+      const result = replayLifecycle([snap], 10, 10, TEST_NOISE_MAP);
+      expect(result).toEqual([snap]);
+
+      const resultBackwards = replayLifecycle([snap], 10, 5, TEST_NOISE_MAP);
+      expect(resultBackwards).toEqual([snap]);
+    });
+
+    it('replaying N measures matches calling stepRobotLifecycle N times in a hand-written loop', () => {
+      const snap = makeSnapshot({ batteryLevel: 50, job: undefined });
+
+      let handRolled = [snap];
+      for (let m = 1; m <= 5; m++) handRolled = stepRobotLifecycle(handRolled, m, TEST_NOISE_MAP);
+
+      const replayed = replayLifecycle([snap], 0, 5, TEST_NOISE_MAP);
+      expect(replayed).toEqual(handRolled);
+    });
+
+    it('replays measures fromMeasure+1 .. toMeasure inclusive, not fromMeasure itself', () => {
+      // Starting exactly at the critical threshold: if measure `10` (fromMeasure) were replayed,
+      // one extra drain would apply that shouldn't. Replaying only 11..15 (5 steps) should match
+      // 5 hand-rolled steps starting from measure 11.
+      const snap = makeSnapshot({ batteryLevel: 90, job: undefined });
+      let handRolled = [snap];
+      for (let m = 11; m <= 15; m++) handRolled = stepRobotLifecycle(handRolled, m, TEST_NOISE_MAP);
+
+      const replayed = replayLifecycle([snap], 10, 15, TEST_NOISE_MAP);
+      expect(replayed).toEqual(handRolled);
+    });
+
+    it('imports neither useLocaleStore nor getCurrentMeasure -- unaffected by whatever is in the live store', () => {
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [makeRobot({ id: 'unrelated-robot', batteryLevel: 1 })] } } });
+      const snap = makeSnapshot({ batteryLevel: 50, job: undefined });
+      const [result] = replayLifecycle([snap], 0, 3, TEST_NOISE_MAP);
+      expect(result.batteryLevel).toBe(50 - BATTERY_DRAIN_BASE * 3);
     });
   });
 });
