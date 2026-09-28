@@ -128,19 +128,20 @@ Tasks 1 and 2 have no dependency on each other and could be done in either order
 
 ### Phase 2: Unify generation
 
-- [ ] **Task 3: `spawnRobot`'s initial melody → `buildSeededComposition`**
+- [x] **Task 3: `spawnRobot`'s initial melody → `buildSeededComposition`** — done, commit `1ac4984`
 
   **Description:** Replace the `melodyRand`/`melodyCallIndex`/`getSeededVal(noiseMap, 'melody.rand', ...)` block (spec §4.5) with a call to `buildSeededComposition(compositionSeed, { rhythmicDensity: spawnRhythmicDensity, rhythmicMotifLength: spawnRhythmicMotifLength, noteVariance: spawnNoteVariance, pitchRepeat: spawnPitchRepeat, octaveRange })`, passed as `generateMelodyForRobot`'s `rand`. The `'melody.rand'` dataId is retired (stops being read), not renamed — per `CLAUDE.md`/`PROCEDURAL_GENERATION.md`'s "don't rename a dataId" rule, this is a deliberate retirement, not a rename, so that rule doesn't apply here.
 
   **Acceptance criteria:**
-  - [ ] Spawning the same locale (same seed/coordinates) twice produces byte-identical initial melodies for every robot — the direct regression guard replacing the retired `'melody.rand'` coverage.
-  - [ ] Every existing `spawnSystem.test.ts` test not specifically about melody generation still passes unmodified — this change touches only the melody-generation block, not `spawnRobot`'s other ~150 lines.
-  - [ ] `melodyCallIndex` and the `melodyRand` local are removed from `spawnSystem.ts` — confirmed by grep, not left as dead code.
-  - [ ] No behavior change to anything except melody content itself — id, name, audio attributes, rhythmic fields, etc. are all still generated exactly as before (this task changes *what feeds the melody's RNG*, nothing else in `spawnRobot`).
+  - [x] Spawning the same locale (same seed/coordinates) twice produces byte-identical initial melodies for every robot — the direct regression guard replacing the retired `'melody.rand'` coverage. (Note: this alone was **not** a discriminating test for this task — the old mechanism was also deterministic. The real discriminating test added: the spawned melody must exactly match `buildSeededComposition(compositionSeed, initial attrs)`'s own output, confirmed RED before this task's change and GREEN after.)
+  - [x] Every existing `spawnSystem.test.ts` test not specifically about melody generation still passes unmodified — this change touches only the melody-generation block, not `spawnRobot`'s other ~150 lines.
+  - [x] `melodyCallIndex` and the `melodyRand` local are removed from `spawnSystem.ts` — confirmed by grep, zero remaining references in `src/` production or test code (one unrelated example-string mention in `noiseMaps.test.ts`, not a real reference).
+  - [x] No behavior change to anything except melody content itself.
+  - [x] Mutation-checked: passed a hardcoded seed instead of the real `compositionSeed` into `buildSeededComposition`, confirmed the exact-match test failed, reverted.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/spawnSystem.test.ts`
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/spawnSystem.test.ts` — 86 passed
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 1, 2.
 
@@ -148,34 +149,34 @@ Tasks 1 and 2 have no dependency on each other and could be done in either order
 
   **Estimated scope:** M (1 production file with a focused, well-bounded change; test file gains several new cases)
 
-- [ ] **Task 4: `regenerateMelody.ts` → `buildSeededComposition` (the core fix + unification guard)**
+- [x] **Task 4: `regenerateMelody.ts` → `buildSeededComposition` (the core fix + unification guard)** — done, commit `fdd87c9`
 
   **Description:** `regenerateMelody.ts` builds its `rand` the same way Task 3 did, using `robot.compositionSeed` and the robot's *current* attribute values (with the file's existing `?? DEFAULT_*` fallbacks unchanged). This is the change that actually fixes the originally-reported bug — every Density/Motif Length/Note Variance/Pitch Repeat edit stops calling `Math.random()`.
 
   **Acceptance criteria:**
-  - [ ] Same `robot` object (including `compositionSeed`) ⇒ same melody across repeated `regenerateMelody` calls.
-  - [ ] Changing one attribute and then changing it back to its original value reproduces the original melody exactly — the literal "nudge a slider back" criterion from the intent doc.
-  - [ ] Two robots with identical attributes but different `compositionSeed` produce different melodies (the "complementary, not unison" guarantee, tested directly at this layer).
-  - [ ] **Unification guard (the capstone test for this whole phase):** spawn a robot (Task 3's path), capture its melody; call `regenerateMelody` on that exact same robot object with zero attribute changes; assert the resulting melody is byte-identical to the spawn melody. This is the test that would have failed before Task 3+4 and is the direct proof "no first-edit ratchet" holds.
-  - [ ] `regenerateMelody.test.ts`'s `makeRobot()` fixture (already patched with a placeholder `compositionSeed` in Task 1) is confirmed sufficient for these new tests, or given a real, distinguishable value if the placeholder collides with a test's own assertions.
-  - [ ] **Session Storage round-trip guard** (belt-and-suspenders, per spec §5.2): a save → mutate `rhythmicDensity` → load round trip reproduces the exact melody, not just the exact attribute values — proves no `SessionPayload` change was actually needed. Lands in `sessionDiff.test.ts` or alongside the other tests here, whichever avoids duplicating existing Session Storage test setup.
+  - [x] Same `robot` object (including `compositionSeed`) ⇒ same melody across repeated `regenerateMelody` calls.
+  - [x] Changing one attribute and then changing it back to its original value reproduces the original melody exactly — the literal "nudge a slider back" criterion from the intent doc.
+  - [x] Two robots with identical attributes but different `compositionSeed` produce different melodies (the "complementary, not unison" guarantee, tested directly at this layer).
+  - [x] **Unification guard (the capstone test for this whole phase):** landed in `spawnSystem.test.ts` (needed its real, unmocked `localeStore`/`spawnRobot` — `regenerateMelody.test.ts`'s heavy module mocking made it a poor fit). Spawns a real robot, calls `regenerateMelody` with zero changes, asserts byte-identical (event-id-stripped) melody. Confirmed RED before Tasks 3+4, GREEN after; mutation-checked separately (swapped `octaveRange` elements in `regenerateMelody.ts`, confirmed this test caught it, reverted).
+  - [x] `regenerateMelody.test.ts`'s `makeRobot()` fixture (patched in Task 1) was sufficient — no collision, used real distinguishing values (`0.11`/`0.17`/`0.89`) per test.
+  - [x] **Session Storage round-trip guard** — landed in `sessionDiff.test.ts`, using `applyDensity` (the real user-facing action) rather than a raw `updateRobot` write. **This test failed on first run and stayed failing until a real fix, not just a test** — `applySessionPayload`'s `buildRobotUpdates` patches a robot's plain attribute fields but never called `regenerateMelody`, so a restored robot's melody stayed the fresh seed-baseline one instead of matching its overridden attributes. Fixed in `sessionDiff.ts` (one new `regenerateMelody(...)` call after `updateRobot`) — **not in the original Task 4 Files list**, discovered during this task's own TDD cycle. `SessionPayload`'s shape itself needed no change, confirming the spec's claim; the *apply* logic did. Mutation-checked (commented out the new call, confirmed the round-trip test failed, reverted).
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/regenerateMelody.test.ts`
-  - [ ] `npx vitest run src/utils/sessionDiff.test.ts` (if the round-trip guard lands there)
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/regenerateMelody.test.ts` — 16 passed
+  - [x] `npx vitest run src/utils/sessionDiff.test.ts` — 30 passed
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 1, 2, 3.
 
-  **Files:** `src/engine/regenerateMelody.ts`, `src/engine/regenerateMelody.test.ts`, possibly `src/utils/sessionDiff.test.ts`
+  **Files:** `src/engine/regenerateMelody.ts`, `src/engine/regenerateMelody.test.ts`, `src/systems/spawnSystem.test.ts` (unification guard), `src/utils/sessionDiff.ts` + `src/utils/sessionDiff.test.ts` (round-trip guard — `sessionDiff.ts` itself wasn't in the original plan; see the round-trip guard note above)
 
   **Estimated scope:** M
 
 ### Checkpoint B: Core determinism unified
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (full suite).
-- [ ] The unification guard test (Task 4) passes — spawn melody and a zero-change `regenerateMelody` call produce byte-identical output.
-- [ ] Manual spot-check acceptable to defer to Checkpoint D's manual pass (no UI changes yet in this phase).
-- [ ] Reviewed with human before proceeding to Phase 3.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (full suite) — 195 files / 4043 tests.
+- [x] The unification guard test (Task 4) passes — spawn melody and a zero-change `regenerateMelody` call produce byte-identical output.
+- [x] Manual spot-check deferred to Checkpoint D's manual pass (no UI changes yet in this phase).
+- [ ] Reviewed with human before proceeding to Phase 3 — proceeding per Crawford's explicit sequential-implementation direction; flagged, not silently skipped.
 
 ### Phase 3: Close the octave gap
 
