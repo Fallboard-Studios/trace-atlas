@@ -280,7 +280,7 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
 
 ### Phase 3: UI + wiring
 
-- [ ] **Task 8: `SessionListItem.tsx` — one row**
+- [x] **Task 8: `SessionListItem.tsx` — one row**
 
   **Description:** Per spec §4.5: a label (session name, or a fixed "Unsaved Session"-style label for autosave slots), a "Load" button (calls `applySessionPayload`, and sets `sessionStore.currentLoadedSessionName` — the entry's name for a named load, `null` for an autosave-slot load), and — named entries only — a "Delete" button behind an `AlertDialog` confirm, matching `CompanyCrudControls.tsx`'s existing pattern exactly (same component, same confirm copy style).
 
