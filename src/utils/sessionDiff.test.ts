@@ -328,6 +328,32 @@ describe('applySessionPayload', () => {
     expect(restoredRobot?.rhythmicDensity).toBe(3);
   });
 
+  it('restores a robot\'s exact melody, not just its rhythmicDensity value, after a full save/wipe/load round trip (Deterministic Robot Melody Generation, Task 4)', async () => {
+    // Belt-and-suspenders guard: proves SessionPayload's existing five-input diff is actually
+    // SUFFICIENT for melody fidelity, not just attribute-value fidelity -- the whole point of
+    // making compositionSeed itself re-derive identically from the seed on regeneration (never
+    // diffed) rather than needing a SessionPayload change. Uses applyDensity (the real user-facing
+    // action, which also calls regenerateMelody), not a raw updateRobot write, so this test
+    // reflects what actually happens when an operator edits a slider.
+    const { applyDensity } = await import('../systems/robotOptionsActions');
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+    applyDensity(robot, localeId, 3);
+    const editedRobot = useLocaleStore.getState().getLocaleById(localeId)!.robots.find((r) => r.id === robot.id)!;
+    const editedMelody = editedRobot.melody;
+    const payload = buildSessionPayload();
+
+    applySessionPayload({ ...payload, coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 } });
+    applySessionPayload(payload);
+
+    const restoredRobot = currentLocale()!.robots.find((r) => r.id === robot.id)!;
+    expect(restoredRobot.rhythmicDensity).toBe(3);
+    // MelodyEvent.id is a fresh crypto.randomUUID() by design, never seeded -- strip before comparing.
+    const stripIds = (melody: typeof editedMelody) => melody.map(({ id: _id, ...rest }) => rest);
+    expect(stripIds(restoredRobot.melody)).toEqual(stripIds(editedMelody));
+  });
+
   it('restores a renamed company after a full save/wipe/load round trip', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);

@@ -683,6 +683,23 @@ describe('spawnSystem', () => {
       // otherwise every robot would be drawing from a shared, non-per-robot rand stream.
       expect(new Set(melodyStrings).size).toBeGreaterThan(1);
     });
+
+    it('unification guard: regenerateMelody, called on a freshly spawned robot with zero attribute changes, reproduces the exact spawn-time melody -- no first-edit ratchet (Task 4 capstone)', async () => {
+      // The core acceptance criterion for unifying spawn-time and edit-time generation
+      // (docs/specs/DETERMINISTIC_ROBOT_MELODY_GENERATION.md §1): before Tasks 3+4, this would
+      // fail, because spawnRobot used melody.rand/melodyCallIndex while regenerateMelody fell
+      // back to Math.random() -- two different mechanisms, so even a zero-change "edit" would
+      // silently produce a different melody than the one the robot was spawned with.
+      const { regenerateMelody } = await import('../engine/regenerateMelody');
+      spawnRobot(DEFAULT_LOCALE_ID);
+      const spawned = (useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [])[0]!;
+      const spawnMelody = spawned.melody;
+
+      regenerateMelody(spawned, DEFAULT_LOCALE_ID);
+      const afterRegenerate = (useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [])[0]!;
+
+      expect(stripEventIds(afterRegenerate.melody)).toEqual(stripEventIds(spawnMelody));
+    });
   });
 
   describe('spawnRobot — docking/battery options', () => {

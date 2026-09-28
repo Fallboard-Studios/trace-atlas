@@ -11,6 +11,7 @@ import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
 import { getLocaleNoiseMap } from './noiseMaps';
 import { retransmitWorld } from '../systems/worldTransition';
+import { regenerateMelody } from '../engine/regenerateMelody';
 
 // ========================================
 // FUNCTIONS
@@ -207,7 +208,15 @@ export function applySessionPayload(payload: SessionPayload): void {
     const diff = payload.robotOverrides[robot.id];
     if (!diff) continue;
     const updates = buildRobotUpdates(robot, diff);
-    if (Object.keys(updates).length > 0) useLocaleStore.getState().updateRobot(localeId, robot.id, updates);
+    if (Object.keys(updates).length === 0) continue;
+    useLocaleStore.getState().updateRobot(localeId, robot.id, updates);
+    // Deterministic Robot Melody Generation (Roadmap Phase 31): buildRobotUpdates only patches
+    // plain attribute fields -- it never touches `melody` itself. Without regenerating here, a
+    // restored robot's melody would still reflect the FRESH seed-baseline attributes retransmitWorld
+    // just spawned it with, not the overridden ones applied above, even though compositionSeed
+    // (never diffed, always re-derived identically from the seed) makes the regenerated result
+    // exactly match what the robot sounded like at save time.
+    regenerateMelody({ ...robot, ...updates }, localeId);
   }
 
   for (const company of freshLocale.companies) {
