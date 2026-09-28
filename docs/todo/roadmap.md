@@ -325,3 +325,34 @@ Restyles and restructures the Settings, Probes (All Probes / Individual Probe), 
 ### Docs
 
 - None yet — real lore/human copy for the placeholder `IntroPanel`s (26/30 both) and any doc updates for the accordion renames are future work.
+
+## 31. Deterministic Robot Melody Generation
+
+Requested by Crawford, 2026-09-28, converged via an `/idea-refine` session (not yet run through `/interview-me` or a spec pass — most of the shape is already confirmed below, but treat this as pre-spec). Directly motivated by a real gap found while implementing Session Storage (20): `regenerateMelody.ts` (fired on every edit to a robot's Rhythmic Density/Motif Length/Note Variance/Pitch Repeat) calls `generateMelodyForRobot()` with no seed, falling back to `Math.random()` — so a robot's melody is currently a one-way die roll, unreproducible from its own attributes. This also means an overridden robot's melody does not survive a Session Storage save/load round trip today, even though its attributes do.
+
+### About
+
+Gives every robot a `compositionSeed` field, set once at spawn like `id` (not reusing `id` itself — a dedicated field, matching this app's existing convention of a distinct dataId per seeded concern rather than overloading one). `regenerateMelody.ts` builds a seed key from `compositionSeed` plus the robot's current `rhythmicDensity`/`rhythmicMotifLength`/`noteVariance`/`pitchRepeat`/`octaveRange` and passes it to `generateMelodyForRobot`'s already-existing (currently unused) `opts.seed` parameter — no new generation logic, no stored melody data, no seed map. The same attribute values always produce the same melody for a given robot going forward; nudging a slider back to a prior value no longer rerolls it. `applyOctaveMin`/`applyOctaveMax` (`robotOptionsActions.ts`) start calling `regenerateMelody` too, closing a second pre-existing gap (octave edits currently don't touch melody at all) — octave range becomes part of what shapes the melody, per Crawford's request.
+
+Bulk company edits (`CompanyOptionsSection.tsx`) already call `applyDensity`/`applyMotifLength`/etc. once per member robot, each with that robot's own live object — so once `regenerateMelody` is seed-aware, bulk-editing a company to identical settings automatically produces melodies that share rhythmic character without being identical note-for-note ("complementary, not unison," Crawford's explicit requirement) — no changes needed to the bulk-edit path itself.
+
+The standalone Reset Melody control (`handleResetMelody`/`onResetMelody` in `RobotOptionsTab.tsx`, wired to nothing but a bare `regenerateMelody()` call) is removed outright — under full determinism there's nothing left for it to do that changing an attribute doesn't already do, and no replacement was requested.
+
+Session Storage's existing robot-override diff (already covers all five seed-formula inputs) becomes sufficient on its own to guarantee melody fidelity across a save/load round trip, once this ships — no changes needed to `SessionPayload`'s shape.
+
+### Not Doing (and why)
+
+- **Persisting melody data directly** (the original alternative under consideration) — rejected: it's exactly the "store the derived state, not the recipe" anti-pattern this app (and Session Storage specifically) was built to avoid elsewhere.
+- **A global settings→melody map with no robot identity** — rejected: would make any two robots with identical dialed-in attributes sound identical to each other, which reads as a bug on a 12-robot roster, not a feature.
+- **An explicit "Reroll" action to replace the removed Reset Melody button** — not requested; full determinism was the explicit goal, not preserving an escape hatch for randomness.
+- **Melody history / a way to navigate a robot's past melodies** — split out to [Phase 32](#32-robot-melody-history--configuration-scrubber), which depends on this phase shipping first.
+
+## 32. Robot Melody History / Configuration Scrubber
+
+Requested by Crawford, 2026-09-28, out of the same `/idea-refine` session as [31](#31-deterministic-robot-melody-generation) (Deterministic Robot Melody Generation), which this phase depends on shipping first. Deliberately split out of that work rather than bundled with it — too much to land in one pass. Not yet interviewed/specced; the UI shape is genuinely open.
+
+### About
+
+Once melody is a pure function of a robot's current attribute tuple, every edit a user makes during a session implicitly produces a new point in a short history of past tuples (and therefore past melodies) for that robot. This phase is about letting a user navigate back to one — "what did this robot sound like two edits ago" — without needing to remember or manually re-dial the old values.
+
+The `/idea-refine` session flagged the obvious framing (an audio scrubber) as likely wrong: these melodies loop indefinitely, so there's no fixed track length to scrub across, and a slider-styled scrub bar would misleadingly imply navigating elapsed playback time of one continuous performance rather than jumping between distinct generated melodies. The working recommendation is a small bounded history (recent distinct tuples, deduped so a slider drag doesn't spam entries) navigated by discrete stepping (prev/next, or a compact list) rather than a continuous timeline — closer to browser back/forward than a scrubber — but this wasn't settled, and Crawford was explicitly unsure what UI shape fits. Needs its own `/interview-me` or `/idea-refine` pass before a spec: open questions include whether history is per-robot or per-session, whether it survives a reload (Session Storage does not persist it today), how large a bound feels right, and whether "jump to a past tuple" should be a full commit (overwrites the current dialed-in values) or a preview-then-commit interaction.
