@@ -5,26 +5,24 @@ import { TextInput } from '@/components/ui/controls/TextInput';
 import { Button } from '@/components/ui/controls/Button';
 import { useSessionStore } from '@/stores/sessionStore';
 import { buildSessionPayload } from '@/utils/sessionDiff';
-import { saveNamedSession, listSessions, listUnsavedLastAutosaves } from '@/utils/sessionStorageEngine';
+import { saveNamedSession, listSessions } from '@/utils/sessionStorageEngine';
 import { SESSION_NAME_INPUT_SCHEMA, SAVE_SESSION_SCHEMA, CLEAR_STORAGE_SCHEMA } from '@/data/sessionConfig';
-import { LAST_UNSAVED_SESSION_KEY } from '@/types/session';
 import { formatSessionTimestamp } from '@/utils/helpers';
 import type { SessionEntry } from '@/types/session';
 
 import './SessionsPanel.css';
 
 /**
- * The "Load Sessions" panel (docs/specs/SESSION_STORAGE.md §4.5): a required Session Name input
- * (bound to sessionStore.currentSessionName, prefilled by that store with a generated
- * suggestion) and a Save Session button above the list of every saved/autosaved entry.
- * listSessions() is a plain localStorage read, not a reactive store — this component keeps its
- * own local copy and re-reads it after any save/delete rather than subscribing to anything.
+ * The "Load Sessions" panel (docs/specs/SESSION_AUTOSAVE_REMOVAL.md §4.5): a required Session Name
+ * input (bound to sessionStore.currentSessionName, prefilled by that store with a generated
+ * suggestion) and a Save Session button above the list of every saved entry. listSessions() is a
+ * plain localStorage read, not a reactive store — this component keeps its own local copy and
+ * re-reads it after any save/delete rather than subscribing to anything.
  */
 export function SessionsPanel() {
   const currentSessionName = useSessionStore((s) => s.currentSessionName);
   const setCurrentSessionName = useSessionStore((s) => s.setCurrentSessionName);
   const [sessions, setSessions] = useState<SessionEntry[]>(() => listSessions());
-  const [unsavedHistory, setUnsavedHistory] = useState<SessionEntry[]>(() => listUnsavedLastAutosaves());
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{ name: string; success: true; savedAt: string } | { name: string; success: false } | null>(
     null,
@@ -32,7 +30,6 @@ export function SessionsPanel() {
 
   const refresh = () => {
     setSessions(listSessions());
-    setUnsavedHistory(listUnsavedLastAutosaves());
   };
 
   const nameIsBlank = currentSessionName.trim().length === 0;
@@ -60,14 +57,8 @@ export function SessionsPanel() {
     refresh();
   };
 
-  // The single visible unsaved-history row is a summary of its own bucket, not one specific
-  // entry -- its label/payload come from the newest of its up-to-3 autosaves (listUnsavedLastAutosaves
-  // sorts newest-first already), while its own subrows (rendered by SessionListItem once loaded)
-  // show all of them, including that same newest one again (docs/specs/SESSION_AUTOSAVE_HISTORY.md §7 item 4).
-  const unsavedHistoryRow: SessionEntry | null = unsavedHistory.length > 0 ? { ...unsavedHistory[0], name: LAST_UNSAVED_SESSION_KEY } : null;
-
-  // Newest first — the row a user just saved (or the most recent autosave) stays at the top.
-  const sorted = [...sessions, ...(unsavedHistoryRow ? [unsavedHistoryRow] : [])].sort((a, b) => b.savedAt - a.savedAt);
+  // Newest first — the row a user just saved stays at the top.
+  const sorted = [...sessions].sort((a, b) => b.savedAt - a.savedAt);
 
   return (
     <div className="sessions-panel">

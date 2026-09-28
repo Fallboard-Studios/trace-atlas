@@ -11,26 +11,12 @@ vi.mock('@/utils/sessionDiff', () => ({
 
 import { SessionsPanel } from './SessionsPanel';
 import { useSessionStore } from '@/stores/sessionStore';
-import { STORAGE_KEY, saveUnsavedAutosave, promoteUnsavedHistoryOnBoot } from '@/utils/sessionStorageEngine';
-import type { SessionPayload } from '@/types/session';
-
-function makeUnsavedPayload(overrides: Partial<SessionPayload> = {}): SessionPayload {
-  return {
-    version: 1,
-    attenuationStyleName: 'Null Guild',
-    coordinates: { x: 4, y: -7 },
-    globalAudio: {} as SessionPayload['globalAudio'],
-    robotOverrides: {},
-    companyDiffs: {},
-    userCreatedCompanies: [],
-    ...overrides,
-  };
-}
+import { STORAGE_KEY } from '@/utils/sessionStorageEngine';
 
 beforeEach(() => {
   localStorage.clear();
   payloadCounter = 0;
-  useSessionStore.setState({ currentSessionName: 'Test Session', currentLoadedSessionName: null, viewingUnsavedHistory: false });
+  useSessionStore.setState({ currentSessionName: 'Test Session', currentLoadedSessionName: null });
 });
 
 describe('SessionsPanel', () => {
@@ -97,49 +83,22 @@ describe('SessionsPanel', () => {
     expect(screen.getByText(/^Saved Test Session at [A-Za-z]{3} \d{1,2}, /)).toBeTruthy();
   });
 
-  describe('the unsaved-history row', () => {
-    it('is absent when there is no promoted unsaved history', () => {
-      render(<SessionsPanel />);
-      expect(screen.queryByText(/\(Autosaved Session\)/)).toBeNull();
-    });
+  it('never renders a row for leftover promoted unsaved history in storage (regression guard, cut feature)', () => {
+    // Writes the raw pre-removal storage shape directly (not via sessionStorageEngine's own
+    // now-deleted-by-Task-4 autosave functions) to simulate a developer's leftover localStorage
+    // data from testing this branch before this task's removal -- see spec §5.3 criterion 3/§7 item 3.
+    const leftoverBlob = {
+      named: {},
+      namedAutosaves: {},
+      unsavedCurrent: [],
+      unsavedLast: [{ name: '__last-unsaved-session__', savedAt: Date.now(), payload: { attenuationStyleName: 'Null Guild', coordinates: { x: 4, y: -7 } } }],
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(leftoverBlob));
 
-    it('appears with the "AttenuationStyle @ (x, y) (Autosaved Session)" label once history has been promoted', () => {
-      saveUnsavedAutosave(makeUnsavedPayload());
-      promoteUnsavedHistoryOnBoot();
-
-      render(<SessionsPanel />);
-      expect(screen.getByText('Null Guild @ (4, -7) (Autosaved Session)')).toBeTruthy();
-    });
-
-    it('uses the newest entry for its label when multiple autosaves were promoted', () => {
-      saveUnsavedAutosave(makeUnsavedPayload({ coordinates: { x: 1, y: 1 } }));
-      saveUnsavedAutosave(makeUnsavedPayload({ coordinates: { x: 2, y: 2 } }));
-      promoteUnsavedHistoryOnBoot();
-
-      render(<SessionsPanel />);
-      expect(screen.getByText('Null Guild @ (2, 2) (Autosaved Session)')).toBeTruthy();
-    });
-
-    it('nothing is expanded on a fresh render, even with promoted history present', () => {
-      saveUnsavedAutosave(makeUnsavedPayload());
-      saveUnsavedAutosave(makeUnsavedPayload());
-      promoteUnsavedHistoryOnBoot();
-
-      render(<SessionsPanel />);
-      expect(screen.queryByText(/Autosave from/)).toBeNull();
-    });
-
-    it('clicking its Load button reveals its own history as subrows', () => {
-      saveUnsavedAutosave(makeUnsavedPayload({ coordinates: { x: 1, y: 1 } }));
-      saveUnsavedAutosave(makeUnsavedPayload({ coordinates: { x: 2, y: 2 } }));
-      promoteUnsavedHistoryOnBoot();
-
-      render(<SessionsPanel />);
-      fireEvent.click(screen.getByRole('button', { name: /Load Null Guild @ \(2, 2\)/i }));
-
-      expect(screen.getAllByText(/Autosave from/).length).toBeGreaterThan(0);
-      expect(useSessionStore.getState().viewingUnsavedHistory).toBe(true);
-    });
+    render(<SessionsPanel />);
+    expect(screen.queryAllByRole('button', { name: /^Load/i }).length).toBe(0);
+    expect(screen.queryByText('__last-unsaved-session__')).toBeNull();
+    expect(screen.queryByText(/Null Guild/)).toBeNull();
   });
 
   it('the Save Session button is disabled when the name is blank', () => {
