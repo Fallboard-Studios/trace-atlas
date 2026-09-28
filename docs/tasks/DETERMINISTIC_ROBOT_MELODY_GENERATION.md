@@ -207,18 +207,18 @@ Tasks 1 and 2 have no dependency on each other and could be done in either order
 
 ### Phase 4: Remove Reset Melody
 
-- [ ] **Task 6: Remove `RESET_MELODY_SCHEMA`**
+- [x] **Task 6: Remove `RESET_MELODY_SCHEMA`** — done, commit `eb22cf9`
 
   **Description:** Delete the schema from `robotOptionsConfig.ts` and its references in `robotOptionsConfig.test.ts`. No downstream consumer is touched yet — this task only removes the schema's own definition/export, so Tasks 7-8 have nothing left to import once they run.
 
   **Acceptance criteria:**
-  - [ ] `RESET_MELODY_SCHEMA` no longer exists in `robotOptionsConfig.ts`.
-  - [ ] `robotOptionsConfig.test.ts` has no remaining reference to it.
-  - [ ] `npm run build:types` will show errors in `RobotOptionsTab.tsx`/`PingControlsDrawer.tsx` at this point — expected and resolved by Tasks 7-8, not a regression to fix here.
+  - [x] `RESET_MELODY_SCHEMA` no longer exists in `robotOptionsConfig.ts`. Added a RED-first absence test (`'RESET_MELODY_SCHEMA' in robotOptionsConfigModule` → `false`), mirroring this file's own existing pattern for prior removed schemas.
+  - [x] `robotOptionsConfig.test.ts` has no remaining reference to it.
+  - [x] `npm run build:types` shows exactly the expected error in `PingControlsDrawer.tsx` at this point — confirmed, not resolved here.
 
   **Verification:**
-  - [ ] `npx vitest run src/data/robotOptionsConfig.test.ts`
-  - [ ] `npm run lint` clean on the touched files (full `build:types` is expected red until Task 8 — note this explicitly when committing).
+  - [x] `npx vitest run src/data/robotOptionsConfig.test.ts` — 45 passed
+  - [x] `npm run lint` clean on the touched files (full `build:types` expected red until Task 8 — confirmed exactly one error, the expected one).
 
   **Dependencies:** None strictly, but done first in this phase by convention (schema before consumers).
 
@@ -226,17 +226,17 @@ Tasks 1 and 2 have no dependency on each other and could be done in either order
 
   **Estimated scope:** XS
 
-- [ ] **Task 7: Remove Reset Melody from `RobotOptionsTab.tsx`**
+- [x] **Task 7: Remove Reset Melody from `RobotOptionsTab.tsx`** — done, commit `7acb884`
 
   **Description:** Remove `handleResetMelody` and the `onResetMelody` prop passed to `PingControlsDrawer`/`PingControlsRhythmSection`. Remove the corresponding test (~line 349, "wires onResetMelody to regenerateMelody directly") and the fake test double's `onResetMelody` prop/button (~lines 47, 61) in `RobotOptionsTab.test.tsx`.
 
   **Acceptance criteria:**
-  - [ ] Zero references to `handleResetMelody`/`onResetMelody`/`regenerateMelody` import-for-this-purpose remain in `RobotOptionsTab.tsx` (confirm `regenerateMelody` isn't imported at all anymore if this was its only use in the file).
-  - [ ] `RobotOptionsTab.test.tsx`'s fake `PingControlsDrawer` test double no longer accepts or renders an `onResetMelody` prop.
+  - [x] Zero references to `handleResetMelody`/`onResetMelody`/`regenerateMelody` remain in `RobotOptionsTab.tsx` — `regenerateMelody` import removed entirely (was only used for this).
+  - [x] `RobotOptionsTab.test.tsx`'s fake `PingControlsDrawer` test double no longer accepts or renders an `onResetMelody` prop.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/console/RobotOptionsTab.test.tsx`
-  - [ ] `npm run build:types` still red (Task 8 not done yet) unless `PingControlsDrawer.tsx`'s prop is optional enough to tolerate the caller no longer passing it — check before assuming red is expected here too.
+  - [x] `npx vitest run src/components/panels/screen/console/RobotOptionsTab.test.tsx` — 29 passed
+  - [x] `npm run build:types` still red with only the expected `PingControlsDrawer.tsx` error (confirmed).
 
   **Dependencies:** Task 6.
 
@@ -244,19 +244,19 @@ Tasks 1 and 2 have no dependency on each other and could be done in either order
 
   **Estimated scope:** S
 
-- [ ] **Task 8: Remove Reset Melody from `PingControlsDrawer.tsx` (all three exports)**
+- [x] **Task 8: Remove Reset Melody from `PingControlsDrawer.tsx` (all three exports)** — done, commit `22d5437`
 
   **Description:** Remove the `onResetMelody` prop and its conditional `{onResetMelody && <Button schema={RESET_MELODY_SCHEMA} .../>}` JSX from all three component exports in this file (confirmed via grep to occur three times, at three separate prop-interface/render sites — the legacy combined drawer plus the two split `PingControlsRhythmSection`/`PingControlsFrequencySection` pieces per `docs/UI_SHELL.md`'s note on why three copies exist). Remove every Reset-Melody-specific test in `PingControlsDrawer.test.tsx` — confirmed via grep to span multiple line ranges across the file's three render-target sections, both the "renders when provided (robot mode)" and "omits when not provided (company mode)" pairs for each export.
 
   **Acceptance criteria:**
-  - [ ] Zero references to `onResetMelody`/`RESET_MELODY_SCHEMA`/`ResetMelody` remain anywhere in `PingControlsDrawer.tsx` or `PingControlsDrawer.test.tsx` — confirm with a repo-wide grep, not just a visual scan of the known line numbers (they may have shifted since the spec was written).
-  - [ ] A final repo-wide `grep -rn "ResetMelody" src/` returns **zero results** anywhere — this is the acceptance bar for the whole Phase 4 removal, not just this task's own files.
-  - [ ] Every other existing test in `PingControlsDrawer.test.tsx` (rhythm/frequency/motif-length/pitch-repeat/click-track behavior, unrelated to Reset Melody) still passes unmodified.
+  - [x] Zero references to `onResetMelody`/`RESET_MELODY_SCHEMA`/`ResetMelody` remain anywhere in `PingControlsDrawer.tsx` or `PingControlsDrawer.test.tsx` — confirmed with a repo-wide grep, not a visual scan (line numbers had in fact shifted from the spec's draft).
+  - [x] A final repo-wide `grep -rn "ResetMelody" src/` returns **zero results** anywhere. (Found and fixed one stray comment reference in `CompanyOptionsSection.tsx`, outside the two files this task's own scope named — a small, safe addition.)
+  - [x] Every other existing test in `PingControlsDrawer.test.tsx` still passes unmodified — 47 total, all pass.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/robot/PingControlsDrawer.test.tsx`
-  - [ ] `npm run build:types`, `npm run lint`, `npm test` (full suite) all clean — this is the task that turns the build green again after Tasks 6-7.
-  - [ ] `npm run build` (production bundle) clean.
+  - [x] `npx vitest run src/components/robot/PingControlsDrawer.test.tsx` — 47 passed
+  - [x] `npm run build:types`, `npm run lint`, `npm test` (full suite) all clean — 195 files / 4042 tests.
+  - [x] `npm run build` (production bundle) clean.
 
   **Dependencies:** Tasks 6, 7.
 
@@ -265,10 +265,10 @@ Tasks 1 and 2 have no dependency on each other and could be done in either order
   **Estimated scope:** M (1 production file, but 3 distinct removal sites within it; test file has the widest removal footprint of the three)
 
 ### Checkpoint D: Feature complete end-to-end
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] `grep -rn "ResetMelody" src/` returns zero results.
-- [ ] **Manual check (`npm run dev`):** open Robot Options for any robot, confirm Reset Melody no longer renders; nudge Rhythmic Density up then back to its original value, confirm the melody sounds the same (or, more rigorously, that `robot.melody` in a debug view/store inspection is unchanged); open a company's bulk-edit panel, confirm no Reset Melody control ever appeared there either (it never took a company prop, so this should be a non-event, but confirm).
-- [ ] Reviewed with human before proceeding to Phase 5.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean — 195 files / 4042 tests.
+- [x] `grep -rn "ResetMelody" src/` returns zero results.
+- [ ] **Manual check (`npm run dev`) not yet performed** — open Robot Options for any robot, confirm Reset Melody no longer renders; nudge Rhythmic Density up then back to its original value, confirm the melody sounds the same; open a company's bulk-edit panel, confirm no Reset Melody control ever appeared there either. Flagged as outstanding, not silently skipped — no live browser available in this session (same situation Session Storage's own Task plan hit).
+- [ ] Reviewed with human before proceeding to Phase 5 — proceeding per Crawford's explicit sequential-implementation direction; flagged, not silently skipped.
 
 ### Phase 5: Docs
 
