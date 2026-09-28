@@ -8,6 +8,7 @@ import type { AudioAttributes, WaveformType, Robot } from '../types/Robot';
 import { RobotState, DockingState } from '../types/Robot';
 import {
   generateMelodyForRobot,
+  buildSeededComposition,
   DEFAULT_RHYTHMIC_DENSITY,
   DEFAULT_RHYTHMIC_MOTIF_LENGTH,
   DEFAULT_NOTE_VARIANCE,
@@ -619,12 +620,17 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     );
   }
 
-  // Seeded melody — always fresh from the robot's octaveRange/rhythmicDensity/
-  // rhythmicMotifLength/noteVariance (copied or generated)
-  let melodyCallIndex = 0;
-  const melodyRand = noiseMap
-    ? () => getSeededVal(noiseMap, 'melody.rand', spawnCount * 100 + melodyCallIndex++)
-    : Math.random;
+  // Seeded melody (Roadmap Phase 31) -- the same buildSeededComposition formula
+  // regenerateMelody.ts uses for every later edit, so a post-spawn edit reverted to its
+  // original value reproduces this exact melody (no "first-edit ratchet"). Retires the old
+  // per-call noise-map draw ('melody.rand'/melodyCallIndex) in favor of compositionSeed.
+  const compositionRand = buildSeededComposition(compositionSeed, {
+    rhythmicDensity: spawnRhythmicDensity,
+    rhythmicMotifLength: spawnRhythmicMotifLength,
+    noteVariance: spawnNoteVariance,
+    pitchRepeat: spawnPitchRepeat,
+    octaveRange,
+  });
 
   const spawnMelody = generateMelodyForRobot({
     octaveMin: octaveRange[0],
@@ -633,7 +639,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     rhythmicMotifLength: spawnRhythmicMotifLength,
     noteVariance: spawnNoteVariance,
     pitchRepeat: spawnPitchRepeat,
-    rand: melodyRand,
+    rand: compositionRand,
   });
 
   const position = noiseMap ? generateSpawnPosition(noiseMap, spawnCount) : generateSpawnPosition((_x: number, _y: number) => 0 as number, spawnCount);
