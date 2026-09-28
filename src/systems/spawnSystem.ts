@@ -162,8 +162,10 @@ export function generateCompanyName(noiseMap: NoiseFunction2D, offset: number): 
 }
 
 /** Deterministic company ID — mirrors generateRobotId's shape (own dataId, own counter namespace,
- *  no crypto.randomUUID()). Not reused outside this file, so stays private like generateRobotId. */
-function generateCompanyId(noiseMap: NoiseFunction2D, index: number): string {
+ *  no crypto.randomUUID()). Exported (like generateCompanyName/generateCompanyIdentityColor
+ *  above) so generateCompanyRosterBaseline below — and Session Storage's sessionDiff.ts, which
+ *  needs a company's id to match it against a live company — can call it directly. */
+export function generateCompanyId(noiseMap: NoiseFunction2D, index: number): string {
   const idSeed = getSeededVal(noiseMap, 'company.id', index, 0, 1);
   return `company-${index}-${idSeed.toString(36).slice(2, 10)}`;
 }
@@ -459,6 +461,47 @@ export function generateRobotRosterBaseline(noiseMap: NoiseFunction2D, count: nu
     baselines.push(generateRobotAudioBaseline(noiseMap, i, baselines));
   }
   return baselines;
+}
+
+/** A spawn-generated company's seed-derived id/name/membership — the shape sessionDiff.ts's
+ *  CompanyDiff needs to compare a live Company against; color is deliberately omitted (not part
+ *  of CompanyDiff, see docs/specs/SESSION_STORAGE.md §4.1). */
+export interface CompanyRosterBaseline {
+  id: string;
+  name: string;
+  robotIds: string[];
+}
+
+/**
+ * Replays spawnInitialCompanies' exact company-generation loop (dataIds 'company.count'/
+ * 'company.size'/'company.member', the same INITIAL_COMPANIES_MIN/MAX and COMPANY_SIZE_MIN/MAX
+ * bounds) purely from the noise map and a robot-id pool, in spawn order — no store read/write.
+ * Deliberately NOT a refactor of spawnInitialCompanies itself, same rationale as
+ * generateRobotAudioBaseline above (touching already-covered, store-coupled code is riskier than
+ * an additive, independently-verified parallel implementation).
+ */
+export function generateCompanyRosterBaseline(noiseMap: NoiseFunction2D, robotIds: readonly string[]): CompanyRosterBaseline[] {
+  let pool = [...robotIds];
+  const companyCount = INITIAL_COMPANIES_MIN + Math.floor(
+    getSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1)
+  );
+
+  const companies: CompanyRosterBaseline[] = [];
+  for (let c = 0; c < companyCount && pool.length > 0; c++) {
+    const size = Math.min(pool.length, COMPANY_SIZE_MIN + Math.floor(
+      getSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)
+    ));
+
+    const memberIds: string[] = [];
+    for (let i = 0; i < size; i++) {
+      const idx = Math.floor(getSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length));
+      memberIds.push(pool[idx]);
+      pool = pool.filter((_, j) => j !== idx);
+    }
+
+    companies.push({ id: generateCompanyId(noiseMap, c), name: generateCompanyName(noiseMap, c), robotIds: memberIds });
+  }
+  return companies;
 }
 
 /**

@@ -6,7 +6,7 @@ import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { Robot } from '../types/Robot';
 
-import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoSettings, generateRobotAudioBaseline, generateRobotRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoSettings, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -1040,6 +1040,46 @@ describe('spawnSystem', () => {
       // generate the same "Adjective Noun" name by chance, independent of copying.
       expect(baselines[laterIdx].lfoSettings).toBe(baselines[earlierIdx].lfoSettings);
       expect(baselines[laterIdx].audioAttributes).toBe(baselines[earlierIdx].audioAttributes);
+    });
+  });
+
+  // Session Storage Task 4.1 (docs/tasks/SESSION_STORAGE.md) — company diffing needs the same
+  // "what would the seed alone have produced" replay generateRobotRosterBaseline gives robots,
+  // for spawnInitialCompanies' own inline, store-coupled membership-assignment loop.
+  describe('generateCompanyRosterBaseline', () => {
+    beforeEach(() => {
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
+    });
+
+    it('reproduces the same id/name/robotIds a real spawnInitialCompanies produces from the same noise map and robot-id pool', () => {
+      const localeId = 'company-baseline-parity-locale';
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [], companies: [] } },
+      }));
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+      const realCompanies = locale.companies;
+      expect(realCompanies.length).toBeGreaterThan(0); // sanity: INITIAL_COMPANIES_MIN >= 1
+
+      const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+      // Same robot-id pool order spawnInitialCompanies itself started from — the roster as it
+      // existed before any company claimed a member (locale.robots is already in spawn order).
+      const robotIds = locale.robots.map((r) => r.id);
+      const baseline = generateCompanyRosterBaseline(noiseMap, robotIds);
+
+      expect(baseline.length).toBe(realCompanies.length);
+      realCompanies.forEach((company, i) => {
+        expect(baseline[i].id, `company ${i}`).toBe(company.id);
+        expect(baseline[i].name, `company ${i}`).toBe(company.name);
+        expect(baseline[i].robotIds, `company ${i}`).toEqual(company.robotIds);
+      });
+    });
+
+    it('is pure — takes no store dependency (call with only a noise map and a plain id array)', () => {
+      const noiseMap = createNoise2D(alea('company-baseline-purity-seed'));
+      const robotIds = Array.from({ length: 10 }, (_, i) => `robot-${i}`);
+      expect(() => generateCompanyRosterBaseline(noiseMap, robotIds)).not.toThrow();
     });
   });
 });
