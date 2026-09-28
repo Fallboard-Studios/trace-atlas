@@ -99,19 +99,20 @@ Tasks 1 and 2 have no dependency on each other and could be done in either order
 
   **Estimated scope:** L (many files, but every edit beyond `Robot.ts`/`spawnSystem.ts` is the same one-line, mechanical addition — see "Why this is one task" above).
 
-- [ ] **Task 2: `melodyGenerator.ts` — `buildSeededComposition` pure helper**
+- [x] **Task 2: `melodyGenerator.ts` — `buildSeededComposition` pure helper** — done, commit `c5c52d4`
 
   **Description:** Add the exported pure function from spec §4.3: takes `compositionSeed: number` and the five current attribute values, builds a colon-joined key string (matching this codebase's existing `alea(`${a}:${b}:${c}`)` convention, e.g. `spawnSystem.ts`'s `alea(`${localeId}:${spawnCount}:copy`)`), and returns `alea(key)` — a ready-to-use `() => number`. `generateMelodyForRobot`'s own signature and internals are untouched by this task.
 
   **Acceptance criteria:**
-  - [ ] Same `compositionSeed` + same five attribute values (including each element of `octaveRange` independently) ⇒ identical output sequence from the returned `rand` function, across repeated calls and across fresh calls to `buildSeededComposition` itself.
-  - [ ] Changing *any one* of the six inputs changes the resulting sequence (tested independently per input, not just "changing something changes it").
-  - [ ] The returned function is a valid drop-in for `generateMelodyForRobot`'s `opts.rand` — a direct integration test calls `generateMelodyForRobot({ ..., rand: buildSeededComposition(...) })` and confirms it produces a melody with no errors and the expected `octaveMin`/`octaveMax` bounds.
-  - [ ] No `Math.random()` anywhere in the new code path (grep-verified, not just eyeballed) — the exact condition Crawford's spec approval was conditioned on.
+  - [x] Same `compositionSeed` + same five attribute values (including each element of `octaveRange` independently) ⇒ identical output sequence from the returned `rand` function, across repeated calls and across fresh calls to `buildSeededComposition` itself.
+  - [x] Changing *any one* of the six inputs changes the resulting sequence (tested independently per input, not just "changing something changes it").
+  - [x] The returned function is a valid drop-in for `generateMelodyForRobot`'s `opts.rand` — a direct integration test calls `generateMelodyForRobot({ ..., rand: buildSeededComposition(...) })` and confirms it produces a melody with no errors and the expected `octaveMin`/`octaveMax` bounds.
+  - [x] No `Math.random()` anywhere in the new code path — verified with a `vi.spyOn(Math, 'random')` assertion, not just eyeballed.
+  - [x] Mutation-checked: dropped `rhythmicDensity` from the key, confirmed the density-sensitivity test failed, reverted.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/melodyGenerator.test.ts`
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/melodyGenerator.test.ts` — 94 passed
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None (independent of Task 1).
 
@@ -120,10 +121,10 @@ Tasks 1 and 2 have no dependency on each other and could be done in either order
   **Estimated scope:** S (1 file + its test)
 
 ### Checkpoint A: Foundation proven
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (full suite, no new failures).
-- [ ] `compositionSeed` exists and is populated everywhere a `Robot` is constructed, real or test fixture.
-- [ ] `buildSeededComposition` is proven deterministic and input-sensitive in isolation. Nothing consumes it yet — melody generation itself is unchanged until Phase 2.
-- [ ] Reviewed with human before proceeding to Phase 2.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (full suite, no new failures) — 195 files / 4034 tests.
+- [x] `compositionSeed` exists and is populated everywhere a `Robot` is constructed, real or test fixture (compiler-forced sites; melody-relevant `as Robot`-cast fixtures also covered — see Task 1).
+- [x] `buildSeededComposition` is proven deterministic and input-sensitive in isolation. Nothing consumes it yet — melody generation itself is unchanged until Phase 2.
+- [ ] Reviewed with human before proceeding to Phase 2 — proceeding per Crawford's explicit "implement each task... sequentially" direction for this session; flagged here rather than silently skipped.
 
 ### Phase 2: Unify generation
 
