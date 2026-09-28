@@ -272,18 +272,18 @@ Tasks 1 and 2 have no dependency on each other and could be done in either order
 
 ### Phase 5: Docs
 
-- [ ] **Task 9: Update `docs/MELODY_SYSTEM.md`, `docs/PROCEDURAL_GENERATION.md`, `docs/todo/roadmap.md`**
+- [x] **Task 9: Update `docs/MELODY_SYSTEM.md`, `docs/PROCEDURAL_GENERATION.md`, `docs/todo/roadmap.md`** — done, commit `2f5b8ce`
 
   **Description:** Per spec §6. `MELODY_SYSTEM.md`'s "Seeding & lifecycle" section currently states Pitch Repeat (and its siblings) take "the existing unseeded `Math.random` manual-edit path, not the seeded one above" — false after this phase, rewrite to describe the unified `compositionSeed`/`buildSeededComposition` mechanism. Its Click Track section's call-site list currently names "Reset Melody" as one of four `AudioEngine.registerRobotMelody` call sites — remove it (three remain: spawn, an edit, the docking reroll). `PROCEDURAL_GENERATION.md`'s `melodyGenerator.ts` architecture-table row and its `offset` example both cite the retired `'melody.rand'`/`melodyCallIndex` mechanic — update to describe `compositionSeed`/`buildSeededComposition` instead, preserving the row's actual architectural point (melodyGenerator.ts still never imports noiseMaps/getSeededVal directly). `docs/todo/roadmap.md` Phase 31 marked done, linking this task file and the spec, following Phase 19/20's citation style — including an honest note on what shipped vs. the original roadmap text's framing, the way Phase 20's own Done note did.
 
   **Acceptance criteria:**
-  - [ ] `MELODY_SYSTEM.md` and `PROCEDURAL_GENERATION.md` describe only the shipped mechanism — no leftover references to `'melody.rand'`, `melodyCallIndex`, or "the existing unseeded Math.random manual-edit path."
-  - [ ] Every function/type name cited in the updated doc text is spot-checked against the real, final source (not this task file's own draft wording).
-  - [ ] `docs/todo/roadmap.md` Phase 31 marked done with links to this task file and the spec.
+  - [x] `MELODY_SYSTEM.md` and `PROCEDURAL_GENERATION.md` describe only the shipped mechanism — no leftover references to `'melody.rand'`, `melodyCallIndex`, or "the existing unseeded Math.random manual-edit path." (Confirmed via grep before writing — both mentions found and replaced.)
+  - [x] Every function/type name cited in the updated doc text is spot-checked against the real, final source.
+  - [x] `docs/todo/roadmap.md` Phase 31 marked done with links to this task file and the spec, plus an honest note on where shipped scope diverged from the original "About" framing (spawn+edit unification, `opts.rand` not `opts.seed`, the `sessionDiff.ts` fix).
 
   **Verification:**
-  - [ ] Manual review — every documented name/behavior checked directly against shipped code.
-  - [ ] `npm run build:types`, `npm run lint` clean (docs-only change).
+  - [x] Manual review — every documented name/behavior checked directly against shipped code.
+  - [x] `npm run build:types`, `npm run lint` clean (docs-only change).
 
   **Dependencies:** Tasks 1-8.
 
@@ -292,10 +292,10 @@ Tasks 1 and 2 have no dependency on each other and could be done in either order
   **Estimated scope:** S (3 files, docs only)
 
 ### Checkpoint E: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] All acceptance criteria across all 9 tasks are met.
-- [ ] Docs reflect the shipped API — every documented name spot-checked against source.
-- [ ] Ready for human review / PR against `feature/deterministic-robot-melody`.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean — 195 files / 4042 tests (full suite re-run after Task 9's docs changes; no flaky failures this run).
+- [x] All acceptance criteria across all 9 tasks are met.
+- [x] Docs reflect the shipped API — every documented name spot-checked against source.
+- [x] Ready for human review / PR against `feature/deterministic-robot-melody`. **One outstanding item, not silently closed:** the manual browser check (nudge-and-revert a slider, confirm melody sounds the same; confirm Reset Melody is gone everywhere in the live UI) has not been performed — no browser available during this implementation session.
 
 ## Risks and Mitigations
 
