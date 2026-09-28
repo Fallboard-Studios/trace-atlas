@@ -1,7 +1,15 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { AUTOSAVE_ROTATING_SLOT_IDS, type SessionEntry, type SessionPayload, type AutosaveSlotId } from '../types/session';
+import {
+  AUTOSAVE_ROTATING_SLOT_IDS,
+  MAX_AUTOSAVES_PER_SESSION,
+  LAST_UNSAVED_SESSION_KEY,
+  type SessionEntry,
+  type SessionPayload,
+  type AutosaveSlotId,
+  type AutosaveHistory,
+} from '../types/session';
 import { devWarn } from './helpers';
 
 // ========================================
@@ -21,6 +29,17 @@ interface SessionsStorageShape {
   autosave: Partial<Record<AutosaveSlotId, SessionEntry>>;
   /** FIFO write cursor for the 5 rotating slots — index into AUTOSAVE_ROTATING_SLOT_IDS. */
   nextRotatingIndex: number;
+  /** Session Autosave History (docs/specs/SESSION_AUTOSAVE_HISTORY.md) — supersedes `autosave`/
+   *  `nextRotatingIndex` above, which are kept temporarily until sessionAutosave.ts and
+   *  SessionListItem.tsx migrate off them. Keyed by session name; cascade-deleted with the
+   *  session in deleteNamedSession. */
+  namedAutosaves: Record<string, AutosaveHistory>;
+  /** Written to on every autosave tick while no named session is loaded. Never surfaced to the
+   *  UI directly — only promoted into unsavedLast at boot. */
+  unsavedCurrent: AutosaveHistory;
+  /** A frozen copy of whatever unsavedCurrent held as of the previous app boot — the one bucket
+   *  listUnsavedLastAutosaves() surfaces as a row. */
+  unsavedLast: AutosaveHistory;
 }
 
 // ========================================
@@ -30,7 +49,7 @@ interface SessionsStorageShape {
 export const STORAGE_KEY = 'trace-atlas.sessions.v1';
 
 function emptyStorage(): SessionsStorageShape {
-  return { named: {}, autosave: {}, nextRotatingIndex: 0 };
+  return { named: {}, autosave: {}, nextRotatingIndex: 0, namedAutosaves: {}, unsavedCurrent: [], unsavedLast: [] };
 }
 
 // ========================================
@@ -51,6 +70,9 @@ function readStorage(): SessionsStorageShape {
       named: parsed.named ?? {},
       autosave: parsed.autosave ?? {},
       nextRotatingIndex: typeof parsed.nextRotatingIndex === 'number' ? parsed.nextRotatingIndex : 0,
+      namedAutosaves: parsed.namedAutosaves ?? {},
+      unsavedCurrent: Array.isArray(parsed.unsavedCurrent) ? parsed.unsavedCurrent : [],
+      unsavedLast: Array.isArray(parsed.unsavedLast) ? parsed.unsavedLast : [],
     };
   } catch (err) {
     devWarn('[sessionStorageEngine] corrupted session storage, starting fresh', err);
@@ -89,11 +111,14 @@ export function saveAutosaveSlot(mode: AutosaveWriteMode, payload: SessionPayloa
   writeStorage(data);
 }
 
-/** Removes only the named entry — never an autosave slot, even one that happens to share the
- *  same string (a user naming a session "draft" is a distinct entry from the draft slot). */
+/** Removes the named entry AND its own autosave history (docs/specs/SESSION_AUTOSAVE_HISTORY.md
+ *  §7 item 1) — an orphaned namedAutosaves entry could never be reached once its parent row is
+ *  gone. Never touches an old-scheme autosave slot, even one that happens to share the same
+ *  string (a user naming a session "draft" is a distinct entry from the draft slot). */
 export function deleteNamedSession(name: string): void {
   const data = readStorage();
   delete data.named[name];
+  delete data.namedAutosaves[name];
   writeStorage(data);
 }
 
@@ -118,4 +143,62 @@ export function listSessions(): SessionEntry[] {
 export function loadSession(key: string): SessionPayload | undefined {
   const data = readStorage();
   return data.named[key]?.payload ?? data.autosave[key as AutosaveSlotId]?.payload;
+}
+
+// ========================================
+// SESSION AUTOSAVE HISTORY (docs/specs/SESSION_AUTOSAVE_HISTORY.md)
+// ========================================
+
+/** Pushes a new entry onto a history array, capping it at MAX_AUTOSAVES_PER_SESSION by evicting
+ *  the oldest (index 0) — shared by both the per-session and the unsaved-bucket write paths. */
+function pushCapped(history: AutosaveHistory, entry: SessionEntry): AutosaveHistory {
+  const next = [...history, entry];
+  return next.length > MAX_AUTOSAVES_PER_SESSION ? next.slice(next.length - MAX_AUTOSAVES_PER_SESSION) : next;
+}
+
+/** Sorted newest-first by savedAt — the display convention every history list follows. */
+function sortedDesc(history: AutosaveHistory): AutosaveHistory {
+  return [...history].sort((a, b) => b.savedAt - a.savedAt);
+}
+
+/** Writes one autosave tick into a named session's own rotating history (up to
+ *  MAX_AUTOSAVES_PER_SESSION entries) — never touches `named[name]` itself, and never any other
+ *  session's history. */
+export function saveNamedSessionAutosave(name: string, payload: SessionPayload): void {
+  const data = readStorage();
+  const existing = data.namedAutosaves[name] ?? [];
+  data.namedAutosaves[name] = pushCapped(existing, { name, savedAt: Date.now(), payload });
+  writeStorage(data);
+}
+
+/** A named session's own autosave history, newest first. `[]` if none exist — never throws. */
+export function listNamedSessionAutosaves(name: string): SessionEntry[] {
+  const data = readStorage();
+  return sortedDesc(data.namedAutosaves[name] ?? []);
+}
+
+/** Writes one autosave tick into the unsaved "current" bucket — used whenever no named session
+ *  is loaded. Never surfaced to the UI directly; only promoteUnsavedHistoryOnBoot() moves it
+ *  somewhere visible. */
+export function saveUnsavedAutosave(payload: SessionPayload): void {
+  const data = readStorage();
+  data.unsavedCurrent = pushCapped(data.unsavedCurrent, { name: LAST_UNSAVED_SESSION_KEY, savedAt: Date.now(), payload });
+  writeStorage(data);
+}
+
+/** Moves the full contents of the unsaved "current" bucket into "last" (overwriting whatever
+ *  "last" held, never merging), then empties "current". Intended to run exactly once per real app
+ *  boot — see sessionAutosave.ts's startSessionAutosave(). */
+export function promoteUnsavedHistoryOnBoot(): void {
+  const data = readStorage();
+  data.unsavedLast = data.unsavedCurrent;
+  data.unsavedCurrent = [];
+  writeStorage(data);
+}
+
+/** The unsaved "last" bucket's history, newest first. `[]` if nothing was ever promoted — never
+ *  throws. An empty result means the unsaved-history row itself should not render. */
+export function listUnsavedLastAutosaves(): SessionEntry[] {
+  const data = readStorage();
+  return sortedDesc(data.unsavedLast);
 }

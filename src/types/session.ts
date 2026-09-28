@@ -81,3 +81,23 @@ export const AUTOSAVE_ROTATING_SLOT_IDS: readonly AutosaveSlotId[] = ['unsaved-0
 export function isAutosaveSlotName(name: string): name is AutosaveSlotId {
   return name === 'draft' || (AUTOSAVE_ROTATING_SLOT_IDS as readonly string[]).includes(name);
 }
+
+/**
+ * Session Autosave History (docs/specs/SESSION_AUTOSAVE_HISTORY.md) — supersedes the 6-slot
+ * scheme above. AutosaveSlotId/AUTOSAVE_ROTATING_SLOT_IDS/isAutosaveSlotName are kept temporarily
+ * (still consumed by sessionAutosave.ts and SessionListItem.tsx) and removed once those callers
+ * migrate, so the build never breaks between tasks.
+ */
+
+/** Every autosave history bucket (a named session's own, or one of the two unsaved buckets)
+ *  holds at most this many entries — a 4th write evicts the oldest. */
+export const MAX_AUTOSAVES_PER_SESSION = 3;
+
+/** 0 to MAX_AUTOSAVES_PER_SESSION entries. Storage order is not meaningful — always sort by
+ *  savedAt (descending) for display. */
+export type AutosaveHistory = SessionEntry[];
+
+/** Stable identifier for the single visible unsaved-history row — it has no user-given name
+ *  (unlike a named session) so needs a sentinel distinct from any real session name. Never
+ *  written to localStorage as a key into `named`. */
+export const LAST_UNSAVED_SESSION_KEY = '__last-unsaved-session__';
