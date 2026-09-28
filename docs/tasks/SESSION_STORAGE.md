@@ -15,6 +15,9 @@ Carried forward from spec §7, all confirmed by Crawford 2026-09-27:
 - **"Transducer pressure ratio" maps to `AudioAttributes.filterFreq`**, provisionally — Task 3's acceptance criteria include a check against the actual `RobotOptionsTab.tsx` label; if it names a different field, that's a one-line fix to Task 3, not a re-plan.
 - **The 5-minute autosave is a plain `setInterval`**, not a debounced store `subscribe()` (spec §3) — confirmed not to conflict with `CLAUDE.md`'s musical-timing guardrail, since this timer touches no audio/animation path.
 - **`applySessionPayload` regenerates through the existing `worldTransition.ts` entry point**, never a parallel regeneration path — this is what keeps a future fix to `docs/DUPLICATE_VALUE_AUDIT.md` automatically covering session loads too (spec §7 risk 7).
+- **`SessionPayload.seed` is renamed to `attenuationStyleName`** (discovered during Task 4 implementation, both spec and Task 1 originally used "seed" following `docs/SESSION_STORAGE.md`'s own loose language). Reading `worldTransition.ts`/`noiseMaps.ts` showed there is no "seed" field in this codebase at all: locale/robot generation keys off `{x, y}` alone (`getLocaleNoiseMap`), and Audio Rig/global-LFO generation keys off the Attenuation Style's **name** alone (`deriveAttenuationStyleSeed(attenuationStyleName)` — the Attenuation Style's `id` is a random `crypto.randomUUID()`-style value used only for store bookkeeping, never for seeding). `retransmitWorld({ attenuationStyleName, coordinates })` is the exact existing regeneration entry point this maps onto.
+- **Company diffing needs its own pure roster-baseline replay** (`generateCompanyRosterBaseline`, Task 4.1), mirroring Task 2's robot one — `spawnInitialCompanies`'s membership-assignment loop is inline and store-coupled, the same problem Task 2 solved for robots. A company is treated as user-created (persisted in full, not diffed) when its id has no match in the regenerated baseline set — a robust, format-independent test since ids are otherwise opaque strings.
+- **Company membership is reapplied via `localeStore.assignRobotToCompany`, not a direct `updateCompany({ robotIds })` write** (discovered reading `localeStore.ts`) — `updateCompany` alone doesn't keep a member robot's own `companyId` field in sync, which `assignRobotToCompany` handles atomically.
 
 ## Definition of Done (every task)
 
@@ -37,16 +40,22 @@ Task 2 (spawnSystem.ts: extract pure baseline generator)
 Task 3 (sessionDiff.ts: computeRobotAudioOverrideDiff / computeCompanyDiff)
         │
         ▼
-Task 4 (sessionDiff.ts: buildSessionPayload / applySessionPayload)
+Task 4.1 (spawnSystem.ts: generateCompanyRosterBaseline — split out during implementation)
+        │
+        ▼
+Task 4.2 (sessionDiff.ts: buildSessionPayload)
+        │
+        ▼
+Task 4.3 (sessionDiff.ts: applySessionPayload)
                 ── Checkpoint A: diff core proven, Full-equivalent round-trip ──
 Phase 2 — Headless persistence
 Task 1 ──→ Task 5 (sessionStorageEngine.ts)
 Task 1 ──→ Task 6 (sessionStore.ts)
-Tasks 4, 5, 6 ──→ Task 7 (sessionAutosave.ts)
+Tasks 4.3, 5, 6 ──→ Task 7 (sessionAutosave.ts)
                 ── Checkpoint B: save/load/autosave provable with no UI ──
 Phase 3 — UI + wiring
 Tasks 5, 6 ──→ Task 8 (SessionListItem.tsx)
-Tasks 4, 5, 6, 8 ──→ Task 9 (SessionsPanel.tsx)
+Tasks 4.3, 5, 6, 8 ──→ Task 9 (SessionsPanel.tsx)
 Task 9 ──→ Task 10 (wire into SettingsContent.tsx + navTreeConfig.ts)
 Task 7 ──→ Task 11 (main.tsx boot wiring + boot-regression test)
                 ── Checkpoint C: feature complete end to end ──
@@ -55,7 +64,7 @@ Tasks 1–11 ──→ Task 12 (docs)
                 ── Checkpoint D: complete ──
 ```
 
-Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend only on Task 1); Task 8 could start as soon as Tasks 5–6 land, in parallel with Task 4's completion.
+Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend only on Task 1); Task 8 could start as soon as Tasks 5–6 land, in parallel with Task 4.x's completion.
 
 ## Task List
 
@@ -120,26 +129,67 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
 
   **Estimated scope:** M (2 files, several field-by-field cases)
 
-- [ ] **Task 4: `sessionDiff.ts` — `buildSessionPayload` / `applySessionPayload`**
+**Task 4 was split into 4.1–4.3 after discovery during implementation** (see the note below the checkpoint) — the original single "M" task turned out to require its own company-roster-baseline replay (mirroring Task 2's robot one) and a real bidirectional company-membership reapplication, not a plain field write.
 
-  **Description:** Extend the same file with the two integration-facing functions from spec §4.2. `buildSessionPayload()` reads current state from `attenuationStyleStore`/`localeStore`/`audioStore`, calls Task 3's diff functions per robot/company, and assembles a `SessionPayload` (spawn-generated companies as diffs, user-created companies as full objects per spec §1.2). `applySessionPayload(payload)` regenerates the world via `worldTransition.ts`'s `retransmitWorld` for `payload.seed`/`payload.coordinates`, then overlays `globalAudio` (via `audioStore.setGlobalAudio`) and every robot/company diff (via existing `localeStore`/`robotOptionsActions` update paths) on top.
+- [ ] **Task 4.1: `spawnSystem.ts` — `generateCompanyRosterBaseline`, pure company-roster replay**
+
+  **Description:** `spawnInitialCompanies`'s membership-assignment loop (a shrinking-pool draw over robot ids) is inline and store-coupled, the same shape problem Task 2 solved for robots. Add a pure, additive `generateCompanyRosterBaseline(noiseMap, robotIds): CompanyRosterBaseline[]` (`{ id, name, robotIds }[]`) that replays the exact same loop — `company.count`/`company.size`/`company.member` dataIds, `INITIAL_COMPANIES_MIN/MAX`, `COMPANY_SIZE_MIN/MAX` — given a plain robot-id pool instead of reading `locale.robots` from the store. `color` is omitted (not part of `CompanyDiff`). Requires exporting the currently-private `generateCompanyId` (mirroring why `generateCompanyName`/`generateCompanyIdentityColor` are already exported: "so it can be unit-tested directly").
 
   **Acceptance criteria:**
-  - [ ] `buildSessionPayload()` stamps `version: 1` on every payload it produces.
-  - [ ] `buildSessionPayload()` → `applySessionPayload()` round-trips: after building a payload from a world with several hand-edited robots/companies, wiping to a different seed, and applying the payload back, every diffed field matches the pre-wipe values.
-  - [ ] An untouched robot's entry is `{}` in the built payload and applying it changes nothing about that robot beyond what the seed alone produces.
-  - [ ] Applying a payload never writes `audioMode`, job assignment, docking state, or battery level (explicit regression guard — spec §5.3 criterion 3).
-  - [ ] `applySessionPayload` calls `worldTransition.ts`'s existing `retransmitWorld`, not a new parallel regeneration path (spec §7 risk 7 — verified by the call appearing in the implementation, not just by output).
+  - [ ] `generateCompanyRosterBaseline(noiseMap, robotIds)` reproduces the same `id`/`name`/`robotIds` for every company a real `spawnInitialCompanies(localeId)` call produces from the same noise map and robot-id pool (order preserved).
+  - [ ] Every existing `spawnSystem.test.ts` test still passes unmodified.
+  - [ ] Zero side effects: no store import, no store write.
+
+  **Verification:**
+  - [ ] `npx vitest run src/systems/spawnSystem.test.ts`
+  - [ ] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Task 2.
+
+  **Files:** `src/systems/spawnSystem.ts`, `src/systems/spawnSystem.test.ts`
+
+  **Estimated scope:** S (2 files, same additive-not-refactored approach as Task 2)
+
+- [ ] **Task 4.2: `sessionDiff.ts` — `buildSessionPayload`**
+
+  **Description:** Assembles a `SessionPayload` from live state: current Attenuation Style name + locale coordinates (see Architecture Decisions — `SessionPayload.seed` is renamed to `attenuationStyleName` here, matching what `worldTransition.ts`'s `retransmitWorld` actually takes; `src/types/session.ts` is updated accordingly), `audioStore.globalAudio`, per-robot diffs (Task 3 + Task 2's `generateRobotRosterBaseline`, omitting empty diffs entirely rather than storing `{}`), and per-company diffs (Task 3 + this task's `generateCompanyRosterBaseline`) — a company whose id has no match in the regenerated baseline set is a user-created company and goes into `userCreatedCompanies` as a full object instead of a diff.
+
+  **Acceptance criteria:**
+  - [ ] `version: 1` is stamped on every payload.
+  - [ ] An untouched robot has **no key** in `robotOverrides` (not a key mapping to `{}`).
+  - [ ] A spawn-generated company with no edits has no key in `companyDiffs`; one that was renamed or had membership changed has only the changed field(s).
+  - [ ] A user-created company (id not present in the regenerated baseline set) appears in `userCreatedCompanies` as a full object, never in `companyDiffs`.
+  - [ ] `attenuationStyleName`/`coordinates` match the currently active Attenuation Style/locale exactly.
+
+  **Verification:**
+  - [ ] `npx vitest run src/utils/sessionDiff.test.ts src/types/session.ts` (type-only file — covered by build:types)
+  - [ ] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Task 3, Task 4.1.
+
+  **Files:** `src/utils/sessionDiff.ts`, `src/utils/sessionDiff.test.ts`, `src/types/session.ts`
+
+  **Estimated scope:** M (3 files — real store integration, several assembly cases)
+
+- [ ] **Task 4.3: `sessionDiff.ts` — `applySessionPayload`**
+
+  **Description:** Regenerates the world via `worldTransition.ts`'s existing `retransmitWorld({ attenuationStyleName, coordinates })` (spec §7 risk 7 — no parallel regeneration path), then overlays: `globalAudio` via `useAudioStore.setState` + the already-exported `applyGlobalAudioToEngine`; each robot override via `localeStore.updateRobot`; each company diff's `name` via `localeStore.updateCompany` and any `robotIds` change via **`localeStore.assignRobotToCompany` per affected robot** (not a direct `robotIds` write — `updateCompany` alone does not keep member robots' own `companyId` in sync, discovered reading `localeStore.ts`); each `userCreatedCompanies` entry via `addCompany` plus `assignRobotToCompany` for each of its members.
+
+  **Acceptance criteria:**
+  - [ ] `buildSessionPayload()` → `applySessionPayload()` round-trips: after building a payload from a world with several hand-edited robots/companies (including at least one membership change and one user-created company), wiping to a different Attenuation Style/coordinates, and applying the payload back, every diffed field matches the pre-wipe values.
+  - [ ] After applying a company-membership diff or a user-created company, every affected robot's own `companyId` matches its company's `robotIds` both ways — no dangling/one-sided membership.
+  - [ ] Applying a payload never writes `audioMode`, job assignment, docking state, or battery level (regression guard — spec §5.3 criterion 3).
+  - [ ] `applySessionPayload`'s implementation calls `retransmitWorld`, not a reimplemented regeneration path.
 
   **Verification:**
   - [ ] `npx vitest run src/utils/sessionDiff.test.ts`
   - [ ] `npm run build:types`, `npm run lint` clean.
 
-  **Dependencies:** Task 3.
+  **Dependencies:** Task 4.2.
 
   **Files:** `src/utils/sessionDiff.ts`, `src/utils/sessionDiff.test.ts`
 
-  **Estimated scope:** M (same 2 files as Task 3, new integration-level cases)
+  **Estimated scope:** M (integration-heavy but 1 file + its test)
 
 ### Checkpoint A: Diff core proven
 - [ ] `npm run build:types`, `npm run lint`, `npm test` clean (full suite, no new failures).
@@ -193,7 +243,7 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
 
 - [ ] **Task 7: `sessionAutosave.ts` — the 5-minute background tick**
 
-  **Description:** `startSessionAutosave()`/`stopSessionAutosave()` per spec §4.4, mirroring `startAudioBudget()`'s module-singleton, idempotent shape. Every 5 minutes: read `sessionStore.getState().currentLoadedSessionName`; if `null`, build a payload (`buildSessionPayload`, Task 4) and write it to the next slot in the 5-slot FIFO rotation; if non-null, write to the single `'draft'` slot instead.
+  **Description:** `startSessionAutosave()`/`stopSessionAutosave()` per spec §4.4, mirroring `startAudioBudget()`'s module-singleton, idempotent shape. Every 5 minutes: read `sessionStore.getState().currentLoadedSessionName`; if `null`, build a payload (`buildSessionPayload`, Task 4.2) and write it to the next slot in the 5-slot FIFO rotation; if non-null, write to the single `'draft'` slot instead.
 
   **Acceptance criteria:**
   - [ ] With `currentLoadedSessionName: null`, 5 consecutive simulated ticks populate all 5 rotating slots in order; a 6th overwrites the oldest.
@@ -206,7 +256,7 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
   - [ ] `npx vitest run src/systems/sessionAutosave.test.ts` (fake timers).
   - [ ] `npm run build:types`, `npm run lint` clean.
 
-  **Dependencies:** Tasks 4, 5, 6.
+  **Dependencies:** Tasks 4.3, 5, 6.
 
   **Files:** `src/systems/sessionAutosave.ts`, `src/systems/sessionAutosave.test.ts`
 
@@ -254,7 +304,7 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
   - [ ] `npx vitest run src/components/panels/screen/console/SessionsPanel.test.tsx`
   - [ ] `npm run build:types`, `npm run lint` clean.
 
-  **Dependencies:** Tasks 4, 5, 6, 8.
+  **Dependencies:** Tasks 4.3, 5, 6, 8.
 
   **Files:** `src/components/panels/screen/console/SessionsPanel.tsx`, `src/components/panels/screen/console/SessionsPanel.test.tsx`, `src/components/panels/screen/console/SessionsPanel.css`
 
@@ -340,7 +390,8 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
 | Task 2's `spawnSystem.ts` refactor changes observable spawn behavior by accident (wrong offset, wrong noise-map slice) | High — would silently corrupt every robot's seeded values, not just diffing | Task 2's acceptance criteria require exact field-by-field equality against a real `spawnRobot()` call, plus the full pre-existing `spawnSystem.test.ts` suite passing unmodified |
 | `computeRobotAudioOverrideDiff` treats two structurally-equal-but-differently-ordered arrays/objects (e.g. `layers`) as "changed" when they aren't, producing spurious diffs that grow every save | Medium — sessions would slowly accumulate noise, defeating "an untouched robot round-trips to `{}}`" | Task 3 requires a deep-equality comparison (not reference equality) and an explicit round-trip test per field, including `layers`/`lfoSettings` |
 | The autosave interval and a manual "Save Session" click race (both write around the same moment) | Low — a rare double-write, not data loss, since named saves and autosave slots never share a key | Not specifically mitigated by a task; acceptable risk given named entries and autosave slots are always disjoint keys (Task 5) |
-| `applySessionPayload` diverges from `worldTransition.ts`'s regeneration path over time as that file evolves independently | Medium — session loads could silently drift from "what a fresh locale looks like" | Task 4's acceptance criteria require the implementation to call `retransmitWorld` directly, not reimplement regeneration — a code-level check, not just behavioral |
+| `applySessionPayload` diverges from `worldTransition.ts`'s regeneration path over time as that file evolves independently | Medium — session loads could silently drift from "what a fresh locale looks like" | Task 4.3's acceptance criteria require the implementation to call `retransmitWorld` directly, not reimplement regeneration — a code-level check, not just behavioral |
+| Company membership reapplication (Task 4.3) writes `robotIds` directly instead of using `assignRobotToCompany`, silently desyncing member robots' own `companyId` | High — a robot could show as a member in one place and Freelance in another after loading a session | Task 4.3's acceptance criteria explicitly require `assignRobotToCompany` per affected robot and a two-way consistency check after applying |
 | "Transducer pressure ratio" doesn't actually mean `filterFreq` | Low — cosmetic/mapping fix only | Task 3 includes an explicit check against `RobotOptionsTab.tsx`'s real label before the mapping is load-bearing anywhere |
 
 ## Open Questions

@@ -149,7 +149,13 @@ export interface SessionPayload {
    *  way to distinguish payload shapes later, which is not retrofittable after sessions already
    *  exist without it. */
   version: 1;
-  seed: string;
+  /** Renamed from "seed" after implementation discovery: this codebase has no literal "seed"
+   *  field. Locale/robot generation keys off {x, y} alone (noiseMaps.ts's getLocaleNoiseMap);
+   *  Audio Rig/global-LFO generation keys off the Attenuation Style's NAME alone
+   *  (deriveAttenuationStyleSeed) — its id is a random bookkeeping value, never a seed input.
+   *  Maps directly onto worldTransition.ts's existing retransmitWorld({ attenuationStyleName,
+   *  coordinates }) entry point. */
+  attenuationStyleName: string;
   coordinates: { x: number; y: number };
   globalAudio: GlobalAudioSettings;
   robotOverrides: Record<string /* robot id */, RobotAudioOverrideDiff>;
@@ -189,7 +195,7 @@ export function computeCompanyDiff(live: Company, spawnDefault: Pick<Company, 'n
 /** Assembles a full SessionPayload from current store state, stamped with version: 1. */
 export function buildSessionPayload(): SessionPayload;
 
-/** Regenerates the world from payload.seed/coordinates (via worldTransition.ts's retransmitWorld),
+/** Regenerates the world from payload.attenuationStyleName/coordinates (via worldTransition.ts's retransmitWorld),
  *  then overlays globalAudio, robotOverrides, companyDiffs, and userCreatedCompanies on top —
  *  "diff on top of a regenerated roster," per docs/SESSION_STORAGE.md's original phrasing. */
 export function applySessionPayload(payload: SessionPayload): void;
@@ -288,3 +294,4 @@ These are spec-author (Claude) decisions and assumptions made to keep the interv
 5. **Autosave slot display labels** ("Unsaved Session" vs. something using the word-list generator) weren't specified in the interview beyond "the last 'unsaved' session" — left as an implementation-level copy decision for the Tasks phase.
 6. **Risk: the `spawnSystem.ts` refactor (item 2) touches code the recent `TEST_COVERAGE_CORE_MODULES` pass just finished covering.** Mitigation: extract without changing `spawnRobot`'s existing observable behavior, and re-run the full suite after the refactor before building diffing on top of it.
 7. **Risk: `applySessionPayload`'s "regenerate then overlay" must not reintroduce a duplicate-value bug of the class tracked in `docs/DUPLICATE_VALUE_AUDIT.md`.** Mitigation: route regeneration through the existing `worldTransition.ts` entry point rather than a new parallel regeneration path, so any future fix to that audit lands here automatically.
+8. **Resolved during implementation (task breakdown, `docs/tasks/SESSION_STORAGE.md`):** `SessionPayload.seed` renamed to `attenuationStyleName` (§1.2/§4.1 updated above — this codebase has no literal "seed" field); company diffing needs its own pure `generateCompanyRosterBaseline` mirroring §4.1's robot one (`spawnInitialCompanies`'s membership loop is inline/store-coupled); company-membership reapplication must go through `localeStore.assignRobotToCompany` per affected robot, not a direct `robotIds` write, since `updateCompany` alone doesn't keep a member robot's own `companyId` in sync.
