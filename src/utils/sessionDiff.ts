@@ -125,36 +125,43 @@ function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioSto
     toCapture.reverb = { ...toCapture.reverb, wet: reverbWetSwell };
   }
 
-  // Quantize all fields to eliminate floating-point rounding errors
+  // Quantize all fields to eliminate floating-point rounding errors and clean up representation artifacts
+  toCapture.compressor = {
+    threshold: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.threshold, GLOBAL_AUDIO_SEED_RANGES['compressor.threshold'].min, 1), 0),
+    ratio: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.ratio, GLOBAL_AUDIO_SEED_RANGES['compressor.ratio'].min, 1), 0),
+    attack: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.attack, GLOBAL_AUDIO_SEED_RANGES['compressor.attack'].min, 0.001), 3),
+    release: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.release, GLOBAL_AUDIO_SEED_RANGES['compressor.release'].min, 0.001), 3),
+    knee: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.knee, GLOBAL_AUDIO_SEED_RANGES['compressor.knee'].min, 1), 0),
+  };
   toCapture.eq3 = {
-    low: quantizeToStep(toCapture.eq3.low, GLOBAL_AUDIO_SEED_RANGES['eq3.low'].min, 0.5),
-    mid: quantizeToStep(toCapture.eq3.mid, GLOBAL_AUDIO_SEED_RANGES['eq3.mid'].min, 0.5),
-    high: quantizeToStep(toCapture.eq3.high, GLOBAL_AUDIO_SEED_RANGES['eq3.high'].min, 0.5),
+    low: cleanupFloatingPoint(quantizeToStep(toCapture.eq3.low, GLOBAL_AUDIO_SEED_RANGES['eq3.low'].min, 0.5), 1),
+    mid: cleanupFloatingPoint(quantizeToStep(toCapture.eq3.mid, GLOBAL_AUDIO_SEED_RANGES['eq3.mid'].min, 0.5), 1),
+    high: cleanupFloatingPoint(quantizeToStep(toCapture.eq3.high, GLOBAL_AUDIO_SEED_RANGES['eq3.high'].min, 0.5), 1),
   };
   toCapture.filterLPF = {
     ...toCapture.filterLPF,
-    frequency: quantizeToStep(toCapture.filterLPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterLPF.frequency'].min, 1),
-    Q: quantizeToStep(toCapture.filterLPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterLPF.Q'].min, 0.01),
+    frequency: cleanupFloatingPoint(quantizeToStep(toCapture.filterLPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterLPF.frequency'].min, 1), 0),
+    Q: cleanupFloatingPoint(quantizeToStep(toCapture.filterLPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterLPF.Q'].min, 0.01), 2),
   };
   toCapture.filterHPF = {
     ...toCapture.filterHPF,
-    frequency: quantizeToStep(toCapture.filterHPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterHPF.frequency'].min, 1),
-    Q: quantizeToStep(toCapture.filterHPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterHPF.Q'].min, 0.01),
+    frequency: cleanupFloatingPoint(quantizeToStep(toCapture.filterHPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterHPF.frequency'].min, 1), 0),
+    Q: cleanupFloatingPoint(quantizeToStep(toCapture.filterHPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterHPF.Q'].min, 0.01), 2),
   };
   toCapture.delay = {
     ...toCapture.delay,
-    delayTime: quantizeToStep(toCapture.delay.delayTime, GLOBAL_AUDIO_SEED_RANGES['delay.delayTime'].min, 0.001),
-    feedback: quantizeToStep(toCapture.delay.feedback, GLOBAL_AUDIO_SEED_RANGES['delay.feedback'].min, 0.01),
-    wet: quantizeToStep(toCapture.delay.wet, GLOBAL_AUDIO_SEED_RANGES['delay.wet'].min, 0.01),
+    delayTime: cleanupFloatingPoint(quantizeToStep(toCapture.delay.delayTime, GLOBAL_AUDIO_SEED_RANGES['delay.delayTime'].min, 0.001), 3),
+    feedback: cleanupFloatingPoint(quantizeToStep(toCapture.delay.feedback, GLOBAL_AUDIO_SEED_RANGES['delay.feedback'].min, 0.01), 2),
+    wet: cleanupFloatingPoint(quantizeToStep(toCapture.delay.wet, GLOBAL_AUDIO_SEED_RANGES['delay.wet'].min, 0.01), 2),
   };
   toCapture.reverb = {
     ...toCapture.reverb,
-    decay: quantizeToStep(toCapture.reverb.decay, GLOBAL_AUDIO_SEED_RANGES['reverb.decay'].min, 0.01),
-    preDelay: quantizeToStep(toCapture.reverb.preDelay, GLOBAL_AUDIO_SEED_RANGES['reverb.preDelay'].min, 0.01),
-    wet: quantizeToStep(toCapture.reverb.wet, GLOBAL_AUDIO_SEED_RANGES['reverb.wet'].min, 0.01),
+    decay: cleanupFloatingPoint(quantizeToStep(toCapture.reverb.decay, GLOBAL_AUDIO_SEED_RANGES['reverb.decay'].min, 0.01), 2),
+    preDelay: cleanupFloatingPoint(quantizeToStep(toCapture.reverb.preDelay, GLOBAL_AUDIO_SEED_RANGES['reverb.preDelay'].min, 0.01), 2),
+    wet: cleanupFloatingPoint(quantizeToStep(toCapture.reverb.wet, GLOBAL_AUDIO_SEED_RANGES['reverb.wet'].min, 0.01), 2),
   };
   toCapture.limiter = {
-    threshold: quantizeToStep(toCapture.limiter.threshold, GLOBAL_AUDIO_SEED_RANGES['limiter.threshold'].min, 1),
+    threshold: cleanupFloatingPoint(quantizeToStep(toCapture.limiter.threshold, GLOBAL_AUDIO_SEED_RANGES['limiter.threshold'].min, 1), 0),
   };
 
   // Quantize lfoDrift fields to 0.01 (1% precision in -1..1 range) and clean up floating-point noise
@@ -201,15 +208,23 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
   }
   if (!deepEqual(adsrToCapture, baseline.audioAttributes.adsr)) diff.adsr = adsrToCapture;
 
-  // Apply swell base values to layer fields if swells are active, with floating-point cleanup
+  // Apply swell base values to layer fields if swells are active, with floating-point cleanup.
+  // Normalize baseline layers the same way for fair comparison.
+  const baselineLayersNormalized = baseline.audioAttributes.layers?.map((layer) => ({
+    type: layer.type,
+    gain: cleanupFloatingPoint(layer.gain, 2),
+    detune: layer.detune,
+    phase: layer.phase,
+    pulseWidth: layer.pulseWidth,
+  }));
   const layersToCapture = live.audioAttributes.layers?.map((layer, layerIndex) => ({
-    ...layer,
+    type: layer.type,
     gain: cleanupFloatingPoint(extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.gain` as SwellRobotAttributeId) ?? layer.gain, 2),
     detune: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.detune` as SwellRobotAttributeId) ?? layer.detune,
     phase: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.phase` as SwellRobotAttributeId) ?? layer.phase,
     pulseWidth: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.pulseWidth` as SwellRobotAttributeId) ?? layer.pulseWidth,
   }));
-  if (!deepEqual(layersToCapture, baseline.audioAttributes.layers)) diff.layers = layersToCapture;
+  if (!deepEqual(layersToCapture, baselineLayersNormalized)) diff.layers = layersToCapture;
 
   if (!deepEqual(live.audioAttributes.filterFreq, baseline.audioAttributes.filterFreq)) diff.filterFreq = live.audioAttributes.filterFreq;
   if (!deepEqual(live.octaveRange, baseline.octaveRange)) diff.octaveRange = live.octaveRange;
