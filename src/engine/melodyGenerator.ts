@@ -78,6 +78,41 @@ export interface GenerateMelodyForRobotOptions {
   pitchRepeat?: number;
 }
 
+/**
+ * Deterministic Robot Melody Generation (Roadmap Phase 31) — combines a robot's
+ * `compositionSeed` (drawn once at spawn, spawnSystem.ts) with its current rhythmic attributes
+ * into a single `() => number`, a drop-in for `generateMelodyForRobot`'s `opts.rand`. Used
+ * identically by spawnSystem.ts's initial melody generation and regenerateMelody.ts's edit-time
+ * regeneration — the same inputs always produce the same rand stream in both places, which is
+ * what makes a post-spawn edit that's reverted reproduce the exact spawn-time melody (no
+ * "first-edit ratchet"). A colon-joined key string fed to `alea()`, matching this codebase's own
+ * convention elsewhere (e.g. spawnSystem.ts's `alea(`${localeId}:${spawnCount}:copy`)`) rather
+ * than hashing everything down to a single number for `opts.seed` — `opts.seed` only accepts one
+ * number, stringified, which can't cleanly fold in five additional values (confirmed with
+ * Crawford, docs/specs/DETERMINISTIC_ROBOT_MELODY_GENERATION.md §7 item 2). Fully deterministic —
+ * no Math.random anywhere in this function.
+ */
+export function buildSeededComposition(
+  compositionSeed: number,
+  attrs: {
+    rhythmicDensity: number;
+    rhythmicMotifLength: ToggleValue;
+    noteVariance: ToggleValue;
+    pitchRepeat: number;
+    octaveRange: [number, number];
+  },
+): () => number {
+  const key = [
+    compositionSeed,
+    attrs.rhythmicDensity,
+    `${attrs.rhythmicMotifLength.active}-${attrs.rhythmicMotifLength.value}`,
+    `${attrs.noteVariance.active}-${attrs.noteVariance.value}`,
+    attrs.pitchRepeat,
+    `${attrs.octaveRange[0]}-${attrs.octaveRange[1]}`,
+  ].join(':');
+  return alea(key);
+}
+
 // ========================================
 // CONSTANTS
 // ========================================

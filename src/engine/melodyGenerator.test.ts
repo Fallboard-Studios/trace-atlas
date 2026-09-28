@@ -1,4 +1,4 @@
-﻿import { describe, it, expect } from 'vitest';
+﻿import { describe, it, expect, vi } from 'vitest';
 import alea from 'alea';
 import {
   pickRandomIndices,
@@ -8,10 +8,12 @@ import {
   pickDurationForGap,
   generateMelodyForRobot,
   reRollMelodyPitches,
+  buildSeededComposition,
   DEFAULT_SUBDIVISIONS,
   DEFAULT_RHYTHMIC_DENSITY,
   DEFAULT_RHYTHMIC_MOTIF_LENGTH,
   DEFAULT_NOTE_VARIANCE,
+  type ToggleValue,
 } from './melodyGenerator';
 import type { MelodyEvent } from '../types/Robot';
 import { NOTE_PALETTE_SIZE } from '../constants';
@@ -621,6 +623,112 @@ describe('generateMelodyForRobot — GenerateMelodyForRobotOptions', () => {
     expect(DEFAULT_NOTE_VARIANCE).toEqual({ active: false, value: 0 });
     const melody = generateMelodyForRobot({ octaveMin: 3, octaveMax: 4, seed: 9 });
     expect(melody.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ========================================
+// TEST SUITE: buildSeededComposition (Deterministic Robot Melody Generation, Task 2)
+// ========================================
+
+describe('buildSeededComposition', () => {
+  const baseAttrs: {
+    rhythmicDensity: number;
+    rhythmicMotifLength: ToggleValue;
+    noteVariance: ToggleValue;
+    pitchRepeat: number;
+    octaveRange: [number, number];
+  } = {
+    rhythmicDensity: 50,
+    rhythmicMotifLength: { active: true, value: 8 },
+    noteVariance: { active: false, value: 0 },
+    pitchRepeat: 0,
+    octaveRange: [3, 5],
+  };
+
+  function drawSequence(rand: () => number, n = 5): number[] {
+    return Array.from({ length: n }, () => rand());
+  }
+
+  it('same compositionSeed + same attrs produce an identical output sequence, across repeated calls to the returned function and across fresh calls to buildSeededComposition itself', () => {
+    const seqA = drawSequence(buildSeededComposition(0.42, baseAttrs));
+    const seqB = drawSequence(buildSeededComposition(0.42, baseAttrs));
+    expect(seqA).toEqual(seqB);
+  });
+
+  it('changing compositionSeed changes the output sequence', () => {
+    const seqA = drawSequence(buildSeededComposition(0.42, baseAttrs));
+    const seqB = drawSequence(buildSeededComposition(0.43, baseAttrs));
+    expect(seqA).not.toEqual(seqB);
+  });
+
+  it('changing rhythmicDensity changes the output sequence', () => {
+    const seqA = drawSequence(buildSeededComposition(0.42, baseAttrs));
+    const seqB = drawSequence(buildSeededComposition(0.42, { ...baseAttrs, rhythmicDensity: 75 }));
+    expect(seqA).not.toEqual(seqB);
+  });
+
+  it('changing rhythmicMotifLength changes the output sequence', () => {
+    const seqA = drawSequence(buildSeededComposition(0.42, baseAttrs));
+    const seqB = drawSequence(buildSeededComposition(0.42, { ...baseAttrs, rhythmicMotifLength: { active: true, value: 4 } }));
+    expect(seqA).not.toEqual(seqB);
+  });
+
+  it('changing noteVariance changes the output sequence', () => {
+    const seqA = drawSequence(buildSeededComposition(0.42, baseAttrs));
+    const seqB = drawSequence(buildSeededComposition(0.42, { ...baseAttrs, noteVariance: { active: true, value: 3 } }));
+    expect(seqA).not.toEqual(seqB);
+  });
+
+  it('changing pitchRepeat changes the output sequence', () => {
+    const seqA = drawSequence(buildSeededComposition(0.42, baseAttrs));
+    const seqB = drawSequence(buildSeededComposition(0.42, { ...baseAttrs, pitchRepeat: 80 }));
+    expect(seqA).not.toEqual(seqB);
+  });
+
+  it('changing octaveRange[0] alone changes the output sequence', () => {
+    const seqA = drawSequence(buildSeededComposition(0.42, baseAttrs));
+    const seqB = drawSequence(buildSeededComposition(0.42, { ...baseAttrs, octaveRange: [2, 5] }));
+    expect(seqA).not.toEqual(seqB);
+  });
+
+  it('changing octaveRange[1] alone changes the output sequence', () => {
+    const seqA = drawSequence(buildSeededComposition(0.42, baseAttrs));
+    const seqB = drawSequence(buildSeededComposition(0.42, { ...baseAttrs, octaveRange: [3, 6] }));
+    expect(seqA).not.toEqual(seqB);
+  });
+
+  it('is a valid drop-in for generateMelodyForRobot\'s opts.rand', () => {
+    const rand = buildSeededComposition(0.42, baseAttrs);
+    const melody = generateMelodyForRobot({
+      octaveMin: baseAttrs.octaveRange[0],
+      octaveMax: baseAttrs.octaveRange[1],
+      rhythmicDensity: baseAttrs.rhythmicDensity,
+      rhythmicMotifLength: baseAttrs.rhythmicMotifLength,
+      noteVariance: baseAttrs.noteVariance,
+      pitchRepeat: baseAttrs.pitchRepeat,
+      rand,
+    });
+    expect(melody.length).toBeGreaterThan(0);
+    for (const event of melody) {
+      expect(event.octave).toBeGreaterThanOrEqual(baseAttrs.octaveRange[0]);
+      expect(event.octave).toBeLessThanOrEqual(baseAttrs.octaveRange[1]);
+    }
+  });
+
+  it('never calls Math.random — fully seeded, per Crawford\'s spec-approval condition', () => {
+    const spy = vi.spyOn(Math, 'random');
+    const rand = buildSeededComposition(0.42, baseAttrs);
+    generateMelodyForRobot({
+      octaveMin: baseAttrs.octaveRange[0],
+      octaveMax: baseAttrs.octaveRange[1],
+      rhythmicDensity: baseAttrs.rhythmicDensity,
+      rhythmicMotifLength: baseAttrs.rhythmicMotifLength,
+      noteVariance: baseAttrs.noteVariance,
+      pitchRepeat: baseAttrs.pitchRepeat,
+      rand,
+    });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 
