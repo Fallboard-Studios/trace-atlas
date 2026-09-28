@@ -6,19 +6,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('sessionStore fresh-module defaults', () => {
-  afterEach(() => {
-    vi.resetModules();
-  });
-
-  it('viewingUnsavedHistory defaults to false on a freshly created store', async () => {
-    vi.resetModules();
-    const { useSessionStore: freshStore } = await import('./sessionStore');
-    expect(freshStore.getState().viewingUnsavedHistory).toBe(false);
-  });
-});
-
 describe('sessionStore', () => {
+  it('has no viewingUnsavedHistory field or setViewingUnsavedHistory action (regression guard, cut feature)', () => {
+    expect(useSessionStore.getState()).not.toHaveProperty('viewingUnsavedHistory');
+    expect(useSessionStore.getState()).not.toHaveProperty('setViewingUnsavedHistory');
+  });
+
   it('currentSessionName is a non-empty generated name on store creation', () => {
     expect(useSessionStore.getState().currentSessionName).toEqual(expect.any(String));
     expect(useSessionStore.getState().currentSessionName.length).toBeGreaterThan(0);
@@ -49,38 +42,6 @@ describe('sessionStore', () => {
   it('setCurrentLoadedSessionName accepts null to clear it back to unloaded', () => {
     useSessionStore.getState().setCurrentLoadedSessionName('some-saved-session');
     useSessionStore.getState().setCurrentLoadedSessionName(null);
-    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-  });
-
-  it('setCurrentLoadedSessionName with a non-null name clears viewingUnsavedHistory back to false', () => {
-    useSessionStore.setState({ viewingUnsavedHistory: true, currentLoadedSessionName: null });
-    useSessionStore.getState().setCurrentLoadedSessionName('some-saved-session');
-
-    expect(useSessionStore.getState().viewingUnsavedHistory).toBe(false);
-    expect(useSessionStore.getState().currentLoadedSessionName).toBe('some-saved-session');
-  });
-
-  it('setViewingUnsavedHistory(true) clears currentLoadedSessionName back to null', () => {
-    useSessionStore.setState({ viewingUnsavedHistory: false, currentLoadedSessionName: 'some-saved-session' });
-    useSessionStore.getState().setViewingUnsavedHistory(true);
-
-    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-    expect(useSessionStore.getState().viewingUnsavedHistory).toBe(true);
-  });
-
-  it('setCurrentLoadedSessionName(null) does NOT itself set viewingUnsavedHistory', () => {
-    useSessionStore.setState({ viewingUnsavedHistory: false, currentLoadedSessionName: 'some-saved-session' });
-    useSessionStore.getState().setCurrentLoadedSessionName(null);
-
-    expect(useSessionStore.getState().viewingUnsavedHistory).toBe(false);
-    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-  });
-
-  it('setViewingUnsavedHistory(false) does not force currentLoadedSessionName to any particular value', () => {
-    useSessionStore.setState({ viewingUnsavedHistory: true, currentLoadedSessionName: null });
-    useSessionStore.getState().setViewingUnsavedHistory(false);
-
-    expect(useSessionStore.getState().viewingUnsavedHistory).toBe(false);
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
   });
 
