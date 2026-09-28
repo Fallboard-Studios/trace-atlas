@@ -205,3 +205,47 @@ suggest a shared, load- or order-dependent input (wall-clock time, seeded random
 isn't fully pinned, or a timing-sensitive assertion). Worth a look before a CI gate is
 added (there is none yet — see `CLAUDE.md`'s PR process note), since a flaky gate trains
 people to re-run instead of read.
+
+### 16. `worldTransition.ts`: Retransmitting the Currently-Active Attenuation Style's Own Name Corrupts the Store
+
+Found while implementing Session Storage's `applySessionPayload` (roadmap Phase 20,
+`docs/tasks/SESSION_STORAGE.md` Task 4.3), 2026-09-27. Not yet fixed here — worked around
+in `sessionDiff.ts`'s own caller instead (see below); the underlying gap in
+`worldTransition.ts` itself is still open.
+
+`worldTransition.ts`'s `createNewAttenuationStyle(attenuationStyleName)` unconditionally
+calls `attenuationStyleStore.addAttenuationStyle(newAttenuationStyle)` and returns the
+constructed object regardless of whether the add actually succeeded. `addAttenuationStyle`
+silently refuses (returns `false`, does not append to `attenuationStyles`) when the name is
+already taken (case-insensitive) by an existing entry — logging a `devWarn`, nothing more.
+`retransmitBoth`/`retransmitAttenuationStyleOnly` then proceed to call `setCurrentLocale`
+and `finalizeAttenuationStyleTransition` (which sets `currentAttenuationStyleId` to the
+phantom new id and **removes the old Attenuation Style**) as if the add had worked. Net
+result when the name collides: `attenuationStyles` loses its real entry, gains nothing, and
+`currentAttenuationStyleId` dangles — `selectCurrentAttenuationStyle` returns `undefined`
+from then on.
+
+This has apparently never surfaced from the live UI, because `SectorSettingsDrawer`'s name
+field only ever sends `attenuationStyleName` to `retransmitWorld` when the user actually
+edited it (`RetransmitInput`'s own doc comment) — which in practice always produces a
+*different* name, never a same-name resubmission. `applySessionPayload` is a new caller
+that always has an `attenuationStyleName` (every `SessionPayload` carries one
+unconditionally), and reloading a session while still on the same Attenuation Style you
+saved it from — a very common case — hits the collision every time. Worked around there by
+omitting `attenuationStyleName` from the `retransmitWorld` call whenever it matches the
+currently active one (routing through the already-correct `coordsOnly` branch instead,
+which preserves the current Attenuation Style untouched).
+
+**Not covered by the workaround:** a payload naming a *different* Attenuation Style than
+the one currently active, whose name happens to already exist elsewhere in
+`attenuationStyles` (e.g. multiple named worlds open in the same session). Rare in today's
+usage (an Attenuation Style is normally removed the moment a new one replaces it), but
+still a real latent bug in `worldTransition.ts` itself.
+
+**Fix shape:** have `createNewAttenuationStyle` check `addAttenuationStyle`'s boolean
+return; on `false`, look up and reuse the existing Attenuation Style with that name instead
+of proceeding with a phantom one. Needs its own scoping pass — reusing an existing
+Attenuation Style mid-transition touches the same `locales`/`currentLocaleId` bookkeeping
+`retransmitAttenuationStyleOnly` already has to reason about, and should get a regression
+test that recreates the collision directly (name matches the currently active style), not
+just Session Storage's own round-trip tests.
