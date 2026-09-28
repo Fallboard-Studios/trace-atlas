@@ -6,12 +6,16 @@ import type { Company } from '../types/Company';
 import { generateRobotRosterBaseline, generateCompanyRosterBaseline, type RobotAudioBaseline } from '../systems/spawnSystem';
 import type { RobotAudioOverrideDiff, CompanyDiff, SessionPayload } from '../types/session';
 import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoSettings } from '../types/lfo';
+import type { SwellRobotAttributeId } from '../types/audioSwell';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
 import { getLocaleNoiseMap } from './noiseMaps';
+import { quantizeToStep } from './math';
+import { GLOBAL_AUDIO_SEED_RANGES } from '../data/globalAudioSeedRanges';
 import { retransmitWorld } from '../systems/worldTransition';
 import { regenerateMelody } from '../engine/regenerateMelody';
+import { getActiveSwellSnapshot } from '../systems/audioSwells';
 
 // ========================================
 // FUNCTIONS
@@ -34,17 +38,194 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return aKeys.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
 }
 
+/** If a swell is currently active on this (robotId, attribute) pair, return its baseValue for
+ *  that member. Otherwise return undefined. Used to capture the normalized base value instead of
+ *  the mid-ramp interpolated value when saving a session while swells are in flight.  */
+function extractSwellBaseValueIfActive(robotId: string, attribute: SwellRobotAttributeId): number | undefined {
+  const swells = getActiveSwellSnapshot('robot');
+  for (const swell of swells) {
+    if (swell.robotAttribute === attribute && swell.members) {
+      const member = swell.members.find((m) => m.robotId === robotId);
+      if (member) return member.baseValue;
+    }
+  }
+  return undefined;
+}
+
+/** If a swell is currently active on this global target, return its baseValue.
+ *  Otherwise return undefined. Used to capture the normalized base value instead of
+ *  the mid-ramp interpolated value when saving global audio while swells are in flight. */
+function extractGlobalSwellBaseValueIfActive(target: string): number | undefined {
+  const swells = getActiveSwellSnapshot('global');
+  for (const swell of swells) {
+    if (swell.globalTarget === target && swell.baseValue !== undefined) {
+      return swell.baseValue;
+    }
+  }
+  return undefined;
+}
+
+/** Clean up floating-point representation errors by rounding to the appropriate number
+ *  of decimal places. E.g., -0.42000000000000004 → -0.42. For 2 decimal places: round to
+ *  nearest 0.01 by shifting, rounding, and shifting back. */
+function cleanupFloatingPoint(value: number, decimalPlaces: number): number {
+  const factor = Math.pow(10, decimalPlaces);
+  return Math.round(value * factor) / factor;
+}
+
+/** Apply swell base values to globalAudio fields if swells are active, so persisted
+ *  global audio always contains normalized data regardless of swell phase. */
+function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioStore.getState>['globalAudio']) {
+  const toCapture = { ...globalAudio };
+
+  // EQ bands
+  const eqSwellLow = extractGlobalSwellBaseValueIfActive('eq3.low');
+  const eqSwellMid = extractGlobalSwellBaseValueIfActive('eq3.mid');
+  const eqSwellHigh = extractGlobalSwellBaseValueIfActive('eq3.high');
+  if (eqSwellLow !== undefined || eqSwellMid !== undefined || eqSwellHigh !== undefined) {
+    toCapture.eq3 = {
+      ...toCapture.eq3,
+      ...(eqSwellLow !== undefined ? { low: eqSwellLow } : {}),
+      ...(eqSwellMid !== undefined ? { mid: eqSwellMid } : {}),
+      ...(eqSwellHigh !== undefined ? { high: eqSwellHigh } : {}),
+    };
+  }
+
+  // LPF
+  const lpfFreqSwell = extractGlobalSwellBaseValueIfActive('lpf.frequency');
+  const lpfQSwell = extractGlobalSwellBaseValueIfActive('lpf.Q');
+  if (lpfFreqSwell !== undefined || lpfQSwell !== undefined) {
+    toCapture.filterLPF = {
+      ...toCapture.filterLPF,
+      ...(lpfFreqSwell !== undefined ? { frequency: lpfFreqSwell } : {}),
+      ...(lpfQSwell !== undefined ? { Q: lpfQSwell } : {}),
+    };
+  }
+
+  // HPF
+  const hpfFreqSwell = extractGlobalSwellBaseValueIfActive('hpf.frequency');
+  const hpfQSwell = extractGlobalSwellBaseValueIfActive('hpf.Q');
+  if (hpfFreqSwell !== undefined || hpfQSwell !== undefined) {
+    toCapture.filterHPF = {
+      ...toCapture.filterHPF,
+      ...(hpfFreqSwell !== undefined ? { frequency: hpfFreqSwell } : {}),
+      ...(hpfQSwell !== undefined ? { Q: hpfQSwell } : {}),
+    };
+  }
+
+  // Delay
+  const delayWetSwell = extractGlobalSwellBaseValueIfActive('delay.wet');
+  if (delayWetSwell !== undefined) {
+    toCapture.delay = { ...toCapture.delay, wet: delayWetSwell };
+  }
+
+  // Reverb
+  const reverbWetSwell = extractGlobalSwellBaseValueIfActive('reverb.wet');
+  if (reverbWetSwell !== undefined) {
+    toCapture.reverb = { ...toCapture.reverb, wet: reverbWetSwell };
+  }
+
+  // Quantize all fields to eliminate floating-point rounding errors and clean up representation artifacts
+  toCapture.compressor = {
+    threshold: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.threshold, GLOBAL_AUDIO_SEED_RANGES['compressor.threshold'].min, 1), 0),
+    ratio: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.ratio, GLOBAL_AUDIO_SEED_RANGES['compressor.ratio'].min, 1), 0),
+    attack: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.attack, GLOBAL_AUDIO_SEED_RANGES['compressor.attack'].min, 0.001), 3),
+    release: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.release, GLOBAL_AUDIO_SEED_RANGES['compressor.release'].min, 0.001), 3),
+    knee: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.knee, GLOBAL_AUDIO_SEED_RANGES['compressor.knee'].min, 1), 0),
+  };
+  toCapture.eq3 = {
+    low: cleanupFloatingPoint(quantizeToStep(toCapture.eq3.low, GLOBAL_AUDIO_SEED_RANGES['eq3.low'].min, 0.5), 1),
+    mid: cleanupFloatingPoint(quantizeToStep(toCapture.eq3.mid, GLOBAL_AUDIO_SEED_RANGES['eq3.mid'].min, 0.5), 1),
+    high: cleanupFloatingPoint(quantizeToStep(toCapture.eq3.high, GLOBAL_AUDIO_SEED_RANGES['eq3.high'].min, 0.5), 1),
+  };
+  toCapture.filterLPF = {
+    ...toCapture.filterLPF,
+    frequency: cleanupFloatingPoint(quantizeToStep(toCapture.filterLPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterLPF.frequency'].min, 1), 0),
+    Q: cleanupFloatingPoint(quantizeToStep(toCapture.filterLPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterLPF.Q'].min, 0.01), 2),
+  };
+  toCapture.filterHPF = {
+    ...toCapture.filterHPF,
+    frequency: cleanupFloatingPoint(quantizeToStep(toCapture.filterHPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterHPF.frequency'].min, 1), 0),
+    Q: cleanupFloatingPoint(quantizeToStep(toCapture.filterHPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterHPF.Q'].min, 0.01), 2),
+  };
+  toCapture.delay = {
+    ...toCapture.delay,
+    delayTime: cleanupFloatingPoint(quantizeToStep(toCapture.delay.delayTime, GLOBAL_AUDIO_SEED_RANGES['delay.delayTime'].min, 0.001), 3),
+    feedback: cleanupFloatingPoint(quantizeToStep(toCapture.delay.feedback, GLOBAL_AUDIO_SEED_RANGES['delay.feedback'].min, 0.01), 2),
+    wet: cleanupFloatingPoint(quantizeToStep(toCapture.delay.wet, GLOBAL_AUDIO_SEED_RANGES['delay.wet'].min, 0.01), 2),
+  };
+  toCapture.reverb = {
+    ...toCapture.reverb,
+    decay: cleanupFloatingPoint(quantizeToStep(toCapture.reverb.decay, GLOBAL_AUDIO_SEED_RANGES['reverb.decay'].min, 0.01), 2),
+    preDelay: cleanupFloatingPoint(quantizeToStep(toCapture.reverb.preDelay, GLOBAL_AUDIO_SEED_RANGES['reverb.preDelay'].min, 0.01), 2),
+    wet: cleanupFloatingPoint(quantizeToStep(toCapture.reverb.wet, GLOBAL_AUDIO_SEED_RANGES['reverb.wet'].min, 0.01), 2),
+  };
+  toCapture.limiter = {
+    threshold: cleanupFloatingPoint(quantizeToStep(toCapture.limiter.threshold, GLOBAL_AUDIO_SEED_RANGES['limiter.threshold'].min, 1), 0),
+  };
+
+  // Quantize lfoDrift fields to 0.01 (1% precision in -1..1 range) and clean up floating-point noise
+  toCapture.lfoDrift = {
+    eq3: {
+      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.eq3.rateDrift, -1, 0.01), 2),
+      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.eq3.depthDrift, -1, 0.01), 2),
+    },
+    filterLPF: {
+      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.filterLPF.rateDrift, -1, 0.01), 2),
+      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.filterLPF.depthDrift, -1, 0.01), 2),
+    },
+    filterHPF: {
+      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.filterHPF.rateDrift, -1, 0.01), 2),
+      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.filterHPF.depthDrift, -1, 0.01), 2),
+    },
+    robots: {
+      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.robots.rateDrift, -1, 0.01), 2),
+      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.robots.depthDrift, -1, 0.01), 2),
+    },
+  };
+
+  return toCapture;
+}
+
 /**
  * Only the fields that differ from the seed baseline — an untouched robot diffs to `{}`.
  * Deliberately never inspects audioMode, masterVolume, job, docking, or batteryLevel: those
  * aren't part of RobotAudioBaseline at all, so they can't leak into the result (docs/specs/
  * SESSION_STORAGE.md §1.2/§7).
+ *
+ * When a swell is active at save time, replaces the mid-ramp interpolated value with the
+ * captured baseValue, so persisted overrides always contain normalized data regardless of
+ * swell phase.
  */
 export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioBaseline): RobotAudioOverrideDiff {
   const diff: RobotAudioOverrideDiff = {};
 
-  if (!deepEqual(live.audioAttributes.adsr, baseline.audioAttributes.adsr)) diff.adsr = live.audioAttributes.adsr;
-  if (!deepEqual(live.audioAttributes.layers, baseline.audioAttributes.layers)) diff.layers = live.audioAttributes.layers;
+  // Apply swell base values to adsr fields if swells are active
+  const adsrToCapture = { ...live.audioAttributes.adsr };
+  for (const field of ['attack', 'decay', 'sustain', 'release'] as const) {
+    const swellBase = extractSwellBaseValueIfActive(live.id, `adsr.${field}`);
+    if (swellBase !== undefined) adsrToCapture[field] = swellBase;
+  }
+  if (!deepEqual(adsrToCapture, baseline.audioAttributes.adsr)) diff.adsr = adsrToCapture;
+
+  // Apply swell base values to layer fields if swells are active, with floating-point cleanup.
+  // Normalize baseline layers the same way for fair comparison.
+  const baselineLayersNormalized = baseline.audioAttributes.layers?.map((layer) => ({
+    type: layer.type,
+    gain: cleanupFloatingPoint(layer.gain, 2),
+    detune: layer.detune,
+    phase: layer.phase,
+    pulseWidth: layer.pulseWidth,
+  }));
+  const layersToCapture = live.audioAttributes.layers?.map((layer, layerIndex) => ({
+    type: layer.type,
+    gain: cleanupFloatingPoint(extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.gain` as SwellRobotAttributeId) ?? layer.gain, 2),
+    detune: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.detune` as SwellRobotAttributeId) ?? layer.detune,
+    phase: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.phase` as SwellRobotAttributeId) ?? layer.phase,
+    pulseWidth: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.pulseWidth` as SwellRobotAttributeId) ?? layer.pulseWidth,
+  }));
+  if (!deepEqual(layersToCapture, baselineLayersNormalized)) diff.layers = layersToCapture;
+
   if (!deepEqual(live.audioAttributes.filterFreq, baseline.audioAttributes.filterFreq)) diff.filterFreq = live.audioAttributes.filterFreq;
   if (!deepEqual(live.octaveRange, baseline.octaveRange)) diff.octaveRange = live.octaveRange;
   if (!deepEqual(live.rhythmicDensity, baseline.rhythmicDensity)) diff.rhythmicDensity = live.rhythmicDensity;
@@ -119,7 +300,7 @@ export function buildSessionPayload(): SessionPayload {
     version: 1,
     attenuationStyleName: attenuationStyle.name,
     coordinates: locale.coordinates,
-    globalAudio: useAudioStore.getState().globalAudio,
+    globalAudio: applyGlobalSwellBasesToAudio(useAudioStore.getState().globalAudio),
     robotOverrides,
     companyDiffs,
     userCreatedCompanies,
@@ -216,7 +397,14 @@ export function applySessionPayload(payload: SessionPayload): void {
     // just spawned it with, not the overridden ones applied above, even though compositionSeed
     // (never diffed, always re-derived identically from the seed) makes the regenerated result
     // exactly match what the robot sounded like at save time.
-    regenerateMelody({ ...robot, ...updates }, localeId);
+    // Re-reads from the store rather than spreading `{ ...robot, ...updates }` by hand: updateRobot
+    // above normalizes several of these same fields (rhythmicDensity/pitchRepeat/rhythmicMotifLength/
+    // noteVariance/octaveRange are all clamped or reshaped there) -- regenerating from the raw,
+    // pre-normalization `updates` object could feed regenerateMelody a value that diverges from
+    // what's actually persisted (code review follow-up, confirmed by a reproduction test with an
+    // out-of-range diff value).
+    const updatedRobot = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
+    if (updatedRobot) regenerateMelody(updatedRobot, localeId);
   }
 
   for (const company of freshLocale.companies) {
