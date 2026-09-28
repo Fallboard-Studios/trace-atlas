@@ -119,6 +119,22 @@ describe('saveNamedSessionAutosave / listNamedSessionAutosaves', () => {
     const history = listNamedSessionAutosaves('foo');
     expect(history[0].savedAt).toBeGreaterThanOrEqual(history[1].savedAt);
   });
+
+  it('when two autosaves share the exact same millisecond, the more-recently-written one still sorts first', () => {
+    saveNamedSession('foo', makePayload());
+    const realNow = Date.now;
+    try {
+      Date.now = () => 1000;
+      saveNamedSessionAutosave('foo', makePayload({ coordinates: { x: 1, y: 1 } }));
+      saveNamedSessionAutosave('foo', makePayload({ coordinates: { x: 2, y: 2 } }));
+    } finally {
+      Date.now = realNow;
+    }
+
+    const history = listNamedSessionAutosaves('foo');
+    expect(history[0].payload.coordinates.x).toBe(2);
+    expect(history[1].payload.coordinates.x).toBe(1);
+  });
 });
 
 describe('deleteNamedSession cascades to its autosave history', () => {

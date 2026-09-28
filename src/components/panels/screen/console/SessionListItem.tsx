@@ -119,8 +119,12 @@ export function SessionListItem({ entry, indented = false, onChange }: SessionLi
         )}
       </div>
 
-      {subrows.map((subEntry) => (
-        <SessionListItem key={`${subEntry.name}-${subEntry.savedAt}`} entry={subEntry} indented />
+      {subrows.map((subEntry, index) => (
+        // index breaks ties when two autosaves land in the exact same millisecond (name+savedAt
+        // alone can collide) — subrows is a fresh array on every render, so index stays stable
+        // for a given entry across re-renders as long as its own storage-order position doesn't
+        // change, which matches every other list in this codebase keyed off array position.
+        <SessionListItem key={`${subEntry.name}-${subEntry.savedAt}-${index}`} entry={subEntry} indented />
       ))}
     </>
   );

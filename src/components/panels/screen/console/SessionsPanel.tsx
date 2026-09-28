@@ -5,8 +5,10 @@ import { TextInput } from '@/components/ui/controls/TextInput';
 import { Button } from '@/components/ui/controls/Button';
 import { useSessionStore } from '@/stores/sessionStore';
 import { buildSessionPayload } from '@/utils/sessionDiff';
-import { saveNamedSession, listSessions } from '@/utils/sessionStorageEngine';
+import { saveNamedSession, listSessions, listUnsavedLastAutosaves } from '@/utils/sessionStorageEngine';
 import { SESSION_NAME_INPUT_SCHEMA, SAVE_SESSION_SCHEMA, CLEAR_STORAGE_SCHEMA } from '@/data/sessionConfig';
+import { LAST_UNSAVED_SESSION_KEY } from '@/types/session';
+import { formatSessionTimestamp } from '@/utils/helpers';
 import type { SessionEntry } from '@/types/session';
 
 import './SessionsPanel.css';
@@ -22,15 +24,29 @@ export function SessionsPanel() {
   const currentSessionName = useSessionStore((s) => s.currentSessionName);
   const setCurrentSessionName = useSessionStore((s) => s.setCurrentSessionName);
   const [sessions, setSessions] = useState<SessionEntry[]>(() => listSessions());
+  const [unsavedHistory, setUnsavedHistory] = useState<SessionEntry[]>(() => listUnsavedLastAutosaves());
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<{ name: string; success: true; savedAt: string } | { name: string; success: false } | null>(
+    null,
+  );
 
-  const refresh = () => setSessions(listSessions());
+  const refresh = () => {
+    setSessions(listSessions());
+    setUnsavedHistory(listUnsavedLastAutosaves());
+  };
 
   const nameIsBlank = currentSessionName.trim().length === 0;
 
   const handleSave = () => {
-    saveNamedSession(currentSessionName.trim(), buildSessionPayload());
-    refresh();
+    const name = currentSessionName.trim();
+    try {
+      saveNamedSession(name, buildSessionPayload());
+      refresh();
+      setSaveStatus({ name, success: true, savedAt: formatSessionTimestamp(Date.now()) });
+    } catch (err) {
+      console.error('[SessionsPanel] saveNamedSession failed', err);
+      setSaveStatus({ name, success: false });
+    }
   };
 
   // Wipes ALL of localStorage (Crawford's request, 2026-09-28) — not just the sessions key —
@@ -44,14 +60,30 @@ export function SessionsPanel() {
     refresh();
   };
 
+  // The single visible unsaved-history row is a summary of its own bucket, not one specific
+  // entry -- its label/payload come from the newest of its up-to-3 autosaves (listUnsavedLastAutosaves
+  // sorts newest-first already), while its own subrows (rendered by SessionListItem once loaded)
+  // show all of them, including that same newest one again (docs/specs/SESSION_AUTOSAVE_HISTORY.md §7 item 4).
+  const unsavedHistoryRow: SessionEntry | null = unsavedHistory.length > 0 ? { ...unsavedHistory[0], name: LAST_UNSAVED_SESSION_KEY } : null;
+
   // Newest first — the row a user just saved (or the most recent autosave) stays at the top.
-  const sorted = [...sessions].sort((a, b) => b.savedAt - a.savedAt);
+  const sorted = [...sessions, ...(unsavedHistoryRow ? [unsavedHistoryRow] : [])].sort((a, b) => b.savedAt - a.savedAt);
 
   return (
     <div className="sessions-panel">
       <div className="sessions-panel__save">
         <TextInput schema={SESSION_NAME_INPUT_SCHEMA} value={currentSessionName} onChange={setCurrentSessionName} />
         <Button schema={SAVE_SESSION_SCHEMA} onClick={handleSave} disabled={nameIsBlank} />
+        {saveStatus &&
+          (saveStatus.success ? (
+            <span className="sessions-panel__save-status" role="status">
+              {`Saved ${saveStatus.name} at ${saveStatus.savedAt}`}
+            </span>
+          ) : (
+            <span className="sessions-panel__save-status sessions-panel__save-status--error" role="alert">
+              {`${saveStatus.name} failed to save.`}
+            </span>
+          ))}
       </div>
       <div className="sessions-panel__list">
         {sorted.map((entry) => (

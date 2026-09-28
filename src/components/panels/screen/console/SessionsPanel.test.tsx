@@ -11,12 +11,26 @@ vi.mock('@/utils/sessionDiff', () => ({
 
 import { SessionsPanel } from './SessionsPanel';
 import { useSessionStore } from '@/stores/sessionStore';
-import { STORAGE_KEY } from '@/utils/sessionStorageEngine';
+import { STORAGE_KEY, saveUnsavedAutosave, promoteUnsavedHistoryOnBoot } from '@/utils/sessionStorageEngine';
+import type { SessionPayload } from '@/types/session';
+
+function makeUnsavedPayload(overrides: Partial<SessionPayload> = {}): SessionPayload {
+  return {
+    version: 1,
+    attenuationStyleName: 'Null Guild',
+    coordinates: { x: 4, y: -7 },
+    globalAudio: {} as SessionPayload['globalAudio'],
+    robotOverrides: {},
+    companyDiffs: {},
+    userCreatedCompanies: [],
+    ...overrides,
+  };
+}
 
 beforeEach(() => {
   localStorage.clear();
   payloadCounter = 0;
-  useSessionStore.setState({ currentSessionName: 'Test Session', currentLoadedSessionName: null });
+  useSessionStore.setState({ currentSessionName: 'Test Session', currentLoadedSessionName: null, viewingUnsavedHistory: false });
 });
 
 describe('SessionsPanel', () => {
@@ -51,6 +65,81 @@ describe('SessionsPanel', () => {
 
     expect(screen.getByText('Test Session')).toBeTruthy();
     expect(screen.getByText('Second Session')).toBeTruthy();
+  });
+
+  it('a successful save shows a "Saved <name> at <time>" confirmation', () => {
+    render(<SessionsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /save session/i }));
+
+    expect(screen.getByText(/^Saved Test Session at /)).toBeTruthy();
+  });
+
+  it('a failed save shows a failure message and logs the error, without touching the saved list', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+
+    render(<SessionsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /save session/i }));
+
+    expect(screen.getByText('Test Session failed to save.')).toBeTruthy();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    setItemSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('the save-confirmation banner uses date+time formatting (month/day present, not just a bare time)', () => {
+    render(<SessionsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /save session/i }));
+
+    expect(screen.getByText(/^Saved Test Session at [A-Za-z]{3} \d{1,2}, /)).toBeTruthy();
+  });
+
+  describe('the unsaved-history row', () => {
+    it('is absent when there is no promoted unsaved history', () => {
+      render(<SessionsPanel />);
+      expect(screen.queryByText(/\(Autosaved Session\)/)).toBeNull();
+    });
+
+    it('appears with the "AttenuationStyle @ (x, y) (Autosaved Session)" label once history has been promoted', () => {
+      saveUnsavedAutosave(makeUnsavedPayload());
+      promoteUnsavedHistoryOnBoot();
+
+      render(<SessionsPanel />);
+      expect(screen.getByText('Null Guild @ (4, -7) (Autosaved Session)')).toBeTruthy();
+    });
+
+    it('uses the newest entry for its label when multiple autosaves were promoted', () => {
+      saveUnsavedAutosave(makeUnsavedPayload({ coordinates: { x: 1, y: 1 } }));
+      saveUnsavedAutosave(makeUnsavedPayload({ coordinates: { x: 2, y: 2 } }));
+      promoteUnsavedHistoryOnBoot();
+
+      render(<SessionsPanel />);
+      expect(screen.getByText('Null Guild @ (2, 2) (Autosaved Session)')).toBeTruthy();
+    });
+
+    it('nothing is expanded on a fresh render, even with promoted history present', () => {
+      saveUnsavedAutosave(makeUnsavedPayload());
+      saveUnsavedAutosave(makeUnsavedPayload());
+      promoteUnsavedHistoryOnBoot();
+
+      render(<SessionsPanel />);
+      expect(screen.queryByText(/Autosave from/)).toBeNull();
+    });
+
+    it('clicking its Load button reveals its own history as subrows', () => {
+      saveUnsavedAutosave(makeUnsavedPayload({ coordinates: { x: 1, y: 1 } }));
+      saveUnsavedAutosave(makeUnsavedPayload({ coordinates: { x: 2, y: 2 } }));
+      promoteUnsavedHistoryOnBoot();
+
+      render(<SessionsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: /Load Null Guild @ \(2, 2\)/i }));
+
+      expect(screen.getAllByText(/Autosave from/).length).toBeGreaterThan(0);
+      expect(useSessionStore.getState().viewingUnsavedHistory).toBe(true);
+    });
   });
 
   it('the Save Session button is disabled when the name is blank', () => {

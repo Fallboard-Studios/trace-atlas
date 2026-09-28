@@ -113,9 +113,12 @@ function pushCapped(history: AutosaveHistory, entry: SessionEntry): AutosaveHist
   return next.length > MAX_AUTOSAVES_PER_SESSION ? next.slice(next.length - MAX_AUTOSAVES_PER_SESSION) : next;
 }
 
-/** Sorted newest-first by savedAt — the display convention every history list follows. */
+/** Sorted newest-first by savedAt — the display convention every history list follows. Reverses
+ *  before the (stable) sort so that entries sharing the exact same millisecond still resolve by
+ *  write order (most-recently-pushed first) rather than silently falling back to array order,
+ *  which pushCapped always builds oldest-first. */
 function sortedDesc(history: AutosaveHistory): AutosaveHistory {
-  return [...history].sort((a, b) => b.savedAt - a.savedAt);
+  return [...history].reverse().sort((a, b) => b.savedAt - a.savedAt);
 }
 
 /** Writes one autosave tick into a named session's own rotating history (up to
