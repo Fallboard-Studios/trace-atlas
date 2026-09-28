@@ -11,7 +11,9 @@ import {
   assignJob,
   landOnActive,
   landOnDocked,
+  stepRobotLifecycle,
 } from './robotSystems';
+import type { RobotLifecycleSnapshot } from './robotSystems';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -738,6 +740,133 @@ describe('robotSystems', () => {
       expect(updated?.dockingHoldUntilMeasure).toBe(1248);
 
       stopRobotLifecycle();
+    });
+  });
+
+  describe('stepRobotLifecycle (pure, docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md Task 3)', () => {
+    function makeSnapshot(overrides: Partial<RobotLifecycleSnapshot> = {}): RobotLifecycleSnapshot {
+      return {
+        id: overrides.id ?? 'robot-1',
+        docking: DockingState.Active,
+        batteryLevel: 100,
+        octaveRange: [3, 4],
+        ...overrides,
+      };
+    }
+
+    it('drains an Active robot by BATTERY_DRAIN_BASE with no job assigned', () => {
+      const snap = makeSnapshot({ batteryLevel: 50, job: undefined });
+      const [result] = stepRobotLifecycle([snap], 10);
+      expect(result.batteryLevel).toBe(50 - BATTERY_DRAIN_BASE);
+    });
+
+    it.each(Object.values(JobType))('drains by base + surcharge for job type %s', (jobType) => {
+      const snap = makeSnapshot({ batteryLevel: 80, job: { type: jobType, assignedAtMeasure: 0 } });
+      const [result] = stepRobotLifecycle([snap], 10);
+      expect(result.batteryLevel).toBe(80 - (BATTERY_DRAIN_BASE + JOB_BATTERY_DRAIN_SURCHARGE[jobType]));
+    });
+
+    it('floors battery at 0, never negative', () => {
+      const snap = makeSnapshot({ batteryLevel: 1, job: { type: JobType.FluidMonitoring, assignedAtMeasure: 0 } });
+      const [result] = stepRobotLifecycle([snap], 10);
+      expect(result.batteryLevel).toBe(0);
+    });
+
+    it('recharges a Docked robot by BATTERY_RECHARGE_RATE', () => {
+      const snap = makeSnapshot({ docking: DockingState.Docked, batteryLevel: 50 });
+      const [result] = stepRobotLifecycle([snap], 10);
+      expect(result.batteryLevel).toBe(50 + BATTERY_RECHARGE_RATE);
+    });
+
+    it('caps recharge at 100, never above', () => {
+      const snap = makeSnapshot({ docking: DockingState.Docked, batteryLevel: 98 });
+      const [result] = stepRobotLifecycle([snap], 10);
+      expect(result.batteryLevel).toBe(100);
+    });
+
+    it('an Active robot crossing the critical threshold begins Departing with a hold, not immediate Docked', () => {
+      const robot = makeSnapshot({ batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_BASE, job: undefined });
+      const companion = makeSnapshot({ id: 'robot-companion', batteryLevel: 100, job: undefined });
+      const [result] = stepRobotLifecycle([robot, companion], 10);
+      expect(result.batteryLevel).toBeLessThanOrEqual(BATTERY_CRITICAL_THRESHOLD);
+      expect(result.docking).toBe(DockingState.Departing);
+      expect(result.dockingHoldUntilMeasure).toBe(11);
+    });
+
+    it('the only Active robot stays Active at/under critical battery -- never zero Active robots', () => {
+      const onlyActive = makeSnapshot({ batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_BASE, job: undefined });
+      const dockedOther = makeSnapshot({ id: 'robot-docked', docking: DockingState.Docked, batteryLevel: 50 });
+      const [result] = stepRobotLifecycle([onlyActive, dockedOther], 10);
+      expect(result.docking).toBe(DockingState.Active);
+      expect(result.batteryLevel).toBeLessThanOrEqual(BATTERY_CRITICAL_THRESHOLD);
+    });
+
+    it('re-reads the in-progress working roster, not a stale pre-step snapshot -- an earlier departure this same step is already visible to a later check', () => {
+      // Two Active robots, BOTH at critical, no other Active robot anywhere. Processed in array
+      // order: A departs first (B is still marked Active at that moment, so A is not "the last
+      // one"). When B is then evaluated, A has already transitioned away from Active in the
+      // WORKING array -- so B must find itself alone and stay Active, even though B's own
+      // pre-step snapshot showed two Active robots.
+      const a = makeSnapshot({ id: 'robot-a', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_BASE, job: undefined });
+      const b = makeSnapshot({ id: 'robot-b', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_BASE, job: undefined });
+      const [resultA, resultB] = stepRobotLifecycle([a, b], 10);
+      expect(resultA.docking).toBe(DockingState.Departing);
+      expect(resultB.docking).toBe(DockingState.Active);
+    });
+
+    it('a Docked robot reaching full battery begins Docking with a hold, not immediate Active', () => {
+      const snap = makeSnapshot({ docking: DockingState.Docked, batteryLevel: BATTERY_FULL_THRESHOLD - BATTERY_RECHARGE_RATE });
+      const [result] = stepRobotLifecycle([snap], 20);
+      expect(result.batteryLevel).toBe(BATTERY_FULL_THRESHOLD);
+      expect(result.docking).toBe(DockingState.Docking);
+      expect(result.dockingHoldUntilMeasure).toBe(21);
+    });
+
+    it('a Docking robot whose hold has elapsed lands on Active with a job assigned', () => {
+      const snap = makeSnapshot({ docking: DockingState.Docking, dockingHoldUntilMeasure: 20, batteryLevel: 100 });
+      const [result] = stepRobotLifecycle([snap], 20);
+      expect(result.docking).toBe(DockingState.Active);
+      expect(result.dockingHoldUntilMeasure).toBeUndefined();
+      expect(result.job).toBeDefined();
+    });
+
+    it('job assignment respects JOB_MAX_ROBOTS_PER_TYPE balancing among other Active robots landing in the same roster', () => {
+      // JOB_MAX_ROBOTS_PER_TYPE already-Active robots of every type the landing robot would
+      // otherwise score highest for -- forces the balancer to skip to a less-saturated type.
+      // scoreJobAffinities is deterministic from octaveRange/rhythmicDensity/etc; a robot with no
+      // special attributes at all scores VentExtraction highest by the formula's own weighting, so
+      // pre-fill VentExtraction to its cap and confirm the landing robot gets something else.
+      const landing = makeSnapshot({ id: 'landing', docking: DockingState.Docking, dockingHoldUntilMeasure: 5, batteryLevel: 100, octaveRange: [1, 1], rhythmicDensity: 100 });
+      const saturated = Array.from({ length: JOB_MAX_ROBOTS_PER_TYPE }, (_, i) =>
+        makeSnapshot({ id: `saturated-${i}`, docking: DockingState.Active, job: { type: JobType.VentExtraction, assignedAtMeasure: 0 } }),
+      );
+      const [result] = stepRobotLifecycle([landing, ...saturated], 5);
+      expect(result.job?.type).not.toBe(JobType.VentExtraction);
+    });
+
+    it('a Departing robot whose hold has elapsed lands on Docked, job and hold cleared', () => {
+      const snap = makeSnapshot({ docking: DockingState.Departing, dockingHoldUntilMeasure: 20, batteryLevel: 5, job: { type: JobType.AcousticSurvey, assignedAtMeasure: 0 } });
+      const [result] = stepRobotLifecycle([snap], 20);
+      expect(result.docking).toBe(DockingState.Docked);
+      expect(result.dockingHoldUntilMeasure).toBeUndefined();
+      expect(result.job).toBeUndefined();
+    });
+
+    it('a Docking/Departing robot whose hold has NOT yet elapsed stays put', () => {
+      const docking = makeSnapshot({ docking: DockingState.Docking, dockingHoldUntilMeasure: 20, batteryLevel: 50 });
+      const departing = makeSnapshot({ id: 'robot-2', docking: DockingState.Departing, dockingHoldUntilMeasure: 20, batteryLevel: 5 });
+      const [resultDocking, resultDeparting] = stepRobotLifecycle([docking, departing], 19);
+      expect(resultDocking.docking).toBe(DockingState.Docking);
+      expect(resultDeparting.docking).toBe(DockingState.Departing);
+    });
+
+    it('is a pure function of its own arguments -- unaffected by whatever is in the live store', () => {
+      // Deliberately leaves the store at its default (no robots matching this snapshot's id at
+      // all) to prove stepRobotLifecycle reads nothing from useLocaleStore.
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [makeRobot({ id: 'unrelated-robot', batteryLevel: 1 })] } } });
+      const snap = makeSnapshot({ batteryLevel: 50, job: undefined });
+      const [result] = stepRobotLifecycle([snap], 10);
+      expect(result.batteryLevel).toBe(50 - BATTERY_DRAIN_BASE);
     });
   });
 });

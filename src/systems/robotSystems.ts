@@ -74,6 +74,99 @@ function beginDocking(localeId: string, robotId: string, measure: number): void 
   });
 }
 
+// ========================================
+// PURE LIFECYCLE STEP (World Clock, docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md)
+// ========================================
+
+/** The subset of Robot fields a lifecycle replay reads or writes -- deliberately narrower than
+ *  Robot itself. Includes the fields scoreJobAffinities needs (read-only, never written by
+ *  replay) alongside the fields a tick actually transitions. */
+export interface RobotLifecycleSnapshot {
+  id: string;
+  docking: DockingState;
+  batteryLevel: number;
+  dockingHoldUntilMeasure?: number;
+  job?: { type: JobTypeValue; assignedAtMeasure: number };
+  octaveRange: [number, number];
+  rhythmicDensity?: number;
+  rhythmicMotifLength?: Robot['rhythmicMotifLength'];
+  noteVariance?: Robot['noteVariance'];
+}
+
+/** scoreJobAffinities only reads the melodic-attribute fields RobotLifecycleSnapshot already
+ *  carries -- this cast is safe (no field it actually reads is missing) and avoids widening
+ *  RobotLifecycleSnapshot with fields (melody, audioAttributes, ...) a lifecycle step never uses. */
+function scoreSnapshotJobAffinities(snapshot: RobotLifecycleSnapshot): Record<JobTypeValue, number> {
+  return scoreJobAffinities(snapshot as unknown as Robot);
+}
+
+/** Pure per-robot balancing, mirrors assignJob's rule exactly: best-scoring type, skipping any
+ *  type already at JOB_MAX_ROBOTS_PER_TYPE among the OTHER robots in `roster` that are Active. */
+function chooseJobForSnapshot(snapshot: RobotLifecycleSnapshot, roster: RobotLifecycleSnapshot[], measure: number): RobotLifecycleSnapshot['job'] {
+  const scores = scoreSnapshotJobAffinities(snapshot);
+  const sortedTypes = (Object.values(JobType) as JobTypeValue[]).sort((a, b) => scores[b] - scores[a]);
+
+  const countByType = new Map<JobTypeValue, number>();
+  for (const r of roster) {
+    if (r.id !== snapshot.id && r.docking === DockingState.Active && r.job) {
+      countByType.set(r.job.type, (countByType.get(r.job.type) ?? 0) + 1);
+    }
+  }
+
+  const chosen = sortedTypes.find((t) => (countByType.get(t) ?? 0) < JOB_MAX_ROBOTS_PER_TYPE) ?? sortedTypes[0];
+  return { type: chosen, assignedAtMeasure: measure };
+}
+
+/**
+ * One measure's worth of battery/docking/job transition for an entire roster, pure -- mirrors
+ * tickRobotLifecycle's per-robot logic (BATTERY_DRAIN_BASE/JOB_BATTERY_DRAIN_SURCHARGE/
+ * BATTERY_RECHARGE_RATE/BATTERY_CRITICAL_THRESHOLD/BATTERY_FULL_THRESHOLD, the "never zero
+ * Active" invariant, assignJob's balancing) exactly, reusing the same constants/scoreJobAffinities
+ * -- never a second copy of the arithmetic. Mutates a local working array as it iterates (matching
+ * tickRobotLifecycle's own "re-read fresh, not the stale snapshot" invariant check), in roster
+ * array order, so within-measure ordering effects match a real tick bit for bit. Imports neither
+ * useLocaleStore nor getCurrentMeasure -- zero side effects, zero store access.
+ */
+export function stepRobotLifecycle(roster: RobotLifecycleSnapshot[], measure: number): RobotLifecycleSnapshot[] {
+  const working = roster.map((r) => ({ ...r }));
+
+  for (const robot of working) {
+    if (robot.docking === DockingState.Active) {
+      const surcharge = robot.job ? JOB_BATTERY_DRAIN_SURCHARGE[robot.job.type] : 0;
+      robot.batteryLevel = Math.max(0, robot.batteryLevel - (BATTERY_DRAIN_BASE + surcharge));
+      if (robot.batteryLevel <= BATTERY_CRITICAL_THRESHOLD) {
+        const stillActiveElsewhere = working.some((r) => r.id !== robot.id && r.docking === DockingState.Active);
+        if (stillActiveElsewhere) {
+          robot.docking = DockingState.Departing;
+          robot.dockingHoldUntilMeasure = measure + 1;
+        }
+      }
+    } else if (robot.docking === DockingState.Docked) {
+      robot.batteryLevel = Math.min(100, robot.batteryLevel + BATTERY_RECHARGE_RATE);
+      if (robot.batteryLevel >= BATTERY_FULL_THRESHOLD) {
+        robot.docking = DockingState.Docking;
+        robot.dockingHoldUntilMeasure = measure + 1;
+      }
+    } else if (
+      (robot.docking === DockingState.Docking || robot.docking === DockingState.Departing) &&
+      robot.dockingHoldUntilMeasure !== undefined &&
+      measure >= robot.dockingHoldUntilMeasure
+    ) {
+      if (robot.docking === DockingState.Docking) {
+        robot.docking = DockingState.Active;
+        robot.dockingHoldUntilMeasure = undefined;
+        robot.job = chooseJobForSnapshot(robot, working, measure);
+      } else {
+        robot.docking = DockingState.Docked;
+        robot.dockingHoldUntilMeasure = undefined;
+        robot.job = undefined;
+      }
+    }
+  }
+
+  return working;
+}
+
 /**
  * One measure's worth of Battery/Docking evaluation for every robot in a locale.
  * Pure with respect to its inputs (measure is passed in, not read from BeatClock
