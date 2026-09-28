@@ -29,6 +29,7 @@ import {
   BATTERY_FULL_THRESHOLD,
   JOB_MAX_ROBOTS_PER_TYPE,
   DOCKED_PITCH_DRIFT_RATIO,
+  MAX_ROBOTS,
 } from '../constants';
 
 // ========================================
@@ -1011,6 +1012,72 @@ describe('robotSystems', () => {
       const snap = makeSnapshot({ batteryLevel: 50, job: undefined });
       const [result] = replayLifecycle([snap], 0, 3, TEST_NOISE_MAP);
       expect(result.batteryLevel).toBe(50 - BATTERY_DRAIN_BASE * 3);
+    });
+  });
+
+  describe('prove-it: replay matches realtime (docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md Task 7)', () => {
+    it('N real ticks and one replayLifecycle call converge on identical docking/batteryLevel/dockingHoldUntilMeasure/job/melody for all 12 robots, exercising both the "never zero Active" invariant and a dock-triggered melody drift', () => {
+      // Contrived starting state, not left to chance: robot 0 is the ONLY Active robot, already
+      // at the critical threshold plus one measure's drain -- guarantees the invariant fires (it
+      // must stay Active, there's no one else). Robot 1 is already Departing with its hold
+      // elapsing on the very first tick -- guarantees a dock-triggered melody drift happens
+      // within the test's window. Robots 2-11 are Docked, mid-battery, far from any threshold, so
+      // they contribute realistic "nothing special happens" noise without triggering their own
+      // transitions and complicating what's being proven.
+      const robots: Robot[] = [
+        makeRobot({ id: 'prove-it-0', docking: DockingState.Active, batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_BASE, job: undefined }),
+        makeRobot({ id: 'prove-it-1', docking: DockingState.Departing, dockingHoldUntilMeasure: 1, batteryLevel: 5, job: undefined }),
+        ...Array.from({ length: MAX_ROBOTS - 2 }, (_, i) =>
+          makeRobot({ id: `prove-it-${i + 2}`, docking: DockingState.Docked, batteryLevel: 40 + i, job: undefined }),
+        ),
+      ];
+      expect(robots).toHaveLength(MAX_ROBOTS);
+
+      // Assert the preconditions actually hold before running anything -- not left to chance.
+      expect(robots.filter((r) => r.docking === DockingState.Active)).toHaveLength(1);
+      expect(robots.find((r) => r.docking === DockingState.Departing)?.dockingHoldUntilMeasure).toBe(1);
+
+      setupLocaleWithRobots(robots);
+      const locale = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!;
+      const noiseMap = getLocaleNoiseMap(DEFAULT_LOCALE_ID, locale.coordinates.x, locale.coordinates.y);
+
+      const initialSnapshots: RobotLifecycleSnapshot[] = robots.map((r) => ({
+        id: r.id,
+        docking: r.docking,
+        batteryLevel: r.batteryLevel,
+        dockingHoldUntilMeasure: r.dockingHoldUntilMeasure,
+        job: r.job,
+        melody: r.melody,
+        dockCycleCount: 0, // fresh ids, never docked before in this test file
+        octaveRange: r.octaveRange,
+        rhythmicDensity: r.rhythmicDensity,
+        rhythmicMotifLength: r.rhythmicMotifLength,
+        noteVariance: r.noteVariance,
+      }));
+
+      const REPLAY_MEASURES = 5;
+      for (let m = 1; m <= REPLAY_MEASURES; m++) tickRobotLifecycle(DEFAULT_LOCALE_ID, m);
+      const realtimeResult = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+
+      const replayResult = replayLifecycle(initialSnapshots, 0, REPLAY_MEASURES, noiseMap);
+
+      // The invariant actually fired: robot 0 stayed Active despite crossing critical battery.
+      const realtimeRobot0 = realtimeResult.find((r) => r.id === 'prove-it-0')!;
+      expect(realtimeRobot0.docking).toBe(DockingState.Active);
+      // The drift actually fired: robot 1 landed on Docked with a melody different from its start.
+      const realtimeRobot1 = realtimeResult.find((r) => r.id === 'prove-it-1')!;
+      expect(realtimeRobot1.docking).toBe(DockingState.Docked);
+      expect(realtimeRobot1.melody).not.toEqual(robots[1].melody);
+
+      for (const robot of robots) {
+        const real = realtimeResult.find((r) => r.id === robot.id)!;
+        const replayed = replayResult.find((r) => r.id === robot.id)!;
+        expect(replayed.docking).toBe(real.docking);
+        expect(replayed.batteryLevel).toBe(real.batteryLevel);
+        expect(replayed.dockingHoldUntilMeasure).toBe(real.dockingHoldUntilMeasure);
+        expect(replayed.job).toEqual(real.job);
+        expect(replayed.melody).toEqual(real.melody);
+      }
     });
   });
 });
