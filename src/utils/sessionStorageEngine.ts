@@ -70,8 +70,7 @@ export function deleteNamedSession(name: string): void {
   writeStorage(data);
 }
 
-/** Every named entry, for the "Load Sessions" list — autosave history is fetched separately per
- *  row (listNamedSessionAutosaves/listUnsavedLastAutosaves), never mixed into this flat list. */
+/** Every named entry, for the "Load Sessions" list. */
 export function listSessions(): SessionEntry[] {
   const data = readStorage();
   return Object.values(data.named);
