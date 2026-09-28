@@ -537,6 +537,75 @@ describe('spawnSystem', () => {
     });
   });
 
+  describe('spawnRobot — compositionSeed (Deterministic Robot Melody Generation, Task 1)', () => {
+    beforeEach(() => {
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
+      vi.clearAllMocks();
+    });
+
+    it('robot.compositionSeed is a number in [0, 1)', () => {
+      spawnRobot(DEFAULT_LOCALE_ID);
+      const robot = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots[0];
+      expect(typeof robot?.compositionSeed).toBe('number');
+      expect(robot!.compositionSeed).toBeGreaterThanOrEqual(0);
+      expect(robot!.compositionSeed).toBeLessThan(1);
+    });
+
+    it('two robots spawned at different spawnCount get different compositionSeed values', () => {
+      for (let i = 0; i < 5; i++) spawnRobot(DEFAULT_LOCALE_ID);
+      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
+      const seeds = new Set(robots.map((r) => r.compositionSeed));
+      // Own dataId/own offset per robot -- collisions across 5 spawns would indicate
+      // compositionSeed isn't actually keyed off spawnCount.
+      expect(seeds.size).toBe(robots.length);
+    });
+
+    it('spawning against the same locale coordinates twice (fresh module state each time) produces identical compositionSeed sequences', async () => {
+      // Mirrors the "deterministic robot IDs" test above exactly -- same rationale:
+      // a reload/shared-link replay must reproduce the exact same compositionSeed
+      // sequence, since it's drawn from the noise map like every other seeded field.
+      vi.resetModules();
+      const run1 = await import('./spawnSystem');
+      const store1 = await import('../stores/localeStore');
+      const attenuationStyle1 = await import('../stores/attenuationStyleStore');
+      store1.useLocaleStore.setState({ locales: { [attenuationStyle1.DEFAULT_LOCALE_ID]: store1.DEFAULT_LOCALE } });
+      run1.spawnRobot(attenuationStyle1.DEFAULT_LOCALE_ID);
+      run1.spawnRobot(attenuationStyle1.DEFAULT_LOCALE_ID);
+      const seedsRun1 = (store1.useLocaleStore.getState().getLocaleById(attenuationStyle1.DEFAULT_LOCALE_ID)?.robots ?? []).map((r) => r.compositionSeed);
+
+      vi.resetModules();
+      const run2 = await import('./spawnSystem');
+      const store2 = await import('../stores/localeStore');
+      const attenuationStyle2 = await import('../stores/attenuationStyleStore');
+      store2.useLocaleStore.setState({ locales: { [attenuationStyle2.DEFAULT_LOCALE_ID]: store2.DEFAULT_LOCALE } });
+      run2.spawnRobot(attenuationStyle2.DEFAULT_LOCALE_ID);
+      run2.spawnRobot(attenuationStyle2.DEFAULT_LOCALE_ID);
+      const seedsRun2 = (store2.useLocaleStore.getState().getLocaleById(attenuationStyle2.DEFAULT_LOCALE_ID)?.robots ?? []).map((r) => r.compositionSeed);
+
+      expect(seedsRun1).toHaveLength(2);
+      expect(seedsRun2).toEqual(seedsRun1);
+    });
+
+    it('a copied robot gets its own compositionSeed, never the source\'s', () => {
+      // Same copy-detection pattern as the lfoSettings copy test above: group by a
+      // field that IS inherited on copy (lfoSettings, by reference) to reliably find
+      // a copy pair, then assert compositionSeed -- which must NOT be inherited --
+      // actually differs between them.
+      for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
+      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
+      const bySettings = new Map<Robot['lfoSettings'], Robot[]>();
+      for (const r of robots) {
+        const group = bySettings.get(r.lfoSettings) ?? [];
+        group.push(r);
+        bySettings.set(r.lfoSettings, group);
+      }
+      const sharedGroup = [...bySettings.values()].find((g) => g.length > 1);
+      expect(sharedGroup, 'expected at least one copy to share its source\'s lfoSettings reference').toBeDefined();
+      const [a, b] = sharedGroup!;
+      expect(a.compositionSeed).not.toBe(b.compositionSeed);
+    });
+  });
+
   describe('spawnRobot — docking/battery options', () => {
     // Each test gets its own locale id + coordinates (never DEFAULT_LOCALE_ID),
     // matching this file's existing "*-stat-test-locale" pattern — spawnCounters

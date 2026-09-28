@@ -31,6 +31,7 @@ vi.mock('@/engine/lfoEngine', () => ({
 function makeRobot(overrides: Partial<Robot> = {}): Robot {
   return {
     id: 'r1',
+    compositionSeed: 0.5,
     name: 'Test Robot',
     state: 'idle',
     position: { x: 0, y: 0 },

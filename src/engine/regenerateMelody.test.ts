@@ -36,6 +36,7 @@ const updateRobotMock = vi.fn();
 function makeRobot(overrides: Partial<Robot> = {}): Robot {
   return {
     id: 'robot-1',
+    compositionSeed: 0.5,
     state: RobotState.Idle,
     position: { x: 0, y: 0 },
     destination: null,

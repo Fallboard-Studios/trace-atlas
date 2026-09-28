@@ -16,6 +16,7 @@ const mockNoiseMap: NoiseFunction2D = () => Math.random() * 2 - 1;
 function makeRobot(overrides: Partial<Robot> = {}): Robot {
   return {
     id: 'idle-test-robot',
+    compositionSeed: 0.5,
     identityColor: '#428d95',
     state: RobotState.Idle,
     position: { x: 100, y: 100 },
