@@ -342,6 +342,42 @@ describe('robotSystems', () => {
     });
   });
 
+  describe('tickRobotLifecycle — multi-measure integration (Task 6 refactor regression guard)', () => {
+    it('drives a full Active -> Departing -> Docked cycle across several real ticks with expected battery values at each step', () => {
+      // BATTERY_DRAIN_BASE=2 per measure (see constants), so 3 ticks from 16 lands exactly on
+      // BATTERY_CRITICAL_THRESHOLD=10: 16 -> 14 -> 12 -> 10 (critical, departs).
+      const robot = makeRobot({ id: 'integration-robot', batteryLevel: 16, job: undefined });
+      const companion = makeRobot({ id: 'integration-companion', batteryLevel: 100, job: undefined });
+      setupLocaleWithRobots([robot, companion]);
+
+      tickRobotLifecycle(DEFAULT_LOCALE_ID, 1);
+      expect(useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)?.batteryLevel).toBe(14);
+      expect(useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)?.docking).toBe(DockingState.Active);
+
+      tickRobotLifecycle(DEFAULT_LOCALE_ID, 2);
+      expect(useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)?.batteryLevel).toBe(12);
+      expect(useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)?.docking).toBe(DockingState.Active);
+
+      tickRobotLifecycle(DEFAULT_LOCALE_ID, 3);
+      const afterCritical = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
+      expect(afterCritical?.batteryLevel).toBe(10);
+      expect(afterCritical?.docking).toBe(DockingState.Departing);
+      expect(afterCritical?.dockingHoldUntilMeasure).toBe(4);
+      expect(createSwimTimeline).toHaveBeenCalledTimes(1);
+
+      // Hold elapses at measure 4 -> lands on Docked, drifted melody registered with AudioEngine.
+      tickRobotLifecycle(DEFAULT_LOCALE_ID, 4);
+      const afterDocked = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)!;
+      expect(afterDocked.docking).toBe(DockingState.Docked);
+      expect(afterDocked.dockingHoldUntilMeasure).toBeUndefined();
+      expect(AudioEngine.getRegisteredMelody(robot.id)).toEqual(afterDocked.melody);
+
+      // The companion, meanwhile, only ever drained -- 4 ticks * 2 = 8 -- never touched by any
+      // of the landing effects above.
+      expect(useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, companion.id)?.batteryLevel).toBe(92);
+    });
+  });
+
   describe('landOnActive', () => {
     it('sets docking to Active and clears the hold', () => {
       const robot = makeRobot({ docking: DockingState.Docking, dockingHoldUntilMeasure: 5, job: undefined });
@@ -398,11 +434,17 @@ describe('robotSystems', () => {
   });
 
   describe('landOnDocked', () => {
+    // World Clock (docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md Task 6): landOnDocked
+    // no longer computes melody drift itself -- that moved to stepRobotLifecycle. Its own tests
+    // below pass an explicit melody and verify pass-through/wiring (position, audioMode, state,
+    // AudioEngine registration), not drift computation. The drift-computation tests that used to
+    // live here (re-roll ratio, Pitch Repeat locking, cross-dock-cycle variation) moved to the
+    // 'stepRobotLifecycle' describe block below, where that logic now actually lives.
     it('sets docking to Docked and clears the hold', () => {
       const robot = makeRobot({ docking: DockingState.Departing, dockingHoldUntilMeasure: 5 });
       setupLocaleWithRobots([robot]);
 
-      landOnDocked(DEFAULT_LOCALE_ID, robot.id);
+      landOnDocked(DEFAULT_LOCALE_ID, robot.id, robot.melody);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
       expect(updated?.docking).toBe(DockingState.Docked);
@@ -413,7 +455,7 @@ describe('robotSystems', () => {
       const robot = makeRobot({ docking: DockingState.Departing, audioMode: 'none' });
       setupLocaleWithRobots([robot]);
 
-      landOnDocked(DEFAULT_LOCALE_ID, robot.id);
+      landOnDocked(DEFAULT_LOCALE_ID, robot.id, robot.melody);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
       expect(updated?.audioMode).toBe('mute');
@@ -427,7 +469,7 @@ describe('robotSystems', () => {
       });
       setupLocaleWithRobots([robot]);
 
-      landOnDocked(DEFAULT_LOCALE_ID, robot.id);
+      landOnDocked(DEFAULT_LOCALE_ID, robot.id, robot.melody);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
       expect(updated?.state).toBe(RobotState.Idle);
@@ -440,26 +482,28 @@ describe('robotSystems', () => {
       AudioEngine.reserveVoice(robot.id, robot.audioAttributes.layers!, robot.audioAttributes.adsr);
       AudioEngine.registerRobotMelody(robot.id, robot.melody);
 
-      landOnDocked(DEFAULT_LOCALE_ID, robot.id);
+      landOnDocked(DEFAULT_LOCALE_ID, robot.id, robot.melody);
 
       expect(AudioEngine.getVoiceForRobot(robot.id)).not.toBeNull();
       expect(AudioEngine.getRegisteredMelody(robot.id).length).toBeGreaterThan(0);
     });
 
-    it('re-registers the melody with AudioEngine so a manual mute override plays the drifted pitches, not the stale ones', () => {
+    it('registers whatever melody it is given with AudioEngine, replacing a stale one — pure pass-through, no computation of its own', () => {
       const robot = makeRobot({ id: 'docked-melody-refreshed', docking: DockingState.Departing });
       setupLocaleWithRobots([robot]);
       AudioEngine.reserveVoice(robot.id, robot.audioAttributes.layers!, robot.audioAttributes.adsr);
       AudioEngine.registerRobotMelody(robot.id, robot.melody); // stale (pre-drift) melody
 
-      landOnDocked(DEFAULT_LOCALE_ID, robot.id);
+      const givenMelody = robot.melody.map((e) => ({ ...e, noteIndex: (e.noteIndex + 1) % 8 }));
+      landOnDocked(DEFAULT_LOCALE_ID, robot.id, givenMelody);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)!;
-      expect(AudioEngine.getRegisteredMelody(robot.id)).toEqual(updated.melody);
+      expect(updated.melody).toEqual(givenMelody);
+      expect(AudioEngine.getRegisteredMelody(robot.id)).toEqual(givenMelody);
     });
 
-    it('keeps playing the click track through a dock cycle\'s pitch-drift reroll, even though the stored melody itself still drifts', () => {
-      // Regression: landOnDocked unconditionally re-registers its freshly-drifted melody with
+    it('keeps playing the click track through a dock cycle, even though the stored melody still updates to whatever it\'s given', () => {
+      // Regression: landOnDocked unconditionally re-registers whatever melody it's given with
       // AudioEngine, which used to silently replace whatever was actually playing — including an
       // active click-track override — while the Ping Controls toggle kept showing it as on.
       const robot = makeRobot({ id: 'docked-click-track', docking: DockingState.Departing, clickTrackActive: true });
@@ -467,12 +511,10 @@ describe('robotSystems', () => {
       AudioEngine.reserveVoice(robot.id, robot.audioAttributes.layers!, robot.audioAttributes.adsr);
       AudioEngine.registerRobotMelody(robot.id, robot.melody);
 
-      landOnDocked(DEFAULT_LOCALE_ID, robot.id);
+      landOnDocked(DEFAULT_LOCALE_ID, robot.id, robot.melody);
 
-      // The store's own pitch-drift bookkeeping happens exactly as it would for any other robot
-      // (covered by the "re-rolls ~25%..." test above) — the toggle itself is untouched by the
-      // dock cycle, and what's actually registered with AudioEngine is still the click track,
-      // never the freshly-drifted real melody.
+      // The toggle itself is untouched by the dock cycle, and what's actually registered with
+      // AudioEngine is still the click track, never the passed-in real melody.
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)!;
       expect(updated.clickTrackActive).toBe(true);
       expect(AudioEngine.getRegisteredMelody(robot.id)).toEqual(buildClickTrackMelody(robot.octaveRange[0]));
@@ -482,84 +524,12 @@ describe('robotSystems', () => {
       const robot = makeRobot({ docking: DockingState.Departing, position: { x: 500, y: 500 } });
       setupLocaleWithRobots([robot]);
 
-      landOnDocked(DEFAULT_LOCALE_ID, robot.id);
+      landOnDocked(DEFAULT_LOCALE_ID, robot.id, robot.melody);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
       const outsideX = (updated?.position.x ?? 0) < 0 || (updated?.position.x ?? 0) > 1920;
       const outsideY = (updated?.position.y ?? 0) < 0 || (updated?.position.y ?? 0) > 1080;
       expect(outsideX || outsideY).toBe(true);
-    });
-
-    it('re-rolls ~25% of melody noteIndex values, leaving startStep/length/octave unchanged', () => {
-      const robot = makeRobot({ id: 'pitch-drift-25pct', docking: DockingState.Departing });
-      setupLocaleWithRobots([robot]);
-
-      landOnDocked(DEFAULT_LOCALE_ID, robot.id);
-
-      const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
-      expect(updated?.melody).toHaveLength(robot.melody.length);
-      expect(updated?.melody.map((e) => e.startStep)).toEqual(robot.melody.map((e) => e.startStep));
-      expect(updated?.melody.map((e) => e.length)).toEqual(robot.melody.map((e) => e.length));
-      expect(updated?.melody.map((e) => e.octave)).toEqual(robot.melody.map((e) => e.octave));
-      const changedCount = updated!.melody.filter((e, i) => e.noteIndex !== robot.melody[i].noteIndex).length;
-      expect(changedCount).toBeGreaterThanOrEqual(1); // round(4 * 0.25) = 1
-    });
-
-    it('a fully Pitch-Repeat-locked robot (pitchLocked on every event) changes zero notes on re-roll', () => {
-      // Task 11 (docs/tasks/PITCH_REPEAT.md): landOnDocked's own code is unchanged (it already
-      // passes the full melody to reRollMelodyPitches, which now excludes pitchLocked events
-      // internally — Task 7). This is end-to-end coverage through the real dock transition.
-      const robot = makeRobot({
-        id: 'pitch-repeat-fully-locked',
-        docking: DockingState.Departing,
-        melody: [
-          { id: 'e1', startStep: 1, length: '16n', noteIndex: 0, octave: 4 }, // base cell, never locked itself
-          { id: 'e2', startStep: 5, length: '16n', noteIndex: 0, octave: 4, pitchLocked: true },
-          { id: 'e3', startStep: 9, length: '16n', noteIndex: 0, octave: 4, pitchLocked: true },
-          { id: 'e4', startStep: 13, length: '16n', noteIndex: 0, octave: 4, pitchLocked: true },
-        ],
-      });
-      setupLocaleWithRobots([robot]);
-
-      landOnDocked(DEFAULT_LOCALE_ID, robot.id);
-
-      const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)!;
-      // Only e1 (unlocked) is eligible, so the "always changes at least 1" floor could still pick
-      // it — but every pitchLocked event must stay byte-identical regardless.
-      expect(updated.melody.filter((e) => e.pitchLocked).every((e) => e.noteIndex === 0)).toBe(true);
-      const lockedChangedCount = updated.melody.filter((e, i) => e.pitchLocked && e.noteIndex !== robot.melody[i].noteIndex).length;
-      expect(lockedChangedCount).toBe(0);
-    });
-
-    it('docking a robot with no pitchLocked events behaves exactly as before Pitch Repeat (regression guard)', () => {
-      // Same scenario/assertions as the pre-existing 're-rolls ~25%...' test above — explicit
-      // regression guard per Task 11's acceptance criteria, not just "still passes incidentally".
-      const robot = makeRobot({ id: 'pitch-repeat-unlocked-regression', docking: DockingState.Departing });
-      setupLocaleWithRobots([robot]);
-
-      landOnDocked(DEFAULT_LOCALE_ID, robot.id);
-
-      const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
-      const changedCount = updated!.melody.filter((e, i) => e.noteIndex !== robot.melody[i].noteIndex).length;
-      expect(changedCount).toBeGreaterThanOrEqual(1); // round(4 * 0.25) = 1, same as the existing test
-    });
-
-    it('re-rolls a different subset of pitches on successive dock cycles for the same robot', () => {
-      const robot = makeRobot({ docking: DockingState.Departing, id: 'drift-robot' });
-      setupLocaleWithRobots([robot]);
-
-      landOnDocked(DEFAULT_LOCALE_ID, robot.id);
-      const afterFirst = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)!;
-
-      useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, robot.id, { docking: DockingState.Departing });
-      landOnDocked(DEFAULT_LOCALE_ID, robot.id);
-      const afterSecond = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)!;
-
-      // Not a strict guarantee for any single seed, but across two independent
-      // dock cycles the noteIndex arrays should not always be identical.
-      const identical = JSON.stringify(afterFirst.melody.map((e) => e.noteIndex)) ===
-        JSON.stringify(afterSecond.melody.map((e) => e.noteIndex));
-      expect(identical).toBe(false);
     });
   });
 
@@ -930,6 +900,54 @@ describe('robotSystems', () => {
         expect(secondResult.dockCycleCount).toBe(2);
         expect(secondResult.melody).toEqual(expectedDriftedMelody(firstResult.melody, 2, beforeSecondDock.noteVariance));
         expect(secondResult.melody).not.toEqual(originalMelody);
+      });
+
+      // Relocated from the old 'landOnDocked' describe block (Task 6) -- these test drift
+      // computation itself, which now lives here, not in landOnDocked (pure pass-through since
+      // Task 6).
+      it('re-rolls ~25% of melody noteIndex values, leaving startStep/length/octave unchanged', () => {
+        const originalMelody = makeRobot().melody;
+        const snap = makeSnapshot({ docking: DockingState.Departing, dockingHoldUntilMeasure: 20, batteryLevel: 5, melody: originalMelody });
+        const [result] = stepRobotLifecycle([snap], 20, TEST_NOISE_MAP);
+
+        expect(result.melody).toHaveLength(originalMelody.length);
+        expect(result.melody.map((e) => e.startStep)).toEqual(originalMelody.map((e) => e.startStep));
+        expect(result.melody.map((e) => e.length)).toEqual(originalMelody.map((e) => e.length));
+        expect(result.melody.map((e) => e.octave)).toEqual(originalMelody.map((e) => e.octave));
+        const changedCount = result.melody.filter((e, i) => e.noteIndex !== originalMelody[i].noteIndex).length;
+        expect(changedCount).toBeGreaterThanOrEqual(1); // round(4 * 0.25) = 1
+      });
+
+      it('a fully Pitch-Repeat-locked robot (pitchLocked on every event) changes zero notes on re-roll', () => {
+        const originalMelody = [
+          { id: 'e1', startStep: 1, length: '16n' as const, noteIndex: 0, octave: 4 }, // base cell, never locked itself
+          { id: 'e2', startStep: 5, length: '16n' as const, noteIndex: 0, octave: 4, pitchLocked: true },
+          { id: 'e3', startStep: 9, length: '16n' as const, noteIndex: 0, octave: 4, pitchLocked: true },
+          { id: 'e4', startStep: 13, length: '16n' as const, noteIndex: 0, octave: 4, pitchLocked: true },
+        ];
+        const snap = makeSnapshot({ docking: DockingState.Departing, dockingHoldUntilMeasure: 20, batteryLevel: 5, melody: originalMelody });
+        const [result] = stepRobotLifecycle([snap], 20, TEST_NOISE_MAP);
+
+        // Only e1 (unlocked) is eligible, so the "always changes at least 1" floor could still
+        // pick it — but every pitchLocked event must stay byte-identical regardless.
+        expect(result.melody.filter((e) => e.pitchLocked).every((e) => e.noteIndex === 0)).toBe(true);
+        const lockedChangedCount = result.melody.filter((e, i) => e.pitchLocked && e.noteIndex !== originalMelody[i].noteIndex).length;
+        expect(lockedChangedCount).toBe(0);
+      });
+
+      it('re-rolls a different subset of pitches on successive dock cycles for the same robot', () => {
+        const originalMelody = makeRobot().melody;
+        const snap = makeSnapshot({ id: 'drift-robot', docking: DockingState.Departing, dockingHoldUntilMeasure: 20, batteryLevel: 5, melody: originalMelody });
+        const [afterFirst] = stepRobotLifecycle([snap], 20, TEST_NOISE_MAP);
+
+        const beforeSecond = { ...afterFirst, docking: DockingState.Departing, dockingHoldUntilMeasure: 40 };
+        const [afterSecond] = stepRobotLifecycle([beforeSecond], 40, TEST_NOISE_MAP);
+
+        // Not a strict guarantee for any single seed, but across two independent dock cycles the
+        // noteIndex arrays should not always be identical.
+        const identical = JSON.stringify(afterFirst.melody.map((e) => e.noteIndex)) ===
+          JSON.stringify(afterSecond.melody.map((e) => e.noteIndex));
+        expect(identical).toBe(false);
       });
 
       it('a landing transition never sets position/audioMode/state/destination/direction -- RobotLifecycleSnapshot has no such fields to set', () => {
