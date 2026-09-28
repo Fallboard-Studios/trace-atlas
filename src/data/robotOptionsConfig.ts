@@ -12,7 +12,6 @@
  * RobotDisplaySection.tsx.
  */
 import type {
-  ButtonSchema,
   ControlSchema,
   DirectionalPanelSchema,
   RadioButtonSchema,
@@ -239,15 +238,6 @@ export const NOTE_VARIANCE_SCHEMA: SliderLinearSchema = {
   max: NOTE_VARIANCE_MAX,
   step: 1,
   orientation: 'horizontal',
-};
-
-/** Plain one-click Button — no confirmation dialog, confirmed during /interview-me for
- *  consistency with every other Button in the app (see docs/specs/ROBOT_OPTIONS.md §7). */
-export const RESET_MELODY_SCHEMA: ButtonSchema = {
-  id: 'robotOptions.resetMelody',
-  type: 'button',
-  loreLabel: 'CALIBRATE PING',
-  humanLabel: 'Reset Melody',
 };
 
 // ========================================
