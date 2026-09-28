@@ -250,7 +250,7 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
 
   **Estimated scope:** XS (2 files)
 
-- [ ] **Task 7: `sessionAutosave.ts` — the 5-minute background tick**
+- [x] **Task 7: `sessionAutosave.ts` — the 5-minute background tick**
 
   **Description:** `startSessionAutosave()`/`stopSessionAutosave()` per spec §4.4, mirroring `startAudioBudget()`'s module-singleton, idempotent shape. Every 5 minutes: read `sessionStore.getState().currentLoadedSessionName`; if `null`, build a payload (`buildSessionPayload`, Task 4.2) and write it to the next slot in the 5-slot FIFO rotation; if non-null, write to the single `'draft'` slot instead.
 
@@ -271,9 +271,9 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
 
   **Estimated scope:** S (2 files)
 
-### Checkpoint B: Headless persistence proven
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (full suite).
-- [ ] Save, overwrite, delete, list, and the full 6-slot autosave rotation are all provable with no UI involved.
+### Checkpoint B: Headless persistence proven — COMPLETE
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (full suite) — 191 files / 3970 tests.
+- [x] Save, overwrite, delete, list, and the full 6-slot autosave rotation are all provable with no UI involved.
 - [ ] Reviewed with human before proceeding to Phase 3.
 
 ---
