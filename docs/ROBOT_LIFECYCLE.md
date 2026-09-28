@@ -11,7 +11,7 @@ purely by its own battery level. Nothing is ever removed from the roster.
 
 1. **Fixed roster, created once**: every locale spawns exactly `MAX_ROBOTS` (12) robots at load — no dynamic spawn scheduler, no manual spawn action, no removal.
 2. **Battery-driven, not job-driven**: the `Docked ↔ Active` cycle is governed purely by battery level. Job assignment happens as a side effect of going `Active`, not a precondition for it.
-3. **Measure-quantized transitions**: every state change is evaluated once per measure via BeatClock — never `setTimeout`/`setInterval`.
+3. **Measure-quantized transitions**: every state change is evaluated once per measure via BeatClock — never `setTimeout`/`setInterval`. This determinism is what makes the whole cycle (battery/docking/job, plus the pitch drift below) headlessly replayable — see "Deterministic Replay" below.
 4. **Orthogonal to `RobotState`**: `Robot.docking` is a second state machine, independent of the existing `Robot.state` (`Idle`/`Moving`/`Selected`/`Interacting`/`Leaving`), which continues to govern in-world wandering/interaction behavior for whichever robots are currently `Active`.
 5. **Off-screen and muted-by-default while Docked, but overridable**: a `Docked` robot sits at a position outside the world bounds (reusing `spawnSystem.ts`'s `generateSpawnPosition`, the same off-viewBox placement used for spawn/entrance) and has `audioMode: 'mute'` — the *same* field Robot Options' Audio Mode toggle writes to (`RobotAudioTab.tsx`). Its `AudioEngine` voice stays reserved and its melody stays registered the whole time, exactly like an `Active` robot's — mute is enforced only at `scheduleNote()`'s `audioMode === 'mute'` check, so a user can flip a Docked robot's Audio Mode back to `none` in Robot Options and genuinely hear it, without anything in the lifecycle system fighting that override.
 
@@ -133,7 +133,8 @@ Voice reservation and melody registration are **not** done here — every robot 
 spawn (`spawnSystem.ts`'s `spawnRobot`), regardless of docking state, and they stay put across
 dock cycles. `audioMode` is the only thing that changes.
 
-**`landOnDocked(localeId, robotId)`** — called when a `Departing` robot's hold elapses:
+**`landOnDocked(localeId, robotId, driftedMelody)`** — called when a `Departing` robot's hold
+elapses:
 1. Sets `docking: Docked`, clears `dockingHoldUntilMeasure`, sets `audioMode: 'mute'`.
 2. Repositions off-screen via `generateSpawnPosition`, seeded by a per-robot `dockCycleCounters`
    counter (module state in `robotSystems.ts`, mirroring `idleSystem.ts`'s `idleMoveCounters` and
@@ -142,8 +143,11 @@ dock cycles. `audioMode` is the only thing that changes.
    is wherever `beginDeparting`'s exit swim (below) has carried it to, which is a different,
    independently-computed off-screen point; the two don't need to match, since "off-screen" is all
    that matters and nothing re-syncs the GSAP transform from the store afterward.
-3. Re-rolls pitch drift (see below) and re-registers the drifted melody with `AudioEngine` — so a
-   manual mute override plays the post-drift pitches, not whatever was registered before docking.
+3. Stores `driftedMelody` and re-registers it with `AudioEngine` — so a manual mute override plays
+   the post-drift pitches, not whatever was registered before docking. **`landOnDocked` itself no
+   longer computes the drift** (it took no `driftedMelody` parameter and called
+   `reRollMelodyPitches` directly, before World Clock — see "Deterministic Replay" below); the
+   caller, `tickRobotLifecycle`, computes it via `stepRobotLifecycle` and passes the result in.
 4. Sets `state: Idle`, clears `destination` — `beginDeparting` left `state: Moving` for the exit
    swim; settling back to `Idle` here is what lets a later `landOnActive`'s `handleRobotIdle` call
    proceed (it requires `state === Idle`, and would otherwise no-op silently).
@@ -213,6 +217,65 @@ short melody always changes at least one note. Reuses `melodyGenerator.ts`'s exi
 `pickRandomIndices` (which events change) and `pickWeightedIndex` (the new pitch, when the
 robot's `noteVariance` is active) — no new selection logic. This is recurring, not a one-time
 spawn effect: a robot's pitch identity drifts gradually over many dock cycles across a session.
+
+## Deterministic Replay (Roadmap Phase 20.5 — World Clock)
+
+Battery, docking, job, and pitch drift are all replayable headlessly — given a roster's seeded
+spawn state and a target elapsed-measures count, the exact end state a real measure-by-measure
+run would have produced can be computed in a tight loop, with zero BeatClock subscription and
+zero AudioEngine/GSAP side effects. This is the same "store the recipe, not the derived state"
+principle melody's own base generation already follows (roadmap Phase 31), extended to cover the
+one piece of "who's playing when" that previously wasn't seed-derived.
+
+**`Locale.createdAtMeasure: number`** (`types/locale.ts`) — stamped once, at the same point
+`dayStartTimestamp` is (`worldTransition.ts`'s `buildLocale`), reading `getCurrentMeasure()` at
+that moment. **Not** the pre-existing `Locale.currentMeasure` field, which is unrelated legacy
+state never incremented by the real tick system (confirmed by reading every reference to it in
+`src/` — its only use is a mount-time no-op self-write in `App.tsx` to force a re-render). Elapsed
+measures for replay purposes is always `getCurrentMeasure() - locale.createdAtMeasure`.
+
+**`stepRobotLifecycle(roster: RobotLifecycleSnapshot[], measure: number, noiseMap: NoiseFunction2D): RobotLifecycleSnapshot[]`**
+(`robotSystems.ts`) — one measure's worth of transition for an entire roster, pure. Mirrors
+`tickRobotLifecycle`'s battery/docking/job arithmetic and the never-zero-`Active` invariant exactly
+(mutates a local working array in roster order, so within-measure ordering effects — like which of
+two simultaneously-critical robots is allowed to depart — match a real tick bit for bit), plus a
+`Departing`→`Docked` landing's pitch drift (`reRollMelodyPitches`/`DOCKED_PITCH_DRIFT_RATIO`,
+seeded identically to the live path: `getSeededVal(noiseMap, 'robot.pitchDrift', dockCycleCount * 100 + callIndex, 0, 1)`
+using the post-increment `dockCycleCount`). `noiseMap` is required — no fallback for a missing one
+is ported from `landOnDocked`'s own defensive branch; replay only ever runs against an
+already-spawned locale, which always has one.
+
+**`RobotLifecycleSnapshot`** carries `dockCycleCount` as part of its own state (not a side
+channel) — the replay-side equivalent of the live path's module-scope `dockCycleCounters` map.
+`tickRobotLifecycle` reads that same live map when building a snapshot for each real tick, so the
+two mechanisms stay numerically in sync without being unified into one (unifying them would mean
+adding a new persisted field to `Robot` itself — judged out of proportion to this phase).
+
+**`replayLifecycle(roster, fromMeasure, toMeasure, noiseMap): RobotLifecycleSnapshot[]`**
+(`robotSystems.ts`) — calls `stepRobotLifecycle` once per measure from `fromMeasure + 1` through
+`toMeasure` inclusive; a no-op if `toMeasure < fromMeasure + 1`. The one caller-facing entry point
+for headless replay. In practice always called with `fromMeasure` = the locale's own
+`createdAtMeasure` — replay always fully re-simulates from roster creation, never resumes from a
+mid-point checkpoint, which is what lets pitch drift (and its own `dockCycleCount` sequencing) fall
+out of the replay loop for free instead of needing separately-persisted history.
+
+**What replay does *not* reproduce, and why that's fine:** on-screen position and continuous idle
+wandering (`handleRobotIdle`) are not measure-snapshot state to begin with — there's no "position
+at elapsed measure N" to replay *to*. The one real coupling between battery and movement
+(`idleSystem.ts`'s wander-Y-range bias below `BATTERY_LOWER_THIRD_THRESHOLD`) is one-way and
+irrelevant to anything replay computes.
+
+**No consumer wires this in yet.** Session Storage's `SessionPayload`, a future shareable link
+(roadmap Phase 21), and a future configuration scrubber (roadmap Phase 32) are all real candidates,
+but none of them call `replayLifecycle` today — this phase is the foundation, proven by a dedicated
+test (`robotSystems.test.ts`'s "prove-it: replay matches realtime") that N real ticks and one
+`replayLifecycle` call converge on identical state, not a live UI feature.
+
+A short, non-blocking audit of other timing-dependent systems (audio swells, LFO drift, ping
+variance) — whether they're similarly replayable — is recorded in `docs/todo/backlog.md` item 17.
+Short version: audio swells' trigger/target logic is already measure-seeded and safe the same way
+robot lifecycle is; LFO phase is genuinely not (a real, continuous, wall-clock-driven oscillator,
+by design) and would need a different, not-yet-built primitive if a future phase ever needs it.
 
 ## Job Assignment
 
@@ -315,3 +378,8 @@ The current tests (`robotSystems.test.ts`, plus updated coverage in `idleSystem.
 - the `idleSystem.ts` docking guard
 - `spawnInitialRoster`'s active/docked split, seeded battery variation, its determinism across identical coordinates, and that every robot (Docked included) has a reserved voice/registered melody with `audioMode` matching its docking state
 - the never-zero-`Active` invariant: a sole `Active` robot at/below critical battery stays `Active` (including floored at exactly 0) instead of departing; it departs on a later tick once another robot has landed back on `Active`; and when two robots cross critical in the same tick, only one departs while the other is held
+- `stepRobotLifecycle`'s own battery/docking/job/pitch-drift arithmetic in isolation (no store, no BeatClock — a behavioral test confirms it ignores whatever's live in the store), including the invariant re-read and job balancing reproduced exactly
+- `stepRobotLifecycle`'s pitch drift matching `landOnDocked`'s live seed formula (checked against an independently-computed expected result, never by comparing the function to itself), no cross-robot seed collision, and a robot's second dock cycle compounding on its first rather than re-drifting the original melody
+- `replayLifecycle`'s no-op case, parity with a hand-rolled loop, and that `fromMeasure` itself is excluded (not re-replayed)
+- the prove-it test: a real 12-robot roster with a contrived (not left to chance) starting state exercising both the invariant and a dock-triggered drift, run for N real ticks via `tickRobotLifecycle` and separately replayed via `replayLifecycle` from the same starting snapshot — asserted identical, field-for-field, for all 12 robots; mutation-checked against a broken invariant guard and against `tickRobotLifecycle` wiring the wrong (pre-drift) melody into `landOnDocked`
+- a dedicated multi-measure integration test driving a full `Active`→`Departing`→`Docked` cycle across four real ticks with hand-computed expected battery values at each step, alongside a companion robot proving the invariant/landing effects don't cross-contaminate
