@@ -73,24 +73,25 @@ Tasks 1 and 2 have no dependency on each other and could be done in either order
 
 ### Phase 1: Foundation
 
-- [ ] **Task 1: `Robot.compositionSeed` — type, spawn-time generation, and the existing-fixture sweep**
+- [x] **Task 1: `Robot.compositionSeed` — type, spawn-time generation, and the existing-fixture sweep** — done, commit `350a82f`
 
   **Description:** Add `compositionSeed: number` to `Robot.ts`. Add `generateCompositionSeed(noiseMap, spawnCount)` to `spawnSystem.ts` (mirrors `generateRobotId`'s shape, own dataId `'robot.compositionSeed'`, `getSeededVal(noiseMap, 'robot.compositionSeed', spawnCount, 0, 1)`, with the existing no-noiseMap `alea` fallback convention). Compute it unconditionally in `spawnRobot` — outside the `shouldCopy` branch, always fresh, never inherited — and add it to the `Robot` object literal. Because the field is required, this same change must also patch every existing hand-built `Robot`-typed literal in the test suite that would otherwise fail `build:types` — confirmed via `grep -rn "function makeRobot\|const makeRobot"` src: `CompanyOptionsSection.test.tsx`, `regenerateMelody.test.ts`, `localeStore.test.ts`, `worldTransition.test.ts`, `RobotSelectionCard.test.tsx`, `robotSystems.test.ts`, `robotOptionsActions.test.ts`, `idleSystem.test.ts`, `RobotDisplaySection.test.tsx`, `companyOptions.test.ts`, `RobotsTab.test.tsx`, `RobotBody.test.tsx`, `audioSwells.test.ts`, `RobotOptionsTab.test.tsx`, `audioBudgetSystem.test.ts`, `navPanelViewsAndContent.integration.test.ts`, `NavBreadcrumb.test.tsx`, `NavStatusBlock.test.tsx`, `useNavTree.test.ts` — re-run the grep before starting, since this list is a snapshot, not a promise. (`Robot.test.tsx`/`OceanScene.test.tsx` build a different `RobotType`, not `types/Robot.ts`'s `Robot` — confirm which during implementation, skip if genuinely unrelated.) A single fixed placeholder value (e.g. `0.5`) is fine for fixtures whose tests don't care about melody determinism specifically.
 
   **Why this is one task, not several:** `compositionSeed` being required means `Robot.ts`'s type change, `spawnSystem.ts`'s own object literal, and every test fixture all fail to compile independently of each other the moment the field exists anywhere unpopulated — there is no intermediate state where only some of them are fixed and `build:types` is still green. Sized **L** as a deliberate, justified exception to the ~5-file guideline: every one of the ~19 fixture edits is the same one-line, mechanically uniform addition, not independent design work.
 
   **Acceptance criteria:**
-  - [ ] `Robot.compositionSeed: number` exists, required, alongside `id` in `Robot.ts`.
-  - [ ] `generateCompositionSeed(noiseMap, spawnCount)` returns a value deterministic in `(noiseMap, spawnCount)` — same inputs, same output, across repeated calls.
-  - [ ] Two robots spawned at different `spawnCount` in the same locale get different `compositionSeed` values (own dataId, own offset).
-  - [ ] On the `shouldCopy` spawn path, the copy gets its **own**, independently-drawn `compositionSeed` — never the copy source's — mirroring the existing `name`/`melody` "always fresh" treatment in the same branch.
-  - [ ] `npm run build:types` is clean with zero `Robot`-literal-missing-field errors anywhere in `src/`.
-  - [ ] `npm test` full suite passes with no fixture silently reading `compositionSeed` as `undefined` (a fixture using `as Robot`/`as unknown as Robot` to bypass the compiler is the specific failure mode to check for — grep for `as Robot` too, not just the type checker).
+  - [x] `Robot.compositionSeed: number` exists, required, alongside `id` in `Robot.ts`.
+  - [x] `generateCompositionSeed(noiseMap, spawnCount)` returns a value deterministic in `(noiseMap, spawnCount)` — same inputs, same output, across repeated calls.
+  - [x] Two robots spawned at different `spawnCount` in the same locale get different `compositionSeed` values (own dataId, own offset).
+  - [x] On the `shouldCopy` spawn path, the copy gets its **own**, independently-drawn `compositionSeed` — never the copy source's — mirroring the existing `name`/`melody` "always fresh" treatment in the same branch.
+  - [x] `npm run build:types` is clean with zero `Robot`-literal-missing-field errors anywhere in `src/`.
+  - [x] `npm test` full suite passes (195 files / 4024 tests). Compiler-forced fixtures (7 files: `AudioEngine.test.ts`, `localeStore.test.ts`, `audioBudgetSystem.test.ts`, `idleSystem.test.ts`, `interactionSystem.test.ts`, `robotSystems.test.ts`, `worldTransition.test.ts`) all patched. `as Robot`/`as unknown as Robot`-cast fixtures were also swept, but narrowed to the ones that actually execute real melody-generation code paths (`regenerateMelody.test.ts`, `robotOptionsActions.test.ts`) — the rest (nav-tree/UI-label/filter/animation fixtures using `{id, name} as unknown as Robot`-style casts) don't call `regenerateMelody`/`spawnRobot` and were deliberately left untouched, per scope discipline (Rule 0.5).
+  - [x] Mutation-checked: temporarily hardcoded `compositionSeed = 0.5` in `spawnRobot`, confirmed both the "different spawnCount → different seed" and "copy gets its own seed" tests failed, reverted.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/spawnSystem.test.ts`
-  - [ ] `npm run build:types` (must be clean across the whole repo, not just the touched files)
-  - [ ] `npm test` (full suite)
+  - [x] `npx vitest run src/systems/spawnSystem.test.ts` — 83 passed
+  - [x] `npm run build:types` — clean across the whole repo
+  - [x] `npm test` (full suite) — 195 files / 4024 tests passed
 
   **Dependencies:** None.
 
