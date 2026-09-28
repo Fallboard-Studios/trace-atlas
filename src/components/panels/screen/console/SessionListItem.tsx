@@ -2,10 +2,10 @@ import { useState } from 'react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { Button } from '@/components/ui/controls/Button';
 import { applySessionPayload, buildSessionPayload } from '@/utils/sessionDiff';
-import { deleteNamedSession, saveNamedSession } from '@/utils/sessionStorageEngine';
+import { deleteNamedSession, saveNamedSession, deleteAutosaveSlot } from '@/utils/sessionStorageEngine';
 import { useSessionStore } from '@/stores/sessionStore';
 import { isAutosaveSlotName } from '@/types/session';
-import type { SessionEntry } from '@/types/session';
+import type { SessionEntry, AutosaveSlotId } from '@/types/session';
 import { LOAD_SESSION_SCHEMA, DELETE_SESSION_SCHEMA, UPDATE_SESSION_SCHEMA } from '@/data/sessionConfig';
 
 import './SessionListItem.css';
@@ -18,16 +18,17 @@ interface SessionListItemProps {
 }
 
 /**
- * One row in the "Load Sessions" list (docs/specs/SESSION_STORAGE.md §4.5). A named entry shows
- * its own name, a Load button, and a Delete button behind an AlertDialog confirm — the exact
- * pattern CompanyCrudControls.tsx's own delete confirmation already establishes. Once a named
- * entry becomes the currently-loaded session (sessionStore.currentLoadedSessionName), its Load
- * button turns into Update, which overwrites that same entry with the live state instead of
- * reloading it. An autosave-slot entry (any of the 6 ids isAutosaveSlotName recognizes) shows its
- * own world identity ("AttenuationStyle @ (x, y)", suffixed "(Autosaved Session)") and Load
- * only — never Update or Delete: loading an autosave slot never sets currentLoadedSessionName,
- * and deleting one isn't a supported action (spec's out-of-scope list: the 6 slots are
- * self-managing by construction).
+ * One row in the "Load Sessions" list (docs/specs/SESSION_STORAGE.md §4.5). Every entry — named
+ * or autosave-slot — gets a Load button and a Delete button behind an AlertDialog confirm, the
+ * exact pattern CompanyCrudControls.tsx's own delete confirmation already establishes; Delete
+ * routes to deleteNamedSession or deleteAutosaveSlot depending on which kind this entry is
+ * (Crawford's request, 2026-09-28 — autosave slots are deletable too, reversing the original
+ * "self-managing by construction" scope call). Once a named entry becomes the currently-loaded
+ * session (sessionStore.currentLoadedSessionName), its Load button turns into Update instead,
+ * which overwrites that same entry with the live state rather than reloading it — never shown for
+ * an autosave-slot entry, since loading one never sets currentLoadedSessionName. An autosave-slot
+ * entry (any of the 6 ids isAutosaveSlotName recognizes) shows its own world identity
+ * ("AttenuationStyle @ (x, y)", suffixed "(Autosaved Session)") instead of a user-given name.
  */
 export function SessionListItem({ entry, onChange }: SessionListItemProps) {
   const currentLoadedSessionName = useSessionStore((s) => s.currentLoadedSessionName);
@@ -59,7 +60,11 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
   };
 
   const handleConfirmDelete = () => {
-    deleteNamedSession(entry.name);
+    if (isAutosave) {
+      deleteAutosaveSlot(entry.name as AutosaveSlotId);
+    } else {
+      deleteNamedSession(entry.name);
+    }
     setConfirmOpen(false);
     onChange?.();
   };
@@ -77,31 +82,27 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
         <Button schema={loadSchema} onClick={handleLoad} />
       )}
 
-      {!isAutosave && (
-        <>
-          <Button schema={deleteSchema} onClick={() => setConfirmOpen(true)} />
+      <Button schema={deleteSchema} onClick={() => setConfirmOpen(true)} />
 
-          <AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
-            <AlertDialog.Portal>
-              <AlertDialog.Overlay className="session-delete-confirm__overlay" />
-              <AlertDialog.Content className="session-delete-confirm__content">
-                <AlertDialog.Title className="session-delete-confirm__title">
-                  Delete {label}?
-                </AlertDialog.Title>
-                <AlertDialog.Description className="session-delete-confirm__description">
-                  This can&apos;t be undone.
-                </AlertDialog.Description>
-                <div className="session-delete-confirm__actions">
-                  <AlertDialog.Cancel className="session-delete-confirm__cancel">Cancel</AlertDialog.Cancel>
-                  <AlertDialog.Action className="session-delete-confirm__confirm" onClick={handleConfirmDelete}>
-                    Delete
-                  </AlertDialog.Action>
-                </div>
-              </AlertDialog.Content>
-            </AlertDialog.Portal>
-          </AlertDialog.Root>
-        </>
-      )}
+      <AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="session-delete-confirm__overlay" />
+          <AlertDialog.Content className="session-delete-confirm__content">
+            <AlertDialog.Title className="session-delete-confirm__title">
+              Delete {label}?
+            </AlertDialog.Title>
+            <AlertDialog.Description className="session-delete-confirm__description">
+              This can&apos;t be undone.
+            </AlertDialog.Description>
+            <div className="session-delete-confirm__actions">
+              <AlertDialog.Cancel className="session-delete-confirm__cancel">Cancel</AlertDialog.Cancel>
+              <AlertDialog.Action className="session-delete-confirm__confirm" onClick={handleConfirmDelete}>
+                Delete
+              </AlertDialog.Action>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
     </div>
   );
 }

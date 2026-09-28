@@ -97,6 +97,16 @@ export function deleteNamedSession(name: string): void {
   writeStorage(data);
 }
 
+/** Removes one autosave slot — a rotating slot or the draft slot — never a named entry, even one
+ *  sharing the same string (e.g. a user naming a session "draft"). Deleting an empty slot is a
+ *  harmless no-op. The FIFO cursor is untouched: a rotating slot that's been deleted simply stays
+ *  absent until the cursor comes back around to it on a later write. */
+export function deleteAutosaveSlot(slotId: AutosaveSlotId): void {
+  const data = readStorage();
+  delete data.autosave[slotId];
+  writeStorage(data);
+}
+
 /** Every named entry plus every populated autosave slot, for the "Load Sessions" list. */
 export function listSessions(): SessionEntry[] {
   const data = readStorage();

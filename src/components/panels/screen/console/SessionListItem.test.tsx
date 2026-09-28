@@ -10,12 +10,13 @@ vi.mock('@/utils/sessionDiff', () => ({
 vi.mock('@/utils/sessionStorageEngine', () => ({
   deleteNamedSession: vi.fn(),
   saveNamedSession: vi.fn(),
+  deleteAutosaveSlot: vi.fn(),
 }));
 
 import { SessionListItem } from './SessionListItem';
 import { useSessionStore } from '@/stores/sessionStore';
 import { applySessionPayload, buildSessionPayload } from '@/utils/sessionDiff';
-import { deleteNamedSession, saveNamedSession } from '@/utils/sessionStorageEngine';
+import { deleteNamedSession, saveNamedSession, deleteAutosaveSlot } from '@/utils/sessionStorageEngine';
 import type { SessionEntry } from '@/types/session';
 
 const fakePayload = {
@@ -40,17 +41,17 @@ describe('SessionListItem', () => {
     expect(screen.getByRole('button', { name: /Delete Deep Dive/i })).toBeTruthy();
   });
 
-  it('an autosave-slot entry renders "AttenuationStyle @ (x, y) (Autosaved Session)" and a Load button (unsuffixed) only, no Delete', () => {
+  it('an autosave-slot entry renders "AttenuationStyle @ (x, y) (Autosaved Session)", a Load button (unsuffixed), and a Delete button', () => {
     render(<SessionListItem entry={makeEntry({ name: 'unsaved-0' })} />);
     expect(screen.getByText('Iron Drift @ (12, -34) (Autosaved Session)')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Load Iron Drift @ \(12, -34\)/i })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /Delete/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /Delete Iron Drift @ \(12, -34\)/i })).toBeTruthy();
   });
 
-  it('the draft slot renders the same "AttenuationStyle @ (x, y) (Autosaved Session)" label, with no Delete button', () => {
+  it('the draft slot renders the same "AttenuationStyle @ (x, y) (Autosaved Session)" label, with its own Delete button too', () => {
     render(<SessionListItem entry={makeEntry({ name: 'draft' })} />);
     expect(screen.getByText('Iron Drift @ (12, -34) (Autosaved Session)')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /Delete/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /Delete Iron Drift @ \(12, -34\)/i })).toBeTruthy();
   });
 
   it('two autosave-slot entries from different worlds show distinct labels', () => {
@@ -161,5 +162,34 @@ describe('SessionListItem', () => {
 
     expect(deleteNamedSession).not.toHaveBeenCalled();
     expect(screen.getByText('Deep Dive')).toBeTruthy();
+  });
+
+  it('deleting an autosave-slot entry opens the same confirmation dialog, without deleting anything yet', () => {
+    render(<SessionListItem entry={makeEntry({ name: 'unsaved-0' })} />);
+    fireEvent.click(screen.getByRole('button', { name: /Delete Iron Drift @ \(12, -34\)/i }));
+
+    expect(screen.getByText(/Delete Iron Drift @ \(12, -34\)\?/i)).toBeTruthy();
+    expect(deleteAutosaveSlot).not.toHaveBeenCalled();
+    expect(deleteNamedSession).not.toHaveBeenCalled();
+  });
+
+  it('confirming deletes the autosave slot via deleteAutosaveSlot (not deleteNamedSession) and calls onChange', () => {
+    const onChange = vi.fn();
+    render(<SessionListItem entry={makeEntry({ name: 'unsaved-0' })} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: /Delete Iron Drift @ \(12, -34\)/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(deleteAutosaveSlot).toHaveBeenCalledWith('unsaved-0');
+    expect(deleteNamedSession).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancelling an autosave-slot delete leaves it untouched', () => {
+    render(<SessionListItem entry={makeEntry({ name: 'draft' })} />);
+    fireEvent.click(screen.getByRole('button', { name: /Delete Iron Drift @ \(12, -34\)/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(deleteAutosaveSlot).not.toHaveBeenCalled();
+    expect(screen.getByText('Iron Drift @ (12, -34) (Autosaved Session)')).toBeTruthy();
   });
 });

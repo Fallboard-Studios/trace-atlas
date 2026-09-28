@@ -4,6 +4,7 @@ import {
   saveNamedSession,
   saveAutosaveSlot,
   deleteNamedSession,
+  deleteAutosaveSlot,
   listSessions,
   loadSession,
   STORAGE_KEY,
@@ -71,6 +72,53 @@ describe('saveNamedSession / loadSession / deleteNamedSession', () => {
 
   it('loadSession returns undefined for a name that was never saved', () => {
     expect(loadSession('never-saved')).toBeUndefined();
+  });
+});
+
+describe('deleteAutosaveSlot', () => {
+  it('removes a rotating slot', () => {
+    saveAutosaveSlot('rotating', makePayload());
+    deleteAutosaveSlot('unsaved-0');
+
+    expect(loadSession('unsaved-0')).toBeUndefined();
+  });
+
+  it('removes the draft slot', () => {
+    saveAutosaveSlot('draft', makePayload());
+    deleteAutosaveSlot('draft');
+
+    expect(loadSession('draft')).toBeUndefined();
+  });
+
+  it('never touches a named entry, even one sharing the same slot-id-shaped string', () => {
+    saveAutosaveSlot('draft', makePayload({ attenuationStyleName: 'Draft Style' }));
+    saveNamedSession('draft', makePayload({ attenuationStyleName: 'Named Style' }));
+    deleteAutosaveSlot('draft');
+
+    expect(loadSession('draft')).toEqual(makePayload({ attenuationStyleName: 'Named Style' }));
+  });
+
+  it('never touches other populated autosave slots', () => {
+    for (let i = 0; i < 3; i++) saveAutosaveSlot('rotating', makePayload({ coordinates: { x: i, y: i } }));
+    deleteAutosaveSlot('unsaved-1');
+
+    expect(loadSession('unsaved-0')).toEqual(makePayload({ coordinates: { x: 0, y: 0 } }));
+    expect(loadSession('unsaved-1')).toBeUndefined();
+    expect(loadSession('unsaved-2')).toEqual(makePayload({ coordinates: { x: 2, y: 2 } }));
+  });
+
+  it('deleting an empty slot is a harmless no-op', () => {
+    expect(() => deleteAutosaveSlot('unsaved-3')).not.toThrow();
+    expect(loadSession('unsaved-3')).toBeUndefined();
+  });
+
+  it('a later rotating write can still land on a deleted slot once the FIFO cursor comes back around', () => {
+    for (let i = 0; i < 5; i++) saveAutosaveSlot('rotating', makePayload({ coordinates: { x: i, y: i } }));
+    deleteAutosaveSlot('unsaved-2');
+    saveAutosaveSlot('rotating', makePayload({ coordinates: { x: 99, y: 99 } })); // wraps to slot 0
+
+    expect(loadSession('unsaved-2')).toBeUndefined(); // cursor hasn't come back around to slot 2 yet
+    expect(loadSession('unsaved-0')).toEqual(makePayload({ coordinates: { x: 99, y: 99 } }));
   });
 });
 
