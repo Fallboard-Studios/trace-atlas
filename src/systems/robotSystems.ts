@@ -2,6 +2,7 @@
 // IMPORTS
 // ========================================
 import alea from 'alea';
+import type { NoiseFunction2D } from 'simplex-noise';
 
 import { DockingState, JobType, RobotState } from '../types/Robot';
 import type { JobType as JobTypeValue } from '../types/Robot';
@@ -87,6 +88,11 @@ export interface RobotLifecycleSnapshot {
   batteryLevel: number;
   dockingHoldUntilMeasure?: number;
   job?: { type: JobTypeValue; assignedAtMeasure: number };
+  melody: Robot['melody'];
+  /** How many times this robot has landed on Docked so far -- the replay-derived equivalent of
+   *  the live dockCycleCounters module map below, threaded as part of the snapshot itself (not a
+   *  side channel) so stepRobotLifecycle stays a pure function of its own input. Starts at 0. */
+  dockCycleCount: number;
   octaveRange: [number, number];
   rhythmicDensity?: number;
   rhythmicMotifLength?: Robot['rhythmicMotifLength'];
@@ -126,8 +132,15 @@ function chooseJobForSnapshot(snapshot: RobotLifecycleSnapshot, roster: RobotLif
  * tickRobotLifecycle's own "re-read fresh, not the stale snapshot" invariant check), in roster
  * array order, so within-measure ordering effects match a real tick bit for bit. Imports neither
  * useLocaleStore nor getCurrentMeasure -- zero side effects, zero store access.
+ *
+ * A Departing->Docked landing also drifts `melody` via the same reRollMelodyPitches/
+ * DOCKED_PITCH_DRIFT_RATIO rule landOnDocked applies live, seeded identically
+ * (getSeededVal(noiseMap, 'robot.pitchDrift', dockCycleCount * 100 + callIndex, 0, 1) using the
+ * POST-increment dockCycleCount, matching landOnDocked's own `(counter ?? 0) + 1` before seeding).
+ * `noiseMap` is required, not optional -- no alea(...) fallback is ported from landOnDocked's live
+ * defensive branch (spec §7 item 2 -- replay only ever runs against an already-spawned locale).
  */
-export function stepRobotLifecycle(roster: RobotLifecycleSnapshot[], measure: number): RobotLifecycleSnapshot[] {
+export function stepRobotLifecycle(roster: RobotLifecycleSnapshot[], measure: number, noiseMap: NoiseFunction2D): RobotLifecycleSnapshot[] {
   const working = roster.map((r) => ({ ...r }));
 
   for (const robot of working) {
@@ -160,6 +173,13 @@ export function stepRobotLifecycle(roster: RobotLifecycleSnapshot[], measure: nu
         robot.docking = DockingState.Docked;
         robot.dockingHoldUntilMeasure = undefined;
         robot.job = undefined;
+        robot.dockCycleCount += 1;
+        let pitchCallIndex = 0;
+        const pitchRand = () => getSeededVal(noiseMap, 'robot.pitchDrift', robot.dockCycleCount * 100 + pitchCallIndex++, 0, 1);
+        robot.melody = reRollMelodyPitches(robot.melody, DOCKED_PITCH_DRIFT_RATIO, {
+          noteVariance: robot.noteVariance,
+          rand: pitchRand,
+        });
       }
     }
   }
