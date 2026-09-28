@@ -51,7 +51,7 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
 
   return (
     <div className="session-list-item">
-      <span className="session-list-item__label">{label}</span>
+      <span className="session-list-item__label">{label}{isAutosave && ' (Autosaved Session)'}</span>
       <Button schema={loadSchema} onClick={handleLoad} />
 
       {!isAutosave && (
