@@ -48,3 +48,13 @@ export const UPDATE_SESSION_SCHEMA: ButtonSchema = {
   loreLabel: 'OVERWRITE ARCHIVE',
   humanLabel: 'Update',
 };
+
+/** Bottom-of-panel destructive action (Crawford's exact copy, 2026-09-28) — wipes ALL of
+ *  localStorage (not just the sessions key), behind an AlertDialog confirm like
+ *  CompanyCrudControls.tsx's own delete confirmation. */
+export const CLEAR_STORAGE_SCHEMA: ButtonSchema = {
+  id: 'session.clearStorage',
+  type: 'button',
+  loreLabel: 'Reset to Factory Settings',
+  humanLabel: 'Clear Local Storage',
+};

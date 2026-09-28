@@ -69,4 +69,54 @@ describe('SessionsPanel', () => {
 
     expect(screen.queryByText('Test Session')).toBeNull();
   });
+
+  describe('Clear Local Storage', () => {
+    it('renders a "Clear Local Storage" button', () => {
+      render(<SessionsPanel />);
+      expect(screen.getByRole('button', { name: /clear local storage/i })).toBeTruthy();
+    });
+
+    it('clicking it opens a confirmation dialog without clearing anything yet', () => {
+      render(<SessionsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: /save session/i }));
+      fireEvent.click(screen.getByRole('button', { name: /clear local storage/i }));
+
+      expect(localStorage.getItem(STORAGE_KEY)).toContain('Test Session');
+      expect(screen.getByText('Test Session')).toBeTruthy();
+    });
+
+    it('confirming clears ALL of localStorage (not just the sessions key) and empties the visible list', () => {
+      localStorage.setItem('some-unrelated-key', 'should also be wiped');
+      render(<SessionsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: /save session/i }));
+      expect(screen.getByText('Test Session')).toBeTruthy();
+
+      fireEvent.click(screen.getByRole('button', { name: /clear local storage/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'Clear Local Storage' }));
+
+      expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+      expect(localStorage.getItem('some-unrelated-key')).toBeNull();
+      expect(screen.queryByText('Test Session')).toBeNull();
+    });
+
+    it('confirming also clears currentLoadedSessionName back to null', () => {
+      useSessionStore.setState({ currentLoadedSessionName: 'Test Session' });
+      render(<SessionsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: /clear local storage/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'Clear Local Storage' }));
+
+      expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+    });
+
+    it('cancelling the dialog leaves storage and the list untouched', () => {
+      render(<SessionsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: /save session/i }));
+
+      fireEvent.click(screen.getByRole('button', { name: /clear local storage/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      expect(localStorage.getItem(STORAGE_KEY)).toContain('Test Session');
+      expect(screen.getByText('Test Session')).toBeTruthy();
+    });
+  });
 });

@@ -21,7 +21,9 @@ A background autosave runs every 5 minutes regardless of user action, across **6
 
 **Nothing about today's boot behavior changes.** No session — named or autosaved — is ever auto-loaded on refresh or a fresh tab; `?seed=` (`main.tsx`) keeps working exactly as it does today, untouched by this feature. Getting back a session is always a deliberate click.
 
-**Explicitly out of scope this phase:** URL-based sharing, `CompressionStream`/`DecompressionStream` serialization, and any cross-tab/shareable-link mechanism — tracked separately in [roadmap Phase 21](../todo/roadmap.md#21-sector-settings-shareable-link-importexport). Also out of scope: a "wipe everything" destructive reset, and any cap/eviction/delete affordance on the 6 autosave slots themselves (self-managing by construction).
+**Explicitly out of scope this phase:** URL-based sharing, `CompressionStream`/`DecompressionStream` serialization, and any cross-tab/shareable-link mechanism — tracked separately in [roadmap Phase 21](../todo/roadmap.md#21-sector-settings-shareable-link-importexport). Also out of scope: any cap/eviction/delete affordance on the 6 autosave slots themselves (self-managing by construction).
+
+**Added 2026-09-28 (Crawford's request), reversing the "wipe everything" exclusion above:** a "Clear Local Storage" button at the bottom of the Sessions panel (lore label "Reset to Factory Settings"), behind an `AlertDialog` confirm matching the established pattern. On confirm, calls `localStorage.clear()` — all of `localStorage`, not scoped to the sessions key alone — and resets `sessionStore.currentLoadedSessionName` to `null`. Does not strip the URL query string or regenerate the world (the original `docs/SESSION_STORAGE.md` FirmwareResetModal concept did both); scoped to exactly what was asked.
 
 ### 1.1 Existing precedents this design reuses
 
