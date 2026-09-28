@@ -22,9 +22,13 @@ interface SessionListItemProps {
  * always shows Load, never "Update" -- Load always reapplies exactly what was last saved, never
  * silently overwrites it (overwrite-by-name is covered by SessionsPanel.tsx's Save Session box
  * instead). Plain manual CRUD only: no autosave history, no "Primary Save" label, no subrows.
+ * Loading a row also updates the Session Name input (sessionStore.currentSessionName) to this
+ * entry's name, so a re-save without retyping the name overwrites the just-loaded session rather
+ * than creating a new entry under the input's previous (possibly unrelated) suggestion.
  */
 export function SessionListItem({ entry, onChange }: SessionListItemProps) {
   const setCurrentLoadedSessionName = useSessionStore((s) => s.setCurrentLoadedSessionName);
+  const setCurrentSessionName = useSessionStore((s) => s.setCurrentSessionName);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const label = entry.name;
@@ -32,6 +36,7 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
   const handleLoad = () => {
     applySessionPayload(entry.payload);
     setCurrentLoadedSessionName(entry.name);
+    setCurrentSessionName(entry.name);
   };
 
   const handleConfirmDelete = () => {

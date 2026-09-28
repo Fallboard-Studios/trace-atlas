@@ -98,6 +98,14 @@ describe('SessionListItem -- named entry', () => {
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Deep Dive');
   });
 
+  it('clicking Load also updates the Session Name input value (currentSessionName) to this entry\'s name', () => {
+    useSessionStore.setState({ currentSessionName: 'Some Unrelated Suggestion' });
+    render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+    fireEvent.click(screen.getByRole('button', { name: /Load Deep Dive/i }));
+
+    expect(useSessionStore.getState().currentSessionName).toBe('Deep Dive');
+  });
+
   it('clicking Delete opens a confirmation dialog without deleting anything yet', () => {
     render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
     fireEvent.click(screen.getByRole('button', { name: /Delete Deep Dive/i }));
