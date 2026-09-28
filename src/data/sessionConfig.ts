@@ -40,15 +40,6 @@ export const DELETE_SESSION_SCHEMA: ButtonSchema = {
   humanLabel: 'Delete',
 };
 
-/** Shown instead of LOAD_SESSION_SCHEMA on whichever row is the currently-loaded named session —
- *  clicking it overwrites that same entry with the live state instead of reloading it. */
-export const UPDATE_SESSION_SCHEMA: ButtonSchema = {
-  id: 'session.update',
-  type: 'button',
-  loreLabel: 'OVERWRITE ARCHIVE',
-  humanLabel: 'Update',
-};
-
 /** Bottom-of-panel destructive action (Crawford's exact copy, 2026-09-28) — wipes ALL of
  *  localStorage (not just the sessions key), behind an AlertDialog confirm like
  *  CompanyCrudControls.tsx's own delete confirmation. */

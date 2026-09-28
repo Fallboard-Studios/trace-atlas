@@ -1,67 +1,81 @@
 import { useState } from 'react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { Button } from '@/components/ui/controls/Button';
-import { applySessionPayload, buildSessionPayload } from '@/utils/sessionDiff';
-import { deleteNamedSession, saveNamedSession, deleteAutosaveSlot } from '@/utils/sessionStorageEngine';
+import { applySessionPayload } from '@/utils/sessionDiff';
+import { deleteNamedSession, deleteUnsavedHistory, listNamedSessionAutosaves, listUnsavedLastAutosaves } from '@/utils/sessionStorageEngine';
 import { useSessionStore } from '@/stores/sessionStore';
-import { isAutosaveSlotName } from '@/types/session';
-import type { SessionEntry, AutosaveSlotId } from '@/types/session';
-import { LOAD_SESSION_SCHEMA, DELETE_SESSION_SCHEMA, UPDATE_SESSION_SCHEMA } from '@/data/sessionConfig';
+import { LAST_UNSAVED_SESSION_KEY } from '@/types/session';
+import type { SessionEntry } from '@/types/session';
+import { formatSessionTimestamp } from '@/utils/helpers';
+import { LOAD_SESSION_SCHEMA, DELETE_SESSION_SCHEMA } from '@/data/sessionConfig';
 
 import './SessionListItem.css';
 
 interface SessionListItemProps {
   entry: SessionEntry;
+  /** Renders the indented-row CSS modifier and skips the Delete affordance/own subrow drill-down —
+   *  a subrow's own lifecycle is entirely FIFO-managed (docs/specs/SESSION_AUTOSAVE_HISTORY.md §3
+   *  "never exceed 3", §7 item 2 "no per-subrow delete"), not individually deletable, and never
+   *  nests a further level of history under itself. */
+  indented?: boolean;
   /** Called after a confirmed delete, so the parent (SessionsPanel) can refresh its own list —
-   *  listSessions() is a plain localStorage read, not a reactive store subscription. */
+   *  listSessions()/listNamedSessionAutosaves()/listUnsavedLastAutosaves() are plain localStorage
+   *  reads, not reactive store subscriptions. */
   onChange?: () => void;
 }
 
 /**
- * One row in the "Load Sessions" list (docs/specs/SESSION_STORAGE.md §4.5). Every entry — named
- * or autosave-slot — gets a Load button and a Delete button behind an AlertDialog confirm, the
- * exact pattern CompanyCrudControls.tsx's own delete confirmation already establishes; Delete
- * routes to deleteNamedSession or deleteAutosaveSlot depending on which kind this entry is
- * (Crawford's request, 2026-09-28 — autosave slots are deletable too, reversing the original
- * "self-managing by construction" scope call). Once a named entry becomes the currently-loaded
- * session (sessionStore.currentLoadedSessionName), its Load button turns into Update instead,
- * which overwrites that same entry with the live state rather than reloading it — never shown for
- * an autosave-slot entry, since loading one never sets currentLoadedSessionName. An autosave-slot
- * entry (any of the 6 ids isAutosaveSlotName recognizes) shows its own world identity
- * ("AttenuationStyle @ (x, y)", suffixed "(Autosaved Session)") instead of a user-given name.
+ * One row in the "Load Sessions" list (docs/specs/SESSION_AUTOSAVE_HISTORY.md §4.5). Reused
+ * recursively for indented autosave subrows rather than a separate component. `entry.name` is
+ * either a real named session's own name, or the LAST_UNSAVED_SESSION_KEY sentinel for the single
+ * visible unsaved-history row -- both a named session's own autosave subrows and the
+ * unsaved-history row's own subrows carry their parent's identity in this same `name` field
+ * (sessionStorageEngine.ts's saveNamedSessionAutosave/saveUnsavedAutosave), so "which session does
+ * Load keep current" never needs a separate prop.
+ *
+ * Every row always shows Load -- the "Update" button that used to appear for the currently-loaded
+ * named session was reverted (docs/specs/SESSION_AUTOSAVE_HISTORY.md §1): Load always reapplies
+ * exactly what was last saved, never silently overwrites it. The currently-loaded named session's
+ * label instead gains a "Primary Save" suffix, and -- only while currently loaded -- renders its
+ * own up-to-3 autosave subrows beneath it. Loading a subrow keeps its parent "current" (a
+ * deliberate reversal of this component's own prior behavior, where loading any autosave slot
+ * unconditionally cleared currentLoadedSessionName).
  */
-export function SessionListItem({ entry, onChange }: SessionListItemProps) {
+export function SessionListItem({ entry, indented = false, onChange }: SessionListItemProps) {
   const currentLoadedSessionName = useSessionStore((s) => s.currentLoadedSessionName);
-  const isAutosave = isAutosaveSlotName(entry.name);
-  // Loading an autosave slot always clears currentLoadedSessionName to null (handleLoad below),
-  // so it can never equal an autosave slot's own raw id — !isAutosave here is belt-and-suspenders
-  // documentation of that invariant, not load-bearing on its own.
-  const isCurrentlyLoaded = !isAutosave && entry.name === currentLoadedSessionName;
+  const viewingUnsavedHistory = useSessionStore((s) => s.viewingUnsavedHistory);
+  const setCurrentLoadedSessionName = useSessionStore((s) => s.setCurrentLoadedSessionName);
+  const setViewingUnsavedHistory = useSessionStore((s) => s.setViewingUnsavedHistory);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  // Autosave slots have no user-given name to distinguish them by, and a generic "Unsaved
-  // Session" label repeated across all 6 slots made them indistinguishable in the list — the
-  // payload's own attenuationStyleName/coordinates identify which world each one is from instead.
-  const label = isAutosave
-    ? `${entry.payload.attenuationStyleName} @ (${entry.payload.coordinates.x}, ${entry.payload.coordinates.y})`
-    : entry.name;
+
+  const isUnsavedRow = entry.name === LAST_UNSAVED_SESSION_KEY;
+  const isCurrentlyLoaded = isUnsavedRow ? viewingUnsavedHistory : entry.name === currentLoadedSessionName;
+
+  // An indented subrow always shows its own timestamp, regardless of whether its parent is a
+  // named session or the unsaved-history row. A top-level unsaved-history row shows the world
+  // identity its newest entry carries (unchanged from the pre-restructure autosave-slot label) --
+  // not a timestamp, since it's a summary of its own bucket, not one specific entry. A top-level
+  // named row shows its own name, with "Primary Save" appended only while currently loaded.
+  const label = indented
+    ? `Autosave from ${formatSessionTimestamp(entry.savedAt)}`
+    : isUnsavedRow
+      ? `${entry.payload.attenuationStyleName} @ (${entry.payload.coordinates.x}, ${entry.payload.coordinates.y}) (Autosaved Session)`
+      : isCurrentlyLoaded
+        ? `${entry.name} Primary Save`
+        : entry.name;
 
   const handleLoad = () => {
     applySessionPayload(entry.payload);
-    useSessionStore.getState().setCurrentLoadedSessionName(isAutosave ? null : entry.name);
-  };
-
-  // Overwrites this same named entry with the current live state, rather than reloading it —
-  // shown instead of Load once this row is the currently-loaded session (Crawford's request,
-  // 2026-09-28), so a user who's kept tweaking after loading a save can persist those tweaks back
-  // into it without retyping its name in the Save Session input above.
-  const handleUpdate = () => {
-    saveNamedSession(entry.name, buildSessionPayload());
-    onChange?.();
+    if (isUnsavedRow) {
+      setViewingUnsavedHistory(true);
+    } else {
+      setCurrentLoadedSessionName(entry.name);
+    }
   };
 
   const handleConfirmDelete = () => {
-    if (isAutosave) {
-      deleteAutosaveSlot(entry.name as AutosaveSlotId);
+    if (isUnsavedRow) {
+      deleteUnsavedHistory();
     } else {
       deleteNamedSession(entry.name);
     }
@@ -70,40 +84,45 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
   };
 
   const loadSchema = { ...LOAD_SESSION_SCHEMA, humanLabel: `${LOAD_SESSION_SCHEMA.humanLabel} ${label}` };
-  const updateSchema = { ...UPDATE_SESSION_SCHEMA, humanLabel: `${UPDATE_SESSION_SCHEMA.humanLabel} ${label}` };
   const deleteSchema = { ...DELETE_SESSION_SCHEMA, humanLabel: `${DELETE_SESSION_SCHEMA.humanLabel} ${label}` };
 
+  const subrows = !indented && isCurrentlyLoaded ? (isUnsavedRow ? listUnsavedLastAutosaves() : listNamedSessionAutosaves(entry.name)) : [];
+
   return (
-    <div className="session-list-item">
-      <span className="session-list-item__label">{label}{isAutosave && ' (Autosaved Session)'}</span>
-      {isCurrentlyLoaded ? (
-        <Button schema={updateSchema} onClick={handleUpdate} />
-      ) : (
+    <>
+      <div className={indented ? 'session-list-item session-list-item--indented' : 'session-list-item'}>
+        <span className="session-list-item__label">{label}</span>
         <Button schema={loadSchema} onClick={handleLoad} />
-      )}
 
-      <Button schema={deleteSchema} onClick={() => setConfirmOpen(true)} />
+        {!indented && (
+          <>
+            <Button schema={deleteSchema} onClick={() => setConfirmOpen(true)} />
 
-      <AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialog.Portal>
-          <AlertDialog.Overlay className="session-delete-confirm__overlay" />
-          <AlertDialog.Content className="session-delete-confirm__content">
-            <AlertDialog.Title className="session-delete-confirm__title">
-              Delete {label}?
-            </AlertDialog.Title>
-            <AlertDialog.Description className="session-delete-confirm__description">
-              This can&apos;t be undone.
-            </AlertDialog.Description>
-            <div className="session-delete-confirm__actions">
-              <AlertDialog.Cancel className="session-delete-confirm__cancel">Cancel</AlertDialog.Cancel>
-              <AlertDialog.Action className="session-delete-confirm__confirm" onClick={handleConfirmDelete}>
-                Delete
-              </AlertDialog.Action>
-            </div>
-          </AlertDialog.Content>
-        </AlertDialog.Portal>
-      </AlertDialog.Root>
-    </div>
+            <AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
+              <AlertDialog.Portal>
+                <AlertDialog.Overlay className="session-delete-confirm__overlay" />
+                <AlertDialog.Content className="session-delete-confirm__content">
+                  <AlertDialog.Title className="session-delete-confirm__title">Delete {label}?</AlertDialog.Title>
+                  <AlertDialog.Description className="session-delete-confirm__description">
+                    This can&apos;t be undone.
+                  </AlertDialog.Description>
+                  <div className="session-delete-confirm__actions">
+                    <AlertDialog.Cancel className="session-delete-confirm__cancel">Cancel</AlertDialog.Cancel>
+                    <AlertDialog.Action className="session-delete-confirm__confirm" onClick={handleConfirmDelete}>
+                      Delete
+                    </AlertDialog.Action>
+                  </div>
+                </AlertDialog.Content>
+              </AlertDialog.Portal>
+            </AlertDialog.Root>
+          </>
+        )}
+      </div>
+
+      {subrows.map((subEntry) => (
+        <SessionListItem key={`${subEntry.name}-${subEntry.savedAt}`} entry={subEntry} indented />
+      ))}
+    </>
   );
 }
 

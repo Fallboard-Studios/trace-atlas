@@ -69,24 +69,11 @@ export interface SessionEntry {
   payload: SessionPayload;
 }
 
-/** 5 rotating "Unsaved Session" slots (FIFO) plus 1 dedicated draft slot that only shadows the
- *  currently-loaded named session (spec §1, §4.4) — 6 total, never more. */
-export type AutosaveSlotId = 'unsaved-0' | 'unsaved-1' | 'unsaved-2' | 'unsaved-3' | 'unsaved-4' | 'draft';
-
-export const AUTOSAVE_ROTATING_SLOT_IDS: readonly AutosaveSlotId[] = ['unsaved-0', 'unsaved-1', 'unsaved-2', 'unsaved-3', 'unsaved-4'];
-
-/** Whether a SessionEntry's `name` is one of the 6 autosave slot ids rather than a user-chosen
- *  saved name — the one place this distinction is made, so SessionListItem/SessionsPanel don't
- *  each re-derive it their own way. */
-export function isAutosaveSlotName(name: string): name is AutosaveSlotId {
-  return name === 'draft' || (AUTOSAVE_ROTATING_SLOT_IDS as readonly string[]).includes(name);
-}
-
 /**
- * Session Autosave History (docs/specs/SESSION_AUTOSAVE_HISTORY.md) — supersedes the 6-slot
- * scheme above. AutosaveSlotId/AUTOSAVE_ROTATING_SLOT_IDS/isAutosaveSlotName are kept temporarily
- * (still consumed by sessionAutosave.ts and SessionListItem.tsx) and removed once those callers
- * migrate, so the build never breaks between tasks.
+ * Session Autosave History (docs/specs/SESSION_AUTOSAVE_HISTORY.md) — supersedes the old 6-slot
+ * scheme (5 rotating "Unsaved Session" slots plus 1 shared draft slot, formerly AutosaveSlotId/
+ * AUTOSAVE_ROTATING_SLOT_IDS/isAutosaveSlotName here), removed once sessionAutosave.ts and
+ * SessionListItem.tsx — its only consumers — both migrated off it.
  */
 
 /** Every autosave history bucket (a named session's own, or one of the two unsaved buckets)
