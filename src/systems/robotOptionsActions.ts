@@ -88,19 +88,21 @@ export function applyClickTrackActive(robot: Robot, localeId: string, active: bo
 
 // Keeps min <= max at all times — the same guard PingControlsDrawer's two independent
 // SliderLinears have always needed (no minStepsBetweenThumbs dual-thumb-slider enforcement
-// here). Unlike
-// density/motifLength/noteVariance, an octave-range edit does NOT regenerate the melody today —
-// preserved exactly as-is, not a gap this extraction fixes.
+// here). Octave range is one of the five melody-formula inputs (Roadmap Phase 31), so both
+// functions now regenerate the melody with the UPDATED range, matching applyDensity's shape —
+// this closes a pre-existing gap: octave-range edits never touched melody before this phase.
 export function applyOctaveMin(robot: Robot, localeId: string, value: number): void {
   const [, octMax] = robot.octaveRange;
   const next: [number, number] = [Math.min(value, octMax), octMax];
   useLocaleStore.getState().updateRobot(localeId, robot.id, { octaveRange: next });
+  regenerateMelody({ ...robot, octaveRange: next }, localeId);
 }
 
 export function applyOctaveMax(robot: Robot, localeId: string, value: number): void {
   const [octMin] = robot.octaveRange;
   const next: [number, number] = [octMin, Math.max(value, octMin)];
   useLocaleStore.getState().updateRobot(localeId, robot.id, { octaveRange: next });
+  regenerateMelody({ ...robot, octaveRange: next }, localeId);
 }
 
 // ========================================

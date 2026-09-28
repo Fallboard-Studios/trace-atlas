@@ -255,16 +255,26 @@ describe('robotOptionsActions', () => {
       expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { octaveRange: [3, 3] });
     });
 
-    it('neither applyOctaveMin nor applyOctaveMax regenerates the melody — unchanged from today', () => {
+    it('applyOctaveMin regenerates the melody using the UPDATED octaveRange, not the pre-edit one (Deterministic Robot Melody Generation, Task 5)', () => {
       const robot = makeRobot({ octaveRange: [3, 5] });
       useLocaleStore.getState().addRobot(localeId, robot);
       stubMelodyPipeline();
       const genSpy = vi.spyOn(melodyGen, 'generateMelodyForRobot');
 
       applyOctaveMin(robot, localeId, 4);
+
+      expect(genSpy).toHaveBeenCalledWith(expect.objectContaining({ octaveMin: 4, octaveMax: 5 }));
+    });
+
+    it('applyOctaveMax regenerates the melody using the UPDATED octaveRange, not the pre-edit one (Deterministic Robot Melody Generation, Task 5)', () => {
+      const robot = makeRobot({ octaveRange: [3, 5] });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      stubMelodyPipeline();
+      const genSpy = vi.spyOn(melodyGen, 'generateMelodyForRobot');
+
       applyOctaveMax(robot, localeId, 6);
 
-      expect(genSpy).not.toHaveBeenCalled();
+      expect(genSpy).toHaveBeenCalledWith(expect.objectContaining({ octaveMin: 3, octaveMax: 6 }));
     });
   });
 
