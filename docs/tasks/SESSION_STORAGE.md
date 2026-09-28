@@ -299,7 +299,7 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
 
   **Estimated scope:** S (3 files)
 
-- [ ] **Task 9: `SessionsPanel.tsx` — the "Load Sessions" panel**
+- [x] **Task 9: `SessionsPanel.tsx` — the "Load Sessions" panel**
 
   **Description:** Per spec §4.5: the Session Name text input (bound to `sessionStore.currentSessionName`, prefilled with a generated name via Task 6) and "Save Session" button above a list of `SessionListItem` rows from `listSessions()`, sorted/interleaved by `savedAt`.
 

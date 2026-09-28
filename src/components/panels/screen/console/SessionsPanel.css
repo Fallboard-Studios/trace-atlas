@@ -1,0 +1,17 @@
+.sessions-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sessions-panel__save {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sessions-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
