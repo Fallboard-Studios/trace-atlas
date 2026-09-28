@@ -1,10 +1,14 @@
 import { describe, it, expect } from 'vitest';
 
-import { computeRobotAudioOverrideDiff, computeCompanyDiff } from './sessionDiff';
+import { computeRobotAudioOverrideDiff, computeCompanyDiff, buildSessionPayload } from './sessionDiff';
 import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
 import type { RobotAudioBaseline } from '../systems/spawnSystem';
 import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoSettings } from '../types/lfo';
+import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
+import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
+import { useAudioStore } from '../stores/audioStore';
+import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
 
 function makeLfoSettings(rate = 0): Record<RobotLfoTargetId, LfoSettings> {
   const entries = ROBOT_LFO_TARGET_IDS.map((target) => [target, { shape: 'sine', rate, depth: 10 } satisfies LfoSettings] as const);
@@ -153,6 +157,85 @@ describe('computeRobotAudioOverrideDiff', () => {
     expect(diff).not.toHaveProperty('docking');
     expect(diff).not.toHaveProperty('batteryLevel');
     expect(diff).not.toHaveProperty('job');
+  });
+});
+
+describe('buildSessionPayload', () => {
+  // A fresh, dedicated locale id per test, not DEFAULT_LOCALE_ID: spawnSystem.ts's spawnCounters
+  // map is keyed per-locale and lives at module scope, so it survives a Zustand store reset --
+  // reusing one literal id across tests would make each test's spawnCount start wherever the
+  // previous test left off, exactly the pitfall spawnSystem.test.ts's own "dedicated locale ID"
+  // tests already document.
+  let localeIdCounter = 0;
+  function setupWorld() {
+    const localeId = `build-session-payload-locale-${localeIdCounter++}`;
+    useAttenuationStyleStore.setState({
+      attenuationStyles: [{ ...DEFAULT_PELAGOS, currentLocaleId: localeId }],
+      currentAttenuationStyleId: DEFAULT_PELAGOS.id,
+    });
+    useLocaleStore.setState({ locales: { [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [], companies: [] } } });
+    return localeId;
+  }
+
+  it('stamps version: 1 and captures the current Attenuation Style name/coordinates/globalAudio', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    expect(payload.version).toBe(1);
+    expect(payload.attenuationStyleName).toBe(DEFAULT_PELAGOS.name);
+    expect(payload.coordinates).toEqual(DEFAULT_LOCALE.coordinates);
+    expect(payload.globalAudio).toEqual(useAudioStore.getState().globalAudio);
+  });
+
+  it('has no robotOverrides entries for an untouched roster', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    expect(Object.keys(payload.robotOverrides)).toEqual([]);
+  });
+
+  it('includes only the one robot that was edited, with only its changed field', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+    useLocaleStore.getState().updateRobot(localeId, robot.id, { rhythmicDensity: 7 });
+
+    const payload = buildSessionPayload();
+    expect(Object.keys(payload.robotOverrides)).toEqual([robot.id]);
+    expect(payload.robotOverrides[robot.id]).toEqual({ rhythmicDensity: 7 });
+  });
+
+  it('has no companyDiffs entries and no userCreatedCompanies for an untouched, fully spawn-generated world', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId);
+    const payload = buildSessionPayload();
+    expect(Object.keys(payload.companyDiffs)).toEqual([]);
+    expect(payload.userCreatedCompanies).toEqual([]);
+  });
+
+  it('includes only the one company that was renamed, with only its changed field', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId);
+    const company = useLocaleStore.getState().getLocaleById(localeId)!.companies[0];
+    useLocaleStore.getState().updateCompany(localeId, company.id, { name: 'Renamed Guild' });
+
+    const payload = buildSessionPayload();
+    expect(Object.keys(payload.companyDiffs)).toEqual([company.id]);
+    expect(payload.companyDiffs[company.id]).toEqual({ name: 'Renamed Guild' });
+  });
+
+  it('puts a company with no match in the regenerated baseline set into userCreatedCompanies as a full object, never into companyDiffs', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId);
+    const userCompany: Company = { id: 'user-created-uuid-1234', name: 'Hand Built Crew', color: '#123456', robotIds: [] };
+    useLocaleStore.getState().addCompany(localeId, userCompany);
+
+    const payload = buildSessionPayload();
+    expect(payload.userCreatedCompanies).toEqual([userCompany]);
+    expect(payload.companyDiffs).not.toHaveProperty('user-created-uuid-1234');
   });
 });
 

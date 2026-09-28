@@ -45,7 +45,12 @@ export type SessionPayloadVersion = 1;
 
 export interface SessionPayload {
   version: SessionPayloadVersion;
-  seed: string;
+  /** This codebase has no literal "seed" field. Locale/robot generation keys off {x, y} alone
+   *  (noiseMaps.ts's getLocaleNoiseMap); Audio Rig/global-LFO generation keys off the
+   *  Attenuation Style's NAME alone (deriveAttenuationStyleSeed) — its id is a random bookkeeping
+   *  value, never a seed input. Maps directly onto worldTransition.ts's existing
+   *  retransmitWorld({ attenuationStyleName, coordinates }) entry point. */
+  attenuationStyleName: string;
   coordinates: { x: number; y: number };
   globalAudio: GlobalAudioSettings;
   /** Keyed by robot id. An untouched robot has no entry (not an entry equal to {}). */

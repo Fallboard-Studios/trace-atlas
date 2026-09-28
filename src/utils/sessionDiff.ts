@@ -3,9 +3,13 @@
 // ========================================
 import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
-import type { RobotAudioBaseline } from '../systems/spawnSystem';
-import type { RobotAudioOverrideDiff, CompanyDiff } from '../types/session';
+import { generateRobotRosterBaseline, generateCompanyRosterBaseline, type RobotAudioBaseline } from '../systems/spawnSystem';
+import type { RobotAudioOverrideDiff, CompanyDiff, SessionPayload } from '../types/session';
 import { ROBOT_LFO_TARGET_IDS } from '../types/lfo';
+import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
+import { useLocaleStore } from '../stores/localeStore';
+import { useAudioStore } from '../stores/audioStore';
+import { getLocaleNoiseMap } from './noiseMaps';
 
 // ========================================
 // FUNCTIONS
@@ -65,4 +69,57 @@ export function computeCompanyDiff(live: Company, spawnDefault: Pick<Company, 'n
   if (!deepEqual(live.name, spawnDefault.name)) diff.name = live.name;
   if (!deepEqual(live.robotIds, spawnDefault.robotIds)) diff.robotIds = live.robotIds;
   return diff;
+}
+
+/**
+ * Assembles a SessionPayload from the currently active Attenuation Style/locale — the diff-on-a-
+ * regenerated-roster shape docs/specs/SESSION_STORAGE.md §1.2 describes. An untouched robot or
+ * spawn-generated company gets NO key in robotOverrides/companyDiffs (not a key mapping to `{}`),
+ * keeping the payload small. A company whose id has no match in the regenerated baseline set is
+ * treated as user-created and persisted in full instead of diffed.
+ */
+export function buildSessionPayload(): SessionPayload {
+  const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
+  const locale = attenuationStyle?.currentLocaleId
+    ? useLocaleStore.getState().getLocaleById(attenuationStyle.currentLocaleId)
+    : undefined;
+  if (!attenuationStyle || !locale) {
+    throw new Error('buildSessionPayload: no active Attenuation Style/locale to save a session from');
+  }
+
+  const noiseMap = getLocaleNoiseMap(locale.id, locale.coordinates.x, locale.coordinates.y);
+
+  const robotBaselines = generateRobotRosterBaseline(noiseMap, locale.robots.length);
+  const robotOverrides: Record<string, RobotAudioOverrideDiff> = {};
+  locale.robots.forEach((robot, i) => {
+    const diff = computeRobotAudioOverrideDiff(robot, robotBaselines[i]);
+    if (Object.keys(diff).length > 0) robotOverrides[robot.id] = diff;
+  });
+
+  const robotIdsInSpawnOrder = locale.robots.map((r) => r.id);
+  const companyBaselineById = new Map(
+    generateCompanyRosterBaseline(noiseMap, robotIdsInSpawnOrder).map((c) => [c.id, c]),
+  );
+
+  const companyDiffs: Record<string, CompanyDiff> = {};
+  const userCreatedCompanies: Company[] = [];
+  for (const company of locale.companies) {
+    const baseline = companyBaselineById.get(company.id);
+    if (!baseline) {
+      userCreatedCompanies.push(company);
+      continue;
+    }
+    const diff = computeCompanyDiff(company, baseline);
+    if (Object.keys(diff).length > 0) companyDiffs[company.id] = diff;
+  }
+
+  return {
+    version: 1,
+    attenuationStyleName: attenuationStyle.name,
+    coordinates: locale.coordinates,
+    globalAudio: useAudioStore.getState().globalAudio,
+    robotOverrides,
+    companyDiffs,
+    userCreatedCompanies,
+  };
 }
