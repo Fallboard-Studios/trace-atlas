@@ -74,6 +74,7 @@ describe('FactoryPlacementSystem', () => {
         name: 'Other',
         coordinates: { x: 5, y: 5 },
         dayStartTimestamp: Date.now(),
+        createdAtMeasure: 0,
         robots: [],
         actors: [],
         companies: [],
@@ -356,11 +357,11 @@ describe('FactoryPlacementSystem', () => {
       // positions, scales, and colors bit-for-bit, on a completely separate locale.
       const localeA = {
         id: 'locale-a', attenuationStyleId: 'p', name: 'A', coordinates: { x: 42, y: 7 },
-        robots: [], actors: [], companies: [], currentMeasure: 0, dayStartTimestamp: Date.now(),
+        robots: [], actors: [], companies: [], currentMeasure: 0, createdAtMeasure: 0, dayStartTimestamp: Date.now(),
       };
       const localeB = {
         id: 'locale-b', attenuationStyleId: 'p', name: 'B', coordinates: { x: 42, y: 7 },
-        robots: [], actors: [], companies: [], currentMeasure: 0, dayStartTimestamp: Date.now(),
+        robots: [], actors: [], companies: [], currentMeasure: 0, createdAtMeasure: 0, dayStartTimestamp: Date.now(),
       };
       useLocaleStore.getState().addLocale('p', localeA);
       useLocaleStore.getState().addLocale('p', localeB);
@@ -375,11 +376,11 @@ describe('FactoryPlacementSystem', () => {
     it('produces a different factory backdrop for locales at different coordinates', () => {
       const localeA = {
         id: 'locale-c', attenuationStyleId: 'p', name: 'C', coordinates: { x: 1, y: 1 },
-        robots: [], actors: [], companies: [], currentMeasure: 0, dayStartTimestamp: Date.now(),
+        robots: [], actors: [], companies: [], currentMeasure: 0, createdAtMeasure: 0, dayStartTimestamp: Date.now(),
       };
       const localeB = {
         id: 'locale-d', attenuationStyleId: 'p', name: 'D', coordinates: { x: 99, y: 99 },
-        robots: [], actors: [], companies: [], currentMeasure: 0, dayStartTimestamp: Date.now(),
+        robots: [], actors: [], companies: [], currentMeasure: 0, createdAtMeasure: 0, dayStartTimestamp: Date.now(),
       };
       useLocaleStore.getState().addLocale('p', localeA);
       useLocaleStore.getState().addLocale('p', localeB);
@@ -417,11 +418,11 @@ describe('FactoryPlacementSystem', () => {
 
       const localeOnA = {
         id: 'locale-as-a', attenuationStyleId: 'as-planet-a', name: 'A', coordinates: { x: 30, y: 30 },
-        robots: [], actors: [], companies: [], currentMeasure: 0, dayStartTimestamp: Date.now(),
+        robots: [], actors: [], companies: [], currentMeasure: 0, createdAtMeasure: 0, dayStartTimestamp: Date.now(),
       };
       const localeOnB = {
         id: 'locale-as-b', attenuationStyleId: 'as-planet-b', name: 'B', coordinates: { x: 30, y: 30 },
-        robots: [], actors: [], companies: [], currentMeasure: 0, dayStartTimestamp: Date.now(),
+        robots: [], actors: [], companies: [], currentMeasure: 0, createdAtMeasure: 0, dayStartTimestamp: Date.now(),
       };
       useLocaleStore.getState().addLocale('as-planet-a', localeOnA);
       useLocaleStore.getState().addLocale('as-planet-b', localeOnB);
@@ -441,7 +442,7 @@ describe('FactoryPlacementSystem', () => {
     it("placeFactories falls back to a zero asShift (not a crash) when the locale's attenuationStyleId doesn't resolve to any Attenuation Style in the store", () => {
       const orphanLocale = {
         id: 'locale-orphan', attenuationStyleId: 'no-such-planet', name: 'Orphan', coordinates: { x: 8, y: 8 },
-        robots: [], actors: [], companies: [], currentMeasure: 0, dayStartTimestamp: Date.now(),
+        robots: [], actors: [], companies: [], currentMeasure: 0, createdAtMeasure: 0, dayStartTimestamp: Date.now(),
       };
       useLocaleStore.getState().addLocale('no-such-planet', orphanLocale);
 
