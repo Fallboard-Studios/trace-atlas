@@ -160,6 +160,25 @@ Confirmed via `/interview-me` before implementation (out of TDD-ceremony scope, 
 items 3–4 — pure centralization/robustness, no behavior change). Full suite (108 files/1736 tests),
 lint, and type-check all green.
 
+### 6. `SETTINGS_LEAVES` — two independently-declared arrays for the Settings tab order
+**Status:** ☐ open (found 2026-09-27, adding Session Storage's Task 10 — not fixed here,
+out of that task's scope) · **Confidence:** high — the exact "two literal arrays kept in
+sync by convention alone" shape this doc tracks.
+
+- [`SettingsContent.tsx:24`](../src/components/panels/screen/nav/content/SettingsContent.tsx#L24)
+  — `const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['quality', 'sectorSettings', 'sessions']`
+  (extended by Task 10 to add `'sessions'`) — drives which accordions render, in what order.
+- [`useNavTree.ts:55`](../src/components/panels/screen/nav/useNavTree.ts#L55) — a second,
+  separately-declared `SETTINGS_LEAVES` with the same three values, feeding `asSettingsLeaf`
+  (nav-tree click resolution, highlight matching, and "first leaf on parent select").
+
+Both were updated together for Task 10 (adding `'sessions'` to each by hand), but nothing
+enforces they stay in the same order or contain the same set going forward — a future leaf
+added to only one would silently desync tree highlighting from the rendered accordion stack.
+**Fix shape:** export one array (from `navTreeConfig.ts`, since that's the tree's own source
+of truth for `settings`'s children ids) and have both `SettingsContent.tsx` and
+`useNavTree.ts` derive their `SettingsLeaf[]` from it, rather than each declaring its own.
+
 ## Noted, not tracked as this bug class
 
 - [`ROBOT_LIFECYCLE.md:16`](ROBOT_LIFECYCLE.md#L16) references `RobotAudioTab.tsx`, which doesn't

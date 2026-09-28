@@ -18,14 +18,15 @@ export type RobotSection = 'volume' | 'melody' | 'envelope' | 'source';
  *  NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3) — there is no independent per-group toggle
  *  state anymore. */
 export type FleetParamsGroup = 'pacing' | 'eqFilters' | 'timeSpace' | 'output';
-/** Which of Settings' 2 children is currently selected — added in Task 11
+/** Which of Settings' 3 children is currently selected — added in Task 11
  *  (docs/tasks/NAV_LAYOUT_REWRITE.md), beyond the spec's original §1.3 field list. Settings
  *  isn't an "entity" the way a robot/company/All-Probes is (RobotSection's own doc comment),
  *  so it needs its own field rather than reusing selectedSection; ContentPane's Settings content
- *  component reads this to pick which of the 2 leaf contents (Performance/Presets) to render.
- *  Volume was removed (Header already carries its own always-visible volume slider) and Tempo
- *  moved to Fleet Params -> Pacing. */
-export type SettingsLeaf = 'quality' | 'sectorSettings';
+ *  component reads this to pick which of the 3 leaf contents (Performance/Presets/Sessions) to
+ *  render. Volume was removed (Header already carries its own always-visible volume slider) and
+ *  Tempo moved to Fleet Params -> Pacing. `sessions` added by Session Storage's Task 10
+ *  (docs/tasks/SESSION_STORAGE.md, Roadmap Phase 20). */
+export type SettingsLeaf = 'quality' | 'sectorSettings' | 'sessions';
 /** The 3rd tree level under a Settings leaf — Quality's Robot Load/Effects Load (AudioLoadPanel's
  *  own AUDIO_ROBOT_LOAD_SCHEMA/AUDIO_EFFECTS_LOAD_SCHEMA) and Presets' Attenuation Style/
  *  Coordinates (SectorSettingsDrawer's own ATTENUATION_STYLE_SCHEMA/COORDS_SCHEMA) — pure scroll/

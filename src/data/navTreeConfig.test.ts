@@ -19,13 +19,20 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
     expect(NAV_TREE_SCHEMA.map((n) => n.id)).toEqual(['fleetParams', 'probes', 'companies', 'settings']);
   });
 
-  it('Settings has 2 leaf children: quality, sectorSettings, namespaced by branch', () => {
+  it('Settings has 3 leaf children: quality, sectorSettings, sessions, namespaced by branch', () => {
     const settings = findNode('settings');
     expect(settings?.humanLabel).toBe('Settings');
     expect(settings?.children?.map((c) => c.id)).toEqual([
       'settings.quality',
       'settings.sectorSettings',
+      'settings.sessions',
     ]);
+  });
+
+  it('Settings -> Sessions (Roadmap Phase 20, docs/tasks/SESSION_STORAGE.md Task 10) has no static children', () => {
+    const sessions = findNode('settings.sessions');
+    expect(sessions?.humanLabel).toBe('Sessions');
+    expect(sessions?.children).toBeUndefined();
   });
 
   it('Settings -> Quality has Robot Load/Effects Load children (already-existing AudioLoadPanel.tsx rows, given their own tree anchor)', () => {
@@ -135,6 +142,7 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
       'probes', // Task 18/19
       'probes.all', // Task 19
       'companies', // Task 20
+      'settings.sessions', // Session Storage (Roadmap Phase 20) Task 10
     ];
     for (const id of idsReferencedByLaterTasks) {
       expect(findNode(id), `expected schema to contain node id "${id}"`).toBeDefined();
@@ -168,6 +176,10 @@ describe('NAV_TREE_SCHEMA — trait color-coding (experimental, Crawford\'s own 
 
   it('Settings -> Sector Settings carries \'seed\', matching SectorSettingsDrawer.tsx\'s own getTraitColorStyle call', () => {
     expect(findNode('settings.sectorSettings')?.trait).toBe('seed');
+  });
+
+  it('Settings -> Sessions carries \'seed\' too, matching its sibling leaves rather than inheriting Settings\' own default', () => {
+    expect(findNode('settings.sessions')?.trait).toBe('seed');
   });
 
   it('Settings -> Quality has its own explicit trait override, distinct from Settings\' own spectral (Crawford\'s own pick)', () => {

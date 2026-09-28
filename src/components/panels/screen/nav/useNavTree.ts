@@ -52,7 +52,9 @@ const FLEET_PARAMS_GROUP_FIRST_LEAF: Record<FleetParamsGroup, SelectedFleetParam
   output: 'compressor',
 };
 
-const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['quality', 'sectorSettings'];
+// Kept in sync by hand with SettingsContent.tsx's own SETTINGS_LEAVES — see
+// docs/DUPLICATE_VALUE_AUDIT.md item 6 (opened alongside the 'sessions' addition, not fixed here).
+const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['quality', 'sectorSettings', 'sessions'];
 function asSettingsLeaf(value: string | undefined): SettingsLeaf | null {
   return value && (SETTINGS_LEAVES as readonly string[]).includes(value) ? (value as SettingsLeaf) : null;
 }

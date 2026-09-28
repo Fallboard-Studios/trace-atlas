@@ -319,7 +319,7 @@ Independent chains that could run in parallel: Task 5 ∥ Task 6 (both depend on
 
   **Estimated scope:** S (3 files)
 
-- [ ] **Task 10: Wire "Sessions" into `SettingsContent.tsx` and `navTreeConfig.ts`**
+- [x] **Task 10: Wire "Sessions" into `SettingsContent.tsx` and `navTreeConfig.ts`** — manual browser check still outstanding (flagged below, not performed in this session)
 
   **Description:** Add a third `SettingsLeaf`/`AccordionSchema` entry (`sessions`, humanLabel "Sessions") to `SETTINGS_LEAVES`/`SETTINGS_ACCORDION_SCHEMAS` in `SettingsContent.tsx`, rendering `<SessionsPanel />` from `renderLeafContent`, and the matching `settings.sessions` leaf in `navTreeConfig.ts` (mirroring `settings.quality`/`settings.sectorSettings`).
 

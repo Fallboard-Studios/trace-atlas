@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { AudioLoadPanel } from '../../console/AudioLoadPanel';
 import { SectorSettingsDrawer } from '../../console/SectorSettingsDrawer';
+import { SessionsPanel } from '../../console/SessionsPanel';
 import { useSectionObserver } from '../useSectionObserver';
 import { useAccordionOpenState } from '../useAccordionOpenState';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
@@ -20,12 +21,17 @@ import './SettingsContent.css';
  *  moved to Fleet Params -> Pacing (FleetParamsContent.tsx). Labels match navTreeConfig.ts's own
  *  settings.quality/settings.sectorSettings humanLabels ("Audio Profile"/"Audio Seeds",
  *  docs/reference/layout-updates.md) — renamed from "Performance"/"Presets" to catch up with the
- *  nav tree's own already-renamed labels. */
-const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['quality', 'sectorSettings'];
+ *  nav tree's own already-renamed labels. `sessions` (Roadmap Phase 20, Session Storage Task 10)
+ *  is deliberately last — it's unrelated to either audio-tuning section above it, so it's tacked
+ *  on as a separate concern rather than inserted between them. `SETTINGS_LEAVES` is independently
+ *  re-declared in useNavTree.ts too (kept in sync by hand for this addition — see
+ *  docs/DUPLICATE_VALUE_AUDIT.md item 6, opened alongside this change, not fixed here). */
+const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['quality', 'sectorSettings', 'sessions'];
 
 const SETTINGS_ACCORDION_SCHEMAS: Record<SettingsLeaf, AccordionSchema> = {
   quality: { id: 'settings.quality', type: 'accordion', humanLabel: 'Audio Profile' },
   sectorSettings: { id: 'settings.sectorSettings', type: 'accordion', humanLabel: 'Audio Seeds' },
+  sessions: { id: 'settings.sessions', type: 'accordion', humanLabel: 'Sessions' },
 };
 
 const PLACEHOLDER_LORE = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.';
@@ -121,6 +127,7 @@ export function SettingsContent() {
       // self-contained, prop-less component; only where it's rendered from changed.
       return <AudioLoadPanel />;
     }
+    if (leaf === 'sessions') return <SessionsPanel />;
     return <SectorSettingsDrawer />;
   }
 
