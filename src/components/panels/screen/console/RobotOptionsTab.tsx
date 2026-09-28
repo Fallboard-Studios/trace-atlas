@@ -16,7 +16,6 @@ import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
-import { regenerateMelody } from '@/engine/regenerateMelody';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE } from '@/engine/melodyGenerator';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
 import { VOLUME_LFO_TARGET, SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
@@ -182,7 +181,6 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   const handleOctaveMinChange = useCallback((v: number) => applyOctaveMin(latestRobot.current, localeId, v), [localeId]);
   const handleOctaveMaxChange = useCallback((v: number) => applyOctaveMax(latestRobot.current, localeId, v), [localeId]);
   const handleNoteVarianceChange = useCallback((v: number) => applyNoteVariance(latestRobot.current, localeId, v), [localeId]);
-  const handleResetMelody = useCallback(() => regenerateMelody(latestRobot.current, localeId), [localeId]);
 
   const handleAdsrChange = useCallback((adsr: ADSREnvelope) => applyAdsr(latestRobot.current, localeId, adsr), [localeId]);
 
@@ -272,7 +270,6 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
             onOctaveMinChange={handleOctaveMinChange}
             onOctaveMaxChange={handleOctaveMaxChange}
             onNoteVarianceChange={handleNoteVarianceChange}
-            onResetMelody={handleResetMelody}
             noteVarianceAnchorId={`${prefix}.melody.frequency`}
           />
         );
@@ -304,7 +301,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   }, [
     audioSettingValue, handleAudioModeChange, handleVolumeChange, handleVolumeLfoChange, volumeLfoHeldOff,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
-    handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, handleResetMelody, prefix,
+    handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, prefix,
     robot.audioAttributes.adsr, handleAdsrChange,
     signatureArrayValue, heldOffTargets, handleLayerTypeChange, handleLayerParamChange, handleLayerLfoFieldChange,
   ]);
