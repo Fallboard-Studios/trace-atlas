@@ -68,23 +68,3 @@ export interface SessionEntry {
   savedAt: number;
   payload: SessionPayload;
 }
-
-/**
- * Session Autosave History (docs/specs/SESSION_AUTOSAVE_HISTORY.md) — supersedes the old 6-slot
- * scheme (5 rotating "Unsaved Session" slots plus 1 shared draft slot, formerly AutosaveSlotId/
- * AUTOSAVE_ROTATING_SLOT_IDS/isAutosaveSlotName here), removed once sessionAutosave.ts and
- * SessionListItem.tsx — its only consumers — both migrated off it.
- */
-
-/** Every autosave history bucket (a named session's own, or one of the two unsaved buckets)
- *  holds at most this many entries — a 4th write evicts the oldest. */
-export const MAX_AUTOSAVES_PER_SESSION = 3;
-
-/** 0 to MAX_AUTOSAVES_PER_SESSION entries. Storage order is not meaningful — always sort by
- *  savedAt (descending) for display. */
-export type AutosaveHistory = SessionEntry[];
-
-/** Stable identifier for the single visible unsaved-history row — it has no user-given name
- *  (unlike a named session) so needs a sentinel distinct from any real session name. Never
- *  written to localStorage as a key into `named`. */
-export const LAST_UNSAVED_SESSION_KEY = '__last-unsaved-session__';
