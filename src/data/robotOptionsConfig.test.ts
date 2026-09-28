@@ -10,7 +10,6 @@ import {
   OCTAVE_RANGE_MAX_SCHEMA,
   NOTE_VARIANCE_SCHEMA,
   PITCH_REPEAT_SCHEMA,
-  RESET_MELODY_SCHEMA,
   ATTACK_SCHEMA,
   DECAY_SCHEMA,
   SUSTAIN_SCHEMA,
@@ -45,7 +44,6 @@ const ALL_TOP_LEVEL_SCHEMAS = [
   OCTAVE_RANGE_MAX_SCHEMA,
   NOTE_VARIANCE_SCHEMA,
   PITCH_REPEAT_SCHEMA,
-  RESET_MELODY_SCHEMA,
   ATTACK_SCHEMA,
   DECAY_SCHEMA,
   SUSTAIN_SCHEMA,
@@ -371,6 +369,12 @@ describe('PING_CONTROLS_ACCORDION_SCHEMA / PING_CONTOUR_ACCORDION_SCHEMA / SIGNA
     expect('PING_CONTROLS_ACCORDION_SCHEMA' in robotOptionsConfigModule).toBe(false);
     expect('PING_CONTOUR_ACCORDION_SCHEMA' in robotOptionsConfigModule).toBe(false);
     expect('SIGNATURE_ARRAY_ACCORDION_SCHEMA' in robotOptionsConfigModule).toBe(false);
+  });
+});
+
+describe('RESET_MELODY_SCHEMA no longer exists (Deterministic Robot Melody Generation, Task 6)', () => {
+  it('is not exported by the module — full determinism leaves nothing for a Reset Melody control to do', () => {
+    expect('RESET_MELODY_SCHEMA' in robotOptionsConfigModule).toBe(false);
   });
 });
 

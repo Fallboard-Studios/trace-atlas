@@ -411,8 +411,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
       case 'rhythm':
         // Rhythm/Pitches merged into one "Composition" accordion — see RobotOptionsTab.tsx's own
         // matching case for why this reuses the '.rhythm' id, and for why noteVarianceAnchorId
-        // gives "Pitches" a real scroll target. No onResetMelody — omitted entirely in company
-        // mode, it has no company-scoped meaning.
+        // gives "Pitches" a real scroll target.
         return (
           <PingControlsCompositionSection
             value={pingControlsValue}

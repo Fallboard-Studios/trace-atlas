@@ -61,6 +61,7 @@ import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 function makeRobot(overrides: Partial<Robot> = {}): Robot {
   return {
     id: overrides.id ?? 'robot-1',
+    compositionSeed: 0.5,
     name: 'Test Robot',
     identityColor: '#428d95',
     state: 'idle',

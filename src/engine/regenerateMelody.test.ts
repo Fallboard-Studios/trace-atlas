@@ -36,6 +36,7 @@ const updateRobotMock = vi.fn();
 function makeRobot(overrides: Partial<Robot> = {}): Robot {
   return {
     id: 'robot-1',
+    compositionSeed: 0.5,
     state: RobotState.Idle,
     position: { x: 0, y: 0 },
     destination: null,
@@ -181,5 +182,70 @@ describe('regenerateMelody', () => {
     regenerateMelody(robot, 'locale-1');
     expect(genSpy).toHaveBeenCalledWith(expect.objectContaining({ pitchRepeat: DEFAULT_PITCH_REPEAT }));
     genSpy.mockRestore();
+  });
+});
+
+// ========================================
+// TEST SUITE: regenerateMelody — deterministic via compositionSeed (Deterministic Robot
+// Melody Generation, Task 4)
+// ========================================
+
+describe('regenerateMelody — deterministic via compositionSeed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Strips each event's own crypto.randomUUID()'d id before comparing -- by design never
+  // seeded, so leaving it in would spuriously fail every determinism assertion below.
+  function stripEventIds(melody: unknown[]): unknown[] {
+    return melody.map((e) => {
+      const { id: _id, ...rest } = e as { id: string };
+      return rest;
+    });
+  }
+
+  it('same robot object (including compositionSeed) produces the same melody across repeated calls', () => {
+    const robot = makeRobot({ compositionSeed: 0.17, rhythmicDensity: 60 });
+    regenerateMelody(robot, 'locale-1');
+    const first = updateRobotMock.mock.calls[0][2].melody;
+    updateRobotMock.mockClear();
+    regenerateMelody(robot, 'locale-1');
+    const second = updateRobotMock.mock.calls[0][2].melody;
+    expect(stripEventIds(second)).toEqual(stripEventIds(first));
+  });
+
+  it('changing an attribute and then reverting it reproduces the original melody exactly -- no first-edit ratchet', () => {
+    const original = makeRobot({ compositionSeed: 0.17, rhythmicDensity: 60 });
+    regenerateMelody(original, 'locale-1');
+    const originalMelody = updateRobotMock.mock.calls[0][2].melody;
+    updateRobotMock.mockClear();
+
+    const edited = { ...original, rhythmicDensity: 90 };
+    regenerateMelody(edited, 'locale-1');
+    updateRobotMock.mockClear();
+
+    const reverted = { ...original, rhythmicDensity: 60 };
+    regenerateMelody(reverted, 'locale-1');
+    const revertedMelody = updateRobotMock.mock.calls[0][2].melody;
+
+    expect(stripEventIds(revertedMelody)).toEqual(stripEventIds(originalMelody));
+  });
+
+  it('two robots with identical attributes but different compositionSeed produce different melodies -- complementary, not unison', () => {
+    const robotA = makeRobot({ compositionSeed: 0.11, rhythmicDensity: 60 });
+    const robotB = makeRobot({ compositionSeed: 0.89, rhythmicDensity: 60 });
+    regenerateMelody(robotA, 'locale-1');
+    const melodyA = updateRobotMock.mock.calls[0][2].melody;
+    updateRobotMock.mockClear();
+    regenerateMelody(robotB, 'locale-1');
+    const melodyB = updateRobotMock.mock.calls[0][2].melody;
+    expect(stripEventIds(melodyB)).not.toEqual(stripEventIds(melodyA));
+  });
+
+  it('never calls Math.random -- fully seeded via compositionSeed, the original bug this task fixes', () => {
+    const spy = vi.spyOn(Math, 'random');
+    regenerateMelody(makeRobot({ compositionSeed: 0.42 }), 'locale-1');
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

@@ -46,6 +46,7 @@ vi.mock('../utils/robotAudibility', async (importOriginal) => {
 function makeRobot(id: string, overrides: Partial<Robot> = {}): Robot {
   return {
     id,
+    compositionSeed: 0.5,
     name: id,
     identityColor: '#428d95',
     state: 'idle',

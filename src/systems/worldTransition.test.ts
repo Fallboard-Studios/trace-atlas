@@ -52,6 +52,7 @@ function resetStores() {
 
 const makeRobot = (id: string): Robot => ({
   id,
+  compositionSeed: 0.5,
   identityColor: '#428d95',
   state: RobotState.Idle,
   direction: 'right',

@@ -19,6 +19,7 @@ import {
 } from '../constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { getSeededVal } from '../utils/getSeededVal';
+import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
 
 /** General-purpose mock: returns a pseudo-random value in [-1, 1]. */
 const mockNoiseMap: NoiseFunction2D = () => Math.random() * 2 - 1;
@@ -534,6 +535,170 @@ describe('spawnSystem', () => {
       const idsA = (useLocaleStore.getState().getLocaleById('locale-id-test-a')?.robots ?? []).map((r) => r.id);
       const idsB = (useLocaleStore.getState().getLocaleById('locale-id-test-b')?.robots ?? []).map((r) => r.id);
       expect(idsA).toEqual(idsB);
+    });
+  });
+
+  describe('spawnRobot — compositionSeed (Deterministic Robot Melody Generation, Task 1)', () => {
+    beforeEach(() => {
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
+      vi.clearAllMocks();
+    });
+
+    it('robot.compositionSeed is a number in [0, 1)', () => {
+      spawnRobot(DEFAULT_LOCALE_ID);
+      const robot = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots[0];
+      expect(typeof robot?.compositionSeed).toBe('number');
+      expect(robot!.compositionSeed).toBeGreaterThanOrEqual(0);
+      expect(robot!.compositionSeed).toBeLessThan(1);
+    });
+
+    it('two robots spawned at different spawnCount get different compositionSeed values', () => {
+      for (let i = 0; i < 5; i++) spawnRobot(DEFAULT_LOCALE_ID);
+      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
+      const seeds = new Set(robots.map((r) => r.compositionSeed));
+      // Own dataId/own offset per robot -- collisions across 5 spawns would indicate
+      // compositionSeed isn't actually keyed off spawnCount.
+      expect(seeds.size).toBe(robots.length);
+    });
+
+    it('spawning against the same locale coordinates twice (fresh module state each time) produces identical compositionSeed sequences', async () => {
+      // Mirrors the "deterministic robot IDs" test above exactly -- same rationale:
+      // a reload/shared-link replay must reproduce the exact same compositionSeed
+      // sequence, since it's drawn from the noise map like every other seeded field.
+      vi.resetModules();
+      const run1 = await import('./spawnSystem');
+      const store1 = await import('../stores/localeStore');
+      const attenuationStyle1 = await import('../stores/attenuationStyleStore');
+      store1.useLocaleStore.setState({ locales: { [attenuationStyle1.DEFAULT_LOCALE_ID]: store1.DEFAULT_LOCALE } });
+      run1.spawnRobot(attenuationStyle1.DEFAULT_LOCALE_ID);
+      run1.spawnRobot(attenuationStyle1.DEFAULT_LOCALE_ID);
+      const seedsRun1 = (store1.useLocaleStore.getState().getLocaleById(attenuationStyle1.DEFAULT_LOCALE_ID)?.robots ?? []).map((r) => r.compositionSeed);
+
+      vi.resetModules();
+      const run2 = await import('./spawnSystem');
+      const store2 = await import('../stores/localeStore');
+      const attenuationStyle2 = await import('../stores/attenuationStyleStore');
+      store2.useLocaleStore.setState({ locales: { [attenuationStyle2.DEFAULT_LOCALE_ID]: store2.DEFAULT_LOCALE } });
+      run2.spawnRobot(attenuationStyle2.DEFAULT_LOCALE_ID);
+      run2.spawnRobot(attenuationStyle2.DEFAULT_LOCALE_ID);
+      const seedsRun2 = (store2.useLocaleStore.getState().getLocaleById(attenuationStyle2.DEFAULT_LOCALE_ID)?.robots ?? []).map((r) => r.compositionSeed);
+
+      expect(seedsRun1).toHaveLength(2);
+      expect(seedsRun2).toEqual(seedsRun1);
+    });
+
+    it('a copied robot gets its own compositionSeed, never the source\'s', () => {
+      // Same copy-detection pattern as the lfoSettings copy test above: group by a
+      // field that IS inherited on copy (lfoSettings, by reference) to reliably find
+      // a copy pair, then assert compositionSeed -- which must NOT be inherited --
+      // actually differs between them.
+      for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
+      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
+      const bySettings = new Map<Robot['lfoSettings'], Robot[]>();
+      for (const r of robots) {
+        const group = bySettings.get(r.lfoSettings) ?? [];
+        group.push(r);
+        bySettings.set(r.lfoSettings, group);
+      }
+      const sharedGroup = [...bySettings.values()].find((g) => g.length > 1);
+      expect(sharedGroup, 'expected at least one copy to share its source\'s lfoSettings reference').toBeDefined();
+      const [a, b] = sharedGroup!;
+      expect(a.compositionSeed).not.toBe(b.compositionSeed);
+    });
+  });
+
+  describe('spawnRobot — initial melody via buildSeededComposition (Deterministic Robot Melody Generation, Task 3)', () => {
+    beforeEach(() => {
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
+    });
+
+    // Each MelodyEvent's own `id` is a fresh crypto.randomUUID(), by design (melodyGenerator.ts
+    // doesn't seed it) -- strip it before comparing, or every determinism assertion below would
+    // spuriously fail regardless of whether the actual musical content is deterministic.
+    function stripEventIds(melody: Robot['melody']): Omit<Robot['melody'][number], 'id'>[] {
+      return melody.map(({ id: _id, ...rest }) => rest);
+    }
+
+    it('the spawned melody is exactly what buildSeededComposition(compositionSeed, initial attrs) would produce -- not the old melody.rand/melodyCallIndex mechanism', () => {
+      // The discriminating test for this task: the old mechanism (getSeededVal('melody.rand',
+      // spawnCount * 100 + callIndex++)) is ALSO deterministic, so "same coords twice -> same
+      // melody" alone doesn't prove buildSeededComposition is what's actually driving spawn-time
+      // generation. Rebuilding the melody independently, from only the robot's own stored fields
+      // (compositionSeed + its initial attributes) via buildSeededComposition, and requiring an
+      // exact match, is what actually pins the mechanism down.
+      spawnRobot(DEFAULT_LOCALE_ID);
+      const robot = (useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [])[0]!;
+      const rand = buildSeededComposition(robot.compositionSeed, {
+        rhythmicDensity: robot.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY,
+        rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+        noteVariance: robot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
+        pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
+        octaveRange: robot.octaveRange,
+      });
+      const expectedMelody = generateMelodyForRobot({
+        octaveMin: robot.octaveRange[0],
+        octaveMax: robot.octaveRange[1],
+        rhythmicDensity: robot.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY,
+        rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+        noteVariance: robot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
+        pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
+        rand,
+      });
+      expect(stripEventIds(robot.melody)).toEqual(stripEventIds(expectedMelody));
+    });
+
+    it('spawning against the same locale coordinates twice (fresh module state each time) produces identical initial melodies', async () => {
+      // Regression guard replacing the retired 'melody.rand'/melodyCallIndex coverage --
+      // same rationale/pattern as the compositionSeed and robot-ID determinism tests above.
+      vi.resetModules();
+      const run1 = await import('./spawnSystem');
+      const store1 = await import('../stores/localeStore');
+      const attenuationStyle1 = await import('../stores/attenuationStyleStore');
+      store1.useLocaleStore.setState({ locales: { [attenuationStyle1.DEFAULT_LOCALE_ID]: store1.DEFAULT_LOCALE } });
+      run1.spawnRobot(attenuationStyle1.DEFAULT_LOCALE_ID);
+      run1.spawnRobot(attenuationStyle1.DEFAULT_LOCALE_ID);
+      const melodiesRun1 = (store1.useLocaleStore.getState().getLocaleById(attenuationStyle1.DEFAULT_LOCALE_ID)?.robots ?? []).map((r) => r.melody);
+
+      vi.resetModules();
+      const run2 = await import('./spawnSystem');
+      const store2 = await import('../stores/localeStore');
+      const attenuationStyle2 = await import('../stores/attenuationStyleStore');
+      store2.useLocaleStore.setState({ locales: { [attenuationStyle2.DEFAULT_LOCALE_ID]: store2.DEFAULT_LOCALE } });
+      run2.spawnRobot(attenuationStyle2.DEFAULT_LOCALE_ID);
+      run2.spawnRobot(attenuationStyle2.DEFAULT_LOCALE_ID);
+      const melodiesRun2 = (store2.useLocaleStore.getState().getLocaleById(attenuationStyle2.DEFAULT_LOCALE_ID)?.robots ?? []).map((r) => r.melody);
+
+      expect(melodiesRun1).toHaveLength(2);
+      expect(melodiesRun1.every((m) => m.length > 0)).toBe(true);
+      expect(melodiesRun2.map(stripEventIds)).toEqual(melodiesRun1.map(stripEventIds));
+    });
+
+    it('two robots with different compositionSeed (and otherwise-default attributes) get different melodies', () => {
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
+      for (let i = 0; i < 5; i++) spawnRobot(DEFAULT_LOCALE_ID);
+      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
+      const melodyStrings = robots.map((r) => JSON.stringify(r.melody));
+      // Not a strict uniqueness requirement (rhythmicDensity etc. also vary per robot and could
+      // coincidentally collide), but at least one pair spawned back-to-back should differ --
+      // otherwise every robot would be drawing from a shared, non-per-robot rand stream.
+      expect(new Set(melodyStrings).size).toBeGreaterThan(1);
+    });
+
+    it('unification guard: regenerateMelody, called on a freshly spawned robot with zero attribute changes, reproduces the exact spawn-time melody -- no first-edit ratchet (Task 4 capstone)', async () => {
+      // The core acceptance criterion for unifying spawn-time and edit-time generation
+      // (docs/specs/DETERMINISTIC_ROBOT_MELODY_GENERATION.md §1): before Tasks 3+4, this would
+      // fail, because spawnRobot used melody.rand/melodyCallIndex while regenerateMelody fell
+      // back to Math.random() -- two different mechanisms, so even a zero-change "edit" would
+      // silently produce a different melody than the one the robot was spawned with.
+      const { regenerateMelody } = await import('../engine/regenerateMelody');
+      spawnRobot(DEFAULT_LOCALE_ID);
+      const spawned = (useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [])[0]!;
+      const spawnMelody = spawned.melody;
+
+      regenerateMelody(spawned, DEFAULT_LOCALE_ID);
+      const afterRegenerate = (useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [])[0]!;
+
+      expect(stripEventIds(afterRegenerate.melody)).toEqual(stripEventIds(spawnMelody));
     });
   });
 

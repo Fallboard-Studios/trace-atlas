@@ -175,9 +175,54 @@ docs/specs/PITCH_REPEAT.md §7.1), not a bug.
 'robot.pitchRepeat', spawnCount, 0, 100)`), same convention as Density/Motif Length/Note Variance;
 inherited verbatim on the `shouldCopy` path; rerolls with the rest of the melody on a coordinate
 change (nothing about Pitch Repeat is preserved across one, same as Density); manually edited via
-`applyPitchRepeat` (`robotOptionsActions.ts`), which mirrors `applyDensity` exactly and — like the
-other three fields — takes the existing unseeded `Math.random` manual-edit path, not the seeded one
-above.
+`applyPitchRepeat` (`robotOptionsActions.ts`), which mirrors `applyDensity` exactly — and, as of
+Roadmap Phase 31 (Deterministic Robot Melody Generation), takes the same fully-seeded path every
+other manual edit does now too. See "Deterministic Generation (Phase 31)" below.
+
+## Deterministic Generation (Phase 31)
+
+Every robot carries a `compositionSeed: number` (`Robot.ts`), drawn once at spawn from the noise
+map (`spawnSystem.ts`'s `generateCompositionSeed`, own dataId `'robot.compositionSeed'`) — always
+fresh, never inherited on the `shouldCopy` path, the same treatment as `id`/`name`/`melody` itself.
+`melodyGenerator.ts`'s `buildSeededComposition(compositionSeed, attrs)` combines it with a robot's
+current `rhythmicDensity`/`rhythmicMotifLength`/`noteVariance`/`pitchRepeat`/`octaveRange` into a
+single `() => number`, passed as `generateMelodyForRobot`'s existing `opts.rand`. Both call sites
+use this same function with the same inputs:
+
+- **Spawn** (`spawnSystem.ts`) — the robot's *initial* attribute values.
+- **Every edit** (`regenerateMelody.ts`, fired by `applyDensity`/`applyMotifLength`/
+  `applyNoteVariance`/`applyPitchRepeat`/`applyOctaveMin`/`applyOctaveMax`) — the robot's *current*
+  attribute values, post-edit.
+
+Because both call sites share one formula, a robot's melody is a pure function of `compositionSeed`
+plus those five fields: the same values always produce the same melody, whether that's the moment
+of spawn or the hundredth edit. Nudging a slider to a new value and back reproduces the exact
+melody the robot had before — there is no one-time "first edit" shift into a different melody
+space. This retired the previous mechanism entirely: spawn-time generation no longer draws from
+`getSeededVal(noiseMap, 'melody.rand', ...)` per note, and edit-time generation no longer falls back
+to unseeded `Math.random()`. `generateMelodyForRobot`'s own signature and internals are unchanged —
+only what its two callers pass as `rand` changed.
+
+**Not covered by this determinism:** `robotSystems.ts`'s docking pitch-drift reroll
+(`reRollMelodyPitches`, via `DOCKED_PITCH_DRIFT_RATIO`) is a distinct, intentionally non-reproducible
+mechanism — gradual pitch drift over a robot's lifetime is the feature, not a gap. Session Storage's
+`RobotAudioOverrideDiff`/`SessionPayload` (`docs/specs/SESSION_STORAGE.md`) needed no new field for
+`compositionSeed` — like `id`, it's never diffed, since it always re-derives identically from the
+seed on every roster regeneration. `applySessionPayload` (`sessionDiff.ts`) does call
+`regenerateMelody` after applying a robot's override diff, so a restored robot's melody matches its
+overridden attributes, not the fresh seed-baseline ones `retransmitWorld` spawned it with a moment
+earlier.
+
+**Accepted consequence:** retiring `'melody.rand'` means a previously-familiar locale seed's robots
+generate different initial melodies than they did before Phase 31 — every other seeded attribute
+(id, name, audio attributes, rhythmic fields) stays byte-identical for a given seed, but the melody
+itself changed along with the generation mechanism. Confirmed acceptable during this phase's
+`interview-me` pass, not a regression.
+
+The standalone Reset Melody control (`RESET_MELODY_SCHEMA`, `robotOptionsConfig.ts`; wired through
+`RobotOptionsTab.tsx`/`PingControlsDrawer.tsx`) was removed entirely as part of this phase — under
+full determinism there's nothing left for a manual reroll to do that changing an attribute doesn't
+already do.
 
 ## Constants of Interest
 
@@ -220,7 +265,7 @@ The playback layer uses the melody events as index-based cues and applies the cu
 
 ### Click Track (testing aid)
 
-`AudioEngine.registerRobotMelody(robotId, melody)` — the one funnel every melody-registration call site shares (spawn, Reset Melody, a Density/Motif Length/Note Variance edit, and `robotSystems.ts`'s docking pitch-drift reroll) — ignores its `melody` argument entirely and substitutes a fixed 4-quarter-note downbeat pattern (`src/engine/clickTrack.ts`'s `buildClickTrackMelody`, noteIndex `0/1/0/2` at `startStep` `1/5/9/13`) whenever the robot's own `clickTrackActive` flag (`Robot.ts`) is true. The override is enforced at that single funnel rather than at each call site, so nothing — including automatic melody changes a user never directly triggered, like the docking reroll — can silently fall back to the real melody while the toggle still reads as on. Toggled per-robot (or broadcast per-company) from the top of the Ping Controls accordion; purely a tempo/BPM-by-ear testing aid, not part of a robot's generated melody. The toggle itself only renders behind `DEV_TUNING` (`PingControlsDrawer.tsx`), so it's unreachable in a production build.
+`AudioEngine.registerRobotMelody(robotId, melody)` — the one funnel every melody-registration call site shares (spawn, a Density/Motif Length/Note Variance/Pitch Repeat/Octave Range edit, and `robotSystems.ts`'s docking pitch-drift reroll) — ignores its `melody` argument entirely and substitutes a fixed 4-quarter-note downbeat pattern (`src/engine/clickTrack.ts`'s `buildClickTrackMelody`, noteIndex `0/1/0/2` at `startStep` `1/5/9/13`) whenever the robot's own `clickTrackActive` flag (`Robot.ts`) is true. The override is enforced at that single funnel rather than at each call site, so nothing — including automatic melody changes a user never directly triggered, like the docking reroll — can silently fall back to the real melody while the toggle still reads as on. Toggled per-robot (or broadcast per-company) from the top of the Ping Controls accordion; purely a tempo/BPM-by-ear testing aid, not part of a robot's generated melody. The toggle itself only renders behind `DEV_TUNING` (`PingControlsDrawer.tsx`), so it's unreachable in a production build.
 
 ## Testing Notes
 
@@ -238,3 +283,7 @@ The current tests cover:
 - `computePitchLockPlan()`: `pct: 0` → all false, `pct: 100` → full lock (float-safety guard), monotonicity across a `0-100` sweep, determinism, seed-dependent (not always position-0-first) lock order, and tail-repeat exclusion for positions `>= tailLength`
 - `generateMelodyForRobot`'s Pitch Repeat wiring: gating when Motif Length is off, no `pitchLocked` events at `pitchRepeat: 0`, full-lock verbatim repetition at `pitchRepeat: 100`, and Note Variance's uniqueness cap staying unaffected by locked copies
 - `reRollMelodyPitches` excluding `pitchLocked` events from its candidate pool, including the fully-locked (zero changes) and no-locks-present (regression) cases
+- `buildSeededComposition`: determinism (same `compositionSeed` + attrs → identical sequence), independent sensitivity to each of its six inputs, drop-in validity as `generateMelodyForRobot`'s `opts.rand`, and a `Math.random` spy confirming zero incidental randomness (`melodyGenerator.test.ts`)
+- Spawn-time/edit-time unification: `spawnSystem.test.ts` proves a spawned melody exactly matches `buildSeededComposition`'s own output and that a same-coordinates replay reproduces it; a capstone test there also proves `regenerateMelody`, called on a freshly spawned robot with zero attribute changes, reproduces the exact spawn melody (no first-edit ratchet) — the core acceptance criterion for Phase 31
+- `regenerateMelody.test.ts`: determinism across repeated calls, the "edit then revert" case, and two robots with identical attributes but different `compositionSeed` producing different melodies
+- `sessionDiff.test.ts`: a save → edit → wipe → load round trip reproduces a robot's exact melody, not just its attribute values

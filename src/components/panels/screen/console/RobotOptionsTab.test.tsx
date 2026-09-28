@@ -44,7 +44,6 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
     onOctaveMinChange: (v: number) => void;
     onOctaveMaxChange: (v: number) => void;
     onNoteVarianceChange: (v: number) => void;
-    onResetMelody?: () => void;
   }) => (
     <div
       data-testid="ping-controls-composition-stub"
@@ -58,7 +57,6 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
       <button onClick={() => props.onPitchRepeatChange(88)}>probe-pitch-repeat</button>
       <button onClick={() => props.onOctaveMinChange(4)}>probe-octave-min</button>
       <button onClick={() => props.onNoteVarianceChange(0)}>probe-note-variance</button>
-      {props.onResetMelody && <button onClick={props.onResetMelody}>probe-reset-melody</button>}
     </div>
   )),
 }));
@@ -83,7 +81,6 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import * as robotOptionsActions from '@/systems/robotOptionsActions';
-import * as regenerateMelodyModule from '@/engine/regenerateMelody';
 import type { Robot } from '@/types/Robot';
 import type { RobotSection, RobotSubsection } from '@/stores/uiStore';
 import type { Locale } from '@/types/locale';
@@ -344,18 +341,6 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
       fireEvent.click(screen.getByText('probe-density'));
 
       expect(applySpy).toHaveBeenCalledWith(robot, localeId, 77);
-    });
-
-    it('wires onResetMelody to regenerateMelody directly (not a robotOptionsActions function)', () => {
-      const robot = makeRobot();
-      selectRobot(robot, 'melody', 'rhythm');
-      const regenSpy = vi.spyOn(regenerateMelodyModule, 'regenerateMelody').mockImplementation(() => {});
-      render(<RobotOptionsTab />);
-      openAndApproach('probes.r1.melody.rhythm');
-
-      fireEvent.click(screen.getByText('probe-reset-melody'));
-
-      expect(regenSpy).toHaveBeenCalledWith(robot, localeId);
     });
 
     it('wires onOctaveMinChange to robotOptionsActions.applyOctaveMin', () => {

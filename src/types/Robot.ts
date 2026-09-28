@@ -107,6 +107,12 @@ export interface MelodyEvent {
  */
 export interface Robot {
   id: string;
+  /** Seed for deterministic melody generation (Roadmap Phase 31) — drawn once at spawn from the
+   *  noise map, own dataId, exactly like `id`. Never user-edited, never inherited on the
+   *  spawn-time copy path (always fresh, same treatment as `id`/`name`/`melody`). Feeds
+   *  melodyGenerator.ts's buildSeededComposition alongside a robot's current rhythmic
+   *  attributes, both at spawn and on every later Robot Options edit. */
+  compositionSeed: number;
   /** Human-readable display name (generated at spawn) */
   name?: string;
   /**

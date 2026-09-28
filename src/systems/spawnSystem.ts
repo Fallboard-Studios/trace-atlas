@@ -8,6 +8,7 @@ import type { AudioAttributes, WaveformType, Robot } from '../types/Robot';
 import { RobotState, DockingState } from '../types/Robot';
 import {
   generateMelodyForRobot,
+  buildSeededComposition,
   DEFAULT_RHYTHMIC_DENSITY,
   DEFAULT_RHYTHMIC_MOTIF_LENGTH,
   DEFAULT_NOTE_VARIANCE,
@@ -219,6 +220,16 @@ export function generateCompanyIdentityColor(noiseMap: NoiseFunction2D, offset: 
 function generateRobotId(noiseMap: NoiseFunction2D, spawnCount: number): string {
   const idSeed = getSeededVal(noiseMap, 'robot.id', spawnCount, 0, 1);
   return `robot-${spawnCount}-${idSeed.toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Deterministic melody-generation seed (Roadmap Phase 31) — own dataId ('robot.compositionSeed'),
+ * mirrors generateRobotId's shape exactly. Always fresh per robot: computed unconditionally in
+ * spawnRobot, outside the shouldCopy branch, never inherited from a copy source (same treatment
+ * as id/name/melody itself).
+ */
+function generateCompositionSeed(noiseMap: NoiseFunction2D, spawnCount: number): number {
+  return getSeededVal(noiseMap, 'robot.compositionSeed', spawnCount, 0, 1);
 }
 
 // ========================================
@@ -540,6 +551,12 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     : alea(`${localeId}:${spawnCount}:copy`)();
   const shouldCopy = copyRoll < 0.30 && robots.length > 0;
 
+  // Always fresh, outside the shouldCopy branch -- never inherited from a copy source,
+  // same treatment as id/name/melody (see generateCompositionSeed's own doc comment).
+  const compositionSeed = noiseMap
+    ? generateCompositionSeed(noiseMap, spawnCount)
+    : alea(`${localeId}:${spawnCount}:compositionSeed`)();
+
   let audioAttributes: ReturnType<typeof generateAudioAttributes>;
   let octaveRange: [number, number];
   let spawnRhythmicDensity: number;
@@ -603,12 +620,17 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     );
   }
 
-  // Seeded melody — always fresh from the robot's octaveRange/rhythmicDensity/
-  // rhythmicMotifLength/noteVariance (copied or generated)
-  let melodyCallIndex = 0;
-  const melodyRand = noiseMap
-    ? () => getSeededVal(noiseMap, 'melody.rand', spawnCount * 100 + melodyCallIndex++)
-    : Math.random;
+  // Seeded melody (Roadmap Phase 31) -- the same buildSeededComposition formula
+  // regenerateMelody.ts uses for every later edit, so a post-spawn edit reverted to its
+  // original value reproduces this exact melody (no "first-edit ratchet"). Retires the old
+  // per-call noise-map draw ('melody.rand'/melodyCallIndex) in favor of compositionSeed.
+  const compositionRand = buildSeededComposition(compositionSeed, {
+    rhythmicDensity: spawnRhythmicDensity,
+    rhythmicMotifLength: spawnRhythmicMotifLength,
+    noteVariance: spawnNoteVariance,
+    pitchRepeat: spawnPitchRepeat,
+    octaveRange,
+  });
 
   const spawnMelody = generateMelodyForRobot({
     octaveMin: octaveRange[0],
@@ -617,7 +639,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     rhythmicMotifLength: spawnRhythmicMotifLength,
     noteVariance: spawnNoteVariance,
     pitchRepeat: spawnPitchRepeat,
-    rand: melodyRand,
+    rand: compositionRand,
   });
 
   const position = noiseMap ? generateSpawnPosition(noiseMap, spawnCount) : generateSpawnPosition((_x: number, _y: number) => 0 as number, spawnCount);
@@ -625,6 +647,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
 
   const robot: Robot = {
     id: noiseMap ? generateRobotId(noiseMap, spawnCount) : generateRobotId((_x: number, _y: number) => 0 as number, spawnCount),
+    compositionSeed,
     name: noiseMap ? generateRobotName(noiseMap, spawnCount) : generateRobotName((_x: number, _y: number) => 0 as number, spawnCount),
     identityColor: noiseMap
       ? generateRobotIdentityColor(noiseMap, spawnCount)

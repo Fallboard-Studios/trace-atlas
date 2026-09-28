@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from './melodyGenerator';
+import { generateMelodyForRobot, buildSeededComposition, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from './melodyGenerator';
 import { AudioEngine } from './AudioEngine';
 import { useLocaleStore } from '../stores/localeStore';
 import type { Robot } from '../types/Robot';
@@ -27,14 +27,30 @@ import type { Robot } from '../types/Robot';
  */
 export function regenerateMelody(robot: Robot, localeId: string): void {
   const [octMin, octMax] = robot.octaveRange;
+  const rhythmicDensity = robot.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY;
+  const rhythmicMotifLength = robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH;
+  const noteVariance = robot.noteVariance ?? DEFAULT_NOTE_VARIANCE;
+  const pitchRepeat = robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT;
+
+  // Deterministic Robot Melody Generation (Roadmap Phase 31) -- the same formula
+  // spawnSystem.ts uses for a robot's initial melody, so an edit reverted to its original
+  // value reproduces the exact melody it had before (no "first-edit ratchet").
+  const rand = buildSeededComposition(robot.compositionSeed, {
+    rhythmicDensity,
+    rhythmicMotifLength,
+    noteVariance,
+    pitchRepeat,
+    octaveRange: robot.octaveRange,
+  });
 
   const newMelody = generateMelodyForRobot({
     octaveMin: octMin,
     octaveMax: octMax,
-    rhythmicDensity: robot.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY,
-    rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
-    noteVariance: robot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
-    pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
+    rhythmicDensity,
+    rhythmicMotifLength,
+    noteVariance,
+    pitchRepeat,
+    rand,
   });
 
   useLocaleStore.getState().updateRobot(localeId, robot.id, { melody: newMelody });
