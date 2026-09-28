@@ -5,6 +5,7 @@ import { applySessionPayload } from '@/utils/sessionDiff';
 import { deleteNamedSession } from '@/utils/sessionStorageEngine';
 import { useSessionStore } from '@/stores/sessionStore';
 import type { SessionEntry } from '@/types/session';
+import { formatSessionTimestamp } from '@/utils/helpers';
 import { LOAD_SESSION_SCHEMA, DELETE_SESSION_SCHEMA } from '@/data/sessionConfig';
 
 import './SessionListItem.css';
@@ -45,6 +46,7 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
   return (
     <div className="session-list-item">
       <span className="session-list-item__label">{label}</span>
+      <span className="session-list-item__saved-at">{formatSessionTimestamp(entry.savedAt)}</span>
       <Button schema={loadSchema} onClick={handleLoad} />
       <Button schema={deleteSchema} onClick={() => setConfirmOpen(true)} />
 

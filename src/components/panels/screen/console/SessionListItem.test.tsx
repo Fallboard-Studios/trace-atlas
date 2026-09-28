@@ -12,6 +12,7 @@ import { SessionListItem } from './SessionListItem';
 import { useSessionStore } from '@/stores/sessionStore';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { deleteNamedSession } from '@/utils/sessionStorageEngine';
+import { formatSessionTimestamp } from '@/utils/helpers';
 import type { SessionEntry } from '@/types/session';
 
 const fakePayload = {
@@ -57,6 +58,21 @@ describe('SessionListItem -- named entry', () => {
     render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
 
     expect(screen.getByText('Deep Dive')).toBeTruthy();
+  });
+
+  it('shows the entry\'s saved time, date+time formatted, next to its name', () => {
+    const savedAt = new Date('2026-09-28T14:14:00').getTime();
+    render(<SessionListItem entry={makeEntry({ name: 'Deep Dive', savedAt })} />);
+
+    expect(screen.getByText(formatSessionTimestamp(savedAt))).toBeTruthy();
+  });
+
+  it('two different entries show two different saved times', () => {
+    const older = new Date('2026-09-01T09:00:00').getTime();
+    render(<SessionListItem entry={makeEntry({ name: 'Deep Dive', savedAt: older })} />);
+
+    expect(screen.getByText(formatSessionTimestamp(older))).toBeTruthy();
+    expect(screen.queryByText(formatSessionTimestamp(Date.now()))).toBeNull();
   });
 
   it('never renders autosave subrows, even when currently loaded (regression guard, cut feature)', () => {

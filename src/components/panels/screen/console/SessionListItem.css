@@ -11,6 +11,12 @@
   white-space: nowrap;
 }
 
+.session-list-item__saved-at {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
 /* Same layering/positioning as CompanyCrudControls.css's own company-delete-confirm__* — one
    AlertDialog confirmation pattern, reused verbatim rather than reinvented per feature. */
 .session-delete-confirm__overlay {
