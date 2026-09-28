@@ -162,8 +162,10 @@ export function generateCompanyName(noiseMap: NoiseFunction2D, offset: number): 
 }
 
 /** Deterministic company ID — mirrors generateRobotId's shape (own dataId, own counter namespace,
- *  no crypto.randomUUID()). Not reused outside this file, so stays private like generateRobotId. */
-function generateCompanyId(noiseMap: NoiseFunction2D, index: number): string {
+ *  no crypto.randomUUID()). Exported (like generateCompanyName/generateCompanyIdentityColor
+ *  above) so generateCompanyRosterBaseline below — and Session Storage's sessionDiff.ts, which
+ *  needs a company's id to match it against a live company — can call it directly. */
+export function generateCompanyId(noiseMap: NoiseFunction2D, index: number): string {
   const idSeed = getSeededVal(noiseMap, 'company.id', index, 0, 1);
   return `company-${index}-${idSeed.toString(36).slice(2, 10)}`;
 }
@@ -381,6 +383,125 @@ export function generateRobotLfoSettings(noiseMap: NoiseFunction2D, offset: numb
     return [target, settings] as const;
   });
   return Object.fromEntries(entries) as Record<RobotLfoTargetId, LfoSettings>;
+}
+
+/**
+ * A robot's audio-relevant seeded fields — exactly the shape spawnRobot's own "copy an earlier
+ * sibling" branch reads from a live Robot object, extracted so it can be replayed for baseline
+ * comparison (Session Storage, docs/specs/SESSION_STORAGE.md) without touching the store spawnRobot
+ * itself reads from.
+ */
+export interface RobotAudioBaseline {
+  /** Unconditional, like spawnRobot's own robot.name assignment — NOT inherited on the copy
+   *  branch (a copied robot still gets its own freshly-generated name). */
+  name: string;
+  audioAttributes: AudioAttributes;
+  octaveRange: [number, number];
+  rhythmicDensity: number;
+  rhythmicMotifLength: ToggleValue;
+  noteVariance: ToggleValue;
+  pitchRepeat: number;
+  lfoSettings: Record<RobotLfoTargetId, LfoSettings>;
+}
+
+/**
+ * Replays spawnRobot's exact generate-or-copy decision tree for one robot at `spawnCount`, given
+ * the baselines already computed for every earlier robot in the same roster (`priorBaselines`, in
+ * spawn order) — pure, no store read/write. Deliberately NOT a refactor of spawnRobot itself (see
+ * this function's own file-level context in docs/tasks/SESSION_STORAGE.md Task 2): spawnRobot's
+ * copy branch depends on the live store's accumulated `robots` array, so replaying it purely means
+ * taking that pool as an explicit argument instead. Mirrors spawnRobot's own 'robot.copyChance'/
+ * 'robot.copySource' dataIds and the 0.30 threshold exactly — any divergence here would silently
+ * break Session Storage's "an untouched robot's diff is always empty" guarantee. Only the
+ * real-noiseMap path is replayed; spawnRobot's own no-noiseMap `alea(...)` fallback (used only when
+ * a locale/coordinates don't exist yet) has nothing meaningful to diff against, so it's not mirrored
+ * here.
+ */
+export function generateRobotAudioBaseline(
+  noiseMap: NoiseFunction2D,
+  spawnCount: number,
+  priorBaselines: readonly RobotAudioBaseline[],
+): RobotAudioBaseline {
+  const copyRoll = getSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1);
+  const shouldCopy = copyRoll < 0.30 && priorBaselines.length > 0;
+
+  const name = generateRobotName(noiseMap, spawnCount);
+
+  if (shouldCopy) {
+    const srcIdx = Math.min(
+      priorBaselines.length - 1,
+      Math.floor(getSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, priorBaselines.length))
+    );
+    // name is NOT inherited from the copy source — spawnRobot generates it unconditionally,
+    // outside the shouldCopy branch (see this function's own doc comment).
+    return { ...priorBaselines[srcIdx], name };
+  }
+
+  const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
+  const octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
+  const lfoSettings = generateRobotLfoSettings(noiseMap, spawnCount);
+  const rhythmicDensity = Math.round(getSeededVal(noiseMap, 'robot.rhythmicDensity', spawnCount, 0, 100));
+  const motifRaw = getSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', spawnCount, 0, 1);
+  const rhythmicMotifLength = seedToggleValue(motifRaw, RHYTHMIC_MOTIF_LENGTH_OFF_THRESHOLD);
+  const noteVarianceRaw = getSeededVal(noiseMap, 'robot.noteVariance.active', spawnCount, 0, 1);
+  const noteVariance = seedToggleValue(noteVarianceRaw, NOTE_VARIANCE_OFF_THRESHOLD);
+  const pitchRepeat = Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', spawnCount, 0, 100));
+
+  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, lfoSettings };
+}
+
+/**
+ * Replays generateRobotAudioBaseline above for a full `count`-robot roster in spawn order, purely
+ * from the noise map. Used by sessionDiff.ts to compute what a locale's whole roster would look
+ * like from the seed alone, to diff a live roster against.
+ */
+export function generateRobotRosterBaseline(noiseMap: NoiseFunction2D, count: number): RobotAudioBaseline[] {
+  const baselines: RobotAudioBaseline[] = [];
+  for (let i = 0; i < count; i++) {
+    baselines.push(generateRobotAudioBaseline(noiseMap, i, baselines));
+  }
+  return baselines;
+}
+
+/** A spawn-generated company's seed-derived id/name/membership — the shape sessionDiff.ts's
+ *  CompanyDiff needs to compare a live Company against; color is deliberately omitted (not part
+ *  of CompanyDiff, see docs/specs/SESSION_STORAGE.md §4.1). */
+export interface CompanyRosterBaseline {
+  id: string;
+  name: string;
+  robotIds: string[];
+}
+
+/**
+ * Replays spawnInitialCompanies' exact company-generation loop (dataIds 'company.count'/
+ * 'company.size'/'company.member', the same INITIAL_COMPANIES_MIN/MAX and COMPANY_SIZE_MIN/MAX
+ * bounds) purely from the noise map and a robot-id pool, in spawn order — no store read/write.
+ * Deliberately NOT a refactor of spawnInitialCompanies itself, same rationale as
+ * generateRobotAudioBaseline above (touching already-covered, store-coupled code is riskier than
+ * an additive, independently-verified parallel implementation).
+ */
+export function generateCompanyRosterBaseline(noiseMap: NoiseFunction2D, robotIds: readonly string[]): CompanyRosterBaseline[] {
+  let pool = [...robotIds];
+  const companyCount = INITIAL_COMPANIES_MIN + Math.floor(
+    getSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1)
+  );
+
+  const companies: CompanyRosterBaseline[] = [];
+  for (let c = 0; c < companyCount && pool.length > 0; c++) {
+    const size = Math.min(pool.length, COMPANY_SIZE_MIN + Math.floor(
+      getSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)
+    ));
+
+    const memberIds: string[] = [];
+    for (let i = 0; i < size; i++) {
+      const idx = Math.floor(getSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length));
+      memberIds.push(pool[idx]);
+      pool = pool.filter((_, j) => j !== idx);
+    }
+
+    companies.push({ id: generateCompanyId(noiseMap, c), name: generateCompanyName(noiseMap, c), robotIds: memberIds });
+  }
+  return companies;
 }
 
 /**

@@ -43,11 +43,18 @@ import { setGlobalAttenuationStyleSeedOverride } from './utils/seedUtils'
 // the whole thing dead code Vite strips from production builds.
 import './engine/lfoDebug'
 import { startAudioBudget } from './systems/audioBudgetSystem'
+import { startSessionAutosave } from './systems/sessionAutosave'
 
 // Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §4.4): started once, before the first power-on, so the
 // dial's caps are in force from the first note. Purely event-driven (store subscriptions) — no timers — and
 // deliberately not torn down by a power cycle.
 startAudioBudget()
+
+// Session Storage (docs/specs/SESSION_STORAGE.md §4.4): started once at boot, same as
+// startAudioBudget() above. Purely a background save — never loads anything, so it has no bearing
+// on the "nothing auto-loads a session" requirement enforced elsewhere: this file never imports or
+// calls anything from sessionDiff.ts, the module those load/apply functions live in.
+startSessionAutosave()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

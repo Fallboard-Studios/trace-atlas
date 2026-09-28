@@ -6,11 +6,12 @@ import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { Robot } from '../types/Robot';
 
-import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoSettings, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoSettings, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { AudioEngine } from '../engine/AudioEngine';
 import { DockingState } from '../types/Robot';
+import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { ROBOT_LFO_TARGET_IDS, LFO_SHAPES, LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX } from '../types/lfo';
 import {
   MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
@@ -949,6 +950,136 @@ describe('spawnSystem', () => {
       const everyColor = ROBOT_IDENTITY_COLOR_NAMES.map((name) => ACCENT_COLORS[name]);
       const result = generateCompanyIdentityColor(noiseMap, 0, everyColor);
       expect(everyColor).toContain(result);
+    });
+  });
+
+  // Session Storage (Roadmap Phase 20, docs/specs/SESSION_STORAGE.md) needs a way to compute
+  // "what the seed alone would have produced" for a robot, without touching the live store, so a
+  // saved override diff can be compared against it. generateRobotAudioBaseline/
+  // generateRobotRosterBaseline are a pure, additive parallel to spawnRobot's own generate-or-copy
+  // decision tree — NOT a refactor of spawnRobot itself (spawnRobot's own inline logic is
+  // untouched; see docs/tasks/SESSION_STORAGE.md Task 2's note on this deviation from the
+  // original plan, made after discovering spawnRobot's ~30% "copy an earlier sibling" branch,
+  // which depends on the live store's accumulated robots — replaying it purely requires this
+  // function to take that pool as an explicit array argument instead).
+  describe('generateRobotAudioBaseline / generateRobotRosterBaseline', () => {
+    beforeEach(() => {
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
+    });
+
+    it('with no prior baselines, generates fresh values identical to a real spawnRobot at spawnCount 0', () => {
+      const localeId = 'baseline-parity-fresh-locale';
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [] } },
+      }));
+      spawnRobot(localeId);
+      const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+
+      const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+      const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+      const baseline = generateRobotAudioBaseline(noiseMap, 0, []);
+
+      expect(baseline.name).toBe(robot.name);
+      expect(baseline.audioAttributes).toEqual(robot.audioAttributes);
+      expect(baseline.octaveRange).toEqual(robot.octaveRange);
+      expect(baseline.rhythmicDensity).toBe(robot.rhythmicDensity);
+      expect(baseline.rhythmicMotifLength).toEqual(robot.rhythmicMotifLength);
+      expect(baseline.noteVariance).toEqual(robot.noteVariance);
+      expect(baseline.pitchRepeat).toBe(robot.pitchRepeat);
+      expect(baseline.lfoSettings).toEqual(robot.lfoSettings);
+    });
+
+    it('reproduces every field of a full real 12-robot roster (spawnInitialRoster), including any copied siblings', () => {
+      const localeId = 'baseline-parity-full-roster-locale';
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [] } },
+      }));
+      spawnInitialRoster(localeId);
+      const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+      const robots = locale.robots;
+      expect(robots.length).toBeGreaterThan(0); // sanity: MAX_ROBOTS, not an empty roster
+
+      const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+      const baselines = generateRobotRosterBaseline(noiseMap, robots.length);
+
+      expect(baselines.length).toBe(robots.length);
+      robots.forEach((robot, i) => {
+        expect(baselines[i].name, `robot ${i} (${robot.id}) name`).toBe(robot.name);
+        expect(baselines[i].audioAttributes, `robot ${i} (${robot.id}) audioAttributes`).toEqual(robot.audioAttributes);
+        expect(baselines[i].octaveRange, `robot ${i} (${robot.id}) octaveRange`).toEqual(robot.octaveRange);
+        expect(baselines[i].rhythmicDensity, `robot ${i} (${robot.id}) rhythmicDensity`).toBe(robot.rhythmicDensity);
+        expect(baselines[i].rhythmicMotifLength, `robot ${i} (${robot.id}) rhythmicMotifLength`).toEqual(robot.rhythmicMotifLength);
+        expect(baselines[i].noteVariance, `robot ${i} (${robot.id}) noteVariance`).toEqual(robot.noteVariance);
+        expect(baselines[i].pitchRepeat, `robot ${i} (${robot.id}) pitchRepeat`).toBe(robot.pitchRepeat);
+        expect(baselines[i].lfoSettings, `robot ${i} (${robot.id}) lfoSettings`).toEqual(robot.lfoSettings);
+      });
+    });
+
+    it('takes the copy branch (reuses a prior baseline by reference) at roughly the same ~30% rate spawnRobot itself uses', () => {
+      // No store involved at all -- generateRobotRosterBaseline is pure. 30 entries at a ~30%
+      // per-entry copy chance makes at least one copy virtually certain (P(zero) ~= 0.7^29),
+      // mirroring the existing "a copied robot inherits..." spawnRobot tests' own sample size.
+      const noiseMap = createNoise2D(alea('baseline-copy-branch-test-seed'));
+      const baselines = generateRobotRosterBaseline(noiseMap, 30);
+
+      const bySettings = new Map<typeof baselines[number]['lfoSettings'], number[]>();
+      baselines.forEach((b, i) => {
+        const group = bySettings.get(b.lfoSettings) ?? [];
+        group.push(i);
+        bySettings.set(b.lfoSettings, group);
+      });
+      const sharedGroup = [...bySettings.values()].find((indices) => indices.length > 1);
+      expect(sharedGroup, 'expected at least one entry to share an earlier entry\'s lfoSettings reference (a copy)').toBeDefined();
+
+      const [earlierIdx, laterIdx] = sharedGroup!;
+      // A copy reuses the SAME lfoSettings (and audioAttributes/octaveRange/etc.) object by
+      // reference, not a freshly-generated equivalent one -- matching spawnRobot's own
+      // "source.lfoSettings" (no re-generation) on the copy path. name is the one field that's
+      // never copied (generated fresh even on a copy, see generateRobotAudioBaseline's own doc
+      // comment) -- not asserted here, since two different spawnCounts could coincidentally
+      // generate the same "Adjective Noun" name by chance, independent of copying.
+      expect(baselines[laterIdx].lfoSettings).toBe(baselines[earlierIdx].lfoSettings);
+      expect(baselines[laterIdx].audioAttributes).toBe(baselines[earlierIdx].audioAttributes);
+    });
+  });
+
+  // Session Storage Task 4.1 (docs/tasks/SESSION_STORAGE.md) — company diffing needs the same
+  // "what would the seed alone have produced" replay generateRobotRosterBaseline gives robots,
+  // for spawnInitialCompanies' own inline, store-coupled membership-assignment loop.
+  describe('generateCompanyRosterBaseline', () => {
+    beforeEach(() => {
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
+    });
+
+    it('reproduces the same id/name/robotIds a real spawnInitialCompanies produces from the same noise map and robot-id pool', () => {
+      const localeId = 'company-baseline-parity-locale';
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [], companies: [] } },
+      }));
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+      const realCompanies = locale.companies;
+      expect(realCompanies.length).toBeGreaterThan(0); // sanity: INITIAL_COMPANIES_MIN >= 1
+
+      const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+      // Same robot-id pool order spawnInitialCompanies itself started from — the roster as it
+      // existed before any company claimed a member (locale.robots is already in spawn order).
+      const robotIds = locale.robots.map((r) => r.id);
+      const baseline = generateCompanyRosterBaseline(noiseMap, robotIds);
+
+      expect(baseline.length).toBe(realCompanies.length);
+      realCompanies.forEach((company, i) => {
+        expect(baseline[i].id, `company ${i}`).toBe(company.id);
+        expect(baseline[i].name, `company ${i}`).toBe(company.name);
+        expect(baseline[i].robotIds, `company ${i}`).toEqual(company.robotIds);
+      });
+    });
+
+    it('is pure — takes no store dependency (call with only a noise map and a plain id array)', () => {
+      const noiseMap = createNoise2D(alea('company-baseline-purity-seed'));
+      const robotIds = Array.from({ length: 10 }, (_, i) => `robot-${i}`);
+      expect(() => generateCompanyRosterBaseline(noiseMap, robotIds)).not.toThrow();
     });
   });
 });

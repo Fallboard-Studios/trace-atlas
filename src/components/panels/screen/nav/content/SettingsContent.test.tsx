@@ -24,11 +24,18 @@ vi.mock('../../console/AudioLoadPanel', () => ({
   AudioLoadPanel: () => <div data-testid="audio-load-panel-stub" />,
   default: () => <div data-testid="audio-load-panel-stub" />,
 }));
+// SessionsPanel has its own full test suite (SessionsPanel.test.tsx) and pulls in
+// sessionDiff.ts -> worldTransition.ts -> AudioEngine, the same real-Tone.js path
+// SectorSettingsDrawer/AudioLoadPanel are already stubbed out above to avoid.
+vi.mock('../../console/SessionsPanel', () => ({
+  SessionsPanel: () => <div data-testid="sessions-panel-stub" />,
+  default: () => <div data-testid="sessions-panel-stub" />,
+}));
 
 const UI_INITIAL_STATE = useUIStore.getState();
-const SECTION_IDS = ['settings.quality', 'settings.sectorSettings'];
+const SECTION_IDS = ['settings.quality', 'settings.sectorSettings', 'settings.sessions'];
 
-function openAndApproach(leaf: 'quality' | 'sectorSettings') {
+function openAndApproach(leaf: 'quality' | 'sectorSettings' | 'sessions') {
   // Lazy-mount is driven purely by approach now — an accordion's own open/closed state (manual,
   // independent per accordion) has no bearing on whether its content is in the DOM.
   act(() => approachSection(`settings.${leaf}`));
@@ -64,11 +71,27 @@ describe('SettingsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     });
   });
 
-  it('renders both sections as accordion trigger shells, regardless of which (if any) is open', () => {
+  it('renders all three sections as accordion trigger shells, regardless of which (if any) is open', () => {
     render(<SettingsContent />);
 
     expect(screen.getByRole('button', { name: 'Audio Profile' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Audio Seeds' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sessions' })).toBeTruthy();
+  });
+
+  it('renders Sessions as the third and last accordion, after Audio Profile and Audio Seeds', () => {
+    render(<SettingsContent />);
+
+    // textContent includes the accordion's own expand/collapse indicator glyph (+/−) ahead of the
+    // DualLabel text — stripped here since only the label order matters for this assertion.
+    const labels = screen.getAllByRole('button').map((btn) => btn.textContent?.replace(/^[+−]/, '').trim());
+    expect(labels).toEqual(['Audio Profile', 'Audio Seeds', 'Sessions']);
+  });
+
+  it('Sessions accordion starts closed by default, independent of Audio Profile\'s default-open state', () => {
+    render(<SettingsContent />);
+
+    expect(screen.getByRole('button', { name: 'Sessions' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('opens Performance\'s accordion by default when no Settings leaf is selected yet (bare "Settings" click) — the view/accordion model always has exactly one section open', () => {
@@ -167,5 +190,31 @@ describe('SettingsContent — Presets leaf content', () => {
     render(<SettingsContent />);
     openAndApproach('sectorSettings');
     expect(screen.getByTestId('sector-settings-drawer-stub')).toBeTruthy();
+  });
+});
+
+describe('SettingsContent — Sessions leaf content (Roadmap Phase 20, Task 10)', () => {
+  beforeEach(() => {
+    useUIStore.setState(UI_INITIAL_STATE, true);
+    installIntersectionObserverStub();
+    SECTION_IDS.forEach(clearSectionRef);
+  });
+
+  it('does not mount SessionsPanel until its accordion is opened and approached', () => {
+    render(<SettingsContent />);
+    expect(screen.queryByTestId('sessions-panel-stub')).toBeNull();
+  });
+
+  it('shows SessionsPanel once Sessions is open and approached', () => {
+    render(<SettingsContent />);
+    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    openAndApproach('sessions');
+    expect(screen.getByTestId('sessions-panel-stub')).toBeTruthy();
+  });
+
+  it('opening Sessions does not close Audio Profile (the default-open accordion) — independent per-accordion state', () => {
+    render(<SettingsContent />);
+    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    expect(screen.getByRole('button', { name: 'Audio Profile' }).getAttribute('aria-expanded')).toBe('true');
   });
 });

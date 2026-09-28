@@ -190,18 +190,63 @@ fixes in that same series still haven't gotten their own live-Profiler recheck:
 
 ### 15. Test Suite: Three Tests Fail Intermittently Under a Full Parallel Run
 
-**Status:** ☐ open — noticed 2026-09-18, still reproducing as of 2026-09-27 (see project
+**Status:** ☐ open — noticed 2026-09-18, still reproducing as of 2026-09-28 (see project
 memory: known-flaky unmocked-random tests).
 
-Three tests fail occasionally in a full `npx vitest run` and pass every time when their own file is run alone (3–5 isolated runs each):
+Four tests fail occasionally in a full `npx vitest run` and pass every time when their own file is run alone (3–5 isolated runs each):
 
 - `src/systems/audioSwells.test.ts` › *pingVarianceAutomation forced return at 0% (Task 4) › forces every member of a company-wide swell together, sharing phase/timing, each landing exactly on its own baseValue* — failed in 4 of 7 full runs.
 - `src/components/company/CompanyCrudControls.test.tsx` › *Rename Submit button › is (normally) enabled immediately after selecting a company — the auto-suggested draft differs from the current name* — failed in 2 full runs, one of them on the commit *before* any 17.2.2 work.
 - `src/systems/factoryPlacementSystem.test.ts` › *recolorFactoriesForAttenuationStyle › changes only config.hueShift/config.satShift on every factory — everything else round-trips byte-identical* — failed in 1 full run.
+- `src/systems/worldTransition.test.ts` › *initializeLocale › fully clears in-flight swells on a second `initializeLocale` call — no swell survives a restart* — failed 1 full run, seen 2026-09-28 during Session Storage (Phase 20) Task 12 verification; passed immediately on an isolated re-run.
 
-Both known failures since (per project memory) are real-RNG preconditions, not assertion
-bugs — re-run once to confirm rather than retry-looping or editing assertions. All three
+All known failures since (per project memory) are real-RNG preconditions, not assertion
+bugs — re-run once to confirm rather than retry-looping or editing assertions. All four
 suggest a shared, load- or order-dependent input (wall-clock time, seeded randomness that
 isn't fully pinned, or a timing-sensitive assertion). Worth a look before a CI gate is
 added (there is none yet — see `CLAUDE.md`'s PR process note), since a flaky gate trains
 people to re-run instead of read.
+
+### 16. `worldTransition.ts`: Retransmitting the Currently-Active Attenuation Style's Own Name Corrupts the Store
+
+Found while implementing Session Storage's `applySessionPayload` (roadmap Phase 20,
+`docs/tasks/SESSION_STORAGE.md` Task 4.3), 2026-09-27. Not yet fixed here — worked around
+in `sessionDiff.ts`'s own caller instead (see below); the underlying gap in
+`worldTransition.ts` itself is still open.
+
+`worldTransition.ts`'s `createNewAttenuationStyle(attenuationStyleName)` unconditionally
+calls `attenuationStyleStore.addAttenuationStyle(newAttenuationStyle)` and returns the
+constructed object regardless of whether the add actually succeeded. `addAttenuationStyle`
+silently refuses (returns `false`, does not append to `attenuationStyles`) when the name is
+already taken (case-insensitive) by an existing entry — logging a `devWarn`, nothing more.
+`retransmitBoth`/`retransmitAttenuationStyleOnly` then proceed to call `setCurrentLocale`
+and `finalizeAttenuationStyleTransition` (which sets `currentAttenuationStyleId` to the
+phantom new id and **removes the old Attenuation Style**) as if the add had worked. Net
+result when the name collides: `attenuationStyles` loses its real entry, gains nothing, and
+`currentAttenuationStyleId` dangles — `selectCurrentAttenuationStyle` returns `undefined`
+from then on.
+
+This has apparently never surfaced from the live UI, because `SectorSettingsDrawer`'s name
+field only ever sends `attenuationStyleName` to `retransmitWorld` when the user actually
+edited it (`RetransmitInput`'s own doc comment) — which in practice always produces a
+*different* name, never a same-name resubmission. `applySessionPayload` is a new caller
+that always has an `attenuationStyleName` (every `SessionPayload` carries one
+unconditionally), and reloading a session while still on the same Attenuation Style you
+saved it from — a very common case — hits the collision every time. Worked around there by
+omitting `attenuationStyleName` from the `retransmitWorld` call whenever it matches the
+currently active one (routing through the already-correct `coordsOnly` branch instead,
+which preserves the current Attenuation Style untouched).
+
+**Not covered by the workaround:** a payload naming a *different* Attenuation Style than
+the one currently active, whose name happens to already exist elsewhere in
+`attenuationStyles` (e.g. multiple named worlds open in the same session). Rare in today's
+usage (an Attenuation Style is normally removed the moment a new one replaces it), but
+still a real latent bug in `worldTransition.ts` itself.
+
+**Fix shape:** have `createNewAttenuationStyle` check `addAttenuationStyle`'s boolean
+return; on `false`, look up and reuse the existing Attenuation Style with that name instead
+of proceeding with a phantom one. Needs its own scoping pass — reusing an existing
+Attenuation Style mid-transition touches the same `locales`/`currentLocaleId` bookkeeping
+`retransmitAttenuationStyleOnly` already has to reason about, and should get a regression
+test that recreates the collision directly (name matches the currently active style), not
+just Session Storage's own round-trip tests.

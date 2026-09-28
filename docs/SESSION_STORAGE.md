@@ -1,58 +1,80 @@
 # Session Storage & Persistence
 
-**Status: design doc for [Roadmap Phase 20](todo/roadmap.md) — not yet implemented.** Nothing in this file describes current app behavior; there is no localStorage or persistence code anywhere in `src/` today. Update this banner and fold this content into an implementation-sourced version once `storageEngine.ts`/`stateResolver.ts`/`urlSerializer.ts` land.
+**Status: shipped, [Roadmap Phase 20](todo/roadmap.md#20-session-storage).** Rewritten from the shipped implementation — see [docs/intent/session-storage.md](intent/session-storage.md), [docs/specs/SESSION_STORAGE.md](specs/SESSION_STORAGE.md), and [docs/tasks/SESSION_STORAGE.md](tasks/SESSION_STORAGE.md) for full design rationale and history. This file supersedes its own prior draft, which described a different, never-built shape (single boot-autoloaded slot, URL sharing, `FirmwareResetModal`) — see "What changed from the original design" below.
 
-**Related docs:** [PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md) (the seed determinism this design depends on) · [ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md) (timelineMap, for FirmwareResetModal's flash) · [COMPANIES.md](COMPANIES.md) (the Company shape this persists, including the spawn-generated-vs-user-created id split) · [todo/roadmap.md](todo/roadmap.md) Phase 6 (deterministic robot IDs), Phase 9 (Robot Options, the source of overrides), Phase 10 (Companies), Phase 20 (this phase, renumbered 2026-09-16 — was Phase 19, and 2026-09-11 — was Phase 12)
+**Related docs:** [PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md) (the seed determinism this design depends on) · [ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md) (unrelated to this feature — nothing here animates) · [COMPANIES.md](COMPANIES.md) (the `Company` shape this persists, including the spawn-generated-vs-user-created id split) · [UI_SHELL.md](UI_SHELL.md) (where the Sessions accordion sits in Settings) · [todo/roadmap.md](todo/roadmap.md) Phase 6 (deterministic robot IDs), Phase 10 (Companies), Phase 20 (this phase), Phase 21 (shareable links — depends on this phase but is a separate, not-yet-built feature)
+
+## What it does
+
+A "Sessions" accordion — third and last in the Settings view's stack, after "Audio Profile" and "Audio Seeds" (`SettingsContent.tsx`'s `SETTINGS_LEAVES`) — renders `SessionsPanel.tsx`. An operator types a name (or accepts the generated suggestion) and clicks "Save Session" to write the current audio-relevant tuning to `localStorage` under that name; clicking a saved entry's "Load" button applies it immediately, no confirmation. A 5-minute background autosave protects against forgetting to save. This is purely local persistence — no URL involvement, no sharing, no compression.
 
 ## What Gets Persisted
 
-Robot attributes are already fully derived from the active AS seed and locale coordinates — [PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md) guarantees the same seed always regenerates the same world. So this design does **not** persist full robot state. It persists the minimum needed to reproduce a session exactly:
+Robot attributes are already fully derived from the active Attenuation Style and locale coordinates — [PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md) guarantees the same seed always regenerates the same world. So a `SessionPayload` (`src/types/session.ts`) does **not** store full robot/company state. It's a diff reapplied on top of a freshly regenerated roster:
 
-1. Active AS seed and plot coordinates (X, Y) — Sector Settings (Phase 5)
-2. Global Audio Rig FX settings (Compressor, EQ3, LPF, HPF, Delay, Reverb, Limiter) — not seed-derived; set explicitly by the operator (Phase 4)
-3. Per-robot manual overrides from Robot Options, keyed by robot ID — only the fields an operator explicitly changed (job assignment, docking-state override, battery warning threshold, transducer pressure ratio, oscillator layer params, ADSR envelope, rhythmic density/motif length/octave bounds/note variance). Every other field regenerates fresh from the seed.
-4. Companies ([COMPANIES.md](COMPANIES.md)), in two different shapes depending on origin:
-   - **Spawn-generated companies** persist the same way robot overrides do — a diff (membership changes, `lastEditedOptions`) keyed by the company's deterministic `spawnSystem.ts` id, reapplied on top of the regenerated roster.
-   - **User-created companies** (via `CompanyCrudControls`, id from `crypto.randomUUID()`) don't exist in a regenerated roster at all — there's no seed to recreate them from. These persist as **complete objects** (id, name, `robotIds`, `lastEditedOptions`), not a diff. The random id only needs to stay stable once saved; it's never re-derived.
+1. `attenuationStyleName` and `coordinates: { x, y }` — the active Attenuation Style and locale
+2. `globalAudio: GlobalAudioSettings` — Audio Rig FX (Compressor, EQ3, LPF, HPF, Delay, Reverb, Limiter)
+3. `robotOverrides: Record<robotId, RobotAudioOverrideDiff>` — only robots whose live values differ from what the seed alone would produce, and only the fields that differ: `adsr`, `layers`, `filterFreq` (`AudioAttributes.filterFreq` — "transducer pressure ratio" in UI lore copy), `rhythmicDensity`, `rhythmicMotifLength`, `noteVariance`, `pitchRepeat`, `octaveRange`, `lfoSettings`, `name`. An untouched robot has **no key** in this map, not a key mapping to `{}`.
+4. `companyDiffs: Record<companyId, CompanyDiff>` — spawn-generated companies only, same "no key if untouched" rule, covering just `name`/`robotIds` (membership)
+5. `userCreatedCompanies: Company[]` — companies made via `CompanyCrudControls` (`crypto.randomUUID()` ids) have no seed to regenerate from, so they persist as **complete objects**, never diffed
+6. `version: 1` — a schema-version field on the payload itself, unused by this phase's own code; exists so a future importer (Phase 21) can distinguish payload shapes without a retrofit
 
-The payload is a **diff on top of a regenerated roster** for everything seed-derived, plus the small set of objects (user-created companies) that have no seed to regenerate from in the first place. This keeps saves small and keeps reload/share behavior predictable: regenerate from the seed, reapply the override diffs, then splice in any full objects that aren't part of the regenerated world.
+**Explicitly never persisted:** job assignment, docking-state override, battery warning threshold (these drift continuously as the sim runs — a bad fit for a checkpoint), `audioMode` (solo/mute), `masterVolume`, and all UI/layout state (open accordions, selected nav tab, etc.).
+
+`computeRobotAudioOverrideDiff`/`computeCompanyDiff`/`buildSessionPayload`/`applySessionPayload` (`src/utils/sessionDiff.ts`) are the pure diff core. `buildSessionPayload` compares the live roster against a seed-only baseline produced by `generateRobotRosterBaseline`/`generateCompanyRosterBaseline` (`src/systems/spawnSystem.ts`) — pure functions with no store write, extracted from the real spawn path so the baseline they produce is guaranteed to match what a fresh spawn would actually generate. `applySessionPayload` regenerates the world via `worldTransition.ts`'s existing `retransmitWorld` (never a parallel regeneration path), then overlays `globalAudio`, every robot override (merged field-by-field via `useLocaleStore.updateRobot`), every company diff, and every user-created company. Company membership is reapplied via `localeStore.assignRobotToCompany` per affected robot, never a direct `robotIds` write, so a member robot's own `companyId` never desyncs from its company's roster.
 
 ## Hard Requirement: Deterministic IDs for Anything Diffed
 
-This design only works if regenerating from the same seed reproduces the same IDs in the same order, so a persisted diff can be matched back up to the right entity. **Robot IDs** already satisfy this — Phase 6 replaced the original `crypto.randomUUID()` with a seed-derived id (`generateRobotId`, `src/systems/spawnSystem.ts`), through the noise-map/seed utilities [PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md) documents. **Spawn-generated Companies** likewise already use a deterministic id (`generateCompanyId`, same file) for the same reason.
+This only works if regenerating from the same seed reproduces the same IDs in the same order, so a persisted diff can be matched back up to the right entity. **Robot IDs** and **spawn-generated Company IDs** already satisfy this (`generateRobotId`/`generateCompanyId`, `src/systems/spawnSystem.ts`, Phase 6). **User-created Companies** are the one exception, deliberately: they have no seed to derive an id from, so they keep `crypto.randomUUID()` and persist as full objects instead of a diff (see "What Gets Persisted" above).
 
-**User-created Companies** are the one exception, deliberately: a company made by hand via `CompanyCrudControls` has no seed to derive an id from in the first place, so it keeps `crypto.randomUUID()` (see [COMPANIES.md](COMPANIES.md)'s Forbidden Patterns). This doesn't violate the determinism requirement above — that requirement only applies to entities meant to be *matched back up* against a regenerated roster. A user-created company is never regenerated; it's persisted as a complete object instead (see "What Gets Persisted"), so its id just needs to stay stable once saved, not be re-derivable from the seed.
+## The Storage Engine (`src/utils/sessionStorageEngine.ts`)
 
-## The Persistence Engine
+One namespaced `localStorage` key, `STORAGE_KEY = 'trace-atlas.sessions.v1'`, holding named entries and the 6 autosave slots together:
 
-- A Zustand `subscribe()` listener, not a polling loop. The shared save handler is debounced (roughly 500ms–1s) and fires on writes to locale coordinates/seed, Audio Rig settings, or Robot Options overrides. This avoids `setInterval`-style polling for state changes the stores can already notify on, and avoids writing to localStorage on every intermediate slider-drag tick.
-- Writes a single namespaced key to `localStorage` — `src/utils/storageEngine.ts`.
+- `saveNamedSession(name, payload)` — overwrites the entry named `name` in place if it exists; otherwise creates a new one. The name **is** the storage key, not a separate id.
+- `saveAutosaveSlot(mode, payload)` — `mode` is `'rotating'` or `'draft'`, never a specific slot id; the engine owns the FIFO rotation cursor internally (a deliberate change from an earlier draft that took an explicit slot id — see "What changed" below).
+- `deleteNamedSession(name)` / `deleteAutosaveSlot(slotId)` — each removes only its own kind of entry, even if a name happens to collide with a slot id (e.g. a session literally named `"draft"`).
+- `listSessions()` — every named entry plus every populated autosave slot, for the panel's list.
+- `loadSession(key)` — looks up a payload by name or slot id; returns `undefined` if nothing matches.
 
-## Load-Time Resolution Hierarchy
+Malformed or missing `localStorage` data fails soft: `listSessions()` returns `[]`, `loadSession()` returns `undefined`, never throwing into the render path.
 
-`src/utils/stateResolver.ts` resolves state at startup by stepping down a fixed priority order — it never prompts the operator:
+## The 6-Slot Autosave (`src/systems/sessionAutosave.ts`)
 
-1. **URL query string.** If a compressed state payload is present, decode and apply it. Highest priority — this is what makes a shared link reproduce the sender's exact session, overrides included.
-2. **`localStorage` cache.** If the URL is clean, load the last background-saved state.
-3. **Procedural fallback.** If both are empty, generate a fresh baseline seed and start clean.
+`startSessionAutosave()`/`stopSessionAutosave()` — an idempotent, module-singleton pair (mirroring `startAudioBudget()`'s shape), called once at boot from `main.tsx`. Every `SESSION_AUTOSAVE_INTERVAL_MS` (5 minutes), a plain `setInterval` tick:
 
-## URL State Compression
+- **`sessionStore.currentLoadedSessionName === null`** (no named session currently loaded) → writes to the next of **5 rotating "Unsaved Session" slots**, FIFO — a 6th write evicts the oldest.
+- **A named session is loaded** → writes to a single dedicated **`draft`** slot instead, and never touches that named entry itself. Switching to a *different* loaded session still writes the same one `draft` slot (overwritten, not duplicated). A named entry, once explicitly saved, is otherwise frozen — the only way to update it is another explicit "Save Session" (or "Update," see below) click.
 
-No new dependency: compress the serialized state object with the native `CompressionStream`/`DecompressionStream` Web API (`'deflate-raw'`), then base64url-encode the compressed bytes for a URL-safe string (`src/utils/urlSerializer.ts`). If `CompressionStream` isn't available in the runtime, fall back to plain base64url-encoding the uncompressed JSON — a longer URL, but link sharing still works rather than failing outright.
+The 5-minute interval is a plain `setInterval`, a deliberate departure from an earlier design (debounced `subscribe()` listener) — **not** a `CLAUDE.md` guardrail violation: the "no `setInterval` for musical timing" rule scopes to audio/animation scheduling, not this unrelated background persistence tick.
 
-## Destructive Actions: FirmwareResetModal
+## The UI (`SessionsPanel.tsx` / `SessionListItem.tsx`)
 
-A full state wipe (clear `localStorage`, strip the URL query string, regenerate at a fresh procedural baseline) is exposed as a diegetic hardware action, not a generic "Are you sure?" browser-style confirm:
+`SessionsPanel` holds the Session Name input (`sessionStore.currentSessionName`, prefilled by `sessionStore.ts`'s `suggestSessionName()` — the same word-list mechanism `spawnSystem.ts`'s `generateCompanyName` uses for robot/company names, so it's never blank) and a "Save Session" button above the list. It re-reads `listSessions()` after every save/delete rather than subscribing to a store, since `localStorage` reads aren't reactive.
 
-- Use `@radix-ui/react-alert-dialog` — already installed, already the established pattern for destructive confirmations elsewhere in the app — rather than inventing a new confirmation mechanism.
-- On confirm, the screen plays a "hard diagnostic warning" flash before reboot. This must be a GSAP timeline registered in `timelineMap` (`setTimeline`/`killTimeline`), per [ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md) — not a raw CSS class toggle or a `setTimeout`-driven effect.
-- The reset is labeled `SYSTEM_FIRMWARE_RESETS` in the UI copy, keeping the industrial telemetry framing consistent with the rest of the console.
+Each `SessionListItem` row:
+- **Named entry:** shows its own name. If it's the currently-loaded session (`sessionStore.currentLoadedSessionName`), its button is **"Update"** instead of "Load" — overwrites that same entry with the current live state via `saveNamedSession`, rather than reloading it, and doesn't change `currentLoadedSessionName`. Otherwise it's **"Load"** — calls `applySessionPayload` and sets `currentLoadedSessionName` to this entry's name.
+- **Autosave-slot entry:** shows `${attenuationStyleName} @ (${x}, ${y})` (derived from its own payload) suffixed `(Autosaved Session)` — a generic "Unsaved Session" label made all 6 slots indistinguishable in the list, so the world identity is shown instead. Loading one always clears `currentLoadedSessionName` to `null`, so it never shows "Update."
+- **Delete** (every row, named or autosave) sits behind an `AlertDialog` confirm — the same pattern `CompanyCrudControls.tsx` already establishes — routing to `deleteNamedSession` or `deleteAutosaveSlot` depending on the row's kind.
+
+A **"Clear Local Storage"** button (lore label "Reset to Factory Settings") sits at the bottom of the panel, behind its own `AlertDialog` confirm. On confirm it calls `localStorage.clear()` — all of `localStorage`, not scoped to the sessions key — and resets `currentLoadedSessionName` to `null`. It does not strip the URL query string or regenerate the world.
+
+## Boot Behavior
+
+Unchanged from before this feature existed, and deliberately so: **no session — named or autosaved — is ever auto-loaded** on refresh or a fresh tab. `main.tsx` calls `startSessionAutosave()` once at module load; that's the only session-related thing that happens at boot. The existing `?seed=` param continues to work exactly as it does today, untouched by this feature. Getting back a session is always a deliberate click.
+
+## What changed from the original design
+
+This file's original draft (pre-implementation) described a different feature: a single boot-autoloaded slot, a fixed URL → `localStorage` → procedural-fallback resolution hierarchy, native `CompressionStream`/`DecompressionStream` URL serialization for link sharing, and a `FirmwareResetModal` full-state wipe with a GSAP flash timeline. **None of that shipped.** What's described above shipped instead: multi-session, name-keyed local saves; a 6-slot split-purpose autosave on a plain interval; no URL involvement of any kind; and a "Clear Local Storage" button that overlaps with, but is narrower than, the old `FirmwareResetModal` concept (no URL-stripping, no world regeneration, no GSAP flash). URL-based sharing is tracked separately as [Phase 21](todo/roadmap.md#21-sector-settings-shareable-link-importexport), which depends on this phase but hasn't been built.
+
+`sessionStorageEngine.ts`'s `saveAutosaveSlot` also ended up taking a `mode: 'rotating' | 'draft'` rather than an explicit slot id, keeping the FIFO rotation cursor fully encapsulated in the engine rather than exposed to callers — a refinement made during implementation, not part of the original plan.
 
 ## Forbidden Patterns
 
-- Don't persist full robot objects — persist the seed/coordinates plus an override diff, per "What Gets Persisted" above.
-- Don't persist spawn-generated Companies as full objects either — same override-diff treatment as robots, keyed by their deterministic id. Only user-created Companies (no seed to regenerate from) get persisted in full.
-- Don't poll with `setInterval` for saves the store can already notify you about — use a debounced `subscribe()` listener.
-- Don't add a compression dependency (e.g. lz-string) — use the native `CompressionStream`/`DecompressionStream` API.
-- Don't build FirmwareResetModal as a plain `window.confirm()` or an undifferentiated generic modal — it must use `AlertDialog` and the diegetic firmware-reset framing.
-- Don't key robot or spawn-generated-Company overrides by anything other than their deterministic id (see "Hard Requirement" above) — a random id silently breaks override reapplication on the very next reload. This doesn't apply to user-created Companies, which are persisted in full rather than diffed.
+- Don't persist full robot or spawn-generated-Company objects — persist the seed/coordinates plus an override diff, per "What Gets Persisted" above. Only user-created Companies (no seed to regenerate from) get persisted in full.
+- Don't let autosave write to a named entry — only the single `draft` slot may shadow one, and only while it's loaded.
+- Don't key a named session, or a spawn-generated robot/Company override, by anything other than name (sessions) or deterministic id (overrides) — see "Hard Requirement" above.
+- Don't add a compression dependency, `CompressionStream`, or any URL serialization — out of scope for this phase (Phase 21).
+- Don't build a destructive confirm as a plain `window.confirm()` — use the established `AlertDialog` pattern, as both Delete and Clear Local Storage do.
+- Don't reimplement world regeneration in `sessionDiff.ts` — always route through `worldTransition.ts`'s `retransmitWorld`.
+- Don't write company membership as a direct `robotIds` mutation — always go through `localeStore.assignRobotToCompany` so member robots' own `companyId` stays in sync.

@@ -167,6 +167,13 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
           { id: 'settings.sectorSettings.coordinates', humanLabel: 'Coordinates' },
         ],
       },
+      {
+        // Session Storage (Roadmap Phase 20, docs/tasks/SESSION_STORAGE.md Task 10) — last, not
+        // between the two audio-tuning leaves above: unrelated to either one. No subsections.
+        id: 'settings.sessions',
+        humanLabel: 'Sessions',
+        trait: 'seed',
+      },
     ],
   },
 ];

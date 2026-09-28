@@ -1,0 +1,68 @@
+.session-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.session-list-item__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Same layering/positioning as CompanyCrudControls.css's own company-delete-confirm__* — one
+   AlertDialog confirmation pattern, reused verbatim rather than reinvented per feature. */
+.session-delete-confirm__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgb(0 0 0 / 60%);
+}
+
+.session-delete-confirm__content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 100;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  max-width: 360px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.session-delete-confirm__title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.session-delete-confirm__description {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.session-delete-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.session-delete-confirm__cancel,
+.session-delete-confirm__confirm {
+  padding: 0.4rem 0.9rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: inherit;
+  cursor: pointer;
+}
+
+.session-delete-confirm__confirm {
+  border-color: #b3362c;
+  color: #b3362c;
+}
