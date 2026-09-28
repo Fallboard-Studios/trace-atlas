@@ -7,6 +7,11 @@ afterEach(() => {
 });
 
 describe('sessionStore', () => {
+  it('has no viewingUnsavedHistory field or setViewingUnsavedHistory action (regression guard, cut feature)', () => {
+    expect(useSessionStore.getState()).not.toHaveProperty('viewingUnsavedHistory');
+    expect(useSessionStore.getState()).not.toHaveProperty('setViewingUnsavedHistory');
+  });
+
   it('currentSessionName is a non-empty generated name on store creation', () => {
     expect(useSessionStore.getState().currentSessionName).toEqual(expect.any(String));
     expect(useSessionStore.getState().currentSessionName.length).toBeGreaterThan(0);

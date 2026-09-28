@@ -50,6 +50,31 @@ describe('devWarn', () => {
   });
 });
 
+describe('formatSessionTimestamp', () => {
+  it('includes a recognizable month/day and time-of-day for a known timestamp', async () => {
+    const { formatSessionTimestamp } = await import('./helpers');
+    // 2026-09-28T14:14:00 local time
+    const ms = new Date(2026, 8, 28, 14, 14, 0).getTime();
+    const formatted = formatSessionTimestamp(ms);
+
+    expect(formatted).toMatch(/Sep/);
+    expect(formatted).toMatch(/28/);
+    expect(formatted).toMatch(/2:14/);
+  });
+
+  it('never includes the year', async () => {
+    const { formatSessionTimestamp } = await import('./helpers');
+    const ms = new Date(2026, 8, 28, 14, 14, 0).getTime();
+    expect(formatSessionTimestamp(ms)).not.toMatch(/2026/);
+  });
+
+  it('is pure -- the same timestamp always formats identically', async () => {
+    const { formatSessionTimestamp } = await import('./helpers');
+    const ms = new Date(2026, 0, 1, 9, 5, 0).getTime();
+    expect(formatSessionTimestamp(ms)).toBe(formatSessionTimestamp(ms));
+  });
+});
+
 describe('getScreenViewportDomNode', () => {
   afterEach(() => {
     document.body.innerHTML = '';

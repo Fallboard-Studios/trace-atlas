@@ -15,6 +15,13 @@ export function devWarn(...args: unknown[]): void {
   if (DEV_TUNING) console.warn(...args);
 }
 
+/** "Sep 28, 2:14 PM" -- no year (autosave history is bounded to a handful of entries per
+ *  bucket, so a multi-year-old entry surviving isn't a realistic case worth designing around).
+ *  Shared by SessionsPanel.tsx's save-confirmation banner and every autosave-subrow label. */
+export function formatSessionTimestamp(ms: number): string {
+  return new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
 export const SCREEN_VIEWPORT_ID = 'screen-viewport';
 
 export function getScreenViewportDomNode(): HTMLElement | null {

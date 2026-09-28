@@ -1,12 +1,12 @@
 # Session Storage & Persistence
 
-**Status: shipped, [Roadmap Phase 20](todo/roadmap.md#20-session-storage).** Rewritten from the shipped implementation — see [docs/intent/session-storage.md](intent/session-storage.md), [docs/specs/SESSION_STORAGE.md](specs/SESSION_STORAGE.md), and [docs/tasks/SESSION_STORAGE.md](tasks/SESSION_STORAGE.md) for full design rationale and history. This file supersedes its own prior draft, which described a different, never-built shape (single boot-autoloaded slot, URL sharing, `FirmwareResetModal`) — see "What changed from the original design" below.
+**Status: shipped, [Roadmap Phase 20](todo/roadmap.md#20-session-storage).** Rewritten from the shipped implementation — see [docs/intent/session-storage.md](intent/session-storage.md), [docs/specs/SESSION_STORAGE.md](specs/SESSION_STORAGE.md), and [docs/tasks/SESSION_STORAGE.md](tasks/SESSION_STORAGE.md) for full design rationale and history. This file supersedes its own prior draft, which described a different, never-built shape (single boot-autoloaded slot, URL sharing, `FirmwareResetModal`) — see "What changed from the original design" below. **No autosave of any kind, in v1 — see "Session Autosave History was scoped, built, then cut" below** for the full history of that amendment.
 
 **Related docs:** [PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md) (the seed determinism this design depends on) · [ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md) (unrelated to this feature — nothing here animates) · [COMPANIES.md](COMPANIES.md) (the `Company` shape this persists, including the spawn-generated-vs-user-created id split) · [UI_SHELL.md](UI_SHELL.md) (where the Sessions accordion sits in Settings) · [todo/roadmap.md](todo/roadmap.md) Phase 6 (deterministic robot IDs), Phase 10 (Companies), Phase 20 (this phase), Phase 21 (shareable links — depends on this phase but is a separate, not-yet-built feature)
 
 ## What it does
 
-A "Sessions" accordion — third and last in the Settings view's stack, after "Audio Profile" and "Audio Seeds" (`SettingsContent.tsx`'s `SETTINGS_LEAVES`) — renders `SessionsPanel.tsx`. An operator types a name (or accepts the generated suggestion) and clicks "Save Session" to write the current audio-relevant tuning to `localStorage` under that name; clicking a saved entry's "Load" button applies it immediately, no confirmation. A 5-minute background autosave protects against forgetting to save. This is purely local persistence — no URL involvement, no sharing, no compression.
+A "Sessions" accordion — third and last in the Settings view's stack, after "Audio Profile" and "Audio Seeds" (`SettingsContent.tsx`'s `SETTINGS_LEAVES`) — renders `SessionsPanel.tsx`. An operator types a name (or accepts the generated suggestion) and clicks "Save Session" to write the current audio-relevant tuning to `localStorage` under that name; a successful save shows a "Saved `${name}` at `${date + time}`" confirmation banner. Clicking a saved entry's "Load" button applies it immediately, no confirmation; clicking its "Delete" button removes it, behind an `AlertDialog` confirm. **There is no automatic/background saving of any kind** — the only way a session is written to storage is an explicit "Save Session" click. This is purely local, manual persistence — no URL involvement, no sharing, no compression.
 
 ## What Gets Persisted
 
@@ -29,50 +29,45 @@ This only works if regenerating from the same seed reproduces the same IDs in th
 
 ## The Storage Engine (`src/utils/sessionStorageEngine.ts`)
 
-One namespaced `localStorage` key, `STORAGE_KEY = 'trace-atlas.sessions.v1'`, holding named entries and the 6 autosave slots together:
+One namespaced `localStorage` key, `STORAGE_KEY = 'trace-atlas.sessions.v1'`, holding named entries only — `{ named: Record<string, SessionEntry> }`:
 
 - `saveNamedSession(name, payload)` — overwrites the entry named `name` in place if it exists; otherwise creates a new one. The name **is** the storage key, not a separate id.
-- `saveAutosaveSlot(mode, payload)` — `mode` is `'rotating'` or `'draft'`, never a specific slot id; the engine owns the FIFO rotation cursor internally (a deliberate change from an earlier draft that took an explicit slot id — see "What changed" below).
-- `deleteNamedSession(name)` / `deleteAutosaveSlot(slotId)` — each removes only its own kind of entry, even if a name happens to collide with a slot id (e.g. a session literally named `"draft"`).
-- `listSessions()` — every named entry plus every populated autosave slot, for the panel's list.
-- `loadSession(key)` — looks up a payload by name or slot id; returns `undefined` if nothing matches.
+- `deleteNamedSession(name)` — removes that entry.
+- `listSessions()` — every named entry, for the panel's list.
+- `loadSession(name)` — looks up a payload by name; returns `undefined` if nothing matches.
 
-Malformed or missing `localStorage` data fails soft: `listSessions()` returns `[]`, `loadSession()` returns `undefined`, never throwing into the render path.
+Malformed or missing `localStorage` data fails soft: `listSessions()` returns `[]`, `loadSession()` returns `undefined`, never throwing into the render path. Any leftover keys from an earlier storage shape — this codebase's own now-cut autosave-history fields, or the original 6-slot scheme's `autosave`/`nextRotatingIndex` pair — are silently ignored on read, not migrated.
 
-## The 6-Slot Autosave (`src/systems/sessionAutosave.ts`)
+## No Autosave in v1
 
-`startSessionAutosave()`/`stopSessionAutosave()` — an idempotent, module-singleton pair (mirroring `startAudioBudget()`'s shape), called once at boot from `main.tsx`. Every `SESSION_AUTOSAVE_INTERVAL_MS` (5 minutes), a plain `setInterval` tick:
-
-- **`sessionStore.currentLoadedSessionName === null`** (no named session currently loaded) → writes to the next of **5 rotating "Unsaved Session" slots**, FIFO — a 6th write evicts the oldest.
-- **A named session is loaded** → writes to a single dedicated **`draft`** slot instead, and never touches that named entry itself. Switching to a *different* loaded session still writes the same one `draft` slot (overwritten, not duplicated). A named entry, once explicitly saved, is otherwise frozen — the only way to update it is another explicit "Save Session" (or "Update," see below) click.
-
-The 5-minute interval is a plain `setInterval`, a deliberate departure from an earlier design (debounced `subscribe()` listener) — **not** a `CLAUDE.md` guardrail violation: the "no `setInterval` for musical timing" rule scopes to audio/animation scheduling, not this unrelated background persistence tick.
+There is no automatic or background saving of any kind. An earlier iteration of this phase shipped a plain-`setInterval` autosave (first a flat 6-slot scheme, later restructured into a per-session/unsaved-bucket history) — see "Session Autosave History was scoped, built, then cut" below. Both were removed; the only way a session reaches `localStorage` is an explicit "Save Session" click.
 
 ## The UI (`SessionsPanel.tsx` / `SessionListItem.tsx`)
 
-`SessionsPanel` holds the Session Name input (`sessionStore.currentSessionName`, prefilled by `sessionStore.ts`'s `suggestSessionName()` — the same word-list mechanism `spawnSystem.ts`'s `generateCompanyName` uses for robot/company names, so it's never blank) and a "Save Session" button above the list. It re-reads `listSessions()` after every save/delete rather than subscribing to a store, since `localStorage` reads aren't reactive.
+`SessionsPanel` holds the Session Name input (`sessionStore.currentSessionName`, prefilled by `sessionStore.ts`'s `suggestSessionName()` — the same word-list mechanism `spawnSystem.ts`'s `generateCompanyName` uses for robot/company names, so it's never blank) and a "Save Session" button above the list of named entries, sorted by `savedAt` descending. A successful save shows a `` `Saved ${name} at ${formattedDateTime}` `` confirmation banner (`formatSessionTimestamp`, `src/utils/helpers.ts` — e.g. "Sep 28, 2:14 PM"); a failed save shows a `` `${name} failed to save.` `` message instead. `SessionsPanel` re-reads `listSessions()` after every save/delete rather than subscribing to a store, since `localStorage` reads aren't reactive.
 
-Each `SessionListItem` row:
-- **Named entry:** shows its own name. If it's the currently-loaded session (`sessionStore.currentLoadedSessionName`), its button is **"Update"** instead of "Load" — overwrites that same entry with the current live state via `saveNamedSession`, rather than reloading it, and doesn't change `currentLoadedSessionName`. Otherwise it's **"Load"** — calls `applySessionPayload` and sets `currentLoadedSessionName` to this entry's name.
-- **Autosave-slot entry:** shows `${attenuationStyleName} @ (${x}, ${y})` (derived from its own payload) suffixed `(Autosaved Session)` — a generic "Unsaved Session" label made all 6 slots indistinguishable in the list, so the world identity is shown instead. Loading one always clears `currentLoadedSessionName` to `null`, so it never shows "Update."
-- **Delete** (every row, named or autosave) sits behind an `AlertDialog` confirm — the same pattern `CompanyCrudControls.tsx` already establishes — routing to `deleteNamedSession` or `deleteAutosaveSlot` depending on the row's kind.
+Each `SessionListItem` row always shows its own plain name and two buttons:
+- **Load** — calls `applySessionPayload(entry.payload)` and sets `sessionStore.currentLoadedSessionName` to this entry's name. Always reapplies exactly what was last explicitly saved, discarding any live tweaks since — there is no "Update" button that silently overwrites an entry with live state; overwriting is done by typing the same name into the Session Name input and clicking "Save Session" again.
+- **Delete** — behind an `AlertDialog` confirm (the same pattern `CompanyCrudControls.tsx` already establishes), calls `deleteNamedSession(entry.name)`.
 
 A **"Clear Local Storage"** button (lore label "Reset to Factory Settings") sits at the bottom of the panel, behind its own `AlertDialog` confirm. On confirm it calls `localStorage.clear()` — all of `localStorage`, not scoped to the sessions key — and resets `currentLoadedSessionName` to `null`. It does not strip the URL query string or regenerate the world.
 
 ## Boot Behavior
 
-Unchanged from before this feature existed, and deliberately so: **no session — named or autosaved — is ever auto-loaded** on refresh or a fresh tab. `main.tsx` calls `startSessionAutosave()` once at module load; that's the only session-related thing that happens at boot. The existing `?seed=` param continues to work exactly as it does today, untouched by this feature. Getting back a session is always a deliberate click.
+Unchanged from before this feature existed, and deliberately so: **no session is ever auto-loaded** on refresh or a fresh tab. There is nothing session-related to do at boot at all now that autosave is gone — `main.tsx` has no session-storage import. The existing `?seed=` param continues to work exactly as it does today, untouched by this feature. Getting back a session is always a deliberate click.
+
+## Session Autosave History was scoped, built, then cut
+
+A follow-on amendment to this phase (`docs/intent/archive/session-autosave-history.md`, `docs/specs/archive/SESSION_AUTOSAVE_HISTORY.md`, `docs/tasks/archive/SESSION_AUTOSAVE_HISTORY.md` — all marked `Status: cut. Do not implement.`) replaced the original 6-slot autosave with a per-named-session 3-deep FIFO history plus two unsaved-work buckets, a drill-down UI to browse it, and a "Primary Save" label. It was partially implemented on `features/session-updates`, then Crawford called it too complicated for a v1 and had it removed — see [docs/intent/session-autosave-removal.md](intent/session-autosave-removal.md) and [docs/specs/SESSION_AUTOSAVE_REMOVAL.md](specs/SESSION_AUTOSAVE_REMOVAL.md)/[docs/tasks/SESSION_AUTOSAVE_REMOVAL.md](tasks/SESSION_AUTOSAVE_REMOVAL.md) for the removal itself. Net effect on what's described above: no autosave of any kind survived either the original 6-slot design or its replacement — this doc's "What it does" section and everything below it describes the current, autosave-free state, not either cut design.
 
 ## What changed from the original design
 
-This file's original draft (pre-implementation) described a different feature: a single boot-autoloaded slot, a fixed URL → `localStorage` → procedural-fallback resolution hierarchy, native `CompressionStream`/`DecompressionStream` URL serialization for link sharing, and a `FirmwareResetModal` full-state wipe with a GSAP flash timeline. **None of that shipped.** What's described above shipped instead: multi-session, name-keyed local saves; a 6-slot split-purpose autosave on a plain interval; no URL involvement of any kind; and a "Clear Local Storage" button that overlaps with, but is narrower than, the old `FirmwareResetModal` concept (no URL-stripping, no world regeneration, no GSAP flash). URL-based sharing is tracked separately as [Phase 21](todo/roadmap.md#21-sector-settings-shareable-link-importexport), which depends on this phase but hasn't been built.
-
-`sessionStorageEngine.ts`'s `saveAutosaveSlot` also ended up taking a `mode: 'rotating' | 'draft'` rather than an explicit slot id, keeping the FIFO rotation cursor fully encapsulated in the engine rather than exposed to callers — a refinement made during implementation, not part of the original plan.
+This file's original draft (pre-implementation) described a different feature: a single boot-autoloaded slot, a fixed URL → `localStorage` → procedural-fallback resolution hierarchy, native `CompressionStream`/`DecompressionStream` URL serialization for link sharing, and a `FirmwareResetModal` full-state wipe with a GSAP flash timeline. **None of that shipped.** What's described above shipped instead: multi-session, name-keyed local saves, manual only (see "Session Autosave History was scoped, built, then cut" above for the two autosave designs that were built and then both removed); no URL involvement of any kind; and a "Clear Local Storage" button that overlaps with, but is narrower than, the old `FirmwareResetModal` concept (no URL-stripping, no world regeneration, no GSAP flash). URL-based sharing is tracked separately as [Phase 21](todo/roadmap.md#21-sector-settings-shareable-link-importexport), which depends on this phase but hasn't been built.
 
 ## Forbidden Patterns
 
 - Don't persist full robot or spawn-generated-Company objects — persist the seed/coordinates plus an override diff, per "What Gets Persisted" above. Only user-created Companies (no seed to regenerate from) get persisted in full.
-- Don't let autosave write to a named entry — only the single `draft` slot may shadow one, and only while it's loaded.
+- Don't add any automatic/background saving mechanism — v1 is manual-save-only; two prior autosave designs were built and both removed, see "No Autosave in v1" above.
 - Don't key a named session, or a spawn-generated robot/Company override, by anything other than name (sessions) or deterministic id (overrides) — see "Hard Requirement" above.
 - Don't add a compression dependency, `CompressionStream`, or any URL serialization — out of scope for this phase (Phase 21).
 - Don't build a destructive confirm as a plain `window.confirm()` — use the established `AlertDialog` pattern, as both Delete and Clear Local Storage do.

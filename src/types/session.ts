@@ -68,16 +68,3 @@ export interface SessionEntry {
   savedAt: number;
   payload: SessionPayload;
 }
-
-/** 5 rotating "Unsaved Session" slots (FIFO) plus 1 dedicated draft slot that only shadows the
- *  currently-loaded named session (spec §1, §4.4) — 6 total, never more. */
-export type AutosaveSlotId = 'unsaved-0' | 'unsaved-1' | 'unsaved-2' | 'unsaved-3' | 'unsaved-4' | 'draft';
-
-export const AUTOSAVE_ROTATING_SLOT_IDS: readonly AutosaveSlotId[] = ['unsaved-0', 'unsaved-1', 'unsaved-2', 'unsaved-3', 'unsaved-4'];
-
-/** Whether a SessionEntry's `name` is one of the 6 autosave slot ids rather than a user-chosen
- *  saved name — the one place this distinction is made, so SessionListItem/SessionsPanel don't
- *  each re-derive it their own way. */
-export function isAutosaveSlotName(name: string): name is AutosaveSlotId {
-  return name === 'draft' || (AUTOSAVE_ROTATING_SLOT_IDS as readonly string[]).includes(name);
-}

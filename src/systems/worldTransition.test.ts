@@ -294,6 +294,40 @@ describe('worldTransition', () => {
     });
   });
 
+  describe('retransmitWorld — reload at unchanged coordinates (regression: same-id voice collision)', () => {
+    it('every robot in the reloaded roster has a composite voice reserved -- old-locale cleanup must not delete the new one\'s voices, since deterministic ids make old and new robots share ids at unchanged coordinates', () => {
+      initializeLocale(DEFAULT_LOCALE_ID);
+      const coordinates = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.coordinates;
+
+      retransmitWorld({ coordinates });
+
+      const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+      const newLocale = useLocaleStore.getState().getLocaleById(attenuationStyle.currentLocaleId!)!;
+      expect(newLocale.robots).toHaveLength(MAX_ROBOTS);
+      for (const robot of newLocale.robots) {
+        expect(AudioEngine.getVoiceForRobot(robot.id)).not.toBeNull();
+      }
+    });
+
+    it('releases the old locale\'s voices before reserving the new locale\'s voices, not after', () => {
+      initializeLocale(DEFAULT_LOCALE_ID);
+      const coordinates = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.coordinates;
+      const releaseSpy = vi.spyOn(AudioEngine, 'releaseVoice');
+      const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice');
+
+      retransmitWorld({ coordinates });
+
+      const firstReleaseOrder = releaseSpy.mock.invocationCallOrder[0];
+      const firstReserveOrder = reserveSpy.mock.invocationCallOrder[0];
+      expect(firstReleaseOrder).toBeDefined();
+      expect(firstReserveOrder).toBeDefined();
+      expect(firstReleaseOrder!).toBeLessThan(firstReserveOrder!);
+
+      releaseSpy.mockRestore();
+      reserveSpy.mockRestore();
+    });
+  });
+
   describe('retransmitWorld — Attenuation Style changed, coordinates preserved', () => {
     it('re-parents the SAME locale record onto the new Attenuation Style, unchanged', () => {
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('kept-robot'));

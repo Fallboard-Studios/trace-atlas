@@ -138,8 +138,22 @@ function resolveRetransmitAction(input: RetransmitInput): RetransmitAction {
 /** Coordinates changed, Attenuation Style preserved: never touch
  *  currentAttenuationStyleId, so audioStore's AS-sync subscription never
  *  fires — any Audio Rig/LFO edits on the current Attenuation Style survive
- *  untouched, with no new code needed. */
+ *  untouched, with no new code needed.
+ *
+ *  Removes the old locale BEFORE initializing the new one — robot ids are a
+ *  deterministic function of (x, y) alone (generateRobotId, keyed off the
+ *  noise map), so reloading at unchanged coordinates (e.g. Session Storage's
+ *  Load button on the currently-active session) regenerates robots with the
+ *  EXACT SAME ids as the ones still live in the old locale. removeLocale's
+ *  per-robot AudioEngine.releaseVoice(robotId) cleanup deletes by id — doing
+ *  that AFTER initializeLocale's AudioEngine.reserveVoice(robotId) calls would
+ *  silently delete the new, live robots' just-reserved composite voices
+ *  (same id, same Map key), leaving every robot voiceless with no error,
+ *  only a stream of "no composite reserved" warnings from anything that
+ *  later tries to write to it (audio swells, note scheduling). Reordered
+ *  2026-09-28 — see docs/todo/backlog.md for the bug this fixes. */
 function retransmitCoordsOnly(oldAttenuationStyle: AttenuationStyle, oldLocaleId: string | undefined, coordinates: { x: number; y: number }): void {
+  if (oldLocaleId) useLocaleStore.getState().removeLocale(oldLocaleId);
   const newLocale = buildLocale(oldAttenuationStyle.id, coordinates);
   useLocaleStore.getState().addLocale(oldAttenuationStyle.id, newLocale);
   initializeLocale(newLocale.id);
@@ -149,7 +163,6 @@ function retransmitCoordsOnly(oldAttenuationStyle: AttenuationStyle, oldLocaleId
   // §1.3. Deliberately NOT called from retransmitAttenuationStyleOnly, which
   // preserves the existing locale untouched.
   useAudioStore.getState().regenerateBpmFromSeed(newLocale.id, coordinates);
-  if (oldLocaleId) useLocaleStore.getState().removeLocale(oldLocaleId);
 }
 
 /** Build a new AttenuationStyle and switch the store to it (add only — the
@@ -208,8 +221,19 @@ function retransmitAttenuationStyleOnly(oldAttenuationStyle: AttenuationStyle, o
   if (oldLocaleId && preservedCoords) getLocaleNoiseMap(oldLocaleId, preservedCoords.x, preservedCoords.y);
 }
 
-/** Both changed: full reset, nothing eligible for preservation. */
+/** Both changed: full reset, nothing eligible for preservation.
+ *
+ *  Removes the old locale BEFORE initializing the new one — see
+ *  retransmitCoordsOnly's own comment above for why (deterministic robot ids
+ *  mean an unchanged-coordinates reload would otherwise silently delete the
+ *  new, live robots' just-reserved composite voices via the old locale's
+ *  by-id release cleanup). This branch always changes both Attenuation Style
+ *  and coordinates, so a real id collision is unlikely here in practice —
+ *  reordered anyway to keep both retransmit paths symmetric and equally
+ *  correct, rather than relying on "this branch happens not to trigger it." */
 function retransmitBoth(oldAttenuationStyle: AttenuationStyle, oldLocaleId: string | undefined, attenuationStyleName: string, coordinates: { x: number; y: number }): void {
+  if (oldLocaleId) useLocaleStore.getState().removeLocale(oldLocaleId);
+
   const newAttenuationStyle = createNewAttenuationStyle(attenuationStyleName);
 
   const newLocale = buildLocale(newAttenuationStyle.id, coordinates);
@@ -219,7 +243,6 @@ function retransmitBoth(oldAttenuationStyle: AttenuationStyle, oldLocaleId: stri
   // Reseed the AUDIO bpm from the new locale's own coordinates — docs/specs/
   // BPM_CONTROL.md §1.3, same as retransmitCoordsOnly above.
   useAudioStore.getState().regenerateBpmFromSeed(newLocale.id, coordinates);
-  if (oldLocaleId) useLocaleStore.getState().removeLocale(oldLocaleId);
 
   finalizeAttenuationStyleTransition(newAttenuationStyle, oldAttenuationStyle);
 }

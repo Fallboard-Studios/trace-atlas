@@ -26,9 +26,8 @@ export interface SessionStore {
   /** The Session Name input's live value — starts as a generated suggestion the user can accept
    *  or overwrite before clicking Save Session. */
   currentSessionName: string;
-  /** Which named session, if any, is currently loaded — null means "no named session is active,"
-   *  which drives sessionAutosave.ts's choice between the 5 rotating slots and the single draft
-   *  slot. Defaults to null on every fresh store creation: nothing ever auto-loads a session on
+  /** Which named session, if any, is currently loaded — drives SessionListItem.tsx's Load-button
+   *  wiring. Defaults to null on every fresh store creation: nothing ever auto-loads a session on
    *  boot (docs/specs/SESSION_STORAGE.md §1, §5.3 criterion 5), and this store's own default is
    *  part of what keeps that true. */
   currentLoadedSessionName: string | null;

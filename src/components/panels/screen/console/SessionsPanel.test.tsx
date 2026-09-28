@@ -53,6 +53,54 @@ describe('SessionsPanel', () => {
     expect(screen.getByText('Second Session')).toBeTruthy();
   });
 
+  it('a successful save shows a "Saved <name> at <time>" confirmation', () => {
+    render(<SessionsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /save session/i }));
+
+    expect(screen.getByText(/^Saved Test Session at /)).toBeTruthy();
+  });
+
+  it('a failed save shows a failure message and logs the error, without touching the saved list', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+
+    render(<SessionsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /save session/i }));
+
+    expect(screen.getByText('Test Session failed to save.')).toBeTruthy();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    setItemSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('the save-confirmation banner uses date+time formatting (month/day present, not just a bare time)', () => {
+    render(<SessionsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /save session/i }));
+
+    expect(screen.getByText(/^Saved Test Session at [A-Za-z]{3} \d{1,2}, /)).toBeTruthy();
+  });
+
+  it('never renders a row for leftover promoted unsaved history in storage (regression guard, cut feature)', () => {
+    // Writes the raw pre-removal storage shape directly (not via sessionStorageEngine's own
+    // now-deleted-by-Task-4 autosave functions) to simulate a developer's leftover localStorage
+    // data from testing this branch before this task's removal -- see spec §5.3 criterion 3/§7 item 3.
+    const leftoverBlob = {
+      named: {},
+      namedAutosaves: {},
+      unsavedCurrent: [],
+      unsavedLast: [{ name: '__last-unsaved-session__', savedAt: Date.now(), payload: { attenuationStyleName: 'Null Guild', coordinates: { x: 4, y: -7 } } }],
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(leftoverBlob));
+
+    render(<SessionsPanel />);
+    expect(screen.queryAllByRole('button', { name: /^Load/i }).length).toBe(0);
+    expect(screen.queryByText('__last-unsaved-session__')).toBeNull();
+    expect(screen.queryByText(/Null Guild/)).toBeNull();
+  });
+
   it('the Save Session button is disabled when the name is blank', () => {
     useSessionStore.setState({ currentSessionName: '' });
     render(<SessionsPanel />);

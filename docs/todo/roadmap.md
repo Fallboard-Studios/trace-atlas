@@ -269,9 +269,32 @@ This phase replaces the (currently nonexistent) session/storage handling with an
 
 - docs/SESSION_STORAGE.md rewritten from the shipped implementation (Task 12) — no more "not yet implemented" banner. Already on CLAUDE.md's reference doc list. docs/UI_SHELL.md's Settings row updated to list Sessions alongside Audio Profile/Audio Seeds (and to drop the already-stale Volume/Tempo mentions — both relocated out of Settings before this phase started).
 
+### 2026-09-28: Session Autosave History amendment scoped, built, then cut
+
+A follow-on amendment to this phase — replacing the 6-slot autosave above with a per-named-session 3-deep FIFO history plus two unsaved-work buckets, a drill-down UI, and a "Primary Save" label — was interviewed, specced, and partially implemented on `features/session-updates` (`docs/intent/archive/session-autosave-history.md`, `docs/specs/archive/SESSION_AUTOSAVE_HISTORY.md`, `docs/tasks/archive/SESSION_AUTOSAVE_HISTORY.md`, all now marked `Status: cut. Do not implement.`). Crawford called it too complicated for a v1 before it merged and had it fully removed, going back to manual-only CRUD with no autosave of any kind — see [docs/intent/session-autosave-removal.md](../intent/session-autosave-removal.md), [docs/specs/SESSION_AUTOSAVE_REMOVAL.md](../specs/SESSION_AUTOSAVE_REMOVAL.md), and [docs/tasks/SESSION_AUTOSAVE_REMOVAL.md](../tasks/SESSION_AUTOSAVE_REMOVAL.md). `docs/SESSION_STORAGE.md` is rewritten again to reflect the autosave-free end state; the "Update" button mentioned above was already reverted to "Load" as part of the cut work, before the removal even started.
+
+## 20.5. World Clock: Deterministic Lifecycle Replay
+
+Requested by Crawford, 2026-09-28, out of an `/idea-refine` session prompted by asking whether robot battery/docking/job state should be persisted in Session Storage (20). Not yet interviewed/specced. Sequenced here, ahead of [21](#21-sector-settings-shareable-link-importexport) and [32](#32-robot-melody-history--configuration-scrubber), because both depend on it: 21 wants a share link to reproduce an exact audible *moment* (not just tuning), and 32's scrubber needs a principled way to recompute world state at an arbitrary point, not just melody.
+
+### About
+
+Robot battery/docking/job (`docs/ROBOT_LIFECYCLE.md`) is currently the one piece of "who's playing when" that isn't reproducible from a seed the way melody now is (Phase 31) — it drifts continuously with elapsed measures and isn't captured by Session Storage's diff-based payload at all (deliberately excluded, `docs/SESSION_STORAGE.md`'s "Explicitly never persisted" list). Verified while scoping this: `spawnInitialRoster` (`spawnSystem.ts`) already seeds every robot's starting `batteryLevel`/`docking` deterministically from the noise map, and the tick logic in `robotSystems.ts` (drain/recharge rates, threshold crossings, `scoreJobAffinities`) is pure arithmetic with zero `Math.random` calls. The only non-deterministic ingredient is elapsed real time. This phase introduces a single tracked "world clock" (elapsed measures since roster creation) and refactors the lifecycle tick into a pure, headless step function — mirroring what Phase 31 already did for melody generation — so battery/docking/job become a deterministic function of `(seed-derived spawn state, world clock)`, replayable in a tight loop instead of only live via BeatClock.
+
+An audit pass comes first, before any refactor: trace every other timing-dependent system (LFO drift, audio swells, ping-variance automation) to confirm — or disprove — that they're already measure-quantized and safe, per `CLAUDE.md`'s existing no-`setInterval`-for-musical-timing guardrail, rather than assuming it and finding gaps piecemeal later.
+
+### Not Doing (and why)
+
+- **Wiring this into Session Storage's `SessionPayload` or Phase 21's share links** — downstream consumers, once the primitive exists and is proven; this phase is the foundation, not the feature.
+- **Building Phase 32's scrubber UI** — already tracked separately, depends on this landing first.
+- **A "checkpointed replay" performance optimization** (memoizing lifecycle state every N measures so long-elapsed replays stay cheap) — stays a fallback, not built until a real perf check says it's needed.
+- **Fixing every issue the audit surfaces in this same pass** — audit output may warrant its own follow-up phase(s) rather than snowballing scope here.
+
+See [docs/ideas/world-clock-deterministic-lifecycle-replay.md](../ideas/world-clock-deterministic-lifecycle-replay.md) for the full `/idea-refine` writeup, if saved.
+
 ## 21. Sector Settings: Shareable Link Import/Export
 
-Requested by Crawford, 2026-09-16. Depends on [20](#20-session-storage) (Session Storage) having shipped — reuses its `urlSerializer.ts` compression/encoding and `stateResolver.ts`'s URL-priority resolution rather than building a separate mechanism, and should land after [17.5](#175-styling-overhaul-sector-settings-view) (Sector Settings' own styling pass) rather than before it. Not yet interviewed/specced.
+Requested by Crawford, 2026-09-16. Depends on [20](#20-session-storage) (Session Storage) having shipped, and on [20.5](#205-world-clock-deterministic-lifecycle-replay) (World Clock) if this phase is to share an exact audible moment rather than just tuning — reuses Session Storage's `urlSerializer.ts` compression/encoding and `stateResolver.ts`'s URL-priority resolution rather than building a separate mechanism, and should land after [17.5](#175-styling-overhaul-sector-settings-view) (Sector Settings' own styling pass) rather than before it. Not yet interviewed/specced.
 
 ### About
 
@@ -353,7 +376,7 @@ Session Storage's existing robot-override diff (already covers all five seed-for
 
 ## 32. Robot Melody History / Configuration Scrubber
 
-Requested by Crawford, 2026-09-28, out of the same `/idea-refine` session as [31](#31-deterministic-robot-melody-generation) (Deterministic Robot Melody Generation), which this phase depends on shipping first. Deliberately split out of that work rather than bundled with it — too much to land in one pass. Not yet interviewed/specced; the UI shape is genuinely open.
+Requested by Crawford, 2026-09-28, out of the same `/idea-refine` session as [31](#31-deterministic-robot-melody-generation) (Deterministic Robot Melody Generation), which this phase depends on shipping first. Deliberately split out of that work rather than bundled with it — too much to land in one pass. Also depends on [20.5](#205-world-clock-deterministic-lifecycle-replay) (World Clock) if the scrubber is to recompute full world state (battery/docking/job, not just melody) at an arbitrary point — melody alone is already scrubbable once 31 ships. Not yet interviewed/specced; the UI shape is genuinely open.
 
 ### About
 
