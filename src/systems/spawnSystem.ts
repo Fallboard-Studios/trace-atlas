@@ -390,6 +390,9 @@ export function generateRobotLfoSettings(noiseMap: NoiseFunction2D, offset: numb
  * itself reads from.
  */
 export interface RobotAudioBaseline {
+  /** Unconditional, like spawnRobot's own robot.name assignment — NOT inherited on the copy
+   *  branch (a copied robot still gets its own freshly-generated name). */
+  name: string;
   audioAttributes: AudioAttributes;
   octaveRange: [number, number];
   rhythmicDensity: number;
@@ -420,12 +423,16 @@ export function generateRobotAudioBaseline(
   const copyRoll = getSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1);
   const shouldCopy = copyRoll < 0.30 && priorBaselines.length > 0;
 
+  const name = generateRobotName(noiseMap, spawnCount);
+
   if (shouldCopy) {
     const srcIdx = Math.min(
       priorBaselines.length - 1,
       Math.floor(getSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, priorBaselines.length))
     );
-    return priorBaselines[srcIdx];
+    // name is NOT inherited from the copy source — spawnRobot generates it unconditionally,
+    // outside the shouldCopy branch (see this function's own doc comment).
+    return { ...priorBaselines[srcIdx], name };
   }
 
   const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
@@ -438,7 +445,7 @@ export function generateRobotAudioBaseline(
   const noteVariance = seedToggleValue(noteVarianceRaw, NOTE_VARIANCE_OFF_THRESHOLD);
   const pitchRepeat = Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', spawnCount, 0, 100));
 
-  return { audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, lfoSettings };
+  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, lfoSettings };
 }
 
 /**

@@ -979,6 +979,7 @@ describe('spawnSystem', () => {
       const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
       const baseline = generateRobotAudioBaseline(noiseMap, 0, []);
 
+      expect(baseline.name).toBe(robot.name);
       expect(baseline.audioAttributes).toEqual(robot.audioAttributes);
       expect(baseline.octaveRange).toEqual(robot.octaveRange);
       expect(baseline.rhythmicDensity).toBe(robot.rhythmicDensity);
@@ -1003,6 +1004,7 @@ describe('spawnSystem', () => {
 
       expect(baselines.length).toBe(robots.length);
       robots.forEach((robot, i) => {
+        expect(baselines[i].name, `robot ${i} (${robot.id}) name`).toBe(robot.name);
         expect(baselines[i].audioAttributes, `robot ${i} (${robot.id}) audioAttributes`).toEqual(robot.audioAttributes);
         expect(baselines[i].octaveRange, `robot ${i} (${robot.id}) octaveRange`).toEqual(robot.octaveRange);
         expect(baselines[i].rhythmicDensity, `robot ${i} (${robot.id}) rhythmicDensity`).toBe(robot.rhythmicDensity);
@@ -1030,10 +1032,14 @@ describe('spawnSystem', () => {
       expect(sharedGroup, 'expected at least one entry to share an earlier entry\'s lfoSettings reference (a copy)').toBeDefined();
 
       const [earlierIdx, laterIdx] = sharedGroup!;
-      // A copy returns the SAME baseline object, not a freshly-generated equivalent one --
-      // reference equality on the whole entry, matching spawnRobot's own "source.lfoSettings"
-      // (no re-generation) on the copy path.
-      expect(baselines[laterIdx]).toBe(baselines[earlierIdx]);
+      // A copy reuses the SAME lfoSettings (and audioAttributes/octaveRange/etc.) object by
+      // reference, not a freshly-generated equivalent one -- matching spawnRobot's own
+      // "source.lfoSettings" (no re-generation) on the copy path. name is the one field that's
+      // never copied (generated fresh even on a copy, see generateRobotAudioBaseline's own doc
+      // comment) -- not asserted here, since two different spawnCounts could coincidentally
+      // generate the same "Adjective Noun" name by chance, independent of copying.
+      expect(baselines[laterIdx].lfoSettings).toBe(baselines[earlierIdx].lfoSettings);
+      expect(baselines[laterIdx].audioAttributes).toBe(baselines[earlierIdx].audioAttributes);
     });
   });
 });
