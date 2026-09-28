@@ -269,6 +269,10 @@ This phase replaces the (currently nonexistent) session/storage handling with an
 
 - docs/SESSION_STORAGE.md rewritten from the shipped implementation (Task 12) — no more "not yet implemented" banner. Already on CLAUDE.md's reference doc list. docs/UI_SHELL.md's Settings row updated to list Sessions alongside Audio Profile/Audio Seeds (and to drop the already-stale Volume/Tempo mentions — both relocated out of Settings before this phase started).
 
+### 2026-09-28: Session Autosave History amendment scoped, built, then cut
+
+A follow-on amendment to this phase — replacing the 6-slot autosave above with a per-named-session 3-deep FIFO history plus two unsaved-work buckets, a drill-down UI, and a "Primary Save" label — was interviewed, specced, and partially implemented on `features/session-updates` (`docs/intent/archive/session-autosave-history.md`, `docs/specs/archive/SESSION_AUTOSAVE_HISTORY.md`, `docs/tasks/archive/SESSION_AUTOSAVE_HISTORY.md`, all now marked `Status: cut. Do not implement.`). Crawford called it too complicated for a v1 before it merged and had it fully removed, going back to manual-only CRUD with no autosave of any kind — see [docs/intent/session-autosave-removal.md](../intent/session-autosave-removal.md), [docs/specs/SESSION_AUTOSAVE_REMOVAL.md](../specs/SESSION_AUTOSAVE_REMOVAL.md), and [docs/tasks/SESSION_AUTOSAVE_REMOVAL.md](../tasks/SESSION_AUTOSAVE_REMOVAL.md). `docs/SESSION_STORAGE.md` is rewritten again to reflect the autosave-free end state; the "Update" button mentioned above was already reverted to "Load" as part of the cut work, before the removal even started.
+
 ## 21. Sector Settings: Shareable Link Import/Export
 
 Requested by Crawford, 2026-09-16. Depends on [20](#20-session-storage) (Session Storage) having shipped — reuses its `urlSerializer.ts` compression/encoding and `stateResolver.ts`'s URL-priority resolution rather than building a separate mechanism, and should land after [17.5](#175-styling-overhaul-sector-settings-view) (Sector Settings' own styling pass) rather than before it. Not yet interviewed/specced.
