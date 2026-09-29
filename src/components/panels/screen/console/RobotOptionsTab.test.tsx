@@ -189,7 +189,7 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    for (const label of ['Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator']) {
+    for (const label of ['Core Oscillator', 'Companion Oscillator', 'Accent Oscillator']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
   });
@@ -281,7 +281,7 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     expect(useUIStore.getState().selectedSection).toBe('source');
     expect(useUIStore.getState().selectedSubsection).toBe('coaxialOscillator');
     expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Coaxial Oscillator' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Companion Oscillator' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   describe('AudioSettingSection (Output -> Audio Settings)', () => {

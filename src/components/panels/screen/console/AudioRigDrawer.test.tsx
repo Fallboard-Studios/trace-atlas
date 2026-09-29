@@ -55,14 +55,14 @@ describe('AudioRigDrawer', () => {
     it('renders exactly once, showing the store\'s current fraction as a 0-100 percent', () => {
       useAudioStore.setState({ pingVarianceAutomation: 0.42 });
       render(<AudioRigDrawer />);
-      const slider = screen.getByRole('slider', { name: 'Automatic Effects' });
+      const slider = screen.getByRole('slider', { name: 'Automation Range' });
       expect(slider.getAttribute('aria-valuenow')).toBe('42');
     });
 
     it('dragging it calls setPingVarianceAutomation with the dragged percent divided by 100', () => {
       useAudioStore.setState({ pingVarianceAutomation: 0.5 });
       render(<AudioRigDrawer />);
-      const slider = screen.getByRole('slider', { name: 'Automatic Effects' });
+      const slider = screen.getByRole('slider', { name: 'Automation Range' });
       slider.focus();
       fireEvent.keyDown(slider, { key: 'ArrowRight' });
 
@@ -73,20 +73,20 @@ describe('AudioRigDrawer', () => {
 
     it('renders enabled — no rig-wide bypass left to disable it', () => {
       render(<AudioRigDrawer />);
-      const slider = screen.getByRole('slider', { name: 'Automatic Effects' });
+      const slider = screen.getByRole('slider', { name: 'Automation Range' });
       expect(slider.getAttribute('data-disabled')).toBeNull();
     });
 
     it('renders no panel or accordion of its own — a bare .audio-rig-drawer__param-row, no .sc-directional-panel, no .sc-accordion (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1)', () => {
       render(<AudioRigDrawer />);
-      const slider = screen.getByRole('slider', { name: 'Automatic Effects' });
+      const slider = screen.getByRole('slider', { name: 'Automation Range' });
       expect(slider.closest('.sc-directional-panel')).toBeNull();
       expect(slider.closest('.sc-accordion')).toBeNull();
     });
 
     it('renders inside its own .audio-rig-drawer__param-row — a dedicated single-control wrapper', () => {
       render(<AudioRigDrawer />);
-      const slider = screen.getByRole('slider', { name: 'Automatic Effects' });
+      const slider = screen.getByRole('slider', { name: 'Automation Range' });
       expect(slider.closest('.audio-rig-drawer__param-row')).toBeTruthy();
     });
 

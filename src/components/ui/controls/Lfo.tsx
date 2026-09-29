@@ -27,7 +27,15 @@ interface LfoProps {
   heldOff?: boolean;
 }
 
-const SHAPE_OPTIONS = LFO_SHAPES.map((shape) => ({ value: shape, label: shape.toUpperCase() }));
+// Lore words per docs/reference/text-content-tables.md's Waveform Names table (LFO Shape lists
+// only these 4 — Pulse is oscillator-Type-only, see robotOptionsConfig.ts's LAYER_TYPE_OPTIONS).
+const SHAPE_LORE_LABELS: Record<(typeof LFO_SHAPES)[number], string> = {
+  triangle: 'Sweep',
+  sine: 'Sway',
+  square: 'Binary',
+  sawtooth: 'Kinetic',
+};
+const SHAPE_OPTIONS = LFO_SHAPES.map((shape) => ({ value: shape, label: SHAPE_LORE_LABELS[shape] }));
 
 /**
  * The Rate slider's own draggable step. Radix's step grid always anchors to
@@ -53,22 +61,22 @@ function LfoInner({ schema, value, onChange, disabled, heldOff }: LfoProps) {
   // on every render of Lfo — unlike every other primitive's schema in this codebase, which is
   // always a stable reference. Keyed on schema.id alone; every other input (SHAPE_OPTIONS,
   // LFO_RATE_MIN/MAX, RATE_STEP, LFO_DEPTH_MIN/MAX) is already a module-level constant.
-  // loreLabel added on all 3 (docs/reference/ROBOT_DATA_GRID.md's own "LFO MODULE" rows already
-  // named these — OSCILLATION SHAPE/RATE/DEPTH — but the † footnote there flagged that copy as
-  // never actually wired into this component; now it is, verbatim, no invented text).
+  // loreLabel added on all 3, originally docs/reference/ROBOT_DATA_GRID.md's own "LFO MODULE"
+  // copy (OSCILLATION SHAPE/RATE/DEPTH), later superseded by docs/reference/
+  // text-content-tables.md's Mutation Type/Cadence/Span.
   const shapeSchema: RadioButtonSchema = useMemo(
-    () => ({ id: `${schema.id}.shape`, type: 'radio', loreLabel: 'OSCILLATION SHAPE', humanLabel: 'Shape', options: SHAPE_OPTIONS }),
+    () => ({ id: `${schema.id}.shape`, type: 'radio', loreLabel: 'Mutation Type', humanLabel: 'Shape', options: SHAPE_OPTIONS }),
     [schema.id],
   );
   // Fixed 'horizontal', never 'auto' — docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3:
   // every LFO slider (this Rate/Depth pair, and Rate Drift/Depth Drift alongside it)
   // is always horizontal, each its own row, at every breakpoint.
   const rateSchema: SliderLinearSchema = useMemo(
-    () => ({ id: `${schema.id}.rate`, type: 'sliderLinear', loreLabel: 'OSCILLATION RATE', humanLabel: 'Rate', min: LFO_RATE_MIN, max: LFO_RATE_MAX, step: RATE_STEP, unit: 'Hz', orientation: 'horizontal' }),
+    () => ({ id: `${schema.id}.rate`, type: 'sliderLinear', loreLabel: 'Mutation Cadence', humanLabel: 'Rate', min: LFO_RATE_MIN, max: LFO_RATE_MAX, step: RATE_STEP, unit: 'Hz', orientation: 'horizontal' }),
     [schema.id],
   );
   const depthSchema: SliderLinearSchema = useMemo(
-    () => ({ id: `${schema.id}.depth`, type: 'sliderLinear', loreLabel: 'OSCILLATION DEPTH', humanLabel: 'Depth', min: LFO_DEPTH_MIN, max: LFO_DEPTH_MAX, unit: '%', orientation: 'horizontal' }),
+    () => ({ id: `${schema.id}.depth`, type: 'sliderLinear', loreLabel: 'Mutation Span', humanLabel: 'Depth', min: LFO_DEPTH_MIN, max: LFO_DEPTH_MAX, unit: '%', orientation: 'horizontal' }),
     [schema.id],
   );
 

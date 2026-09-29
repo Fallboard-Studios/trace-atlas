@@ -78,10 +78,10 @@ describe('Lfo', () => {
 
   it('renders an actual RadioButton (4 shape options) and two SliderLinears — no separate active toggle', () => {
     render(<Lfo schema={schema} value={value} onChange={() => {}} />);
-    expect(screen.getByRole('radio', { name: 'TRIANGLE' })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: 'SINE' })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: 'SQUARE' })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: 'SAWTOOTH' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Sweep' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Sway' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Binary' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Kinetic' })).toBeTruthy();
     expect(screen.getAllByRole('slider')).toHaveLength(2);
     expect(screen.queryByRole('switch')).toBeNull();
   });
@@ -115,7 +115,7 @@ describe('Lfo', () => {
   it('calls onChange with the complete LfoValue when the shape changes', () => {
     const onChange = vi.fn();
     render(<Lfo schema={schema} value={value} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('radio', { name: 'SQUARE' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Binary' }));
     expect(onChange).toHaveBeenCalledWith({ shape: 'square', rate: 2, depth: 40 });
   });
 
@@ -146,7 +146,7 @@ describe('Lfo', () => {
 
   it('disables every internal control (shape radio, both sliders) when disabled is true', () => {
     render(<Lfo schema={schema} value={value} onChange={() => {}} disabled />);
-    expect(screen.getByRole('radio', { name: 'SINE' }).getAttribute('data-disabled')).toBe('');
+    expect(screen.getByRole('radio', { name: 'Sway' }).getAttribute('data-disabled')).toBe('');
     screen.getAllByRole('slider').forEach((slider) => {
       expect(slider.getAttribute('data-disabled')).toBe('');
     });
@@ -158,7 +158,7 @@ describe('Lfo', () => {
       const [rateSlider, depthSlider] = screen.getAllByRole('slider');
       expect(rateSlider.getAttribute('aria-valuenow')).toBe('0');
       expect(depthSlider.getAttribute('aria-valuenow')).toBe('0');
-      for (const name of ['TRIANGLE', 'SINE', 'SQUARE', 'SAWTOOTH']) {
+      for (const name of ['Sweep', 'Sway', 'Binary', 'Kinetic']) {
         expect(screen.getByRole('radio', { name }).getAttribute('aria-checked')).toBe('false');
       }
     });
@@ -168,7 +168,7 @@ describe('Lfo', () => {
       const [rateSlider, depthSlider] = screen.getAllByRole('slider');
       expect(rateSlider.getAttribute('aria-valuenow')).toBe('2');
       expect(depthSlider.getAttribute('aria-valuenow')).toBe('40');
-      expect(screen.getByRole('radio', { name: 'SINE' }).getAttribute('aria-checked')).toBe('true');
+      expect(screen.getByRole('radio', { name: 'Sway' }).getAttribute('aria-checked')).toBe('true');
     });
 
     it('omits the isActive class when heldOff is true, even though the real rate is > 0', () => {

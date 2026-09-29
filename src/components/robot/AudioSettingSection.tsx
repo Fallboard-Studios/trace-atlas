@@ -65,20 +65,20 @@ interface AudioSettingSectionProps {
  * kept for consistency with every other LFO-tied control group.
  */
 function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, onVolumeLfoChange, disabled, volumeLfoHeldOff, style }: AudioSettingSectionProps) {
-  const { transitioning, select, isTargeted, displayValue, displayLabel } = useLfoTargetGroup({
+  const { transitioning, select, isTargeted, displayValue, displayLabel, displayLoreLabel } = useLfoTargetGroup({
     groupId: 'robotOptions.volume',
-    fields: [{ field: 'volume', label: VOLUME_SCHEMA.humanLabel!, lfoValue: value.volumeLfo }],
+    fields: [{ field: 'volume', label: VOLUME_SCHEMA.humanLabel!, loreLabel: VOLUME_SCHEMA.loreLabel, lfoValue: value.volumeLfo }],
   });
 
   // Memoized (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 1) — this used to be constructed
   // fresh, inline, on every render, unlike every other primitive's schema in this codebase, which
-  // is always a stable reference. Keyed on displayLabel alone, matching Lfo.tsx's own
+  // is always a stable reference. Keyed on displayLabel/displayLoreLabel, matching Lfo.tsx's own
   // schema.id-keying precedent for its 3 internal schemas — 'id'/'type' are literal constants.
-  // loreLabel: OSCILLATION — docs/reference/ROBOT_DATA_GRID.md's "LFO MODULE" row, same fixed
-  // group-level term LfoTargetGroup.tsx's own lfoSchema now uses.
+  // loreLabel now tracks the targeted field, same as LfoTargetGroup.tsx's own lfoSchema
+  // (docs/reference/text-content-tables.md) — no longer the fixed group-level OSCILLATION term.
   const lfoSchema: LfoSchema = useMemo(
-    () => ({ id: 'robotOptions.volume.lfo', type: 'lfo', loreLabel: 'OSCILLATION', humanLabel: displayLabel }),
-    [displayLabel],
+    () => ({ id: 'robotOptions.volume.lfo', type: 'lfo', loreLabel: displayLoreLabel, humanLabel: displayLabel }),
+    [displayLabel, displayLoreLabel],
   );
 
   // Bugfix, found live (docs/todo/backlog.md #27 follow-up, 2026-09-15): this used to be a fresh

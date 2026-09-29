@@ -149,8 +149,8 @@ function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange }: AudioRigLf
   const lfoTargets = params.map((p) => p.lfoTarget);
   const lfoValues = useAudioStore(useShallow((s) => lfoTargets.map((t) => s.globalLfo[t])));
   const setGlobalLfo = useAudioStore((s) => s.setGlobalLfo);
-  const fields = params.map((p, i) => ({ field: p.field, label: p.schema.humanLabel ?? p.field, lfoValue: lfoValues[i] }));
-  const { selected, transitioning, select, isTargeted, displayValue, displayLabel } = useLfoTargetGroup({ groupId, fields });
+  const fields = params.map((p, i) => ({ field: p.field, label: p.schema.humanLabel ?? p.field, loreLabel: p.schema.loreLabel, lfoValue: lfoValues[i] }));
+  const { selected, transitioning, select, isTargeted, displayValue, displayLabel, displayLoreLabel } = useLfoTargetGroup({ groupId, fields });
   // Non-null assertion is safe: `selected` only ever holds one of `fields`' own field names
   // (useLfoTargetGroup's own contract — it starts at fields[0].field and only ever moves to
   // another value from that same set), and `fields` is mapped 1:1 from `params` above — same
@@ -195,11 +195,11 @@ function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange }: AudioRigLf
     () => ({ id: `${groupId}.sliders`, type: 'directionalPanel' as const, orientation: slidersOrientation }),
     [groupId, slidersOrientation],
   );
-  // loreLabel: OSCILLATION — docs/reference/ROBOT_DATA_GRID.md's "LFO MODULE" row, same fixed
-  // group-level term LfoTargetGroup.tsx's own lfoSchema uses.
+  // loreLabel now tracks the targeted field, same as LfoTargetGroup.tsx's own lfoSchema
+  // (docs/reference/text-content-tables.md) — no longer the fixed group-level OSCILLATION term.
   const lfoDisplaySchema = useMemo(
-    () => ({ id: `${groupId}.lfo`, type: 'lfo' as const, loreLabel: 'OSCILLATION', humanLabel: displayLabel }),
-    [groupId, displayLabel],
+    () => ({ id: `${groupId}.lfo`, type: 'lfo' as const, loreLabel: displayLoreLabel, humanLabel: displayLabel }),
+    [groupId, displayLabel, displayLoreLabel],
   );
 
   return (

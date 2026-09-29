@@ -215,7 +215,7 @@ describe('CompanyOptionsSection', () => {
 
   it('renders Source\'s own 3 nested accordion triggers — no Probe Drift trigger anywhere (moved to Fleet Params\' LFO Drift accordion entirely, docs/specs/FLEET_DRIFT_CONSOLIDATION.md follow-up)', () => {
     render(<CompanyOptionsSection />);
-    for (const label of ['Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator']) {
+    for (const label of ['Core Oscillator', 'Companion Oscillator', 'Accent Oscillator']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
     expect(screen.queryByRole('button', { name: 'Probe Drift' })).toBeNull();

@@ -167,6 +167,7 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
   const fields = useMemo(() => lfoParams.map((p) => ({
     field: p.field,
     label: (p.schema as SliderLinearSchema | SliderCenteredZeroSchema).humanLabel ?? p.field,
+    loreLabel: (p.schema as SliderLinearSchema | SliderCenteredZeroSchema).loreLabel,
     lfoValue: lfoSettings?.[p.lfoTarget!] ?? DEFAULT_LFO_SETTINGS[p.lfoTarget!],
   })), [lfoParams, lfoSettings]);
 

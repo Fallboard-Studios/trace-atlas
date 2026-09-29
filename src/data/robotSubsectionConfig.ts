@@ -16,6 +16,11 @@ import type { Trait } from '@/types/traits';
 
 export interface RobotSubsectionEntry {
   id: RobotSubsection;
+  /** Nav-tree row's own lore-styled caption (docs/reference/text-content-tables.md), paired with
+   *  navLabel below the same way NavTreeNodeSchema's own loreLabel/humanLabel pair works
+   *  elsewhere in the tree. Optional only because not every subsection has confirmed lore copy
+   *  yet. */
+  loreLabel?: string;
   /** Nav-tree row label (NavCabinetRow/NavTreeNode). May differ from accordionLabel — e.g.
    *  'rhythm's nav label is 'Rhythm', its accordion trigger reads 'Composition' — both surfaces
    *  read this table instead of each hand-typing their own copy. */
@@ -39,6 +44,8 @@ export type RobotOptionsTrait = Extract<Trait, 'output' | 'composition' | 'timeS
 
 export interface RobotSectionEntry {
   id: RobotSection;
+  /** Same lore/human pairing as RobotSubsectionEntry's own loreLabel/navLabel above. */
+  loreLabel?: string;
   navLabel: string;
   trait: RobotOptionsTrait;
   /** Present only for a section that wraps its subsections in its OWN accordion ('source') — its
@@ -53,30 +60,34 @@ export interface RobotSectionEntry {
  *  directly instead of each hand-declaring their own order. */
 export const ROBOT_SECTIONS_CONFIG: RobotSectionEntry[] = [
   {
-    id: 'volume', navLabel: 'Output', trait: 'output',
+    id: 'volume', loreLabel: 'Output', navLabel: 'Dynamics', trait: 'output',
     subsections: [
-      { id: 'audioSettings', navLabel: 'Dynamics', accordionLabel: 'Levels' },
+      { id: 'audioSettings', loreLabel: 'Ops Clarity', navLabel: 'Level Control', accordionLabel: 'Levels' },
     ],
   },
   {
-    id: 'melody', navLabel: 'Composition', trait: 'composition',
+    id: 'melody', loreLabel: 'Payload Registrar', navLabel: 'Composition', trait: 'composition',
     subsections: [
-      { id: 'rhythm', navLabel: 'Rhythm', accordionLabel: 'Composition' },
-      { id: 'frequency', navLabel: 'Pitches', mergedInto: 'rhythm' },
+      { id: 'rhythm', loreLabel: 'Payload Map', navLabel: 'Rhythm', accordionLabel: 'Composition' },
+      { id: 'frequency', loreLabel: 'Payload Allocation', navLabel: 'Pitches', mergedInto: 'rhythm' },
     ],
   },
   {
-    id: 'envelope', navLabel: 'Envelope', trait: 'timeSpace',
+    id: 'envelope', loreLabel: 'Ping Shell', navLabel: 'Envelope', trait: 'timeSpace',
     subsections: [
-      { id: 'pingContour', navLabel: 'Contour', accordionLabel: 'Envelope' },
+      { id: 'pingContour', loreLabel: 'Ping Profile', navLabel: 'Contour', accordionLabel: 'Envelope' },
     ],
   },
   {
-    id: 'source', navLabel: 'Source', trait: 'spectral', ownAccordionLabel: 'Source',
+    id: 'source', loreLabel: 'Telemetry', navLabel: 'Source', trait: 'spectral', ownAccordionLabel: 'Source',
     subsections: [
-      { id: 'baselineOscillator', navLabel: 'Baseline Oscillator', accordionLabel: 'Baseline Oscillator' },
-      { id: 'coaxialOscillator', navLabel: 'Coaxial Oscillator', accordionLabel: 'Coaxial Oscillator' },
-      { id: 'harmonicOscillator', navLabel: 'Harmonic Oscillator', accordionLabel: 'Harmonic Oscillator' },
+      // navLabel/accordionLabel renamed together (docs/reference/text-content-tables.md:
+      // Baseline/Coaxial/Harmonic Oscillator -> Core/Companion/Accent Oscillator) — unlike
+      // Rhythm/Composition or Contour/Envelope above, these 2 fields were always identical for
+      // each of these 3 subsections, not a deliberate divergence, so both move together.
+      { id: 'baselineOscillator', loreLabel: 'Baseline Feed', navLabel: 'Core Oscillator', accordionLabel: 'Core Oscillator' },
+      { id: 'coaxialOscillator', loreLabel: 'Coaxial Effect', navLabel: 'Companion Oscillator', accordionLabel: 'Companion Oscillator' },
+      { id: 'harmonicOscillator', loreLabel: 'Offset Matrix', navLabel: 'Accent Oscillator', accordionLabel: 'Accent Oscillator' },
     ],
   },
 ];

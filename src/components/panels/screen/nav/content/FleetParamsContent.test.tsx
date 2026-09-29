@@ -35,7 +35,7 @@ const GROUP_IDS = ['fleetParams.pacing', 'fleetParams.eqFilters', 'fleetParams.f
 const GROUP_LABELS: Record<string, string> = {
   'fleetParams.pacing': 'Pacing',
   'fleetParams.eqFilters': 'EQ & Filters',
-  'fleetParams.fleetDrift': 'LFO Drift',
+  'fleetParams.fleetDrift': 'Drift',
   'fleetParams.timeSpace': 'Time & Space',
   'fleetParams.output': 'Output',
 };
@@ -110,7 +110,7 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
     Object.values(GROUP_LABELS).forEach((label) => {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     });
-    ['Tempo', 'Frequency', 'Duration', 'Automatic Intensity', '3-Band EQ', 'High-Pass Filter', 'Low-Pass Filter', 'Fleet Drift', 'Robot Drift', 'Reverb', 'Delay', 'Compressor', 'Limiter'].forEach((label) => {
+    ['Tempo', 'Automation Rate', 'Automation Length', 'Automation Range', '3-Band EQ', 'High-Pass Filter', 'Low-Pass Filter', 'Environmental Drift', 'Voice Drift', 'Reverb', 'Delay', 'Compressor', 'Limiter'].forEach((label) => {
       expect(screen.queryByRole('button', { name: label })).toBeNull();
     });
   });
@@ -173,19 +173,19 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
     expect(screen.getByText('EQ & Filters LORE TITLE')).toBeTruthy();
   });
 
-  it('renders "LFO Drift" positioned right after "EQ & Filters" and before "Time & Space", with its own IntroPanel once approached', () => {
+  it('renders "Drift" positioned right after "EQ & Filters" and before "Time & Space", with its own IntroPanel once approached', () => {
     render(<FleetParamsContent />);
 
     const buttons = screen.getAllByRole('button').map((b) => b.textContent);
     const eqIndex = buttons.findIndex((t) => t?.includes('EQ & Filters'));
-    const driftIndex = buttons.findIndex((t) => t?.includes('LFO Drift'));
+    const driftIndex = buttons.findIndex((t) => t?.includes('Drift'));
     const timeSpaceIndex = buttons.findIndex((t) => t?.includes('Time & Space'));
     expect(driftIndex).toBe(eqIndex + 1);
     expect(timeSpaceIndex).toBe(driftIndex + 1);
 
     approach('fleetParams.fleetDrift');
 
-    expect(screen.getByText('LFO Drift LORE TITLE')).toBeTruthy();
+    expect(screen.getByText('Drift LORE TITLE')).toBeTruthy();
   });
 
   it.each(Object.entries(LEAF_ID_TO_EFFECT).filter(([id]) => !id.includes('.pacing.') && !id.includes('.fleetDrift.')))(
@@ -205,7 +205,7 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
     expect(screen.getByTestId('fleet-drift-panel-stub')).toBeTruthy();
   });
 
-  it('renders RobotDriftPanel for fleetParams.fleetDrift.robots once its own leaf anchor has approached, beneath Fleet Drift (moved out of Probes/Companies entirely)', () => {
+  it('renders RobotDriftPanel for fleetParams.fleetDrift.robots once its own leaf anchor has approached, beneath Environmental Drift (moved out of Probes/Companies entirely)', () => {
     render(<FleetParamsContent />);
     approachLeaf('fleetParams.fleetDrift.drift');
     approachLeaf('fleetParams.fleetDrift.robots');
@@ -253,7 +253,7 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
     approachLeaf('fleetParams.pacing.frequency');
 
     const tempoSlider = screen.getByRole('slider', { name: /tempo/i });
-    const frequencySlider = screen.getByRole('slider', { name: /frequency/i });
+    const frequencySlider = screen.getByRole('slider', { name: /automation rate/i });
     const panel = tempoSlider.closest('.sc-directional-panel');
 
     expect(panel).not.toBeNull();
@@ -266,7 +266,7 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
     approachLeaf('fleetParams.pacing.automaticEffects');
     approachLeaf('fleetParams.pacing.tempo');
 
-    const durationSlider = screen.getByRole('slider', { name: /duration/i });
+    const durationSlider = screen.getByRole('slider', { name: /automation length/i });
     const drawerStub = screen.getByTestId('audio-rig-drawer-stub');
     const tempoSlider = screen.getByRole('slider', { name: /tempo/i });
     const bottomPanel = durationSlider.closest('.sc-directional-panel');
@@ -285,7 +285,7 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
 
     approachLeaf('fleetParams.pacing.frequency');
 
-    expect(screen.getByRole('slider', { name: /frequency/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /automation rate/i })).toBeTruthy();
     expect(screen.getByText('8/measure')).toBeTruthy();
   });
 
@@ -294,7 +294,7 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
     approachLeaf('fleetParams.pacing.frequency');
     const setSwellFrequency = vi.spyOn(useAudioStore.getState(), 'setSwellFrequency');
 
-    const slider = screen.getByRole('slider', { name: /frequency/i });
+    const slider = screen.getByRole('slider', { name: /automation rate/i });
     fireEvent.keyDown(slider, { key: 'ArrowRight' });
 
     expect(setSwellFrequency).toHaveBeenCalled();
@@ -306,7 +306,7 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
 
     approachLeaf('fleetParams.pacing.duration');
 
-    const slider = screen.getByRole('slider', { name: /duration/i });
+    const slider = screen.getByRole('slider', { name: /automation length/i });
     expect(slider.getAttribute('aria-valuenow')).toBe('8');
   });
 
@@ -315,7 +315,7 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
     approachLeaf('fleetParams.pacing.duration');
     const setSwellDuration = vi.spyOn(useAudioStore.getState(), 'setSwellDuration');
 
-    const slider = screen.getByRole('slider', { name: /duration/i });
+    const slider = screen.getByRole('slider', { name: /automation length/i });
     fireEvent.keyDown(slider, { key: 'ArrowRight' });
 
     expect(setSwellDuration).toHaveBeenCalled();

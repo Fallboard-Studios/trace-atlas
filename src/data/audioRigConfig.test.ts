@@ -74,31 +74,31 @@ describe('AUDIO_RIG_CONFIG', () => {
 
     it('threshold is a linear slider, dB, -60 to 0', () => {
       expect(findParam('compressor', 'threshold').schema).toMatchObject({
-        type: 'sliderLinear', loreLabel: 'ATTENUATION THRESHOLD', min: -60, max: 0, unit: 'dB',
+        type: 'sliderLinear', loreLabel: 'Bundle Threshold', min: -60, max: 0, unit: 'dB',
       });
     });
 
     it('ratio is a sliderLinear, step 1, 1 to 20 (STEPPER_TO_SLIDER Task 8)', () => {
       expect(findParam('compressor', 'ratio').schema).toMatchObject({
-        type: 'sliderLinear', loreLabel: 'COMPRESSION RATIO', min: 1, max: 20, step: 1,
+        type: 'sliderLinear', loreLabel: 'Bundle Ratio', min: 1, max: 20, step: 1,
       });
     });
 
     it('attack is a log slider, seconds, 0.001 to 0.2', () => {
       expect(findParam('compressor', 'attack').schema).toMatchObject({
-        type: 'sliderLog', loreLabel: 'COMPRESSION RATE', min: 0.001, max: 0.2, unit: 's',
+        type: 'sliderLog', loreLabel: 'Bundle Onset', min: 0.001, max: 0.2, unit: 's',
       });
     });
 
     it('release is a log slider, seconds, 0.01 to 1', () => {
       expect(findParam('compressor', 'release').schema).toMatchObject({
-        type: 'sliderLog', loreLabel: 'RAREFACTION RATE', min: 0.01, max: 1, unit: 's',
+        type: 'sliderLog', loreLabel: 'Bundle Recovery', min: 0.01, max: 1, unit: 's',
       });
     });
 
     it('knee is a linear slider, dB, 0 to 40', () => {
       expect(findParam('compressor', 'knee').schema).toMatchObject({
-        type: 'sliderLinear', loreLabel: 'CURVATURE DAMPING', min: 0, max: 40, unit: 'dB',
+        type: 'sliderLinear', loreLabel: 'Bundle Curve', min: 0, max: 40, unit: 'dB',
       });
     });
 
@@ -121,9 +121,9 @@ describe('AUDIO_RIG_CONFIG', () => {
     it('has the band lore labels, trimmed from the grid\'s own copy ("DENSITY" dropped)', () => {
       // GLOBAL_CHAIN_GRID.md still literally reads "SUB-BAND DENSITY" etc. — deliberately
       // shortened here during the DirectionalPanel layout pass, not a drift from the grid.
-      expect(findParam('eq3', 'low').schema.loreLabel).toBe('SUB-BAND');
-      expect(findParam('eq3', 'mid').schema.loreLabel).toBe('MEDIAL-BAND');
-      expect(findParam('eq3', 'high').schema.loreLabel).toBe('APICAL-BAND');
+      expect(findParam('eq3', 'low').schema.loreLabel).toBe('Sub-Band');
+      expect(findParam('eq3', 'mid').schema.loreLabel).toBe('Medial Band');
+      expect(findParam('eq3', 'high').schema.loreLabel).toBe('Apical Band');
     });
 
     it('all 3 bands are LFO-flagged, mapping to their eq3.* GlobalLfoTargetId', () => {
@@ -136,13 +136,13 @@ describe('AUDIO_RIG_CONFIG', () => {
   describe('Low-Pass Filter', () => {
     it('frequency is a log slider, Hz, 20 to 20000, LFO-flagged as lpf.frequency', () => {
       const param = findParam('filterLPF', 'frequency');
-      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'CUTOFF FREQUENCY', min: 20, max: 20000, unit: 'Hz' });
+      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'Extraction Floor', min: 20, max: 20000, unit: 'Hz' });
       expect(param.lfoTarget).toBe('lpf.frequency');
     });
 
     it('Q is a log slider, 0.1 to 20, LFO-flagged as lpf.Q', () => {
       const param = findParam('filterLPF', 'Q');
-      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'BOUNDARY RESONANCE', min: 0.1, max: 20 });
+      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'Boundary Resonance', min: 0.1, max: 20 });
       expect(param.lfoTarget).toBe('lpf.Q');
     });
   });
@@ -150,13 +150,13 @@ describe('AUDIO_RIG_CONFIG', () => {
   describe('High-Pass Filter', () => {
     it('frequency is a log slider, Hz, 20 to 20000, LFO-flagged as hpf.frequency', () => {
       const param = findParam('filterHPF', 'frequency');
-      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'CUTOFF FREQUENCY', min: 20, max: 20000, unit: 'Hz' });
+      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'Extraction Ceiling', min: 20, max: 20000, unit: 'Hz' });
       expect(param.lfoTarget).toBe('hpf.frequency');
     });
 
     it('Q is a log slider, 0.1 to 20, LFO-flagged as hpf.Q', () => {
       const param = findParam('filterHPF', 'Q');
-      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'BOUNDARY RESONANCE', min: 0.1, max: 20 });
+      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'Boundary Resonance', min: 0.1, max: 20 });
       expect(param.lfoTarget).toBe('hpf.Q');
     });
   });
@@ -176,19 +176,19 @@ describe('AUDIO_RIG_CONFIG', () => {
 
     it('delayTime is a linear slider, seconds, 0 to 10, step 0.001, not LFO-flagged — LFO removed from Delay\'s delayTime', () => {
       const param = findParam('delay', 'delayTime');
-      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'PROPAGATION LAG', min: 0, max: 10, step: 0.001, unit: 's' });
+      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'Propagation Lag', min: 0, max: 10, step: 0.001, unit: 's' });
       expect(param.lfoTarget).toBeUndefined();
     });
 
     it('feedback is a linear slider, 0 to 0.95, not LFO-flagged', () => {
       const param = findParam('delay', 'feedback');
-      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'RECIRCULATION RATE', min: 0, max: 0.95 });
+      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'Recirculation Rate', min: 0, max: 0.95 });
       expect(param.lfoTarget).toBeUndefined();
     });
 
     it('wet is a linear slider, 0 to 1, not LFO-flagged', () => {
       const param = findParam('delay', 'wet');
-      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'REFLECTED SIGNAL BALANCE', min: 0, max: 1 });
+      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'Reflection Ratio', min: 0, max: 1 });
       expect(param.lfoTarget).toBeUndefined();
     });
   });
@@ -200,19 +200,19 @@ describe('AUDIO_RIG_CONFIG', () => {
 
     it('decay is a log slider, seconds, 0.1 to 10, not LFO-flagged', () => {
       const param = findParam('reverb', 'decay');
-      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'DISSIPATION DURATION', min: 0.1, max: 10, unit: 's' });
+      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'Dissipation Time', min: 0.1, max: 10, unit: 's' });
       expect(param.lfoTarget).toBeUndefined();
     });
 
     it('preDelay is a linear slider, seconds, 0 to 1, not LFO-flagged', () => {
       const param = findParam('reverb', 'preDelay');
-      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'INITIAL LAG', min: 0, max: 1, unit: 's' });
+      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'Initial Lag', min: 0, max: 1, unit: 's' });
       expect(param.lfoTarget).toBeUndefined();
     });
 
     it('wet is a linear slider, 0 to 1, not LFO-flagged', () => {
       const param = findParam('reverb', 'wet');
-      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'DIFFUSED SIGNAL BALANCE', min: 0, max: 1 });
+      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'Diffusion Ratio', min: 0, max: 1 });
       expect(param.lfoTarget).toBeUndefined();
     });
 
@@ -232,7 +232,7 @@ describe('AUDIO_RIG_CONFIG', () => {
 
     it('threshold is a linear slider, dB, -20 to 0, not LFO-flagged — Limiter never gets an LFO', () => {
       const param = findParam('limiter', 'threshold');
-      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'OUTPUT CEILING', min: -20, max: 0, unit: 'dB' });
+      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'Output Ceiling', min: -20, max: 0, unit: 'dB' });
       expect(param.lfoTarget).toBeUndefined();
     });
   });
@@ -314,9 +314,9 @@ describe('LFO_DRIFT_GROUPS', () => {
     expect(AUDIO_RIG_CONFIG.length).toBe(7); // still exactly the 7 GLOBAL_CHAIN_GRID.md effect blocks
   });
 
-  it("the 'robots' entry is byte-for-byte unchanged by the eq3/filterLPF/filterHPF merge", () => {
+  it("the 'robots' entry's shape (id, sliders) is unaffected by the eq3/filterLPF/filterHPF merge — only its lore/human copy changed, in the later docs/reference/text-content-tables.md pass", () => {
     const robots = LFO_DRIFT_GROUPS.find((g) => g.group === 'robots')!;
-    expect(robots.panel).toEqual({ id: 'audioRig.lfoDrift.robots', type: 'directionalPanel', loreLabel: 'AGENT FLUX', humanLabel: 'Robot Drift', orientation: 'column' });
+    expect(robots.panel).toEqual({ id: 'audioRig.lfoDrift.robots', type: 'directionalPanel', loreLabel: 'Probe Signature', humanLabel: 'Voice Drift', orientation: 'column' });
     expect(robots.rateSchema).toMatchObject({ id: 'audioRig.lfoDrift.robots.rateDrift', min: -100, max: 100, unit: '%' });
     expect(robots.depthSchema).toMatchObject({ id: 'audioRig.lfoDrift.robots.depthDrift', min: -100, max: 100, unit: '%' });
   });
@@ -334,8 +334,8 @@ describe('PING_VARIANCE_AUTOMATION_SCHEMA', () => {
   });
 
   it('carries the confirmed lore label and human label', () => {
-    expect(PING_VARIANCE_AUTOMATION_SCHEMA.loreLabel).toBe('PING VARIANCE AUTOMATION');
-    expect(PING_VARIANCE_AUTOMATION_SCHEMA.humanLabel).toBe('Automatic Effects');
+    expect(PING_VARIANCE_AUTOMATION_SCHEMA.loreLabel).toBe('Trace Width');
+    expect(PING_VARIANCE_AUTOMATION_SCHEMA.humanLabel).toBe('Automation Range');
   });
 
   it('carries an explicit fine-grained step, same regression guard as every other sliderLinear schema in this file', () => {
@@ -438,7 +438,7 @@ describe('BPM_SCHEMA (docs/specs/BPM_CONTROL.md §1.4-§1.5)', () => {
   });
 
   it('carries the confirmed lore label and human label', () => {
-    expect(BPM_SCHEMA.loreLabel).toBe('RESONANCE CADENCE');
+    expect(BPM_SCHEMA.loreLabel).toBe('Ping Rate');
     expect(BPM_SCHEMA.humanLabel).toBe('Tempo');
   });
 
@@ -603,10 +603,10 @@ describe('LfoDriftGroupSchema.panel (DirectionalPanel wiring, Tasks 1-2)', () =>
     }
   });
 
-  it("every panel's loreLabel/humanLabel matches LFO_DRIFT_GROUPS' own invented labels (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF's 3 former entries merged into one globalFx entry)", () => {
+  it("every panel's loreLabel/humanLabel matches LFO_DRIFT_GROUPS' own invented labels (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF's 3 former entries merged into one globalFx entry; labels further renamed by docs/reference/text-content-tables.md)", () => {
     const expectedLabels: Record<string, { loreLabel: string; humanLabel: string }> = {
-      globalFx: { loreLabel: 'SIGNAL CHAIN FLUX', humanLabel: 'Fleet Drift' },
-      robots: { loreLabel: 'AGENT FLUX', humanLabel: 'Robot Drift' },
+      globalFx: { loreLabel: 'Trace Appendix', humanLabel: 'Environmental Drift' },
+      robots: { loreLabel: 'Probe Signature', humanLabel: 'Voice Drift' },
     };
     for (const group of LFO_DRIFT_GROUPS) {
       expect(group.panel.loreLabel, group.group).toBe(expectedLabels[group.group].loreLabel);
