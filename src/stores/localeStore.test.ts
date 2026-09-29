@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from './localeStore';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -83,41 +83,16 @@ describe('localeStore', () => {
       expect(Number.isInteger(DEFAULT_LOCALE.coordinates.y)).toBe(true);
     });
 
-    describe('?x= / ?y= coordinate override (docs/PROCEDURAL_GENERATION.md)', () => {
-      // The default locale's coordinates are computed once at module load, so
-      // each case loads a fresh copy of both modules with the override already set.
-      async function loadFreshWithOverride(override: { x: number | null; y: number | null }) {
-        vi.resetModules();
-        const seed = await import('../utils/seedUtils');
-        seed.setLocaleCoordinateOverride(override);
-        return import('./localeStore');
-      }
-
-      afterEach(() => {
-        vi.resetModules();
-      });
-
-      it('uses both overridden axes for the default locale, and derives dayStartTimestamp from the overridden x', async () => {
-        const fresh = await loadFreshWithOverride({ x: -5, y: 777 });
-        expect(fresh.DEFAULT_LOCALE.coordinates).toEqual({ x: -5, y: 777 });
-        // abs(-5 % 24) === 5 hours into the day
-        expect(computeLocaleHour(fresh.DEFAULT_LOCALE.dayStartTimestamp)).toBeCloseTo(5, 0);
-      });
-
-      it('pins only the overridden axis and leaves the other on its random default', async () => {
-        const fresh = await loadFreshWithOverride({ x: 30, y: null });
-        expect(fresh.DEFAULT_LOCALE.coordinates.x).toBe(30);
-        expect(Number.isInteger(fresh.DEFAULT_LOCALE.coordinates.y)).toBe(true);
-      });
-
-      it('registers the locale noise map from the overridden coordinates (same map as an explicit locale at those coordinates)', async () => {
-        const fresh = await loadFreshWithOverride({ x: 41, y: 42 });
-        const { tryGetLocaleNoiseMap, getLocaleNoiseMap } = await import('../utils/noiseMaps');
-        const registered = tryGetLocaleNoiseMap(fresh.DEFAULT_LOCALE_ID);
-        const reference = getLocaleNoiseMap('reference-locale', 41, 42);
-        expect(registered).not.toBeNull();
-        expect(registered!(0.3, 0.7)).toBe(reference(0.3, 0.7));
-      });
+    it('no longer reads seedUtils.ts\'s coordinate override at all (roadmap Phase 21 -- superseded by ?session=) -- setting it directly has no effect on a freshly-loaded default locale, which still uses the mocked randomCoordinate() sequence', async () => {
+      vi.resetModules();
+      const seed = await import('../utils/seedUtils');
+      seed.setLocaleCoordinateOverride({ x: -5, y: 777 });
+      const fresh = await import('./localeStore');
+      // vitest.setup.ts mocks randomCoordinate() to alternate 12/68 -- if the override were
+      // still read, this would be { x: -5, y: 777 } instead.
+      expect(fresh.DEFAULT_LOCALE.coordinates).toEqual({ x: 12, y: 68 });
+      seed.setLocaleCoordinateOverride({ x: null, y: null });
+      vi.resetModules();
     });
 
     it('has a dayStartTimestamp computed from its own x coordinate, per docs/specs/ATTENUATION_STYLE.md §1.1', () => {

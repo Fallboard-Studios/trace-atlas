@@ -57,7 +57,7 @@ describe('locale coordinate override', () => {
     expect(getLocaleCoordinateOverride()).toEqual({ x: null, y: null });
   });
 
-  describe('boot-time ?x= / ?y= URL params', () => {
+  describe('boot-time URL params no longer read (roadmap Phase 21 -- superseded by ?session=)', () => {
     afterEach(() => {
       window.history.replaceState({}, '', '/');
       vi.resetModules();
@@ -69,28 +69,15 @@ describe('locale coordinate override', () => {
       return import('./seedUtils');
     }
 
-    it('reads both axes from the URL', async () => {
+    it('?x=/?y= have no effect on the coordinate override -- always unset at import', async () => {
       const fresh = await loadFreshWithQuery('?x=12&y=-68');
-      expect(fresh.getLocaleCoordinateOverride()).toEqual({ x: 12, y: -68 });
+      expect(fresh.getLocaleCoordinateOverride()).toEqual({ x: null, y: null });
     });
 
-    it('reads a single axis and leaves the other unset', async () => {
-      const fresh = await loadFreshWithQuery('?x=5');
-      expect(fresh.getLocaleCoordinateOverride()).toEqual({ x: 5, y: null });
-    });
-
-    it('ignores invalid values per axis', async () => {
-      const fresh = await loadFreshWithQuery('?x=1.5&y=7');
-      expect(fresh.getLocaleCoordinateOverride()).toEqual({ x: null, y: 7 });
-    });
-
-    it('is independent of ?seed=', async () => {
+    it('?seed= has no effect on the global attenuation style override -- always unset at import', async () => {
       const fresh = await loadFreshWithQuery('?seed=foo&x=3&y=4');
-      expect(fresh.getGlobalAttenuationStyleSeedOverride()).toBe('foo');
-      expect(fresh.getLocaleCoordinateOverride()).toEqual({ x: 3, y: 4 });
-
-      const seedOnly = await loadFreshWithQuery('?seed=foo');
-      expect(seedOnly.getLocaleCoordinateOverride()).toEqual({ x: null, y: null });
+      expect(fresh.getGlobalAttenuationStyleSeedOverride()).toBeNull();
+      expect(fresh.getLocaleCoordinateOverride()).toEqual({ x: null, y: null });
     });
   });
 });
