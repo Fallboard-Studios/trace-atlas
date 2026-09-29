@@ -1,7 +1,17 @@
 .session-list-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+}
+
+.session-list-item__share-status {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.session-list-item__share-status--error {
+  color: #b3362c;
 }
 
 .session-list-item__label {

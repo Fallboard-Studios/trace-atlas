@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 
 vi.mock('@/utils/sessionDiff', () => ({
   applySessionPayload: vi.fn(),
@@ -7,11 +7,16 @@ vi.mock('@/utils/sessionDiff', () => ({
 vi.mock('@/utils/sessionStorageEngine', () => ({
   deleteNamedSession: vi.fn(),
 }));
+vi.mock('@/utils/sessionShareUtils', () => ({
+  copySessionLink: vi.fn(),
+  getSessionSharePayload: () => null,
+}));
 
 import { SessionListItem } from './SessionListItem';
 import { useSessionStore } from '@/stores/sessionStore';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { deleteNamedSession } from '@/utils/sessionStorageEngine';
+import { copySessionLink } from '@/utils/sessionShareUtils';
 import { formatSessionTimestamp } from '@/utils/helpers';
 import type { SessionEntry } from '@/types/session';
 
@@ -30,11 +35,22 @@ beforeEach(() => {
 });
 
 describe('SessionListItem -- named entry', () => {
-  it('renders its name, a Load button, and a Delete button', () => {
+  it('renders its name, a Load button, a Share button, and a Delete button', () => {
     render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
     expect(screen.getByText('Deep Dive')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Load Deep Dive/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Share Session Deep Dive/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Delete Deep Dive/i })).toBeTruthy();
+  });
+
+  it('the Share button sits between Load and Delete in DOM order', () => {
+    render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+    const buttons = screen.getAllByRole('button').map((b) => b.textContent);
+    const loadIndex = buttons.findIndex((t) => t?.includes('Load'));
+    const shareIndex = buttons.findIndex((t) => t?.includes('Share'));
+    const deleteIndex = buttons.findIndex((t) => t?.includes('Delete'));
+    expect(loadIndex).toBeLessThan(shareIndex);
+    expect(shareIndex).toBeLessThan(deleteIndex);
   });
 
   it('always shows Load, never Update, even when currently loaded (regression guard for the revert)', () => {
@@ -131,5 +147,89 @@ describe('SessionListItem -- named entry', () => {
 
     expect(deleteNamedSession).not.toHaveBeenCalled();
     expect(screen.getByText('Deep Dive')).toBeTruthy();
+  });
+
+  describe('Share button (roadmap Phase 21)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('clicking Share calls copySessionLink with the entry\'s stored payload -- not buildSessionPayload/live state', async () => {
+      vi.mocked(copySessionLink).mockResolvedValue(true);
+      const entry = makeEntry({ name: 'Deep Dive' });
+      render(<SessionListItem entry={entry} />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+      });
+
+      expect(copySessionLink).toHaveBeenCalledWith(entry.payload);
+    });
+
+    it('shows "Link copied" on a successful copy', async () => {
+      vi.mocked(copySessionLink).mockResolvedValue(true);
+      render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+      });
+
+      expect(screen.getByRole('status').textContent).toBe('Link copied');
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('shows "Unable to copy" on a failed copy', async () => {
+      vi.mocked(copySessionLink).mockResolvedValue(false);
+      render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+      });
+
+      expect(screen.getByRole('alert').textContent).toBe('Unable to copy');
+      expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    it('the note disappears after 5 seconds', async () => {
+      vi.mocked(copySessionLink).mockResolvedValue(true);
+      render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+      });
+      expect(screen.getByRole('status')).toBeTruthy();
+
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    it('clicking Share again before 5 seconds elapse does not let the first timer clear the newer note early', async () => {
+      vi.mocked(copySessionLink).mockResolvedValue(true);
+      render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+      });
+      // 3000ms after the SECOND click (total 6000ms elapsed) -- the first click's timer, if not
+      // cleared, would have fired at 5000ms total and wrongly cleared this still-fresh note.
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      expect(screen.getByRole('status')).toBeTruthy();
+    });
   });
 });

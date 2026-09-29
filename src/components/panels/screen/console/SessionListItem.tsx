@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { Button } from '@/components/ui/controls/Button';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { deleteNamedSession } from '@/utils/sessionStorageEngine';
+import { copySessionLink } from '@/utils/sessionShareUtils';
 import { useSessionStore } from '@/stores/sessionStore';
 import type { SessionEntry } from '@/types/session';
 import { formatSessionTimestamp } from '@/utils/helpers';
-import { LOAD_SESSION_SCHEMA, DELETE_SESSION_SCHEMA } from '@/data/sessionConfig';
+import { LOAD_SESSION_SCHEMA, SHARE_SESSION_SCHEMA, DELETE_SESSION_SCHEMA } from '@/data/sessionConfig';
+
+const SHARE_STATUS_DISMISS_MS = 5000;
+
+type ShareStatus = 'copied' | 'error' | null;
 
 import './SessionListItem.css';
 
@@ -30,6 +35,10 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
   const setCurrentLoadedSessionName = useSessionStore((s) => s.setCurrentLoadedSessionName);
   const setCurrentSessionName = useSessionStore((s) => s.setCurrentSessionName);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [shareStatus, setShareStatus] = useState<ShareStatus>(null);
+  const dismissTimeoutRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(dismissTimeoutRef.current), []);
 
   const label = entry.name;
 
@@ -39,6 +48,13 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
     setCurrentSessionName(entry.name);
   };
 
+  const handleShare = async () => {
+    const ok = await copySessionLink(entry.payload);
+    setShareStatus(ok ? 'copied' : 'error');
+    window.clearTimeout(dismissTimeoutRef.current);
+    dismissTimeoutRef.current = window.setTimeout(() => setShareStatus(null), SHARE_STATUS_DISMISS_MS);
+  };
+
   const handleConfirmDelete = () => {
     deleteNamedSession(entry.name);
     setConfirmOpen(false);
@@ -46,6 +62,7 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
   };
 
   const loadSchema = { ...LOAD_SESSION_SCHEMA, humanLabel: `${LOAD_SESSION_SCHEMA.humanLabel} ${label}` };
+  const shareSchema = { ...SHARE_SESSION_SCHEMA, humanLabel: `${SHARE_SESSION_SCHEMA.humanLabel} ${label}` };
   const deleteSchema = { ...DELETE_SESSION_SCHEMA, humanLabel: `${DELETE_SESSION_SCHEMA.humanLabel} ${label}` };
 
   return (
@@ -53,7 +70,18 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
       <span className="session-list-item__label">{label}</span>
       <span className="session-list-item__saved-at">{formatSessionTimestamp(entry.savedAt)}</span>
       <Button schema={loadSchema} onClick={handleLoad} />
+      <Button schema={shareSchema} onClick={handleShare} />
       <Button schema={deleteSchema} onClick={() => setConfirmOpen(true)} />
+      {shareStatus === 'copied' && (
+        <span className="session-list-item__share-status" role="status">
+          Link copied
+        </span>
+      )}
+      {shareStatus === 'error' && (
+        <span className="session-list-item__share-status session-list-item__share-status--error" role="alert">
+          Unable to copy
+        </span>
+      )}
 
       <AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialog.Portal>
