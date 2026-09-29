@@ -185,19 +185,19 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
 
 ### Phase 3: UI schema (parallelizable with Phase 2)
 
-- [ ] **Task 7: `audioRigConfig.ts` — `LFO_DRIFT_GROUPS` 4→2**
+- [x] **Task 7: `audioRigConfig.ts` — `LFO_DRIFT_GROUPS` 4→2**
 
   **Description:** Replace `LFO_DRIFT_GROUPS`' 4 entries with 2: a new `driftGroupSchema('globalFx', 'SIGNAL CHAIN FLUX', 'Fleet Drift')` (replacing the 3 it displaces) and the existing `driftGroupSchema('robots', 'AGENT FLUX', 'Robot Drift')`, untouched (spec §4). `driftGroupSchema`'s own body is unchanged — same helper, same `audioRig.lfoDrift.${group}` id convention, same `-100..100` `sliderCenteredZero` shape.
 
   **Acceptance criteria:**
-  - [ ] `LFO_DRIFT_GROUPS` has exactly 2 entries, `'globalFx'` and `'robots'`, in that order.
-  - [ ] The `'robots'` entry (`panel`/`rateSchema`/`depthSchema`, ids, labels) is byte-for-byte unchanged from before this task.
-  - [ ] The new `'globalFx'` entry's ids follow the existing convention exactly (`audioRig.lfoDrift.globalFx`, `.rateDrift`, `.depthDrift`); every id across both entries' schemas (2 panels + 4 sliders = 6 ids) is unique.
-  - [ ] Neither entry is added to `AUDIO_RIG_CONFIG`'s own array (unchanged constraint — no `DriftGroupId` value is ever an `AudioRigEffectKey`).
+  - [x] `LFO_DRIFT_GROUPS` has exactly 2 entries, `'globalFx'` and `'robots'`, in that order.
+  - [x] The `'robots'` entry (`panel`/`rateSchema`/`depthSchema`, ids, labels) is byte-for-byte unchanged from before this task.
+  - [x] The new `'globalFx'` entry's ids follow the existing convention exactly (`audioRig.lfoDrift.globalFx`, `.rateDrift`, `.depthDrift`); every id across both entries' schemas (2 panels + 4 sliders = 6 ids) is unique.
+  - [x] Neither entry is added to `AUDIO_RIG_CONFIG`'s own array (unchanged constraint — no `DriftGroupId` value is ever an `AudioRigEffectKey`).
 
   **Verification:**
-  - [ ] `npx vitest run src/data/audioRigConfig.test.ts` passes, with `LFO_DRIFT_GROUPS`' shape/bounds/id-uniqueness assertions contracted to 2 entries; a direct assertion that the `'robots'` entry's values are unchanged from the pre-task fixture.
-  - [ ] `npm run build:types`, `npm run lint` clean for this file.
+  - [x] `npx vitest run src/data/audioRigConfig.test.ts` passes, with `LFO_DRIFT_GROUPS`' shape/bounds/id-uniqueness assertions contracted to 2 entries; a direct assertion that the `'robots'` entry's values are unchanged from the pre-task fixture.
+  - [x] `npm run build:types`, `npm run lint` clean for this file.
 
   **Dependencies:** Task 1.
 
@@ -206,8 +206,8 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
   **Estimated scope:** S (one array shrinks from 4 objects to 2, same helper reused)
 
 ### Checkpoint: UI schema
-- [ ] `npm run build:types`, `npm run lint`, `npx vitest run src/data/audioRigConfig.test.ts` clean.
-- [ ] `npx vitest run src/components/robot/SignatureArrayDrawer.test.tsx` still passes unmodified — direct confirmation that `RobotDriftPanel`'s `ROBOTS_DRIFT_GROUP` lookup (`LFO_DRIFT_GROUPS.find((g) => g.group === 'robots')`) still resolves correctly after the array shrinks.
+- [x] `npm run build:types`, `npm run lint`, `npx vitest run src/data/audioRigConfig.test.ts` clean (95 tests).
+- [x] `npx vitest run src/components/robot/SignatureArrayDrawer.test.tsx` still passes unmodified — direct confirmation that `RobotDriftPanel`'s `ROBOTS_DRIFT_GROUP` lookup (`LFO_DRIFT_GROUPS.find((g) => g.group === 'robots')`) still resolves correctly after the array shrinks (40 tests, source untouched).
 - [ ] Review with human before proceeding (can happen in parallel with the Phase 2 checkpoint).
 
 ---
