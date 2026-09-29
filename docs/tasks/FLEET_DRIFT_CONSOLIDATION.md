@@ -104,19 +104,19 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
 
   **Estimated scope:** S (2 files + tests, table entries only — 4 fewer rows, same shape)
 
-- [ ] **Task 4: `globalAudioSeed.ts` — sample 2 groups**
+- [x] **Task 4: `globalAudioSeed.ts` — sample 2 groups**
 
   **Description:** In `generateGlobalAudioSettings`, replace the 4-sub-object `lfoDrift` block with 2 (`globalFx`, `robots`), each still sampling its own `rateDrift`/`depthDrift` independently via the existing `sampleField()` helper, unchanged (spec §4).
 
   **Acceptance criteria:**
-  - [ ] `generateGlobalAudioSettings(attenuationStyleId, attenuationStyleName)`'s return value includes a fully-populated `lfoDrift` for both `globalFx` and `robots`.
-  - [ ] Same input always produces identical `lfoDrift` output for both groups (determinism, unchanged property).
-  - [ ] `globalFx` and `robots` don't share a draw (non-degenerate — the 2-group version of 10.3's own cross-group-independence check).
-  - [ ] All 4 sampled values fall within Task 3's loading range on every call.
+  - [x] `generateGlobalAudioSettings(attenuationStyleId, attenuationStyleName)`'s return value includes a fully-populated `lfoDrift` for both `globalFx` and `robots`.
+  - [x] Same input always produces identical `lfoDrift` output for both groups (determinism, unchanged property).
+  - [x] `globalFx` and `robots` don't share a draw (non-degenerate — the 2-group version of 10.3's own cross-group-independence check).
+  - [x] All 4 sampled values fall within Task 3's loading range on every call.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/globalAudioSeed.test.ts` passes, contracted from 4-group to 2-group coverage (determinism/non-degeneracy/bounds re-run per group, cross-group independence re-asserted for the 2 remaining groups).
-  - [ ] `npm run build:types`, `npm run lint` clean for this file.
+  - [x] `npx vitest run src/utils/globalAudioSeed.test.ts` passes, contracted from 4-group to 2-group coverage (determinism/non-degeneracy/bounds re-run per group, cross-group independence re-asserted for the 2 remaining groups).
+  - [x] `npm run build:types`, `npm run lint` clean for this file.
 
   **Dependencies:** Task 2, Task 3.
 
