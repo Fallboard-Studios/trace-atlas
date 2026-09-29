@@ -83,6 +83,51 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     expect(compactLength).toBeLessThan(naiveLength);
   });
 
+  it('abbreviates robotOverrides/companyDiffs field names on the wire too -- not just the top level (12 robots multiplies these)', () => {
+    const payload = makePayload({
+      robotOverrides: {
+        'robot-1': {
+          adsr: { attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.3 },
+          layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0, pulseWidth: 0.5 }],
+          filterFreq: 800,
+          rhythmicDensity: 42,
+          rhythmicMotifLength: { active: true, value: 4 },
+          noteVariance: { active: false, value: 0 },
+          pitchRepeat: 50,
+          octaveRange: [3, 5],
+          lfoSettings: { volume: { shape: 'sine', rate: 1.2, depth: 0.3 } },
+          name: 'Renamed Bot',
+        },
+      },
+      companyDiffs: { 'company-1': { name: 'Renamed Co', robotIds: ['robot-1'] } },
+    });
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as { r: Record<string, Record<string, unknown>>; d: Record<string, Record<string, unknown>> };
+
+    const robotWire = wire.r['robot-1'];
+    expect(Object.keys(robotWire).sort()).toEqual(['a', 'f', 'l', 'lf', 'nm', 'nv', 'or', 'pr', 'rd', 'rm']);
+    expect(robotWire).not.toHaveProperty('adsr');
+    expect(robotWire).not.toHaveProperty('rhythmicDensity');
+    expect(Object.keys(robotWire.a as object).sort()).toEqual(['at', 'dc', 'rl', 'su']);
+    expect(Object.keys((robotWire.l as unknown[])[0] as object).sort()).toEqual(['dt', 'g', 'ph', 'pw', 't']);
+    expect(Object.keys(robotWire.rm as object).sort()).toEqual(['a', 'v']);
+
+    const companyWire = wire.d['company-1'];
+    expect(Object.keys(companyWire).sort()).toEqual(['n', 'r']);
+
+    expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+  });
+
+  it('omits optional nested fields (e.g. a layer with no pulseWidth) from the wire, and still round-trips', () => {
+    const payload = makePayload({
+      robotOverrides: {
+        'robot-1': { layers: [{ type: 'square', gain: 0.8, detune: 5, phase: 0 }] },
+      },
+    });
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as { r: Record<string, { l: [Record<string, unknown>] }> };
+    expect(wire.r['robot-1'].l[0]).not.toHaveProperty('pw');
+    expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+  });
+
   it('decodeSessionPayload returns null (never throws) for invalid base64', () => {
     expect(decodeSessionPayload('not-valid-base64!!!')).toBeNull();
   });

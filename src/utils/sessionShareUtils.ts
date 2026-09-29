@@ -1,7 +1,10 @@
 // ========================================
 // IMPORTS
 // ========================================
-import type { SessionPayload } from '../types/session';
+import type { SessionPayload, RobotAudioOverrideDiff, CompanyDiff } from '../types/session';
+import type { ADSREnvelope } from '../types/Robot';
+import type { OscillatorLayer } from '../types/layeredAudio';
+import type { RobotLfoTargetId, LfoSettings } from '../types/lfo';
 import { devWarn } from './helpers';
 
 // ========================================
@@ -19,15 +22,76 @@ const SESSION_PARAM = 'session';
  *  omitted entirely when empty rather than sent as `{}`/`[]`. Only what changed travels; the app
  *  can already reconstruct "untouched" from the seed data (attenuationStyleName/coordinates)
  *  alone, the same "no key if untouched" contract buildSessionPayload already applies one level
- *  down (per-robot/per-company diffs) -- this just extends it to the top level. */
+ *  down (per-robot/per-company diffs) -- this just extends it to the top level.
+ *
+ *  `r`/`d`'s VALUES are also abbreviated (CompactRobotOverrideDiff/CompactCompanyDiff below), not
+ *  just the outer container -- up to 12 robots can each carry a diff, so per-field savings there
+ *  multiply the same way the top-level omission does. `userCreatedCompanies` (`u`) is
+ *  deliberately NOT abbreviated field-by-field -- typically far fewer than 12 entries, and
+ *  Company/CompanyOptionsSnapshot is a large enough separate type surface that the payoff doesn't
+ *  clear the added maintenance risk the way the per-robot fields do. */
 interface CompactSessionPayload {
   v: SessionPayload['version'];
   n: SessionPayload['attenuationStyleName'];
   c: SessionPayload['coordinates'];
   g: SessionPayload['globalAudio'];
-  r?: SessionPayload['robotOverrides'];
-  d?: SessionPayload['companyDiffs'];
+  r?: Record<string, CompactRobotOverrideDiff>;
+  d?: Record<string, CompactCompanyDiff>;
   u?: SessionPayload['userCreatedCompanies'];
+}
+
+/** ADSREnvelope, abbreviated. */
+interface CompactADSR {
+  at: number;
+  dc: number;
+  su: number;
+  rl: number;
+}
+
+/** OscillatorLayer, abbreviated. `pw` optional, same as OscillatorLayer.pulseWidth. */
+interface CompactLayer {
+  t: OscillatorLayer['type'];
+  g: number;
+  dt: number;
+  ph: number;
+  pw?: number;
+}
+
+/** The `{ active, value }` toggle shape shared by rhythmicMotifLength/noteVariance, abbreviated. */
+interface CompactToggle {
+  a: boolean;
+  v: number;
+}
+
+/** LfoSettings, abbreviated. Keyed by the same RobotLfoTargetId strings as the full shape (e.g.
+ *  "layer0.gain") -- NOT abbreviated to an index into ROBOT_LFO_TARGET_IDS, deliberately: an
+ *  ordinal mapping would silently break any already-shared link if that array's order or contents
+ *  ever changed later, for a marginal saving on an already-short set of keys. */
+interface CompactLfoSettings {
+  s: LfoSettings['shape'];
+  r: number;
+  d: number;
+}
+
+/** RobotAudioOverrideDiff, abbreviated -- every field optional, same "absent if untouched"
+ *  contract as the full shape. */
+interface CompactRobotOverrideDiff {
+  a?: CompactADSR;
+  l?: CompactLayer[];
+  f?: number;
+  rd?: number;
+  rm?: CompactToggle;
+  nv?: CompactToggle;
+  pr?: number;
+  or?: RobotAudioOverrideDiff['octaveRange'];
+  lf?: Partial<Record<RobotLfoTargetId, CompactLfoSettings>>;
+  nm?: string;
+}
+
+/** CompanyDiff, abbreviated. */
+interface CompactCompanyDiff {
+  n?: string;
+  r?: string[];
 }
 
 // ========================================
@@ -47,6 +111,95 @@ function decodeBase64Utf8(encoded: string): string {
   return new TextDecoder().decode(bytes);
 }
 
+function toCompactADSR(a: ADSREnvelope): CompactADSR {
+  return { at: a.attack, dc: a.decay, su: a.sustain, rl: a.release };
+}
+function fromCompactADSR(a: CompactADSR): ADSREnvelope {
+  return { attack: a.at, decay: a.dc, sustain: a.su, release: a.rl };
+}
+
+function toCompactLayer(l: OscillatorLayer): CompactLayer {
+  const compact: CompactLayer = { t: l.type, g: l.gain, dt: l.detune, ph: l.phase };
+  if (l.pulseWidth !== undefined) compact.pw = l.pulseWidth;
+  return compact;
+}
+function fromCompactLayer(l: CompactLayer): OscillatorLayer {
+  const layer: OscillatorLayer = { type: l.t, gain: l.g, detune: l.dt, phase: l.ph };
+  if (l.pw !== undefined) layer.pulseWidth = l.pw;
+  return layer;
+}
+
+function toCompactToggle(t: { active: boolean; value: number }): CompactToggle {
+  return { a: t.active, v: t.value };
+}
+function fromCompactToggle(t: CompactToggle): { active: boolean; value: number } {
+  return { active: t.a, value: t.v };
+}
+
+function toCompactLfoSettings(l: LfoSettings): CompactLfoSettings {
+  return { s: l.shape, r: l.rate, d: l.depth };
+}
+function fromCompactLfoSettings(l: CompactLfoSettings): LfoSettings {
+  return { shape: l.s, rate: l.r, depth: l.d };
+}
+
+function toCompactLfoSettingsMap(map: Partial<Record<RobotLfoTargetId, LfoSettings>>): Partial<Record<RobotLfoTargetId, CompactLfoSettings>> {
+  const compact: Partial<Record<RobotLfoTargetId, CompactLfoSettings>> = {};
+  for (const [key, value] of Object.entries(map) as [RobotLfoTargetId, LfoSettings | undefined][]) {
+    if (value !== undefined) compact[key] = toCompactLfoSettings(value);
+  }
+  return compact;
+}
+function fromCompactLfoSettingsMap(map: Partial<Record<RobotLfoTargetId, CompactLfoSettings>>): Partial<Record<RobotLfoTargetId, LfoSettings>> {
+  const full: Partial<Record<RobotLfoTargetId, LfoSettings>> = {};
+  for (const [key, value] of Object.entries(map) as [RobotLfoTargetId, CompactLfoSettings | undefined][]) {
+    if (value !== undefined) full[key] = fromCompactLfoSettings(value);
+  }
+  return full;
+}
+
+function toCompactRobotOverrideDiff(diff: RobotAudioOverrideDiff): CompactRobotOverrideDiff {
+  const compact: CompactRobotOverrideDiff = {};
+  if (diff.adsr !== undefined) compact.a = toCompactADSR(diff.adsr);
+  if (diff.layers !== undefined) compact.l = diff.layers.map(toCompactLayer);
+  if (diff.filterFreq !== undefined) compact.f = diff.filterFreq;
+  if (diff.rhythmicDensity !== undefined) compact.rd = diff.rhythmicDensity;
+  if (diff.rhythmicMotifLength !== undefined) compact.rm = toCompactToggle(diff.rhythmicMotifLength);
+  if (diff.noteVariance !== undefined) compact.nv = toCompactToggle(diff.noteVariance);
+  if (diff.pitchRepeat !== undefined) compact.pr = diff.pitchRepeat;
+  if (diff.octaveRange !== undefined) compact.or = diff.octaveRange;
+  if (diff.lfoSettings !== undefined) compact.lf = toCompactLfoSettingsMap(diff.lfoSettings);
+  if (diff.name !== undefined) compact.nm = diff.name;
+  return compact;
+}
+function fromCompactRobotOverrideDiff(compact: CompactRobotOverrideDiff): RobotAudioOverrideDiff {
+  const diff: RobotAudioOverrideDiff = {};
+  if (compact.a !== undefined) diff.adsr = fromCompactADSR(compact.a);
+  if (compact.l !== undefined) diff.layers = compact.l.map(fromCompactLayer);
+  if (compact.f !== undefined) diff.filterFreq = compact.f;
+  if (compact.rd !== undefined) diff.rhythmicDensity = compact.rd;
+  if (compact.rm !== undefined) diff.rhythmicMotifLength = fromCompactToggle(compact.rm);
+  if (compact.nv !== undefined) diff.noteVariance = fromCompactToggle(compact.nv);
+  if (compact.pr !== undefined) diff.pitchRepeat = compact.pr;
+  if (compact.or !== undefined) diff.octaveRange = compact.or;
+  if (compact.lf !== undefined) diff.lfoSettings = fromCompactLfoSettingsMap(compact.lf);
+  if (compact.nm !== undefined) diff.name = compact.nm;
+  return diff;
+}
+
+function toCompactCompanyDiff(diff: CompanyDiff): CompactCompanyDiff {
+  const compact: CompactCompanyDiff = {};
+  if (diff.name !== undefined) compact.n = diff.name;
+  if (diff.robotIds !== undefined) compact.r = diff.robotIds;
+  return compact;
+}
+function fromCompactCompanyDiff(compact: CompactCompanyDiff): CompanyDiff {
+  const diff: CompanyDiff = {};
+  if (compact.n !== undefined) diff.name = compact.n;
+  if (compact.r !== undefined) diff.robotIds = compact.r;
+  return diff;
+}
+
 function toCompactSessionPayload(payload: SessionPayload): CompactSessionPayload {
   const compact: CompactSessionPayload = {
     v: payload.version,
@@ -54,8 +207,12 @@ function toCompactSessionPayload(payload: SessionPayload): CompactSessionPayload
     c: payload.coordinates,
     g: payload.globalAudio,
   };
-  if (Object.keys(payload.robotOverrides).length > 0) compact.r = payload.robotOverrides;
-  if (Object.keys(payload.companyDiffs).length > 0) compact.d = payload.companyDiffs;
+  if (Object.keys(payload.robotOverrides).length > 0) {
+    compact.r = Object.fromEntries(Object.entries(payload.robotOverrides).map(([id, diff]) => [id, toCompactRobotOverrideDiff(diff)]));
+  }
+  if (Object.keys(payload.companyDiffs).length > 0) {
+    compact.d = Object.fromEntries(Object.entries(payload.companyDiffs).map(([id, diff]) => [id, toCompactCompanyDiff(diff)]));
+  }
   if (payload.userCreatedCompanies.length > 0) compact.u = payload.userCreatedCompanies;
   return compact;
 }
@@ -66,8 +223,12 @@ function fromCompactSessionPayload(compact: CompactSessionPayload): SessionPaylo
     attenuationStyleName: compact.n,
     coordinates: compact.c,
     globalAudio: compact.g,
-    robotOverrides: compact.r ?? {},
-    companyDiffs: compact.d ?? {},
+    robotOverrides: compact.r
+      ? Object.fromEntries(Object.entries(compact.r).map(([id, diff]) => [id, fromCompactRobotOverrideDiff(diff)]))
+      : {},
+    companyDiffs: compact.d
+      ? Object.fromEntries(Object.entries(compact.d).map(([id, diff]) => [id, fromCompactCompanyDiff(diff)]))
+      : {},
     userCreatedCompanies: compact.u ?? [],
   };
 }
