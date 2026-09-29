@@ -25,6 +25,15 @@
   color: #b3362c;
 }
 
+.sessions-panel__share-status {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.sessions-panel__share-status--error {
+  color: #b3362c;
+}
+
 /* Same layering/positioning as SessionListItem.css's own session-delete-confirm__* and
    CompanyCrudControls.css's company-delete-confirm__* — one AlertDialog confirmation pattern,
    reused verbatim rather than reinvented per feature. */

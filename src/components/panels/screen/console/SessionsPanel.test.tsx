@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 
 const fakePayload = { marker: 'fake-payload' };
 let payloadCounter = 0;
@@ -8,10 +8,16 @@ vi.mock('@/utils/sessionDiff', () => ({
   buildSessionPayload: vi.fn(() => ({ ...fakePayload, seq: payloadCounter++ })),
   applySessionPayload: vi.fn(),
 }));
+vi.mock('@/utils/sessionShareUtils', () => ({
+  copySessionLink: vi.fn(),
+  getSessionSharePayload: () => null,
+}));
 
 import { SessionsPanel } from './SessionsPanel';
 import { useSessionStore } from '@/stores/sessionStore';
 import { STORAGE_KEY } from '@/utils/sessionStorageEngine';
+import { buildSessionPayload } from '@/utils/sessionDiff';
+import { copySessionLink } from '@/utils/sessionShareUtils';
 
 beforeEach(() => {
   localStorage.clear();
@@ -116,6 +122,64 @@ describe('SessionsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
     expect(screen.queryByText('Test Session')).toBeNull();
+  });
+
+  describe('Share Session (roadmap Phase 21)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('renders a Share Session button next to Save Session', () => {
+      render(<SessionsPanel />);
+      expect(screen.getByRole('button', { name: /^Share Session$/i })).toBeTruthy();
+    });
+
+    it('clicking Share calls copySessionLink with buildSessionPayload() -- live state, not listSessions()/storage', async () => {
+      vi.mocked(copySessionLink).mockResolvedValue(true);
+      render(<SessionsPanel />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^Share Session$/i }));
+      });
+
+      expect(buildSessionPayload).toHaveBeenCalled();
+      expect(copySessionLink).toHaveBeenCalledWith({ ...fakePayload, seq: 0 });
+    });
+
+    it('shows "Link copied" on success and "Unable to copy" on failure', async () => {
+      vi.mocked(copySessionLink).mockResolvedValue(true);
+      render(<SessionsPanel />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^Share Session$/i }));
+      });
+      expect(screen.getByRole('status').textContent).toBe('Link copied');
+
+      vi.mocked(copySessionLink).mockResolvedValue(false);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^Share Session$/i }));
+      });
+      expect(screen.getByRole('alert').textContent).toBe('Unable to copy');
+    });
+
+    it('the note auto-dismisses after 5 seconds', async () => {
+      vi.mocked(copySessionLink).mockResolvedValue(true);
+      render(<SessionsPanel />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^Share Session$/i }));
+      });
+      expect(screen.getByRole('status')).toBeTruthy();
+
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(screen.queryByRole('status')).toBeNull();
+    });
   });
 
   describe('Clear Local Storage', () => {

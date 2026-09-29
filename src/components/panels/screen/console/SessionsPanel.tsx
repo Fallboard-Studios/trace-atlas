@@ -1,14 +1,19 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { SessionListItem } from './SessionListItem';
 import { TextInput } from '@/components/ui/controls/TextInput';
 import { Button } from '@/components/ui/controls/Button';
 import { useSessionStore } from '@/stores/sessionStore';
 import { buildSessionPayload } from '@/utils/sessionDiff';
+import { copySessionLink } from '@/utils/sessionShareUtils';
 import { saveNamedSession, listSessions } from '@/utils/sessionStorageEngine';
-import { SESSION_NAME_INPUT_SCHEMA, SAVE_SESSION_SCHEMA, CLEAR_STORAGE_SCHEMA } from '@/data/sessionConfig';
+import { SESSION_NAME_INPUT_SCHEMA, SAVE_SESSION_SCHEMA, SHARE_SESSION_SCHEMA, CLEAR_STORAGE_SCHEMA } from '@/data/sessionConfig';
 import { formatSessionTimestamp } from '@/utils/helpers';
 import type { SessionEntry } from '@/types/session';
+
+const SHARE_STATUS_DISMISS_MS = 5000;
+
+type ShareStatus = 'copied' | 'error' | null;
 
 import './SessionsPanel.css';
 
@@ -27,6 +32,10 @@ export function SessionsPanel() {
   const [saveStatus, setSaveStatus] = useState<{ name: string; success: true; savedAt: string } | { name: string; success: false } | null>(
     null,
   );
+  const [shareStatus, setShareStatus] = useState<ShareStatus>(null);
+  const dismissTimeoutRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(dismissTimeoutRef.current), []);
 
   const refresh = () => {
     setSessions(listSessions());
@@ -44,6 +53,16 @@ export function SessionsPanel() {
       console.error('[SessionsPanel] saveNamedSession failed', err);
       setSaveStatus({ name, success: false });
     }
+  };
+
+  // Shares the CURRENT LIVE state (buildSessionPayload()), never listSessions()/local storage --
+  // the inverse of SessionListItem.tsx's own per-row Share, which shares that row's stored
+  // payload instead (docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md §4.5).
+  const handleShare = async () => {
+    const ok = await copySessionLink(buildSessionPayload());
+    setShareStatus(ok ? 'copied' : 'error');
+    window.clearTimeout(dismissTimeoutRef.current);
+    dismissTimeoutRef.current = window.setTimeout(() => setShareStatus(null), SHARE_STATUS_DISMISS_MS);
   };
 
   // Wipes ALL of localStorage (Crawford's request, 2026-09-28) — not just the sessions key —
@@ -65,6 +84,7 @@ export function SessionsPanel() {
       <div className="sessions-panel__save">
         <TextInput schema={SESSION_NAME_INPUT_SCHEMA} value={currentSessionName} onChange={setCurrentSessionName} />
         <Button schema={SAVE_SESSION_SCHEMA} onClick={handleSave} disabled={nameIsBlank} />
+        <Button schema={SHARE_SESSION_SCHEMA} onClick={handleShare} />
         {saveStatus &&
           (saveStatus.success ? (
             <span className="sessions-panel__save-status" role="status">
@@ -75,6 +95,16 @@ export function SessionsPanel() {
               {`${saveStatus.name} failed to save.`}
             </span>
           ))}
+        {shareStatus === 'copied' && (
+          <span className="sessions-panel__share-status" role="status">
+            Link copied
+          </span>
+        )}
+        {shareStatus === 'error' && (
+          <span className="sessions-panel__share-status sessions-panel__share-status--error" role="alert">
+            Unable to copy
+          </span>
+        )}
       </div>
       <div className="sessions-panel__list">
         {sorted.map((entry) => (
