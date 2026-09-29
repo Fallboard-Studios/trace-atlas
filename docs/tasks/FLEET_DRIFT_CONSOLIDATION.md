@@ -48,18 +48,18 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
 
 ### Phase 1: Foundation & seed plumbing
 
-- [ ] **Task 1: `types/lfo.ts` — shrink `DriftGroupId` to 2 members**
+- [x] **Task 1: `types/lfo.ts` — shrink `DriftGroupId` to 2 members**
 
   **Description:** Replace the 4-member `DriftGroupId` (`'eq3' | 'filterLPF' | 'filterHPF' | 'robots'`) with the 2-member `'globalFx' | 'robots'`, and update `DRIFT_GROUP_IDS` to match (spec §1.1/§4).
 
   **Acceptance criteria:**
-  - [ ] `DriftGroupId` is exported with exactly the 2 documented members.
-  - [ ] `DRIFT_GROUP_IDS` is a `readonly DriftGroupId[]` containing exactly `['globalFx', 'robots']`.
-  - [ ] No leftover reference to `'eq3'`/`'filterLPF'`/`'filterHPF'` as a `DriftGroupId` value anywhere in this file.
+  - [x] `DriftGroupId` is exported with exactly the 2 documented members.
+  - [x] `DRIFT_GROUP_IDS` is a `readonly DriftGroupId[]` containing exactly `['globalFx', 'robots']`.
+  - [x] No leftover reference to `'eq3'`/`'filterLPF'`/`'filterHPF'` as a `DriftGroupId` value anywhere in this file.
 
   **Verification:**
-  - [ ] `npm run build:types` — expect this to surface every downstream file still using the old 4-member shape (that's the point; those get fixed in later tasks, not here).
-  - [ ] `npx vitest run src/types/lfo.test.ts` passes, updated to assert `DRIFT_GROUP_IDS` has exactly 2 members, no duplicates, and no `'eq3'`/`'filterLPF'`/`'filterHPF'`.
+  - [x] `npm run build:types` — expect this to surface every downstream file still using the old 4-member shape (that's the point; those get fixed in later tasks, not here).
+  - [x] `npx vitest run src/types/lfo.test.ts` passes, updated to assert `DRIFT_GROUP_IDS` has exactly 2 members, no duplicates, and no `'eq3'`/`'filterLPF'`/`'filterHPF'`.
 
   **Dependencies:** None.
 
