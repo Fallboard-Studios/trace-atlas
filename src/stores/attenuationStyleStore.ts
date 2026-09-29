@@ -1,22 +1,26 @@
 import { create } from 'zustand';
 
 import type { AttenuationStyle } from '../types/attenuationStyle';
-import { resolveDefaultAttenuationStyleName } from '../utils/seedUtils';
+import { generateRandomAttenuationStyleName } from '../utils/seedUtils';
 import { getAttenuationStyleNoiseMap, evictAttenuationStyleNoiseMap, evictLocaleNoiseMap } from '../utils/noiseMaps';
 import { devWarn } from '../utils/helpers';
+import { getSessionSharePayload } from '../utils/sessionShareUtils';
 
 export const DEFAULT_LOCALE_ID = 'pelagos-default';
 
 // The default Attenuation Style's *id* stays a stable literal — nothing
 // downstream keys off the name (localeStore.ts, WorldView.tsx, etc. all
 // reference the id). The *name* is what actually feeds the procedural seed
-// (deriveAttenuationStyleSeed), so it's resolved once per module load:
-// random unless a debug seed override is active, in which case the override
-// pins it deterministically (see resolveDefaultAttenuationStyleName's doc
-// comment). Exported so localeStore.ts's own noise-map priming call uses the
-// same name instead of a second hardcoded literal that could silently drift
-// from this one.
-export const DEFAULT_ATTENUATION_STYLE_NAME = resolveDefaultAttenuationStyleName();
+// (deriveAttenuationStyleSeed), so it's resolved once per module load: a
+// shareable link's exact, unsanitized name (docs/specs/
+// SECTOR_SETTINGS_SHARABLE_LINK.md §4.4/§7 item 1) takes priority when
+// `?session=` is present, otherwise a fresh random name — deliberately NOT
+// routed through deriveAttenuationStyleSeed's override mechanism (removed
+// from URL-boot entirely, roadmap Phase 21), which would both sanitize the
+// name and persist for the rest of the session. Exported so localeStore.ts's
+// own noise-map priming call uses the same name instead of a second
+// hardcoded literal that could silently drift from this one.
+export const DEFAULT_ATTENUATION_STYLE_NAME = getSessionSharePayload()?.attenuationStyleName ?? generateRandomAttenuationStyleName();
 
 export const DEFAULT_PELAGOS: AttenuationStyle = {
   id: 'pelagos',
