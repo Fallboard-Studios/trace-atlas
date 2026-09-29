@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type ReactNode } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAudioStore } from '@/stores/audioStore';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
@@ -117,9 +117,6 @@ interface AudioRigLfoGroupProps {
    *  `fieldOnChange` map (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12), not a raw
    *  `updateParam` this component would otherwise have to bind inline per param itself. */
   fieldOnChange: Record<string, (v: number) => void>;
-  /** eq3/filterLPF/filterHPF's own Rate/Depth Drift sliders, rendered directly beneath the
-   *  shared display — the only groups with a per-group drift control today. */
-  driftContent?: ReactNode;
 }
 
 /**
@@ -131,18 +128,19 @@ interface AudioRigLfoGroupProps {
  * conditionally *renders* this whole component only for blocks that have any lfoTarget param
  * (eq3/filterLPF/filterHPF), which is the legal way to make LFO wiring optional per block.
  *
- * Renders as column[sliders-panel, Lfo, driftContent] (docs/tasks/DIRECTIONAL_PANEL_WIRING.md
- * follow-up fix) — its own single DirectionalPanel root, always column, so the shared Lfo
- * display and Drift sliders always stack beneath the params regardless of the caller's own
- * block.panel orientation (eq3's is 'row', which used to squeeze the display/drift sliders into
- * the same row as Low/Mid/High). The params themselves render inside a nested inner panel whose
+ * Renders as column[sliders-panel, Lfo] (docs/tasks/DIRECTIONAL_PANEL_WIRING.md follow-up fix)
+ * — its own single DirectionalPanel root, always column, so the shared Lfo display always
+ * stacks beneath the params regardless of the caller's own block.panel orientation (eq3's is
+ * 'row', which used to squeeze the display/drift sliders into the same row as Low/Mid/High —
+ * drift no longer renders here at all, docs/specs/FLEET_DRIFT_CONSOLIDATION.md). The params
+ * themselves render inside a nested inner panel whose
  * own orientation is "taken from slider children" — row if any param's own ControlSchema is
  * `orientation: 'vertical'` (eq3 today), column otherwise (filterLPF/filterHPF) — the same rule
  * VERTICAL_SLIDERS.md's classification already uses. Being a single root element, this
  * component's own wrapper renders as one flex item inside block.panel's content regardless of
  * block.panel's own orientation, which is why that orientation no longer needs to change.
  */
-function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange, driftContent }: AudioRigLfoGroupProps) {
+function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange }: AudioRigLfoGroupProps) {
   // Only this group's own lfoTarget values, not the whole globalLfo object (bugfix, found via
   // a manual re-render sweep, backlog item 18 — same class as AudioRigEffectPanel's own fix
   // below): useShallow bails the re-render when none of THESE targets' values actually
@@ -228,7 +226,6 @@ function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange, driftContent
         />
         {heldOff && <HeldOffNote />}
       </div>
-      {driftContent}
     </DirectionalPanel>
   );
 }
@@ -274,6 +271,50 @@ export function AudioRigDrawer() {
   );
 }
 
+const GLOBAL_FX_DRIFT_GROUP = LFO_DRIFT_GROUPS.find((g) => g.group === 'globalFx')!;
+
+/**
+ * Fleet Drift — the merged eq3/filterLPF/filterHPF drift control (docs/specs/
+ * FLEET_DRIFT_CONSOLIDATION.md), replacing the 3 Rate/Depth Drift slider pairs that used to be
+ * embedded inside EQ's/LPF's/HPF's own AudioRigEffectPanel instances. Structurally mirrors
+ * RobotDriftPanel (SignatureArrayDrawer.tsx) exactly: looks up its own LFO_DRIFT_GROUPS entry
+ * once at module scope, reads/writes useAudioStore directly (not via props — this is a rig-wide
+ * control, not scoped to whichever effect happens to be selected), and renders one
+ * DirectionalPanel with its 2 SliderCenteredZeros + HeldOffNote. Rendered by
+ * FleetParamsContent.tsx's own Fleet Drift leaf, a new top-level Fleet Params group sibling to
+ * EQ & Filters — not nested inside any AudioRigEffectPanel.
+ */
+export function FleetDriftPanel() {
+  const rateDrift = useAudioStore((s) => s.globalAudio.lfoDrift.globalFx.rateDrift);
+  const depthDrift = useAudioStore((s) => s.globalAudio.lfoDrift.globalFx.depthDrift);
+  const setGlobalLfoDrift = useAudioStore((s) => s.setGlobalLfoDrift);
+  // Audio Load Budget: greys out (values kept) while the dial keeps drift off — same condition
+  // RobotDriftPanel's own 'robots' drift reads.
+  const driftHeldOff = useAudioStore((s) => s.driftHeldOff);
+
+  return (
+    <DirectionalPanel schema={GLOBAL_FX_DRIFT_GROUP.panel}>
+      <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
+        <SliderCenteredZero
+          schema={GLOBAL_FX_DRIFT_GROUP.rateSchema}
+          value={driftHeldOff ? 0 : rateDrift * 100}
+          onChange={(v) => setGlobalLfoDrift('globalFx', { rateDrift: v / 100 })}
+          disabled={driftHeldOff}
+        />
+      </div>
+      <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
+        <SliderCenteredZero
+          schema={GLOBAL_FX_DRIFT_GROUP.depthSchema}
+          value={driftHeldOff ? 0 : depthDrift * 100}
+          onChange={(v) => setGlobalLfoDrift('globalFx', { depthDrift: v / 100 })}
+          disabled={driftHeldOff}
+        />
+      </div>
+      {driftHeldOff && <HeldOffNote />}
+    </DirectionalPanel>
+  );
+}
+
 interface AudioRigEffectPanelProps {
   effectKey: AudioRigEffectKey;
 }
@@ -308,11 +349,6 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   // Type predicate, not a plain truthy filter — proves lfoTarget is present to the type
   // system itself, so AudioRigLfoGroup's own params: LfoTargetedParamSchema[] needs no cast.
   const lfoFields = block.params.filter((p): p is LfoTargetedParamSchema => p.lfoTarget !== undefined);
-  const driftGroup = LFO_DRIFT_GROUPS.find((g) => g.group === effectKey); // undefined for non-LFO blocks
-  const drift = useAudioStore((s) => (driftGroup ? s.globalAudio.lfoDrift[driftGroup.group] : undefined));
-  const setGlobalLfoDrift = useAudioStore((s) => s.setGlobalLfoDrift);
-  // While the Audio Load dial keeps drift off, its sliders grey out (values kept). A boolean, so only a flip re-renders.
-  const driftHeldOff = useAudioStore((s) => s.driftHeldOff);
   const compressorBeforeDelay = useAudioStore((s) => (effectKey === 'compressor' ? s.globalAudio.compressorBeforeDelay : undefined));
   const setCompressorBeforeDelay = useAudioStore((s) => s.setCompressorBeforeDelay);
 
@@ -330,9 +366,9 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   // reconstructed), and updateParam is now stable per effectKey (above), so this whole map is
   // referentially stable across any re-render that doesn't change effectKey — which is every
   // re-render of a mounted AudioRigEffectPanel instance in practice. Chosen over a `useCallback`
-  // at each of this file's ~9 distinct call shapes (paramRow's loop, the compressor special
-  // case's 5 direct calls, AudioRigLfoGroup's own params.map, driftContent's 2 sliders, the Decay
-  // Mode radio) since block.params' field set is already a stable, closed list per effect.
+  // at each of this file's call shapes (paramRow's loop, the compressor special case's 5 direct
+  // calls, AudioRigLfoGroup's own params.map, the Decay Mode radio) since block.params' field
+  // set is already a stable, closed list per effect.
   const fieldOnChange = useMemo(() => {
     const map: Record<string, (v: number) => void> = {};
     for (const p of block.params) {
@@ -341,18 +377,6 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
     return map;
   }, [block.params, updateParam]);
 
-  // Stabilized alongside fieldOnChange above — driftGroup is a stable reference across renders
-  // of the same effectKey (LFO_DRIFT_GROUPS is a stable module-level array; .find() over it
-  // returns the same object reference each time effectKey doesn't change), so these are safe
-  // useCallback dependencies. Guarded rather than asserted non-null: the callback identity is
-  // created unconditionally (Rules of Hooks), even though it's only ever wired into rendered
-  // JSX when driftGroup is truthy (below).
-  const handleRateDriftChange = useCallback((v: number) => {
-    if (driftGroup) setGlobalLfoDrift(driftGroup.group, { rateDrift: v / 100 });
-  }, [driftGroup, setGlobalLfoDrift]);
-  const handleDepthDriftChange = useCallback((v: number) => {
-    if (driftGroup) setGlobalLfoDrift(driftGroup.group, { depthDrift: v / 100 });
-  }, [driftGroup, setGlobalLfoDrift]);
   const handleDecayModeChange = useCallback(
     (v: string) => setCompressorBeforeDelay(v === 'controlled'),
     [setCompressorBeforeDelay],
@@ -367,27 +391,6 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
             params={lfoFields}
             effect={effect}
             fieldOnChange={fieldOnChange}
-            driftContent={driftGroup && drift && (
-              <>
-                <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
-                  <SliderCenteredZero
-                    schema={driftGroup.rateSchema}
-                    value={driftHeldOff ? 0 : drift.rateDrift * 100}
-                    onChange={handleRateDriftChange}
-                    disabled={driftHeldOff}
-                  />
-                </div>
-                <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
-                  <SliderCenteredZero
-                    schema={driftGroup.depthSchema}
-                    value={driftHeldOff ? 0 : drift.depthDrift * 100}
-                    onChange={handleDepthDriftChange}
-                    disabled={driftHeldOff}
-                  />
-                </div>
-                {driftHeldOff && <HeldOffNote />}
-              </>
-            )}
           />
         ) : block.key === 'compressor' ? (
           // Threshold+Ratio and Attack+Release are the only 2 "existing paired sub-rows" the

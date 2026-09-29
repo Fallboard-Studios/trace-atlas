@@ -244,30 +244,30 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
 
 ### Phase 5: Drawer UI — remove per-block drift, add `FleetDriftPanel`
 
-- [ ] **Task 9: `AudioRigDrawer.tsx` — remove embedded drift, add `FleetDriftPanel`**
+- [x] **Task 9: `AudioRigDrawer.tsx` — remove embedded drift, add `FleetDriftPanel`**
 
   **Description:** Remove `driftContent` from `AudioRigLfoGroupProps` and its render line from `AudioRigLfoGroup`; remove `driftGroup`/`drift`/`setGlobalLfoDrift`/`driftHeldOff`/`handleRateDriftChange`/`handleDepthDriftChange` entirely from `AudioRigEffectPanel` (they can never resolve to a truthy `driftGroup` once `LFO_DRIFT_GROUPS` no longer contains any `AudioRigEffectKey`-matching entry). Add a new exported `FleetDriftPanel` component, structurally mirroring `RobotDriftPanel` (`SignatureArrayDrawer.tsx`) exactly: looks up `LFO_DRIFT_GROUPS`' `'globalFx'` entry once at module scope, reads/writes `useAudioStore` directly, renders `DirectionalPanel`/2 `SliderCenteredZero`s/`HeldOffNote` (spec §1.4/§1.5/§4).
 
   **Acceptance criteria:**
-  - [ ] None of the EQ, Low-Pass Filter, or High-Pass Filter panels render any Rate/Depth Drift slider anymore.
-  - [ ] `FleetDriftPanel` renders its own Rate Drift / Depth Drift sliders bound to `globalAudio.lfoDrift.globalFx`; dragging either calls `setGlobalLfoDrift('globalFx', …)` with the correct `%`-to-fraction (`v / 100`) conversion.
-  - [ ] `FleetDriftPanel`'s sliders grey out and read `0` under `driftHeldOff`, matching `RobotDriftPanel`'s own existing `driftHeldOff` handling exactly.
-  - [ ] `FleetDriftPanel` is exported from `AudioRigDrawer.tsx` (so `FleetParamsContent.tsx`, in Task 12, can import it alongside `AudioRigDrawer`/`AudioRigEffectPanel`).
-  - [ ] No dead code remains: no unused `driftGroup`/`drift`/`handleRateDriftChange`/`handleDepthDriftChange` identifiers left in `AudioRigEffectPanel`.
+  - [x] None of the EQ, Low-Pass Filter, or High-Pass Filter panels render any Rate/Depth Drift slider anymore.
+  - [x] `FleetDriftPanel` renders its own Rate Drift / Depth Drift sliders bound to `globalAudio.lfoDrift.globalFx`; dragging either calls `setGlobalLfoDrift('globalFx', …)` with the correct `%`-to-fraction (`v / 100`) conversion.
+  - [x] `FleetDriftPanel`'s sliders grey out and read `0` under `driftHeldOff`, matching `RobotDriftPanel`'s own existing `driftHeldOff` handling exactly.
+  - [x] `FleetDriftPanel` is exported from `AudioRigDrawer.tsx` (so `FleetParamsContent.tsx`, in Task 12, can import it alongside `AudioRigDrawer`/`AudioRigEffectPanel`).
+  - [x] No dead code remains: no unused `driftGroup`/`drift`/`handleRateDriftChange`/`handleDepthDriftChange` identifiers left in `AudioRigEffectPanel`.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/console/AudioRigDrawer.test.tsx src/components/panels/screen/console/AudioRigEffectPanel.test.tsx` pass — EQ/LPF/HPF panel tests gain explicit negative assertions (`queryByRole`/`queryByText` returns null for drift controls) rather than simply dropping the old positive assertions; new `FleetDriftPanel` coverage (render, onChange, `driftHeldOff`) mirrors `RobotDriftPanel`'s own existing test shape.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/console` passes (12 files, 192 tests) — EQ/LPF/HPF panel tests gain explicit negative assertions (`queryByRole`/`queryByText` returns null for drift controls) rather than simply dropping the old positive assertions; new dedicated `FleetDriftPanel.test.tsx` (5 tests: render, onChange, `driftHeldOff`, label) mirrors `RobotDriftPanel`'s own existing test shape.
+  - [x] `npm run build:types` clean project-wide (a real milestone — every remaining reference to the old 4-group shape is gone), `npm run lint` clean.
 
   **Dependencies:** Task 7, Task 8.
 
-  **Files:** `src/components/panels/screen/console/AudioRigDrawer.tsx`, `src/components/panels/screen/console/AudioRigDrawer.test.tsx`, `src/components/panels/screen/console/AudioRigEffectPanel.test.tsx`
+  **Files:** `src/components/panels/screen/console/AudioRigDrawer.tsx`, `src/components/panels/screen/console/AudioRigDrawer.test.tsx`, `src/components/panels/screen/console/AudioRigEffectPanel.test.tsx`, and a new `src/components/panels/screen/console/FleetDriftPanel.test.tsx` (not anticipated in the spec's own file list — `AudioRigEffectPanel` already gets its own dedicated test file per this codebase's convention, so `FleetDriftPanel` follows the same pattern rather than being folded into `AudioRigDrawer.test.tsx`)
 
   **Estimated scope:** M (one file's worth of removal + one new component, but the removal spans 3 separate call sites within it)
 
 ### Checkpoint: Drawer UI complete
-- [ ] `npm run build:types`, `npm run lint`, `npx vitest run src/components/panels/screen/console` clean.
-- [ ] Manual check: `npm run dev`, open Fleet Params' EQ/LPF/HPF leaves individually — confirm none show a drift slider anymore. `FleetDriftPanel` isn't reachable from the nav tree yet (Tasks 10-12 aren't done) — this checkpoint only confirms the component itself renders correctly in isolation (e.g. via a temporary dev-only mount, or defer this manual check to the Phase 7 checkpoint once it's actually wired in — reviewer's call).
+- [x] `npm run build:types`, `npm run lint`, `npx vitest run src/components/panels/screen/console` clean (12 files, 192 tests).
+- [ ] Manual check: deferred to the Phase 7 checkpoint — `FleetDriftPanel` isn't reachable from the nav tree yet (Tasks 10-12 aren't done), so there's nothing to click through to yet; automated coverage (`FleetDriftPanel.test.tsx`) confirms the component itself is correct in isolation.
 - [ ] Review with human before proceeding.
 
 ---
