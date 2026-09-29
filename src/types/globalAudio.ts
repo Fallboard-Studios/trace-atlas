@@ -68,10 +68,11 @@ export interface GlobalAudioSettings {
    *  always starts false; only a direct user toggle changes it. */
   compressorBeforeDelay: boolean;
   /** Global, seeded LFO drift amounts — one independent { rateDrift, depthDrift }
-   *  pair per DriftGroupId, applied to every currently-connected primary
-   *  Tone.LFO belonging to that group (never a per-target setting). Both
-   *  fields -1.0 to 1.0, default 0.0. See docs/specs/LFO_DRIFT_GROUPS.md
-   *  (reshaped from docs/specs/LFO_DRIFT.md's single flat pair). */
+   *  pair per DriftGroupId ('globalFx' | 'robots'), applied to every currently-
+   *  connected primary Tone.LFO belonging to that group (never a per-target
+   *  setting). Both fields -1.0 to 1.0, default 0.0. See
+   *  docs/specs/FLEET_DRIFT_CONSOLIDATION.md (restructured from
+   *  docs/specs/archive/LFO_DRIFT_GROUPS.md's 4-group shape). */
   lfoDrift: Record<DriftGroupId, { rateDrift: number; depthDrift: number }>;
   reverb: ReverbSettings;
   delay: DelaySettings;
@@ -87,9 +88,7 @@ export interface GlobalAudioSettings {
 export const DEFAULT_GLOBAL_AUDIO_SETTINGS: GlobalAudioSettings = {
   compressorBeforeDelay: false,
   lfoDrift: {
-    eq3: { rateDrift: 0, depthDrift: 0 },
-    filterLPF: { rateDrift: 0, depthDrift: 0 },
-    filterHPF: { rateDrift: 0, depthDrift: 0 },
+    globalFx: { rateDrift: 0, depthDrift: 0 },
     robots: { rateDrift: 0, depthDrift: 0 },
   },
   reverb: { decay: 1.5, preDelay: 0.02, wet: 0.3 },

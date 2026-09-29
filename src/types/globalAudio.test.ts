@@ -80,7 +80,7 @@ describe('DEFAULT_GLOBAL_AUDIO_SETTINGS', () => {
     }
   });
 
-  it('lfoDrift has exactly the 4 DriftGroupId groups, no more no fewer', () => {
+  it('lfoDrift has exactly the 2 DriftGroupId groups, no more no fewer', () => {
     expect(Object.keys(DEFAULT_GLOBAL_AUDIO_SETTINGS.lfoDrift).sort()).toEqual([...DRIFT_GROUP_IDS].sort());
   });
 

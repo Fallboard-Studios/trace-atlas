@@ -45,7 +45,6 @@ import { useAudioStore } from '@/stores/audioStore';
 import { ACCENT_COLORS } from '@/constants/accentColors';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
-import { LFO_DRIFT_GROUPS } from '@/data/audioRigConfig';
 import { GLOBAL_LFO_TARGET_IDS, type GlobalLfoTargetId } from '@/types/lfo';
 
 /**
@@ -294,14 +293,12 @@ describe('AudioRigEffectPanel', () => {
     });
   });
 
-  describe('Audio Load: held-off LFOs and drift', () => {
+  describe('Audio Load: held-off LFOs', () => {
     const HELD_OFF = 'Held off by Audio Load';
     const frame = (container: HTMLElement) => container.querySelector<HTMLElement>('.sc-lfo-target-group__display')!;
     const rateOf = (f: HTMLElement) => within(f).getByRole('slider', { name: 'Rate' });
     const depthOf = (f: HTMLElement) => within(f).getByRole('slider', { name: 'Depth' });
     const isDisabled = (el: HTMLElement) => el.getAttribute('data-disabled') !== null;
-    const callsFor = (schemaId: string) =>
-      (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.filter(([schema]) => schema.id === schemaId).length;
 
     it('greys out a shared LFO frame whose displayed target is held off: controls disabled, stored values kept, label shown', () => {
       useAudioStore.setState((s) => ({
@@ -376,54 +373,6 @@ describe('AudioRigEffectPanel', () => {
         expect(isDisabled(rateOf(frame(container)))).toBe(true);
       });
       expect(within(frame(container)).getByText(HELD_OFF)).toBeTruthy();
-    });
-
-    it('greys out this block\'s own drift sliders, with a label, while the drift tier is off — and restores them', () => {
-      useAudioStore.setState({ driftHeldOff: true });
-      render(<AudioRigEffectPanel effectKey="eq3" />);
-
-      const sliders = [screen.getByRole('slider', { name: 'Rate Drift' }), screen.getByRole('slider', { name: 'Depth Drift' })];
-      for (const slider of sliders) expect(isDisabled(slider)).toBe(true);
-      expect(screen.getByText(HELD_OFF)).toBeTruthy();
-
-      act(() => useAudioStore.setState({ driftHeldOff: false }));
-
-      for (const slider of [screen.getByRole('slider', { name: 'Rate Drift' }), screen.getByRole('slider', { name: 'Depth Drift' })]) {
-        expect(isDisabled(slider)).toBe(false);
-      }
-      expect(screen.queryByText(HELD_OFF)).toBeNull();
-    });
-
-    it('shows 0, not the real stored drift amount, while greyed out — and the real value returns once re-enabled', () => {
-      useAudioStore.setState((s) => ({
-        globalAudio: { ...s.globalAudio, lfoDrift: { ...s.globalAudio.lfoDrift, eq3: { rateDrift: 0.4, depthDrift: -0.25 } } },
-        driftHeldOff: true,
-      }));
-      render(<AudioRigEffectPanel effectKey="eq3" />);
-      const eq3 = LFO_DRIFT_GROUPS.find((g) => g.group === 'eq3')!;
-      const rateSlider = screen.getByRole('slider', { name: eq3.rateSchema.humanLabel });
-      const depthSlider = screen.getByRole('slider', { name: eq3.depthSchema.humanLabel });
-      expect(rateSlider.getAttribute('aria-valuenow')).toBe('0');
-      expect(depthSlider.getAttribute('aria-valuenow')).toBe('0');
-      expect(rateSlider.closest('.audio-rig-drawer__param-row')?.classList.contains('sc-held-off')).toBe(true);
-
-      act(() => useAudioStore.setState({ driftHeldOff: false }));
-
-      const restored = screen.getByRole('slider', { name: eq3.rateSchema.humanLabel });
-      const depthRestored = screen.getByRole('slider', { name: eq3.depthSchema.humanLabel });
-      expect(restored.getAttribute('aria-valuenow')).toBe('40');
-      expect(depthRestored.getAttribute('aria-valuenow')).toBe('-25');
-      expect(restored.closest('.audio-rig-drawer__param-row')?.classList.contains('sc-held-off')).toBe(false);
-    });
-
-    it('the drift flag does not disturb the memoized LFO controls inside the frame', () => {
-      render(<AudioRigEffectPanel effectKey="eq3" />);
-      const eqRate = callsFor('audioRig.eq3.lfo.rate');
-      expect(eqRate).toBeGreaterThan(0);
-
-      act(() => useAudioStore.setState({ driftHeldOff: true }));
-
-      expect(callsFor('audioRig.eq3.lfo.rate')).toBe(eqRate);
     });
 
     it('an unrelated LFO entering or leaving the held-off list does not re-render the frame at all (a per-frame boolean selector, not the whole list)', () => {
@@ -530,65 +479,23 @@ describe('AudioRigEffectPanel', () => {
     });
   });
 
-  describe('Drift (LFO_CONSOLIDATED_DISPLAY — eq3/filterLPF/filterHPF\'s own drift moved inside their own panel)', () => {
-    it('no longer renders Robot Drift anywhere — moved to the robot/company Source accordion (SignatureArrayDrawer)', () => {
-      render(<AudioRigEffectPanel effectKey="eq3" />);
-      expect(screen.queryByText('Robot Drift')).toBeNull();
-      expect(screen.queryByText('EQ Drift')).toBeNull();
-    });
-
-    it('still renders 1 Rate Drift / Depth Drift slider pair per LFO-bearing block (eq3/filterLPF/filterHPF individually)', () => {
+  describe('Drift removed from every global-chain effect panel (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF\'s own embedded Rate/Depth Drift sliders removed; the merged control now lives in FleetDriftPanel/the Fleet Drift nav leaf, not here)', () => {
+    it('renders no Rate Drift / Depth Drift slider, and no "Robot Drift"/"EQ Drift" text, for eq3/filterLPF/filterHPF individually', () => {
       for (const key of ['eq3', 'filterLPF', 'filterHPF'] as const) {
         const { unmount } = render(<AudioRigEffectPanel effectKey={key} />);
-        expect(screen.getAllByRole('slider', { name: 'Rate Drift' }), key).toHaveLength(1);
-        expect(screen.getAllByRole('slider', { name: 'Depth Drift' }), key).toHaveLength(1);
+        expect(screen.queryByRole('slider', { name: 'Rate Drift' }), key).toBeNull();
+        expect(screen.queryByRole('slider', { name: 'Depth Drift' }), key).toBeNull();
+        expect(screen.queryByText('Robot Drift'), key).toBeNull();
+        expect(screen.queryByText('EQ Drift'), key).toBeNull();
         unmount();
       }
     });
 
-    it("eq3's own Rate/Depth Drift sliders render inside eq3's own panel, directly beneath its shared LFO display — not a separate titled block", () => {
+    it("eq3's own panel content no longer mentions Rate Drift/Depth Drift at all", () => {
       render(<AudioRigEffectPanel effectKey="eq3" />);
       const eqPanel = screen.getByText('3-Band EQ').closest('.sc-directional-panel') as HTMLElement;
-      expect(eqPanel.textContent).toContain('Rate Drift');
-      expect(eqPanel.textContent).toContain('Depth Drift');
-    });
-
-    it('shows each group\'s own current lfoDrift values as a -100..100 percent, not the internal -1..1 fraction', () => {
-      useAudioStore.setState((s) => ({
-        globalAudio: {
-          ...s.globalAudio,
-          lfoDrift: { ...s.globalAudio.lfoDrift, eq3: { rateDrift: 0.3, depthDrift: -0.6 } },
-        },
-      }));
-      render(<AudioRigEffectPanel effectKey="eq3" />);
-      expect(screen.getByRole('slider', { name: 'Rate Drift' }).getAttribute('aria-valuenow')).toBe('30');
-      expect(screen.getByRole('slider', { name: 'Depth Drift' }).getAttribute('aria-valuenow')).toBe('-60');
-    });
-
-    it('dragging eq3\'s own Rate Drift slider calls setGlobalLfoDrift with \'eq3\' and the dragged percent divided by 100, leaving other groups untouched', () => {
-      useAudioStore.setState((s) => ({
-        globalAudio: {
-          ...s.globalAudio,
-          lfoDrift: { ...s.globalAudio.lfoDrift, eq3: { rateDrift: 0, depthDrift: 0 }, filterLPF: { rateDrift: 0.5, depthDrift: 0.5 } },
-        },
-      }));
-      render(<AudioRigEffectPanel effectKey="eq3" />);
-      const eq3RateSlider = screen.getByRole('slider', { name: 'Rate Drift' });
-      eq3RateSlider.focus();
-      fireEvent.keyDown(eq3RateSlider, { key: 'ArrowRight' });
-
-      const newPercent = Number(eq3RateSlider.getAttribute('aria-valuenow'));
-      expect(newPercent).not.toBe(0); // the key press actually moved it
-      expect(useAudioStore.getState().globalAudio.lfoDrift.eq3.rateDrift).toBeCloseTo(newPercent / 100);
-      expect(useAudioStore.getState().globalAudio.lfoDrift.eq3.depthDrift).toBe(0);
-      expect(useAudioStore.getState().globalAudio.lfoDrift.filterLPF).toEqual({ rateDrift: 0.5, depthDrift: 0.5 });
-    });
-
-    it('both drift sliders render enabled — no rig-wide bypass left to disable them', () => {
-      render(<AudioRigEffectPanel effectKey="eq3" />);
-      for (const slider of [screen.getByRole('slider', { name: 'Rate Drift' }), screen.getByRole('slider', { name: 'Depth Drift' })]) {
-        expect(slider.getAttribute('data-disabled')).toBeNull();
-      }
+      expect(eqPanel.textContent).not.toContain('Rate Drift');
+      expect(eqPanel.textContent).not.toContain('Depth Drift');
     });
   });
 
@@ -646,11 +553,11 @@ describe('AudioRigEffectPanel', () => {
       expect(panel.getAttribute('style')).toBeNull();
     });
 
-    it("eq3's own Drift sliders are a physical DOM descendant of the Spectral-scoped effect-block wrapper — no separate wrapper or style between them", () => {
+    it("eq3's own EQ sliders are a physical DOM descendant of the Spectral-scoped effect-block wrapper — no separate wrapper or style between them", () => {
       render(<AudioRigEffectPanel effectKey="eq3" />);
       const eqBlock = effectBlockOf('3-Band EQ');
-      const eq3RateSlider = within(eqBlock).getByRole('slider', { name: 'Rate Drift' });
-      expect(eqBlock.contains(eq3RateSlider)).toBe(true);
+      const eq3LowSlider = within(eqBlock).getByRole('slider', { name: 'Low' });
+      expect(eqBlock.contains(eq3LowSlider)).toBe(true);
     });
   });
 

@@ -89,9 +89,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   return {
     compressorBeforeDelay: defaults.compressorBeforeDelay,
     lfoDrift: {
-      eq3: { rateDrift: sampleField(noiseMap, 'lfoDrift.eq3.rateDrift'), depthDrift: sampleField(noiseMap, 'lfoDrift.eq3.depthDrift') },
-      filterLPF: { rateDrift: sampleField(noiseMap, 'lfoDrift.filterLPF.rateDrift'), depthDrift: sampleField(noiseMap, 'lfoDrift.filterLPF.depthDrift') },
-      filterHPF: { rateDrift: sampleField(noiseMap, 'lfoDrift.filterHPF.rateDrift'), depthDrift: sampleField(noiseMap, 'lfoDrift.filterHPF.depthDrift') },
+      globalFx: { rateDrift: sampleField(noiseMap, 'lfoDrift.globalFx.rateDrift'), depthDrift: sampleField(noiseMap, 'lfoDrift.globalFx.depthDrift') },
       robots: { rateDrift: sampleField(noiseMap, 'lfoDrift.robots.rateDrift'), depthDrift: sampleField(noiseMap, 'lfoDrift.robots.depthDrift') },
     },
     compressor: {

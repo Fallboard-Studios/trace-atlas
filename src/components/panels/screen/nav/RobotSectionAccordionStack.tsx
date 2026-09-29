@@ -11,7 +11,7 @@ const PLACEHOLDER_HUMAN = 'Placeholder copy — real lore/human descriptions lan
 // Which accordion-bearing subsections open with their own intro block, ahead of the
 // existing controls — Baseline/Coaxial/Harmonic Oscillator (Source's 3 layer slots)
 // aren't in this set; only Source's own wrapping accordion (below) intros Source itself.
-const SUBSECTIONS_WITH_INTRO = new Set<RobotSubsection>(['audioSettings', 'rhythm', 'pingContour', 'probeDrift']);
+const SUBSECTIONS_WITH_INTRO = new Set<RobotSubsection>(['audioSettings', 'rhythm', 'pingContour']);
 
 export interface RobotSectionAccordionStackProps {
   /** e.g. `probes.${robot.id}`, `probes.all`, `companies.${id}` — every id this stack renders is

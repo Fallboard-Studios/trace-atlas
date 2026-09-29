@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode
 import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
 import { PingControlsCompositionSection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
-import { SignatureArrayLayer, RobotDriftPanel, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
+import { SignatureArrayLayer, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
 import { RobotSectionAccordionStack } from '@/components/panels/screen/nav/RobotSectionAccordionStack';
 import { useSectionObserver } from '@/components/panels/screen/nav/useSectionObserver';
 import { useAccordionOpenState } from '@/components/panels/screen/nav/useAccordionOpenState';
@@ -98,7 +98,7 @@ function sectionAnchorRef(id: string) {
 
 /**
  * "Company mode" call site for AudioSettingSection/PingControlsRhythmSection/
- * PingControlsFrequencySection/PingContourDrawer/SignatureArrayLayer/RobotDriftPanel (Roadmap
+ * PingControlsFrequencySection/PingContourDrawer/SignatureArrayLayer (Roadmap
  * Phase 10) — the counterpart to RobotOptionsTab's "robot mode." Stacked view (docs/specs/
  * NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, Task 13) mirrors RobotOptionsTab's own Task 11 pattern
  * directly via the same shared RobotSectionAccordionStack (docs/specs/
@@ -445,8 +445,6 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
           />
         ) : null;
       }
-      case 'probeDrift':
-        return <RobotDriftPanel />;
       default:
         return null;
     }

@@ -7,7 +7,7 @@ import { clearSectionRef } from '@/utils/sectionRefs';
 import { openAccordionFromNav, clearPendingNavTarget } from '@/utils/accordionSync';
 
 // AudioSettingSection/PingControlsRhythmSection/PingControlsFrequencySection/PingContourDrawer/
-// SignatureArrayLayer/RobotDriftPanel pull in real Tone.js/AudioEngine machinery — mocked here the
+// SignatureArrayLayer pull in real Tone.js/AudioEngine machinery — mocked here the
 // same way RobotOptionsTab.test.tsx mocks the same components, for the same reason. This test is
 // about CompanyOptionsSection's own value-derivation, broadcast wiring, and accordion stacking —
 // not about the leaf components' own rendered content (each has its own full test suite).
@@ -107,7 +107,6 @@ vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
       </button>
     </div>
   )),
-  RobotDriftPanel: memo(() => <div data-testid="robot-drift-panel-stub" />),
 }));
 
 import { useLocaleStore } from '@/stores/localeStore';
@@ -158,7 +157,6 @@ function allSubsectionIds(prefix: string) {
     `${prefix}.source.baselineOscillator`,
     `${prefix}.source.coaxialOscillator`,
     `${prefix}.source.harmonicOscillator`,
-    `${prefix}.probeDrift.probeDrift`,
   ];
 }
 
@@ -215,11 +213,12 @@ describe('CompanyOptionsSection', () => {
     });
   });
 
-  it('renders Source\'s own 3 nested accordion triggers, plus Probe Drift as its own top-level trigger', () => {
+  it('renders Source\'s own 3 nested accordion triggers — no Probe Drift trigger anywhere (moved to Fleet Params\' LFO Drift accordion entirely, docs/specs/FLEET_DRIFT_CONSOLIDATION.md follow-up)', () => {
     render(<CompanyOptionsSection />);
-    for (const label of ['Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator', 'Probe Drift']) {
+    for (const label of ['Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
+    expect(screen.queryByRole('button', { name: 'Probe Drift' })).toBeNull();
   });
 
   it('opens Levels by default when no section is chosen — first-leaf fallback (spec §1.5)', () => {
@@ -230,8 +229,8 @@ describe('CompanyOptionsSection', () => {
 
   it('clicking a subsection\'s own trigger opens it directly, without touching selectedSection/selectedSubsection or closing any other open accordion', () => {
     render(<CompanyOptionsSection />);
-    fireEvent.click(screen.getByRole('button', { name: 'Probe Drift' }));
-    expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Envelope' }));
+    expect(screen.getByRole('button', { name: 'Envelope' }).getAttribute('aria-expanded')).toBe('true');
     // Levels (the default-open one) stays open too — multiple accordions can be open at once.
     expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
     expect(useUIStore.getState().selectedSection).toBeNull();
@@ -241,23 +240,23 @@ describe('CompanyOptionsSection', () => {
   it('selecting a subsection via the nav tree does not open or close any accordion — nav selection only drives tree highlighting now', () => {
     render(<CompanyOptionsSection />);
     act(() => {
-      useUIStore.getState().setSelectedSection('probeDrift');
-      useUIStore.getState().setSelectedSubsection('probeDrift');
+      useUIStore.getState().setSelectedSection('source');
+      useUIStore.getState().setSelectedSubsection('harmonicOscillator');
     });
     expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Source' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('switching entity (All Probes -> a company) resets accordion state back to the default', () => {
     const { rerender } = render(<CompanyOptionsSection />);
-    fireEvent.click(screen.getByRole('button', { name: 'Probe Drift' }));
-    expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Envelope' }));
+    expect(screen.getByRole('button', { name: 'Envelope' }).getAttribute('aria-expanded')).toBe('true');
 
     act(() => selectActiveCompany());
     rerender(<CompanyOptionsSection />);
 
     expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Envelope' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('a subsection\'s real content is not in the DOM until its own anchor has been approached', () => {

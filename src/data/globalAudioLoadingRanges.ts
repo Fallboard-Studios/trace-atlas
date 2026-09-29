@@ -46,16 +46,14 @@ export const GLOBAL_AUDIO_LOADING_RANGES: Record<GlobalAudioSeedFieldKey, Loadin
   'limiter.threshold': { min: -3, max: -1 },
 
   // Not a GLOBAL_CHAIN_GRID.md transcription — that doc predates lfoDrift
-  // entirely (docs/specs/LFO_DRIFT.md §7). Widened from the original
+  // entirely (docs/specs/archive/LFO_DRIFT.md §7). Widened from the original
   // -0.4..0.4 first-pass default to -0.7..0.7 after the manual/audible
-  // check on docs/tasks/LFO_DRIFT_GROUPS.md found the seeded default read
-  // as too subtle — confirmed directly with the user, not re-guessed.
-  'lfoDrift.eq3.rateDrift': { min: -0.7, max: 0.7 },
-  'lfoDrift.eq3.depthDrift': { min: -0.7, max: 0.7 },
-  'lfoDrift.filterLPF.rateDrift': { min: -0.7, max: 0.7 },
-  'lfoDrift.filterLPF.depthDrift': { min: -0.7, max: 0.7 },
-  'lfoDrift.filterHPF.rateDrift': { min: -0.7, max: 0.7 },
-  'lfoDrift.filterHPF.depthDrift': { min: -0.7, max: 0.7 },
+  // check on docs/tasks/archive/LFO_DRIFT_GROUPS.md found the seeded default
+  // read as too subtle — confirmed directly with the user, not re-guessed.
+  // eq3/filterLPF/filterHPF's own 3 keys merged into one 'globalFx' key
+  // (docs/specs/FLEET_DRIFT_CONSOLIDATION.md), same window carried forward.
+  'lfoDrift.globalFx.rateDrift': { min: -0.7, max: 0.7 },
+  'lfoDrift.globalFx.depthDrift': { min: -0.7, max: 0.7 },
   'lfoDrift.robots.rateDrift': { min: -0.7, max: 0.7 },
   'lfoDrift.robots.depthDrift': { min: -0.7, max: 0.7 },
 };

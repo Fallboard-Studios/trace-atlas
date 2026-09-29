@@ -1845,35 +1845,15 @@ describe('lfoEngine', () => {
     });
   });
 
-  describe('per-group drift pools (docs/tasks/LFO_DRIFT_GROUPS.md Task 5 — structural: every group correctly pooled, amounts not yet independent)', () => {
-    it('constructs exactly 3 pool oscillators for the eq3 group on its own first successful connect', async () => {
+  describe('per-group drift pools (docs/tasks/archive/LFO_DRIFT_GROUPS.md Task 5, restructured for the 2-group merge in docs/tasks/FLEET_DRIFT_CONSOLIDATION.md)', () => {
+    it('constructs exactly 7 pool oscillators for the globalFx group on its own first successful connect — eq3/lpf/hpf all share it', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockReturnValueOnce(fakeSignal(0));
       const { lfoEngine } = await import('./lfoEngine');
       const delta = await poolConstructionCountDelta(() => {
         lfoEngine.connectLfoTarget('eq3.low');
       });
-      expect(delta).toBe(3);
-    });
-
-    it('constructs exactly 2 pool oscillators for the filterLPF group on its own first successful connect', async () => {
-      const { AudioEngine } = await import('./AudioEngine');
-      (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockReturnValueOnce(fakeSignal(0));
-      const { lfoEngine } = await import('./lfoEngine');
-      const delta = await poolConstructionCountDelta(() => {
-        lfoEngine.connectLfoTarget('lpf.frequency');
-      });
-      expect(delta).toBe(2);
-    });
-
-    it('constructs exactly 2 pool oscillators for the filterHPF group on its own first successful connect', async () => {
-      const { AudioEngine } = await import('./AudioEngine');
-      (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockReturnValueOnce(fakeSignal(0));
-      const { lfoEngine } = await import('./lfoEngine');
-      const delta = await poolConstructionCountDelta(() => {
-        lfoEngine.connectLfoTarget('hpf.Q');
-      });
-      expect(delta).toBe(2);
+      expect(delta).toBe(7);
     });
 
     it('constructs exactly 8 pool oscillators for the robots group on its own first successful connect — every RobotLfoTargetId shares this one group', async () => {
@@ -1886,27 +1866,28 @@ describe('lfoEngine', () => {
       expect(delta).toBe(8);
     });
 
-    it('connecting a target in one group does not construct another group\'s pool', async () => {
+    it('connecting a target in one group does not construct the other group\'s pool', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockReturnValue(fakeSignal(0));
+      (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockReturnValue(fakeSignal(0));
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.connectLfoTarget('eq3.low'); // constructs eq3's own pool (3)
+      lfoEngine.connectLfoTarget('eq3.low'); // constructs globalFx's own pool (7)
 
       const delta = await poolConstructionCountDelta(() => {
-        lfoEngine.connectLfoTarget('lpf.frequency'); // a different group — should add only ITS OWN 2
+        lfoEngine.connectLfoTarget('layer0.gain', 'robot-a'); // a different group — should add only ITS OWN 8
       });
 
-      expect(delta).toBe(2);
+      expect(delta).toBe(8);
     });
 
-    it('reuses an existing group\'s pool for a second target in the same group — still exactly that group\'s own size, not doubled', async () => {
+    it('reuses the group\'s pool for a second target in the same (merged) group — still exactly 7, not doubled, even across former eq3/lpf/hpf targets', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockReturnValue(fakeSignal(0));
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.connectLfoTarget('eq3.low'); // constructs eq3's pool (3)
+      lfoEngine.connectLfoTarget('eq3.low'); // constructs globalFx's pool (7)
 
       const delta = await poolConstructionCountDelta(() => {
-        lfoEngine.connectLfoTarget('eq3.mid'); // same group — must reuse, not rebuild
+        lfoEngine.connectLfoTarget('lpf.frequency'); // formerly a different group — now the SAME merged group
       });
 
       expect(delta).toBe(0);
@@ -2078,12 +2059,12 @@ describe('lfoEngine', () => {
         lfoEngine.setGlobalRateDrift('robots', 1);
         lfoEngine.setGlobalDepthDrift('robots', 1);
 
-        expect(() => lfoEngine.setGlobalRateDrift('eq3', 0.5)).not.toThrow();
-        expect(() => lfoEngine.setGlobalDepthDrift('filterHPF', 0.5)).not.toThrow();
+        expect(() => lfoEngine.setGlobalRateDrift('globalFx', 0.5)).not.toThrow();
+        expect(() => lfoEngine.setGlobalDepthDrift('globalFx', 0.5)).not.toThrow();
       });
     });
 
-    describe('cross-group isolation (docs/tasks/LFO_DRIFT_GROUPS.md Task 6 — the highest-risk regression class this phase introduces: 10.2 had exactly one global amount, so "which amount applies to this primary" could never be wrong before)', () => {
+    describe('cross-group isolation (docs/tasks/archive/LFO_DRIFT_GROUPS.md Task 6, restructured for the 2-group merge in docs/tasks/FLEET_DRIFT_CONSOLIDATION.md — the highest-risk regression class either phase introduces: a single shared amount could never apply to the wrong primary)', () => {
       it('setGlobalRateDrift for one group never touches another group\'s rate-drift Gain', async () => {
         const { AudioEngine } = await import('./AudioEngine');
         (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockReturnValue(fakeSignal(0));
@@ -2096,19 +2077,19 @@ describe('lfoEngine', () => {
 
         lfoEngine.setLfoRate('eq3.low', midpointRate);
         lfoEngine.connectLfoTarget('eq3.low');
-        const eq3RateDriftGain = gainCtor.mock.results.at(-2)!.value as MockGainInstance;
+        const globalFxRateDriftGain = gainCtor.mock.results.at(-2)!.value as MockGainInstance;
 
         lfoEngine.setLfoRate('layer0.gain', midpointRate, 'robot-a');
         lfoEngine.connectLfoTarget('layer0.gain', 'robot-a');
         const robotsRateDriftGain = gainCtor.mock.results.at(-2)!.value as MockGainInstance;
 
-        lfoEngine.setGlobalRateDrift('eq3', 1);
+        lfoEngine.setGlobalRateDrift('globalFx', 1);
 
-        expect(eq3RateDriftGain.gain.value).not.toBe(0);
+        expect(globalFxRateDriftGain.gain.value).not.toBe(0);
         expect(robotsRateDriftGain.gain.value).toBe(0); // untouched — robots' own amount is still 0
       });
 
-      it('setGlobalRateDrift for the OTHER group (robots) doesn\'t leak into eq3 either — isolation holds in both directions', async () => {
+      it('setGlobalRateDrift for the OTHER group (robots) doesn\'t leak into globalFx either — isolation holds in both directions', async () => {
         const { AudioEngine } = await import('./AudioEngine');
         (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockReturnValue(fakeSignal(0));
         (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockReturnValue(fakeSignal(0));
@@ -2120,7 +2101,7 @@ describe('lfoEngine', () => {
 
         lfoEngine.setLfoRate('eq3.low', midpointRate);
         lfoEngine.connectLfoTarget('eq3.low');
-        const eq3RateDriftGain = gainCtor.mock.results.at(-2)!.value as MockGainInstance;
+        const globalFxRateDriftGain = gainCtor.mock.results.at(-2)!.value as MockGainInstance;
 
         lfoEngine.setLfoRate('layer0.gain', midpointRate, 'robot-a');
         lfoEngine.connectLfoTarget('layer0.gain', 'robot-a');
@@ -2129,7 +2110,7 @@ describe('lfoEngine', () => {
         lfoEngine.setGlobalRateDrift('robots', 1);
 
         expect(robotsRateDriftGain.gain.value).not.toBe(0);
-        expect(eq3RateDriftGain.gain.value).toBe(0); // untouched — eq3's own amount is still 0
+        expect(globalFxRateDriftGain.gain.value).toBe(0); // untouched — globalFx's own amount is still 0
       });
 
       it('setGlobalDepthDrift for one group never touches another group\'s depth-drift Gain', async () => {
@@ -2142,15 +2123,15 @@ describe('lfoEngine', () => {
 
         lfoEngine.setLfoDepth('eq3.low', 50);
         lfoEngine.connectLfoTarget('eq3.low');
-        const eq3DepthDriftGain = gainCtor.mock.results.at(-1)!.value as MockGainInstance;
+        const globalFxDepthDriftGain = gainCtor.mock.results.at(-1)!.value as MockGainInstance;
 
         lfoEngine.setLfoDepth('layer0.gain', 50, 'robot-a');
         lfoEngine.connectLfoTarget('layer0.gain', 'robot-a');
         const robotsDepthDriftGain = gainCtor.mock.results.at(-1)!.value as MockGainInstance;
 
-        lfoEngine.setGlobalDepthDrift('eq3', 1);
+        lfoEngine.setGlobalDepthDrift('globalFx', 1);
 
-        expect(eq3DepthDriftGain.gain.value).not.toBe(0);
+        expect(globalFxDepthDriftGain.gain.value).not.toBe(0);
         expect(robotsDepthDriftGain.gain.value).toBe(0); // untouched — robots' own amount is still 0
       });
 
@@ -2163,7 +2144,7 @@ describe('lfoEngine', () => {
         const gainCtor = Tone.Gain as unknown as ReturnType<typeof vi.fn>;
         const depthDriftGain = gainCtor.mock.results.at(-1)!.value as MockGainInstance;
 
-        lfoEngine.setGlobalDepthDrift('eq3', 1);
+        lfoEngine.setGlobalDepthDrift('globalFx', 1);
 
         expect(depthDriftGain.connect).not.toHaveBeenCalled();
       });

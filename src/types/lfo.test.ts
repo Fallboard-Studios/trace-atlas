@@ -105,13 +105,19 @@ describe('LfoSettings bounds', () => {
 });
 
 describe('DRIFT_GROUP_IDS', () => {
-  it('has exactly the 4 documented drift groups', () => {
-    expect([...DRIFT_GROUP_IDS].sort()).toEqual(['eq3', 'filterHPF', 'filterLPF', 'robots'].sort());
+  it('has exactly the 2 documented drift groups (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF merged into globalFx)', () => {
+    expect([...DRIFT_GROUP_IDS].sort()).toEqual(['globalFx', 'robots'].sort());
   });
 
-  it('has exactly 4 members, no duplicates', () => {
-    expect(DRIFT_GROUP_IDS).toHaveLength(4);
-    expect(new Set(DRIFT_GROUP_IDS).size).toBe(4);
+  it('has exactly 2 members, no duplicates', () => {
+    expect(DRIFT_GROUP_IDS).toHaveLength(2);
+    expect(new Set(DRIFT_GROUP_IDS).size).toBe(2);
+  });
+
+  it('no longer contains the old eq3/filterLPF/filterHPF group ids', () => {
+    expect(DRIFT_GROUP_IDS).not.toContain('eq3');
+    expect(DRIFT_GROUP_IDS).not.toContain('filterLPF');
+    expect(DRIFT_GROUP_IDS).not.toContain('filterHPF');
   });
 
   it('accepts a valid DriftGroupId value (compile-time check via build:types)', () => {

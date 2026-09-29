@@ -266,7 +266,7 @@ describe('DECAY_MODE_SCHEMA', () => {
 });
 
 describe('LFO_DRIFT_GROUPS', () => {
-  it('has exactly 4 entries, one per DriftGroupId', () => {
+  it('has exactly 2 entries, one per DriftGroupId (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF merged into globalFx)', () => {
     expect(LFO_DRIFT_GROUPS.map((g) => g.group).sort()).toEqual([...DRIFT_GROUP_IDS].sort());
   });
 
@@ -284,10 +284,10 @@ describe('LFO_DRIFT_GROUPS', () => {
     }
   });
 
-  it('every id across all 4 entries (4 panels + 8 sliders) is unique', () => {
+  it('every id across both entries (2 panels + 4 sliders) is unique', () => {
     const allIds = LFO_DRIFT_GROUPS.flatMap((g) => [g.panel.id, g.rateSchema.id, g.depthSchema.id]);
-    expect(allIds).toHaveLength(12);
-    expect(new Set(allIds).size).toBe(12);
+    expect(allIds).toHaveLength(6);
+    expect(new Set(allIds).size).toBe(6);
   });
 
   it('every entry\'s rate and depth schemas have distinct human labels — never a shared generic "Drift" indistinguishable to a screen reader', () => {
@@ -312,6 +312,13 @@ describe('LFO_DRIFT_GROUPS', () => {
 
   it('the closed-set coverage assertion over AUDIO_RIG_CONFIG\'s own param schema types is unaffected — LFO_DRIFT_GROUPS is a standalone export, not part of that array', () => {
     expect(AUDIO_RIG_CONFIG.length).toBe(7); // still exactly the 7 GLOBAL_CHAIN_GRID.md effect blocks
+  });
+
+  it("the 'robots' entry is byte-for-byte unchanged by the eq3/filterLPF/filterHPF merge", () => {
+    const robots = LFO_DRIFT_GROUPS.find((g) => g.group === 'robots')!;
+    expect(robots.panel).toEqual({ id: 'audioRig.lfoDrift.robots', type: 'directionalPanel', loreLabel: 'AGENT FLUX', humanLabel: 'Robot Drift', orientation: 'column' });
+    expect(robots.rateSchema).toMatchObject({ id: 'audioRig.lfoDrift.robots.rateDrift', min: -100, max: 100, unit: '%' });
+    expect(robots.depthSchema).toMatchObject({ id: 'audioRig.lfoDrift.robots.depthDrift', min: -100, max: 100, unit: '%' });
   });
 });
 
@@ -497,7 +504,7 @@ describe('slider orientation classification (docs/specs/VERTICAL_SLIDERS.md §1.
     expect(orientationOf(findParam('limiter', 'threshold').schema)).toBe('horizontal');
   });
 
-  it('all 4 LFO_DRIFT_GROUPS (Rate Drift/Depth Drift), including "robots", are horizontal (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3)', () => {
+  it('both LFO_DRIFT_GROUPS (Rate Drift/Depth Drift), including "robots", are horizontal (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3)', () => {
     for (const group of LFO_DRIFT_GROUPS) {
       expect(group.rateSchema.orientation, `${group.group}.rateDrift`).toBe('horizontal');
       expect(group.depthSchema.orientation, `${group.group}.depthDrift`).toBe('horizontal');
@@ -596,11 +603,9 @@ describe('LfoDriftGroupSchema.panel (DirectionalPanel wiring, Tasks 1-2)', () =>
     }
   });
 
-  it("every panel's loreLabel/humanLabel matches its known pre-Task-2 accordion text (LFO_DRIFT_GROUPS' own invented labels)", () => {
+  it("every panel's loreLabel/humanLabel matches LFO_DRIFT_GROUPS' own invented labels (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF's 3 former entries merged into one globalFx entry)", () => {
     const expectedLabels: Record<string, { loreLabel: string; humanLabel: string }> = {
-      eq3: { loreLabel: 'SPECTRAL FLUX', humanLabel: 'EQ Drift' },
-      filterLPF: { loreLabel: 'HIGH-MASK FLUX', humanLabel: 'Low-Pass Drift' },
-      filterHPF: { loreLabel: 'LOW-MASK FLUX', humanLabel: 'High-Pass Drift' },
+      globalFx: { loreLabel: 'SIGNAL CHAIN FLUX', humanLabel: 'Fleet Drift' },
       robots: { loreLabel: 'AGENT FLUX', humanLabel: 'Robot Drift' },
     };
     for (const group of LFO_DRIFT_GROUPS) {

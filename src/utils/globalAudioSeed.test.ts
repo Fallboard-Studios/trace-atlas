@@ -125,15 +125,8 @@ describe('generateGlobalAudioSettings', () => {
       'reverb.preDelay': settings.reverb.preDelay,
       'reverb.wet': settings.reverb.wet,
       'limiter.threshold': settings.limiter.threshold,
-      // Stopgap — Task 2 reshaped lfoDrift to Record<DriftGroupId, ...> and
-      // Task 3 gave each group its own key; Task 4 gives each group its own
-      // independently-sampled value (all 4 currently share one draw).
-      'lfoDrift.eq3.rateDrift': settings.lfoDrift.eq3.rateDrift,
-      'lfoDrift.eq3.depthDrift': settings.lfoDrift.eq3.depthDrift,
-      'lfoDrift.filterLPF.rateDrift': settings.lfoDrift.filterLPF.rateDrift,
-      'lfoDrift.filterLPF.depthDrift': settings.lfoDrift.filterLPF.depthDrift,
-      'lfoDrift.filterHPF.rateDrift': settings.lfoDrift.filterHPF.rateDrift,
-      'lfoDrift.filterHPF.depthDrift': settings.lfoDrift.filterHPF.depthDrift,
+      'lfoDrift.globalFx.rateDrift': settings.lfoDrift.globalFx.rateDrift,
+      'lfoDrift.globalFx.depthDrift': settings.lfoDrift.globalFx.depthDrift,
       'lfoDrift.robots.rateDrift': settings.lfoDrift.robots.rateDrift,
       'lfoDrift.robots.depthDrift': settings.lfoDrift.robots.depthDrift,
     };
@@ -220,7 +213,7 @@ describe('generateGlobalAudioSettings', () => {
       }
     });
 
-    it('quantizes every lfoDrift field (rateDrift/depthDrift, all 4 groups) to a whole percent, across many seeds', () => {
+    it('quantizes every lfoDrift field (rateDrift/depthDrift, both groups) to a whole percent, across many seeds', () => {
       for (let i = 0; i < 20; i++) {
         const settings = generateGlobalAudioSettings(`seed-quantize-sample-${i}`, `QuantizeSample${i}`);
         for (const group of DRIFT_GROUP_IDS) {
@@ -233,7 +226,7 @@ describe('generateGlobalAudioSettings', () => {
   });
 
   describe('lfoDrift', () => {
-    it('returns a fully-populated lfoDrift for all 4 DriftGroupId groups', () => {
+    it('returns a fully-populated lfoDrift for both DriftGroupId groups', () => {
       const settings = generateGlobalAudioSettings('seed-test-planet', 'Nova');
       expect(Object.keys(settings.lfoDrift).sort()).toEqual([...DRIFT_GROUP_IDS].sort());
     });

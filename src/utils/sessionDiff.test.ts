@@ -18,6 +18,7 @@ import type { RobotAudioBaseline } from '../systems/spawnSystem';
 import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoSettings } from '../types/lfo';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
+import { useAudioStore } from '../stores/audioStore';
 import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
 import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
@@ -211,6 +212,22 @@ describe('buildSessionPayload', () => {
     expect(Object.keys(payload.globalAudio)).toContain('lfoDrift');
   });
 
+  it('quantizes globalFx and robots lfoDrift to a whole percent each, both groups independently (docs/specs/FLEET_DRIFT_CONSOLIDATION.md Task 5)', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    // Distinguishing, non-default values for both groups (not left at 0) — a
+    // parity test that leaves a field at its default can pass by coincidence
+    // even with a broken quantize/cleanup path (memory: parity-test fixtures
+    // need real, non-default values).
+    useAudioStore.getState().setGlobalLfoDrift('globalFx', { rateDrift: 0.4371, depthDrift: -0.2809 });
+    useAudioStore.getState().setGlobalLfoDrift('robots', { rateDrift: -0.1234, depthDrift: 0.5678 });
+
+    const payload = buildSessionPayload();
+
+    expect(payload.globalAudio.lfoDrift.globalFx).toEqual({ rateDrift: 0.44, depthDrift: -0.28 });
+    expect(payload.globalAudio.lfoDrift.robots).toEqual({ rateDrift: -0.12, depthDrift: 0.57 });
+  });
+
   it('has no robotOverrides entries for an untouched roster', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
@@ -279,6 +296,34 @@ describe('applySessionPayload', () => {
     const attenuationStyle = useAttenuationStyleStore.getState().attenuationStyles.find((p) => p.id === useAttenuationStyleStore.getState().currentAttenuationStyleId);
     return attenuationStyle?.currentLocaleId ? useLocaleStore.getState().getLocaleById(attenuationStyle.currentLocaleId) : undefined;
   }
+
+  it('migrates an old-shape lfoDrift (pre Fleet Drift Consolidation: eq3/filterLPF/filterHPF/robots, no globalFx) instead of crashing applyGlobalAudioToEngine (bug found live: power-on with a stale ?session=/saved session blanked the screen)', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    // Simulate a payload persisted (localStorage named session, or a ?session= share link) before
+    // this migration shipped — its own globalAudio.lfoDrift still has the old 4-group shape, cast
+    // through unknown since SessionPayload's own type no longer describes this shape (the same
+    // "untyped JSON from outside the app" trust boundary decodeSessionPayload's own doc comment
+    // already documents for this exact field).
+    const staleLfoDrift = {
+      eq3: { rateDrift: 0.1, depthDrift: 0.2 },
+      filterLPF: { rateDrift: 0.3, depthDrift: 0.4 },
+      filterHPF: { rateDrift: 0.5, depthDrift: 0.6 },
+      robots: { rateDrift: 0.7, depthDrift: 0.8 },
+    };
+    const stalePayload = {
+      ...payload,
+      globalAudio: { ...payload.globalAudio, lfoDrift: staleLfoDrift },
+    } as unknown as typeof payload;
+
+    expect(() => applySessionPayload(stalePayload)).not.toThrow();
+
+    // robots survives untouched (it was already present); globalFx (missing from the stale
+    // payload) falls back to a safe default rather than staying undefined.
+    expect(useAudioStore.getState().globalAudio.lfoDrift.robots).toEqual({ rateDrift: 0.7, depthDrift: 0.8 });
+    expect(useAudioStore.getState().globalAudio.lfoDrift.globalFx).toEqual({ rateDrift: 0, depthDrift: 0 });
+  });
 
   it('calls worldTransition.retransmitWorld, not a parallel regeneration path — omitting attenuationStyleName when it matches the currently active one', () => {
     // Omitting it routes through retransmitWorld's coordsOnly branch, which preserves the
