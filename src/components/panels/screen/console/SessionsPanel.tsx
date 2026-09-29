@@ -1,19 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { SessionListItem } from './SessionListItem';
+import { useShareStatus } from './useShareStatus';
 import { TextInput } from '@/components/ui/controls/TextInput';
 import { Button } from '@/components/ui/controls/Button';
 import { useSessionStore } from '@/stores/sessionStore';
 import { buildSessionPayload } from '@/utils/sessionDiff';
-import { copySessionLink } from '@/utils/sessionShareUtils';
 import { saveNamedSession, listSessions } from '@/utils/sessionStorageEngine';
 import { SESSION_NAME_INPUT_SCHEMA, SAVE_SESSION_SCHEMA, SHARE_SESSION_SCHEMA, CLEAR_STORAGE_SCHEMA } from '@/data/sessionConfig';
 import { formatSessionTimestamp } from '@/utils/helpers';
 import type { SessionEntry } from '@/types/session';
-
-const SHARE_STATUS_DISMISS_MS = 5000;
-
-type ShareStatus = 'copied' | 'error' | null;
 
 import './SessionsPanel.css';
 
@@ -32,10 +28,7 @@ export function SessionsPanel() {
   const [saveStatus, setSaveStatus] = useState<{ name: string; success: true; savedAt: string } | { name: string; success: false } | null>(
     null,
   );
-  const [shareStatus, setShareStatus] = useState<ShareStatus>(null);
-  const dismissTimeoutRef = useRef<number | undefined>(undefined);
-
-  useEffect(() => () => window.clearTimeout(dismissTimeoutRef.current), []);
+  const { shareStatus, share } = useShareStatus();
 
   const refresh = () => {
     setSessions(listSessions());
@@ -58,12 +51,7 @@ export function SessionsPanel() {
   // Shares the CURRENT LIVE state (buildSessionPayload()), never listSessions()/local storage --
   // the inverse of SessionListItem.tsx's own per-row Share, which shares that row's stored
   // payload instead (docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md §4.5).
-  const handleShare = async () => {
-    const ok = await copySessionLink(buildSessionPayload());
-    setShareStatus(ok ? 'copied' : 'error');
-    window.clearTimeout(dismissTimeoutRef.current);
-    dismissTimeoutRef.current = window.setTimeout(() => setShareStatus(null), SHARE_STATUS_DISMISS_MS);
-  };
+  const handleShare = () => share(buildSessionPayload());
 
   // Wipes ALL of localStorage (Crawford's request, 2026-09-28) — not just the sessions key —
   // behind an AlertDialog confirm, the same pattern CompanyCrudControls.tsx's own delete
