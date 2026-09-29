@@ -102,7 +102,7 @@ function sectionAnchorRef(id: string) {
  * Phase 10) — the counterpart to RobotOptionsTab's "robot mode." Stacked view (docs/specs/
  * NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, Task 13) mirrors RobotOptionsTab's own Task 11 pattern
  * directly via the same shared RobotSectionAccordionStack (docs/specs/
- * ROBOT_SECTION_CONFIG_CONSOLIDATION.md): all 4 sections' worth of subsections stacked, each in
+ * ROBOT_SECTION_CONFIG_CONSOLIDATION.md): all 5 sections' worth of subsections stacked, each in
  * its own accordion with manual, independent open/closed state (`useAccordionOpenState`) — a nav
  * click only scrolls to a section, and scrollspy only updates `selectedSection`/`selectedSubsection`
  * for tree highlighting; neither opens or closes an accordion (Crawford's own follow-up call,

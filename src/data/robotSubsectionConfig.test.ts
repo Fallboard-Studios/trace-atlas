@@ -15,8 +15,8 @@ import {
 // ========================================
 
 describe('ROBOT_SECTIONS_CONFIG', () => {
-  it('has exactly 4 entries, in volume/melody/envelope/source order', () => {
-    expect(ROBOT_SECTIONS_CONFIG.map((s) => s.id)).toEqual(['volume', 'melody', 'envelope', 'source']);
+  it('has exactly 5 entries, in volume/melody/envelope/source/probeDrift order', () => {
+    expect(ROBOT_SECTIONS_CONFIG.map((s) => s.id)).toEqual(['volume', 'melody', 'envelope', 'source', 'probeDrift']);
   });
 
   it('gives every section its current nav-tree label and trait', () => {
@@ -25,13 +25,15 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
     expect(byId.melody).toMatchObject({ navLabel: 'Composition', trait: 'composition' });
     expect(byId.envelope).toMatchObject({ navLabel: 'Envelope', trait: 'timeSpace' });
     expect(byId.source).toMatchObject({ navLabel: 'Source', trait: 'spectral' });
+    expect(byId.probeDrift).toMatchObject({ navLabel: 'Probe Drift', trait: 'spectral' });
   });
 
-  it('only "source" wraps its subsections in its own accordion — volume/melody/envelope have none', () => {
+  it('only "source" wraps its subsections in its own accordion — volume/melody/envelope/probeDrift have none', () => {
     const byId = Object.fromEntries(ROBOT_SECTIONS_CONFIG.map((s) => [s.id, s]));
     expect(byId.volume.ownAccordionLabel).toBeUndefined();
     expect(byId.melody.ownAccordionLabel).toBeUndefined();
     expect(byId.envelope.ownAccordionLabel).toBeUndefined();
+    expect(byId.probeDrift.ownAccordionLabel).toBeUndefined();
     expect(byId.source.ownAccordionLabel).toBe('Source');
   });
 
@@ -70,12 +72,18 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
     ]);
   });
 
-  it("source's 4 subsections each keep their own accordion, in oscillator-then-drift order", () => {
+  it("source's 3 subsections each keep their own accordion, in oscillator order", () => {
     const source = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'source')!;
     expect(source.subsections).toEqual([
       { id: 'baselineOscillator', navLabel: 'Baseline Oscillator', accordionLabel: 'Baseline Oscillator' },
       { id: 'coaxialOscillator', navLabel: 'Coaxial Oscillator', accordionLabel: 'Coaxial Oscillator' },
       { id: 'harmonicOscillator', navLabel: 'Harmonic Oscillator', accordionLabel: 'Harmonic Oscillator' },
+    ]);
+  });
+
+  it("probeDrift's one subsection is its own accordion, reusing 'probeDrift' as both the section and subsection id", () => {
+    const probeDrift = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'probeDrift')!;
+    expect(probeDrift.subsections).toEqual([
       { id: 'probeDrift', navLabel: 'Probe Drift', accordionLabel: 'Probe Drift' },
     ]);
   });
@@ -110,7 +118,7 @@ describe('subsectionIds', () => {
       'probes.r1.source.baselineOscillator',
       'probes.r1.source.coaxialOscillator',
       'probes.r1.source.harmonicOscillator',
-      'probes.r1.source.probeDrift',
+      'probes.r1.probeDrift.probeDrift',
     ]);
   });
 
@@ -128,7 +136,7 @@ describe('accordionIds', () => {
       'probes.r1.source.baselineOscillator',
       'probes.r1.source.coaxialOscillator',
       'probes.r1.source.harmonicOscillator',
-      'probes.r1.source.probeDrift',
+      'probes.r1.probeDrift.probeDrift',
       'probes.r1.source',
     ]);
   });

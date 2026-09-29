@@ -124,7 +124,7 @@ const SUBSECTION_IDS = (id: string) => [
   `probes.${id}.source.baselineOscillator`,
   `probes.${id}.source.coaxialOscillator`,
   `probes.${id}.source.harmonicOscillator`,
-  `probes.${id}.source.probeDrift`,
+  `probes.${id}.probeDrift.probeDrift`,
 ];
 
 describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 11)', () => {
@@ -168,27 +168,27 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
   it('always renders RobotDisplaySection, unwrapped, regardless of which subsection is open', () => {
     const robot = makeRobot();
-    selectRobot(robot, 'source', 'probeDrift');
+    selectRobot(robot, 'probeDrift', 'probeDrift');
     render(<RobotOptionsTab />);
     expect(screen.getByTestId('robot-display-section-stub')).toBeTruthy();
   });
 
-  it('renders the top-level accordion triggers as shells: Levels, Composition, Envelope, Source', () => {
+  it('renders the top-level accordion triggers as shells: Levels, Composition, Envelope, Source, Probe Drift', () => {
     const robot = makeRobot();
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    for (const label of ['Levels', 'Composition', 'Envelope', 'Source']) {
+    for (const label of ['Levels', 'Composition', 'Envelope', 'Source', 'Probe Drift']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
   });
 
-  it('renders Source\'s own 4 nested accordion triggers once Source is approached', () => {
+  it('renders Source\'s own 3 nested accordion triggers once Source is approached', () => {
     const robot = makeRobot();
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    for (const label of ['Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator', 'Probe Drift']) {
+    for (const label of ['Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
   });
@@ -204,7 +204,7 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
   it('selecting a subsection via the nav tree (selectedSection/selectedSubsection) does not open or close any accordion — nav selection only drives tree highlighting now', () => {
     const robot = makeRobot();
-    selectRobot(robot, 'source', 'probeDrift');
+    selectRobot(robot, 'probeDrift', 'probeDrift');
     render(<RobotOptionsTab />);
 
     // Levels still opens by default — the tree selection has no bearing on which
@@ -372,7 +372,7 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     });
   });
 
-  describe('SignatureArrayLayer/RobotDriftPanel (Source)', () => {
+  describe('SignatureArrayLayer (Source) / RobotDriftPanel (Probe Drift)', () => {
     it('renders Baseline/Coaxial/Harmonic Oscillator each bound to their own layer index, once approached', () => {
       const robot = makeRobot();
       selectRobot(robot, 'source', 'baselineOscillator');
@@ -400,9 +400,9 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
     it('renders RobotDriftPanel once Probe Drift is approached', () => {
       const robot = makeRobot();
-      selectRobot(robot, 'source', 'probeDrift');
+      selectRobot(robot, 'probeDrift', 'probeDrift');
       render(<RobotOptionsTab />);
-      openAndApproach('probes.r1.source.probeDrift');
+      openAndApproach('probes.r1.probeDrift.probeDrift');
 
       expect(screen.getByTestId('robot-drift-panel-stub')).toBeTruthy();
     });
