@@ -67,17 +67,17 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
 
   **Estimated scope:** XS (one type + one const array, both already existing)
 
-- [ ] **Task 2: `types/globalAudio.ts` — reshape `lfoDrift` default**
+- [x] **Task 2: `types/globalAudio.ts` — reshape `lfoDrift` default**
 
   **Description:** Change `GlobalAudioSettings.lfoDrift`'s effective key set from the old 4-group `Record` to `Record<DriftGroupId, ...>` against the new 2-member type (the field's own declared type is already `Record<DriftGroupId, {...}>`, so it narrows automatically once Task 1 lands — the real work is `DEFAULT_GLOBAL_AUDIO_SETTINGS.lfoDrift`, which drops its `eq3`/`filterLPF`/`filterHPF` entries and gains one `globalFx: { rateDrift: 0, depthDrift: 0 }` entry, spec §4).
 
   **Acceptance criteria:**
-  - [ ] `DEFAULT_GLOBAL_AUDIO_SETTINGS.lfoDrift` has exactly 2 keys: `globalFx` and `robots`, each `{ rateDrift: 0, depthDrift: 0 }`.
-  - [ ] Every other object-literal construction of a `GlobalAudioSettings`/`.lfoDrift` value elsewhere in the codebase (not a spread of the default) either still compiles or is flagged by `build:types` for fixing in its own owning task — don't silently patch a file this task doesn't own.
+  - [x] `DEFAULT_GLOBAL_AUDIO_SETTINGS.lfoDrift` has exactly 2 keys: `globalFx` and `robots`, each `{ rateDrift: 0, depthDrift: 0 }`.
+  - [x] Every other object-literal construction of a `GlobalAudioSettings`/`.lfoDrift` value elsewhere in the codebase (not a spread of the default) either still compiles or is flagged by `build:types` for fixing in its own owning task — don't silently patch a file this task doesn't own.
 
   **Verification:**
-  - [ ] `npm run build:types` — confirm the only remaining errors are in files this plan's later tasks already own (`globalAudioSeed.ts`/Task 4, `sessionDiff.ts`/Task 5, `lfoDrift.ts`/Task 6, `audioRigConfig.ts`/Task 7, `AudioRigDrawer.tsx`/Task 9, `audioStore.ts`'s test/Task 8) — not a new file this plan didn't anticipate.
-  - [ ] `npx vitest run src/types/globalAudio.test.ts` passes, if it exists and asserts `lfoDrift`'s shape directly (update the old 4-group assertion to 2, or loop over `DRIFT_GROUP_IDS`).
+  - [x] `npm run build:types` — confirm the only remaining errors are in files this plan's later tasks already own (`globalAudioSeed.ts`/Task 4, `sessionDiff.ts`/Task 5, `lfoDrift.ts`/Task 6, `audioRigConfig.ts`/Task 7, `AudioRigDrawer.tsx`/Task 9, `audioStore.ts`'s test/Task 8) — not a new file this plan didn't anticipate.
+  - [x] `npx vitest run src/types/globalAudio.test.ts` passes, if it exists and asserts `lfoDrift`'s shape directly (update the old 4-group assertion to 2, or loop over `DRIFT_GROUP_IDS`).
 
   **Dependencies:** Task 1.
 
