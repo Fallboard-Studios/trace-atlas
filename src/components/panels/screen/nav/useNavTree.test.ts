@@ -56,7 +56,7 @@ describe('useNavTree — dynamic tree merging (docs/tasks/NAV_LAYOUT_REWRITE.md 
     expect(findNode('probes.unnamed-1', result.current.nodes)?.humanLabel).toBe('unnamed-1');
   });
 
-  it('each generated probe node has the 5 section leaf children', () => {
+  it('each generated probe node has the 4 section leaf children', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
 
     const { result } = renderHook(() => useNavTree());
@@ -65,11 +65,10 @@ describe('useNavTree — dynamic tree merging (docs/tasks/NAV_LAYOUT_REWRITE.md 
       'probes.r1.melody',
       'probes.r1.envelope',
       'probes.r1.source',
-      'probes.r1.probeDrift',
     ]);
   });
 
-  it('generates one companies.<id> node per company in the active locale, with its own 5 section children', () => {
+  it('generates one companies.<id> node per company in the active locale, with its own 4 section children', () => {
     useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp'));
 
     const { result } = renderHook(() => useNavTree());
@@ -82,7 +81,6 @@ describe('useNavTree — dynamic tree merging (docs/tasks/NAV_LAYOUT_REWRITE.md 
       'companies.c1.melody',
       'companies.c1.envelope',
       'companies.c1.source',
-      'companies.c1.probeDrift',
     ]);
   });
 
@@ -163,7 +161,7 @@ describe('useNavTree — dynamic tree merging (docs/tasks/NAV_LAYOUT_REWRITE.md 
 describe('useNavTree — 4th tree level, subsection children (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 2)', () => {
   beforeEach(resetStores);
 
-  it('each robot section has the right subsection children: Output->1, Melody->2, Envelope->1, Source->3, Probe Drift->1', () => {
+  it('each robot section has the right subsection children: Output->1, Melody->2, Envelope->1, Source->3', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     const { result } = renderHook(() => useNavTree());
 
@@ -182,9 +180,6 @@ describe('useNavTree — 4th tree level, subsection children (docs/tasks/NAV_PAN
       'probes.r1.source.coaxialOscillator',
       'probes.r1.source.harmonicOscillator',
     ]);
-    expect(findNode('probes.r1.probeDrift', result.current.nodes)?.children?.map((c) => c.id)).toEqual([
-      'probes.r1.probeDrift.probeDrift',
-    ]);
   });
 
   it('companies get the identical subsection shape as probes, via the same shared sectionChildNodes', () => {
@@ -200,9 +195,6 @@ describe('useNavTree — 4th tree level, subsection children (docs/tasks/NAV_PAN
       'companies.c1.source.coaxialOscillator',
       'companies.c1.source.harmonicOscillator',
     ]);
-    expect(findNode('companies.c1.probeDrift', result.current.nodes)?.children?.map((c) => c.id)).toEqual([
-      'companies.c1.probeDrift.probeDrift',
-    ]);
   });
 
   it('"All Probes" (probes.all) also gains the 4th level — it is a bulk-edit entity like any robot, not a static leaf', () => {
@@ -213,9 +205,6 @@ describe('useNavTree — 4th tree level, subsection children (docs/tasks/NAV_PAN
       'probes.all.source.coaxialOscillator',
       'probes.all.source.harmonicOscillator',
     ]);
-    expect(findNode('probes.all.probeDrift', result.current.nodes)?.children?.map((c) => c.id)).toEqual([
-      'probes.all.probeDrift.probeDrift',
-    ]);
   });
 
   it('"All Probes" section children keep the same output/composition/timeSpace/spectral trait mapping as a real robot\'s, unaffected by its own header override', () => {
@@ -225,10 +214,9 @@ describe('useNavTree — 4th tree level, subsection children (docs/tasks/NAV_PAN
     expect(findNode('probes.all.melody', result.current.nodes)?.trait).toBe('composition');
     expect(findNode('probes.all.envelope', result.current.nodes)?.trait).toBe('timeSpace');
     expect(findNode('probes.all.source', result.current.nodes)?.trait).toBe('spectral');
-    expect(findNode('probes.all.probeDrift', result.current.nodes)?.trait).toBe('spectral');
   });
 
-  it('renames "Volume" to "Output" as a humanLabel only — id segments stay volume/probeDrift', () => {
+  it('renames "Volume" to "Output" as a humanLabel only — id segments stay volume/source', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     const { result } = renderHook(() => useNavTree());
 
@@ -236,24 +224,24 @@ describe('useNavTree — 4th tree level, subsection children (docs/tasks/NAV_PAN
     expect(volumeNode?.humanLabel).toBe('Output');
     expect(volumeNode?.id).toBe('probes.r1.volume');
 
-    const probeDriftNode = findNode('probes.r1.probeDrift.probeDrift', result.current.nodes);
-    expect(probeDriftNode?.humanLabel).toBe('Probe Drift');
-    expect(probeDriftNode?.id).toBe('probes.r1.probeDrift.probeDrift');
+    const sourceNode = findNode('probes.r1.source.baselineOscillator', result.current.nodes);
+    expect(sourceNode?.humanLabel).toBe('Baseline Oscillator');
+    expect(sourceNode?.id).toBe('probes.r1.source.baselineOscillator');
   });
 });
 
 describe('useNavTree — select() maps a subsection id to selectedSubsection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 2)', () => {
   beforeEach(resetStores);
 
-  it('selecting probes.<id>.probeDrift.probeDrift sets selectedSection AND selectedSubsection', () => {
+  it('selecting probes.<id>.source.baselineOscillator sets selectedSection AND selectedSubsection', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     const { result } = renderHook(() => useNavTree());
 
-    act(() => result.current.select('probes.r1.probeDrift.probeDrift'));
+    act(() => result.current.select('probes.r1.source.baselineOscillator'));
 
     expect(useUIStore.getState().selectedRobotId).toBe('r1');
-    expect(useUIStore.getState().selectedSection).toBe('probeDrift');
-    expect(useUIStore.getState().selectedSubsection).toBe('probeDrift');
+    expect(useUIStore.getState().selectedSection).toBe('source');
+    expect(useUIStore.getState().selectedSubsection).toBe('baselineOscillator');
   });
 
   it('selecting companies.<id>.melody.rhythm sets selectedSection AND selectedSubsection, equivalent mapping to probes', () => {
@@ -270,7 +258,7 @@ describe('useNavTree — select() maps a subsection id to selectedSubsection (do
   it('selecting a mid-level section (no subsection) clears selectedSubsection back to null', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     const { result } = renderHook(() => useNavTree());
-    act(() => result.current.select('probes.r1.probeDrift.probeDrift'));
+    act(() => result.current.select('probes.r1.source.baselineOscillator'));
 
     act(() => result.current.select('probes.r1.melody'));
 
@@ -281,7 +269,7 @@ describe('useNavTree — select() maps a subsection id to selectedSubsection (do
   it('selecting the bare robot (no section) clears both selectedSection and selectedSubsection', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     const { result } = renderHook(() => useNavTree());
-    act(() => result.current.select('probes.r1.probeDrift.probeDrift'));
+    act(() => result.current.select('probes.r1.source.baselineOscillator'));
 
     act(() => result.current.select('probes.r1'));
 
@@ -297,11 +285,11 @@ describe('useNavTree — isSelected on a full 4-segment subsection id (docs/task
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     const { result } = renderHook(() => useNavTree());
 
-    act(() => result.current.select('probes.r1.probeDrift.probeDrift'));
+    act(() => result.current.select('probes.r1.source.baselineOscillator'));
 
-    expect(result.current.isSelected('probes.r1.probeDrift.probeDrift')).toBe(true);
-    expect(result.current.isSelected('probes.r1.source.baselineOscillator')).toBe(false);
-    expect(result.current.isSelected('probes.r1.probeDrift')).toBe(false);
+    expect(result.current.isSelected('probes.r1.source.baselineOscillator')).toBe(true);
+    expect(result.current.isSelected('probes.r1.source.coaxialOscillator')).toBe(false);
+    expect(result.current.isSelected('probes.r1.source')).toBe(false);
   });
 });
 
@@ -646,11 +634,11 @@ describe('useNavTree — select() auto-expands every ancestor row (docs/tasks/NA
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     const { result } = renderHook(() => useNavTree());
 
-    act(() => result.current.select('probes.r1.probeDrift.probeDrift'));
+    act(() => result.current.select('probes.r1.source.baselineOscillator'));
 
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
     expect(useUIStore.getState().expandedProbeId).toBe('r1');
-    expect(result.current.isExpanded('probes.r1.probeDrift')).toBe(true);
+    expect(result.current.isExpanded('probes.r1.source')).toBe(true);
   });
 
   it('selecting a deep company subsection expands the top-level branch and the company — its section is already always-expanded', () => {
@@ -991,7 +979,7 @@ describe('isDeepestTwoLevels (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md �
   });
 
   it('is true for every Probes/Companies subsection node (4-segment ids)', () => {
-    for (const id of ['probes.r1.melody.rhythm', 'companies.c1.source.probeDrift']) {
+    for (const id of ['probes.r1.melody.rhythm', 'companies.c1.source.coaxialOscillator']) {
       expect(isDeepestTwoLevels(id), id).toBe(true);
     }
   });
@@ -1017,7 +1005,7 @@ describe('isAutoExpandTier (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1
   });
 
   it('is false for a leaf/subsection node (the LOWER of the 2 levels — no children of its own, nothing to auto-expand)', () => {
-    for (const id of ['settings.quality.robotLoad', 'fleetParams.pacing.tempo', 'fleetParams.fleetDrift.drift', 'probes.r1.melody.rhythm', 'companies.c1.source.probeDrift']) {
+    for (const id of ['settings.quality.robotLoad', 'fleetParams.pacing.tempo', 'fleetParams.fleetDrift.drift', 'probes.r1.melody.rhythm', 'companies.c1.source.coaxialOscillator']) {
       expect(isAutoExpandTier(id), id).toBe(false);
     }
   });

@@ -7,7 +7,7 @@ import { clearSectionRef } from '@/utils/sectionRefs';
 import { openAccordionFromNav, clearPendingNavTarget } from '@/utils/accordionSync';
 
 // RobotDisplaySection/PingControlsRhythmSection/PingControlsFrequencySection/PingContourDrawer/
-// SignatureArrayLayer/RobotDriftPanel pull in real Tone.js/AudioEngine and GSAP, both of which
+// SignatureArrayLayer pull in real Tone.js/AudioEngine and GSAP, both of which
 // throw in this jsdom test environment — the same boundary ConsolePanel.test.tsx already draws
 // around RobotsTab/RobotOptionsTab. This test is about RobotOptionsTab's own stacked-view/
 // accordion wiring, not about the leaf components' own rendered content (each has its own full
@@ -73,7 +73,6 @@ vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
       <button onClick={() => props.onParamChange(props.idx, 'gain', 0.5)}>probe-layer-gain-{props.idx}</button>
     </div>
   )),
-  RobotDriftPanel: memo(() => <div data-testid="robot-drift-panel-stub" />),
 }));
 
 import { useUIStore } from '@/stores/uiStore';
@@ -124,7 +123,6 @@ const SUBSECTION_IDS = (id: string) => [
   `probes.${id}.source.baselineOscillator`,
   `probes.${id}.source.coaxialOscillator`,
   `probes.${id}.source.harmonicOscillator`,
-  `probes.${id}.probeDrift.probeDrift`,
 ];
 
 describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 11)', () => {
@@ -168,19 +166,22 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
   it('always renders RobotDisplaySection, unwrapped, regardless of which subsection is open', () => {
     const robot = makeRobot();
-    selectRobot(robot, 'probeDrift', 'probeDrift');
+    selectRobot(robot, 'source', 'harmonicOscillator');
     render(<RobotOptionsTab />);
     expect(screen.getByTestId('robot-display-section-stub')).toBeTruthy();
   });
 
-  it('renders the top-level accordion triggers as shells: Levels, Composition, Envelope, Source, Probe Drift', () => {
+  it('renders the top-level accordion triggers as shells: Levels, Composition, Envelope, Source', () => {
     const robot = makeRobot();
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    for (const label of ['Levels', 'Composition', 'Envelope', 'Source', 'Probe Drift']) {
+    for (const label of ['Levels', 'Composition', 'Envelope', 'Source']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
+    // Probe Drift is gone entirely (docs/specs/FLEET_DRIFT_CONSOLIDATION.md follow-up) — moved to
+    // Fleet Params' LFO Drift accordion, no longer duplicated here.
+    expect(screen.queryByRole('button', { name: 'Probe Drift' })).toBeNull();
   });
 
   it('renders Source\'s own 3 nested accordion triggers once Source is approached', () => {
@@ -204,13 +205,13 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
   it('selecting a subsection via the nav tree (selectedSection/selectedSubsection) does not open or close any accordion — nav selection only drives tree highlighting now', () => {
     const robot = makeRobot();
-    selectRobot(robot, 'probeDrift', 'probeDrift');
+    selectRobot(robot, 'source', 'harmonicOscillator');
     render(<RobotOptionsTab />);
 
     // Levels still opens by default — the tree selection has no bearing on which
     // accordion is open (Crawford's own follow-up call, 2026-09-24).
     expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Probe Drift' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Source' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('clicking a subsection\'s own trigger opens it directly, without touching selectedSection/selectedSubsection or closing any other open accordion', () => {
@@ -372,7 +373,7 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     });
   });
 
-  describe('SignatureArrayLayer (Source) / RobotDriftPanel (Probe Drift)', () => {
+  describe('SignatureArrayLayer (Source)', () => {
     it('renders Baseline/Coaxial/Harmonic Oscillator each bound to their own layer index, once approached', () => {
       const robot = makeRobot();
       selectRobot(robot, 'source', 'baselineOscillator');
@@ -396,15 +397,6 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
         { type: 'square', gain: 0.5, detune: 5, phase: 10, pulseWidth: 0.4 },
         { type: 'triangle', gain: 0.6, detune: -5, phase: 20 },
       ]);
-    });
-
-    it('renders RobotDriftPanel once Probe Drift is approached', () => {
-      const robot = makeRobot();
-      selectRobot(robot, 'probeDrift', 'probeDrift');
-      render(<RobotOptionsTab />);
-      openAndApproach('probes.r1.probeDrift.probeDrift');
-
-      expect(screen.getByTestId('robot-drift-panel-stub')).toBeTruthy();
     });
   });
 

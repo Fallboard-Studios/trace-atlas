@@ -1,6 +1,6 @@
 /**
- * Canonical section/subsection shape for a robot/company's Levels/Composition/Envelope/Source/
- * Probe Drift stacked view (docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md) — one source of truth for
+ * Canonical section/subsection shape for a robot/company's Levels/Composition/Envelope/Source
+ * stacked view (docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md) — one source of truth for
  * useNavTree.ts (which reads it to build the probes/companies per-entity nav-tree nodes) and for
  * RobotOptionsTab.tsx/CompanyOptionsSection.tsx (which read it to build their stacked accordion
  * views), which otherwise each hand-duplicate the exact same id/label/trait table and risk
@@ -42,7 +42,7 @@ export interface RobotSectionEntry {
   navLabel: string;
   trait: RobotOptionsTrait;
   /** Present only for a section that wraps its subsections in its OWN accordion ('source') — its
-   *  value is that wrapping accordion's trigger label. Absent for volume/melody/envelope/probeDrift,
+   *  value is that wrapping accordion's trigger label. Absent for volume/melody/envelope,
    *  whose single accordion-bearing subsection's own accordion is that section's only chrome. */
   ownAccordionLabel?: string;
   subsections: RobotSubsectionEntry[];
@@ -79,23 +79,10 @@ export const ROBOT_SECTIONS_CONFIG: RobotSectionEntry[] = [
       { id: 'harmonicOscillator', navLabel: 'Harmonic Oscillator', accordionLabel: 'Harmonic Oscillator' },
     ],
   },
-  {
-    // Split out of 'source' into its own top-level section (Crawford's own request) — no longer
-    // one of Source's 4 nested accordions, its own single-accordion section instead, same shape as
-    // volume/melody/envelope (no ownAccordionLabel: its one subsection's own accordion is this
-    // section's only chrome). Reuses 'probeDrift' as both the section id and its sole subsection id
-    // (RobotSection and RobotSubsection are parsed independently by segment position, so this isn't
-    // ambiguous — same pattern as e.g. 'probes.<id>.probeDrift.probeDrift').
-    id: 'probeDrift', navLabel: 'Probe Drift', trait: 'spectral',
-    subsections: [
-      { id: 'probeDrift', navLabel: 'Probe Drift', accordionLabel: 'Probe Drift' },
-    ],
-  },
 ];
 
 /**
- * Source's 3 fixed oscillator layer slots, in SIGNATURE_ARRAY_CONFIG order — Probe Drift is its
- * own section now, not a layer index, and was never one of these 3 slots. Kept as its own small
+ * Source's 3 fixed oscillator layer slots, in SIGNATURE_ARRAY_CONFIG order. Kept as its own small
  * literal rather than derived by filtering ROBOT_SECTIONS_CONFIG: this is a structural fact about
  * which RobotSubsection ids are oscillator layers (fixed by the domain model — a new layer would
  * require a RobotSubsection type change touching many files, not just this one).

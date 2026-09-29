@@ -365,9 +365,9 @@ describe('uiStore — selectedSubsection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT
     expect(useUIStore.getState().selectedSubsection).toBeNull();
   });
 
-  it('setSelectedSubsection sets one of the 8 subsections', () => {
-    useUIStore.getState().setSelectedSubsection('probeDrift');
-    expect(useUIStore.getState().selectedSubsection).toBe('probeDrift');
+  it('setSelectedSubsection sets one of the 7 subsections', () => {
+    useUIStore.getState().setSelectedSubsection('pingContour');
+    expect(useUIStore.getState().selectedSubsection).toBe('pingContour');
   });
 
   it('setSelectedSubsection(null) clears back to no subsection chosen', () => {

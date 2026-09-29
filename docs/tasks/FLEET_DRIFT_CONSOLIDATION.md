@@ -399,3 +399,21 @@ Carried forward from spec §7, not blocking this plan:
 2. **`'SIGNAL CHAIN FLUX'` (Task 7's loreLabel copy)** — same, confirm/adjust during the Phase 7 manual check.
 3. **The internal id choices (`'globalFx'`, `'fleetDrift'`, `'globalDrift'`)** — none are user-facing; low-risk, but worth a quick nod during human review of this plan in case a different internal convention is preferred before Task 1 starts.
 4. **The `FleetParamsContent.tsx`/`navTreeConfig.ts` hand-sync duplication (Risk table, row 4)** — pre-existing, explicitly out of scope for this phase; worth raising separately if a future phase wants to consolidate Fleet Params onto one shared table the way Probes/Companies already did (`ROBOT_SECTIONS_CONFIG`).
+
+## Follow-up (2026-09-29): "LFO Drift" rename + Robot Drift moved out of Probes/Companies entirely
+
+Implemented directly per Crawford's explicit instructions (not run through a fresh spec/plan cycle — scope and acceptance criteria were unambiguous from his own message). Superseded item 2 above (Open Question 1/2's "Fleet Drift" label) by moving one level up: the *group's* label, not just the leaf's.
+
+**What changed:**
+1. `fleetParams.fleetDrift`'s `humanLabel` (both `navTreeConfig.ts`'s `NAV_TREE_SCHEMA` and `FleetParamsContent.tsx`'s `FLEET_PARAMS_GROUPS`) renamed "Fleet Drift" → "LFO Drift". The group id itself (`'fleetDrift'`) is unchanged — label-only rename, same precedent as `'volume'` → "Output".
+2. `RobotDriftPanel` (the single shared Robot Drift LFO, previously shown inside every Probes/Companies robot edit view as the `probeDrift` `RobotSection`) now renders **only** inside the LFO Drift accordion in Fleet Params, as a second leaf (`fleetParams.fleetDrift.robots`) beneath Fleet Drift's own leaf (`fleetParams.fleetDrift.drift`).
+3. The `probeDrift` `RobotSection` was removed **entirely** from `ROBOT_SECTIONS_CONFIG` (`robotSubsectionConfig.ts`) — not merely duplicated into Fleet Params. It no longer exists in Probes or Companies views in any form (no accordion, no nav-tree entry, no underlying drift LFO controls).
+4. New `SelectedFleetParamsEffect` synthetic member `'robotDrift'`, mapped in `useNavTree.ts`'s `FLEET_PARAMS_LEAF_TO_EFFECT_KEY` (`robots: 'robotDrift'`) and consumed by `FleetParamsContent.tsx`'s `renderLeaf`.
+
+**Why:** Crawford's own words — "we shouldn't see the probe drift accordion OR probe drift drift LFO items in the probe/comapny views anymore, they should only be in fleet params." A single shared, global-to-all-12-robots LFO (which `RobotDriftPanel` always was, despite its historical per-robot-view placement) belongs in Fleet Params conceptually, not duplicated across 12 robot views it doesn't actually vary per-robot.
+
+**Verification:** `npm run build:types`, `npm run lint`, full `npx vitest run` (195 files / 4109 tests) all clean. The one failure on first full-suite run (`worldTransition.test.ts`'s swell-clear test) is the pre-existing known-flaky unmocked-RNG test (see project memory `worldtransition-swell-clear-test-flaky`) — confirmed green on an isolated re-run, unrelated to this change.
+
+**Files touched:** `src/data/robotSubsectionConfig.ts`, `src/stores/uiStore.ts`, `src/components/panels/screen/console/RobotOptionsTab.tsx`, `src/components/company/CompanyOptionsSection.tsx`, `src/components/panels/screen/nav/RobotSectionAccordionStack.tsx`, `src/components/panels/screen/nav/useNavTree.ts`, `src/data/navTreeConfig.ts`, `src/components/panels/screen/nav/content/FleetParamsContent.tsx`, plus their corresponding test files.
+
+**Still outstanding:** manual/browser verification (same standing limitation noted at the Phase 7/Complete checkpoints above — no browser-automation tool available in this session).

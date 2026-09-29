@@ -8,7 +8,7 @@ import { RobotDisplaySection } from '@/components/robot/RobotDisplaySection';
 import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
 import { PingControlsCompositionSection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
-import { SignatureArrayLayer, RobotDriftPanel, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
+import { SignatureArrayLayer, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { hasPendingNavTargetFor } from '@/utils/accordionSync';
 import { setViewFadeRoot } from '@/utils/viewFade';
@@ -69,7 +69,7 @@ function sectionAnchorRef(id: string) {
  * hub tile (Phase 8), scoped entirely to that robot.
  *
  * This is the "robot mode" call site for AudioSettingSection/PingControlsRhythmSection/
- * PingControlsFrequencySection/PingContourDrawer/SignatureArrayLayer/RobotDriftPanel (Roadmap
+ * PingControlsFrequencySection/PingContourDrawer/SignatureArrayLayer (Roadmap
  * Phase 10; docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 11) — each component's `value` is
  * derived directly from `robot`, and each callback is wired to the matching robotOptionsActions
  * function. The company-broadcast call site, CompanyOptionsSection, wires the same components to a
@@ -293,8 +293,6 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
           />
         ) : null;
       }
-      case 'probeDrift':
-        return <RobotDriftPanel />;
       default:
         return null;
     }

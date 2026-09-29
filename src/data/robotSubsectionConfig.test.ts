@@ -15,8 +15,8 @@ import {
 // ========================================
 
 describe('ROBOT_SECTIONS_CONFIG', () => {
-  it('has exactly 5 entries, in volume/melody/envelope/source/probeDrift order', () => {
-    expect(ROBOT_SECTIONS_CONFIG.map((s) => s.id)).toEqual(['volume', 'melody', 'envelope', 'source', 'probeDrift']);
+  it('has exactly 4 entries, in volume/melody/envelope/source order', () => {
+    expect(ROBOT_SECTIONS_CONFIG.map((s) => s.id)).toEqual(['volume', 'melody', 'envelope', 'source']);
   });
 
   it('gives every section its current nav-tree label and trait', () => {
@@ -25,15 +25,13 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
     expect(byId.melody).toMatchObject({ navLabel: 'Composition', trait: 'composition' });
     expect(byId.envelope).toMatchObject({ navLabel: 'Envelope', trait: 'timeSpace' });
     expect(byId.source).toMatchObject({ navLabel: 'Source', trait: 'spectral' });
-    expect(byId.probeDrift).toMatchObject({ navLabel: 'Probe Drift', trait: 'spectral' });
   });
 
-  it('only "source" wraps its subsections in its own accordion — volume/melody/envelope/probeDrift have none', () => {
+  it('only "source" wraps its subsections in its own accordion — volume/melody/envelope have none', () => {
     const byId = Object.fromEntries(ROBOT_SECTIONS_CONFIG.map((s) => [s.id, s]));
     expect(byId.volume.ownAccordionLabel).toBeUndefined();
     expect(byId.melody.ownAccordionLabel).toBeUndefined();
     expect(byId.envelope.ownAccordionLabel).toBeUndefined();
-    expect(byId.probeDrift.ownAccordionLabel).toBeUndefined();
     expect(byId.source.ownAccordionLabel).toBe('Source');
   });
 
@@ -81,13 +79,6 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
     ]);
   });
 
-  it("probeDrift's one subsection is its own accordion, reusing 'probeDrift' as both the section and subsection id", () => {
-    const probeDrift = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'probeDrift')!;
-    expect(probeDrift.subsections).toEqual([
-      { id: 'probeDrift', navLabel: 'Probe Drift', accordionLabel: 'Probe Drift' },
-    ]);
-  });
-
   it('every subsection other than frequency has its own accordionLabel and no mergedInto', () => {
     for (const section of ROBOT_SECTIONS_CONFIG) {
       for (const sub of section.subsections) {
@@ -104,13 +95,13 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
 });
 
 describe('SOURCE_OSCILLATOR_SUBSECTIONS', () => {
-  it('lists exactly the 3 oscillator layer ids, in layer order, excluding probeDrift', () => {
+  it('lists exactly the 3 oscillator layer ids, in layer order', () => {
     expect(SOURCE_OSCILLATOR_SUBSECTIONS).toEqual(['baselineOscillator', 'coaxialOscillator', 'harmonicOscillator']);
   });
 });
 
 describe('subsectionIds', () => {
-  it('lists exactly the 7 accordion-bearing subsection ids, in tree order, excluding frequency', () => {
+  it('lists exactly the 6 accordion-bearing subsection ids, in tree order, excluding frequency', () => {
     expect(subsectionIds('probes.r1')).toEqual([
       'probes.r1.volume.audioSettings',
       'probes.r1.melody.rhythm',
@@ -118,7 +109,6 @@ describe('subsectionIds', () => {
       'probes.r1.source.baselineOscillator',
       'probes.r1.source.coaxialOscillator',
       'probes.r1.source.harmonicOscillator',
-      'probes.r1.probeDrift.probeDrift',
     ]);
   });
 
@@ -128,7 +118,7 @@ describe('subsectionIds', () => {
 });
 
 describe('accordionIds', () => {
-  it("lists the 7 subsection ids plus source's own wrapping accordion id, in order", () => {
+  it("lists the 6 subsection ids plus source's own wrapping accordion id, in order", () => {
     expect(accordionIds('probes.r1')).toEqual([
       'probes.r1.volume.audioSettings',
       'probes.r1.melody.rhythm',
@@ -136,7 +126,6 @@ describe('accordionIds', () => {
       'probes.r1.source.baselineOscillator',
       'probes.r1.source.coaxialOscillator',
       'probes.r1.source.harmonicOscillator',
-      'probes.r1.probeDrift.probeDrift',
       'probes.r1.source',
     ]);
   });

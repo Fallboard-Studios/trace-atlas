@@ -57,20 +57,20 @@ describe('Nav panel — cross-branch regression (docs/tasks/NAV_PANEL_VIEWS_AND_
     expect(useUIStore.getState().selectedSubsection).toBeNull();
   });
 
-  it('selecting companies.<id>.probeDrift.probeDrift directly (no intermediate clicks) sets every ancestor expand field in one step', () => {
+  it('selecting companies.<id>.source.coaxialOscillator directly (no intermediate clicks) sets every ancestor expand field in one step', () => {
     useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp'));
     const { result } = renderHook(() => useNavTree());
 
-    act(() => result.current.select('companies.c1.probeDrift.probeDrift'));
+    act(() => result.current.select('companies.c1.source.coaxialOscillator'));
 
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('companies');
     expect(useUIStore.getState().expandedCompanyId).toBe('c1');
     // Its own section is already always-expanded once the company itself is — no separate field
     // to set (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3).
-    expect(result.current.isExpanded('companies.c1.probeDrift')).toBe(true);
+    expect(result.current.isExpanded('companies.c1.source')).toBe(true);
     expect(useUIStore.getState().selectedCompanyId).toBe('c1');
-    expect(useUIStore.getState().selectedSection).toBe('probeDrift');
-    expect(useUIStore.getState().selectedSubsection).toBe('probeDrift');
+    expect(useUIStore.getState().selectedSection).toBe('source');
+    expect(useUIStore.getState().selectedSubsection).toBe('coaxialOscillator');
   });
 
   it('selecting fleetParams.fleetDrift.drift directly (no intermediate clicks) sets every ancestor expand field in one step (docs/specs/FLEET_DRIFT_CONSOLIDATION.md Task 11)', () => {
@@ -84,6 +84,17 @@ describe('Nav panel — cross-branch regression (docs/tasks/NAV_PANEL_VIEWS_AND_
     expect(result.current.isExpanded('fleetParams.fleetDrift')).toBe(true);
     expect(useUIStore.getState().activeHubTile).toBe('audioRig');
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('globalDrift');
+  });
+
+  it('selecting fleetParams.fleetDrift.robots directly (no intermediate clicks) sets every ancestor expand field in one step (Robot Drift moved here from Probes/Companies entirely)', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('fleetParams.fleetDrift.robots'));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('fleetParams');
+    expect(result.current.isExpanded('fleetParams.fleetDrift')).toBe(true);
+    expect(useUIStore.getState().activeHubTile).toBe('audioRig');
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('robotDrift');
   });
 
   it('the single-open-accordion derivation is consistent across every branch: a null/mid-level selection always resolves to a real leaf, never "nothing"', () => {
@@ -116,14 +127,13 @@ describe('Nav panel — rename-correctness guard (docs/tasks/NAV_PANEL_VIEWS_AND
     expect(uiStoreSource).toContain("'volume' | 'melody' | 'envelope' | 'source'");
   });
 
-  it('the tree renders "Output" and "Probe Drift" as navLabels in robotSubsectionConfig.ts, not as id segments', () => {
+  it('the tree renders "Output" as a navLabel in robotSubsectionConfig.ts, not as an id segment', () => {
     // Moved here from useNavTree.ts by docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md — the
     // section/subsection label table (formerly useNavTree.ts's own SECTION_CHILDREN/
     // SUBSECTION_CHILDREN) now lives in robotSubsectionConfig.ts as ROBOT_SECTIONS_CONFIG,
     // consumed by useNavTree.ts's sectionChildNodes() rather than hand-typed there directly.
     const configSource = readSource('../../../../data/robotSubsectionConfig.ts');
     expect(configSource).toContain("navLabel: 'Output'");
-    expect(configSource).toContain("navLabel: 'Probe Drift'");
     // The id segment itself is still 'volume' — ROBOT_SECTIONS_CONFIG's own id/navLabel are
     // separate fields, so 'Output' never becomes a literal id anywhere in this file.
     expect(configSource).not.toMatch(/id:\s*'[^']*output[.']/i);

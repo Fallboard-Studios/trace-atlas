@@ -14,14 +14,18 @@ vi.mock('@/utils/sectionRefs', async (importOriginal) => {
   return { ...actual, scrollToSection: vi.fn() };
 });
 
-// AudioRigDrawer/AudioRigEffectPanel/FleetDriftPanel each have their own full test suite — this
-// file is about FleetParamsContent's own stacking/accordion wiring, not re-testing their content.
+// AudioRigDrawer/AudioRigEffectPanel/FleetDriftPanel/RobotDriftPanel each have their own full test
+// suite — this file is about FleetParamsContent's own stacking/accordion wiring, not re-testing
+// their content.
 vi.mock('../../console/AudioRigDrawer', () => ({
   AudioRigDrawer: () => <div data-testid="audio-rig-drawer-stub" />,
   AudioRigEffectPanel: ({ effectKey }: { effectKey: string }) => (
     <div data-testid="audio-rig-effect-panel-stub" data-effect-key={effectKey} />
   ),
   FleetDriftPanel: () => <div data-testid="fleet-drift-panel-stub" />,
+}));
+vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
+  RobotDriftPanel: () => <div data-testid="robot-drift-panel-stub" />,
 }));
 
 const UI_INITIAL_STATE = useUIStore.getState();
@@ -31,7 +35,7 @@ const GROUP_IDS = ['fleetParams.pacing', 'fleetParams.eqFilters', 'fleetParams.f
 const GROUP_LABELS: Record<string, string> = {
   'fleetParams.pacing': 'Pacing',
   'fleetParams.eqFilters': 'EQ & Filters',
-  'fleetParams.fleetDrift': 'Fleet Drift',
+  'fleetParams.fleetDrift': 'LFO Drift',
   'fleetParams.timeSpace': 'Time & Space',
   'fleetParams.output': 'Output',
 };
@@ -46,6 +50,7 @@ const LEAF_ID_TO_EFFECT: Record<string, string> = {
   'fleetParams.eqFilters.hpf': 'filterHPF',
   'fleetParams.eqFilters.lpf': 'filterLPF',
   'fleetParams.fleetDrift.drift': 'globalDrift',
+  'fleetParams.fleetDrift.robots': 'robotDrift',
   'fleetParams.timeSpace.reverb': 'reverb',
   'fleetParams.timeSpace.delay': 'delay',
   'fleetParams.output.compression': 'compressor',
@@ -105,7 +110,7 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
     Object.values(GROUP_LABELS).forEach((label) => {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     });
-    ['Tempo', 'Frequency', 'Duration', 'Automatic Intensity', '3-Band EQ', 'High-Pass Filter', 'Low-Pass Filter', 'Reverb', 'Delay', 'Compressor', 'Limiter'].forEach((label) => {
+    ['Tempo', 'Frequency', 'Duration', 'Automatic Intensity', '3-Band EQ', 'High-Pass Filter', 'Low-Pass Filter', 'Fleet Drift', 'Robot Drift', 'Reverb', 'Delay', 'Compressor', 'Limiter'].forEach((label) => {
       expect(screen.queryByRole('button', { name: label })).toBeNull();
     });
   });
@@ -168,19 +173,19 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
     expect(screen.getByText('EQ & Filters LORE TITLE')).toBeTruthy();
   });
 
-  it('renders "Fleet Drift" positioned right after "EQ & Filters" and before "Time & Space", with its own IntroPanel once approached', () => {
+  it('renders "LFO Drift" positioned right after "EQ & Filters" and before "Time & Space", with its own IntroPanel once approached', () => {
     render(<FleetParamsContent />);
 
     const buttons = screen.getAllByRole('button').map((b) => b.textContent);
     const eqIndex = buttons.findIndex((t) => t?.includes('EQ & Filters'));
-    const driftIndex = buttons.findIndex((t) => t?.includes('Fleet Drift'));
+    const driftIndex = buttons.findIndex((t) => t?.includes('LFO Drift'));
     const timeSpaceIndex = buttons.findIndex((t) => t?.includes('Time & Space'));
     expect(driftIndex).toBe(eqIndex + 1);
     expect(timeSpaceIndex).toBe(driftIndex + 1);
 
     approach('fleetParams.fleetDrift');
 
-    expect(screen.getByText('Fleet Drift LORE TITLE')).toBeTruthy();
+    expect(screen.getByText('LFO Drift LORE TITLE')).toBeTruthy();
   });
 
   it.each(Object.entries(LEAF_ID_TO_EFFECT).filter(([id]) => !id.includes('.pacing.') && !id.includes('.fleetDrift.')))(
@@ -198,6 +203,19 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
     approachLeaf('fleetParams.fleetDrift.drift');
 
     expect(screen.getByTestId('fleet-drift-panel-stub')).toBeTruthy();
+  });
+
+  it('renders RobotDriftPanel for fleetParams.fleetDrift.robots once its own leaf anchor has approached, beneath Fleet Drift (moved out of Probes/Companies entirely)', () => {
+    render(<FleetParamsContent />);
+    approachLeaf('fleetParams.fleetDrift.drift');
+    approachLeaf('fleetParams.fleetDrift.robots');
+
+    expect(screen.getByTestId('fleet-drift-panel-stub')).toBeTruthy();
+    expect(screen.getByTestId('robot-drift-panel-stub')).toBeTruthy();
+    // "beneath" — Fleet Drift's own leaf div precedes Robot Drift's in DOM order.
+    const driftPanel = screen.getByTestId('fleet-drift-panel-stub');
+    const robotPanel = screen.getByTestId('robot-drift-panel-stub');
+    expect(driftPanel.compareDocumentPosition(robotPanel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('renders the Tempo slider, live-bound to audioStore.bpm, once its own leaf anchor has approached', () => {

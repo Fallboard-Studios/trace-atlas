@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { AudioRigDrawer, AudioRigEffectPanel, FleetDriftPanel } from '../../console/AudioRigDrawer';
 import { useSectionObserver } from '../useSectionObserver';
 import { useAccordionOpenState } from '../useAccordionOpenState';
+import { RobotDriftPanel } from '@/components/robot/SignatureArrayDrawer';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderLog } from '@/components/ui/controls/SliderLog';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
@@ -87,17 +88,23 @@ const FLEET_PARAMS_GROUPS: FleetParamsGroupDef[] = [
     ],
   },
   {
-    // New top-level group (docs/specs/FLEET_DRIFT_CONSOLIDATION.md) — the merged eq3/filterLPF/
-    // filterHPF drift control, positioned right after EQ & Filters. This is a *different* table
-    // from navTreeConfig.ts's own NAV_TREE_SCHEMA (this content component, not the tree, decides
+    // New top-level group (docs/specs/FLEET_DRIFT_CONSOLIDATION.md), displayed as "LFO Drift"
+    // (renamed from "Fleet Drift" per Crawford's own follow-up — id unchanged, label-only
+    // rename), positioned right after EQ & Filters. This is a *different* table from
+    // navTreeConfig.ts's own NAV_TREE_SCHEMA (this content component, not the tree, decides
     // stacking/accordion order — see this file's own doc comment above) — both must be kept in
-    // sync by hand, same as every other group here already is.
+    // sync by hand, same as every other group here already is. Holds 2 leaves, stacked: "Fleet
+    // Drift" (the merged eq3/filterLPF/filterHPF control) on top, "Robot Drift" beneath it —
+    // Robot Drift moved here from Probes/Companies entirely (RobotDriftPanel, same follow-up),
+    // reusing the same standalone component, which already reads/writes useAudioStore directly
+    // rather than via props.
     id: 'fleetDrift',
     nodeId: 'fleetParams.fleetDrift',
-    humanLabel: 'Fleet Drift',
+    humanLabel: 'LFO Drift',
     trait: 'spectral',
     leaves: [
       { id: 'fleetParams.fleetDrift.drift', humanLabel: 'Fleet Drift', effectKey: 'globalDrift' },
+      { id: 'fleetParams.fleetDrift.robots', humanLabel: 'Robot Drift', effectKey: 'robotDrift' },
     ],
   },
   {
@@ -172,14 +179,18 @@ function renderLeaf(effectKey: SelectedFleetParamsEffect, bpm: number, swellFreq
   if (effectKey === 'globalDrift') {
     return <FleetDriftPanel />;
   }
+  if (effectKey === 'robotDrift') {
+    return <RobotDriftPanel />;
+  }
   return <AudioRigEffectPanel effectKey={effectKey as AudioRigEffectKey} />;
 }
 
 /**
  * Fleet Params branch content (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, docs/specs/
  * FLEET_PARAMS_CONTENT_REWORK.md) — a single scrollable view: one always-open, spectral-traited
- * outer panel holding the section's own IntroPanel, then all 5 groups (Pacing, EQ & Filters, Fleet
- * Drift, Time & Space, Output — Fleet Drift added by docs/specs/FLEET_DRIFT_CONSOLIDATION.md)
+ * outer panel holding the section's own IntroPanel, then all 5 groups (Pacing, EQ & Filters, LFO
+ * Drift, Time & Space, Output — LFO Drift added by docs/specs/FLEET_DRIFT_CONSOLIDATION.md, its
+ * 2 leaves — Fleet Drift, Robot Drift — covered in that group's own def comment above)
  * stacked identically — each its own accordion (colored by its own trait), each
  * containing a group-level IntroPanel plus its leaves as plain anchor divs, no leaf ever getting
  * an accordion of its own. Every group accordion has manual, independent open/closed state

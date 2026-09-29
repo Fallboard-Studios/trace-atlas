@@ -86,10 +86,11 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
     ]);
   });
 
-  it('Fleet Params -> Fleet Drift has exactly 1 leaf (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — new top-level group, positioned right after EQ & Filters)', () => {
+  it('Fleet Params -> LFO Drift has exactly 2 leaves, Fleet Drift then Robot Drift (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — new top-level group, positioned right after EQ & Filters; Robot Drift moved in from Probes/Companies entirely, follow-up)', () => {
     const fleetDrift = findNode('fleetParams.fleetDrift');
-    expect(fleetDrift?.humanLabel).toBe('Fleet Drift');
-    expect(fleetDrift?.children?.map((c) => c.id)).toEqual(['fleetParams.fleetDrift.drift']);
+    expect(fleetDrift?.humanLabel).toBe('LFO Drift');
+    expect(fleetDrift?.children?.map((c) => c.id)).toEqual(['fleetParams.fleetDrift.drift', 'fleetParams.fleetDrift.robots']);
+    expect(fleetDrift?.children?.map((c) => c.humanLabel)).toEqual(['Fleet Drift', 'Robot Drift']);
   });
 
   it('Fleet Params -> Time & Space has Reverb/Delay leaves', () => {
@@ -175,7 +176,7 @@ describe('NAV_TREE_SCHEMA — trait color-coding (experimental, Crawford\'s own 
     expect(findNode('fleetParams.output')?.trait).toBe('output');
   });
 
-  it('Fleet Drift matches EQ & Filters\' own spectral trait — it\'s drift of those same effects (docs/specs/FLEET_DRIFT_CONSOLIDATION.md §1.3, not yet confirmed with Crawford)', () => {
+  it('LFO Drift matches EQ & Filters\' own spectral trait — it\'s drift of those same effects (docs/specs/FLEET_DRIFT_CONSOLIDATION.md §1.3, not yet confirmed with Crawford)', () => {
     expect(findNode('fleetParams.fleetDrift')?.trait).toBe('spectral');
   });
 
