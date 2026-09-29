@@ -37,7 +37,7 @@ function asRobotSubsection(value: string | undefined): RobotSubsection | null {
   return value && (ROBOT_SUBSECTIONS as readonly string[]).includes(value) ? (value as RobotSubsection) : null;
 }
 
-const FLEET_PARAMS_GROUPS: readonly FleetParamsGroup[] = ['pacing', 'eqFilters', 'timeSpace', 'output'];
+const FLEET_PARAMS_GROUPS: readonly FleetParamsGroup[] = ['pacing', 'eqFilters', 'fleetDrift', 'timeSpace', 'output'];
 function asFleetParamsGroup(value: string | undefined): FleetParamsGroup | null {
   return value && (FLEET_PARAMS_GROUPS as readonly string[]).includes(value) ? (value as FleetParamsGroup) : null;
 }
@@ -48,6 +48,7 @@ function asFleetParamsGroup(value: string | undefined): FleetParamsGroup | null 
 const FLEET_PARAMS_GROUP_FIRST_LEAF: Record<FleetParamsGroup, SelectedFleetParamsEffect> = {
   pacing: 'tempo',
   eqFilters: 'eq3',
+  fleetDrift: 'globalDrift',
   timeSpace: 'reverb',
   output: 'compressor',
 };
@@ -85,6 +86,9 @@ const FLEET_PARAMS_LEAF_TO_EFFECT_KEY: Record<string, SelectedFleetParamsEffect>
   frequency: 'swellFrequency',
   duration: 'swellDuration',
   automaticEffects: 'automaticEffects',
+  // Fleet Drift's own 1 leaf (docs/specs/FLEET_DRIFT_CONSOLIDATION.md) — matches
+  // navTreeConfig.ts's 'fleetParams.fleetDrift.drift' leaf segment.
+  drift: 'globalDrift',
 };
 function asFleetParamsEffectKey(value: string | undefined): SelectedFleetParamsEffect | null {
   return value ? (FLEET_PARAMS_LEAF_TO_EFFECT_KEY[value] ?? null) : null;

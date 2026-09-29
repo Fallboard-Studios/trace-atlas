@@ -73,6 +73,19 @@ describe('Nav panel — cross-branch regression (docs/tasks/NAV_PANEL_VIEWS_AND_
     expect(useUIStore.getState().selectedSubsection).toBe('probeDrift');
   });
 
+  it('selecting fleetParams.fleetDrift.drift directly (no intermediate clicks) sets every ancestor expand field in one step (docs/specs/FLEET_DRIFT_CONSOLIDATION.md Task 11)', () => {
+    const { result } = renderHook(() => useNavTree());
+
+    act(() => result.current.select('fleetParams.fleetDrift.drift'));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('fleetParams');
+    // Its own group is already always-expanded once Fleet Params itself is — no separate field
+    // to set (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3).
+    expect(result.current.isExpanded('fleetParams.fleetDrift')).toBe(true);
+    expect(useUIStore.getState().activeHubTile).toBe('audioRig');
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('globalDrift');
+  });
+
   it('the single-open-accordion derivation is consistent across every branch: a null/mid-level selection always resolves to a real leaf, never "nothing"', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     const { result } = renderHook(() => useNavTree());

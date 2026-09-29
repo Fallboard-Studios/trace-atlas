@@ -294,19 +294,19 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
 
   **Estimated scope:** S (2 small type/data additions)
 
-- [ ] **Task 11: `useNavTree.ts` — selection-resolution lookup tables**
+- [x] **Task 11: `useNavTree.ts` — selection-resolution lookup tables**
 
   **Description:** Add `'fleetDrift'` to the `FLEET_PARAMS_GROUPS` id-guard array; add a `fleetDrift: 'globalDrift'` entry to `FLEET_PARAMS_GROUP_FIRST_LEAF`; add a `drift: 'globalDrift'` entry to `FLEET_PARAMS_LEAF_TO_EFFECT_KEY` (spec §1.3/§4).
 
   **Acceptance criteria:**
-  - [ ] Selecting the bare `fleetParams.fleetDrift` group node resolves `selectedFleetParamsEffect` to `'globalDrift'` (via `FLEET_PARAMS_GROUP_FIRST_LEAF`).
-  - [ ] Selecting `fleetParams.fleetDrift.drift` directly also resolves `selectedFleetParamsEffect` to `'globalDrift'` (via `FLEET_PARAMS_LEAF_TO_EFFECT_KEY`).
-  - [ ] `isDeepestTwoLevels`/`isAutoExpandTier`/`isCollapsible` behave the same way for `fleetParams.fleetDrift`/`fleetParams.fleetDrift.drift` as they already do for every other Fleet Params group/leaf pair — their existing generic logic (keyed off `asFleetParamsGroup`) already covers the new group once Task 10 adds it to the guard array; confirm this rather than adding a new branch to either predicate.
-  - [ ] Selecting `fleetParams.fleetDrift` (or its leaf) sets `expandedTopLevelBranch`/tree-highlighting state identically to selecting any other Fleet Params group (no special-cased behavior).
+  - [x] Selecting the bare `fleetParams.fleetDrift` group node resolves `selectedFleetParamsEffect` to `'globalDrift'` (via `FLEET_PARAMS_GROUP_FIRST_LEAF`).
+  - [x] Selecting `fleetParams.fleetDrift.drift` directly also resolves `selectedFleetParamsEffect` to `'globalDrift'` (via `FLEET_PARAMS_LEAF_TO_EFFECT_KEY`).
+  - [x] `isDeepestTwoLevels`/`isAutoExpandTier`/`isCollapsible` behave the same way for `fleetParams.fleetDrift`/`fleetParams.fleetDrift.drift` as they already do for every other Fleet Params group/leaf pair — confirmed by adding both ids to the existing generic-logic test loops, no new predicate branch needed.
+  - [x] Selecting `fleetParams.fleetDrift` (or its leaf) sets `expandedTopLevelBranch`/tree-highlighting state identically to selecting any other Fleet Params group (no special-cased behavior).
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/useNavTree.test.ts` passes, with new coverage for: tree shape (the new node appears with 1 child, positioned correctly — may already be covered by Task 10's own test if `navTreeConfig.test.ts` asserts it; otherwise assert here), `select()` resolution for both the group and its leaf, and `isDeepestTwoLevels`/`isAutoExpandTier` parity with existing groups.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav/useNavTree.test.ts` passes (96 tests) — `select()` resolution for both the group and its leaf, `isDeepestTwoLevels`/`isAutoExpandTier`/`isCollapsible` parity with existing groups.
+  - [x] `npm run build:types`, `npm run lint` clean project-wide.
 
   **Dependencies:** Task 10.
 
@@ -315,8 +315,8 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
   **Estimated scope:** S (3 small table additions, no new logic branches)
 
 ### Checkpoint: Nav tree wiring
-- [ ] `npm run build:types`, `npm run lint`, `npx vitest run src/data/navTreeConfig.test.ts src/components/panels/screen/nav/useNavTree.test.ts` clean.
-- [ ] A test-level check confirms selecting `fleetParams.fleetDrift.drift` directly (no intermediate clicks) sets every ancestor expand field correctly in one step — the same integration shape `navPanelViewsAndContent.integration.test.ts` already covers for other deep Fleet Params selections; add a case there if that file is the natural home for it.
+- [x] `npm run build:types`, `npm run lint`, `npx vitest run src/data/navTreeConfig.test.ts src/components/panels/screen/nav/useNavTree.test.ts` clean.
+- [x] A test-level check confirms selecting `fleetParams.fleetDrift.drift` directly (no intermediate clicks) sets every ancestor expand field correctly in one step — added to `navPanelViewsAndContent.integration.test.ts`, alongside the existing deep-selection case for `companies.<id>.probeDrift.probeDrift` (7 tests, all pass).
 - [ ] Review with human before proceeding (can happen any time relative to the Phase 2-5 checkpoints — no shared dependency).
 
 ---
