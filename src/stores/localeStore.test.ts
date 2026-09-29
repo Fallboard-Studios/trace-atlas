@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from './localeStore';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -11,6 +11,8 @@ import type { Locale } from '../types/locale';
 import type { Company } from '../types/Company';
 import type { Robot } from '../types/Robot';
 import { RobotState, DockingState } from '../types/Robot';
+import { encodeSessionPayload } from '../utils/sessionShareUtils';
+import type { SessionPayload } from '../types/session';
 
 // ========================================
 // HELPERS
@@ -93,6 +95,43 @@ describe('localeStore', () => {
       expect(fresh.DEFAULT_LOCALE.coordinates).toEqual({ x: 12, y: 68 });
       seed.setLocaleCoordinateOverride({ x: null, y: null });
       vi.resetModules();
+    });
+
+    describe('?session= share-payload priority (roadmap Phase 21)', () => {
+      afterEach(() => {
+        window.history.replaceState({}, '', '/');
+        vi.resetModules();
+      });
+
+      function makePayload(overrides: Partial<SessionPayload> = {}): SessionPayload {
+        return {
+          version: 1,
+          attenuationStyleName: 'Pelagos 7!',
+          coordinates: { x: -5, y: 777 },
+          globalAudio: {} as SessionPayload['globalAudio'],
+          robotOverrides: {},
+          companyDiffs: {},
+          userCreatedCompanies: [],
+          ...overrides,
+        };
+      }
+
+      it('uses a share payload\'s coordinates exactly when ?session= is present', async () => {
+        const payload = makePayload({ coordinates: { x: -5, y: 777 } });
+        window.history.replaceState({}, '', `/?session=${encodeSessionPayload(payload)}`);
+        vi.resetModules();
+
+        const fresh = await import('./localeStore');
+
+        expect(fresh.DEFAULT_LOCALE.coordinates).toEqual({ x: -5, y: 777 });
+      });
+
+      it('falls back to randomCoordinate() when ?session= is absent', async () => {
+        vi.resetModules();
+        const fresh = await import('./localeStore');
+        // vitest.setup.ts mocks randomCoordinate() to alternate 12/68.
+        expect(fresh.DEFAULT_LOCALE.coordinates).toEqual({ x: 12, y: 68 });
+      });
     });
 
     it('has a dayStartTimestamp computed from its own x coordinate, per docs/specs/ATTENUATION_STYLE.md §1.1', () => {

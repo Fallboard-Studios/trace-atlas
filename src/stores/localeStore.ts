@@ -5,6 +5,7 @@ import { DEFAULT_LOCALE_ID } from './attenuationStyleStore';
 import { DAY_DURATION_MS } from '../constants/time';
 import { getLocaleNoiseMap, evictLocaleNoiseMap } from '../utils/noiseMaps';
 import { randomCoordinate } from '../utils/seedUtils';
+import { getSessionSharePayload } from '../utils/sessionShareUtils';
 import { AudioEngine } from '../engine/AudioEngine';
 import { lfoEngine } from '../engine/lfoEngine';
 import {
@@ -65,12 +66,14 @@ function clampToggleValue(v: unknown, min: number, max: number): { active: boole
 // — randomCoordinate() already rounds, so this stays true without extra work.
 //
 // `?x=`/`?y=` boot-time override removed (roadmap Phase 21 — superseded by
-// the shareable-link `?session=` param, sessionShareUtils.ts) — always
-// random here now. Sector Settings' own "Random" button still calls
+// the shareable-link `?session=` param, sessionShareUtils.ts). A share
+// payload's exact coordinates take priority when `?session=` is present,
+// otherwise random. Sector Settings' own "Random" button still calls
 // randomCoordinate() ungated, same as before.
+const sessionSharePayload = getSessionSharePayload();
 const DEFAULT_LOCALE_COORDINATES = {
-  x: randomCoordinate(),
-  y: randomCoordinate(),
+  x: sessionSharePayload?.coordinates.x ?? randomCoordinate(),
+  y: sessionSharePayload?.coordinates.y ?? randomCoordinate(),
 };
 
 const DEFAULT_LOCALE: Locale = {
