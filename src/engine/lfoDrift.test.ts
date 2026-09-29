@@ -108,12 +108,21 @@ beforeEach(() => {
 // ========================================
 
 describe('driftGroupForTarget', () => {
-  it('routes eq3./lpf./hpf.-prefixed targets to their own group, everything else to robots', async () => {
+  it('routes every eq3./lpf./hpf.-prefixed target to the merged globalFx group (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF merged)', async () => {
     const { driftGroupForTarget } = await freshLfoDrift();
-    expect(driftGroupForTarget('eq3.low' as LfoTargetId)).toBe('eq3');
-    expect(driftGroupForTarget('lpf.frequency' as LfoTargetId)).toBe('filterLPF');
-    expect(driftGroupForTarget('hpf.frequency' as LfoTargetId)).toBe('filterHPF');
+    expect(driftGroupForTarget('eq3.low' as LfoTargetId)).toBe('globalFx');
+    expect(driftGroupForTarget('eq3.mid' as LfoTargetId)).toBe('globalFx');
+    expect(driftGroupForTarget('eq3.high' as LfoTargetId)).toBe('globalFx');
+    expect(driftGroupForTarget('lpf.frequency' as LfoTargetId)).toBe('globalFx');
+    expect(driftGroupForTarget('lpf.Q' as LfoTargetId)).toBe('globalFx');
+    expect(driftGroupForTarget('hpf.frequency' as LfoTargetId)).toBe('globalFx');
+    expect(driftGroupForTarget('hpf.Q' as LfoTargetId)).toBe('globalFx');
+  });
+
+  it('routes every non-global-chain target to robots, unchanged', async () => {
+    const { driftGroupForTarget } = await freshLfoDrift();
     expect(driftGroupForTarget('robot-1.volume' as LfoTargetId)).toBe('robots');
+    expect(driftGroupForTarget('layer0.gain' as LfoTargetId)).toBe('robots');
   });
 });
 
@@ -121,7 +130,7 @@ describe('attachDrift / detachDrift', () => {
   it('creates a link on a fresh key — a subsequent refresh call succeeds without throwing', async () => {
     const { attachDrift, refreshRateDriftGain, refreshDepthDriftGain } = await freshLfoDrift();
     const primary = fakePrimaryLfo();
-    expect(() => attachDrift('key-1', primary as never, 'eq3')).not.toThrow();
+    expect(() => attachDrift('key-1', primary as never, 'globalFx')).not.toThrow();
     expect(() => refreshRateDriftGain('key-1')).not.toThrow();
     expect(() => refreshDepthDriftGain('key-1')).not.toThrow();
   });
@@ -131,9 +140,9 @@ describe('attachDrift / detachDrift', () => {
     const Gain = await gainCtor();
     const primary = fakePrimaryLfo();
 
-    attachDrift('key-1', primary as never, 'eq3');
+    attachDrift('key-1', primary as never, 'globalFx');
     const gainCallsAfterFirst = Gain.mock.calls.length;
-    attachDrift('key-1', primary as never, 'eq3');
+    attachDrift('key-1', primary as never, 'globalFx');
     const gainCallsAfterSecond = Gain.mock.calls.length;
 
     // A second attachDrift for the same key must not construct a fresh
@@ -152,7 +161,7 @@ describe('attachDrift / detachDrift', () => {
     const Gain = await gainCtor();
     const primary = fakePrimaryLfo();
 
-    attachDrift('key-1', primary as never, 'eq3');
+    attachDrift('key-1', primary as never, 'globalFx');
     const rateDriftGain = Gain.mock.results.at(-2)!.value as MockGainInstance;
     const depthDriftGain = Gain.mock.results.at(-1)!.value as MockGainInstance;
 
@@ -177,8 +186,8 @@ describe('refreshDepthDriftGain — silence guard', () => {
 
     // Start with a nonzero amplitude so depthDriftGain connects once...
     const primary = fakePrimaryLfo(1, 0.5);
-    attachDrift('key-1', primary as never, 'eq3');
-    setGlobalDepthDrift('eq3', 1);
+    attachDrift('key-1', primary as never, 'globalFx');
+    setGlobalDepthDrift('globalFx', 1);
     const depthDriftGain = Gain.mock.results.at(-1)!.value as MockGainInstance;
     expect(depthDriftGain.connect).toHaveBeenCalled();
     const connectCallsWhileAudible = depthDriftGain.connect.mock.calls.length;
@@ -196,13 +205,13 @@ describe('refreshDepthDriftGain — silence guard', () => {
     const Gain = await gainCtor();
 
     const primary = fakePrimaryLfo(1, 0); // starts silent
-    attachDrift('key-1', primary as never, 'eq3');
+    attachDrift('key-1', primary as never, 'globalFx');
     const depthDriftGain = Gain.mock.results.at(-1)!.value as MockGainInstance;
     expect(depthDriftGain.connect).not.toHaveBeenCalled();
 
     // Rises above 0 — connects now, once.
     primary.amplitude.value = 0.4; // range [0,1] -> distanceToMin=0.4, distanceToMax=0.6 -> halfSpan=0.4
-    setGlobalDepthDrift('eq3', 0.5);
+    setGlobalDepthDrift('globalFx', 0.5);
     expect(depthDriftGain.connect).toHaveBeenCalledTimes(1);
     expect(depthDriftGain.gain.value).toBeCloseTo(0.5 * 0.4);
 
@@ -232,28 +241,72 @@ describe('setGlobalRateDrift / setGlobalDepthDrift', () => {
     expect(rateDriftGain.gain.value).toBe(valueAtClampedLow);
   });
 
-  it('only refreshes links belonging to the given group — other groups are untouched', async () => {
+  it('only refreshes links belonging to the given group — the other group is untouched (2-way cross-group isolation)', async () => {
     const { attachDrift, setGlobalRateDrift } = await freshLfoDrift();
     const Gain = await gainCtor();
 
-    const primaryEq3 = fakePrimaryLfo(1, 1);
+    const primaryGlobalFx = fakePrimaryLfo(1, 1);
     const primaryRobots = fakePrimaryLfo(1, 1);
-    attachDrift('eq3-key', primaryEq3 as never, 'eq3');
+    attachDrift('globalfx-key', primaryGlobalFx as never, 'globalFx');
     attachDrift('robots-key', primaryRobots as never, 'robots');
 
-    const eq3RateGain = Gain.mock.results.at(-4)!.value as MockGainInstance; // eq3 attach: rate, depth
+    const globalFxRateGain = Gain.mock.results.at(-4)!.value as MockGainInstance; // globalFx attach: rate, depth
     const robotsRateGain = Gain.mock.results.at(-2)!.value as MockGainInstance; // robots attach: rate, depth
 
     setGlobalRateDrift('robots', 0.7);
 
     expect(robotsRateGain.gain.value).not.toBe(0);
-    expect(eq3RateGain.gain.value).toBe(0); // untouched — eq3's own drift amount is still its default 0
+    expect(globalFxRateGain.gain.value).toBe(0); // untouched — globalFx's own drift amount is still its default 0
+  });
+
+  it('only refreshes links belonging to the given group, the other direction — setting globalFx never touches robots', async () => {
+    const { attachDrift, setGlobalDepthDrift } = await freshLfoDrift();
+    const Gain = await gainCtor();
+
+    // amplitude 0.5 (not 1) — depth's swing headroom is bounded by distance to the
+    // nearer edge of [0,1], so a primary parked at amplitude 1 gets zero swing
+    // (matching centeredSwingFromRange's documented boundary behavior) and would
+    // read 0 regardless of the group amount, making the isolation assertion vacuous.
+    const primaryGlobalFx = fakePrimaryLfo(1, 0.5);
+    const primaryRobots = fakePrimaryLfo(1, 0.5);
+    attachDrift('globalfx-key', primaryGlobalFx as never, 'globalFx');
+    attachDrift('robots-key', primaryRobots as never, 'robots');
+
+    const globalFxDepthGain = Gain.mock.results.at(-3)!.value as MockGainInstance; // globalFx attach: rate, depth
+    const robotsDepthGain = Gain.mock.results.at(-1)!.value as MockGainInstance; // robots attach: rate, depth
+
+    setGlobalDepthDrift('globalFx', 0.7);
+
+    expect(globalFxDepthGain.gain.value).not.toBe(0);
+    expect(robotsDepthGain.gain.value).toBe(0); // untouched — robots' own drift amount is still its default 0
+  });
+
+  it('the merge itself: a former-eq3, a former-filterLPF, and a former-filterHPF target all land in the SAME globalFx pool and respond identically to one setGlobalRateDrift call (docs/specs/FLEET_DRIFT_CONSOLIDATION.md §5 item 4)', async () => {
+    const { attachDrift, driftGroupForTarget, setGlobalRateDrift } = await freshLfoDrift();
+    const Gain = await gainCtor();
+
+    const primaryEq = fakePrimaryLfo(1, 1);
+    const primaryLpf = fakePrimaryLfo(1, 1);
+    const primaryHpf = fakePrimaryLfo(1, 1);
+    attachDrift('eq-key', primaryEq as never, driftGroupForTarget('eq3.low' as LfoTargetId));
+    attachDrift('lpf-key', primaryLpf as never, driftGroupForTarget('lpf.frequency' as LfoTargetId));
+    attachDrift('hpf-key', primaryHpf as never, driftGroupForTarget('hpf.Q' as LfoTargetId));
+
+    const eqRateGain = Gain.mock.results.at(-6)!.value as MockGainInstance;
+    const lpfRateGain = Gain.mock.results.at(-4)!.value as MockGainInstance;
+    const hpfRateGain = Gain.mock.results.at(-2)!.value as MockGainInstance;
+
+    setGlobalRateDrift('globalFx', 0.6);
+
+    expect(eqRateGain.gain.value).toBe(lpfRateGain.gain.value);
+    expect(lpfRateGain.gain.value).toBe(hpfRateGain.gain.value);
+    expect(eqRateGain.gain.value).not.toBe(0);
   });
 
   it('is a safe no-op with zero primaries connected in the target group', async () => {
     const { setGlobalRateDrift, setGlobalDepthDrift } = await freshLfoDrift();
-    expect(() => setGlobalRateDrift('filterLPF', 0.5)).not.toThrow();
-    expect(() => setGlobalDepthDrift('filterHPF', -0.5)).not.toThrow();
+    expect(() => setGlobalRateDrift('globalFx', 0.5)).not.toThrow();
+    expect(() => setGlobalDepthDrift('robots', -0.5)).not.toThrow();
   });
 });
 
@@ -267,7 +320,7 @@ describe('setDriftSuppressed / isDriftSuppressed', () => {
     const { attachDrift, setDriftSuppressed } = await freshLfoDrift();
     const Gain = await gainCtor();
     const primary = fakePrimaryLfo();
-    attachDrift('key-1', primary as never, 'eq3');
+    attachDrift('key-1', primary as never, 'globalFx');
     const rateDriftGain = Gain.mock.results.at(-2)!.value as MockGainInstance;
 
     setDriftSuppressed(true);
@@ -282,7 +335,7 @@ describe('setDriftSuppressed / isDriftSuppressed', () => {
     setDriftSuppressed(true);
 
     const callsBefore = LFO.mock.calls.length;
-    attachDrift('key-1', fakePrimaryLfo() as never, 'eq3');
+    attachDrift('key-1', fakePrimaryLfo() as never, 'globalFx');
     expect(LFO.mock.calls.length).toBe(callsBefore); // no pool built
 
     // No link was created — refresh is a no-op.
@@ -293,7 +346,7 @@ describe('setDriftSuppressed / isDriftSuppressed', () => {
     const { attachDrift, setDriftSuppressed, isDriftSuppressed } = await freshLfoDrift();
     const LFO = await lfoCtor();
     setDriftSuppressed(true);
-    attachDrift('key-1', fakePrimaryLfo() as never, 'eq3'); // no-op while suppressed
+    attachDrift('key-1', fakePrimaryLfo() as never, 'globalFx'); // no-op while suppressed
     const callsBeforeRestore = LFO.mock.calls.length;
 
     setDriftSuppressed(false);
@@ -309,31 +362,43 @@ describe('drift pool lazy construction and reuse', () => {
     const LFO = await lfoCtor();
 
     const callsBefore = LFO.mock.calls.length;
-    attachDrift('key-1', fakePrimaryLfo() as never, 'eq3'); // DRIFT_POOL_SIZE.eq3 === 3
+    attachDrift('key-1', fakePrimaryLfo() as never, 'globalFx'); // DRIFT_POOL_SIZE.globalFx === 7
     const callsAfterFirst = LFO.mock.calls.length - callsBefore;
-    expect(callsAfterFirst).toBe(3);
+    expect(callsAfterFirst).toBe(7);
 
-    attachDrift('key-2', fakePrimaryLfo() as never, 'eq3');
+    attachDrift('key-2', fakePrimaryLfo() as never, 'globalFx');
     const callsAfterSecond = LFO.mock.calls.length - callsBefore;
-    // Reused, not rebuilt — still only the original 3 pool oscillators total.
-    expect(callsAfterSecond).toBe(3);
+    // Reused, not rebuilt — still only the original 7 pool oscillators total.
+    expect(callsAfterSecond).toBe(7);
   });
 
-  it('sizes each group pool independently (filterLPF and filterHPF each build 2, robots builds 8)', async () => {
+  it('sizes each group pool independently (globalFx builds 7, robots builds 8) — never exceeding either ceiling regardless of how many targets in the OTHER group have connected', async () => {
     const { attachDrift } = await freshLfoDrift();
     const LFO = await lfoCtor();
 
     const before = LFO.mock.calls.length;
-    attachDrift('lpf-key', fakePrimaryLfo() as never, 'filterLPF' as DriftGroupId);
-    const afterLpf = LFO.mock.calls.length - before;
-    expect(afterLpf).toBe(2);
-
-    attachDrift('hpf-key', fakePrimaryLfo() as never, 'filterHPF' as DriftGroupId);
-    const afterHpf = LFO.mock.calls.length - before - afterLpf;
-    expect(afterHpf).toBe(2);
+    attachDrift('eq-key', fakePrimaryLfo() as never, 'globalFx' as DriftGroupId);
+    const afterGlobalFx = LFO.mock.calls.length - before;
+    expect(afterGlobalFx).toBe(7);
 
     attachDrift('robots-key', fakePrimaryLfo() as never, 'robots' as DriftGroupId);
-    const afterRobots = LFO.mock.calls.length - before - afterLpf - afterHpf;
+    const afterRobots = LFO.mock.calls.length - before - afterGlobalFx;
     expect(afterRobots).toBe(8);
+
+    // A 2nd/3rd globalFx attach never grows its pool past 7, even after robots' own pool exists.
+    attachDrift('lpf-key', fakePrimaryLfo() as never, 'globalFx' as DriftGroupId);
+    attachDrift('hpf-key', fakePrimaryLfo() as never, 'globalFx' as DriftGroupId);
+    const totalAfterMore = LFO.mock.calls.length - before;
+    expect(totalAfterMore).toBe(7 + 8);
+  });
+
+  it('does not construct the globalFx pool until globalFx\'s own first successful attach — connecting robots first never builds it', async () => {
+    const { attachDrift } = await freshLfoDrift();
+    const LFO = await lfoCtor();
+
+    const before = LFO.mock.calls.length;
+    attachDrift('robots-key', fakePrimaryLfo() as never, 'robots');
+    const afterRobotsOnly = LFO.mock.calls.length - before;
+    expect(afterRobotsOnly).toBe(8); // only robots' own pool, not globalFx's
   });
 });

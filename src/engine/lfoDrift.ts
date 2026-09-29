@@ -5,9 +5,11 @@
  * down with) primaries owned by lfoEngine.ts's connectLfoTarget/
  * disconnectLfoTarget — this module never constructs a primary Tone.LFO
  * itself, only the drift pools and the Gain pair wiring each primary to its
- * group's pool. See docs/specs/LFO_DRIFT.md and
- * docs/specs/LFO_DRIFT_GROUPS.md (the 4-group reshape of that original
- * single-pool design).
+ * group's pool. See docs/specs/archive/LFO_DRIFT.md (the original
+ * single-pool design), docs/specs/archive/LFO_DRIFT_GROUPS.md (its 4-group
+ * reshape), and docs/specs/FLEET_DRIFT_CONSOLIDATION.md (the current
+ * 2-group shape — eq3/filterLPF/filterHPF merged into one 'globalFx'
+ * group).
  */
 
 // ========================================
@@ -73,20 +75,19 @@ const driftLinks = new Map<string, DriftLink>();
  *  refreshRateDriftGain/refreshDepthDriftGain via each link's own `group`.
  *  Replaces the single shared pair docs/specs/LFO_DRIFT.md originally
  *  shipped — see docs/specs/LFO_DRIFT_GROUPS.md §1.3. */
-const globalRateDriftByGroup: Record<DriftGroupId, number> = { eq3: 0, filterLPF: 0, filterHPF: 0, robots: 0 };
-const globalDepthDriftByGroup: Record<DriftGroupId, number> = { eq3: 0, filterLPF: 0, filterHPF: 0, robots: 0 };
+const globalRateDriftByGroup: Record<DriftGroupId, number> = { globalFx: 0, robots: 0 };
+const globalDepthDriftByGroup: Record<DriftGroupId, number> = { globalFx: 0, robots: 0 };
 
 /** Per-group pool size — sized to each group's own real target ceiling, not
- *  a uniform constant. eq3/filterLPF/filterHPF only ever have 3/2/2 possible
- *  LFO targets in the entire app; robots can have dozens of simultaneously
- *  active primaries across every robot/layer/field, the same "70-100+
- *  primaries, a handful of buckets is enough" reasoning
- *  docs/specs/LFO_DRIFT.md §1.2 already established for its own flat 8.
- *  See docs/specs/LFO_DRIFT_GROUPS.md §1.2. */
+ *  a uniform constant. globalFx only ever has 7 possible LFO targets in the
+ *  entire app (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — merged from eq3/
+ *  filterLPF/filterHPF's own former 3/2/2); robots can have dozens of
+ *  simultaneously active primaries across every robot/layer/field, the same
+ *  "70-100+ primaries, a handful of buckets is enough" reasoning
+ *  docs/specs/archive/LFO_DRIFT.md §1.2 already established for its own flat
+ *  8. See docs/specs/archive/LFO_DRIFT_GROUPS.md §1.2. */
 const DRIFT_POOL_SIZE: Record<DriftGroupId, number> = {
-  eq3: 3,
-  filterLPF: 2,
-  filterHPF: 2,
+  globalFx: 7,
   robots: 8,
 };
 /** ~33-second cycle for the shared drift oscillators — fixed, never exposed
@@ -105,16 +106,16 @@ let driftSuppressed = false;
 // ========================================
 
 /**
- * Which drift group a target belongs to — the three global-chain groups
- * that ever carry an lfoTarget map one-to-one by their own short-form
- * prefix (mirrors lfoEngine.ts's globalSeedRangeKey's own 'lpf.'/'hpf.'
- * prefix-matching style); every RobotLfoTargetId shares 'robots' regardless
- * of field or robotId. See docs/specs/LFO_DRIFT_GROUPS.md §1.1.
+ * Which drift group a target belongs to — every global-chain target (the
+ * only 3 prefixes that ever carry an lfoTarget, mirroring lfoEngine.ts's
+ * globalSeedRangeKey's own 'lpf.'/'hpf.' prefix-matching style) shares one
+ * merged 'globalFx' group (docs/specs/FLEET_DRIFT_CONSOLIDATION.md —
+ * restructured from docs/specs/archive/LFO_DRIFT_GROUPS.md's separate eq3/
+ * filterLPF/filterHPF groups); every RobotLfoTargetId shares 'robots'
+ * regardless of field or robotId, unchanged.
  */
 export function driftGroupForTarget(target: LfoTargetId): DriftGroupId {
-  if (target.startsWith('eq3.')) return 'eq3';
-  if (target.startsWith('lpf.')) return 'filterLPF';
-  if (target.startsWith('hpf.')) return 'filterHPF';
+  if (target.startsWith('eq3.') || target.startsWith('lpf.') || target.startsWith('hpf.')) return 'globalFx';
   return 'robots';
 }
 

@@ -153,31 +153,32 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
 
 ### Phase 2: Drift engine restructuring
 
-- [ ] **Task 6: `lfoDrift.ts` — merge into `globalFx`**
+- [x] **Task 6: `lfoDrift.ts` — merge into `globalFx`**
 
   **Description:** Collapse `driftGroupForTarget`'s 3 global-chain branches (`eq3.*`/`lpf.*`/`hpf.*`) into 1 (all three now return `'globalFx'`); replace `DRIFT_POOL_SIZE`'s 4 entries with 2 (`globalFx: 7, robots: 8`); replace `globalRateDriftByGroup`/`globalDepthDriftByGroup`'s 4-key initial objects with 2-key ones (spec §1.1/§1.2/§4). No other function in this file changes — `getOrCreateDriftPool`, `attachDrift`, `refreshRateDriftGain`, `refreshDepthDriftGain`, `detachDrift`, `setGlobalRateDrift`, `setGlobalDepthDrift`, `isDriftSuppressed`/`setDriftSuppressed` are all already generic over whatever `DriftGroupId` contains — this task's diff is confined to the 3 group-keyed constants/tables plus `driftGroupForTarget`'s own body.
 
   **Acceptance criteria:**
-  - [ ] `driftGroupForTarget` returns `'globalFx'` for every one of the 7 `GlobalLfoTargetId` members (former `eq3.*`, `lpf.*`, and `hpf.*` targets all land on the same group now) and `'robots'` for every `RobotLfoTargetId`, unchanged.
-  - [ ] Connecting a target from any of the 3 former groups (e.g. one `eq3.*`, one `lpf.*`, one `hpf.*`) never constructs more than 7 pool oscillators total for `globalFx`; `robots` never exceeds 8 — regardless of how many targets in the other group have connected.
-  - [ ] `globalFx`'s pool is not constructed until its own first successful `connectLfoTarget` call for any of its 7 targets.
-  - [ ] **Merge-specific regression case:** connecting one primary each from a former-`eq3`, former-`filterLPF`, and former-`filterHPF` target, then calling `setGlobalRateDrift('globalFx', 1)`, changes all 3 primaries' rate-drift Gain identically, in one call — the direct proof the merge happened, not just that the type compiles (spec §5 item 4).
-  - [ ] **Cross-group isolation, 2-way:** `setGlobalRateDrift('globalFx', v)`/`setGlobalDepthDrift('globalFx', v)` never touch a `robots`-group primary's Gains, and vice versa.
-  - [ ] Swing-bound behavior, the full Depth Drift silence-guard matrix, and the `layerN.phase` exclusion all still hold, re-verified for both `globalFx` and `robots`.
+  - [x] `driftGroupForTarget` returns `'globalFx'` for every one of the 7 `GlobalLfoTargetId` members (former `eq3.*`, `lpf.*`, and `hpf.*` targets all land on the same group now) and `'robots'` for every `RobotLfoTargetId`, unchanged.
+  - [x] Connecting a target from any of the 3 former groups (e.g. one `eq3.*`, one `lpf.*`, one `hpf.*`) never constructs more than 7 pool oscillators total for `globalFx`; `robots` never exceeds 8 — regardless of how many targets in the other group have connected.
+  - [x] `globalFx`'s pool is not constructed until its own first successful `connectLfoTarget` call for any of its 7 targets.
+  - [x] **Merge-specific regression case:** connecting one primary each from a former-`eq3`, former-`filterLPF`, and former-`filterHPF` target, then calling `setGlobalRateDrift('globalFx', 1)`, changes all 3 primaries' rate-drift Gain identically, in one call — the direct proof the merge happened, not just that the type compiles (spec §5 item 4).
+  - [x] **Cross-group isolation, 2-way:** `setGlobalRateDrift('globalFx', v)`/`setGlobalDepthDrift('globalFx', v)` never touch a `robots`-group primary's Gains, and vice versa.
+  - [x] Swing-bound behavior, the full Depth Drift silence-guard matrix, and the `layerN.phase` exclusion all still hold, re-verified for both `globalFx` and `robots`.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/lfoDrift.test.ts` passes, with every former eq3/filterLPF/filterHPF-specific describe block merged into one globalFx-scoped set, plus the new merge-specific regression case and the 2-way (not 4-way) cross-group isolation matrix.
-  - [ ] `npm run build:types`, `npm run lint` clean for this file.
+  - [x] `npx vitest run src/engine/lfoDrift.test.ts` passes, with every former eq3/filterLPF/filterHPF-specific describe block merged into one globalFx-scoped set, plus the new merge-specific regression case and the 2-way (not 4-way) cross-group isolation matrix.
+  - [x] `npm run build:types`, `npm run lint` clean for this file.
 
   **Dependencies:** Task 1.
 
-  **Files:** `src/engine/lfoDrift.ts`, `src/engine/lfoDrift.test.ts`
+  **Files:** `src/engine/lfoDrift.ts`, `src/engine/lfoDrift.test.ts`, and (plan gap, found via `build:types`) `src/engine/lfoEngine.test.ts` — its own integration-level drift coverage (pool-sizing and cross-group-isolation tests exercising `lfoEngine.connectLfoTarget`/`setGlobalRateDrift`/`setGlobalDepthDrift` end-to-end) still referenced the old `'eq3'`/`'filterLPF'`/`'filterHPF'` group ids and wasn't listed in the spec's own file structure (§2) or this plan originally
 
   **Estimated scope:** M (touches several module-scope constants in one file; the highest-risk task in this plan per spec §7, even though it's mechanically smaller than 10.3's own equivalent — a `driftGroupForTarget` misclassification here would silently reintroduce a 3-vs-1 split the rest of the phase assumes doesn't exist)
 
 ### Checkpoint: Drift engine core
-- [ ] `npm run build:types`, `npm run lint`, and `npx vitest run src/engine/lfoDrift.test.ts` (in isolation — the full suite won't pass until Tasks 7-9 land) all clean.
-- [ ] A test-level check confirms: connect one primary from a former-`eq3` target and one `robots`-group primary; `setGlobalRateDrift('globalFx', 1)` leaves the `robots` primary's rate-drift Gain at its pre-call value.
+- [x] `npm run build:types` — remaining errors are exactly Tasks 7-9's own files (`audioRigConfig.ts`, `AudioRigDrawer.tsx`, `AudioRigEffectPanel.test.tsx`, `audioStore.test.ts`).
+- [x] `npm run lint`, and `npx vitest run src/engine/lfoDrift.test.ts src/engine/lfoEngine.test.ts` clean (20 + 141 tests).
+- [x] A test-level check confirms: connect one primary from a former-`eq3` target and one `robots`-group primary; `setGlobalRateDrift('globalFx', 1)` leaves the `robots` primary's rate-drift Gain at its pre-call value.
 - [ ] Review with human before proceeding.
 
 ---
