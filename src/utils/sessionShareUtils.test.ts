@@ -174,6 +174,46 @@ describe('getSessionSharePayload (boot-time ?session= URL param)', () => {
     const fresh = await loadFreshWithQuery('?session=not-valid-base64!!!');
     expect(fresh.getSessionSharePayload()).toBeNull();
   });
+
+  it('getSessionSharePayload keeps returning the same value on every call -- unaffected by consumeSessionSharePayload', async () => {
+    const payload = makePayload();
+    const fresh = await loadFreshWithQuery(`?session=${encodeSessionPayload(payload)}`);
+    fresh.consumeSessionSharePayload();
+    expect(fresh.getSessionSharePayload()).toEqual(payload);
+    expect(fresh.getSessionSharePayload()).toEqual(payload);
+  });
+});
+
+describe('consumeSessionSharePayload (one-time-per-page-load consumption)', () => {
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+    vi.resetModules();
+  });
+
+  async function loadFreshWithQuery(query: string) {
+    window.history.replaceState({}, '', `/${query}`);
+    vi.resetModules();
+    return import('./sessionShareUtils');
+  }
+
+  it('returns the payload on the first call', async () => {
+    const payload = makePayload();
+    const fresh = await loadFreshWithQuery(`?session=${encodeSessionPayload(payload)}`);
+    expect(fresh.consumeSessionSharePayload()).toEqual(payload);
+  });
+
+  it('returns null on every call after the first -- the power-cycle regression guard', async () => {
+    const payload = makePayload();
+    const fresh = await loadFreshWithQuery(`?session=${encodeSessionPayload(payload)}`);
+    fresh.consumeSessionSharePayload();
+    expect(fresh.consumeSessionSharePayload()).toBeNull();
+    expect(fresh.consumeSessionSharePayload()).toBeNull();
+  });
+
+  it('returns null on the first call too when no share payload was present', async () => {
+    const fresh = await loadFreshWithQuery('');
+    expect(fresh.consumeSessionSharePayload()).toBeNull();
+  });
 });
 
 describe('buildShareUrl', () => {

@@ -26,12 +26,14 @@ vi.mock('@/systems/robotSystems', () => ({
 // getSessionSharePayload is called at attenuationStyleStore.ts's/localeStore.ts's own MODULE-LOAD
 // time (Tasks 4/5) -- which happens while this file's import graph is still resolving, before a
 // plain `const x = vi.fn()` below it would have run yet.
-const { getSessionSharePayloadMock, applySessionPayloadMock } = vi.hoisted(() => ({
+const { getSessionSharePayloadMock, consumeSessionSharePayloadMock, applySessionPayloadMock } = vi.hoisted(() => ({
   getSessionSharePayloadMock: vi.fn(),
+  consumeSessionSharePayloadMock: vi.fn(),
   applySessionPayloadMock: vi.fn(),
 }));
 vi.mock('@/utils/sessionShareUtils', () => ({
   getSessionSharePayload: () => getSessionSharePayloadMock(),
+  consumeSessionSharePayload: () => consumeSessionSharePayloadMock(),
 }));
 vi.mock('@/utils/sessionDiff', () => ({
   applySessionPayload: (payload: unknown, options: unknown) => applySessionPayloadMock(payload, options),
@@ -75,12 +77,13 @@ describe('OceanScene', () => {
     initializeLocaleMock.mockClear();
     stopRobotLifecycleMock.mockClear();
     getSessionSharePayloadMock.mockReset().mockReturnValue(null);
+    consumeSessionSharePayloadMock.mockReset().mockReturnValue(null);
     applySessionPayloadMock.mockClear();
   });
 
   describe('boot-time shareable-link apply (roadmap Phase 21)', () => {
     it('does not call applySessionPayload when no share payload is present (the common case)', () => {
-      getSessionSharePayloadMock.mockReturnValue(null);
+      consumeSessionSharePayloadMock.mockReturnValue(null);
       render(<OceanScene />);
       expect(applySessionPayloadMock).not.toHaveBeenCalled();
       cleanup();
@@ -88,7 +91,7 @@ describe('OceanScene', () => {
 
     it('calls applySessionPayload with the share payload and { skipLocaleRebuild: true }, after initializeLocale, when one is present', () => {
       const payload = { attenuationStyleName: 'x' };
-      getSessionSharePayloadMock.mockReturnValue(payload);
+      consumeSessionSharePayloadMock.mockReturnValueOnce(payload);
       const callOrder: string[] = [];
       initializeLocaleMock.mockImplementation(() => callOrder.push('initializeLocale'));
       applySessionPayloadMock.mockImplementation(() => callOrder.push('applySessionPayload'));
@@ -98,6 +101,25 @@ describe('OceanScene', () => {
       expect(applySessionPayloadMock).toHaveBeenCalledTimes(1);
       expect(applySessionPayloadMock).toHaveBeenCalledWith(payload, { skipLocaleRebuild: true });
       expect(callOrder).toEqual(['initializeLocale', 'applySessionPayload']);
+      cleanup();
+    });
+
+    it('uses consumeSessionSharePayload, not getSessionSharePayload -- a power cycle (unmount, then remount, e.g. the power switch) must not re-apply the share payload', () => {
+      // Real consumeSessionSharePayload returns the payload once, then null forever -- simulate
+      // that one-time-consumption contract directly in the mock, rather than re-testing the real
+      // implementation here (that's sessionShareUtils.test.ts's job). This is a regression guard
+      // for the OceanScene call site specifically: it must call consumeSessionSharePayload (whose
+      // contract handles the power-cycle case), not the plain getSessionSharePayload getter
+      // (which would keep returning the same payload forever, re-applying on every power-on).
+      const payload = { attenuationStyleName: 'x' };
+      consumeSessionSharePayloadMock.mockReturnValueOnce(payload).mockReturnValue(null);
+
+      const { unmount } = render(<OceanScene />);
+      unmount();
+      render(<OceanScene />);
+
+      expect(applySessionPayloadMock).toHaveBeenCalledTimes(1);
+      expect(getSessionSharePayloadMock).not.toHaveBeenCalled();
       cleanup();
     });
   });

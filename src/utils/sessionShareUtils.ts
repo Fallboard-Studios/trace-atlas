@@ -272,8 +272,27 @@ export function decodeSessionPayload(encoded: string): SessionPayload | null {
 const SESSION_SHARE_PAYLOAD: SessionPayload | null =
   typeof window !== 'undefined' ? decodeSessionPayload(new URLSearchParams(window.location.search).get(SESSION_PARAM) ?? '') : null;
 
-/** The decoded share payload from this page load's URL, or null if absent/malformed. */
+/** The decoded share payload from this page load's URL, or null if absent/malformed. Always
+ *  returns the same value for the whole page load -- for the boot-time locale-pinning reads
+ *  (attenuationStyleStore.ts/localeStore.ts), which only ever run once anyway (module load), and
+ *  for anything else that just wants to inspect it. For a boot-time consumer that must apply the
+ *  payload's side effects exactly once, use consumeSessionSharePayload instead. */
 export function getSessionSharePayload(): SessionPayload | null {
+  return SESSION_SHARE_PAYLOAD;
+}
+
+let sessionShareConsumed = false;
+
+/** Returns the decoded share payload the FIRST time it's called, then null on every subsequent
+ *  call for the rest of the page load. OceanScene.tsx's mount effect uses this (not
+ *  getSessionSharePayload) so its applySessionPayload side effect (re-registering every robot's
+ *  melody, reapplying company membership) fires exactly once per page load -- not again on every
+ *  power cycle, which fully unmounts/remounts OceanScene without a page reload (ScreenViewport.tsx:
+ *  `{isPoweredOn && <WorldView />}`), and would otherwise re-run it on every power-on for as long
+ *  as `?session=` stays in the URL (durable/bookmarkable by design -- it's never cleared). */
+export function consumeSessionSharePayload(): SessionPayload | null {
+  if (sessionShareConsumed) return null;
+  sessionShareConsumed = true;
   return SESSION_SHARE_PAYLOAD;
 }
 
