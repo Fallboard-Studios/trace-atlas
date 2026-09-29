@@ -26,6 +26,13 @@ export const SAVE_SESSION_SCHEMA: ButtonSchema = {
   humanLabel: 'Save Session',
 };
 
+export const SHARE_SESSION_SCHEMA: ButtonSchema = {
+  id: 'session.share',
+  type: 'button',
+  loreLabel: 'TRANSMIT COORDINATES',
+  humanLabel: 'Share Session',
+};
+
 export const LOAD_SESSION_SCHEMA: ButtonSchema = {
   id: 'session.load',
   type: 'button',
