@@ -11,6 +11,26 @@ import { devWarn } from './helpers';
 const SESSION_PARAM = 'session';
 
 // ========================================
+// TYPES
+// ========================================
+
+/** The wire shape actually put in the URL -- abbreviated keys (every byte in a URL param is
+ *  copy-pasted/typed by a human, or eats into practical link-sharing limits), and `r`/`d`/`u`
+ *  omitted entirely when empty rather than sent as `{}`/`[]`. Only what changed travels; the app
+ *  can already reconstruct "untouched" from the seed data (attenuationStyleName/coordinates)
+ *  alone, the same "no key if untouched" contract buildSessionPayload already applies one level
+ *  down (per-robot/per-company diffs) -- this just extends it to the top level. */
+interface CompactSessionPayload {
+  v: SessionPayload['version'];
+  n: SessionPayload['attenuationStyleName'];
+  c: SessionPayload['coordinates'];
+  g: SessionPayload['globalAudio'];
+  r?: SessionPayload['robotOverrides'];
+  d?: SessionPayload['companyDiffs'];
+  u?: SessionPayload['userCreatedCompanies'];
+}
+
+// ========================================
 // PRIVATE HELPERS
 // ========================================
 
@@ -27,19 +47,45 @@ function decodeBase64Utf8(encoded: string): string {
   return new TextDecoder().decode(bytes);
 }
 
+function toCompactSessionPayload(payload: SessionPayload): CompactSessionPayload {
+  const compact: CompactSessionPayload = {
+    v: payload.version,
+    n: payload.attenuationStyleName,
+    c: payload.coordinates,
+    g: payload.globalAudio,
+  };
+  if (Object.keys(payload.robotOverrides).length > 0) compact.r = payload.robotOverrides;
+  if (Object.keys(payload.companyDiffs).length > 0) compact.d = payload.companyDiffs;
+  if (payload.userCreatedCompanies.length > 0) compact.u = payload.userCreatedCompanies;
+  return compact;
+}
+
+function fromCompactSessionPayload(compact: CompactSessionPayload): SessionPayload {
+  return {
+    version: compact.v,
+    attenuationStyleName: compact.n,
+    coordinates: compact.c,
+    globalAudio: compact.g,
+    robotOverrides: compact.r ?? {},
+    companyDiffs: compact.d ?? {},
+    userCreatedCompanies: compact.u ?? [],
+  };
+}
+
 // ========================================
 // FUNCTIONS
 // ========================================
 
-/** Encodes a SessionPayload for a URL query param. */
+/** Encodes a SessionPayload for a URL query param -- via the abbreviated, empty-fields-omitted
+ *  CompactSessionPayload wire shape, never the full field names. */
 export function encodeSessionPayload(payload: SessionPayload): string {
-  return encodeBase64Utf8(JSON.stringify(payload));
+  return encodeBase64Utf8(JSON.stringify(toCompactSessionPayload(payload)));
 }
 
 /** Decodes a `?session=` param value. Fails soft -- malformed base64, malformed JSON, or a shape
- *  that doesn't look like a SessionPayload all return null, never throw. Same convention as
- *  sessionStorageEngine.ts's readStorage: a corrupted/tampered link degrades to "no share param
- *  present," not a crash. */
+ *  that doesn't look like a CompactSessionPayload all return null, never throw. Same convention
+ *  as sessionStorageEngine.ts's readStorage: a corrupted/tampered link degrades to "no share
+ *  param present," not a crash. */
 export function decodeSessionPayload(encoded: string): SessionPayload | null {
   try {
     const parsed: unknown = JSON.parse(decodeBase64Utf8(encoded));
@@ -47,12 +93,12 @@ export function decodeSessionPayload(encoded: string): SessionPayload | null {
       !parsed ||
       typeof parsed !== 'object' ||
       Array.isArray(parsed) ||
-      typeof (parsed as { attenuationStyleName?: unknown }).attenuationStyleName !== 'string' ||
-      !(parsed as { coordinates?: unknown }).coordinates
+      typeof (parsed as { n?: unknown }).n !== 'string' ||
+      !(parsed as { c?: unknown }).c
     ) {
       return null;
     }
-    return parsed as SessionPayload;
+    return fromCompactSessionPayload(parsed as CompactSessionPayload);
   } catch (err) {
     devWarn('[sessionShareUtils] malformed ?session= param, ignoring', err);
     return null;
