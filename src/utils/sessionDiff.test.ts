@@ -297,6 +297,34 @@ describe('applySessionPayload', () => {
     return attenuationStyle?.currentLocaleId ? useLocaleStore.getState().getLocaleById(attenuationStyle.currentLocaleId) : undefined;
   }
 
+  it('migrates an old-shape lfoDrift (pre Fleet Drift Consolidation: eq3/filterLPF/filterHPF/robots, no globalFx) instead of crashing applyGlobalAudioToEngine (bug found live: power-on with a stale ?session=/saved session blanked the screen)', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    // Simulate a payload persisted (localStorage named session, or a ?session= share link) before
+    // this migration shipped — its own globalAudio.lfoDrift still has the old 4-group shape, cast
+    // through unknown since SessionPayload's own type no longer describes this shape (the same
+    // "untyped JSON from outside the app" trust boundary decodeSessionPayload's own doc comment
+    // already documents for this exact field).
+    const staleLfoDrift = {
+      eq3: { rateDrift: 0.1, depthDrift: 0.2 },
+      filterLPF: { rateDrift: 0.3, depthDrift: 0.4 },
+      filterHPF: { rateDrift: 0.5, depthDrift: 0.6 },
+      robots: { rateDrift: 0.7, depthDrift: 0.8 },
+    };
+    const stalePayload = {
+      ...payload,
+      globalAudio: { ...payload.globalAudio, lfoDrift: staleLfoDrift },
+    } as unknown as typeof payload;
+
+    expect(() => applySessionPayload(stalePayload)).not.toThrow();
+
+    // robots survives untouched (it was already present); globalFx (missing from the stale
+    // payload) falls back to a safe default rather than staying undefined.
+    expect(useAudioStore.getState().globalAudio.lfoDrift.robots).toEqual({ rateDrift: 0.7, depthDrift: 0.8 });
+    expect(useAudioStore.getState().globalAudio.lfoDrift.globalFx).toEqual({ rateDrift: 0, depthDrift: 0 });
+  });
+
   it('calls worldTransition.retransmitWorld, not a parallel regeneration path — omitting attenuationStyleName when it matches the currently active one', () => {
     // Omitting it routes through retransmitWorld's coordsOnly branch, which preserves the
     // current Attenuation Style untouched -- passing it unconditionally would instead hit

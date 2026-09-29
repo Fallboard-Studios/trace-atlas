@@ -5,8 +5,9 @@ import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
 import { generateRobotRosterBaseline, generateCompanyRosterBaseline, type RobotAudioBaseline } from '../systems/spawnSystem';
 import type { RobotAudioOverrideDiff, CompanyDiff, SessionPayload } from '../types/session';
-import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoSettings } from '../types/lfo';
+import { ROBOT_LFO_TARGET_IDS, DRIFT_GROUP_IDS, type RobotLfoTargetId, type LfoSettings } from '../types/lfo';
 import type { SwellRobotAttributeId } from '../types/audioSwell';
+import type { GlobalAudioSettings } from '../types/globalAudio';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
@@ -340,6 +341,31 @@ function reapplyCompanyMembership(localeId: string, companyId: string, targetRob
 }
 
 /**
+ * Fills in any `DriftGroupId` missing from a payload's own `lfoDrift` with a safe `{ rateDrift:
+ * 0, depthDrift: 0 }` default — a payload can be arbitrarily older than the running app (a
+ * `?session=` link or a `localStorage` named session saved before Fleet Drift Consolidation
+ * merged eq3/filterLPF/filterHPF into 'globalFx', docs/specs/FLEET_DRIFT_CONSOLIDATION.md), so its
+ * own `lfoDrift` may still be missing keys the current `DriftGroupId` union expects. Without this,
+ * `applyGlobalAudioToEngine` dereferences the missing group directly and throws — found live: a
+ * stale `?session=`/saved session blanked the whole scene on power-on. Any OLD group key the
+ * payload still carries (e.g. a pre-merge `eq3`) is simply ignored, not migrated into `globalFx` —
+ * there's no principled way to combine 3 old amounts into 1, and silently picking one would be a
+ * worse surprise than resetting to 0. Mirrors `decodeSessionPayload`'s own "fails soft on
+ * untrusted/versioned external data" convention, one level deeper (per-field, not just per-payload).
+ */
+function migrateLfoDrift(globalAudio: GlobalAudioSettings): GlobalAudioSettings {
+  const lfoDrift = { ...globalAudio.lfoDrift };
+  let changed = false;
+  for (const group of DRIFT_GROUP_IDS) {
+    if (!lfoDrift[group]) {
+      lfoDrift[group] = { rateDrift: 0, depthDrift: 0 };
+      changed = true;
+    }
+  }
+  return changed ? { ...globalAudio, lfoDrift } : globalAudio;
+}
+
+/**
  * Regenerates the world from payload.attenuationStyleName/coordinates via worldTransition.ts's
  * existing retransmitWorld — never a parallel regeneration path (spec §7 risk 7) — then overlays
  * globalAudio, every robot override, every company diff, and every user-created company on top.
@@ -377,8 +403,9 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
     );
   }
 
-  useAudioStore.setState({ globalAudio: payload.globalAudio });
-  applyGlobalAudioToEngine(payload.globalAudio);
+  const globalAudio = migrateLfoDrift(payload.globalAudio);
+  useAudioStore.setState({ globalAudio });
+  applyGlobalAudioToEngine(globalAudio);
 
   const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   const localeId = attenuationStyle?.currentLocaleId;
