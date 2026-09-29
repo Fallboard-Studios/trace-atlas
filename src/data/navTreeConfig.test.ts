@@ -59,6 +59,7 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
     expect(fleetParams?.children?.map((c) => c.id)).toEqual([
       'fleetParams.pacing',
       'fleetParams.eqFilters',
+      'fleetParams.fleetDrift',
       'fleetParams.timeSpace',
       'fleetParams.output',
     ]);
@@ -83,6 +84,12 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
       'fleetParams.eqFilters.hpf',
       'fleetParams.eqFilters.lpf',
     ]);
+  });
+
+  it('Fleet Params -> Fleet Drift has exactly 1 leaf (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — new top-level group, positioned right after EQ & Filters)', () => {
+    const fleetDrift = findNode('fleetParams.fleetDrift');
+    expect(fleetDrift?.humanLabel).toBe('Fleet Drift');
+    expect(fleetDrift?.children?.map((c) => c.id)).toEqual(['fleetParams.fleetDrift.drift']);
   });
 
   it('Fleet Params -> Time & Space has Reverb/Delay leaves', () => {
@@ -162,10 +169,14 @@ describe('NAV_TREE_SCHEMA — trait color-coding (experimental, Crawford\'s own 
     expect(findNode('companies')?.trait).toBe('company');
   });
 
-  it('Fleet Params\' 3 category groups carry the same trait as their real content elsewhere (AudioRigDrawer.tsx\'s own AUDIO_RIG_EFFECT_TRAIT)', () => {
+  it('Fleet Params\' category groups carry the same trait as their real content elsewhere (AudioRigDrawer.tsx\'s own AUDIO_RIG_EFFECT_TRAIT)', () => {
     expect(findNode('fleetParams.eqFilters')?.trait).toBe('spectral');
     expect(findNode('fleetParams.timeSpace')?.trait).toBe('timeSpace');
     expect(findNode('fleetParams.output')?.trait).toBe('output');
+  });
+
+  it('Fleet Drift matches EQ & Filters\' own spectral trait — it\'s drift of those same effects (docs/specs/FLEET_DRIFT_CONSOLIDATION.md §1.3, not yet confirmed with Crawford)', () => {
+    expect(findNode('fleetParams.fleetDrift')?.trait).toBe('spectral');
   });
 
   it('Fleet Params\' individual leaves have no trait of their own — they inherit their own group\'s', () => {

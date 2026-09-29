@@ -84,6 +84,21 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
         ],
       },
       {
+        // New top-level group (docs/specs/FLEET_DRIFT_CONSOLIDATION.md) — the merged eq3/
+        // filterLPF/filterHPF drift control, positioned right after EQ & Filters rather than
+        // nested inside it (confirmed via the breadcrumb-trimming reasoning in that spec's §1.3:
+        // a leaf's own name is trimmed, so "Fleet Params > Fleet Drift" only reads that way if
+        // Fleet Drift is itself the group). Label is provisional, pending a separate label review.
+        id: 'fleetParams.fleetDrift',
+        humanLabel: 'Fleet Drift',
+        // Matches EQ & Filters' own trait — Fleet Drift is drift of those same effects. Not
+        // confirmed directly with Crawford (spec §7 item 1).
+        trait: 'spectral',
+        children: [
+          { id: 'fleetParams.fleetDrift.drift', humanLabel: 'Fleet Drift' },
+        ],
+      },
+      {
         id: 'fleetParams.timeSpace',
         humanLabel: 'Time & Space',
         // reverb/delay are both 'timeSpace' in AUDIO_RIG_EFFECT_TRAIT — same as this branch's own

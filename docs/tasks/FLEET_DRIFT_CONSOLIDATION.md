@@ -274,19 +274,19 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
 
 ### Phase 6: Nav tree wiring (parallelizable with Phases 2-5 — no dependency on the engine/store/drawer work)
 
-- [ ] **Task 10: `uiStore.ts` + `navTreeConfig.ts` — new Fleet Drift group**
+- [x] **Task 10: `uiStore.ts` + `navTreeConfig.ts` — new Fleet Drift group**
 
   **Description:** Add `'fleetDrift'` to `FleetParamsGroup` and `'globalDrift'` to `SelectedFleetParamsEffect` in `uiStore.ts`. Add a new `fleetParams.fleetDrift` node to `navTreeConfig.ts`'s static `NAV_TREE_SCHEMA`, positioned immediately after `fleetParams.eqFilters` and before `fleetParams.timeSpace`, with trait `'spectral'` and one child leaf `fleetParams.fleetDrift.drift` (spec §1.3/§4).
 
   **Acceptance criteria:**
-  - [ ] `FleetParamsGroup` has exactly 5 members now, `'fleetDrift'` positioned between `'eqFilters'` and `'timeSpace'` in the type's own declaration order (matches the tree's visual order, even though TypeScript unions aren't ordered at runtime — for readability/consistency with every other type in this file).
-  - [ ] `SelectedFleetParamsEffect` includes `'globalDrift'` as a new member, alongside `'tempo'`/`'automaticEffects'`/`'swellFrequency'`/`'swellDuration'`.
-  - [ ] `NAV_TREE_SCHEMA`'s `fleetParams.children` array has the new `fleetParams.fleetDrift` node positioned between `fleetParams.eqFilters` and `fleetParams.timeSpace`, with exactly 1 child (`fleetParams.fleetDrift.drift`), trait `'spectral'`.
-  - [ ] No existing node's id, trait, or position is altered.
+  - [x] `FleetParamsGroup` has exactly 5 members now, `'fleetDrift'` positioned between `'eqFilters'` and `'timeSpace'` in the type's own declaration order (matches the tree's visual order, even though TypeScript unions aren't ordered at runtime — for readability/consistency with every other type in this file).
+  - [x] `SelectedFleetParamsEffect` includes `'globalDrift'` as a new member, alongside `'tempo'`/`'automaticEffects'`/`'swellFrequency'`/`'swellDuration'`.
+  - [x] `NAV_TREE_SCHEMA`'s `fleetParams.children` array has the new `fleetParams.fleetDrift` node positioned between `fleetParams.eqFilters` and `fleetParams.timeSpace`, with exactly 1 child (`fleetParams.fleetDrift.drift`), trait `'spectral'`.
+  - [x] No existing node's id, trait, or position is altered.
 
   **Verification:**
-  - [ ] `npm run build:types` clean.
-  - [ ] `npx vitest run src/data/navTreeConfig.test.ts` passes, updated if it enumerates `fleetParams` children directly.
+  - [x] `npm run build:types` — surfaces one expected error in `useNavTree.ts` (`FLEET_PARAMS_GROUP_FIRST_LEAF` missing the new `fleetDrift` key), owned by Task 11.
+  - [x] `npx vitest run src/data/navTreeConfig.test.ts` passes (25 tests, 3 new).
 
   **Dependencies:** None.
 
