@@ -250,3 +250,63 @@ Attenuation Style mid-transition touches the same `locales`/`currentLocaleId` bo
 `retransmitAttenuationStyleOnly` already has to reason about, and should get a regression
 test that recreates the collision directly (name matches the currently active style), not
 just Session Storage's own round-trip tests.
+
+### 17. Audit: LFO Drift / Audio Swells / Ping Variance — Replayability Findings
+
+Task 8 of `docs/tasks/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md` (roadmap Phase 20.5),
+2026-09-28. Non-blocking, informational — nothing here was fixed as part of this audit, and
+nothing in it blocked Phase 20.5's own deliverable (battery/docking/job/melody-drift
+replay), which is independently proven regardless of these findings. Recorded so a future
+phase wanting to replay/reproduce *audio* state (not just robot lifecycle) knows exactly
+what it's dealing with, rather than assuming "everything here is already measure-quantized"
+and discovering otherwise mid-implementation.
+
+**`src/systems/audioSwells.ts` — trigger/target logic is safe; ramp interpolation isn't
+(and doesn't need to be, a precedent already exists).** Its scheduling is
+`scheduleRepeat('16n', () => tickAudioSwells(localeId, getCurrentMeasurePrecise()))`
+(line 406) — Transport-driven, measure-based, never a raw `setTimeout`/`setInterval`. Every
+trigger-probability and target-selection roll (`getSeededVal(noiseMap, 'audioSwell.*', measure,
+...)`, lines 530-669) is seeded by `(noiseMap, measure)` — zero `Math.random`, zero
+`Date.now()` anywhere in the file (confirmed by direct search, not assumed). *Deciding
+whether/which/when a swell starts* is therefore fully deterministic and replayable from
+elapsed measures alone. What is **not** replayable: a swell's own in-flight `rampTo`
+interpolation is real Web Audio time, not measure time — the literal value at some
+arbitrary mid-ramp moment depends on real elapsed seconds since the ramp started, which
+`stepRobotLifecycle`-style measure replay has no way to reconstruct. This is not a new
+problem or a gap to fix here: `sessionDiff.ts`'s `extractSwellBaseValueIfActive`/
+`extractGlobalSwellBaseValueIfActive` (added for Session Storage, see
+`docs/todo/backlog.md`'s own history and `docs/SESSION_STORAGE.md`) already solve exactly
+this by capturing a swell's normalized *target* value instead of its mid-ramp interpolated
+one at save time. Any future phase wanting swell state to survive a World-Clock-style
+replay should reuse that same normalize-to-target-value technique, not invent a new one.
+
+**`src/engine/lfoEngine.ts` — NOT replayable from elapsed measures, by design, and this is
+correct as shipped.** `Tone.LFO` nodes (line 199, `new Tone.LFO(settings.rate)`) are real,
+continuous audio-rate oscillators driven by the Web Audio clock itself — their phase at any
+moment is a function of real elapsed wall-clock time since the node started, not of
+elapsed measures. The manual phase-polling fallback (`startPhaseFallback`, lines 283-298)
+makes this explicit in code: `const startTime = Tone.now()`, then every poll computes
+`const elapsed = Tone.now() - startTime; const angle = 2 * Math.PI * settings.rate * elapsed`
+— a textbook real-time oscillator, scheduled via `scheduleRepeat('16n', ...)` (measure-cadenced
+*polling*, but the *math inside* is real-seconds-based, not measure-based). This is
+deliberate, confirmed-intended behavior — the file's own doc comment states LFO `rate`
+must stay "a free-running Hz value," explicitly *not* tempo/transport-coupled (`sync()` is
+deliberately never called, for this exact reason). **Consequence for any future World Clock
+consumer:** reproducing "the exact LFO phase at this moment" needs real elapsed wall-clock
+time tracked as its own primitive — `createdAtMeasure`/elapsed-measures alone cannot derive
+it, since measures and real seconds are only loosely related via BPM and an LFO's own
+`startTime` is a real timestamp, not a measure count. Not a bug — a different kind of state
+than robot lifecycle, requiring a different (not yet built) mechanism if it's ever needed.
+
+**"Ping variance automation" is not a separate timing/randomness system — nothing to audit
+independently.** It's a single scalar (`audioStore.pingVarianceAutomation`, read at
+`audioSwells.ts:467`) that feeds into audio swells' own already-covered, already-safe
+trigger-probability math as one more input value. No independent scheduling mechanism, no
+independent randomness source, no separate file.
+
+**Summary for a future reader:** robot lifecycle (this phase) and audio-swell
+trigger/targeting are both genuinely measure-replayable today. LFO phase is not, and
+correctly so — it would need a real-elapsed-time primitive this phase deliberately doesn't
+build (out of scope, see `docs/intent/world-clock-deterministic-lifecycle-replay.md`). Swell
+ramp interpolation is "not replayable" in the same sense LFO phase is, but has an existing,
+reusable fix (normalize to target value) already proven by Session Storage.

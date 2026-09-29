@@ -10,6 +10,7 @@ import { spawnInitialRoster, spawnInitialCompanies } from './spawnSystem';
 import { startRobotLifecycle, stopRobotLifecycle, assignJob } from './robotSystems';
 import { startAudioSwells, stopAudioSwells } from './audioSwells';
 import { DockingState } from '../types/Robot';
+import { getCurrentMeasure } from '../engine/beatClock';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { DAY_DURATION_MS } from '../constants/time';
 import type { AttenuationStyle } from '../types/attenuationStyle';
@@ -57,6 +58,7 @@ function buildLocale(attenuationStyleId: string, coordinates: { x: number; y: nu
     name: `Plot ${coordinates.x}, ${coordinates.y}`,
     coordinates,
     dayStartTimestamp: Date.now() - (Math.abs(coordinates.x % 24) / 24) * DAY_DURATION_MS,
+    createdAtMeasure: getCurrentMeasure(),
     robots: [],
     actors: [],
     companies: [],

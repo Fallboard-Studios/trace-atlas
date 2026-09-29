@@ -28,6 +28,7 @@ const TEST_LOCALE: Locale = {
   name: 'Test Locale',
   coordinates: { x: -17.4, y: 30.2 },
   dayStartTimestamp: Date.now() - 60_000,
+  createdAtMeasure: 0,
   robots: [],
   actors: [],
   companies: [],

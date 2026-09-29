@@ -31,6 +31,7 @@ import { getLocaleNoiseMap, tryGetLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import { generateLocaleBpm } from '../utils/localeBpmSeed';
 import { initializeLocale, retransmitWorld } from './worldTransition';
+import { getCurrentMeasure } from '../engine/beatClock';
 import { recolorFactoriesForAttenuationStyle } from './factoryPlacementSystem';
 import { stopRobotLifecycle } from './robotSystems';
 import { stopAudioSwells, getActiveSwellSnapshot, tickAudioSwells } from './audioSwells';
@@ -273,6 +274,14 @@ describe('worldTransition', () => {
       const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
       const newLocale = useLocaleStore.getState().getLocaleById(attenuationStyle.currentLocaleId!)!;
       expect(computeLocaleHour(newLocale.dayStartTimestamp)).toBeCloseTo(Math.abs(-37 % 24), 0);
+    });
+
+    it("stamps the new locale's createdAtMeasure from getCurrentMeasure() at construction time (World Clock, docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md)", () => {
+      vi.mocked(getCurrentMeasure).mockReturnValue(137);
+      retransmitWorld({ coordinates: { x: 1000, y: 2000 } });
+      const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+      const newLocale = useLocaleStore.getState().getLocaleById(attenuationStyle.currentLocaleId!)!;
+      expect(newLocale.createdAtMeasure).toBe(137);
     });
 
     it('never calls recolorFactoriesForAttenuationStyle — this branch never changes the AS', () => {

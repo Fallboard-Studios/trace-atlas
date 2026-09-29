@@ -83,6 +83,13 @@ const DEFAULT_LOCALE: Locale = {
   // Computed once at module load via the same x-derived formula buildLocale
   // uses (worldTransition.ts) — see docs/specs/ATTENUATION_STYLE.md §1.1.
   dayStartTimestamp: Date.now() - (Math.abs(DEFAULT_LOCALE_COORDINATES.x % 24) / 24) * DAY_DURATION_MS,
+  // Literal 0, not getCurrentMeasure() -- this module-level constant is constructed before
+  // BeatClock could ever have advanced past its own 0 default, and calling getCurrentMeasure()
+  // here at module-load time would make every test that mocks beatClock (nearly all of them,
+  // transitively) need to include that export or fail to import this module at all. Same
+  // already-hardcoded-not-computed treatment as currentMeasure below. See docs/specs/
+  // WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md.
+  createdAtMeasure: 0,
   robots: [],
   actors: [],
   companies: [],

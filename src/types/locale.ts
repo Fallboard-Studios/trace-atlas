@@ -16,6 +16,13 @@ export interface Locale {
    *  build time from the locale's own x coordinate — see
    *  docs/specs/ATTENUATION_STYLE.md §1.1. Moved here from AttenuationStyle. */
   dayStartTimestamp: number;
+  /** BeatClock measure this locale's roster was created at (getCurrentMeasure() at build time,
+   *  same stamping point as dayStartTimestamp) -- docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md.
+   *  Elapsed measures for lifecycle replay purposes is always
+   *  `getCurrentMeasure() - createdAtMeasure`, never separately tracked. NOT the same field as
+   *  `currentMeasure` below, which is unrelated legacy state never incremented by the real tick
+   *  system -- do not conflate the two. */
+  createdAtMeasure: number;
   robots: Robot[];
   actors: Actor[];
   companies: Company[];

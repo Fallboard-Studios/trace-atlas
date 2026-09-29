@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import alea from 'alea';
+import type { NoiseFunction2D } from 'simplex-noise';
 
 import { DockingState, JobType, RobotState } from '../types/Robot';
 import type { JobType as JobTypeValue } from '../types/Robot';
@@ -74,44 +74,195 @@ function beginDocking(localeId: string, robotId: string, measure: number): void 
   });
 }
 
-/**
- * One measure's worth of Battery/Docking evaluation for every robot in a locale.
- * Pure with respect to its inputs (measure is passed in, not read from BeatClock
- * directly) so tests can drive it without a real transport — see
- * startRobotLifecycle for the BeatClock-wired entry point.
- */
-export function tickRobotLifecycle(localeId: string, measure: number): void {
-  const robots = useLocaleStore.getState().getLocaleById(localeId)?.robots ?? [];
+// ========================================
+// PURE LIFECYCLE STEP (World Clock, docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md)
+// ========================================
 
-  for (const robot of robots) {
+/** The subset of Robot fields a lifecycle replay reads or writes -- deliberately narrower than
+ *  Robot itself. Includes the fields scoreJobAffinities needs (read-only, never written by
+ *  replay) alongside the fields a tick actually transitions. */
+export interface RobotLifecycleSnapshot {
+  id: string;
+  docking: DockingState;
+  batteryLevel: number;
+  dockingHoldUntilMeasure?: number;
+  job?: { type: JobTypeValue; assignedAtMeasure: number };
+  melody: Robot['melody'];
+  /** How many times this robot has landed on Docked so far -- the replay-derived equivalent of
+   *  the live dockCycleCounters module map below, threaded as part of the snapshot itself (not a
+   *  side channel) so stepRobotLifecycle stays a pure function of its own input. Starts at 0. */
+  dockCycleCount: number;
+  octaveRange: [number, number];
+  rhythmicDensity?: number;
+  rhythmicMotifLength?: Robot['rhythmicMotifLength'];
+  noteVariance?: Robot['noteVariance'];
+}
+
+/** scoreJobAffinities only reads the melodic-attribute fields RobotLifecycleSnapshot already
+ *  carries -- this cast is safe (no field it actually reads is missing) and avoids widening
+ *  RobotLifecycleSnapshot with fields (melody, audioAttributes, ...) a lifecycle step never uses. */
+function scoreSnapshotJobAffinities(snapshot: RobotLifecycleSnapshot): Record<JobTypeValue, number> {
+  return scoreJobAffinities(snapshot as unknown as Robot);
+}
+
+/** Pure per-robot balancing, mirrors assignJob's rule exactly: best-scoring type, skipping any
+ *  type already at JOB_MAX_ROBOTS_PER_TYPE among the OTHER robots in `roster` that are Active. */
+function chooseJobForSnapshot(snapshot: RobotLifecycleSnapshot, roster: RobotLifecycleSnapshot[], measure: number): RobotLifecycleSnapshot['job'] {
+  const scores = scoreSnapshotJobAffinities(snapshot);
+  const sortedTypes = (Object.values(JobType) as JobTypeValue[]).sort((a, b) => scores[b] - scores[a]);
+
+  const countByType = new Map<JobTypeValue, number>();
+  for (const r of roster) {
+    if (r.id !== snapshot.id && r.docking === DockingState.Active && r.job) {
+      countByType.set(r.job.type, (countByType.get(r.job.type) ?? 0) + 1);
+    }
+  }
+
+  const chosen = sortedTypes.find((t) => (countByType.get(t) ?? 0) < JOB_MAX_ROBOTS_PER_TYPE) ?? sortedTypes[0];
+  return { type: chosen, assignedAtMeasure: measure };
+}
+
+/**
+ * One measure's worth of battery/docking/job transition for an entire roster, pure -- mirrors
+ * tickRobotLifecycle's per-robot logic (BATTERY_DRAIN_BASE/JOB_BATTERY_DRAIN_SURCHARGE/
+ * BATTERY_RECHARGE_RATE/BATTERY_CRITICAL_THRESHOLD/BATTERY_FULL_THRESHOLD, the "never zero
+ * Active" invariant, assignJob's balancing) exactly, reusing the same constants/scoreJobAffinities
+ * -- never a second copy of the arithmetic. Mutates a local working array as it iterates (matching
+ * tickRobotLifecycle's own "re-read fresh, not the stale snapshot" invariant check), in roster
+ * array order, so within-measure ordering effects match a real tick bit for bit. Imports neither
+ * useLocaleStore nor getCurrentMeasure -- zero side effects, zero store access.
+ *
+ * A Departing->Docked landing also drifts `melody` via the same reRollMelodyPitches/
+ * DOCKED_PITCH_DRIFT_RATIO rule landOnDocked applies live, seeded identically
+ * (getSeededVal(noiseMap, 'robot.pitchDrift', dockCycleCount * 100 + callIndex, 0, 1) using the
+ * POST-increment dockCycleCount, matching landOnDocked's own `(counter ?? 0) + 1` before seeding).
+ * `noiseMap` is required, not optional -- no alea(...) fallback is ported from landOnDocked's live
+ * defensive branch (spec §7 item 2 -- replay only ever runs against an already-spawned locale).
+ */
+export function stepRobotLifecycle(roster: RobotLifecycleSnapshot[], measure: number, noiseMap: NoiseFunction2D): RobotLifecycleSnapshot[] {
+  const working = roster.map((r) => ({ ...r }));
+
+  for (const robot of working) {
     if (robot.docking === DockingState.Active) {
       const surcharge = robot.job ? JOB_BATTERY_DRAIN_SURCHARGE[robot.job.type] : 0;
-      const next = Math.max(0, robot.batteryLevel - (BATTERY_DRAIN_BASE + surcharge));
-      useLocaleStore.getState().updateRobot(localeId, robot.id, { batteryLevel: next });
-      if (next <= BATTERY_CRITICAL_THRESHOLD) {
-        // Invariant: at least one robot must stay Active at all times. Re-read
-        // the roster fresh (not the stale `robots` snapshot) so an earlier
-        // robot's departure this same tick is already reflected — if this is
-        // the last one standing, hold it Active (battery floored at 0 rather
-        // than departing) until another robot lands back on Active.
-        const stillActiveElsewhere = (useLocaleStore.getState().getLocaleById(localeId)?.robots ?? []).some(
-          (r) => r.id !== robot.id && r.docking === DockingState.Active
-        );
-        if (stillActiveElsewhere) beginDeparting(localeId, robot, measure);
+      robot.batteryLevel = Math.max(0, robot.batteryLevel - (BATTERY_DRAIN_BASE + surcharge));
+      if (robot.batteryLevel <= BATTERY_CRITICAL_THRESHOLD) {
+        const stillActiveElsewhere = working.some((r) => r.id !== robot.id && r.docking === DockingState.Active);
+        if (stillActiveElsewhere) {
+          robot.docking = DockingState.Departing;
+          robot.dockingHoldUntilMeasure = measure + 1;
+        }
       }
     } else if (robot.docking === DockingState.Docked) {
-      const next = Math.min(100, robot.batteryLevel + BATTERY_RECHARGE_RATE);
-      useLocaleStore.getState().updateRobot(localeId, robot.id, { batteryLevel: next });
-      if (next >= BATTERY_FULL_THRESHOLD) beginDocking(localeId, robot.id, measure);
+      robot.batteryLevel = Math.min(100, robot.batteryLevel + BATTERY_RECHARGE_RATE);
+      if (robot.batteryLevel >= BATTERY_FULL_THRESHOLD) {
+        robot.docking = DockingState.Docking;
+        robot.dockingHoldUntilMeasure = measure + 1;
+      }
     } else if (
       (robot.docking === DockingState.Docking || robot.docking === DockingState.Departing) &&
       robot.dockingHoldUntilMeasure !== undefined &&
       measure >= robot.dockingHoldUntilMeasure
     ) {
-      if (robot.docking === DockingState.Docking) landOnActive(localeId, robot.id);
-      else landOnDocked(localeId, robot.id);
+      if (robot.docking === DockingState.Docking) {
+        robot.docking = DockingState.Active;
+        robot.dockingHoldUntilMeasure = undefined;
+        robot.job = chooseJobForSnapshot(robot, working, measure);
+      } else {
+        robot.docking = DockingState.Docked;
+        robot.dockingHoldUntilMeasure = undefined;
+        robot.dockCycleCount += 1;
+        let pitchCallIndex = 0;
+        const pitchRand = () => getSeededVal(noiseMap, 'robot.pitchDrift', robot.dockCycleCount * 100 + pitchCallIndex++, 0, 1);
+        robot.melody = reRollMelodyPitches(robot.melody, DOCKED_PITCH_DRIFT_RATIO, {
+          noteVariance: robot.noteVariance,
+          rand: pitchRand,
+        });
+      }
     }
   }
+
+  return working;
+}
+
+/**
+ * Replays fromMeasure+1 .. toMeasure inclusive via stepRobotLifecycle, in a tight loop -- zero
+ * side effects, zero store access. toMeasure < fromMeasure + 1 is a no-op (returns roster
+ * unchanged). Always called with fromMeasure = the locale's own createdAtMeasure in practice (per
+ * the "always replay from creation" decision) -- this function itself doesn't enforce that,
+ * callers do. The one caller-facing entry point for headless lifecycle replay.
+ */
+export function replayLifecycle(roster: RobotLifecycleSnapshot[], fromMeasure: number, toMeasure: number, noiseMap: NoiseFunction2D): RobotLifecycleSnapshot[] {
+  let working = roster;
+  for (let measure = fromMeasure + 1; measure <= toMeasure; measure++) {
+    working = stepRobotLifecycle(working, measure, noiseMap);
+  }
+  return working;
+}
+
+/** Builds this robot's RobotLifecycleSnapshot from live store state, reading dockCycleCount from
+ *  the module-level dockCycleCounters map (the live path's own source of truth -- not removed by
+ *  this refactor, see docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md §7 item 4). */
+function toLifecycleSnapshot(robot: Robot): RobotLifecycleSnapshot {
+  return {
+    id: robot.id,
+    docking: robot.docking,
+    batteryLevel: robot.batteryLevel,
+    dockingHoldUntilMeasure: robot.dockingHoldUntilMeasure,
+    job: robot.job,
+    melody: robot.melody,
+    dockCycleCount: dockCycleCounters.get(robot.id) ?? 0,
+    octaveRange: robot.octaveRange,
+    rhythmicDensity: robot.rhythmicDensity,
+    rhythmicMotifLength: robot.rhythmicMotifLength,
+    noteVariance: robot.noteVariance,
+  };
+}
+
+/**
+ * One measure's worth of Battery/Docking evaluation for every robot in a locale. Pure with
+ * respect to its inputs (measure is passed in, not read from BeatClock directly) so tests can
+ * drive it without a real transport — see startRobotLifecycle for the BeatClock-wired entry
+ * point.
+ *
+ * Delegates the actual battery/docking/job/melody-drift arithmetic to stepRobotLifecycle (World
+ * Clock, docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md) — this function's own job is
+ * comparing pre/post snapshots and firing the existing landing effects (beginDeparting/
+ * beginDocking/landOnActive/landOnDocked, GSAP/AudioEngine/idle-wandering side effects included)
+ * exactly where a transition happened, same as before this refactor. landOnActive still assigns
+ * its own job via assignJob (reading the live store fresh) rather than stepRobotLifecycle's own
+ * job pick — both use the identical balancing algorithm, but only assignJob's result is ever
+ * written to the store, so there is no risk of the two diverging in what actually ships.
+ */
+export function tickRobotLifecycle(localeId: string, measure: number): void {
+  const locale = useLocaleStore.getState().getLocaleById(localeId);
+  if (!locale) return;
+  const robots = locale.robots;
+
+  const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+  const before = robots.map(toLifecycleSnapshot);
+  const after = stepRobotLifecycle(before, measure, noiseMap);
+
+  robots.forEach((robot, i) => {
+    const preState = before[i];
+    const postState = after[i];
+
+    if (preState.docking === DockingState.Active || preState.docking === DockingState.Docked) {
+      useLocaleStore.getState().updateRobot(localeId, robot.id, { batteryLevel: postState.batteryLevel });
+    }
+
+    if (preState.docking === postState.docking) return;
+
+    if (preState.docking === DockingState.Active && postState.docking === DockingState.Departing) {
+      beginDeparting(localeId, robot, measure);
+    } else if (preState.docking === DockingState.Docked && postState.docking === DockingState.Docking) {
+      beginDocking(localeId, robot.id, measure);
+    } else if (preState.docking === DockingState.Docking && postState.docking === DockingState.Active) {
+      landOnActive(localeId, robot.id);
+    } else if (preState.docking === DockingState.Departing && postState.docking === DockingState.Docked) {
+      landOnDocked(localeId, robot.id, postState.melody);
+    }
+  });
 }
 
 /** Start the per-measure lifecycle tick for a locale. Idempotent — safe to call
@@ -179,11 +330,18 @@ export function landOnActive(localeId: string, robotId: string): void {
  * Land on Docked: mute via `audioMode: 'mute'` (see landOnActive's comment —
  * the voice/melody stay reserved/registered; only the toggle changes, so a
  * user can flip it back in Robot Options and hear the robot anyway),
- * reposition off-screen, drift pitch. The melody is re-registered with
- * AudioEngine after the drift so a manual mute override plays the drifted
- * pitches, not the stale pre-drift ones.
+ * reposition off-screen. The melody is re-registered with AudioEngine after
+ * the drift so a manual mute override plays the drifted pitches, not the
+ * stale pre-drift ones.
+ *
+ * `driftedMelody` is computed by the caller (tickRobotLifecycle, via
+ * stepRobotLifecycle -- World Clock, docs/specs/
+ * WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md) rather than here -- this
+ * function no longer calls reRollMelodyPitches itself. dockCycleCounters
+ * bookkeeping and dock position (still position-only, not melody-seeding)
+ * stay exactly as they were.
  */
-export function landOnDocked(localeId: string, robotId: string): void {
+export function landOnDocked(localeId: string, robotId: string, driftedMelody: Robot['melody']): void {
   const robot = useLocaleStore.getState().getRobotById(localeId, robotId);
   if (!robot) return;
 
@@ -196,16 +354,6 @@ export function landOnDocked(localeId: string, robotId: string): void {
   const dockPosition = noiseMap
     ? generateSpawnPosition(noiseMap, dockCycle)
     : generateSpawnPosition((_x: number, _y: number) => 0 as number, dockCycle);
-
-  let pitchCallIndex = 0;
-  const pitchRand = noiseMap
-    ? () => getSeededVal(noiseMap, 'robot.pitchDrift', dockCycle * 100 + pitchCallIndex++, 0, 1)
-    : alea(`${localeId}:${robotId}:${dockCycle}:pitchDrift`);
-
-  const driftedMelody = reRollMelodyPitches(robot.melody, DOCKED_PITCH_DRIFT_RATIO, {
-    noteVariance: robot.noteVariance,
-    rand: pitchRand,
-  });
 
   useLocaleStore.getState().updateRobot(localeId, robotId, {
     docking: DockingState.Docked,
