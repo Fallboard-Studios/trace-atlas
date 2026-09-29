@@ -153,7 +153,8 @@ export interface Robot {
   dockingHoldUntilMeasure?: number;
   /** 0-100. Drains while Active, recharges while Docked. Seeded at spawn. */
   batteryLevel: number;
-  /** Assigned automatically when a robot lands on Active. Undefined while Docked/Docking/Departing. */
+  /** Assigned automatically when a robot lands on Active. Not cleared when a robot lands on Docked —
+   *  it persists, stale, until the robot next lands on Active and is assigned a fresh one. */
   job?: { type: JobType; assignedAtMeasure: number };
   /**
    * Solo/mute/highlight mode set by the Robot Audio editor.

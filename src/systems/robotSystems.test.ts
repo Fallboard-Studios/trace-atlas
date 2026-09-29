@@ -832,12 +832,13 @@ describe('robotSystems', () => {
       expect(result.job?.type).not.toBe(JobType.VentExtraction);
     });
 
-    it('a Departing robot whose hold has elapsed lands on Docked, job and hold cleared', () => {
-      const snap = makeSnapshot({ docking: DockingState.Departing, dockingHoldUntilMeasure: 20, batteryLevel: 5, job: { type: JobType.AcousticSurvey, assignedAtMeasure: 0 } });
+    it('a Departing robot whose hold has elapsed lands on Docked, hold cleared but job left untouched (matches landOnDocked, which never writes job)', () => {
+      const priorJob = { type: JobType.AcousticSurvey, assignedAtMeasure: 0 };
+      const snap = makeSnapshot({ docking: DockingState.Departing, dockingHoldUntilMeasure: 20, batteryLevel: 5, job: priorJob });
       const [result] = stepRobotLifecycle([snap], 20, TEST_NOISE_MAP);
       expect(result.docking).toBe(DockingState.Docked);
       expect(result.dockingHoldUntilMeasure).toBeUndefined();
-      expect(result.job).toBeUndefined();
+      expect(result.job).toEqual(priorJob);
     });
 
     it('a Docking/Departing robot whose hold has NOT yet elapsed stays put', () => {
@@ -1019,14 +1020,23 @@ describe('robotSystems', () => {
     it('N real ticks and one replayLifecycle call converge on identical docking/batteryLevel/dockingHoldUntilMeasure/job/melody for all 12 robots, exercising both the "never zero Active" invariant and a dock-triggered melody drift', () => {
       // Contrived starting state, not left to chance: robot 0 is the ONLY Active robot, already
       // at the critical threshold plus one measure's drain -- guarantees the invariant fires (it
-      // must stay Active, there's no one else). Robot 1 is already Departing with its hold
-      // elapsing on the very first tick -- guarantees a dock-triggered melody drift happens
-      // within the test's window. Robots 2-11 are Docked, mid-battery, far from any threshold, so
+      // must stay Active, there's no one else). Robot 1 is already Departing, still holding the
+      // job it was assigned before it started departing (the real landOnDocked path never clears
+      // job -- see docs/ROBOT_LIFECYCLE.md), with its hold elapsing on the very first tick --
+      // guarantees both a dock-triggered melody drift AND a non-undefined job survive the landing
+      // within the test's window, so an undefined-vs-undefined job comparison can't hide a
+      // regression here again. Robots 2-11 are Docked, mid-battery, far from any threshold, so
       // they contribute realistic "nothing special happens" noise without triggering their own
       // transitions and complicating what's being proven.
       const robots: Robot[] = [
         makeRobot({ id: 'prove-it-0', docking: DockingState.Active, batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_BASE, job: undefined }),
-        makeRobot({ id: 'prove-it-1', docking: DockingState.Departing, dockingHoldUntilMeasure: 1, batteryLevel: 5, job: undefined }),
+        makeRobot({
+          id: 'prove-it-1',
+          docking: DockingState.Departing,
+          dockingHoldUntilMeasure: 1,
+          batteryLevel: 5,
+          job: { type: JobType.AcousticSurvey, assignedAtMeasure: 0 },
+        }),
         ...Array.from({ length: MAX_ROBOTS - 2 }, (_, i) =>
           makeRobot({ id: `prove-it-${i + 2}`, docking: DockingState.Docked, batteryLevel: 40 + i, job: undefined }),
         ),
@@ -1065,9 +1075,11 @@ describe('robotSystems', () => {
       const realtimeRobot0 = realtimeResult.find((r) => r.id === 'prove-it-0')!;
       expect(realtimeRobot0.docking).toBe(DockingState.Active);
       // The drift actually fired: robot 1 landed on Docked with a melody different from its start.
+      // Its job survives the landing untouched -- the real landOnDocked path never clears it.
       const realtimeRobot1 = realtimeResult.find((r) => r.id === 'prove-it-1')!;
       expect(realtimeRobot1.docking).toBe(DockingState.Docked);
       expect(realtimeRobot1.melody).not.toEqual(robots[1].melody);
+      expect(realtimeRobot1.job).toEqual(robots[1].job);
 
       for (const robot of robots) {
         const real = realtimeResult.find((r) => r.id === robot.id)!;

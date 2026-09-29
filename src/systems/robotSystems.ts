@@ -171,7 +171,6 @@ export function stepRobotLifecycle(roster: RobotLifecycleSnapshot[], measure: nu
       } else {
         robot.docking = DockingState.Docked;
         robot.dockingHoldUntilMeasure = undefined;
-        robot.job = undefined;
         robot.dockCycleCount += 1;
         let pitchCallIndex = 0;
         const pitchRand = () => getSeededVal(noiseMap, 'robot.pitchDrift', robot.dockCycleCount * 100 + pitchCallIndex++, 0, 1);
