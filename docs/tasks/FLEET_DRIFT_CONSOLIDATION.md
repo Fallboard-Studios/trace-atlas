@@ -323,20 +323,20 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
 
 ### Phase 7: Content view wiring (the integration that surfaces everything)
 
-- [ ] **Task 12: `FleetParamsContent.tsx` — Fleet Drift group + leaf**
+- [x] **Task 12: `FleetParamsContent.tsx` — Fleet Drift group + leaf**
 
   **Description:** Add a `'fleetDrift'` entry to `FLEET_PARAMS_GROUPS` (the content-order array — a *different* table from `navTreeConfig.ts`'s, per spec §1.6's documented hand-sync duplication), positioned between `'eqFilters'` and `'timeSpace'`, with one leaf (`fleetParams.fleetDrift.drift`, `effectKey: 'globalDrift'`). Add a `renderLeaf` branch: `if (effectKey === 'globalDrift') return <FleetDriftPanel />;`, alongside the existing `'automaticEffects'` → `<AudioRigDrawer />` branch. Import `FleetDriftPanel` from `AudioRigDrawer.tsx` (spec §1.5/§4).
 
   **Acceptance criteria:**
-  - [ ] A 5th accordion ("Fleet Drift") renders in the Fleet Params content view, positioned after "EQ & Filters" and before "Time & Space."
-  - [ ] It gets its own group-level `IntroPanel` once approached, via the same generic `FLEET_PARAMS_GROUPS.map()` every other group already renders through — no new `IntroPanel` call site needed.
-  - [ ] Its one leaf renders `FleetDriftPanel`'s content once approached, via the same lazy-mount gate (`leafHasApproached`) every other leaf already uses.
-  - [ ] No change to any other group's rendering, ordering, or accordion-open-state behavior.
+  - [x] A 5th accordion ("Fleet Drift") renders in the Fleet Params content view, positioned after "EQ & Filters" and before "Time & Space."
+  - [x] It gets its own group-level `IntroPanel` once approached, via the same generic `FLEET_PARAMS_GROUPS.map()` every other group already renders through — no new `IntroPanel` call site needed.
+  - [x] Its one leaf renders `FleetDriftPanel`'s content once approached, via the same lazy-mount gate (`leafHasApproached`) every other leaf already uses.
+  - [x] No change to any other group's rendering, ordering, or accordion-open-state behavior.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/content/FleetParamsContent.test.tsx` passes, with new coverage for the group's position/label/intro-panel/lazy-mount, matching the existing per-group test shape used for Pacing/EQ & Filters/Time & Space/Output.
-  - [ ] `npm run build:types`, `npm run lint` clean.
-  - [ ] Manual check: `npm run dev`, navigate to Fleet Params, confirm "Fleet Drift" appears in both the nav tree and the content view at the correct position, with its own intro panel and working Rate/Depth Drift sliders.
+  - [x] `npx vitest run src/components/panels/screen/nav/content/FleetParamsContent.test.tsx` passes (32 tests, 7 new/modified), with new coverage for the group's position/label/intro-panel/lazy-mount, matching the existing per-group test shape used for Pacing/EQ & Filters/Time & Space/Output.
+  - [x] `npm run build:types`, `npm run lint` clean project-wide.
+  - [ ] Manual check: not performed — no browser-automation tool is available in this session. `npm run dev` starts cleanly (verified), but nothing clicked through. Flagging as outstanding rather than claiming it; automated coverage above confirms the wiring is correct.
 
   **Dependencies:** Task 9, Task 11.
 
@@ -345,8 +345,8 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
   **Estimated scope:** S (one array entry + one `renderLeaf` branch + one import — the render/observer/state-wiring logic itself is already generic over `FLEET_PARAMS_GROUPS`' contents, per spec §4)
 
 ### Checkpoint: Feature complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Manual/audible check (spec §5): load a fresh Attenuation Style, open Fleet Params, confirm "Fleet Drift" appears right after "EQ & Filters," with its own intro panel and a seeded (nonzero-but-modest) Rate/Depth Drift starting position; confirm EQ/Low-Pass/High-Pass no longer show any drift sliders; with a global-chain LFO already audible, raise Fleet Drift's Depth Drift and confirm the wander comes from the one merged control regardless of which of the 3 former effect blocks that LFO targets; confirm Probe Drift (Probes/Companies) is completely unaffected.
+- [x] `npm run build:types`, `npm run lint` clean. `npx vitest run` (full suite): 195 files, 4108 tests, all pass. `npm run build`: succeeds (979.61 kB main chunk — a pre-existing warning, unrelated to this phase).
+- [ ] Manual/audible check (spec §5): **not performed** — no browser-automation tool available in this session. Everything below this line is still genuinely open, not assumed: "Fleet Drift" appears right after "EQ & Filters" with its own intro panel and a seeded starting position; EQ/Low-Pass/High-Pass no longer show any drift sliders; raising Fleet Drift's Depth Drift audibly affects a global-chain LFO regardless of which of the 3 former effect blocks it targets; Probe Drift is unaffected.
 - [ ] Review with human before proceeding.
 
 ---

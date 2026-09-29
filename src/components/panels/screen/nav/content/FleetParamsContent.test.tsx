@@ -14,26 +14,28 @@ vi.mock('@/utils/sectionRefs', async (importOriginal) => {
   return { ...actual, scrollToSection: vi.fn() };
 });
 
-// AudioRigDrawer/AudioRigEffectPanel each have their own full test suite — this file is about
-// FleetParamsContent's own stacking/accordion wiring, not re-testing their content.
+// AudioRigDrawer/AudioRigEffectPanel/FleetDriftPanel each have their own full test suite — this
+// file is about FleetParamsContent's own stacking/accordion wiring, not re-testing their content.
 vi.mock('../../console/AudioRigDrawer', () => ({
   AudioRigDrawer: () => <div data-testid="audio-rig-drawer-stub" />,
   AudioRigEffectPanel: ({ effectKey }: { effectKey: string }) => (
     <div data-testid="audio-rig-effect-panel-stub" data-effect-key={effectKey} />
   ),
+  FleetDriftPanel: () => <div data-testid="fleet-drift-panel-stub" />,
 }));
 
 const UI_INITIAL_STATE = useUIStore.getState();
 const AUDIO_INITIAL_STATE = useAudioStore.getState();
 
-const GROUP_IDS = ['fleetParams.pacing', 'fleetParams.eqFilters', 'fleetParams.timeSpace', 'fleetParams.output'];
+const GROUP_IDS = ['fleetParams.pacing', 'fleetParams.eqFilters', 'fleetParams.fleetDrift', 'fleetParams.timeSpace', 'fleetParams.output'];
 const GROUP_LABELS: Record<string, string> = {
   'fleetParams.pacing': 'Pacing',
   'fleetParams.eqFilters': 'EQ & Filters',
+  'fleetParams.fleetDrift': 'Fleet Drift',
   'fleetParams.timeSpace': 'Time & Space',
   'fleetParams.output': 'Output',
 };
-const GROUP_TRAITS: Trait[] = ['composition', 'spectral', 'timeSpace', 'output'];
+const GROUP_TRAITS: Trait[] = ['composition', 'spectral', 'spectral', 'timeSpace', 'output'];
 
 const LEAF_ID_TO_EFFECT: Record<string, string> = {
   'fleetParams.pacing.tempo': 'tempo',
@@ -43,6 +45,7 @@ const LEAF_ID_TO_EFFECT: Record<string, string> = {
   'fleetParams.eqFilters.eq': 'eq3',
   'fleetParams.eqFilters.hpf': 'filterHPF',
   'fleetParams.eqFilters.lpf': 'filterLPF',
+  'fleetParams.fleetDrift.drift': 'globalDrift',
   'fleetParams.timeSpace.reverb': 'reverb',
   'fleetParams.timeSpace.delay': 'delay',
   'fleetParams.output.compression': 'compressor',
@@ -95,8 +98,8 @@ describe('FleetParamsContent — view-fade-in on arrival from a different view',
   });
 });
 
-describe('FleetParamsContent — 4 uniform group accordions (docs/tasks/FLEET_PARAMS_CONTENT_REWORK.md Task 3)', () => {
-  it('renders exactly 4 accordion triggers — one per group — and no per-leaf accordion trigger for any of the 9 leaves', () => {
+describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PARAMS_CONTENT_REWORK.md Task 3; fleetDrift added by docs/specs/FLEET_DRIFT_CONSOLIDATION.md Task 12)', () => {
+  it('renders exactly 5 accordion triggers — one per group — and no per-leaf accordion trigger for any of the leaves', () => {
     render(<FleetParamsContent />);
 
     Object.values(GROUP_LABELS).forEach((label) => {
@@ -132,11 +135,11 @@ describe('FleetParamsContent — 4 uniform group accordions (docs/tasks/FLEET_PA
     expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
   });
 
-  it('colors each group accordion root with its own trait, in group order (composition/spectral/timeSpace/output)', () => {
+  it('colors each group accordion root with its own trait, in group order (composition/spectral/spectral/timeSpace/output)', () => {
     const { container } = render(<FleetParamsContent />);
 
     const roots = container.querySelectorAll('.sc-accordion');
-    expect(roots.length).toBe(4);
+    expect(roots.length).toBe(5);
     roots.forEach((root, i) => {
       const expected = getTraitColorStyle(GROUP_TRAITS[i]) as Record<string, string>;
       expect((root as HTMLElement).style.getPropertyValue('--color-accent-a')).toBe(expected['--color-accent-a']);
@@ -165,7 +168,22 @@ describe('FleetParamsContent — 4 uniform group accordions (docs/tasks/FLEET_PA
     expect(screen.getByText('EQ & Filters LORE TITLE')).toBeTruthy();
   });
 
-  it.each(Object.entries(LEAF_ID_TO_EFFECT).filter(([id]) => !id.includes('.pacing.')))(
+  it('renders "Fleet Drift" positioned right after "EQ & Filters" and before "Time & Space", with its own IntroPanel once approached', () => {
+    render(<FleetParamsContent />);
+
+    const buttons = screen.getAllByRole('button').map((b) => b.textContent);
+    const eqIndex = buttons.findIndex((t) => t?.includes('EQ & Filters'));
+    const driftIndex = buttons.findIndex((t) => t?.includes('Fleet Drift'));
+    const timeSpaceIndex = buttons.findIndex((t) => t?.includes('Time & Space'));
+    expect(driftIndex).toBe(eqIndex + 1);
+    expect(timeSpaceIndex).toBe(driftIndex + 1);
+
+    approach('fleetParams.fleetDrift');
+
+    expect(screen.getByText('Fleet Drift LORE TITLE')).toBeTruthy();
+  });
+
+  it.each(Object.entries(LEAF_ID_TO_EFFECT).filter(([id]) => !id.includes('.pacing.') && !id.includes('.fleetDrift.')))(
     '%s -> AudioRigEffectPanel effectKey=%s, once its own leaf anchor has approached',
     (leafId, effectKey) => {
       render(<FleetParamsContent />);
@@ -174,6 +192,13 @@ describe('FleetParamsContent — 4 uniform group accordions (docs/tasks/FLEET_PA
       expect(screen.getByTestId('audio-rig-effect-panel-stub').getAttribute('data-effect-key')).toBe(effectKey);
     },
   );
+
+  it('renders FleetDriftPanel for fleetParams.fleetDrift.drift once its own leaf anchor has approached (docs/specs/FLEET_DRIFT_CONSOLIDATION.md Task 12)', () => {
+    render(<FleetParamsContent />);
+    approachLeaf('fleetParams.fleetDrift.drift');
+
+    expect(screen.getByTestId('fleet-drift-panel-stub')).toBeTruthy();
+  });
 
   it('renders the Tempo slider, live-bound to audioStore.bpm, once its own leaf anchor has approached', () => {
     useAudioStore.setState({ bpm: 88 });

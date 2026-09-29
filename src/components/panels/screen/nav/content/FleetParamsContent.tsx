@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { AudioRigDrawer, AudioRigEffectPanel } from '../../console/AudioRigDrawer';
+import { AudioRigDrawer, AudioRigEffectPanel, FleetDriftPanel } from '../../console/AudioRigDrawer';
 import { useSectionObserver } from '../useSectionObserver';
 import { useAccordionOpenState } from '../useAccordionOpenState';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -87,6 +87,20 @@ const FLEET_PARAMS_GROUPS: FleetParamsGroupDef[] = [
     ],
   },
   {
+    // New top-level group (docs/specs/FLEET_DRIFT_CONSOLIDATION.md) — the merged eq3/filterLPF/
+    // filterHPF drift control, positioned right after EQ & Filters. This is a *different* table
+    // from navTreeConfig.ts's own NAV_TREE_SCHEMA (this content component, not the tree, decides
+    // stacking/accordion order — see this file's own doc comment above) — both must be kept in
+    // sync by hand, same as every other group here already is.
+    id: 'fleetDrift',
+    nodeId: 'fleetParams.fleetDrift',
+    humanLabel: 'Fleet Drift',
+    trait: 'spectral',
+    leaves: [
+      { id: 'fleetParams.fleetDrift.drift', humanLabel: 'Fleet Drift', effectKey: 'globalDrift' },
+    ],
+  },
+  {
     id: 'timeSpace',
     nodeId: 'fleetParams.timeSpace',
     humanLabel: 'Time & Space',
@@ -155,14 +169,18 @@ function renderLeaf(effectKey: SelectedFleetParamsEffect, bpm: number, swellFreq
   if (effectKey === 'automaticEffects') {
     return <AudioRigDrawer />;
   }
+  if (effectKey === 'globalDrift') {
+    return <FleetDriftPanel />;
+  }
   return <AudioRigEffectPanel effectKey={effectKey as AudioRigEffectKey} />;
 }
 
 /**
  * Fleet Params branch content (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, docs/specs/
  * FLEET_PARAMS_CONTENT_REWORK.md) — a single scrollable view: one always-open, spectral-traited
- * outer panel holding the section's own IntroPanel, then all 4 groups (Pacing, EQ & Filters, Time
- * & Space, Output) stacked identically — each its own accordion (colored by its own trait), each
+ * outer panel holding the section's own IntroPanel, then all 5 groups (Pacing, EQ & Filters, Fleet
+ * Drift, Time & Space, Output — Fleet Drift added by docs/specs/FLEET_DRIFT_CONSOLIDATION.md)
+ * stacked identically — each its own accordion (colored by its own trait), each
  * containing a group-level IntroPanel plus its leaves as plain anchor divs, no leaf ever getting
  * an accordion of its own. Every group accordion has manual, independent open/closed state
  * (`useAccordionOpenState`) — opening one never closes another, and a nav click/scrollspy only
