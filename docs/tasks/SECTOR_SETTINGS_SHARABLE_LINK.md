@@ -4,7 +4,7 @@ Source spec: [docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md](../specs/SECTOR_SETTI
 
 **All three of spec §7's open items are resolved (Crawford, 2026-09-28)** — see Architecture Decisions below. Item 1 is a scope change, not just a design confirmation: `?seed=`/`?x=`/`?y=` are removed entirely (Task 0), not merely deprioritized behind the share payload.
 
-**Status (2026-09-28): all 11 tasks (0–10) implemented on `feature/sharing`, one commit per task, TDD (RED confirmed before each implementation).** Every task's own focused tests pass; full suite green at every checkpoint (193 files / 4077 tests as of Task 10); `npm run build:types`/`npm run lint`/`npm run build` all clean. **The manual browser checks (Checkpoint B's flash check, Checkpoint C's full click-through) have NOT been performed** — no browser available in the implementing session. This phase is not done until Crawford runs those two checks himself.
+**Status (2026-09-28): all 11 tasks (0–10) implemented on `feature/sharing`, one commit per task, TDD (RED confirmed before each implementation).** Every task's own focused tests pass; full suite green at every checkpoint (193 files / 4077 tests as of Task 10, 4083 after the follow-up encoding-compaction commits); `npm run build:types`/`npm run lint`/`npm run build` all clean. **Manual browser checks (Checkpoint B's flash check, Checkpoint C's full click-through): passed — Crawford's own visual test, 2026-09-28.** Phase complete.
 
 ## Overview
 
