@@ -114,7 +114,7 @@ interface RobotOptionsPanelProps {
  *
  * Stacked view (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, Task 11) — replaces the old
  * `switch (section)` (one leaf rendered) with RobotDisplaySection at top (unwrapped), followed by
- * all 4 sections' worth of subsections stacked, each wrapped in an accordion, via
+ * all 5 sections' worth of subsections stacked, each wrapped in an accordion, via
  * RobotSectionAccordionStack (docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md) — this component
  * owns only value derivation, action wiring, and dispatching each subsection id to its own content
  * component (renderSubsection below); the accordion/anchor/nesting shell itself lives in that

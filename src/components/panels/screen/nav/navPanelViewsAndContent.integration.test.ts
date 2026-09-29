@@ -57,19 +57,19 @@ describe('Nav panel — cross-branch regression (docs/tasks/NAV_PANEL_VIEWS_AND_
     expect(useUIStore.getState().selectedSubsection).toBeNull();
   });
 
-  it('selecting companies.<id>.source.probeDrift directly (no intermediate clicks) sets every ancestor expand field in one step', () => {
+  it('selecting companies.<id>.probeDrift.probeDrift directly (no intermediate clicks) sets every ancestor expand field in one step', () => {
     useLocaleStore.getState().addCompany(localeId, makeCompany('c1', 'Acme Corp'));
     const { result } = renderHook(() => useNavTree());
 
-    act(() => result.current.select('companies.c1.source.probeDrift'));
+    act(() => result.current.select('companies.c1.probeDrift.probeDrift'));
 
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('companies');
     expect(useUIStore.getState().expandedCompanyId).toBe('c1');
     // Its own section is already always-expanded once the company itself is — no separate field
     // to set (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3).
-    expect(result.current.isExpanded('companies.c1.source')).toBe(true);
+    expect(result.current.isExpanded('companies.c1.probeDrift')).toBe(true);
     expect(useUIStore.getState().selectedCompanyId).toBe('c1');
-    expect(useUIStore.getState().selectedSection).toBe('source');
+    expect(useUIStore.getState().selectedSection).toBe('probeDrift');
     expect(useUIStore.getState().selectedSubsection).toBe('probeDrift');
   });
 

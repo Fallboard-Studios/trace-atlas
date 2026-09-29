@@ -11,7 +11,7 @@ export type Theme = 'dark' | 'light';
 /** A leaf section within whatever entity is selected (a robot, a company, or
  *  the implicit "All Probes" bulk-edit target) — docs/specs/NAV_LAYOUT_REWRITE.md
  *  §1.3. null when a category/entity node itself is selected, no section chosen. */
-export type RobotSection = 'volume' | 'melody' | 'envelope' | 'source';
+export type RobotSection = 'volume' | 'melody' | 'envelope' | 'source' | 'probeDrift';
 /** Fleet Params' 4 mid-level groups — used to type-narrow a tree node id segment
  *  (useNavTree.ts's `asFleetParamsGroup`), not to back any expand-tracking store field: all 4
  *  are always expanded once Fleet Params itself is expanded (docs/specs/

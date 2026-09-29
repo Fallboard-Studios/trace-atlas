@@ -158,7 +158,7 @@ function allSubsectionIds(prefix: string) {
     `${prefix}.source.baselineOscillator`,
     `${prefix}.source.coaxialOscillator`,
     `${prefix}.source.harmonicOscillator`,
-    `${prefix}.source.probeDrift`,
+    `${prefix}.probeDrift.probeDrift`,
   ];
 }
 
@@ -215,7 +215,7 @@ describe('CompanyOptionsSection', () => {
     });
   });
 
-  it('renders Source\'s own 4 nested accordion triggers', () => {
+  it('renders Source\'s own 3 nested accordion triggers, plus Probe Drift as its own top-level trigger', () => {
     render(<CompanyOptionsSection />);
     for (const label of ['Baseline Oscillator', 'Coaxial Oscillator', 'Harmonic Oscillator', 'Probe Drift']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
@@ -241,7 +241,7 @@ describe('CompanyOptionsSection', () => {
   it('selecting a subsection via the nav tree does not open or close any accordion — nav selection only drives tree highlighting now', () => {
     render(<CompanyOptionsSection />);
     act(() => {
-      useUIStore.getState().setSelectedSection('source');
+      useUIStore.getState().setSelectedSection('probeDrift');
       useUIStore.getState().setSelectedSubsection('probeDrift');
     });
     expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');

@@ -1,8 +1,17 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
+import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { ROBOT_SECTIONS_CONFIG, type RobotOptionsTrait } from '@/data/robotSubsectionConfig';
 import type { RobotSection, RobotSubsection } from '@/stores/uiStore';
 import type { AccordionSchema } from '@/types/controls';
+
+const PLACEHOLDER_LORE = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.';
+const PLACEHOLDER_HUMAN = 'Placeholder copy — real lore/human descriptions land in a later pass.';
+
+// Which accordion-bearing subsections open with their own intro block, ahead of the
+// existing controls — Baseline/Coaxial/Harmonic Oscillator (Source's 3 layer slots)
+// aren't in this set; only Source's own wrapping accordion (below) intros Source itself.
+const SUBSECTIONS_WITH_INTRO = new Set<RobotSubsection>(['audioSettings', 'rhythm', 'pingContour', 'probeDrift']);
 
 export interface RobotSectionAccordionStackProps {
   /** e.g. `probes.${robot.id}`, `probes.all`, `companies.${id}` — every id this stack renders is
@@ -57,6 +66,14 @@ export function RobotSectionAccordionStack({
                   onOpenChange={(open) => setOpen(id, open)}
                   style={style}
                 >
+                  {SUBSECTIONS_WITH_INTRO.has(sub.id) && (
+                    <IntroPanel
+                      loreLabel={`${sub.accordionLabel} LORE TITLE`}
+                      loreDescription={PLACEHOLDER_LORE}
+                      humanDescription={PLACEHOLDER_HUMAN}
+                      trait={section.trait}
+                    />
+                  )}
                   {hasApproached(id) ? renderSubsection(sub.id, section.id) : null}
                 </AccordionContainer>
               </div>
@@ -72,6 +89,12 @@ export function RobotSectionAccordionStack({
                 onOpenChange={(open) => setOpen(sectionId, open)}
                 style={style}
               >
+                <IntroPanel
+                  loreLabel={`${section.ownAccordionLabel} LORE TITLE`}
+                  loreDescription={PLACEHOLDER_LORE}
+                  humanDescription={PLACEHOLDER_HUMAN}
+                  trait={section.trait}
+                />
                 {subsectionAccordions}
               </AccordionContainer>
             ) : subsectionAccordions}

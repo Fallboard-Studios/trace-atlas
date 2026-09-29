@@ -58,7 +58,7 @@ describe('RobotSectionAccordionStack', () => {
     expect(screen.getByTestId('accordion-probes.r1.source.baselineOscillator').getAttribute('data-human-label')).toBe('Baseline Oscillator');
     expect(screen.getByTestId('accordion-probes.r1.source.coaxialOscillator').getAttribute('data-human-label')).toBe('Coaxial Oscillator');
     expect(screen.getByTestId('accordion-probes.r1.source.harmonicOscillator').getAttribute('data-human-label')).toBe('Harmonic Oscillator');
-    expect(screen.getByTestId('accordion-probes.r1.source.probeDrift').getAttribute('data-human-label')).toBe('Probe Drift');
+    expect(screen.getByTestId('accordion-probes.r1.probeDrift.probeDrift').getAttribute('data-human-label')).toBe('Probe Drift');
   });
 
   it("wires each accordion's open state from isOpen and its onOpenChange to setOpen", () => {
@@ -76,7 +76,7 @@ describe('RobotSectionAccordionStack', () => {
     expect(setOpen).toHaveBeenCalledWith('probes.r1.melody.rhythm', false);
   });
 
-  it("nests source's 4 subsection accordions inside one outer, wrapping Source accordion", () => {
+  it("nests source's 3 subsection accordions inside one outer, wrapping Source accordion", () => {
     render(<RobotSectionAccordionStack {...makeProps()} />);
     const outer = screen.getByTestId('accordion-probes.r1.source');
     expect(outer.getAttribute('data-human-label')).toBe('Source');
@@ -85,16 +85,19 @@ describe('RobotSectionAccordionStack', () => {
     expect(outerContent.querySelector('[data-testid="accordion-probes.r1.source.baselineOscillator"]')).not.toBeNull();
     expect(outerContent.querySelector('[data-testid="accordion-probes.r1.source.coaxialOscillator"]')).not.toBeNull();
     expect(outerContent.querySelector('[data-testid="accordion-probes.r1.source.harmonicOscillator"]')).not.toBeNull();
-    expect(outerContent.querySelector('[data-testid="accordion-probes.r1.source.probeDrift"]')).not.toBeNull();
+    // Probe Drift is its own top-level section now — not nested inside Source's wrapping accordion.
+    expect(outerContent.querySelector('[data-testid="accordion-probes.r1.probeDrift.probeDrift"]')).toBeNull();
   });
 
-  it('renders volume/melody/envelope with no section-level wrapping accordion — only their one subsection accordion', () => {
+  it('renders volume/melody/envelope/probeDrift with no section-level wrapping accordion — only their one subsection accordion', () => {
     render(<RobotSectionAccordionStack {...makeProps()} />);
     expect(screen.queryByTestId('accordion-probes.r1.volume')).toBeNull();
     expect(screen.queryByTestId('accordion-probes.r1.melody')).toBeNull();
     expect(screen.queryByTestId('accordion-probes.r1.envelope')).toBeNull();
+    expect(screen.queryByTestId('accordion-probes.r1.probeDrift')).toBeNull();
     // Their own single subsection accordion still renders, unwrapped, directly under the section's anchor div.
     expect(screen.queryByTestId('accordion-probes.r1.volume.audioSettings')).not.toBeNull();
+    expect(screen.queryByTestId('accordion-probes.r1.probeDrift.probeDrift')).not.toBeNull();
   });
 
   it('excludes frequency ("Pitches") entirely — no accordion rendered, not present in output', () => {
@@ -110,8 +113,10 @@ describe('RobotSectionAccordionStack', () => {
 
     expect(renderSubsection).toHaveBeenCalledWith('pingContour', 'envelope');
     expect(renderSubsection).not.toHaveBeenCalledWith('rhythm', 'melody');
-    expect(screen.getByTestId('content-probes.r1.envelope.pingContour').textContent).toBe('pingContour');
-    expect(screen.getByTestId('content-probes.r1.melody.rhythm').textContent).toBe('');
+    // Each accordion's own intro panel renders unconditionally (not lazy-mount gated), so its
+    // content wrapper's text includes that intro plus the gated renderSubsection() output.
+    expect(screen.getByTestId('content-probes.r1.envelope.pingContour').textContent).toContain('pingContour');
+    expect(screen.getByTestId('content-probes.r1.melody.rhythm').textContent).not.toContain('rhythm');
   });
 
   it("applies resolveStyle(section trait) as every accordion's style, including nested source subsections", () => {
@@ -136,7 +141,8 @@ describe('RobotSectionAccordionStack', () => {
       'probes.r1.melody', 'probes.r1.melody.rhythm',
       'probes.r1.envelope', 'probes.r1.envelope.pingContour',
       'probes.r1.source', 'probes.r1.source.baselineOscillator', 'probes.r1.source.coaxialOscillator',
-      'probes.r1.source.harmonicOscillator', 'probes.r1.source.probeDrift',
+      'probes.r1.source.harmonicOscillator',
+      'probes.r1.probeDrift', 'probes.r1.probeDrift.probeDrift',
     ]));
     expect(calledIds).not.toContain('probes.r1.melody.frequency');
   });
