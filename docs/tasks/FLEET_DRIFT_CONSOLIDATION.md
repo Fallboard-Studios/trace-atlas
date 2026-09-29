@@ -85,18 +85,18 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
 
   **Estimated scope:** XS (one default-object literal)
 
-- [ ] **Task 3: Seed range + loading range tables — 8 keys become 4**
+- [x] **Task 3: Seed range + loading range tables — 8 keys become 4**
 
   **Description:** Contract `GlobalAudioSeedFieldKey`'s 8 `'lfoDrift.<group>.<field>'` keys down to 4 (`'lfoDrift.globalFx.rateDrift'`/`'.depthDrift'`, `'lfoDrift.robots.rateDrift'`/`'.depthDrift'`) in `globalAudioSeedRanges.ts`, at the unchanged `{ min: -1, max: 1, scale: 'linear', step: 0.01 }` range per key; mirror the same 8→4 contraction in `globalAudioLoadingRanges.ts` at the unchanged `{ min: -0.7, max: 0.7 }` window per key (spec §4).
 
   **Acceptance criteria:**
-  - [ ] `GlobalAudioSeedFieldKey` includes exactly the 4 new `lfoDrift.*` keys; the old 8 (including any `eq3`/`filterLPF`/`filterHPF` variant) are gone, not left dangling alongside the new ones.
-  - [ ] `GLOBAL_AUDIO_SEED_RANGES` and `GLOBAL_AUDIO_LOADING_RANGES` both still type-check as exhaustive `Record<GlobalAudioSeedFieldKey, ...>` (a missing entry is a compile error once the union shrinks).
-  - [ ] Every non-`lfoDrift` key in both tables is untouched.
+  - [x] `GlobalAudioSeedFieldKey` includes exactly the 4 new `lfoDrift.*` keys; the old 8 (including any `eq3`/`filterLPF`/`filterHPF` variant) are gone, not left dangling alongside the new ones.
+  - [x] `GLOBAL_AUDIO_SEED_RANGES` and `GLOBAL_AUDIO_LOADING_RANGES` both still type-check as exhaustive `Record<GlobalAudioSeedFieldKey, ...>` (a missing entry is a compile error once the union shrinks).
+  - [x] Every non-`lfoDrift` key in both tables is untouched.
 
   **Verification:**
-  - [ ] `npm run build:types` clean for these two files specifically (other files' errors are expected/tracked by their own tasks per Task 2's note).
-  - [ ] `npx vitest run src/data/globalAudioSeedRanges.test.ts src/data/globalAudioLoadingRanges.test.ts` pass, with closed-set key-coverage assertions contracted from 8 to 4 entries.
+  - [x] `npm run build:types` clean for these two files specifically (other files' errors are expected/tracked by their own tasks per Task 2's note).
+  - [x] `npx vitest run src/data/globalAudioSeedRanges.test.ts src/data/globalAudioLoadingRanges.test.ts` pass, with closed-set key-coverage assertions contracted from 8 to 4 entries.
 
   **Dependencies:** None (`GlobalAudioSeedFieldKey` is its own string-literal union, independent of `DriftGroupId`/`GlobalAudioSettings` — same independence 10.3's own equivalent task had).
 
