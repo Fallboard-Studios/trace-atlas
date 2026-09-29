@@ -21,17 +21,18 @@ export function deriveAttenuationStyleSeed(name: string): string {
 // Module-level override that, when set, causes `deriveAttenuationStyleSeed`
 // to return the override for every Attenuation Style. This is intentionally
 // simple so existing callers don't need to change imports.
+//
+// No longer initialized from a `?seed=` URL param or boot-time global (roadmap
+// Phase 21) -- the shareable-link `?session=` param (sessionShareUtils.ts) is a
+// strictly better reproducibility tool than a pinned-but-sanitized seed, and
+// having both read the URL at boot risked exactly the kind of persistent,
+// session-wide hijack docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md §7 item 1
+// found. The setter/getter below stay as general-purpose primitives -- still
+// used by tests, AudioDebugHud.tsx (read-only display), and
+// getSeededVal.ts/noiseMaps.ts (which mix this override into their own seed
+// formulas whenever something sets it directly) -- only the URL entry point
+// is gone.
 let GLOBAL_ATTENUATION_STYLE_SEED_OVERRIDE: string | null = null;
-
-// Initialize override from a global var or the URL `?seed=` param (browser only).
-if (typeof window !== 'undefined') {
-  const bootOverride = (globalThis as unknown as { __GLOBAL_ATTENUATION_STYLE_SEED__?: string }).__GLOBAL_ATTENUATION_STYLE_SEED__ ?? null;
-  const qsOverride = new URLSearchParams(window.location.search).get('seed');
-  const initial = (typeof bootOverride === 'string' && bootOverride) ? bootOverride : qsOverride;
-  if (initial) {
-    GLOBAL_ATTENUATION_STYLE_SEED_OVERRIDE = String(initial).toLowerCase().replace(/[^a-z0-9]/g, '');
-  }
-}
 
 /**
  * Set or clear the global Attenuation Style seed override.
@@ -67,20 +68,11 @@ export interface LocaleCoordinateOverride {
 }
 
 // Module-level override for the default locale's starting coordinates. Each
-// axis is independent: an unset axis (null) stays random. `?seed=` alone pins
-// only the Attenuation Style — the locale noise map is seeded from
-// `${seed}:${x}:${y}` (noiseMaps.ts), so a reproducible world needs the
-// coordinates pinned too (docs/PROCEDURAL_GENERATION.md).
+// axis is independent: an unset axis (null) stays random. No longer
+// initialized from `?x=`/`?y=` URL params (roadmap Phase 21 — see
+// GLOBAL_ATTENUATION_STYLE_SEED_OVERRIDE's comment above); the setter/getter
+// stay as general-purpose primitives.
 let LOCALE_COORDINATE_OVERRIDE: LocaleCoordinateOverride = { x: null, y: null };
-
-// Initialize from the URL `?x=` / `?y=` params (browser only), same as `?seed=` above.
-if (typeof window !== 'undefined') {
-  const params = new URLSearchParams(window.location.search);
-  LOCALE_COORDINATE_OVERRIDE = {
-    x: parseCoordinateParam(params.get('x')),
-    y: parseCoordinateParam(params.get('y')),
-  };
-}
 
 /**
  * Set or clear the default locale's coordinate override. Only affects a

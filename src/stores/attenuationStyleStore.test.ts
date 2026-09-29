@@ -1,9 +1,11 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { useAttenuationStyleStore, DEFAULT_PELAGOS, selectCurrentAttenuationStyle } from './attenuationStyleStore';
+import { encodeSessionPayload } from '../utils/sessionShareUtils';
+import type { SessionPayload } from '../types/session';
 
 // ========================================
 // TESTS
@@ -101,5 +103,52 @@ describe('attenuationStyleStore', () => {
       expect(() => selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())).not.toThrow();
       expect(selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())).toBeUndefined();
     });
+  });
+});
+
+describe('DEFAULT_ATTENUATION_STYLE_NAME -- ?session= share-payload priority (roadmap Phase 21)', () => {
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+    vi.resetModules();
+  });
+
+  function makePayload(overrides: Partial<SessionPayload> = {}): SessionPayload {
+    return {
+      version: 1,
+      attenuationStyleName: 'Pelagos 7!',
+      coordinates: { x: -5, y: 777 },
+      globalAudio: {} as SessionPayload['globalAudio'],
+      robotOverrides: {},
+      companyDiffs: {},
+      userCreatedCompanies: [],
+      ...overrides,
+    };
+  }
+
+  it('uses a share payload\'s exact, unsanitized attenuationStyleName when ?session= is present', async () => {
+    const payload = makePayload({ attenuationStyleName: 'Pelagos 7!' });
+    window.history.replaceState({}, '', `/?session=${encodeSessionPayload(payload)}`);
+    vi.resetModules();
+
+    const fresh = await import('./attenuationStyleStore');
+
+    expect(fresh.DEFAULT_ATTENUATION_STYLE_NAME).toBe('Pelagos 7!');
+  });
+
+  it('falls back to a fresh random name when ?session= is absent', async () => {
+    vi.resetModules();
+    const fresh = await import('./attenuationStyleStore');
+    expect(fresh.DEFAULT_ATTENUATION_STYLE_NAME).toMatch(/^[a-z0-9]+$/);
+  });
+
+  it('never touches the global seed override -- getGlobalAttenuationStyleSeedOverride() stays null after a share-link boot', async () => {
+    const payload = makePayload({ attenuationStyleName: 'Pelagos 7!' });
+    window.history.replaceState({}, '', `/?session=${encodeSessionPayload(payload)}`);
+    vi.resetModules();
+
+    await import('./attenuationStyleStore');
+    const seed = await import('../utils/seedUtils');
+
+    expect(seed.getGlobalAttenuationStyleSeedOverride()).toBeNull();
   });
 });

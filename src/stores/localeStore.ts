@@ -4,7 +4,8 @@ import type { Locale, LocaleState } from '../types/locale';
 import { DEFAULT_LOCALE_ID } from './attenuationStyleStore';
 import { DAY_DURATION_MS } from '../constants/time';
 import { getLocaleNoiseMap, evictLocaleNoiseMap } from '../utils/noiseMaps';
-import { randomCoordinate, getLocaleCoordinateOverride } from '../utils/seedUtils';
+import { randomCoordinate } from '../utils/seedUtils';
+import { getSessionSharePayload } from '../utils/sessionShareUtils';
 import { AudioEngine } from '../engine/AudioEngine';
 import { lfoEngine } from '../engine/lfoEngine';
 import {
@@ -64,15 +65,15 @@ function clampToggleValue(v: unknown, min: number, max: number): { active: boole
 // both assume coordinates are integers system-wide (docs/specs/SECTOR_SETTINGS.md)
 // — randomCoordinate() already rounds, so this stays true without extra work.
 //
-// `?x=` / `?y=` (seedUtils.ts) pin either axis for reproducible bug repros/
-// profiling: `?seed=` alone only pins the Attenuation Style, and the locale
-// noise map (robots, BPM, idle/interaction) is seeded from the coordinates
-// too. An unset axis stays random. This is a boot-time override only —
-// Sector Settings' own "Random" button still calls randomCoordinate() ungated.
-const coordinateOverride = getLocaleCoordinateOverride();
+// `?x=`/`?y=` boot-time override removed (roadmap Phase 21 — superseded by
+// the shareable-link `?session=` param, sessionShareUtils.ts). A share
+// payload's exact coordinates take priority when `?session=` is present,
+// otherwise random. Sector Settings' own "Random" button still calls
+// randomCoordinate() ungated, same as before.
+const sessionSharePayload = getSessionSharePayload();
 const DEFAULT_LOCALE_COORDINATES = {
-  x: coordinateOverride.x ?? randomCoordinate(),
-  y: coordinateOverride.y ?? randomCoordinate(),
+  x: sessionSharePayload?.coordinates.x ?? randomCoordinate(),
+  y: sessionSharePayload?.coordinates.y ?? randomCoordinate(),
 };
 
 const DEFAULT_LOCALE: Locale = {

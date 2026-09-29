@@ -352,7 +352,7 @@ function reapplyCompanyMembership(localeId: string, companyId: string, targetRob
  * existing retransmitWorld — never a parallel regeneration path (spec §7 risk 7) — then overlays
  * globalAudio, every robot override, every company diff, and every user-created company on top.
  */
-export function applySessionPayload(payload: SessionPayload): void {
+export function applySessionPayload(payload: SessionPayload, options?: { skipLocaleRebuild?: boolean }): void {
   // worldTransition.ts's createNewAttenuationStyle always tries to CREATE a new Attenuation
   // Style for a given name (never "reuse the existing one with this name") and doesn't check
   // whether that creation actually succeeded — attenuationStyleStore.addAttenuationStyle silently
@@ -368,13 +368,22 @@ export function applySessionPayload(payload: SessionPayload): void {
   // normal path; the same collision risk could in principle recur if that different name happens
   // to already exist elsewhere in the store, which is not handled here (see docs/specs/
   // SESSION_STORAGE.md §7 item 8's follow-up note).
-  const currentAttenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
-  const attenuationStyleUnchanged = currentAttenuationStyle?.name === payload.attenuationStyleName;
-  retransmitWorld(
-    attenuationStyleUnchanged
-      ? { coordinates: payload.coordinates }
-      : { attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates },
-  );
+  //
+  // skipLocaleRebuild: true (docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md §4.2/§7 item 2) skips
+  // this whole retransmitWorld call -- used only by the shareable-link boot path, which has
+  // already built the correct locale before this function runs (via the early
+  // attenuationStyleName/coordinates override in attenuationStyleStore.ts/localeStore.ts), so
+  // calling retransmitWorld here would unconditionally tear it down and rebuild it a second time
+  // in the same boot (resolveRetransmitAction has no "already correct" short-circuit).
+  if (!options?.skipLocaleRebuild) {
+    const currentAttenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
+    const attenuationStyleUnchanged = currentAttenuationStyle?.name === payload.attenuationStyleName;
+    retransmitWorld(
+      attenuationStyleUnchanged
+        ? { coordinates: payload.coordinates }
+        : { attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates },
+    );
+  }
 
   useAudioStore.setState({ globalAudio: payload.globalAudio });
   applyGlobalAudioToEngine(payload.globalAudio);

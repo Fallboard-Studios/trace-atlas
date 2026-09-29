@@ -310,6 +310,32 @@ describe('applySessionPayload', () => {
     spy.mockRestore();
   });
 
+  it('skipLocaleRebuild: true never calls retransmitWorld', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const spy = vi.spyOn(worldTransition, 'retransmitWorld');
+
+    applySessionPayload(payload, { skipLocaleRebuild: true });
+
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('skipLocaleRebuild: true still applies globalAudio/robotOverrides/companyDiffs, same as the default call', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+    useLocaleStore.getState().updateRobot(localeId, robot.id, { rhythmicDensity: 3 });
+    const payload = buildSessionPayload();
+    useLocaleStore.getState().updateRobot(localeId, robot.id, { rhythmicDensity: 0 });
+
+    applySessionPayload(payload, { skipLocaleRebuild: true });
+
+    const restoredRobot = currentLocale()!.robots.find((r) => r.id === robot.id);
+    expect(restoredRobot?.rhythmicDensity).toBe(3);
+  });
+
   it('restores an edited robot field after a full save/wipe/load round trip', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);

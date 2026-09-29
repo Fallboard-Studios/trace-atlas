@@ -8,6 +8,8 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { stopRobotLifecycle } from '@/systems/robotSystems';
 import { initializeLocale } from '@/systems/worldTransition';
+import { consumeSessionSharePayload } from '@/utils/sessionShareUtils';
+import { applySessionPayload } from '@/utils/sessionDiff';
 import { Factory } from '@/components/actors/Factory';
 import { isBubbleEligible } from '@/components/actors/factoryVariants';
 import { getRowConfig } from '@/systems/factoryPlacementSystem';
@@ -101,8 +103,29 @@ export function OceanScene({
   // It's idempotent on factories/robots (skips if the locale is already
   // populated — e.g. a power cycle where the scene unmounts/remounts but
   // actors/robots persist in the store), so calling it again here is safe.
+  //
+  // Immediately after, if a shareable link's ?session= payload is present
+  // (roadmap Phase 21), apply its robotOverrides/companyDiffs/globalAudio on
+  // top via applySessionPayload — with skipLocaleRebuild: true, since the
+  // locale this initializeLocale call just built is already correct (its
+  // attenuationStyleName/coordinates were pinned before the default locale
+  // was even constructed, docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md §4.3) —
+  // calling applySessionPayload's normal retransmitWorld path here would
+  // tear that locale down and rebuild it a second time in the same boot.
+  //
+  // consumeSessionSharePayload, NOT getSessionSharePayload — this effect
+  // reruns on every power cycle (unmount/remount, e.g. the power switch),
+  // and getSessionSharePayload would keep returning the same payload forever,
+  // re-applying it (re-registering every robot's melody, reapplying company
+  // membership) on every power-on for as long as ?session= stays in the URL.
+  // consumeSessionSharePayload returns it once per page load, then null.
   useEffect(() => {
     initializeLocale(localeId);
+
+    const sharePayload = consumeSessionSharePayload();
+    if (sharePayload) {
+      applySessionPayload(sharePayload, { skipLocaleRebuild: true });
+    }
 
     return () => {
       stopRobotLifecycle();
