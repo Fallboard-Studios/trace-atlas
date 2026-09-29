@@ -69,3 +69,25 @@ const SESSION_SHARE_PAYLOAD: SessionPayload | null =
 export function getSessionSharePayload(): SessionPayload | null {
   return SESSION_SHARE_PAYLOAD;
 }
+
+/** Builds a full, absolute shareable URL for a payload -- origin + pathname + exactly one
+ *  `?session=` param. Deliberately drops any other query params currently in the address bar
+ *  (e.g. ?debug) -- a share link is a clean, self-contained artifact, not a snapshot of whatever
+ *  debug flags happened to be active when it was generated. */
+export function buildShareUrl(payload: SessionPayload): string {
+  const url = new URL(window.location.origin + window.location.pathname);
+  url.searchParams.set(SESSION_PARAM, encodeSessionPayload(payload));
+  return url.toString();
+}
+
+/** Builds the link and writes it to the clipboard. Returns true on success, false on failure
+ *  (e.g. clipboard permission denied) -- never throws. */
+export async function copySessionLink(payload: SessionPayload): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(buildShareUrl(payload));
+    return true;
+  } catch (err) {
+    devWarn('[sessionShareUtils] clipboard write failed', err);
+    return false;
+  }
+}

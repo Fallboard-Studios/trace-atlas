@@ -3,7 +3,7 @@
 // ========================================
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import type { SessionPayload } from '../types/session';
-import { encodeSessionPayload, decodeSessionPayload } from './sessionShareUtils';
+import { encodeSessionPayload, decodeSessionPayload, buildShareUrl, copySessionLink } from './sessionShareUtils';
 
 // ========================================
 // HELPERS
@@ -84,5 +84,55 @@ describe('getSessionSharePayload (boot-time ?session= URL param)', () => {
   it('returns null when ?session= is present but malformed', async () => {
     const fresh = await loadFreshWithQuery('?session=not-valid-base64!!!');
     expect(fresh.getSessionSharePayload()).toBeNull();
+  });
+});
+
+describe('buildShareUrl', () => {
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('builds origin + pathname + exactly one ?session= param', () => {
+    window.history.replaceState({}, '', '/some/path');
+    const payload = makePayload();
+    const url = buildShareUrl(payload);
+    const expected = new URL(`${window.location.origin}/some/path`);
+    expected.searchParams.set('session', encodeSessionPayload(payload));
+    expect(url).toBe(expected.toString());
+  });
+
+  it('drops any other query params currently in the address bar', () => {
+    window.history.replaceState({}, '', '/?debug&seed=x');
+    const payload = makePayload();
+    const url = buildShareUrl(payload);
+    const parsed = new URL(url);
+    expect(Array.from(parsed.searchParams.keys())).toEqual(['session']);
+  });
+});
+
+describe('copySessionLink', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('writes buildShareUrl\'s exact output to the clipboard and resolves true on success', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const payload = makePayload();
+
+    const result = await copySessionLink(payload);
+
+    expect(writeText).toHaveBeenCalledWith(buildShareUrl(payload));
+    expect(result).toBe(true);
+  });
+
+  it('resolves false (never throws/rejects) when the clipboard write fails', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('permission denied'));
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+
+    const result = await copySessionLink(makePayload());
+
+    expect(result).toBe(false);
   });
 });
