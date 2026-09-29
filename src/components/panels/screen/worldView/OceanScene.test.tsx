@@ -21,6 +21,22 @@ vi.mock('@/systems/robotSystems', () => ({
   stopRobotLifecycle: () => stopRobotLifecycleMock(),
 }));
 
+// vi.hoisted required here (unlike initializeLocaleMock/stopRobotLifecycleMock above): those two
+// are only ever called from inside a React effect callback, well after module load, but
+// getSessionSharePayload is called at attenuationStyleStore.ts's/localeStore.ts's own MODULE-LOAD
+// time (Tasks 4/5) -- which happens while this file's import graph is still resolving, before a
+// plain `const x = vi.fn()` below it would have run yet.
+const { getSessionSharePayloadMock, applySessionPayloadMock } = vi.hoisted(() => ({
+  getSessionSharePayloadMock: vi.fn(),
+  applySessionPayloadMock: vi.fn(),
+}));
+vi.mock('@/utils/sessionShareUtils', () => ({
+  getSessionSharePayload: () => getSessionSharePayloadMock(),
+}));
+vi.mock('@/utils/sessionDiff', () => ({
+  applySessionPayload: (payload: unknown, options: unknown) => applySessionPayloadMock(payload, options),
+}));
+
 // ========================================
 // IMPORTS
 // ========================================
@@ -58,6 +74,32 @@ describe('OceanScene', () => {
     useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [], actors: [] } } });
     initializeLocaleMock.mockClear();
     stopRobotLifecycleMock.mockClear();
+    getSessionSharePayloadMock.mockReset().mockReturnValue(null);
+    applySessionPayloadMock.mockClear();
+  });
+
+  describe('boot-time shareable-link apply (roadmap Phase 21)', () => {
+    it('does not call applySessionPayload when no share payload is present (the common case)', () => {
+      getSessionSharePayloadMock.mockReturnValue(null);
+      render(<OceanScene />);
+      expect(applySessionPayloadMock).not.toHaveBeenCalled();
+      cleanup();
+    });
+
+    it('calls applySessionPayload with the share payload and { skipLocaleRebuild: true }, after initializeLocale, when one is present', () => {
+      const payload = { attenuationStyleName: 'x' };
+      getSessionSharePayloadMock.mockReturnValue(payload);
+      const callOrder: string[] = [];
+      initializeLocaleMock.mockImplementation(() => callOrder.push('initializeLocale'));
+      applySessionPayloadMock.mockImplementation(() => callOrder.push('applySessionPayload'));
+
+      render(<OceanScene />);
+
+      expect(applySessionPayloadMock).toHaveBeenCalledTimes(1);
+      expect(applySessionPayloadMock).toHaveBeenCalledWith(payload, { skipLocaleRebuild: true });
+      expect(callOrder).toEqual(['initializeLocale', 'applySessionPayload']);
+      cleanup();
+    });
   });
 
   it('calls initializeLocale with the active locale id on mount, exactly once', () => {
