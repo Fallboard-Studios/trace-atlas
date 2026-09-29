@@ -217,6 +217,31 @@ function toCompactSessionPayload(payload: SessionPayload): CompactSessionPayload
   return compact;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Validates a decoded `?session=` value is at least structurally sound before it's trusted --
+ *  a URL param is untrusted external input (hand-editable, corruptible, or just from an
+ *  incompatible future/past wire format), and every field downstream is used without its own
+ *  guard (e.g. applyGlobalAudioToEngine dereferences `globalAudio.compressor` etc. directly).
+ *  Checks every required top-level field's basic shape, not just `n`/`c`'s presence -- a payload
+ *  missing `g` (globalAudio) used to pass validation and crash the boot effect later. Does NOT
+ *  validate deeper into r/d/u's own entries -- CompactRobotOverrideDiff/CompactCompanyDiff/
+ *  Company's nested fields are all optional or already narrow enough that a wrong-shaped entry
+ *  degrades to a harmless no-op override rather than a crash. */
+function isValidCompactSessionPayload(parsed: unknown): parsed is CompactSessionPayload {
+  if (!isPlainObject(parsed)) return false;
+  const { n, c, g, r, d, u } = parsed;
+  if (typeof n !== 'string') return false;
+  if (!isPlainObject(c) || typeof c.x !== 'number' || typeof c.y !== 'number') return false;
+  if (!isPlainObject(g)) return false;
+  if (r !== undefined && !isPlainObject(r)) return false;
+  if (d !== undefined && !isPlainObject(d)) return false;
+  if (u !== undefined && !Array.isArray(u)) return false;
+  return true;
+}
+
 function fromCompactSessionPayload(compact: CompactSessionPayload): SessionPayload {
   return {
     version: compact.v,
@@ -250,16 +275,8 @@ export function encodeSessionPayload(payload: SessionPayload): string {
 export function decodeSessionPayload(encoded: string): SessionPayload | null {
   try {
     const parsed: unknown = JSON.parse(decodeBase64Utf8(encoded));
-    if (
-      !parsed ||
-      typeof parsed !== 'object' ||
-      Array.isArray(parsed) ||
-      typeof (parsed as { n?: unknown }).n !== 'string' ||
-      !(parsed as { c?: unknown }).c
-    ) {
-      return null;
-    }
-    return fromCompactSessionPayload(parsed as CompactSessionPayload);
+    if (!isValidCompactSessionPayload(parsed)) return null;
+    return fromCompactSessionPayload(parsed);
   } catch (err) {
     devWarn('[sessionShareUtils] malformed ?session= param, ignoring', err);
     return null;

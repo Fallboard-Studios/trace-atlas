@@ -143,6 +143,49 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     expect(decodeSessionPayload(btoa(JSON.stringify(null)))).toBeNull();
     expect(decodeSessionPayload(btoa(JSON.stringify({ attenuationStyleName: 'x' })))).toBeNull(); // missing coordinates
   });
+
+  it('decodeSessionPayload returns null when g (globalAudio) is missing or the wrong type -- the specific field that would otherwise crash applyGlobalAudioToEngine with no guard', () => {
+    const validPayload = makePayload();
+    const validWire = decodeRawWire(encodeSessionPayload(validPayload)) as Record<string, unknown>;
+
+    const missingG = { ...validWire };
+    delete missingG.g;
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(missingG)))))).toBeNull();
+
+    const wrongTypeG = { ...validWire, g: 'not an object' };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(wrongTypeG)))))).toBeNull();
+
+    const nullG = { ...validWire, g: null };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(nullG)))))).toBeNull();
+  });
+
+  it('decodeSessionPayload returns null when c.x/c.y are missing or not numbers', () => {
+    const validPayload = makePayload();
+    const validWire = decodeRawWire(encodeSessionPayload(validPayload)) as Record<string, unknown>;
+
+    const emptyCoords = { ...validWire, c: {} };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(emptyCoords)))))).toBeNull();
+
+    const stringCoords = { ...validWire, c: { x: '1', y: '2' } };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(stringCoords)))))).toBeNull();
+
+    const nonObjectCoords = { ...validWire, c: 'not an object' };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(nonObjectCoords)))))).toBeNull();
+  });
+
+  it('decodeSessionPayload returns null when present-but-wrong-typed r/d/u would otherwise corrupt robotOverrides/companyDiffs/userCreatedCompanies', () => {
+    const validPayload = makePayload();
+    const validWire = decodeRawWire(encodeSessionPayload(validPayload)) as Record<string, unknown>;
+
+    const arrayR = { ...validWire, r: ['not', 'a', 'record'] };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(arrayR)))))).toBeNull();
+
+    const stringD = { ...validWire, d: 'not an object' };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(stringD)))))).toBeNull();
+
+    const objectU = { ...validWire, u: { not: 'an array' } };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(objectU)))))).toBeNull();
+  });
 });
 
 describe('getSessionSharePayload (boot-time ?session= URL param)', () => {
