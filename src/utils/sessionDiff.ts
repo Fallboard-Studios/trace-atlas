@@ -166,17 +166,9 @@ function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioSto
 
   // Quantize lfoDrift fields to 0.01 (1% precision in -1..1 range) and clean up floating-point noise
   toCapture.lfoDrift = {
-    eq3: {
-      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.eq3.rateDrift, -1, 0.01), 2),
-      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.eq3.depthDrift, -1, 0.01), 2),
-    },
-    filterLPF: {
-      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.filterLPF.rateDrift, -1, 0.01), 2),
-      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.filterLPF.depthDrift, -1, 0.01), 2),
-    },
-    filterHPF: {
-      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.filterHPF.rateDrift, -1, 0.01), 2),
-      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.filterHPF.depthDrift, -1, 0.01), 2),
+    globalFx: {
+      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.globalFx.rateDrift, -1, 0.01), 2),
+      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.globalFx.depthDrift, -1, 0.01), 2),
     },
     robots: {
       rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.robots.rateDrift, -1, 0.01), 2),

@@ -18,6 +18,7 @@ import type { RobotAudioBaseline } from '../systems/spawnSystem';
 import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoSettings } from '../types/lfo';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
+import { useAudioStore } from '../stores/audioStore';
 import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
 import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
@@ -209,6 +210,22 @@ describe('buildSessionPayload', () => {
     expect(Object.keys(payload.globalAudio)).toContain('compressor');
     expect(Object.keys(payload.globalAudio)).toContain('eq3');
     expect(Object.keys(payload.globalAudio)).toContain('lfoDrift');
+  });
+
+  it('quantizes globalFx and robots lfoDrift to a whole percent each, both groups independently (docs/specs/FLEET_DRIFT_CONSOLIDATION.md Task 5)', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    // Distinguishing, non-default values for both groups (not left at 0) — a
+    // parity test that leaves a field at its default can pass by coincidence
+    // even with a broken quantize/cleanup path (memory: parity-test fixtures
+    // need real, non-default values).
+    useAudioStore.getState().setGlobalLfoDrift('globalFx', { rateDrift: 0.4371, depthDrift: -0.2809 });
+    useAudioStore.getState().setGlobalLfoDrift('robots', { rateDrift: -0.1234, depthDrift: 0.5678 });
+
+    const payload = buildSessionPayload();
+
+    expect(payload.globalAudio.lfoDrift.globalFx).toEqual({ rateDrift: 0.44, depthDrift: -0.28 });
+    expect(payload.globalAudio.lfoDrift.robots).toEqual({ rateDrift: -0.12, depthDrift: 0.57 });
   });
 
   it('has no robotOverrides entries for an untouched roster', () => {

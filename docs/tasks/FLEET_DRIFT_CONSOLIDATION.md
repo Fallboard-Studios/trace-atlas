@@ -124,17 +124,17 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
 
   **Estimated scope:** S (one reshaped block in an existing function)
 
-- [ ] **Task 5: `sessionDiff.ts` — quantize/cleanup block, 4 groups become 2**
+- [x] **Task 5: `sessionDiff.ts` — quantize/cleanup block, 4 groups become 2**
 
   **Description:** Contract the hand-written per-group `lfoDrift` quantize/cleanup block ([sessionDiff.ts:167-185](../../src/utils/sessionDiff.ts#L167-L185)) from 4 sub-objects to 2 (`globalFx`, `robots`) — same `quantizeToStep(…, -1, 0.01)` + `cleanupFloatingPoint(…, 2)` pair per field, unchanged (spec §4).
 
   **Acceptance criteria:**
-  - [ ] The rewritten block only references `globalFx` and `robots` — no `eq3`/`filterLPF`/`filterHPF` sub-object remains.
-  - [ ] Quantization/cleanup behavior (step size, decimal precision) is unchanged from the pre-existing per-field logic, just applied to fewer keys.
+  - [x] The rewritten block only references `globalFx` and `robots` — no `eq3`/`filterLPF`/`filterHPF` sub-object remains.
+  - [x] Quantization/cleanup behavior (step size, decimal precision) is unchanged from the pre-existing per-field logic, just applied to fewer keys.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/sessionDiff.test.ts` passes, contracted to 2-group coverage; include a save/load round trip with a genuinely nonzero `globalFx` drift value (not left at its `0` default — matching this codebase's own established "seed a real, distinguishing value" parity-test convention, memory: parity-test-fixture-non-default-values) confirming it reproduces exactly.
-  - [ ] `npm run build:types`, `npm run lint` clean for this file.
+  - [x] `npx vitest run src/utils/sessionDiff.test.ts` passes, contracted to 2-group coverage; include a save/load round trip with a genuinely nonzero `globalFx` drift value (not left at its `0` default — matching this codebase's own established "seed a real, distinguishing value" parity-test convention, memory: parity-test-fixture-non-default-values) confirming it reproduces exactly.
+  - [x] `npm run build:types`, `npm run lint` clean for this file.
 
   **Dependencies:** Task 2.
 
@@ -143,10 +143,10 @@ Task 1 (types/lfo.ts: DriftGroupId 4→2)
   **Estimated scope:** S (one reshaped block, same pattern as Task 4)
 
 ### Checkpoint: Foundation & seed plumbing
-- [ ] `npm run build:types` — remaining errors, if any, are exactly the files Tasks 6-9 own (lfoDrift.ts, audioRigConfig.ts, AudioRigDrawer.tsx, audioStore.ts's test), nothing unexpected.
-- [ ] `npm run lint` clean.
-- [ ] `npx vitest run src/types/lfo.test.ts src/types/globalAudio.test.ts src/data/globalAudioSeedRanges.test.ts src/data/globalAudioLoadingRanges.test.ts src/utils/globalAudioSeed.test.ts src/utils/sessionDiff.test.ts` all pass.
-- [ ] `generateGlobalAudioSettings` for two different Attenuation Style names produces two different, in-range `lfoDrift` records; within one style's result, `globalFx` and `robots` don't share a draw.
+- [x] `npm run build:types` — remaining errors are exactly the files Tasks 6-9 own (`lfoDrift.ts`/`lfoDrift.test.ts`, `audioRigConfig.ts`, `AudioRigDrawer.tsx`, `AudioRigEffectPanel.test.tsx`, `lfoEngine.test.ts`, `audioStore.test.ts`), nothing unexpected.
+- [x] `npm run lint` clean.
+- [x] `npx vitest run src/types/lfo.test.ts src/types/globalAudio.test.ts src/data/globalAudioSeedRanges.test.ts src/data/globalAudioLoadingRanges.test.ts src/utils/globalAudioSeed.test.ts src/utils/sessionDiff.test.ts` all pass (131 tests).
+- [x] `generateGlobalAudioSettings` for two different Attenuation Style names produces two different, in-range `lfoDrift` records; within one style's result, `globalFx` and `robots` don't share a draw.
 - [ ] Review with human before proceeding.
 
 ---
