@@ -242,9 +242,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *  guard (e.g. applyGlobalAudioToEngine dereferences `globalAudio.compressor` etc. directly).
  *  Checks every required top-level field's basic shape, not just `n`/`c`'s presence -- a payload
  *  missing `g` (globalAudio) used to pass validation and crash the boot effect later. Does NOT
- *  validate deeper into r/d/u's own entries -- CompactRobotOverrideDiff/CompactCompanyDiff/
- *  Company's nested fields are all optional or already narrow enough that a wrong-shaped entry
- *  degrades to a harmless no-op override rather than a crash. */
+ *  validate deeper into r/d/u/gl's own entries -- CompactRobotOverrideDiff/CompactCompanyDiff/
+ *  Company/CompactLfoSettings' nested fields are all optional or already narrow enough that a
+ *  wrong-shaped entry degrades to a harmless no-op override rather than a crash. */
 function isValidCompactSessionPayload(parsed: unknown): parsed is CompactSessionPayload {
   if (!isPlainObject(parsed)) return false;
   const { n, c, g, b, sf, sd, pv, gl, r, d, u } = parsed;
