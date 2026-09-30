@@ -121,6 +121,10 @@ export interface SignatureArrayLayerProps {
   lfoSettings: SignatureArrayValue['lfoSettings'];
   heldOffTargets?: Partial<Record<RobotLfoTargetId, boolean>>;
   disabled?: boolean;
+  /** Per-field swelling flags for THIS layer (audioSwells.ts's isRobotAttributeSwelling for
+   *  'layer{idx}.gain' etc.), forwarded straight to the matching slider's own `swelling` prop. See
+   *  useEasedControlValue.ts. */
+  swelling?: Partial<Record<SignatureArrayParamSchema['field'], boolean>>;
   onTypeChange: (idx: number, type: WaveformType) => void;
   onParamChange: (idx: number, field: SignatureArrayParamSchema['field'], value: number) => void;
   onLfoFieldChange: (idx: number, target: RobotLfoTargetId, value: LfoValue) => void;
@@ -152,7 +156,7 @@ export interface SignatureArrayLayerProps {
  * genuinely per-layer stable slice would need its own follow-up (each layer's own LFO target set
  * is statically fixed per `SIGNATURE_ARRAY_CONFIG`, so it's possible, just out of scope here).
  */
-function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTargets, disabled, onTypeChange, onParamChange, onLfoFieldChange }: SignatureArrayLayerProps) {
+function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTargets, disabled, swelling, onTypeChange, onParamChange, onLfoFieldChange }: SignatureArrayLayerProps) {
   const handleTypeChange = useCallback((v: string) => onTypeChange(idx, v as WaveformType), [idx, onTypeChange]);
 
   // 'pulse' only — Tone.js's OmniOscillator.width getter returns undefined for every other type
@@ -186,6 +190,7 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
     const param = lfoParams.find((p) => p.field === field)!;
     const paramVal = paramValue(layer, field as SignatureArrayParamSchema['field']);
     const handleChange = (v: number) => onParamChange(idx, field as SignatureArrayParamSchema['field'], v);
+    const fieldSwelling = swelling?.[field as SignatureArrayParamSchema['field']];
     return (
       <div className="signature-array-drawer__param">
         {field === 'detune' ? (
@@ -195,6 +200,7 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
             onChange={handleChange}
             disabled={disabled}
             verticalHeight={(param.schema as SliderCenteredZeroSchema).verticalHeight}
+            swelling={fieldSwelling}
           />
         ) : (
           <SliderLinear
@@ -203,11 +209,12 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
             onChange={handleChange}
             disabled={disabled}
             verticalHeight={(param.schema as SliderLinearSchema).verticalHeight}
+            swelling={fieldSwelling}
           />
         )}
       </div>
     );
-  }, [lfoParams, layer, idx, onParamChange, disabled]);
+  }, [lfoParams, layer, idx, onParamChange, disabled, swelling]);
 
   return (
     <DirectionalPanel schema={block.panel}>

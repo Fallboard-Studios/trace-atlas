@@ -13,6 +13,27 @@ vi.mock('./accessibleName', async (importOriginal) => {
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
 });
 
+// Local gsap mock (overriding vitest.setup.ts's own shared one, whose quickTo mock defers
+// onComplete to a microtask — unusable for the synchronous assertions below) — mirrors
+// useEasedControlValue.test.ts's own mock: the retarget function quickTo returns mutates the
+// target synchronously and fires onUpdate/onComplete immediately, so a value-changing rerender's
+// ease is already fully settled by the time rerender() itself returns. No separate flush step
+// needed (unlike the app-level tests elsewhere that go through the shared async mock).
+let lastTweenVars: { duration?: number; ease?: string } | undefined;
+vi.mock('gsap', () => ({
+  default: {
+    quickTo: vi.fn((target: Record<string, number>, prop: string, vars?: { duration?: number; ease?: string; onUpdate?: () => void; onComplete?: () => void }) => {
+      lastTweenVars = vars;
+      return vi.fn((value: number) => {
+        target[prop] = value;
+        vars?.onUpdate?.();
+        vars?.onComplete?.();
+      });
+    }),
+    killTweensOf: vi.fn(),
+  },
+}));
+
 vi.mock('./VoxelTrack', () => ({
   VoxelTrack: ({
     states,
@@ -38,6 +59,7 @@ vi.mock('./VoxelTrack', () => ({
   ),
 }));
 
+import gsap from 'gsap';
 import { SliderLinear } from './SliderLinear';
 import { resolveAccessibleName } from './accessibleName';
 import {
@@ -96,6 +118,11 @@ beforeEach(() => {
   MockResizeObserver.instances = [];
   originalResizeObserver = globalThis.ResizeObserver;
   (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = MockResizeObserver;
+  // gsap.quickTo is a shared module-level spy (mocked above) — clear it per test so one test's
+  // ease doesn't pollute the next's call-count assertions.
+  (gsap.quickTo as ReturnType<typeof vi.fn>).mockClear();
+  (gsap.killTweensOf as ReturnType<typeof vi.fn>).mockClear();
+  lastTweenVars = undefined;
 });
 
 afterEach(() => {
@@ -160,6 +187,89 @@ describe('SliderLinear', () => {
     thumb.focus();
     fireEvent.keyDown(thumb, { key: 'ArrowRight' });
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  describe('250ms ease on a non-drag value change (Crawford\'s own request)', () => {
+    it('a live drag/keyboard step applies instantly — aria-valuenow updates synchronously, never eased', () => {
+      const onChange = vi.fn();
+      render(<SliderLinear schema={schema} value={2} onChange={onChange} />);
+      const thumb = screen.getByRole('slider');
+      thumb.focus();
+      fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+
+      expect(thumb.getAttribute('aria-valuenow')).toBe('3');
+      expect(onChange).toHaveBeenCalledWith(3); // the exact raw value, never an eased intermediate
+    });
+
+    it('does not create/retarget an ease for a live drag/keyboard step', () => {
+      render(<SliderLinear schema={schema} value={2} onChange={() => {}} />);
+      const thumb = screen.getByRole('slider');
+      thumb.focus();
+      fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+
+      expect(gsap.quickTo).not.toHaveBeenCalled();
+    });
+
+    it('a value change from a prop update (not a drag) eases to the new value, settling on it (this mock resolves synchronously; see useEasedControlValue.test.ts for the quickTo-retarget-not-recreate behavior itself)', () => {
+      const { rerender } = render(<SliderLinear schema={schema} value={2} onChange={() => {}} />);
+      rerender(<SliderLinear schema={schema} value={5} onChange={() => {}} />);
+
+      expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('5');
+      expect(screen.getByText('5Hz')).toBeTruthy();
+    });
+
+    it('creates a 250ms, power2.out ease for a prop-driven value change', () => {
+      const { rerender } = render(<SliderLinear schema={schema} value={2} onChange={() => {}} />);
+      rerender(<SliderLinear schema={schema} value={5} onChange={() => {}} />);
+
+      expect(gsap.quickTo).toHaveBeenCalledTimes(1);
+      expect(lastTweenVars?.duration).toBe(0.25);
+      expect(lastTweenVars?.ease).toBe('power2.out');
+    });
+
+    it('a SECOND prop-driven change retargets the SAME quickTo tween rather than creating a new one — no per-change timeline churn (the code-review finding this hook exists to fix)', () => {
+      const { rerender } = render(<SliderLinear schema={schema} value={2} onChange={() => {}} />);
+      rerender(<SliderLinear schema={schema} value={5} onChange={() => {}} />);
+      rerender(<SliderLinear schema={schema} value={8} onChange={() => {}} />);
+
+      expect(gsap.quickTo).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses a 0 duration when the user prefers reduced motion, still settling on the exact target value', () => {
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        configurable: true,
+        value: vi.fn().mockImplementation((query: string) => ({
+          matches: query.includes('prefers-reduced-motion'),
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        })),
+      });
+      const { rerender } = render(<SliderLinear schema={schema} value={2} onChange={() => {}} />);
+      rerender(<SliderLinear schema={schema} value={5} onChange={() => {}} />);
+
+      expect(lastTweenVars?.duration).toBe(0);
+      expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('5');
+
+      Reflect.deleteProperty(window, 'matchMedia');
+    });
+
+    it('re-rendering with the SAME value creates no ease (a genuine no-op)', () => {
+      const { rerender } = render(<SliderLinear schema={schema} value={2} onChange={() => {}} />);
+      rerender(<SliderLinear schema={schema} value={2} onChange={() => {}} />);
+
+      expect(gsap.quickTo).not.toHaveBeenCalled();
+    });
+
+    it('a drag/keyboard step interrupts (kills) any in-flight ease', () => {
+      render(<SliderLinear schema={schema} value={2} onChange={() => {}} />);
+      const thumb = screen.getByRole('slider');
+      thumb.focus();
+      fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+
+      expect(gsap.killTweensOf).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("resolves to exactly one role='slider' element — the voxel boxes introduce no accessibility-tree ambiguity", () => {
@@ -425,7 +535,7 @@ describe('SliderLinear', () => {
       expect(spy.mock.calls.length).toBe(callsAfterMount);
     });
 
-    it('recomputes states when value changes', () => {
+    it('recomputes states when value changes (once the 250ms ease settles — a prop-driven value change is no longer instant, Crawford\'s own request)', () => {
       const spy = vi.spyOn(voxelTrackMath, 'computeVoxelBoxStates');
       const { rerender } = render(<SliderLinear schema={schema} value={2} onChange={() => {}} />);
       const callsAfterMount = spy.mock.calls.length;

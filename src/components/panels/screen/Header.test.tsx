@@ -51,7 +51,18 @@ vi.mock('gsap', () => {
     fromTo: (_a?: unknown, _b?: unknown, _config?: unknown) => chainable,
     kill: () => { },
   };
-  return { default: { timeline: vi.fn(() => chainable), set: vi.fn() } };
+  return {
+    default: {
+      timeline: vi.fn(() => chainable),
+      set: vi.fn(),
+      // The Volume slider's own 250ms ease (useEasedControlValue.ts) — a no-op retarget is
+      // sufficient here, since no test in this file asserts on the slider settling at a new
+      // value after a non-drag change; only real drag/keyboard interaction is exercised below,
+      // which never calls quickTo at all (see useEasedControlValue.test.ts for that coverage).
+      quickTo: vi.fn(() => vi.fn()),
+      killTweensOf: vi.fn(),
+    },
+  };
 });
 
 // Controllable ResizeObserver mock — exercises the --header-height

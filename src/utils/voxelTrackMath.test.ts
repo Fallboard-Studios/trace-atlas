@@ -14,6 +14,8 @@ import {
   computeVoxelTrackTrailingReserve,
   computeVoxelFillBackground,
   computeVoxelStraddleSizeFraction,
+  computeVoxelPopStaggerDelays,
+  VOXEL_POP_STAGGER_SECONDS,
 } from './voxelTrackMath';
 import { VOXEL_TRACK_POP_DISTANCE, VOXEL_TRACK_POP_DISTANCE_MIN_RATIO } from './cabinetGeometry';
 
@@ -396,5 +398,66 @@ describe('computeVoxelBoxStatesCenteredZero', () => {
   it('delegates out-of-range clamping to computeVoxelBoxStates rather than reimplementing it', () => {
     expect(computeVoxelBoxStatesCenteredZero(-999, -50, 50, 4)).toEqual(computeVoxelBoxStatesCenteredZero(-50, -50, 50, 4));
     expect(computeVoxelBoxStatesCenteredZero(999, -50, 50, 4)).toEqual(computeVoxelBoxStatesCenteredZero(50, -50, 50, 4));
+  });
+});
+
+describe('computeVoxelPopStaggerDelays', () => {
+  it('returns all zeros when prevStraddleIndex is null (no prior render to compare against, e.g. mount)', () => {
+    const delays = computeVoxelPopStaggerDelays([false, false, false], [true, true, true], null);
+    expect(delays).toEqual([0, 0, 0]);
+  });
+
+  it('returns all zeros when nothing flipped', () => {
+    const filled = [true, true, false, false];
+    const delays = computeVoxelPopStaggerDelays(filled, filled, 1);
+    expect(delays).toEqual([0, 0, 0, 0]);
+  });
+
+  it('returns all zeros for an ordinary single-box flip (an unstaggered drag/ease step)', () => {
+    const delays = computeVoxelPopStaggerDelays(
+      [true, true, false, false],
+      [true, true, true, false],
+      1,
+    );
+    expect(delays).toEqual([0, 0, 0, 0]);
+  });
+
+  it('stages a multi-box flip (a jump) in order of distance from prevStraddleIndex, the closest box first', () => {
+    // A jump from index 1 to index 4: boxes 2, 3, 4 flip from flat to filled in one render.
+    const delays = computeVoxelPopStaggerDelays(
+      [true, true, false, false, false],
+      [true, true, true, true, true],
+      1,
+    );
+    expect(delays[2]).toBe(0); // closest to the OLD straddle index (1)
+    expect(delays[3]).toBeCloseTo(VOXEL_POP_STAGGER_SECONDS);
+    expect(delays[4]).toBeCloseTo(2 * VOXEL_POP_STAGGER_SECONDS);
+    // Unaffected boxes (0, 1 — never flipped) stay at 0.
+    expect(delays[0]).toBe(0);
+    expect(delays[1]).toBe(0);
+  });
+
+  it('orders a downward jump (a drag toward the min) the same way — closest to the OLD value first, regardless of direction', () => {
+    // A jump from index 4 to index 1: boxes 2, 3, 4 flip from filled to flat.
+    const delays = computeVoxelPopStaggerDelays(
+      [true, true, true, true, true],
+      [true, true, false, false, false],
+      4,
+    );
+    expect(delays[4]).toBe(0); // closest to the OLD straddle index (4)
+    expect(delays[3]).toBeCloseTo(VOXEL_POP_STAGGER_SECONDS);
+    expect(delays[2]).toBeCloseTo(2 * VOXEL_POP_STAGGER_SECONDS);
+  });
+
+  it('handles a jump straddling both sides of prevStraddleIndex (e.g. a centered-zero track crossing the seam)', () => {
+    // prevStraddleIndex is 2; boxes 1 and 3 are equidistant (1 away) but box 1 wins the tie
+    // (Array.prototype.sort is stable, and 1 appears before 3 in the flipped-index scan order).
+    const delays = computeVoxelPopStaggerDelays(
+      [false, false, false, false, false],
+      [false, true, false, true, false],
+      2,
+    );
+    expect(delays[1]).toBe(0);
+    expect(delays[3]).toBeCloseTo(VOXEL_POP_STAGGER_SECONDS);
   });
 });

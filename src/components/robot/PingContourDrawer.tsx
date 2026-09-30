@@ -31,6 +31,10 @@ interface PingContourDrawerProps {
    *  Time/Space, whether it's editing one robot or a company's bulk baseline. See
    *  docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
   style?: CSSProperties;
+  /** Per-field swelling flags (audioSwells.ts's isRobotAttributeSwelling for 'adsr.attack' etc.),
+   *  forwarded straight to each of the 4 sliders' own `swelling` prop. Omitted fields default to
+   *  false (not swelling) — see useEasedControlValue.ts. */
+  swelling?: Partial<Record<keyof ADSREnvelope, boolean>>;
 }
 
 /**
@@ -43,7 +47,7 @@ interface PingContourDrawerProps {
  * `value` and wire `onChange` through robotOptionsActions.applyAdsr themselves, which is what
  * calls AudioEngine.updateVoiceEnvelope (never reReserveVoice, so there's no audio dropout).
  */
-function PingContourDrawerInner({ value: adsr, onChange, disabled, style }: PingContourDrawerProps) {
+function PingContourDrawerInner({ value: adsr, onChange, disabled, style, swelling }: PingContourDrawerProps) {
   // Bugfix, found live (docs/todo/backlog.md #27 follow-up, 2026-09-15): these 4 handlers used to
   // be built fresh, unmemoized, on every render — so editing any ONE field changed `adsr`'s own
   // reference, which re-executed this component (correctly, since its own `value` prop changed),
@@ -68,12 +72,12 @@ function PingContourDrawerInner({ value: adsr, onChange, disabled, style }: Ping
     <div className="ping-contour-drawer" style={style}>
       <DirectionalPanel schema={PING_CONTOUR_PANEL_SCHEMA}>
         <DirectionalPanel schema={TOP_ROW_SCHEMA}>
-          <SliderLog schema={ATTACK_SCHEMA} value={adsr.attack} onChange={handleAttackChange} disabled={disabled} />
-          <SliderLog schema={DECAY_SCHEMA} value={adsr.decay} onChange={handleDecayChange} disabled={disabled} />
+          <SliderLog schema={ATTACK_SCHEMA} value={adsr.attack} onChange={handleAttackChange} disabled={disabled} swelling={swelling?.attack} />
+          <SliderLog schema={DECAY_SCHEMA} value={adsr.decay} onChange={handleDecayChange} disabled={disabled} swelling={swelling?.decay} />
         </DirectionalPanel>
         <DirectionalPanel schema={BOTTOM_ROW_SCHEMA}>
-          <SliderLinear schema={SUSTAIN_SCHEMA} value={adsr.sustain * 100} onChange={handleSustainChange} disabled={disabled} />
-          <SliderLog schema={RELEASE_SCHEMA} value={adsr.release} onChange={handleReleaseChange} disabled={disabled} />
+          <SliderLinear schema={SUSTAIN_SCHEMA} value={adsr.sustain * 100} onChange={handleSustainChange} disabled={disabled} swelling={swelling?.sustain} />
+          <SliderLog schema={RELEASE_SCHEMA} value={adsr.release} onChange={handleReleaseChange} disabled={disabled} swelling={swelling?.release} />
         </DirectionalPanel>
       </DirectionalPanel>
     </div>

@@ -35,6 +35,7 @@ vi.mock('gsap', () => {
   return { default: { timeline: vi.fn(() => chainable), set: setMock } };
 });
 
+import gsap from 'gsap';
 import { CabinetBox } from './CabinetBox';
 import { CABINET_POP_DURATION, CABINET_POP_DURATION_OUT } from './cabinetAnimation';
 import { useCabinetBoxHeight } from './useCabinetBoxHeight';
@@ -974,6 +975,39 @@ describe('CabinetBox', () => {
       rerender(<CabinetBox popped={false} timelineKey="test-box">x</CabinetBox>);
 
       expect(setTimeline).toHaveBeenCalled();
+    });
+  });
+
+  describe('delay prop (roadmap — VoxelTrack staggered pop-out)', () => {
+    it('passes delay straight to gsap.timeline() on a real transition', () => {
+      const { rerender } = render(<CabinetBox popped={false} timelineKey="test-box" delay={0.15}>x</CabinetBox>);
+      const observer = MockResizeObserver.instances[0];
+      act(() => observer.fire(100, 48));
+      (gsap.timeline as ReturnType<typeof vi.fn>).mockClear();
+
+      rerender(<CabinetBox popped={true} timelineKey="test-box" delay={0.15}>x</CabinetBox>);
+
+      expect(gsap.timeline).toHaveBeenCalledWith({ delay: 0.15 });
+    });
+
+    it('defaults delay to 0 when omitted — every existing consumer (Button/Toggle/RadioButton) is unaffected', () => {
+      const { rerender } = render(<CabinetBox popped={false} timelineKey="test-box">x</CabinetBox>);
+      const observer = MockResizeObserver.instances[0];
+      act(() => observer.fire(100, 48));
+      (gsap.timeline as ReturnType<typeof vi.fn>).mockClear();
+
+      rerender(<CabinetBox popped={true} timelineKey="test-box">x</CabinetBox>);
+
+      expect(gsap.timeline).toHaveBeenCalledWith({ delay: 0 });
+    });
+
+    it('does not apply delay to the instant gsap.set() path (skipMountAnimation on first mount) — there is no tween to delay', () => {
+      render(<CabinetBox popped={true} timelineKey="test-box" delay={0.2} skipMountAnimation>x</CabinetBox>);
+      const observer = MockResizeObserver.instances[0];
+      act(() => observer.fire(100, 48));
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+      expect(setMock).toHaveBeenCalled();
     });
   });
 

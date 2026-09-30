@@ -80,6 +80,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import * as robotOptionsActions from '@/systems/robotOptionsActions';
+import * as audioSwells from '@/systems/audioSwells';
 import type { Robot } from '@/types/Robot';
 import type { RobotSection, RobotSubsection } from '@/stores/uiStore';
 import type { Locale } from '@/types/locale';
@@ -319,6 +320,19 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
       expect(applySpy).toHaveBeenCalledWith(robot, localeId, 55);
     });
+
+    it("a real Volume edit interrupts any Audio Swell riding this robot's Volume (docs/specs/AUDIO_SWELLS.md follow-up)", () => {
+      const robot = makeRobot();
+      selectRobot(robot, 'volume', 'audioSettings');
+      vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
+      const cancelSpy = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+      render(<RobotOptionsTab />);
+      openAndApproach('probes.r1.volume.audioSettings');
+
+      fireEvent.click(screen.getByText('probe-volume'));
+
+      expect(cancelSpy).toHaveBeenCalledWith(robot.id, 'volume');
+    });
   });
 
   describe('PingControlsCompositionSection (Composition)', () => {
@@ -371,6 +385,22 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
       expect(applySpy).toHaveBeenCalledWith(robot, localeId, { attack: 0.9, decay: 0.1, sustain: 0.5, release: 0.2 });
     });
+
+    it("a real ADSR edit interrupts an Audio Swell on exactly the changed field(s), never the unchanged one", () => {
+      const robot = makeRobot();
+      selectRobot(robot, 'envelope', 'pingContour');
+      vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
+      const cancelSpy = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+      render(<RobotOptionsTab />);
+      openAndApproach('probes.r1.envelope.pingContour');
+
+      fireEvent.click(screen.getByText('probe-adsr')); // decay stays 0.1 (unchanged); attack/sustain/release all change
+
+      expect(cancelSpy).toHaveBeenCalledWith(robot.id, 'adsr.attack');
+      expect(cancelSpy).toHaveBeenCalledWith(robot.id, 'adsr.sustain');
+      expect(cancelSpy).toHaveBeenCalledWith(robot.id, 'adsr.release');
+      expect(cancelSpy).not.toHaveBeenCalledWith(robot.id, 'adsr.decay');
+    });
   });
 
   describe('SignatureArrayLayer (Source)', () => {
@@ -397,6 +427,19 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
         { type: 'square', gain: 0.5, detune: 5, phase: 10, pulseWidth: 0.4 },
         { type: 'triangle', gain: 0.6, detune: -5, phase: 20 },
       ]);
+    });
+
+    it("a real layer-param edit interrupts an Audio Swell on that layer's own attribute", () => {
+      const robot = makeRobot();
+      selectRobot(robot, 'source', 'coaxialOscillator');
+      vi.spyOn(robotOptionsActions, 'applyLayersContinuous').mockImplementation(() => {});
+      const cancelSpy = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+      render(<RobotOptionsTab />);
+      openAndApproach('probes.r1.source.coaxialOscillator');
+
+      fireEvent.click(screen.getByText('probe-layer-gain-1'));
+
+      expect(cancelSpy).toHaveBeenCalledWith(robot.id, 'layer1.gain');
     });
   });
 

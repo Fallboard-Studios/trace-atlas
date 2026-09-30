@@ -106,6 +106,24 @@ vi.mock('gsap', () => {
     // recurse without the real timer's delay ever elapsing. Returns an object
     // with a no-op kill(), since callers store the result and may cancel it.
     delayedCall: (_delay?: number, _fn?: () => void) => ({ kill: () => { } }),
+    // quickTo mock (useEasedControlValue.ts's own retargetable-tween ease, added alongside the
+    // slider-ease feature) — returns a callable that emulates real quickTo's own "retarget
+    // toward a new value" call shape: mutates the target's own property (so onComplete's
+    // `proxyRef.current.v` read isn't stale — a real bug found live, this mock originally fired
+    // onComplete without ever writing the value it reads back), then fires vars.onComplete on a
+    // microtask, same timing convention as .timeline's own onComplete above. Never calls
+    // onUpdate (like every other mock in this file) — useEasedControlValue relies on onComplete
+    // alone to reach the exact target in a test environment, documented on its own module.
+    quickTo: (target: Record<string, number>, prop: string, vars?: { onComplete?: () => void }) => {
+      return (value: number) => {
+        target[prop] = value;
+        if (vars && typeof vars.onComplete === 'function') {
+          Promise.resolve().then(() => vars.onComplete && vars.onComplete());
+        }
+      };
+    },
+    // No-op — killTweensOf targets a real Tween's internal registry this mock never populates.
+    killTweensOf: () => { },
     utils: { selector: () => () => [] },
   };
   return { default: mocked, ...mocked };

@@ -746,6 +746,76 @@ function robotPeakDeltaForDirection(
 }
 
 // ========================================
+// CANCELLATION (USER EDIT INTERRUPTS A SWELL)
+// ========================================
+
+/** Reverse lookup against GLOBAL_TARGET_META — translates a real UI edit's
+ *  own (effect, field) pair (AudioRigDrawer's updateParam) back to the
+ *  SwellGlobalTargetId key activeSwells is stored under. Returns undefined
+ *  for any effect/field this pool doesn't swell (compressor, limiter, etc.). */
+function findGlobalTargetFor(effect: string, field: string): SwellGlobalTargetId | undefined {
+  return SWELL_GLOBAL_TARGET_IDS.find((target) => {
+    const meta = GLOBAL_TARGET_META[target];
+    return meta.effect === effect && meta.field === field;
+  });
+}
+
+/**
+ * Called from the real UI edit path (AudioRigDrawer's updateParam) whenever a
+ * user hand-edits a global-chain field — never from writeGlobalValue/
+ * advanceGlobalSwell's own swell-tick writes, which would otherwise
+ * self-cancel every swell on its very first tick. If that field currently has
+ * a swell riding it, the swell is simply dropped: no snap-back to baseValue
+ * (unlike advanceGlobalSwell's own off-equivalent cancellation above), since
+ * the user's own new value — already written by the caller's setGlobalAudio
+ * call — is the value to respect, not something to overwrite.
+ */
+export function cancelSwellForGlobalField(effect: string, field: string): void {
+  const target = findGlobalTargetFor(effect, field);
+  if (target !== undefined) activeSwells.delete(target);
+}
+
+/**
+ * Whether a global-chain field is currently riding a swell — read by the slider primitives
+ * (via useEasedControlValue's `swelling` flag) so a swell's own already-smooth per-tick ramp
+ * renders instantly rather than getting a SECOND, independent 250ms visual ease stacked on top
+ * of it. That stacked ease is harmless for a single one-shot external write (a company broadcast,
+ * a session load) but compounds badly against a swell's own repeating 16n ticks: each new tick
+ * retargets the ease before the previous one catches up, so the displayed value chronically lags
+ * the real, audible one for as long as the swell runs (found live, 2026-09-30). Same reverse-lookup
+ * as cancelSwellForGlobalField, just checking presence instead of deleting.
+ */
+export function isGlobalTargetSwelling(effect: string, field: string): boolean {
+  const target = findGlobalTargetFor(effect, field);
+  return target !== undefined && activeSwells.has(target);
+}
+
+/**
+ * Called from the real UI edit paths (RobotOptionsTab/CompanyOptionsSection's
+ * handle*Change callbacks) whenever a user hand-edits a robot attribute —
+ * never from writeRobotValue/advanceRobotSwell's own swell-tick writes, same
+ * self-cancellation hazard as cancelSwellForGlobalField above. A company-wide
+ * swell is stored under one Map key per member (robotSwellKey), all pointing
+ * at the same ActiveSwell object (§1.5) — cancelling drops every one of those
+ * keys together, atomic, matching how the swell already completes naturally
+ * (advanceRobotSwell's own loop at the bottom of this file), not just the one
+ * robot whose control the user happened to touch.
+ */
+export function cancelSwellForRobotAttribute(robotId: string, attribute: SwellRobotAttributeId): void {
+  const swell = activeSwells.get(robotSwellKey(robotId, attribute));
+  if (swell === undefined) return;
+  for (const member of swell.members!) activeSwells.delete(robotSwellKey(member.robotId, attribute));
+}
+
+/** Robot-pool counterpart to isGlobalTargetSwelling above — same reasoning, same reverse-lookup
+ *  key (robotSwellKey) cancelSwellForRobotAttribute already uses. A company-wide swell is stored
+ *  under every member's own key (see cancelSwellForRobotAttribute's own doc comment), so checking
+ *  one robotId here is already correct for that case too — no separate company-wide branch needed. */
+export function isRobotAttributeSwelling(robotId: string, attribute: SwellRobotAttributeId): boolean {
+  return activeSwells.has(robotSwellKey(robotId, attribute));
+}
+
+// ========================================
 // ADVANCE / WRITE-BACK
 // ========================================
 

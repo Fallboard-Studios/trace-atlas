@@ -113,6 +113,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import * as robotOptionsActions from '@/systems/robotOptionsActions';
+import * as audioSwells from '@/systems/audioSwells';
 import { ACCENT_COLORS } from '@/constants/accentColors';
 import { desaturateHex } from '@/utils/traitColors';
 import type { Robot } from '@/types/Robot';
@@ -324,6 +325,27 @@ describe('CompanyOptionsSection', () => {
       expect(r2Call?.[2]).toEqual({ attack: 0.9, decay: 0.9, sustain: 0.1, release: 0.4 });
     });
 
+    it('a broadcast Attack edit interrupts every member\'s own Attack swell only, never Decay/Sustain/Release', () => {
+      const r1 = makeRobot({ id: 'r1', companyId: 'c1', audioAttributes: { adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 }, filterFreq: 0, waveform: 'sine', layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] } });
+      const r2 = makeRobot({ id: 'r2', companyId: 'c1', audioAttributes: { adsr: { attack: 0.1, decay: 0.9, sustain: 0.1, release: 0.4 }, filterFreq: 0, waveform: 'sine', layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] } });
+      useLocaleStore.getState().addRobot(localeId, r1);
+      useLocaleStore.getState().addRobot(localeId, r2);
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
+      useUIStore.getState().selectCompany('c1');
+      vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
+      const cancelSpy = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+      render(<CompanyOptionsSection />);
+      act(() => approachSection('companies.c1.envelope.pingContour'));
+
+      fireEvent.click(screen.getByText('probe-adsr')); // patch only changes attack (0.2 -> 0.9)
+
+      expect(cancelSpy).toHaveBeenCalledWith('r1', 'adsr.attack');
+      expect(cancelSpy).toHaveBeenCalledWith('r2', 'adsr.attack');
+      expect(cancelSpy).not.toHaveBeenCalledWith('r1', 'adsr.decay');
+      expect(cancelSpy).not.toHaveBeenCalledWith('r1', 'adsr.sustain');
+      expect(cancelSpy).not.toHaveBeenCalledWith('r1', 'adsr.release');
+    });
+
     it('editing one Signature Array layer\'s Gain broadcasts only that layer\'s gain — other layers and other members\' own layer values survive', () => {
       const r1 = makeRobot({
         id: 'r1', companyId: 'c1',
@@ -356,6 +378,38 @@ describe('CompanyOptionsSection', () => {
       expect(r2Layers[0]).toEqual({ type: 'pulse', gain: 0.2, detune: 40, phase: 90 });
       expect(r2Layers[1]).toEqual({ type: 'triangle', gain: 0.4, detune: -10, phase: 30 });
       expect(r2Layers[2]).toEqual({ type: 'sine', gain: 0.9, detune: 15, phase: 5 });
+    });
+
+    it('a broadcast layer-param edit interrupts every member\'s own swell on that layer attribute', () => {
+      const r1 = makeRobot({
+        id: 'r1', companyId: 'c1',
+        audioAttributes: { adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 }, filterFreq: 0, waveform: 'sine', layers: [
+          { type: 'sine', gain: 1, detune: 0, phase: 0 },
+          { type: 'square', gain: 0.8, detune: 5, phase: 10 },
+          { type: 'triangle', gain: 0.6, detune: -5, phase: 20 },
+        ] },
+      });
+      const r2 = makeRobot({
+        id: 'r2', companyId: 'c1',
+        audioAttributes: { adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 }, filterFreq: 0, waveform: 'sine', layers: [
+          { type: 'pulse', gain: 0.2, detune: 40, phase: 90 },
+          { type: 'triangle', gain: 0.5, detune: -10, phase: 30 },
+          { type: 'sine', gain: 0.9, detune: 15, phase: 5 },
+        ] },
+      });
+      useLocaleStore.getState().addRobot(localeId, r1);
+      useLocaleStore.getState().addRobot(localeId, r2);
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
+      useUIStore.getState().selectCompany('c1');
+      vi.spyOn(robotOptionsActions, 'applyLayersContinuous').mockImplementation(() => {});
+      const cancelSpy = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+      render(<CompanyOptionsSection />);
+      act(() => approachSection('companies.c1.source.coaxialOscillator')); // idx 1
+
+      fireEvent.click(screen.getByText('probe-layer-gain-1'));
+
+      expect(cancelSpy).toHaveBeenCalledWith('r1', 'layer1.gain');
+      expect(cancelSpy).toHaveBeenCalledWith('r2', 'layer1.gain');
     });
 
     it('editing the Volume LFO\'s rate broadcasts only rate — each member keeps its own shape/depth', () => {
@@ -409,6 +463,28 @@ describe('CompanyOptionsSection', () => {
 
       expect(applyVolumeSpy).toHaveBeenCalledTimes(3);
       expect(applyVolumeSpy.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2', 'r3']);
+    });
+
+    it('editing Volume while All is selected interrupts every robot\'s own Volume swell, regardless of company', () => {
+      const r1 = makeRobot({ id: 'r1', companyId: 'c1' });
+      const r2 = makeRobot({ id: 'r2', companyId: 'c2' });
+      const r3 = makeRobot({ id: 'r3', companyId: undefined });
+      useLocaleStore.getState().addRobot(localeId, r1);
+      useLocaleStore.getState().addRobot(localeId, r2);
+      useLocaleStore.getState().addRobot(localeId, r3);
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
+      useLocaleStore.getState().addCompany(localeId, { id: 'c2', name: 'Null Syndicate', color: '#4f6d7a', robotIds: ['r2'] });
+      useUIStore.getState().selectAllRobots();
+      vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
+      const cancelSpy = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
+      render(<CompanyOptionsSection />);
+      act(() => approachSection('probes.all.volume.audioSettings'));
+
+      fireEvent.click(screen.getByText('probe-volume'));
+
+      expect(cancelSpy).toHaveBeenCalledTimes(3);
+      expect(cancelSpy.mock.calls.map((c) => c[0]).sort()).toEqual(['r1', 'r2', 'r3']);
+      expect(cancelSpy.mock.calls.every((c) => c[1] === 'volume')).toBe(true);
     });
 
     it('editing one field while All is selected patches locale.allRobotsLastEditedOptions, not any company\'s lastEditedOptions', () => {

@@ -31,6 +31,10 @@ import {
   getActiveSwellSnapshot,
   pickSwellPeakDelta,
   frequencyToPerTickChance,
+  cancelSwellForGlobalField,
+  cancelSwellForRobotAttribute,
+  isGlobalTargetSwelling,
+  isRobotAttributeSwelling,
   MAX_CONCURRENT_SWELLS_PER_POOL,
   VOLUME_SWELL_DOWNWARD_FLOOR,
   SWELL_COMPANY_CHANCE,
@@ -1270,5 +1274,147 @@ describe('global pool — HPF/LPF frequency clamps', () => {
     // a seeded coin-flip — either edge proves the point: it reaches its own
     // true ±12dB edge, unclamped by anything HPF/LPF-specific.
     expect(Math.abs(swell.baseValue! + swell.peakDelta!)).toBeCloseTo(12);
+  });
+});
+
+// ========================================
+// CANCELLATION (USER EDIT INTERRUPTS A SWELL)
+// ========================================
+
+describe('cancelSwellForGlobalField (a real UI edit interrupts a global-chain swell)', () => {
+  it('drops the matching swell without snapping the field back to its base value', () => {
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tickAudioSwells(LOCALE_ID, 0); // starts eq3.low
+    expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'eq3.low')).toBe(true);
+
+    // Simulate the user's own edit already having landed (AudioRigDrawer's
+    // updateParam calls setGlobalAudio itself — cancelSwellForGlobalField's
+    // own job is only to drop the swell, never to touch the store).
+    useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, eq3: { ...s.globalAudio.eq3, low: 7 } } }));
+    cancelSwellForGlobalField('eq3', 'low');
+
+    expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'eq3.low')).toBe(false);
+    expect(useAudioStore.getState().globalAudio.eq3.low).toBe(7); // the user's value survives, untouched
+
+    // A later tick must not resurrect or keep writing to the cancelled swell.
+    tickAudioSwells(LOCALE_ID, 1);
+    expect(useAudioStore.getState().globalAudio.eq3.low).toBe(7);
+  });
+
+  it('is a no-op when that field has no active swell', () => {
+    expect(() => cancelSwellForGlobalField('eq3', 'low')).not.toThrow();
+    expect(getActiveSwellSnapshot('global')).toEqual([]);
+  });
+
+  it('is a no-op for an effect/field this pool never swells (e.g. compressor)', () => {
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tickAudioSwells(LOCALE_ID, 0); // starts eq3.low
+    expect(() => cancelSwellForGlobalField('compressor', 'threshold')).not.toThrow();
+    expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'eq3.low')).toBe(true); // untouched
+  });
+
+  it('does not cancel a different field on the same effect', () => {
+    const noiseMap = noiseMapForDataIds({ 'audioSwell.trigger.global': -1, 'audioSwell.target.global': -0.6 }); // index 1 of 9 -> eq3.mid
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(noiseMap);
+    tickAudioSwells(LOCALE_ID, 0); // starts eq3.mid
+    expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'eq3.mid')).toBe(true);
+
+    cancelSwellForGlobalField('eq3', 'low'); // a different field on the same effect
+
+    expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'eq3.mid')).toBe(true); // untouched
+  });
+});
+
+describe('cancelSwellForRobotAttribute (a real UI edit interrupts a robot-pool swell)', () => {
+  it('drops a single-robot swell for the matching robot + attribute', () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ masterVolume: 0.1 }));
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tickAudioSwells(LOCALE_ID, 0); // starts r1's volume swell
+    expect(getActiveSwellSnapshot('robot').some((s) => s.robotAttribute === 'volume')).toBe(true);
+
+    cancelSwellForRobotAttribute('r1', 'volume');
+
+    expect(getActiveSwellSnapshot('robot')).toEqual([]);
+  });
+
+  it('is a no-op when that robot/attribute has no active swell', () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot());
+    expect(() => cancelSwellForRobotAttribute('r1', 'volume')).not.toThrow();
+    expect(getActiveSwellSnapshot('robot')).toEqual([]);
+  });
+
+  it('does not cancel a different attribute on the same robot', () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot());
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tickAudioSwells(LOCALE_ID, 0); // picks 'volume' (index 0)
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tickAudioSwells(LOCALE_ID, 1); // 'volume' now excluded -> picks 'layer0.gain'
+
+    cancelSwellForRobotAttribute('r1', 'volume');
+
+    expect(getActiveSwellSnapshot('robot').some((s) => s.robotAttribute === 'layer0.gain')).toBe(true);
+  });
+
+  it('cancels a company-wide swell atomically — one member\'s edit drops every member\'s key, not just its own', () => {
+    const robots = [
+      makeRobot({ id: 'r1', masterVolume: 0.2 }),
+      makeRobot({ id: 'r2', masterVolume: 0.4 }),
+      makeRobot({ id: 'r3', masterVolume: 0.6 }),
+    ];
+    robots.forEach((r) => useLocaleStore.getState().addRobot(LOCALE_ID, r));
+    useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1', 'r2', 'r3'] }));
+
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tickAudioSwells(LOCALE_ID, 0); // company-wide volume swell, all 3 members
+
+    cancelSwellForRobotAttribute('r2', 'volume'); // the user edits only r2's own slider
+
+    // Every member's own key is gone, not just r2's — a partial cancellation
+    // would otherwise leave r1/r3 still mid-swell on a now-half-dead ActiveSwell.
+    expect(getActiveSwellSnapshot('robot')).toEqual([]);
+  });
+});
+
+describe('isGlobalTargetSwelling / isRobotAttributeSwelling (read-only swell-in-progress check, feeds the slider primitives\' swelling-aware ease)', () => {
+  it('isGlobalTargetSwelling is true only for the effect/field actually swelling', () => {
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tickAudioSwells(LOCALE_ID, 0); // starts eq3.low
+
+    expect(isGlobalTargetSwelling('eq3', 'low')).toBe(true);
+    expect(isGlobalTargetSwelling('eq3', 'mid')).toBe(false);
+    expect(isGlobalTargetSwelling('compressor', 'threshold')).toBe(false); // not a swellable field at all
+  });
+
+  it('isGlobalTargetSwelling goes false once the swell completes', () => {
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tickAudioSwells(LOCALE_ID, 0); // starts eq3.low
+    cancelSwellForGlobalField('eq3', 'low');
+
+    expect(isGlobalTargetSwelling('eq3', 'low')).toBe(false);
+  });
+
+  it('isRobotAttributeSwelling is true only for the robot/attribute actually swelling', () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ masterVolume: 0.1 }));
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tickAudioSwells(LOCALE_ID, 0); // starts r1's volume swell
+
+    expect(isRobotAttributeSwelling('r1', 'volume')).toBe(true);
+    expect(isRobotAttributeSwelling('r1', 'layer0.gain')).toBe(false);
+    expect(isRobotAttributeSwelling('r2', 'volume')).toBe(false);
+  });
+
+  it('isRobotAttributeSwelling is true for every member of a company-wide swell', () => {
+    const robots = [
+      makeRobot({ id: 'r1', masterVolume: 0.2 }),
+      makeRobot({ id: 'r2', masterVolume: 0.4 }),
+    ];
+    robots.forEach((r) => useLocaleStore.getState().addRobot(LOCALE_ID, r));
+    useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1', 'r2'] }));
+
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tickAudioSwells(LOCALE_ID, 0); // company-wide volume swell, both members
+
+    expect(isRobotAttributeSwelling('r1', 'volume')).toBe(true);
+    expect(isRobotAttributeSwelling('r2', 'volume')).toBe(true);
   });
 });

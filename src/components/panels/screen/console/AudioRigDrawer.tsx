@@ -20,6 +20,7 @@ import {
   type AudioRigEffectKey,
 } from '@/data/audioRigConfig';
 import { getTraitColorStyle } from '@/utils/traitColors';
+import { cancelSwellForGlobalField, isGlobalTargetSwelling } from '@/systems/audioSwells';
 import type { Trait } from '@/types/traits';
 import type { DirectionalPanelSchema, LfoValue, PanelOrientation } from '@/types/controls';
 import type { GlobalAudioSettings } from '@/types/globalAudio';
@@ -61,14 +62,14 @@ const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
 /** Dispatches a param's ControlSchema to its matching primitive. Covers only
  *  the 4 variants GLOBAL_CHAIN_GRID.md's UI column actually uses for this
  *  drawer — audioRigConfig.test.ts is what guards the closed set in practice. */
-function renderParamControl(param: AudioRigParamSchema, value: number, onChange: (v: number) => void) {
+function renderParamControl(param: AudioRigParamSchema, value: number, onChange: (v: number) => void, swelling: boolean) {
   switch (param.schema.type) {
     case 'sliderLinear':
-      return <SliderLinear schema={param.schema} value={value} onChange={onChange} verticalHeight={param.schema.verticalHeight} />;
+      return <SliderLinear schema={param.schema} value={value} onChange={onChange} verticalHeight={param.schema.verticalHeight} swelling={swelling} />;
     case 'sliderLog':
-      return <SliderLog schema={param.schema} value={value} onChange={onChange} verticalHeight={param.schema.verticalHeight} />;
+      return <SliderLog schema={param.schema} value={value} onChange={onChange} verticalHeight={param.schema.verticalHeight} swelling={swelling} />;
     case 'sliderCenteredZero':
-      return <SliderCenteredZero schema={param.schema} value={value} onChange={onChange} verticalHeight={param.schema.verticalHeight} />;
+      return <SliderCenteredZero schema={param.schema} value={value} onChange={onChange} verticalHeight={param.schema.verticalHeight} swelling={swelling} />;
     case 'stepper':
       return <Stepper schema={param.schema} value={value} onChange={onChange} />;
     default:
@@ -83,10 +84,10 @@ function renderParamControl(param: AudioRigParamSchema, value: number, onChange:
  *  fresh function every render, which defeated every memoized primitive's own React.memo bail-out
  *  regardless of how many of them got memoized (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
  *  Task 12). */
-function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, onChange: (v: number) => void) {
+function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, onChange: (v: number) => void, effectKey: AudioRigEffectKey) {
   return (
     <div className="audio-rig-drawer__param-row" key={param.field}>
-      {renderParamControl(param, effect[param.field], onChange)}
+      {renderParamControl(param, effect[param.field], onChange, isGlobalTargetSwelling(effectKey, param.field))}
     </div>
   );
 }
@@ -120,6 +121,10 @@ interface AudioRigLfoGroupProps {
    *  `fieldOnChange` map (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12), not a raw
    *  `updateParam` this component would otherwise have to bind inline per param itself. */
   fieldOnChange: Record<string, (v: number) => void>;
+  /** The owning effect's own key — needed only to look up isGlobalTargetSwelling(effectKey,
+   *  field) per param below, so a swell riding one of this group's own fields (eq3/filterLPF/
+   *  filterHPF are all swellable) renders instantly instead of double-easing. */
+  effectKey: AudioRigEffectKey;
 }
 
 /**
@@ -143,7 +148,7 @@ interface AudioRigLfoGroupProps {
  * component's own wrapper renders as one flex item inside block.panel's content regardless of
  * block.panel's own orientation, which is why that orientation no longer needs to change.
  */
-function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange }: AudioRigLfoGroupProps) {
+function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange, effectKey }: AudioRigLfoGroupProps) {
   // Only this group's own lfoTarget values, not the whole globalLfo object (bugfix, found via
   // a manual re-render sweep, backlog item 18 — same class as AudioRigEffectPanel's own fix
   // below): useShallow bails the re-render when none of THESE targets' values actually
@@ -215,7 +220,7 @@ function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange }: AudioRigLf
             onClick={() => select(param.field)}
             onFocus={() => select(param.field)}
           >
-            {renderParamControl(param, effect[param.field], fieldOnChange[param.field])}
+            {renderParamControl(param, effect[param.field], fieldOnChange[param.field], isGlobalTargetSwelling(effectKey, param.field))}
           </div>
         ))}
       </DirectionalPanel>
@@ -362,6 +367,7 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   // many of them got memoized — the originally-reported bug (docs/todo/backlog.md #26): an
   // Audio Swell tick re-rendering the whole panel instead of just the swelling field.
   const updateParam = useCallback((field: string, value: number) => {
+    cancelSwellForGlobalField(effectKey, field);
     setGlobalAudio(effectKey, { [field]: value } as Partial<GlobalAudioSettings[AudioRigEffectKey]>);
   }, [effectKey, setGlobalAudio]);
   // One pre-bound, stable onChange per field, keyed by field name. block.params is a stable
@@ -394,6 +400,7 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
             params={lfoFields}
             effect={effect}
             fieldOnChange={fieldOnChange}
+            effectKey={effectKey}
           />
         ) : block.key === 'compressor' ? (
           // Threshold+Ratio, Attack+Release, and Knee+Decay Mode (Crawford's own request) are the
@@ -402,15 +409,15 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
           // bottomRow' used to be shared by 2 different panels).
           <>
             <DirectionalPanel schema={COMPRESSOR_TOP_ROW_SCHEMA}>
-              {paramRow(findParam(block.params, 'threshold'), effect, fieldOnChange.threshold)}
-              {paramRow(findParam(block.params, 'ratio'), effect, fieldOnChange.ratio)}
+              {paramRow(findParam(block.params, 'threshold'), effect, fieldOnChange.threshold, effectKey)}
+              {paramRow(findParam(block.params, 'ratio'), effect, fieldOnChange.ratio, effectKey)}
             </DirectionalPanel>
             <DirectionalPanel schema={COMPRESSOR_BOTTOM_ROW_SCHEMA}>
-              {paramRow(findParam(block.params, 'attack'), effect, fieldOnChange.attack)}
-              {paramRow(findParam(block.params, 'release'), effect, fieldOnChange.release)}
+              {paramRow(findParam(block.params, 'attack'), effect, fieldOnChange.attack, effectKey)}
+              {paramRow(findParam(block.params, 'release'), effect, fieldOnChange.release, effectKey)}
             </DirectionalPanel>
             <DirectionalPanel schema={COMPRESSOR_KNEE_DECAY_ROW_SCHEMA}>
-              {paramRow(findParam(block.params, 'knee'), effect, fieldOnChange.knee)}
+              {paramRow(findParam(block.params, 'knee'), effect, fieldOnChange.knee, effectKey)}
               <div className="audio-rig-drawer__param-row">
                 <RadioButton
                   schema={DECAY_MODE_SCHEMA}
@@ -421,7 +428,7 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
             </DirectionalPanel>
           </>
         ) : (
-          block.params.map((param) => paramRow(param, effect, fieldOnChange[param.field]))
+          block.params.map((param) => paramRow(param, effect, fieldOnChange[param.field], effectKey))
         )}
       </DirectionalPanel>
     </div>

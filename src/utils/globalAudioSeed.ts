@@ -6,6 +6,8 @@ import type { NoiseFunction2D } from 'simplex-noise';
 import { getAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal } from './getSeededVal';
 import { quantizeToStep } from './math';
+import { stepsValueToT, stepsTToValue } from '@/components/ui/controls/sliderLogMath';
+import { SWELL_FREQUENCY_STEPS, SWELL_DURATION_SCHEMA } from '@/data/audioRigConfig';
 
 import type { GlobalAudioSettings } from '@/types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
@@ -186,31 +188,38 @@ const SWELL_FREQUENCY_SEED_RANGE = { min: 2, max: 8 };
 const SWELL_DURATION_SEED_RANGE = { min: 2, max: 8 };
 
 /**
- * Seeded starting value for audioStore's swellFrequency, [2, 8]. Sampled once
- * per session, carried forward across later Attenuation Style switches, same
- * sentinel-gated mechanism pingVarianceAutomation already uses
- * (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5). No quantization
- * step — unlike pingVarianceAutomation, this field has no fraction-to-percent
- * split creating an off-grid rounding risk.
+ * Seeded starting value for audioStore's swellFrequency — a continuous roll within [2, 8], then
+ * snapped onto SWELL_FREQUENCY_SCHEMA's own fixed step grid (audioRigConfig.ts) so a freshly-seeded
+ * world always starts on one of the slider's actual allowed values (2, 3, 4, or 8 — the only steps
+ * inside this range), the same "no off-grid value" guarantee pingVarianceAutomation's own
+ * quantization gives it below. Sampled once per session, carried forward across later Attenuation
+ * Style switches, same sentinel-gated mechanism pingVarianceAutomation already uses
+ * (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.5).
  */
 export function generateSwellFrequency(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  return getSeededVal(
+  const raw = getSeededVal(
     noiseMap, 'globalAudio.swellFrequency', 0,
     SWELL_FREQUENCY_SEED_RANGE.min, SWELL_FREQUENCY_SEED_RANGE.max
   );
+  return stepsTToValue(stepsValueToT(raw, SWELL_FREQUENCY_STEPS), SWELL_FREQUENCY_STEPS);
 }
 
 /**
  * Seeded starting value for audioStore's swellDuration, [2, 8] measures. Same
- * seed-once/carry-forward treatment as generateSwellFrequency above.
+ * seed-once/carry-forward treatment as generateSwellFrequency above. Snapped onto
+ * SWELL_DURATION_SCHEMA's own step=1 grid (audioRigConfig.ts) the same way generateSwellFrequency
+ * snaps onto SWELL_FREQUENCY_STEPS — a fresh seed's raw continuous roll otherwise lands on a
+ * fractional number of measures (e.g. 6.88), off-grid from what the "Automation Length" slider
+ * itself can ever produce by hand (found live, 2026-09-30).
  */
 export function generateSwellDuration(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  return getSeededVal(
+  const raw = getSeededVal(
     noiseMap, 'globalAudio.swellDuration', 0,
     SWELL_DURATION_SEED_RANGE.min, SWELL_DURATION_SEED_RANGE.max
   );
+  return quantizeToStep(raw, SWELL_DURATION_SCHEMA.min, SWELL_DURATION_SCHEMA.step ?? 1);
 }
 
 /**

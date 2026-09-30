@@ -42,6 +42,7 @@ import { AudioRigEffectPanel } from './AudioRigDrawer';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import { useLfoTargetGroup } from '@/components/ui/controls/useLfoTargetGroup';
 import { useAudioStore } from '@/stores/audioStore';
+import * as audioSwells from '@/systems/audioSwells';
 import { ACCENT_COLORS } from '@/constants/accentColors';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
@@ -184,6 +185,15 @@ describe('AudioRigEffectPanel', () => {
     expect(useAudioStore.getState().globalAudio.compressor.threshold).toBe(-23);
   });
 
+  it('a real user edit interrupts any Audio Swell riding that same field (docs/specs/AUDIO_SWELLS.md follow-up)', () => {
+    const spy = vi.spyOn(audioSwells, 'cancelSwellForGlobalField');
+    render(<AudioRigEffectPanel effectKey="compressor" />);
+    const thresholdSlider = screen.getByRole('slider', { name: 'Threshold' });
+    thresholdSlider.focus();
+    fireEvent.keyDown(thresholdSlider, { key: 'ArrowRight' });
+    expect(spy).toHaveBeenCalledWith('compressor', 'threshold');
+  });
+
   it('a single arrow-key press on a Delay slider moves by a small increment, not straight to max — regression: sliderLinear schemas with a full range <= 1 and no explicit step used to act like toggles', () => {
     useAudioStore.setState((s) => ({
       globalAudio: { ...s.globalAudio, delay: { ...s.globalAudio.delay, delayTime: 0.5 } },
@@ -318,7 +328,7 @@ describe('AudioRigEffectPanel', () => {
       expect(lpf.querySelector('.sc-lfo.sc-held-off')).toBeTruthy();
     });
 
-    it('restores the real stored value (not 0) the moment the frame stops being held off', () => {
+    it('restores the real stored value (not 0) the moment the frame stops being held off', async () => {
       useAudioStore.setState((s) => ({
         globalLfo: { ...s.globalLfo, 'lpf.frequency': { shape: 'square', rate: 3, depth: 45 } },
         heldOffLfoKeys: ['lpf.frequency'],
@@ -327,6 +337,10 @@ describe('AudioRigEffectPanel', () => {
       expect(rateOf(frame(container)).getAttribute('aria-valuenow')).toBe('0');
 
       act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
+      // SliderLinear/SliderLog now ease a non-drag value change over 250ms (Crawford's own
+      // request) — the shared gsap mock (vitest.setup.ts) settles the tween's onComplete on the
+      // next microtask.
+      await act(async () => { await Promise.resolve(); });
 
       expect(rateOf(frame(container)).getAttribute('aria-valuenow')).toBe('3');
       expect(depthOf(frame(container)).getAttribute('aria-valuenow')).toBe('45');

@@ -16,6 +16,14 @@ import { AudioLoadPanel } from './AudioLoadPanel';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import { useAudioStore } from '@/stores/audioStore';
 
+/** Settles SliderLinear's own 250ms ease (Crawford's own request) — the shared gsap mock
+ *  (vitest.setup.ts) resolves a tween's onComplete on the next microtask, so a value change
+ *  driven from outside the slider itself (this panel's preset radio) needs a real await before
+ *  its aria-valuenow reflects the new value. */
+async function flushEase() {
+  await act(async () => { await Promise.resolve(); });
+}
+
 /**
  * The Audio Load panel (docs/specs/AUDIO_LOAD_BUDGET.md §4.5, decision F) — a self-contained,
  * prop-less component (no engine calls of its own; audioBudgetSystem reacts to the store write),
@@ -66,19 +74,22 @@ describe('Audio Load panel', () => {
     expect(selectedPresets()).toEqual([]);
   });
 
-  it('selecting a preset sets both robotLoad and effectsLoad to its value, and both sliders follow', () => {
+  it('selecting a preset sets both robotLoad and effectsLoad to its value, and both sliders follow', async () => {
     render(<AudioLoadPanel />);
     fireEvent.click(presetRadio('Light'));
     expect(useAudioStore.getState().robotLoad).toBe(0.2);
     expect(useAudioStore.getState().effectsLoad).toBe(0.2);
+    await flushEase();
     expect(robotSlider().getAttribute('aria-valuenow')).toBe('20');
     expect(effectsSlider().getAttribute('aria-valuenow')).toBe('20');
     fireEvent.click(presetRadio('Standard'));
     expect(useAudioStore.getState().robotLoad).toBe(0.6);
     expect(useAudioStore.getState().effectsLoad).toBe(0.6);
+    await flushEase();
     fireEvent.click(presetRadio('Full'));
     expect(useAudioStore.getState().robotLoad).toBe(1);
     expect(useAudioStore.getState().effectsLoad).toBe(1);
+    await flushEase();
     expect(selectedPresets()).toEqual(['Full']);
   });
 

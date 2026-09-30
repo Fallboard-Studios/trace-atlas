@@ -61,7 +61,7 @@ describe('FleetDriftPanel', () => {
     }
   });
 
-  it('greys out both sliders, with a label, while the drift tier is off — shows 0 not the real stored value — and restores them', () => {
+  it('greys out both sliders, with a label, while the drift tier is off — shows 0 not the real stored value — and restores them', async () => {
     useAudioStore.setState((s) => ({
       globalAudio: { ...s.globalAudio, lfoDrift: { ...s.globalAudio.lfoDrift, globalFx: { rateDrift: 0.4, depthDrift: -0.25 } } },
       driftHeldOff: true,
@@ -77,6 +77,9 @@ describe('FleetDriftPanel', () => {
     expect(rateSlider.closest('.audio-rig-drawer__param-row')?.classList.contains('sc-held-off')).toBe(true);
 
     act(() => useAudioStore.setState({ driftHeldOff: false }));
+    // SliderCenteredZero now eases a non-drag value change over 250ms (Crawford's own request) —
+    // the shared gsap mock (vitest.setup.ts) settles the tween's onComplete on the next microtask.
+    await act(async () => { await Promise.resolve(); });
 
     const restoredRate = screen.getByRole('slider', { name: 'Rate Drift' });
     const restoredDepth = screen.getByRole('slider', { name: 'Depth Drift' });

@@ -2,12 +2,21 @@ import type { ComponentProps } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 
-let lastOnComplete: (() => void) | undefined;
+// An ARRAY, not a single "last one wins" slot — switching the targeted field triggers the row's
+// own scaffold transition timeline (gsap.timeline, below) AND, since the shared Lfo display's
+// value prop changes twice (real -> NEUTRAL_LFO_VALUE while transitioning, then NEUTRAL -> the
+// newly-selected field's real value once committed), SliderLinear/SliderLog's own 250ms ease on
+// Rate/Depth (useEasedControlValue.ts, Crawford's own request) — found live once it started
+// overwriting a single-slot capture, losing the row's own onComplete entirely. flushTransition
+// below drains every pending gsap.timeline() onComplete, looping until settling triggers no
+// further new ones. The slider ease itself (quickTo, below) resolves synchronously within
+// whichever act() is already running when its own effect fires — it doesn't need this queue.
+let pendingOnCompletes: Array<() => void> = [];
 
 vi.mock('gsap', () => ({
   default: {
     timeline: vi.fn((config?: { onComplete?: () => void }) => {
-      lastOnComplete = config?.onComplete;
+      if (config?.onComplete) pendingOnCompletes.push(config.onComplete);
       // Chainable — CabinetBox.tsx's own real (non-skipMountAnimation) mount
       // path chains several .fromTo() calls on the same timeline instance
       // (docs/specs/OBLIQUE_CABINETRY_WALL_RENDERING.md). Every CabinetBox
@@ -33,6 +42,18 @@ vi.mock('gsap', () => ({
     // own local gsap mock didn't previously need to stub. A no-op here is
     // sufficient — no test in this file asserts on gsap.set's call args.
     set: vi.fn(),
+    // Rate/Depth's own 250ms ease (useEasedControlValue.ts) — mutates the target and fires
+    // onUpdate/onComplete synchronously, same technique SliderLinear.test.tsx/
+    // useEasedControlValue.test.ts already use, so it settles within whichever act() is already
+    // running rather than needing its own queue/flush step.
+    quickTo: vi.fn((target: Record<string, number>, prop: string, vars?: { onUpdate?: () => void; onComplete?: () => void }) => {
+      return vi.fn((value: number) => {
+        target[prop] = value;
+        vars?.onUpdate?.();
+        vars?.onComplete?.();
+      });
+    }),
+    killTweensOf: vi.fn(),
   },
 }));
 
@@ -73,14 +94,25 @@ function renderField(field: string, targeted: boolean) {
 }
 
 function flushTransition() {
-  act(() => {
-    lastOnComplete?.();
-  });
+  // Loop, each batch its own act() call — not one act() wrapping the whole loop: firing the row's
+  // own onComplete commits the real selected value, which itself triggers a FURTHER SliderLinear/
+  // SliderLog ease (NEUTRAL -> the real value, or held-off-forced-0 -> the real value once heldOff
+  // flips false) — a new gsap.timeline() call. React 18 batches effects from a single act() call
+  // together; only a SEPARATE act() per drain forces that new timeline to actually register (and
+  // get pushed into pendingOnCompletes) before this checks the while condition again. Draining
+  // until nothing new arrives settles the whole cascade to its final steady state.
+  while (pendingOnCompletes.length > 0) {
+    const toRun = pendingOnCompletes;
+    pendingOnCompletes = [];
+    act(() => {
+      toRun.forEach((fn) => fn());
+    });
+  }
 }
 
 describe('LfoTargetGroup', () => {
   beforeEach(() => {
-    lastOnComplete = undefined;
+    pendingOnCompletes = [];
   });
 
   afterEach(() => {
