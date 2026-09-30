@@ -11,6 +11,7 @@ vi.mock('./CabinetBox', () => ({
     frontWidth,
     frontHeight,
     skipMountAnimation,
+    delay,
     children,
   }: {
     popped: number;
@@ -21,6 +22,7 @@ vi.mock('./CabinetBox', () => ({
     frontWidth?: number;
     frontHeight?: number;
     skipMountAnimation?: boolean;
+    delay?: number;
     children: React.ReactNode;
   }) => (
     <div
@@ -34,6 +36,7 @@ vi.mock('./CabinetBox', () => ({
       data-front-width={frontWidth}
       data-front-height={frontHeight}
       data-skip-mount-animation={skipMountAnimation}
+      data-delay={delay}
     >
       {children}
     </div>
@@ -59,6 +62,8 @@ import {
   computeVoxelStraddleSizeFraction,
   computeVoxelBoxPopDistance,
   computeVoxelBoxZIndex,
+  computeVoxelPopStaggerDelays,
+  VOXEL_POP_STAGGER_SECONDS,
   type VoxelBoxState,
 } from '@/utils/voxelTrackMath';
 
@@ -397,6 +402,101 @@ describe('VoxelTrack', () => {
     const root = container.querySelector('.sc-voxel-track') as HTMLElement;
     expect(root.style.getPropertyValue('--voxel-box-size')).toBe('48px');
     expect(root.style.getPropertyValue('--voxel-gap')).toBe('12px');
+  });
+
+  describe('staggered pop-out (Crawford\'s own request, 2026-09-30 — a non-smooth value change flips several boxes at once; they should pop in sequence, not simultaneously)', () => {
+    // Only the ordinary (non-straddling) CabinetBox instances ever receive a `delay` — the
+    // straddling slot's own glow/flat pieces have a fixed popped (1/0) that never itself
+    // transitions (only their frontWidth/frontHeight does, via direct measurement, never this
+    // geometry tween), so they're excluded here rather than asserted on with a made-up value.
+    function ordinaryBoxes() {
+      return screen.getAllByTestId('cabinet-box').filter((box) => box.getAttribute('data-delay') !== null);
+    }
+
+    it('every ordinary box gets delay 0 on first mount — nothing to stagger against yet', () => {
+      render(
+        <VoxelTrack states={STATES} boxSize={40} gap={10} axis="horizontal" timelineKeyPrefix="cabinet-voxel-test" />,
+      );
+      expect(ordinaryBoxes().every((box) => box.getAttribute('data-delay') === '0')).toBe(true);
+    });
+
+    it('an ordinary single-box change (a drag/ease step) gets delay 0 on every box — no stagger', () => {
+      const before: VoxelBoxState[] = [
+        { fillPercent: 100, popT: 1, isStraddling: false },
+        { fillPercent: 50, popT: 1, isStraddling: true },
+        { fillPercent: 0, popT: 0, isStraddling: false },
+      ];
+      const after: VoxelBoxState[] = [
+        { fillPercent: 100, popT: 1, isStraddling: false },
+        { fillPercent: 100, popT: 1, isStraddling: false },
+        { fillPercent: 50, popT: 1, isStraddling: true },
+      ];
+      const { rerender } = render(
+        <VoxelTrack states={before} boxSize={40} gap={10} axis="horizontal" timelineKeyPrefix="cabinet-voxel-test" />,
+      );
+      rerender(
+        <VoxelTrack states={after} boxSize={40} gap={10} axis="horizontal" timelineKeyPrefix="cabinet-voxel-test" />,
+      );
+      expect(ordinaryBoxes().every((box) => box.getAttribute('data-delay') === '0')).toBe(true);
+    });
+
+    it('a jump that flips several boxes in one render stages them by distance from the OLD straddle index, matching computeVoxelPopStaggerDelays directly', () => {
+      // Straddle at index 1 -> jumps to index 4: boxes 1, 2, 3 newly read as "ordinary filled"
+      // (box 1 stops being the straddle and becomes plain-filled; boxes 2-3 go flat -> filled).
+      const before: VoxelBoxState[] = [
+        { fillPercent: 100, popT: 1, isStraddling: false },
+        { fillPercent: 50, popT: 1, isStraddling: true },
+        { fillPercent: 0, popT: 0, isStraddling: false },
+        { fillPercent: 0, popT: 0, isStraddling: false },
+        { fillPercent: 0, popT: 0, isStraddling: false },
+      ];
+      const after: VoxelBoxState[] = [
+        { fillPercent: 100, popT: 1, isStraddling: false },
+        { fillPercent: 100, popT: 1, isStraddling: false },
+        { fillPercent: 100, popT: 1, isStraddling: false },
+        { fillPercent: 100, popT: 1, isStraddling: false },
+        { fillPercent: 50, popT: 1, isStraddling: true },
+      ];
+      const { rerender } = render(
+        <VoxelTrack states={before} boxSize={40} gap={10} axis="horizontal" timelineKeyPrefix="cabinet-voxel-test" />,
+      );
+      rerender(
+        <VoxelTrack states={after} boxSize={40} gap={10} axis="horizontal" timelineKeyPrefix="cabinet-voxel-test" />,
+      );
+      const prevFilled = before.map((s) => !s.isStraddling && s.popT === 1);
+      const currFilled = after.map((s) => !s.isStraddling && s.popT === 1);
+      const expected = computeVoxelPopStaggerDelays(prevFilled, currFilled, 1);
+      // Only states 0-3 render as an ordinary CabinetBox (state 4 is the new straddle, rendered
+      // as 2 pieces, neither carrying `delay`) — compare against expected's own first 4 entries.
+      expect(ordinaryBoxes().map((box) => Number(box.getAttribute('data-delay')))).toEqual(expected.slice(0, 4));
+      // Sanity-check the shape directly too, not just parity with the helper.
+      expect(expected[1]).toBe(0);
+      expect(expected[2]).toBeCloseTo(VOXEL_POP_STAGGER_SECONDS);
+      expect(expected[3]).toBeCloseTo(2 * VOXEL_POP_STAGGER_SECONDS);
+    });
+
+    it('resets to delay 0 on the FOLLOWING render (a jump is a one-time event, not a persistent offset)', () => {
+      const before: VoxelBoxState[] = [
+        { fillPercent: 100, popT: 1, isStraddling: false },
+        { fillPercent: 50, popT: 1, isStraddling: true },
+        { fillPercent: 0, popT: 0, isStraddling: false },
+      ];
+      const jumped: VoxelBoxState[] = [
+        { fillPercent: 100, popT: 1, isStraddling: false },
+        { fillPercent: 100, popT: 1, isStraddling: false },
+        { fillPercent: 50, popT: 1, isStraddling: true },
+      ];
+      const { rerender } = render(
+        <VoxelTrack states={before} boxSize={40} gap={10} axis="horizontal" timelineKeyPrefix="cabinet-voxel-test" />,
+      );
+      rerender(
+        <VoxelTrack states={jumped} boxSize={40} gap={10} axis="horizontal" timelineKeyPrefix="cabinet-voxel-test" />,
+      );
+      rerender(
+        <VoxelTrack states={jumped.map((s) => ({ ...s }))} boxSize={40} gap={10} axis="horizontal" timelineKeyPrefix="cabinet-voxel-test" />,
+      );
+      expect(ordinaryBoxes().every((box) => box.getAttribute('data-delay') === '0')).toBe(true);
+    });
   });
 
   describe('React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5)', () => {

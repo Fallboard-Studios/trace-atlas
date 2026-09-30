@@ -1,10 +1,11 @@
-import { memo, type CSSProperties } from 'react';
+import { memo, useState, type CSSProperties } from 'react';
 import { CabinetBox } from './CabinetBox';
 import {
   computeVoxelFillBackground,
   computeVoxelStraddleSizeFraction,
   computeVoxelBoxPopDistance,
   computeVoxelBoxZIndex,
+  computeVoxelPopStaggerDelays,
   type VoxelBoxState,
 } from '@/utils/voxelTrackMath';
 import './VoxelTrack.css';
@@ -42,6 +43,39 @@ function VoxelTrackInner({ states, boxSize, gap, axis, timelineKeyPrefix }: Voxe
     '--voxel-box-size': `${boxSize}px`,
     '--voxel-gap': `${gap}px`,
   } as CSSProperties;
+
+  // Staggered pop-out (Crawford's own request, 2026-09-30): a non-smooth value change (a swell
+  // tick's instant snap, a keyboard Home/End jump, a session load) can flip several ordinary
+  // boxes' filled/flat state in the same render — without this, every one of them starts its own
+  // pop tween the same frame, reading as one simultaneous block rather than a sweep across the
+  // track. `popStaggerSnapshot` holds the LAST render's own (states, filled, straddleIndex) plus
+  // the delays computed from comparing it against the one before — "storing information from
+  // previous renders" via a conditional setState call during render (react.dev's own sanctioned
+  // pattern for this), never a ref: `react-hooks/refs` forbids reading ref.current during render
+  // (only from an effect/event handler), which a naive prevFilledRef/prevStraddleIndexRef version
+  // of this violated. Calling setState here when `states` changed re-renders synchronously before
+  // paint — no extra visible frame, and no risk of a StrictMode double-render desyncing "previous"
+  // from what actually got committed, the way a render-time ref mutation would.
+  const currFilled = states.map((state) => !state.isStraddling && state.popT === 1);
+  const rawStraddleIndex = states.findIndex((state) => state.isStraddling);
+  const currStraddleIndex = rawStraddleIndex === -1 ? null : rawStraddleIndex;
+
+  const [popStaggerSnapshot, setPopStaggerSnapshot] = useState<{
+    states: VoxelBoxState[];
+    filled: boolean[];
+    straddleIndex: number | null;
+    delays: number[];
+  } | null>(null);
+
+  let popStaggerDelays: number[];
+  if (popStaggerSnapshot === null || popStaggerSnapshot.states !== states) {
+    popStaggerDelays = popStaggerSnapshot
+      ? computeVoxelPopStaggerDelays(popStaggerSnapshot.filled, currFilled, popStaggerSnapshot.straddleIndex)
+      : currFilled.map(() => 0);
+    setPopStaggerSnapshot({ states, filled: currFilled, straddleIndex: currStraddleIndex, delays: popStaggerDelays });
+  } else {
+    popStaggerDelays = popStaggerSnapshot.delays;
+  }
 
   return (
     <div className="sc-voxel-track" data-axis={axis} style={tokens} aria-hidden="true">
@@ -84,6 +118,7 @@ function VoxelTrackInner({ states, boxSize, gap, axis, timelineKeyPrefix }: Voxe
               popDistance={popDistance}
               zIndex={zIndex}
               skipMountAnimation
+              delay={popStaggerDelays[i]}
               timelineKey={`${timelineKeyPrefix}-${i}`}
             >
               <div

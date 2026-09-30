@@ -330,3 +330,50 @@ export function computeVoxelBoxStatesCenteredZero(
 
   return [...negativeStates, ...positiveStates];
 }
+
+/** How long each successive box in a staggered pop-out run waits before starting its own
+ *  animation, relative to the previous one (Crawford's own request, 2026-09-30) — see
+ *  computeVoxelPopStaggerDelays below. */
+export const VOXEL_POP_STAGGER_SECONDS = 0.05;
+
+/**
+ * A non-smooth (non-drag, non-eased) value change — a swell tick snapping in instantly, a
+ * keyboard Home/End jump, a session load — can flip several boxes' filled/flat state in the same
+ * render, all at once: every affected CabinetBox starts its own pop tween the same frame, which
+ * reads as a single simultaneous block popping rather than a value sweeping across the track.
+ * This computes a per-box start delay (seconds, fed straight into CabinetBox's own `delay` prop)
+ * so those boxes instead pop in sequence, ordered by distance from `prevStraddleIndex` (the box
+ * nearest the ORIGINAL value goes first, `VOXEL_POP_STAGGER_SECONDS` apart, ending nearest the new
+ * value) — never by raw array position, since a jump can run in either direction.
+ *
+ * An ORDINARY single-step change (a drag, or one step of an already-running eased interpolation)
+ * flips at most one box per render and gets no stagger at all (every delay 0) — this only kicks in
+ * once more than one box flips in the same comparison, which a smooth per-frame change never
+ * produces.
+ *
+ * `prevFilled`/`currFilled` are one boolean per box — true for an ordinary (non-straddling) box
+ * whose popT === 1 (VoxelTrack's own "is this box fully popped" check) — and must be the same
+ * length; `prevStraddleIndex` is the previous render's straddling box index (or null on the very
+ * first comparison, before any prior render exists to compare against — no stagger is possible
+ * without an origin point, so every delay is 0 in that case too).
+ */
+export function computeVoxelPopStaggerDelays(
+  prevFilled: boolean[],
+  currFilled: boolean[],
+  prevStraddleIndex: number | null,
+): number[] {
+  const delays = new Array(currFilled.length).fill(0);
+  if (prevStraddleIndex === null) return delays;
+
+  const flipped: number[] = [];
+  for (let i = 0; i < currFilled.length; i++) {
+    if (prevFilled[i] !== currFilled[i]) flipped.push(i);
+  }
+  if (flipped.length <= 1) return delays; // an ordinary single-box change — no stagger needed
+
+  flipped.sort((a, b) => Math.abs(a - prevStraddleIndex) - Math.abs(b - prevStraddleIndex));
+  flipped.forEach((index, rank) => {
+    delays[index] = rank * VOXEL_POP_STAGGER_SECONDS;
+  });
+  return delays;
+}

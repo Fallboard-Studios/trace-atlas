@@ -82,6 +82,13 @@ interface CabinetBoxProps {
    *  the same (still-mounted) instance is unaffected and animates normally
    *  regardless of this flag — see the effect below. */
   skipMountAnimation?: boolean;
+  /** Optional, seconds — delays the START of an animated pop transition only (never the two
+   *  instant `gsap.set` paths above, which have nothing to delay). Defaults to 0 (every existing
+   *  consumer — Button/Toggle/RadioButton, and VoxelTrack's own ordinary single-step changes).
+   *  VoxelTrack (roadmap: staggered pop-out) passes a per-box offset computed by
+   *  computeVoxelPopStaggerDelays so several boxes that flip in the same render (a swell-tick
+   *  snap, a keyboard Home/End jump, a session load) pop in sequence instead of all at once. */
+  delay?: number;
   /** Optional — when true, the left-face wall is sized to 100% of the
    *  wrapper's own real (CSS-derived) height instead of `frontHeight ??
    *  boxHeight`, and `boxHeight`/`--cabinet-box-height` become irrelevant to
@@ -151,7 +158,7 @@ interface CabinetBoxProps {
  * attribute (the latter is main-thread/paint-bound and visibly lagged the
  * front face's own compositor-driven transform under load).
  */
-function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, popDistance, frontWidth, frontHeight, zIndex, skipMountAnimation, autoHeight, color, enforceMinTouchHeight = true, children }: CabinetBoxProps) {
+function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, popDistance, frontWidth, frontHeight, zIndex, skipMountAnimation, delay = 0, autoHeight, color, enforceMinTouchHeight = true, children }: CabinetBoxProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const frontRef = useRef<HTMLDivElement>(null);
   // Both walls are plain <div>s (not SVG <polygon>s) — see
@@ -370,7 +377,7 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
     const duration = getCabinetPopDuration(prefersReducedMotion, direction);
     const ease = getCabinetPopEase(direction);
 
-    const tl = gsap.timeline();
+    const tl = gsap.timeline({ delay });
     tl.fromTo(topFaceRef.current, { scaleY: fromPopped }, { scaleY: poppedT, duration, ease }, 0)
       .fromTo(leftFaceInnerRef.current, { scaleX: fromPopped }, { scaleX: poppedT, duration, ease }, 0)
       .fromTo(frontRef.current,
@@ -387,7 +394,7 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
         { '--cabinet-glow': fromPopped },
         { '--cabinet-glow': poppedT, duration, ease }, 0);
     setTimeline(timelineKey, tl);
-  }, { scope: wrapperRef, dependencies: [poppedT, width, boxHeight, timelineKey, resolvedPopDistance, skipMountAnimation] });
+  }, { scope: wrapperRef, dependencies: [poppedT, width, boxHeight, timelineKey, resolvedPopDistance, skipMountAnimation, delay] });
 
   // Both custom properties are computed here, in the one place that already
   // resolves the breakpoint tier for the geometry math (useCabinetBoxHeight)
