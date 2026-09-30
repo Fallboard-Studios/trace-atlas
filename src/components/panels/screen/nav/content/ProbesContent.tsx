@@ -5,8 +5,17 @@ import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { useUIStore } from '@/stores/uiStore';
 
-const PLACEHOLDER_LORE = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.';
-const PLACEHOLDER_HUMAN = 'Placeholder copy — real lore/human descriptions land in a later pass.';
+const ALL_PROBES_INTRO = {
+  loreLabel: 'All Probes — broadcast to the entire fleet.',
+  loreDescription: 'One instruction, transmitted to every probe on the mesh at once.',
+  humanDescription: 'Changes you make here apply to every probe at once — a shortcut for tuning the whole fleet without editing each probe individually. Move a slider partway and every probe’s own value shifts by the same amount, keeping their individual differences intact.',
+};
+
+const PROBES_INTRO = {
+  loreLabel: 'Probes — your fleet at a glance.',
+  loreDescription: 'Every unit currently deployed on the mesh, ready for individual inspection.',
+  humanDescription: 'This is the full list of your probes. Select one to view and edit its own settings, or use All Probes above to adjust every probe at once.',
+};
 
 /**
  * Probes branch content (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, Task 13) — routes on
@@ -33,9 +42,9 @@ export function ProbesContent() {
     return (
       <div className="probes-content" style={getTraitColorStyle('header')}>
         <IntroPanel
-          loreLabel="All Probes LORE TITLE"
-          loreDescription={PLACEHOLDER_LORE}
-          humanDescription={PLACEHOLDER_HUMAN}
+          loreLabel={ALL_PROBES_INTRO.loreLabel}
+          loreDescription={ALL_PROBES_INTRO.loreDescription}
+          humanDescription={ALL_PROBES_INTRO.humanDescription}
           trait="header"
         />
         <CompanyOptionsSection />
@@ -45,9 +54,9 @@ export function ProbesContent() {
   return (
     <div className="probes-content" style={getTraitColorStyle('output')}>
       <IntroPanel
-        loreLabel="Probes LORE TITLE"
-        loreDescription={PLACEHOLDER_LORE}
-        humanDescription={PLACEHOLDER_HUMAN}
+        loreLabel={PROBES_INTRO.loreLabel}
+        loreDescription={PROBES_INTRO.loreDescription}
+        humanDescription={PROBES_INTRO.humanDescription}
         trait="output"
       />
       <RobotsTab />

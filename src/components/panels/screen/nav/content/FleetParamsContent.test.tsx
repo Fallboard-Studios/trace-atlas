@@ -155,22 +155,22 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
   it('renders the section-level IntroPanel ungated — present before any group has approached', () => {
     render(<FleetParamsContent />);
 
-    expect(screen.getByText('Fleet Params LORE TITLE')).toBeTruthy();
+    expect(screen.getByText('Fleet Params — your key to mesh-wide performance.')).toBeTruthy();
   });
 
   it("a group's IntroPanel and its leaves are not in the DOM until that group's own anchor has approached", () => {
     render(<FleetParamsContent />);
 
-    expect(screen.queryByText('EQ & Filters LORE TITLE')).toBeNull();
+    expect(screen.queryByText('EQ & Filters — shape the signal every probe shares.')).toBeNull();
     expect(screen.queryByTestId('audio-rig-effect-panel-stub')).toBeNull();
   });
 
-  it("mounts a group's own IntroPanel once that group's anchor has approached, labeled per the LORE TITLE convention", () => {
+  it("mounts a group's own IntroPanel once that group's anchor has approached", () => {
     render(<FleetParamsContent />);
 
     approach('fleetParams.eqFilters');
 
-    expect(screen.getByText('EQ & Filters LORE TITLE')).toBeTruthy();
+    expect(screen.getByText('EQ & Filters — shape the signal every probe shares.')).toBeTruthy();
   });
 
   it('renders "Drift" positioned right after "EQ & Filters" and before "Time & Space", with its own IntroPanel once approached', () => {
@@ -185,7 +185,7 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
 
     approach('fleetParams.fleetDrift');
 
-    expect(screen.getByText('Drift LORE TITLE')).toBeTruthy();
+    expect(screen.getByText('Drift — a wandering hand behind every dial.')).toBeTruthy();
   });
 
   it.each(Object.entries(LEAF_ID_TO_EFFECT).filter(([id]) => !id.includes('.pacing.') && !id.includes('.fleetDrift.')))(

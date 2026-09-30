@@ -28,14 +28,45 @@ import './SettingsContent.css';
  *  docs/DUPLICATE_VALUE_AUDIT.md item 6, opened alongside this change, not fixed here). */
 const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['quality', 'sectorSettings', 'sessions'];
 
+// humanLabels below match navTreeConfig.ts's own settings.quality/sectorSettings/sessions
+// humanLabels exactly (docs/reference/text-content-tables.md) — this is a separate,
+// hand-duplicated table (same known duplication as FleetParamsContent.tsx's own
+// FLEET_PARAMS_GROUPS vs. navTreeConfig.ts), kept in sync by hand.
 const SETTINGS_ACCORDION_SCHEMAS: Record<SettingsLeaf, AccordionSchema> = {
-  quality: { id: 'settings.quality', type: 'accordion', humanLabel: 'Audio Profile' },
-  sectorSettings: { id: 'settings.sectorSettings', type: 'accordion', humanLabel: 'Audio Seeds' },
-  sessions: { id: 'settings.sessions', type: 'accordion', humanLabel: 'Sessions' },
+  quality: { id: 'settings.quality', type: 'accordion', humanLabel: 'Audio Quality' },
+  sectorSettings: { id: 'settings.sectorSettings', type: 'accordion', humanLabel: 'Seeds' },
+  sessions: { id: 'settings.sessions', type: 'accordion', humanLabel: 'Save & Share' },
 };
 
-const PLACEHOLDER_LORE = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.';
-const PLACEHOLDER_HUMAN = 'Placeholder copy — real lore/human descriptions land in a later pass.';
+interface IntroContent {
+  loreLabel: string;
+  loreDescription: string;
+  humanDescription: string;
+}
+
+const SETTINGS_SECTION_INTRO: IntroContent = {
+  loreLabel: 'Settings — configure your Trace Atlas terminal.',
+  loreDescription: 'Adjust how much of the mesh your terminal can track at once, and where in the world you’re listening.',
+  humanDescription: 'These are terminal-level settings, not fleet controls — how much your device can handle, which sector of the world you’re viewing, and where your saved sessions live.',
+};
+
+const SETTINGS_LEAF_INTRO: Record<SettingsLeaf, IntroContent> = {
+  quality: {
+    loreLabel: 'Audio Quality — tune your terminal’s processing load.',
+    loreDescription: 'Meridia Power Group’s Perpetualish Battery Packs keep probes running, but your terminal has its own limits on how much it can process at once.',
+    humanDescription: 'Robot Load limits how many probes can play sound at the same time. Effects Load limits how many effects — like LFOs — can run at once. Lower these if the app stutters or sounds glitchy on your device.',
+  },
+  sectorSettings: {
+    loreLabel: 'Seeds — choose which sector you’re tracking.',
+    loreDescription: 'Every sector of the world has its own resource signature — Attenuation Style sets the terrain, Coordinates set the location.',
+    humanDescription: 'Attenuation Style changes how sound fades and colors with distance in this world — it’s a starting seed, not a live audio effect, so changing it reshapes the whole locale. Coordinates set which specific spot on that terrain you’re viewing. Together they determine which probes, companies, and melodies you’ll see.',
+  },
+  sessions: {
+    loreLabel: 'Save & Share — keep a record, send it along.',
+    loreDescription: 'Archive a mesh configuration to Meridia’s own storage, or transmit it directly to another terminal.',
+    humanDescription: 'Save your current setup — every probe, company, and Fleet Params setting — under a name you choose, and load it again later. Share generates a link that hands your exact setup to anyone who opens it, no saving required on their end.',
+  },
+};
 
 /** Matches navTreeConfig.ts's own settings.quality/settings.sectorSettings children (ids/labels)
  *  — AudioLoadPanel/SectorSettingsDrawer already render Robot Load/Effects Load and Attenuation
@@ -135,9 +166,9 @@ export function SettingsContent() {
     <div ref={rootRef} className="settings-content" style={getTraitColorStyle('seed')}
     >
       <IntroPanel
-        loreLabel="Settings LORE TITLE"
-        loreDescription={PLACEHOLDER_LORE}
-        humanDescription={PLACEHOLDER_HUMAN}
+        loreLabel={SETTINGS_SECTION_INTRO.loreLabel}
+        loreDescription={SETTINGS_SECTION_INTRO.loreDescription}
+        humanDescription={SETTINGS_SECTION_INTRO.humanDescription}
         trait="seed"
       />
       {SETTINGS_LEAVES.map((leaf) => {
@@ -153,9 +184,9 @@ export function SettingsContent() {
               {hasApproached(id) ? (
                 <>
                   <IntroPanel
-                    loreLabel={`${SETTINGS_ACCORDION_SCHEMAS[leaf].humanLabel} LORE TITLE`}
-                    loreDescription={PLACEHOLDER_LORE}
-                    humanDescription={PLACEHOLDER_HUMAN}
+                    loreLabel={SETTINGS_LEAF_INTRO[leaf].loreLabel}
+                    loreDescription={SETTINGS_LEAF_INTRO[leaf].loreDescription}
+                    humanDescription={SETTINGS_LEAF_INTRO[leaf].humanDescription}
                     trait="seed"
                   />
                   {renderLeafContent(leaf)}

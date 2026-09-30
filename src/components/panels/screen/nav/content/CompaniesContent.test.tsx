@@ -56,12 +56,12 @@ describe('CompaniesContent — routes the Companies branch to Create, or Rename/
 
   it('renders the "Companies" section IntroPanel for the bare node, and "Individual Company" once one is selected', () => {
     const { unmount } = render(<CompaniesContent />);
-    expect(screen.getByText('Companies LORE TITLE')).toBeTruthy();
+    expect(screen.getByText('Companies — organize your fleet into working groups.')).toBeTruthy();
     unmount();
 
     useUIStore.getState().selectCompany('c1');
     render(<CompaniesContent />);
-    expect(screen.getByText('Individual Company LORE TITLE')).toBeTruthy();
+    expect(screen.getByText('Company Profile — manage this working group.')).toBeTruthy();
   });
 
   it('renders a Company Selection radio listing every company for the bare "Companies" node, and selecting one calls selectCompany', () => {
