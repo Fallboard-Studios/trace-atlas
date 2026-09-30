@@ -218,6 +218,26 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     const objectU = { ...validWire, u: { not: 'an array' } };
     expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(objectU)))))).toBeNull();
   });
+
+  it('decodeSessionPayload returns null when present-but-wrong-typed b/sf/sd/pv/gl would otherwise corrupt bpm/swellFrequency/swellDuration/pingVarianceAutomation/globalLfo', () => {
+    const validPayload = makePayload();
+    const validWire = decodeRawWire(encodeSessionPayload(validPayload)) as Record<string, unknown>;
+
+    const stringB = { ...validWire, b: 'not a number' };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(stringB)))))).toBeNull();
+
+    const stringSf = { ...validWire, sf: 'not a number' };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(stringSf)))))).toBeNull();
+
+    const stringSd = { ...validWire, sd: 'not a number' };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(stringSd)))))).toBeNull();
+
+    const stringPv = { ...validWire, pv: 'not a number' };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(stringPv)))))).toBeNull();
+
+    const arrayGl = { ...validWire, gl: ['not', 'a', 'record'] };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(arrayGl)))))).toBeNull();
+  });
 });
 
 describe('getSessionSharePayload (boot-time ?session= URL param)', () => {
