@@ -290,20 +290,34 @@ function formatSwellFrequency(value: number): string {
 }
 
 /**
+ * The exact allowed Automation Rate values (Crawford's own request) — 0 (off) plus 13 real
+ * frequencies from "once every 16 measures" up to "16 times a measure", evenly spaced by index on
+ * the slider (sliderLogMath's stepsValueToT/stepsTToValue) rather than a continuous log curve.
+ * Exported so globalAudioSeed.ts's generateSwellFrequency can snap a freshly-seeded value onto
+ * this same grid instead of the two drifting independently.
+ */
+export const SWELL_FREQUENCY_STEPS: readonly number[] = [
+  0,
+  1 / 16, 1 / 12, 1 / 8, 1 / 4, 1 / 3, 1 / 2,
+  1, 2, 3, 4, 8, 12, 16,
+];
+
+/**
  * "Frequency" — takes over Ping Variance Automation's former on/off role (0
  * = off) and replaces the fixed per-measure trigger chance with a real rate
- * (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3). sliderLog so the
- * useful range spans "once every 12 measures" to "4 times a measure" without
- * crowding out the sub-1 end. A bare Rig-wide meta-setting, like
- * PING_VARIANCE_AUTOMATION_SCHEMA above — not a per-effect param.
+ * (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3). A fixed set of allowed values
+ * (SWELL_FREQUENCY_STEPS above), not a continuous sliderLog range — min/max are just that list's
+ * own first/last entries. A bare Rig-wide meta-setting, like PING_VARIANCE_AUTOMATION_SCHEMA
+ * above — not a per-effect param.
  */
 export const SWELL_FREQUENCY_SCHEMA: SliderLogSchema = {
   id: 'audioRig.swellFrequency',
   type: 'sliderLog',
   loreLabel: 'Trace Skip Rate',
   humanLabel: 'Automation Rate',
-  min: 0,
-  max: 16,
+  min: SWELL_FREQUENCY_STEPS[0],
+  max: SWELL_FREQUENCY_STEPS[SWELL_FREQUENCY_STEPS.length - 1],
+  steps: SWELL_FREQUENCY_STEPS,
   orientation: 'horizontal',
   formatValue: formatSwellFrequency,
 };

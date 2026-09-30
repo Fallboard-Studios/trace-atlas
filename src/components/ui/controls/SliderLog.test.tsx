@@ -40,7 +40,7 @@ vi.mock('./VoxelTrack', () => ({
 
 import { SliderLog } from './SliderLog';
 import { resolveAccessibleName } from './accessibleName';
-import { LOG_EPSILON, sliderLogTToValue, sliderLogValueToT } from './sliderLogMath';
+import { LOG_EPSILON, sliderLogTToValue, sliderLogValueToT, stepsValueToT } from './sliderLogMath';
 import {
   computeFittedBoxCount,
   computeVoxelTrackLength,
@@ -198,6 +198,39 @@ describe('SliderLog component', () => {
     const rawTDelta = 0.001;
     expect(received).not.toBe(rawTDelta);
     expect(received).toBeCloseTo(sliderLogTToValue(rawTDelta, schema.min, schema.max), 10);
+  });
+
+  describe('schema.steps — a fixed set of allowed values (e.g. Automation Rate) instead of the continuous log curve', () => {
+    const STEPS = [0, 1 / 4, 1 / 2, 1, 2, 4];
+    const stepsSchema: SliderLogSchema = { id: 'automationRate', type: 'sliderLog', min: STEPS[0], max: STEPS[STEPS.length - 1], steps: STEPS, humanLabel: 'Automation Rate', orientation: 'horizontal' };
+
+    it('positions the thumb by step index, not the continuous log curve — a value in the middle of the step list sits at t = 0.5 even though it is nowhere near the numeric midpoint of min/max', () => {
+      render(<SliderLog schema={stepsSchema} value={STEPS[3]} onChange={() => {}} />);
+      const thumb = screen.getByRole('slider');
+      expect(thumb.getAttribute('aria-valuenow')).toBe(String(stepsValueToT(STEPS[3], STEPS)));
+    });
+
+    it('a keyboard step always lands exactly on an allowed value, never a fine continuous in-between number — even though Slider.Root\'s own internal step (0.001) is far finer than the gap between 2 real steps', () => {
+      const onChange = vi.fn();
+      render(<SliderLog schema={stepsSchema} value={STEPS[0]} onChange={onChange} />);
+      const thumb = screen.getByRole('slider');
+      thumb.focus();
+      fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(STEPS).toContain(onChange.mock.calls[0][0]);
+    });
+
+    it('displays the raw value via formatValue exactly as any other SliderLog would — steps only change positioning/snapping, not display', () => {
+      const formatted: SliderLogSchema = { ...stepsSchema, formatValue: (v) => `${v}x` };
+      render(<SliderLog schema={formatted} value={STEPS[4]} onChange={() => {}} />);
+      expect(screen.getByText(`${STEPS[4]}x`)).toBeTruthy();
+    });
+
+    it('an off-list value (e.g. stale stored data) still renders without throwing, snapped to its nearest real step', () => {
+      render(<SliderLog schema={stepsSchema} value={1.9} onChange={() => {}} />); // nearest real step is 2
+      const thumb = screen.getByRole('slider');
+      expect(thumb.getAttribute('aria-valuenow')).toBe(String(stepsValueToT(2, STEPS)));
+    });
   });
 
   it('falls back to schema.id for the accessible name when neither label is present, never leaving it unlabeled', () => {

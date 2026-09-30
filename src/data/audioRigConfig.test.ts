@@ -12,6 +12,7 @@ import {
   LFO_DRIFT_GROUPS,
   PING_VARIANCE_AUTOMATION_SCHEMA,
   SWELL_FREQUENCY_SCHEMA,
+  SWELL_FREQUENCY_STEPS,
   SWELL_DURATION_SCHEMA,
   BPM_SCHEMA,
   AUDIO_LOAD_PRESET_SCHEMA,
@@ -357,13 +358,25 @@ describe('PING_VARIANCE_AUTOMATION_SCHEMA', () => {
 });
 
 describe('SWELL_FREQUENCY_SCHEMA (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3, §1.6)', () => {
-  it('is a log slider, 0-24, id audioRig.swellFrequency', () => {
+  it('is a sliderLog, id audioRig.swellFrequency, with a fixed 0-16 step grid (Crawford\'s own request) rather than a continuous range', () => {
     expect(SWELL_FREQUENCY_SCHEMA).toMatchObject({
       id: 'audioRig.swellFrequency',
       type: 'sliderLog',
       min: 0,
-      max: 24,
+      max: 16,
     });
+    expect(SWELL_FREQUENCY_SCHEMA.steps).toEqual(SWELL_FREQUENCY_STEPS);
+    expect(SWELL_FREQUENCY_SCHEMA.steps![0]).toBe(SWELL_FREQUENCY_SCHEMA.min);
+    expect(SWELL_FREQUENCY_SCHEMA.steps![SWELL_FREQUENCY_SCHEMA.steps!.length - 1]).toBe(SWELL_FREQUENCY_SCHEMA.max);
+  });
+
+  it('SWELL_FREQUENCY_STEPS has exactly the 14 values Crawford specified, in ascending order', () => {
+    expect(SWELL_FREQUENCY_STEPS).toEqual([
+      0,
+      1 / 16, 1 / 12, 1 / 8, 1 / 4, 1 / 3, 1 / 2,
+      1, 2, 3, 4, 8, 12, 16,
+    ]);
+    expect([...SWELL_FREQUENCY_STEPS].sort((a, b) => a - b)).toEqual(SWELL_FREQUENCY_STEPS);
   });
 
   it('is not part of AUDIO_RIG_CONFIG\'s per-effect array — a bare, Rig-wide meta-setting', () => {

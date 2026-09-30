@@ -5,7 +5,7 @@ import { DualLabel } from './DualLabel';
 import { VoxelTrack } from './VoxelTrack';
 import { resolveAccessibleName } from './accessibleName';
 import { formatDisplayValue } from './formatDisplayValue';
-import { sliderLogTToValue, sliderLogValueToT } from './sliderLogMath';
+import { sliderLogTToValue, sliderLogValueToT, stepsTToValue, stepsValueToT } from './sliderLogMath';
 import { useAutoSliderOrientation } from './useAutoSliderOrientation';
 import { useVoxelTrackSlider } from './useVoxelTrackSlider';
 import { computeVoxelBoxStates } from '@/utils/voxelTrackMath';
@@ -34,10 +34,13 @@ interface SliderLogProps {
  * placement uses this component's own normalized t (the same value already
  * fed to Radix's own Slider.Root), not the raw log-scaled value — see
  * docs/specs/OBLIQUE_CABINETRY_SLIDER_LOG.md §1.3. sliderLogMath's actual
- * curve is unchanged.
+ * curve is unchanged. `schema.steps`, when present, swaps that continuous curve for a fixed set
+ * of allowed values evenly spaced by index (sliderLogMath's stepsValueToT/stepsTToValue) — e.g.
+ * Automation Rate's specific frequencies — everything else (VoxelTrack rendering, Radix wiring,
+ * formatValue) is unaffected either way.
  */
 function SliderLogInner({ schema, value, onChange, disabled, verticalHeight }: SliderLogProps) {
-  const t = sliderLogValueToT(value, schema.min, schema.max);
+  const t = schema.steps ? stepsValueToT(value, schema.steps) : sliderLogValueToT(value, schema.min, schema.max);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const orientation = useAutoSliderOrientation(wrapperRef, schema.orientation);
   const isVertical = orientation === 'vertical';
@@ -64,7 +67,7 @@ function SliderLogInner({ schema, value, onChange, disabled, verticalHeight }: S
         max={1}
         step={0.001}
         value={[t]}
-        onValueChange={(values) => onChange(sliderLogTToValue(values[0], schema.min, schema.max))}
+        onValueChange={(values) => onChange(schema.steps ? stepsTToValue(values[0], schema.steps) : sliderLogTToValue(values[0], schema.min, schema.max))}
         disabled={disabled}
         style={rootStyle}
       >

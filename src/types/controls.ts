@@ -84,6 +84,14 @@ export interface SliderLogSchema extends ControlSchemaBase, SliderVerticalHeight
    *  every existing SliderLog schema (Attack/Decay/Release, etc.) keeps its
    *  current plain-number-plus-unit display with zero changes. */
   formatValue?: (value: number) => string;
+  /** Optional fixed set of allowed values (e.g. Automation Rate's specific frequencies), evenly
+   *  spaced by INDEX along the track rather than the continuous log curve `min`/`max` otherwise
+   *  drive — see sliderLogMath.ts's own stepsValueToT/stepsTToValue. `min`/`max` are still required
+   *  (every SliderLog schema has them) but go unused for the slider-thumb math when this is
+   *  present; keep them as the list's own first/last entries for consistency. Optional so every
+   *  existing SliderLog schema (Attack/Decay/Release, etc.) keeps its current continuous-curve
+   *  behavior with zero changes. */
+  steps?: readonly number[];
 }
 
 export interface SliderCenteredZeroSchema extends ControlSchemaBase, SliderVerticalHeightProp {

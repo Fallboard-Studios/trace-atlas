@@ -23,6 +23,7 @@ import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
 import { GLOBAL_LFO_TARGET_IDS, LFO_SHAPES, LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX, DRIFT_GROUP_IDS } from '@/types/lfo';
 import { GLOBAL_AUDIO_SEED_RANGES } from '@/data/globalAudioSeedRanges';
+import { SWELL_FREQUENCY_STEPS } from '@/data/audioRigConfig';
 
 // ========================================
 // TESTS
@@ -495,6 +496,14 @@ describe('generateSwellFrequency (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT
     }
   });
 
+  it('always lands exactly on one of SWELL_FREQUENCY_STEPS, never an off-grid raw value', () => {
+    const SAMPLE_ATTENUATION_STYLES = 30;
+    for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
+      const value = generateSwellFrequency(`seed-freq-sample-${i}`, `FreqSample${i}`);
+      expect(SWELL_FREQUENCY_STEPS, `attenuationStyle ${i}`).toContain(value);
+    }
+  });
+
   it('is deterministic — same attenuationStyleId + attenuationStyleName always produces the same value', () => {
     const first = generateSwellFrequency('seed-test-planet', 'Nova');
     const second = generateSwellFrequency('seed-test-planet', 'Nova');
@@ -508,10 +517,18 @@ describe('generateSwellFrequency (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT
     expect(second).toBe(first);
   });
 
-  it('produces different values for a different Attenuation Style name (non-degenerate)', () => {
-    const a = generateSwellFrequency('seed-test-planet', 'Nova');
-    const b = generateSwellFrequency('seed-test-planet-b', 'Zenith');
-    expect(b).not.toBe(a);
+  // Snapped onto SWELL_FREQUENCY_STEPS (audioRigConfig.ts), only 4 of which (2, 3, 4, 8) fall
+  // inside this function's own [2, 8] seed range -- a fixed pair of seeds can land on the same
+  // step by pure chance (found live: 'Nova'/'Zenith' both snapped to 8), so "non-degenerate" is
+  // checked the same way generateGlobalLfoSettings'/lfoDrift's own coarse-output tests above check
+  // it: sample many seeds and look for genuine variety, not a single pairwise inequality.
+  it('produces more than one distinct (post-snap) value across many Attenuation Styles (non-degenerate)', () => {
+    const SAMPLE_ATTENUATION_STYLES = 30;
+    const values = new Set<number>();
+    for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
+      values.add(generateSwellFrequency(`seed-freq-sample-${i}`, `FreqSample${i}`));
+    }
+    expect(values.size).toBeGreaterThan(1);
   });
 });
 
