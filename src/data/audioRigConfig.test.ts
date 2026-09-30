@@ -725,10 +725,10 @@ describe('AUDIO_EFFECTS_LOAD_SCHEMA', () => {
 });
 
 describe('AUDIO_LOAD_PANEL_SCHEMA', () => {
-  it('is a responsive directionalPanel named Audio Load in the audioRig.* namespace', () => {
+  it('is a column directionalPanel named Audio Load in the audioRig.* namespace — its own 2 nested rows always stack, on every tier (Crawford\'s own correction, was "responsive")', () => {
     expect(AUDIO_LOAD_PANEL_SCHEMA).toMatchObject({
       type: 'directionalPanel',
-      orientation: 'responsive',
+      orientation: 'column',
       humanLabel: 'Audio Load',
     });
     expect(AUDIO_LOAD_PANEL_SCHEMA.id).toMatch(/^audioRig\./);

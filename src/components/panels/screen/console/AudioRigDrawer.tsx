@@ -44,6 +44,9 @@ import '@/components/ui/controls/LfoTargetGroup.css';
 // here is a config import or `useMemo`) — the only 2 inline schema literals left in this file.
 const COMPRESSOR_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.compressor.topRow', type: 'directionalPanel', orientation: 'responsive' };
 const COMPRESSOR_BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.compressor.bottomRow', type: 'directionalPanel', orientation: 'responsive' };
+// Knee + Decay Mode's own row (Crawford's own request) — same 'responsive' shape as the 2 rows
+// above: side-by-side on desktop, stacked on mobile/tablet.
+const COMPRESSOR_KNEE_DECAY_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.compressor.kneeDecayRow', type: 'directionalPanel', orientation: 'responsive' };
 
 const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
   eq3: 'spectral',
@@ -393,13 +396,10 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
             fieldOnChange={fieldOnChange}
           />
         ) : block.key === 'compressor' ? (
-          // Threshold+Ratio and Attack+Release are the only 2 "existing paired sub-rows" the
-          // intent doc names as staying paired on desktop — 'responsive' stacks them on
-          // mobile/tablet. Knee and the Decay Mode radio are NOT one of those named pairs, so
-          // they de-nest entirely (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.8), each its
-          // own direct param-row at every breakpoint — the same treatment Delay/Reverb's own
-          // params already get (Task 8). This also resolves a pre-existing duplicate id
-          // ('audioRig.compressor.bottomRow' used to be shared by 2 different panels).
+          // Threshold+Ratio, Attack+Release, and Knee+Decay Mode (Crawford's own request) are the
+          // 3 paired sub-rows that stay side-by-side on desktop — 'responsive' stacks each pair on
+          // mobile/tablet. This also resolves a pre-existing duplicate id ('audioRig.compressor.
+          // bottomRow' used to be shared by 2 different panels).
           <>
             <DirectionalPanel schema={COMPRESSOR_TOP_ROW_SCHEMA}>
               {paramRow(findParam(block.params, 'threshold'), effect, fieldOnChange.threshold)}
@@ -409,14 +409,16 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
               {paramRow(findParam(block.params, 'attack'), effect, fieldOnChange.attack)}
               {paramRow(findParam(block.params, 'release'), effect, fieldOnChange.release)}
             </DirectionalPanel>
-            {paramRow(findParam(block.params, 'knee'), effect, fieldOnChange.knee)}
-            <div className="audio-rig-drawer__param-row">
-              <RadioButton
-                schema={DECAY_MODE_SCHEMA}
-                value={compressorBeforeDelay ? 'controlled' : 'natural'}
-                onChange={handleDecayModeChange}
-              />
-            </div>
+            <DirectionalPanel schema={COMPRESSOR_KNEE_DECAY_ROW_SCHEMA}>
+              {paramRow(findParam(block.params, 'knee'), effect, fieldOnChange.knee)}
+              <div className="audio-rig-drawer__param-row">
+                <RadioButton
+                  schema={DECAY_MODE_SCHEMA}
+                  value={compressorBeforeDelay ? 'controlled' : 'natural'}
+                  onChange={handleDecayModeChange}
+                />
+              </div>
+            </DirectionalPanel>
           </>
         ) : (
           block.params.map((param) => paramRow(param, effect, fieldOnChange[param.field]))

@@ -8,15 +8,6 @@
   padding-left: var(--spacing-lg);
 }
 
-.console-panel__back {
-  /* Power-switch/transport clearance lives on .console itself now
-     (Console.css) — it covers every direct child uniformly (this back-
-     button screen AND the plain HubNav tile-grid screen, which has no
-     clearance of its own), not just this one. */
-  padding: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-}
-
 .console-panel__content {
   flex: 1;
   min-height: 0;

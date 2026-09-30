@@ -105,6 +105,10 @@ sized wrapper (same reasoning audio-rig-drawer__param-row/signature-array-
   width: var(--mute-width);
 }
 
+.header__row--volume .sc-dual-label__lore {
+  display: none;
+}
+
 /* Mute's icon facade — a single glyph (🔇/🔊, swapped on isMuted in
    Header.tsx) rather than stacked text, so no width-stability hack is
    needed here the way the old two-string facade required. */

@@ -157,7 +157,7 @@ describe('AudioSettingSection', () => {
     });
   });
 
-  describe('Volume accordion + 2-column desktop split (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.2)', () => {
+  describe('Volume — always above its LFO, matching every other LFO layout (Crawford\'s own correction, was a 2-column desktop split)', () => {
     it('the Audio Setting radio and Volume slider both render inside the settings-column panel, and the Lfo display is a sibling of that panel', () => {
       render(
         <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
@@ -167,7 +167,7 @@ describe('AudioSettingSection', () => {
       const settingsColumn = screen.getByRole('radio', { name: 'Solo' }).closest('.sc-directional-panel')!;
       expect(settingsColumn.contains(screen.getByRole('slider', { name: /volume/i }))).toBe(true);
       // The Lfo display (Rate/Depth) is NOT inside that same settings-column panel — it's a
-      // sibling in the outer VOLUME_ROW_PANEL_SCHEMA row, not nested under the radio/slider pair.
+      // sibling in the outer VOLUME_ROW_PANEL_SCHEMA stack, not nested under the radio/slider pair.
       expect(settingsColumn.contains(screen.getByRole('slider', { name: 'Rate' }))).toBe(false);
     });
 
@@ -179,31 +179,24 @@ describe('AudioSettingSection', () => {
       expect(volumeRow.classList.contains('audio-setting-section__row')).toBe(false);
     });
 
-    it('renders data-orientation="column" on the outer row panel when the mobile tier matches — everything stacks in one column', () => {
-      stubMatchMedia({ mobile: true, tablet: true });
-      render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
-      );
-      const outerRowContent = screen.getByRole('radio', { name: 'Solo' })
-        .closest('.sc-directional-panel')! // settings-column panel
-        .parentElement!; // VOLUME_ROW_PANEL_SCHEMA's own .sc-directional-panel__content
-      expect(outerRowContent.getAttribute('data-orientation')).toBe('column');
+    it('renders data-orientation="column" on the outer panel regardless of tier — Audio Setting, Volume, then the Lfo display, always stacked, never a side-by-side desktop split', () => {
+      for (const state of [{ mobile: true, tablet: true }, { mobile: false, tablet: false }]) {
+        stubMatchMedia(state);
+        const { unmount } = render(
+          <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
+        );
+        const outerContent = screen.getByRole('radio', { name: 'Solo' })
+          .closest('.sc-directional-panel')! // settings-column panel
+          .parentElement!; // VOLUME_ROW_PANEL_SCHEMA's own .sc-directional-panel__content
+        expect(outerContent.getAttribute('data-orientation')).toBe('column');
+        // The Lfo display sits below the settings column as a direct sibling of that same content div.
+        const lfoDisplay = screen.getByRole('slider', { name: 'Rate' }).closest('.sc-lfo-target-group__display')!;
+        expect(lfoDisplay.parentElement).toBe(outerContent);
+        unmount();
+      }
     });
 
-    it('renders data-orientation="row" on the outer row panel when neither tier matches (desktop) — settings column beside the Lfo display', () => {
-      stubMatchMedia({ mobile: false, tablet: false });
-      render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
-      );
-      const settingsColumn = screen.getByRole('radio', { name: 'Solo' }).closest('.sc-directional-panel')!;
-      const outerRowContent = settingsColumn.parentElement!;
-      expect(outerRowContent.getAttribute('data-orientation')).toBe('row');
-      // The Lfo display sits beside the settings column as a direct sibling of that same content div.
-      const lfoDisplay = screen.getByRole('slider', { name: 'Rate' }).closest('.sc-lfo-target-group__display')!;
-      expect(lfoDisplay.parentElement).toBe(outerRowContent);
-    });
-
-    it('the settings-column panel is always column-oriented, regardless of tier', () => {
+    it('the settings-column panel is always column-oriented too, regardless of tier — Audio Setting above Volume, its own row on desktop (no longer squeezed beside the Lfo display)', () => {
       stubMatchMedia({ mobile: false, tablet: false });
       render(
         <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
