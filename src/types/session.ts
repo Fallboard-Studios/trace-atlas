@@ -5,7 +5,7 @@
  */
 import type { ADSREnvelope } from './Robot';
 import type { OscillatorLayer } from './layeredAudio';
-import type { RobotLfoTargetId, LfoSettings } from './lfo';
+import type { RobotLfoTargetId, LfoSettings, GlobalLfoTargetId } from './lfo';
 import type { Company } from './Company';
 import type { GlobalAudioSettings } from './globalAudio';
 
@@ -53,6 +53,23 @@ export interface SessionPayload {
   attenuationStyleName: string;
   coordinates: { x: number; y: number };
   globalAudio: GlobalAudioSettings;
+  /** Pacing section fields — audioStore state, not part of GlobalAudioSettings. Freely
+   *  user-editable and (bpm aside) carried forward across Attenuation Style switches, so they
+   *  can't be re-derived from attenuationStyleName/coordinates alone and must be captured
+   *  explicitly. Optional so an older payload (pre this field) still decodes: applySessionPayload
+   *  leaves whatever retransmitWorld/regenerateGlobalAudioFromSeed already produced untouched
+   *  when a field is absent, rather than defaulting to 0. */
+  bpm?: number;
+  swellFrequency?: number;
+  swellDuration?: number;
+  pingVarianceAutomation?: number;
+  /** Audio Rig's global-chain LFO panel (audioStore's own `globalLfo`) — seeded per Attenuation
+   *  Style but freely user-editable afterward, and (unlike bpm/the swell fields above)
+   *  unconditionally RE-seeded from scratch on every future Attenuation Style switch
+   *  (regenerateGlobalLfoFromSeed has no "carry forward once edited" branch), so it needs the
+   *  same explicit capture/restore. Optional/per-target-optional for the same older-payload
+   *  reason as the fields above. */
+  globalLfo?: Partial<Record<GlobalLfoTargetId, LfoSettings>>;
   /** Keyed by robot id. An untouched robot has no entry (not an entry equal to {}). */
   robotOverrides: Record<string, RobotAudioOverrideDiff>;
   /** Keyed by the company's deterministic spawn-generated id. */

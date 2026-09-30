@@ -228,6 +228,32 @@ describe('buildSessionPayload', () => {
     expect(payload.globalAudio.lfoDrift.robots).toEqual({ rateDrift: -0.12, depthDrift: 0.57 });
   });
 
+  it('captures bpm/swellFrequency/swellDuration/pingVarianceAutomation from audioStore, not just globalAudio', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    useAudioStore.setState({ bpm: 77, swellFrequency: 9, swellDuration: 5, pingVarianceAutomation: 0.42 });
+
+    const payload = buildSessionPayload();
+
+    expect(payload.bpm).toBe(77);
+    expect(payload.swellFrequency).toBe(9);
+    expect(payload.swellDuration).toBe(5);
+    expect(payload.pingVarianceAutomation).toBe(0.42);
+  });
+
+  it('captures globalLfo from audioStore, not just globalAudio', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const edited: LfoSettings = { shape: 'square', rate: 4, depth: 60 };
+    // A plain state write, not the real setGlobalLfo action -- that constructs a live Tone.LFO
+    // node, which needs a real AudioContext this test environment doesn't have.
+    useAudioStore.setState((s) => ({ globalLfo: { ...s.globalLfo, 'eq3.low': edited } }));
+
+    const payload = buildSessionPayload();
+
+    expect(payload.globalLfo?.['eq3.low']).toEqual(edited);
+  });
+
   it('has no robotOverrides entries for an untouched roster', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
@@ -472,6 +498,70 @@ describe('applySessionPayload', () => {
     });
     const stripIds = (melody: typeof expectedMelody) => melody.map(({ id: _id, ...rest }) => rest);
     expect(stripIds(restoredRobot.melody)).toEqual(stripIds(expectedMelody));
+  });
+
+  it('restores bpm/swellFrequency/swellDuration/pingVarianceAutomation after a full save/wipe/load round trip, overriding retransmitWorld\'s own reseed', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    useAudioStore.setState({ bpm: 77, swellFrequency: 9, swellDuration: 5, pingVarianceAutomation: 0.42 });
+    const payload = buildSessionPayload();
+
+    // Wipe to different coordinates first -- retransmitWorld reseeds bpm via regenerateBpmFromSeed
+    // for the new locale (a real, different noise map), so restoring afterward must override
+    // whatever that reseed produced, not just coincidentally match an untouched value.
+    applySessionPayload({ ...payload, coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 } });
+
+    applySessionPayload(payload);
+
+    expect(useAudioStore.getState().bpm).toBe(77);
+    expect(useAudioStore.getState().swellFrequency).toBe(9);
+    expect(useAudioStore.getState().swellDuration).toBe(5);
+    expect(useAudioStore.getState().pingVarianceAutomation).toBe(0.42);
+  });
+
+  it('leaves the freshly-seeded bpm/swellFrequency/swellDuration/pingVarianceAutomation untouched when an older payload lacks those fields', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const { bpm: _bpm, swellFrequency: _sf, swellDuration: _sd, pingVarianceAutomation: _pva, ...oldShapePayload } = payload;
+
+    useAudioStore.setState({ bpm: 123, swellFrequency: 11, swellDuration: 8, pingVarianceAutomation: 0.9 });
+    expect(() => applySessionPayload(oldShapePayload as typeof payload)).not.toThrow();
+
+    // retransmitWorld's own reseed ran (not this field's restore code, which had nothing to
+    // apply) -- just asserting it's no longer the pre-apply sentinel value proves the absent
+    // fields didn't crash or silently zero anything out.
+    expect(useAudioStore.getState().bpm).not.toBe(123);
+  });
+
+  it('restores globalLfo after a full save/wipe/load round trip, overriding whatever\'s currently live', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const edited: LfoSettings = { shape: 'square', rate: 4, depth: 60 };
+    // Plain state writes, not the real setGlobalLfo action -- see the capture test's own comment.
+    useAudioStore.setState((s) => ({ globalLfo: { ...s.globalLfo, 'eq3.low': edited } }));
+    const payload = buildSessionPayload();
+
+    // Simulate drift since the save (a later edit, or a reseed from switching Attenuation Style
+    // — regenerateGlobalLfoFromSeed has no "carry forward once edited" branch, unlike
+    // bpm/swellFrequency/swellDuration, so this can happen without any user action at all).
+    useAudioStore.setState((s) => ({ globalLfo: { ...s.globalLfo, 'eq3.low': { shape: 'sine' as const, rate: 0, depth: 0 } } }));
+
+    applySessionPayload(payload, { skipLocaleRebuild: true });
+
+    expect(useAudioStore.getState().globalLfo['eq3.low']).toEqual(edited);
+  });
+
+  it('leaves globalLfo untouched when an older payload lacks that field', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const { globalLfo: _globalLfo, ...oldShapePayload } = payload;
+    const current = useAudioStore.getState().globalLfo;
+
+    expect(() => applySessionPayload(oldShapePayload as typeof payload, { skipLocaleRebuild: true })).not.toThrow();
+
+    expect(useAudioStore.getState().globalLfo).toEqual(current);
   });
 
   it('restores a renamed company after a full save/wipe/load round trip', () => {
