@@ -7,7 +7,7 @@ import { getAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal } from './getSeededVal';
 import { quantizeToStep } from './math';
 import { stepsValueToT, stepsTToValue } from '@/components/ui/controls/sliderLogMath';
-import { SWELL_FREQUENCY_STEPS } from '@/data/audioRigConfig';
+import { SWELL_FREQUENCY_STEPS, SWELL_DURATION_SCHEMA } from '@/data/audioRigConfig';
 
 import type { GlobalAudioSettings } from '@/types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
@@ -207,14 +207,19 @@ export function generateSwellFrequency(attenuationStyleId: string, attenuationSt
 
 /**
  * Seeded starting value for audioStore's swellDuration, [2, 8] measures. Same
- * seed-once/carry-forward treatment as generateSwellFrequency above.
+ * seed-once/carry-forward treatment as generateSwellFrequency above. Snapped onto
+ * SWELL_DURATION_SCHEMA's own step=1 grid (audioRigConfig.ts) the same way generateSwellFrequency
+ * snaps onto SWELL_FREQUENCY_STEPS — a fresh seed's raw continuous roll otherwise lands on a
+ * fractional number of measures (e.g. 6.88), off-grid from what the "Automation Length" slider
+ * itself can ever produce by hand (found live, 2026-09-30).
  */
 export function generateSwellDuration(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  return getSeededVal(
+  const raw = getSeededVal(
     noiseMap, 'globalAudio.swellDuration', 0,
     SWELL_DURATION_SEED_RANGE.min, SWELL_DURATION_SEED_RANGE.max
   );
+  return quantizeToStep(raw, SWELL_DURATION_SCHEMA.min, SWELL_DURATION_SCHEMA.step ?? 1);
 }
 
 /**

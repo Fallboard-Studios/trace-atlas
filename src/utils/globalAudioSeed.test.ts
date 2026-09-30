@@ -566,4 +566,12 @@ describe('generateSwellDuration (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.
     const b = generateSwellDuration('seed-test-planet-b', 'Zenith');
     expect(b).not.toBe(a);
   });
+
+  it('always lands on a whole number of measures, never an off-grid raw value (SWELL_DURATION_SCHEMA.step = 1)', () => {
+    const SAMPLE_ATTENUATION_STYLES = 30;
+    for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
+      const value = generateSwellDuration(`seed-dur-sample-${i}`, `DurSample${i}`);
+      expect(Number.isInteger(value), `attenuationStyle ${i}: ${value}`).toBe(true);
+    }
+  });
 });
