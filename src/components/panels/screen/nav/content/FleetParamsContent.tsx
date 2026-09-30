@@ -7,7 +7,7 @@ import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderLog } from '@/components/ui/controls/SliderLog';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
-import { IntroPanel } from '@/components/ui/controls/IntroPanel';
+import { IntroPanel, type IntroContent } from '@/components/ui/controls/IntroPanel';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { hasPendingNavTargetFor } from '@/utils/accordionSync';
 import { setViewFadeRoot } from '@/utils/viewFade';
@@ -33,6 +33,70 @@ import './FleetParamsContent.css';
  */
 const PACING_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.topRow', type: 'directionalPanel', orientation: 'responsive' };
 const PACING_BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.bottomRow', type: 'directionalPanel', orientation: 'responsive' };
+
+/** Fleet Params' own section-level intro, above all 5 groups. */
+const FLEET_PARAMS_SECTION_INTRO: IntroContent = {
+  loreLabel: 'Fleet Params — your key to mesh-wide performance.',
+  loreDescription: 'Fleets of probes stay synchronized through Meridia Comms Group’s Undersea Mesh Network, broadcasting the same audio signature settings to every unit at once.',
+  humanDescription: 'This screen holds every control that shapes the sound of your whole fleet at once — pacing, EQ and filtering, drift, spatial effects, and output. Changes here apply to every probe simultaneously; to adjust one probe at a time, use the Probes screen instead.',
+};
+
+/** One entry per Fleet Params group (docs/reference/text-content-tables.md's content pass) —
+ *  each group's own IntroPanel reads from here instead of a shared placeholder. */
+const FLEET_PARAMS_GROUP_INTRO: Record<FleetParamsGroup, IntroContent> = {
+  pacing: {
+    loreLabel: 'Pacing — set the tempo of the mesh.',
+    loreDescription: 'Every probe keeps time together, and the network periodically intensifies its own signal processing to surface new data.',
+    humanDescription: '<ul>'
+      + '<li><strong>Tempo</strong>: how fast the music plays, in beats per minute.</li>'
+      + '<li><strong>Automation Rate</strong>: how often the fleet automatically nudges its own effects settings — swells of extra motion that come and go on their own. Set it to 0 to turn automatic swells off entirely.</li>'
+      + '<li><strong>Automation Length</strong>: how many measures one of those swells lasts, start to finish.</li>'
+      + '<li><strong>Automation Range</strong>: how far a swell can push the affected settings once one is happening — bigger numbers mean more dramatic swells.</li>'
+      + '</ul>',
+  },
+  eqFilters: {
+    loreLabel: 'EQ & Filters — shape the signal every probe shares.',
+    loreDescription: 'Meridia Comms Group’s Undersea Mesh Network carries every probe’s signal through the same equalizer and filter bank before it reaches you.',
+    humanDescription: '<ul>'
+      + '<li><strong>3-Band EQ</strong>: three sliders to boost or cut the low, mid, and high ranges of the sound.</li>'
+      + '<li><strong>High-Pass Filter</strong>: cuts the deep, thumping bass and lets bright, high sounds through — like a small phone speaker.</li>'
+      + '<li><strong>Low-Pass Filter</strong>: cuts the harsh high pitches and lets deep, low sounds through smoothly — like a thick blanket over the sound.</li>'
+      + '</ul>'
+      + '<p>Each of these sliders has its own LFO (Low Frequency Oscillator) — an invisible hand that turns the slider’s knob back and forth automatically. Click a slider to see and edit its LFO below: Rate controls how fast the hand turns, Depth controls how far.</p>',
+  },
+  fleetDrift: {
+    loreLabel: 'Drift — a wandering hand behind every dial.',
+    loreDescription: 'No signal holds perfectly steady across an entire mesh network — Drift keeps every automated adjustment a little unpredictable, the way a real network would.',
+    humanDescription: '<p>Drift adds a second, slower LFO on top of an existing one — a hand turning the hand that’s turning the knob. Set Rate Drift positive and the underlying LFO’s speed wanders faster over time; set it negative and it wanders slower. Depth Drift works the same way for how far the LFO swings.</p>'
+      + '<p><strong>Environmental Drift</strong> affects the shared LFOs on the EQ & Filters sliders above — one setting for all of them together. <strong>Voice Drift</strong> affects every probe’s own oscillator LFOs the same way, fleet-wide.</p>',
+  },
+  timeSpace: {
+    loreLabel: 'Time & Space — give every signal somewhere to travel.',
+    loreDescription: 'Reverb and Delay recreate the vast, echoing distances a probe’s signal crosses before reaching your receiver.',
+    humanDescription: '<ul>'
+      + '<li><strong>Reverb Length</strong>: how long the echo rings out after a sound plays.</li>'
+      + '<li><strong>Pre-Delay</strong>: how long the echo waits before it starts, after the original sound.</li>'
+      + '<li><strong>Reverb Amount</strong>: how much of that echo you hear blended in with the original sound.</li>'
+      + '<li><strong>Delay Time</strong>: how long between the original sound and its first repeat.</li>'
+      + '<li><strong>Repeats</strong>: how many times that repeat echoes back before fading out.</li>'
+      + '<li><strong>Delay Amount</strong>: how loud those repeats are, blended in with the original sound.</li>'
+      + '</ul>',
+  },
+  output: {
+    loreLabel: 'Output — the final stage before transmission.',
+    loreDescription: 'Every probe’s signal is compressed and limited here, guaranteeing a clean, consistent transmission back to your receiver.',
+    humanDescription: '<p><strong>Compressor</strong>: automatically turns down loud moments and evens out the overall volume.</p>'
+      + '<ul>'
+      + '<li><strong>Threshold</strong>: how loud a sound has to get before the compressor starts working on it.</li>'
+      + '<li><strong>Ratio</strong>: how strongly the compressor turns the sound down once it’s past the threshold.</li>'
+      + '<li><strong>Attack Time</strong>: how quickly the compressor reacts once a sound crosses the threshold.</li>'
+      + '<li><strong>Release Time</strong>: how quickly the compressor lets go once the sound drops back below the threshold.</li>'
+      + '<li><strong>Knee</strong>: how gradually the compressor eases into effect, rather than snapping on abruptly.</li>'
+      + '<li><strong>Decay Mode</strong>: Natural Decay lets Reverb’s and Delay’s echoes ring out uncompressed, after the Compressor. Controlled Decay compresses them too, keeping everything — echoes included — evened out.</li>'
+      + '</ul>'
+      + '<p><strong>Limiter</strong>: a hard ceiling that keeps the loudest sounds from ever going too loud. <strong>Ceiling</strong> sets the maximum volume nothing is allowed to pass.</p>',
+  },
+};
 
 interface FleetParamsLeaf {
   id: string;
@@ -131,9 +195,6 @@ const FLEET_PARAMS_GROUPS: FleetParamsGroupDef[] = [
 ];
 
 const ALL_LEAVES = FLEET_PARAMS_GROUPS.flatMap((g) => g.leaves);
-
-const PLACEHOLDER_LORE = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.';
-const PLACEHOLDER_HUMAN = 'Placeholder copy — real lore/human descriptions land in a later pass.';
 
 function sectionAnchorRef(id: string) {
   return (el: HTMLDivElement | null) => {
@@ -251,9 +312,9 @@ export function FleetParamsContent() {
   return (
     <div ref={rootRef} className="fleet-params-content" style={getTraitColorStyle('spectral')}>
       <IntroPanel
-        loreLabel="Fleet Params LORE TITLE"
-        loreDescription={PLACEHOLDER_LORE}
-        humanDescription={PLACEHOLDER_HUMAN}
+        loreLabel={FLEET_PARAMS_SECTION_INTRO.loreLabel}
+        loreDescription={FLEET_PARAMS_SECTION_INTRO.loreDescription}
+        humanDescription={FLEET_PARAMS_SECTION_INTRO.humanDescription}
         trait="spectral"
       />
       {FLEET_PARAMS_GROUPS.map((group) => {
@@ -269,9 +330,9 @@ export function FleetParamsContent() {
               {groupHasApproached(group.nodeId) ? (
                 <>
                   <IntroPanel
-                    loreLabel={`${group.humanLabel} LORE TITLE`}
-                    loreDescription={PLACEHOLDER_LORE}
-                    humanDescription={PLACEHOLDER_HUMAN}
+                    loreLabel={FLEET_PARAMS_GROUP_INTRO[group.id].loreLabel}
+                    loreDescription={FLEET_PARAMS_GROUP_INTRO[group.id].loreDescription}
+                    humanDescription={FLEET_PARAMS_GROUP_INTRO[group.id].humanDescription}
                     trait={group.trait}
                   />
                   {group.id === 'pacing' ? (

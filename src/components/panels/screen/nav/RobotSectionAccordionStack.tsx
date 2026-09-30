@@ -1,17 +1,41 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
-import { IntroPanel } from '@/components/ui/controls/IntroPanel';
+import { IntroPanel, type IntroContent } from '@/components/ui/controls/IntroPanel';
 import { ROBOT_SECTIONS_CONFIG, type RobotOptionsTrait } from '@/data/robotSubsectionConfig';
 import type { RobotSection, RobotSubsection } from '@/stores/uiStore';
 import type { AccordionSchema } from '@/types/controls';
 
-const PLACEHOLDER_LORE = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.';
-const PLACEHOLDER_HUMAN = 'Placeholder copy — real lore/human descriptions land in a later pass.';
-
 // Which accordion-bearing subsections open with their own intro block, ahead of the
-// existing controls — Baseline/Coaxial/Harmonic Oscillator (Source's 3 layer slots)
+// existing controls — Core/Companion/Accent Oscillator (Source's 3 layer slots)
 // aren't in this set; only Source's own wrapping accordion (below) intros Source itself.
 const SUBSECTIONS_WITH_INTRO = new Set<RobotSubsection>(['audioSettings', 'rhythm', 'pingContour']);
+
+/** One entry per subsection in SUBSECTIONS_WITH_INTRO above (docs/reference/
+ *  text-content-tables.md's content pass). */
+const SUBSECTION_INTRO: Partial<Record<RobotSubsection, IntroContent>> = {
+  audioSettings: {
+    loreLabel: 'Levels — this probe’s signal strength.',
+    loreDescription: 'Fine-tune how loudly this probe transmits, or silence it from the mesh entirely.',
+    humanDescription: 'Monitor Mode lets you Mute, Solo, or Highlight this probe for quick comparison against the rest of the fleet — Auto leaves it playing normally. Volume sets how loud this probe’s own melody plays.',
+  },
+  rhythm: {
+    loreLabel: 'Composition — how this probe builds its melody.',
+    loreDescription: 'Each probe draws its own melody from a curated set of notes, shaped by the settings below.',
+    humanDescription: '<p><strong>Rhythm</strong>: Note Density controls how many notes play versus rest. Phrase Length sets how many notes repeat together as one phrase before moving on. Pitch Repeat Chance controls how likely a repeated phrase is to reuse the same pitches instead of picking new ones.</p>'
+      + '<p><strong>Pitches</strong>: Note Variance controls how far notes can wander from the probe’s core pitch set. Lowest/Highest Octave set the pitch range notes are drawn from.</p>',
+  },
+  pingContour: {
+    loreLabel: 'Envelope — the shape of a single note.',
+    loreDescription: 'Every ping this probe emits rises, holds, and fades in its own signature shape.',
+    humanDescription: 'An ADSR envelope shapes the volume of every note this probe plays, over its lifetime. Attack Time: how quickly a note reaches full volume. Decay Time: how quickly it settles from that peak down to its sustained level. Sustain Level: the volume it holds at while a note continues. Release Time: how quickly it fades out once the note ends.',
+  },
+};
+
+const SOURCE_INTRO: IntroContent = {
+  loreLabel: 'Source — the raw signal, layered three ways.',
+  loreDescription: 'Three synchronized oscillators, each contributing its own layer to this probe’s core signature.',
+  humanDescription: 'A probe’s sound comes from 3 oscillator layers mixed together — Core, Companion, and Accent — each with identical controls. Type picks the layer’s waveform shape. Gain sets how loud that layer is in the mix — turn it down to 0 to effectively mute it. Detune shifts its pitch slightly, in cents, for a thicker or more dissonant blend. Phase offsets where in its own wave cycle the layer starts. Interval (Pulse-type layers only) narrows or widens the pulse itself.',
+};
 
 export interface RobotSectionAccordionStackProps {
   /** e.g. `probes.${robot.id}`, `probes.all`, `companies.${id}` — every id this stack renders is
@@ -68,9 +92,9 @@ export function RobotSectionAccordionStack({
                 >
                   {SUBSECTIONS_WITH_INTRO.has(sub.id) && (
                     <IntroPanel
-                      loreLabel={`${sub.accordionLabel} LORE TITLE`}
-                      loreDescription={PLACEHOLDER_LORE}
-                      humanDescription={PLACEHOLDER_HUMAN}
+                      loreLabel={SUBSECTION_INTRO[sub.id]!.loreLabel}
+                      loreDescription={SUBSECTION_INTRO[sub.id]!.loreDescription}
+                      humanDescription={SUBSECTION_INTRO[sub.id]!.humanDescription}
                       trait={section.trait}
                     />
                   )}
@@ -90,9 +114,9 @@ export function RobotSectionAccordionStack({
                 style={style}
               >
                 <IntroPanel
-                  loreLabel={`${section.ownAccordionLabel} LORE TITLE`}
-                  loreDescription={PLACEHOLDER_LORE}
-                  humanDescription={PLACEHOLDER_HUMAN}
+                  loreLabel={SOURCE_INTRO.loreLabel}
+                  loreDescription={SOURCE_INTRO.loreDescription}
+                  humanDescription={SOURCE_INTRO.humanDescription}
                   trait={section.trait}
                 />
                 {subsectionAccordions}

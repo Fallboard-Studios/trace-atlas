@@ -25,7 +25,7 @@ describe('ContentPane — blank/landing state renders a sized-to-content home ca
     const { container } = render(<ContentPane />);
     expect(container.querySelector('.content-pane__home')).toBeTruthy();
     expect(container.querySelector('.content-pane')).toBeNull();
-    expect(screen.getByText(/Trace Atlas/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Trace Atlas' })).toBeTruthy();
   });
 
   it('does not render ConsolePanel in the blank/landing state', () => {

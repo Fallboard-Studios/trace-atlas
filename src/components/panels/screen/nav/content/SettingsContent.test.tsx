@@ -74,31 +74,31 @@ describe('SettingsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
   it('renders all three sections as accordion trigger shells, regardless of which (if any) is open', () => {
     render(<SettingsContent />);
 
-    expect(screen.getByRole('button', { name: 'Audio Profile' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Audio Seeds' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Sessions' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Audio Quality' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Seeds' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save & Share' })).toBeTruthy();
   });
 
-  it('renders Sessions as the third and last accordion, after Audio Profile and Audio Seeds', () => {
+  it('renders Sessions as the third and last accordion, after Audio Quality and Seeds', () => {
     render(<SettingsContent />);
 
     // textContent includes the accordion's own expand/collapse indicator glyph (+/−) ahead of the
     // DualLabel text — stripped here since only the label order matters for this assertion.
     const labels = screen.getAllByRole('button').map((btn) => btn.textContent?.replace(/^[+−]/, '').trim());
-    expect(labels).toEqual(['Audio Profile', 'Audio Seeds', 'Sessions']);
+    expect(labels).toEqual(['Audio Quality', 'Seeds', 'Save & Share']);
   });
 
-  it('Sessions accordion starts closed by default, independent of Audio Profile\'s default-open state', () => {
+  it('Sessions accordion starts closed by default, independent of Audio Quality\'s default-open state', () => {
     render(<SettingsContent />);
 
-    expect(screen.getByRole('button', { name: 'Sessions' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Save & Share' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('opens Performance\'s accordion by default when no Settings leaf is selected yet (bare "Settings" click) — the view/accordion model always has exactly one section open', () => {
     render(<SettingsContent />);
 
-    expect(screen.getByRole('button', { name: 'Audio Profile' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Audio Seeds' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Audio Quality' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Seeds' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('selecting a leaf via the nav tree (selectedSettingsLeaf) does not open or close any accordion — nav selection only drives tree highlighting now', () => {
@@ -107,8 +107,8 @@ describe('SettingsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
     // Performance still opens by default — selecting Presets in the tree has no bearing on which
     // accordion is open (Crawford's own follow-up call, 2026-09-24).
-    expect(screen.getByRole('button', { name: 'Audio Profile' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Audio Seeds' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Audio Quality' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Seeds' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('a section\'s real content is not in the DOM until its anchor has been approached (lazy-mount gate)', () => {
@@ -128,20 +128,20 @@ describe('SettingsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
   it('clicking an accordion trigger opens it directly, without touching selectedSettingsLeaf or closing any other open accordion', () => {
     render(<SettingsContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Audio Seeds' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Seeds' }));
 
-    expect(screen.getByRole('button', { name: 'Audio Seeds' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Seeds' }).getAttribute('aria-expanded')).toBe('true');
     // Performance (the default-open one) stays open too — multiple accordions can be open at once.
-    expect(screen.getByRole('button', { name: 'Audio Profile' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Audio Quality' }).getAttribute('aria-expanded')).toBe('true');
     expect(useUIStore.getState().selectedSettingsLeaf).toBeNull();
   });
 
   it('clicking an already-open accordion closes it, leaving "all closed" as a legal state', () => {
     render(<SettingsContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Audio Profile' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Audio Quality' }));
 
-    expect(screen.getByRole('button', { name: 'Audio Profile' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Audio Quality' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('manually scrolling a section into view (scrollspy) updates selectedSettingsLeaf for tree highlighting, without ever calling scrollToSection or touching any accordion\'s open state', async () => {
@@ -154,8 +154,8 @@ describe('SettingsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     expect(scrollToSection).not.toHaveBeenCalled();
     // Scrollspy never opens/closes an accordion — Performance (default-open) is unaffected, and
     // Presets stays closed despite now being the "selected" (highlighted) leaf.
-    expect(screen.getByRole('button', { name: 'Audio Profile' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Audio Seeds' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Audio Quality' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Seeds' }).getAttribute('aria-expanded')).toBe('false');
   });
 });
 
@@ -207,14 +207,14 @@ describe('SettingsContent — Sessions leaf content (Roadmap Phase 20, Task 10)'
 
   it('shows SessionsPanel once Sessions is open and approached', () => {
     render(<SettingsContent />);
-    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save & Share' }));
     openAndApproach('sessions');
     expect(screen.getByTestId('sessions-panel-stub')).toBeTruthy();
   });
 
-  it('opening Sessions does not close Audio Profile (the default-open accordion) — independent per-accordion state', () => {
+  it('opening Sessions does not close Audio Quality (the default-open accordion) — independent per-accordion state', () => {
     render(<SettingsContent />);
-    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }));
-    expect(screen.getByRole('button', { name: 'Audio Profile' }).getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Save & Share' }));
+    expect(screen.getByRole('button', { name: 'Audio Quality' }).getAttribute('aria-expanded')).toBe('true');
   });
 });

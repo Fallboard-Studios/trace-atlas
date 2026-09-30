@@ -8,8 +8,17 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getTraitColorStyle } from '@/utils/traitColors';
 
-const PLACEHOLDER_LORE = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.';
-const PLACEHOLDER_HUMAN = 'Placeholder copy — real lore/human descriptions land in a later pass.';
+const COMPANIES_INTRO = {
+  loreLabel: 'Companies — organize your fleet into working groups.',
+  loreDescription: 'Meridia recommends grouping probes by company for cleaner reporting and coordinated tasking.',
+  humanDescription: 'A company is a named group of probes you create. Give every probe in a company the same settings at once, the same way All Probes does for your whole fleet — just scoped to one group. Create a company below, or select an existing one to edit it.',
+};
+
+const INDIVIDUAL_COMPANY_INTRO = {
+  loreLabel: 'Company Profile — manage this working group.',
+  loreDescription: 'Review this company’s roster and standing orders, or reassign it entirely.',
+  humanDescription: 'Rename or delete this company, then adjust the settings below — they apply to every probe currently assigned to it, the same way All Probes applies to your whole fleet.',
+};
 
 /**
  * Companies branch content (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, Task 13;
@@ -36,9 +45,9 @@ export function CompaniesContent() {
     return (
       <div className="companies-content" style={getTraitColorStyle('company')}>
         <IntroPanel
-          loreLabel="Companies LORE TITLE"
-          loreDescription={PLACEHOLDER_LORE}
-          humanDescription={PLACEHOLDER_HUMAN}
+          loreLabel={COMPANIES_INTRO.loreLabel}
+          loreDescription={COMPANIES_INTRO.loreDescription}
+          humanDescription={COMPANIES_INTRO.humanDescription}
           trait="company"
         />
         <CompanyCreateForm />
@@ -55,9 +64,9 @@ export function CompaniesContent() {
   return (
     <div className="companies-content" style={getTraitColorStyle('company')}>
       <IntroPanel
-        loreLabel="Individual Company LORE TITLE"
-        loreDescription={PLACEHOLDER_LORE}
-        humanDescription={PLACEHOLDER_HUMAN}
+        loreLabel={INDIVIDUAL_COMPANY_INTRO.loreLabel}
+        loreDescription={INDIVIDUAL_COMPANY_INTRO.loreDescription}
+        humanDescription={INDIVIDUAL_COMPANY_INTRO.humanDescription}
         trait="company"
       />
       <CompanyRenameDeleteForm />

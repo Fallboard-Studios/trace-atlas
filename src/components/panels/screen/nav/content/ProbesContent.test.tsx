@@ -62,19 +62,19 @@ describe('ProbesContent — routes the Probes branch to the browse list, a singl
 
   it('wraps the browse list (RobotsTab) in a "Probes" section IntroPanel — not shown for a selected robot or All Probes', () => {
     render(<ProbesContent />);
-    expect(screen.getByText('Probes LORE TITLE')).toBeTruthy();
+    expect(screen.getByText('Probes — your fleet at a glance.')).toBeTruthy();
   });
 
   it('wraps All Probes (CompanyOptionsSection) in its own "All Probes" IntroPanel', () => {
     useUIStore.getState().setAllProbesSelected(true);
     render(<ProbesContent />);
-    expect(screen.getByText('All Probes LORE TITLE')).toBeTruthy();
+    expect(screen.getByText('All Probes — broadcast to the entire fleet.')).toBeTruthy();
   });
 
   it('renders no section-level IntroPanel for a selected robot (Individual Probes)', () => {
     useUIStore.getState().selectRobot('r1');
     render(<ProbesContent />);
-    expect(screen.queryByText('Probes LORE TITLE')).toBeNull();
-    expect(screen.queryByText('All Probes LORE TITLE')).toBeNull();
+    expect(screen.queryByText('Probes — your fleet at a glance.')).toBeNull();
+    expect(screen.queryByText('All Probes — broadcast to the entire fleet.')).toBeNull();
   });
 });

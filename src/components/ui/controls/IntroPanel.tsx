@@ -5,10 +5,19 @@ import { getTraitColorStyle } from '@/utils/traitColors';
 
 import './IntroPanel.css';
 
-interface IntroPanelProps {
-    loreLabel?: string;
-    loreDescription?: string;
-    humanDescription?: string;
+/** The content shape every screen's own intro-copy table (FleetParamsContent.tsx,
+ *  SettingsContent.tsx, RobotSectionAccordionStack.tsx) fills in — one shared type instead of
+ *  each file re-declaring it, so the 3 fields below can't drift out of sync with IntroPanel's
+ *  own props. All 3 are required here, unlike IntroPanelProps' own optional versions below,
+ *  since a content-table entry with a missing field is a content bug, not a legal "no intro"
+ *  state (that's expressed by not rendering an IntroPanel at all, not by an empty field). */
+export interface IntroContent {
+    loreLabel: string;
+    loreDescription: string;
+    humanDescription: string;
+}
+
+interface IntroPanelProps extends Partial<IntroContent> {
     trait?: Trait;
 }
 
