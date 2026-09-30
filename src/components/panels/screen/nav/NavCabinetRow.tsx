@@ -26,8 +26,9 @@ interface NavCabinetRowProps {
 /**
  * The tree row chrome for the two deepest nav-tree levels (docs/specs/
  * NAV_CABINET_BOX_UNDERLINE_REPLACEMENT.md §1.4/§5.2) — a transparent <button> click target
- * (mirroring Button.css's own .sc-button split) wrapping a plain DualLabel (humanLabel only, no
- * loreLabel) and one bare, textless, full-width CabinetBox beneath it, replacing the prior
+ * (mirroring Button.css's own .sc-button split) wrapping a DualLabel (lore label above human
+ * label, same pairing every other control primitive shows) and one bare, textless, full-width
+ * CabinetBox beneath it, replacing the prior
  * UnderlineLinkNavRow's flat translating bar with the same oblique-pop mechanism every other
  * interactive control in the design system uses. `popped` is computed exactly like Button.tsx's
  * own hover/focus/press wiring — no `disabled` concept for a nav row.
@@ -63,7 +64,7 @@ export function NavCabinetRow({ node, onClick, color }: NavCabinetRowProps) {
       onPointerCancel={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
     >
-      <DualLabel humanLabel={node.humanLabel} />
+      <DualLabel loreLabel={node.loreLabel} humanLabel={node.humanLabel} />
       <CabinetBox
         popped={popped}
         timelineKey={`cabinet-nav-row-${node.id}`}

@@ -79,7 +79,7 @@ export function NavTreeNode({ node, depth, focusedId, inheritedColor }: NavTreeN
   // <button>s (Crawford's own request, "might not keep any of this"). Recreated every render
   // (not hoisted module-level, unlike every other schema in this codebase) since each depends on
   // this node's own id/label/expanded state.
-  const nameSchema: ButtonSchema = { id: `${node.id}-name`, type: 'button', humanLabel: node.humanLabel };
+  const nameSchema: ButtonSchema = { id: `${node.id}-name`, type: 'button', loreLabel: node.loreLabel, humanLabel: node.humanLabel };
   const showToggle = hasChildren && isCollapsible(node.id);
   const toggleSchema: ToggleSchema = {
     id: `${node.id}-toggle`,

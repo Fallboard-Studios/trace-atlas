@@ -41,12 +41,20 @@
   --font-weight-medium: 600;
   --font-weight-bold: 700;
 
-  /* Power Rocker layout */
-  --power-switch-coefficient: 70px;
+  /* Power Rocker layout. --power-switch-coefficient/--power-corner-margin-width are deliberately
+     UNITLESS (not px) even though they read like pixel measurements from the reference design --
+     every consumer divides them by each other inside calc() to get a plain scale ratio, and
+     dividing two <length>s to produce a <number> is a newer calc() type-checking rule Firefox
+     has historically not supported as leniently as Chromium. A `<length> / <length>` there makes
+     the whole calc() invalid at computed-value time in Firefox, which drops the affected
+     width/height to `auto` -- this is what broke the rocker switch's rendering there (bug found
+     live, Firefox-only). Keeping every one of these as a bare number instead sidesteps the rule
+     entirely (length * (number / number) has always been universally valid). */
+  --power-switch-coefficient: 70;
   --power-switch-width: 55px;
   --power-switch-height: calc(var(--power-switch-width) * 2);
-  /* --power-corner-margin-coefficient: calc(var(--power-switch-width) * (20px / var(--power-switch-coefficient))); */
-  --power-corner-margin-width: 10px;
+  /* --power-corner-margin-coefficient: calc(var(--power-switch-width) * (20 / var(--power-switch-coefficient))); */
+  --power-corner-margin-width: 10;
   --power-corner-margin: calc(var(--power-switch-width) * (var(--power-corner-margin-width) / var(--power-switch-coefficient)));
   --power-corner-width: calc(var(--power-switch-width) + (var(--power-corner-margin) * 2));
   --power-corner-height: calc(var(--power-switch-height) + (var(--power-corner-margin) * 2));
