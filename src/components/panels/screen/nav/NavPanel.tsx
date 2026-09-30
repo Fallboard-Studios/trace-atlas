@@ -4,6 +4,7 @@ import gsap from 'gsap';
 import { NavTree } from './NavTree';
 import { NavStatusBlock } from './NavStatusBlock';
 import { useIsNavPanelSlideAway } from './useNavPanelSlideAway';
+import { goHome } from './useNavTree';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { Button } from '@/components/ui/controls/Button';
 import { useUIStore } from '@/stores/uiStore';
@@ -39,20 +40,9 @@ export function NavPanel() {
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const selectedSection = useUIStore((s) => s.selectedSection);
   const setNavPanelOpen = useUIStore((s) => s.setNavPanelOpen);
-  const setActiveHubTile = useUIStore((s) => s.setActiveHubTile);
-  const selectRobot = useUIStore((s) => s.selectRobot);
-  const selectAllRobots = useUIStore((s) => s.selectAllRobots);
-  const setSelectedSection = useUIStore((s) => s.setSelectedSection);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const isFirstSelectionEffect = useRef(true);
-
-  function handleHome() {
-    setActiveHubTile(null);
-    selectRobot(null);
-    selectAllRobots();
-    setSelectedSection(null);
-  }
 
   const { contextSafe } = useGSAP({ dependencies: [] });
 
@@ -107,7 +97,7 @@ export function NavPanel() {
       <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-nav-panel-facade">
         <NavStatusBlock />
         <div className="nav-panel__home">
-          <Button schema={HOME_SCHEMA} onClick={handleHome} />
+          <Button schema={HOME_SCHEMA} onClick={goHome} />
         </div>
         <NavTree />
       </CabinetBox>

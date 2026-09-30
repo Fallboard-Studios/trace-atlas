@@ -3,13 +3,9 @@ import { ProbesContent } from '../nav/content/ProbesContent';
 import { FleetParamsContent } from '../nav/content/FleetParamsContent';
 import { SettingsContent } from '../nav/content/SettingsContent';
 import { CompaniesContent } from '../nav/content/CompaniesContent';
-import { Button } from '@/components/ui/controls/Button';
-import type { ButtonSchema } from '@/types/controls';
 import type { HubTile } from '@/types/hub';
 import { useUIStore } from '@/stores/uiStore';
 import './ConsolePanel.css';
-
-const BACK_SCHEMA: ButtonSchema = { id: 'hubNavBack', type: 'button', loreLabel: 'CONSOLE RETREAT [c]', humanLabel: 'Back' };
 
 /**
  * One entry per HubTile, keyed by a Record so TypeScript itself enforces
@@ -29,8 +25,6 @@ const TILE_CONTENT: Record<HubTile, () => ReactNode> = {
 
 export function ConsolePanel() {
   const activeHubTile = useUIStore((s) => s.activeHubTile);
-  const selectedRobotId = useUIStore((s) => s.selectedRobotId);
-  const selectRobot = useUIStore((s) => s.selectRobot);
 
   // Navigation moved into Header's always-visible row 3 (docs/specs/
   // HEADER_HUB_CONSOLIDATION.md §1.7) — no tile grid to render here anymore.
@@ -40,22 +34,10 @@ export function ConsolePanel() {
     return null;
   }
 
-  // Header's nav RadioButton already gets you back to the blank hub from
-  // every top-level tile (Robots list, Audio Rig, Sector Settings) — a
-  // second, redundant Back button on those was removed. Only the nested
-  // robot-detail level (a robot selected within the robots tile) still
-  // needs its own: Header's nav has no equivalent one-step-back for it —
-  // re-selecting "Robots" from there drops straight to the list, per its
-  // own documented behavior, not back to the detail view it came from.
-  const showBack = activeHubTile === 'robots' && selectedRobotId !== null;
-
+  // The nested robot-detail level's own Back button (Console Retreat) was removed — NavBreadcrumb's
+  // clickable "Probes" segment now covers the same one-step-back need.
   return (
     <div className="console-panel" role="region" aria-label="Console Panel">
-      {showBack && (
-        <div className="console-panel__back">
-          <Button schema={BACK_SCHEMA} onClick={() => selectRobot(null)} />
-        </div>
-      )}
       <div className="console-panel__content">{TILE_CONTENT[activeHubTile]()}</div>
     </div>
   );

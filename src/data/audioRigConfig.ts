@@ -175,8 +175,8 @@ export const DECAY_MODE_SCHEMA: RadioButtonSchema = {
   loreLabel: 'Decay Protocol',
   humanLabel: 'Decay Mode',
   options: [
-    { value: 'natural', label: 'Natural Decay' },
-    { value: 'controlled', label: 'Controlled Decay' },
+    { value: 'natural', label: 'Natural Decay', loreLabel: 'Dissipation' },
+    { value: 'controlled', label: 'Controlled Decay', loreLabel: 'Clamped' },
   ],
 };
 
@@ -303,7 +303,7 @@ export const SWELL_FREQUENCY_SCHEMA: SliderLogSchema = {
   loreLabel: 'Trace Skip Rate',
   humanLabel: 'Automation Rate',
   min: 0,
-  max: 24,
+  max: 16,
   orientation: 'horizontal',
   formatValue: formatSwellFrequency,
 };
@@ -398,13 +398,17 @@ export const AUDIO_EFFECTS_LOAD_SCHEMA: SliderLinearSchema = {
   orientation: 'horizontal',
 };
 
-/** Wraps the preset radio, the slider and the readout, next to Tempo in Transport & Composition. */
+/** Wraps AudioLoadPanel.tsx's own 2 nested rows (preset+readout, Robot Load+Effects Load) — fixed
+ *  'column' so those 2 rows always stack as 2 separate rows, on every tier (Crawford's own
+ *  correction: this was 'responsive' too, which on desktop made the OUTER panel itself a row,
+ *  putting the 2 nested row-panels side-by-side as columns instead of stacked — each nested row's
+ *  own 'responsive' orientation already handles splitting its own 2 items on desktop). */
 export const AUDIO_LOAD_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'audioRig.audioLoadPanel',
   type: 'directionalPanel',
   loreLabel: 'ACOUSTIC LOAD MANAGEMENT',
   humanLabel: 'Audio Load',
-  orientation: 'responsive',
+  orientation: 'column',
 };
 
 // EQ & Filters, Time & Space, and Output no longer share one DirectionalPanel

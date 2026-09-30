@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, renderHook, act } from '@testing-library/react';
+import { render, screen, renderHook, act, fireEvent } from '@testing-library/react';
 import { NavBreadcrumb } from './NavBreadcrumb';
 import { useNavTree } from './useNavTree';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -46,7 +46,11 @@ function stubMatchMedia(mobile: boolean) {
   });
 }
 
-describe('NavBreadcrumb — a read-only "where am I" readout outside the nav tree', () => {
+function breadcrumbText() {
+  return screen.getByRole('navigation', { name: 'Breadcrumb' }).textContent;
+}
+
+describe('NavBreadcrumb — a "where am I" readout outside the nav tree, partly interactive', () => {
   beforeEach(() => {
     resetStores();
     stubMatchMedia(false);
@@ -60,35 +64,41 @@ describe('NavBreadcrumb — a read-only "where am I" readout outside the nav tre
     expect(container.firstChild).toBeNull();
   });
 
-  it('shows the branch label alone for a bare top-level branch', () => {
+  it('always leads with Root, even for a bare top-level branch', () => {
     select('probes');
     render(<NavBreadcrumb />);
-    expect(screen.getByRole('status').textContent).toBe('Probes');
+    expect(breadcrumbText()).toBe('Root / Probes');
   });
 
-  it('shows the full path for a deep All Probes selection', () => {
+  it('caps a deep All Probes selection at branch + entity — the section (Composition) is not shown', () => {
     select('probes.all.melody');
     render(<NavBreadcrumb />);
-    expect(screen.getByRole('status').textContent).toBe('Probes / All Probes / Composition');
+    expect(breadcrumbText()).toBe('Root / Probes / All Probes');
   });
 
   it('shows a specific robot by its own name, not its id', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     select('probes.r1');
     render(<NavBreadcrumb />);
-    expect(screen.getByRole('status').textContent).toBe('Probes / Unit One');
+    expect(breadcrumbText()).toBe('Root / Probes / Unit One');
   });
 
-  it('stops at the group for a Fleet Params leaf 3 levels deep — the leaf itself (Reverb) is trimmed', () => {
+  it('caps a Fleet Params leaf 3 levels deep at the bare branch alone — no group, no leaf', () => {
     select('fleetParams.timeSpace.reverb');
     render(<NavBreadcrumb />);
-    expect(screen.getByRole('status').textContent).toBe('Fleet Params / Time & Space');
+    expect(breadcrumbText()).toBe('Root / Fleet Params');
   });
 
   it('shows the bare Companies node (the create-form state)', () => {
     select('companies');
     render(<NavBreadcrumb />);
-    expect(screen.getByRole('status').textContent).toBe('Companies');
+    expect(breadcrumbText()).toBe('Root / Companies');
+  });
+
+  it('shows Settings (its own humanLabel) alone for any Settings selection, however deep', () => {
+    select('settings.sectorSettings.coordinates');
+    render(<NavBreadcrumb />);
+    expect(breadcrumbText()).toBe('Root / Settings');
   });
 
   it('goes back to rendering nothing once cleared back to the blank state', () => {
@@ -112,5 +122,64 @@ describe('NavBreadcrumb — a read-only "where am I" readout outside the nav tre
     const { container } = render(<NavBreadcrumb />);
     expect(container.querySelector('.nav-breadcrumb--desktop')).toBeTruthy();
     expect(container.querySelector('.nav-breadcrumb--mobile')).toBeNull();
+  });
+
+  describe('clickable segments', () => {
+    it('Root is always a button, and clicking it clears back to the blank/landing state', () => {
+      useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+      select('probes.r1');
+      render(<NavBreadcrumb />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Root' }));
+
+      expect(useUIStore.getState().activeHubTile).toBeNull();
+      expect(useUIStore.getState().selectedRobotId).toBeNull();
+    });
+
+    it('the Probes branch segment is a button that navigates to the bare Probes list, even from a specific robot', () => {
+      useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+      select('probes.r1');
+      render(<NavBreadcrumb />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Probes' }));
+
+      expect(useUIStore.getState().activeHubTile).toBe('robots');
+      expect(useUIStore.getState().selectedRobotId).toBeNull();
+    });
+
+    it('the Companies branch segment is a button that navigates to the bare Companies node', () => {
+      useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+      select('companies');
+      render(<NavBreadcrumb />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Companies' }));
+
+      expect(useUIStore.getState().activeHubTile).toBe('companies');
+    });
+
+    it('the Fleet Params branch segment is plain text, not a button — it is already the one view it names', () => {
+      select('fleetParams.timeSpace.reverb');
+      render(<NavBreadcrumb />);
+
+      expect(screen.queryByRole('button', { name: 'Fleet Params' })).toBeNull();
+      expect(screen.getByText('Fleet Params').tagName).toBe('SPAN');
+    });
+
+    it('the Settings branch segment is plain text, not a button', () => {
+      select('settings.sectorSettings');
+      render(<NavBreadcrumb />);
+
+      expect(screen.queryByRole('button', { name: 'Settings' })).toBeNull();
+      expect(screen.getByText('Settings').tagName).toBe('SPAN');
+    });
+
+    it('a probe\'s own entity segment is plain text, not a button — it is the current view, nothing to navigate to', () => {
+      useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
+      select('probes.r1');
+      render(<NavBreadcrumb />);
+
+      expect(screen.queryByRole('button', { name: 'Unit One' })).toBeNull();
+      expect(screen.getByText('Unit One').tagName).toBe('SPAN');
+    });
   });
 });

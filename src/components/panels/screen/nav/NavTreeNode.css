@@ -11,7 +11,7 @@
      */
   --color-accent-a: transparent;
   --color-accent-b: transparent;
-  --color-accent: transparent;
+  /* --color-accent: transparent; */
   --color-accent-gradient: transparent;
   margin-bottom: 8px;
 }

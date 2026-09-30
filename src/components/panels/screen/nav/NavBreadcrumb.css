@@ -1,10 +1,12 @@
-/* Passive "where am I" readout — deliberately pointer-events: none (nothing inside is
-   interactive, read-only display per Crawford's own call) so it never intercepts a click meant
-   for WorldView underneath, same reasoning as .content-pane__home. Anchored to .screen-content
-   (position: absolute — that container is ScreenViewport.css's own position: relative context),
-   not position: fixed against the viewport — same convention NavPanel/ContentPane already use, so
-   it stays correctly placed within the tablet shell rather than the browser window, and other
-   content (WorldView, ContentPane) can render underneath it at the bottom edge. */
+/* "Where am I" readout, now partly interactive (Root, and the Probes/Companies branch segment,
+   are real navigation links — see NavBreadcrumb.tsx's own doc comment) — pointer-events: none on
+   the outer shell so the plain-text parts still never intercept a click meant for WorldView
+   underneath (same reasoning as .content-pane__home), re-enabled per-link on
+   .nav-breadcrumb__segment--link below. Anchored to .screen-content (position: absolute — that
+   container is ScreenViewport.css's own position: relative context), not position: fixed against
+   the viewport — same convention NavPanel/ContentPane already use, so it stays correctly placed
+   within the tablet shell rather than the browser window, and other content (WorldView,
+   ContentPane) can render underneath it at the bottom edge. */
 .nav-breadcrumb {
   position: absolute;
   z-index: 2;
@@ -20,20 +22,59 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
   pointer-events: none;
+  max-width: 100%;
 }
 
-/* Front-truncates ("...long/path") instead of the CSS default end-truncation — the deepest,
-   most-relevant segment is always the tail of the string, so that's what should stay visible when
-   it doesn't fit. direction: rtl + text-align: left is the standard trick for a start-ellipsis on
-   LTR content: overflow is clipped from the (now visually left) start of the run, leaving the end
-   of the string — nothing here is actually right-to-left text. */
-.nav-breadcrumb__text {
+/* End-truncates ("Root / Probes / A Very Long...") when the line overflows. Not the previous
+   front-truncation (RTL) trick — that relied on the whole breadcrumb being one plain-text node,
+   which doesn't hold once some segments are separate interactive <button>s; a row this short now
+   (breadcrumb depth was capped by one level, docs/specs/NAV_LAYOUT_REWRITE.md follow-up) rarely
+   needs truncating in the first place. A plain block, not a flex child of .nav-breadcrumb itself —
+   text-overflow: ellipsis only works on a block's own inline content, not across separate flex
+   items, so the flex row above exists solely to center/position this one block as a whole. */
+.nav-breadcrumb__inner {
   display: block;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  direction: rtl;
-  text-align: left;
+  max-width: 100%;
+}
+
+.nav-breadcrumb__crumb {
+  white-space: nowrap;
+}
+
+.nav-breadcrumb__segment {
+  color: inherit;
+}
+
+/* Root and the Probes/Companies branch segment — real navigation, re-enabling pointer-events the
+   shell above turns off for everything else. Reset to plain text otherwise (no button chrome) —
+   underlined to read as a link, matching this readout's existing muted/uppercase mono style
+   rather than introducing a new visual language for one small control. */
+.nav-breadcrumb__segment--link {
+  pointer-events: auto;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.nav-breadcrumb__segment--link:hover,
+.nav-breadcrumb__segment--link:focus-visible {
+  color: var(--color-text-primary);
+}
+
+.nav-breadcrumb__segment--link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /* Full-width along the bottom, matching NavPanel's own off-canvas breakpoint

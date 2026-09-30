@@ -27,15 +27,23 @@ interface LfoProps {
   heldOff?: boolean;
 }
 
-// Lore words per docs/reference/text-content-tables.md's Waveform Names table (LFO Shape lists
-// only these 4 — Pulse is oscillator-Type-only, see robotOptionsConfig.ts's LAYER_TYPE_OPTIONS).
+// Lore/human words per docs/reference/text-content-tables.md's Waveform Names table (LFO Shape
+// lists only these 4 — Pulse is oscillator-Type-only, see robotOptionsConfig.ts's
+// LAYER_TYPE_OPTIONS). `label` is the human name; each option previously showed the lore word
+// alone, with no human counterpart.
+const SHAPE_HUMAN_LABELS: Record<(typeof LFO_SHAPES)[number], string> = {
+  triangle: 'Triangle',
+  sine: 'Sine',
+  square: 'Square',
+  sawtooth: 'Sawtooth',
+};
 const SHAPE_LORE_LABELS: Record<(typeof LFO_SHAPES)[number], string> = {
   triangle: 'Sweep',
   sine: 'Sway',
   square: 'Binary',
   sawtooth: 'Kinetic',
 };
-const SHAPE_OPTIONS = LFO_SHAPES.map((shape) => ({ value: shape, label: SHAPE_LORE_LABELS[shape] }));
+const SHAPE_OPTIONS = LFO_SHAPES.map((shape) => ({ value: shape, label: SHAPE_HUMAN_LABELS[shape], loreLabel: SHAPE_LORE_LABELS[shape] }));
 
 /**
  * The Rate slider's own draggable step. Radix's step grid always anchors to

@@ -21,10 +21,10 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
 
   it('Settings has 3 leaf children: quality, sectorSettings, sessions, namespaced by branch', () => {
     const settings = findNode('settings');
-    // "Navigation"/"Settings" per docs/reference/text-content-tables.md — the branch's former
-    // sole label becomes its lore label, "Navigation" is the new human label.
-    expect(settings?.loreLabel).toBe('Settings');
-    expect(settings?.humanLabel).toBe('Navigation');
+    // Reversed from docs/reference/text-content-tables.md's original split (Crawford's own
+    // correction) — "Settings" is the human label, "Navigation" is the lore label.
+    expect(settings?.loreLabel).toBe('Navigation');
+    expect(settings?.humanLabel).toBe('Settings');
     expect(settings?.children?.map((c) => c.id)).toEqual([
       'settings.quality',
       'settings.sectorSettings',

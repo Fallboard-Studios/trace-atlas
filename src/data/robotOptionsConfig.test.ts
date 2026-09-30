@@ -286,8 +286,8 @@ describe('ROBOT_OUTPUT_PANEL_SCHEMA no longer exists (Task 2 cleanup)', () => {
 });
 
 describe('VOLUME_ROW_PANEL_SCHEMA / VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.2)', () => {
-  it('VOLUME_ROW_PANEL_SCHEMA is a responsive-orientation directionalPanel, unlabeled', () => {
-    expect(VOLUME_ROW_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'responsive' });
+  it('VOLUME_ROW_PANEL_SCHEMA is a column-orientation directionalPanel, unlabeled — Volume always renders above its LFO, matching every other LFO layout (Crawford\'s own correction, was "responsive")', () => {
+    expect(VOLUME_ROW_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'column' });
     expect(VOLUME_ROW_PANEL_SCHEMA.loreLabel).toBeUndefined();
     expect(VOLUME_ROW_PANEL_SCHEMA.humanLabel).toBeUndefined();
   });

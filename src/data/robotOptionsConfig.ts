@@ -46,10 +46,10 @@ export const AUDIO_SETTING_SCHEMA: RadioButtonSchema = {
   loreLabel: 'Diagnostic Feed',
   humanLabel: 'Monitor Mode',
   options: [
-    { value: 'none', label: 'Auto' },
-    { value: 'mute', label: 'Mute' },
-    { value: 'solo', label: 'Solo' },
-    { value: 'highlight', label: 'Highlight' },
+    { value: 'none', label: 'Auto', loreLabel: 'Freeform' },
+    { value: 'mute', label: 'Mute', loreLabel: 'Standby' },
+    { value: 'solo', label: 'Solo', loreLabel: 'Featured' },
+    { value: 'highlight', label: 'Highlight', loreLabel: 'Elevated' },
   ],
 };
 
@@ -78,22 +78,27 @@ export const VOLUME_SCHEMA: SliderLinearSchema = {
 export const VOLUME_LFO_TARGET: RobotLfoTargetId = 'volume';
 
 /**
- * Wraps VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (below) beside the Volume LFO display — 'responsive'
- * so mobile/tablet stacks everything into one column (Audio Setting, Volume, LFO, in that order)
- * and desktop splits into 2 side-by-side columns. Unlabeled — pure layout, top-level inside
- * AudioSettingSection's own root (no accordion wrapper — removed docs/tasks/
+ * Wraps VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (below) above the Volume LFO display — fixed 'column'
+ * at every tier (Audio Setting, Volume, LFO, in that order), matching every other LFO layout in
+ * the app (LfoTargetGroup/AudioRigLfoGroup both always stack their own fields above the shared Lfo
+ * display, never beside it). Previously 'responsive' (desktop split into 2 side-by-side columns,
+ * Audio Setting's own Auto/Mute/Solo/Highlight radio squeezed into the narrower half) — Crawford's
+ * own correction, to bring this one layout in line with the others. Unlabeled — pure layout,
+ * top-level inside AudioSettingSection's own root (no accordion wrapper — removed docs/tasks/
  * NAV_LAYOUT_REWRITE.md Task 18).
  */
 export const VOLUME_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'robotOptions.volumeRow',
   type: 'directionalPanel',
-  orientation: 'responsive',
+  orientation: 'column',
 };
 
 /**
- * Audio Setting + Volume, always stacked — the left column of VOLUME_ROW_PANEL_SCHEMA's desktop
- * row (and, on mobile/tablet, simply the first 2 items in that panel's single stacked column).
- * Fixed 'column' regardless of tier — unlike VOLUME_ROW_PANEL_SCHEMA, this one never becomes a row.
+ * Audio Setting + Volume, always stacked — nested inside VOLUME_ROW_PANEL_SCHEMA's own (now also
+ * always-column) stack, ahead of the Lfo display. Fixed 'column' regardless of tier — kept as its
+ * own schema/panel (rather than merging into VOLUME_ROW_PANEL_SCHEMA directly) since Audio Setting
+ * + Volume is still a meaningful sub-grouping on its own, independent of the outer panel's own
+ * orientation.
  */
 export const VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'robotOptions.volumeSettingsColumn',
@@ -339,15 +344,16 @@ export interface SignatureArrayLayerBlock {
 }
 
 /** The 5 real WaveformType values only — 'noise' is dropped entirely (Roadmap Phase 9, see
- *  docs/specs/ROBOT_OPTIONS.md §7). Lore words per docs/reference/text-content-tables.md's
+ *  docs/specs/ROBOT_OPTIONS.md §7). Lore/human pairs per docs/reference/text-content-tables.md's
  *  Waveform Names table — corrects a previous mismatch where 'sine' carried "Sweep" (now
- *  Triangle's word) and 'triangle' carried the now-retired "Gradient". */
+ *  Triangle's word) and 'triangle' carried the now-retired "Gradient". `label` is now the human
+ *  name (each option previously showed the lore word alone, with no human counterpart). */
 const LAYER_TYPE_OPTIONS = [
-  { value: 'sine', label: 'Sway' },
-  { value: 'triangle', label: 'Sweep' },
-  { value: 'sawtooth', label: 'Kinetic' },
-  { value: 'square', label: 'Binary' },
-  { value: 'pulse', label: 'Burst' },
+  { value: 'sine', label: 'Sine', loreLabel: 'Sway' },
+  { value: 'triangle', label: 'Triangle', loreLabel: 'Sweep' },
+  { value: 'sawtooth', label: 'Sawtooth', loreLabel: 'Kinetic' },
+  { value: 'square', label: 'Square', loreLabel: 'Binary' },
+  { value: 'pulse', label: 'Pulse', loreLabel: 'Burst' },
 ];
 
 function makeLayerBlock(

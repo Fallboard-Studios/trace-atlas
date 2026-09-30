@@ -257,10 +257,10 @@ describe('DECAY_MODE_SCHEMA', () => {
     expect(DECAY_MODE_SCHEMA.type).toBe('radio');
   });
 
-  it('has exactly two options — Natural Decay and Controlled Decay, in that order', () => {
+  it('has exactly two options — Natural Decay and Controlled Decay, in that order, each with its own lore label', () => {
     expect(DECAY_MODE_SCHEMA.options).toEqual([
-      { value: 'natural', label: 'Natural Decay' },
-      { value: 'controlled', label: 'Controlled Decay' },
+      { value: 'natural', label: 'Natural Decay', loreLabel: 'Dissipation' },
+      { value: 'controlled', label: 'Controlled Decay', loreLabel: 'Clamped' },
     ]);
   });
 });
@@ -725,10 +725,10 @@ describe('AUDIO_EFFECTS_LOAD_SCHEMA', () => {
 });
 
 describe('AUDIO_LOAD_PANEL_SCHEMA', () => {
-  it('is a responsive directionalPanel named Audio Load in the audioRig.* namespace', () => {
+  it('is a column directionalPanel named Audio Load in the audioRig.* namespace — its own 2 nested rows always stack, on every tier (Crawford\'s own correction, was "responsive")', () => {
     expect(AUDIO_LOAD_PANEL_SCHEMA).toMatchObject({
       type: 'directionalPanel',
-      orientation: 'responsive',
+      orientation: 'column',
       humanLabel: 'Audio Load',
     });
     expect(AUDIO_LOAD_PANEL_SCHEMA.id).toMatch(/^audioRig\./);

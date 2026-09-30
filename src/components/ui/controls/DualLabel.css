@@ -9,11 +9,14 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-text-muted);
+  opacity: 0.8;
+  text-shadow: 0px 0px .25px var(--color-accent);
 }
 
 .sc-dual-label__human {
   font-size: var(--font-size-label);
   color: var(--color-text-primary);
+
 }
 
 /* Compact fallback for a cramped container (e.g. a narrow slider's own box
@@ -23,6 +26,7 @@
    DirectionalPanel never establishes an sc-control
    container, so this never fires for its own DualLabel usage. */
 @container sc-control (max-width: 120px) {
+
   .sc-dual-label__lore,
   .sc-dual-label__human {
     font-size: var(--font-size-label-compact);

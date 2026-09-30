@@ -58,9 +58,10 @@ interface AudioSettingSectionProps {
  * consumers" grep check wouldn't otherwise hold). Volume renders through `useLfoTargetGroup`
  * called directly (the hook, not the shared `<LfoTargetGroup>` wrapper component) so this
  * component can hand-compose a layout `LfoTargetGroup` has no way to produce on its own: Audio
- * Setting + Volume stacked in one column, beside (desktop) or above (mobile/tablet) the shared Lfo
- * display — the same escape hatch `AudioRigLfoGroup` (`AudioRigDrawer.tsx`) already uses for its
- * own custom composition needs. There's only one field to target ('volume'), so
+ * Setting + Volume stacked in one column, always above the shared Lfo display (every tier — same
+ * arrangement every other LFO layout in the app uses) — the same escape hatch `AudioRigLfoGroup`
+ * (`AudioRigDrawer.tsx`) already uses for its own custom composition needs. There's only one field
+ * to target ('volume'), so
  * `selected`/`isTargeted` are effectively constant, but the same click/focus-to-select wiring is
  * kept for consistency with every other LFO-tied control group.
  */

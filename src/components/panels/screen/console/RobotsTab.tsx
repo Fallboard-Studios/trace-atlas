@@ -9,7 +9,7 @@ import type { ButtonSchema } from '@/types/controls';
 import './RobotsTab.css';
 
 // Plain schema constant, no domain config file — this is console-screen chrome (a filter reset
-// action), the same pattern ConsolePanel.tsx's own BACK_SCHEMA already uses.
+// action), not a domain concept with its own config file.
 const CLEAR_FILTER_SCHEMA: ButtonSchema = { id: 'robotsTab.clearFilter', type: 'button', loreLabel: 'RESET UNIT ROSTER', humanLabel: 'Clear Filter' };
 
 interface RosterEntry {

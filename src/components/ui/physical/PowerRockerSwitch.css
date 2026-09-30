@@ -5,8 +5,10 @@
    by .sleeve-jut in SleeveContainer.css.
    ---------------------------------------- */
 .rocker-panel {
-  --rocker-light-width: calc(var(--power-switch-width) * (37px / var(--power-switch-coefficient)));
-  --rocker-light-height: calc(var(--power-switch-width) * (13px / var(--power-switch-coefficient)));
+  /* Numerators here are unitless (matching --power-switch-coefficient's own unitless value in
+     index.css) -- see that file's comment for why a <length> numerator would break in Firefox. */
+  --rocker-light-width: calc(var(--power-switch-width) * (37 / var(--power-switch-coefficient)));
+  --rocker-light-height: calc(var(--power-switch-width) * (13 / var(--power-switch-coefficient)));
 
   display: flex;
   flex-direction: column;
@@ -25,8 +27,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: calc(var(--power-switch-width) * (58px / var(--power-switch-coefficient)));
-  height: calc(var(--power-switch-width) * (27px / var(--power-switch-coefficient)));
+  width: calc(var(--power-switch-width) * (58 / var(--power-switch-coefficient)));
+  height: calc(var(--power-switch-width) * (27 / var(--power-switch-coefficient)));
   background: rgba(0, 0, 0, 0.5);
   border-radius: 3px;
   box-shadow:

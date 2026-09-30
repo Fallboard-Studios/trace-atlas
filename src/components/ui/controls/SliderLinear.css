@@ -93,6 +93,10 @@
      found and verified against a real browser. */
 }
 
+.sc-slider-linear__root:hover {
+  cursor: pointer;
+}
+
 .sc-slider-linear__track {
   position: relative;
   flex-grow: 1;

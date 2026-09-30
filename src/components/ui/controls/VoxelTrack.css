@@ -108,11 +108,11 @@
    is true (SliderCenteredZero's own negative-side boxes) — SliderLinear/
    SliderLog's computeVoxelBoxStates output never sets it, so this rule
    never engages for either. */
-.sc-voxel-track__straddle[data-flip='true'] > .sc-cabinet-box:first-child {
+.sc-voxel-track__straddle[data-flip='true']>.sc-cabinet-box:first-child {
   order: 1;
 }
 
-.sc-voxel-track__straddle[data-flip='true'] > .sc-cabinet-box:last-child {
+.sc-voxel-track__straddle[data-flip='true']>.sc-cabinet-box:last-child {
   order: 0;
 }
 
@@ -129,6 +129,6 @@
    of axis — see VoxelTrack.tsx. Scoped here specifically: Button/Toggle
    and every ordinary (non-straddling) voxel-track box are untouched.
    Found live in the running app. */
-.sc-voxel-track__straddle > .sc-cabinet-box:last-child {
+.sc-voxel-track__straddle>.sc-cabinet-box:last-child {
   z-index: -1;
 }

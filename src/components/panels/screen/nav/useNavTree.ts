@@ -151,6 +151,21 @@ export function isCollapsible(id: string): boolean {
  *  useAccordionOpenState.ts can reuse the exact same logic when an accordion opens from any
  *  source, not just a nav click — without duplicating this id-parsing a second time. Implemented
  *  via useUIStore.getState() rather than hook-bound setters so it's callable outside a component. */
+/** Clears the tree back to the true blank/landing state (activeHubTile === null) — relocated from
+ *  NavPanel.tsx's own former handleHome (docs/specs/NAV_LAYOUT_REWRITE.md Task 8) so NavBreadcrumb's
+ *  "Root" segment can call the identical 4-setter reset instead of a hand-duplicated copy. A plain
+ *  module-level function via useUIStore.getState() (mirroring expandNavAncestorsForId below), not a
+ *  field on useNavTree()'s own return value — NavPanel doesn't otherwise need the full hook (which
+ *  builds the whole merged tree, including the robots/companies subtrees), and calling it just for
+ *  this would add a real, avoidable re-render subscription. */
+export function goHome(): void {
+  const { setActiveHubTile, selectRobot, selectAllRobots, setSelectedSection } = useUIStore.getState();
+  setActiveHubTile(null);
+  selectRobot(null);
+  selectAllRobots();
+  setSelectedSection(null);
+}
+
 export function expandNavAncestorsForId(id: string): void {
   const [branch, entityId] = id.split('.');
   const { setExpandedTopLevelBranch, setExpandedProbeId, setExpandedCompanyId } = useUIStore.getState();
@@ -290,22 +305,22 @@ function findSelectedPath(
 }
 
 /**
- * Drops a trailing leaf (a node with no children of its own) from the end of findSelectedPath's
- * result, so NavBreadcrumb reads as "the lowest-level PARENT the user is under" rather than the
- * exact selected field itself (Crawford's own call — e.g. Fleet Params' "Reverb" or a robot's
- * "Rhythm" subsection is one level too specific; the group/section that HOUSES it — "Time & Space",
- * "Composition" — is the meaningful stopping point, matching where the accordion boundary actually
- * sits). A node that itself has children (a bare branch, a robot/company entity, a section with its
- * own subsections, a Fleet Params/Settings category) is never dropped — there's nothing to trim to.
- * A loop, not a single pop, for correctness rather than assuming a leaf's own parent always has
- * children — though in this tree's actual shape it only ever runs once.
+ * Caps findSelectedPath's result to what NavBreadcrumb actually displays — one level shallower
+ * than the tree really goes (Crawford's own call): Fleet Params/Settings are each a single
+ * scrollable view regardless of which group/leaf is open within it, so their breadcrumb is just
+ * the branch name, full stop — never a group ("Time & Space") or leaf ("Reverb"), both of which
+ * this used to show one at a time (trimToLowestParent's original "lowest parent with children"
+ * rule). Probes/Companies are different — a specific probe or company IS its own distinct view,
+ * so the breadcrumb keeps exactly branch + entity ("Probes / Unit One") but still drops anything
+ * deeper (a section like "Composition", its own subsections) — those are scroll position within
+ * the entity's view, not a separate place to name. A bare branch with no entity selected yet (or
+ * mid-ambiguity, see isSelected's own documented gap) is left as its one segment either way.
  */
-function trimToLowestParent(path: NavTreeNodeSchema[]): NavTreeNodeSchema[] {
-  const trimmed = [...path];
-  while (trimmed.length > 1 && !(trimmed[trimmed.length - 1].children?.length)) {
-    trimmed.pop();
-  }
-  return trimmed;
+function trimToBreadcrumbDepth(path: NavTreeNodeSchema[]): NavTreeNodeSchema[] {
+  if (path.length === 0) return path;
+  const branchId = path[0].id;
+  const depth = branchId === 'probes' || branchId === 'companies' ? 2 : 1;
+  return path.slice(0, depth);
 }
 
 export interface UseNavTreeResult {
@@ -317,9 +332,10 @@ export interface UseNavTreeResult {
   select: (id: string) => void;
   toggleExpand: (id: string) => void;
   /** Root-to-node ancestor chain of whichever node isSelected() currently matches (see
-   *  findSelectedPath above), trimmed of a trailing childless leaf (trimToLowestParent) — [] when
-   *  nothing in the tree is selected, which includes the true blank/landing state
-   *  (activeHubTile === null) and is also what a caller should treat as "no breadcrumb to show." */
+   *  findSelectedPath above), trimmed to the depth NavBreadcrumb actually displays
+   *  (trimToBreadcrumbDepth) — [] when nothing in the tree is selected, which includes the true
+   *  blank/landing state (activeHubTile === null) and is also what a caller should treat as "no
+   *  breadcrumb to show." */
   selectedPath: NavTreeNodeSchema[];
 }
 
@@ -532,7 +548,7 @@ export function useNavTree(): UseNavTreeResult {
     return false;
   }
 
-  const selectedPath = trimToLowestParent(findSelectedPath(nodes, isSelected) ?? []);
+  const selectedPath = trimToBreadcrumbDepth(findSelectedPath(nodes, isSelected) ?? []);
 
   return { nodes, isExpanded, isSelected, select, toggleExpand, selectedPath };
 }

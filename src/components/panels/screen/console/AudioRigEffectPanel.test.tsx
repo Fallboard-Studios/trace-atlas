@@ -417,16 +417,27 @@ describe('AudioRigEffectPanel', () => {
       expect(attackRow.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
     });
 
-    it('Knee and the Decay Mode radio each render as their own direct param-row — no shared wrapper between them', () => {
+    it('Knee and Decay Mode share a row too — same pairing treatment as Threshold+Ratio/Attack+Release (Crawford\'s own request)', () => {
       render(<AudioRigEffectPanel effectKey="compressor" />);
       const kneeRow = screen.getByRole('slider', { name: 'Knee' }).closest('.audio-rig-drawer__param-row')!;
       const decayModeRow = screen.getByRole('radio', { name: 'Natural Decay' }).closest('.audio-rig-drawer__param-row')!;
-      expect(kneeRow).not.toBe(decayModeRow);
-      const compressorContent = screen.getByRole('slider', { name: 'Threshold' })
-        .closest('.audio-rig-drawer__effect-block')!
-        .querySelector('.sc-directional-panel > .sc-directional-panel__content')!;
-      expect(kneeRow.parentElement).toBe(compressorContent);
-      expect(decayModeRow.parentElement).toBe(compressorContent);
+      expect(kneeRow).not.toBe(decayModeRow); // still 2 distinct param-rows, just sharing one DirectionalPanel now
+      const kneeDecayPanel = screen.getByRole('slider', { name: 'Knee' }).closest('.sc-directional-panel')!;
+      expect(kneeDecayPanel.contains(decayModeRow)).toBe(true);
+    });
+
+    it('Knee and Decay Mode stack (column) on mobile/tablet', () => {
+      stubMatchMedia({ mobile: true, tablet: true });
+      render(<AudioRigEffectPanel effectKey="compressor" />);
+      const kneeDecayPanel = screen.getByRole('slider', { name: 'Knee' }).closest('.sc-directional-panel')!;
+      expect(kneeDecayPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('column');
+    });
+
+    it('Knee and Decay Mode share a row (row) on desktop', () => {
+      stubMatchMedia({ mobile: false, tablet: false });
+      render(<AudioRigEffectPanel effectKey="compressor" />);
+      const kneeDecayPanel = screen.getByRole('slider', { name: 'Knee' }).closest('.sc-directional-panel')!;
+      expect(kneeDecayPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
     });
   });
 

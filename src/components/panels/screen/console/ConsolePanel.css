@@ -8,22 +8,15 @@
   padding-left: var(--spacing-lg);
 }
 
-.console-panel__back {
-  /* Power-switch/transport clearance lives on .console itself now
-     (Console.css) — it covers every direct child uniformly (this back-
-     button screen AND the plain HubNav tile-grid screen, which has no
-     clearance of its own), not just this one. */
-  padding: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-}
-
 .console-panel__content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
   --console-header-clearance: 180px;
-  padding: var(--console-header-clearance) 8px 0;
+  --console-nav-panel-clearance: 8px;
+  --console-edge-clearance: 8px;
+  padding: var(--console-header-clearance) var(--console-edge-clearance) 0 var(--console-nav-panel-clearance);
 }
 
 @media screen and (min-width: 600px) {
@@ -35,7 +28,8 @@
 @media screen and (min-width: 48em) {
   .console-panel__content {
     --console-header-clearance: 195px;
-    padding-left: 320px;
+    --console-nav-panel-clearance: 320px;
+    --console-edge-clearance: 32px;
   }
 }
 
