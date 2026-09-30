@@ -151,7 +151,7 @@ function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSi
               timelineKey={`cabinet-radio-${schema.id}-${instanceId}-${option.value}`}
               {...(boxSize !== undefined ? { boxHeight: boxSize, frontWidth: boxSize, frontHeight: boxSize } : {})}
             >
-              {option.label}
+              <DualLabel loreLabel={option.loreLabel} humanLabel={option.label} />
             </CabinetBox>
           </ToggleGroup.Item>
         ))}

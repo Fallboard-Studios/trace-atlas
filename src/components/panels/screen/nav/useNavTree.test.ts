@@ -746,12 +746,12 @@ describe('useNavTree — selectedPath, the root-to-node ancestor chain for NavBr
     expect(result.current.selectedPath.map((n) => n.id)).toEqual(['companies']);
   });
 
-  it('resolves All Probes down to a selected section, by id and by label', () => {
+  it('resolves All Probes down to just branch + entity, by id and by label — deeper (a selected section) is capped off, trimToBreadcrumbDepth', () => {
     const { result } = renderHook(() => useNavTree());
     act(() => result.current.select('probes.all.melody'));
 
-    expect(result.current.selectedPath.map((n) => n.id)).toEqual(['probes', 'probes.all', 'probes.all.melody']);
-    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Probes', 'All Probes', 'Composition']);
+    expect(result.current.selectedPath.map((n) => n.id)).toEqual(['probes', 'probes.all']);
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Probes', 'All Probes']);
   });
 
   it('resolves a specific robot by its own name, not its id', () => {
@@ -762,30 +762,30 @@ describe('useNavTree — selectedPath, the root-to-node ancestor chain for NavBr
     expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Probes', 'Unit One']);
   });
 
-  it('selecting a Fleet Params group heading resolves straight through to its first leaf internally, but selectedPath stops at the group — trimToLowestParent drops the trailing leaf (Reverb, no children of its own)', () => {
+  it('selecting a Fleet Params group heading resolves straight through to its first leaf internally, but selectedPath stops at the bare branch — trimToBreadcrumbDepth caps Fleet Params/Settings to their own single segment, never a group or leaf', () => {
     const { result } = renderHook(() => useNavTree());
     act(() => result.current.select('fleetParams.timeSpace'));
 
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('reverb'); // select() itself still resolves to the real first leaf (FLEET_PARAMS_GROUP_FIRST_LEAF) — only the displayed path is trimmed
-    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Fleet Params', 'Time & Space']);
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('reverb'); // select() itself still resolves to the real first leaf (FLEET_PARAMS_GROUP_FIRST_LEAF) — only the displayed path is capped
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Fleet Params']);
   });
 
-  it('a Fleet Params leaf 3 levels deep also stops at its own group — the leaf itself (Reverb) is trimmed off', () => {
+  it('a Fleet Params leaf 3 levels deep also stops at the bare branch — the group (Time & Space) and leaf (Reverb) are both capped off', () => {
     const { result } = renderHook(() => useNavTree());
     act(() => result.current.select('fleetParams.timeSpace.reverb'));
 
-    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Fleet Params', 'Time & Space']);
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Fleet Params']);
   });
 
-  it('a Probes/Companies subsection leaf (4 real segments) stops at its own section — the subsection itself (Rhythm, no children) is trimmed off, matching the group-level trim above', () => {
+  it('a Probes/Companies subsection leaf (4 real segments) stops at branch + entity — the section (Composition) and subsection (Rhythm) are both capped off', () => {
     const { result } = renderHook(() => useNavTree());
     act(() => result.current.select('probes.all.melody.rhythm'));
 
     expect(useUIStore.getState().selectedSubsection).toBe('rhythm'); // the real, untrimmed selection
-    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Probes', 'All Probes', 'Composition']);
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Probes', 'All Probes']);
   });
 
-  it('a node that itself has children is never trimmed, even as the deepest match — a bare robot entity (2 segments) stays whole', () => {
+  it('a bare robot entity (2 segments) stays whole — branch + entity is exactly the depth Probes/Companies keep', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     const { result } = renderHook(() => useNavTree());
     act(() => result.current.select('probes.r1'));
@@ -801,19 +801,18 @@ describe('useNavTree — selectedPath, the root-to-node ancestor chain for NavBr
     expect(result.current.selectedPath).toEqual([]);
   });
 
-  it('deterministically picks the deepest — then first-in-tree-order — match for the known bare-branch/bare-category ambiguity isSelected() itself documents (selectedFleetParamsEffect === null while activeHubTile is audioRig, a state select() itself never leaves behind, but selectedPath must still resolve something sane if it ever occurs)', () => {
+  it('deterministically resolves to the bare branch for the known bare-branch/bare-category ambiguity isSelected() itself documents (selectedFleetParamsEffect === null while activeHubTile is audioRig, a state select() itself never leaves behind, but selectedPath must still resolve something sane if it ever occurs) — trimToBreadcrumbDepth caps Fleet Params to 1 segment regardless of which of the tied matches findSelectedPath itself picked', () => {
     const { result } = renderHook(() => useNavTree());
     act(() => useUIStore.getState().setActiveHubTile('audioRig'));
 
     // Every one of Fleet Params' 4 category nodes reads isSelected() === true here alongside the
     // bare branch itself (all share the same "selectedFleetParamsEffect === null" condition) — a
-    // real ambiguity in isSelected, not a bug in selectedPath's own resolution. selectedPath picks
-    // the deepest (2-segment category over the 1-segment branch), then whichever comes first in
-    // NAV_TREE_SCHEMA's own order (Pacing) among the tied 2-segment nodes, rather than an
-    // unstable/undefined pick. (Before the FLEET_PARAMS_LEAF_TO_EFFECT_KEY bugfix above, this same
-    // null-effect gap also falsely matched 'fleetParams.pacing.frequency' one level deeper — this
-    // assertion is what caught that bug in the first place.)
-    expect(result.current.selectedPath.map((n) => n.id)).toEqual(['fleetParams', 'fleetParams.pacing']);
+    // real ambiguity in isSelected, not a bug in selectedPath's own resolution. Before
+    // trimToBreadcrumbDepth capped Fleet Params to 1 segment, this used to matter (which of the
+    // tied 2-segment nodes findSelectedPath picked was itself the whole assertion, and is what
+    // caught the FLEET_PARAMS_LEAF_TO_EFFECT_KEY bugfix in the first place) — now any of them caps
+    // to the same single ['fleetParams'] result either way.
+    expect(result.current.selectedPath.map((n) => n.id)).toEqual(['fleetParams']);
   });
 });
 

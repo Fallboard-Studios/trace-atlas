@@ -46,10 +46,10 @@ export const AUDIO_SETTING_SCHEMA: RadioButtonSchema = {
   loreLabel: 'Diagnostic Feed',
   humanLabel: 'Monitor Mode',
   options: [
-    { value: 'none', label: 'Auto' },
-    { value: 'mute', label: 'Mute' },
-    { value: 'solo', label: 'Solo' },
-    { value: 'highlight', label: 'Highlight' },
+    { value: 'none', label: 'Auto', loreLabel: 'Freeform' },
+    { value: 'mute', label: 'Mute', loreLabel: 'Standby' },
+    { value: 'solo', label: 'Solo', loreLabel: 'Featured' },
+    { value: 'highlight', label: 'Highlight', loreLabel: 'Elevated' },
   ],
 };
 
@@ -339,15 +339,16 @@ export interface SignatureArrayLayerBlock {
 }
 
 /** The 5 real WaveformType values only — 'noise' is dropped entirely (Roadmap Phase 9, see
- *  docs/specs/ROBOT_OPTIONS.md §7). Lore words per docs/reference/text-content-tables.md's
+ *  docs/specs/ROBOT_OPTIONS.md §7). Lore/human pairs per docs/reference/text-content-tables.md's
  *  Waveform Names table — corrects a previous mismatch where 'sine' carried "Sweep" (now
- *  Triangle's word) and 'triangle' carried the now-retired "Gradient". */
+ *  Triangle's word) and 'triangle' carried the now-retired "Gradient". `label` is now the human
+ *  name (each option previously showed the lore word alone, with no human counterpart). */
 const LAYER_TYPE_OPTIONS = [
-  { value: 'sine', label: 'Sway' },
-  { value: 'triangle', label: 'Sweep' },
-  { value: 'sawtooth', label: 'Kinetic' },
-  { value: 'square', label: 'Binary' },
-  { value: 'pulse', label: 'Burst' },
+  { value: 'sine', label: 'Sine', loreLabel: 'Sway' },
+  { value: 'triangle', label: 'Triangle', loreLabel: 'Sweep' },
+  { value: 'sawtooth', label: 'Sawtooth', loreLabel: 'Kinetic' },
+  { value: 'square', label: 'Square', loreLabel: 'Binary' },
+  { value: 'pulse', label: 'Pulse', loreLabel: 'Burst' },
 ];
 
 function makeLayerBlock(

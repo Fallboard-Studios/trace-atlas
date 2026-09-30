@@ -175,8 +175,8 @@ export const DECAY_MODE_SCHEMA: RadioButtonSchema = {
   loreLabel: 'Decay Protocol',
   humanLabel: 'Decay Mode',
   options: [
-    { value: 'natural', label: 'Natural Decay' },
-    { value: 'controlled', label: 'Controlled Decay' },
+    { value: 'natural', label: 'Natural Decay', loreLabel: 'Dissipation' },
+    { value: 'controlled', label: 'Controlled Decay', loreLabel: 'Clamped' },
   ],
 };
 
@@ -303,7 +303,7 @@ export const SWELL_FREQUENCY_SCHEMA: SliderLogSchema = {
   loreLabel: 'Trace Skip Rate',
   humanLabel: 'Automation Rate',
   min: 0,
-  max: 24,
+  max: 16,
   orientation: 'horizontal',
   formatValue: formatSwellFrequency,
 };

@@ -257,10 +257,10 @@ describe('DECAY_MODE_SCHEMA', () => {
     expect(DECAY_MODE_SCHEMA.type).toBe('radio');
   });
 
-  it('has exactly two options — Natural Decay and Controlled Decay, in that order', () => {
+  it('has exactly two options — Natural Decay and Controlled Decay, in that order, each with its own lore label', () => {
     expect(DECAY_MODE_SCHEMA.options).toEqual([
-      { value: 'natural', label: 'Natural Decay' },
-      { value: 'controlled', label: 'Controlled Decay' },
+      { value: 'natural', label: 'Natural Decay', loreLabel: 'Dissipation' },
+      { value: 'controlled', label: 'Controlled Decay', loreLabel: 'Clamped' },
     ]);
   });
 });

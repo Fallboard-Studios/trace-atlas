@@ -161,7 +161,7 @@ describe('SignatureArrayDrawer', () => {
     (['layer0', 'layer1', 'layer2'] as const).forEach((key) => {
       const typeGroup = layerSection(container, key).querySelector<HTMLElement>('.sc-radio-button')!;
       const options = within(typeGroup).getAllByRole('radio').map((r) => r.getAttribute('aria-label'));
-      expect(options.sort()).toEqual(['Binary', 'Burst', 'Kinetic', 'Sway', 'Sweep'].sort());
+      expect(options.sort()).toEqual(['Pulse', 'Sawtooth', 'Sine', 'Square', 'Triangle'].sort());
     });
   });
 
@@ -192,12 +192,12 @@ describe('SignatureArrayDrawer', () => {
     // vocabulary (docs/reference/text-content-tables.md unifies Type/Shape's waveform words), so
     // both groups can contain an identically-labeled option within one layer's DOM.
     const typeGroup = layerSection(container, 'layer0').querySelector<HTMLElement>('.sc-radio-button')!;
-    fireEvent.click(within(typeGroup).getByRole('radio', { name: 'Sweep' }));
+    fireEvent.click(within(typeGroup).getByRole('radio', { name: 'Triangle' }));
 
     expect(onStructuralChange).toHaveBeenCalled();
     expect(onContinuousChange).not.toHaveBeenCalled();
     const newLayers = onStructuralChange.mock.calls[0][0] as OscillatorLayer[];
-    expect(newLayers[0].type).toBe('triangle'); // 'Sweep' label -> 'triangle' value, per robotOptionsConfig.ts
+    expect(newLayers[0].type).toBe('triangle'); // 'Triangle' label -> 'triangle' value, per robotOptionsConfig.ts
   });
 
   it('a Gain change calls onContinuousChange, not onStructuralChange', () => {
@@ -263,7 +263,7 @@ describe('SignatureArrayDrawer', () => {
     it('the Type radio renders inline among the layer\'s other controls, not inside the shared LFO group\'s row targeting', () => {
       const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
       const typeGroup = layerSection(container, 'layer0').querySelector<HTMLElement>('.sc-radio-button')!;
-      const typeRadio = within(typeGroup).getByRole('radio', { name: 'Sweep' });
+      const typeRadio = within(typeGroup).getByRole('radio', { name: 'Triangle' });
       expect(typeRadio.closest('.sc-lfo-target-group__row')).toBeNull();
     });
 
@@ -382,7 +382,7 @@ describe('SignatureArrayDrawer', () => {
 
     const baseline = layerSection(container, 'layer0');
     const baselineTypeGroup = baseline.querySelector<HTMLElement>('.sc-radio-button')!;
-    expect(within(baselineTypeGroup).getByRole('radio', { name: 'Sweep' }).getAttribute('data-disabled')).toBe('');
+    expect(within(baselineTypeGroup).getByRole('radio', { name: 'Triangle' }).getAttribute('data-disabled')).toBe('');
     expect(within(baseline).getByRole('slider', { name: /gain/i }).getAttribute('data-disabled')).toBe('');
     expect(within(layerSection(container, 'layer1')).getByRole('slider', { name: 'Companion Gain' }).getAttribute('data-disabled')).toBe('');
   });
@@ -591,7 +591,7 @@ describe('SignatureArrayLayer — exported standalone (docs/tasks/NAV_PANEL_VIEW
     renderLayer(0, { onTypeChange }); // layer0 starts as 'sine' (makeLayers())
     const layerEl = screen.getByText('Core').closest('.sc-directional-panel') as HTMLElement;
     const typeGroup = layerEl.querySelector<HTMLElement>('.sc-radio-button')!;
-    const squareOption = within(typeGroup).getByRole('radio', { name: 'Binary' });
+    const squareOption = within(typeGroup).getByRole('radio', { name: 'Square' });
 
     fireEvent.click(squareOption);
 

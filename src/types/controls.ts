@@ -101,8 +101,13 @@ export interface RadioButtonSchema extends ControlSchemaBase {
    *  option that sets it gets that hex scoped to its own CabinetBox via getRobotColorStyle
    *  (rest-state hint + a stronger tint when selected, through the same ambient-CSS-custom-
    *  property mechanism every other trait/identity color already uses); an option that omits it
-   *  keeps today's ambient-accent fallback exactly as before. */
-  options: { value: string; label: string; color?: string }[];
+   *  keeps today's ambient-accent fallback exactly as before.
+   *  loreLabel is optional and additive too — an option that sets it renders both (via DualLabel,
+   *  the same lore-caption-over-human-label pairing every other control primitive shows), an
+   *  option that omits it renders `label` alone exactly as before. Not every option set has a
+   *  documented lore counterpart (docs/reference/text-content-tables.md's Waveform Names table is
+   *  the only one that does today), so this is per-option, not a schema-wide requirement. */
+  options: { value: string; label: string; loreLabel?: string; color?: string }[];
 }
 
 export interface ToggleSchema extends ControlSchemaBase {

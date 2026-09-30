@@ -164,10 +164,10 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
   },
   {
     id: 'settings',
-    // "Navigation"/"Settings" per docs/reference/text-content-tables.md — the branch's former
-    // sole label ("Settings") becomes its lore label, "Navigation" is the new human label.
-    loreLabel: 'Settings',
-    humanLabel: 'Navigation',
+    // Reversed from docs/reference/text-content-tables.md's original Navigation/Settings split
+    // (Crawford's own correction) — "Settings" is the human label, "Navigation" is the lore label.
+    loreLabel: 'Navigation',
+    humanLabel: 'Settings',
     trait: 'seed',
     // Quality below is Crawford's own explicit per-leaf pick (2026-09-23) — unlike Fleet Params'/
     // Sector Settings', it has no single established trait elsewhere in the app to match; it
