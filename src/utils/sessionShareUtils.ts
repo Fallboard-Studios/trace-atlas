@@ -4,7 +4,7 @@
 import type { SessionPayload, RobotAudioOverrideDiff, CompanyDiff } from '../types/session';
 import type { ADSREnvelope } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
-import type { RobotLfoTargetId, LfoSettings } from '../types/lfo';
+import type { RobotLfoTargetId, GlobalLfoTargetId, LfoSettings } from '../types/lfo';
 import { devWarn } from './helpers';
 
 // ========================================
@@ -41,6 +41,8 @@ interface CompactSessionPayload {
   sf?: SessionPayload['swellFrequency'];
   sd?: SessionPayload['swellDuration'];
   pv?: SessionPayload['pingVarianceAutomation'];
+  /** globalLfo, abbreviated per-target the same way robot lfoSettings (`lf` below) are. */
+  gl?: Partial<Record<GlobalLfoTargetId, CompactLfoSettings>>;
   r?: Record<string, CompactRobotOverrideDiff>;
   d?: Record<string, CompactCompanyDiff>;
   u?: SessionPayload['userCreatedCompanies'];
@@ -149,16 +151,18 @@ function fromCompactLfoSettings(l: CompactLfoSettings): LfoSettings {
   return { shape: l.s, rate: l.r, depth: l.d };
 }
 
-function toCompactLfoSettingsMap(map: Partial<Record<RobotLfoTargetId, LfoSettings>>): Partial<Record<RobotLfoTargetId, CompactLfoSettings>> {
-  const compact: Partial<Record<RobotLfoTargetId, CompactLfoSettings>> = {};
-  for (const [key, value] of Object.entries(map) as [RobotLfoTargetId, LfoSettings | undefined][]) {
+/** Generic over the target-id key type -- shared by robot lfoSettings (RobotLfoTargetId) and
+ *  globalLfo (GlobalLfoTargetId); the abbreviation itself only touches shape/rate/depth. */
+function toCompactLfoSettingsMap<K extends string>(map: Partial<Record<K, LfoSettings>>): Partial<Record<K, CompactLfoSettings>> {
+  const compact: Partial<Record<K, CompactLfoSettings>> = {};
+  for (const [key, value] of Object.entries(map) as [K, LfoSettings | undefined][]) {
     if (value !== undefined) compact[key] = toCompactLfoSettings(value);
   }
   return compact;
 }
-function fromCompactLfoSettingsMap(map: Partial<Record<RobotLfoTargetId, CompactLfoSettings>>): Partial<Record<RobotLfoTargetId, LfoSettings>> {
-  const full: Partial<Record<RobotLfoTargetId, LfoSettings>> = {};
-  for (const [key, value] of Object.entries(map) as [RobotLfoTargetId, CompactLfoSettings | undefined][]) {
+function fromCompactLfoSettingsMap<K extends string>(map: Partial<Record<K, CompactLfoSettings>>): Partial<Record<K, LfoSettings>> {
+  const full: Partial<Record<K, LfoSettings>> = {};
+  for (const [key, value] of Object.entries(map) as [K, CompactLfoSettings | undefined][]) {
     if (value !== undefined) full[key] = fromCompactLfoSettings(value);
   }
   return full;
@@ -217,6 +221,7 @@ function toCompactSessionPayload(payload: SessionPayload): CompactSessionPayload
   if (payload.swellFrequency !== undefined) compact.sf = payload.swellFrequency;
   if (payload.swellDuration !== undefined) compact.sd = payload.swellDuration;
   if (payload.pingVarianceAutomation !== undefined) compact.pv = payload.pingVarianceAutomation;
+  if (payload.globalLfo !== undefined) compact.gl = toCompactLfoSettingsMap(payload.globalLfo);
   if (Object.keys(payload.robotOverrides).length > 0) {
     compact.r = Object.fromEntries(Object.entries(payload.robotOverrides).map(([id, diff]) => [id, toCompactRobotOverrideDiff(diff)]));
   }
@@ -242,7 +247,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *  degrades to a harmless no-op override rather than a crash. */
 function isValidCompactSessionPayload(parsed: unknown): parsed is CompactSessionPayload {
   if (!isPlainObject(parsed)) return false;
-  const { n, c, g, b, sf, sd, pv, r, d, u } = parsed;
+  const { n, c, g, b, sf, sd, pv, gl, r, d, u } = parsed;
   if (typeof n !== 'string') return false;
   if (!isPlainObject(c) || typeof c.x !== 'number' || typeof c.y !== 'number') return false;
   if (!isPlainObject(g)) return false;
@@ -250,6 +255,7 @@ function isValidCompactSessionPayload(parsed: unknown): parsed is CompactSession
   if (sf !== undefined && typeof sf !== 'number') return false;
   if (sd !== undefined && typeof sd !== 'number') return false;
   if (pv !== undefined && typeof pv !== 'number') return false;
+  if (gl !== undefined && !isPlainObject(gl)) return false;
   if (r !== undefined && !isPlainObject(r)) return false;
   if (d !== undefined && !isPlainObject(d)) return false;
   if (u !== undefined && !Array.isArray(u)) return false;
@@ -266,6 +272,7 @@ function fromCompactSessionPayload(compact: CompactSessionPayload): SessionPaylo
     swellFrequency: compact.sf,
     swellDuration: compact.sd,
     pingVarianceAutomation: compact.pv,
+    globalLfo: compact.gl !== undefined ? fromCompactLfoSettingsMap(compact.gl) : undefined,
     robotOverrides: compact.r
       ? Object.fromEntries(Object.entries(compact.r).map(([id, diff]) => [id, fromCompactRobotOverrideDiff(diff)]))
       : {},

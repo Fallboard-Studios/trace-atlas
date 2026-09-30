@@ -87,6 +87,19 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
   });
 
+  it('omits globalLfo from the wire entirely when absent from the payload', () => {
+    const payload = makePayload();
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;
+    expect(wire).not.toHaveProperty('gl');
+  });
+
+  it('includes and round-trips globalLfo when present, via abbreviated per-target wire keys', () => {
+    const payload = makePayload({ globalLfo: { 'eq3.low': { shape: 'square', rate: 4, depth: 60 } } });
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as { gl: Record<string, Record<string, unknown>> };
+    expect(Object.keys(wire.gl['eq3.low']).sort()).toEqual(['d', 'r', 's']);
+    expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+  });
+
   it('uses abbreviated top-level keys on the wire, not the full SessionPayload field names', () => {
     const payload = makePayload();
     const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;

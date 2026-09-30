@@ -241,6 +241,19 @@ describe('buildSessionPayload', () => {
     expect(payload.pingVarianceAutomation).toBe(0.42);
   });
 
+  it('captures globalLfo from audioStore, not just globalAudio', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const edited: LfoSettings = { shape: 'square', rate: 4, depth: 60 };
+    // A plain state write, not the real setGlobalLfo action -- that constructs a live Tone.LFO
+    // node, which needs a real AudioContext this test environment doesn't have.
+    useAudioStore.setState((s) => ({ globalLfo: { ...s.globalLfo, 'eq3.low': edited } }));
+
+    const payload = buildSessionPayload();
+
+    expect(payload.globalLfo?.['eq3.low']).toEqual(edited);
+  });
+
   it('has no robotOverrides entries for an untouched roster', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
@@ -519,6 +532,36 @@ describe('applySessionPayload', () => {
     // apply) -- just asserting it's no longer the pre-apply sentinel value proves the absent
     // fields didn't crash or silently zero anything out.
     expect(useAudioStore.getState().bpm).not.toBe(123);
+  });
+
+  it('restores globalLfo after a full save/wipe/load round trip, overriding whatever\'s currently live', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const edited: LfoSettings = { shape: 'square', rate: 4, depth: 60 };
+    // Plain state writes, not the real setGlobalLfo action -- see the capture test's own comment.
+    useAudioStore.setState((s) => ({ globalLfo: { ...s.globalLfo, 'eq3.low': edited } }));
+    const payload = buildSessionPayload();
+
+    // Simulate drift since the save (a later edit, or a reseed from switching Attenuation Style
+    // — regenerateGlobalLfoFromSeed has no "carry forward once edited" branch, unlike
+    // bpm/swellFrequency/swellDuration, so this can happen without any user action at all).
+    useAudioStore.setState((s) => ({ globalLfo: { ...s.globalLfo, 'eq3.low': { shape: 'sine' as const, rate: 0, depth: 0 } } }));
+
+    applySessionPayload(payload, { skipLocaleRebuild: true });
+
+    expect(useAudioStore.getState().globalLfo['eq3.low']).toEqual(edited);
+  });
+
+  it('leaves globalLfo untouched when an older payload lacks that field', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const { globalLfo: _globalLfo, ...oldShapePayload } = payload;
+    const current = useAudioStore.getState().globalLfo;
+
+    expect(() => applySessionPayload(oldShapePayload as typeof payload, { skipLocaleRebuild: true })).not.toThrow();
+
+    expect(useAudioStore.getState().globalLfo).toEqual(current);
   });
 
   it('restores a renamed company after a full save/wipe/load round trip', () => {

@@ -5,7 +5,7 @@
  */
 import type { ADSREnvelope } from './Robot';
 import type { OscillatorLayer } from './layeredAudio';
-import type { RobotLfoTargetId, LfoSettings } from './lfo';
+import type { RobotLfoTargetId, LfoSettings, GlobalLfoTargetId } from './lfo';
 import type { Company } from './Company';
 import type { GlobalAudioSettings } from './globalAudio';
 
@@ -63,6 +63,13 @@ export interface SessionPayload {
   swellFrequency?: number;
   swellDuration?: number;
   pingVarianceAutomation?: number;
+  /** Audio Rig's global-chain LFO panel (audioStore's own `globalLfo`) — seeded per Attenuation
+   *  Style but freely user-editable afterward, and (unlike bpm/the swell fields above)
+   *  unconditionally RE-seeded from scratch on every future Attenuation Style switch
+   *  (regenerateGlobalLfoFromSeed has no "carry forward once edited" branch), so it needs the
+   *  same explicit capture/restore. Optional/per-target-optional for the same older-payload
+   *  reason as the fields above. */
+  globalLfo?: Partial<Record<GlobalLfoTargetId, LfoSettings>>;
   /** Keyed by robot id. An untouched robot has no entry (not an entry equal to {}). */
   robotOverrides: Record<string, RobotAudioOverrideDiff>;
   /** Keyed by the company's deterministic spawn-generated id. */
