@@ -7,6 +7,7 @@ import { resolveAccessibleName } from './accessibleName';
 import { formatDisplayValue } from './formatDisplayValue';
 import { useAutoSliderOrientation } from './useAutoSliderOrientation';
 import { useVoxelTrackSlider } from './useVoxelTrackSlider';
+import { useEasedControlValue } from './useEasedControlValue';
 import { computeVoxelBoxStates } from '@/utils/voxelTrackMath';
 import type { SliderLinearSchema } from '@/types/controls';
 import './SliderLinear.css';
@@ -37,6 +38,11 @@ interface SliderLinearProps {
    * docs/specs/SLIDER_LINEAR_READ_ONLY.md §1.5.
    */
   readOnly?: boolean;
+  /** True while an Audio Swell is actively riding this exact control (audioSwells.ts's
+   *  isGlobalTargetSwelling/isRobotAttributeSwelling) — forwarded straight to
+   *  useEasedControlValue so its visual ease steps aside for a swell's own already-smooth ramp
+   *  instead of stacking a second, independent one on top. See useEasedControlValue.ts. */
+  swelling?: boolean;
 }
 
 /**
@@ -47,22 +53,28 @@ interface SliderLinearProps {
  * See docs/specs/OBLIQUE_CABINETRY_SLIDER_LINEAR.md for the full derivation.
  * `readOnly` (roadmap 15.1) renders a second, non-interactive branch below —
  * see docs/specs/SLIDER_LINEAR_READ_ONLY.md for the full derivation.
+ *
+ * Renders its own `displayValue` (a locally-eased copy of `value`), never `value` directly —
+ * see useEasedControlValue.ts for the full derivation (shared by all 3 slider primitives).
  */
-function SliderLinearInner({ schema, value, onChange, disabled, verticalHeight, readOnly }: SliderLinearProps) {
+function SliderLinearInner({ schema, value, onChange, disabled, verticalHeight, readOnly, swelling }: SliderLinearProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const orientation = useAutoSliderOrientation(wrapperRef, schema.orientation);
   const isVertical = orientation === 'vertical';
   const { boxSize, gap, boxCount, rootStyle } = useVoxelTrackSlider(wrapperRef, orientation, verticalHeight);
+
+  const { displayValue, handleValueChange } = useEasedControlValue(value, swelling);
+
   // Memoized so VoxelTrack's own React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5)
   // can bail on an unchanged states reference — computeVoxelBoxStates is a pure function that
   // otherwise returns a fresh array every render.
   const states = useMemo(
-    () => computeVoxelBoxStates(value, schema.min, schema.max, boxCount),
-    [value, schema.min, schema.max, boxCount],
+    () => computeVoxelBoxStates(displayValue, schema.min, schema.max, boxCount),
+    [displayValue, schema.min, schema.max, boxCount],
   );
 
   const valueLabel = (
-    <span className="sc-slider-linear__value">{formatDisplayValue(value)}{schema.unit}</span>
+    <span className="sc-slider-linear__value">{formatDisplayValue(displayValue)}{schema.unit}</span>
   );
 
   if (readOnly) {
@@ -96,8 +108,8 @@ function SliderLinearInner({ schema, value, onChange, disabled, verticalHeight, 
         min={schema.min}
         max={schema.max}
         step={schema.step ?? 1}
-        value={[value]}
-        onValueChange={(values) => onChange(values[0])}
+        value={[displayValue]}
+        onValueChange={(values) => handleValueChange(values[0], onChange)}
         disabled={disabled}
         style={rootStyle}
       >

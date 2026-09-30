@@ -13,6 +13,24 @@ vi.mock('./accessibleName', async (importOriginal) => {
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
 });
 
+// Local gsap mock (overriding vitest.setup.ts's own shared one, whose quickTo mock defers
+// onComplete to a microtask — unusable for the synchronous assertions below) — same technique
+// SliderLinear.test.tsx/useEasedControlValue.test.ts already use: the retarget function quickTo
+// returns mutates the target and fires onUpdate/onComplete synchronously, so a value-changing
+// rerender's ease is already fully settled by the time rerender() itself returns.
+vi.mock('gsap', () => ({
+  default: {
+    quickTo: vi.fn((target: Record<string, number>, prop: string, vars?: { onUpdate?: () => void; onComplete?: () => void }) => {
+      return vi.fn((value: number) => {
+        target[prop] = value;
+        vars?.onUpdate?.();
+        vars?.onComplete?.();
+      });
+    }),
+    killTweensOf: vi.fn(),
+  },
+}));
+
 vi.mock('./VoxelTrack', () => ({
   VoxelTrack: ({
     states,
@@ -38,6 +56,7 @@ vi.mock('./VoxelTrack', () => ({
   ),
 }));
 
+import gsap from 'gsap';
 import { SliderCenteredZero } from './SliderCenteredZero';
 import { resolveAccessibleName } from './accessibleName';
 import {
@@ -95,6 +114,9 @@ beforeEach(() => {
   MockResizeObserver.instances = [];
   originalResizeObserver = globalThis.ResizeObserver;
   (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = MockResizeObserver;
+  // gsap.quickTo is a shared module-level spy (mocked above) — clear it per test so one test's
+  // ease doesn't pollute the next's call-count assertions.
+  (gsap.quickTo as ReturnType<typeof vi.fn>).mockClear();
 });
 
 afterEach(() => {
@@ -129,6 +151,30 @@ describe('SliderCenteredZero component', () => {
     expect(thumb.getAttribute('aria-valuemin')).toBe('-50');
     expect(thumb.getAttribute('aria-valuemax')).toBe('50');
     expect(thumb.getAttribute('aria-valuenow')).toBe('10');
+  });
+
+  // The ease behavior itself (instant drag, retarget-not-recreate, reduced motion, etc.) is
+  // fully covered by useEasedControlValue.test.ts — this just confirms SliderCenteredZero wires
+  // the shared hook correctly.
+  describe('250ms ease on a non-drag value change (shared with SliderLinear/SliderLog via useEasedControlValue)', () => {
+    it('a live drag/keyboard step applies instantly, never eased', () => {
+      const onChange = vi.fn();
+      render(<SliderCenteredZero schema={detuneSchema} value={0} onChange={onChange} />);
+      const thumb = screen.getByRole('slider');
+      thumb.focus();
+      fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+
+      expect(onChange).toHaveBeenCalled();
+      expect(gsap.quickTo).not.toHaveBeenCalled();
+    });
+
+    it('a prop-driven (non-drag) value change eases via quickTo, settling on the new value', () => {
+      const { rerender } = render(<SliderCenteredZero schema={detuneSchema} value={0} onChange={() => {}} />);
+      rerender(<SliderCenteredZero schema={detuneSchema} value={25} onChange={() => {}} />);
+
+      expect(gsap.quickTo).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('25');
+    });
   });
 
   it('falls back to schema.id for the accessible name when neither label is present, never leaving it unlabeled', () => {
@@ -343,7 +389,7 @@ describe('SliderCenteredZero component', () => {
       expect(spy.mock.calls.length).toBe(callsAfterMount);
     });
 
-    it('recomputes states when value changes', () => {
+    it('recomputes states when value changes (once the 250ms ease settles — a prop-driven value change is no longer instant, Crawford\'s own request)', () => {
       const spy = vi.spyOn(voxelTrackMath, 'computeVoxelBoxStatesCenteredZero');
       const { rerender } = render(<SliderCenteredZero schema={detuneSchema} value={0} onChange={() => {}} />);
       const callsAfterMount = spy.mock.calls.length;

@@ -28,7 +28,9 @@ import {
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo,
   applyAudioMode, applyVolume, applyVolumeLfo,
 } from '@/systems/robotOptionsActions';
+import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import type { LfoValue } from '@/types/controls';
+import type { SwellRobotAttributeId } from '@/types/audioSwell';
 import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId } from '@/types/lfo';
 import type { Robot, ADSREnvelope, WaveformType } from '@/types/Robot';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
@@ -147,6 +149,53 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
     useShallow((s) => Object.fromEntries(ROBOT_LFO_TARGET_IDS.map((target) => [target, s.heldOffLfoKeys.includes(`${robot.id}:${target}`)]))),
   );
 
+  // Audio Swells: per-field swelling flags feeding each slider's own `swelling` prop (see
+  // useEasedControlValue.ts) — a swell's own already-smooth per-tick ramp renders instantly
+  // instead of getting a second, independent 250ms ease stacked on top of it, which would
+  // otherwise make the displayed value chronically lag the real, audible one for the swell's
+  // whole duration. `volumeSwelling` is a plain boolean (cheap to recompute inline every render,
+  // no memo needed); `adsrSwelling`/`layerNSwelling` are objects, so each is memoized keyed on the
+  // specific robot field that changes exactly when its own swell tick writes — same "only the
+  // touched slice gets a new reference" precedent every other memo in this component already uses,
+  // needed here so PingContourDrawer's/SignatureArrayLayer's own React.memo doesn't get defeated by
+  // a fresh object every render.
+  const volumeSwelling = isRobotAttributeSwelling(robot.id, 'volume');
+  // isRobotAttributeSwelling reads a plain module-scope Map (audioSwells.ts's own runtime state,
+  // deliberately kept out of Zustand per CLAUDE.md), not anything React tracks — these deps exist
+  // purely so this memo recomputes at the exact same moment the corresponding field's own swell
+  // tick writes a new value (see this block's own doc comment above), even though the callback
+  // itself never reads them.
+  const adsrSwelling = useMemo(() => ({
+    attack: isRobotAttributeSwelling(robot.id, 'adsr.attack'),
+    decay: isRobotAttributeSwelling(robot.id, 'adsr.decay'),
+    sustain: isRobotAttributeSwelling(robot.id, 'adsr.sustain'),
+    release: isRobotAttributeSwelling(robot.id, 'adsr.release'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- robot.audioAttributes.adsr gates recompute timing, not read in the body (see comment above)
+  }), [robot.id, robot.audioAttributes.adsr]);
+  const layer0 = robot.audioAttributes.layers?.[0];
+  const layer1 = robot.audioAttributes.layers?.[1];
+  const layer2 = robot.audioAttributes.layers?.[2];
+  const layer0Swelling = useMemo(() => ({
+    gain: isRobotAttributeSwelling(robot.id, 'layer0.gain'),
+    detune: isRobotAttributeSwelling(robot.id, 'layer0.detune'),
+    phase: isRobotAttributeSwelling(robot.id, 'layer0.phase'),
+    pulseWidth: isRobotAttributeSwelling(robot.id, 'layer0.pulseWidth'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- layer0 gates recompute timing, not read in the body (see comment above adsrSwelling)
+  }), [robot.id, layer0]);
+  const layer1Swelling = useMemo(() => ({
+    gain: isRobotAttributeSwelling(robot.id, 'layer1.gain'),
+    detune: isRobotAttributeSwelling(robot.id, 'layer1.detune'),
+    phase: isRobotAttributeSwelling(robot.id, 'layer1.phase'),
+    pulseWidth: isRobotAttributeSwelling(robot.id, 'layer1.pulseWidth'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- layer1 gates recompute timing, not read in the body (see comment above adsrSwelling)
+  }), [robot.id, layer1]);
+  const layer2Swelling = useMemo(() => ({
+    gain: isRobotAttributeSwelling(robot.id, 'layer2.gain'),
+    detune: isRobotAttributeSwelling(robot.id, 'layer2.detune'),
+    phase: isRobotAttributeSwelling(robot.id, 'layer2.phase'),
+    pulseWidth: isRobotAttributeSwelling(robot.id, 'layer2.pulseWidth'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- layer2 gates recompute timing, not read in the body (see comment above adsrSwelling)
+  }), [robot.id, layer2]);
   const audioSettingValue: AudioSettingValue = useMemo(() => ({
     audioMode: robot.audioMode ?? 'none',
     masterVolume: robot.masterVolume,
@@ -172,7 +221,10 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   }), [robot.audioAttributes.layers, robot.lfoSettings]);
 
   const handleAudioModeChange = useCallback((mode: Robot['audioMode']) => applyAudioMode(latestRobot.current, localeId, mode), [localeId]);
-  const handleVolumeChange = useCallback((pct: number) => applyVolume(latestRobot.current, localeId, pct), [localeId]);
+  const handleVolumeChange = useCallback((pct: number) => {
+    cancelSwellForRobotAttribute(latestRobot.current.id, 'volume');
+    applyVolume(latestRobot.current, localeId, pct);
+  }, [localeId]);
   const handleVolumeLfoChange = useCallback((value: LfoValue) => applyVolumeLfo(latestRobot.current, localeId, value), [localeId]);
 
   const handleDensityChange = useCallback((v: number) => applyDensity(latestRobot.current, localeId, v), [localeId]);
@@ -182,13 +234,20 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   const handleOctaveMaxChange = useCallback((v: number) => applyOctaveMax(latestRobot.current, localeId, v), [localeId]);
   const handleNoteVarianceChange = useCallback((v: number) => applyNoteVariance(latestRobot.current, localeId, v), [localeId]);
 
-  const handleAdsrChange = useCallback((adsr: ADSREnvelope) => applyAdsr(latestRobot.current, localeId, adsr), [localeId]);
+  const handleAdsrChange = useCallback((adsr: ADSREnvelope) => {
+    const prevAdsr = latestRobot.current.audioAttributes.adsr;
+    (Object.keys(adsr) as (keyof ADSREnvelope)[]).forEach((field) => {
+      if (adsr[field] !== prevAdsr[field]) cancelSwellForRobotAttribute(latestRobot.current.id, `adsr.${field}`);
+    });
+    applyAdsr(latestRobot.current, localeId, adsr);
+  }, [localeId]);
 
   const handleLayerTypeChange = useCallback((idx: number, type: WaveformType) => {
     const layers = latestRobot.current.audioAttributes.layers ?? [];
     applyLayersStructural(latestRobot.current, localeId, layers.map((l, i) => (i === idx ? { ...l, type } : l)));
   }, [localeId]);
   const handleLayerParamChange = useCallback((idx: number, field: SignatureArrayParamSchema['field'], v: number) => {
+    cancelSwellForRobotAttribute(latestRobot.current.id, `layer${idx}.${field}` as SwellRobotAttributeId);
     const layers = latestRobot.current.audioAttributes.layers ?? [];
     applyLayersContinuous(latestRobot.current, localeId, layers.map((l, i) => (i === idx ? { ...l, [field]: v } : l)));
   }, [localeId]);
@@ -251,6 +310,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
             onVolumeChange={handleVolumeChange}
             onVolumeLfoChange={handleVolumeLfoChange}
             volumeLfoHeldOff={volumeLfoHeldOff}
+            volumeSwelling={volumeSwelling}
           />
         );
       case 'rhythm':
@@ -274,12 +334,17 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
           />
         );
       case 'pingContour':
-        return <PingContourDrawer value={robot.audioAttributes.adsr} onChange={handleAdsrChange} />;
+        return <PingContourDrawer value={robot.audioAttributes.adsr} onChange={handleAdsrChange} swelling={adsrSwelling} />;
       case 'baselineOscillator':
       case 'coaxialOscillator':
       case 'harmonicOscillator': {
         const idx = SOURCE_OSCILLATOR_SUBSECTIONS.indexOf(subsectionId);
         const layer = signatureArrayValue.layers[idx];
+        // Each layerNSwelling is its own useMemo (above), stable unless that specific layer's own
+        // fields change — indexing a plain array literal here instead would rebuild
+        // renderSubsection's own useCallback every render regardless (a fresh array reference every
+        // time), the exact cascade this component's other memoization already guards against.
+        const layerSwelling = idx === 0 ? layer0Swelling : idx === 1 ? layer1Swelling : layer2Swelling;
         return layer ? (
           <SignatureArrayLayer
             block={SIGNATURE_ARRAY_CONFIG[idx]}
@@ -287,6 +352,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
             layer={layer}
             lfoSettings={signatureArrayValue.lfoSettings}
             heldOffTargets={heldOffTargets}
+            swelling={layerSwelling}
             onTypeChange={handleLayerTypeChange}
             onParamChange={handleLayerParamChange}
             onLfoFieldChange={handleLayerLfoFieldChange}
@@ -298,10 +364,12 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
     }
   }, [
     audioSettingValue, handleAudioModeChange, handleVolumeChange, handleVolumeLfoChange, volumeLfoHeldOff,
+    volumeSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, prefix,
-    robot.audioAttributes.adsr, handleAdsrChange,
-    signatureArrayValue, heldOffTargets, handleLayerTypeChange, handleLayerParamChange, handleLayerLfoFieldChange,
+    robot.audioAttributes.adsr, handleAdsrChange, adsrSwelling,
+    signatureArrayValue, heldOffTargets, layer0Swelling, layer1Swelling, layer2Swelling,
+    handleLayerTypeChange, handleLayerParamChange, handleLayerLfoFieldChange,
   ]);
 
   return (

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, act } from '@testing-library/react';
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual
 // implementation) so this end-to-end test can tell whether any individual
@@ -77,12 +77,15 @@ describe('Oblique Cabinetry re-render cascade regression (docs/tasks/OBLIQUE_CAB
     expect(callsAfterRerender2 - callsAfterRerender1).toBe(1);
   });
 
-  it('sanity check: the marker genuinely detects CabinetBox re-renders when value changes — the flat +1-per-rerender delta above is a real bail-out, not a broken spy', () => {
+  it('sanity check: the marker genuinely detects CabinetBox re-renders when value changes — the flat +1-per-rerender delta above is a real bail-out, not a broken spy', async () => {
     const spy = useCabinetBoxHeight as ReturnType<typeof vi.fn>;
     const { rerender } = render(<SliderLinear schema={schema} value={37} onChange={() => {}} />);
     const callsAfterMount = spy.mock.calls.length;
 
     rerender(<SliderLinear schema={schema} value={80} onChange={() => {}} />);
+    // SliderLinear now eases a non-drag value change over 250ms (Crawford's own request) — the
+    // shared gsap mock (vitest.setup.ts) settles the tween's onComplete on the next microtask.
+    await act(async () => { await Promise.resolve(); });
 
     // A genuine value change rebuilds every VoxelTrack child fresh (a new
     // `states` array reference from Tasks 1-3's own useMemo), which rebuilds

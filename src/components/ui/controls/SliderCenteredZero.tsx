@@ -7,6 +7,7 @@ import { resolveAccessibleName } from './accessibleName';
 import { formatDisplayValue } from './formatDisplayValue';
 import { useAutoSliderOrientation } from './useAutoSliderOrientation';
 import { useVoxelTrackSlider } from './useVoxelTrackSlider';
+import { useEasedControlValue } from './useEasedControlValue';
 import { computeVoxelBoxStatesCenteredZero } from '@/utils/voxelTrackMath';
 import type { SliderCenteredZeroSchema } from '@/types/controls';
 import './SliderCenteredZero.css';
@@ -22,6 +23,11 @@ interface SliderCenteredZeroProps {
    *  fits within. Omit to fit against the fixed VOXEL_TRACK_DEFAULT_VERTICAL_HEIGHT
    *  budget. */
   verticalHeight?: number;
+  /** True while an Audio Swell is actively riding this exact control (audioSwells.ts's
+   *  isGlobalTargetSwelling/isRobotAttributeSwelling) — forwarded straight to
+   *  useEasedControlValue so its visual ease steps aside for a swell's own already-smooth ramp
+   *  instead of stacking a second, independent one on top. See useEasedControlValue.ts. */
+  swelling?: boolean;
 }
 
 /**
@@ -33,24 +39,30 @@ interface SliderCenteredZeroProps {
  * docs/specs/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md for the full
  * derivation. Unlike SliderLog, there's no t-curve here — Slider.Root keeps
  * using the schema's literal min/max/value, exactly as before this item.
+ *
+ * Renders its own `displayValue` (a locally-eased copy of `value`), never `value` directly —
+ * see useEasedControlValue.ts for the full derivation (shared by all 3 slider primitives).
  */
-function SliderCenteredZeroInner({ schema, value, onChange, disabled, verticalHeight }: SliderCenteredZeroProps) {
+function SliderCenteredZeroInner({ schema, value, onChange, disabled, verticalHeight, swelling }: SliderCenteredZeroProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const orientation = useAutoSliderOrientation(wrapperRef, schema.orientation);
   const isVertical = orientation === 'vertical';
   const { boxSize, gap, boxCount, rootStyle } = useVoxelTrackSlider(wrapperRef, orientation, verticalHeight, {
     forceEven: true,
   });
+
+  const { displayValue, handleValueChange } = useEasedControlValue(value, swelling);
+
   // Memoized so VoxelTrack's own React.memo (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 5)
   // can bail on an unchanged states reference — computeVoxelBoxStatesCenteredZero is a pure
   // function that otherwise returns a fresh array every render.
   const states = useMemo(
-    () => computeVoxelBoxStatesCenteredZero(value, schema.min, schema.max, boxCount),
-    [value, schema.min, schema.max, boxCount],
+    () => computeVoxelBoxStatesCenteredZero(displayValue, schema.min, schema.max, boxCount),
+    [displayValue, schema.min, schema.max, boxCount],
   );
 
   const valueLabel = (
-    <span className="sc-slider-centered-zero__value">{formatDisplayValue(value)}{schema.unit}</span>
+    <span className="sc-slider-centered-zero__value">{formatDisplayValue(displayValue)}{schema.unit}</span>
   );
 
   return (
@@ -63,8 +75,8 @@ function SliderCenteredZeroInner({ schema, value, onChange, disabled, verticalHe
         min={schema.min}
         max={schema.max}
         step={schema.step ?? 1}
-        value={[value]}
-        onValueChange={(values) => onChange(values[0])}
+        value={[displayValue]}
+        onValueChange={(values) => handleValueChange(values[0], onChange)}
         disabled={disabled}
         style={rootStyle}
       >

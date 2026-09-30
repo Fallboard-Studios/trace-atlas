@@ -18,6 +18,7 @@ import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo,
 } from '@/systems/robotOptionsActions';
+import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
 import { VOLUME_LFO_TARGET, SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import {
@@ -27,6 +28,7 @@ import {
 import { LFO_RATE_MIN, LFO_DEPTH_MIN } from '@/types/lfo';
 import { getTraitColorStyle, getDisabledTraitColorStyle } from '@/utils/traitColors';
 import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
+import type { SwellRobotAttributeId } from '@/types/audioSwell';
 import type { CompanyOptionsSnapshot } from '@/types/Company';
 import type { RobotLfoTargetId } from '@/types/lfo';
 import type { LfoValue } from '@/types/controls';
@@ -174,6 +176,58 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
     [active, lastEditedOptions, firstMember],
   );
 
+  // Audio Swells: per-field swelling flags (see RobotOptionsTab.tsx's own matching block for the
+  // full reasoning) — checked against firstMember specifically, matching `resolved` itself, which
+  // only ever derives its displayed value from members[0]. A company-wide swell shares one
+  // ActiveSwell across every member in lockstep (isRobotAttributeSwelling is true for all of them
+  // together), so firstMember's own flag is already correct for that case; a single-robot swell
+  // that happens to target some OTHER member never shows here, same as its value wouldn't either.
+  const firstMemberId = firstMember?.id;
+  const volumeSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'volume');
+  // isRobotAttributeSwelling reads a plain module-scope Map (audioSwells.ts's own runtime state,
+  // deliberately kept out of Zustand per CLAUDE.md), not anything React tracks — these deps exist
+  // purely so this memo recomputes at the exact same moment the corresponding field's own swell
+  // tick writes a new value, even though the callback itself never reads them.
+  const adsrSwelling = useMemo(() => (
+    firstMemberId === undefined ? undefined : {
+      attack: isRobotAttributeSwelling(firstMemberId, 'adsr.attack'),
+      decay: isRobotAttributeSwelling(firstMemberId, 'adsr.decay'),
+      sustain: isRobotAttributeSwelling(firstMemberId, 'adsr.sustain'),
+      release: isRobotAttributeSwelling(firstMemberId, 'adsr.release'),
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resolved?.adsr gates recompute timing, not read in the body (see comment above)
+  ), [firstMemberId, resolved?.adsr]);
+  const layer0 = resolved?.layers[0];
+  const layer1 = resolved?.layers[1];
+  const layer2 = resolved?.layers[2];
+  const layer0Swelling = useMemo(() => (
+    firstMemberId === undefined ? undefined : {
+      gain: isRobotAttributeSwelling(firstMemberId, 'layer0.gain'),
+      detune: isRobotAttributeSwelling(firstMemberId, 'layer0.detune'),
+      phase: isRobotAttributeSwelling(firstMemberId, 'layer0.phase'),
+      pulseWidth: isRobotAttributeSwelling(firstMemberId, 'layer0.pulseWidth'),
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- layer0 gates recompute timing, not read in the body (see comment above adsrSwelling)
+  ), [firstMemberId, layer0]);
+  const layer1Swelling = useMemo(() => (
+    firstMemberId === undefined ? undefined : {
+      gain: isRobotAttributeSwelling(firstMemberId, 'layer1.gain'),
+      detune: isRobotAttributeSwelling(firstMemberId, 'layer1.detune'),
+      phase: isRobotAttributeSwelling(firstMemberId, 'layer1.phase'),
+      pulseWidth: isRobotAttributeSwelling(firstMemberId, 'layer1.pulseWidth'),
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- layer1 gates recompute timing, not read in the body (see comment above adsrSwelling)
+  ), [firstMemberId, layer1]);
+  const layer2Swelling = useMemo(() => (
+    firstMemberId === undefined ? undefined : {
+      gain: isRobotAttributeSwelling(firstMemberId, 'layer2.gain'),
+      detune: isRobotAttributeSwelling(firstMemberId, 'layer2.detune'),
+      phase: isRobotAttributeSwelling(firstMemberId, 'layer2.phase'),
+      pulseWidth: isRobotAttributeSwelling(firstMemberId, 'layer2.pulseWidth'),
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- layer2 gates recompute timing, not read in the body (see comment above adsrSwelling)
+  ), [firstMemberId, layer2]);
+
   // `resolved` bundles every field into one shared snapshot object, so passing it directly to all
   // sections would make ANY field edit on members[0] invalidate all of them at once — the identical
   // whole-object cascade RobotOptionsTab's own fix already solved for `robot`. Each section instead
@@ -260,7 +314,10 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
   }, [localeId, patchSnapshot]);
 
   const handleVolumeChange = useCallback((pct: number) => {
-    latest.current.members.forEach((m) => applyVolume(m, localeId, pct));
+    latest.current.members.forEach((m) => {
+      cancelSwellForRobotAttribute(m.id, 'volume');
+      applyVolume(m, localeId, pct);
+    });
     patchSnapshot({ masterVolume: pct / 100 });
   }, [localeId, patchSnapshot]);
 
@@ -314,7 +371,9 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
   const handleAdsrChange = useCallback((adsr: ADSREnvelope) => {
     const { members, resolved } = latest.current;
     const patch = resolved ? diffCompoundField(resolved.adsr, adsr) : adsr;
+    const changedFields = Object.keys(patch) as (keyof ADSREnvelope)[];
     members.forEach((m) => {
+      changedFields.forEach((field) => cancelSwellForRobotAttribute(m.id, `adsr.${field}`));
       const memberOwn = resolveCompanyOptions(undefined, m).adsr;
       applyAdsr(m, localeId, { ...memberOwn, ...patch });
     });
@@ -337,6 +396,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
 
   const handleLayerParamChange = useCallback((idx: number, field: SignatureArrayParamSchema['field'], v: number) => {
     latest.current.members.forEach((m) => {
+      cancelSwellForRobotAttribute(m.id, `layer${idx}.${field}` as SwellRobotAttributeId);
       const memberLayers = resolveCompanyOptions(undefined, m).layers;
       applyLayersContinuous(m, localeId, memberLayers.map((l, i) => (i === idx ? { ...l, [field]: v } : l)));
     });
@@ -406,6 +466,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
             onAudioModeChange={handleAudioModeChange}
             onVolumeChange={handleVolumeChange}
             onVolumeLfoChange={handleVolumeLfoChange}
+            volumeSwelling={volumeSwelling}
           />
         );
       case 'rhythm':
@@ -426,12 +487,13 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
           />
         );
       case 'pingContour':
-        return <PingContourDrawer value={adsrValue} disabled={!active} onChange={handleAdsrChange} />;
+        return <PingContourDrawer value={adsrValue} disabled={!active} onChange={handleAdsrChange} swelling={adsrSwelling} />;
       case 'baselineOscillator':
       case 'coaxialOscillator':
       case 'harmonicOscillator': {
         const idx = SOURCE_OSCILLATOR_SUBSECTIONS.indexOf(subsectionId);
         const layer = signatureArrayValue.layers[idx];
+        const layerSwelling = idx === 0 ? layer0Swelling : idx === 1 ? layer1Swelling : layer2Swelling;
         return layer ? (
           <SignatureArrayLayer
             block={SIGNATURE_ARRAY_CONFIG[idx]}
@@ -439,6 +501,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
             layer={layer}
             lfoSettings={signatureArrayValue.lfoSettings}
             disabled={!active}
+            swelling={layerSwelling}
             onTypeChange={handleLayerTypeChange}
             onParamChange={handleLayerParamChange}
             onLfoFieldChange={(_idx, target, value) => handleLayerLfoFieldChange(target, value)}
@@ -449,11 +512,12 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
         return null;
     }
   }, [
-    audioSettingValue, active, handleAudioModeChange, handleVolumeChange, handleVolumeLfoChange,
+    audioSettingValue, active, handleAudioModeChange, handleVolumeChange, handleVolumeLfoChange, volumeSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, prefix,
-    adsrValue, handleAdsrChange,
+    adsrValue, handleAdsrChange, adsrSwelling,
     signatureArrayValue, handleLayerTypeChange, handleLayerParamChange, handleLayerLfoFieldChange,
+    layer0Swelling, layer1Swelling, layer2Swelling,
   ]);
 
   return (

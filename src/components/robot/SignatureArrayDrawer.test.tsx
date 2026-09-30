@@ -523,7 +523,7 @@ describe('SignatureArrayDrawer', () => {
       expect(screen.queryByText(HELD)).toBeNull();
     });
 
-    it('greys Robot Drift while the drift tier is off, showing 0 (not the stored value), and restores it', () => {
+    it('greys Robot Drift while the drift tier is off, showing 0 (not the stored value), and restores it', async () => {
       useAudioStore.setState((s) => ({
         globalAudio: { ...s.globalAudio, lfoDrift: { ...s.globalAudio.lfoDrift, robots: { rateDrift: 0.3, depthDrift: -0.2 } } },
         driftHeldOff: true,
@@ -541,6 +541,10 @@ describe('SignatureArrayDrawer', () => {
       expect(rateDrift.closest('.signature-array-drawer__param')?.classList.contains('sc-held-off')).toBe(true);
 
       act(() => useAudioStore.setState({ driftHeldOff: false }));
+      // SliderCenteredZero now eases a non-drag value change over 250ms (Crawford's own request)
+      // — the shared gsap mock (vitest.setup.ts) settles the tween's onComplete on the next
+      // microtask.
+      await act(async () => { await Promise.resolve(); });
 
       expect(disabled(screen.getByRole('slider', { name: 'Rate Drift' }))).toBe(false);
       expect(screen.getByRole('slider', { name: 'Rate Drift' }).getAttribute('aria-valuenow')).toBe('30');

@@ -1,6 +1,6 @@
 import type { CSSProperties, ComponentProps } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // Same reasoning as AudioRigDrawer/SignatureArrayDrawer's own test files: the shared
 // vitest.setup.ts GSAP mock's timeline object has no kill() method, and useLfoTargetGroup's
@@ -358,13 +358,17 @@ describe('AudioSettingSection', () => {
       expect(container.querySelector('.sc-lfo.sc-held-off')).toBeTruthy();
     });
 
-    it('restores the real stored value (not 0) once the prop flips back', () => {
+    it('restores the real stored value (not 0) once the prop flips back', async () => {
       const { rerender } = render(
         <AudioSettingSection {...props} value={makeValue({ volumeLfo: { shape: 'sine', rate: 4, depth: 55 } })} volumeLfoHeldOff />,
       );
       expect(rate().getAttribute('aria-valuenow')).toBe('0');
 
       rerender(<AudioSettingSection {...props} value={makeValue({ volumeLfo: { shape: 'sine', rate: 4, depth: 55 } })} volumeLfoHeldOff={false} />);
+      // SliderLinear/SliderLog now ease a non-drag value change over 250ms (Crawford's own
+      // request) — the shared gsap mock (vitest.setup.ts) settles the tween's onComplete on the
+      // next microtask, so this needs a real await, not just a synchronous rerender.
+      await act(async () => { await Promise.resolve(); });
 
       expect(rate().getAttribute('aria-valuenow')).toBe('4');
       expect(depth().getAttribute('aria-valuenow')).toBe('55');

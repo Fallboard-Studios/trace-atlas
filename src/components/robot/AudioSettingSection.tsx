@@ -36,6 +36,10 @@ interface AudioSettingSectionProps {
   /** Audio Load Budget: this robot's Volume LFO is held off by the dial — its LFO frame greys out (values kept) with a label.
    *  A plain prop, not a store read: this component stays presentational, and the company panel simply omits it. */
   volumeLfoHeldOff?: boolean;
+  /** True while an Audio Swell is actively riding this robot's (or company's) volume — forwarded
+   *  straight to the Volume slider's own `swelling` prop. See useEasedControlValue.ts and
+   *  audioSwells.ts's isRobotAttributeSwelling. */
+  volumeSwelling?: boolean;
   /** Optional inline style forwarded to this section's own root — trait-color scoping
    *  (getTraitColorStyle('output'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this section always renders in
@@ -65,7 +69,7 @@ interface AudioSettingSectionProps {
  * `selected`/`isTargeted` are effectively constant, but the same click/focus-to-select wiring is
  * kept for consistency with every other LFO-tied control group.
  */
-function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, onVolumeLfoChange, disabled, volumeLfoHeldOff, style }: AudioSettingSectionProps) {
+function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, onVolumeLfoChange, disabled, volumeLfoHeldOff, volumeSwelling, style }: AudioSettingSectionProps) {
   const { transitioning, select, isTargeted, displayValue, displayLabel, displayLoreLabel } = useLfoTargetGroup({
     groupId: 'robotOptions.volume',
     fields: [{ field: 'volume', label: VOLUME_SCHEMA.humanLabel!, loreLabel: VOLUME_SCHEMA.loreLabel, lfoValue: value.volumeLfo }],
@@ -116,7 +120,7 @@ function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, on
             onClick={() => select('volume')}
             onFocus={() => select('volume')}
           >
-            <SliderLinear schema={VOLUME_SCHEMA} value={value.masterVolume * 100} onChange={onVolumeChange} disabled={disabled} />
+            <SliderLinear schema={VOLUME_SCHEMA} value={value.masterVolume * 100} onChange={onVolumeChange} disabled={disabled} swelling={volumeSwelling} />
           </div>
         </DirectionalPanel>
         <div className={withActiveClass('sc-lfo-target-group__display', transitioning)}>

@@ -13,6 +13,24 @@ vi.mock('./accessibleName', async (importOriginal) => {
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
 });
 
+// Local gsap mock (overriding vitest.setup.ts's own shared one, whose quickTo mock defers
+// onComplete to a microtask — unusable for the synchronous assertions below) — same technique
+// SliderLinear.test.tsx/useEasedControlValue.test.ts already use: the retarget function quickTo
+// returns mutates the target and fires onUpdate/onComplete synchronously, so a value-changing
+// rerender's ease is already fully settled by the time rerender() itself returns.
+vi.mock('gsap', () => ({
+  default: {
+    quickTo: vi.fn((target: Record<string, number>, prop: string, vars?: { onUpdate?: () => void; onComplete?: () => void }) => {
+      return vi.fn((value: number) => {
+        target[prop] = value;
+        vars?.onUpdate?.();
+        vars?.onComplete?.();
+      });
+    }),
+    killTweensOf: vi.fn(),
+  },
+}));
+
 vi.mock('./VoxelTrack', () => ({
   VoxelTrack: ({
     states,
@@ -38,6 +56,7 @@ vi.mock('./VoxelTrack', () => ({
   ),
 }));
 
+import gsap from 'gsap';
 import { SliderLog } from './SliderLog';
 import { resolveAccessibleName } from './accessibleName';
 import { LOG_EPSILON, sliderLogTToValue, sliderLogValueToT, stepsValueToT } from './sliderLogMath';
@@ -97,6 +116,9 @@ beforeEach(() => {
   MockResizeObserver.instances = [];
   originalResizeObserver = globalThis.ResizeObserver;
   (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = MockResizeObserver;
+  // gsap.quickTo is a shared module-level spy (mocked above) — clear it per test so one test's
+  // ease doesn't pollute the next's call-count assertions.
+  (gsap.quickTo as ReturnType<typeof vi.fn>).mockClear();
 });
 
 afterEach(() => {
@@ -160,6 +182,32 @@ describe('SliderLog component', () => {
   it('caps the displayed value at 3 decimal places, hiding floating-point noise', () => {
     render(<SliderLog schema={schema} value={4.999999999999999} onChange={() => {}} />);
     expect(screen.getByText('5s')).toBeTruthy();
+  });
+
+  // The ease behavior itself (instant drag, retarget-not-recreate, reduced motion, etc.) is
+  // fully covered by useEasedControlValue.test.ts — this just confirms SliderLog wires the
+  // shared hook correctly: the log curve (t) derives from the eased displayValue, not the raw
+  // value prop, so the thumb/VoxelTrack ease smoothly too, not just the label text.
+  describe('250ms ease on a non-drag value change (shared with SliderLinear/SliderCenteredZero via useEasedControlValue)', () => {
+    it('a live drag/keyboard step applies instantly, never eased', () => {
+      const onChange = vi.fn();
+      render(<SliderLog schema={schema} value={2} onChange={onChange} />);
+      const thumb = screen.getByRole('slider');
+      thumb.focus();
+      fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+
+      expect(onChange).toHaveBeenCalled();
+      expect(gsap.quickTo).not.toHaveBeenCalled();
+    });
+
+    it('a prop-driven (non-drag) value change eases via quickTo, settling the thumb\'s own t (not just the label) on the new value', () => {
+      const { rerender } = render(<SliderLog schema={schema} value={2} onChange={() => {}} />);
+      rerender(<SliderLog schema={schema} value={5} onChange={() => {}} />);
+
+      expect(gsap.quickTo).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe(String(sliderLogValueToT(5, schema.min, schema.max)));
+      expect(screen.getByText('5s')).toBeTruthy();
+    });
   });
 
   describe('formatValue (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.6)', () => {
@@ -393,7 +441,7 @@ describe('SliderLog component', () => {
       expect(spy.mock.calls.length).toBe(callsAfterMount);
     });
 
-    it('recomputes states when value changes (t itself changes)', () => {
+    it('recomputes states when value changes (t itself changes, once the 250ms ease settles — a prop-driven value change is no longer instant, Crawford\'s own request)', () => {
       const spy = vi.spyOn(voxelTrackMath, 'computeVoxelBoxStates');
       const { rerender } = render(<SliderLog schema={schema} value={2} onChange={() => {}} />);
       const callsAfterMount = spy.mock.calls.length;
