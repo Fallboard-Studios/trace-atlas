@@ -66,17 +66,17 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     params: [
       {
         field: 'low',
-        schema: { id: 'eq3.low', type: 'sliderCenteredZero', loreLabel: 'SUB-BAND', humanLabel: 'Low', min: -12, max: 12, step: 0.5, unit: 'dB', orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'eq3.low', type: 'sliderCenteredZero', loreLabel: 'Sub-Band', humanLabel: 'Bass', min: -12, max: 12, step: 0.5, unit: 'dB', orientation: 'vertical', verticalHeight: 256 },
         lfoTarget: 'eq3.low',
       },
       {
         field: 'mid',
-        schema: { id: 'eq3.mid', type: 'sliderCenteredZero', loreLabel: 'MEDIAL-BAND', humanLabel: 'Mid', min: -12, max: 12, step: 0.5, unit: 'dB', orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'eq3.mid', type: 'sliderCenteredZero', loreLabel: 'Medial Band', humanLabel: 'Mid', min: -12, max: 12, step: 0.5, unit: 'dB', orientation: 'vertical', verticalHeight: 256 },
         lfoTarget: 'eq3.mid',
       },
       {
         field: 'high',
-        schema: { id: 'eq3.high', type: 'sliderCenteredZero', loreLabel: 'APICAL-BAND', humanLabel: 'High', min: -12, max: 12, step: 0.5, unit: 'dB', orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'eq3.high', type: 'sliderCenteredZero', loreLabel: 'Apical Band', humanLabel: 'Treble', min: -12, max: 12, step: 0.5, unit: 'dB', orientation: 'vertical', verticalHeight: 256 },
         lfoTarget: 'eq3.high',
       },
     ],
@@ -87,12 +87,12 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     params: [
       {
         field: 'frequency',
-        schema: { id: 'filterLPF.frequency', type: 'sliderLog', loreLabel: 'CUTOFF FREQUENCY', humanLabel: 'Frequency', min: 20, max: 20000, unit: 'Hz', orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'filterLPF.frequency', type: 'sliderLog', loreLabel: 'Extraction Floor', humanLabel: 'Cutoff', min: 20, max: 20000, unit: 'Hz', orientation: 'vertical', verticalHeight: 256 },
         lfoTarget: 'lpf.frequency',
       },
       {
         field: 'Q',
-        schema: { id: 'filterLPF.Q', type: 'sliderLog', loreLabel: 'BOUNDARY RESONANCE', humanLabel: 'Resonance', min: 0.1, max: 20, orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'filterLPF.Q', type: 'sliderLog', loreLabel: 'Boundary Resonance', humanLabel: 'Resonance', min: 0.1, max: 20, orientation: 'vertical', verticalHeight: 256 },
         lfoTarget: 'lpf.Q',
       },
     ],
@@ -103,12 +103,12 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     params: [
       {
         field: 'frequency',
-        schema: { id: 'filterHPF.frequency', type: 'sliderLog', loreLabel: 'CUTOFF FREQUENCY', humanLabel: 'Frequency', min: 20, max: 20000, unit: 'Hz', orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'filterHPF.frequency', type: 'sliderLog', loreLabel: 'Extraction Ceiling', humanLabel: 'Cutoff', min: 20, max: 20000, unit: 'Hz', orientation: 'vertical', verticalHeight: 256 },
         lfoTarget: 'hpf.frequency',
       },
       {
         field: 'Q',
-        schema: { id: 'filterHPF.Q', type: 'sliderLog', loreLabel: 'BOUNDARY RESONANCE', humanLabel: 'Resonance', min: 0.1, max: 20, orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'filterHPF.Q', type: 'sliderLog', loreLabel: 'Boundary Resonance', humanLabel: 'Resonance', min: 0.1, max: 20, orientation: 'vertical', verticalHeight: 256 },
         lfoTarget: 'hpf.Q',
       },
     ],
@@ -120,31 +120,31 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
       // No lfoTarget/lfoAccordion — LFO removed from delayTime; the effect
       // still seeds/edits its value normally (GlobalAudioSeedFieldKey is a
       // separate, unrelated type from GlobalLfoTargetId).
-      { field: 'delayTime', schema: { id: 'delay.delayTime', type: 'sliderLinear', loreLabel: 'PROPAGATION LAG', humanLabel: 'Time', min: 0, max: 10, step: 0.001, unit: 's', orientation: 'horizontal' } },
-      { field: 'feedback', schema: { id: 'delay.feedback', type: 'sliderLinear', loreLabel: 'RECIRCULATION RATE', humanLabel: 'Feedback', min: 0, max: 0.95, step: 0.01, orientation: 'horizontal' } },
-      { field: 'wet', schema: { id: 'delay.wet', type: 'sliderLinear', loreLabel: 'REFLECTED SIGNAL BALANCE', humanLabel: 'Mix', min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'delayTime', schema: { id: 'delay.delayTime', type: 'sliderLinear', loreLabel: 'Propagation Lag', humanLabel: 'Delay Time', min: 0, max: 10, step: 0.001, unit: 's', orientation: 'horizontal' } },
+      { field: 'feedback', schema: { id: 'delay.feedback', type: 'sliderLinear', loreLabel: 'Recirculation Rate', humanLabel: 'Repeats', min: 0, max: 0.95, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'delay.wet', type: 'sliderLinear', loreLabel: 'Reflection Ratio', humanLabel: 'Delay Amount', min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
   },
   {
     key: 'reverb',
     panel: panelSchema('reverb', 'SPATIAL DIFFUSION MATRIX', 'Reverb', 'column'),
     params: [
-      { field: 'decay', schema: { id: 'reverb.decay', type: 'sliderLog', loreLabel: 'DISSIPATION DURATION', humanLabel: 'Decay', min: 0.1, max: 10, unit: 's', orientation: 'horizontal' } },
-      { field: 'preDelay', schema: { id: 'reverb.preDelay', type: 'sliderLinear', loreLabel: 'INITIAL LAG', humanLabel: 'Pre-Delay', min: 0, max: 1, step: 0.01, unit: 's', orientation: 'horizontal' } },
+      { field: 'decay', schema: { id: 'reverb.decay', type: 'sliderLog', loreLabel: 'Dissipation Time', humanLabel: 'Reverb Length', min: 0.1, max: 10, unit: 's', orientation: 'horizontal' } },
+      { field: 'preDelay', schema: { id: 'reverb.preDelay', type: 'sliderLinear', loreLabel: 'Initial Lag', humanLabel: 'Pre-Delay', min: 0, max: 1, step: 0.01, unit: 's', orientation: 'horizontal' } },
       // dampening removed (V2) — Tone.Reverb has no such property; the slider
       // controlled a dead cast in globalFx.ts since Phase 0.
-      { field: 'wet', schema: { id: 'reverb.wet', type: 'sliderLinear', loreLabel: 'DIFFUSED SIGNAL BALANCE', humanLabel: 'Mix', min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'reverb.wet', type: 'sliderLinear', loreLabel: 'Diffusion Ratio', humanLabel: 'Reverb Amount', min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
   },
   {
     key: 'compressor',
     panel: panelSchema('compressor', 'DYNAMIC RANGE CONDENSER', 'Compressor', 'column'),
     params: [
-      { field: 'threshold', schema: { id: 'compressor.threshold', type: 'sliderLinear', loreLabel: 'ATTENUATION THRESHOLD', humanLabel: 'Threshold', min: -60, max: 0, unit: 'dB', orientation: 'horizontal' } },
-      { field: 'ratio', schema: { id: 'compressor.ratio', type: 'sliderLinear', loreLabel: 'COMPRESSION RATIO', humanLabel: 'Ratio', min: 1, max: 20, step: 1, orientation: 'horizontal' } },
-      { field: 'attack', schema: { id: 'compressor.attack', type: 'sliderLog', loreLabel: 'COMPRESSION RATE', humanLabel: 'Attack', min: 0.001, max: 0.2, unit: 's', orientation: 'horizontal' } },
-      { field: 'release', schema: { id: 'compressor.release', type: 'sliderLog', loreLabel: 'RAREFACTION RATE', humanLabel: 'Release', min: 0.01, max: 1, unit: 's', orientation: 'horizontal' } },
-      { field: 'knee', schema: { id: 'compressor.knee', type: 'sliderLinear', loreLabel: 'CURVATURE DAMPING', humanLabel: 'Knee', min: 0, max: 40, unit: 'dB', orientation: 'horizontal' } },
+      { field: 'threshold', schema: { id: 'compressor.threshold', type: 'sliderLinear', loreLabel: 'Bundle Threshold', humanLabel: 'Threshold', min: -60, max: 0, unit: 'dB', orientation: 'horizontal' } },
+      { field: 'ratio', schema: { id: 'compressor.ratio', type: 'sliderLinear', loreLabel: 'Bundle Ratio', humanLabel: 'Ratio', min: 1, max: 20, step: 1, orientation: 'horizontal' } },
+      { field: 'attack', schema: { id: 'compressor.attack', type: 'sliderLog', loreLabel: 'Bundle Onset', humanLabel: 'Attack Time', min: 0.001, max: 0.2, unit: 's', orientation: 'horizontal' } },
+      { field: 'release', schema: { id: 'compressor.release', type: 'sliderLog', loreLabel: 'Bundle Recovery', humanLabel: 'Release Time', min: 0.01, max: 1, unit: 's', orientation: 'horizontal' } },
+      { field: 'knee', schema: { id: 'compressor.knee', type: 'sliderLinear', loreLabel: 'Bundle Curve', humanLabel: 'Knee', min: 0, max: 40, unit: 'dB', orientation: 'horizontal' } },
     ],
   },
   {
@@ -153,7 +153,7 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     params: [
       // No lfoTarget/lfoAccordion — Limiter never gets an LFO (spec: not a
       // GlobalLfoTargetId member, consistent with Compressor/Reverb having none).
-      { field: 'threshold', schema: { id: 'limiter.threshold', type: 'sliderLinear', loreLabel: 'OUTPUT CEILING', humanLabel: 'Threshold', min: -20, max: 0, unit: 'dB', orientation: 'horizontal' } },
+      { field: 'threshold', schema: { id: 'limiter.threshold', type: 'sliderLinear', loreLabel: 'Output Ceiling', humanLabel: 'Ceiling', min: -20, max: 0, unit: 'dB', orientation: 'horizontal' } },
     ],
   },
 ];
@@ -172,7 +172,7 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
 export const DECAY_MODE_SCHEMA: RadioButtonSchema = {
   id: 'audioRig.compressorBeforeDelay',
   type: 'radio',
-  loreLabel: 'DECAY PROTOCOL [c]',
+  loreLabel: 'Decay Protocol',
   humanLabel: 'Decay Mode',
   options: [
     { value: 'natural', label: 'Natural Decay' },
@@ -209,14 +209,20 @@ export interface LfoDriftGroupSchema {
   depthSchema: SliderCenteredZeroSchema;
 }
 
-function driftGroupSchema(group: DriftGroupId, loreLabel: string, humanLabel: string): LfoDriftGroupSchema {
+function driftGroupSchema(
+  group: DriftGroupId,
+  loreLabel: string,
+  humanLabel: string,
+  rateLoreLabel: string,
+  depthLoreLabel: string,
+): LfoDriftGroupSchema {
   return {
     group,
     panel: { id: `audioRig.lfoDrift.${group}`, type: 'directionalPanel', loreLabel, humanLabel, orientation: 'column' },
     rateSchema: {
       id: `audioRig.lfoDrift.${group}.rateDrift`,
       type: 'sliderCenteredZero',
-      loreLabel: 'CADENCE INSTABILITY',
+      loreLabel: rateLoreLabel,
       humanLabel: 'Rate Drift',
       min: -100,
       max: 100,
@@ -226,7 +232,7 @@ function driftGroupSchema(group: DriftGroupId, loreLabel: string, humanLabel: st
     depthSchema: {
       id: `audioRig.lfoDrift.${group}.depthDrift`,
       type: 'sliderCenteredZero',
-      loreLabel: 'AMPLITUDE INSTABILITY',
+      loreLabel: depthLoreLabel,
       humanLabel: 'Depth Drift',
       min: -100,
       max: 100,
@@ -236,14 +242,15 @@ function driftGroupSchema(group: DriftGroupId, loreLabel: string, humanLabel: st
   };
 }
 
-// First-pass copy — no reference grid exists for this feature (10.2's own
-// spec already flagged this gap; still true here). Confirm the 2 labels
-// read as clearly distinct groups during the feature's manual check.
+// Lore/human copy per docs/reference/text-content-tables.md — "Fleet Drift"/"Robot Drift" renamed
+// to "Environmental Drift"/"Voice Drift" (further rename on top of docs/specs/
+// FLEET_DRIFT_CONSOLIDATION.md's original merge). Each group's own rate/depth lore now diverges
+// (it used to be one shared 'CADENCE INSTABILITY'/'AMPLITUDE INSTABILITY' pair for both groups).
 // eq3/filterLPF/filterHPF's own 3 entries merged into one 'globalFx' entry
-// (docs/specs/FLEET_DRIFT_CONSOLIDATION.md) — 'robots' is untouched.
+// (docs/specs/FLEET_DRIFT_CONSOLIDATION.md) — 'robots' is untouched by that merge.
 export const LFO_DRIFT_GROUPS: LfoDriftGroupSchema[] = [
-  driftGroupSchema('globalFx', 'SIGNAL CHAIN FLUX', 'Fleet Drift'),
-  driftGroupSchema('robots', 'AGENT FLUX', 'Robot Drift'),
+  driftGroupSchema('globalFx', 'Trace Appendix', 'Environmental Drift', 'Trace Pulse', 'Trace Bending'),
+  driftGroupSchema('robots', 'Probe Signature', 'Voice Drift', 'Ping Period', 'Ping Flicker'),
 ];
 
 /**
@@ -259,8 +266,8 @@ export const LFO_DRIFT_GROUPS: LfoDriftGroupSchema[] = [
 export const PING_VARIANCE_AUTOMATION_SCHEMA: SliderLinearSchema = {
   id: 'audioRig.pingVarianceAutomation',
   type: 'sliderLinear',
-  loreLabel: 'PING VARIANCE AUTOMATION',
-  humanLabel: 'Automatic Effects',
+  loreLabel: 'Trace Width',
+  humanLabel: 'Automation Range',
   min: 1, // was 0 — docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.2: Intensity no longer doubles as an on/off gate (Frequency took over that role), so it can never reach 0
   max: 100,
   step: 1,
@@ -293,8 +300,8 @@ function formatSwellFrequency(value: number): string {
 export const SWELL_FREQUENCY_SCHEMA: SliderLogSchema = {
   id: 'audioRig.swellFrequency',
   type: 'sliderLog',
-  loreLabel: 'PING RECURRENCE',
-  humanLabel: 'Frequency',
+  loreLabel: 'Trace Skip Rate',
+  humanLabel: 'Automation Rate',
   min: 0,
   max: 24,
   orientation: 'horizontal',
@@ -310,8 +317,8 @@ export const SWELL_FREQUENCY_SCHEMA: SliderLogSchema = {
 export const SWELL_DURATION_SCHEMA: SliderLinearSchema = {
   id: 'audioRig.swellDuration',
   type: 'sliderLinear',
-  loreLabel: 'PING SUSTAIN',
-  humanLabel: 'Duration',
+  loreLabel: 'Trace Runway',
+  humanLabel: 'Automation Length',
   min: 1,
   max: 24,
   step: 1,
@@ -334,7 +341,7 @@ export const SWELL_DURATION_SCHEMA: SliderLinearSchema = {
 export const BPM_SCHEMA: SliderLinearSchema = {
   id: 'audioRig.bpm',
   type: 'sliderLinear',
-  loreLabel: 'RESONANCE CADENCE',
+  loreLabel: 'Ping Rate',
   humanLabel: 'Tempo',
   min: 20,
   max: 200,

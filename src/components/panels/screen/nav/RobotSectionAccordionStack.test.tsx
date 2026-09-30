@@ -55,9 +55,9 @@ describe('RobotSectionAccordionStack', () => {
     expect(screen.getByTestId('accordion-probes.r1.volume.audioSettings').getAttribute('data-human-label')).toBe('Levels');
     expect(screen.getByTestId('accordion-probes.r1.melody.rhythm').getAttribute('data-human-label')).toBe('Composition');
     expect(screen.getByTestId('accordion-probes.r1.envelope.pingContour').getAttribute('data-human-label')).toBe('Envelope');
-    expect(screen.getByTestId('accordion-probes.r1.source.baselineOscillator').getAttribute('data-human-label')).toBe('Baseline Oscillator');
-    expect(screen.getByTestId('accordion-probes.r1.source.coaxialOscillator').getAttribute('data-human-label')).toBe('Coaxial Oscillator');
-    expect(screen.getByTestId('accordion-probes.r1.source.harmonicOscillator').getAttribute('data-human-label')).toBe('Harmonic Oscillator');
+    expect(screen.getByTestId('accordion-probes.r1.source.baselineOscillator').getAttribute('data-human-label')).toBe('Core Oscillator');
+    expect(screen.getByTestId('accordion-probes.r1.source.coaxialOscillator').getAttribute('data-human-label')).toBe('Companion Oscillator');
+    expect(screen.getByTestId('accordion-probes.r1.source.harmonicOscillator').getAttribute('data-human-label')).toBe('Accent Oscillator');
   });
 
   it("wires each accordion's open state from isOpen and its onOpenChange to setOpen", () => {

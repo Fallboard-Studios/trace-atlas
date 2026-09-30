@@ -18,6 +18,13 @@ export interface LfoTargetGroupField<F extends string = string> {
   /** Shown as the shared display's own label when this field is targeted — reuses each
    *  param's existing schema.humanLabel (e.g. 'Mid', 'Coaxial Gain'). */
   label: string;
+  /** Lore-styled counterpart of `label` above, reusing each param's own schema.loreLabel (e.g.
+   *  'Sub-Band', 'Feed Saturation') — mirrors `label`'s own per-field swap (docs/reference/
+   *  text-content-tables.md: the shared display's loreLabel now tracks whichever field is
+   *  targeted, the same as its humanLabel already did, reversing an earlier deliberate "it names
+   *  the module itself, never swaps" design). Optional only for callers that genuinely have no
+   *  lore text for a field; falls back to a generic term. */
+  loreLabel?: string;
   lfoValue: LfoValue;
 }
 
@@ -39,6 +46,8 @@ export interface UseLfoTargetGroupResult<F extends string = string> {
   /** Always the committed (still-`selected`) field's own label, transitioning or not — the
    *  display never goes unlabeled mid-transition, only its values blank out. */
   displayLabel: string;
+  /** Lore-styled counterpart of `displayLabel` above, same commit-through-transition behavior. */
+  displayLoreLabel: string;
 }
 
 /**
@@ -100,6 +109,7 @@ export function useLfoTargetGroup<F extends string = string>({
   // Label stays visible through the transition (avoids the display flickering blank/unlabeled
   // between renders) — only the values reset to neutral while transitioning.
   const displayLabel = activeField.label;
+  const displayLoreLabel = activeField.loreLabel ?? 'Mutation';
 
   return {
     selected,
@@ -108,5 +118,6 @@ export function useLfoTargetGroup<F extends string = string>({
     isTargeted: (field: F) => field === selected,
     displayValue,
     displayLabel,
+    displayLoreLabel,
   };
 }

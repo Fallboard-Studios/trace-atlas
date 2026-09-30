@@ -142,7 +142,7 @@ describe('AudioRigEffectPanel', () => {
 
   it("3-Band EQ's, Low-Pass's, and High-Pass's own sliders each render in a row-orientation panel (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.4)", () => {
     const { unmount: unmountEq } = render(<AudioRigEffectPanel effectKey="eq3" />);
-    const eqSlidersPanel = screen.getByRole('slider', { name: 'Low' }).closest('.sc-directional-panel') as HTMLElement;
+    const eqSlidersPanel = screen.getByRole('slider', { name: 'Bass' }).closest('.sc-directional-panel') as HTMLElement;
     expect(eqSlidersPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
     // The outer group panel that wraps [sliders-panel, Lfo, driftContent] is always column,
     // regardless of the sliders panel's own orientation.
@@ -152,7 +152,7 @@ describe('AudioRigEffectPanel', () => {
 
     for (const key of ['filterLPF', 'filterHPF'] as const) {
       const { unmount } = render(<AudioRigEffectPanel effectKey={key} />);
-      const slidersPanel = screen.getByRole('slider', { name: 'Frequency' }).closest('.sc-directional-panel') as HTMLElement;
+      const slidersPanel = screen.getByRole('slider', { name: 'Cutoff' }).closest('.sc-directional-panel') as HTMLElement;
       expect(slidersPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation'), key).toBe('row');
       unmount();
     }
@@ -189,7 +189,7 @@ describe('AudioRigEffectPanel', () => {
       globalAudio: { ...s.globalAudio, delay: { ...s.globalAudio.delay, delayTime: 0.5 } },
     }));
     render(<AudioRigEffectPanel effectKey="delay" />);
-    const delayTimeSlider = screen.getByRole('slider', { name: 'Time' });
+    const delayTimeSlider = screen.getByRole('slider', { name: 'Delay Time' });
     delayTimeSlider.focus();
     fireEvent.keyDown(delayTimeSlider, { key: 'ArrowRight' });
 
@@ -229,7 +229,7 @@ describe('AudioRigEffectPanel', () => {
 
     it('shows the targeted param\'s own name as the shared display\'s label, defaulting to the group\'s first param', () => {
       const { container } = render(<AudioRigEffectPanel effectKey="eq3" />);
-      expect(container.querySelector('.sc-lfo')?.textContent).toContain('Low');
+      expect(container.querySelector('.sc-lfo')?.textContent).toContain('Bass');
     });
 
     it('binds the default target (eq3.low) to its own globalLfo entry, not DEFAULT_LFO_SETTINGS', () => {
@@ -262,7 +262,7 @@ describe('AudioRigEffectPanel', () => {
       render(<AudioRigEffectPanel effectKey="eq3" />);
       const midSlider = screen.getByRole('slider', { name: 'Mid' });
       const midRow = midSlider.closest('.sc-lfo-target-group__row')!;
-      const lowRow = screen.getByRole('slider', { name: 'Low' }).closest('.sc-lfo-target-group__row')!;
+      const lowRow = screen.getByRole('slider', { name: 'Bass' }).closest('.sc-lfo-target-group__row')!;
       expect(lowRow.classList.contains('isActive')).toBe(true);
 
       fireEvent.click(midRow);
@@ -275,13 +275,13 @@ describe('AudioRigEffectPanel', () => {
 
     it('keyboard-focusing a different band\'s slider switches which globalLfo entry the shared display edits, once the transition completes', async () => {
       render(<AudioRigEffectPanel effectKey="eq3" />);
-      const highSlider = screen.getByRole('slider', { name: 'High' });
+      const highSlider = screen.getByRole('slider', { name: 'Treble' });
       await act(async () => {
         highSlider.focus();
       });
 
       await waitFor(() => {
-        expect(screen.getByRole('slider', { name: 'High' }).closest('.sc-lfo-target-group__row')?.classList.contains('isActive')).toBe(true);
+        expect(screen.getByRole('slider', { name: 'Treble' }).closest('.sc-lfo-target-group__row')?.classList.contains('isActive')).toBe(true);
       });
 
       const rateSlider = screen.getByRole('slider', { name: 'Rate' });
@@ -403,7 +403,7 @@ describe('AudioRigEffectPanel', () => {
       stubMatchMedia({ mobile: true, tablet: true });
       render(<AudioRigEffectPanel effectKey="compressor" />);
       const thresholdRow = screen.getByRole('slider', { name: 'Threshold' }).closest('.sc-directional-panel')!;
-      const attackRow = screen.getByRole('slider', { name: 'Attack' }).closest('.sc-directional-panel')!;
+      const attackRow = screen.getByRole('slider', { name: 'Attack Time' }).closest('.sc-directional-panel')!;
       expect(thresholdRow.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('column');
       expect(attackRow.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('column');
     });
@@ -412,7 +412,7 @@ describe('AudioRigEffectPanel', () => {
       stubMatchMedia({ mobile: false, tablet: false });
       render(<AudioRigEffectPanel effectKey="compressor" />);
       const thresholdRow = screen.getByRole('slider', { name: 'Threshold' }).closest('.sc-directional-panel')!;
-      const attackRow = screen.getByRole('slider', { name: 'Attack' }).closest('.sc-directional-panel')!;
+      const attackRow = screen.getByRole('slider', { name: 'Attack Time' }).closest('.sc-directional-panel')!;
       expect(thresholdRow.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
       expect(attackRow.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
     });
@@ -556,7 +556,7 @@ describe('AudioRigEffectPanel', () => {
     it("eq3's own EQ sliders are a physical DOM descendant of the Spectral-scoped effect-block wrapper — no separate wrapper or style between them", () => {
       render(<AudioRigEffectPanel effectKey="eq3" />);
       const eqBlock = effectBlockOf('3-Band EQ');
-      const eq3LowSlider = within(eqBlock).getByRole('slider', { name: 'Low' });
+      const eq3LowSlider = within(eqBlock).getByRole('slider', { name: 'Bass' });
       expect(eqBlock.contains(eq3LowSlider)).toBe(true);
     });
   });

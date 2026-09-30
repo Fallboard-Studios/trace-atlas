@@ -114,7 +114,7 @@ describe('PingContourDrawer', () => {
     it('preserves ADSR order: Attack, Decay, Sustain, Release', () => {
       render(<PingContourDrawer value={adsr} onChange={() => {}} />);
       const sliders = screen.getAllByRole('slider');
-      expect(sliders.map((s) => s.getAttribute('aria-label'))).toEqual(['Attack', 'Decay', 'Sustain', 'Release']);
+      expect(sliders.map((s) => s.getAttribute('aria-label'))).toEqual(['Attack Time', 'Decay Time', 'Sustain Level', 'Release Time']);
     });
   });
 

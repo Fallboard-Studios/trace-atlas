@@ -21,7 +21,10 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
 
   it('Settings has 3 leaf children: quality, sectorSettings, sessions, namespaced by branch', () => {
     const settings = findNode('settings');
-    expect(settings?.humanLabel).toBe('Settings');
+    // "Navigation"/"Settings" per docs/reference/text-content-tables.md — the branch's former
+    // sole label becomes its lore label, "Navigation" is the new human label.
+    expect(settings?.loreLabel).toBe('Settings');
+    expect(settings?.humanLabel).toBe('Navigation');
     expect(settings?.children?.map((c) => c.id)).toEqual([
       'settings.quality',
       'settings.sectorSettings',
@@ -31,7 +34,7 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
 
   it('Settings -> Sessions (Roadmap Phase 20, docs/tasks/SESSION_STORAGE.md Task 10) has no static children', () => {
     const sessions = findNode('settings.sessions');
-    expect(sessions?.humanLabel).toBe('Sessions');
+    expect(sessions?.humanLabel).toBe('Save & Share');
     expect(sessions?.children).toBeUndefined();
   });
 
@@ -41,7 +44,7 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
       'settings.quality.robotLoad',
       'settings.quality.effectsLoad',
     ]);
-    expect(quality?.children?.map((c) => c.humanLabel)).toEqual(['Robot Load', 'Effects Load']);
+    expect(quality?.children?.map((c) => c.humanLabel)).toEqual(['Voice Limit', 'Effects Limit']);
   });
 
   it('Settings -> Presets has Attenuation Style/Coordinates children (already-existing SectorSettingsDrawer.tsx rows, given their own tree anchor)', () => {
@@ -50,7 +53,7 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
       'settings.sectorSettings.attenuationStyle',
       'settings.sectorSettings.coordinates',
     ]);
-    expect(sectorSettings?.children?.map((c) => c.humanLabel)).toEqual(['Attenuation Style', 'Coordinates']);
+    expect(sectorSettings?.children?.map((c) => c.humanLabel)).toEqual(['Atmosphere', 'Location']);
   });
 
   it('Fleet Params has Pacing plus 3 category groups (EQ & Filters, Time & Space, Output), each with their own leaves', () => {
@@ -74,7 +77,7 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
       'fleetParams.pacing.duration',
       'fleetParams.pacing.automaticEffects',
     ]);
-    expect(pacing?.children?.map((c) => c.humanLabel)).toEqual(['Tempo', 'Frequency', 'Duration', 'Automatic Intensity']);
+    expect(pacing?.children?.map((c) => c.humanLabel)).toEqual(['Tempo', 'Automation Rate', 'Automation Length', 'Automation Range']);
   });
 
   it('Fleet Params -> EQ & Filters has EQ/HPF/LPF leaves in that order', () => {
@@ -86,11 +89,11 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
     ]);
   });
 
-  it('Fleet Params -> LFO Drift has exactly 2 leaves, Fleet Drift then Robot Drift (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — new top-level group, positioned right after EQ & Filters; Robot Drift moved in from Probes/Companies entirely, follow-up)', () => {
+  it('Fleet Params -> Drift has exactly 2 leaves, Environmental Drift then Voice Drift (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — new top-level group, positioned right after EQ & Filters; further renamed "LFO Drift"->"Drift" and its 2 leaves per docs/reference/text-content-tables.md)', () => {
     const fleetDrift = findNode('fleetParams.fleetDrift');
-    expect(fleetDrift?.humanLabel).toBe('LFO Drift');
+    expect(fleetDrift?.humanLabel).toBe('Drift');
     expect(fleetDrift?.children?.map((c) => c.id)).toEqual(['fleetParams.fleetDrift.drift', 'fleetParams.fleetDrift.robots']);
-    expect(fleetDrift?.children?.map((c) => c.humanLabel)).toEqual(['Fleet Drift', 'Robot Drift']);
+    expect(fleetDrift?.children?.map((c) => c.humanLabel)).toEqual(['Environmental Drift', 'Voice Drift']);
   });
 
   it('Fleet Params -> Time & Space has Reverb/Delay leaves', () => {
@@ -176,7 +179,7 @@ describe('NAV_TREE_SCHEMA — trait color-coding (experimental, Crawford\'s own 
     expect(findNode('fleetParams.output')?.trait).toBe('output');
   });
 
-  it('LFO Drift matches EQ & Filters\' own spectral trait — it\'s drift of those same effects (docs/specs/FLEET_DRIFT_CONSOLIDATION.md §1.3, not yet confirmed with Crawford)', () => {
+  it('Drift matches EQ & Filters\' own spectral trait — it\'s drift of those same effects (docs/specs/FLEET_DRIFT_CONSOLIDATION.md §1.3, not yet confirmed with Crawford)', () => {
     expect(findNode('fleetParams.fleetDrift')?.trait).toBe('spectral');
   });
 

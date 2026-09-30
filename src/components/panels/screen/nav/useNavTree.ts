@@ -177,10 +177,12 @@ export function expandNavAncestorsForId(id: string): void {
 function sectionChildNodes(entityBranchPrefix: string): NavTreeNodeSchema[] {
   return ROBOT_SECTIONS_CONFIG.map((section) => ({
     id: `${entityBranchPrefix}.${section.id}`,
+    loreLabel: section.loreLabel,
     humanLabel: section.navLabel,
     trait: section.trait,
     children: section.subsections.map((sub) => ({
       id: `${entityBranchPrefix}.${section.id}.${sub.id}`,
+      loreLabel: sub.loreLabel,
       humanLabel: sub.navLabel,
     })),
   }));

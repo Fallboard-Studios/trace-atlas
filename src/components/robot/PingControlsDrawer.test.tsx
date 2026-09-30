@@ -67,13 +67,13 @@ describe('PingControlsDrawer', () => {
     const frequencyPanel = screen.getByText('Pitches').closest('.sc-directional-panel')!;
 
     expect(phrasingPanel.contains(screen.getByRole('slider', { name: /density/i }))).toBe(true);
-    expect(phrasingPanel.contains(screen.getByRole('slider', { name: /motif length/i }))).toBe(true);
+    expect(phrasingPanel.contains(screen.getByRole('slider', { name: /phrase length/i }))).toBe(true);
     expect(phrasingPanel.contains(screen.getByRole('slider', { name: /pitch repeat/i }))).toBe(true);
     expect(phrasingPanel.contains(screen.getByRole('switch', { name: /Click Track/i }))).toBe(true);
     expect(screen.queryByRole('button', { name: 'Reset Melody' })).toBeNull();
 
-    expect(frequencyPanel.contains(screen.getByRole('slider', { name: /octave range min/i }))).toBe(true);
-    expect(frequencyPanel.contains(screen.getByRole('slider', { name: /octave range max/i }))).toBe(true);
+    expect(frequencyPanel.contains(screen.getByRole('slider', { name: /lowest octave/i }))).toBe(true);
+    expect(frequencyPanel.contains(screen.getByRole('slider', { name: /highest octave/i }))).toBe(true);
     expect(frequencyPanel.contains(screen.getByRole('slider', { name: /note variance/i }))).toBe(true);
   });
 
@@ -112,7 +112,7 @@ describe('PingControlsDrawer', () => {
       />
     );
 
-    fireEvent.keyDown(screen.getByRole('slider', { name: /motif length/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /phrase length/i }), { key: 'ArrowRight' });
 
     expect(onMotifLengthChange).toHaveBeenCalledWith(5);
   });
@@ -131,7 +131,7 @@ describe('PingControlsDrawer', () => {
       />
     );
 
-    const slider = screen.getByRole('slider', { name: /motif length/i });
+    const slider = screen.getByRole('slider', { name: /phrase length/i });
     expect(slider.getAttribute('aria-valuenow')).toBe('0');
     expect(slider.getAttribute('data-disabled')).toBeNull();
   });
@@ -151,7 +151,7 @@ describe('PingControlsDrawer', () => {
       />
     );
 
-    fireEvent.keyDown(screen.getByRole('slider', { name: /octave range min/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /lowest octave/i }), { key: 'ArrowRight' });
 
     expect(onOctaveMinChange).toHaveBeenCalledWith(4);
   });
@@ -171,7 +171,7 @@ describe('PingControlsDrawer', () => {
       />
     );
 
-    fireEvent.keyDown(screen.getByRole('slider', { name: /octave range max/i }), { key: 'ArrowLeft' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /highest octave/i }), { key: 'ArrowLeft' });
 
     expect(onOctaveMaxChange).toHaveBeenCalledWith(4);
   });
@@ -376,8 +376,8 @@ describe('PingControlsDrawer', () => {
     );
 
     expect(screen.getByRole('slider', { name: /density/i }).getAttribute('data-disabled')).toBe('');
-    expect(screen.getByRole('slider', { name: /motif length/i }).getAttribute('data-disabled')).toBe('');
-    expect(screen.getByRole('slider', { name: /octave range min/i }).getAttribute('data-disabled')).toBe('');
+    expect(screen.getByRole('slider', { name: /phrase length/i }).getAttribute('data-disabled')).toBe('');
+    expect(screen.getByRole('slider', { name: /lowest octave/i }).getAttribute('data-disabled')).toBe('');
     expect((screen.getByRole('switch', { name: /Click Track/i }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.getByRole('slider', { name: /pitch repeat/i }).getAttribute('data-disabled')).toBe('');
   });
@@ -398,8 +398,8 @@ describe('PingControlsDrawer', () => {
     );
 
     expect(screen.getByRole('slider', { name: /density/i }).getAttribute('data-disabled')).toBe('');
-    expect(screen.getByRole('slider', { name: /motif length/i }).getAttribute('data-disabled')).toBe('');
-    expect(screen.getByRole('slider', { name: /octave range min/i }).getAttribute('data-disabled')).toBe('');
+    expect(screen.getByRole('slider', { name: /phrase length/i }).getAttribute('data-disabled')).toBe('');
+    expect(screen.getByRole('slider', { name: /lowest octave/i }).getAttribute('data-disabled')).toBe('');
     expect((screen.getByRole('switch', { name: /Click Track/i }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole('slider', { name: /pitch repeat/i }).getAttribute('data-disabled')).toBe('');
   });
@@ -470,7 +470,7 @@ describe('PingControlsRhythmSection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md T
     renderSection();
 
     expect(screen.getByRole('slider', { name: /density/i })).toBeTruthy();
-    expect(screen.getByRole('slider', { name: /motif length/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /phrase length/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /pitch repeat/i })).toBeTruthy();
     expect(screen.getByRole('switch', { name: /Click Track/i })).toBeTruthy();
   });
@@ -501,7 +501,7 @@ describe('PingControlsRhythmSection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md T
     );
 
     fireEvent.keyDown(screen.getByRole('slider', { name: /density/i }), { key: 'ArrowRight' });
-    fireEvent.keyDown(screen.getByRole('slider', { name: /motif length/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /phrase length/i }), { key: 'ArrowRight' });
     fireEvent.keyDown(screen.getByRole('slider', { name: /pitch repeat/i }), { key: 'ArrowRight' });
 
     expect(onDensityChange).toHaveBeenCalledWith(51);
@@ -519,7 +519,7 @@ describe('PingControlsRhythmSection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md T
     renderSection({ clickTrackActive: true });
 
     expect(screen.getByRole('slider', { name: /density/i }).getAttribute('data-disabled')).toBe('');
-    expect(screen.getByRole('slider', { name: /motif length/i }).getAttribute('data-disabled')).toBe('');
+    expect(screen.getByRole('slider', { name: /phrase length/i }).getAttribute('data-disabled')).toBe('');
     expect((screen.getByRole('switch', { name: /Click Track/i }) as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -582,8 +582,8 @@ describe('PingControlsFrequencySection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.m
   it('renders Frequency\'s label and its 3 sliders (Octave Range Min/Max, Note Variance), identical to today\'s standalone panel', () => {
     renderSection();
     expect(screen.getByText('Pitches')).toBeTruthy();
-    expect(screen.getByRole('slider', { name: /octave range min/i })).toBeTruthy();
-    expect(screen.getByRole('slider', { name: /octave range max/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /lowest octave/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /highest octave/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /note variance/i })).toBeTruthy();
   });
 
@@ -600,8 +600,8 @@ describe('PingControlsFrequencySection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.m
       />,
     );
 
-    fireEvent.keyDown(screen.getByRole('slider', { name: /octave range min/i }), { key: 'ArrowRight' });
-    fireEvent.keyDown(screen.getByRole('slider', { name: /octave range max/i }), { key: 'ArrowLeft' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /lowest octave/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /highest octave/i }), { key: 'ArrowLeft' });
     fireEvent.keyDown(screen.getByRole('slider', { name: /note variance/i }), { key: 'ArrowRight' });
 
     expect(onOctaveMinChange).toHaveBeenCalledWith(4);
@@ -611,7 +611,7 @@ describe('PingControlsFrequencySection (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.m
 
   it('is disabled while clickTrackActive is true, even though Click Track itself now lives in the Rhythm section, not here', () => {
     renderSection({ clickTrackActive: true });
-    expect(screen.getByRole('slider', { name: /octave range min/i }).getAttribute('data-disabled')).toBe('');
+    expect(screen.getByRole('slider', { name: /lowest octave/i }).getAttribute('data-disabled')).toBe('');
   });
 
   it('is disabled when the disabled prop is true', () => {
@@ -676,11 +676,11 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
     renderSection();
 
     expect(screen.getByRole('slider', { name: /density/i })).toBeTruthy();
-    expect(screen.getByRole('slider', { name: /motif length/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /phrase length/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /pitch repeat/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /note variance/i })).toBeTruthy();
-    expect(screen.getByRole('slider', { name: /octave.*min/i })).toBeTruthy();
-    expect(screen.getByRole('slider', { name: /octave.*max/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /lowest octave/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /highest octave/i })).toBeTruthy();
     expect(screen.queryByRole('switch', { name: /Click Track/i })).toBeNull();
   });
 
@@ -709,10 +709,10 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
     );
 
     fireEvent.keyDown(screen.getByRole('slider', { name: /density/i }), { key: 'ArrowRight' });
-    fireEvent.keyDown(screen.getByRole('slider', { name: /motif length/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /phrase length/i }), { key: 'ArrowRight' });
     fireEvent.keyDown(screen.getByRole('slider', { name: /pitch repeat/i }), { key: 'ArrowRight' });
-    fireEvent.keyDown(screen.getByRole('slider', { name: /octave.*min/i }), { key: 'ArrowRight' });
-    fireEvent.keyDown(screen.getByRole('slider', { name: /octave.*max/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /lowest octave/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /highest octave/i }), { key: 'ArrowRight' });
     fireEvent.keyDown(screen.getByRole('slider', { name: /note variance/i }), { key: 'ArrowRight' });
 
     expect(onDensityChange).toHaveBeenCalledWith(51);

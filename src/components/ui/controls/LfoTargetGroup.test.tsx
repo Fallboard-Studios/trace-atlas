@@ -188,7 +188,7 @@ describe('LfoTargetGroup', () => {
   it("calls onLfoChange with the currently-selected field when the shared Lfo control's value changes", () => {
     const onLfoChange = vi.fn();
     render(<LfoTargetGroup groupId="audioRig.eq3" fields={FIELDS} onLfoChange={onLfoChange} renderField={renderField} />);
-    fireEvent.click(screen.getByRole('radio', { name: 'SQUARE' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Binary' }));
     expect(onLfoChange).toHaveBeenCalledWith('low', { ...lfo(1), shape: 'square' });
   });
 

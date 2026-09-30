@@ -213,14 +213,14 @@ describe('NavPanel — Home button (relocated from ContentPane\'s former Close b
 
   it('shows a Home button even when nothing is selected', () => {
     render(<NavPanel />);
-    expect(screen.getByRole('button', { name: 'Home' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Deck' })).toBeTruthy();
   });
 
   it('clicking Home clears activeHubTile back to the blank hub', () => {
     useUIStore.getState().setActiveHubTile('audioRig');
     render(<NavPanel />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Deck' }));
 
     expect(useUIStore.getState().activeHubTile).toBeNull();
   });
@@ -231,7 +231,7 @@ describe('NavPanel — Home button (relocated from ContentPane\'s former Close b
     useUIStore.getState().setSelectedSection('volume');
     render(<NavPanel />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Deck' }));
 
     expect(useUIStore.getState().selectedRobotId).toBeNull();
     expect(useUIStore.getState().selectedSection).toBeNull();
@@ -242,7 +242,7 @@ describe('NavPanel — Home button (relocated from ContentPane\'s former Close b
     useUIStore.getState().selectCompany('c1');
     render(<NavPanel />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Deck' }));
 
     expect(useUIStore.getState().selectedCompanyId).toBeNull();
     expect(useUIStore.getState().allRobotsSelected).toBe(true);

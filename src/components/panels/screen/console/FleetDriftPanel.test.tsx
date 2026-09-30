@@ -86,8 +86,8 @@ describe('FleetDriftPanel', () => {
     expect(screen.queryByText('Held off by Audio Load')).toBeNull();
   });
 
-  it('uses the "Fleet Drift" panel label from LFO_DRIFT_GROUPS\' own globalFx entry', () => {
+  it('uses the "Environmental Drift" panel label from LFO_DRIFT_GROUPS\' own globalFx entry', () => {
     const { container } = render(<FleetDriftPanel />);
-    expect(within(container).getByText('Fleet Drift')).toBeTruthy();
+    expect(within(container).getByText('Environmental Drift')).toBeTruthy();
   });
 });

@@ -53,7 +53,7 @@ function useMatchesMediaQuery(query: string): boolean {
  *  Crawford's own request (2026-09-16) to resolve the flagged gap
  *  (docs/specs/HEADER_HUB_CONSOLIDATION.md §7 item #2), even though it
  *  renders alongside the facade icon rather than replacing it. */
-const MUTE_SCHEMA: ToggleSchema = { id: 'headerMute', type: 'toggle', loreLabel: 'SIGNAL SUPPRESSION [c]', humanLabel: 'Mute' };
+const MUTE_SCHEMA: ToggleSchema = { id: 'headerMute', type: 'toggle', loreLabel: 'SIGNAL SUPPRESSION', humanLabel: 'Mute' };
 
 /** Distinct id from SettingsContent.tsx's own VOLUME_SCHEMA ('headerVolume')
  *  — Header is always mounted, so if Settings -> Volume is open at the same
@@ -69,6 +69,7 @@ const MASTER_VOLUME_SCHEMA: SliderLinearSchema = {
   unit: '%',
   orientation: 'horizontal',
   type: 'sliderLinear',
+  loreLabel: 'Master Output',
   humanLabel: 'Volume'
 };
 

@@ -58,7 +58,7 @@ function LfoTargetGroupInner<F extends string = string>({
   sliderPanelOrientation = 'column',
   heldOff,
 }: LfoTargetGroupProps<F>) {
-  const { selected, transitioning, select, isTargeted, displayValue, displayLabel } = useLfoTargetGroup({
+  const { selected, transitioning, select, isTargeted, displayValue, displayLabel, displayLoreLabel } = useLfoTargetGroup({
     groupId,
     fields,
   });
@@ -74,13 +74,13 @@ function LfoTargetGroupInner<F extends string = string>({
     () => ({ id: `${groupId}.sliders`, type: 'directionalPanel', orientation: sliderPanelOrientation }),
     [groupId, sliderPanelOrientation],
   );
-  // loreLabel is the fixed group-level term (docs/reference/ROBOT_DATA_GRID.md's "LFO MODULE"
-  // row names it OSCILLATION, previously never wired in per that row's own † footnote) — unlike
-  // humanLabel, it never swaps with the targeted field, since it names the module itself, not
-  // whichever field it's currently modulating.
+  // loreLabel now tracks the targeted field too (docs/reference/text-content-tables.md),
+  // mirroring humanLabel's own per-field swap — reverses this component's earlier deliberate
+  // "names the module itself, never swaps" design (docs/reference/ROBOT_DATA_GRID.md's "LFO
+  // MODULE" row, fixed group-level OSCILLATION).
   const lfoSchema: LfoSchema = useMemo(
-    () => ({ id: `${groupId}.lfo`, type: 'lfo', loreLabel: 'OSCILLATION', humanLabel: displayLabel }),
-    [groupId, displayLabel],
+    () => ({ id: `${groupId}.lfo`, type: 'lfo', loreLabel: displayLoreLabel, humanLabel: displayLabel }),
+    [groupId, displayLabel, displayLoreLabel],
   );
   const handleLfoChange = useCallback((v: LfoValue) => onLfoChange(selected, v), [selected, onLfoChange]);
 

@@ -127,15 +127,16 @@ describe('Nav panel — rename-correctness guard (docs/tasks/NAV_PANEL_VIEWS_AND
     expect(uiStoreSource).toContain("'volume' | 'melody' | 'envelope' | 'source'");
   });
 
-  it('the tree renders "Output" as a navLabel in robotSubsectionConfig.ts, not as an id segment', () => {
+  it('"Output" survives only as the volume section\'s loreLabel in robotSubsectionConfig.ts, not as an id segment — its own navLabel later moved on to "Dynamics" (docs/reference/text-content-tables.md)', () => {
     // Moved here from useNavTree.ts by docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md — the
     // section/subsection label table (formerly useNavTree.ts's own SECTION_CHILDREN/
     // SUBSECTION_CHILDREN) now lives in robotSubsectionConfig.ts as ROBOT_SECTIONS_CONFIG,
     // consumed by useNavTree.ts's sectionChildNodes() rather than hand-typed there directly.
     const configSource = readSource('../../../../data/robotSubsectionConfig.ts');
-    expect(configSource).toContain("navLabel: 'Output'");
-    // The id segment itself is still 'volume' — ROBOT_SECTIONS_CONFIG's own id/navLabel are
-    // separate fields, so 'Output' never becomes a literal id anywhere in this file.
+    expect(configSource).toContain("loreLabel: 'Output'");
+    expect(configSource).toContain("navLabel: 'Dynamics'");
+    // The id segment itself is still 'volume' — ROBOT_SECTIONS_CONFIG's own id/loreLabel/navLabel
+    // are separate fields, so 'Output' never becomes a literal id anywhere in this file.
     expect(configSource).not.toMatch(/id:\s*'[^']*output[.']/i);
   });
 

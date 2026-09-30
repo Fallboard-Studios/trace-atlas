@@ -43,7 +43,7 @@ import {
 export const AUDIO_SETTING_SCHEMA: RadioButtonSchema = {
   id: 'robotOptions.audioSetting',
   type: 'radio',
-  loreLabel: 'PROBE DIAGNOSTICS',
+  loreLabel: 'Diagnostic Feed',
   humanLabel: 'Monitor Mode',
   options: [
     { value: 'none', label: 'Auto' },
@@ -61,7 +61,7 @@ export const AUDIO_SETTING_SCHEMA: RadioButtonSchema = {
 export const VOLUME_SCHEMA: SliderLinearSchema = {
   id: 'robotOptions.volume',
   type: 'sliderLinear',
-  loreLabel: 'TRANSDUCER PRESSURE INDEX',
+  loreLabel: 'Transducer Pressure',
   humanLabel: 'Volume',
   min: 0,
   max: 100,
@@ -169,8 +169,8 @@ export const CLICK_TRACK_SCHEMA: ToggleSchema = {
 export const DENSITY_SCHEMA: SliderLinearSchema = {
   id: 'robotOptions.density',
   type: 'sliderLinear',
-  loreLabel: 'PING DENSITY',
-  humanLabel: 'Density',
+  loreLabel: 'Payload Density',
+  humanLabel: 'Note Density',
   min: RHYTHMIC_DENSITY_MIN,
   max: RHYTHMIC_DENSITY_MAX,
   unit: '%',
@@ -180,8 +180,8 @@ export const DENSITY_SCHEMA: SliderLinearSchema = {
 export const MOTIF_LENGTH_SCHEMA: SliderLinearSchema = {
   id: 'robotOptions.motifLength',
   type: 'sliderLinear',
-  loreLabel: 'PING LENGTH',
-  humanLabel: 'Motif Length',
+  loreLabel: 'Payload Subgroups',
+  humanLabel: 'Phrase Length',
   min: RHYTHMIC_MOTIF_LENGTH_MIN,
   max: RHYTHMIC_MOTIF_LENGTH_MAX,
   step: 1,
@@ -199,8 +199,8 @@ export const MOTIF_LENGTH_SCHEMA: SliderLinearSchema = {
 export const PITCH_REPEAT_SCHEMA: SliderLinearSchema = {
   id: 'robotOptions.pitchRepeat',
   type: 'sliderLinear',
-  loreLabel: 'PING REPETITION ALLOWANCE',
-  humanLabel: 'Pitch Repeat',
+  loreLabel: 'Payload Duplication',
+  humanLabel: 'Pitch Repeat Chance',
   min: PITCH_REPEAT_MIN,
   max: PITCH_REPEAT_MAX,
   unit: '%',
@@ -210,8 +210,8 @@ export const PITCH_REPEAT_SCHEMA: SliderLinearSchema = {
 export const OCTAVE_RANGE_MIN_SCHEMA: SliderLinearSchema = {
   id: 'robotOptions.octaveRangeMin',
   type: 'sliderLinear',
-  loreLabel: 'PING FREQUENCY RANGES (MIN)',
-  humanLabel: 'Octave Range Min',
+  loreLabel: 'Ping Floor',
+  humanLabel: 'Lowest Octave',
   min: OCTAVE_RANGE_MIN,
   max: OCTAVE_RANGE_MAX,
   step: 1,
@@ -221,8 +221,8 @@ export const OCTAVE_RANGE_MIN_SCHEMA: SliderLinearSchema = {
 export const OCTAVE_RANGE_MAX_SCHEMA: SliderLinearSchema = {
   id: 'robotOptions.octaveRangeMax',
   type: 'sliderLinear',
-  loreLabel: 'PING FREQUENCY RANGES (MAX)',
-  humanLabel: 'Octave Range Max',
+  loreLabel: 'Ping Ceiling',
+  humanLabel: 'Highest Octave',
   min: OCTAVE_RANGE_MIN,
   max: OCTAVE_RANGE_MAX,
   step: 1,
@@ -232,7 +232,7 @@ export const OCTAVE_RANGE_MAX_SCHEMA: SliderLinearSchema = {
 export const NOTE_VARIANCE_SCHEMA: SliderLinearSchema = {
   id: 'robotOptions.noteVariance',
   type: 'sliderLinear',
-  loreLabel: 'PING FREQUENCY VARIANCE',
+  loreLabel: 'Ping Variance',
   humanLabel: 'Note Variance',
   min: NOTE_VARIANCE_MIN,
   max: NOTE_VARIANCE_MAX,
@@ -255,7 +255,7 @@ export const NOTE_VARIANCE_SCHEMA: SliderLinearSchema = {
 export const PING_CONTOUR_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'robotOptions.pingContour',
   type: 'directionalPanel',
-  loreLabel: 'PING CONTOUR',
+  loreLabel: 'Ping Profile',
   humanLabel: 'Contour',
   orientation: 'column',
 };
@@ -263,8 +263,8 @@ export const PING_CONTOUR_PANEL_SCHEMA: DirectionalPanelSchema = {
 export const ATTACK_SCHEMA: SliderLogSchema = {
   id: 'robotOptions.attack',
   type: 'sliderLog',
-  loreLabel: 'COMPRESSION RATE',
-  humanLabel: 'Attack',
+  loreLabel: 'Ping Onset',
+  humanLabel: 'Attack Time',
   min: 0,
   max: 10,
   unit: 's',
@@ -274,8 +274,8 @@ export const ATTACK_SCHEMA: SliderLogSchema = {
 export const DECAY_SCHEMA: SliderLogSchema = {
   id: 'robotOptions.decay',
   type: 'sliderLog',
-  loreLabel: 'STABILIZATION DELAY',
-  humanLabel: 'Decay',
+  loreLabel: 'Ping Settling',
+  humanLabel: 'Decay Time',
   min: 0,
   max: 10,
   unit: 's',
@@ -290,8 +290,8 @@ export const DECAY_SCHEMA: SliderLogSchema = {
 export const SUSTAIN_SCHEMA: SliderLinearSchema = {
   id: 'robotOptions.sustain',
   type: 'sliderLinear',
-  loreLabel: 'PROPAGATION AMPLITUDE',
-  humanLabel: 'Sustain',
+  loreLabel: 'Ping Hold',
+  humanLabel: 'Sustain Level',
   min: 0,
   max: 100,
   unit: '%',
@@ -301,8 +301,8 @@ export const SUSTAIN_SCHEMA: SliderLinearSchema = {
 export const RELEASE_SCHEMA: SliderLogSchema = {
   id: 'robotOptions.release',
   type: 'sliderLog',
-  loreLabel: 'RAREFACTION RATE',
-  humanLabel: 'Release',
+  loreLabel: 'Ping Fade',
+  humanLabel: 'Release Time',
   min: 0,
   max: 10,
   unit: 's',
@@ -324,7 +324,12 @@ export interface SignatureArrayParamSchema {
 
 export interface SignatureArrayLayerBlock {
   key: SignatureArrayLayerKey;
-  humanLabel: 'Baseline' | 'Coaxial' | 'Harmonic';
+  // Display text only — 'layer0'/'layer1'/'layer2' (the `key` field above) is this block's real
+  // internal identity everywhere else (RobotLfoTargetId construction, etc.); this union never
+  // doubles as one, so it's safe to rename its display values without any other consumer's logic
+  // breaking (docs/reference/text-content-tables.md: Baseline/Coaxial/Harmonic -> Core/Companion/
+  // Accent).
+  humanLabel: 'Core' | 'Companion' | 'Accent';
   loreLabel: string;
   /** DirectionalPanel wiring (docs/tasks/DIRECTIONAL_PANEL_WIRING.md) — this layer's own panel.
    *  Reuses this block's own humanLabel/loreLabel verbatim (Baseline/Coaxial/Harmonic already had
@@ -334,19 +339,28 @@ export interface SignatureArrayLayerBlock {
 }
 
 /** The 5 real WaveformType values only — 'noise' is dropped entirely (Roadmap Phase 9, see
- *  docs/specs/ROBOT_OPTIONS.md §7). Value/label pairs match ROBOT_DATA_GRID.md's Layer Type row. */
+ *  docs/specs/ROBOT_OPTIONS.md §7). Lore words per docs/reference/text-content-tables.md's
+ *  Waveform Names table — corrects a previous mismatch where 'sine' carried "Sweep" (now
+ *  Triangle's word) and 'triangle' carried the now-retired "Gradient". */
 const LAYER_TYPE_OPTIONS = [
-  { value: 'sine', label: 'SWEEP' },
-  { value: 'triangle', label: 'GRADIENT' },
-  { value: 'sawtooth', label: 'KINETIC' },
-  { value: 'square', label: 'BINARY' },
-  { value: 'pulse', label: 'BURST' },
+  { value: 'sine', label: 'Sway' },
+  { value: 'triangle', label: 'Sweep' },
+  { value: 'sawtooth', label: 'Kinetic' },
+  { value: 'square', label: 'Binary' },
+  { value: 'pulse', label: 'Burst' },
 ];
 
 function makeLayerBlock(
   key: SignatureArrayLayerKey,
-  humanLabel: 'Baseline' | 'Coaxial' | 'Harmonic',
+  humanLabel: 'Core' | 'Companion' | 'Accent',
+  /** This layer's own panel-heading lore (docs/reference/text-content-tables.md), e.g. "Baseline
+   *  Feed" — a 2-word phrase, not derived from `fieldLorePrefix` below (unlike the old
+   *  ALL-CAPS-prefix scheme this replaces, where the panel and every field shared one prefix
+   *  word). */
   loreLabel: string,
+  /** The single word each field's own lore concatenates onto ("Feed Geometry", "Feed
+   *  Saturation", ...) — distinct from `loreLabel` above, which is the full panel heading. */
+  fieldLorePrefix: string,
 ): SignatureArrayLayerBlock {
   const gainTarget = `${key}.gain` as RobotLfoTargetId;
   const detuneTarget = `${key}.detune` as RobotLfoTargetId;
@@ -363,7 +377,7 @@ function makeLayerBlock(
         field: 'type',
         schema: {
           id: `robotOptions.${key}.type`, type: 'radio',
-          loreLabel: `${loreLabel} GEOMETRY`, humanLabel: `${humanLabel} Type`,
+          loreLabel: `${fieldLorePrefix} Geometry`, humanLabel: `${humanLabel} Type`,
           options: LAYER_TYPE_OPTIONS,
         } satisfies RadioButtonSchema,
       },
@@ -371,7 +385,7 @@ function makeLayerBlock(
         field: 'gain',
         schema: {
           id: `robotOptions.${key}.gain`, type: 'sliderLinear',
-          loreLabel: `${loreLabel} SATURATION`, humanLabel: `${humanLabel} Gain`,
+          loreLabel: `${fieldLorePrefix} Saturation`, humanLabel: `${humanLabel} Gain`,
           min: 0, max: 2, step: 0.01, orientation: 'vertical', verticalHeight: 256,
         } satisfies SliderLinearSchema,
         lfoTarget: gainTarget,
@@ -380,7 +394,7 @@ function makeLayerBlock(
         field: 'detune',
         schema: {
           id: `robotOptions.${key}.detune`, type: 'sliderCenteredZero',
-          loreLabel: `${loreLabel} DRIFT`, humanLabel: `${humanLabel} Detune`,
+          loreLabel: `${fieldLorePrefix} Drift`, humanLabel: `${humanLabel} Detune`,
           min: -50, max: 50, unit: 'cents', orientation: 'vertical', verticalHeight: 256,
         } satisfies SliderCenteredZeroSchema,
         lfoTarget: detuneTarget,
@@ -389,7 +403,7 @@ function makeLayerBlock(
         field: 'phase',
         schema: {
           id: `robotOptions.${key}.phase`, type: 'sliderLinear',
-          loreLabel: `${loreLabel} ALIGNMENT`, humanLabel: `${humanLabel} Phase`,
+          loreLabel: `${fieldLorePrefix} Alignment`, humanLabel: `${humanLabel} Phase`,
           min: 0, max: 360, orientation: 'vertical', verticalHeight: 256,
         } satisfies SliderLinearSchema,
         lfoTarget: phaseTarget,
@@ -398,7 +412,7 @@ function makeLayerBlock(
         field: 'pulseWidth',
         schema: {
           id: `robotOptions.${key}.pulseWidth`, type: 'sliderLinear',
-          loreLabel: `${loreLabel} PULSE WIDTH`, humanLabel: `${humanLabel} Interval`,
+          loreLabel: `${fieldLorePrefix} Break`, humanLabel: `${humanLabel} Interval`,
           min: 0, max: 1, step: 0.01, orientation: 'vertical', verticalHeight: 256,
         } satisfies SliderLinearSchema,
         lfoTarget: pulseWidthTarget,
@@ -408,7 +422,7 @@ function makeLayerBlock(
 }
 
 export const SIGNATURE_ARRAY_CONFIG: SignatureArrayLayerBlock[] = [
-  makeLayerBlock('layer0', 'Baseline', 'BASELINE'),
-  makeLayerBlock('layer1', 'Coaxial', 'COAXIAL'),
-  makeLayerBlock('layer2', 'Harmonic', 'HARMONIC'),
+  makeLayerBlock('layer0', 'Core', 'Baseline Feed', 'Feed'),
+  makeLayerBlock('layer1', 'Companion', 'Coaxial Effect', 'Effect'),
+  makeLayerBlock('layer2', 'Accent', 'Offset Matrix', 'Matrix'),
 ];

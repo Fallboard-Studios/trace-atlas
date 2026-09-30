@@ -110,8 +110,8 @@ describe('robotOptionsConfig', () => {
   it('Pitch Repeat is a sliderLinear using PITCH_REPEAT_MIN/MAX (0-100), labeled per Architecture Decision §7.4', () => {
     expect(PITCH_REPEAT_SCHEMA.type).toBe('sliderLinear');
     expect(PITCH_REPEAT_SCHEMA.id).toBe('robotOptions.pitchRepeat');
-    expect(PITCH_REPEAT_SCHEMA.loreLabel).toBe('PING REPETITION ALLOWANCE');
-    expect(PITCH_REPEAT_SCHEMA.humanLabel).toBe('Pitch Repeat');
+    expect(PITCH_REPEAT_SCHEMA.loreLabel).toBe('Payload Duplication');
+    expect(PITCH_REPEAT_SCHEMA.humanLabel).toBe('Pitch Repeat Chance');
     expect(PITCH_REPEAT_SCHEMA.min).toBe(PITCH_REPEAT_MIN);
     expect(PITCH_REPEAT_SCHEMA.max).toBe(PITCH_REPEAT_MAX);
     expect(PITCH_REPEAT_SCHEMA.min).toBe(0);
@@ -143,9 +143,9 @@ describe('robotOptionsConfig', () => {
   });
 
   describe('SIGNATURE_ARRAY_CONFIG', () => {
-    it('has exactly 3 blocks, labeled Baseline/Coaxial/Harmonic in order', () => {
+    it('has exactly 3 blocks, labeled Core/Companion/Accent in order (docs/reference/text-content-tables.md — renamed from Baseline/Coaxial/Harmonic; the key field below is the unchanged internal identity)', () => {
       expect(SIGNATURE_ARRAY_CONFIG).toHaveLength(3);
-      expect(SIGNATURE_ARRAY_CONFIG.map((b) => b.humanLabel)).toEqual(['Baseline', 'Coaxial', 'Harmonic']);
+      expect(SIGNATURE_ARRAY_CONFIG.map((b) => b.humanLabel)).toEqual(['Core', 'Companion', 'Accent']);
       expect(SIGNATURE_ARRAY_CONFIG.map((b) => b.key)).toEqual(['layer0', 'layer1', 'layer2']);
     });
 
@@ -359,7 +359,7 @@ describe('PING_CONTOUR_PANEL_SCHEMA (DirectionalPanel wiring, Tasks 3+9)', () =>
   });
 
   it('has the confirmed loreLabel/humanLabel', () => {
-    expect(PING_CONTOUR_PANEL_SCHEMA.loreLabel).toBe('PING CONTOUR');
+    expect(PING_CONTOUR_PANEL_SCHEMA.loreLabel).toBe('Ping Profile');
     expect(PING_CONTOUR_PANEL_SCHEMA.humanLabel).toBe('Contour');
   });
 });

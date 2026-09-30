@@ -93,14 +93,14 @@ describe('SignatureArrayDrawer', () => {
     // Each panel's own label is its direct-child DualLabel — not the many nested DualLabels
     // every RadioButton/slider/LFO field inside it also renders for its own humanLabel.
     const panelLabels = panels.map((p) => p.querySelector(':scope > .sc-dual-label > .sc-dual-label__human')?.textContent);
-    expect(panelLabels).toEqual(['Baseline', 'Coaxial', 'Harmonic', 'Robot Drift']);
+    expect(panelLabels).toEqual(['Core', 'Companion', 'Accent', 'Voice Drift']);
   });
 
   describe('Robot Drift panel (moved from AudioRigDrawer\'s Transport & Composition — global lfoDrift.robots, read/written directly via useAudioStore)', () => {
     it('renders as the last panel, after Harmonic', () => {
       const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      const driftPanel = screen.getByText('Robot Drift').closest('.sc-directional-panel');
-      const harmonicPanel = screen.getByText('Harmonic').closest('.sc-directional-panel');
+      const driftPanel = screen.getByText('Voice Drift').closest('.sc-directional-panel');
+      const harmonicPanel = screen.getByText('Accent').closest('.sc-directional-panel');
       expect(driftPanel).not.toBeNull();
       expect(harmonicPanel!.compareDocumentPosition(driftPanel!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       // Not nested inside — or replacing — any of the 3 layer sections.
@@ -112,7 +112,7 @@ describe('SignatureArrayDrawer', () => {
         globalAudio: { ...s.globalAudio, lfoDrift: { ...s.globalAudio.lfoDrift, robots: { rateDrift: -0.2, depthDrift: 0.9 } } },
       }));
       render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      const driftPanel = screen.getByText('Robot Drift').closest('.sc-directional-panel') as HTMLElement;
+      const driftPanel = screen.getByText('Voice Drift').closest('.sc-directional-panel') as HTMLElement;
       expect(within(driftPanel).getByRole('slider', { name: 'Rate Drift' }).getAttribute('aria-valuenow')).toBe('-20');
       expect(within(driftPanel).getByRole('slider', { name: 'Depth Drift' }).getAttribute('aria-valuenow')).toBe('90');
     });
@@ -122,7 +122,7 @@ describe('SignatureArrayDrawer', () => {
         globalAudio: { ...s.globalAudio, lfoDrift: { ...s.globalAudio.lfoDrift, robots: { rateDrift: 0, depthDrift: 0.5 } } },
       }));
       render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      const driftPanel = screen.getByText('Robot Drift').closest('.sc-directional-panel') as HTMLElement;
+      const driftPanel = screen.getByText('Voice Drift').closest('.sc-directional-panel') as HTMLElement;
       const rateSlider = within(driftPanel).getByRole('slider', { name: 'Rate Drift' });
       rateSlider.focus();
       fireEvent.keyDown(rateSlider, { key: 'ArrowRight' });
@@ -135,7 +135,7 @@ describe('SignatureArrayDrawer', () => {
 
     it('renders identically regardless of the drawer\'s own `disabled` prop — a global control, not scoped to the selected robot/company', () => {
       render(<SignatureArrayDrawer value={makeValue()} {...noop} disabled />);
-      const driftPanel = screen.getByText('Robot Drift').closest('.sc-directional-panel') as HTMLElement;
+      const driftPanel = screen.getByText('Voice Drift').closest('.sc-directional-panel') as HTMLElement;
       expect(within(driftPanel).getByRole('slider', { name: 'Rate Drift' }).getAttribute('data-disabled')).toBeNull();
       expect(within(driftPanel).getByRole('slider', { name: 'Depth Drift' }).getAttribute('data-disabled')).toBeNull();
     });
@@ -161,7 +161,7 @@ describe('SignatureArrayDrawer', () => {
     (['layer0', 'layer1', 'layer2'] as const).forEach((key) => {
       const typeGroup = layerSection(container, key).querySelector<HTMLElement>('.sc-radio-button')!;
       const options = within(typeGroup).getAllByRole('radio').map((r) => r.getAttribute('aria-label'));
-      expect(options.sort()).toEqual(['BINARY', 'BURST', 'GRADIENT', 'KINETIC', 'SWEEP'].sort());
+      expect(options.sort()).toEqual(['Binary', 'Burst', 'Kinetic', 'Sway', 'Sweep'].sort());
     });
   });
 
@@ -187,12 +187,17 @@ describe('SignatureArrayDrawer', () => {
       <SignatureArrayDrawer value={makeValue()} onContinuousChange={onContinuousChange} onStructuralChange={onStructuralChange} onLfoChange={() => {}} />
     );
 
-    fireEvent.click(within(layerSection(container, 'layer0')).getByRole('radio', { name: 'GRADIENT' }));
+    // Scoped to the Type radio's own group, not just the layer section — the shared LFO display
+    // nested in the same layer now renders its own Shape radio with the same shared lore
+    // vocabulary (docs/reference/text-content-tables.md unifies Type/Shape's waveform words), so
+    // both groups can contain an identically-labeled option within one layer's DOM.
+    const typeGroup = layerSection(container, 'layer0').querySelector<HTMLElement>('.sc-radio-button')!;
+    fireEvent.click(within(typeGroup).getByRole('radio', { name: 'Sweep' }));
 
     expect(onStructuralChange).toHaveBeenCalled();
     expect(onContinuousChange).not.toHaveBeenCalled();
     const newLayers = onStructuralChange.mock.calls[0][0] as OscillatorLayer[];
-    expect(newLayers[0].type).toBe('triangle'); // 'GRADIENT' label -> 'triangle' value, per robotOptionsConfig.ts
+    expect(newLayers[0].type).toBe('triangle'); // 'Sweep' label -> 'triangle' value, per robotOptionsConfig.ts
   });
 
   it('a Gain change calls onContinuousChange, not onStructuralChange', () => {
@@ -215,7 +220,7 @@ describe('SignatureArrayDrawer', () => {
       <SignatureArrayDrawer value={makeValue()} onContinuousChange={onContinuousChange} onStructuralChange={onStructuralChange} onLfoChange={() => {}} />
     );
 
-    const coaxialGain = within(layerSection(container, 'layer1')).getByRole('slider', { name: 'Coaxial Gain' });
+    const coaxialGain = within(layerSection(container, 'layer1')).getByRole('slider', { name: 'Companion Gain' });
     coaxialGain.focus();
     fireEvent.keyDown(coaxialGain, { key: 'Home' }); // Radix's own jump-to-min key — lands exactly on 0
 
@@ -257,7 +262,8 @@ describe('SignatureArrayDrawer', () => {
 
     it('the Type radio renders inline among the layer\'s other controls, not inside the shared LFO group\'s row targeting', () => {
       const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      const typeRadio = within(layerSection(container, 'layer0')).getByRole('radio', { name: 'GRADIENT' });
+      const typeGroup = layerSection(container, 'layer0').querySelector<HTMLElement>('.sc-radio-button')!;
+      const typeRadio = within(typeGroup).getByRole('radio', { name: 'Sweep' });
       expect(typeRadio.closest('.sc-lfo-target-group__row')).toBeNull();
     });
 
@@ -375,9 +381,10 @@ describe('SignatureArrayDrawer', () => {
     const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} disabled />);
 
     const baseline = layerSection(container, 'layer0');
-    expect(within(baseline).getByRole('radio', { name: 'GRADIENT' }).getAttribute('data-disabled')).toBe('');
+    const baselineTypeGroup = baseline.querySelector<HTMLElement>('.sc-radio-button')!;
+    expect(within(baselineTypeGroup).getByRole('radio', { name: 'Sweep' }).getAttribute('data-disabled')).toBe('');
     expect(within(baseline).getByRole('slider', { name: /gain/i }).getAttribute('data-disabled')).toBe('');
-    expect(within(layerSection(container, 'layer1')).getByRole('slider', { name: 'Coaxial Gain' }).getAttribute('data-disabled')).toBe('');
+    expect(within(layerSection(container, 'layer1')).getByRole('slider', { name: 'Companion Gain' }).getAttribute('data-disabled')).toBe('');
   });
 
   // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 11) — an optional
@@ -566,24 +573,25 @@ describe('SignatureArrayLayer — exported standalone (docs/tasks/NAV_PANEL_VIEW
     );
   }
 
-  it('renders the Baseline layer\'s own panel identically to the combined drawer\'s own Baseline section', () => {
+  it('renders the Core layer\'s own panel identically to the combined drawer\'s own Core section', () => {
     const { container } = renderLayer(0);
-    expect(screen.getByText('Baseline')).toBeTruthy();
+    expect(screen.getByText('Core')).toBeTruthy();
     expect(container.querySelector('[data-layer-key="layer0"]')).toBeTruthy();
   });
 
-  it('renders the Harmonic layer standalone, with no Baseline/Coaxial content anywhere', () => {
+  it('renders the Accent layer standalone, with no Core/Companion content anywhere', () => {
     renderLayer(2);
-    expect(screen.getByText('Harmonic')).toBeTruthy();
-    expect(screen.queryByText('Baseline')).toBeNull();
-    expect(screen.queryByText('Coaxial')).toBeNull();
+    expect(screen.getByText('Accent')).toBeTruthy();
+    expect(screen.queryByText('Core')).toBeNull();
+    expect(screen.queryByText('Companion')).toBeNull();
   });
 
   it('changing the layer\'s Type radio calls onTypeChange with this layer\'s own idx', () => {
     const onTypeChange = vi.fn();
     renderLayer(0, { onTypeChange }); // layer0 starts as 'sine' (makeLayers())
-    const layerEl = screen.getByText('Baseline').closest('.sc-directional-panel') as HTMLElement;
-    const squareOption = within(layerEl).getByRole('radio', { name: 'BINARY' });
+    const layerEl = screen.getByText('Core').closest('.sc-directional-panel') as HTMLElement;
+    const typeGroup = layerEl.querySelector<HTMLElement>('.sc-radio-button')!;
+    const squareOption = within(typeGroup).getByRole('radio', { name: 'Binary' });
 
     fireEvent.click(squareOption);
 

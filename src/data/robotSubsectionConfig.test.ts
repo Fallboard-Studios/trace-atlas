@@ -21,10 +21,10 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
 
   it('gives every section its current nav-tree label and trait', () => {
     const byId = Object.fromEntries(ROBOT_SECTIONS_CONFIG.map((s) => [s.id, s]));
-    expect(byId.volume).toMatchObject({ navLabel: 'Output', trait: 'output' });
-    expect(byId.melody).toMatchObject({ navLabel: 'Composition', trait: 'composition' });
-    expect(byId.envelope).toMatchObject({ navLabel: 'Envelope', trait: 'timeSpace' });
-    expect(byId.source).toMatchObject({ navLabel: 'Source', trait: 'spectral' });
+    expect(byId.volume).toMatchObject({ loreLabel: 'Output', navLabel: 'Dynamics', trait: 'output' });
+    expect(byId.melody).toMatchObject({ loreLabel: 'Payload Registrar', navLabel: 'Composition', trait: 'composition' });
+    expect(byId.envelope).toMatchObject({ loreLabel: 'Ping Shell', navLabel: 'Envelope', trait: 'timeSpace' });
+    expect(byId.source).toMatchObject({ loreLabel: 'Telemetry', navLabel: 'Source', trait: 'spectral' });
   });
 
   it('only "source" wraps its subsections in its own accordion — volume/melody/envelope have none', () => {
@@ -35,16 +35,17 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
     expect(byId.source.ownAccordionLabel).toBe('Source');
   });
 
-  it("volume's one subsection is Levels' own accordion (Dynamics as its nav label)", () => {
+  it("volume's one subsection is Levels' own accordion (Level Control as its nav label)", () => {
     const volume = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'volume')!;
     expect(volume.subsections).toEqual([
-      { id: 'audioSettings', navLabel: 'Dynamics', accordionLabel: 'Levels' },
+      { id: 'audioSettings', loreLabel: 'Ops Clarity', navLabel: 'Level Control', accordionLabel: 'Levels' },
     ]);
   });
 
   it("melody's rhythm subsection keeps its Composition accordion label, distinct from its Rhythm nav label", () => {
     const melody = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'melody')!;
     const rhythm = melody.subsections.find((s) => s.id === 'rhythm')!;
+    expect(rhythm.loreLabel).toBe('Payload Map');
     expect(rhythm.navLabel).toBe('Rhythm');
     expect(rhythm.accordionLabel).toBe('Composition');
     expect(rhythm.mergedInto).toBeUndefined();
@@ -53,6 +54,7 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
   it('melody\'s frequency ("Pitches") has no accordion of its own — merged into rhythm', () => {
     const melody = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'melody')!;
     const frequency = melody.subsections.find((s) => s.id === 'frequency')!;
+    expect(frequency.loreLabel).toBe('Payload Allocation');
     expect(frequency.navLabel).toBe('Pitches');
     expect(frequency.accordionLabel).toBeUndefined();
     expect(frequency.mergedInto).toBe('rhythm');
@@ -66,16 +68,16 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
   it("envelope's one subsection is Envelope's own accordion (Contour as its nav label)", () => {
     const envelope = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'envelope')!;
     expect(envelope.subsections).toEqual([
-      { id: 'pingContour', navLabel: 'Contour', accordionLabel: 'Envelope' },
+      { id: 'pingContour', loreLabel: 'Ping Profile', navLabel: 'Contour', accordionLabel: 'Envelope' },
     ]);
   });
 
   it("source's 3 subsections each keep their own accordion, in oscillator order", () => {
     const source = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'source')!;
     expect(source.subsections).toEqual([
-      { id: 'baselineOscillator', navLabel: 'Baseline Oscillator', accordionLabel: 'Baseline Oscillator' },
-      { id: 'coaxialOscillator', navLabel: 'Coaxial Oscillator', accordionLabel: 'Coaxial Oscillator' },
-      { id: 'harmonicOscillator', navLabel: 'Harmonic Oscillator', accordionLabel: 'Harmonic Oscillator' },
+      { id: 'baselineOscillator', loreLabel: 'Baseline Feed', navLabel: 'Core Oscillator', accordionLabel: 'Core Oscillator' },
+      { id: 'coaxialOscillator', loreLabel: 'Coaxial Effect', navLabel: 'Companion Oscillator', accordionLabel: 'Companion Oscillator' },
+      { id: 'harmonicOscillator', loreLabel: 'Offset Matrix', navLabel: 'Accent Oscillator', accordionLabel: 'Accent Oscillator' },
     ]);
   });
 

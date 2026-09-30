@@ -216,16 +216,16 @@ describe('useNavTree — 4th tree level, subsection children (docs/tasks/NAV_PAN
     expect(findNode('probes.all.source', result.current.nodes)?.trait).toBe('spectral');
   });
 
-  it('renames "Volume" to "Output" as a humanLabel only — id segments stay volume/source', () => {
+  it('renames "Volume" to "Dynamics" as a humanLabel only — id segments stay volume/source', () => {
     useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
     const { result } = renderHook(() => useNavTree());
 
     const volumeNode = findNode('probes.r1.volume', result.current.nodes);
-    expect(volumeNode?.humanLabel).toBe('Output');
+    expect(volumeNode?.humanLabel).toBe('Dynamics');
     expect(volumeNode?.id).toBe('probes.r1.volume');
 
     const sourceNode = findNode('probes.r1.source.baselineOscillator', result.current.nodes);
-    expect(sourceNode?.humanLabel).toBe('Baseline Oscillator');
+    expect(sourceNode?.humanLabel).toBe('Core Oscillator');
     expect(sourceNode?.id).toBe('probes.r1.source.baselineOscillator');
   });
 });

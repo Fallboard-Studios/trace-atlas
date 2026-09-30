@@ -52,6 +52,7 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
 
   {
     id: 'fleetParams',
+    loreLabel: 'Environment',
     humanLabel: 'Fleet Params',
     trait: 'spectral',
     children: [
@@ -62,72 +63,80 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
         // separate accordions of their own. Matches AudioRigDrawer.tsx's own
         // getTraitColorStyle('composition') call for Automatic Effects.
         id: 'fleetParams.pacing',
+        loreLabel: 'Trace Timing',
         humanLabel: 'Pacing',
         trait: 'composition',
         children: [
-          { id: 'fleetParams.pacing.tempo', humanLabel: 'Tempo' },
-          { id: 'fleetParams.pacing.frequency', humanLabel: 'Frequency' },
-          { id: 'fleetParams.pacing.duration', humanLabel: 'Duration' },
-          { id: 'fleetParams.pacing.automaticEffects', humanLabel: 'Automatic Intensity' },
+          { id: 'fleetParams.pacing.tempo', loreLabel: 'Ping Rate', humanLabel: 'Tempo' },
+          { id: 'fleetParams.pacing.frequency', loreLabel: 'Trace Skip Rate', humanLabel: 'Automation Rate' },
+          { id: 'fleetParams.pacing.duration', loreLabel: 'Trace Runway', humanLabel: 'Automation Length' },
+          { id: 'fleetParams.pacing.automaticEffects', loreLabel: 'Trace Width', humanLabel: 'Automation Range' },
         ],
       },
       {
         id: 'fleetParams.eqFilters',
+        loreLabel: 'Outer Bounds',
         humanLabel: 'EQ & Filters',
         // Matches AudioRigDrawer.tsx's own AUDIO_RIG_EFFECT_TRAIT — eq3/filterHPF/filterLPF are
         // all 'spectral'; every leaf below inherits this via cascade rather than repeating it.
         trait: 'spectral',
         children: [
-          { id: 'fleetParams.eqFilters.eq', humanLabel: '3-Band EQ' },
-          { id: 'fleetParams.eqFilters.hpf', humanLabel: 'High-Pass Filter' },
-          { id: 'fleetParams.eqFilters.lpf', humanLabel: 'Low-Pass Filter' },
+          { id: 'fleetParams.eqFilters.eq', loreLabel: 'Trace Metrics', humanLabel: '3-Band EQ' },
+          { id: 'fleetParams.eqFilters.hpf', loreLabel: 'Top Extraction', humanLabel: 'High-Pass Filter' },
+          { id: 'fleetParams.eqFilters.lpf', loreLabel: 'Bottom Extraction', humanLabel: 'Low-Pass Filter' },
         ],
       },
       {
-        // New top-level group (docs/specs/FLEET_DRIFT_CONSOLIDATION.md), displayed as "LFO Drift"
-        // (renamed from the original "Fleet Drift" per Crawford's own follow-up — the id itself
-        // (`fleetDrift`) is unchanged, a label-only rename). Positioned right after EQ & Filters
-        // rather than nested inside it (confirmed via the breadcrumb-trimming reasoning in the
-        // spec's §1.3: a leaf's own name is trimmed, so "Fleet Params > LFO Drift" only reads that
-        // way if LFO Drift is itself the group). Holds 2 leaves: "Fleet Drift" (the merged eq3/
-        // filterLPF/filterHPF control) and "Robot Drift" (moved here from Probes/Companies
-        // entirely — no longer duplicated there, same follow-up).
+        // New top-level group (docs/specs/FLEET_DRIFT_CONSOLIDATION.md), displayed as "Drift" —
+        // renamed from "Fleet Drift" to "LFO Drift" per Crawford's own follow-up, then again to
+        // "Drift" per docs/reference/text-content-tables.md's own lore/human copy pass (the id
+        // itself (`fleetDrift`) has never changed, every rename here is label-only). Positioned
+        // right after EQ & Filters rather than nested inside it (confirmed via the
+        // breadcrumb-trimming reasoning in the spec's §1.3: a leaf's own name is trimmed, so
+        // "Fleet Params > Drift" only reads that way if Drift is itself the group). Holds 2
+        // leaves: "Environmental Drift" (the merged eq3/filterLPF/filterHPF control, formerly
+        // "Fleet Drift") and "Voice Drift" (formerly "Robot Drift" — moved here from Probes/
+        // Companies entirely, no longer duplicated there, same earlier follow-up).
         id: 'fleetParams.fleetDrift',
-        humanLabel: 'LFO Drift',
+        loreLabel: 'Signatures',
+        humanLabel: 'Drift',
         // Matches EQ & Filters' own trait — this group is drift of the global-chain effects (plus
-        // Robot Drift, moved in alongside it). Not confirmed directly with Crawford (spec §7 item 1).
+        // Voice Drift, moved in alongside it). Not confirmed directly with Crawford (spec §7 item 1).
         trait: 'spectral',
         children: [
-          { id: 'fleetParams.fleetDrift.drift', humanLabel: 'Fleet Drift' },
-          { id: 'fleetParams.fleetDrift.robots', humanLabel: 'Robot Drift' },
+          { id: 'fleetParams.fleetDrift.drift', loreLabel: 'Trace Appendix', humanLabel: 'Environmental Drift' },
+          { id: 'fleetParams.fleetDrift.robots', loreLabel: 'Probe Signature', humanLabel: 'Voice Drift' },
         ],
       },
       {
         id: 'fleetParams.timeSpace',
+        loreLabel: 'Dimensional Bounds',
         humanLabel: 'Time & Space',
         // reverb/delay are both 'timeSpace' in AUDIO_RIG_EFFECT_TRAIT — same as this branch's own
         // top-level default, set explicitly anyway so this group's trait doesn't silently depend
         // on Fleet Params' own default never changing.
         trait: 'timeSpace',
         children: [
-          { id: 'fleetParams.timeSpace.reverb', humanLabel: 'Reverb' },
-          { id: 'fleetParams.timeSpace.delay', humanLabel: 'Delay' },
+          { id: 'fleetParams.timeSpace.reverb', loreLabel: 'External Capacity', humanLabel: 'Reverb' },
+          { id: 'fleetParams.timeSpace.delay', loreLabel: 'Retracing', humanLabel: 'Delay' },
         ],
       },
       {
         id: 'fleetParams.output',
+        loreLabel: 'Trace Flattening',
         humanLabel: 'Output',
         // compressor/limiter are both 'output' in AUDIO_RIG_EFFECT_TRAIT.
         trait: 'output',
         children: [
-          { id: 'fleetParams.output.compression', humanLabel: 'Compressor' },
-          { id: 'fleetParams.output.limiter', humanLabel: 'Limiter' },
+          { id: 'fleetParams.output.compression', loreLabel: 'Bundler', humanLabel: 'Compressor' },
+          { id: 'fleetParams.output.limiter', loreLabel: 'Reduction', humanLabel: 'Limiter' },
         ],
       },
     ],
   },
   {
     id: 'probes',
+    loreLabel: 'Timbre & Color',
     humanLabel: 'Probes',
     trait: 'output',
     children: [
@@ -147,6 +156,7 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
   },
   {
     id: 'companies',
+    loreLabel: 'Unity & Variety',
     humanLabel: 'Companies',
     trait: 'company',
     // No static children — per-company nodes are generated at render time.
@@ -154,7 +164,10 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
   },
   {
     id: 'settings',
-    humanLabel: 'Settings',
+    // "Navigation"/"Settings" per docs/reference/text-content-tables.md — the branch's former
+    // sole label ("Settings") becomes its lore label, "Navigation" is the new human label.
+    loreLabel: 'Settings',
+    humanLabel: 'Navigation',
     trait: 'seed',
     // Quality below is Crawford's own explicit per-leaf pick (2026-09-23) — unlike Fleet Params'/
     // Sector Settings', it has no single established trait elsewhere in the app to match; it
@@ -164,33 +177,36 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
     children: [
       {
         id: 'settings.quality',
-        humanLabel: 'Audio Profile',
+        loreLabel: 'Trace Capacity',
+        humanLabel: 'Audio Quality',
         trait: 'seed',
         // Robot Load/Effects Load — already-existing labeled rows inside AudioLoadPanel.tsx
         // (AUDIO_ROBOT_LOAD_SCHEMA/AUDIO_EFFECTS_LOAD_SCHEMA), just given their own scroll/
         // highlight anchor in the tree.
         children: [
-          { id: 'settings.quality.robotLoad', humanLabel: 'Robot Load' },
-          { id: 'settings.quality.effectsLoad', humanLabel: 'Effects Load' },
+          { id: 'settings.quality.robotLoad', loreLabel: 'Fleet Size', humanLabel: 'Voice Limit' },
+          { id: 'settings.quality.effectsLoad', loreLabel: 'Trace Budget', humanLabel: 'Effects Limit' },
         ],
       },
       {
         // Matches SectorSettingsDrawer.tsx's own getTraitColorStyle('seed') call.
         id: 'settings.sectorSettings',
-        humanLabel: 'Audio Seeds',
+        loreLabel: 'Foundry',
+        humanLabel: 'Seeds',
         trait: 'seed',
         // Attenuation Style/Coordinates — already-existing labeled rows inside
         // SectorSettingsDrawer.tsx (ATTENUATION_STYLE_SCHEMA/COORDS_SCHEMA), same treatment.
         children: [
-          { id: 'settings.sectorSettings.attenuationStyle', humanLabel: 'Attenuation Style' },
-          { id: 'settings.sectorSettings.coordinates', humanLabel: 'Coordinates' },
+          { id: 'settings.sectorSettings.attenuationStyle', loreLabel: 'Attenuation Style', humanLabel: 'Atmosphere' },
+          { id: 'settings.sectorSettings.coordinates', loreLabel: 'Atlas Vector', humanLabel: 'Location' },
         ],
       },
       {
         // Session Storage (Roadmap Phase 20, docs/tasks/SESSION_STORAGE.md Task 10) — last, not
         // between the two audio-tuning leaves above: unrelated to either one. No subsections.
         id: 'settings.sessions',
-        humanLabel: 'Sessions',
+        loreLabel: 'Comms',
+        humanLabel: 'Save & Share',
         trait: 'seed',
       },
     ],
