@@ -5,7 +5,7 @@ import { SessionsPanel } from '../../console/SessionsPanel';
 import { useSectionObserver } from '../useSectionObserver';
 import { useAccordionOpenState } from '../useAccordionOpenState';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
-import { IntroPanel } from '@/components/ui/controls/IntroPanel';
+import { IntroPanel, type IntroContent } from '@/components/ui/controls/IntroPanel';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { hasPendingNavTargetFor } from '@/utils/accordionSync';
@@ -37,12 +37,6 @@ const SETTINGS_ACCORDION_SCHEMAS: Record<SettingsLeaf, AccordionSchema> = {
   sectorSettings: { id: 'settings.sectorSettings', type: 'accordion', humanLabel: 'Seeds' },
   sessions: { id: 'settings.sessions', type: 'accordion', humanLabel: 'Save & Share' },
 };
-
-interface IntroContent {
-  loreLabel: string;
-  loreDescription: string;
-  humanDescription: string;
-}
 
 const SETTINGS_SECTION_INTRO: IntroContent = {
   loreLabel: 'Settings — configure your Trace Atlas terminal.',

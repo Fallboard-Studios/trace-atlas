@@ -7,7 +7,7 @@ import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderLog } from '@/components/ui/controls/SliderLog';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
-import { IntroPanel } from '@/components/ui/controls/IntroPanel';
+import { IntroPanel, type IntroContent } from '@/components/ui/controls/IntroPanel';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { hasPendingNavTargetFor } from '@/utils/accordionSync';
 import { setViewFadeRoot } from '@/utils/viewFade';
@@ -33,12 +33,6 @@ import './FleetParamsContent.css';
  */
 const PACING_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.topRow', type: 'directionalPanel', orientation: 'responsive' };
 const PACING_BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.bottomRow', type: 'directionalPanel', orientation: 'responsive' };
-
-interface IntroContent {
-  loreLabel: string;
-  loreDescription: string;
-  humanDescription: string;
-}
 
 /** Fleet Params' own section-level intro, above all 5 groups. */
 const FLEET_PARAMS_SECTION_INTRO: IntroContent = {

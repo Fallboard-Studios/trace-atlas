@@ -1,15 +1,9 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
-import { IntroPanel } from '@/components/ui/controls/IntroPanel';
+import { IntroPanel, type IntroContent } from '@/components/ui/controls/IntroPanel';
 import { ROBOT_SECTIONS_CONFIG, type RobotOptionsTrait } from '@/data/robotSubsectionConfig';
 import type { RobotSection, RobotSubsection } from '@/stores/uiStore';
 import type { AccordionSchema } from '@/types/controls';
-
-interface IntroContent {
-  loreLabel: string;
-  loreDescription: string;
-  humanDescription: string;
-}
 
 // Which accordion-bearing subsections open with their own intro block, ahead of the
 // existing controls — Core/Companion/Accent Oscillator (Source's 3 layer slots)
