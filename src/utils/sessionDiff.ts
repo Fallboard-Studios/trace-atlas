@@ -289,11 +289,16 @@ export function buildSessionPayload(): SessionPayload {
     if (Object.keys(diff).length > 0) companyDiffs[company.id] = diff;
   }
 
+  const audioState = useAudioStore.getState();
   return {
     version: 1,
     attenuationStyleName: attenuationStyle.name,
     coordinates: locale.coordinates,
-    globalAudio: applyGlobalSwellBasesToAudio(useAudioStore.getState().globalAudio),
+    globalAudio: applyGlobalSwellBasesToAudio(audioState.globalAudio),
+    bpm: audioState.bpm,
+    swellFrequency: audioState.swellFrequency,
+    swellDuration: audioState.swellDuration,
+    pingVarianceAutomation: audioState.pingVarianceAutomation,
     robotOverrides,
     companyDiffs,
     userCreatedCompanies,
@@ -406,6 +411,16 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   const globalAudio = migrateLfoDrift(payload.globalAudio);
   useAudioStore.setState({ globalAudio });
   applyGlobalAudioToEngine(globalAudio);
+
+  // Pacing fields: applied AFTER retransmitWorld above, which reseeds bpm (regenerateBpmFromSeed)
+  // and would otherwise win. Each is independently optional (undefined for a pre-this-change
+  // payload), in which case the just-reseeded/carried-forward value is left alone rather than
+  // zeroed out. setBPM also pushes to AudioEngine; the other three are plain state writes, same
+  // as their own UI-slider setters.
+  if (payload.bpm !== undefined) useAudioStore.getState().setBPM(payload.bpm);
+  if (payload.swellFrequency !== undefined) useAudioStore.getState().setSwellFrequency(payload.swellFrequency);
+  if (payload.swellDuration !== undefined) useAudioStore.getState().setSwellDuration(payload.swellDuration);
+  if (payload.pingVarianceAutomation !== undefined) useAudioStore.getState().setPingVarianceAutomation(payload.pingVarianceAutomation);
 
   const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   const localeId = attenuationStyle?.currentLocaleId;

@@ -68,6 +68,25 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
   });
 
+  it('omits bpm/swellFrequency/swellDuration/pingVarianceAutomation from the wire entirely when absent from the payload', () => {
+    const payload = makePayload();
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;
+    expect(wire).not.toHaveProperty('b');
+    expect(wire).not.toHaveProperty('sf');
+    expect(wire).not.toHaveProperty('sd');
+    expect(wire).not.toHaveProperty('pv');
+  });
+
+  it('includes and round-trips bpm/swellFrequency/swellDuration/pingVarianceAutomation when present, via abbreviated wire keys', () => {
+    const payload = makePayload({ bpm: 77, swellFrequency: 9, swellDuration: 5, pingVarianceAutomation: 0.42 });
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;
+    expect(wire.b).toBe(77);
+    expect(wire.sf).toBe(9);
+    expect(wire.sd).toBe(5);
+    expect(wire.pv).toBe(0.42);
+    expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+  });
+
   it('uses abbreviated top-level keys on the wire, not the full SessionPayload field names', () => {
     const payload = makePayload();
     const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;

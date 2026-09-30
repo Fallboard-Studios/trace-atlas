@@ -53,6 +53,16 @@ export interface SessionPayload {
   attenuationStyleName: string;
   coordinates: { x: number; y: number };
   globalAudio: GlobalAudioSettings;
+  /** Pacing section fields — audioStore state, not part of GlobalAudioSettings. Freely
+   *  user-editable and (bpm aside) carried forward across Attenuation Style switches, so they
+   *  can't be re-derived from attenuationStyleName/coordinates alone and must be captured
+   *  explicitly. Optional so an older payload (pre this field) still decodes: applySessionPayload
+   *  leaves whatever retransmitWorld/regenerateGlobalAudioFromSeed already produced untouched
+   *  when a field is absent, rather than defaulting to 0. */
+  bpm?: number;
+  swellFrequency?: number;
+  swellDuration?: number;
+  pingVarianceAutomation?: number;
   /** Keyed by robot id. An untouched robot has no entry (not an entry equal to {}). */
   robotOverrides: Record<string, RobotAudioOverrideDiff>;
   /** Keyed by the company's deterministic spawn-generated id. */

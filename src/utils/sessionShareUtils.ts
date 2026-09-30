@@ -35,6 +35,12 @@ interface CompactSessionPayload {
   n: SessionPayload['attenuationStyleName'];
   c: SessionPayload['coordinates'];
   g: SessionPayload['globalAudio'];
+  /** Pacing fields (SessionPayload's own bpm/swellFrequency/swellDuration/pingVarianceAutomation)
+   *  -- each omitted from the wire when absent, same "no key if untouched" contract as r/d/u. */
+  b?: SessionPayload['bpm'];
+  sf?: SessionPayload['swellFrequency'];
+  sd?: SessionPayload['swellDuration'];
+  pv?: SessionPayload['pingVarianceAutomation'];
   r?: Record<string, CompactRobotOverrideDiff>;
   d?: Record<string, CompactCompanyDiff>;
   u?: SessionPayload['userCreatedCompanies'];
@@ -207,6 +213,10 @@ function toCompactSessionPayload(payload: SessionPayload): CompactSessionPayload
     c: payload.coordinates,
     g: payload.globalAudio,
   };
+  if (payload.bpm !== undefined) compact.b = payload.bpm;
+  if (payload.swellFrequency !== undefined) compact.sf = payload.swellFrequency;
+  if (payload.swellDuration !== undefined) compact.sd = payload.swellDuration;
+  if (payload.pingVarianceAutomation !== undefined) compact.pv = payload.pingVarianceAutomation;
   if (Object.keys(payload.robotOverrides).length > 0) {
     compact.r = Object.fromEntries(Object.entries(payload.robotOverrides).map(([id, diff]) => [id, toCompactRobotOverrideDiff(diff)]));
   }
@@ -232,10 +242,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *  degrades to a harmless no-op override rather than a crash. */
 function isValidCompactSessionPayload(parsed: unknown): parsed is CompactSessionPayload {
   if (!isPlainObject(parsed)) return false;
-  const { n, c, g, r, d, u } = parsed;
+  const { n, c, g, b, sf, sd, pv, r, d, u } = parsed;
   if (typeof n !== 'string') return false;
   if (!isPlainObject(c) || typeof c.x !== 'number' || typeof c.y !== 'number') return false;
   if (!isPlainObject(g)) return false;
+  if (b !== undefined && typeof b !== 'number') return false;
+  if (sf !== undefined && typeof sf !== 'number') return false;
+  if (sd !== undefined && typeof sd !== 'number') return false;
+  if (pv !== undefined && typeof pv !== 'number') return false;
   if (r !== undefined && !isPlainObject(r)) return false;
   if (d !== undefined && !isPlainObject(d)) return false;
   if (u !== undefined && !Array.isArray(u)) return false;
@@ -248,6 +262,10 @@ function fromCompactSessionPayload(compact: CompactSessionPayload): SessionPaylo
     attenuationStyleName: compact.n,
     coordinates: compact.c,
     globalAudio: compact.g,
+    bpm: compact.b,
+    swellFrequency: compact.sf,
+    swellDuration: compact.sd,
+    pingVarianceAutomation: compact.pv,
     robotOverrides: compact.r
       ? Object.fromEntries(Object.entries(compact.r).map(([id, diff]) => [id, fromCompactRobotOverrideDiff(diff)]))
       : {},

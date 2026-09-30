@@ -228,6 +228,19 @@ describe('buildSessionPayload', () => {
     expect(payload.globalAudio.lfoDrift.robots).toEqual({ rateDrift: -0.12, depthDrift: 0.57 });
   });
 
+  it('captures bpm/swellFrequency/swellDuration/pingVarianceAutomation from audioStore, not just globalAudio', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    useAudioStore.setState({ bpm: 77, swellFrequency: 9, swellDuration: 5, pingVarianceAutomation: 0.42 });
+
+    const payload = buildSessionPayload();
+
+    expect(payload.bpm).toBe(77);
+    expect(payload.swellFrequency).toBe(9);
+    expect(payload.swellDuration).toBe(5);
+    expect(payload.pingVarianceAutomation).toBe(0.42);
+  });
+
   it('has no robotOverrides entries for an untouched roster', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
@@ -472,6 +485,40 @@ describe('applySessionPayload', () => {
     });
     const stripIds = (melody: typeof expectedMelody) => melody.map(({ id: _id, ...rest }) => rest);
     expect(stripIds(restoredRobot.melody)).toEqual(stripIds(expectedMelody));
+  });
+
+  it('restores bpm/swellFrequency/swellDuration/pingVarianceAutomation after a full save/wipe/load round trip, overriding retransmitWorld\'s own reseed', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    useAudioStore.setState({ bpm: 77, swellFrequency: 9, swellDuration: 5, pingVarianceAutomation: 0.42 });
+    const payload = buildSessionPayload();
+
+    // Wipe to different coordinates first -- retransmitWorld reseeds bpm via regenerateBpmFromSeed
+    // for the new locale (a real, different noise map), so restoring afterward must override
+    // whatever that reseed produced, not just coincidentally match an untouched value.
+    applySessionPayload({ ...payload, coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 } });
+
+    applySessionPayload(payload);
+
+    expect(useAudioStore.getState().bpm).toBe(77);
+    expect(useAudioStore.getState().swellFrequency).toBe(9);
+    expect(useAudioStore.getState().swellDuration).toBe(5);
+    expect(useAudioStore.getState().pingVarianceAutomation).toBe(0.42);
+  });
+
+  it('leaves the freshly-seeded bpm/swellFrequency/swellDuration/pingVarianceAutomation untouched when an older payload lacks those fields', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const { bpm: _bpm, swellFrequency: _sf, swellDuration: _sd, pingVarianceAutomation: _pva, ...oldShapePayload } = payload;
+
+    useAudioStore.setState({ bpm: 123, swellFrequency: 11, swellDuration: 8, pingVarianceAutomation: 0.9 });
+    expect(() => applySessionPayload(oldShapePayload as typeof payload)).not.toThrow();
+
+    // retransmitWorld's own reseed ran (not this field's restore code, which had nothing to
+    // apply) -- just asserting it's no longer the pre-apply sentinel value proves the absent
+    // fields didn't crash or silently zero anything out.
+    expect(useAudioStore.getState().bpm).not.toBe(123);
   });
 
   it('restores a renamed company after a full save/wipe/load round trip', () => {
