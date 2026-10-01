@@ -160,17 +160,19 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
   **Files:** `src/types/lfo.ts` (+test), `src/types/controls.ts` (+test), `src/data/lfoConfig.ts` (+test), `src/utils/lfoLaneDraw.ts`, `src/utils/lfoLaneDraw.test.ts`.
   **Scope:** S.
 
-- [ ] **Task 6: Seeders — bank settings, global links, robot links**
+- [x] **Task 6: Seeders — bank settings, global links, robot links**
 
   **Description:** `globalAudioSeed.ts`: add `LFO_BANK_RATE_BANDS`, `LFO_BANK_DRIFT_SEED_RANGE = { min: -0.7, max: 0.7 }`, `generateLfoBankSettings(asId, asName)` and `generateGlobalLfoLinks(asId, asName)` (spec §1.3 table; keys `lfoBank.<lane>.*`, `globalLfo.<target>.quiet|lane|depth`; `LFO_QUIET_THRESHOLD` 0.34 reused). `spawnSystem.ts`: add `ROBOT_LFO_DEPTH_SEED_MIN = 1` and `generateRobotLfoLinks(noiseMap, offset, priorLaneCounts)` (keys `robot.lfo.<target>.quiet|lane|depth`; `LFO_QUIET_THRESHOLD` 0.7 reused; the robot's own earlier targets update the tally as it goes). The old generators stay untouched until Task 17.
 
   **Acceptance criteria:**
-  - [ ] `globalAudioSeed.test.ts`: for a fixed map, bank rates lie inside each lane's band, ascend a → d, are multiples of 0.05, never 0; shapes ∈ {triangle, sine}; drifts ∈ [-0.7, 0.7] on a 0.01 grid; two calls are byte-identical. Global links: over 50 maps the per-target lit rate is within [55%, 80%]; quiet → `{ lane: null, depth: 0 }`; lit → depth ∈ [20, 50] integer, lane ∈ `LFO_LANE_IDS`; the `getSeededVal` spy sees only `.quiet`/`.lane`/`.depth` keys for `globalLfo.*`.
-  - [ ] `spawnSystem.test.ts`: over 50 robots the per-target lit rate is within [20%, 40%]; a lit target never has depth 0 and depth ≤ 100; `priorLaneCounts = { a: 20, b: 0, c: 0, d: 0 }` puts fewer than 15% of 100 lit draws on `a`; equal inputs → identical output.
+  - [x] `globalAudioSeed.test.ts`: for a fixed map, bank rates lie inside each lane's band, ascend a → d, are multiples of 0.05, never 0; shapes ∈ {triangle, sine}; drifts ∈ [-0.7, 0.7] on a 0.01 grid; two calls are byte-identical. Global links: over 50 maps the per-target lit rate is within [55%, 80%]; quiet → `{ lane: null, depth: 0 }`; lit → depth ∈ [20, 50] integer, lane ∈ `LFO_LANE_IDS`; the `getSeededVal` spy sees only `.quiet`/`.lane`/`.depth` keys for `globalLfo.*`.
+  - [x] `spawnSystem.test.ts`: over 50 robots the per-target lit rate is within [20%, 40%]; a lit target never has depth 0 and depth ≤ 100; `priorLaneCounts = { a: 20, b: 0, c: 0, d: 0 }` puts fewer than 15% of 100 lit draws on `a`; equal inputs → identical output.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/globalAudioSeed.test.ts src/systems/spawnSystem.test.ts` passes (RED first). Mutation check: drop the `priorLaneCounts` term from the weight and watch the `< 15%` case go red.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/globalAudioSeed.test.ts src/systems/spawnSystem.test.ts` passes (RED first). Mutation check: drop the `priorLaneCounts` term from the weight and watch the `< 15%` case go red.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Notes from execution:** the flat "< 15%" bound alone didn't reliably catch the `priorLaneCounts` mutation — this codebase's real `getSeededVal`/simplex-noise statistics put the zero-count lane-`a` share well below the naive uniform-`t` expectation (~6% measured over the test's worlds, not ~32%), so a mutated (always-zero-count) run could land under 15% by chance. Rewrote `spawnSystem.test.ts`'s prior-counts case as a same-seed relative comparison (heavy-prior-count share must beat a zero-count baseline computed from identical worlds/offsets) — this reliably fails under the mutation regardless of the absolute noise-driven baseline, confirmed both ways. `generateGlobalLfoLinks`' `getSeededVal` spy used the `worldTransition.test.ts` `importOriginal` wrap-with-`vi.fn` pattern. Both new seeders are additive and uncalled by any production path (wiring is Task 8/9/10), so Task 6 cannot regress runtime behavior. Full suite green (4313/4313) aside from one pre-existing, code-comment-documented "KNOWN FLAKY" real-RNG test (`worldTransition.test.ts`'s swell-clear case) — confirmed unrelated by diffing Task 6's changed files (`spawnSystem.ts`/`.test.ts`, `globalAudioSeed.ts`/`.test.ts`) against that test's own import graph (no overlap) and by a clean full-suite rerun. `npm run build:types`/`lint` clean.
 
   **Dependencies:** Task 5.
   **Files:** `src/utils/globalAudioSeed.ts` (+test), `src/systems/spawnSystem.ts` (+test).
