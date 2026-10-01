@@ -16,10 +16,10 @@ import { resolveCompanyOptions, diffCompoundField } from '@/systems/companyOptio
 import {
   applyAudioMode, applyVolume,
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
-  applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo,
+  applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
-import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
+import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import { SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import {
   SOURCE_OSCILLATOR_SUBSECTIONS, subsectionIds as computeSubsectionIds, accordionIds as computeAccordionIds,
@@ -30,7 +30,7 @@ import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
 import type { CompanyOptionsSnapshot } from '@/types/Company';
 import type { RobotLfoTargetId } from '@/types/lfo';
-import type { LfoValue } from '@/types/controls';
+import type { LfoLinkValue } from '@/types/controls';
 
 import './CompanyOptionsSection.css';
 
@@ -86,7 +86,7 @@ const DISABLED_ADSR: ADSREnvelope = { attack: 0, decay: 0, sustain: 0, release: 
 const DISABLED_LAYER = { type: 'sine' as const, gain: 0, detune: 0, phase: 0 };
 const DISABLED_SIGNATURE_ARRAY: SignatureArrayValue = {
   layers: [DISABLED_LAYER, DISABLED_LAYER, DISABLED_LAYER],
-  lfoSettings: {},
+  lfoLinks: {},
 };
 
 function sectionAnchorRef(id: string) {
@@ -129,7 +129,7 @@ function sectionAnchorRef(id: string) {
  * Since SignatureArrayLayer/PingControlsRhythmSection/FrequencySection (Tasks 9/10) already report
  * *which* field/layer-index changed directly, rather than a whole compound object, layer edits no
  * longer need companyOptions.ts's diffLayerField to reverse-engineer that from an old/new
- * comparison — only genuinely-compound single-control values (ADSR, an LfoValue) still go through
+ * comparison — only genuinely-compound single-control values (ADSR, an LfoLink) still go through
  * diffCompoundField, unchanged from before this split.
  */
 export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
@@ -275,10 +275,10 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
   const adsrValue: ADSREnvelope = useMemo(() => resolvedAdsr ?? DISABLED_ADSR, [resolvedAdsr]);
 
   const resolvedLayers = resolved?.layers;
-  const resolvedLfoSettings = resolved?.lfoSettings;
+  const resolvedLfoLinks = resolved?.lfoLinks;
   const signatureArrayValue: SignatureArrayValue = useMemo(
-    () => (active ? { layers: resolvedLayers!, lfoSettings: resolvedLfoSettings! } : DISABLED_SIGNATURE_ARRAY),
-    [active, resolvedLayers, resolvedLfoSettings],
+    () => (active ? { layers: resolvedLayers!, lfoLinks: resolvedLfoLinks! } : DISABLED_SIGNATURE_ARRAY),
+    [active, resolvedLayers, resolvedLfoLinks],
   );
 
   // Every handler below reads from this ref instead of closing over `members`/`resolved`/
@@ -392,15 +392,15 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
     patchSnapshot({ layers: baseline.map((l, i) => (i === idx ? { ...l, [field]: v } : l)) });
   }, [localeId, patchSnapshot]);
 
-  const handleLayerLfoFieldChange = useCallback((target: RobotLfoTargetId, value: LfoValue) => {
+  const handleLayerLfoFieldChange = useCallback((target: RobotLfoTargetId, value: LfoLinkValue) => {
     const { members, resolved } = latest.current;
-    const oldValue = resolved?.lfoSettings?.[target] ?? { ...DEFAULT_LFO_SETTINGS[target] };
+    const oldValue = resolved?.lfoLinks?.[target] ?? { ...DEFAULT_LFO_LINK[target] };
     const patch = diffCompoundField(oldValue, value);
     members.forEach((m) => {
-      const memberOwn = m.lfoSettings?.[target] ?? { ...DEFAULT_LFO_SETTINGS[target] };
-      applyLayerLfo(m, localeId, target, { ...memberOwn, ...patch });
+      const memberOwn = m.lfoLinks?.[target] ?? { ...DEFAULT_LFO_LINK[target] };
+      applyLayerLfoLink(m, localeId, target, { ...memberOwn, ...patch });
     });
-    patchSnapshot({ lfoSettings: { ...resolved?.lfoSettings, [target]: value } });
+    patchSnapshot({ lfoLinks: { ...resolved?.lfoLinks, [target]: value } });
   }, [localeId, patchSnapshot]);
 
   const subsectionIdList = useMemo(() => computeSubsectionIds(prefix), [prefix]);
@@ -485,7 +485,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
             block={SIGNATURE_ARRAY_CONFIG[idx]}
             idx={idx}
             layer={layer}
-            lfoSettings={signatureArrayValue.lfoSettings}
+            lfoLinks={signatureArrayValue.lfoLinks}
             disabled={!active}
             swelling={layerSwelling}
             onTypeChange={handleLayerTypeChange}

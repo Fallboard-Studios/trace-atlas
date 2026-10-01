@@ -5,9 +5,9 @@ import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
-import { LfoTargetGroup } from '@/components/ui/controls/LfoTargetGroup';
+import { LfoLink } from '@/components/ui/controls/LfoLink';
 import { withHeldOffClass } from '@/components/ui/controls/activeClass';
-import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
+import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import {
   SIGNATURE_ARRAY_CONFIG,
   type SignatureArrayLayerBlock,
@@ -17,7 +17,9 @@ import { LFO_DRIFT_GROUPS } from '@/data/audioRigConfig';
 import { useAudioStore } from '@/stores/audioStore';
 import type { WaveformType } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
-import type { LfoValue, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema } from '@/types/controls';
+import type {
+  LfoLinkSchema, LfoLinkValue, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema,
+} from '@/types/controls';
 import type { RobotLfoTargetId } from '@/types/lfo';
 
 import './SignatureArrayDrawer.css';
@@ -35,11 +37,12 @@ const ROBOTS_DRIFT_GROUP = LFO_DRIFT_GROUPS.find((g) => g.group === 'robots')!;
  * component (not inlined in SignatureArrayDrawer's own render) purely to keep the store subscription
  * out of a component whose own doc comment promises "no store access" for everything else in it.
  */
-/** Exported standalone (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10) — becomes its own
- *  independently-mountable tree leaf ("Probe Drift" — nav label only, this component's own name
- *  is unaffected). Behavior/internals unchanged from its pre-Task-10 role inside
- *  SignatureArrayDrawer, which keeps rendering it directly until Task 11/13 rewire onto this
- *  export instead. */
+/** Exported standalone (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10) — its own
+ *  independently-mountable tree leaf, today only Fleet Params' own "Voice Drift" leaf
+ *  (FleetParamsContent.tsx). No longer rendered by SignatureArrayDrawer as of docs/tasks/
+ *  LFO_BANK.md Task 12 — modulation now goes through the per-row LfoLink controls below instead
+ *  of a group-wide drift pair duplicated on the Source screen; this component itself stays until
+ *  Task 15 deletes it along with the rest of the old drift machinery. */
 export function RobotDriftPanel() {
   const rateDrift = useAudioStore((s) => s.globalAudio.lfoDrift.robots.rateDrift);
   const depthDrift = useAudioStore((s) => s.globalAudio.lfoDrift.robots.depthDrift);
@@ -73,11 +76,12 @@ export function RobotDriftPanel() {
 
 export interface SignatureArrayValue {
   layers: OscillatorLayer[];
-  // Partial, not Robot['lfoSettings'] (a full Record) — this component's own lookup below
-  // (`value.lfoSettings?.[lfoTarget] ?? default`) already treats it as potentially-partial at
-  // runtime, and CompanyOptionsSection's resolved snapshot is genuinely partial (only fields a
-  // company has actually been edited for are present). A full Record is still assignable here.
-  lfoSettings?: Partial<Record<RobotLfoTargetId, LfoValue>>;
+  // Partial, not Robot['lfoLinks'] (a full Record) — this component's own lookup below
+  // (`value.lfoLinks?.[lfoTarget] ?? DEFAULT_LFO_LINK[lfoTarget]`) already treats it as
+  // potentially-partial at runtime, and CompanyOptionsSection's resolved snapshot is genuinely
+  // partial (only fields a company has actually been edited for are present). A full Record is
+  // still assignable here.
+  lfoLinks?: Partial<Record<RobotLfoTargetId, LfoLinkValue>>;
 }
 
 interface SignatureArrayDrawerProps {
@@ -89,14 +93,12 @@ interface SignatureArrayDrawerProps {
   onContinuousChange: (layers: OscillatorLayer[]) => void;
   /** Structural changes (type) — may cause a brief audio gap while the voice rebuilds. */
   onStructuralChange: (layers: OscillatorLayer[]) => void;
-  onLfoChange: (target: RobotLfoTargetId, value: LfoValue) => void;
+  onLfoChange: (target: RobotLfoTargetId, value: LfoLinkValue) => void;
   disabled?: boolean;
   /** Optional inline style forwarded to this drawer's own root — trait-color scoping
    *  (getTraitColorStyle('spectral'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this drawer always renders in
-   *  Spectral, whether it's editing one robot or a company's bulk baseline. Robot Drift's own
-   *  controls, rendered inside this same root, inherit it via ordinary CSS cascade with no wiring
-   *  of their own. See docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5/§1.6. */
+   *  Spectral, whether it's editing one robot or a company's bulk baseline. */
   style?: CSSProperties;
 }
 
@@ -114,7 +116,7 @@ export interface SignatureArrayLayerProps {
   block: SignatureArrayLayerBlock;
   idx: number;
   layer: OscillatorLayer;
-  lfoSettings: SignatureArrayValue['lfoSettings'];
+  lfoLinks: SignatureArrayValue['lfoLinks'];
   disabled?: boolean;
   /** Per-field swelling flags for THIS layer (audioSwells.ts's isRobotAttributeSwelling for
    *  'layer{idx}.gain' etc.), forwarded straight to the matching slider's own `swelling` prop. See
@@ -122,19 +124,24 @@ export interface SignatureArrayLayerProps {
   swelling?: Partial<Record<SignatureArrayParamSchema['field'], boolean>>;
   onTypeChange: (idx: number, type: WaveformType) => void;
   onParamChange: (idx: number, field: SignatureArrayParamSchema['field'], value: number) => void;
-  onLfoFieldChange: (idx: number, target: RobotLfoTargetId, value: LfoValue) => void;
+  onLfoFieldChange: (idx: number, target: RobotLfoTargetId, value: LfoLinkValue) => void;
 }
 
 /**
- * One layer's own Type radio + shared LfoTargetGroup (Gain/Detune/Phase/Interval), extracted out
- * of `SignatureArrayDrawerInner`'s own `.map()` and `React.memo`-wrapped (docs/todo/backlog.md
- * #27 follow-up, 2026-09-15) — found live: editing one layer's Gain re-rendered every other
- * layer's own controls too. Root cause: every per-layer handler (`handleTypeChange`,
- * `handleParamChange`, the `fields` array and `renderField` callback handed to `LfoTargetGroup`)
- * was built fresh, unmemoized, inside the parent's own `.map()` — so whenever `value.layers`
- * changed reference (any layer, any field), ALL 3 layers' worth of already-memoized primitives
- * (RadioButton, SliderLinear/SliderCenteredZero via LfoTargetGroup) got new prop references
- * regardless of whether their own specific layer actually changed.
+ * One layer's own Type radio, then Gain/Detune each paired with their own inline `LfoLink`
+ * (docs/specs/LFO_BANK.md section 1.5, assumption 10 — replaces the shared `Lfo`/`LfoTargetGroup`
+ * display: a target no longer owns a shape/rate of its own, it links to one of the 4 world lanes
+ * at a depth, so the select-then-edit indirection no longer earns its own state machine). Phase
+ * and Interval still render as their own plain rows — neither is a modulation target (Phase since
+ * docs/specs/LFO_BANK.md Task 1, Interval since docs/specs/LFO_LOAD_FIX.md assumption 9).
+ *
+ * Extracted out of `SignatureArrayDrawerInner`'s own `.map()` and `React.memo`-wrapped
+ * (docs/todo/backlog.md #27 follow-up, 2026-09-15) — found live: editing one layer's Gain
+ * re-rendered every other layer's own controls too. Root cause: every per-layer handler
+ * (`handleTypeChange`, `handleParamChange`) was built fresh, unmemoized, inside the parent's own
+ * `.map()` — so whenever `value.layers` changed reference (any layer, any field), ALL 3 layers'
+ * worth of already-memoized primitives got new prop references regardless of whether their own
+ * specific layer actually changed.
  *
  * `layer` stays a stable reference across an edit to a DIFFERENT layer (`applyLayersContinuous`/
  * `applyLayersStructural` — robotOptionsActions.ts — only ever replace the touched index in the
@@ -142,84 +149,51 @@ export interface SignatureArrayLayerProps {
  * that wasn't itself just edited. `onTypeChange`/`onParamChange`/`onLfoFieldChange` are shared,
  * stable callbacks from the parent (keyed by `idx`, not rebuilt per layer).
  *
- * Known limitation, not fully solved here: `lfoSettings` is one flat object shared by all 3
- * layers (`applyLayerLfo` always rebuilds the whole `Robot.lfoSettings` record — see that
- * function's own doc), so editing one layer's LFO settings still gives every layer's own
- * `SignatureArrayLayer` instance a new `lfoSettings` reference, causing all 3 to re-render
- * together for that specific edit — continuous param edits (Gain/Detune/Phase, the far more
- * common interaction) are correctly isolated per layer regardless. Narrowing `lfoSettings` to a
- * genuinely per-layer stable slice would need its own follow-up (each layer's own LFO target set
- * is statically fixed per `SIGNATURE_ARRAY_CONFIG`, so it's possible, just out of scope here).
+ * `lfoLinks` is still one flat object shared by all 3 layers (`applyLayerLfoLink` always rebuilds
+ * the whole `Robot.lfoLinks` record — see that function's own doc), so `SignatureArrayLayer`'s
+ * own memo can't bail on an edit to any target — every layer's `lfoLinks` prop gets a new
+ * reference. Unlike the pre-LFO-Bank shared display, though, this no longer cascades down to the
+ * actual leaf controls: `gainLink`/`detuneLink` below resolve an untouched target to
+ * `DEFAULT_LFO_LINK[target]`, a stable per-target object (data/lfoConfig.ts, never reconstructed)
+ * — so an edit to, say, layer0's Gain leaves layer1/layer2's own resolved link values
+ * referentially identical, and their own (independently memoized) `LfoLink` children bail. Only
+ * the one `LfoLink` whose target actually changed re-renders. Verified by this file's own test
+ * (search "DEFAULT_LFO_LINK object and bail").
  */
-function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, disabled, swelling, onTypeChange, onParamChange, onLfoFieldChange }: SignatureArrayLayerProps) {
+function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swelling, onTypeChange, onParamChange, onLfoFieldChange }: SignatureArrayLayerProps) {
   const handleTypeChange = useCallback((v: string) => onTypeChange(idx, v as WaveformType), [idx, onTypeChange]);
 
   // 'pulse' only — Tone.js's OmniOscillator.width getter returns undefined for every other type
   // (including 'square'), so showing Interval there was an editable control with no audible effect.
   const showPulseWidth = layer.type === 'pulse';
   const typeParam = block.params.find((p) => p.field === 'type')!;
-  // Phase is no longer an LFO target (docs/specs/LFO_BANK.md Task 1) — it renders as its own
-  // plain row after the group, never as a targetable field inside it, same as Interval below.
+  const gainParam = block.params.find((p) => p.field === 'gain')!;
+  const detuneParam = block.params.find((p) => p.field === 'detune')!;
+  // Phase is no longer an LFO target (docs/specs/LFO_BANK.md Task 1: Phase never had a live
+  // Signal to modulate, the one of the 9 original robot targets that ran a control-rate polling
+  // fallback instead of an audio-rate connection). The slider itself stays, as its own plain row.
   const phaseParam = block.params.find((p) => p.field === 'phase')!;
   // Interval/pulseWidth is no longer an LFO target (docs/specs/LFO_LOAD_FIX.md assumption 9) —
-  // it renders as its own plain row after the group, never as a targetable field inside it.
+  // it renders as its own plain row, never paired with an LfoLink.
   const pulseWidthParam = block.params.find((p) => p.field === 'pulseWidth')!;
-  const lfoParams = useMemo(
-    () => block.params.filter((p) => p.lfoTarget !== undefined),
-    [block],
-  );
 
-  const fields = useMemo(() => lfoParams.map((p) => ({
-    field: p.field,
-    label: (p.schema as SliderLinearSchema | SliderCenteredZeroSchema).humanLabel ?? p.field,
-    loreLabel: (p.schema as SliderLinearSchema | SliderCenteredZeroSchema).loreLabel,
-    lfoValue: lfoSettings?.[p.lfoTarget!] ?? DEFAULT_LFO_SETTINGS[p.lfoTarget!],
-  })), [lfoParams, lfoSettings]);
+  const gainTarget = gainParam.lfoTarget!;
+  const detuneTarget = detuneParam.lfoTarget!;
+  const gainLink = lfoLinks?.[gainTarget] ?? DEFAULT_LFO_LINK[gainTarget];
+  const detuneLink = lfoLinks?.[detuneTarget] ?? DEFAULT_LFO_LINK[detuneTarget];
 
-  const handleLfoChange = useCallback(
-    (field: string, v: LfoValue) => onLfoFieldChange(idx, lfoParams.find((p) => p.field === field)!.lfoTarget!, v),
-    [idx, lfoParams, onLfoFieldChange],
-  );
+  // No labels — unlike the old shared display, each row's own slider above it already names the
+  // field (Gain/Detune), so a second DualLabel here would just repeat it (DualLabel renders
+  // nothing when both loreLabel/humanLabel are absent).
+  const gainLinkSchema: LfoLinkSchema = useMemo(() => ({ id: `robotOptions.${block.key}.gain.link`, type: 'lfoLink' }), [block.key]);
+  const detuneLinkSchema: LfoLinkSchema = useMemo(() => ({ id: `robotOptions.${block.key}.detune.link`, type: 'lfoLink' }), [block.key]);
 
-  const handlePulseWidthChange = useCallback(
-    (v: number) => onParamChange(idx, 'pulseWidth', v),
-    [idx, onParamChange],
-  );
-
-  const handlePhaseChange = useCallback(
-    (v: number) => onParamChange(idx, 'phase', v),
-    [idx, onParamChange],
-  );
-
-  const renderField = useCallback((field: string) => {
-    const param = lfoParams.find((p) => p.field === field)!;
-    const paramVal = paramValue(layer, field as SignatureArrayParamSchema['field']);
-    const handleChange = (v: number) => onParamChange(idx, field as SignatureArrayParamSchema['field'], v);
-    const fieldSwelling = swelling?.[field as SignatureArrayParamSchema['field']];
-    return (
-      <div className="signature-array-drawer__param">
-        {field === 'detune' ? (
-          <SliderCenteredZero
-            schema={param.schema as SliderCenteredZeroSchema}
-            value={paramVal}
-            onChange={handleChange}
-            disabled={disabled}
-            verticalHeight={(param.schema as SliderCenteredZeroSchema).verticalHeight}
-            swelling={fieldSwelling}
-          />
-        ) : (
-          <SliderLinear
-            schema={param.schema as SliderLinearSchema}
-            value={paramVal}
-            onChange={handleChange}
-            disabled={disabled}
-            verticalHeight={(param.schema as SliderLinearSchema).verticalHeight}
-            swelling={fieldSwelling}
-          />
-        )}
-      </div>
-    );
-  }, [lfoParams, layer, idx, onParamChange, disabled, swelling]);
+  const handleGainChange = useCallback((v: number) => onParamChange(idx, 'gain', v), [idx, onParamChange]);
+  const handleDetuneChange = useCallback((v: number) => onParamChange(idx, 'detune', v), [idx, onParamChange]);
+  const handlePulseWidthChange = useCallback((v: number) => onParamChange(idx, 'pulseWidth', v), [idx, onParamChange]);
+  const handlePhaseChange = useCallback((v: number) => onParamChange(idx, 'phase', v), [idx, onParamChange]);
+  const handleGainLinkChange = useCallback((v: LfoLinkValue) => onLfoFieldChange(idx, gainTarget, v), [idx, gainTarget, onLfoFieldChange]);
+  const handleDetuneLinkChange = useCallback((v: LfoLinkValue) => onLfoFieldChange(idx, detuneTarget, v), [idx, detuneTarget, onLfoFieldChange]);
 
   return (
     <DirectionalPanel schema={block.panel}>
@@ -230,14 +204,28 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, disabled, sw
           onChange={handleTypeChange}
           disabled={disabled}
         />
-        <LfoTargetGroup
-          groupId={`robotOptions.${block.key}`}
-          sliderPanelOrientation="row"
-          fields={fields}
-          onLfoChange={handleLfoChange}
-          disabled={disabled}
-          renderField={renderField}
-        />
+        <div className="signature-array-drawer__param">
+          <SliderLinear
+            schema={gainParam.schema as SliderLinearSchema}
+            value={paramValue(layer, 'gain')}
+            onChange={handleGainChange}
+            disabled={disabled}
+            verticalHeight={(gainParam.schema as SliderLinearSchema).verticalHeight}
+            swelling={swelling?.gain}
+          />
+          <LfoLink schema={gainLinkSchema} value={gainLink} onChange={handleGainLinkChange} disabled={disabled} />
+        </div>
+        <div className="signature-array-drawer__param">
+          <SliderCenteredZero
+            schema={detuneParam.schema as SliderCenteredZeroSchema}
+            value={paramValue(layer, 'detune')}
+            onChange={handleDetuneChange}
+            disabled={disabled}
+            verticalHeight={(detuneParam.schema as SliderCenteredZeroSchema).verticalHeight}
+            swelling={swelling?.detune}
+          />
+          <LfoLink schema={detuneLinkSchema} value={detuneLink} onChange={handleDetuneLinkChange} disabled={disabled} />
+        </div>
         <div className="signature-array-drawer__param">
           <SliderLinear
             schema={phaseParam.schema as SliderLinearSchema}
@@ -269,51 +257,39 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, disabled, sw
  *  Coaxial/Harmonic Oscillator's own independently-mountable tree leaf, one instance per fixed
  *  SIGNATURE_ARRAY_CONFIG slot (block/idx together identify which). Already isolated per layer
  *  internally (see this component's own doc comment above) — the split here is exposing it, not
- *  rebuilding it. SignatureArrayDrawer keeps rendering its own 3 instances directly until Task
- *  11/13 rewire onto this export instead. */
+ *  rebuilding it. SignatureArrayDrawer keeps rendering its own 3 instances directly. */
 export const SignatureArrayLayer = memo(SignatureArrayLayerInner);
 
 /**
- * 3 DirectionalPanels, one per fixed layer slot (Baseline/Coaxial/Harmonic), plus the Robot Drift
- * panel — docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 8. No accordion wrapper as of Task
+ * 3 DirectionalPanels, one per fixed layer slot (Baseline/Coaxial/Harmonic) —
+ * docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 8. No accordion wrapper as of Task
  * 17 (docs/tasks/NAV_LAYOUT_REWRITE.md) — this drawer's content is now a probe's own "Source" tree
  * leaf, and the tree node itself carries that label, so there's no accordion header left to show
- * it on. Robot Drift lands last, after Harmonic — see RobotDriftPanel below.
+ * it on. Robot Drift is no longer rendered here (docs/tasks/LFO_BANK.md Task 12) — it now lives
+ * only as Fleet Params' own "Voice Drift" leaf (FleetParamsContent.tsx), so this drawer no longer
+ * duplicates it on the Source screen; `RobotDriftPanel` itself stays exported until Task 15.
  *
  * Otherwise purely presentational as of Roadmap Phase 10 (Task 16) — no `robot` prop, no store
- * access beyond RobotDriftPanel's own global lfoDrift subscription; both RobotOptionsTab (robot
- * mode) and CompanyOptionsSection (company mode) derive `value` and wire each callback through
- * robotOptionsActions.applyLayersContinuous/applyLayersStructural/applyLayerLfo themselves.
- * Dragging Coaxial/Harmonic's own Gain to 0 mutes the layer (eventually excluded from the
- * composite voice, see AudioEngine.reserveVoice's filterAudibleLayers) without discarding its
- * Type/Detune/Phase/Interval configuration — there's no separate Active toggle.
+ * access at all as of Task 12 (RobotDriftPanel's own global lfoDrift subscription left with it);
+ * both RobotOptionsTab (robot mode) and CompanyOptionsSection (company mode) derive `value` and
+ * wire each callback through robotOptionsActions.applyLayersContinuous/applyLayersStructural/
+ * applyLayerLfoLink themselves. Dragging Coaxial/Harmonic's own Gain to 0 mutes the layer
+ * (eventually excluded from the composite voice, see AudioEngine.reserveVoice's
+ * filterAudibleLayers) without discarding its Type/Detune/Phase/Interval configuration — there's
+ * no separate Active toggle.
  *
  * Each layer's own `signature-array-drawer__layer` `data-layer-key` div is wrapped *around* by
  * its DirectionalPanel, not replaced by it — DirectionalPanel's props are locked to
  * `{ schema, children }` (no prop passthrough) and can't carry `data-layer-key` itself.
  *
- * Each layer's LFO-tied params (Gain/Detune/Phase/Interval) render through one LfoTargetGroup —
- * a shared LFO display per layer, replacing the old per-param nested "Modulation" accordion
- * (docs/specs/LFO_CONSOLIDATED_DISPLAY.md). Type stays rendered inline, outside the group — it
- * has no LFO of its own. Each layer's own rendering now lives in `SignatureArrayLayer` above,
- * `React.memo`-wrapped so an edit to one layer doesn't cascade into its 2 siblings (docs/todo/
- * backlog.md #27 follow-up) — this component's own job is just deriving `layers` and building the
- * 3 shared, stable per-index handlers every layer instance calls into.
- *
- * LFO-target-selection behavior change (Task 17's own flagged design question, spec R2): each
- * layer's LfoTargetGroup instance keeps its own selected-target state as component-local
- * (useLfoTargetGroup's `useState`, never uiStore — matches this repo's established "selection is
- * local, ephemeral state" precedent). Under the old accordion wrapper, that state survived a
- * collapse/reopen because its lazy-mount kept a once-opened section's content
- * mounted, just visually hidden. Under the new tree-nav content model, ContentPane genuinely
- * unmounts this whole drawer whenever the selection moves elsewhere (a different section, a
- * different probe) and remounts it fresh on return — so a layer's own LFO target selection now
- * resets to its default (the group's first field) every time you navigate away from Source and
- * back, rather than surviving the round trip. Confirmed as the intended behavior, not a bug: it's
- * the direct, by-construction consequence of "exactly one thing mounted at a time" replacing
- * "everything mounted, most of it hidden" — the same trade-off the intent doc's own rationale
- * (docs/intent/nav-layout-rewrite.md, "Why now") already named as the reason this rewrite
- * supersedes the old mass-simultaneous-mount problem rather than needing to separately fix it.
+ * Each layer's Gain/Detune render their own inline `LfoLink` directly beneath their own slider
+ * (docs/specs/LFO_BANK.md section 1.5) — replacing the old shared `LfoTargetGroup` display (one
+ * select-then-edit display per layer, covering Gain/Detune/Phase/Interval together). Type stays
+ * rendered inline as before — it has no LFO of its own, and neither do Phase/Interval (plain
+ * rows). Each layer's own rendering lives in `SignatureArrayLayer` above, `React.memo`-wrapped so
+ * an edit to one layer doesn't cascade into its 2 siblings (docs/todo/backlog.md #27 follow-up) —
+ * this component's own job is just deriving `layers` and building the 3 shared, stable per-index
+ * handlers every layer instance calls into.
  */
 function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChange, onLfoChange, disabled, style }: SignatureArrayDrawerProps) {
   const layers = value.layers ?? [];
@@ -340,7 +316,7 @@ function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChan
     onContinuousChange(current.map((l, i) => (i === idx ? { ...l, [field]: v } : l)));
   }, [onContinuousChange]);
 
-  const handleLfoFieldChange = useCallback((_idx: number, target: RobotLfoTargetId, v: LfoValue) => {
+  const handleLfoFieldChange = useCallback((_idx: number, target: RobotLfoTargetId, v: LfoLinkValue) => {
     onLfoChange(target, v);
   }, [onLfoChange]);
 
@@ -355,7 +331,7 @@ function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChan
             block={block}
             idx={idx}
             layer={layer}
-            lfoSettings={value.lfoSettings}
+            lfoLinks={value.lfoLinks}
             disabled={disabled}
             onTypeChange={handleTypeChange}
             onParamChange={handleParamChange}
@@ -363,14 +339,11 @@ function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChan
           />
         );
       })}
-      <RobotDriftPanel />
     </div>
   );
 }
 
-// React.memo (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 4) — RobotDriftPanel is unaffected:
-// it re-renders independently via its own useAudioStore subscription regardless of this memo, and
-// isn't even reached when this component bails (its own JSX is never constructed then).
+// React.memo (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 4)
 export const SignatureArrayDrawer = memo(SignatureArrayDrawerInner);
 
 export default SignatureArrayDrawer;

@@ -1,17 +1,20 @@
 import type { CSSProperties } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 
-// Same reasoning as AudioRigDrawer.test.tsx: the shared vitest.setup.ts GSAP mock's timeline
-// object has no kill() method, and useLfoTargetGroup's unmount/reselect cleanup calls
-// killTimeline on an already-registered entry — mock timelineMap directly, the established
-// convention every GSAP-timeline test in this codebase uses.
+// CabinetBox (used by every RadioButton here — the Type radio and each LfoLink's own lane
+// picker) pops via a real GSAP timeline registered in timelineMap; the shared vitest.setup.ts
+// GSAP mock's timeline object has no kill() method, so CabinetBox's own unmount cleanup throws
+// unless timelineMap itself is mocked — the established convention every GSAP-timeline test in
+// this codebase uses (e.g. AudioRigDrawer.test.tsx).
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));
 
 // The Robot Drift panel (docs/tasks/DIRECTIONAL_PANEL_WIRING.md "some fixes" follow-up) reads/
 // writes the global lfoDrift.robots slice directly via useAudioStore, whose setGlobalLfoDrift
 // calls into lfoEngine — same real-AudioContext-throws-in-jsdom concern AudioRigDrawer.test.tsx
-// already works around by mocking this module.
+// already works around by mocking this module. SignatureArrayDrawer itself no longer renders
+// RobotDriftPanel (docs/tasks/LFO_BANK.md Task 12), but this file's own standalone
+// RobotDriftPanel describe block still mounts it directly.
 vi.mock('@/engine/lfoEngine', () => ({
   lfoEngine: {
     setGlobalRateDrift: vi.fn(),
@@ -36,7 +39,7 @@ import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
 import { SIGNATURE_ARRAY_CONFIG } from '@/data/robotOptionsConfig';
 import { CONTENT } from '@/content';
 import type { OscillatorLayer } from '@/types/layeredAudio';
-import type { Robot } from '@/types/Robot';
+import type { LfoLink } from '@/types/lfo';
 
 
 function makeLayers(): OscillatorLayer[] {
@@ -57,17 +60,18 @@ function layerSection(container: HTMLElement, key: 'layer0' | 'layer1' | 'layer2
   return el as HTMLElement;
 }
 
+/** The `.signature-array-drawer__param` wrapper around one specific field's own slider + (for
+ *  Gain/Detune) its LfoLink — found by that slider's own accessible name. */
+function paramRow(section: HTMLElement, sliderName: string | RegExp): HTMLElement {
+  const slider = within(section).getByRole('slider', { name: sliderName });
+  const row = slider.closest('.signature-array-drawer__param');
+  if (!row) throw new Error(`no param row for slider "${sliderName}"`);
+  return row as HTMLElement;
+}
+
 const noop = { onContinuousChange: () => {}, onStructuralChange: () => {}, onLfoChange: () => {} };
 
 describe('SignatureArrayDrawer', () => {
-  beforeEach(() => {
-    // Robot Drift reads/writes the real global store directly (it's not part of this
-    // component's own `value` prop) — reset it so one test's edit can't leak into the next.
-    useAudioStore.setState((s) => ({
-      globalAudio: { ...s.globalAudio, lfoDrift: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS.lfoDrift } },
-    }));
-  });
-
   it('renders exactly 3 layer sections, in Baseline/Coaxial/Harmonic order', () => {
     const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
     const sections = container.querySelectorAll('[data-layer-key]');
@@ -75,71 +79,20 @@ describe('SignatureArrayDrawer', () => {
     expect(Array.from(sections).map((s) => s.getAttribute('data-layer-key'))).toEqual(['layer0', 'layer1', 'layer2']);
   });
 
-  it('renders 4 top-level panels with no accordion wrapper — Baseline/Coaxial/Harmonic, then Robot Drift, in order (DIRECTIONAL_PANEL_WIRING Task 8 + Robot Drift follow-up, reordered to render last; docs/tasks/NAV_LAYOUT_REWRITE.md Task 17: the "Source" label now lives on the tree node itself, not this drawer)', () => {
+  it('renders exactly 3 top-level panels — Baseline/Coaxial/Harmonic, no longer including Robot Drift (docs/tasks/LFO_BANK.md Task 12: Robot Drift now lives only as Fleet Params\' own leaf)', () => {
     const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
     expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
     expect(screen.queryByText('Source')).toBeNull();
-    // Top-level panels only — each layer's own LfoTargetGroup now nests an inner sliders panel of
-    // its own one level deeper (the column[sliders-panel, Lfo, driftContent] follow-up fix), so a
-    // plain descendant selector would also match those. Since Oblique Cabinetry —
-    // DirectionalPanel, a top-level panel's own root sits inside its permanently-popped facade
-    // (.sc-directional-panel-facade > .sc-cabinet-box > .sc-cabinet-box__front), no longer a
-    // direct child of .signature-array-drawer itself — the fully-qualified chain through the
-    // facade is what now uniquely identifies "top-level," the same way the plain direct-child
-    // selector used to. See docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1.3.
+    expect(screen.queryByText('Voice Drift')).toBeNull();
+    // Top-level panels only — since Oblique Cabinetry, a top-level panel's own root sits inside
+    // its permanently-popped facade (.sc-directional-panel-facade > .sc-cabinet-box >
+    // .sc-cabinet-box__front), no longer a direct child of .signature-array-drawer itself.
     const panels = Array.from(container.querySelectorAll(
       '.signature-array-drawer > .sc-directional-panel-facade > .sc-cabinet-box > .sc-cabinet-box__front > .sc-directional-panel',
     ));
-    expect(panels).toHaveLength(4);
-    // Each panel's own label is its direct-child DualLabel — not the many nested DualLabels
-    // every RadioButton/slider/LFO field inside it also renders for its own humanLabel.
+    expect(panels).toHaveLength(3);
     const panelLabels = panels.map((p) => p.querySelector(':scope > .sc-dual-label > .sc-dual-label__human')?.textContent);
-    expect(panelLabels).toEqual([CONTENT['probe.source.core'].human, CONTENT['probe.source.companion'].human, CONTENT['probe.source.accent'].human, CONTENT['fleet.drift.voice'].human]);
-  });
-
-  describe('Robot Drift panel (moved from AudioRigDrawer\'s Transport & Composition — global lfoDrift.robots, read/written directly via useAudioStore)', () => {
-    it('renders as the last panel, after Harmonic', () => {
-      const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      const driftPanel = screen.getByText('Voice Drift').closest('.sc-directional-panel');
-      const harmonicPanel = screen.getByText(CONTENT['probe.source.accent'].human).closest('.sc-directional-panel');
-      expect(driftPanel).not.toBeNull();
-      expect(harmonicPanel!.compareDocumentPosition(driftPanel!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      // Not nested inside — or replacing — any of the 3 layer sections.
-      expect(container.querySelector('[data-layer-key]')?.contains(driftPanel)).toBe(false);
-    });
-
-    it('shows the store\'s current lfoDrift.robots values as a -100..100 percent, not the internal -1..1 fraction', () => {
-      useAudioStore.setState((s) => ({
-        globalAudio: { ...s.globalAudio, lfoDrift: { ...s.globalAudio.lfoDrift, robots: { rateDrift: -0.2, depthDrift: 0.9 } } },
-      }));
-      render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      const driftPanel = screen.getByText('Voice Drift').closest('.sc-directional-panel') as HTMLElement;
-      expect(within(driftPanel).getByRole('slider', { name: 'Rate Drift' }).getAttribute('aria-valuenow')).toBe('-20');
-      expect(within(driftPanel).getByRole('slider', { name: 'Depth Drift' }).getAttribute('aria-valuenow')).toBe('90');
-    });
-
-    it('dragging Rate Drift calls the store\'s setGlobalLfoDrift with \'robots\' and the dragged percent divided by 100', () => {
-      useAudioStore.setState((s) => ({
-        globalAudio: { ...s.globalAudio, lfoDrift: { ...s.globalAudio.lfoDrift, robots: { rateDrift: 0, depthDrift: 0.5 } } },
-      }));
-      render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      const driftPanel = screen.getByText('Voice Drift').closest('.sc-directional-panel') as HTMLElement;
-      const rateSlider = within(driftPanel).getByRole('slider', { name: 'Rate Drift' });
-      rateSlider.focus();
-      fireEvent.keyDown(rateSlider, { key: 'ArrowRight' });
-
-      const newPercent = Number(rateSlider.getAttribute('aria-valuenow'));
-      expect(newPercent).not.toBe(0);
-      expect(useAudioStore.getState().globalAudio.lfoDrift.robots.rateDrift).toBeCloseTo(newPercent / 100);
-      expect(useAudioStore.getState().globalAudio.lfoDrift.robots.depthDrift).toBe(0.5); // untouched
-    });
-
-    it('renders identically regardless of the drawer\'s own `disabled` prop — a global control, not scoped to the selected robot/company', () => {
-      render(<SignatureArrayDrawer value={makeValue()} {...noop} disabled />);
-      const driftPanel = screen.getByText('Voice Drift').closest('.sc-directional-panel') as HTMLElement;
-      expect(within(driftPanel).getByRole('slider', { name: 'Rate Drift' }).getAttribute('data-disabled')).toBeNull();
-      expect(within(driftPanel).getByRole('slider', { name: 'Depth Drift' }).getAttribute('data-disabled')).toBeNull();
-    });
+    expect(panelLabels).toEqual([CONTENT['probe.source.core'].human, CONTENT['probe.source.companion'].human, CONTENT['probe.source.accent'].human]);
   });
 
   it("each layer's data-layer-key div is nested inside its own DirectionalPanel — wrapped around, not replaced", () => {
@@ -188,10 +141,8 @@ describe('SignatureArrayDrawer', () => {
       <SignatureArrayDrawer value={makeValue()} onContinuousChange={onContinuousChange} onStructuralChange={onStructuralChange} onLfoChange={() => {}} />
     );
 
-    // Scoped to the Type radio's own group, not just the layer section — the shared LFO display
-    // nested in the same layer now renders its own Shape radio with the same shared lore
-    // vocabulary (docs/reference/text-content-tables.md unifies Type/Shape's waveform words), so
-    // both groups can contain an identically-labeled option within one layer's DOM.
+    // Scoped to the Type radio's own group (the first .sc-radio-button in the layer — each
+    // LfoLink's own lane picker is also a RadioButton, but renders after Type in DOM order).
     const typeGroup = layerSection(container, 'layer0').querySelector<HTMLElement>('.sc-radio-button')!;
     fireEvent.click(within(typeGroup).getByRole('radio', { name: 'Triangle' }));
 
@@ -234,189 +185,191 @@ describe('SignatureArrayDrawer', () => {
     expect(newLayers[1].phase).toBe(10);
   });
 
-  it('defaults each layer\'s shared LFO display to its first field (Gain) and wires onLfoChange to it', () => {
+  it('a Phase change calls onContinuousChange with that layer\'s phase, and never onLfoChange', () => {
+    const onContinuousChange = vi.fn();
     const onLfoChange = vi.fn();
-    const value = makeValue({
-      lfoSettings: { 'layer0.gain': { shape: 'sine', rate: 1, depth: 10 } } as unknown as Robot['lfoSettings'],
-    });
     const { container } = render(
-      <SignatureArrayDrawer value={value} onContinuousChange={() => {}} onStructuralChange={() => {}} onLfoChange={onLfoChange} />
+      <SignatureArrayDrawer value={makeValue()} onContinuousChange={onContinuousChange} onStructuralChange={() => {}} onLfoChange={onLfoChange} />
     );
 
-    const gainLfoRate = within(layerSection(container, 'layer0')).getByRole('slider', { name: 'Rate' });
-    gainLfoRate.focus();
-    fireEvent.keyDown(gainLfoRate, { key: 'ArrowRight' });
+    const phaseSlider = within(layerSection(container, 'layer0')).getByRole('slider', { name: /phase/i });
+    phaseSlider.focus();
+    fireEvent.keyDown(phaseSlider, { key: 'ArrowRight' });
 
-    expect(onLfoChange).toHaveBeenCalledWith('layer0.gain', { shape: 'sine', rate: 1.05, depth: 10 });
+    expect(onContinuousChange).toHaveBeenCalledTimes(1);
+    const next = onContinuousChange.mock.calls[0][0] as OscillatorLayer[];
+    expect(next[0].phase).toBeGreaterThan(0);
+    expect(onLfoChange).not.toHaveBeenCalled();
   });
 
-  describe('shared LFO display (LFO_CONSOLIDATED_DISPLAY — replaces the old per-param nested accordion)', () => {
-    it('renders exactly one shared LFO display per layer — 3 total, never one per param', () => {
-      const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      expect(container.querySelectorAll('.sc-lfo')).toHaveLength(3);
-    });
+  it('editing Interval on a pulse layer still calls onContinuousChange with that layer\'s pulseWidth, and never onLfoChange', () => {
+    const layers = makeLayers();
+    layers[1] = { ...layers[1], type: 'pulse', pulseWidth: 0.4 };
+    const onContinuousChange = vi.fn();
+    const onLfoChange = vi.fn();
+    const { container } = render(
+      <SignatureArrayDrawer value={makeValue({ layers })} onContinuousChange={onContinuousChange} onStructuralChange={() => {}} onLfoChange={onLfoChange} />
+    );
 
-    it('renders no accordion anywhere — no nested "Modulation" accordion per param, and no drawer-level wrapper either (Task 17)', () => {
-      const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
-    });
+    const intervalSlider = within(layerSection(container, 'layer1')).getByRole('slider', { name: /interval/i });
+    intervalSlider.focus();
+    fireEvent.keyDown(intervalSlider, { key: 'ArrowRight' });
 
-    it('the Type radio renders inline among the layer\'s other controls, not inside the shared LFO group\'s row targeting', () => {
-      const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      const typeGroup = layerSection(container, 'layer0').querySelector<HTMLElement>('.sc-radio-button')!;
-      const typeRadio = within(typeGroup).getByRole('radio', { name: 'Triangle' });
-      expect(typeRadio.closest('.sc-lfo-target-group__row')).toBeNull();
-    });
+    expect(onContinuousChange).toHaveBeenCalledTimes(1);
+    const next = onContinuousChange.mock.calls[0][0] as OscillatorLayer[];
+    expect(next[1].pulseWidth).toBeCloseTo(0.41, 9);
+    expect(next[0]).toEqual(layers[0]);
+    expect(onLfoChange).not.toHaveBeenCalled();
+  });
 
-    it('clicking a different param\'s row switches which target the shared display edits, once the transition completes', async () => {
-      const onLfoChange = vi.fn();
-      const { container } = render(
-        <SignatureArrayDrawer value={makeValue()} onContinuousChange={() => {}} onStructuralChange={() => {}} onLfoChange={onLfoChange} />
-      );
-      const detuneSlider = within(layerSection(container, 'layer0')).getByRole('slider', { name: /detune/i });
-      const detuneRow = detuneSlider.closest('.sc-lfo-target-group__row')!;
-
-      await act(async () => {
-        fireEvent.click(detuneRow);
-      });
-      await waitFor(() => {
-        expect(detuneRow.classList.contains('isActive')).toBe(true);
-      });
-
-      const rateSlider = within(layerSection(container, 'layer0')).getByRole('slider', { name: 'Rate' });
-      rateSlider.focus();
-      fireEvent.keyDown(rateSlider, { key: 'ArrowRight' });
-      expect(onLfoChange.mock.calls[0][0]).toBe('layer0.detune');
-    });
-
-    // Confirmed, intentional behavior (docs/tasks/NAV_LAYOUT_REWRITE.md Task 17, spec R2 — see
-    // this file's own top-of-component doc comment): under the old accordion wrapper, a layer's
-    // selected LFO target survived a collapse/reopen because its lazy-mount kept
-    // the content mounted, just hidden. Now that this drawer only exists in the DOM while its tree
-    // leaf is the selected one, ContentPane genuinely unmounts it on navigating away and remounts
-    // it fresh on return — so the selection resets to the group's first field every time, rather
-    // than surviving the round trip. This is a real UX difference from before, not a regression in
-    // this component's own logic — useLfoTargetGroup's local useState behaves exactly as designed.
-    it('a non-default LFO target selection does not survive an unmount/remount — resets to the group\'s first field, matching a real navigate-away-and-back', async () => {
-      const { container, unmount } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      const detuneRow = within(layerSection(container, 'layer0')).getByRole('slider', { name: /detune/i }).closest('.sc-lfo-target-group__row')!;
-
-      await act(async () => {
-        fireEvent.click(detuneRow);
-      });
-      await waitFor(() => {
-        expect(detuneRow.classList.contains('isActive')).toBe(true);
-      });
-
-      unmount();
-      const { container: remounted } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-
-      const gainRow = within(layerSection(remounted, 'layer0')).getByRole('slider', { name: /gain/i }).closest('.sc-lfo-target-group__row')!;
-      expect(gainRow.classList.contains('isActive')).toBe(true);
-    });
-
-    // The pulseWidth LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 4).
-    // Interval still renders for pulse layers, but as a plain slider row outside the LFO group —
-    // never a targetable field, never a fourth row in the group.
-    it('a pulse layer shows the Interval slider outside the LFO group — the group has exactly 2 targetable rows (Gain/Detune)', () => {
+  describe('inline LfoLink per Gain/Detune row (docs/tasks/LFO_BANK.md Task 12 — replaces the shared Lfo/LfoTargetGroup display)', () => {
+    it('each layer renders Type, Gain + its own LfoLink, Detune + its own LfoLink, Phase (plain), Interval (pulse only, plain)', () => {
       const layers = makeLayers();
       layers[1] = { ...layers[1], type: 'pulse' };
       const { container } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
-      const section = layerSection(container, 'layer1');
-      const intervalSlider = within(section).getByRole('slider', { name: /interval/i });
-      expect(intervalSlider.closest('.sc-lfo-target-group__row')).toBeNull();
-      expect(section.querySelectorAll('.sc-lfo-target-group__row')).toHaveLength(2);
-      // A non-pulse layer has the same 2 rows and no Interval at all.
-      expect(layerSection(container, 'layer0').querySelectorAll('.sc-lfo-target-group__row')).toHaveLength(2);
-      expect(within(layerSection(container, 'layer0')).queryByRole('slider', { name: /interval/i })).toBeNull();
+
+      const pulseLayer = layerSection(container, 'layer1');
+      expect(paramRow(pulseLayer, 'Companion Gain').querySelector('.sc-lfo-link')).not.toBeNull();
+      expect(paramRow(pulseLayer, 'Companion Detune').querySelector('.sc-lfo-link')).not.toBeNull();
+      expect(paramRow(pulseLayer, /phase/i).querySelector('.sc-lfo-link')).toBeNull();
+      expect(paramRow(pulseLayer, /interval/i).querySelector('.sc-lfo-link')).toBeNull();
+
+      // A non-pulse layer has the same Gain/Detune LfoLinks and no Interval at all.
+      const plainLayer = layerSection(container, 'layer0');
+      expect(paramRow(plainLayer, 'Core Gain').querySelector('.sc-lfo-link')).not.toBeNull();
+      expect(paramRow(plainLayer, 'Core Detune').querySelector('.sc-lfo-link')).not.toBeNull();
+      expect(within(plainLayer).queryByRole('slider', { name: /interval/i })).toBeNull();
     });
 
-    // The phase LFO target was cut (docs/specs/LFO_BANK.md Task 1). Phase still renders on every
-    // layer (unlike Interval, which is pulse-only), but as a plain slider row outside the LFO
-    // group — never a targetable field, never a third row in the group.
-    it('every layer shows the Phase slider outside the LFO group — the group never includes it', () => {
+    it('renders no .sc-lfo-target-group and no accordion anywhere — the old shared-display state machine is gone', () => {
       const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      const section = layerSection(container, 'layer0');
-      const phaseSlider = within(section).getByRole('slider', { name: /phase/i });
-      expect(phaseSlider.closest('.sc-lfo-target-group__row')).toBeNull();
-      expect(section.querySelectorAll('.sc-lfo-target-group__row')).toHaveLength(2);
+      expect(container.querySelectorAll('.sc-lfo-target-group')).toHaveLength(0);
+      expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
+      // 2 LfoLinks per layer (Gain, Detune) x 3 layers.
+      expect(container.querySelectorAll('.sc-lfo-link')).toHaveLength(6);
     });
 
-    it('a Phase change calls onContinuousChange with that layer\'s phase, and never onLfoChange', () => {
+    it('defaults an unlinked Gain/Detune to Off, depth 0 (DEFAULT_LFO_LINK)', () => {
+      const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
+      const gainRow = paramRow(layerSection(container, 'layer0'), 'Core Gain');
+      expect(within(gainRow).getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
+      expect(within(gainRow).getByRole('slider', { name: 'Depth' }).getAttribute('aria-valuenow')).toBe('0');
+    });
+
+    it('resolves a stored link for the matching target, independently per field', () => {
+      const lfoLinks: Partial<Record<string, LfoLink>> = {
+        'layer0.gain': { lane: 'b', depth: 40 },
+      };
+      const { container } = render(
+        <SignatureArrayDrawer value={makeValue({ lfoLinks: lfoLinks as SignatureArrayValue['lfoLinks'] })} {...noop} />,
+      );
+      const gainRow = paramRow(layerSection(container, 'layer0'), 'Core Gain');
+      const detuneRow = paramRow(layerSection(container, 'layer0'), 'Core Detune');
+      expect(within(gainRow).getByRole('radio', { name: 'Companion LFO' }).getAttribute('aria-checked')).toBe('true');
+      expect(within(gainRow).getByRole('slider', { name: 'Depth' }).getAttribute('aria-valuenow')).toBe('40');
+      // Detune's own link is untouched — still the default Off/0.
+      expect(within(detuneRow).getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
+    });
+
+    it("changing layer 1's Gain link fires onLfoChange('layer1.gain', { lane, depth }), preserving its stored depth", () => {
+      const onLfoChange = vi.fn();
+      const lfoLinks: Partial<Record<string, LfoLink>> = {
+        'layer1.gain': { lane: null, depth: 30 },
+      };
+      const { container } = render(
+        <SignatureArrayDrawer
+          value={makeValue({ lfoLinks: lfoLinks as SignatureArrayValue['lfoLinks'] })}
+          onContinuousChange={() => {}}
+          onStructuralChange={() => {}}
+          onLfoChange={onLfoChange}
+        />,
+      );
+      const gainRow = paramRow(layerSection(container, 'layer1'), 'Companion Gain');
+      fireEvent.click(within(gainRow).getByRole('radio', { name: 'Core LFO' }));
+
+      expect(onLfoChange).toHaveBeenCalledWith('layer1.gain', { lane: 'a', depth: 30 });
+    });
+
+    it("changing layer 2's Detune link's depth fires onLfoChange('layer2.detune', { lane, depth }), preserving its stored lane", () => {
+      const onLfoChange = vi.fn();
+      const lfoLinks: Partial<Record<string, LfoLink>> = {
+        'layer2.detune': { lane: 'c', depth: 20 },
+      };
+      const { container } = render(
+        <SignatureArrayDrawer
+          value={makeValue({ lfoLinks: lfoLinks as SignatureArrayValue['lfoLinks'] })}
+          onContinuousChange={() => {}}
+          onStructuralChange={() => {}}
+          onLfoChange={onLfoChange}
+        />,
+      );
+      const detuneRow = paramRow(layerSection(container, 'layer2'), 'Accent Detune');
+      const depthSlider = within(detuneRow).getByRole('slider', { name: 'Depth' });
+      depthSlider.focus();
+      fireEvent.keyDown(depthSlider, { key: 'ArrowRight' });
+
+      expect(onLfoChange).toHaveBeenCalledWith('layer2.detune', { lane: 'c', depth: 21 });
+    });
+
+    it('a Gain/Detune link change never calls onContinuousChange/onStructuralChange', () => {
       const onContinuousChange = vi.fn();
-      const onLfoChange = vi.fn();
+      const onStructuralChange = vi.fn();
       const { container } = render(
-        <SignatureArrayDrawer value={makeValue()} onContinuousChange={onContinuousChange} onStructuralChange={() => {}} onLfoChange={onLfoChange} />
+        <SignatureArrayDrawer value={makeValue()} onContinuousChange={onContinuousChange} onStructuralChange={onStructuralChange} onLfoChange={() => {}} />,
       );
+      const gainRow = paramRow(layerSection(container, 'layer0'), 'Core Gain');
+      fireEvent.click(within(gainRow).getByRole('radio', { name: 'Core LFO' }));
 
-      const phaseSlider = within(layerSection(container, 'layer0')).getByRole('slider', { name: /phase/i });
-      phaseSlider.focus();
-      fireEvent.keyDown(phaseSlider, { key: 'ArrowRight' });
-
-      expect(onContinuousChange).toHaveBeenCalledTimes(1);
-      const next = onContinuousChange.mock.calls[0][0] as OscillatorLayer[];
-      expect(next[0].phase).toBeGreaterThan(0);
-      expect(onLfoChange).not.toHaveBeenCalled();
+      expect(onContinuousChange).not.toHaveBeenCalled();
+      expect(onStructuralChange).not.toHaveBeenCalled();
     });
 
-    it('editing Interval on a pulse layer still calls onContinuousChange with that layer\'s pulseWidth, and never onLfoChange', () => {
-      const layers = makeLayers();
-      layers[1] = { ...layers[1], type: 'pulse', pulseWidth: 0.4 };
-      const onContinuousChange = vi.fn();
-      const onLfoChange = vi.fn();
+    // Robot LFOs/links are never held off (docs/tasks/LFO_BANK.md Task 2 removed the cap that
+    // made them held-off-able; the filter-link suspension the dial still applies is global-chain
+    // only — see AudioRigEffectPanel, not this drawer).
+    it('renders every layer\'s LfoLink fully editable, with no held-off note, regardless of lfoLinks', () => {
       const { container } = render(
-        <SignatureArrayDrawer value={makeValue({ layers })} onContinuousChange={onContinuousChange} onStructuralChange={() => {}} onLfoChange={onLfoChange} />
+        <SignatureArrayDrawer {...noop} value={makeValue({ lfoLinks: { 'layer0.gain': { lane: 'a', depth: 40 } } })} />,
       );
-
-      const intervalSlider = within(layerSection(container, 'layer1')).getByRole('slider', { name: /interval/i });
-      intervalSlider.focus();
-      fireEvent.keyDown(intervalSlider, { key: 'ArrowRight' });
-
-      expect(onContinuousChange).toHaveBeenCalledTimes(1);
-      const next = onContinuousChange.mock.calls[0][0] as OscillatorLayer[];
-      expect(next[1].pulseWidth).toBeCloseTo(0.41, 9);
-      expect(next[0]).toEqual(layers[0]);
-      expect(onLfoChange).not.toHaveBeenCalled();
+      for (const key of ['layer0', 'layer1', 'layer2'] as const) {
+        const section = layerSection(container, key);
+        expect(within(section).queryAllByRole('slider').some((s) => s.getAttribute('data-disabled') !== null)).toBe(false);
+        expect(within(section).queryByText('Held off by Audio Load')).toBeNull();
+      }
     });
 
-    it('clicking the Interval row does not target anything in the LFO group — Gain stays the targeted field', async () => {
-      const layers = makeLayers();
-      layers[1] = { ...layers[1], type: 'pulse' };
-      const onLfoChange = vi.fn();
-      const { container } = render(
-        <SignatureArrayDrawer value={makeValue({ layers })} onContinuousChange={() => {}} onStructuralChange={() => {}} onLfoChange={onLfoChange} />
-      );
-      const section = layerSection(container, 'layer1');
-      await act(async () => {
-        fireEvent.click(within(section).getByRole('slider', { name: /interval/i }));
-      });
-      const rateSlider = within(section).getByRole('slider', { name: 'Rate' });
-      rateSlider.focus();
-      fireEvent.keyDown(rateSlider, { key: 'ArrowRight' });
-      expect(onLfoChange.mock.calls.at(-1)?.[0]).toBe('layer1.gain');
-    });
+    // Unlike the old shared display (whose `fields` array was derived from the whole flat
+    // `lfoSettings` object, so ANY target's edit produced a new `fields` reference for every
+    // layer), this inline design resolves each target's own link by direct indexing with a
+    // stable per-target DEFAULT_LFO_LINK fallback (data/lfoConfig.ts — one object per target,
+    // never reconstructed). So although `SignatureArrayLayer`'s own `lfoLinks` prop reference
+    // changes for all 3 layers on any edit (its own memo can't bail), an untouched layer's
+    // *resolved* link value is referentially identical before and after, so its own `LfoLink`
+    // child (independently memoized) still bails — the expensive leaf controls stay isolated per
+    // layer even though the outer per-layer function body re-executes. Verified here rather than
+    // assumed, since the pre-Task-12 version of this component carried a "known limitation" note
+    // for exactly this scenario that no longer applies to the new design.
+    it("an lfoLinks reference change only re-renders the edited layer's own LfoLink controls — untouched layers resolve the same DEFAULT_LFO_LINK object and bail", () => {
+      const initialValue = makeValue();
+      const { rerender } = render(<SignatureArrayDrawer value={initialValue} {...noop} />);
+      (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
 
-    it('resolves a company-mode-shaped (partial) lfoSettings value the same way for every layer, unchanged from before consolidation', () => {
-      const onLfoChange = vi.fn();
-      const value = makeValue({
-        // Only layer2's phase has been broadcast-edited — every other target falls back to
-        // DEFAULT_LFO_SETTINGS, exactly as CompanyOptionsSection's own resolved snapshot does.
-        lfoSettings: { 'layer2.phase': { shape: 'square', rate: 3, depth: 25 } } as unknown as Robot['lfoSettings'],
-      });
-      const { container } = render(
-        <SignatureArrayDrawer value={value} onContinuousChange={() => {}} onStructuralChange={() => {}} onLfoChange={onLfoChange} />
+      rerender(
+        <SignatureArrayDrawer value={{ ...initialValue, lfoLinks: { 'layer0.gain': { lane: 'a', depth: 40 } } }} {...noop} />,
       );
 
-      // layer2's shared display defaults to Gain (unaffected by the partial lfoSettings), so
-      // this just proves no crash and normal default-fallback resolution across every layer.
-      const rateSlider = within(layerSection(container, 'layer2')).getByRole('slider', { name: 'Rate' });
-      rateSlider.focus();
-      fireEvent.keyDown(rateSlider, { key: 'ArrowRight' });
-      expect(onLfoChange).toHaveBeenCalledWith('layer2.gain', expect.objectContaining({ rate: expect.any(Number) }));
+      function callsFor(schemaId: string) {
+        return (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.filter(([schema]) => schema.id === schemaId).length;
+      }
+      expect(callsFor('robotOptions.layer0.gain.link.lane')).toBeGreaterThan(0);
+      expect(callsFor('robotOptions.layer1.gain.link.lane')).toBe(0);
+      expect(callsFor('robotOptions.layer2.gain.link.lane')).toBe(0);
+      // layer0's own Detune link is untouched too — same stable-default-object bail.
+      expect(callsFor('robotOptions.layer0.detune.link.lane')).toBe(0);
     });
   });
 
-  it('disables every internal control when disabled is true', () => {
+  it('disables every internal control when disabled is true, including each Gain row\'s own LfoLink', () => {
     const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} disabled />);
 
     const baseline = layerSection(container, 'layer0');
@@ -424,14 +377,17 @@ describe('SignatureArrayDrawer', () => {
     expect(within(baselineTypeGroup).getByRole('radio', { name: 'Triangle' }).getAttribute('data-disabled')).toBe('');
     expect(within(baseline).getByRole('slider', { name: /gain/i }).getAttribute('data-disabled')).toBe('');
     expect(within(layerSection(container, 'layer1')).getByRole('slider', { name: 'Companion Gain' }).getAttribute('data-disabled')).toBe('');
+
+    const gainRow = paramRow(baseline, 'Core Gain');
+    expect(within(gainRow).getByRole('radio', { name: 'Off' }).getAttribute('data-disabled')).toBe('');
+    expect(within(gainRow).getByRole('slider', { name: 'Depth' }).getAttribute('data-disabled')).toBe('');
   });
 
-  // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5, Task 11) — an optional
+  // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md section 1.5, Task 11) — an optional
   // `style` prop forwarded to this drawer's own root (Task 17, docs/tasks/NAV_LAYOUT_REWRITE.md:
   // moved from the now-removed accordion wrapper to the plain .signature-array-drawer
   // root), for trait-color scoping (getTraitColorStyle('spectral'), applied at the
-  // RobotOptionsTab call site in Task 12). Also proves Robot Drift (rendered inside this same
-  // root) inherits it via cascade, per spec §1.6.
+  // RobotOptionsTab call site).
   describe('style prop', () => {
     it('forwards a caller-supplied style to the drawer\'s own root', () => {
       const { container } = render(
@@ -452,7 +408,7 @@ describe('SignatureArrayDrawer', () => {
       expect(root.getAttribute('style')).toBeNull();
     });
 
-    it("Robot Drift's own sliders are a physical DOM descendant of the styled root — inherits via cascade, no separate wiring", () => {
+    it("a layer's own LfoLink is a physical DOM descendant of the styled root — inherits via cascade, no separate wiring", () => {
       const { container } = render(
         <SignatureArrayDrawer
           value={makeValue()}
@@ -461,8 +417,9 @@ describe('SignatureArrayDrawer', () => {
         />,
       );
       const root = container.querySelector('.signature-array-drawer') as HTMLElement;
-      const driftSlider = within(root).getAllByRole('slider', { name: 'Rate Drift' })[0];
-      expect(root.contains(driftSlider)).toBe(true);
+      const lfoLinkEl = root.querySelector('.sc-lfo-link');
+      expect(lfoLinkEl).not.toBeNull();
+      expect(root.contains(lfoLinkEl)).toBe(true);
     });
   });
 
@@ -474,11 +431,11 @@ describe('SignatureArrayDrawer', () => {
 
   describe('per-layer cascade regression (docs/todo/backlog.md #27 follow-up, 2026-09-15)', () => {
     // Found live: editing one layer's Gain re-rendered every other layer's own controls too. Root
-    // cause — every per-layer handler (handleTypeChange/handleParamChange, the `fields` array and
-    // `renderField` callback handed to LfoTargetGroup) was built fresh, unmemoized, inside the
-    // parent's own .map() — so editing ANY layer's ANY field changed `value.layers`'s own
-    // reference, re-rendering the parent, which then handed every already-memoized layer's own
-    // primitives new prop references regardless of whether THAT layer actually changed.
+    // cause — every per-layer handler (handleTypeChange/handleParamChange) was built fresh,
+    // unmemoized, inside the parent's own .map() — so editing ANY layer's ANY field changed
+    // `value.layers`'s own reference, re-rendering the parent, which then handed every
+    // already-memoized layer's own primitives new prop references regardless of whether THAT
+    // layer actually changed.
     function callsFor(schemaId: string) {
       return (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.filter(([schema]) => schema.id === schemaId).length;
     }
@@ -514,65 +471,6 @@ describe('SignatureArrayDrawer', () => {
       expect(callsFor('robotOptions.layer2.gain')).toBe(0);
     });
   });
-
-  // Audio Load Budget (plan task 22): held-off layer LFOs and Robot Drift grey out, values kept, with a label.
-  describe('Audio Load: held-off LFOs and drift', () => {
-    const HELD = 'Held off by Audio Load';
-    const rateIn = (el: HTMLElement) => within(el).getByRole('slider', { name: 'Rate' });
-    const disabled = (el: HTMLElement) => el.getAttribute('data-disabled') !== null;
-    const lfoValue = { shape: 'sine' as const, rate: 2, depth: 40 };
-
-    beforeEach(() => {
-      useAudioStore.setState({ driftHeldOff: false });
-    });
-
-    // Robot LFOs are never held off (docs/tasks/LFO_BANK.md Task 2 removed the cap that made
-    // them held-off-able; Task 3 removes the per-robot held-off wiring that used to grey them —
-    // the prop is gone from SignatureArrayDrawerProps too, guarded by `npm run build:types`).
-    it('renders every layer fully editable, with no held-off note, regardless of lfoSettings', () => {
-      const { container } = render(
-        <SignatureArrayDrawer {...noop} value={makeValue({ lfoSettings: { 'layer0.gain': lfoValue } })} />,
-      );
-      for (const key of ['layer0', 'layer1', 'layer2'] as const) {
-        expect(disabled(rateIn(layerSection(container, key)))).toBe(false);
-        expect(within(layerSection(container, key)).queryByText(HELD)).toBeNull();
-      }
-    });
-
-    it('greys Robot Drift while the drift tier is off, showing 0 (not the stored value), and restores it', async () => {
-      useAudioStore.setState((s) => ({
-        globalAudio: { ...s.globalAudio, lfoDrift: { ...s.globalAudio.lfoDrift, robots: { rateDrift: 0.3, depthDrift: -0.2 } } },
-        driftHeldOff: true,
-      }));
-      render(<SignatureArrayDrawer {...noop} value={makeValue()} />);
-      const rateDrift = screen.getByRole('slider', { name: 'Rate Drift' });
-      const depthDrift = screen.getByRole('slider', { name: 'Depth Drift' });
-      expect(disabled(rateDrift)).toBe(true);
-      expect(disabled(depthDrift)).toBe(true);
-      // 0, not the real stored value (30/-20) — a held-off control should read as visibly "off".
-      // The real value is kept in the store, untouched, and returns once it's re-enabled.
-      expect(rateDrift.getAttribute('aria-valuenow')).toBe('0');
-      expect(depthDrift.getAttribute('aria-valuenow')).toBe('0');
-      expect(screen.getByText(HELD)).toBeTruthy();
-      expect(rateDrift.closest('.signature-array-drawer__param')?.classList.contains('sc-held-off')).toBe(true);
-
-      act(() => useAudioStore.setState({ driftHeldOff: false }));
-      // SliderCenteredZero now eases a non-drag value change over 250ms (Crawford's own request)
-      // — the shared gsap mock (vitest.setup.ts) settles the tween's onComplete on the next
-      // microtask.
-      await act(async () => { await Promise.resolve(); });
-
-      expect(disabled(screen.getByRole('slider', { name: 'Rate Drift' }))).toBe(false);
-      expect(screen.getByRole('slider', { name: 'Rate Drift' }).getAttribute('aria-valuenow')).toBe('30');
-      expect(screen.getByRole('slider', { name: 'Depth Drift' }).getAttribute('aria-valuenow')).toBe('-20');
-      expect(screen.queryByText(HELD)).toBeNull();
-    });
-
-    it("Robot Drift still ignores the drawer's own disabled prop — only the drift tier greys it", () => {
-      render(<SignatureArrayDrawer {...noop} value={makeValue()} disabled />);
-      expect(disabled(screen.getByRole('slider', { name: 'Rate Drift' }))).toBe(false);
-    });
-  });
 });
 
 describe('SignatureArrayLayer — exported standalone (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10)', () => {
@@ -584,7 +482,7 @@ describe('SignatureArrayLayer — exported standalone (docs/tasks/NAV_PANEL_VIEW
         block={SIGNATURE_ARRAY_CONFIG[idx]}
         idx={idx}
         layer={layers[idx]}
-        lfoSettings={undefined}
+        lfoLinks={undefined}
         onTypeChange={() => {}}
         onParamChange={() => {}}
         onLfoFieldChange={() => {}}
@@ -618,19 +516,34 @@ describe('SignatureArrayLayer — exported standalone (docs/tasks/NAV_PANEL_VIEW
     expect(onTypeChange).toHaveBeenCalledWith(0, 'square');
   });
 
+  it("changing layer 1's Gain link fires onLfoFieldChange(1, 'layer1.gain', { lane, depth })", () => {
+    const onLfoFieldChange = vi.fn();
+    renderLayer(1, {
+      onLfoFieldChange,
+      lfoLinks: { 'layer1.gain': { lane: null, depth: 25 } },
+    });
+    const layerEl = screen.getByText(CONTENT['probe.source.companion'].human).closest('.sc-directional-panel') as HTMLElement;
+    const gainSlider = within(layerEl).getByRole('slider', { name: 'Companion Gain' });
+    const gainRow = gainSlider.closest('.signature-array-drawer__param') as HTMLElement;
+
+    fireEvent.click(within(gainRow).getByRole('radio', { name: 'Core LFO' }));
+
+    expect(onLfoFieldChange).toHaveBeenCalledWith(1, 'layer1.gain', { lane: 'a', depth: 25 });
+  });
+
   it('is independently mountable — mounting only one layer works with no cross-layer dependency', () => {
     expect(() => renderLayer(0)).not.toThrow();
   });
 });
 
-describe('RobotDriftPanel — exported standalone (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10, renamed "Probe Drift" as a nav label only — this component\'s own name is unaffected)', () => {
+describe('RobotDriftPanel — exported standalone (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10, renamed "Probe Drift" as a nav label only — this component\'s own name is unaffected). No longer rendered by SignatureArrayDrawer as of Task 12 (docs/tasks/LFO_BANK.md) — only Fleet Params\' own "Voice Drift" leaf mounts it now.', () => {
   beforeEach(() => {
     useAudioStore.setState((s) => ({
       globalAudio: { ...s.globalAudio, lfoDrift: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS.lfoDrift } },
     }));
   });
 
-  it('renders the Rate Drift/Depth Drift sliders, bound to the same global lfoDrift.robots slice the combined drawer used', () => {
+  it('renders the Rate Drift/Depth Drift sliders, bound to the same global lfoDrift.robots slice as before', () => {
     render(<RobotDriftPanel />);
     expect(screen.getByRole('slider', { name: 'Rate Drift' })).toBeTruthy();
     expect(screen.getByRole('slider', { name: 'Depth Drift' })).toBeTruthy();

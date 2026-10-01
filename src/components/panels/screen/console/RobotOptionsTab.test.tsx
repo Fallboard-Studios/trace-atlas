@@ -69,9 +69,24 @@ vi.mock('@/components/robot/PingContourDrawer', () => ({
   )),
 }));
 vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
-  SignatureArrayLayer: memo((props: { idx: number; layer: { type: string }; onTypeChange: (idx: number, type: string) => void; onParamChange: (idx: number, field: string, v: number) => void }) => (
+  SignatureArrayLayer: memo((props: {
+    idx: number;
+    layer: { type: string };
+    lfoLinks?: Record<string, { lane: string | null; depth: number }>;
+    onTypeChange: (idx: number, type: string) => void;
+    onParamChange: (idx: number, field: string, v: number) => void;
+    onLfoFieldChange: (idx: number, target: string, value: { lane: string | null; depth: number }) => void;
+  }) => (
     <div data-testid={`signature-array-layer-stub-${props.idx}`} data-type={props.layer.type}>
       <button onClick={() => props.onParamChange(props.idx, 'gain', 0.5)}>probe-layer-gain-{props.idx}</button>
+      <button
+        onClick={() => {
+          const current = props.lfoLinks?.[`layer${props.idx}.gain`] ?? { lane: null, depth: 0 };
+          props.onLfoFieldChange(props.idx, `layer${props.idx}.gain`, { ...current, lane: 'a' });
+        }}
+      >
+        probe-layer-lfo-{props.idx}
+      </button>
     </div>
   )),
 }));
@@ -440,6 +455,23 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
       fireEvent.click(screen.getByText('probe-layer-gain-1'));
 
       expect(cancelSpy).toHaveBeenCalledWith(robot.id, 'layer1.gain');
+    });
+
+    // docs/tasks/LFO_BANK.md Task 12 — a lane change on a layer routes through the bank engine
+    // (applyLayerLfoLink), never the old per-target LFO path (applyLayerLfo), which this tab no
+    // longer imports at all.
+    it('wires a layer\'s LFO lane change to robotOptionsActions.applyLayerLfoLink, never applyLayerLfo', () => {
+      const robot = makeRobot();
+      selectRobot(robot, 'source', 'coaxialOscillator');
+      const applyLinkSpy = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
+      const applyOldSpy = vi.spyOn(robotOptionsActions, 'applyLayerLfo').mockImplementation(() => {});
+      render(<RobotOptionsTab />);
+      openAndApproach('probes.r1.source.coaxialOscillator');
+
+      fireEvent.click(screen.getByText('probe-layer-lfo-1'));
+
+      expect(applyLinkSpy).toHaveBeenCalledWith(robot, localeId, 'layer1.gain', { lane: 'a', depth: 0 });
+      expect(applyOldSpy).not.toHaveBeenCalled();
     });
   });
 

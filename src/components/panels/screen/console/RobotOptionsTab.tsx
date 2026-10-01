@@ -22,11 +22,11 @@ import {
 } from '@/data/robotSubsectionConfig';
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
-  applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo,
+  applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
   applyAudioMode, applyVolume,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
-import type { LfoValue } from '@/types/controls';
+import type { LfoLinkValue } from '@/types/controls';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
 import type { RobotLfoTargetId } from '@/types/lfo';
 import type { Robot, ADSREnvelope, WaveformType } from '@/types/Robot';
@@ -205,8 +205,8 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
 
   const signatureArrayValue: SignatureArrayValue = useMemo(() => ({
     layers: robot.audioAttributes.layers ?? [],
-    lfoSettings: robot.lfoSettings,
-  }), [robot.audioAttributes.layers, robot.lfoSettings]);
+    lfoLinks: robot.lfoLinks,
+  }), [robot.audioAttributes.layers, robot.lfoLinks]);
 
   const handleAudioModeChange = useCallback((mode: Robot['audioMode']) => applyAudioMode(latestRobot.current, localeId, mode), [localeId]);
   const handleVolumeChange = useCallback((pct: number) => {
@@ -239,7 +239,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
     applyLayersContinuous(latestRobot.current, localeId, layers.map((l, i) => (i === idx ? { ...l, [field]: v } : l)));
   }, [localeId]);
   const handleLayerLfoFieldChange = useCallback(
-    (_idx: number, target: RobotLfoTargetId, value: LfoValue) => applyLayerLfo(latestRobot.current, localeId, target, value),
+    (_idx: number, target: RobotLfoTargetId, value: LfoLinkValue) => applyLayerLfoLink(latestRobot.current, localeId, target, value),
     [localeId],
   );
 
@@ -335,7 +335,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
             block={SIGNATURE_ARRAY_CONFIG[idx]}
             idx={idx}
             layer={layer}
-            lfoSettings={signatureArrayValue.lfoSettings}
+            lfoLinks={signatureArrayValue.lfoLinks}
             swelling={layerSwelling}
             onTypeChange={handleLayerTypeChange}
             onParamChange={handleLayerParamChange}
