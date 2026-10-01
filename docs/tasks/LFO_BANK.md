@@ -222,18 +222,20 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
   **Files:** `src/stores/audioStore.ts` (+test), `src/engine/audioDiagnostics.ts` (+test).
   **Scope:** S.
 
-- [ ] **Task 9: Robots carry `lfoLinks`; `robotLfoLinks.ts`; `applyLayerLfoLink`; company snapshot**
+- [x] **Task 9: Robots carry `lfoLinks`; `robotLfoLinks.ts`; `applyLayerLfoLink`; company snapshot**
 
   **Description:** `Robot.ts`: add `lfoLinks?: Record<RobotLfoTargetId, LfoLink>` (keep `lfoSettings`). `spawnSystem.spawnRobot`: tally `priorLaneCounts` from the active locale's existing robots (`tallyLanes` over every robot's `lfoLinks` values) and seed `lfoLinks` via `generateRobotLfoLinks`; the respawn branch uses `source.lfoLinks ?? generate`. New `src/systems/robotLfoLinks.ts`: `applyRobotLinkToEngine(robotId, target, link)` → `lfoEngine.linkTarget(target, link, robotId)` (from `lfoBank.ts`); `primeRobotLinks(robot, targets = ROBOT_LFO_TARGET_IDS)`; `primeRosterLinks(robots)`. `robotOptionsActions.ts`: add `applyLayerLfoLink(robot, localeId, target, link)` (store write of `lfoLinks` + the helper). `Company.ts`: `CompanyOptionsSnapshot.lfoLinks?`; `companyOptions.ts` resolves it from the first member like `lfoSettings` (`EMPTY_LFO_LINKS`). Nothing calls the prime functions yet (Task 10).
 
   **Acceptance criteria:**
-  - [ ] `spawnSystem.test.ts`: a spawned robot has 6 `lfoLinks` entries; the 3rd spawned robot's generator receives the tally of the first two (spy on `generateRobotLfoLinks`'s third argument); a respawn from a source with `lfoLinks` keeps them.
-  - [ ] `robotLfoLinks.test.ts`: `primeRobotLinks` calls `linkTarget` once per stored target with the stored link and the robot id, skips absent targets, no `lfoLinks` → no calls; `primeRosterLinks` covers every robot once.
-  - [ ] `robotOptionsActions.test.ts`: `applyLayerLfoLink` writes `lfoLinks[target]` (other targets untouched) then calls `applyRobotLinkToEngine`. `companyOptions.test.ts`: snapshot resolves `lfoLinks` from the first member; empty when none.
+  - [x] `spawnSystem.test.ts`: a spawned robot has 6 `lfoLinks` entries; the 3rd spawned robot's generator receives the tally of the first two (spy on `generateRobotLfoLinks`'s third argument); a respawn from a source with `lfoLinks` keeps them.
+  - [x] `robotLfoLinks.test.ts`: `primeRobotLinks` calls `linkTarget` once per stored target with the stored link and the robot id, skips absent targets, no `lfoLinks` → no calls; `primeRosterLinks` covers every robot once.
+  - [x] `robotOptionsActions.test.ts`: `applyLayerLfoLink` writes `lfoLinks[target]` (other targets untouched) then calls `applyRobotLinkToEngine`. `companyOptions.test.ts`: snapshot resolves `lfoLinks` from the first member; empty when none.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/spawnSystem.test.ts src/systems/robotLfoLinks.test.ts src/systems/robotOptionsActions.test.ts src/systems/companyOptions.test.ts` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/spawnSystem.test.ts src/systems/robotLfoLinks.test.ts src/systems/robotOptionsActions.test.ts src/systems/companyOptions.test.ts` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Notes from execution:** the plan's own "spy on `generateRobotLfoLinks`'s third argument" doesn't work as a same-file self-spy in this codebase's Vite/Vitest setup (internal calls within `spawnSystem.ts` don't resolve through a spied export's namespace binding — a known gotcha, not pinned down before now). Replaced with a state-based test: force every spawn fresh via a `vi.mock('../utils/getSeededVal', importOriginal)` wrapper overriding only the `'robot.copyChance'` draw, then assert the third robot's actual `lfoLinks` equals a direct `generateRobotLfoLinks(noiseMap, offset, priorLaneCounts)` call computed from the first two robots' real links — exercises the same tally-propagation behavior without relying on interaction spying. Used a dedicated locale ID for that test (the existing rhythmicMotifLength tests' own pattern) since `spawnCounters` is a module-level per-locale counter never reset between tests, so `DEFAULT_LOCALE_ID`'s offset at any given test is execution-order-dependent. Added a 4th test beyond the acceptance list: a respawn-copy source predating `lfoLinks` (`undefined`, e.g. a pre-Task-9 robot) falls back to a fresh generate rather than inheriting `undefined` — both new fallback branches (`source.lfoLinks ?? generate`, the tally's own `robots.flatMap` term) were mutation-checked and caught. Full suite green: 4370/4370 (no flaky reruns this pass). `npm run build:types`/`lint` clean.
 
   **Dependencies:** Tasks 6, 7.
   **Files:** `src/types/Robot.ts`, `src/types/Company.ts`, `src/systems/spawnSystem.ts` (+test), `src/systems/robotLfoLinks.ts` (+test), `src/systems/robotOptionsActions.ts` (+test), `src/systems/companyOptions.ts` (+test).
