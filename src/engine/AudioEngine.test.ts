@@ -1111,7 +1111,7 @@ describe('AudioEngine - Motif Group Accent', () => {
     const spy = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => { });
     AudioEngine.registerRobotMelody('live-accent-robot', melody);
 
-    sixteenthTicks.forEach((tick) => tick(0));
+    sixteenthTicks.forEach((tick: (time: number) => void) => tick(0));
 
     const live = spy.mock.calls.map((c) => c[0]).find((p) => p.robotId === 'live-accent-robot');
     expect(live).toBeDefined();
