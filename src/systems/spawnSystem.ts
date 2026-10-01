@@ -31,7 +31,7 @@ import { quantizeToStep } from '../utils/math';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import type { RobotLfoTargetId, LfoSettings, LfoLaneId, LfoLink } from '../types/lfo';
 import { ROBOT_LFO_TARGET_IDS, LFO_SHAPES, LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX } from '../types/lfo';
-import { pickLane } from '../utils/lfoLaneDraw';
+import { pickLane, tallyLanes } from '../utils/lfoLaneDraw';
 
 // ========================================
 // CONSTANTS
@@ -626,6 +626,13 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   let spawnNoteVariance: ToggleValue;
   let spawnPitchRepeat: number;
   let spawnLfoSettings: ReturnType<typeof generateRobotLfoSettings>;
+  let spawnLfoLinks: ReturnType<typeof generateRobotLfoLinks>;
+
+  // Roster-aware lane tally (docs/specs/LFO_BANK.md §1.3): every already-spawned robot's own
+  // lane picks lean this robot's fresh draw (if any) toward the least-used lanes. Computed
+  // unconditionally, before the copy/fresh branch, since the copy branch's own fallback
+  // (source.lfoLinks ?? generate) may still need it.
+  const priorLaneCounts = tallyLanes(robots.flatMap((r) => Object.values(r.lfoLinks ?? {})));
 
   if (shouldCopy) {
     const srcIdx = Math.min(
@@ -644,6 +651,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     spawnNoteVariance = source.noteVariance ?? DEFAULT_NOTE_VARIANCE;
     spawnPitchRepeat = source.pitchRepeat ?? DEFAULT_PITCH_REPEAT;
     spawnLfoSettings = source.lfoSettings ?? generateRobotLfoSettings(noiseMap ?? ((_x: number, _y: number) => 0 as number), spawnCount);
+    spawnLfoLinks = source.lfoLinks ?? generateRobotLfoLinks(noiseMap ?? ((_x: number, _y: number) => 0 as number), spawnCount, priorLaneCounts);
   } else {
     // Generate audio attributes — octaveRange is seeded directly inside generateAudioAttributes
     audioAttributes = noiseMap
@@ -653,6 +661,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     spawnLfoSettings = noiseMap
       ? generateRobotLfoSettings(noiseMap, spawnCount)
       : generateRobotLfoSettings((_x: number, _y: number) => 0 as number, spawnCount);
+    spawnLfoLinks = noiseMap
+      ? generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts)
+      : generateRobotLfoLinks((_x: number, _y: number) => 0 as number, spawnCount, priorLaneCounts);
 
     spawnRhythmicDensity = Math.round(
       noiseMap
@@ -730,6 +741,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     noteVariance: spawnNoteVariance,
     pitchRepeat: spawnPitchRepeat,
     lfoSettings: spawnLfoSettings,
+    lfoLinks: spawnLfoLinks,
     masterVolume: (() => {
       const seeded = noiseMap
         ? getSeededVal(noiseMap, 'robot.masterVolume', spawnCount, MASTER_VOLUME_MIN, MASTER_VOLUME_MAX)

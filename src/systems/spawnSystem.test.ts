@@ -18,9 +18,20 @@ import {
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
 } from '../constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
-import { getSeededVal } from '../utils/getSeededVal';
+import { tallyLanes } from '../utils/lfoLaneDraw';
 import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
 import * as robotLfoPriming from './robotLfoPriming';
+
+// Spy on getSeededVal while keeping its real behavior (the globalAudioSeed.test.ts/
+// worldTransition.test.ts importOriginal pattern) — the lfoLinks-at-spawn tests below need to
+// force spawnRobot's own 'robot.copyChance' seeded roll to a known side without disturbing every
+// other seeded draw the rest of this file's many tests depend on.
+vi.mock('../utils/getSeededVal', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils/getSeededVal')>();
+  return { ...actual, getSeededVal: vi.fn(actual.getSeededVal) };
+});
+
+import { getSeededVal } from '../utils/getSeededVal';
 
 /** General-purpose mock: returns a pseudo-random value in [-1, 1]. */
 const mockNoiseMap: NoiseFunction2D = () => Math.random() * 2 - 1;
@@ -707,6 +718,102 @@ describe('spawnSystem', () => {
       }
       const sharedGroup = [...bySettings.values()].find((g) => g.length > 1);
       expect(sharedGroup, 'expected at least one copy to share its source\'s lfoSettings reference').toBeDefined();
+    });
+
+    describe('lfoLinks at spawn (LFO Bank Task 9)', () => {
+      it('gives a spawned robot lfoLinks for all 6 RobotLfoTargetId values, no extras', () => {
+        spawnRobot(DEFAULT_LOCALE_ID);
+        const robot = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0];
+
+        expect(robot.lfoLinks).toBeDefined();
+        expect(Object.keys(robot.lfoLinks ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
+      });
+
+      it('tallies the already-spawned roster\'s picked lanes before seeding the next robot\'s own links (spec §1.3 roster-aware tally)', async () => {
+        // A dedicated locale ID, not DEFAULT_LOCALE_ID: spawnCounters is keyed per-locale and
+        // never reset between tests in this file (see the rhythmicMotifLength.active test's own
+        // comment above for the same reasoning) — a fresh key guarantees this robot's spawnCount
+        // (and therefore its generateRobotLfoLinks offset) starts at 0, matching the offset this
+        // test computes its own expectation against.
+        const localeId = 'lfo-link-tally-test-locale';
+        useLocaleStore.setState((state) => ({
+          locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [] } },
+        }));
+
+        // Force every spawn below to generate fresh links rather than copy an existing robot's —
+        // a copy would inherit a reference instead of exercising the tally this test checks.
+        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        const mocked = vi.mocked(getSeededVal);
+        mocked.mockImplementation((noiseMap, dataId, offset, min, max) => {
+          if (dataId === 'robot.copyChance') return 1; // 1 is never < 0.30, so shouldCopy is always false
+          return realGetSeededVal(noiseMap, dataId, offset, min, max);
+        });
+
+        try {
+          spawnRobot(localeId);
+          spawnRobot(localeId);
+          const firstTwo = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+          expect(firstTwo).toHaveLength(2);
+
+          spawnRobot(localeId);
+          const third = useLocaleStore.getState().getLocaleById(localeId)!.robots[2];
+
+          const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+          const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+          const priorLaneCounts = tallyLanes(firstTwo.flatMap((r) => Object.values(r.lfoLinks ?? {})));
+          const expectedLinks = generateRobotLfoLinks(noiseMap, 2, priorLaneCounts);
+
+          expect(third.lfoLinks).toEqual(expectedLinks);
+        } finally {
+          mocked.mockImplementation(realGetSeededVal);
+        }
+      });
+
+      it('a copied robot inherits the source\'s lfoLinks reference rather than generating fresh ones', () => {
+        // Same copy-detection pattern as the lfoSettings copy test above.
+        for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
+        const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
+        const byLinks = new Map<Robot['lfoLinks'], Robot[]>();
+        for (const r of robots) {
+          const group = byLinks.get(r.lfoLinks) ?? [];
+          group.push(r);
+          byLinks.set(r.lfoLinks, group);
+        }
+        const sharedGroup = [...byLinks.values()].find((g) => g.length > 1);
+        expect(sharedGroup, 'expected at least one copy to share its source\'s lfoLinks reference').toBeDefined();
+      });
+
+      it('a respawn copying from a source without lfoLinks (undefined — a pre-Task-9 robot) generates fresh links instead of inheriting undefined', async () => {
+        spawnRobot(DEFAULT_LOCALE_ID);
+        const legacySource = { ...useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0] } as Partial<Robot>;
+        delete legacySource.lfoLinks;
+        useLocaleStore.setState((state) => ({
+          locales: {
+            ...state.locales,
+            [DEFAULT_LOCALE_ID]: { ...state.locales[DEFAULT_LOCALE_ID], robots: [legacySource as Robot] },
+          },
+        }));
+
+        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        const mocked = vi.mocked(getSeededVal);
+        mocked.mockImplementation((noiseMap, dataId, offset, min, max) => {
+          if (dataId === 'robot.copyChance') return 0; // 0 is always < 0.30, so shouldCopy is always true
+          if (dataId === 'robot.copySource') return 0; // picks the sole source robot regardless of range
+          return realGetSeededVal(noiseMap, dataId, offset, min, max);
+        });
+
+        try {
+          spawnRobot(DEFAULT_LOCALE_ID);
+          const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+          expect(robots).toHaveLength(2);
+          const copy = robots[1];
+
+          expect(copy.lfoLinks).toBeDefined();
+          expect(Object.keys(copy.lfoLinks ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
+        } finally {
+          mocked.mockImplementation(realGetSeededVal);
+        }
+      });
     });
 
     it('spawns multiple robots with unique IDs', () => {
