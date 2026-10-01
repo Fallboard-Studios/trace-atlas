@@ -16,7 +16,6 @@ import type { RobotLfoTargetId, LfoSettings } from './lfo';
 export interface CompanyOptionsSnapshot {
   audioMode?: Robot['audioMode'];
   masterVolume?: number;
-  volumeLfo?: LfoSettings;
   rhythmicDensity?: number;
   rhythmicMotifLength?: { active: boolean; value: number };
   noteVariance?: { active: boolean; value: number };

@@ -11,7 +11,7 @@ import {
   LOAD_POLYPHONY_MIN,
   MAX_POLYPHONY,
   MAX_ROBOTS,
-  ROBOT_LFO_CAP_CEILING,
+  ROBOT_LFO_CAP_FULL,
   ROBOT_LFO_CAP_LIGHT,
   ROBOT_LFO_CAP_STANDARD,
 } from '../constants';
@@ -44,7 +44,7 @@ export interface EffectsLoadLimits {
   driftEnabled: boolean;
   /** Global lpf/hpf frequency + Q LFOs (EQ-gain LFOs are always allowed). */
   filterLfosEnabled: boolean;
-  /** Audio-rate robot LFOs connected at once; Infinity only at exactly Full. */
+  /** Audio-rate robot LFOs connected at once; flat at Standard's cap from Standard through Full. */
   maxRobotLfos: number;
 }
 
@@ -58,17 +58,17 @@ export type LoadLimits = RobotLoadLimits & EffectsLoadLimits;
 const lerp = (from: number, to: number, t: number): number => from + (to - from) * t;
 
 /**
- * Robot-LFO cap: flat at Light's below Light, 4 → 12 between Light and Standard, then climbing to a finite
- * ceiling just short of Full — Infinity only at exactly Full, so anything short of Full is still bounded.
+ * Robot-LFO cap: flat at Light's below Light, 4 → 12 between Light and Standard, then flat at
+ * Standard's from there through Full (Task 11 perf gate, docs/PERFORMANCE.md — Full's previous
+ * `Infinity` saturated the audio thread; see ROBOT_LFO_CAP_FULL).
  */
 function robotLfoCap(load: number): number {
-  const { light, standard, full } = AUDIO_LOAD_PRESETS;
-  if (load >= full) return Infinity;
+  const { light, standard } = AUDIO_LOAD_PRESETS;
   if (load <= light) return ROBOT_LFO_CAP_LIGHT;
   if (load <= standard) {
     return Math.round(lerp(ROBOT_LFO_CAP_LIGHT, ROBOT_LFO_CAP_STANDARD, (load - light) / (standard - light)));
   }
-  return Math.round(lerp(ROBOT_LFO_CAP_STANDARD, ROBOT_LFO_CAP_CEILING, (load - standard) / (full - standard)));
+  return ROBOT_LFO_CAP_FULL;
 }
 
 // ========================================

@@ -351,6 +351,130 @@ describe('applySessionPayload', () => {
     expect(useAudioStore.getState().globalAudio.lfoDrift.globalFx).toEqual({ rateDrift: 0, depthDrift: 0 });
   });
 
+  it('drops legacy lfoSettings keys (volume, layerN.pulseWidth — removed targets) from a robot override on load, keeping the known ones', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+    const payload = buildSessionPayload();
+    // docs/specs/LFO_LOAD_FIX.md §1.4 "Backward compatibility": a payload saved before the two
+    // targets were removed can still carry them under lfoSettings — cast through unknown, same
+    // trust-boundary reasoning as the stale lfoDrift case above.
+    const legacyOverrides = {
+      ...payload.robotOverrides,
+      [robot.id]: {
+        ...payload.robotOverrides[robot.id],
+        lfoSettings: {
+          volume: { shape: 'sine', rate: 3, depth: 50 },
+          'layer1.pulseWidth': { shape: 'square', rate: 2, depth: 40 },
+          'layer1.gain': { shape: 'triangle', rate: 1.5, depth: 30 },
+        },
+      },
+    } as unknown as typeof payload.robotOverrides;
+
+    expect(() => applySessionPayload({ ...payload, robotOverrides: legacyOverrides })).not.toThrow();
+
+    const restored = currentLocale()!.robots.find((r) => r.id === robot.id)!;
+    expect(restored.lfoSettings?.['layer1.gain']).toEqual({ shape: 'triangle', rate: 1.5, depth: 30 });
+    expect('volume' in (restored.lfoSettings ?? {})).toBe(false);
+    expect('layer1.pulseWidth' in (restored.lfoSettings ?? {})).toBe(false);
+  });
+
+  describe('priming on load (LFO Load Fix Task 9)', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('primes exactly the targets present in a robot override\'s lfoSettings, not the whole robot', async () => {
+      const robotLfoPriming = await import('../systems/robotLfoPriming');
+      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+      const payload = buildSessionPayload();
+      const overriddenPayload = {
+        ...payload,
+        robotOverrides: {
+          ...payload.robotOverrides,
+          [robot.id]: {
+            ...payload.robotOverrides[robot.id],
+            lfoSettings: { 'layer1.gain': { shape: 'triangle', rate: 1.5, depth: 30 } } as Partial<Record<RobotLfoTargetId, LfoSettings>>,
+          },
+        },
+      };
+
+      applySessionPayload(overriddenPayload);
+
+      expect(primeSpy).toHaveBeenCalledTimes(1);
+      expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }), ['layer1.gain']);
+    });
+
+    it('filters out legacy (removed) target keys before priming — never primes volume or pulseWidth', async () => {
+      const robotLfoPriming = await import('../systems/robotLfoPriming');
+      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+      const payload = buildSessionPayload();
+      const legacyOverrides = {
+        ...payload.robotOverrides,
+        [robot.id]: {
+          ...payload.robotOverrides[robot.id],
+          lfoSettings: {
+            volume: { shape: 'sine', rate: 3, depth: 50 },
+            'layer1.gain': { shape: 'triangle', rate: 1.5, depth: 30 },
+          },
+        },
+      } as unknown as typeof payload.robotOverrides;
+
+      applySessionPayload({ ...payload, robotOverrides: legacyOverrides });
+
+      expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }), ['layer1.gain']);
+    });
+
+    it('does not prime a robot whose override carries no lfoSettings', async () => {
+      const robotLfoPriming = await import('../systems/robotLfoPriming');
+      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+      const payload = buildSessionPayload();
+      const overriddenPayload = {
+        ...payload,
+        robotOverrides: {
+          ...payload.robotOverrides,
+          [robot.id]: { ...payload.robotOverrides[robot.id], rhythmicDensity: 70 },
+        },
+      };
+
+      applySessionPayload(overriddenPayload);
+
+      expect(primeSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  it('applies a user-created company whose stored lastEditedOptions still carries a legacy volumeLfo (saved before the Volume LFO target was removed) without error, keeping the company and its other options', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    // docs/specs/LFO_LOAD_FIX.md assumption 9: the field is gone from CompanyOptionsSnapshot, so an
+    // old payload is the only way it can appear — cast through unknown, same trust-boundary
+    // reasoning as the stale lfoDrift case above. The stale key is inert: never read, never thrown on.
+    const legacyCompany = {
+      id: 'user-created-legacy-volume-lfo',
+      name: 'Old Guard',
+      color: '#abcdef',
+      robotIds: [],
+      lastEditedOptions: { masterVolume: 0.4, volumeLfo: { shape: 'sine', rate: 2, depth: 40 } },
+    } as unknown as Company;
+    const stalePayload = { ...payload, userCreatedCompanies: [legacyCompany] };
+
+    expect(() => applySessionPayload(stalePayload)).not.toThrow();
+
+    const applied = currentLocale()?.companies.find((c) => c.id === 'user-created-legacy-volume-lfo');
+    expect(applied).toBeDefined();
+    expect(applied?.lastEditedOptions?.masterVolume).toBe(0.4);
+  });
+
   it('calls worldTransition.retransmitWorld, not a parallel regeneration path — omitting attenuationStyleName when it matches the currently active one', () => {
     // Omitting it routes through retransmitWorld's coordsOnly branch, which preserves the
     // current Attenuation Style untouched -- passing it unconditionally would instead hit

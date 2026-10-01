@@ -17,8 +17,7 @@ import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/ui
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE } from '@/engine/melodyGenerator';
-import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
-import { VOLUME_LFO_TARGET, SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
+import { SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import {
   SOURCE_OSCILLATOR_SUBSECTIONS, subsectionIds as computeSubsectionIds, accordionIds as computeAccordionIds,
   type RobotOptionsTrait,
@@ -26,7 +25,7 @@ import {
 import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo,
-  applyAudioMode, applyVolume, applyVolumeLfo,
+  applyAudioMode, applyVolume,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import type { LfoValue } from '@/types/controls';
@@ -143,9 +142,8 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   const robotColorStyle = useMemo(() => getRobotColorStyle(robot.identityColor), [robot.identityColor]);
 
   // Audio Load Budget: which of THIS robot's LFOs the dial is holding off, as plain props for the store-free sections. Selected as
-  // booleans (a shallow-compared record of this robot's own 13 targets), never the whole list, so another robot's LFO entering or
+  // booleans (a shallow-compared record of this robot's own 9 targets), never the whole list, so another robot's LFO entering or
   // leaving it re-renders nothing here; the record keeps its reference until one of THESE flags flips.
-  const volumeLfoHeldOff = useAudioStore((s) => s.heldOffLfoKeys.includes(`${robot.id}:${VOLUME_LFO_TARGET}`));
   const heldOffTargets = useAudioStore(
     useShallow((s) => Object.fromEntries(ROBOT_LFO_TARGET_IDS.map((target) => [target, s.heldOffLfoKeys.includes(`${robot.id}:${target}`)]))),
   );
@@ -200,9 +198,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   const audioSettingValue: AudioSettingValue = useMemo(() => ({
     audioMode: robot.audioMode ?? 'none',
     masterVolume: robot.masterVolume,
-    volumeLfo: robot.lfoSettings?.[VOLUME_LFO_TARGET] as LfoValue
-      ?? { ...DEFAULT_LFO_SETTINGS[VOLUME_LFO_TARGET] },
-  }), [robot.audioMode, robot.masterVolume, robot.lfoSettings]);
+  }), [robot.audioMode, robot.masterVolume]);
 
   const pingControlsValue: PingControlsValue = useMemo(() => ({
     rhythmicDensity: robot.rhythmicDensity ?? 50,
@@ -226,7 +222,6 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
     cancelSwellForRobotAttribute(latestRobot.current.id, 'volume');
     applyVolume(latestRobot.current, localeId, pct);
   }, [localeId]);
-  const handleVolumeLfoChange = useCallback((value: LfoValue) => applyVolumeLfo(latestRobot.current, localeId, value), [localeId]);
 
   const handleDensityChange = useCallback((v: number) => applyDensity(latestRobot.current, localeId, v), [localeId]);
   const handleMotifLengthChange = useCallback((v: number) => applyMotifLength(latestRobot.current, localeId, v), [localeId]);
@@ -309,8 +304,6 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
             value={audioSettingValue}
             onAudioModeChange={handleAudioModeChange}
             onVolumeChange={handleVolumeChange}
-            onVolumeLfoChange={handleVolumeLfoChange}
-            volumeLfoHeldOff={volumeLfoHeldOff}
             volumeSwelling={volumeSwelling}
           />
         );
@@ -364,7 +357,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
         return null;
     }
   }, [
-    audioSettingValue, handleAudioModeChange, handleVolumeChange, handleVolumeLfoChange, volumeLfoHeldOff,
+    audioSettingValue, handleAudioModeChange, handleVolumeChange,
     volumeSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, prefix,

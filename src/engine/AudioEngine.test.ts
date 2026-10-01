@@ -1933,19 +1933,21 @@ describe('AudioEngine - getRobotModulationTarget', () => {
   it('returns null (not throw) for an unreserved robotId', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
-    expect(() => AudioEngine.getRobotModulationTarget('never-reserved', 'volume')).not.toThrow();
-    expect(AudioEngine.getRobotModulationTarget('never-reserved', 'volume')).toBeNull();
+    expect(() => AudioEngine.getRobotModulationTarget('never-reserved', 'layer0.gain')).not.toThrow();
+    expect(AudioEngine.getRobotModulationTarget('never-reserved', 'layer0.gain')).toBeNull();
   });
 
-  it('returns the composite voice\'s output gain Signal for "volume"', async () => {
+  // The 'volume' LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 4). The
+  // id can still arrive at runtime from an old session or share link, so the resolver must
+  // decline it the way it declines any unknown id — null, never a throw, never the output gain.
+  it('returns null (not throw) for the removed "volume" target, even on a reserved robot', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
     AudioEngine.reserveVoice('mod-target-volume', layered as any, TEST_ADSR);
 
-    const target = AudioEngine.getRobotModulationTarget('mod-target-volume', 'volume');
-    expect(target).not.toBeNull();
-    expect(target).toHaveProperty('value');
+    expect(() => AudioEngine.getRobotModulationTarget('mod-target-volume', 'volume' as any)).not.toThrow();
+    expect(AudioEngine.getRobotModulationTarget('mod-target-volume', 'volume' as any)).toBeNull();
   });
 
   it('returns the per-layer Tone.Gain.gain Signal for "layerN.gain"', async () => {
@@ -1982,25 +1984,26 @@ describe('AudioEngine - getRobotModulationTarget', () => {
     expect(AudioEngine.getRobotModulationTarget('mod-target-phase', 'layer0.phase')).toBeNull();
   });
 
-  it('returns the PulseOscillator width Signal for "layerN.pulseWidth" when the layer type is \'pulse\'', async () => {
+  // The pulse-width LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 4) —
+  // even a 'pulse' layer, whose PulseOscillator does expose a width Signal, no longer resolves one.
+  it('returns null (not throw) for the removed "layerN.pulseWidth" target, even when the layer type is \'pulse\'', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const layered: any[] = [{ type: 'pulse', gain: 0.8, detune: 0, phase: 0, pulseWidth: 0.3 }];
     AudioEngine.reserveVoice('mod-target-pulse', layered as any, TEST_ADSR);
 
-    const target = AudioEngine.getRobotModulationTarget('mod-target-pulse', 'layer0.pulseWidth');
-    expect(target).not.toBeNull();
-    expect(target).toHaveProperty('value');
+    expect(() => AudioEngine.getRobotModulationTarget('mod-target-pulse', 'layer0.pulseWidth' as any)).not.toThrow();
+    expect(AudioEngine.getRobotModulationTarget('mod-target-pulse', 'layer0.pulseWidth' as any)).toBeNull();
   });
 
-  it('returns null (not throw) for "layerN.pulseWidth" when the layer type is \'square\' — no adjustable width exists in Tone.js', async () => {
+  it('returns null (not throw) for "layerN.pulseWidth" when the layer type is \'square\'', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const layered: any[] = [{ type: 'square', gain: 0.8, detune: 0, phase: 0 }];
     AudioEngine.reserveVoice('mod-target-square', layered as any, TEST_ADSR);
 
-    expect(() => AudioEngine.getRobotModulationTarget('mod-target-square', 'layer0.pulseWidth')).not.toThrow();
-    expect(AudioEngine.getRobotModulationTarget('mod-target-square', 'layer0.pulseWidth')).toBeNull();
+    expect(() => AudioEngine.getRobotModulationTarget('mod-target-square', 'layer0.pulseWidth' as any)).not.toThrow();
+    expect(AudioEngine.getRobotModulationTarget('mod-target-square', 'layer0.pulseWidth' as any)).toBeNull();
   });
 
   it('returns null (not throw) for an out-of-range layer index', async () => {
@@ -2210,6 +2213,93 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
     expect(lastInstance(Tone.Reverb).wet.value).toBe(0.35);
     expect(lastInstance(Tone.Limiter).threshold.value).toBe(-2);
     expect(lastInstance(Tone.FeedbackDelay).wet.value).toBe(0.25);
+  });
+});
+
+describe('AudioEngine.start — primes robot LFOs for robots that spawned before audio was ready (LFO Load Fix Task 8)', () => {
+  // Mirrors the "robots spawned before AudioEngine initialized" post-load reservation pass
+  // (loadInstruments, earlier in this file) — once those robots have a reserved voice, their
+  // seeded LFO settings must reach lfoEngine too, same as the global chain's own priming loop a
+  // few lines above in start() itself.
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  async function startWithRobot(lfoSettings: Record<string, unknown>) {
+    const { AudioEngine } = await import('./AudioEngine');
+    const storeMod = await import('../stores/localeStore');
+    const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+    const helpers = await import('../utils/localeHelpers');
+    const { lfoEngine } = await import('./lfoEngine');
+    const localeId = attenuationStyleMod.DEFAULT_LOCALE_ID;
+    (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(localeId);
+    storeMod.useLocaleStore.getState().setLocaleData(localeId, {
+      robots: [{
+        id: 'pre-spawned-robot',
+        position: { x: 0, y: 0 },
+        audioMode: 'none',
+        audioAttributes: { layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }], adsr: TEST_ADSR },
+        lfoSettings,
+      } as any],
+    });
+    vi.clearAllMocks();
+    vi.mocked(lfoEngine.connectLfoTarget).mockReturnValue(true);
+
+    await AudioEngine.start();
+    return { lfoEngine };
+  }
+
+  it('primes a nonzero-rate target for a robot whose voice was reserved before start()', async () => {
+    const { lfoEngine } = await startWithRobot({ 'layer0.gain': { shape: 'sine', rate: 2, depth: 40 } });
+
+    expect(lfoEngine.setLfoRate).toHaveBeenCalledWith('layer0.gain', 2, 'pre-spawned-robot');
+    expect(lfoEngine.connectLfoTarget).toHaveBeenCalledWith('layer0.gain', 'pre-spawned-robot');
+    expect(lfoEngine.start).toHaveBeenCalledWith('layer0.gain', 'pre-spawned-robot');
+  });
+
+  it('never connects a rate-0 target', async () => {
+    const { lfoEngine } = await startWithRobot({ 'layer0.detune': { shape: 'sine', rate: 0, depth: 10 } });
+
+    expect(lfoEngine.connectLfoTarget).not.toHaveBeenCalledWith('layer0.detune', 'pre-spawned-robot');
+    expect(lfoEngine.start).not.toHaveBeenCalledWith('layer0.detune', 'pre-spawned-robot');
+  });
+
+  it('runs after the global LFO priming loop, not before (global EQ/filter values must already be correct)', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const storeMod = await import('../stores/localeStore');
+    const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+    const helpers = await import('../utils/localeHelpers');
+    const audioStoreMod = await import('../stores/audioStore');
+    const { lfoEngine } = await import('./lfoEngine');
+    const localeId = attenuationStyleMod.DEFAULT_LOCALE_ID;
+    (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(localeId);
+    storeMod.useLocaleStore.getState().setLocaleData(localeId, {
+      robots: [{
+        id: 'order-robot',
+        position: { x: 0, y: 0 },
+        audioMode: 'none',
+        audioAttributes: { layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }], adsr: TEST_ADSR },
+        lfoSettings: { 'layer0.gain': { shape: 'sine', rate: 1, depth: 10 } },
+      } as any],
+    });
+    audioStoreMod.useAudioStore.setState({
+      globalLfo: { 'eq3.low': { shape: 'sine', rate: 1, depth: 10 } } as any,
+    });
+    vi.clearAllMocks();
+    vi.mocked(lfoEngine.connectLfoTarget).mockReturnValue(true);
+    const callOrder: string[] = [];
+    vi.mocked(lfoEngine.setLfoRate).mockImplementation((target: unknown) => {
+      callOrder.push(target === 'eq3.low' ? 'global' : 'robot');
+    });
+
+    await AudioEngine.start();
+
+    expect(callOrder).toEqual(['global', 'robot']);
+  });
+
+  it('does not throw when no robots exist', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await expect(AudioEngine.start()).resolves.not.toThrow();
   });
 });
 

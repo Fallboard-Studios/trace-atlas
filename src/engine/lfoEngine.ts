@@ -24,6 +24,7 @@ import type { OscillatorLayer } from '../types/layeredAudio';
 import type { LfoSettings, LfoShape, RobotLfoTargetId, GlobalLfoTargetId, LfoTargetId } from '../types/lfo';
 import { LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX, ROBOT_LFO_TARGET_IDS } from '../types/lfo';
 import { devWarn } from '../utils/helpers';
+import { MIN_LEAD } from '../constants';
 
 // ========================================
 // STATE (module-scoped, runtime-only — never put these in Zustand)
@@ -109,27 +110,17 @@ function isRobotTarget(target: LfoTargetId): boolean {
 /**
  * Real value range per robot field, per docs/reference/ROBOT_DATA_GRID.md —
  * shared across all 3 layers, since the range depends on the field (gain,
- * detune, pulseWidth), not which layer index it's on. 'phase' is
- * deliberately absent — the phase-polling fallback computes its own range
- * independently (PHASE_CENTER_DEGREES), it never reaches this lookup.
- *
- * 'volume' is deliberately 0-2, NOT the 0-1 domain ROBOT_DATA_GRID.md
- * documents for the Volume slider itself. getRobotModulationTarget resolves
- * 'volume' to the composite voice's own `output` Gain node (compositeVoice.ts)
- * — an internal mix-stage node constructed at a fixed 1 and never written to
- * in production, entirely separate from the robot's masterVolume/bus-gain
- * fader. A 0-1 range put that permanent value of 1 exactly on the range's own
- * max edge, so centeredSwingFromRange's min(distanceToMin, distanceToMax) was
- * unconditionally 0 — the Volume LFO connected and took rate/depth/shape, but
- * could never produce any audible swing, for any setting. 0-2 matches 'gain'
- * (the other field backed by an identical Tone.Gain(1) node), putting 1 at
- * the midpoint instead of the edge.
+ * detune), not which layer index it's on. 'phase' is deliberately absent —
+ * the phase-polling fallback computes its own range independently
+ * (PHASE_CENTER_DEGREES), it never reaches this lookup. The former 'volume'
+ * (0-2, sized for the composite voice's fixed-at-1 output gain) and
+ * 'pulseWidth' (0-1) rows are gone with their targets — docs/specs/
+ * LFO_LOAD_FIX.md assumption 9. 'gain' is 0-2 because the per-layer
+ * Tone.Gain node rests at 1, so a 0-1 range would pin its swing to 0.
  */
 const ROBOT_LFO_FIELD_RANGE: Record<string, { min: number; max: number }> = {
-  volume: { min: 0, max: 2 },
   gain: { min: 0, max: 2 },
   detune: { min: -50, max: 50 },
-  pulseWidth: { min: 0, max: 1 },
 };
 
 /** Translates a GlobalLfoTargetId's 'lpf.'/'hpf.' short form (matching AudioEngine.setEffectBypass's
@@ -150,11 +141,10 @@ function globalSeedRangeKey(target: GlobalLfoTargetId): GlobalAudioSeedFieldKey 
  * lfo.min/lfo.max. See centeredSwingFromRange() (lfoShared.ts) for why.
  */
 function resolveLfoOutputRange(target: LfoTargetId): { min: number; max: number } | null {
-  if (target === 'volume') return ROBOT_LFO_FIELD_RANGE.volume;
-  const robotFieldMatch = /^layer\d+\.(gain|detune|pulseWidth)$/.exec(target);
+  const robotFieldMatch = /^layer\d+\.(gain|detune)$/.exec(target);
   if (robotFieldMatch) return ROBOT_LFO_FIELD_RANGE[robotFieldMatch[1]];
   if (!isRobotTarget(target)) {
-    // Anything that isn't a robot target and isn't 'volume' is a global-chain target.
+    // Anything that isn't a robot target is a global-chain target.
     const range = GLOBAL_AUDIO_SEED_RANGES[globalSeedRangeKey(target as GlobalLfoTargetId)];
     return range ? { min: range.min, max: range.max } : null;
   }
@@ -258,13 +248,19 @@ function setLfoShape(target: LfoTargetId, shape: LfoSettings['shape'], robotId?:
  * start/stop, which would tempo-couple the rate and violate the confirmed
  * intent that rate stays a free-running Hz value. If no node has been
  * created yet for this target (no setter/connect called), this is a no-op —
- * start() itself never lazily constructs a node.
+ * start() itself never lazily constructs a node. Starts at Tone.now() + MIN_LEAD,
+ * never immediately: a roster-wide priming pass (robotLfoPriming.ts) can start a
+ * dozen-plus LFOs in one synchronous burst, and starting them all at the
+ * zero-lead "now" gives the audio thread no slack to finish building/connecting
+ * that many nodes before the next render quantum needs them — audible as clicks
+ * on load. The same CLAUDE.md MIN_LEAD rule AudioEngine.ts already applies to
+ * note scheduling.
  */
 function start(target: LfoTargetId, robotId?: string): void {
   const lfo = activeLfos.get(instanceKey(target, robotId));
   if (!lfo) return;
   if (!isAudioContextRunning()) return;
-  lfo.start();
+  lfo.start(Tone.now() + MIN_LEAD);
 }
 
 /** Stop an LFO if one exists. Always allowed, regardless of transport state — safe/idempotent if already stopped or never created. */
@@ -451,10 +447,9 @@ function getHeldOffLfoKeys(): string[] {
  * Connect this target's LFO to its live modulation destination. Returns
  * false — never throws — when: a robot-scoped target is called without a
  * robotId (nothing to resolve against), or AudioEngine has no live Signal
- * for the target (pulseWidth on a non-'pulse' layer — a structural Tone.js
- * limitation documented at the AudioEngine layer, Tasks 9/10). 'layerN.phase'
- * is handled entirely separately via the manual-polling fallback above,
- * since no live Signal exists for it at all.
+ * for the target (an unreserved robot, or an id outside the current target
+ * set). 'layerN.phase' is handled entirely separately via the manual-polling
+ * fallback above, since no live Signal exists for it at all.
  */
 function connectOne(target: LfoTargetId, robotId?: string): boolean {
   const key = instanceKey(target, robotId);

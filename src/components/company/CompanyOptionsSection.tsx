@@ -14,18 +14,17 @@ import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/ui
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { resolveCompanyOptions, diffCompoundField } from '@/systems/companyOptions';
 import {
-  applyAudioMode, applyVolume, applyVolumeLfo,
+  applyAudioMode, applyVolume,
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
-import { VOLUME_LFO_TARGET, SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
+import { SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import {
   SOURCE_OSCILLATOR_SUBSECTIONS, subsectionIds as computeSubsectionIds, accordionIds as computeAccordionIds,
   type RobotOptionsTrait,
 } from '@/data/robotSubsectionConfig';
-import { LFO_RATE_MIN, LFO_DEPTH_MIN } from '@/types/lfo';
 import { getTraitColorStyle, getDisabledTraitColorStyle } from '@/utils/traitColors';
 import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
@@ -71,7 +70,6 @@ const DISABLED_TRAIT_STYLES: Record<RobotOptionsTrait, CSSProperties> = {
 const DISABLED_AUDIO_SETTING: AudioSettingValue = {
   audioMode: 'none',
   masterVolume: 0,
-  volumeLfo: { shape: 'sine', rate: LFO_RATE_MIN, depth: LFO_DEPTH_MIN },
 };
 
 const DISABLED_PING_CONTROLS: PingControlsValue = {
@@ -242,12 +240,11 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
   // referenced inside any of these callbacks.
   const resolvedAudioMode = resolved?.audioMode;
   const resolvedMasterVolume = resolved?.masterVolume;
-  const resolvedVolumeLfo = resolved?.volumeLfo;
   const audioSettingValue: AudioSettingValue = useMemo(() => (
     active
-      ? { audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume!, volumeLfo: resolvedVolumeLfo! }
+      ? { audioMode: resolvedAudioMode!, masterVolume: resolvedMasterVolume! }
       : DISABLED_AUDIO_SETTING
-  ), [active, resolvedAudioMode, resolvedMasterVolume, resolvedVolumeLfo]);
+  ), [active, resolvedAudioMode, resolvedMasterVolume]);
 
   // PingControlsValue's rhythmicMotifLength/noteVariance are plain numbers (docs/specs/
   // STEPPER_TO_SLIDER.md §7.3) but resolved/CompanyOptionsSnapshot still carry the {active, value}
@@ -319,16 +316,6 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
       applyVolume(m, localeId, pct);
     });
     patchSnapshot({ masterVolume: pct / 100 });
-  }, [localeId, patchSnapshot]);
-
-  const handleVolumeLfoChange = useCallback((value: LfoValue) => {
-    const { members, resolved } = latest.current;
-    const patch = resolved ? diffCompoundField(resolved.volumeLfo, value) : value;
-    members.forEach((m) => {
-      const memberOwn = m.lfoSettings?.[VOLUME_LFO_TARGET] ?? { ...DEFAULT_LFO_SETTINGS[VOLUME_LFO_TARGET] };
-      applyVolumeLfo(m, localeId, { ...memberOwn, ...patch });
-    });
-    patchSnapshot({ volumeLfo: value });
   }, [localeId, patchSnapshot]);
 
   const handleDensityChange = useCallback((v: number) => {
@@ -465,7 +452,6 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
             disabled={!active}
             onAudioModeChange={handleAudioModeChange}
             onVolumeChange={handleVolumeChange}
-            onVolumeLfoChange={handleVolumeLfoChange}
             volumeSwelling={volumeSwelling}
           />
         );
@@ -512,7 +498,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
         return null;
     }
   }, [
-    audioSettingValue, active, handleAudioModeChange, handleVolumeChange, handleVolumeLfoChange, volumeSwelling,
+    audioSettingValue, active, handleAudioModeChange, handleVolumeChange, volumeSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, prefix,
     adsrValue, handleAdsrChange, adsrSwelling,

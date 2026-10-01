@@ -24,6 +24,7 @@ import {
 } from '../constants';
 import useLocaleStore from '../stores/localeStore';
 import { initRobotIdleCounter } from './idleSystem';
+import { primeRobotLfos, primeRosterLfos } from './robotLfoPriming';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
@@ -351,13 +352,27 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
 
 /**
  * Probability threshold an LFO target's own "start quiet" seed draw ([0, 1])
- * must clear to force rate to 0 — a plain 50/50 coin flip, matching
- * LAYER_QUIET_THRESHOLD's rationale (no product requirement pinned a
- * specific bias for "each independently seeded on or off"). Replaces the old
- * separate `active` boolean — see LFO_RATE_MIN's own doc comment
- * (src/types/lfo.ts) for why rate=0 is now the "off" state.
+ * must clear to force rate to 0. Was 0.5 (a nominal 50/50) until 2026-09-30;
+ * raised to 0.7 so roughly a quarter of audio-rate targets seed on
+ * (docs/specs/LFO_LOAD_FIX.md assumption 5 / §1.4) — with robot LFOs now
+ * actually primed into the engine at spawn, the old odds would have put
+ * ≈60 LFOs on a 12-robot roster and saturated the audio thread.
+ *
+ * Why 0.7 and not 0.75 for "25% on": the draw is a smooth simplex sample
+ * mapped to [0, 1], not a uniform coin, so the on-rate is not 1 - threshold.
+ * Measured across 8 worlds × 12 offsets before choosing: 0.5 → ≈53% on,
+ * 0.75 → ≈20%, 0.7 → ≈27% (≈1.6 audio-rate LFOs per robot, ≈19 per world).
+ * A side effect of the same structure: every target of one robot samples the
+ * map at the same y (the spawn offset) with x values all inside [0, 1), so a
+ * robot's draws are strongly correlated — robots tend to be mostly-on or
+ * mostly-off rather than evenly sprinkled. Pre-existing, not changed here.
+ * Only this constant moves: the `.quiet` dataId and draw order are
+ * unchanged, so shapes/depths/on-rates are byte-identical to before (the
+ * seed oracle in spawnSystem.test.ts pins that). Replaces the old separate
+ * `active` boolean — see LFO_RATE_MIN's own doc comment (src/types/lfo.ts)
+ * for why rate=0 is the "off" state.
  */
-const LFO_QUIET_THRESHOLD = 0.5;
+const LFO_QUIET_THRESHOLD = 0.7;
 
 /** Mirrors Lfo.tsx's own RATE_STEP (SEEDED_SLIDER_VALUE_QUANTIZATION). */
 const LFO_RATE_STEP = 0.05;
@@ -367,7 +382,7 @@ const LFO_RATE_STEP = 0.05;
 const LFO_DEPTH_STEP = 1;
 
 /**
- * Generate seeded LfoSettings for all 13 RobotLfoTargetId modulation targets,
+ * Generate seeded LfoSettings for all 9 RobotLfoTargetId modulation targets,
  * the same way as the rest of a robot's audio personality (generateAudioAttributes
  * above) — per docs/tasks/LFO_INTEGRATION_PLAN.md Task 13. Each target gets its
  * own dot-namespaced dataId ('robot.lfo.<target>.<field>'), so a single shared
@@ -706,7 +721,17 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   try {
     const layers = (robot.audioAttributes as unknown as { layers?: OscillatorLayer[] })?.layers;
     if (Array.isArray(layers) && layers.length > 0) {
-      AudioEngine.reserveVoice(robot.id, layers, robot.audioAttributes.adsr, robot.audioAttributes.phase, robot.audioAttributes.detune, layers[0]?.pulseWidth, robot.masterVolume, robot.audioAttributes.filterFreq);
+      const reserved = AudioEngine.reserveVoice(robot.id, layers, robot.audioAttributes.adsr, robot.audioAttributes.phase, robot.audioAttributes.detune, layers[0]?.pulseWidth, robot.masterVolume, robot.audioAttributes.filterFreq);
+      // Prime this robot's seeded LFO settings into lfoEngine now that it has a live voice to
+      // connect against (docs/specs/LFO_LOAD_FIX.md Task 7) — without this, seeded LFOs sit in
+      // state, shown in the UI, but never actually run until a user happens to edit one.
+      if (reserved) {
+        try {
+          primeRobotLfos(robot);
+        } catch (err) {
+          if (DEV_TUNING) console.warn('[SpawnSystem] primeRobotLfos failed', err);
+        }
+      }
     }
   } catch (err) {
     if (DEV_TUNING) console.warn('[SpawnSystem] reserveVoice failed', err);
@@ -832,4 +857,12 @@ export function reRegisterAllRobotsAudio(localeId: string): void {
     AudioEngine.unregisterRobotMelody(robot.id);
     AudioEngine.registerRobotMelody(robot.id, robot.melody);
   });
+  // One round-robin pass over the whole roster, after every reservation — never per-robot inside
+  // the loop above, which would defeat primeRosterLfos's own round-robin request ordering (spec
+  // §1.2: every robot's first target admitted before any robot's second).
+  try {
+    primeRosterLfos(robots);
+  } catch (err) {
+    if (DEV_TUNING) console.warn('[SpawnSystem] reRegisterAllRobotsAudio: primeRosterLfos failed', err);
+  }
 }

@@ -14,7 +14,6 @@ describe('CompanyOptionsSnapshot', () => {
     const empty: CompanyOptionsSnapshot = {};
     expect(empty.audioMode).toBeUndefined();
     expect(empty.masterVolume).toBeUndefined();
-    expect(empty.volumeLfo).toBeUndefined();
     expect(empty.rhythmicDensity).toBeUndefined();
     expect(empty.rhythmicMotifLength).toBeUndefined();
     expect(empty.noteVariance).toBeUndefined();
@@ -28,19 +27,24 @@ describe('CompanyOptionsSnapshot', () => {
     const full: CompanyOptionsSnapshot = {
       audioMode: 'solo',
       masterVolume: 0.75,
-      volumeLfo: { shape: 'sine', rate: 2, depth: 40 },
       rhythmicDensity: 60,
       rhythmicMotifLength: { active: true, value: 4 },
       noteVariance: { active: false, value: 0 },
       octaveRange: [3, 5],
       adsr: { attack: 0.1, decay: 0.2, sustain: 0.8, release: 0.5 },
       layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }],
-      lfoSettings: { volume: { shape: 'triangle', rate: 1, depth: 20 } },
+      lfoSettings: { 'layer0.gain': { shape: 'triangle', rate: 1, depth: 20 } },
     };
     expect(full.audioMode).toBe('solo');
     expect(full.masterVolume).toBe(0.75);
     expect(full.octaveRange).toEqual([3, 5]);
     expect(full.layers).toHaveLength(1);
+  });
+
+  it('rejects a volumeLfo field at the type level — the Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9)', () => {
+    // @ts-expect-error volumeLfo no longer exists on CompanyOptionsSnapshot
+    const stale: CompanyOptionsSnapshot = { volumeLfo: { shape: 'sine', rate: 2, depth: 40 } };
+    expect(stale).toBeDefined();
   });
 
   it('accepts a partially populated object — only some fields set', () => {

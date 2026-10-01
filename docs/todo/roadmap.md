@@ -189,6 +189,14 @@ Sequenced last because its cause is unknown and its numbers are the least trustw
 
 **Implemented — see [docs/specs/AUDIO_LOAD_BUDGET.md](../specs/AUDIO_LOAD_BUDGET.md) §8 "As Shipped" and [docs/tasks/AUDIO_LOAD_BUDGET.md](../tasks/AUDIO_LOAD_BUDGET.md). Merged via PR #485/#486.**
 
+## 17.2.7 Performance: Robot LFO Priming
+
+**Implemented — see [docs/specs/LFO_LOAD_FIX.md](../specs/LFO_LOAD_FIX.md) and [docs/tasks/LFO_LOAD_FIX.md](../tasks/LFO_LOAD_FIX.md). Branch `bug/LFO-load`, unmerged as of writing.**
+
+Seeded robot LFOs showed in the UI but never reached the engine — only a user edit ever connected one. `primeRobotLfos`/`primeRosterLfos` (`src/systems/robotLfoPriming.ts`) close the gap at every point a robot's voice is (re)reserved: spawn, power-on, a structural voice rebuild (also fixing a second bug — a user-connected robot LFO going silent on a layer-type change), and session load. The `volume` and `layerN.pulseWidth` LFO targets were removed and the seed odds lowered from 50% to 25% on to keep the primed count sustainable (9 targets now, not 13). The Task 11 perf gate found Full's previously-`Infinity` robot-LFO cap saturating the audio thread once priming made the cost real (bravo peak render capacity 0.40 → 0.998 at ≈18 connected robot LFOs); `ROBOT_LFO_CAP_FULL` gives Full a finite cap (equal to Standard's, 12), re-measured passing with a wide margin (peak 0.443). See `docs/PERFORMANCE.md` "Robot-LFO priming — the Task 11 perf gate" for the full measurement.
+
+**Not Doing:** control-rate robot LFOs (`layerN.phase` already polls at control rate and stays uncapped by design); raising the global-chain LFO odds (34%, untouched — out of scope).
+
 ## 17.3 Styling Overhaul: Robot Views
 
 Requested by Crawford, 2026-09-16. High priority — third of the 17.1–17.5 series (see 17.1). Not yet interviewed/specced. Scope: Robot Selection (`RobotsTab`, `RobotSelectionCard` — 15.2) and Robot Options (`RobotDisplaySection`, `PingControlsDrawer`, `PingContourDrawer`, `SignatureArrayDrawer` — 15.3) together, since both share the same robot-detail visual language.

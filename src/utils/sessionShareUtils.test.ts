@@ -40,6 +40,29 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
   });
 
+  it('drops legacy robot lfoSettings keys (volume, layerN.pulseWidth — removed LFO targets) on decode, keeping the known ones', () => {
+    // docs/specs/LFO_LOAD_FIX.md §1.4 "Backward compatibility": a link minted before the two
+    // targets were removed still carries them under `lf`. Cast through unknown — the type no
+    // longer admits those keys, which is the point.
+    const payload = makePayload({
+      robotOverrides: {
+        'robot-1': {
+          lfoSettings: {
+            volume: { shape: 'sine', rate: 3, depth: 50 },
+            'layer1.pulseWidth': { shape: 'square', rate: 2, depth: 40 },
+            'layer1.gain': { shape: 'triangle', rate: 1.5, depth: 30 },
+          },
+        } as unknown as SessionPayload['robotOverrides'][string],
+      },
+    });
+
+    const decoded = decodeSessionPayload(encodeSessionPayload(payload))!;
+    const lfo = decoded.robotOverrides['robot-1'].lfoSettings ?? {};
+    expect(lfo['layer1.gain']).toEqual({ shape: 'triangle', rate: 1.5, depth: 30 });
+    expect('volume' in lfo).toBe(false);
+    expect('layer1.pulseWidth' in lfo).toBe(false);
+  });
+
   it('round-trips non-Latin1 characters (company/robot names are not charset-restricted)', () => {
     const payload = makePayload({
       userCreatedCompanies: [{ id: 'c1', name: 'Ü Robotics 日本語', color: '#123456', robotIds: [] }],
@@ -127,7 +150,7 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
           noteVariance: { active: false, value: 0 },
           pitchRepeat: 50,
           octaveRange: [3, 5],
-          lfoSettings: { volume: { shape: 'sine', rate: 1.2, depth: 0.3 } },
+          lfoSettings: { 'layer0.gain': { shape: 'sine', rate: 1.2, depth: 0.3 } },
           name: 'Renamed Bot',
         },
       },

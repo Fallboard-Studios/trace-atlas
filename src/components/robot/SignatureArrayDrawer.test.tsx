@@ -315,44 +315,54 @@ describe('SignatureArrayDrawer', () => {
       expect(gainRow.classList.contains('isActive')).toBe(true);
     });
 
-    it('toggling a layer\'s type to pulse shows the Interval row in that layer\'s shared group', () => {
+    // The pulseWidth LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 4).
+    // Interval still renders for pulse layers, but as a plain slider row outside the LFO group —
+    // never a targetable field, never a fourth row in the group.
+    it('a pulse layer shows the Interval slider outside the LFO group — the group has exactly 3 targetable rows (Gain/Detune/Phase)', () => {
       const layers = makeLayers();
       layers[1] = { ...layers[1], type: 'pulse' };
       const { container } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
-      const intervalSlider = within(layerSection(container, 'layer1')).getByRole('slider', { name: /interval/i });
-      expect(intervalSlider.closest('.sc-lfo-target-group__row')).not.toBeNull();
+      const section = layerSection(container, 'layer1');
+      const intervalSlider = within(section).getByRole('slider', { name: /interval/i });
+      expect(intervalSlider.closest('.sc-lfo-target-group__row')).toBeNull();
+      expect(section.querySelectorAll('.sc-lfo-target-group__row')).toHaveLength(3);
+      // A non-pulse layer has the same 3 rows and no Interval at all.
+      expect(layerSection(container, 'layer0').querySelectorAll('.sc-lfo-target-group__row')).toHaveLength(3);
+      expect(within(layerSection(container, 'layer0')).queryByRole('slider', { name: /interval/i })).toBeNull();
     });
 
-    it('falls back to the first remaining field without erroring when the targeted Interval row disappears (type leaves pulse)', async () => {
+    it('editing Interval on a pulse layer still calls onContinuousChange with that layer\'s pulseWidth, and never onLfoChange', () => {
+      const layers = makeLayers();
+      layers[1] = { ...layers[1], type: 'pulse', pulseWidth: 0.4 };
+      const onContinuousChange = vi.fn();
+      const onLfoChange = vi.fn();
+      const { container } = render(
+        <SignatureArrayDrawer value={makeValue({ layers })} onContinuousChange={onContinuousChange} onStructuralChange={() => {}} onLfoChange={onLfoChange} />
+      );
+
+      const intervalSlider = within(layerSection(container, 'layer1')).getByRole('slider', { name: /interval/i });
+      intervalSlider.focus();
+      fireEvent.keyDown(intervalSlider, { key: 'ArrowRight' });
+
+      expect(onContinuousChange).toHaveBeenCalledTimes(1);
+      const next = onContinuousChange.mock.calls[0][0] as OscillatorLayer[];
+      expect(next[1].pulseWidth).toBeCloseTo(0.41, 9);
+      expect(next[0]).toEqual(layers[0]);
+      expect(onLfoChange).not.toHaveBeenCalled();
+    });
+
+    it('clicking the Interval row does not target anything in the LFO group — Gain stays the targeted field', async () => {
       const layers = makeLayers();
       layers[1] = { ...layers[1], type: 'pulse' };
-      const value = makeValue({ layers });
       const onLfoChange = vi.fn();
-      const { container, rerender } = render(
-        <SignatureArrayDrawer value={value} onContinuousChange={() => {}} onStructuralChange={() => {}} onLfoChange={onLfoChange} />
+      const { container } = render(
+        <SignatureArrayDrawer value={makeValue({ layers })} onContinuousChange={() => {}} onStructuralChange={() => {}} onLfoChange={onLfoChange} />
       );
-
-      // Target Interval (the last field) before it disappears.
-      const intervalRow = within(layerSection(container, 'layer1')).getByRole('slider', { name: /interval/i }).closest('.sc-lfo-target-group__row')!;
+      const section = layerSection(container, 'layer1');
       await act(async () => {
-        fireEvent.click(intervalRow);
+        fireEvent.click(within(section).getByRole('slider', { name: /interval/i }));
       });
-      await waitFor(() => expect(intervalRow.classList.contains('isActive')).toBe(true));
-
-      // Type leaves 'pulse' — Interval's row disappears from the DOM entirely.
-      const layersWithoutPulse = layers.map((l, i) => (i === 1 ? { ...l, type: 'square' as const } : l));
-      rerender(
-        <SignatureArrayDrawer
-          value={makeValue({ layers: layersWithoutPulse })}
-          onContinuousChange={() => {}}
-          onStructuralChange={() => {}}
-          onLfoChange={onLfoChange}
-        />
-      );
-
-      expect(within(layerSection(container, 'layer1')).queryByText(/Interval/i)).toBeNull();
-      // Falls back to Gain (layer1's first field) — no crash, and the shared display still works.
-      const rateSlider = within(layerSection(container, 'layer1')).getByRole('slider', { name: 'Rate' });
+      const rateSlider = within(section).getByRole('slider', { name: 'Rate' });
       rateSlider.focus();
       fireEvent.keyDown(rateSlider, { key: 'ArrowRight' });
       expect(onLfoChange.mock.calls.at(-1)?.[0]).toBe('layer1.gain');

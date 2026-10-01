@@ -57,6 +57,25 @@ describe('resolveCompanyOptions', () => {
     expect(resolved.clickTrackActive).toBe(false);
   });
 
+  // The Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 3): the
+  // snapshot no longer carries a volumeLfo field, so the resolver must not synthesise one — even
+  // when the first member's (legacy) lfoSettings still happens to hold a 'volume' entry.
+  it('never resolves a volumeLfo field, even from a member whose lfoSettings carries a legacy volume entry', () => {
+    const firstMember = makeRobot({ lfoSettings: { volume: { shape: 'square', rate: 3, depth: 50 } } as unknown as Robot['lfoSettings'] });
+
+    const resolved = resolveCompanyOptions(undefined, firstMember);
+
+    expect('volumeLfo' in resolved).toBe(false);
+  });
+
+  it('a legacy lastEditedOptions.volumeLfo (an old saved session) is passed through inert, not re-typed or stripped here', () => {
+    // The resolver is a plain spread; the loader (sessionDiff) is where legacy keys are tolerated.
+    // This pins that the spread does not throw and does not invent the field when it is absent.
+    const resolved = resolveCompanyOptions({ masterVolume: 0.3 }, makeRobot());
+    expect(resolved.masterVolume).toBe(0.3);
+    expect('volumeLfo' in resolved).toBe(false);
+  });
+
   it('falls back to documented defaults for fields the first member has never had set', () => {
     const firstMember = makeRobot({
       audioMode: undefined,
@@ -75,7 +94,6 @@ describe('resolveCompanyOptions', () => {
     expect(resolved.rhythmicMotifLength).toEqual({ active: true, value: 8 });
     expect(resolved.noteVariance).toEqual({ active: false, value: 0 }); // DEFAULT_NOTE_VARIANCE
     expect(resolved.pitchRepeat).toBe(0); // DEFAULT_PITCH_REPEAT
-    expect(resolved.volumeLfo).toEqual({ shape: 'sine', rate: 0, depth: 0 });
   });
 
   it('with lastEditedOptions partially populated, only the recorded fields override — everything else still falls back to the first member', () => {

@@ -10,7 +10,7 @@ import {
   LOAD_PLAYBACK_BELOW,
   MAX_POLYPHONY,
   MAX_ROBOTS,
-  ROBOT_LFO_CAP_CEILING,
+  ROBOT_LFO_CAP_FULL,
   ROBOT_LFO_CAP_LIGHT,
   ROBOT_LFO_CAP_STANDARD,
 } from '../constants';
@@ -49,14 +49,14 @@ const dial = Array.from({ length: 101 }, (_, i) => i / 100);
 // ========================================
 
 describe('loadToLimits', () => {
-  it('at Full (1) equals today’s behavior exactly: 12 robots, 16 notes, drift and filter LFOs on, unlimited robot LFOs, interactive', () => {
+  it('at Full (1): 12 robots, 16 notes, drift and filter LFOs on, Standard’s robot-LFO cap (Task 11 gate), interactive', () => {
     // Literal numbers as well as the constants, so a constant that drifts away from today is caught here.
     expect(loadToLimits(1)).toEqual({
       maxAudibleRobots: 12,
       maxPolyphony: 16,
       driftEnabled: true,
       filterLfosEnabled: true,
-      maxRobotLfos: Infinity,
+      maxRobotLfos: ROBOT_LFO_CAP_FULL,
       latencyHint: 'interactive',
     });
     expect(MAX_ROBOTS).toBe(12);
@@ -126,33 +126,32 @@ describe('loadToLimits', () => {
       }
     });
 
-    it('are whole numbers everywhere except an unlimited robot-LFO cap', () => {
+    it('are whole numbers everywhere, including the robot-LFO cap', () => {
       for (const t of dial) {
         const limits = loadToLimits(t);
         expect(Number.isInteger(limits.maxAudibleRobots)).toBe(true);
         expect(Number.isInteger(limits.maxPolyphony)).toBe(true);
-        if (limits.maxRobotLfos !== Infinity) expect(Number.isInteger(limits.maxRobotLfos)).toBe(true);
+        expect(Number.isInteger(limits.maxRobotLfos)).toBe(true);
       }
     });
   });
 
   describe('robot-LFO cap', () => {
-    it('holds Light’s cap below Light, interpolates 4 → 12 up to Standard, then grows towards a finite ceiling', () => {
+    it('holds Light’s cap below Light, interpolates 4 → 12 up to Standard, then stays flat at Standard’s cap through Full', () => {
       expect(loadToLimits(0.1).maxRobotLfos).toBe(ROBOT_LFO_CAP_LIGHT);
       expect(loadToLimits(0.4).maxRobotLfos).toBe((ROBOT_LFO_CAP_LIGHT + ROBOT_LFO_CAP_STANDARD) / 2);
-      expect(loadToLimits(0.8).maxRobotLfos).toBeGreaterThan(ROBOT_LFO_CAP_STANDARD);
-      expect(loadToLimits(0.99).maxRobotLfos).toBeGreaterThan(loadToLimits(0.8).maxRobotLfos);
-      expect(loadToLimits(0.99).maxRobotLfos).toBeLessThanOrEqual(ROBOT_LFO_CAP_CEILING);
-      expect(Number.isFinite(loadToLimits(0.99).maxRobotLfos)).toBe(true);
+      expect(loadToLimits(0.8).maxRobotLfos).toBe(ROBOT_LFO_CAP_FULL);
+      expect(loadToLimits(0.99).maxRobotLfos).toBe(ROBOT_LFO_CAP_FULL);
+      expect(loadToLimits(1).maxRobotLfos).toBe(ROBOT_LFO_CAP_FULL);
     });
 
-    it('is unlimited (Infinity) only at exactly Full, so anything short of Full is still bounded', () => {
-      expect(loadToLimits(1).maxRobotLfos).toBe(Infinity);
+    it('is finite everywhere, including at Full — Task 11’s perf gate (docs/PERFORMANCE.md) found Infinity saturating the audio thread', () => {
+      expect(Number.isFinite(loadToLimits(1).maxRobotLfos)).toBe(true);
       expect(Number.isFinite(loadToLimits(0.999).maxRobotLfos)).toBe(true);
     });
 
-    it('has a finite ceiling of every audio-rate robot LFO that could ever connect (12 robots × 10 targets)', () => {
-      expect(ROBOT_LFO_CAP_CEILING).toBe(MAX_ROBOTS * 10);
+    it('sets Full’s cap equal to Standard’s (ROBOT_LFO_CAP_FULL), the Task 11 gate value', () => {
+      expect(ROBOT_LFO_CAP_FULL).toBe(ROBOT_LFO_CAP_STANDARD);
     });
   });
 
@@ -353,8 +352,8 @@ describe('describeLimits', () => {
     );
   });
 
-  it('at Full says everything is on and never mentions a robot-LFO limit or latency', () => {
-    expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.full))).toBe('Up to 12 robots · 16 notes · all LFOs and drift');
+  it('at Full says everything is on, mentions the Task 11 robot-LFO cap, and never mentions latency', () => {
+    expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.full))).toBe('Up to 12 robots · 16 notes · all LFOs and drift · 12 robot LFOs');
   });
 
   it('mentions the load-time latency caveat only when the hint differs from interactive', () => {
@@ -373,10 +372,10 @@ describe('describeLimits', () => {
     expect(describeLimits(loadToLimits(LOAD_DRIFT_MIN))).toContain('all LFOs and drift');
   });
 
-  it('shows the robot-LFO limit only while it is tight (at most Standard’s), never Infinity', () => {
+  it('shows the robot-LFO limit whenever it is at most Standard’s — which now includes Full (Task 11)', () => {
     expect(describeLimits(loadToLimits(0.4))).toContain('8 robot LFOs');
-    expect(describeLimits(loadToLimits(0.8))).not.toMatch(/robot LFOs/);
-    expect(describeLimits(loadToLimits(0.99))).not.toMatch(/robot LFOs/);
+    expect(describeLimits(loadToLimits(0.8))).toContain(`${ROBOT_LFO_CAP_FULL} robot LFOs`);
+    expect(describeLimits(loadToLimits(0.99))).toContain(`${ROBOT_LFO_CAP_FULL} robot LFOs`);
   });
 
   it('is well-formed across the whole dial: starts "Up to n robots", never Infinity, NaN or undefined', () => {
@@ -895,15 +894,17 @@ describe('lfoAllowed', () => {
     });
 
     it('uses each tier’s own cap: Light 4, Standard 12', () => {
-      expect(lfoAllowed('volume', 'robot', light, ROBOT_LFO_CAP_LIGHT - 1)).toBe(true);
-      expect(lfoAllowed('volume', 'robot', light, ROBOT_LFO_CAP_LIGHT)).toBe(false);
-      expect(lfoAllowed('volume', 'robot', standard, ROBOT_LFO_CAP_STANDARD - 1)).toBe(true);
-      expect(lfoAllowed('volume', 'robot', standard, ROBOT_LFO_CAP_STANDARD)).toBe(false);
+      expect(lfoAllowed('layer0.gain', 'robot', light, ROBOT_LFO_CAP_LIGHT - 1)).toBe(true);
+      expect(lfoAllowed('layer0.gain', 'robot', light, ROBOT_LFO_CAP_LIGHT)).toBe(false);
+      expect(lfoAllowed('layer0.gain', 'robot', standard, ROBOT_LFO_CAP_STANDARD - 1)).toBe(true);
+      expect(lfoAllowed('layer0.gain', 'robot', standard, ROBOT_LFO_CAP_STANDARD)).toBe(false);
     });
 
-    it('never refuses at Full (unlimited), however many are connected', () => {
+    it('enforces Full’s cap too (Task 11) — refuses once Standard’s cap worth are connected', () => {
       expect(lfoAllowed('layer0.gain', 'robot', full, 0)).toBe(true);
-      expect(lfoAllowed('layer0.gain', 'robot', full, 10_000)).toBe(true);
+      expect(lfoAllowed('layer0.gain', 'robot', full, ROBOT_LFO_CAP_FULL - 1)).toBe(true);
+      expect(lfoAllowed('layer0.gain', 'robot', full, ROBOT_LFO_CAP_FULL)).toBe(false);
+      expect(lfoAllowed('layer0.gain', 'robot', full, 10_000)).toBe(false);
     });
 
     it('never counts or refuses layerN.phase LFOs — they poll at control rate, not audio rate', () => {
@@ -915,12 +916,12 @@ describe('lfoAllowed', () => {
 
     it('a cap of zero refuses every audio-rate robot LFO but still allows phase LFOs', () => {
       const zero = { ...light, maxRobotLfos: 0 };
-      expect(lfoAllowed('volume', 'robot', zero, 0)).toBe(false);
+      expect(lfoAllowed('layer0.gain', 'robot', zero, 0)).toBe(false);
       expect(lfoAllowed('layer1.phase', 'robot', zero, 0)).toBe(true);
     });
 
     it('is not affected by the filter-LFO switch', () => {
-      expect(lfoAllowed('volume', 'robot', { ...standard, filterLfosEnabled: false }, 0)).toBe(true);
+      expect(lfoAllowed('layer0.gain', 'robot', { ...standard, filterLfosEnabled: false }, 0)).toBe(true);
     });
   });
 });

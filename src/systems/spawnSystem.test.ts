@@ -1,12 +1,12 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { Robot } from '../types/Robot';
 
-import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoSettings, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoSettings, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -20,6 +20,7 @@ import {
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { getSeededVal } from '../utils/getSeededVal';
 import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
+import * as robotLfoPriming from './robotLfoPriming';
 
 /** General-purpose mock: returns a pseudo-random value in [-1, 1]. */
 const mockNoiseMap: NoiseFunction2D = () => Math.random() * 2 - 1;
@@ -190,7 +191,7 @@ describe('spawnSystem', () => {
   });
 
   describe('generateRobotLfoSettings', () => {
-    it('generates LfoSettings for all 13 RobotLfoTargetId values, no extras', () => {
+    it('generates LfoSettings for all 9 RobotLfoTargetId values, no extras', () => {
       const settings = generateRobotLfoSettings(mockNoiseMap, 0);
       expect(Object.keys(settings).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
     });
@@ -257,11 +258,130 @@ describe('spawnSystem', () => {
     });
   });
 
+  // Seed oracle (docs/specs/LFO_LOAD_FIX.md §5 "Seed odds", docs/tasks/LFO_LOAD_FIX.md Task 1).
+  // Captured GREEN against the pre-change seeder on 2026-09-30, BEFORE LFO_QUIET_THRESHOLD moves
+  // (Task 5) and before any target is removed. The contract it pins: for a fixed noise map + offset,
+  // every target's shape and depth, and every currently-oscillating target's rate, are byte-identical
+  // after the odds change — lowering the odds may only turn an oscillating target quiet (rate 0), never
+  // change a value or revive a quiet one. Regenerating these expected objects to make a later change
+  // pass is a spec violation, not a fix. Targets a later task removes are simply dropped from the
+  // expectation when the type narrows; the remaining rows stay as captured.
+  describe('generateRobotLfoSettings — seed oracle (LFO Load Fix Task 1)', () => {
+    const ORACLE_SEED = 'lfo-load-fix-oracle';
+
+    // Offset 1: a mostly-quiet robot (2 of 13 oscillating). Offset 4: a mostly-on robot (12 of 13).
+    const EXPECTED: Record<number, Record<string, { shape: string; rate: number; depth: number }>> = {
+      1: {
+        'layer0.gain': { shape: 'square', rate: 0, depth: 71 },
+        'layer0.detune': { shape: 'triangle', rate: 0, depth: 21 },
+        'layer0.phase': { shape: 'square', rate: 0, depth: 69 },
+        'layer1.gain': { shape: 'triangle', rate: 0, depth: 5 },
+        'layer1.detune': { shape: 'sine', rate: 0, depth: 55 },
+        'layer1.phase': { shape: 'sine', rate: 0, depth: 28 },
+        'layer2.gain': { shape: 'square', rate: 0, depth: 13 },
+        'layer2.detune': { shape: 'square', rate: 0, depth: 57 },
+        'layer2.phase': { shape: 'triangle', rate: 0, depth: 73 },
+      },
+      4: {
+        'layer0.gain': { shape: 'square', rate: 11.95, depth: 67 },
+        'layer0.detune': { shape: 'sawtooth', rate: 12.7, depth: 71 },
+        'layer0.phase': { shape: 'square', rate: 12.05, depth: 65 },
+        'layer1.gain': { shape: 'square', rate: 12.3, depth: 50 },
+        'layer1.detune': { shape: 'square', rate: 11.3, depth: 60 },
+        'layer1.phase': { shape: 'square', rate: 14.35, depth: 73 },
+        'layer2.gain': { shape: 'square', rate: 13.45, depth: 56 },
+        'layer2.detune': { shape: 'square', rate: 12.55, depth: 60 },
+        'layer2.phase': { shape: 'square', rate: 14.3, depth: 68 },
+      },
+    };
+
+    for (const offset of [1, 4]) {
+      it(`offset ${offset}: shape and depth of every target, and rate of every oscillating target, match the captured values`, () => {
+        const noiseMap = createNoise2D(alea(ORACLE_SEED));
+        const settings = generateRobotLfoSettings(noiseMap, offset);
+        for (const target of ROBOT_LFO_TARGET_IDS) {
+          const expected = EXPECTED[offset][target];
+          expect(expected, `${target} missing from the oracle — the type grew without the oracle being extended`).toBeDefined();
+          const actual = settings[target];
+          expect(actual.shape, `${target}.shape (offset ${offset})`).toBe(expected.shape);
+          expect(actual.depth, `${target}.depth (offset ${offset})`).toBe(expected.depth);
+          if (expected.rate === 0) {
+            expect(actual.rate, `${target} was quiet and must stay quiet (offset ${offset})`).toBe(0);
+          } else if (actual.rate !== 0) {
+            // Still oscillating: the value itself must be untouched (0.05 grid, so a 1e-9 tolerance is exact).
+            expect(actual.rate, `${target}.rate (offset ${offset})`).toBeCloseTo(expected.rate, 9);
+          }
+          // actual.rate === 0 while expected.rate > 0 is the one permitted change: the odds got stricter.
+        }
+      });
+    }
+
+    it('offset 1 and offset 4 differ in how many targets oscillate (the fixture really covers both ends)', () => {
+      const noiseMap = createNoise2D(alea(ORACLE_SEED));
+      const onCount = (offset: number) => ROBOT_LFO_TARGET_IDS.filter((t) => generateRobotLfoSettings(noiseMap, offset)[t].rate > 0).length;
+      expect(onCount(1)).toBeLessThan(onCount(4));
+    });
+  });
+
+  // Seed odds lowered from 50% on to ~25% on (docs/specs/LFO_LOAD_FIX.md assumption 5 / §1.4,
+  // docs/tasks/LFO_LOAD_FIX.md Task 5). Measured before choosing the threshold (2026-09-30): the
+  // quiet draw is a smooth simplex sample, not a uniform coin, so the on-rate is NOT 1 - threshold —
+  // 0.5 gave ≈53% on, 0.75 ≈20%, 0.7 ≈27% across 8 worlds × 12 offsets. 0.7 is the value that lands
+  // the intent (≈25% on, ≈19 primed audio-rate LFOs per 12-robot world).
+  describe('generateRobotLfoSettings — quiet odds (LFO Load Fix Task 5)', () => {
+    /** The same 8 worlds the threshold was chosen against: 4 arbitrary alea seeds + 4 real locale maps. */
+    const WORLDS: NoiseFunction2D[] = [
+      createNoise2D(alea('s1')), createNoise2D(alea('s2')), createNoise2D(alea('s3')), createNoise2D(alea('s4')),
+      getLocaleNoiseMap('odds-b', -150, 90), getLocaleNoiseMap('odds-c', 200, -30),
+      getLocaleNoiseMap('odds-a', 12, 68), getLocaleNoiseMap('odds-d', 5, -180),
+    ];
+    const AUDIO_RATE_TARGETS = ROBOT_LFO_TARGET_IDS.filter((t) => /\.(gain|detune)$/.test(t));
+
+    it('turns on roughly a quarter of audio-rate targets — between 15% and 35% across 8 worlds × 12 spawn offsets', () => {
+      let on = 0;
+      let total = 0;
+      for (const map of WORLDS) {
+        for (let offset = 0; offset < 12; offset++) {
+          const settings = generateRobotLfoSettings(map, offset);
+          for (const target of AUDIO_RATE_TARGETS) {
+            total++;
+            if (settings[target].rate > 0) on++;
+          }
+        }
+      }
+      const share = on / total;
+      expect(share, `${on}/${total} audio-rate targets on`).toBeGreaterThanOrEqual(0.15);
+      expect(share, `${on}/${total} audio-rate targets on`).toBeLessThanOrEqual(0.35);
+    });
+
+    it('is monotone against the old 50% odds — a target that was quiet under 0.5 is still quiet, and every on-target was also on before', () => {
+      // Recreates the pre-change decision from the same seeded draw the seeder uses, so this
+      // holds regardless of the exact threshold chosen, as long as it is >= 0.5.
+      for (const map of WORLDS) {
+        for (let offset = 0; offset < 12; offset++) {
+          const settings = generateRobotLfoSettings(map, offset);
+          for (const target of ROBOT_LFO_TARGET_IDS) {
+            const quietUnderOldOdds = getSeededVal(map, `robot.lfo.${target}.quiet`, offset, 0, 1) < 0.5;
+            if (quietUnderOldOdds) expect(settings[target].rate, `${target} @${offset}`).toBe(0);
+          }
+        }
+      }
+    });
+  });
+
   describe('spawnRobot', () => {
     beforeEach(() => {
       // Reset locale store before each test
       useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
       vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+      // Several tests below spyOn(AudioEngine/robotLfoPriming, ...).mockReturnValue/mockImplementation
+      // — restore the real implementations so later describe blocks (e.g. spawnInitialRoster) see
+      // real reserveVoice behavior, not a leaked mock. vi.clearAllMocks() alone only clears call
+      // history, it does not restore the original implementation.
+      vi.restoreAllMocks();
     });
 
     it('spawns a robot and adds to store', () => {
@@ -284,6 +404,43 @@ describe('spawnSystem', () => {
       expect(Object.keys(robot.lfoSettings ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
 
       expect(registerSpy).toHaveBeenCalledWith(robot.id, robot.melody);
+    });
+
+    // LFO Load Fix Task 7: seeded robot LFOs must reach the engine at spawn, not only on a later
+    // user edit. Only reserveVoice's SUCCESS should prime — a robot with no reserved voice has no
+    // live node for lfoEngine to connect to, so priming it would be requesting against nothing.
+    it('primes the robot\'s LFO settings into the engine after a successful reserveVoice (docs/specs/LFO_LOAD_FIX.md Task 7)', () => {
+      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+
+      spawnRobot(DEFAULT_LOCALE_ID);
+
+      const robot = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0];
+      expect(primeSpy).toHaveBeenCalledTimes(1);
+      expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }));
+    });
+
+    it('does not prime LFOs when reserveVoice fails (no live voice to connect against)', () => {
+      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(false);
+      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+      spawnRobot(DEFAULT_LOCALE_ID);
+
+      expect(primeSpy).not.toHaveBeenCalled();
+      // Melody registration must still happen — reservation and melody are independent.
+      expect(registerSpy).toHaveBeenCalled();
+    });
+
+    it('a priming failure never blocks melody registration', () => {
+      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+      vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {
+        throw new Error('boom');
+      });
+      const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+      expect(() => spawnRobot(DEFAULT_LOCALE_ID)).not.toThrow();
+      expect(registerSpy).toHaveBeenCalled();
     });
 
     it('quantizes masterVolume so its percent (x100) is always an integer, across many spawns (SEEDED_SLIDER_VALUE_QUANTIZATION Task 6)', () => {
@@ -772,6 +929,61 @@ describe('spawnSystem', () => {
       spawnRobot(localeId);
       const robot = useLocaleStore.getState().getLocaleById(localeId)?.robots[0];
       expect((robot as unknown as { persists?: unknown }).persists).toBeUndefined();
+    });
+  });
+
+  describe('reRegisterAllRobotsAudio (LFO Load Fix Task 7)', () => {
+    beforeEach(() => {
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
+      vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('primes the whole roster\'s LFOs exactly once, via primeRosterLfos, after every robot has been re-reserved', () => {
+      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+      const releaseSpy = vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
+      const primeRosterSpy = vi.spyOn(robotLfoPriming, 'primeRosterLfos').mockImplementation(() => {});
+      spawnRobot(DEFAULT_LOCALE_ID);
+      spawnRobot(DEFAULT_LOCALE_ID);
+      primeRosterSpy.mockClear();
+      releaseSpy.mockClear();
+
+      reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
+
+      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+      expect(robots).toHaveLength(2);
+      // Called once with the full roster -- not once per robot -- so a single round-robin pass
+      // covers everyone (spec §1.2), not a per-robot prime that would defeat round-robin ordering.
+      expect(primeRosterSpy).toHaveBeenCalledTimes(1);
+      expect(primeRosterSpy).toHaveBeenCalledWith(expect.arrayContaining([
+        expect.objectContaining({ id: robots[0].id }),
+        expect.objectContaining({ id: robots[1].id }),
+      ]));
+    });
+
+    it('calls primeRosterLfos after every reserveVoice call, not interleaved per-robot', () => {
+      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+      vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
+      spawnRobot(DEFAULT_LOCALE_ID);
+      spawnRobot(DEFAULT_LOCALE_ID);
+      const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice');
+      reserveSpy.mockClear();
+      const callOrder: string[] = [];
+      reserveSpy.mockImplementation(() => { callOrder.push('reserve'); return true; });
+      vi.spyOn(robotLfoPriming, 'primeRosterLfos').mockImplementation(() => { callOrder.push('prime'); });
+
+      reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
+
+      expect(callOrder).toEqual(['reserve', 'reserve', 'prime']);
+    });
+
+    it('an empty roster calls primeRosterLfos with an empty array, never throws', () => {
+      const primeRosterSpy = vi.spyOn(robotLfoPriming, 'primeRosterLfos').mockImplementation(() => {});
+      expect(() => reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID)).not.toThrow();
+      expect(primeRosterSpy).toHaveBeenCalledWith([]);
     });
   });
 

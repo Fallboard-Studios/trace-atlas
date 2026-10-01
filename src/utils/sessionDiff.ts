@@ -15,6 +15,8 @@ import { getLocaleNoiseMap } from './noiseMaps';
 import { quantizeToStep } from './math';
 import { GLOBAL_AUDIO_SEED_RANGES } from '../data/globalAudioSeedRanges';
 import { retransmitWorld } from '../systems/worldTransition';
+import { primeRobotLfos } from '../systems/robotLfoPriming';
+import { devWarn } from './helpers';
 import { regenerateMelody } from '../engine/regenerateMelody';
 import { getActiveSwellSnapshot } from '../systems/audioSwells';
 
@@ -326,7 +328,14 @@ function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<
   if (diff.pitchRepeat !== undefined) updates.pitchRepeat = diff.pitchRepeat;
   if (diff.name !== undefined) updates.name = diff.name;
   if (diff.lfoSettings !== undefined) {
-    updates.lfoSettings = { ...robot.lfoSettings, ...diff.lfoSettings } as Record<RobotLfoTargetId, LfoSettings>;
+    // Only keys in the CURRENT target set. A payload saved before 2026-09-30 can still carry the
+    // removed 'volume' / 'layerN.pulseWidth' entries (docs/specs/LFO_LOAD_FIX.md §1.4); they are
+    // dropped here rather than written into robot state, so nothing downstream ever sees them.
+    const known = Object.fromEntries(
+      (Object.entries(diff.lfoSettings) as [string, LfoSettings | undefined][])
+        .filter(([key, value]) => value !== undefined && (ROBOT_LFO_TARGET_IDS as readonly string[]).includes(key)),
+    );
+    updates.lfoSettings = { ...robot.lfoSettings, ...known } as Record<RobotLfoTargetId, LfoSettings>;
   }
   return updates;
 }
@@ -460,6 +469,24 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
     // out-of-range diff value).
     const updatedRobot = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
     if (updatedRobot) regenerateMelody(updatedRobot, localeId);
+    // Re-prime only the overridden LFO targets (docs/specs/LFO_LOAD_FIX.md §1.3) — the robot's
+    // voice already exists (retransmitWorld's own spawn already primed the seed baseline via
+    // spawnRobot), so this just pushes the restored values for the targets that actually changed.
+    // Filtered against ROBOT_LFO_TARGET_IDS: a payload saved before the volume/pulseWidth targets
+    // were removed can still carry those keys under lfoSettings (spec §1.4), and they must never
+    // reach the engine. Wrapped like every other priming call site (spawnRobot, AudioEngine.start)
+    // — a priming failure must never block the rest of session restoration.
+    if (updatedRobot && diff.lfoSettings) {
+      const targets = (Object.keys(diff.lfoSettings) as RobotLfoTargetId[])
+        .filter((key) => (ROBOT_LFO_TARGET_IDS as readonly string[]).includes(key));
+      if (targets.length > 0) {
+        try {
+          primeRobotLfos(updatedRobot, targets);
+        } catch (err) {
+          devWarn('[sessionDiff] primeRobotLfos failed for', robot.id, err);
+        }
+      }
+    }
   }
 
   for (const company of freshLocale.companies) {

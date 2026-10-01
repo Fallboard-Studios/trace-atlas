@@ -9,7 +9,7 @@
 | Status | ACOUSTIC EMISSION STATE *(draft, unconfirmed)* | Dual Label Component | N/A | N/A | No | Display only. True audibility (`isRobotAudible`) — Robot Options' own Status field, Roadmap 15.3. Values: Emitting, Disabled (see Draft table below) |
 | Company | UNIT AFFILIATION | Select Component | N/A | N/A | No | Options: Freelance, plus one per Company in the robot's locale. Reassigns `robot.companyId` via `assignRobotToCompany` (`localeStore.ts`); undefined `companyId` displays as Freelance |
 | Audio Setting | PROBE DIAGNOSTICS | Radio Button Component | N/A | N/A | No | Options: Off, Mute, Solo, Highlight |
-| Volume | TRANSDUCER PRESSURE INDEX | Slider - linear Component | 0% | 100% | Yes | Linear scaling for held level ratio. Display-only 0–100%, 1% steps — stored as `robot.masterVolume`, a 0–1 fraction (`VOLUME_SCHEMA`, `robotOptionsConfig.ts`), same display-vs-storage split as Sustain below |
+| Volume | TRANSDUCER PRESSURE INDEX | Slider - linear Component | 0% | 100% | No | Linear scaling for held level ratio. Display-only 0–100%, 1% steps — stored as `robot.masterVolume`, a 0–1 fraction (`VOLUME_SCHEMA`, `robotOptionsConfig.ts`), same display-vs-storage split as Sustain below. The Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md) — Mode and Volume are the only two Output controls now |
 | **DRAWER** | PING CONTROLS | Accordion Container | N/A | N/A | No | Parent container for ping controls |
 | Density | PING DENSITY | Slider - linear Component | 0 | 100 | No | Percentage fill rate of the measure/motif (Roadmap Phase 6). Was a Stepper originally — converted early (clicking through 0-100 one increment at a time was too slow), this row was simply never updated until docs/specs/STEPPER_TO_SLIDER.md |
 | Motif Length | PING LENGTH | Slider - linear Component | 0 | 8 | No | Repeating rhythmic motif length in 16th notes. `0` is the off state (no separate toggle) — was a Stepper+Toggle, min `1`, before docs/specs/STEPPER_TO_SLIDER.md |
@@ -27,17 +27,17 @@
 | Layer 1: Gain | BASELINE SATURATION | Slider - linear Component | 0 | 2 | Yes | Linear scaling for held level ratio |
 | Layer 1: Detune | BASELINE DRIFT | Slider - centered zero Component | -50 cents | +50 cents | Yes | Linear scaling for held level ratio |
 | Layer 1: Phase | BASELINE ALIGNMENT | Slider - linear Component | 0 | 360 | Yes | Phase offset in degrees |
-| Layer 1: Interval | BASELINE PULSE WIDTH | Slider - linear Component | 0 | 1 | Yes | Only displayed when Type is BURST (pulse) — Tone.js's `OmniOscillator.width` getter returns `undefined` for every other type, including BINARY (square), so this was dropped from the BINARY case (`SignatureArrayDrawer.tsx`'s `showPulseWidth`) |
+| Layer 1: Interval | BASELINE PULSE WIDTH | Slider - linear Component | 0 | 1 | No | Only displayed when Type is BURST (pulse) — Tone.js's `OmniOscillator.width` getter returns `undefined` for every other type, including BINARY (square), so this was dropped from the BINARY case (`SignatureArrayDrawer.tsx`'s `showPulseWidth`). The pulse-width LFO target was removed (docs/specs/LFO_LOAD_FIX.md) — the slider itself stays, un-targeted; each layer's LFO group offers Gain/Detune/Phase only |
 | Layer 2: Type | COAXIAL GEOMETRY | Radio Button Component | N/A | N/A | No | Options: SWEEP, GRADIENT, KINETIC, BINARY, BURST |
 | Layer 2: Gain | COAXIAL SATURATION | Slider - linear Component | 0 | 2 | Yes | Linear scaling for held level ratio. 0 also mutes the layer — there is no separate Active toggle; `AudioEngine.ts`'s `filterAudibleLayers` excludes a `gain: 0` layer from the composite voice, matching the removed toggle's old "mute, don't delete" behavior |
 | Layer 2: Detune | COAXIAL DRIFT | Slider - centered zero Component | -50 cents | +50 cents | Yes | Linear scaling for held level ratio |
 | Layer 2: Phase | COAXIAL ALIGNMENT | Slider - linear Component | 0 | 360 | Yes | Phase offset in degrees |
-| Layer 2: Interval | COAXIAL PULSE WIDTH | Slider - linear Component | 0 | 1 | Yes | Only displayed when Type is BURST (pulse) — see Layer 1: Interval's note |
+| Layer 2: Interval | COAXIAL PULSE WIDTH | Slider - linear Component | 0 | 1 | No | Only displayed when Type is BURST (pulse) — see Layer 1: Interval's note |
 | Layer 3: Type | HARMONIC GEOMETRY | Radio Button Component | N/A | N/A | No | Options: SWEEP, GRADIENT, KINETIC, BINARY, BURST |
 | Layer 3: Gain | HARMONIC SATURATION | Slider - linear Component | 0 | 2 | Yes | Linear scaling for held level ratio. 0 also mutes the layer — see Layer 2: Gain's own note |
 | Layer 3: Detune | HARMONIC DRIFT | Slider - centered zero Component | -50 cents | +50 cents | Yes | Linear scaling for held level ratio |
 | Layer 3: Phase | HARMONIC ALIGNMENT | Slider - linear Component | 0 | 360 | Yes | Phase offset in degrees |
-| Layer 3: Interval | HARMONIC PULSE WIDTH | Slider - linear Component | 0 | 1 | Yes | Only displayed when Type is BURST (pulse) — see Layer 1: Interval's note |
+| Layer 3: Interval | HARMONIC PULSE WIDTH | Slider - linear Component | 0 | 1 | No | Only displayed when Type is BURST (pulse) — see Layer 1: Interval's note |
 | **LFO MODULE** | OSCILLATION | LFO Component | N/A | N/A | No | Attached LFO module for parameters flagged with HAS LFO. Rendered inside a "Modulation" accordion — now wired with this lore label at every call site (`AudioRigDrawer.tsx`/`AudioSettingSection.tsx`/`LfoTargetGroup.tsx`) |
 | LFO Shape | OSCILLATION SHAPE | Radio Button Component | N/A | N/A | No | Options: TRIANGLE, SINE, SQUARE, SAWTOOTH |
 | LFO Rate | OSCILLATION RATE | Slider - linear Component | 0 Hz | 20 Hz | No | LFO modulation speed. 0 Hz is a real, meaningful value — the LFO's "off" state, replacing the removed OSCILLATION STATE toggle below |

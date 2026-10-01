@@ -6,6 +6,7 @@ import gsap from 'gsap';
 import { useLocaleStore } from '../stores/localeStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 import { lfoEngine } from './lfoEngine';
+import { primeRosterLfos } from '../systems/robotLfoPriming';
 
 import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
@@ -526,6 +527,17 @@ export const AudioEngine = {
       devWarn('[AudioEngine] priming global LFOs failed', err);
     }
 
+    // Robot half of the same priming (docs/specs/LFO_LOAD_FIX.md Task 8): a robot that spawned
+    // before AudioEngine was initialized already had its composite voice reserved by the
+    // post-load reservation pass in loadInstruments() above, but nothing primed its seeded LFO
+    // settings into lfoEngine until now. Runs after the global loop above for the same reason
+    // that loop's own comment gives: connectLfoTarget's swing math reads live state.
+    try {
+      primeRosterLfos(getActiveLocaleRobots());
+    } catch (err) {
+      devWarn('[AudioEngine] priming robot LFOs failed', err);
+    }
+
     initBeatClock(transport);
     // Ensure `currentMeasure` in the ocean store is driven by the BeatClock.
     // This updates visuals (lighting) and allows harmony to derive from measures.
@@ -740,21 +752,17 @@ export const AudioEngine = {
    * null — never throws — for: an unreserved robotId, an out-of-range layer
    * index, 'layerN.phase' (Tone.js has no live Signal for oscillator phase;
    * handled via a manual-polling fallback at the lfoEngine layer, Task 12),
-   * and 'layerN.pulseWidth' when that layer's type isn't 'pulse' (only
-   * PulseOscillator exposes a connectable width Signal — 'square' has no
-   * adjustable width in Tone.js at all, independent of anything built here).
+   * and any id outside the current RobotLfoTargetId set — including the
+   * removed 'volume' and 'layerN.pulseWidth' targets (docs/specs/
+   * LFO_LOAD_FIX.md assumption 9), which can still arrive as strings from an
+   * old session or share link and must decline like any unknown id.
    */
   getRobotModulationTarget(robotId: string, target: RobotLfoTargetId): ModulationTarget | null {
     try {
       const voice = AudioEngine.getVoiceForRobot(robotId);
       if (!voice) return null;
 
-      if (target === 'volume') {
-        const gain = (voice.output as unknown as { gain?: unknown })?.gain;
-        return (gain as ModulationTarget | undefined) ?? null;
-      }
-
-      const match = /^layer(\d+)\.(gain|detune|phase|pulseWidth)$/.exec(target);
+      const match = /^layer(\d+)\.(gain|detune|phase)$/.exec(target);
       if (!match) return null;
       const layerEntry = voice.layers?.[Number(match[1])];
       if (!layerEntry) return null;
@@ -768,14 +776,7 @@ export const AudioEngine = {
         const osc = (layerEntry.synth as unknown as { oscillator?: { detune?: unknown } })?.oscillator;
         return (osc?.detune as ModulationTarget | undefined) ?? null;
       }
-      if (field === 'phase') {
-        return null;
-      }
-      if (field === 'pulseWidth') {
-        if (layerEntry.layer.type !== 'pulse') return null;
-        const osc = (layerEntry.synth as unknown as { oscillator?: { width?: unknown } })?.oscillator;
-        return (osc?.width as ModulationTarget | undefined) ?? null;
-      }
+      // 'phase' — no live Signal exists; the lfoEngine phase-polling fallback owns it.
       return null;
     } catch (err) {
       devWarn('[AudioEngine] getRobotModulationTarget failed', err);

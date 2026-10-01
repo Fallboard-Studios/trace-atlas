@@ -5,6 +5,7 @@ import type { SessionPayload, RobotAudioOverrideDiff, CompanyDiff } from '../typ
 import type { ADSREnvelope } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import type { RobotLfoTargetId, GlobalLfoTargetId, LfoSettings } from '../types/lfo';
+import { ROBOT_LFO_TARGET_IDS } from '../types/lfo';
 import { devWarn } from './helpers';
 
 // ========================================
@@ -192,7 +193,14 @@ function fromCompactRobotOverrideDiff(compact: CompactRobotOverrideDiff): RobotA
   if (compact.nv !== undefined) diff.noteVariance = fromCompactToggle(compact.nv);
   if (compact.pr !== undefined) diff.pitchRepeat = compact.pr;
   if (compact.or !== undefined) diff.octaveRange = compact.or;
-  if (compact.lf !== undefined) diff.lfoSettings = fromCompactLfoSettingsMap(compact.lf);
+  if (compact.lf !== undefined) {
+    // Only keys in the CURRENT robot target set — a link minted before 2026-09-30 can still carry
+    // the removed 'volume' / 'layerN.pulseWidth' entries (docs/specs/LFO_LOAD_FIX.md §1.4).
+    const known = Object.fromEntries(
+      Object.entries(compact.lf).filter(([key]) => (ROBOT_LFO_TARGET_IDS as readonly string[]).includes(key)),
+    ) as Partial<Record<RobotLfoTargetId, CompactLfoSettings>>;
+    diff.lfoSettings = fromCompactLfoSettingsMap(known);
+  }
   if (compact.nm !== undefined) diff.name = compact.nm;
   return diff;
 }

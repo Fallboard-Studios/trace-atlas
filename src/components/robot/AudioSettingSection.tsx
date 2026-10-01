@@ -1,12 +1,8 @@
 import type { CSSProperties } from 'react';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback } from 'react';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
-import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
-import { Lfo } from '@/components/ui/controls/Lfo';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
-import { useLfoTargetGroup } from '@/components/ui/controls/useLfoTargetGroup';
-import { withActiveClass } from '@/components/ui/controls/activeClass';
 import {
   AUDIO_SETTING_SCHEMA,
   VOLUME_SCHEMA,
@@ -14,7 +10,6 @@ import {
   VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA,
 } from '@/data/robotOptionsConfig';
 import type { Robot } from '@/types/Robot';
-import type { LfoSchema, LfoValue } from '@/types/controls';
 
 import './AudioSettingSection.css';
 
@@ -24,18 +19,13 @@ export interface AudioSettingValue {
    *  0-100% the Volume slider displays; onVolumeChange still emits the 0-100 percent, matching
    *  robotOptionsActions.applyVolume's own (robot, localeId, pct) signature. */
   masterVolume: number;
-  volumeLfo: LfoValue;
 }
 
 interface AudioSettingSectionProps {
   value: AudioSettingValue;
   onAudioModeChange: (mode: Robot['audioMode']) => void;
   onVolumeChange: (pct: number) => void;
-  onVolumeLfoChange: (value: LfoValue) => void;
   disabled?: boolean;
-  /** Audio Load Budget: this robot's Volume LFO is held off by the dial — its LFO frame greys out (values kept) with a label.
-   *  A plain prop, not a store read: this component stays presentational, and the company panel simply omits it. */
-  volumeLfoHeldOff?: boolean;
   /** True while an Audio Swell is actively riding this robot's (or company's) volume — forwarded
    *  straight to the Volume slider's own `swelling` prop. See useEasedControlValue.ts and
    *  audioSwells.ts's isRobotAttributeSwelling. */
@@ -49,47 +39,27 @@ interface AudioSettingSectionProps {
 }
 
 /**
- * Robot Options' editable Audio Setting + Volume (+ its LFO display) block — extracted out of
- * RobotDisplaySection (Roadmap Phase 10) into its own presentational component so both the
- * single-robot screen and the company-broadcast panel can render the exact same controls, bound
- * to different value/onChange sources. No `robot` prop, no store access — a pure value/onChange
- * component, same contract every other refactored Robot Options section uses.
+ * Robot Options' editable Audio Setting + Volume block — extracted out of RobotDisplaySection
+ * (Roadmap Phase 10) into its own presentational component so both the single-robot screen and
+ * the company-broadcast panel can render the exact same controls, bound to different
+ * value/onChange sources. No `robot` prop, no store access — a pure value/onChange component,
+ * same contract every other refactored Robot Options section uses.
+ *
+ * The Volume LFO display that used to sit below this column is gone — the `volume` LFO target
+ * was removed outright (docs/specs/LFO_LOAD_FIX.md assumption 9 / §1.4, Crawford 2026-09-30:
+ * "not as impactful as I had hoped"), along with the `volumeLfo`/`onVolumeLfoChange`/
+ * `volumeLfoHeldOff` props, the `useLfoTargetGroup` targeting wiring (nothing left to target),
+ * and the held-off note. The two-panel column layout is kept as-is so the section renders
+ * identically in its own slot and nothing around it reflows.
  *
  * No accordion wrapper as of Task 18's own follow-up (docs/tasks/NAV_LAYOUT_REWRITE.md —
- * this section is a probe's/company's own "Volume" tree leaf per spec §2's mapping table, found as
- * a 6th real accordion-migration consumer the plan's own Tasks 14-18 list of 5 missed; migrated
- * the same way as the other 5 rather than left behind, since Checkpoint 3's own "zero remaining
- * consumers" grep check wouldn't otherwise hold). Volume renders through `useLfoTargetGroup`
- * called directly (the hook, not the shared `<LfoTargetGroup>` wrapper component) so this
- * component can hand-compose a layout `LfoTargetGroup` has no way to produce on its own: Audio
- * Setting + Volume stacked in one column, always above the shared Lfo display (every tier — same
- * arrangement every other LFO layout in the app uses) — the same escape hatch `AudioRigLfoGroup`
- * (`AudioRigDrawer.tsx`) already uses for its own custom composition needs. There's only one field
- * to target ('volume'), so
- * `selected`/`isTargeted` are effectively constant, but the same click/focus-to-select wiring is
- * kept for consistency with every other LFO-tied control group.
+ * this section is a probe's/company's own "Volume" tree leaf per spec §2's mapping table).
  */
-function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, onVolumeLfoChange, disabled, volumeLfoHeldOff, volumeSwelling, style }: AudioSettingSectionProps) {
-  const { transitioning, select, isTargeted, displayValue, displayLabel, displayLoreLabel } = useLfoTargetGroup({
-    groupId: 'robotOptions.volume',
-    fields: [{ field: 'volume', label: VOLUME_SCHEMA.humanLabel!, loreLabel: VOLUME_SCHEMA.loreLabel, lfoValue: value.volumeLfo }],
-  });
-
-  // Memoized (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 1) — this used to be constructed
-  // fresh, inline, on every render, unlike every other primitive's schema in this codebase, which
-  // is always a stable reference. Keyed on displayLabel/displayLoreLabel, matching Lfo.tsx's own
-  // schema.id-keying precedent for its 3 internal schemas — 'id'/'type' are literal constants.
-  // loreLabel now tracks the targeted field, same as LfoTargetGroup.tsx's own lfoSchema
-  // (docs/reference/text-content-tables.md) — no longer the fixed group-level OSCILLATION term.
-  const lfoSchema: LfoSchema = useMemo(
-    () => ({ id: 'robotOptions.volume.lfo', type: 'lfo', loreLabel: displayLoreLabel, humanLabel: displayLabel }),
-    [displayLabel, displayLoreLabel],
-  );
-
+function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, disabled, volumeSwelling, style }: AudioSettingSectionProps) {
   // Bugfix, found live (docs/todo/backlog.md #27 follow-up, 2026-09-15): this used to be a fresh
-  // inline closure built every render — so editing Volume (or VolumeLfo) changed `value`'s own
-  // reference, re-executing this component, which then handed the already-memoized RadioButton a
-  // new `onChange` regardless of whether audioMode itself changed, defeating its memo.
+  // inline closure built every render — so editing Volume changed `value`'s own reference,
+  // re-executing this component, which then handed the already-memoized RadioButton a new
+  // `onChange` regardless of whether audioMode itself changed, defeating its memo.
   const handleAudioModeChange = useCallback(
     (v: string) => onAudioModeChange(v as Robot['audioMode']),
     [onAudioModeChange],
@@ -114,25 +84,12 @@ function AudioSettingSectionInner({ value, onAudioModeChange, onVolumeChange, on
               audio-rig-drawer__param-row / signature-array-drawer__param elsewhere in the app,
               both of which carry no display rule at all for the exact same reason. Found live by
               Crawford: the slider's own box-count-fitting was locking onto its DualLabel's natural
-              text width instead of the row's real available width. */}
-          <div
-            className={withActiveClass('sc-lfo-target-group__row', isTargeted('volume'))}
-            onClick={() => select('volume')}
-            onFocus={() => select('volume')}
-          >
+              text width instead of the row's real available width. The wrapper class below has no
+              CSS rule of its own — it exists only as a stable hook for tests and future styling. */}
+          <div className="audio-setting-section__volume-row">
             <SliderLinear schema={VOLUME_SCHEMA} value={value.masterVolume * 100} onChange={onVolumeChange} disabled={disabled} swelling={volumeSwelling} />
           </div>
         </DirectionalPanel>
-        <div className={withActiveClass('sc-lfo-target-group__display', transitioning)}>
-          <Lfo
-            schema={lfoSchema}
-            value={displayValue}
-            onChange={onVolumeLfoChange}
-            disabled={disabled || transitioning || volumeLfoHeldOff}
-            heldOff={volumeLfoHeldOff}
-          />
-          {volumeLfoHeldOff && <HeldOffNote />}
-        </div>
       </DirectionalPanel>
     </div>
   );

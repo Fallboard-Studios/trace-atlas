@@ -13,7 +13,7 @@ import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DockingState } from '../types/Robot';
 import type { LfoTargetId } from '../types/lfo';
 import type { Robot } from '../types/Robot';
-import { MAX_POLYPHONY } from '../constants';
+import { MAX_POLYPHONY, ROBOT_LFO_CAP_FULL } from '../constants';
 import { resolveInitialAudioLoad, resolveInitialEffectsLoad } from '../utils/audioBudget';
 import { isRobotAudible } from '../utils/robotAudibility';
 
@@ -459,17 +459,18 @@ describe('audioBudgetSystem', () => {
       expect(policy()('lpf.Q', undefined, 0)).toBe(false); // filter LFOs off on Light
       expect(policy()('lpf.frequency', undefined, 0)).toBe(false);
       expect(policy()('eq3.low', undefined, 0)).toBe(true); // EQ-gain LFOs stay
-      expect(policy()('volume', 'r1', 3)).toBe(true); // Light allows 4 audio-rate robot LFOs
-      expect(policy()('volume', 'r1', 4)).toBe(false);
+      expect(policy()('layer0.gain', 'r1', 3)).toBe(true); // Light allows 4 audio-rate robot LFOs
+      expect(policy()('layer0.gain', 'r1', 4)).toBe(false);
       expect(policy()('layer0.phase', 'r1', 99)).toBe(true); // phase LFOs are never counted
       expect(setDrift).toHaveBeenLastCalledWith(false);
     });
 
-    it('at Full nothing is restricted: every LFO allowed, drift on, nothing held off', () => {
+    it('at Full: filter LFOs and drift unrestricted, robot LFOs capped at Standard’s (Task 11, docs/PERFORMANCE.md)', () => {
       startAudioBudget();
 
       expect(policy()('lpf.Q', undefined, 0)).toBe(true);
-      expect(policy()('volume', 'r1', 5000)).toBe(true);
+      expect(policy()('layer0.gain', 'r1', ROBOT_LFO_CAP_FULL - 1)).toBe(true);
+      expect(policy()('layer0.gain', 'r1', ROBOT_LFO_CAP_FULL)).toBe(false);
       expect(setDrift).toHaveBeenLastCalledWith(true);
       expect(store().driftHeldOff).toBe(false);
       expect(store().heldOffLfoKeys).toEqual([]);
