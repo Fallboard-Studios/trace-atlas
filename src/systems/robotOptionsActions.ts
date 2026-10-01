@@ -10,9 +10,9 @@
  * Every function takes (robot, localeId, value) — never reads uiStore, never touches anything
  * beyond localeStore/AudioEngine/lfoEngine/regenerateMelody. Selection state is a caller concern.
  */
+import { applyRobotLfoToEngine } from './robotLfoPriming';
 import { useLocaleStore } from '@/stores/localeStore';
 import { AudioEngine } from '@/engine/AudioEngine';
-import { lfoEngine } from '@/engine/lfoEngine';
 import { regenerateMelody } from '@/engine/regenerateMelody';
 import { buildClickTrackMelody } from '@/engine/clickTrack';
 import type { StepperWithToggleValue } from '@/components/ui/controls/StepperWithToggle';
@@ -139,13 +139,5 @@ export function applyLayersStructural(robot: Robot, localeId: string, layers: Os
 export function applyLayerLfo(robot: Robot, localeId: string, target: RobotLfoTargetId, value: LfoValue): void {
   const nextLfoSettings = { ...robot.lfoSettings, [target]: value } as Robot['lfoSettings'];
   useLocaleStore.getState().updateRobot(localeId, robot.id, { lfoSettings: nextLfoSettings });
-  lfoEngine.setLfoShape(target, value.shape, robot.id);
-  lfoEngine.setLfoRate(target, value.rate, robot.id);
-  lfoEngine.setLfoDepth(target, value.depth, robot.id);
-  if (value.rate > 0) {
-    if (lfoEngine.connectLfoTarget(target, robot.id)) lfoEngine.start(target, robot.id);
-  } else {
-    lfoEngine.disconnectLfoTarget(target, robot.id);
-    lfoEngine.stop(target, robot.id);
-  }
+  applyRobotLfoToEngine(robot.id, target, value);
 }

@@ -9,6 +9,7 @@ import {
 // Namespace import so a removed export can be asserted absent at runtime (same pattern
 // robotOptionsConfig.test.ts uses for its own removed schemas).
 import * as robotOptionsActionsModule from './robotOptionsActions';
+import * as robotLfoPriming from './robotLfoPriming';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { AudioEngine } from '@/engine/AudioEngine';
@@ -373,6 +374,17 @@ describe('robotOptionsActions', () => {
 
       expect(lfoEngine.disconnectLfoTarget).toHaveBeenCalledWith('layer0.gain', robot.id);
       expect(lfoEngine.stop).toHaveBeenCalledWith('layer0.gain', robot.id);
+    });
+
+    it('routes through the shared applyRobotLfoToEngine helper (robotLfoPriming), not a parallel implementation (LFO Load Fix Task 6)', () => {
+      const robot = makeRobot({ lfoSettings: {} as unknown as Robot['lfoSettings'] });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const spy = vi.spyOn(robotLfoPriming, 'applyRobotLfoToEngine');
+      const value: LfoValue = { shape: 'triangle', rate: 2, depth: 40 };
+
+      applyLayerLfo(robot, localeId, 'layer0.gain', value);
+
+      expect(spy).toHaveBeenCalledWith(robot.id, 'layer0.gain', value);
     });
   });
 });
