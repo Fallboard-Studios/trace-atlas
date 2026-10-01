@@ -11,6 +11,12 @@ import { ui } from './copy/ui';
 import { fleet } from './copy/fleet';
 import { probe } from './copy/probe';
 import { company } from './copy/company';
+import { home } from './copy/home';
+import { header } from './copy/header';
+import { nav } from './copy/nav';
+import { settings } from './copy/settings';
+import { session } from './copy/session';
+import { sector } from './copy/sector';
 
 export { CONTENT_AREAS } from './types';
 export type { ContentEntry, ContentIntro, ContentOption, ContentArea, LabelSurface, SchemaLabels, SchemaOption, ValueLabelPair } from './types';
@@ -23,6 +29,12 @@ export const CONTENT = {
   ...fleet,
   ...probe,
   ...company,
+  ...home,
+  ...header,
+  ...nav,
+  ...settings,
+  ...session,
+  ...sector,
   ...ui,
 } as const satisfies Record<string, ContentEntry>;
 

@@ -40,6 +40,8 @@ export const probe = {
     },
   },
   'probe.notFound': { human: 'Robot not found' },
+  'probe.list': { human: 'Robots' },
+  'probe.list.clearFilter': { human: 'Clear Filter', lore: 'RESET UNIT ROSTER' },
 
   // ---------------------------------------------------------------- selection card / display rows
   'probe.name': { human: 'Robot Name', lore: 'ROBOT IDENTIFIER' },

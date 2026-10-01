@@ -37,7 +37,7 @@ export const fleet = {
     },
   },
   'fleet.pacing.tempo': { human: 'Tempo', lore: 'Ping Rate', unit: 'BPM' },
-  'fleet.pacing.automationRate': { human: 'Automation Rate', lore: 'Trace Skip Rate' },
+  'fleet.pacing.automationRate': { human: 'Automation Rate', lore: 'Trace Skip Rate', options: { off: { human: 'Off' } } },
   'fleet.pacing.automationLength': { human: 'Automation Length', lore: 'Trace Runway', unit: ' measures' },
   'fleet.pacing.automationRange': { human: 'Automation Range', lore: 'Trace Width', unit: '%' },
 
