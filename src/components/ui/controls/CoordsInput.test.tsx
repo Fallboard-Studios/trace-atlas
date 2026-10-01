@@ -140,3 +140,13 @@ describe('CoordsInput', () => {
     });
   });
 });
+
+describe('CoordsInput reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 14)', () => {
+  it('carries no copy literal of its own', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const source = readFileSync(resolve(__dirname, 'CoordsInput.tsx'), 'utf8');
+    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
+    expect(source).not.toMatch(/\[c\]/);
+  });
+});

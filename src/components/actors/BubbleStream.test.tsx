@@ -1,8 +1,66 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, cleanup } from '@testing-library/react';
 import { BubbleStream } from './BubbleStream';
+import { timelineMap, killAllTimelines } from '../../animation/timelineMap';
 
 // ----------------------------------------
-// HELPERS (mirrors component LCG for test isolation)
+// RECORDING GSAP MOCK
+// ----------------------------------------
+// Overrides the global mock in vitest.setup.ts: that one discards every tween's vars, and this
+// file needs to see *what* BubbleStream animates (transforms vs. geometry attributes, wobble
+// repeat counts) and whether it pauses/rewinds — so each timeline here records its calls.
+
+interface Recorded {
+  method: 'set' | 'to';
+  vars: Record<string, unknown>;
+  position?: number;
+}
+
+interface RecordingTimeline {
+  calls: Recorded[];
+  config: Record<string, unknown> | undefined;
+  children: RecordingTimeline[];
+  pause: ReturnType<typeof vi.fn>;
+  play: ReturnType<typeof vi.fn>;
+  kill: ReturnType<typeof vi.fn>;
+  set: (t: unknown, vars: Record<string, unknown>) => RecordingTimeline;
+  to: (t: unknown, vars: Record<string, unknown>, position?: number) => RecordingTimeline;
+  add: (child: RecordingTimeline, position?: number) => RecordingTimeline;
+}
+
+const created: RecordingTimeline[] = [];
+
+vi.mock('gsap', () => {
+  const timeline = (config?: Record<string, unknown>): RecordingTimeline => {
+    const tl: RecordingTimeline = {
+      calls: [],
+      config,
+      children: [],
+      pause: vi.fn(() => tl),
+      play: vi.fn(() => tl),
+      kill: vi.fn(),
+      set: (_t, vars) => {
+        tl.calls.push({ method: 'set', vars });
+        return tl;
+      },
+      to: (_t, vars, position) => {
+        tl.calls.push({ method: 'to', vars, position });
+        return tl;
+      },
+      add: (child) => {
+        tl.children.push(child);
+        return tl;
+      },
+    };
+    created.push(tl);
+    return tl;
+  };
+  const mocked = { timeline, set: () => {}, to: () => {}, killTweensOf: () => {} };
+  return { default: mocked, ...mocked };
+});
+
+// ----------------------------------------
+// HELPERS
 // ----------------------------------------
 
 function makeLcg(seed: number): () => number {
@@ -13,35 +71,160 @@ function makeLcg(seed: number): () => number {
   };
 }
 
+const baseProps = {
+  actorId: 'factory-1',
+  ventX: 120,
+  ventY: 400,
+  seed: 42,
+  isActive: true,
+  totalBuildings: 10,
+  bodyHue: 200,
+};
+
+function renderStream(overrides: Partial<typeof baseProps> & { depthScale?: number } = {}) {
+  return render(
+    <svg>
+      <BubbleStream {...baseProps} {...overrides} />
+    </svg>,
+  );
+}
+
+function stubReducedMotion(matches: boolean) {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query.includes('prefers-reduced-motion') && matches,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  })) as unknown as typeof window.matchMedia;
+}
+
+/** The parent timeline is the one registered in timelineMap; its children are the bubbles. */
+function registeredParent(): RecordingTimeline {
+  const tl = timelineMap.get(`bubble-${baseProps.actorId}`) as unknown as RecordingTimeline | undefined;
+  if (!tl) throw new Error('no bubble timeline registered');
+  return tl;
+}
+
+function findTo(tl: RecordingTimeline, pred: (vars: Record<string, unknown>) => boolean): Recorded {
+  const hit = tl.calls.find((c) => c.method === 'to' && pred(c.vars));
+  if (!hit) throw new Error('expected tween not recorded');
+  return hit;
+}
+
 // ----------------------------------------
 // TESTS
 // ----------------------------------------
 
 describe('BubbleStream', () => {
-  // Rendering the real BubbleStream directly isn't viable here — its GSAP effect calls
-  // `tl.add()`, which the global `gsap` mock (vitest.setup.ts) doesn't implement, so it
-  // throws (confirmed directly while writing this test). Same reason
-  // FactoryBubbleStream.test.tsx stubs BubbleStream out entirely rather than rendering the
-  // real thing. So this checks the memo wrapper structurally instead of via a render-based
-  // re-render-count test.
+  const originalMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    created.length = 0;
+    killAllTimelines();
+    stubReducedMotion(false);
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.matchMedia = originalMatchMedia;
+  });
+
   it('exports a React.memo-wrapped component (backlog item 23)', () => {
     expect(typeof BubbleStream).toBe('object');
-    // React.memo's own marker — see react/src/ReactSymbols.js. Confirms the export is
-    // actually wrapped, not just an object that happens to also be a function.
     expect((BubbleStream as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
   });
 
   it('does not pass a custom comparator — every prop is a primitive, so the default shallow compare is already correct', () => {
-    // A supplied `compare` function is the second arg to React.memo(); confirms this wasn't
-    // needed (and that BubbleStreamProps genuinely has no object/array prop that would need
-    // one — enforced separately by BubbleStreamProps' own type, all fields number/string/
-    // boolean).
     expect((BubbleStream as unknown as { compare: unknown }).compare).toBeNull();
+  });
+
+  describe('rendering + timelineMap lifecycle', () => {
+    it('renders one <circle> per seeded bubble count and registers bubble-{actorId}', () => {
+      const rand = makeLcg(baseProps.seed);
+      rand(); // radius
+      rand(); // burstStagger
+      const count = 5 + Math.floor(rand() * 6);
+
+      const { container } = renderStream();
+      expect(container.querySelectorAll('circle').length).toBe(count);
+      expect(registeredParent().children.length).toBe(count);
+    });
+
+    it('kills and unregisters the timeline on unmount', () => {
+      const { unmount } = renderStream();
+      const tl = registeredParent();
+      unmount();
+      expect(tl.kill).toHaveBeenCalled();
+      expect(timelineMap.has(`bubble-${baseProps.actorId}`)).toBe(false);
+    });
+  });
+
+  describe('transform-based motion (docs/ANIMATION_SYSTEM.md: transforms, not geometry attributes)', () => {
+    it('never tweens cx/cy/r — rise is y, wobble is x, pop is scale', () => {
+      renderStream();
+      const bubble = registeredParent().children[0];
+      for (const c of bubble.calls) {
+        expect(c.vars).not.toHaveProperty('attr');
+      }
+      expect(() => findTo(bubble, (v) => 'y' in v)).not.toThrow();
+      expect(() => findTo(bubble, (v) => 'x' in v && v.yoyo === true)).not.toThrow();
+      expect(() => findTo(bubble, (v) => 'scale' in v)).not.toThrow();
+    });
+
+    it('rewinds every bubble to the origin at the start of each burst (x/y 0, scale 1, opacity 0)', () => {
+      renderStream();
+      const bubble = registeredParent().children[0];
+      const reset = bubble.calls.find((c) => c.method === 'set');
+      expect(reset?.vars).toMatchObject({ x: 0, y: 0, scale: 1, opacity: 0 });
+    });
+
+    it('stops wobbling less than one wobble period after the rise ends (no invisible post-pop wobble)', () => {
+      renderStream();
+      for (const bubble of registeredParent().children) {
+        const rise = findTo(bubble, (v) => 'y' in v);
+        const wobble = findTo(bubble, (v) => v.yoyo === true);
+        const riseDuration = rise.vars.duration as number;
+        const period = wobble.vars.duration as number;
+        const plays = (wobble.vars.repeat as number) + 1;
+        const wobbleTotal = plays * period;
+        expect(wobbleTotal).toBeGreaterThanOrEqual(riseDuration - 1e-9);
+        expect(wobbleTotal).toBeLessThan(riseDuration + period);
+      }
+    });
+  });
+
+  describe('isActive', () => {
+    it('plays when active', () => {
+      renderStream({ isActive: true });
+      expect(registeredParent().play).toHaveBeenCalled();
+    });
+
+    it('rewinds to the hidden start state via pause(0) when inactive, not a bare pause', () => {
+      // A bare pause freezes bubbles mid-air: GSAP writes style.opacity, which beats any
+      // opacity="0" attribute the component might set by hand.
+      renderStream({ isActive: false });
+      const tl = registeredParent();
+      expect(tl.pause).toHaveBeenCalledWith(0);
+      expect(tl.play).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('prefers-reduced-motion', () => {
+    it('builds no timeline and keeps the circles hidden when reduced motion is requested', () => {
+      stubReducedMotion(true);
+      const { container } = renderStream();
+      expect(timelineMap.has(`bubble-${baseProps.actorId}`)).toBe(false);
+      expect(created.length).toBe(0);
+      const circles = container.querySelectorAll('circle');
+      expect(circles.length).toBeGreaterThan(0);
+      circles.forEach((c) => {
+        expect(c.getAttribute('opacity')).toBe('0');
+      });
+    });
   });
 
   describe('config derivation', () => {
     it('derives bubble count between 5 and 10 for any seed', () => {
-      // Mirrors the useMemo call sequence: radius, burstStagger, count
       for (const seed of [0, 1, 42, 999, 0xdeadbeef]) {
         const rand = makeLcg(seed);
         rand(); // radius
@@ -52,81 +235,31 @@ describe('BubbleStream', () => {
       }
     });
 
-    it('initial delay is within [0, burstInterval)', () => {
-      // Mirrors sequence: radius, burstStagger, count, initialDelay
-      const seed = 42;
-      const TARGET_GLOBAL_BURST_INTERVAL_SECONDS = 4; // must match component constant
-      const totalBuildings = 10;
-      const burstInterval = TARGET_GLOBAL_BURST_INTERVAL_SECONDS * totalBuildings;
-      const rand = makeLcg(seed);
-      rand(); // radius
-      rand(); // burstStagger
-      rand(); // count
-      const initialDelay = rand() * burstInterval;
-      expect(initialDelay).toBeGreaterThanOrEqual(0);
-      expect(initialDelay).toBeLessThan(burstInterval);
-    });
-
-    it('burst interval scales with totalBuildings so the aggregate rate stays constant', () => {
-      const TARGET_GLOBAL_BURST_INTERVAL_SECONDS = 4; // must match component constant
-      expect(TARGET_GLOBAL_BURST_INTERVAL_SECONDS * 1).toBe(4);
-      expect(TARGET_GLOBAL_BURST_INTERVAL_SECONDS * 25).toBe(100);
-      expect(TARGET_GLOBAL_BURST_INTERVAL_SECONDS * 100).toBe(400);
+    it('burst interval scales with totalBuildings (initial delay lands inside it)', () => {
+      renderStream({ totalBuildings: 25 });
+      const cfg = registeredParent().config!;
+      const burstInterval = 4 * 25; // TARGET_GLOBAL_BURST_INTERVAL_SECONDS × totalBuildings
+      expect(cfg.repeat).toBe(-1);
+      expect(cfg.delay as number).toBeGreaterThanOrEqual(0);
+      expect(cfg.delay as number).toBeLessThan(burstInterval);
+      expect(cfg.repeatDelay as number).toBeLessThanOrEqual(burstInterval);
     });
 
     it('clamps totalBuildings to a minimum of 1 (never a zero/negative interval)', () => {
-      const TARGET_GLOBAL_BURST_INTERVAL_SECONDS = 4; // must match component constant
-      const burstInterval = TARGET_GLOBAL_BURST_INTERVAL_SECONDS * Math.max(1, 0);
-      expect(burstInterval).toBe(4);
-    });
-
-    it('depthScale halves the radius for midground (scale=0.5)', () => {
-      const seed = 1;
-      const rand1 = makeLcg(seed);
-      const baseRadiusDraw = rand1(); // same raw LCG draw
-      const baseRadius = (8 + baseRadiusDraw * 2) * 1;    // foreground
-      const midRadius = (8 + baseRadiusDraw * 2) * 0.5;  // midground
-      expect(midRadius).toBeCloseTo(baseRadius * 0.5);
-    });
-
-    it('depthScale thirds the radius for background (scale=1/3)', () => {
-      const seed = 1;
-      const rand1 = makeLcg(seed);
-      const baseRadiusDraw = rand1();
-      const baseRadius = (8 + baseRadiusDraw * 2) * 1;
-      const bgRadius = (8 + baseRadiusDraw * 2) * (1 / 3);
-      expect(bgRadius).toBeCloseTo(baseRadius / 3);
-    });
-
-    it('depthScale halves minimum rise height for midground (scale=0.5)', () => {
-      const MIN_RISE_PX = 100; // must match component constant
-      expect(MIN_RISE_PX * 0.5).toBe(50);
-    });
-
-    it('depthScale thirds minimum rise height for background (scale=1/3)', () => {
-      const MIN_RISE_PX = 100; // must match component constant
-      expect(MIN_RISE_PX * (1 / 3)).toBeCloseTo(33.33);
+      renderStream({ totalBuildings: 0 });
+      const cfg = registeredParent().config!;
+      expect(cfg.delay as number).toBeLessThan(4);
     });
 
     it('depthScale halves the wobble amplitude for midground (scale=0.5)', () => {
-      // Mirrors bubble-params RNG: seed ^ 0xb0bb1e5, first draws are risePx, riseSpeed, wobbleAmp
-      const bubbleRand = makeLcg(1 ^ 0xb0bb1e5);
-      bubbleRand(); // risePx fraction
-      bubbleRand(); // riseSpeed fraction
-      const wobbleDraw = bubbleRand();
-      const baseAmp = (8 + wobbleDraw * 12) * 1;
-      const midAmp = (8 + wobbleDraw * 12) * 0.5;
-      expect(midAmp).toBeCloseTo(baseAmp * 0.5);
-    });
-
-    it('depthScale thirds the wobble amplitude for background (scale=1/3)', () => {
-      const bubbleRand = makeLcg(1 ^ 0xb0bb1e5);
-      bubbleRand(); // risePx fraction
-      bubbleRand(); // riseSpeed fraction
-      const wobbleDraw = bubbleRand();
-      const baseAmp = (8 + wobbleDraw * 12) * 1;
-      const bgAmp = (8 + wobbleDraw * 12) * (1 / 3);
-      expect(bgAmp).toBeCloseTo(baseAmp / 3);
+      renderStream({ depthScale: 0.5 });
+      const halfAmp = Math.abs(findTo(registeredParent().children[0], (v) => v.yoyo === true).vars.x as number);
+      cleanup();
+      killAllTimelines();
+      created.length = 0;
+      renderStream({ depthScale: 1 });
+      const fullAmp = Math.abs(findTo(registeredParent().children[0], (v) => v.yoyo === true).vars.x as number);
+      expect(halfAmp).toBeCloseTo(fullAmp * 0.5);
     });
   });
 });

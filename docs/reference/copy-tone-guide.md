@@ -2,6 +2,8 @@
 
 Trace Atlas's UI copy runs in two deliberately separate voices, keyed to `loreLabel`/`loreDescription` (Lore) and `humanLabel`/`humanDescription` (Human) throughout `ControlSchema`/`DualLabel` and `IntroPanel`. Anyone writing new copy — a new panel, a new control, a new intro block — should match one of these two voices exactly, never blend them.
 
+Where the words live: every string is an entry in `src/content/` (`human`/`lore`/`intro` fields, one entry per concept) — see [docs/CONTENT_LAYER.md](../CONTENT_LAYER.md). This guide is about the voice; that one is about the plumbing.
+
 ## Lore tone
 
 In-universe, addressed to characters in the Trace Atlas world (Meridia Telemetry/Comms/Power Group), never to the real person holding a web browser.

@@ -19,6 +19,7 @@ import { DEV_TUNING } from '@/constants';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import type { DirectionalPanelSchema } from '@/types/controls';
 
+import { CONTENT } from '@/content';
 import './PingControlsDrawer.css';
 
 export interface PingControlsValue {
@@ -113,7 +114,7 @@ function PingControlsDrawerInner({
             or be able to reach. */}
         {DEV_TUNING && (
           <Toggle schema={CLICK_TRACK_SCHEMA} value={value.clickTrackActive} onChange={onClickTrackActiveChange} disabled={disabled}>
-            Click Track
+            {CONTENT['probe.composition.clickTrack'].human}
           </Toggle>
         )}
         <DirectionalPanel schema={RHYTHM_PANEL_SCHEMA}>
@@ -186,7 +187,7 @@ function PingControlsRhythmSectionInner({
             be able to reach. */}
         {DEV_TUNING && (
           <Toggle schema={CLICK_TRACK_SCHEMA} value={value.clickTrackActive} onChange={onClickTrackActiveChange} disabled={disabled}>
-            Click Track
+            {CONTENT['probe.composition.clickTrack'].human}
           </Toggle>
         )}
         <SliderLinear schema={DENSITY_SCHEMA} value={value.rhythmicDensity} onChange={onDensityChange} disabled={generationDisabled} />

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useNavTree, isDeepestTwoLevels, isAutoExpandTier, isCollapsible, expandNavAncestorsForId } from './useNavTree';
+import { CONTENT } from '@/content';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
@@ -221,11 +222,11 @@ describe('useNavTree — 4th tree level, subsection children (docs/tasks/NAV_PAN
     const { result } = renderHook(() => useNavTree());
 
     const volumeNode = findNode('probes.r1.volume', result.current.nodes);
-    expect(volumeNode?.humanLabel).toBe('Dynamics');
+    expect(volumeNode?.humanLabel).toBe(CONTENT['probe.dynamics'].human);
     expect(volumeNode?.id).toBe('probes.r1.volume');
 
     const sourceNode = findNode('probes.r1.source.baselineOscillator', result.current.nodes);
-    expect(sourceNode?.humanLabel).toBe('Core Oscillator');
+    expect(sourceNode?.humanLabel).toBe(CONTENT['probe.source.core'].human);
     expect(sourceNode?.id).toBe('probes.r1.source.baselineOscillator');
   });
 });
@@ -751,7 +752,7 @@ describe('useNavTree — selectedPath, the root-to-node ancestor chain for NavBr
     act(() => result.current.select('probes.all.melody'));
 
     expect(result.current.selectedPath.map((n) => n.id)).toEqual(['probes', 'probes.all']);
-    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Probes', 'All Probes']);
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual([CONTENT['probe.root'].human, CONTENT['probe.all'].human]);
   });
 
   it('resolves a specific robot by its own name, not its id', () => {
@@ -759,7 +760,7 @@ describe('useNavTree — selectedPath, the root-to-node ancestor chain for NavBr
     const { result } = renderHook(() => useNavTree());
     act(() => result.current.select('probes.r1'));
 
-    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Probes', 'Unit One']);
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual([CONTENT['probe.root'].human, 'Unit One']);
   });
 
   it('selecting a Fleet Params group heading resolves straight through to its first leaf internally, but selectedPath stops at the bare branch — trimToBreadcrumbDepth caps Fleet Params/Settings to their own single segment, never a group or leaf', () => {
@@ -767,14 +768,14 @@ describe('useNavTree — selectedPath, the root-to-node ancestor chain for NavBr
     act(() => result.current.select('fleetParams.timeSpace'));
 
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('reverb'); // select() itself still resolves to the real first leaf (FLEET_PARAMS_GROUP_FIRST_LEAF) — only the displayed path is capped
-    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Fleet Params']);
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual([CONTENT['fleet.root'].human]);
   });
 
   it('a Fleet Params leaf 3 levels deep also stops at the bare branch — the group (Time & Space) and leaf (Reverb) are both capped off', () => {
     const { result } = renderHook(() => useNavTree());
     act(() => result.current.select('fleetParams.timeSpace.reverb'));
 
-    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Fleet Params']);
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual([CONTENT['fleet.root'].human]);
   });
 
   it('a Probes/Companies subsection leaf (4 real segments) stops at branch + entity — the section (Composition) and subsection (Rhythm) are both capped off', () => {
@@ -782,7 +783,7 @@ describe('useNavTree — selectedPath, the root-to-node ancestor chain for NavBr
     act(() => result.current.select('probes.all.melody.rhythm'));
 
     expect(useUIStore.getState().selectedSubsection).toBe('rhythm'); // the real, untrimmed selection
-    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Probes', 'All Probes']);
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual([CONTENT['probe.root'].human, CONTENT['probe.all'].human]);
   });
 
   it('a bare robot entity (2 segments) stays whole — branch + entity is exactly the depth Probes/Companies keep', () => {
@@ -790,7 +791,7 @@ describe('useNavTree — selectedPath, the root-to-node ancestor chain for NavBr
     const { result } = renderHook(() => useNavTree());
     act(() => result.current.select('probes.r1'));
 
-    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual(['Probes', 'Unit One']);
+    expect(result.current.selectedPath.map((n) => n.humanLabel)).toEqual([CONTENT['probe.root'].human, 'Unit One']);
   });
 
   it('is empty again once cleared back to the blank state via the bare branch selecting nothing new', () => {

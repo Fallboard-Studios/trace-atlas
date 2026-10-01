@@ -10,7 +10,7 @@ This guide documents the current Trace Atlas audio architecture and the conventi
 - [Melody Generation Guide](MELODY_SYSTEM.md) - Procedural melody creation
 - [LFO Modulation](#lfo-modulation) - Audio-rate parameter modulation for robot and global-chain targets (below, no separate file yet)
 - [Audio Swells](#audio-swells) - Rare, self-reversing ramp events on one global or robot parameter at a time (below, no separate file yet) — independent of LFO Modulation, not an extension of it
-- [BPM / Tempo](#bpm--tempo) - Locale-seeded transport tempo with a live Audio Rig override (below, no separate file yet) — distinct from `locale.settings.bpm`'s unrelated production-cadence use
+- [BPM / Tempo](#bpm--tempo) - Locale-seeded transport tempo with a live Audio Rig override (below, no separate file yet)
 
 ## Core Audio Rules
 
@@ -76,7 +76,7 @@ export const AudioEngine = {
   scheduleNote: (params: { robotId: string; note: string; duration: NoteDuration; time?: number; velocity?: number; accentMultiplier?: number }) => void,
 
   // Voice management
-  reserveVoice: (robotId: string, descriptor: OscillatorLayer[] | { base?: WaveformType; layers?: OscillatorLayer[] }, adsr: ADSREnvelope, phase?: number, detune?: number, pulseWidth?: number, masterVolume?: number) => boolean,
+  reserveVoice: (robotId: string, descriptor: OscillatorLayer[] | { base?: WaveformType; layers?: OscillatorLayer[] }, adsr: ADSREnvelope, phase?: number, detune?: number, pulseWidth?: number, masterVolume?: number, filterFreq?: number) => boolean,  // filterFreq = the robot's seeded bus low-pass cutoff (Hz); 0 = fully open; omitted = legacy fixed 1,200 Hz
   releaseVoice: (robotId: string) => void,
   reReserveVoice: (robotId: string) => boolean,
   updateVoiceLayerParams: (robotId: string, layers: OscillatorLayer[]) => void,
@@ -94,7 +94,7 @@ export const AudioEngine = {
   // Global FX control (all no-ops if the underlying Tone node wasn't constructed, e.g. headless tests)
   setMasterVolume: (volume: number) => void,   // clamped [0,1]
   getMasterVolume: () => number,
-  setGlobalReverb: (params: Partial<ReverbSettings>) => void,
+  setGlobalReverb: (params: Partial<ReverbSettings>) => void,  // `wet` is immediate; `decay`/`preDelay` are coalesced (REVERB_IR_COALESCE_MS, 120 ms) and written only if changed, because each one makes Tone.Reverb re-render its impulse response
   setGlobalDelay: (params: Partial<DelaySettings>) => void,
   setGlobalFilterLPF: (params: Partial<FilterSettings>) => void,
   setGlobalFilterHPF: (params: Partial<FilterSettings>) => void,
@@ -228,6 +228,8 @@ Global:                                                        │
 Two fixed topologies, not a general reorder mechanism — selected by one boolean, `audioStore`'s `globalAudio.compressorBeforeDelay` (default `false` = Natural Decay, not seeded, only a direct user action changes it — a two-option radio button rendered inside `AudioRigDrawer`'s Compressor accordion, under its other params, not a toggle in the master row). "Natural Decay" leaves Compressor after both time-based effects so their tails ring out uncompressed; "Controlled Decay" moves Compressor before both Delay and Reverb, tightening them. `globalFx.ts`'s `wireGlobalFxChain(controlledDecay: boolean)` disconnects every node and reconnects the full sequence for whichever topology — called once at build time and again whenever `audioStore`'s `setCompressorBeforeDelay(value)` action flips it (a brief audio glitch on switch is expected and acceptable, since the user is intentionally changing routing).
 
 Control the global chain via `AudioEngine.setGlobal*` (see API above) for individual effect parameters — there is no separate bypass surface; `audioStore.setCompressorBeforeDelay` (not part of the `AudioEngine` surface — it calls `globalFx.ts` directly) for the topology swap.
+
+The per-robot `panner` is refreshed once per 16th-note tick from the robot's live GSAP x (`updateAllPanners`), but the pan is only *written* when it has changed by more than `PAN_WRITE_EPSILON` since the last write — Tone's `Param.value` setter is `cancelScheduledValues` + `setValueAtTime`, and robots are stationary most of the time. `busFilter` is a Q 1 low-pass whose cutoff is the robot's own seeded `audioAttributes.filterFreq` (400–2500 Hz, `spawnSystem`'s `FILTER_FREQ_RANGE`), passed into `reserveVoice` by every reservation path (spawn, `reRegisterAllRobotsAudio`, `reReserveVoice`, the post-load pass). This is the audible half of ROBOT_DESIGN's visual↔audio mapping: the same number drives body detail and greeble count. From the composite-voice rewrite until 2026-09-30 the cutoff was hardcoded to 1,200 Hz and `filterFreq` had no audible effect at all; a caller that omits it still gets that legacy value. `0` means "no filter" (opened to 20 kHz). Set once at reservation — there is no live update path or UI control for it yet.
 
 ## LFO Modulation
 
@@ -393,7 +395,7 @@ Every trigger/selection/timing/direction/magnitude decision is a `getSeededVal(n
 
 ## BPM / Tempo
 
-`audioStore.bpm` — the real `Tone.Transport` tempo, driving every beat-based schedule in the app — is a locale-seeded, live-adjustable value (docs/specs/BPM_CONTROL.md), not a hardcoded constant. This is unrelated to `locale.settings.bpm`, a separate field consumed only by `Factory.tsx`/`BubbleStream.tsx` for production-cadence/burst-interval math — the two happen to share a name and, coincidentally, the same default (`60`), but nothing else connects them; `locale.settings.bpm` is untouched by everything described in this section.
+`audioStore.bpm` — the real `Tone.Transport` tempo, driving every beat-based schedule in the app — is a locale-seeded, live-adjustable value (docs/specs/BPM_CONTROL.md), not a hardcoded constant. It is the only BPM in the app: the former `locale.settings.bpm` field is gone (docs/DUPLICATE_VALUE_AUDIT.md item 1), and the factory bubble vents that once converted measures to seconds with it now run on plain wall-clock time with no tempo input at all (`BubbleStream.tsx`, docs/BUILDING_DESIGN.md "Bubble Streams"). Nothing decorative reads `audioStore.bpm`.
 
 **Seeded per locale, on coordinate change only.** `generateLocaleBpm(localeId, x, y)` (`src/utils/localeBpmSeed.ts`) draws a `getSeededVal` sample against that locale's own noise map (`getLocaleNoiseMap` — coordinate-derived, no Attenuation Style dependency, same as every other locale-scoped seeded field) into `LOCALE_BPM_SEED_RANGE` (`[40, 100]`), rounded to the nearest integer. `audioStore.regenerateBpmFromSeed(localeId, coordinates)` draws this fresh value and pushes it through the existing `setBPM` action (state write + `AudioEngine.setBPM`). It's called from exactly two places in `worldTransition.ts` — `retransmitCoordsOnly` and `retransmitBoth`, both of which build a genuinely new `Locale` via `buildLocale` — plus once at `audioStore.ts` module load (`syncBpmToCurrentLocale()`) to seed the locale active at app boot. **`retransmitAttenuationStyleOnly` never reseeds BPM** — it re-parents the existing locale onto a new Attenuation Style without rebuilding it, so whatever BPM was already in effect (seeded or hand-dragged) survives untouched, exactly like every other robot/actor/edit on that preserved locale. This is a deliberate divergence from `globalAudio`'s own Attenuation-Style-keyed reseeding (a `useAttenuationStyleStore.subscribe` that fires on every `currentAttenuationStyleId` change) — a subscription shaped that way would have incorrectly reseeded BPM on an Attenuation-Style-only retransmit too, since that branch also changes `currentAttenuationStyleId` even though the locale itself is preserved. BPM's reseed is call-site-triggered instead, not subscription-driven, and the seeded value is never stored on the `Locale` object itself — `generateLocaleBpm` is a pure function, recomputed fresh at each of the three call sites, the same "don't cache on the domain object" shape `generateGlobalAudioSettings` already uses for `AttenuationStyle`.
 

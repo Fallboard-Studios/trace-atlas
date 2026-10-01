@@ -54,7 +54,7 @@ describe('SectorSettingsDrawer', () => {
   it('clicking a promoted Attenuation Style preset populates only the name field and calls retransmitWorld zero times', () => {
     render(<SectorSettingsDrawer />);
     const preset = ATTENUATION_STYLE_PRESETS[0];
-    fireEvent.click(screen.getByText(preset.label));
+    fireEvent.click(screen.getByText(preset.name));
 
     const textInputs = screen.getAllByRole('textbox') as HTMLInputElement[];
     const attenuationStyleInput = textInputs.find((el) => el.value === preset.value);
@@ -65,7 +65,7 @@ describe('SectorSettingsDrawer', () => {
   it('clicking a promoted coordinate preset populates only the coordinate fields and calls retransmitWorld zero times', () => {
     render(<SectorSettingsDrawer />);
     const preset = COORDINATE_PRESETS[0];
-    fireEvent.click(screen.getByText(preset.label));
+    fireEvent.click(screen.getByText(preset.name));
 
     const spinbuttons = screen.getAllByRole('spinbutton') as HTMLInputElement[];
     expect(spinbuttons.map((el) => Number(el.value))).toEqual([preset.value.x, preset.value.y]);
@@ -112,5 +112,15 @@ describe('SectorSettingsDrawer', () => {
     const root = container.querySelector('.sector-settings-drawer') as HTMLElement;
     expect(root.style.getPropertyValue('--color-accent-a')).toBe('#914652');
     expect(root.style.getPropertyValue('--color-accent-b')).toBe('#b67288');
+  });
+});
+
+describe('SectorSettingsDrawer reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 14)', () => {
+  it('carries no copy literal of its own', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const source = readFileSync(resolve(__dirname, 'SectorSettingsDrawer.tsx'), 'utf8');
+    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
+    expect(source).not.toMatch(/\[c\]/);
   });
 });

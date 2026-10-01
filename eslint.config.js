@@ -67,4 +67,30 @@ export default [
       'no-console': ['warn', { allow: ['warn', 'error', 'log'] }],
     },
   },
+
+  // Content layer guard (docs/specs/CONTENT_LAYER.md §1.7): user-facing text lives in src/content,
+  // never as a literal in a component or data config. Tests and src/content itself are exempt.
+  // A legitimate punctuation-only text node (e.g. an em dash between two content reads) is written
+  // as `{' — '}`, never exempted from the rule.
+  {
+    files: ['src/components/**/*.{ts,tsx}', 'src/data/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.*'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Property[key.name=/^(loreLabel|humanLabel|label|placeholder|unit|loreDescription|humanDescription)$/] > :matches(Literal, TemplateLiteral)",
+          message: 'User-facing text belongs in src/content — spread labels()/options() from a content key instead (docs/CONTENT_LAYER.md).',
+        },
+        {
+          selector: 'JSXText[value=/[A-Za-z]{3,}/]',
+          message: 'User-facing text belongs in src/content — read CONTENT[key] or fill(key, vars) instead (docs/CONTENT_LAYER.md).',
+        },
+        {
+          selector: "JSXAttribute[name.name=/^(aria-label|title|placeholder|alt)$/] > Literal",
+          message: 'User-facing text belongs in src/content — read CONTENT[key].human instead (docs/CONTENT_LAYER.md).',
+        },
+      ],
+    },
+  },
 ];

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { SettingsContent } from './SettingsContent';
+import { CONTENT } from '@/content';
 import { useUIStore } from '@/stores/uiStore';
 import { installIntersectionObserverStub, approachSection } from '@/testUtils/intersectionObserverStub';
 import { clearSectionRef } from '@/utils/sectionRefs';
@@ -85,7 +86,7 @@ describe('SettingsContent — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     // textContent includes the accordion's own expand/collapse indicator glyph (+/−) ahead of the
     // DualLabel text — stripped here since only the label order matters for this assertion.
     const labels = screen.getAllByRole('button').map((btn) => btn.textContent?.replace(/^[+−]/, '').trim());
-    expect(labels).toEqual(['Audio Quality', 'Seeds', 'Save & Share']);
+    expect(labels).toEqual([CONTENT['settings.quality'].human, CONTENT['settings.seeds'].human, CONTENT['settings.sessions'].human]);
   });
 
   it('Sessions accordion starts closed by default, independent of Audio Quality\'s default-open state', () => {
@@ -216,5 +217,14 @@ describe('SettingsContent — Sessions leaf content (Roadmap Phase 20, Task 10)'
     render(<SettingsContent />);
     fireEvent.click(screen.getByRole('button', { name: 'Save & Share' }));
     expect(screen.getByRole('button', { name: 'Audio Quality' }).getAttribute('aria-expanded')).toBe('true');
+  });
+});
+
+describe('SettingsContent reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 12)', () => {
+  it('carries no copy literal of its own — intros and accordion headings come from CONTENT', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(__dirname, 'SettingsContent.tsx'), 'utf8');
+    expect(src).not.toMatch(/(loreLabel|humanLabel|loreDescription|humanDescription)\s*:\s*['"`]/);
   });
 });

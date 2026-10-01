@@ -1,3 +1,4 @@
+import { CONTENT } from '@/content';
 import './HeldOffNote.css';
 
 /**
@@ -8,7 +9,7 @@ import './HeldOffNote.css';
 export function HeldOffNote() {
   return (
     <p className="held-off-note" role="note">
-      Held off by Audio Load
+      {CONTENT['ui.heldOff'].human}
     </p>
   );
 }

@@ -16,7 +16,7 @@ export interface BubbleStreamProps {
   ventY: number;
   /** Deterministic seed for sizing and timing variation. */
   seed: number;
-  /** When false the animation is paused and bubbles are hidden. */
+  /** When false the animation is rewound to its hidden start state and paused. */
   isActive: boolean;
   /**
    * Total number of bubble-eligible buildings in the current locale. This
@@ -35,7 +35,7 @@ export interface BubbleStreamProps {
   /**
    * Depth scale factor derived from the factory's row layer.
    * foreground = 1 (default), midground = 0.5, background = 1/3.
-   * Applied to bubble radius and minimum rise height.
+   * Applied to bubble radius, wobble amplitude and minimum rise height.
    */
   depthScale?: number;
 }
@@ -69,6 +69,14 @@ const RISE_FRACTION = 0.85;
 const MIN_RISE_SPEED = 40; // px/s
 const MAX_RISE_SPEED = 70; // px/s
 
+/** How much a bubble grows (as a scale factor) while it pops. */
+const POP_SCALE = 2.5;
+
+/** Peak opacity of a fully risen bubble. */
+const PEAK_OPACITY = 0.6;
+
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
 // ----------------------------------------
 // HELPERS
 // ----------------------------------------
@@ -86,6 +94,13 @@ function makeLcg(seed: number): () => number {
   };
 }
 
+/** Read once per effect run; purely decorative motion is exactly what this preference asks to drop. */
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia(REDUCED_MOTION_QUERY).matches;
+}
+
 // ----------------------------------------
 // COMPONENT
 // ----------------------------------------
@@ -99,6 +114,11 @@ function makeLcg(seed: number): () => number {
  * Rise duration scales with distance so all bubbles move at a consistent speed.
  * On mount every factory gets a random initial phase offset within its own
  * interval so bursts are staggered rather than synchronized.
+ *
+ * Motion is transform-only (`x`/`y`/`scale`/`opacity`, per
+ * docs/ANIMATION_SYSTEM.md): each `<circle>` is placed once at the vent via
+ * its `cx`/`cy`/`r` attributes and never has its geometry re-tweened, so a
+ * frame costs a transform write rather than an SVG geometry recompute.
  */
 const BubbleStreamInner: React.FC<BubbleStreamProps> = ({
   actorId,
@@ -112,9 +132,9 @@ const BubbleStreamInner: React.FC<BubbleStreamProps> = ({
 }) => {
   const config = React.useMemo(() => {
     const rand = makeLcg(seed);
-    const radius = (8 + rand() * 2) * depthScale;            // 8–10 px scaled by depth
-    const burstStagger = 0.2 + rand() * 0.2;   // 0.20–0.40 s between bubbles (1–4 s total spread)
-    const count = 5 + Math.floor(rand() * 6);  // 5–10 bubbles per burst
+    const radius = (8 + rand() * 2) * depthScale; // 8–10 px scaled by depth
+    const burstStagger = 0.2 + rand() * 0.2; // 0.20–0.40 s between bubbles (1–4 s total spread)
+    const count = 5 + Math.floor(rand() * 6); // 5–10 bubbles per burst
     const burstInterval = TARGET_GLOBAL_BURST_INTERVAL_SECONDS * Math.max(1, totalBuildings);
     // Scatter initial burst so factories don't all fire at the same time.
     const initialDelay = rand() * burstInterval;
@@ -127,8 +147,12 @@ const BubbleStreamInner: React.FC<BubbleStreamProps> = ({
     [config.count],
   );
 
+  const timelineKey = `bubble-${actorId}`;
+
   useGSAP(() => {
-    const { radius, burstStagger, count, burstInterval, initialDelay } = config;
+    if (prefersReducedMotion()) return;
+
+    const { burstStagger, count, burstInterval, initialDelay } = config;
 
     // Per-bubble RNG: different seed space so values don't correlate with config.
     const bubbleRand = makeLcg(seed ^ 0xb0bb1e5);
@@ -142,7 +166,7 @@ const BubbleStreamInner: React.FC<BubbleStreamProps> = ({
       return { risePx, riseDuration: risePx / riseSpeed, wobbleAmp, wobblePeriod, wobbleDir };
     });
 
-    const maxDuration = Math.max(...bubbleParams.map(p => p.riseDuration));
+    const maxDuration = Math.max(...bubbleParams.map((p) => p.riseDuration));
     const totalBurstDuration = (count - 1) * burstStagger + maxDuration;
     const repeatDelay = Math.max(0, burstInterval - totalBurstDuration);
 
@@ -152,14 +176,18 @@ const BubbleStreamInner: React.FC<BubbleStreamProps> = ({
       const { risePx, riseDuration, wobbleAmp, wobblePeriod, wobbleDir } = bubbleParams[i];
       const bubbleTl = gsap.timeline();
 
-      bubbleTl.set(ref.current, { attr: { cx: ventX, cy: ventY, r: radius }, opacity: 0 });
+      // Rewind to the vent at the start of every burst. transformOrigin keeps the pop's scale
+      // centred on the circle rather than on the SVG origin.
+      bubbleTl.set(ref.current, { x: 0, y: 0, scale: 1, opacity: 0, transformOrigin: '50% 50%' });
 
-      // Wobble: oscillate cx for the full rise duration (concurrent at t=0).
-      const wobbleRepeats = Math.ceil(riseDuration / wobblePeriod);
+      // Wobble: oscillate x for the rise. `repeat: n` plays n + 1 times, so subtract one to
+      // cover the rise without overshooting it by more than one period — otherwise the
+      // wobble keeps tweening an already-popped, invisible bubble.
+      const wobbleRepeats = Math.max(0, Math.ceil(riseDuration / wobblePeriod) - 1);
       bubbleTl.to(
         ref.current,
         {
-          attr: { cx: ventX + wobbleDir * wobbleAmp },
+          x: wobbleDir * wobbleAmp,
           duration: wobblePeriod,
           repeat: wobbleRepeats,
           yoyo: true,
@@ -168,26 +196,22 @@ const BubbleStreamInner: React.FC<BubbleStreamProps> = ({
         0,
       );
 
-      // Continuous cy rise: runs for the full duration so the bubble never
+      // Continuous rise: runs for the full duration so the bubble never
       // stops moving upward, even during the pop phase (concurrent at t=0).
+      bubbleTl.to(ref.current, { y: -risePx, duration: riseDuration, ease: 'power1.in' }, 0);
+
+      // Fade in during the float phase (concurrent at t=0).
       bubbleTl.to(
         ref.current,
-        { attr: { cy: ventY - risePx }, duration: riseDuration, ease: 'power1.in' },
+        { opacity: PEAK_OPACITY, duration: riseDuration * RISE_FRACTION, ease: 'none' },
         0,
       );
 
-      // Fade in during the rise phase (concurrent at t=0).
-      bubbleTl.to(
-        ref.current,
-        { opacity: 0.6, duration: riseDuration * RISE_FRACTION, ease: 'none' },
-        0,
-      );
-
-      // Pop phase: radius expands and opacity fades while bubble keeps rising.
+      // Pop phase: grows and fades while still rising.
       bubbleTl.to(
         ref.current,
         {
-          attr: { r: radius * 2.5 },
+          scale: POP_SCALE,
           opacity: 0,
           duration: riseDuration * (1 - RISE_FRACTION),
           ease: 'power2.in',
@@ -198,27 +222,26 @@ const BubbleStreamInner: React.FC<BubbleStreamProps> = ({
       tl.add(bubbleTl, i * burstStagger);
     });
 
-    setTimeline(`bubble-${actorId}`, tl);
-    return () => killTimeline(`bubble-${actorId}`);
-  }, { dependencies: [config, ventX, ventY, depthScale], revertOnUpdate: true });
+    setTimeline(timelineKey, tl);
+    return () => killTimeline(timelineKey);
+    // The vent position lives on the circles' cx/cy attributes, not in the timeline, so
+    // ventX/ventY aren't dependencies here — `config` already covers seed/depth/count.
+  }, { dependencies: [config, timelineKey], revertOnUpdate: true });
 
   useEffect(() => {
-    const tl = timelineMap.get(`bubble-${actorId}`);
+    const tl = timelineMap.get(timelineKey);
     if (!tl) return;
     if (isActive) {
       tl.play();
     } else {
-      tl.pause();
-      circleRefs.forEach(ref => {
-        if (ref.current) ref.current.setAttribute('opacity', '0');
-      });
+      // Rewind to time 0 so the timeline's own `.set()` hides every bubble. A bare pause would
+      // freeze bubbles mid-air: GSAP drives opacity through inline style, which always wins
+      // over any `opacity` attribute written by hand.
+      tl.pause(0);
     }
-  }, [actorId, isActive, circleRefs]);
+  }, [timelineKey, isActive]);
 
-  const bubbleFill = React.useMemo(() => {
-    const hsl = `hsl(${bodyHue}, 30%, 70%)`;
-    return hsl;
-  }, [bodyHue]);
+  const bubbleFill = `hsl(${bodyHue}, 30%, 70%)`;
 
   return (
     <>

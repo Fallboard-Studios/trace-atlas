@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-
 import {
   FREELANCE_VALUE,
   buildCompanyAssignmentSchema,
@@ -9,6 +8,8 @@ import {
   COMPANY_NAME_INPUT_SCHEMA,
   DELETE_COMPANY_SCHEMA,
 } from './companyConfig';
+import { CONTENT } from '@/content';
+
 import { CONTROL_SCHEMA_TYPES } from '@/types/controls';
 import type { Company } from '@/types/Company';
 
@@ -44,15 +45,15 @@ describe('companyConfig', () => {
       const schema = buildCompanyAssignmentSchema(companies);
 
       expect(schema.type).toBe('radio');
-      expect(schema.options[0]).toEqual({ value: FREELANCE_VALUE, label: 'Freelance' });
-      expect(schema.options[1]).toEqual({ value: 'c1', label: 'Iron Consortium', color: '#4f6d7a' });
-      expect(schema.options[2]).toEqual({ value: 'c2', label: 'Null Syndicate', color: '#65617f' });
+      expect(schema.options[0]).toEqual({ value: FREELANCE_VALUE, humanLabel: CONTENT['company.assign'].options.freelance.human });
+      expect(schema.options[1]).toEqual({ value: 'c1', humanLabel: 'Iron Consortium', color: '#4f6d7a' });
+      expect(schema.options[2]).toEqual({ value: 'c2', humanLabel: 'Null Syndicate', color: '#65617f' });
       expect(schema.options).toHaveLength(3);
     });
 
     it('returns just the Freelance option when there are no companies yet', () => {
       const schema = buildCompanyAssignmentSchema([]);
-      expect(schema.options).toEqual([{ value: FREELANCE_VALUE, label: 'Freelance' }]);
+      expect(schema.options).toEqual([{ value: FREELANCE_VALUE, humanLabel: CONTENT['company.assign'].options.freelance.human }]);
     });
 
     it('is namespaced under "company." like every other schema in this file', () => {
@@ -80,8 +81,8 @@ describe('companyConfig', () => {
 
       expect(schema.type).toBe('radio');
       expect(schema.options).toEqual([
-        { value: 'c1', label: 'Iron Consortium', color: '#4f6d7a' },
-        { value: 'c2', label: 'Null Syndicate', color: '#65617f' },
+        { value: 'c1', humanLabel: 'Iron Consortium', color: '#4f6d7a' },
+        { value: 'c2', humanLabel: 'Null Syndicate', color: '#65617f' },
       ]);
     });
 
@@ -94,4 +95,21 @@ describe('companyConfig', () => {
     });
   });
 
+});
+
+describe('companyConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 8)', () => {
+  it('carries no copy literal of its own', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(__dirname, 'companyConfig.ts'), 'utf8');
+    expect(src).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
+  });
+  it('labels equal CONTENT; company names stay data', async () => {
+    const { CONTENT } = await import('@/content');
+    const s = buildCompanyAssignmentSchema([{ id: 'c1', name: 'Iron Consortium', color: '#4f6d7a' } as Company]);
+    expect(s.humanLabel).toBe(CONTENT['company.assign'].human);
+    expect(s.options[0].humanLabel).toBe(CONTENT['company.assign'].options.freelance.human);
+    expect(s.options[1].humanLabel).toBe('Iron Consortium');
+    expect(COMPANY_NAME_INPUT_SCHEMA.placeholder).toBe(CONTENT['company.name'].placeholder);
+  });
 });

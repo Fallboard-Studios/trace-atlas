@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 
 // Mock Tone.js — same node shapes as AudioEngine.test.ts's own mock, minus
 // Chorus (removed entirely in V2) and plus Limiter (added in V2). Every node
@@ -572,6 +572,79 @@ describe('globalFx', () => {
       expect('dampening' in reverbNode).toBe(false);
       globalFx.setGlobalReverb({ wet: 0.6, decay: 2, preDelay: 0.05 });
       expect('dampening' in reverbNode).toBe(false);
+    });
+
+    // Tone.Reverb's `decay` and `preDelay` setters each call generate(): an OfflineContext render
+    // of `decay + preDelay` seconds of stereo noise plus a convolver buffer swap. The Audio Rig
+    // sliders fire on every change event during a drag, so without coalescing one drag queues
+    // dozens of renders. `wet` is a plain AudioParam and stays immediate.
+    describe('impulse-response fields are coalesced', () => {
+      /** Replace a plain mock field with a setter spy so every assignment is counted. */
+      function spyOnField(node: Record<string, unknown>, field: string) {
+        let current = node[field];
+        const setter = vi.fn((v: unknown) => { current = v; });
+        Object.defineProperty(node, field, { configurable: true, get: () => current, set: setter });
+        return setter;
+      }
+
+      beforeEach(() => {
+        vi.useFakeTimers();
+      });
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it('writes decay/preDelay once with the last value after a burst of calls, and wet immediately', async () => {
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        const reverbNode = lastInstance(Tone.Reverb) as Record<string, unknown>;
+        const decaySet = spyOnField(reverbNode, 'decay');
+        const preDelaySet = spyOnField(reverbNode, 'preDelay');
+
+        globalFx.setGlobalReverb({ wet: 0.5, decay: 2, preDelay: 0.1 });
+        globalFx.setGlobalReverb({ decay: 3 });
+        globalFx.setGlobalReverb({ decay: 4, preDelay: 0.2 });
+
+        expect((reverbNode.wet as { value: number }).value).toBe(0.5);
+        expect(decaySet).not.toHaveBeenCalled();
+        expect(preDelaySet).not.toHaveBeenCalled();
+
+        vi.advanceTimersByTime(globalFx.REVERB_IR_COALESCE_MS);
+
+        expect(decaySet).toHaveBeenCalledTimes(1);
+        expect(decaySet).toHaveBeenCalledWith(4);
+        expect(preDelaySet).toHaveBeenCalledTimes(1);
+        expect(preDelaySet).toHaveBeenCalledWith(0.2);
+      });
+
+      it('skips the write entirely when the value already matches the node (no regeneration)', async () => {
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        const reverbNode = lastInstance(Tone.Reverb) as Record<string, unknown>;
+        const decaySet = spyOnField(reverbNode, 'decay');
+        const preDelaySet = spyOnField(reverbNode, 'preDelay');
+
+        // Mock defaults are decay 1.5 / preDelay 0.02 — re-sending them must not regenerate.
+        globalFx.setGlobalReverb({ decay: 1.5, preDelay: 0.02 });
+        vi.advanceTimersByTime(globalFx.REVERB_IR_COALESCE_MS);
+
+        expect(decaySet).not.toHaveBeenCalled();
+        expect(preDelaySet).not.toHaveBeenCalled();
+      });
+
+      it('only writes the field that actually changed', async () => {
+        const globalFx = await import('./globalFx');
+        globalFx.buildGlobalFxChain();
+        const reverbNode = lastInstance(Tone.Reverb) as Record<string, unknown>;
+        const decaySet = spyOnField(reverbNode, 'decay');
+        const preDelaySet = spyOnField(reverbNode, 'preDelay');
+
+        globalFx.setGlobalReverb({ decay: 6, preDelay: 0.02 });
+        vi.advanceTimersByTime(globalFx.REVERB_IR_COALESCE_MS);
+
+        expect(decaySet).toHaveBeenCalledTimes(1);
+        expect(preDelaySet).not.toHaveBeenCalled();
+      });
     });
   });
 });

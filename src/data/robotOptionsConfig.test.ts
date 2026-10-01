@@ -26,6 +26,7 @@ import {
 // accordion consts' absence at runtime, without a named import that would itself fail to compile
 // the instant they're removed from the source module.
 import * as robotOptionsConfigModule from './robotOptionsConfig';
+import { CONTENT } from '@/content';
 import { CONTROL_SCHEMA_TYPES } from '@/types/controls';
 import { ROBOT_LFO_TARGET_IDS } from '@/types/lfo';
 import {
@@ -99,19 +100,19 @@ describe('robotOptionsConfig', () => {
   });
 
   it("Audio Setting's 'none' option is labeled 'Auto', not 'Off' (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.3)", () => {
-    expect(AUDIO_SETTING_SCHEMA.options.find((o) => o.value === 'none')?.label).toBe('Auto');
+    expect(AUDIO_SETTING_SCHEMA.options.find((o) => o.value === 'none')?.humanLabel).toBe(CONTENT['probe.monitorMode'].options.none.human);
   });
 
   it('Click Track is a toggle, labeled "Click Track"', () => {
     expect(CLICK_TRACK_SCHEMA.type).toBe('toggle');
-    expect(CLICK_TRACK_SCHEMA.humanLabel).toBe('Click Track');
+    expect(CLICK_TRACK_SCHEMA.humanLabel).toBe(CONTENT['probe.composition.clickTrack'].human);
   });
 
   it('Pitch Repeat is a sliderLinear using PITCH_REPEAT_MIN/MAX (0-100), labeled per Architecture Decision §7.4', () => {
     expect(PITCH_REPEAT_SCHEMA.type).toBe('sliderLinear');
     expect(PITCH_REPEAT_SCHEMA.id).toBe('robotOptions.pitchRepeat');
-    expect(PITCH_REPEAT_SCHEMA.loreLabel).toBe('Payload Duplication');
-    expect(PITCH_REPEAT_SCHEMA.humanLabel).toBe('Pitch Repeat Chance');
+    expect(PITCH_REPEAT_SCHEMA.loreLabel).toBe(CONTENT['probe.composition.pitchRepeat'].lore);
+    expect(PITCH_REPEAT_SCHEMA.humanLabel).toBe(CONTENT['probe.composition.pitchRepeat'].human);
     expect(PITCH_REPEAT_SCHEMA.min).toBe(PITCH_REPEAT_MIN);
     expect(PITCH_REPEAT_SCHEMA.max).toBe(PITCH_REPEAT_MAX);
     expect(PITCH_REPEAT_SCHEMA.min).toBe(0);
@@ -145,7 +146,7 @@ describe('robotOptionsConfig', () => {
   describe('SIGNATURE_ARRAY_CONFIG', () => {
     it('has exactly 3 blocks, labeled Core/Companion/Accent in order (docs/reference/text-content-tables.md — renamed from Baseline/Coaxial/Harmonic; the key field below is the unchanged internal identity)', () => {
       expect(SIGNATURE_ARRAY_CONFIG).toHaveLength(3);
-      expect(SIGNATURE_ARRAY_CONFIG.map((b) => b.humanLabel)).toEqual(['Core', 'Companion', 'Accent']);
+      expect(SIGNATURE_ARRAY_CONFIG.map((b) => b.humanLabel)).toEqual([CONTENT['probe.source.core'].human, CONTENT['probe.source.companion'].human, CONTENT['probe.source.accent'].human]);
       expect(SIGNATURE_ARRAY_CONFIG.map((b) => b.key)).toEqual(['layer0', 'layer1', 'layer2']);
     });
 
@@ -321,8 +322,8 @@ describe('VOLUME/MELODY/ENVELOPE/SOURCE_ACCORDION_SCHEMA no longer exist (docs/t
 
 describe('PHRASING_PANEL_SCHEMA / FREQUENCY_PANEL_SCHEMA (Task 3)', () => {
   it('carry the confirmed humanLabels and directionalPanel type — new labels, not derived from the old flat "Ping Controls" accordion', () => {
-    expect(PHRASING_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'column', humanLabel: 'Phrasing' });
-    expect(FREQUENCY_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'responsive', humanLabel: 'Pitches' });
+    expect(PHRASING_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'column', humanLabel: CONTENT['probe.composition.phrasing'].human });
+    expect(FREQUENCY_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'responsive', humanLabel: CONTENT['probe.composition.pitches'].human });
   });
 
   it('neither reuses "Ping Controls" as its own label text', () => {
@@ -339,7 +340,7 @@ describe('PHRASING_PANEL_SCHEMA / FREQUENCY_PANEL_SCHEMA (Task 3)', () => {
 
 describe('RHYTHM_PANEL_SCHEMA (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4 — no prior test coverage existed for this schema)', () => {
   it('is a responsive-orientation directionalPanel with humanLabel Rhythm', () => {
-    expect(RHYTHM_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'responsive', humanLabel: 'Rhythm' });
+    expect(RHYTHM_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'responsive', humanLabel: CONTENT['probe.composition.rhythm'].human });
   });
 
   it('has a non-empty loreLabel and an id distinct from PHRASING_PANEL_SCHEMA\'s (its own outer wrapper)', () => {
@@ -359,8 +360,8 @@ describe('PING_CONTOUR_PANEL_SCHEMA (DirectionalPanel wiring, Tasks 3+9)', () =>
   });
 
   it('has the confirmed loreLabel/humanLabel', () => {
-    expect(PING_CONTOUR_PANEL_SCHEMA.loreLabel).toBe('Ping Profile');
-    expect(PING_CONTOUR_PANEL_SCHEMA.humanLabel).toBe('Contour');
+    expect(PING_CONTOUR_PANEL_SCHEMA.loreLabel).toBe(CONTENT['probe.envelope.contour'].lore);
+    expect(PING_CONTOUR_PANEL_SCHEMA.humanLabel).toBe(CONTENT['probe.envelope.contour'].human);
   });
 });
 
@@ -396,5 +397,23 @@ describe('SignatureArrayLayerBlock.panel (additive, Task 3)', () => {
     const ids = SIGNATURE_ARRAY_CONFIG.map((b) => b.panel.id);
     expect(new Set(ids).size).toBe(3);
     for (const id of ids) expect(id).toMatch(/^robotOptions\./);
+  });
+});
+
+describe('robotOptionsConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 8)', () => {
+  it('carries no copy literal of its own', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(__dirname, 'robotOptionsConfig.ts'), 'utf8');
+    expect(src).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
+    expect(src).not.toMatch(/makeLayerBlock\([^)]*'[A-Z][a-z]/); // no positional label strings
+  });
+  it('every schema label equals its concept\'s CONTENT entry', async () => {
+    const { CONTENT } = await import('@/content');
+    expect(VOLUME_SCHEMA.humanLabel).toBe(CONTENT['probe.volume'].human);
+    expect(VOLUME_SCHEMA.unit).toBe(CONTENT['probe.volume'].unit);
+    expect(RHYTHM_PANEL_SCHEMA.loreLabel).toBe(CONTENT['probe.composition.rhythm'].heading);
+    expect(SIGNATURE_ARRAY_CONFIG[0].humanLabel).toBe(CONTENT['probe.source.core'].human);
+    expect(SIGNATURE_ARRAY_CONFIG[1].params[0].schema.humanLabel).toBe(CONTENT['probe.source.companion.type'].human);
   });
 });

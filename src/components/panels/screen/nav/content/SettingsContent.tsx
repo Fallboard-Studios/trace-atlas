@@ -5,13 +5,14 @@ import { SessionsPanel } from '../../console/SessionsPanel';
 import { useSectionObserver } from '../useSectionObserver';
 import { useAccordionOpenState } from '../useAccordionOpenState';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
-import { IntroPanel, type IntroContent } from '@/components/ui/controls/IntroPanel';
+import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { hasPendingNavTargetFor } from '@/utils/accordionSync';
 import { setViewFadeRoot } from '@/utils/viewFade';
 import { useUIStore, type SettingsLeaf, type SettingsSubsection } from '@/stores/uiStore';
 import type { AccordionSchema } from '@/types/controls';
+import { labels, introProps, type ContentKey } from '@/content';
 import './SettingsContent.css';
 
 /** Tree order — matches navTreeConfig.ts's own `settings` children. First-leaf-on-parent-select
@@ -28,38 +29,19 @@ import './SettingsContent.css';
  *  docs/DUPLICATE_VALUE_AUDIT.md item 6, opened alongside this change, not fixed here). */
 const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['quality', 'sectorSettings', 'sessions'];
 
-// humanLabels below match navTreeConfig.ts's own settings.quality/sectorSettings/sessions
-// humanLabels exactly (docs/reference/text-content-tables.md) — this is a separate,
-// hand-duplicated table (same known duplication as FleetParamsContent.tsx's own
-// FLEET_PARAMS_GROUPS vs. navTreeConfig.ts), kept in sync by hand.
+/** Each Settings leaf's concept — accordion heading + IntroPanel copy come from CONTENT
+ *  (docs/specs/CONTENT_LAYER.md). The same keys the nav tree's settings.* nodes carry, so the two
+ *  can no longer drift apart (they used to be hand-synced duplicates). */
+const SETTINGS_LEAF_CONTENT: Record<SettingsLeaf, ContentKey> = {
+  quality: 'settings.quality',
+  sectorSettings: 'settings.seeds',
+  sessions: 'settings.sessions',
+};
+
 const SETTINGS_ACCORDION_SCHEMAS: Record<SettingsLeaf, AccordionSchema> = {
-  quality: { id: 'settings.quality', type: 'accordion', humanLabel: 'Audio Quality' },
-  sectorSettings: { id: 'settings.sectorSettings', type: 'accordion', humanLabel: 'Seeds' },
-  sessions: { id: 'settings.sessions', type: 'accordion', humanLabel: 'Save & Share' },
-};
-
-const SETTINGS_SECTION_INTRO: IntroContent = {
-  loreLabel: 'Settings — configure your Trace Atlas terminal.',
-  loreDescription: 'Adjust how much of the mesh your terminal can track at once, and where in the world you’re listening.',
-  humanDescription: 'These are terminal-level settings, not fleet controls — how much your device can handle, which sector of the world you’re viewing, and where your saved sessions live.',
-};
-
-const SETTINGS_LEAF_INTRO: Record<SettingsLeaf, IntroContent> = {
-  quality: {
-    loreLabel: 'Audio Quality — tune your terminal’s processing load.',
-    loreDescription: 'Meridia Power Group’s Perpetualish Battery Packs keep probes running, but your terminal has its own limits on how much it can process at once.',
-    humanDescription: 'Robot Load limits how many probes can play sound at the same time. Effects Load limits how many effects — like LFOs — can run at once. Lower these if the app stutters or sounds glitchy on your device.',
-  },
-  sectorSettings: {
-    loreLabel: 'Seeds — choose which sector you’re tracking.',
-    loreDescription: 'Every sector of the world has its own resource signature — Attenuation Style sets the terrain, Coordinates set the location.',
-    humanDescription: 'Attenuation Style changes how sound fades and colors with distance in this world — it’s a starting seed, not a live audio effect, so changing it reshapes the whole locale. Coordinates set which specific spot on that terrain you’re viewing. Together they determine which probes, companies, and melodies you’ll see.',
-  },
-  sessions: {
-    loreLabel: 'Save & Share — keep a record, send it along.',
-    loreDescription: 'Archive a mesh configuration to Meridia’s own storage, or transmit it directly to another terminal.',
-    humanDescription: 'Save your current setup — every probe, company, and Fleet Params setting — under a name you choose, and load it again later. Share generates a link that hands your exact setup to anyone who opens it, no saving required on their end.',
-  },
+  quality: { id: 'settings.quality', type: 'accordion', humanLabel: labels(SETTINGS_LEAF_CONTENT.quality).humanLabel },
+  sectorSettings: { id: 'settings.sectorSettings', type: 'accordion', humanLabel: labels(SETTINGS_LEAF_CONTENT.sectorSettings).humanLabel },
+  sessions: { id: 'settings.sessions', type: 'accordion', humanLabel: labels(SETTINGS_LEAF_CONTENT.sessions).humanLabel },
 };
 
 /** Matches navTreeConfig.ts's own settings.quality/settings.sectorSettings children (ids/labels)
@@ -160,9 +142,7 @@ export function SettingsContent() {
     <div ref={rootRef} className="settings-content" style={getTraitColorStyle('seed')}
     >
       <IntroPanel
-        loreLabel={SETTINGS_SECTION_INTRO.loreLabel}
-        loreDescription={SETTINGS_SECTION_INTRO.loreDescription}
-        humanDescription={SETTINGS_SECTION_INTRO.humanDescription}
+        {...introProps('settings.root')}
         trait="seed"
       />
       {SETTINGS_LEAVES.map((leaf) => {
@@ -178,9 +158,7 @@ export function SettingsContent() {
               {hasApproached(id) ? (
                 <>
                   <IntroPanel
-                    loreLabel={SETTINGS_LEAF_INTRO[leaf].loreLabel}
-                    loreDescription={SETTINGS_LEAF_INTRO[leaf].loreDescription}
-                    humanDescription={SETTINGS_LEAF_INTRO[leaf].humanDescription}
+                    {...introProps(SETTINGS_LEAF_CONTENT[leaf])}
                     trait="seed"
                   />
                   {renderLeafContent(leaf)}

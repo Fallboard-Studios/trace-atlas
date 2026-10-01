@@ -24,6 +24,7 @@ import {
 import { AUDIO_LOAD_PRESETS } from '../constants';
 import { DRIFT_GROUP_IDS } from '../types/lfo';
 import { GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
+import { CONTENT, labels } from '@/content';
 import type { ControlSchema } from '@/types/controls';
 
 // ========================================
@@ -122,9 +123,9 @@ describe('AUDIO_RIG_CONFIG', () => {
     it('has the band lore labels, trimmed from the grid\'s own copy ("DENSITY" dropped)', () => {
       // GLOBAL_CHAIN_GRID.md still literally reads "SUB-BAND DENSITY" etc. — deliberately
       // shortened here during the DirectionalPanel layout pass, not a drift from the grid.
-      expect(findParam('eq3', 'low').schema.loreLabel).toBe('Sub-Band');
-      expect(findParam('eq3', 'mid').schema.loreLabel).toBe('Medial Band');
-      expect(findParam('eq3', 'high').schema.loreLabel).toBe('Apical Band');
+      expect(findParam('eq3', 'low').schema.loreLabel).toBe(CONTENT['fleet.eq.bass'].lore);
+      expect(findParam('eq3', 'mid').schema.loreLabel).toBe(CONTENT['fleet.eq.mid'].lore);
+      expect(findParam('eq3', 'high').schema.loreLabel).toBe(CONTENT['fleet.eq.treble'].lore);
     });
 
     it('all 3 bands are LFO-flagged, mapping to their eq3.* GlobalLfoTargetId', () => {
@@ -137,13 +138,13 @@ describe('AUDIO_RIG_CONFIG', () => {
   describe('Low-Pass Filter', () => {
     it('frequency is a log slider, Hz, 20 to 20000, LFO-flagged as lpf.frequency', () => {
       const param = findParam('filterLPF', 'frequency');
-      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'Extraction Floor', min: 20, max: 20000, unit: 'Hz' });
+      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: CONTENT['fleet.lpf.cutoff'].lore, min: 20, max: 20000, unit: 'Hz' });
       expect(param.lfoTarget).toBe('lpf.frequency');
     });
 
     it('Q is a log slider, 0.1 to 20, LFO-flagged as lpf.Q', () => {
       const param = findParam('filterLPF', 'Q');
-      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'Boundary Resonance', min: 0.1, max: 20 });
+      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: CONTENT['fleet.lpf.resonance'].lore, min: 0.1, max: 20 });
       expect(param.lfoTarget).toBe('lpf.Q');
     });
   });
@@ -151,13 +152,13 @@ describe('AUDIO_RIG_CONFIG', () => {
   describe('High-Pass Filter', () => {
     it('frequency is a log slider, Hz, 20 to 20000, LFO-flagged as hpf.frequency', () => {
       const param = findParam('filterHPF', 'frequency');
-      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'Extraction Ceiling', min: 20, max: 20000, unit: 'Hz' });
+      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: CONTENT['fleet.hpf.cutoff'].lore, min: 20, max: 20000, unit: 'Hz' });
       expect(param.lfoTarget).toBe('hpf.frequency');
     });
 
     it('Q is a log slider, 0.1 to 20, LFO-flagged as hpf.Q', () => {
       const param = findParam('filterHPF', 'Q');
-      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'Boundary Resonance', min: 0.1, max: 20 });
+      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: CONTENT['fleet.hpf.resonance'].lore, min: 0.1, max: 20 });
       expect(param.lfoTarget).toBe('hpf.Q');
     });
   });
@@ -177,19 +178,19 @@ describe('AUDIO_RIG_CONFIG', () => {
 
     it('delayTime is a linear slider, seconds, 0 to 10, step 0.001, not LFO-flagged — LFO removed from Delay\'s delayTime', () => {
       const param = findParam('delay', 'delayTime');
-      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'Propagation Lag', min: 0, max: 10, step: 0.001, unit: 's' });
+      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: CONTENT['fleet.delay.time'].lore, min: 0, max: 10, step: 0.001, unit: 's' });
       expect(param.lfoTarget).toBeUndefined();
     });
 
     it('feedback is a linear slider, 0 to 0.95, not LFO-flagged', () => {
       const param = findParam('delay', 'feedback');
-      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'Recirculation Rate', min: 0, max: 0.95 });
+      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: CONTENT['fleet.delay.repeats'].lore, min: 0, max: 0.95 });
       expect(param.lfoTarget).toBeUndefined();
     });
 
     it('wet is a linear slider, 0 to 1, not LFO-flagged', () => {
       const param = findParam('delay', 'wet');
-      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'Reflection Ratio', min: 0, max: 1 });
+      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: CONTENT['fleet.delay.amount'].lore, min: 0, max: 1 });
       expect(param.lfoTarget).toBeUndefined();
     });
   });
@@ -201,19 +202,19 @@ describe('AUDIO_RIG_CONFIG', () => {
 
     it('decay is a log slider, seconds, 0.1 to 10, not LFO-flagged', () => {
       const param = findParam('reverb', 'decay');
-      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: 'Dissipation Time', min: 0.1, max: 10, unit: 's' });
+      expect(param.schema).toMatchObject({ type: 'sliderLog', loreLabel: CONTENT['fleet.reverb.length'].lore, min: 0.1, max: 10, unit: 's' });
       expect(param.lfoTarget).toBeUndefined();
     });
 
     it('preDelay is a linear slider, seconds, 0 to 1, not LFO-flagged', () => {
       const param = findParam('reverb', 'preDelay');
-      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'Initial Lag', min: 0, max: 1, unit: 's' });
+      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: CONTENT['fleet.reverb.preDelay'].lore, min: 0, max: 1, unit: 's' });
       expect(param.lfoTarget).toBeUndefined();
     });
 
     it('wet is a linear slider, 0 to 1, not LFO-flagged', () => {
       const param = findParam('reverb', 'wet');
-      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'Diffusion Ratio', min: 0, max: 1 });
+      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: CONTENT['fleet.reverb.amount'].lore, min: 0, max: 1 });
       expect(param.lfoTarget).toBeUndefined();
     });
 
@@ -233,7 +234,7 @@ describe('AUDIO_RIG_CONFIG', () => {
 
     it('threshold is a linear slider, dB, -20 to 0, not LFO-flagged — Limiter never gets an LFO', () => {
       const param = findParam('limiter', 'threshold');
-      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: 'Output Ceiling', min: -20, max: 0, unit: 'dB' });
+      expect(param.schema).toMatchObject({ type: 'sliderLinear', loreLabel: CONTENT['fleet.limiter.ceiling'].lore, min: -20, max: 0, unit: 'dB' });
       expect(param.lfoTarget).toBeUndefined();
     });
   });
@@ -260,8 +261,8 @@ describe('DECAY_MODE_SCHEMA', () => {
 
   it('has exactly two options — Natural Decay and Controlled Decay, in that order, each with its own lore label', () => {
     expect(DECAY_MODE_SCHEMA.options).toEqual([
-      { value: 'natural', label: 'Natural Decay', loreLabel: 'Dissipation' },
-      { value: 'controlled', label: 'Controlled Decay', loreLabel: 'Clamped' },
+      { value: 'natural', humanLabel: 'Natural Decay', loreLabel: 'Dissipation' },
+      { value: 'controlled', humanLabel: 'Controlled Decay', loreLabel: 'Clamped' },
     ]);
   });
 });
@@ -317,7 +318,7 @@ describe('LFO_DRIFT_GROUPS', () => {
 
   it("the 'robots' entry's shape (id, sliders) is unaffected by the eq3/filterLPF/filterHPF merge — only its lore/human copy changed, in the later docs/reference/text-content-tables.md pass", () => {
     const robots = LFO_DRIFT_GROUPS.find((g) => g.group === 'robots')!;
-    expect(robots.panel).toEqual({ id: 'audioRig.lfoDrift.robots', type: 'directionalPanel', loreLabel: 'Probe Signature', humanLabel: 'Voice Drift', orientation: 'column' });
+    expect(robots.panel).toEqual({ id: 'audioRig.lfoDrift.robots', type: 'directionalPanel', ...labels('fleet.drift.voice'), orientation: 'column' });
     expect(robots.rateSchema).toMatchObject({ id: 'audioRig.lfoDrift.robots.rateDrift', min: -100, max: 100, unit: '%' });
     expect(robots.depthSchema).toMatchObject({ id: 'audioRig.lfoDrift.robots.depthDrift', min: -100, max: 100, unit: '%' });
   });
@@ -335,8 +336,8 @@ describe('PING_VARIANCE_AUTOMATION_SCHEMA', () => {
   });
 
   it('carries the confirmed lore label and human label', () => {
-    expect(PING_VARIANCE_AUTOMATION_SCHEMA.loreLabel).toBe('Trace Width');
-    expect(PING_VARIANCE_AUTOMATION_SCHEMA.humanLabel).toBe('Automation Range');
+    expect(PING_VARIANCE_AUTOMATION_SCHEMA.loreLabel).toBe(CONTENT['fleet.pacing.automationRange'].lore);
+    expect(PING_VARIANCE_AUTOMATION_SCHEMA.humanLabel).toBe(CONTENT['fleet.pacing.automationRange'].human);
   });
 
   it('carries an explicit fine-grained step, same regression guard as every other sliderLinear schema in this file', () => {
@@ -451,8 +452,8 @@ describe('BPM_SCHEMA (docs/specs/BPM_CONTROL.md §1.4-§1.5)', () => {
   });
 
   it('carries the confirmed lore label and human label', () => {
-    expect(BPM_SCHEMA.loreLabel).toBe('Ping Rate');
-    expect(BPM_SCHEMA.humanLabel).toBe('Tempo');
+    expect(BPM_SCHEMA.loreLabel).toBe(CONTENT['fleet.pacing.tempo'].lore);
+    expect(BPM_SCHEMA.humanLabel).toBe(CONTENT['fleet.pacing.tempo'].human);
   });
 
   it('is wider than the [40, 100] locale seed range on both ends — freely draggable beyond anything a locale would seed', () => {
@@ -567,14 +568,14 @@ describe('vertical slider verticalHeight budget (roadmap 13 — "Vertical Slider
 // used to carry, before the type swap to `panel` (docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 2)
 // — verbatim preservation is guarded by comparing `panel`'s text against these literals directly,
 // since there's no more sibling `accordion` field left to compare against at runtime.
-const EXPECTED_BLOCK_LABELS: Record<(typeof EFFECT_KEYS)[number], { loreLabel: string; humanLabel: string }> = {
-  eq3: { loreLabel: 'SPECTRAL FREQUENCY EQUALIZER', humanLabel: '3-Band EQ' },
-  filterLPF: { loreLabel: 'HIGH-FREQUENCY MASK', humanLabel: 'Low-Pass Filter' },
-  filterHPF: { loreLabel: 'LOW-FREQUENCY MASK', humanLabel: 'High-Pass Filter' },
-  delay: { loreLabel: 'TEMPORAL REFLECTION MATRIX', humanLabel: 'Delay' },
-  reverb: { loreLabel: 'SPATIAL DIFFUSION MATRIX', humanLabel: 'Reverb' },
-  compressor: { loreLabel: 'DYNAMIC RANGE CONDENSER', humanLabel: 'Compressor' },
-  limiter: { loreLabel: 'TERMINAL CEILING GATE', humanLabel: 'Limiter' },
+const EXPECTED_BLOCK_LABELS: Record<(typeof EFFECT_KEYS)[number], { loreLabel?: string; humanLabel: string }> = {
+  eq3: labels('fleet.eq', { surface: 'heading' }),
+  filterLPF: labels('fleet.lpf', { surface: 'heading' }),
+  filterHPF: labels('fleet.hpf', { surface: 'heading' }),
+  delay: labels('fleet.delay', { surface: 'heading' }),
+  reverb: labels('fleet.reverb', { surface: 'heading' }),
+  compressor: labels('fleet.compressor', { surface: 'heading' }),
+  limiter: labels('fleet.limiter', { surface: 'heading' }),
 };
 
 describe('AudioRigEffectBlock.panel (DirectionalPanel wiring, Tasks 1-2)', () => {
@@ -617,9 +618,9 @@ describe('LfoDriftGroupSchema.panel (DirectionalPanel wiring, Tasks 1-2)', () =>
   });
 
   it("every panel's loreLabel/humanLabel matches LFO_DRIFT_GROUPS' own invented labels (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF's 3 former entries merged into one globalFx entry; labels further renamed by docs/reference/text-content-tables.md)", () => {
-    const expectedLabels: Record<string, { loreLabel: string; humanLabel: string }> = {
-      globalFx: { loreLabel: 'Trace Appendix', humanLabel: 'Environmental Drift' },
-      robots: { loreLabel: 'Probe Signature', humanLabel: 'Voice Drift' },
+    const expectedLabels: Record<string, { loreLabel?: string; humanLabel: string }> = {
+      globalFx: labels('fleet.drift.environmental'),
+      robots: labels('fleet.drift.voice'),
     };
     for (const group of LFO_DRIFT_GROUPS) {
       expect(group.panel.loreLabel, group.group).toBe(expectedLabels[group.group].loreLabel);
@@ -662,7 +663,7 @@ describe('SPEED_AUTOMATION_PANEL_SCHEMA no longer exists (docs/specs/AUTOMATION_
 describe('AUDIO_LOAD_PRESET_SCHEMA', () => {
   it('is a radio in the audioRig.* namespace offering exactly Light, Standard and Full', () => {
     expect(AUDIO_LOAD_PRESET_SCHEMA).toMatchObject({ type: 'radio', id: 'audioRig.audioLoadPreset' });
-    expect(AUDIO_LOAD_PRESET_SCHEMA.options.map((o) => o.label)).toEqual(['Light', 'Standard', 'Full']);
+    expect(AUDIO_LOAD_PRESET_SCHEMA.options.map((o) => o.humanLabel)).toEqual(Object.values(CONTENT['settings.quality.preset'].options).map((o) => o.human));
   });
 
   it('uses the preset names audioBudget.ts parses (?load=light|standard|full) as its option values', () => {
@@ -698,9 +699,9 @@ describe('AUDIO_ROBOT_LOAD_SCHEMA', () => {
     }
   });
 
-  it('has a non-empty invented loreLabel and the humanLabel Robot Load', () => {
+  it('has a non-empty invented loreLabel and the humanLabel from content (settings.quality.robotLoad)', () => {
     expect(AUDIO_ROBOT_LOAD_SCHEMA.loreLabel).toBeTruthy();
-    expect(AUDIO_ROBOT_LOAD_SCHEMA.humanLabel).toBe('Robot Load');
+    expect(AUDIO_ROBOT_LOAD_SCHEMA.humanLabel).toBe(CONTENT['settings.quality.robotLoad'].human);
   });
 });
 
@@ -726,9 +727,9 @@ describe('AUDIO_EFFECTS_LOAD_SCHEMA', () => {
     }
   });
 
-  it('has a non-empty invented loreLabel and the humanLabel Effects Load', () => {
+  it('has a non-empty invented loreLabel and the humanLabel from content (settings.quality.effectsLoad)', () => {
     expect(AUDIO_EFFECTS_LOAD_SCHEMA.loreLabel).toBeTruthy();
-    expect(AUDIO_EFFECTS_LOAD_SCHEMA.humanLabel).toBe('Effects Load');
+    expect(AUDIO_EFFECTS_LOAD_SCHEMA.humanLabel).toBe(CONTENT['settings.quality.effectsLoad'].human);
   });
 
   it('has a distinct id and loreLabel from AUDIO_ROBOT_LOAD_SCHEMA', () => {
@@ -742,7 +743,7 @@ describe('AUDIO_LOAD_PANEL_SCHEMA', () => {
     expect(AUDIO_LOAD_PANEL_SCHEMA).toMatchObject({
       type: 'directionalPanel',
       orientation: 'column',
-      humanLabel: 'Audio Load',
+      humanLabel: CONTENT['settings.quality.audioLoad'].human,
     });
     expect(AUDIO_LOAD_PANEL_SCHEMA.id).toMatch(/^audioRig\./);
     expect(AUDIO_LOAD_PANEL_SCHEMA.loreLabel).toBeTruthy();
@@ -762,3 +763,24 @@ describe('AUDIO_LOAD_PANEL_SCHEMA', () => {
   });
 });
 
+
+describe('audioRigConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 7)', () => {
+  it('carries no copy literal of its own — every loreLabel/humanLabel/unit is spread in from CONTENT', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(__dirname, 'audioRigConfig.ts'), 'utf8');
+    expect(src).not.toMatch(/(loreLabel|humanLabel|unit)\s*:\s*['"`]/);
+    expect(src).not.toMatch(/panelSchema\([^)]*'[A-Z][^']*'/); // no positional heading strings either
+  });
+
+  it('every schema label equals its concept\'s CONTENT entry', async () => {
+    const { CONTENT } = await import('@/content');
+    expect(BPM_SCHEMA.humanLabel).toBe(CONTENT['fleet.pacing.tempo'].human);
+    expect(BPM_SCHEMA.unit).toBe(CONTENT['fleet.pacing.tempo'].unit);
+    expect(AUDIO_ROBOT_LOAD_SCHEMA.humanLabel).toBe(CONTENT['settings.quality.robotLoad'].human);
+    const lpf = AUDIO_RIG_CONFIG.find((b) => b.key === 'filterLPF')!;
+    expect(lpf.panel.loreLabel).toBe(CONTENT['fleet.lpf'].heading);
+    expect(lpf.params[0].schema.loreLabel).toBe(CONTENT['fleet.lpf.cutoff'].lore);
+    expect((lpf.params[0].schema as { unit?: string }).unit).toBe(CONTENT['fleet.lpf.cutoff'].unit);
+  });
+});

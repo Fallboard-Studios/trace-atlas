@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { CompaniesContent } from './CompaniesContent';
+import { CONTENT } from '@/content';
 import { useUIStore } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
@@ -56,12 +57,12 @@ describe('CompaniesContent — routes the Companies branch to Create, or Rename/
 
   it('renders the "Companies" section IntroPanel for the bare node, and "Individual Company" once one is selected', () => {
     const { unmount } = render(<CompaniesContent />);
-    expect(screen.getByText('Companies — organize your fleet into working groups.')).toBeTruthy();
+    expect(screen.getByText(CONTENT['company.root'].intro.lore)).toBeTruthy();
     unmount();
 
     useUIStore.getState().selectCompany('c1');
     render(<CompaniesContent />);
-    expect(screen.getByText('Company Profile — manage this working group.')).toBeTruthy();
+    expect(screen.getByText(CONTENT['company.profile'].intro.lore)).toBeTruthy();
   });
 
   it('renders a Company Selection radio listing every company for the bare "Companies" node, and selecting one calls selectCompany', () => {
@@ -78,5 +79,15 @@ describe('CompaniesContent — routes the Companies branch to Create, or Rename/
     fireEvent.click(screen.getByRole('radio', { name: 'Solaris Combine' }));
 
     expect(useUIStore.getState().selectedCompanyId).toBe('c2');
+  });
+});
+
+describe('CompaniesContent reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 13)', () => {
+  it('carries no copy literal of its own', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const source = readFileSync(resolve(__dirname, 'CompaniesContent.tsx'), 'utf8');
+    expect(source).not.toMatch(/(loreLabel|humanLabel|loreDescription|humanDescription)\s*:\s*['"`]/);
+    expect(source).not.toMatch(/<h2>[A-Za-z]|>Robot not found</);
   });
 });

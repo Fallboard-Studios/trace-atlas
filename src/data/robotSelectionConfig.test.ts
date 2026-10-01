@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-
 import {
   ROBOT_SELECTION_ROW_SCHEMAS,
+  BATTERY_READOUT_SCHEMA,
   JOB_TYPE_LABELS,
   UNASSIGNED_JOB_LABEL,
   DOCKING_STATE_LABELS,
@@ -9,6 +9,8 @@ import {
   AUDIO_STATUS_COLOR_MAP,
   AUDIBILITY_LABELS,
 } from './robotSelectionConfig';
+import { CONTENT } from '@/content';
+
 import { JobType, DockingState } from '@/types/Robot';
 
 // Every Robot['audioMode'] value per its own type comment (Robot.ts) — no const-object export
@@ -19,9 +21,9 @@ const AUDIO_MODES = ['none', 'mute', 'solo', 'highlight'] as const;
 describe('robotSelectionConfig', () => {
   describe('ROBOT_SELECTION_ROW_SCHEMAS', () => {
     it('matches ROBOT_DATA_GRID.md\'s exact lore/human pairs for its three remaining card rows', () => {
-      expect(ROBOT_SELECTION_ROW_SCHEMAS.name).toMatchObject({ loreLabel: 'ROBOT IDENTIFIER', humanLabel: 'Robot Name' });
-      expect(ROBOT_SELECTION_ROW_SCHEMAS.job).toMatchObject({ loreLabel: 'ASSIGNED PROTOCOL', humanLabel: 'Job Data' });
-      expect(ROBOT_SELECTION_ROW_SCHEMAS.docking).toMatchObject({ loreLabel: 'DOCKING STATE', humanLabel: 'Docked Status' });
+      expect(ROBOT_SELECTION_ROW_SCHEMAS.name).toMatchObject({ loreLabel: CONTENT['probe.name'].lore, humanLabel: CONTENT['probe.name'].human });
+      expect(ROBOT_SELECTION_ROW_SCHEMAS.job).toMatchObject({ loreLabel: CONTENT['probe.job'].lore, humanLabel: CONTENT['probe.job'].human });
+      expect(ROBOT_SELECTION_ROW_SCHEMAS.docking).toMatchObject({ loreLabel: CONTENT['probe.status.docking'].lore, humanLabel: CONTENT['probe.status.docking'].human });
     });
 
     // Roadmap 15.2 (docs/specs/ROBOT_CARDS_REDESIGN.md §1.5 item 1): .battery moved to
@@ -37,7 +39,7 @@ describe('robotSelectionConfig', () => {
     // label of its own, so this is new rather than a rename of an existing entry.
     it('has a .status entry with a non-empty loreLabel and humanLabel of "Status"', () => {
       expect(ROBOT_SELECTION_ROW_SCHEMAS.status.loreLabel).toBeTruthy();
-      expect(ROBOT_SELECTION_ROW_SCHEMAS.status.humanLabel).toBe('Status');
+      expect(ROBOT_SELECTION_ROW_SCHEMAS.status.humanLabel).toBe(CONTENT['probe.status'].human);
     });
 
     it('every row schema is a dualLabel-typed ControlSchema with a unique id', () => {
@@ -59,12 +61,12 @@ describe('robotSelectionConfig', () => {
     });
 
     it("labels read 'Emitting'/'Disabled', per the confirmed intent", () => {
-      expect(AUDIBILITY_LABELS.emitting.humanLabel).toBe('Emitting');
-      expect(AUDIBILITY_LABELS.disabled.humanLabel).toBe('Disabled');
+      expect(AUDIBILITY_LABELS.emitting.humanLabel).toBe(CONTENT['probe.status'].options.emitting.human);
+      expect(AUDIBILITY_LABELS.disabled.humanLabel).toBe(CONTENT['probe.status'].options.disabled.human);
     });
 
     it("has a third state, 'Standing by', for a robot the Audio Load budget is holding back", () => {
-      expect(AUDIBILITY_LABELS.limited.humanLabel).toBe('Standing by');
+      expect(AUDIBILITY_LABELS.limited.humanLabel).toBe(CONTENT['probe.status'].options.limited.human);
       expect(AUDIBILITY_LABELS.limited.loreLabel).toBeTruthy();
     });
 
@@ -114,7 +116,7 @@ describe('robotSelectionConfig', () => {
     });
 
     it("labels 'none' as 'Auto', not 'Off' — matches AUDIO_SETTING_SCHEMA's own relabel (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.3), so the Robot Selection card list reads consistently with Robot Options' own Audio Setting control", () => {
-      expect(AUDIO_MODE_LABELS.none.humanLabel).toBe('Auto');
+      expect(AUDIO_MODE_LABELS.none.humanLabel).toBe(CONTENT['probe.status.monitorMode'].options.none.human);
     });
   });
 
@@ -131,5 +133,26 @@ describe('robotSelectionConfig', () => {
         expect(AUDIO_STATUS_COLOR_MAP[mode]).toBeDefined();
       }
     });
+  });
+});
+
+describe('robotSelectionConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 9)', () => {
+  it('carries no copy literal of its own — the value-label maps are optionsRecord() wrappers', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(__dirname, 'robotSelectionConfig.ts'), 'utf8');
+    expect(src).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
+    expect(src).toMatch(/optionsRecord\('probe\.job'\)/);
+  });
+  it('wrappers expose exactly the same keys and text as CONTENT', async () => {
+    const { CONTENT } = await import('@/content');
+    expect(Object.keys(JOB_TYPE_LABELS)).toEqual(Object.keys(CONTENT['probe.job'].options));
+    expect(JOB_TYPE_LABELS.ventExtraction.humanLabel).toBe(CONTENT['probe.job'].options.ventExtraction.human);
+    expect(DOCKING_STATE_LABELS.docked.loreLabel).toBe(CONTENT['probe.status.docking'].options.docked.lore);
+    expect(AUDIBILITY_LABELS.limited.humanLabel).toBe(CONTENT['probe.status'].options.limited.human);
+    expect(AUDIO_MODE_LABELS.none.loreLabel).toBe(CONTENT['probe.status.monitorMode'].options.none.lore);
+    expect(UNASSIGNED_JOB_LABEL.humanLabel).toBe(CONTENT['probe.job.unassigned'].human);
+    expect(ROBOT_SELECTION_ROW_SCHEMAS.name.humanLabel).toBe(CONTENT['probe.name'].human);
+    expect(BATTERY_READOUT_SCHEMA.unit).toBe(CONTENT['probe.battery'].unit);
   });
 });

@@ -139,7 +139,7 @@ function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSi
             key={option.value}
             className="sc-radio-button__item"
             value={option.value}
-            aria-label={option.label}
+            aria-label={option.humanLabel}
             style={option.color ? getRobotColorStyle(option.color) : undefined}
             onMouseEnter={() => setHoveredValue(option.value)}
             onMouseLeave={() => setHoveredValue((current) => (current === option.value ? null : current))}
@@ -151,7 +151,7 @@ function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSi
               timelineKey={`cabinet-radio-${schema.id}-${instanceId}-${option.value}`}
               {...(boxSize !== undefined ? { boxHeight: boxSize, frontWidth: boxSize, frontHeight: boxSize } : {})}
             >
-              <DualLabel loreLabel={option.loreLabel} humanLabel={option.label} />
+              <DualLabel loreLabel={option.loreLabel} humanLabel={option.humanLabel} />
             </CabinetBox>
           </ToggleGroup.Item>
         ))}

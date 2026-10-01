@@ -11,6 +11,7 @@ import { useAudioStore } from '@/stores/audioStore';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
 import type { ToggleSchema, SliderLinearSchema } from '@/types/controls';
+import { labels } from '@/content';
 
 import './Header.css';
 
@@ -47,13 +48,13 @@ function useMatchesMediaQuery(query: string): boolean {
   );
 }
 
-/** humanLabel: 'Mute' feeds the switch's accessible name (resolveAccessibleName).
+/** The Mute toggle's human label (content header.mute) feeds the switch's accessible name (resolveAccessibleName).
  *  The Toggle usage below passes an icon facade (🔇/🔊, swapped on isMuted)
  *  instead of relying on the external DualLabel row — loreLabel added per
  *  Crawford's own request (2026-09-16) to resolve the flagged gap
  *  (docs/specs/HEADER_HUB_CONSOLIDATION.md §7 item #2), even though it
  *  renders alongside the facade icon rather than replacing it. */
-const MUTE_SCHEMA: ToggleSchema = { id: 'headerMute', type: 'toggle', loreLabel: 'SIGNAL SUPPRESSION', humanLabel: 'Mute' };
+const MUTE_SCHEMA: ToggleSchema = { id: 'headerMute', type: 'toggle', ...labels('header.mute') };
 
 /** Distinct id from SettingsContent.tsx's own VOLUME_SCHEMA ('headerVolume')
  *  — Header is always mounted, so if Settings -> Volume is open at the same
@@ -66,11 +67,9 @@ const MASTER_VOLUME_SCHEMA: SliderLinearSchema = {
   min: 0,
   max: 100,
   step: 1,
-  unit: '%',
   orientation: 'horizontal',
   type: 'sliderLinear',
-  loreLabel: 'Master Output',
-  humanLabel: 'Volume'
+  ...labels('header.volume'),
 };
 
 /**

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { memo } from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { RobotOptionsTab } from './RobotOptionsTab';
+import { CONTENT } from '@/content';
 import { installIntersectionObserverStub, approachSection } from '@/testUtils/intersectionObserverStub';
 import { clearSectionRef } from '@/utils/sectionRefs';
 import { openAccordionFromNav, clearPendingNavTarget } from '@/utils/accordionSync';
@@ -177,7 +178,7 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    for (const label of ['Levels', 'Composition', 'Envelope', 'Source']) {
+    for (const label of [CONTENT['probe.levels'].human, CONTENT['probe.composition'].human, CONTENT['probe.envelope'].human, CONTENT['probe.source'].human]) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
     // Probe Drift is gone entirely (docs/specs/FLEET_DRIFT_CONSOLIDATION.md follow-up) — moved to
@@ -190,7 +191,7 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     selectRobot(robot);
     render(<RobotOptionsTab />);
 
-    for (const label of ['Core Oscillator', 'Companion Oscillator', 'Accent Oscillator']) {
+    for (const label of [CONTENT['probe.source.core'].human, CONTENT['probe.source.companion'].human, CONTENT['probe.source.accent'].human]) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
   });
@@ -515,5 +516,15 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
       expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-volume-held-off')).toBe('false');
     });
+  });
+});
+
+describe('RobotOptionsTab reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 13)', () => {
+  it('carries no copy literal of its own', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const source = readFileSync(resolve(__dirname, 'RobotOptionsTab.tsx'), 'utf8');
+    expect(source).not.toMatch(/(loreLabel|humanLabel|loreDescription|humanDescription)\s*:\s*['"`]/);
+    expect(source).not.toMatch(/<h2>[A-Za-z]|>Robot not found</);
   });
 });

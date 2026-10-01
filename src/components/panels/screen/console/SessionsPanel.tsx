@@ -11,6 +11,7 @@ import { SESSION_NAME_INPUT_SCHEMA, SAVE_SESSION_SCHEMA, SHARE_SESSION_SCHEMA, C
 import { formatSessionTimestamp } from '@/utils/helpers';
 import type { SessionEntry } from '@/types/session';
 
+import { CONTENT, fill } from '@/content';
 import './SessionsPanel.css';
 
 /**
@@ -76,21 +77,21 @@ export function SessionsPanel() {
         {saveStatus &&
           (saveStatus.success ? (
             <span className="sessions-panel__save-status" role="status">
-              {`Saved ${saveStatus.name} at ${saveStatus.savedAt}`}
+              {fill('session.status.saved', { name: saveStatus.name, time: saveStatus.savedAt })}
             </span>
           ) : (
             <span className="sessions-panel__save-status sessions-panel__save-status--error" role="alert">
-              {`${saveStatus.name} failed to save.`}
+              {fill('session.status.saveFailed', { name: saveStatus.name })}
             </span>
           ))}
         {shareStatus === 'copied' && (
           <span className="sessions-panel__share-status" role="status">
-            Link copied
+            {CONTENT['session.status.linkCopied'].human}
           </span>
         )}
         {shareStatus === 'error' && (
           <span className="sessions-panel__share-status sessions-panel__share-status--error" role="alert">
-            Unable to copy
+            {CONTENT['session.status.copyFailed'].human}
           </span>
         )}
       </div>
@@ -107,15 +108,15 @@ export function SessionsPanel() {
           <AlertDialog.Overlay className="clear-storage-confirm__overlay" />
           <AlertDialog.Content className="clear-storage-confirm__content">
             <AlertDialog.Title className="clear-storage-confirm__title">
-              Clear Local Storage?
+              {CONTENT['session.clearStorage.confirmTitle'].human}
             </AlertDialog.Title>
             <AlertDialog.Description className="clear-storage-confirm__description">
-              Every saved and autosaved session is deleted. This can&apos;t be undone.
+              {CONTENT['session.clearStorage.confirmBody'].human}
             </AlertDialog.Description>
             <div className="clear-storage-confirm__actions">
-              <AlertDialog.Cancel className="clear-storage-confirm__cancel">Cancel</AlertDialog.Cancel>
+              <AlertDialog.Cancel className="clear-storage-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
               <AlertDialog.Action className="clear-storage-confirm__confirm" onClick={handleConfirmClearStorage}>
-                Clear Local Storage
+                {CONTENT['session.clearStorage'].human}
               </AlertDialog.Action>
             </div>
           </AlertDialog.Content>

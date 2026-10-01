@@ -133,9 +133,8 @@ describe('Nav panel — rename-correctness guard (docs/tasks/NAV_PANEL_VIEWS_AND
     // SUBSECTION_CHILDREN) now lives in robotSubsectionConfig.ts as ROBOT_SECTIONS_CONFIG,
     // consumed by useNavTree.ts's sectionChildNodes() rather than hand-typed there directly.
     const configSource = readSource('../../../../data/robotSubsectionConfig.ts');
-    expect(configSource).toContain("loreLabel: 'Output'");
-    expect(configSource).toContain("navLabel: 'Dynamics'");
-    // The id segment itself is still 'volume' — ROBOT_SECTIONS_CONFIG's own id/loreLabel/navLabel
+    expect(configSource).toContain("content: 'probe.dynamics'");
+    // The id segment itself is still 'volume' — ROBOT_SECTIONS_CONFIG's own id/content key
     // are separate fields, so 'Output' never becomes a literal id anywhere in this file.
     expect(configSource).not.toMatch(/id:\s*'[^']*output[.']/i);
   });

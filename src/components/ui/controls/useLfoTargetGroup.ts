@@ -3,6 +3,7 @@ import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
 import { LFO_RATE_MIN, LFO_DEPTH_MIN } from '@/types/lfo';
+import { CONTENT } from '@/content';
 import type { LfoValue } from '@/types/controls';
 
 /**
@@ -109,7 +110,7 @@ export function useLfoTargetGroup<F extends string = string>({
   // Label stays visible through the transition (avoids the display flickering blank/unlabeled
   // between renders) — only the values reset to neutral while transitioning.
   const displayLabel = activeField.label;
-  const displayLoreLabel = activeField.loreLabel ?? 'Mutation';
+  const displayLoreLabel = activeField.loreLabel ?? CONTENT['ui.lfo'].lore;
 
   return {
     selected,

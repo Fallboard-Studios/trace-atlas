@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { NAV_TREE_SCHEMA, type NavTreeNodeSchema } from './navTreeConfig';
+import { CONTENT } from '@/content';
 
 /** Depth-first search by id across the static schema — mirrors how
  *  useNavTree (Task 3) will need to resolve a node id to its schema entry. */
@@ -23,8 +24,8 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
     const settings = findNode('settings');
     // Reversed from docs/reference/text-content-tables.md's original split (Crawford's own
     // correction) — "Settings" is the human label, "Navigation" is the lore label.
-    expect(settings?.loreLabel).toBe('Navigation');
-    expect(settings?.humanLabel).toBe('Settings');
+    expect(settings?.loreLabel).toBe(CONTENT['settings.root'].lore);
+    expect(settings?.humanLabel).toBe(CONTENT['settings.root'].human);
     expect(settings?.children?.map((c) => c.id)).toEqual([
       'settings.quality',
       'settings.sectorSettings',
@@ -34,7 +35,7 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
 
   it('Settings -> Sessions (Roadmap Phase 20, docs/tasks/SESSION_STORAGE.md Task 10) has no static children', () => {
     const sessions = findNode('settings.sessions');
-    expect(sessions?.humanLabel).toBe('Save & Share');
+    expect(sessions?.humanLabel).toBe(CONTENT['settings.sessions'].human);
     expect(sessions?.children).toBeUndefined();
   });
 
@@ -44,7 +45,7 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
       'settings.quality.robotLoad',
       'settings.quality.effectsLoad',
     ]);
-    expect(quality?.children?.map((c) => c.humanLabel)).toEqual(['Voice Limit', 'Effects Limit']);
+    expect(quality?.children?.map((c) => c.humanLabel)).toEqual([CONTENT['settings.quality.robotLoad'].human, CONTENT['settings.quality.effectsLoad'].human]);
   });
 
   it('Settings -> Presets has Attenuation Style/Coordinates children (already-existing SectorSettingsDrawer.tsx rows, given their own tree anchor)', () => {
@@ -53,12 +54,12 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
       'settings.sectorSettings.attenuationStyle',
       'settings.sectorSettings.coordinates',
     ]);
-    expect(sectorSettings?.children?.map((c) => c.humanLabel)).toEqual(['Atmosphere', 'Location']);
+    expect(sectorSettings?.children?.map((c) => c.humanLabel)).toEqual([CONTENT['sector.attenuationStyle'].human, CONTENT['sector.coords'].human]);
   });
 
   it('Fleet Params has Pacing plus 3 category groups (EQ & Filters, Time & Space, Output), each with their own leaves', () => {
     const fleetParams = findNode('fleetParams');
-    expect(fleetParams?.humanLabel).toBe('Fleet Params');
+    expect(fleetParams?.humanLabel).toBe(CONTENT['fleet.root'].human);
     expect(fleetParams?.children?.map((c) => c.id)).toEqual([
       'fleetParams.pacing',
       'fleetParams.eqFilters',
@@ -70,14 +71,14 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
 
   it('Fleet Params -> Pacing has Tempo/Frequency/Duration/Automatic Intensity children, sharing one accordion in the content view unlike the 3 groups below it (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md)', () => {
     const pacing = findNode('fleetParams.pacing');
-    expect(pacing?.humanLabel).toBe('Pacing');
+    expect(pacing?.humanLabel).toBe(CONTENT['fleet.pacing'].human);
     expect(pacing?.children?.map((c) => c.id)).toEqual([
       'fleetParams.pacing.tempo',
       'fleetParams.pacing.frequency',
       'fleetParams.pacing.duration',
       'fleetParams.pacing.automaticEffects',
     ]);
-    expect(pacing?.children?.map((c) => c.humanLabel)).toEqual(['Tempo', 'Automation Rate', 'Automation Length', 'Automation Range']);
+    expect(pacing?.children?.map((c) => c.humanLabel)).toEqual([CONTENT['fleet.pacing.tempo'].human, CONTENT['fleet.pacing.automationRate'].human, CONTENT['fleet.pacing.automationLength'].human, CONTENT['fleet.pacing.automationRange'].human]);
   });
 
   it('Fleet Params -> EQ & Filters has EQ/HPF/LPF leaves in that order', () => {
@@ -91,9 +92,9 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
 
   it('Fleet Params -> Drift has exactly 2 leaves, Environmental Drift then Voice Drift (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — new top-level group, positioned right after EQ & Filters; further renamed "LFO Drift"->"Drift" and its 2 leaves per docs/reference/text-content-tables.md)', () => {
     const fleetDrift = findNode('fleetParams.fleetDrift');
-    expect(fleetDrift?.humanLabel).toBe('Drift');
+    expect(fleetDrift?.humanLabel).toBe(CONTENT['fleet.drift'].human);
     expect(fleetDrift?.children?.map((c) => c.id)).toEqual(['fleetParams.fleetDrift.drift', 'fleetParams.fleetDrift.robots']);
-    expect(fleetDrift?.children?.map((c) => c.humanLabel)).toEqual(['Environmental Drift', 'Voice Drift']);
+    expect(fleetDrift?.children?.map((c) => c.humanLabel)).toEqual([CONTENT['fleet.drift.environmental'].human, CONTENT['fleet.drift.voice'].human]);
   });
 
   it('Fleet Params -> Time & Space has Reverb/Delay leaves', () => {
@@ -111,7 +112,7 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
 
   it('Probes has only the static "All Probes" parent — per-robot subtrees are generated at render time, not authored here', () => {
     const probes = findNode('probes');
-    expect(probes?.humanLabel).toBe('Probes');
+    expect(probes?.humanLabel).toBe(CONTENT['probe.root'].human);
     expect(probes?.children?.map((c) => c.id)).toEqual(['probes.all']);
   });
 
@@ -122,7 +123,7 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
 
   it('Companies is a static parent with no static children — per-company subtrees are generated at render time', () => {
     const companies = findNode('companies');
-    expect(companies?.humanLabel).toBe('Companies');
+    expect(companies?.humanLabel).toBe(CONTENT['company.root'].human);
     expect(companies?.children).toBeUndefined();
   });
 
@@ -212,4 +213,36 @@ describe('NAV_TREE_SCHEMA — trait color-coding (experimental, Crawford\'s own 
   // "All Probes"' 4 section leaves' output/composition/timeSpace/spectral trait mapping is now
   // covered where they're generated — useNavTree.ts's own SECTION_CHILDREN, exercised by
   // useNavTree.test.ts — not here, since they're no longer part of the static schema.
+});
+
+describe('navTreeConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 10)', () => {
+  it('carries no copy literal of its own; every static node is authored with a content key, never a label or docId', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(__dirname, 'navTreeConfig.ts'), 'utf8');
+    expect(src).not.toMatch(/(loreLabel|humanLabel)\s*:\s*['"`]/);
+    expect(src).not.toMatch(/docId/);
+    const { NAV_TREE_CONFIG } = await import('./navTreeConfig');
+    const { CONTENT } = await import('@/content');
+    const walk = (nodes: Array<{ id: string; content: string; children?: unknown[] }>) => {
+      for (const n of nodes) {
+        expect(n.content, n.id).toBeDefined();
+        expect(CONTENT, `${n.id} → ${n.content}`).toHaveProperty(n.content);
+        expect(n).not.toHaveProperty('humanLabel');
+        expect(n).not.toHaveProperty('loreLabel');
+        if (n.children) walk(n.children as Array<{ id: string; content: string; children?: unknown[] }>);
+      }
+    };
+    walk(NAV_TREE_CONFIG as never);
+  });
+  it('the resolved NAV_TREE_SCHEMA carries each node\'s CONTENT human/lore pair', async () => {
+    const { CONTENT } = await import('@/content');
+    const fleet = NAV_TREE_SCHEMA.find((n) => n.id === 'fleetParams')!;
+    expect([fleet.humanLabel, fleet.loreLabel]).toEqual([CONTENT['fleet.root'].human, CONTENT['fleet.root'].lore]);
+    const tempo = fleet.children![0].children![0];
+    expect([tempo.id, tempo.humanLabel, tempo.loreLabel]).toEqual(['fleetParams.pacing.tempo', CONTENT['fleet.pacing.tempo'].human, CONTENT['fleet.pacing.tempo'].lore]);
+    const allProbes = NAV_TREE_SCHEMA.find((n) => n.id === 'probes')!.children![0];
+    expect(allProbes.humanLabel).toBe(CONTENT['probe.all'].human);
+    expect(allProbes).not.toHaveProperty('loreLabel');
+  });
 });

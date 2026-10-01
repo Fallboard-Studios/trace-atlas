@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/controls/Button';
 import { useUIStore } from '@/stores/uiStore';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
 import type { ButtonSchema } from '@/types/controls';
+import { labels } from '@/content';
 import './NavPanel.css';
 
 const TIMELINE_KEY = 'nav-panel-slide';
@@ -20,7 +21,7 @@ const SLIDE_DURATION = 0.25;
 // Relocated from ContentPane.tsx's own former "Close" button (docs/specs/NAV_LAYOUT_REWRITE.md
 // Task 8) — same schema-driven Button primitive, same reset behavior, just renamed and moved
 // above NavTree so it's always reachable rather than only appearing once a tile is active.
-const HOME_SCHEMA: ButtonSchema = { id: 'navPanelHome', type: 'button', loreLabel: 'Monitor', humanLabel: 'Deck' };
+const HOME_SCHEMA: ButtonSchema = { id: 'navPanelHome', type: 'button', ...labels('nav.home') };
 
 /**
  * Docked (desktop/tablet) vs. slide-off (mobile) shell around NavTree (docs/specs/

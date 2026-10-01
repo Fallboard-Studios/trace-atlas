@@ -4,6 +4,7 @@ import { DualLabel } from './DualLabel';
 import { resolveAccessibleName } from './accessibleName';
 import { formatDisplayValue } from './formatDisplayValue';
 import type { StepperSchema } from '@/types/controls';
+import { fill } from '@/content';
 import './Stepper.css';
 
 interface StepperProps {
@@ -38,7 +39,7 @@ function StepperInner({ schema, value, onChange, disabled }: StepperProps) {
         <button
           type="button"
           className="sc-stepper__btn"
-          aria-label={`Decrement ${accessibleName}`}
+          aria-label={fill('ui.stepper.decrement', { name: accessibleName })}
           onClick={decrement}
           disabled={disabled || value <= schema.min}
         >
@@ -48,7 +49,7 @@ function StepperInner({ schema, value, onChange, disabled }: StepperProps) {
         <button
           type="button"
           className="sc-stepper__btn"
-          aria-label={`Increment ${accessibleName}`}
+          aria-label={fill('ui.stepper.increment', { name: accessibleName })}
           onClick={increment}
           disabled={disabled || value >= schema.max}
         >

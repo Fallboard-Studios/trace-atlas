@@ -17,7 +17,8 @@ import type { GlobalAudioSettings } from './globalAudio';
 export interface RobotAudioOverrideDiff {
   adsr?: ADSREnvelope;
   layers?: OscillatorLayer[];
-  /** AudioAttributes.filterFreq — "transducer pressure ratio" in UI lore copy. */
+  /** AudioAttributes.filterFreq — the robot's seeded bus low-pass cutoff (Hz). Seeded only, no UI
+   *  control today; "Transducer Pressure" is the Volume slider's lore label, not this field's. */
   filterFreq?: number;
   rhythmicDensity?: number;
   rhythmicMotifLength?: { active: boolean; value: number };

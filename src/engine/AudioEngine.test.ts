@@ -217,7 +217,7 @@ describe('AudioEngine.reReserveVoice', () => {
               audioAttributes: {
                 waveform: 'sine',
                 adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.5 },
-                filterFreq: 1200,
+                filterFreq: 1850,
                 layers: [{ type: 'sine', pulseWidth: 0.42 }],
                 phase: 37,
                 detune: 5,
@@ -247,7 +247,40 @@ describe('AudioEngine.reReserveVoice', () => {
       5,
       0.42,
       0.8,
+      // filterFreq (1850, the robot's own seeded cutoff) is the 8th — the per-robot bus
+      // low-pass. A non-default value here, so a dropped argument can't pass by coincidence.
+      1850,
     );
+  });
+});
+
+describe('AudioEngine.reserveVoice — per-robot bus filter cutoff', () => {
+  // Each robot's seeded `audioAttributes.filterFreq` (Robot.ts: "Hz cutoff, 0 = no filter") drives
+  // its body detail and greeble count, but until this landed nothing applied it to audio — every
+  // bus filter was a fixed 1,200 Hz. ROBOT_DESIGN's visual↔audio mapping needs it audible.
+  const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+  const lastFilterCtorConfig = async () => {
+    const Tone = await import('tone');
+    return (Tone.Filter as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as { frequency: number; Q: number };
+  };
+
+  afterEach(() => {
+    AudioEngine.releaseVoice('bus-filter-robot');
+  });
+
+  it('builds the bus filter at the robot\'s own filterFreq', async () => {
+    AudioEngine.reserveVoice('bus-filter-robot', layered, TEST_ADSR, undefined, undefined, undefined, 1, 1850);
+    expect(await lastFilterCtorConfig()).toMatchObject({ frequency: 1850, Q: 1 });
+  });
+
+  it('keeps the legacy 1,200 Hz default when no filterFreq is passed', async () => {
+    AudioEngine.reserveVoice('bus-filter-robot', layered, TEST_ADSR);
+    expect((await lastFilterCtorConfig()).frequency).toBe(1200);
+  });
+
+  it('treats filterFreq 0 as "no filter" (fully open cutoff), per Robot.ts', async () => {
+    AudioEngine.reserveVoice('bus-filter-robot', layered, TEST_ADSR, undefined, undefined, undefined, 1, 0);
+    expect((await lastFilterCtorConfig()).frequency).toBe(20000);
   });
 });
 
@@ -1048,6 +1081,44 @@ describe('AudioEngine - Motif Group Accent', () => {
     expect(step6Params.accentMultiplier).toBeGreaterThan(1);
 
     spy.mockRestore();
+  });
+
+  it('accents through the LIVE transport tick, not only the processMelodyStep test helper', async () => {
+    // Regression: startMelodyPlayback carried its own copy of the per-step loop that dropped
+    // isGroupAccent, so the accent only ever worked through processMelodyStep (which every
+    // other accent test here drives). This drives the real transport callback instead.
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    const storeMod = await import('../stores/localeStore');
+    const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+    const helpers = await import('../utils/localeHelpers');
+    (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(attenuationStyleMod.DEFAULT_LOCALE_ID);
+
+    storeMod.useLocaleStore.getState().setLocaleData(attenuationStyleMod.DEFAULT_LOCALE_ID, {
+      robots: [makeRobot('live-accent-robot', { active: true, value: 4 })],
+    });
+
+    AudioEngine.killAll();
+    await AudioEngine.start();
+    const transport = (Tone.getTransport as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+    const sixteenthTicks = transport.scheduleRepeat.mock.calls
+      .filter((c: unknown[]) => c[1] === '16n')
+      .map((c: unknown[]) => c[0] as (time: number) => void);
+    expect(sixteenthTicks.length).toBeGreaterThan(0);
+
+    // Step 1 is the first tick after start (stepCounter 0) and the earliest event in window [1-4].
+    const melody = [{ id: 'e1', startStep: 1, length: '8n' as const, noteIndex: 0, octave: 4 }];
+    const spy = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => { });
+    AudioEngine.registerRobotMelody('live-accent-robot', melody);
+
+    sixteenthTicks.forEach((tick: (time: number) => void) => tick(0));
+
+    const live = spy.mock.calls.map((c) => c[0]).find((p) => p.robotId === 'live-accent-robot');
+    expect(live).toBeDefined();
+    expect(live!.accentMultiplier).toBeGreaterThan(1);
+
+    spy.mockRestore();
+    AudioEngine.killAll();
   });
 
   it('does not accent any event when Motif Length is inactive (scatter mode)', async () => {
@@ -2139,5 +2210,90 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
     expect(lastInstance(Tone.Reverb).wet.value).toBe(0.35);
     expect(lastInstance(Tone.Limiter).threshold.value).toBe(-2);
     expect(lastInstance(Tone.FeedbackDelay).wet.value).toBe(0.25);
+  });
+});
+
+describe('AudioEngine - updateAllPanners write coalescing', () => {
+  // Tone's Param `value` setter is cancelScheduledValues + setValueAtTime — two timeline
+  // operations — and updateAllPanners runs for every reserved robot on every 16n tick. Robots
+  // are stationary most of the time (docked, idle, between swims), so the pan must only be
+  // written when it actually changed.
+  type AnyMock = ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    // Earlier describes reset modules too; a fresh engine must read the same fresh store
+    // instance this test seeds, so everything below is imported dynamically.
+    vi.resetModules();
+  });
+
+  function spyOnPan(panner: { pan: { value: number } }) {
+    let current = panner.pan.value;
+    const setter = vi.fn((v: number) => { current = v; });
+    Object.defineProperty(panner.pan, 'value', { configurable: true, get: () => current, set: setter });
+    return setter;
+  }
+
+  async function setup(robotId: string, x: number) {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    const storeMod = await import('../stores/localeStore');
+    const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+    const helpers = await import('../utils/localeHelpers');
+    const localeId = attenuationStyleMod.DEFAULT_LOCALE_ID;
+    (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(localeId);
+    storeMod.useLocaleStore.getState().setLocaleData(localeId, {
+      robots: [{ id: robotId, position: { x, y: 0 }, audioMode: 'none' } as any],
+    });
+
+    await AudioEngine.start();
+    const transport = (Tone.getTransport as unknown as AnyMock).mock.results.at(-1)?.value;
+    const ticks = transport.scheduleRepeat.mock.calls
+      .filter((c: unknown[]) => c[1] === '16n')
+      .map((c: unknown[]) => c[0] as (time: number) => void);
+
+    const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+    AudioEngine.reserveVoice(robotId, layered, TEST_ADSR);
+    const panner = (Tone.Panner as unknown as AnyMock).mock.results.at(-1)!.value;
+    const panSet = spyOnPan(panner);
+
+    const moveTo = (nx: number) => {
+      const robots = storeMod.useLocaleStore.getState().locales[localeId]?.robots ?? [];
+      storeMod.useLocaleStore.getState().setLocaleData(localeId, {
+        robots: robots.map((r) => (r.id === robotId ? { ...r, position: { x: nx, y: 0 } } : r)),
+      });
+    };
+    const teardown = () => {
+      AudioEngine.releaseVoice(robotId);
+      AudioEngine.killAll();
+    };
+    return { tick: () => ticks.forEach((t: (time: number) => void) => t(0)), panSet, moveTo, teardown };
+  }
+
+  it('writes the pan once for a stationary robot, not on every tick', async () => {
+    const { tick, panSet, teardown } = await setup('still-robot', 0);
+
+    tick();
+    tick();
+    tick();
+
+    // x: 0 maps to -0.5 (calculatePanFromPosition); the first tick must land it, later ones must not re-write.
+    expect(panSet).toHaveBeenCalledTimes(1);
+    expect(panSet).toHaveBeenCalledWith(-0.5);
+    teardown();
+  });
+
+  it('writes again once the robot has moved', async () => {
+    const { tick, panSet, moveTo, teardown } = await setup('moving-robot', 0);
+
+    tick();
+    expect(panSet).toHaveBeenCalledTimes(1);
+
+    moveTo(1920); // WORLD_WIDTH -> +0.5
+    tick();
+    tick();
+
+    expect(panSet).toHaveBeenCalledTimes(2);
+    expect(panSet).toHaveBeenLastCalledWith(0.5);
+    teardown();
   });
 });

@@ -36,6 +36,7 @@ import type { Robot, ADSREnvelope, WaveformType } from '@/types/Robot';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 
 import './RobotOptionsTab.css';
+import { CONTENT } from '@/content';
 
 // Module-level (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 6) — 'output'/'composition'/
 // 'timeSpace'/'spectral' are literal constants, not derived from any prop/state, so these never
@@ -93,13 +94,13 @@ export function RobotOptionsTab() {
   if (!selectedRobotId) {
     return (
       <div className="robot-options-empty">
-        Select a robot from the list, or use Robots to spawn one.
+        {CONTENT['probe.selectPrompt'].human}
       </div>
     );
   }
 
   if (!robot) {
-    return <div className="robot-options-empty">Robot not found</div>;
+    return <div className="robot-options-empty">{CONTENT['probe.notFound'].human}</div>;
   }
 
   return <RobotOptionsPanel robot={robot} localeId={localeId} />;

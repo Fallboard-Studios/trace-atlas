@@ -2,6 +2,7 @@
 // IMPORTS
 // ========================================
 import type { ButtonSchema, TextInputSchema } from '../types/controls';
+import { labels } from '@/content';
 
 // ========================================
 // SESSIONS (save/load, Roadmap Phase 20)
@@ -13,38 +14,32 @@ import type { ButtonSchema, TextInputSchema } from '../types/controls';
 export const SESSION_NAME_INPUT_SCHEMA: TextInputSchema = {
   id: 'session.name',
   type: 'textInput',
-  loreLabel: 'SESSION DESIGNATION',
-  humanLabel: 'Session Name',
-  placeholder: 'Enter a session name…',
+  ...labels('session.name'),
   maxLength: 128,
 };
 
 export const SAVE_SESSION_SCHEMA: ButtonSchema = {
   id: 'session.save',
   type: 'button',
-  loreLabel: 'ARCHIVE STATE',
-  humanLabel: 'Save Session',
+  ...labels('session.save'),
 };
 
 export const SHARE_SESSION_SCHEMA: ButtonSchema = {
   id: 'session.share',
   type: 'button',
-  loreLabel: 'TRANSMIT COORDINATES',
-  humanLabel: 'Share Session',
+  ...labels('session.share'),
 };
 
 export const LOAD_SESSION_SCHEMA: ButtonSchema = {
   id: 'session.load',
   type: 'button',
-  loreLabel: 'RESTORE STATE',
-  humanLabel: 'Load',
+  ...labels('session.load'),
 };
 
 export const DELETE_SESSION_SCHEMA: ButtonSchema = {
   id: 'session.delete',
   type: 'button',
-  loreLabel: 'PURGE ARCHIVE',
-  humanLabel: 'Delete',
+  ...labels('session.delete'),
 };
 
 /** Bottom-of-panel destructive action (Crawford's exact copy, 2026-09-28) — wipes ALL of
@@ -53,6 +48,5 @@ export const DELETE_SESSION_SCHEMA: ButtonSchema = {
 export const CLEAR_STORAGE_SCHEMA: ButtonSchema = {
   id: 'session.clearStorage',
   type: 'button',
-  loreLabel: 'Reset to Factory Settings',
-  humanLabel: 'Clear Local Storage',
+  ...labels('session.clearStorage'),
 };

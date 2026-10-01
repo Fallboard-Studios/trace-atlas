@@ -45,10 +45,10 @@ const schema: RadioButtonSchema = {
   type: 'radio',
   humanLabel: 'LFO Shape',
   options: [
-    { value: 'triangle', label: 'TRIANGLE' },
-    { value: 'sine', label: 'SINE' },
-    { value: 'square', label: 'SQUARE' },
-    { value: 'sawtooth', label: 'SAWTOOTH' },
+    { value: 'triangle', humanLabel: 'TRIANGLE' },
+    { value: 'sine', humanLabel: 'SINE' },
+    { value: 'square', humanLabel: 'SQUARE' },
+    { value: 'sawtooth', humanLabel: 'SAWTOOTH' },
   ],
 };
 
@@ -287,9 +287,9 @@ describe('RadioButton', () => {
       type: 'radio',
       humanLabel: 'Companies',
       options: [
-        { value: 'none', label: 'None' },
-        { value: 'c1', label: 'Iron Consortium', color: '#4f6d7a' },
-        { value: 'c2', label: 'Null Syndicate', color: '#65617f' },
+        { value: 'none', humanLabel: 'None' },
+        { value: 'c1', humanLabel: 'Iron Consortium', color: '#4f6d7a' },
+        { value: 'c2', humanLabel: 'Null Syndicate', color: '#65617f' },
       ],
     };
 
@@ -318,7 +318,7 @@ describe('RadioButton', () => {
     it('a schema where no option sets color renders with no inline style on any option (regression guard)', () => {
       render(<RadioButton schema={schema} value="sine" onChange={() => {}} />);
       schema.options.forEach((option) => {
-        expect(screen.getByRole('radio', { name: option.label }).getAttribute('style')).toBeNull();
+        expect(screen.getByRole('radio', { name: option.humanLabel }).getAttribute('style')).toBeNull();
       });
     });
   });
@@ -348,5 +348,32 @@ describe('RadioButton', () => {
 
       expect((resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsAfterMount);
     });
+  });
+});
+
+describe('RadioButton — option label vocabulary (docs/specs/CONTENT_LAYER.md, Task 6)', () => {
+  // One label vocabulary app-wide: schemas say `humanLabel`, so options do too. An option's
+  // human text is both its visible label and its accessible name.
+  const content: RadioButtonSchema = {
+    id: 'decayMode',
+    type: 'radio',
+    humanLabel: 'Decay Mode',
+    options: [
+      { value: 'natural', humanLabel: 'Natural Decay', loreLabel: 'Dissipation' },
+      { value: 'controlled', humanLabel: 'Controlled Decay' },
+    ],
+  };
+
+  it('renders each option\'s humanLabel as the radio\'s accessible name and visible text', () => {
+    render(<RadioButton schema={content} value="natural" onChange={() => {}} />);
+    expect(screen.getByRole('radio', { name: 'Natural Decay' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Controlled Decay' })).toBeTruthy();
+    expect(screen.getByText('Dissipation')).toBeTruthy();
+  });
+
+  it('does not accept the retired `label` field on an option', () => {
+    // @ts-expect-error — `label` was renamed to `humanLabel`; a stale option is a type error, not a runtime fallback
+    const stale: RadioButtonSchema['options'][number] = { value: 'x', label: 'X' };
+    expect(stale.value).toBe('x');
   });
 });

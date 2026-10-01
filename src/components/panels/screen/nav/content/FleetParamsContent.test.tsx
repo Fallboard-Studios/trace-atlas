@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { FleetParamsContent } from './FleetParamsContent';
+import { CONTENT } from '@/content';
 import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { installIntersectionObserverStub, approachSection } from '@/testUtils/intersectionObserverStub';
@@ -33,11 +34,11 @@ const AUDIO_INITIAL_STATE = useAudioStore.getState();
 
 const GROUP_IDS = ['fleetParams.pacing', 'fleetParams.eqFilters', 'fleetParams.fleetDrift', 'fleetParams.timeSpace', 'fleetParams.output'];
 const GROUP_LABELS: Record<string, string> = {
-  'fleetParams.pacing': 'Pacing',
-  'fleetParams.eqFilters': 'EQ & Filters',
-  'fleetParams.fleetDrift': 'Drift',
-  'fleetParams.timeSpace': 'Time & Space',
-  'fleetParams.output': 'Output',
+  'fleetParams.pacing': CONTENT['fleet.pacing'].human,
+  'fleetParams.eqFilters': CONTENT['fleet.eqFilters'].human,
+  'fleetParams.fleetDrift': CONTENT['fleet.drift'].human,
+  'fleetParams.timeSpace': CONTENT['fleet.timeSpace'].human,
+  'fleetParams.output': CONTENT['fleet.output'].human,
 };
 const GROUP_TRAITS: Trait[] = ['composition', 'spectral', 'spectral', 'timeSpace', 'output'];
 
@@ -155,7 +156,7 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
   it('renders the section-level IntroPanel ungated — present before any group has approached', () => {
     render(<FleetParamsContent />);
 
-    expect(screen.getByText('Fleet Params — your key to mesh-wide performance.')).toBeTruthy();
+    expect(screen.getByText(CONTENT['fleet.root'].intro.lore)).toBeTruthy();
   });
 
   it("a group's IntroPanel and its leaves are not in the DOM until that group's own anchor has approached", () => {
@@ -170,7 +171,7 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
 
     approach('fleetParams.eqFilters');
 
-    expect(screen.getByText('EQ & Filters — shape the signal every probe shares.')).toBeTruthy();
+    expect(screen.getByText(CONTENT['fleet.eqFilters'].intro.lore)).toBeTruthy();
   });
 
   it('renders "Drift" positioned right after "EQ & Filters" and before "Time & Space", with its own IntroPanel once approached', () => {
@@ -185,7 +186,7 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
 
     approach('fleetParams.fleetDrift');
 
-    expect(screen.getByText('Drift — a wandering hand behind every dial.')).toBeTruthy();
+    expect(screen.getByText(CONTENT['fleet.drift'].intro.lore)).toBeTruthy();
   });
 
   it.each(Object.entries(LEAF_ID_TO_EFFECT).filter(([id]) => !id.includes('.pacing.') && !id.includes('.fleetDrift.')))(
@@ -354,5 +355,14 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
     expect(scrollToSection).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Pacing' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: 'Output' }).getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+describe('FleetParamsContent reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 12)', () => {
+  it('carries no copy literal of its own — intros and accordion headings come from CONTENT', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(__dirname, 'FleetParamsContent.tsx'), 'utf8');
+    expect(src).not.toMatch(/(loreLabel|humanLabel|loreDescription|humanDescription)\s*:\s*['"`]/);
   });
 });

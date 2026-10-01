@@ -32,6 +32,8 @@ vi.mock('gsap', () => {
     eventCallback(): TimelineObj;
     kill(): void;
     play(): TimelineObj;
+    add(child?: unknown, position?: unknown): TimelineObj;
+    pause(time?: number): TimelineObj;
   }
 
   const noop = (): TimelineObj => {
@@ -84,6 +86,12 @@ vi.mock('gsap', () => {
       // Task 8) became the first test to invoke createSwimTimeline for real
       // rather than mocking swimAnimation.ts itself.
       play: () => obj as TimelineObj,
+      // BubbleStream.tsx nests one child timeline per bubble via tl.add() and rewinds with
+      // tl.pause(0) when its building is inactive. Its own test file swaps in a recording
+      // mock, but any file that renders a real Factory without stubbing BubbleStream (see
+      // FactoryBubbleStream.test.tsx for the stub) hits these through this mock.
+      add: (_child?: unknown, _position?: unknown) => obj as TimelineObj,
+      pause: (_time?: number) => obj as TimelineObj,
     };
     return obj as TimelineObj;
   };

@@ -12,6 +12,7 @@ import {
   COORDINATE_PRESETS,
 } from './sectorSettingsConfig';
 import * as sectorSettingsConfigModule from './sectorSettingsConfig';
+import { CONTENT } from '@/content';
 
 // ========================================
 // TESTS
@@ -30,9 +31,9 @@ describe('sectorSettingsConfig', () => {
     });
 
     it('ATTENUATION_STYLE_SCHEMA uses Attenuation Style copy, per docs/specs/ATTENUATION_STYLE.md §4', () => {
-      expect(ATTENUATION_STYLE_SCHEMA.loreLabel).toBe('ATTENUATION SEED');
-      expect(ATTENUATION_STYLE_SCHEMA.humanLabel).toBe('Attenuation Style');
-      expect(ATTENUATION_STYLE_SCHEMA.placeholder).toBe('Enter a new attenuation style…');
+      expect(ATTENUATION_STYLE_SCHEMA.loreLabel).toBe(CONTENT['sector.attenuationStyle'].lore);
+      expect(ATTENUATION_STYLE_SCHEMA.humanLabel).toBe(CONTENT['sector.attenuationStyle'].human);
+      expect(ATTENUATION_STYLE_SCHEMA.placeholder).toBe(CONTENT['sector.attenuationStyle'].placeholder);
     });
 
     it('COORDS_SCHEMA is a coordsInput with both label fields populated', () => {
@@ -71,7 +72,7 @@ describe('sectorSettingsConfig', () => {
 
     it('every entry has a non-empty label and a non-empty string value', () => {
       for (const preset of ATTENUATION_STYLE_PRESETS) {
-        expect(preset.label).toBeTruthy();
+        expect(preset.name).toBeTruthy();
         expect(typeof preset.value).toBe('string');
         expect(preset.value.length).toBeGreaterThan(0);
       }
@@ -85,7 +86,7 @@ describe('sectorSettingsConfig', () => {
 
     it('every entry has a non-empty label and integer x/y values', () => {
       for (const preset of COORDINATE_PRESETS) {
-        expect(preset.label).toBeTruthy();
+        expect(preset.name).toBeTruthy();
         expect(Number.isInteger(preset.value.x)).toBe(true);
         expect(Number.isInteger(preset.value.y)).toBe(true);
       }
@@ -94,7 +95,25 @@ describe('sectorSettingsConfig', () => {
     it('includes the (0, 0) "Null Basin" preset — the pre-decoupling dead-zone worst case, now safe', () => {
       const nullBasin = COORDINATE_PRESETS.find((p) => p.value.x === 0 && p.value.y === 0);
       expect(nullBasin).toBeDefined();
-      expect(nullBasin?.label).toBe('Null Basin');
+      expect(nullBasin?.name).toBe('Null Basin');
     });
+  });
+});
+
+describe('sectorSettingsConfig reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 8)', () => {
+  it('carries no copy literal of its own; preset names are data under `name`', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(__dirname, 'sectorSettingsConfig.ts'), 'utf8');
+    expect(src).not.toMatch(/(loreLabel|humanLabel|unit|placeholder)\s*:\s*['"`]/);
+    expect(src).not.toMatch(/\blabel\s*:/);
+    expect(ATTENUATION_STYLE_PRESETS[0]).toHaveProperty('name');
+  });
+  it('labels equal CONTENT (the nav-row text where nav and control used to disagree)', async () => {
+    const { CONTENT } = await import('@/content');
+    expect(ATTENUATION_STYLE_SCHEMA.humanLabel).toBe(CONTENT['sector.attenuationStyle'].human);
+    expect(ATTENUATION_STYLE_SCHEMA.placeholder).toBe(CONTENT['sector.attenuationStyle'].placeholder);
+    expect(COORDS_SCHEMA.humanLabel).toBe(CONTENT['sector.coords'].human);
+    expect(STATUS_HEADER_SCHEMA.loreLabel).toBe(CONTENT['sector.status'].lore);
   });
 });

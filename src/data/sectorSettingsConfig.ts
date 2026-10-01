@@ -2,6 +2,7 @@
 // IMPORTS
 // ========================================
 import type { TextInputSchema, CoordsInputSchema, ButtonSchema, DualLabelSchema } from '../types/controls';
+import { labels } from '@/content';
 
 // ========================================
 // TYPES
@@ -12,7 +13,8 @@ import type { TextInputSchema, CoordsInputSchema, ButtonSchema, DualLabelSchema 
  *  field(s); it never calls retransmitWorld itself — the user still has to
  *  press Retransmit separately. */
 export interface SectorPreset<T> {
-  label: string;
+  /** The preset's own name — a value the button fills in, not copy (docs/specs/CONTENT_LAYER.md §1.4). */
+  name: string;
   value: T;
 }
 
@@ -23,9 +25,7 @@ export interface SectorPreset<T> {
 export const ATTENUATION_STYLE_SCHEMA: TextInputSchema = {
   id: 'sectorSettings.planetName',
   type: 'textInput',
-  loreLabel: 'ATTENUATION SEED',
-  humanLabel: 'Attenuation Style',
-  placeholder: 'Enter a new attenuation style…',
+  ...labels('sector.attenuationStyle'),
   // Otherwise unbounded end-to-end — stored in state, hashed into a seed
   // (deriveAttenuationStyleSeed), and rendered in the status line. 128 is generous for
   // a lore-flavored name while ruling out pathological input.
@@ -35,22 +35,19 @@ export const ATTENUATION_STYLE_SCHEMA: TextInputSchema = {
 export const COORDS_SCHEMA: CoordsInputSchema = {
   id: 'sectorSettings.coordinates',
   type: 'coordsInput',
-  loreLabel: 'PLOT VECTOR',
-  humanLabel: 'Coordinates',
+  ...labels('sector.coords'),
 };
 
 export const RETRANSMIT_SCHEMA: ButtonSchema = {
   id: 'sectorSettings.retransmit',
   type: 'button',
-  loreLabel: 'RETRANSMIT',
-  humanLabel: 'Retransmit',
+  ...labels('sector.retransmit'),
 };
 
 export const STATUS_HEADER_SCHEMA: DualLabelSchema = {
   id: 'sectorSettings.status',
   type: 'dualLabel',
-  loreLabel: 'ACTIVE TRANSMISSION',
-  humanLabel: 'Current Sector',
+  ...labels('sector.status'),
 };
 
 // ========================================
@@ -60,18 +57,18 @@ export const STATUS_HEADER_SCHEMA: DualLabelSchema = {
 /** Hand-curated, lore-flavored Attenuation Style name presets — static data, not
  *  user-saved favorites. */
 export const ATTENUATION_STYLE_PRESETS: SectorPreset<string>[] = [
-  { label: 'Kryndara', value: 'Kryndara' },
-  { label: 'Vessport Null', value: 'Vessport Null' },
-  { label: 'Halcyon Drift', value: 'Halcyon Drift' },
-  { label: 'The Rusting', value: 'The Rusting' },
+  { name: 'Kryndara', value: 'Kryndara' },
+  { name: 'Vessport Null', value: 'Vessport Null' },
+  { name: 'Halcyon Drift', value: 'Halcyon Drift' },
+  { name: 'The Rusting', value: 'The Rusting' },
 ];
 
 /** Hand-curated, interesting coordinate-pair presets. 'Null Basin' — (0, 0) —
  *  is included deliberately: the single worst-case coordinate from the
  *  pre-decoupling dead-zone bug, now safe to offer as an ordinary preset. */
 export const COORDINATE_PRESETS: SectorPreset<{ x: number; y: number }>[] = [
-  { label: 'The Trench', value: { x: -42, y: 108 } },
-  { label: 'Shallow Reach', value: { x: 7, y: 3 } },
-  { label: 'Far Shoal', value: { x: 219, y: -64 } },
-  { label: 'Null Basin', value: { x: 0, y: 0 } },
+  { name: 'The Trench', value: { x: -42, y: 108 } },
+  { name: 'Shallow Reach', value: { x: 7, y: 3 } },
+  { name: 'Far Shoal', value: { x: 219, y: -64 } },
+  { name: 'Null Basin', value: { x: 0, y: 0 } },
 ];
