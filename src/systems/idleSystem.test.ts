@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NoiseFunction2D } from 'simplex-noise';
 
 import { pickDestination, handleRobotIdle, pickExitDestination } from './idleSystem';
@@ -160,6 +160,50 @@ describe('idleSystem', () => {
         expect(after).toEqual(robot); // untouched — state, position, destination all unchanged
       }
     );
+
+    // backlog.md #12: most robots spawn Docked, so Robot.tsx's unconditional mount-time
+    // handleRobotIdle call hit this guard — an expected, common precondition-not-met — on 10 of
+    // 12 robots every locale load, logged as a console.warn and dominating the console with
+    // React's dev-mode component-stack dump on top of each one. Only a genuinely missing robot
+    // (the store lookup itself failing) is actually unexpected and worth a warning.
+    it.each([DockingState.Docked, DockingState.Docking, DockingState.Departing])(
+      'does NOT warn for the ordinary case — an Idle robot whose docking is %s (ordinary, expected precondition, not a bug)',
+      (docking) => {
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const robot = makeRobot({ state: RobotState.Idle, docking });
+        useLocaleStore.setState((s) => ({
+          locales: { ...s.locales, [DEFAULT_LOCALE_ID]: { ...s.locales[DEFAULT_LOCALE_ID], robots: [robot] } },
+        }));
+
+        handleRobotIdle(DEFAULT_LOCALE_ID, robot.id);
+
+        expect(warnSpy).not.toHaveBeenCalled();
+        warnSpy.mockRestore();
+      }
+    );
+
+    it('does NOT warn for a non-Idle robot state either (Moving, Interacting, etc. — also an ordinary precondition)', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const robot = makeRobot({ state: RobotState.Moving, docking: DockingState.Active });
+      useLocaleStore.setState((s) => ({
+        locales: { ...s.locales, [DEFAULT_LOCALE_ID]: { ...s.locales[DEFAULT_LOCALE_ID], robots: [robot] } },
+      }));
+
+      handleRobotIdle(DEFAULT_LOCALE_ID, robot.id);
+
+      expect(warnSpy).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it('DOES warn when the robot genuinely cannot be found in the store — the actually-unexpected case', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      handleRobotIdle(DEFAULT_LOCALE_ID, 'robot-does-not-exist');
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain('robot-does-not-exist');
+      warnSpy.mockRestore();
+    });
   });
 
   describe('handleRobotIdle — battery/return-aware y-bounds', () => {
