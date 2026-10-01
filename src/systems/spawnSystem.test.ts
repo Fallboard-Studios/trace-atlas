@@ -257,6 +257,79 @@ describe('spawnSystem', () => {
     });
   });
 
+  // Seed oracle (docs/specs/LFO_LOAD_FIX.md §5 "Seed odds", docs/tasks/LFO_LOAD_FIX.md Task 1).
+  // Captured GREEN against the pre-change seeder on 2026-09-30, BEFORE LFO_QUIET_THRESHOLD moves
+  // (Task 5) and before any target is removed. The contract it pins: for a fixed noise map + offset,
+  // every target's shape and depth, and every currently-oscillating target's rate, are byte-identical
+  // after the odds change — lowering the odds may only turn an oscillating target quiet (rate 0), never
+  // change a value or revive a quiet one. Regenerating these expected objects to make a later change
+  // pass is a spec violation, not a fix. Targets a later task removes are simply dropped from the
+  // expectation when the type narrows; the remaining rows stay as captured.
+  describe('generateRobotLfoSettings — seed oracle (LFO Load Fix Task 1)', () => {
+    const ORACLE_SEED = 'lfo-load-fix-oracle';
+
+    // Offset 1: a mostly-quiet robot (2 of 13 oscillating). Offset 4: a mostly-on robot (12 of 13).
+    const EXPECTED: Record<number, Record<string, { shape: string; rate: number; depth: number }>> = {
+      1: {
+        'volume': { shape: 'triangle', rate: 5.2, depth: 41 },
+        'layer0.gain': { shape: 'square', rate: 0, depth: 71 },
+        'layer0.detune': { shape: 'triangle', rate: 0, depth: 21 },
+        'layer0.phase': { shape: 'square', rate: 0, depth: 69 },
+        'layer0.pulseWidth': { shape: 'sine', rate: 5.1, depth: 15 },
+        'layer1.gain': { shape: 'triangle', rate: 0, depth: 5 },
+        'layer1.detune': { shape: 'sine', rate: 0, depth: 55 },
+        'layer1.phase': { shape: 'sine', rate: 0, depth: 28 },
+        'layer1.pulseWidth': { shape: 'triangle', rate: 0, depth: 22 },
+        'layer2.gain': { shape: 'square', rate: 0, depth: 13 },
+        'layer2.detune': { shape: 'square', rate: 0, depth: 57 },
+        'layer2.phase': { shape: 'triangle', rate: 0, depth: 73 },
+        'layer2.pulseWidth': { shape: 'triangle', rate: 0, depth: 66 },
+      },
+      4: {
+        'volume': { shape: 'square', rate: 14.85, depth: 65 },
+        'layer0.gain': { shape: 'square', rate: 11.95, depth: 67 },
+        'layer0.detune': { shape: 'sawtooth', rate: 12.7, depth: 71 },
+        'layer0.phase': { shape: 'square', rate: 12.05, depth: 65 },
+        'layer0.pulseWidth': { shape: 'square', rate: 14.95, depth: 60 },
+        'layer1.gain': { shape: 'square', rate: 12.3, depth: 50 },
+        'layer1.detune': { shape: 'square', rate: 11.3, depth: 60 },
+        'layer1.phase': { shape: 'square', rate: 14.35, depth: 73 },
+        'layer1.pulseWidth': { shape: 'square', rate: 0, depth: 75 },
+        'layer2.gain': { shape: 'square', rate: 13.45, depth: 56 },
+        'layer2.detune': { shape: 'square', rate: 12.55, depth: 60 },
+        'layer2.phase': { shape: 'square', rate: 14.3, depth: 68 },
+        'layer2.pulseWidth': { shape: 'square', rate: 12.05, depth: 63 },
+      },
+    };
+
+    for (const offset of [1, 4]) {
+      it(`offset ${offset}: shape and depth of every target, and rate of every oscillating target, match the captured values`, () => {
+        const noiseMap = createNoise2D(alea(ORACLE_SEED));
+        const settings = generateRobotLfoSettings(noiseMap, offset);
+        for (const target of ROBOT_LFO_TARGET_IDS) {
+          const expected = EXPECTED[offset][target];
+          expect(expected, `${target} missing from the oracle — the type grew without the oracle being extended`).toBeDefined();
+          const actual = settings[target];
+          expect(actual.shape, `${target}.shape (offset ${offset})`).toBe(expected.shape);
+          expect(actual.depth, `${target}.depth (offset ${offset})`).toBe(expected.depth);
+          if (expected.rate === 0) {
+            expect(actual.rate, `${target} was quiet and must stay quiet (offset ${offset})`).toBe(0);
+          } else if (actual.rate !== 0) {
+            // Still oscillating: the value itself must be untouched (0.05 grid, so a 1e-9 tolerance is exact).
+            expect(actual.rate, `${target}.rate (offset ${offset})`).toBeCloseTo(expected.rate, 9);
+          }
+          // actual.rate === 0 while expected.rate > 0 is the one permitted change: the odds got stricter.
+        }
+      });
+    }
+
+    it('offset 1 and offset 4 differ in how many targets oscillate (the fixture really covers both ends)', () => {
+      const noiseMap = createNoise2D(alea(ORACLE_SEED));
+      const onCount = (offset: number) => ROBOT_LFO_TARGET_IDS.filter((t) => generateRobotLfoSettings(noiseMap, offset)[t].rate > 0).length;
+      expect(onCount(1)).toBeLessThan(onCount(4));
+    });
+  });
+
   describe('spawnRobot', () => {
     beforeEach(() => {
       // Reset locale store before each test
