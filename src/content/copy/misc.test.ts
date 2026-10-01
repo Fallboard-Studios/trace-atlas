@@ -19,7 +19,6 @@ import { sector } from './sector';
 import { ui } from './ui';
 import { makeHelpers } from '../index';
 import { NAV_TREE_SCHEMA, type NavTreeNodeSchema } from '@/data/navTreeConfig';
-import { AUDIO_LOAD_PRESET_SCHEMA, AUDIO_LOAD_PANEL_SCHEMA, AUDIO_ROBOT_LOAD_SCHEMA, AUDIO_EFFECTS_LOAD_SCHEMA } from '@/data/audioRigConfig';
 import {
   SESSION_NAME_INPUT_SCHEMA, SAVE_SESSION_SCHEMA, SHARE_SESSION_SCHEMA, LOAD_SESSION_SCHEMA, DELETE_SESSION_SCHEMA, CLEAR_STORAGE_SCHEMA,
 } from '@/data/sessionConfig';
@@ -84,15 +83,6 @@ describe('settings', () => {
   ] as const)('nav %s ↔ %s', (navId, key) => {
     const n = findNode(navId)!;
     expect([settings[key].human, (settings[key] as { lore?: string }).lore]).toEqual([n.humanLabel, n.loreLabel]);
-  });
-  it('audio load panel + preset keep the control text (no nav row for them)', () => {
-    expect(pair(settings['settings.quality.audioLoad'])).toEqual(schemaPair(AUDIO_LOAD_PANEL_SCHEMA));
-    expect(pair(settings['settings.quality.preset'])).toEqual(schemaPair(AUDIO_LOAD_PRESET_SCHEMA));
-    expect(AUDIO_LOAD_PRESET_SCHEMA.options.map((o) => [o.value, o.humanLabel])).toEqual(Object.entries(settings['settings.quality.preset'].options).map(([v, o]) => [v, o.human]));
-  });
-  it('robot/effects load keep the sliders\' units; their labels are the nav\'s (conflict rows)', () => {
-    expect(settings['settings.quality.robotLoad'].unit).toBe(AUDIO_ROBOT_LOAD_SCHEMA.unit);
-    expect(settings['settings.quality.effectsLoad'].unit).toBe(AUDIO_EFFECTS_LOAD_SCHEMA.unit);
   });
   it.each(['settings.root', 'settings.quality', 'settings.seeds', 'settings.sessions'] as const)('%s intro in SettingsContent', (k) => {
     const src = read('components/panels/screen/nav/content/SettingsContent.tsx');

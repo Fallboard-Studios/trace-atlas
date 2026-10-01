@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { SettingsContent } from './SettingsContent';
+import { CONTENT } from '@/content';
 import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '@/stores/attenuationStyleStore';
@@ -50,8 +51,8 @@ describe('Settings — Quality/Presets subsection anchors (docs/specs/NAV_LAYOUT
 
     expect(getSectionRef('settings.quality.robotLoad')).toBeTruthy();
     expect(getSectionRef('settings.quality.effectsLoad')).toBeTruthy();
-    expect(screen.getByRole('slider', { name: 'Robot Load' })).toBeTruthy();
-    expect(screen.getByRole('slider', { name: 'Effects Load' })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: CONTENT['settings.quality.robotLoad'].human })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: CONTENT['settings.quality.effectsLoad'].human })).toBeTruthy();
   });
 
   it('registers Attenuation Style/Coordinates anchors once Presets approaches', () => {

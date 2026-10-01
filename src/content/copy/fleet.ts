@@ -38,6 +38,9 @@ export const fleet = {
   },
   'fleet.pacing.tempo': { human: 'Tempo', lore: 'Ping Rate', unit: 'BPM' },
   'fleet.pacing.automationRate': { human: 'Automation Rate', lore: 'Trace Skip Rate', options: { off: { human: 'Off' } } },
+  /** The rate slider's readout for ≥1 and <1 per measure (audioRigConfig's formatSwellFrequency). */
+  'fleet.pacing.automationRate.perMeasure': { human: 'per measure', template: '{n}/measure' },
+  'fleet.pacing.automationRate.everyMeasures': { human: 'every … measures', template: 'every {n} measures' },
   'fleet.pacing.automationLength': { human: 'Automation Length', lore: 'Trace Runway', unit: ' measures' },
   'fleet.pacing.automationRange': { human: 'Automation Range', lore: 'Trace Width', unit: '%' },
 
