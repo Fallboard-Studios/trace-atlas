@@ -210,6 +210,30 @@ describe('buildHudLines', () => {
     });
   });
 
+  describe('LFO Bank line (docs/tasks/LFO_BANK.md Task 10 follow-up)', () => {
+    it('shows how many of the 4 lanes are running, and links on out of total', () => {
+      const lines = buildHudLines(snap({}, { bankRunning: 3, linksOn: 22, linksTotal: 85 }), world, 0);
+      expect(lines.some((l) => l.includes('bank 3/4'))).toBe(true);
+      expect(lines.some((l) => l.includes('links 22/85'))).toBe(true);
+    });
+
+    it('sits directly under the Audio Load caps line', () => {
+      const lines = buildHudLines(snap(), world, 0);
+      const load = lines.findIndex((l) => l.startsWith('load'));
+      expect(lines[load + 1]).toMatch(/^bank /);
+    });
+
+    it('shows a dash for unknown values, never NaN, null or undefined', () => {
+      const line = buildHudLines(
+        snap({}, { bankRunning: NaN, linksOn: undefined as unknown as number, linksTotal: NaN }),
+        world,
+        0,
+      ).find((l) => l.startsWith('bank'));
+      expect(line).toBe('bank -/4   links -/-');
+      expect(line).not.toMatch(/NaN|null|undefined/);
+    });
+  });
+
   describe('output level line', () => {
     const outLine = (info: Partial<DiagInfo>) => buildHudLines(snap({}, info), world, 0).find((l) => l.startsWith('out'));
     const level = (peak: number, rms: number, nonFinite = 0) => ({ peak, rms, nonFinite });
