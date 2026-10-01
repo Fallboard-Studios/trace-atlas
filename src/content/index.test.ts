@@ -28,7 +28,7 @@ const FIXTURE = {
   'ui.stepper.increment': { human: 'Increment {name}' },
 } as const satisfies Record<string, ContentEntry>;
 
-const { labels: L, options, optionsRecord, intro, fill } = makeHelpers(FIXTURE);
+const { labels: L, options, optionsRecord, intro, introProps, fill } = makeHelpers(FIXTURE);
 
 // ----------------------------------------
 // TESTS
@@ -106,6 +106,11 @@ describe('content helpers', () => {
         loreDescription: '<p>lore</p>',
         humanDescription: '<p>human</p>',
       });
+    });
+
+    it('introProps() reshapes the block to IntroPanel props (lore → loreLabel)', () => {
+      expect(introProps('fleet.intro')).toEqual({ loreLabel: 'Fleet Params — headline.', loreDescription: '<p>lore</p>', humanDescription: '<p>human</p>' });
+      expect(() => introProps('ui.cancel')).toThrow(/no intro/);
     });
 
     it('throws for an entry without an intro — a content bug, not a legal "no intro" state', () => {

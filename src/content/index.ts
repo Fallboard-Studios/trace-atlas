@@ -79,6 +79,12 @@ export function makeHelpers<R extends Record<string, ContentEntry>>(record: R) {
     return out;
   }
 
+  /** The intro block as IntroPanel's own props (`loreLabel` + the two descriptions) — spread straight in. */
+  function introProps(key: K): { loreLabel: string; loreDescription: string; humanDescription: string } {
+    const { lore, loreDescription, humanDescription } = intro(key);
+    return { loreLabel: lore, loreDescription, humanDescription };
+  }
+
   function intro(key: K): ContentIntro {
     const e: ContentEntry = record[key];
     if (!e.intro) throw new Error(`[content] ${key} has no intro`);
@@ -93,7 +99,7 @@ export function makeHelpers<R extends Record<string, ContentEntry>>(record: R) {
     });
   }
 
-  return { labels, options, optionsRecord, intro, fill };
+  return { labels, options, optionsRecord, intro, introProps, fill };
 }
 
 const live = makeHelpers(CONTENT);
@@ -107,5 +113,7 @@ export const options: (key: ContentKey) => SchemaOption[] = live.options;
 export const optionsRecord: (key: ContentKey) => Record<string, ValueLabelPair> = live.optionsRecord;
 /** The entry's intro block; throws if the concept has none. */
 export const intro: (key: ContentKey) => ContentIntro = live.intro;
+/** `intro(key)` reshaped to IntroPanel's props: `{ loreLabel, loreDescription, humanDescription }`. */
+export const introProps: (key: ContentKey) => { loreLabel: string; loreDescription: string; humanDescription: string } = live.introProps;
 /** Fill a template's `{slots}`: `fill('ui.stepper.increment', { name })` → `'Increment Volume'`. */
 export const fill: (key: ContentKey, vars: Record<string, string>) => string = live.fill;

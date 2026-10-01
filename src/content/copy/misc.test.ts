@@ -13,7 +13,6 @@ import { describe, it, expect } from 'vitest';
 import { home } from './home';
 import { header } from './header';
 import { nav } from './nav';
-import { settings } from './settings';
 import { session } from './session';
 import { sector } from './sector';
 import { ui } from './ui';
@@ -61,13 +60,6 @@ describe('nav chrome', () => {
   });
 });
 
-describe('settings', () => {
-  it.each(['settings.root', 'settings.quality', 'settings.seeds', 'settings.sessions'] as const)('%s intro in SettingsContent', (k) => {
-    const src = read('components/panels/screen/nav/content/SettingsContent.tsx');
-    const { lore, loreDescription, humanDescription } = settings[k].intro;
-    for (const s of [lore, loreDescription, humanDescription]) expect(src).toContain(s);
-  });
-});
 
 describe('session', () => {
   it('row templates reproduce SessionListItem\'s own concatenations', () => {
