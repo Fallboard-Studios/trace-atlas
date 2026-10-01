@@ -1050,6 +1050,44 @@ describe('AudioEngine - Motif Group Accent', () => {
     spy.mockRestore();
   });
 
+  it('accents through the LIVE transport tick, not only the processMelodyStep test helper', async () => {
+    // Regression: startMelodyPlayback carried its own copy of the per-step loop that dropped
+    // isGroupAccent, so the accent only ever worked through processMelodyStep (which every
+    // other accent test here drives). This drives the real transport callback instead.
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    const storeMod = await import('../stores/localeStore');
+    const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+    const helpers = await import('../utils/localeHelpers');
+    (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(attenuationStyleMod.DEFAULT_LOCALE_ID);
+
+    storeMod.useLocaleStore.getState().setLocaleData(attenuationStyleMod.DEFAULT_LOCALE_ID, {
+      robots: [makeRobot('live-accent-robot', { active: true, value: 4 })],
+    });
+
+    AudioEngine.killAll();
+    await AudioEngine.start();
+    const transport = (Tone.getTransport as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+    const sixteenthTicks = transport.scheduleRepeat.mock.calls
+      .filter((c: unknown[]) => c[1] === '16n')
+      .map((c: unknown[]) => c[0] as (time: number) => void);
+    expect(sixteenthTicks.length).toBeGreaterThan(0);
+
+    // Step 1 is the first tick after start (stepCounter 0) and the earliest event in window [1-4].
+    const melody = [{ id: 'e1', startStep: 1, length: '8n' as const, noteIndex: 0, octave: 4 }];
+    const spy = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => { });
+    AudioEngine.registerRobotMelody('live-accent-robot', melody);
+
+    sixteenthTicks.forEach((tick) => tick(0));
+
+    const live = spy.mock.calls.map((c) => c[0]).find((p) => p.robotId === 'live-accent-robot');
+    expect(live).toBeDefined();
+    expect(live!.accentMultiplier).toBeGreaterThan(1);
+
+    spy.mockRestore();
+    AudioEngine.killAll();
+  });
+
   it('does not accent any event when Motif Length is inactive (scatter mode)', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     const storeMod = await import('../stores/localeStore');

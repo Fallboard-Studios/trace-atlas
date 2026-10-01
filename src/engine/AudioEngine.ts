@@ -392,38 +392,9 @@ function startMelodyPlayback(): void {
     // Update panners once per tick to reduce per-note DOM reads and main-thread work.
     updateAllPanners(time);
 
-    const currentStep = (stepCounter % 16) + 1; // 1..16
-    const events = stepRegistry.get(currentStep) || [];
-    const notes = getAvailableNotes();
-
-    events.forEach(({ robotId, event }) => {
-      // Each event is isolated in its own try/catch — an uncaught exception from
-      // one robot's scheduleNote call must not abort the forEach and silently
-      // drop every remaining event in this same step.
-      try {
-        const noteName = notes[event.noteIndex]; // note name without octave, e.g. "C"
-
-        if (!noteName) {
-          devWarn(
-            `[AudioEngine] Invalid note index ${event.noteIndex} for robot ${robotId}`
-          );
-          return;
-        }
-
-        // Fallback octave of 4 handles stale events that pre-date the octaveRange change.
-        const octave = event.octave ?? 4;
-        const note = `${noteName}${octave}`; // combine with per-event octave, e.g. "C4"
-
-        AudioEngine.scheduleNote({
-          robotId,
-          note,
-          duration: event.length,
-          time: time + MIN_LEAD,
-        });
-      } catch (err) {
-        devWarn(`[AudioEngine] Failed to schedule note for robot ${robotId}`, err);
-      }
-    });
+    // One shared per-step loop (processMelodyStep) — this used to carry its own copy that
+    // dropped isGroupAccent, so the motif accent only ever worked through the test helper.
+    AudioEngine.processMelodyStep((stepCounter % 16) + 1, time);
 
     stepCounter++;
   }, '16n');
@@ -1005,9 +976,13 @@ export const AudioEngine = {
   },
 
   /**
-   * Test helper: process a single melody step as the transport tick would.
-   * Invokes `AudioEngine.scheduleNote` for all registered events whose
-   * `startStep` equals `currentStep`.
+   * Process a single melody step: invokes `AudioEngine.scheduleNote` for every registered
+   * event whose `startStep` equals `currentStep`, with the motif-group accent applied.
+   *
+   * This IS the live per-step loop — startMelodyPlayback's 16n transport tick calls it
+   * directly. It used to be a test-only mirror of a second copy inside the tick, and the two
+   * drifted (the live copy dropped `isGroupAccent`, so the accent never played in the app).
+   * Tests drive it directly because it's synchronous and transport-free.
    *
    * @param currentStep - 1..16 step to process
    * @param time - absolute AudioContext time passed through from transport
@@ -1017,9 +992,9 @@ export const AudioEngine = {
     const notes = getAvailableNotes();
 
     events.forEach(({ robotId, event, isGroupAccent }) => {
-      // Mirrors startMelodyPlayback's own per-event isolation (this function
-      // documents itself as "process a single melody step as the transport
-      // tick would" — keep the two in sync).
+      // Each event is isolated in its own try/catch — an uncaught exception from one robot's
+      // scheduleNote call must not abort the forEach and silently drop every remaining event
+      // in this same step.
       try {
         const noteName = notes[event.noteIndex];
         if (!noteName) {
