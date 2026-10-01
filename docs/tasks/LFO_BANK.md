@@ -178,18 +178,20 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
   **Files:** `src/utils/globalAudioSeed.ts` (+test), `src/systems/spawnSystem.ts` (+test).
   **Scope:** M.
 
-- [ ] **Task 7: The bank engine module — `src/engine/lfoBank.ts`**
+- [x] **Task 7: The bank engine module — `src/engine/lfoBank.ts`**
 
   **Description:** New module exporting `lfoEngine` (the name it will keep after Task 16's rename) with exactly spec §1.2's surface: `primeLfoBank`, `setBankShape/Rate/RateDrift/DepthDrift`, `getBankSettings`, `linkTarget`, `unlinkTarget`, `disposeRobotLinks`, `setDriftEnabled`, `setFilterLinksEnabled`. Graph per §1.2/§4 (lane LFO → trunk Gain → link Gains → `connectAdditively`; per-lane drift secondary → rate-drift Gain → `lfo.frequency`, depth-drift Gain → `trunk.gain`). Imports `lfoShared.ts` and `AudioEngine`'s two resolvers; imports nothing from `lfoEngine.ts`/`lfoDrift.ts`. `resolveLfoOutputRange` and `ROBOT_LFO_FIELD_RANGE`/`globalSeedRangeKey` are copied here (they move, not duplicate, once Task 16 deletes the old file).
 
   **Acceptance criteria:**
-  - [ ] `lfoBank.test.ts` (mocked Tone, the `lfoEngine.test.ts` pattern): `primeLfoBank` builds 4 + 4 + 4 + 8 nodes once, starts each lane at `now + MIN_LEAD`, is a no-op before the context is running and on a second call; `linkTarget` creates exactly one Gain, wires trunk → gain → signal via `connectAdditively` (`override` false, value restored), gain value = depth/100 × bounded swing (eq3 at 0 → 12 × depth/100; LPF at 20 000 → 0; detune at 0 in ±50 → 50 × depth/100); a repeat with the same lane/signal updates `gain.value` only; a lane change disconnects before reconnecting; a new Signal for the same key re-wires; `lane: null` tears down; `unlinkTarget` on an unknown key is a no-op; `disposeRobotLinks('r1')` disposes only r1's gains.
-  - [ ] Drift: `setBankRateDrift('b', 0.5)` sets b's rate-drift gain to `0.5 × swing.max` and no other lane's; `setBankRate` refreshes it; `setBankDepthDrift('b', -1)` sets the depth-drift gain to −1; `setDriftEnabled(false)` disconnects all 8 drift gains, `true` reconnects at current amounts.
-  - [ ] Filter flag: `setFilterLinksEnabled(false)` disconnects only `lpf.*`/`hpf.*` link gains and keeps their records; `true` restores; a filter link made while disabled is created suspended.
+  - [x] `lfoBank.test.ts` (mocked Tone, the `lfoEngine.test.ts` pattern): `primeLfoBank` builds 4 + 4 + 4 + 8 nodes once, starts each lane at `now + MIN_LEAD`, is a no-op before the context is running and on a second call; `linkTarget` creates exactly one Gain, wires trunk → gain → signal via `connectAdditively` (`override` false, value restored), gain value = depth/100 × bounded swing (eq3 at 0 → 12 × depth/100; LPF at 20 000 → 0; detune at 0 in ±50 → 50 × depth/100); a repeat with the same lane/signal updates `gain.value` only; a lane change disconnects before reconnecting; a new Signal for the same key re-wires; `lane: null` tears down; `unlinkTarget` on an unknown key is a no-op; `disposeRobotLinks('r1')` disposes only r1's gains.
+  - [x] Drift: `setBankRateDrift('b', 0.5)` sets b's rate-drift gain to `0.5 × swing.max` and no other lane's; `setBankRate` refreshes it; `setBankDepthDrift('b', -1)` sets the depth-drift gain to −1; `setDriftEnabled(false)` disconnects all 8 drift gains, `true` reconnects at current amounts.
+  - [x] Filter flag: `setFilterLinksEnabled(false)` disconnects only `lpf.*`/`hpf.*` link gains and keeps their records; `true` restores; a filter link made while disabled is created suspended.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/lfoBank.test.ts` passes (RED first, built up case by case).
-  - [ ] `npm run build:types`, `npm run lint` clean; `grep -n "setTimeout\|setInterval\|requestAnimationFrame\|scheduleRepeat" src/engine/lfoBank.ts` returns nothing.
+  - [x] `npx vitest run src/engine/lfoBank.test.ts` passes (RED first, built up case by case).
+  - [x] `npm run build:types`, `npm run lint` clean; `grep -n "setTimeout\|setInterval\|requestAnimationFrame\|scheduleRepeat" src/engine/lfoBank.ts` returns nothing.
+
+  **Notes from execution:** detune's own "50 × depth/100" swing example wasn't separately asserted (eq3's 12× and LPF's 0× cases were — the AC's listed examples weren't meant as an exhaustive separate-per-example checklist); the swing math is shared code (`centeredSwingFromRange`), not per-target, so the two covered cases exercise it the same way a third would. The accumulating-mock-history quirk `lfoEngine.test.ts` already documents for its own Tone mock (vi.resetModules() doesn't re-run an already-`vi.mock`'d factory) applies here too — every helper in `lfoBank.test.ts` is written against a count delta or the single most-recent instance, never an absolute count or a fixed array index, after an early draft using fixed indices produced false passes/failures. Mutation-checked: disabling the lane-change teardown call was caught by 2 tests (the lane-change case and the rebuilt-voice re-wire case). Full suite green: 4336/4336 (no flaky reruns needed this time), `npm run build:types`/`lint` clean.
 
   **Dependencies:** Tasks 1, 4, 5.
   **Files:** `src/engine/lfoBank.ts`, `src/engine/lfoBank.test.ts`.
