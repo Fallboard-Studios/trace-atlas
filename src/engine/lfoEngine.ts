@@ -48,20 +48,25 @@ const settingsByKey = new Map<string, LfoSettings>();
  */
 const connectedSignals = new Map<string, unknown>();
 
+/** The target each currently-connected instance key resolves to — set/cleared in lockstep with
+ *  connectedSignals. Only needed for driftGroupForTarget (setDriftEnabled's own re-attach loop);
+ *  robotId never matters there, so unlike the old policy-era `requested` map this carries just
+ *  the target, not the robotId too. */
+const connectedTargets = new Map<string, LfoTargetId>();
+
 /**
- * Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §1.4): an optional predicate the budget system installs saying
- * whether an LFO may be connected right now — `(target, robotId, connectedRobotLfos)`, where the count is the audio-rate
- * robot LFOs already connected, not including the one being asked about. `null` (the default) allows everything.
- * A tier only SUSPENDS: it never edits an LFO's stored settings, it just declines to connect it.
+ * Audio Load Budget (docs/tasks/LFO_BANK.md Task 4): whether filter (LPF/HPF frequency/Q) LFO links may be
+ * connected right now. EQ-gain links and every robot LFO are always allowed — the engine owns this one rule
+ * directly now, moved in from audioBudget.ts along with the old filter-target regex.
  */
-type LfoPolicy = (target: LfoTargetId, robotId: string | undefined, connectedRobotLfos: number) => boolean;
-let policy: LfoPolicy | null = null;
+let filterLfosEnabled = true;
 
-/** Every LFO a caller asked to connect, so a policy change can restore the ones it had suspended. Cleared by an explicit disconnect. */
-const requested = new Map<string, { target: LfoTargetId; robotId?: string }>();
-
-/** "Held off": requested (rate > 0) but not connected because of the policy. An LFO at rate 0 is never held off. */
-const heldOff = new Set<string>();
+/**
+ * Filter-target instance keys currently suspended by the flag above — connected normally otherwise. A key here
+ * always equals its own target string: filter targets are global-chain only, never robot-scoped, so no separate
+ * robotId needs tracking to reconnect them later.
+ */
+const suspendedFilterLinks = new Set<string>();
 
 // ========================================
 // INTERNAL FUNCTIONS
@@ -79,6 +84,11 @@ function instanceKey(target: LfoTargetId, robotId?: string): string {
 /** Whether a target belongs to the per-robot set (needs a robotId) vs. the global-chain set (doesn't). */
 function isRobotTarget(target: LfoTargetId): boolean {
   return (ROBOT_LFO_TARGET_IDS as readonly string[]).includes(target);
+}
+
+/** Global filter (frequency/Q) LFO targets — the only ones setFilterLfosEnabled can suspend. */
+function isFilterTarget(target: LfoTargetId): boolean {
+  return /^(lpf|hpf)\./.test(target);
 }
 
 /**
@@ -226,23 +236,11 @@ function stop(target: LfoTargetId, robotId?: string): void {
   activeLfos.get(instanceKey(target, robotId))?.stop();
 }
 
-/** Audio-rate robot LFOs currently connected, excluding `exceptKey`. */
-function connectedRobotLfoCount(exceptKey?: string): number {
-  let count = 0;
-  for (const key of connectedSignals.keys()) {
-    if (key !== exceptKey && requested.get(key)?.robotId) count++;
-  }
-  return count;
-}
-
-function isAllowed(target: LfoTargetId, robotId: string | undefined, key: string): boolean {
-  return policy === null || policy(target, robotId, connectedRobotLfoCount(key));
-}
-
-/** Take an LFO out of the audio graph (disconnect, drop drift, stop the oscillator) WITHOUT forgetting it was requested. */
+/** Take an LFO out of the audio graph (disconnect, drop drift, stop the oscillator) without forgetting what it was connected to. */
 function suspendConnection(key: string): void {
   if (connectedSignals.has(key)) {
     connectedSignals.delete(key);
+    connectedTargets.delete(key);
     detachDrift(key);
     try {
       activeLfos.get(key)?.disconnect();
@@ -264,107 +262,42 @@ function setDriftEnabled(enabled: boolean): void {
   if (!enabled) return;
   for (const key of connectedSignals.keys()) {
     const lfo = activeLfos.get(key);
-    const request = requested.get(key);
-    if (lfo && request) attachDrift(key, lfo, driftGroupForTarget(request.target));
+    const target = connectedTargets.get(key);
+    if (lfo && target) attachDrift(key, lfo, driftGroupForTarget(target));
   }
-}
-
-/** Install (or with `null` remove) the Audio Load policy. Does not itself change any connection — call reconcileLfos(). */
-function setLfoPolicy(next: LfoPolicy | null): void {
-  policy = next;
 }
 
 /**
- * Re-apply the policy to every LFO that was requested: connect and start the ones it now allows (rate > 0 only — an LFO
- * at rate 0 is never connected here and never held off), suspend the ones it now refuses. Stored settings are never
- * touched. Idempotent.
+ * Audio Load Budget (docs/tasks/LFO_BANK.md Task 4): turn filter (LPF/HPF frequency/Q) LFO links off or back on.
+ * Off: every currently-connected filter key is suspended (disconnected, stopped, kept in suspendedFilterLinks so
+ * it can be found again) and a filter key asked for while off is recorded suspended by connectOne without ever
+ * being wired at all. On: every suspended filter key is connected (and started) for real, exactly once each.
+ * EQ-gain links and every robot LFO are never affected. Idempotent; stored LFO settings are never touched.
  */
-function reconcilePasses(): void {
-  // Pass 1 — suspend. Robot LFOs go newest-CONNECTED first, so a falling cap drops the most recent ones (LIFO, matching
-  // robot admission) and stops as soon as the newest is allowed again (allowed = fewer than the cap are connected).
-  // connectedSignals is a Map, and delete-then-set moves a key to the end, so its order IS connection order.
-  const newestConnectedRobotKey = (): string | undefined =>
-    [...connectedSignals.keys()].filter((key) => requested.get(key)?.robotId).at(-1);
-  for (let key = newestConnectedRobotKey(); key !== undefined; key = newestConnectedRobotKey()) {
-    const { target, robotId } = requested.get(key)!;
-    if (isAllowed(target, robotId, key)) break;
-    suspendConnection(key);
-    heldOff.add(key);
+function setFilterLfosEnabled(enabled: boolean): void {
+  if (enabled === filterLfosEnabled) return;
+  filterLfosEnabled = enabled;
+  if (!enabled) {
+    for (const key of [...connectedSignals.keys()]) {
+      if (isFilterTarget(key as LfoTargetId)) {
+        suspendConnection(key);
+        suspendedFilterLinks.add(key);
+      }
+    }
+    return;
   }
-  // Anything else connected that the policy now refuses (global filter LFOs, or a robot LFO refused for another reason).
-  for (const key of connectedSignals.keys()) {
-    const request = requested.get(key);
-    if (request && !isAllowed(request.target, request.robotId, key)) {
-      suspendConnection(key);
-      if (getLfoSettings(request.target, request.robotId).rate > 0) heldOff.add(key);
-    }
+  for (const key of [...suspendedFilterLinks]) {
+    suspendedFilterLinks.delete(key);
+    if (connectOne(key as LfoTargetId)) start(key as LfoTargetId);
   }
-
-  // Pass 2 — connect, in REQUEST order, everything requested (rate > 0) that is not connected and is now allowed. An LFO at
-  // rate 0 is never connected here and never held off.
-  for (const [key, { target, robotId }] of [...requested]) {
-    if (getLfoSettings(target, robotId).rate <= 0) {
-      heldOff.delete(key);
-      continue;
-    }
-    if (connectedSignals.has(key)) {
-      heldOff.delete(key);
-      continue;
-    }
-    if (isAllowed(target, robotId, key)) {
-      heldOff.delete(key);
-      if (connectOne(target, robotId)) start(target, robotId);
-    } else {
-      heldOff.add(key);
-    }
-  }
-}
-
-type HeldOffListener = () => void;
-const heldOffListeners = new Set<HeldOffListener>();
-let lastHeldOffSignature = "";
-
-/** Tell subscribers the held-off set changed — once per real change (a repeated refusal or a steady reconcile is silent). */
-function emitHeldOffIfChanged(): void {
-  const signature = [...heldOff].join("|");
-  if (signature === lastHeldOffSignature) return;
-  lastHeldOffSignature = signature;
-  for (const listener of [...heldOffListeners]) {
-    try {
-      listener();
-    } catch (err) {
-      devWarn("[lfoEngine] held-off listener threw", err); // one bad subscriber must not break the engine or starve the rest
-    }
-  }
-}
-
-/** Be told (after the fact, with the new set already readable via getHeldOffLfoKeys) whenever the held-off set changes. */
-function subscribeHeldOff(listener: HeldOffListener): () => void {
-  heldOffListeners.add(listener);
-  return () => {
-    heldOffListeners.delete(listener);
-  };
 }
 
 function connectLfoTarget(target: LfoTargetId, robotId?: string): boolean {
-  const connected = connectOne(target, robotId);
-  emitHeldOffIfChanged();
-  return connected;
+  return connectOne(target, robotId);
 }
 
 function disconnectLfoTarget(target: LfoTargetId, robotId?: string): void {
   disconnectOne(target, robotId);
-  emitHeldOffIfChanged();
-}
-
-function reconcileLfos(): void {
-  reconcilePasses();
-  emitHeldOffIfChanged();
-}
-
-/** Instance keys (e.g. `lpf.Q`, `robot-3:layer0.detune`) of LFOs requested but held off by the policy. */
-function getHeldOffLfoKeys(): string[] {
-  return [...heldOff];
 }
 
 /**
@@ -378,18 +311,17 @@ function getHeldOffLfoKeys(): string[] {
 function connectOne(target: LfoTargetId, robotId?: string): boolean {
   const key = instanceKey(target, robotId);
 
-  // A robot-scoped target needs a robotId to resolve against — nothing to record or connect without one.
+  // A robot-scoped target needs a robotId to resolve against — nothing to connect without one.
   if (isRobotTarget(target) && !robotId) return false;
 
-  // Audio Load policy: remember the request, then decline (and mark held off) if the budget says no.
-  requested.set(key, { target, robotId });
-  if (!isAllowed(target, robotId, key)) {
-    suspendConnection(key);
-    if (getLfoSettings(target, robotId).rate > 0) heldOff.add(key);
-    else heldOff.delete(key);
-    return false;
+  // Audio Load Budget (docs/tasks/LFO_BANK.md Task 4): a filter target asked for while the dial holds filter
+  // LFOs off is recorded as suspended and declared connected, but never actually resolved or wired —
+  // setFilterLfosEnabled(true) is what calls connectOne again for real.
+  if (!filterLfosEnabled && isFilterTarget(target)) {
+    suspendedFilterLinks.add(key);
+    return true;
   }
-  heldOff.delete(key);
+  suspendedFilterLinks.delete(key);
 
   // signal's type is inferred from AudioEngine's own return types (Tasks 9/10) —
   // no local `any` needed here even though that union isn't re-exported by name.
@@ -454,6 +386,7 @@ function connectOne(target: LfoTargetId, robotId?: string): boolean {
   }
 
   connectedSignals.set(key, signal);
+  connectedTargets.set(key, target);
   attachDrift(key, lfo, driftGroupForTarget(target));
   return true;
 }
@@ -461,20 +394,17 @@ function connectOne(target: LfoTargetId, robotId?: string): boolean {
 /** Reverse connectLfoTarget: disconnects the live node. Safe/no-op if nothing was connected. */
 function disconnectOne(target: LfoTargetId, robotId?: string): void {
   const key = instanceKey(target, robotId);
-  // An explicit disconnect (the user set the rate to 0, or the robot is gone) withdraws the request too,
-  // so a later reconcile never brings it back. The budget's own suspensions use suspendConnection instead.
-  requested.delete(key);
-  heldOff.delete(key);
-  const wasConnectedRobotLfo = connectedSignals.has(key) && robotId !== undefined;
+  // An explicit disconnect (the user set the rate to 0, or the robot is gone) withdraws it for good — unlike
+  // the budget's own suspensions (suspendConnection/setFilterLfosEnabled), this is never reconnected later.
+  suspendedFilterLinks.delete(key);
   connectedSignals.delete(key);
+  connectedTargets.delete(key);
   detachDrift(key);
   try {
     activeLfos.get(key)?.disconnect();
   } catch (err) {
     devWarn('[lfoEngine] disconnectLfoTarget: disconnect failed', err);
   }
-  // A freed robot-LFO slot goes to the oldest held-off LFO now, not at the next dial change.
-  if (wasConnectedRobotLfo && heldOff.size > 0) reconcilePasses();
 }
 
 /**
@@ -518,11 +448,8 @@ export const lfoEngine = {
   connectLfoTarget,
   disconnectLfoTarget,
   disposeRobotLfos,
-  setLfoPolicy,
   setDriftEnabled,
-  reconcileLfos,
-  getHeldOffLfoKeys,
-  subscribeHeldOff,
+  setFilterLfosEnabled,
   setGlobalRateDrift,
   setGlobalDepthDrift,
 };

@@ -11,14 +11,12 @@ import {
   MAX_POLYPHONY,
   MAX_ROBOTS,
 } from '../constants';
-import { GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS } from '../types/lfo';
 import {
   clampAudioLoad,
   describeLimits,
   detectCoarsePointer,
   detectDefaultAudioLoad,
   effectsLoadToLimits,
-  lfoAllowed,
   latencyForLoad,
   loadToLimits,
   loadToSearchParam,
@@ -811,60 +809,5 @@ describe('resolveInitialEffectsLoad', () => {
   it('falls back to device detection when neither param is present', () => {
     expect(resolveInitialEffectsLoad({ search: '', ...desktop })).toBe(1);
     expect(resolveInitialEffectsLoad({ search: '', ...phone })).toBe(0.2);
-  });
-});
-
-// ========================================
-// lfoAllowed
-// ========================================
-
-describe('lfoAllowed', () => {
-  const light = loadToLimits(AUDIO_LOAD_PRESETS.light);
-  const standard = loadToLimits(AUDIO_LOAD_PRESETS.standard);
-  const full = loadToLimits(AUDIO_LOAD_PRESETS.full);
-
-  describe('global targets', () => {
-    it('always allows the nearly-free EQ-gain LFOs, even on Light', () => {
-      for (const target of ['eq3.low', 'eq3.mid', 'eq3.high'] as const) {
-        expect(lfoAllowed(target, 'global', light, 0), target).toBe(true);
-      }
-    });
-
-    it('allows filter-frequency and Q LFOs only when the dial enables filter LFOs', () => {
-      for (const target of ['lpf.frequency', 'lpf.Q', 'hpf.frequency', 'hpf.Q'] as const) {
-        expect(lfoAllowed(target, 'global', light, 0), `${target} on Light`).toBe(false);
-        expect(lfoAllowed(target, 'global', standard, 0), `${target} on Standard`).toBe(true);
-        expect(lfoAllowed(target, 'global', full, 0), `${target} on Full`).toBe(true);
-      }
-    });
-
-    it('classifies every global target, and only the four filter ones are suspended on Light', () => {
-      const blocked = GLOBAL_LFO_TARGET_IDS.filter((t) => !lfoAllowed(t, 'global', light, 0));
-      expect(blocked).toEqual(['lpf.frequency', 'lpf.Q', 'hpf.frequency', 'hpf.Q']);
-    });
-
-    it('is not affected by how many robot LFOs are connected', () => {
-      expect(lfoAllowed('lpf.Q', 'global', standard, 999)).toBe(true);
-      expect(lfoAllowed('eq3.low', 'global', light, 999)).toBe(true);
-    });
-  });
-
-  describe('robot targets', () => {
-    const audioRateTargets = ROBOT_LFO_TARGET_IDS;
-
-    // The robot-LFO cap was removed (docs/specs/LFO_BANK.md Task 2) — a robot target is always
-    // allowed, at every tier and however many are already connected.
-    it('is always allowed, at every tier, however many robot LFOs are already connected', () => {
-      for (const target of audioRateTargets) {
-        for (const limits of [light, standard, full]) {
-          expect(lfoAllowed(target, 'robot', limits, 0), `${target} at 0`).toBe(true);
-          expect(lfoAllowed(target, 'robot', limits, 999), `${target} at 999`).toBe(true);
-        }
-      }
-    });
-
-    it('is not affected by the filter-LFO switch', () => {
-      expect(lfoAllowed('layer0.gain', 'robot', { ...standard, filterLfosEnabled: false }, 0)).toBe(true);
-    });
   });
 });

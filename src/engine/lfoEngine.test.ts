@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { lfoAllowed, loadToLimits } from '../utils/audioBudget';
 
 // ========================================
 // MOCKS
@@ -490,7 +489,6 @@ describe('lfoEngine', () => {
       expect(lfoEngine.connectLfoTarget('layer0.pulseWidth' as never, 'robot-a')).toBe(false);
       // Not a robot target any more, so never resolved as one; the global path resolves nothing.
       expect(AudioEngine.getRobotModulationTarget).not.toHaveBeenCalled();
-      expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
     });
 
     it('is idempotent when called twice in a row on the same target/signal — never issues a second .connect(), so the same LFO can never double-modulate a target', async () => {
@@ -714,7 +712,6 @@ describe('lfoEngine', () => {
       let result: boolean | undefined;
       expect(() => { result = lfoEngine.connectLfoTarget('layer0.phase' as never, 'robot-a'); }).not.toThrow();
       expect(result).toBe(false);
-      expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
     });
   });
 
@@ -737,259 +734,153 @@ describe('lfoEngine', () => {
     });
   });
 
-  // Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §1.4, plan task 17): a policy predicate decides which LFOs may be
-  // connected. A tier only SUSPENDS: stored settings are never edited, "held off" means requested (rate > 0) but not
-  // connected because of the dial, and reconcileLfos() re-applies the policy to everything that was requested.
-  describe('Audio Load policy (setLfoPolicy / reconcileLfos / getHeldOffLfoKeys)', () => {
-    const blockFilters = (target: string) => !/^(lpf|hpf)\./.test(target);
-
+  // Audio Load Budget (docs/tasks/LFO_BANK.md Task 4): a module flag the engine owns directly now — off suspends
+  // (disconnects, stops, but keeps enough bookkeeping to find again) every connected filter (lpf./hpf.) key; a
+  // filter key asked for while off is recorded suspended and never wired at all; on reconnects everything that
+  // was suspended, exactly once each. EQ-gain links and every robot LFO are never affected.
+  describe('filter tier (setFilterLfosEnabled)', () => {
     async function setup() {
       const { AudioEngine } = await import('./AudioEngine');
       (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal());
+      (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal());
       const { lfoEngine } = await import('./lfoEngine');
-      // The Tone.LFO mock's results accumulate across the whole file, so remember where THIS test's instances begin.
-      const Tone = await import('tone');
-      const firstIndex = (Tone.LFO as unknown as ReturnType<typeof vi.fn>).mock.results.length;
-      return { AudioEngine, lfoEngine, firstIndex };
+      return { AudioEngine, lfoEngine };
     }
 
-    /** Primary (numeric-arg) LFO instances constructed since `firstIndex` — never drift-pool oscillators or earlier tests' LFOs. */
-    async function primariesSince(firstIndex: number): Promise<MockLfoInstance[]> {
-      const Tone = await import('tone');
-      const ctor = Tone.LFO as unknown as ReturnType<typeof vi.fn>;
-      return ctor.mock.results
-        .slice(firstIndex)
-        .filter((_: unknown, i: number) => typeof ctor.mock.calls[firstIndex + i][0] !== 'object')
-        .map((r) => r.value as MockLfoInstance);
+    /** Set the stored rate/depth/shape the way setGlobalLfo/applyLayerLfo does before it asks to connect. */
+    function configure(
+      lfoEngine: Awaited<ReturnType<typeof setup>>['lfoEngine'],
+      target: 'lpf.Q' | 'lpf.frequency' | 'eq3.low' | 'hpf.Q' | 'layer0.gain',
+      robotId?: string,
+    ) {
+      lfoEngine.setLfoRate(target, 2, robotId);
+      lfoEngine.setLfoDepth(target, 40, robotId);
+      lfoEngine.setLfoShape(target, 'triangle', robotId);
     }
 
-    /** Set the stored rate/depth/shape the way setGlobalLfo does before it asks to connect. */
-    function configure(lfoEngine: Awaited<ReturnType<typeof setup>>['lfoEngine'], target: 'lpf.Q' | 'lpf.frequency' | 'eq3.low' | 'hpf.Q', rate = 2) {
-      lfoEngine.setLfoRate(target, rate);
-      lfoEngine.setLfoDepth(target, 40);
-      lfoEngine.setLfoShape(target, 'triangle');
-    }
-
-    it('with no policy (the default) nothing is refused and nothing is held off', async () => {
+    it('by default (never called) every filter target connects normally, same as any other target', async () => {
       const { lfoEngine } = await setup();
       configure(lfoEngine, 'lpf.Q');
-
       expect(lfoEngine.connectLfoTarget('lpf.Q')).toBe(true);
-      expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
-      expect(() => lfoEngine.reconcileLfos()).not.toThrow();
+      const instance = await latestLfoInstance();
+      expect(instance.connect).toHaveBeenCalled();
     });
 
-    it('refuses to connect a disallowed target and reads it as held off, while an allowed one connects normally', async () => {
-      const { lfoEngine } = await setup();
-      configure(lfoEngine, 'lpf.Q');
-      configure(lfoEngine, 'eq3.low');
-      lfoEngine.setLfoPolicy(blockFilters);
-
-      expect(lfoEngine.connectLfoTarget('lpf.Q')).toBe(false);
-      expect(lfoEngine.connectLfoTarget('eq3.low')).toBe(true);
-      expect(lfoEngine.getHeldOffLfoKeys()).toEqual(['lpf.Q']);
-    });
-
-    it('a refused connection never touches the audio graph: not connected, not started', async () => {
+    it('disconnects exactly the LPF node and no other, from a mixed eq3.low / lpf.frequency / robot gain roster', async () => {
       mockContextState = 'running';
       const { lfoEngine } = await setup();
-      configure(lfoEngine, 'lpf.Q');
-      lfoEngine.setLfoPolicy(blockFilters);
+      const Tone = await import('tone');
+      const ctor = Tone.LFO as unknown as ReturnType<typeof vi.fn>;
+      const firstIndex = ctor.mock.results.length;
 
-      // The caller pattern (setGlobalLfo): start only when the connection succeeded.
-      if (lfoEngine.connectLfoTarget('lpf.Q')) lfoEngine.start('lpf.Q');
+      configure(lfoEngine, 'eq3.low');
+      lfoEngine.connectLfoTarget('eq3.low');
+      configure(lfoEngine, 'lpf.frequency');
+      lfoEngine.connectLfoTarget('lpf.frequency');
+      configure(lfoEngine, 'layer0.gain', 'r1');
+      lfoEngine.connectLfoTarget('layer0.gain', 'r1');
 
-      const instance = await latestLfoInstance();
-      expect(instance.connect).not.toHaveBeenCalled();
-      expect(instance.start).not.toHaveBeenCalled();
+      // Skip drift-pool (options-object-constructed) instances — attachDrift's own lazy pool
+      // construction can land extra Tone.LFO calls between these 3 primaries' own numeric-arg ones.
+      const [eqLfo, lpfLfo, robotLfo] = ctor.mock.results
+        .slice(firstIndex)
+        .filter((_, i) => typeof ctor.mock.calls[firstIndex + i][0] !== 'object')
+        .map((r) => r.value as MockLfoInstance);
+
+      lfoEngine.setFilterLfosEnabled(false);
+
+      expect(lpfLfo.disconnect).toHaveBeenCalled();
+      expect(eqLfo.disconnect).not.toHaveBeenCalled();
+      expect(robotLfo.disconnect).not.toHaveBeenCalled();
     });
 
-    it('never modifies stored settings when it refuses', async () => {
-      const { lfoEngine } = await setup();
-      configure(lfoEngine, 'lpf.Q', 3.5);
-      const before = { ...lfoEngine.getLfoSettings('lpf.Q') };
-      lfoEngine.setLfoPolicy(blockFilters);
+    it('reconnects a suspended filter link exactly once when turned back on — no duplicate .connect()', async () => {
+      mockContextState = 'running';
+      const { AudioEngine, lfoEngine } = await setup();
+      configure(lfoEngine, 'lpf.frequency');
+      lfoEngine.connectLfoTarget('lpf.frequency');
+      const instance = await latestLfoInstance();
+      lfoEngine.setFilterLfosEnabled(false);
+      (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockClear();
+      instance.connect.mockClear();
 
+      lfoEngine.setFilterLfosEnabled(true);
+
+      expect(AudioEngine.getGlobalModulationTarget).toHaveBeenCalledTimes(1);
+      expect(instance.connect).toHaveBeenCalledTimes(1);
+      expect(instance.start).toHaveBeenCalledTimes(1);
+    });
+
+    it('a filter key connected while disabled is not resolved or wired at all until enabled', async () => {
+      const { AudioEngine, lfoEngine } = await setup();
+      lfoEngine.setFilterLfosEnabled(false);
+      configure(lfoEngine, 'lpf.Q');
+      // The AudioEngine mock is module-level and not cleared between tests — scope the assertion.
+      (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockClear();
+
+      const result = lfoEngine.connectLfoTarget('lpf.Q');
+
+      expect(result).toBe(true); // recorded as connected, per the task's own contract
+      expect(AudioEngine.getGlobalModulationTarget).not.toHaveBeenCalled();
+
+      lfoEngine.setFilterLfosEnabled(true);
+
+      expect(AudioEngine.getGlobalModulationTarget).toHaveBeenCalledWith('lpf.Q');
+      const instance = await latestLfoInstance();
+      expect(instance.connect).toHaveBeenCalledTimes(1);
+    });
+
+    it('never modifies stored settings while suspending or reconnecting', async () => {
+      const { lfoEngine } = await setup();
+      configure(lfoEngine, 'lpf.Q');
+      lfoEngine.setLfoRate('lpf.Q', 3.5);
+      const before = { ...lfoEngine.getLfoSettings('lpf.Q') };
       lfoEngine.connectLfoTarget('lpf.Q');
 
+      lfoEngine.setFilterLfosEnabled(false);
       expect(lfoEngine.getLfoSettings('lpf.Q')).toEqual(before);
-      expect(before).toMatchObject({ rate: 3.5, depth: 40, shape: 'triangle' });
+
+      lfoEngine.setFilterLfosEnabled(true);
+      expect(lfoEngine.getLfoSettings('lpf.Q')).toEqual(before);
     });
 
-    it('an LFO at rate 0 was never requested: it is not held off, and reconcile never connects it', async () => {
+    it('is idempotent in both directions: a repeat call issues no further disconnect/connect', async () => {
+      mockContextState = 'running';
+      const { lfoEngine } = await setup();
+      configure(lfoEngine, 'lpf.frequency');
+      lfoEngine.connectLfoTarget('lpf.frequency');
+      const instance = await latestLfoInstance();
+
+      lfoEngine.setFilterLfosEnabled(false);
+      instance.disconnect.mockClear();
+      lfoEngine.setFilterLfosEnabled(false); // already off
+
+      expect(instance.disconnect).not.toHaveBeenCalled();
+
+      lfoEngine.setFilterLfosEnabled(true);
+      instance.connect.mockClear();
+      lfoEngine.setFilterLfosEnabled(true); // already on
+
+      expect(instance.connect).not.toHaveBeenCalled();
+    });
+
+    it('an explicit disconnectLfoTarget on a suspended filter link withdraws it for good — turning the flag back on does not revive it', async () => {
       const { AudioEngine, lfoEngine } = await setup();
-      lfoEngine.setLfoRate('lpf.Q', 0);
-      lfoEngine.setLfoPolicy(blockFilters);
+      lfoEngine.setFilterLfosEnabled(false);
+      configure(lfoEngine, 'lpf.Q');
+      lfoEngine.connectLfoTarget('lpf.Q');
 
-      expect(lfoEngine.connectLfoTarget('lpf.Q')).toBe(false);
-      expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
-
-      lfoEngine.setLfoPolicy(null);
+      lfoEngine.disconnectLfoTarget('lpf.Q');
       (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockClear();
-      lfoEngine.reconcileLfos();
+      lfoEngine.setFilterLfosEnabled(true);
 
       expect(AudioEngine.getGlobalModulationTarget).not.toHaveBeenCalled();
-      expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
     });
 
-    describe('reconcileLfos', () => {
-      it('connects and starts held-off LFOs that have rate > 0 once the policy allows them', async () => {
-        mockContextState = 'running';
-        const { lfoEngine, firstIndex } = await setup();
-        configure(lfoEngine, 'lpf.Q');
-        configure(lfoEngine, 'hpf.Q');
-        lfoEngine.setLfoPolicy(blockFilters);
-        lfoEngine.connectLfoTarget('lpf.Q');
-        lfoEngine.connectLfoTarget('hpf.Q');
-        expect(lfoEngine.getHeldOffLfoKeys()).toEqual(['lpf.Q', 'hpf.Q']);
-
-        lfoEngine.setLfoPolicy(null);
-        lfoEngine.reconcileLfos();
-
-        expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
-        const lfos = await primariesSince(firstIndex);
-        expect(lfos).toHaveLength(2);
-        for (const lfo of lfos) {
-          expect(lfo.connect).toHaveBeenCalled();
-          expect(lfo.start).toHaveBeenCalled();
-        }
-      });
-
-      it('disconnects and stops a connected LFO the policy newly disallows, keeping everything it was set to', async () => {
-        mockContextState = 'running';
-        const { lfoEngine, firstIndex } = await setup();
-        configure(lfoEngine, 'lpf.Q', 2.5);
-        configure(lfoEngine, 'eq3.low');
-        lfoEngine.connectLfoTarget('lpf.Q');
-        lfoEngine.start('lpf.Q');
-        lfoEngine.connectLfoTarget('eq3.low');
-        const [filterLfo, eqLfo] = await primariesSince(firstIndex);
-        eqLfo.disconnect.mockClear();
-        eqLfo.stop.mockClear();
-        filterLfo.disconnect.mockClear();
-        filterLfo.stop.mockClear();
-
-        lfoEngine.setLfoPolicy(blockFilters);
-        lfoEngine.reconcileLfos();
-
-        expect(filterLfo.disconnect).toHaveBeenCalled();
-        expect(filterLfo.stop).toHaveBeenCalled();
-        expect(lfoEngine.getHeldOffLfoKeys()).toEqual(['lpf.Q']);
-        expect(lfoEngine.getLfoSettings('lpf.Q')).toMatchObject({ rate: 2.5, depth: 40, shape: 'triangle' });
-        // the allowed EQ-gain LFO is untouched
-        expect(lfoEngine.getHeldOffLfoKeys()).not.toContain('eq3.low');
-        expect(eqLfo.disconnect).not.toHaveBeenCalled();
-        expect(eqLfo.stop).not.toHaveBeenCalled();
-      });
-
-      it('round trip: tiering down then up leaves every stored setting identical and re-establishes the same connection', async () => {
-        mockContextState = 'running';
-        const { AudioEngine, lfoEngine } = await setup();
-        const signal = fakeSignal();
-        (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => signal);
-        configure(lfoEngine, 'lpf.frequency', 1.25);
-        lfoEngine.connectLfoTarget('lpf.frequency');
-        lfoEngine.start('lpf.frequency');
-        const before = { ...lfoEngine.getLfoSettings('lpf.frequency') };
-        const instance = await latestLfoInstance();
-        instance.connect.mockClear();
-
-        lfoEngine.setLfoPolicy(blockFilters);
-        lfoEngine.reconcileLfos();
-        lfoEngine.setLfoPolicy(null);
-        lfoEngine.reconcileLfos();
-
-        expect(lfoEngine.getLfoSettings('lpf.frequency')).toEqual(before);
-        expect(instance.connect).toHaveBeenCalledWith(signal);
-        expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
-      });
-
-      it('is idempotent: a second reconcile changes nothing', async () => {
-        mockContextState = 'running';
-        const { lfoEngine } = await setup();
-        configure(lfoEngine, 'lpf.Q');
-        lfoEngine.setLfoPolicy(blockFilters);
-        lfoEngine.connectLfoTarget('lpf.Q');
-        lfoEngine.setLfoPolicy(null);
-        lfoEngine.reconcileLfos();
-        const instance = await latestLfoInstance();
-        const connects = instance.connect.mock.calls.length;
-        const starts = instance.start.mock.calls.length;
-
-        lfoEngine.reconcileLfos();
-
-        expect(instance.connect.mock.calls.length).toBe(connects);
-        expect(instance.start.mock.calls.length).toBe(starts);
-      });
-
-      it('respects the "context must be running" gate when it starts a reconnected LFO', async () => {
-        mockContextState = 'suspended';
-        const { lfoEngine } = await setup();
-        configure(lfoEngine, 'lpf.Q');
-        lfoEngine.setLfoPolicy(blockFilters);
-        lfoEngine.connectLfoTarget('lpf.Q');
-
-        lfoEngine.setLfoPolicy(null);
-        lfoEngine.reconcileLfos();
-
-        const instance = await latestLfoInstance();
-        expect(instance.connect).toHaveBeenCalled(); // connected…
-        expect(instance.start).not.toHaveBeenCalled(); // …but not started before the context runs
-      });
-
-      it('does nothing, and does not throw, with no requests at all', async () => {
-        const { lfoEngine } = await setup();
-        lfoEngine.setLfoPolicy(blockFilters);
-        expect(() => lfoEngine.reconcileLfos()).not.toThrow();
-        expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
-      });
-
-    });
-
-    describe('explicit disconnect and disposal forget the request', () => {
-      it('disconnectLfoTarget (the user set the rate to 0) removes a held-off LFO from the held-off list and from reconcile', async () => {
-        const { AudioEngine, lfoEngine } = await setup();
-        configure(lfoEngine, 'lpf.Q');
-        lfoEngine.setLfoPolicy(blockFilters);
-        lfoEngine.connectLfoTarget('lpf.Q');
-        expect(lfoEngine.getHeldOffLfoKeys()).toEqual(['lpf.Q']);
-
-        lfoEngine.disconnectLfoTarget('lpf.Q');
-        expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
-
-        lfoEngine.setLfoPolicy(null);
-        (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockClear();
-        lfoEngine.reconcileLfos();
-        expect(AudioEngine.getGlobalModulationTarget).not.toHaveBeenCalled();
-      });
-
-      it('disposeRobotLfos forgets every request a removed robot had, including held-off ones', async () => {
-        const { AudioEngine, lfoEngine } = await setup();
-        (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal());
-        lfoEngine.setLfoRate('layer0.gain', 1, 'robot-a');
-        lfoEngine.setLfoPolicy(() => false);
-        lfoEngine.connectLfoTarget('layer0.gain', 'robot-a');
-        expect(lfoEngine.getHeldOffLfoKeys()).toEqual(['robot-a:layer0.gain']);
-
-        lfoEngine.disposeRobotLfos('robot-a');
-
-        expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
-      });
-    });
-
-    it('hands the policy the target, the robot id (undefined for a global one) and the connected robot-LFO count', async () => {
-      const { AudioEngine, lfoEngine } = await setup();
-      (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal());
-      const policy = vi.fn(() => true);
-      lfoEngine.setLfoPolicy(policy);
-      configure(lfoEngine, 'eq3.low');
-      lfoEngine.setLfoRate('layer0.gain', 1, 'robot-a');
-
-      lfoEngine.connectLfoTarget('eq3.low');
-      lfoEngine.connectLfoTarget('layer0.gain', 'robot-a');
-
-      expect(policy).toHaveBeenCalledWith('eq3.low', undefined, 0);
-      expect(policy).toHaveBeenCalledWith('layer0.gain', 'robot-a', 0);
+    it('does nothing, and does not throw, with nothing connected or suspended', async () => {
+      const { lfoEngine } = await setup();
+      expect(() => lfoEngine.setFilterLfosEnabled(false)).not.toThrow();
+      expect(() => lfoEngine.setFilterLfosEnabled(true)).not.toThrow();
     });
   });
 
@@ -1066,107 +957,6 @@ describe('lfoEngine', () => {
 
       expect(lfoEngine.getLfoSettings('layer0.gain', 'robot-a')).toEqual(DEFAULT_LFO_SETTINGS['layer0.gain']);
       expect(lfoEngine.getLfoSettings('layer0.gain', 'robot-b').rate).toBe(6);
-    });
-  });
-
-  // The robot-LFO cap was removed (docs/specs/LFO_BANK.md Task 2) — lfoAllowed (audioBudget.ts)
-  // now always allows a robot target, so a policy built from it can never hold one off, however
-  // many are already connected. The held-off machinery itself (setLfoPolicy/reconcileLfos/
-  // getHeldOffLfoKeys) stays — a caller-supplied policy can still refuse for other reasons — but
-  // there is no longer a real-world policy that refuses a robot key by count.
-  it('a policy built from the real lfoAllowed never holds off a robot target, however many are already connected (docs/specs/LFO_BANK.md Task 2)', async () => {
-    const { AudioEngine } = await import('./AudioEngine');
-    (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal(0));
-    const { lfoEngine } = await import('./lfoEngine');
-    lfoEngine.setLfoPolicy((target, robotId, connected) =>
-      lfoAllowed(target as never, robotId ? 'robot' : 'global', loadToLimits(1), connected));
-
-    for (let i = 0; i < 30; i++) {
-      lfoEngine.setLfoRate('layer0.gain', 1, `robot-${i}`);
-      expect(lfoEngine.connectLfoTarget('layer0.gain', `robot-${i}`)).toBe(true);
-    }
-
-    expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
-  });
-
-  // Audio Load Budget (plan task 20): the engine tells a subscriber when the held-off set changes, so the UI can grey a robot
-  // LFO out the moment the user enables it over the cap (that action goes straight to lfoEngine, not through the budget system).
-  describe('subscribeHeldOff', () => {
-    async function setup() {
-      const { AudioEngine } = await import('./AudioEngine');
-      (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal(0));
-      (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal(0));
-      const { lfoEngine } = await import('./lfoEngine');
-      const listener = vi.fn();
-      const unsubscribe = lfoEngine.subscribeHeldOff(listener);
-      const ask = (target: 'lpf.Q' | 'eq3.low') => {
-        lfoEngine.setLfoRate(target, 1);
-        return lfoEngine.connectLfoTarget(target);
-      };
-      return { lfoEngine, listener, unsubscribe, ask };
-    }
-    const blockFilters = (target: string) => !/^(lpf|hpf)\./.test(target);
-
-    it('fires when a connection is refused and the LFO becomes held off, by which time the key is already readable', async () => {
-      const { lfoEngine, listener, ask } = await setup();
-      lfoEngine.setLfoPolicy(blockFilters);
-      let seen: string[] = [];
-      listener.mockImplementation(() => { seen = lfoEngine.getHeldOffLfoKeys(); });
-
-      ask('lpf.Q');
-
-      expect(listener).toHaveBeenCalledTimes(1);
-      expect(seen).toEqual(['lpf.Q']);
-    });
-
-    it('does not fire when nothing changes: an allowed connection, a repeated refusal, or a steady reconcile', async () => {
-      const { lfoEngine, listener, ask } = await setup();
-      lfoEngine.setLfoPolicy(blockFilters);
-      ask('eq3.low');
-      expect(listener).not.toHaveBeenCalled();
-
-      ask('lpf.Q');
-      listener.mockClear();
-      ask('lpf.Q'); // refused again — already held off
-      lfoEngine.reconcileLfos();
-      lfoEngine.reconcileLfos();
-
-      expect(listener).not.toHaveBeenCalled();
-    });
-
-    it('fires when a reconcile clears the held-off LFO, and when an explicit disconnect withdraws it', async () => {
-      const { lfoEngine, listener, ask } = await setup();
-      lfoEngine.setLfoPolicy(blockFilters);
-      ask('lpf.Q');
-      listener.mockClear();
-
-      lfoEngine.setLfoPolicy(null);
-      lfoEngine.reconcileLfos();
-      expect(listener).toHaveBeenCalledTimes(1);
-      expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
-
-      lfoEngine.setLfoPolicy(blockFilters);
-      lfoEngine.reconcileLfos(); // held off again
-      listener.mockClear();
-      lfoEngine.disconnectLfoTarget('lpf.Q');
-      expect(listener).toHaveBeenCalledTimes(1);
-    });
-
-    it('stops firing after unsubscribe, and one throwing listener neither breaks the engine nor starves the others', async () => {
-      const { lfoEngine, listener, unsubscribe, ask } = await setup();
-      const bad = vi.fn(() => { throw new Error('listener bug'); });
-      const good = vi.fn();
-      lfoEngine.subscribeHeldOff(bad);
-      lfoEngine.subscribeHeldOff(good);
-      lfoEngine.setLfoPolicy(blockFilters);
-
-      expect(() => ask('lpf.Q')).not.toThrow();
-      expect(good).toHaveBeenCalledTimes(1);
-
-      unsubscribe();
-      listener.mockClear();
-      lfoEngine.disconnectLfoTarget('lpf.Q');
-      expect(listener).not.toHaveBeenCalled();
     });
   });
 
@@ -1298,12 +1088,12 @@ describe('lfoEngine', () => {
       expect([rateAfter.gain.value, depthAfter.gain.value]).toEqual(amounts);
     });
 
-    it('only re-attaches to LFOs that are connected — a held-off one waits until it is', async () => {
+    it('only re-attaches to LFOs that are connected — a filter link suspended by the dial waits until it is reconnected', async () => {
       const { lfoEngine, gainMark, gainsSince } = await setup();
       lfoEngine.setLfoRate('lpf.frequency', 1);
       lfoEngine.setLfoDepth('lpf.frequency', 50);
-      lfoEngine.setLfoPolicy((target) => target !== 'lpf.frequency');
-      expect(lfoEngine.connectLfoTarget('lpf.frequency')).toBe(false); // held off
+      lfoEngine.connectLfoTarget('lpf.frequency');
+      lfoEngine.setFilterLfosEnabled(false); // suspended
       connectRobot(lfoEngine);
       lfoEngine.setDriftEnabled(false);
 
@@ -1313,17 +1103,17 @@ describe('lfoEngine', () => {
       expect(gainsSince(mark)).toHaveLength(2); // the one robot LFO only
     });
 
-    it('an LFO brought back by reconcileLfos while drift is off gets no drift link', async () => {
+    it('a filter link reconnected by setFilterLfosEnabled while drift is off gets no drift link', async () => {
       const { lfoEngine, gainMark, gainsSince } = await setup();
-      lfoEngine.setLfoPolicy(() => false);
-      connectRobot(lfoEngine); // refused, held off
+      lfoEngine.setLfoRate('lpf.frequency', 1);
+      lfoEngine.setLfoDepth('lpf.frequency', 50);
+      lfoEngine.connectLfoTarget('lpf.frequency');
+      lfoEngine.setFilterLfosEnabled(false); // suspended
       lfoEngine.setDriftEnabled(false);
-      lfoEngine.setLfoPolicy(null);
       const mark = gainMark();
 
-      lfoEngine.reconcileLfos();
+      lfoEngine.setFilterLfosEnabled(true); // reconnects
 
-      expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
       expect(gainsSince(mark)).toHaveLength(0);
     });
 
@@ -2001,45 +1791,8 @@ describe('robot LFO priming integration (LFO Load Fix Task 10)', () => {
   // made the third test's "stale signal" case silently inherit the second test's already-connected
   // state, since `latestLfoInstance()` then picked up a different robot's LFO than the one actually
   // reused).
-  it('under a cap of 3, holds off the 4th-and-later requests in round-robin order and admits them in that order once the cap rises', async () => {
-    const { lfoEngine, priming } = await setup();
-    const robots = [
-      makeRobot('cap-r1', { 'layer0.gain': { shape: 'sine', rate: 1, depth: 10 } }),
-      makeRobot('cap-r2', { 'layer0.gain': { shape: 'sine', rate: 1, depth: 10 } }),
-      makeRobot('cap-r3', { 'layer0.gain': { shape: 'sine', rate: 1, depth: 10 } }),
-      makeRobot('cap-r4', { 'layer0.gain': { shape: 'sine', rate: 1, depth: 10 } }),
-      makeRobot('cap-r5', { 'layer0.gain': { shape: 'sine', rate: 1, depth: 10 } }),
-    ];
-    let connected = 0;
-    lfoEngine.setLfoPolicy((_target, _robotId, connectedRobotLfos) => {
-      void connectedRobotLfos;
-      return connected < 3;
-    });
-    // lfoAllowed's real contract counts already-connected LFOs; this test only needs "cap of 3"
-    // behavior, so a simple running counter incremented after each real connect stands in for it.
-    const realConnect = lfoEngine.connectLfoTarget.bind(lfoEngine);
-    vi.spyOn(lfoEngine, 'connectLfoTarget').mockImplementation((target, robotId) => {
-      const result = realConnect(target, robotId);
-      if (result) connected++;
-      return result;
-    });
-
-    priming.primeRosterLfos(robots);
-
-    expect(lfoEngine.getHeldOffLfoKeys().sort()).toEqual(['cap-r4:layer0.gain', 'cap-r5:layer0.gain'].sort());
-
-    // Raise the cap and reconcile — the held-off set admits in round-robin (request) order.
-    lfoEngine.setLfoPolicy((_target, _robotId, connectedRobotLfos) => {
-      void connectedRobotLfos;
-      return true;
-    });
-    lfoEngine.reconcileLfos();
-
-    expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
-  });
-
   it('priming the same robot twice adds no new request and issues no second .connect() on an unchanged signal', async () => {
-    const { AudioEngine, lfoEngine, priming } = await setup();
+    const { AudioEngine, priming } = await setup();
     const signal = fakeSignal();
     (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockReturnValue(signal);
     const robot = makeRobot('idem-r1', { 'layer0.gain': { shape: 'sine', rate: 1, depth: 10 } });
@@ -2051,7 +1804,6 @@ describe('robot LFO priming integration (LFO Load Fix Task 10)', () => {
     priming.primeRobotLfos(robot);
 
     expect(instance.connect.mock.calls.length).toBe(connectCallsAfterFirst);
-    expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
   });
 
   it('re-primes after a voice rebuild (a new signal object for the same target) by disconnecting the stale one and connecting the new one', async () => {

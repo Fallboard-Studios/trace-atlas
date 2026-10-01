@@ -12,7 +12,6 @@ import {
   MAX_POLYPHONY,
   MAX_ROBOTS,
 } from '../constants';
-import type { LfoTargetId } from '../types/lfo';
 
 // ========================================
 // TYPES
@@ -294,24 +293,3 @@ export function reconcileSounding(
   return sameOrder(next, previous) ? previous : next;
 }
 
-// ========================================
-// LFO TIERS
-// ========================================
-
-const FILTER_TARGET = /^(lpf|hpf)\./;
-
-/**
- * May this LFO be connected right now? EQ-gain global LFOs are always allowed (nearly free); the
- * filter-frequency/Q ones only when the dial enables them; a robot LFO is always allowed —
- * docs/specs/LFO_BANK.md Task 2 removed the robot-LFO cap the Task 11 perf gate had added.
- * `connectedRobotLfos` is accepted for call-site compatibility but no longer consulted.
- */
-export function lfoAllowed(
-  target: LfoTargetId,
-  scope: 'global' | 'robot',
-  limits: LoadLimits,
-  _connectedRobotLfos: number,
-): boolean {
-  if (scope === 'global') return FILTER_TARGET.test(target) ? limits.filterLfosEnabled : true;
-  return true;
-}

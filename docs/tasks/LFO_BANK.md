@@ -113,18 +113,20 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
   **Files:** `src/stores/audioStore.ts` (+test), `src/systems/audioBudgetSystem.ts` (+test), `AudioRigDrawer.tsx`, `AudioRigEffectPanel.test.tsx`, `RobotOptionsTab.tsx` (+test), `SignatureArrayDrawer.tsx` (+test), `LfoTargetGroup.tsx` (+test).
   **Scope:** M.
 
-- [ ] **Task 4: Engine — drop the policy, held-off set and reconcile; keep a filter flag**
+- [x] **Task 4: Engine — drop the policy, held-off set and reconcile; keep a filter flag**
 
   **Description:** `lfoEngine.ts`: delete `policy`, `setLfoPolicy`, `requested`, `heldOff`, `reconcilePasses`/`reconcileLfos`, `isAllowed`, `connectedRobotLfoCount`, `heldOffListeners`/`emitHeldOffIfChanged`/`subscribeHeldOff`/`getHeldOffLfoKeys`, and the `wasConnectedRobotLfo` reconcile call in `disconnectOne`. Add `setFilterLfosEnabled(enabled)`: a module flag; `false` suspends (disconnects, keeps `connectedSignals` bookkeeping under a separate `suspended` set) every connected `lpf.*`/`hpf.*` key, `true` re-connects them; `connectOne` for a filter key while disabled records and returns true but leaves it suspended. `audioBudgetSystem.applyLfoTiers` becomes `setDriftEnabled` + `setFilterLfosEnabled` + the two held-off booleans; `stopAudioBudget` restores both to true/false. `lfoAllowed` and `FILTER_TARGET` leave `audioBudget.ts` (the engine now owns the filter rule).
 
   **Acceptance criteria:**
-  - [ ] `lfoEngine.test.ts`: `setFilterLfosEnabled(false)` after connecting `eq3.low`, `lpf.frequency` and `r1:layer0.gain` disconnects only the LPF node; `true` reconnects it once (no duplicate `.connect()`); a `lpf.Q` connected while disabled is not wired until `true`.
-  - [ ] `audioBudgetSystem.test.ts`: Full → Standard calls `setFilterLfosEnabled(false)` and `setFilterLinksHeldOff(true)`; Standard → Standard (dial nudge inside a tier) calls nothing; `stopAudioBudget` calls `setFilterLfosEnabled(true)`.
-  - [ ] `grep -rn "setLfoPolicy\|reconcileLfos\|lfoAllowed\|heldOff" src/engine src/systems src/utils` returns nothing.
+  - [x] `lfoEngine.test.ts`: `setFilterLfosEnabled(false)` after connecting `eq3.low`, `lpf.frequency` and `r1:layer0.gain` disconnects only the LPF node; `true` reconnects it once (no duplicate `.connect()`); a `lpf.Q` connected while disabled is not wired until `true`.
+  - [x] `audioBudgetSystem.test.ts`: Full → Standard calls `setFilterLfosEnabled(false)` and `setFilterLinksHeldOff(true)`; Standard → Standard (dial nudge inside a tier) calls nothing; `stopAudioBudget` calls `setFilterLfosEnabled(true)`.
+  - [x] `grep -rn "setLfoPolicy\|reconcileLfos\|lfoAllowed\|heldOff" src/engine src/systems src/utils` returns nothing.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/lfoEngine.test.ts src/systems/audioBudgetSystem.test.ts src/utils/audioBudget.test.ts` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint`, full `npm test` clean.
+  - [x] `npx vitest run src/engine/lfoEngine.test.ts src/systems/audioBudgetSystem.test.ts src/utils/audioBudget.test.ts` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint`, full `npm test` clean.
+
+  **Notes from execution:** the plan's own "Full → Standard calls setFilterLfosEnabled(false)" acceptance line doesn't match the real thresholds (`LOAD_FILTER_LFOS_MIN` 0.4 < Standard 0.6 < `LOAD_DRIFT_MIN` 0.8) — Full → Standard only drops drift; filter LFOs don't turn off until Standard → Light. Wrote both transitions as separate tests rather than relax the dial constants to fit the plan's wording. Replaced `requested` (target+robotId per key) with a narrower `connectedTargets` (target only, set/cleared in lockstep with `connectedSignals`) since drift re-attach is the only remaining caller and never needed robotId; filter-link suspension needs no robotId tracking at all, since filter targets are global-chain only — a `Set<string>` of keys is enough. Deleted the one test ("under a cap of 3…") that exercised a robot-LFO cap via a caller-supplied policy — that scenario can't occur anymore (Task 2) and there's no `setLfoPolicy` left to build it from. Mutation-checked: forcing the filter-suspend branch permanently unreachable was caught by 1 test. Full suite green aside from one pre-existing real-RNG flaky test unrelated to this change (`spawnSystem.test.ts`'s "seeds quiet… independently per target" case — passes on rerun). `npm run build:types`/`lint` clean.
 
   **Dependencies:** Task 3.
   **Files:** `src/engine/lfoEngine.ts` (+test), `src/systems/audioBudgetSystem.ts` (+test), `src/utils/audioBudget.ts` (+test).
