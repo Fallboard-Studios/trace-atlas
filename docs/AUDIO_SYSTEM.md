@@ -94,7 +94,7 @@ export const AudioEngine = {
   // Global FX control (all no-ops if the underlying Tone node wasn't constructed, e.g. headless tests)
   setMasterVolume: (volume: number) => void,   // clamped [0,1]
   getMasterVolume: () => number,
-  setGlobalReverb: (params: Partial<ReverbSettings>) => void,
+  setGlobalReverb: (params: Partial<ReverbSettings>) => void,  // `wet` is immediate; `decay`/`preDelay` are coalesced (REVERB_IR_COALESCE_MS, 120 ms) and written only if changed, because each one makes Tone.Reverb re-render its impulse response
   setGlobalDelay: (params: Partial<DelaySettings>) => void,
   setGlobalFilterLPF: (params: Partial<FilterSettings>) => void,
   setGlobalFilterHPF: (params: Partial<FilterSettings>) => void,
@@ -228,6 +228,8 @@ Global:                                                        │
 Two fixed topologies, not a general reorder mechanism — selected by one boolean, `audioStore`'s `globalAudio.compressorBeforeDelay` (default `false` = Natural Decay, not seeded, only a direct user action changes it — a two-option radio button rendered inside `AudioRigDrawer`'s Compressor accordion, under its other params, not a toggle in the master row). "Natural Decay" leaves Compressor after both time-based effects so their tails ring out uncompressed; "Controlled Decay" moves Compressor before both Delay and Reverb, tightening them. `globalFx.ts`'s `wireGlobalFxChain(controlledDecay: boolean)` disconnects every node and reconnects the full sequence for whichever topology — called once at build time and again whenever `audioStore`'s `setCompressorBeforeDelay(value)` action flips it (a brief audio glitch on switch is expected and acceptable, since the user is intentionally changing routing).
 
 Control the global chain via `AudioEngine.setGlobal*` (see API above) for individual effect parameters — there is no separate bypass surface; `audioStore.setCompressorBeforeDelay` (not part of the `AudioEngine` surface — it calls `globalFx.ts` directly) for the topology swap.
+
+The per-robot `panner` is refreshed once per 16th-note tick from the robot's live GSAP x (`updateAllPanners`), but the pan is only *written* when it has changed by more than `PAN_WRITE_EPSILON` since the last write — Tone's `Param.value` setter is `cancelScheduledValues` + `setValueAtTime`, and robots are stationary most of the time. `busFilter` is a fixed 1,200 Hz / Q 1 low-pass; nothing changes it after reservation.
 
 ## LFO Modulation
 

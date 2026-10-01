@@ -135,6 +135,11 @@ const compositeVoices: Map<string, {
 // Per-robot note counter used for deterministic seeded sampling (mod 97)
 const robotNoteIndex = new Map<string, number>();
 
+// Last pan value written to each reserved robot's panner — see updateAllPanners.
+const lastPanByRobot = new Map<string, number>();
+/** Pan is in [-0.5, 0.5]; a change under this is inaudible and not worth an automation event. */
+const PAN_WRITE_EPSILON = 0.0005;
+
 
 // ========================================
 // INTERNAL FUNCTIONS
@@ -287,7 +292,13 @@ function updateAllPanners(_time?: number): void {
       try {
         const visualX = getRobotVisualX(robotId);
         const panValue = calculatePanFromPosition(visualX);
+        // Tone's Param `value` setter is cancelScheduledValues + setValueAtTime — two timeline
+        // operations — and robots are stationary most of the time, so skip the write unless the
+        // pan actually moved. lastPanByRobot is cleared in releaseVoice.
+        const previous = lastPanByRobot.get(robotId);
+        if (previous !== undefined && Math.abs(previous - panValue) < PAN_WRITE_EPSILON) continue;
         entry.panner.pan.value = panValue;
+        lastPanByRobot.set(robotId, panValue);
       } catch (err) {
         devWarn('[AudioEngine] Failed to update composite panner for', robotId, err);
       }
@@ -688,6 +699,7 @@ export const AudioEngine = {
     }
     compositeVoices.delete(robotId);
     robotNoteIndex.delete(robotId);
+    lastPanByRobot.delete(robotId);
   },
 
   /** Return the composite voice reserved for a robot, or null if none. */

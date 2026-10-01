@@ -2179,3 +2179,88 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
     expect(lastInstance(Tone.FeedbackDelay).wet.value).toBe(0.25);
   });
 });
+
+describe('AudioEngine - updateAllPanners write coalescing', () => {
+  // Tone's Param `value` setter is cancelScheduledValues + setValueAtTime — two timeline
+  // operations — and updateAllPanners runs for every reserved robot on every 16n tick. Robots
+  // are stationary most of the time (docked, idle, between swims), so the pan must only be
+  // written when it actually changed.
+  type AnyMock = ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    // Earlier describes reset modules too; a fresh engine must read the same fresh store
+    // instance this test seeds, so everything below is imported dynamically.
+    vi.resetModules();
+  });
+
+  function spyOnPan(panner: { pan: { value: number } }) {
+    let current = panner.pan.value;
+    const setter = vi.fn((v: number) => { current = v; });
+    Object.defineProperty(panner.pan, 'value', { configurable: true, get: () => current, set: setter });
+    return setter;
+  }
+
+  async function setup(robotId: string, x: number) {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    const storeMod = await import('../stores/localeStore');
+    const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+    const helpers = await import('../utils/localeHelpers');
+    const localeId = attenuationStyleMod.DEFAULT_LOCALE_ID;
+    (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(localeId);
+    storeMod.useLocaleStore.getState().setLocaleData(localeId, {
+      robots: [{ id: robotId, position: { x, y: 0 }, audioMode: 'none' } as any],
+    });
+
+    await AudioEngine.start();
+    const transport = (Tone.getTransport as unknown as AnyMock).mock.results.at(-1)?.value;
+    const ticks = transport.scheduleRepeat.mock.calls
+      .filter((c: unknown[]) => c[1] === '16n')
+      .map((c: unknown[]) => c[0] as (time: number) => void);
+
+    const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+    AudioEngine.reserveVoice(robotId, layered, TEST_ADSR);
+    const panner = (Tone.Panner as unknown as AnyMock).mock.results.at(-1)!.value;
+    const panSet = spyOnPan(panner);
+
+    const moveTo = (nx: number) => {
+      const robots = storeMod.useLocaleStore.getState().locales[localeId]?.robots ?? [];
+      storeMod.useLocaleStore.getState().setLocaleData(localeId, {
+        robots: robots.map((r) => (r.id === robotId ? { ...r, position: { x: nx, y: 0 } } : r)),
+      });
+    };
+    const teardown = () => {
+      AudioEngine.releaseVoice(robotId);
+      AudioEngine.killAll();
+    };
+    return { tick: () => ticks.forEach((t: (time: number) => void) => t(0)), panSet, moveTo, teardown };
+  }
+
+  it('writes the pan once for a stationary robot, not on every tick', async () => {
+    const { tick, panSet, teardown } = await setup('still-robot', 0);
+
+    tick();
+    tick();
+    tick();
+
+    // x: 0 maps to -0.5 (calculatePanFromPosition); the first tick must land it, later ones must not re-write.
+    expect(panSet).toHaveBeenCalledTimes(1);
+    expect(panSet).toHaveBeenCalledWith(-0.5);
+    teardown();
+  });
+
+  it('writes again once the robot has moved', async () => {
+    const { tick, panSet, moveTo, teardown } = await setup('moving-robot', 0);
+
+    tick();
+    expect(panSet).toHaveBeenCalledTimes(1);
+
+    moveTo(1920); // WORLD_WIDTH -> +0.5
+    tick();
+    tick();
+
+    expect(panSet).toHaveBeenCalledTimes(2);
+    expect(panSet).toHaveBeenLastCalledWith(0.5);
+    teardown();
+  });
+});

@@ -336,16 +336,50 @@ export function getMasterVolume(): number {
 // GLOBAL FX SETTERS
 // ========================================
 
+/**
+ * How long to wait, after the last `decay`/`preDelay` write, before pushing them to the live
+ * Tone.Reverb. Each of those two setters calls `Reverb.generate()`: an OfflineContext render of
+ * `decay + preDelay` seconds of stereo noise (up to ~11 s at the slider maximum) plus a convolver
+ * buffer swap. The Audio Rig sliders fire on every change event during a drag, so without this
+ * one drag queues dozens of renders. `wet` is a plain AudioParam and is never deferred.
+ *
+ * A wall-clock timer is correct here: this is a UI commit debounce, not musical timing
+ * (CLAUDE.md's timer rule is about scheduling audio events).
+ */
+export const REVERB_IR_COALESCE_MS = 120;
+
+let _pendingReverbIr: { decay?: number; preDelay?: number } | null = null;
+let _reverbIrTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Push the coalesced decay/preDelay to the node, writing only fields that actually differ. */
+function flushReverbIr(): void {
+  _reverbIrTimer = null;
+  const pending = _pendingReverbIr;
+  _pendingReverbIr = null;
+  const reverb = _globalReverb;
+  if (!pending || !reverb) return;
+  try {
+    if (pending.decay !== undefined && pending.decay !== reverb.decay) reverb.decay = pending.decay;
+    if (pending.preDelay !== undefined && pending.preDelay !== reverb.preDelay) reverb.preDelay = pending.preDelay;
+  } catch (err) {
+    devWarn('[AudioEngine] setGlobalReverb (impulse response) failed', err);
+  }
+}
+
 export function setGlobalReverb(params: Partial<ReverbSettings>): void {
   const reverb = _globalReverb;
   if (!reverb) return;
   try {
     if (params.wet !== undefined) reverb.wet.value = params.wet;
-    if (params.decay !== undefined) reverb.decay = params.decay;
-    if (params.preDelay !== undefined) reverb.preDelay = params.preDelay;
   } catch (err) {
     devWarn('[AudioEngine] setGlobalReverb failed', err);
   }
+  if (params.decay === undefined && params.preDelay === undefined) return;
+  _pendingReverbIr = { ..._pendingReverbIr };
+  if (params.decay !== undefined) _pendingReverbIr.decay = params.decay;
+  if (params.preDelay !== undefined) _pendingReverbIr.preDelay = params.preDelay;
+  if (_reverbIrTimer !== null) clearTimeout(_reverbIrTimer);
+  _reverbIrTimer = setTimeout(flushReverbIr, REVERB_IR_COALESCE_MS);
 }
 
 export function setGlobalDelay(params: Partial<DelaySettings>): void {
