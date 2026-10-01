@@ -5,7 +5,30 @@ what's still open. Item numbers are preserved exactly as they were assigned in t
 — never renumbered on archive — so any existing cross-reference stays valid. Entries appear in
 their original numeric order, not archive-date order.
 
-Nothing archived yet — as of 2026-09-27, every item in `docs/todo/backlog.md` (including the
-partially-closed items 13 and 14) still has explicit open work. `backlog.md`'s own 2026-09-27
-rewrite already pruned fully-resolved items outright rather than keeping them here, so this file
-starts empty. The first item moves here the next time a full backlog item closes.
+## 12. IdleSystem: console.warn Fires on the Ordinary Case, Not an Error
+
+**Closed** 2026-09-30 (`6c4657e`, branch `fixes/idlesystem-noise-wordltransition-bug`). Narrowed
+`idleSystem.ts`'s guard to warn only when the robot is genuinely missing from the store
+(`!robot`) — the actually-unexpected case — instead of on every non-Idle/Active state, which
+most robots hit on every locale load simply by spawning Docked. Covered by new regression tests
+in `idleSystem.test.ts` asserting `console.warn` fires for a missing robot and stays silent for
+every ordinary docking/state combination.
+
+## 16. `worldTransition.ts`: Retransmitting the Currently-Active Attenuation Style's Own Name Corrupts the Store
+
+**Closed** 2026-09-30 (`fixes/idlesystem-noise-wordltransition-bug`, same branch as #12 above).
+`createNewAttenuationStyle` now checks `addAttenuationStyle`'s boolean return and, on a
+case-insensitive name collision, looks up and reuses the real existing entry instead of
+proceeding with a phantom, never-added one. `finalizeAttenuationStyleTransition` additionally
+guards its own `removeAttenuationStyle` call against the self-collision case — reusing the
+*currently active* entry (a caller resubmitting its own current name, the bug's original
+trigger) would otherwise delete the very entry just reused. Fixes the root cause directly in
+`worldTransition.ts`, not just at the one caller (`sessionDiff.ts`) that had worked around it
+before. Covered by new regression tests in `worldTransition.test.ts` (`describe('retransmitWorld
+— Attenuation Style name collision')`) recreating both the "different existing entry" and
+"resubmits its own current name" collisions directly, confirming `selectCurrentAttenuationStyle`
+no longer dangles to `undefined` in either case. The previously-flagged "not covered by the
+workaround" scope note is resolved by this fix; the deeper bookkeeping question this item's
+own "needs its own scoping pass" caveat raised (what happens to the *reused* entry's own
+previously-current locale) remains genuinely open but is now a documented, intentional
+limitation rather than silent corruption — see the fix's own doc comments.

@@ -113,10 +113,16 @@ export function handleRobotIdle(localeId: string, robotId: string, opts?: { isRe
   const store = useLocaleStore.getState();
   const robot = store.getRobotById(localeId, robotId);
 
-  if (!robot || robot.state !== RobotState.Idle || robot.docking !== DockingState.Active) {
-    console.warn(`[IdleSystem] Robot ${robotId} not found or not Idle/Active (state: ${robot?.state}, docking: ${robot?.docking})`);
+  if (!robot) {
+    // Genuinely unexpected — the only case worth a warning (backlog.md #12). A robot that
+    // exists but isn't Idle/Active (most robots spawn Docked, and Robot.tsx calls this
+    // unconditionally on every mount) is an ordinary, common precondition, not a bug — logged
+    // here used to fire a console.warn (with React's dev-mode component-stack dump riding along)
+    // on 10 of 12 robots every locale load.
+    console.warn(`[IdleSystem] Robot ${robotId} not found`);
     return;
   }
+  if (robot.state !== RobotState.Idle || robot.docking !== DockingState.Active) return;
 
   const locale = store.getLocaleById(localeId);
   const noiseMap = locale

@@ -124,30 +124,6 @@ Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprio
 behind launch. Likely a grab-bag of minor polish (idle bobs, blinking lights, and similar
 small touches) rather than a single feature; exact list not yet defined.
 
-### 12. IdleSystem: console.warn Fires on the Ordinary Case, Not an Error
-
-Found while checking console output live (2026-09-14) — Crawford flagged the console as
-overwhelming on load; this is one concrete, fixable source. Low risk, high noise
-reduction. Re-confirmed 2026-09-27 against current source — still unfixed, `idleSystem.ts`
-line number unchanged.
-
-`Robot.tsx:66` calls `handleRobotIdle()` unconditionally on every robot's mount (with
-`isReturning: true`, to land its first on-screen destination in the bottom half — see the
-comment above that call). `idleSystem.ts:117` only proceeds past its guard when that robot
-is already `Idle`+`Active`; anything else — including `docked`, the state most robots
-actually spawn in — hits `console.warn('[IdleSystem] Robot ... not found or not
-Idle/Active ...')` and returns early. Since most robots spawn docked, this warns on the
-*ordinary, expected* path for 10 of 12 robots on every locale load, and again on every
-state transition. React's dev-mode component-stack-on-warn feature turns each one into a
-large internals dump, dominating the console on load and during normal play.
-
-Not a functional bug — the guard's early return is correct — purely a log-level/hygiene
-problem: an expected, common precondition-not-met is logged as a warning.
-
-**Fix shape:** drop the log entirely, or narrow it to only the case that's actually
-unexpected (`!robot` — robot missing from the store) rather than every non-Idle/Active
-state.
-
 ### 13. SVG: Invalid Empty `y` Attribute — Live-Browser Confirmation Outstanding
 
 **Status:** fix merged to `main` via PR #469 (`7eb1f67`), 2026-09-15 — confirmed still
@@ -206,50 +182,6 @@ suggest a shared, load- or order-dependent input (wall-clock time, seeded random
 isn't fully pinned, or a timing-sensitive assertion). Worth a look before a CI gate is
 added (there is none yet — see `CLAUDE.md`'s PR process note), since a flaky gate trains
 people to re-run instead of read.
-
-### 16. `worldTransition.ts`: Retransmitting the Currently-Active Attenuation Style's Own Name Corrupts the Store
-
-Found while implementing Session Storage's `applySessionPayload` (roadmap Phase 20,
-`docs/tasks/SESSION_STORAGE.md` Task 4.3), 2026-09-27. Not yet fixed here — worked around
-in `sessionDiff.ts`'s own caller instead (see below); the underlying gap in
-`worldTransition.ts` itself is still open.
-
-`worldTransition.ts`'s `createNewAttenuationStyle(attenuationStyleName)` unconditionally
-calls `attenuationStyleStore.addAttenuationStyle(newAttenuationStyle)` and returns the
-constructed object regardless of whether the add actually succeeded. `addAttenuationStyle`
-silently refuses (returns `false`, does not append to `attenuationStyles`) when the name is
-already taken (case-insensitive) by an existing entry — logging a `devWarn`, nothing more.
-`retransmitBoth`/`retransmitAttenuationStyleOnly` then proceed to call `setCurrentLocale`
-and `finalizeAttenuationStyleTransition` (which sets `currentAttenuationStyleId` to the
-phantom new id and **removes the old Attenuation Style**) as if the add had worked. Net
-result when the name collides: `attenuationStyles` loses its real entry, gains nothing, and
-`currentAttenuationStyleId` dangles — `selectCurrentAttenuationStyle` returns `undefined`
-from then on.
-
-This has apparently never surfaced from the live UI, because `SectorSettingsDrawer`'s name
-field only ever sends `attenuationStyleName` to `retransmitWorld` when the user actually
-edited it (`RetransmitInput`'s own doc comment) — which in practice always produces a
-*different* name, never a same-name resubmission. `applySessionPayload` is a new caller
-that always has an `attenuationStyleName` (every `SessionPayload` carries one
-unconditionally), and reloading a session while still on the same Attenuation Style you
-saved it from — a very common case — hits the collision every time. Worked around there by
-omitting `attenuationStyleName` from the `retransmitWorld` call whenever it matches the
-currently active one (routing through the already-correct `coordsOnly` branch instead,
-which preserves the current Attenuation Style untouched).
-
-**Not covered by the workaround:** a payload naming a *different* Attenuation Style than
-the one currently active, whose name happens to already exist elsewhere in
-`attenuationStyles` (e.g. multiple named worlds open in the same session). Rare in today's
-usage (an Attenuation Style is normally removed the moment a new one replaces it), but
-still a real latent bug in `worldTransition.ts` itself.
-
-**Fix shape:** have `createNewAttenuationStyle` check `addAttenuationStyle`'s boolean
-return; on `false`, look up and reuse the existing Attenuation Style with that name instead
-of proceeding with a phantom one. Needs its own scoping pass — reusing an existing
-Attenuation Style mid-transition touches the same `locales`/`currentLocaleId` bookkeeping
-`retransmitAttenuationStyleOnly` already has to reason about, and should get a regression
-test that recreates the collision directly (name matches the currently active style), not
-just Session Storage's own round-trip tests.
 
 ### 17. Audit: LFO Drift / Audio Swells / Ping Variance — Replayability Findings
 
