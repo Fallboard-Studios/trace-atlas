@@ -497,24 +497,17 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
   // Audio Load Budget (plan task 22): the tab owns the store access and the robot id, so it turns
   // the held-off keys into plain per-robot props for the (store-free) sections.
   describe('Audio Load: held-off LFOs for THIS robot', () => {
-    it("marks this robot's Volume LFO held off when its key is in the list", () => {
+    // The Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 2): the tab
+    // no longer derives a volume held-off prop at all — even a stale ':volume' key in the store
+    // (an old session, or a budget reconcile from before the removal) produces nothing.
+    it('passes no volume held-off prop to the Audio Setting section, even when a stale :volume key is in the list', () => {
       useAudioStore.setState({ heldOffLfoKeys: ['r1:volume'] });
       const robot = makeRobot('r1');
       selectRobot(robot, 'volume', 'audioSettings');
       render(<RobotOptionsTab />);
       openAndApproach('probes.r1.volume.audioSettings');
 
-      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-volume-held-off')).toBe('true');
-    });
-
-    it("ignores another robot's held-off LFOs for Volume", () => {
-      useAudioStore.setState({ heldOffLfoKeys: ['r2:volume'] });
-      const robot = makeRobot('r1');
-      selectRobot(robot, 'volume', 'audioSettings');
-      render(<RobotOptionsTab />);
-      openAndApproach('probes.r1.volume.audioSettings');
-
-      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-volume-held-off')).toBe('false');
+      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-volume-held-off')).toBe('undefined');
     });
   });
 });

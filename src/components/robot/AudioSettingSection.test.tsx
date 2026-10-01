@@ -1,27 +1,11 @@
-import type { CSSProperties, ComponentProps } from 'react';
+import type { CSSProperties } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 // Same reasoning as AudioRigDrawer/SignatureArrayDrawer's own test files: the shared
 // vitest.setup.ts GSAP mock's timeline object has no kill() method, and useLfoTargetGroup's
 // unmount cleanup calls killTimeline on an already-registered entry.
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));
-
-// Captures every `schema` prop the real Lfo component receives, without replacing its actual
-// rendering (Lfo is itself already React.memo-wrapped, so it can't be spied on via vi.fn the way
-// a plain function export can — Button.test.tsx's own resolveAccessibleName pattern doesn't apply
-// here) — docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 1's own schema-stability regression
-// test needs this to prove the inline schema object this task fixes is genuinely stable across
-// renders with the same displayLabel.
-const capturedLfoSchemas = vi.hoisted(() => [] as unknown[]);
-vi.mock('@/components/ui/controls/Lfo', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/components/ui/controls/Lfo')>();
-  function LfoSchemaCapture(props: ComponentProps<typeof actual.Lfo>) {
-    capturedLfoSchemas.push(props.schema);
-    return <actual.Lfo {...props} />;
-  }
-  return { ...actual, Lfo: LfoSchemaCapture };
-});
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual implementation) so
 // a per-field cascade regression test (docs/todo/backlog.md #27 follow-up, 2026-09-15) can tell
@@ -36,11 +20,7 @@ vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
 import { AudioSettingSection } from './AudioSettingSection';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import { AUDIO_SETTING_SCHEMA } from '@/data/robotOptionsConfig';
-import type { LfoValue } from '@/types/controls';
 import type { Robot } from '@/types/Robot';
-
-
-const DEFAULT_VOLUME_LFO: LfoValue = { shape: 'sine', rate: 0, depth: 20 };
 
 /** Stubs window.matchMedia so the mobile/tablet viewport tiers can be controlled — same shape
  *  as AudioRigDrawer.test.tsx's own stubMatchMedia, since the Volume row's 'responsive'
@@ -58,11 +38,10 @@ function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
   });
 }
 
-function makeValue(overrides: Partial<{ audioMode: NonNullable<Robot['audioMode']>; masterVolume: number; volumeLfo: LfoValue }> = {}) {
+function makeValue(overrides: Partial<{ audioMode: NonNullable<Robot['audioMode']>; masterVolume: number }> = {}) {
   return {
     audioMode: 'none' as NonNullable<Robot['audioMode']>,
     masterVolume: 0.42,
-    volumeLfo: DEFAULT_VOLUME_LFO,
     ...overrides,
   };
 }
@@ -75,7 +54,6 @@ describe('AudioSettingSection', () => {
         value={makeValue()}
         onAudioModeChange={onAudioModeChange}
         onVolumeChange={() => {}}
-        onVolumeLfoChange={() => {}}
       />
     );
 
@@ -93,7 +71,6 @@ describe('AudioSettingSection', () => {
         value={makeValue({ masterVolume: 0.42 })}
         onAudioModeChange={() => {}}
         onVolumeChange={() => {}}
-        onVolumeLfoChange={() => {}}
       />
     );
 
@@ -110,7 +87,6 @@ describe('AudioSettingSection', () => {
         value={makeValue({ masterVolume: 0.42 })}
         onAudioModeChange={() => {}}
         onVolumeChange={onVolumeChange}
-        onVolumeLfoChange={() => {}}
       />
     );
 
@@ -119,99 +95,94 @@ describe('AudioSettingSection', () => {
     expect(onVolumeChange).toHaveBeenCalledWith(43); // one 1% step up from 42%
   });
 
-  describe('shared LFO display (LFO_CONSOLIDATED_DISPLAY — replaces the old nested "Modulation" accordion)', () => {
-    it('renders Volume as a bare slider followed by its shared LFO display, with no accordion wrapper (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.2; docs/tasks/NAV_LAYOUT_REWRITE.md Task 18 follow-up: the "Volume" label now lives on the tree node itself, not this section)', () => {
+  // The Volume LFO target was removed outright (docs/specs/LFO_LOAD_FIX.md assumption 9 /
+  // §1.4, Crawford 2026-09-30: "not as impactful as I had hoped") — this section is now Mode +
+  // Volume only. The shared LFO display, its held-off greying and the volumeLfo props are gone.
+  describe('no Volume LFO (LFO Load Fix Task 2)', () => {
+    it('renders Mode and Volume and no LFO frame — no .sc-lfo, no Rate/Depth slider, no accordion', () => {
       const { container } = render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
+        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />
       );
+      expect(screen.getByRole('radio', { name: 'Solo' })).toBeTruthy();
+      expect(screen.getByRole('slider', { name: /volume/i })).toBeTruthy();
+      expect(container.querySelector('.sc-lfo')).toBeNull();
+      expect(container.querySelector('.sc-lfo-target-group__display')).toBeNull();
+      expect(screen.queryByRole('slider', { name: 'Rate' })).toBeNull();
+      expect(screen.queryByRole('slider', { name: 'Depth' })).toBeNull();
       expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
-      // Rate + Depth from the shared Lfo display — no separate active toggle rendered.
-      expect(screen.getAllByRole('slider', { name: 'Rate' })).toHaveLength(1);
-      expect(screen.getAllByRole('slider', { name: 'Depth' })).toHaveLength(1);
     });
 
-    it("the shared display's own label reads 'Volume' — from VOLUME_SCHEMA.humanLabel, no new copy", () => {
-      const { container } = render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
-      );
-      const display = container.querySelector('.sc-lfo-target-group__display')!;
-      expect(display.textContent).toContain('Volume');
+    it('never renders the held-off label — there is no LFO left to hold off', () => {
+      render(<AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />);
+      expect(screen.queryByText('Held off by Audio Load')).toBeNull();
     });
 
-    it('reflects volumeLfo and calls onVolumeLfoChange when the rate slider moves off 0', () => {
-      const onVolumeLfoChange = vi.fn();
-      render(
-        <AudioSettingSection
-          value={makeValue({ volumeLfo: { shape: 'sine', rate: 0, depth: 20 } })}
-          onAudioModeChange={() => {}}
-          onVolumeChange={() => {}}
-          onVolumeLfoChange={onVolumeLfoChange}
-        />
-      );
-
-      const rateSlider = screen.getByRole('slider', { name: 'Rate' });
-      rateSlider.focus();
-      fireEvent.keyDown(rateSlider, { key: 'ArrowRight' });
-
-      expect(onVolumeLfoChange).toHaveBeenCalledWith({ shape: 'sine', rate: 0.05, depth: 20 });
+    it('the props type carries no volumeLfo / onVolumeLfoChange / volumeLfoHeldOff members (compile-time)', () => {
+      // Each line is a type error once the props are gone; a stray prop silently accepted would
+      // mean the removal is incomplete. Runtime: render ignores unknown props, so this stays green.
+      // One element per line: TS reports an unknown-attribute error on the element's opening tag,
+      // so each directive must sit directly above a single-line element.
+      const value = makeValue();
+      const noop = () => {};
+      // @ts-expect-error volumeLfo no longer exists on AudioSettingValue
+      render(<AudioSettingSection value={{ ...value, volumeLfo: { shape: 'sine', rate: 0, depth: 20 } }} onAudioModeChange={noop} onVolumeChange={noop} />);
+      // @ts-expect-error onVolumeLfoChange no longer exists
+      render(<AudioSettingSection value={value} onAudioModeChange={noop} onVolumeChange={noop} onVolumeLfoChange={noop} />);
+      // @ts-expect-error volumeLfoHeldOff no longer exists
+      render(<AudioSettingSection value={value} onAudioModeChange={noop} onVolumeChange={noop} volumeLfoHeldOff />);
+      expect(screen.getAllByRole('radio', { name: 'Solo' })).toHaveLength(3);
     });
   });
 
-  describe('Volume — always above its LFO, matching every other LFO layout (Crawford\'s own correction, was a 2-column desktop split)', () => {
-    it('the Audio Setting radio and Volume slider both render inside the settings-column panel, and the Lfo display is a sibling of that panel', () => {
+  describe('Volume layout (was "always above its LFO"; the LFO is gone, the column stays)', () => {
+    it('the Audio Setting radio and Volume slider both render inside the settings-column panel', () => {
       render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
+        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />
       );
       // The settings-column panel (Audio Setting + Volume) is the innermost .sc-directional-panel
       // containing the radio.
       const settingsColumn = screen.getByRole('radio', { name: 'Solo' }).closest('.sc-directional-panel')!;
       expect(settingsColumn.contains(screen.getByRole('slider', { name: /volume/i }))).toBe(true);
-      // The Lfo display (Rate/Depth) is NOT inside that same settings-column panel — it's a
-      // sibling in the outer VOLUME_ROW_PANEL_SCHEMA stack, not nested under the radio/slider pair.
-      expect(settingsColumn.contains(screen.getByRole('slider', { name: 'Rate' }))).toBe(false);
     });
 
     it("the Volume row is not a flex container — 'audio-setting-section__row' adds display:flex, which shrinks a lone flex item (the slider) to its own content width instead of the row's full width, breaking useVoxelTrackBoxCount's self-observation (same pattern audio-rig-drawer__param-row / sc-lfo-target-group__row already avoid elsewhere by carrying no display rule at all)", () => {
       render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
+        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />
       );
-      const volumeRow = screen.getByRole('slider', { name: /volume/i }).closest('.sc-lfo-target-group__row')!;
+      const volumeRow = screen.getByRole('slider', { name: /volume/i }).closest('.audio-setting-section__volume-row')!;
+      expect(volumeRow).not.toBeNull();
       expect(volumeRow.classList.contains('audio-setting-section__row')).toBe(false);
     });
 
-    it('renders data-orientation="column" on the outer panel regardless of tier — Audio Setting, Volume, then the Lfo display, always stacked, never a side-by-side desktop split', () => {
+    it('renders data-orientation="column" on the outer panel regardless of tier — Audio Setting then Volume, always stacked, never a side-by-side desktop split', () => {
       for (const state of [{ mobile: true, tablet: true }, { mobile: false, tablet: false }]) {
         stubMatchMedia(state);
         const { unmount } = render(
-          <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
+          <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />
         );
         const outerContent = screen.getByRole('radio', { name: 'Solo' })
           .closest('.sc-directional-panel')! // settings-column panel
           .parentElement!; // VOLUME_ROW_PANEL_SCHEMA's own .sc-directional-panel__content
         expect(outerContent.getAttribute('data-orientation')).toBe('column');
-        // The Lfo display sits below the settings column as a direct sibling of that same content div.
-        const lfoDisplay = screen.getByRole('slider', { name: 'Rate' }).closest('.sc-lfo-target-group__display')!;
-        expect(lfoDisplay.parentElement).toBe(outerContent);
         unmount();
       }
     });
 
-    it('the settings-column panel is always column-oriented too, regardless of tier — Audio Setting above Volume, its own row on desktop (no longer squeezed beside the Lfo display)', () => {
+    it('the settings-column panel is always column-oriented too, regardless of tier — Audio Setting above Volume', () => {
       stubMatchMedia({ mobile: false, tablet: false });
       render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
+        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />
       );
       const settingsColumn = screen.getByRole('radio', { name: 'Solo' }).closest('.sc-directional-panel')!;
       expect(settingsColumn.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('column');
     });
 
-    it('the Volume row carries the shared sc-lfo-target-group__row class and is targeted by default — the same targeting wiring AudioRigLfoGroup uses, even with only one field to target', () => {
-      render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
+    it('the Volume row no longer carries LFO-group targeting (no sc-lfo-target-group__row, no isActive) — there is nothing left to target', () => {
+      const { container } = render(
+        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} />
       );
-      const volumeRow = screen.getByRole('slider', { name: /volume/i }).closest('.sc-lfo-target-group__row')!;
-      expect(volumeRow).not.toBeNull();
-      expect(volumeRow.classList.contains('isActive')).toBe(true);
+      expect(container.querySelector('.sc-lfo-target-group__row')).toBeNull();
+      expect(screen.getByRole('slider', { name: /volume/i }).closest('.isActive')).toBeNull();
     });
   });
 
@@ -221,25 +192,22 @@ describe('AudioSettingSection', () => {
         value={makeValue()}
         onAudioModeChange={() => {}}
         onVolumeChange={() => {}}
-        onVolumeLfoChange={() => {}}
       />
     );
     expect(screen.getByRole('radio', { name: 'Solo' }).getAttribute('data-disabled')).toBeNull();
   });
 
-  it('disables Audio Setting, Volume, and the shared Volume LFO display\'s controls when disabled is true', () => {
+  it('disables Audio Setting and Volume when disabled is true', () => {
     render(
       <AudioSettingSection
         value={makeValue()}
         onAudioModeChange={() => {}}
         onVolumeChange={() => {}}
-        onVolumeLfoChange={() => {}}
         disabled
       />
     );
     expect(screen.getByRole('radio', { name: 'Solo' }).getAttribute('data-disabled')).toBe('');
     expect(screen.getByRole('slider', { name: /volume/i }).getAttribute('data-disabled')).toBe('');
-    expect(screen.getByRole('slider', { name: 'Rate' }).getAttribute('data-disabled')).toBe('');
   });
 
   it('does not call onAudioModeChange or onVolumeChange when disabled', () => {
@@ -250,7 +218,6 @@ describe('AudioSettingSection', () => {
         value={makeValue()}
         onAudioModeChange={onAudioModeChange}
         onVolumeChange={onVolumeChange}
-        onVolumeLfoChange={() => {}}
         disabled
       />
     );
@@ -274,7 +241,6 @@ describe('AudioSettingSection', () => {
           value={makeValue()}
           onAudioModeChange={() => {}}
           onVolumeChange={() => {}}
-          onVolumeLfoChange={() => {}}
           style={{ '--color-accent-a': '#cd5e57', '--color-accent-b': '#da7e1b' } as CSSProperties}
         />,
       );
@@ -289,7 +255,6 @@ describe('AudioSettingSection', () => {
           value={makeValue()}
           onAudioModeChange={() => {}}
           onVolumeChange={() => {}}
-          onVolumeLfoChange={() => {}}
         />,
       );
       const root = container.querySelector('.audio-setting-section') as HTMLElement;
@@ -301,19 +266,6 @@ describe('AudioSettingSection', () => {
     it('is a React.memo-wrapped component', () => {
       expect((AudioSettingSection as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });
-
-    it('passes Lfo the same schema object reference across re-renders with the same displayLabel', () => {
-      capturedLfoSchemas.length = 0;
-      const { rerender } = render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
-      );
-      rerender(
-        <AudioSettingSection value={makeValue({ masterVolume: 0.55 })} onAudioModeChange={() => {}} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
-      );
-
-      expect(capturedLfoSchemas.length).toBeGreaterThanOrEqual(2);
-      expect(capturedLfoSchemas[1]).toBe(capturedLfoSchemas[0]);
-    });
   });
 
   describe('per-field cascade regression (docs/todo/backlog.md #27 follow-up, 2026-09-15)', () => {
@@ -324,12 +276,12 @@ describe('AudioSettingSection', () => {
     it('changing Volume does not re-render the Audio Setting radio', () => {
       const onAudioModeChange = vi.fn();
       const { rerender } = render(
-        <AudioSettingSection value={makeValue({ masterVolume: 0.42 })} onAudioModeChange={onAudioModeChange} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
+        <AudioSettingSection value={makeValue({ masterVolume: 0.42 })} onAudioModeChange={onAudioModeChange} onVolumeChange={() => {}} />
       );
       (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
 
       rerender(
-        <AudioSettingSection value={makeValue({ masterVolume: 0.55 })} onAudioModeChange={onAudioModeChange} onVolumeChange={() => {}} onVolumeLfoChange={() => {}} />
+        <AudioSettingSection value={makeValue({ masterVolume: 0.55 })} onAudioModeChange={onAudioModeChange} onVolumeChange={() => {}} />
       );
 
       const radioCalls = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls
@@ -338,65 +290,4 @@ describe('AudioSettingSection', () => {
     });
   });
 
-  // Audio Load Budget (plan task 22): the parent says this robot's Volume LFO is held off by the dial — the section stays a
-  // pure value/prop component, so it just greys its LFO frame and says why.
-  describe('Volume LFO held off by Audio Load', () => {
-    const HELD = 'Held off by Audio Load';
-    const rate = () => screen.getByRole('slider', { name: 'Rate' });
-    const depth = () => screen.getByRole('slider', { name: 'Depth' });
-    const props = { onAudioModeChange: () => {}, onVolumeChange: () => {}, onVolumeLfoChange: () => {} };
-
-    it('greys out the LFO (controls disabled, shows 0 not the stored value) and shows the label when held off', () => {
-      const { container } = render(<AudioSettingSection {...props} value={makeValue({ volumeLfo: { shape: 'sine', rate: 4, depth: 55 } })} volumeLfoHeldOff />);
-      expect(rate().getAttribute('data-disabled')).not.toBeNull();
-      expect(depth().getAttribute('data-disabled')).not.toBeNull();
-      // 0, not the real stored value (4/55) — a held-off control should read as visibly "off".
-      // The real value is kept in the store, untouched, and returns once it's re-enabled.
-      expect(rate().getAttribute('aria-valuenow')).toBe('0');
-      expect(depth().getAttribute('aria-valuenow')).toBe('0');
-      expect(screen.getByText(HELD)).toBeTruthy();
-      expect(container.querySelector('.sc-lfo.sc-held-off')).toBeTruthy();
-    });
-
-    it('restores the real stored value (not 0) once the prop flips back', async () => {
-      const { rerender } = render(
-        <AudioSettingSection {...props} value={makeValue({ volumeLfo: { shape: 'sine', rate: 4, depth: 55 } })} volumeLfoHeldOff />,
-      );
-      expect(rate().getAttribute('aria-valuenow')).toBe('0');
-
-      rerender(<AudioSettingSection {...props} value={makeValue({ volumeLfo: { shape: 'sine', rate: 4, depth: 55 } })} volumeLfoHeldOff={false} />);
-      // SliderLinear/SliderLog now ease a non-drag value change over 250ms (Crawford's own
-      // request) — the shared gsap mock (vitest.setup.ts) settles the tween's onComplete on the
-      // next microtask, so this needs a real await, not just a synchronous rerender.
-      await act(async () => { await Promise.resolve(); });
-
-      expect(rate().getAttribute('aria-valuenow')).toBe('4');
-      expect(depth().getAttribute('aria-valuenow')).toBe('55');
-    });
-
-    it('leaves Audio Setting and Volume editable — only the LFO is held off', () => {
-      render(<AudioSettingSection {...props} value={makeValue()} volumeLfoHeldOff />);
-      expect(screen.getByRole('slider', { name: 'Volume' }).getAttribute('data-disabled')).toBeNull();
-      expect(screen.getByRole('radio', { name: 'Solo' }).getAttribute('data-disabled')).toBeNull();
-    });
-
-    it('is enabled and unlabelled when not held off, or when the prop is omitted (Full, company options)', () => {
-      const { unmount } = render(<AudioSettingSection {...props} value={makeValue()} />);
-      expect(rate().getAttribute('data-disabled')).toBeNull();
-      expect(screen.queryByText(HELD)).toBeNull();
-      unmount();
-
-      render(<AudioSettingSection {...props} value={makeValue()} volumeLfoHeldOff={false} />);
-      expect(rate().getAttribute('data-disabled')).toBeNull();
-      expect(screen.queryByText(HELD)).toBeNull();
-    });
-
-    it('re-enables as soon as the prop flips back', () => {
-      const { rerender } = render(<AudioSettingSection {...props} value={makeValue()} volumeLfoHeldOff />);
-      expect(rate().getAttribute('data-disabled')).not.toBeNull();
-      rerender(<AudioSettingSection {...props} value={makeValue()} volumeLfoHeldOff={false} />);
-      expect(rate().getAttribute('data-disabled')).toBeNull();
-      expect(screen.queryByText(HELD)).toBeNull();
-    });
-  });
 });

@@ -26,10 +26,9 @@ const renderCounts = {
 
 vi.mock('@/components/robot/AudioSettingSection', () => ({
   AudioSettingSection: memo((props: {
-    value: { audioMode: string; masterVolume: number; volumeLfo: { shape: string; rate: number; depth: number } };
+    value: { audioMode: string; masterVolume: number };
     onAudioModeChange: (mode: string) => void;
     onVolumeChange: (pct: number) => void;
-    onVolumeLfoChange: (value: unknown) => void;
     disabled?: boolean;
   }) => {
     renderCounts.audioSettingSection();
@@ -42,7 +41,6 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
       >
         <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
         <button onClick={() => props.onVolumeChange(77)}>probe-volume</button>
-        <button onClick={() => props.onVolumeLfoChange({ ...props.value.volumeLfo, rate: 9 })}>probe-volume-lfo</button>
       </div>
     );
   }),
@@ -413,21 +411,19 @@ describe('CompanyOptionsSection', () => {
       expect(cancelSpy).toHaveBeenCalledWith('r2', 'layer1.gain');
     });
 
-    it('editing the Volume LFO\'s rate broadcasts only rate — each member keeps its own shape/depth', () => {
-      const r1 = makeRobot({ id: 'r1', companyId: 'c1', lfoSettings: { volume: { shape: 'sine', rate: 1, depth: 20 } } as Robot['lfoSettings'] });
-      const r2 = makeRobot({ id: 'r2', companyId: 'c1', lfoSettings: { volume: { shape: 'square', rate: 0.5, depth: 60 } } as Robot['lfoSettings'] });
+    // The Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 2): the
+    // company Output section broadcasts Mode and Volume only. Layer-LFO broadcast (above) is the
+    // one remaining compound-LFO broadcast path and keeps its own one-field-per-edit test.
+    it('passes no Volume LFO handler to the Audio Setting section', () => {
+      const r1 = makeRobot({ id: 'r1', companyId: 'c1' });
       useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addRobot(localeId, r2);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
       useUIStore.getState().selectCompany('c1');
-      const volumeLfoSpy = vi.spyOn(robotOptionsActions, 'applyVolumeLfo').mockImplementation(() => {});
       render(<CompanyOptionsSection />);
       act(() => approachSection('companies.c1.volume.audioSettings'));
 
-      fireEvent.click(screen.getByText('probe-volume-lfo'));
-
-      const r2Call = volumeLfoSpy.mock.calls.find((c) => c[0].id === 'r2');
-      expect(r2Call?.[2]).toEqual({ shape: 'square', rate: 9, depth: 60 });
+      expect(screen.queryByText('probe-volume-lfo')).toBeNull();
+      expect(screen.getByText('probe-volume')).toBeTruthy();
     });
   });
 
