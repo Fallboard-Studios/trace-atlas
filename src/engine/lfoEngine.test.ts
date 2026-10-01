@@ -432,6 +432,17 @@ describe('lfoEngine', () => {
       lfoEngine.start('eq3.low');
       expect(instance.start).toHaveBeenCalledTimes(1);
     });
+
+    it('applies MIN_LEAD rather than starting at the immediate current time — a burst of priming starts (robotLfoPriming) must not all land on the same render quantum with zero lead', async () => {
+      const { lfoEngine } = await import('./lfoEngine');
+      const { MIN_LEAD } = await import('../constants');
+      lfoEngine.setLfoRate('eq3.low', 2); // creates the node
+      const instance = await latestLfoInstance();
+      mockContextState = 'running';
+      mockToneNow = 5;
+      lfoEngine.start('eq3.low');
+      expect(instance.start).toHaveBeenCalledWith(5 + MIN_LEAD);
+    });
   });
 
   describe('stop', () => {

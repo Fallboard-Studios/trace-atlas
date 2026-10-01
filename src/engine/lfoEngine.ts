@@ -24,6 +24,7 @@ import type { OscillatorLayer } from '../types/layeredAudio';
 import type { LfoSettings, LfoShape, RobotLfoTargetId, GlobalLfoTargetId, LfoTargetId } from '../types/lfo';
 import { LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX, ROBOT_LFO_TARGET_IDS } from '../types/lfo';
 import { devWarn } from '../utils/helpers';
+import { MIN_LEAD } from '../constants';
 
 // ========================================
 // STATE (module-scoped, runtime-only — never put these in Zustand)
@@ -247,13 +248,19 @@ function setLfoShape(target: LfoTargetId, shape: LfoSettings['shape'], robotId?:
  * start/stop, which would tempo-couple the rate and violate the confirmed
  * intent that rate stays a free-running Hz value. If no node has been
  * created yet for this target (no setter/connect called), this is a no-op —
- * start() itself never lazily constructs a node.
+ * start() itself never lazily constructs a node. Starts at Tone.now() + MIN_LEAD,
+ * never immediately: a roster-wide priming pass (robotLfoPriming.ts) can start a
+ * dozen-plus LFOs in one synchronous burst, and starting them all at the
+ * zero-lead "now" gives the audio thread no slack to finish building/connecting
+ * that many nodes before the next render quantum needs them — audible as clicks
+ * on load. The same CLAUDE.md MIN_LEAD rule AudioEngine.ts already applies to
+ * note scheduling.
  */
 function start(target: LfoTargetId, robotId?: string): void {
   const lfo = activeLfos.get(instanceKey(target, robotId));
   if (!lfo) return;
   if (!isAudioContextRunning()) return;
-  lfo.start();
+  lfo.start(Tone.now() + MIN_LEAD);
 }
 
 /** Stop an LFO if one exists. Always allowed, regardless of transport state — safe/idempotent if already stopped or never created. */
