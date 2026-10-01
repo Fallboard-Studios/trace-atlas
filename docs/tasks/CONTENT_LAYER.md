@@ -70,7 +70,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
 
 ### Phase 1: Foundation — the module, filled verbatim, with no consumers
 
-- [ ] **Task 1: `src/content/` — types, helpers, empty-but-typed `CONTENT`**
+- [x] **Task 1: `src/content/` — types, helpers, empty-but-typed `CONTENT`**
 
   **Description:** Create `src/content/types.ts` (`ContentEntry`, `ContentOption`, `ContentIntro` exactly per spec §1.1, incl. `heading`), `src/content/index.ts` (`CONTENT` merge of the per-area modules — start with a `ui.ts` holding one entry, `ui.cancel`, so the merge and the `ContentKey` union are real from day one; `labels(key, { surface })`, `options`, `optionsRecord`, `intro`, `fill` per spec §1.3/§4), and `src/content/index.test.ts`. No consumer imports it yet.
 
@@ -88,7 +88,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
   **Files:** `src/content/types.ts`, `src/content/index.ts`, `src/content/copy/ui.ts`, `src/content/index.test.ts`.
   **Scope:** M.
 
-- [ ] **Task 2: Inventory script + `docs/reference/content-inventory.md` (the review gate)**
+- [x] **Task 2: Inventory script + `docs/reference/content-inventory.md` (the review gate)**
 
   **Description:** Write `scripts/content/inventory.mjs` (Node, no deps, same style as `scripts/perf/*.mjs`) that walks `src/components`, `src/data`, `src/types` (excluding `*.test.*`) and emits a Markdown table of every string that is **not** already a `loreLabel`/`humanLabel`/`label`/`placeholder`/`unit`/`loreDescription`/`humanDescription` property: JSX text nodes with ≥3 letters, `aria-label`/`title`/`placeholder`/`alt` attribute literals, template literals with ≥2 words, ternary string pairs, and string-valued `Record` maps (`SHAPE_LORE_LABELS`, etc.). Columns per spec §1.5: `file:line` · current text · surface · proposed key · copy (blank). Append a second section listing the six `[c]` placeholders and every ALL CAPS `loreLabel` (regex `^[A-Z0-9 &/\-\[\]]+$`) with the same columns. Run it, commit the output. **Crawford fills the copy column; Task 17 cannot start until he has.**
 
@@ -106,7 +106,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
   **Files:** `scripts/content/inventory.mjs`, `docs/reference/content-inventory.md`.
   **Scope:** S.
 
-- [ ] **Task 3: `src/content/copy/fleet.ts` — Fleet Params area, verbatim**
+- [x] **Task 3: `src/content/copy/fleet.ts` — Fleet Params area, verbatim**
 
   **Description:** Populate every `fleet.*` concept from the current literals in `navTreeConfig.ts` (lore/human pairs), `audioRigConfig.ts` (every param's lore/human/unit, the panel headings, `DECAY_MODE` options, Robot/Effects Load options), `FleetParamsContent.tsx` (section + 5 group intros, HTML bodies byte-for-byte), and `useNavTree.ts`/`uiStore.ts` where a leaf name only exists there. One entry per concept; `fleet.lpf.cutoff` and `fleet.hpf.cutoff` are separate entries. ALL CAPS panel headings and `[c]` strings are copied **as they are** — Task 17 replaces them. Nothing imports the file yet beyond the `CONTENT` merge.
 
@@ -123,7 +123,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
   **Files:** `src/content/copy/fleet.ts`, `src/content/copy/fleet.test.ts`, `src/content/index.ts` (merge line).
   **Scope:** S (2 files, many lines).
 
-- [ ] **Task 4: `src/content/copy/probe.ts` + `company.ts` — verbatim**
+- [x] **Task 4: `src/content/copy/probe.ts` + `company.ts` — verbatim**
 
   **Description:** Same as Task 3 for the Probes and Companies branches: `robotOptionsConfig.ts` (all 4 sections' schemas + options, incl. `probe.monitorMode` options), `robotSelectionConfig.ts` (row schemas + the five value-label maps as `options`), `robotSubsectionConfig.ts` (section/subsection lore + nav + accordion labels — `rhythm` row vs "Composition" accordion become `probe.composition.rhythm` and `probe.composition`), `companyConfig.ts`, `ProbesContent.tsx`/`CompaniesContent.tsx`/`RobotSectionAccordionStack.tsx` intros, and `CompanyCrudControls.tsx`'s base + dynamic labels as templates (`'Delete {company}'`).
 
@@ -140,7 +140,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
   **Files:** `src/content/copy/probe.ts`, `src/content/copy/company.ts`, their two parity tests, `src/content/index.ts`.
   **Scope:** M.
 
-- [ ] **Task 5: `home.ts`, `header.ts`, `nav.ts`, `settings.ts`, `session.ts`, `sector.ts`, `ui.ts` — verbatim**
+- [x] **Task 5: `home.ts`, `header.ts`, `nav.ts`, `settings.ts`, `session.ts`, `sector.ts`, `ui.ts` — verbatim**
 
   **Description:** The remaining areas: `ContentPane.tsx`'s `HOME_HTML` → `home.intro`; `Header.tsx`'s Mute/Volume; nav chrome (`NavToggleButton`, `NavBreadcrumb` aria-labels); `SettingsContent.tsx` intros + its three accordion labels + `settings.*` nav nodes; `sessionConfig.ts`; `sectorSettingsConfig.ts` controls + `SectorSettingsDrawer.tsx`'s two Random buttons + status header (preset *names* excluded); `ui.*`: `Cancel`, `Robot not found`, `Power on/off`, `Increment {name}`/`Decrement {name}`, `ui.lfo.shape` options (Sine/Sway etc.), `ui.lfo.rate`, `ui.lfo.depth`, `ui.lfo.fallbackName` (`'Mutation'`), `CoordsInput`'s X/Y.
 
@@ -169,7 +169,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
 
 ### Phase 2: Data configs read from content
 
-- [ ] **Task 6: `label` → `humanLabel` on radio options — the primitive half**
+- [x] **Task 6: `label` → `humanLabel` on radio options — the primitive half**
 
   **Description:** In `src/types/controls.ts` rename `RadioButtonSchema`'s option field `label` to `humanLabel` (keep `loreLabel?`, `color?`). Update the one read in `RadioButton.tsx` and `Lfo.tsx`'s `SHAPE_OPTIONS` construction (rename only — the shape maps themselves move in Task 16). Let `npm run build:types` enumerate every stale `label:` site in `src/data` and `companyConfig.ts`; fix those sites with a **mechanical rename only** in this task (the content spread comes in Tasks 7–9), so the tree compiles at the end.
 
@@ -186,7 +186,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
   **Files:** `src/types/controls.ts`, `RadioButton.tsx` + test, `Lfo.tsx`, `src/data/{audioRigConfig,robotOptionsConfig,companyConfig}.ts` (rename lines only).
   **Scope:** M.
 
-- [ ] **Task 7: `audioRigConfig.ts` → `labels()` / `options()`**
+- [x] **Task 7: `audioRigConfig.ts` → `labels()` / `options()`**
 
   **Description:** Replace every `loreLabel`/`humanLabel`/`unit` literal and every radio `options` array in `audioRigConfig.ts` with `...labels('fleet.…')` / `options('fleet.…')`; panel headings use `labels(key, { surface: 'heading' })`. Bounds, ids, orientation, `verticalHeight`, traits untouched. `audioRigConfig.test.ts`'s label assertions switch to `CONTENT[key]`. Delete `fleet.test.ts`'s audioRig half of the parity test (now circular).
 
@@ -203,7 +203,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
   **Files:** `src/data/audioRigConfig.ts` + test, `src/content/copy/fleet.test.ts`.
   **Scope:** S.
 
-- [ ] **Task 8: `robotOptionsConfig.ts`, `companyConfig.ts`, `sessionConfig.ts`, `sectorSettingsConfig.ts` → `labels()` / `options()`; `SectorPreset.label` → `.name`**
+- [x] **Task 8: `robotOptionsConfig.ts`, `companyConfig.ts`, `sessionConfig.ts`, `sectorSettingsConfig.ts` → `labels()` / `options()`; `SectorPreset.label` → `.name`**
 
   **Description:** Same substitution across the four configs. `buildCompanyAssignmentSchema` keeps company names as option `humanLabel` values (data) but takes its own label pair and the Freelance option from `company.assign`. `SectorPreset.label` becomes `name`; `SectorSettingsDrawer.tsx`'s two `preset.label` reads follow (the drawer's own schemas migrate in Task 14). Tests switch to `CONTENT`. Delete the matching parity-test halves.
 
@@ -220,7 +220,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
   **Files:** the four configs + their tests, `SectorSettingsDrawer.tsx` (two reads).
   **Scope:** M (5 source files, mechanical).
 
-- [ ] **Task 9: `robotSelectionConfig.ts` → `labels()` + `optionsRecord()` wrappers**
+- [x] **Task 9: `robotSelectionConfig.ts` → `labels()` + `optionsRecord()` wrappers**
 
   **Description:** Row schemas spread from `probe.*`; the five value-label maps become `export const JOB_TYPE_LABELS = optionsRecord('probe.job')` etc. (typed as today's `Record<JobType, ValueLabel>` via a cast-free `satisfies`), `UNASSIGNED_JOB_LABEL = labels('probe.job.unassigned')`. Consumers (`RobotSelectionCard`, `RobotDisplaySection`, `AudioStatusBadge`) untouched. Delete `probe.test.ts`'s selection half.
 
@@ -246,7 +246,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
 
 ### Phase 3: Nav tree reads from content
 
-- [ ] **Task 10: `navTreeConfig.ts` + `useNavTree.ts` → `content` keys**
+- [x] **Task 10: `navTreeConfig.ts` + `useNavTree.ts` → `content` keys**
 
   **Description:** `NavTreeNodeSchema` drops `loreLabel`/`humanLabel`/`docId` and gains `content: ContentKey`. Every static node references its concept. `useNavTree.ts` resolves a row's pair via `labels(node.content)` wherever it read `node.humanLabel`/`node.loreLabel` (and `NavTreeNode.tsx`/`NavBreadcrumb.tsx`/`NavCabinetRow.tsx` if they read the schema fields directly). `SettingsContent.tsx`'s "must match navTreeConfig" comment becomes moot — leave its own labels for Task 12. Tests: `navTreeConfig.test.ts` asserts every `content` key exists in `CONTENT` and no node carries the removed fields; `useNavTree.test.ts` asserts resolved labels equal `CONTENT[...]`. Delete the nav half of `fleet.test.ts`/`settings.test.ts` parity.
 
@@ -263,7 +263,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
   **Files:** `navTreeConfig.ts` + test, `useNavTree.ts` + test, possibly `NavTreeNode.tsx`/`NavBreadcrumb.tsx`.
   **Scope:** M.
 
-- [ ] **Task 11: `robotSubsectionConfig.ts` → `content` keys**
+- [x] **Task 11: `robotSubsectionConfig.ts` → `content` keys**
 
   **Description:** `RobotSectionEntry`/`RobotSubsectionEntry` replace `loreLabel`/`navLabel`/`accordionLabel`/`ownAccordionLabel` with `content: ContentKey` (row) and `accordion?: ContentKey` (the accordion's concept, present exactly where an accordion exists — `rhythm`'s is `probe.composition`; `source`'s own wrapper is `probe.source`). `useNavTree.ts`'s section/subsection builders and `RobotSectionAccordionStack.tsx`'s two `AccordionSchema` literals resolve via `labels()`. Tests updated to `CONTENT`.
 
@@ -289,7 +289,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
 
 ### Phase 4: Components and primitives read from content
 
-- [ ] **Task 12: `FleetParamsContent.tsx` + `SettingsContent.tsx`**
+- [x] **Task 12: `FleetParamsContent.tsx` + `SettingsContent.tsx`**
 
   **Description:** Remove `FLEET_PARAMS_SECTION_INTRO`, `FLEET_PARAMS_GROUP_INTRO`, the `humanLabel` fields on `FleetParamsGroupDef`/`FleetParamsLeaf`, and `SettingsContent`'s `SETTINGS_*_INTRO` + its three accordion schemas; read `intro(key)` and `labels(key)` using the same keys the nav nodes carry (group defs and leaves get `content: ContentKey` instead of `humanLabel`). Tests assert intro headline/body and accordion headings from `CONTENT`. Delete the remaining `fleet.test.ts`/`settings.test.ts` parity tests.
 
@@ -305,7 +305,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
   **Files:** the two components + tests, two parity tests deleted.
   **Scope:** S.
 
-- [ ] **Task 13: `ProbesContent.tsx`, `CompaniesContent.tsx`, `RobotSectionAccordionStack.tsx` intros, `ContentPane.tsx` home**
+- [x] **Task 13: `ProbesContent.tsx`, `CompaniesContent.tsx`, `RobotSectionAccordionStack.tsx` intros, `ContentPane.tsx` home**
 
   **Description:** The four intro tables (`ALL_PROBES_INTRO`, `PROBES_INTRO`, `COMPANIES_INTRO`, `INDIVIDUAL_COMPANY_INTRO`, `SUBSECTION_INTRO`, `SOURCE_INTRO`) → `intro(key)`; `HOME_HTML` → `intro('home.intro').humanDescription` (rendered through the same sanitised path `IntroPanel` uses, or the existing `dangerouslySetInnerHTML` with DOMPurify — whichever `ContentPane` does today, unchanged). `RobotOptionsTab.tsx`'s `Robot not found` → `CONTENT['ui.robotNotFound'].human` can ride here if it is the only remaining string in that file. Delete the matching parity tests.
 
@@ -321,7 +321,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
   **Files:** the four components + tests (+ `RobotOptionsTab.tsx` if taken here).
   **Scope:** M.
 
-- [ ] **Task 14: `Header.tsx`, `SectorSettingsDrawer.tsx`, `CoordsInput.tsx` inline schemas**
+- [x] **Task 14: `Header.tsx`, `SectorSettingsDrawer.tsx`, `CoordsInput.tsx` inline schemas**
 
   **Description:** `MUTE_SCHEMA`/volume schema → `labels('header.mute')`/`labels('header.volume')`; the drawer's Random buttons, status header and `presetSchema()` lore caption → `sector.*` keys (preset `name` stays the button's `humanLabel` — data); `CoordsInput`'s X/Y schemas → `ui.coords.x`/`ui.coords.y`. The `[c]` strings are still verbatim here; Task 17 swaps them.
 
@@ -337,7 +337,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
   **Files:** three components + tests.
   **Scope:** S.
 
-- [ ] **Task 15: `CompanyCrudControls.tsx`, `SessionListItem.tsx`, `SessionsPanel.tsx` (+ `RobotOptionsTab.tsx` if not taken in 13)**
+- [x] **Task 15: `CompanyCrudControls.tsx`, `SessionListItem.tsx`, `SessionsPanel.tsx` (+ `RobotOptionsTab.tsx` if not taken in 13)**
 
   **Description:** Dynamic labels via `fill()` (`company.create`/`rename`/`delete` templates with `{company}`/`{name}` slots; `session.load`/`session.delete` per-row labels likewise); every `Cancel` → `CONTENT['ui.cancel'].human`. Tests assert the filled strings against `fill()`.
 
@@ -353,7 +353,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
   **Files:** three or four components + tests.
   **Scope:** S.
 
-- [ ] **Task 16: Primitives' own strings — `Lfo.tsx`, `useLfoTargetGroup.ts`, `Stepper.tsx`, `PowerRockerSwitch.tsx`, `IntroPanel.tsx` type**
+- [x] **Task 16: Primitives' own strings — `Lfo.tsx`, `useLfoTargetGroup.ts`, `Stepper.tsx`, `PowerRockerSwitch.tsx`, `IntroPanel.tsx` type**
 
   **Description:** `SHAPE_HUMAN_LABELS`/`SHAPE_LORE_LABELS` → `options('ui.lfo.shape')`; the Shape/Rate/Depth schemas' labels → `ui.lfo.*`; `'Mutation'` fallback → `CONTENT['ui.lfo.fallbackName'].lore`; `Stepper` aria templates → `fill('ui.stepper.increment', { name })`; `PowerRockerSwitch` → `ui.power.on/off`; `IntroPanel.tsx` re-exports/uses `ContentIntro` from `src/content/types` in place of its own `IntroContent`. These are the only primitives that import `CONTENT`, and only for `ui.*` keys.
 
@@ -397,7 +397,7 @@ Parallelisable: 3/4/5 together; 2 alongside any of them; 7/8/9 together; 10/11 t
 
 ### Phase 5: Guard and docs
 
-- [ ] **Task 18: ESLint `no-restricted-syntax` rule + `src/content/content.test.ts`**
+- [x] **Task 18: ESLint `no-restricted-syntax` rule + `src/content/content.test.ts`**
 
   **Description:** Add the spec §1.7 rule block to `eslint.config.js` (scoped `files: ['src/components/**', 'src/data/**']`, `ignores: ['**/*.test.*']`; selectors for copy-property literals, `JSXText` with ≥3 letters, and `aria-label`/`title`/`placeholder`/`alt` literals; the spec's message). Add `content.test.ts`: every `ContentKey` referenced from `src/` outside `src/content/`; no `[c]`; non-empty `human`; key grammar + closed area list; same-area duplicate `human`+`lore` pairs fail with both keys named. **Mutation check:** temporarily add `humanLabel: 'X'` to a component and a bare `<p>Hello there</p>`; confirm `npm run lint` reports both with the spec's message; revert.
 
