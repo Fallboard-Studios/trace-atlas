@@ -10,7 +10,7 @@
  * Every function takes (robot, localeId, value) — never reads uiStore, never touches anything
  * beyond localeStore/AudioEngine/lfoEngine/regenerateMelody. Selection state is a caller concern.
  */
-import { applyRobotLfoToEngine } from './robotLfoPriming';
+import { applyRobotLfoToEngine, primeRobotLfos } from './robotLfoPriming';
 import { useLocaleStore } from '@/stores/localeStore';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { regenerateMelody } from '@/engine/regenerateMelody';
@@ -125,12 +125,16 @@ export function applyLayersContinuous(robot: Robot, localeId: string, layers: Os
 }
 
 /** Structural changes (type) — may cause a brief audio gap while the voice rebuilds. Muting a
- *  layer (gain: 0) goes through applyLayersContinuous instead — see its own doc comment. */
+ *  layer (gain: 0) goes through applyLayersContinuous instead — see its own doc comment.
+ *  Re-primes the robot's LFOs after the rebuild (docs/specs/LFO_LOAD_FIX.md §1.3 — also the
+ *  stale-signal fix): reReserveVoice disposes and reconstructs the composite voice's Tone nodes,
+ *  so any LFO connected to the old nodes points at disposed objects until re-wired. */
 export function applyLayersStructural(robot: Robot, localeId: string, layers: OscillatorLayer[]): void {
   useLocaleStore.getState().updateRobot(localeId, robot.id, {
     audioAttributes: { ...robot.audioAttributes, layers },
   });
   AudioEngine.reReserveVoice(robot.id);
+  primeRobotLfos(robot);
 }
 
 /** Shared by every per-layer LFO frame (Gain/Detune/Phase/Interval) and, via applyVolumeLfo

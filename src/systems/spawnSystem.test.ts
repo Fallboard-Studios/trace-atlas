@@ -1,12 +1,12 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { Robot } from '../types/Robot';
 
-import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoSettings, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoSettings, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -20,6 +20,7 @@ import {
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { getSeededVal } from '../utils/getSeededVal';
 import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
+import * as robotLfoPriming from './robotLfoPriming';
 
 /** General-purpose mock: returns a pseudo-random value in [-1, 1]. */
 const mockNoiseMap: NoiseFunction2D = () => Math.random() * 2 - 1;
@@ -375,6 +376,14 @@ describe('spawnSystem', () => {
       vi.clearAllMocks();
     });
 
+    afterEach(() => {
+      // Several tests below spyOn(AudioEngine/robotLfoPriming, ...).mockReturnValue/mockImplementation
+      // — restore the real implementations so later describe blocks (e.g. spawnInitialRoster) see
+      // real reserveVoice behavior, not a leaked mock. vi.clearAllMocks() alone only clears call
+      // history, it does not restore the original implementation.
+      vi.restoreAllMocks();
+    });
+
     it('spawns a robot and adds to store', () => {
       const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
 
@@ -395,6 +404,43 @@ describe('spawnSystem', () => {
       expect(Object.keys(robot.lfoSettings ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
 
       expect(registerSpy).toHaveBeenCalledWith(robot.id, robot.melody);
+    });
+
+    // LFO Load Fix Task 7: seeded robot LFOs must reach the engine at spawn, not only on a later
+    // user edit. Only reserveVoice's SUCCESS should prime — a robot with no reserved voice has no
+    // live node for lfoEngine to connect to, so priming it would be requesting against nothing.
+    it('primes the robot\'s LFO settings into the engine after a successful reserveVoice (docs/specs/LFO_LOAD_FIX.md Task 7)', () => {
+      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+
+      spawnRobot(DEFAULT_LOCALE_ID);
+
+      const robot = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0];
+      expect(primeSpy).toHaveBeenCalledTimes(1);
+      expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }));
+    });
+
+    it('does not prime LFOs when reserveVoice fails (no live voice to connect against)', () => {
+      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(false);
+      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+      spawnRobot(DEFAULT_LOCALE_ID);
+
+      expect(primeSpy).not.toHaveBeenCalled();
+      // Melody registration must still happen — reservation and melody are independent.
+      expect(registerSpy).toHaveBeenCalled();
+    });
+
+    it('a priming failure never blocks melody registration', () => {
+      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+      vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {
+        throw new Error('boom');
+      });
+      const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+      expect(() => spawnRobot(DEFAULT_LOCALE_ID)).not.toThrow();
+      expect(registerSpy).toHaveBeenCalled();
     });
 
     it('quantizes masterVolume so its percent (x100) is always an integer, across many spawns (SEEDED_SLIDER_VALUE_QUANTIZATION Task 6)', () => {
@@ -883,6 +929,61 @@ describe('spawnSystem', () => {
       spawnRobot(localeId);
       const robot = useLocaleStore.getState().getLocaleById(localeId)?.robots[0];
       expect((robot as unknown as { persists?: unknown }).persists).toBeUndefined();
+    });
+  });
+
+  describe('reRegisterAllRobotsAudio (LFO Load Fix Task 7)', () => {
+    beforeEach(() => {
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
+      vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('primes the whole roster\'s LFOs exactly once, via primeRosterLfos, after every robot has been re-reserved', () => {
+      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+      const releaseSpy = vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
+      const primeRosterSpy = vi.spyOn(robotLfoPriming, 'primeRosterLfos').mockImplementation(() => {});
+      spawnRobot(DEFAULT_LOCALE_ID);
+      spawnRobot(DEFAULT_LOCALE_ID);
+      primeRosterSpy.mockClear();
+      releaseSpy.mockClear();
+
+      reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
+
+      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+      expect(robots).toHaveLength(2);
+      // Called once with the full roster -- not once per robot -- so a single round-robin pass
+      // covers everyone (spec §1.2), not a per-robot prime that would defeat round-robin ordering.
+      expect(primeRosterSpy).toHaveBeenCalledTimes(1);
+      expect(primeRosterSpy).toHaveBeenCalledWith(expect.arrayContaining([
+        expect.objectContaining({ id: robots[0].id }),
+        expect.objectContaining({ id: robots[1].id }),
+      ]));
+    });
+
+    it('calls primeRosterLfos after every reserveVoice call, not interleaved per-robot', () => {
+      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+      vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
+      spawnRobot(DEFAULT_LOCALE_ID);
+      spawnRobot(DEFAULT_LOCALE_ID);
+      const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice');
+      reserveSpy.mockClear();
+      const callOrder: string[] = [];
+      reserveSpy.mockImplementation(() => { callOrder.push('reserve'); return true; });
+      vi.spyOn(robotLfoPriming, 'primeRosterLfos').mockImplementation(() => { callOrder.push('prime'); });
+
+      reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
+
+      expect(callOrder).toEqual(['reserve', 'reserve', 'prime']);
+    });
+
+    it('an empty roster calls primeRosterLfos with an empty array, never throws', () => {
+      const primeRosterSpy = vi.spyOn(robotLfoPriming, 'primeRosterLfos').mockImplementation(() => {});
+      expect(() => reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID)).not.toThrow();
+      expect(primeRosterSpy).toHaveBeenCalledWith([]);
     });
   });
 
