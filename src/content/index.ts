@@ -8,6 +8,7 @@
  */
 import type { ContentEntry, ContentIntro, LabelSurface, SchemaLabels, SchemaOption, ValueLabelPair } from './types';
 import { ui } from './copy/ui';
+import { fleet } from './copy/fleet';
 
 export { CONTENT_AREAS } from './types';
 export type { ContentEntry, ContentIntro, ContentOption, ContentArea, LabelSurface, SchemaLabels, SchemaOption, ValueLabelPair } from './types';
@@ -17,6 +18,7 @@ export type { ContentEntry, ContentIntro, ContentOption, ContentArea, LabelSurfa
 // ========================================
 
 export const CONTENT = {
+  ...fleet,
   ...ui,
 } as const satisfies Record<string, ContentEntry>;
 
