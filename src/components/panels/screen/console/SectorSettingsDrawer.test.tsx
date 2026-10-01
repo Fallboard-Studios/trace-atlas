@@ -54,7 +54,7 @@ describe('SectorSettingsDrawer', () => {
   it('clicking a promoted Attenuation Style preset populates only the name field and calls retransmitWorld zero times', () => {
     render(<SectorSettingsDrawer />);
     const preset = ATTENUATION_STYLE_PRESETS[0];
-    fireEvent.click(screen.getByText(preset.label));
+    fireEvent.click(screen.getByText(preset.name));
 
     const textInputs = screen.getAllByRole('textbox') as HTMLInputElement[];
     const attenuationStyleInput = textInputs.find((el) => el.value === preset.value);
@@ -65,7 +65,7 @@ describe('SectorSettingsDrawer', () => {
   it('clicking a promoted coordinate preset populates only the coordinate fields and calls retransmitWorld zero times', () => {
     render(<SectorSettingsDrawer />);
     const preset = COORDINATE_PRESETS[0];
-    fireEvent.click(screen.getByText(preset.label));
+    fireEvent.click(screen.getByText(preset.name));
 
     const spinbuttons = screen.getAllByRole('spinbutton') as HTMLInputElement[];
     expect(spinbuttons.map((el) => Number(el.value))).toEqual([preset.value.x, preset.value.y]);

@@ -9,10 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { company } from './company';
 import { makeHelpers } from '../index';
 import { NAV_TREE_SCHEMA } from '@/data/navTreeConfig';
-import {
-  buildCompanyAssignmentSchema, buildCompanySelectionSchema, COMPANY_NAME_INPUT_SCHEMA,
-  CREATE_COMPANY_SCHEMA, RENAME_COMPANY_SCHEMA, DELETE_COMPANY_SCHEMA, FREELANCE_VALUE,
-} from '@/data/companyConfig';
+import { CREATE_COMPANY_SCHEMA, RENAME_COMPANY_SCHEMA, DELETE_COMPANY_SCHEMA } from '@/data/companyConfig';
 
 const { fill } = makeHelpers(company);
 const src = readFileSync(resolve(__dirname, '../../components/company/CompanyCrudControls.tsx'), 'utf8');
@@ -24,25 +21,8 @@ describe('company content parity', () => {
     expect([company['company.root'].human, company['company.root'].lore]).toEqual([n.humanLabel, n.loreLabel]);
   });
 
-  it('assignment radio + Freelance option', () => {
-    const s = buildCompanyAssignmentSchema([]);
-    expect([company['company.assign'].human, company['company.assign'].lore]).toEqual([s.humanLabel, s.loreLabel]);
-    const freelance = s.options.find((o) => o.value === FREELANCE_VALUE)!;
-    expect(company['company.assign'].options.freelance.human).toBe(freelance.humanLabel);
-  });
 
-  it('selection radio', () => {
-    const s = buildCompanySelectionSchema([]);
-    expect([company['company.selection'].human, company['company.selection'].lore]).toEqual([s.humanLabel, s.loreLabel]);
-  });
 
-  it('name input + buttons', () => {
-    const c = company;
-    expect([c['company.name'].human, c['company.name'].lore, c['company.name'].placeholder]).toEqual([COMPANY_NAME_INPUT_SCHEMA.humanLabel, COMPANY_NAME_INPUT_SCHEMA.loreLabel, COMPANY_NAME_INPUT_SCHEMA.placeholder]);
-    expect([c['company.create'].human, c['company.create'].lore]).toEqual([CREATE_COMPANY_SCHEMA.humanLabel, CREATE_COMPANY_SCHEMA.loreLabel]);
-    expect([c['company.rename'].human, c['company.rename'].lore]).toEqual([RENAME_COMPANY_SCHEMA.humanLabel, RENAME_COMPANY_SCHEMA.loreLabel]);
-    expect([c['company.delete'].human, c['company.delete'].lore]).toEqual([DELETE_COMPANY_SCHEMA.humanLabel, DELETE_COMPANY_SCHEMA.loreLabel]);
-  });
 
   it('CompanyCrudControls own labels + dynamic templates reproduce the component\'s own concatenations', () => {
     expect(src).toContain(`humanLabel: '${company['company.name.create'].human}'`);

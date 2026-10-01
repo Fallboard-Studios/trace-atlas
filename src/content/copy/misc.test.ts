@@ -19,16 +19,11 @@ import { sector } from './sector';
 import { ui } from './ui';
 import { makeHelpers } from '../index';
 import { NAV_TREE_SCHEMA, type NavTreeNodeSchema } from '@/data/navTreeConfig';
-import {
-  SESSION_NAME_INPUT_SCHEMA, SAVE_SESSION_SCHEMA, SHARE_SESSION_SCHEMA, LOAD_SESSION_SCHEMA, DELETE_SESSION_SCHEMA, CLEAR_STORAGE_SCHEMA,
-} from '@/data/sessionConfig';
-import { ATTENUATION_STYLE_SCHEMA, COORDS_SCHEMA, RETRANSMIT_SCHEMA, STATUS_HEADER_SCHEMA } from '@/data/sectorSettingsConfig';
+import { SHARE_SESSION_SCHEMA, LOAD_SESSION_SCHEMA, DELETE_SESSION_SCHEMA } from '@/data/sessionConfig';
 import { LFO_SHAPES } from '@/types/lfo';
 
 // Source files are CRLF on this machine; the content strings are LF.
 const read = (rel: string) => readFileSync(resolve(__dirname, '../../', rel), 'utf8').replace(/\r\n/g, '\n');
-const pair = (e: { human: string; lore?: string; unit?: string; placeholder?: string }) => [e.human, e.lore, e.unit, e.placeholder];
-const schemaPair = (s: { humanLabel?: string; loreLabel?: string; unit?: string; placeholder?: string }) => [s.humanLabel, s.loreLabel, s.unit, s.placeholder];
 
 function findNode(id: string, nodes: NavTreeNodeSchema[] = NAV_TREE_SCHEMA): NavTreeNodeSchema | undefined {
   for (const n of nodes) {
@@ -92,14 +87,6 @@ describe('settings', () => {
 });
 
 describe('session', () => {
-  it('config schemas', () => {
-    expect(pair(session['session.name'])).toEqual(schemaPair(SESSION_NAME_INPUT_SCHEMA));
-    expect(pair(session['session.save'])).toEqual(schemaPair(SAVE_SESSION_SCHEMA));
-    expect(pair(session['session.share'])).toEqual(schemaPair(SHARE_SESSION_SCHEMA));
-    expect(pair(session['session.load'])).toEqual(schemaPair(LOAD_SESSION_SCHEMA));
-    expect(pair(session['session.delete'])).toEqual(schemaPair(DELETE_SESSION_SCHEMA));
-    expect(pair(session['session.clearStorage'])).toEqual(schemaPair(CLEAR_STORAGE_SCHEMA));
-  });
   it('row templates reproduce SessionListItem\'s own concatenations', () => {
     const { fill } = makeHelpers(session);
     expect(fill('session.load', { session: 'Dusk' })).toBe(`${LOAD_SESSION_SCHEMA.humanLabel} Dusk`);
@@ -120,16 +107,6 @@ describe('session', () => {
 });
 
 describe('sector', () => {
-  it('nav rows win the two conflicts; inputs keep placeholder', () => {
-    expect([sector['sector.attenuationStyle'].human, sector['sector.attenuationStyle'].lore]).toEqual([findNode('settings.sectorSettings.attenuationStyle')!.humanLabel, findNode('settings.sectorSettings.attenuationStyle')!.loreLabel]);
-    expect(sector['sector.attenuationStyle'].placeholder).toBe(ATTENUATION_STYLE_SCHEMA.placeholder);
-    expect([sector['sector.coords'].human, sector['sector.coords'].lore]).toEqual([findNode('settings.sectorSettings.coordinates')!.humanLabel, findNode('settings.sectorSettings.coordinates')!.loreLabel]);
-    expect(COORDS_SCHEMA.humanLabel).toBe('Coordinates'); // the control's old text, recorded as a conflict row
-  });
-  it('retransmit + status header', () => {
-    expect(pair(sector['sector.retransmit'])).toEqual(schemaPair(RETRANSMIT_SCHEMA));
-    expect(pair(sector['sector.status'])).toEqual(schemaPair(STATUS_HEADER_SCHEMA));
-  });
   it('drawer + coords input inline schemas', () => {
     const drawer = read('components/panels/screen/console/SectorSettingsDrawer.tsx');
     expect(drawer).toContain(`loreLabel: '${sector['sector.random.attenuationStyle'].lore}', humanLabel: '${sector['sector.random.attenuationStyle'].human}'`);

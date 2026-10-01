@@ -34,6 +34,7 @@ import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import { useAudioStore } from '@/stores/audioStore';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
 import { SIGNATURE_ARRAY_CONFIG } from '@/data/robotOptionsConfig';
+import { CONTENT } from '@/content';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 import type { Robot } from '@/types/Robot';
 
@@ -93,14 +94,14 @@ describe('SignatureArrayDrawer', () => {
     // Each panel's own label is its direct-child DualLabel — not the many nested DualLabels
     // every RadioButton/slider/LFO field inside it also renders for its own humanLabel.
     const panelLabels = panels.map((p) => p.querySelector(':scope > .sc-dual-label > .sc-dual-label__human')?.textContent);
-    expect(panelLabels).toEqual(['Core', 'Companion', 'Accent', 'Voice Drift']);
+    expect(panelLabels).toEqual([CONTENT['probe.source.core'].human, CONTENT['probe.source.companion'].human, CONTENT['probe.source.accent'].human, CONTENT['fleet.drift.voice'].human]);
   });
 
   describe('Robot Drift panel (moved from AudioRigDrawer\'s Transport & Composition — global lfoDrift.robots, read/written directly via useAudioStore)', () => {
     it('renders as the last panel, after Harmonic', () => {
       const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
       const driftPanel = screen.getByText('Voice Drift').closest('.sc-directional-panel');
-      const harmonicPanel = screen.getByText('Accent').closest('.sc-directional-panel');
+      const harmonicPanel = screen.getByText(CONTENT['probe.source.accent'].human).closest('.sc-directional-panel');
       expect(driftPanel).not.toBeNull();
       expect(harmonicPanel!.compareDocumentPosition(driftPanel!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       // Not nested inside — or replacing — any of the 3 layer sections.
@@ -579,21 +580,21 @@ describe('SignatureArrayLayer — exported standalone (docs/tasks/NAV_PANEL_VIEW
 
   it('renders the Core layer\'s own panel identically to the combined drawer\'s own Core section', () => {
     const { container } = renderLayer(0);
-    expect(screen.getByText('Core')).toBeTruthy();
+    expect(screen.getByText(CONTENT['probe.source.core'].human)).toBeTruthy();
     expect(container.querySelector('[data-layer-key="layer0"]')).toBeTruthy();
   });
 
   it('renders the Accent layer standalone, with no Core/Companion content anywhere', () => {
     renderLayer(2);
-    expect(screen.getByText('Accent')).toBeTruthy();
-    expect(screen.queryByText('Core')).toBeNull();
-    expect(screen.queryByText('Companion')).toBeNull();
+    expect(screen.getByText(CONTENT['probe.source.accent'].human)).toBeTruthy();
+    expect(screen.queryByText(CONTENT['probe.source.core'].human)).toBeNull();
+    expect(screen.queryByText(CONTENT['probe.source.companion'].human)).toBeNull();
   });
 
   it('changing the layer\'s Type radio calls onTypeChange with this layer\'s own idx', () => {
     const onTypeChange = vi.fn();
     renderLayer(0, { onTypeChange }); // layer0 starts as 'sine' (makeLayers())
-    const layerEl = screen.getByText('Core').closest('.sc-directional-panel') as HTMLElement;
+    const layerEl = screen.getByText(CONTENT['probe.source.core'].human).closest('.sc-directional-panel') as HTMLElement;
     const typeGroup = layerEl.querySelector<HTMLElement>('.sc-radio-button')!;
     const squareOption = within(typeGroup).getByRole('radio', { name: 'Square' });
 

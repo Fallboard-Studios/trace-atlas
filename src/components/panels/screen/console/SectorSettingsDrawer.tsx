@@ -102,8 +102,8 @@ export function SectorSettingsDrawer() {
         <div className="sector-settings-drawer__presets">
           {ATTENUATION_STYLE_PRESETS.map((preset) => (
             <Button
-              key={preset.label}
-              schema={presetSchema(`planet.${preset.label}`, preset.label, 'ATTENUATION PRESET [c]')}
+              key={preset.name}
+              schema={presetSchema(`planet.${preset.name}`, preset.name, 'ATTENUATION PRESET [c]')}
               onClick={() => setAttenuationStyleNameDraft(preset.value)}
             />
           ))}
@@ -116,8 +116,8 @@ export function SectorSettingsDrawer() {
         <div className="sector-settings-drawer__presets">
           {COORDINATE_PRESETS.map((preset) => (
             <Button
-              key={preset.label}
-              schema={presetSchema(`coords.${preset.label}`, preset.label, 'PLOT PRESET [c]')}
+              key={preset.name}
+              schema={presetSchema(`coords.${preset.name}`, preset.name, 'PLOT PRESET [c]')}
               onClick={() => setCoordsDraft(preset.value)}
             />
           ))}

@@ -3,6 +3,7 @@
 // ========================================
 import type { RadioButtonSchema, ButtonSchema, TextInputSchema } from '../types/controls';
 import type { Company } from '../types/Company';
+import { CONTENT, labels } from '@/content';
 
 // ========================================
 // COMPANY ASSIGNMENT (RadioButton)
@@ -30,11 +31,10 @@ export function buildCompanyAssignmentSchema(companies: Company[]): RadioButtonS
   return {
     id: 'company.assign',
     type: 'radio',
-    loreLabel: 'UNIT AFFILIATION',
-    humanLabel: 'Company',
+    ...labels('company.assign'),
     options: [
       // No color — ambient fallback (the robot card's own identityColor, cascaded from its <li>).
-      { value: FREELANCE_VALUE, humanLabel: 'Freelance' },
+      { value: FREELANCE_VALUE, humanLabel: CONTENT['company.assign'].options.freelance.human },
       ...companies.map((c) => ({ value: c.id, humanLabel: c.name, color: c.color })),
     ],
   };
@@ -52,8 +52,7 @@ export function buildCompanySelectionSchema(companies: Company[]): RadioButtonSc
   return {
     id: 'company.select',
     type: 'radio',
-    loreLabel: 'REGISTERED CONSORTIA',
-    humanLabel: 'Company Selection',
+    ...labels('company.selection'),
     options: companies.map((c) => ({ value: c.id, humanLabel: c.name, color: c.color })),
   };
 }
@@ -68,29 +67,24 @@ export function buildCompanySelectionSchema(companies: Company[]): RadioButtonSc
 export const COMPANY_NAME_INPUT_SCHEMA: TextInputSchema = {
   id: 'company.name',
   type: 'textInput',
-  loreLabel: 'DESIGNATION',
-  humanLabel: 'Company Name',
-  placeholder: 'Enter a company name…',
+  ...labels('company.name'),
   maxLength: 128,
 };
 
 export const CREATE_COMPANY_SCHEMA: ButtonSchema = {
   id: 'company.create',
   type: 'button',
-  loreLabel: 'COMMISSION UNIT',
-  humanLabel: 'Create',
+  ...labels('company.create'),
 };
 
 export const RENAME_COMPANY_SCHEMA: ButtonSchema = {
   id: 'company.rename',
   type: 'button',
-  loreLabel: 'REDESIGNATE UNIT',
-  humanLabel: 'Rename',
+  ...labels('company.rename'),
 };
 
 export const DELETE_COMPANY_SCHEMA: ButtonSchema = {
   id: 'company.delete',
   type: 'button',
-  loreLabel: 'DECOMMISSION UNIT',
-  humanLabel: 'Delete',
+  ...labels('company.delete'),
 };
