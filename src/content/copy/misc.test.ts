@@ -10,10 +10,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { header } from './header';
 import { nav } from './nav';
 import { session } from './session';
-import { sector } from './sector';
 import { ui } from './ui';
 import { makeHelpers } from '../index';
 import { SHARE_SESSION_SCHEMA, LOAD_SESSION_SCHEMA, DELETE_SESSION_SCHEMA } from '@/data/sessionConfig';
@@ -24,13 +22,6 @@ const read = (rel: string) => readFileSync(resolve(__dirname, '../../', rel), 'u
 
 
 
-describe('header', () => {
-  const src = read('components/panels/screen/Header.tsx');
-  it('mute + volume', () => {
-    expect(src).toContain(`loreLabel: '${header['header.mute'].lore}', humanLabel: '${header['header.mute'].human}'`);
-    expect(src).toContain(`loreLabel: '${header['header.volume'].lore}',\n  humanLabel: '${header['header.volume'].human}'`);
-  });
-});
 
 describe('nav chrome', () => {
   it('home / toggle / breadcrumb', () => {
@@ -71,18 +62,6 @@ describe('session', () => {
   });
 });
 
-describe('sector', () => {
-  it('drawer + coords input inline schemas', () => {
-    const drawer = read('components/panels/screen/console/SectorSettingsDrawer.tsx');
-    expect(drawer).toContain(`loreLabel: '${sector['sector.random.attenuationStyle'].lore}', humanLabel: '${sector['sector.random.attenuationStyle'].human}'`);
-    expect(drawer).toContain(`loreLabel: '${sector['sector.random.coords'].lore}', humanLabel: '${sector['sector.random.coords'].human}'`);
-    expect(drawer).toContain(`'${sector['sector.preset.attenuationStyle'].lore}'`);
-    expect(drawer).toContain(`'${sector['sector.preset.coords'].lore}'`);
-    const coords = read('components/ui/controls/CoordsInput.tsx');
-    expect(coords).toContain(`loreLabel: '${sector['sector.coords.x'].lore}', humanLabel: '${sector['sector.coords.x'].human}'`);
-    expect(coords).toContain(`loreLabel: '${sector['sector.coords.y'].lore}', humanLabel: '${sector['sector.coords.y'].human}'`);
-  });
-});
 
 describe('ui', () => {
   it('LFO control words + shape options in LFO_SHAPES order', () => {

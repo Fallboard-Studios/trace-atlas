@@ -3,6 +3,7 @@ import { memo } from 'react';
 import { DualLabel } from './DualLabel';
 import { TextInput } from './TextInput';
 import type { CoordsInputSchema, TextInputSchema } from '@/types/controls';
+import { labels } from '@/content';
 import './CoordsInput.css';
 
 export interface CoordsValue {
@@ -23,8 +24,8 @@ interface CoordsInputProps {
  * does not call onChange.
  */
 function CoordsInputInner({ schema, value, onChange }: CoordsInputProps) {
-  const xSchema: TextInputSchema = { id: `${schema.id}.x`, type: 'textInput', loreLabel: 'LATERAL VECTOR [c]', humanLabel: 'X' };
-  const ySchema: TextInputSchema = { id: `${schema.id}.y`, type: 'textInput', loreLabel: 'VERTICAL VECTOR [c]', humanLabel: 'Y' };
+  const xSchema: TextInputSchema = { id: `${schema.id}.x`, type: 'textInput', ...labels('sector.coords.x') };
+  const ySchema: TextInputSchema = { id: `${schema.id}.y`, type: 'textInput', ...labels('sector.coords.y') };
 
   function handleX(raw: string) {
     // A native number input sanitizes an invalid keystroke (e.g. stray

@@ -18,6 +18,7 @@ import {
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
 import type { ButtonSchema } from '@/types/controls';
+import { labels, fill, type ContentKey } from '@/content';
 import './SectorSettingsDrawer.css';
 
 /** Ref callback registering/clearing a nav scroll anchor (src/utils/sectionRefs.ts) — matches
@@ -30,11 +31,12 @@ function sectionAnchorRef(id: string) {
   };
 }
 
-const RANDOM_ATTENUATION_STYLE_SCHEMA: ButtonSchema = { id: 'sectorSettings.randomPlanet', type: 'button', loreLabel: 'STOCHASTIC SEED [c]', humanLabel: 'Random' };
-const RANDOM_COORDS_SCHEMA: ButtonSchema = { id: 'sectorSettings.randomCoords', type: 'button', loreLabel: 'STOCHASTIC VECTOR [c]', humanLabel: 'Random' };
+const RANDOM_ATTENUATION_STYLE_SCHEMA: ButtonSchema = { id: 'sectorSettings.randomPlanet', type: 'button', ...labels('sector.random.attenuationStyle') };
+const RANDOM_COORDS_SCHEMA: ButtonSchema = { id: 'sectorSettings.randomCoords', type: 'button', ...labels('sector.random.coords') };
 
-function presetSchema(idSuffix: string, humanLabel: string, loreLabel: string): ButtonSchema {
-  return { id: `sectorSettings.preset.${idSuffix}`, type: 'button', loreLabel, humanLabel };
+/** A preset button: its lore caption is content, its visible label is the preset's own name (data). */
+function presetSchema(idSuffix: string, name: string, content: ContentKey): ButtonSchema {
+  return { id: `sectorSettings.preset.${idSuffix}`, type: 'button', ...labels(content), humanLabel: fill(content, { name }) };
 }
 
 /**
@@ -103,7 +105,7 @@ export function SectorSettingsDrawer() {
           {ATTENUATION_STYLE_PRESETS.map((preset) => (
             <Button
               key={preset.name}
-              schema={presetSchema(`planet.${preset.name}`, preset.name, 'ATTENUATION PRESET [c]')}
+              schema={presetSchema(`planet.${preset.name}`, preset.name, 'sector.preset.attenuationStyle')}
               onClick={() => setAttenuationStyleNameDraft(preset.value)}
             />
           ))}
@@ -117,7 +119,7 @@ export function SectorSettingsDrawer() {
           {COORDINATE_PRESETS.map((preset) => (
             <Button
               key={preset.name}
-              schema={presetSchema(`coords.${preset.name}`, preset.name, 'PLOT PRESET [c]')}
+              schema={presetSchema(`coords.${preset.name}`, preset.name, 'sector.preset.coords')}
               onClick={() => setCoordsDraft(preset.value)}
             />
           ))}
