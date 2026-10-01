@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { GLOBAL_LFO_TARGET_IDS, DRIFT_GROUP_IDS } from '../types/lfo';
+import { GLOBAL_LFO_TARGET_IDS, DRIFT_GROUP_IDS, LFO_LANE_IDS } from '../types/lfo';
 
 // Ensure AudioEngine is mocked before importing the store so the module's
 // import of AudioEngine receives the mock. The store now calls the full
@@ -38,6 +38,24 @@ vi.mock('../engine/lfoEngine', () => ({
     disconnectLfoTarget: vi.fn(),
     setGlobalRateDrift: vi.fn(),
     setGlobalDepthDrift: vi.fn(),
+  },
+}));
+
+// The new bank engine (docs/tasks/LFO_BANK.md Task 7) — a separate module/mock from the old
+// lfoEngine.ts above; both coexist until Task 16 renames lfoBank.ts over the old file.
+vi.mock('../engine/lfoBank', () => ({
+  lfoEngine: {
+    primeLfoBank: vi.fn(),
+    setBankShape: vi.fn(),
+    setBankRate: vi.fn(),
+    setBankRateDrift: vi.fn(),
+    setBankDepthDrift: vi.fn(),
+    getBankSettings: vi.fn(),
+    linkTarget: vi.fn(() => true),
+    unlinkTarget: vi.fn(),
+    disposeRobotLinks: vi.fn(),
+    setDriftEnabled: vi.fn(),
+    setFilterLinksEnabled: vi.fn(),
   },
 }));
 
@@ -495,6 +513,171 @@ describe('useAudioStore - globalLfo Attenuation-Style-sync seeding', () => {
     useAttenuationStyleStore.getState().setCurrentAttenuationStyleId('zenith-lfo');
 
     expect(useAudioStore.getState().globalLfo).not.toEqual(before);
+  });
+});
+
+describe('useAudioStore - lfoBank state (docs/tasks/LFO_BANK.md Task 8)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('has one entry per LfoLaneId, JSON-serializable', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { lfoBank } = useAudioStore.getState();
+    expect(Object.keys(lfoBank).sort()).toEqual([...LFO_LANE_IDS].sort());
+    expect(() => JSON.stringify(lfoBank)).not.toThrow();
+  });
+});
+
+describe('useAudioStore - setLfoBank', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('updates lfoBank state for the given lane/partial', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setLfoBank('b', { rate: 2 });
+    expect(useAudioStore.getState().lfoBank.b.rate).toBe(2);
+  });
+
+  it('calls setBankRate and no other engine setter when only rate is given', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { lfoEngine: bankEngine } = await import('../engine/lfoBank');
+    vi.clearAllMocks();
+
+    useAudioStore.getState().setLfoBank('b', { rate: 2 });
+
+    expect(bankEngine.setBankRate).toHaveBeenCalledWith('b', 2);
+    expect(bankEngine.setBankShape).not.toHaveBeenCalled();
+    expect(bankEngine.setBankRateDrift).not.toHaveBeenCalled();
+    expect(bankEngine.setBankDepthDrift).not.toHaveBeenCalled();
+  });
+
+  it('calls only the engine setters for the fields actually given, for every other field', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { lfoEngine: bankEngine } = await import('../engine/lfoBank');
+    vi.clearAllMocks();
+
+    useAudioStore.getState().setLfoBank('a', { shape: 'square', depthDrift: 0.5 });
+
+    expect(bankEngine.setBankShape).toHaveBeenCalledWith('a', 'square');
+    expect(bankEngine.setBankDepthDrift).toHaveBeenCalledWith('a', 0.5);
+    expect(bankEngine.setBankRate).not.toHaveBeenCalled();
+    expect(bankEngine.setBankRateDrift).not.toHaveBeenCalled();
+  });
+
+  it('merges the partial onto the lane\'s existing settings — other fields survive', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setLfoBank('c', { rate: 3 });
+    useAudioStore.getState().setLfoBank('c', { shape: 'triangle' });
+
+    expect(useAudioStore.getState().lfoBank.c).toMatchObject({ rate: 3, shape: 'triangle' });
+  });
+
+  it('touches only the named lane — every other lane\'s settings are untouched', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const before = useAudioStore.getState().lfoBank;
+
+    useAudioStore.getState().setLfoBank('d', { rate: 7 });
+
+    expect(useAudioStore.getState().lfoBank.a).toEqual(before.a);
+    expect(useAudioStore.getState().lfoBank.b).toEqual(before.b);
+    expect(useAudioStore.getState().lfoBank.c).toEqual(before.c);
+  });
+});
+
+describe('useAudioStore - globalLfoLinks state (docs/tasks/LFO_BANK.md Task 8)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('has one entry per GlobalLfoTargetId, JSON-serializable', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { globalLfoLinks } = useAudioStore.getState();
+    expect(Object.keys(globalLfoLinks).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
+    expect(() => JSON.stringify(globalLfoLinks)).not.toThrow();
+  });
+});
+
+describe('useAudioStore - setGlobalLfoLink', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('updates globalLfoLinks state for the given target', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setGlobalLfoLink('eq3.low', { lane: 'a', depth: 40 });
+    expect(useAudioStore.getState().globalLfoLinks['eq3.low']).toEqual({ lane: 'a', depth: 40 });
+  });
+
+  it('calls linkTarget with the target and link, and no robotId', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { lfoEngine: bankEngine } = await import('../engine/lfoBank');
+    vi.clearAllMocks();
+
+    useAudioStore.getState().setGlobalLfoLink('eq3.low', { lane: 'a', depth: 40 });
+
+    expect(bankEngine.linkTarget).toHaveBeenCalledWith('eq3.low', { lane: 'a', depth: 40 });
+    expect(bankEngine.linkTarget).toHaveBeenCalledTimes(1);
+  });
+
+  it('touches only the named target — every other target\'s link is untouched', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const before = useAudioStore.getState().globalLfoLinks;
+
+    useAudioStore.getState().setGlobalLfoLink('hpf.Q', { lane: 'b', depth: 30 });
+
+    expect(useAudioStore.getState().globalLfoLinks['eq3.low']).toEqual(before['eq3.low']);
+  });
+});
+
+describe('useAudioStore - LFO Bank / global links Attenuation-Style-sync seeding (docs/tasks/LFO_BANK.md Task 8)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    // Same accumulating-mock-call-history quirk the globalLfo seeding tests above already
+    // document — clear it so each test only sees its own fresh import's calls.
+    vi.clearAllMocks();
+  });
+
+  it('seeds lfoBank for the current Attenuation Style on module load (app init)', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { lfoBank } = useAudioStore.getState();
+    // The four lanes draw from disjoint rate bands (LFO_BANK_RATE_BANDS) — seeded, not left
+    // at DEFAULT_BANK_LFO's inert rate 0 for every lane.
+    const rates = LFO_LANE_IDS.map((lane) => lfoBank[lane].rate);
+    expect(rates.every((r) => r > 0)).toBe(true);
+  });
+
+  it('seeds globalLfoLinks for the current Attenuation Style on module load (app init)', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { globalLfoLinks } = useAudioStore.getState();
+    // At least one of the 7 global targets should have rolled a lane across a real seed —
+    // same statistical-spot-check style as the globalLfo seeding test above.
+    const lanes = GLOBAL_LFO_TARGET_IDS.map((t) => globalLfoLinks[t].lane);
+    expect(lanes.some((lane) => lane !== null)).toBe(true);
+  });
+
+  it('does not touch the bank engine during seeding — data-only, deferred to AudioEngine.start() (Task 10)', async () => {
+    await import('./audioStore');
+    const { lfoEngine: bankEngine } = await import('../engine/lfoBank');
+
+    expect(bankEngine.primeLfoBank).not.toHaveBeenCalled();
+    expect(bankEngine.setBankRate).not.toHaveBeenCalled();
+    expect(bankEngine.setBankShape).not.toHaveBeenCalled();
+    expect(bankEngine.linkTarget).not.toHaveBeenCalled();
+  });
+
+  it('follows setCurrentAttenuationStyleId — switching reseeds lfoBank and globalLfoLinks automatically', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { useAttenuationStyleStore, DEFAULT_PELAGOS } = await import('./attenuationStyleStore');
+
+    const beforeBank = useAudioStore.getState().lfoBank;
+    const beforeLinks = useAudioStore.getState().globalLfoLinks;
+    useAttenuationStyleStore.getState().addAttenuationStyle({ ...DEFAULT_PELAGOS, id: 'zenith-bank', name: 'ZenithBank' });
+    useAttenuationStyleStore.getState().setCurrentAttenuationStyleId('zenith-bank');
+
+    expect(useAudioStore.getState().lfoBank).not.toEqual(beforeBank);
+    expect(useAudioStore.getState().globalLfoLinks).not.toEqual(beforeLinks);
   });
 });
 

@@ -11,6 +11,7 @@ import { useLocaleStore } from '../stores/localeStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 import { robotLoadToLimits } from '../utils/audioBudget';
 import { isRobotAudible } from '../utils/robotAudibility';
+import { GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS } from '../types/lfo';
 import {
   SAMPLE_INTERVAL_MS,
   initDiagState,
@@ -36,6 +37,12 @@ export interface DiagInfo {
   transport: string;
   globalLfosOn: number;
   globalLfosTotal: number;
+  /** docs/tasks/LFO_BANK.md Task 8: links (global-chain + every active robot's) whose lane is non-null,
+   *  out of every linkable target. Additive alongside globalLfosOn/Total above — those stay until Task 17. */
+  linksOn: number;
+  linksTotal: number;
+  /** Count of the four LFO Bank lanes currently running (rate > 0), 0-4. */
+  bankRunning: number;
   /** Robots in the active locale that `isRobotAudible` lets sound right now (not muted / not solo-excluded). */
   audibleRobots: number;
   /** Size of the active locale's roster. 0 until robots have spawned. */
@@ -95,6 +102,9 @@ function emptyInfo(): DiagInfo {
     transport: '?',
     globalLfosOn: 0,
     globalLfosTotal: 0,
+    linksOn: 0,
+    linksTotal: 0,
+    bankRunning: 0,
     audibleRobots: 0,
     totalRobots: 0,
     robotLoad: NaN,
@@ -142,6 +152,35 @@ function readRobotAudibility(): { audibleRobots: number; totalRobots: number } {
   };
 }
 
+/** Count of non-null-lane links in an LFO Bank link record (global or robot) — docs/tasks/LFO_BANK.md Task 8. */
+function countLinkedTargets(links: Record<string, { lane: unknown }> | undefined): number {
+  if (!links) return 0;
+  return Object.values(links).filter((link) => link.lane !== null).length;
+}
+
+/**
+ * linksOn/linksTotal across globalLfoLinks and every active robot's lfoLinks (docs/tasks/LFO_BANK.md
+ * Task 8). Robot.lfoLinks itself arrives in Task 9 — the cast below reads undefined until then, so
+ * every robot contributes its full ROBOT_LFO_TARGET_IDS slot count to linksTotal (those target slots
+ * exist on every robot regardless of whether the bank has linked them yet) but nothing to linksOn.
+ */
+function readLfoLinkCounts(globalLfoLinks: Record<string, { lane: unknown }>): { linksOn: number; linksTotal: number } {
+  const robots = useLocaleStore.getState().locales[getActiveLocaleId()]?.robots ?? [];
+  let linksOn = countLinkedTargets(globalLfoLinks);
+  let linksTotal = GLOBAL_LFO_TARGET_IDS.length;
+  for (const robot of robots) {
+    const lfoLinks = (robot as unknown as { lfoLinks?: Record<string, { lane: unknown }> }).lfoLinks;
+    linksOn += countLinkedTargets(lfoLinks);
+    linksTotal += ROBOT_LFO_TARGET_IDS.length;
+  }
+  return { linksOn, linksTotal };
+}
+
+/** Count of the four LFO Bank lanes currently running (rate > 0), 0-4. */
+function readBankRunning(lfoBank: Record<string, { rate: number }>): number {
+  return Object.values(lfoBank).filter((lane) => lane.rate > 0).length;
+}
+
 function readInfo(): DiagInfo {
   const context = Tone.getContext();
   const raw = readRawContext();
@@ -157,6 +196,8 @@ function readInfo(): DiagInfo {
     transport: Tone.getTransport().state,
     globalLfosOn: globalLfo.filter((l) => l.rate > 0).length,
     globalLfosTotal: globalLfo.length,
+    ...readLfoLinkCounts(audio.globalLfoLinks),
+    bankRunning: readBankRunning(audio.lfoBank),
     ...readRobotAudibility(),
     robotLoad: audio.robotLoad,
     effectsLoad: audio.effectsLoad,

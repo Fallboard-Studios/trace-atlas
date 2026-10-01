@@ -204,17 +204,19 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
 
 ### Phase 3: Flip the data and the wiring
 
-- [ ] **Task 8: `audioStore` — `lfoBank` and `globalLfoLinks` (additive)**
+- [x] **Task 8: `audioStore` — `lfoBank` and `globalLfoLinks` (additive)**
 
   **Description:** Add `lfoBank: Record<LfoLaneId, BankLfoSettings>` (initial `DEFAULT_BANK_LFO` per lane) and `globalLfoLinks: Record<GlobalLfoTargetId, LfoLink>` (initial `DEFAULT_LFO_LINK`), with `setLfoBank(lane, partial)` (state write + the matching `lfoBank.ts` setters only for the fields given), `setGlobalLfoLink(target, link)` (state write + `linkTarget`), and data-only `regenerateLfoBankFromSeed`/`regenerateGlobalLfoLinksFromSeed` called from `syncGlobalAudioToCurrentAttenuationStyle` next to the existing regenerate calls. `globalLfo`/`lfoDrift` and their actions stay until Task 17. `audioDiagnostics` gains `linksOn`/`linksTotal` (global + robot, from state) and `bankRunning` (lanes with rate > 0); the old `globalLfosOn/Total` stay until Task 17.
 
   **Acceptance criteria:**
-  - [ ] `audioStore.test.ts`: `setLfoBank('b', { rate: 2 })` writes `lfoBank.b.rate` and calls `setBankRate('b', 2)` and no other engine setter; `setGlobalLfoLink('eq3.low', { lane: 'a', depth: 40 })` writes and calls `linkTarget('eq3.low', …)` with no `robotId`; the Attenuation Style sync populates both fields from the seeders and never calls the engine; an AS switch reseeds both.
-  - [ ] `audioDiagnostics.test.ts`: `linksOn` counts non-null lanes across `globalLfoLinks` + every active robot's `lfoLinks` (0 robots → global only); `bankRunning` is 0–4.
+  - [x] `audioStore.test.ts`: `setLfoBank('b', { rate: 2 })` writes `lfoBank.b.rate` and calls `setBankRate('b', 2)` and no other engine setter; `setGlobalLfoLink('eq3.low', { lane: 'a', depth: 40 })` writes and calls `linkTarget('eq3.low', …)` with no `robotId`; the Attenuation Style sync populates both fields from the seeders and never calls the engine; an AS switch reseeds both.
+  - [x] `audioDiagnostics.test.ts`: `linksOn` counts non-null lanes across `globalLfoLinks` + every active robot's `lfoLinks` (0 robots → global only); `bankRunning` is 0–4.
 
   **Verification:**
-  - [ ] `npx vitest run src/stores/audioStore.test.ts src/engine/audioDiagnostics.test.ts` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean; the app boots (`npm run dev`) with no console error — the seed-time path must not construct a node.
+  - [x] `npx vitest run src/stores/audioStore.test.ts src/engine/audioDiagnostics.test.ts` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean; the app boots (`npm run dev`) with no console error — the seed-time path must not construct a node.
+
+  **Notes from execution:** `linksTotal` counts every robot's full `ROBOT_LFO_TARGET_IDS` slot count (6) regardless of whether `lfoLinks` exists on it yet — `Robot.lfoLinks` itself doesn't land until Task 9, so today every real robot hits that `undefined` branch and contributes 0 to `linksOn` but still 6 to `linksTotal` (its target slots exist structurally even before the bank has linked any of them); read `robot.lfoLinks` via a cast since the field isn't on the `Robot` type yet. Two `DiagInfo`-literal test fixtures outside this task's own files (`src/components/debug/AudioDebugHud.test.tsx`, `src/components/debug/hudLines.test.ts`) needed the three new required fields added to compile — mechanical, not behavioral. Mutation-checked: zeroing the per-robot `linksTotal` contribution was caught by 3 tests. Full suite green: 4355/4355 (one pre-existing documented flaky real-RNG test — `worldTransition.test.ts`'s swell-clear case — failed once, passed on rerun, confirmed unrelated). `npm run build:types`/`lint` clean.
 
   **Dependencies:** Tasks 6, 7.
   **Files:** `src/stores/audioStore.ts` (+test), `src/engine/audioDiagnostics.ts` (+test).
