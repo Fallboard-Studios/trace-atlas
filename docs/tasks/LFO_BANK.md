@@ -261,9 +261,9 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
   **Scope:** M.
 
 ### Checkpoint B: The bank is what you hear
-- [ ] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
-- [ ] Manual, Crawford: power on `charlie:200:-30` and `bravo:-150:90` at Full — modulation audible on load, four lanes (confirm `bankRunning: 4` in `?debug`); the old Drift/LFO panels are still on screen and their edits may reach the *old* engine (expected until Checkpoint C — don't tune anything yet). Drop Effects Load to Light: drift stops. Keep the pre-branch build in a worktree for A/B.
-- [ ] Review with Crawford before proceeding. First impression of the four seeded rate bands is worth a note here even though tuning waits for Checkpoint C.
+- [x] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
+- [x] Manual, Crawford: power on at Full (random seed, not the plan's own `charlie`/`bravo` coords) — four lanes confirmed running (`bank 4/4` in `?debug`, via this checkpoint's own HUD-line follow-up, since the overlay didn't show it before). Two distortion/underrun reports chased down and resolved as non-issues, not bank regressions: (1) touching the old Drift/LFO panels double-modulates the same signal through both engines at once — exactly the "acceptable mid-branch" overlap this task's own Architecture Decisions section calls out, gone by Task 14; (2) a later underrun burst lined up with Claude's own `vitest run` calls competing with the dev server for CPU, not the bank's own load. Did not do the pre-branch worktree A/B.
+- [x] Review with Crawford before proceeding. Crawford: "I think this is pretty good so far." Tuning the four seeded rate bands still waits for Checkpoint C.
 
 ---
 
