@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAudioStore } from '@/stores/audioStore';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
@@ -8,9 +8,8 @@ import { SliderLog } from '@/components/ui/controls/SliderLog';
 import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero';
 import { Stepper } from '@/components/ui/controls/Stepper';
 import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
-import { Lfo } from '@/components/ui/controls/Lfo';
-import { useLfoTargetGroup } from '@/components/ui/controls/useLfoTargetGroup';
-import { withActiveClass, withHeldOffClass } from '@/components/ui/controls/activeClass';
+import { LfoLink } from '@/components/ui/controls/LfoLink';
+import { withHeldOffClass } from '@/components/ui/controls/activeClass';
 import {
   AUDIO_RIG_CONFIG,
   DECAY_MODE_SCHEMA,
@@ -22,15 +21,10 @@ import {
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { cancelSwellForGlobalField, isGlobalTargetSwelling } from '@/systems/audioSwells';
 import type { Trait } from '@/types/traits';
-import type { DirectionalPanelSchema, LfoValue, PanelOrientation } from '@/types/controls';
+import type { DirectionalPanelSchema, LfoLinkSchema, LfoLinkValue } from '@/types/controls';
 import type { GlobalAudioSettings } from '@/types/globalAudio';
 import type { GlobalLfoTargetId } from '@/types/lfo';
 import './AudioRigDrawer.css';
-// AudioRigLfoGroup below reuses LfoTargetGroup's own sc-lfo-target-group__row/__display
-// classes (styled in LfoTargetGroup.css) instead of LfoTargetGroup itself (see the Rules-of-
-// Hooks note on AudioRigLfoGroup) — importing the stylesheet directly here, rather than relying
-// on SignatureArrayDrawer/AudioSettingSection to have pulled it in elsewhere in the bundle.
-import '@/components/ui/controls/LfoTargetGroup.css';
 
 /**
  * Trait per individual effect (Roadmap Phase 14, docs/specs/COLOR_SCHEME_TRAIT_THEMING.md
@@ -77,17 +71,19 @@ function renderParamControl(param: AudioRigParamSchema, value: number, onChange:
   }
 }
 
-/** Wraps one param's control in the shared `.audio-rig-drawer__param-row` div — the plain,
- *  non-LFO rendering shape every block's params without an lfoTarget use (see AudioRigEffectPanel).
+/** Wraps one param's control in the shared `.audio-rig-drawer__param-row` div, optionally followed
+ *  by its own `LfoLink` row (Task 14, docs/tasks/LFO_BANK.md — replaces the old shared per-block
+ *  LFO target-group display; a param-row with no lfoLink arg is the plain, non-LFO rendering shape).
  *  Takes the field's own resolved `onChange` directly (AudioRigEffectPanel's `fieldOnChange` map)
  *  rather than building `(v) => updateParam(param.field, v)` inline here — that inline arrow was a
  *  fresh function every render, which defeated every memoized primitive's own React.memo bail-out
  *  regardless of how many of them got memoized (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md
  *  Task 12). */
-function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, onChange: (v: number) => void, effectKey: AudioRigEffectKey) {
+function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, onChange: (v: number) => void, effectKey: AudioRigEffectKey, lfoLink?: ReactNode) {
   return (
     <div className="audio-rig-drawer__param-row" key={param.field}>
       {renderParamControl(param, effect[param.field], onChange, isGlobalTargetSwelling(effectKey, param.field))}
+      {lfoLink}
     </div>
   );
 }
@@ -100,145 +96,11 @@ function findParam(params: AudioRigParamSchema[], field: string): AudioRigParamS
   return params.find((p) => p.field === field)!;
 }
 
-/** AudioRigParamSchema narrowed to the lfoTarget-bearing case — AudioRigLfoGroupProps.params
- *  (below) is typed to exactly this, not the general AudioRigParamSchema, since AudioRigEffectPanel's
- *  own lfoFields filter (below) already guarantees every entry has one. Carrying that guarantee
- *  in the type itself removes the `.lfoTarget!` non-null assertions AudioRigLfoGroup would
- *  otherwise need internally — code review, 2026-09-12. */
+/** AudioRigParamSchema narrowed to the lfoTarget-bearing case — AudioRigEffectPanel's own
+ *  lfoParams filter guarantees every entry has one; carrying that guarantee in the type itself
+ *  removes the `.lfoTarget!` non-null assertions that filter's callers would otherwise need. */
 interface LfoTargetedParamSchema extends AudioRigParamSchema {
   lfoTarget: GlobalLfoTargetId;
-}
-
-interface AudioRigLfoGroupProps {
-  /** Becomes the timelineMap key (`lfo-target-group-${groupId}`) — 'audioRig.eq3' etc. */
-  groupId: string;
-  /** The caller only ever passes a block's lfoTarget-flagged params (eq3/filterLPF/filterHPF
-   *  today, per audioRigConfig.ts) — LfoTargetedParamSchema[] makes that a type guarantee, not
-   *  just a doc comment. */
-  params: LfoTargetedParamSchema[];
-  effect: Record<string, number>;
-  /** One pre-bound, stable onChange per field, keyed by field name — AudioRigEffectPanel's own
-   *  `fieldOnChange` map (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12), not a raw
-   *  `updateParam` this component would otherwise have to bind inline per param itself. */
-  fieldOnChange: Record<string, (v: number) => void>;
-  /** The owning effect's own key — needed only to look up isGlobalTargetSwelling(effectKey,
-   *  field) per param below, so a swell riding one of this group's own fields (eq3/filterLPF/
-   *  filterHPF are all swellable) renders instantly instead of double-easing. */
-  effectKey: AudioRigEffectKey;
-}
-
-/**
- * One shared LFO display for a block whose params are all LFO-tied (docs/specs/
- * LFO_CONSOLIDATED_DISPLAY.md) — replaces the old per-param nested "Modulation" accordion.
- * A separate component (not inlined in AudioRigDrawer's own per-block loop) so
- * useLfoTargetGroup is called unconditionally per this component's own instance, never
- * conditionally inside AUDIO_RIG_CONFIG.map() itself (Rules of Hooks) — AudioRigDrawer instead
- * conditionally *renders* this whole component only for blocks that have any lfoTarget param
- * (eq3/filterLPF/filterHPF), which is the legal way to make LFO wiring optional per block.
- *
- * Renders as column[sliders-panel, Lfo] (docs/tasks/DIRECTIONAL_PANEL_WIRING.md follow-up fix)
- * — its own single DirectionalPanel root, always column, so the shared Lfo display always
- * stacks beneath the params regardless of the caller's own block.panel orientation (eq3's is
- * 'row', which used to squeeze the display/drift sliders into the same row as Low/Mid/High —
- * drift no longer renders here at all, docs/specs/FLEET_DRIFT_CONSOLIDATION.md). The params
- * themselves render inside a nested inner panel whose
- * own orientation is "taken from slider children" — row if any param's own ControlSchema is
- * `orientation: 'vertical'` (eq3 today), column otherwise (filterLPF/filterHPF) — the same rule
- * VERTICAL_SLIDERS.md's classification already uses. Being a single root element, this
- * component's own wrapper renders as one flex item inside block.panel's content regardless of
- * block.panel's own orientation, which is why that orientation no longer needs to change.
- */
-function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange, effectKey }: AudioRigLfoGroupProps) {
-  // Only this group's own lfoTarget values, not the whole globalLfo object (bugfix, found via
-  // a manual re-render sweep, backlog item 18 — same class as AudioRigEffectPanel's own fix
-  // below): useShallow bails the re-render when none of THESE targets' values actually
-  // changed, instead of re-rendering on every globalLfo write anywhere, every other
-  // LFO-bearing block's own targets included.
-  const lfoTargets = params.map((p) => p.lfoTarget);
-  const lfoValues = useAudioStore(useShallow((s) => lfoTargets.map((t) => s.globalLfo[t])));
-  const setGlobalLfo = useAudioStore((s) => s.setGlobalLfo);
-  const fields = params.map((p, i) => ({ field: p.field, label: p.schema.humanLabel ?? p.field, loreLabel: p.schema.loreLabel, lfoValue: lfoValues[i] }));
-  const { selected, transitioning, select, isTargeted, displayValue, displayLabel, displayLoreLabel } = useLfoTargetGroup({ groupId, fields });
-  // Non-null assertion is safe: `selected` only ever holds one of `fields`' own field names
-  // (useLfoTargetGroup's own contract — it starts at fields[0].field and only ever moves to
-  // another value from that same set), and `fields` is mapped 1:1 from `params` above — same
-  // "guaranteed to be found" reasoning findParam() documents for its own call sites.
-  const selectedTarget = params.find((p) => p.field === selected)!.lfoTarget;
-  // Audio Load Budget (docs/tasks/LFO_BANK.md Task 3): one dial-wide flag for every filter (LPF/HPF) link — EQ-gain links
-  // are never held off, so the selector itself returns a stable `false` for every other block, never subscribing it to
-  // a flip it doesn't care about (the existing per-frame re-render guard, applied to a store-wide flag now).
-  const isFilterBlock = effectKey === 'filterLPF' || effectKey === 'filterHPF';
-  const heldOff = useAudioStore((s) => isFilterBlock && s.filterLinksHeldOff);
-
-  // "Taken from slider children" (docs/tasks/DIRECTIONAL_PANEL_WIRING.md follow-up fix): any
-  // vertical-oriented slider in the group renders its own row (eq3's Low/Mid/High today, per
-  // VERTICAL_SLIDERS.md's classification) — every other LFO-bearing block's sliders are 'auto',
-  // which resolves to column here just like everywhere else.
-  const slidersOrientation: PanelOrientation = params.some(
-    (p) => 'orientation' in p.schema && p.schema.orientation === 'vertical',
-  ) ? 'row' : 'column';
-
-  // Stabilized (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12) — Lfo is now React.memo'd
-  // (Task 10); an inline `(v) => setGlobalLfo(selectedTarget, v)` here would have been a fresh
-  // function every render, defeating that memo regardless. Lfo's own onChange takes the full
-  // LfoValue object (not a single number), unlike every other param control in this file.
-  const handleLfoChange = useCallback(
-    (v: LfoValue) => setGlobalLfo(selectedTarget, v),
-    [selectedTarget, setGlobalLfo],
-  );
-
-  // Stabilized (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12 follow-up, found live via
-  // React DevTools "highlight updates" after the initial Task 12 fix shipped): these 3 schema
-  // objects used to be constructed fresh, inline, on every render of AudioRigLfoGroup — unlike
-  // every other primitive's schema in this codebase, which is always a stable reference. Since
-  // Lfo (React.memo'd, Task 10) only bails when EVERY prop — schema included — stays referentially
-  // equal, a fresh schema unconditionally forced the shared LFO display (and, transitively, its
-  // own internal Shape/Rate/Depth controls) to re-render on every sibling field's own value
-  // change within this group, not just when the displayed/targeted LFO value itself changed. The
-  // 2 DirectionalPanel schemas are memoized too, for the same consistency reason, even though
-  // DirectionalPanel's own memo benefit is conditional on `children` also being stable (§1.3) —
-  // still correct to do, never harmful.
-  const groupPanelSchema = useMemo(
-    () => ({ id: `${groupId}.group`, type: 'directionalPanel' as const, orientation: 'column' as const }),
-    [groupId],
-  );
-  const slidersPanelSchema = useMemo(
-    () => ({ id: `${groupId}.sliders`, type: 'directionalPanel' as const, orientation: slidersOrientation }),
-    [groupId, slidersOrientation],
-  );
-  // loreLabel now tracks the targeted field, same as LfoTargetGroup.tsx's own lfoSchema
-  // (docs/reference/text-content-tables.md) — no longer the fixed group-level OSCILLATION term.
-  const lfoDisplaySchema = useMemo(
-    () => ({ id: `${groupId}.lfo`, type: 'lfo' as const, loreLabel: displayLoreLabel, humanLabel: displayLabel }),
-    [groupId, displayLabel, displayLoreLabel],
-  );
-
-  return (
-    <DirectionalPanel schema={groupPanelSchema}>
-      <DirectionalPanel schema={slidersPanelSchema}>
-        {params.map((param) => (
-          <div
-            key={param.field}
-            className={withActiveClass('audio-rig-drawer__param-row sc-lfo-target-group__row', isTargeted(param.field))}
-            onClick={() => select(param.field)}
-            onFocus={() => select(param.field)}
-          >
-            {renderParamControl(param, effect[param.field], fieldOnChange[param.field], isGlobalTargetSwelling(effectKey, param.field))}
-          </div>
-        ))}
-      </DirectionalPanel>
-      <div className={withActiveClass('sc-lfo-target-group__display', transitioning)}>
-        <Lfo
-          schema={lfoDisplaySchema}
-          value={displayValue}
-          onChange={handleLfoChange}
-          disabled={transitioning || heldOff}
-          heldOff={heldOff}
-        />
-        {heldOff && <HeldOffNote />}
-      </div>
-    </DirectionalPanel>
-  );
 }
 
 /**
@@ -331,8 +193,10 @@ interface AudioRigEffectPanelProps {
 }
 
 /**
- * One effect's own full content (AudioRigLfoGroup-or-plain-params-map, plus the compressor-only
- * Decay Mode radio) — as of Task 14 (docs/tasks/NAV_LAYOUT_REWRITE.md), this is a standalone,
+ * One effect's own full content (a plain params map, each with its own inline `LfoLink` row where
+ * `lfoTarget` is present, plus the compressor-only Decay Mode radio) — as of Task 14 (docs/tasks/
+ * LFO_BANK.md, inside the standalone-leaf shape docs/tasks/NAV_LAYOUT_REWRITE.md Task 14 set up),
+ * this is a standalone,
  * exported component: FleetParamsContent.tsx renders exactly one instance directly, for whichever
  * effect leaf (EQ/HPF/LPF/Reverb/Delay/Compression/Limiter) is currently selected in the tree —
  * no group accordion wraps it anymore, so it carries its own per-effect trait color
@@ -357,9 +221,25 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   // a closed-but-varying settings shape" situation.
   const effect = useAudioStore((s) => s.globalAudio[effectKey]) as unknown as Record<string, number>;
   const setGlobalAudio = useAudioStore((s) => s.setGlobalAudio);
+  const setGlobalLfoLink = useAudioStore((s) => s.setGlobalLfoLink);
   // Type predicate, not a plain truthy filter — proves lfoTarget is present to the type
-  // system itself, so AudioRigLfoGroup's own params: LfoTargetedParamSchema[] needs no cast.
-  const lfoFields = block.params.filter((p): p is LfoTargetedParamSchema => p.lfoTarget !== undefined);
+  // system itself, so the LfoLink-wiring maps below need no `.lfoTarget!` cast. block.params is a
+  // stable module-level reference (see fieldOnChange's own comment below), so memoizing on it
+  // keeps lfoParams itself a stable reference too, which the 3 maps below depend on in turn.
+  const lfoParams = useMemo(
+    () => block.params.filter((p): p is LfoTargetedParamSchema => p.lfoTarget !== undefined),
+    [block.params],
+  );
+  // Only this block's own lfo-linked targets, not the whole globalLfoLinks object (the old
+  // per-block LFO display's own re-render fix, backlog item 18, carried over unchanged): useShallow
+  // bails the re-render when none of THESE targets' links actually changed, instead of
+  // re-rendering on every globalLfoLinks write anywhere, every other block's own targets included.
+  const lfoLinkValues = useAudioStore(useShallow((s) => lfoParams.map((p) => s.globalLfoLinks[p.lfoTarget])));
+  // Audio Load Budget (docs/tasks/LFO_BANK.md Task 3): one dial-wide flag for every filter (LPF/HPF) link — EQ-gain links
+  // are never held off, so the selector itself returns a stable `false` for every other block, never subscribing it to
+  // a flip it doesn't care about (the existing per-frame re-render guard, applied to a store-wide flag now).
+  const isFilterBlock = effectKey === 'filterLPF' || effectKey === 'filterHPF';
+  const filterLinksHeldOff = useAudioStore((s) => isFilterBlock && s.filterLinksHeldOff);
   const compressorBeforeDelay = useAudioStore((s) => (effectKey === 'compressor' ? s.globalAudio.compressorBeforeDelay : undefined));
   const setCompressorBeforeDelay = useAudioStore((s) => s.setCompressorBeforeDelay);
 
@@ -379,8 +259,8 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   // referentially stable across any re-render that doesn't change effectKey — which is every
   // re-render of a mounted AudioRigEffectPanel instance in practice. Chosen over a `useCallback`
   // at each of this file's call shapes (paramRow's loop, the compressor special case's 5 direct
-  // calls, AudioRigLfoGroup's own params.map, the Decay Mode radio) since block.params' field
-  // set is already a stable, closed list per effect.
+  // calls, the LfoLink maps' own per-field loop below, the Decay Mode radio) since block.params'
+  // field set is already a stable, closed list per effect.
   const fieldOnChange = useMemo(() => {
     const map: Record<string, (v: number) => void> = {};
     for (const p of block.params) {
@@ -388,6 +268,25 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
     }
     return map;
   }, [block.params, updateParam]);
+
+  // Three keyed-by-field maps for the LfoLink rows (Task 14) — mirrors fieldOnChange's own
+  // stable-per-field-map shape directly above, for the same reason: a fresh inline arrow/schema
+  // per render would defeat LfoLink's own React.memo regardless of how many fields are memoized.
+  const lfoLinkOnChange = useMemo(() => {
+    const map: Record<string, (v: LfoLinkValue) => void> = {};
+    for (const p of lfoParams) map[p.field] = (v: LfoLinkValue) => setGlobalLfoLink(p.lfoTarget, v);
+    return map;
+  }, [lfoParams, setGlobalLfoLink]);
+  const lfoLinkSchemas = useMemo(() => {
+    const map: Record<string, LfoLinkSchema> = {};
+    for (const p of lfoParams) map[p.field] = { id: `audioRig.${effectKey}.${p.field}.link`, type: 'lfoLink' };
+    return map;
+  }, [lfoParams, effectKey]);
+  const lfoLinkValueByField = useMemo(() => {
+    const map: Record<string, LfoLinkValue> = {};
+    lfoParams.forEach((p, i) => { map[p.field] = lfoLinkValues[i]; });
+    return map;
+  }, [lfoParams, lfoLinkValues]);
 
   const handleDecayModeChange = useCallback(
     (v: string) => setCompressorBeforeDelay(v === 'controlled'),
@@ -397,15 +296,7 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   return (
     <div className="audio-rig-drawer__effect-block" style={getTraitColorStyle(AUDIO_RIG_EFFECT_TRAIT[effectKey])}>
       <DirectionalPanel schema={block.panel}>
-        {lfoFields.length > 0 ? (
-          <AudioRigLfoGroup
-            groupId={`audioRig.${block.key}`}
-            params={lfoFields}
-            effect={effect}
-            fieldOnChange={fieldOnChange}
-            effectKey={effectKey}
-          />
-        ) : block.key === 'compressor' ? (
+        {block.key === 'compressor' ? (
           // Threshold+Ratio, Attack+Release, and Knee+Decay Mode (Crawford's own request) are the
           // 3 paired sub-rows that stay side-by-side on desktop — 'responsive' stacks each pair on
           // mobile/tablet. This also resolves a pre-existing duplicate id ('audioRig.compressor.
@@ -431,7 +322,20 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
             </DirectionalPanel>
           </>
         ) : (
-          block.params.map((param) => paramRow(param, effect, fieldOnChange[param.field], effectKey))
+          block.params.map((param) => paramRow(
+            param, effect, fieldOnChange[param.field], effectKey,
+            param.lfoTarget !== undefined ? (
+              <>
+                <LfoLink
+                  schema={lfoLinkSchemas[param.field]}
+                  value={lfoLinkValueByField[param.field]}
+                  onChange={lfoLinkOnChange[param.field]}
+                  heldOff={isFilterBlock && filterLinksHeldOff}
+                />
+                {isFilterBlock && filterLinksHeldOff && <HeldOffNote />}
+              </>
+            ) : undefined,
+          ))
         )}
       </DirectionalPanel>
     </div>

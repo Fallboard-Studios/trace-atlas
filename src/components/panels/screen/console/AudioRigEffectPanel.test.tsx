@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, within, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, within, fireEvent, act } from '@testing-library/react';
 
 // Real lfoEngine would construct a real Tone.LFO on first setter call (getOrCreateLfo -> new
 // Tone.LFO(...)), which throws without a real AudioContext.
@@ -13,14 +13,6 @@ vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: 
 vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/components/ui/controls/accessibleName')>();
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
-});
-
-// Call-through spy: useLfoTargetGroup runs once per render of an LFO group (AudioRigLfoGroup), so
-// its calls count that component's own re-renders — which the memoized controls inside it would
-// otherwise hide.
-vi.mock('@/components/ui/controls/useLfoTargetGroup', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/components/ui/controls/useLfoTargetGroup')>();
-  return { ...actual, useLfoTargetGroup: vi.fn(actual.useLfoTargetGroup) };
 });
 
 vi.mock('../../../../engine/lfoEngine', () => ({
@@ -38,15 +30,34 @@ vi.mock('../../../../engine/lfoEngine', () => ({
   },
 }));
 
+// The LFO Bank engine (docs/tasks/LFO_BANK.md Task 7) — setGlobalLfoLink (audioStore.ts) calls
+// this module's linkTarget directly; mocked for the same reason the old lfoEngine above is: the
+// real module would construct a Tone node on first call, which throws without a real AudioContext.
+vi.mock('../../../../engine/lfoBank', () => ({
+  lfoEngine: {
+    primeLfoBank: vi.fn(),
+    setBankShape: vi.fn(),
+    setBankRate: vi.fn(),
+    setBankRateDrift: vi.fn(),
+    setBankDepthDrift: vi.fn(),
+    getBankSettings: vi.fn(),
+    linkTarget: vi.fn(() => true),
+    unlinkTarget: vi.fn(),
+    disposeRobotLinks: vi.fn(),
+    setDriftEnabled: vi.fn(),
+    setFilterLinksEnabled: vi.fn(),
+  },
+}));
+
 import { AudioRigEffectPanel } from './AudioRigDrawer';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
-import { useLfoTargetGroup } from '@/components/ui/controls/useLfoTargetGroup';
 import { useAudioStore } from '@/stores/audioStore';
 import * as audioSwells from '@/systems/audioSwells';
 import { ACCENT_COLORS } from '@/constants/accentColors';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
-import { DEFAULT_LFO_SETTINGS } from '@/data/lfoConfig';
+import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import { GLOBAL_LFO_TARGET_IDS, type GlobalLfoTargetId } from '@/types/lfo';
+import type { LfoLinkValue } from '@/types/controls';
 
 /**
  * AudioRigEffectPanel — one effect's own full content, extracted from AudioRigDrawer.test.tsx
@@ -74,22 +85,31 @@ function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
   });
 }
 
-function buildLfoValue(target: GlobalLfoTargetId) {
-  return { ...DEFAULT_LFO_SETTINGS[target] };
+function buildLfoLinkValue(target: GlobalLfoTargetId): LfoLinkValue {
+  return { ...DEFAULT_LFO_LINK[target] };
 }
 
 function resetAudioStore() {
-  const globalLfo = {} as Record<GlobalLfoTargetId, ReturnType<typeof buildLfoValue>>;
-  for (const target of GLOBAL_LFO_TARGET_IDS) globalLfo[target] = buildLfoValue(target);
+  const globalLfoLinks = {} as Record<GlobalLfoTargetId, LfoLinkValue>;
+  for (const target of GLOBAL_LFO_TARGET_IDS) globalLfoLinks[target] = buildLfoLinkValue(target);
   useAudioStore.setState({
     globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS },
-    globalLfo,
+    globalLfoLinks,
     robotLoad: 1,
     effectsLoad: 1,
     soundingRobotIds: [],
     filterLinksHeldOff: false,
     driftHeldOff: false,
   });
+}
+
+/** Counts how many times a control with this exact schema id called resolveAccessibleName — a
+ *  stand-in for "this control's own render body executed," used throughout the re-render-cascade
+ *  tests below. Shared across describe blocks (the Audio Load held-off tests use it too). */
+function callsFor(schemaId: string): number {
+  return (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.filter(
+    ([schema]) => schema.id === schemaId,
+  ).length;
 }
 
 describe('AudioRigEffectPanel', () => {
@@ -141,14 +161,10 @@ describe('AudioRigEffectPanel', () => {
     }
   });
 
-  it("3-Band EQ's, Low-Pass's, and High-Pass's own sliders each render in a row-orientation panel (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.4)", () => {
+  it("3-Band EQ's, Low-Pass's, and High-Pass's own sliders each render in a row-orientation panel (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.4) — single panel now (Task 14, docs/tasks/LFO_BANK.md removed the old always-column outer group wrapper)", () => {
     const { unmount: unmountEq } = render(<AudioRigEffectPanel effectKey="eq3" />);
-    const eqSlidersPanel = screen.getByRole('slider', { name: 'Bass' }).closest('.sc-directional-panel') as HTMLElement;
-    expect(eqSlidersPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
-    // The outer group panel that wraps [sliders-panel, Lfo, driftContent] is always column,
-    // regardless of the sliders panel's own orientation.
-    const eqGroupPanel = eqSlidersPanel.parentElement!.closest('.sc-directional-panel') as HTMLElement;
-    expect(eqGroupPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('column');
+    const eqPanel = screen.getByRole('slider', { name: 'Bass' }).closest('.sc-directional-panel') as HTMLElement;
+    expect(eqPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
     unmountEq();
 
     for (const key of ['filterLPF', 'filterHPF'] as const) {
@@ -219,196 +235,183 @@ describe('AudioRigEffectPanel', () => {
     expect(screen.getByRole('slider', { name: 'Threshold' }).getAttribute('data-disabled')).toBeNull();
   });
 
-  describe('shared LFO display (LFO_CONSOLIDATED_DISPLAY — replaces the old nested per-slider accordion)', () => {
-    it('renders exactly one shared LFO display for an LFO-bearing block (eq3/filterLPF/filterHPF), never one per param', () => {
+  describe('inline LfoLink rows (Task 14, docs/tasks/LFO_BANK.md — replaces the old shared per-block target-group display)', () => {
+    function rowOf(sliderName: string) {
+      return screen.getByRole('slider', { name: sliderName }).closest('.audio-rig-drawer__param-row') as HTMLElement;
+    }
+
+    it('EQ renders a LfoLink row directly after each of its 3 param rows, never one shared display', () => {
       const { container } = render(<AudioRigEffectPanel effectKey="eq3" />);
-      // A plain count of the shared display's own root class also proves "not one per param" —
-      // 3 GlobalLfoTargetId params (low/mid/high) would otherwise render 3.
-      expect(container.querySelectorAll('.sc-lfo')).toHaveLength(1);
+      expect(container.querySelectorAll('.sc-lfo-link')).toHaveLength(3);
     });
 
-    it('renders no shared LFO display for delay, reverb, compressor, or limiter — none of their params carry lfoTarget', () => {
-      const { container } = render(<AudioRigEffectPanel effectKey="compressor" />);
-      expect(container.querySelector('.sc-lfo')).toBeNull();
+    it('renders no LfoLink rows for delay, reverb, compressor, or limiter — none of their params carry lfoTarget', () => {
+      for (const key of ['delay', 'reverb', 'compressor', 'limiter'] as const) {
+        const { container, unmount } = render(<AudioRigEffectPanel effectKey={key} />);
+        expect(container.querySelector('.sc-lfo-link'), key).toBeNull();
+        unmount();
+      }
     });
 
-    it('renders no accordion nested anywhere — the shared display is plain content', () => {
+    it('renders no accordion nested anywhere — every LfoLink is plain content', () => {
       const { container } = render(<AudioRigEffectPanel effectKey="eq3" />);
       expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
     });
 
-    it('shows the targeted param\'s own name as the shared display\'s label, defaulting to the group\'s first param', () => {
+    it('renders no leftover shared-display or old Lfo primitive markup (.sc-lfo, a Rate-named slider) anywhere — Depth sliders are expected (LfoLink\'s own)', () => {
       const { container } = render(<AudioRigEffectPanel effectKey="eq3" />);
-      expect(container.querySelector('.sc-lfo')?.textContent).toContain('Bass');
+      expect(container.querySelector('.sc-lfo')).toBeNull();
+      expect(screen.queryByRole('slider', { name: 'Rate' })).toBeNull();
     });
 
-    it('binds the default target (eq3.low) to its own globalLfo entry, not DEFAULT_LFO_SETTINGS', () => {
+    it("each param's own LfoLink lives inside that param's own row, directly after its slider", () => {
+      render(<AudioRigEffectPanel effectKey="eq3" />);
+      const midRow = rowOf('Mid');
+      expect(within(midRow).getByRole('radio', { name: 'Off' })).toBeTruthy();
+    });
+
+    it("binds each target's LfoLink to its OWN stored globalLfoLinks value, not a sibling target's", () => {
       useAudioStore.setState((s) => ({
-        globalLfo: { ...s.globalLfo, 'eq3.low': { shape: 'square', rate: 5, depth: 60 } },
+        globalLfoLinks: { ...s.globalLfoLinks, 'eq3.mid': { lane: 'c', depth: 65 } },
       }));
       render(<AudioRigEffectPanel effectKey="eq3" />);
 
-      expect(screen.getByRole('slider', { name: 'Rate' }).getAttribute('aria-valuenow')).toBe('5');
-      expect(screen.getByRole('slider', { name: 'Depth' }).getAttribute('aria-valuenow')).toBe('60');
+      const midRow = rowOf('Mid');
+      const lowRow = rowOf('Bass');
+      expect(within(midRow).getByRole('radio', { name: 'Accent LFO' }).getAttribute('aria-checked')).toBe('true');
+      expect(within(midRow).getByRole('slider', { name: 'Depth' }).getAttribute('aria-valuenow')).toBe('65');
+      expect(within(lowRow).getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
     });
 
-    it('dragging the shared display\'s rate slider off 0 calls setGlobalLfo for the currently-targeted field (eq3.low by default)', () => {
+    it("choosing a lane on Mid's LfoLink calls setGlobalLfoLink('eq3.mid', { lane, depth })", () => {
       render(<AudioRigEffectPanel effectKey="eq3" />);
-      const rateSlider = screen.getByRole('slider', { name: 'Rate' });
-      expect(useAudioStore.getState().globalLfo['eq3.low'].rate).toBe(0);
+      fireEvent.click(within(rowOf('Mid')).getByRole('radio', { name: 'Core LFO' }));
 
-      rateSlider.focus();
-      fireEvent.keyDown(rateSlider, { key: 'ArrowRight' });
-
-      expect(useAudioStore.getState().globalLfo['eq3.low'].rate).toBeGreaterThan(0);
+      expect(useAudioStore.getState().globalLfoLinks['eq3.mid']).toEqual({ lane: 'a', depth: 0 });
     });
 
-    it('the shared LFO display is enabled by default — no parent-effect enabled/disabled concept left to gate it', () => {
+    it("dragging Mid's own depth slider updates eq3.mid's depth only, leaving eq3.low untouched", () => {
+      useAudioStore.setState((s) => ({
+        globalLfoLinks: { ...s.globalLfoLinks, 'eq3.mid': { lane: 'a', depth: 30 } },
+      }));
       render(<AudioRigEffectPanel effectKey="eq3" />);
-      expect(screen.getByRole('slider', { name: 'Rate' }).getAttribute('data-disabled')).toBeNull();
+      const depthSlider = within(rowOf('Mid')).getByRole('slider', { name: 'Depth' });
+      depthSlider.focus();
+      fireEvent.keyDown(depthSlider, { key: 'ArrowRight' });
+
+      expect(useAudioStore.getState().globalLfoLinks['eq3.mid'].depth).toBeGreaterThan(30);
+      expect(useAudioStore.getState().globalLfoLinks['eq3.low']).toEqual({ lane: null, depth: 0 });
     });
 
-    it('clicking a different band\'s row (click-around, not just the slider) marks that row targeted, once the transition completes', async () => {
+    it('every LfoLink renders enabled by default — no parent-effect enabled/disabled concept left to gate it', () => {
       render(<AudioRigEffectPanel effectKey="eq3" />);
-      const midSlider = screen.getByRole('slider', { name: 'Mid' });
-      const midRow = midSlider.closest('.sc-lfo-target-group__row')!;
-      const lowRow = screen.getByRole('slider', { name: 'Bass' }).closest('.sc-lfo-target-group__row')!;
-      expect(lowRow.classList.contains('isActive')).toBe(true);
-
-      fireEvent.click(midRow);
-
-      await waitFor(() => {
-        expect(midRow.classList.contains('isActive')).toBe(true);
-      });
-      expect(lowRow.classList.contains('isActive')).toBe(false);
-    });
-
-    it('keyboard-focusing a different band\'s slider switches which globalLfo entry the shared display edits, once the transition completes', async () => {
-      render(<AudioRigEffectPanel effectKey="eq3" />);
-      const highSlider = screen.getByRole('slider', { name: 'Treble' });
-      await act(async () => {
-        highSlider.focus();
-      });
-
-      await waitFor(() => {
-        expect(screen.getByRole('slider', { name: 'Treble' }).closest('.sc-lfo-target-group__row')?.classList.contains('isActive')).toBe(true);
-      });
-
-      const rateSlider = screen.getByRole('slider', { name: 'Rate' });
-      rateSlider.focus();
-      fireEvent.keyDown(rateSlider, { key: 'ArrowRight' });
-
-      expect(useAudioStore.getState().globalLfo['eq3.high'].rate).toBeGreaterThan(0);
-      expect(useAudioStore.getState().globalLfo['eq3.low'].rate).toBe(0);
+      expect(within(rowOf('Mid')).getByRole('radio', { name: 'Off' }).getAttribute('data-disabled')).toBeNull();
     });
   });
 
-  describe('Audio Load: filterLinksHeldOff (docs/tasks/LFO_BANK.md Task 3)', () => {
+  describe('Audio Load: filterLinksHeldOff on inline LfoLinks (docs/tasks/LFO_BANK.md Task 3 behavior, Task 14 UI)', () => {
     const HELD_OFF = 'Held off by Audio Load';
-    const frame = (container: HTMLElement) => container.querySelector<HTMLElement>('.sc-lfo-target-group__display')!;
-    const rateOf = (f: HTMLElement) => within(f).getByRole('slider', { name: 'Rate' });
-    const depthOf = (f: HTMLElement) => within(f).getByRole('slider', { name: 'Depth' });
-    const isDisabled = (el: HTMLElement) => el.getAttribute('data-disabled') !== null;
+    function rowOf(sliderName: string) {
+      return screen.getByRole('slider', { name: sliderName }).closest('.audio-rig-drawer__param-row') as HTMLElement;
+    }
+    function depthSliderOf(row: HTMLElement) {
+      return within(row).getByRole('slider', { name: 'Depth' });
+    }
 
-    it('greys out the LPF frame while filterLinksHeldOff is true: controls disabled, stored values kept, label shown', () => {
+    it("greys out LPF's own LfoLink while filterLinksHeldOff is true: Off/0 shown, real value kept in the store, note rendered", () => {
       useAudioStore.setState((s) => ({
-        globalLfo: { ...s.globalLfo, 'lpf.frequency': { shape: 'square', rate: 3, depth: 45 } },
+        globalLfoLinks: { ...s.globalLfoLinks, 'lpf.frequency': { lane: 'b', depth: 45 } },
         filterLinksHeldOff: true,
       }));
-      const { container } = render(<AudioRigEffectPanel effectKey="filterLPF" />);
-      const lpf = frame(container);
+      render(<AudioRigEffectPanel effectKey="filterLPF" />);
+      const row = rowOf('Cutoff');
 
-      expect(isDisabled(rateOf(lpf))).toBe(true);
-      expect(isDisabled(depthOf(lpf))).toBe(true);
-      // Shows 0, not the real stored value (3/45) — a held-off control should read as visibly
-      // "off". The real value is kept in the store and reappears the moment it's re-enabled.
-      expect(rateOf(lpf).getAttribute('aria-valuenow')).toBe('0');
-      expect(depthOf(lpf).getAttribute('aria-valuenow')).toBe('0');
-      expect(within(lpf).getByText(HELD_OFF)).toBeTruthy();
-      expect(lpf.querySelector('.sc-lfo.sc-held-off')).toBeTruthy();
+      expect(within(row).getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
+      // Shows 0, not the real stored value (45) — a held-off control should read as visibly "off".
+      // The real value is kept in the store and reappears the moment it's re-enabled.
+      expect(depthSliderOf(row).getAttribute('aria-valuenow')).toBe('0');
+      expect(within(row).getByText(HELD_OFF)).toBeTruthy();
+      expect(row.querySelector('.sc-lfo-link.sc-held-off')).toBeTruthy();
+      expect(useAudioStore.getState().globalLfoLinks['lpf.frequency']).toEqual({ lane: 'b', depth: 45 });
     });
 
-    it('greys out the HPF frame too — the flag covers both filter blocks', () => {
+    it('greys out HPF\'s LfoLink too — the flag covers both filter blocks', () => {
       useAudioStore.setState({ filterLinksHeldOff: true });
-      const { container } = render(<AudioRigEffectPanel effectKey="filterHPF" />);
-      const hpf = frame(container);
+      render(<AudioRigEffectPanel effectKey="filterHPF" />);
+      const row = rowOf('Cutoff');
 
-      expect(isDisabled(rateOf(hpf))).toBe(true);
-      expect(within(hpf).getByText(HELD_OFF)).toBeTruthy();
+      expect(within(row).getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
+      expect(within(row).getByText(HELD_OFF)).toBeTruthy();
     });
 
-    it('restores the real stored value (not 0) the moment filterLinksHeldOff goes false', async () => {
+    it("greys BOTH of LPF's own linked params at once — every lfoTarget field within a filter block, not just one", () => {
+      useAudioStore.setState({ filterLinksHeldOff: true });
+      render(<AudioRigEffectPanel effectKey="filterLPF" />);
+
+      expect(within(rowOf('Cutoff')).getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
+      expect(within(rowOf('Resonance')).getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('restores the real stored lane/depth the moment filterLinksHeldOff goes false', async () => {
       useAudioStore.setState((s) => ({
-        globalLfo: { ...s.globalLfo, 'lpf.frequency': { shape: 'square', rate: 3, depth: 45 } },
+        globalLfoLinks: { ...s.globalLfoLinks, 'lpf.frequency': { lane: 'b', depth: 45 } },
         filterLinksHeldOff: true,
       }));
-      const { container } = render(<AudioRigEffectPanel effectKey="filterLPF" />);
-      expect(rateOf(frame(container)).getAttribute('aria-valuenow')).toBe('0');
+      render(<AudioRigEffectPanel effectKey="filterLPF" />);
+      const row = rowOf('Cutoff');
+      expect(within(row).getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
 
       act(() => useAudioStore.setState({ filterLinksHeldOff: false }));
-      // SliderLinear/SliderLog now ease a non-drag value change over 250ms (Crawford's own
-      // request) — the shared gsap mock (vitest.setup.ts) settles the tween's onComplete on the
-      // next microtask.
+      // SliderLinear eases a non-drag value change over 250ms (Crawford's own request) — the
+      // shared gsap mock (vitest.setup.ts) settles the tween's onComplete on the next microtask.
       await act(async () => { await Promise.resolve(); });
 
-      expect(rateOf(frame(container)).getAttribute('aria-valuenow')).toBe('3');
-      expect(depthOf(frame(container)).getAttribute('aria-valuenow')).toBe('45');
-      expect(frame(container).querySelector('.sc-lfo.sc-held-off')).toBeNull();
+      expect(within(row).getByRole('radio', { name: 'Companion LFO' }).getAttribute('aria-checked')).toBe('true');
+      expect(depthSliderOf(row).getAttribute('aria-valuenow')).toBe('45');
+      expect(row.querySelector('.sc-lfo-link.sc-held-off')).toBeNull();
     });
 
-    it('leaves EQ\'s frame enabled and unlabelled while filterLinksHeldOff is true — EQ-gain links are never held off', () => {
-      useAudioStore.setState({ filterLinksHeldOff: true });
-      const { container } = render(<AudioRigEffectPanel effectKey="eq3" />);
-      const eq = frame(container);
+    it("leaves EQ's LfoLinks enabled and unlabelled while filterLinksHeldOff is true — EQ-gain links are never held off", () => {
+      useAudioStore.setState((s) => ({
+        globalLfoLinks: { ...s.globalLfoLinks, 'eq3.low': { lane: 'a', depth: 20 } },
+        filterLinksHeldOff: true,
+      }));
+      render(<AudioRigEffectPanel effectKey="eq3" />);
+      const row = rowOf('Bass');
 
-      expect(isDisabled(rateOf(eq))).toBe(false);
-      expect(within(eq).queryByText(HELD_OFF)).toBeNull();
+      expect(within(row).getByRole('radio', { name: 'Core LFO' }).getAttribute('aria-checked')).toBe('true');
+      expect(within(row).queryByText(HELD_OFF)).toBeNull();
+      expect(row.querySelector('.sc-lfo-link.sc-held-off')).toBeNull();
     });
 
-    it('a frame is enabled and unlabelled when filterLinksHeldOff is false (Full, or before the budget runs)', () => {
-      const { container } = render(<AudioRigEffectPanel effectKey="filterLPF" />);
-      const f = frame(container);
-      expect(isDisabled(rateOf(f))).toBe(false);
-      expect(within(f).queryByText(HELD_OFF)).toBeNull();
+    it('a LfoLink is enabled and unlabelled when filterLinksHeldOff is false (Full, or before the budget runs)', () => {
+      render(<AudioRigEffectPanel effectKey="filterLPF" />);
+      const row = rowOf('Cutoff');
+      expect(within(row).queryByText(HELD_OFF)).toBeNull();
+      expect(row.querySelector('.sc-lfo-link.sc-held-off')).toBeNull();
     });
 
     it('re-enables the moment filterLinksHeldOff flips back to false, with no reload', () => {
       useAudioStore.setState({ filterLinksHeldOff: true });
-      const { container } = render(<AudioRigEffectPanel effectKey="filterLPF" />);
-      expect(isDisabled(rateOf(frame(container)))).toBe(true);
+      render(<AudioRigEffectPanel effectKey="filterLPF" />);
+      const row = rowOf('Cutoff');
+      expect(row.querySelector('.sc-lfo-link.sc-held-off')).toBeTruthy();
 
       act(() => useAudioStore.setState({ filterLinksHeldOff: false }));
 
-      expect(isDisabled(rateOf(frame(container)))).toBe(false);
-      expect(within(frame(container)).queryByText(HELD_OFF)).toBeNull();
+      expect(row.querySelector('.sc-lfo-link.sc-held-off')).toBeNull();
+      expect(within(row).queryByText(HELD_OFF)).toBeNull();
     });
 
-    it('greys the LPF frame regardless of which field is currently selected (a dial-wide flag, not per-target)', async () => {
-      useAudioStore.setState({ filterLinksHeldOff: true });
-      const { container } = render(<AudioRigEffectPanel effectKey="filterLPF" />);
-      expect(isDisabled(rateOf(frame(container)))).toBe(true); // showing Frequency
-
-      await act(async () => {
-        screen.getByRole('slider', { name: 'Resonance' }).focus();
-      });
-
-      await waitFor(() => {
-        expect(isDisabled(rateOf(frame(container)))).toBe(true);
-      });
-      expect(within(frame(container)).getByText(HELD_OFF)).toBeTruthy();
-    });
-
-    it('does not re-render the EQ frame when filterLinksHeldOff flips (EQ never reads the flag)', () => {
+    it('does not re-render the EQ panel\'s own LfoLink rows when filterLinksHeldOff flips (EQ never reads the flag)', () => {
       render(<AudioRigEffectPanel effectKey="eq3" />);
-      const groupRenders = (groupId: string) =>
-        (useLfoTargetGroup as ReturnType<typeof vi.fn>).mock.calls.filter(([args]) => args.groupId === groupId).length;
-      const eqBefore = groupRenders('audioRig.eq3');
+      const eqBefore = callsFor('audioRig.eq3.low.link.lane');
       expect(eqBefore).toBeGreaterThan(0);
 
       act(() => useAudioStore.setState({ filterLinksHeldOff: true }));
       act(() => useAudioStore.setState({ filterLinksHeldOff: false }));
 
-      expect(groupRenders('audioRig.eq3')).toBe(eqBefore);
+      expect(callsFor('audioRig.eq3.low.link.lane')).toBe(eqBefore);
     });
   });
 
@@ -594,12 +597,6 @@ describe('AudioRigEffectPanel', () => {
   });
 
   describe('re-render cascade regression (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12 — the end-to-end test this whole plan exists for)', () => {
-    function callsFor(schemaId: string): number {
-      return (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.filter(
-        ([schema]) => schema.id === schemaId,
-      ).length;
-    }
-
     it("a setGlobalAudio update to ONE field (Delay's delayTime, simulating an audio-swell tick) does not re-execute a SIBLING field's own control (Delay's Mix/wet) — only the changed field's own control re-renders", () => {
       render(<AudioRigEffectPanel effectKey="delay" />);
       const delayTimeCallsBefore = callsFor('delay.delayTime');
@@ -647,37 +644,48 @@ describe('AudioRigEffectPanel', () => {
       expect(callsFor('reverb.wet')).toBe(reverbWetCallsBefore);
     });
 
-    // Live-verified regression, found by Crawford via React DevTools "highlight updates" after
-    // Task 12 shipped: LFO-bearing blocks (eq3/filterLPF/filterHPF, the only AudioRigLfoGroup
-    // consumers) still showed their whole subtree — including the shared LFO display and its own
-    // internal Shape/Rate/Depth controls — re-rendering on every swell tick for that block, not
-    // just the one field actually swelling. Root cause: AudioRigLfoGroup builds its own Lfo
-    // component's `schema` prop (and its 2 DirectionalPanel schemas) as a fresh inline object
-    // literal every render.
-    it("changing a NON-displayed field within an LFO-bearing block (eq3's mid, while 'low' remains the default-selected/displayed LFO target) does not re-execute the shared LFO display's own internal controls", () => {
+    // Task 14 (docs/tasks/LFO_BANK.md) replaced the shared per-block LFO display with one inline
+    // LfoLink per lfoTarget-bearing param, each bound to its own globalLfoLinks entry via a
+    // useShallow selector scoped to just this block's own targets — the same re-render-isolation
+    // shape the tests above already prove for plain params, now proven for LfoLink rows too.
+    it("a globalLfoLinks write to ONE target does not re-execute a SIBLING target's own LfoLink within the same block (eq3.mid changes, eq3.low's own link stays put)", () => {
       render(<AudioRigEffectPanel effectKey="eq3" />);
-      const lfoRateCallsBefore = callsFor('audioRig.eq3.lfo.rate');
-      const lfoDepthCallsBefore = callsFor('audioRig.eq3.lfo.depth');
-      expect(lfoRateCallsBefore).toBeGreaterThan(0);
-      expect(lfoDepthCallsBefore).toBeGreaterThan(0);
+      const lowLinkCallsBefore = callsFor('audioRig.eq3.low.link.lane');
+      expect(lowLinkCallsBefore).toBeGreaterThan(0);
 
       act(() => {
-        useAudioStore.getState().setGlobalAudio('eq3', { mid: 5 });
+        useAudioStore.getState().setGlobalLfoLink('eq3.mid', { lane: 'b', depth: 20 });
       });
 
-      expect(callsFor('audioRig.eq3.lfo.rate')).toBe(lfoRateCallsBefore);
-      expect(callsFor('audioRig.eq3.lfo.depth')).toBe(lfoDepthCallsBefore);
+      expect(callsFor('audioRig.eq3.low.link.lane')).toBe(lowLinkCallsBefore);
     });
 
-    it('sanity check: the shared LFO display DOES re-render when the currently-DISPLAYED target\'s own value changes (eq3\'s Low, the default-selected field)', () => {
+    it("sanity check: a target's own LfoLink DOES re-render when THAT target's own globalLfoLinks value changes", () => {
       render(<AudioRigEffectPanel effectKey="eq3" />);
-      const lfoRateCallsBefore = callsFor('audioRig.eq3.lfo.rate');
+      const lowLinkCallsBefore = callsFor('audioRig.eq3.low.link.lane');
 
       act(() => {
-        useAudioStore.getState().setGlobalLfo('eq3.low', { rate: 3, depth: 50, shape: 'sine' });
+        useAudioStore.getState().setGlobalLfoLink('eq3.low', { lane: 'a', depth: 50 });
       });
 
-      expect(callsFor('audioRig.eq3.lfo.rate')).toBeGreaterThan(lfoRateCallsBefore);
+      expect(callsFor('audioRig.eq3.low.link.lane')).toBeGreaterThan(lowLinkCallsBefore);
+    });
+
+    it('a globalLfoLinks write to an HPF target does not re-render the EQ panel at all — cross-block isolation', () => {
+      render(
+        <>
+          <AudioRigEffectPanel effectKey="eq3" />
+          <AudioRigEffectPanel effectKey="filterHPF" />
+        </>,
+      );
+      const eqLinkCallsBefore = callsFor('audioRig.eq3.low.link.lane');
+      expect(eqLinkCallsBefore).toBeGreaterThan(0);
+
+      act(() => {
+        useAudioStore.getState().setGlobalLfoLink('hpf.frequency', { lane: 'a', depth: 40 });
+      });
+
+      expect(callsFor('audioRig.eq3.low.link.lane')).toBe(eqLinkCallsBefore);
     });
   });
 });
