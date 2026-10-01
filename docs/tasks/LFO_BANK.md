@@ -305,16 +305,18 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
   **Files:** `SignatureArrayDrawer.tsx` (+test), `RobotOptionsTab.tsx` (+test).
   **Scope:** M.
 
-- [ ] **Task 13: Company Signature Array broadcasts `LfoLink` patches**
+- [x] **Task 13: Company Signature Array broadcasts `LfoLink` patches**
 
   **Description:** `CompanyOptionsSection.tsx`: the Signature Array value reads the snapshot's `lfoLinks`; `handleLayerLfoFieldChange` diffs the old/new `LfoLink` with the existing compound-diff helper and calls `applyLayerLfoLink(member, …, { ...memberOwn, ...patch })` per member, then `patchSnapshot({ lfoLinks: … })`. `DISABLED_SIGNATURE_ARRAY` uses `lfoLinks: {}`.
 
   **Acceptance criteria:**
-  - [ ] `CompanyOptionsSection.test.tsx`: a lane change broadcasts exactly `{ lane }` merged onto each member's own link (a member with depth 70 keeps 70); a depth change broadcasts `{ depth }`; the snapshot patch carries the full new link; `applyLayerLfo` is never called.
+  - [x] `CompanyOptionsSection.test.tsx`: a lane change broadcasts exactly `{ lane }` merged onto each member's own link (a member with depth 70 keeps 70); a depth change broadcasts `{ depth }`; the snapshot patch carries the full new link; `applyLayerLfo` is never called.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/company/CompanyOptionsSection.test.tsx` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/company/CompanyOptionsSection.test.tsx` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Notes from execution:** `handleLayerLfoFieldChange` in `CompanyOptionsSection.tsx` already implemented this task's full behavior as an incidental byproduct of Task 12's mechanical `lfoSettings`→`lfoLinks` rename (see that task's own notes) — so there was no real RED state to reach by writing the test honestly; the 4 new tests passed on first run against unmodified production code. Mutation-checked instead, to prove the tests aren't vacuous: temporarily changed the broadcast call from `{ ...memberOwn, ...patch }` to `{ ...memberOwn, ...value }` (removing the diff, broadcasting the whole new value instead of just the changed field) — both the lane-change and depth-change tests caught it (asserting the untouched field's value), then reverted. The test file's own `SignatureArrayLayer` mock was out of date from before Task 12 (still declared a `lfoSettings` prop and an old `{shape,rate,depth}` payload shape) and needed updating to the real `lfoLinks`/`LfoLink` `{lane,depth}` shape first — split into two probe buttons (`probe-layer-lfo-lane-{idx}`/`probe-layer-lfo-depth-{idx}`) so a lane-only edit and a depth-only edit could be tested independently, matching `diffCompoundField`'s one-changed-key assumption. Full suite green: 4395/4395 (no flaky reruns this pass), `npm run build:types`/`lint` clean.
 
   **Dependencies:** Task 12.
   **Files:** `CompanyOptionsSection.tsx` (+test).

@@ -87,22 +87,30 @@ vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
   SignatureArrayLayer: memo((props: {
     idx: number;
     layer: { type: string; gain: number; detune: number; phase: number };
-    lfoSettings?: Record<string, { shape: string; rate: number; depth: number }>;
+    lfoLinks?: Record<string, { lane: string | null; depth: number }>;
     disabled?: boolean;
     onTypeChange: (idx: number, type: string) => void;
     onParamChange: (idx: number, field: string, v: number) => void;
-    onLfoFieldChange: (idx: number, target: string, value: unknown) => void;
+    onLfoFieldChange: (idx: number, target: string, value: { lane: string | null; depth: number }) => void;
   }) => (
     <div data-testid={`signature-array-layer-stub-${props.idx}`} data-type={props.layer.type} data-disabled={props.disabled ? '' : undefined}>
       <button onClick={() => props.onParamChange(props.idx, 'gain', 0.4)}>probe-layer-gain-{props.idx}</button>
       <button onClick={() => props.onTypeChange(props.idx, 'square')}>probe-layer-type-{props.idx}</button>
       <button
         onClick={() => {
-          const current = props.lfoSettings?.[`layer${props.idx}.gain`] ?? { shape: 'sine', rate: 0.1, depth: 0 };
-          props.onLfoFieldChange(props.idx, `layer${props.idx}.gain`, { ...current, rate: 9 });
+          const current = props.lfoLinks?.[`layer${props.idx}.gain`] ?? { lane: null, depth: 0 };
+          props.onLfoFieldChange(props.idx, `layer${props.idx}.gain`, { ...current, lane: 'b' });
         }}
       >
-        probe-layer-lfo-{props.idx}
+        probe-layer-lfo-lane-{props.idx}
+      </button>
+      <button
+        onClick={() => {
+          const current = props.lfoLinks?.[`layer${props.idx}.gain`] ?? { lane: null, depth: 0 };
+          props.onLfoFieldChange(props.idx, `layer${props.idx}.gain`, { ...current, depth: 55 });
+        }}
+      >
+        probe-layer-lfo-depth-{props.idx}
       </button>
     </div>
   )),
@@ -117,6 +125,7 @@ import { ACCENT_COLORS } from '@/constants/accentColors';
 import { desaturateHex } from '@/utils/traitColors';
 import type { Robot } from '@/types/Robot';
 import type { Locale } from '@/types/locale';
+import type { RobotLfoTargetId } from '@/types/lfo';
 
 function makeRobot(overrides: Partial<Robot> = {}): Robot {
   return {
@@ -409,6 +418,73 @@ describe('CompanyOptionsSection', () => {
 
       expect(cancelSpy).toHaveBeenCalledWith('r1', 'layer1.gain');
       expect(cancelSpy).toHaveBeenCalledWith('r2', 'layer1.gain');
+    });
+
+    // LFO Bank Task 13: Signature Array's layer LfoLinks broadcast through applyLayerLfoLink
+    // (the bank engine), diffing lane/depth independently via diffCompoundField — never the old
+    // per-target applyLayerLfo. A member's own untouched field (the one not edited) survives.
+    it('editing a layer\'s LFO lane broadcasts only the lane — each member keeps its own depth', () => {
+      const r1 = makeRobot({ id: 'r1', companyId: 'c1', lfoLinks: { 'layer1.gain': { lane: 'a', depth: 40 } } as unknown as Robot['lfoLinks'] });
+      const r2 = makeRobot({ id: 'r2', companyId: 'c1', lfoLinks: { 'layer1.gain': { lane: 'c', depth: 70 } } as unknown as Robot['lfoLinks'] });
+      useLocaleStore.getState().addRobot(localeId, r1);
+      useLocaleStore.getState().addRobot(localeId, r2);
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
+      useUIStore.getState().selectCompany('c1');
+      const linkSpy = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
+      render(<CompanyOptionsSection />);
+      act(() => approachSection('companies.c1.source.coaxialOscillator')); // idx 1
+
+      fireEvent.click(screen.getByText('probe-layer-lfo-lane-1'));
+
+      const r2Call = linkSpy.mock.calls.find((c) => c[0].id === 'r2');
+      expect(r2Call?.[3]).toEqual({ lane: 'b', depth: 70 });
+    });
+
+    it('editing a layer\'s LFO depth broadcasts only the depth — each member keeps its own lane', () => {
+      const r1 = makeRobot({ id: 'r1', companyId: 'c1', lfoLinks: { 'layer1.gain': { lane: 'a', depth: 40 } } as unknown as Robot['lfoLinks'] });
+      const r2 = makeRobot({ id: 'r2', companyId: 'c1', lfoLinks: { 'layer1.gain': { lane: 'c', depth: 70 } } as unknown as Robot['lfoLinks'] });
+      useLocaleStore.getState().addRobot(localeId, r1);
+      useLocaleStore.getState().addRobot(localeId, r2);
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
+      useUIStore.getState().selectCompany('c1');
+      const linkSpy = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
+      render(<CompanyOptionsSection />);
+      act(() => approachSection('companies.c1.source.coaxialOscillator')); // idx 1
+
+      fireEvent.click(screen.getByText('probe-layer-lfo-depth-1'));
+
+      const r2Call = linkSpy.mock.calls.find((c) => c[0].id === 'r2');
+      expect(r2Call?.[3]).toEqual({ lane: 'c', depth: 55 });
+    });
+
+    it('a layer LFO edit patches the company snapshot with the full new link, not just the changed field', () => {
+      const r1 = makeRobot({ id: 'r1', companyId: 'c1', lfoLinks: { 'layer1.gain': { lane: 'a', depth: 40 } } as unknown as Robot['lfoLinks'] });
+      useLocaleStore.getState().addRobot(localeId, r1);
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
+      useUIStore.getState().selectCompany('c1');
+      vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
+      render(<CompanyOptionsSection />);
+      act(() => approachSection('companies.c1.source.coaxialOscillator')); // idx 1
+
+      fireEvent.click(screen.getByText('probe-layer-lfo-lane-1'));
+
+      const snapshot = useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions;
+      expect(snapshot?.lfoLinks?.['layer1.gain' as RobotLfoTargetId]).toEqual({ lane: 'b', depth: 40 });
+    });
+
+    it('a layer LFO edit never calls the old per-target applyLayerLfo', () => {
+      const r1 = makeRobot({ id: 'r1', companyId: 'c1' });
+      useLocaleStore.getState().addRobot(localeId, r1);
+      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
+      useUIStore.getState().selectCompany('c1');
+      const legacySpy = vi.spyOn(robotOptionsActions, 'applyLayerLfo').mockImplementation(() => {});
+      vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
+      render(<CompanyOptionsSection />);
+      act(() => approachSection('companies.c1.source.coaxialOscillator')); // idx 1
+
+      fireEvent.click(screen.getByText('probe-layer-lfo-lane-1'));
+
+      expect(legacySpy).not.toHaveBeenCalled();
     });
 
     // The Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 2): the
