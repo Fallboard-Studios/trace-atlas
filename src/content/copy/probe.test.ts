@@ -14,21 +14,9 @@ const e = (k: ProbeKey) => probe[k] as Entry;
 const src = (rel: string) => readFileSync(resolve(__dirname, '../../', rel), 'utf8').replace(/\r\n/g, '\n').replace(/'\s*\n\s*\+\s*'/g, '');
 
 describe('probe content parity — component source text', () => {
-  const probes = src('components/panels/screen/nav/content/ProbesContent.tsx');
-  const stack = src('components/panels/screen/nav/RobotSectionAccordionStack.tsx');
-  const tab = src('components/panels/screen/console/RobotOptionsTab.tsx');
   const robotsTab = src('components/panels/screen/console/RobotsTab.tsx');
 
-  it.each(['probe.root', 'probe.all'] as const)('%s intro in ProbesContent', (k) => {
-    const { lore, loreDescription, humanDescription } = probe[k].intro;
-    for (const s of [lore, loreDescription, humanDescription]) expect(probes).toContain(s);
-  });
-  it.each(['probe.levels', 'probe.composition', 'probe.envelope', 'probe.source'] as const)('%s intro in RobotSectionAccordionStack', (k) => {
-    const { lore, loreDescription, humanDescription } = probe[k].intro;
-    for (const s of [lore, loreDescription, humanDescription]) expect(stack).toContain(s);
-  });
-  it('Robot not found / Robots list chrome', () => {
-    expect(tab).toContain(`>${e('probe.notFound').human}<`);
+  it('Robots list chrome (RobotsTab — migrates in Task 15)', () => {
     expect(robotsTab).toContain(`aria-label="${e('probe.list').human}"`);
     expect(robotsTab).toContain(`loreLabel: '${e('probe.list.clearFilter').lore}', humanLabel: '${e('probe.list.clearFilter').human}'`);
   });

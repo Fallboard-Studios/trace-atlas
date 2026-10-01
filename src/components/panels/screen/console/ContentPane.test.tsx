@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 import ContentPane from './ContentPane';
+import { CONTENT } from '@/content';
 import { useUIStore } from '@/stores/uiStore';
 
 // This test is about ContentPane's own blank-state/active-tile dispatch (spec §7 Q6 —
@@ -25,7 +26,7 @@ describe('ContentPane — blank/landing state renders a sized-to-content home ca
     const { container } = render(<ContentPane />);
     expect(container.querySelector('.content-pane__home')).toBeTruthy();
     expect(container.querySelector('.content-pane')).toBeNull();
-    expect(screen.getByRole('heading', { name: 'Trace Atlas' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: CONTENT['home.root'].intro.lore })).toBeTruthy();
   });
 
   it('does not render ConsolePanel in the blank/landing state', () => {
@@ -57,5 +58,15 @@ describe('ContentPane — ConsolePanel back-button behavior is unaffected (Task 
     useUIStore.getState().selectRobot('r1');
     render(<ContentPane />);
     expect(screen.getByTestId('console-panel-stub')).toBeTruthy();
+  });
+});
+
+describe('ContentPane reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 13)', () => {
+  it('carries no copy literal of its own', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const source = readFileSync(resolve(__dirname, 'ContentPane.tsx'), 'utf8');
+    expect(source).not.toMatch(/(loreLabel|humanLabel|loreDescription|humanDescription)\s*:\s*['"`]/);
+    expect(source).not.toMatch(/<h2>[A-Za-z]|>Robot not found</);
   });
 });

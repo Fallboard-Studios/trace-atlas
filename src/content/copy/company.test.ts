@@ -12,7 +12,6 @@ import { CREATE_COMPANY_SCHEMA, RENAME_COMPANY_SCHEMA, DELETE_COMPANY_SCHEMA } f
 
 const { fill } = makeHelpers(company);
 const src = readFileSync(resolve(__dirname, '../../components/company/CompanyCrudControls.tsx'), 'utf8');
-const content = readFileSync(resolve(__dirname, '../../components/panels/screen/nav/content/CompaniesContent.tsx'), 'utf8');
 
 describe('company content parity', () => {
 
@@ -28,8 +27,4 @@ describe('company content parity', () => {
     expect(fill('company.delete', { company: 'Acme' })).toBe(`${DELETE_COMPANY_SCHEMA.humanLabel} Acme`);
   });
 
-  it.each(['company.root', 'company.profile'] as const)('%s intro in CompaniesContent', (k) => {
-    const { lore, loreDescription, humanDescription } = company[k].intro;
-    for (const s of [lore, loreDescription, humanDescription]) expect(content).toContain(s);
-  });
 });

@@ -10,7 +10,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { home } from './home';
 import { header } from './header';
 import { nav } from './nav';
 import { session } from './session';
@@ -24,15 +23,6 @@ import { LFO_SHAPES } from '@/types/lfo';
 const read = (rel: string) => readFileSync(resolve(__dirname, '../../', rel), 'utf8').replace(/\r\n/g, '\n');
 
 
-describe('home', () => {
-  it('HOME_HTML fragments are in ContentPane verbatim', () => {
-    const src = read('components/panels/screen/console/ContentPane.tsx').replace(/'\s*\n\s*\+\s*'/g, '');
-    const { lore, loreDescription, humanDescription } = home['home.root'].intro;
-    expect(src).toContain(`<h2>${lore}</h2>`);
-    expect(src).toContain(loreDescription);
-    expect(src).toContain(humanDescription);
-  });
-});
 
 describe('header', () => {
   const src = read('components/panels/screen/Header.tsx');

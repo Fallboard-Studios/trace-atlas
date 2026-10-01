@@ -1,26 +1,20 @@
 import { ConsolePanel } from './ConsolePanel';
 import { Textbox } from '@/components/ui/controls/Textbox';
 import { useUIStore } from '@/stores/uiStore';
+import { intro } from '@/content';
 import './ContentPane.css';
 
 // First-party, trusted copy (Textbox.tsx sanitizes it anyway, defense-in-depth) — the blank/
 // landing state's own content, filling the "no tile active" gap Textbox has had since it shipped
 // with no real consumer (docs/COMPONENT_LIBRARY.md's Textbox entry). Lore headline/blurb, then a
 // Human explanation, per docs/reference/copy-tone-guide.md.
+// The three parts of home.root's intro (CONTENT), rendered back-to-back exactly as the old inline
+// HOME_HTML was — the headline as an <h2>, then the lore blurb, then the human explanation.
+const HOME = intro('home.root');
 const HOME_HTML = `
-  <h2>Trace Atlas</h2>
-  <p>A Meridia Telemetry Group product.<br>
-  Locating the resources you need now.</p>
-  <p>Trace Atlas is a tablet that allows users to monitor and control Meridia Telemetry
-  Probes as they search the Pelagos Ocean floor for extractable resources. Using Meridia
-  Power Group Perpetualish Battery Packs, they can search indefinitely for the resources
-  you need.</p>
-  <p>Each probe plays its own procedurally generated melody as it works, drawn from a
-  curated set of notes. When its battery runs low, the probe docks to recharge — its melody
-  stops, and sometimes changes, until it's back online.</p>
-  <hr>
-  <p>Open the panel on the left to inspect a Probe's melody and synth, tune the Fleet's
-  shared effects, or manage the Companies coordinating them.</p>
+  <h2>${HOME.lore}</h2>
+  ${HOME.loreDescription}
+  ${HOME.humanDescription}
 `;
 
 /**
