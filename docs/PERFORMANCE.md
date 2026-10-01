@@ -665,6 +665,53 @@ The missed gate is the mean on `bravo` under Standard. Levers that are already m
 
 **Decided 2026-09-21 (Crawford): option 1 — accept it and re-set the gate to what Standard delivers** (0.069; spec decision N). **Option 3 was resolved later the same day**: the output diagnostic's underrun counts gave a clean same-session `bravo` comparison (Standard/`interactive` 1227 vs Standard/`playback` 186), and Standard now ships with `playback` (decision J, [scratchy-audio-phones.md](todo/scratchy-audio-phones.md) "Standard, and decision J"). The 0.069 mean figure above predates that change and was not re-measured with `playback`; option 2 (filter LFOs off at Standard) stays the documented lever if that gap still matters once re-measured.
 
+## Robot-LFO priming — the Task 11 perf gate (2026-09-30 / 2026-10-01, LFO Load Fix)
+
+[docs/tasks/LFO_LOAD_FIX.md](tasks/LFO_LOAD_FIX.md) Task 11: the decision gate for assumption 3 ("Full's robot-LFO cap stays unlimited for now"). Robot-LFO priming (`primeRobotLfos`/`primeRosterLfos`, Tasks 6–10) makes seeded robot LFOs actually connect for the first time — previously a robot's LFO settings showed in the UI but nothing ever reached the engine. **Gate: at Full, `bravo`'s peak render capacity stays below 0.9 with no interval doubling. If it fails, stop and report** — a finite Full cap is Crawford's decision, not a tuning knob.
+
+### First result: the gate failed, badly
+
+One round each, pre-branch (`506f2366`, the commit before Task 1) vs this-branch pre-fix (`f17f3723`, Tasks 1–10 complete):
+
+| Build | World | Peak window | Overall mean | Callback interval |
+|---|---|---|---|---|
+| pre-branch | `charlie` | 0.353 | 0.322 | 10.67 ms |
+| pre-branch | `bravo` | 0.399 | 0.361 | 10.67 ms |
+| this-branch pre-fix | `charlie` | **0.996** | 0.994 | 11.0–12.0 ms |
+| this-branch pre-fix | `bravo` | **0.998** | 0.995 | 11.1–12.6 ms |
+
+Root cause: `robotLfoCap(load)` (`src/utils/audioBudget.ts`) returned `Infinity` only at exactly Full — the documented "stays unlimited for now" decision — and `lfoEngine.connectOne` does enforce the budget correctly (traced directly; no bypass). With the volume/pulseWidth removal and 25% seed odds (Tasks 2–5), ≈18 audio-rate robot LFOs now connect on a 12-robot roster at Full, each costing ≈ +0.033 render capacity (measured here; well above the spec's assumption-9 budget of ≈0.012/LFO from the earlier `docs/PERFORMANCE.md` "Robot-LFO cost by target type" measurement), saturating the audio thread on both worlds — including `charlie`, which has 0 global LFOs and previously ran at 0.32.
+
+### Fix: `ROBOT_LFO_CAP_FULL`
+
+Commit `df689ba8`: `robotLfoCap` now plateaus at Standard's cap (12) from Standard through Full instead of climbing toward the old `ROBOT_LFO_CAP_CEILING` and snapping to `Infinity` at exactly Full. `ROBOT_LFO_CAP_CEILING` is removed (dead code). TDD'd against `audioBudget.test.ts`/`audioBudgetSystem.test.ts`; full suite, lint, types, build all clean.
+
+### Re-measurement against the fix
+
+**Method.** Worlds `charlie:200:-30` and `bravo:-150:90`; **3 interleaved rounds each**, pre-branch (`506f2366`) vs the fixed this-branch (`df689ba8`); 240 s series, 15 s buckets, 8 s warm-up; fresh Chrome per run, foreground, one call at a time; orphaned-Chrome count 0 before and after every run. Plus one run each of Standard and Light on `bravo` (fixed build only).
+
+| | pre-branch `charlie` | fixed `charlie` | pre-branch `bravo` | fixed `bravo` |
+|---|---|---|---|---|
+| Peak window, per run | 0.353 / 0.433 / 0.403 | 0.429 / 0.413 / 0.395 | 0.399 / 0.399 / 0.497 | 0.581 / 0.443 / 0.369 |
+| **Peak window, median** | **0.403** | **0.413** | **0.399** | **0.443** |
+| Overall mean, per run | 0.322 / 0.391 / 0.366 | 0.398 / 0.362 / 0.351 | 0.361 / 0.355 / 0.431 | 0.470 / 0.394 / 0.314 |
+| Overall mean, median | 0.366 | 0.362 | 0.361 | 0.394 |
+| Callback interval | 10.67 ms | 10.67 ms | 10.67 ms | 10.67–10.72 ms |
+
+| World · load | Peak window | Overall mean | Callback interval |
+|---|---|---|---|
+| `bravo` Standard (fixed build) | 0.326 | 0.288 | 21.33 ms (playback context, decision J — not a deadline miss) |
+| `bravo` Light (fixed build) | 0.254 | 0.238 | 21.33 ms |
+
+### Gate result
+
+| Gate | Threshold | Result | |
+|---|---|---|---|
+| `bravo` Full, peak render capacity | < 0.9 | **0.443** (median), range 0.369–0.581 across 3 rounds | **PASS**, wide margin |
+| No interval doubling at Full | callback interval stays ≈10.67 ms | 10.67–10.72 ms across every Full run | **PASS** |
+
+`charlie` and `bravo` at Full with the fix (0.40–0.44 median) sit close to the pre-branch baseline (0.36–0.40) — priming now contributes a modest, bounded amount rather than saturating the thread. Single-sample spikes toward ≈0.99 appear within a few buckets (the `max cap` column) without the interval ever leaving the 10.67 ms floor, consistent with the noise pattern recorded in the Audio Load Budget sections above.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

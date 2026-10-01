@@ -227,8 +227,9 @@ layer's `0` is never passed through this quantization, so it stays the literal `
 ## LFO Modulation (Rate/Depth/Shape) — applies to every LFO-enabled slider above
 
 Every slider marked `lfoTarget` in `audioRigConfig.ts`/`robotOptionsConfig.ts` (all of 3-Band EQ,
-Low-Pass/High-Pass Filter, Volume, and every Signature Array layer's Gain/Detune/Phase/Interval —
-13 robot targets + 7 global targets total) gets an identical `Lfo` component instance
+Low-Pass/High-Pass Filter, and every Signature Array layer's Gain/Detune/Phase —
+9 robot targets + 7 global targets total; Volume and Interval/pulse-width lost their LFO target,
+docs/specs/LFO_LOAD_FIX.md) gets an identical `Lfo` component instance
 (`src/components/ui/controls/Lfo.tsx`), reused verbatim regardless of which attribute it's
 modulating. One row per field, not one per target:
 

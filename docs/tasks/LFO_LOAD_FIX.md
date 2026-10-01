@@ -226,30 +226,34 @@ Parallelisable: 1 ‖ 2 ‖ 4; 7 ‖ 8 ‖ 9.
 
 ### Phase 3: The gate, then docs
 
-- [ ] **Task 11: Perf measurement — the Full-cap gate (spec assumption 3)**
+- [x] **Task 11: Perf measurement — the Full-cap gate (spec assumption 3)**
 
   **Description:** `npm run perf` per `docs/PERFORMANCE.md` and the measurement-hygiene rules (foreground, one call at a time, no orphaned Chrome, same-session A/B): pre-branch vs this branch at Full on `charlie:200:-30` and `bravo:-150:90`, plus Standard and Light once each on `bravo`; note the primed-LFO count from the `?debug` overlay. Record a dated table in `docs/PERFORMANCE.md`.
 
   **Acceptance criteria:**
-  - [ ] Table recorded with commit hashes for both builds, 3 runs each at Full.
-  - [ ] **Gate:** `bravo` at Full peaks below 0.9 render capacity with no interval doubling. **If it fails: stop and report** — a finite Full cap is Crawford's decision.
+  - [x] Table recorded with commit hashes for both builds, 3 runs each at Full.
+  - [x] **Gate:** `bravo` at Full peaks below 0.9 render capacity with no interval doubling. **If it fails: stop and report** — a finite Full cap is Crawford's decision.
 
   **Verification:**
-  - [ ] Numbers in `docs/PERFORMANCE.md`; no source changes in this task.
+  - [x] Numbers in `docs/PERFORMANCE.md`.
+
+  **What actually happened (deviation from "no source changes in this task"):** the first measurement found the gate failing badly (`bravo` and `charlie` both ≈0.995–0.998, see `docs/PERFORMANCE.md` "Robot-LFO priming — the Task 11 perf gate"). Per this task's own instruction that would normally mean stop and report — a finite Full cap is Crawford's decision, not a tuning knob. Crawford was live in the session, reviewed the finding, and said "go for it" to both propose a specific cap and implement it, superseding the plan's written caution for this run. `ROBOT_LFO_CAP_FULL` (commit `df689ba8`) was added and TDD'd against `audioBudget.test.ts`/`audioBudgetSystem.test.ts`, then the measurement was re-run against the fix and the gate passes with a wide margin (`bravo` peak window median 0.443). The table in `docs/PERFORMANCE.md` records both the failing pre-fix result and the passing post-fix result.
 
   **Dependencies:** Task 10.
-  **Files:** `docs/PERFORMANCE.md`.
-  **Scope:** S (time, not files).
+  **Files:** `docs/PERFORMANCE.md`, `src/constants/index.ts`, `src/utils/audioBudget.ts` (+tests), `src/systems/audioBudgetSystem.test.ts`.
+  **Scope:** S (time, not files) — exceeded: a product fix was needed.
 
-- [ ] **Task 12: Docs, roadmap, grid, notes**
+- [x] **Task 12: Docs, roadmap, grid, notes**
 
   **Description:** `docs/AUDIO_SYSTEM.md`: correct the Seeding paragraph (robot LFOs *are* primed at spawn/power-on/rebuild/session load, 9 targets, 25% on), document `robotLfoPriming` beside the global loop. `docs/reference/ROBOT_DATA_GRID.md`: Volume and Interval rows "Has LFO: No". `docs/specs/archive/AUDIO_LOAD_BUDGET.md`: one dated note on the "not connected at spawn" survey line. `docs/specs/FREE_SYNC_TOGGLE.md`: one dated note that robot targets are now 9 across 3 panels and its plan's Task 13 loses the Volume caller. `docs/todo/roadmap.md`: 17.2.7 entry, "Not Doing" = finite Full cap (unless Task 11 said otherwise), control-rate robot LFOs, global odds. Tick this file.
 
+  **Note on "Not Doing":** Task 11 did find a need for a finite Full cap, so that item isn't in roadmap 17.2.7's "Not Doing" list — the cap itself is the shipped work, recorded there and in `docs/PERFORMANCE.md`.
+
   **Acceptance criteria:**
-  - [ ] Every doc claim names a file/function that exists; no sentence still says seeded robot LFOs are silent or that there are 13 robot targets.
+  - [x] Every doc claim names a file/function that exists; no sentence still says seeded robot LFOs are silent or that there are 13 robot targets.
 
   **Verification:**
-  - [ ] `npm test`, `npm run lint` (content guard unaffected); Crawford's read-through.
+  - [x] `npm test`, `npm run lint` clean (content guard unaffected). Crawford's read-through still pending.
 
   **Dependencies:** All.
   **Files:** the docs listed; this file.
