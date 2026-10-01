@@ -144,3 +144,31 @@ export interface LfoSettings {
   rate: number;
   depth: number;
 }
+
+// ========================================
+// LFO BANK (docs/specs/LFO_BANK.md §1.1)
+// ========================================
+
+/** The four world-level LFO lanes — order-carrying (seed bias leans a > b > c > d);
+ *  user-facing names live in src/content/, not here. */
+export type LfoLaneId = 'a' | 'b' | 'c' | 'd';
+
+export const LFO_LANE_IDS: readonly LfoLaneId[] = ['a', 'b', 'c', 'd'];
+
+/** One bank LFO — world-level, app-lifetime; the only place shape/rate live now. */
+export interface BankLfoSettings {
+  shape: LfoShape;
+  /** Hz, LFO_RATE_MIN..LFO_RATE_MAX. 0 is a legal user value (the lane holds still); the seed never emits it. */
+  rate: number;
+  /** -1..1, step 0.01 — the former lfoDrift[group].rateDrift, now per lane. */
+  rateDrift: number;
+  /** -1..1, step 0.01 — the former lfoDrift[group].depthDrift, now per lane. */
+  depthDrift: number;
+}
+
+/** What a modulation target stores. `lane: null` = not in the graph at all. */
+export interface LfoLink {
+  lane: LfoLaneId | null;
+  /** Percent, LFO_DEPTH_MIN..LFO_DEPTH_MAX. A user may set 0 with a lane; the seed never does. */
+  depth: number;
+}

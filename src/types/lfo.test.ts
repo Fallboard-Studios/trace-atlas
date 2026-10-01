@@ -12,8 +12,12 @@ import {
   LFO_DEPTH_MIN,
   LFO_DEPTH_MAX,
   DRIFT_GROUP_IDS,
+  LFO_LANE_IDS,
   type LfoSettings,
   type DriftGroupId,
+  type LfoLaneId,
+  type BankLfoSettings,
+  type LfoLink,
 } from './lfo';
 
 // ========================================
@@ -137,5 +141,44 @@ describe('DRIFT_GROUP_IDS', () => {
   it('accepts a valid DriftGroupId value (compile-time check via build:types)', () => {
     const group: DriftGroupId = 'robots';
     expect(DRIFT_GROUP_IDS).toContain(group);
+  });
+});
+
+describe('LFO_LANE_IDS', () => {
+  it('is exactly a, b, c, d in order (docs/specs/LFO_BANK.md §1.1)', () => {
+    expect(LFO_LANE_IDS).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('has exactly 4 members, no duplicates', () => {
+    expect(LFO_LANE_IDS).toHaveLength(4);
+    expect(new Set(LFO_LANE_IDS).size).toBe(4);
+  });
+
+  it('accepts a valid LfoLaneId value (compile-time check via build:types)', () => {
+    const lane: LfoLaneId = 'c';
+    expect(LFO_LANE_IDS).toContain(lane);
+  });
+});
+
+describe('BankLfoSettings', () => {
+  it('accepts a valid shape (compile-time check via build:types)', () => {
+    const settings: BankLfoSettings = { shape: 'sine', rate: 1.5, rateDrift: 0.2, depthDrift: -0.3 };
+    expect(settings.shape).toBe('sine');
+    expect(settings.rate).toBe(1.5);
+    expect(settings.rateDrift).toBe(0.2);
+    expect(settings.depthDrift).toBe(-0.3);
+  });
+});
+
+describe('LfoLink', () => {
+  it('accepts a linked value (compile-time check via build:types)', () => {
+    const link: LfoLink = { lane: 'b', depth: 40 };
+    expect(link.lane).toBe('b');
+    expect(link.depth).toBe(40);
+  });
+
+  it('accepts lane: null for an unlinked target', () => {
+    const link: LfoLink = { lane: null, depth: 0 };
+    expect(link.lane).toBeNull();
   });
 });
