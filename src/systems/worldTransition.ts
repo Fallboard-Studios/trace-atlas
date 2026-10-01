@@ -167,24 +167,56 @@ function retransmitCoordsOnly(oldAttenuationStyle: AttenuationStyle, oldLocaleId
   useAudioStore.getState().regenerateBpmFromSeed(newLocale.id, coordinates);
 }
 
-/** Build a new AttenuationStyle and switch the store to it (add only — the
- *  caller finalizes with finalizeAttenuationStyleTransition once its own
- *  branch-specific work is done). Shared by the two modes that create a new
- *  Attenuation Style. */
+/**
+ * Build a new AttenuationStyle and switch the store to it (add only — the
+ * caller finalizes with finalizeAttenuationStyleTransition once its own
+ * branch-specific work is done). Shared by the two modes that create a new
+ * Attenuation Style.
+ *
+ * addAttenuationStyle refuses (returns false, logs a devWarn, does not append)
+ * on a case-insensitive name collision against any existing entry — including
+ * the currently-active one being replaced this same call, since it's still in
+ * the array at this point. The old code here ignored that return value and
+ * proceeded as if the phantom, never-added `newAttenuationStyle` object had
+ * really been added: `finalizeAttenuationStyleTransition` then pointed
+ * `currentAttenuationStyleId` at an id matching nothing in `attenuationStyles`
+ * and discarded the one real entry that still mattered, leaving
+ * `selectCurrentAttenuationStyle` dangling to `undefined` from then on
+ * (backlog.md #16). On a collision, this now looks up and returns the real
+ * existing entry instead — guaranteed to exist, since addAttenuationStyle's
+ * own refusal condition is exactly this same case-insensitive name match.
+ */
 function createNewAttenuationStyle(attenuationStyleName: string): AttenuationStyle {
   const newAttenuationStyle = buildAttenuationStyle(attenuationStyleName);
-  useAttenuationStyleStore.getState().addAttenuationStyle(newAttenuationStyle);
-  return newAttenuationStyle;
+  const added = useAttenuationStyleStore.getState().addAttenuationStyle(newAttenuationStyle);
+  if (added) return newAttenuationStyle;
+  return useAttenuationStyleStore.getState().attenuationStyles.find(
+    (p) => p.name.toLowerCase() === attenuationStyleName.toLowerCase()
+  )!;
 }
 
-/** Switch currentAttenuationStyleId to the new Attenuation Style and discard
- *  the old one. Shared tail step for both Attenuation-Style-creating modes. */
+/**
+ * Switch currentAttenuationStyleId to the new Attenuation Style and discard
+ * the old one. Shared tail step for both Attenuation-Style-creating modes.
+ *
+ * `newAttenuationStyle` and `oldAttenuationStyle` can be THE SAME entry —
+ * createNewAttenuationStyle's own collision handling (above) reuses the
+ * existing entry on a name collision, and the currently-active
+ * `oldAttenuationStyle` is itself a valid (if usually unintended) collision
+ * target when a caller resubmits its own current name. Discarding it in that
+ * case would delete the very entry this function just finished "finalizing"
+ * onto — guarded here rather than relying on every caller to avoid ever
+ * resubmitting the active name (backlog.md #16's prior workaround lived at
+ * one specific caller, sessionDiff.ts, not here).
+ */
 function finalizeAttenuationStyleTransition(newAttenuationStyle: AttenuationStyle, oldAttenuationStyle: AttenuationStyle): void {
   // Triggers audioStore's existing useAttenuationStyleStore.subscribe —
   // reseeds globalAudio/globalLfo from the new Attenuation Style's own seed.
   // Do not call regenerateGlobalAudioFromSeed/regenerateGlobalLfoFromSeed
-  // directly here.
+  // directly here. A no-op reseed when the id is unchanged (the self-collision
+  // case below): that subscription itself guards on the id actually differing.
   useAttenuationStyleStore.getState().setCurrentAttenuationStyleId(newAttenuationStyle.id);
+  if (newAttenuationStyle.id === oldAttenuationStyle.id) return;
   useAttenuationStyleStore.getState().removeAttenuationStyle(oldAttenuationStyle.id);
 }
 

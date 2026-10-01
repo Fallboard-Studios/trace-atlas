@@ -425,6 +425,58 @@ describe('worldTransition', () => {
     });
   });
 
+  describe('retransmitWorld — Attenuation Style name collision (backlog.md #16)', () => {
+    // Simulates "multiple named worlds open in the same session" (backlog.md #16's own
+    // not-covered case): a second Attenuation Style, not the currently active one, already holds
+    // the name the retransmit is about to submit. addAttenuationStyle refuses silently (returns
+    // false) on a name collision — the old createNewAttenuationStyle ignored that return value
+    // entirely and proceeded as if a phantom, never-added AttenuationStyle had been created:
+    // setCurrentAttenuationStyleId pointed at an id matching nothing in `attenuationStyles`, and
+    // finalizeAttenuationStyleTransition's removeAttenuationStyle(oldAttenuationStyle) deleted the
+    // one real entry that still mattered — attenuationStyles ends up NEITHER containing the
+    // phantom NOR the old entry, and selectCurrentAttenuationStyle dangles to undefined from then
+    // on. The fix reuses the real, already-in-the-store existing entry instead.
+    it('reuses the existing Attenuation Style instead of corrupting the store', () => {
+      const existing = { id: 'existing-collider-id', name: 'Collider', locales: [] };
+      useAttenuationStyleStore.setState((s) => ({ attenuationStyles: [...s.attenuationStyles, existing] }));
+
+      retransmitWorld({ attenuationStyleName: 'Collider' });
+
+      const current = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
+      expect(current).toBeDefined(); // not dangling/corrupted
+      expect(current!.id).toBe('existing-collider-id');
+      expect(current!.name).toBe('Collider');
+      // The real pre-existing entry survives; the old (default) one is gone; no phantom appears.
+      expect(useAttenuationStyleStore.getState().attenuationStyles.map((p) => p.id)).toEqual(['existing-collider-id']);
+    });
+
+    it('matches case-insensitively, same as addAttenuationStyle\'s own collision check', () => {
+      const existing = { id: 'existing-id', name: 'collider', locales: [] };
+      useAttenuationStyleStore.setState((s) => ({ attenuationStyles: [...s.attenuationStyles, existing] }));
+
+      retransmitWorld({ attenuationStyleName: 'COLLIDER' });
+
+      expect(selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())?.id).toBe('existing-id');
+    });
+
+    it('re-parents the preserved locale onto the existing (reused) Attenuation Style, not a phantom one', () => {
+      const existing = { id: 'existing-id', name: 'Collider', locales: [] };
+      useAttenuationStyleStore.setState((s) => ({ attenuationStyles: [...s.attenuationStyles, existing] }));
+
+      retransmitWorld({ attenuationStyleName: 'Collider' });
+
+      const locale = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!;
+      expect(locale.attenuationStyleId).toBe('existing-id');
+    });
+
+    it('does not collide with itself when the submitted name matches the CURRENTLY active style (the already-worked-around same-name-resubmission case) — still a true no-corruption pass-through', () => {
+      retransmitWorld({ attenuationStyleName: DEFAULT_PELAGOS.name });
+
+      const current = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
+      expect(current).toBeDefined();
+    });
+  });
+
   describe('retransmitWorld — both changed (full reset)', () => {
     it('creates a new Attenuation Style and a new locale, releasing the old locale\'s robots first', () => {
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('discarded-robot'));
