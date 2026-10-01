@@ -351,13 +351,27 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
 
 /**
  * Probability threshold an LFO target's own "start quiet" seed draw ([0, 1])
- * must clear to force rate to 0 — a plain 50/50 coin flip, matching
- * LAYER_QUIET_THRESHOLD's rationale (no product requirement pinned a
- * specific bias for "each independently seeded on or off"). Replaces the old
- * separate `active` boolean — see LFO_RATE_MIN's own doc comment
- * (src/types/lfo.ts) for why rate=0 is now the "off" state.
+ * must clear to force rate to 0. Was 0.5 (a nominal 50/50) until 2026-09-30;
+ * raised to 0.7 so roughly a quarter of audio-rate targets seed on
+ * (docs/specs/LFO_LOAD_FIX.md assumption 5 / §1.4) — with robot LFOs now
+ * actually primed into the engine at spawn, the old odds would have put
+ * ≈60 LFOs on a 12-robot roster and saturated the audio thread.
+ *
+ * Why 0.7 and not 0.75 for "25% on": the draw is a smooth simplex sample
+ * mapped to [0, 1], not a uniform coin, so the on-rate is not 1 - threshold.
+ * Measured across 8 worlds × 12 offsets before choosing: 0.5 → ≈53% on,
+ * 0.75 → ≈20%, 0.7 → ≈27% (≈1.6 audio-rate LFOs per robot, ≈19 per world).
+ * A side effect of the same structure: every target of one robot samples the
+ * map at the same y (the spawn offset) with x values all inside [0, 1), so a
+ * robot's draws are strongly correlated — robots tend to be mostly-on or
+ * mostly-off rather than evenly sprinkled. Pre-existing, not changed here.
+ * Only this constant moves: the `.quiet` dataId and draw order are
+ * unchanged, so shapes/depths/on-rates are byte-identical to before (the
+ * seed oracle in spawnSystem.test.ts pins that). Replaces the old separate
+ * `active` boolean — see LFO_RATE_MIN's own doc comment (src/types/lfo.ts)
+ * for why rate=0 is the "off" state.
  */
-const LFO_QUIET_THRESHOLD = 0.5;
+const LFO_QUIET_THRESHOLD = 0.7;
 
 /** Mirrors Lfo.tsx's own RATE_STEP (SEEDED_SLIDER_VALUE_QUANTIZATION). */
 const LFO_RATE_STEP = 0.05;
@@ -367,7 +381,7 @@ const LFO_RATE_STEP = 0.05;
 const LFO_DEPTH_STEP = 1;
 
 /**
- * Generate seeded LfoSettings for all 13 RobotLfoTargetId modulation targets,
+ * Generate seeded LfoSettings for all 9 RobotLfoTargetId modulation targets,
  * the same way as the rest of a robot's audio personality (generateAudioAttributes
  * above) — per docs/tasks/LFO_INTEGRATION_PLAN.md Task 13. Each target gets its
  * own dot-namespaced dataId ('robot.lfo.<target>.<field>'), so a single shared

@@ -21,8 +21,9 @@ import {
 const ALL_TARGET_IDS = [...ROBOT_LFO_TARGET_IDS, ...GLOBAL_LFO_TARGET_IDS];
 
 describe('DEFAULT_LFO_SETTINGS', () => {
-  it('has exactly one entry per target — all 13 robot + 9 global ids, no extras', () => {
+  it('has exactly one entry per target — all 9 robot + 7 global ids (16), no extras', () => {
     expect(Object.keys(DEFAULT_LFO_SETTINGS).sort()).toEqual([...ALL_TARGET_IDS].sort());
+    expect(Object.keys(DEFAULT_LFO_SETTINGS)).toHaveLength(16);
   });
 
   it('every entry has a valid shape from LFO_SHAPES', () => {
@@ -55,10 +56,10 @@ describe('DEFAULT_LFO_SETTINGS', () => {
 
   it('gives every target its own object — mutating one target\'s default does not affect another\'s', () => {
     const before = DEFAULT_LFO_SETTINGS['layer1.gain'].rate;
-    DEFAULT_LFO_SETTINGS['volume'].rate = 9999;
+    DEFAULT_LFO_SETTINGS['layer0.gain'].rate = 9999;
     expect(DEFAULT_LFO_SETTINGS['layer1.gain'].rate).toBe(before);
     // restore, since DEFAULT_LFO_SETTINGS is a shared module-level object
-    DEFAULT_LFO_SETTINGS['volume'].rate = LFO_RATE_MIN;
+    DEFAULT_LFO_SETTINGS['layer0.gain'].rate = LFO_RATE_MIN;
   });
 
   it('remains JSON-serializable', () => {

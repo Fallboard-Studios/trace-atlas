@@ -190,7 +190,7 @@ describe('spawnSystem', () => {
   });
 
   describe('generateRobotLfoSettings', () => {
-    it('generates LfoSettings for all 13 RobotLfoTargetId values, no extras', () => {
+    it('generates LfoSettings for all 9 RobotLfoTargetId values, no extras', () => {
       const settings = generateRobotLfoSettings(mockNoiseMap, 0);
       expect(Object.keys(settings).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
     });
@@ -271,34 +271,26 @@ describe('spawnSystem', () => {
     // Offset 1: a mostly-quiet robot (2 of 13 oscillating). Offset 4: a mostly-on robot (12 of 13).
     const EXPECTED: Record<number, Record<string, { shape: string; rate: number; depth: number }>> = {
       1: {
-        'volume': { shape: 'triangle', rate: 5.2, depth: 41 },
         'layer0.gain': { shape: 'square', rate: 0, depth: 71 },
         'layer0.detune': { shape: 'triangle', rate: 0, depth: 21 },
         'layer0.phase': { shape: 'square', rate: 0, depth: 69 },
-        'layer0.pulseWidth': { shape: 'sine', rate: 5.1, depth: 15 },
         'layer1.gain': { shape: 'triangle', rate: 0, depth: 5 },
         'layer1.detune': { shape: 'sine', rate: 0, depth: 55 },
         'layer1.phase': { shape: 'sine', rate: 0, depth: 28 },
-        'layer1.pulseWidth': { shape: 'triangle', rate: 0, depth: 22 },
         'layer2.gain': { shape: 'square', rate: 0, depth: 13 },
         'layer2.detune': { shape: 'square', rate: 0, depth: 57 },
         'layer2.phase': { shape: 'triangle', rate: 0, depth: 73 },
-        'layer2.pulseWidth': { shape: 'triangle', rate: 0, depth: 66 },
       },
       4: {
-        'volume': { shape: 'square', rate: 14.85, depth: 65 },
         'layer0.gain': { shape: 'square', rate: 11.95, depth: 67 },
         'layer0.detune': { shape: 'sawtooth', rate: 12.7, depth: 71 },
         'layer0.phase': { shape: 'square', rate: 12.05, depth: 65 },
-        'layer0.pulseWidth': { shape: 'square', rate: 14.95, depth: 60 },
         'layer1.gain': { shape: 'square', rate: 12.3, depth: 50 },
         'layer1.detune': { shape: 'square', rate: 11.3, depth: 60 },
         'layer1.phase': { shape: 'square', rate: 14.35, depth: 73 },
-        'layer1.pulseWidth': { shape: 'square', rate: 0, depth: 75 },
         'layer2.gain': { shape: 'square', rate: 13.45, depth: 56 },
         'layer2.detune': { shape: 'square', rate: 12.55, depth: 60 },
         'layer2.phase': { shape: 'square', rate: 14.3, depth: 68 },
-        'layer2.pulseWidth': { shape: 'square', rate: 12.05, depth: 63 },
       },
     };
 
@@ -327,6 +319,52 @@ describe('spawnSystem', () => {
       const noiseMap = createNoise2D(alea(ORACLE_SEED));
       const onCount = (offset: number) => ROBOT_LFO_TARGET_IDS.filter((t) => generateRobotLfoSettings(noiseMap, offset)[t].rate > 0).length;
       expect(onCount(1)).toBeLessThan(onCount(4));
+    });
+  });
+
+  // Seed odds lowered from 50% on to ~25% on (docs/specs/LFO_LOAD_FIX.md assumption 5 / §1.4,
+  // docs/tasks/LFO_LOAD_FIX.md Task 5). Measured before choosing the threshold (2026-09-30): the
+  // quiet draw is a smooth simplex sample, not a uniform coin, so the on-rate is NOT 1 - threshold —
+  // 0.5 gave ≈53% on, 0.75 ≈20%, 0.7 ≈27% across 8 worlds × 12 offsets. 0.7 is the value that lands
+  // the intent (≈25% on, ≈19 primed audio-rate LFOs per 12-robot world).
+  describe('generateRobotLfoSettings — quiet odds (LFO Load Fix Task 5)', () => {
+    /** The same 8 worlds the threshold was chosen against: 4 arbitrary alea seeds + 4 real locale maps. */
+    const WORLDS: NoiseFunction2D[] = [
+      createNoise2D(alea('s1')), createNoise2D(alea('s2')), createNoise2D(alea('s3')), createNoise2D(alea('s4')),
+      getLocaleNoiseMap('odds-b', -150, 90), getLocaleNoiseMap('odds-c', 200, -30),
+      getLocaleNoiseMap('odds-a', 12, 68), getLocaleNoiseMap('odds-d', 5, -180),
+    ];
+    const AUDIO_RATE_TARGETS = ROBOT_LFO_TARGET_IDS.filter((t) => /\.(gain|detune)$/.test(t));
+
+    it('turns on roughly a quarter of audio-rate targets — between 15% and 35% across 8 worlds × 12 spawn offsets', () => {
+      let on = 0;
+      let total = 0;
+      for (const map of WORLDS) {
+        for (let offset = 0; offset < 12; offset++) {
+          const settings = generateRobotLfoSettings(map, offset);
+          for (const target of AUDIO_RATE_TARGETS) {
+            total++;
+            if (settings[target].rate > 0) on++;
+          }
+        }
+      }
+      const share = on / total;
+      expect(share, `${on}/${total} audio-rate targets on`).toBeGreaterThanOrEqual(0.15);
+      expect(share, `${on}/${total} audio-rate targets on`).toBeLessThanOrEqual(0.35);
+    });
+
+    it('is monotone against the old 50% odds — a target that was quiet under 0.5 is still quiet, and every on-target was also on before', () => {
+      // Recreates the pre-change decision from the same seeded draw the seeder uses, so this
+      // holds regardless of the exact threshold chosen, as long as it is >= 0.5.
+      for (const map of WORLDS) {
+        for (let offset = 0; offset < 12; offset++) {
+          const settings = generateRobotLfoSettings(map, offset);
+          for (const target of ROBOT_LFO_TARGET_IDS) {
+            const quietUnderOldOdds = getSeededVal(map, `robot.lfo.${target}.quiet`, offset, 0, 1) < 0.5;
+            if (quietUnderOldOdds) expect(settings[target].rate, `${target} @${offset}`).toBe(0);
+          }
+        }
+      }
     });
   });
 

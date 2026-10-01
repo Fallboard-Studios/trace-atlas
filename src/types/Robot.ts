@@ -196,7 +196,7 @@ export interface Robot {
    */
   pitchRepeat?: number;
   /**
-   * Seeded LFO settings for all 13 RobotLfoTargetId modulation targets,
+   * Seeded LFO settings for all 9 RobotLfoTargetId modulation targets,
    * generated once at spawn time (src/systems/spawnSystem.ts) the same way
    * as the rest of audioAttributes, mirroring audioStore.ts's `globalLfo`
    * shape. Each target is independently seeded on or off (Roadmap Phase 9) —

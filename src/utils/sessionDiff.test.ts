@@ -351,6 +351,34 @@ describe('applySessionPayload', () => {
     expect(useAudioStore.getState().globalAudio.lfoDrift.globalFx).toEqual({ rateDrift: 0, depthDrift: 0 });
   });
 
+  it('drops legacy lfoSettings keys (volume, layerN.pulseWidth — removed targets) from a robot override on load, keeping the known ones', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+    const payload = buildSessionPayload();
+    // docs/specs/LFO_LOAD_FIX.md §1.4 "Backward compatibility": a payload saved before the two
+    // targets were removed can still carry them under lfoSettings — cast through unknown, same
+    // trust-boundary reasoning as the stale lfoDrift case above.
+    const legacyOverrides = {
+      ...payload.robotOverrides,
+      [robot.id]: {
+        ...payload.robotOverrides[robot.id],
+        lfoSettings: {
+          volume: { shape: 'sine', rate: 3, depth: 50 },
+          'layer1.pulseWidth': { shape: 'square', rate: 2, depth: 40 },
+          'layer1.gain': { shape: 'triangle', rate: 1.5, depth: 30 },
+        },
+      },
+    } as unknown as typeof payload.robotOverrides;
+
+    expect(() => applySessionPayload({ ...payload, robotOverrides: legacyOverrides })).not.toThrow();
+
+    const restored = currentLocale()!.robots.find((r) => r.id === robot.id)!;
+    expect(restored.lfoSettings?.['layer1.gain']).toEqual({ shape: 'triangle', rate: 1.5, depth: 30 });
+    expect('volume' in (restored.lfoSettings ?? {})).toBe(false);
+    expect('layer1.pulseWidth' in (restored.lfoSettings ?? {})).toBe(false);
+  });
+
   it('applies a user-created company whose stored lastEditedOptions still carries a legacy volumeLfo (saved before the Volume LFO target was removed) without error, keeping the company and its other options', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);

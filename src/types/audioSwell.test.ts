@@ -38,10 +38,23 @@ describe('SWELL_GLOBAL_TARGET_IDS', () => {
 });
 
 describe('SWELL_ROBOT_ATTRIBUTE_IDS', () => {
-  it('is every ROBOT_LFO_TARGET_IDS entry plus the 4 adsr.* fields', () => {
+  // Its own explicit list since 2026-09-30 (docs/specs/LFO_LOAD_FIX.md assumption 9): the LFO
+  // target set dropped volume/pulseWidth, but swells keep ramping both. Every remaining LFO
+  // target is still a swell attribute; the swell set is a strict superset.
+  it('is volume + every layer field (gain/detune/phase/pulseWidth × 3) + the 4 adsr.* fields', () => {
     expect([...SWELL_ROBOT_ATTRIBUTE_IDS].sort()).toEqual(
-      [...ROBOT_LFO_TARGET_IDS, 'adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release'].sort()
+      [
+        'volume',
+        'layer0.gain', 'layer0.detune', 'layer0.phase', 'layer0.pulseWidth',
+        'layer1.gain', 'layer1.detune', 'layer1.phase', 'layer1.pulseWidth',
+        'layer2.gain', 'layer2.detune', 'layer2.phase', 'layer2.pulseWidth',
+        'adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release',
+      ].sort()
     );
+  });
+
+  it('still contains every ROBOT_LFO_TARGET_IDS entry — a strict superset of the LFO targets', () => {
+    for (const id of ROBOT_LFO_TARGET_IDS) expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain(id);
   });
 
   it('has exactly 17 members, no duplicates', () => {
@@ -62,8 +75,10 @@ describe('SWELL_ROBOT_ATTRIBUTE_IDS', () => {
     expect(SWELL_ROBOT_ATTRIBUTE_IDS).not.toContain('octaveRange');
   });
 
-  it('does not modify ROBOT_LFO_TARGET_IDS itself — still 13 members', () => {
-    expect(ROBOT_LFO_TARGET_IDS).toHaveLength(13);
+  it('does not modify ROBOT_LFO_TARGET_IDS itself — still its own 9 members (volume/pulseWidth stay swell attributes even though they are no longer LFO targets)', () => {
+    expect(ROBOT_LFO_TARGET_IDS).toHaveLength(9);
+    expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain('volume');
+    expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain('layer0.pulseWidth');
   });
 });
 

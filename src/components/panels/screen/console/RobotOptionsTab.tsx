@@ -142,7 +142,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   const robotColorStyle = useMemo(() => getRobotColorStyle(robot.identityColor), [robot.identityColor]);
 
   // Audio Load Budget: which of THIS robot's LFOs the dial is holding off, as plain props for the store-free sections. Selected as
-  // booleans (a shallow-compared record of this robot's own 13 targets), never the whole list, so another robot's LFO entering or
+  // booleans (a shallow-compared record of this robot's own 9 targets), never the whole list, so another robot's LFO entering or
   // leaving it re-renders nothing here; the record keeps its reference until one of THESE flags flips.
   const heldOffTargets = useAudioStore(
     useShallow((s) => Object.fromEntries(ROBOT_LFO_TARGET_IDS.map((target) => [target, s.heldOffLfoKeys.includes(`${robot.id}:${target}`)]))),

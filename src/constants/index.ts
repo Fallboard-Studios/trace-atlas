@@ -61,8 +61,12 @@ export const LOAD_PLAYBACK_BELOW = 0.61;
 export const ROBOT_LFO_CAP_LIGHT = 4;
 export const ROBOT_LFO_CAP_STANDARD = 12;
 /**
- * The most audio-rate robot LFOs that could ever connect (volume + 3 layers × gain/detune/pulseWidth,
- * per robot) — the finite value the cap climbs to just short of Full, where it becomes unlimited.
+ * The finite value the cap climbs to just short of Full, where it becomes unlimited. Sized when a
+ * robot had 10 audio-rate targets (volume + 3 layers × gain/detune/pulseWidth); since 2026-09-30 a
+ * robot has 6 (3 layers × gain/detune — docs/specs/LFO_LOAD_FIX.md assumption 9), so this now
+ * overshoots the true maximum (MAX_ROBOTS × 6). Deliberately left at its shipped value: it is only
+ * the interpolation endpoint between Standard and Full, and the budget's caps are out of that
+ * phase's scope (spec §1.4). Retune with a measurement, not by hand.
  */
 export const ROBOT_LFO_CAP_CEILING = MAX_ROBOTS * 10;
 

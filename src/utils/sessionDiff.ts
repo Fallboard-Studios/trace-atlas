@@ -326,7 +326,14 @@ function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<
   if (diff.pitchRepeat !== undefined) updates.pitchRepeat = diff.pitchRepeat;
   if (diff.name !== undefined) updates.name = diff.name;
   if (diff.lfoSettings !== undefined) {
-    updates.lfoSettings = { ...robot.lfoSettings, ...diff.lfoSettings } as Record<RobotLfoTargetId, LfoSettings>;
+    // Only keys in the CURRENT target set. A payload saved before 2026-09-30 can still carry the
+    // removed 'volume' / 'layerN.pulseWidth' entries (docs/specs/LFO_LOAD_FIX.md §1.4); they are
+    // dropped here rather than written into robot state, so nothing downstream ever sees them.
+    const known = Object.fromEntries(
+      (Object.entries(diff.lfoSettings) as [string, LfoSettings | undefined][])
+        .filter(([key, value]) => value !== undefined && (ROBOT_LFO_TARGET_IDS as readonly string[]).includes(key)),
+    );
+    updates.lfoSettings = { ...robot.lfoSettings, ...known } as Record<RobotLfoTargetId, LfoSettings>;
   }
   return updates;
 }

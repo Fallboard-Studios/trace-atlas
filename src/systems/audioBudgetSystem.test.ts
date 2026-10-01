@@ -459,8 +459,8 @@ describe('audioBudgetSystem', () => {
       expect(policy()('lpf.Q', undefined, 0)).toBe(false); // filter LFOs off on Light
       expect(policy()('lpf.frequency', undefined, 0)).toBe(false);
       expect(policy()('eq3.low', undefined, 0)).toBe(true); // EQ-gain LFOs stay
-      expect(policy()('volume', 'r1', 3)).toBe(true); // Light allows 4 audio-rate robot LFOs
-      expect(policy()('volume', 'r1', 4)).toBe(false);
+      expect(policy()('layer0.gain', 'r1', 3)).toBe(true); // Light allows 4 audio-rate robot LFOs
+      expect(policy()('layer0.gain', 'r1', 4)).toBe(false);
       expect(policy()('layer0.phase', 'r1', 99)).toBe(true); // phase LFOs are never counted
       expect(setDrift).toHaveBeenLastCalledWith(false);
     });
@@ -469,7 +469,7 @@ describe('audioBudgetSystem', () => {
       startAudioBudget();
 
       expect(policy()('lpf.Q', undefined, 0)).toBe(true);
-      expect(policy()('volume', 'r1', 5000)).toBe(true);
+      expect(policy()('layer0.gain', 'r1', 5000)).toBe(true);
       expect(setDrift).toHaveBeenLastCalledWith(true);
       expect(store().driftHeldOff).toBe(false);
       expect(store().heldOffLfoKeys).toEqual([]);

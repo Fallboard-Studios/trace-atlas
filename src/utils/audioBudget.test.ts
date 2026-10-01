@@ -895,10 +895,10 @@ describe('lfoAllowed', () => {
     });
 
     it('uses each tier’s own cap: Light 4, Standard 12', () => {
-      expect(lfoAllowed('volume', 'robot', light, ROBOT_LFO_CAP_LIGHT - 1)).toBe(true);
-      expect(lfoAllowed('volume', 'robot', light, ROBOT_LFO_CAP_LIGHT)).toBe(false);
-      expect(lfoAllowed('volume', 'robot', standard, ROBOT_LFO_CAP_STANDARD - 1)).toBe(true);
-      expect(lfoAllowed('volume', 'robot', standard, ROBOT_LFO_CAP_STANDARD)).toBe(false);
+      expect(lfoAllowed('layer0.gain', 'robot', light, ROBOT_LFO_CAP_LIGHT - 1)).toBe(true);
+      expect(lfoAllowed('layer0.gain', 'robot', light, ROBOT_LFO_CAP_LIGHT)).toBe(false);
+      expect(lfoAllowed('layer0.gain', 'robot', standard, ROBOT_LFO_CAP_STANDARD - 1)).toBe(true);
+      expect(lfoAllowed('layer0.gain', 'robot', standard, ROBOT_LFO_CAP_STANDARD)).toBe(false);
     });
 
     it('never refuses at Full (unlimited), however many are connected', () => {
@@ -915,12 +915,12 @@ describe('lfoAllowed', () => {
 
     it('a cap of zero refuses every audio-rate robot LFO but still allows phase LFOs', () => {
       const zero = { ...light, maxRobotLfos: 0 };
-      expect(lfoAllowed('volume', 'robot', zero, 0)).toBe(false);
+      expect(lfoAllowed('layer0.gain', 'robot', zero, 0)).toBe(false);
       expect(lfoAllowed('layer1.phase', 'robot', zero, 0)).toBe(true);
     });
 
     it('is not affected by the filter-LFO switch', () => {
-      expect(lfoAllowed('volume', 'robot', { ...standard, filterLfosEnabled: false }, 0)).toBe(true);
+      expect(lfoAllowed('layer0.gain', 'robot', { ...standard, filterLfosEnabled: false }, 0)).toBe(true);
     });
   });
 });

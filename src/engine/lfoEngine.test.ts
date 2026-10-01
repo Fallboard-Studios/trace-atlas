@@ -256,7 +256,7 @@ describe('lfoEngine', () => {
     it('does not construct a Tone.LFO when only reading settings', async () => {
       const { lfoEngine } = await import('./lfoEngine');
       const delta = await callCountDelta(() => {
-        lfoEngine.getLfoSettings('volume');
+        lfoEngine.getLfoSettings('eq3.low');
         lfoEngine.getLfoSettings('eq3.low', undefined);
       });
       expect(delta).toBe(0);
@@ -265,7 +265,7 @@ describe('lfoEngine', () => {
     it('constructs exactly one Tone.LFO on the first setter call for a given target', async () => {
       const { lfoEngine } = await import('./lfoEngine');
       const delta = await callCountDelta(() => {
-        lfoEngine.setLfoRate('volume', 2);
+        lfoEngine.setLfoRate('eq3.low', 2);
       });
       expect(delta).toBe(1);
     });
@@ -273,9 +273,9 @@ describe('lfoEngine', () => {
     it('reuses the same Tone.LFO instance across multiple setter calls for the same target', async () => {
       const { lfoEngine } = await import('./lfoEngine');
       const delta = await callCountDelta(() => {
-        lfoEngine.setLfoRate('volume', 2);
-        lfoEngine.setLfoDepth('volume', 50);
-        lfoEngine.setLfoShape('volume', 'square');
+        lfoEngine.setLfoRate('eq3.low', 2);
+        lfoEngine.setLfoDepth('eq3.low', 50);
+        lfoEngine.setLfoShape('eq3.low', 'square');
       });
       expect(delta).toBe(1); // only the first setter call constructs; the other two reuse it
     });
@@ -300,66 +300,66 @@ describe('lfoEngine', () => {
   describe('setLfoRate', () => {
     it('updates both the persisted settings and the live node\'s frequency', async () => {
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoRate('volume', 4);
-      expect(lfoEngine.getLfoSettings('volume').rate).toBe(4);
+      lfoEngine.setLfoRate('eq3.low', 4);
+      expect(lfoEngine.getLfoSettings('eq3.low').rate).toBe(4);
       expect((await latestLfoInstance()).frequency.value).toBe(4);
     });
 
     it('sets the raw Hz value directly — no Time-string/BeatClock conversion involved', async () => {
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoRate('volume', 2.5);
+      lfoEngine.setLfoRate('eq3.low', 2.5);
       expect((await latestLfoInstance()).frequency.value).toBe(2.5);
     });
 
     it('clamps below LFO_RATE_MIN', async () => {
       const { LFO_RATE_MIN } = await import('../types/lfo');
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoRate('volume', -5); // LFO_RATE_MIN is 0 — a negative value is what's actually below the floor now
-      expect(lfoEngine.getLfoSettings('volume').rate).toBe(LFO_RATE_MIN);
+      lfoEngine.setLfoRate('eq3.low', -5); // LFO_RATE_MIN is 0 — a negative value is what's actually below the floor now
+      expect(lfoEngine.getLfoSettings('eq3.low').rate).toBe(LFO_RATE_MIN);
     });
 
     it('allows exactly 0 — the new "off" value, not something to clamp away from', async () => {
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoRate('volume', 0);
-      expect(lfoEngine.getLfoSettings('volume').rate).toBe(0);
+      lfoEngine.setLfoRate('eq3.low', 0);
+      expect(lfoEngine.getLfoSettings('eq3.low').rate).toBe(0);
     });
 
     it('clamps above LFO_RATE_MAX', async () => {
       const { LFO_RATE_MAX } = await import('../types/lfo');
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoRate('volume', 999);
-      expect(lfoEngine.getLfoSettings('volume').rate).toBe(LFO_RATE_MAX);
+      lfoEngine.setLfoRate('eq3.low', 999);
+      expect(lfoEngine.getLfoSettings('eq3.low').rate).toBe(LFO_RATE_MAX);
     });
   });
 
   describe('setLfoDepth', () => {
     it('updates both the persisted settings and the live node\'s amplitude (depth / 100)', async () => {
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoDepth('volume', 40);
-      expect(lfoEngine.getLfoSettings('volume').depth).toBe(40);
+      lfoEngine.setLfoDepth('eq3.low', 40);
+      expect(lfoEngine.getLfoSettings('eq3.low').depth).toBe(40);
       expect((await latestLfoInstance()).amplitude.value).toBeCloseTo(0.4);
     });
 
     it('clamps below LFO_DEPTH_MIN', async () => {
       const { LFO_DEPTH_MIN } = await import('../types/lfo');
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoDepth('volume', -10);
-      expect(lfoEngine.getLfoSettings('volume').depth).toBe(LFO_DEPTH_MIN);
+      lfoEngine.setLfoDepth('eq3.low', -10);
+      expect(lfoEngine.getLfoSettings('eq3.low').depth).toBe(LFO_DEPTH_MIN);
     });
 
     it('clamps above LFO_DEPTH_MAX', async () => {
       const { LFO_DEPTH_MAX } = await import('../types/lfo');
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoDepth('volume', 500);
-      expect(lfoEngine.getLfoSettings('volume').depth).toBe(LFO_DEPTH_MAX);
+      lfoEngine.setLfoDepth('eq3.low', 500);
+      expect(lfoEngine.getLfoSettings('eq3.low').depth).toBe(LFO_DEPTH_MAX);
     });
   });
 
   describe('setLfoShape', () => {
     it('updates both the persisted settings and the live node\'s type', async () => {
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoShape('volume', 'sawtooth');
-      expect(lfoEngine.getLfoSettings('volume').shape).toBe('sawtooth');
+      lfoEngine.setLfoShape('eq3.low', 'sawtooth');
+      expect(lfoEngine.getLfoSettings('eq3.low').shape).toBe('sawtooth');
       expect((await latestLfoInstance()).type).toBe('sawtooth');
     });
   });
@@ -396,7 +396,7 @@ describe('lfoEngine', () => {
       let threw = false;
       const delta = await callCountDelta(() => {
         try {
-          lfoEngine.start('volume');
+          lfoEngine.start('eq3.low');
         } catch {
           threw = true;
         }
@@ -407,29 +407,29 @@ describe('lfoEngine', () => {
 
     it('starts the node when the AudioContext is running', async () => {
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoRate('volume', 2); // creates the node
+      lfoEngine.setLfoRate('eq3.low', 2); // creates the node
       const instance = await latestLfoInstance();
       mockContextState = 'running';
-      lfoEngine.start('volume');
+      lfoEngine.start('eq3.low');
       expect(instance.start).toHaveBeenCalledTimes(1);
     });
 
     it('does not start the node when the AudioContext is suspended', async () => {
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoRate('volume', 2); // creates the node
+      lfoEngine.setLfoRate('eq3.low', 2); // creates the node
       const instance = await latestLfoInstance();
       mockContextState = 'suspended';
-      lfoEngine.start('volume');
+      lfoEngine.start('eq3.low');
       expect(instance.start).not.toHaveBeenCalled();
     });
 
     it('starts the node based on the AudioContext, independent of Transport state — the real bug: Transport can still be starting up well after the context itself is already running', async () => {
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoRate('volume', 2); // creates the node
+      lfoEngine.setLfoRate('eq3.low', 2); // creates the node
       const instance = await latestLfoInstance();
       mockContextState = 'running';
       mockTransportState = 'stopped'; // Transport not yet started
-      lfoEngine.start('volume');
+      lfoEngine.start('eq3.low');
       expect(instance.start).toHaveBeenCalledTimes(1);
     });
   });
@@ -437,15 +437,15 @@ describe('lfoEngine', () => {
   describe('stop', () => {
     it('does not throw when nothing has been set/connected yet', async () => {
       const { lfoEngine } = await import('./lfoEngine');
-      expect(() => lfoEngine.stop('volume')).not.toThrow();
+      expect(() => lfoEngine.stop('eq3.low')).not.toThrow();
     });
 
     it('stops an existing node regardless of transport state', async () => {
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoRate('volume', 2); // creates the node
+      lfoEngine.setLfoRate('eq3.low', 2); // creates the node
       const instance = await latestLfoInstance();
       mockTransportState = 'stopped';
-      lfoEngine.stop('volume');
+      lfoEngine.stop('eq3.low');
       expect(instance.stop).toHaveBeenCalledTimes(1);
     });
   });
@@ -491,20 +491,21 @@ describe('lfoEngine', () => {
       expect(instance.connect).toHaveBeenCalledWith(signal);
     });
 
-    // The pulseWidth LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 4).
-    // AudioEngine no longer resolves a Signal for it, so a real connect never happens; this pins
-    // the engine's own half — pulseWidth is no longer a ranged robot field, so even if a caller
-    // somehow offered a Signal, no swing range would be derived (min/max stay at Tone's defaults).
-    it('derives no swing range for the removed pulseWidth field — lfo.min/max stay at Tone\'s defaults even if a Signal is offered', async () => {
+    // The volume and pulseWidth LFO targets were removed (docs/specs/LFO_LOAD_FIX.md assumption
+    // 9, Tasks 4-5). To the engine they are now simply unknown ids — not robot targets, so they
+    // never reach getRobotModulationTarget — and a stale id from an old session connects nothing.
+    it('treats the removed volume / layerN.pulseWidth ids as unknown — connect returns false, resolves no robot Signal, wires nothing', async () => {
       const { AudioEngine } = await import('./AudioEngine');
-      (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockReturnValueOnce(fakeSignal(0.5));
-
       const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.connectLfoTarget('layer0.pulseWidth' as never, 'robot-a');
+      // The AudioEngine mock is module-level and not cleared between tests — scope the assertion.
+      (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockClear();
+      (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockClear().mockReturnValue(undefined);
 
-      const instance = await latestLfoInstance();
-      expect(instance.min).toBe(0);
-      expect(instance.max).toBe(1);
+      expect(lfoEngine.connectLfoTarget('volume' as never, 'robot-a')).toBe(false);
+      expect(lfoEngine.connectLfoTarget('layer0.pulseWidth' as never, 'robot-a')).toBe(false);
+      // Not a robot target any more, so never resolved as one; the global path resolves nothing.
+      expect(AudioEngine.getRobotModulationTarget).not.toHaveBeenCalled();
+      expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
     });
 
     it('is idempotent when called twice in a row on the same target/signal — never issues a second .connect(), so the same LFO can never double-modulate a target', async () => {
@@ -592,17 +593,6 @@ describe('lfoEngine', () => {
         expect(instance.max).toBeCloseTo(0.2, 10);
       });
 
-      // The 'volume' target (and its 0-2 range, which existed only to give the composite voice's
-      // fixed-at-1 output gain a real swing) was removed — docs/specs/LFO_LOAD_FIX.md assumption 9.
-      it('derives no swing range for the removed volume field — lfo.min/max stay at Tone\'s defaults even if a Signal is offered', async () => {
-        const { AudioEngine } = await import('./AudioEngine');
-        (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockReturnValueOnce(fakeSignal(1));
-        const { lfoEngine } = await import('./lfoEngine');
-        lfoEngine.connectLfoTarget('volume' as never, 'robot-a');
-        const instance = await latestLfoInstance();
-        expect(instance.min).toBe(0);
-        expect(instance.max).toBe(1);
-      });
 
       it('gets the full half-span swing when the base value sits at the range\'s own midpoint, for a global EQ3 band (-12..12 dB, base 0)', async () => {
         const { AudioEngine } = await import('./AudioEngine');
@@ -709,13 +699,13 @@ describe('lfoEngine', () => {
       });
     });
 
-    it('returns false (not throw) for pulseWidth on a non-\'pulse\' layer — AudioEngine already returns null for that case', async () => {
+    it('returns false (not throw) when AudioEngine resolves no Signal for a robot target (e.g. an unreserved robot)', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockReturnValueOnce(null);
 
       const { lfoEngine } = await import('./lfoEngine');
       let result: boolean | undefined;
-      expect(() => { result = lfoEngine.connectLfoTarget('layer0.pulseWidth', 'robot-a'); }).not.toThrow();
+      expect(() => { result = lfoEngine.connectLfoTarget('layer0.gain', 'robot-a'); }).not.toThrow();
       expect(result).toBe(false);
     });
 
@@ -822,7 +812,7 @@ describe('lfoEngine', () => {
 
     it('does not throw when nothing was ever connected', async () => {
       const { lfoEngine } = await import('./lfoEngine');
-      expect(() => lfoEngine.disconnectLfoTarget('volume')).not.toThrow();
+      expect(() => lfoEngine.disconnectLfoTarget('eq3.low')).not.toThrow();
       expect(() => lfoEngine.disconnectLfoTarget('layer0.phase', 'robot-a')).not.toThrow();
     });
   });
@@ -1085,13 +1075,13 @@ describe('lfoEngine', () => {
       const policy = vi.fn(() => true);
       lfoEngine.setLfoPolicy(policy);
       configure(lfoEngine, 'eq3.low');
-      lfoEngine.setLfoRate('volume', 1, 'robot-a');
+      lfoEngine.setLfoRate('layer0.gain', 1, 'robot-a');
 
       lfoEngine.connectLfoTarget('eq3.low');
-      lfoEngine.connectLfoTarget('volume', 'robot-a');
+      lfoEngine.connectLfoTarget('layer0.gain', 'robot-a');
 
       expect(policy).toHaveBeenCalledWith('eq3.low', undefined, 0);
-      expect(policy).toHaveBeenCalledWith('volume', 'robot-a', 0);
+      expect(policy).toHaveBeenCalledWith('layer0.gain', 'robot-a', 0);
     });
   });
 
@@ -1440,7 +1430,7 @@ describe('lfoEngine', () => {
     }
 
     /** A connected robot LFO with a non-zero rate and depth, the way applyLayerLfo leaves one. */
-    function connectRobot(lfoEngine: Awaited<ReturnType<typeof setup>>['lfoEngine'], target: 'layer0.gain' | 'layer0.detune' | 'volume' = 'layer0.gain') {
+    function connectRobot(lfoEngine: Awaited<ReturnType<typeof setup>>['lfoEngine'], target: 'layer0.gain' | 'layer0.detune' | 'layer1.gain' = 'layer0.gain') {
       lfoEngine.setLfoRate(target, 2, 'robot-a');
       lfoEngine.setLfoDepth(target, 50, 'robot-a');
       return lfoEngine.connectLfoTarget(target, 'robot-a');
@@ -1611,10 +1601,10 @@ describe('lfoEngine', () => {
       it('constructs no pool oscillator on module load or when only reading/setting rate, depth, or shape', async () => {
         const { lfoEngine } = await import('./lfoEngine');
         const delta = await poolConstructionCountDelta(() => {
-          lfoEngine.getLfoSettings('volume');
-          lfoEngine.setLfoRate('volume', 2);
-          lfoEngine.setLfoDepth('volume', 50);
-          lfoEngine.setLfoShape('volume', 'square');
+          lfoEngine.getLfoSettings('layer0.gain');
+          lfoEngine.setLfoRate('layer0.gain', 2);
+          lfoEngine.setLfoDepth('layer0.gain', 50);
+          lfoEngine.setLfoShape('layer0.gain', 'square');
         });
         expect(delta).toBe(0);
       });
@@ -1634,7 +1624,7 @@ describe('lfoEngine', () => {
         (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockReturnValueOnce(null);
         const { lfoEngine } = await import('./lfoEngine');
         const delta = await poolConstructionCountDelta(() => {
-          lfoEngine.connectLfoTarget('layer0.pulseWidth', 'robot-a');
+          lfoEngine.connectLfoTarget('layer0.gain', 'robot-a');
         });
         expect(delta).toBe(0);
       });
