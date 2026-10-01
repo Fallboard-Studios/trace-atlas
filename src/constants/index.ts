@@ -54,22 +54,6 @@ export const LOAD_FILTER_LFOS_MIN = 0.4;
  * Light already ships unremarked); below Full's (1) so Full is untouched.
  */
 export const LOAD_PLAYBACK_BELOW = 0.61;
-/**
- * Audio-rate robot LFOs that may be connected at once at Light and Standard. Measured, not guessed
- * (docs/PERFORMANCE.md "Robot-LFO cost by target type"): each costs ≈ +0.012 render capacity with drift off.
- */
-export const ROBOT_LFO_CAP_LIGHT = 4;
-export const ROBOT_LFO_CAP_STANDARD = 12;
-/**
- * Full's robot-LFO cap. Previously `Infinity` ("Full's cap stays unlimited for now" —
- * docs/specs/LFO_LOAD_FIX.md assumption 3); the Task 11 perf gate (docs/PERFORMANCE.md) measured
- * robot-LFO priming landing on this branch and found Full saturating the audio thread (bravo peak
- * render capacity 0.40 → 0.998 with ≈18 primed audio-rate robot LFOs connected — about +0.033
- * capacity per LFO, well above the ≈0.012 figure the spec's assumption 9 budgeted against). Set
- * equal to Standard's cap rather than climbing past it: at that count the measured cost keeps
- * bravo's peak near 0.80, a solid margin under the gate's 0.9 line. Retune with a measurement.
- */
-export const ROBOT_LFO_CAP_FULL = ROBOT_LFO_CAP_STANDARD;
 
 /**
  * Fixed size of the harmony palette — every hour-equivalent's `TIME_PITCHES` entry

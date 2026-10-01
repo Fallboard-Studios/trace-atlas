@@ -99,12 +99,12 @@ function syncHeldOff(): void {
 
 /**
  * The LFO tiers (docs/specs/AUDIO_LOAD_BUDGET.md §1.4): install the policy lfoEngine consults (EQ-gain LFOs always, filter
- * frequency/Q only above the filter threshold, audio-rate robot LFOs up to the cap, phase LFOs never counted), turn drift
- * on or off, reconcile every connection, and publish the held-off state the UI greys out from. Only when a tier limit has
- * actually changed (or on force) — the roster changing, or a dial nudge inside one tier, changes none of it.
+ * frequency/Q only above the filter threshold, robot LFOs always — docs/specs/LFO_BANK.md Task 2 removed the cap), turn
+ * drift on or off, reconcile every connection, and publish the held-off state the UI greys out from. Only when a tier
+ * limit has actually changed (or on force) — the roster changing, or a dial nudge inside one tier, changes none of it.
  */
 function applyLfoTiers(limits: LoadLimits, force = false): void {
-  const key = [limits.driftEnabled, limits.filterLfosEnabled, limits.maxRobotLfos].join('|');
+  const key = [limits.driftEnabled, limits.filterLfosEnabled].join('|');
   if (!force && key === appliedTierKey) return;
   appliedTierKey = key;
   lfoEngine.setLfoPolicy((target, robotId, connectedRobotLfos) =>

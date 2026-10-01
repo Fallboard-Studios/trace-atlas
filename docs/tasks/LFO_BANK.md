@@ -79,17 +79,19 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
   **Description:** `constants/index.ts`: delete `ROBOT_LFO_CAP_LIGHT/STANDARD/FULL` and their comments. `audioBudget.ts`: delete `robotLfoCap`; `EffectsLoadLimits` loses `maxRobotLfos`; `lfoAllowed` becomes `scope === 'global' ? (FILTER_TARGET.test(target) ? limits.filterLfosEnabled : true) : true`; `describeLimits` loses the robot-LFO clause. `audioBudgetSystem.applyLfoTiers`'s tier key loses `maxRobotLfos`. `audioDiagnostics` drops any robot-cap readout. `docs/PERFORMANCE.md`'s `?fxLoad=` row loses "and the robot-LFO count" (one line; the rest of the docs wait for Task 20).
 
   **Acceptance criteria:**
-  - [ ] `audioBudget.test.ts`: `effectsLoadToLimits(x)` has exactly `{ driftEnabled, filterLfosEnabled }`; `lfoAllowed` returns true for any robot target at any load and for any count; `describeLimits` at Light reads "Up to 4 robots · 8 notes · no drift or filter LFOs · latency: Playback (applies on next load)".
-  - [ ] `audioBudgetSystem.test.ts`: dropping the dial from Full to Light suspends no robot LFO (the engine's policy never refuses a robot key).
-  - [ ] `grep -rn "ROBOT_LFO_CAP\|maxRobotLfos\|robotLfoCap" src` returns nothing.
+  - [x] `audioBudget.test.ts`: `effectsLoadToLimits(x)` has exactly `{ driftEnabled, filterLfosEnabled }`; `lfoAllowed` returns true for any robot target at any load and for any count; `describeLimits` at Light reads "Up to 4 robots · 8 notes · no drift or filter LFOs · latency: Playback (applies on next load)".
+  - [x] `audioBudgetSystem.test.ts`: dropping the dial from Full to Light suspends no robot LFO (the engine's policy never refuses a robot key).
+  - [x] `grep -rn "ROBOT_LFO_CAP\|maxRobotLfos\|robotLfoCap" src` returns nothing.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/audioBudget.test.ts src/systems/audioBudgetSystem.test.ts src/engine/audioDiagnostics.test.ts` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/audioBudget.test.ts src/systems/audioBudgetSystem.test.ts src/engine/audioDiagnostics.test.ts` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
   **Files:** `src/constants/index.ts`, `src/utils/audioBudget.ts` (+test), `src/systems/audioBudgetSystem.ts` (+test), `src/engine/audioDiagnostics.ts` (+test), `docs/PERFORMANCE.md` (one row).
   **Scope:** S.
+
+  **Notes from execution:** `audioDiagnostics.ts` had no robot-cap readout to begin with (checked, nothing changed there). Also touched `src/engine/lfoEngine.test.ts`: deleted the entire "robot-LFO cap (real `lfoAllowed` as the policy)" describe block (9 tests) — it exercised cap-refusal behavior that `lfoAllowed` can no longer produce — and replaced it with one test confirming a policy built from the real `lfoAllowed` never holds off a robot target, however many are connected. Full suite green: 4299/4299, `npm run build:types`/`lint`/`build` clean.
 
 - [ ] **Task 3: `heldOffLfoKeys` → `filterLinksHeldOff` in the store and every panel**
 

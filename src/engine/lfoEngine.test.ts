@@ -1069,136 +1069,24 @@ describe('lfoEngine', () => {
     });
   });
 
-  // Audio Load Budget (plan task 19): the number of audio-rate ROBOT LFOs connected at once is capped. Over-cap connections
-  // are refused and held off; when the cap falls the most recently CONNECTED ones are dropped first (LIFO, matching robot
-  // admission); when it rises, held-off ones reconnect in REQUEST order. Global LFOs are unaffected by the robot cap.
-  describe('robot-LFO cap (real lfoAllowed as the policy)', () => {
-    const capPolicy = (cap: number) => (target: string, robotId: string | undefined, connected: number) =>
-      lfoAllowed(target as never, robotId ? 'robot' : 'global', { ...loadToLimits(1), maxRobotLfos: cap }, connected);
+  // The robot-LFO cap was removed (docs/specs/LFO_BANK.md Task 2) — lfoAllowed (audioBudget.ts)
+  // now always allows a robot target, so a policy built from it can never hold one off, however
+  // many are already connected. The held-off machinery itself (setLfoPolicy/reconcileLfos/
+  // getHeldOffLfoKeys) stays — a caller-supplied policy can still refuse for other reasons — but
+  // there is no longer a real-world policy that refuses a robot key by count.
+  it('a policy built from the real lfoAllowed never holds off a robot target, however many are already connected (docs/specs/LFO_BANK.md Task 2)', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal(0));
+    const { lfoEngine } = await import('./lfoEngine');
+    lfoEngine.setLfoPolicy((target, robotId, connected) =>
+      lfoAllowed(target as never, robotId ? 'robot' : 'global', loadToLimits(1), connected));
 
-    async function setup(cap: number) {
-      const { AudioEngine } = await import('./AudioEngine');
-      (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal(0));
-      (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeSignal(0));
-      const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.setLfoPolicy(capPolicy(cap));
-      const Tone = await import('tone');
-      const firstIndex = (Tone.LFO as unknown as ReturnType<typeof vi.fn>).mock.results.length;
-      /** Ask to connect one audio-rate robot LFO (rate 1 Hz on the robot's layer-0 gain), the way applyLayerLfo does. */
-      const request = (robot: string): boolean => {
-        lfoEngine.setLfoRate('layer0.gain', 1, robot);
-        lfoEngine.setLfoDepth('layer0.gain', 30 + robot.length, robot);
-        const ok = lfoEngine.connectLfoTarget('layer0.gain', robot);
-        if (ok) lfoEngine.start('layer0.gain', robot);
-        return ok;
-      };
-      const setCap = (next: number) => {
-        lfoEngine.setLfoPolicy(capPolicy(next));
-        lfoEngine.reconcileLfos();
-      };
-      const held = () => [...lfoEngine.getHeldOffLfoKeys()].sort();
-      return { lfoEngine, request, setCap, held, firstIndex };
+    for (let i = 0; i < 30; i++) {
+      lfoEngine.setLfoRate('layer0.gain', 1, `robot-${i}`);
+      expect(lfoEngine.connectLfoTarget('layer0.gain', `robot-${i}`)).toBe(true);
     }
 
-    const gain = (robot: string) => `${robot}:layer0.gain`;
-
-    it('refuses the (cap+1)th audio-rate robot LFO, reads it as held off, and keeps its stored settings', async () => {
-      const { lfoEngine, request, held } = await setup(2);
-
-      expect([request('r1'), request('r2'), request('r3')]).toEqual([true, true, false]);
-
-      expect(held()).toEqual([gain('r3')]);
-      expect(lfoEngine.getLfoSettings('layer0.gain', 'r3')).toMatchObject({ rate: 1 });
-    });
-
-    it('lowering the cap disconnects the most recently connected first, down to the cap', async () => {
-      const { lfoEngine, request, setCap, held, firstIndex } = await setup(4);
-      for (const robot of ['r1', 'r2', 'r3', 'r4']) request(robot);
-      const Tone = await import('tone');
-      const lfos = (Tone.LFO as unknown as ReturnType<typeof vi.fn>).mock.results.slice(firstIndex)
-        .map((r) => r.value as MockLfoInstance)
-        .filter((l) => l.frequency.value === 1);
-      expect(lfos).toHaveLength(4);
-      lfos.forEach((l) => l.disconnect.mockClear());
-
-      setCap(2);
-
-      expect(held()).toEqual([gain('r3'), gain('r4')]);
-      expect(lfos[0].disconnect).not.toHaveBeenCalled();
-      expect(lfos[1].disconnect).not.toHaveBeenCalled();
-      expect(lfos[2].disconnect).toHaveBeenCalled();
-      expect(lfos[3].disconnect).toHaveBeenCalled();
-      expect(lfoEngine.getLfoSettings('layer0.gain', 'r4')).toMatchObject({ rate: 1 }); // settings intact
-    });
-
-    it('raising the cap reconnects held-off LFOs oldest-request-first', async () => {
-      const { request, setCap, held } = await setup(2);
-      for (const robot of ['r1', 'r2', 'r3', 'r4']) request(robot);
-      expect(held()).toEqual([gain('r3'), gain('r4')]);
-
-      setCap(3);
-      expect(held()).toEqual([gain('r4')]); // r3 asked first, so it gets the new slot
-
-      setCap(4);
-      expect(held()).toEqual([]);
-    });
-
-    it('drops the most recently CONNECTED, not the most recently requested', async () => {
-      const { lfoEngine, request, setCap, held } = await setup(3);
-      for (const robot of ['r1', 'r2', 'r3']) request(robot);
-      // r1 is switched off and on again: still the oldest request, but now the newest connection.
-      lfoEngine.disconnectLfoTarget('layer0.gain', 'r1');
-      request('r1');
-
-      setCap(2);
-
-      expect(held()).toEqual([gain('r1')]);
-    });
-
-    it('does not let the robot cap touch global LFOs', async () => {
-      const { lfoEngine } = await setup(0);
-      lfoEngine.setLfoRate('eq3.low', 1);
-      expect(lfoEngine.connectLfoTarget('eq3.low')).toBe(true);
-      expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
-    });
-
-    it('refuses nothing at Full (unlimited), however many are requested', async () => {
-      const { request, held } = await setup(Infinity);
-      for (let i = 0; i < 30; i++) expect(request(`robot-${i}`)).toBe(true);
-      expect(held()).toEqual([]);
-    });
-
-    it('a freed slot goes to the oldest held-off LFO without waiting for a dial change', async () => {
-      const { lfoEngine, request, held } = await setup(2);
-      for (const robot of ['r1', 'r2', 'r3', 'r4']) request(robot);
-      expect(held()).toEqual([gain('r3'), gain('r4')]);
-
-      lfoEngine.disconnectLfoTarget('layer0.gain', 'r1'); // the user turns r1's LFO off
-
-      expect(held()).toEqual([gain('r4')]);
-    });
-
-    it('is idempotent at a steady cap: reconciling again changes nothing', async () => {
-      const { request, setCap, held } = await setup(3);
-      for (const robot of ['r1', 'r2', 'r3', 'r4', 'r5']) request(robot);
-      const before = held();
-
-      setCap(3);
-      setCap(3);
-
-      expect(held()).toEqual(before);
-    });
-
-    it('a cap that falls to zero holds every audio-rate robot LFO off and back on again when it rises', async () => {
-      const { request, setCap, held } = await setup(3);
-      for (const robot of ['r1', 'r2', 'r3']) request(robot);
-
-      setCap(0);
-      expect(held()).toEqual([gain('r1'), gain('r2'), gain('r3')]);
-
-      setCap(3);
-      expect(held()).toEqual([]);
-    });
+    expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
   });
 
   // Audio Load Budget (plan task 20): the engine tells a subscriber when the held-off set changes, so the UI can grey a robot
