@@ -973,53 +973,39 @@ describe('useAudioStore - robotLoad / effectsLoad / soundingRobotIds (docs/specs
   });
 });
 
-describe('useAudioStore - held-off LFOs (docs/specs/AUDIO_LOAD_BUDGET.md §1.4, plan task 20)', () => {
+describe('useAudioStore - filterLinksHeldOff / driftHeldOff (docs/tasks/LFO_BANK.md Task 3)', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it('starts with nothing held off and drift not held off', async () => {
+  it('starts with filter links not held off and drift not held off', async () => {
     const { useAudioStore } = await import('./audioStore');
-    expect(useAudioStore.getState().heldOffLfoKeys).toEqual([]);
+    expect(useAudioStore.getState().filterLinksHeldOff).toBe(false);
     expect(useAudioStore.getState().driftHeldOff).toBe(false);
   });
 
-  it('setHeldOffLfoKeys writes the instance keys', async () => {
+  it('setFilterLinksHeldOff writes once', async () => {
     const { useAudioStore } = await import('./audioStore');
-    useAudioStore.getState().setHeldOffLfoKeys(['lpf.Q', 'robot-3:layer0.detune']);
-    expect(useAudioStore.getState().heldOffLfoKeys).toEqual(['lpf.Q', 'robot-3:layer0.detune']);
-  });
-
-  it('does not write, and so does not notify subscribers, when the same LFOs are held off — in any order', async () => {
-    const { useAudioStore } = await import('./audioStore');
-    useAudioStore.getState().setHeldOffLfoKeys(['a', 'b']);
-    const stored = useAudioStore.getState().heldOffLfoKeys;
     const listener = vi.fn();
     const unsubscribe = useAudioStore.subscribe(listener);
 
-    useAudioStore.getState().setHeldOffLfoKeys(['a', 'b']);
-    useAudioStore.getState().setHeldOffLfoKeys(['b', 'a']);
+    useAudioStore.getState().setFilterLinksHeldOff(true);
 
-    expect(listener).not.toHaveBeenCalled();
-    expect(useAudioStore.getState().heldOffLfoKeys).toBe(stored);
+    expect(useAudioStore.getState().filterLinksHeldOff).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(1);
     unsubscribe();
   });
 
-  it('writes when the membership changes, including emptying', async () => {
+  it('a repeat with the same value is a no-op write', async () => {
     const { useAudioStore } = await import('./audioStore');
-    useAudioStore.getState().setHeldOffLfoKeys(['a', 'b']);
-    useAudioStore.getState().setHeldOffLfoKeys(['a']);
-    expect(useAudioStore.getState().heldOffLfoKeys).toEqual(['a']);
-    useAudioStore.getState().setHeldOffLfoKeys([]);
-    expect(useAudioStore.getState().heldOffLfoKeys).toEqual([]);
-  });
+    useAudioStore.getState().setFilterLinksHeldOff(true);
+    const listener = vi.fn();
+    const unsubscribe = useAudioStore.subscribe(listener);
 
-  it('copies the keys it is given', async () => {
-    const { useAudioStore } = await import('./audioStore');
-    const keys = ['a'];
-    useAudioStore.getState().setHeldOffLfoKeys(keys);
-    keys.push('b');
-    expect(useAudioStore.getState().heldOffLfoKeys).toEqual(['a']);
+    useAudioStore.getState().setFilterLinksHeldOff(true);
+
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
   });
 
   it('setDriftHeldOff writes only when the flag changes', async () => {
@@ -1038,10 +1024,10 @@ describe('useAudioStore - held-off LFOs (docs/specs/AUDIO_LOAD_BUDGET.md §1.4, 
 
   it('stays JSON-serialisable with both set', async () => {
     const { useAudioStore } = await import('./audioStore');
-    useAudioStore.getState().setHeldOffLfoKeys(['lpf.Q']);
+    useAudioStore.getState().setFilterLinksHeldOff(true);
     useAudioStore.getState().setDriftHeldOff(true);
     const roundTripped = JSON.parse(JSON.stringify(useAudioStore.getState()));
-    expect(roundTripped.heldOffLfoKeys).toEqual(['lpf.Q']);
+    expect(roundTripped.filterLinksHeldOff).toBe(true);
     expect(roundTripped.driftHeldOff).toBe(true);
   });
 });

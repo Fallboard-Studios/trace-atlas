@@ -93,19 +93,21 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
 
   **Notes from execution:** `audioDiagnostics.ts` had no robot-cap readout to begin with (checked, nothing changed there). Also touched `src/engine/lfoEngine.test.ts`: deleted the entire "robot-LFO cap (real `lfoAllowed` as the policy)" describe block (9 tests) — it exercised cap-refusal behavior that `lfoAllowed` can no longer produce — and replaced it with one test confirming a policy built from the real `lfoAllowed` never holds off a robot target, however many are connected. Full suite green: 4299/4299, `npm run build:types`/`lint`/`build` clean.
 
-- [ ] **Task 3: `heldOffLfoKeys` → `filterLinksHeldOff` in the store and every panel**
+- [x] **Task 3: `heldOffLfoKeys` → `filterLinksHeldOff` in the store and every panel**
 
   **Description:** `audioStore`: replace `heldOffLfoKeys`/`setHeldOffLfoKeys` with `filterLinksHeldOff: boolean`/`setFilterLinksHeldOff` (skip-if-unchanged, like `setDriftHeldOff`). `audioBudgetSystem`: `applyLfoTiers` writes `setFilterLinksHeldOff(!limits.filterLfosEnabled)`; delete `syncHeldOff` and the `subscribeHeldOff` subscription; `stopAudioBudget` resets it to false. UI: `AudioRigLfoGroup` reads `filterLinksHeldOff` and applies it only when `block.key` is `filterLPF`/`filterHPF` (EQ never greys); `RobotOptionsTab` drops the `heldOffTargets` selector; `SignatureArrayDrawer`/`SignatureArrayLayer`/`LfoTargetGroup` drop their `heldOff`/`heldOffTargets` props (the `Lfo` primitive keeps its `heldOff` prop — the filter panels still use it). `HeldOffNote` unchanged.
 
   **Acceptance criteria:**
-  - [ ] `audioStore.test.ts`: `setFilterLinksHeldOff(true)` writes once; a repeat is a no-op write.
-  - [ ] `AudioRigEffectPanel.test.tsx`: with `filterLinksHeldOff: true`, LPF and HPF displays grey with a `HeldOffNote`, EQ does not.
-  - [ ] `SignatureArrayDrawer.test.tsx` / `RobotOptionsTab.test.tsx`: no held-off element ever renders in a robot layer; the drawer's props type has no `heldOffTargets` (a `// @ts-expect-error` case).
-  - [ ] `grep -rn "heldOffLfoKeys\|heldOffTargets\|subscribeHeldOff\|getHeldOffLfoKeys" src/components src/stores src/systems` returns nothing.
+  - [x] `audioStore.test.ts`: `setFilterLinksHeldOff(true)` writes once; a repeat is a no-op write.
+  - [x] `AudioRigEffectPanel.test.tsx`: with `filterLinksHeldOff: true`, LPF and HPF displays grey with a `HeldOffNote`, EQ does not.
+  - [x] `SignatureArrayDrawer.test.tsx` / `RobotOptionsTab.test.tsx`: no held-off element ever renders in a robot layer; the drawer's props type has no `heldOffTargets` (a `// @ts-expect-error` case).
+  - [x] `grep -rn "heldOffLfoKeys\|heldOffTargets\|subscribeHeldOff\|getHeldOffLfoKeys" src/components src/stores src/systems` returns nothing.
 
   **Verification:**
-  - [ ] `npx vitest run src/stores/audioStore.test.ts src/systems/audioBudgetSystem.test.ts src/components/panels/screen/console src/components/robot src/components/ui/controls/LfoTargetGroup.test.tsx` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/stores/audioStore.test.ts src/systems/audioBudgetSystem.test.ts src/components/panels/screen/console src/components/robot src/components/ui/controls/LfoTargetGroup.test.tsx` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Notes from execution:** the `// @ts-expect-error` case for `heldOffTargets` would itself match the Task's own grep (the literal string appears in source), so `SignatureArrayDrawer.test.tsx` relies on `npm run build:types` for that guarantee instead and asserts only the runtime behavior (no held-off element, ever, in any layer). `LfoTargetGroup.test.tsx` does keep a real `// @ts-expect-error` case — its removed prop is the unqualified `heldOff`, which isn't in the grep's pattern list. Also touched `audioBudgetSystem.test.ts`'s "LFO tiers" describe block: dropped the `getHeldOffLfoKeys`/`subscribeHeldOff` spies and the whole "held-off LFOs mirrored into the store" sub-describe (that mirroring is gone, not renamed), and added a `filterLinksHeldOff`-equivalent of the existing "writes only on a real change" drift test. Mutation-checked: reverting `applyLfoTiers`'s new `setFilterLinksHeldOff` call to a hardcoded `false` was caught by 3 tests. Full suite green: 4292/4292, `npm run build:types`/`lint` clean.
 
   **Dependencies:** Task 2.
   **Files:** `src/stores/audioStore.ts` (+test), `src/systems/audioBudgetSystem.ts` (+test), `AudioRigDrawer.tsx`, `AudioRigEffectPanel.test.tsx`, `RobotOptionsTab.tsx` (+test), `SignatureArrayDrawer.tsx` (+test), `LfoTargetGroup.tsx` (+test).

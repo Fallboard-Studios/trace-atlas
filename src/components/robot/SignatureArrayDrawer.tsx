@@ -91,10 +91,6 @@ interface SignatureArrayDrawerProps {
   onStructuralChange: (layers: OscillatorLayer[]) => void;
   onLfoChange: (target: RobotLfoTargetId, value: LfoValue) => void;
   disabled?: boolean;
-  /** Audio Load Budget: which of THIS robot's LFO targets the dial is holding off. Plain data (the drawer stays store-free for
-   *  everything but Robot Drift); the caller must keep it referentially stable while no flag flips (RobotOptionsTab does, via a
-   *  shallow selector). Omitted for a company (no single robot to grey against) = nothing held off. */
-  heldOffTargets?: Partial<Record<RobotLfoTargetId, boolean>>;
   /** Optional inline style forwarded to this drawer's own root — trait-color scoping
    *  (getTraitColorStyle('spectral'), Roadmap Phase 14), applied identically at both the
    *  RobotOptionsTab and CompanyOptionsSection call sites — this drawer always renders in
@@ -119,7 +115,6 @@ export interface SignatureArrayLayerProps {
   idx: number;
   layer: OscillatorLayer;
   lfoSettings: SignatureArrayValue['lfoSettings'];
-  heldOffTargets?: Partial<Record<RobotLfoTargetId, boolean>>;
   disabled?: boolean;
   /** Per-field swelling flags for THIS layer (audioSwells.ts's isRobotAttributeSwelling for
    *  'layer{idx}.gain' etc.), forwarded straight to the matching slider's own `swelling` prop. See
@@ -156,7 +151,7 @@ export interface SignatureArrayLayerProps {
  * genuinely per-layer stable slice would need its own follow-up (each layer's own LFO target set
  * is statically fixed per `SIGNATURE_ARRAY_CONFIG`, so it's possible, just out of scope here).
  */
-function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTargets, disabled, swelling, onTypeChange, onParamChange, onLfoFieldChange }: SignatureArrayLayerProps) {
+function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, disabled, swelling, onTypeChange, onParamChange, onLfoFieldChange }: SignatureArrayLayerProps) {
   const handleTypeChange = useCallback((v: string) => onTypeChange(idx, v as WaveformType), [idx, onTypeChange]);
 
   // 'pulse' only — Tone.js's OmniOscillator.width getter returns undefined for every other type
@@ -180,12 +175,6 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
     loreLabel: (p.schema as SliderLinearSchema | SliderCenteredZeroSchema).loreLabel,
     lfoValue: lfoSettings?.[p.lfoTarget!] ?? DEFAULT_LFO_SETTINGS[p.lfoTarget!],
   })), [lfoParams, lfoSettings]);
-
-  // Per-field held-off flags for this layer's LFO group, stable while none of them flips (LfoTargetGroup is memoized).
-  const heldOff = useMemo(
-    () => Object.fromEntries(lfoParams.map((p) => [p.field, heldOffTargets?.[p.lfoTarget!] === true])),
-    [lfoParams, heldOffTargets],
-  );
 
   const handleLfoChange = useCallback(
     (field: string, v: LfoValue) => onLfoFieldChange(idx, lfoParams.find((p) => p.field === field)!.lfoTarget!, v),
@@ -247,7 +236,6 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
           fields={fields}
           onLfoChange={handleLfoChange}
           disabled={disabled}
-          heldOff={heldOff}
           renderField={renderField}
         />
         <div className="signature-array-drawer__param">
@@ -327,7 +315,7 @@ export const SignatureArrayLayer = memo(SignatureArrayLayerInner);
  * (docs/intent/nav-layout-rewrite.md, "Why now") already named as the reason this rewrite
  * supersedes the old mass-simultaneous-mount problem rather than needing to separately fix it.
  */
-function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChange, onLfoChange, disabled, heldOffTargets, style }: SignatureArrayDrawerProps) {
+function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChange, onLfoChange, disabled, style }: SignatureArrayDrawerProps) {
   const layers = value.layers ?? [];
 
   // Ref-cached "latest layers" (docs/todo/backlog.md #27 follow-up, 2026-09-15) — the 3 handlers
@@ -368,7 +356,6 @@ function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChan
             idx={idx}
             layer={layer}
             lfoSettings={value.lfoSettings}
-            heldOffTargets={heldOffTargets}
             disabled={disabled}
             onTypeChange={handleTypeChange}
             onParamChange={handleParamChange}

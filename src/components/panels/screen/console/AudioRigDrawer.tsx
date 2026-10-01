@@ -164,8 +164,11 @@ function AudioRigLfoGroup({ groupId, params, effect, fieldOnChange, effectKey }:
   // another value from that same set), and `fields` is mapped 1:1 from `params` above — same
   // "guaranteed to be found" reasoning findParam() documents for its own call sites.
   const selectedTarget = params.find((p) => p.field === selected)!.lfoTarget;
-  // Audio Load Budget: a boolean for THIS frame's displayed target, never the whole list — the frame re-renders only when it flips.
-  const heldOff = useAudioStore((s) => s.heldOffLfoKeys.includes(selectedTarget));
+  // Audio Load Budget (docs/tasks/LFO_BANK.md Task 3): one dial-wide flag for every filter (LPF/HPF) link — EQ-gain links
+  // are never held off, so the selector itself returns a stable `false` for every other block, never subscribing it to
+  // a flip it doesn't care about (the existing per-frame re-render guard, applied to a store-wide flag now).
+  const isFilterBlock = effectKey === 'filterLPF' || effectKey === 'filterHPF';
+  const heldOff = useAudioStore((s) => isFilterBlock && s.filterLinksHeldOff);
 
   // "Taken from slider children" (docs/tasks/DIRECTIONAL_PANEL_WIRING.md follow-up fix): any
   // vertical-oriented slider in the group renders its own row (eq3's Low/Mid/High today, per

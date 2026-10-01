@@ -526,40 +526,17 @@ describe('SignatureArrayDrawer', () => {
       useAudioStore.setState({ driftHeldOff: false });
     });
 
-    it('greys the layer frame whose displayed target is held off (shows 0, not the stored value; label shown) and no other layer', () => {
+    // Robot LFOs are never held off (docs/tasks/LFO_BANK.md Task 2 removed the cap that made
+    // them held-off-able; Task 3 removes the per-robot held-off wiring that used to grey them —
+    // the prop is gone from SignatureArrayDrawerProps too, guarded by `npm run build:types`).
+    it('renders every layer fully editable, with no held-off note, regardless of lfoSettings', () => {
       const { container } = render(
-        <SignatureArrayDrawer {...noop} value={makeValue({ lfoSettings: { 'layer0.gain': lfoValue } })} heldOffTargets={{ 'layer0.gain': true }} />,
+        <SignatureArrayDrawer {...noop} value={makeValue({ lfoSettings: { 'layer0.gain': lfoValue } })} />,
       );
-      const layer0 = layerSection(container, 'layer0');
-      expect(disabled(rateIn(layer0))).toBe(true);
-      // 0, not the real stored value (2) — a held-off control should read as visibly "off". The
-      // real value is kept in the store, untouched, and returns once it's re-enabled.
-      expect(rateIn(layer0).getAttribute('aria-valuenow')).toBe('0');
-      expect(within(layer0).getByText(HELD)).toBeTruthy();
-      expect(layer0.querySelector('.sc-lfo.sc-held-off')).toBeTruthy();
-      for (const key of ['layer1', 'layer2'] as const) {
+      for (const key of ['layer0', 'layer1', 'layer2'] as const) {
         expect(disabled(rateIn(layerSection(container, key)))).toBe(false);
         expect(within(layerSection(container, key)).queryByText(HELD)).toBeNull();
       }
-    });
-
-    it('follows the selected target: a held-off Detune greys the frame only once Detune is selected', async () => {
-      const { container } = render(<SignatureArrayDrawer {...noop} value={makeValue()} heldOffTargets={{ 'layer0.detune': true }} />);
-      const layer0 = layerSection(container, 'layer0');
-      expect(disabled(rateIn(layer0))).toBe(false); // showing Gain
-
-      await act(async () => {
-        within(layer0).getByRole('slider', { name: /Detune/ }).focus();
-      });
-
-      await waitFor(() => expect(disabled(rateIn(layerSection(container, 'layer0')))).toBe(true));
-      expect(within(layerSection(container, 'layer0')).getByText(HELD)).toBeTruthy();
-    });
-
-    it('is fully editable with nothing held off, or when the prop is omitted (company options)', () => {
-      const { container } = render(<SignatureArrayDrawer {...noop} value={makeValue()} />);
-      for (const key of ['layer0', 'layer1', 'layer2'] as const) expect(disabled(rateIn(layerSection(container, key)))).toBe(false);
-      expect(screen.queryByText(HELD)).toBeNull();
     });
 
     it('greys Robot Drift while the drift tier is off, showing 0 (not the stored value), and restores it', async () => {

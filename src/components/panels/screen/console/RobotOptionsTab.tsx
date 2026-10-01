@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CSSProperties } from 'react';
-import { useShallow } from 'zustand/react/shallow';
 import { useSectionObserver } from '../nav/useSectionObserver';
 import { useAccordionOpenState } from '../nav/useAccordionOpenState';
 import { RobotSectionAccordionStack } from '../nav/RobotSectionAccordionStack';
@@ -15,7 +14,6 @@ import { setViewFadeRoot } from '@/utils/viewFade';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
-import { useAudioStore } from '@/stores/audioStore';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE } from '@/engine/melodyGenerator';
 import { SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import {
@@ -30,7 +28,7 @@ import {
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import type { LfoValue } from '@/types/controls';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
-import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId } from '@/types/lfo';
+import type { RobotLfoTargetId } from '@/types/lfo';
 import type { Robot, ADSREnvelope, WaveformType } from '@/types/Robot';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 
@@ -140,13 +138,6 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
   const setSelectedSubsection = useUIStore((s) => s.setSelectedSubsection);
 
   const robotColorStyle = useMemo(() => getRobotColorStyle(robot.identityColor), [robot.identityColor]);
-
-  // Audio Load Budget: which of THIS robot's LFOs the dial is holding off, as plain props for the store-free sections. Selected as
-  // booleans (a shallow-compared record of this robot's own 6 targets), never the whole list, so another robot's LFO entering or
-  // leaving it re-renders nothing here; the record keeps its reference until one of THESE flags flips.
-  const heldOffTargets = useAudioStore(
-    useShallow((s) => Object.fromEntries(ROBOT_LFO_TARGET_IDS.map((target) => [target, s.heldOffLfoKeys.includes(`${robot.id}:${target}`)]))),
-  );
 
   // Audio Swells: per-field swelling flags feeding each slider's own `swelling` prop (see
   // useEasedControlValue.ts) — a swell's own already-smooth per-tick ramp renders instantly
@@ -345,7 +336,6 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
             idx={idx}
             layer={layer}
             lfoSettings={signatureArrayValue.lfoSettings}
-            heldOffTargets={heldOffTargets}
             swelling={layerSwelling}
             onTypeChange={handleLayerTypeChange}
             onParamChange={handleLayerParamChange}
@@ -362,7 +352,7 @@ function RobotOptionsPanel({ robot, localeId }: RobotOptionsPanelProps) {
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, prefix,
     robot.audioAttributes.adsr, handleAdsrChange, adsrSwelling,
-    signatureArrayValue, heldOffTargets, layer0Swelling, layer1Swelling, layer2Swelling,
+    signatureArrayValue, layer0Swelling, layer1Swelling, layer2Swelling,
     handleLayerTypeChange, handleLayerParamChange, handleLayerLfoFieldChange,
   ]);
 

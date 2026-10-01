@@ -287,51 +287,9 @@ describe('LfoTargetGroup', () => {
     expect(screen.getAllByRole('slider')[0].getAttribute('data-disabled')).toBe('');
   });
 
-  describe('heldOff (Audio Load Budget)', () => {
-    it('passes Lfo heldOff=true, and shows Rate/Depth as 0, only while the TARGETED field is held off', () => {
-      const { container } = render(
-        <LfoTargetGroup
-          groupId="audioRig.eq3"
-          fields={FIELDS}
-          onLfoChange={() => {}}
-          renderField={renderField}
-          heldOff={{ low: true }}
-        />,
-      );
-      // 'low' is the default-targeted field (first in FIELDS), lfo(1) → rate 1.
-      expect(container.querySelector('.sc-lfo.sc-held-off')).toBeTruthy();
-      expect(screen.getAllByRole('slider')[0].getAttribute('aria-valuenow')).toBe('0');
-    });
-
-    it('shows the real value, and no sc-held-off class, once the targeted field is switched away from the held-off one', () => {
-      const { container } = render(
-        <LfoTargetGroup
-          groupId="audioRig.eq3"
-          fields={FIELDS}
-          onLfoChange={() => {}}
-          renderField={renderField}
-          heldOff={{ low: true }}
-        />,
-      );
-      const rows = container.querySelectorAll('.sc-lfo-target-group__row');
-      fireEvent.click(rows[1]); // 'mid', not held off
-      flushTransition();
-      expect(container.querySelector('.sc-lfo.sc-held-off')).toBeNull();
-      expect(screen.getAllByRole('slider')[0].getAttribute('aria-valuenow')).toBe('2'); // lfo(2)'s rate
-    });
-
-    it('treats an omitted heldOff prop, and a field missing from it, as not held off', () => {
-      const { container: withoutProp } = render(
-        <LfoTargetGroup groupId="audioRig.eq3" fields={FIELDS} onLfoChange={() => {}} renderField={renderField} />,
-      );
-      expect(withoutProp.querySelector('.sc-lfo.sc-held-off')).toBeNull();
-
-      const { container: withOtherField } = render(
-        <LfoTargetGroup groupId="audioRig.mid" fields={FIELDS} onLfoChange={() => {}} renderField={renderField} heldOff={{ mid: true }} />,
-      );
-      // 'low' (the default target) isn't a key in heldOff at all.
-      expect(withOtherField.querySelector('.sc-lfo.sc-held-off')).toBeNull();
-    });
+  it('carries no heldOff prop — a @ts-expect-error case (docs/tasks/LFO_BANK.md Task 3: robot LFOs are never held off, and the filter blocks hold their own flag directly via Lfo\'s own heldOff prop instead)', () => {
+    // @ts-expect-error -- heldOff is no longer part of LfoTargetGroupProps.
+    render(<LfoTargetGroup groupId="audioRig.eq3" fields={FIELDS} onLfoChange={() => {}} renderField={renderField} heldOff={{ low: true }} />);
   });
 
   describe('memoization (docs/todo/backlog.md #27 follow-up, 2026-09-15)', () => {

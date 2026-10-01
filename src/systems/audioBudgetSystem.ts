@@ -93,10 +93,6 @@ function reconcile(force = false): void {
   applyLfoTiers(limits, force);
 }
 
-function syncHeldOff(): void {
-  useAudioStore.getState().setHeldOffLfoKeys(lfoEngine.getHeldOffLfoKeys());
-}
-
 /**
  * The LFO tiers (docs/specs/AUDIO_LOAD_BUDGET.md §1.4): install the policy lfoEngine consults (EQ-gain LFOs always, filter
  * frequency/Q only above the filter threshold, robot LFOs always — docs/specs/LFO_BANK.md Task 2 removed the cap), turn
@@ -113,7 +109,7 @@ function applyLfoTiers(limits: LoadLimits, force = false): void {
   lfoEngine.setDriftEnabled(limits.driftEnabled);
   lfoEngine.reconcileLfos();
   useAudioStore.getState().setDriftHeldOff(!limits.driftEnabled);
-  syncHeldOff();
+  useAudioStore.getState().setFilterLinksHeldOff(!limits.filterLfosEnabled);
 }
 
 /**
@@ -178,8 +174,6 @@ export function startAudioBudget(): void {
   reconcile(true); // always establish the engine's set, even when it is empty
 
   unsubscribers = [
-    // A robot LFO the user enables over the cap is held off inside lfoEngine, not through this system — mirror it at once.
-    lfoEngine.subscribeHeldOff(syncHeldOff),
     useLocaleStore.subscribe(onPossibleRosterChange),
     // The active locale id lives in the Attenuation Style store, so a locale switch needs its own listener.
     useAttenuationStyleStore.subscribe(onPossibleRosterChange),
@@ -214,5 +208,5 @@ export function stopAudioBudget(): void {
   lfoEngine.setDriftEnabled(true);
   lfoEngine.reconcileLfos();
   useAudioStore.getState().setDriftHeldOff(false);
-  useAudioStore.getState().setHeldOffLfoKeys([]);
+  useAudioStore.getState().setFilterLinksHeldOff(false);
 }

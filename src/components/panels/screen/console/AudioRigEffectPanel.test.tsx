@@ -87,7 +87,7 @@ function resetAudioStore() {
     robotLoad: 1,
     effectsLoad: 1,
     soundingRobotIds: [],
-    heldOffLfoKeys: [],
+    filterLinksHeldOff: false,
     driftHeldOff: false,
   });
 }
@@ -303,17 +303,17 @@ describe('AudioRigEffectPanel', () => {
     });
   });
 
-  describe('Audio Load: held-off LFOs', () => {
+  describe('Audio Load: filterLinksHeldOff (docs/tasks/LFO_BANK.md Task 3)', () => {
     const HELD_OFF = 'Held off by Audio Load';
     const frame = (container: HTMLElement) => container.querySelector<HTMLElement>('.sc-lfo-target-group__display')!;
     const rateOf = (f: HTMLElement) => within(f).getByRole('slider', { name: 'Rate' });
     const depthOf = (f: HTMLElement) => within(f).getByRole('slider', { name: 'Depth' });
     const isDisabled = (el: HTMLElement) => el.getAttribute('data-disabled') !== null;
 
-    it('greys out a shared LFO frame whose displayed target is held off: controls disabled, stored values kept, label shown', () => {
+    it('greys out the LPF frame while filterLinksHeldOff is true: controls disabled, stored values kept, label shown', () => {
       useAudioStore.setState((s) => ({
         globalLfo: { ...s.globalLfo, 'lpf.frequency': { shape: 'square', rate: 3, depth: 45 } },
-        heldOffLfoKeys: ['lpf.frequency'],
+        filterLinksHeldOff: true,
       }));
       const { container } = render(<AudioRigEffectPanel effectKey="filterLPF" />);
       const lpf = frame(container);
@@ -328,15 +328,24 @@ describe('AudioRigEffectPanel', () => {
       expect(lpf.querySelector('.sc-lfo.sc-held-off')).toBeTruthy();
     });
 
-    it('restores the real stored value (not 0) the moment the frame stops being held off', async () => {
+    it('greys out the HPF frame too — the flag covers both filter blocks', () => {
+      useAudioStore.setState({ filterLinksHeldOff: true });
+      const { container } = render(<AudioRigEffectPanel effectKey="filterHPF" />);
+      const hpf = frame(container);
+
+      expect(isDisabled(rateOf(hpf))).toBe(true);
+      expect(within(hpf).getByText(HELD_OFF)).toBeTruthy();
+    });
+
+    it('restores the real stored value (not 0) the moment filterLinksHeldOff goes false', async () => {
       useAudioStore.setState((s) => ({
         globalLfo: { ...s.globalLfo, 'lpf.frequency': { shape: 'square', rate: 3, depth: 45 } },
-        heldOffLfoKeys: ['lpf.frequency'],
+        filterLinksHeldOff: true,
       }));
       const { container } = render(<AudioRigEffectPanel effectKey="filterLPF" />);
       expect(rateOf(frame(container)).getAttribute('aria-valuenow')).toBe('0');
 
-      act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
+      act(() => useAudioStore.setState({ filterLinksHeldOff: false }));
       // SliderLinear/SliderLog now ease a non-drag value change over 250ms (Crawford's own
       // request) — the shared gsap mock (vitest.setup.ts) settles the tween's onComplete on the
       // next microtask.
@@ -347,8 +356,8 @@ describe('AudioRigEffectPanel', () => {
       expect(frame(container).querySelector('.sc-lfo.sc-held-off')).toBeNull();
     });
 
-    it('leaves an unrelated block\'s frame enabled and unlabelled — EQ-gain LFOs stay editable while all four filter LFOs are held off (Light)', () => {
-      useAudioStore.setState({ heldOffLfoKeys: ['lpf.frequency', 'lpf.Q', 'hpf.frequency', 'hpf.Q'] });
+    it('leaves EQ\'s frame enabled and unlabelled while filterLinksHeldOff is true — EQ-gain links are never held off', () => {
+      useAudioStore.setState({ filterLinksHeldOff: true });
       const { container } = render(<AudioRigEffectPanel effectKey="eq3" />);
       const eq = frame(container);
 
@@ -356,28 +365,28 @@ describe('AudioRigEffectPanel', () => {
       expect(within(eq).queryByText(HELD_OFF)).toBeNull();
     });
 
-    it('a frame with nothing held off is enabled and unlabelled (Full, or before the budget runs)', () => {
+    it('a frame is enabled and unlabelled when filterLinksHeldOff is false (Full, or before the budget runs)', () => {
       const { container } = render(<AudioRigEffectPanel effectKey="filterLPF" />);
       const f = frame(container);
       expect(isDisabled(rateOf(f))).toBe(false);
       expect(within(f).queryByText(HELD_OFF)).toBeNull();
     });
 
-    it('re-enables the moment the LFO stops being held off, with no reload', () => {
-      useAudioStore.setState({ heldOffLfoKeys: ['lpf.frequency'] });
+    it('re-enables the moment filterLinksHeldOff flips back to false, with no reload', () => {
+      useAudioStore.setState({ filterLinksHeldOff: true });
       const { container } = render(<AudioRigEffectPanel effectKey="filterLPF" />);
       expect(isDisabled(rateOf(frame(container)))).toBe(true);
 
-      act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
+      act(() => useAudioStore.setState({ filterLinksHeldOff: false }));
 
       expect(isDisabled(rateOf(frame(container)))).toBe(false);
       expect(within(frame(container)).queryByText(HELD_OFF)).toBeNull();
     });
 
-    it('follows which target the frame is showing: a held-off Resonance greys the frame only once Resonance is selected', async () => {
-      useAudioStore.setState({ heldOffLfoKeys: ['lpf.Q'] });
+    it('greys the LPF frame regardless of which field is currently selected (a dial-wide flag, not per-target)', async () => {
+      useAudioStore.setState({ filterLinksHeldOff: true });
       const { container } = render(<AudioRigEffectPanel effectKey="filterLPF" />);
-      expect(isDisabled(rateOf(frame(container)))).toBe(false); // showing Frequency
+      expect(isDisabled(rateOf(frame(container)))).toBe(true); // showing Frequency
 
       await act(async () => {
         screen.getByRole('slider', { name: 'Resonance' }).focus();
@@ -389,17 +398,15 @@ describe('AudioRigEffectPanel', () => {
       expect(within(frame(container)).getByText(HELD_OFF)).toBeTruthy();
     });
 
-    it('an unrelated LFO entering or leaving the held-off list does not re-render the frame at all (a per-frame boolean selector, not the whole list)', () => {
+    it('does not re-render the EQ frame when filterLinksHeldOff flips (EQ never reads the flag)', () => {
       render(<AudioRigEffectPanel effectKey="eq3" />);
       const groupRenders = (groupId: string) =>
         (useLfoTargetGroup as ReturnType<typeof vi.fn>).mock.calls.filter(([args]) => args.groupId === groupId).length;
       const eqBefore = groupRenders('audioRig.eq3');
       expect(eqBefore).toBeGreaterThan(0);
 
-      // hpf.Q is not the displayed target of eq3 (which shows 'low', its own first field), so it may not re-render.
-      act(() => useAudioStore.setState({ heldOffLfoKeys: ['hpf.Q'] }));
-      act(() => useAudioStore.setState({ heldOffLfoKeys: ['hpf.Q', 'eq3.mid'] }));
-      act(() => useAudioStore.setState({ heldOffLfoKeys: [] }));
+      act(() => useAudioStore.setState({ filterLinksHeldOff: true }));
+      act(() => useAudioStore.setState({ filterLinksHeldOff: false }));
 
       expect(groupRenders('audioRig.eq3')).toBe(eqBefore);
     });
