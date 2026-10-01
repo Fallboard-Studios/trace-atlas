@@ -11,6 +11,7 @@
  * beyond localeStore/AudioEngine/lfoEngine/regenerateMelody. Selection state is a caller concern.
  */
 import { applyRobotLfoToEngine, primeRobotLfos } from './robotLfoPriming';
+import { applyRobotLinkToEngine } from './robotLfoLinks';
 import { useLocaleStore } from '@/stores/localeStore';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { regenerateMelody } from '@/engine/regenerateMelody';
@@ -19,7 +20,7 @@ import type { StepperWithToggleValue } from '@/components/ui/controls/StepperWit
 import type { Robot, ADSREnvelope } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 import type { LfoValue } from '@/types/controls';
-import type { RobotLfoTargetId } from '@/types/lfo';
+import type { RobotLfoTargetId, LfoLink } from '@/types/lfo';
 
 // ========================================
 // AUDIO SETTING / VOLUME (RobotDisplaySection.tsx today)
@@ -144,4 +145,12 @@ export function applyLayerLfo(robot: Robot, localeId: string, target: RobotLfoTa
   const nextLfoSettings = { ...robot.lfoSettings, [target]: value } as Robot['lfoSettings'];
   useLocaleStore.getState().updateRobot(localeId, robot.id, { lfoSettings: nextLfoSettings });
   applyRobotLfoToEngine(robot.id, target, value);
+}
+
+/** The LFO Bank's per-layer link edit (docs/tasks/LFO_BANK.md) — same shape as applyLayerLfo
+ *  above, routed through the bank engine instead (robotLfoLinks.applyRobotLinkToEngine). */
+export function applyLayerLfoLink(robot: Robot, localeId: string, target: RobotLfoTargetId, link: LfoLink): void {
+  const nextLfoLinks = { ...robot.lfoLinks, [target]: link } as Robot['lfoLinks'];
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { lfoLinks: nextLfoLinks });
+  applyRobotLinkToEngine(robot.id, target, link);
 }

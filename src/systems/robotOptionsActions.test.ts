@@ -3,13 +3,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   applyAudioMode, applyVolume,
   applyDensity, applyMotifLength, applyNoteVariance, applyOctaveMin, applyOctaveMax,
-  applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo, applyClickTrackActive,
+  applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfo, applyLayerLfoLink, applyClickTrackActive,
   applyPitchRepeat,
 } from './robotOptionsActions';
 // Namespace import so a removed export can be asserted absent at runtime (same pattern
 // robotOptionsConfig.test.ts uses for its own removed schemas).
 import * as robotOptionsActionsModule from './robotOptionsActions';
 import * as robotLfoPriming from './robotLfoPriming';
+import * as robotLfoLinks from './robotLfoLinks';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { AudioEngine } from '@/engine/AudioEngine';
@@ -18,6 +19,7 @@ import * as melodyGen from '@/engine/melodyGenerator';
 import type { Robot, ADSREnvelope, MelodyEvent } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 import type { LfoValue } from '@/types/controls';
+import type { LfoLink } from '@/types/lfo';
 import type { Locale } from '@/types/locale';
 
 vi.mock('@/engine/lfoEngine', () => ({
@@ -29,6 +31,14 @@ vi.mock('@/engine/lfoEngine', () => ({
     setLfoShape: vi.fn(),
     start: vi.fn(),
     stop: vi.fn(),
+  },
+}));
+
+// The new bank engine (docs/tasks/LFO_BANK.md) — a separate module/mock from the old
+// lfoEngine.ts above; applyLayerLfoLink routes through this one exclusively.
+vi.mock('@/engine/lfoBank', () => ({
+  lfoEngine: {
+    linkTarget: vi.fn(() => true),
   },
 }));
 
@@ -414,6 +424,34 @@ describe('robotOptionsActions', () => {
       applyLayerLfo(robot, localeId, 'layer0.gain', value);
 
       expect(spy).toHaveBeenCalledWith(robot.id, 'layer0.gain', value);
+    });
+  });
+
+  describe('applyLayerLfoLink', () => {
+    it('writes lfoLinks[target], leaving other targets untouched, and links it into the bank engine', () => {
+      const robot = makeRobot({
+        lfoLinks: { 'layer1.detune': { lane: 'c', depth: 10 } } as unknown as Robot['lfoLinks'],
+      });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const link: LfoLink = { lane: 'b', depth: 55 };
+
+      applyLayerLfoLink(robot, localeId, 'layer0.gain', link);
+
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, {
+        lfoLinks: { 'layer1.detune': { lane: 'c', depth: 10 }, 'layer0.gain': link },
+      });
+    });
+
+    it('routes through the shared applyRobotLinkToEngine helper (robotLfoLinks), not a parallel implementation', () => {
+      const robot = makeRobot({ lfoLinks: {} as unknown as Robot['lfoLinks'] });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const spy = vi.spyOn(robotLfoLinks, 'applyRobotLinkToEngine');
+      const link: LfoLink = { lane: 'a', depth: 30 };
+
+      applyLayerLfoLink(robot, localeId, 'layer0.gain', link);
+
+      expect(spy).toHaveBeenCalledWith(robot.id, 'layer0.gain', link);
     });
   });
 });

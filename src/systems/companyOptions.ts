@@ -28,6 +28,7 @@ import type { OscillatorLayer } from '@/types/layeredAudio';
 // references directly, instead of defensive copies, is behavior-neutral.
 const EMPTY_LAYERS: OscillatorLayer[] = [];
 const EMPTY_LFO_SETTINGS: NonNullable<CompanyOptionsSnapshot['lfoSettings']> = {};
+const EMPTY_LFO_LINKS: NonNullable<CompanyOptionsSnapshot['lfoLinks']> = {};
 
 export function resolveCompanyOptions(lastEditedOptions: CompanyOptionsSnapshot | undefined, firstMember: Robot): Required<CompanyOptionsSnapshot> {
   const fromRobot: Required<CompanyOptionsSnapshot> = {
@@ -40,6 +41,7 @@ export function resolveCompanyOptions(lastEditedOptions: CompanyOptionsSnapshot 
     adsr: firstMember.audioAttributes.adsr,
     layers: firstMember.audioAttributes.layers ?? EMPTY_LAYERS,
     lfoSettings: firstMember.lfoSettings ?? EMPTY_LFO_SETTINGS,
+    lfoLinks: firstMember.lfoLinks ?? EMPTY_LFO_LINKS,
     clickTrackActive: firstMember.clickTrackActive ?? false,
     pitchRepeat: firstMember.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
   };

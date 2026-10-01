@@ -57,6 +57,14 @@ describe('resolveCompanyOptions', () => {
     expect(resolved.clickTrackActive).toBe(false);
   });
 
+  it('lfoLinks resolves from the first member\'s current value, falling back to an empty object when unset', () => {
+    const withLinks = makeRobot({ lfoLinks: { 'layer0.gain': { lane: 'a', depth: 40 } } as unknown as Robot['lfoLinks'] });
+    expect(resolveCompanyOptions(undefined, withLinks).lfoLinks).toEqual({ 'layer0.gain': { lane: 'a', depth: 40 } });
+
+    const withoutLinks = makeRobot({ lfoLinks: undefined });
+    expect(resolveCompanyOptions(undefined, withoutLinks).lfoLinks).toEqual({});
+  });
+
   // The Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 3): the
   // snapshot no longer carries a volumeLfo field, so the resolver must not synthesise one — even
   // when the first member's (legacy) lfoSettings still happens to hold a 'volume' entry.
