@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from './localeStore';
 import { AudioEngine } from '../engine/AudioEngine';
 import { lfoEngine } from '../engine/lfoEngine';
+import { lfoEngine as bankEngine } from '../engine/lfoBank';
 import { computeLocaleHour } from '../constants/time';
 import type { Locale } from '../types/locale';
 import type { Company } from '../types/Company';
@@ -220,6 +221,32 @@ describe('localeStore', () => {
       releaseVoiceSpy.mockRestore();
       disposeLfosSpy.mockRestore();
     });
+
+    it('disposes the robot\'s bank links too (docs/tasks/LFO_BANK.md Task 10)', () => {
+      useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+      const disposeLinksSpy = vi.spyOn(bankEngine, 'disposeRobotLinks');
+
+      useLocaleStore.getState().removeRobot(DEFAULT_LOCALE_ID, 'r1');
+
+      expect(disposeLinksSpy).toHaveBeenCalledWith('r1');
+
+      disposeLinksSpy.mockRestore();
+    });
+
+    it('disposeRobotLinks throwing does not block AudioEngine cleanup or the removal itself', () => {
+      useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+      const releaseVoiceSpy = vi.spyOn(AudioEngine, 'releaseVoice');
+      const disposeLinksSpy = vi.spyOn(bankEngine, 'disposeRobotLinks').mockImplementation(() => {
+        throw new Error('simulated failure');
+      });
+
+      expect(() => useLocaleStore.getState().removeRobot(DEFAULT_LOCALE_ID, 'r1')).not.toThrow();
+      expect(releaseVoiceSpy).toHaveBeenCalledWith('r1');
+      expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots).toHaveLength(0);
+
+      releaseVoiceSpy.mockRestore();
+      disposeLinksSpy.mockRestore();
+    });
   });
 
   describe('updateRobot', () => {
@@ -431,13 +458,16 @@ describe('localeStore', () => {
     it('removing a locale with zero robots calls no AudioEngine or LFO cleanup and does not throw', () => {
       const releaseVoiceSpy = vi.spyOn(AudioEngine, 'releaseVoice');
       const disposeLfosSpy = vi.spyOn(lfoEngine, 'disposeRobotLfos');
+      const disposeLinksSpy = vi.spyOn(bankEngine, 'disposeRobotLinks');
 
       expect(() => useLocaleStore.getState().removeLocale(DEFAULT_LOCALE_ID)).not.toThrow();
       expect(releaseVoiceSpy).not.toHaveBeenCalled();
       expect(disposeLfosSpy).not.toHaveBeenCalled();
+      expect(disposeLinksSpy).not.toHaveBeenCalled();
 
       releaseVoiceSpy.mockRestore();
       disposeLfosSpy.mockRestore();
+      disposeLinksSpy.mockRestore();
     });
 
     it('one robot\'s cleanup throwing does not block cleanup of the rest or the removal itself', () => {
@@ -470,6 +500,34 @@ describe('localeStore', () => {
       expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID]).toBeUndefined();
 
       disposeLfosSpy.mockRestore();
+    });
+
+    it('disposes every robot\'s bank links too, before removing the locale (docs/tasks/LFO_BANK.md Task 10)', () => {
+      useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+      useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r2'));
+      const disposeLinksSpy = vi.spyOn(bankEngine, 'disposeRobotLinks');
+
+      useLocaleStore.getState().removeLocale(DEFAULT_LOCALE_ID);
+
+      expect(disposeLinksSpy).toHaveBeenCalledWith('r1');
+      expect(disposeLinksSpy).toHaveBeenCalledWith('r2');
+
+      disposeLinksSpy.mockRestore();
+    });
+
+    it('one robot\'s disposeRobotLinks throwing does not block disposal of the rest or the removal itself', () => {
+      useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+      useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r2'));
+      const disposeLinksSpy = vi.spyOn(bankEngine, 'disposeRobotLinks').mockImplementation((id) => {
+        if (id === 'r1') throw new Error('simulated failure');
+      });
+
+      expect(() => useLocaleStore.getState().removeLocale(DEFAULT_LOCALE_ID)).not.toThrow();
+      expect(disposeLinksSpy).toHaveBeenCalledWith('r1');
+      expect(disposeLinksSpy).toHaveBeenCalledWith('r2');
+      expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID]).toBeUndefined();
+
+      disposeLinksSpy.mockRestore();
     });
   });
 
