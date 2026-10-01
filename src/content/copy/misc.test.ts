@@ -88,7 +88,7 @@ describe('settings', () => {
   it('audio load panel + preset keep the control text (no nav row for them)', () => {
     expect(pair(settings['settings.quality.audioLoad'])).toEqual(schemaPair(AUDIO_LOAD_PANEL_SCHEMA));
     expect(pair(settings['settings.quality.preset'])).toEqual(schemaPair(AUDIO_LOAD_PRESET_SCHEMA));
-    expect(AUDIO_LOAD_PRESET_SCHEMA.options.map((o) => [o.value, o.label])).toEqual(Object.entries(settings['settings.quality.preset'].options).map(([v, o]) => [v, o.human]));
+    expect(AUDIO_LOAD_PRESET_SCHEMA.options.map((o) => [o.value, o.humanLabel])).toEqual(Object.entries(settings['settings.quality.preset'].options).map(([v, o]) => [v, o.human]));
   });
   it('robot/effects load keep the sliders\' units; their labels are the nav\'s (conflict rows)', () => {
     expect(settings['settings.quality.robotLoad'].unit).toBe(AUDIO_ROBOT_LOAD_SCHEMA.unit);

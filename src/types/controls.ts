@@ -112,10 +112,10 @@ export interface RadioButtonSchema extends ControlSchemaBase {
    *  keeps today's ambient-accent fallback exactly as before.
    *  loreLabel is optional and additive too — an option that sets it renders both (via DualLabel,
    *  the same lore-caption-over-human-label pairing every other control primitive shows), an
-   *  option that omits it renders `label` alone exactly as before. Not every option set has a
+   *  option that omits it renders `humanLabel` alone exactly as before. Not every option set has a
    *  documented lore counterpart (docs/reference/text-content-tables.md's Waveform Names table is
    *  the only one that does today), so this is per-option, not a schema-wide requirement. */
-  options: { value: string; label: string; loreLabel?: string; color?: string }[];
+  options: { value: string; humanLabel: string; loreLabel?: string; color?: string }[];
 }
 
 export interface ToggleSchema extends ControlSchemaBase {

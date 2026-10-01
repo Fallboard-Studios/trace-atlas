@@ -28,7 +28,7 @@ describe('company content parity', () => {
     const s = buildCompanyAssignmentSchema([]);
     expect([company['company.assign'].human, company['company.assign'].lore]).toEqual([s.humanLabel, s.loreLabel]);
     const freelance = s.options.find((o) => o.value === FREELANCE_VALUE)!;
-    expect(company['company.assign'].options.freelance.human).toBe(freelance.label);
+    expect(company['company.assign'].options.freelance.human).toBe(freelance.humanLabel);
   });
 
   it('selection radio', () => {

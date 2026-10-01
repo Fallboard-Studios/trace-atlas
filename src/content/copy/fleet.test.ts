@@ -115,7 +115,7 @@ describe('fleet content parity — audioRigConfig', () => {
 
   it('decay mode options match', () => {
     const e = fleet['fleet.output.decayMode'];
-    expect(DECAY_MODE_SCHEMA.options.map((o) => [o.value, o.label, o.loreLabel])).toEqual(
+    expect(DECAY_MODE_SCHEMA.options.map((o) => [o.value, o.humanLabel, o.loreLabel])).toEqual(
       Object.entries(e.options).map(([v, o]) => [v, o.human, o.lore]),
     );
   });

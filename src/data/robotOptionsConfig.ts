@@ -46,10 +46,10 @@ export const AUDIO_SETTING_SCHEMA: RadioButtonSchema = {
   loreLabel: 'Diagnostic Feed',
   humanLabel: 'Monitor Mode',
   options: [
-    { value: 'none', label: 'Auto', loreLabel: 'Freeform' },
-    { value: 'mute', label: 'Mute', loreLabel: 'Standby' },
-    { value: 'solo', label: 'Solo', loreLabel: 'Featured' },
-    { value: 'highlight', label: 'Highlight', loreLabel: 'Elevated' },
+    { value: 'none', humanLabel: 'Auto', loreLabel: 'Freeform' },
+    { value: 'mute', humanLabel: 'Mute', loreLabel: 'Standby' },
+    { value: 'solo', humanLabel: 'Solo', loreLabel: 'Featured' },
+    { value: 'highlight', humanLabel: 'Highlight', loreLabel: 'Elevated' },
   ],
 };
 
@@ -349,11 +349,11 @@ export interface SignatureArrayLayerBlock {
  *  Triangle's word) and 'triangle' carried the now-retired "Gradient". `label` is now the human
  *  name (each option previously showed the lore word alone, with no human counterpart). */
 const LAYER_TYPE_OPTIONS = [
-  { value: 'sine', label: 'Sine', loreLabel: 'Sway' },
-  { value: 'triangle', label: 'Triangle', loreLabel: 'Sweep' },
-  { value: 'sawtooth', label: 'Sawtooth', loreLabel: 'Kinetic' },
-  { value: 'square', label: 'Square', loreLabel: 'Binary' },
-  { value: 'pulse', label: 'Pulse', loreLabel: 'Burst' },
+  { value: 'sine', humanLabel: 'Sine', loreLabel: 'Sway' },
+  { value: 'triangle', humanLabel: 'Triangle', loreLabel: 'Sweep' },
+  { value: 'sawtooth', humanLabel: 'Sawtooth', loreLabel: 'Kinetic' },
+  { value: 'square', humanLabel: 'Square', loreLabel: 'Binary' },
+  { value: 'pulse', humanLabel: 'Pulse', loreLabel: 'Burst' },
 ];
 
 function makeLayerBlock(

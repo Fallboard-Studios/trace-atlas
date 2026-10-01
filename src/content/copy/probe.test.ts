@@ -80,7 +80,7 @@ describe('probe content parity — robotOptionsConfig', () => {
   });
 
   it('monitor mode options', () => {
-    expect(AUDIO_SETTING_SCHEMA.options.map((o) => [o.value, o.label, o.loreLabel])).toEqual(
+    expect(AUDIO_SETTING_SCHEMA.options.map((o) => [o.value, o.humanLabel, o.loreLabel])).toEqual(
       Object.entries(e('probe.monitorMode').options!).map(([v, o]) => [v, o.human, o.lore]),
     );
   });
@@ -93,9 +93,9 @@ describe('probe content parity — robotOptionsConfig', () => {
     const FIELD = { type: 'type', gain: 'gain', detune: 'detune', phase: 'phase', pulseWidth: 'interval' } as const;
     for (const p of block.params) {
       const k = `probe.source.${layer}.${FIELD[p.field]}` as ProbeKey;
-      const s = p.schema as ControlSchema & { unit?: string; options?: { value: string; label: string; loreLabel?: string }[] };
+      const s = p.schema as ControlSchema & { unit?: string; options?: { value: string; humanLabel: string; loreLabel?: string }[] };
       expect([e(k).human, e(k).lore, e(k).unit], k).toEqual([s.humanLabel, s.loreLabel, s.unit]);
-      if (s.options) expect(s.options.map((o) => [o.value, o.label, o.loreLabel])).toEqual(Object.entries(e(k).options!).map(([v, o]) => [v, o.human, o.lore]));
+      if (s.options) expect(s.options.map((o) => [o.value, o.humanLabel, o.loreLabel])).toEqual(Object.entries(e(k).options!).map(([v, o]) => [v, o.human, o.lore]));
     }
   });
 });

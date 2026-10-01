@@ -99,7 +99,7 @@ describe('robotOptionsConfig', () => {
   });
 
   it("Audio Setting's 'none' option is labeled 'Auto', not 'Off' (docs/specs/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.3)", () => {
-    expect(AUDIO_SETTING_SCHEMA.options.find((o) => o.value === 'none')?.label).toBe('Auto');
+    expect(AUDIO_SETTING_SCHEMA.options.find((o) => o.value === 'none')?.humanLabel).toBe('Auto');
   });
 
   it('Click Track is a toggle, labeled "Click Track"', () => {

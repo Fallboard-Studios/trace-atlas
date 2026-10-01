@@ -260,8 +260,8 @@ describe('DECAY_MODE_SCHEMA', () => {
 
   it('has exactly two options — Natural Decay and Controlled Decay, in that order, each with its own lore label', () => {
     expect(DECAY_MODE_SCHEMA.options).toEqual([
-      { value: 'natural', label: 'Natural Decay', loreLabel: 'Dissipation' },
-      { value: 'controlled', label: 'Controlled Decay', loreLabel: 'Clamped' },
+      { value: 'natural', humanLabel: 'Natural Decay', loreLabel: 'Dissipation' },
+      { value: 'controlled', humanLabel: 'Controlled Decay', loreLabel: 'Clamped' },
     ]);
   });
 });
@@ -662,7 +662,7 @@ describe('SPEED_AUTOMATION_PANEL_SCHEMA no longer exists (docs/specs/AUTOMATION_
 describe('AUDIO_LOAD_PRESET_SCHEMA', () => {
   it('is a radio in the audioRig.* namespace offering exactly Light, Standard and Full', () => {
     expect(AUDIO_LOAD_PRESET_SCHEMA).toMatchObject({ type: 'radio', id: 'audioRig.audioLoadPreset' });
-    expect(AUDIO_LOAD_PRESET_SCHEMA.options.map((o) => o.label)).toEqual(['Light', 'Standard', 'Full']);
+    expect(AUDIO_LOAD_PRESET_SCHEMA.options.map((o) => o.humanLabel)).toEqual(['Light', 'Standard', 'Full']);
   });
 
   it('uses the preset names audioBudget.ts parses (?load=light|standard|full) as its option values', () => {

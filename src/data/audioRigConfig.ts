@@ -175,8 +175,8 @@ export const DECAY_MODE_SCHEMA: RadioButtonSchema = {
   loreLabel: 'Decay Protocol',
   humanLabel: 'Decay Mode',
   options: [
-    { value: 'natural', label: 'Natural Decay', loreLabel: 'Dissipation' },
-    { value: 'controlled', label: 'Controlled Decay', loreLabel: 'Clamped' },
+    { value: 'natural', humanLabel: 'Natural Decay', loreLabel: 'Dissipation' },
+    { value: 'controlled', humanLabel: 'Controlled Decay', loreLabel: 'Clamped' },
   ],
 };
 
@@ -380,9 +380,9 @@ export const AUDIO_LOAD_PRESET_SCHEMA: RadioButtonSchema = {
   loreLabel: 'ACOUSTIC LOAD PROTOCOL',
   humanLabel: 'Preset',
   options: [
-    { value: 'light', label: 'Light' },
-    { value: 'standard', label: 'Standard' },
-    { value: 'full', label: 'Full' },
+    { value: 'light', humanLabel: 'Light' },
+    { value: 'standard', humanLabel: 'Standard' },
+    { value: 'full', humanLabel: 'Full' },
   ],
 };
 

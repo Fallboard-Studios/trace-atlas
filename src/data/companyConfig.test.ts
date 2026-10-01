@@ -44,15 +44,15 @@ describe('companyConfig', () => {
       const schema = buildCompanyAssignmentSchema(companies);
 
       expect(schema.type).toBe('radio');
-      expect(schema.options[0]).toEqual({ value: FREELANCE_VALUE, label: 'Freelance' });
-      expect(schema.options[1]).toEqual({ value: 'c1', label: 'Iron Consortium', color: '#4f6d7a' });
-      expect(schema.options[2]).toEqual({ value: 'c2', label: 'Null Syndicate', color: '#65617f' });
+      expect(schema.options[0]).toEqual({ value: FREELANCE_VALUE, humanLabel: 'Freelance' });
+      expect(schema.options[1]).toEqual({ value: 'c1', humanLabel: 'Iron Consortium', color: '#4f6d7a' });
+      expect(schema.options[2]).toEqual({ value: 'c2', humanLabel: 'Null Syndicate', color: '#65617f' });
       expect(schema.options).toHaveLength(3);
     });
 
     it('returns just the Freelance option when there are no companies yet', () => {
       const schema = buildCompanyAssignmentSchema([]);
-      expect(schema.options).toEqual([{ value: FREELANCE_VALUE, label: 'Freelance' }]);
+      expect(schema.options).toEqual([{ value: FREELANCE_VALUE, humanLabel: 'Freelance' }]);
     });
 
     it('is namespaced under "company." like every other schema in this file', () => {
@@ -80,8 +80,8 @@ describe('companyConfig', () => {
 
       expect(schema.type).toBe('radio');
       expect(schema.options).toEqual([
-        { value: 'c1', label: 'Iron Consortium', color: '#4f6d7a' },
-        { value: 'c2', label: 'Null Syndicate', color: '#65617f' },
+        { value: 'c1', humanLabel: 'Iron Consortium', color: '#4f6d7a' },
+        { value: 'c2', humanLabel: 'Null Syndicate', color: '#65617f' },
       ]);
     });
 

@@ -34,8 +34,8 @@ export function buildCompanyAssignmentSchema(companies: Company[]): RadioButtonS
     humanLabel: 'Company',
     options: [
       // No color — ambient fallback (the robot card's own identityColor, cascaded from its <li>).
-      { value: FREELANCE_VALUE, label: 'Freelance' },
-      ...companies.map((c) => ({ value: c.id, label: c.name, color: c.color })),
+      { value: FREELANCE_VALUE, humanLabel: 'Freelance' },
+      ...companies.map((c) => ({ value: c.id, humanLabel: c.name, color: c.color })),
     ],
   };
 }
@@ -54,7 +54,7 @@ export function buildCompanySelectionSchema(companies: Company[]): RadioButtonSc
     type: 'radio',
     loreLabel: 'REGISTERED CONSORTIA',
     humanLabel: 'Company Selection',
-    options: companies.map((c) => ({ value: c.id, label: c.name, color: c.color })),
+    options: companies.map((c) => ({ value: c.id, humanLabel: c.name, color: c.color })),
   };
 }
 
