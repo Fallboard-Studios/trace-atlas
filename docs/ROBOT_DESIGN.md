@@ -71,6 +71,8 @@ their day/night behavior is unchanged.
 
 `audioAttributes` (`adsr`, `waveform`, `filterFreq`, `layers`, `visualAudioMap`) is fully serializable and lives on `Robot` in Zustand (see [src/types/Robot.ts](../src/types/Robot.ts)). Visual props are recomputed from this data at render time — never construct Tone.js objects, and never store computed shape/color props back in state.
 
+`filterFreq` is audible as well as visible: it is the cutoff of the robot's per-voice bus low-pass (`AudioEngine.reserveVoice`'s `filterFreq` parameter — see AUDIO_SYSTEM.md "Signal Graph"), so the detail level and greeble count it drives correspond to a real difference in timbre. Until 2026-09-30 that bus filter was a fixed 1,200 Hz and the mapping was visual-only.
+
 `AudioVisualInspector.tsx` (`src/components/debug/`) exposes the live mapping for debugging.
 
 ## Forbidden Patterns

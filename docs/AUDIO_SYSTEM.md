@@ -76,7 +76,7 @@ export const AudioEngine = {
   scheduleNote: (params: { robotId: string; note: string; duration: NoteDuration; time?: number; velocity?: number; accentMultiplier?: number }) => void,
 
   // Voice management
-  reserveVoice: (robotId: string, descriptor: OscillatorLayer[] | { base?: WaveformType; layers?: OscillatorLayer[] }, adsr: ADSREnvelope, phase?: number, detune?: number, pulseWidth?: number, masterVolume?: number) => boolean,
+  reserveVoice: (robotId: string, descriptor: OscillatorLayer[] | { base?: WaveformType; layers?: OscillatorLayer[] }, adsr: ADSREnvelope, phase?: number, detune?: number, pulseWidth?: number, masterVolume?: number, filterFreq?: number) => boolean,  // filterFreq = the robot's seeded bus low-pass cutoff (Hz); 0 = fully open; omitted = legacy fixed 1,200 Hz
   releaseVoice: (robotId: string) => void,
   reReserveVoice: (robotId: string) => boolean,
   updateVoiceLayerParams: (robotId: string, layers: OscillatorLayer[]) => void,
@@ -229,7 +229,7 @@ Two fixed topologies, not a general reorder mechanism — selected by one boolea
 
 Control the global chain via `AudioEngine.setGlobal*` (see API above) for individual effect parameters — there is no separate bypass surface; `audioStore.setCompressorBeforeDelay` (not part of the `AudioEngine` surface — it calls `globalFx.ts` directly) for the topology swap.
 
-The per-robot `panner` is refreshed once per 16th-note tick from the robot's live GSAP x (`updateAllPanners`), but the pan is only *written* when it has changed by more than `PAN_WRITE_EPSILON` since the last write — Tone's `Param.value` setter is `cancelScheduledValues` + `setValueAtTime`, and robots are stationary most of the time. `busFilter` is a fixed 1,200 Hz / Q 1 low-pass; nothing changes it after reservation.
+The per-robot `panner` is refreshed once per 16th-note tick from the robot's live GSAP x (`updateAllPanners`), but the pan is only *written* when it has changed by more than `PAN_WRITE_EPSILON` since the last write — Tone's `Param.value` setter is `cancelScheduledValues` + `setValueAtTime`, and robots are stationary most of the time. `busFilter` is a Q 1 low-pass whose cutoff is the robot's own seeded `audioAttributes.filterFreq` (400–2500 Hz, `spawnSystem`'s `FILTER_FREQ_RANGE`), passed into `reserveVoice` by every reservation path (spawn, `reRegisterAllRobotsAudio`, `reReserveVoice`, the post-load pass). This is the audible half of ROBOT_DESIGN's visual↔audio mapping: the same number drives body detail and greeble count. From the composite-voice rewrite until 2026-09-30 the cutoff was hardcoded to 1,200 Hz and `filterFreq` had no audible effect at all; a caller that omits it still gets that legacy value. `0` means "no filter" (opened to 20 kHz). Set once at reservation — there is no live update path or UI control for it yet.
 
 ## LFO Modulation
 

@@ -135,6 +135,24 @@ const compositeVoices: Map<string, {
 // Per-robot note counter used for deterministic seeded sampling (mod 97)
 const robotNoteIndex = new Map<string, number>();
 
+/**
+ * Per-robot bus low-pass cutoff used when a caller passes no `filterFreq` — the value every bus
+ * filter was hardcoded to from the composite-voice rewrite until the robot's own seeded
+ * `audioAttributes.filterFreq` was wired through (it drove body detail/greeble count the whole
+ * time, but never the sound). Sits inside spawnSystem's FILTER_FREQ_RANGE (400–2500 Hz).
+ */
+const ROBOT_BUS_FILTER_DEFAULT_HZ = 1200;
+/** `filterFreq: 0` means "no filter" (Robot.ts) — open the low-pass to the top of the audible band. */
+const ROBOT_BUS_FILTER_OPEN_HZ = 20000;
+const ROBOT_BUS_FILTER_Q = 1;
+
+/** Resolve a robot's bus-filter cutoff from its `filterFreq`, honouring the two special cases above. */
+function resolveBusFilterCutoff(filterFreq: number | undefined): number {
+  if (filterFreq === undefined || Number.isNaN(filterFreq)) return ROBOT_BUS_FILTER_DEFAULT_HZ;
+  if (filterFreq <= 0) return ROBOT_BUS_FILTER_OPEN_HZ;
+  return filterFreq;
+}
+
 // Last pan value written to each reserved robot's panner — see updateAllPanners.
 const lastPanByRobot = new Map<string, number>();
 /** Pan is in [-0.5, 0.5]; a change under this is inaudible and not worth an automation event. */
@@ -236,6 +254,7 @@ async function loadInstruments(): Promise<void> {
               robot.audioAttributes?.detune,
               (robot.audioAttributes as unknown as { layers?: OscillatorLayer[] })?.layers?.[0]?.pulseWidth,
               robot.masterVolume,
+              robot.audioAttributes?.filterFreq,
             );
           }
         } catch (err) {
@@ -605,6 +624,11 @@ export const AudioEngine = {
    *   baked into any note's own trigger — it's a continuously-live AudioParam on the bus every
    *   note from this robot passes through, updatable afterward via `updateRobotMasterVolume`
    *   without re-reserving.
+   * @param filterFreq - The robot's seeded `audioAttributes.filterFreq` (Hz): the cutoff of the
+   *   per-robot bus low-pass (`composite.output → panner → busGain → busFilter → chain entry`).
+   *   This is the audible side of ROBOT_DESIGN's visual↔audio mapping — the same number already
+   *   drives body detail and greeble count. `0` opens the filter fully ("no filter", Robot.ts);
+   *   omitted keeps the legacy fixed 1,200 Hz so older callers/fixtures sound as before.
    */
   reserveVoice(
     robotId: string,
@@ -614,6 +638,7 @@ export const AudioEngine = {
     detune?: number,
     pulseWidth?: number,
     masterVolume?: number,
+    filterFreq?: number,
   ): boolean {
     try {
       const audibleDescriptor = filterAudibleLayers(descriptor);
@@ -624,9 +649,10 @@ export const AudioEngine = {
       const FilterCtor = getToneCtor<Tone.Filter>('Filter');
 
       const initialBusGain = volumePositionToGain(masterVolume ?? 1);
+      const busCutoff = resolveBusFilterCutoff(filterFreq);
       const panner = PannerCtor ? new PannerCtor({ pan: 0 }) : makeStubPanner() as unknown as Tone.Panner;
       const busGain = GainCtorLocal ? new GainCtorLocal(initialBusGain) : makeStubGain(initialBusGain) as unknown as Tone.Gain;
-      const busFilter = FilterCtor ? new FilterCtor({ frequency: 1200, Q: 1 }) : makeStubFilter() as unknown as Tone.Filter;
+      const busFilter = FilterCtor ? new FilterCtor({ frequency: busCutoff, Q: ROBOT_BUS_FILTER_Q }) : makeStubFilter() as unknown as Tone.Filter;
 
       // Connect graph: composite.output -> panner -> busGain -> busFilter -> master compressor/destination
       try { composite.output.connect(panner); } catch (e) { devWarn('[AudioEngine] composite.output.connect failed', e); }
@@ -789,6 +815,7 @@ export const AudioEngine = {
         robot.audioAttributes?.detune,
         (robot.audioAttributes as unknown as { layers?: OscillatorLayer[] })?.layers?.[0]?.pulseWidth,
         robot.masterVolume,
+        robot.audioAttributes?.filterFreq,
       );
     } catch (err) {
       devWarn('[AudioEngine] reReserveVoice failed', err);

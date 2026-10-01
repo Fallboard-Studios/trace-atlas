@@ -217,7 +217,7 @@ describe('AudioEngine.reReserveVoice', () => {
               audioAttributes: {
                 waveform: 'sine',
                 adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.5 },
-                filterFreq: 1200,
+                filterFreq: 1850,
                 layers: [{ type: 'sine', pulseWidth: 0.42 }],
                 phase: 37,
                 detune: 5,
@@ -247,7 +247,40 @@ describe('AudioEngine.reReserveVoice', () => {
       5,
       0.42,
       0.8,
+      // filterFreq (1850, the robot's own seeded cutoff) is the 8th — the per-robot bus
+      // low-pass. A non-default value here, so a dropped argument can't pass by coincidence.
+      1850,
     );
+  });
+});
+
+describe('AudioEngine.reserveVoice — per-robot bus filter cutoff', () => {
+  // Each robot's seeded `audioAttributes.filterFreq` (Robot.ts: "Hz cutoff, 0 = no filter") drives
+  // its body detail and greeble count, but until this landed nothing applied it to audio — every
+  // bus filter was a fixed 1,200 Hz. ROBOT_DESIGN's visual↔audio mapping needs it audible.
+  const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+  const lastFilterCtorConfig = async () => {
+    const Tone = await import('tone');
+    return (Tone.Filter as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as { frequency: number; Q: number };
+  };
+
+  afterEach(() => {
+    AudioEngine.releaseVoice('bus-filter-robot');
+  });
+
+  it('builds the bus filter at the robot\'s own filterFreq', async () => {
+    AudioEngine.reserveVoice('bus-filter-robot', layered, TEST_ADSR, undefined, undefined, undefined, 1, 1850);
+    expect(await lastFilterCtorConfig()).toMatchObject({ frequency: 1850, Q: 1 });
+  });
+
+  it('keeps the legacy 1,200 Hz default when no filterFreq is passed', async () => {
+    AudioEngine.reserveVoice('bus-filter-robot', layered, TEST_ADSR);
+    expect((await lastFilterCtorConfig()).frequency).toBe(1200);
+  });
+
+  it('treats filterFreq 0 as "no filter" (fully open cutoff), per Robot.ts', async () => {
+    AudioEngine.reserveVoice('bus-filter-robot', layered, TEST_ADSR, undefined, undefined, undefined, 1, 0);
+    expect((await lastFilterCtorConfig()).frequency).toBe(20000);
   });
 });
 
