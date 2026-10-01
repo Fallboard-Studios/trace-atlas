@@ -5,8 +5,6 @@ import * as Tone from 'tone';
 import gsap from 'gsap';
 import { useLocaleStore } from '../stores/localeStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
-import { lfoEngine } from './lfoEngine';
-import { primeRosterLfos } from '../systems/robotLfoPriming';
 
 import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
@@ -489,53 +487,47 @@ export const AudioEngine = {
       await transport.start();
     }
 
-    // Prime lfoEngine from the current globalLfo state and connect+start
-    // every target with a nonzero rate — this is the one point guaranteed to
-    // run after Tone.start()/transport.start() have succeeded, so it's the only safe
-    // place to construct the underlying Tone.LFO nodes. AS-sync's
-    // regenerateGlobalLfoFromSeed (audioStore.ts) is deliberately data-only
-    // for exactly this reason — it runs before any user gesture.
-    // Dynamic import, deliberately: audioStore.ts's GLOBAL_SETTER reads
-    // AudioEngine.setGlobal* eagerly at its own module scope, so a top-level
-    // `import { useAudioStore } from '../stores/audioStore'` here would force
-    // audioStore.ts to evaluate mid-way through AudioEngine.ts's own module
-    // evaluation, before the `AudioEngine` export exists yet (verified: this
-    // threw "Cannot read properties of undefined (reading 'setGlobalCompressor')"
-    // when tried as a static import).
+    // Prime the LFO Bank from the current seeded state and link every global target with its
+    // stored link (docs/specs/LFO_BANK.md) — this is the one point guaranteed to run after
+    // Tone.start()/transport.start() have succeeded, so it's the only safe place to construct the
+    // underlying Tone.LFO lane nodes. AS-sync's regenerateLfoBankFromSeed/
+    // regenerateGlobalLfoLinksFromSeed (audioStore.ts) are deliberately data-only for exactly this
+    // reason — they run before any user gesture.
+    // Dynamic import, deliberately: audioStore.ts's GLOBAL_SETTER reads AudioEngine.setGlobal*
+    // eagerly at its own module scope (see this function's own earlier verified-by-trying note),
+    // and lfoBank.ts imports AudioEngine itself (for its modulation-target resolvers) — a static
+    // top-level import of either here would be circular/premature.
     try {
       const { useAudioStore, applyGlobalAudioToEngine } = await import('../stores/audioStore');
-      const { globalAudio, globalLfo } = useAudioStore.getState();
+      const { lfoEngine: bankEngine } = await import('./lfoBank');
+      const { globalAudio, lfoBank, globalLfoLinks } = useAudioStore.getState();
       // buildGlobalFxChain() (above) just constructed every FX node from its
       // own hardcoded literal defaults — not whatever's already seeded in
       // globalAudio. regenerateGlobalAudioFromSeed's own push (AS-sync,
       // module load) ran long before these nodes existed, so it landed as a
       // no-op; re-apply the current state now that real nodes exist. Must
-      // run before the LFO priming loop below: connectLfoTarget's swing math
-      // reads each target's CURRENT value, so EQ/filter values need to be
-      // correct first.
+      // run before the link loop below: linkTarget's swing math reads each
+      // target's CURRENT value, so EQ/filter values need to be correct first.
       applyGlobalAudioToEngine(globalAudio);
+      bankEngine.primeLfoBank(lfoBank);
       for (const target of GLOBAL_LFO_TARGET_IDS) {
-        const settings = globalLfo[target];
-        lfoEngine.setLfoShape(target, settings.shape);
-        lfoEngine.setLfoRate(target, settings.rate);
-        lfoEngine.setLfoDepth(target, settings.depth);
-        if (settings.rate > 0 && lfoEngine.connectLfoTarget(target)) {
-          lfoEngine.start(target);
-        }
+        bankEngine.linkTarget(target, globalLfoLinks[target]);
       }
     } catch (err) {
-      devWarn('[AudioEngine] priming global LFOs failed', err);
+      devWarn('[AudioEngine] priming the LFO bank failed', err);
     }
 
-    // Robot half of the same priming (docs/specs/LFO_LOAD_FIX.md Task 8): a robot that spawned
-    // before AudioEngine was initialized already had its composite voice reserved by the
-    // post-load reservation pass in loadInstruments() above, but nothing primed its seeded LFO
-    // settings into lfoEngine until now. Runs after the global loop above for the same reason
-    // that loop's own comment gives: connectLfoTarget's swing math reads live state.
+    // Robot half of the same priming: a robot that spawned before AudioEngine was initialized
+    // already had its composite voice reserved by the post-load reservation pass in
+    // loadInstruments() above, but nothing linked its seeded lane links into the bank until now.
+    // Runs after the bank priming above for the same reason that block's own comment gives:
+    // linkTarget's swing math reads live state. Dynamic import for the same reason as lfoBank.ts
+    // above — robotLfoLinks.ts imports it.
     try {
-      primeRosterLfos(getActiveLocaleRobots());
+      const { primeRosterLinks } = await import('../systems/robotLfoLinks');
+      primeRosterLinks(getActiveLocaleRobots());
     } catch (err) {
-      devWarn('[AudioEngine] priming robot LFOs failed', err);
+      devWarn('[AudioEngine] priming robot LFO links failed', err);
     }
 
     initBeatClock(transport);
