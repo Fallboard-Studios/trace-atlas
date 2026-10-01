@@ -30,6 +30,7 @@ TL;DR (core constraints)
 - State must stay in Zustand and remain JSON-serializable; keep runtime-only objects such as timelines, refs, and synth instances outside state.
 - Polyphony defaults to MAX_POLYPHONY = 16.
 - Apply MIN_LEAD ≈ 50–100ms when scheduling audio.
+- User-facing text lives in `src/content/` (one entry per concept, read via `labels()`/`options()`/`intro()`/`fill()`); never write a display string in a component or data config — ESLint and `src/content/content.test.ts` enforce it.
 
 Absolutely forbidden (quick list)
 - Creating Tone synths in React components.
@@ -66,6 +67,7 @@ Reference docs
 - `docs/COMPANIES.md`: Company grouping — the `Company`/`CompanyOptionsSnapshot` shape, seeded spawn-time generation, and the broadcast-not-link bulk-edit semantics. Roadmap Phase 10.
 - `docs/SESSION_STORAGE.md`: Local session save/load — the "Sessions" Settings accordion, named saves, the 6-slot autosave, and the robot/company-override diff model. Shipped, roadmap Phase 20. (No URL involvement — that's the separate, not-yet-built Phase 21.)
 - `docs/PERFORMANCE.md`: Main-thread profiling — the `npm run perf` harness (`scripts/perf/profile.mjs`), its method and caveats, and the running baseline table (long tasks vs Tone's 100 ms lookahead) that roadmap 17.2.2–17.2.5 are verified against.
+- `docs/CONTENT_LAYER.md`: The content layer — every user-facing string in `src/content/`, keyed by concept; the entry shape, key rules, the `labels`/`options`/`intro`/`fill` helpers, and the ESLint + test guard that keeps literals out of components and configs. Copy *voice* rules stay in `docs/reference/copy-tone-guide.md`.
 - `docs/CONSOLE_THEMING.md`: Seed-driven console chrome theming — built, wired up, evaluated, then cut (roadmap Phase 11 marked cut). Records why (a structural tension between WCAG-safety-for-every-seed and visual variety, not a bug) and what replaced it (a hand-picked static palette in `src/index.css`).
 
 Quick checklist for PRs

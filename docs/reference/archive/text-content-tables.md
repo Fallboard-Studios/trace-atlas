@@ -1,3 +1,5 @@
+> **Superseded 2026-09-30.** The copy this table decided now lives in `src/content/` (docs/CONTENT_LAYER.md), which is the single source for every user-facing string. This file is kept as the historical record of the 2026-09-29 pass and is not maintained.
+
 # Trace Atlas: Header & Nav Copy Pass
 
 **Status: implemented.** Every Lore/Human value below is live in app source as of this pass
