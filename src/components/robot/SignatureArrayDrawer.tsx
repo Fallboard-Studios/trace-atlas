@@ -163,9 +163,12 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
   // (including 'square'), so showing Interval there was an editable control with no audible effect.
   const showPulseWidth = layer.type === 'pulse';
   const typeParam = block.params.find((p) => p.field === 'type')!;
+  // Interval/pulseWidth is no longer an LFO target (docs/specs/LFO_LOAD_FIX.md assumption 9) —
+  // it renders as its own plain row after the group, never as a targetable field inside it.
+  const pulseWidthParam = block.params.find((p) => p.field === 'pulseWidth')!;
   const lfoParams = useMemo(
-    () => block.params.filter((p) => p.field !== 'type' && (p.field !== 'pulseWidth' || showPulseWidth)),
-    [block, showPulseWidth],
+    () => block.params.filter((p) => p.lfoTarget !== undefined),
+    [block],
   );
 
   const fields = useMemo(() => lfoParams.map((p) => ({
@@ -184,6 +187,11 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
   const handleLfoChange = useCallback(
     (field: string, v: LfoValue) => onLfoFieldChange(idx, lfoParams.find((p) => p.field === field)!.lfoTarget!, v),
     [idx, lfoParams, onLfoFieldChange],
+  );
+
+  const handlePulseWidthChange = useCallback(
+    (v: number) => onParamChange(idx, 'pulseWidth', v),
+    [idx, onParamChange],
   );
 
   const renderField = useCallback((field: string) => {
@@ -234,6 +242,18 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
           heldOff={heldOff}
           renderField={renderField}
         />
+        {showPulseWidth && (
+          <div className="signature-array-drawer__param signature-array-drawer__interval">
+            <SliderLinear
+              schema={pulseWidthParam.schema as SliderLinearSchema}
+              value={paramValue(layer, 'pulseWidth')}
+              onChange={handlePulseWidthChange}
+              disabled={disabled}
+              verticalHeight={(pulseWidthParam.schema as SliderLinearSchema).verticalHeight}
+              swelling={swelling?.pulseWidth}
+            />
+          </div>
+        )}
       </div>
     </DirectionalPanel>
   );

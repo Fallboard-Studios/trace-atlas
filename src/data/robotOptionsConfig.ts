@@ -328,7 +328,6 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
   const gainTarget = `${key}.gain` as RobotLfoTargetId;
   const detuneTarget = `${key}.detune` as RobotLfoTargetId;
   const phaseTarget = `${key}.phase` as RobotLfoTargetId;
-  const pulseWidthTarget = `${key}.pulseWidth` as RobotLfoTargetId;
 
   return {
     key,
@@ -372,13 +371,15 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
         lfoTarget: phaseTarget,
       },
       {
+        // No lfoTarget — the pulseWidth LFO target was removed (docs/specs/LFO_LOAD_FIX.md
+        // assumption 9: the ≈7× cost outlier among robot LFOs, only ever live on pulse-type
+        // layers). The slider itself stays, rendered outside the layer's LfoTargetGroup.
         field: 'pulseWidth',
         schema: {
           id: `robotOptions.${key}.pulseWidth`, type: 'sliderLinear',
           ...labels(c.interval),
           min: 0, max: 1, step: 0.01, orientation: 'vertical', verticalHeight: 256,
         } satisfies SliderLinearSchema,
-        lfoTarget: pulseWidthTarget,
       },
     ],
   };

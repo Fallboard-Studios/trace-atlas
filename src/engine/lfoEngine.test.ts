@@ -491,17 +491,20 @@ describe('lfoEngine', () => {
       expect(instance.connect).toHaveBeenCalledWith(signal);
     });
 
-    it('connects to the real Signal for pulseWidth on a \'pulse\'-type layer', async () => {
+    // The pulseWidth LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 4).
+    // AudioEngine no longer resolves a Signal for it, so a real connect never happens; this pins
+    // the engine's own half — pulseWidth is no longer a ranged robot field, so even if a caller
+    // somehow offered a Signal, no swing range would be derived (min/max stay at Tone's defaults).
+    it('derives no swing range for the removed pulseWidth field — lfo.min/max stay at Tone\'s defaults even if a Signal is offered', async () => {
       const { AudioEngine } = await import('./AudioEngine');
-      const signal = fakeSignal();
-      (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockReturnValueOnce(signal);
+      (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockReturnValueOnce(fakeSignal(0.5));
 
       const { lfoEngine } = await import('./lfoEngine');
-      const result = lfoEngine.connectLfoTarget('layer0.pulseWidth', 'robot-a');
+      lfoEngine.connectLfoTarget('layer0.pulseWidth' as never, 'robot-a');
 
-      expect(result).toBe(true);
       const instance = await latestLfoInstance();
-      expect(instance.connect).toHaveBeenCalledWith(signal);
+      expect(instance.min).toBe(0);
+      expect(instance.max).toBe(1);
     });
 
     it('is idempotent when called twice in a row on the same target/signal — never issues a second .connect(), so the same LFO can never double-modulate a target', async () => {
@@ -577,11 +580,11 @@ describe('lfoEngine', () => {
         expect(instance.max).toBe(50);
       });
 
-      it('shrinks the swing when the base value sits near the top of its range, for the robot Volume target (0-2, base 1.8 -> +-0.2, not +-1)', async () => {
+      it('shrinks the swing when the base value sits near the top of its range, for a robot Gain target (0-2, base 1.8 -> +-0.2, not +-1)', async () => {
         const { AudioEngine } = await import('./AudioEngine');
         (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockReturnValueOnce(fakeSignal(1.8));
         const { lfoEngine } = await import('./lfoEngine');
-        lfoEngine.connectLfoTarget('volume', 'robot-a');
+        lfoEngine.connectLfoTarget('layer1.gain', 'robot-a');
         const instance = await latestLfoInstance();
         // toBeCloseTo, not toBe — 2 - 1.8 is a well-known floating-point
         // representation artifact, not a logic bug.
@@ -589,26 +592,15 @@ describe('lfoEngine', () => {
         expect(instance.max).toBeCloseTo(0.2, 10);
       });
 
-      it('regression: the robot Volume target gets a real, non-zero swing at its live node\'s actual resting value (1) — previously pinned to +-0 forever', async () => {
-        // The composite voice's `output` Gain node (what 'volume' actually
-        // resolves to — see AudioEngine.getRobotModulationTarget) is
-        // constructed at exactly 1 and never changes (compositeVoice.ts's
-        // `set({ outputGain })` path is never invoked in production). A
-        // volume field range of 0-1 — matching the *slider's* domain, not the
-        // node's — put that resting value exactly on the range's own max
-        // edge: distanceToMax = 1 - 1 = 0, so centeredSwingFromRange's
-        // min(distanceToMin, distanceToMax) was unconditionally 0. The Volume
-        // LFO connected, took rate/depth/shape, but could never audibly
-        // modulate anything, for any setting. Fixed by widening the field's
-        // declared range to 0-2 (matching 'gain', the other field backed by
-        // an identical Tone.Gain(1) node), putting 1 at the midpoint instead
-        // of the edge.
+      // The 'volume' target (and its 0-2 range, which existed only to give the composite voice's
+      // fixed-at-1 output gain a real swing) was removed — docs/specs/LFO_LOAD_FIX.md assumption 9.
+      it('derives no swing range for the removed volume field — lfo.min/max stay at Tone\'s defaults even if a Signal is offered', async () => {
         const { AudioEngine } = await import('./AudioEngine');
         (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockReturnValueOnce(fakeSignal(1));
         const { lfoEngine } = await import('./lfoEngine');
-        lfoEngine.connectLfoTarget('volume', 'robot-a');
+        lfoEngine.connectLfoTarget('volume' as never, 'robot-a');
         const instance = await latestLfoInstance();
-        expect(instance.min).toBe(-1);
+        expect(instance.min).toBe(0);
         expect(instance.max).toBe(1);
       });
 

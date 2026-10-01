@@ -1933,19 +1933,21 @@ describe('AudioEngine - getRobotModulationTarget', () => {
   it('returns null (not throw) for an unreserved robotId', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
-    expect(() => AudioEngine.getRobotModulationTarget('never-reserved', 'volume')).not.toThrow();
-    expect(AudioEngine.getRobotModulationTarget('never-reserved', 'volume')).toBeNull();
+    expect(() => AudioEngine.getRobotModulationTarget('never-reserved', 'layer0.gain')).not.toThrow();
+    expect(AudioEngine.getRobotModulationTarget('never-reserved', 'layer0.gain')).toBeNull();
   });
 
-  it('returns the composite voice\'s output gain Signal for "volume"', async () => {
+  // The 'volume' LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 4). The
+  // id can still arrive at runtime from an old session or share link, so the resolver must
+  // decline it the way it declines any unknown id — null, never a throw, never the output gain.
+  it('returns null (not throw) for the removed "volume" target, even on a reserved robot', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
     AudioEngine.reserveVoice('mod-target-volume', layered as any, TEST_ADSR);
 
-    const target = AudioEngine.getRobotModulationTarget('mod-target-volume', 'volume');
-    expect(target).not.toBeNull();
-    expect(target).toHaveProperty('value');
+    expect(() => AudioEngine.getRobotModulationTarget('mod-target-volume', 'volume' as any)).not.toThrow();
+    expect(AudioEngine.getRobotModulationTarget('mod-target-volume', 'volume' as any)).toBeNull();
   });
 
   it('returns the per-layer Tone.Gain.gain Signal for "layerN.gain"', async () => {
@@ -1982,25 +1984,26 @@ describe('AudioEngine - getRobotModulationTarget', () => {
     expect(AudioEngine.getRobotModulationTarget('mod-target-phase', 'layer0.phase')).toBeNull();
   });
 
-  it('returns the PulseOscillator width Signal for "layerN.pulseWidth" when the layer type is \'pulse\'', async () => {
+  // The pulse-width LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 4) —
+  // even a 'pulse' layer, whose PulseOscillator does expose a width Signal, no longer resolves one.
+  it('returns null (not throw) for the removed "layerN.pulseWidth" target, even when the layer type is \'pulse\'', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const layered: any[] = [{ type: 'pulse', gain: 0.8, detune: 0, phase: 0, pulseWidth: 0.3 }];
     AudioEngine.reserveVoice('mod-target-pulse', layered as any, TEST_ADSR);
 
-    const target = AudioEngine.getRobotModulationTarget('mod-target-pulse', 'layer0.pulseWidth');
-    expect(target).not.toBeNull();
-    expect(target).toHaveProperty('value');
+    expect(() => AudioEngine.getRobotModulationTarget('mod-target-pulse', 'layer0.pulseWidth' as any)).not.toThrow();
+    expect(AudioEngine.getRobotModulationTarget('mod-target-pulse', 'layer0.pulseWidth' as any)).toBeNull();
   });
 
-  it('returns null (not throw) for "layerN.pulseWidth" when the layer type is \'square\' — no adjustable width exists in Tone.js', async () => {
+  it('returns null (not throw) for "layerN.pulseWidth" when the layer type is \'square\'', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const layered: any[] = [{ type: 'square', gain: 0.8, detune: 0, phase: 0 }];
     AudioEngine.reserveVoice('mod-target-square', layered as any, TEST_ADSR);
 
-    expect(() => AudioEngine.getRobotModulationTarget('mod-target-square', 'layer0.pulseWidth')).not.toThrow();
-    expect(AudioEngine.getRobotModulationTarget('mod-target-square', 'layer0.pulseWidth')).toBeNull();
+    expect(() => AudioEngine.getRobotModulationTarget('mod-target-square', 'layer0.pulseWidth' as any)).not.toThrow();
+    expect(AudioEngine.getRobotModulationTarget('mod-target-square', 'layer0.pulseWidth' as any)).toBeNull();
   });
 
   it('returns null (not throw) for an out-of-range layer index', async () => {

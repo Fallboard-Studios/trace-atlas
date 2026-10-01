@@ -222,6 +222,19 @@ describe('robotOptionsConfig', () => {
       });
     });
 
+    // The pulse-width LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 4) —
+    // the ≈7× cost outlier among robot LFOs, only ever present on pulse-type layers. The Interval
+    // slider itself stays; it is simply no longer a modulation target.
+    it('each layer block carries exactly 3 LFO-flagged params — gain, detune, phase — and Interval/pulseWidth is never LFO-flagged', () => {
+      SIGNATURE_ARRAY_CONFIG.forEach((block) => {
+        const flagged = block.params.filter((p) => p.lfoTarget !== undefined).map((p) => p.field).sort();
+        expect(flagged, block.key).toEqual(['detune', 'gain', 'phase']);
+        const pw = block.params.find((p) => p.field === 'pulseWidth')!;
+        expect(pw, `${block.key} still has its Interval slider`).toBeDefined();
+        expect(pw.lfoTarget, `${block.key}.pulseWidth`).toBeUndefined();
+      });
+    });
+
     it('every param schema type is one of the 13 closed-set ControlSchema variants', () => {
       SIGNATURE_ARRAY_CONFIG.forEach((block) => {
         block.params.forEach((p) => {

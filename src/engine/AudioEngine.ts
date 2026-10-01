@@ -740,21 +740,17 @@ export const AudioEngine = {
    * null — never throws — for: an unreserved robotId, an out-of-range layer
    * index, 'layerN.phase' (Tone.js has no live Signal for oscillator phase;
    * handled via a manual-polling fallback at the lfoEngine layer, Task 12),
-   * and 'layerN.pulseWidth' when that layer's type isn't 'pulse' (only
-   * PulseOscillator exposes a connectable width Signal — 'square' has no
-   * adjustable width in Tone.js at all, independent of anything built here).
+   * and any id outside the current RobotLfoTargetId set — including the
+   * removed 'volume' and 'layerN.pulseWidth' targets (docs/specs/
+   * LFO_LOAD_FIX.md assumption 9), which can still arrive as strings from an
+   * old session or share link and must decline like any unknown id.
    */
   getRobotModulationTarget(robotId: string, target: RobotLfoTargetId): ModulationTarget | null {
     try {
       const voice = AudioEngine.getVoiceForRobot(robotId);
       if (!voice) return null;
 
-      if (target === 'volume') {
-        const gain = (voice.output as unknown as { gain?: unknown })?.gain;
-        return (gain as ModulationTarget | undefined) ?? null;
-      }
-
-      const match = /^layer(\d+)\.(gain|detune|phase|pulseWidth)$/.exec(target);
+      const match = /^layer(\d+)\.(gain|detune|phase)$/.exec(target);
       if (!match) return null;
       const layerEntry = voice.layers?.[Number(match[1])];
       if (!layerEntry) return null;
@@ -768,14 +764,7 @@ export const AudioEngine = {
         const osc = (layerEntry.synth as unknown as { oscillator?: { detune?: unknown } })?.oscillator;
         return (osc?.detune as ModulationTarget | undefined) ?? null;
       }
-      if (field === 'phase') {
-        return null;
-      }
-      if (field === 'pulseWidth') {
-        if (layerEntry.layer.type !== 'pulse') return null;
-        const osc = (layerEntry.synth as unknown as { oscillator?: { width?: unknown } })?.oscillator;
-        return (osc?.width as ModulationTarget | undefined) ?? null;
-      }
+      // 'phase' — no live Signal exists; the lfoEngine phase-polling fallback owns it.
       return null;
     } catch (err) {
       devWarn('[AudioEngine] getRobotModulationTarget failed', err);
