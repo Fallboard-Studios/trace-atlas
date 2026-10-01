@@ -9,6 +9,8 @@
 import type { ContentEntry, ContentIntro, LabelSurface, SchemaLabels, SchemaOption, ValueLabelPair } from './types';
 import { ui } from './copy/ui';
 import { fleet } from './copy/fleet';
+import { probe } from './copy/probe';
+import { company } from './copy/company';
 
 export { CONTENT_AREAS } from './types';
 export type { ContentEntry, ContentIntro, ContentOption, ContentArea, LabelSurface, SchemaLabels, SchemaOption, ValueLabelPair } from './types';
@@ -19,6 +21,8 @@ export type { ContentEntry, ContentIntro, ContentOption, ContentArea, LabelSurfa
 
 export const CONTENT = {
   ...fleet,
+  ...probe,
+  ...company,
   ...ui,
 } as const satisfies Record<string, ContentEntry>;
 
@@ -71,7 +75,7 @@ export function makeHelpers<R extends Record<string, ContentEntry>>(record: R) {
 
   function fill(key: K, vars: Record<string, string>): string {
     const e: ContentEntry = record[key];
-    return e.human.replace(/\{(\w+)\}/g, (_, slot: string) => {
+    return (e.template ?? e.human).replace(/\{(\w+)\}/g, (_, slot: string) => {
       if (!(slot in vars)) throw new Error(`[content] ${key}: no value for {${slot}}`);
       return vars[slot];
     });

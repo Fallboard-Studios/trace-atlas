@@ -24,7 +24,7 @@ const FIXTURE = {
     human: 'Fleet Params',
     intro: { lore: 'Fleet Params — headline.', loreDescription: '<p>lore</p>', humanDescription: '<p>human</p>' },
   },
-  'company.delete': { human: 'Delete {company}', lore: 'Dissolve Unit' },
+  'company.delete': { human: 'Delete', lore: 'Dissolve Unit', template: 'Delete {company}' },
   'ui.stepper.increment': { human: 'Increment {name}' },
 } as const satisfies Record<string, ContentEntry>;
 
@@ -123,7 +123,7 @@ describe('content helpers', () => {
       expect(() => fill('company.delete', {})).toThrow(/company\.delete.*\{company\}/);
     });
 
-    it('returns a slotless template unchanged, ignoring extra vars', () => {
+    it('falls back to human when there is no template (slotless, extra vars ignored)', () => {
       expect(fill('ui.cancel', { anything: 'x' })).toBe('Cancel');
     });
   });

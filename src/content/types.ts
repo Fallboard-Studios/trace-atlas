@@ -29,6 +29,10 @@ export interface ContentEntry {
   heading?: string;
   /** Section/group-level IntroPanel copy. Present only on concepts that render one. */
   intro?: ContentIntro;
+  /** A `{slot}` template for the dynamic form of this concept's name — e.g. the Delete button's
+   *  accessible name once a company is selected ('Delete {company}'). `fill()` reads it;
+   *  `human` stays the plain, slotless label the control shows when there is nothing to fill. */
+  template?: string;
   /** Text input hint. */
   placeholder?: string;
   /** Value suffix a slider renders (`'Hz'`, `'dB'`, `' measures'`). */

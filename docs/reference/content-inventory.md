@@ -117,7 +117,7 @@ Rows already carrying approved copy from the 2026-09-29 pass are *not* here — 
 | src/data/sessionConfig.ts:39 | copy field | RESTORE STATE | ALL CAPS legacy heading |  |  |
 | src/data/sessionConfig.ts:46 | copy field | PURGE ARCHIVE | ALL CAPS legacy heading |  |  |
 
-## 3. Nav-row vs control conflicts (5)
+## 3. Nav-row vs control conflicts (7)
 
 One concept, two texts today. The content entry takes the 2026-09-29 copy-pass value (the nav's)
 because that table records the control's text as the *old* value; veto in the last column.
@@ -129,3 +129,5 @@ because that table records the control's text as the *old* value; veto in the la
 | sector.attenuationStyle | nav: Attenuation Style / Atmosphere | text input (ATTENUATION_STYLE_SCHEMA): ATTENUATION SEED / Attenuation Style | entry = Atmosphere / Attenuation Style |  |
 | sector.coords | nav: Atlas Vector / Location | coords input (COORDS_SCHEMA): PLOT VECTOR / Coordinates | entry = Location / Atlas Vector |  |
 | settings.quality (intro prose) | — | SettingsContent humanDescription still says "Robot Load" / "Effects Load" | prose left verbatim; reword if the labels above change |  |
+| probe.source.core / .companion / .accent | nav + accordion: Core Oscillator / Companion Oscillator / Accent Oscillator | layer panel heading (robotOptionsConfig SIGNATURE_ARRAY_CONFIG): Core / Companion / Accent | entry = the long form; the panel reads it too |  |
+| probe.monitorMode vs probe.status.monitorMode | radio (AUDIO_SETTING_SCHEMA) lore: Freeform / Standby / Featured / Elevated | badge map (AUDIO_MODE_LABELS) lore: OFFLINE / SILENCED / ISOLATED / PRIORITIZED — same values, same human words | kept as two entries for now (verbatim); merge into probe.monitorMode once the badge lore is decided |  |

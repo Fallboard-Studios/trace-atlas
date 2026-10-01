@@ -38,6 +38,8 @@ const CONFLICTS = [
   ['sector.attenuationStyle', 'nav: Attenuation Style / Atmosphere', 'text input (ATTENUATION_STYLE_SCHEMA): ATTENUATION SEED / Attenuation Style', 'entry = Atmosphere / Attenuation Style'],
   ['sector.coords', 'nav: Atlas Vector / Location', 'coords input (COORDS_SCHEMA): PLOT VECTOR / Coordinates', 'entry = Location / Atlas Vector'],
   ['settings.quality (intro prose)', '—', 'SettingsContent humanDescription still says "Robot Load" / "Effects Load"', 'prose left verbatim; reword if the labels above change'],
+  ['probe.source.core / .companion / .accent', 'nav + accordion: Core Oscillator / Companion Oscillator / Accent Oscillator', 'layer panel heading (robotOptionsConfig SIGNATURE_ARRAY_CONFIG): Core / Companion / Accent', 'entry = the long form; the panel reads it too'],
+  ['probe.monitorMode vs probe.status.monitorMode', 'radio (AUDIO_SETTING_SCHEMA) lore: Freeform / Standby / Featured / Elevated', 'badge map (AUDIO_MODE_LABELS) lore: OFFLINE / SILENCED / ISOLATED / PRIORITIZED — same values, same human words', 'kept as two entries for now (verbatim); merge into probe.monitorMode once the badge lore is decided'],
 ];
 
 function walk(dir, out = []) {
