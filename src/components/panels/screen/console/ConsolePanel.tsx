@@ -5,6 +5,7 @@ import { SettingsContent } from '../nav/content/SettingsContent';
 import { CompaniesContent } from '../nav/content/CompaniesContent';
 import type { HubTile } from '@/types/hub';
 import { useUIStore } from '@/stores/uiStore';
+import { CONTENT } from '@/content';
 import './ConsolePanel.css';
 
 /**
@@ -37,7 +38,7 @@ export function ConsolePanel() {
   // The nested robot-detail level's own Back button (Console Retreat) was removed — NavBreadcrumb's
   // clickable "Probes" segment now covers the same one-step-back need.
   return (
-    <div className="console-panel" role="region" aria-label="Console Panel">
+    <div className="console-panel" role="region" aria-label={CONTENT['ui.consolePanel'].human}>
       <div className="console-panel__content">{TILE_CONTENT[activeHubTile]()}</div>
     </div>
   );

@@ -86,12 +86,12 @@ export function SessionsPanel() {
           ))}
         {shareStatus === 'copied' && (
           <span className="sessions-panel__share-status" role="status">
-            Link copied
+            {CONTENT['session.status.linkCopied'].human}
           </span>
         )}
         {shareStatus === 'error' && (
           <span className="sessions-panel__share-status sessions-panel__share-status--error" role="alert">
-            Unable to copy
+            {CONTENT['session.status.copyFailed'].human}
           </span>
         )}
       </div>

@@ -13,6 +13,7 @@ import { setTimeline, killTimeline } from '@/animation/timelineMap';
 
 import { getScreenViewportDomNode } from '@/utils/helpers';
 import { getStatusLightColor } from '@/utils/statusLightColors';
+import { CONTENT } from '@/content';
 import './PowerRockerSwitch.css';
 
 // ========================================
@@ -216,13 +217,13 @@ export function PowerRockerSwitch() {
 
   return (
     <>
-      <div className="rocker-panel" aria-label="Device power controls">
+      <div className="rocker-panel" aria-label={CONTENT['ui.power.controls'].human}>
         {/* Indicator light — rectangular lens in a recessed housing */}
         <div className="rocker-light-housing">
           <div
             className="rocker-light"
             role="status"
-            aria-label={isPoweredOn ? 'Power on' : 'Power off'}
+            aria-label={isPoweredOn ? CONTENT['ui.power.on'].human : CONTENT['ui.power.off'].human}
             data-power-state={powerState}
             data-transitioning={isTransitioning ? 'true' : undefined}
             style={{ color: lightColor.color, boxShadow: `0 0 ${lightGlowSpread} ${lightColor.glow}` }}
@@ -233,7 +234,7 @@ export function PowerRockerSwitch() {
         <div className="rocker-bezel">
           <button
             className="rocker-el"
-            aria-label={isPoweredOn ? 'Power off' : 'Power on'}
+            aria-label={isPoweredOn ? CONTENT['ui.power.off'].human : CONTENT['ui.power.on'].human}
             onClick={handleRockerClick}
           >
             {/*
@@ -347,9 +348,9 @@ export function PowerRockerSwitch() {
         <Dialog.Portal container={dialogContainer ?? undefined}>
           <Dialog.Overlay className="power-confirm__overlay" />
           <Dialog.Content className="power-confirm__content">
-            <Dialog.Title className="power-confirm__title">Power off?</Dialog.Title>
+            <Dialog.Title className="power-confirm__title">{CONTENT['ui.power.confirmTitle'].human}</Dialog.Title>
             <Dialog.Description className="power-confirm__description">
-              All audio will stop.
+              {CONTENT['ui.power.confirmBody'].human}
             </Dialog.Description>
             <div className="power-confirm__actions">
               <button
