@@ -269,20 +269,22 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
 
 ### Phase 4: Swap the UI
 
-- [ ] **Task 11: Content keys and the `LfoLink` primitive**
+- [x] **Task 11: Content keys and the `LfoLink` primitive**
 
   **Description:** `src/content/copy/ui.ts`: add `ui.lfoLane` with `options: { off, a, b, c, d }` — `off` human "Off"; a–d carry Crawford's names (Core LFO / Apex Signature, Companion LFO / Lateral Signature, Accent LFO / Impulse Signature, Overtone LFO / Canopy Signature). `src/content/copy/fleet.ts`: add `fleet.lfoBank` (human "LFO Bank", lore "Phase Locking", intro copy in the house voice), `fleet.lfoBank.laneA`…`laneD` (same four name pairs), `fleet.lfoBank.rateDrift`/`.depthDrift` (human "Rate Drift"/"Depth Drift", lore "Trace Pulse"/"Trace Bending", unit `%`). Old `fleet.drift.*` keys stay until Task 15. New `src/components/ui/controls/LfoLink.tsx` (+ `.css`): `DualLabel` + `RadioButton` over `options('ui.lfoLane')` + Depth `SliderLinear` (`labels('ui.lfo.depth')`); `null` ↔ `'off'` at the edge; props `{ schema: LfoLinkSchema, value: LfoLink, onChange, disabled?, heldOff? }`; memoized, stable handlers via the `latest` ref pattern; `sc-lfo-link` root with `isActive` when `lane !== null`.
 
   **Acceptance criteria:**
-  - [ ] `content.test.ts`/`index.test.ts`: every new key resolves; `options('ui.lfoLane')` is 5 entries in order off, a, b, c, d with the given human/lore labels; no literal string in `LfoLink.tsx` (ESLint).
-  - [ ] `LfoLink.test.tsx`: renders 5 radio options and one slider; value `{ lane: null, depth: 30 }` shows Off selected and 30; choosing "Core LFO" fires `onChange({ lane: 'a', depth: 30 })`; dragging depth fires `{ lane: 'a', depth: n }`; `heldOff` shows Off/0 without mutating `value` and renders no note itself (the caller does).
+  - [x] `content.test.ts`/`index.test.ts`: every new key resolves; `options('ui.lfoLane')` is 5 entries in order off, a, b, c, d with the given human/lore labels; no literal string in `LfoLink.tsx` (ESLint).
+  - [x] `LfoLink.test.tsx`: renders 5 radio options and one slider; value `{ lane: null, depth: 30 }` shows Off selected and 30; choosing "Core LFO" fires `onChange({ lane: 'a', depth: 30 })`; dragging depth fires `{ lane: 'a', depth: n }`; `heldOff` shows Off/0 without mutating `value` and renders no note itself (the caller does).
 
   **Verification:**
-  - [ ] `npx vitest run src/content src/components/ui/controls/LfoLink.test.tsx` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/content src/components/ui/controls/LfoLink.test.tsx` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Notes from execution:** `fleet.lfoBank` and its lane/drift keys were **not** added this task — `content.test.ts`'s own guard (docs/specs/CONTENT_LAYER.md §1.7, unconditional, not a Task-11-specific rule) fails any key with zero consumers outside `src/content`, and nothing reads `fleet.lfoBank.*` until Task 15 wires `LfoBankLanePanel`/`FleetParamsContent`. Confirmed by grepping the tree for `fleet.lfoBank` before writing anything (zero hits) and by the guard itself: adding `ui.lfoLane` alone (consumed immediately by `LfoLink.tsx`) left `npx vitest run src/content` green; a trial addition of the `fleet.lfoBank` group did not. Added a code comment on `ui.lfoLane` noting that Task 15 restates the same four names under `fleet.lfoBank.laneA`–`.laneD` by hand (the content model has no cross-key reference) rather than silently dropping the plan's intent. `ui.lfoLane`'s own top-level `human`/`lore` ("Lane"/"Signature Lane") aren't specified in the plan — chosen to match `ui.lfo`'s own precedent (a group label the lane `RadioButton`'s own `DualLabel` renders) and the in-universe "Signature" vocabulary the four lane names and Signature Array already share. Full suite green: 4397/4397 (one pre-existing documented flaky real-RNG test — `worldTransition.test.ts`'s swell-clear case — failed once, passed on immediate rerun, confirmed unrelated: this task touched no file in its import graph). `npm run build:types`/`lint` clean.
 
   **Dependencies:** Task 5.
-  **Files:** `src/content/copy/ui.ts`, `src/content/copy/fleet.ts`, `src/components/ui/controls/LfoLink.tsx`, `LfoLink.css`, `LfoLink.test.tsx`.
+  **Files:** `src/content/copy/ui.ts`, `src/components/ui/controls/LfoLink.tsx`, `LfoLink.css`, `LfoLink.test.tsx`. (`src/content/copy/fleet.ts` deferred to Task 15 — see notes.)
   **Scope:** S.
 
 - [ ] **Task 12: Robot layers render inline `LfoLink`s; `RobotOptionsTab` wires `lfoLinks`**

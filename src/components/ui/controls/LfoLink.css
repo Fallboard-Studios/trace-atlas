@@ -1,0 +1,9 @@
+.sc-lfo-link {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-control);
+  container-type: inline-size;
+  container-name: sc-control;
+}

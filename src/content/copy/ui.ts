@@ -33,4 +33,19 @@ export const ui = {
   },
   'ui.lfo.rate': { human: 'Rate', lore: 'Mutation Cadence', unit: 'Hz' },
   'ui.lfo.depth': { human: 'Depth', lore: 'Mutation Span', unit: '%' },
+  /** The LfoLink primitive's lane picker (docs/specs/LFO_BANK.md §1.5) — `off` plus the four
+   *  world lanes, Crawford's names (2026-10-01). Reused verbatim as fleet.lfoBank.laneA–D's
+   *  own names once Task 15 wires the LFO Bank accordion (kept in sync by hand, not by reference —
+   *  the content model has no cross-key lookup). */
+  'ui.lfoLane': {
+    human: 'Lane',
+    lore: 'Signature Lane',
+    options: {
+      off: { human: 'Off' },
+      a: { human: 'Core LFO', lore: 'Apex Signature' },
+      b: { human: 'Companion LFO', lore: 'Lateral Signature' },
+      c: { human: 'Accent LFO', lore: 'Impulse Signature' },
+      d: { human: 'Overtone LFO', lore: 'Canopy Signature' },
+    },
+  },
 } as const satisfies Record<string, ContentEntry>;
