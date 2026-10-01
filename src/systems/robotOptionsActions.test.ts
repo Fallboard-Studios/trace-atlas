@@ -360,15 +360,15 @@ describe('robotOptionsActions', () => {
       expect(paramsSpy).not.toHaveBeenCalled();
     });
 
-    // LFO Load Fix Task 7 (also the stale-signal fix): a layer-type change rebuilds the voice,
-    // which disposes the Tone nodes any connected robot LFO pointed at. Re-priming after the
-    // rebuild re-wires them (connectOne's own stale-signal branch) instead of leaving them silent
-    // until a user happens to touch that one LFO again.
-    it('re-primes the robot\'s LFOs after reReserveVoice, re-wiring any connection that pointed at the now-disposed voice', () => {
-      const robot = makeRobot({ lfoSettings: { 'layer0.gain': { shape: 'sine', rate: 2, depth: 40 } } as unknown as Robot['lfoSettings'] });
+    // docs/tasks/LFO_BANK.md Task 10 (also the stale-signal fix, inherited from LFO Load Fix Task
+    // 7): a layer-type change rebuilds the voice, which disposes the Tone nodes any connected
+    // robot link pointed at. Re-priming after the rebuild re-wires them instead of leaving them
+    // silent until a user happens to touch that one link again.
+    it('re-primes the robot\'s LFO links after reReserveVoice, re-wiring any connection that pointed at the now-disposed voice', () => {
+      const robot = makeRobot({ lfoLinks: { 'layer0.gain': { lane: 'a', depth: 40 } } as unknown as Robot['lfoLinks'] });
       useLocaleStore.getState().addRobot(localeId, robot);
       vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
-      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const primeSpy = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
       const nextLayers: OscillatorLayer[] = [{ type: 'square', gain: 1, detune: 0, phase: 0 }];
 
       applyLayersStructural(robot, localeId, nextLayers);
@@ -377,11 +377,23 @@ describe('robotOptionsActions', () => {
       expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }));
     });
 
-    it('applyLayersContinuous never primes LFOs — it never rebuilds the voice, so nothing needs re-wiring', () => {
+    it('never calls the old robotLfoPriming.primeRobotLfos — the bank replaces it entirely (LFO Bank Task 10)', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
+      const oldPrimeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos');
+      const nextLayers: OscillatorLayer[] = [{ type: 'square', gain: 1, detune: 0, phase: 0 }];
+
+      applyLayersStructural(robot, localeId, nextLayers);
+
+      expect(oldPrimeSpy).not.toHaveBeenCalled();
+    });
+
+    it('applyLayersContinuous never primes LFO links — it never rebuilds the voice, so nothing needs re-wiring', () => {
       const robot = makeRobot();
       useLocaleStore.getState().addRobot(localeId, robot);
       vi.spyOn(AudioEngine, 'updateVoiceLayerParams').mockImplementation(() => {});
-      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const primeSpy = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
       const nextLayers: OscillatorLayer[] = [{ type: 'sine', gain: 0.5, detune: 0, phase: 0 }];
 
       applyLayersContinuous(robot, localeId, nextLayers);
