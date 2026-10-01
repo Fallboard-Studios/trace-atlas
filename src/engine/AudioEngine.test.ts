@@ -2216,6 +2216,93 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
   });
 });
 
+describe('AudioEngine.start — primes robot LFOs for robots that spawned before audio was ready (LFO Load Fix Task 8)', () => {
+  // Mirrors the "robots spawned before AudioEngine initialized" post-load reservation pass
+  // (loadInstruments, earlier in this file) — once those robots have a reserved voice, their
+  // seeded LFO settings must reach lfoEngine too, same as the global chain's own priming loop a
+  // few lines above in start() itself.
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  async function startWithRobot(lfoSettings: Record<string, unknown>) {
+    const { AudioEngine } = await import('./AudioEngine');
+    const storeMod = await import('../stores/localeStore');
+    const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+    const helpers = await import('../utils/localeHelpers');
+    const { lfoEngine } = await import('./lfoEngine');
+    const localeId = attenuationStyleMod.DEFAULT_LOCALE_ID;
+    (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(localeId);
+    storeMod.useLocaleStore.getState().setLocaleData(localeId, {
+      robots: [{
+        id: 'pre-spawned-robot',
+        position: { x: 0, y: 0 },
+        audioMode: 'none',
+        audioAttributes: { layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }], adsr: TEST_ADSR },
+        lfoSettings,
+      } as any],
+    });
+    vi.clearAllMocks();
+    vi.mocked(lfoEngine.connectLfoTarget).mockReturnValue(true);
+
+    await AudioEngine.start();
+    return { lfoEngine };
+  }
+
+  it('primes a nonzero-rate target for a robot whose voice was reserved before start()', async () => {
+    const { lfoEngine } = await startWithRobot({ 'layer0.gain': { shape: 'sine', rate: 2, depth: 40 } });
+
+    expect(lfoEngine.setLfoRate).toHaveBeenCalledWith('layer0.gain', 2, 'pre-spawned-robot');
+    expect(lfoEngine.connectLfoTarget).toHaveBeenCalledWith('layer0.gain', 'pre-spawned-robot');
+    expect(lfoEngine.start).toHaveBeenCalledWith('layer0.gain', 'pre-spawned-robot');
+  });
+
+  it('never connects a rate-0 target', async () => {
+    const { lfoEngine } = await startWithRobot({ 'layer0.detune': { shape: 'sine', rate: 0, depth: 10 } });
+
+    expect(lfoEngine.connectLfoTarget).not.toHaveBeenCalledWith('layer0.detune', 'pre-spawned-robot');
+    expect(lfoEngine.start).not.toHaveBeenCalledWith('layer0.detune', 'pre-spawned-robot');
+  });
+
+  it('runs after the global LFO priming loop, not before (global EQ/filter values must already be correct)', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const storeMod = await import('../stores/localeStore');
+    const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+    const helpers = await import('../utils/localeHelpers');
+    const audioStoreMod = await import('../stores/audioStore');
+    const { lfoEngine } = await import('./lfoEngine');
+    const localeId = attenuationStyleMod.DEFAULT_LOCALE_ID;
+    (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(localeId);
+    storeMod.useLocaleStore.getState().setLocaleData(localeId, {
+      robots: [{
+        id: 'order-robot',
+        position: { x: 0, y: 0 },
+        audioMode: 'none',
+        audioAttributes: { layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }], adsr: TEST_ADSR },
+        lfoSettings: { 'layer0.gain': { shape: 'sine', rate: 1, depth: 10 } },
+      } as any],
+    });
+    audioStoreMod.useAudioStore.setState({
+      globalLfo: { 'eq3.low': { shape: 'sine', rate: 1, depth: 10 } } as any,
+    });
+    vi.clearAllMocks();
+    vi.mocked(lfoEngine.connectLfoTarget).mockReturnValue(true);
+    const callOrder: string[] = [];
+    vi.mocked(lfoEngine.setLfoRate).mockImplementation((target: unknown) => {
+      callOrder.push(target === 'eq3.low' ? 'global' : 'robot');
+    });
+
+    await AudioEngine.start();
+
+    expect(callOrder).toEqual(['global', 'robot']);
+  });
+
+  it('does not throw when no robots exist', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await expect(AudioEngine.start()).resolves.not.toThrow();
+  });
+});
+
 describe('AudioEngine - updateAllPanners write coalescing', () => {
   // Tone's Param `value` setter is cancelScheduledValues + setValueAtTime — two timeline
   // operations — and updateAllPanners runs for every reserved robot on every 16n tick. Robots

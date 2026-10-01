@@ -6,6 +6,7 @@ import gsap from 'gsap';
 import { useLocaleStore } from '../stores/localeStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 import { lfoEngine } from './lfoEngine';
+import { primeRosterLfos } from '../systems/robotLfoPriming';
 
 import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
@@ -524,6 +525,17 @@ export const AudioEngine = {
       }
     } catch (err) {
       devWarn('[AudioEngine] priming global LFOs failed', err);
+    }
+
+    // Robot half of the same priming (docs/specs/LFO_LOAD_FIX.md Task 8): a robot that spawned
+    // before AudioEngine was initialized already had its composite voice reserved by the
+    // post-load reservation pass in loadInstruments() above, but nothing primed its seeded LFO
+    // settings into lfoEngine until now. Runs after the global loop above for the same reason
+    // that loop's own comment gives: connectLfoTarget's swing math reads live state.
+    try {
+      primeRosterLfos(getActiveLocaleRobots());
+    } catch (err) {
+      devWarn('[AudioEngine] priming robot LFOs failed', err);
     }
 
     initBeatClock(transport);
