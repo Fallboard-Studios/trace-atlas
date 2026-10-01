@@ -141,21 +141,23 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
 
 ### Phase 2: Build the bank beside the old engine
 
-- [ ] **Task 5: Types, defaults, control schema, lane draw**
+- [x] **Task 5: Types, defaults, control schema, lane draw**
 
   **Description:** `src/types/lfo.ts`: add `LfoLaneId`, `LFO_LANE_IDS`, `BankLfoSettings`, `LfoLink` (spec §1.1); `LfoSettings` and `DriftGroupId` stay for now. `types/controls.ts`: add `LfoLinkSchema` (`type: 'lfoLink'`) to `ControlSchema` and `LfoLinkValue = LfoLink` (keep `LfoSchema`/`LfoValue`). `data/lfoConfig.ts`: add `DEFAULT_LFO_LINK` factory-per-target record and `DEFAULT_BANK_LFO`. New `src/utils/lfoLaneDraw.ts`: `LFO_LANE_SEED_BIAS`, `pickLane(t, counts)`, `tallyLanes(links: Iterable<LfoLink | undefined>)` (spec §1.3, §4).
 
   **Acceptance criteria:**
-  - [ ] `lfo.test.ts`: `LFO_LANE_IDS` is `['a','b','c','d']`; `DEFAULT_LFO_LINK` entries are `{ lane: null, depth: 0 }` and distinct objects; `DEFAULT_BANK_LFO` is `{ shape: 'sine', rate: 0, rateDrift: 0, depthDrift: 0 }`.
-  - [ ] `lfoLaneDraw.test.ts`: zero counts → the four shares are strictly decreasing a > b > c > d and sum to 1 (sampled over a 10 000-point grid of `t`); counts `{a:3,…}` → a's share is 1/4 of its zero-count share; `t = 0.999999` → `d`; `tallyLanes` ignores `null` lanes and `undefined` entries.
-  - [ ] `controls.test.ts` (or the existing schema-union guard): `'lfoLink'` is a member of the discriminant list.
+  - [x] `lfo.test.ts`: `LFO_LANE_IDS` is `['a','b','c','d']`; `DEFAULT_LFO_LINK` entries are `{ lane: null, depth: 0 }` and distinct objects; `DEFAULT_BANK_LFO` is `{ shape: 'sine', rate: 0, rateDrift: 0, depthDrift: 0 }`.
+  - [x] `lfoLaneDraw.test.ts`: zero counts → the four shares are strictly decreasing a > b > c > d and sum to 1 (sampled over a 10 000-point grid of `t`); counts `{a:3,…}` → a's share is 1/4 of its zero-count share; `t = 0.999999` → `d`; `tallyLanes` ignores `null` lanes and `undefined` entries.
+  - [x] `controls.test.ts` (or the existing schema-union guard): `'lfoLink'` is a member of the discriminant list.
 
   **Verification:**
-  - [ ] `npx vitest run src/types/lfo.test.ts src/utils/lfoLaneDraw.test.ts src/data/lfoConfig.test.ts` passes (RED first). Mutation check: set `LFO_LANE_SEED_BIAS.b` to 1 and watch the strictly-decreasing case go red.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/types/lfo.test.ts src/utils/lfoLaneDraw.test.ts src/data/lfoConfig.test.ts` passes (RED first). Mutation check: set `LFO_LANE_SEED_BIAS.b` to 1 and watch the strictly-decreasing case go red.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Notes from execution:** the plan's own "a's share is 1/4 of its zero-count share" doesn't hold exactly under the documented formula (`weight = bias/(1+count)`, then normalized) — reducing only `a`'s weight also shrinks the shared denominator, so `a`'s post-normalization share falls by less than a straight quarter (sampled: 0.322 → 0.106, a ~0.33× ratio, not 0.25×). Wrote the test against the analytical formula itself (`0.25 / (0.25+0.85+0.7+0.55)`) rather than the plan's shortcut; both `lfo.test.ts` and `controls.test.ts` additions landed in their existing files rather than new ones (`lfoLaneDraw.test.ts` is the only genuinely new test file). Full suite green aside from one pre-existing real-RNG flaky test unrelated to this task (`spawnSystem.test.ts`'s quiet-targets case — passes on rerun, file untouched by Task 5). `npm run build:types`/`lint`/full `npm test` clean.
 
   **Dependencies:** Task 1.
-  **Files:** `src/types/lfo.ts` (+test), `src/types/controls.ts`, `src/data/lfoConfig.ts` (+test), `src/utils/lfoLaneDraw.ts`, `src/utils/lfoLaneDraw.test.ts`.
+  **Files:** `src/types/lfo.ts` (+test), `src/types/controls.ts` (+test), `src/data/lfoConfig.ts` (+test), `src/utils/lfoLaneDraw.ts`, `src/utils/lfoLaneDraw.test.ts`.
   **Scope:** S.
 
 - [ ] **Task 6: Seeders — bank settings, global links, robot links**
