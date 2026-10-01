@@ -23,6 +23,8 @@ import {
   type DirectionalPanelSchema,
   type PanelOrientation,
   type LfoValue,
+  type LfoLinkSchema,
+  type LfoLinkValue,
 } from './controls';
 
 // ========================================
@@ -30,9 +32,9 @@ import {
 // ========================================
 
 describe('CONTROL_SCHEMA_TYPES', () => {
-  it('has exactly 14 entries, no duplicates', () => {
-    expect(CONTROL_SCHEMA_TYPES).toHaveLength(14);
-    expect(new Set(CONTROL_SCHEMA_TYPES).size).toBe(14);
+  it('has exactly 15 entries, no duplicates', () => {
+    expect(CONTROL_SCHEMA_TYPES).toHaveLength(15);
+    expect(new Set(CONTROL_SCHEMA_TYPES).size).toBe(15);
   });
 
   it('matches the ControlSchema union discriminants exactly', () => {
@@ -41,7 +43,7 @@ describe('CONTROL_SCHEMA_TYPES', () => {
         'stepper', 'stepperToggle',
         'sliderLinear', 'sliderLog', 'sliderCenteredZero',
         'radio', 'toggle', 'textInput', 'coordsInput',
-        'button', 'dualLabel', 'accordion', 'lfo',
+        'button', 'dualLabel', 'accordion', 'lfo', 'lfoLink',
         'directionalPanel',
       ].sort()
     );
@@ -63,15 +65,16 @@ describe('ControlSchema variants', () => {
     const dualLabel: DualLabelSchema = { id: 'jobData', type: 'dualLabel' };
     const accordion: AccordionSchema = { id: 'pingControls', type: 'accordion' };
     const lfo: LfoSchema = { id: 'volumeLfo', type: 'lfo' };
+    const lfoLink: LfoLinkSchema = { id: 'eq3LowLink', type: 'lfoLink' };
     const directionalPanel: DirectionalPanelSchema = { id: 'eq3Panel', type: 'directionalPanel', orientation: 'row' };
 
     const variants: ControlSchema[] = [
       stepper, stepperToggle, sliderLinear, sliderLog, sliderCenteredZero,
-      radio, toggle, textInput, coordsInput, button, dualLabel, accordion, lfo,
+      radio, toggle, textInput, coordsInput, button, dualLabel, accordion, lfo, lfoLink,
       directionalPanel,
     ];
 
-    expect(variants).toHaveLength(14);
+    expect(variants).toHaveLength(15);
   });
 
   it('accepts loreLabel and/or humanLabel on the shared base, both optional', () => {
@@ -133,5 +136,18 @@ describe('LfoValue', () => {
     const value: LfoValue = { shape: 'triangle', rate: 2, depth: 40 };
     expect(value.shape).toBe('triangle');
     expect('active' in value).toBe(false);
+  });
+});
+
+describe('LfoLinkValue', () => {
+  it('is a plain alias of LfoLink (docs/specs/LFO_BANK.md §1.1)', () => {
+    const value: LfoLinkValue = { lane: 'a', depth: 40 };
+    expect(value.lane).toBe('a');
+    expect(value.depth).toBe(40);
+  });
+
+  it('accepts lane: null', () => {
+    const value: LfoLinkValue = { lane: null, depth: 0 };
+    expect(value.lane).toBeNull();
   });
 });

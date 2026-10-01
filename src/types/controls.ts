@@ -6,7 +6,7 @@
  * instead of hardcoded JSX. Bounds/options trace to
  * docs/reference/ROBOT_DATA_GRID.md's Component column.
  */
-import type { LfoSettings } from './lfo';
+import type { LfoSettings, LfoLink } from './lfo';
 
 // ========================================
 // BASE
@@ -148,6 +148,11 @@ export interface LfoSchema extends ControlSchemaBase {
   type: 'lfo';
 }
 
+/** docs/specs/LFO_BANK.md §1.5 — LfoLink primitive's schema (lane RadioButton + Depth slider). */
+export interface LfoLinkSchema extends ControlSchemaBase {
+  type: 'lfoLink';
+}
+
 /** Layout axis for DirectionalPanel — mirrors SliderOrientation's own precedent
  *  as a named, exported union rather than an inline literal type. Optional on
  *  the schema (unlike SliderOrientation, which is required): omitting it
@@ -175,7 +180,7 @@ export type ControlSchema =
   | StepperSchema | StepperWithToggleSchema
   | SliderLinearSchema | SliderLogSchema | SliderCenteredZeroSchema
   | RadioButtonSchema | ToggleSchema | TextInputSchema | CoordsInputSchema
-  | ButtonSchema | DualLabelSchema | AccordionSchema | LfoSchema
+  | ButtonSchema | DualLabelSchema | AccordionSchema | LfoSchema | LfoLinkSchema
   | DirectionalPanelSchema;
 
 /** Every ControlSchema discriminant, paired with the union per the pattern
@@ -185,7 +190,7 @@ export const CONTROL_SCHEMA_TYPES: readonly ControlSchema['type'][] = [
   'stepper', 'stepperToggle',
   'sliderLinear', 'sliderLog', 'sliderCenteredZero',
   'radio', 'toggle', 'textInput', 'coordsInput',
-  'button', 'dualLabel', 'accordion', 'lfo',
+  'button', 'dualLabel', 'accordion', 'lfo', 'lfoLink',
   'directionalPanel',
 ];
 
@@ -197,3 +202,7 @@ export const CONTROL_SCHEMA_TYPES: readonly ControlSchema['type'][] = [
  *  (Phase 0). No longer carries `active`: the OSCILLATION STATE toggle was
  *  removed, and rate=0 is now the "off" signal instead of a separate flag. */
 export type LfoValue = LfoSettings;
+
+/** LfoLink primitive's controlled value — a plain alias of the real engine type
+ *  (docs/specs/LFO_BANK.md §1.1). */
+export type LfoLinkValue = LfoLink;
