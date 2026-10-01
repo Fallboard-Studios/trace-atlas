@@ -379,6 +379,79 @@ describe('applySessionPayload', () => {
     expect('layer1.pulseWidth' in (restored.lfoSettings ?? {})).toBe(false);
   });
 
+  describe('priming on load (LFO Load Fix Task 9)', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('primes exactly the targets present in a robot override\'s lfoSettings, not the whole robot', async () => {
+      const robotLfoPriming = await import('../systems/robotLfoPriming');
+      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+      const payload = buildSessionPayload();
+      const overriddenPayload = {
+        ...payload,
+        robotOverrides: {
+          ...payload.robotOverrides,
+          [robot.id]: {
+            ...payload.robotOverrides[robot.id],
+            lfoSettings: { 'layer1.gain': { shape: 'triangle', rate: 1.5, depth: 30 } } as Partial<Record<RobotLfoTargetId, LfoSettings>>,
+          },
+        },
+      };
+
+      applySessionPayload(overriddenPayload);
+
+      expect(primeSpy).toHaveBeenCalledTimes(1);
+      expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }), ['layer1.gain']);
+    });
+
+    it('filters out legacy (removed) target keys before priming — never primes volume or pulseWidth', async () => {
+      const robotLfoPriming = await import('../systems/robotLfoPriming');
+      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+      const payload = buildSessionPayload();
+      const legacyOverrides = {
+        ...payload.robotOverrides,
+        [robot.id]: {
+          ...payload.robotOverrides[robot.id],
+          lfoSettings: {
+            volume: { shape: 'sine', rate: 3, depth: 50 },
+            'layer1.gain': { shape: 'triangle', rate: 1.5, depth: 30 },
+          },
+        },
+      } as unknown as typeof payload.robotOverrides;
+
+      applySessionPayload({ ...payload, robotOverrides: legacyOverrides });
+
+      expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }), ['layer1.gain']);
+    });
+
+    it('does not prime a robot whose override carries no lfoSettings', async () => {
+      const robotLfoPriming = await import('../systems/robotLfoPriming');
+      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+      const payload = buildSessionPayload();
+      const overriddenPayload = {
+        ...payload,
+        robotOverrides: {
+          ...payload.robotOverrides,
+          [robot.id]: { ...payload.robotOverrides[robot.id], rhythmicDensity: 70 },
+        },
+      };
+
+      applySessionPayload(overriddenPayload);
+
+      expect(primeSpy).not.toHaveBeenCalled();
+    });
+  });
+
   it('applies a user-created company whose stored lastEditedOptions still carries a legacy volumeLfo (saved before the Volume LFO target was removed) without error, keeping the company and its other options', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
