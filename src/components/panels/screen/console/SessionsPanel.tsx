@@ -11,6 +11,7 @@ import { SESSION_NAME_INPUT_SCHEMA, SAVE_SESSION_SCHEMA, SHARE_SESSION_SCHEMA, C
 import { formatSessionTimestamp } from '@/utils/helpers';
 import type { SessionEntry } from '@/types/session';
 
+import { CONTENT, fill } from '@/content';
 import './SessionsPanel.css';
 
 /**
@@ -76,11 +77,11 @@ export function SessionsPanel() {
         {saveStatus &&
           (saveStatus.success ? (
             <span className="sessions-panel__save-status" role="status">
-              {`Saved ${saveStatus.name} at ${saveStatus.savedAt}`}
+              {fill('session.status.saved', { name: saveStatus.name, time: saveStatus.savedAt })}
             </span>
           ) : (
             <span className="sessions-panel__save-status sessions-panel__save-status--error" role="alert">
-              {`${saveStatus.name} failed to save.`}
+              {fill('session.status.saveFailed', { name: saveStatus.name })}
             </span>
           ))}
         {shareStatus === 'copied' && (
@@ -113,7 +114,7 @@ export function SessionsPanel() {
               Every saved and autosaved session is deleted. This can&apos;t be undone.
             </AlertDialog.Description>
             <div className="clear-storage-confirm__actions">
-              <AlertDialog.Cancel className="clear-storage-confirm__cancel">Cancel</AlertDialog.Cancel>
+              <AlertDialog.Cancel className="clear-storage-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
               <AlertDialog.Action className="clear-storage-confirm__confirm" onClick={handleConfirmClearStorage}>
                 Clear Local Storage
               </AlertDialog.Action>

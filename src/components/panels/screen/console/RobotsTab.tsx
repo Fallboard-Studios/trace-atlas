@@ -6,11 +6,12 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { filterRobotsByCompanyFocus } from '@/utils/robotListFilter';
 import type { ButtonSchema } from '@/types/controls';
+import { CONTENT, labels } from '@/content';
 import './RobotsTab.css';
 
 // Plain schema constant, no domain config file — this is console-screen chrome (a filter reset
 // action), not a domain concept with its own config file.
-const CLEAR_FILTER_SCHEMA: ButtonSchema = { id: 'robotsTab.clearFilter', type: 'button', loreLabel: 'RESET UNIT ROSTER', humanLabel: 'Clear Filter' };
+const CLEAR_FILTER_SCHEMA: ButtonSchema = { id: 'robotsTab.clearFilter', type: 'button', ...labels('probe.list.clearFilter') };
 
 interface RosterEntry {
   id: string;
@@ -89,7 +90,7 @@ export function RobotsTab() {
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
 
   return (
-    <div className="robots-tab" role="region" aria-label="Robots">
+    <div className="robots-tab" role="region" aria-label={CONTENT['probe.list'].human}>
       {selectedCompany && (
         <div className="robots-tab__filter">
           <span className="robots-tab__filter-label">Filtered by {selectedCompany.name}</span>

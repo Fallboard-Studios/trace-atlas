@@ -2,12 +2,13 @@ import { useIsNavPanelSlideAway } from './useNavPanelSlideAway';
 import { Toggle } from '@/components/ui/controls/Toggle';
 import { useUIStore } from '@/stores/uiStore';
 import type { ToggleSchema } from '@/types/controls';
+import { labels } from '@/content';
 import './NavToggleButton.css';
 
 // Static label ("Navigation"), not "Open navigation"/"Close navigation" —
 // state is conveyed via the switch's own aria-checked, same precedent as
-// Header's Mute Toggle (schema.humanLabel: 'Mute', never 'Mute'/'Unmute').
-const NAV_TOGGLE_SCHEMA: ToggleSchema = { id: 'navToggle', type: 'toggle', humanLabel: 'Navigation' };
+// Header's Mute Toggle (one fixed human label from content, never a Mute/Unmute pair).
+const NAV_TOGGLE_SCHEMA: ToggleSchema = { id: 'navToggle', type: 'toggle', ...labels('nav.toggle') };
 
 /**
  * Persistent hamburger/reopen affordance for NavPanel's slide-off state (docs/specs/

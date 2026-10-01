@@ -1,5 +1,6 @@
 import { useNavTree, goHome } from './useNavTree';
 import { useIsNavPanelSlideAway } from './useNavPanelSlideAway';
+import { CONTENT } from '@/content';
 import './NavBreadcrumb.css';
 
 /**
@@ -37,7 +38,7 @@ export function NavBreadcrumb() {
     <div
       className={isMobile ? 'nav-breadcrumb nav-breadcrumb--mobile' : 'nav-breadcrumb nav-breadcrumb--desktop'}
       role="navigation"
-      aria-label="Breadcrumb"
+      aria-label={CONTENT['nav.breadcrumb'].human}
     >
       {/* Inner wrapper carries the end-truncation ellipsis (nav-breadcrumb__inner) — the outer
          element stays a flex row purely to center/position this one line as a whole (mobile's

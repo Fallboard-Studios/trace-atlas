@@ -12,6 +12,7 @@ import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '@/constants/accentCol
 import type { Company } from '@/types/Company';
 import { generateUUID } from '@/utils/randomId';
 
+import { CONTENT, labels, fill } from '@/content';
 import './CompanyCrudControls.css';
 
 // Distinct schema clones for the Create/Rename inputs — same shared COMPANY_NAME_INPUT_SCHEMA
@@ -20,8 +21,8 @@ import './CompanyCrudControls.css';
 // never mounted simultaneously, but keep distinct ids/labels anyway — matches every other schema
 // clone in this file (RENAME_COMPANY_SCHEMA etc.), and keeps each accessible name unambiguous if
 // that ever changes.
-const CREATE_NAME_SCHEMA = { ...COMPANY_NAME_INPUT_SCHEMA, id: 'company.name.create', humanLabel: 'New Company Name' };
-const RENAME_NAME_SCHEMA = { ...COMPANY_NAME_INPUT_SCHEMA, id: 'company.name.rename', humanLabel: 'Rename Company' };
+const CREATE_NAME_SCHEMA = { ...COMPANY_NAME_INPUT_SCHEMA, id: 'company.name.create', ...labels('company.name.create') };
+const RENAME_NAME_SCHEMA = { ...COMPANY_NAME_INPUT_SCHEMA, id: 'company.name.rename', ...labels('company.name.rename') };
 
 /**
  * A fresh "Adjective Noun" suggestion, reusing generateCompanyName's exact word-list logic
@@ -84,7 +85,7 @@ export function CompanyCreateForm() {
   // the visible text with no other change needed.
   const createSchema = {
     ...CREATE_COMPANY_SCHEMA,
-    humanLabel: nameIsBlank ? CREATE_COMPANY_SCHEMA.humanLabel : `${CREATE_COMPANY_SCHEMA.humanLabel} ${createNameDraft}`,
+    humanLabel: nameIsBlank ? CREATE_COMPANY_SCHEMA.humanLabel : fill('company.create', { name: createNameDraft }),
   };
 
   const handleCreate = () => {
@@ -176,11 +177,11 @@ export function CompanyRenameDeleteForm() {
     ...RENAME_COMPANY_SCHEMA,
     humanLabel: renameIsBlank
       ? RENAME_COMPANY_SCHEMA.humanLabel
-      : `${RENAME_COMPANY_SCHEMA.humanLabel} ${selectedCompany?.name ?? ''} > ${renameDraft}`,
+      : fill('company.rename', { company: selectedCompany?.name ?? '', name: renameDraft }),
   };
   const deleteSchema = {
     ...DELETE_COMPANY_SCHEMA,
-    humanLabel: selectedCompany ? `${DELETE_COMPANY_SCHEMA.humanLabel} ${selectedCompany.name}` : DELETE_COMPANY_SCHEMA.humanLabel,
+    humanLabel: selectedCompany ? fill('company.delete', { company: selectedCompany.name }) : DELETE_COMPANY_SCHEMA.humanLabel,
   };
 
   const handleRenameSubmit = () => {
@@ -227,7 +228,7 @@ export function CompanyRenameDeleteForm() {
               Its member robots become Freelance. This can&apos;t be undone.
             </AlertDialog.Description>
             <div className="company-delete-confirm__actions">
-              <AlertDialog.Cancel className="company-delete-confirm__cancel">Cancel</AlertDialog.Cancel>
+              <AlertDialog.Cancel className="company-delete-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
               <AlertDialog.Action className="company-delete-confirm__confirm" onClick={handleConfirmDelete}>
                 Delete
               </AlertDialog.Action>

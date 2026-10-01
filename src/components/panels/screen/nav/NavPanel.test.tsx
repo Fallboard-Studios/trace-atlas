@@ -248,3 +248,15 @@ describe('NavPanel — Home button (relocated from ContentPane\'s former Close b
     expect(useUIStore.getState().allRobotsSelected).toBe(true);
   });
 });
+
+describe('NavPanel reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 15)', () => {
+  it('carries no copy literal of its own', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const source = readFileSync(resolve(__dirname, 'NavPanel.tsx'), 'utf8');
+    expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
+    expect(source).not.toMatch(/aria-label="[A-Za-z]/);
+    expect(source).not.toMatch(/>\s*(Cancel|Link copied|Unable to copy)\s*</);
+    expect(source).not.toMatch(/`(Saved|Collapse|Expand) $\{|failed to save\.|'CORRUPT NAME'|'NO TEMP'|Probes active\.|Viewing \{/);
+  });
+});

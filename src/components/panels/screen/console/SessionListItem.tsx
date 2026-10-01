@@ -9,6 +9,7 @@ import type { SessionEntry } from '@/types/session';
 import { formatSessionTimestamp } from '@/utils/helpers';
 import { LOAD_SESSION_SCHEMA, SHARE_SESSION_SCHEMA, DELETE_SESSION_SCHEMA } from '@/data/sessionConfig';
 
+import { CONTENT, fill } from '@/content';
 import './SessionListItem.css';
 
 interface SessionListItemProps {
@@ -49,9 +50,9 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
     onChange?.();
   };
 
-  const loadSchema = { ...LOAD_SESSION_SCHEMA, humanLabel: `${LOAD_SESSION_SCHEMA.humanLabel} ${label}` };
-  const shareSchema = { ...SHARE_SESSION_SCHEMA, humanLabel: `${SHARE_SESSION_SCHEMA.humanLabel} ${label}` };
-  const deleteSchema = { ...DELETE_SESSION_SCHEMA, humanLabel: `${DELETE_SESSION_SCHEMA.humanLabel} ${label}` };
+  const loadSchema = { ...LOAD_SESSION_SCHEMA, humanLabel: fill('session.load', { session: label }) };
+  const shareSchema = { ...SHARE_SESSION_SCHEMA, humanLabel: fill('session.share', { session: label }) };
+  const deleteSchema = { ...DELETE_SESSION_SCHEMA, humanLabel: fill('session.delete', { session: label }) };
 
   return (
     <div className="session-list-item">
@@ -62,12 +63,12 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
       <Button schema={deleteSchema} onClick={() => setConfirmOpen(true)} />
       {shareStatus === 'copied' && (
         <span className="session-list-item__share-status" role="status">
-          Link copied
+          {CONTENT['session.status.linkCopied'].human}
         </span>
       )}
       {shareStatus === 'error' && (
         <span className="session-list-item__share-status session-list-item__share-status--error" role="alert">
-          Unable to copy
+          {CONTENT['session.status.copyFailed'].human}
         </span>
       )}
 
@@ -80,7 +81,7 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
               This can&apos;t be undone.
             </AlertDialog.Description>
             <div className="session-delete-confirm__actions">
-              <AlertDialog.Cancel className="session-delete-confirm__cancel">Cancel</AlertDialog.Cancel>
+              <AlertDialog.Cancel className="session-delete-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
               <AlertDialog.Action className="session-delete-confirm__confirm" onClick={handleConfirmDelete}>
                 Delete
               </AlertDialog.Action>

@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getAudibilityState, isRobotSounding } from '@/utils/robotAudibility';
 import { robotLoadToLimits } from '@/utils/audioBudget';
+import { CONTENT, fill } from '@/content';
 import './NavStatusBlock.css';
 
 /** HH:MM from uiStore's own fractional-hour clock (e.g. 14.5 -> "14:30") — the same math the
@@ -42,16 +43,16 @@ export function NavStatusBlock() {
   ).length;
   const maxAudibleRobots = robotLoadToLimits(robotLoad).maxAudibleRobots;
 
-  const styleName = attenuationStyle?.name ?? 'CORRUPT NAME';
+  const styleName = attenuationStyle?.name ?? CONTENT['nav.status.unknownName'].human;
   const x = coordinates?.x ?? '?';
   const y = coordinates?.y ?? '?';
-  const tempLabel = temperature !== null ? `${temperature}°C` : 'NO TEMP';
+  const tempLabel = temperature !== null ? `${temperature}°C` : CONTENT['nav.status.noTemperature'].human;
 
   return (
     <div className="nav-status-block" role="status">
       <span className="time-temp-row">{formatClock(localTime)} {tempLabel}</span>
-      <span className="robot-count-row">{emittingCount} of {maxAudibleRobots} Probes active.</span>
-      <span className="seed-row">Viewing {styleName} @ ({x}, {y}).</span>
+      <span className="robot-count-row">{fill('nav.status.probesActive', { emitting: String(emittingCount), max: String(maxAudibleRobots) })}</span>
+      <span className="seed-row">{fill('nav.status.viewing', { name: styleName, x: String(x), y: String(y) })}</span>
     </div>
   );
 }
