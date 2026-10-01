@@ -12,6 +12,8 @@ import {
   type RobotLfoTargetId,
   type GlobalLfoTargetId,
   type LfoSettings,
+  type LfoLink,
+  type BankLfoSettings,
 } from '../types/lfo';
 
 /**
@@ -38,3 +40,23 @@ function makeDefaultLfoSettings(): LfoSettings {
 export const DEFAULT_LFO_SETTINGS: Record<RobotLfoTargetId | GlobalLfoTargetId, LfoSettings> = Object.fromEntries(
   [...ROBOT_LFO_TARGET_IDS, ...GLOBAL_LFO_TARGET_IDS].map((id) => [id, makeDefaultLfoSettings()])
 ) as Record<RobotLfoTargetId | GlobalLfoTargetId, LfoSettings>;
+
+// ========================================
+// LFO BANK (docs/specs/LFO_BANK.md §1.1)
+// ========================================
+
+/** Unlinked by default: no lane, no depth. One entry per target (robot + global, as
+ *  DEFAULT_LFO_SETTINGS above), each its own object — lfoEngine.ts's linkTarget will
+ *  read these but never mutate the engine's own copy in place. */
+function makeDefaultLfoLink(): LfoLink {
+  return { lane: null, depth: LFO_DEPTH_MIN };
+}
+
+export const DEFAULT_LFO_LINK: Record<RobotLfoTargetId | GlobalLfoTargetId, LfoLink> = Object.fromEntries(
+  [...ROBOT_LFO_TARGET_IDS, ...GLOBAL_LFO_TARGET_IDS].map((id) => [id, makeDefaultLfoLink()])
+) as Record<RobotLfoTargetId | GlobalLfoTargetId, LfoLink>;
+
+/** A bank lane with no motion: rate 0 (the lane holds still) and no drift — the seed
+ *  never emits these values, but an unconfigured lane should start inert, same as
+ *  DEFAULT_LFO_SETTINGS did for a per-target LFO. */
+export const DEFAULT_BANK_LFO: BankLfoSettings = { shape: 'sine', rate: LFO_RATE_MIN, rateDrift: 0, depthDrift: 0 };
