@@ -11,20 +11,21 @@ import type { DualLabelSchema, SliderLinearSchema } from '@/types/controls';
 import type { JobType, DockingState, Robot } from '@/types/Robot';
 import type { AudibilityState } from '@/utils/robotAudibility';
 import type { StatusLightState } from '@/utils/statusLightColors';
+import { labels, optionsRecord } from '@/content';
 
 // ========================================
 // ROW SCHEMAS
 // ========================================
 
 export const ROBOT_SELECTION_ROW_SCHEMAS = {
-  name: { id: 'robotSelection.name', type: 'dualLabel', loreLabel: 'ROBOT IDENTIFIER', humanLabel: 'Robot Name' },
-  job: { id: 'robotSelection.job', type: 'dualLabel', loreLabel: 'ASSIGNED PROTOCOL', humanLabel: 'Job Data' },
-  docking: { id: 'robotSelection.docking', type: 'dualLabel', loreLabel: 'DOCKING STATE', humanLabel: 'Docked Status' },
+  name: { id: 'robotSelection.name', type: 'dualLabel', ...labels('probe.name') },
+  job: { id: 'robotSelection.job', type: 'dualLabel', ...labels('probe.job') },
+  docking: { id: 'robotSelection.docking', type: 'dualLabel', ...labels('probe.status.docking') },
   // status: new field-level DualLabel (Roadmap 15.3) — the Status VALUE labels (AUDIBILITY_LABELS,
   // below) already existed from Roadmap 15.2, but that card never wrapped Status in a DualLabel of
   // its own (it renders bare, combined with Docking into one line) — this is the first FIELD-level
   // lore/human pair for Status. Best-guess draft, pending review, same as AUDIBILITY_LABELS itself.
-  status: { id: 'robotSelection.status', type: 'dualLabel', loreLabel: 'ACOUSTIC EMISSION STATE', humanLabel: 'Status' },
+  status: { id: 'robotSelection.status', type: 'dualLabel', ...labels('probe.status') },
   // .battery and .audio removed (Roadmap 15.2, docs/specs/ROBOT_CARDS_REDESIGN.md §1.5 item 1) —
   // genuinely dead once RobotSelectionCard stopped referencing them: Battery moved to
   // BATTERY_READOUT_SCHEMA (Roadmap 15.1) via RobotDisplaySection first, then RobotSelectionCard
@@ -42,11 +43,9 @@ export const ROBOT_SELECTION_ROW_SCHEMAS = {
 export const BATTERY_READOUT_SCHEMA: SliderLinearSchema = {
   id: 'robotSelection.batteryReadout',
   type: 'sliderLinear',
-  loreLabel: 'POWER CELL STATUS',
-  humanLabel: 'Battery Data',
+  ...labels('probe.battery'),
   min: 0,
   max: 100,
-  unit: '%',
   orientation: 'horizontal',
 };
 
@@ -55,35 +54,20 @@ export const BATTERY_READOUT_SCHEMA: SliderLinearSchema = {
 // ========================================
 
 interface ValueLabel {
-  loreLabel: string;
+  loreLabel?: string;
   humanLabel: string;
 }
 
-export const JOB_TYPE_LABELS: Record<JobType, ValueLabel> = {
-  ventExtraction: { loreLabel: 'VOLATILE VENT EXTRACTION', humanLabel: 'Vent Extraction' },
-  acousticSurvey: { loreLabel: 'HIGH-ALTITUDE ACOUSTIC SURVEY', humanLabel: 'Acoustic Survey' },
-  structuralInspection: { loreLabel: 'STRUCTURAL INTEGRITY INSPECTION', humanLabel: 'Structural Inspection' },
-  fluidMonitoring: { loreLabel: 'SUBSTATION FLUID MONITORING', humanLabel: 'Fluid Monitoring' },
-};
+export const JOB_TYPE_LABELS: Record<JobType, ValueLabel> = optionsRecord('probe.job');
 
 /** Shown in the Job Data row for a robot with no `job` yet (Docked/Docking/Departing). */
-export const UNASSIGNED_JOB_LABEL: ValueLabel = { loreLabel: 'NO PROTOCOL ASSIGNED', humanLabel: 'Unassigned' };
+export const UNASSIGNED_JOB_LABEL: ValueLabel = labels('probe.job.unassigned');
 
-export const DOCKING_STATE_LABELS: Record<DockingState, ValueLabel> = {
-  docked: { loreLabel: 'DOCKED', humanLabel: 'Docked' },
-  docking: { loreLabel: 'DOCKING', humanLabel: 'Docking' },
-  departing: { loreLabel: 'DEPARTING', humanLabel: 'Departing' },
-  active: { loreLabel: 'ACTIVE', humanLabel: 'Active' },
-};
+export const DOCKING_STATE_LABELS: Record<DockingState, ValueLabel> = optionsRecord('probe.status.docking');
 
 type AudioMode = NonNullable<Robot['audioMode']>;
 
-export const AUDIO_MODE_LABELS: Record<AudioMode, ValueLabel> = {
-  none: { loreLabel: 'OFFLINE', humanLabel: 'Auto' },
-  mute: { loreLabel: 'SILENCED', humanLabel: 'Mute' },
-  solo: { loreLabel: 'ISOLATED', humanLabel: 'Solo' },
-  highlight: { loreLabel: 'PRIORITIZED', humanLabel: 'Highlight' },
-};
+export const AUDIO_MODE_LABELS: Record<AudioMode, ValueLabel> = optionsRecord('probe.status.monitorMode');
 
 /** off=purple, mute=red, solo=green, highlight=amber — confirmed during intake. */
 export const AUDIO_STATUS_COLOR_MAP: Record<AudioMode, StatusLightState> = {
@@ -100,9 +84,4 @@ export const AUDIO_STATUS_COLOR_MAP: Record<AudioMode, StatusLightState> = {
  * every other value-label map in this file for consistency, even though only humanLabel is ever
  * rendered — best-guess drafts, pending review (see docs/reference/ROBOT_DATA_GRID.md).
  */
-export const AUDIBILITY_LABELS: Record<AudibilityState, ValueLabel> = {
-  emitting: { loreLabel: 'ACOUSTIC EMISSION ACTIVE', humanLabel: 'Emitting' },
-  // Audio Load budget (docs/specs/AUDIO_LOAD_BUDGET.md): eligible to sound but held back — first-pass invented lore copy, to be confirmed in the manual check.
-  limited: { loreLabel: 'ACOUSTIC EMISSION HELD IN RESERVE', humanLabel: 'Standing by' },
-  disabled: { loreLabel: 'ACOUSTIC EMISSION SUPPRESSED', humanLabel: 'Disabled' },
-};
+export const AUDIBILITY_LABELS: Record<AudibilityState, ValueLabel> = optionsRecord('probe.status');

@@ -9,10 +9,6 @@ import { describe, it, expect } from 'vitest';
 import { probe } from './probe';
 import { NAV_TREE_SCHEMA } from '@/data/navTreeConfig';
 import { ROBOT_SECTIONS_CONFIG } from '@/data/robotSubsectionConfig';
-import {
-  ROBOT_SELECTION_ROW_SCHEMAS, BATTERY_READOUT_SCHEMA, JOB_TYPE_LABELS, UNASSIGNED_JOB_LABEL,
-  DOCKING_STATE_LABELS, AUDIO_MODE_LABELS, AUDIBILITY_LABELS,
-} from '@/data/robotSelectionConfig';
 
 type ProbeKey = keyof typeof probe;
 type Entry = { human: string; lore?: string; heading?: string; unit?: string; options?: Record<string, { human: string; lore?: string }> };
@@ -49,28 +45,6 @@ describe('probe content parity — robotSubsectionConfig', () => {
     expect([e(ROW[id]).human, e(ROW[id]).lore]).toEqual([sub.navLabel, sub.loreLabel]);
     if (sub.accordionLabel) expect(e(ACCORDION[id]).human).toBe(sub.accordionLabel);
     else expect(ACCORDION[id]).toBeUndefined();
-  });
-});
-
-describe('probe content parity — robotSelectionConfig', () => {
-  it('row schemas + battery', () => {
-    const rows = ROBOT_SELECTION_ROW_SCHEMAS;
-    expect([e('probe.name').human, e('probe.name').lore]).toEqual([rows.name.humanLabel, rows.name.loreLabel]);
-    expect([e('probe.job').human, e('probe.job').lore]).toEqual([rows.job.humanLabel, rows.job.loreLabel]);
-    expect([e('probe.status.docking').human, e('probe.status.docking').lore]).toEqual([rows.docking.humanLabel, rows.docking.loreLabel]);
-    expect([e('probe.status').human, e('probe.status').lore]).toEqual([rows.status.humanLabel, rows.status.loreLabel]);
-    expect([e('probe.battery').human, e('probe.battery').lore, e('probe.battery').unit]).toEqual([BATTERY_READOUT_SCHEMA.humanLabel, BATTERY_READOUT_SCHEMA.loreLabel, BATTERY_READOUT_SCHEMA.unit]);
-  });
-
-  const asPairs = (m: Record<string, { humanLabel: string; loreLabel?: string }>) => Object.entries(m).map(([v, l]) => [v, l.humanLabel, l.loreLabel]);
-  const asOpts = (k: ProbeKey) => Object.entries(e(k).options!).map(([v, o]) => [v, o.human, o.lore]);
-
-  it('value-label maps ↔ options', () => {
-    expect(asOpts('probe.job')).toEqual(asPairs(JOB_TYPE_LABELS));
-    expect([e('probe.job.unassigned').human, e('probe.job.unassigned').lore]).toEqual([UNASSIGNED_JOB_LABEL.humanLabel, UNASSIGNED_JOB_LABEL.loreLabel]);
-    expect(asOpts('probe.status.docking')).toEqual(asPairs(DOCKING_STATE_LABELS));
-    expect(asOpts('probe.status.monitorMode')).toEqual(asPairs(AUDIO_MODE_LABELS));
-    expect(asOpts('probe.status')).toEqual(asPairs(AUDIBILITY_LABELS));
   });
 });
 
