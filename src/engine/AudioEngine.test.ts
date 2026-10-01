@@ -1974,14 +1974,17 @@ describe('AudioEngine - getRobotModulationTarget', () => {
     expect(target).toHaveProperty('value');
   });
 
-  it('returns null (not throw) for "layerN.phase" — no live Signal exists for oscillator phase in Tone.js', async () => {
+  // The phase LFO target was cut (docs/specs/LFO_BANK.md Task 1) — no live Signal ever existed
+  // for oscillator phase in Tone.js, so it never resolved one even before the removal; the id can
+  // still arrive as a stale string from an old session or share link and must decline like 'volume'/'pulseWidth'.
+  it('returns null (not throw) for the removed "layerN.phase" target', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 45 }];
     AudioEngine.reserveVoice('mod-target-phase', layered as any, TEST_ADSR);
 
-    expect(() => AudioEngine.getRobotModulationTarget('mod-target-phase', 'layer0.phase')).not.toThrow();
-    expect(AudioEngine.getRobotModulationTarget('mod-target-phase', 'layer0.phase')).toBeNull();
+    expect(() => AudioEngine.getRobotModulationTarget('mod-target-phase', 'layer0.phase' as any)).not.toThrow();
+    expect(AudioEngine.getRobotModulationTarget('mod-target-phase', 'layer0.phase' as any)).toBeNull();
   });
 
   // The pulse-width LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 4) —

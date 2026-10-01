@@ -750,19 +750,19 @@ export const AudioEngine = {
    * Resolve the live, connectable Tone Signal/Param for a robot-level LFO
    * modulation target (docs/tasks/LFO_INTEGRATION_PLAN.md Task 9). Returns
    * null — never throws — for: an unreserved robotId, an out-of-range layer
-   * index, 'layerN.phase' (Tone.js has no live Signal for oscillator phase;
-   * handled via a manual-polling fallback at the lfoEngine layer, Task 12),
-   * and any id outside the current RobotLfoTargetId set — including the
-   * removed 'volume' and 'layerN.pulseWidth' targets (docs/specs/
-   * LFO_LOAD_FIX.md assumption 9), which can still arrive as strings from an
-   * old session or share link and must decline like any unknown id.
+   * index, and any id outside the current RobotLfoTargetId set — including
+   * the removed 'volume', 'layerN.pulseWidth' (docs/specs/LFO_LOAD_FIX.md
+   * assumption 9) and 'layerN.phase' (docs/specs/LFO_BANK.md Task 1 — Tone.js
+   * never had a live Signal for oscillator phase in the first place) targets,
+   * which can still arrive as strings from an old session or share link and
+   * must decline like any unknown id.
    */
   getRobotModulationTarget(robotId: string, target: RobotLfoTargetId): ModulationTarget | null {
     try {
       const voice = AudioEngine.getVoiceForRobot(robotId);
       if (!voice) return null;
 
-      const match = /^layer(\d+)\.(gain|detune|phase)$/.exec(target);
+      const match = /^layer(\d+)\.(gain|detune)$/.exec(target);
       if (!match) return null;
       const layerEntry = voice.layers?.[Number(match[1])];
       if (!layerEntry) return null;
@@ -772,12 +772,8 @@ export const AudioEngine = {
         const gain = (layerEntry.gainNode as unknown as { gain?: unknown })?.gain;
         return (gain as ModulationTarget | undefined) ?? null;
       }
-      if (field === 'detune') {
-        const osc = (layerEntry.synth as unknown as { oscillator?: { detune?: unknown } })?.oscillator;
-        return (osc?.detune as ModulationTarget | undefined) ?? null;
-      }
-      // 'phase' — no live Signal exists; the lfoEngine phase-polling fallback owns it.
-      return null;
+      const osc = (layerEntry.synth as unknown as { oscillator?: { detune?: unknown } })?.oscillator;
+      return (osc?.detune as ModulationTarget | undefined) ?? null;
     } catch (err) {
       devWarn('[AudioEngine] getRobotModulationTarget failed', err);
       return null;

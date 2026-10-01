@@ -100,31 +100,6 @@ vi.mock('./AudioEngine', () => ({
   },
 }));
 
-// Shares captured schedule callbacks between the hoisted beatClock mock
-// factory and test bodies, so a test can manually fire a "tick" — this is
-// the "mocked LFO ticks" mechanism the phase-fallback tests need, since the
-// real scheduleRepeat only actually fires once a real transport is running.
-const { scheduleCallbacks, mockScheduleRepeat, mockCancelSchedule } = vi.hoisted(() => {
-  const callbacks = new Map<string, () => void>();
-  let counter = 0;
-  return {
-    scheduleCallbacks: callbacks,
-    mockScheduleRepeat: (_interval: string, callback: () => void): string => {
-      const id = `mock-schedule-${counter++}`;
-      callbacks.set(id, callback);
-      return id;
-    },
-    mockCancelSchedule: (id: string): void => {
-      callbacks.delete(id);
-    },
-  };
-});
-
-vi.mock('./beatClock', () => ({
-  scheduleRepeat: vi.fn(mockScheduleRepeat),
-  cancelSchedule: vi.fn(mockCancelSchedule),
-}));
-
 let mockToneNow = 0;
 
 // ========================================
@@ -241,7 +216,6 @@ describe('lfoEngine', () => {
     mockTransportState = 'stopped';
     mockContextState = 'suspended';
     mockToneNow = 0;
-    scheduleCallbacks.clear();
   });
 
   describe('lazy instantiation', () => {
@@ -727,72 +701,20 @@ describe('lfoEngine', () => {
       expect(result).toBe(false);
     });
 
-    describe('phase — manual polling fallback', () => {
-      it('does not call .connect() — no live Signal exists for phase', async () => {
-        const { lfoEngine } = await import('./lfoEngine');
-        const delta = await callCountDelta(() => {
-          lfoEngine.connectLfoTarget('layer0.phase', 'robot-a');
-        });
-        // a Tone.LFO IS still constructed (for rate/depth/shape bookkeeping,
-        // matching every other target), but nothing should be connected.
-        expect(delta).toBe(1);
-        const instance = await latestLfoInstance();
-        expect(instance.connect).not.toHaveBeenCalled();
-      });
-
-      it('returns true and registers a scheduleRepeat tick', async () => {
-        const { lfoEngine } = await import('./lfoEngine');
-        const before = scheduleCallbacks.size;
-        const result = lfoEngine.connectLfoTarget('layer0.phase', 'robot-a');
-        expect(result).toBe(true);
-        expect(scheduleCallbacks.size).toBe(before + 1);
-      });
-
-      it('returns false (not throw) when called without a robotId — phase fallback needs to know which robot\'s voice to update', async () => {
-        const { lfoEngine } = await import('./lfoEngine');
-        let result: boolean | undefined;
-        expect(() => { result = lfoEngine.connectLfoTarget('layer0.phase'); }).not.toThrow();
-        expect(result).toBe(false);
-      });
-
-      it('mutates phase over time — each simulated tick produces a different value applied via AudioEngine.updateVoiceLayerParams', async () => {
-        const { AudioEngine } = await import('./AudioEngine');
-        const { lfoEngine } = await import('./lfoEngine');
-        lfoEngine.setLfoRate('layer0.phase', 1, 'robot-a');
-        lfoEngine.setLfoDepth('layer0.phase', 100, 'robot-a');
-        lfoEngine.connectLfoTarget('layer0.phase', 'robot-a');
-
-        const callback = [...scheduleCallbacks.values()].at(-1)!;
-
-        mockToneNow = 0;
-        callback();
-        const firstCall = (AudioEngine.updateVoiceLayerParams as ReturnType<typeof vi.fn>).mock.calls.at(-1)!;
-        const firstPhase = (firstCall[1] as Array<{ phase?: number }>)[0]?.phase;
-
-        mockToneNow = 0.25; // a quarter-period later at 1 Hz
-        callback();
-        const secondCall = (AudioEngine.updateVoiceLayerParams as ReturnType<typeof vi.fn>).mock.calls.at(-1)!;
-        const secondPhase = (secondCall[1] as Array<{ phase?: number }>)[0]?.phase;
-
-        expect(firstCall[0]).toBe('robot-a');
-        expect(typeof firstPhase).toBe('number');
-        expect(typeof secondPhase).toBe('number');
-        expect(secondPhase).not.toBe(firstPhase);
-      });
-
-      it('only patches the target layer index, leaving other layers untouched (sparse array)', async () => {
-        const { AudioEngine } = await import('./AudioEngine');
-        const { lfoEngine } = await import('./lfoEngine');
-        lfoEngine.connectLfoTarget('layer2.phase', 'robot-a');
-        const callback = [...scheduleCallbacks.values()].at(-1)!;
-        callback();
-
-        const call = (AudioEngine.updateVoiceLayerParams as ReturnType<typeof vi.fn>).mock.calls.at(-1)!;
-        const layers = call[1] as Array<{ phase?: number } | undefined>;
-        expect(layers[0]).toBeUndefined();
-        expect(layers[1]).toBeUndefined();
-        expect(layers[2]?.phase).toBeTypeOf('number');
-      });
+    // Phase LFO targets were cut (docs/specs/LFO_BANK.md Task 1) — the control-rate polling
+    // fallback they relied on (no live Signal ever existed for oscillator phase) is deleted
+    // with them. A stale 'layerN.phase' string from an old session/share link is no longer even
+    // recognized as a robot-scoped target (isRobotTarget's ROBOT_LFO_TARGET_IDS lookup misses
+    // it), so it falls through to the global resolver, which also resolves no Signal, and simply
+    // declines — same as any other unknown target id.
+    it('returns false (not throw) and records nothing for a stale "layerN.phase" string — no live Signal resolves for it any more', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockReturnValueOnce(null);
+      const { lfoEngine } = await import('./lfoEngine');
+      let result: boolean | undefined;
+      expect(() => { result = lfoEngine.connectLfoTarget('layer0.phase' as never, 'robot-a'); }).not.toThrow();
+      expect(result).toBe(false);
+      expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
     });
   });
 
@@ -809,22 +731,9 @@ describe('lfoEngine', () => {
       expect(instance.disconnect).toHaveBeenCalledTimes(1);
     });
 
-    it('cancels the phase-polling fallback schedule', async () => {
-      const { cancelSchedule } = await import('./beatClock');
-      const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.connectLfoTarget('layer0.phase', 'robot-a');
-      const sizeBeforeDisconnect = scheduleCallbacks.size;
-
-      lfoEngine.disconnectLfoTarget('layer0.phase', 'robot-a');
-
-      expect(cancelSchedule).toHaveBeenCalled();
-      expect(scheduleCallbacks.size).toBe(sizeBeforeDisconnect - 1);
-    });
-
     it('does not throw when nothing was ever connected', async () => {
       const { lfoEngine } = await import('./lfoEngine');
       expect(() => lfoEngine.disconnectLfoTarget('eq3.low')).not.toThrow();
-      expect(() => lfoEngine.disconnectLfoTarget('layer0.phase', 'robot-a')).not.toThrow();
     });
   });
 
@@ -1035,18 +944,6 @@ describe('lfoEngine', () => {
         expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
       });
 
-      it('never touches an LFO the policy leaves allowed (a phase LFO under a filter-only policy)', async () => {
-        const { lfoEngine } = await setup();
-        lfoEngine.setLfoRate('layer0.phase', 1, 'robot-a');
-        lfoEngine.setLfoPolicy(blockFilters);
-        expect(lfoEngine.connectLfoTarget('layer0.phase', 'robot-a')).toBe(true);
-        const scheduled = scheduleCallbacks.size;
-
-        lfoEngine.reconcileLfos();
-
-        expect(scheduleCallbacks.size).toBe(scheduled);
-        expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
-      });
     });
 
     describe('explicit disconnect and disposal forget the request', () => {
@@ -1142,18 +1039,6 @@ describe('lfoEngine', () => {
       expect(newInstance).not.toBe(oldInstance);
     });
 
-    it('cancels a robot\'s phase-polling fallback schedule', async () => {
-      const { cancelSchedule } = await import('./beatClock');
-      const { lfoEngine } = await import('./lfoEngine');
-      lfoEngine.connectLfoTarget('layer0.phase', 'robot-a');
-      const sizeBeforeDispose = scheduleCallbacks.size;
-
-      lfoEngine.disposeRobotLfos('robot-a');
-
-      expect(cancelSchedule).toHaveBeenCalled();
-      expect(scheduleCallbacks.size).toBe(sizeBeforeDispose - 1);
-    });
-
     it('does not throw for a robot with no connected LFOs at all', async () => {
       const { lfoEngine } = await import('./lfoEngine');
       expect(() => lfoEngine.disposeRobotLfos('never-connected-robot')).not.toThrow();
@@ -1186,8 +1071,7 @@ describe('lfoEngine', () => {
 
   // Audio Load Budget (plan task 19): the number of audio-rate ROBOT LFOs connected at once is capped. Over-cap connections
   // are refused and held off; when the cap falls the most recently CONNECTED ones are dropped first (LIFO, matching robot
-  // admission); when it rises, held-off ones reconnect in REQUEST order. layerN.phase LFOs poll at control rate and are
-  // neither counted nor refused; global LFOs are unaffected by the robot cap.
+  // admission); when it rises, held-off ones reconnect in REQUEST order. Global LFOs are unaffected by the robot cap.
   describe('robot-LFO cap (real lfoAllowed as the policy)', () => {
     const capPolicy = (cap: number) => (target: string, robotId: string | undefined, connected: number) =>
       lfoAllowed(target as never, robotId ? 'robot' : 'global', { ...loadToLimits(1), maxRobotLfos: cap }, connected);
@@ -1269,26 +1153,6 @@ describe('lfoEngine', () => {
       setCap(2);
 
       expect(held()).toEqual([gain('r1')]);
-    });
-
-    it('never counts or refuses layerN.phase LFOs, even at a cap of zero', async () => {
-      const { lfoEngine, setCap } = await setup(0);
-      for (const layer of [0, 1, 2]) {
-        lfoEngine.setLfoRate(`layer${layer}.phase` as never, 1, 'r1');
-        expect(lfoEngine.connectLfoTarget(`layer${layer}.phase` as never, 'r1')).toBe(true);
-      }
-      setCap(0);
-      expect(lfoEngine.getHeldOffLfoKeys()).toEqual([]);
-    });
-
-    it('does not let phase LFOs use up slots the audio-rate ones need', async () => {
-      const { lfoEngine, request } = await setup(1);
-      for (const robot of ['a', 'b', 'c']) {
-        lfoEngine.setLfoRate('layer0.phase', 1, robot);
-        lfoEngine.connectLfoTarget('layer0.phase', robot);
-      }
-      expect(request('r1')).toBe(true);
-      expect(request('r2')).toBe(false);
     });
 
     it('does not let the robot cap touch global LFOs', async () => {
@@ -1594,17 +1458,6 @@ describe('lfoEngine', () => {
       expect(gainsSince(afterOn)).toHaveLength(0);
     });
 
-    it('never adds drift to a phase LFO (it polls at control rate), whichever way the switch goes', async () => {
-      const { lfoEngine, gainMark, gainsSince } = await setup();
-      lfoEngine.setLfoRate('layer0.phase', 1, 'robot-a');
-      lfoEngine.connectLfoTarget('layer0.phase', 'robot-a');
-      const mark = gainMark();
-
-      lfoEngine.setDriftEnabled(false);
-      lfoEngine.setDriftEnabled(true);
-
-      expect(gainsSince(mark)).toHaveLength(0);
-    });
   });
 
   describe('drift pool (Task 4 — structural, inert: both Gains stay at 0, nothing audible changes)', () => {
@@ -1824,18 +1677,6 @@ describe('lfoEngine', () => {
       });
     });
 
-    describe('phase exclusion', () => {
-      it('creates no drift Gains for a \'layerN.phase\' target — no live Signal exists for it to attach to', async () => {
-        const { lfoEngine } = await import('./lfoEngine');
-        const Tone = await import('tone');
-        const gainCtor = Tone.Gain as unknown as ReturnType<typeof vi.fn>;
-        const before = gainCtor.mock.calls.length;
-
-        lfoEngine.connectLfoTarget('layer0.phase', 'robot-a');
-
-        expect(gainCtor.mock.calls.length - before).toBe(0);
-      });
-    });
   });
 
   describe('per-group drift pools (docs/tasks/archive/LFO_DRIFT_GROUPS.md Task 5, restructured for the 2-group merge in docs/tasks/FLEET_DRIFT_CONSOLIDATION.md)', () => {

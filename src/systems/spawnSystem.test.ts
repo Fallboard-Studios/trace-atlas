@@ -238,7 +238,13 @@ describe('spawnSystem', () => {
     });
 
     it('gives different targets different values within the same call — dataIds are genuinely distinct, not colliding', () => {
-      const settings = generateRobotLfoSettings(mockNoiseMap, 0);
+      // A seeded noise map (not mockNoiseMap's raw Math.random()): with only 6 robot targets
+      // remaining (docs/specs/LFO_BANK.md Task 1 cut the three phase targets), an unseeded random
+      // draw has a non-negligible chance every target independently rolls quiet (rate 0) under
+      // LFO_QUIET_THRESHOLD, which this test must not flake on — it's checking dataId distinctness,
+      // not quiet odds.
+      const noiseMap = createNoise2D(alea('lfo-load-fix-oracle')); // ORACLE_SEED below, offset 4 — every target oscillates there
+      const settings = generateRobotLfoSettings(noiseMap, 4);
       const rates = ROBOT_LFO_TARGET_IDS.map((t) => settings[t].rate);
       expect(new Set(rates.map((r) => r.toFixed(6))).size).toBeGreaterThan(1);
     });
@@ -269,29 +275,26 @@ describe('spawnSystem', () => {
   describe('generateRobotLfoSettings — seed oracle (LFO Load Fix Task 1)', () => {
     const ORACLE_SEED = 'lfo-load-fix-oracle';
 
-    // Offset 1: a mostly-quiet robot (2 of 13 oscillating). Offset 4: a mostly-on robot (12 of 13).
+    // Offset 1: a mostly-quiet robot. Offset 4: a mostly-on robot. The three 'layerN.phase' rows
+    // were dropped from this oracle when the phase targets were cut (docs/specs/LFO_BANK.md Task
+    // 1, per this describe block's own doc comment: "Targets a later task removes are simply
+    // dropped from the expectation when the type narrows; the remaining rows stay as captured").
     const EXPECTED: Record<number, Record<string, { shape: string; rate: number; depth: number }>> = {
       1: {
         'layer0.gain': { shape: 'square', rate: 0, depth: 71 },
         'layer0.detune': { shape: 'triangle', rate: 0, depth: 21 },
-        'layer0.phase': { shape: 'square', rate: 0, depth: 69 },
         'layer1.gain': { shape: 'triangle', rate: 0, depth: 5 },
         'layer1.detune': { shape: 'sine', rate: 0, depth: 55 },
-        'layer1.phase': { shape: 'sine', rate: 0, depth: 28 },
         'layer2.gain': { shape: 'square', rate: 0, depth: 13 },
         'layer2.detune': { shape: 'square', rate: 0, depth: 57 },
-        'layer2.phase': { shape: 'triangle', rate: 0, depth: 73 },
       },
       4: {
         'layer0.gain': { shape: 'square', rate: 11.95, depth: 67 },
         'layer0.detune': { shape: 'sawtooth', rate: 12.7, depth: 71 },
-        'layer0.phase': { shape: 'square', rate: 12.05, depth: 65 },
         'layer1.gain': { shape: 'square', rate: 12.3, depth: 50 },
         'layer1.detune': { shape: 'square', rate: 11.3, depth: 60 },
-        'layer1.phase': { shape: 'square', rate: 14.35, depth: 73 },
         'layer2.gain': { shape: 'square', rate: 13.45, depth: 56 },
         'layer2.detune': { shape: 'square', rate: 12.55, depth: 60 },
-        'layer2.phase': { shape: 'square', rate: 14.3, depth: 68 },
       },
     };
 

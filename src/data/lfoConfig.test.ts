@@ -21,9 +21,9 @@ import {
 const ALL_TARGET_IDS = [...ROBOT_LFO_TARGET_IDS, ...GLOBAL_LFO_TARGET_IDS];
 
 describe('DEFAULT_LFO_SETTINGS', () => {
-  it('has exactly one entry per target — all 9 robot + 7 global ids (16), no extras', () => {
+  it('has exactly one entry per target — all 6 robot + 7 global ids (13), no extras', () => {
     expect(Object.keys(DEFAULT_LFO_SETTINGS).sort()).toEqual([...ALL_TARGET_IDS].sort());
-    expect(Object.keys(DEFAULT_LFO_SETTINGS)).toHaveLength(16);
+    expect(Object.keys(DEFAULT_LFO_SETTINGS)).toHaveLength(13);
   });
 
   it('every entry has a valid shape from LFO_SHAPES', () => {

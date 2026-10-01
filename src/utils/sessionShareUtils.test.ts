@@ -40,16 +40,17 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
   });
 
-  it('drops legacy robot lfoSettings keys (volume, layerN.pulseWidth — removed LFO targets) on decode, keeping the known ones', () => {
-    // docs/specs/LFO_LOAD_FIX.md §1.4 "Backward compatibility": a link minted before the two
-    // targets were removed still carries them under `lf`. Cast through unknown — the type no
-    // longer admits those keys, which is the point.
+  it('drops legacy robot lfoSettings keys (volume, layerN.pulseWidth, layerN.phase — removed LFO targets) on decode, keeping the known ones', () => {
+    // docs/specs/LFO_LOAD_FIX.md §1.4 "Backward compatibility" / docs/specs/LFO_BANK.md Task 1: a
+    // link minted before these targets were removed still carries them under `lf`. Cast through
+    // unknown — the type no longer admits those keys, which is the point.
     const payload = makePayload({
       robotOverrides: {
         'robot-1': {
           lfoSettings: {
             volume: { shape: 'sine', rate: 3, depth: 50 },
             'layer1.pulseWidth': { shape: 'square', rate: 2, depth: 40 },
+            'layer1.phase': { shape: 'sawtooth', rate: 4, depth: 60 },
             'layer1.gain': { shape: 'triangle', rate: 1.5, depth: 30 },
           },
         } as unknown as SessionPayload['robotOverrides'][string],
@@ -61,6 +62,7 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     expect(lfo['layer1.gain']).toEqual({ shape: 'triangle', rate: 1.5, depth: 30 });
     expect('volume' in lfo).toBe(false);
     expect('layer1.pulseWidth' in lfo).toBe(false);
+    expect('layer1.phase' in lfo).toBe(false);
   });
 
   it('round-trips non-Latin1 characters (company/robot names are not charset-restricted)', () => {

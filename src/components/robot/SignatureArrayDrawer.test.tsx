@@ -318,17 +318,45 @@ describe('SignatureArrayDrawer', () => {
     // The pulseWidth LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 4).
     // Interval still renders for pulse layers, but as a plain slider row outside the LFO group —
     // never a targetable field, never a fourth row in the group.
-    it('a pulse layer shows the Interval slider outside the LFO group — the group has exactly 3 targetable rows (Gain/Detune/Phase)', () => {
+    it('a pulse layer shows the Interval slider outside the LFO group — the group has exactly 2 targetable rows (Gain/Detune)', () => {
       const layers = makeLayers();
       layers[1] = { ...layers[1], type: 'pulse' };
       const { container } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
       const section = layerSection(container, 'layer1');
       const intervalSlider = within(section).getByRole('slider', { name: /interval/i });
       expect(intervalSlider.closest('.sc-lfo-target-group__row')).toBeNull();
-      expect(section.querySelectorAll('.sc-lfo-target-group__row')).toHaveLength(3);
-      // A non-pulse layer has the same 3 rows and no Interval at all.
-      expect(layerSection(container, 'layer0').querySelectorAll('.sc-lfo-target-group__row')).toHaveLength(3);
+      expect(section.querySelectorAll('.sc-lfo-target-group__row')).toHaveLength(2);
+      // A non-pulse layer has the same 2 rows and no Interval at all.
+      expect(layerSection(container, 'layer0').querySelectorAll('.sc-lfo-target-group__row')).toHaveLength(2);
       expect(within(layerSection(container, 'layer0')).queryByRole('slider', { name: /interval/i })).toBeNull();
+    });
+
+    // The phase LFO target was cut (docs/specs/LFO_BANK.md Task 1). Phase still renders on every
+    // layer (unlike Interval, which is pulse-only), but as a plain slider row outside the LFO
+    // group — never a targetable field, never a third row in the group.
+    it('every layer shows the Phase slider outside the LFO group — the group never includes it', () => {
+      const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
+      const section = layerSection(container, 'layer0');
+      const phaseSlider = within(section).getByRole('slider', { name: /phase/i });
+      expect(phaseSlider.closest('.sc-lfo-target-group__row')).toBeNull();
+      expect(section.querySelectorAll('.sc-lfo-target-group__row')).toHaveLength(2);
+    });
+
+    it('a Phase change calls onContinuousChange with that layer\'s phase, and never onLfoChange', () => {
+      const onContinuousChange = vi.fn();
+      const onLfoChange = vi.fn();
+      const { container } = render(
+        <SignatureArrayDrawer value={makeValue()} onContinuousChange={onContinuousChange} onStructuralChange={() => {}} onLfoChange={onLfoChange} />
+      );
+
+      const phaseSlider = within(layerSection(container, 'layer0')).getByRole('slider', { name: /phase/i });
+      phaseSlider.focus();
+      fireEvent.keyDown(phaseSlider, { key: 'ArrowRight' });
+
+      expect(onContinuousChange).toHaveBeenCalledTimes(1);
+      const next = onContinuousChange.mock.calls[0][0] as OscillatorLayer[];
+      expect(next[0].phase).toBeGreaterThan(0);
+      expect(onLfoChange).not.toHaveBeenCalled();
     });
 
     it('editing Interval on a pulse layer still calls onContinuousChange with that layer\'s pulseWidth, and never onLfoChange', () => {

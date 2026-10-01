@@ -327,7 +327,6 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
   const { humanLabel, loreLabel } = labels(c.root);
   const gainTarget = `${key}.gain` as RobotLfoTargetId;
   const detuneTarget = `${key}.detune` as RobotLfoTargetId;
-  const phaseTarget = `${key}.phase` as RobotLfoTargetId;
 
   return {
     key,
@@ -362,13 +361,16 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
         lfoTarget: detuneTarget,
       },
       {
+        // No lfoTarget — the phase LFO target was cut (docs/specs/LFO_BANK.md Task 1: Phase
+        // never had a live Signal to modulate, the one of the 9 original robot targets that ran
+        // a control-rate polling fallback instead of an audio-rate connection). The slider itself
+        // stays, rendered outside the layer's LfoTargetGroup, same as Interval/pulseWidth below.
         field: 'phase',
         schema: {
           id: `robotOptions.${key}.phase`, type: 'sliderLinear',
           ...labels(c.phase),
           min: 0, max: 360, orientation: 'vertical', verticalHeight: 256,
         } satisfies SliderLinearSchema,
-        lfoTarget: phaseTarget,
       },
       {
         // No lfoTarget — the pulseWidth LFO target was removed (docs/specs/LFO_LOAD_FIX.md

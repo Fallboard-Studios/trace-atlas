@@ -203,6 +203,13 @@ describe('robotOptionsConfig', () => {
       });
     });
 
+    it('the Phase param is never LFO-flagged (docs/specs/LFO_BANK.md Task 1 — phase targets cut; the slider stays, just non-modulatable)', () => {
+      SIGNATURE_ARRAY_CONFIG.forEach((block) => {
+        const phaseParam = block.params.find((p) => p.field === 'phase');
+        expect(phaseParam!.lfoTarget).toBeUndefined();
+      });
+    });
+
     it('every LFO-flagged param\'s lfoTarget is a real RobotLfoTargetId matching its own layer index', () => {
       const expectedPrefixes = ['layer0', 'layer1', 'layer2'];
       SIGNATURE_ARRAY_CONFIG.forEach((block, i) => {
@@ -225,13 +232,16 @@ describe('robotOptionsConfig', () => {
     // The pulse-width LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 4) —
     // the ≈7× cost outlier among robot LFOs, only ever present on pulse-type layers. The Interval
     // slider itself stays; it is simply no longer a modulation target.
-    it('each layer block carries exactly 3 LFO-flagged params — gain, detune, phase — and Interval/pulseWidth is never LFO-flagged', () => {
+    it('each layer block carries exactly 2 LFO-flagged params — gain, detune — and Phase/Interval/pulseWidth are never LFO-flagged', () => {
       SIGNATURE_ARRAY_CONFIG.forEach((block) => {
         const flagged = block.params.filter((p) => p.lfoTarget !== undefined).map((p) => p.field).sort();
-        expect(flagged, block.key).toEqual(['detune', 'gain', 'phase']);
+        expect(flagged, block.key).toEqual(['detune', 'gain']);
         const pw = block.params.find((p) => p.field === 'pulseWidth')!;
         expect(pw, `${block.key} still has its Interval slider`).toBeDefined();
         expect(pw.lfoTarget, `${block.key}.pulseWidth`).toBeUndefined();
+        const phase = block.params.find((p) => p.field === 'phase')!;
+        expect(phase, `${block.key} still has its Phase slider`).toBeDefined();
+        expect(phase.lfoTarget, `${block.key}.phase`).toBeUndefined();
       });
     });
 

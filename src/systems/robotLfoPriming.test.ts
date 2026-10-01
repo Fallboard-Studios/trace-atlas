@@ -57,15 +57,15 @@ describe('applyRobotLfoToEngine', () => {
 
   it('does not call start when connectLfoTarget declines (budget refusal)', () => {
     (lfoEngine.connectLfoTarget as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
-    applyRobotLfoToEngine('r1', 'layer2.phase', makeLfo({ rate: 1 }));
+    applyRobotLfoToEngine('r1', 'layer2.detune', makeLfo({ rate: 1 }));
 
-    expect(lfoEngine.connectLfoTarget).toHaveBeenCalledWith('layer2.phase', 'r1');
+    expect(lfoEngine.connectLfoTarget).toHaveBeenCalledWith('layer2.detune', 'r1');
     expect(lfoEngine.start).not.toHaveBeenCalled();
   });
 });
 
 describe('primeRobotLfos', () => {
-  it('applies every target the robot has settings for, across all 9 (3 on, 6 off)', () => {
+  it('applies every target the robot has settings for, across all 6 (3 on, 3 off)', () => {
     const settings: Partial<Record<string, LfoSettings>> = {};
     for (const [i, target] of ROBOT_LFO_TARGET_IDS.entries()) {
       settings[target] = makeLfo({ rate: i < 3 ? 2 : 0 });
@@ -74,9 +74,9 @@ describe('primeRobotLfos', () => {
 
     primeRobotLfos(robot);
 
-    expect(lfoEngine.setLfoRate).toHaveBeenCalledTimes(9);
+    expect(lfoEngine.setLfoRate).toHaveBeenCalledTimes(6);
     expect(lfoEngine.connectLfoTarget).toHaveBeenCalledTimes(3);
-    expect(lfoEngine.disconnectLfoTarget).toHaveBeenCalledTimes(6);
+    expect(lfoEngine.disconnectLfoTarget).toHaveBeenCalledTimes(3);
   });
 
   it('makes no engine calls when the robot has no lfoSettings', () => {

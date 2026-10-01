@@ -882,7 +882,7 @@ describe('lfoAllowed', () => {
   });
 
   describe('robot targets', () => {
-    const audioRateTargets = ROBOT_LFO_TARGET_IDS.filter((t) => !t.endsWith('.phase'));
+    const audioRateTargets = ROBOT_LFO_TARGET_IDS;
 
     it('allows a connection only while fewer than maxRobotLfos are connected', () => {
       for (const target of audioRateTargets) {
@@ -907,17 +907,12 @@ describe('lfoAllowed', () => {
       expect(lfoAllowed('layer0.gain', 'robot', full, 10_000)).toBe(false);
     });
 
-    it('never counts or refuses layerN.phase LFOs — they poll at control rate, not audio rate', () => {
-      for (const target of ['layer0.phase', 'layer1.phase', 'layer2.phase'] as const) {
-        expect(lfoAllowed(target, 'robot', light, 0), target).toBe(true);
-        expect(lfoAllowed(target, 'robot', light, 999), `${target} over any cap`).toBe(true);
-      }
-    });
-
-    it('a cap of zero refuses every audio-rate robot LFO but still allows phase LFOs', () => {
+    // Phase targets were cut (docs/specs/LFO_BANK.md Task 1) — every robot target is now an
+    // audio-rate connection, so the cap applies uniformly with no exemption.
+    it('a cap of zero refuses every robot LFO, with no exemption (the phase exemption is gone)', () => {
       const zero = { ...light, maxRobotLfos: 0 };
       expect(lfoAllowed('layer0.gain', 'robot', zero, 0)).toBe(false);
-      expect(lfoAllowed('layer1.phase', 'robot', zero, 0)).toBe(true);
+      expect(lfoAllowed('layer1.detune', 'robot', zero, 0)).toBe(false);
     });
 
     it('is not affected by the filter-LFO switch', () => {

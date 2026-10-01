@@ -29,11 +29,11 @@ function makeDefaultLfoSettings(): LfoSettings {
 }
 
 /**
- * One entry per target — 9 robot + 7 global = 16 (robot was 13 until the
- * volume/pulseWidth targets were removed, docs/specs/LFO_LOAD_FIX.md; V2: global was 9 until
- * Chorus, and its 'chorus.delayTime' LFO target, was removed). Each target gets its own
- * settings object (not a shared reference), since lfoEngine.ts's setters
- * (Task 11) will mutate these in place.
+ * One entry per target — 6 robot + 7 global = 13 (robot was 13 until the
+ * volume/pulseWidth targets were removed, docs/specs/LFO_LOAD_FIX.md, then 9 until the phase
+ * targets were cut, docs/specs/LFO_BANK.md Task 1; V2: global was 9 until Chorus, and its
+ * 'chorus.delayTime' LFO target, was removed). Each target gets its own settings object (not a
+ * shared reference), since lfoEngine.ts's setters (Task 11) will mutate these in place.
  */
 export const DEFAULT_LFO_SETTINGS: Record<RobotLfoTargetId | GlobalLfoTargetId, LfoSettings> = Object.fromEntries(
   [...ROBOT_LFO_TARGET_IDS, ...GLOBAL_LFO_TARGET_IDS].map((id) => [id, makeDefaultLfoSettings()])

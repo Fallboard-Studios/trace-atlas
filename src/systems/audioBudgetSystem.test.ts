@@ -461,7 +461,6 @@ describe('audioBudgetSystem', () => {
       expect(policy()('eq3.low', undefined, 0)).toBe(true); // EQ-gain LFOs stay
       expect(policy()('layer0.gain', 'r1', 3)).toBe(true); // Light allows 4 audio-rate robot LFOs
       expect(policy()('layer0.gain', 'r1', 4)).toBe(false);
-      expect(policy()('layer0.phase', 'r1', 99)).toBe(true); // phase LFOs are never counted
       expect(setDrift).toHaveBeenLastCalledWith(false);
     });
 

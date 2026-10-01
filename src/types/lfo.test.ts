@@ -34,27 +34,33 @@ describe('LFO_SHAPES', () => {
 
 describe('ROBOT_LFO_TARGET_IDS', () => {
   // 13 → 9 on 2026-09-30: 'volume' and the three 'layerN.pulseWidth' targets were removed
-  // (docs/specs/LFO_LOAD_FIX.md assumption 9 / §1.4). ROBOT_DATA_GRID.md's Has LFO column
-  // for Volume and Interval reads No.
-  it('matches ROBOT_DATA_GRID.md\'s 9 Has-LFO-flagged targets exactly — gain/detune/phase on each of 3 layers', () => {
+  // (docs/specs/LFO_LOAD_FIX.md assumption 9 / §1.4). 9 → 6 on 2026-10-01 (docs/specs/LFO_BANK.md
+  // Task 1): the three 'layerN.phase' targets were cut — Phase stays a plain slider, just no
+  // longer LFO-modulatable (no live Signal ever backed it; it was a control-rate polling fallback).
+  it('matches ROBOT_DATA_GRID.md\'s 6 Has-LFO-flagged targets exactly — gain/detune on each of 3 layers', () => {
     expect([...ROBOT_LFO_TARGET_IDS].sort()).toEqual(
       [
-        'layer0.gain', 'layer0.detune', 'layer0.phase',
-        'layer1.gain', 'layer1.detune', 'layer1.phase',
-        'layer2.gain', 'layer2.detune', 'layer2.phase',
+        'layer0.gain', 'layer0.detune',
+        'layer1.gain', 'layer1.detune',
+        'layer2.gain', 'layer2.detune',
       ].sort()
     );
   });
 
-  it('has exactly 9 members, no duplicates', () => {
-    expect(ROBOT_LFO_TARGET_IDS).toHaveLength(9);
-    expect(new Set(ROBOT_LFO_TARGET_IDS).size).toBe(9);
+  it('has exactly 6 members, no duplicates', () => {
+    expect(ROBOT_LFO_TARGET_IDS).toHaveLength(6);
+    expect(new Set(ROBOT_LFO_TARGET_IDS).size).toBe(6);
   });
 
   it('never carries the removed volume or pulseWidth targets', () => {
     const ids = ROBOT_LFO_TARGET_IDS as readonly string[];
     expect(ids).not.toContain('volume');
     expect(ids.some((id) => id.endsWith('.pulseWidth'))).toBe(false);
+  });
+
+  it('never carries the removed phase targets (docs/specs/LFO_BANK.md Task 1)', () => {
+    const ids = ROBOT_LFO_TARGET_IDS as readonly string[];
+    expect(ids.some((id) => id.endsWith('.phase'))).toBe(false);
   });
 });
 

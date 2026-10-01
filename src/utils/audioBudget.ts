@@ -323,14 +323,13 @@ export function reconcileSounding(
 // ========================================
 
 const FILTER_TARGET = /^(lpf|hpf)\./;
-const PHASE_TARGET = /^layer\d+\.phase$/;
 
 /**
  * May this LFO be connected right now? EQ-gain global LFOs are always allowed (nearly free); the
  * filter-frequency/Q ones only when the dial enables them; a robot LFO only while fewer than
  * `maxRobotLfos` audio-rate robot LFOs are connected. `connectedRobotLfos` counts those already connected,
- * not including the one being asked about. `layerN.phase` LFOs are never counted or refused — they poll
- * at control rate (lfoEngine's phase fallback), not as an audio-rate connection.
+ * not including the one being asked about. Every robot target is an audio-rate connection
+ * (docs/specs/LFO_BANK.md Task 1 cut the third oscillator-alignment target, the one exemption this used to carry).
  */
 export function lfoAllowed(
   target: LfoTargetId,
@@ -339,6 +338,5 @@ export function lfoAllowed(
   connectedRobotLfos: number,
 ): boolean {
   if (scope === 'global') return FILTER_TARGET.test(target) ? limits.filterLfosEnabled : true;
-  if (PHASE_TARGET.test(target)) return true;
   return connectedRobotLfos < limits.maxRobotLfos;
 }

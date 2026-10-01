@@ -54,19 +54,21 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
 
 ### Phase 1: Delete what the bank makes pointless
 
-- [ ] **Task 1: Cut the phase targets — `RobotLfoTargetId` becomes 6**
+- [x] **Task 1: Cut the phase targets — `RobotLfoTargetId` becomes 6**
 
   **Description:** `robotOptionsConfig.ts`: the `phase` param loses its `lfoTarget` (and the `phaseTarget` local); the slider stays. `lfoEngine.ts`: delete `startPhaseFallback`/`stopPhaseFallback`, `phaseFallbacks`, `waveformUnit`, `PHASE_CENTER_DEGREES`, `PHASE_POLL_INTERVAL`, the `beatClock` import, the phase branch in `connectOne`, and every `phaseFallbacks.has(key)` guard (in `suspendConnection`, `reconcilePasses`, `disconnectOne`). `AudioEngine.getRobotModulationTarget` drops the phase comment/branch. `audioBudget.ts`: delete `PHASE_TARGET` and its `lfoAllowed` line. `src/types/lfo.ts`: the union and `ROBOT_LFO_TARGET_IDS` become the 6 `layer{0,1,2}.{gain,detune}` members; doc comment rewritten (phase cut, spec §1.1). Let `npm run build:types` list leftovers (fixtures with 9 keys, `lfoConfig` count comment, `RobotOptionsTab`'s "9 targets" comment) and fix each mechanically. The loaders' `ROBOT_LFO_TARGET_IDS` filters already drop stale `layerN.phase` keys.
 
   **Acceptance criteria:**
-  - [ ] `lfo.test.ts`: `ROBOT_LFO_TARGET_IDS` is exactly the 6 gain/detune members; `DEFAULT_LFO_SETTINGS` has 6 + 7 = 13 entries.
-  - [ ] `lfoEngine.test.ts`: no `scheduleRepeat` is ever called; `connectLfoTarget('layer0.phase' as any, 'r1')` returns false and records nothing (the stale-string case).
-  - [ ] `robotOptionsConfig.test.ts` / `SignatureArrayDrawer.test.tsx`: each layer's LFO group has exactly 2 fields (gain, detune); the Phase slider still renders and edits.
-  - [ ] A session/share fixture carrying `layer1.phase` under `lfoSettings` loads with that key dropped (`sessionDiff.test.ts`, `sessionShareUtils.test.ts`).
+  - [x] `lfo.test.ts`: `ROBOT_LFO_TARGET_IDS` is exactly the 6 gain/detune members; `DEFAULT_LFO_SETTINGS` has 6 + 7 = 13 entries.
+  - [x] `lfoEngine.test.ts`: no `scheduleRepeat` is ever called; `connectLfoTarget('layer0.phase' as any, 'r1')` returns false and records nothing (the stale-string case).
+  - [x] `robotOptionsConfig.test.ts` / `SignatureArrayDrawer.test.tsx`: each layer's LFO group has exactly 2 fields (gain, detune); the Phase slider still renders and edits.
+  - [x] A session/share fixture carrying `layer1.phase` under `lfoSettings` loads with that key dropped (`sessionDiff.test.ts`, `sessionShareUtils.test.ts`).
 
   **Verification:**
-  - [ ] `npx vitest run src/types/lfo.test.ts src/engine/lfoEngine.test.ts src/engine/AudioEngine.test.ts src/data/robotOptionsConfig.test.ts src/components/robot/SignatureArrayDrawer.test.tsx src/utils/sessionDiff.test.ts src/utils/sessionShareUtils.test.ts` passes (RED first for the 6-member and no-schedule cases).
-  - [ ] `npm run build:types`, `npm run lint`, full `npm test` clean. `grep -rn "phase" src/engine/lfoEngine.ts src/utils/audioBudget.ts` returns nothing.
+  - [x] `npx vitest run src/types/lfo.test.ts src/engine/lfoEngine.test.ts src/engine/AudioEngine.test.ts src/data/robotOptionsConfig.test.ts src/components/robot/SignatureArrayDrawer.test.tsx src/utils/sessionDiff.test.ts src/utils/sessionShareUtils.test.ts` passes (RED first for the 6-member and no-schedule cases).
+  - [x] `npm run build:types`, `npm run lint`, full `npm test` clean. `grep -rn "phase" src/engine/lfoEngine.ts src/utils/audioBudget.ts` returns nothing.
+
+  **Notes from execution:** also touched `src/utils/audioBudget.test.ts` (dropped the phase-exemption cases), `src/systems/audioBudgetSystem.test.ts` and `src/systems/robotLfoPriming.test.ts` (swapped stale `layerN.phase` literals for real targets), `src/systems/spawnSystem.test.ts` (seed oracle rows dropped; hardened the "distinct dataIds" test, previously on raw `Math.random()`, onto a seeded noise map — 6 targets made the old quiet-collision odds non-negligible), and `src/types/audioSwell.test.ts` (9→6 count). Full suite green aside from two pre-existing real-RNG flaky tests unrelated to this change (`factoryPlacementSystem.test.ts` hueShift case, `worldTransition.test.ts` swell-clear case — both pass on rerun).
 
   **Dependencies:** None.
   **Files:** `src/types/lfo.ts` (+test), `src/data/robotOptionsConfig.ts` (+test), `src/engine/lfoEngine.ts` (+test), `src/engine/AudioEngine.ts` (+test), `src/utils/audioBudget.ts` (+test), `SignatureArrayDrawer.test.tsx`, plus compiler leftovers.

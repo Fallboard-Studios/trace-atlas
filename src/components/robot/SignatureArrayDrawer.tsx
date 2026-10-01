@@ -163,6 +163,9 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
   // (including 'square'), so showing Interval there was an editable control with no audible effect.
   const showPulseWidth = layer.type === 'pulse';
   const typeParam = block.params.find((p) => p.field === 'type')!;
+  // Phase is no longer an LFO target (docs/specs/LFO_BANK.md Task 1) — it renders as its own
+  // plain row after the group, never as a targetable field inside it, same as Interval below.
+  const phaseParam = block.params.find((p) => p.field === 'phase')!;
   // Interval/pulseWidth is no longer an LFO target (docs/specs/LFO_LOAD_FIX.md assumption 9) —
   // it renders as its own plain row after the group, never as a targetable field inside it.
   const pulseWidthParam = block.params.find((p) => p.field === 'pulseWidth')!;
@@ -191,6 +194,11 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
 
   const handlePulseWidthChange = useCallback(
     (v: number) => onParamChange(idx, 'pulseWidth', v),
+    [idx, onParamChange],
+  );
+
+  const handlePhaseChange = useCallback(
+    (v: number) => onParamChange(idx, 'phase', v),
     [idx, onParamChange],
   );
 
@@ -242,6 +250,16 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoSettings, heldOffTarge
           heldOff={heldOff}
           renderField={renderField}
         />
+        <div className="signature-array-drawer__param">
+          <SliderLinear
+            schema={phaseParam.schema as SliderLinearSchema}
+            value={paramValue(layer, 'phase')}
+            onChange={handlePhaseChange}
+            disabled={disabled}
+            verticalHeight={(phaseParam.schema as SliderLinearSchema).verticalHeight}
+            swelling={swelling?.phase}
+          />
+        </div>
         {showPulseWidth && (
           <div className="signature-array-drawer__param signature-array-drawer__interval">
             <SliderLinear

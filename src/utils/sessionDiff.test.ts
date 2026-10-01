@@ -351,14 +351,14 @@ describe('applySessionPayload', () => {
     expect(useAudioStore.getState().globalAudio.lfoDrift.globalFx).toEqual({ rateDrift: 0, depthDrift: 0 });
   });
 
-  it('drops legacy lfoSettings keys (volume, layerN.pulseWidth — removed targets) from a robot override on load, keeping the known ones', () => {
+  it('drops legacy lfoSettings keys (volume, layerN.pulseWidth, layerN.phase — removed targets) from a robot override on load, keeping the known ones', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
     const payload = buildSessionPayload();
-    // docs/specs/LFO_LOAD_FIX.md §1.4 "Backward compatibility": a payload saved before the two
-    // targets were removed can still carry them under lfoSettings — cast through unknown, same
-    // trust-boundary reasoning as the stale lfoDrift case above.
+    // docs/specs/LFO_LOAD_FIX.md §1.4 "Backward compatibility" / docs/specs/LFO_BANK.md Task 1: a
+    // payload saved before these targets were removed can still carry them under lfoSettings —
+    // cast through unknown, same trust-boundary reasoning as the stale lfoDrift case above.
     const legacyOverrides = {
       ...payload.robotOverrides,
       [robot.id]: {
@@ -366,6 +366,7 @@ describe('applySessionPayload', () => {
         lfoSettings: {
           volume: { shape: 'sine', rate: 3, depth: 50 },
           'layer1.pulseWidth': { shape: 'square', rate: 2, depth: 40 },
+          'layer1.phase': { shape: 'sawtooth', rate: 4, depth: 60 },
           'layer1.gain': { shape: 'triangle', rate: 1.5, depth: 30 },
         },
       },
@@ -377,6 +378,7 @@ describe('applySessionPayload', () => {
     expect(restored.lfoSettings?.['layer1.gain']).toEqual({ shape: 'triangle', rate: 1.5, depth: 30 });
     expect('volume' in (restored.lfoSettings ?? {})).toBe(false);
     expect('layer1.pulseWidth' in (restored.lfoSettings ?? {})).toBe(false);
+    expect('layer1.phase' in (restored.lfoSettings ?? {})).toBe(false);
   });
 
   describe('priming on load (LFO Load Fix Task 9)', () => {

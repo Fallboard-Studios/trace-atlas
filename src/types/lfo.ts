@@ -23,33 +23,33 @@ export const LFO_SHAPES: readonly LfoShape[] = ['triangle', 'sine', 'square', 's
 // ========================================
 
 /**
- * Per-robot LFO modulation targets — the 9 targets
+ * Per-robot LFO modulation targets — the 6 targets
  * docs/reference/ROBOT_DATA_GRID.md flags `Has LFO: Yes`: each of the 3
- * oscillator layers' Gain (Saturation), Detune (Drift) and Phase
- * (Alignment). Was 13 until 2026-09-30: 'volume' (Transducer Pressure
- * Index) and the three 'layerN.pulseWidth' targets were removed outright
- * (docs/specs/LFO_LOAD_FIX.md assumption 9 / §1.4 — volume wasn't impactful,
- * pulse width was the ≈7× cost outlier and only live on pulse-type layers).
- * Those ids can still arrive as strings from an old session or share link;
- * the loaders drop them (sessionDiff.ts / sessionShareUtils.ts) and the
- * engine resolves them to null. 6 of the 9 are audio-rate connections;
- * 'layerN.phase' is a control-rate poll (lfoEngine.ts's phase fallback).
+ * oscillator layers' Gain (Saturation) and Detune (Drift). Was 13 until
+ * 2026-09-30: 'volume' (Transducer Pressure Index) and the three
+ * 'layerN.pulseWidth' targets were removed outright (docs/specs/
+ * LFO_LOAD_FIX.md assumption 9 / §1.4 — volume wasn't impactful, pulse
+ * width was the ≈7× cost outlier and only live on pulse-type layers). Was 9
+ * until 2026-10-01: the three 'layerN.phase' targets were cut (docs/specs/
+ * LFO_BANK.md Task 1) — Phase never had a live Signal to modulate (it ran a
+ * control-rate polling fallback, the one target of the 9 that wasn't an
+ * audio-rate connection); Phase stays a plain, non-modulatable slider. Every
+ * removed id can still arrive as a string from an old session or share
+ * link; the loaders drop them (sessionDiff.ts / sessionShareUtils.ts) and
+ * the engine resolves them to null.
  */
 export type RobotLfoTargetId =
   | 'layer0.gain'
   | 'layer0.detune'
-  | 'layer0.phase'
   | 'layer1.gain'
   | 'layer1.detune'
-  | 'layer1.phase'
   | 'layer2.gain'
-  | 'layer2.detune'
-  | 'layer2.phase';
+  | 'layer2.detune';
 
 export const ROBOT_LFO_TARGET_IDS: readonly RobotLfoTargetId[] = [
-  'layer0.gain', 'layer0.detune', 'layer0.phase',
-  'layer1.gain', 'layer1.detune', 'layer1.phase',
-  'layer2.gain', 'layer2.detune', 'layer2.phase',
+  'layer0.gain', 'layer0.detune',
+  'layer1.gain', 'layer1.detune',
+  'layer2.gain', 'layer2.detune',
 ];
 
 // ========================================

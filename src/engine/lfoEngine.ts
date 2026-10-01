@@ -4,7 +4,6 @@
 import * as Tone from 'tone';
 
 import { AudioEngine } from './AudioEngine';
-import { scheduleRepeat, cancelSchedule } from './beatClock';
 import { DEFAULT_LFO_SETTINGS } from '../data/lfoConfig';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey } from '../data/globalAudioSeedRanges';
 import { clamp, isAudioContextRunning, centeredSwingFromRange, connectAdditively } from './lfoShared';
@@ -20,8 +19,7 @@ import {
   setDriftSuppressed,
 } from './lfoDrift';
 
-import type { OscillatorLayer } from '../types/layeredAudio';
-import type { LfoSettings, LfoShape, RobotLfoTargetId, GlobalLfoTargetId, LfoTargetId } from '../types/lfo';
+import type { LfoSettings, RobotLfoTargetId, GlobalLfoTargetId, LfoTargetId } from '../types/lfo';
 import { LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX, ROBOT_LFO_TARGET_IDS } from '../types/lfo';
 import { devWarn } from '../utils/helpers';
 import { MIN_LEAD } from '../constants';
@@ -41,23 +39,8 @@ const activeLfos = new Map<string, Tone.LFO>();
 const settingsByKey = new Map<string, LfoSettings>();
 
 /**
- * Manual-polling fallback state for 'layerN.phase' targets — Tone.js has no
- * connectable Signal for oscillator phase (verified against the real synth
- * construction code in AudioEngine.ts, not assumed; see spec §7.1). Keyed
- * the same as activeLfos/settingsByKey.
- */
-interface PhaseFallback {
-  scheduleId: string;
-  robotId: string;
-  layerIndex: number;
-  startTime: number;
-}
-const phaseFallbacks = new Map<string, PhaseFallback>();
-
-/**
  * The specific Signal/Param object each instance key is currently connected
- * to (Signal-based targets only — phase's fallback tracks its own state via
- * phaseFallbacks). Makes repeated connectLfoTarget calls idempotent by our
+ * to. Makes repeated connectLfoTarget calls idempotent by our
  * own bookkeeping rather than leaning on the Web Audio spec's connect()
  * dedup guarantee (real, but not something a unit test against a mocked
  * Tone.LFO can verify) — and lets a changed signal (e.g. a rebuilt composite
@@ -80,15 +63,6 @@ const requested = new Map<string, { target: LfoTargetId; robotId?: string }>();
 /** "Held off": requested (rate > 0) but not connected because of the policy. An LFO at rate 0 is never held off. */
 const heldOff = new Set<string>();
 
-/** Phase modulates around this center (degrees) — the midpoint of the 0-360 range
- * ROBOT_DATA_GRID.md's Phase field documents. Depth scales how far it swings from
- * there, not around the layer's own current phase value (that would require
- * lfoEngine to read robot state directly, which stays AudioEngine/store territory —
- * a deliberate Phase-0 scope choice, revisit once UI/testing calls for it). */
-const PHASE_CENTER_DEGREES = 180;
-/** Polling granularity for the phase fallback — matches BeatClock's own internal tick. */
-const PHASE_POLL_INTERVAL = '16n';
-
 // ========================================
 // INTERNAL FUNCTIONS
 // ========================================
@@ -110,13 +84,13 @@ function isRobotTarget(target: LfoTargetId): boolean {
 /**
  * Real value range per robot field, per docs/reference/ROBOT_DATA_GRID.md —
  * shared across all 3 layers, since the range depends on the field (gain,
- * detune), not which layer index it's on. 'phase' is deliberately absent —
- * the phase-polling fallback computes its own range independently
- * (PHASE_CENTER_DEGREES), it never reaches this lookup. The former 'volume'
- * (0-2, sized for the composite voice's fixed-at-1 output gain) and
- * 'pulseWidth' (0-1) rows are gone with their targets — docs/specs/
- * LFO_LOAD_FIX.md assumption 9. 'gain' is 0-2 because the per-layer
- * Tone.Gain node rests at 1, so a 0-1 range would pin its swing to 0.
+ * detune), not which layer index it's on. Only gain/detune have a row — no
+ * other field was ever an LFO target: 'volume' and 'pulseWidth' were
+ * removed (docs/specs/LFO_LOAD_FIX.md assumption 9), and docs/specs/
+ * LFO_BANK.md Task 1 cut the third oscillator-alignment target, which never
+ * had a row here (see resolveLfoOutputRange's own comment below). 'gain' is
+ * 0-2 because the per-layer Tone.Gain node rests at 1, so a 0-1 range would
+ * pin its swing to 0.
  */
 const ROBOT_LFO_FIELD_RANGE: Record<string, { min: number; max: number }> = {
   gain: { min: 0, max: 2 },
@@ -134,8 +108,10 @@ function globalSeedRangeKey(target: GlobalLfoTargetId): GlobalAudioSeedFieldKey 
 /**
  * Resolve the real min/max a target's Signal actually operates in. Reuses
  * GLOBAL_AUDIO_SEED_RANGES (Task 4/5) for global targets rather than
- * maintaining a second range table. Returns null for targets with no
- * meaningful output range here (phase, handled entirely separately).
+ * maintaining a second range table. Returns null for any id with no entry
+ * in ROBOT_LFO_FIELD_RANGE or GLOBAL_AUDIO_SEED_RANGES — including an
+ * oscillator-alignment target id removed by docs/specs/LFO_BANK.md Task 1,
+ * which can still arrive as a stale string from an old session or share link.
  *
  * This is the field's own absolute range — NOT what gets applied directly to
  * lfo.min/lfo.max. See centeredSwingFromRange() (lfoShared.ts) for why.
@@ -149,24 +125,6 @@ function resolveLfoOutputRange(target: LfoTargetId): { min: number; max: number 
     return range ? { min: range.min, max: range.max } : null;
   }
   return null;
-}
-
-/** Unit-amplitude waveform value in [-1, 1] for a given shape at a given phase angle (radians). */
-function waveformUnit(shape: LfoShape, phaseRadians: number): number {
-  const twoPi = Math.PI * 2;
-  const t = ((phaseRadians % twoPi) + twoPi) % twoPi;
-  switch (shape) {
-    case 'sine':
-      return Math.sin(t);
-    case 'triangle':
-      return (2 / Math.PI) * Math.asin(Math.sin(t));
-    case 'square':
-      return t < Math.PI ? 1 : -1;
-    case 'sawtooth':
-      return t / Math.PI - 1;
-    default:
-      return 0;
-  }
 }
 
 /** Apply a full LfoSettings object onto a live node (used at creation and by each setter). */
@@ -268,39 +226,7 @@ function stop(target: LfoTargetId, robotId?: string): void {
   activeLfos.get(instanceKey(target, robotId))?.stop();
 }
 
-/**
- * Start the manual-polling fallback for a 'layerN.phase' target: recomputes
- * a waveform value each tick from the target's current LfoSettings and
- * reapplies it via AudioEngine.updateVoiceLayerParams — a periodic re-.set(),
- * not a native .connect(). Uses beatClock's Transport-driven scheduleRepeat
- * (never a raw JS timer, per CLAUDE.md), matching the same transport-gated
- * spirit as start()/stop() above.
- */
-function startPhaseFallback(key: string, target: RobotLfoTargetId, robotId: string, layerIndex: number): void {
-  const startTime = Tone.now();
-  const scheduleId = scheduleRepeat(PHASE_POLL_INTERVAL, () => {
-    const settings = getLfoSettings(target, robotId);
-    const elapsed = Tone.now() - startTime;
-    const angle = 2 * Math.PI * settings.rate * elapsed;
-    const unit = waveformUnit(settings.shape, angle);
-    const swing = (settings.depth / 100) * PHASE_CENTER_DEGREES;
-    const phase = clamp(PHASE_CENTER_DEGREES + unit * swing, 0, 360);
-
-    const layers: Partial<OscillatorLayer>[] = [];
-    layers[layerIndex] = { phase };
-    AudioEngine.updateVoiceLayerParams(robotId, layers as OscillatorLayer[]);
-  });
-  phaseFallbacks.set(key, { scheduleId, robotId, layerIndex, startTime });
-}
-
-function stopPhaseFallback(key: string): void {
-  const entry = phaseFallbacks.get(key);
-  if (!entry) return;
-  cancelSchedule(entry.scheduleId);
-  phaseFallbacks.delete(key);
-}
-
-/** Audio-rate robot LFOs currently connected (phase LFOs poll at control rate and are not in connectedSignals), excluding `exceptKey`. */
+/** Audio-rate robot LFOs currently connected, excluding `exceptKey`. */
 function connectedRobotLfoCount(exceptKey?: string): number {
   let count = 0;
   for (const key of connectedSignals.keys()) {
@@ -315,9 +241,7 @@ function isAllowed(target: LfoTargetId, robotId: string | undefined, key: string
 
 /** Take an LFO out of the audio graph (disconnect, drop drift, stop the oscillator) WITHOUT forgetting it was requested. */
 function suspendConnection(key: string): void {
-  if (phaseFallbacks.has(key)) {
-    stopPhaseFallback(key);
-  } else if (connectedSignals.has(key)) {
+  if (connectedSignals.has(key)) {
     connectedSignals.delete(key);
     detachDrift(key);
     try {
@@ -368,7 +292,7 @@ function reconcilePasses(): void {
     heldOff.add(key);
   }
   // Anything else connected that the policy now refuses (global filter LFOs, or a robot LFO refused for another reason).
-  for (const key of [...connectedSignals.keys(), ...phaseFallbacks.keys()]) {
+  for (const key of connectedSignals.keys()) {
     const request = requested.get(key);
     if (request && !isAllowed(request.target, request.robotId, key)) {
       suspendConnection(key);
@@ -383,7 +307,7 @@ function reconcilePasses(): void {
       heldOff.delete(key);
       continue;
     }
-    if (connectedSignals.has(key) || phaseFallbacks.has(key)) {
+    if (connectedSignals.has(key)) {
       heldOff.delete(key);
       continue;
     }
@@ -448,8 +372,8 @@ function getHeldOffLfoKeys(): string[] {
  * false — never throws — when: a robot-scoped target is called without a
  * robotId (nothing to resolve against), or AudioEngine has no live Signal
  * for the target (an unreserved robot, or an id outside the current target
- * set). 'layerN.phase' is handled entirely separately via the manual-polling
- * fallback above, since no live Signal exists for it at all.
+ * set — including a stale oscillator-alignment target id from before
+ * docs/specs/LFO_BANK.md Task 1, which never resolves a Signal).
  */
 function connectOne(target: LfoTargetId, robotId?: string): boolean {
   const key = instanceKey(target, robotId);
@@ -466,15 +390,6 @@ function connectOne(target: LfoTargetId, robotId?: string): boolean {
     return false;
   }
   heldOff.delete(key);
-
-  const phaseMatch = /^layer(\d+)\.phase$/.exec(target);
-  if (phaseMatch) {
-    if (!robotId) return false;
-    getOrCreateLfo(key, target, robotId); // keep rate/depth/shape bookkeeping consistent with every other target
-    if (phaseFallbacks.has(key)) return true; // already connected — idempotent
-    startPhaseFallback(key, target as RobotLfoTargetId, robotId, Number(phaseMatch[1]));
-    return true;
-  }
 
   // signal's type is inferred from AudioEngine's own return types (Tasks 9/10) —
   // no local `any` needed here even though that union isn't re-exported by name.
@@ -543,17 +458,13 @@ function connectOne(target: LfoTargetId, robotId?: string): boolean {
   return true;
 }
 
-/** Reverse connectLfoTarget: disconnects the live node, or cancels the phase-polling schedule. Safe/no-op if nothing was connected. */
+/** Reverse connectLfoTarget: disconnects the live node. Safe/no-op if nothing was connected. */
 function disconnectOne(target: LfoTargetId, robotId?: string): void {
   const key = instanceKey(target, robotId);
   // An explicit disconnect (the user set the rate to 0, or the robot is gone) withdraws the request too,
   // so a later reconcile never brings it back. The budget's own suspensions use suspendConnection instead.
   requested.delete(key);
   heldOff.delete(key);
-  if (phaseFallbacks.has(key)) {
-    stopPhaseFallback(key);
-    return;
-  }
   const wasConnectedRobotLfo = connectedSignals.has(key) && robotId !== undefined;
   connectedSignals.delete(key);
   detachDrift(key);
