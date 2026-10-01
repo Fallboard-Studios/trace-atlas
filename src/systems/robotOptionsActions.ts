@@ -15,7 +15,6 @@ import { AudioEngine } from '@/engine/AudioEngine';
 import { lfoEngine } from '@/engine/lfoEngine';
 import { regenerateMelody } from '@/engine/regenerateMelody';
 import { buildClickTrackMelody } from '@/engine/clickTrack';
-import { VOLUME_LFO_TARGET } from '@/data/robotOptionsConfig';
 import type { StepperWithToggleValue } from '@/components/ui/controls/StepperWithToggle';
 import type { Robot, ADSREnvelope } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
@@ -38,14 +37,6 @@ export function applyVolume(robot: Robot, localeId: string, pct: number): void {
   const value = pct / 100;
   useLocaleStore.getState().updateRobot(localeId, robot.id, { masterVolume: value });
   AudioEngine.updateRobotMasterVolume(robot.id, value);
-}
-
-/** Thin wrapper over the generic applyLayerLfo — Volume's LFO target ('volume') is itself a real
- *  RobotLfoTargetId, so the wiring is identical; kept as its own named export (rather than callers
- *  passing VOLUME_LFO_TARGET directly) to mirror how RobotDisplaySection's own handler was named
- *  before this extraction. */
-export function applyVolumeLfo(robot: Robot, localeId: string, value: LfoValue): void {
-  applyLayerLfo(robot, localeId, VOLUME_LFO_TARGET, value);
 }
 
 // ========================================

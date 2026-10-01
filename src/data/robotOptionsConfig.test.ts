@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   AUDIO_SETTING_SCHEMA,
   VOLUME_SCHEMA,
-  VOLUME_LFO_TARGET,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
   MOTIF_LENGTH_SCHEMA,
@@ -125,8 +124,10 @@ describe('robotOptionsConfig', () => {
     expect(VOLUME_SCHEMA.max).toBe(100);
     expect(VOLUME_SCHEMA.step).toBe(1);
     expect(VOLUME_SCHEMA.unit).toBe('%');
-    expect(VOLUME_LFO_TARGET).toBe('volume');
-    expect(ROBOT_LFO_TARGET_IDS).toContain(VOLUME_LFO_TARGET);
+  });
+
+  it('no longer exports a VOLUME_LFO_TARGET — the Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 3)', () => {
+    expect('VOLUME_LFO_TARGET' in robotOptionsConfigModule).toBe(false);
   });
 
   it('Ping Contour\'s Attack/Decay/Release edit range is 0-10s (confirmed, not the seed-generation range)', () => {

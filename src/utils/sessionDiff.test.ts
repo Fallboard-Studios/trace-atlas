@@ -351,6 +351,29 @@ describe('applySessionPayload', () => {
     expect(useAudioStore.getState().globalAudio.lfoDrift.globalFx).toEqual({ rateDrift: 0, depthDrift: 0 });
   });
 
+  it('applies a user-created company whose stored lastEditedOptions still carries a legacy volumeLfo (saved before the Volume LFO target was removed) without error, keeping the company and its other options', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    // docs/specs/LFO_LOAD_FIX.md assumption 9: the field is gone from CompanyOptionsSnapshot, so an
+    // old payload is the only way it can appear — cast through unknown, same trust-boundary
+    // reasoning as the stale lfoDrift case above. The stale key is inert: never read, never thrown on.
+    const legacyCompany = {
+      id: 'user-created-legacy-volume-lfo',
+      name: 'Old Guard',
+      color: '#abcdef',
+      robotIds: [],
+      lastEditedOptions: { masterVolume: 0.4, volumeLfo: { shape: 'sine', rate: 2, depth: 40 } },
+    } as unknown as Company;
+    const stalePayload = { ...payload, userCreatedCompanies: [legacyCompany] };
+
+    expect(() => applySessionPayload(stalePayload)).not.toThrow();
+
+    const applied = currentLocale()?.companies.find((c) => c.id === 'user-created-legacy-volume-lfo');
+    expect(applied).toBeDefined();
+    expect(applied?.lastEditedOptions?.masterVolume).toBe(0.4);
+  });
+
   it('calls worldTransition.retransmitWorld, not a parallel regeneration path — omitting attenuationStyleName when it matches the currently active one', () => {
     // Omitting it routes through retransmitWorld's coordsOnly branch, which preserves the
     // current Attenuation Style untouched -- passing it unconditionally would instead hit

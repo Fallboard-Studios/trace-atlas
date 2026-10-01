@@ -63,18 +63,11 @@ export const VOLUME_SCHEMA: SliderLinearSchema = {
   orientation: 'horizontal',
 };
 
-/** LFO-modulatable per src/types/lfo.ts's RobotLfoTargetId — editable, per /interview-me
- *  correcting the roadmap's earlier "read-only" framing. Rendered through a shared
- *  LfoTargetGroup (docs/specs/LFO_CONSOLIDATED_DISPLAY.md), not its own nested accordion —
- *  VOLUME_LFO_ACCORDION_SCHEMA is gone; AudioSettingSection builds the group's field label
- *  from VOLUME_SCHEMA.humanLabel instead. */
-export const VOLUME_LFO_TARGET: RobotLfoTargetId = 'volume';
-
 /**
- * Wraps VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (below) above the Volume LFO display — fixed 'column'
- * at every tier (Audio Setting, Volume, LFO, in that order), matching every other LFO layout in
- * the app (LfoTargetGroup/AudioRigLfoGroup both always stack their own fields above the shared Lfo
- * display, never beside it). Previously 'responsive' (desktop split into 2 side-by-side columns,
+ * Wraps VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (below) — fixed 'column' at every tier (Audio
+ * Setting, then Volume). The Volume LFO display that used to sit below the column is gone (the
+ * `volume` LFO target was removed — docs/specs/LFO_LOAD_FIX.md assumption 9); the two-panel
+ * nesting is kept so the section renders identically in its slot. Previously 'responsive' (desktop split into 2 side-by-side columns,
  * Audio Setting's own Auto/Mute/Solo/Highlight radio squeezed into the narrower half) — Crawford's
  * own correction, to bring this one layout in line with the others. Unlabeled — pure layout,
  * top-level inside AudioSettingSection's own root (no accordion wrapper — removed docs/tasks/
