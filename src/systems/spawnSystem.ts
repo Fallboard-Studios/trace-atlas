@@ -24,7 +24,7 @@ import {
 } from '../constants';
 import useLocaleStore from '../stores/localeStore';
 import { initRobotIdleCounter } from './idleSystem';
-import { primeRobotLfos, primeRosterLfos } from './robotLfoPriming';
+import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
@@ -781,14 +781,14 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     const layers = (robot.audioAttributes as unknown as { layers?: OscillatorLayer[] })?.layers;
     if (Array.isArray(layers) && layers.length > 0) {
       const reserved = AudioEngine.reserveVoice(robot.id, layers, robot.audioAttributes.adsr, robot.audioAttributes.phase, robot.audioAttributes.detune, layers[0]?.pulseWidth, robot.masterVolume, robot.audioAttributes.filterFreq);
-      // Prime this robot's seeded LFO settings into lfoEngine now that it has a live voice to
-      // connect against (docs/specs/LFO_LOAD_FIX.md Task 7) — without this, seeded LFOs sit in
-      // state, shown in the UI, but never actually run until a user happens to edit one.
+      // Prime this robot's seeded lane links into the bank engine now that it has a live voice to
+      // connect against (docs/specs/LFO_BANK.md) — without this, seeded links sit in state, shown
+      // in the UI, but never actually run until a user happens to edit one.
       if (reserved) {
         try {
-          primeRobotLfos(robot);
+          primeRobotLinks(robot);
         } catch (err) {
-          if (DEV_TUNING) console.warn('[SpawnSystem] primeRobotLfos failed', err);
+          if (DEV_TUNING) console.warn('[SpawnSystem] primeRobotLinks failed', err);
         }
       }
     }
@@ -916,12 +916,11 @@ export function reRegisterAllRobotsAudio(localeId: string): void {
     AudioEngine.unregisterRobotMelody(robot.id);
     AudioEngine.registerRobotMelody(robot.id, robot.melody);
   });
-  // One round-robin pass over the whole roster, after every reservation — never per-robot inside
-  // the loop above, which would defeat primeRosterLfos's own round-robin request ordering (spec
-  // §1.2: every robot's first target admitted before any robot's second).
+  // One pass over the whole roster, after every reservation — never per-robot inside the loop
+  // above (docs/specs/LFO_BANK.md).
   try {
-    primeRosterLfos(robots);
+    primeRosterLinks(robots);
   } catch (err) {
-    if (DEV_TUNING) console.warn('[SpawnSystem] reRegisterAllRobotsAudio: primeRosterLfos failed', err);
+    if (DEV_TUNING) console.warn('[SpawnSystem] reRegisterAllRobotsAudio: primeRosterLinks failed', err);
   }
 }

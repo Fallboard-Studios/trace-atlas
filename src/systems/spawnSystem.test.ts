@@ -21,6 +21,7 @@ import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentCo
 import { tallyLanes } from '../utils/lfoLaneDraw';
 import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
 import * as robotLfoPriming from './robotLfoPriming';
+import * as robotLfoLinks from './robotLfoLinks';
 
 // Spy on getSeededVal while keeping its real behavior (the globalAudioSeed.test.ts/
 // worldTransition.test.ts importOriginal pattern) — the lfoLinks-at-spawn tests below need to
@@ -530,12 +531,14 @@ describe('spawnSystem', () => {
       expect(registerSpy).toHaveBeenCalledWith(robot.id, robot.melody);
     });
 
-    // LFO Load Fix Task 7: seeded robot LFOs must reach the engine at spawn, not only on a later
-    // user edit. Only reserveVoice's SUCCESS should prime — a robot with no reserved voice has no
-    // live node for lfoEngine to connect to, so priming it would be requesting against nothing.
-    it('primes the robot\'s LFO settings into the engine after a successful reserveVoice (docs/specs/LFO_LOAD_FIX.md Task 7)', () => {
+    // LFO Bank Task 10: seeded robot lane links must reach the bank engine at spawn, not only on
+    // a later user edit — same rule as the old primeRobotLfos, now routed through the bank's own
+    // roster-priming helper. Only reserveVoice's SUCCESS should prime — a robot with no reserved
+    // voice has no live node for the bank to connect to, so priming it would be requesting
+    // against nothing.
+    it('primes the robot\'s LFO links into the bank engine after a successful reserveVoice', () => {
       vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
-      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const primeSpy = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
 
       spawnRobot(DEFAULT_LOCALE_ID);
 
@@ -544,9 +547,9 @@ describe('spawnSystem', () => {
       expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }));
     });
 
-    it('does not prime LFOs when reserveVoice fails (no live voice to connect against)', () => {
+    it('does not prime LFO links when reserveVoice fails (no live voice to connect against)', () => {
       vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(false);
-      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const primeSpy = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
       const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
 
       spawnRobot(DEFAULT_LOCALE_ID);
@@ -558,13 +561,22 @@ describe('spawnSystem', () => {
 
     it('a priming failure never blocks melody registration', () => {
       vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
-      vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {
+      vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {
         throw new Error('boom');
       });
       const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
 
       expect(() => spawnRobot(DEFAULT_LOCALE_ID)).not.toThrow();
       expect(registerSpy).toHaveBeenCalled();
+    });
+
+    it('never calls the old robotLfoPriming.primeRobotLfos — the bank replaces it entirely (LFO Bank Task 10)', () => {
+      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+      const oldPrimeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos');
+
+      spawnRobot(DEFAULT_LOCALE_ID);
+
+      expect(oldPrimeSpy).not.toHaveBeenCalled();
     });
 
     it('quantizes masterVolume so its percent (x100) is always an integer, across many spawns (SEEDED_SLIDER_VALUE_QUANTIZATION Task 6)', () => {
@@ -1162,10 +1174,10 @@ describe('spawnSystem', () => {
       vi.restoreAllMocks();
     });
 
-    it('primes the whole roster\'s LFOs exactly once, via primeRosterLfos, after every robot has been re-reserved', () => {
+    it('primes the whole roster\'s LFO links exactly once, via primeRosterLinks, after every robot has been re-reserved', () => {
       vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
       const releaseSpy = vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
-      const primeRosterSpy = vi.spyOn(robotLfoPriming, 'primeRosterLfos').mockImplementation(() => {});
+      const primeRosterSpy = vi.spyOn(robotLfoLinks, 'primeRosterLinks').mockImplementation(() => {});
       spawnRobot(DEFAULT_LOCALE_ID);
       spawnRobot(DEFAULT_LOCALE_ID);
       primeRosterSpy.mockClear();
@@ -1175,8 +1187,8 @@ describe('spawnSystem', () => {
 
       const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
       expect(robots).toHaveLength(2);
-      // Called once with the full roster -- not once per robot -- so a single round-robin pass
-      // covers everyone (spec §1.2), not a per-robot prime that would defeat round-robin ordering.
+      // Called once with the full roster -- not once per robot -- so a single pass covers
+      // everyone, not a per-robot prime.
       expect(primeRosterSpy).toHaveBeenCalledTimes(1);
       expect(primeRosterSpy).toHaveBeenCalledWith(expect.arrayContaining([
         expect.objectContaining({ id: robots[0].id }),
@@ -1184,7 +1196,7 @@ describe('spawnSystem', () => {
       ]));
     });
 
-    it('calls primeRosterLfos after every reserveVoice call, not interleaved per-robot', () => {
+    it('calls primeRosterLinks after every reserveVoice call, not interleaved per-robot', () => {
       vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
       vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
       spawnRobot(DEFAULT_LOCALE_ID);
@@ -1193,17 +1205,28 @@ describe('spawnSystem', () => {
       reserveSpy.mockClear();
       const callOrder: string[] = [];
       reserveSpy.mockImplementation(() => { callOrder.push('reserve'); return true; });
-      vi.spyOn(robotLfoPriming, 'primeRosterLfos').mockImplementation(() => { callOrder.push('prime'); });
+      vi.spyOn(robotLfoLinks, 'primeRosterLinks').mockImplementation(() => { callOrder.push('prime'); });
 
       reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
 
       expect(callOrder).toEqual(['reserve', 'reserve', 'prime']);
     });
 
-    it('an empty roster calls primeRosterLfos with an empty array, never throws', () => {
-      const primeRosterSpy = vi.spyOn(robotLfoPriming, 'primeRosterLfos').mockImplementation(() => {});
+    it('an empty roster calls primeRosterLinks with an empty array, never throws', () => {
+      const primeRosterSpy = vi.spyOn(robotLfoLinks, 'primeRosterLinks').mockImplementation(() => {});
       expect(() => reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID)).not.toThrow();
       expect(primeRosterSpy).toHaveBeenCalledWith([]);
+    });
+
+    it('never calls the old robotLfoPriming.primeRosterLfos — the bank replaces it entirely (LFO Bank Task 10)', () => {
+      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+      vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
+      const oldPrimeRosterSpy = vi.spyOn(robotLfoPriming, 'primeRosterLfos');
+      spawnRobot(DEFAULT_LOCALE_ID);
+
+      reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
+
+      expect(oldPrimeRosterSpy).not.toHaveBeenCalled();
     });
   });
 
