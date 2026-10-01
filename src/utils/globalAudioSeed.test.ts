@@ -4,11 +4,22 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+
+// Spy on getSeededVal while keeping its real behavior (the worldTransition.test.ts
+// importOriginal pattern) — Task 6's acceptance criterion needs to see exactly which
+// dataId keys generateGlobalLfoLinks queries, without breaking every other test in
+// this file that depends on getSeededVal's real seeded output.
+vi.mock('./getSeededVal', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./getSeededVal')>();
+  return { ...actual, getSeededVal: vi.fn(actual.getSeededVal) };
+});
 
 import {
   generateGlobalAudioSettings,
   generateGlobalLfoSettings,
+  generateLfoBankSettings,
+  generateGlobalLfoLinks,
   generatePingVarianceAutomation,
   generateSwellFrequency,
   generateSwellDuration,
@@ -17,11 +28,17 @@ import {
   LFO_RATE_LOADING_MAX,
   LFO_DEPTH_LOADING_MIN,
   LFO_DEPTH_LOADING_MAX,
+  LFO_BANK_RATE_BANDS,
+  LFO_BANK_DRIFT_SEED_RANGE,
 } from './globalAudioSeed';
 import { evictAttenuationStyleNoiseMap } from './noiseMaps';
+import { getSeededVal } from './getSeededVal';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
-import { GLOBAL_LFO_TARGET_IDS, LFO_SHAPES, LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX, DRIFT_GROUP_IDS } from '@/types/lfo';
+import {
+  GLOBAL_LFO_TARGET_IDS, LFO_SHAPES, LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX, DRIFT_GROUP_IDS,
+  LFO_LANE_IDS,
+} from '@/types/lfo';
 import { GLOBAL_AUDIO_SEED_RANGES } from '@/data/globalAudioSeedRanges';
 import { SWELL_FREQUENCY_STEPS } from '@/data/audioRigConfig';
 
@@ -427,6 +444,148 @@ describe('generateGlobalLfoSettings', () => {
     // clearly distinguishing this from both a ~50% flat coin-flip and ~100%.
     expect(nonzeroRate).toBeGreaterThan(0.5);
     expect(nonzeroRate).toBeLessThan(0.8);
+  });
+});
+
+describe('generateLfoBankSettings', () => {
+  afterEach(() => {
+    evictAttenuationStyleNoiseMap('bank-test-planet');
+    for (let i = 0; i < 20; i++) {
+      evictAttenuationStyleNoiseMap(`bank-rate-sample-${i}`);
+      evictAttenuationStyleNoiseMap(`bank-shape-sample-${i}`);
+      evictAttenuationStyleNoiseMap(`bank-drift-sample-${i}`);
+    }
+  });
+
+  it('returns a fully-populated record for all 4 lanes, no extras', () => {
+    const settings = generateLfoBankSettings('bank-test-planet', 'Bank');
+    expect(Object.keys(settings).sort()).toEqual([...LFO_LANE_IDS].sort());
+  });
+
+  it('is deterministic — same attenuationStyleId + attenuationStyleName always produces the same settings', () => {
+    const first = generateLfoBankSettings('bank-test-planet', 'Bank');
+    const second = generateLfoBankSettings('bank-test-planet', 'Bank');
+    expect(second).toEqual(first);
+  });
+
+  it('each lane\'s rate lies inside that lane\'s own band (docs/specs/LFO_BANK.md §1.3)', () => {
+    const settings = generateLfoBankSettings('bank-test-planet', 'Bank');
+    for (const lane of LFO_LANE_IDS) {
+      const { min, max } = LFO_BANK_RATE_BANDS[lane];
+      expect(settings[lane].rate, `${lane}.rate`).toBeGreaterThanOrEqual(min);
+      expect(settings[lane].rate, `${lane}.rate`).toBeLessThanOrEqual(max);
+    }
+  });
+
+  it('rates ascend a -> d — the bands are adjacent and non-overlapping', () => {
+    const settings = generateLfoBankSettings('bank-test-planet', 'Bank');
+    expect(settings.a.rate).toBeLessThanOrEqual(settings.b.rate);
+    expect(settings.b.rate).toBeLessThanOrEqual(settings.c.rate);
+    expect(settings.c.rate).toBeLessThanOrEqual(settings.d.rate);
+  });
+
+  it('rates are multiples of 0.05 and never 0, across many Attenuation Styles', () => {
+    for (let i = 0; i < 20; i++) {
+      const settings = generateLfoBankSettings(`bank-rate-sample-${i}`, `BankRate${i}`);
+      for (const lane of LFO_LANE_IDS) {
+        const { rate } = settings[lane];
+        expect(rate, `${lane}.rate (sample ${i})`).toBeGreaterThan(0);
+        const stepsFromZero = rate / 0.05;
+        expect(Math.abs(stepsFromZero - Math.round(stepsFromZero)), `${lane}.rate (sample ${i})`).toBeLessThan(1e-9);
+      }
+    }
+  });
+
+  it('shapes are always triangle or sine, across many Attenuation Styles', () => {
+    for (let i = 0; i < 20; i++) {
+      const settings = generateLfoBankSettings(`bank-shape-sample-${i}`, `BankShape${i}`);
+      for (const lane of LFO_LANE_IDS) {
+        expect(['triangle', 'sine'], `${lane}.shape (sample ${i})`).toContain(settings[lane].shape);
+      }
+    }
+  });
+
+  it('rateDrift/depthDrift lie within the documented ±0.7 window, quantized to a 0.01 grid', () => {
+    for (let i = 0; i < 20; i++) {
+      const settings = generateLfoBankSettings(`bank-drift-sample-${i}`, `BankDrift${i}`);
+      for (const lane of LFO_LANE_IDS) {
+        for (const v of [settings[lane].rateDrift, settings[lane].depthDrift]) {
+          expect(v, `lane ${lane} (sample ${i})`).toBeGreaterThanOrEqual(LFO_BANK_DRIFT_SEED_RANGE.min);
+          expect(v, `lane ${lane} (sample ${i})`).toBeLessThanOrEqual(LFO_BANK_DRIFT_SEED_RANGE.max);
+          const stepsFromZero = v / 0.01;
+          expect(Math.abs(stepsFromZero - Math.round(stepsFromZero)), `lane ${lane} (sample ${i})`).toBeLessThan(1e-6);
+        }
+      }
+    }
+  });
+});
+
+describe('generateGlobalLfoLinks', () => {
+  beforeEach(() => {
+    vi.mocked(getSeededVal).mockClear();
+  });
+
+  afterEach(() => {
+    evictAttenuationStyleNoiseMap('links-test-planet');
+    for (let i = 0; i < 50; i++) evictAttenuationStyleNoiseMap(`links-sample-${i}`);
+  });
+
+  it('returns a fully-populated record for all 7 GlobalLfoTargetIds, no extras', () => {
+    const links = generateGlobalLfoLinks('links-test-planet', 'Links');
+    expect(Object.keys(links).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
+  });
+
+  it('is deterministic — same attenuationStyleId + attenuationStyleName always produces the same links', () => {
+    const first = generateGlobalLfoLinks('links-test-planet', 'Links');
+    const second = generateGlobalLfoLinks('links-test-planet', 'Links');
+    expect(second).toEqual(first);
+  });
+
+  it('every quiet target is exactly { lane: null, depth: 0 }; every lit target has a real lane and depth in [20, 50]', () => {
+    for (let i = 0; i < 20; i++) {
+      const links = generateGlobalLfoLinks(`links-sample-${i}`, `LinksSample${i}`);
+      for (const target of GLOBAL_LFO_TARGET_IDS) {
+        const link = links[target];
+        if (link.lane === null) {
+          expect(link.depth, `${target}.depth (sample ${i})`).toBe(0);
+        } else {
+          expect(LFO_LANE_IDS, `${target}.lane (sample ${i})`).toContain(link.lane);
+          expect(Number.isInteger(link.depth), `${target}.depth (sample ${i})`).toBe(true);
+          expect(link.depth, `${target}.depth (sample ${i})`).toBeGreaterThanOrEqual(20);
+          expect(link.depth, `${target}.depth (sample ${i})`).toBeLessThanOrEqual(50);
+        }
+      }
+    }
+  });
+
+  it('seeds a lit (non-null lane) target for roughly 2-in-3 targets across many Attenuation Styles (the 0.34 quiet threshold, unchanged)', () => {
+    const SAMPLE_ATTENUATION_STYLES = 50;
+    let litCount = 0;
+    let totalCount = 0;
+    for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
+      const links = generateGlobalLfoLinks(`links-sample-${i}`, `LinksSample${i}`);
+      for (const target of GLOBAL_LFO_TARGET_IDS) {
+        totalCount++;
+        if (links[target].lane !== null) litCount++;
+      }
+    }
+    const litRate = litCount / totalCount;
+    expect(litRate, `${litCount}/${totalCount} lit`).toBeGreaterThanOrEqual(0.55);
+    expect(litRate, `${litCount}/${totalCount} lit`).toBeLessThanOrEqual(0.80);
+  });
+
+  it('queries getSeededVal only with .quiet/.lane/.depth dataId suffixes under globalLfo.* — no .rate/.shape draws', () => {
+    generateGlobalLfoLinks('links-test-planet', 'Links');
+    const globalLfoKeys = vi.mocked(getSeededVal).mock.calls
+      .map(([, dataId]) => dataId)
+      .filter((dataId) => dataId.startsWith('globalLfo.'));
+    expect(globalLfoKeys.length).toBeGreaterThan(0);
+    for (const dataId of globalLfoKeys) {
+      expect(
+        dataId.endsWith('.quiet') || dataId.endsWith('.lane') || dataId.endsWith('.depth'),
+        `unexpected globalLfo dataId: ${dataId}`,
+      ).toBe(true);
+    }
   });
 });
 

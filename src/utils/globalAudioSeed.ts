@@ -6,6 +6,7 @@ import type { NoiseFunction2D } from 'simplex-noise';
 import { getAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal } from './getSeededVal';
 import { quantizeToStep } from './math';
+import { pickLane } from './lfoLaneDraw';
 import { stepsValueToT, stepsTToValue } from '@/components/ui/controls/sliderLogMath';
 import { SWELL_FREQUENCY_STEPS, SWELL_DURATION_SCHEMA } from '@/data/audioRigConfig';
 
@@ -15,11 +16,15 @@ import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { GLOBAL_AUDIO_SEED_RANGES, type GlobalAudioSeedFieldKey, type SeedRange } from '@/data/globalAudioSeedRanges';
 import {
   GLOBAL_LFO_TARGET_IDS,
+  LFO_LANE_IDS,
   LFO_RATE_MIN,
   LFO_DEPTH_MIN,
   type GlobalLfoTargetId,
   type LfoSettings,
   type LfoShape,
+  type LfoLaneId,
+  type LfoLink,
+  type BankLfoSettings,
 } from '@/types/lfo';
 
 // ========================================
@@ -298,6 +303,110 @@ export function generateGlobalLfoSettings(
       ),
       shape: LFO_LOADING_SHAPES[Math.min(LFO_LOADING_SHAPES.length - 1, Math.floor(shapeT * LFO_LOADING_SHAPES.length))],
     };
+  }
+  return result;
+}
+
+// ========================================
+// LFO BANK (docs/specs/LFO_BANK.md §1.3)
+// ========================================
+
+/**
+ * Four fixed, adjacent, log-spaced bands a fresh bank lane's rate seeds within — one slow, one
+ * fast, two between (spec §1.3/assumption 8). Boundaries are all exact multiples of LFO_RATE_STEP
+ * (0.05), so quantizing a sample drawn from a band can never round it out of that band. A first
+ * tuning for the listening pass (Checkpoint C), not sacred.
+ */
+export const LFO_BANK_RATE_BANDS: Record<LfoLaneId, { min: number; max: number }> = {
+  a: { min: 0.1, max: 0.4 },
+  b: { min: 0.4, max: 1.5 },
+  c: { min: 1.5, max: 4 },
+  d: { min: 4, max: 8 },
+};
+
+/** The existing lfoDrift loading window (±0.7), re-keyed for the bank's own per-lane drift
+ *  (spec assumption 8) — GLOBAL_AUDIO_LOADING_RANGES's 'lfoDrift.*' entries, unchanged in value. */
+export const LFO_BANK_DRIFT_SEED_RANGE = { min: -0.7, max: 0.7 };
+
+/** Rounds a bank lane's rateDrift/depthDrift to a whole hundredth — the existing lfoDrift
+ *  quantization grid (GLOBAL_AUDIO_SEED_RANGES's 'lfoDrift.*' step), re-anchored at 0. */
+const LFO_BANK_DRIFT_STEP = 0.01;
+
+/**
+ * Generate deterministic LFO Bank lane settings for an Attenuation Style, sampled from the same
+ * Attenuation Style noise map generateGlobalAudioSettings uses — the four lanes are a property of
+ * the Attenuation Style (spec assumption 2), same seed source and re-seed trigger as
+ * generateGlobalLfoSettings above, which this supersedes.
+ */
+export function generateLfoBankSettings(
+  attenuationStyleId: string,
+  attenuationStyleName: string,
+): Record<LfoLaneId, BankLfoSettings> {
+  const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
+  const result = {} as Record<LfoLaneId, BankLfoSettings>;
+
+  for (const lane of LFO_LANE_IDS) {
+    const rateT = getSeededVal(noiseMap, `lfoBank.${lane}.rate`, 0, 0, 1);
+    const shapeT = getSeededVal(noiseMap, `lfoBank.${lane}.shape`, 0, 0, 1);
+    const rateDriftT = getSeededVal(noiseMap, `lfoBank.${lane}.rateDrift`, 0, 0, 1);
+    const depthDriftT = getSeededVal(noiseMap, `lfoBank.${lane}.depthDrift`, 0, 0, 1);
+
+    result[lane] = {
+      shape: LFO_LOADING_SHAPES[Math.min(LFO_LOADING_SHAPES.length - 1, Math.floor(shapeT * LFO_LOADING_SHAPES.length))],
+      rate: quantizeToStep(
+        scaleUnitValue(rateT, { ...LFO_BANK_RATE_BANDS[lane], scale: 'log' }),
+        LFO_RATE_MIN,
+        LFO_RATE_STEP,
+      ),
+      rateDrift: quantizeToStep(
+        scaleUnitValue(rateDriftT, { ...LFO_BANK_DRIFT_SEED_RANGE, scale: 'linear' }),
+        0,
+        LFO_BANK_DRIFT_STEP,
+      ),
+      depthDrift: quantizeToStep(
+        scaleUnitValue(depthDriftT, { ...LFO_BANK_DRIFT_SEED_RANGE, scale: 'linear' }),
+        0,
+        LFO_BANK_DRIFT_STEP,
+      ),
+    };
+  }
+  return result;
+}
+
+/**
+ * Generate deterministic global-chain LFO links for an Attenuation Style — replaces
+ * generateGlobalLfoSettings's per-target shape/rate with a lane pick (spec §1.3). Reuses
+ * LFO_QUIET_THRESHOLD (0.34) and the existing depth loading window (LFO_DEPTH_LOADING_MIN/MAX,
+ * 20-50%) unchanged. The lane draw is weighted by a running tally across only the 7 global
+ * targets — they seed before any robot exists, so there is no roster to tally against
+ * (spec assumption 7).
+ */
+export function generateGlobalLfoLinks(
+  attenuationStyleId: string,
+  attenuationStyleName: string,
+): Record<GlobalLfoTargetId, LfoLink> {
+  const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
+  const result = {} as Record<GlobalLfoTargetId, LfoLink>;
+  const counts: Record<LfoLaneId, number> = { a: 0, b: 0, c: 0, d: 0 };
+
+  for (const target of GLOBAL_LFO_TARGET_IDS) {
+    const quietT = getSeededVal(noiseMap, `globalLfo.${target}.quiet`, 0, 0, 1);
+    if (quietT < LFO_QUIET_THRESHOLD) {
+      result[target] = { lane: null, depth: 0 };
+      continue;
+    }
+
+    const laneT = getSeededVal(noiseMap, `globalLfo.${target}.lane`, 0, 0, 1);
+    const lane = pickLane(laneT, counts);
+    counts[lane]++;
+
+    const depthT = getSeededVal(noiseMap, `globalLfo.${target}.depth`, 0, 0, 1);
+    const depth = quantizeToStep(
+      scaleUnitValue(depthT, { min: LFO_DEPTH_LOADING_MIN, max: LFO_DEPTH_LOADING_MAX, scale: 'linear' }),
+      LFO_DEPTH_MIN,
+      LFO_DEPTH_STEP,
+    );
+    result[target] = { lane, depth };
   }
   return result;
 }
