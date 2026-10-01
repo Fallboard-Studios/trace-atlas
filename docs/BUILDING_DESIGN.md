@@ -230,7 +230,7 @@ When factories are created at runtime, `createFactory` stashes per-instance deri
 
 Other related runtime details:
 - Bubble/vent timing: each building's burst interval is `TARGET_GLOBAL_BURST_INTERVAL_SECONDS * totalBuildings` (currently 4s × the locale's total bubble-eligible building count, computed once in `OceanScene.tsx` and threaded through `Factory`'s `totalBubbleBuildings` prop) — plain wall-clock time, deliberately decoupled from `bpm`/measures since the effect is decorative, not musical. This spreads bursts so roughly one building bubbles every ~4s world-wide, rather than every building bursting on the same fixed interval regardless of how many buildings exist. Per-burst parameters (count, radius, stagger, wobble, rise) are seeded; see `src/components/actors/BubbleStream.tsx`.
-- `depthScale` is applied to bubble sizes/timings so vents in background rows have smaller/longer bubbles.
+- `depthScale` (foreground 1, midground 0.5, background 1/3 — derived from the row label in `Factory.tsx`) scales bubble radius, wobble amplitude and the minimum rise height so vents in distant rows read as smaller and further away. Rise speed is not scaled.
 
 Runtime files to reference:
 - `src/components/actors/factoryVariants.ts` — variant config and `selectVariantFromSeed` (PRNG draw order).
@@ -608,26 +608,42 @@ palette bias, greeble pool) and determines eligibility for other systems
 
 ## Goal 2 — Bubble Streams
 
-**Summary:** Industrial-purpose buildings (Heavy Industry, Chemical Processing,
-Pipe Works) emit a single slow stream of rising bubbles from a vent near their
-roofline. Streams are subtle — never more than 3–5 bubbles visible at once per
-building. Buildings in the "offline" state (see Goal 3) emit no bubbles.
+**Summary:** Industrial-purpose buildings emit an occasional *burst* of rising
+bubbles from a vent on their roofline. Bursts are rare per building and spread
+across the whole locale so that, world-wide, roughly one building bursts every
+few seconds. Buildings in the "offline" state (see Goal 3) emit no bubbles.
+Timing is plain wall-clock seconds — it has no relationship to the transport
+BPM or to measures; the effect is decorative, not musical.
 
-**Goals:**
-- Bubble stream eligibility: `purpose` is one of `heavyIndustry`,
-  `chemicalProcessing`, `pipeWorks`.
-- One stream per building. Vent X position is derived deterministically from
-  the building seed (somewhere in the upper 20% of the facade width).
-- Stream is a GSAP `gsap.timeline({ repeat: -1 })` on a single `<circle>`
-  element. The timeline moves it upward ~20–40 px (seeded), fades opacity
-  `1 → 0` over the same duration, then snaps back to origin.
-- A small random stagger between repeat cycles (seeded) prevents all buildings
-  from syncing visually.
-- Bubble radius: 2–4 px (seeded). Colour: `colorTheme.glass.base` with
-  slightly elevated L.
-- The GSAP timeline is stored in `timelineMap` under the key
-  `bubble-{actorId}` and is killed when the building goes offline or unmounts.
-- No more than one GSAP bubble timeline per building, ever.
+**As built** (`src/components/actors/BubbleStream.tsx`, `isBubbleEligible` in
+`factoryVariants.ts`):
+- Eligibility: `purpose` is one of `heavyIndustry`, `chemicalProcessing`,
+  `pipeWorks`, `storageLogistics` (Skyscraper's `observationComms` is the only
+  variant without a vent). An unset `purpose` falls back to `heavyIndustry`.
+- One `BubbleStream` per building, rendered outside the building's transform
+  group in scene coordinates. Vent X is seeded to 20–80% of the facade width;
+  vent Y is the roofline.
+- Each burst releases 5–10 bubbles (seeded), each its own `<circle>` placed at
+  the vent once via `cx`/`cy`/`r`. Bubbles are released `0.2–0.4 s` apart
+  (seeded), rise `100–500 px` at `40–70 px/s` (so duration follows distance),
+  wobble `8–20 px` side to side, fade in over the first 85% of the rise, then
+  pop (scale ×2.5, fade out) over the last 15% while still rising. Some pop
+  off-screen by design.
+- Radius `8–10 px`, scaled by `depthScale` (see "Placement & Rows"). Fill is
+  `hsl(bodyHue, 30%, 70%)` — a faint tint of the building's own body hue.
+- **Motion is transform-only**: tweens touch `x`, `y`, `scale` and `opacity`,
+  never `cx`/`cy`/`r` (docs/ANIMATION_SYSTEM.md). Each burst starts by
+  resetting every bubble to `x:0, y:0, scale:1, opacity:0`.
+- Burst interval per building = `TARGET_GLOBAL_BURST_INTERVAL_SECONDS` (4 s)
+  × the locale's bubble-eligible building count (`OceanScene.tsx` →
+  `Factory`'s `totalBubbleBuildings` prop). Each building also gets a seeded
+  initial phase offset within its own interval so bursts never line up.
+- One GSAP timeline per building (`gsap.timeline({ repeat: -1 })` holding one
+  child timeline per bubble), stored in `timelineMap` under `bubble-{actorId}`
+  and killed on unmount. While a building is inactive the timeline is rewound
+  and paused (`pause(0)`) so its own first `.set()` hides every bubble.
+- Honours `prefers-reduced-motion: reduce`: no timeline is built and the
+  circles stay at opacity 0.
 
 ---
 
@@ -650,7 +666,9 @@ post-apocalyptic world without being a constant visual distraction.
   system handles recovery.
 - **Visual effects while offline:**
   - `nightDepth` forced to `0` — no lit windows regardless of time of day.
-  - Bubble stream GSAP timeline is paused/killed.
+  - Bubble stream GSAP timeline is rewound and paused (`BubbleStream`'s
+    `isActive={false}` path — already wired to `config.isOffline`; the
+    `offlineSystem` that would set the flag is not yet built).
   - Antennae indicator light `<circle>` elements have `opacity: 0`.
   - Body fill is slightly desaturated (saturation clamped down ~20%).
 - Online recovery reverses all of the above instantly (no transition needed;

@@ -51,6 +51,12 @@ Bubble cadence never tracked the real seeded/live BPM (only coincidentally match
 landed near 60), and the `?? 120` fallback already disagreed with the actual default (`60`) used
 everywhere else.
 
+**Superseded (2026-09-02, `2fb9780`):** the `audioStore.bpm` read described above was itself removed
+when bubble timing moved to wall-clock seconds spread across all bubble-eligible buildings
+(`TARGET_GLOBAL_BURST_INTERVAL_SECONDS × totalBuildings`). Neither `Factory.tsx` nor
+`BubbleStream.tsx` reads any BPM now; the decorative effect has no tempo input at all. The
+`Factory.tsx`/`BubbleStream.tsx` line citations in this item are historical.
+
 ### 2. `MEASURES_PER_CYCLE` / `DAY_CYCLE_MEASURES` — one guardrail, two constants
 **Status:** ☑ fixed (2026-09-03) · **Confidence:** high — pure centralization, same pattern as
 items 3–5, confirmed by full test/lint/type-check pass.
