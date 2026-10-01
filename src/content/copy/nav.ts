@@ -8,6 +8,8 @@ export const nav = {
   'nav.home': { human: 'Deck', lore: 'Monitor' },
   'nav.toggle': { human: 'Navigation' },
   'nav.breadcrumb': { human: 'Breadcrumb' },
+  'nav.expand': { human: 'Expand', template: 'Expand {name}' },
+  'nav.collapse': { human: 'Collapse', template: 'Collapse {name}' },
   'nav.status.probesActive': { human: 'Probes active.', template: '{emitting} of {max} Probes active.' },
   'nav.status.viewing': { human: 'Viewing', template: 'Viewing {name} @ ({x}, {y}).' },
   'nav.status.unknownName': { human: 'CORRUPT NAME' },

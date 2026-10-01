@@ -8,7 +8,6 @@ import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { company } from './company';
 import { makeHelpers } from '../index';
-import { NAV_TREE_SCHEMA } from '@/data/navTreeConfig';
 import { CREATE_COMPANY_SCHEMA, RENAME_COMPANY_SCHEMA, DELETE_COMPANY_SCHEMA } from '@/data/companyConfig';
 
 const { fill } = makeHelpers(company);
@@ -16,10 +15,6 @@ const src = readFileSync(resolve(__dirname, '../../components/company/CompanyCru
 const content = readFileSync(resolve(__dirname, '../../components/panels/screen/nav/content/CompaniesContent.tsx'), 'utf8');
 
 describe('company content parity', () => {
-  it('nav branch', () => {
-    const n = NAV_TREE_SCHEMA.find((x) => x.id === 'companies')!;
-    expect([company['company.root'].human, company['company.root'].lore]).toEqual([n.humanLabel, n.loreLabel]);
-  });
 
 
 

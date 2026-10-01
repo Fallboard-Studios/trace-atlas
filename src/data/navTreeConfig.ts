@@ -13,19 +13,19 @@
  */
 
 import type { Trait } from '@/types/traits';
+import { labels, type ContentKey } from '@/content';
 
-export interface NavTreeNodeSchema {
+/** A static node as authored here: its concept's content key, never a display string
+ *  (docs/specs/CONTENT_LAYER.md). `resolveNavTree` turns this into the `NavTreeNodeSchema` the
+ *  tree, breadcrumb and cabinet rows read. */
+export interface NavTreeNodeConfig {
   /** Stable within its own branch, e.g. 'settings.volume'. */
   id: string;
-  /** DualLabel convention, reused for the tree row's own label. */
-  loreLabel?: string;
-  humanLabel: string;
+  /** The concept this row opens — its human (and lore, when it has one) label come from CONTENT. */
+  content: ContentKey;
   /** Static children only — dynamic branches (Probes/Companies) resolve
    *  their per-entity children separately, at render time. */
-  children?: NavTreeNodeSchema[];
-  /** Key into whatever doc-content store the Q4 follow-up spec settles on —
-   *  stubbed here, not wired (spec §7 Q4). */
-  docId?: string;
+  children?: NavTreeNodeConfig[];
   /** Tree-row tint (Task 20, spec §7 Q3) — set only on a company's own top-level
    *  companies.<id> node (its Company.color), never on that company's section
    *  children. Every other branch/node leaves this undefined. Takes precedence
@@ -48,12 +48,32 @@ export interface NavTreeNodeSchema {
   trait?: Trait;
 }
 
-export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
+/** A node as the tree, breadcrumb and cabinet rows read it — labels already resolved from
+ *  CONTENT (static nodes) or carrying a name (dynamic robot/company nodes, whose names are data). */
+export interface NavTreeNodeSchema {
+  id: string;
+  /** DualLabel convention, reused for the tree row's own label. */
+  loreLabel?: string;
+  humanLabel: string;
+  children?: NavTreeNodeSchema[];
+  color?: string;
+  trait?: Trait;
+}
+
+/** Resolve an authored subtree's content keys into display labels, once. */
+export function resolveNavTree(nodes: NavTreeNodeConfig[]): NavTreeNodeSchema[] {
+  return nodes.map(({ content, children, ...rest }) => ({
+    ...rest,
+    ...labels(content),
+    ...(children ? { children: resolveNavTree(children) } : {}),
+  }));
+}
+
+export const NAV_TREE_CONFIG: NavTreeNodeConfig[] = [
 
   {
     id: 'fleetParams',
-    loreLabel: 'Environment',
-    humanLabel: 'Fleet Params',
+    content: 'fleet.root',
     trait: 'spectral',
     children: [
       {
@@ -63,27 +83,25 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
         // separate accordions of their own. Matches AudioRigDrawer.tsx's own
         // getTraitColorStyle('composition') call for Automatic Effects.
         id: 'fleetParams.pacing',
-        loreLabel: 'Trace Timing',
-        humanLabel: 'Pacing',
+        content: 'fleet.pacing',
         trait: 'composition',
         children: [
-          { id: 'fleetParams.pacing.tempo', loreLabel: 'Ping Rate', humanLabel: 'Tempo' },
-          { id: 'fleetParams.pacing.frequency', loreLabel: 'Trace Skip Rate', humanLabel: 'Automation Rate' },
-          { id: 'fleetParams.pacing.duration', loreLabel: 'Trace Runway', humanLabel: 'Automation Length' },
-          { id: 'fleetParams.pacing.automaticEffects', loreLabel: 'Trace Width', humanLabel: 'Automation Range' },
+          { id: 'fleetParams.pacing.tempo', content: 'fleet.pacing.tempo' },
+          { id: 'fleetParams.pacing.frequency', content: 'fleet.pacing.automationRate' },
+          { id: 'fleetParams.pacing.duration', content: 'fleet.pacing.automationLength' },
+          { id: 'fleetParams.pacing.automaticEffects', content: 'fleet.pacing.automationRange' },
         ],
       },
       {
         id: 'fleetParams.eqFilters',
-        loreLabel: 'Outer Bounds',
-        humanLabel: 'EQ & Filters',
+        content: 'fleet.eqFilters',
         // Matches AudioRigDrawer.tsx's own AUDIO_RIG_EFFECT_TRAIT — eq3/filterHPF/filterLPF are
         // all 'spectral'; every leaf below inherits this via cascade rather than repeating it.
         trait: 'spectral',
         children: [
-          { id: 'fleetParams.eqFilters.eq', loreLabel: 'Trace Metrics', humanLabel: '3-Band EQ' },
-          { id: 'fleetParams.eqFilters.hpf', loreLabel: 'Top Extraction', humanLabel: 'High-Pass Filter' },
-          { id: 'fleetParams.eqFilters.lpf', loreLabel: 'Bottom Extraction', humanLabel: 'Low-Pass Filter' },
+          { id: 'fleetParams.eqFilters.eq', content: 'fleet.eq' },
+          { id: 'fleetParams.eqFilters.hpf', content: 'fleet.hpf' },
+          { id: 'fleetParams.eqFilters.lpf', content: 'fleet.lpf' },
         ],
       },
       {
@@ -98,52 +116,48 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
         // "Fleet Drift") and "Voice Drift" (formerly "Robot Drift" — moved here from Probes/
         // Companies entirely, no longer duplicated there, same earlier follow-up).
         id: 'fleetParams.fleetDrift',
-        loreLabel: 'Signatures',
-        humanLabel: 'Drift',
+        content: 'fleet.drift',
         // Matches EQ & Filters' own trait — this group is drift of the global-chain effects (plus
         // Voice Drift, moved in alongside it). Not confirmed directly with Crawford (spec §7 item 1).
         trait: 'spectral',
         children: [
-          { id: 'fleetParams.fleetDrift.drift', loreLabel: 'Trace Appendix', humanLabel: 'Environmental Drift' },
-          { id: 'fleetParams.fleetDrift.robots', loreLabel: 'Probe Signature', humanLabel: 'Voice Drift' },
+          { id: 'fleetParams.fleetDrift.drift', content: 'fleet.drift.environmental' },
+          { id: 'fleetParams.fleetDrift.robots', content: 'fleet.drift.voice' },
         ],
       },
       {
         id: 'fleetParams.timeSpace',
-        loreLabel: 'Dimensional Bounds',
-        humanLabel: 'Time & Space',
+        content: 'fleet.timeSpace',
         // reverb/delay are both 'timeSpace' in AUDIO_RIG_EFFECT_TRAIT — same as this branch's own
         // top-level default, set explicitly anyway so this group's trait doesn't silently depend
         // on Fleet Params' own default never changing.
         trait: 'timeSpace',
         children: [
-          { id: 'fleetParams.timeSpace.reverb', loreLabel: 'External Capacity', humanLabel: 'Reverb' },
-          { id: 'fleetParams.timeSpace.delay', loreLabel: 'Retracing', humanLabel: 'Delay' },
+          { id: 'fleetParams.timeSpace.reverb', content: 'fleet.reverb' },
+          { id: 'fleetParams.timeSpace.delay', content: 'fleet.delay' },
         ],
       },
       {
         id: 'fleetParams.output',
-        loreLabel: 'Trace Flattening',
-        humanLabel: 'Output',
+        content: 'fleet.output',
         // compressor/limiter are both 'output' in AUDIO_RIG_EFFECT_TRAIT.
         trait: 'output',
         children: [
-          { id: 'fleetParams.output.compression', loreLabel: 'Bundler', humanLabel: 'Compressor' },
-          { id: 'fleetParams.output.limiter', loreLabel: 'Reduction', humanLabel: 'Limiter' },
+          { id: 'fleetParams.output.compression', content: 'fleet.compressor' },
+          { id: 'fleetParams.output.limiter', content: 'fleet.limiter' },
         ],
       },
     ],
   },
   {
     id: 'probes',
-    loreLabel: 'Timbre & Color',
-    humanLabel: 'Probes',
+    content: 'probe.root',
     trait: 'output',
     children: [
       {
         id: 'probes.all',
         // Naming placeholder per intent doc — may change once the tree is built and used.
-        humanLabel: 'All Probes',
+        content: 'probe.all',
         // Crawford's own explicit pick (2026-09-23) — overrides Probes' own output default; 'All
         // Probes' itself has no established trait elsewhere in the app, unlike its own 4 leaves
         // below.
@@ -156,8 +170,7 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
   },
   {
     id: 'companies',
-    loreLabel: 'Unity & Variety',
-    humanLabel: 'Companies',
+    content: 'company.root',
     trait: 'company',
     // No static children — per-company nodes are generated at render time.
     // Clicking this parent node itself opens the Create form (spec §2).
@@ -166,8 +179,7 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
     id: 'settings',
     // Reversed from docs/reference/text-content-tables.md's original Navigation/Settings split
     // (Crawford's own correction) — "Settings" is the human label, "Navigation" is the lore label.
-    loreLabel: 'Navigation',
-    humanLabel: 'Settings',
+    content: 'settings.root',
     trait: 'seed',
     // Quality below is Crawford's own explicit per-leaf pick (2026-09-23) — unlike Fleet Params'/
     // Sector Settings', it has no single established trait elsewhere in the app to match; it
@@ -177,38 +189,38 @@ export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = [
     children: [
       {
         id: 'settings.quality',
-        loreLabel: 'Trace Capacity',
-        humanLabel: 'Audio Quality',
+        content: 'settings.quality',
         trait: 'seed',
         // Robot Load/Effects Load — already-existing labeled rows inside AudioLoadPanel.tsx
         // (AUDIO_ROBOT_LOAD_SCHEMA/AUDIO_EFFECTS_LOAD_SCHEMA), just given their own scroll/
         // highlight anchor in the tree.
         children: [
-          { id: 'settings.quality.robotLoad', loreLabel: 'Fleet Size', humanLabel: 'Voice Limit' },
-          { id: 'settings.quality.effectsLoad', loreLabel: 'Trace Budget', humanLabel: 'Effects Limit' },
+          { id: 'settings.quality.robotLoad', content: 'settings.quality.robotLoad' },
+          { id: 'settings.quality.effectsLoad', content: 'settings.quality.effectsLoad' },
         ],
       },
       {
         // Matches SectorSettingsDrawer.tsx's own getTraitColorStyle('seed') call.
         id: 'settings.sectorSettings',
-        loreLabel: 'Foundry',
-        humanLabel: 'Seeds',
+        content: 'settings.seeds',
         trait: 'seed',
         // Attenuation Style/Coordinates — already-existing labeled rows inside
         // SectorSettingsDrawer.tsx (ATTENUATION_STYLE_SCHEMA/COORDS_SCHEMA), same treatment.
         children: [
-          { id: 'settings.sectorSettings.attenuationStyle', loreLabel: 'Attenuation Style', humanLabel: 'Atmosphere' },
-          { id: 'settings.sectorSettings.coordinates', loreLabel: 'Atlas Vector', humanLabel: 'Location' },
+          { id: 'settings.sectorSettings.attenuationStyle', content: 'sector.attenuationStyle' },
+          { id: 'settings.sectorSettings.coordinates', content: 'sector.coords' },
         ],
       },
       {
         // Session Storage (Roadmap Phase 20, docs/tasks/SESSION_STORAGE.md Task 10) — last, not
         // between the two audio-tuning leaves above: unrelated to either one. No subsections.
         id: 'settings.sessions',
-        loreLabel: 'Comms',
-        humanLabel: 'Save & Share',
+        content: 'settings.sessions',
         trait: 'seed',
       },
     ],
   },
 ];
+
+/** The resolved tree every consumer reads (useNavTree merges the dynamic Probes/Companies subtrees in). */
+export const NAV_TREE_SCHEMA: NavTreeNodeSchema[] = resolveNavTree(NAV_TREE_CONFIG);

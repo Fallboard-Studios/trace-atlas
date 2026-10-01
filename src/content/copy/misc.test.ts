@@ -18,21 +18,12 @@ import { session } from './session';
 import { sector } from './sector';
 import { ui } from './ui';
 import { makeHelpers } from '../index';
-import { NAV_TREE_SCHEMA, type NavTreeNodeSchema } from '@/data/navTreeConfig';
 import { SHARE_SESSION_SCHEMA, LOAD_SESSION_SCHEMA, DELETE_SESSION_SCHEMA } from '@/data/sessionConfig';
 import { LFO_SHAPES } from '@/types/lfo';
 
 // Source files are CRLF on this machine; the content strings are LF.
 const read = (rel: string) => readFileSync(resolve(__dirname, '../../', rel), 'utf8').replace(/\r\n/g, '\n');
 
-function findNode(id: string, nodes: NavTreeNodeSchema[] = NAV_TREE_SCHEMA): NavTreeNodeSchema | undefined {
-  for (const n of nodes) {
-    if (n.id === id) return n;
-    const hit = n.children && findNode(id, n.children);
-    if (hit) return hit;
-  }
-  return undefined;
-}
 
 describe('home', () => {
   it('HOME_HTML fragments are in ContentPane verbatim', () => {
@@ -71,14 +62,6 @@ describe('nav chrome', () => {
 });
 
 describe('settings', () => {
-  it.each([
-    ['settings', 'settings.root'], ['settings.quality', 'settings.quality'],
-    ['settings.quality.robotLoad', 'settings.quality.robotLoad'], ['settings.quality.effectsLoad', 'settings.quality.effectsLoad'],
-    ['settings.sectorSettings', 'settings.seeds'], ['settings.sessions', 'settings.sessions'],
-  ] as const)('nav %s ↔ %s', (navId, key) => {
-    const n = findNode(navId)!;
-    expect([settings[key].human, (settings[key] as { lore?: string }).lore]).toEqual([n.humanLabel, n.loreLabel]);
-  });
   it.each(['settings.root', 'settings.quality', 'settings.seeds', 'settings.sessions'] as const)('%s intro in SettingsContent', (k) => {
     const src = read('components/panels/screen/nav/content/SettingsContent.tsx');
     const { lore, loreDescription, humanDescription } = settings[k].intro;

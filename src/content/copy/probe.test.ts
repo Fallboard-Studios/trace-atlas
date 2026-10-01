@@ -7,23 +7,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { probe } from './probe';
-import { NAV_TREE_SCHEMA } from '@/data/navTreeConfig';
 import { ROBOT_SECTIONS_CONFIG } from '@/data/robotSubsectionConfig';
 
 type ProbeKey = keyof typeof probe;
 type Entry = { human: string; lore?: string; heading?: string; unit?: string; options?: Record<string, { human: string; lore?: string }> };
 const e = (k: ProbeKey) => probe[k] as Entry;
 const src = (rel: string) => readFileSync(resolve(__dirname, '../../', rel), 'utf8').replace(/\r\n/g, '\n').replace(/'\s*\n\s*\+\s*'/g, '');
-
-describe('probe content parity — nav tree', () => {
-  it('probes / probes.all', () => {
-    const probes = NAV_TREE_SCHEMA.find((n) => n.id === 'probes')!;
-    expect([e('probe.root').human, e('probe.root').lore]).toEqual([probes.humanLabel, probes.loreLabel]);
-    const all = probes.children!.find((n) => n.id === 'probes.all')!;
-    expect(e('probe.all').human).toBe(all.humanLabel);
-    expect(e('probe.all').lore).toBe(all.loreLabel);
-  });
-});
 
 describe('probe content parity — robotSubsectionConfig', () => {
   const SECTION: Record<string, ProbeKey> = { volume: 'probe.dynamics', melody: 'probe.composition', envelope: 'probe.envelope', source: 'probe.source' };

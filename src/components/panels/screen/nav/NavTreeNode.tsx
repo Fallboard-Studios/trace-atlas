@@ -10,6 +10,7 @@ import { openAccordionFromNav } from '@/utils/accordionSync';
 import { fadeInView } from '@/utils/viewFade';
 import type { ButtonSchema, ToggleSchema } from '@/types/controls';
 import type { NavTreeNodeSchema } from '@/data/navTreeConfig';
+import { fill } from '@/content';
 import './NavTreeNode.css';
 
 /** Fallback used only when neither a node nor any of its ancestors ever resolved a trait/color —
@@ -84,7 +85,7 @@ export function NavTreeNode({ node, depth, focusedId, inheritedColor }: NavTreeN
   const toggleSchema: ToggleSchema = {
     id: `${node.id}-toggle`,
     type: 'toggle',
-    humanLabel: expanded ? `Collapse ${node.humanLabel}` : `Expand ${node.humanLabel}`,
+    humanLabel: fill(expanded ? 'nav.collapse' : 'nav.expand', { name: node.humanLabel }),
   };
 
   return (
