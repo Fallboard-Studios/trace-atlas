@@ -29,8 +29,9 @@ import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
-import type { RobotLfoTargetId, LfoSettings } from '../types/lfo';
+import type { RobotLfoTargetId, LfoSettings, LfoLaneId, LfoLink } from '../types/lfo';
 import { ROBOT_LFO_TARGET_IDS, LFO_SHAPES, LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX } from '../types/lfo';
+import { pickLane } from '../utils/lfoLaneDraw';
 
 // ========================================
 // CONSTANTS
@@ -409,6 +410,52 @@ export function generateRobotLfoSettings(noiseMap: NoiseFunction2D, offset: numb
     return [target, settings] as const;
   });
   return Object.fromEntries(entries) as Record<RobotLfoTargetId, LfoSettings>;
+}
+
+// ========================================
+// LFO BANK (docs/specs/LFO_BANK.md §1.3)
+// ========================================
+
+/** Robot link depth never seeds 0 — a lit target always has a real, audible depth (seed-only
+ *  floor; a user may still drag depth to 0 by hand). Replaces LFO_DEPTH_MIN as the robot link
+ *  depth draw's lower bound. */
+export const ROBOT_LFO_DEPTH_SEED_MIN = 1;
+
+/**
+ * Generate seeded LfoLinks for all 6 RobotLfoTargetId modulation targets — replaces
+ * generateRobotLfoSettings's per-target shape/rate with a lane pick (spec §1.3). Reuses
+ * LFO_QUIET_THRESHOLD (0.7) unchanged. The lane draw is roster-aware: `priorLaneCounts` is the
+ * tally of every already-spawned robot in the locale (computed by spawnRobot before calling this),
+ * and this robot's own earlier targets update that same running tally as the loop goes — so even
+ * one robot's six targets lean away from each other, not just away from the rest of the roster.
+ */
+export function generateRobotLfoLinks(
+  noiseMap: NoiseFunction2D,
+  offset: number,
+  priorLaneCounts: Readonly<Record<LfoLaneId, number>>,
+): Record<RobotLfoTargetId, LfoLink> {
+  const counts: Record<LfoLaneId, number> = { ...priorLaneCounts };
+  const result = {} as Record<RobotLfoTargetId, LfoLink>;
+
+  for (const target of ROBOT_LFO_TARGET_IDS) {
+    const quiet = getSeededVal(noiseMap, `robot.lfo.${target}.quiet`, offset, 0, 1) < LFO_QUIET_THRESHOLD;
+    if (quiet) {
+      result[target] = { lane: null, depth: 0 };
+      continue;
+    }
+
+    const laneT = getSeededVal(noiseMap, `robot.lfo.${target}.lane`, offset, 0, 1);
+    const lane = pickLane(laneT, counts);
+    counts[lane]++;
+
+    const depth = quantizeToStep(
+      getSeededVal(noiseMap, `robot.lfo.${target}.depth`, offset, ROBOT_LFO_DEPTH_SEED_MIN, LFO_DEPTH_MAX),
+      LFO_DEPTH_MIN,
+      LFO_DEPTH_STEP,
+    );
+    result[target] = { lane, depth };
+  }
+  return result;
 }
 
 /**

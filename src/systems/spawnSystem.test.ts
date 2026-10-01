@@ -6,13 +6,13 @@ import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { Robot } from '../types/Robot';
 
-import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoSettings, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoSettings, generateRobotLfoLinks, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { AudioEngine } from '../engine/AudioEngine';
 import { DockingState } from '../types/Robot';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { ROBOT_LFO_TARGET_IDS, LFO_SHAPES, LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX } from '../types/lfo';
+import { ROBOT_LFO_TARGET_IDS, LFO_SHAPES, LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX, LFO_LANE_IDS, type LfoLaneId } from '../types/lfo';
 import {
   MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
@@ -369,6 +369,116 @@ describe('spawnSystem', () => {
           }
         }
       }
+    });
+  });
+
+  describe('generateRobotLfoLinks', () => {
+    const ZERO_COUNTS: Record<LfoLaneId, number> = { a: 0, b: 0, c: 0, d: 0 };
+
+    it('generates LfoLinks for all 6 RobotLfoTargetId values, no extras', () => {
+      const links = generateRobotLfoLinks(mockNoiseMap, 0, ZERO_COUNTS);
+      expect(Object.keys(links).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
+    });
+
+    it('every quiet target is exactly { lane: null, depth: 0 }; every lit target has a real lane and depth in (0, 100]', () => {
+      for (let i = 0; i < 30; i++) {
+        const links = generateRobotLfoLinks(mockNoiseMap, i, ZERO_COUNTS);
+        for (const target of ROBOT_LFO_TARGET_IDS) {
+          const link = links[target];
+          if (link.lane === null) {
+            expect(link.depth, `${target}.depth (offset ${i})`).toBe(0);
+          } else {
+            expect(LFO_LANE_IDS, `${target}.lane (offset ${i})`).toContain(link.lane);
+            expect(link.depth, `${target}.depth (offset ${i})`).toBeGreaterThan(0);
+            expect(link.depth, `${target}.depth (offset ${i})`).toBeLessThanOrEqual(100);
+            expect(Number.isInteger(link.depth), `${target}.depth (offset ${i})`).toBe(true);
+          }
+        }
+      }
+    });
+
+    it('is deterministic — the same real seeded noise map + offset + priorLaneCounts always produces identical links', () => {
+      const noiseMap = createNoise2D(alea('lfo-link-determinism-test-seed'));
+      const first = generateRobotLfoLinks(noiseMap, 5, ZERO_COUNTS);
+      const second = generateRobotLfoLinks(noiseMap, 5, ZERO_COUNTS);
+      expect(second).toEqual(first);
+    });
+
+    it('produces different links for a different spawn offset (non-degenerate)', () => {
+      const noiseMap = createNoise2D(alea('lfo-link-determinism-test-seed'));
+      const a = generateRobotLfoLinks(noiseMap, 0, ZERO_COUNTS);
+      const b = generateRobotLfoLinks(noiseMap, 1, ZERO_COUNTS);
+      expect(b).not.toEqual(a);
+    });
+
+    it('seeds a lit (non-null lane) target for roughly 20-40% of targets across 50 robots (the 0.7 quiet threshold, reused)', () => {
+      // Spread across 5 worlds x 10 offsets (= 50 "robots") rather than one seed's 50 offsets —
+      // a single noise map can land near a band edge by chance (found live: one seed alone gave
+      // 19.67%, just under the 20% floor), the same multi-world spread the existing "quiet odds"
+      // describe block above already uses for this same 0.7 threshold.
+      const worlds = [
+        createNoise2D(alea('lfo-link-rate-sample-1')),
+        createNoise2D(alea('lfo-link-rate-sample-2')),
+        createNoise2D(alea('lfo-link-rate-sample-3')),
+        createNoise2D(alea('lfo-link-rate-sample-4')),
+        createNoise2D(alea('lfo-link-rate-sample-5')),
+      ];
+      let litCount = 0;
+      let totalCount = 0;
+      for (const noiseMap of worlds) {
+        for (let offset = 0; offset < 10; offset++) {
+          const links = generateRobotLfoLinks(noiseMap, offset, ZERO_COUNTS);
+          for (const target of ROBOT_LFO_TARGET_IDS) {
+            totalCount++;
+            if (links[target].lane !== null) litCount++;
+          }
+        }
+      }
+      const litRate = litCount / totalCount;
+      expect(litRate, `${litCount}/${totalCount} lit`).toBeGreaterThanOrEqual(0.2);
+      expect(litRate, `${litCount}/${totalCount} lit`).toBeLessThanOrEqual(0.4);
+    });
+
+    it('a heavily-loaded prior lane (a: 20) puts fewer than 15% of 100 lit draws on lane a, and far fewer than a zero-count baseline on the same seeds (least-used lean)', () => {
+      // Round-robin across several worlds (same reasoning as the lit-rate test above) rather than
+      // one seed's offset sequence — spreads the lit draws over independent noise so the measured
+      // share reflects pickLane's weighting, not one seed's own quirks.
+      const worlds = Array.from({ length: 10 }, (_, i) => createNoise2D(alea(`lfo-link-prior-counts-${i}`)));
+
+      /** Tallies lane 'a' lit picks up to a cap, round-robin across worlds/offsets, for a given starting tally. */
+      function tallyLaneA(priorLaneCounts: Record<LfoLaneId, number>, cap: number): { aCount: number; litCount: number } {
+        let aCount = 0;
+        let litCount = 0;
+        outer: for (let offset = 0; offset < 200; offset++) {
+          for (const noiseMap of worlds) {
+            const links = generateRobotLfoLinks(noiseMap, offset, priorLaneCounts);
+            for (const target of ROBOT_LFO_TARGET_IDS) {
+              if (litCount >= cap) break outer;
+              const link = links[target];
+              if (link.lane === null) continue;
+              litCount++;
+              if (link.lane === 'a') aCount++;
+            }
+          }
+        }
+        return { aCount, litCount };
+      }
+
+      const withHeavyPriorA = tallyLaneA({ a: 20, b: 0, c: 0, d: 0 }, 100);
+      const zeroCountBaseline = tallyLaneA({ a: 0, b: 0, c: 0, d: 0 }, 100);
+
+      expect(withHeavyPriorA.litCount, 'did not gather 100 lit draws within the offset budget').toBe(100);
+      // The literal acceptance bound (docs/tasks/LFO_BANK.md Task 6).
+      expect(withHeavyPriorA.aCount, `${withHeavyPriorA.aCount}/${withHeavyPriorA.litCount} on lane a`).toBeLessThan(15);
+      // The discriminating comparison: a heavy prior count on 'a' must suppress its share below
+      // what the SAME seeds, same worlds/offsets give it with no prior count at all — this is
+      // exactly what the mutation check (dropping the priorLaneCounts term) breaks: with the term
+      // gone, both tallies run the identical algorithm against identical seeds and must come out
+      // equal, failing this strict inequality. (The absolute zero-count share measured here is
+      // this codebase's real getSeededVal-driven value, not the naive uniform-t expectation —
+      // the sanity floor just confirms the comparison isn't vacuously 0 vs 0.)
+      expect(zeroCountBaseline.aCount, 'zero-count baseline should see at least a few lane-a picks to make this comparison meaningful').toBeGreaterThan(2);
+      expect(withHeavyPriorA.aCount).toBeLessThan(zeroCountBaseline.aCount);
     });
   });
 
