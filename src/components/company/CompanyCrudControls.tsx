@@ -222,15 +222,15 @@ export function CompanyRenameDeleteForm() {
           <AlertDialog.Overlay className="company-delete-confirm__overlay" />
           <AlertDialog.Content className="company-delete-confirm__content">
             <AlertDialog.Title className="company-delete-confirm__title">
-              Delete {selectedCompany?.name}?
+              {fill('company.delete.confirmTitle', { company: selectedCompany?.name ?? '' })}
             </AlertDialog.Title>
             <AlertDialog.Description className="company-delete-confirm__description">
-              Its member robots become Freelance. This can&apos;t be undone.
+              {CONTENT['company.delete.confirmBody'].human}
             </AlertDialog.Description>
             <div className="company-delete-confirm__actions">
               <AlertDialog.Cancel className="company-delete-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
               <AlertDialog.Action className="company-delete-confirm__confirm" onClick={handleConfirmDelete}>
-                Delete
+                {CONTENT['company.delete'].human}
               </AlertDialog.Action>
             </div>
           </AlertDialog.Content>

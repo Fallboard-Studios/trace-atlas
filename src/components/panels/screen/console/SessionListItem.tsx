@@ -76,14 +76,14 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
         <AlertDialog.Portal>
           <AlertDialog.Overlay className="session-delete-confirm__overlay" />
           <AlertDialog.Content className="session-delete-confirm__content">
-            <AlertDialog.Title className="session-delete-confirm__title">Delete {label}?</AlertDialog.Title>
+            <AlertDialog.Title className="session-delete-confirm__title">{fill('session.delete.confirmTitle', { session: label })}</AlertDialog.Title>
             <AlertDialog.Description className="session-delete-confirm__description">
-              This can&apos;t be undone.
+              {CONTENT['session.delete.confirmBody'].human}
             </AlertDialog.Description>
             <div className="session-delete-confirm__actions">
               <AlertDialog.Cancel className="session-delete-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
               <AlertDialog.Action className="session-delete-confirm__confirm" onClick={handleConfirmDelete}>
-                Delete
+                {CONTENT['session.delete'].human}
               </AlertDialog.Action>
             </div>
           </AlertDialog.Content>

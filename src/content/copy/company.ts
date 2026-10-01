@@ -39,4 +39,6 @@ export const company = {
   'company.create': { human: 'Create', lore: 'COMMISSION UNIT', template: 'Create {name}' },
   'company.rename': { human: 'Rename', lore: 'REDESIGNATE UNIT', template: 'Rename {company} > {name}' },
   'company.delete': { human: 'Delete', lore: 'DECOMMISSION UNIT', template: 'Delete {company}' },
+  'company.delete.confirmTitle': { human: 'Delete?', template: 'Delete {company}?' },
+  'company.delete.confirmBody': { human: 'Its member robots become Freelance. This can\'t be undone.' },
 } as const satisfies Record<string, ContentEntry>;

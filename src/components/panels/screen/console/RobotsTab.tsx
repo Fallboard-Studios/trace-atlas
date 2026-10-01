@@ -6,7 +6,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { filterRobotsByCompanyFocus } from '@/utils/robotListFilter';
 import type { ButtonSchema } from '@/types/controls';
-import { CONTENT, labels } from '@/content';
+import { CONTENT, labels, fill } from '@/content';
 import './RobotsTab.css';
 
 // Plain schema constant, no domain config file — this is console-screen chrome (a filter reset
@@ -93,7 +93,7 @@ export function RobotsTab() {
     <div className="robots-tab" role="region" aria-label={CONTENT['probe.list'].human}>
       {selectedCompany && (
         <div className="robots-tab__filter">
-          <span className="robots-tab__filter-label">Filtered by {selectedCompany.name}</span>
+          <span className="robots-tab__filter-label">{fill('probe.list.filteredBy', { company: selectedCompany.name })}</span>
           <Button schema={CLEAR_FILTER_SCHEMA} onClick={selectAllRobots} />
         </div>
       )}
@@ -102,7 +102,7 @@ export function RobotsTab() {
         // rather than rendering a bare, unexplained empty list. All/Reset never filters, so
         // there's no company name to name here in that case (and the fixed 12-robot roster
         // means they're never empty anyway).
-        <p className="robots-tab__empty">{selectedCompany.name} currently has no assigned robots</p>
+        <p className="robots-tab__empty">{fill('probe.list.noAssigned', { company: selectedCompany.name })}</p>
       ) : (
         <ul className="robots-tab__list">
           {filteredRoster.map((entry) => (

@@ -94,7 +94,7 @@ export function RobotOptionsTab() {
   if (!selectedRobotId) {
     return (
       <div className="robot-options-empty">
-        Select a robot from the list, or use Robots to spawn one.
+        {CONTENT['probe.selectPrompt'].human}
       </div>
     );
   }

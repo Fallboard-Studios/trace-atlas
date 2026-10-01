@@ -357,11 +357,11 @@ export function PowerRockerSwitch() {
                 className="power-confirm__btn power-confirm__btn--confirm"
                 onClick={handlePowerOffConfirm}
               >
-                Confirm
+                {CONTENT['ui.confirm'].human}
               </button>
               <Dialog.Close asChild>
                 <button className="power-confirm__btn">
-                  Cancel
+                  {CONTENT['ui.cancel'].human}
                 </button>
               </Dialog.Close>
             </div>

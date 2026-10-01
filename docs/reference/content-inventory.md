@@ -8,116 +8,75 @@ or write `keep` to keep the current text, or `data` with a one-line reason if th
 value rather than copy. Leave **proposed key** for the implementer unless you have a preference.
 Rows already carrying approved copy from the 2026-09-29 pass are *not* here — they migrate verbatim.
 
-## 1. Hardcoded strings (38)
+## 1. Hardcoded strings (0)
 
 | file:line | kind | current text | surface | proposed key | copy |
 |---|---|---|---|---|---|
-| src/components/company/CompanyCrudControls.tsx:230 | jsx-text | Cancel | CompanyCrudControls (components/company) |  |  |
-| src/components/panels/screen/console/ConsolePanel.tsx:40 | attr:aria-label | Console Panel | ConsolePanel (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/ContentPane.tsx:11 | jsx-text | Trace Atlas | ContentPane (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/ContentPane.tsx:12 | jsx-text | A Meridia Telemetry Group product. | ContentPane (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/ContentPane.tsx:15 | jsx-text | Probes as they search the Pelagos Ocean floor for extractable resources. Using Meridia | ContentPane (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/ContentPane.tsx:16 | jsx-text | Power Group Perpetualish Battery Packs, they can search indefinitely for the resources | ContentPane (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/RobotOptionsTab.tsx:96 | jsx-text | Select a robot from the list, or use Robots to spawn one. | RobotOptionsTab (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/RobotOptionsTab.tsx:102 | jsx-text | Robot not found | RobotOptionsTab (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/RobotsTab.tsx:92 | attr:aria-label | Robots | RobotsTab (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/SessionListItem.tsx:65 | jsx-text | Link copied | SessionListItem (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/SessionListItem.tsx:70 | jsx-text | Unable to copy | SessionListItem (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/SessionListItem.tsx:83 | jsx-text | Cancel | SessionListItem (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/SessionsPanel.tsx:79 | template | Saved ${saveStatus.name} at ${saveStatus.savedAt} | SessionsPanel (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/SessionsPanel.tsx:88 | jsx-text | Link copied | SessionsPanel (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/SessionsPanel.tsx:93 | jsx-text | Unable to copy | SessionsPanel (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/SessionsPanel.tsx:116 | jsx-text | Cancel | SessionsPanel (components/panels/screen/console) |  |  |
-| src/components/panels/screen/console/SessionsPanel.tsx:118 | jsx-text | Clear Local Storage | SessionsPanel (components/panels/screen/console) |  |  |
-| src/components/panels/screen/nav/NavBreadcrumb.tsx:40 | attr:aria-label | Breadcrumb | NavBreadcrumb (components/panels/screen/nav) |  |  |
-| src/components/robot/PingControlsDrawer.tsx:116 | jsx-text | Click Track | PingControlsDrawer (components/robot) |  |  |
-| src/components/robot/PingControlsDrawer.tsx:189 | jsx-text | Click Track | PingControlsDrawer (components/robot) |  |  |
-| src/components/ui/controls/HeldOffNote.tsx:11 | jsx-text | Held off by Audio Load | HeldOffNote (components/ui/controls) |  |  |
-| src/components/ui/controls/Lfo.tsx:35 | map-entry | Triangle | Lfo (components/ui/controls) |  |  |
-| src/components/ui/controls/Lfo.tsx:36 | map-entry | Sine | Lfo (components/ui/controls) |  |  |
-| src/components/ui/controls/Lfo.tsx:37 | map-entry | Square | Lfo (components/ui/controls) |  |  |
-| src/components/ui/controls/Lfo.tsx:38 | map-entry | Sawtooth | Lfo (components/ui/controls) |  |  |
-| src/components/ui/controls/Lfo.tsx:41 | map-entry | Sweep | Lfo (components/ui/controls) |  |  |
-| src/components/ui/controls/Lfo.tsx:42 | map-entry | Sway | Lfo (components/ui/controls) |  |  |
-| src/components/ui/controls/Lfo.tsx:43 | map-entry | Binary | Lfo (components/ui/controls) |  |  |
-| src/components/ui/controls/Lfo.tsx:44 | map-entry | Kinetic | Lfo (components/ui/controls) |  |  |
-| src/components/ui/controls/Stepper.tsx:41 | template | Decrement ${accessibleName} | Stepper (components/ui/controls) |  |  |
-| src/components/ui/controls/Stepper.tsx:51 | template | Increment ${accessibleName} | Stepper (components/ui/controls) |  |  |
-| src/components/ui/controls/useLfoTargetGroup.ts:112 | literal | Mutation | useLfoTargetGroup (components/ui/controls) |  |  |
-| src/components/ui/physical/PowerRockerSwitch.tsx:219 | attr:aria-label | Device power controls | PowerRockerSwitch (components/ui/physical) |  |  |
-| src/components/ui/physical/PowerRockerSwitch.tsx:225 | ternary | Power on \| Power off | PowerRockerSwitch (components/ui/physical) |  |  |
-| src/components/ui/physical/PowerRockerSwitch.tsx:236 | ternary | Power off \| Power on | PowerRockerSwitch (components/ui/physical) |  |  |
-| src/components/ui/physical/PowerRockerSwitch.tsx:350 | jsx-text | Power off? | PowerRockerSwitch (components/ui/physical) |  |  |
-| src/components/ui/physical/PowerRockerSwitch.tsx:352 | jsx-text | All audio will stop. | PowerRockerSwitch (components/ui/physical) |  |  |
-| src/data/audioRigConfig.ts:287 | literal | Off | audioRigConfig (data) |  |  |
 
-## 2. Placeholders and ALL CAPS legacy headings (61)
+
+## 2. Placeholders and ALL CAPS legacy headings (57)
 
 | file:line | field | current text | why | proposed key | copy |
 |---|---|---|---|---|---|
-| src/components/panels/screen/console/RobotsTab.tsx:13 | copy field | RESET UNIT ROSTER | ALL CAPS legacy heading |  |  |
-| src/components/panels/screen/console/SectorSettingsDrawer.tsx:33 | literal | STOCHASTIC SEED [c] | [c] placeholder |  |  |
-| src/components/panels/screen/console/SectorSettingsDrawer.tsx:34 | literal | STOCHASTIC VECTOR [c] | [c] placeholder |  |  |
-| src/components/panels/screen/console/SectorSettingsDrawer.tsx:106 | literal | ATTENUATION PRESET [c] | [c] placeholder |  |  |
-| src/components/panels/screen/console/SectorSettingsDrawer.tsx:120 | literal | PLOT PRESET [c] | [c] placeholder |  |  |
-| src/components/panels/screen/Header.tsx:56 | copy field | SIGNAL SUPPRESSION | ALL CAPS legacy heading |  |  |
-| src/components/panels/screen/nav/NavStatusBlock.tsx:45 | literal | CORRUPT NAME | ALL CAPS legacy heading |  |  |
-| src/components/panels/screen/nav/NavStatusBlock.tsx:48 | literal | NO TEMP | ALL CAPS legacy heading |  |  |
-| src/components/ui/controls/CoordsInput.tsx:26 | literal | LATERAL VECTOR [c] | [c] placeholder |  |  |
-| src/components/ui/controls/CoordsInput.tsx:27 | literal | VERTICAL VECTOR [c] | [c] placeholder |  |  |
-| src/data/audioRigConfig.ts:65 | literal | SPECTRAL FREQUENCY EQUALIZER | ALL CAPS legacy heading |  |  |
-| src/data/audioRigConfig.ts:86 | literal | HIGH-FREQUENCY MASK | ALL CAPS legacy heading |  |  |
-| src/data/audioRigConfig.ts:102 | literal | LOW-FREQUENCY MASK | ALL CAPS legacy heading |  |  |
-| src/data/audioRigConfig.ts:118 | literal | TEMPORAL REFLECTION MATRIX | ALL CAPS legacy heading |  |  |
-| src/data/audioRigConfig.ts:130 | literal | SPATIAL DIFFUSION MATRIX | ALL CAPS legacy heading |  |  |
-| src/data/audioRigConfig.ts:141 | literal | DYNAMIC RANGE CONDENSER | ALL CAPS legacy heading |  |  |
-| src/data/audioRigConfig.ts:152 | literal | TERMINAL CEILING GATE | ALL CAPS legacy heading |  |  |
-| src/data/audioRigConfig.ts:380 | copy field | ACOUSTIC LOAD PROTOCOL | ALL CAPS legacy heading |  |  |
-| src/data/audioRigConfig.ts:393 | copy field | ACOUSTIC LOAD CEILING | ALL CAPS legacy heading |  |  |
-| src/data/audioRigConfig.ts:406 | copy field | MODULATION LOAD CEILING | ALL CAPS legacy heading |  |  |
-| src/data/audioRigConfig.ts:423 | copy field | ACOUSTIC LOAD MANAGEMENT | ALL CAPS legacy heading |  |  |
-| src/data/companyConfig.ts:33 | copy field | UNIT AFFILIATION | ALL CAPS legacy heading |  |  |
-| src/data/companyConfig.ts:55 | copy field | REGISTERED CONSORTIA | ALL CAPS legacy heading |  |  |
-| src/data/companyConfig.ts:71 | copy field | DESIGNATION | ALL CAPS legacy heading |  |  |
-| src/data/companyConfig.ts:80 | copy field | COMMISSION UNIT | ALL CAPS legacy heading |  |  |
-| src/data/companyConfig.ts:87 | copy field | REDESIGNATE UNIT | ALL CAPS legacy heading |  |  |
-| src/data/companyConfig.ts:94 | copy field | DECOMMISSION UNIT | ALL CAPS legacy heading |  |  |
-| src/data/robotOptionsConfig.ts:121 | copy field | RHYTHMIC PHRASING MATRIX | ALL CAPS legacy heading |  |  |
-| src/data/robotOptionsConfig.ts:131 | copy field | RHYTHMIC PHRASING MATRIX | ALL CAPS legacy heading |  |  |
-| src/data/robotOptionsConfig.ts:141 | copy field | PITCH FREQUENCY MATRIX | ALL CAPS legacy heading |  |  |
-| src/data/robotOptionsConfig.ts:165 | copy field | CALIBRATION PULSE | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:20 | copy field | ROBOT IDENTIFIER | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:21 | copy field | ASSIGNED PROTOCOL | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:22 | copy field | DOCKING STATE | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:27 | copy field | ACOUSTIC EMISSION STATE | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:45 | copy field | POWER CELL STATUS | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:63 | copy field | VOLATILE VENT EXTRACTION | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:64 | copy field | HIGH-ALTITUDE ACOUSTIC SURVEY | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:65 | copy field | STRUCTURAL INTEGRITY INSPECTION | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:66 | copy field | SUBSTATION FLUID MONITORING | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:70 | copy field | NO PROTOCOL ASSIGNED | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:73 | copy field | DOCKED | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:74 | copy field | DOCKING | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:75 | copy field | DEPARTING | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:76 | copy field | ACTIVE | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:82 | copy field | OFFLINE | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:83 | copy field | SILENCED | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:84 | copy field | ISOLATED | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:85 | copy field | PRIORITIZED | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:104 | copy field | ACOUSTIC EMISSION ACTIVE | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:106 | copy field | ACOUSTIC EMISSION HELD IN RESERVE | ALL CAPS legacy heading |  |  |
-| src/data/robotSelectionConfig.ts:107 | copy field | ACOUSTIC EMISSION SUPPRESSED | ALL CAPS legacy heading |  |  |
-| src/data/sectorSettingsConfig.ts:26 | copy field | ATTENUATION SEED | ALL CAPS legacy heading |  |  |
-| src/data/sectorSettingsConfig.ts:38 | copy field | PLOT VECTOR | ALL CAPS legacy heading |  |  |
-| src/data/sectorSettingsConfig.ts:45 | copy field | RETRANSMIT | ALL CAPS legacy heading |  |  |
-| src/data/sectorSettingsConfig.ts:52 | copy field | ACTIVE TRANSMISSION | ALL CAPS legacy heading |  |  |
-| src/data/sessionConfig.ts:16 | copy field | SESSION DESIGNATION | ALL CAPS legacy heading |  |  |
-| src/data/sessionConfig.ts:25 | copy field | ARCHIVE STATE | ALL CAPS legacy heading |  |  |
-| src/data/sessionConfig.ts:32 | copy field | TRANSMIT COORDINATES | ALL CAPS legacy heading |  |  |
-| src/data/sessionConfig.ts:39 | copy field | RESTORE STATE | ALL CAPS legacy heading |  |  |
-| src/data/sessionConfig.ts:46 | copy field | PURGE ARCHIVE | ALL CAPS legacy heading |  |  |
+| src/content/copy/company.ts:30 | copy field | UNIT AFFILIATION | ALL CAPS legacy heading |  |  |
+| src/content/copy/company.ts:35 | copy field | REGISTERED CONSORTIA | ALL CAPS legacy heading |  |  |
+| src/content/copy/company.ts:36 | copy field | DESIGNATION | ALL CAPS legacy heading |  |  |
+| src/content/copy/company.ts:39 | copy field | COMMISSION UNIT | ALL CAPS legacy heading |  |  |
+| src/content/copy/company.ts:40 | copy field | REDESIGNATE UNIT | ALL CAPS legacy heading |  |  |
+| src/content/copy/company.ts:41 | copy field | DECOMMISSION UNIT | ALL CAPS legacy heading |  |  |
+| src/content/copy/fleet.ts:62 | copy field | SPECTRAL FREQUENCY EQUALIZER | ALL CAPS legacy heading |  |  |
+| src/content/copy/fleet.ts:66 | copy field | LOW-FREQUENCY MASK | ALL CAPS legacy heading |  |  |
+| src/content/copy/fleet.ts:69 | copy field | HIGH-FREQUENCY MASK | ALL CAPS legacy heading |  |  |
+| src/content/copy/fleet.ts:108 | copy field | SPATIAL DIFFUSION MATRIX | ALL CAPS legacy heading |  |  |
+| src/content/copy/fleet.ts:112 | copy field | TEMPORAL REFLECTION MATRIX | ALL CAPS legacy heading |  |  |
+| src/content/copy/fleet.ts:136 | copy field | DYNAMIC RANGE CONDENSER | ALL CAPS legacy heading |  |  |
+| src/content/copy/fleet.ts:150 | copy field | TERMINAL CEILING GATE | ALL CAPS legacy heading |  |  |
+| src/content/copy/header.ts:5 | copy field | SIGNAL SUPPRESSION | ALL CAPS legacy heading |  |  |
+| src/content/copy/nav.ts:16 | copy field | CORRUPT NAME | ALL CAPS legacy heading |  |  |
+| src/content/copy/nav.ts:17 | copy field | NO TEMP | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:45 | copy field | RESET UNIT ROSTER | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:50 | copy field | ROBOT IDENTIFIER | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:53 | copy field | ASSIGNED PROTOCOL | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:55 | copy field | VOLATILE VENT EXTRACTION | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:56 | copy field | HIGH-ALTITUDE ACOUSTIC SURVEY | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:57 | copy field | STRUCTURAL INTEGRITY INSPECTION | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:58 | copy field | SUBSTATION FLUID MONITORING | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:61 | copy field | NO PROTOCOL ASSIGNED | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:62 | copy field | POWER CELL STATUS | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:65 | copy field | DOCKING STATE | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:67 | copy field | DOCKED | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:68 | copy field | DOCKING | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:69 | copy field | DEPARTING | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:70 | copy field | ACTIVE | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:75 | copy field | ACOUSTIC EMISSION STATE | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:77 | copy field | ACOUSTIC EMISSION ACTIVE | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:78 | copy field | ACOUSTIC EMISSION HELD IN RESERVE | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:79 | copy field | ACOUSTIC EMISSION SUPPRESSED | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:88 | copy field | OFFLINE | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:89 | copy field | SILENCED | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:90 | copy field | ISOLATED | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:91 | copy field | PRIORITIZED | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:129 | copy field | RHYTHMIC PHRASING MATRIX | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:130 | copy field | RHYTHMIC PHRASING MATRIX | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:131 | copy field | CALIBRATION PULSE | ALL CAPS legacy heading |  |  |
+| src/content/copy/probe.ts:135 | copy field | PITCH FREQUENCY MATRIX | ALL CAPS legacy heading |  |  |
+| src/content/copy/sector.ts:14 | literal | LATERAL VECTOR [c] | [c] placeholder |  |  |
+| src/content/copy/sector.ts:15 | literal | VERTICAL VECTOR [c] | [c] placeholder |  |  |
+| src/content/copy/sector.ts:16 | copy field | RETRANSMIT | ALL CAPS legacy heading |  |  |
+| src/content/copy/sector.ts:17 | copy field | ACTIVE TRANSMISSION | ALL CAPS legacy heading |  |  |
+| src/content/copy/sector.ts:18 | literal | STOCHASTIC SEED [c] | [c] placeholder |  |  |
+| src/content/copy/sector.ts:19 | literal | STOCHASTIC VECTOR [c] | [c] placeholder |  |  |
+| src/content/copy/sector.ts:22 | literal | ATTENUATION PRESET [c] | [c] placeholder |  |  |
+| src/content/copy/sector.ts:23 | literal | PLOT PRESET [c] | [c] placeholder |  |  |
+| src/content/copy/session.ts:7 | copy field | SESSION DESIGNATION | ALL CAPS legacy heading |  |  |
+| src/content/copy/session.ts:8 | copy field | ARCHIVE STATE | ALL CAPS legacy heading |  |  |
+| src/content/copy/session.ts:9 | copy field | TRANSMIT COORDINATES | ALL CAPS legacy heading |  |  |
+| src/content/copy/session.ts:10 | copy field | RESTORE STATE | ALL CAPS legacy heading |  |  |
+| src/content/copy/session.ts:11 | copy field | PURGE ARCHIVE | ALL CAPS legacy heading |  |  |
+| src/content/copy/settings.ts:28 | copy field | ACOUSTIC LOAD MANAGEMENT | ALL CAPS legacy heading |  |  |
+| src/content/copy/settings.ts:31 | copy field | ACOUSTIC LOAD PROTOCOL | ALL CAPS legacy heading |  |  |
 
-## 3. Nav-row vs control conflicts (7)
+## 3. Nav-row vs control conflicts (8)
 
 One concept, two texts today. The content entry takes the 2026-09-29 copy-pass value (the nav's)
 because that table records the control's text as the *old* value; veto in the last column.
@@ -130,4 +89,5 @@ because that table records the control's text as the *old* value; veto in the la
 | sector.coords | nav: Atlas Vector / Location | coords input (COORDS_SCHEMA): PLOT VECTOR / Coordinates | entry = Location / Atlas Vector |  |
 | settings.quality (intro prose) | — | SettingsContent humanDescription still says "Robot Load" / "Effects Load" | prose left verbatim; reword if the labels above change |  |
 | probe.source.core / .companion / .accent | nav + accordion: Core Oscillator / Companion Oscillator / Accent Oscillator | layer panel heading (robotOptionsConfig SIGNATURE_ARRAY_CONFIG): Core / Companion / Accent | entry = the long form; the panel reads it too |  |
+| fleet.lpf.resonance / fleet.hpf.resonance | both: Boundary Resonance / Resonance | two parallel controls with identical copy today | kept as two concepts; give them distinct lore if wanted (content guard allowlists this pair) |  |
 | probe.monitorMode vs probe.status.monitorMode | radio (AUDIO_SETTING_SCHEMA) lore: Freeform / Standby / Featured / Elevated | badge map (AUDIO_MODE_LABELS) lore: OFFLINE / SILENCED / ISOLATED / PRIORITIZED — same values, same human words | kept as two entries for now (verbatim); merge into probe.monitorMode once the badge lore is decided |  |

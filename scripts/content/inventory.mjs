@@ -20,11 +20,14 @@ import { join, relative, sep } from 'node:path';
 
 const ROOT = process.cwd();
 const SCAN_DIRS = ['src/components', 'src/data', 'src/types'];
+/** Section 2 (placeholders / ALL CAPS legacy headings) also scans the content module itself, where
+ *  every string now lives after the migration tasks. */
+const PLACEHOLDER_DIRS = [...SCAN_DIRS, 'src/content'];
 const OUT = 'docs/reference/content-inventory.md';
 
 /** A line that already carries a copy field anywhere (inline schema objects included), or is a
  *  `+ '…'` continuation of a multi-line copy string — approved copy, migrates verbatim, not section 1. */
-const COPY_LINE = /\b(loreLabel|humanLabel|label|placeholder|unit|loreDescription|humanDescription)\s*:|^\s*\+\s*'/;
+const COPY_LINE = /\b(loreLabel|humanLabel|label|placeholder|unit|loreDescription|humanDescription|human|lore|heading|template)\s*:|^\s*\+\s*'/;
 const SKIP_LINE = /(^\s*(\/\/|\*|\/\*))|devWarn|devLog|console\.|throw new|new Error\(|import |data-testid|from '|aria-labelledby|key=\{/;
 const ALL_CAPS = /^[A-Z0-9 &/'’.[\]-]+$/;
 const HAS_WORD = /[A-Z]{3,}/;
@@ -39,6 +42,7 @@ const CONFLICTS = [
   ['sector.coords', 'nav: Atlas Vector / Location', 'coords input (COORDS_SCHEMA): PLOT VECTOR / Coordinates', 'entry = Location / Atlas Vector'],
   ['settings.quality (intro prose)', '—', 'SettingsContent humanDescription still says "Robot Load" / "Effects Load"', 'prose left verbatim; reword if the labels above change'],
   ['probe.source.core / .companion / .accent', 'nav + accordion: Core Oscillator / Companion Oscillator / Accent Oscillator', 'layer panel heading (robotOptionsConfig SIGNATURE_ARRAY_CONFIG): Core / Companion / Accent', 'entry = the long form; the panel reads it too'],
+  ['fleet.lpf.resonance / fleet.hpf.resonance', 'both: Boundary Resonance / Resonance', 'two parallel controls with identical copy today', 'kept as two concepts; give them distinct lore if wanted (content guard allowlists this pair)'],
   ['probe.monitorMode vs probe.status.monitorMode', 'radio (AUDIO_SETTING_SCHEMA) lore: Freeform / Standby / Featured / Elevated', 'badge map (AUDIO_MODE_LABELS) lore: OFFLINE / SILENCED / ISOLATED / PRIORITIZED — same values, same human words', 'kept as two entries for now (verbatim); merge into probe.monitorMode once the badge lore is decided'],
 ];
 
@@ -60,7 +64,8 @@ function surfaceOf(file) {
 const hardcoded = [];
 const placeholders = [];
 
-for (const dir of SCAN_DIRS) {
+for (const dir of PLACEHOLDER_DIRS) {
+  const placeholdersOnly = !SCAN_DIRS.includes(dir);
   for (const file of walk(join(ROOT, dir))) {
     const rel = relative(ROOT, file).split(sep).join('/');
     const lines = readFileSync(file, 'utf8').split(/\r?\n/);
@@ -88,7 +93,7 @@ for (const dir of SCAN_DIRS) {
         }
       }
       // Approved copy fields (and their continuation lines) migrate verbatim — not section 1.
-      if (COPY_LINE.test(line)) return;
+      if (placeholdersOnly || COPY_LINE.test(line)) return;
 
       // JSX text node on one line: >Some words<  (never code: no =>, (, ;, =)
       for (const m of line.matchAll(/(?<![=-])>\s*([^<>{}]*[A-Za-z]{3,}[^<>{}]*?)\s*</g)) {

@@ -8,6 +8,7 @@ import type { ContentEntry } from '../types';
  */
 export const ui = {
   'ui.cancel': { human: 'Cancel' },
+  'ui.confirm': { human: 'Confirm' },
   'ui.consolePanel': { human: 'Console Panel' },
   'ui.heldOff': { human: 'Held off by Audio Load' },
   'ui.stepper.increment': { human: 'Increment', template: 'Increment {name}' },

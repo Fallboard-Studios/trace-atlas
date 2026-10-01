@@ -108,15 +108,15 @@ export function SessionsPanel() {
           <AlertDialog.Overlay className="clear-storage-confirm__overlay" />
           <AlertDialog.Content className="clear-storage-confirm__content">
             <AlertDialog.Title className="clear-storage-confirm__title">
-              Clear Local Storage?
+              {CONTENT['session.clearStorage.confirmTitle'].human}
             </AlertDialog.Title>
             <AlertDialog.Description className="clear-storage-confirm__description">
-              Every saved and autosaved session is deleted. This can&apos;t be undone.
+              {CONTENT['session.clearStorage.confirmBody'].human}
             </AlertDialog.Description>
             <div className="clear-storage-confirm__actions">
               <AlertDialog.Cancel className="clear-storage-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
               <AlertDialog.Action className="clear-storage-confirm__confirm" onClick={handleConfirmClearStorage}>
-                Clear Local Storage
+                {CONTENT['session.clearStorage'].human}
               </AlertDialog.Action>
             </div>
           </AlertDialog.Content>

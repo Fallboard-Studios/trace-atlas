@@ -46,7 +46,7 @@ export function NavBreadcrumb() {
          separate button/span children directly. */}
       <div className="nav-breadcrumb__inner">
         <button type="button" className="nav-breadcrumb__segment nav-breadcrumb__segment--link" onClick={goHome}>
-          Root
+          {CONTENT['nav.root'].human}
         </button>
         {selectedPath.map((node, i) => (
           <span key={node.id} className="nav-breadcrumb__crumb">
