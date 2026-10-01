@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { IntroPanel, type IntroContent } from '@/components/ui/controls/IntroPanel';
 import { ROBOT_SECTIONS_CONFIG, type RobotOptionsTrait } from '@/data/robotSubsectionConfig';
+import { labels } from '@/content';
 import type { RobotSection, RobotSubsection } from '@/stores/uiStore';
 import type { AccordionSchema } from '@/types/controls';
 
@@ -81,7 +82,7 @@ export function RobotSectionAccordionStack({
           .filter((sub) => !sub.mergedInto)
           .map((sub) => {
             const id = `${sectionId}.${sub.id}`;
-            const schema: AccordionSchema = { id, type: 'accordion', humanLabel: sub.accordionLabel! };
+            const schema: AccordionSchema = { id, type: 'accordion', humanLabel: labels(sub.accordion!).humanLabel };
             return (
               <div key={sub.id} ref={sectionAnchorRef(id)}>
                 <AccordionContainer
@@ -106,9 +107,9 @@ export function RobotSectionAccordionStack({
 
         return (
           <div key={section.id} ref={sectionAnchorRef(sectionId)}>
-            {section.ownAccordionLabel ? (
+            {section.accordion ? (
               <AccordionContainer
-                schema={{ id: sectionId, type: 'accordion', humanLabel: section.ownAccordionLabel } satisfies AccordionSchema}
+                schema={{ id: sectionId, type: 'accordion', humanLabel: labels(section.accordion).humanLabel } satisfies AccordionSchema}
                 open={isOpen(sectionId)}
                 onOpenChange={(open) => setOpen(sectionId, open)}
                 style={style}

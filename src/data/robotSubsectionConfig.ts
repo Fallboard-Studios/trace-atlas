@@ -13,21 +13,17 @@
  */
 import type { RobotSection, RobotSubsection } from '@/stores/uiStore';
 import type { Trait } from '@/types/traits';
+import type { ContentKey } from '@/content';
 
 export interface RobotSubsectionEntry {
   id: RobotSubsection;
-  /** Nav-tree row's own lore-styled caption (docs/reference/text-content-tables.md), paired with
-   *  navLabel below the same way NavTreeNodeSchema's own loreLabel/humanLabel pair works
-   *  elsewhere in the tree. Optional only because not every subsection has confirmed lore copy
-   *  yet. */
-  loreLabel?: string;
-  /** Nav-tree row label (NavCabinetRow/NavTreeNode). May differ from accordionLabel — e.g.
-   *  'rhythm's nav label is 'Rhythm', its accordion trigger reads 'Composition' — both surfaces
-   *  read this table instead of each hand-typing their own copy. */
-  navLabel: string;
-  /** This subsection's own AccordionContainer trigger label. Absent exactly when mergedInto is
-   *  set — a subsection with no accordion of its own. */
-  accordionLabel?: string;
+  /** The nav row's concept — its human/lore pair comes from CONTENT (docs/specs/CONTENT_LAYER.md).
+   *  E.g. 'rhythm' reads probe.composition.rhythm ("Rhythm") in the tree. */
+  content: ContentKey;
+  /** This subsection's own AccordionContainer's concept — present exactly when it has an
+   *  accordion (absent exactly when `mergedInto` is set). May differ from `content`: 'rhythm's
+   *  accordion is probe.composition ("Composition"), a different concept from its row. */
+  accordion?: ContentKey;
   /** Set only for a subsection with no accordion of its own — the sibling subsection id whose
    *  accordion it scrolls into instead ('frequency' -> 'rhythm': Rhythm/Pitches merged into one
    *  "Composition" accordion). Absent for every subsection that owns its own accordion. */
@@ -44,14 +40,13 @@ export type RobotOptionsTrait = Extract<Trait, 'output' | 'composition' | 'timeS
 
 export interface RobotSectionEntry {
   id: RobotSection;
-  /** Same lore/human pairing as RobotSubsectionEntry's own loreLabel/navLabel above. */
-  loreLabel?: string;
-  navLabel: string;
+  /** The nav row's concept (human/lore from CONTENT), e.g. 'volume' reads probe.dynamics. */
+  content: ContentKey;
   trait: RobotOptionsTrait;
-  /** Present only for a section that wraps its subsections in its OWN accordion ('source') — its
-   *  value is that wrapping accordion's trigger label. Absent for volume/melody/envelope,
-   *  whose single accordion-bearing subsection's own accordion is that section's only chrome. */
-  ownAccordionLabel?: string;
+  /** Present only for a section that wraps its subsections in its OWN accordion ('source') —
+   *  that wrapping accordion's concept. Absent for volume/melody/envelope, whose single
+   *  accordion-bearing subsection's own accordion is that section's only chrome. */
+  accordion?: ContentKey;
   subsections: RobotSubsectionEntry[];
 }
 
@@ -60,34 +55,34 @@ export interface RobotSectionEntry {
  *  directly instead of each hand-declaring their own order. */
 export const ROBOT_SECTIONS_CONFIG: RobotSectionEntry[] = [
   {
-    id: 'volume', loreLabel: 'Output', navLabel: 'Dynamics', trait: 'output',
+    id: 'volume', content: 'probe.dynamics', trait: 'output',
     subsections: [
-      { id: 'audioSettings', loreLabel: 'Ops Clarity', navLabel: 'Level Control', accordionLabel: 'Levels' },
+      { id: 'audioSettings', content: 'probe.dynamics.levelControl', accordion: 'probe.levels' },
     ],
   },
   {
-    id: 'melody', loreLabel: 'Payload Registrar', navLabel: 'Composition', trait: 'composition',
+    id: 'melody', content: 'probe.composition', trait: 'composition',
     subsections: [
-      { id: 'rhythm', loreLabel: 'Payload Map', navLabel: 'Rhythm', accordionLabel: 'Composition' },
-      { id: 'frequency', loreLabel: 'Payload Allocation', navLabel: 'Pitches', mergedInto: 'rhythm' },
+      { id: 'rhythm', content: 'probe.composition.rhythm', accordion: 'probe.composition' },
+      { id: 'frequency', content: 'probe.composition.pitches', mergedInto: 'rhythm' },
     ],
   },
   {
-    id: 'envelope', loreLabel: 'Ping Shell', navLabel: 'Envelope', trait: 'timeSpace',
+    id: 'envelope', content: 'probe.envelope', trait: 'timeSpace',
     subsections: [
-      { id: 'pingContour', loreLabel: 'Ping Profile', navLabel: 'Contour', accordionLabel: 'Envelope' },
+      { id: 'pingContour', content: 'probe.envelope.contour', accordion: 'probe.envelope' },
     ],
   },
   {
-    id: 'source', loreLabel: 'Telemetry', navLabel: 'Source', trait: 'spectral', ownAccordionLabel: 'Source',
+    id: 'source', content: 'probe.source', trait: 'spectral', accordion: 'probe.source',
     subsections: [
       // navLabel/accordionLabel renamed together (docs/reference/text-content-tables.md:
       // Baseline/Coaxial/Harmonic Oscillator -> Core/Companion/Accent Oscillator) — unlike
       // Rhythm/Composition or Contour/Envelope above, these 2 fields were always identical for
       // each of these 3 subsections, not a deliberate divergence, so both move together.
-      { id: 'baselineOscillator', loreLabel: 'Baseline Feed', navLabel: 'Core Oscillator', accordionLabel: 'Core Oscillator' },
-      { id: 'coaxialOscillator', loreLabel: 'Coaxial Effect', navLabel: 'Companion Oscillator', accordionLabel: 'Companion Oscillator' },
-      { id: 'harmonicOscillator', loreLabel: 'Offset Matrix', navLabel: 'Accent Oscillator', accordionLabel: 'Accent Oscillator' },
+      { id: 'baselineOscillator', content: 'probe.source.core', accordion: 'probe.source.core' },
+      { id: 'coaxialOscillator', content: 'probe.source.companion', accordion: 'probe.source.companion' },
+      { id: 'harmonicOscillator', content: 'probe.source.accent', accordion: 'probe.source.accent' },
     ],
   },
 ];
@@ -116,7 +111,7 @@ export function subsectionIds(prefix: string): string[] {
  *  (only 'source' today). */
 export function accordionIds(prefix: string): string[] {
   const wrapping = ROBOT_SECTIONS_CONFIG
-    .filter((section) => section.ownAccordionLabel)
+    .filter((section) => section.accordion)
     .map((section) => `${prefix}.${section.id}`);
   return [...subsectionIds(prefix), ...wrapping];
 }

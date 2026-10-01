@@ -4,6 +4,7 @@ import { useUIStore, type RobotSection, type RobotSubsection, type FleetParamsGr
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { NAV_TREE_SCHEMA, type NavTreeNodeSchema } from '@/data/navTreeConfig';
 import { ROBOT_SECTIONS_CONFIG } from '@/data/robotSubsectionConfig';
+import { labels } from '@/content';
 
 /**
  * Resolves the Navigation & Layout Rewrite's tree (docs/specs/NAV_LAYOUT_REWRITE.md §1.5/§3) —
@@ -186,19 +187,17 @@ export function expandNavAncestorsForId(id: string): void {
 // PingControlsDrawer/PingContourDrawer/SignatureArrayDrawer's own per-section getTraitColorStyle
 // calls (output/composition/timeSpace/spectral respectively), so a probes.<id>.<section> or
 // companies.<id>.<section> row colors itself the same as the actual section content it opens
-// into. Each subsection's *nav-row* label (navLabel) is used here — never accordionLabel, which
-// is the content view's own accordion-trigger text and may legitimately differ (e.g. 'rhythm'
+// into. Each subsection's *nav-row* concept is resolved through labels() here
+// (sub.content, never sub.accordion — the accordion's concept may legitimately differ, e.g. 'rhythm'
 // reads 'Rhythm' in the tree, 'Composition' as its accordion trigger).
 function sectionChildNodes(entityBranchPrefix: string): NavTreeNodeSchema[] {
   return ROBOT_SECTIONS_CONFIG.map((section) => ({
     id: `${entityBranchPrefix}.${section.id}`,
-    loreLabel: section.loreLabel,
-    humanLabel: section.navLabel,
+    ...labels(section.content),
     trait: section.trait,
     children: section.subsections.map((sub) => ({
       id: `${entityBranchPrefix}.${section.id}.${sub.id}`,
-      loreLabel: sub.loreLabel,
-      humanLabel: sub.navLabel,
+      ...labels(sub.content),
     })),
   }));
 }

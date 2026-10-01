@@ -7,35 +7,11 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { probe } from './probe';
-import { ROBOT_SECTIONS_CONFIG } from '@/data/robotSubsectionConfig';
 
 type ProbeKey = keyof typeof probe;
 type Entry = { human: string; lore?: string; heading?: string; unit?: string; options?: Record<string, { human: string; lore?: string }> };
 const e = (k: ProbeKey) => probe[k] as Entry;
 const src = (rel: string) => readFileSync(resolve(__dirname, '../../', rel), 'utf8').replace(/\r\n/g, '\n').replace(/'\s*\n\s*\+\s*'/g, '');
-
-describe('probe content parity — robotSubsectionConfig', () => {
-  const SECTION: Record<string, ProbeKey> = { volume: 'probe.dynamics', melody: 'probe.composition', envelope: 'probe.envelope', source: 'probe.source' };
-  const ROW: Record<string, ProbeKey> = {
-    audioSettings: 'probe.dynamics.levelControl', rhythm: 'probe.composition.rhythm', frequency: 'probe.composition.pitches',
-    pingContour: 'probe.envelope.contour', baselineOscillator: 'probe.source.core', coaxialOscillator: 'probe.source.companion', harmonicOscillator: 'probe.source.accent',
-  };
-  const ACCORDION: Record<string, ProbeKey> = {
-    audioSettings: 'probe.levels', rhythm: 'probe.composition', pingContour: 'probe.envelope',
-    baselineOscillator: 'probe.source.core', coaxialOscillator: 'probe.source.companion', harmonicOscillator: 'probe.source.accent',
-  };
-
-  it.each(ROBOT_SECTIONS_CONFIG.map((s) => [s.id, s] as const))('section %s row', (id, s) => {
-    expect([e(SECTION[id]).human, e(SECTION[id]).lore]).toEqual([s.navLabel, s.loreLabel]);
-    if (s.ownAccordionLabel) expect(e(SECTION[id]).human).toBe(s.ownAccordionLabel);
-  });
-
-  it.each(ROBOT_SECTIONS_CONFIG.flatMap((s) => s.subsections.map((sub) => [sub.id, sub] as const)))('subsection %s row + accordion', (id, sub) => {
-    expect([e(ROW[id]).human, e(ROW[id]).lore]).toEqual([sub.navLabel, sub.loreLabel]);
-    if (sub.accordionLabel) expect(e(ACCORDION[id]).human).toBe(sub.accordionLabel);
-    else expect(ACCORDION[id]).toBeUndefined();
-  });
-});
 
 describe('probe content parity — component source text', () => {
   const probes = src('components/panels/screen/nav/content/ProbesContent.tsx');
