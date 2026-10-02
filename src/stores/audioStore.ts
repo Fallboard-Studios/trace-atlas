@@ -18,12 +18,20 @@ import {
 import { AUDIO_LOAD_PRESETS } from '../constants';
 import { clampAudioLoad, detectCoarsePointer, resolveInitialAudioLoad, resolveInitialEffectsLoad } from '../utils/audioBudget';
 import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
-import { laneToFree, laneToSync, resolveLaneForEngine, resolveLaneRateHz } from '../utils/tempoSync';
+import {
+  delayToFree,
+  delayToSync,
+  laneToFree,
+  laneToSync,
+  resolveDelayTimeSeconds,
+  resolveLaneForEngine,
+  resolveLaneRateHz,
+} from '../utils/tempoSync';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from './attenuationStyleStore';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 import { isNoteValue } from '../data/noteValues';
 
-import type { GlobalAudioSettings } from '../types/globalAudio';
+import type { DelaySettings, GlobalAudioSettings } from '../types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
 import {
   GLOBAL_LFO_TARGET_IDS,
@@ -41,6 +49,24 @@ import {
 /** Keys of GlobalAudioSettings that are effect-param objects (excludes the one top-level flag). */
 type EffectKey = Exclude<keyof GlobalAudioSettings, 'compressorBeforeDelay'>;
 
+/**
+ * The engine is seconds-only (docs/specs/FREE_SYNC_TOGGLE.md §1.3): a Delay partial that carries
+ * `delayTime` or `sync` is pushed with its time RESOLVED from the stored Delay at `bpm`, and `sync`
+ * never reaches the engine. Anything else — an Audio Swell's `{ wet }`, a `{ feedback }` edit — is
+ * forwarded exactly as given, so a synced Delay's time isn't re-pushed on every swell tick. Reads the
+ * store lazily (it runs only from inside setGlobalAudio, after the merge), so GLOBAL_SETTER below
+ * still builds at module scope without touching useAudioStore during import.
+ */
+function setGlobalDelayResolved(params: Partial<DelaySettings>): void {
+  if (!('delayTime' in params) && !('sync' in params)) {
+    AudioEngine.setGlobalDelay(params);
+    return;
+  }
+  const { sync: _sync, ...rest } = params;
+  const { globalAudio, bpm } = useAudioStore.getState();
+  AudioEngine.setGlobalDelay({ ...rest, delayTime: resolveDelayTimeSeconds(globalAudio.delay, bpm) });
+}
+
 /** Routes a setGlobalAudio(effect, partial) call to its matching AudioEngine setter. */
 const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]>) => void } = {
   compressor: AudioEngine.setGlobalCompressor,
@@ -48,7 +74,7 @@ const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]
   filterLPF: AudioEngine.setGlobalFilterLPF,
   filterHPF: AudioEngine.setGlobalFilterHPF,
   limiter: AudioEngine.setGlobalLimiter,
-  delay: AudioEngine.setGlobalDelay,
+  delay: setGlobalDelayResolved,
   reverb: AudioEngine.setGlobalReverb,
 };
 
@@ -61,27 +87,35 @@ const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]
  * store; regenerateGlobalAudioFromSeed's own push runs at module load, long
  * before those nodes exist, so it lands as a no-op on every one of these
  * setters and needs re-applying once real nodes exist).
+ *
+ * `bpm` is the tempo a synced Delay resolves at (docs/specs/FREE_SYNC_TOGGLE.md §1.3). It is a
+ * parameter, not read from the store, so a caller that is about to change the tempo can pass the
+ * one that will actually be in force.
  */
-export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings): void {
+export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings, bpm: number): void {
+  const { sync: _sync, ...delay } = globalAudio.delay;
   AudioEngine.setGlobalCompressor(globalAudio.compressor);
   AudioEngine.setGlobalEQ(globalAudio.eq3);
   AudioEngine.setGlobalFilterLPF(globalAudio.filterLPF);
   AudioEngine.setGlobalFilterHPF(globalAudio.filterHPF);
   AudioEngine.setGlobalLimiter(globalAudio.limiter);
-  AudioEngine.setGlobalDelay(globalAudio.delay);
+  AudioEngine.setGlobalDelay({ ...delay, delayTime: resolveDelayTimeSeconds(globalAudio.delay, bpm) });
   AudioEngine.setGlobalReverb(globalAudio.reverb);
 }
 
 /**
  * Re-push every tempo-synced value's resolved float after a tempo change (docs/specs/FREE_SYNC_TOGGLE.md
  * §1.6). Free values never move with tempo, so they are never touched. Synchronous and safe before audio
- * starts — lfoEngine.setBankRate just records the value until the lanes are primed. Task 11 adds Delay here.
+ * starts — lfoEngine.setBankRate just records the value until the lanes are primed, and the delay
+ * setter no-ops without a node.
  */
-function reapplyTempoSyncedValues(state: Pick<AudioStore, 'bpm' | 'lfoBank'>): void {
+function reapplyTempoSyncedValues(state: Pick<AudioStore, 'bpm' | 'lfoBank' | 'globalAudio'>): void {
   for (const lane of LFO_LANE_IDS) {
     const settings = state.lfoBank[lane];
     if (isNoteValue(settings.sync)) lfoEngine.setBankRate(lane, resolveLaneRateHz(settings, state.bpm));
   }
+  const { delay } = state.globalAudio;
+  if (isNoteValue(delay.sync)) AudioEngine.setGlobalDelay({ delayTime: resolveDelayTimeSeconds(delay, state.bpm) });
 }
 
 /** Initial lfoBank — DEFAULT_BANK_LFO per lane (inert: rate 0, no drift) until the AS-sync below seeds real values. */
@@ -204,6 +238,13 @@ export interface AudioStore {
     effect: K,
     partial: Partial<GlobalAudioSettings[K]>
   ) => void;
+  /**
+   * Flips Delay Time between Free (Float) and Sync (Anchored) (docs/specs/FREE_SYNC_TOGGLE.md §1.5):
+   * Free -> Sync snaps delayTime to the nearest allowed note at the current tempo, Sync -> Free keeps
+   * the seconds the user was hearing. A whole-object replacement of `globalAudio.delay`, so the Free
+   * result carries no `sync` key; pushes the resolved delayTime to the engine.
+   */
+  setDelaySyncMode: (synced: boolean) => void;
   /** Sets isMuted and pushes the resulting gain to AudioEngine — 0 when muted,
    *  volumePositionToGain(volume) (the live slider position) when not. Owns its own
    *  AudioEngine call, matching every other audioStore setter's shape (setBPM, etc.) —
@@ -336,6 +377,13 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     (GLOBAL_SETTER[effect] as (params: any) => void)(partial);
   },
 
+  setDelaySyncMode: (synced) => {
+    const { globalAudio, bpm } = get();
+    const delay = synced ? delayToSync(globalAudio.delay, bpm) : delayToFree(globalAudio.delay, bpm);
+    set({ globalAudio: { ...globalAudio, delay } });
+    AudioEngine.setGlobalDelay({ delayTime: resolveDelayTimeSeconds(delay, bpm) });
+  },
+
   setCompressorBeforeDelay: (value) => {
     set((state) => ({ globalAudio: { ...state.globalAudio, compressorBeforeDelay: value } }));
     wireGlobalFxChain(value);
@@ -421,7 +469,8 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
       ...(swellFrequency !== undefined ? { swellFrequency } : {}),
       ...(swellDuration !== undefined ? { swellDuration } : {}),
     });
-    applyGlobalAudioToEngine(globalAudio);
+    // bpm is already the new Attenuation Style's tempo: the AS-sync reseeds it before globalAudio.
+    applyGlobalAudioToEngine(globalAudio, get().bpm);
   },
 
   setLfoBank: (lane, partial) => {

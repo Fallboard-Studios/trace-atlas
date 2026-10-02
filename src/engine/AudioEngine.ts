@@ -509,7 +509,7 @@ export const AudioEngine = {
       // no-op; re-apply the current state now that real nodes exist. Must
       // run before the link loop below: linkTarget's swing math reads each
       // target's CURRENT value, so EQ/filter values need to be correct first.
-      applyGlobalAudioToEngine(globalAudio);
+      applyGlobalAudioToEngine(globalAudio, bpm);
       // The engine is Hz-only: a synced lane is primed at its note's Hz at the current tempo, with
       // `sync` stripped (docs/specs/FREE_SYNC_TOGGLE.md §1.3).
       lfoEngine.primeLfoBank(resolveLfoBankForEngine(lfoBank, bpm));

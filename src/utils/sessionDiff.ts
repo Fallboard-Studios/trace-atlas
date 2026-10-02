@@ -459,7 +459,9 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
 
   const globalAudio = payload.globalAudio;
   useAudioStore.setState({ globalAudio });
-  applyGlobalAudioToEngine(globalAudio);
+  // A synced Delay resolves at the tempo this payload is about to install (setBPM below re-pushes it
+  // too, but the engine should never hear it at the live world's old tempo in between).
+  applyGlobalAudioToEngine(globalAudio, payload.bpm ?? useAudioStore.getState().bpm);
 
   // Pacing fields: applied AFTER retransmitWorld above, which reseeds bpm (via audioStore's
   // Attenuation Style sync) whenever the style changed, and would otherwise win. Each is independently optional (undefined for a pre-this-change

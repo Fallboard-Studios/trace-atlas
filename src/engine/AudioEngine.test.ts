@@ -2249,6 +2249,37 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
     expect(lastInstance(Tone.Limiter).threshold.value).toBe(-2);
     expect(lastInstance(Tone.FeedbackDelay).wet.value).toBe(0.25);
   });
+
+  // docs/specs/FREE_SYNC_TOGGLE.md §1.3, Task 11: the node only ever receives seconds. A synced Delay
+  // is resolved at the store's tempo when start() re-applies the seeded state.
+  describe('Delay time', () => {
+    const QUARTER = { division: '1/4', modifier: 'straight' } as const;
+
+    async function startWithDelay(delay: Record<string, unknown>, bpm: number) {
+      const Tone = await import('tone');
+      const { AudioEngine } = await import('./AudioEngine');
+      const { useAudioStore } = await import('../stores/audioStore');
+      useAudioStore.setState({ bpm, globalAudio: { ...FIXTURE_GLOBAL_AUDIO, delay } as any });
+      await AudioEngine.start();
+      return lastInstance(Tone.FeedbackDelay);
+    }
+
+    it('applies a Free delayTime as stored', async () => {
+      const node = await startWithDelay({ delayTime: 0.4, feedback: 0.3, wet: 0.25 }, 60);
+      expect(node.delayTime.value).toBe(0.4);
+    });
+
+    it('applies a synced Delay as its note\'s seconds at the current tempo — 1/4 is 0.5 s at 120 BPM, not the stored 0.4', async () => {
+      const node = await startWithDelay({ delayTime: 0.4, feedback: 0.3, wet: 0.25, sync: QUARTER }, 120);
+      expect(node.delayTime.value).toBe(0.5);
+    });
+
+    it('still applies the Delay\'s feedback and wet when it is synced', async () => {
+      const node = await startWithDelay({ delayTime: 0.4, feedback: 0.3, wet: 0.25, sync: QUARTER }, 60);
+      expect(node.feedback.value).toBe(0.3);
+      expect(node.wet.value).toBe(0.25);
+    });
+  });
 });
 
 describe('AudioEngine.start — primes robot LFO links via the bank roster helper (docs/tasks/LFO_BANK.md Task 10)', () => {

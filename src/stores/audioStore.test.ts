@@ -779,6 +779,413 @@ describe('useAudioStore - lane Sync: setLfoBank resolves, replaceLfoBankLane / s
   });
 });
 
+// docs/specs/FREE_SYNC_TOGGLE.md §1.3 (delay rows), §1.5, §1.6, Task 11: the engine only ever hears
+// plain seconds. A synced Delay resolves from the store's bpm at every push site; a Free one — and any
+// partial that carries neither `delayTime` nor `sync`, i.e. an Audio Swell's `{ wet }` — is untouched.
+describe('useAudioStore - Delay Sync (docs/specs/FREE_SYNC_TOGGLE.md Task 11)', () => {
+  const QUARTER = { division: '1/4', modifier: 'straight' } as const;
+  const EIGHTH_DOTTED = { division: '1/8', modifier: 'dotted' } as const;
+  const QUARTER_TRIPLET = { division: '1/4', modifier: 'triplet' } as const;
+  const FOUR_BARS = { division: '4', modifier: 'straight' } as const;
+  const FREE_DELAY = { delayTime: 0.9, feedback: 0.3, wet: 0.25 } as const;
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  /** A fresh store with the given delay and bpm installed, every mock cleared. */
+  async function setup(delay: Record<string, unknown>, bpm = 60) {
+    const { useAudioStore, applyGlobalAudioToEngine } = await import('./audioStore');
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    const { lfoEngine } = await import('../engine/lfoEngine');
+    useAudioStore.setState({
+      bpm,
+      globalAudio: { ...useAudioStore.getState().globalAudio, delay: delay as never },
+    });
+    vi.clearAllMocks();
+    return { useAudioStore, applyGlobalAudioToEngine, AudioEngine, lfoEngine };
+  }
+
+  /** The single argument of the last AudioEngine.setGlobalDelay call. */
+  function lastDelayPush(AudioEngine: { setGlobalDelay: unknown }): Record<string, unknown> {
+    return vi.mocked(AudioEngine.setGlobalDelay as (p: unknown) => void).mock.calls.at(-1)![0] as Record<string, unknown>;
+  }
+
+  describe('setGlobalAudio(\'delay\', …)', () => {
+    it('a `sync` partial pushes the resolved seconds — 1/4 is 1 s at 60 BPM — and no `sync` key', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_DELAY, 60);
+
+      useAudioStore.getState().setGlobalAudio('delay', { sync: QUARTER });
+
+      expect(AudioEngine.setGlobalDelay).toHaveBeenCalledTimes(1);
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 1 });
+    });
+
+    it('resolves against the store\'s current bpm — the same note is 0.5 s at 120 BPM', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_DELAY, 120);
+
+      useAudioStore.getState().setGlobalAudio('delay', { sync: QUARTER });
+
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 0.5 });
+    });
+
+    it('stores the note itself in state, not the seconds it resolves to', async () => {
+      const { useAudioStore } = await setup(FREE_DELAY, 60);
+
+      useAudioStore.getState().setGlobalAudio('delay', { sync: EIGHTH_DOTTED });
+
+      expect(useAudioStore.getState().globalAudio.delay.sync).toEqual(EIGHTH_DOTTED);
+      expect(useAudioStore.getState().globalAudio.delay.delayTime).toBe(0.9); // the Free value underneath, untouched
+    });
+
+    it('a Free `delayTime` partial is forwarded as that number', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_DELAY, 60);
+
+      useAudioStore.getState().setGlobalAudio('delay', { delayTime: 0.3 });
+
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 0.3 });
+    });
+
+    it('a Free `delayTime` edit on a synced Delay re-sends the synced seconds, not the number just typed', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, sync: QUARTER }, 60);
+
+      useAudioStore.getState().setGlobalAudio('delay', { delayTime: 0.3 });
+
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 1 });
+      expect(useAudioStore.getState().globalAudio.delay.delayTime).toBe(0.3); // still recorded underneath
+    });
+
+    it('an Audio Swell\'s `{ wet }` is forwarded exactly — no delayTime added — on a Free Delay', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_DELAY, 60);
+
+      useAudioStore.getState().setGlobalAudio('delay', { wet: 0.4 });
+
+      expect(AudioEngine.setGlobalDelay).toHaveBeenCalledTimes(1);
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ wet: 0.4 });
+    });
+
+    it('an Audio Swell\'s `{ wet }` is forwarded exactly on a SYNCED Delay too — the swell path must not re-push the time every tick', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, sync: QUARTER }, 60);
+
+      useAudioStore.getState().setGlobalAudio('delay', { wet: 0.4 });
+
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ wet: 0.4 });
+    });
+
+    it('`{ feedback }` alone is forwarded exactly, on a synced Delay as well', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, sync: QUARTER }, 60);
+
+      useAudioStore.getState().setGlobalAudio('delay', { feedback: 0.45 });
+
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ feedback: 0.45 });
+    });
+
+    it('a partial carrying `sync` plus other keys pushes those keys alongside the resolved seconds, still with no `sync`', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_DELAY, 60);
+
+      useAudioStore.getState().setGlobalAudio('delay', { sync: QUARTER, feedback: 0.5 });
+
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ feedback: 0.5, delayTime: 1 });
+    });
+
+    it('clamps a note longer than the node allows into 10 s — 4 bars at 40 BPM is 24 s', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_DELAY, 40);
+
+      useAudioStore.getState().setGlobalAudio('delay', { sync: FOUR_BARS });
+
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 10 });
+    });
+
+    it('an explicit `sync: undefined` resolves as Free — the stored delayTime, not NaN', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, sync: QUARTER }, 60);
+
+      useAudioStore.getState().setGlobalAudio('delay', { sync: undefined });
+
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 0.9 });
+    });
+
+    it('leaves every other effect\'s setter untouched', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_DELAY, 60);
+
+      useAudioStore.getState().setGlobalAudio('delay', { sync: QUARTER });
+
+      expect(AudioEngine.setGlobalReverb).not.toHaveBeenCalled();
+      expect(AudioEngine.setGlobalCompressor).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('applyGlobalAudioToEngine(globalAudio, bpm)', () => {
+    it('pushes a Free Delay as it is stored', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine, AudioEngine } = await setup(FREE_DELAY, 60);
+
+      applyGlobalAudioToEngine(useAudioStore.getState().globalAudio, 60);
+
+      expect(lastDelayPush(AudioEngine)).toStrictEqual(FREE_DELAY);
+    });
+
+    it('pushes a synced Delay with delayTime resolved at the given bpm, feedback/wet kept, and no `sync` key', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine, AudioEngine } = await setup({ ...FREE_DELAY, sync: QUARTER }, 60);
+
+      applyGlobalAudioToEngine(useAudioStore.getState().globalAudio, 60);
+
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 1, feedback: 0.3, wet: 0.25 });
+    });
+
+    it('uses the bpm it is GIVEN, not whatever the store holds — a session restore passes its own tempo', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine, AudioEngine } = await setup({ ...FREE_DELAY, sync: QUARTER }, 60);
+
+      applyGlobalAudioToEngine(useAudioStore.getState().globalAudio, 120);
+
+      expect(lastDelayPush(AudioEngine).delayTime).toBe(0.5);
+    });
+
+    it('does not mutate the object it is given — the stored Delay keeps its `sync`', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine } = await setup({ ...FREE_DELAY, sync: QUARTER }, 60);
+      const globalAudio = useAudioStore.getState().globalAudio;
+
+      applyGlobalAudioToEngine(globalAudio, 60);
+
+      expect(globalAudio.delay.sync).toEqual(QUARTER);
+      expect(globalAudio.delay.delayTime).toBe(0.9);
+    });
+
+    it('still pushes every other effect exactly as stored', async () => {
+      const { useAudioStore, applyGlobalAudioToEngine, AudioEngine } = await setup({ ...FREE_DELAY, sync: QUARTER }, 60);
+      const { globalAudio } = useAudioStore.getState();
+
+      applyGlobalAudioToEngine(globalAudio, 60);
+
+      expect(AudioEngine.setGlobalCompressor).toHaveBeenCalledWith(globalAudio.compressor);
+      expect(AudioEngine.setGlobalEQ).toHaveBeenCalledWith(globalAudio.eq3);
+      expect(AudioEngine.setGlobalFilterLPF).toHaveBeenCalledWith(globalAudio.filterLPF);
+      expect(AudioEngine.setGlobalFilterHPF).toHaveBeenCalledWith(globalAudio.filterHPF);
+      expect(AudioEngine.setGlobalLimiter).toHaveBeenCalledWith(globalAudio.limiter);
+      expect(AudioEngine.setGlobalReverb).toHaveBeenCalledWith(globalAudio.reverb);
+    });
+  });
+
+  describe('regenerateGlobalAudioFromSeed', () => {
+    afterEach(() => {
+      vi.doUnmock('../utils/globalAudioSeed');
+    });
+
+    it('resolves a seeded synced Delay at the store\'s current bpm (Task 13 will seed one; the wiring must already be there)', async () => {
+      vi.doMock('../utils/globalAudioSeed', async (importOriginal) => {
+        const real = await importOriginal<typeof import('../utils/globalAudioSeed')>();
+        return {
+          ...real,
+          generateGlobalAudioSettings: (...args: Parameters<typeof real.generateGlobalAudioSettings>) => {
+            const generated = real.generateGlobalAudioSettings(...args);
+            return { ...generated, delay: { ...generated.delay, sync: QUARTER } };
+          },
+        };
+      });
+      const { useAudioStore } = await import('./audioStore');
+      const { AudioEngine } = await import('../engine/AudioEngine');
+      useAudioStore.setState({ bpm: 120 });
+      vi.clearAllMocks();
+
+      useAudioStore.getState().regenerateGlobalAudioFromSeed('delay-sync-regen', 'Delay Sync Regen');
+
+      expect(lastDelayPush(AudioEngine).delayTime).toBe(0.5);
+      expect('sync' in lastDelayPush(AudioEngine)).toBe(false);
+      expect(useAudioStore.getState().globalAudio.delay.sync).toEqual(QUARTER); // state keeps the note
+    });
+  });
+
+  describe('setBPM re-applies a synced Delay (spec §1.6)', () => {
+    it('re-pushes the resolved seconds at the new tempo — 1/4 is 1 s at 60 and 0.5 s at 120', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, sync: QUARTER }, 60);
+
+      useAudioStore.getState().setBPM(120);
+
+      expect(AudioEngine.setGlobalDelay).toHaveBeenCalledTimes(1);
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 0.5 });
+    });
+
+    it('pushes the resolved seconds, not the Free delayTime stored underneath the sync', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, delayTime: 7, sync: EIGHTH_DOTTED }, 60);
+
+      useAudioStore.getState().setBPM(90);
+
+      // 1/8 dotted = 0.75 beats; at 90 BPM a beat is 2/3 s
+      expect(lastDelayPush(AudioEngine).delayTime).toBeCloseTo(0.75 * (60 / 90), 10);
+    });
+
+    it('never touches a Free Delay', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_DELAY, 60);
+
+      useAudioStore.getState().setBPM(120);
+
+      expect(AudioEngine.setGlobalDelay).not.toHaveBeenCalled();
+    });
+
+    it('clamps into the node\'s range as the tempo drops — 4 bars is 16 s at 60 BPM, so the push is 10', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, sync: FOUR_BARS }, 120);
+
+      useAudioStore.getState().setBPM(60);
+
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 10 });
+    });
+
+    it('moving the tempo back restores the note\'s own seconds — the clamp is never written into state', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, sync: FOUR_BARS }, 120);
+
+      useAudioStore.getState().setBPM(60);
+      useAudioStore.getState().setBPM(120);
+
+      expect(useAudioStore.getState().globalAudio.delay.sync).toEqual(FOUR_BARS);
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 8 }); // 16 beats at 120 BPM
+    });
+
+    it('re-pushes the Delay and a synced lane together, each at its own note', async () => {
+      const { useAudioStore, AudioEngine, lfoEngine } = await setup({ ...FREE_DELAY, sync: QUARTER }, 60);
+      const lfoBank = { ...useAudioStore.getState().lfoBank };
+      lfoBank.a = { shape: 'sine', rate: 1.5, rateDrift: 0, depthDrift: 0, sync: EIGHTH_DOTTED };
+      useAudioStore.setState({ lfoBank });
+      vi.clearAllMocks();
+
+      useAudioStore.getState().setBPM(120);
+
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 0.5 });
+      expect(lfoEngine.setBankRate).toHaveBeenCalledWith('a', 1 / 0.375);
+    });
+
+    it('runs after the transport has the new tempo', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, sync: QUARTER }, 60);
+
+      useAudioStore.getState().setBPM(120);
+
+      const bpmOrder = vi.mocked(AudioEngine.setBPM).mock.invocationCallOrder[0];
+      const delayOrder = vi.mocked(AudioEngine.setGlobalDelay).mock.invocationCallOrder[0];
+      expect(bpmOrder).toBeLessThan(delayOrder);
+    });
+  });
+
+  describe('setDelaySyncMode', () => {
+    it('Free -> Sync snaps to the nearest allowed note, keeps delayTime underneath, and pushes that note\'s seconds', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_DELAY, 60);
+
+      useAudioStore.getState().setDelaySyncMode(true);
+
+      // 0.9 s: 1/4 (1 s) is 0.1 away, 1/8 dotted (0.75 s) is 0.15 away
+      expect(useAudioStore.getState().globalAudio.delay).toStrictEqual({ ...FREE_DELAY, sync: QUARTER });
+      expect(AudioEngine.setGlobalDelay).toHaveBeenCalledTimes(1);
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 1 });
+    });
+
+    it('Sync -> Free keeps what the user hears: delayTime becomes the resolved seconds and `sync` is DELETED', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, delayTime: 7, sync: EIGHTH_DOTTED }, 60);
+
+      useAudioStore.getState().setDelaySyncMode(false);
+
+      const delay = useAudioStore.getState().globalAudio.delay;
+      expect(delay).toStrictEqual({ delayTime: 0.75, feedback: 0.3, wet: 0.25 });
+      expect('sync' in delay).toBe(false);
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 0.75 });
+    });
+
+    it('Sync -> Free quantises to the slider step, and pushes the same number it stored (no audible jump)', async () => {
+      // 1/4 triplet at 70 BPM = (2/3) * 60/70 = 0.571428… s
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, sync: QUARTER_TRIPLET }, 70);
+
+      useAudioStore.getState().setDelaySyncMode(false);
+
+      const stored = useAudioStore.getState().globalAudio.delay.delayTime;
+      expect(stored).toBe(0.571);
+      expect(lastDelayPush(AudioEngine).delayTime).toBe(stored);
+    });
+
+    it('Sync -> Free from a clamped note stores the clamped seconds — what was audible — not the raw 24 s', async () => {
+      const { useAudioStore } = await setup({ ...FREE_DELAY, sync: FOUR_BARS }, 40);
+
+      useAudioStore.getState().setDelaySyncMode(false);
+
+      expect(useAudioStore.getState().globalAudio.delay.delayTime).toBe(10);
+    });
+
+    it('a Free -> Sync -> Free round trip leaves no `sync` key anywhere in the serialised delay', async () => {
+      const { useAudioStore } = await setup(FREE_DELAY, 60);
+
+      useAudioStore.getState().setDelaySyncMode(true);
+      useAudioStore.getState().setDelaySyncMode(false);
+
+      expect(JSON.stringify(useAudioStore.getState().globalAudio.delay)).not.toContain('sync');
+    });
+
+    it('keeps the stored state JSON-serialisable while synced (no functions, no undefined keys)', async () => {
+      const { useAudioStore } = await setup(FREE_DELAY, 60);
+
+      useAudioStore.getState().setDelaySyncMode(true);
+
+      const delay = useAudioStore.getState().globalAudio.delay;
+      expect(JSON.parse(JSON.stringify(delay))).toStrictEqual(delay);
+    });
+
+    it('setting Sync on an already-synced Delay keeps its note — a stale Free delayTime is not a request to re-snap', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, delayTime: 7, sync: EIGHTH_DOTTED }, 60);
+
+      useAudioStore.getState().setDelaySyncMode(true);
+
+      expect(useAudioStore.getState().globalAudio.delay.sync).toEqual(EIGHTH_DOTTED);
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 0.75 });
+    });
+
+    it('setting Free on an already-Free Delay changes nothing and pushes its own delayTime', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_DELAY, 60);
+
+      useAudioStore.getState().setDelaySyncMode(false);
+
+      expect(useAudioStore.getState().globalAudio.delay).toStrictEqual(FREE_DELAY);
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 0.9 });
+    });
+
+    it('a Delay at 0 s snaps to the shortest allowed note, not to NaN or a crash', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, delayTime: 0 }, 60);
+      const { allowedDelayNoteValues } = await import('../utils/tempoSync');
+
+      useAudioStore.getState().setDelaySyncMode(true);
+
+      const shortest = allowedDelayNoteValues(60)[0];
+      expect(useAudioStore.getState().globalAudio.delay.sync).toEqual(shortest);
+      expect(lastDelayPush(AudioEngine).delayTime).toBeGreaterThan(0);
+    });
+
+    it('a Delay at the 10 s ceiling on a slow tempo snaps to a note that fits, and never pushes past 10', async () => {
+      const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, delayTime: 10 }, 40);
+      const { allowedDelayNoteValues } = await import('../utils/tempoSync');
+
+      useAudioStore.getState().setDelaySyncMode(true);
+
+      expect(useAudioStore.getState().globalAudio.delay.sync).toEqual(allowedDelayNoteValues(40).at(-1));
+      expect(lastDelayPush(AudioEngine).delayTime as number).toBeLessThanOrEqual(10);
+    });
+
+    it('leaves feedback, wet and every other effect alone, and pushes nothing but delayTime', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_DELAY, 60);
+      const before = useAudioStore.getState().globalAudio;
+
+      useAudioStore.getState().setDelaySyncMode(true);
+
+      const after = useAudioStore.getState().globalAudio;
+      expect(after.delay.feedback).toBe(0.3);
+      expect(after.delay.wet).toBe(0.25);
+      expect(after.reverb).toBe(before.reverb);
+      expect(after.compressor).toBe(before.compressor);
+      expect(Object.keys(lastDelayPush(AudioEngine))).toEqual(['delayTime']);
+      expect(AudioEngine.setGlobalReverb).not.toHaveBeenCalled();
+    });
+
+    it('does not touch the LFO Bank engine', async () => {
+      const { useAudioStore, lfoEngine } = await setup(FREE_DELAY, 60);
+
+      useAudioStore.getState().setDelaySyncMode(true);
+
+      expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
+    });
+  });
+});
+
 describe('useAudioStore - globalLfoLinks state (docs/tasks/LFO_BANK.md Task 8)', () => {
   beforeEach(() => {
     vi.resetModules();

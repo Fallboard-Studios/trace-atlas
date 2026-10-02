@@ -192,16 +192,16 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   **Verification:** `npx vitest run src/components/ui/controls/SliderLinear.test.tsx src/components/ui/controls/TempoSyncSlider.test.tsx src/components/panels/screen/console/LfoBankLanePanel.test.tsx` (RED first for each); `npm run build:types`, `npm run lint`. **Mutation check:** have `SliderLinear` set `aria-valuetext` unconditionally (to `''` or the numeric text) and watch the "absent without `formatValue`" case go red.
   **Dependencies:** 5, 9. **Files:** `SliderLinear.tsx`, `SliderLinear.test.tsx`, `TempoSyncSlider.test.tsx` (assertions only), `LfoBankLanePanel.tsx`, `.test.tsx`. **Scope:** S–M.
 
-### Checkpoint B: Lane slice
-- [ ] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
-- [ ] Manual (Crawford): flip a lane to Anchored, drag Tempo, hear its linked targets follow while a Float lane holds; Anchored → Float doesn't audibly jump; keyboard reaches the toggle and steps note values; the toggle's look in the panel (facade word veto, spec assumption 11).
-- [ ] Review with Crawford before proceeding.
+### Checkpoint B: Lane slice — PASSED (Crawford, 2026-10-02)
+- [x] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
+- [x] Manual (Crawford): flip a lane to Anchored, drag Tempo, hear its linked targets follow while a Float lane holds; Anchored → Float doesn't audibly jump; keyboard reaches the toggle and steps note values; the toggle's look in the panel (facade word veto, spec assumption 11). No vetoes raised.
+- [x] Review with Crawford before proceeding.
 
 ---
 
 ### Phase 3: Delay slice
 
-- [ ] **Task 11: Delay store → engine; `setDelaySyncMode`; re-apply line**
+- [x] **Task 11: Delay store → engine; `setDelaySyncMode`; re-apply line**
 
   **Description:** Spec §1.3 delay rows and §1.5–1.6. `GLOBAL_SETTER.delay` becomes a wrapper that resolves when the partial carries `delayTime` or `sync` (reading the store lazily at call time) and forwards anything else untouched. `applyGlobalAudioToEngine(globalAudio, bpm)` resolves Delay; update its three callers (`regenerateGlobalAudioFromSeed`, `AudioEngine.start()`, `sessionDiff.applySessionPayload`). New `setDelaySyncMode(synced)` (whole `delay` write + push). `reapplyTempoSyncedValues` gains the Delay line.
 
@@ -209,6 +209,14 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   - [ ] `setGlobalAudio('delay', { sync: 1/4 })` at 60 → `setGlobalDelay` with `delayTime: 1`; `{ delayTime: 0.3 }` with no `sync` → 0.3; `{ wet: 0.4 }` → forwarded as `{ wet: 0.4 }` exactly (swell path, spec §7 risk 4).
   - [ ] `applyGlobalAudioToEngine` pushes a resolved `delayTime` and no `sync`; mode round trip leaves no `sync` key; `setBPM` re-pushes a synced Delay and not a Free one.
   - [ ] `audioStore.ts` still imports cleanly (module-scope table builds; `npm run dev` boots with no console error).
+  **As built:** RED first (32 new tests failing, every Free-path passthrough test already green), then GREEN. +45 tests: 37 in `audioStore.test.ts`, 3 in `AudioEngine.test.ts`, 5 in `sessionDiff.test.ts`.
+  - **`setGlobalDelayResolved`** (a module function in `audioStore.ts`, wired as `GLOBAL_SETTER.delay`). A partial with `delayTime` or `sync` in it pushes `{ ...rest, delayTime: resolveDelayTimeSeconds(storedDelay, bpm) }` with `sync` stripped; anything else is forwarded as the very same partial. It resolves from the **stored** (already merged) delay, so a Free `delayTime` edit on a synced Delay re-sends the synced seconds, the same shape as lanes' `setLfoBank`. An explicit `sync: undefined` resolves as Free. Reads `useAudioStore` lazily, so the module-scope table still builds.
+  - **`applyGlobalAudioToEngine(globalAudio, bpm)`** takes the tempo as a required parameter and pushes `{ ...delay, delayTime: resolved }` with `sync` stripped; the input is not mutated. Callers: `regenerateGlobalAudioFromSeed` (store bpm, already the new Attenuation Style's because BPM reseeds first), `AudioEngine.start()` (the `bpm` it already destructured), `applySessionPayload` (**`payload.bpm ?? live bpm`** — the payload's own tempo, so a synced Delay is never pushed at the old world's tempo before `setBPM(payload.bpm)` lands; the later `setBPM` re-push is then a no-op in value).
+  - **`setDelaySyncMode(synced)`**: `delayToSync`/`delayToFree` on the stored delay, one whole `globalAudio.delay` write, one `setGlobalDelay({ delayTime })` push. Nothing else on the engine moves.
+  - **`reapplyTempoSyncedValues`** gains the Delay line (and its `Pick` gains `globalAudio`); a Free Delay is never pushed.
+  - **Edge cases pinned:** the Audio Swell's `{ wet }` and a `{ feedback }` edit stay byte-for-byte (no `delayTime` added) on a synced Delay; 4 bars at 40 BPM (24 s) pushes 10, and moving the tempo back restores the note's own seconds because the clamp is never written to state; Sync → Free stores the **quantised** seconds and pushes that same number (1/4 triplet at 70 BPM → 0.571), and from a clamped note stores 10, not 24; Free → Sync from 0 s lands on the shortest allowed note and from 10 s at 40 BPM on the longest; already-Sync keeps its note, already-Free is a no-op write; the state stays JSON-clean in both modes and a round trip leaves no `sync` key.
+  - **Seeded-Delay wiring tested ahead of Task 13:** `regenerateGlobalAudioFromSeed` is exercised with the seed generator mocked to emit a synced Delay, so the `get().bpm` argument is proven now, not discovered when Task 13 starts seeding Sync. **Mutation checks run:** removing the swell passthrough turned 3 tests red; making the re-apply push unconditionally turned "never touches a Free Delay" red.
+  Full suite 203 files / 4501 tests; the one failure under the parallel run is the recorded `worldTransition` swell-clear flake, which passes alone (43/43). `npm run build:types` and `npm run lint` clean. Manual: `npm run dev` boot not run (no browser in this session) — the module-scope table is exercised by every `audioStore.test.ts` import.
 
   **Verification:** `npx vitest run src/stores/audioStore.test.ts src/engine/AudioEngine.test.ts src/utils/sessionDiff.test.ts` (RED first); `npm run build:types`, `npm run lint`.
   **Dependencies:** 2, 6. **Files:** `audioStore.ts`, `AudioEngine.ts`, `sessionDiff.ts` + tests. **Scope:** M.

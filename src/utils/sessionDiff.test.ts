@@ -30,6 +30,7 @@ import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLf
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
 import { noteValueHz } from '../data/noteValues';
 import { lfoEngine } from '../engine/lfoEngine';
+import { AudioEngine } from '../engine/AudioEngine';
 
 afterEach(() => {
   stopRobotLifecycle();
@@ -817,6 +818,76 @@ describe('applySessionPayload', () => {
       expect(useAudioStore.getState().lfoBank.b.sync).toEqual(QUARTER);
       expect(lfoEngine.getBankSettings('b').rate).toBeCloseTo(noteValueHz(QUARTER, 90), 10); // 1.5 Hz, not the stored 7
       runningSpy.mockRestore();
+    });
+  });
+
+  // docs/specs/FREE_SYNC_TOGGLE.md §1.3, §1.8, Task 11: a restored Delay reaches the node as seconds,
+  // resolved at the payload's own tempo — never the stored Free delayTime under a `sync`, and never
+  // the tempo the live world happened to be at a moment before the payload's bpm lands.
+  describe('Delay Sync across a session restore', () => {
+    const QUARTER = { division: '1/4', modifier: 'straight' } as const;
+
+    function payloadWithDelay(delay: Record<string, unknown>, bpm: number | undefined) {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      return { ...payload, bpm, globalAudio: { ...payload.globalAudio, delay: delay as never } };
+    }
+
+    it('pushes a synced Delay as that note\'s seconds at the payload\'s tempo — 1/4 at 120 BPM is 0.5 s, not the stored 3', async () => {
+      const payload = payloadWithDelay({ delayTime: 3, feedback: 0.3, wet: 0.2, sync: QUARTER }, 120);
+      useAudioStore.setState({ bpm: 60 }); // the live tempo differs: the payload's must win
+      const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      const pushed = pushSpy.mock.calls.map((call) => call[0]);
+      expect(pushed.at(-1)).toStrictEqual({ delayTime: 0.5 });
+      pushSpy.mockRestore();
+    });
+
+    it('never pushes a `sync` key to the engine, and never the stale stored delayTime at the end', async () => {
+      const payload = payloadWithDelay({ delayTime: 3, feedback: 0.3, wet: 0.2, sync: QUARTER }, 60);
+      const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      for (const [params] of pushSpy.mock.calls) expect('sync' in params).toBe(false);
+      expect(pushSpy.mock.calls.at(-1)![0].delayTime).toBe(1);
+      pushSpy.mockRestore();
+    });
+
+    it('keeps the note in state, so the next tempo change re-resolves it', async () => {
+      const payload = payloadWithDelay({ delayTime: 3, feedback: 0.3, wet: 0.2, sync: QUARTER }, 120);
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect(useAudioStore.getState().globalAudio.delay.sync).toEqual(QUARTER);
+      const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+      useAudioStore.getState().setBPM(60);
+      expect(pushSpy.mock.calls.at(-1)![0]).toStrictEqual({ delayTime: 1 });
+      pushSpy.mockRestore();
+    });
+
+    it('a payload with no bpm resolves at the tempo the world is at', async () => {
+      const payload = payloadWithDelay({ delayTime: 3, feedback: 0.3, wet: 0.2, sync: QUARTER }, undefined);
+      useAudioStore.setState({ bpm: 90 });
+      const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect(pushSpy.mock.calls.at(-1)![0].delayTime).toBeCloseTo(60 / 90, 10);
+      pushSpy.mockRestore();
+    });
+
+    it('a Free Delay in the payload reaches the engine as its stored delayTime', async () => {
+      const payload = payloadWithDelay({ delayTime: 3, feedback: 0.3, wet: 0.2 }, 120);
+      const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect(pushSpy.mock.calls.at(-1)![0]).toStrictEqual({ delayTime: 3, feedback: 0.3, wet: 0.2 });
+      pushSpy.mockRestore();
     });
   });
 
