@@ -5,6 +5,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import type { SessionPayload } from '../types/session';
 import type { LfoLaneId, GlobalLfoTargetId, LfoLink, BankLfoSettings } from '../types/lfo';
 import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
+import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
 import { encodeSessionPayload, decodeSessionPayload, buildShareUrl, copySessionLink } from './sessionShareUtils';
 
 // ========================================
@@ -211,6 +212,54 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
 
     expect(decoded?.globalLfoLinks).not.toHaveProperty('layer0.phase');
     expect(decoded?.robotOverrides['robot-1']?.lfoLinks).not.toHaveProperty('layer0.phase');
+    expect(decoded).toEqual(payload);
+  });
+
+  it('backfills a lane missing from lb with the default bank LFO on decode, instead of leaving it undefined', () => {
+    const payload = makePayload({
+      version: 2,
+      lfoBank: makeLfoBank({ a: { shape: 'square', rate: 1.5, rateDrift: 0.25, depthDrift: -0.1 } }),
+      globalLfoLinks: makeGlobalLfoLinks(),
+    });
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;
+    const lb = wire.lb as Record<string, unknown>;
+    const { b: _b, c: _c, d: _d, ...trimmedLb } = lb; // simulate a hand-trimmed/corrupted share link
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify({ ...wire, lb: trimmedLb }))));
+
+    const decoded = decodeSessionPayload(encoded);
+
+    expect(decoded?.lfoBank?.a).toEqual(payload.lfoBank!.a);
+    expect(decoded?.lfoBank?.b).toEqual(DEFAULT_BANK_LFO);
+    expect(decoded?.lfoBank?.c).toEqual(DEFAULT_BANK_LFO);
+    expect(decoded?.lfoBank?.d).toEqual(DEFAULT_BANK_LFO);
+  });
+
+  it('backfills a target missing from gll with the default (unlinked) link on decode, instead of leaving it undefined', () => {
+    const payload = makePayload({
+      version: 2,
+      lfoBank: makeLfoBank(),
+      globalLfoLinks: makeGlobalLfoLinks({ 'eq3.low': { lane: 'c', depth: 42 } }),
+    });
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;
+    const gll = wire.gll as Record<string, unknown>;
+    const { 'eq3.mid': _mid, ...trimmedGll } = gll; // simulate a hand-trimmed/corrupted share link
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify({ ...wire, gll: trimmedGll }))));
+
+    const decoded = decodeSessionPayload(encoded);
+
+    expect(decoded?.globalLfoLinks?.['eq3.low']).toEqual({ lane: 'c', depth: 42 });
+    expect(decoded?.globalLfoLinks?.['eq3.mid']).toEqual(DEFAULT_LFO_LINK['eq3.mid']);
+  });
+
+  it('drops an unknown lane key from lb on decode, instead of carrying it through untyped', () => {
+    const payload = makePayload({ version: 2, lfoBank: makeLfoBank(), globalLfoLinks: makeGlobalLfoLinks() });
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;
+    const wireWithStaleLane = { ...wire, lb: { ...(wire.lb as Record<string, unknown>), e: { s: 'sine', r: 1, rd: 0, dd: 0 } } };
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(wireWithStaleLane))));
+
+    const decoded = decodeSessionPayload(encoded);
+
+    expect(decoded?.lfoBank).not.toHaveProperty('e');
     expect(decoded).toEqual(payload);
   });
 

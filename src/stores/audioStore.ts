@@ -392,6 +392,11 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   },
 
   setLfoBank: (lane, partial) => {
+    // Defense in depth against a hole left by malformed/untrusted data (a hand-trimmed session
+    // share link, a corrupted localStorage blob) reaching this far — the decode boundary
+    // (sessionShareUtils.ts) is supposed to backfill every lane, but a caller passing `undefined`
+    // here should never throw regardless.
+    if (!partial) return;
     set((state) => ({ lfoBank: { ...state.lfoBank, [lane]: { ...state.lfoBank[lane], ...partial } } }));
     if (partial.shape !== undefined) lfoEngine.setBankShape(lane, partial.shape);
     if (partial.rate !== undefined) lfoEngine.setBankRate(lane, partial.rate);
@@ -400,6 +405,8 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   },
 
   setGlobalLfoLink: (target, link) => {
+    // Same defense-in-depth as setLfoBank above.
+    if (!link) return;
     set((state) => ({ globalLfoLinks: { ...state.globalLfoLinks, [target]: link } }));
     lfoEngine.linkTarget(target, link);
   },

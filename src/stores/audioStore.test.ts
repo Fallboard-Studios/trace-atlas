@@ -339,6 +339,21 @@ describe('useAudioStore - setLfoBank', () => {
     expect(useAudioStore.getState().lfoBank.b).toEqual(before.b);
     expect(useAudioStore.getState().lfoBank.c).toEqual(before.c);
   });
+
+  it('is a safe no-op for an undefined partial — e.g. a hole left by a malformed session payload — instead of throwing', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { lfoEngine } = await import('../engine/lfoEngine');
+    const before = useAudioStore.getState().lfoBank;
+    vi.clearAllMocks();
+
+    expect(() => useAudioStore.getState().setLfoBank('a', undefined as unknown as Partial<import('../types/lfo').BankLfoSettings>)).not.toThrow();
+
+    expect(useAudioStore.getState().lfoBank).toEqual(before);
+    expect(lfoEngine.setBankShape).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRateDrift).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankDepthDrift).not.toHaveBeenCalled();
+  });
 });
 
 describe('useAudioStore - globalLfoLinks state (docs/tasks/LFO_BANK.md Task 8)', () => {
@@ -383,6 +398,18 @@ describe('useAudioStore - setGlobalLfoLink', () => {
     useAudioStore.getState().setGlobalLfoLink('hpf.Q', { lane: 'b', depth: 30 });
 
     expect(useAudioStore.getState().globalLfoLinks['eq3.low']).toEqual(before['eq3.low']);
+  });
+
+  it('is a safe no-op for an undefined link — e.g. a hole left by a malformed session payload — instead of throwing', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { lfoEngine } = await import('../engine/lfoEngine');
+    const before = useAudioStore.getState().globalLfoLinks;
+    vi.clearAllMocks();
+
+    expect(() => useAudioStore.getState().setGlobalLfoLink('eq3.low', undefined as unknown as import('../types/lfo').LfoLink)).not.toThrow();
+
+    expect(useAudioStore.getState().globalLfoLinks).toEqual(before);
+    expect(lfoEngine.linkTarget).not.toHaveBeenCalled();
   });
 });
 

@@ -4,7 +4,8 @@
 import type { SessionPayload, RobotAudioOverrideDiff, CompanyDiff } from '../types/session';
 import type { ADSREnvelope } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
-import { GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type GlobalLfoTargetId, type RobotLfoTargetId, type LfoLink, type BankLfoSettings } from '../types/lfo';
+import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type GlobalLfoTargetId, type RobotLfoTargetId, type LfoLink, type BankLfoSettings } from '../types/lfo';
+import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
 import { devWarn } from './helpers';
 
 // ========================================
@@ -290,14 +291,19 @@ function fromCompactSessionPayload(compact: CompactSessionPayload): SessionPaylo
     swellFrequency: compact.sf,
     swellDuration: compact.sd,
     pingVarianceAutomation: compact.pv,
+    // Iterate the canonical id lists, not Object.keys(compact.lb/gll) -- this both drops any
+    // unknown/stale key (same treatment ll already gets below) AND backfills any lane/target a
+    // hand-trimmed or corrupted wire blob is missing with its default, so lfoBank/globalLfoLinks
+    // are never partial. A hole here used to reach audioStore's setLfoBank/setGlobalLfoLink as
+    // `undefined` and throw -- see docs/tasks/LFO_BANK.md Task 20's code-review fixup.
     lfoBank: compact.lb
-      ? (Object.fromEntries(Object.entries(compact.lb).map(([lane, b]) => [lane, fromCompactBankLfoSettings(b)])) as Record<LfoLaneId, BankLfoSettings>)
+      ? (Object.fromEntries(
+          LFO_LANE_IDS.map((lane) => [lane, compact.lb![lane] ? fromCompactBankLfoSettings(compact.lb![lane]) : DEFAULT_BANK_LFO]),
+        ) as Record<LfoLaneId, BankLfoSettings>)
       : undefined,
     globalLfoLinks: compact.gll
       ? (Object.fromEntries(
-          Object.entries(compact.gll)
-            .filter(([target]) => (GLOBAL_LFO_TARGET_IDS as readonly string[]).includes(target))
-            .map(([target, link]) => [target, fromCompactLfoLink(link)]),
+          GLOBAL_LFO_TARGET_IDS.map((target) => [target, compact.gll![target] ? fromCompactLfoLink(compact.gll![target]) : DEFAULT_LFO_LINK[target]]),
         ) as Record<GlobalLfoTargetId, LfoLink>)
       : undefined,
     robotOverrides: compact.r
