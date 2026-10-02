@@ -746,6 +746,18 @@ describe('AudioRigEffectPanel', () => {
         expect(within(rows[2] as HTMLElement).getByRole('slider', { name: 'Delay Amount' })).toBeTruthy();
       });
 
+      // The toggle sits in its own row UNDER Delay Time (Crawford, 2026-10-03), inside Delay Time's own
+      // param-row — so the block keeps its "3 direct param-rows" rule while the slider keeps the full width.
+      it('the Tempo Sync switch is in the Delay Time row, after the Delay Time slider — and in no other row', () => {
+        const { container } = render(<AudioRigEffectPanel effectKey="delay" />);
+        const rows = container.querySelectorAll('.audio-rig-drawer__effect-block .sc-directional-panel__content > .audio-rig-drawer__param-row');
+        expect(rows).toHaveLength(3);
+        expect(rows[0].contains(tempoToggle())).toBe(true);
+        expect(timeThumb().compareDocumentPosition(tempoToggle()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(rows[1].querySelector('[role="switch"]')).toBeNull();
+        expect(rows[2].querySelector('[role="switch"]')).toBeNull();
+      });
+
       it('no other effect block renders a Tempo Sync composition or switch', () => {
         for (const key of ['eq3', 'filterLPF', 'filterHPF', 'reverb', 'compressor', 'limiter'] as const) {
           const { container, unmount } = render(<AudioRigEffectPanel effectKey={key} />);

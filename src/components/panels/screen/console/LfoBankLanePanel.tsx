@@ -26,8 +26,8 @@ interface LfoBankLanePanelProps {
  *
  * Rate renders through TempoSyncSlider (docs/specs/FREE_SYNC_TOGGLE.md §1.4): Free edits write
  * `rate`, Sync edits write `sync`, and the toggle goes through the store's
- * setLfoBankLaneSyncMode, which owns the Free <-> Sync conversion. This panel only supplies the
- * tempo-dependent list of allowed notes.
+ * setLfoBankLaneSyncMode, which owns the Free <-> Sync conversion. The toggle sits in a row of its own
+ * under Rate. This panel only supplies the tempo-dependent list of allowed notes.
  */
 export function LfoBankLanePanel({ lane }: LfoBankLanePanelProps) {
   const schema = LFO_BANK_LANE_SCHEMAS[lane];
@@ -59,6 +59,7 @@ export function LfoBankLanePanel({ lane }: LfoBankLanePanelProps) {
           onChange={(v) => setLfoBank(lane, { shape: v as LfoShape })}
         />
       </div>
+      {/* Rate's own row holds the slider and, in a row of its own under it, its Free | Sync toggle. */}
       <div className="audio-rig-drawer__param-row">
         <TempoSyncSlider
           schema={schema.rate}

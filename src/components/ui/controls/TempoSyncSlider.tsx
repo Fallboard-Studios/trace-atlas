@@ -1,11 +1,10 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { SliderLinear } from './SliderLinear';
-import { Toggle } from './Toggle';
+import { TempoSyncToggle } from './TempoSyncToggle';
 import { isNoteValue, noteValueBeats, noteValueEquals, type NoteValue } from '@/data/noteValues';
 import { formatNoteValue } from '@/utils/formatNoteValue';
-import type { SliderLinearSchema, ToggleSchema } from '@/types/controls';
-import { labels, optionsRecord } from '@/content';
+import type { SliderLinearSchema } from '@/types/controls';
 import './TempoSyncSlider.css';
 
 interface TempoSyncSliderProps {
@@ -23,14 +22,6 @@ interface TempoSyncSliderProps {
   disabled?: boolean;
   swelling?: boolean;
 }
-
-const TOGGLE_LABELS = labels('ui.tempoSync');
-const MODE_OPTIONS = optionsRecord('ui.tempoSync');
-
-/** The word the facade shows for a mode: the lore word where there is one, else the human word. */
-const modeWord = (mode: 'free' | 'sync'): string => MODE_OPTIONS[mode].loreLabel ?? MODE_OPTIONS[mode].humanLabel;
-const FREE_WORD = modeWord('free');
-const SYNC_WORD = modeWord('sync');
 
 /**
  * Index of `sync` in `allowed`, or — when a tempo change has pushed it out of the list — the stop
@@ -50,9 +41,9 @@ function displayIndex(sync: NoteValue, allowed: readonly NoteValue[]): number {
 }
 
 /**
- * Rate / Delay Time slider with a Free | Sync (Float | Anchored) toggle beside it
+ * Rate / Delay Time slider with its Free | Sync (Float | Anchored) toggle in a row of its own under it
  * (docs/specs/FREE_SYNC_TOGGLE.md §1.4). A composition like LfoLink, not a 15th primitive: one
- * SliderLinear plus one Toggle, store-free and tempo-free. Free renders the caller's schema as-is.
+ * SliderLinear plus a TempoSyncToggle, store-free and tempo-free. Free renders the caller's schema as-is.
  * Sync reuses the same slider with the allowed notes as its stops — value = index into `allowed`,
  * readout = the note's name — so the caller owns tempo (it passes `allowed`) and the store owns the
  * Free <-> Sync conversion (it handles `onModeChange`).
@@ -84,11 +75,6 @@ function TempoSyncSliderInner({ schema, freeValue, syncValue: storedSync, allowe
     }),
     [schema, allowed],
   );
-  const toggleSchema: ToggleSchema = useMemo(
-    () => ({ id: `${schema.id}.mode`, type: 'toggle', ...TOGGLE_LABELS }),
-    [schema.id],
-  );
-
   const syncIndex = useMemo(() => (syncValue ? displayIndex(syncValue, allowed) : 0), [syncValue, allowed]);
 
   // Stable handlers via the `latest` ref pattern (LfoLink's own precedent) — written in an effect,
@@ -123,16 +109,7 @@ function TempoSyncSliderInner({ schema, freeValue, syncValue: storedSync, allowe
           swelling={swelling}
         />
       </div>
-      <Toggle schema={toggleSchema} value={synced} onChange={handleModeChange} disabled={disabled}>
-        {/* A control whose content changes holds the size of its largest content: both words ride
-            along as data attributes that CSS stacks, invisibly, in the same grid cell as the current
-            word, so the box is always as wide as the widest and flipping it never resizes it (or
-            shifts the slider beside it). The DOM text stays only the current word. aria-hidden: the
-            switch's own aria-label and aria-checked already carry the name and state. */}
-        <span className="sc-tempo-sync__mode" data-free-word={FREE_WORD} data-sync-word={SYNC_WORD} aria-hidden="true">
-          <span className="sc-tempo-sync__mode-current">{synced ? SYNC_WORD : FREE_WORD}</span>
-        </span>
-      </Toggle>
+      <TempoSyncToggle schemaId={schema.id} synced={synced} onChange={handleModeChange} disabled={disabled} />
     </div>
   );
 }

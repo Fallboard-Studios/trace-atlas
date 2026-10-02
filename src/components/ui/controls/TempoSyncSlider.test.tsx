@@ -358,40 +358,47 @@ describe('TempoSyncSlider — the mode toggle', () => {
   // jsdom computes no layout, so the contract is the markup CSS sizes from: both words ride on the
   // facade as data attributes (hidden sizers in the same grid cell — see tempoSyncSliderLayout.test.ts),
   // while the DOM text stays only the current word.
+  // (The facade's own contract — both words as sizers, current word only as text, aria-hidden — is
+  // tested on ToggleFacade and TempoSyncToggle; this checks it reaches the slider's inline toggle.)
   describe('holds one size across modes', () => {
-    const facade = () => screen.getByRole('switch').querySelector('.sc-tempo-sync__mode') as HTMLElement;
-    const renderMode = (syncValue: NoteValue | undefined) =>
-      render(<TempoSyncSlider schema={schema} freeValue={1} syncValue={syncValue} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+    const facade = () => screen.getByRole('switch').querySelector('.sc-toggle-facade') as HTMLElement;
 
     it.each([
       ['Free', undefined],
       ['Sync', nv('1/4')],
-    ] as const)('in %s the facade carries BOTH words as sizers', (_mode, syncValue) => {
-      renderMode(syncValue);
-      expect(facade().getAttribute('data-free-word')).toBe(FREE_WORD);
-      expect(facade().getAttribute('data-sync-word')).toBe(SYNC_WORD);
+    ] as const)('in %s the inline toggle\'s facade carries BOTH words as sizers', (_mode, syncValue) => {
+      render(<TempoSyncSlider schema={schema} freeValue={1} syncValue={syncValue} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+      expect(facade().getAttribute('data-off')).toBe(FREE_WORD);
+      expect(facade().getAttribute('data-on')).toBe(SYNC_WORD);
+    });
+  });
+
+  // The toggle sits in its own row UNDER the slider it affects (Crawford, 2026-10-03), inside the same
+  // wrapper — so a caller's one param-row per slider is preserved (the Delay block's "3 direct
+  // param-rows" rule) while the slider keeps the full width. The CSS stacks them (tempoSyncSliderLayout.test.ts).
+  describe('the toggle sits under the slider', () => {
+    it.each([
+      ['Free', undefined],
+      ['Sync', nv('1/4')],
+    ] as const)('in %s mode the switch comes after the slider, both inside one .sc-tempo-sync wrapper', (_mode, syncValue) => {
+      const { container } = render(<TempoSyncSlider schema={schema} freeValue={1} syncValue={syncValue} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+      const wrapper = container.querySelector('.sc-tempo-sync')!;
+      expect(wrapper.contains(screen.getByRole('slider'))).toBe(true);
+      expect(wrapper.contains(screen.getByRole('switch'))).toBe(true);
+      expect(screen.getByRole('slider').compareDocumentPosition(screen.getByRole('switch')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('the sizer attributes are identical in both modes, so the box cannot differ between them', () => {
-      const { rerender } = renderMode(undefined);
-      const free = [facade().getAttribute('data-free-word'), facade().getAttribute('data-sync-word')];
-      rerender(<TempoSyncSlider schema={schema} freeValue={1} syncValue={nv('1/4')} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
-      expect([facade().getAttribute('data-free-word'), facade().getAttribute('data-sync-word')]).toEqual(free);
+    it('the slider\'s wrapper is the first child and the toggle\'s wrapper the second — exactly two rows', () => {
+      const { container } = render(<TempoSyncSlider schema={schema} freeValue={1} syncValue={undefined} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+      const children = [...container.querySelector('.sc-tempo-sync')!.children];
+      expect(children).toHaveLength(2);
+      expect(children[0].classList.contains('sc-tempo-sync__slider')).toBe(true);
+      expect(children[1].classList.contains('sc-tempo-sync-toggle')).toBe(true);
     });
 
-    it('shows only the current word as text — the other word is never in the DOM text', () => {
-      const { rerender } = renderMode(undefined);
-      expect(facade().textContent).toBe(FREE_WORD);
-      expect(facade().textContent).not.toContain(SYNC_WORD);
-      rerender(<TempoSyncSlider schema={schema} freeValue={1} syncValue={nv('1/4')} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
-      expect(facade().textContent).toBe(SYNC_WORD);
-      expect(facade().textContent).not.toContain(FREE_WORD);
-    });
-
-    it('is hidden from assistive tech — the switch\'s own name and aria-checked carry the meaning', () => {
-      renderMode(undefined);
-      expect(facade().getAttribute('aria-hidden')).toBe('true');
-      expect(screen.getByRole('switch', { name: TOGGLE_NAME })).toBeTruthy();
+    it('has no hideToggle escape hatch any more — the toggle always renders with the slider', () => {
+      render(<TempoSyncSlider schema={schema} freeValue={1} syncValue={undefined} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+      expect(screen.getAllByRole('switch')).toHaveLength(1);
     });
   });
 

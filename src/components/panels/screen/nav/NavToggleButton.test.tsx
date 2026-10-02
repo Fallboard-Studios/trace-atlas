@@ -63,6 +63,33 @@ describe('NavToggleButton — persistent mobile reopen affordance (docs/tasks/NA
   });
 });
 
+// A control whose content changes holds the size of its LARGEST content (Crawford, 2026-10-03).
+// Measured live: ☰ was 47.77px and ✕ 45.98px, so the button resized on every flip. Both glyphs now
+// ride on the facade as sizers (ToggleFacade); the DOM text stays only the current glyph.
+describe('NavToggleButton holds one size across open and closed', () => {
+  const facade = () => screen.getByRole('switch').querySelector('.sc-toggle-facade') as HTMLElement;
+
+  it.each([
+    ['closed', false],
+    ['open', true],
+  ])('when %s, the facade carries both glyphs as sizers', (_state, open) => {
+    stubMatchMedia(true);
+    useUIStore.getState().setNavPanelOpen(open);
+    render(<NavToggleButton />);
+    expect(facade().getAttribute('data-off')).toBe('☰');
+    expect(facade().getAttribute('data-on')).toBe('✕');
+  });
+
+  it('shows only the current glyph as text, and swaps it on a flip', () => {
+    stubMatchMedia(true);
+    useUIStore.getState().setNavPanelOpen(false);
+    render(<NavToggleButton />);
+    expect(screen.getByRole('switch').textContent).toBe('☰');
+    fireEvent.click(screen.getByRole('switch'));
+    expect(screen.getByRole('switch').textContent).toBe('✕');
+  });
+});
+
 describe('NavToggleButton reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 15)', () => {
   it('carries no copy literal of its own', async () => {
     const { readFileSync } = await import('node:fs');

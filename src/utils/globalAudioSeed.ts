@@ -305,12 +305,12 @@ export const LFO_BANK_RATE_BANDS: Record<LfoLaneId, { min: number; max: number }
  * calibrated, because a simplex draw isn't uniform — it bunches around 0.5, so a threshold equal
  * to its target share over- or under-shoots. Measured over 3000 Attenuation Styles (2026-10-03):
  *   a  0.75 gave 91.8% raw  -> 0.60 gives 74.6%   (calibrated)
- *   b  0.66 gives 72.3%                           (left at its stated value; inside tolerance)
+ *   b  0.66 gave 72.3% raw  -> 0.62 gives 66.2%   (calibrated at Crawford's request, 2026-10-03)
  *   c  0.33 gives 34.2%                           (left; the c.syncMode draw takes only 3 distinct values)
  *   d  0.25 gave 11.2% raw  -> 0.33 gives 23.8%   (calibrated)
  * Calibrate the constant, never the target. Re-measure if a key or the noise map changes.
  */
-const LFO_BANK_SYNC_ODDS: Record<LfoLaneId, number> = { a: 0.6, b: 0.66, c: 0.33, d: 0.33 };
+const LFO_BANK_SYNC_ODDS: Record<LfoLaneId, number> = { a: 0.6, b: 0.62, c: 0.33, d: 0.33 };
 
 /**
  * Which lanes' rate bands a lane's Sync draw tries, in order — its own, then the next faster, then

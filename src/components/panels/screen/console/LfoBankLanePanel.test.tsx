@@ -333,6 +333,39 @@ describe('LfoBankLanePanel — Free | Sync on Rate', () => {
     });
   });
 
+  // The toggle sits in its own row UNDER the Rate slider it affects (Crawford, 2026-10-03), inside
+  // Rate's own param-row; the Shape (Mutation Type) row is untouched.
+  describe('where the toggle lives', () => {
+    it('is in the Rate row, after the Rate slider', () => {
+      render(<LfoBankLanePanel lane="b" />);
+      const rateRow = rateThumb().closest('.audio-rig-drawer__param-row');
+      expect(rateRow).not.toBeNull();
+      expect(rateRow!.contains(tempoToggle())).toBe(true);
+      expect(rateThumb().compareDocumentPosition(tempoToggle()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('is not in the Shape (Mutation Type) row, which holds only the shape options', () => {
+      render(<LfoBankLanePanel lane="b" />);
+      const shapeRow = screen.getByRole('group', { name: 'Shape' }).closest('.audio-rig-drawer__param-row');
+      expect(shapeRow).not.toBeNull();
+      expect(shapeRow!.contains(tempoToggle())).toBe(false);
+      expect(shapeRow!.querySelector('[role="switch"]')).toBeNull();
+    });
+
+    it('is not in either drift row', () => {
+      render(<LfoBankLanePanel lane="b" />);
+      for (const name of ['Rate Drift', 'Depth Drift']) {
+        const row = screen.getByRole('slider', { name }).closest('.audio-rig-drawer__param-row');
+        expect(row!.querySelector('[role="switch"]'), name).toBeNull();
+      }
+    });
+
+    it('leaves the panel with exactly four param-rows: Shape, Rate (slider + toggle), Rate Drift, Depth Drift', () => {
+      const { container } = render(<LfoBankLanePanel lane="b" />);
+      expect(container.querySelectorAll('.audio-rig-drawer__param-row')).toHaveLength(4);
+    });
+  });
+
   describe('every lane renders the composition', () => {
     it.each(LFO_LANE_IDS)('lane %s has a Tempo Sync switch and a Rate slider, and flips independently', (lane) => {
       render(<LfoBankLanePanel lane={lane} />);
