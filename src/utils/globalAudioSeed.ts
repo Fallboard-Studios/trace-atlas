@@ -223,14 +223,25 @@ export function generateSwellDuration(attenuationStyleId: string, attenuationSty
 }
 
 /**
- * Loading-range sub-window for global-chain LFO link depth — narrower than LFO_DEPTH_MIN/MAX
+ * Loading-range sub-windows for global-chain LFO link depth — narrower than LFO_DEPTH_MIN/MAX
  * (the full/UI-facing range the LfoLink primitive's Depth slider still uses unchanged). Mirrors
  * globalAudioLoadingRanges.ts's pattern for effect params — bounds what a FRESH SEED can roll,
  * never what the UI exposes or what the app can do. Robot-level LFO-link seeding
- * (spawnSystem.ts) has its own separate ROBOT_LFO_DEPTH_SEED_MIN floor, not this window.
+ * (spawnSystem.ts) has its own separate ROBOT_LFO_*_DEPTH_SEED_RANGE windows, not these.
+ * Per-group rather than one flat window (Crawford's own load-value tuning pass, 2026-10-02):
+ * EQ bands, filter frequency sweeps, and filter Q each get their own ceiling, sharing one floor.
  */
-export const LFO_DEPTH_LOADING_MIN = 20;
-export const LFO_DEPTH_LOADING_MAX = 50;
+export const GLOBAL_LFO_DEPTH_SEED_MIN = 5;
+export const GLOBAL_LFO_EQ_DEPTH_SEED_RANGE = { min: GLOBAL_LFO_DEPTH_SEED_MIN, max: 30 };
+export const GLOBAL_LFO_FILTER_FREQUENCY_DEPTH_SEED_RANGE = { min: GLOBAL_LFO_DEPTH_SEED_MIN, max: 60 };
+export const GLOBAL_LFO_FILTER_Q_DEPTH_SEED_RANGE = { min: GLOBAL_LFO_DEPTH_SEED_MIN, max: 40 };
+
+/** Picks the right depth seed window for a global-chain target: eq3.* -> EQ, *.Q -> filter Q,
+ *  everything else (lpf.frequency/hpf.frequency) -> filter frequency. */
+function globalLfoDepthSeedRangeForTarget(target: GlobalLfoTargetId): { min: number; max: number } {
+  if (target.startsWith('eq3.')) return GLOBAL_LFO_EQ_DEPTH_SEED_RANGE;
+  return target.endsWith('.Q') ? GLOBAL_LFO_FILTER_Q_DEPTH_SEED_RANGE : GLOBAL_LFO_FILTER_FREQUENCY_DEPTH_SEED_RANGE;
+}
 
 /**
  * Mirrors Lfo.tsx's own RATE_STEP — kept as a separate local constant, same
@@ -322,10 +333,10 @@ export function generateLfoBankSettings(
 /**
  * Generate deterministic global-chain LFO links for an Attenuation Style — replaces
  * generateGlobalLfoSettings's per-target shape/rate with a lane pick (spec §1.3). Reuses
- * LFO_QUIET_THRESHOLD (0.34) and the existing depth loading window (LFO_DEPTH_LOADING_MIN/MAX,
- * 20-50%) unchanged. The lane draw is weighted by a running tally across only the 7 global
- * targets — they seed before any robot exists, so there is no roster to tally against
- * (spec assumption 7).
+ * LFO_QUIET_THRESHOLD (0.34) unchanged; depth now draws from one of three per-group loading
+ * windows (globalLfoDepthSeedRangeForTarget above) rather than one flat window. The lane draw is
+ * weighted by a running tally across only the 7 global targets — they seed before any robot
+ * exists, so there is no roster to tally against (spec assumption 7).
  */
 export function generateGlobalLfoLinks(
   attenuationStyleId: string,
@@ -348,7 +359,7 @@ export function generateGlobalLfoLinks(
 
     const depthT = getSeededVal(noiseMap, `globalLfo.${target}.depth`, 0, 0, 1);
     const depth = quantizeToStep(
-      scaleUnitValue(depthT, { min: LFO_DEPTH_LOADING_MIN, max: LFO_DEPTH_LOADING_MAX, scale: 'linear' }),
+      scaleUnitValue(depthT, { ...globalLfoDepthSeedRangeForTarget(target), scale: 'linear' }),
       LFO_DEPTH_MIN,
       LFO_DEPTH_STEP,
     );

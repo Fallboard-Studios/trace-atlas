@@ -303,7 +303,7 @@ describe('generateGlobalLfoLinks', () => {
 
   afterEach(() => {
     evictAttenuationStyleNoiseMap('links-test-planet');
-    for (let i = 0; i < 50; i++) evictAttenuationStyleNoiseMap(`links-sample-${i}`);
+    for (let i = 0; i < 100; i++) evictAttenuationStyleNoiseMap(`links-sample-${i}`);
   });
 
   it('returns a fully-populated record for all 7 GlobalLfoTargetIds, no extras', () => {
@@ -317,21 +317,61 @@ describe('generateGlobalLfoLinks', () => {
     expect(second).toEqual(first);
   });
 
-  it('every quiet target is exactly { lane: null, depth: 0 }; every lit target has a real lane and depth in [20, 50]', () => {
+  it('every quiet target is exactly { lane: null, depth: 0 }; every lit target has a real lane and an integer depth within its own group\'s seed range (EQ: [5, 30], filter frequency: [5, 60], filter Q: [5, 40])', () => {
     for (let i = 0; i < 20; i++) {
       const links = generateGlobalLfoLinks(`links-sample-${i}`, `LinksSample${i}`);
       for (const target of GLOBAL_LFO_TARGET_IDS) {
         const link = links[target];
         if (link.lane === null) {
           expect(link.depth, `${target}.depth (sample ${i})`).toBe(0);
+          continue;
+        }
+        expect(LFO_LANE_IDS, `${target}.lane (sample ${i})`).toContain(link.lane);
+        expect(Number.isInteger(link.depth), `${target}.depth (sample ${i})`).toBe(true);
+        expect(link.depth, `${target}.depth (sample ${i})`).toBeGreaterThanOrEqual(5);
+        if (target.startsWith('eq3.')) {
+          expect(link.depth, `${target}.depth (sample ${i})`).toBeLessThanOrEqual(30);
+        } else if (target.endsWith('.Q')) {
+          expect(link.depth, `${target}.depth (sample ${i})`).toBeLessThanOrEqual(40);
         } else {
-          expect(LFO_LANE_IDS, `${target}.lane (sample ${i})`).toContain(link.lane);
-          expect(Number.isInteger(link.depth), `${target}.depth (sample ${i})`).toBe(true);
-          expect(link.depth, `${target}.depth (sample ${i})`).toBeGreaterThanOrEqual(20);
-          expect(link.depth, `${target}.depth (sample ${i})`).toBeLessThanOrEqual(50);
+          expect(link.depth, `${target}.depth (sample ${i})`).toBeLessThanOrEqual(60);
         }
       }
     }
+  });
+
+  it('a lit EQ target\'s depth can land near its own 30% ceiling, not the old shared 50% one', () => {
+    let maxDepth = 0;
+    for (let i = 0; i < 100; i++) {
+      const links = generateGlobalLfoLinks(`links-sample-${i}`, `LinksSample${i}`);
+      if (links['eq3.low'].lane !== null) maxDepth = Math.max(maxDepth, links['eq3.low'].depth);
+      if (links['eq3.mid'].lane !== null) maxDepth = Math.max(maxDepth, links['eq3.mid'].depth);
+      if (links['eq3.high'].lane !== null) maxDepth = Math.max(maxDepth, links['eq3.high'].depth);
+    }
+    expect(maxDepth).toBeGreaterThan(25);
+    expect(maxDepth).toBeLessThanOrEqual(30);
+  });
+
+  it('a lit filter frequency target\'s depth can land near its own 60% ceiling, not the old shared 50% one', () => {
+    let maxDepth = 0;
+    for (let i = 0; i < 100; i++) {
+      const links = generateGlobalLfoLinks(`links-sample-${i}`, `LinksSample${i}`);
+      if (links['lpf.frequency'].lane !== null) maxDepth = Math.max(maxDepth, links['lpf.frequency'].depth);
+      if (links['hpf.frequency'].lane !== null) maxDepth = Math.max(maxDepth, links['hpf.frequency'].depth);
+    }
+    expect(maxDepth).toBeGreaterThan(50);
+    expect(maxDepth).toBeLessThanOrEqual(60);
+  });
+
+  it('a lit filter Q target\'s depth can land near its own 40% ceiling, not the old shared 50% one', () => {
+    let maxDepth = 0;
+    for (let i = 0; i < 100; i++) {
+      const links = generateGlobalLfoLinks(`links-sample-${i}`, `LinksSample${i}`);
+      if (links['lpf.Q'].lane !== null) maxDepth = Math.max(maxDepth, links['lpf.Q'].depth);
+      if (links['hpf.Q'].lane !== null) maxDepth = Math.max(maxDepth, links['hpf.Q'].depth);
+    }
+    expect(maxDepth).toBeGreaterThan(35);
+    expect(maxDepth).toBeLessThanOrEqual(40);
   });
 
   it('seeds a lit (non-null lane) target for roughly 2-in-3 targets across many Attenuation Styles (the 0.34 quiet threshold, unchanged)', () => {
