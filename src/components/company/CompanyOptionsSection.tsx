@@ -392,7 +392,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
     patchSnapshot({ layers: baseline.map((l, i) => (i === idx ? { ...l, [field]: v } : l)) });
   }, [localeId, patchSnapshot]);
 
-  const handleLayerLfoFieldChange = useCallback((target: RobotLfoTargetId, value: LfoLinkValue) => {
+  const handleLayerLfoFieldChange = useCallback((_idx: number, target: RobotLfoTargetId, value: LfoLinkValue) => {
     const { members, resolved } = latest.current;
     const oldValue = resolved?.lfoLinks?.[target] ?? { ...DEFAULT_LFO_LINK[target] };
     const patch = diffCompoundField(oldValue, value);
@@ -490,7 +490,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
             swelling={layerSwelling}
             onTypeChange={handleLayerTypeChange}
             onParamChange={handleLayerParamChange}
-            onLfoFieldChange={(_idx, target, value) => handleLayerLfoFieldChange(target, value)}
+            onLfoFieldChange={handleLayerLfoFieldChange}
           />
         ) : null;
       }
