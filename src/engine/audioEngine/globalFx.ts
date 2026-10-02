@@ -69,7 +69,9 @@ export function buildGlobalFxChain(): void {
   }
   if (DelayCtor) {
     // maxDelay is explicit on purpose: it must stay >= the max of
-    // GLOBAL_AUDIO_SEED_RANGES['delay.delayTime'] (10s). Previously this was
+    // GLOBAL_AUDIO_SEED_RANGES['delay.delayTime'] (10s) and equal to
+    // DELAY_TIME_RANGE_SECONDS.max (types/globalAudio.ts), which tempo-synced
+    // delay times are clamped to. Previously this was
     // an unset, implicit reliance on Tone.FeedbackDelay's own default of 1 —
     // correct today only by coincidence, and silently driftable if either
     // side changed independently.

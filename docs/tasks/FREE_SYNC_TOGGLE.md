@@ -64,7 +64,7 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   **Verification:** `npx vitest run src/data/noteValues.test.ts` (RED first per function); `npm run build:types`.
   **Dependencies:** None. **Files:** `src/data/noteValues.ts`, `.test.ts`. **Scope:** S.
 
-- [ ] **Task 2: Optional `sync` on `BankLfoSettings`/`DelaySettings`; `src/utils/tempoSync.ts`**
+- [x] **Task 2: Optional `sync` on `BankLfoSettings`/`DelaySettings`; `src/utils/tempoSync.ts`**
 
   **Description:** Add `sync?: NoteValue` to both types and `DELAY_TIME_RANGE_SECONDS` to `globalAudio.ts` (point `globalFx.ts`'s `maxDelay: 10` comment at it). Create `tempoSync.ts` with everything in spec §1.3 plus `pickSeedNoteValue` (§1.7) and `RATE_DRIFT_APPLIES_TO_SYNCED = true`. Defaults untouched.
 

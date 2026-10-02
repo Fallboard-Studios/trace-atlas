@@ -3,6 +3,8 @@
  * All fields are JSON-serializable primitives suitable for Zustand storage.
  */
 
+import type { NoteValue } from '@/data/noteValues';
+
 export interface ReverbSettings {
   /** seconds (0.1 - 10) */
   decay: number;
@@ -12,13 +14,23 @@ export interface ReverbSettings {
   wet: number;
 }
 
+/** The Delay Time control's full range, which is also the delay node's real cap: globalFx.ts builds
+ *  the node with `maxDelay: 10`, so the two must move together. */
+export const DELAY_TIME_RANGE_SECONDS = { min: 0, max: 10 } as const;
+/** The Delay Time slider's draggable step; also the grid a Sync -> Free conversion quantises onto. */
+export const DELAY_TIME_STEP_SECONDS = 0.001;
+
 export interface DelaySettings {
-  /** seconds (0 - 10) */
+  /** seconds, DELAY_TIME_RANGE_SECONDS. The Free value — read the effective time through
+   *  resolveDelayTimeSeconds() (utils/tempoSync.ts), never directly. */
   delayTime: number;
   /** 0 - 0.95 */
   feedback: number;
   /** 0 - 1 */
   wet: number;
+  /** Present = Sync (Anchored): `delayTime` is ignored and the delay runs at this note value's
+   *  duration at the current tempo. Absent = Free (Float). Docs/specs/FREE_SYNC_TOGGLE.md §1.1. */
+  sync?: NoteValue;
 }
 
 export interface CompressorSettings {

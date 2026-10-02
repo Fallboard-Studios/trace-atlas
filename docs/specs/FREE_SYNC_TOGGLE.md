@@ -117,7 +117,7 @@ export function resolveLaneRateHz(lane: BankLfoSettings, bpm: number): number;
 /** True when the lane is moving — replaces readBankRunning's `rate > 0`. A synced lane is always running. */
 export function isLaneRunning(lane: BankLfoSettings): boolean;
 /** The engine-facing copy: rate resolved, sync stripped, rateDrift zeroed for a synced lane iff the constant is false. */
-export function resolveLaneForEngine(lane: BankLfoSettings, bpm: number): BankLfoSettings;
+export function resolveLaneForEngine(lane: BankLfoSettings, bpm: number, driftApplies?: boolean): BankLfoSettings; // 3rd arg defaults to the constant; exists so the off branch is testable
 export function resolveLfoBankForEngine(bank: Record<LfoLaneId, BankLfoSettings>, bpm: number): Record<LfoLaneId, BankLfoSettings>;
 
 /** Seconds the delay node should use: Free → delayTime; Sync → noteValueSeconds clamped into DELAY_TIME_RANGE_SECONDS. */
@@ -251,7 +251,7 @@ Straight has no suffix by rule. Every key is referenced from `formatNoteValue.ts
 src/
 ├── data/
 │   ├── noteValues.ts / .test.ts            NEW  — table, math, isNoteValue, allowed/nearest
-│   └── audioRigConfig.ts                   comment only (BPM_SCHEMA's LOCALE_BPM_SEED_RANGE mention)
+│   └── audioRigConfig.ts                   lane Rate step + Delay Time min/max/step read the shared LFO_RATE_STEP / DELAY_TIME_* constants (Task 2); comment (BPM_SCHEMA's LOCALE_BPM_SEED_RANGE mention) in Task 4
 ├── types/
 │   ├── lfo.ts                              + BankLfoSettings.sync
 │   ├── globalAudio.ts                      + DelaySettings.sync, DELAY_TIME_RANGE_SECONDS
@@ -319,7 +319,7 @@ The resolver — the one sanctioned reader of a lane's `rate` for audio:
 // src/utils/tempoSync.ts
 import { LFO_RATE_MIN, LFO_RATE_MAX, type BankLfoSettings } from '@/types/lfo';
 import { isNoteValue, noteValueHz } from '@/data/noteValues';
-import { clamp } from '@/engine/lfoShared';
+// clamp is a local Math.min/Math.max helper, not engine/lfoShared's — that file imports Tone.
 
 /** Hz the lane should run at — Free (or an unrecognised sync): the stored rate; Sync: derived from the
  *  note at `bpm`, clamped into the lane's full range so a tempo change past the cap clamps, never stops. */

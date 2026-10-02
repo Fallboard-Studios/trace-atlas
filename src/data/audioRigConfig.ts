@@ -16,7 +16,8 @@
  */
 import type { ControlSchema, DirectionalPanelSchema, PanelOrientation, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema, SliderLogSchema } from '@/types/controls';
 import type { GlobalLfoTargetId, LfoLaneId } from '@/types/lfo';
-import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX } from '@/types/lfo';
+import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX, LFO_RATE_STEP } from '@/types/lfo';
+import { DELAY_TIME_RANGE_SECONDS, DELAY_TIME_STEP_SECONDS } from '@/types/globalAudio';
 import { formatDisplayValue } from '@/components/ui/controls/formatDisplayValue';
 import { CONTENT, labels, options, fill, type ContentKey } from '@/content';
 
@@ -121,7 +122,7 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
       // No lfoTarget/lfoAccordion — LFO removed from delayTime; the effect
       // still seeds/edits its value normally (GlobalAudioSeedFieldKey is a
       // separate, unrelated type from GlobalLfoTargetId).
-      { field: 'delayTime', schema: { id: 'delay.delayTime', type: 'sliderLinear', ...labels('fleet.delay.time'), min: 0, max: 10, step: 0.001, orientation: 'horizontal' } },
+      { field: 'delayTime', schema: { id: 'delay.delayTime', type: 'sliderLinear', ...labels('fleet.delay.time'), min: DELAY_TIME_RANGE_SECONDS.min, max: DELAY_TIME_RANGE_SECONDS.max, step: DELAY_TIME_STEP_SECONDS, orientation: 'horizontal' } },
       { field: 'feedback', schema: { id: 'delay.feedback', type: 'sliderLinear', ...labels('fleet.delay.repeats'), min: 0, max: 0.95, step: 0.01, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'delay.wet', type: 'sliderLinear', ...labels('fleet.delay.amount'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
@@ -204,10 +205,6 @@ const LFO_BANK_LANE_CONTENT: Record<LfoLaneId, ContentKey> = {
   d: 'fleet.lfoBank.laneD',
 };
 
-/** The Rate slider's own draggable step — same RATE_STEP Lfo.tsx anchored at LFO_RATE_MIN (0) so
- *  0 (the lane holding still) is always a reachable rung, not just an endpoint rounding error. */
-const LANE_RATE_STEP = 0.05;
-
 function lfoBankLaneSchema(lane: LfoLaneId): LfoBankLaneSchema {
   return {
     panel: { id: `audioRig.lfoBank.${lane}`, type: 'directionalPanel', ...labels(LFO_BANK_LANE_CONTENT[lane]), orientation: 'column' },
@@ -218,7 +215,7 @@ function lfoBankLaneSchema(lane: LfoLaneId): LfoBankLaneSchema {
       ...labels('ui.lfo.rate'),
       min: LFO_RATE_MIN,
       max: LFO_RATE_MAX,
-      step: LANE_RATE_STEP,
+      step: LFO_RATE_STEP,
       orientation: 'horizontal',
     },
     rateDrift: {

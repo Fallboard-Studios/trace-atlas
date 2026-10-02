@@ -4,6 +4,8 @@
  * comment for its source row.
  */
 
+import type { NoteValue } from '@/data/noteValues';
+
 // ========================================
 // SHAPE
 // ========================================
@@ -107,6 +109,9 @@ export type LfoTargetId = RobotLfoTargetId | GlobalLfoTargetId;
  *  its target (see lfoEngine.ts's connect/disconnect callers). */
 export const LFO_RATE_MIN = 0;
 export const LFO_RATE_MAX = 20;
+/** The lane Rate slider's draggable step, anchored at LFO_RATE_MIN so 0 is always a reachable rung.
+ *  Also the grid a Sync -> Free conversion quantises onto (utils/tempoSync.ts). */
+export const LFO_RATE_STEP = 0.05;
 
 /** Percent — docs/reference/ROBOT_DATA_GRID.md's "LFO Depth" row (OSCILLATION DEPTH). */
 export const LFO_DEPTH_MIN = 0;
@@ -131,6 +136,10 @@ export interface BankLfoSettings {
   rateDrift: number;
   /** -1..1, step 0.01 — the former lfoDrift[group].depthDrift, now per lane. */
   depthDrift: number;
+  /** Present = Sync (Anchored): `rate` is ignored and the lane runs at this note value's Hz at the
+   *  current tempo. Absent = Free (Float). Docs/specs/FREE_SYNC_TOGGLE.md §1.1. Read the effective
+   *  rate through resolveLaneRateHz() (utils/tempoSync.ts), never `rate` directly. */
+  sync?: NoteValue;
 }
 
 /** What a modulation target stores. `lane: null` = not in the graph at all. */
