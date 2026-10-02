@@ -125,11 +125,13 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   **Verification:** `npx vitest run src/stores/audioStore.test.ts src/engine/AudioEngine.test.ts src/engine/audioDiagnostics.test.ts src/utils/sessionDiff.test.ts` (RED first). **Mutation check:** revert the restore branch to `setLfoBank` and watch the stale-`sync` case go red.
   **Dependencies:** 2. **Files:** `audioStore.ts`, `AudioEngine.ts`, `audioDiagnostics.ts`, `sessionDiff.ts` + their tests. **Scope:** M.
 
-- [ ] **Task 6: `setBPM` re-applies synced lanes**
+- [x] **Task 6: `setBPM` re-applies synced lanes**
 
   **Description:** Spec §1.6 step 1. `setBPM` = `set` → `AudioEngine.setBPM` → `reapplyTempoSyncedValues(get())`, a module function that pushes `setBankRate` for every lane with `sync`. (Task 11 adds the Delay line.)
 
   **Acceptance criteria:** call order asserted; synced lanes re-pushed at the new resolved Hz; Free lanes never touched; safe before audio start (no throw, no AudioEngine-initialised check needed).
+
+  **As built:** The filter is `isNoteValue(lane.sync)`, not a bare "`sync` present": an unrecognised `sync` resolves Free everywhere else (spec assumption 9), so it is not re-pushed here either — a Free value never moves with tempo. Every tempo path goes through the one `setBPM` action, so the Attenuation Style reseed (`regenerateBpmFromSeed`) re-applies too (tested). 13 tests: one tick, resolved-not-stored Hz, Free untouched (no rate/shape/drift push), mixed bank, all four lanes, state → transport → lanes order (asserted by call order *and* by reading `bpm` inside the transport call), 20 Hz clamp, slow-note floor (4 bars at 20 BPM pushes ~0.021, never 0), invalid sync, a three-tick drag, lane state unchanged, the AS reseed path, safe pre-start. **Mutation check run:** dropping the `isNoteValue` filter turned 6 tests red, including "never touches a Free lane" and the invalid-sync case. **Known flake, pre-existing:** under a full parallel `npm test`, one random test in `audioStore.test.ts` times out at the 5 s default (each test re-imports the store after `vi.resetModules()`; the file takes ~18 s loaded vs ~5 s alone). Reproduced on the Task 5 commit with this change stashed, so not introduced here; the file passes on its own.
   **Verification:** `npx vitest run src/stores/audioStore.test.ts` (RED first). **Mutation check:** drop the `sync` filter and watch the "Free untouched" case go red.
   **Dependencies:** 5. **Files:** `audioStore.ts`, `audioStore.test.ts`. **Scope:** S.
 

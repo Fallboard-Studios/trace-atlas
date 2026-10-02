@@ -67,6 +67,168 @@ describe('useAudioStore - setBPM', () => {
   });
 });
 
+// docs/specs/FREE_SYNC_TOGGLE.md §1.6, Task 6: a tempo change re-pushes the resolved Hz of every
+// synced lane (never a Free one), after the transport has the new tempo. Delay joins in Task 11.
+describe('useAudioStore - setBPM re-applies tempo-synced lanes', () => {
+  const QUARTER = { division: '1/4', modifier: 'straight' } as const;
+  const EIGHTH_DOTTED = { division: '1/8', modifier: 'dotted' } as const;
+  const FREE_LANE = { shape: 'sine', rate: 1.5, rateDrift: 0, depthDrift: 0 } as const;
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  /** A fresh store with each given lane set (the rest left as seeded), bpm pinned, mocks cleared. */
+  async function setup(lanes: Partial<Record<'a' | 'b' | 'c' | 'd', Record<string, unknown>>>, bpm = 60) {
+    const { useAudioStore } = await import('./audioStore');
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    const { lfoEngine } = await import('../engine/lfoEngine');
+    const lfoBank = { ...useAudioStore.getState().lfoBank } as Record<string, unknown>;
+    // Every lane Free first, so the module-load seed can't leak a synced lane into a "none synced" case.
+    for (const lane of LFO_LANE_IDS) lfoBank[lane] = { ...FREE_LANE };
+    Object.assign(lfoBank, lanes);
+    useAudioStore.setState({ bpm, lfoBank: lfoBank as never });
+    vi.clearAllMocks();
+    return { useAudioStore, AudioEngine, lfoEngine };
+  }
+
+  it('re-pushes a synced lane at the new tempo — 1/4 is 1 Hz at 60 BPM and 2 Hz at 120', async () => {
+    const { useAudioStore, lfoEngine } = await setup({ b: { ...FREE_LANE, sync: QUARTER } }, 60);
+
+    useAudioStore.getState().setBPM(120);
+
+    expect(lfoEngine.setBankRate).toHaveBeenCalledTimes(1);
+    expect(lfoEngine.setBankRate).toHaveBeenCalledWith('b', 2);
+  });
+
+  it('pushes the resolved Hz, not the stored Free rate underneath the sync', async () => {
+    const { useAudioStore, lfoEngine } = await setup({ c: { ...FREE_LANE, rate: 7, sync: EIGHTH_DOTTED } }, 60);
+
+    useAudioStore.getState().setBPM(90);
+
+    // 1/8 dotted = 0.75 beats; at 90 BPM that is 0.5 s => 2 Hz
+    expect(lfoEngine.setBankRate).toHaveBeenCalledWith('c', 1 / (0.75 * (60 / 90)));
+  });
+
+  it('never touches a Free lane — no rate, shape or drift push', async () => {
+    const { useAudioStore, lfoEngine } = await setup({}, 60);
+
+    useAudioStore.getState().setBPM(120);
+
+    expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankShape).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRateDrift).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankDepthDrift).not.toHaveBeenCalled();
+  });
+
+  it('re-pushes only the synced lanes in a mixed bank — each at its own note, the Free ones left alone', async () => {
+    const { useAudioStore, lfoEngine } = await setup(
+      { a: { ...FREE_LANE, sync: QUARTER }, c: { ...FREE_LANE, sync: EIGHTH_DOTTED } },
+      60,
+    );
+
+    useAudioStore.getState().setBPM(120);
+
+    expect(lfoEngine.setBankRate).toHaveBeenCalledTimes(2);
+    expect(lfoEngine.setBankRate).toHaveBeenCalledWith('a', 2);
+    expect(lfoEngine.setBankRate).toHaveBeenCalledWith('c', 1 / 0.375);
+    expect(lfoEngine.setBankRate).not.toHaveBeenCalledWith('b', expect.anything());
+    expect(lfoEngine.setBankRate).not.toHaveBeenCalledWith('d', expect.anything());
+  });
+
+  it('re-pushes all four lanes when all four are synced', async () => {
+    const synced = { ...FREE_LANE, sync: QUARTER };
+    const { useAudioStore, lfoEngine } = await setup({ a: synced, b: synced, c: synced, d: synced }, 60);
+
+    useAudioStore.getState().setBPM(120);
+
+    expect(lfoEngine.setBankRate).toHaveBeenCalledTimes(4);
+    for (const lane of LFO_LANE_IDS) expect(lfoEngine.setBankRate).toHaveBeenCalledWith(lane, 2);
+  });
+
+  it('writes state, then the transport, then the lanes — the lanes resolve against the tempo the transport already has', async () => {
+    const { useAudioStore, AudioEngine, lfoEngine } = await setup({ b: { ...FREE_LANE, sync: QUARTER } }, 60);
+    let bpmInStateAtTransportCall: number | undefined;
+    vi.mocked(AudioEngine.setBPM).mockImplementation(() => {
+      bpmInStateAtTransportCall = useAudioStore.getState().bpm;
+    });
+
+    useAudioStore.getState().setBPM(120);
+
+    expect(bpmInStateAtTransportCall).toBe(120);
+    const transportOrder = vi.mocked(AudioEngine.setBPM).mock.invocationCallOrder[0];
+    const laneOrder = vi.mocked(lfoEngine.setBankRate).mock.invocationCallOrder[0];
+    expect(transportOrder).toBeLessThan(laneOrder);
+  });
+
+  it('a note that would outrun the lane cap at the new tempo clamps to 20 Hz, never more', async () => {
+    const { useAudioStore, lfoEngine } = await setup({ d: { ...FREE_LANE, sync: { division: '1/32', modifier: 'triplet' } } }, 60);
+
+    useAudioStore.getState().setBPM(200);
+
+    expect(lfoEngine.setBankRate).toHaveBeenCalledWith('d', 20);
+  });
+
+  it('a note too slow for the lane at the new tempo clamps to the floor — it does not push 0 and stop the lane', async () => {
+    const { useAudioStore, lfoEngine } = await setup({ a: { ...FREE_LANE, sync: { division: '4', modifier: 'straight' } } }, 60);
+
+    useAudioStore.getState().setBPM(20); // 4 bars at 20 BPM = 48 s per cycle, ~0.021 Hz
+
+    const pushed = vi.mocked(lfoEngine.setBankRate).mock.calls.at(-1)![1];
+    expect(pushed).toBeGreaterThan(0);
+    expect(pushed).toBeCloseTo(1 / 48, 6);
+  });
+
+  it('an unrecognised sync value counts as Free — it is not re-pushed', async () => {
+    const { useAudioStore, lfoEngine } = await setup({ b: { ...FREE_LANE, sync: { division: '1/3', modifier: 'straight' } } }, 60);
+
+    useAudioStore.getState().setBPM(120);
+
+    expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
+  });
+
+  it('every tick of a tempo drag re-pushes at that tick\'s tempo', async () => {
+    const { useAudioStore, lfoEngine } = await setup({ b: { ...FREE_LANE, sync: QUARTER } }, 60);
+
+    useAudioStore.getState().setBPM(90);
+    useAudioStore.getState().setBPM(120);
+    useAudioStore.getState().setBPM(150);
+
+    expect(vi.mocked(lfoEngine.setBankRate).mock.calls).toEqual([
+      ['b', 1.5],
+      ['b', 2],
+      ['b', 2.5],
+    ]);
+  });
+
+  it('does not alter lane state — the stored note and Free rate are untouched by a tempo change', async () => {
+    const { useAudioStore } = await setup({ b: { ...FREE_LANE, rate: 3, sync: QUARTER } }, 60);
+
+    useAudioStore.getState().setBPM(120);
+
+    expect(useAudioStore.getState().lfoBank.b).toStrictEqual({ ...FREE_LANE, rate: 3, sync: QUARTER });
+  });
+
+  it('regenerateBpmFromSeed (the Attenuation Style reseed) goes through the same re-apply', async () => {
+    const { useAudioStore, lfoEngine } = await setup({ b: { ...FREE_LANE, sync: QUARTER } }, 60);
+
+    useAudioStore.getState().regenerateBpmFromSeed('att-style-id', 'att-style-name');
+
+    const { generateAttenuationStyleBpm } = await import('../utils/bpmSeed');
+    const seeded = generateAttenuationStyleBpm('att-style-id', 'att-style-name');
+    expect(lfoEngine.setBankRate).toHaveBeenCalledWith('b', seeded / 60);
+  });
+
+  it('is safe before audio has started — no throw when AudioEngine is not initialised', async () => {
+    const { useAudioStore, AudioEngine } = await setup({ b: { ...FREE_LANE, sync: QUARTER } }, 60);
+    // AudioEngine.setBPM no-ops pre-start (its own guard); the lane push must not need an engine check either.
+    vi.mocked(AudioEngine.setBPM).mockImplementation(() => undefined);
+
+    expect(() => useAudioStore.getState().setBPM(100)).not.toThrow();
+    expect(useAudioStore.getState().bpm).toBe(100);
+  });
+});
+
 describe('useAudioStore - regenerateGlobalAudioFromSeed', () => {
   beforeEach(() => {
     vi.resetModules();

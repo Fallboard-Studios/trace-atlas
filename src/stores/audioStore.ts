@@ -21,6 +21,7 @@ import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
 import { laneToFree, laneToSync, resolveLaneForEngine, resolveLaneRateHz } from '../utils/tempoSync';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from './attenuationStyleStore';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
+import { isNoteValue } from '../data/noteValues';
 
 import type { GlobalAudioSettings } from '../types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
@@ -69,6 +70,18 @@ export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings): void
   AudioEngine.setGlobalLimiter(globalAudio.limiter);
   AudioEngine.setGlobalDelay(globalAudio.delay);
   AudioEngine.setGlobalReverb(globalAudio.reverb);
+}
+
+/**
+ * Re-push every tempo-synced value's resolved float after a tempo change (docs/specs/FREE_SYNC_TOGGLE.md
+ * §1.6). Free values never move with tempo, so they are never touched. Synchronous and safe before audio
+ * starts — lfoEngine.setBankRate just records the value until the lanes are primed. Task 11 adds Delay here.
+ */
+function reapplyTempoSyncedValues(state: Pick<AudioStore, 'bpm' | 'lfoBank'>): void {
+  for (const lane of LFO_LANE_IDS) {
+    const settings = state.lfoBank[lane];
+    if (isNoteValue(settings.sync)) lfoEngine.setBankRate(lane, resolveLaneRateHz(settings, state.bpm));
+  }
 }
 
 /** Initial lfoBank — DEFAULT_BANK_LFO per lane (inert: rate 0, no drift) until the AS-sync below seeds real values. */
@@ -298,6 +311,7 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     // Delegate to AudioEngine — the only module allowed to call Tone.js directly.
     // AudioEngine.setBPM guards against calling Transport before audio is started.
     AudioEngine.setBPM(bpm);
+    reapplyTempoSyncedValues(get());
   },
 
   regenerateBpmFromSeed: (attenuationStyleId, attenuationStyleName) => {
