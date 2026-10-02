@@ -3,6 +3,8 @@
 // ========================================
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import type { SessionPayload } from '../types/session';
+import type { LfoLaneId, GlobalLfoTargetId, LfoLink, BankLfoSettings } from '../types/lfo';
+import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
 import { encodeSessionPayload, decodeSessionPayload, buildShareUrl, copySessionLink } from './sessionShareUtils';
 
 // ========================================
@@ -28,6 +30,15 @@ function makePayload(overrides: Partial<SessionPayload> = {}): SessionPayload {
     userCreatedCompanies: [],
     ...overrides,
   };
+}
+
+function makeLfoBank(overrides: Partial<Record<LfoLaneId, BankLfoSettings>> = {}): Record<LfoLaneId, BankLfoSettings> {
+  const base: BankLfoSettings = { shape: 'sine', rate: 2, rateDrift: 0.1, depthDrift: -0.2 };
+  return Object.fromEntries(LFO_LANE_IDS.map((lane) => [lane, overrides[lane] ?? { ...base }])) as Record<LfoLaneId, BankLfoSettings>;
+}
+
+function makeGlobalLfoLinks(overrides: Partial<Record<GlobalLfoTargetId, LfoLink>> = {}): Record<GlobalLfoTargetId, LfoLink> {
+  return Object.fromEntries(GLOBAL_LFO_TARGET_IDS.map((t) => [t, overrides[t] ?? { lane: null, depth: 0 }])) as Record<GlobalLfoTargetId, LfoLink>;
 }
 
 // ========================================
@@ -93,6 +104,125 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     expect(Object.keys(wire).sort()).toEqual(['c', 'g', 'n', 'v']);
     expect(wire).not.toHaveProperty('attenuationStyleName');
     expect(wire).not.toHaveProperty('coordinates');
+  });
+
+  it('round-trips lfoBank and globalLfoLinks on a version-2 payload (LFO Bank, docs/tasks/LFO_BANK.md Task 18)', () => {
+    const payload = makePayload({
+      version: 2,
+      lfoBank: makeLfoBank({ b: { shape: 'triangle', rate: 3.5, rateDrift: 0.5, depthDrift: -0.75 } }),
+      globalLfoLinks: makeGlobalLfoLinks({ 'eq3.low': { lane: 'c', depth: 42 } }),
+    });
+    expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+  });
+
+  it('round-trips a robot\'s lfoLinks diff on a version-2 payload', () => {
+    const payload = makePayload({
+      version: 2,
+      lfoBank: makeLfoBank(),
+      globalLfoLinks: makeGlobalLfoLinks(),
+      robotOverrides: { 'robot-1': { lfoLinks: { 'layer1.gain': { lane: 'a', depth: 30 }, 'layer2.detune': { lane: null, depth: 0 } } } },
+    });
+    expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+  });
+
+  it('omits the lane key on the wire for a null-lane link, and still round-trips', () => {
+    const payload = makePayload({ version: 2, lfoBank: makeLfoBank(), globalLfoLinks: makeGlobalLfoLinks() });
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as { gll: Record<string, Record<string, unknown>> };
+    expect(wire.gll['eq3.low']).not.toHaveProperty('l');
+    expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+  });
+
+  it('abbreviates lfoBank entries to {s,r,rd,dd}, global link entries to {l?,d}, and robot link entries under ll to {l?,d}', () => {
+    const payload = makePayload({
+      version: 2,
+      lfoBank: makeLfoBank({ a: { shape: 'square', rate: 1.5, rateDrift: 0.25, depthDrift: -0.1 } }),
+      globalLfoLinks: makeGlobalLfoLinks({ 'lpf.frequency': { lane: 'd', depth: 60 } }),
+      robotOverrides: { 'robot-1': { lfoLinks: { 'layer1.gain': { lane: 'a', depth: 30 } } } },
+    });
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as {
+      lb: Record<string, Record<string, unknown>>;
+      gll: Record<string, Record<string, unknown>>;
+      r: Record<string, Record<string, unknown>>;
+    };
+
+    expect(Object.keys(wire.lb.a).sort()).toEqual(['dd', 'r', 'rd', 's']);
+    expect(Object.keys(wire.gll['lpf.frequency']).sort()).toEqual(['d', 'l']);
+    expect(Object.keys(wire.r['robot-1']).sort()).toEqual(['ll']);
+    expect(Object.keys((wire.r['robot-1'].ll as Record<string, Record<string, unknown>>)['layer1.gain']).sort()).toEqual(['d', 'l']);
+    expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
+  });
+
+  it('a v1 blob carrying legacy lf/gl wire keys (pre-LFO-Bank share links) decodes with them dropped and everything else intact', () => {
+    const payload = makePayload({ robotOverrides: { 'robot-1': { rhythmicDensity: 42 } } });
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;
+    const robotWire = (wire.r as Record<string, unknown>)['robot-1'] as object;
+    const legacyWire = {
+      ...wire,
+      gl: { 'eq3.low': { shape: 'sine', rate: 1, depth: 10 } },
+      r: { 'robot-1': { ...robotWire, lf: { 'layer0.gain': { shape: 'sine', rate: 1, depth: 10 } } } },
+    };
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(legacyWire))));
+
+    expect(decodeSessionPayload(encoded)).toEqual(payload);
+  });
+
+  it('a 12-robot world with ~20 lfoLinks encodes at a recorded size (wire-compaction follow-up tracked in docs/tasks/LFO_BANK.md Task 20)', () => {
+    const robotOverrides: SessionPayload['robotOverrides'] = {};
+    for (let i = 0; i < 12; i++) {
+      robotOverrides[`robot-${i}`] = {
+        lfoLinks: {
+          'layer0.gain': { lane: 'a', depth: 20 },
+          'layer1.detune': { lane: 'b', depth: 35 },
+        },
+      };
+    }
+    const payload = makePayload({
+      version: 2,
+      lfoBank: makeLfoBank(),
+      globalLfoLinks: makeGlobalLfoLinks({ 'eq3.low': { lane: 'c', depth: 40 } }),
+      robotOverrides,
+    });
+
+    const encodedLength = encodeSessionPayload(payload).length;
+
+    // Measured 2026-10-01: 1844 chars for this fixture (12 robots x 2 links + the 4-lane bank +
+    // 1 global link). Generous bound, not a tight regression gate -- the wire-compaction
+    // follow-up (Task 20) tracks this number if it ever needs shrinking.
+    expect(encodedLength).toBeLessThan(2200);
+  });
+
+  it('drops an unknown/removed target key from gll and ll on decode, instead of carrying it through untyped', () => {
+    const payload = makePayload({
+      version: 2,
+      lfoBank: makeLfoBank(),
+      globalLfoLinks: makeGlobalLfoLinks(),
+      robotOverrides: { 'robot-1': { lfoLinks: { 'layer1.gain': { lane: 'a', depth: 30 } } } },
+    });
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;
+    const robotWire = (wire.r as Record<string, unknown>)['robot-1'] as { ll: Record<string, unknown> };
+    const wireWithStaleKeys = {
+      ...wire,
+      gll: { ...(wire.gll as Record<string, unknown>), 'layer0.phase': { d: 10 } },
+      r: { 'robot-1': { ...robotWire, ll: { ...robotWire.ll, 'layer0.phase': { d: 10 } } } },
+    };
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(wireWithStaleKeys))));
+
+    const decoded = decodeSessionPayload(encoded);
+
+    expect(decoded?.globalLfoLinks).not.toHaveProperty('layer0.phase');
+    expect(decoded?.robotOverrides['robot-1']?.lfoLinks).not.toHaveProperty('layer0.phase');
+    expect(decoded).toEqual(payload);
+  });
+
+  it('decodeSessionPayload returns null when present-but-wrong-typed lb/gll would otherwise corrupt lfoBank/globalLfoLinks', () => {
+    const validPayload = makePayload();
+    const validWire = decodeRawWire(encodeSessionPayload(validPayload)) as Record<string, unknown>;
+
+    const arrayLb = { ...validWire, lb: ['not', 'a', 'record'] };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(arrayLb)))))).toBeNull();
+
+    const stringGll = { ...validWire, gll: 'not an object' };
+    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(stringGll)))))).toBeNull();
   });
 
   it('a typical mostly-empty share is meaningfully smaller than the naive full-field encoding', () => {

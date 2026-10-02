@@ -1388,6 +1388,24 @@ describe('spawnSystem', () => {
       expect(baseline.rhythmicMotifLength).toEqual(robot.rhythmicMotifLength);
       expect(baseline.noteVariance).toEqual(robot.noteVariance);
       expect(baseline.pitchRepeat).toBe(robot.pitchRepeat);
+      expect(baseline.lfoLinks).toEqual(robot.lfoLinks);
+    });
+
+    it('reproduces lfoLinks too, including the roster-aware lane tally across several robots (LFO Bank Task 18)', () => {
+      const localeId = 'baseline-parity-lfolinks-locale';
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [] } },
+      }));
+      for (let i = 0; i < 5; i++) spawnRobot(localeId);
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+
+      const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+      const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+      const baselines = generateRobotRosterBaseline(noiseMap, robots.length);
+
+      robots.forEach((robot, i) => {
+        expect(baselines[i].lfoLinks, `robot ${i} (${robot.id}) lfoLinks`).toEqual(robot.lfoLinks);
+      });
     });
 
     it('reproduces every field of a full real 12-robot roster (spawnInitialRoster), including any copied siblings', () => {
@@ -1412,6 +1430,7 @@ describe('spawnSystem', () => {
         expect(baselines[i].rhythmicMotifLength, `robot ${i} (${robot.id}) rhythmicMotifLength`).toEqual(robot.rhythmicMotifLength);
         expect(baselines[i].noteVariance, `robot ${i} (${robot.id}) noteVariance`).toEqual(robot.noteVariance);
         expect(baselines[i].pitchRepeat, `robot ${i} (${robot.id}) pitchRepeat`).toBe(robot.pitchRepeat);
+        expect(baselines[i].lfoLinks, `robot ${i} (${robot.id}) lfoLinks`).toEqual(robot.lfoLinks);
       });
     });
 

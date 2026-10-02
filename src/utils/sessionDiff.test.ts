@@ -14,6 +14,7 @@ vi.mock('../engine/beatClock', () => ({
 import { computeRobotAudioOverrideDiff, computeCompanyDiff, buildSessionPayload, applySessionPayload } from './sessionDiff';
 import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
+import type { SessionPayload } from '../types/session';
 import type { RobotAudioBaseline } from '../systems/spawnSystem';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
@@ -24,11 +25,18 @@ import { stopRobotLifecycle } from '../systems/robotSystems';
 import { stopAudioSwells } from '../systems/audioSwells';
 import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
 import { RHYTHMIC_DENSITY_MAX } from '../constants';
+import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
 
 afterEach(() => {
   stopRobotLifecycle();
   stopAudioSwells();
 });
+
+/** All 6 targets unlinked -- matches DEFAULT_LFO_LINK, so a live robot with no lfoLinks override
+ *  (computeRobotAudioOverrideDiff's own DEFAULT_LFO_LINK fallback) still diffs to {} against this. */
+function makeDefaultLfoLinks(): Record<RobotLfoTargetId, LfoLink> {
+  return Object.fromEntries(ROBOT_LFO_TARGET_IDS.map((t) => [t, { lane: null, depth: 0 }])) as Record<RobotLfoTargetId, LfoLink>;
+}
 
 function makeBaseline(overrides: Partial<RobotAudioBaseline> = {}): RobotAudioBaseline {
   return {
@@ -45,6 +53,7 @@ function makeBaseline(overrides: Partial<RobotAudioBaseline> = {}): RobotAudioBa
     rhythmicMotifLength: { active: true, value: 6 },
     noteVariance: { active: true, value: 2 },
     pitchRepeat: 65,
+    lfoLinks: makeDefaultLfoLinks(),
     ...overrides,
   } as RobotAudioBaseline;
 }
@@ -145,6 +154,31 @@ describe('computeRobotAudioOverrideDiff', () => {
     expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ name: 'Custom Name' });
   });
 
+  it('diffs lfoLinks alone when only one target\'s link changed', () => {
+    const baseline = makeBaseline();
+    const changedLink: LfoLink = { lane: 'b', depth: 42 };
+    const live = makeLiveRobot(baseline, { lfoLinks: { ...baseline.lfoLinks, 'layer1.gain': changedLink } });
+    expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ lfoLinks: { 'layer1.gain': changedLink } });
+  });
+
+  it('diffs every changed lfoLinks target, keyed only by the targets that actually changed', () => {
+    const baseline = makeBaseline();
+    const changedA: LfoLink = { lane: 'a', depth: 10 };
+    const changedB: LfoLink = { lane: 'd', depth: 99 };
+    const live = makeLiveRobot(baseline, {
+      lfoLinks: { ...baseline.lfoLinks, 'layer0.gain': changedA, 'layer2.detune': changedB },
+    });
+    expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({
+      lfoLinks: { 'layer0.gain': changedA, 'layer2.detune': changedB },
+    });
+  });
+
+  it('treats a live robot with no lfoLinks at all as the default (unlinked) map, diffing to {} against a default baseline', () => {
+    const baseline = makeBaseline();
+    const live = makeLiveRobot(baseline, { lfoLinks: undefined });
+    expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({});
+  });
+
   it('never includes audioMode, masterVolume, job assignment, docking, or battery level in the diff', () => {
     const baseline = makeBaseline();
     const live = makeLiveRobot(baseline, {
@@ -180,17 +214,51 @@ describe('buildSessionPayload', () => {
     return localeId;
   }
 
-  it('stamps version: 1 and captures the current Attenuation Style name/coordinates/globalAudio', () => {
+  it('stamps version: 2 and captures the current Attenuation Style name/coordinates/globalAudio', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     const payload = buildSessionPayload();
-    expect(payload.version).toBe(1);
+    expect(payload.version).toBe(2);
     expect(payload.attenuationStyleName).toBe(DEFAULT_PELAGOS.name);
     expect(payload.coordinates).toEqual(DEFAULT_LOCALE.coordinates);
     // globalAudio is normalized/quantized at save time, so it may differ from raw store state
     // Verify structure and key fields are present, not exact equality
     expect(Object.keys(payload.globalAudio)).toContain('compressor');
     expect(Object.keys(payload.globalAudio)).toContain('eq3');
+  });
+
+  it('always captures lfoBank (4 lanes) and globalLfoLinks (7 targets) whole, even for an untouched world', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    expect(Object.keys(payload.lfoBank!).sort()).toEqual(['a', 'b', 'c', 'd']);
+    expect(Object.keys(payload.globalLfoLinks!).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
+  });
+
+  it('quantizes a lane\'s rateDrift/depthDrift to 2 decimal places (floating-point cleanup)', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    useAudioStore.setState((state) => ({
+      lfoBank: { ...state.lfoBank, b: { ...state.lfoBank.b, rateDrift: 0.123456, depthDrift: -0.987654 } },
+    }));
+
+    const payload = buildSessionPayload();
+
+    expect(payload.lfoBank!.b.rateDrift).toBe(0.12);
+    expect(payload.lfoBank!.b.depthDrift).toBe(-0.99);
+  });
+
+  it('includes only the one robot\'s changed lfoLinks target, keyed under lfoLinks', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+    const current = robot.lfoLinks!['layer0.detune'];
+    const changedLink: LfoLink = { lane: current.lane === 'a' ? 'b' : 'a', depth: (current.depth + 20) % 101 };
+    useLocaleStore.getState().updateRobot(localeId, robot.id, { lfoLinks: { ...robot.lfoLinks, 'layer0.detune': changedLink } as Record<RobotLfoTargetId, LfoLink> });
+
+    const payload = buildSessionPayload();
+
+    expect(payload.robotOverrides[robot.id]).toEqual({ lfoLinks: { 'layer0.detune': changedLink } });
   });
 
   it('captures bpm/swellFrequency/swellDuration/pingVarianceAutomation from audioStore, not just globalAudio', () => {
@@ -587,6 +655,154 @@ describe('applySessionPayload', () => {
       expect(updates).not.toHaveProperty('batteryLevel');
     }
     updateSpy.mockRestore();
+  });
+
+  it('restores lfoBank/globalLfoLinks after a full save/wipe/load round trip', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    useAudioStore.setState((state) => ({
+      lfoBank: { ...state.lfoBank, c: { shape: 'square', rate: 4, rateDrift: 0.3, depthDrift: -0.4 } },
+    }));
+    const payload = buildSessionPayload();
+
+    applySessionPayload({ ...payload, coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 } });
+    applySessionPayload(payload);
+
+    expect(useAudioStore.getState().lfoBank).toEqual(payload.lfoBank);
+    expect(useAudioStore.getState().globalLfoLinks).toEqual(payload.globalLfoLinks);
+  });
+
+  it('restores a robot\'s changed lfoLinks target after a full save/wipe/load round trip (fixture seeds a non-default lane + depth)', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+    const current = robot.lfoLinks!['layer2.detune'];
+    const changedLink: LfoLink = { lane: current.lane === 'c' ? 'd' : 'c', depth: (current.depth + 37) % 101 };
+    useLocaleStore.getState().updateRobot(localeId, robot.id, { lfoLinks: { ...robot.lfoLinks, 'layer2.detune': changedLink } as Record<RobotLfoTargetId, LfoLink> });
+    const payload = buildSessionPayload();
+    expect(payload.robotOverrides[robot.id]?.lfoLinks).toEqual({ 'layer2.detune': changedLink });
+
+    applySessionPayload({ ...payload, coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 } });
+    applySessionPayload(payload);
+
+    const restoredRobot = currentLocale()!.robots.find((r) => r.id === robot.id)!;
+    expect(restoredRobot.lfoLinks?.['layer2.detune']).toEqual(changedLink);
+  });
+
+  it('re-primes only the changed target via primeRobotLinks when applying a robot\'s lfoLinks diff', async () => {
+    const robotLfoLinks = await import('../systems/robotLfoLinks');
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+    const current = robot.lfoLinks!['layer1.gain'];
+    const changedLink: LfoLink = { lane: current.lane === 'a' ? 'b' : 'a', depth: (current.depth + 15) % 101 };
+    useLocaleStore.getState().updateRobot(localeId, robot.id, { lfoLinks: { ...robot.lfoLinks, 'layer1.gain': changedLink } as Record<RobotLfoTargetId, LfoLink> });
+    const payload = buildSessionPayload();
+    const primeSpy = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+
+    applySessionPayload(payload, { skipLocaleRebuild: true });
+
+    const callForRobot = primeSpy.mock.calls.find((call) => (call[0] as Robot).id === robot.id);
+    expect(callForRobot?.[1]).toEqual(['layer1.gain']);
+    primeSpy.mockRestore();
+  });
+
+  it('when the audio context is running, pushes lfoBank/globalLfoLinks through setLfoBank/setGlobalLfoLink so a loaded session is audible without a power cycle', async () => {
+    const lfoShared = await import('../engine/lfoShared');
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+    const setLfoBankSpy = vi.spyOn(useAudioStore.getState(), 'setLfoBank');
+    const setGlobalLfoLinkSpy = vi.spyOn(useAudioStore.getState(), 'setGlobalLfoLink');
+
+    applySessionPayload(payload, { skipLocaleRebuild: true });
+
+    expect(setLfoBankSpy).toHaveBeenCalled();
+    expect(setGlobalLfoLinkSpy).toHaveBeenCalled();
+    runningSpy.mockRestore();
+    setLfoBankSpy.mockRestore();
+    setGlobalLfoLinkSpy.mockRestore();
+  });
+
+  it('when the audio context is not running, writes lfoBank/globalLfoLinks data-only -- no engine push', async () => {
+    const lfoShared = await import('../engine/lfoShared');
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(false);
+    const setLfoBankSpy = vi.spyOn(useAudioStore.getState(), 'setLfoBank');
+
+    applySessionPayload(payload, { skipLocaleRebuild: true });
+
+    expect(setLfoBankSpy).not.toHaveBeenCalled();
+    expect(useAudioStore.getState().lfoBank).toEqual(payload.lfoBank);
+    runningSpy.mockRestore();
+    setLfoBankSpy.mockRestore();
+  });
+
+  it('leaves the current lfoBank/globalLfoLinks untouched when an older (v1) payload lacks those fields', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const { lfoBank: _lfoBank, globalLfoLinks: _globalLfoLinks, ...v1ShapePayload } = payload;
+
+    // skipLocaleRebuild: true isolates this field's own "absent means untouched" branch --
+    // retransmitWorld only resyncs lfoBank/globalLfoLinks on an ACTUAL Attenuation Style switch
+    // (audioStore.ts's syncGlobalAudioToCurrentAttenuationStyle, keyed off currentAttenuationStyleId
+    // changing), never on a same-Attenuation-Style coords-only reseed -- asserting against that
+    // unrelated mechanism would prove nothing about this code path either way.
+    const customLfoBank = { ...useAudioStore.getState().lfoBank, a: { shape: 'sawtooth' as const, rate: 9, rateDrift: 0.9, depthDrift: 0.9 } };
+    useAudioStore.setState({ lfoBank: customLfoBank });
+
+    expect(() => applySessionPayload({ ...v1ShapePayload, version: 1 } as typeof payload, { skipLocaleRebuild: true })).not.toThrow();
+
+    expect(useAudioStore.getState().lfoBank).toEqual(customLfoBank);
+  });
+
+  it('applies a pre-branch v1 payload carrying legacy globalLfo/lfoDrift/lfoSettings fields without throwing, restoring ADSR and company rename while leaving them out of the resulting state', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId);
+    const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
+    useLocaleStore.getState().updateRobot(localeId, robot.id, { audioAttributes: { ...robot.audioAttributes, filterFreq: 1234 } });
+    const company = useLocaleStore.getState().getLocaleById(localeId)!.companies[0];
+    useLocaleStore.getState().updateCompany(localeId, company.id, { name: 'Legacy Guild' });
+    const freshPayload = buildSessionPayload();
+
+    // Simulates a session saved on `main` before this branch: version 1, no lfoBank/
+    // globalLfoLinks, and still carrying the exact fields Task 17 removed from the TYPE -- a real
+    // pre-branch blob on disk/in a share link still has them as plain JSON, since nothing migrates
+    // old saves forward. Cast through unknown: decodeSessionPayload's own doc comment treats a
+    // loaded payload as untyped JSON from outside the app, same as the existing legacy-company test above.
+    const v1Payload = {
+      ...freshPayload,
+      version: 1,
+      lfoBank: undefined,
+      globalLfoLinks: undefined,
+      globalLfo: { 'eq3.low': { shape: 'sine', rate: 1, depth: 10 } },
+      robotOverrides: Object.fromEntries(
+        Object.entries(freshPayload.robotOverrides).map(([id, diff]) => [
+          id,
+          { ...diff, lfoSettings: { 'layer0.gain': { shape: 'sine', rate: 1, depth: 10 } } },
+        ]),
+      ),
+      globalAudio: { ...freshPayload.globalAudio, lfoDrift: { environmental: { rateDrift: 0.5, depthDrift: 0.5 } } },
+    } as unknown as SessionPayload;
+
+    expect(() => applySessionPayload({ ...v1Payload, coordinates: { x: v1Payload.coordinates.x + 500, y: v1Payload.coordinates.y + 500 } })).not.toThrow();
+    expect(() => applySessionPayload(v1Payload)).not.toThrow();
+
+    const restoredRobot = currentLocale()!.robots.find((r) => r.id === robot.id)!;
+    expect(restoredRobot.audioAttributes.filterFreq).toBe(1234);
+    const restoredCompany = currentLocale()!.companies.find((c) => c.id === company.id);
+    expect(restoredCompany?.name).toBe('Legacy Guild');
+    expect(useAudioStore.getState().globalAudio).not.toHaveProperty('lfoDrift');
+  });
+
+  it('migrateLfoDrift no longer exists', async () => {
+    const sessionDiffModule = await import('./sessionDiff');
+    expect('migrateLfoDrift' in sessionDiffModule).toBe(false);
   });
 });
 

@@ -6,6 +6,8 @@ import type { Company } from '../types/Company';
 import { generateRobotRosterBaseline, generateCompanyRosterBaseline, type RobotAudioBaseline } from '../systems/spawnSystem';
 import type { RobotAudioOverrideDiff, CompanyDiff, SessionPayload } from '../types/session';
 import type { SwellRobotAttributeId } from '../types/audioSwell';
+import { ROBOT_LFO_TARGET_IDS, LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
+import { DEFAULT_LFO_LINK } from '../data/lfoConfig';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
@@ -15,6 +17,8 @@ import { GLOBAL_AUDIO_SEED_RANGES } from '../data/globalAudioSeedRanges';
 import { retransmitWorld } from '../systems/worldTransition';
 import { regenerateMelody } from '../engine/regenerateMelody';
 import { getActiveSwellSnapshot } from '../systems/audioSwells';
+import { primeRobotLinks } from '../systems/robotLfoLinks';
+import { isAudioContextRunning } from '../engine/lfoShared';
 
 // ========================================
 // FUNCTIONS
@@ -213,6 +217,15 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
   if (!deepEqual(live.pitchRepeat, baseline.pitchRepeat)) diff.pitchRepeat = live.pitchRepeat;
   if (!deepEqual(live.name, baseline.name)) diff.name = live.name;
 
+  // LFO Bank (docs/tasks/LFO_BANK.md Task 18): only the targets whose link actually changed --
+  // an untouched target has no key, same "absent means untouched" contract as every field above.
+  const lfoLinksDiff: Partial<Record<RobotLfoTargetId, LfoLink>> = {};
+  for (const target of ROBOT_LFO_TARGET_IDS) {
+    const liveLink = live.lfoLinks?.[target] ?? DEFAULT_LFO_LINK[target];
+    if (!deepEqual(liveLink, baseline.lfoLinks[target])) lfoLinksDiff[target] = liveLink;
+  }
+  if (Object.keys(lfoLinksDiff).length > 0) diff.lfoLinks = lfoLinksDiff;
+
   return diff;
 }
 
@@ -268,8 +281,25 @@ export function buildSessionPayload(): SessionPayload {
   }
 
   const audioState = useAudioStore.getState();
+
+  // LFO Bank (docs/tasks/LFO_BANK.md Task 18): always captured whole, never diffed -- there's no
+  // meaningful "untouched seed baseline" for a world-level lane/link set, same treatment as
+  // globalAudio itself. Drifts quantized to 2 decimal places, same floating-point cleanup every
+  // other seeded-then-hand-dragged field on this payload already gets.
+  const lfoBank = Object.fromEntries(
+    LFO_LANE_IDS.map((lane) => {
+      const settings = audioState.lfoBank[lane];
+      return [lane, {
+        ...settings,
+        rateDrift: cleanupFloatingPoint(settings.rateDrift, 2),
+        depthDrift: cleanupFloatingPoint(settings.depthDrift, 2),
+      }];
+    }),
+  ) as SessionPayload['lfoBank'];
+  const globalLfoLinks = { ...audioState.globalLfoLinks };
+
   return {
-    version: 1,
+    version: 2,
     attenuationStyleName: attenuationStyle.name,
     coordinates: locale.coordinates,
     globalAudio: applyGlobalSwellBasesToAudio(audioState.globalAudio),
@@ -277,6 +307,8 @@ export function buildSessionPayload(): SessionPayload {
     swellFrequency: audioState.swellFrequency,
     swellDuration: audioState.swellDuration,
     pingVarianceAutomation: audioState.pingVarianceAutomation,
+    lfoBank,
+    globalLfoLinks,
     robotOverrides,
     companyDiffs,
     userCreatedCompanies,
@@ -302,6 +334,7 @@ function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<
   if (diff.noteVariance !== undefined) updates.noteVariance = diff.noteVariance;
   if (diff.pitchRepeat !== undefined) updates.pitchRepeat = diff.pitchRepeat;
   if (diff.name !== undefined) updates.name = diff.name;
+  if (diff.lfoLinks !== undefined) updates.lfoLinks = { ...robot.lfoLinks, ...diff.lfoLinks } as Record<RobotLfoTargetId, LfoLink>;
   return updates;
 }
 
@@ -321,11 +354,41 @@ function reapplyCompanyMembership(localeId: string, companyId: string, targetRob
 }
 
 /**
+ * A version-1 payload may still carry fields the type no longer declares -- `globalLfo` at the
+ * top level, `globalAudio.lfoDrift`, and each `robotOverrides[id].lfoSettings` -- all deleted
+ * from SessionPayload by Task 17, but a real pre-branch session save or share link predates this
+ * branch and was never migrated forward, so those keys can still arrive as plain JSON. Stripped
+ * here so applying an old payload never leaves stale LFO-shaped data in the store; a version-2
+ * payload never carries them, so this is a no-op for every payload buildSessionPayload itself
+ * produces today.
+ */
+function stripLegacyV1LfoFields(payload: SessionPayload): SessionPayload {
+  if (payload.version !== 1) return payload;
+  const raw = payload as unknown as Record<string, unknown>;
+  const globalAudio = { ...(raw.globalAudio as Record<string, unknown>) };
+  delete globalAudio.lfoDrift;
+  const robotOverrides = Object.fromEntries(
+    Object.entries(raw.robotOverrides as Record<string, Record<string, unknown>>).map(([id, diff]) => {
+      const cleanedDiff = { ...diff };
+      delete cleanedDiff.lfoSettings;
+      return [id, cleanedDiff];
+    }),
+  );
+  const { globalLfo: _globalLfo, ...rest } = raw;
+  return {
+    ...(rest as unknown as SessionPayload),
+    globalAudio: globalAudio as unknown as SessionPayload['globalAudio'],
+    robotOverrides: robotOverrides as unknown as SessionPayload['robotOverrides'],
+  };
+}
+
+/**
  * Regenerates the world from payload.attenuationStyleName/coordinates via worldTransition.ts's
  * existing retransmitWorld — never a parallel regeneration path (spec §7 risk 7) — then overlays
  * globalAudio, every robot override, every company diff, and every user-created company on top.
  */
 export function applySessionPayload(payload: SessionPayload, options?: { skipLocaleRebuild?: boolean }): void {
+  payload = stripLegacyV1LfoFields(payload);
   // worldTransition.ts's createNewAttenuationStyle always tries to CREATE a new Attenuation
   // Style for a given name (never "reuse the existing one with this name") and doesn't check
   // whether that creation actually succeeded — attenuationStyleStore.addAttenuationStyle silently
@@ -372,6 +435,27 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   if (payload.swellDuration !== undefined) useAudioStore.getState().setSwellDuration(payload.swellDuration);
   if (payload.pingVarianceAutomation !== undefined) useAudioStore.getState().setPingVarianceAutomation(payload.pingVarianceAutomation);
 
+  // LFO Bank (docs/tasks/LFO_BANK.md Task 18): independently optional, same convention as the
+  // pacing fields above -- absent (a pre-this-change payload) leaves retransmitWorld's own fresh
+  // reseed untouched. When the audio context is already running (loading a session mid-session,
+  // not at boot), pushed through setLfoBank/setGlobalLfoLink too, so the change is audible without
+  // a power cycle; otherwise a plain data-only write -- AudioEngine.start() primes the bank from
+  // this same store state once the context actually starts.
+  if (payload.lfoBank) {
+    if (isAudioContextRunning()) {
+      for (const lane of LFO_LANE_IDS) useAudioStore.getState().setLfoBank(lane, payload.lfoBank[lane]);
+    } else {
+      useAudioStore.setState({ lfoBank: payload.lfoBank });
+    }
+  }
+  if (payload.globalLfoLinks) {
+    if (isAudioContextRunning()) {
+      for (const target of GLOBAL_LFO_TARGET_IDS) useAudioStore.getState().setGlobalLfoLink(target, payload.globalLfoLinks[target]);
+    } else {
+      useAudioStore.setState({ globalLfoLinks: payload.globalLfoLinks });
+    }
+  }
+
   const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   const localeId = attenuationStyle?.currentLocaleId;
   if (!localeId) return;
@@ -397,7 +481,15 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
     // what's actually persisted (code review follow-up, confirmed by a reproduction test with an
     // out-of-range diff value).
     const updatedRobot = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
-    if (updatedRobot) regenerateMelody(updatedRobot, localeId);
+    if (updatedRobot) {
+      regenerateMelody(updatedRobot, localeId);
+      // Re-primes only the targets this diff actually changed (docs/tasks/LFO_BANK.md Task 18) --
+      // every untouched target already has its freshly-seeded link primed by AudioEngine.start()
+      // (or will, once the context starts), so re-priming the whole roster here would be redundant.
+      if (diff.lfoLinks !== undefined) {
+        primeRobotLinks(updatedRobot, Object.keys(diff.lfoLinks) as RobotLfoTargetId[]);
+      }
+    }
   }
 
   for (const company of freshLocale.companies) {

@@ -4,6 +4,7 @@
 import type { SessionPayload, RobotAudioOverrideDiff, CompanyDiff } from '../types/session';
 import type { ADSREnvelope } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
+import { GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type GlobalLfoTargetId, type RobotLfoTargetId, type LfoLink, type BankLfoSettings } from '../types/lfo';
 import { devWarn } from './helpers';
 
 // ========================================
@@ -40,9 +41,28 @@ interface CompactSessionPayload {
   sf?: SessionPayload['swellFrequency'];
   sd?: SessionPayload['swellDuration'];
   pv?: SessionPayload['pingVarianceAutomation'];
+  /** LFO Bank (docs/tasks/LFO_BANK.md Task 18) -- `lb`/`gll` mirror `lfoBank`/`globalLfoLinks`'s
+   *  own "always whole, never diffed" treatment (undefined only for a pre-Task-18, version-1 blob). */
+  lb?: Record<LfoLaneId, CompactBankLfoSettings>;
+  gll?: Record<GlobalLfoTargetId, CompactLfoLink>;
   r?: Record<string, CompactRobotOverrideDiff>;
   d?: Record<string, CompactCompanyDiff>;
   u?: SessionPayload['userCreatedCompanies'];
+}
+
+/** BankLfoSettings, abbreviated. */
+interface CompactBankLfoSettings {
+  s: BankLfoSettings['shape'];
+  r: number;
+  rd: number;
+  dd: number;
+}
+
+/** LfoLink, abbreviated -- `l` omitted entirely for `lane: null` (every seeded/default link that
+ *  hasn't been dragged onto a lane), same "no key if absent" contract as every other optional field. */
+interface CompactLfoLink {
+  l?: LfoLaneId;
+  d: number;
 }
 
 /** ADSREnvelope, abbreviated. */
@@ -80,6 +100,9 @@ interface CompactRobotOverrideDiff {
   pr?: number;
   or?: RobotAudioOverrideDiff['octaveRange'];
   nm?: string;
+  /** Only the targets that changed (RobotAudioOverrideDiff.lfoLinks' own contract), abbreviated
+   *  per-target via CompactLfoLink. */
+  ll?: Partial<Record<RobotLfoTargetId, CompactLfoLink>>;
 }
 
 /** CompanyDiff, abbreviated. */
@@ -130,6 +153,22 @@ function fromCompactToggle(t: CompactToggle): { active: boolean; value: number }
   return { active: t.a, value: t.v };
 }
 
+function toCompactBankLfoSettings(b: BankLfoSettings): CompactBankLfoSettings {
+  return { s: b.shape, r: b.rate, rd: b.rateDrift, dd: b.depthDrift };
+}
+function fromCompactBankLfoSettings(b: CompactBankLfoSettings): BankLfoSettings {
+  return { shape: b.s, rate: b.r, rateDrift: b.rd, depthDrift: b.dd };
+}
+
+function toCompactLfoLink(link: LfoLink): CompactLfoLink {
+  const compact: CompactLfoLink = { d: link.depth };
+  if (link.lane !== null) compact.l = link.lane;
+  return compact;
+}
+function fromCompactLfoLink(compact: CompactLfoLink): LfoLink {
+  return { lane: compact.l ?? null, depth: compact.d };
+}
+
 function toCompactRobotOverrideDiff(diff: RobotAudioOverrideDiff): CompactRobotOverrideDiff {
   const compact: CompactRobotOverrideDiff = {};
   if (diff.adsr !== undefined) compact.a = toCompactADSR(diff.adsr);
@@ -141,6 +180,9 @@ function toCompactRobotOverrideDiff(diff: RobotAudioOverrideDiff): CompactRobotO
   if (diff.pitchRepeat !== undefined) compact.pr = diff.pitchRepeat;
   if (diff.octaveRange !== undefined) compact.or = diff.octaveRange;
   if (diff.name !== undefined) compact.nm = diff.name;
+  if (diff.lfoLinks !== undefined) {
+    compact.ll = Object.fromEntries(Object.entries(diff.lfoLinks).map(([target, link]) => [target, toCompactLfoLink(link as LfoLink)])) as Partial<Record<RobotLfoTargetId, CompactLfoLink>>;
+  }
   return compact;
 }
 function fromCompactRobotOverrideDiff(compact: CompactRobotOverrideDiff): RobotAudioOverrideDiff {
@@ -154,6 +196,16 @@ function fromCompactRobotOverrideDiff(compact: CompactRobotOverrideDiff): RobotA
   if (compact.pr !== undefined) diff.pitchRepeat = compact.pr;
   if (compact.or !== undefined) diff.octaveRange = compact.or;
   if (compact.nm !== undefined) diff.name = compact.nm;
+  if (compact.ll !== undefined) {
+    // Drops any key that isn't a currently-recognized target -- same "a removed/renamed target
+    // id loaded from an old link is just gone, never misread" treatment the lfo.ts doc comment
+    // already describes for the old layerN.phase targets.
+    diff.lfoLinks = Object.fromEntries(
+      Object.entries(compact.ll)
+        .filter(([target]) => (ROBOT_LFO_TARGET_IDS as readonly string[]).includes(target))
+        .map(([target, link]) => [target, fromCompactLfoLink(link as CompactLfoLink)]),
+    ) as Partial<Record<RobotLfoTargetId, LfoLink>>;
+  }
   return diff;
 }
 
@@ -181,6 +233,12 @@ function toCompactSessionPayload(payload: SessionPayload): CompactSessionPayload
   if (payload.swellFrequency !== undefined) compact.sf = payload.swellFrequency;
   if (payload.swellDuration !== undefined) compact.sd = payload.swellDuration;
   if (payload.pingVarianceAutomation !== undefined) compact.pv = payload.pingVarianceAutomation;
+  if (payload.lfoBank !== undefined) {
+    compact.lb = Object.fromEntries(Object.entries(payload.lfoBank).map(([lane, b]) => [lane, toCompactBankLfoSettings(b)])) as Record<LfoLaneId, CompactBankLfoSettings>;
+  }
+  if (payload.globalLfoLinks !== undefined) {
+    compact.gll = Object.fromEntries(Object.entries(payload.globalLfoLinks).map(([target, link]) => [target, toCompactLfoLink(link)])) as Record<GlobalLfoTargetId, CompactLfoLink>;
+  }
   if (Object.keys(payload.robotOverrides).length > 0) {
     compact.r = Object.fromEntries(Object.entries(payload.robotOverrides).map(([id, diff]) => [id, toCompactRobotOverrideDiff(diff)]));
   }
@@ -206,7 +264,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *  degrades to a harmless no-op override rather than a crash. */
 function isValidCompactSessionPayload(parsed: unknown): parsed is CompactSessionPayload {
   if (!isPlainObject(parsed)) return false;
-  const { n, c, g, b, sf, sd, pv, r, d, u } = parsed;
+  const { n, c, g, b, sf, sd, pv, lb, gll, r, d, u } = parsed;
   if (typeof n !== 'string') return false;
   if (!isPlainObject(c) || typeof c.x !== 'number' || typeof c.y !== 'number') return false;
   if (!isPlainObject(g)) return false;
@@ -214,6 +272,8 @@ function isValidCompactSessionPayload(parsed: unknown): parsed is CompactSession
   if (sf !== undefined && typeof sf !== 'number') return false;
   if (sd !== undefined && typeof sd !== 'number') return false;
   if (pv !== undefined && typeof pv !== 'number') return false;
+  if (lb !== undefined && !isPlainObject(lb)) return false;
+  if (gll !== undefined && !isPlainObject(gll)) return false;
   if (r !== undefined && !isPlainObject(r)) return false;
   if (d !== undefined && !isPlainObject(d)) return false;
   if (u !== undefined && !Array.isArray(u)) return false;
@@ -230,6 +290,16 @@ function fromCompactSessionPayload(compact: CompactSessionPayload): SessionPaylo
     swellFrequency: compact.sf,
     swellDuration: compact.sd,
     pingVarianceAutomation: compact.pv,
+    lfoBank: compact.lb
+      ? (Object.fromEntries(Object.entries(compact.lb).map(([lane, b]) => [lane, fromCompactBankLfoSettings(b)])) as Record<LfoLaneId, BankLfoSettings>)
+      : undefined,
+    globalLfoLinks: compact.gll
+      ? (Object.fromEntries(
+          Object.entries(compact.gll)
+            .filter(([target]) => (GLOBAL_LFO_TARGET_IDS as readonly string[]).includes(target))
+            .map(([target, link]) => [target, fromCompactLfoLink(link)]),
+        ) as Record<GlobalLfoTargetId, LfoLink>)
+      : undefined,
     robotOverrides: compact.r
       ? Object.fromEntries(Object.entries(compact.r).map(([id, diff]) => [id, fromCompactRobotOverrideDiff(diff)]))
       : {},

@@ -436,6 +436,9 @@ export interface RobotAudioBaseline {
   rhythmicMotifLength: ToggleValue;
   noteVariance: ToggleValue;
   pitchRepeat: number;
+  /** Mirrors spawnRobot's own lfoLinks branch (Session Storage/LFO Bank Task 18): copied on the
+   *  copy branch, freshly drawn (with the roster's running lane tally) on the fresh branch. */
+  lfoLinks: Record<RobotLfoTargetId, LfoLink>;
 }
 
 /**
@@ -479,8 +482,10 @@ export function generateRobotAudioBaseline(
   const noteVarianceRaw = getSeededVal(noiseMap, 'robot.noteVariance.active', spawnCount, 0, 1);
   const noteVariance = seedToggleValue(noteVarianceRaw, NOTE_VARIANCE_OFF_THRESHOLD);
   const pitchRepeat = Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', spawnCount, 0, 100));
+  const priorLaneCounts = tallyLanes(priorBaselines.flatMap((b) => Object.values(b.lfoLinks)));
+  const lfoLinks = generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts);
 
-  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat };
+  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, lfoLinks };
 }
 
 /**
