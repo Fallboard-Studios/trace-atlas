@@ -1,0 +1,16 @@
+/* Slider + Free | Sync toggle on one row (docs/specs/FREE_SYNC_TOGGLE.md §1.4). Establishes no
+   sc-control container of its own: the SliderLinear inside it does, and size containment on this
+   shrink-to-fit-capable row would collapse it. */
+.sc-tempo-sync {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-control);
+}
+
+/* min-width: 0 lets the slider's voxel track shrink rather than push the toggle out of the row. */
+.sc-tempo-sync__slider {
+  flex: 1 1 auto;
+  min-width: 0;
+}

@@ -45,6 +45,14 @@ export const ui = {
       d: { human: 'Overtone LFO', lore: 'Canopy Signature' },
     },
   },
+  /** The Free | Sync toggle on a lane's Rate and on Delay Time (docs/specs/FREE_SYNC_TOGGLE.md §1.9),
+   *  read by TempoSyncSlider. Wording confirmed 2026-10-02. The facade shows the current mode's lore
+   *  word; the human entry is the switch's stable accessible name. */
+  'ui.tempoSync': {
+    human: 'Tempo Sync',
+    lore: 'Anchoring',
+    options: { free: { human: 'Free', lore: 'Float' }, sync: { human: 'Sync', lore: 'Anchored' } },
+  },
   /** A tempo-synced note's readout (docs/specs/FREE_SYNC_TOGGLE.md §1.9), assembled by
    *  utils/formatNoteValue.ts: `1/8`, `1 bar`, `2 bars`, and `{note} {modifier}` for dotted/triplet.
    *  Straight takes no suffix by rule, so it has no modifier option. The digits and slash are data. */

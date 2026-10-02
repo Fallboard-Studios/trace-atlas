@@ -155,12 +155,20 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   **Verification:** `npx vitest run src/components/ui/controls/SliderLinear.test.tsx src/types` (RED first).
   **Dependencies:** None. **Files:** `src/types/controls.ts`, `SliderLinear.tsx`, `SliderLinear.test.tsx`. **Scope:** XS.
 
-- [ ] **Task 9: `TempoSyncSlider` composition**
+- [x] **Task 9: `TempoSyncSlider` composition**
 
   **Description:** `src/components/ui/controls/TempoSyncSlider.tsx` + `.css` + `.test.tsx` per spec §1.4's prop contract: slider + `Toggle` row, Sync schema memoised on `[schema, allowed]`, clamped display index with no write on render, facade = current mode's lore word, `memo`-wrapped.
 
   **Acceptance criteria:** spec §5 `TempoSyncSlider` list in full (Free schema/readout; Sync max/step/readout/no unit; clamped index with no callback on render or re-render; toggle → `onModeChange` only, facade text from `CONTENT`; Sync arrow key → `onSyncChange(NoteValue)`, never `onFreeChange`).
-  **Verification:** `npx vitest run src/components/ui/controls/TempoSyncSlider.test.tsx` (RED first); `npm run lint`, `npm run build:types`.
+
+  **As built:** `ui.tempoSync` added to `src/content/copy/ui.ts` here, as Task 7 deferred. 46 tests (the spec §5 list plus edges). Four things the spec did not spell out, each found by a RED test:
+  - **The slider is keyed per mode** (`key={synced ? 'sync' : 'free'}`). `SliderLinear` eases any external value change over 250 ms, and a Free value (1.5 Hz) and a Sync index (3) are different spaces: without the key, flipping the toggle swept the thumb from 1.5 to 3 and the readout flashed the notes in between (RED: `aria-valuenow` read `1.5` right after the switch). Remounting lands on the value at once. A tempo change *within* Sync still eases, which is wanted.
+  - **A range is never zero-width.** The Sync schema's `max` is `Math.max(1, allowed.length - 1)`: with one stop (or none) Radix divides by `max - min` and positions the thumb at NaN (jsdom throws a CSS parse error, a browser would silently misplace it). A list with fewer than two stops renders the slider *disabled* (nothing to choose between) and leaves the toggle usable so the lane can still go Free. Unreachable at 20–200 BPM with the real lists (they are 10+ stops), so this is insurance; the spec's `max = allowed.length - 1` still holds for every real list.
+  - **The clamped index is the stop nearest in beats**, not "first/last by list direction": lane lists run slow → fast and Delay lists short → long, and this component knows neither. Nearest-in-beats gives the right end for both (tested with both orientations and with the real `allowedLaneNoteValues(200)` / `allowedDelayNoteValues(20)` lists). **Mutation check run:** returning 0 for any note outside the list turned 5 tests red.
+  - **The toggle's accessible name is "Tempo Sync" in both modes** (spec §1.4's `labels('ui.tempoSync')`); the state is `aria-checked`, and the facade shows the lore word (Float / Anchored, assumption 11). Spec assumption 11's phrase "the human pair (Free / Sync) as its accessible name" reads as the two states, which a switch announces through `aria-checked`; a name that changes with state would be announced as a different control. Say if the intent was otherwise.
+
+  Also: handlers are stable (`latest`-ref pattern, as `LfoLink`), so the slider's `onChange` identity survives re-renders and routes to the newest callbacks; the Sync schema is memoised on `[schema, allowed]` only (a note change does not rebuild it). **Known gap, unchanged from Task 8:** the thumb still has no `aria-valuetext`, so a screen reader hears the index in Sync mode — the Open Questions item below is still waiting on Crawford.
+  **Verification:** `npx vitest run src/components/ui/controls/TempoSyncSlider.test.tsx` (RED first); `npm run lint`, `npm run build:types`. Full suite 203 files / 4412 tests; the two failures under the parallel run (`audioStore.test.ts` 5 s timeout, `worldTransition` swell-clear) are the recorded flakes and both pass alone.
   **Dependencies:** 7, 8. **Files:** the three new files. **Scope:** M.
 
 - [ ] **Task 10: `LfoBankLanePanel` renders Rate through `TempoSyncSlider`**
