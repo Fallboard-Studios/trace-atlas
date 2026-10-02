@@ -273,15 +273,18 @@ are fixed, adjacent, and log-spaced, slow-to-fast by lane letter:
 
 | Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
 |---|---|---|---|---|---|---|---|
-| Shape | Radio (triangle/sine/square/sawtooth) | — | — | — | — | triangle or sine only¹³ | triangle or sine only¹³ |
+| Shape | Radio (triangle/sine/square/sawtooth) | — | — | — | — | all 4, front-weighted¹³ | all 4, front-weighted¹³ |
 | Rate | Linear | Hz | 0 | 20 | 0.05 | lane a: 0.1, b: 0.4, c: 1.5, d: 4 | lane a: 0.4, b: 1.5, c: 4, d: 8 |
 | Rate Drift | Centered Zero | % | -100 | 100 | —¹⁴ | -70 | 70 |
 | Depth Drift | Centered Zero | % | -100 | 100 | —¹⁴ | -70 | 70 |
 
-¹³ Shape's loading set (`LFO_LOADING_SHAPES`) is a narrower discrete subset of the full 4-shape UI
-set — the same loading-vs-full split every numeric field above uses, just over shapes instead of a
-range. A fresh world's 4 lanes only ever seed `triangle`/`sine`; `square`/`sawtooth` stay reachable
-by hand via the Shape radio.
+¹³ Shape is a weighted rotating-queue pick (`pickShape`, `src/utils/lfoShapeDraw.ts`, 2026-10-02),
+not a loading-vs-full range split like the numeric fields above — all 4 shapes are reachable from a
+fresh seed. Lane a draws first against the full queue `[sine, triangle, sawtooth, square]`, weighted
+front-to-back `[1, 0.5, 0.25, 0.125]` (sine 53%/triangle 27%/sawtooth 13%/square 7% on lane a); the
+picked shape moves to the back of the queue before the next lane draws, so a shape can repeat across
+a world's 4 lanes, just less likely each time it's reused. Scoped to shape only — Rate/Rate
+Drift/Depth Drift below are unaffected and stay keyed to lane, not shape.
 ¹⁴ `SliderCenteredZero` still has no numeric `step` field in its *schema* — the UI slider's own
 granularity is unchanged. The *generation* side now rounds anyway: each lane's `rateDrift`/
 `depthDrift` (`generateLfoBankSettings`, `globalAudioSeed.ts`) quantizes to a whole hundredth in

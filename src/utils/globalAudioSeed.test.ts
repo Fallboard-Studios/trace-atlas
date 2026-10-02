@@ -30,7 +30,7 @@ import { evictAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal } from './getSeededVal';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
-import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS } from '@/types/lfo';
+import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES } from '@/types/lfo';
 import { GLOBAL_AUDIO_SEED_RANGES } from '@/data/globalAudioSeedRanges';
 import { SWELL_FREQUENCY_STEPS } from '@/data/audioRigConfig';
 
@@ -272,13 +272,25 @@ describe('generateLfoBankSettings', () => {
     }
   });
 
-  it('shapes are always triangle or sine, across many Attenuation Styles', () => {
+  it('shapes are always one of the 4 LfoShape members, across many Attenuation Styles', () => {
     for (let i = 0; i < 20; i++) {
       const settings = generateLfoBankSettings(`bank-shape-sample-${i}`, `BankShape${i}`);
       for (const lane of LFO_LANE_IDS) {
-        expect(['triangle', 'sine'], `${lane}.shape (sample ${i})`).toContain(settings[lane].shape);
+        expect(LFO_SHAPES, `${lane}.shape (sample ${i})`).toContain(settings[lane].shape);
       }
     }
+  });
+
+  it('lane a (drawn first, full queue) leans heavily toward sine across many Attenuation Styles', () => {
+    let sineCount = 0;
+    const samples = 100;
+    for (let i = 0; i < samples; i++) {
+      const settings = generateLfoBankSettings(`bank-shape-weight-sample-${i}`, `BankShapeWeight${i}`);
+      if (settings.a.shape === 'sine') sineCount++;
+      evictAttenuationStyleNoiseMap(`bank-shape-weight-sample-${i}`);
+    }
+    // First-pick odds are sine 53.3% — well above a uniform-4-shape 25% baseline.
+    expect(sineCount / samples).toBeGreaterThan(0.35);
   });
 
   it('rateDrift/depthDrift lie within the documented ±0.7 window, quantized to a 0.01 grid', () => {

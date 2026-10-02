@@ -7,6 +7,7 @@ import { getAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal } from './getSeededVal';
 import { quantizeToStep } from './math';
 import { pickLane } from './lfoLaneDraw';
+import { pickShape, LFO_SHAPE_SEED_ORDER } from './lfoShapeDraw';
 import { stepsValueToT, stepsTToValue } from '@/components/ui/controls/sliderLogMath';
 import { SWELL_FREQUENCY_STEPS, SWELL_DURATION_SCHEMA } from '@/data/audioRigConfig';
 
@@ -256,16 +257,6 @@ const LFO_RATE_STEP = 0.05;
  *  conversions require. */
 const LFO_DEPTH_STEP = 1;
 
-/**
- * Loading-set restriction for global-chain LFO shape — narrower than
- * LFO_SHAPES (all 4: triangle/sine/square/sawtooth, still the full set the
- * Shape radio in Lfo.tsx offers). A fresh seed only ever rolls the two
- * smoothest shapes; square/sawtooth stay reachable, just not as a starting
- * state. Same loading-vs-full split as rate/depth above, applied to a
- * discrete set instead of a numeric range.
- */
-const LFO_LOADING_SHAPES: readonly LfoShape[] = ['triangle', 'sine'];
-
 // ========================================
 // LFO BANK (docs/specs/LFO_BANK.md §1.3)
 // ========================================
@@ -301,6 +292,7 @@ export function generateLfoBankSettings(
 ): Record<LfoLaneId, BankLfoSettings> {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
   const result = {} as Record<LfoLaneId, BankLfoSettings>;
+  let shapeQueue: readonly LfoShape[] = LFO_SHAPE_SEED_ORDER;
 
   for (const lane of LFO_LANE_IDS) {
     const rateT = getSeededVal(noiseMap, `lfoBank.${lane}.rate`, 0, 0, 1);
@@ -308,8 +300,11 @@ export function generateLfoBankSettings(
     const rateDriftT = getSeededVal(noiseMap, `lfoBank.${lane}.rateDrift`, 0, 0, 1);
     const depthDriftT = getSeededVal(noiseMap, `lfoBank.${lane}.depthDrift`, 0, 0, 1);
 
+    const picked = pickShape(shapeT, shapeQueue);
+    shapeQueue = picked.queue;
+
     result[lane] = {
-      shape: LFO_LOADING_SHAPES[Math.min(LFO_LOADING_SHAPES.length - 1, Math.floor(shapeT * LFO_LOADING_SHAPES.length))],
+      shape: picked.shape,
       rate: quantizeToStep(
         scaleUnitValue(rateT, { ...LFO_BANK_RATE_BANDS[lane], scale: 'log' }),
         LFO_RATE_MIN,
