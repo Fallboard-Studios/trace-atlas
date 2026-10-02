@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { Profiler } from 'react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, within, fireEvent, act } from '@testing-library/react';
 
 // Real lfoEngine would construct a real Tone.LFO on first setter call (getOrCreateLfo -> new
@@ -37,6 +38,11 @@ vi.mock('../../../../engine/lfoEngine', () => ({
 import { AudioRigEffectPanel } from './AudioRigDrawer';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import { useAudioStore } from '@/stores/audioStore';
+import { AudioEngine } from '@/engine/AudioEngine';
+import { CONTENT } from '@/content';
+import { noteValueEquals, noteValueSeconds, type NoteDivision, type NoteModifier, type NoteValue } from '@/data/noteValues';
+import { allowedDelayNoteValues } from '@/utils/tempoSync';
+import { formatNoteValue } from '@/utils/formatNoteValue';
 import * as audioSwells from '@/systems/audioSwells';
 import { ACCENT_COLORS } from '@/constants/accentColors';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
@@ -671,6 +677,351 @@ describe('AudioRigEffectPanel', () => {
       });
 
       expect(callsFor('audioRig.eq3.low.link.lane')).toBe(eqLinkCallsBefore);
+    });
+  });
+
+  // docs/specs/FREE_SYNC_TOGGLE.md §1.4 Delay paragraph, Task 12: Delay Time renders through
+  // TempoSyncSlider beside the existing plain Feedback/Mix rows. Tested against the REAL store (only
+  // lfoEngine is mocked), so a wrong wiring shows up as wrong state, not a wrong spy call.
+  describe('Delay Time Tempo Sync (docs/specs/FREE_SYNC_TOGGLE.md Task 12)', () => {
+    const TOGGLE_NAME = CONTENT['ui.tempoSync'].human;
+    const FREE_WORD = CONTENT['ui.tempoSync'].options.free.lore;
+    const SYNC_WORD = CONTENT['ui.tempoSync'].options.sync.lore;
+    const nv = (division: NoteDivision, modifier: NoteModifier = 'straight'): NoteValue => ({ division, modifier });
+
+    /** Replaces the whole stored delay (so a patch without `sync` really is Free), at the given tempo. */
+    function setDelay(patch: Record<string, unknown>, bpm = 60) {
+      useAudioStore.setState((s) => ({
+        bpm,
+        globalAudio: { ...s.globalAudio, delay: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS.delay, ...patch } as never },
+      }));
+    }
+    const storedDelay = () => useAudioStore.getState().globalAudio.delay;
+    const timeThumb = () => screen.getByRole('slider', { name: 'Delay Time' });
+    const tempoToggle = () => screen.getByRole('switch', { name: TOGGLE_NAME });
+    /** Commits of everything under a Profiler — counts the PANEL's own re-renders, which memoised children hide. */
+    function renderCountingCommits(effectKey: 'delay' | 'reverb' | 'compressor' | 'eq3') {
+      let commits = 0;
+      render(
+        <Profiler id="panel" onRender={() => { commits += 1; }}>
+          <AudioRigEffectPanel effectKey={effectKey} />
+        </Profiler>,
+      );
+      return () => commits;
+    }
+
+    // Not vi.restoreAllMocks(): that would also reset the resolveAccessibleName wrapper this whole file counts with.
+    const pushSpies: Array<{ mockRestore: () => void }> = [];
+    function spyOnDelayPush() {
+      const spy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+      pushSpies.push(spy);
+      return spy;
+    }
+
+    beforeEach(() => {
+      setDelay({ delayTime: 0.5 }, 60);
+    });
+    afterEach(() => {
+      while (pushSpies.length > 0) pushSpies.pop()!.mockRestore();
+    });
+
+    describe('layout', () => {
+      it('the Delay block holds exactly one Tempo Sync slider+switch and two plain slider rows (Repeats, Amount)', () => {
+        const { container } = render(<AudioRigEffectPanel effectKey="delay" />);
+        expect(container.querySelectorAll('.sc-tempo-sync')).toHaveLength(1);
+        expect(screen.getAllByRole('switch', { name: TOGGLE_NAME })).toHaveLength(1);
+        const feedback = screen.getByRole('slider', { name: 'Repeats' });
+        const wet = screen.getByRole('slider', { name: 'Delay Amount' });
+        expect(feedback.closest('.sc-tempo-sync')).toBeNull();
+        expect(wet.closest('.sc-tempo-sync')).toBeNull();
+      });
+
+      it('Delay Time\'s Tempo Sync composition sits inside its own param-row, in the same first position as before', () => {
+        const { container } = render(<AudioRigEffectPanel effectKey="delay" />);
+        const rows = container.querySelectorAll('.audio-rig-drawer__effect-block .sc-directional-panel__content > .audio-rig-drawer__param-row');
+        expect(rows).toHaveLength(3);
+        expect(rows[0].querySelector('.sc-tempo-sync')).not.toBeNull();
+        expect(within(rows[0] as HTMLElement).getByRole('slider', { name: 'Delay Time' })).toBeTruthy();
+        expect(within(rows[1] as HTMLElement).getByRole('slider', { name: 'Repeats' })).toBeTruthy();
+        expect(within(rows[2] as HTMLElement).getByRole('slider', { name: 'Delay Amount' })).toBeTruthy();
+      });
+
+      it('no other effect block renders a Tempo Sync composition or switch', () => {
+        for (const key of ['eq3', 'filterLPF', 'filterHPF', 'reverb', 'compressor', 'limiter'] as const) {
+          const { container, unmount } = render(<AudioRigEffectPanel effectKey={key} />);
+          expect(container.querySelector('.sc-tempo-sync'), key).toBeNull();
+          expect(screen.queryByRole('switch', { name: TOGGLE_NAME }), key).toBeNull();
+          unmount();
+        }
+      });
+    });
+
+    describe('Free (no sync stored)', () => {
+      it('shows an unchecked switch with the Float facade beside the unchanged Free slider', () => {
+        setDelay({ delayTime: 0.5 });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        expect(tempoToggle().getAttribute('aria-checked')).toBe('false');
+        expect(tempoToggle().textContent).toBe(FREE_WORD);
+        expect(timeThumb().getAttribute('aria-valuenow')).toBe('0.5');
+        expect(timeThumb().hasAttribute('aria-valuetext')).toBe(false);
+      });
+
+      it('a Free edit writes delayTime and leaves the Delay without a `sync` key', () => {
+        setDelay({ delayTime: 0.5 });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        timeThumb().focus();
+        fireEvent.keyDown(timeThumb(), { key: 'ArrowRight' });
+        expect(storedDelay().delayTime).toBeGreaterThan(0.5);
+        expect('sync' in storedDelay()).toBe(false);
+      });
+
+      it('a Free edit reaches the engine as that number', () => {
+        const push = spyOnDelayPush();
+        setDelay({ delayTime: 0.5 });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        timeThumb().focus();
+        fireEvent.keyDown(timeThumb(), { key: 'ArrowRight' });
+        expect(push).toHaveBeenLastCalledWith({ delayTime: storedDelay().delayTime });
+      });
+    });
+
+    describe('Sync (a note stored)', () => {
+      it('shows a checked switch with the Anchored facade and the note\'s index on the thumb, announced by name', () => {
+        setDelay({ delayTime: 7, sync: nv('1/8', 'dotted') });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        const list = allowedDelayNoteValues(60);
+        expect(tempoToggle().getAttribute('aria-checked')).toBe('true');
+        expect(tempoToggle().textContent).toBe(SYNC_WORD);
+        expect(timeThumb().getAttribute('aria-valuenow')).toBe(String(list.findIndex((n) => noteValueEquals(n, nv('1/8', 'dotted')))));
+        expect(timeThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(nv('1/8', 'dotted')));
+        expect(timeThumb().getAttribute('aria-valuemax')).toBe(String(list.length - 1));
+      });
+
+      it('lists the notes shortest -> longest: the first stop is the shortest allowed note, the last the longest that fits 10 s', () => {
+        setDelay({ sync: nv('1/4') });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        const list = allowedDelayNoteValues(60);
+        expect(Number(timeThumb().getAttribute('aria-valuemin'))).toBe(0);
+        expect(list.length).toBeGreaterThan(2);
+        // 60 BPM: 2 bars is 8 s (fits), 4 bars is 16 s (does not)
+        expect(list.some((n) => noteValueEquals(n, nv('2')))).toBe(true);
+        expect(list.some((n) => noteValueEquals(n, nv('4')))).toBe(false);
+      });
+
+      it('ignores the stored Free delayTime while synced — it never moves the Sync thumb', () => {
+        setDelay({ delayTime: 0, sync: nv('1/4') });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        expect(timeThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(nv('1/4')));
+      });
+
+      it('a step writes `sync` with the next note, keeps the Free delayTime underneath, and pushes that note\'s seconds to the engine', () => {
+        const push = spyOnDelayPush();
+        setDelay({ delayTime: 0.3, sync: nv('1/4') });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        const list = allowedDelayNoteValues(60);
+        const next = list[list.findIndex((n) => noteValueEquals(n, nv('1/4'))) + 1];
+        timeThumb().focus();
+        fireEvent.keyDown(timeThumb(), { key: 'ArrowRight' });
+        expect(storedDelay().sync).toEqual(next);
+        expect(storedDelay().delayTime).toBe(0.3);
+        expect(push).toHaveBeenLastCalledWith({ delayTime: noteValueSeconds(next, 60) });
+      });
+
+      it('a step toward the short end moves to the previous note', () => {
+        setDelay({ delayTime: 0.3, sync: nv('1/4') });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        const list = allowedDelayNoteValues(60);
+        const previous = list[list.findIndex((n) => noteValueEquals(n, nv('1/4'))) - 1];
+        timeThumb().focus();
+        fireEvent.keyDown(timeThumb(), { key: 'ArrowLeft' });
+        expect(storedDelay().sync).toEqual(previous);
+      });
+
+      it('a step never writes delayTime — the Free value underneath stays exactly as stored', () => {
+        setDelay({ delayTime: 7.5, sync: nv('1/2') });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        timeThumb().focus();
+        fireEvent.keyDown(timeThumb(), { key: 'ArrowLeft' });
+        expect(storedDelay().delayTime).toBe(7.5);
+      });
+
+      it('stepping at the long end stays on the longest allowed note — no out-of-range note is ever written', () => {
+        const list = allowedDelayNoteValues(60);
+        setDelay({ sync: list[list.length - 1] });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        timeThumb().focus();
+        fireEvent.keyDown(timeThumb(), { key: 'ArrowRight' });
+        expect(storedDelay().sync).toEqual(list[list.length - 1]);
+      });
+
+      it('a stored long note is clamped to the longest stop at a tempo that pushes it past 10 s, and restores when the tempo comes back', async () => {
+        // 4 bars is 8 s at 120 BPM (in range) and 16 s at 60 BPM (past the cap).
+        setDelay({ sync: nv('4') }, 120);
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        expect(timeThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(nv('4')));
+
+        act(() => useAudioStore.setState({ bpm: 60 }));
+        await act(async () => { await Promise.resolve(); }); // the slider eases a non-drag change
+        const slow = allowedDelayNoteValues(60);
+        expect(timeThumb().getAttribute('aria-valuemax')).toBe(String(slow.length - 1));
+        expect(timeThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(slow[slow.length - 1]));
+        expect(storedDelay().sync).toEqual(nv('4')); // display-only: nothing written
+
+        act(() => useAudioStore.setState({ bpm: 120 }));
+        await act(async () => { await Promise.resolve(); });
+        expect(timeThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(nv('4')));
+      });
+
+      it('an unrecognised stored `sync` reads as Free, matching what the resolvers do to the audio', () => {
+        setDelay({ delayTime: 0.6, sync: { division: '1/3', modifier: 'straight' } });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        expect(tempoToggle().getAttribute('aria-checked')).toBe('false');
+        expect(timeThumb().getAttribute('aria-valuenow')).toBe('0.6');
+        expect(timeThumb().hasAttribute('aria-valuetext')).toBe(false);
+      });
+    });
+
+    describe('the toggle', () => {
+      it('Float -> Anchored writes the nearest note at the current tempo, via setDelaySyncMode', () => {
+        setDelay({ delayTime: 1 }); // 1 s at 60 BPM is exactly a quarter note
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        fireEvent.click(tempoToggle());
+        expect(storedDelay().sync).toEqual(nv('1/4'));
+        expect(tempoToggle().getAttribute('aria-checked')).toBe('true');
+      });
+
+      it('Float -> Anchored at a different tempo snaps to that tempo\'s nearest note', () => {
+        setDelay({ delayTime: 1 }, 120); // 1 s at 120 BPM is two beats: a half note
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        fireEvent.click(tempoToggle());
+        expect(storedDelay().sync).toEqual(nv('1/2'));
+      });
+
+      it('Float -> Anchored pushes that note\'s seconds to the engine', () => {
+        const push = spyOnDelayPush();
+        setDelay({ delayTime: 1 });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        fireEvent.click(tempoToggle());
+        expect(push).toHaveBeenLastCalledWith({ delayTime: 1 });
+      });
+
+      it('Anchored -> Float removes the `sync` key entirely and keeps what was heard', () => {
+        setDelay({ delayTime: 7, sync: nv('1/8', 'dotted') }); // 0.75 s at 60 BPM
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        fireEvent.click(tempoToggle());
+        expect('sync' in storedDelay()).toBe(false);
+        expect(storedDelay().delayTime).toBe(0.75);
+        expect(tempoToggle().getAttribute('aria-checked')).toBe('false');
+        expect(timeThumb().getAttribute('aria-valuenow')).toBe('0.75');
+      });
+
+      it('a Float -> Anchored -> Float round trip leaves no `sync` key', () => {
+        setDelay({ delayTime: 0.9 });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        fireEvent.click(tempoToggle());
+        expect('sync' in storedDelay()).toBe(true);
+        fireEvent.click(tempoToggle());
+        expect('sync' in storedDelay()).toBe(false);
+      });
+
+      it('flipping leaves Repeats and Amount alone', () => {
+        setDelay({ delayTime: 0.9, feedback: 0.42, wet: 0.37 });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        fireEvent.click(tempoToggle());
+        expect(storedDelay().feedback).toBe(0.42);
+        expect(storedDelay().wet).toBe(0.37);
+      });
+
+      it('a Delay at 0 s flips to Anchored without crashing and shows a note', () => {
+        setDelay({ delayTime: 0 });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        fireEvent.click(tempoToggle());
+        expect(timeThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(allowedDelayNoteValues(60)[0]));
+      });
+    });
+
+    describe('Repeats and Amount are untouched by Sync', () => {
+      it('a Repeats edit writes feedback only — no sync, no delayTime, on a synced Delay too', () => {
+        setDelay({ delayTime: 0.3, feedback: 0.3, sync: nv('1/4') });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        const repeats = screen.getByRole('slider', { name: 'Repeats' });
+        repeats.focus();
+        fireEvent.keyDown(repeats, { key: 'ArrowRight' });
+        expect(storedDelay().feedback).toBeGreaterThan(0.3);
+        expect(storedDelay().sync).toEqual(nv('1/4'));
+        expect(storedDelay().delayTime).toBe(0.3);
+      });
+
+      it('an Amount edit goes to the engine as { wet } alone — the time is not re-pushed on a synced Delay', () => {
+        const push = spyOnDelayPush();
+        setDelay({ wet: 0.3, sync: nv('1/4') });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        const amount = screen.getByRole('slider', { name: 'Delay Amount' });
+        amount.focus();
+        fireEvent.keyDown(amount, { key: 'ArrowRight' });
+        expect(push).toHaveBeenLastCalledWith({ wet: expect.any(Number) });
+        expect(Object.keys(push.mock.calls.at(-1)![0])).toEqual(['wet']);
+      });
+    });
+
+    describe('re-render isolation', () => {
+      it('a wet change (an Audio Swell tick) does not re-execute the Delay Time control — Free', () => {
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        const before = callsFor('delay.delayTime');
+        expect(before).toBeGreaterThan(0);
+        act(() => { useAudioStore.getState().setGlobalAudio('delay', { wet: 0.31 }); });
+        expect(callsFor('delay.delayTime')).toBe(before);
+      });
+
+      it('a wet change does not re-execute the Delay Time control — Sync', () => {
+        setDelay({ sync: nv('1/4') });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        const before = callsFor('delay.delayTime.sync');
+        expect(before).toBeGreaterThan(0);
+        act(() => { useAudioStore.getState().setGlobalAudio('delay', { wet: 0.31 }); });
+        expect(callsFor('delay.delayTime.sync')).toBe(before);
+      });
+
+      it('a feedback change does not re-execute the Delay Time control either', () => {
+        setDelay({ sync: nv('1/4') });
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        const before = callsFor('delay.delayTime.sync');
+        act(() => { useAudioStore.getState().setGlobalAudio('delay', { feedback: 0.6 }); });
+        expect(callsFor('delay.delayTime.sync')).toBe(before);
+      });
+
+      it('a wet change does not re-execute Repeats', () => {
+        render(<AudioRigEffectPanel effectKey="delay" />);
+        const before = callsFor('delay.feedback');
+        act(() => { useAudioStore.getState().setGlobalAudio('delay', { wet: 0.31 }); });
+        expect(callsFor('delay.feedback')).toBe(before);
+      });
+
+      it.each(['reverb', 'compressor', 'eq3'] as const)(
+        'a tempo change does not re-render the %s panel at all — only Delay subscribes to bpm',
+        (key) => {
+          const commits = renderCountingCommits(key);
+          const before = commits();
+          act(() => { useAudioStore.getState().setBPM(120); });
+          act(() => { useAudioStore.getState().setBPM(90); });
+          expect(commits()).toBe(before);
+        },
+      );
+
+      it('positive control: a tempo change DOES re-render the Delay panel (so the Profiler check above can fail)', () => {
+        setDelay({ sync: nv('1/4') });
+        const commits = renderCountingCommits('delay');
+        const before = commits();
+        act(() => { useAudioStore.getState().setBPM(120); });
+        expect(commits()).toBeGreaterThan(before);
+      });
+
+      it('a Delay sync change does not re-render an unrelated Reverb panel', () => {
+        const commits = renderCountingCommits('reverb');
+        const before = commits();
+        act(() => { useAudioStore.getState().setDelaySyncMode(true); });
+        expect(commits()).toBe(before);
+      });
     });
   });
 });
