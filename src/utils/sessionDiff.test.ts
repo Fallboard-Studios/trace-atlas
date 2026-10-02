@@ -29,6 +29,7 @@ import { RHYTHMIC_DENSITY_MAX } from '../constants';
 import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
 import { noteValueHz } from '../data/noteValues';
+import { resolveLaneRateHz, resolveDelayTimeSeconds } from './tempoSync';
 import { lfoEngine } from '../engine/lfoEngine';
 import { AudioEngine } from '../engine/AudioEngine';
 
@@ -888,6 +889,186 @@ describe('applySessionPayload', () => {
 
       expect(pushSpy.mock.calls.at(-1)![0]).toStrictEqual({ delayTime: 3, feedback: 0.3, wet: 0.2 });
       pushSpy.mockRestore();
+    });
+  });
+
+  // docs/specs/FREE_SYNC_TOGGLE.md §1.8, Task 14: a `sync` that is not a real note (a hand-edited save,
+  // a corrupt share link, a future format) must not reach state — the resolvers would treat it as
+  // Free for audio, but the toggle would read it, the next save would re-persist it, and a UI
+  // switch would show a state the audio isn't in. Dropped at the one restore boundary instead.
+  describe('Sync sanitisers at the restore boundary', () => {
+    const QUARTER = { division: '1/4', modifier: 'straight' } as const;
+    const FREE_LANE = { shape: 'sine', rate: 1.5, rateDrift: 0, depthDrift: 0 } as const;
+    const FREE_DELAY = { delayTime: 0.4, feedback: 0.3, wet: 0.2 } as const;
+    const INVALID_SYNCS: Array<[string, unknown]> = [
+      ['an unknown division', { division: '1/3', modifier: 'straight' }],
+      ['a modifier the division does not offer (2 bars dotted)', { division: '2', modifier: 'dotted' }],
+      ['the string "off"', 'off'],
+      ['null', null],
+      ['an explicit undefined', undefined],
+      ['a number', 7],
+      ['a slash-form string', '1/4'],
+      ['an array', ['1/4', 'straight']],
+      ['a missing modifier', { division: '1/4' }],
+      ['an extra key', { division: '1/4', modifier: 'straight', extra: 1 }],
+      ['an empty object', {}],
+    ];
+    // Distinct per-lane rates so a lane can never match another's value by coincidence.
+    const STORED_RATES = { a: 1.5, b: 2, c: 3, d: 5 } as const;
+
+    /** A payload whose four lanes and Delay are exactly what the caller says — never the random seed. */
+    function buildPayload(lanes: Record<string, unknown>, delay: Record<string, unknown>, bpm?: number): SessionPayload {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      return {
+        ...payload,
+        bpm,
+        lfoBank: lanes as SessionPayload['lfoBank'],
+        globalAudio: { ...payload.globalAudio, delay: delay as never },
+      };
+    }
+
+    const allLanes = (lane: Record<string, unknown>) => ({ a: { ...lane }, b: { ...lane }, c: { ...lane }, d: { ...lane } });
+    const freeLanes = () =>
+      Object.fromEntries(LFO_LANE_IDS.map((l) => [l, { ...FREE_LANE, rate: STORED_RATES[l] }])) as Record<string, unknown>;
+
+    async function notRunning() {
+      const lfoShared = await import('../engine/lfoShared');
+      return vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(false);
+    }
+    async function running() {
+      const lfoShared = await import('../engine/lfoShared');
+      return vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+    }
+
+    describe('a lane', () => {
+      it.each(INVALID_SYNCS)('with %s applies as Free: no `sync` key left in state (context not running)', async (_label, bad) => {
+        const payload = buildPayload({ ...freeLanes(), a: { ...FREE_LANE, sync: bad } }, FREE_DELAY);
+        const spy = await notRunning();
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().lfoBank.a).toStrictEqual(FREE_LANE);
+        spy.mockRestore();
+      });
+
+      it.each(INVALID_SYNCS)('with %s applies as Free: no `sync` key in state, engine plays the stored rate (context running)', async (_label, bad) => {
+        const payload = buildPayload({ ...freeLanes(), a: { ...FREE_LANE, sync: bad } }, FREE_DELAY);
+        const spy = await running();
+        lfoEngine.setBankRate('a', 8); // the engine's state outlives each test -- start from a value the restore must overwrite
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().lfoBank.a).toStrictEqual(FREE_LANE);
+        expect(lfoEngine.getBankSettings('a').rate).toBe(1.5);
+        spy.mockRestore();
+      });
+
+      it('is sanitised on every lane, not just the first', async () => {
+        const bad = { division: '1/3', modifier: 'straight' };
+        const payload = buildPayload(allLanes({ ...FREE_LANE, sync: bad }), FREE_DELAY);
+        const spy = await notRunning();
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        for (const lane of LFO_LANE_IDS) expect(useAudioStore.getState().lfoBank[lane], lane).toStrictEqual(FREE_LANE);
+        spy.mockRestore();
+      });
+
+      it('keeps a valid `sync` exactly as it came — the sanitiser drops only what is not a note', async () => {
+        const payload = buildPayload({ ...freeLanes(), b: { ...FREE_LANE, rate: 7, sync: QUARTER } }, FREE_DELAY);
+        const spy = await notRunning();
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().lfoBank.b).toStrictEqual({ ...FREE_LANE, rate: 7, sync: QUARTER });
+        spy.mockRestore();
+      });
+
+      it('keeps the rest of an invalid-synced lane intact — shape, rate and both drifts survive', async () => {
+        const lane = { shape: 'triangle', rate: 3.25, rateDrift: 0.4, depthDrift: -0.3, sync: 'off' };
+        const payload = buildPayload({ ...freeLanes(), c: lane }, FREE_DELAY);
+        const spy = await notRunning();
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().lfoBank.c).toStrictEqual({ shape: 'triangle', rate: 3.25, rateDrift: 0.4, depthDrift: -0.3 });
+        spy.mockRestore();
+      });
+
+      it('does not mutate the payload it was given — a saved session object can be applied again', async () => {
+        const bad = { division: '1/3', modifier: 'straight' };
+        const payload = buildPayload({ ...freeLanes(), a: { ...FREE_LANE, sync: bad } }, FREE_DELAY);
+        const spy = await notRunning();
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(payload.lfoBank!.a).toStrictEqual({ ...FREE_LANE, sync: bad });
+        spy.mockRestore();
+      });
+    });
+
+    describe('the Delay', () => {
+      it.each(INVALID_SYNCS)('with %s applies as Free: no `sync` key in state, engine hears the stored delayTime', async (_label, bad) => {
+        const payload = buildPayload(freeLanes(), { ...FREE_DELAY, sync: bad }, 120);
+        const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().globalAudio.delay).toStrictEqual(FREE_DELAY);
+        expect(pushSpy.mock.calls.at(-1)![0]).toStrictEqual(FREE_DELAY);
+        pushSpy.mockRestore();
+      });
+
+      it('keeps a valid `sync` exactly as it came', async () => {
+        const payload = buildPayload(freeLanes(), { ...FREE_DELAY, sync: QUARTER }, 120);
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().globalAudio.delay).toStrictEqual({ ...FREE_DELAY, sync: QUARTER });
+      });
+
+      it('leaves every other effect untouched while it drops the bad Delay `sync`', async () => {
+        const payload = buildPayload(freeLanes(), { ...FREE_DELAY, sync: 'off' }, 120);
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        const { delay: _d, ...restApplied } = useAudioStore.getState().globalAudio;
+        const { delay: _p, ...restPayload } = payload.globalAudio;
+        expect(restApplied).toStrictEqual(restPayload);
+      });
+
+      it('does not mutate the payload it was given', async () => {
+        const payload = buildPayload(freeLanes(), { ...FREE_DELAY, sync: 'off' }, 120);
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(payload.globalAudio.delay).toStrictEqual({ ...FREE_DELAY, sync: 'off' });
+      });
+    });
+
+    describe('a version-2 payload with no `sync` anywhere', () => {
+      it.each([20, 40, 100, 200])('resolves to its stored numbers at %i BPM — lanes in state and engine, Delay in state and engine', async (bpm) => {
+        const payload = buildPayload(freeLanes(), FREE_DELAY, bpm);
+        const spy = await running();
+        const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+        for (const lane of LFO_LANE_IDS) lfoEngine.setBankRate(lane, 9); // a value the restore must overwrite
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        const { lfoBank, globalAudio } = useAudioStore.getState();
+        for (const lane of LFO_LANE_IDS) {
+          expect('sync' in lfoBank[lane], `${lane} has no sync`).toBe(false);
+          expect(resolveLaneRateHz(lfoBank[lane], bpm), `${lane} state`).toBe(STORED_RATES[lane]);
+          expect(lfoEngine.getBankSettings(lane).rate, `${lane} engine`).toBe(STORED_RATES[lane]);
+        }
+        expect('sync' in globalAudio.delay).toBe(false);
+        expect(resolveDelayTimeSeconds(globalAudio.delay, bpm)).toBe(FREE_DELAY.delayTime);
+        expect(pushSpy.mock.calls.at(-1)![0]).toStrictEqual(FREE_DELAY);
+        spy.mockRestore();
+        pushSpy.mockRestore();
+      });
     });
   });
 

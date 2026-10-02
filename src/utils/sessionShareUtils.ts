@@ -6,6 +6,7 @@ import type { ADSREnvelope } from '../types/Robot';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type GlobalLfoTargetId, type RobotLfoTargetId, type LfoLink, type BankLfoSettings } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
+import { NOTE_VALUES, isNoteValue, type NoteDivision, type NoteModifier, type NoteValue } from '../data/noteValues';
 import { devWarn } from './helpers';
 
 // ========================================
@@ -51,12 +52,15 @@ interface CompactSessionPayload {
   u?: SessionPayload['userCreatedCompanies'];
 }
 
-/** BankLfoSettings, abbreviated. */
+/** BankLfoSettings, abbreviated. `y` is the lane's tempo-sync note (docs/specs/FREE_SYNC_TOGGLE.md
+ *  §1.8) -- omitted entirely for a Free lane, so a Free lane's wire entry is exactly what it was
+ *  before Sync existed. */
 interface CompactBankLfoSettings {
   s: BankLfoSettings['shape'];
   r: number;
   rd: number;
   dd: number;
+  y?: string;
 }
 
 /** LfoLink, abbreviated -- `l` omitted entirely for `lane: null` (every seeded/default link that
@@ -154,11 +158,43 @@ function fromCompactToggle(t: CompactToggle): { active: boolean; value: number }
   return { active: t.a, value: t.v };
 }
 
+/** The note-value code a lane's `y` carries: a division token plus a modifier suffix (none / d / t) --
+ *  '4' is a quarter, '8d' a dotted eighth, '1b' one bar, '4b' four bars. '1/2' -> '2' and 2 bars ->
+ *  '2b' never collide: only bars carry the 'b'. */
+const SYNC_DIVISION_TOKENS: Record<NoteDivision, string> = {
+  '1/32': '32',
+  '1/16': '16',
+  '1/8': '8',
+  '1/4': '4',
+  '1/2': '2',
+  '1': '1b',
+  '2': '2b',
+  '4': '4b',
+};
+const SYNC_MODIFIER_SUFFIXES: Record<NoteModifier, string> = { straight: '', dotted: 'd', triplet: 't' };
+
+function noteValueToCode(nv: NoteValue): string {
+  return `${SYNC_DIVISION_TOKENS[nv.division]}${SYNC_MODIFIER_SUFFIXES[nv.modifier]}`;
+}
+
+/** Every valid code -> its note, built once from the real table: exactly the 20 NOTE_VALUES codes
+ *  decode, and anything else -- unknown token, a modifier the division doesn't offer (2/4 bars are
+ *  straight-only), wrong case, padding, a non-string -- misses. A Map, not an object, so a hostile
+ *  key like '__proto__' or 'constructor' can't hit an inherited property. */
+const NOTE_VALUE_BY_CODE: ReadonlyMap<string, NoteValue> = new Map(NOTE_VALUES.map((nv) => [noteValueToCode(nv), nv]));
+
 function toCompactBankLfoSettings(b: BankLfoSettings): CompactBankLfoSettings {
-  return { s: b.shape, r: b.rate, rd: b.rateDrift, dd: b.depthDrift };
+  const compact: CompactBankLfoSettings = { s: b.shape, r: b.rate, rd: b.rateDrift, dd: b.depthDrift };
+  // isNoteValue, not a bare `!== undefined`: a lane carrying a bogus `sync` is written as Free.
+  if (isNoteValue(b.sync)) compact.y = noteValueToCode(b.sync);
+  return compact;
 }
 function fromCompactBankLfoSettings(b: CompactBankLfoSettings): BankLfoSettings {
-  return { shape: b.s, rate: b.r, rateDrift: b.rd, depthDrift: b.dd };
+  const lane: BankLfoSettings = { shape: b.s, rate: b.r, rateDrift: b.rd, depthDrift: b.dd };
+  // `y` comes off an untrusted URL: anything that isn't one of the 20 known codes leaves the lane Free.
+  const sync = typeof b.y === 'string' ? NOTE_VALUE_BY_CODE.get(b.y) : undefined;
+  if (sync !== undefined) lane.sync = sync;
+  return lane;
 }
 
 function toCompactLfoLink(link: LfoLink): CompactLfoLink {

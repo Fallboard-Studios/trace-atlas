@@ -16,7 +16,9 @@ import {
   type LfoLink,
   type BankLfoSettings,
 } from '../types/lfo';
+import type { DelaySettings } from '../types/globalAudio';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
+import { isNoteValue } from '../data/noteValues';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
@@ -62,6 +64,25 @@ function backfillLfoBank(bank: SessionPayload['lfoBank']): Record<LfoLaneId, Ban
     LfoLaneId,
     BankLfoSettings
   >;
+}
+
+/** Drops a lane's `sync` unless it is a real note value (docs/specs/FREE_SYNC_TOGGLE.md §1.8). A
+ *  payload is untrusted at this boundary -- a hand-edited localStorage save, a corrupt share link, a
+ *  future format. The resolvers already treat a bogus `sync` as Free for audio, but left in state the
+ *  toggle would read it, the next save would re-persist it, and a Free <-> Sync switch would act on a
+ *  state the audio isn't in. A Free result carries no `sync` key at all (never `sync: undefined`),
+ *  and a lane with nothing to drop is returned as-is -- the payload is never mutated. */
+function sanitizeLaneSync(lane: BankLfoSettings): BankLfoSettings {
+  if (!('sync' in lane) || isNoteValue(lane.sync)) return lane;
+  const { sync: _sync, ...free } = lane;
+  return free;
+}
+
+/** sanitizeLaneSync for the Delay -- same rule, same shape. */
+function sanitizeDelaySync(delay: DelaySettings): DelaySettings {
+  if (!('sync' in delay) || isNoteValue(delay.sync)) return delay;
+  const { sync: _sync, ...free } = delay;
+  return free;
 }
 
 /** Same backfill, for globalLfoLinks -- see backfillLfoBank above. */
@@ -457,7 +478,7 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
     );
   }
 
-  const globalAudio = payload.globalAudio;
+  const globalAudio = { ...payload.globalAudio, delay: sanitizeDelaySync(payload.globalAudio.delay) };
   useAudioStore.setState({ globalAudio });
   // A synced Delay resolves at the tempo this payload is about to install (setBPM below re-pushes it
   // too, but the engine should never hear it at the live world's old tempo in between).
@@ -481,7 +502,10 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   // this same store state once the context actually starts. The running branch REPLACES each lane
   // rather than merging it: a setLfoBank merge cannot delete a key, so a Free lane in the payload
   // would keep the live lane's stale `sync` (docs/specs/FREE_SYNC_TOGGLE.md assumption 6).
-  const lfoBank = backfillLfoBank(payload.lfoBank);
+  const backfilledBank = backfillLfoBank(payload.lfoBank);
+  const lfoBank =
+    backfilledBank &&
+    (Object.fromEntries(LFO_LANE_IDS.map((lane) => [lane, sanitizeLaneSync(backfilledBank[lane])])) as Record<LfoLaneId, BankLfoSettings>);
   if (lfoBank) {
     if (isAudioContextRunning()) {
       for (const lane of LFO_LANE_IDS) useAudioStore.getState().replaceLfoBankLane(lane, lfoBank[lane]);
