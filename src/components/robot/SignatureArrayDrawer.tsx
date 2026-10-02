@@ -125,6 +125,12 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
 
   const gainTarget = gainParam.lfoTarget!;
   const detuneTarget = detuneParam.lfoTarget!;
+  // Plain property lookups, not memoized — correct only because DEFAULT_LFO_LINK[target] is a
+  // stable module-level singleton (data/lfoConfig.ts, built once via Object.fromEntries, never
+  // reconstructed). That stability is what lets an untouched layer's own memoized LfoLink child
+  // bail out on an edit elsewhere (this component's own re-render cascade note above). If
+  // DEFAULT_LFO_LINK is ever rebuilt per-call instead of once at module load, this silently
+  // reintroduces that regression with no test failure to catch it.
   const gainLink = lfoLinks?.[gainTarget] ?? DEFAULT_LFO_LINK[gainTarget];
   const detuneLink = lfoLinks?.[detuneTarget] ?? DEFAULT_LFO_LINK[detuneTarget];
 

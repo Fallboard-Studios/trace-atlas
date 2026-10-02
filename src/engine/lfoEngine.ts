@@ -143,7 +143,11 @@ function refreshLaneDrift(lane: LfoLaneId): void {
   nodes.depthDriftGain.gain.value = settings.depthDrift * depthSwing.max;
 }
 
-/** Pull a link's Gain out of the graph without forgetting it — setFilterLinksEnabled's suspend side. */
+/** Pull a link's Gain out of the graph without forgetting it — setFilterLinksEnabled's suspend
+ *  side. Only disconnects the gain's own OUTPUT (to the target Signal/Param); the trunk's
+ *  connection to the gain's INPUT is deliberately left alone — unlike teardownLink, this is a
+ *  temporary pull a matching restoreLink call is expected to reverse, so there's nothing to
+ *  leak in the meantime and no need to redo the trunk->gain edge on restore. */
 function suspendLink(key: string): void {
   const record = links.get(key);
   if (!record || record.suspended) return;
@@ -155,13 +159,14 @@ function suspendLink(key: string): void {
   record.suspended = true;
 }
 
-/** Reverse suspendLink — reconnects trunk -> gain -> signal at the link's existing gain value. */
+/** Reverse suspendLink — reconnects gain -> signal at the link's existing gain value. The
+ *  trunk -> gain edge was never dropped by suspendLink (see its own comment), so only the
+ *  gain -> signal side needs re-establishing here. */
 function restoreLink(key: string): void {
   const record = links.get(key);
   if (!record || !record.suspended) return;
   const lane = bank.get(record.lane);
   if (!lane) return;
-  lane.trunk.connect(record.linkGain);
   try {
     connectAdditively(record.linkGain, record.signal);
   } catch (err) {
