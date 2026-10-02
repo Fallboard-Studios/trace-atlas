@@ -369,17 +369,19 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
 
 ### Phase 5: Delete the old world, persist, measure, document
 
-- [ ] **Task 16: Delete the old engine and UI primitives; rename `lfoBank.ts` → `lfoEngine.ts`**
+- [x] **Task 16: Delete the old engine and UI primitives; rename `lfoBank.ts` → `lfoEngine.ts`**
 
   **Description:** Delete `src/engine/lfoEngine.ts`, `lfoEngine.test.ts`, `lfoDrift.ts`, `lfoDrift.test.ts`, `src/systems/robotLfoPriming.ts` (+test), `src/components/ui/controls/Lfo.tsx`/`.css`/`.test.tsx`, `LfoTargetGroup.tsx`/`.css`/`.test.tsx`, `useLfoTargetGroup.ts`/`.test.ts`. `git mv src/engine/lfoBank.ts src/engine/lfoEngine.ts` (and its test); fix the import path in every caller. Remove `robotOptionsActions.applyLayerLfo`, `localeStore`'s `disposeRobotLfos` calls, `audioStore.setGlobalLfo`/`setGlobalLfoDrift` and `applyGlobalAudioToEngine`'s drift loop (their store fields go in Task 17 — this task removes only the engine-touching actions so nothing can reach a deleted module). `LfoSchema`/`'lfo'`/`LfoValue` leave `types/controls.ts`.
 
   **Acceptance criteria:**
-  - [ ] `grep -rn "lfoDrift\.ts\|robotLfoPriming\|LfoTargetGroup\|useLfoTargetGroup\|from '.*controls/Lfo'\|setGlobalLfo\b\|setGlobalLfoDrift\|applyLayerLfo\b\|disposeRobotLfos\|NEUTRAL_LFO_VALUE" src` returns nothing.
-  - [ ] `src/engine/lfoEngine.ts` exports the bank surface; `lfoEngine.test.ts` is the Task 7 suite, unchanged but for the path.
-  - [ ] No `timelineMap` key starting `lfo-target-group-` is ever set (grep).
+  - [x] `grep -rn "lfoDrift\.ts\|robotLfoPriming\|LfoTargetGroup\|useLfoTargetGroup\|from '.*controls/Lfo'\|setGlobalLfo\b\|setGlobalLfoDrift\|applyLayerLfo\b\|disposeRobotLfos\|NEUTRAL_LFO_VALUE" src` returns nothing.
+  - [x] `src/engine/lfoEngine.ts` exports the bank surface; `lfoEngine.test.ts` is the Task 7 suite, unchanged but for the path.
+  - [x] No `timelineMap` key starting `lfo-target-group-` is ever set (grep).
 
   **Verification:**
-  - [ ] `npm run build:types` clean (the compiler is the checklist), `npm run lint`, full `npm test` clean, `npm run build` clean.
+  - [x] `npm run build:types` clean (the compiler is the checklist), `npm run lint`, full `npm test` clean, `npm run build` clean.
+
+  **Notes from execution:** The plan's own file list didn't reach every live caller — found and fixed during execution, not assumed: `sessionDiff.ts`'s legacy-payload restore path called `primeRobotLfos` (removed outright, not replaced — the bank has owned live engine wiring since Task 10, so re-priming the old per-target engine on session load was already a no-op); `lfoDebug.ts`, a dev-only `window.__lfoDebug` console tool, used the old engine's per-target API with no bank equivalent (deleted, not ported — judgment call, recorded here rather than asked, since it's dev-only and trivially recoverable from git history); and roughly a dozen regression tests across `audioBudgetSystem.test.ts`, `spawnSystem.test.ts`, `localeStore.test.ts`, `CompanyOptionsSection.test.tsx`, and `RobotOptionsTab.test.tsx` that each asserted "never calls the old X" — all obsolete once X no longer exists, deleted following Task 4's own precedent for removed transitional code paths. One genuine RED-first moment: added `expect('applyLayerLfo' in robotOptionsActionsModule).toBe(false)` to `robotOptionsActions.test.ts`, matching the file's own existing `applyVolumeLfo` removed-export precedent. Every `bankEngine` alias (needed only to avoid colliding with the old `lfoEngine` import, now gone) was renamed to `lfoEngine` for clarity — not strictly required by the acceptance criteria, but left as `bankEngine` everywhere would have been a confusing, pointless vestige. The acceptance grep still matches a double-digit number of comments; all verified as the established "replaces the former X" historical-note convention (Task 3/15's own carve-out), not live identifiers — a handful of comments that were actually wrong (self-referential to this file's own pre-rename name, or naming a file/feature that no longer exists at all) were rewritten rather than left. Two known-flaky unseeded-RNG tests (`generateRobotLfoSettings`'s own oracle test, and the pre-existing `worldTransition`/`CompanyCrudControls` flakes) were hit during verification runs — confirmed as flakes by isolated rerun, not regressions, per the documented hygiene rule. Landed as 3 commits (engine-touching actions removed → files deleted + rename + every importer fixed → LfoSchema/content-key/comment cleanup) rather than the plan's implied single commit, since the rename step depended on the deletion step being complete first.
 
   **Dependencies:** Tasks 10, 12, 13, 14, 15.
   **Files:** the deletions above; `src/engine/lfoEngine.ts` (renamed) + test; every importer of `@/engine/lfoBank`; `robotOptionsActions.ts`, `localeStore.ts`, `audioStore.ts`, `types/controls.ts`.
