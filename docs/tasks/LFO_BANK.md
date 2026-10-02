@@ -440,20 +440,22 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
   **Files:** `docs/PERFORMANCE.md`.
   **Scope:** S (time, not files).
 
-- [ ] **Task 20: Docs, roadmap, grids, notes**
+- [x] **Task 20: Docs, roadmap, grids, notes**
 
   **Description:** `docs/AUDIO_SYSTEM.md`: rewrite the LFO Modulation section around the bank (lanes, links, trunk, the two dial flags, `primeLfoBank` → global links → `primeRosterLinks`), the Seeding paragraph (bands, weighted draw with order bias, 30% robot / 66% global on-odds — correcting the Load Fix's "25%"), delete every mention of the cap, held-off, drift pools and phase polling. `docs/reference/ROBOT_DATA_GRID.md`: LFO rows → lane + depth; Phase "Has LFO: No". `docs/reference/GLOBAL_CHAIN_GRID.md`: LFO? column → lane + depth. `docs/PROCEDURAL_GENERATION.md`: one sentence on the spawn-order lane tally. `docs/specs/LFO_LOAD_FIX.md`: one dated "superseded by LFO_BANK.md" note at the top. `docs/specs/FREE_SYNC_TOGGLE.md` + `docs/tasks/FREE_SYNC_TOGGLE.md`: one dated note each — re-plan against the bank (four lane toggles + Delay Time). `docs/todo/roadmap.md`: 17.2.8 entry with "Not Doing" = the intent's out-of-scope list, and a follow-up line for the running-Attenuation-Style-switch re-prime gap (spec §7 risk 8). Tick this file; update the memory note.
 
   **Acceptance criteria:**
-  - [ ] Every doc claim names a file/function that exists after Task 17; no sentence still describes a per-target LFO, a robot-LFO cap, held-off keys, drift groups or a phase target as current.
-  - [ ] `grep -rn "lfoDrift\|heldOffLfoKeys\|ROBOT_LFO_CAP\|LfoTargetGroup" docs --include=*.md` hits only archived/superseded specs and the roadmap's history lines.
+  - [x] Every doc claim names a file/function that exists after Task 17; no sentence still describes a per-target LFO, a robot-LFO cap, held-off keys, drift groups or a phase target as current.
+  - [x] `grep -rn "lfoDrift\|heldOffLfoKeys\|ROBOT_LFO_CAP\|LfoTargetGroup" docs --include=*.md` hits only archived/superseded specs and the roadmap's history lines.
 
   **Verification:**
-  - [ ] `npm test`, `npm run lint` clean (content guard unaffected). Crawford's read-through.
+  - [x] `npm test`, `npm run lint` clean (content guard unaffected). Crawford's read-through still pending.
 
   **Dependencies:** All.
   **Files:** the docs listed; this file.
   **Scope:** M (docs only).
+
+  **Notes from execution:** the task's own file list undercounted its blast radius the same way earlier tasks' compiler sweeps did for code — a repo-wide RED-first grep (before any edit) surfaced two more live reference docs describing deleted APIs as current that nothing in this task's own description named: `docs/COMPONENT_LIBRARY.md` (the whole `LfoTargetGroup`/`useLfoTargetGroup` "Shared composition components" subsection, the main primitives inventory table's `Lfo` row, the `isActive` CSS hook list, and two `DirectionalPanel`/`RadioButton` cross-references) and `docs/reference/SLIDER_VALUES.md` (the old per-target Rate/Depth/Shape table and the 4-drift-group table). Both rewritten the same way as the named files, not skipped. `docs/UI_SHELL.md` got one small fix too (a stale `globalAudio.lfoDrift.robots` identifier example and an out-of-date `RobotDriftPanel` export claim in an otherwise-historical Nav/Layout Rewrite paragraph). One real content bug found and fixed during the `SLIDER_VALUES.md` rewrite, not assumed from the plan's own prose: robot-link Depth does **not** reuse the global links' `20–50%` loading window — it seeds from `ROBOT_LFO_DEPTH_SEED_MIN` (1) to `LFO_DEPTH_MAX` (100), a much wider range, verified directly against `spawnSystem.ts`. `AUDIO_SYSTEM.md`'s own Seeding paragraph had already shipped (previous commit) with the wrong claim — caught before it could propagate, fixed in a follow-up commit. `docs/specs/FLEET_DRIFT_CONSOLIDATION.md`/`docs/specs/TEST_COVERAGE_CORE_MODULES.md`/`docs/intent/*` and their own `tasks/` siblings were confirmed to already read as historical record (completed, superseded-in-substance-if-not-in-label phases) and left untouched, per the acceptance grep's own "archived/superseded specs" carve-out. `npm run build:types` also run clean (not named in this task's own Verification line, but free given the docs-only diff). Landed as 9 commits, one per file/file-pair, plus 2 small follow-up fixup commits for the depth-range and UI_SHELL corrections found mid-task.
 
 ### Checkpoint D: Complete
 - [ ] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
