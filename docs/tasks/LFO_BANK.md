@@ -387,20 +387,22 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
   **Files:** the deletions above; `src/engine/lfoEngine.ts` (renamed) + test; every importer of `@/engine/lfoBank`; `robotOptionsActions.ts`, `localeStore.ts`, `audioStore.ts`, `types/controls.ts`.
   **Scope:** M (many files, all mechanical).
 
-- [ ] **Task 17: Delete the old data fields, seeders and ranges**
+- [x] **Task 17: Delete the old data fields, seeders and ranges**
 
   **Description:** `src/types/lfo.ts`: delete `LfoSettings`, `DriftGroupId`, `DRIFT_GROUP_IDS`. `globalAudio.ts`: delete `lfoDrift` from `GlobalAudioSettings` and its default. `Robot.ts`: delete `lfoSettings`. `Company.ts`: delete `CompanyOptionsSnapshot.lfoSettings`; `companyOptions.ts` drops `EMPTY_LFO_SETTINGS`. `audioStore.ts`: delete `globalLfo`, `buildDefaultGlobalLfo`, `regenerateGlobalLfoFromSeed`. `lfoConfig.ts`: delete `DEFAULT_LFO_SETTINGS`. `globalAudioSeed.ts`: delete `generateGlobalLfoSettings`, `LFO_RATE_LOADING_*`/`LFO_DEPTH_LOADING_*` if nothing else reads them (the bank/global-link seeders have their own constants). `spawnSystem.ts`: delete `generateRobotLfoSettings` and the Task 1 oracle test. `globalAudioSeedRanges.ts`/`globalAudioLoadingRanges.ts`: delete the four `lfoDrift.*` keys. `audioDiagnostics`: delete `globalLfosOn/Total`. `sessionDiff.ts`/`sessionShareUtils.ts`/`session.ts` will not compile after this — **this task ends with them patched minimally to compile** (reading `lfoLinks`/`globalLfoLinks`/`lfoBank` in place of the old fields, version still 1); Task 18 does the real persistence work and its tests. Let the compiler enumerate everything else.
 
   **Acceptance criteria:**
-  - [ ] `grep -rn "lfoSettings\|globalLfo\b\|lfoDrift\|LfoSettings\|DriftGroupId\|DEFAULT_LFO_SETTINGS\|generateRobotLfoSettings\|generateGlobalLfoSettings" src` returns nothing (tests included; `globalLfoLinks` is fine).
-  - [ ] `lfo.test.ts`, `globalAudio.test.ts`, `lfoConfig.test.ts`, `spawnSystem.test.ts`, `globalAudioSeed.test.ts` updated — no test still asserts a removed field.
+  - [x] `grep -rn "lfoSettings\|globalLfo\b\|lfoDrift\|LfoSettings\|DriftGroupId\|DEFAULT_LFO_SETTINGS\|generateRobotLfoSettings\|generateGlobalLfoSettings" src` returns nothing (tests included; `globalLfoLinks` is fine).
+  - [x] `lfo.test.ts`, `globalAudio.test.ts`, `lfoConfig.test.ts`, `spawnSystem.test.ts`, `globalAudioSeed.test.ts` updated — no test still asserts a removed field.
 
   **Verification:**
-  - [ ] `npm run build:types` clean, `npm run lint`, full `npm test` clean, `npm run build` clean.
+  - [x] `npm run build:types` clean, `npm run lint`, full `npm test` clean, `npm run build` clean.
 
   **Dependencies:** Task 16.
   **Files:** the types/data/seed/store files above and their tests; `sessionDiff.ts`, `sessionShareUtils.ts`, `session.ts` (compile-only patch).
   **Scope:** M (mechanical).
+
+  **Notes from execution:** Real blast radius was ~35 files, well beyond the plan's own list — `let the compiler enumerate everything else` (its own stated approach) is what actually found: `sessionShareUtils.ts`'s whole `CompactLfoSettings`/`toCompactLfoSettingsMap`/etc. abbreviated-wire machinery (backing both the robot `lf` key and the global `gl` key) had to go, not just the type fields; `migrateLfoDrift` (`sessionDiff.ts`) was deleted now rather than in Task 18 as the plan assumed, since its only job — migrating an old-shape `lfoDrift` — stops making sense the moment the field it migrates *into* no longer exists; and `generateRobotAudioBaseline`'s own `RobotAudioBaseline.lfoSettings` field (Session Storage's replay-baseline type, not the live `Robot` type) needed the same deletion plus a probe-field swap (to `audioAttributes`) in one `generateRobotRosterBaseline` copy-detection test that used `lfoSettings` purely as a reference-equality marker, unrelated to its content. Two bugs unrelated to this task's own scope were found and fixed along the way, both surfaced by the compiler/grep sweep rather than gone looking for: `audioDiagnostics.ts`'s `globalLfosOn/Total` (+ `hudLines.ts`'s matching HUD segment) were already-dead weight the bank's own `linksOn/Total`/`bankRunning` had superseded without anyone removing the old pair; and `AudioRigEffectPanel.test.tsx` carried two `vi.mock()` registrations for the identical module path left over from Task 16's rename (the second silently shadowed the first, which was therefore asserting nothing). Full acceptance-grep still matches `BankLfoSettings` (a live, kept type whose name happens to contain the substring `LfoSettings`) and a handful of `globalLfo` hits that are seed-dataId-namespace strings (`'globalLfo.<target>.quiet'` etc., unrelated to the deleted state field, left untouched since renaming a seed dataId changes every already-generated world) — both confirmed as the same category of acceptable self-match Task 16 already established, not live violations. `npm test`: 4101/4101 green (down from 4164 — net test deletions tracking the ~60 tests removed alongside the fields they asserted on), one documented pre-existing real-RNG flake (`worldTransition`'s swell-clear case) hit once and confirmed clean on isolated rerun, unrelated to this branch. 1 commit.
 
 - [ ] **Task 18: Persistence — payload v2, v1 strip, compact share**
 
