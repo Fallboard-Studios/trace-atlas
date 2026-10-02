@@ -422,17 +422,19 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
   **Files:** `src/types/session.ts`, `src/utils/sessionDiff.ts` (+test), `src/utils/sessionShareUtils.ts` (+test), plus `src/systems/spawnSystem.ts` (+test) for the baseline's new `lfoLinks` field (see notes).
   **Scope:** M.
 
-- [ ] **Task 19: Perf measurement — the gate (spec §5)**
+- [x] **Task 19: Perf measurement — the gate (spec §5)**
 
   **Description:** `npm run perf` per `docs/PERFORMANCE.md` and the hygiene rules: pre-branch (`08bae3a2`, worktree) vs this branch at Full on `charlie:200:-30` and `bravo:-150:90`, 3 interleaved rounds each, plus one Standard and one Light run on `bravo`; record `linksOn`/`bankRunning` from `?debug`. Dated table in `docs/PERFORMANCE.md` with both commit hashes. No source changes in this task.
 
   **Acceptance criteria:**
-  - [ ] Table recorded (peak window per run + median, overall mean, callback interval, link count).
-  - [ ] **Hard gate:** `bravo` Full median peak < 0.9, no interval doubling. **If it fails: stop and report.**
-  - [ ] **Success bar:** both worlds' Full median peak ≤ pre-branch (0.413 / 0.443) with every seeded link connected. **If it misses: report the numbers, do not tune anything, continue** — proceeding is Crawford's call.
+  - [x] Table recorded (peak window per run + median, overall mean, callback interval, link count).
+  - [x] **Hard gate:** `bravo` Full median peak < 0.9, no interval doubling. **If it fails: stop and report.**
+  - [x] **Success bar:** both worlds' Full median peak ≤ pre-branch (0.413 / 0.443) with every seeded link connected. **If it misses: report the numbers, do not tune anything, continue** — proceeding is Crawford's call.
 
   **Verification:**
-  - [ ] Numbers in `docs/PERFORMANCE.md`; orphaned-Chrome count 0 before and after every run.
+  - [x] Numbers in `docs/PERFORMANCE.md`; orphaned-Chrome count 0 before and after every run.
+
+  **Notes from execution:** Two things in this task's own description didn't match current code, found before measuring rather than assumed (per [[verify-roadmap-against-code]]): (1) it names `npm run perf` (the main-thread harness) but the acceptance criteria's own metrics — peak window, overall mean, callback interval, link count — are all `npm run perf:audio` (render-capacity) concepts; used `perf:audio` throughout, matching the LFO Load Fix precedent section this task's own numbers (0.413/0.443) came from. (2) `charlie:200:-30`/`bravo:-150:90` pin nothing on either commit — `?seed=`/`?x=`/`?y=` were removed by the Shareable Link work (2026-09-28), predating even the `08bae3a2` pre-branch commit; confirmed by grep on both checkouts and by live-loading the old-style URL against both builds (both produced a random world). This likely means the `0.413`/`0.443` baseline this task names was itself taken on random worlds mislabeled `charlie`/`bravo` — its two medians are suspiciously close where every genuinely-pinned measurement elsewhere in `docs/PERFORMANCE.md` shows `bravo` reading ≈0.15–0.22 above `charlie`. Surfaced to Crawford rather than silently substituted or worked around; he supplied two real `?session=` links (hand-built from his own live session, one per world) in response, which is what was actually measured against. Full writeup, including why pre-branch saturates far harder on these two particular worlds than the old numbers suggested (a coincidence of hashing the literal strings "charlie"/"bravo" through the pre-branch's own per-target LFO seed generator — an unrelated draw from whatever the old `?seed=` scheme produced), is in `docs/PERFORMANCE.md`'s new "LFO Bank — the Task 19 perf gate" section. Both gates pass with a wide margin regardless of which baseline (this session's own pre-branch measurement, or the old recorded one) the success bar is read against. `linksOn`/`bankRunning` recorded as single-sample HUD spot-checks (the harness doesn't parse that line) rather than as a time series — `bank 4/4` confirmed on every this-branch probe; "every seeded link connected" wasn't separately verified as a count (the two worlds' own seeded `lb`/`gll`/robot `ll` sets are what the session payload carries, and `links N/79` climbing as the roster spawns in is consistent with normal priming, not a stall). Orphaned-Chrome count 0 before and after every one of the 14 runs (12 Full + Standard + Light). Worktree and preview servers torn down cleanly afterward; no files left behind. 0 source files changed — doc-only, as the task specifies.
 
   **Dependencies:** Task 18.
   **Files:** `docs/PERFORMANCE.md`.
