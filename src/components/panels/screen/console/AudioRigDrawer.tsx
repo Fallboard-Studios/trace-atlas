@@ -9,11 +9,9 @@ import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero'
 import { Stepper } from '@/components/ui/controls/Stepper';
 import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
 import { LfoLink } from '@/components/ui/controls/LfoLink';
-import { withHeldOffClass } from '@/components/ui/controls/activeClass';
 import {
   AUDIO_RIG_CONFIG,
   DECAY_MODE_SCHEMA,
-  LFO_DRIFT_GROUPS,
   PING_VARIANCE_AUTOMATION_SCHEMA,
   type AudioRigParamSchema,
   type AudioRigEffectKey,
@@ -141,50 +139,6 @@ export function AudioRigDrawer() {
         onChange={handlePingVarianceChange}
       />
     </div>
-  );
-}
-
-const GLOBAL_FX_DRIFT_GROUP = LFO_DRIFT_GROUPS.find((g) => g.group === 'globalFx')!;
-
-/**
- * Fleet Drift — the merged eq3/filterLPF/filterHPF drift control (docs/specs/
- * FLEET_DRIFT_CONSOLIDATION.md), replacing the 3 Rate/Depth Drift slider pairs that used to be
- * embedded inside EQ's/LPF's/HPF's own AudioRigEffectPanel instances. Structurally mirrors
- * RobotDriftPanel (SignatureArrayDrawer.tsx) exactly: looks up its own LFO_DRIFT_GROUPS entry
- * once at module scope, reads/writes useAudioStore directly (not via props — this is a rig-wide
- * control, not scoped to whichever effect happens to be selected), and renders one
- * DirectionalPanel with its 2 SliderCenteredZeros + HeldOffNote. Rendered by
- * FleetParamsContent.tsx's own Fleet Drift leaf, a new top-level Fleet Params group sibling to
- * EQ & Filters — not nested inside any AudioRigEffectPanel.
- */
-export function FleetDriftPanel() {
-  const rateDrift = useAudioStore((s) => s.globalAudio.lfoDrift.globalFx.rateDrift);
-  const depthDrift = useAudioStore((s) => s.globalAudio.lfoDrift.globalFx.depthDrift);
-  const setGlobalLfoDrift = useAudioStore((s) => s.setGlobalLfoDrift);
-  // Audio Load Budget: greys out (values kept) while the dial keeps drift off — same condition
-  // RobotDriftPanel's own 'robots' drift reads.
-  const driftHeldOff = useAudioStore((s) => s.driftHeldOff);
-
-  return (
-    <DirectionalPanel schema={GLOBAL_FX_DRIFT_GROUP.panel}>
-      <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
-        <SliderCenteredZero
-          schema={GLOBAL_FX_DRIFT_GROUP.rateSchema}
-          value={driftHeldOff ? 0 : rateDrift * 100}
-          onChange={(v) => setGlobalLfoDrift('globalFx', { rateDrift: v / 100 })}
-          disabled={driftHeldOff}
-        />
-      </div>
-      <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
-        <SliderCenteredZero
-          schema={GLOBAL_FX_DRIFT_GROUP.depthSchema}
-          value={driftHeldOff ? 0 : depthDrift * 100}
-          onChange={(v) => setGlobalLfoDrift('globalFx', { depthDrift: v / 100 })}
-          disabled={driftHeldOff}
-        />
-      </div>
-      {driftHeldOff && <HeldOffNote />}
-    </DirectionalPanel>
   );
 }
 

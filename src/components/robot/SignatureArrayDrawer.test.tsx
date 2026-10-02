@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 
 // CabinetBox (used by every RadioButton here — the Type radio and each LfoLink's own lane
@@ -8,19 +8,6 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 // unless timelineMap itself is mocked — the established convention every GSAP-timeline test in
 // this codebase uses (e.g. AudioRigDrawer.test.tsx).
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));
-
-// The Robot Drift panel (docs/tasks/DIRECTIONAL_PANEL_WIRING.md "some fixes" follow-up) reads/
-// writes the global lfoDrift.robots slice directly via useAudioStore, whose setGlobalLfoDrift
-// calls into lfoEngine — same real-AudioContext-throws-in-jsdom concern AudioRigDrawer.test.tsx
-// already works around by mocking this module. SignatureArrayDrawer itself no longer renders
-// RobotDriftPanel (docs/tasks/LFO_BANK.md Task 12), but this file's own standalone
-// RobotDriftPanel describe block still mounts it directly.
-vi.mock('@/engine/lfoEngine', () => ({
-  lfoEngine: {
-    setGlobalRateDrift: vi.fn(),
-    setGlobalDepthDrift: vi.fn(),
-  },
-}));
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual implementation) so
 // a per-layer cascade regression test (docs/todo/backlog.md #27 follow-up, 2026-09-15) can tell
@@ -32,10 +19,8 @@ vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
 });
 
-import { SignatureArrayDrawer, SignatureArrayLayer, RobotDriftPanel, type SignatureArrayValue } from './SignatureArrayDrawer';
+import { SignatureArrayDrawer, SignatureArrayLayer, type SignatureArrayValue } from './SignatureArrayDrawer';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
-import { useAudioStore } from '@/stores/audioStore';
-import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
 import { SIGNATURE_ARRAY_CONFIG } from '@/data/robotOptionsConfig';
 import { CONTENT } from '@/content';
 import type { OscillatorLayer } from '@/types/layeredAudio';
@@ -536,20 +521,3 @@ describe('SignatureArrayLayer — exported standalone (docs/tasks/NAV_PANEL_VIEW
   });
 });
 
-describe('RobotDriftPanel — exported standalone (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10, renamed "Probe Drift" as a nav label only — this component\'s own name is unaffected). No longer rendered by SignatureArrayDrawer as of Task 12 (docs/tasks/LFO_BANK.md) — only Fleet Params\' own "Voice Drift" leaf mounts it now.', () => {
-  beforeEach(() => {
-    useAudioStore.setState((s) => ({
-      globalAudio: { ...s.globalAudio, lfoDrift: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS.lfoDrift } },
-    }));
-  });
-
-  it('renders the Rate Drift/Depth Drift sliders, bound to the same global lfoDrift.robots slice as before', () => {
-    render(<RobotDriftPanel />);
-    expect(screen.getByRole('slider', { name: 'Rate Drift' })).toBeTruthy();
-    expect(screen.getByRole('slider', { name: 'Depth Drift' })).toBeTruthy();
-  });
-
-  it('is independently mountable — no SignatureArrayDrawer/layer content required', () => {
-    expect(() => render(<RobotDriftPanel />)).not.toThrow();
-  });
-});

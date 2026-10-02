@@ -57,13 +57,13 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
     expect(sectorSettings?.children?.map((c) => c.humanLabel)).toEqual([CONTENT['sector.attenuationStyle'].human, CONTENT['sector.coords'].human]);
   });
 
-  it('Fleet Params has Pacing plus 3 category groups (EQ & Filters, Time & Space, Output), each with their own leaves', () => {
+  it('Fleet Params has Pacing plus 4 category groups (LFO Bank, EQ & Filters, Time & Space, Output), each with their own leaves', () => {
     const fleetParams = findNode('fleetParams');
     expect(fleetParams?.humanLabel).toBe(CONTENT['fleet.root'].human);
     expect(fleetParams?.children?.map((c) => c.id)).toEqual([
       'fleetParams.pacing',
+      'fleetParams.lfoBank',
       'fleetParams.eqFilters',
-      'fleetParams.fleetDrift',
       'fleetParams.timeSpace',
       'fleetParams.output',
     ]);
@@ -90,11 +90,21 @@ describe('NAV_TREE_SCHEMA — static tree shape (docs/specs/NAV_LAYOUT_REWRITE.m
     ]);
   });
 
-  it('Fleet Params -> Drift has exactly 2 leaves, Environmental Drift then Voice Drift (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — new top-level group, positioned right after EQ & Filters; further renamed "LFO Drift"->"Drift" and its 2 leaves per docs/reference/text-content-tables.md)', () => {
-    const fleetDrift = findNode('fleetParams.fleetDrift');
-    expect(fleetDrift?.humanLabel).toBe(CONTENT['fleet.drift'].human);
-    expect(fleetDrift?.children?.map((c) => c.id)).toEqual(['fleetParams.fleetDrift.drift', 'fleetParams.fleetDrift.robots']);
-    expect(fleetDrift?.children?.map((c) => c.humanLabel)).toEqual([CONTENT['fleet.drift.environmental'].human, CONTENT['fleet.drift.voice'].human]);
+  it('Fleet Params -> LFO Bank has exactly 4 leaves, one per world lane in a-b-c-d order (docs/tasks/LFO_BANK.md Task 15 — new top-level group, positioned right after Pacing, replacing the former Drift group entirely)', () => {
+    const lfoBank = findNode('fleetParams.lfoBank');
+    expect(lfoBank?.humanLabel).toBe(CONTENT['fleet.lfoBank'].human);
+    expect(lfoBank?.children?.map((c) => c.id)).toEqual([
+      'fleetParams.lfoBank.a',
+      'fleetParams.lfoBank.b',
+      'fleetParams.lfoBank.c',
+      'fleetParams.lfoBank.d',
+    ]);
+    expect(lfoBank?.children?.map((c) => c.humanLabel)).toEqual([
+      CONTENT['fleet.lfoBank.laneA'].human,
+      CONTENT['fleet.lfoBank.laneB'].human,
+      CONTENT['fleet.lfoBank.laneC'].human,
+      CONTENT['fleet.lfoBank.laneD'].human,
+    ]);
   });
 
   it('Fleet Params -> Time & Space has Reverb/Delay leaves', () => {
@@ -180,8 +190,8 @@ describe('NAV_TREE_SCHEMA — trait color-coding (experimental, Crawford\'s own 
     expect(findNode('fleetParams.output')?.trait).toBe('output');
   });
 
-  it('Drift matches EQ & Filters\' own spectral trait — it\'s drift of those same effects (docs/specs/FLEET_DRIFT_CONSOLIDATION.md §1.3, not yet confirmed with Crawford)', () => {
-    expect(findNode('fleetParams.fleetDrift')?.trait).toBe('spectral');
+  it('LFO Bank matches Time & Space\'s own trait (docs/tasks/LFO_BANK.md Task 15 — FleetParamsContent.tsx\'s own FLEET_PARAMS_GROUPS entry sets this explicitly)', () => {
+    expect(findNode('fleetParams.lfoBank')?.trait).toBe('timeSpace');
   });
 
   it('Fleet Params\' individual leaves have no trait of their own — they inherit their own group\'s', () => {

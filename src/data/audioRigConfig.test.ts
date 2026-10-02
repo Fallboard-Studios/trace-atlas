@@ -9,7 +9,7 @@ import * as audioRigConfigModule from './audioRigConfig';
 import {
   AUDIO_RIG_CONFIG,
   DECAY_MODE_SCHEMA,
-  LFO_DRIFT_GROUPS,
+  LFO_BANK_LANE_SCHEMAS,
   PING_VARIANCE_AUTOMATION_SCHEMA,
   SWELL_FREQUENCY_SCHEMA,
   SWELL_FREQUENCY_STEPS,
@@ -22,9 +22,9 @@ import {
   type AudioRigEffectKey,
 } from './audioRigConfig';
 import { AUDIO_LOAD_PRESETS } from '../constants';
-import { DRIFT_GROUP_IDS } from '../types/lfo';
 import { GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
-import { CONTENT, labels } from '@/content';
+import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX } from '../types/lfo';
+import { CONTENT, labels, options } from '@/content';
 import type { ControlSchema } from '@/types/controls';
 
 // ========================================
@@ -267,60 +267,62 @@ describe('DECAY_MODE_SCHEMA', () => {
   });
 });
 
-describe('LFO_DRIFT_GROUPS', () => {
-  it('has exactly 2 entries, one per DriftGroupId (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF merged into globalFx)', () => {
-    expect(LFO_DRIFT_GROUPS.map((g) => g.group).sort()).toEqual([...DRIFT_GROUP_IDS].sort());
+describe('LFO_BANK_LANE_SCHEMAS (docs/specs/LFO_BANK.md Task 15)', () => {
+  it('has exactly one entry per LfoLaneId', () => {
+    expect(Object.keys(LFO_BANK_LANE_SCHEMAS).sort()).toEqual([...LFO_LANE_IDS].sort());
   });
 
-  it('every entry has a valid, global chain-level panel — no separate accordion field (removed, DirectionalPanel wiring Task 2)', () => {
-    for (const driftGroup of LFO_DRIFT_GROUPS) {
-      expect(driftGroup.panel).toMatchObject({ id: `audioRig.lfoDrift.${driftGroup.group}`, type: 'directionalPanel' });
-      expect('accordion' in driftGroup).toBe(false);
+  it("every lane's panel is a directionalPanel with a unique id, labeled from its own fleet.lfoBank.lane<X> content entry", () => {
+    const laneContent = { a: 'fleet.lfoBank.laneA', b: 'fleet.lfoBank.laneB', c: 'fleet.lfoBank.laneC', d: 'fleet.lfoBank.laneD' } as const;
+    for (const lane of LFO_LANE_IDS) {
+      const schema = LFO_BANK_LANE_SCHEMAS[lane];
+      expect(schema.panel, lane).toMatchObject({ type: 'directionalPanel' });
+      expect(schema.panel.humanLabel, lane).toBe(CONTENT[laneContent[lane]].human);
+      expect(schema.panel.loreLabel, lane).toBe(CONTENT[laneContent[lane]].lore);
     }
   });
 
-  it('every entry\'s rate/depth schemas are sliderCenteredZero, -100 to 100, percent — matching the UI-facing bipolar percent, not lfoEngine\'s internal -1..1 fraction', () => {
-    for (const driftGroup of LFO_DRIFT_GROUPS) {
-      expect(driftGroup.rateSchema, driftGroup.group).toMatchObject({ type: 'sliderCenteredZero', min: -100, max: 100, unit: '%' });
-      expect(driftGroup.depthSchema, driftGroup.group).toMatchObject({ type: 'sliderCenteredZero', min: -100, max: 100, unit: '%' });
+  it("every lane's shape control is a radio bound to ui.lfo.shape's 4 options", () => {
+    for (const lane of LFO_LANE_IDS) {
+      const schema = LFO_BANK_LANE_SCHEMAS[lane];
+      expect(schema.shape.type, lane).toBe('radio');
+      expect(schema.shape.humanLabel, lane).toBe(CONTENT['ui.lfo.shape'].human);
+      expect(schema.shape.options, lane).toEqual(options('ui.lfo.shape'));
     }
   });
 
-  it('every id across both entries (2 panels + 4 sliders) is unique', () => {
-    const allIds = LFO_DRIFT_GROUPS.flatMap((g) => [g.panel.id, g.rateSchema.id, g.depthSchema.id]);
-    expect(allIds).toHaveLength(6);
-    expect(new Set(allIds).size).toBe(6);
-  });
-
-  it('every entry\'s rate and depth schemas have distinct human labels — never a shared generic "Drift" indistinguishable to a screen reader', () => {
-    for (const driftGroup of LFO_DRIFT_GROUPS) {
-      expect(driftGroup.rateSchema.humanLabel, driftGroup.group).not.toBe(driftGroup.depthSchema.humanLabel);
-      expect(driftGroup.rateSchema.humanLabel, driftGroup.group).toBeTruthy();
-      expect(driftGroup.depthSchema.humanLabel, driftGroup.group).toBeTruthy();
+  it("every lane's rate control is a linear slider spanning LFO_RATE_MIN..LFO_RATE_MAX, step 0.05, labeled from ui.lfo.rate", () => {
+    for (const lane of LFO_LANE_IDS) {
+      const schema = LFO_BANK_LANE_SCHEMAS[lane];
+      expect(schema.rate, lane).toMatchObject({
+        type: 'sliderLinear', min: LFO_RATE_MIN, max: LFO_RATE_MAX, step: 0.05, orientation: 'horizontal',
+      });
+      expect(schema.rate.humanLabel, lane).toBe(CONTENT['ui.lfo.rate'].human);
+      expect(schema.rate.unit, lane).toBe(CONTENT['ui.lfo.rate'].unit);
     }
   });
 
-  it('none of LFO_DRIFT_GROUPS\' schema ids appear anywhere inside AUDIO_RIG_CONFIG\'s array — lfoDrift is a top-level GlobalAudioSettings flag, not a matching AudioRigEffectBlock key', () => {
-    expect(AUDIO_RIG_CONFIG.map((b) => b.key as string)).not.toContain('lfoDrift');
-    const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [
-      b.panel.id,
-      ...b.params.map((p) => p.schema.id),
-    ]);
-    const driftSchemaIds = LFO_DRIFT_GROUPS.flatMap((g) => [g.panel.id, g.rateSchema.id, g.depthSchema.id]);
-    for (const id of driftSchemaIds) {
-      expect(allConfigSchemaIds, id).not.toContain(id);
+  it("every lane's rateDrift/depthDrift are centered-zero sliders, -100 to 100, percent, labeled from fleet.lfoBank.rateDrift/.depthDrift", () => {
+    for (const lane of LFO_LANE_IDS) {
+      const schema = LFO_BANK_LANE_SCHEMAS[lane];
+      expect(schema.rateDrift, lane).toMatchObject({ type: 'sliderCenteredZero', min: -100, max: 100, unit: '%', orientation: 'horizontal' });
+      expect(schema.depthDrift, lane).toMatchObject({ type: 'sliderCenteredZero', min: -100, max: 100, unit: '%', orientation: 'horizontal' });
+      expect(schema.rateDrift.humanLabel, lane).toBe(CONTENT['fleet.lfoBank.rateDrift'].human);
+      expect(schema.depthDrift.humanLabel, lane).toBe(CONTENT['fleet.lfoBank.depthDrift'].human);
     }
   });
 
-  it('the closed-set coverage assertion over AUDIO_RIG_CONFIG\'s own param schema types is unaffected — LFO_DRIFT_GROUPS is a standalone export, not part of that array', () => {
-    expect(AUDIO_RIG_CONFIG.length).toBe(7); // still exactly the 7 GLOBAL_CHAIN_GRID.md effect blocks
+  it('every id across all 4 lanes (5 fields each) is unique', () => {
+    const allIds = LFO_LANE_IDS.flatMap((lane) => {
+      const schema = LFO_BANK_LANE_SCHEMAS[lane];
+      return [schema.panel.id, schema.shape.id, schema.rate.id, schema.rateDrift.id, schema.depthDrift.id];
+    });
+    expect(allIds).toHaveLength(20);
+    expect(new Set(allIds).size).toBe(20);
   });
 
-  it("the 'robots' entry's shape (id, sliders) is unaffected by the eq3/filterLPF/filterHPF merge — only its lore/human copy changed, in the later docs/reference/text-content-tables.md pass", () => {
-    const robots = LFO_DRIFT_GROUPS.find((g) => g.group === 'robots')!;
-    expect(robots.panel).toEqual({ id: 'audioRig.lfoDrift.robots', type: 'directionalPanel', ...labels('fleet.drift.voice'), orientation: 'column' });
-    expect(robots.rateSchema).toMatchObject({ id: 'audioRig.lfoDrift.robots.rateDrift', min: -100, max: 100, unit: '%' });
-    expect(robots.depthSchema).toMatchObject({ id: 'audioRig.lfoDrift.robots.depthDrift', min: -100, max: 100, unit: '%' });
+  it('remains JSON-serializable', () => {
+    expect(() => JSON.stringify(LFO_BANK_LANE_SCHEMAS)).not.toThrow();
   });
 });
 
@@ -518,10 +520,11 @@ describe('slider orientation classification (docs/specs/VERTICAL_SLIDERS.md §1.
     expect(orientationOf(findParam('limiter', 'threshold').schema)).toBe('horizontal');
   });
 
-  it('both LFO_DRIFT_GROUPS (Rate Drift/Depth Drift), including "robots", are horizontal (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3)', () => {
-    for (const group of LFO_DRIFT_GROUPS) {
-      expect(group.rateSchema.orientation, `${group.group}.rateDrift`).toBe('horizontal');
-      expect(group.depthSchema.orientation, `${group.group}.depthDrift`).toBe('horizontal');
+  it('every lane\'s Rate Drift/Depth Drift (LFO_BANK_LANE_SCHEMAS) is horizontal (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3)', () => {
+    for (const lane of LFO_LANE_IDS) {
+      const schema = LFO_BANK_LANE_SCHEMAS[lane];
+      expect(schema.rateDrift.orientation, `${lane}.rateDrift`).toBe('horizontal');
+      expect(schema.depthDrift.orientation, `${lane}.depthDrift`).toBe('horizontal');
     }
   });
 
@@ -602,35 +605,6 @@ describe('AudioRigEffectBlock.panel (DirectionalPanel wiring, Tasks 1-2)', () =>
   it('no longer has an accordion field — superseded by panel (Task 2 cleanup)', () => {
     for (const block of AUDIO_RIG_CONFIG) {
       expect('accordion' in block, block.key).toBe(false);
-    }
-  });
-});
-
-describe('LfoDriftGroupSchema.panel (DirectionalPanel wiring, Tasks 1-2)', () => {
-  it('every drift group has a panel field, type directionalPanel, column orientation, id audioRig.lfoDrift.<group>', () => {
-    for (const group of LFO_DRIFT_GROUPS) {
-      expect(group.panel, group.group).toMatchObject({
-        id: `audioRig.lfoDrift.${group.group}`,
-        type: 'directionalPanel',
-        orientation: 'column',
-      });
-    }
-  });
-
-  it("every panel's loreLabel/humanLabel matches LFO_DRIFT_GROUPS' own invented labels (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF's 3 former entries merged into one globalFx entry; labels further renamed by docs/reference/text-content-tables.md)", () => {
-    const expectedLabels: Record<string, { loreLabel?: string; humanLabel: string }> = {
-      globalFx: labels('fleet.drift.environmental'),
-      robots: labels('fleet.drift.voice'),
-    };
-    for (const group of LFO_DRIFT_GROUPS) {
-      expect(group.panel.loreLabel, group.group).toBe(expectedLabels[group.group].loreLabel);
-      expect(group.panel.humanLabel, group.group).toBe(expectedLabels[group.group].humanLabel);
-    }
-  });
-
-  it('no longer has an accordion field — superseded by panel (Task 2 cleanup)', () => {
-    for (const group of LFO_DRIFT_GROUPS) {
-      expect('accordion' in group, group.group).toBe(false);
     }
   });
 });

@@ -16,7 +16,8 @@
  * carries a per-param accordion schema of its own.
  */
 import type { ControlSchema, DirectionalPanelSchema, PanelOrientation, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema, SliderLogSchema } from '@/types/controls';
-import type { GlobalLfoTargetId, DriftGroupId } from '@/types/lfo';
+import type { GlobalLfoTargetId, LfoLaneId } from '@/types/lfo';
+import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX } from '@/types/lfo';
 import { formatDisplayValue } from '@/components/ui/controls/formatDisplayValue';
 import { CONTENT, labels, options, fill, type ContentKey } from '@/content';
 
@@ -177,56 +178,62 @@ export const DECAY_MODE_SCHEMA: RadioButtonSchema = {
   options: options('fleet.output.decayMode'),
 };
 
-/**
- * Global LFO drift (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — restructured
- * from docs/specs/archive/LFO_DRIFT_GROUPS.md's 4-group shape) — 2
- * independent groups (docs/types/lfo.ts's DriftGroupId: 'globalFx' |
- * 'robots'), each its own two bipolar sliders, standalone like
- * DECAY_MODE_SCHEMA above: `lfoDrift` is a top-level GlobalAudioSettings
- * flag, not a per-effect object, so none of these ever match an
- * AudioRigEffectBlock key or get added to AUDIO_RIG_CONFIG's own array.
- * Sliders are UI-facing percent (-100..100); the drawer wiring point
- * converts to/from lfoEngine's internal -1..1 fraction, matching how
- * Depth's own 0-100% UI already maps to lfoEngine's 0-1 internal amplitude
- * domain elsewhere in this file's consumers.
- *
- * Replaces the single flat LFO_DRIFT_ACCORDION/LFO_RATE_DRIFT_SCHEMA/
- * LFO_DEPTH_DRIFT_SCHEMA trio docs/specs/archive/LFO_DRIFT.md originally
- * shipped.
- */
-export interface LfoDriftGroupSchema {
-  group: DriftGroupId;
-  /** DirectionalPanel wiring (docs/tasks/DIRECTIONAL_PANEL_WIRING.md) — supersedes this entry's
-   *  old `accordion:` field (its own accordion-typed schema, removed Task 2). Only the 'robots' entry's `.panel`
-   *  is actually read post-wiring (AudioRigDrawer.tsx nests it inside Transport & Composition);
-   *  the eq3/filterLPF/filterHPF entries keep it for schema-shape consistency across this array,
-   *  same as their `.accordion` field was unused by the drawer before this restructure. */
+// ========================================
+// LFO BANK LANE SCHEMAS (docs/specs/LFO_BANK.md Task 15) — the LFO Bank accordion's own 4 lane
+// panels, replacing the old 2-group (globalFx/robots) Drift accordion entirely. Each lane owns its
+// own Shape + Rate (the lane's own primary oscillator — the same controls Lfo.tsx's
+// RadioButton/SliderLinear pair used per-target, now one shared instance per lane) plus a Rate
+// Drift/Depth Drift pair, restated per lane instead of per drift-group — LfoBankLanePanel.tsx is
+// the sole consumer. Drift sliders are UI-facing percent (-100..100); the drawer wiring point
+// converts to/from audioStore.lfoBank's internal -1..1 fraction.
+// ========================================
+
+export interface LfoBankLaneSchema {
   panel: DirectionalPanelSchema;
-  rateSchema: SliderCenteredZeroSchema;
-  depthSchema: SliderCenteredZeroSchema;
+  shape: RadioButtonSchema;
+  rate: SliderLinearSchema;
+  rateDrift: SliderCenteredZeroSchema;
+  depthDrift: SliderCenteredZeroSchema;
 }
 
-function driftGroupSchema(
-  group: DriftGroupId,
-  panelKey: ContentKey,
-  rateKey: ContentKey,
-  depthKey: ContentKey,
-): LfoDriftGroupSchema {
+/** fleet.lfoBank.laneA-D restate ui.lfoLane's own a-d names verbatim (kept in sync by hand, not by
+ *  reference — see fleet.ts's own comment on these keys). */
+const LFO_BANK_LANE_CONTENT: Record<LfoLaneId, ContentKey> = {
+  a: 'fleet.lfoBank.laneA',
+  b: 'fleet.lfoBank.laneB',
+  c: 'fleet.lfoBank.laneC',
+  d: 'fleet.lfoBank.laneD',
+};
+
+/** The Rate slider's own draggable step — same RATE_STEP Lfo.tsx anchored at LFO_RATE_MIN (0) so
+ *  0 (the lane holding still) is always a reachable rung, not just an endpoint rounding error. */
+const LANE_RATE_STEP = 0.05;
+
+function lfoBankLaneSchema(lane: LfoLaneId): LfoBankLaneSchema {
   return {
-    group,
-    panel: { id: `audioRig.lfoDrift.${group}`, type: 'directionalPanel', ...labels(panelKey, { surface: 'heading' }), orientation: 'column' },
-    rateSchema: {
-      id: `audioRig.lfoDrift.${group}.rateDrift`,
+    panel: { id: `audioRig.lfoBank.${lane}`, type: 'directionalPanel', ...labels(LFO_BANK_LANE_CONTENT[lane]), orientation: 'column' },
+    shape: { id: `audioRig.lfoBank.${lane}.shape`, type: 'radio', ...labels('ui.lfo.shape'), options: options('ui.lfo.shape') },
+    rate: {
+      id: `audioRig.lfoBank.${lane}.rate`,
+      type: 'sliderLinear',
+      ...labels('ui.lfo.rate'),
+      min: LFO_RATE_MIN,
+      max: LFO_RATE_MAX,
+      step: LANE_RATE_STEP,
+      orientation: 'horizontal',
+    },
+    rateDrift: {
+      id: `audioRig.lfoBank.${lane}.rateDrift`,
       type: 'sliderCenteredZero',
-      ...labels(rateKey),
+      ...labels('fleet.lfoBank.rateDrift'),
       min: -100,
       max: 100,
       orientation: 'horizontal',
     },
-    depthSchema: {
-      id: `audioRig.lfoDrift.${group}.depthDrift`,
+    depthDrift: {
+      id: `audioRig.lfoBank.${lane}.depthDrift`,
       type: 'sliderCenteredZero',
-      ...labels(depthKey),
+      ...labels('fleet.lfoBank.depthDrift'),
       min: -100,
       max: 100,
       orientation: 'horizontal',
@@ -234,16 +241,9 @@ function driftGroupSchema(
   };
 }
 
-// Lore/human copy per docs/reference/text-content-tables.md — "Fleet Drift"/"Robot Drift" renamed
-// to "Environmental Drift"/"Voice Drift" (further rename on top of docs/specs/
-// FLEET_DRIFT_CONSOLIDATION.md's original merge). Each group's own rate/depth lore now diverges
-// (it used to be one shared 'CADENCE INSTABILITY'/'AMPLITUDE INSTABILITY' pair for both groups).
-// eq3/filterLPF/filterHPF's own 3 entries merged into one 'globalFx' entry
-// (docs/specs/FLEET_DRIFT_CONSOLIDATION.md) — 'robots' is untouched by that merge.
-export const LFO_DRIFT_GROUPS: LfoDriftGroupSchema[] = [
-  driftGroupSchema('globalFx', 'fleet.drift.environmental', 'fleet.drift.environmental.rate', 'fleet.drift.environmental.depth'),
-  driftGroupSchema('robots', 'fleet.drift.voice', 'fleet.drift.voice.rate', 'fleet.drift.voice.depth'),
-];
+export const LFO_BANK_LANE_SCHEMAS: Record<LfoLaneId, LfoBankLaneSchema> = Object.fromEntries(
+  LFO_LANE_IDS.map((lane) => [lane, lfoBankLaneSchema(lane)]),
+) as Record<LfoLaneId, LfoBankLaneSchema>;
 
 /**
  * "Ping Variance Automation" — the Audio Swells master control
@@ -252,8 +252,8 @@ export const LFO_DRIFT_GROUPS: LfoDriftGroupSchema[] = [
  * DECAY_MODE_SCHEMA above — not a per-effect param, so it never joins
  * AUDIO_RIG_CONFIG's own array. Displays 0-100%; the store's own
  * pingVarianceAutomation field is a [0, 1] fraction — the drawer wiring
- * point converts via the same *100/÷100 pattern LFO_DRIFT_GROUPS' sliders
- * already use for their own -1..1-fraction-to-percent conversion.
+ * point converts via the same *100/÷100 pattern LFO_BANK_LANE_SCHEMAS' own
+ * rateDrift/depthDrift sliders already use for their -1..1-fraction-to-percent conversion.
  */
 export const PING_VARIANCE_AUTOMATION_SCHEMA: SliderLinearSchema = {
   id: 'audioRig.pingVarianceAutomation',

@@ -93,6 +93,23 @@ export const NAV_TREE_CONFIG: NavTreeNodeConfig[] = [
         ],
       },
       {
+        // New top-level group (docs/tasks/LFO_BANK.md Task 15), displayed as "LFO Bank" — replaces
+        // the former 2-leaf "Drift" group entirely (not a rename: a different control). Positioned
+        // right after Pacing, matching FleetParamsContent.tsx's own FLEET_PARAMS_GROUPS display
+        // order (that file, not this tree, decides stacking order — see its own comment on why
+        // these two tables are kept in sync by hand). Holds 4 leaves, one per world lane (a-d) —
+        // each an LfoBankLanePanel reading/writing audioStore.lfoBank directly.
+        id: 'fleetParams.lfoBank',
+        content: 'fleet.lfoBank',
+        trait: 'timeSpace',
+        children: [
+          { id: 'fleetParams.lfoBank.a', content: 'fleet.lfoBank.laneA' },
+          { id: 'fleetParams.lfoBank.b', content: 'fleet.lfoBank.laneB' },
+          { id: 'fleetParams.lfoBank.c', content: 'fleet.lfoBank.laneC' },
+          { id: 'fleetParams.lfoBank.d', content: 'fleet.lfoBank.laneD' },
+        ],
+      },
+      {
         id: 'fleetParams.eqFilters',
         content: 'fleet.eqFilters',
         // Matches AudioRigDrawer.tsx's own AUDIO_RIG_EFFECT_TRAIT — eq3/filterHPF/filterLPF are
@@ -102,27 +119,6 @@ export const NAV_TREE_CONFIG: NavTreeNodeConfig[] = [
           { id: 'fleetParams.eqFilters.eq', content: 'fleet.eq' },
           { id: 'fleetParams.eqFilters.hpf', content: 'fleet.hpf' },
           { id: 'fleetParams.eqFilters.lpf', content: 'fleet.lpf' },
-        ],
-      },
-      {
-        // New top-level group (docs/specs/FLEET_DRIFT_CONSOLIDATION.md), displayed as "Drift" —
-        // renamed from "Fleet Drift" to "LFO Drift" per Crawford's own follow-up, then again to
-        // "Drift" per docs/reference/text-content-tables.md's own lore/human copy pass (the id
-        // itself (`fleetDrift`) has never changed, every rename here is label-only). Positioned
-        // right after EQ & Filters rather than nested inside it (confirmed via the
-        // breadcrumb-trimming reasoning in the spec's §1.3: a leaf's own name is trimmed, so
-        // "Fleet Params > Drift" only reads that way if Drift is itself the group). Holds 2
-        // leaves: "Environmental Drift" (the merged eq3/filterLPF/filterHPF control, formerly
-        // "Fleet Drift") and "Voice Drift" (formerly "Robot Drift" — moved here from Probes/
-        // Companies entirely, no longer duplicated there, same earlier follow-up).
-        id: 'fleetParams.fleetDrift',
-        content: 'fleet.drift',
-        // Matches EQ & Filters' own trait — this group is drift of the global-chain effects (plus
-        // Voice Drift, moved in alongside it). Not confirmed directly with Crawford (spec §7 item 1).
-        trait: 'spectral',
-        children: [
-          { id: 'fleetParams.fleetDrift.drift', content: 'fleet.drift.environmental' },
-          { id: 'fleetParams.fleetDrift.robots', content: 'fleet.drift.voice' },
         ],
       },
       {

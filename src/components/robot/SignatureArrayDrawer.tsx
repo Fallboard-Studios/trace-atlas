@@ -4,17 +4,13 @@ import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
-import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
 import { LfoLink } from '@/components/ui/controls/LfoLink';
-import { withHeldOffClass } from '@/components/ui/controls/activeClass';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import {
   SIGNATURE_ARRAY_CONFIG,
   type SignatureArrayLayerBlock,
   type SignatureArrayParamSchema,
 } from '@/data/robotOptionsConfig';
-import { LFO_DRIFT_GROUPS } from '@/data/audioRigConfig';
-import { useAudioStore } from '@/stores/audioStore';
 import type { WaveformType } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 import type {
@@ -23,56 +19,6 @@ import type {
 import type { RobotLfoTargetId } from '@/types/lfo';
 
 import './SignatureArrayDrawer.css';
-
-const ROBOTS_DRIFT_GROUP = LFO_DRIFT_GROUPS.find((g) => g.group === 'robots')!;
-
-/**
- * Robot Drift — moved here from AudioRigDrawer's Transport & Composition accordion (post-
- * DIRECTIONAL_PANEL_WIRING follow-up fix), then reordered to render last, after Baseline/Coaxial/
- * Harmonic, rather than first. Still edits the same global `globalAudio.lfoDrift.
- * robots` slice it always did — a rig-wide value, not a per-robot one — so unlike every other
- * panel in this drawer it reads/writes `useAudioStore` directly instead of going through `value`/
- * `onLfoChange` props. Deliberately ignores this drawer's own `disabled` prop: that prop reflects
- * whether a robot/company is selected, which has no bearing on a global control. A separate
- * component (not inlined in SignatureArrayDrawer's own render) purely to keep the store subscription
- * out of a component whose own doc comment promises "no store access" for everything else in it.
- */
-/** Exported standalone (docs/tasks/NAV_PANEL_VIEWS_AND_CONTENT.md Task 10) — its own
- *  independently-mountable tree leaf, today only Fleet Params' own "Voice Drift" leaf
- *  (FleetParamsContent.tsx). No longer rendered by SignatureArrayDrawer as of docs/tasks/
- *  LFO_BANK.md Task 12 — modulation now goes through the per-row LfoLink controls below instead
- *  of a group-wide drift pair duplicated on the Source screen; this component itself stays until
- *  Task 15 deletes it along with the rest of the old drift machinery. */
-export function RobotDriftPanel() {
-  const rateDrift = useAudioStore((s) => s.globalAudio.lfoDrift.robots.rateDrift);
-  const depthDrift = useAudioStore((s) => s.globalAudio.lfoDrift.robots.depthDrift);
-  const setGlobalLfoDrift = useAudioStore((s) => s.setGlobalLfoDrift);
-  // Audio Load Budget: greys out (values kept) while the dial keeps drift off. Its own condition — the drawer's `disabled` prop
-  // still has no bearing on this global control.
-  const driftHeldOff = useAudioStore((s) => s.driftHeldOff);
-
-  return (
-    <DirectionalPanel schema={ROBOTS_DRIFT_GROUP.panel}>
-      <div className={withHeldOffClass('signature-array-drawer__param', driftHeldOff)}>
-        <SliderCenteredZero
-          schema={ROBOTS_DRIFT_GROUP.rateSchema}
-          value={driftHeldOff ? 0 : rateDrift * 100}
-          onChange={(v) => setGlobalLfoDrift('robots', { rateDrift: v / 100 })}
-          disabled={driftHeldOff}
-        />
-      </div>
-      <div className={withHeldOffClass('signature-array-drawer__param', driftHeldOff)}>
-        <SliderCenteredZero
-          schema={ROBOTS_DRIFT_GROUP.depthSchema}
-          value={driftHeldOff ? 0 : depthDrift * 100}
-          onChange={(v) => setGlobalLfoDrift('robots', { depthDrift: v / 100 })}
-          disabled={driftHeldOff}
-        />
-      </div>
-      {driftHeldOff && <HeldOffNote />}
-    </DirectionalPanel>
-  );
-}
 
 export interface SignatureArrayValue {
   layers: OscillatorLayer[];
@@ -265,13 +211,13 @@ export const SignatureArrayLayer = memo(SignatureArrayLayerInner);
  * docs/tasks/DIRECTIONAL_PANEL_WIRING.md Task 8. No accordion wrapper as of Task
  * 17 (docs/tasks/NAV_LAYOUT_REWRITE.md) — this drawer's content is now a probe's own "Source" tree
  * leaf, and the tree node itself carries that label, so there's no accordion header left to show
- * it on. Robot Drift is no longer rendered here (docs/tasks/LFO_BANK.md Task 12) — it now lives
- * only as Fleet Params' own "Voice Drift" leaf (FleetParamsContent.tsx), so this drawer no longer
- * duplicates it on the Source screen; `RobotDriftPanel` itself stays exported until Task 15.
+ * it on. Robot Drift (`RobotDriftPanel`) is gone entirely as of docs/tasks/LFO_BANK.md Task 15 —
+ * modulation now goes through the per-row LfoLink controls below, and lane-level drift lives only
+ * in LfoBankLanePanel (FleetParamsContent.tsx's own LFO Bank leaves).
  *
  * Otherwise purely presentational as of Roadmap Phase 10 (Task 16) — no `robot` prop, no store
- * access at all as of Task 12 (RobotDriftPanel's own global lfoDrift subscription left with it);
- * both RobotOptionsTab (robot mode) and CompanyOptionsSection (company mode) derive `value` and
+ * access at all as of Task 12/15 (RobotDriftPanel's own global lfoDrift subscription is gone with
+ * it); both RobotOptionsTab (robot mode) and CompanyOptionsSection (company mode) derive `value` and
  * wire each callback through robotOptionsActions.applyLayersContinuous/applyLayersStructural/
  * applyLayerLfoLink themselves. Dragging Coaxial/Harmonic's own Gain to 0 mutes the layer
  * (eventually excluded from the composite voice, see AudioEngine.reserveVoice's

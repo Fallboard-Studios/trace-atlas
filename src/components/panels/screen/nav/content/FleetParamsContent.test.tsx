@@ -15,43 +15,43 @@ vi.mock('@/utils/sectionRefs', async (importOriginal) => {
   return { ...actual, scrollToSection: vi.fn() };
 });
 
-// AudioRigDrawer/AudioRigEffectPanel/FleetDriftPanel/RobotDriftPanel each have their own full test
-// suite — this file is about FleetParamsContent's own stacking/accordion wiring, not re-testing
-// their content.
+// AudioRigDrawer/AudioRigEffectPanel/LfoBankLanePanel each have their own full test suite — this
+// file is about FleetParamsContent's own stacking/accordion wiring, not re-testing their content.
 vi.mock('../../console/AudioRigDrawer', () => ({
   AudioRigDrawer: () => <div data-testid="audio-rig-drawer-stub" />,
   AudioRigEffectPanel: ({ effectKey }: { effectKey: string }) => (
     <div data-testid="audio-rig-effect-panel-stub" data-effect-key={effectKey} />
   ),
-  FleetDriftPanel: () => <div data-testid="fleet-drift-panel-stub" />,
 }));
-vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
-  RobotDriftPanel: () => <div data-testid="robot-drift-panel-stub" />,
+vi.mock('../../console/LfoBankLanePanel', () => ({
+  LfoBankLanePanel: ({ lane }: { lane: string }) => <div data-testid="lfo-bank-lane-panel-stub" data-lane={lane} />,
 }));
 
 const UI_INITIAL_STATE = useUIStore.getState();
 const AUDIO_INITIAL_STATE = useAudioStore.getState();
 
-const GROUP_IDS = ['fleetParams.pacing', 'fleetParams.eqFilters', 'fleetParams.fleetDrift', 'fleetParams.timeSpace', 'fleetParams.output'];
+const GROUP_IDS = ['fleetParams.pacing', 'fleetParams.lfoBank', 'fleetParams.eqFilters', 'fleetParams.timeSpace', 'fleetParams.output'];
 const GROUP_LABELS: Record<string, string> = {
   'fleetParams.pacing': CONTENT['fleet.pacing'].human,
+  'fleetParams.lfoBank': CONTENT['fleet.lfoBank'].human,
   'fleetParams.eqFilters': CONTENT['fleet.eqFilters'].human,
-  'fleetParams.fleetDrift': CONTENT['fleet.drift'].human,
   'fleetParams.timeSpace': CONTENT['fleet.timeSpace'].human,
   'fleetParams.output': CONTENT['fleet.output'].human,
 };
-const GROUP_TRAITS: Trait[] = ['composition', 'spectral', 'spectral', 'timeSpace', 'output'];
+const GROUP_TRAITS: Trait[] = ['composition', 'timeSpace', 'spectral', 'timeSpace', 'output'];
 
 const LEAF_ID_TO_EFFECT: Record<string, string> = {
   'fleetParams.pacing.tempo': 'tempo',
   'fleetParams.pacing.frequency': 'swellFrequency',
   'fleetParams.pacing.duration': 'swellDuration',
   'fleetParams.pacing.automaticEffects': 'automaticEffects',
+  'fleetParams.lfoBank.a': 'laneA',
+  'fleetParams.lfoBank.b': 'laneB',
+  'fleetParams.lfoBank.c': 'laneC',
+  'fleetParams.lfoBank.d': 'laneD',
   'fleetParams.eqFilters.eq': 'eq3',
   'fleetParams.eqFilters.hpf': 'filterHPF',
   'fleetParams.eqFilters.lpf': 'filterLPF',
-  'fleetParams.fleetDrift.drift': 'globalDrift',
-  'fleetParams.fleetDrift.robots': 'robotDrift',
   'fleetParams.timeSpace.reverb': 'reverb',
   'fleetParams.timeSpace.delay': 'delay',
   'fleetParams.output.compression': 'compressor',
@@ -104,14 +104,14 @@ describe('FleetParamsContent — view-fade-in on arrival from a different view',
   });
 });
 
-describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PARAMS_CONTENT_REWORK.md Task 3; fleetDrift added by docs/specs/FLEET_DRIFT_CONSOLIDATION.md Task 12)', () => {
+describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PARAMS_CONTENT_REWORK.md Task 3; lfoBank added by docs/tasks/LFO_BANK.md Task 15, replacing the former fleetDrift group)', () => {
   it('renders exactly 5 accordion triggers — one per group — and no per-leaf accordion trigger for any of the leaves', () => {
     render(<FleetParamsContent />);
 
     Object.values(GROUP_LABELS).forEach((label) => {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     });
-    ['Tempo', 'Automation Rate', 'Automation Length', 'Automation Range', '3-Band EQ', 'High-Pass Filter', 'Low-Pass Filter', 'Environmental Drift', 'Voice Drift', 'Reverb', 'Delay', 'Compressor', 'Limiter'].forEach((label) => {
+    ['Tempo', 'Automation Rate', 'Automation Length', 'Automation Range', '3-Band EQ', 'High-Pass Filter', 'Low-Pass Filter', 'Core LFO', 'Companion LFO', 'Accent LFO', 'Overtone LFO', 'Reverb', 'Delay', 'Compressor', 'Limiter'].forEach((label) => {
       expect(screen.queryByRole('button', { name: label })).toBeNull();
     });
   });
@@ -174,22 +174,22 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
     expect(screen.getByText(CONTENT['fleet.eqFilters'].intro.lore)).toBeTruthy();
   });
 
-  it('renders "Drift" positioned right after "EQ & Filters" and before "Time & Space", with its own IntroPanel once approached', () => {
+  it('renders "LFO Bank" positioned right after "Pacing" and before "EQ & Filters", with its own IntroPanel once approached', () => {
     render(<FleetParamsContent />);
 
     const buttons = screen.getAllByRole('button').map((b) => b.textContent);
+    const pacingIndex = buttons.findIndex((t) => t?.includes('Pacing'));
+    const lfoBankIndex = buttons.findIndex((t) => t?.includes('LFO Bank'));
     const eqIndex = buttons.findIndex((t) => t?.includes('EQ & Filters'));
-    const driftIndex = buttons.findIndex((t) => t?.includes('Drift'));
-    const timeSpaceIndex = buttons.findIndex((t) => t?.includes('Time & Space'));
-    expect(driftIndex).toBe(eqIndex + 1);
-    expect(timeSpaceIndex).toBe(driftIndex + 1);
+    expect(lfoBankIndex).toBe(pacingIndex + 1);
+    expect(eqIndex).toBe(lfoBankIndex + 1);
 
-    approach('fleetParams.fleetDrift');
+    approach('fleetParams.lfoBank');
 
-    expect(screen.getByText(CONTENT['fleet.drift'].intro.lore)).toBeTruthy();
+    expect(screen.getByText(CONTENT['fleet.lfoBank'].intro.lore)).toBeTruthy();
   });
 
-  it.each(Object.entries(LEAF_ID_TO_EFFECT).filter(([id]) => !id.includes('.pacing.') && !id.includes('.fleetDrift.')))(
+  it.each(Object.entries(LEAF_ID_TO_EFFECT).filter(([id]) => !id.includes('.pacing.') && !id.includes('.lfoBank.')))(
     '%s -> AudioRigEffectPanel effectKey=%s, once its own leaf anchor has approached',
     (leafId, effectKey) => {
       render(<FleetParamsContent />);
@@ -199,24 +199,28 @@ describe('FleetParamsContent — 5 uniform group accordions (docs/tasks/FLEET_PA
     },
   );
 
-  it('renders FleetDriftPanel for fleetParams.fleetDrift.drift once its own leaf anchor has approached (docs/specs/FLEET_DRIFT_CONSOLIDATION.md Task 12)', () => {
+  it.each([
+    ['fleetParams.lfoBank.a', 'a'],
+    ['fleetParams.lfoBank.b', 'b'],
+    ['fleetParams.lfoBank.c', 'c'],
+    ['fleetParams.lfoBank.d', 'd'],
+  ])('%s -> LfoBankLanePanel lane=%s, once its own leaf anchor has approached (docs/tasks/LFO_BANK.md Task 15)', (leafId, lane) => {
     render(<FleetParamsContent />);
-    approachLeaf('fleetParams.fleetDrift.drift');
+    approachLeaf(leafId);
 
-    expect(screen.getByTestId('fleet-drift-panel-stub')).toBeTruthy();
+    expect(screen.getByTestId('lfo-bank-lane-panel-stub').getAttribute('data-lane')).toBe(lane);
   });
 
-  it('renders RobotDriftPanel for fleetParams.fleetDrift.robots once its own leaf anchor has approached, beneath Environmental Drift (moved out of Probes/Companies entirely)', () => {
+  it('renders all 4 LFO Bank lane leaves, in a-b-c-d order, once the group has approached', () => {
     render(<FleetParamsContent />);
-    approachLeaf('fleetParams.fleetDrift.drift');
-    approachLeaf('fleetParams.fleetDrift.robots');
+    approach('fleetParams.lfoBank');
+    approachLeaf('fleetParams.lfoBank.a');
+    approachLeaf('fleetParams.lfoBank.b');
+    approachLeaf('fleetParams.lfoBank.c');
+    approachLeaf('fleetParams.lfoBank.d');
 
-    expect(screen.getByTestId('fleet-drift-panel-stub')).toBeTruthy();
-    expect(screen.getByTestId('robot-drift-panel-stub')).toBeTruthy();
-    // "beneath" — Fleet Drift's own leaf div precedes Robot Drift's in DOM order.
-    const driftPanel = screen.getByTestId('fleet-drift-panel-stub');
-    const robotPanel = screen.getByTestId('robot-drift-panel-stub');
-    expect(driftPanel.compareDocumentPosition(robotPanel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const lanes = screen.getAllByTestId('lfo-bank-lane-panel-stub').map((el) => el.getAttribute('data-lane'));
+    expect(lanes).toEqual(['a', 'b', 'c', 'd']);
   });
 
   it('renders the Tempo slider, live-bound to audioStore.bpm, once its own leaf anchor has approached', () => {
