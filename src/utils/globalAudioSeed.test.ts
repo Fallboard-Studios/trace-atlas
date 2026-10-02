@@ -562,3 +562,86 @@ describe('generateSwellDuration (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.
     }
   });
 });
+
+// ========================================
+// SEED ORACLE — docs/specs/FREE_SYNC_TOGGLE.md §1.7 / §5, docs/tasks/FREE_SYNC_TOGGLE.md Task 3
+// ========================================
+
+// Complete, byte-exact output of the two seeders for two fixed Attenuation Styles, captured from the
+// code as it stood BEFORE the Free | Sync seeding (Task 13) touched it. They prove that adding the
+// Sync rolls leaves every Free value — and so every existing world's sound — exactly as it was.
+//
+// DO NOT REGENERATE THESE EXPECTATIONS. Re-recording them to make a failing test pass is a spec
+// violation, not a fix: a mismatch means the seeder's existing keys or draw order changed. Task 13
+// may only ADD a `sync` key to a lane or to `delay`, and only to these expectations.
+//
+// 'oracle-alpha' seeds an audible Delay (wet 0.24); 'oracle-theta' hits the quiet branch (wet forced
+// to 0), so both sides of the neighbouring DELAY_QUIET_THRESHOLD logic are pinned.
+describe('seed oracle (pre-Sync output, do not regenerate)', () => {
+  afterEach(() => {
+    evictAttenuationStyleNoiseMap('oracle-alpha');
+    evictAttenuationStyleNoiseMap('oracle-theta');
+  });
+
+  it('generateGlobalAudioSettings("oracle-alpha") — audible Delay', () => {
+    expect(generateGlobalAudioSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual({
+      compressorBeforeDelay: false,
+      compressor: {
+        threshold: -47,
+        ratio: 17,
+        attack: 0.02815783553749843,
+        release: 0.2207947804737712,
+        knee: 10,
+      },
+      eq3: { low: 3.5, mid: 3.5, high: 4 },
+      filterLPF: { type: 'lowpass', frequency: 9399.096577662036, Q: 2.2990614853419933 },
+      filterHPF: { type: 'highpass', frequency: 379.02404888390515, Q: 3.033962391581509 },
+      delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 0.24 },
+      reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 0.24 },
+      limiter: { threshold: -1 },
+    });
+  });
+
+  it('generateGlobalAudioSettings("oracle-theta") — quiet Delay (wet forced to 0)', () => {
+    expect(generateGlobalAudioSettings('oracle-theta', 'oracle-theta')).toStrictEqual({
+      compressorBeforeDelay: false,
+      compressor: {
+        threshold: -51,
+        ratio: 14,
+        attack: 0.005351539547536516,
+        release: 0.12726233469418596,
+        knee: 6,
+      },
+      eq3: { low: -3.5, mid: -3.5, high: -3.5 },
+      filterLPF: { type: 'lowpass', frequency: 4751.3168173899885, Q: 0.21951212264688055 },
+      filterHPF: { type: 'highpass', frequency: 156.94304105044972, Q: 0.893615040856134 },
+      delay: { delayTime: 0.139, feedback: 0.27, wet: 0 },
+      reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 0.18 },
+      limiter: { threshold: -2 },
+    });
+  });
+
+  it('generateLfoBankSettings("oracle-alpha")', () => {
+    expect(generateLfoBankSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual({
+      a: { shape: 'sawtooth', rate: 0.35000000000000003, rateDrift: 0.59, depthDrift: 0.51 },
+      b: { shape: 'square', rate: 1.25, rateDrift: 0.15, depthDrift: 0.5700000000000001 },
+      c: { shape: 'sawtooth', rate: 3.4000000000000004, rateDrift: 0.19, depthDrift: 0.04 },
+      d: { shape: 'square', rate: 7.25, rateDrift: 0.48, depthDrift: 0.08 },
+    });
+  });
+
+  it('generateLfoBankSettings("oracle-theta")', () => {
+    expect(generateLfoBankSettings('oracle-theta', 'oracle-theta')).toStrictEqual({
+      a: { shape: 'triangle', rate: 0.25, rateDrift: 0.23, depthDrift: 0.02 },
+      b: { shape: 'sawtooth', rate: 0.6000000000000001, rateDrift: -0.15, depthDrift: 0.17 },
+      c: { shape: 'square', rate: 1.8, rateDrift: -0.19, depthDrift: -0.3 },
+      d: { shape: 'triangle', rate: 5.2, rateDrift: -0.42, depthDrift: -0.08 },
+    });
+  });
+
+  it('is stable across a fresh noise map too, not just a cached one', () => {
+    const first = generateLfoBankSettings('oracle-alpha', 'oracle-alpha');
+    evictAttenuationStyleNoiseMap('oracle-alpha');
+    expect(generateLfoBankSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual(first);
+  });
+});

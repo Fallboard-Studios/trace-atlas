@@ -76,11 +76,13 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   **Verification:** `npx vitest run src/utils/tempoSync.test.ts` (RED first); `npm run build:types`, `npm run lint`. **Mutation check:** make `resolveLaneRateHz` ignore `isNoteValue` and watch the invalid-sync case go red.
   **Dependencies:** 1. **Files:** `src/types/lfo.ts`, `src/types/globalAudio.ts`, `src/engine/audioEngine/globalFx.ts` (comment), `src/utils/tempoSync.ts`, `.test.ts`. **Scope:** M.
 
-- [ ] **Task 3: Capture the seed oracle before any seeder change**
+- [x] **Task 3: Capture the seed oracle before any seeder change**
 
   **Description:** Pin the current full output of `generateLfoBankSettings` and `generateGlobalAudioSettings` for two fixed Attenuation Style names (not used by neighbouring tests) as inline `toEqual` objects. Written GREEN against today's code. Each test's comment says regenerating these expectations is a spec violation (§1.7/§5), not a fix — Task 13 may only *add* `sync` keys to them.
 
   **Acceptance criteria:** four complete-object assertions; comment present.
+
+  **As built:** Attenuation Styles `oracle-alpha` (audible Delay) and `oracle-theta` (quiet Delay, `wet` forced to 0), so both sides of the neighbouring quiet roll are pinned. The assertions are `toStrictEqual`, not `toEqual`: `toEqual` ignores a key set to `undefined`, so a stray `sync: undefined` would have passed and broken "a Free result carries no `sync` key". For Task 13: a Sync landing adds a `sync` object to these expectations; a Free landing must leave them byte-identical, with no `sync` key at all.
   **Verification:** `npx vitest run src/utils/globalAudioSeed.test.ts`.
   **Dependencies:** None (must precede 13). **Files:** `src/utils/globalAudioSeed.test.ts`. **Scope:** XS.
 
