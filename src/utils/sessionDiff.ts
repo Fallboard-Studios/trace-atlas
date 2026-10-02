@@ -6,8 +6,17 @@ import type { Company } from '../types/Company';
 import { generateRobotRosterBaseline, generateCompanyRosterBaseline, type RobotAudioBaseline } from '../systems/spawnSystem';
 import type { RobotAudioOverrideDiff, CompanyDiff, SessionPayload } from '../types/session';
 import type { SwellRobotAttributeId } from '../types/audioSwell';
-import { ROBOT_LFO_TARGET_IDS, LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
-import { DEFAULT_LFO_LINK } from '../data/lfoConfig';
+import {
+  ROBOT_LFO_TARGET_IDS,
+  LFO_LANE_IDS,
+  GLOBAL_LFO_TARGET_IDS,
+  type RobotLfoTargetId,
+  type LfoLaneId,
+  type GlobalLfoTargetId,
+  type LfoLink,
+  type BankLfoSettings,
+} from '../types/lfo';
+import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
@@ -39,6 +48,31 @@ function deepEqual(a: unknown, b: unknown): boolean {
   const bKeys = Object.keys(b as object);
   if (aKeys.length !== bKeys.length) return false;
   return aKeys.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
+}
+
+/** Backfills any lane a payload's lfoBank is missing with DEFAULT_BANK_LFO -- the same guarantee
+ *  sessionShareUtils.ts's fromCompactSessionPayload already gives a `?session=` link, applied here
+ *  too so every applySessionPayload caller gets it, not just that one. A session loaded from
+ *  localStorage (SessionListItem.tsx) is never run through fromCompactSessionPayload at all, so a
+ *  stale/hand-edited/partial saved entry could otherwise reach AudioEngine.start()'s
+ *  primeLfoBank(lfoBank) with a hole and throw reading .rate off `undefined`. */
+function backfillLfoBank(bank: SessionPayload['lfoBank']): Record<LfoLaneId, BankLfoSettings> | undefined {
+  if (!bank) return undefined;
+  return Object.fromEntries(LFO_LANE_IDS.map((lane) => [lane, bank[lane] ?? DEFAULT_BANK_LFO])) as Record<
+    LfoLaneId,
+    BankLfoSettings
+  >;
+}
+
+/** Same backfill, for globalLfoLinks -- see backfillLfoBank above. */
+function backfillGlobalLfoLinks(
+  links: SessionPayload['globalLfoLinks'],
+): Record<GlobalLfoTargetId, LfoLink> | undefined {
+  if (!links) return undefined;
+  return Object.fromEntries(GLOBAL_LFO_TARGET_IDS.map((target) => [target, links[target] ?? DEFAULT_LFO_LINK[target]])) as Record<
+    GlobalLfoTargetId,
+    LfoLink
+  >;
 }
 
 /** If a swell is currently active on this (robotId, attribute) pair, return its baseValue for
@@ -443,18 +477,20 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   // not at boot), pushed through setLfoBank/setGlobalLfoLink too, so the change is audible without
   // a power cycle; otherwise a plain data-only write -- AudioEngine.start() primes the bank from
   // this same store state once the context actually starts.
-  if (payload.lfoBank) {
+  const lfoBank = backfillLfoBank(payload.lfoBank);
+  if (lfoBank) {
     if (isAudioContextRunning()) {
-      for (const lane of LFO_LANE_IDS) useAudioStore.getState().setLfoBank(lane, payload.lfoBank[lane]);
+      for (const lane of LFO_LANE_IDS) useAudioStore.getState().setLfoBank(lane, lfoBank[lane]);
     } else {
-      useAudioStore.setState({ lfoBank: payload.lfoBank });
+      useAudioStore.setState({ lfoBank });
     }
   }
-  if (payload.globalLfoLinks) {
+  const globalLfoLinks = backfillGlobalLfoLinks(payload.globalLfoLinks);
+  if (globalLfoLinks) {
     if (isAudioContextRunning()) {
-      for (const target of GLOBAL_LFO_TARGET_IDS) useAudioStore.getState().setGlobalLfoLink(target, payload.globalLfoLinks[target]);
+      for (const target of GLOBAL_LFO_TARGET_IDS) useAudioStore.getState().setGlobalLfoLink(target, globalLfoLinks[target]);
     } else {
-      useAudioStore.setState({ globalLfoLinks: payload.globalLfoLinks });
+      useAudioStore.setState({ globalLfoLinks });
     }
   }
 

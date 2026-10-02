@@ -25,7 +25,8 @@ import { stopRobotLifecycle } from '../systems/robotSystems';
 import { stopAudioSwells } from '../systems/audioSwells';
 import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
 import { RHYTHMIC_DENSITY_MAX } from '../constants';
-import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
+import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
+import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
 
 afterEach(() => {
   stopRobotLifecycle();
@@ -737,6 +738,47 @@ describe('applySessionPayload', () => {
 
     expect(setLfoBankSpy).not.toHaveBeenCalled();
     expect(useAudioStore.getState().lfoBank).toEqual(payload.lfoBank);
+    runningSpy.mockRestore();
+    setLfoBankSpy.mockRestore();
+  });
+
+  it('backfills a lfoBank missing a lane / globalLfoLinks missing a target instead of installing a hole, when the audio context is not running (a stale/hand-edited saved session, not a share-link -- that boundary already backfills)', async () => {
+    const lfoShared = await import('../engine/lfoShared');
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const { d: _droppedLane, ...partialLfoBank } = payload.lfoBank!;
+    const { 'eq3.low': _droppedTarget, ...partialGlobalLfoLinks } = payload.globalLfoLinks!;
+    const holeyPayload = {
+      ...payload,
+      lfoBank: partialLfoBank as typeof payload.lfoBank,
+      globalLfoLinks: partialGlobalLfoLinks as typeof payload.globalLfoLinks,
+    };
+    const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(false);
+
+    expect(() => applySessionPayload(holeyPayload, { skipLocaleRebuild: true })).not.toThrow();
+
+    expect(useAudioStore.getState().lfoBank.d).toEqual(DEFAULT_BANK_LFO);
+    expect(useAudioStore.getState().globalLfoLinks['eq3.low']).toEqual(DEFAULT_LFO_LINK['eq3.low']);
+    expect(Object.keys(useAudioStore.getState().lfoBank).sort()).toEqual([...LFO_LANE_IDS].sort());
+    expect(Object.keys(useAudioStore.getState().globalLfoLinks).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
+    runningSpy.mockRestore();
+  });
+
+  it('backfills the same hole when the audio context IS running -- setLfoBank/setGlobalLfoLink never receive undefined', async () => {
+    const lfoShared = await import('../engine/lfoShared');
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const { d: _droppedLane, ...partialLfoBank } = payload.lfoBank!;
+    const holeyPayload = { ...payload, lfoBank: partialLfoBank as typeof payload.lfoBank };
+    const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+    const setLfoBankSpy = vi.spyOn(useAudioStore.getState(), 'setLfoBank');
+
+    applySessionPayload(holeyPayload, { skipLocaleRebuild: true });
+
+    const laneDCall = setLfoBankSpy.mock.calls.find((call) => call[0] === 'd');
+    expect(laneDCall?.[1]).toEqual(DEFAULT_BANK_LFO);
     runningSpy.mockRestore();
     setLfoBankSpy.mockRestore();
   });
