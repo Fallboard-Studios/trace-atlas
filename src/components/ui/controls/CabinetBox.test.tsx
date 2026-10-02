@@ -22,8 +22,7 @@ vi.mock('./useCabinetBoxHeight', async (importOriginal) => {
 // Local gsap mock (overriding vitest.setup.ts's global noop for this file
 // only), capturing every .fromTo() and .set() call so the --cabinet-glow/
 // wall-scale tweens and the instant-reposition path can all be asserted on
-// directly — the global mock doesn't expose call args. Mirrors
-// useLfoTargetGroup.test.ts's own local-gsap-mock precedent.
+// directly — the global mock doesn't expose call args.
 const { fromToMock, setMock } = vi.hoisted(() => ({ fromToMock: vi.fn(), setMock: vi.fn() }));
 vi.mock('gsap', () => {
   const chainable = {

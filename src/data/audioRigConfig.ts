@@ -10,9 +10,8 @@
  * (src/types/lfo.ts). Neither Limiter nor Delay's delayTime carries one —
  * Limiter was never a GlobalLfoTargetId member (no LFO on the Limiter, by
  * design); delayTime's was removed after shipping (LFO judged unwanted on
- * Delay's own time param). Per docs/specs/LFO_CONSOLIDATED_DISPLAY.md,
- * AudioRigDrawer renders one shared LfoTargetGroup display per LFO-bearing
- * block instead of a nested accordion per param — this file no longer
+ * Delay's own time param). Per docs/tasks/LFO_BANK.md Task 14, each `lfoTarget`
+ * field renders an inline LfoLink in its effect panel — this file no longer
  * carries a per-param accordion schema of its own.
  */
 import type { ControlSchema, DirectionalPanelSchema, PanelOrientation, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema, SliderLogSchema } from '@/types/controls';

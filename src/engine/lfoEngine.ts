@@ -4,13 +4,11 @@
  * target. A target no longer owns an oscillator — it links to a lane and
  * stores a depth; this module hangs a single Gain off that lane per link.
  *
- * This file is named lfoBank.ts (not lfoEngine.ts) and exports `lfoEngine` —
- * the name it keeps once docs/tasks/LFO_BANK.md Task 16 deletes the old
- * src/engine/lfoEngine.ts and renames this file over it. Until then the two
- * coexist (the strangler period, Tasks 7-15): this module imports nothing
- * from lfoEngine.ts or lfoDrift.ts, and `resolveLfoOutputRange`/
- * `ROBOT_LFO_FIELD_RANGE`/`globalSeedRangeKey` are copied here rather than
- * shared, since they move (not duplicate) once that old file is gone.
+ * Renamed from lfoBank.ts over the old per-target src/engine/lfoEngine.ts
+ * (docs/tasks/LFO_BANK.md Task 16, which deleted that old file along with
+ * lfoDrift.ts and robotLfoPriming.ts). `resolveLfoOutputRange`/
+ * `ROBOT_LFO_FIELD_RANGE`/`globalSeedRangeKey` below are this module's own —
+ * nothing outside it shares them.
  */
 
 // ========================================

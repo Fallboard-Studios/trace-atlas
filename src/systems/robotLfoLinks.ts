@@ -1,8 +1,7 @@
 /**
  * Robot LFO-link priming (docs/tasks/LFO_BANK.md Task 9) — pushes a robot's stored lane links to
- * the bank engine (lfoBank.ts), mirroring robotLfoPriming.ts's per-target priming for the bank's
- * link-only model. No cap/policy concept here (the robot-LFO cap was removed outright, Task 2) —
- * every stored link is primed unconditionally.
+ * the bank engine (lfoEngine.ts). No cap/policy concept here (the robot-LFO cap was removed
+ * outright, Task 2) — every stored link is primed unconditionally.
  */
 import { lfoEngine } from '@/engine/lfoEngine';
 import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoLink } from '@/types/lfo';

@@ -174,9 +174,7 @@ vi.mock('./lfoEngine', () => ({
   },
 }));
 
-// Mock the bank's robot-roster priming (Task 10) — a separate module from the old
-// robotLfoPriming.ts (mocked implicitly via the real module below; it isn't itself mocked since
-// AudioEngine no longer calls into it directly).
+// Mock the bank's robot-roster priming (Task 10).
 vi.mock('../systems/robotLfoLinks', () => ({
   primeRosterLinks: vi.fn(),
 }));

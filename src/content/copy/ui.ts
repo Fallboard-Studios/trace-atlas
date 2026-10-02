@@ -1,10 +1,10 @@
 import type { ContentEntry } from '../types';
 
 /**
- * Strings owned by a shared control or primitive, not by one feature — including the shared LFO
- * control (docs/specs/CONTENT_LAYER.md §1.2). Transcribed verbatim on 2026-09-30 (Task 5) from
- * Lfo.tsx, useLfoTargetGroup.ts, Stepper.tsx, PowerRockerSwitch.tsx, HeldOffNote.tsx,
- * ConsolePanel.tsx and the three AlertDialog Cancel buttons.
+ * Strings owned by a shared control or primitive, not by one feature (docs/specs/CONTENT_LAYER.md
+ * §1.2). Transcribed verbatim on 2026-09-30 (Task 5) from Stepper.tsx, PowerRockerSwitch.tsx,
+ * HeldOffNote.tsx, ConsolePanel.tsx and the three AlertDialog Cancel buttons; `ui.lfo.*`/`ui.lfoLane`
+ * added since for the LfoLink primitive (docs/tasks/LFO_BANK.md).
  */
 export const ui = {
   'ui.cancel': { human: 'Cancel' },

@@ -1,9 +1,7 @@
 /**
- * Small, general-purpose helpers shared between lfoEngine.ts (the primary-LFO
- * registry) and lfoDrift.ts (the drift subsystem attached to it). Nothing
- * here is specific to either — extracted so neither file has to import from
- * the other for them (that would make the two files circularly dependent,
- * since each also depends on the other's own feature-specific exports).
+ * Small, general-purpose helpers used by lfoEngine.ts — split out of that
+ * file so it doesn't carry pure-math/connection utilities alongside its own
+ * feature-specific exports.
  */
 
 // ========================================
@@ -68,10 +66,9 @@ export function isAudioContextRunning(): boolean {
  * fields whose typical resting value already is the midpoint (EQ dB bands,
  * robot detune both default to 0, the center of a symmetric range).
  *
- * Reused unchanged for two swings: connectLfoTarget's primary-to-target
- * swing (lfoEngine.ts), and each drift oscillator's swing around its
- * primary's own current rate/depth (lfoDrift.ts) — same math, different base
- * value and range.
+ * Reused unchanged for two swings in lfoEngine.ts: a link's lane-to-target
+ * swing, and each lane's drift oscillator swing around its own current
+ * rate/depth — same math, different base value and range.
  */
 export function centeredSwingFromRange(
   range: { min: number; max: number },
@@ -106,10 +103,9 @@ export function centeredSwingFromRange(
  * live Web Audio graph.
  *
  * Deliberately does not catch a failed `.connect()` — a caller that needs to
- * handle that (e.g. connectLfoTarget, whose target is resolved externally by
- * AudioEngine) wraps this call in its own try/catch; the two purely-internal
- * pool-to-primary connections (lfoDrift.ts's attachDrift and
- * refreshDepthDriftGain) don't.
+ * handle that (e.g. linkTarget, whose target is resolved externally by
+ * AudioEngine) wraps this call in its own try/catch; lfoEngine.ts's own
+ * purely-internal drift connections don't.
  */
 export function connectAdditively(source: unknown, destination: unknown): void {
   const dest = destination as { value: number; override?: boolean };

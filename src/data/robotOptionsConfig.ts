@@ -364,7 +364,7 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
         // No lfoTarget — the phase LFO target was cut (docs/specs/LFO_BANK.md Task 1: Phase
         // never had a live Signal to modulate, the one of the 9 original robot targets that ran
         // a control-rate polling fallback instead of an audio-rate connection). The slider itself
-        // stays, rendered outside the layer's LfoTargetGroup, same as Interval/pulseWidth below.
+        // stays, with no inline LfoLink row, same as Interval/pulseWidth below.
         field: 'phase',
         schema: {
           id: `robotOptions.${key}.phase`, type: 'sliderLinear',
@@ -375,7 +375,7 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
       {
         // No lfoTarget — the pulseWidth LFO target was removed (docs/specs/LFO_LOAD_FIX.md
         // assumption 9: the ≈7× cost outlier among robot LFOs, only ever live on pulse-type
-        // layers). The slider itself stays, rendered outside the layer's LfoTargetGroup.
+        // layers). The slider itself stays, with no inline LfoLink row.
         field: 'pulseWidth',
         schema: {
           id: `robotOptions.${key}.pulseWidth`, type: 'sliderLinear',

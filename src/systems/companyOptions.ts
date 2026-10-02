@@ -49,9 +49,9 @@ export function resolveCompanyOptions(lastEditedOptions: CompanyOptionsSnapshot 
 }
 
 /**
- * Diffs two versions of the same compound control value (an ADSREnvelope, an LfoValue, a
+ * Diffs two versions of the same compound control value (an ADSREnvelope, an LfoLinkValue, a
  * StepperWithToggleValue, one OscillatorLayer) and returns a patch containing only the one field
- * that actually changed. Every compound control in this codebase (Lfo, PingContourDrawer,
+ * that actually changed. Every compound control in this codebase (LfoLink, PingContourDrawer,
  * StepperWithToggle, SignatureArrayDrawer's per-layer edits) builds its onChange payload as
  * `{ ...currentValue, oneField: newValue }` — the *whole* object, with the touched value's shared
  * baseline (CompanyOptionsSection's `resolved`) spread across every other field. Broadcasting that

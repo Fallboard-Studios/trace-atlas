@@ -272,7 +272,7 @@ describe('slider orientation classification (docs/specs/VERTICAL_SLIDERS.md §1.
     });
   });
 
-  it('Signature Array (Gain/Detune/Phase/Interval) is vertical on every layer — grouped into a row by LfoTargetGroup\'s own sliderPanelOrientation prop', () => {
+  it('Signature Array (Gain/Detune/Phase/Interval) is vertical on every layer', () => {
     SIGNATURE_ARRAY_CONFIG.forEach((block) => {
       for (const field of ['gain', 'detune', 'phase', 'pulseWidth']) {
         const param = block.params.find((p) => p.field === field)!;

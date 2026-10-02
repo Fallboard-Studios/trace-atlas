@@ -48,9 +48,9 @@ vi.mock('tone', () => ({
   }),
   Gain: vi.fn((value?: number) => {
     const instance = {
-      // A real Tone.Gain's .gain is a Tone.Param — tagged fakeParamMarker like lfoDrift.ts's
-      // own Gain mocks, so a Signal/Param connected INTO it (depth-drift -> trunk.gain) simulates
-      // the real always-resets-on-connect Param behavior.
+      // A real Tone.Gain's .gain is a Tone.Param — tagged fakeParamMarker so a Signal/Param
+      // connected INTO it (depth-drift -> trunk.gain) simulates the real always-resets-on-connect
+      // Param behavior.
       gain: { value: value ?? 1, [fakeParamMarker]: true },
       connect: vi.fn((dest: unknown) => {
         simulateSignalConnect(dest);

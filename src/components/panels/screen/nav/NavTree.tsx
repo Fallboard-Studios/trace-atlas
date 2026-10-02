@@ -29,8 +29,8 @@ function flattenVisible(nodes: NavTreeNodeSchema[], isExpanded: (id: string) => 
  * The `role="tree"` root (docs/specs/NAV_LAYOUT_REWRITE.md §4 "Always") — owns the APG
  * roving-tabindex pattern: exactly one visible row is `tabIndex 0` at a time, every other -1.
  * Up/Down/Left/Right/Enter/Space per the WAI-ARIA APG Tree View pattern. Focus state
- * (`focusedId`) is component-local (`useState`), never uiStore — matches useLfoTargetGroup's own
- * "selection is local, ephemeral state" precedent (spec §4 "Never").
+ * (`focusedId`) is component-local (`useState`), never uiStore — "selection is local, ephemeral
+ * state" (spec §4 "Never").
  */
 export function NavTree() {
   const { nodes, isExpanded, select, toggleExpand } = useNavTree();

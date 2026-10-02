@@ -90,12 +90,7 @@ export const GLOBAL_LFO_TARGET_IDS: readonly GlobalLfoTargetId[] = [
 // COMBINED TARGET ID
 // ========================================
 
-/**
- * Every target an LFO can connect to, robot-scoped or global-chain. Shared
- * between lfoEngine.ts (the primary-LFO registry) and lfoDrift.ts (the drift
- * subsystem attached to it) — defined here so neither has to import it from
- * the other.
- */
+/** Every target an LFO can connect to, robot-scoped or global-chain. */
 export type LfoTargetId = RobotLfoTargetId | GlobalLfoTargetId;
 
 // ========================================
@@ -106,7 +101,7 @@ export type LfoTargetId = RobotLfoTargetId | GlobalLfoTargetId;
  * The 2 independent LFO drift groups (docs/specs/FLEET_DRIFT_CONSOLIDATION.md
  * — restructured from the 4-group docs/specs/archive/LFO_DRIFT_GROUPS.md) —
  * every connected primary LFO belongs to exactly one, determined by its own
- * target id (see lfoDrift.ts's driftGroupForTarget). Every GlobalLfoTargetId
+ * target id. Every GlobalLfoTargetId
  * (eq3/lpf/hpf — the only three AudioRigEffectKey blocks that ever carry an
  * lfoTarget at all, see audioRigConfig.ts's AUDIO_RIG_CONFIG) shares the one
  * 'globalFx' group; every RobotLfoTargetId, regardless of field or which
