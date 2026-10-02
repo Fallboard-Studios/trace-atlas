@@ -16,7 +16,8 @@ import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
 import type { SessionPayload } from '../types/session';
 import type { RobotAudioBaseline } from '../systems/spawnSystem';
-import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
+import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
+import { generateAttenuationStyleBpm } from './bpmSeed';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
 import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
@@ -523,10 +524,17 @@ describe('applySessionPayload', () => {
     useAudioStore.setState({ bpm: 77, swellFrequency: 9, swellDuration: 5, pingVarianceAutomation: 0.42 });
     const payload = buildSessionPayload();
 
-    // Wipe to different coordinates first -- retransmitWorld reseeds bpm via regenerateBpmFromSeed
-    // for the new locale (a real, different noise map), so restoring afterward must override
+    // Wipe to a different Attenuation Style and coordinates first, with bpm stripped from the wipe
+    // payload so nothing overrides the reseed: an Attenuation Style change reseeds bpm via
+    // regenerateBpmFromSeed (a coordinates-only move would not). Restoring afterward must override
     // whatever that reseed produced, not just coincidentally match an untouched value.
-    applySessionPayload({ ...payload, coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 } });
+    const { bpm: _bpm, ...wipePayload } = payload;
+    applySessionPayload({
+      ...wipePayload,
+      attenuationStyleName: 'Wipe Style',
+      coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 },
+    });
+    expect(useAudioStore.getState().bpm).not.toBe(77);
 
     applySessionPayload(payload);
 
@@ -536,7 +544,7 @@ describe('applySessionPayload', () => {
     expect(useAudioStore.getState().pingVarianceAutomation).toBe(0.42);
   });
 
-  it('leaves the freshly-seeded bpm/swellFrequency/swellDuration/pingVarianceAutomation untouched when an older payload lacks those fields', () => {
+  it('leaves the current bpm/swellFrequency/swellDuration/pingVarianceAutomation untouched when an older payload lacks those fields', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     const payload = buildSessionPayload();
@@ -545,10 +553,25 @@ describe('applySessionPayload', () => {
     useAudioStore.setState({ bpm: 123, swellFrequency: 11, swellDuration: 8, pingVarianceAutomation: 0.9 });
     expect(() => applySessionPayload(oldShapePayload as typeof payload)).not.toThrow();
 
-    // retransmitWorld's own reseed ran (not this field's restore code, which had nothing to
-    // apply) -- just asserting it's no longer the pre-apply sentinel value proves the absent
-    // fields didn't crash or silently zero anything out.
-    expect(useAudioStore.getState().bpm).not.toBe(123);
+    // This payload keeps the current Attenuation Style, so retransmitWorld is a coordinates-only
+    // move and bpm is no longer reseeded (docs/specs/FREE_SYNC_TOGGLE.md §1.7) -- the carried-forward
+    // value survives. Asserting it is untouched proves the absent field didn't crash or silently
+    // zero anything out.
+    expect(useAudioStore.getState().bpm).toBe(123);
+  });
+
+  it('reseeds bpm from the new Attenuation Style when an older payload without bpm switches styles', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const { bpm: _bpm, ...oldShapePayload } = payload;
+
+    useAudioStore.setState({ bpm: 123 });
+    applySessionPayload({ ...oldShapePayload, attenuationStyleName: 'Reseed Style' } as typeof payload);
+
+    const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+    expect(attenuationStyle.name).toBe('Reseed Style');
+    expect(useAudioStore.getState().bpm).toBe(generateAttenuationStyleBpm(attenuationStyle.id, attenuationStyle.name));
   });
 
   it('restores a renamed company after a full save/wipe/load round trip', () => {

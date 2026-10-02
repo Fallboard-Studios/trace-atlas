@@ -330,9 +330,9 @@ export const SWELL_DURATION_SCHEMA: SliderLinearSchema = {
  * No unit conversion at the drawer wiring point: audioStore.bpm is already
  * stored in the same BPM units this slider displays (unlike
  * pingVarianceAutomation's fraction-to-percent split). [20, 200] is
- * deliberately wider than the locale seed range ([40, 100],
- * LOCALE_BPM_SEED_RANGE) on both ends — freely draggable beyond anything a
- * locale would ever seed, same "seed narrow, drag wide" convention
+ * deliberately wider than the Attenuation Style seed range ([40, 100],
+ * BPM_SEED_RANGE) on both ends — freely draggable beyond anything an
+ * Attenuation Style would ever seed, same "seed narrow, drag wide" convention
  * PING_VARIANCE_AUTOMATION_SCHEMA already established.
  */
 export const BPM_SCHEMA: SliderLinearSchema = {

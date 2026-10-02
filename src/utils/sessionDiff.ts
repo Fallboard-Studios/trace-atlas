@@ -461,8 +461,8 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   useAudioStore.setState({ globalAudio });
   applyGlobalAudioToEngine(globalAudio);
 
-  // Pacing fields: applied AFTER retransmitWorld above, which reseeds bpm (regenerateBpmFromSeed)
-  // and would otherwise win. Each is independently optional (undefined for a pre-this-change
+  // Pacing fields: applied AFTER retransmitWorld above, which reseeds bpm (via audioStore's
+  // Attenuation Style sync) whenever the style changed, and would otherwise win. Each is independently optional (undefined for a pre-this-change
   // payload), in which case the just-reseeded/carried-forward value is left alone rather than
   // zeroed out. setBPM also pushes to AudioEngine; the other three are plain state writes, same
   // as their own UI-slider setters.

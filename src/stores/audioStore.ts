@@ -17,9 +17,8 @@ import {
 } from '../utils/globalAudioSeed';
 import { AUDIO_LOAD_PRESETS } from '../constants';
 import { clampAudioLoad, detectCoarsePointer, resolveInitialAudioLoad, resolveInitialEffectsLoad } from '../utils/audioBudget';
-import { generateLocaleBpm } from '../utils/localeBpmSeed';
+import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from './attenuationStyleStore';
-import { useLocaleStore } from './localeStore';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 
 import type { GlobalAudioSettings } from '../types/globalAudio';
@@ -179,13 +178,14 @@ export interface AudioStore {
   driftHeldOff: boolean;
   setBPM: (bpm: number) => void;
   /**
-   * Reseed `bpm` for the given (newly built) locale — draws a fresh value
-   * via generateLocaleBpm and pushes it through the existing setBPM action
-   * (state write + AudioEngine.setBPM). Called only from worldTransition.ts's
-   * retransmitCoordsOnly/retransmitBoth (docs/specs/BPM_CONTROL.md §1.3) —
-   * NOT from retransmitAttenuationStyleOnly, and NOT a subscription.
+   * Reseed `bpm` for the given Attenuation Style — draws a fresh value via
+   * generateAttenuationStyleBpm and pushes it through the existing setBPM
+   * action (state write + AudioEngine.setBPM). Called from the module-scope
+   * Attenuation Style sync below, FIRST, so everything it reseeds afterwards
+   * resolves against the new tempo (docs/specs/FREE_SYNC_TOGGLE.md §1.7).
+   * A coordinates-only retransmit never reaches it.
    */
-  regenerateBpmFromSeed: (localeId: string, coordinates: { x: number; y: number }) => void;
+  regenerateBpmFromSeed: (attenuationStyleId: string, attenuationStyleName: string) => void;
   setGlobalAudio: <K extends EffectKey>(
     effect: K,
     partial: Partial<GlobalAudioSettings[K]>
@@ -281,8 +281,8 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     AudioEngine.setBPM(bpm);
   },
 
-  regenerateBpmFromSeed: (localeId, coordinates) => {
-    get().setBPM(generateLocaleBpm(localeId, coordinates.x, coordinates.y));
+  regenerateBpmFromSeed: (attenuationStyleId, attenuationStyleName) => {
+    get().setBPM(generateAttenuationStyleBpm(attenuationStyleId, attenuationStyleName));
   },
 
   setGlobalAudio: (effect, partial) => {
@@ -432,16 +432,25 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
 // ========================================
 // ATTENUATION STYLE SYNC
 // ========================================
-// Keep globalAudio seeded from whichever Attenuation Style is active — seeds
-// immediately for the one active at load (satisfies "app init"), then
-// re-seeds on every future currentAttenuationStyleId change (satisfies "any
-// future Attenuation Style switch") without requiring every future call site
-// of setCurrentAttenuationStyleId to remember to also call
-// regenerateGlobalAudioFromSeed. Mirrors attenuationStyleStore.ts's own
-// module-scope noise-map priming (`getAttenuationStyleNoiseMap('pelagos', 'Pelagos')`).
+// Keep bpm, globalAudio, lfoBank and globalLfoLinks seeded from whichever
+// Attenuation Style is active — seeds immediately for the one active at load
+// (satisfies "app init"), then re-seeds on every future
+// currentAttenuationStyleId change (satisfies "any future Attenuation Style
+// switch") without requiring every future call site of
+// setCurrentAttenuationStyleId to remember to also call each regenerate*.
+// Mirrors attenuationStyleStore.ts's own module-scope noise-map priming
+// (`getAttenuationStyleNoiseMap('pelagos', 'Pelagos')`).
+//
+// bpm reseeds FIRST: the tempo is an Attenuation Style property now
+// (docs/specs/FREE_SYNC_TOGGLE.md §1.7, inverting BPM_CONTROL.md §1.3's
+// locale seeding), and the globalAudio push right after it must resolve
+// against the new tempo. A coordinates-only retransmit never changes the
+// Attenuation Style, so it never reaches this and a hand-dragged tempo
+// survives a coordinate move.
 function syncGlobalAudioToCurrentAttenuationStyle(): void {
   const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   if (!attenuationStyle) return;
+  useAudioStore.getState().regenerateBpmFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateGlobalAudioFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateLfoBankFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateGlobalLfoLinksFromSeed(attenuationStyle.id, attenuationStyle.name);
@@ -453,22 +462,3 @@ useAttenuationStyleStore.subscribe((state, prevState) => {
     syncGlobalAudioToCurrentAttenuationStyle();
   }
 });
-
-// ========================================
-// LOCALE BPM SYNC (module load only — see docs/specs/BPM_CONTROL.md §1.3)
-// ========================================
-// Seeds audioStore.bpm for whichever locale is current at app boot. Every
-// LATER reseed is triggered explicitly by worldTransition.ts's
-// retransmitCoordsOnly/retransmitBoth, not by a subscription here — unlike
-// syncGlobalAudioToCurrentAttenuationStyle above, this deliberately does NOT
-// re-run on every currentAttenuationStyleId change, since
-// retransmitAttenuationStyleOnly must leave bpm untouched.
-function syncBpmToCurrentLocale(): void {
-  const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
-  const localeId = attenuationStyle?.currentLocaleId;
-  const locale = localeId ? useLocaleStore.getState().getLocaleById(localeId) : undefined;
-  if (!locale) return;
-  useAudioStore.getState().regenerateBpmFromSeed(locale.id, locale.coordinates);
-}
-
-syncBpmToCurrentLocale();

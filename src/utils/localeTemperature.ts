@@ -18,9 +18,9 @@ export const LOCALE_TEMPERATURE_RANGE = { min: -120, max: -30 };
 /**
  * Generate the decorative temperature (°C) for a locale at a given in-world
  * hour, sampled from that locale's own noise map (getLocaleNoiseMap —
- * coordinate-derived, no Attenuation Style dependency, same as
- * generateLocaleBpm/localeBpmSeed.ts). Unlike BPM (one static value per
- * locale, sampled at a fixed offset of 0), temperature samples at the LIVE
+ * coordinate-derived, no Attenuation Style dependency). Unlike the audio BPM
+ * seed (bpmSeed.ts — one static value per Attenuation Style, sampled at a
+ * fixed offset of 0), temperature samples at the LIVE
  * `hour` (a continuous float, 0-24, from computeLocaleHour) so it drifts
  * smoothly as the in-world clock advances — simplex noise is continuous
  * along the axis it's sampled on, so nearby hours produce nearby values.
