@@ -8,6 +8,8 @@ import { getSeededVal } from './getSeededVal';
 import { quantizeToStep } from './math';
 import { pickLane } from './lfoLaneDraw';
 import { pickShape, LFO_SHAPE_SEED_ORDER } from './lfoShapeDraw';
+import { generateAttenuationStyleBpm } from './bpmSeed';
+import { pickSeedNoteValue } from './tempoSync';
 import { stepsValueToT, stepsTToValue } from '@/components/ui/controls/sliderLogMath';
 import { SWELL_FREQUENCY_STEPS, SWELL_DURATION_SCHEMA } from '@/data/audioRigConfig';
 
@@ -75,6 +77,15 @@ function sampleField(noiseMap: NoiseFunction2D, key: GlobalAudioSeedFieldKey): n
 const DELAY_QUIET_THRESHOLD = 0.25;
 
 /**
+ * Probability threshold Delay's own "Sync" seed draw ([0, 1]) must fall under to seed Anchored
+ * rather than Float — 66% target (docs/specs/FREE_SYNC_TOGGLE.md §1.7). A separate pair of
+ * keys from the quiet roll above, so the two never correlate and Delay's existing draws are
+ * untouched. The note itself is then picked from the Delay loading band only. Measured raw share
+ * at 0.66 over 3000 Attenuation Styles (2026-10-03): 66.4% — no calibration needed.
+ */
+const DELAY_SYNC_ODDS = 0.66;
+
+/**
  * Generate deterministic GlobalAudioSettings for an Attenuation Style, sampled from the
  * Attenuation Style noise map — a new direct sample; previously that map was only
  * used to derive locale maps (see PROCEDURAL_GENERATION.md).
@@ -92,6 +103,17 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
   const defaults = DEFAULT_GLOBAL_AUDIO_SETTINGS;
   const delayQuietT = getSeededVal(noiseMap, 'globalAudio.delay.quiet', 0, 0, 1);
+  const delaySyncModeT = getSeededVal(noiseMap, 'globalAudio.delay.syncMode', 0, 0, 1);
+  const delaySyncNoteT = getSeededVal(noiseMap, 'globalAudio.delay.syncNote', 0, 0, 1);
+  const delaySync =
+    delaySyncModeT < DELAY_SYNC_ODDS
+      ? pickSeedNoteValue(
+          delaySyncNoteT,
+          generateAttenuationStyleBpm(attenuationStyleId, attenuationStyleName),
+          [GLOBAL_AUDIO_LOADING_RANGES['delay.delayTime']],
+          'seconds',
+        )
+      : undefined;
 
   return {
     compressorBeforeDelay: defaults.compressorBeforeDelay,
@@ -123,6 +145,8 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
       // Quiet ~25% of the time (DELAY_QUIET_THRESHOLD) — wet forces to 0
       // instead of its own sampled value, replacing the old enabled:false roll.
       wet: delayQuietT < DELAY_QUIET_THRESHOLD ? 0 : sampleField(noiseMap, 'delay.wet'),
+      // Free (the other ~third, or an empty band) carries no `sync` key at all — never `sync: undefined`.
+      ...(delaySync !== undefined && { sync: delaySync }),
     },
     reverb: {
       decay: sampleField(noiseMap, 'reverb.decay'),
@@ -274,6 +298,34 @@ export const LFO_BANK_RATE_BANDS: Record<LfoLaneId, { min: number; max: number }
   d: { min: 4, max: 8 },
 };
 
+/**
+ * Probability threshold each lane's own "Sync" seed draw ([0, 1]) must fall under to seed Anchored
+ * rather than Float — slower lanes lean Anchored, the fast ones lean Float. The TARGET shares are
+ * a 75 / b 66 / c 33 / d 25 % (docs/specs/FREE_SYNC_TOGGLE.md §1.7); the constants below are
+ * calibrated, because a simplex draw isn't uniform — it bunches around 0.5, so a threshold equal
+ * to its target share over- or under-shoots. Measured over 3000 Attenuation Styles (2026-10-03):
+ *   a  0.75 gave 91.8% raw  -> 0.60 gives 74.6%   (calibrated)
+ *   b  0.66 gives 72.3%                           (left at its stated value; inside tolerance)
+ *   c  0.33 gives 34.2%                           (left; the c.syncMode draw takes only 3 distinct values)
+ *   d  0.25 gave 11.2% raw  -> 0.33 gives 23.8%   (calibrated)
+ * Calibrate the constant, never the target. Re-measure if a key or the noise map changes.
+ */
+const LFO_BANK_SYNC_ODDS: Record<LfoLaneId, number> = { a: 0.6, b: 0.66, c: 0.33, d: 0.33 };
+
+/**
+ * Which lanes' rate bands a lane's Sync draw tries, in order — its own, then the next faster, then
+ * the next slower, widening outward the same way. pickSeedNoteValue takes the first band holding a
+ * note at the seed tempo, so a Sync lane lands as close to its own band as the tempo allows. At
+ * today's 40–100 BPM seed range the own band is never empty (a test proves it); the rest is
+ * insurance against a future retune of the bands or the range.
+ */
+export const LFO_BANK_SYNC_BAND_ORDER: Record<LfoLaneId, readonly LfoLaneId[]> = {
+  a: ['a', 'b', 'c', 'd'],
+  b: ['b', 'c', 'a', 'd'],
+  c: ['c', 'd', 'b', 'a'],
+  d: ['d', 'c', 'b', 'a'],
+};
+
 /** The bank's own per-lane drift loading window (±0.7, spec assumption 8). */
 export const LFO_BANK_DRIFT_SEED_RANGE = { min: -0.7, max: 0.7 };
 
@@ -293,6 +345,7 @@ export function generateLfoBankSettings(
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
   const result = {} as Record<LfoLaneId, BankLfoSettings>;
   let shapeQueue: readonly LfoShape[] = LFO_SHAPE_SEED_ORDER;
+  const seedBpm = generateAttenuationStyleBpm(attenuationStyleId, attenuationStyleName);
 
   for (const lane of LFO_LANE_IDS) {
     const rateT = getSeededVal(noiseMap, `lfoBank.${lane}.rate`, 0, 0, 1);
@@ -302,6 +355,18 @@ export function generateLfoBankSettings(
 
     const picked = pickShape(shapeT, shapeQueue);
     shapeQueue = picked.queue;
+
+    const syncModeT = getSeededVal(noiseMap, `lfoBank.${lane}.syncMode`, 0, 0, 1);
+    const syncNoteT = getSeededVal(noiseMap, `lfoBank.${lane}.syncNote`, 0, 0, 1);
+    const sync =
+      syncModeT < LFO_BANK_SYNC_ODDS[lane]
+        ? pickSeedNoteValue(
+            syncNoteT,
+            seedBpm,
+            LFO_BANK_SYNC_BAND_ORDER[lane].map((id) => LFO_BANK_RATE_BANDS[id]),
+            'hz',
+          )
+        : undefined;
 
     result[lane] = {
       shape: picked.shape,
@@ -320,6 +385,9 @@ export function generateLfoBankSettings(
         0,
         LFO_BANK_DRIFT_STEP,
       ),
+      // `rate` above is still sampled as ever — it's the Free value kept underneath a Sync lane.
+      // A Free lane carries no `sync` key at all, never `sync: undefined`.
+      ...(sync !== undefined && { sync }),
     };
   }
   return result;

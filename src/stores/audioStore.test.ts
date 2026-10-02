@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS } from '../types/lfo';
+import { resolveDelayTimeSeconds } from '../utils/tempoSync';
 
 // Ensure AudioEngine is mocked before importing the store so the module's
 // import of AudioEngine receives the mock. The store now calls the full
@@ -272,14 +273,21 @@ describe('useAudioStore - regenerateGlobalAudioFromSeed', () => {
   it('calls every AudioEngine setGlobal* setter with the resulting values', async () => {
     const { useAudioStore } = await import('./audioStore');
     const { AudioEngine } = await import('../engine/AudioEngine');
-    const { globalAudio } = useAudioStore.getState();
+    const { globalAudio, bpm } = useAudioStore.getState();
 
     expect(AudioEngine.setGlobalCompressor).toHaveBeenCalledWith(globalAudio.compressor);
     expect(AudioEngine.setGlobalEQ).toHaveBeenCalledWith(globalAudio.eq3);
     expect(AudioEngine.setGlobalFilterLPF).toHaveBeenCalledWith(globalAudio.filterLPF);
     expect(AudioEngine.setGlobalFilterHPF).toHaveBeenCalledWith(globalAudio.filterHPF);
     expect(AudioEngine.setGlobalLimiter).toHaveBeenCalledWith(globalAudio.limiter);
-    expect(AudioEngine.setGlobalDelay).toHaveBeenCalledWith(globalAudio.delay);
+    // The engine only ever hears the resolved delay: `sync` stripped, `delayTime` in seconds at the
+    // current tempo. The seeded Delay is Sync or Free depending on the (random, per-boot) default
+    // Attenuation Style, so this must hold for both — a Free delay resolves to itself.
+    const { sync: _sync, ...engineDelay } = globalAudio.delay;
+    expect(AudioEngine.setGlobalDelay).toHaveBeenCalledWith({
+      ...engineDelay,
+      delayTime: resolveDelayTimeSeconds(globalAudio.delay, bpm),
+    });
     expect(AudioEngine.setGlobalReverb).toHaveBeenCalledWith(globalAudio.reverb);
   });
 
@@ -460,6 +468,11 @@ describe('useAudioStore - setLfoBank', () => {
   it('calls setBankRate and no other engine setter when only rate is given', async () => {
     const { useAudioStore } = await import('./audioStore');
     const { lfoEngine } = await import('../engine/lfoEngine');
+    // Pin lane b Free: the default Attenuation Style's name is random per boot and may seed it Sync,
+    // in which case a rate edit (correctly) pushes the synced Hz instead of the typed rate.
+    useAudioStore.setState({
+      lfoBank: { ...useAudioStore.getState().lfoBank, b: { shape: 'sine', rate: 1, rateDrift: 0, depthDrift: 0 } },
+    });
     vi.clearAllMocks();
 
     useAudioStore.getState().setLfoBank('b', { rate: 2 });

@@ -238,16 +238,16 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   **Verification:** `npx vitest run src/components/panels/screen/console/AudioRigEffectPanel.test.tsx` (RED first); `npm run build:types`, `npm run lint`.
   **Dependencies:** 9, 11. **Files:** `AudioRigDrawer.tsx`, `AudioRigEffectPanel.test.tsx`. **Scope:** S.
 
-### Checkpoint C: Delay slice
-- [ ] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
-- [ ] Manual (Crawford): Delay at 1/4 at 60 BPM → Tempo to 20 → readout clamps to the longest allowed note and the delay stops lengthening at 10 s; Anchored → Float keeps the heard time; an Audio Swell on Delay Amount still rides smoothly.
-- [ ] Review with Crawford before proceeding.
+### Checkpoint C: Delay slice — PASSED (Crawford, 2026-10-02)
+- [x] `npm test`, `npm run lint`, `npm run build:types` clean as of Task 12 (parallel-run flakes pass alone). `npm run build` was not re-run for Tasks 11–12.
+- [x] Manual (Crawford): "delay looks good from my point of view" — signed off as a whole; the three listed sub-checks (tempo-to-20 clamp, Anchored → Float keeps the heard time, swell on Delay Amount) were not itemised, and no vetoes were raised.
+- [x] Review with Crawford before proceeding.
 
 ---
 
 ### Phase 4: Seeding and persistence
 
-- [ ] **Task 13: Seeded Sync rolls for lanes and Delay**
+- [x] **Task 13: Seeded Sync rolls for lanes and Delay**
 
   **Description:** Spec §1.7 "Sync draws". `LFO_BANK_SYNC_ODDS` (a 0.75, b 0.66, c 0.33, d 0.25) and `DELAY_SYNC_ODDS` (0.66) in `globalAudioSeed.ts`; new keys `lfoBank.${lane}.syncMode/.syncNote` and `globalAudio.delay.syncMode/.syncNote`; candidate-band order own → next faster → next slower → outward; `seedBpm = generateAttenuationStyleBpm(id, name)` inside each seeder; existing keys and order untouched.
 
@@ -255,6 +255,8 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   - [ ] Task 3's oracle passes with only `sync` keys added.
   - [ ] Determinism; every band non-empty for every integer BPM 40–100; every Sync draw inside its candidate band at the seed BPM; Delay draws inside 0.05–0.5 s.
   - [ ] Measured Sync share over 200 names within ±10 points of 75/66/33/25/66 %. If one misses, calibrate that constant (comment records the measured raw share), never the target — and report it at the checkpoint.
+
+  **As built:** Keys, draw order and band order exactly as specced; `LFO_BANK_SYNC_BAND_ORDER` is an exported literal table (a `abcd`, b `bcad`, c `cdba`, d `dcba`) so the fallback order is directly testable. The Free landing spreads `...(sync !== undefined && { sync })`, never `sync: undefined`. **Calibration (report at Checkpoint D):** a simplex draw bunches around 0.5, so two lane constants missed and were calibrated, measured over 3000 names: **a** 0.75 → 91.8 % raw, now **0.60** → 74.6 %; **d** 0.25 → 11.2 % raw, now **0.33** → 23.8 %. **b** (0.66 → 72.3 %), **c** (0.33 → 34.2 %) and **Delay** (0.66 → 66.4 %) are inside tolerance and left at their stated values; b's 72.3 % is 6 points over its 66 % target — Crawford's call whether to pull it to 0.62 (66.2 %). Constants' comments record every measured figure. **Variety check:** `lfoBank.c.syncMode` takes only 3 distinct values over 3000 names (the low-variety simplex artifact Task 4 hit), so lane c's share can only land in the gaps between them; its measured 34.2 % is fine, but it cannot be tuned finely. The `syncNote` draws have 24–178 distinct values, so note variety is not affected, and the spec's key names were kept. **Oracle:** `oracle-alpha` is all-Free and passes byte-identical; `oracle-theta` gained only `sync` keys (lane a `1 dotted`, lane c `1/8 triplet`, Delay `1/16`) — the failing diff had no changed or removed lines before the keys were added. **Fallback:** forcing `pickSeedNoteValue` to `undefined` (a mocked every-band-empty case) leaves every lane/Delay Free with its seeded Free values byte-identical, and asserts the pick is asked at the Attenuation Style's seed BPM with the right bands and unit. **Mutation checks run:** emitting `sync: undefined` on Free lanes turned 4 tests red (oracle ×2, the no-`sync`-key check, the fallback case); hard-coding seed BPM 60 turned the in-band and fallback-bpm tests red. **Knock-on found by the full suite:** `DEFAULT_ATTENUATION_STYLE_NAME` is a *random* name per module load, so audioStore tests that re-import the store boot a random world — before this task none could seed Sync, now ~2 in 3 do. Two tests had silently assumed a Free seed and failed intermittently (~2 of 3 runs): the "every setGlobal* setter" case (now expects the resolved engine-facing delay: `sync` stripped, `delayTime` resolved at the current bpm, true for Free and Sync alike) and `setLfoBank` "only rate is given" (now pins lane b Free). 6/6 repeat runs of `audioStore.test.ts` clean afterwards. Full suite: only the known worldTransition swell-clear flake, passing alone.
 
   **Verification:** `npx vitest run src/utils/globalAudioSeed.test.ts src/stores/audioStore.test.ts` (RED first); `npm run build:types`, `npm run lint`.
   **Dependencies:** 2, 3, 4. **Files:** `globalAudioSeed.ts`, `globalAudioSeed.test.ts`. **Scope:** M.
