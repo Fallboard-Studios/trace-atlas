@@ -3,16 +3,19 @@
 Every slider-controlled attribute in the Global Audio Rig view (`AudioRigDrawer.tsx`) and the
 Robot Detail view (`RobotOptionsTab.tsx` — `AudioSettingSection`, `PingControlsDrawer`,
 `PingContourDrawer`, `SignatureArrayDrawer`). Sources: `src/data/audioRigConfig.ts`,
-`src/data/robotOptionsConfig.ts`, `src/components/ui/controls/Lfo.tsx` for the schema/UI columns;
-`src/data/globalAudioSeedRanges.ts`, `src/data/globalAudioLoadingRanges.ts`,
+`src/data/robotOptionsConfig.ts`, `src/components/ui/controls/LfoLink.tsx` for the schema/UI
+columns; `src/data/globalAudioSeedRanges.ts`, `src/data/globalAudioLoadingRanges.ts`,
 `src/utils/globalAudioSeed.ts`, `src/systems/spawnSystem.ts`, `src/utils/localeBpmSeed.ts` for the
 Load Min/Max columns (what a fresh seed/spawn can actually generate the attribute at, distinct
 from the Min/Max the slider itself lets you drag to).
 
 Excludes `RobotDisplaySection`'s Battery readout — a read-only `SliderLinear` display, not a
-control the user drags. LFO Rate/Depth/Shape and Rate Drift/Depth Drift each get one row
-covering every attribute they modulate, per request, rather than one row per `lfoTarget` (13 robot
-targets + 7 global targets) or per drift group (4 groups) — see the two LFO sections at the bottom.
+control the user drags. LFO Link Depth gets one row covering every linkable field (6 robot
+targets + 7 global targets, `docs/tasks/LFO_BANK.md`), rather than one row per `lfoTarget` — Lane
+is a picker with no numeric range, so it has no row here. The LFO Bank's own 4 lanes (Shape, Rate,
+Rate Drift, Depth Drift — one row per lane, since each lane seeds its own rate band) replace what
+used to be one shared Rate/Depth/Shape row plus a separate 4-drift-group section — see the two LFO
+sections at the bottom.
 
 **Step column note:** only `SliderLinear` has a real numeric `step` in its schema (`src/types/
 controls.ts`) — when the config omits it, `SliderLinear.tsx` defaults to `step={1}` (confirmed in
@@ -224,52 +227,54 @@ layer's `0` is never passed through this quantization, so it stays the literal `
 
 ---
 
-## LFO Modulation (Rate/Depth/Shape) — applies to every LFO-enabled slider above
+## LFO Link Depth — applies to every linkable Gain/Detune/EQ/filter field
 
-Every slider marked `lfoTarget` in `audioRigConfig.ts`/`robotOptionsConfig.ts` (all of 3-Band EQ,
-Low-Pass/High-Pass Filter, and every Signature Array layer's Gain/Detune/Phase —
-9 robot targets + 7 global targets total; Volume and Interval/pulse-width lost their LFO target,
-docs/specs/LFO_LOAD_FIX.md) gets an identical `Lfo` component instance
-(`src/components/ui/controls/Lfo.tsx`), reused verbatim regardless of which attribute it's
-modulating. One row per field, not one per target:
+Every field marked `Has LFO: Yes` / `LFO?: X` (6 robot targets + 7 global targets,
+`docs/tasks/LFO_BANK.md`) gets an identical `LfoLink` component instance
+(`src/components/ui/controls/LfoLink.tsx`), reused verbatim regardless of which attribute it's
+linked to. Lane is a `RadioButton` (5 options: Off + 4 lanes) with no numeric range — this table
+only covers Depth, the one numeric control `LfoLink` renders. One row per field, not one per
+target — Shape/Rate/Rate Drift/Depth Drift all moved to the lane itself (next section):
 
 | Human Label | Slider Type | Value Type | Min | Max | Step | Load Min (Global chain) | Load Max (Global chain) | Load Min (Robot) | Load Max (Robot) |
 |---|---|---|---|---|---|---|---|---|---|
-| Rate | Linear | Hz | 0 | 20 | 0.05 | 1 | 4 | 0 | 20¹² |
-| Depth | Linear | % | 0 | 100 | 1⁶ | 20 | 50 | 0 | 100¹² |
+| Depth | Linear | % | 0 | 100 | 1⁶ | 20 | 50 | 1¹² | 100¹² |
 
-⁶ No `step` on Depth's *schema* (`Lfo.tsx`'s `depthSchema`) — defaults to `1`. Like Compressor
-Threshold/Knee above, though, the *generation* side now declares its own step independently of the
-UI schema: a mirrored `LFO_DEPTH_STEP = 1` local to each of `globalAudioSeed.ts` and
-`spawnSystem.ts`, quantized against `LFO_DEPTH_MIN` — Depth is a whole percent now in both the
-global-chain and robot-level cases.
-¹² **Robot-level LFO Rate/Depth sample the entire full/UI range with no narrower loading
-sub-window at all** (`spawnSystem.ts`'s `generateRobotLfoSettings` uses `LFO_RATE_MIN`/`MAX` and
-`LFO_DEPTH_MIN`/`MAX` directly) — unlike every global-chain field, which has its own narrower
-`GLOBAL_AUDIO_LOADING_RANGES`/`LFO_RATE_LOADING_MIN`/`MAX` window. Both Rate (`0.05` step) and
-Depth (`1` step, whole percent) are now quantized in both cases, via mirrored step constants local
-to each of `globalAudioSeed.ts` and `spawnSystem.ts`. This was the exact mechanism behind the
-originally reported bug: a robot's per-target Rate could seed anywhere in `[0, 10]` continuously
-against a `0.25` step (e.g. `4.236`) — now fixed for both Rate and Depth at generation time; the
-global-chain window is narrower (`[20, 50]` vs. the robot-level `[0, 100]` for Depth) but that only
-ever affected how far off-grid an unrounded value could land, not whether it's rounded now.
+⁶ No `step` on Depth's *schema* — defaults to `1`. Like Compressor Threshold/Knee above, though,
+the *generation* side now declares its own step independently of the UI schema: a mirrored
+`LFO_DEPTH_STEP = 1` local to each of `globalAudioSeed.ts` and `spawnSystem.ts`, quantized against
+`LFO_DEPTH_MIN` — Depth is a whole percent in both the global-chain and robot-level cases.
+¹² **Robot-link Depth seeds from a much wider window than the global-chain one** —
+`ROBOT_LFO_DEPTH_SEED_MIN` (1) to `LFO_DEPTH_MAX` (100, `spawnSystem.ts`'s `generateRobotLfoLinks`)
+— rather than the global links' narrower `LFO_DEPTH_LOADING_MIN/MAX` (`20`–`50`,
+`globalAudioSeed.ts`'s `generateGlobalLfoLinks`). The floor of `1`, not `0`, is deliberate: a lit
+robot target (one that didn't roll quiet) is never seeded silently inaudible — a user may still
+drag Depth to `0` by hand. Both quantize to `LFO_DEPTH_STEP` at generation time.
 
-## LFO Drift (Rate Drift / Depth Drift) — applies to all 4 drift groups
+## LFO Bank — Shape, Rate, Rate Drift, Depth Drift (one row per lane)
 
-`src/data/audioRigConfig.ts`'s `LFO_DRIFT_GROUPS` — EQ, Low-Pass, High-Pass, and Robot Drift each
-get an identical `Rate Drift`/`Depth Drift` `SliderCenteredZero` pair, same min/max/load range in
-every group:
+`src/data/audioRigConfig.ts`'s `LFO_BANK_LANE_SCHEMAS` — the 4 shared lanes (`a`–`d`, user-facing
+names Core/Companion/Accent/Overtone LFO) each get their own `RadioButton` (Shape) + `SliderLinear`
+(Rate) + 2 `SliderCenteredZero`s (Rate Drift, Depth Drift), rendered in `LfoBankLanePanel`. Unlike
+the old per-target design this replaced, **Rate's loading band differs per lane** — the four bands
+are fixed, adjacent, and log-spaced, slow-to-fast by lane letter:
 
 | Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
 |---|---|---|---|---|---|---|---|
+| Shape | Radio (triangle/sine/square/sawtooth) | — | — | — | — | triangle or sine only¹³ | triangle or sine only¹³ |
+| Rate | Linear | Hz | 0 | 20 | 0.05 | lane a: 0.1, b: 0.4, c: 1.5, d: 4 | lane a: 0.4, b: 1.5, c: 4, d: 8 |
 | Rate Drift | Centered Zero | % | -100 | 100 | —¹⁴ | -70 | 70 |
 | Depth Drift | Centered Zero | % | -100 | 100 | —¹⁴ | -70 | 70 |
 
+¹³ Shape's loading set (`LFO_LOADING_SHAPES`) is a narrower discrete subset of the full 4-shape UI
+set — the same loading-vs-full split every numeric field above uses, just over shapes instead of a
+range. A fresh world's 4 lanes only ever seed `triangle`/`sine`; `square`/`sawtooth` stay reachable
+by hand via the Shape radio.
 ¹⁴ `SliderCenteredZero` still has no numeric `step` field in its *schema* — the UI slider's own
-granularity is unchanged. The *generation* side now rounds anyway: `GLOBAL_AUDIO_SEED_RANGES`'s
-8 `lfoDrift.*` entries (one `rateDrift`/`depthDrift` pair per group, `globalAudioSeedRanges.ts`)
-each declare `step: 0.01` — a whole percent in this field's `-1..1` stored-fraction space (1% =
-`0.01`) — and `sampleField` quantizes against it the same way it does every other stepped field.
+granularity is unchanged. The *generation* side now rounds anyway: each lane's `rateDrift`/
+`depthDrift` (`generateLfoBankSettings`, `globalAudioSeed.ts`) quantizes to a whole hundredth in
+this field's `-1..1` stored-fraction space (1% = `0.01`) within the `±0.7` `LFO_BANK_DRIFT_SEED_RANGE`
+loading window — the same `±70%`/`±0.7` figure the 4-group Drift design this replaced also used.
 
 Since `SliderCenteredZero` never had a numeric step to compare against, there's no "off the
 slider's own grid" concern the way a `SliderLinear` field has — the whole-percent rounding above is
