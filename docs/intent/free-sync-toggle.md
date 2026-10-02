@@ -2,6 +2,18 @@
 
 Confirmed via `interview-me` on 2026-09-30 (six questions from a desktop-drafted brief), ahead of a `spec-driven-development` pass. Branch `feature/free-sync-toggle`, off `main` at the Content Layer merge (PR #518).
 
+## Re-scope after the LFO Bank (2026-10-02) — supersedes the sections below where they conflict
+
+The LFO Bank (PR #521) replaced per-target LFO rate with four shared, world-level lanes (`lfoBank.a`–`d`, `BankLfoSettings`); a modulated field now stores only `{ lane, depth }`. Work continues on branch `feature/sync-toggle` (off `main` at `07da4a73`). Crawford's decisions, 2026-10-02:
+
+- **Five toggles total: one per LFO Bank lane (4) plus Delay Time.** Not per target, not per robot, not per company. The toggle sits on the lane's Rate slider in `LfoBankLanePanel`. Company broadcast, robot seeding and the per-target `Lfo.tsx` surface are all out of scope — there is nothing per-target left to sync.
+- **BPM becomes Attenuation-Style-seeded (structural change, part of this phase).** Attenuation Style is timbre, and tempo belongs with timbre more than with the notes a locale picks. BPM seeds from the Attenuation Style's noise map (same `[40, 100]` integer band), reseeds on every Attenuation Style change alongside `globalAudio`/`lfoBank`/`globalLfoLinks`, and **no longer reseeds on a coordinates-only retransmit**. This inverts `docs/specs/archive/BPM_CONTROL.md` §1.3's rule. Consequence: the seed tempo for the lane and Delay Sync draws is the Attenuation Style's own BPM, deterministic from the Attenuation Style alone — no locale lookup, no threading.
+- **Seeded Sync odds per lane:** a 75%, b 66%, c 33%, d 25% (slow lanes lean synced). Delay 66%.
+- **Seeded Sync draw band:** a synced lane draws from the note values whose rate at the seed BPM falls inside **its own lane's rate band** (`LFO_BANK_RATE_BANDS`). If that is empty, it draws from the next faster lane's band; if there is no faster lane (or that is empty too), the next slower one. At today's 40–100 BPM seed range every band is non-empty, so the fallback is insurance against a future retune, not a live path.
+- **The Sync slider's own range is the full LFO list (0–20 Hz),** same as the Free slider; only the seed draw is band-restricted.
+- **No Off step.** Crawford wanted it only if more performant and clutter-free; it is perf-neutral (a lane at 0 Hz is still a running `Tone.LFO`, same cost as its slowest note), so it's dropped. The Sync list is note values only for lanes and Delay alike; Free → Sync from 0 Hz snaps to the slowest allowed note. Holding a lane still stays a Free-mode thing (rate 0).
+- **Wording (old spec §7 items 1–3):** "Tempo Sync" / "Anchoring" confirmed; word readouts ("1/8 dotted", "1/4 triplet", "1 bar", "2 bars") confirmed over symbols; 2 and 4 bars stay straight-only.
+
 ## Outcome
 
 The global Delay Time slider (`audioRigConfig.ts`, `delay.delayTime`) and every LFO Rate slider (`Lfo.tsx`) gain a small Free | Sync toggle beside the label. LFO settings live in three places in state, and the toggle reaches all of them: the 7 global-chain targets in `audioStore.globalLfo` (shown as 3 panels: EQ, LPF, HPF), the 13 per-robot targets in `Robot.lfoSettings` (4 panels: Volume + 3 oscillator layers), and the partial company-level override in `CompanyOptionsSnapshot.lfoSettings`. Free is today's behaviour: an absolute seconds or Hz value that stays fixed when the tempo changes. Sync locks the value to a note division of the current tempo and follows tempo changes. Seeded worlds land on Free or Sync 50/50 per toggle. Lore labels: Free = **Float**, Sync = **Anchored**.
