@@ -7,52 +7,49 @@
 **This table is the source of truth for both ranges every field carries:**
 - **Unit / Range** — the full range: what the UI slider exposes and what the app itself supports. Verified directly against Tone.js v15.1.22's own source (`@min`/`@max` doc comments where Tone documents them; its own reference-range prose where it doesn't) — see the notes at the bottom.
 - **Loading Range** — a narrower sub-range of the above, the only window a *fresh seed* is allowed to land a value in. Never presented in the UI, never a cap on what the app can do — purely bounds what `generateGlobalAudioSettings` rolls at planet-load time. Confirmed with the user per-effect; `src/data/globalAudioLoadingRanges.ts` is a direct, mechanical transcription of this column, not an independent source.
-- **LFO?** — whether this field is one of the 7 `GlobalLfoTargetId`s (`src/types/lfo.ts`) a primary `Tone.LFO` can connect to. Rate/depth/shape bounds for a connected LFO live in `lfo.ts` (`LFO_RATE_MIN/MAX`, `LFO_DEPTH_MIN/MAX`), not duplicated per row here.
-- **Drift Group** — which of the 4 LFO Drift groups (`docs/specs/LFO_DRIFT_GROUPS.md`, `src/engine/lfoDrift.ts`) imposes a slow, seeded wobble on this field's own LFO rate/depth. Strictly a subset of **LFO?** — drift only ever rides a connected primary, so it's "–" everywhere LFO? is "–". Drift is a **per-group** setting, not per-field: every row sharing a group shares that group's one Rate Drift / Depth Drift amount. See the **Master / Chain-Level Controls** section below for the groups' own Setter/Range/Label rows — the 4th group, Robot Drift, modulates per-robot LFO targets and so never appears as a "Drift Group" value in this per-param table (this doc covers only the 7 global-chain effect blocks; see `docs/reference/ROBOT_DATA_GRID.md` for robot-level fields).
+- **LFO?** — whether this field is one of the 7 `GlobalLfoTargetId`s (`src/types/lfo.ts`) that can carry an inline `LfoLink` (Lane + Depth, `src/components/ui/controls/LfoLink.tsx`), rendered directly beneath the field's own slider. There is no per-field shape/rate any more — a linked field's oscillator is whichever of the 4 shared LFO Bank lanes its own `LfoLink` picks (`docs/specs/LFO_BANK.md`, `docs/AUDIO_SYSTEM.md`'s LFO Modulation section); Rate/Shape/Rate Drift/Depth Drift bounds live on the lane, in the **Master / Chain-Level Controls** section below, not per row here. A field's own `LfoLink` can pick any of the 4 lanes, same as every robot field — there is no fixed per-effect-block assignment the way the old 4-group Drift design had (see that section's own note on what replaced it).
 - **Swell?** — whether this field is one of the 9 `SwellGlobalTargetId`s (`src/types/audioSwell.ts`) the Audio Swells system can pick as a global-pool target for a rare, self-reversing ramp. Per-swell magnitude/duration are drawn dynamically, not fixed per field — see `docs/specs/AUDIO_SWELLS.md`. Both pools (this one, and the separate 17-attribute robot pool) are governed session-wide by one master control — see **Ping Variance Automation** in the Master Controls section below.
 
-| Effect | Setter | Param | Unit / Range | Loading Range | Effect Label | Param Label | UI | LFO? | Drift Group | Swell? |
-|---|---|---|---|---|---|---|---|---|---|---|
-| EQ (3-band) | `setGlobalEQ()` | low | dB, −12 to 12 | −6 to 6 | SPECTRAL FREQUENCY EQUALIZER | SUB-BAND DENSITY | SLIDER (Center-Zero) | X | EQ Drift | X |
-| EQ (3-band) | `setGlobalEQ()` | mid | dB, −12 to 12 | −6 to 6 | SPECTRAL FREQUENCY EQUALIZER | MEDIAL-BAND DENSITY | SLIDER (Center-Zero) | X | EQ Drift | X |
-| EQ (3-band) | `setGlobalEQ()` | high | dB, −12 to 12 | −6 to 6 | SPECTRAL FREQUENCY EQUALIZER | APICAL-BAND DENSITY | SLIDER (Center-Zero) | X | EQ Drift | X |
-| Low-Pass Filter | `setGlobalFilterLPF()` | frequency | Hz, 20–20000 | 2000–20000 | HIGH-FREQUENCY MASK | CUTOFF FREQUENCY | SLIDER (Logarithmic) | X | Low-Pass Drift | X |
-| Low-Pass Filter | `setGlobalFilterLPF()` | Q | 0.1–20 | 0.1–5 | HIGH-FREQUENCY MASK | BOUNDARY RESONANCE | SLIDER (Logarithmic) | X | Low-Pass Drift | X |
-| High-Pass Filter | `setGlobalFilterHPF()` | frequency | Hz, 20–20000 | 20–500 | LOW-FREQUENCY MASK | CUTOFF FREQUENCY | SLIDER (Logarithmic) | X | High-Pass Drift | X |
-| High-Pass Filter | `setGlobalFilterHPF()` | Q | 0.1–20 | 0.1–5 | LOW-FREQUENCY MASK | BOUNDARY RESONANCE | SLIDER (Logarithmic) | X | High-Pass Drift | X |
-| Delay | `setGlobalDelay()` | delayTime | seconds, 0–1 | 0.05–0.5 | TEMPORAL REFLECTION MATRIX | PROPAGATION LAG | SLIDER | – | – | – |
-| Delay | `setGlobalDelay()` | feedback | 0–0.95 | 0–0.4 | TEMPORAL REFLECTION MATRIX | RECIRCULATION RATE | SLIDER | – | – | – |
-| Delay | `setGlobalDelay()` | wet | 0–1 | 0–0.3 | TEMPORAL REFLECTION MATRIX | REFLECTED SIGNAL BALANCE | SLIDER | – | – | X |
-| Reverb | `setGlobalReverb()` | decay | seconds, 0.1–10 | 0.5–4 | SPATIAL DIFFUSION MATRIX | DISSIPATION DURATION | SLIDER (Logarithmic) | – | – | – |
-| Reverb | `setGlobalReverb()` | preDelay | seconds, 0–0.5 | 0–0.1 | SPATIAL DIFFUSION MATRIX | INITIAL LAG | SLIDER | – | – | – |
-| Reverb | `setGlobalReverb()` | wet | 0–1 | 0.1–0.4 | SPATIAL DIFFUSION MATRIX | DIFFUSED SIGNAL BALANCE | SLIDER | – | – | X |
-| Compressor | `setGlobalCompressor()` | threshold | dB, −60 to 0 | −55 to −45 | DYNAMIC RANGE CONDENSER | ATTENUATION THRESHOLD | SLIDER | – | – | – |
-| Compressor | `setGlobalCompressor()` | ratio | 1–20 | 10–20 | DYNAMIC RANGE CONDENSER | COMPRESSION RATIO | SLIDER (step 1) | – | – | – |
-| Compressor | `setGlobalCompressor()` | attack | seconds, 0.001–0.2 | 0.003–0.05 | DYNAMIC RANGE CONDENSER | COMPRESSION RATE | SLIDER (Logarithmic) | – | – | – |
-| Compressor | `setGlobalCompressor()` | release | seconds, 0.01–1 | 0.05–0.3 | DYNAMIC RANGE CONDENSER | RAREFACTION RATE | SLIDER (Logarithmic) | – | – | – |
-| Compressor | `setGlobalCompressor()` | knee | dB, 0–40 | 1–15 | DYNAMIC RANGE CONDENSER | CURVATURE DAMPING | SLIDER | – | – | – |
-| Limiter | `setGlobalLimiter()` | threshold | dB, −20 to 0 | −3 to −1 | TERMINAL CEILING GATE | OUTPUT CEILING | SLIDER | – | – | – |
+| Effect | Setter | Param | Unit / Range | Loading Range | Effect Label | Param Label | UI | LFO? | Swell? |
+|---|---|---|---|---|---|---|---|---|---|
+| EQ (3-band) | `setGlobalEQ()` | low | dB, −12 to 12 | −6 to 6 | SPECTRAL FREQUENCY EQUALIZER | SUB-BAND DENSITY | SLIDER (Center-Zero) | X | X |
+| EQ (3-band) | `setGlobalEQ()` | mid | dB, −12 to 12 | −6 to 6 | SPECTRAL FREQUENCY EQUALIZER | MEDIAL-BAND DENSITY | SLIDER (Center-Zero) | X | X |
+| EQ (3-band) | `setGlobalEQ()` | high | dB, −12 to 12 | −6 to 6 | SPECTRAL FREQUENCY EQUALIZER | APICAL-BAND DENSITY | SLIDER (Center-Zero) | X | X |
+| Low-Pass Filter | `setGlobalFilterLPF()` | frequency | Hz, 20–20000 | 2000–20000 | HIGH-FREQUENCY MASK | CUTOFF FREQUENCY | SLIDER (Logarithmic) | X | X |
+| Low-Pass Filter | `setGlobalFilterLPF()` | Q | 0.1–20 | 0.1–5 | HIGH-FREQUENCY MASK | BOUNDARY RESONANCE | SLIDER (Logarithmic) | X | X |
+| High-Pass Filter | `setGlobalFilterHPF()` | frequency | Hz, 20–20000 | 20–500 | LOW-FREQUENCY MASK | CUTOFF FREQUENCY | SLIDER (Logarithmic) | X | X |
+| High-Pass Filter | `setGlobalFilterHPF()` | Q | 0.1–20 | 0.1–5 | LOW-FREQUENCY MASK | BOUNDARY RESONANCE | SLIDER (Logarithmic) | X | X |
+| Delay | `setGlobalDelay()` | delayTime | seconds, 0–1 | 0.05–0.5 | TEMPORAL REFLECTION MATRIX | PROPAGATION LAG | SLIDER | – | – |
+| Delay | `setGlobalDelay()` | feedback | 0–0.95 | 0–0.4 | TEMPORAL REFLECTION MATRIX | RECIRCULATION RATE | SLIDER | – | – |
+| Delay | `setGlobalDelay()` | wet | 0–1 | 0–0.3 | TEMPORAL REFLECTION MATRIX | REFLECTED SIGNAL BALANCE | SLIDER | – | X |
+| Reverb | `setGlobalReverb()` | decay | seconds, 0.1–10 | 0.5–4 | SPATIAL DIFFUSION MATRIX | DISSIPATION DURATION | SLIDER (Logarithmic) | – | – |
+| Reverb | `setGlobalReverb()` | preDelay | seconds, 0–0.5 | 0–0.1 | SPATIAL DIFFUSION MATRIX | INITIAL LAG | SLIDER | – | – |
+| Reverb | `setGlobalReverb()` | wet | 0–1 | 0.1–0.4 | SPATIAL DIFFUSION MATRIX | DIFFUSED SIGNAL BALANCE | SLIDER | – | X |
+| Compressor | `setGlobalCompressor()` | threshold | dB, −60 to 0 | −55 to −45 | DYNAMIC RANGE CONDENSER | ATTENUATION THRESHOLD | SLIDER | – | – |
+| Compressor | `setGlobalCompressor()` | ratio | 1–20 | 10–20 | DYNAMIC RANGE CONDENSER | COMPRESSION RATIO | SLIDER (step 1) | – | – |
+| Compressor | `setGlobalCompressor()` | attack | seconds, 0.001–0.2 | 0.003–0.05 | DYNAMIC RANGE CONDENSER | COMPRESSION RATE | SLIDER (Logarithmic) | – | – |
+| Compressor | `setGlobalCompressor()` | release | seconds, 0.01–1 | 0.05–0.3 | DYNAMIC RANGE CONDENSER | RAREFACTION RATE | SLIDER (Logarithmic) | – | – |
+| Compressor | `setGlobalCompressor()` | knee | dB, 0–40 | 1–15 | DYNAMIC RANGE CONDENSER | CURVATURE DAMPING | SLIDER | – | – |
+| Limiter | `setGlobalLimiter()` | threshold | dB, −20 to 0 | −3 to −1 | TERMINAL CEILING GATE | OUTPUT CEILING | SLIDER | – | – |
 
 ## Master / Chain-Level Controls (not per-effect-param)
 
-These govern the whole chain, a whole drift group, or both swell pools at once — none of them are a field on one `AudioRigEffectKey` block, so none get a row in the table above. `Decay Mode` and all 4 Drift groups are shipped (`src/data/audioRigConfig.ts` + `AudioRigDrawer.tsx`, rendered as the bare `master-row` above the effect blocks plus the 4 drift accordions below them). **Ping Variance Automation is not yet shipped** — see the status note beneath the table.
+These govern the whole chain, a whole LFO Bank lane, or both swell pools at once — none of them are a field on one `AudioRigEffectKey` block, so none get a row in the table above. `Decay Mode` and the 4 LFO Bank lanes are shipped (`src/data/audioRigConfig.ts`'s `DECAY_MODE_SCHEMA`/`LFO_BANK_LANE_SCHEMAS` + `AudioRigDrawer.tsx`, rendered as the bare `master-row` above the effect blocks plus the Fleet Params → LFO Bank accordion — see `docs/AUDIO_SYSTEM.md`'s LFO Modulation section). **Ping Variance Automation is not yet shipped** — see the status note beneath the table.
 
 There is no rig-wide bypass control and no per-effect Enabled toggle — both were removed; every effect's "off" state is now expressed purely through its own params (wet=0, a filter's own passthrough frequency, etc.).
+
+**The 4 LFO Bank lanes replaced the old 4-group Drift design** (`docs/tasks/LFO_BANK.md`, 2026-10-01) — `EQ Drift`/`Low-Pass Drift`/`High-Pass Drift`/`Robot Drift` and their per-group `rateDrift`/`depthDrift` pairs are gone; a field no longer belongs to a fixed drift group at all. Instead, any field's own `LfoLink` (this table's `LFO?` column, or `docs/reference/ROBOT_DATA_GRID.md`'s `Has LFO` column for robot fields) picks one of 4 shared lanes, and that lane's own Rate Drift/Depth Drift — set once per lane, below — rides along automatically for every field linked to it:
 
 | Control | Setter | Field | Unit / Range | Loading Range | Effect Label | Param Label | UI |
 |---|---|---|---|---|---|---|---|
 | Decay Mode | `setCompressorBeforeDelay()` | `compressorBeforeDelay` | radio: Natural Decay / Controlled Decay | — (not seeded; always starts `natural`) | DECAY PROTOCOL [c] | "Decay Mode" | RADIO BUTTON (2-option) |
-| EQ Drift | `setGlobalLfoDrift('eq3', …)` | `lfoDrift.eq3.rateDrift` | %, −100 to 100 (stored fraction, −1 to 1) | −70 to 70 (stored −0.7 to 0.7) | SPECTRAL FLUX | CADENCE INSTABILITY | SLIDER (Center-Zero) |
-| EQ Drift | `setGlobalLfoDrift('eq3', …)` | `lfoDrift.eq3.depthDrift` | %, −100 to 100 (stored fraction, −1 to 1) | −70 to 70 (stored −0.7 to 0.7) | SPECTRAL FLUX | AMPLITUDE INSTABILITY | SLIDER (Center-Zero) |
-| Low-Pass Drift | `setGlobalLfoDrift('filterLPF', …)` | `lfoDrift.filterLPF.rateDrift` | %, −100 to 100 (stored fraction, −1 to 1) | −70 to 70 (stored −0.7 to 0.7) | HIGH-MASK FLUX | CADENCE INSTABILITY | SLIDER (Center-Zero) |
-| Low-Pass Drift | `setGlobalLfoDrift('filterLPF', …)` | `lfoDrift.filterLPF.depthDrift` | %, −100 to 100 (stored fraction, −1 to 1) | −70 to 70 (stored −0.7 to 0.7) | HIGH-MASK FLUX | AMPLITUDE INSTABILITY | SLIDER (Center-Zero) |
-| High-Pass Drift | `setGlobalLfoDrift('filterHPF', …)` | `lfoDrift.filterHPF.rateDrift` | %, −100 to 100 (stored fraction, −1 to 1) | −70 to 70 (stored −0.7 to 0.7) | LOW-MASK FLUX | CADENCE INSTABILITY | SLIDER (Center-Zero) |
-| High-Pass Drift | `setGlobalLfoDrift('filterHPF', …)` | `lfoDrift.filterHPF.depthDrift` | %, −100 to 100 (stored fraction, −1 to 1) | −70 to 70 (stored −0.7 to 0.7) | LOW-MASK FLUX | AMPLITUDE INSTABILITY | SLIDER (Center-Zero) |
-| Robot Drift † | `setGlobalLfoDrift('robots', …)` | `lfoDrift.robots.rateDrift` | %, −100 to 100 (stored fraction, −1 to 1) | −70 to 70 (stored −0.7 to 0.7) | AGENT FLUX | CADENCE INSTABILITY | SLIDER (Center-Zero) |
-| Robot Drift † | `setGlobalLfoDrift('robots', …)` | `lfoDrift.robots.depthDrift` | %, −100 to 100 (stored fraction, −1 to 1) | −70 to 70 (stored −0.7 to 0.7) | AGENT FLUX | AMPLITUDE INSTABILITY | SLIDER (Center-Zero) |
+| LFO Bank — Lane A (Core LFO) | `setLfoBank('a', …)` | `lfoBank.a.{shape,rate,rateDrift,depthDrift}` | shape: 4 waveforms; rate: 0–20 Hz; rateDrift/depthDrift: %, −100 to 100 (stored −1 to 1) | rate: a's own log-spaced 0.1–0.4 Hz seed band; drifts: −70 to 70 (stored −0.7 to 0.7) | LFO BANK | "Core LFO" / Shape, Rate, Rate Drift, Depth Drift | RADIO BUTTON + SLIDER + 2× SLIDER (Center-Zero) |
+| LFO Bank — Lane B (Companion LFO) | `setLfoBank('b', …)` | `lfoBank.b.{shape,rate,rateDrift,depthDrift}` | same as Lane A | rate: b's own 0.4–1.5 Hz seed band; drifts: −70 to 70 | LFO BANK | "Companion LFO" / … | same as Lane A |
+| LFO Bank — Lane C (Accent LFO) | `setLfoBank('c', …)` | `lfoBank.c.{shape,rate,rateDrift,depthDrift}` | same as Lane A | rate: c's own 1.5–4 Hz seed band; drifts: −70 to 70 | LFO BANK | "Accent LFO" / … | same as Lane A |
+| LFO Bank — Lane D (Overtone LFO) | `setLfoBank('d', …)` | `lfoBank.d.{shape,rate,rateDrift,depthDrift}` | same as Lane A | rate: d's own 4–8 Hz seed band; drifts: −70 to 70 | LFO BANK | "Overtone LFO" / … | same as Lane A |
 | Ping Variance Automation ‡ | `setPingVarianceAutomation()` | `pingVarianceAutomation` | %, 0 to 100 (stored fraction, 0 to 1) | 33 to 66 (stored 0.33 to 0.66) — seeded **once per session**, not per Attenuation Style switch; every later switch carries the current value forward instead of re-rolling it | PING VARIANCE AUTOMATION | *(human label)* "Automatic Effects" | SLIDER |
 
-† Robot Drift modulates `RobotLfoTargetId` fields (per-robot volume/gain/detune/phase/pulseWidth), never a global-chain param — it's the 4th `DriftGroupId` but never appears in the **Drift Group** column above. Listed here for completeness of the master list; see `docs/reference/ROBOT_DATA_GRID.md` for the fields it actually touches.
+A lane's Shape/Rate never grey; its Rate Drift/Depth Drift rows grey (with a "Held off by Audio Load" note) while `audioStore.driftHeldOff` is true — see `docs/AUDIO_SYSTEM.md`'s Audio Load Budget section.
 
 ‡ **Status note is stale** — Ping Variance Automation has since shipped (an `audioRigConfig.ts` schema and `AudioRigDrawer.tsx` slider exist, and `src/systems/audioSwells.ts` reads it for the trigger gate, magnitude scaling, and the 0%-forced-return); `globalBypass` no longer exists at all (removed — see the note above the table). Source: `docs/intent/ping-variance-automation.md`, `docs/specs/PING-VARIANCE-AUTOMATION.md`.
 
