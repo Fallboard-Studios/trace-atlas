@@ -30,7 +30,7 @@ import { getSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import type { RobotLfoTargetId, LfoLaneId, LfoLink } from '../types/lfo';
-import { ROBOT_LFO_TARGET_IDS, LFO_DEPTH_MIN, LFO_DEPTH_MAX } from '../types/lfo';
+import { ROBOT_LFO_TARGET_IDS, LFO_DEPTH_MIN } from '../types/lfo';
 import { pickLane, tallyLanes } from '../utils/lfoLaneDraw';
 
 // ========================================
@@ -378,10 +378,20 @@ const LFO_DEPTH_STEP = 1;
 // LFO BANK (docs/specs/LFO_BANK.md §1.3)
 // ========================================
 
-/** Robot link depth never seeds 0 — a lit target always has a real, audible depth (seed-only
- *  floor; a user may still drag depth to 0 by hand). Replaces LFO_DEPTH_MIN as the robot link
- *  depth draw's lower bound. */
+/** A lit target never seeds 0 on either field — a "lit" link (a real lane assigned) should always
+ *  be audible; depth 0 would be indistinguishable from quiet/off except for still consuming a
+ *  lane slot in the tally (seed-only floor; a user may still drag depth to 0 by hand). */
 export const ROBOT_LFO_DEPTH_SEED_MIN = 1;
+
+/** Per-field robot link depth seed windows (Crawford's own load-value tuning pass, 2026-10-02) —
+ *  gain and detune read very differently at the same depth percentage, so each gets its own
+ *  ceiling, both sharing the same never-zero floor above. */
+export const ROBOT_LFO_GAIN_DEPTH_SEED_RANGE = { min: ROBOT_LFO_DEPTH_SEED_MIN, max: 60 };
+export const ROBOT_LFO_DETUNE_DEPTH_SEED_RANGE = { min: ROBOT_LFO_DEPTH_SEED_MIN, max: 10 };
+
+function robotLfoDepthSeedRangeForTarget(target: RobotLfoTargetId): { min: number; max: number } {
+  return target.endsWith('.gain') ? ROBOT_LFO_GAIN_DEPTH_SEED_RANGE : ROBOT_LFO_DETUNE_DEPTH_SEED_RANGE;
+}
 
 /**
  * Generate seeded LfoLinks for all 6 RobotLfoTargetId modulation targets — replaces
@@ -410,8 +420,9 @@ export function generateRobotLfoLinks(
     const lane = pickLane(laneT, counts);
     counts[lane]++;
 
+    const depthRange = robotLfoDepthSeedRangeForTarget(target);
     const depth = quantizeToStep(
-      getSeededVal(noiseMap, `robot.lfo.${target}.depth`, offset, ROBOT_LFO_DEPTH_SEED_MIN, LFO_DEPTH_MAX),
+      getSeededVal(noiseMap, `robot.lfo.${target}.depth`, offset, depthRange.min, depthRange.max),
       LFO_DEPTH_MIN,
       LFO_DEPTH_STEP,
     );

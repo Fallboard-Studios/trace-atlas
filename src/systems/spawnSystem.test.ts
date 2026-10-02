@@ -209,21 +209,51 @@ describe('spawnSystem', () => {
       expect(Object.keys(links).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
     });
 
-    it('every quiet target is exactly { lane: null, depth: 0 }; every lit target has a real lane and depth in (0, 100]', () => {
+    it('every quiet target is exactly { lane: null, depth: 0 }; every lit target has a real lane and an integer depth within its own field\'s seed range (gain: (0, 60], detune: (0, 10])', () => {
       for (let i = 0; i < 30; i++) {
         const links = generateRobotLfoLinks(mockNoiseMap, i, ZERO_COUNTS);
         for (const target of ROBOT_LFO_TARGET_IDS) {
           const link = links[target];
           if (link.lane === null) {
             expect(link.depth, `${target}.depth (offset ${i})`).toBe(0);
+            continue;
+          }
+          expect(LFO_LANE_IDS, `${target}.lane (offset ${i})`).toContain(link.lane);
+          expect(Number.isInteger(link.depth), `${target}.depth (offset ${i})`).toBe(true);
+          expect(link.depth, `${target}.depth (offset ${i})`).toBeGreaterThan(0); // never silently inaudible when lit
+          if (target.endsWith('.gain')) {
+            expect(link.depth, `${target}.depth (offset ${i})`).toBeLessThanOrEqual(60);
           } else {
-            expect(LFO_LANE_IDS, `${target}.lane (offset ${i})`).toContain(link.lane);
-            expect(link.depth, `${target}.depth (offset ${i})`).toBeGreaterThan(0);
-            expect(link.depth, `${target}.depth (offset ${i})`).toBeLessThanOrEqual(100);
-            expect(Number.isInteger(link.depth), `${target}.depth (offset ${i})`).toBe(true);
+            expect(link.depth, `${target}.depth (offset ${i})`).toBeLessThanOrEqual(10);
           }
         }
       }
+    });
+
+    it('a lit gain target\'s depth can land near its own 60% ceiling, not the old shared 100% one', () => {
+      const noiseMap = createNoise2D(alea('lfo-link-gain-depth-ceiling-test-seed'));
+      let maxGainDepth = 0;
+      for (let offset = 0; offset < 300; offset++) {
+        const links = generateRobotLfoLinks(noiseMap, offset, ZERO_COUNTS);
+        for (const target of ROBOT_LFO_TARGET_IDS) {
+          if (target.endsWith('.gain') && links[target].lane !== null) maxGainDepth = Math.max(maxGainDepth, links[target].depth);
+        }
+      }
+      expect(maxGainDepth).toBeGreaterThan(50);
+      expect(maxGainDepth).toBeLessThanOrEqual(60);
+    });
+
+    it('a lit detune target\'s depth can land near its own 10% ceiling, not the old shared 100% one', () => {
+      const noiseMap = createNoise2D(alea('lfo-link-detune-depth-ceiling-test-seed'));
+      let maxDetuneDepth = 0;
+      for (let offset = 0; offset < 300; offset++) {
+        const links = generateRobotLfoLinks(noiseMap, offset, ZERO_COUNTS);
+        for (const target of ROBOT_LFO_TARGET_IDS) {
+          if (target.endsWith('.detune') && links[target].lane !== null) maxDetuneDepth = Math.max(maxDetuneDepth, links[target].depth);
+        }
+      }
+      expect(maxDetuneDepth).toBeGreaterThan(7);
+      expect(maxDetuneDepth).toBeLessThanOrEqual(10);
     });
 
     it('is deterministic — the same real seeded noise map + offset + priorLaneCounts always produces identical links', () => {

@@ -233,23 +233,30 @@ Every field marked `Has LFO: Yes` / `LFO?: X` (6 robot targets + 7 global target
 `docs/tasks/LFO_BANK.md`) gets an identical `LfoLink` component instance
 (`src/components/ui/controls/LfoLink.tsx`), reused verbatim regardless of which attribute it's
 linked to. Lane is a `RadioButton` (5 options: Off + 4 lanes) with no numeric range — this table
-only covers Depth, the one numeric control `LfoLink` renders. One row per field, not one per
-target — Shape/Rate/Rate Drift/Depth Drift all moved to the lane itself (next section):
+only covers Depth, the one numeric control `LfoLink` renders. One row per field *group*, not one
+per target — Shape/Rate/Rate Drift/Depth Drift all moved to the lane itself (next section). Unlike
+the global chain's single flat window, **robot Gain and Detune each get their own load ceiling**
+(Crawford's own load-value tuning pass, 2026-10-02) since the two read very differently at the same
+depth percentage:
 
-| Human Label | Slider Type | Value Type | Min | Max | Step | Load Min (Global chain) | Load Max (Global chain) | Load Min (Robot) | Load Max (Robot) |
-|---|---|---|---|---|---|---|---|---|---|
-| Depth | Linear | % | 0 | 100 | 1⁶ | 20 | 50 | 1¹² | 100¹² |
+| Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
+|---|---|---|---|---|---|---|---|
+| Depth (Global chain — EQ/LPF/HPF) | Linear | % | 0 | 100 | 1⁶ | 20 | 50 |
+| Depth (Robot — Gain) | Linear | % | 0 | 100 | 1⁶ | 1¹² | 60¹² |
+| Depth (Robot — Detune) | Linear | % | 0 | 100 | 1⁶ | 1¹² | 10¹² |
 
 ⁶ No `step` on Depth's *schema* — defaults to `1`. Like Compressor Threshold/Knee above, though,
 the *generation* side now declares its own step independently of the UI schema: a mirrored
 `LFO_DEPTH_STEP = 1` local to each of `globalAudioSeed.ts` and `spawnSystem.ts`, quantized against
 `LFO_DEPTH_MIN` — Depth is a whole percent in both the global-chain and robot-level cases.
-¹² **Robot-link Depth seeds from a much wider window than the global-chain one** —
-`ROBOT_LFO_DEPTH_SEED_MIN` (1) to `LFO_DEPTH_MAX` (100, `spawnSystem.ts`'s `generateRobotLfoLinks`)
-— rather than the global links' narrower `LFO_DEPTH_LOADING_MIN/MAX` (`20`–`50`,
-`globalAudioSeed.ts`'s `generateGlobalLfoLinks`). The floor of `1`, not `0`, is deliberate: a lit
-robot target (one that didn't roll quiet) is never seeded silently inaudible — a user may still
-drag Depth to `0` by hand. Both quantize to `LFO_DEPTH_STEP` at generation time.
+¹² **Robot-link Depth never shared the global chain's one flat window, and now diverges further
+by field** — `spawnSystem.ts`'s `generateRobotLfoLinks` draws Gain from
+`ROBOT_LFO_GAIN_DEPTH_SEED_RANGE` (`1`–`60`) and Detune from
+`ROBOT_LFO_DETUNE_DEPTH_SEED_RANGE` (`1`–`10`), both sharing the same `ROBOT_LFO_DEPTH_SEED_MIN`
+floor of `1` — rather than the global links' `LFO_DEPTH_LOADING_MIN/MAX` (`20`–`50`,
+`globalAudioSeed.ts`'s `generateGlobalLfoLinks`). The floor of `1`, not `0`, is deliberate on every
+field: a lit target (one that didn't roll quiet) is never seeded silently inaudible — a user may
+still drag Depth to `0` by hand. All three quantize to `LFO_DEPTH_STEP` at generation time.
 
 ## LFO Bank — Shape, Rate, Rate Drift, Depth Drift (one row per lane)
 
