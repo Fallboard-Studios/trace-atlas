@@ -56,7 +56,7 @@ export const fleet = {
         + '<li><strong>High-Pass Filter</strong>: cuts the deep, thumping bass and lets bright, high sounds through — like a small phone speaker.</li>'
         + '<li><strong>Low-Pass Filter</strong>: cuts the harsh high pitches and lets deep, low sounds through smoothly — like a thick blanket over the sound.</li>'
         + '</ul>'
-        + '<p>Each of these sliders has its own LFO (Low Frequency Oscillator) — an invisible hand that turns the slider’s knob back and forth automatically. Click a slider to see and edit its LFO below: Rate controls how fast the hand turns, Depth controls how far.</p>',
+        + '<p>Each of these sliders can link to one of the 4 shared LFO Bank lanes — an invisible hand that turns the slider’s knob back and forth automatically. The picker and Depth control sit right below the slider; Depth sets how far the hand turns. How fast it turns belongs to the lane itself, tuned once in the LFO Bank panel and shared by every slider linked to it.</p>',
     },
   },
   'fleet.eq': { human: '3-Band EQ', lore: 'Trace Metrics', heading: 'SPECTRAL FREQUENCY EQUALIZER' },
