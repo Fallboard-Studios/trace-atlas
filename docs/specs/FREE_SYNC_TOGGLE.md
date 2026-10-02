@@ -1,5 +1,7 @@
 # Phase Spec: Free | Sync Toggle (beat-synced Delay Time and LFO Rate)
 
+> **Stale against the LFO Bank (2026-10-01) — re-plan before implementing.** This spec's entire LFO survey (§ survey basis, assumptions 1/4/7/8/10) is written against the per-target `lfoEngine.ts`/`lfoDrift.ts`/`Lfo.tsx`/`LfoTargetGroup` design `docs/tasks/LFO_BANK.md` deleted outright, where every LFO-bearing field had its own `rate`. That field no longer exists: rate now lives on one of 4 shared lanes (`BankLfoSettings.rate`, `src/types/lfo.ts`), and a field only stores a `lane`/`depth` pick (`LfoLink`). The natural re-scoped shape is **4 lane toggles (one `sync` flag per lane, alongside its `shape`/`rate`/`rateDrift`/`depthDrift` in `LfoBankLanePanel`) plus Delay Time** — not a toggle per linked field. Re-plan against `docs/AUDIO_SYSTEM.md`'s LFO Modulation section and `docs/specs/LFO_BANK.md` before resuming; Delay Time's own half of this spec (§ survey basis delay bullets, assumptions 2/3/6/9) is unaffected by the Bank and still applies as written.
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types` (`tsc -p tsconfig.app.json --noEmit`)
