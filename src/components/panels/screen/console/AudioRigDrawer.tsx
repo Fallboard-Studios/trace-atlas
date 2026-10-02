@@ -163,9 +163,9 @@ interface AudioRigEffectPanelProps {
  * setGlobalAudio, and setGlobalAudio's own spread-one-key implementation (audioStore.ts)
  * already preserves every sibling effect's own object reference untouched — so subscribing to
  * the WHOLE globalAudio object would re-render on every tick regardless of which single effect
- * the active swell was actually targeting. compressorBeforeDelay/lfoDrift are selected the same
- * way — read unconditionally every render (same call site regardless of effectKey, never
- * skipped) so the hook call itself never branches, only the selector's own returned value does.
+ * the active swell was actually targeting. compressorBeforeDelay is selected the same way — read
+ * unconditionally every render (same call site regardless of effectKey, never skipped) so the
+ * hook call itself never branches, only the selector's own returned value does.
  */
 export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   const block = AUDIO_RIG_CONFIG.find((b) => b.key === effectKey)!;

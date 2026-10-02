@@ -20,7 +20,6 @@ import {
   LFO_RATE_MIN,
   LFO_DEPTH_MIN,
   type GlobalLfoTargetId,
-  type LfoSettings,
   type LfoShape,
   type LfoLaneId,
   type LfoLink,
@@ -95,10 +94,6 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
 
   return {
     compressorBeforeDelay: defaults.compressorBeforeDelay,
-    lfoDrift: {
-      globalFx: { rateDrift: sampleField(noiseMap, 'lfoDrift.globalFx.rateDrift'), depthDrift: sampleField(noiseMap, 'lfoDrift.globalFx.depthDrift') },
-      robots: { rateDrift: sampleField(noiseMap, 'lfoDrift.robots.rateDrift'), depthDrift: sampleField(noiseMap, 'lfoDrift.robots.depthDrift') },
-    },
     compressor: {
       threshold: sampleField(noiseMap, 'compressor.threshold'),
       ratio: sampleField(noiseMap, 'compressor.ratio'),
@@ -228,17 +223,12 @@ export function generateSwellDuration(attenuationStyleId: string, attenuationSty
 }
 
 /**
- * Loading-range sub-window for global-chain LFO rate/depth — narrower than
- * LFO_RATE_MIN/MAX and LFO_DEPTH_MIN/MAX (the full/UI-facing range every
- * other LFO consumer still uses unchanged: the Rate/Depth sliders in
- * Lfo.tsx, and lfoEngine.ts's setLfoRate/setLfoDepth clamp bounds). Mirrors
- * globalAudioLoadingRanges.ts's pattern for effect params — bounds what a
- * FRESH SEED can roll, never what the UI exposes or what the app can do.
- * Robot-level LFO seeding (spawnSystem.ts) has no equivalent split and keeps
- * sampling the full range; this only narrows the global-chain seed.
+ * Loading-range sub-window for global-chain LFO link depth — narrower than LFO_DEPTH_MIN/MAX
+ * (the full/UI-facing range the LfoLink primitive's Depth slider still uses unchanged). Mirrors
+ * globalAudioLoadingRanges.ts's pattern for effect params — bounds what a FRESH SEED can roll,
+ * never what the UI exposes or what the app can do. Robot-level LFO-link seeding
+ * (spawnSystem.ts) has its own separate ROBOT_LFO_DEPTH_SEED_MIN floor, not this window.
  */
-export const LFO_RATE_LOADING_MIN = 1;
-export const LFO_RATE_LOADING_MAX = 4;
 export const LFO_DEPTH_LOADING_MIN = 20;
 export const LFO_DEPTH_LOADING_MAX = 50;
 
@@ -265,48 +255,6 @@ const LFO_DEPTH_STEP = 1;
  */
 const LFO_LOADING_SHAPES: readonly LfoShape[] = ['triangle', 'sine'];
 
-/**
- * Generate deterministic global-chain LFO settings for an Attenuation Style, sampled
- * from the same Attenuation Style noise map generateGlobalAudioSettings uses.
- * Unlike the per-field GLOBAL_AUDIO_SEED_RANGES table, every target shares
- * the same single global rate/depth loading bounds (LFO_RATE_LOADING_MIN/MAX,
- * LFO_DEPTH_LOADING_MIN/MAX) — GLOBAL_CHAIN_GRID.md's LFO? column is a flat
- * flag, not per-field bounds. Each target has a real ~34% chance
- * (LFO_QUIET_THRESHOLD) of forcing rate to 0 instead of its own sampled
- * value — a freshly loaded Attenuation Style can already have real, audible
- * modulation running on most targets.
- */
-export function generateGlobalLfoSettings(
-  attenuationStyleId: string,
-  attenuationStyleName: string,
-): Record<GlobalLfoTargetId, LfoSettings> {
-  const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  const result = {} as Record<GlobalLfoTargetId, LfoSettings>;
-
-  for (const target of GLOBAL_LFO_TARGET_IDS) {
-    const rateT = getSeededVal(noiseMap, `globalLfo.${target}.rate`, 0, 0, 1);
-    const depthT = getSeededVal(noiseMap, `globalLfo.${target}.depth`, 0, 0, 1);
-    const shapeT = getSeededVal(noiseMap, `globalLfo.${target}.shape`, 0, 0, 1);
-    const quietT = getSeededVal(noiseMap, `globalLfo.${target}.quiet`, 0, 0, 1);
-    const quiet = quietT < LFO_QUIET_THRESHOLD;
-
-    result[target] = {
-      rate: quiet ? 0 : quantizeToStep(
-        scaleUnitValue(rateT, { min: LFO_RATE_LOADING_MIN, max: LFO_RATE_LOADING_MAX, scale: 'linear' }),
-        LFO_RATE_MIN,
-        LFO_RATE_STEP,
-      ),
-      depth: quantizeToStep(
-        scaleUnitValue(depthT, { min: LFO_DEPTH_LOADING_MIN, max: LFO_DEPTH_LOADING_MAX, scale: 'linear' }),
-        LFO_DEPTH_MIN,
-        LFO_DEPTH_STEP,
-      ),
-      shape: LFO_LOADING_SHAPES[Math.min(LFO_LOADING_SHAPES.length - 1, Math.floor(shapeT * LFO_LOADING_SHAPES.length))],
-    };
-  }
-  return result;
-}
-
 // ========================================
 // LFO BANK (docs/specs/LFO_BANK.md §1.3)
 // ========================================
@@ -324,19 +272,17 @@ export const LFO_BANK_RATE_BANDS: Record<LfoLaneId, { min: number; max: number }
   d: { min: 4, max: 8 },
 };
 
-/** The existing lfoDrift loading window (±0.7), re-keyed for the bank's own per-lane drift
- *  (spec assumption 8) — GLOBAL_AUDIO_LOADING_RANGES's 'lfoDrift.*' entries, unchanged in value. */
+/** The bank's own per-lane drift loading window (±0.7, spec assumption 8). */
 export const LFO_BANK_DRIFT_SEED_RANGE = { min: -0.7, max: 0.7 };
 
-/** Rounds a bank lane's rateDrift/depthDrift to a whole hundredth — the existing lfoDrift
- *  quantization grid (GLOBAL_AUDIO_SEED_RANGES's 'lfoDrift.*' step), re-anchored at 0. */
+/** Rounds a bank lane's rateDrift/depthDrift to a whole hundredth. */
 const LFO_BANK_DRIFT_STEP = 0.01;
 
 /**
  * Generate deterministic LFO Bank lane settings for an Attenuation Style, sampled from the same
  * Attenuation Style noise map generateGlobalAudioSettings uses — the four lanes are a property of
- * the Attenuation Style (spec assumption 2), same seed source and re-seed trigger as
- * generateGlobalLfoSettings above, which this supersedes.
+ * the Attenuation Style (spec assumption 2), same seed source and re-seed trigger as the old
+ * per-target global-chain LFO settings this supersedes.
  */
 export function generateLfoBankSettings(
   attenuationStyleId: string,

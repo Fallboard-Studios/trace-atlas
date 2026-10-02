@@ -54,7 +54,7 @@ interface LaneNodes {
 const bank = new Map<LfoLaneId, LaneNodes>();
 
 /** Each lane's current settings — readable via getBankSettings before primeLfoBank has run, same
- *  DEFAULT_* fallback pattern the old lfoEngine.ts's getLfoSettings uses. */
+ *  DEFAULT_* fallback pattern the old per-target engine's getLfoSettings used. */
 const bankSettings = new Map<LfoLaneId, BankLfoSettings>();
 
 /** True once primeLfoBank has successfully built the bank — makes every later call a no-op
@@ -228,7 +228,7 @@ function primeLfoBank(settings: Record<LfoLaneId, BankLfoSettings>): void {
 }
 
 /** Current settings for a lane — DEFAULT_BANK_LFO until primeLfoBank has run, mirroring the old
- *  lfoEngine.ts's getLfoSettings fallback. Always a fresh copy — callers never mutate the engine's own. */
+ *  per-target engine's getLfoSettings fallback. Always a fresh copy — callers never mutate the engine's own. */
 function getBankSettings(lane: LfoLaneId): BankLfoSettings {
   return { ...(bankSettings.get(lane) ?? DEFAULT_BANK_LFO) };
 }

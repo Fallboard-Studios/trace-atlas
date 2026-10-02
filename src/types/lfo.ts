@@ -97,21 +97,6 @@ export type LfoTargetId = RobotLfoTargetId | GlobalLfoTargetId;
 // DRIFT GROUPS
 // ========================================
 
-/**
- * The 2 independent LFO drift groups (docs/specs/FLEET_DRIFT_CONSOLIDATION.md
- * — restructured from the 4-group docs/specs/archive/LFO_DRIFT_GROUPS.md) —
- * every connected primary LFO belongs to exactly one, determined by its own
- * target id. Every GlobalLfoTargetId
- * (eq3/lpf/hpf — the only three AudioRigEffectKey blocks that ever carry an
- * lfoTarget at all, see audioRigConfig.ts's AUDIO_RIG_CONFIG) shares the one
- * 'globalFx' group; every RobotLfoTargetId, regardless of field or which
- * robot, shares the one 'robots' group — robot fields have no "effect block"
- * concept to split by further.
- */
-export type DriftGroupId = 'globalFx' | 'robots';
-
-export const DRIFT_GROUP_IDS: readonly DriftGroupId[] = ['globalFx', 'robots'];
-
 // ========================================
 // SETTINGS
 // ========================================
@@ -126,19 +111,6 @@ export const LFO_RATE_MAX = 20;
 /** Percent — docs/reference/ROBOT_DATA_GRID.md's "LFO Depth" row (OSCILLATION DEPTH). */
 export const LFO_DEPTH_MIN = 0;
 export const LFO_DEPTH_MAX = 100;
-
-/**
- * An LFO's tunable settings, per docs/reference/ROBOT_DATA_GRID.md's LFO
- * MODULE rows:
- * - shape: OSCILLATION SHAPE (Radio Button) — see LfoShape
- * - rate: OSCILLATION RATE (Slider - linear), LFO_RATE_MIN–LFO_RATE_MAX Hz
- * - depth: OSCILLATION DEPTH (Slider - linear), LFO_DEPTH_MIN–LFO_DEPTH_MAX %
- */
-export interface LfoSettings {
-  shape: LfoShape;
-  rate: number;
-  depth: number;
-}
 
 // ========================================
 // LFO BANK (docs/specs/LFO_BANK.md §1.1)

@@ -1,6 +1,6 @@
 import type { Vec2 } from './Vec2';
 import type { VisualAudioMap, OscillatorLayer } from './layeredAudio';
-import type { RobotLfoTargetId, LfoSettings, LfoLink } from './lfo';
+import type { RobotLfoTargetId, LfoLink } from './lfo';
 
 /**
  * Note duration values for Tone.js scheduling
@@ -196,20 +196,9 @@ export interface Robot {
    */
   pitchRepeat?: number;
   /**
-   * Seeded LFO settings for all 9 RobotLfoTargetId modulation targets,
-   * generated once at spawn time (src/systems/spawnSystem.ts) the same way
-   * as the rest of audioAttributes, mirroring audioStore.ts's `globalLfo`
-   * shape. Each target is independently seeded on or off (Roadmap Phase 9) —
-   * `rate: 0` means the target isn't currently connected (see
-   * src/engine/lfoEngine.ts), not that it never will be.
-   */
-  lfoSettings?: Record<RobotLfoTargetId, LfoSettings>;
-  /**
-   * Seeded lane links for all 6 RobotLfoTargetId modulation targets (docs/specs/LFO_BANK.md) —
-   * replaces lfoSettings' per-target shape/rate with a shared-lane link, generated once at spawn
-   * time the same way (src/systems/spawnSystem.ts's generateRobotLfoLinks). `lane: null` means the
-   * target isn't linked into the bank at all. lfoSettings stays alongside this during the Task
-   * 7-15 strangler period (docs/tasks/LFO_BANK.md) and is deleted in Task 17.
+   * Seeded lane links for all 6 RobotLfoTargetId modulation targets (docs/specs/LFO_BANK.md),
+   * generated once at spawn time (src/systems/spawnSystem.ts's generateRobotLfoLinks). `lane: null`
+   * means the target isn't linked into the bank at all.
    */
   lfoLinks?: Record<RobotLfoTargetId, LfoLink>;
   /**

@@ -11,10 +11,7 @@ import {
   LFO_RATE_MAX,
   LFO_DEPTH_MIN,
   LFO_DEPTH_MAX,
-  DRIFT_GROUP_IDS,
   LFO_LANE_IDS,
-  type LfoSettings,
-  type DriftGroupId,
   type LfoLaneId,
   type BankLfoSettings,
   type LfoLink,
@@ -98,7 +95,7 @@ describe('GLOBAL_LFO_TARGET_IDS', () => {
   });
 });
 
-describe('LfoSettings bounds', () => {
+describe('LFO rate/depth bounds', () => {
   it('rate bounds are 0-20 Hz — 0 is the removed OSCILLATION STATE toggle\'s replacement "off" value', () => {
     expect(LFO_RATE_MIN).toBe(0);
     expect(LFO_RATE_MAX).toBe(20);
@@ -112,35 +109,6 @@ describe('LfoSettings bounds', () => {
   it('min is always less than max for both bounds', () => {
     expect(LFO_RATE_MIN).toBeLessThan(LFO_RATE_MAX);
     expect(LFO_DEPTH_MIN).toBeLessThan(LFO_DEPTH_MAX);
-  });
-
-  it('accepts a valid LfoSettings shape (compile-time check via build:types)', () => {
-    const settings: LfoSettings = { shape: 'sine', rate: 1.5, depth: 50 };
-    expect(settings.shape).toBe('sine');
-    expect(settings.rate).toBe(1.5);
-    expect(settings.depth).toBe(50);
-  });
-});
-
-describe('DRIFT_GROUP_IDS', () => {
-  it('has exactly the 2 documented drift groups (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF merged into globalFx)', () => {
-    expect([...DRIFT_GROUP_IDS].sort()).toEqual(['globalFx', 'robots'].sort());
-  });
-
-  it('has exactly 2 members, no duplicates', () => {
-    expect(DRIFT_GROUP_IDS).toHaveLength(2);
-    expect(new Set(DRIFT_GROUP_IDS).size).toBe(2);
-  });
-
-  it('no longer contains the old eq3/filterLPF/filterHPF group ids', () => {
-    expect(DRIFT_GROUP_IDS).not.toContain('eq3');
-    expect(DRIFT_GROUP_IDS).not.toContain('filterLPF');
-    expect(DRIFT_GROUP_IDS).not.toContain('filterHPF');
-  });
-
-  it('accepts a valid DriftGroupId value (compile-time check via build:types)', () => {
-    const group: DriftGroupId = 'robots';
-    expect(DRIFT_GROUP_IDS).toContain(group);
   });
 });
 

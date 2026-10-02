@@ -77,7 +77,6 @@ let fakeLfoBank: Record<string, { rate: number }> = {
 vi.mock('../stores/audioStore', () => ({
   useAudioStore: {
     getState: () => ({
-      globalLfo: { a: { rate: 1 }, b: { rate: 0 }, c: { rate: 2.5 } },
       globalLfoLinks: fakeGlobalLfoLinks,
       lfoBank: fakeLfoBank,
       robotLoad: fakeRobotLoad,
@@ -197,8 +196,6 @@ describe('audioDiagnostics runtime', () => {
       voices: 3,
       maxVoices: 16,
       transport: 'started',
-      globalLfosOn: 2,
-      globalLfosTotal: 3,
       audibleRobots: 0,
       totalRobots: 0,
       robotLoad: 1,

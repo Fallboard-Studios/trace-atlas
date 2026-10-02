@@ -9,7 +9,6 @@ import { volumePositionToGain } from '../engine/audioEngine/volumeTaper';
 import { lfoEngine } from '../engine/lfoEngine';
 import {
   generateGlobalAudioSettings,
-  generateGlobalLfoSettings,
   generateLfoBankSettings,
   generateGlobalLfoLinks,
   generatePingVarianceAutomation,
@@ -21,7 +20,7 @@ import { clampAudioLoad, detectCoarsePointer, resolveInitialAudioLoad, resolveIn
 import { generateLocaleBpm } from '../utils/localeBpmSeed';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from './attenuationStyleStore';
 import { useLocaleStore } from './localeStore';
-import { DEFAULT_LFO_SETTINGS, DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
+import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 
 import type { GlobalAudioSettings } from '../types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
@@ -29,7 +28,6 @@ import {
   GLOBAL_LFO_TARGET_IDS,
   LFO_LANE_IDS,
   type GlobalLfoTargetId,
-  type LfoSettings,
   type LfoLaneId,
   type BankLfoSettings,
   type LfoLink,
@@ -39,8 +37,8 @@ import {
 // TYPES
 // ========================================
 
-/** Keys of GlobalAudioSettings that are effect-param objects (excludes the two top-level flags). */
-type EffectKey = Exclude<keyof GlobalAudioSettings, 'compressorBeforeDelay' | 'lfoDrift'>;
+/** Keys of GlobalAudioSettings that are effect-param objects (excludes the one top-level flag). */
+type EffectKey = Exclude<keyof GlobalAudioSettings, 'compressorBeforeDelay'>;
 
 /** Routes a setGlobalAudio(effect, partial) call to its matching AudioEngine setter. */
 const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]>) => void } = {
@@ -71,16 +69,6 @@ export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings): void
   AudioEngine.setGlobalLimiter(globalAudio.limiter);
   AudioEngine.setGlobalDelay(globalAudio.delay);
   AudioEngine.setGlobalReverb(globalAudio.reverb);
-}
-
-/** Initial globalLfo — DEFAULT_LFO_SETTINGS' 7 global entries, each starting inert
- *  (rate 0, not connected) until the AS-sync below seeds real values. */
-function buildDefaultGlobalLfo(): Record<GlobalLfoTargetId, LfoSettings> {
-  const result = {} as Record<GlobalLfoTargetId, LfoSettings>;
-  for (const target of GLOBAL_LFO_TARGET_IDS) {
-    result[target] = { ...DEFAULT_LFO_SETTINGS[target] };
-  }
-  return result;
 }
 
 /** Initial lfoBank — DEFAULT_BANK_LFO per lane (inert: rate 0, no drift) until the AS-sync below seeds real values. */
@@ -141,11 +129,7 @@ function readInitialEffectsLoad(): number {
 export interface AudioStore {
   bpm: number;
   globalAudio: GlobalAudioSettings;
-  /** Global-chain LFO settings, one entry per GlobalLfoTargetId — seeded per Attenuation Style, see regenerateGlobalLfoFromSeed. */
-  globalLfo: Record<GlobalLfoTargetId, LfoSettings>;
-  /** The four LFO Bank lanes — world-level, seeded per Attenuation Style (docs/tasks/LFO_BANK.md Task 8),
-   *  same seed source/trigger as globalLfo above. `globalLfo`/`lfoDrift` stay in place until Task 17 —
-   *  this field is additive, nothing reads it yet outside this store. */
+  /** The four LFO Bank lanes — world-level, seeded per Attenuation Style (docs/tasks/LFO_BANK.md Task 8). */
   lfoBank: Record<LfoLaneId, BankLfoSettings>;
   /** One LFO Bank link per global-chain target — seeded per Attenuation Style alongside lfoBank. Additive,
    *  same as lfoBank above. */
@@ -252,16 +236,6 @@ export interface AudioStore {
    */
   regenerateGlobalAudioFromSeed: (attenuationStyleId: string, attenuationStyleName: string) => void;
   /**
-   * Regenerate `globalLfo` state for the given Attenuation Style from the
-   * seed (generateGlobalLfoSettings). Data-only — does NOT touch lfoEngine.
-   * Runs at module load / on every Attenuation Style switch, before any user
-   * gesture, so it must never construct a real Tone.LFO node.
-   * AudioEngine.start() (Task 9) is what primes lfoEngine from this state and
-   * connects/starts already-seeded-active targets, since that's the only
-   * point guaranteed to run after an AudioContext actually exists.
-   */
-  regenerateGlobalLfoFromSeed: (attenuationStyleId: string, attenuationStyleName: string) => void;
-  /**
    * Sets one LFO Bank lane's settings (docs/tasks/LFO_BANK.md Task 8) — updates state, then calls
    * the matching lfoEngine setter (setBankShape/Rate/RateDrift/DepthDrift) ONLY for the field(s)
    * actually given in `partial`.
@@ -272,8 +246,8 @@ export interface AudioStore {
   setGlobalLfoLink: (target: GlobalLfoTargetId, link: LfoLink) => void;
   /**
    * Regenerate `lfoBank` for the given Attenuation Style from the seed (generateLfoBankSettings).
-   * Data-only — does NOT touch lfoEngine, same "no real Tone node before AudioContext exists"
-   * reasoning as regenerateGlobalLfoFromSeed above; AudioEngine.start() (Task 10) primes the bank.
+   * Data-only — does NOT touch lfoEngine ("no real Tone node before AudioContext exists");
+   * AudioEngine.start() (Task 10) primes the bank.
    */
   regenerateLfoBankFromSeed: (attenuationStyleId: string, attenuationStyleName: string) => void;
   /** Regenerate `globalLfoLinks` for the given Attenuation Style from the seed
@@ -287,7 +261,6 @@ export interface AudioStore {
 export const useAudioStore = create<AudioStore>((set, get) => ({
   bpm: 60,
   globalAudio: { ...DEFAULT_GLOBAL_AUDIO_SETTINGS },
-  globalLfo: buildDefaultGlobalLfo(),
   lfoBank: buildDefaultLfoBank(),
   globalLfoLinks: buildDefaultGlobalLfoLinks(),
   isMuted: false,
@@ -418,21 +391,6 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     applyGlobalAudioToEngine(globalAudio);
   },
 
-  // Data-only, deliberately: this runs at module load / on every Attenuation
-  // Style switch, long before any user gesture — pushing to lfoEngine here
-  // would construct a real Tone.LFO (getOrCreateLfo -> new Tone.LFO(...))
-  // before an AudioContext exists, violating "initialize audio only from an
-  // explicit user gesture" (CLAUDE.md) and throwing outright in headless/test
-  // environments (found via the Phase 2 checkpoint's full suite run —
-  // TransportBar.test.tsx, which imports the real audioStore module, threw
-  // "param must be an AudioParam"). AudioEngine.start() (Task 9) is the only
-  // safe point to prime lfoEngine and connect/start already-seeded-active
-  // targets, since it runs after Tone.start()/transport.start() succeed.
-  regenerateGlobalLfoFromSeed: (attenuationStyleId, attenuationStyleName) => {
-    const globalLfo = generateGlobalLfoSettings(attenuationStyleId, attenuationStyleName);
-    set({ globalLfo });
-  },
-
   setLfoBank: (lane, partial) => {
     set((state) => ({ lfoBank: { ...state.lfoBank, [lane]: { ...state.lfoBank[lane], ...partial } } }));
     if (partial.shape !== undefined) lfoEngine.setBankShape(lane, partial.shape);
@@ -446,9 +404,13 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     lfoEngine.linkTarget(target, link);
   },
 
-  // Data-only, same reasoning as regenerateGlobalLfoFromSeed above — this runs at module load / on
-  // every Attenuation Style switch, before any user gesture. AudioEngine.start() (Task 10) is the
-  // only safe point to prime the bank and its links.
+  // Data-only, deliberately: this runs at module load / on every Attenuation
+  // Style switch, long before any user gesture — pushing to lfoEngine here
+  // would construct a real Tone.LFO before an AudioContext exists, violating
+  // "initialize audio only from an explicit user gesture" (CLAUDE.md) and
+  // throwing outright in headless/test environments. AudioEngine.start()
+  // (Task 10) is the only safe point to prime the bank and its links, since
+  // it runs after Tone.start()/transport.start() succeed.
   regenerateLfoBankFromSeed: (attenuationStyleId, attenuationStyleName) => {
     const lfoBank = generateLfoBankSettings(attenuationStyleId, attenuationStyleName);
     set({ lfoBank });
@@ -474,7 +436,6 @@ function syncGlobalAudioToCurrentAttenuationStyle(): void {
   const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   if (!attenuationStyle) return;
   useAudioStore.getState().regenerateGlobalAudioFromSeed(attenuationStyle.id, attenuationStyle.name);
-  useAudioStore.getState().regenerateGlobalLfoFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateLfoBankFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateGlobalLfoLinksFromSeed(attenuationStyle.id, attenuationStyle.name);
 }

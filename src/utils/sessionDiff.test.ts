@@ -15,7 +15,6 @@ import { computeRobotAudioOverrideDiff, computeCompanyDiff, buildSessionPayload,
 import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
 import type { RobotAudioBaseline } from '../systems/spawnSystem';
-import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoSettings } from '../types/lfo';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
@@ -30,11 +29,6 @@ afterEach(() => {
   stopRobotLifecycle();
   stopAudioSwells();
 });
-
-function makeLfoSettings(rate = 0): Record<RobotLfoTargetId, LfoSettings> {
-  const entries = ROBOT_LFO_TARGET_IDS.map((target) => [target, { shape: 'sine', rate, depth: 10 } satisfies LfoSettings] as const);
-  return Object.fromEntries(entries) as Record<RobotLfoTargetId, LfoSettings>;
-}
 
 function makeBaseline(overrides: Partial<RobotAudioBaseline> = {}): RobotAudioBaseline {
   return {
@@ -51,7 +45,6 @@ function makeBaseline(overrides: Partial<RobotAudioBaseline> = {}): RobotAudioBa
     rhythmicMotifLength: { active: true, value: 6 },
     noteVariance: { active: true, value: 2 },
     pitchRepeat: 65,
-    lfoSettings: makeLfoSettings(0),
     ...overrides,
   } as RobotAudioBaseline;
 }
@@ -78,7 +71,6 @@ function makeLiveRobot(baseline: RobotAudioBaseline, overrides: Partial<Robot> =
     rhythmicMotifLength: baseline.rhythmicMotifLength,
     noteVariance: baseline.noteVariance,
     pitchRepeat: baseline.pitchRepeat,
-    lfoSettings: baseline.lfoSettings,
     audioMode: 'none',
     ...overrides,
   } as Robot;
@@ -147,16 +139,6 @@ describe('computeRobotAudioOverrideDiff', () => {
     expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ octaveRange: [1, 3] });
   });
 
-  it('diffs only the one lfoSettings target that changed, not the whole record', () => {
-    const baseline = makeBaseline();
-    const changedTarget = ROBOT_LFO_TARGET_IDS[0];
-    const changedSettings: LfoSettings = { shape: 'square', rate: 2, depth: 50 };
-    const live = makeLiveRobot(baseline, {
-      lfoSettings: { ...baseline.lfoSettings, [changedTarget]: changedSettings },
-    });
-    expect(computeRobotAudioOverrideDiff(live, baseline)).toEqual({ lfoSettings: { [changedTarget]: changedSettings } });
-  });
-
   it('diffs name alone when the robot was renamed', () => {
     const baseline = makeBaseline();
     const live = makeLiveRobot(baseline, { name: 'Custom Name' });
@@ -209,32 +191,6 @@ describe('buildSessionPayload', () => {
     // Verify structure and key fields are present, not exact equality
     expect(Object.keys(payload.globalAudio)).toContain('compressor');
     expect(Object.keys(payload.globalAudio)).toContain('eq3');
-    expect(Object.keys(payload.globalAudio)).toContain('lfoDrift');
-  });
-
-  it('quantizes globalFx and robots lfoDrift to a whole percent each, both groups independently (docs/specs/FLEET_DRIFT_CONSOLIDATION.md Task 5)', () => {
-    const localeId = setupWorld();
-    spawnInitialRoster(localeId);
-    // Distinguishing, non-default values for both groups (not left at 0) — a
-    // parity test that leaves a field at its default can pass by coincidence
-    // even with a broken quantize/cleanup path (memory: parity-test fixtures
-    // need real, non-default values).
-    // A plain state write, not the real setGlobalLfoDrift action -- that action was removed
-    // (docs/tasks/LFO_BANK.md Task 16) along with the old per-target lfoEngine it pushed to.
-    useAudioStore.setState((s) => ({
-      globalAudio: {
-        ...s.globalAudio,
-        lfoDrift: {
-          globalFx: { rateDrift: 0.4371, depthDrift: -0.2809 },
-          robots: { rateDrift: -0.1234, depthDrift: 0.5678 },
-        },
-      },
-    }));
-
-    const payload = buildSessionPayload();
-
-    expect(payload.globalAudio.lfoDrift.globalFx).toEqual({ rateDrift: 0.44, depthDrift: -0.28 });
-    expect(payload.globalAudio.lfoDrift.robots).toEqual({ rateDrift: -0.12, depthDrift: 0.57 });
   });
 
   it('captures bpm/swellFrequency/swellDuration/pingVarianceAutomation from audioStore, not just globalAudio', () => {
@@ -248,19 +204,6 @@ describe('buildSessionPayload', () => {
     expect(payload.swellFrequency).toBe(9);
     expect(payload.swellDuration).toBe(5);
     expect(payload.pingVarianceAutomation).toBe(0.42);
-  });
-
-  it('captures globalLfo from audioStore, not just globalAudio', () => {
-    const localeId = setupWorld();
-    spawnInitialRoster(localeId);
-    const edited: LfoSettings = { shape: 'square', rate: 4, depth: 60 };
-    // A plain state write, not the real setGlobalLfo action -- that constructs a live Tone.LFO
-    // node, which needs a real AudioContext this test environment doesn't have.
-    useAudioStore.setState((s) => ({ globalLfo: { ...s.globalLfo, 'eq3.low': edited } }));
-
-    const payload = buildSessionPayload();
-
-    expect(payload.globalLfo?.['eq3.low']).toEqual(edited);
   });
 
   it('has no robotOverrides entries for an untouched roster', () => {
@@ -332,71 +275,14 @@ describe('applySessionPayload', () => {
     return attenuationStyle?.currentLocaleId ? useLocaleStore.getState().getLocaleById(attenuationStyle.currentLocaleId) : undefined;
   }
 
-  it('migrates an old-shape lfoDrift (pre Fleet Drift Consolidation: eq3/filterLPF/filterHPF/robots, no globalFx) instead of crashing applyGlobalAudioToEngine (bug found live: power-on with a stale ?session=/saved session blanked the screen)', () => {
-    const localeId = setupWorld();
-    spawnInitialRoster(localeId);
-    const payload = buildSessionPayload();
-    // Simulate a payload persisted (localStorage named session, or a ?session= share link) before
-    // this migration shipped — its own globalAudio.lfoDrift still has the old 4-group shape, cast
-    // through unknown since SessionPayload's own type no longer describes this shape (the same
-    // "untyped JSON from outside the app" trust boundary decodeSessionPayload's own doc comment
-    // already documents for this exact field).
-    const staleLfoDrift = {
-      eq3: { rateDrift: 0.1, depthDrift: 0.2 },
-      filterLPF: { rateDrift: 0.3, depthDrift: 0.4 },
-      filterHPF: { rateDrift: 0.5, depthDrift: 0.6 },
-      robots: { rateDrift: 0.7, depthDrift: 0.8 },
-    };
-    const stalePayload = {
-      ...payload,
-      globalAudio: { ...payload.globalAudio, lfoDrift: staleLfoDrift },
-    } as unknown as typeof payload;
-
-    expect(() => applySessionPayload(stalePayload)).not.toThrow();
-
-    // robots survives untouched (it was already present); globalFx (missing from the stale
-    // payload) falls back to a safe default rather than staying undefined.
-    expect(useAudioStore.getState().globalAudio.lfoDrift.robots).toEqual({ rateDrift: 0.7, depthDrift: 0.8 });
-    expect(useAudioStore.getState().globalAudio.lfoDrift.globalFx).toEqual({ rateDrift: 0, depthDrift: 0 });
-  });
-
-  it('drops legacy lfoSettings keys (volume, layerN.pulseWidth, layerN.phase — removed targets) from a robot override on load, keeping the known ones', () => {
-    const localeId = setupWorld();
-    spawnInitialRoster(localeId);
-    const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
-    const payload = buildSessionPayload();
-    // docs/specs/LFO_LOAD_FIX.md §1.4 "Backward compatibility" / docs/specs/LFO_BANK.md Task 1: a
-    // payload saved before these targets were removed can still carry them under lfoSettings —
-    // cast through unknown, same trust-boundary reasoning as the stale lfoDrift case above.
-    const legacyOverrides = {
-      ...payload.robotOverrides,
-      [robot.id]: {
-        ...payload.robotOverrides[robot.id],
-        lfoSettings: {
-          volume: { shape: 'sine', rate: 3, depth: 50 },
-          'layer1.pulseWidth': { shape: 'square', rate: 2, depth: 40 },
-          'layer1.phase': { shape: 'sawtooth', rate: 4, depth: 60 },
-          'layer1.gain': { shape: 'triangle', rate: 1.5, depth: 30 },
-        },
-      },
-    } as unknown as typeof payload.robotOverrides;
-
-    expect(() => applySessionPayload({ ...payload, robotOverrides: legacyOverrides })).not.toThrow();
-
-    const restored = currentLocale()!.robots.find((r) => r.id === robot.id)!;
-    expect(restored.lfoSettings?.['layer1.gain']).toEqual({ shape: 'triangle', rate: 1.5, depth: 30 });
-    expect('volume' in (restored.lfoSettings ?? {})).toBe(false);
-    expect('layer1.pulseWidth' in (restored.lfoSettings ?? {})).toBe(false);
-    expect('layer1.phase' in (restored.lfoSettings ?? {})).toBe(false);
-  });
-
   it('applies a user-created company whose stored lastEditedOptions still carries a legacy volumeLfo (saved before the Volume LFO target was removed) without error, keeping the company and its other options', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     const payload = buildSessionPayload();
     // docs/specs/LFO_LOAD_FIX.md assumption 9: the field is gone from CompanyOptionsSnapshot, so an
-    // old payload is the only way it can appear — cast through unknown, same trust-boundary
-    // reasoning as the stale lfoDrift case above. The stale key is inert: never read, never thrown on.
+    // old payload is the only way it can appear — cast through unknown, since decodeSessionPayload's
+    // own doc comment treats this as untyped JSON from outside the app. The stale key is inert:
+    // never read, never thrown on.
     const legacyCompany = {
       id: 'user-created-legacy-volume-lfo',
       name: 'Old Guard',
@@ -594,36 +480,6 @@ describe('applySessionPayload', () => {
     // apply) -- just asserting it's no longer the pre-apply sentinel value proves the absent
     // fields didn't crash or silently zero anything out.
     expect(useAudioStore.getState().bpm).not.toBe(123);
-  });
-
-  it('restores globalLfo after a full save/wipe/load round trip, overriding whatever\'s currently live', () => {
-    const localeId = setupWorld();
-    spawnInitialRoster(localeId);
-    const edited: LfoSettings = { shape: 'square', rate: 4, depth: 60 };
-    // Plain state writes, not the real setGlobalLfo action -- see the capture test's own comment.
-    useAudioStore.setState((s) => ({ globalLfo: { ...s.globalLfo, 'eq3.low': edited } }));
-    const payload = buildSessionPayload();
-
-    // Simulate drift since the save (a later edit, or a reseed from switching Attenuation Style
-    // — regenerateGlobalLfoFromSeed has no "carry forward once edited" branch, unlike
-    // bpm/swellFrequency/swellDuration, so this can happen without any user action at all).
-    useAudioStore.setState((s) => ({ globalLfo: { ...s.globalLfo, 'eq3.low': { shape: 'sine' as const, rate: 0, depth: 0 } } }));
-
-    applySessionPayload(payload, { skipLocaleRebuild: true });
-
-    expect(useAudioStore.getState().globalLfo['eq3.low']).toEqual(edited);
-  });
-
-  it('leaves globalLfo untouched when an older payload lacks that field', () => {
-    const localeId = setupWorld();
-    spawnInitialRoster(localeId);
-    const payload = buildSessionPayload();
-    const { globalLfo: _globalLfo, ...oldShapePayload } = payload;
-    const current = useAudioStore.getState().globalLfo;
-
-    expect(() => applySessionPayload(oldShapePayload as typeof payload, { skipLocaleRebuild: true })).not.toThrow();
-
-    expect(useAudioStore.getState().globalLfo).toEqual(current);
   });
 
   it('restores a renamed company after a full save/wipe/load round trip', () => {

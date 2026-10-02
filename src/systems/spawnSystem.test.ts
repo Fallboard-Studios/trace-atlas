@@ -6,13 +6,13 @@ import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { Robot } from '../types/Robot';
 
-import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoSettings, generateRobotLfoLinks, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { AudioEngine } from '../engine/AudioEngine';
 import { DockingState } from '../types/Robot';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { ROBOT_LFO_TARGET_IDS, LFO_SHAPES, LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX, LFO_LANE_IDS, type LfoLaneId } from '../types/lfo';
+import { ROBOT_LFO_TARGET_IDS, LFO_LANE_IDS, type LfoLaneId } from '../types/lfo';
 import {
   MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
@@ -201,188 +201,6 @@ describe('spawnSystem', () => {
     });
   });
 
-  describe('generateRobotLfoSettings', () => {
-    it('generates LfoSettings for all 9 RobotLfoTargetId values, no extras', () => {
-      const settings = generateRobotLfoSettings(mockNoiseMap, 0);
-      expect(Object.keys(settings).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
-    });
-
-    it('every target\'s shape/rate/depth falls within documented bounds — no active field left', () => {
-      const settings = generateRobotLfoSettings(mockNoiseMap, 0);
-      for (const target of ROBOT_LFO_TARGET_IDS) {
-        const s = settings[target];
-        expect(LFO_SHAPES, `${target}.shape`).toContain(s.shape);
-        expect(s.rate, `${target}.rate >= min`).toBeGreaterThanOrEqual(LFO_RATE_MIN);
-        expect(s.rate, `${target}.rate <= max`).toBeLessThanOrEqual(LFO_RATE_MAX);
-        expect(s.depth, `${target}.depth >= min`).toBeGreaterThanOrEqual(LFO_DEPTH_MIN);
-        expect(s.depth, `${target}.depth <= max`).toBeLessThanOrEqual(LFO_DEPTH_MAX);
-        expect('active' in s, `${target} should not carry an active field`).toBe(false);
-      }
-    });
-
-    it('seeds quiet (rate: 0) independently per target — not uniformly all-quiet or all-oscillating (Roadmap Phase 9)', () => {
-      const settings = generateRobotLfoSettings(mockNoiseMap, 0);
-      const isQuiet = ROBOT_LFO_TARGET_IDS.map((t) => settings[t].rate === 0);
-      expect(new Set(isQuiet).size, 'expected both quiet and oscillating targets among the 13').toBe(2);
-    });
-
-    it('quantizes rate to a 0.05 grid, across many seeds and targets, excluding the quiet -> 0 case (SEEDED_SLIDER_VALUE_QUANTIZATION Task 6)', () => {
-      for (let i = 0; i < 30; i++) {
-        const settings = generateRobotLfoSettings(mockNoiseMap, i);
-        for (const target of ROBOT_LFO_TARGET_IDS) {
-          const { rate } = settings[target];
-          if (rate === 0) continue;
-          const stepsFromMin = rate / 0.05;
-          expect(Math.abs(stepsFromMin - Math.round(stepsFromMin)), `${target}.rate (offset ${i})`).toBeLessThan(1e-9);
-        }
-      }
-    });
-
-    it('quantizes depth to a whole percent, across many seeds and targets (SEEDED_SLIDER_VALUE_QUANTIZATION follow-up)', () => {
-      for (let i = 0; i < 30; i++) {
-        const settings = generateRobotLfoSettings(mockNoiseMap, i);
-        for (const target of ROBOT_LFO_TARGET_IDS) {
-          const { depth } = settings[target];
-          expect(Number.isInteger(depth), `${target}.depth (offset ${i}): ${depth}`).toBe(true);
-        }
-      }
-    });
-
-    it('gives different targets different values within the same call — dataIds are genuinely distinct, not colliding', () => {
-      // A seeded noise map (not mockNoiseMap's raw Math.random()): with only 6 robot targets
-      // remaining (docs/specs/LFO_BANK.md Task 1 cut the three phase targets), an unseeded random
-      // draw has a non-negligible chance every target independently rolls quiet (rate 0) under
-      // LFO_QUIET_THRESHOLD, which this test must not flake on — it's checking dataId distinctness,
-      // not quiet odds.
-      const noiseMap = createNoise2D(alea('lfo-load-fix-oracle')); // ORACLE_SEED below, offset 4 — every target oscillates there
-      const settings = generateRobotLfoSettings(noiseMap, 4);
-      const rates = ROBOT_LFO_TARGET_IDS.map((t) => settings[t].rate);
-      expect(new Set(rates.map((r) => r.toFixed(6))).size).toBeGreaterThan(1);
-    });
-
-    it('is deterministic — the same real seeded noise map + offset always produces identical LfoSettings', () => {
-      const noiseMap = createNoise2D(alea('lfo-determinism-test-seed'));
-      const first = generateRobotLfoSettings(noiseMap, 5);
-      const second = generateRobotLfoSettings(noiseMap, 5);
-      expect(second).toEqual(first);
-    });
-
-    it('produces different LfoSettings for a different spawn offset (non-degenerate)', () => {
-      const noiseMap = createNoise2D(alea('lfo-determinism-test-seed'));
-      const a = generateRobotLfoSettings(noiseMap, 0);
-      const b = generateRobotLfoSettings(noiseMap, 1);
-      expect(b).not.toEqual(a);
-    });
-  });
-
-  // Seed oracle (docs/specs/LFO_LOAD_FIX.md §5 "Seed odds", docs/tasks/LFO_LOAD_FIX.md Task 1).
-  // Captured GREEN against the pre-change seeder on 2026-09-30, BEFORE LFO_QUIET_THRESHOLD moves
-  // (Task 5) and before any target is removed. The contract it pins: for a fixed noise map + offset,
-  // every target's shape and depth, and every currently-oscillating target's rate, are byte-identical
-  // after the odds change — lowering the odds may only turn an oscillating target quiet (rate 0), never
-  // change a value or revive a quiet one. Regenerating these expected objects to make a later change
-  // pass is a spec violation, not a fix. Targets a later task removes are simply dropped from the
-  // expectation when the type narrows; the remaining rows stay as captured.
-  describe('generateRobotLfoSettings — seed oracle (LFO Load Fix Task 1)', () => {
-    const ORACLE_SEED = 'lfo-load-fix-oracle';
-
-    // Offset 1: a mostly-quiet robot. Offset 4: a mostly-on robot. The three 'layerN.phase' rows
-    // were dropped from this oracle when the phase targets were cut (docs/specs/LFO_BANK.md Task
-    // 1, per this describe block's own doc comment: "Targets a later task removes are simply
-    // dropped from the expectation when the type narrows; the remaining rows stay as captured").
-    const EXPECTED: Record<number, Record<string, { shape: string; rate: number; depth: number }>> = {
-      1: {
-        'layer0.gain': { shape: 'square', rate: 0, depth: 71 },
-        'layer0.detune': { shape: 'triangle', rate: 0, depth: 21 },
-        'layer1.gain': { shape: 'triangle', rate: 0, depth: 5 },
-        'layer1.detune': { shape: 'sine', rate: 0, depth: 55 },
-        'layer2.gain': { shape: 'square', rate: 0, depth: 13 },
-        'layer2.detune': { shape: 'square', rate: 0, depth: 57 },
-      },
-      4: {
-        'layer0.gain': { shape: 'square', rate: 11.95, depth: 67 },
-        'layer0.detune': { shape: 'sawtooth', rate: 12.7, depth: 71 },
-        'layer1.gain': { shape: 'square', rate: 12.3, depth: 50 },
-        'layer1.detune': { shape: 'square', rate: 11.3, depth: 60 },
-        'layer2.gain': { shape: 'square', rate: 13.45, depth: 56 },
-        'layer2.detune': { shape: 'square', rate: 12.55, depth: 60 },
-      },
-    };
-
-    for (const offset of [1, 4]) {
-      it(`offset ${offset}: shape and depth of every target, and rate of every oscillating target, match the captured values`, () => {
-        const noiseMap = createNoise2D(alea(ORACLE_SEED));
-        const settings = generateRobotLfoSettings(noiseMap, offset);
-        for (const target of ROBOT_LFO_TARGET_IDS) {
-          const expected = EXPECTED[offset][target];
-          expect(expected, `${target} missing from the oracle — the type grew without the oracle being extended`).toBeDefined();
-          const actual = settings[target];
-          expect(actual.shape, `${target}.shape (offset ${offset})`).toBe(expected.shape);
-          expect(actual.depth, `${target}.depth (offset ${offset})`).toBe(expected.depth);
-          if (expected.rate === 0) {
-            expect(actual.rate, `${target} was quiet and must stay quiet (offset ${offset})`).toBe(0);
-          } else if (actual.rate !== 0) {
-            // Still oscillating: the value itself must be untouched (0.05 grid, so a 1e-9 tolerance is exact).
-            expect(actual.rate, `${target}.rate (offset ${offset})`).toBeCloseTo(expected.rate, 9);
-          }
-          // actual.rate === 0 while expected.rate > 0 is the one permitted change: the odds got stricter.
-        }
-      });
-    }
-
-    it('offset 1 and offset 4 differ in how many targets oscillate (the fixture really covers both ends)', () => {
-      const noiseMap = createNoise2D(alea(ORACLE_SEED));
-      const onCount = (offset: number) => ROBOT_LFO_TARGET_IDS.filter((t) => generateRobotLfoSettings(noiseMap, offset)[t].rate > 0).length;
-      expect(onCount(1)).toBeLessThan(onCount(4));
-    });
-  });
-
-  // Seed odds lowered from 50% on to ~25% on (docs/specs/LFO_LOAD_FIX.md assumption 5 / §1.4,
-  // docs/tasks/LFO_LOAD_FIX.md Task 5). Measured before choosing the threshold (2026-09-30): the
-  // quiet draw is a smooth simplex sample, not a uniform coin, so the on-rate is NOT 1 - threshold —
-  // 0.5 gave ≈53% on, 0.75 ≈20%, 0.7 ≈27% across 8 worlds × 12 offsets. 0.7 is the value that lands
-  // the intent (≈25% on, ≈19 primed audio-rate LFOs per 12-robot world).
-  describe('generateRobotLfoSettings — quiet odds (LFO Load Fix Task 5)', () => {
-    /** The same 8 worlds the threshold was chosen against: 4 arbitrary alea seeds + 4 real locale maps. */
-    const WORLDS: NoiseFunction2D[] = [
-      createNoise2D(alea('s1')), createNoise2D(alea('s2')), createNoise2D(alea('s3')), createNoise2D(alea('s4')),
-      getLocaleNoiseMap('odds-b', -150, 90), getLocaleNoiseMap('odds-c', 200, -30),
-      getLocaleNoiseMap('odds-a', 12, 68), getLocaleNoiseMap('odds-d', 5, -180),
-    ];
-    const AUDIO_RATE_TARGETS = ROBOT_LFO_TARGET_IDS.filter((t) => /\.(gain|detune)$/.test(t));
-
-    it('turns on roughly a quarter of audio-rate targets — between 15% and 35% across 8 worlds × 12 spawn offsets', () => {
-      let on = 0;
-      let total = 0;
-      for (const map of WORLDS) {
-        for (let offset = 0; offset < 12; offset++) {
-          const settings = generateRobotLfoSettings(map, offset);
-          for (const target of AUDIO_RATE_TARGETS) {
-            total++;
-            if (settings[target].rate > 0) on++;
-          }
-        }
-      }
-      const share = on / total;
-      expect(share, `${on}/${total} audio-rate targets on`).toBeGreaterThanOrEqual(0.15);
-      expect(share, `${on}/${total} audio-rate targets on`).toBeLessThanOrEqual(0.35);
-    });
-
-    it('is monotone against the old 50% odds — a target that was quiet under 0.5 is still quiet, and every on-target was also on before', () => {
-      // Recreates the pre-change decision from the same seeded draw the seeder uses, so this
-      // holds regardless of the exact threshold chosen, as long as it is >= 0.5.
-      for (const map of WORLDS) {
-        for (let offset = 0; offset < 12; offset++) {
-          const settings = generateRobotLfoSettings(map, offset);
-          for (const target of ROBOT_LFO_TARGET_IDS) {
-            const quietUnderOldOdds = getSeededVal(map, `robot.lfo.${target}.quiet`, offset, 0, 1) < 0.5;
-            if (quietUnderOldOdds) expect(settings[target].rate, `${target} @${offset}`).toBe(0);
-          }
-        }
-      }
-    });
-  });
-
   describe('generateRobotLfoLinks', () => {
     const ZERO_COUNTS: Record<LfoLaneId, number> = { a: 0, b: 0, c: 0, d: 0 };
 
@@ -524,8 +342,8 @@ describe('spawnSystem', () => {
       expect(robot.melody).toBeDefined();
       expect(robot.melody.length).toBeGreaterThan(0);
       expect(robot.audioAttributes).toBeDefined();
-      expect(robot.lfoSettings).toBeDefined();
-      expect(Object.keys(robot.lfoSettings ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
+      expect(robot.lfoLinks).toBeDefined();
+      expect(Object.keys(robot.lfoLinks ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
 
       expect(registerSpy).toHaveBeenCalledWith(robot.id, robot.melody);
     });
@@ -691,35 +509,19 @@ describe('spawnSystem', () => {
     it('a copied robot inherits the source\'s rhythmicDensity/rhythmicMotifLength/noteVariance rather than rolling fresh ones', () => {
       for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
       const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
-      const byLfo = new Map<Robot['lfoSettings'], Robot[]>();
+      const byLinks = new Map<Robot['lfoLinks'], Robot[]>();
       for (const r of robots) {
-        const group = byLfo.get(r.lfoSettings) ?? [];
+        const group = byLinks.get(r.lfoLinks) ?? [];
         group.push(r);
-        byLfo.set(r.lfoSettings, group);
+        byLinks.set(r.lfoLinks, group);
       }
-      const sharedGroup = [...byLfo.values()].find((g) => g.length > 1);
+      const sharedGroup = [...byLinks.values()].find((g) => g.length > 1);
       expect(sharedGroup, 'expected at least one copy to share its source\'s object references').toBeDefined();
       const [a, b] = sharedGroup!;
       expect(a.rhythmicDensity).toBe(b.rhythmicDensity);
       expect(a.rhythmicMotifLength).toEqual(b.rhythmicMotifLength);
       expect(a.noteVariance).toEqual(b.noteVariance);
       expect(a.pitchRepeat).toBe(b.pitchRepeat);
-    });
-
-    it('a copied robot inherits the source\'s lfoSettings rather than generating fresh ones', () => {
-      // 30 spawns at a ~30% copy chance per spawn makes at least one copy
-      // virtually certain (P(zero copies) ≈ 0.7^29 ≈ 0.00002). The roster is
-      // uncapped now (no more oldest-robot removal churn to avoid).
-      for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
-      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
-      const bySettings = new Map<Robot['lfoSettings'], Robot[]>();
-      for (const r of robots) {
-        const group = bySettings.get(r.lfoSettings) ?? [];
-        group.push(r);
-        bySettings.set(r.lfoSettings, group);
-      }
-      const sharedGroup = [...bySettings.values()].find((g) => g.length > 1);
-      expect(sharedGroup, 'expected at least one copy to share its source\'s lfoSettings reference').toBeDefined();
     });
 
     describe('lfoLinks at spawn (LFO Bank Task 9)', () => {
@@ -772,7 +574,7 @@ describe('spawnSystem', () => {
       });
 
       it('a copied robot inherits the source\'s lfoLinks reference rather than generating fresh ones', () => {
-        // Same copy-detection pattern as the lfoSettings copy test above.
+        // Same copy-detection pattern as the rhythmicDensity/rhythmicMotifLength/noteVariance copy test above.
         for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
         const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
         const byLinks = new Map<Robot['lfoLinks'], Robot[]>();
@@ -967,20 +769,20 @@ describe('spawnSystem', () => {
     });
 
     it('a copied robot gets its own compositionSeed, never the source\'s', () => {
-      // Same copy-detection pattern as the lfoSettings copy test above: group by a
-      // field that IS inherited on copy (lfoSettings, by reference) to reliably find
-      // a copy pair, then assert compositionSeed -- which must NOT be inherited --
+      // Same copy-detection pattern as the rhythmicDensity/rhythmicMotifLength/noteVariance copy
+      // test above: group by a field that IS inherited on copy (lfoLinks, by reference) to
+      // reliably find a copy pair, then assert compositionSeed -- which must NOT be inherited --
       // actually differs between them.
       for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
       const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
-      const bySettings = new Map<Robot['lfoSettings'], Robot[]>();
+      const byLinks = new Map<Robot['lfoLinks'], Robot[]>();
       for (const r of robots) {
-        const group = bySettings.get(r.lfoSettings) ?? [];
+        const group = byLinks.get(r.lfoLinks) ?? [];
         group.push(r);
-        bySettings.set(r.lfoSettings, group);
+        byLinks.set(r.lfoLinks, group);
       }
-      const sharedGroup = [...bySettings.values()].find((g) => g.length > 1);
-      expect(sharedGroup, 'expected at least one copy to share its source\'s lfoSettings reference').toBeDefined();
+      const sharedGroup = [...byLinks.values()].find((g) => g.length > 1);
+      expect(sharedGroup, 'expected at least one copy to share its source\'s lfoLinks reference').toBeDefined();
       const [a, b] = sharedGroup!;
       expect(a.compositionSeed).not.toBe(b.compositionSeed);
     });
@@ -1586,7 +1388,6 @@ describe('spawnSystem', () => {
       expect(baseline.rhythmicMotifLength).toEqual(robot.rhythmicMotifLength);
       expect(baseline.noteVariance).toEqual(robot.noteVariance);
       expect(baseline.pitchRepeat).toBe(robot.pitchRepeat);
-      expect(baseline.lfoSettings).toEqual(robot.lfoSettings);
     });
 
     it('reproduces every field of a full real 12-robot roster (spawnInitialRoster), including any copied siblings', () => {
@@ -1611,7 +1412,6 @@ describe('spawnSystem', () => {
         expect(baselines[i].rhythmicMotifLength, `robot ${i} (${robot.id}) rhythmicMotifLength`).toEqual(robot.rhythmicMotifLength);
         expect(baselines[i].noteVariance, `robot ${i} (${robot.id}) noteVariance`).toEqual(robot.noteVariance);
         expect(baselines[i].pitchRepeat, `robot ${i} (${robot.id}) pitchRepeat`).toBe(robot.pitchRepeat);
-        expect(baselines[i].lfoSettings, `robot ${i} (${robot.id}) lfoSettings`).toEqual(robot.lfoSettings);
       });
     });
 
@@ -1622,23 +1422,22 @@ describe('spawnSystem', () => {
       const noiseMap = createNoise2D(alea('baseline-copy-branch-test-seed'));
       const baselines = generateRobotRosterBaseline(noiseMap, 30);
 
-      const bySettings = new Map<typeof baselines[number]['lfoSettings'], number[]>();
+      const byAttributes = new Map<typeof baselines[number]['audioAttributes'], number[]>();
       baselines.forEach((b, i) => {
-        const group = bySettings.get(b.lfoSettings) ?? [];
+        const group = byAttributes.get(b.audioAttributes) ?? [];
         group.push(i);
-        bySettings.set(b.lfoSettings, group);
+        byAttributes.set(b.audioAttributes, group);
       });
-      const sharedGroup = [...bySettings.values()].find((indices) => indices.length > 1);
-      expect(sharedGroup, 'expected at least one entry to share an earlier entry\'s lfoSettings reference (a copy)').toBeDefined();
+      const sharedGroup = [...byAttributes.values()].find((indices) => indices.length > 1);
+      expect(sharedGroup, 'expected at least one entry to share an earlier entry\'s audioAttributes reference (a copy)').toBeDefined();
 
       const [earlierIdx, laterIdx] = sharedGroup!;
-      // A copy reuses the SAME lfoSettings (and audioAttributes/octaveRange/etc.) object by
-      // reference, not a freshly-generated equivalent one -- matching spawnRobot's own
-      // "source.lfoSettings" (no re-generation) on the copy path. name is the one field that's
-      // never copied (generated fresh even on a copy, see generateRobotAudioBaseline's own doc
-      // comment) -- not asserted here, since two different spawnCounts could coincidentally
-      // generate the same "Adjective Noun" name by chance, independent of copying.
-      expect(baselines[laterIdx].lfoSettings).toBe(baselines[earlierIdx].lfoSettings);
+      // A copy reuses the SAME audioAttributes (and octaveRange/etc.) object by reference, not a
+      // freshly-generated equivalent one -- matching spawnRobot's own "source.audioAttributes"
+      // (no re-generation) on the copy path. name is the one field that's never copied (generated
+      // fresh even on a copy, see generateRobotAudioBaseline's own doc comment) -- not asserted
+      // here, since two different spawnCounts could coincidentally generate the same
+      // "Adjective Noun" name by chance, independent of copying.
       expect(baselines[laterIdx].audioAttributes).toBe(baselines[earlierIdx].audioAttributes);
     });
   });

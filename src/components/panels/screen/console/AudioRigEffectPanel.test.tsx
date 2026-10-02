@@ -15,24 +15,9 @@ vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
 });
 
-vi.mock('../../../../engine/lfoEngine', () => ({
-  lfoEngine: {
-    getLfoSettings: vi.fn(),
-    setLfoRate: vi.fn(),
-    setLfoDepth: vi.fn(),
-    setLfoShape: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
-    connectLfoTarget: vi.fn(() => true),
-    disconnectLfoTarget: vi.fn(),
-    setGlobalRateDrift: vi.fn(),
-    setGlobalDepthDrift: vi.fn(),
-  },
-}));
-
 // The LFO Bank engine (docs/tasks/LFO_BANK.md Task 7) — setGlobalLfoLink (audioStore.ts) calls
-// this module's linkTarget directly; mocked for the same reason the old lfoEngine above is: the
-// real module would construct a Tone node on first call, which throws without a real AudioContext.
+// this module's linkTarget directly; mocked since the real module would construct a Tone node on
+// first call, which throws without a real AudioContext.
 vi.mock('../../../../engine/lfoEngine', () => ({
   lfoEngine: {
     primeLfoBank: vi.fn(),

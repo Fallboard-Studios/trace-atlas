@@ -40,31 +40,6 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
   });
 
-  it('drops legacy robot lfoSettings keys (volume, layerN.pulseWidth, layerN.phase — removed LFO targets) on decode, keeping the known ones', () => {
-    // docs/specs/LFO_LOAD_FIX.md §1.4 "Backward compatibility" / docs/specs/LFO_BANK.md Task 1: a
-    // link minted before these targets were removed still carries them under `lf`. Cast through
-    // unknown — the type no longer admits those keys, which is the point.
-    const payload = makePayload({
-      robotOverrides: {
-        'robot-1': {
-          lfoSettings: {
-            volume: { shape: 'sine', rate: 3, depth: 50 },
-            'layer1.pulseWidth': { shape: 'square', rate: 2, depth: 40 },
-            'layer1.phase': { shape: 'sawtooth', rate: 4, depth: 60 },
-            'layer1.gain': { shape: 'triangle', rate: 1.5, depth: 30 },
-          },
-        } as unknown as SessionPayload['robotOverrides'][string],
-      },
-    });
-
-    const decoded = decodeSessionPayload(encodeSessionPayload(payload))!;
-    const lfo = decoded.robotOverrides['robot-1'].lfoSettings ?? {};
-    expect(lfo['layer1.gain']).toEqual({ shape: 'triangle', rate: 1.5, depth: 30 });
-    expect('volume' in lfo).toBe(false);
-    expect('layer1.pulseWidth' in lfo).toBe(false);
-    expect('layer1.phase' in lfo).toBe(false);
-  });
-
   it('round-trips non-Latin1 characters (company/robot names are not charset-restricted)', () => {
     const payload = makePayload({
       userCreatedCompanies: [{ id: 'c1', name: 'Ü Robotics 日本語', color: '#123456', robotIds: [] }],
@@ -112,19 +87,6 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
   });
 
-  it('omits globalLfo from the wire entirely when absent from the payload', () => {
-    const payload = makePayload();
-    const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;
-    expect(wire).not.toHaveProperty('gl');
-  });
-
-  it('includes and round-trips globalLfo when present, via abbreviated per-target wire keys', () => {
-    const payload = makePayload({ globalLfo: { 'eq3.low': { shape: 'square', rate: 4, depth: 60 } } });
-    const wire = decodeRawWire(encodeSessionPayload(payload)) as { gl: Record<string, Record<string, unknown>> };
-    expect(Object.keys(wire.gl['eq3.low']).sort()).toEqual(['d', 'r', 's']);
-    expect(decodeSessionPayload(encodeSessionPayload(payload))).toEqual(payload);
-  });
-
   it('uses abbreviated top-level keys on the wire, not the full SessionPayload field names', () => {
     const payload = makePayload();
     const wire = decodeRawWire(encodeSessionPayload(payload)) as Record<string, unknown>;
@@ -152,7 +114,6 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
           noteVariance: { active: false, value: 0 },
           pitchRepeat: 50,
           octaveRange: [3, 5],
-          lfoSettings: { 'layer0.gain': { shape: 'sine', rate: 1.2, depth: 0.3 } },
           name: 'Renamed Bot',
         },
       },
@@ -161,7 +122,7 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     const wire = decodeRawWire(encodeSessionPayload(payload)) as { r: Record<string, Record<string, unknown>>; d: Record<string, Record<string, unknown>> };
 
     const robotWire = wire.r['robot-1'];
-    expect(Object.keys(robotWire).sort()).toEqual(['a', 'f', 'l', 'lf', 'nm', 'nv', 'or', 'pr', 'rd', 'rm']);
+    expect(Object.keys(robotWire).sort()).toEqual(['a', 'f', 'l', 'nm', 'nv', 'or', 'pr', 'rd', 'rm']);
     expect(robotWire).not.toHaveProperty('adsr');
     expect(robotWire).not.toHaveProperty('rhythmicDensity');
     expect(Object.keys(robotWire.a as object).sort()).toEqual(['at', 'dc', 'rl', 'su']);
@@ -244,7 +205,7 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
     expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(objectU)))))).toBeNull();
   });
 
-  it('decodeSessionPayload returns null when present-but-wrong-typed b/sf/sd/pv/gl would otherwise corrupt bpm/swellFrequency/swellDuration/pingVarianceAutomation/globalLfo', () => {
+  it('decodeSessionPayload returns null when present-but-wrong-typed b/sf/sd/pv would otherwise corrupt bpm/swellFrequency/swellDuration/pingVarianceAutomation', () => {
     const validPayload = makePayload();
     const validWire = decodeRawWire(encodeSessionPayload(validPayload)) as Record<string, unknown>;
 
@@ -259,9 +220,6 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
 
     const stringPv = { ...validWire, pv: 'not a number' };
     expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(stringPv)))))).toBeNull();
-
-    const arrayGl = { ...validWire, gl: ['not', 'a', 'record'] };
-    expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(arrayGl)))))).toBeNull();
   });
 });
 

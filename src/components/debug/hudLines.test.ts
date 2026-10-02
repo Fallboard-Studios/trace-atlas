@@ -18,8 +18,6 @@ const baseInfo: DiagInfo = {
   voices: 3,
   maxVoices: 16,
   transport: 'started',
-  globalLfosOn: 5,
-  globalLfosTotal: 7,
   linksOn: 5,
   linksTotal: 7,
   bankRunning: 2,
@@ -119,10 +117,9 @@ describe('buildHudLines', () => {
     expect(text).toContain('10ms');
   });
 
-  it('shows voices, active global LFOs, fps, and current/max main-thread lag', () => {
+  it('shows voices, fps, and current/max main-thread lag', () => {
     const text = buildHudLines(snap(), world, 0).join('\n');
     expect(text).toContain('3/16');
-    expect(text).toContain('5/7');
     expect(text).toContain('58');
     expect(text).toContain('4ms');
     expect(text).toContain('220ms');

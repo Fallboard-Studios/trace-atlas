@@ -35,8 +35,6 @@ const makeSnapshot = (ctxState = 'running'): DiagSnapshot => ({
     voices: 2,
     maxVoices: 16,
     transport: 'started',
-    globalLfosOn: 5,
-    globalLfosTotal: 7,
     linksOn: 5,
     linksTotal: 7,
     bankRunning: 2,

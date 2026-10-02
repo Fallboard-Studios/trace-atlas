@@ -5,7 +5,7 @@
  */
 import type { Robot, ADSREnvelope } from './Robot';
 import type { OscillatorLayer } from './layeredAudio';
-import type { RobotLfoTargetId, LfoSettings, LfoLink } from './lfo';
+import type { RobotLfoTargetId, LfoLink } from './lfo';
 
 /**
  * Every field is optional — an untouched field falls back to the company's first member's live
@@ -23,7 +23,6 @@ export interface CompanyOptionsSnapshot {
   octaveRange?: [number, number];
   adsr?: ADSREnvelope;
   layers?: OscillatorLayer[];
-  lfoSettings?: Partial<Record<RobotLfoTargetId, LfoSettings>>;
   lfoLinks?: Partial<Record<RobotLfoTargetId, LfoLink>>;
   clickTrackActive?: boolean;
 }

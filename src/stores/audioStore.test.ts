@@ -271,50 +271,6 @@ describe('useAudioStore - setCompressorBeforeDelay', () => {
   });
 });
 
-describe('useAudioStore - globalLfo state', () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-
-  it('has one entry per GlobalLfoTargetId, JSON-serializable', async () => {
-    const { useAudioStore } = await import('./audioStore');
-    const { globalLfo } = useAudioStore.getState();
-    expect(Object.keys(globalLfo).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
-    expect(() => JSON.stringify(globalLfo)).not.toThrow();
-  });
-});
-
-describe('useAudioStore - globalLfo Attenuation-Style-sync seeding', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    // The lfoEngine mock's call history persists across vi.resetModules() (same
-    // established quirk documented in LFO_INTEGRATION_PLAN.md's Task 11 notes for
-    // the Tone mock) — clear it so each test only sees its own fresh import's calls.
-    vi.clearAllMocks();
-  });
-
-  it('seeds globalLfo for the current Attenuation Style on module load (app init)', async () => {
-    const { useAudioStore } = await import('./audioStore');
-    const { globalLfo } = useAudioStore.getState();
-    // Seeded, not left at the DEFAULT_LFO_SETTINGS-inert values (rate would be
-    // pinned to LFO_RATE_MIN and depth to LFO_DEPTH_MIN for every target if
-    // seeding hadn't run) — at least one target should differ from the inert default.
-    const rates = GLOBAL_LFO_TARGET_IDS.map((t) => globalLfo[t].rate);
-    expect(new Set(rates).size).toBeGreaterThan(1);
-  });
-
-  it('follows setCurrentAttenuationStyleId — switching the active Attenuation Style reseeds globalLfo automatically', async () => {
-    const { useAudioStore } = await import('./audioStore');
-    const { useAttenuationStyleStore, DEFAULT_PELAGOS } = await import('./attenuationStyleStore');
-
-    const before = useAudioStore.getState().globalLfo;
-    useAttenuationStyleStore.getState().addAttenuationStyle({ ...DEFAULT_PELAGOS, id: 'zenith-lfo', name: 'ZenithLfo' });
-    useAttenuationStyleStore.getState().setCurrentAttenuationStyleId('zenith-lfo');
-
-    expect(useAudioStore.getState().globalLfo).not.toEqual(before);
-  });
-});
-
 describe('useAudioStore - lfoBank state (docs/tasks/LFO_BANK.md Task 8)', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -433,8 +389,8 @@ describe('useAudioStore - setGlobalLfoLink', () => {
 describe('useAudioStore - LFO Bank / global links Attenuation-Style-sync seeding (docs/tasks/LFO_BANK.md Task 8)', () => {
   beforeEach(() => {
     vi.resetModules();
-    // Same accumulating-mock-call-history quirk the globalLfo seeding tests above already
-    // document — clear it so each test only sees its own fresh import's calls.
+    // The lfoEngine mock's call history persists across vi.resetModules() (same quirk documented
+    // elsewhere in this file) — clear it so each test only sees its own fresh import's calls.
     vi.clearAllMocks();
   });
 
@@ -451,7 +407,7 @@ describe('useAudioStore - LFO Bank / global links Attenuation-Style-sync seeding
     const { useAudioStore } = await import('./audioStore');
     const { globalLfoLinks } = useAudioStore.getState();
     // At least one of the 7 global targets should have rolled a lane across a real seed —
-    // same statistical-spot-check style as the globalLfo seeding test above.
+    // same statistical-spot-check style as the lfoBank seeding test above.
     const lanes = GLOBAL_LFO_TARGET_IDS.map((t) => globalLfoLinks[t].lane);
     expect(lanes.some((lane) => lane !== null)).toBe(true);
   });
@@ -674,8 +630,8 @@ describe('useAudioStore - BPM locale sync on module load (docs/specs/BPM_CONTROL
     const thisFile = fileURLToPath(import.meta.url);
     const source = readFileSync(join(dirname(thisFile), 'audioStore.ts'), 'utf-8');
     const subscribeCalls = source.match(/\.subscribe\(/g) ?? [];
-    // Exactly the one pre-existing useAttenuationStyleStore.subscribe (globalAudio/
-    // globalLfo AS-sync) — BPM's locale sync must stay a plain function call
+    // Exactly the one pre-existing useAttenuationStyleStore.subscribe (globalAudio/lfoBank/
+    // globalLfoLinks AS-sync) — BPM's locale sync must stay a plain function call
     // (syncBpmToCurrentLocale()), never a second subscription, per spec §1.3's
     // "call-site-triggered, not subscription-driven" design.
     expect(subscribeCalls.length).toBe(1);

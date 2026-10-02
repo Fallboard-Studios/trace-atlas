@@ -22,12 +22,12 @@ import type { OscillatorLayer } from '@/types/layeredAudio';
 // — `resolveCompanyOptions` is called on every render of `CompanyOptionsSection` (via a `useMemo`
 // keyed on its own real inputs), so a fallback that constructs a fresh object/array literal every
 // call defeats that memoization even when the underlying robot data hasn't changed. Only `layers`
-// (previously `[]`) and `lfoSettings` (previously `{}`) had this (and the since-removed `volumeLfo`) — `rhythmicMotifLength`/`noteVariance` already returned their shared
-// default reference directly, unspread. Nothing downstream mutates a `CompanyOptionsSnapshot`
-// field in place (every consumer spreads: `{ ...value, field }`), so returning these shared
-// references directly, instead of defensive copies, is behavior-neutral.
+// and `lfoLinks` (previously `[]`/`{}`) had this (and the since-removed `lfoSettings`/`volumeLfo`) —
+// `rhythmicMotifLength`/`noteVariance` already returned their shared default reference directly,
+// unspread. Nothing downstream mutates a `CompanyOptionsSnapshot` field in place (every consumer
+// spreads: `{ ...value, field }`), so returning these shared references directly, instead of
+// defensive copies, is behavior-neutral.
 const EMPTY_LAYERS: OscillatorLayer[] = [];
-const EMPTY_LFO_SETTINGS: NonNullable<CompanyOptionsSnapshot['lfoSettings']> = {};
 const EMPTY_LFO_LINKS: NonNullable<CompanyOptionsSnapshot['lfoLinks']> = {};
 
 export function resolveCompanyOptions(lastEditedOptions: CompanyOptionsSnapshot | undefined, firstMember: Robot): Required<CompanyOptionsSnapshot> {
@@ -40,7 +40,6 @@ export function resolveCompanyOptions(lastEditedOptions: CompanyOptionsSnapshot 
     octaveRange: firstMember.octaveRange,
     adsr: firstMember.audioAttributes.adsr,
     layers: firstMember.audioAttributes.layers ?? EMPTY_LAYERS,
-    lfoSettings: firstMember.lfoSettings ?? EMPTY_LFO_SETTINGS,
     lfoLinks: firstMember.lfoLinks ?? EMPTY_LFO_LINKS,
     clickTrackActive: firstMember.clickTrackActive ?? false,
     pitchRepeat: firstMember.pitchRepeat ?? DEFAULT_PITCH_REPEAT,

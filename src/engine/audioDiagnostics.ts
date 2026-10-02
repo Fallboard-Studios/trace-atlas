@@ -35,10 +35,8 @@ export interface DiagInfo {
   voices: number;
   maxVoices: number;
   transport: string;
-  globalLfosOn: number;
-  globalLfosTotal: number;
   /** docs/tasks/LFO_BANK.md Task 8: links (global-chain + every active robot's) whose lane is non-null,
-   *  out of every linkable target. Additive alongside globalLfosOn/Total above — those stay until Task 17. */
+   *  out of every linkable target. */
   linksOn: number;
   linksTotal: number;
   /** Count of the four LFO Bank lanes currently running (rate > 0), 0-4. */
@@ -100,8 +98,6 @@ function emptyInfo(): DiagInfo {
     voices: 0,
     maxVoices: 0,
     transport: '?',
-    globalLfosOn: 0,
-    globalLfosTotal: 0,
     linksOn: 0,
     linksTotal: 0,
     bankRunning: 0,
@@ -186,7 +182,6 @@ function readInfo(): DiagInfo {
   const raw = readRawContext();
   const poly = AudioEngine.getPolyphonyStats();
   const audio = useAudioStore.getState();
-  const globalLfo = Object.values(audio.globalLfo) as Array<{ rate: number }>;
   return {
     latencyHint: String(context.latencyHint ?? '?'),
     lookAheadMs: Math.round(context.lookAhead * 1000),
@@ -194,8 +189,6 @@ function readInfo(): DiagInfo {
     voices: poly.voices,
     maxVoices: poly.maxVoices,
     transport: Tone.getTransport().state,
-    globalLfosOn: globalLfo.filter((l) => l.rate > 0).length,
-    globalLfosTotal: globalLfo.length,
     ...readLfoLinkCounts(audio.globalLfoLinks),
     bankRunning: readBankRunning(audio.lfoBank),
     ...readRobotAudibility(),

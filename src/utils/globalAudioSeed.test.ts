@@ -17,17 +17,12 @@ vi.mock('./getSeededVal', async (importOriginal) => {
 
 import {
   generateGlobalAudioSettings,
-  generateGlobalLfoSettings,
   generateLfoBankSettings,
   generateGlobalLfoLinks,
   generatePingVarianceAutomation,
   generateSwellFrequency,
   generateSwellDuration,
   scaleUnitValue,
-  LFO_RATE_LOADING_MIN,
-  LFO_RATE_LOADING_MAX,
-  LFO_DEPTH_LOADING_MIN,
-  LFO_DEPTH_LOADING_MAX,
   LFO_BANK_RATE_BANDS,
   LFO_BANK_DRIFT_SEED_RANGE,
 } from './globalAudioSeed';
@@ -35,10 +30,7 @@ import { evictAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal } from './getSeededVal';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
-import {
-  GLOBAL_LFO_TARGET_IDS, LFO_SHAPES, LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX, DRIFT_GROUP_IDS,
-  LFO_LANE_IDS,
-} from '@/types/lfo';
+import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS } from '@/types/lfo';
 import { GLOBAL_AUDIO_SEED_RANGES } from '@/data/globalAudioSeedRanges';
 import { SWELL_FREQUENCY_STEPS } from '@/data/audioRigConfig';
 
@@ -143,10 +135,6 @@ describe('generateGlobalAudioSettings', () => {
       'reverb.preDelay': settings.reverb.preDelay,
       'reverb.wet': settings.reverb.wet,
       'limiter.threshold': settings.limiter.threshold,
-      'lfoDrift.globalFx.rateDrift': settings.lfoDrift.globalFx.rateDrift,
-      'lfoDrift.globalFx.depthDrift': settings.lfoDrift.globalFx.depthDrift,
-      'lfoDrift.robots.rateDrift': settings.lfoDrift.robots.rateDrift,
-      'lfoDrift.robots.depthDrift': settings.lfoDrift.robots.depthDrift,
     };
     for (const key of Object.keys(GLOBAL_AUDIO_LOADING_RANGES) as GlobalAudioSeedFieldKey[]) {
       const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
@@ -231,220 +219,8 @@ describe('generateGlobalAudioSettings', () => {
       }
     });
 
-    it('quantizes every lfoDrift field (rateDrift/depthDrift, both groups) to a whole percent, across many seeds', () => {
-      for (let i = 0; i < 20; i++) {
-        const settings = generateGlobalAudioSettings(`seed-quantize-sample-${i}`, `QuantizeSample${i}`);
-        for (const group of DRIFT_GROUP_IDS) {
-          const { rateDrift, depthDrift } = settings.lfoDrift[group];
-          expect(Math.abs(rateDrift * 100 - Math.round(rateDrift * 100)), `${group}.rateDrift attenuationStyle ${i}`).toBeLessThan(1e-9);
-          expect(Math.abs(depthDrift * 100 - Math.round(depthDrift * 100)), `${group}.depthDrift attenuationStyle ${i}`).toBeLessThan(1e-9);
-        }
-      }
-    });
   });
 
-  describe('lfoDrift', () => {
-    it('returns a fully-populated lfoDrift for both DriftGroupId groups', () => {
-      const settings = generateGlobalAudioSettings('seed-test-planet', 'Nova');
-      expect(Object.keys(settings.lfoDrift).sort()).toEqual([...DRIFT_GROUP_IDS].sort());
-    });
-
-    it('is deterministic — same attenuationStyleId + attenuationStyleName always produces the same lfoDrift for every group', () => {
-      const first = generateGlobalAudioSettings('seed-test-planet', 'Nova');
-      const second = generateGlobalAudioSettings('seed-test-planet', 'Nova');
-      expect(second.lfoDrift).toEqual(first.lfoDrift);
-    });
-
-    it('produces different lfoDrift values for a different Attenuation Style name (non-degenerate)', () => {
-      const a = generateGlobalAudioSettings('seed-test-planet', 'Nova');
-      const b = generateGlobalAudioSettings('seed-test-planet-b', 'Zenith');
-      expect(b.lfoDrift).not.toEqual(a.lfoDrift);
-    });
-
-    it('samples rateDrift and depthDrift independently within each group, not the same draw for both', () => {
-      // A shared draw fed into both fields would be an easy copy/paste bug —
-      // this catches it directly rather than relying on the non-degenerate
-      // check above, which would still pass if both fields moved in lockstep.
-      const settings = generateGlobalAudioSettings('seed-test-planet', 'Nova');
-      for (const group of DRIFT_GROUP_IDS) {
-        expect(settings.lfoDrift[group].rateDrift, group).not.toBe(settings.lfoDrift[group].depthDrift);
-      }
-    });
-
-    it('samples each group independently — no two groups share the same rateDrift draw', () => {
-      const settings = generateGlobalAudioSettings('seed-test-planet', 'Nova');
-      const rateDrifts = DRIFT_GROUP_IDS.map((group) => settings.lfoDrift[group].rateDrift);
-      expect(new Set(rateDrifts).size).toBe(DRIFT_GROUP_IDS.length);
-    });
-
-    it('samples each group independently — no two groups share the same depthDrift draw', () => {
-      const settings = generateGlobalAudioSettings('seed-test-planet', 'Nova');
-      const depthDrifts = DRIFT_GROUP_IDS.map((group) => settings.lfoDrift[group].depthDrift);
-      expect(new Set(depthDrifts).size).toBe(DRIFT_GROUP_IDS.length);
-    });
-
-    it('keeps every group\'s fields within the -0.7..0.7 loading range on every call, across many Attenuation Styles', () => {
-      const SAMPLE_ATTENUATION_STYLES = 20;
-      for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
-        const settings = generateGlobalAudioSettings(`seed-drift-sample-${i}`, `DriftSample${i}`);
-        for (const group of DRIFT_GROUP_IDS) {
-          const { rateDrift, depthDrift } = settings.lfoDrift[group];
-          expect(rateDrift, `attenuationStyle ${i} ${group} rateDrift`).toBeGreaterThanOrEqual(-0.7);
-          expect(rateDrift, `attenuationStyle ${i} ${group} rateDrift`).toBeLessThanOrEqual(0.7);
-          expect(depthDrift, `attenuationStyle ${i} ${group} depthDrift`).toBeGreaterThanOrEqual(-0.7);
-          expect(depthDrift, `attenuationStyle ${i} ${group} depthDrift`).toBeLessThanOrEqual(0.7);
-        }
-        evictAttenuationStyleNoiseMap(`seed-drift-sample-${i}`);
-      }
-    });
-
-    it('actually produces both negative and positive rateDrift values across many Attenuation Styles, for every group (non-degenerate)', () => {
-      const SAMPLE_ATTENUATION_STYLES = 20;
-      const sawNegative: Record<string, boolean> = {};
-      const sawPositive: Record<string, boolean> = {};
-      for (const group of DRIFT_GROUP_IDS) {
-        sawNegative[group] = false;
-        sawPositive[group] = false;
-      }
-      for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
-        const settings = generateGlobalAudioSettings(`seed-drift-sign-${i}`, `DriftSign${i}`);
-        for (const group of DRIFT_GROUP_IDS) {
-          if (settings.lfoDrift[group].rateDrift < 0) sawNegative[group] = true;
-          if (settings.lfoDrift[group].rateDrift > 0) sawPositive[group] = true;
-        }
-        evictAttenuationStyleNoiseMap(`seed-drift-sign-${i}`);
-      }
-      for (const group of DRIFT_GROUP_IDS) {
-        expect(sawNegative[group], `expected group ${group} to see rateDrift < 0 at least once`).toBe(true);
-        expect(sawPositive[group], `expected group ${group} to see rateDrift > 0 at least once`).toBe(true);
-      }
-    });
-  });
-});
-
-describe('generateGlobalLfoSettings', () => {
-  afterEach(() => {
-    evictAttenuationStyleNoiseMap('seed-test-planet');
-    evictAttenuationStyleNoiseMap('seed-test-planet-b');
-    for (let i = 0; i < 40; i++) evictAttenuationStyleNoiseMap(`seed-lfo-sample-${i}`);
-    for (let i = 0; i < 40; i++) evictAttenuationStyleNoiseMap(`seed-lfo-shape-${i}`);
-  });
-
-  it('returns a fully-populated record for all 8 GlobalLfoTargetIds', () => {
-    const settings = generateGlobalLfoSettings('seed-test-planet', 'Nova');
-    expect(Object.keys(settings).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
-  });
-
-  it('is deterministic — same attenuationStyleId + attenuationStyleName always produces the same settings', () => {
-    const first = generateGlobalLfoSettings('seed-test-planet', 'Nova');
-    const second = generateGlobalLfoSettings('seed-test-planet', 'Nova');
-    expect(second).toEqual(first);
-  });
-
-  it('is deterministic across a fresh noise map too, not just a cached one', () => {
-    const first = generateGlobalLfoSettings('seed-test-planet', 'Nova');
-    evictAttenuationStyleNoiseMap('seed-test-planet');
-    const second = generateGlobalLfoSettings('seed-test-planet', 'Nova');
-    expect(second).toEqual(first);
-  });
-
-  it('produces different values for a different Attenuation Style name (non-degenerate)', () => {
-    const a = generateGlobalLfoSettings('seed-test-planet', 'Nova');
-    const b = generateGlobalLfoSettings('seed-test-planet-b', 'Zenith');
-    expect(b).not.toEqual(a);
-  });
-
-  it('samples rate/depth from their narrower loading range (1-4Hz, 20-50%), not the full LFO_RATE/DEPTH_MIN/MAX range — except a quietly-seeded target\'s rate, which is forced to exactly 0', () => {
-    const settings = generateGlobalLfoSettings('seed-test-planet', 'Nova');
-    for (const target of GLOBAL_LFO_TARGET_IDS) {
-      const { rate, depth, shape } = settings[target];
-      if (rate !== 0) {
-        expect(rate, `${target}.rate`).toBeGreaterThanOrEqual(LFO_RATE_LOADING_MIN);
-        expect(rate, `${target}.rate`).toBeLessThanOrEqual(LFO_RATE_LOADING_MAX);
-      }
-      expect(depth, `${target}.depth`).toBeGreaterThanOrEqual(LFO_DEPTH_LOADING_MIN);
-      expect(depth, `${target}.depth`).toBeLessThanOrEqual(LFO_DEPTH_LOADING_MAX);
-      expect(LFO_SHAPES, `${target}.shape`).toContain(shape);
-    }
-  });
-
-  it('the LFO rate/depth loading range is a genuine subset of the full LFO_RATE/DEPTH_MIN/MAX range', () => {
-    expect(LFO_RATE_LOADING_MIN).toBeGreaterThanOrEqual(LFO_RATE_MIN);
-    expect(LFO_RATE_LOADING_MAX).toBeLessThanOrEqual(LFO_RATE_MAX);
-    expect(LFO_DEPTH_LOADING_MIN).toBeGreaterThanOrEqual(LFO_DEPTH_MIN);
-    expect(LFO_DEPTH_LOADING_MAX).toBeLessThanOrEqual(LFO_DEPTH_MAX);
-  });
-
-  it('only ever seeds triangle or sine for shape, never square or sawtooth', () => {
-    const SAMPLE_ATTENUATION_STYLES = 40;
-    for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
-      const settings = generateGlobalLfoSettings(`seed-lfo-shape-${i}`, `ShapeSample${i}`);
-      for (const target of GLOBAL_LFO_TARGET_IDS) {
-        expect(['triangle', 'sine'], `${target}.shape (attenuationStyle ${i})`).toContain(settings[target].shape);
-      }
-    }
-  });
-
-  it('actually produces both triangle and sine across many Attenuation Styles, not always just one (non-degenerate)', () => {
-    const SAMPLE_ATTENUATION_STYLES = 40;
-    const seenShapes = new Set<string>();
-    for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
-      const settings = generateGlobalLfoSettings(`seed-lfo-shape-${i}`, `ShapeSample${i}`);
-      for (const target of GLOBAL_LFO_TARGET_IDS) {
-        seenShapes.add(settings[target].shape);
-      }
-    }
-    expect(seenShapes).toEqual(new Set(['triangle', 'sine']));
-  });
-
-  it('no longer carries an active field on any target — removed, off is now expressed via rate: 0', () => {
-    const settings = generateGlobalLfoSettings('seed-test-planet', 'Nova');
-    for (const target of GLOBAL_LFO_TARGET_IDS) {
-      expect('active' in settings[target]).toBe(false);
-    }
-  });
-
-  it('quantizes rate to a 0.05 grid across many seeds and targets, excluding the quiet -> 0 case', () => {
-    const SAMPLE_ATTENUATION_STYLES = 20;
-    for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
-      const settings = generateGlobalLfoSettings(`seed-lfo-sample-${i}`, `Sample${i}`);
-      for (const target of GLOBAL_LFO_TARGET_IDS) {
-        const { rate } = settings[target];
-        if (rate === 0) continue;
-        const stepsFromMin = rate / 0.05;
-        expect(Math.abs(stepsFromMin - Math.round(stepsFromMin)), `${target}.rate (attenuationStyle ${i})`).toBeLessThan(1e-9);
-      }
-    }
-  });
-
-  it('quantizes depth to a whole percent across many seeds and targets', () => {
-    const SAMPLE_ATTENUATION_STYLES = 20;
-    for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
-      const settings = generateGlobalLfoSettings(`seed-lfo-sample-${i}`, `Sample${i}`);
-      for (const target of GLOBAL_LFO_TARGET_IDS) {
-        const { depth } = settings[target];
-        expect(Number.isInteger(depth), `${target}.depth (attenuationStyle ${i}): ${depth}`).toBe(true);
-      }
-    }
-  });
-
-  it('seeds a nonzero (real, oscillating) rate for roughly 2-in-3 targets across many Attenuation Styles, not roughly half (>= 0.34 threshold, not a flat 50/50)', () => {
-    const SAMPLE_ATTENUATION_STYLES = 40;
-    let nonzeroCount = 0;
-    let totalCount = 0;
-    for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
-      const settings = generateGlobalLfoSettings(`seed-lfo-sample-${i}`, `Sample${i}`);
-      for (const target of GLOBAL_LFO_TARGET_IDS) {
-        totalCount++;
-        if (settings[target].rate > 0) nonzeroCount++;
-      }
-    }
-    const nonzeroRate = nonzeroCount / totalCount;
-    // ~66% expected; a wide tolerance band avoids flakiness while still
-    // clearly distinguishing this from both a ~50% flat coin-flip and ~100%.
-    expect(nonzeroRate).toBeGreaterThan(0.5);
-    expect(nonzeroRate).toBeLessThan(0.8);
-  });
 });
 
 describe('generateLfoBankSettings', () => {
@@ -679,8 +455,8 @@ describe('generateSwellFrequency (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT
   // Snapped onto SWELL_FREQUENCY_STEPS (audioRigConfig.ts), only 4 of which (2, 3, 4, 8) fall
   // inside this function's own [2, 8] seed range -- a fixed pair of seeds can land on the same
   // step by pure chance (found live: 'Nova'/'Zenith' both snapped to 8), so "non-degenerate" is
-  // checked the same way generateGlobalLfoSettings'/lfoDrift's own coarse-output tests above check
-  // it: sample many seeds and look for genuine variety, not a single pairwise inequality.
+  // checked the same way this file's other coarse-output tests do: sample many seeds and look
+  // for genuine variety, not a single pairwise inequality.
   it('produces more than one distinct (post-snap) value across many Attenuation Styles (non-degenerate)', () => {
     const SAMPLE_ATTENUATION_STYLES = 30;
     const values = new Set<number>();
