@@ -361,9 +361,9 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
   **Scope:** L — commit in two halves: (15a) schemas + `LfoBankLanePanel`, green on its own; (15b) the group/nav/store swap + deletions. One task because the nav tree, store union and content table must change together (the existing "kept in sync by hand" rule).
 
 ### Checkpoint C: Full UI — listen and tune
-- [ ] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
-- [ ] Manual, Crawford (spec §5 "Manual"): four lanes audible and editable; a target's Off stops only that target; two robots' detune on Overtone lock together; Standard greys LPF/HPF pickers; Light greys the four drift rows; a waveform-type change on a robot with a running link survives; `?debug` shows `linksOn` ≈ 20–30. A/B against the pre-branch worktree. **This is where `LFO_BANK_RATE_BANDS` and `LFO_LANE_SEED_BIAS` get tuned by ear** — any retune is a one-constant commit with the Task 5/6 tests updated to match.
-- [ ] Review with Crawford before deleting the old world.
+- [x] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean. (1 known-flaky unseeded-RNG test on `generateRobotLfoSettings` — the Task 1 oracle Task 17 deletes anyway — failed once, passed clean in isolation; see [[worldtransition-swell-clear-test-flaky]] pattern.)
+- [x] Manual, Crawford (spec §5 "Manual"): four lanes audible and editable; a target's Off stops only that target; two robots' detune on Overtone lock together; Standard greys LPF/HPF pickers; Light greys the four drift rows; a waveform-type change on a robot with a running link survives; `?debug` shows `linksOn` ≈ 20–30. A/B against the pre-branch worktree. **This is where `LFO_BANK_RATE_BANDS` and `LFO_LANE_SEED_BIAS` get tuned by ear** — any retune is a one-constant commit with the Task 5/6 tests updated to match. Crawford: audio tests good, deferring the rate-band/seed-bias ear-tuning pass to later rather than tuning now.
+- [x] Review with Crawford before deleting the old world. Crawford signed off 2026-10-01.
 
 ---
 
