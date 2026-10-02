@@ -67,6 +67,13 @@ export interface SliderLinearSchema extends ControlSchemaBase, SliderVerticalHei
   step?: number;
   unit?: string;
   orientation: SliderOrientation;
+  /** Optional per-value display override (docs/specs/FREE_SYNC_TOGGLE.md §1.4), same contract as
+   *  `SliderLogSchema.formatValue` — when present it replaces the `formatDisplayValue(value) + unit`
+   *  readout entirely, so no unit is appended. The thumb's value/onChange/aria values are unaffected;
+   *  this only changes the text beside the track. It is handed the eased display value, which is
+   *  fractional mid-ease, so a formatter over an index must round its argument first. Optional so every
+   *  existing SliderLinear schema keeps its number-plus-unit readout with zero changes. */
+  formatValue?: (value: number) => string;
 }
 
 export interface SliderLogSchema extends ControlSchemaBase, SliderVerticalHeightProp {

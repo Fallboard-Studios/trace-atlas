@@ -74,7 +74,9 @@ function SliderLinearInner({ schema, value, onChange, disabled, verticalHeight, 
   );
 
   const valueLabel = (
-    <span className="sc-slider-linear__value">{formatDisplayValue(displayValue)}{schema.unit}</span>
+    <span className="sc-slider-linear__value">
+      {schema.formatValue ? schema.formatValue(displayValue) : `${formatDisplayValue(displayValue)}${schema.unit ?? ''}`}
+    </span>
   );
 
   if (readOnly) {

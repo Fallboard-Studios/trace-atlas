@@ -145,11 +145,13 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   **Verification:** `npx vitest run src/utils/formatNoteValue.test.ts src/content` (RED first); `npm run lint`.
   **Dependencies:** 1. **Files:** `src/content/copy/ui.ts`, `src/utils/formatNoteValue.ts`, `.test.ts`. **Scope:** S.
 
-- [ ] **Task 8: `SliderLinearSchema.formatValue` + readout**
+- [x] **Task 8: `SliderLinearSchema.formatValue` + readout**
 
   **Description:** Optional field (doc comment mirroring `SliderLogSchema.formatValue`) and one ternary in `SliderLinear.tsx`'s `valueLabel` (shared by the interactive and `readOnly` branches).
 
   **Acceptance criteria:** with `formatValue` the readout is its return and no unit is appended; without it, unchanged; `controls.test.ts` still pins 14 types.
+
+  **As built:** Mirrors `SliderLog.tsx` line for line: `schema.formatValue ? schema.formatValue(displayValue) : `${formatDisplayValue(displayValue)}${schema.unit ?? ''}``. `formatValue` receives the **eased display value, unrounded** (fractional mid-ease), so Task 9's Sync formatter must `Math.round` its argument — the schema doc comment says so. 12 tests: name instead of index, no unit even when the schema carries one, readOnly branch, absent-formatValue regression (with and without unit), unrounded argument, prop-driven change, live keyboard step (`onChange` gets the index, never the text), `aria-valuenow/min/max` stay numeric, an empty-string return renders empty, readout slot/class unchanged horizontal and vertical, memo contract holds for an identical schema. **Mutation check run:** appending the unit to `formatValue`'s output turned 2 tests red. **Not done, on purpose (scope):** the thumb has no `aria-valuetext`, so a screen reader hears the index ("5") rather than the note ("1/8 dotted") in Sync mode. That is an a11y gap in the shipped feature, not in this task's one-ternary scope — see Open Questions for the proposed follow-up.
   **Verification:** `npx vitest run src/components/ui/controls/SliderLinear.test.tsx src/types` (RED first).
   **Dependencies:** None. **Files:** `src/types/controls.ts`, `SliderLinear.tsx`, `SliderLinear.test.tsx`. **Scope:** XS.
 
@@ -267,3 +269,4 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
 ## Open Questions
 
 - None blocking. Spec assumption 11 (lore word on the toggle facade) is put to Crawford at Checkpoint B.
+- **A11y gap found in Task 8 (decision for Crawford):** in Sync mode the Radix thumb exposes only the numeric index (`aria-valuenow`), so a screen reader announces "5" instead of the note name. CLAUDE.md asks for basic a11y checks on PRs. The fix is small — an optional `aria-valuetext` on the thumb, set from the same `formatValue` — but it touches `SliderLinear` beyond the spec's "one ternary". Proposed: fold it into Task 9 (`TempoSyncSlider`) or add a Task 8b before Checkpoint B; not done unilaterally.
