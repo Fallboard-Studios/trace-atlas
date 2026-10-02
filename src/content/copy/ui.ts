@@ -45,4 +45,12 @@ export const ui = {
       d: { human: 'Overtone LFO', lore: 'Canopy Signature' },
     },
   },
+  /** A tempo-synced note's readout (docs/specs/FREE_SYNC_TOGGLE.md §1.9), assembled by
+   *  utils/formatNoteValue.ts: `1/8`, `1 bar`, `2 bars`, and `{note} {modifier}` for dotted/triplet.
+   *  Straight takes no suffix by rule, so it has no modifier option. The digits and slash are data. */
+  'ui.noteValue.fraction': { human: 'Fraction', template: '1/{n}' },
+  'ui.noteValue.bar': { human: '1 bar' },
+  'ui.noteValue.bars': { human: 'Bars', template: '{n} bars' },
+  'ui.noteValue.modifier': { human: 'Modifier', options: { dotted: { human: 'dotted' }, triplet: { human: 'triplet' } } },
+  'ui.noteValue.modified': { human: 'Modified note', template: '{note} {modifier}' },
 } as const satisfies Record<string, ContentEntry>;

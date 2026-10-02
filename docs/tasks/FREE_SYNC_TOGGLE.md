@@ -135,11 +135,13 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   **Verification:** `npx vitest run src/stores/audioStore.test.ts` (RED first). **Mutation check:** drop the `sync` filter and watch the "Free untouched" case go red.
   **Dependencies:** 5. **Files:** `audioStore.ts`, `audioStore.test.ts`. **Scope:** S.
 
-- [ ] **Task 7: Content entries + `src/utils/formatNoteValue.ts`**
+- [x] **Task 7: Content entries + `src/utils/formatNoteValue.ts`**
 
   **Description:** Spec §1.9 entries in `src/content/copy/ui.ts`; `formatNoteValue(nv)` reading every word through `labels`/`options`/`fill`.
 
   **Acceptance criteria:** `"1/8"`, `"1/8 dotted"`, `"1/4 triplet"`, `"1 bar"`, `"1 bar dotted"`, `"2 bars"`, `"4 bars"` — asserted against `CONTENT`, never a second literal; no trailing space on straight; `content.test.ts` green (if the "every key referenced" guard trips on `ui.tempoSync` before Task 9 references it, move that entry to Task 9 and say so in the commit).
+
+  **As built:** **`ui.tempoSync` moved to Task 9**, as this criterion allowed — nothing outside `src/content/` references it until `TempoSyncSlider` does, so adding it here would fail the "every key referenced" guard. Task 7 adds the five `ui.noteValue.*` keys only; Task 9 must add `ui.tempoSync` (spec §1.9) with the component that reads it. The helpers are the live `CONTENT`/`fill`/`optionsRecord`; the digit is the only data (`'1/8'.slice(2)`). Tests build every expected string from `CONTENT` pieces (never a retyped word) and, to prove the formatter reads content rather than hardcodes it, swap each content field for a sentinel and assert the output follows (singular bar, plural template, fraction template, both modifier words, the modified-note template's order, and that straight never touches that template). Also asserts all 20 `NOTE_VALUES` read distinct, trimmed, no-`undefined`/`{}`/doubled-space. **Mutation check run:** using the raw modifier key (`dotted`/`triplet`) as the word, which any literal-based test would pass, turned the sentinel test red. Full suite 202 files / 4354 tests green.
   **Verification:** `npx vitest run src/utils/formatNoteValue.test.ts src/content` (RED first); `npm run lint`.
   **Dependencies:** 1. **Files:** `src/content/copy/ui.ts`, `src/utils/formatNoteValue.ts`, `.test.ts`. **Scope:** S.
 
