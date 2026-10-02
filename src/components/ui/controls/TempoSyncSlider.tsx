@@ -27,6 +27,11 @@ interface TempoSyncSliderProps {
 const TOGGLE_LABELS = labels('ui.tempoSync');
 const MODE_OPTIONS = optionsRecord('ui.tempoSync');
 
+/** The word the facade shows for a mode: the lore word where there is one, else the human word. */
+const modeWord = (mode: 'free' | 'sync'): string => MODE_OPTIONS[mode].loreLabel ?? MODE_OPTIONS[mode].humanLabel;
+const FREE_WORD = modeWord('free');
+const SYNC_WORD = modeWord('sync');
+
 /**
  * Index of `sync` in `allowed`, or — when a tempo change has pushed it out of the list — the stop
  * nearest it in beats (the list's slow or fast end, whichever the note ran past). Direction-agnostic
@@ -100,7 +105,6 @@ function TempoSyncSliderInner({ schema, freeValue, syncValue: storedSync, allowe
   }, []);
   const handleModeChange = useCallback((next: boolean) => latest.current.onModeChange(next), []);
 
-  const modeWord = MODE_OPTIONS[synced ? 'sync' : 'free'];
   // One stop (or none) leaves nothing to choose between; the toggle stays usable so the lane can still go Free.
   const sliderDisabled = disabled || (synced && allowed.length < 2);
 
@@ -120,7 +124,14 @@ function TempoSyncSliderInner({ schema, freeValue, syncValue: storedSync, allowe
         />
       </div>
       <Toggle schema={toggleSchema} value={synced} onChange={handleModeChange} disabled={disabled}>
-        {modeWord.loreLabel ?? modeWord.humanLabel}
+        {/* A control whose content changes holds the size of its largest content: both words ride
+            along as data attributes that CSS stacks, invisibly, in the same grid cell as the current
+            word, so the box is always as wide as the widest and flipping it never resizes it (or
+            shifts the slider beside it). The DOM text stays only the current word. aria-hidden: the
+            switch's own aria-label and aria-checked already carry the name and state. */}
+        <span className="sc-tempo-sync__mode" data-free-word={FREE_WORD} data-sync-word={SYNC_WORD} aria-hidden="true">
+          <span className="sc-tempo-sync__mode-current">{synced ? SYNC_WORD : FREE_WORD}</span>
+        </span>
       </Toggle>
     </div>
   );

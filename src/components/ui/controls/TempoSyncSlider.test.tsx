@@ -353,6 +353,48 @@ describe('TempoSyncSlider — the mode toggle', () => {
     expect(screen.getByRole('switch').textContent).toBe(SYNC_WORD);
   });
 
+  // A control whose content changes holds the size of its LARGEST content, so flipping it never
+  // resizes the box (and never shifts the slider beside it). Float and Anchored differ by ~40px.
+  // jsdom computes no layout, so the contract is the markup CSS sizes from: both words ride on the
+  // facade as data attributes (hidden sizers in the same grid cell — see tempoSyncSliderLayout.test.ts),
+  // while the DOM text stays only the current word.
+  describe('holds one size across modes', () => {
+    const facade = () => screen.getByRole('switch').querySelector('.sc-tempo-sync__mode') as HTMLElement;
+    const renderMode = (syncValue: NoteValue | undefined) =>
+      render(<TempoSyncSlider schema={schema} freeValue={1} syncValue={syncValue} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+
+    it.each([
+      ['Free', undefined],
+      ['Sync', nv('1/4')],
+    ] as const)('in %s the facade carries BOTH words as sizers', (_mode, syncValue) => {
+      renderMode(syncValue);
+      expect(facade().getAttribute('data-free-word')).toBe(FREE_WORD);
+      expect(facade().getAttribute('data-sync-word')).toBe(SYNC_WORD);
+    });
+
+    it('the sizer attributes are identical in both modes, so the box cannot differ between them', () => {
+      const { rerender } = renderMode(undefined);
+      const free = [facade().getAttribute('data-free-word'), facade().getAttribute('data-sync-word')];
+      rerender(<TempoSyncSlider schema={schema} freeValue={1} syncValue={nv('1/4')} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+      expect([facade().getAttribute('data-free-word'), facade().getAttribute('data-sync-word')]).toEqual(free);
+    });
+
+    it('shows only the current word as text — the other word is never in the DOM text', () => {
+      const { rerender } = renderMode(undefined);
+      expect(facade().textContent).toBe(FREE_WORD);
+      expect(facade().textContent).not.toContain(SYNC_WORD);
+      rerender(<TempoSyncSlider schema={schema} freeValue={1} syncValue={nv('1/4')} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+      expect(facade().textContent).toBe(SYNC_WORD);
+      expect(facade().textContent).not.toContain(FREE_WORD);
+    });
+
+    it('is hidden from assistive tech — the switch\'s own name and aria-checked carry the meaning', () => {
+      renderMode(undefined);
+      expect(facade().getAttribute('aria-hidden')).toBe('true');
+      expect(screen.getByRole('switch', { name: TOGGLE_NAME })).toBeTruthy();
+    });
+  });
+
   it('clicking in Free fires onModeChange(true) and nothing else', () => {
     const onFreeChange = vi.fn();
     const onSyncChange = vi.fn();

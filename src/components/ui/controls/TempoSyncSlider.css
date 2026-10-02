@@ -9,8 +9,56 @@
   font-weight: var(--font-weight-control);
 }
 
-/* min-width: 0 lets the slider's voxel track shrink rather than push the toggle out of the row. */
+/* The slider takes every pixel the toggle leaves. flex-basis 0, not auto: the slider's own root is a
+   size container, so its content-based basis is 0 anyway — stating it keeps the row from depending
+   on that. min-width: 0 lets the voxel track shrink rather than push the toggle out of the row. */
 .sc-tempo-sync__slider {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
+}
+
+/* Toggle.css is written for a toggle in its own labelled row: width: 100% and an inline-size
+   container. Beside a slider, that 100% flex-basis claimed the whole row and left the slider wrapper
+   0px wide (found live in Chrome). Here the toggle is just its facade box: sized to its own content,
+   never grown or shrunk by the row. The container-type is dropped too — a shrink-to-fit flex item
+   under inline-size containment collapses to 0px (SliderLinear.css documents the same trap) — and
+   nothing is lost: with facade content Toggle renders no DualLabel, the only thing its sc-control
+   container queries ever restyle. Specificity (0,2,0) beats Toggle.css's .sc-toggle (0,1,0) whatever
+   order the stylesheets load in. */
+.sc-tempo-sync > .sc-toggle {
+  width: auto;
+  flex: 0 0 auto;
+  container-type: normal;
+}
+
+/* The facade holds the size of its LARGEST word, so flipping the switch never resizes it (measured
+   live before this: 72.8px as "Float", 111.3px as "Anchored"). The current word and two invisible
+   sizers — the Float and Anchored words, read from data attributes — share ONE grid cell, so the cell
+   is as wide as the widest of the three; the sizers take no height and are never painted. Generated
+   content isn't in the DOM text, and the whole facade is aria-hidden (the switch's own aria-label and
+   aria-checked carry the meaning). Reads the words from content, so any lore or language variant is
+   sized correctly with no measuring in JS. */
+.sc-tempo-sync__mode {
+  display: inline-grid;
+  justify-items: center;
+}
+
+.sc-tempo-sync__mode-current {
+  grid-area: 1 / 1;
+}
+
+.sc-tempo-sync__mode::before,
+.sc-tempo-sync__mode::after {
+  grid-area: 1 / 1;
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
+}
+
+.sc-tempo-sync__mode::before {
+  content: attr(data-free-word);
+}
+
+.sc-tempo-sync__mode::after {
+  content: attr(data-sync-word);
 }
