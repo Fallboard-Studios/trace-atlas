@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { NavToggleButton } from './NavToggleButton';
 import { useUIStore } from '@/stores/uiStore';
+import { facadeCurrentText, facadeStates } from '@/testUtils/toggleFacade';
 
 /** Stubs window.matchMedia for NavPanel's own dock breakpoint (useNavPanelSlideAway.ts,
  *  min-width query, NAV_PANEL_DOCK_MIN_WIDTH = 768px) — independent of the shared Cabinet
@@ -64,29 +65,26 @@ describe('NavToggleButton — persistent mobile reopen affordance (docs/tasks/NA
 });
 
 // A control whose content changes holds the size of its LARGEST content (Crawford, 2026-10-03).
-// Measured live: ☰ was 47.77px and ✕ 45.98px, so the button resized on every flip. Both glyphs now
-// ride on the facade as sizers (ToggleFacade); the DOM text stays only the current glyph.
+// Measured live: ☰ was 47.77px and ✕ 45.98px, so the button resized on every flip. Both glyphs are now
+// in the facade's DOM (ToggleFacade), all but the current one invisible, so the box is the larger's size.
 describe('NavToggleButton holds one size across open and closed', () => {
-  const facade = () => screen.getByRole('switch').querySelector('.sc-toggle-facade') as HTMLElement;
-
   it.each([
     ['closed', false],
     ['open', true],
-  ])('when %s, the facade carries both glyphs as sizers', (_state, open) => {
+  ])('when %s, both glyphs are in the facade, so the hidden one sizes the box', (_state, open) => {
     stubMatchMedia(true);
     useUIStore.getState().setNavPanelOpen(open);
     render(<NavToggleButton />);
-    expect(facade().getAttribute('data-off')).toBe('☰');
-    expect(facade().getAttribute('data-on')).toBe('✕');
+    expect(facadeStates(screen.getByRole('switch')).map((s) => s.textContent)).toEqual(['☰', '✕']);
   });
 
-  it('shows only the current glyph as text, and swaps it on a flip', () => {
+  it('shows the current glyph, and swaps which one is current on a flip', () => {
     stubMatchMedia(true);
     useUIStore.getState().setNavPanelOpen(false);
     render(<NavToggleButton />);
-    expect(screen.getByRole('switch').textContent).toBe('☰');
+    expect(facadeCurrentText(screen.getByRole('switch'))).toBe('☰');
     fireEvent.click(screen.getByRole('switch'));
-    expect(screen.getByRole('switch').textContent).toBe('✕');
+    expect(facadeCurrentText(screen.getByRole('switch'))).toBe('✕');
   });
 });
 

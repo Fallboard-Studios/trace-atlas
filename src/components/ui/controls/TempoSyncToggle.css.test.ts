@@ -21,6 +21,15 @@ describe('TempoSyncToggle.css', () => {
     expect(body).toContain('flex: 0 0 auto;');
   });
 
+  // Its own label (Anchoring over Tempo Sync) sits beside the box — the layout Toggle gives any
+  // labelled toggle (label, then box, in a row) — centred on it, since both are two-line pairs.
+  it('lays its own label and the box out in a centred row with a gap, like any labelled Toggle', () => {
+    const body = getCssRuleBody(cssSource, '.sc-tempo-sync-toggle');
+    expect(body).toContain('display: flex;');
+    expect(body).toContain('align-items: center;');
+    expect(body).toMatch(/gap:\s*\d+px;/);
+  });
+
   it("sizes the Toggle to its own content instead of Toggle.css's width: 100%", () => {
     const body = getCssRuleBody(cssSource, '.sc-tempo-sync-toggle > .sc-toggle');
     expect(body).not.toBeNull();

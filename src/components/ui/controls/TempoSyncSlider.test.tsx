@@ -22,6 +22,7 @@ import { CONTENT } from '@/content';
 import { isNoteValue, type NoteDivision, type NoteModifier, type NoteValue } from '@/data/noteValues';
 import { allowedDelayNoteValues, allowedLaneNoteValues } from '@/utils/tempoSync';
 import { formatNoteValue } from '@/utils/formatNoteValue';
+import { facadeCurrentLabels, facadeStates } from '@/testUtils/toggleFacade';
 import type { SliderLinearSchema } from '@/types/controls';
 
 const schema: SliderLinearSchema = {
@@ -43,8 +44,10 @@ const LANE_LIST: NoteValue[] = [nv('1'), nv('1/2'), nv('1/4'), nv('1/8', 'dotted
 /** A Delay-shaped list, shortest -> longest (ascending beats): the same notes reversed. */
 const DELAY_LIST: NoteValue[] = [...LANE_LIST].reverse();
 
-const FREE_WORD = CONTENT['ui.tempoSync'].options.free.lore;
-const SYNC_WORD = CONTENT['ui.tempoSync'].options.sync.lore;
+// The toggle's CONTENT is the current mode's label pair (Free: Float over Free; synced: Anchored over
+// Sync), read via facadeCurrentLabels; its own label (Anchoring / Tempo Sync) is TempoSyncToggle's.
+const FREE = { lore: CONTENT['ui.tempoSync'].options.free.lore, human: CONTENT['ui.tempoSync'].options.free.human };
+const SYNC = { lore: CONTENT['ui.tempoSync'].options.sync.lore, human: CONTENT['ui.tempoSync'].options.sync.human };
 const TOGGLE_NAME = CONTENT['ui.tempoSync'].human;
 
 const readout = (container: HTMLElement) => container.querySelector('.sc-slider-linear__value')?.textContent;
@@ -213,7 +216,7 @@ describe('TempoSyncSlider — an unrecognised syncValue (spec assumption 9)', ()
   it('renders as Free: unchecked switch, the Free value and unit on the slider', () => {
     const { container } = render(<TempoSyncSlider schema={schema} freeValue={3} syncValue={corrupt} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false');
-    expect(screen.getByRole('switch').textContent).toBe(FREE_WORD);
+    expect(facadeCurrentLabels(screen.getByRole('switch'))).toEqual(FREE);
     expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('3');
     expect(readout(container)).toBe('3Hz');
   });
@@ -346,30 +349,28 @@ describe('TempoSyncSlider — the mode toggle', () => {
     expect(screen.getByRole('switch').getAttribute('aria-label')).toBe(freeName);
   });
 
-  it('the facade reads the current mode\'s lore word from content: Float in Free, Anchored in Sync', () => {
+  it('the toggle\'s content is the current mode\'s label pair from content: Float over Free, then Anchored over Sync', () => {
     const { rerender } = render(<TempoSyncSlider schema={schema} freeValue={1} syncValue={undefined} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
-    expect(screen.getByRole('switch').textContent).toBe(FREE_WORD);
+    expect(facadeCurrentLabels(screen.getByRole('switch'))).toEqual(FREE);
     rerender(<TempoSyncSlider schema={schema} freeValue={1} syncValue={nv('1/4')} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
-    expect(screen.getByRole('switch').textContent).toBe(SYNC_WORD);
+    expect(facadeCurrentLabels(screen.getByRole('switch'))).toEqual(SYNC);
   });
 
   // A control whose content changes holds the size of its LARGEST content, so flipping it never
-  // resizes the box (and never shifts the slider beside it). Float and Anchored differ by ~40px.
-  // jsdom computes no layout, so the contract is the markup CSS sizes from: both words ride on the
-  // facade as data attributes (hidden sizers in the same grid cell — see tempoSyncSliderLayout.test.ts),
-  // while the DOM text stays only the current word.
-  // (The facade's own contract — both words as sizers, current word only as text, aria-hidden — is
-  // tested on ToggleFacade and TempoSyncToggle; this checks it reaches the slider's inline toggle.)
+  // resizes the box (and never shifts the slider beside it). (The facade's own contract is tested on
+  // ToggleFacade and TempoSyncToggle; this checks it reaches the slider's toggle: both modes' pairs
+  // are in the DOM whichever mode is showing.)
   describe('holds one size across modes', () => {
-    const facade = () => screen.getByRole('switch').querySelector('.sc-toggle-facade') as HTMLElement;
-
     it.each([
       ['Free', undefined],
       ['Sync', nv('1/4')],
-    ] as const)('in %s the inline toggle\'s facade carries BOTH words as sizers', (_mode, syncValue) => {
+    ] as const)('in %s the toggle carries BOTH modes\' pairs, so the hidden one sizes the box', (_mode, syncValue) => {
       render(<TempoSyncSlider schema={schema} freeValue={1} syncValue={syncValue} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
-      expect(facade().getAttribute('data-off')).toBe(FREE_WORD);
-      expect(facade().getAttribute('data-on')).toBe(SYNC_WORD);
+      const [off, on] = facadeStates(screen.getByRole('switch'));
+      expect(off.querySelector('.sc-dual-label__lore')?.textContent).toBe(FREE.lore);
+      expect(off.querySelector('.sc-dual-label__human')?.textContent).toBe(FREE.human);
+      expect(on.querySelector('.sc-dual-label__lore')?.textContent).toBe(SYNC.lore);
+      expect(on.querySelector('.sc-dual-label__human')?.textContent).toBe(SYNC.human);
     });
   });
 
@@ -430,7 +431,7 @@ describe('TempoSyncSlider — the mode toggle', () => {
     render(<TempoSyncSlider schema={schema} freeValue={1} syncValue={undefined} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
     fireEvent.click(screen.getByRole('switch'));
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false');
-    expect(screen.getByRole('switch').textContent).toBe(FREE_WORD);
+    expect(facadeCurrentLabels(screen.getByRole('switch'))).toEqual(FREE);
   });
 });
 

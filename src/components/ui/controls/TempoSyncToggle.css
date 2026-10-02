@@ -9,6 +9,11 @@
    (0,1,0) whatever order the stylesheets load in. NavTreeNode.css makes the same width override. */
 .sc-tempo-sync-toggle {
   flex: 0 0 auto;
+  /* The toggle's own label (Anchoring over Tempo Sync) beside the box, the way Toggle lays out any
+     labelled toggle. Centred on the box: both are two-line label pairs. */
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .sc-tempo-sync-toggle > .sc-toggle {

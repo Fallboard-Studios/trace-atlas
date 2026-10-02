@@ -29,12 +29,14 @@ import { CONTENT } from '@/content';
 import { noteValueEquals, noteValueHz, type NoteDivision, type NoteModifier, type NoteValue } from '@/data/noteValues';
 import { allowedLaneNoteValues } from '@/utils/tempoSync';
 import { formatNoteValue } from '@/utils/formatNoteValue';
+import { facadeCurrentLabels } from '@/testUtils/toggleFacade';
 import { LFO_LANE_IDS, type BankLfoSettings, type LfoLaneId } from '@/types/lfo';
 
 const nv = (division: NoteDivision, modifier: NoteModifier = 'straight'): NoteValue => ({ division, modifier });
 const TOGGLE_NAME = CONTENT['ui.tempoSync'].human;
-const FREE_WORD = CONTENT['ui.tempoSync'].options.free.lore;
-const SYNC_WORD = CONTENT['ui.tempoSync'].options.sync.lore;
+// The toggle's content is the current mode's label pair: Float over Free, or Anchored over Sync.
+const FREE = { lore: CONTENT['ui.tempoSync'].options.free.lore, human: CONTENT['ui.tempoSync'].options.free.human };
+const SYNC = { lore: CONTENT['ui.tempoSync'].options.sync.lore, human: CONTENT['ui.tempoSync'].options.sync.human };
 const setLane = (lane: LfoLaneId, patch: Partial<BankLfoSettings>) =>
   useAudioStore.setState((s) => ({ lfoBank: { ...s.lfoBank, [lane]: { ...DEFAULT_BANK_LFO, ...patch } } }));
 const rateThumb = () => screen.getByRole('slider', { name: 'Rate' });
@@ -187,7 +189,7 @@ describe('LfoBankLanePanel — Free | Sync on Rate', () => {
       setLane('b', { rate: 3 });
       render(<LfoBankLanePanel lane="b" />);
       expect(tempoToggle().getAttribute('aria-checked')).toBe('false');
-      expect(tempoToggle().textContent).toBe(FREE_WORD);
+      expect(facadeCurrentLabels(tempoToggle())).toEqual(FREE);
       expect(rateThumb().getAttribute('aria-valuenow')).toBe('3');
       expect(rateThumb().hasAttribute('aria-valuetext')).toBe(false);
     });
@@ -209,7 +211,7 @@ describe('LfoBankLanePanel — Free | Sync on Rate', () => {
       render(<LfoBankLanePanel lane="b" />);
       const list = allowedLaneNoteValues(60);
       expect(tempoToggle().getAttribute('aria-checked')).toBe('true');
-      expect(tempoToggle().textContent).toBe(SYNC_WORD);
+      expect(facadeCurrentLabels(tempoToggle())).toEqual(SYNC);
       expect(rateThumb().getAttribute('aria-valuenow')).toBe(String(list.findIndex((n) => noteValueEquals(n, nv('1/8', 'dotted')))));
       expect(rateThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(nv('1/8', 'dotted')));
       expect(rateThumb().getAttribute('aria-valuemax')).toBe(String(list.length - 1));

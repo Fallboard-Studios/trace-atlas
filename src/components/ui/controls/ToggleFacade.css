@@ -1,38 +1,25 @@
 /* A toggle facade holds the size of its LARGEST content, so flipping the switch never resizes it
    (measured live before this: "Float" 72.8px vs "Anchored" 111.3px; the nav ☰ 47.77px vs ✕ 45.98px).
-   The current content and two invisible sizers — each state's content, read from data attributes —
-   share ONE grid cell, so the cell is as wide as the widest of the three. The sizers take no height and
-   are never painted. Generated content isn't part of the DOM text, and the whole facade is aria-hidden
-   (ToggleFacade.tsx).
+   Every state's content is a real child, and they all share ONE grid cell, so the cell is as wide AND
+   as tall as the biggest; every state but the current one is invisible but still takes its size.
 
-   The sizers must count at MIN-content as well as max-content: Toggle.css's inline-size containment
-   makes the switch resolve to min-content in some placements (the nav toggle's), and a grid item with
-   `overflow` other than visible has a minimum contribution of 0 — so `overflow: hidden` on them made
-   only the current glyph count there (found live: ✕ sized to 17.98px while the hidden ☰ sizer
-   measured 19.77px and overflowed its cell). Hence no overflow clipping on the sizers, and nowrap so a
-   multi-word label's min-content is its full width. `height: 0` + `visibility: hidden` already keep
-   them invisible and out of the layout's way. */
+   Why real children and not ::before/::after pseudo-element sizers reading data attributes (the first
+   version): those could only size plain text, and with `overflow: hidden` on them they counted for
+   nothing at MIN-content, which is how Toggle.css's inline-size containment sizes the switch in some
+   placements (found live on the nav toggle). In-flow children have neither limit, and size a two-line
+   DualLabel as well as a glyph. Hence also: never `display: none`, a fixed height, or overflow on a
+   hidden state — any of them would drop its size from the cell. nowrap so a multi-word label's
+   min-content is its full width. The whole facade is aria-hidden (ToggleFacade.tsx). */
 .sc-toggle-facade {
   display: inline-grid;
   justify-items: center;
   white-space: nowrap;
 }
 
-.sc-toggle-facade__current {
+.sc-toggle-facade__state {
   grid-area: 1 / 1;
 }
 
-.sc-toggle-facade::before,
-.sc-toggle-facade::after {
-  grid-area: 1 / 1;
+.sc-toggle-facade__state:not([data-current]) {
   visibility: hidden;
-  height: 0;
-}
-
-.sc-toggle-facade::before {
-  content: attr(data-off);
-}
-
-.sc-toggle-facade::after {
-  content: attr(data-on);
 }
