@@ -380,6 +380,49 @@ describe('lfoBank (lfoEngine)', () => {
       expect(r1Gain.dispose).toHaveBeenCalled();
       expect(r2Gain.dispose).not.toHaveBeenCalled();
     });
+
+    // A lane's trunk is app-lifetime (never rebuilt) and fans out to every link.connect(linkGain)
+    // it's ever been given — teardownLink disposing the gain's own output isn't enough to free it:
+    // Tone/Web Audio's disconnect() only clears a node's OWN outgoing edges, so the trunk still
+    // holds a live connection to a disposed gain unless something tells the trunk itself to drop
+    // it. These three tests cover teardownLink's three call sites (code-review fixup).
+    it('unlinkTarget disconnects the trunk from the link\'s own gain, not just the gain\'s own output', async () => {
+      const { lfoEngine, lanes } = await primeBankRunning();
+      const { AudioEngine } = await import('./AudioEngine');
+      (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockReturnValue(fakeSignal(0));
+
+      lfoEngine.linkTarget('eq3.low', { lane: 'a', depth: 50 });
+      const linkGain = await latestGainInstance();
+      lfoEngine.unlinkTarget('eq3.low');
+
+      expect(lanes.a.trunk.disconnect).toHaveBeenCalledWith(linkGain);
+    });
+
+    it('a lane change disconnects the OLD lane\'s trunk from the old gain — not the new lane\'s', async () => {
+      const { lfoEngine, lanes } = await primeBankRunning();
+      const { AudioEngine } = await import('./AudioEngine');
+      (AudioEngine.getGlobalModulationTarget as ReturnType<typeof vi.fn>).mockReturnValue(fakeSignal(0));
+
+      lfoEngine.linkTarget('eq3.low', { lane: 'a', depth: 50 });
+      const oldGain = await latestGainInstance();
+      lfoEngine.linkTarget('eq3.low', { lane: 'b', depth: 50 });
+
+      expect(lanes.a.trunk.disconnect).toHaveBeenCalledWith(oldGain);
+      expect(lanes.b.trunk.disconnect).not.toHaveBeenCalledWith(oldGain);
+    });
+
+    it('disposeRobotLinks disconnects each disposed gain from its own lane\'s trunk', async () => {
+      const { lfoEngine, lanes } = await primeBankRunning();
+      const { AudioEngine } = await import('./AudioEngine');
+      (AudioEngine.getRobotModulationTarget as ReturnType<typeof vi.fn>).mockImplementation(() => fakeParam(1));
+
+      lfoEngine.linkTarget('layer0.gain', { lane: 'a', depth: 50 }, 'r1');
+      const r1Gain = await latestGainInstance();
+
+      lfoEngine.disposeRobotLinks('r1');
+
+      expect(lanes.a.trunk.disconnect).toHaveBeenCalledWith(r1Gain);
+    });
   });
 
   describe('drift', () => {

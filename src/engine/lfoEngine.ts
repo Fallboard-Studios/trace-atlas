@@ -171,9 +171,24 @@ function restoreLink(key: string): void {
   record.suspended = false;
 }
 
-/** Full, one-way teardown of a link's Gain — disconnect then dispose. Never leaves a record behind;
- *  callers (unlinkTarget, disposeRobotLinks, a lane change inside linkTarget) delete the map entry themselves. */
+/** Full, one-way teardown of a link's Gain — disconnect both edges then dispose. Never leaves a
+ *  record behind; callers (unlinkTarget, disposeRobotLinks, a lane change inside linkTarget)
+ *  delete the map entry themselves. */
 function teardownLink(record: LinkRecord): void {
+  // Disconnect the trunk's OWN edge to this gain first — Web Audio's disconnect() only clears a
+  // node's own outgoing connections, never edges where it's the destination. record.linkGain's
+  // own .disconnect()/.dispose() below only ever clear its outgoing edge (to the target Signal/
+  // Param); without this, the lane's app-lifetime trunk keeps a live connection to a gain that's
+  // "disposed" everywhere else, leaking one dead node per unlink/lane-change/robot-dispose for
+  // the rest of the session.
+  const lane = bank.get(record.lane);
+  if (lane) {
+    try {
+      lane.trunk.disconnect(record.linkGain);
+    } catch (err) {
+      devWarn('[lfoBank] teardownLink: trunk disconnect failed', err);
+    }
+  }
   try {
     record.linkGain.disconnect();
   } catch (err) {
