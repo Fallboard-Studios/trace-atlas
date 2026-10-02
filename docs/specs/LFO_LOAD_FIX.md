@@ -1,5 +1,7 @@
 # Phase Spec: Robot LFO Priming (seeded robot LFOs never reach the engine)
 
+> **Superseded (2026-10-01):** the per-target `lfoEngine.ts`/`lfoDrift.ts`/`robotLfoPriming.ts` this spec fixes and the `volume`/`layerN.pulseWidth` target removals, `ROBOT_LFO_CAP_*` constants, and `LFO_QUIET_THRESHOLD` odds it introduces were all replaced or removed by the LFO Bank (`docs/specs/LFO_BANK.md`, `docs/tasks/LFO_BANK.md`). Priming now goes through `primeRobotLinks`/`primeRosterLinks` (`src/systems/robotLfoLinks.ts`); the robot-LFO cap this spec's own §1.4 measured is gone outright (Task 2); the robot on-odds this spec set to 25% is 30% as of the Bank's own seeder. See `docs/AUDIO_SYSTEM.md`'s LFO Modulation section for the current design. Kept here for the priming-gap history and the cost measurements in §1.4/`docs/PERFORMANCE.md`, which the Bank's own Task 19 perf gate built on rather than re-deriving.
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types` (`tsc -p tsconfig.app.json --noEmit`)

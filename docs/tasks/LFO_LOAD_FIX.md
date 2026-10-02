@@ -1,5 +1,7 @@
 # Implementation Plan: Robot LFO Priming (LFO Load Fix)
 
+> **Superseded (2026-10-01):** every module this plan builds — `primeRobotLfos`/`primeRosterLfos` (`src/systems/robotLfoPriming.ts`), the old per-target `lfoEngine.ts`/`lfoDrift.ts` — was deleted by `docs/tasks/LFO_BANK.md` Task 16, and its own `ROBOT_LFO_CAP_LIGHT/STANDARD/FULL` constants by that plan's Task 2. Priming is now `primeRobotLinks`/`primeRosterLinks` (`src/systems/robotLfoLinks.ts`); there is no robot-LFO cap at all. Kept for the task-by-task execution history and the perf-measurement method its own Task 11 established (`docs/PERFORMANCE.md`), which the Bank's Task 19 gate reused rather than re-deriving.
+
 Source spec: [docs/specs/LFO_LOAD_FIX.md](../specs/LFO_LOAD_FIX.md) (amended 2026-09-30 with Crawford's four decisions: drop the `volume` and `layerN.pulseWidth` LFO targets, lower the seed odds to 25% on, keep Full's cap unlimited pending measurement, do it now). No intent file. Roadmap slot: 17.2.7 (added in Task 12).
 
 > Process note: the `planning-and-task-breakdown` skill asks for `tasks/plan.md` + `tasks/todo.md`. This repo keeps both in one file under `docs/tasks/` (every sibling here), and that convention wins (CLAUDE.md "Authority and precedence"). Execution follows the house TDD rhythm: RED test first, one commit per task, mutation-check at the gates named below, stop and report at every checkpoint.
