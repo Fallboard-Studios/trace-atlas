@@ -19,6 +19,7 @@ import { precomputeDataX } from '../utils/getSeededVal';
 import { tryGetLocaleNoiseMap } from '../utils/noiseMaps';
 import { devWarn } from '../utils/helpers';
 import { isRobotAudible } from '../utils/robotAudibility';
+import { resolveLfoBankForEngine } from '../utils/tempoSync';
 import { calculatePanFromPosition } from './audioEngine/panning';
 import { volumePositionToGain } from './audioEngine/volumeTaper';
 import { getToneCtor, makeStubPanner, makeStubGain, makeStubFilter, type MinimalToneNode, type ModulationTarget } from './audioEngine/toneHelpers';
@@ -500,7 +501,7 @@ export const AudioEngine = {
     try {
       const { useAudioStore, applyGlobalAudioToEngine } = await import('../stores/audioStore');
       const { lfoEngine } = await import('./lfoEngine');
-      const { globalAudio, lfoBank, globalLfoLinks } = useAudioStore.getState();
+      const { globalAudio, lfoBank, globalLfoLinks, bpm } = useAudioStore.getState();
       // buildGlobalFxChain() (above) just constructed every FX node from its
       // own hardcoded literal defaults — not whatever's already seeded in
       // globalAudio. regenerateGlobalAudioFromSeed's own push (AS-sync,
@@ -509,7 +510,9 @@ export const AudioEngine = {
       // run before the link loop below: linkTarget's swing math reads each
       // target's CURRENT value, so EQ/filter values need to be correct first.
       applyGlobalAudioToEngine(globalAudio);
-      lfoEngine.primeLfoBank(lfoBank);
+      // The engine is Hz-only: a synced lane is primed at its note's Hz at the current tempo, with
+      // `sync` stripped (docs/specs/FREE_SYNC_TOGGLE.md §1.3).
+      lfoEngine.primeLfoBank(resolveLfoBankForEngine(lfoBank, bpm));
       for (const target of GLOBAL_LFO_TARGET_IDS) {
         lfoEngine.linkTarget(target, globalLfoLinks[target]);
       }

@@ -110,7 +110,7 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
 
 ### Phase 2: Lane slice — synced lanes audible and editable
 
-- [ ] **Task 5: Lane store → engine: resolve on push; `replaceLfoBankLane`; `setLfoBankLaneSyncMode`; priming; diagnostics; restore path**
+- [x] **Task 5: Lane store → engine: resolve on push; `replaceLfoBankLane`; `setLfoBankLaneSyncMode`; priming; diagnostics; restore path**
 
   **Description:** Spec §1.3 table rows for lanes and §1.5. `setLfoBank` pushes the resolved rate when `rate` or `sync` is in the partial, and `rateDrift` via `resolveLaneForEngine`. New `replaceLfoBankLane(lane, settings)` (whole write + full push) and `setLfoBankLaneSyncMode(lane, synced)` (`laneToSync`/`laneToFree` → replace). `AudioEngine.start()` primes with `resolveLfoBankForEngine(lfoBank, bpm)`. `audioDiagnostics.readBankRunning` → `isLaneRunning`. `sessionDiff.applySessionPayload`'s running-context branch uses `replaceLfoBankLane` instead of the per-lane `setLfoBank` merge.
 
@@ -119,6 +119,8 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   - [ ] Mode round trip leaves `'sync' in lane === false`; `replaceLfoBankLane` with a Free lane over a synced one leaves no `sync`.
   - [ ] `start()` primes a synced lane at its resolved Hz; `readBankRunning` counts a synced `rate: 0` lane as running.
   - [ ] Restoring a session whose lane is Free over a live synced lane leaves no `sync`.
+
+  **As built:** `setLfoBank` reads the *merged* lane back from the store and resolves it, so a Free-rate edit on an already-synced lane re-sends the synced Hz (tested), and `{ sync: undefined }` / an unrecognised `sync` resolves Free instead of pushing NaN. The rate push fires on `partial.rate !== undefined || 'sync' in partial` (not a bare `'rate' in partial`: a `{ rate: undefined }` partial would merge `undefined` over the rate). `rateDrift` goes through `resolveLaneForEngine(...).rateDrift` but is pushed only when `rateDrift` is in the partial — no mode change goes through `setLfoBank`, so when `RATE_DRIFT_APPLIES_TO_SYNCED` is flipped to `false` the Free↔Sync switch still re-sends drift correctly via `replaceLfoBankLane`'s full push. `replaceLfoBankLane` guards `undefined` like `setLfoBank`. `AudioEngine.ts` gains a static import of `tempoSync` (pure, no cycle). Existing `sessionDiff.test.ts` tests that pinned the per-lane `setLfoBank` merge now spy `replaceLfoBankLane` and assert `setLfoBank` is *not* used in the running branch. Engine-side assertions seed a distinct `lfoEngine` rate first (its module state outlives each test), so a missing push can't pass by coincidence. **Mutation check run:** reverting the restore branch to `setLfoBank` turned 4 tests red, including the engine playing the stale synced 1.6 Hz instead of the Free 1.5. Not yet covered by design: `sanitizeLaneSync` (Task 14), so a corrupt `sync` still reaches state from a restore and merely *resolves* Free.
 
   **Verification:** `npx vitest run src/stores/audioStore.test.ts src/engine/AudioEngine.test.ts src/engine/audioDiagnostics.test.ts src/utils/sessionDiff.test.ts` (RED first). **Mutation check:** revert the restore branch to `setLfoBank` and watch the stale-`sync` case go red.
   **Dependencies:** 2. **Files:** `audioStore.ts`, `AudioEngine.ts`, `audioDiagnostics.ts`, `sessionDiff.ts` + their tests. **Scope:** M.

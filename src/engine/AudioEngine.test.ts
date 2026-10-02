@@ -2110,6 +2110,53 @@ describe('AudioEngine.start — primes and links the LFO Bank (docs/tasks/LFO_BA
     expect(lfoEngine.primeLfoBank).toHaveBeenCalledWith(FIXTURE_LFO_BANK);
   });
 
+  // docs/specs/FREE_SYNC_TOGGLE.md §1.3, Task 5: the engine is primed with plain Hz — a synced lane
+  // arrives resolved at the current tempo and without its `sync` key.
+  describe('with a synced lane', () => {
+    const QUARTER = { division: '1/4', modifier: 'straight' } as const;
+
+    async function startWithSyncedLane(lane: Record<string, unknown>, bpm: number) {
+      const { AudioEngine } = await import('./AudioEngine');
+      const { useAudioStore } = await import('../stores/audioStore');
+      const { lfoEngine } = await import('./lfoEngine');
+      useAudioStore.setState({
+        bpm,
+        lfoBank: { ...FIXTURE_LFO_BANK, a: lane } as any,
+        globalLfoLinks: FIXTURE_GLOBAL_LFO_LINKS as any,
+      });
+      vi.clearAllMocks();
+      await AudioEngine.start();
+      return vi.mocked(lfoEngine.primeLfoBank).mock.calls[0][0] as unknown as Record<string, Record<string, unknown>>;
+    }
+
+    it('primes a synced lane at its resolved Hz at the current tempo — 1/4 at 120 BPM is 2 Hz', async () => {
+      const primed = await startWithSyncedLane({ shape: 'sine', rate: 9, rateDrift: 0, depthDrift: 0, sync: QUARTER }, 120);
+      expect(primed.a.rate).toBe(2);
+    });
+
+    it('primes a synced lane whose stored Free rate is 0 at the note\'s Hz, not 0 — a synced lane is always running', async () => {
+      const primed = await startWithSyncedLane({ shape: 'sine', rate: 0, rateDrift: 0, depthDrift: 0, sync: QUARTER }, 60);
+      expect(primed.a.rate).toBe(1);
+    });
+
+    it('hands the engine no `sync` key — it stays Hz-only', async () => {
+      const primed = await startWithSyncedLane({ shape: 'sine', rate: 9, rateDrift: 0, depthDrift: 0, sync: QUARTER }, 60);
+      expect('sync' in primed.a).toBe(false);
+    });
+
+    it('leaves the Free lanes exactly as stored, alongside a synced one', async () => {
+      const primed = await startWithSyncedLane({ shape: 'sine', rate: 9, rateDrift: 0, depthDrift: 0, sync: QUARTER }, 60);
+      expect(primed.b).toEqual(FIXTURE_LFO_BANK.b);
+      expect(primed.c).toEqual(FIXTURE_LFO_BANK.c); // c is a held-off Free lane at rate 0 — stays 0
+      expect(primed.d).toEqual(FIXTURE_LFO_BANK.d);
+    });
+
+    it('keeps the synced lane\'s drifts and shape (drift applies to synced lanes by default)', async () => {
+      const primed = await startWithSyncedLane({ shape: 'square', rate: 9, rateDrift: 0.4, depthDrift: 0.6, sync: QUARTER }, 60);
+      expect(primed.a).toMatchObject({ shape: 'square', rateDrift: 0.4, depthDrift: 0.6 });
+    });
+  });
+
   it('calls linkTarget once per global target with its stored link, no robotId', async () => {
     const { lfoEngine } = await startWithFixture();
     for (const [target, link] of Object.entries(FIXTURE_GLOBAL_LFO_LINKS)) {

@@ -68,7 +68,7 @@ let fakeGlobalLfoLinks: Record<string, { lane: string | null; depth: number }> =
   'hpf.frequency': { lane: null, depth: 0 },
   'hpf.Q': { lane: null, depth: 0 },
 };
-let fakeLfoBank: Record<string, { rate: number }> = {
+let fakeLfoBank: Record<string, { rate: number; sync?: unknown }> = {
   a: { rate: 0.2 },
   b: { rate: 0.8 },
   c: { rate: 0 },
@@ -358,6 +358,24 @@ describe('audioDiagnostics runtime', () => {
 
       fakeLfoBank = { a: { rate: 0.1 }, b: { rate: 2 }, c: { rate: 5 }, d: { rate: 8 } };
       expect(links().bankRunning).toBe(4);
+    });
+
+    // docs/specs/FREE_SYNC_TOGGLE.md §1.3, Task 5: a synced lane is always moving, whatever Free rate it keeps underneath.
+    it('counts a synced lane as running even when its stored Free rate is 0', () => {
+      const quarter = { division: '1/4', modifier: 'straight' };
+      fakeLfoBank = { a: { rate: 0, sync: quarter }, b: { rate: 0 }, c: { rate: 0 }, d: { rate: 0 } };
+      expect(links().bankRunning).toBe(1);
+    });
+
+    it('still does not count a Free lane at rate 0, and counts a mix of synced and Free lanes correctly', () => {
+      const quarter = { division: '1/4', modifier: 'straight' };
+      fakeLfoBank = { a: { rate: 0, sync: quarter }, b: { rate: 2 }, c: { rate: 0 }, d: { rate: 0, sync: quarter } };
+      expect(links().bankRunning).toBe(3);
+    });
+
+    it('treats an unrecognised sync as Free — a bogus note at rate 0 is not running', () => {
+      fakeLfoBank = { a: { rate: 0, sync: { division: '1/3', modifier: 'straight' } }, b: { rate: 0 }, c: { rate: 0 }, d: { rate: 0 } };
+      expect(links().bankRunning).toBe(0);
     });
   });
 

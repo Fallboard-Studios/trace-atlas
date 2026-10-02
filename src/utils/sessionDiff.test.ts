@@ -28,6 +28,8 @@ import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_
 import { RHYTHMIC_DENSITY_MAX } from '../constants';
 import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
+import { noteValueHz } from '../data/noteValues';
+import { lfoEngine } from '../engine/lfoEngine';
 
 afterEach(() => {
   stopRobotLifecycle();
@@ -731,22 +733,91 @@ describe('applySessionPayload', () => {
     primeSpy.mockRestore();
   });
 
-  it('when the audio context is running, pushes lfoBank/globalLfoLinks through setLfoBank/setGlobalLfoLink so a loaded session is audible without a power cycle', async () => {
+  it('when the audio context is running, pushes lfoBank/globalLfoLinks through replaceLfoBankLane/setGlobalLfoLink so a loaded session is audible without a power cycle', async () => {
     const lfoShared = await import('../engine/lfoShared');
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     const payload = buildSessionPayload();
     const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+    const replaceLaneSpy = vi.spyOn(useAudioStore.getState(), 'replaceLfoBankLane');
     const setLfoBankSpy = vi.spyOn(useAudioStore.getState(), 'setLfoBank');
     const setGlobalLfoLinkSpy = vi.spyOn(useAudioStore.getState(), 'setGlobalLfoLink');
 
     applySessionPayload(payload, { skipLocaleRebuild: true });
 
-    expect(setLfoBankSpy).toHaveBeenCalled();
+    expect(replaceLaneSpy.mock.calls.map((call) => call[0]).sort()).toEqual([...LFO_LANE_IDS].sort());
+    // A per-lane setLfoBank merge cannot delete a stale `sync` key, so the restore must not use it.
+    expect(setLfoBankSpy).not.toHaveBeenCalled();
     expect(setGlobalLfoLinkSpy).toHaveBeenCalled();
     runningSpy.mockRestore();
+    replaceLaneSpy.mockRestore();
     setLfoBankSpy.mockRestore();
     setGlobalLfoLinkSpy.mockRestore();
+  });
+
+  // docs/specs/FREE_SYNC_TOGGLE.md assumption 6, Task 5: the restore REPLACES each lane. A merge
+  // would let a Free lane in the loaded session inherit the live lane's stale `sync`.
+  describe('lane Sync across a session restore', () => {
+    const QUARTER = { division: '1/4', modifier: 'straight' } as const;
+    const FREE_A = { shape: 'sine', rate: 1.5, rateDrift: 0, depthDrift: 0 } as const;
+
+    /** Live lane `a` synced; the payload carries lane `a` Free (and the given extra lane overrides). */
+    function setupStaleSync(extraLanes: Record<string, unknown> = {}) {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      const lfoBank = { ...payload.lfoBank!, a: { ...FREE_A }, ...extraLanes } as typeof payload.lfoBank;
+      useAudioStore.setState({ lfoBank: { ...useAudioStore.getState().lfoBank, a: { ...FREE_A, rate: 9, sync: QUARTER } } });
+      return { ...payload, lfoBank };
+    }
+
+    it('a Free lane in the payload leaves no stale `sync` on a live synced lane, when the audio context is running', async () => {
+      const lfoShared = await import('../engine/lfoShared');
+      const payload = setupStaleSync();
+      const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect('sync' in useAudioStore.getState().lfoBank.a).toBe(false);
+      expect(useAudioStore.getState().lfoBank.a).toEqual(FREE_A);
+      runningSpy.mockRestore();
+    });
+
+    it('a Free lane in the payload leaves no stale `sync` when the audio context is not running either (whole setState)', async () => {
+      const lfoShared = await import('../engine/lfoShared');
+      const payload = setupStaleSync();
+      const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(false);
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect('sync' in useAudioStore.getState().lfoBank.a).toBe(false);
+      runningSpy.mockRestore();
+    });
+
+    it('the engine receives the Free rate, not the stale synced Hz, after the restore', async () => {
+      const lfoShared = await import('../engine/lfoShared');
+      const payload = setupStaleSync();
+      const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+      lfoEngine.setBankRate('a', 8); // the engine's module state outlives each test -- start from a value the restore must overwrite
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect(lfoEngine.getBankSettings('a').rate).toBe(1.5);
+      runningSpy.mockRestore();
+    });
+
+    it('a synced lane in the payload restores with its note and reaches the engine as that note\'s Hz at the payload\'s own tempo', async () => {
+      const lfoShared = await import('../engine/lfoShared');
+      const payload = setupStaleSync({ b: { shape: 'triangle', rate: 7, rateDrift: 0.2, depthDrift: 0.1, sync: QUARTER } });
+      const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+      lfoEngine.setBankRate('b', 3); // start from a value the restore must overwrite
+
+      applySessionPayload({ ...payload, bpm: 90 }, { skipLocaleRebuild: true });
+
+      expect(useAudioStore.getState().lfoBank.b.sync).toEqual(QUARTER);
+      expect(lfoEngine.getBankSettings('b').rate).toBeCloseTo(noteValueHz(QUARTER, 90), 10); // 1.5 Hz, not the stored 7
+      runningSpy.mockRestore();
+    });
   });
 
   it('when the audio context is not running, writes lfoBank/globalLfoLinks data-only -- no engine push', async () => {
@@ -788,7 +859,7 @@ describe('applySessionPayload', () => {
     runningSpy.mockRestore();
   });
 
-  it('backfills the same hole when the audio context IS running -- setLfoBank/setGlobalLfoLink never receive undefined', async () => {
+  it('backfills the same hole when the audio context IS running -- replaceLfoBankLane/setGlobalLfoLink never receive undefined', async () => {
     const lfoShared = await import('../engine/lfoShared');
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
@@ -796,14 +867,14 @@ describe('applySessionPayload', () => {
     const { d: _droppedLane, ...partialLfoBank } = payload.lfoBank!;
     const holeyPayload = { ...payload, lfoBank: partialLfoBank as typeof payload.lfoBank };
     const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
-    const setLfoBankSpy = vi.spyOn(useAudioStore.getState(), 'setLfoBank');
+    const replaceLaneSpy = vi.spyOn(useAudioStore.getState(), 'replaceLfoBankLane');
 
     applySessionPayload(holeyPayload, { skipLocaleRebuild: true });
 
-    const laneDCall = setLfoBankSpy.mock.calls.find((call) => call[0] === 'd');
+    const laneDCall = replaceLaneSpy.mock.calls.find((call) => call[0] === 'd');
     expect(laneDCall?.[1]).toEqual(DEFAULT_BANK_LFO);
     runningSpy.mockRestore();
-    setLfoBankSpy.mockRestore();
+    replaceLaneSpy.mockRestore();
   });
 
   it('leaves the current lfoBank/globalLfoLinks untouched when an older (v1) payload lacks those fields', () => {

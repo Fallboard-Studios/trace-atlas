@@ -476,11 +476,13 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   // reseed untouched. When the audio context is already running (loading a session mid-session,
   // not at boot), pushed through setLfoBank/setGlobalLfoLink too, so the change is audible without
   // a power cycle; otherwise a plain data-only write -- AudioEngine.start() primes the bank from
-  // this same store state once the context actually starts.
+  // this same store state once the context actually starts. The running branch REPLACES each lane
+  // rather than merging it: a setLfoBank merge cannot delete a key, so a Free lane in the payload
+  // would keep the live lane's stale `sync` (docs/specs/FREE_SYNC_TOGGLE.md assumption 6).
   const lfoBank = backfillLfoBank(payload.lfoBank);
   if (lfoBank) {
     if (isAudioContextRunning()) {
-      for (const lane of LFO_LANE_IDS) useAudioStore.getState().setLfoBank(lane, lfoBank[lane]);
+      for (const lane of LFO_LANE_IDS) useAudioStore.getState().replaceLfoBankLane(lane, lfoBank[lane]);
     } else {
       useAudioStore.setState({ lfoBank });
     }

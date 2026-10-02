@@ -18,6 +18,7 @@ import {
 import { AUDIO_LOAD_PRESETS } from '../constants';
 import { clampAudioLoad, detectCoarsePointer, resolveInitialAudioLoad, resolveInitialEffectsLoad } from '../utils/audioBudget';
 import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
+import { laneToFree, laneToSync, resolveLaneForEngine, resolveLaneRateHz } from '../utils/tempoSync';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from './attenuationStyleStore';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 
@@ -238,9 +239,27 @@ export interface AudioStore {
   /**
    * Sets one LFO Bank lane's settings (docs/tasks/LFO_BANK.md Task 8) — updates state, then calls
    * the matching lfoEngine setter (setBankShape/Rate/RateDrift/DepthDrift) ONLY for the field(s)
-   * actually given in `partial`.
+   * actually given in `partial`. The engine only ever sees Hz: a `rate` or `sync` in the partial
+   * pushes the lane's RESOLVED rate (docs/specs/FREE_SYNC_TOGGLE.md §1.3), so a Free-rate edit on a
+   * synced lane re-sends the synced Hz rather than the number just typed.
+   *
+   * A merge can never delete a key, so this cannot turn a synced lane Free — that is
+   * setLfoBankLaneSyncMode / replaceLfoBankLane.
    */
   setLfoBank: (lane: LfoLaneId, partial: Partial<BankLfoSettings>) => void;
+  /**
+   * Writes one lane WHOLE (no merge) and pushes all of it to lfoEngine — shape, the resolved Hz, both
+   * drifts. The only way to drop a lane's `sync` key (docs/specs/FREE_SYNC_TOGGLE.md assumption 6);
+   * also what a session restore uses, so a Free lane in a loaded session cannot inherit the live
+   * lane's stale `sync`.
+   */
+  replaceLfoBankLane: (lane: LfoLaneId, settings: BankLfoSettings) => void;
+  /**
+   * Flips one lane between Free (Float) and Sync (Anchored) (docs/specs/FREE_SYNC_TOGGLE.md §1.5):
+   * Free -> Sync snaps the rate to the nearest allowed note at the current tempo, Sync -> Free keeps
+   * the Hz the user was hearing. A whole-object replacement, so the Free result carries no `sync` key.
+   */
+  setLfoBankLaneSyncMode: (lane: LfoLaneId, synced: boolean) => void;
   /** Sets one global-chain target's LFO Bank link — updates state and calls lfoEngine.linkTarget
    *  (no robotId — global-chain targets are never robot-scoped). */
   setGlobalLfoLink: (target: GlobalLfoTargetId, link: LfoLink) => void;
@@ -398,10 +417,31 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     // here should never throw regardless.
     if (!partial) return;
     set((state) => ({ lfoBank: { ...state.lfoBank, [lane]: { ...state.lfoBank[lane], ...partial } } }));
+    // Read the MERGED lane back: what the engine should hear depends on the whole lane, not the
+    // partial (a `rate` edit on a synced lane must not reach the engine as that rate).
+    const { lfoBank, bpm } = get();
+    const next = lfoBank[lane];
     if (partial.shape !== undefined) lfoEngine.setBankShape(lane, partial.shape);
-    if (partial.rate !== undefined) lfoEngine.setBankRate(lane, partial.rate);
-    if (partial.rateDrift !== undefined) lfoEngine.setBankRateDrift(lane, partial.rateDrift);
+    if (partial.rate !== undefined || 'sync' in partial) lfoEngine.setBankRate(lane, resolveLaneRateHz(next, bpm));
+    if (partial.rateDrift !== undefined) lfoEngine.setBankRateDrift(lane, resolveLaneForEngine(next, bpm).rateDrift);
     if (partial.depthDrift !== undefined) lfoEngine.setBankDepthDrift(lane, partial.depthDrift);
+  },
+
+  replaceLfoBankLane: (lane, settings) => {
+    // Same defense-in-depth as setLfoBank above.
+    if (!settings) return;
+    set((state) => ({ lfoBank: { ...state.lfoBank, [lane]: settings } }));
+    const engineLane = resolveLaneForEngine(settings, get().bpm);
+    lfoEngine.setBankShape(lane, engineLane.shape);
+    lfoEngine.setBankRate(lane, engineLane.rate);
+    lfoEngine.setBankRateDrift(lane, engineLane.rateDrift);
+    lfoEngine.setBankDepthDrift(lane, engineLane.depthDrift);
+  },
+
+  setLfoBankLaneSyncMode: (lane, synced) => {
+    const { lfoBank, bpm } = get();
+    const next = synced ? laneToSync(lfoBank[lane], bpm) : laneToFree(lfoBank[lane], bpm);
+    get().replaceLfoBankLane(lane, next);
   },
 
   setGlobalLfoLink: (target, link) => {
