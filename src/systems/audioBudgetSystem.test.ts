@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startAudioBudget, stopAudioBudget } from './audioBudgetSystem';
 import { tickRobotLifecycle } from './robotSystems';
 import { AudioEngine } from '../engine/AudioEngine';
-import { lfoEngine } from '../engine/lfoEngine';
 import { lfoEngine as bankEngine } from '../engine/lfoBank';
 import { useAudioStore } from '../stores/audioStore';
 import { DEFAULT_LOCALE_ID, useAttenuationStyleStore } from '../stores/attenuationStyleStore';
@@ -544,18 +543,6 @@ describe('audioBudgetSystem', () => {
 
       expect(setDrift).not.toHaveBeenCalled();
       expect(setFilterLinksEnabled).not.toHaveBeenCalled();
-    });
-
-    it('never calls the old lfoEngine\'s setDriftEnabled/setFilterLfosEnabled — the bank replaces it entirely (LFO Bank Task 10)', () => {
-      const oldSetDrift = vi.spyOn(lfoEngine, 'setDriftEnabled');
-      const oldSetFilterLfosEnabled = vi.spyOn(lfoEngine, 'setFilterLfosEnabled');
-
-      startAudioBudget();
-      useAudioStore.getState().setEffectsLoad(0.2);
-      stopAudioBudget();
-
-      expect(oldSetDrift).not.toHaveBeenCalled();
-      expect(oldSetFilterLfosEnabled).not.toHaveBeenCalled();
     });
 
     it('marks drift held off exactly while the dial keeps it off, writing the flag only on a real change', () => {

@@ -421,8 +421,8 @@ describe('CompanyOptionsSection', () => {
     });
 
     // LFO Bank Task 13: Signature Array's layer LfoLinks broadcast through applyLayerLfoLink
-    // (the bank engine), diffing lane/depth independently via diffCompoundField — never the old
-    // per-target applyLayerLfo. A member's own untouched field (the one not edited) survives.
+    // (the bank engine), diffing lane/depth independently via diffCompoundField. A member's own
+    // untouched field (the one not edited) survives.
     it('editing a layer\'s LFO lane broadcasts only the lane — each member keeps its own depth', () => {
       const r1 = makeRobot({ id: 'r1', companyId: 'c1', lfoLinks: { 'layer1.gain': { lane: 'a', depth: 40 } } as unknown as Robot['lfoLinks'] });
       const r2 = makeRobot({ id: 'r2', companyId: 'c1', lfoLinks: { 'layer1.gain': { lane: 'c', depth: 70 } } as unknown as Robot['lfoLinks'] });
@@ -470,21 +470,6 @@ describe('CompanyOptionsSection', () => {
 
       const snapshot = useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions;
       expect(snapshot?.lfoLinks?.['layer1.gain' as RobotLfoTargetId]).toEqual({ lane: 'b', depth: 40 });
-    });
-
-    it('a layer LFO edit never calls the old per-target applyLayerLfo', () => {
-      const r1 = makeRobot({ id: 'r1', companyId: 'c1' });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
-      useUIStore.getState().selectCompany('c1');
-      const legacySpy = vi.spyOn(robotOptionsActions, 'applyLayerLfo').mockImplementation(() => {});
-      vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
-      render(<CompanyOptionsSection />);
-      act(() => approachSection('companies.c1.source.coaxialOscillator')); // idx 1
-
-      fireEvent.click(screen.getByText('probe-layer-lfo-lane-1'));
-
-      expect(legacySpy).not.toHaveBeenCalled();
     });
 
     // The Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 2): the

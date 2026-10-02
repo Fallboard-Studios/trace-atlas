@@ -219,8 +219,17 @@ describe('buildSessionPayload', () => {
     // parity test that leaves a field at its default can pass by coincidence
     // even with a broken quantize/cleanup path (memory: parity-test fixtures
     // need real, non-default values).
-    useAudioStore.getState().setGlobalLfoDrift('globalFx', { rateDrift: 0.4371, depthDrift: -0.2809 });
-    useAudioStore.getState().setGlobalLfoDrift('robots', { rateDrift: -0.1234, depthDrift: 0.5678 });
+    // A plain state write, not the real setGlobalLfoDrift action -- that action was removed
+    // (docs/tasks/LFO_BANK.md Task 16) along with the old per-target lfoEngine it pushed to.
+    useAudioStore.setState((s) => ({
+      globalAudio: {
+        ...s.globalAudio,
+        lfoDrift: {
+          globalFx: { rateDrift: 0.4371, depthDrift: -0.2809 },
+          robots: { rateDrift: -0.1234, depthDrift: 0.5678 },
+        },
+      },
+    }));
 
     const payload = buildSessionPayload();
 
@@ -379,79 +388,6 @@ describe('applySessionPayload', () => {
     expect('volume' in (restored.lfoSettings ?? {})).toBe(false);
     expect('layer1.pulseWidth' in (restored.lfoSettings ?? {})).toBe(false);
     expect('layer1.phase' in (restored.lfoSettings ?? {})).toBe(false);
-  });
-
-  describe('priming on load (LFO Load Fix Task 9)', () => {
-    afterEach(() => {
-      vi.restoreAllMocks();
-    });
-
-    it('primes exactly the targets present in a robot override\'s lfoSettings, not the whole robot', async () => {
-      const robotLfoPriming = await import('../systems/robotLfoPriming');
-      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
-      const localeId = setupWorld();
-      spawnInitialRoster(localeId);
-      const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
-      const payload = buildSessionPayload();
-      const overriddenPayload = {
-        ...payload,
-        robotOverrides: {
-          ...payload.robotOverrides,
-          [robot.id]: {
-            ...payload.robotOverrides[robot.id],
-            lfoSettings: { 'layer1.gain': { shape: 'triangle', rate: 1.5, depth: 30 } } as Partial<Record<RobotLfoTargetId, LfoSettings>>,
-          },
-        },
-      };
-
-      applySessionPayload(overriddenPayload);
-
-      expect(primeSpy).toHaveBeenCalledTimes(1);
-      expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }), ['layer1.gain']);
-    });
-
-    it('filters out legacy (removed) target keys before priming — never primes volume or pulseWidth', async () => {
-      const robotLfoPriming = await import('../systems/robotLfoPriming');
-      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
-      const localeId = setupWorld();
-      spawnInitialRoster(localeId);
-      const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
-      const payload = buildSessionPayload();
-      const legacyOverrides = {
-        ...payload.robotOverrides,
-        [robot.id]: {
-          ...payload.robotOverrides[robot.id],
-          lfoSettings: {
-            volume: { shape: 'sine', rate: 3, depth: 50 },
-            'layer1.gain': { shape: 'triangle', rate: 1.5, depth: 30 },
-          },
-        },
-      } as unknown as typeof payload.robotOverrides;
-
-      applySessionPayload({ ...payload, robotOverrides: legacyOverrides });
-
-      expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }), ['layer1.gain']);
-    });
-
-    it('does not prime a robot whose override carries no lfoSettings', async () => {
-      const robotLfoPriming = await import('../systems/robotLfoPriming');
-      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
-      const localeId = setupWorld();
-      spawnInitialRoster(localeId);
-      const robot = useLocaleStore.getState().getLocaleById(localeId)!.robots[0];
-      const payload = buildSessionPayload();
-      const overriddenPayload = {
-        ...payload,
-        robotOverrides: {
-          ...payload.robotOverrides,
-          [robot.id]: { ...payload.robotOverrides[robot.id], rhythmicDensity: 70 },
-        },
-      };
-
-      applySessionPayload(overriddenPayload);
-
-      expect(primeSpy).not.toHaveBeenCalled();
-    });
   });
 
   it('applies a user-created company whose stored lastEditedOptions still carries a legacy volumeLfo (saved before the Volume LFO target was removed) without error, keeping the company and its other options', () => {

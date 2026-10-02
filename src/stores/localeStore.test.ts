@@ -5,7 +5,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from './localeStore';
 import { AudioEngine } from '../engine/AudioEngine';
-import { lfoEngine } from '../engine/lfoEngine';
 import { lfoEngine as bankEngine } from '../engine/lfoBank';
 import { computeLocaleHour } from '../constants/time';
 import type { Locale } from '../types/locale';
@@ -190,36 +189,18 @@ describe('localeStore', () => {
       expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].id).toBe('r2');
     });
 
-    it('releases the robot\'s AudioEngine voice, melody, and LFO state (docs/tasks/AUDIO_ENGINE_CLEANUP.md Task 3)', () => {
+    it('releases the robot\'s AudioEngine voice and melody (docs/tasks/AUDIO_ENGINE_CLEANUP.md Task 3)', () => {
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
       const releaseVoiceSpy = vi.spyOn(AudioEngine, 'releaseVoice');
       const unregisterMelodySpy = vi.spyOn(AudioEngine, 'unregisterRobotMelody');
-      const disposeLfosSpy = vi.spyOn(lfoEngine, 'disposeRobotLfos');
 
       useLocaleStore.getState().removeRobot(DEFAULT_LOCALE_ID, 'r1');
 
       expect(releaseVoiceSpy).toHaveBeenCalledWith('r1');
       expect(unregisterMelodySpy).toHaveBeenCalledWith('r1');
-      expect(disposeLfosSpy).toHaveBeenCalledWith('r1');
 
       releaseVoiceSpy.mockRestore();
       unregisterMelodySpy.mockRestore();
-      disposeLfosSpy.mockRestore();
-    });
-
-    it('disposeRobotLfos throwing does not block AudioEngine cleanup or the removal itself', () => {
-      useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
-      const releaseVoiceSpy = vi.spyOn(AudioEngine, 'releaseVoice');
-      const disposeLfosSpy = vi.spyOn(lfoEngine, 'disposeRobotLfos').mockImplementation(() => {
-        throw new Error('simulated failure');
-      });
-
-      expect(() => useLocaleStore.getState().removeRobot(DEFAULT_LOCALE_ID, 'r1')).not.toThrow();
-      expect(releaseVoiceSpy).toHaveBeenCalledWith('r1');
-      expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots).toHaveLength(0);
-
-      releaseVoiceSpy.mockRestore();
-      disposeLfosSpy.mockRestore();
     });
 
     it('disposes the robot\'s bank links too (docs/tasks/LFO_BANK.md Task 10)', () => {
@@ -442,31 +423,15 @@ describe('localeStore', () => {
       unregisterMelodySpy.mockRestore();
     });
 
-    it('disposes every robot\'s LFO state too, before removing the locale (docs/tasks/AUDIO_ENGINE_CLEANUP.md Task 3)', () => {
-      useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
-      useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r2'));
-      const disposeLfosSpy = vi.spyOn(lfoEngine, 'disposeRobotLfos');
-
-      useLocaleStore.getState().removeLocale(DEFAULT_LOCALE_ID);
-
-      expect(disposeLfosSpy).toHaveBeenCalledWith('r1');
-      expect(disposeLfosSpy).toHaveBeenCalledWith('r2');
-
-      disposeLfosSpy.mockRestore();
-    });
-
     it('removing a locale with zero robots calls no AudioEngine or LFO cleanup and does not throw', () => {
       const releaseVoiceSpy = vi.spyOn(AudioEngine, 'releaseVoice');
-      const disposeLfosSpy = vi.spyOn(lfoEngine, 'disposeRobotLfos');
       const disposeLinksSpy = vi.spyOn(bankEngine, 'disposeRobotLinks');
 
       expect(() => useLocaleStore.getState().removeLocale(DEFAULT_LOCALE_ID)).not.toThrow();
       expect(releaseVoiceSpy).not.toHaveBeenCalled();
-      expect(disposeLfosSpy).not.toHaveBeenCalled();
       expect(disposeLinksSpy).not.toHaveBeenCalled();
 
       releaseVoiceSpy.mockRestore();
-      disposeLfosSpy.mockRestore();
       disposeLinksSpy.mockRestore();
     });
 
@@ -487,20 +452,6 @@ describe('localeStore', () => {
       unregisterMelodySpy.mockRestore();
     });
 
-    it('one robot\'s disposeRobotLfos throwing does not block disposal of the rest or the removal itself', () => {
-      useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
-      useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r2'));
-      const disposeLfosSpy = vi.spyOn(lfoEngine, 'disposeRobotLfos').mockImplementation((id) => {
-        if (id === 'r1') throw new Error('simulated failure');
-      });
-
-      expect(() => useLocaleStore.getState().removeLocale(DEFAULT_LOCALE_ID)).not.toThrow();
-      expect(disposeLfosSpy).toHaveBeenCalledWith('r1');
-      expect(disposeLfosSpy).toHaveBeenCalledWith('r2');
-      expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID]).toBeUndefined();
-
-      disposeLfosSpy.mockRestore();
-    });
 
     it('disposes every robot\'s bank links too, before removing the locale (docs/tasks/LFO_BANK.md Task 10)', () => {
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));

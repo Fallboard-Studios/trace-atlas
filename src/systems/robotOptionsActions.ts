@@ -10,7 +10,6 @@
  * Every function takes (robot, localeId, value) — never reads uiStore, never touches anything
  * beyond localeStore/AudioEngine/lfoEngine/regenerateMelody. Selection state is a caller concern.
  */
-import { applyRobotLfoToEngine } from './robotLfoPriming';
 import { applyRobotLinkToEngine, primeRobotLinks } from './robotLfoLinks';
 import { useLocaleStore } from '@/stores/localeStore';
 import { AudioEngine } from '@/engine/AudioEngine';
@@ -19,7 +18,6 @@ import { buildClickTrackMelody } from '@/engine/clickTrack';
 import type { StepperWithToggleValue } from '@/components/ui/controls/StepperWithToggle';
 import type { Robot, ADSREnvelope } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
-import type { LfoValue } from '@/types/controls';
 import type { RobotLfoTargetId, LfoLink } from '@/types/lfo';
 
 // ========================================
@@ -139,17 +137,8 @@ export function applyLayersStructural(robot: Robot, localeId: string, layers: Os
   primeRobotLinks(robot);
 }
 
-/** Shared by every per-layer LFO frame (Gain/Detune/Phase/Interval) and, via applyVolumeLfo
- *  above, Volume's own LFO frame — mirrors audioStore.ts's setGlobalLfo pattern, robot-scoped:
- *  store write plus the matching lfoEngine calls, connecting/starting only when rate > 0. */
-export function applyLayerLfo(robot: Robot, localeId: string, target: RobotLfoTargetId, value: LfoValue): void {
-  const nextLfoSettings = { ...robot.lfoSettings, [target]: value } as Robot['lfoSettings'];
-  useLocaleStore.getState().updateRobot(localeId, robot.id, { lfoSettings: nextLfoSettings });
-  applyRobotLfoToEngine(robot.id, target, value);
-}
-
-/** The LFO Bank's per-layer link edit (docs/tasks/LFO_BANK.md) — same shape as applyLayerLfo
- *  above, routed through the bank engine instead (robotLfoLinks.applyRobotLinkToEngine). */
+/** The LFO Bank's per-layer link edit (docs/tasks/LFO_BANK.md) — routed through the bank
+ *  engine (robotLfoLinks.applyRobotLinkToEngine). */
 export function applyLayerLfoLink(robot: Robot, localeId: string, target: RobotLfoTargetId, link: LfoLink): void {
   const nextLfoLinks = { ...robot.lfoLinks, [target]: link } as Robot['lfoLinks'];
   useLocaleStore.getState().updateRobot(localeId, robot.id, { lfoLinks: nextLfoLinks });

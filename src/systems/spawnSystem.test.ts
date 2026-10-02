@@ -20,7 +20,6 @@ import {
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { tallyLanes } from '../utils/lfoLaneDraw';
 import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
-import * as robotLfoPriming from './robotLfoPriming';
 import * as robotLfoLinks from './robotLfoLinks';
 
 // Spy on getSeededVal while keeping its real behavior (the globalAudioSeed.test.ts/
@@ -502,7 +501,7 @@ describe('spawnSystem', () => {
     });
 
     afterEach(() => {
-      // Several tests below spyOn(AudioEngine/robotLfoPriming, ...).mockReturnValue/mockImplementation
+      // Several tests below spyOn(AudioEngine, ...).mockReturnValue/mockImplementation
       // — restore the real implementations so later describe blocks (e.g. spawnInitialRoster) see
       // real reserveVoice behavior, not a leaked mock. vi.clearAllMocks() alone only clears call
       // history, it does not restore the original implementation.
@@ -568,15 +567,6 @@ describe('spawnSystem', () => {
 
       expect(() => spawnRobot(DEFAULT_LOCALE_ID)).not.toThrow();
       expect(registerSpy).toHaveBeenCalled();
-    });
-
-    it('never calls the old robotLfoPriming.primeRobotLfos — the bank replaces it entirely (LFO Bank Task 10)', () => {
-      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
-      const oldPrimeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos');
-
-      spawnRobot(DEFAULT_LOCALE_ID);
-
-      expect(oldPrimeSpy).not.toHaveBeenCalled();
     });
 
     it('quantizes masterVolume so its percent (x100) is always an integer, across many spawns (SEEDED_SLIDER_VALUE_QUANTIZATION Task 6)', () => {
@@ -1218,16 +1208,6 @@ describe('spawnSystem', () => {
       expect(primeRosterSpy).toHaveBeenCalledWith([]);
     });
 
-    it('never calls the old robotLfoPriming.primeRosterLfos — the bank replaces it entirely (LFO Bank Task 10)', () => {
-      vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
-      vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
-      const oldPrimeRosterSpy = vi.spyOn(robotLfoPriming, 'primeRosterLfos');
-      spawnRobot(DEFAULT_LOCALE_ID);
-
-      reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
-
-      expect(oldPrimeRosterSpy).not.toHaveBeenCalled();
-    });
   });
 
   describe('spawnInitialRoster', () => {

@@ -458,20 +458,17 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     });
 
     // docs/tasks/LFO_BANK.md Task 12 — a lane change on a layer routes through the bank engine
-    // (applyLayerLfoLink), never the old per-target LFO path (applyLayerLfo), which this tab no
-    // longer imports at all.
-    it('wires a layer\'s LFO lane change to robotOptionsActions.applyLayerLfoLink, never applyLayerLfo', () => {
+    // (applyLayerLfoLink); the old per-target LFO path is gone entirely (Task 16).
+    it('wires a layer\'s LFO lane change to robotOptionsActions.applyLayerLfoLink', () => {
       const robot = makeRobot();
       selectRobot(robot, 'source', 'coaxialOscillator');
       const applyLinkSpy = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
-      const applyOldSpy = vi.spyOn(robotOptionsActions, 'applyLayerLfo').mockImplementation(() => {});
       render(<RobotOptionsTab />);
       openAndApproach('probes.r1.source.coaxialOscillator');
 
       fireEvent.click(screen.getByText('probe-layer-lfo-1'));
 
       expect(applyLinkSpy).toHaveBeenCalledWith(robot, localeId, 'layer1.gain', { lane: 'a', depth: 0 });
-      expect(applyOldSpy).not.toHaveBeenCalled();
     });
   });
 

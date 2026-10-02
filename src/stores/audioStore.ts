@@ -6,10 +6,8 @@ import { create } from 'zustand';
 import { AudioEngine } from '../engine/AudioEngine';
 import { wireGlobalFxChain } from '../engine/audioEngine/globalFx';
 import { volumePositionToGain } from '../engine/audioEngine/volumeTaper';
-import { lfoEngine } from '../engine/lfoEngine';
-// The new bank engine (docs/tasks/LFO_BANK.md Task 7) — a separate, coexisting module from the old
-// lfoEngine.ts above until Task 16 renames lfoBank.ts over it. Aliased to avoid colliding with the
-// old import's own `lfoEngine` name and with this file's `lfoBank` STATE field.
+// The LFO Bank engine (docs/tasks/LFO_BANK.md Task 7). Aliased to avoid colliding with this
+// file's own `lfoBank` STATE field.
 import { lfoEngine as bankEngine } from '../engine/lfoBank';
 import {
   generateGlobalAudioSettings,
@@ -31,11 +29,9 @@ import type { GlobalAudioSettings } from '../types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
 import {
   GLOBAL_LFO_TARGET_IDS,
-  DRIFT_GROUP_IDS,
   LFO_LANE_IDS,
   type GlobalLfoTargetId,
   type LfoSettings,
-  type DriftGroupId,
   type LfoLaneId,
   type BankLfoSettings,
   type LfoLink,
@@ -77,10 +73,6 @@ export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings): void
   AudioEngine.setGlobalLimiter(globalAudio.limiter);
   AudioEngine.setGlobalDelay(globalAudio.delay);
   AudioEngine.setGlobalReverb(globalAudio.reverb);
-  for (const group of DRIFT_GROUP_IDS) {
-    lfoEngine.setGlobalRateDrift(group, globalAudio.lfoDrift[group].rateDrift);
-    lfoEngine.setGlobalDepthDrift(group, globalAudio.lfoDrift[group].depthDrift);
-  }
 }
 
 /** Initial globalLfo — DEFAULT_LFO_SETTINGS' 7 global entries, each starting inert
@@ -216,12 +208,6 @@ export interface AudioStore {
     effect: K,
     partial: Partial<GlobalAudioSettings[K]>
   ) => void;
-  /**
-   * Sets one global LFO target's settings — updates state, always pushes
-   * shape/rate/depth to lfoEngine, and connects+starts (rate > 0) or
-   * disconnects+stops (rate === 0) the live node.
-   */
-  setGlobalLfo: (target: GlobalLfoTargetId, value: LfoSettings) => void;
   /** Sets isMuted and pushes the resulting gain to AudioEngine — 0 when muted,
    *  volumePositionToGain(volume) (the live slider position) when not. Owns its own
    *  AudioEngine call, matching every other audioStore setter's shape (setBPM, etc.) —
@@ -262,17 +248,6 @@ export interface AudioStore {
    */
   setCompressorBeforeDelay: (value: boolean) => void;
   /**
-   * Sets one drift group's LFO drift amount(s) (docs/specs/LFO_DRIFT_GROUPS.md)
-   * — updates globalAudio.lfoDrift[group] and pushes only the field(s)
-   * actually provided to lfoEngine's matching setGlobalRateDrift/
-   * setGlobalDepthDrift for that same group; every other group is untouched.
-   * A bespoke action (not routed through setGlobalAudio/GLOBAL_SETTER),
-   * shaped like setCompressorBeforeDelay above — lfoDrift is a top-level
-   * flag, not a per-effect object with its own AudioEngine.setGlobal*
-   * counterpart.
-   */
-  setGlobalLfoDrift: (group: DriftGroupId, partial: Partial<GlobalAudioSettings['lfoDrift'][DriftGroupId]>) => void;
-  /**
    * Regenerate `globalAudio` for the given Attenuation Style from the seed
    * (generateGlobalAudioSettings, src/utils/globalAudioSeed.ts) and push the
    * result into AudioEngine's live Tone FX chain.
@@ -291,7 +266,7 @@ export interface AudioStore {
   /**
    * Sets one LFO Bank lane's settings (docs/tasks/LFO_BANK.md Task 8) — updates state, then calls
    * the matching bankEngine setter (setBankShape/Rate/RateDrift/DepthDrift) ONLY for the field(s)
-   * actually given in `partial`, mirroring setGlobalLfoDrift's per-field-call shape above.
+   * actually given in `partial`.
    */
   setLfoBank: (lane: LfoLaneId, partial: Partial<BankLfoSettings>) => void;
   /** Sets one global-chain target's LFO Bank link — updates state and calls bankEngine.linkTarget
@@ -360,30 +335,6 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   setCompressorBeforeDelay: (value) => {
     set((state) => ({ globalAudio: { ...state.globalAudio, compressorBeforeDelay: value } }));
     wireGlobalFxChain(value);
-  },
-
-  setGlobalLfoDrift: (group, partial) => {
-    set((state) => ({
-      globalAudio: {
-        ...state.globalAudio,
-        lfoDrift: { ...state.globalAudio.lfoDrift, [group]: { ...state.globalAudio.lfoDrift[group], ...partial } },
-      },
-    }));
-    if (partial.rateDrift !== undefined) lfoEngine.setGlobalRateDrift(group, partial.rateDrift);
-    if (partial.depthDrift !== undefined) lfoEngine.setGlobalDepthDrift(group, partial.depthDrift);
-  },
-
-  setGlobalLfo: (target, value) => {
-    set((state) => ({ globalLfo: { ...state.globalLfo, [target]: value } }));
-    lfoEngine.setLfoShape(target, value.shape);
-    lfoEngine.setLfoRate(target, value.rate);
-    lfoEngine.setLfoDepth(target, value.depth);
-    if (value.rate > 0) {
-      if (lfoEngine.connectLfoTarget(target)) lfoEngine.start(target);
-    } else {
-      lfoEngine.disconnectLfoTarget(target);
-      lfoEngine.stop(target);
-    }
   },
 
   setMuted: (muted) => {

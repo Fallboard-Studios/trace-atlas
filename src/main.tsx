@@ -36,11 +36,6 @@ import '@fontsource/titillium-web/latin-700.css'
 import '@fontsource/titillium-web/latin-ext-700.css'
 import './index.css'
 
-// Dev-only manual audible check (LFO_INTEGRATION_PLAN.md Task 14) — not real
-// UI, no component/store references it. This import exists only so the
-// file's own DEV_TUNING-gated registration runs; import.meta.env.DEV makes
-// the whole thing dead code Vite strips from production builds.
-import './engine/lfoDebug'
 import { startAudioBudget } from './systems/audioBudgetSystem'
 
 // Audio Load Budget (docs/specs/AUDIO_LOAD_BUDGET.md §4.4): started once, before the first power-on, so the

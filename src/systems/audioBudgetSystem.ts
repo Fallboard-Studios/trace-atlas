@@ -96,8 +96,6 @@ function reconcile(force = false): void {
  * The LFO tiers (docs/specs/AUDIO_LOAD_BUDGET.md §1.4): turn drift and filter (LPF/HPF) LFO links on or off —
  * EQ-gain links and every robot LFO are always allowed, docs/specs/LFO_BANK.md Task 2 removed the robot-LFO cap
  * and Task 4 moved the filter rule itself into the engine — and publish the held-off state the UI greys out from.
- * Task 10 flipped both calls to the bank engine (lfoBank.ts); the old lfoEngine.ts is reached only by
- * setGlobalLfo/setGlobalLfoDrift/applyLayerLfo now (not-yet-swapped user-edit panels).
  * Only when a tier limit has actually changed (or on force) — the roster changing, or a dial nudge inside one
  * tier, changes none of it.
  */
