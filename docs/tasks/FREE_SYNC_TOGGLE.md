@@ -52,13 +52,13 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
 
 ### Phase 1: Foundation and the BPM move
 
-- [ ] **Task 1: `src/data/noteValues.ts` — note-value table and math**
+- [x] **Task 1: `src/data/noteValues.ts` — note-value table and math**
 
   **Description:** `NoteDivision`/`NoteModifier`/`NoteValue`; the 20-entry `NOTE_VALUES` sorted ascending by beats at module load (spec §1.2); `noteValueBeats`, `noteValueSeconds`, `noteValueHz`, `noteValueEquals`, `isNoteValue`, `allowedNoteValues`, `nearestNoteValue`. No Tone, store or content import. Nothing imports it yet.
 
   **Acceptance criteria:**
   - [ ] 20 entries, no duplicates, strictly ascending beats; 1/4 triplet before 1/8 dotted; `'2'`/`'4'` straight-only.
-  - [ ] Spec §1.2's 60 BPM fixtures (±1e-9); at 120 BPM seconds halve. `allowedNoteValues(60,{0,10},'seconds')` includes 2 bars, excludes 4 bars; `allowedNoteValues(200,{0,20},'hz')` excludes 1/32 triplet; `nearestNoteValue(0.3, 60, …, 'seconds')` = 1/4 triplet; out-of-range → first/last.
+  - [ ] Spec §1.2's 60 BPM fixtures (±1e-9); at 120 BPM seconds halve. `allowedNoteValues(60,{0,10},'seconds')` includes 2 bars, excludes 4 bars; `allowedNoteValues(200,{0,20},'hz')` excludes 1/32 triplet; `nearestNoteValue(0.3, 60, …, 'seconds')` = 1/8 triplet (0.333 s); out-of-range → first/last.
   - [ ] `isNoteValue` accepts every `NOTE_VALUES` entry and rejects `{division:'1/3',modifier:'straight'}`, `{division:'2',modifier:'dotted'}`, `'off'`, `null`, `undefined`, a string.
 
   **Verification:** `npx vitest run src/data/noteValues.test.ts` (RED first per function); `npm run build:types`.
