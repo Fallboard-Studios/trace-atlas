@@ -20,7 +20,7 @@ import type { LfoLink } from '@/types/lfo';
 import type { Locale } from '@/types/locale';
 
 // The LFO Bank engine (docs/tasks/LFO_BANK.md) — applyLayerLfoLink routes through this exclusively.
-vi.mock('@/engine/lfoBank', () => ({
+vi.mock('@/engine/lfoEngine', () => ({
   lfoEngine: {
     linkTarget: vi.fn(() => true),
   },

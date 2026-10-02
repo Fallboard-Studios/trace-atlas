@@ -163,29 +163,11 @@ vi.mock('../constants', async () => {
   return { ...actual, DEV_TUNING: false };
 });
 
-// Mock lfoEngine (Task 9) — AudioEngine.start() primes/connects/starts global
-// LFOs through this, but exercising the real lfoEngine here would mean also
-// mocking a real Tone.LFO, which is out of scope for testing AudioEngine's own
-// orchestration logic (which target got which call, in what order).
+// Mock the LFO Bank engine (docs/tasks/LFO_BANK.md Task 10) — AudioEngine.start() primes/links
+// the bank through this, but exercising the real engine here would mean also mocking a real
+// Tone.LFO, which is out of scope for testing AudioEngine's own orchestration logic (which
+// target got which call, in what order).
 vi.mock('./lfoEngine', () => ({
-  lfoEngine: {
-    getLfoSettings: vi.fn(),
-    setLfoRate: vi.fn(),
-    setLfoDepth: vi.fn(),
-    setLfoShape: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
-    connectLfoTarget: vi.fn(() => true),
-    disconnectLfoTarget: vi.fn(),
-    setGlobalRateDrift: vi.fn(),
-    setGlobalDepthDrift: vi.fn(),
-  },
-}));
-
-// Mock the LFO Bank (docs/tasks/LFO_BANK.md Task 10) — AudioEngine.start() primes/links the
-// bank through this one now; the old lfoEngine mock above stays only for the not-yet-swapped
-// user-edit paths (setGlobalLfo/setGlobalLfoDrift/applyLayerLfo).
-vi.mock('./lfoBank', () => ({
   lfoEngine: {
     primeLfoBank: vi.fn(),
     linkTarget: vi.fn(() => true),
@@ -2113,8 +2095,7 @@ describe('AudioEngine.start — primes and links the LFO Bank (docs/tasks/LFO_BA
   async function startWithFixture() {
     const { AudioEngine } = await import('./AudioEngine');
     const { useAudioStore } = await import('../stores/audioStore');
-    const { lfoEngine: bankEngine } = await import('./lfoBank');
-    const { lfoEngine: oldEngine } = await import('./lfoEngine');
+    const { lfoEngine } = await import('./lfoEngine');
 
     useAudioStore.setState({ lfoBank: FIXTURE_LFO_BANK as any, globalLfoLinks: FIXTURE_GLOBAL_LFO_LINKS as any });
     // The mock's call history persists across vi.resetModules() (the same quirk the old
@@ -2123,38 +2104,32 @@ describe('AudioEngine.start — primes and links the LFO Bank (docs/tasks/LFO_BA
     vi.clearAllMocks();
 
     await AudioEngine.start();
-    return { bankEngine, oldEngine };
+    return { lfoEngine };
   }
 
   it('calls primeLfoBank with the current lfoBank state', async () => {
-    const { bankEngine } = await startWithFixture();
-    expect(bankEngine.primeLfoBank).toHaveBeenCalledWith(FIXTURE_LFO_BANK);
+    const { lfoEngine } = await startWithFixture();
+    expect(lfoEngine.primeLfoBank).toHaveBeenCalledWith(FIXTURE_LFO_BANK);
   });
 
   it('calls linkTarget once per global target with its stored link, no robotId', async () => {
-    const { bankEngine } = await startWithFixture();
+    const { lfoEngine } = await startWithFixture();
     for (const [target, link] of Object.entries(FIXTURE_GLOBAL_LFO_LINKS)) {
-      expect(bankEngine.linkTarget).toHaveBeenCalledWith(target, link);
+      expect(lfoEngine.linkTarget).toHaveBeenCalledWith(target, link);
     }
   });
 
   it('calls primeLfoBank before any linkTarget call', async () => {
-    const { bankEngine } = await startWithFixture();
-    const primeOrder = vi.mocked(bankEngine.primeLfoBank).mock.invocationCallOrder[0];
-    const firstLinkOrder = vi.mocked(bankEngine.linkTarget).mock.invocationCallOrder[0];
+    const { lfoEngine } = await startWithFixture();
+    const primeOrder = vi.mocked(lfoEngine.primeLfoBank).mock.invocationCallOrder[0];
+    const firstLinkOrder = vi.mocked(lfoEngine.linkTarget).mock.invocationCallOrder[0];
     expect(primeOrder).toBeLessThan(firstLinkOrder);
-  });
-
-  it('never calls the old lfoEngine\'s setLfoShape/connectLfoTarget from start()', async () => {
-    const { oldEngine } = await startWithFixture();
-    expect(oldEngine.setLfoShape).not.toHaveBeenCalled();
-    expect(oldEngine.connectLfoTarget).not.toHaveBeenCalled();
   });
 
   it('a throw while priming the bank does not fail start() — existing behavior (beat clock) still runs', async () => {
     const { AudioEngine } = await import('./AudioEngine');
-    const { lfoEngine: bankEngine } = await import('./lfoBank');
-    vi.mocked(bankEngine.primeLfoBank).mockImplementation(() => {
+    const { lfoEngine } = await import('./lfoEngine');
+    vi.mocked(lfoEngine.primeLfoBank).mockImplementation(() => {
       throw new Error('boom');
     });
 
@@ -2265,11 +2240,11 @@ describe('AudioEngine.start — primes robot LFO links via the bank roster helpe
 
   it('runs after the bank priming, not before (EQ/filter values must already be correct)', async () => {
     const { AudioEngine } = await import('./AudioEngine');
-    const { lfoEngine: bankEngine } = await import('./lfoBank');
+    const { lfoEngine } = await import('./lfoEngine');
     const { primeRosterLinks } = await import('../systems/robotLfoLinks');
     vi.clearAllMocks();
     const callOrder: string[] = [];
-    vi.mocked(bankEngine.primeLfoBank).mockImplementation(() => {
+    vi.mocked(lfoEngine.primeLfoBank).mockImplementation(() => {
       callOrder.push('bank');
     });
     vi.mocked(primeRosterLinks).mockImplementation(() => {

@@ -27,7 +27,7 @@ vi.mock('../engine/audioEngine/globalFx', () => ({
 }));
 
 // The LFO Bank engine (docs/tasks/LFO_BANK.md Task 7).
-vi.mock('../engine/lfoBank', () => ({
+vi.mock('../engine/lfoEngine', () => ({
   lfoEngine: {
     primeLfoBank: vi.fn(),
     setBankShape: vi.fn(),
@@ -341,28 +341,28 @@ describe('useAudioStore - setLfoBank', () => {
 
   it('calls setBankRate and no other engine setter when only rate is given', async () => {
     const { useAudioStore } = await import('./audioStore');
-    const { lfoEngine: bankEngine } = await import('../engine/lfoBank');
+    const { lfoEngine } = await import('../engine/lfoEngine');
     vi.clearAllMocks();
 
     useAudioStore.getState().setLfoBank('b', { rate: 2 });
 
-    expect(bankEngine.setBankRate).toHaveBeenCalledWith('b', 2);
-    expect(bankEngine.setBankShape).not.toHaveBeenCalled();
-    expect(bankEngine.setBankRateDrift).not.toHaveBeenCalled();
-    expect(bankEngine.setBankDepthDrift).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRate).toHaveBeenCalledWith('b', 2);
+    expect(lfoEngine.setBankShape).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRateDrift).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankDepthDrift).not.toHaveBeenCalled();
   });
 
   it('calls only the engine setters for the fields actually given, for every other field', async () => {
     const { useAudioStore } = await import('./audioStore');
-    const { lfoEngine: bankEngine } = await import('../engine/lfoBank');
+    const { lfoEngine } = await import('../engine/lfoEngine');
     vi.clearAllMocks();
 
     useAudioStore.getState().setLfoBank('a', { shape: 'square', depthDrift: 0.5 });
 
-    expect(bankEngine.setBankShape).toHaveBeenCalledWith('a', 'square');
-    expect(bankEngine.setBankDepthDrift).toHaveBeenCalledWith('a', 0.5);
-    expect(bankEngine.setBankRate).not.toHaveBeenCalled();
-    expect(bankEngine.setBankRateDrift).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankShape).toHaveBeenCalledWith('a', 'square');
+    expect(lfoEngine.setBankDepthDrift).toHaveBeenCalledWith('a', 0.5);
+    expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRateDrift).not.toHaveBeenCalled();
   });
 
   it('merges the partial onto the lane\'s existing settings — other fields survive', async () => {
@@ -411,13 +411,13 @@ describe('useAudioStore - setGlobalLfoLink', () => {
 
   it('calls linkTarget with the target and link, and no robotId', async () => {
     const { useAudioStore } = await import('./audioStore');
-    const { lfoEngine: bankEngine } = await import('../engine/lfoBank');
+    const { lfoEngine } = await import('../engine/lfoEngine');
     vi.clearAllMocks();
 
     useAudioStore.getState().setGlobalLfoLink('eq3.low', { lane: 'a', depth: 40 });
 
-    expect(bankEngine.linkTarget).toHaveBeenCalledWith('eq3.low', { lane: 'a', depth: 40 });
-    expect(bankEngine.linkTarget).toHaveBeenCalledTimes(1);
+    expect(lfoEngine.linkTarget).toHaveBeenCalledWith('eq3.low', { lane: 'a', depth: 40 });
+    expect(lfoEngine.linkTarget).toHaveBeenCalledTimes(1);
   });
 
   it('touches only the named target — every other target\'s link is untouched', async () => {
@@ -458,12 +458,12 @@ describe('useAudioStore - LFO Bank / global links Attenuation-Style-sync seeding
 
   it('does not touch the bank engine during seeding — data-only, deferred to AudioEngine.start() (Task 10)', async () => {
     await import('./audioStore');
-    const { lfoEngine: bankEngine } = await import('../engine/lfoBank');
+    const { lfoEngine } = await import('../engine/lfoEngine');
 
-    expect(bankEngine.primeLfoBank).not.toHaveBeenCalled();
-    expect(bankEngine.setBankRate).not.toHaveBeenCalled();
-    expect(bankEngine.setBankShape).not.toHaveBeenCalled();
-    expect(bankEngine.linkTarget).not.toHaveBeenCalled();
+    expect(lfoEngine.primeLfoBank).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankShape).not.toHaveBeenCalled();
+    expect(lfoEngine.linkTarget).not.toHaveBeenCalled();
   });
 
   it('follows setCurrentAttenuationStyleId — switching reseeds lfoBank and globalLfoLinks automatically', async () => {

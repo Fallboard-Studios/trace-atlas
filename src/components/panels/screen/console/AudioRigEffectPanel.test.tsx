@@ -33,7 +33,7 @@ vi.mock('../../../../engine/lfoEngine', () => ({
 // The LFO Bank engine (docs/tasks/LFO_BANK.md Task 7) — setGlobalLfoLink (audioStore.ts) calls
 // this module's linkTarget directly; mocked for the same reason the old lfoEngine above is: the
 // real module would construct a Tone node on first call, which throws without a real AudioContext.
-vi.mock('../../../../engine/lfoBank', () => ({
+vi.mock('../../../../engine/lfoEngine', () => ({
   lfoEngine: {
     primeLfoBank: vi.fn(),
     setBankShape: vi.fn(),

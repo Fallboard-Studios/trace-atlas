@@ -5,7 +5,7 @@ import { render, screen, within, fireEvent, act } from '@testing-library/react';
 // module's setBankShape/setBankRate/setBankRateDrift/setBankDepthDrift directly; mocked for the
 // same reason AudioRigEffectPanel.test.tsx already mocks it: the real module constructs a Tone
 // node on first call, which throws without a real AudioContext.
-vi.mock('../../../../engine/lfoBank', () => ({
+vi.mock('../../../../engine/lfoEngine', () => ({
   lfoEngine: {
     primeLfoBank: vi.fn(),
     setBankShape: vi.fn(),

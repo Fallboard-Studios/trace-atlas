@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 
-// TYPE_SCALE.md Tasks 4-6 — every one of the 11 leaf ControlSchema
+// TYPE_SCALE.md Tasks 4-6 — every one of the 10 leaf ControlSchema
 // primitives' own root CSS selector gets font-family/font-weight
 // (--font-sans/--font-weight-control — moved off --font-controls,
 // styling/header, 2026-09-17), and MOST of them also
@@ -50,7 +50,6 @@ const LEAF_CONTROLS = [
   { file: 'RadioButton.css', selector: '.sc-radio-button', containerSelector: '.sc-radio-button' },
   { file: 'Stepper.css', selector: '.sc-stepper', containerSelector: '.sc-stepper' },
   { file: 'StepperWithToggle.css', selector: '.sc-stepper-toggle', containerSelector: '.sc-stepper-toggle' },
-  { file: 'Lfo.css', selector: '.sc-lfo', containerSelector: '.sc-lfo' },
   // Sliders: container-type/name moved onto the horizontal-only variant —
   // the bare/unqualified selector must NOT carry them (that's what broke).
   {

@@ -495,11 +495,11 @@ export const AudioEngine = {
     // reason — they run before any user gesture.
     // Dynamic import, deliberately: audioStore.ts's GLOBAL_SETTER reads AudioEngine.setGlobal*
     // eagerly at its own module scope (see this function's own earlier verified-by-trying note),
-    // and lfoBank.ts imports AudioEngine itself (for its modulation-target resolvers) — a static
+    // and lfoEngine.ts imports AudioEngine itself (for its modulation-target resolvers) — a static
     // top-level import of either here would be circular/premature.
     try {
       const { useAudioStore, applyGlobalAudioToEngine } = await import('../stores/audioStore');
-      const { lfoEngine: bankEngine } = await import('./lfoBank');
+      const { lfoEngine } = await import('./lfoEngine');
       const { globalAudio, lfoBank, globalLfoLinks } = useAudioStore.getState();
       // buildGlobalFxChain() (above) just constructed every FX node from its
       // own hardcoded literal defaults — not whatever's already seeded in
@@ -509,9 +509,9 @@ export const AudioEngine = {
       // run before the link loop below: linkTarget's swing math reads each
       // target's CURRENT value, so EQ/filter values need to be correct first.
       applyGlobalAudioToEngine(globalAudio);
-      bankEngine.primeLfoBank(lfoBank);
+      lfoEngine.primeLfoBank(lfoBank);
       for (const target of GLOBAL_LFO_TARGET_IDS) {
-        bankEngine.linkTarget(target, globalLfoLinks[target]);
+        lfoEngine.linkTarget(target, globalLfoLinks[target]);
       }
     } catch (err) {
       devWarn('[AudioEngine] priming the LFO bank failed', err);

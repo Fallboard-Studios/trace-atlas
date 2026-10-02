@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from './localeStore';
 import { AudioEngine } from '../engine/AudioEngine';
-import { lfoEngine as bankEngine } from '../engine/lfoBank';
+import { lfoEngine } from '../engine/lfoEngine';
 import { computeLocaleHour } from '../constants/time';
 import type { Locale } from '../types/locale';
 import type { Company } from '../types/Company';
@@ -205,7 +205,7 @@ describe('localeStore', () => {
 
     it('disposes the robot\'s bank links too (docs/tasks/LFO_BANK.md Task 10)', () => {
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
-      const disposeLinksSpy = vi.spyOn(bankEngine, 'disposeRobotLinks');
+      const disposeLinksSpy = vi.spyOn(lfoEngine, 'disposeRobotLinks');
 
       useLocaleStore.getState().removeRobot(DEFAULT_LOCALE_ID, 'r1');
 
@@ -217,7 +217,7 @@ describe('localeStore', () => {
     it('disposeRobotLinks throwing does not block AudioEngine cleanup or the removal itself', () => {
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
       const releaseVoiceSpy = vi.spyOn(AudioEngine, 'releaseVoice');
-      const disposeLinksSpy = vi.spyOn(bankEngine, 'disposeRobotLinks').mockImplementation(() => {
+      const disposeLinksSpy = vi.spyOn(lfoEngine, 'disposeRobotLinks').mockImplementation(() => {
         throw new Error('simulated failure');
       });
 
@@ -425,7 +425,7 @@ describe('localeStore', () => {
 
     it('removing a locale with zero robots calls no AudioEngine or LFO cleanup and does not throw', () => {
       const releaseVoiceSpy = vi.spyOn(AudioEngine, 'releaseVoice');
-      const disposeLinksSpy = vi.spyOn(bankEngine, 'disposeRobotLinks');
+      const disposeLinksSpy = vi.spyOn(lfoEngine, 'disposeRobotLinks');
 
       expect(() => useLocaleStore.getState().removeLocale(DEFAULT_LOCALE_ID)).not.toThrow();
       expect(releaseVoiceSpy).not.toHaveBeenCalled();
@@ -456,7 +456,7 @@ describe('localeStore', () => {
     it('disposes every robot\'s bank links too, before removing the locale (docs/tasks/LFO_BANK.md Task 10)', () => {
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r2'));
-      const disposeLinksSpy = vi.spyOn(bankEngine, 'disposeRobotLinks');
+      const disposeLinksSpy = vi.spyOn(lfoEngine, 'disposeRobotLinks');
 
       useLocaleStore.getState().removeLocale(DEFAULT_LOCALE_ID);
 
@@ -469,7 +469,7 @@ describe('localeStore', () => {
     it('one robot\'s disposeRobotLinks throwing does not block disposal of the rest or the removal itself', () => {
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r2'));
-      const disposeLinksSpy = vi.spyOn(bankEngine, 'disposeRobotLinks').mockImplementation((id) => {
+      const disposeLinksSpy = vi.spyOn(lfoEngine, 'disposeRobotLinks').mockImplementation((id) => {
         if (id === 'r1') throw new Error('simulated failure');
       });
 

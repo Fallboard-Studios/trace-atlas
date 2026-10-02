@@ -7,13 +7,13 @@ import type { Robot } from '@/types/Robot';
 
 // The bank engine (docs/tasks/LFO_BANK.md Task 7/9) — a separate module/mock from the old
 // lfoEngine.ts; robotLfoLinks.ts talks to this one exclusively.
-vi.mock('@/engine/lfoBank', () => ({
+vi.mock('@/engine/lfoEngine', () => ({
   lfoEngine: {
     linkTarget: vi.fn(() => true),
   },
 }));
 
-import { lfoEngine } from '@/engine/lfoBank';
+import { lfoEngine } from '@/engine/lfoEngine';
 
 function makeLink(overrides: Partial<LfoLink> = {}): LfoLink {
   return { lane: 'a', depth: 30, ...overrides };

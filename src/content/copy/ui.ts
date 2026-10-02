@@ -18,9 +18,6 @@ export const ui = {
   'ui.power.off': { human: 'Power off' },
   'ui.power.confirmTitle': { human: 'Power off?' },
   'ui.power.confirmBody': { human: 'All audio will stop.' },
-  /** The LFO display's fallback lore name when the targeted field has none; `human` is never
-   *  rendered (the human side always comes from the targeted field). */
-  'ui.lfo': { human: 'Modulation', lore: 'Mutation' },
   'ui.lfo.shape': {
     human: 'Shape',
     lore: 'Mutation Type',

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startAudioBudget, stopAudioBudget } from './audioBudgetSystem';
 import { tickRobotLifecycle } from './robotSystems';
 import { AudioEngine } from '../engine/AudioEngine';
-import { lfoEngine as bankEngine } from '../engine/lfoBank';
+import { lfoEngine } from '../engine/lfoEngine';
 import { useAudioStore } from '../stores/audioStore';
 import { DEFAULT_LOCALE_ID, useAttenuationStyleStore } from '../stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
@@ -436,8 +436,8 @@ describe('audioBudgetSystem', () => {
   // (LPF/HPF) link flag the bank engine now owns directly, and the held-off state the UI greys out from.
   // Real bank engine, spied call-through: nothing here connects an LFO, so no Tone context is needed.
   describe('LFO tiers', () => {
-    const setDrift = vi.spyOn(bankEngine, 'setDriftEnabled');
-    const setFilterLinksEnabled = vi.spyOn(bankEngine, 'setFilterLinksEnabled');
+    const setDrift = vi.spyOn(lfoEngine, 'setDriftEnabled');
+    const setFilterLinksEnabled = vi.spyOn(lfoEngine, 'setFilterLinksEnabled');
     const store = () => useAudioStore.getState();
 
     it('at boot on Light: filter LFOs and drift both off, before anything can connect (?fxLoad=light)', () => {

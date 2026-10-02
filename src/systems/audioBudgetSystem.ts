@@ -2,7 +2,7 @@
 // IMPORTS
 // ========================================
 import { AudioEngine } from '../engine/AudioEngine';
-import { lfoEngine as bankEngine } from '../engine/lfoBank';
+import { lfoEngine } from '../engine/lfoEngine';
 import { useAttenuationStyleStore } from '../stores/attenuationStyleStore';
 import { useAudioStore } from '../stores/audioStore';
 import { useLocaleStore } from '../stores/localeStore';
@@ -103,8 +103,8 @@ function applyLfoTiers(limits: LoadLimits, force = false): void {
   const key = [limits.driftEnabled, limits.filterLfosEnabled].join('|');
   if (!force && key === appliedTierKey) return;
   appliedTierKey = key;
-  bankEngine.setDriftEnabled(limits.driftEnabled);
-  bankEngine.setFilterLinksEnabled(limits.filterLfosEnabled);
+  lfoEngine.setDriftEnabled(limits.driftEnabled);
+  lfoEngine.setFilterLinksEnabled(limits.filterLfosEnabled);
   useAudioStore.getState().setDriftHeldOff(!limits.driftEnabled);
   useAudioStore.getState().setFilterLinksHeldOff(!limits.filterLfosEnabled);
 }
@@ -201,8 +201,8 @@ export function stopAudioBudget(): void {
   AudioEngine.setPolyphonyCap(MAX_POLYPHONY);
   useAudioStore.getState().setSoundingRobotIds([]);
   // Lift every LFO tier too: drift back on, every suspended filter link reconnected.
-  bankEngine.setDriftEnabled(true);
-  bankEngine.setFilterLinksEnabled(true);
+  lfoEngine.setDriftEnabled(true);
+  lfoEngine.setFilterLinksEnabled(true);
   useAudioStore.getState().setDriftHeldOff(false);
   useAudioStore.getState().setFilterLinksHeldOff(false);
 }

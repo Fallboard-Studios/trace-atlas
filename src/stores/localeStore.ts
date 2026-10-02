@@ -7,7 +7,7 @@ import { getLocaleNoiseMap, evictLocaleNoiseMap } from '../utils/noiseMaps';
 import { randomCoordinate } from '../utils/seedUtils';
 import { getSessionSharePayload } from '../utils/sessionShareUtils';
 import { AudioEngine } from '../engine/AudioEngine';
-import { lfoEngine as bankEngine } from '../engine/lfoBank';
+import { lfoEngine } from '../engine/lfoEngine';
 import {
   DEV_TUNING,
   RHYTHMIC_DENSITY_MIN,
@@ -147,9 +147,9 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
           if (DEV_TUNING) swallow(err, 'AudioEngine.unregisterRobotMelody');
         }
         try {
-          bankEngine.disposeRobotLinks(robot.id);
+          lfoEngine.disposeRobotLinks(robot.id);
         } catch (err) {
-          if (DEV_TUNING) swallow(err, 'bankEngine.disposeRobotLinks');
+          if (DEV_TUNING) swallow(err, 'lfoEngine.disposeRobotLinks');
         }
       }
     }
@@ -240,9 +240,9 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
       if (DEV_TUNING) swallow(err, 'AudioEngine.unregisterRobotMelody');
     }
     try {
-      bankEngine.disposeRobotLinks(robotId);
+      lfoEngine.disposeRobotLinks(robotId);
     } catch (err) {
-      if (DEV_TUNING) swallow(err, 'bankEngine.disposeRobotLinks');
+      if (DEV_TUNING) swallow(err, 'lfoEngine.disposeRobotLinks');
     }
 
     set((state) => {

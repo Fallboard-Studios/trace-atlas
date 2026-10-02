@@ -6,9 +6,7 @@ import { create } from 'zustand';
 import { AudioEngine } from '../engine/AudioEngine';
 import { wireGlobalFxChain } from '../engine/audioEngine/globalFx';
 import { volumePositionToGain } from '../engine/audioEngine/volumeTaper';
-// The LFO Bank engine (docs/tasks/LFO_BANK.md Task 7). Aliased to avoid colliding with this
-// file's own `lfoBank` STATE field.
-import { lfoEngine as bankEngine } from '../engine/lfoBank';
+import { lfoEngine } from '../engine/lfoEngine';
 import {
   generateGlobalAudioSettings,
   generateGlobalLfoSettings,
@@ -265,16 +263,16 @@ export interface AudioStore {
   regenerateGlobalLfoFromSeed: (attenuationStyleId: string, attenuationStyleName: string) => void;
   /**
    * Sets one LFO Bank lane's settings (docs/tasks/LFO_BANK.md Task 8) — updates state, then calls
-   * the matching bankEngine setter (setBankShape/Rate/RateDrift/DepthDrift) ONLY for the field(s)
+   * the matching lfoEngine setter (setBankShape/Rate/RateDrift/DepthDrift) ONLY for the field(s)
    * actually given in `partial`.
    */
   setLfoBank: (lane: LfoLaneId, partial: Partial<BankLfoSettings>) => void;
-  /** Sets one global-chain target's LFO Bank link — updates state and calls bankEngine.linkTarget
+  /** Sets one global-chain target's LFO Bank link — updates state and calls lfoEngine.linkTarget
    *  (no robotId — global-chain targets are never robot-scoped). */
   setGlobalLfoLink: (target: GlobalLfoTargetId, link: LfoLink) => void;
   /**
    * Regenerate `lfoBank` for the given Attenuation Style from the seed (generateLfoBankSettings).
-   * Data-only — does NOT touch bankEngine, same "no real Tone node before AudioContext exists"
+   * Data-only — does NOT touch lfoEngine, same "no real Tone node before AudioContext exists"
    * reasoning as regenerateGlobalLfoFromSeed above; AudioEngine.start() (Task 10) primes the bank.
    */
   regenerateLfoBankFromSeed: (attenuationStyleId: string, attenuationStyleName: string) => void;
@@ -437,15 +435,15 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
 
   setLfoBank: (lane, partial) => {
     set((state) => ({ lfoBank: { ...state.lfoBank, [lane]: { ...state.lfoBank[lane], ...partial } } }));
-    if (partial.shape !== undefined) bankEngine.setBankShape(lane, partial.shape);
-    if (partial.rate !== undefined) bankEngine.setBankRate(lane, partial.rate);
-    if (partial.rateDrift !== undefined) bankEngine.setBankRateDrift(lane, partial.rateDrift);
-    if (partial.depthDrift !== undefined) bankEngine.setBankDepthDrift(lane, partial.depthDrift);
+    if (partial.shape !== undefined) lfoEngine.setBankShape(lane, partial.shape);
+    if (partial.rate !== undefined) lfoEngine.setBankRate(lane, partial.rate);
+    if (partial.rateDrift !== undefined) lfoEngine.setBankRateDrift(lane, partial.rateDrift);
+    if (partial.depthDrift !== undefined) lfoEngine.setBankDepthDrift(lane, partial.depthDrift);
   },
 
   setGlobalLfoLink: (target, link) => {
     set((state) => ({ globalLfoLinks: { ...state.globalLfoLinks, [target]: link } }));
-    bankEngine.linkTarget(target, link);
+    lfoEngine.linkTarget(target, link);
   },
 
   // Data-only, same reasoning as regenerateGlobalLfoFromSeed above — this runs at module load / on

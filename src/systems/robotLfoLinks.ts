@@ -4,7 +4,7 @@
  * link-only model. No cap/policy concept here (the robot-LFO cap was removed outright, Task 2) —
  * every stored link is primed unconditionally.
  */
-import { lfoEngine } from '@/engine/lfoBank';
+import { lfoEngine } from '@/engine/lfoEngine';
 import { ROBOT_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoLink } from '@/types/lfo';
 import type { Robot } from '@/types/Robot';
 
