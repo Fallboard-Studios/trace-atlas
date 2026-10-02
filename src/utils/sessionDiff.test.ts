@@ -800,6 +800,19 @@ describe('applySessionPayload', () => {
     expect(useAudioStore.getState().globalAudio).not.toHaveProperty('lfoDrift');
   });
 
+  it('applies a malformed v1 payload missing robotOverrides entirely without throwing', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const freshPayload = buildSessionPayload();
+    // A corrupted/hand-truncated v1 blob on disk or in a share link -- robotOverrides absent
+    // rather than {} (stripLegacyV1LfoFields's own Object.entries(raw.robotOverrides) used to
+    // throw TypeError: Cannot convert undefined or null to object on exactly this shape).
+    const { robotOverrides: _robotOverrides, ...payloadWithoutRobotOverrides } = freshPayload;
+    const v1Payload = { ...payloadWithoutRobotOverrides, version: 1, lfoBank: undefined, globalLfoLinks: undefined } as unknown as SessionPayload;
+
+    expect(() => applySessionPayload(v1Payload, { skipLocaleRebuild: true })).not.toThrow();
+  });
+
   it('migrateLfoDrift no longer exists', async () => {
     const sessionDiffModule = await import('./sessionDiff');
     expect('migrateLfoDrift' in sessionDiffModule).toBe(false);

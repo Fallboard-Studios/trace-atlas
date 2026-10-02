@@ -367,8 +367,10 @@ function stripLegacyV1LfoFields(payload: SessionPayload): SessionPayload {
   const raw = payload as unknown as Record<string, unknown>;
   const globalAudio = { ...(raw.globalAudio as Record<string, unknown>) };
   delete globalAudio.lfoDrift;
+  const rawRobotOverrides =
+    raw.robotOverrides && typeof raw.robotOverrides === 'object' ? (raw.robotOverrides as Record<string, Record<string, unknown>>) : {};
   const robotOverrides = Object.fromEntries(
-    Object.entries(raw.robotOverrides as Record<string, Record<string, unknown>>).map(([id, diff]) => {
+    Object.entries(rawRobotOverrides).map(([id, diff]) => {
       const cleanedDiff = { ...diff };
       delete cleanedDiff.lfoSettings;
       return [id, cleanedDiff];
