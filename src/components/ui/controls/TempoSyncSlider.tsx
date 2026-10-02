@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { SliderLinear } from './SliderLinear';
 import { Toggle } from './Toggle';
-import { noteValueBeats, noteValueEquals, type NoteValue } from '@/data/noteValues';
+import { isNoteValue, noteValueBeats, noteValueEquals, type NoteValue } from '@/data/noteValues';
 import { formatNoteValue } from '@/utils/formatNoteValue';
 import type { SliderLinearSchema, ToggleSchema } from '@/types/controls';
 import { labels, optionsRecord } from '@/content';
@@ -52,7 +52,11 @@ function displayIndex(sync: NoteValue, allowed: readonly NoteValue[]): number {
  * readout = the note's name — so the caller owns tempo (it passes `allowed`) and the store owns the
  * Free <-> Sync conversion (it handles `onModeChange`).
  */
-function TempoSyncSliderInner({ schema, freeValue, syncValue, allowed, onFreeChange, onSyncChange, onModeChange, disabled, swelling }: TempoSyncSliderProps) {
+function TempoSyncSliderInner({ schema, freeValue, syncValue: storedSync, allowed, onFreeChange, onSyncChange, onModeChange, disabled, swelling }: TempoSyncSliderProps) {
+  // An unrecognised stored `sync` is Free everywhere else (the resolvers, spec assumption 9), so the
+  // audio is running Free; showing Anchored over it would lie. Validated once here, so every use below
+  // sees either a real note or undefined.
+  const syncValue = isNoteValue(storedSync) ? storedSync : undefined;
   const synced = syncValue !== undefined;
 
   // Memoized on [schema, allowed] only: `syncValue` changes on every step and must not rebuild it.

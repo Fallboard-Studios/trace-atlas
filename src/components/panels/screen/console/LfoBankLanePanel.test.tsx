@@ -22,8 +22,23 @@ vi.mock('../../../../engine/lfoEngine', () => ({
 }));
 
 import { LfoBankLanePanel } from './LfoBankLanePanel';
+import { lfoEngine } from '../../../../engine/lfoEngine';
 import { useAudioStore } from '@/stores/audioStore';
 import { DEFAULT_BANK_LFO } from '@/data/lfoConfig';
+import { CONTENT } from '@/content';
+import { noteValueEquals, noteValueHz, type NoteDivision, type NoteModifier, type NoteValue } from '@/data/noteValues';
+import { allowedLaneNoteValues } from '@/utils/tempoSync';
+import { formatNoteValue } from '@/utils/formatNoteValue';
+import { LFO_LANE_IDS, type BankLfoSettings, type LfoLaneId } from '@/types/lfo';
+
+const nv = (division: NoteDivision, modifier: NoteModifier = 'straight'): NoteValue => ({ division, modifier });
+const TOGGLE_NAME = CONTENT['ui.tempoSync'].human;
+const FREE_WORD = CONTENT['ui.tempoSync'].options.free.lore;
+const SYNC_WORD = CONTENT['ui.tempoSync'].options.sync.lore;
+const setLane = (lane: LfoLaneId, patch: Partial<BankLfoSettings>) =>
+  useAudioStore.setState((s) => ({ lfoBank: { ...s.lfoBank, [lane]: { ...DEFAULT_BANK_LFO, ...patch } } }));
+const rateThumb = () => screen.getByRole('slider', { name: 'Rate' });
+const tempoToggle = () => screen.getByRole('switch', { name: TOGGLE_NAME });
 
 /**
  * LfoBankLanePanel (docs/tasks/LFO_BANK.md Task 15) — one lane's own Shape + Rate + Rate
@@ -148,5 +163,208 @@ describe('LfoBankLanePanel', () => {
     const { container } = render(<LfoBankLanePanel lane="d" />);
     expect(within(container).getByText('Overtone LFO')).toBeTruthy();
     expect(screen.getByRole('slider', { name: 'Rate' }).getAttribute('aria-valuenow')).toBe('7');
+  });
+});
+
+/**
+ * Free | Sync on the lane's Rate (docs/specs/FREE_SYNC_TOGGLE.md §1.4, Task 10): Rate renders through
+ * TempoSyncSlider, whose toggle goes through the store's setLfoBankLaneSyncMode and whose two value
+ * callbacks write `rate` (Free) or `sync` (Sync) through setLfoBank. Asserted against the real store
+ * with only the Tone-backed lfoEngine mocked, so a wrong wiring shows up as the wrong state.
+ */
+describe('LfoBankLanePanel — Free | Sync on Rate', () => {
+  beforeEach(() => {
+    useAudioStore.setState({
+      bpm: 60,
+      driftHeldOff: false,
+      lfoBank: Object.fromEntries(LFO_LANE_IDS.map((l) => [l, { ...DEFAULT_BANK_LFO }])) as Record<LfoLaneId, BankLfoSettings>,
+    });
+    vi.mocked(lfoEngine.setBankRate).mockClear();
+  });
+
+  describe('Free (no sync stored)', () => {
+    it('shows an unchecked Tempo Sync switch with the Float facade beside the unchanged Free Rate slider', () => {
+      setLane('b', { rate: 3 });
+      render(<LfoBankLanePanel lane="b" />);
+      expect(tempoToggle().getAttribute('aria-checked')).toBe('false');
+      expect(tempoToggle().textContent).toBe(FREE_WORD);
+      expect(rateThumb().getAttribute('aria-valuenow')).toBe('3');
+      expect(rateThumb().hasAttribute('aria-valuetext')).toBe(false);
+    });
+
+    it('a Free edit writes `rate` and leaves the lane without a `sync` key', () => {
+      setLane('b', { rate: 1 });
+      render(<LfoBankLanePanel lane="b" />);
+      rateThumb().focus();
+      fireEvent.keyDown(rateThumb(), { key: 'ArrowRight' });
+      const lane = useAudioStore.getState().lfoBank.b;
+      expect(lane.rate).not.toBe(1);
+      expect('sync' in lane).toBe(false);
+    });
+  });
+
+  describe('Sync (a note stored)', () => {
+    it('shows a checked switch with the Anchored facade and the note\'s index on the Rate thumb, announced by name', () => {
+      setLane('b', { rate: 19, sync: nv('1/8', 'dotted') });
+      render(<LfoBankLanePanel lane="b" />);
+      const list = allowedLaneNoteValues(60);
+      expect(tempoToggle().getAttribute('aria-checked')).toBe('true');
+      expect(tempoToggle().textContent).toBe(SYNC_WORD);
+      expect(rateThumb().getAttribute('aria-valuenow')).toBe(String(list.findIndex((n) => noteValueEquals(n, nv('1/8', 'dotted')))));
+      expect(rateThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(nv('1/8', 'dotted')));
+      expect(rateThumb().getAttribute('aria-valuemax')).toBe(String(list.length - 1));
+    });
+
+    it('ignores the stored Free rate while synced — it never moves the Sync thumb', () => {
+      setLane('b', { rate: 0, sync: nv('1/4') });
+      render(<LfoBankLanePanel lane="b" />);
+      expect(rateThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(nv('1/4')));
+    });
+
+    it('a step writes `sync` with the next note, keeps the Free `rate`, and pushes that note\'s Hz to the engine', () => {
+      setLane('b', { rate: 1.25, sync: nv('1/4') });
+      render(<LfoBankLanePanel lane="b" />);
+      const list = allowedLaneNoteValues(60);
+      const next = list[list.findIndex((n) => noteValueEquals(n, nv('1/4'))) + 1];
+      rateThumb().focus();
+      fireEvent.keyDown(rateThumb(), { key: 'ArrowRight' });
+      const lane = useAudioStore.getState().lfoBank.b;
+      expect(lane.sync).toEqual(next);
+      expect(lane.rate).toBe(1.25);
+      expect(lfoEngine.setBankRate).toHaveBeenLastCalledWith('b', noteValueHz(next, 60));
+    });
+
+    it('a step never writes `rate` — the Free value underneath stays exactly as stored', () => {
+      setLane('b', { rate: 7.5, sync: nv('1/2') });
+      render(<LfoBankLanePanel lane="b" />);
+      rateThumb().focus();
+      fireEvent.keyDown(rateThumb(), { key: 'ArrowLeft' });
+      expect(useAudioStore.getState().lfoBank.b.rate).toBe(7.5);
+    });
+
+    it('a stored fast note is clamped to the fastest stop at a tempo that pushes it past 20 Hz, and restores when the tempo comes back', async () => {
+      // 1/32 triplet is 12 Hz at 60 BPM (in range) and 40 Hz at 200 BPM (past the cap).
+      setLane('b', { sync: nv('1/32', 'triplet') });
+      render(<LfoBankLanePanel lane="b" />);
+      expect(rateThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(nv('1/32', 'triplet')));
+
+      act(() => useAudioStore.setState({ bpm: 200 }));
+      await act(async () => { await Promise.resolve(); }); // the slider eases a non-drag change
+      const fast = allowedLaneNoteValues(200);
+      expect(rateThumb().getAttribute('aria-valuemax')).toBe(String(fast.length - 1));
+      expect(rateThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(fast[fast.length - 1]));
+      expect(useAudioStore.getState().lfoBank.b.sync).toEqual(nv('1/32', 'triplet')); // display-only: nothing written
+
+      act(() => useAudioStore.setState({ bpm: 60 }));
+      await act(async () => { await Promise.resolve(); });
+      expect(rateThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(nv('1/32', 'triplet')));
+    });
+
+    it('an unrecognised stored `sync` reads as Free, matching what the resolvers do to the audio', () => {
+      setLane('b', { rate: 3, sync: { division: '1/3', modifier: 'straight' } as unknown as NoteValue });
+      render(<LfoBankLanePanel lane="b" />);
+      expect(tempoToggle().getAttribute('aria-checked')).toBe('false');
+      expect(rateThumb().getAttribute('aria-valuenow')).toBe('3');
+      expect(rateThumb().hasAttribute('aria-valuetext')).toBe(false);
+    });
+  });
+
+  describe('the toggle', () => {
+    it('Float -> Anchored writes the nearest note at the current tempo, via setLfoBankLaneSyncMode', () => {
+      setLane('b', { rate: 1 }); // 1 Hz at 60 BPM is exactly a quarter note
+      render(<LfoBankLanePanel lane="b" />);
+      fireEvent.click(tempoToggle());
+      expect(useAudioStore.getState().lfoBank.b.sync).toEqual(nv('1/4'));
+      expect(tempoToggle().getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('Float -> Anchored at a different tempo snaps to that tempo\'s nearest note', () => {
+      useAudioStore.setState({ bpm: 120 });
+      setLane('b', { rate: 1 }); // 1 Hz at 120 BPM is two beats: a half note
+      render(<LfoBankLanePanel lane="b" />);
+      fireEvent.click(tempoToggle());
+      expect(useAudioStore.getState().lfoBank.b.sync).toEqual(nv('1/2'));
+    });
+
+    it('Anchored -> Float removes the `sync` key entirely and keeps what was heard', () => {
+      setLane('b', { rate: 19, sync: nv('1/8', 'dotted') }); // 0.75 s at 60 BPM = 1.333 Hz
+      render(<LfoBankLanePanel lane="b" />);
+      fireEvent.click(tempoToggle());
+      const lane = useAudioStore.getState().lfoBank.b;
+      expect('sync' in lane).toBe(false);
+      expect(lane.rate).toBeCloseTo(1.35, 10); // quantised to the slider's 0.05 step
+      expect(tempoToggle().getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('a Float -> Anchored -> Float round trip leaves no `sync` key', () => {
+      setLane('b', { rate: 2 });
+      render(<LfoBankLanePanel lane="b" />);
+      fireEvent.click(tempoToggle());
+      expect('sync' in useAudioStore.getState().lfoBank.b).toBe(true);
+      fireEvent.click(tempoToggle());
+      expect('sync' in useAudioStore.getState().lfoBank.b).toBe(false);
+    });
+
+    it('flipping to Anchored leaves the lane\'s shape and drifts alone', () => {
+      setLane('b', { shape: 'square', rateDrift: 0.3, depthDrift: -0.4, rate: 2 });
+      render(<LfoBankLanePanel lane="b" />);
+      fireEvent.click(tempoToggle());
+      const lane = useAudioStore.getState().lfoBank.b;
+      expect(lane.shape).toBe('square');
+      expect(lane.rateDrift).toBe(0.3);
+      expect(lane.depthDrift).toBe(-0.4);
+    });
+
+    it('only this lane changes — the other three lanes keep their Free rates and gain no `sync`', () => {
+      setLane('c', { rate: 4 });
+      render(<LfoBankLanePanel lane="b" />);
+      fireEvent.click(tempoToggle());
+      for (const other of ['a', 'c', 'd'] as const) expect('sync' in useAudioStore.getState().lfoBank[other]).toBe(false);
+      expect(useAudioStore.getState().lfoBank.c.rate).toBe(4);
+    });
+
+    it('stays a working, enabled control while Audio Load holds the drift tier off', () => {
+      useAudioStore.setState({ driftHeldOff: true });
+      render(<LfoBankLanePanel lane="b" />);
+      expect(tempoToggle().hasAttribute('disabled')).toBe(false);
+      expect(rateThumb().getAttribute('data-disabled')).toBeNull();
+      fireEvent.click(tempoToggle());
+      expect('sync' in useAudioStore.getState().lfoBank.b).toBe(true);
+    });
+  });
+
+  describe('every lane renders the composition', () => {
+    it.each(LFO_LANE_IDS)('lane %s has a Tempo Sync switch and a Rate slider, and flips independently', (lane) => {
+      render(<LfoBankLanePanel lane={lane} />);
+      expect(tempoToggle()).toBeTruthy();
+      expect(rateThumb()).toBeTruthy();
+      fireEvent.click(tempoToggle());
+      expect('sync' in useAudioStore.getState().lfoBank[lane]).toBe(true);
+      for (const other of LFO_LANE_IDS.filter((l) => l !== lane)) {
+        expect('sync' in useAudioStore.getState().lfoBank[other]).toBe(false);
+      }
+    });
+  });
+
+  describe('the rest of the panel is unchanged', () => {
+    it('still renders Shape, Rate Drift and Depth Drift beside the new Rate row', () => {
+      render(<LfoBankLanePanel lane="b" />);
+      expect(screen.getByRole('group', { name: 'Shape' })).toBeTruthy();
+      expect(screen.getByRole('slider', { name: 'Rate Drift' })).toBeTruthy();
+      expect(screen.getByRole('slider', { name: 'Depth Drift' })).toBeTruthy();
+      expect(screen.getAllByRole('slider')).toHaveLength(3);
+      expect(screen.getAllByRole('switch')).toHaveLength(1);
+    });
+
+    it('drift held-off behaviour is as before: drift greyed and shown as 0, Rate row untouched, held-off note shown', () => {
+      setLane('b', { rateDrift: 0.4, depthDrift: -0.25, sync: nv('1/4') });
+      useAudioStore.setState({ driftHeldOff: true });
+      render(<LfoBankLanePanel lane="b" />);
+      expect(screen.getByRole('slider', { name: 'Rate Drift' }).getAttribute('data-disabled')).not.toBeNull();
+      expect(screen.getByRole('slider', { name: 'Rate Drift' }).getAttribute('aria-valuenow')).toBe('0');
+      expect(rateThumb().getAttribute('data-disabled')).toBeNull();
+      expect(rateThumb().getAttribute('aria-valuetext')).toBe(formatNoteValue(nv('1/4')));
+      expect(screen.getByText('Held off by Audio Load')).toBeTruthy();
+    });
   });
 });

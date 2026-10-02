@@ -205,6 +205,44 @@ describe('TempoSyncSlider — Sync mode', () => {
   });
 });
 
+describe('TempoSyncSlider — an unrecognised syncValue (spec assumption 9)', () => {
+  // The resolvers treat an unrecognised `sync` as Free, so the audio is running Free. Showing
+  // Anchored over that would lie, and a NaN beat count would feed the index search.
+  const corrupt = { division: '1/3', modifier: 'straight' } as unknown as NoteValue;
+
+  it('renders as Free: unchecked switch, the Free value and unit on the slider', () => {
+    const { container } = render(<TempoSyncSlider schema={schema} freeValue={3} syncValue={corrupt} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByRole('switch').textContent).toBe(FREE_WORD);
+    expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('3');
+    expect(readout(container)).toBe('3Hz');
+  });
+
+  it('a step writes the Free value, not a note', () => {
+    const onFreeChange = vi.fn();
+    const onSyncChange = vi.fn();
+    render(<TempoSyncSlider schema={schema} freeValue={3} syncValue={corrupt} allowed={LANE_LIST} onFreeChange={onFreeChange} onSyncChange={onSyncChange} onModeChange={noop} />);
+    press('ArrowRight');
+    expect(onFreeChange).toHaveBeenCalledTimes(1);
+    expect(onSyncChange).not.toHaveBeenCalled();
+  });
+
+  it('clicking the switch asks for Sync, the way a Free control would', () => {
+    const onModeChange = vi.fn();
+    render(<TempoSyncSlider schema={schema} freeValue={3} syncValue={corrupt} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={onModeChange} />);
+    fireEvent.click(screen.getByRole('switch'));
+    expect(onModeChange).toHaveBeenCalledWith(true);
+  });
+
+  it('a stringly or null syncValue is Free too', () => {
+    for (const bad of ['1/4', null, 0, {}] as unknown[]) {
+      const { unmount } = render(<TempoSyncSlider schema={schema} freeValue={3} syncValue={bad as NoteValue} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+      expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false');
+      unmount();
+    }
+  });
+});
+
 describe('TempoSyncSlider — a stored note outside the allowed list (tempo moved)', () => {
   it('lane list: a note slower than the slowest allowed shows the first (slowest) stop', () => {
     const { container } = render(<TempoSyncSlider schema={schema} freeValue={1} syncValue={nv('4')} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
@@ -365,6 +403,45 @@ describe('TempoSyncSlider — switching modes redraws the slider outright', () =
     rerender(<TempoSyncSlider schema={schema} freeValue={1.35} syncValue={undefined} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
     expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('1.35');
     expect(readout(container)).toBe('1.35Hz');
+  });
+});
+
+describe('TempoSyncSlider — what a screen reader hears (Task 10, folded in from Task 8)', () => {
+  const valueText = () => screen.getByRole('slider').getAttribute('aria-valuetext');
+
+  it('in Sync the thumb announces the note name, not the index', () => {
+    render(<TempoSyncSlider schema={schema} freeValue={19} syncValue={nv('1/8', 'dotted')} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+    expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('3');
+    expect(valueText()).toBe(formatNoteValue(nv('1/8', 'dotted')));
+  });
+
+  it('in Free the thumb has no aria-valuetext — the number is already the right thing to read', () => {
+    render(<TempoSyncSlider schema={schema} freeValue={1.5} syncValue={undefined} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+    expect(screen.getByRole('slider').hasAttribute('aria-valuetext')).toBe(false);
+  });
+
+  it('the announced name follows a step along the list', () => {
+    render(<TempoSyncSlider schema={schema} freeValue={19} syncValue={nv('1/8', 'dotted')} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+    press('ArrowRight');
+    expect(valueText()).toBe(formatNoteValue(LANE_LIST[4]));
+  });
+
+  it('flipping Free -> Sync gives the thumb the note name at once, and Sync -> Free takes it away again', () => {
+    const { rerender } = render(<TempoSyncSlider schema={schema} freeValue={1.5} syncValue={undefined} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+    rerender(<TempoSyncSlider schema={schema} freeValue={1.5} syncValue={nv('1/4')} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+    expect(valueText()).toBe(formatNoteValue(nv('1/4')));
+    rerender(<TempoSyncSlider schema={schema} freeValue={1.5} syncValue={undefined} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+    expect(screen.getByRole('slider').hasAttribute('aria-valuetext')).toBe(false);
+  });
+
+  it('a note pushed out of the list by a tempo change is announced as the stop actually shown', () => {
+    render(<TempoSyncSlider schema={schema} freeValue={1} syncValue={nv('4')} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+    expect(valueText()).toBe(formatNoteValue(LANE_LIST[0]));
+  });
+
+  it('matches the visible readout, so what is seen and what is heard cannot drift apart', () => {
+    const { container } = render(<TempoSyncSlider schema={schema} freeValue={19} syncValue={nv('1/16')} allowed={LANE_LIST} onFreeChange={noop} onSyncChange={noop} onModeChange={noop} />);
+    expect(valueText()).toBe(readout(container));
   });
 });
 

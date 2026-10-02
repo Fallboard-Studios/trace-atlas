@@ -73,9 +73,12 @@ function SliderLinearInner({ schema, value, onChange, disabled, verticalHeight, 
     [displayValue, schema.min, schema.max, boxCount],
   );
 
+  // Computed once and shared: the visible readout and the thumb's aria-valuetext must never disagree.
+  const formattedValue = schema.formatValue?.(displayValue);
+
   const valueLabel = (
     <span className="sc-slider-linear__value">
-      {schema.formatValue ? schema.formatValue(displayValue) : `${formatDisplayValue(displayValue)}${schema.unit ?? ''}`}
+      {schema.formatValue ? formattedValue : `${formatDisplayValue(displayValue)}${schema.unit ?? ''}`}
     </span>
   );
 
@@ -125,7 +128,10 @@ function SliderLinearInner({ schema, value, onChange, disabled, verticalHeight, 
             timelineKeyPrefix={`cabinet-voxel-${schema.id}`}
           />
         </Slider.Track>
-        <Slider.Thumb className="sc-slider-linear__thumb" aria-label={resolveAccessibleName(schema)} />
+        {/* aria-valuetext only when the schema formats its value (Sync mode's note names): Radix exposes
+            just the numeric index through aria-valuenow, which a screen reader would read as "5". Omitted
+            otherwise, so every plain slider's markup is unchanged. */}
+        <Slider.Thumb className="sc-slider-linear__thumb" aria-label={resolveAccessibleName(schema)} aria-valuetext={formattedValue} />
       </Slider.Root>
       {!isVertical && valueLabel}
     </div>
