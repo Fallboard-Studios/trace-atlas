@@ -11,9 +11,10 @@ import {
   LFO_RATE_MAX,
   LFO_DEPTH_MIN,
   LFO_DEPTH_MAX,
-  DRIFT_GROUP_IDS,
-  type LfoSettings,
-  type DriftGroupId,
+  LFO_LANE_IDS,
+  type LfoLaneId,
+  type BankLfoSettings,
+  type LfoLink,
 } from './lfo';
 
 // ========================================
@@ -34,27 +35,33 @@ describe('LFO_SHAPES', () => {
 
 describe('ROBOT_LFO_TARGET_IDS', () => {
   // 13 → 9 on 2026-09-30: 'volume' and the three 'layerN.pulseWidth' targets were removed
-  // (docs/specs/LFO_LOAD_FIX.md assumption 9 / §1.4). ROBOT_DATA_GRID.md's Has LFO column
-  // for Volume and Interval reads No.
-  it('matches ROBOT_DATA_GRID.md\'s 9 Has-LFO-flagged targets exactly — gain/detune/phase on each of 3 layers', () => {
+  // (docs/specs/LFO_LOAD_FIX.md assumption 9 / §1.4). 9 → 6 on 2026-10-01 (docs/specs/LFO_BANK.md
+  // Task 1): the three 'layerN.phase' targets were cut — Phase stays a plain slider, just no
+  // longer LFO-modulatable (no live Signal ever backed it; it was a control-rate polling fallback).
+  it('matches ROBOT_DATA_GRID.md\'s 6 Has-LFO-flagged targets exactly — gain/detune on each of 3 layers', () => {
     expect([...ROBOT_LFO_TARGET_IDS].sort()).toEqual(
       [
-        'layer0.gain', 'layer0.detune', 'layer0.phase',
-        'layer1.gain', 'layer1.detune', 'layer1.phase',
-        'layer2.gain', 'layer2.detune', 'layer2.phase',
+        'layer0.gain', 'layer0.detune',
+        'layer1.gain', 'layer1.detune',
+        'layer2.gain', 'layer2.detune',
       ].sort()
     );
   });
 
-  it('has exactly 9 members, no duplicates', () => {
-    expect(ROBOT_LFO_TARGET_IDS).toHaveLength(9);
-    expect(new Set(ROBOT_LFO_TARGET_IDS).size).toBe(9);
+  it('has exactly 6 members, no duplicates', () => {
+    expect(ROBOT_LFO_TARGET_IDS).toHaveLength(6);
+    expect(new Set(ROBOT_LFO_TARGET_IDS).size).toBe(6);
   });
 
   it('never carries the removed volume or pulseWidth targets', () => {
     const ids = ROBOT_LFO_TARGET_IDS as readonly string[];
     expect(ids).not.toContain('volume');
     expect(ids.some((id) => id.endsWith('.pulseWidth'))).toBe(false);
+  });
+
+  it('never carries the removed phase targets (docs/specs/LFO_BANK.md Task 1)', () => {
+    const ids = ROBOT_LFO_TARGET_IDS as readonly string[];
+    expect(ids.some((id) => id.endsWith('.phase'))).toBe(false);
   });
 });
 
@@ -88,7 +95,7 @@ describe('GLOBAL_LFO_TARGET_IDS', () => {
   });
 });
 
-describe('LfoSettings bounds', () => {
+describe('LFO rate/depth bounds', () => {
   it('rate bounds are 0-20 Hz — 0 is the removed OSCILLATION STATE toggle\'s replacement "off" value', () => {
     expect(LFO_RATE_MIN).toBe(0);
     expect(LFO_RATE_MAX).toBe(20);
@@ -103,33 +110,43 @@ describe('LfoSettings bounds', () => {
     expect(LFO_RATE_MIN).toBeLessThan(LFO_RATE_MAX);
     expect(LFO_DEPTH_MIN).toBeLessThan(LFO_DEPTH_MAX);
   });
+});
 
-  it('accepts a valid LfoSettings shape (compile-time check via build:types)', () => {
-    const settings: LfoSettings = { shape: 'sine', rate: 1.5, depth: 50 };
-    expect(settings.shape).toBe('sine');
-    expect(settings.rate).toBe(1.5);
-    expect(settings.depth).toBe(50);
+describe('LFO_LANE_IDS', () => {
+  it('is exactly a, b, c, d in order (docs/specs/LFO_BANK.md §1.1)', () => {
+    expect(LFO_LANE_IDS).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('has exactly 4 members, no duplicates', () => {
+    expect(LFO_LANE_IDS).toHaveLength(4);
+    expect(new Set(LFO_LANE_IDS).size).toBe(4);
+  });
+
+  it('accepts a valid LfoLaneId value (compile-time check via build:types)', () => {
+    const lane: LfoLaneId = 'c';
+    expect(LFO_LANE_IDS).toContain(lane);
   });
 });
 
-describe('DRIFT_GROUP_IDS', () => {
-  it('has exactly the 2 documented drift groups (docs/specs/FLEET_DRIFT_CONSOLIDATION.md — eq3/filterLPF/filterHPF merged into globalFx)', () => {
-    expect([...DRIFT_GROUP_IDS].sort()).toEqual(['globalFx', 'robots'].sort());
+describe('BankLfoSettings', () => {
+  it('accepts a valid shape (compile-time check via build:types)', () => {
+    const settings: BankLfoSettings = { shape: 'sine', rate: 1.5, rateDrift: 0.2, depthDrift: -0.3 };
+    expect(settings.shape).toBe('sine');
+    expect(settings.rate).toBe(1.5);
+    expect(settings.rateDrift).toBe(0.2);
+    expect(settings.depthDrift).toBe(-0.3);
+  });
+});
+
+describe('LfoLink', () => {
+  it('accepts a linked value (compile-time check via build:types)', () => {
+    const link: LfoLink = { lane: 'b', depth: 40 };
+    expect(link.lane).toBe('b');
+    expect(link.depth).toBe(40);
   });
 
-  it('has exactly 2 members, no duplicates', () => {
-    expect(DRIFT_GROUP_IDS).toHaveLength(2);
-    expect(new Set(DRIFT_GROUP_IDS).size).toBe(2);
-  });
-
-  it('no longer contains the old eq3/filterLPF/filterHPF group ids', () => {
-    expect(DRIFT_GROUP_IDS).not.toContain('eq3');
-    expect(DRIFT_GROUP_IDS).not.toContain('filterLPF');
-    expect(DRIFT_GROUP_IDS).not.toContain('filterHPF');
-  });
-
-  it('accepts a valid DriftGroupId value (compile-time check via build:types)', () => {
-    const group: DriftGroupId = 'robots';
-    expect(DRIFT_GROUP_IDS).toContain(group);
+  it('accepts lane: null for an unlinked target', () => {
+    const link: LfoLink = { lane: null, depth: 0 };
+    expect(link.lane).toBeNull();
   });
 });

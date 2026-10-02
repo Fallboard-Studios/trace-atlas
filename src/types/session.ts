@@ -5,9 +5,9 @@
  */
 import type { ADSREnvelope } from './Robot';
 import type { OscillatorLayer } from './layeredAudio';
-import type { RobotLfoTargetId, LfoSettings, GlobalLfoTargetId } from './lfo';
 import type { Company } from './Company';
 import type { GlobalAudioSettings } from './globalAudio';
+import type { RobotLfoTargetId, GlobalLfoTargetId, LfoLaneId, LfoLink, BankLfoSettings } from './lfo';
 
 /**
  * Only the audio-relevant fields a robot's Robot Options can override — never job assignment,
@@ -25,8 +25,11 @@ export interface RobotAudioOverrideDiff {
   noteVariance?: { active: boolean; value: number };
   pitchRepeat?: number;
   octaveRange?: [number, number];
-  lfoSettings?: Partial<Record<RobotLfoTargetId, LfoSettings>>;
   name?: string;
+  /** Only the targets whose link differs from the spawn seed baseline (LFO Bank, docs/tasks/
+   *  LFO_BANK.md Task 18) — an untouched target has no key here, same "absent means untouched"
+   *  contract every other field on this interface already follows. */
+  lfoLinks?: Partial<Record<RobotLfoTargetId, LfoLink>>;
 }
 
 /** A spawn-generated company's diff — membership and/or a rename. User-created companies (no
@@ -42,7 +45,7 @@ export interface CompanyDiff {
  *  21, which depends on this phase). Unused by this phase's own code; it exists purely so a
  *  future importer can distinguish payload shapes, which isn't retrofittable after sessions
  *  already exist without it. */
-export type SessionPayloadVersion = 1;
+export type SessionPayloadVersion = 1 | 2;
 
 export interface SessionPayload {
   version: SessionPayloadVersion;
@@ -54,6 +57,13 @@ export interface SessionPayload {
   attenuationStyleName: string;
   coordinates: { x: number; y: number };
   globalAudio: GlobalAudioSettings;
+  /** The LFO Bank's 4 lanes and the 7 global-chain links (docs/tasks/LFO_BANK.md Task 18) —
+   *  always captured whole (never diffed, same treatment as globalAudio itself: there's no
+   *  meaningful "untouched" baseline for a world-level lane/link set). Optional only so a payload
+   *  saved before this field existed (version 1) still decodes — applySessionPayload leaves the
+   *  freshly-seeded value untouched when absent, same convention as the pacing fields below. */
+  lfoBank?: Record<LfoLaneId, BankLfoSettings>;
+  globalLfoLinks?: Record<GlobalLfoTargetId, LfoLink>;
   /** Pacing section fields — audioStore state, not part of GlobalAudioSettings. Freely
    *  user-editable and (bpm aside) carried forward across Attenuation Style switches, so they
    *  can't be re-derived from attenuationStyleName/coordinates alone and must be captured
@@ -64,13 +74,6 @@ export interface SessionPayload {
   swellFrequency?: number;
   swellDuration?: number;
   pingVarianceAutomation?: number;
-  /** Audio Rig's global-chain LFO panel (audioStore's own `globalLfo`) — seeded per Attenuation
-   *  Style but freely user-editable afterward, and (unlike bpm/the swell fields above)
-   *  unconditionally RE-seeded from scratch on every future Attenuation Style switch
-   *  (regenerateGlobalLfoFromSeed has no "carry forward once edited" branch), so it needs the
-   *  same explicit capture/restore. Optional/per-target-optional for the same older-payload
-   *  reason as the fields above. */
-  globalLfo?: Partial<Record<GlobalLfoTargetId, LfoSettings>>;
   /** Keyed by robot id. An untouched robot has no entry (not an entry equal to {}). */
   robotOverrides: Record<string, RobotAudioOverrideDiff>;
   /** Keyed by the company's deterministic spawn-generated id. */

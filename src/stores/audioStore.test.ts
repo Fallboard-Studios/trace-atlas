@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { GLOBAL_LFO_TARGET_IDS, DRIFT_GROUP_IDS } from '../types/lfo';
+import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS } from '../types/lfo';
 
 // Ensure AudioEngine is mocked before importing the store so the module's
 // import of AudioEngine receives the mock. The store now calls the full
@@ -26,18 +26,20 @@ vi.mock('../engine/audioEngine/globalFx', () => ({
   wireGlobalFxChain: vi.fn(),
 }));
 
+// The LFO Bank engine (docs/tasks/LFO_BANK.md Task 7).
 vi.mock('../engine/lfoEngine', () => ({
   lfoEngine: {
-    getLfoSettings: vi.fn(),
-    setLfoRate: vi.fn(),
-    setLfoDepth: vi.fn(),
-    setLfoShape: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
-    connectLfoTarget: vi.fn(() => true),
-    disconnectLfoTarget: vi.fn(),
-    setGlobalRateDrift: vi.fn(),
-    setGlobalDepthDrift: vi.fn(),
+    primeLfoBank: vi.fn(),
+    setBankShape: vi.fn(),
+    setBankRate: vi.fn(),
+    setBankRateDrift: vi.fn(),
+    setBankDepthDrift: vi.fn(),
+    getBankSettings: vi.fn(),
+    linkTarget: vi.fn(() => true),
+    unlinkTarget: vi.fn(),
+    disposeRobotLinks: vi.fn(),
+    setDriftEnabled: vi.fn(),
+    setFilterLinksEnabled: vi.fn(),
   },
 }));
 
@@ -117,17 +119,6 @@ describe('useAudioStore - regenerateGlobalAudioFromSeed', () => {
     expect(AudioEngine.setGlobalLimiter).toHaveBeenCalledWith(globalAudio.limiter);
     expect(AudioEngine.setGlobalDelay).toHaveBeenCalledWith(globalAudio.delay);
     expect(AudioEngine.setGlobalReverb).toHaveBeenCalledWith(globalAudio.reverb);
-  });
-
-  it('calls lfoEngine.setGlobalRateDrift/setGlobalDepthDrift for all 4 groups with each group\'s own resulting lfoDrift values, alongside the AudioEngine setGlobal* calls', async () => {
-    const { useAudioStore } = await import('./audioStore');
-    const { lfoEngine } = await import('../engine/lfoEngine');
-    const { globalAudio } = useAudioStore.getState();
-
-    for (const group of DRIFT_GROUP_IDS) {
-      expect(lfoEngine.setGlobalRateDrift, group).toHaveBeenCalledWith(group, globalAudio.lfoDrift[group].rateDrift);
-      expect(lfoEngine.setGlobalDepthDrift, group).toHaveBeenCalledWith(group, globalAudio.lfoDrift[group].depthDrift);
-    }
   });
 
   it('is deterministic — calling it twice with the same Attenuation Style produces the same globalAudio', async () => {
@@ -280,221 +271,195 @@ describe('useAudioStore - setCompressorBeforeDelay', () => {
   });
 });
 
-describe('useAudioStore - setGlobalLfoDrift', () => {
+describe('useAudioStore - lfoBank state (docs/tasks/LFO_BANK.md Task 8)', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it('updates only rateDrift for the given group and calls lfoEngine.setGlobalRateDrift with that group, leaving depthDrift and the other group untouched', async () => {
+  it('has one entry per LfoLaneId, JSON-serializable', async () => {
     const { useAudioStore } = await import('./audioStore');
-    const { lfoEngine } = await import('../engine/lfoEngine');
-    const before = useAudioStore.getState().globalAudio.lfoDrift;
-    vi.clearAllMocks();
-
-    useAudioStore.getState().setGlobalLfoDrift('globalFx', { rateDrift: 0.5 });
-
-    expect(useAudioStore.getState().globalAudio.lfoDrift.globalFx.rateDrift).toBe(0.5);
-    expect(useAudioStore.getState().globalAudio.lfoDrift.globalFx.depthDrift).toBe(before.globalFx.depthDrift);
-    expect(useAudioStore.getState().globalAudio.lfoDrift.robots).toEqual(before.robots);
-    expect(lfoEngine.setGlobalRateDrift).toHaveBeenCalledWith('globalFx', 0.5);
-    expect(lfoEngine.setGlobalDepthDrift).not.toHaveBeenCalled();
-  });
-
-  it('updates only depthDrift for the given group and calls lfoEngine.setGlobalDepthDrift with that group, leaving rateDrift untouched', async () => {
-    const { useAudioStore } = await import('./audioStore');
-    const { lfoEngine } = await import('../engine/lfoEngine');
-    const rateBefore = useAudioStore.getState().globalAudio.lfoDrift.robots.rateDrift;
-    vi.clearAllMocks();
-
-    useAudioStore.getState().setGlobalLfoDrift('robots', { depthDrift: -0.3 });
-
-    expect(useAudioStore.getState().globalAudio.lfoDrift.robots.depthDrift).toBe(-0.3);
-    expect(useAudioStore.getState().globalAudio.lfoDrift.robots.rateDrift).toBe(rateBefore);
-    expect(lfoEngine.setGlobalDepthDrift).toHaveBeenCalledWith('robots', -0.3);
-    expect(lfoEngine.setGlobalRateDrift).not.toHaveBeenCalled();
-  });
-
-  it('updates both fields for the given group and calls both engine setters with that group when both are provided together', async () => {
-    const { useAudioStore } = await import('./audioStore');
-    const { lfoEngine } = await import('../engine/lfoEngine');
-    vi.clearAllMocks();
-
-    useAudioStore.getState().setGlobalLfoDrift('robots', { rateDrift: 0.2, depthDrift: 0.9 });
-
-    expect(useAudioStore.getState().globalAudio.lfoDrift.robots).toEqual({ rateDrift: 0.2, depthDrift: 0.9 });
-    expect(lfoEngine.setGlobalRateDrift).toHaveBeenCalledWith('robots', 0.2);
-    expect(lfoEngine.setGlobalDepthDrift).toHaveBeenCalledWith('robots', 0.9);
-  });
-
-  it('calling it twice on the same group with one field each time accumulates rather than clobbering the other field', async () => {
-    const { useAudioStore } = await import('./audioStore');
-    useAudioStore.getState().setGlobalLfoDrift('globalFx', { rateDrift: 0.4 });
-
-    useAudioStore.getState().setGlobalLfoDrift('globalFx', { depthDrift: 0.6 });
-
-    expect(useAudioStore.getState().globalAudio.lfoDrift.globalFx).toEqual({ rateDrift: 0.4, depthDrift: 0.6 });
-  });
-
-  it('setting one group never touches the other group\'s stored values — cross-group isolation', async () => {
-    const { useAudioStore } = await import('./audioStore');
-    const before = useAudioStore.getState().globalAudio.lfoDrift;
-
-    useAudioStore.getState().setGlobalLfoDrift('globalFx', { rateDrift: 0.7, depthDrift: 0.7 });
-
-    expect(useAudioStore.getState().globalAudio.lfoDrift.robots).toEqual(before.robots);
+    const { lfoBank } = useAudioStore.getState();
+    expect(Object.keys(lfoBank).sort()).toEqual([...LFO_LANE_IDS].sort());
+    expect(() => JSON.stringify(lfoBank)).not.toThrow();
   });
 });
 
-describe('applyGlobalAudioToEngine — DRIFT_GROUP_IDS loop (docs/specs/FLEET_DRIFT_CONSOLIDATION.md Task 8)', () => {
+describe('useAudioStore - setLfoBank', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it('calls lfoEngine.setGlobalRateDrift/setGlobalDepthDrift for both globalFx and robots, each with that group\'s own current values', async () => {
-    const { applyGlobalAudioToEngine } = await import('./audioStore');
+  it('updates lfoBank state for the given lane/partial', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setLfoBank('b', { rate: 2 });
+    expect(useAudioStore.getState().lfoBank.b.rate).toBe(2);
+  });
+
+  it('calls setBankRate and no other engine setter when only rate is given', async () => {
+    const { useAudioStore } = await import('./audioStore');
     const { lfoEngine } = await import('../engine/lfoEngine');
-    const { DEFAULT_GLOBAL_AUDIO_SETTINGS } = await import('../types/globalAudio');
     vi.clearAllMocks();
 
-    const globalAudio = {
-      ...DEFAULT_GLOBAL_AUDIO_SETTINGS,
-      lfoDrift: {
-        globalFx: { rateDrift: 0.3, depthDrift: -0.4 },
-        robots: { rateDrift: -0.6, depthDrift: 0.8 },
-      },
-    };
+    useAudioStore.getState().setLfoBank('b', { rate: 2 });
 
-    applyGlobalAudioToEngine(globalAudio);
+    expect(lfoEngine.setBankRate).toHaveBeenCalledWith('b', 2);
+    expect(lfoEngine.setBankShape).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRateDrift).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankDepthDrift).not.toHaveBeenCalled();
+  });
 
-    expect(lfoEngine.setGlobalRateDrift).toHaveBeenCalledWith('globalFx', 0.3);
-    expect(lfoEngine.setGlobalDepthDrift).toHaveBeenCalledWith('globalFx', -0.4);
-    expect(lfoEngine.setGlobalRateDrift).toHaveBeenCalledWith('robots', -0.6);
-    expect(lfoEngine.setGlobalDepthDrift).toHaveBeenCalledWith('robots', 0.8);
-    expect(lfoEngine.setGlobalRateDrift).toHaveBeenCalledTimes(DRIFT_GROUP_IDS.length);
-    expect(lfoEngine.setGlobalDepthDrift).toHaveBeenCalledTimes(DRIFT_GROUP_IDS.length);
+  it('calls only the engine setters for the fields actually given, for every other field', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { lfoEngine } = await import('../engine/lfoEngine');
+    vi.clearAllMocks();
+
+    useAudioStore.getState().setLfoBank('a', { shape: 'square', depthDrift: 0.5 });
+
+    expect(lfoEngine.setBankShape).toHaveBeenCalledWith('a', 'square');
+    expect(lfoEngine.setBankDepthDrift).toHaveBeenCalledWith('a', 0.5);
+    expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRateDrift).not.toHaveBeenCalled();
+  });
+
+  it('merges the partial onto the lane\'s existing settings — other fields survive', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    useAudioStore.getState().setLfoBank('c', { rate: 3 });
+    useAudioStore.getState().setLfoBank('c', { shape: 'triangle' });
+
+    expect(useAudioStore.getState().lfoBank.c).toMatchObject({ rate: 3, shape: 'triangle' });
+  });
+
+  it('touches only the named lane — every other lane\'s settings are untouched', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const before = useAudioStore.getState().lfoBank;
+
+    useAudioStore.getState().setLfoBank('d', { rate: 7 });
+
+    expect(useAudioStore.getState().lfoBank.a).toEqual(before.a);
+    expect(useAudioStore.getState().lfoBank.b).toEqual(before.b);
+    expect(useAudioStore.getState().lfoBank.c).toEqual(before.c);
+  });
+
+  it('is a safe no-op for an undefined partial — e.g. a hole left by a malformed session payload — instead of throwing', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { lfoEngine } = await import('../engine/lfoEngine');
+    const before = useAudioStore.getState().lfoBank;
+    vi.clearAllMocks();
+
+    expect(() => useAudioStore.getState().setLfoBank('a', undefined as unknown as Partial<import('../types/lfo').BankLfoSettings>)).not.toThrow();
+
+    expect(useAudioStore.getState().lfoBank).toEqual(before);
+    expect(lfoEngine.setBankShape).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRateDrift).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankDepthDrift).not.toHaveBeenCalled();
   });
 });
 
-describe('useAudioStore - globalLfo state', () => {
+describe('useAudioStore - globalLfoLinks state (docs/tasks/LFO_BANK.md Task 8)', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
   it('has one entry per GlobalLfoTargetId, JSON-serializable', async () => {
     const { useAudioStore } = await import('./audioStore');
-    const { globalLfo } = useAudioStore.getState();
-    expect(Object.keys(globalLfo).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
-    expect(() => JSON.stringify(globalLfo)).not.toThrow();
+    const { globalLfoLinks } = useAudioStore.getState();
+    expect(Object.keys(globalLfoLinks).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
+    expect(() => JSON.stringify(globalLfoLinks)).not.toThrow();
   });
 });
 
-describe('useAudioStore - setGlobalLfo', () => {
+describe('useAudioStore - setGlobalLfoLink', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it('updates globalLfo state for the given target', async () => {
+  it('updates globalLfoLinks state for the given target', async () => {
     const { useAudioStore } = await import('./audioStore');
-    useAudioStore.getState().setGlobalLfo('eq3.low', { shape: 'square', rate: 3, depth: 40 });
-    expect(useAudioStore.getState().globalLfo['eq3.low']).toEqual({ shape: 'square', rate: 3, depth: 40 });
+    useAudioStore.getState().setGlobalLfoLink('eq3.low', { lane: 'a', depth: 40 });
+    expect(useAudioStore.getState().globalLfoLinks['eq3.low']).toEqual({ lane: 'a', depth: 40 });
   });
 
-  it('always calls setLfoShape/setLfoRate/setLfoDepth with the value\'s fields', async () => {
+  it('calls linkTarget with the target and link, and no robotId', async () => {
     const { useAudioStore } = await import('./audioStore');
     const { lfoEngine } = await import('../engine/lfoEngine');
     vi.clearAllMocks();
 
-    useAudioStore.getState().setGlobalLfo('lpf.frequency', { shape: 'triangle', rate: 5, depth: 60 });
+    useAudioStore.getState().setGlobalLfoLink('eq3.low', { lane: 'a', depth: 40 });
 
-    expect(lfoEngine.setLfoShape).toHaveBeenCalledWith('lpf.frequency', 'triangle');
-    expect(lfoEngine.setLfoRate).toHaveBeenCalledWith('lpf.frequency', 5);
-    expect(lfoEngine.setLfoDepth).toHaveBeenCalledWith('lpf.frequency', 60);
+    expect(lfoEngine.linkTarget).toHaveBeenCalledWith('eq3.low', { lane: 'a', depth: 40 });
+    expect(lfoEngine.linkTarget).toHaveBeenCalledTimes(1);
   });
 
-  it('connects and starts when rate > 0 and connect succeeds', async () => {
+  it('touches only the named target — every other target\'s link is untouched', async () => {
     const { useAudioStore } = await import('./audioStore');
-    const { lfoEngine } = await import('../engine/lfoEngine');
-    vi.clearAllMocks();
-    vi.mocked(lfoEngine.connectLfoTarget).mockReturnValue(true);
+    const before = useAudioStore.getState().globalLfoLinks;
 
-    useAudioStore.getState().setGlobalLfo('hpf.Q', { shape: 'sine', rate: 1, depth: 20 });
+    useAudioStore.getState().setGlobalLfoLink('hpf.Q', { lane: 'b', depth: 30 });
 
-    expect(lfoEngine.connectLfoTarget).toHaveBeenCalledWith('hpf.Q');
-    expect(lfoEngine.start).toHaveBeenCalledWith('hpf.Q');
-    expect(lfoEngine.disconnectLfoTarget).not.toHaveBeenCalled();
-    expect(lfoEngine.stop).not.toHaveBeenCalled();
+    expect(useAudioStore.getState().globalLfoLinks['eq3.low']).toEqual(before['eq3.low']);
   });
 
-  it('does not call start when rate > 0 but connect fails', async () => {
+  it('is a safe no-op for an undefined link — e.g. a hole left by a malformed session payload — instead of throwing', async () => {
     const { useAudioStore } = await import('./audioStore');
     const { lfoEngine } = await import('../engine/lfoEngine');
-    vi.clearAllMocks();
-    vi.mocked(lfoEngine.connectLfoTarget).mockReturnValue(false);
-
-    useAudioStore.getState().setGlobalLfo('hpf.frequency', { shape: 'sine', rate: 1, depth: 20 });
-
-    expect(lfoEngine.connectLfoTarget).toHaveBeenCalledWith('hpf.frequency');
-    expect(lfoEngine.start).not.toHaveBeenCalled();
-  });
-
-  it('disconnects and stops when rate is 0', async () => {
-    const { useAudioStore } = await import('./audioStore');
-    const { lfoEngine } = await import('../engine/lfoEngine');
+    const before = useAudioStore.getState().globalLfoLinks;
     vi.clearAllMocks();
 
-    useAudioStore.getState().setGlobalLfo('eq3.high', { shape: 'sine', rate: 0, depth: 20 });
+    expect(() => useAudioStore.getState().setGlobalLfoLink('eq3.low', undefined as unknown as import('../types/lfo').LfoLink)).not.toThrow();
 
-    expect(lfoEngine.disconnectLfoTarget).toHaveBeenCalledWith('eq3.high');
-    expect(lfoEngine.stop).toHaveBeenCalledWith('eq3.high');
-    expect(lfoEngine.connectLfoTarget).not.toHaveBeenCalled();
-    expect(lfoEngine.start).not.toHaveBeenCalled();
+    expect(useAudioStore.getState().globalLfoLinks).toEqual(before);
+    expect(lfoEngine.linkTarget).not.toHaveBeenCalled();
   });
 });
 
-describe('useAudioStore - globalLfo Attenuation-Style-sync seeding', () => {
+describe('useAudioStore - LFO Bank / global links Attenuation-Style-sync seeding (docs/tasks/LFO_BANK.md Task 8)', () => {
   beforeEach(() => {
     vi.resetModules();
-    // The lfoEngine mock's call history persists across vi.resetModules() (same
-    // established quirk documented in LFO_INTEGRATION_PLAN.md's Task 11 notes for
-    // the Tone mock) — clear it so each test only sees its own fresh import's calls.
+    // The lfoEngine mock's call history persists across vi.resetModules() (same quirk documented
+    // elsewhere in this file) — clear it so each test only sees its own fresh import's calls.
     vi.clearAllMocks();
   });
 
-  it('seeds globalLfo for the current Attenuation Style on module load (app init)', async () => {
+  it('seeds lfoBank for the current Attenuation Style on module load (app init)', async () => {
     const { useAudioStore } = await import('./audioStore');
-    const { globalLfo } = useAudioStore.getState();
-    // Seeded, not left at the DEFAULT_LFO_SETTINGS-inert values (rate would be
-    // pinned to LFO_RATE_MIN and depth to LFO_DEPTH_MIN for every target if
-    // seeding hadn't run) — at least one target should differ from the inert default.
-    const rates = GLOBAL_LFO_TARGET_IDS.map((t) => globalLfo[t].rate);
-    expect(new Set(rates).size).toBeGreaterThan(1);
+    const { lfoBank } = useAudioStore.getState();
+    // The four lanes draw from disjoint rate bands (LFO_BANK_RATE_BANDS) — seeded, not left
+    // at DEFAULT_BANK_LFO's inert rate 0 for every lane.
+    const rates = LFO_LANE_IDS.map((lane) => lfoBank[lane].rate);
+    expect(rates.every((r) => r > 0)).toBe(true);
   });
 
-  it('does not touch lfoEngine during seeding — data-only, deferred to AudioEngine.start() (Task 9)', async () => {
-    // AS-sync runs at module load / on every Attenuation Style switch, before any user
-    // gesture — pushing to lfoEngine here would construct a real Tone.LFO node
-    // before an AudioContext exists (found via the Phase 2 checkpoint's full
-    // suite run: TransportBar.test.tsx, which imports the real audioStore
-    // module, threw "param must be an AudioParam" until this was fixed).
+  it('seeds globalLfoLinks for the current Attenuation Style on module load (app init)', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { globalLfoLinks } = useAudioStore.getState();
+    // At least one of the 7 global targets should have rolled a lane across a real seed —
+    // same statistical-spot-check style as the lfoBank seeding test above.
+    const lanes = GLOBAL_LFO_TARGET_IDS.map((t) => globalLfoLinks[t].lane);
+    expect(lanes.some((lane) => lane !== null)).toBe(true);
+  });
+
+  it('does not touch the bank engine during seeding — data-only, deferred to AudioEngine.start() (Task 10)', async () => {
     await import('./audioStore');
     const { lfoEngine } = await import('../engine/lfoEngine');
 
-    expect(lfoEngine.setLfoShape).not.toHaveBeenCalled();
-    expect(lfoEngine.setLfoRate).not.toHaveBeenCalled();
-    expect(lfoEngine.setLfoDepth).not.toHaveBeenCalled();
-    expect(lfoEngine.connectLfoTarget).not.toHaveBeenCalled();
-    expect(lfoEngine.start).not.toHaveBeenCalled();
+    expect(lfoEngine.primeLfoBank).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankShape).not.toHaveBeenCalled();
+    expect(lfoEngine.linkTarget).not.toHaveBeenCalled();
   });
 
-  it('follows setCurrentAttenuationStyleId — switching the active Attenuation Style reseeds globalLfo automatically', async () => {
+  it('follows setCurrentAttenuationStyleId — switching reseeds lfoBank and globalLfoLinks automatically', async () => {
     const { useAudioStore } = await import('./audioStore');
     const { useAttenuationStyleStore, DEFAULT_PELAGOS } = await import('./attenuationStyleStore');
 
-    const before = useAudioStore.getState().globalLfo;
-    useAttenuationStyleStore.getState().addAttenuationStyle({ ...DEFAULT_PELAGOS, id: 'zenith-lfo', name: 'ZenithLfo' });
-    useAttenuationStyleStore.getState().setCurrentAttenuationStyleId('zenith-lfo');
+    const beforeBank = useAudioStore.getState().lfoBank;
+    const beforeLinks = useAudioStore.getState().globalLfoLinks;
+    useAttenuationStyleStore.getState().addAttenuationStyle({ ...DEFAULT_PELAGOS, id: 'zenith-bank', name: 'ZenithBank' });
+    useAttenuationStyleStore.getState().setCurrentAttenuationStyleId('zenith-bank');
 
-    expect(useAudioStore.getState().globalLfo).not.toEqual(before);
+    expect(useAudioStore.getState().lfoBank).not.toEqual(beforeBank);
+    expect(useAudioStore.getState().globalLfoLinks).not.toEqual(beforeLinks);
   });
 });
 
@@ -692,8 +657,8 @@ describe('useAudioStore - BPM locale sync on module load (docs/specs/BPM_CONTROL
     const thisFile = fileURLToPath(import.meta.url);
     const source = readFileSync(join(dirname(thisFile), 'audioStore.ts'), 'utf-8');
     const subscribeCalls = source.match(/\.subscribe\(/g) ?? [];
-    // Exactly the one pre-existing useAttenuationStyleStore.subscribe (globalAudio/
-    // globalLfo AS-sync) — BPM's locale sync must stay a plain function call
+    // Exactly the one pre-existing useAttenuationStyleStore.subscribe (globalAudio/lfoBank/
+    // globalLfoLinks AS-sync) — BPM's locale sync must stay a plain function call
     // (syncBpmToCurrentLocale()), never a second subscription, per spec §1.3's
     // "call-site-triggered, not subscription-driven" design.
     expect(subscribeCalls.length).toBe(1);
@@ -973,53 +938,39 @@ describe('useAudioStore - robotLoad / effectsLoad / soundingRobotIds (docs/specs
   });
 });
 
-describe('useAudioStore - held-off LFOs (docs/specs/AUDIO_LOAD_BUDGET.md §1.4, plan task 20)', () => {
+describe('useAudioStore - filterLinksHeldOff / driftHeldOff (docs/tasks/LFO_BANK.md Task 3)', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it('starts with nothing held off and drift not held off', async () => {
+  it('starts with filter links not held off and drift not held off', async () => {
     const { useAudioStore } = await import('./audioStore');
-    expect(useAudioStore.getState().heldOffLfoKeys).toEqual([]);
+    expect(useAudioStore.getState().filterLinksHeldOff).toBe(false);
     expect(useAudioStore.getState().driftHeldOff).toBe(false);
   });
 
-  it('setHeldOffLfoKeys writes the instance keys', async () => {
+  it('setFilterLinksHeldOff writes once', async () => {
     const { useAudioStore } = await import('./audioStore');
-    useAudioStore.getState().setHeldOffLfoKeys(['lpf.Q', 'robot-3:layer0.detune']);
-    expect(useAudioStore.getState().heldOffLfoKeys).toEqual(['lpf.Q', 'robot-3:layer0.detune']);
-  });
-
-  it('does not write, and so does not notify subscribers, when the same LFOs are held off — in any order', async () => {
-    const { useAudioStore } = await import('./audioStore');
-    useAudioStore.getState().setHeldOffLfoKeys(['a', 'b']);
-    const stored = useAudioStore.getState().heldOffLfoKeys;
     const listener = vi.fn();
     const unsubscribe = useAudioStore.subscribe(listener);
 
-    useAudioStore.getState().setHeldOffLfoKeys(['a', 'b']);
-    useAudioStore.getState().setHeldOffLfoKeys(['b', 'a']);
+    useAudioStore.getState().setFilterLinksHeldOff(true);
 
-    expect(listener).not.toHaveBeenCalled();
-    expect(useAudioStore.getState().heldOffLfoKeys).toBe(stored);
+    expect(useAudioStore.getState().filterLinksHeldOff).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(1);
     unsubscribe();
   });
 
-  it('writes when the membership changes, including emptying', async () => {
+  it('a repeat with the same value is a no-op write', async () => {
     const { useAudioStore } = await import('./audioStore');
-    useAudioStore.getState().setHeldOffLfoKeys(['a', 'b']);
-    useAudioStore.getState().setHeldOffLfoKeys(['a']);
-    expect(useAudioStore.getState().heldOffLfoKeys).toEqual(['a']);
-    useAudioStore.getState().setHeldOffLfoKeys([]);
-    expect(useAudioStore.getState().heldOffLfoKeys).toEqual([]);
-  });
+    useAudioStore.getState().setFilterLinksHeldOff(true);
+    const listener = vi.fn();
+    const unsubscribe = useAudioStore.subscribe(listener);
 
-  it('copies the keys it is given', async () => {
-    const { useAudioStore } = await import('./audioStore');
-    const keys = ['a'];
-    useAudioStore.getState().setHeldOffLfoKeys(keys);
-    keys.push('b');
-    expect(useAudioStore.getState().heldOffLfoKeys).toEqual(['a']);
+    useAudioStore.getState().setFilterLinksHeldOff(true);
+
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
   });
 
   it('setDriftHeldOff writes only when the flag changes', async () => {
@@ -1038,10 +989,10 @@ describe('useAudioStore - held-off LFOs (docs/specs/AUDIO_LOAD_BUDGET.md §1.4, 
 
   it('stays JSON-serialisable with both set', async () => {
     const { useAudioStore } = await import('./audioStore');
-    useAudioStore.getState().setHeldOffLfoKeys(['lpf.Q']);
+    useAudioStore.getState().setFilterLinksHeldOff(true);
     useAudioStore.getState().setDriftHeldOff(true);
     const roundTripped = JSON.parse(JSON.stringify(useAudioStore.getState()));
-    expect(roundTripped.heldOffLfoKeys).toEqual(['lpf.Q']);
+    expect(roundTripped.filterLinksHeldOff).toBe(true);
     expect(roundTripped.driftHeldOff).toBe(true);
   });
 });

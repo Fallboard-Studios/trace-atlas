@@ -6,21 +6,32 @@ import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { Robot } from '../types/Robot';
 
-import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoSettings, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { AudioEngine } from '../engine/AudioEngine';
 import { DockingState } from '../types/Robot';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { ROBOT_LFO_TARGET_IDS, LFO_SHAPES, LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX } from '../types/lfo';
+import { ROBOT_LFO_TARGET_IDS, LFO_LANE_IDS, type LfoLaneId } from '../types/lfo';
 import {
   MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
 } from '../constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
-import { getSeededVal } from '../utils/getSeededVal';
+import { tallyLanes } from '../utils/lfoLaneDraw';
 import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
-import * as robotLfoPriming from './robotLfoPriming';
+import * as robotLfoLinks from './robotLfoLinks';
+
+// Spy on getSeededVal while keeping its real behavior (the globalAudioSeed.test.ts/
+// worldTransition.test.ts importOriginal pattern) — the lfoLinks-at-spawn tests below need to
+// force spawnRobot's own 'robot.copyChance' seeded roll to a known side without disturbing every
+// other seeded draw the rest of this file's many tests depend on.
+vi.mock('../utils/getSeededVal', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils/getSeededVal')>();
+  return { ...actual, getSeededVal: vi.fn(actual.getSeededVal) };
+});
+
+import { getSeededVal } from '../utils/getSeededVal';
 
 /** General-purpose mock: returns a pseudo-random value in [-1, 1]. */
 const mockNoiseMap: NoiseFunction2D = () => Math.random() * 2 - 1;
@@ -190,182 +201,143 @@ describe('spawnSystem', () => {
     });
   });
 
-  describe('generateRobotLfoSettings', () => {
-    it('generates LfoSettings for all 9 RobotLfoTargetId values, no extras', () => {
-      const settings = generateRobotLfoSettings(mockNoiseMap, 0);
-      expect(Object.keys(settings).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
+  describe('generateRobotLfoLinks', () => {
+    const ZERO_COUNTS: Record<LfoLaneId, number> = { a: 0, b: 0, c: 0, d: 0 };
+
+    it('generates LfoLinks for all 6 RobotLfoTargetId values, no extras', () => {
+      const links = generateRobotLfoLinks(mockNoiseMap, 0, ZERO_COUNTS);
+      expect(Object.keys(links).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
     });
 
-    it('every target\'s shape/rate/depth falls within documented bounds — no active field left', () => {
-      const settings = generateRobotLfoSettings(mockNoiseMap, 0);
-      for (const target of ROBOT_LFO_TARGET_IDS) {
-        const s = settings[target];
-        expect(LFO_SHAPES, `${target}.shape`).toContain(s.shape);
-        expect(s.rate, `${target}.rate >= min`).toBeGreaterThanOrEqual(LFO_RATE_MIN);
-        expect(s.rate, `${target}.rate <= max`).toBeLessThanOrEqual(LFO_RATE_MAX);
-        expect(s.depth, `${target}.depth >= min`).toBeGreaterThanOrEqual(LFO_DEPTH_MIN);
-        expect(s.depth, `${target}.depth <= max`).toBeLessThanOrEqual(LFO_DEPTH_MAX);
-        expect('active' in s, `${target} should not carry an active field`).toBe(false);
-      }
-    });
-
-    it('seeds quiet (rate: 0) independently per target — not uniformly all-quiet or all-oscillating (Roadmap Phase 9)', () => {
-      const settings = generateRobotLfoSettings(mockNoiseMap, 0);
-      const isQuiet = ROBOT_LFO_TARGET_IDS.map((t) => settings[t].rate === 0);
-      expect(new Set(isQuiet).size, 'expected both quiet and oscillating targets among the 13').toBe(2);
-    });
-
-    it('quantizes rate to a 0.05 grid, across many seeds and targets, excluding the quiet -> 0 case (SEEDED_SLIDER_VALUE_QUANTIZATION Task 6)', () => {
+    it('every quiet target is exactly { lane: null, depth: 0 }; every lit target has a real lane and an integer depth within its own field\'s seed range (gain: (0, 60], detune: (0, 10])', () => {
       for (let i = 0; i < 30; i++) {
-        const settings = generateRobotLfoSettings(mockNoiseMap, i);
+        const links = generateRobotLfoLinks(mockNoiseMap, i, ZERO_COUNTS);
         for (const target of ROBOT_LFO_TARGET_IDS) {
-          const { rate } = settings[target];
-          if (rate === 0) continue;
-          const stepsFromMin = rate / 0.05;
-          expect(Math.abs(stepsFromMin - Math.round(stepsFromMin)), `${target}.rate (offset ${i})`).toBeLessThan(1e-9);
+          const link = links[target];
+          if (link.lane === null) {
+            expect(link.depth, `${target}.depth (offset ${i})`).toBe(0);
+            continue;
+          }
+          expect(LFO_LANE_IDS, `${target}.lane (offset ${i})`).toContain(link.lane);
+          expect(Number.isInteger(link.depth), `${target}.depth (offset ${i})`).toBe(true);
+          expect(link.depth, `${target}.depth (offset ${i})`).toBeGreaterThan(0); // never silently inaudible when lit
+          if (target.endsWith('.gain')) {
+            expect(link.depth, `${target}.depth (offset ${i})`).toBeLessThanOrEqual(60);
+          } else {
+            expect(link.depth, `${target}.depth (offset ${i})`).toBeLessThanOrEqual(10);
+          }
         }
       }
     });
 
-    it('quantizes depth to a whole percent, across many seeds and targets (SEEDED_SLIDER_VALUE_QUANTIZATION follow-up)', () => {
-      for (let i = 0; i < 30; i++) {
-        const settings = generateRobotLfoSettings(mockNoiseMap, i);
+    it('a lit gain target\'s depth can land near its own 60% ceiling, not the old shared 100% one', () => {
+      const noiseMap = createNoise2D(alea('lfo-link-gain-depth-ceiling-test-seed'));
+      let maxGainDepth = 0;
+      for (let offset = 0; offset < 300; offset++) {
+        const links = generateRobotLfoLinks(noiseMap, offset, ZERO_COUNTS);
         for (const target of ROBOT_LFO_TARGET_IDS) {
-          const { depth } = settings[target];
-          expect(Number.isInteger(depth), `${target}.depth (offset ${i}): ${depth}`).toBe(true);
+          if (target.endsWith('.gain') && links[target].lane !== null) maxGainDepth = Math.max(maxGainDepth, links[target].depth);
         }
       }
+      expect(maxGainDepth).toBeGreaterThan(50);
+      expect(maxGainDepth).toBeLessThanOrEqual(60);
     });
 
-    it('gives different targets different values within the same call — dataIds are genuinely distinct, not colliding', () => {
-      const settings = generateRobotLfoSettings(mockNoiseMap, 0);
-      const rates = ROBOT_LFO_TARGET_IDS.map((t) => settings[t].rate);
-      expect(new Set(rates.map((r) => r.toFixed(6))).size).toBeGreaterThan(1);
+    it('a lit detune target\'s depth can land near its own 10% ceiling, not the old shared 100% one', () => {
+      const noiseMap = createNoise2D(alea('lfo-link-detune-depth-ceiling-test-seed'));
+      let maxDetuneDepth = 0;
+      for (let offset = 0; offset < 300; offset++) {
+        const links = generateRobotLfoLinks(noiseMap, offset, ZERO_COUNTS);
+        for (const target of ROBOT_LFO_TARGET_IDS) {
+          if (target.endsWith('.detune') && links[target].lane !== null) maxDetuneDepth = Math.max(maxDetuneDepth, links[target].depth);
+        }
+      }
+      expect(maxDetuneDepth).toBeGreaterThan(7);
+      expect(maxDetuneDepth).toBeLessThanOrEqual(10);
     });
 
-    it('is deterministic — the same real seeded noise map + offset always produces identical LfoSettings', () => {
-      const noiseMap = createNoise2D(alea('lfo-determinism-test-seed'));
-      const first = generateRobotLfoSettings(noiseMap, 5);
-      const second = generateRobotLfoSettings(noiseMap, 5);
+    it('is deterministic — the same real seeded noise map + offset + priorLaneCounts always produces identical links', () => {
+      const noiseMap = createNoise2D(alea('lfo-link-determinism-test-seed'));
+      const first = generateRobotLfoLinks(noiseMap, 5, ZERO_COUNTS);
+      const second = generateRobotLfoLinks(noiseMap, 5, ZERO_COUNTS);
       expect(second).toEqual(first);
     });
 
-    it('produces different LfoSettings for a different spawn offset (non-degenerate)', () => {
-      const noiseMap = createNoise2D(alea('lfo-determinism-test-seed'));
-      const a = generateRobotLfoSettings(noiseMap, 0);
-      const b = generateRobotLfoSettings(noiseMap, 1);
+    it('produces different links for a different spawn offset (non-degenerate)', () => {
+      const noiseMap = createNoise2D(alea('lfo-link-determinism-test-seed'));
+      const a = generateRobotLfoLinks(noiseMap, 0, ZERO_COUNTS);
+      const b = generateRobotLfoLinks(noiseMap, 1, ZERO_COUNTS);
       expect(b).not.toEqual(a);
     });
-  });
 
-  // Seed oracle (docs/specs/LFO_LOAD_FIX.md §5 "Seed odds", docs/tasks/LFO_LOAD_FIX.md Task 1).
-  // Captured GREEN against the pre-change seeder on 2026-09-30, BEFORE LFO_QUIET_THRESHOLD moves
-  // (Task 5) and before any target is removed. The contract it pins: for a fixed noise map + offset,
-  // every target's shape and depth, and every currently-oscillating target's rate, are byte-identical
-  // after the odds change — lowering the odds may only turn an oscillating target quiet (rate 0), never
-  // change a value or revive a quiet one. Regenerating these expected objects to make a later change
-  // pass is a spec violation, not a fix. Targets a later task removes are simply dropped from the
-  // expectation when the type narrows; the remaining rows stay as captured.
-  describe('generateRobotLfoSettings — seed oracle (LFO Load Fix Task 1)', () => {
-    const ORACLE_SEED = 'lfo-load-fix-oracle';
-
-    // Offset 1: a mostly-quiet robot (2 of 13 oscillating). Offset 4: a mostly-on robot (12 of 13).
-    const EXPECTED: Record<number, Record<string, { shape: string; rate: number; depth: number }>> = {
-      1: {
-        'layer0.gain': { shape: 'square', rate: 0, depth: 71 },
-        'layer0.detune': { shape: 'triangle', rate: 0, depth: 21 },
-        'layer0.phase': { shape: 'square', rate: 0, depth: 69 },
-        'layer1.gain': { shape: 'triangle', rate: 0, depth: 5 },
-        'layer1.detune': { shape: 'sine', rate: 0, depth: 55 },
-        'layer1.phase': { shape: 'sine', rate: 0, depth: 28 },
-        'layer2.gain': { shape: 'square', rate: 0, depth: 13 },
-        'layer2.detune': { shape: 'square', rate: 0, depth: 57 },
-        'layer2.phase': { shape: 'triangle', rate: 0, depth: 73 },
-      },
-      4: {
-        'layer0.gain': { shape: 'square', rate: 11.95, depth: 67 },
-        'layer0.detune': { shape: 'sawtooth', rate: 12.7, depth: 71 },
-        'layer0.phase': { shape: 'square', rate: 12.05, depth: 65 },
-        'layer1.gain': { shape: 'square', rate: 12.3, depth: 50 },
-        'layer1.detune': { shape: 'square', rate: 11.3, depth: 60 },
-        'layer1.phase': { shape: 'square', rate: 14.35, depth: 73 },
-        'layer2.gain': { shape: 'square', rate: 13.45, depth: 56 },
-        'layer2.detune': { shape: 'square', rate: 12.55, depth: 60 },
-        'layer2.phase': { shape: 'square', rate: 14.3, depth: 68 },
-      },
-    };
-
-    for (const offset of [1, 4]) {
-      it(`offset ${offset}: shape and depth of every target, and rate of every oscillating target, match the captured values`, () => {
-        const noiseMap = createNoise2D(alea(ORACLE_SEED));
-        const settings = generateRobotLfoSettings(noiseMap, offset);
-        for (const target of ROBOT_LFO_TARGET_IDS) {
-          const expected = EXPECTED[offset][target];
-          expect(expected, `${target} missing from the oracle — the type grew without the oracle being extended`).toBeDefined();
-          const actual = settings[target];
-          expect(actual.shape, `${target}.shape (offset ${offset})`).toBe(expected.shape);
-          expect(actual.depth, `${target}.depth (offset ${offset})`).toBe(expected.depth);
-          if (expected.rate === 0) {
-            expect(actual.rate, `${target} was quiet and must stay quiet (offset ${offset})`).toBe(0);
-          } else if (actual.rate !== 0) {
-            // Still oscillating: the value itself must be untouched (0.05 grid, so a 1e-9 tolerance is exact).
-            expect(actual.rate, `${target}.rate (offset ${offset})`).toBeCloseTo(expected.rate, 9);
-          }
-          // actual.rate === 0 while expected.rate > 0 is the one permitted change: the odds got stricter.
-        }
-      });
-    }
-
-    it('offset 1 and offset 4 differ in how many targets oscillate (the fixture really covers both ends)', () => {
-      const noiseMap = createNoise2D(alea(ORACLE_SEED));
-      const onCount = (offset: number) => ROBOT_LFO_TARGET_IDS.filter((t) => generateRobotLfoSettings(noiseMap, offset)[t].rate > 0).length;
-      expect(onCount(1)).toBeLessThan(onCount(4));
-    });
-  });
-
-  // Seed odds lowered from 50% on to ~25% on (docs/specs/LFO_LOAD_FIX.md assumption 5 / §1.4,
-  // docs/tasks/LFO_LOAD_FIX.md Task 5). Measured before choosing the threshold (2026-09-30): the
-  // quiet draw is a smooth simplex sample, not a uniform coin, so the on-rate is NOT 1 - threshold —
-  // 0.5 gave ≈53% on, 0.75 ≈20%, 0.7 ≈27% across 8 worlds × 12 offsets. 0.7 is the value that lands
-  // the intent (≈25% on, ≈19 primed audio-rate LFOs per 12-robot world).
-  describe('generateRobotLfoSettings — quiet odds (LFO Load Fix Task 5)', () => {
-    /** The same 8 worlds the threshold was chosen against: 4 arbitrary alea seeds + 4 real locale maps. */
-    const WORLDS: NoiseFunction2D[] = [
-      createNoise2D(alea('s1')), createNoise2D(alea('s2')), createNoise2D(alea('s3')), createNoise2D(alea('s4')),
-      getLocaleNoiseMap('odds-b', -150, 90), getLocaleNoiseMap('odds-c', 200, -30),
-      getLocaleNoiseMap('odds-a', 12, 68), getLocaleNoiseMap('odds-d', 5, -180),
-    ];
-    const AUDIO_RATE_TARGETS = ROBOT_LFO_TARGET_IDS.filter((t) => /\.(gain|detune)$/.test(t));
-
-    it('turns on roughly a quarter of audio-rate targets — between 15% and 35% across 8 worlds × 12 spawn offsets', () => {
-      let on = 0;
-      let total = 0;
-      for (const map of WORLDS) {
-        for (let offset = 0; offset < 12; offset++) {
-          const settings = generateRobotLfoSettings(map, offset);
-          for (const target of AUDIO_RATE_TARGETS) {
-            total++;
-            if (settings[target].rate > 0) on++;
-          }
-        }
-      }
-      const share = on / total;
-      expect(share, `${on}/${total} audio-rate targets on`).toBeGreaterThanOrEqual(0.15);
-      expect(share, `${on}/${total} audio-rate targets on`).toBeLessThanOrEqual(0.35);
-    });
-
-    it('is monotone against the old 50% odds — a target that was quiet under 0.5 is still quiet, and every on-target was also on before', () => {
-      // Recreates the pre-change decision from the same seeded draw the seeder uses, so this
-      // holds regardless of the exact threshold chosen, as long as it is >= 0.5.
-      for (const map of WORLDS) {
-        for (let offset = 0; offset < 12; offset++) {
-          const settings = generateRobotLfoSettings(map, offset);
+    it('seeds a lit (non-null lane) target for roughly 20-40% of targets across 50 robots (the 0.7 quiet threshold, reused)', () => {
+      // Spread across 5 worlds x 10 offsets (= 50 "robots") rather than one seed's 50 offsets —
+      // a single noise map can land near a band edge by chance (found live: one seed alone gave
+      // 19.67%, just under the 20% floor), the same multi-world spread the existing "quiet odds"
+      // describe block above already uses for this same 0.7 threshold.
+      const worlds = [
+        createNoise2D(alea('lfo-link-rate-sample-1')),
+        createNoise2D(alea('lfo-link-rate-sample-2')),
+        createNoise2D(alea('lfo-link-rate-sample-3')),
+        createNoise2D(alea('lfo-link-rate-sample-4')),
+        createNoise2D(alea('lfo-link-rate-sample-5')),
+      ];
+      let litCount = 0;
+      let totalCount = 0;
+      for (const noiseMap of worlds) {
+        for (let offset = 0; offset < 10; offset++) {
+          const links = generateRobotLfoLinks(noiseMap, offset, ZERO_COUNTS);
           for (const target of ROBOT_LFO_TARGET_IDS) {
-            const quietUnderOldOdds = getSeededVal(map, `robot.lfo.${target}.quiet`, offset, 0, 1) < 0.5;
-            if (quietUnderOldOdds) expect(settings[target].rate, `${target} @${offset}`).toBe(0);
+            totalCount++;
+            if (links[target].lane !== null) litCount++;
           }
         }
       }
+      const litRate = litCount / totalCount;
+      expect(litRate, `${litCount}/${totalCount} lit`).toBeGreaterThanOrEqual(0.2);
+      expect(litRate, `${litCount}/${totalCount} lit`).toBeLessThanOrEqual(0.4);
+    });
+
+    it('a heavily-loaded prior lane (a: 20) puts fewer than 15% of 100 lit draws on lane a, and far fewer than a zero-count baseline on the same seeds (least-used lean)', () => {
+      // Round-robin across several worlds (same reasoning as the lit-rate test above) rather than
+      // one seed's offset sequence — spreads the lit draws over independent noise so the measured
+      // share reflects pickLane's weighting, not one seed's own quirks.
+      const worlds = Array.from({ length: 10 }, (_, i) => createNoise2D(alea(`lfo-link-prior-counts-${i}`)));
+
+      /** Tallies lane 'a' lit picks up to a cap, round-robin across worlds/offsets, for a given starting tally. */
+      function tallyLaneA(priorLaneCounts: Record<LfoLaneId, number>, cap: number): { aCount: number; litCount: number } {
+        let aCount = 0;
+        let litCount = 0;
+        outer: for (let offset = 0; offset < 200; offset++) {
+          for (const noiseMap of worlds) {
+            const links = generateRobotLfoLinks(noiseMap, offset, priorLaneCounts);
+            for (const target of ROBOT_LFO_TARGET_IDS) {
+              if (litCount >= cap) break outer;
+              const link = links[target];
+              if (link.lane === null) continue;
+              litCount++;
+              if (link.lane === 'a') aCount++;
+            }
+          }
+        }
+        return { aCount, litCount };
+      }
+
+      const withHeavyPriorA = tallyLaneA({ a: 20, b: 0, c: 0, d: 0 }, 100);
+      const zeroCountBaseline = tallyLaneA({ a: 0, b: 0, c: 0, d: 0 }, 100);
+
+      expect(withHeavyPriorA.litCount, 'did not gather 100 lit draws within the offset budget').toBe(100);
+      // The literal acceptance bound (docs/tasks/LFO_BANK.md Task 6).
+      expect(withHeavyPriorA.aCount, `${withHeavyPriorA.aCount}/${withHeavyPriorA.litCount} on lane a`).toBeLessThan(15);
+      // The discriminating comparison: a heavy prior count on 'a' must suppress its share below
+      // what the SAME seeds, same worlds/offsets give it with no prior count at all — this is
+      // exactly what the mutation check (dropping the priorLaneCounts term) breaks: with the term
+      // gone, both tallies run the identical algorithm against identical seeds and must come out
+      // equal, failing this strict inequality. (The absolute zero-count share measured here is
+      // this codebase's real getSeededVal-driven value, not the naive uniform-t expectation —
+      // the sanity floor just confirms the comparison isn't vacuously 0 vs 0.)
+      expect(zeroCountBaseline.aCount, 'zero-count baseline should see at least a few lane-a picks to make this comparison meaningful').toBeGreaterThan(2);
+      expect(withHeavyPriorA.aCount).toBeLessThan(zeroCountBaseline.aCount);
     });
   });
 
@@ -377,7 +349,7 @@ describe('spawnSystem', () => {
     });
 
     afterEach(() => {
-      // Several tests below spyOn(AudioEngine/robotLfoPriming, ...).mockReturnValue/mockImplementation
+      // Several tests below spyOn(AudioEngine, ...).mockReturnValue/mockImplementation
       // — restore the real implementations so later describe blocks (e.g. spawnInitialRoster) see
       // real reserveVoice behavior, not a leaked mock. vi.clearAllMocks() alone only clears call
       // history, it does not restore the original implementation.
@@ -400,18 +372,20 @@ describe('spawnSystem', () => {
       expect(robot.melody).toBeDefined();
       expect(robot.melody.length).toBeGreaterThan(0);
       expect(robot.audioAttributes).toBeDefined();
-      expect(robot.lfoSettings).toBeDefined();
-      expect(Object.keys(robot.lfoSettings ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
+      expect(robot.lfoLinks).toBeDefined();
+      expect(Object.keys(robot.lfoLinks ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
 
       expect(registerSpy).toHaveBeenCalledWith(robot.id, robot.melody);
     });
 
-    // LFO Load Fix Task 7: seeded robot LFOs must reach the engine at spawn, not only on a later
-    // user edit. Only reserveVoice's SUCCESS should prime — a robot with no reserved voice has no
-    // live node for lfoEngine to connect to, so priming it would be requesting against nothing.
-    it('primes the robot\'s LFO settings into the engine after a successful reserveVoice (docs/specs/LFO_LOAD_FIX.md Task 7)', () => {
+    // LFO Bank Task 10: seeded robot lane links must reach the bank engine at spawn, not only on
+    // a later user edit — same rule as the old primeRobotLfos, now routed through the bank's own
+    // roster-priming helper. Only reserveVoice's SUCCESS should prime — a robot with no reserved
+    // voice has no live node for the bank to connect to, so priming it would be requesting
+    // against nothing.
+    it('primes the robot\'s LFO links into the bank engine after a successful reserveVoice', () => {
       vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
-      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const primeSpy = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
 
       spawnRobot(DEFAULT_LOCALE_ID);
 
@@ -420,9 +394,9 @@ describe('spawnSystem', () => {
       expect(primeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: robot.id }));
     });
 
-    it('does not prime LFOs when reserveVoice fails (no live voice to connect against)', () => {
+    it('does not prime LFO links when reserveVoice fails (no live voice to connect against)', () => {
       vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(false);
-      const primeSpy = vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {});
+      const primeSpy = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
       const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
 
       spawnRobot(DEFAULT_LOCALE_ID);
@@ -434,7 +408,7 @@ describe('spawnSystem', () => {
 
     it('a priming failure never blocks melody registration', () => {
       vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
-      vi.spyOn(robotLfoPriming, 'primeRobotLfos').mockImplementation(() => {
+      vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {
         throw new Error('boom');
       });
       const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
@@ -565,13 +539,13 @@ describe('spawnSystem', () => {
     it('a copied robot inherits the source\'s rhythmicDensity/rhythmicMotifLength/noteVariance rather than rolling fresh ones', () => {
       for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
       const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
-      const byLfo = new Map<Robot['lfoSettings'], Robot[]>();
+      const byLinks = new Map<Robot['lfoLinks'], Robot[]>();
       for (const r of robots) {
-        const group = byLfo.get(r.lfoSettings) ?? [];
+        const group = byLinks.get(r.lfoLinks) ?? [];
         group.push(r);
-        byLfo.set(r.lfoSettings, group);
+        byLinks.set(r.lfoLinks, group);
       }
-      const sharedGroup = [...byLfo.values()].find((g) => g.length > 1);
+      const sharedGroup = [...byLinks.values()].find((g) => g.length > 1);
       expect(sharedGroup, 'expected at least one copy to share its source\'s object references').toBeDefined();
       const [a, b] = sharedGroup!;
       expect(a.rhythmicDensity).toBe(b.rhythmicDensity);
@@ -580,20 +554,100 @@ describe('spawnSystem', () => {
       expect(a.pitchRepeat).toBe(b.pitchRepeat);
     });
 
-    it('a copied robot inherits the source\'s lfoSettings rather than generating fresh ones', () => {
-      // 30 spawns at a ~30% copy chance per spawn makes at least one copy
-      // virtually certain (P(zero copies) ≈ 0.7^29 ≈ 0.00002). The roster is
-      // uncapped now (no more oldest-robot removal churn to avoid).
-      for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
-      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
-      const bySettings = new Map<Robot['lfoSettings'], Robot[]>();
-      for (const r of robots) {
-        const group = bySettings.get(r.lfoSettings) ?? [];
-        group.push(r);
-        bySettings.set(r.lfoSettings, group);
-      }
-      const sharedGroup = [...bySettings.values()].find((g) => g.length > 1);
-      expect(sharedGroup, 'expected at least one copy to share its source\'s lfoSettings reference').toBeDefined();
+    describe('lfoLinks at spawn (LFO Bank Task 9)', () => {
+      it('gives a spawned robot lfoLinks for all 6 RobotLfoTargetId values, no extras', () => {
+        spawnRobot(DEFAULT_LOCALE_ID);
+        const robot = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0];
+
+        expect(robot.lfoLinks).toBeDefined();
+        expect(Object.keys(robot.lfoLinks ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
+      });
+
+      it('tallies the already-spawned roster\'s picked lanes before seeding the next robot\'s own links (spec §1.3 roster-aware tally)', async () => {
+        // A dedicated locale ID, not DEFAULT_LOCALE_ID: spawnCounters is keyed per-locale and
+        // never reset between tests in this file (see the rhythmicMotifLength.active test's own
+        // comment above for the same reasoning) — a fresh key guarantees this robot's spawnCount
+        // (and therefore its generateRobotLfoLinks offset) starts at 0, matching the offset this
+        // test computes its own expectation against.
+        const localeId = 'lfo-link-tally-test-locale';
+        useLocaleStore.setState((state) => ({
+          locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [] } },
+        }));
+
+        // Force every spawn below to generate fresh links rather than copy an existing robot's —
+        // a copy would inherit a reference instead of exercising the tally this test checks.
+        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        const mocked = vi.mocked(getSeededVal);
+        mocked.mockImplementation((noiseMap, dataId, offset, min, max) => {
+          if (dataId === 'robot.copyChance') return 1; // 1 is never < 0.30, so shouldCopy is always false
+          return realGetSeededVal(noiseMap, dataId, offset, min, max);
+        });
+
+        try {
+          spawnRobot(localeId);
+          spawnRobot(localeId);
+          const firstTwo = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+          expect(firstTwo).toHaveLength(2);
+
+          spawnRobot(localeId);
+          const third = useLocaleStore.getState().getLocaleById(localeId)!.robots[2];
+
+          const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+          const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+          const priorLaneCounts = tallyLanes(firstTwo.flatMap((r) => Object.values(r.lfoLinks ?? {})));
+          const expectedLinks = generateRobotLfoLinks(noiseMap, 2, priorLaneCounts);
+
+          expect(third.lfoLinks).toEqual(expectedLinks);
+        } finally {
+          mocked.mockImplementation(realGetSeededVal);
+        }
+      });
+
+      it('a copied robot inherits the source\'s lfoLinks reference rather than generating fresh ones', () => {
+        // Same copy-detection pattern as the rhythmicDensity/rhythmicMotifLength/noteVariance copy test above.
+        for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
+        const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
+        const byLinks = new Map<Robot['lfoLinks'], Robot[]>();
+        for (const r of robots) {
+          const group = byLinks.get(r.lfoLinks) ?? [];
+          group.push(r);
+          byLinks.set(r.lfoLinks, group);
+        }
+        const sharedGroup = [...byLinks.values()].find((g) => g.length > 1);
+        expect(sharedGroup, 'expected at least one copy to share its source\'s lfoLinks reference').toBeDefined();
+      });
+
+      it('a respawn copying from a source without lfoLinks (undefined — a pre-Task-9 robot) generates fresh links instead of inheriting undefined', async () => {
+        spawnRobot(DEFAULT_LOCALE_ID);
+        const legacySource = { ...useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0] } as Partial<Robot>;
+        delete legacySource.lfoLinks;
+        useLocaleStore.setState((state) => ({
+          locales: {
+            ...state.locales,
+            [DEFAULT_LOCALE_ID]: { ...state.locales[DEFAULT_LOCALE_ID], robots: [legacySource as Robot] },
+          },
+        }));
+
+        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        const mocked = vi.mocked(getSeededVal);
+        mocked.mockImplementation((noiseMap, dataId, offset, min, max) => {
+          if (dataId === 'robot.copyChance') return 0; // 0 is always < 0.30, so shouldCopy is always true
+          if (dataId === 'robot.copySource') return 0; // picks the sole source robot regardless of range
+          return realGetSeededVal(noiseMap, dataId, offset, min, max);
+        });
+
+        try {
+          spawnRobot(DEFAULT_LOCALE_ID);
+          const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+          expect(robots).toHaveLength(2);
+          const copy = robots[1];
+
+          expect(copy.lfoLinks).toBeDefined();
+          expect(Object.keys(copy.lfoLinks ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
+        } finally {
+          mocked.mockImplementation(realGetSeededVal);
+        }
+      });
     });
 
     it('spawns multiple robots with unique IDs', () => {
@@ -745,20 +799,20 @@ describe('spawnSystem', () => {
     });
 
     it('a copied robot gets its own compositionSeed, never the source\'s', () => {
-      // Same copy-detection pattern as the lfoSettings copy test above: group by a
-      // field that IS inherited on copy (lfoSettings, by reference) to reliably find
-      // a copy pair, then assert compositionSeed -- which must NOT be inherited --
+      // Same copy-detection pattern as the rhythmicDensity/rhythmicMotifLength/noteVariance copy
+      // test above: group by a field that IS inherited on copy (lfoLinks, by reference) to
+      // reliably find a copy pair, then assert compositionSeed -- which must NOT be inherited --
       // actually differs between them.
       for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
       const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
-      const bySettings = new Map<Robot['lfoSettings'], Robot[]>();
+      const byLinks = new Map<Robot['lfoLinks'], Robot[]>();
       for (const r of robots) {
-        const group = bySettings.get(r.lfoSettings) ?? [];
+        const group = byLinks.get(r.lfoLinks) ?? [];
         group.push(r);
-        bySettings.set(r.lfoSettings, group);
+        byLinks.set(r.lfoLinks, group);
       }
-      const sharedGroup = [...bySettings.values()].find((g) => g.length > 1);
-      expect(sharedGroup, 'expected at least one copy to share its source\'s lfoSettings reference').toBeDefined();
+      const sharedGroup = [...byLinks.values()].find((g) => g.length > 1);
+      expect(sharedGroup, 'expected at least one copy to share its source\'s lfoLinks reference').toBeDefined();
       const [a, b] = sharedGroup!;
       expect(a.compositionSeed).not.toBe(b.compositionSeed);
     });
@@ -942,10 +996,10 @@ describe('spawnSystem', () => {
       vi.restoreAllMocks();
     });
 
-    it('primes the whole roster\'s LFOs exactly once, via primeRosterLfos, after every robot has been re-reserved', () => {
+    it('primes the whole roster\'s LFO links exactly once, via primeRosterLinks, after every robot has been re-reserved', () => {
       vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
       const releaseSpy = vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
-      const primeRosterSpy = vi.spyOn(robotLfoPriming, 'primeRosterLfos').mockImplementation(() => {});
+      const primeRosterSpy = vi.spyOn(robotLfoLinks, 'primeRosterLinks').mockImplementation(() => {});
       spawnRobot(DEFAULT_LOCALE_ID);
       spawnRobot(DEFAULT_LOCALE_ID);
       primeRosterSpy.mockClear();
@@ -955,8 +1009,8 @@ describe('spawnSystem', () => {
 
       const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
       expect(robots).toHaveLength(2);
-      // Called once with the full roster -- not once per robot -- so a single round-robin pass
-      // covers everyone (spec §1.2), not a per-robot prime that would defeat round-robin ordering.
+      // Called once with the full roster -- not once per robot -- so a single pass covers
+      // everyone, not a per-robot prime.
       expect(primeRosterSpy).toHaveBeenCalledTimes(1);
       expect(primeRosterSpy).toHaveBeenCalledWith(expect.arrayContaining([
         expect.objectContaining({ id: robots[0].id }),
@@ -964,7 +1018,7 @@ describe('spawnSystem', () => {
       ]));
     });
 
-    it('calls primeRosterLfos after every reserveVoice call, not interleaved per-robot', () => {
+    it('calls primeRosterLinks after every reserveVoice call, not interleaved per-robot', () => {
       vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
       vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
       spawnRobot(DEFAULT_LOCALE_ID);
@@ -973,18 +1027,19 @@ describe('spawnSystem', () => {
       reserveSpy.mockClear();
       const callOrder: string[] = [];
       reserveSpy.mockImplementation(() => { callOrder.push('reserve'); return true; });
-      vi.spyOn(robotLfoPriming, 'primeRosterLfos').mockImplementation(() => { callOrder.push('prime'); });
+      vi.spyOn(robotLfoLinks, 'primeRosterLinks').mockImplementation(() => { callOrder.push('prime'); });
 
       reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID);
 
       expect(callOrder).toEqual(['reserve', 'reserve', 'prime']);
     });
 
-    it('an empty roster calls primeRosterLfos with an empty array, never throws', () => {
-      const primeRosterSpy = vi.spyOn(robotLfoPriming, 'primeRosterLfos').mockImplementation(() => {});
+    it('an empty roster calls primeRosterLinks with an empty array, never throws', () => {
+      const primeRosterSpy = vi.spyOn(robotLfoLinks, 'primeRosterLinks').mockImplementation(() => {});
       expect(() => reRegisterAllRobotsAudio(DEFAULT_LOCALE_ID)).not.toThrow();
       expect(primeRosterSpy).toHaveBeenCalledWith([]);
     });
+
   });
 
   describe('spawnInitialRoster', () => {
@@ -1363,7 +1418,24 @@ describe('spawnSystem', () => {
       expect(baseline.rhythmicMotifLength).toEqual(robot.rhythmicMotifLength);
       expect(baseline.noteVariance).toEqual(robot.noteVariance);
       expect(baseline.pitchRepeat).toBe(robot.pitchRepeat);
-      expect(baseline.lfoSettings).toEqual(robot.lfoSettings);
+      expect(baseline.lfoLinks).toEqual(robot.lfoLinks);
+    });
+
+    it('reproduces lfoLinks too, including the roster-aware lane tally across several robots (LFO Bank Task 18)', () => {
+      const localeId = 'baseline-parity-lfolinks-locale';
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [] } },
+      }));
+      for (let i = 0; i < 5; i++) spawnRobot(localeId);
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+
+      const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+      const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+      const baselines = generateRobotRosterBaseline(noiseMap, robots.length);
+
+      robots.forEach((robot, i) => {
+        expect(baselines[i].lfoLinks, `robot ${i} (${robot.id}) lfoLinks`).toEqual(robot.lfoLinks);
+      });
     });
 
     it('reproduces every field of a full real 12-robot roster (spawnInitialRoster), including any copied siblings', () => {
@@ -1388,7 +1460,7 @@ describe('spawnSystem', () => {
         expect(baselines[i].rhythmicMotifLength, `robot ${i} (${robot.id}) rhythmicMotifLength`).toEqual(robot.rhythmicMotifLength);
         expect(baselines[i].noteVariance, `robot ${i} (${robot.id}) noteVariance`).toEqual(robot.noteVariance);
         expect(baselines[i].pitchRepeat, `robot ${i} (${robot.id}) pitchRepeat`).toBe(robot.pitchRepeat);
-        expect(baselines[i].lfoSettings, `robot ${i} (${robot.id}) lfoSettings`).toEqual(robot.lfoSettings);
+        expect(baselines[i].lfoLinks, `robot ${i} (${robot.id}) lfoLinks`).toEqual(robot.lfoLinks);
       });
     });
 
@@ -1399,23 +1471,22 @@ describe('spawnSystem', () => {
       const noiseMap = createNoise2D(alea('baseline-copy-branch-test-seed'));
       const baselines = generateRobotRosterBaseline(noiseMap, 30);
 
-      const bySettings = new Map<typeof baselines[number]['lfoSettings'], number[]>();
+      const byAttributes = new Map<typeof baselines[number]['audioAttributes'], number[]>();
       baselines.forEach((b, i) => {
-        const group = bySettings.get(b.lfoSettings) ?? [];
+        const group = byAttributes.get(b.audioAttributes) ?? [];
         group.push(i);
-        bySettings.set(b.lfoSettings, group);
+        byAttributes.set(b.audioAttributes, group);
       });
-      const sharedGroup = [...bySettings.values()].find((indices) => indices.length > 1);
-      expect(sharedGroup, 'expected at least one entry to share an earlier entry\'s lfoSettings reference (a copy)').toBeDefined();
+      const sharedGroup = [...byAttributes.values()].find((indices) => indices.length > 1);
+      expect(sharedGroup, 'expected at least one entry to share an earlier entry\'s audioAttributes reference (a copy)').toBeDefined();
 
       const [earlierIdx, laterIdx] = sharedGroup!;
-      // A copy reuses the SAME lfoSettings (and audioAttributes/octaveRange/etc.) object by
-      // reference, not a freshly-generated equivalent one -- matching spawnRobot's own
-      // "source.lfoSettings" (no re-generation) on the copy path. name is the one field that's
-      // never copied (generated fresh even on a copy, see generateRobotAudioBaseline's own doc
-      // comment) -- not asserted here, since two different spawnCounts could coincidentally
-      // generate the same "Adjective Noun" name by chance, independent of copying.
-      expect(baselines[laterIdx].lfoSettings).toBe(baselines[earlierIdx].lfoSettings);
+      // A copy reuses the SAME audioAttributes (and octaveRange/etc.) object by reference, not a
+      // freshly-generated equivalent one -- matching spawnRobot's own "source.audioAttributes"
+      // (no re-generation) on the copy path. name is the one field that's never copied (generated
+      // fresh even on a copy, see generateRobotAudioBaseline's own doc comment) -- not asserted
+      // here, since two different spawnCounts could coincidentally generate the same
+      // "Adjective Noun" name by chance, independent of copying.
       expect(baselines[laterIdx].audioAttributes).toBe(baselines[earlierIdx].audioAttributes);
     });
   });

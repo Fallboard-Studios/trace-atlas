@@ -12,14 +12,13 @@ export type Theme = 'dark' | 'light';
  *  the implicit "All Probes" bulk-edit target) — docs/specs/NAV_LAYOUT_REWRITE.md
  *  §1.3. null when a category/entity node itself is selected, no section chosen. */
 export type RobotSection = 'volume' | 'melody' | 'envelope' | 'source';
-/** Fleet Params' 5 mid-level groups (`fleetDrift` added by docs/specs/
- *  FLEET_DRIFT_CONSOLIDATION.md, positioned right after `eqFilters`; displayed as "LFO Drift" —
- *  the id itself is unchanged, a label-only rename, same convention `'volume'`/"Output" already
- *  established) — used to type-narrow a tree node id segment (useNavTree.ts's
+/** Fleet Params' 5 mid-level groups (`lfoBank` added by docs/tasks/LFO_BANK.md Task 15,
+ *  positioned right after `pacing`, replacing the former `fleetDrift` group entirely — not a
+ *  rename, a different control) — used to type-narrow a tree node id segment (useNavTree.ts's
  *  `asFleetParamsGroup`), not to back any expand-tracking store field: all 5 are always expanded
  *  once Fleet Params itself is expanded (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3) —
  *  there is no independent per-group toggle state anymore. */
-export type FleetParamsGroup = 'pacing' | 'eqFilters' | 'fleetDrift' | 'timeSpace' | 'output';
+export type FleetParamsGroup = 'pacing' | 'lfoBank' | 'eqFilters' | 'timeSpace' | 'output';
 /** Which of Settings' 3 children is currently selected — added in Task 11
  *  (docs/tasks/NAV_LAYOUT_REWRITE.md), beyond the spec's original §1.3 field list. Settings
  *  isn't an "entity" the way a robot/company/All-Probes is (RobotSection's own doc comment),
@@ -37,16 +36,15 @@ export type SettingsLeaf = 'quality' | 'sectorSettings' | 'sessions';
 export type SettingsSubsection = 'robotLoad' | 'effectsLoad' | 'attenuationStyle' | 'coordinates';
 /** Which Fleet Params effect leaf is currently selected — added in Task 14
  *  (docs/tasks/NAV_LAYOUT_REWRITE.md), same reasoning as SettingsLeaf: Fleet Params' 5 groups
- *  (Pacing/EQ & Filters/LFO Drift/Time & Space/Output) are category-only per spec §7 Q5, and the
+ *  (Pacing/LFO Bank/EQ & Filters/Time & Space/Output) are category-only per spec §7 Q5, and the
  *  7 real effect leaves underneath EQ & Filters/Time & Space/Output (EQ/HPF/LPF/Reverb/Delay/
  *  Compression/Limiter) all map onto AUDIO_RIG_CONFIG's own AudioRigEffectKey — reused directly
  *  rather than a parallel string union. 'tempo'/'automaticEffects' are Pacing's own 2 children;
- *  'globalDrift'/'robotDrift' are LFO Drift's own 2 children, "Fleet Drift" (the merged eq3/
- *  filterLPF/filterHPF control) and "Robot Drift" (moved out of Probes/Companies entirely — no
- *  longer duplicated there, docs/specs/FLEET_DRIFT_CONSOLIDATION.md follow-up). Unlike the other
- *  groups' leaves, none of these 4 are a real AudioRigEffectPanel/AudioRigEffectKey, so each
+ *  'laneA'-'laneD' are LFO Bank's own 4 children, one per world lane (docs/tasks/LFO_BANK.md
+ *  Task 15 — replaces the former 'globalDrift'/'robotDrift' pair entirely). Unlike the other
+ *  groups' leaves, none of these are a real AudioRigEffectPanel/AudioRigEffectKey, so each
  *  needs its own synthetic member here. */
-export type SelectedFleetParamsEffect = AudioRigEffectKey | 'tempo' | 'automaticEffects' | 'swellFrequency' | 'swellDuration' | 'globalDrift' | 'robotDrift';
+export type SelectedFleetParamsEffect = AudioRigEffectKey | 'tempo' | 'automaticEffects' | 'swellFrequency' | 'swellDuration' | 'laneA' | 'laneB' | 'laneC' | 'laneD';
 /** The 4th tree level under a robot's/company's RobotSection — docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md
  *  §1.3/§1.4. Flat union rather than nested per-section, because a subsection is always read
  *  alongside its already-known parent RobotSection — no ambiguity from flattening (no subsection

@@ -1,10 +1,10 @@
 import type { ContentEntry } from '../types';
 
 /**
- * Strings owned by a shared control or primitive, not by one feature — including the shared LFO
- * control (docs/specs/CONTENT_LAYER.md §1.2). Transcribed verbatim on 2026-09-30 (Task 5) from
- * Lfo.tsx, useLfoTargetGroup.ts, Stepper.tsx, PowerRockerSwitch.tsx, HeldOffNote.tsx,
- * ConsolePanel.tsx and the three AlertDialog Cancel buttons.
+ * Strings owned by a shared control or primitive, not by one feature (docs/specs/CONTENT_LAYER.md
+ * §1.2). Transcribed verbatim on 2026-09-30 (Task 5) from Stepper.tsx, PowerRockerSwitch.tsx,
+ * HeldOffNote.tsx, ConsolePanel.tsx and the three AlertDialog Cancel buttons; `ui.lfo.*`/`ui.lfoLane`
+ * added since for the LfoLink primitive (docs/tasks/LFO_BANK.md).
  */
 export const ui = {
   'ui.cancel': { human: 'Cancel' },
@@ -18,9 +18,6 @@ export const ui = {
   'ui.power.off': { human: 'Power off' },
   'ui.power.confirmTitle': { human: 'Power off?' },
   'ui.power.confirmBody': { human: 'All audio will stop.' },
-  /** The LFO display's fallback lore name when the targeted field has none; `human` is never
-   *  rendered (the human side always comes from the targeted field). */
-  'ui.lfo': { human: 'Modulation', lore: 'Mutation' },
   'ui.lfo.shape': {
     human: 'Shape',
     lore: 'Mutation Type',
@@ -33,4 +30,19 @@ export const ui = {
   },
   'ui.lfo.rate': { human: 'Rate', lore: 'Mutation Cadence', unit: 'Hz' },
   'ui.lfo.depth': { human: 'Depth', lore: 'Mutation Span', unit: '%' },
+  /** The LfoLink primitive's lane picker (docs/specs/LFO_BANK.md §1.5) — `off` plus the four
+   *  world lanes, Crawford's names (2026-10-01). Reused verbatim as fleet.lfoBank.laneA–D's
+   *  own names once Task 15 wires the LFO Bank accordion (kept in sync by hand, not by reference —
+   *  the content model has no cross-key lookup). */
+  'ui.lfoLane': {
+    human: 'Lane',
+    lore: 'Signature Lane',
+    options: {
+      off: { human: 'Off' },
+      a: { human: 'Core LFO', lore: 'Apex Signature' },
+      b: { human: 'Companion LFO', lore: 'Lateral Signature' },
+      c: { human: 'Accent LFO', lore: 'Impulse Signature' },
+      d: { human: 'Overtone LFO', lore: 'Canopy Signature' },
+    },
+  },
 } as const satisfies Record<string, ContentEntry>;

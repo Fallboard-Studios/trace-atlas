@@ -11,9 +11,8 @@ import { useAudioStore } from '../stores/audioStore';
 import { DEFAULT_LOCALE_ID, useAttenuationStyleStore } from '../stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DockingState } from '../types/Robot';
-import type { LfoTargetId } from '../types/lfo';
 import type { Robot } from '../types/Robot';
-import { MAX_POLYPHONY, ROBOT_LFO_CAP_FULL } from '../constants';
+import { MAX_POLYPHONY } from '../constants';
 import { resolveInitialAudioLoad, resolveInitialEffectsLoad } from '../utils/audioBudget';
 import { isRobotAudible } from '../utils/robotAudibility';
 
@@ -91,7 +90,7 @@ const enginePoly = vi.spyOn(AudioEngine, 'setPolyphonyCap');
 describe('audioBudgetSystem', () => {
   beforeEach(() => {
     stopAudioBudget();
-    useAudioStore.setState({ robotLoad: 1, effectsLoad: 1, soundingRobotIds: [], heldOffLfoKeys: [], driftHeldOff: false });
+    useAudioStore.setState({ robotLoad: 1, effectsLoad: 1, soundingRobotIds: [], filterLinksHeldOff: false, driftHeldOff: false });
     setRoster([]);
     AudioEngine.setSoundingRobots(null);
     AudioEngine.setPolyphonyCap(MAX_POLYPHONY);
@@ -433,47 +432,52 @@ describe('audioBudgetSystem', () => {
     });
   });
 
-  // Plan task 20: the dial also drives the LFO tiers — the policy lfoEngine consults, drift on/off, and the held-off state
-  // the UI greys out from. Real lfoEngine, spied call-through: nothing here connects an LFO, so no Tone context is needed.
+  // docs/tasks/LFO_BANK.md Task 4/10: the dial also drives the LFO tiers — drift on/off, the filter
+  // (LPF/HPF) link flag the bank engine now owns directly, and the held-off state the UI greys out from.
+  // Real bank engine, spied call-through: nothing here connects an LFO, so no Tone context is needed.
   describe('LFO tiers', () => {
-    const setPolicy = vi.spyOn(lfoEngine, 'setLfoPolicy');
     const setDrift = vi.spyOn(lfoEngine, 'setDriftEnabled');
-    const reconcileLfos = vi.spyOn(lfoEngine, 'reconcileLfos');
-    const getHeldOff = vi.spyOn(lfoEngine, 'getHeldOffLfoKeys');
-    const subscribeHeldOff = vi.spyOn(lfoEngine, 'subscribeHeldOff');
-
-    type Policy = (target: LfoTargetId, robotId: string | undefined, connectedRobotLfos: number) => boolean;
-    const policy = (): Policy => setPolicy.mock.calls.filter((c) => c[0] !== null).at(-1)![0] as Policy;
+    const setFilterLinksEnabled = vi.spyOn(lfoEngine, 'setFilterLinksEnabled');
     const store = () => useAudioStore.getState();
 
-    afterEach(() => {
-      // Vitest 3: mockReset() on a spy restores the original (call-through) implementation, keeping the spy in place.
-      getHeldOff.mockReset();
-      subscribeHeldOff.mockReset();
-    });
-
-    it('installs the policy for the dial in force at start, before anything can connect (boot at ?fxLoad=light)', () => {
+    it('at boot on Light: filter LFOs and drift both off, before anything can connect (?fxLoad=light)', () => {
       useAudioStore.setState({ effectsLoad: 0.2 });
       startAudioBudget();
 
-      expect(policy()('lpf.Q', undefined, 0)).toBe(false); // filter LFOs off on Light
-      expect(policy()('lpf.frequency', undefined, 0)).toBe(false);
-      expect(policy()('eq3.low', undefined, 0)).toBe(true); // EQ-gain LFOs stay
-      expect(policy()('layer0.gain', 'r1', 3)).toBe(true); // Light allows 4 audio-rate robot LFOs
-      expect(policy()('layer0.gain', 'r1', 4)).toBe(false);
-      expect(policy()('layer0.phase', 'r1', 99)).toBe(true); // phase LFOs are never counted
+      expect(setFilterLinksEnabled).toHaveBeenLastCalledWith(false);
       expect(setDrift).toHaveBeenLastCalledWith(false);
+      expect(store().filterLinksHeldOff).toBe(true);
     });
 
-    it('at Full: filter LFOs and drift unrestricted, robot LFOs capped at Standard’s (Task 11, docs/PERFORMANCE.md)', () => {
+    it('at Full: filter LFOs and drift both unrestricted', () => {
       startAudioBudget();
 
-      expect(policy()('lpf.Q', undefined, 0)).toBe(true);
-      expect(policy()('layer0.gain', 'r1', ROBOT_LFO_CAP_FULL - 1)).toBe(true);
-      expect(policy()('layer0.gain', 'r1', ROBOT_LFO_CAP_FULL)).toBe(false);
+      expect(setFilterLinksEnabled).toHaveBeenLastCalledWith(true);
       expect(setDrift).toHaveBeenLastCalledWith(true);
       expect(store().driftHeldOff).toBe(false);
-      expect(store().heldOffLfoKeys).toEqual([]);
+      expect(store().filterLinksHeldOff).toBe(false);
+    });
+
+    it('Full → Standard turns off drift only, leaving filter LFOs unrestricted (LOAD_FILTER_LFOS_MIN sits below Standard)', () => {
+      startAudioBudget();
+      vi.clearAllMocks();
+
+      useAudioStore.getState().setEffectsLoad(0.6); // Standard: drift off, filter LFOs still on
+
+      expect(setDrift).toHaveBeenLastCalledWith(false);
+      expect(setFilterLinksEnabled).toHaveBeenLastCalledWith(true);
+      expect(store().filterLinksHeldOff).toBe(false);
+    });
+
+    it('Standard → Light turns off filter LFOs too and marks them held off', () => {
+      useAudioStore.setState({ effectsLoad: 0.6 });
+      startAudioBudget();
+      vi.clearAllMocks();
+
+      useAudioStore.getState().setEffectsLoad(0.2); // Light
+
+      expect(setFilterLinksEnabled).toHaveBeenLastCalledWith(false);
+      expect(store().filterLinksHeldOff).toBe(true);
     });
 
     it('moving the dial across each threshold flips exactly that tier', () => {
@@ -481,42 +485,42 @@ describe('audioBudgetSystem', () => {
       const set = (load: number) => useAudioStore.getState().setEffectsLoad(load);
 
       set(0.6); // Standard
-      expect(policy()('lpf.Q', undefined, 0)).toBe(true);
+      expect(setFilterLinksEnabled).toHaveBeenLastCalledWith(true);
       expect(setDrift).toHaveBeenLastCalledWith(false);
 
       set(0.39); // just under the filter threshold
-      expect(policy()('lpf.Q', undefined, 0)).toBe(false);
+      expect(setFilterLinksEnabled).toHaveBeenLastCalledWith(false);
 
       set(0.79); // just under the drift threshold
-      expect(policy()('lpf.Q', undefined, 0)).toBe(true);
+      expect(setFilterLinksEnabled).toHaveBeenLastCalledWith(true);
       expect(setDrift).toHaveBeenLastCalledWith(false);
 
       set(0.8);
       expect(setDrift).toHaveBeenLastCalledWith(true);
     });
 
-    it('re-installs the policy, then sets drift, then reconciles — in that order — on every tier change', () => {
+    it('sets drift, then the filter flag — in that order — on every tier change', () => {
       startAudioBudget();
       vi.clearAllMocks();
 
       useAudioStore.getState().setEffectsLoad(0.2);
 
       const order = (fn: { mock: { invocationCallOrder: number[] } }) => fn.mock.invocationCallOrder[0];
-      expect(setPolicy).toHaveBeenCalled();
-      expect(order(setPolicy)).toBeLessThan(order(setDrift));
-      expect(order(setDrift)).toBeLessThan(order(reconcileLfos));
+      expect(setDrift).toHaveBeenCalled();
+      expect(setFilterLinksEnabled).toHaveBeenCalled();
+      expect(order(setDrift)).toBeLessThan(order(setFilterLinksEnabled));
     });
 
-    it('does not re-run the tiers for a dial change that leaves every tier limit where it was', () => {
+    it('does not re-run the tiers for a dial change that leaves every tier limit where it was (Standard → Standard)', () => {
       useAudioStore.setState({ effectsLoad: 0.5 });
       startAudioBudget();
       vi.clearAllMocks();
 
-      useAudioStore.getState().setEffectsLoad(0.51); // same filter/drift state, same robot-LFO cap
+      useAudioStore.getState().setEffectsLoad(0.51); // same filter/drift state
       useAudioStore.getState().setEffectsLoad(0.52);
 
-      expect(setPolicy).not.toHaveBeenCalled();
-      expect(reconcileLfos).not.toHaveBeenCalled();
+      expect(setDrift).not.toHaveBeenCalled();
+      expect(setFilterLinksEnabled).not.toHaveBeenCalled();
     });
 
     it('does not re-run the tiers for roster churn (only the dial changes them)', () => {
@@ -527,8 +531,8 @@ describe('audioBudgetSystem', () => {
       update('r1', { audioMode: 'mute' });
       update('r1', { audioMode: 'none' });
 
-      expect(setPolicy).not.toHaveBeenCalled();
-      expect(reconcileLfos).not.toHaveBeenCalled();
+      expect(setDrift).not.toHaveBeenCalled();
+      expect(setFilterLinksEnabled).not.toHaveBeenCalled();
     });
 
     it('does not re-run the tiers when robotLoad changes — only effectsLoad drives them', () => {
@@ -537,8 +541,8 @@ describe('audioBudgetSystem', () => {
 
       useAudioStore.getState().setRobotLoad(0.2);
 
-      expect(setPolicy).not.toHaveBeenCalled();
-      expect(reconcileLfos).not.toHaveBeenCalled();
+      expect(setDrift).not.toHaveBeenCalled();
+      expect(setFilterLinksEnabled).not.toHaveBeenCalled();
     });
 
     it('marks drift held off exactly while the dial keeps it off, writing the flag only on a real change', () => {
@@ -564,66 +568,40 @@ describe('audioBudgetSystem', () => {
       unsubscribe();
     });
 
-    describe('held-off LFOs mirrored into the store', () => {
-      it('writes the engine’s held-off keys whenever the engine reports a change — e.g. a robot LFO enabled over the cap', () => {
-        useAudioStore.setState({ effectsLoad: 0.2 });
-        startAudioBudget();
-        const onChange = subscribeHeldOff.mock.calls.at(-1)![0];
-
-        getHeldOff.mockReturnValue(['robot-3:layer0.detune']);
-        onChange();
-
-        expect(store().heldOffLfoKeys).toEqual(['robot-3:layer0.detune']);
+    it('marks filter links held off exactly while the dial keeps them off, writing the flag only on a real change', () => {
+      startAudioBudget();
+      let writes = 0;
+      let last = store().filterLinksHeldOff;
+      const unsubscribe = useAudioStore.subscribe((state) => {
+        if (state.filterLinksHeldOff !== last) {
+          writes++;
+          last = state.filterLinksHeldOff;
+        }
       });
 
-      it('does not write when the same LFOs are held off, and clears when none are', () => {
-        startAudioBudget();
-        const onChange = subscribeHeldOff.mock.calls.at(-1)![0];
-        getHeldOff.mockReturnValue(['lpf.Q']);
-        onChange();
-        const stored = store().heldOffLfoKeys;
-        const listener = vi.fn();
-        const unsubscribe = useAudioStore.subscribe(listener);
+      for (let percent = 100; percent >= 0; percent--) useAudioStore.getState().setEffectsLoad(percent / 100);
+      expect(store().filterLinksHeldOff).toBe(true);
+      expect(writes).toBe(1);
 
-        onChange();
-        expect(listener).not.toHaveBeenCalled();
-        expect(store().heldOffLfoKeys).toBe(stored);
-
-        getHeldOff.mockReturnValue([]);
-        onChange();
-        expect(store().heldOffLfoKeys).toEqual([]);
-        unsubscribe();
-      });
-
-      it('picks up LFOs that were already held off when the system starts, and after a dial change re-reconciles', () => {
-        getHeldOff.mockReturnValue(['lpf.Q']);
-        startAudioBudget();
-        expect(store().heldOffLfoKeys).toEqual(['lpf.Q']);
-
-        getHeldOff.mockReturnValue([]);
-        useAudioStore.getState().setEffectsLoad(0.7); // any tier change re-syncs
-        useAudioStore.getState().setEffectsLoad(1);
-        expect(store().heldOffLfoKeys).toEqual([]);
-      });
+      for (let percent = 0; percent <= 100; percent++) useAudioStore.getState().setEffectsLoad(percent / 100);
+      expect(store().filterLinksHeldOff).toBe(false);
+      expect(writes).toBe(2);
+      unsubscribe();
     });
 
-    it('stopAudioBudget lifts every tier: policy removed, drift back on, reconciled, held-off state cleared, listener released', () => {
+    it('stopAudioBudget lifts every tier: drift back on, every suspended filter link reconnected, held-off state cleared', () => {
       useAudioStore.setState({ effectsLoad: 0.2 });
-      const unsubscribeEngine = vi.fn();
-      subscribeHeldOff.mockImplementation(() => unsubscribeEngine);
-      getHeldOff.mockReturnValue(['lpf.Q']);
       startAudioBudget();
       expect(store().driftHeldOff).toBe(true);
+      expect(store().filterLinksHeldOff).toBe(true);
       vi.clearAllMocks();
 
       stopAudioBudget();
 
-      expect(setPolicy).toHaveBeenLastCalledWith(null);
       expect(setDrift).toHaveBeenLastCalledWith(true);
-      expect(reconcileLfos).toHaveBeenCalled();
-      expect(store().heldOffLfoKeys).toEqual([]);
+      expect(setFilterLinksEnabled).toHaveBeenLastCalledWith(true);
+      expect(store().filterLinksHeldOff).toBe(false);
       expect(store().driftHeldOff).toBe(false);
-      expect(unsubscribeEngine).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -552,8 +552,8 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
     act(() => result.current.select('fleetParams.output.limiter'));
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('limiter');
 
-    act(() => result.current.select('fleetParams.fleetDrift.drift'));
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('globalDrift');
+    act(() => result.current.select('fleetParams.lfoBank.a'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('laneA');
   });
 
   it('selecting the bare "fleetParams" parent opens the first leaf overall (3-Band EQ) — first-leaf-on-parent-select, docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1.6', () => {
@@ -580,8 +580,8 @@ describe('useNavTree — select() maps generic node ids to typed uiStore fields 
     act(() => result.current.select('fleetParams.output'));
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('compressor');
 
-    act(() => result.current.select('fleetParams.fleetDrift'));
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('globalDrift');
+    act(() => result.current.select('fleetParams.lfoBank'));
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('laneA');
   });
 
   it('selecting Pacing\'s own 4 children (Tempo, Frequency, Duration, Automatic Effects) each sets selectedFleetParamsEffect accordingly, and isSelected reports only the exact node', () => {
@@ -961,13 +961,13 @@ describe('useNavTree — toggleExpand/isExpanded on the 4 top-level branches (bu
 
 describe('isDeepestTwoLevels (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §2/§5.1) — plain exported predicate, no store state needed', () => {
   it('is true for every Settings/Fleet Params mid-level node', () => {
-    for (const id of ['settings.quality', 'settings.sectorSettings', 'fleetParams.pacing', 'fleetParams.eqFilters', 'fleetParams.fleetDrift', 'fleetParams.timeSpace', 'fleetParams.output']) {
+    for (const id of ['settings.quality', 'settings.sectorSettings', 'fleetParams.pacing', 'fleetParams.lfoBank', 'fleetParams.eqFilters', 'fleetParams.timeSpace', 'fleetParams.output']) {
       expect(isDeepestTwoLevels(id), id).toBe(true);
     }
   });
 
   it('is true for every Settings/Fleet Params leaf node (3-segment ids)', () => {
-    for (const id of ['settings.quality.robotLoad', 'settings.sectorSettings.attenuationStyle', 'fleetParams.pacing.tempo', 'fleetParams.eqFilters.eq', 'fleetParams.fleetDrift.drift']) {
+    for (const id of ['settings.quality.robotLoad', 'settings.sectorSettings.attenuationStyle', 'fleetParams.pacing.tempo', 'fleetParams.eqFilters.eq', 'fleetParams.lfoBank.a']) {
       expect(isDeepestTwoLevels(id), id).toBe(true);
     }
   });
@@ -993,7 +993,7 @@ describe('isDeepestTwoLevels (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md �
 
 describe('isAutoExpandTier (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3/§5.1) — the UPPER of isDeepestTwoLevels\' 2 levels only', () => {
   it('is true for every Settings/Fleet Params mid-level node', () => {
-    for (const id of ['settings.quality', 'settings.sectorSettings', 'fleetParams.pacing', 'fleetParams.eqFilters', 'fleetParams.fleetDrift', 'fleetParams.timeSpace', 'fleetParams.output']) {
+    for (const id of ['settings.quality', 'settings.sectorSettings', 'fleetParams.pacing', 'fleetParams.lfoBank', 'fleetParams.eqFilters', 'fleetParams.timeSpace', 'fleetParams.output']) {
       expect(isAutoExpandTier(id), id).toBe(true);
     }
   });
@@ -1005,7 +1005,7 @@ describe('isAutoExpandTier (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1
   });
 
   it('is false for a leaf/subsection node (the LOWER of the 2 levels — no children of its own, nothing to auto-expand)', () => {
-    for (const id of ['settings.quality.robotLoad', 'fleetParams.pacing.tempo', 'fleetParams.fleetDrift.drift', 'probes.r1.melody.rhythm', 'companies.c1.source.coaxialOscillator']) {
+    for (const id of ['settings.quality.robotLoad', 'fleetParams.pacing.tempo', 'fleetParams.lfoBank.a', 'probes.r1.melody.rhythm', 'companies.c1.source.coaxialOscillator']) {
       expect(isAutoExpandTier(id), id).toBe(false);
     }
   });
@@ -1019,13 +1019,13 @@ describe('isAutoExpandTier (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1
 
 describe('isCollapsible — the negation of isAutoExpandTier', () => {
   it('is false exactly where isAutoExpandTier is true', () => {
-    for (const id of ['settings.quality', 'fleetParams.pacing', 'fleetParams.fleetDrift', 'probes.r1.melody', 'companies.c1.source']) {
+    for (const id of ['settings.quality', 'fleetParams.pacing', 'fleetParams.lfoBank', 'probes.r1.melody', 'companies.c1.source']) {
       expect(isCollapsible(id), id).toBe(false);
     }
   });
 
   it('is true for branch ids, entity ids, and leaf/subsection ids', () => {
-    for (const id of ['settings', 'probes', 'probes.r1', 'companies.c1', 'settings.quality.robotLoad', 'fleetParams.fleetDrift.drift', 'probes.r1.melody.rhythm']) {
+    for (const id of ['settings', 'probes', 'probes.r1', 'companies.c1', 'settings.quality.robotLoad', 'fleetParams.lfoBank.a', 'probes.r1.melody.rhythm']) {
       expect(isCollapsible(id), id).toBe(true);
     }
   });

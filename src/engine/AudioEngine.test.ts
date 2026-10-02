@@ -163,23 +163,20 @@ vi.mock('../constants', async () => {
   return { ...actual, DEV_TUNING: false };
 });
 
-// Mock lfoEngine (Task 9) — AudioEngine.start() primes/connects/starts global
-// LFOs through this, but exercising the real lfoEngine here would mean also
-// mocking a real Tone.LFO, which is out of scope for testing AudioEngine's own
-// orchestration logic (which target got which call, in what order).
+// Mock the LFO Bank engine (docs/tasks/LFO_BANK.md Task 10) — AudioEngine.start() primes/links
+// the bank through this, but exercising the real engine here would mean also mocking a real
+// Tone.LFO, which is out of scope for testing AudioEngine's own orchestration logic (which
+// target got which call, in what order).
 vi.mock('./lfoEngine', () => ({
   lfoEngine: {
-    getLfoSettings: vi.fn(),
-    setLfoRate: vi.fn(),
-    setLfoDepth: vi.fn(),
-    setLfoShape: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
-    connectLfoTarget: vi.fn(() => true),
-    disconnectLfoTarget: vi.fn(),
-    setGlobalRateDrift: vi.fn(),
-    setGlobalDepthDrift: vi.fn(),
+    primeLfoBank: vi.fn(),
+    linkTarget: vi.fn(() => true),
   },
+}));
+
+// Mock the bank's robot-roster priming (Task 10).
+vi.mock('../systems/robotLfoLinks', () => ({
+  primeRosterLinks: vi.fn(),
 }));
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -1974,14 +1971,17 @@ describe('AudioEngine - getRobotModulationTarget', () => {
     expect(target).toHaveProperty('value');
   });
 
-  it('returns null (not throw) for "layerN.phase" — no live Signal exists for oscillator phase in Tone.js', async () => {
+  // The phase LFO target was cut (docs/specs/LFO_BANK.md Task 1) — no live Signal ever existed
+  // for oscillator phase in Tone.js, so it never resolved one even before the removal; the id can
+  // still arrive as a stale string from an old session or share link and must decline like 'volume'/'pulseWidth'.
+  it('returns null (not throw) for the removed "layerN.phase" target', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 45 }];
     AudioEngine.reserveVoice('mod-target-phase', layered as any, TEST_ADSR);
 
-    expect(() => AudioEngine.getRobotModulationTarget('mod-target-phase', 'layer0.phase')).not.toThrow();
-    expect(AudioEngine.getRobotModulationTarget('mod-target-phase', 'layer0.phase')).toBeNull();
+    expect(() => AudioEngine.getRobotModulationTarget('mod-target-phase', 'layer0.phase' as any)).not.toThrow();
+    expect(AudioEngine.getRobotModulationTarget('mod-target-phase', 'layer0.phase' as any)).toBeNull();
   });
 
   // The pulse-width LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 4) —
@@ -2066,19 +2066,24 @@ describe('AudioEngine - getGlobalModulationTarget', () => {
   });
 });
 
-describe('AudioEngine.start - prime, connect, and start seeded global LFOs (Task 9)', () => {
-  // One entry per GlobalLfoTargetId, with a deliberate mix: some with a
-  // nonzero (oscillating) rate, some at rate 0 (off), and one oscillating
-  // target ('eq3.mid') whose connectLfoTarget call will be made to return
-  // false, to prove start() is conditioned on a real connect.
-  const FIXTURE_GLOBAL_LFO = {
-    'eq3.low': { shape: 'sine', rate: 2, depth: 30 },
-    'eq3.mid': { shape: 'square', rate: 3, depth: 40 },
-    'eq3.high': { shape: 'triangle', rate: 0, depth: 10 },
-    'lpf.frequency': { shape: 'sawtooth', rate: 4, depth: 50 },
-    'lpf.Q': { shape: 'sine', rate: 0, depth: 20 },
-    'hpf.frequency': { shape: 'sine', rate: 0, depth: 60 },
-    'hpf.Q': { shape: 'square', rate: 0, depth: 70 },
+describe('AudioEngine.start — primes and links the LFO Bank (docs/tasks/LFO_BANK.md Task 10)', () => {
+  const FIXTURE_LFO_BANK = {
+    a: { shape: 'sine', rate: 1, rateDrift: 0, depthDrift: 0 },
+    b: { shape: 'triangle', rate: 2, rateDrift: 0, depthDrift: 0 },
+    c: { shape: 'square', rate: 0, rateDrift: 0, depthDrift: 0 },
+    d: { shape: 'sawtooth', rate: 3, rateDrift: 0, depthDrift: 0 },
+  } as const;
+
+  // A deliberate mix of linked and unlinked global targets — same spirit as the old
+  // FIXTURE_GLOBAL_LFO fixture this replaces.
+  const FIXTURE_GLOBAL_LFO_LINKS = {
+    'eq3.low': { lane: 'a', depth: 30 },
+    'eq3.mid': { lane: null, depth: 0 },
+    'eq3.high': { lane: 'b', depth: 40 },
+    'lpf.frequency': { lane: 'c', depth: 50 },
+    'lpf.Q': { lane: null, depth: 0 },
+    'hpf.frequency': { lane: 'd', depth: 60 },
+    'hpf.Q': { lane: null, depth: 0 },
   } as const;
 
   beforeEach(() => {
@@ -2090,58 +2095,41 @@ describe('AudioEngine.start - prime, connect, and start seeded global LFOs (Task
     const { useAudioStore } = await import('../stores/audioStore');
     const { lfoEngine } = await import('./lfoEngine');
 
-    useAudioStore.setState({ globalLfo: FIXTURE_GLOBAL_LFO as any });
-    // The lfoEngine mock's call history persists across vi.resetModules() (same
-    // quirk LFO_INTEGRATION_PLAN.md's Task 11 and audioStore.test.ts's AS-sync
-    // block both document for the Tone/lfoEngine mocks) — clear it so each test
-    // only sees this start() call's own calls.
+    useAudioStore.setState({ lfoBank: FIXTURE_LFO_BANK as any, globalLfoLinks: FIXTURE_GLOBAL_LFO_LINKS as any });
+    // The mock's call history persists across vi.resetModules() (the same quirk the old
+    // fixture's own comment documented for lfoEngine/Tone) — clear it so each test only sees
+    // this start() call's own calls.
     vi.clearAllMocks();
-    vi.mocked(lfoEngine.connectLfoTarget).mockImplementation((target: unknown) => target !== 'eq3.mid');
 
     await AudioEngine.start();
     return { lfoEngine };
   }
 
-  it('primes setLfoShape/setLfoRate/setLfoDepth for every one of the 7 targets from globalLfo state', async () => {
+  it('calls primeLfoBank with the current lfoBank state', async () => {
     const { lfoEngine } = await startWithFixture();
+    expect(lfoEngine.primeLfoBank).toHaveBeenCalledWith(FIXTURE_LFO_BANK);
+  });
 
-    for (const [target, settings] of Object.entries(FIXTURE_GLOBAL_LFO)) {
-      expect(lfoEngine.setLfoShape).toHaveBeenCalledWith(target, settings.shape);
-      expect(lfoEngine.setLfoRate).toHaveBeenCalledWith(target, settings.rate);
-      expect(lfoEngine.setLfoDepth).toHaveBeenCalledWith(target, settings.depth);
+  it('calls linkTarget once per global target with its stored link, no robotId', async () => {
+    const { lfoEngine } = await startWithFixture();
+    for (const [target, link] of Object.entries(FIXTURE_GLOBAL_LFO_LINKS)) {
+      expect(lfoEngine.linkTarget).toHaveBeenCalledWith(target, link);
     }
   });
 
-  it('connects every target with a nonzero rate and starts it when connect succeeds', async () => {
+  it('calls primeLfoBank before any linkTarget call', async () => {
     const { lfoEngine } = await startWithFixture();
-
-    expect(lfoEngine.connectLfoTarget).toHaveBeenCalledWith('eq3.low');
-    expect(lfoEngine.start).toHaveBeenCalledWith('eq3.low');
-
-    expect(lfoEngine.connectLfoTarget).toHaveBeenCalledWith('lpf.frequency');
-    expect(lfoEngine.start).toHaveBeenCalledWith('lpf.frequency');
+    const primeOrder = vi.mocked(lfoEngine.primeLfoBank).mock.invocationCallOrder[0];
+    const firstLinkOrder = vi.mocked(lfoEngine.linkTarget).mock.invocationCallOrder[0];
+    expect(primeOrder).toBeLessThan(firstLinkOrder);
   });
 
-  it('does not call start for a nonzero-rate target whose connect fails', async () => {
-    const { lfoEngine } = await startWithFixture();
-
-    expect(lfoEngine.connectLfoTarget).toHaveBeenCalledWith('eq3.mid');
-    expect(lfoEngine.start).not.toHaveBeenCalledWith('eq3.mid');
-  });
-
-  it('never connects or starts a target whose rate is 0', async () => {
-    const { lfoEngine } = await startWithFixture();
-
-    for (const target of ['eq3.high', 'lpf.Q', 'hpf.frequency', 'hpf.Q']) {
-      expect(lfoEngine.connectLfoTarget).not.toHaveBeenCalledWith(target);
-      expect(lfoEngine.start).not.toHaveBeenCalledWith(target);
-    }
-  });
-
-  it('does not throw and existing start() behavior (instrument loading, beat clock) still runs', async () => {
+  it('a throw while priming the bank does not fail start() — existing behavior (beat clock) still runs', async () => {
     const { AudioEngine } = await import('./AudioEngine');
-    const { useAudioStore } = await import('../stores/audioStore');
-    useAudioStore.setState({ globalLfo: FIXTURE_GLOBAL_LFO as any });
+    const { lfoEngine } = await import('./lfoEngine');
+    vi.mocked(lfoEngine.primeLfoBank).mockImplementation(() => {
+      throw new Error('boom');
+    });
 
     await expect(AudioEngine.start()).resolves.not.toThrow();
     const beatClock = await import('./beatClock');
@@ -2216,21 +2204,17 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
   });
 });
 
-describe('AudioEngine.start — primes robot LFOs for robots that spawned before audio was ready (LFO Load Fix Task 8)', () => {
-  // Mirrors the "robots spawned before AudioEngine initialized" post-load reservation pass
-  // (loadInstruments, earlier in this file) — once those robots have a reserved voice, their
-  // seeded LFO settings must reach lfoEngine too, same as the global chain's own priming loop a
-  // few lines above in start() itself.
+describe('AudioEngine.start — primes robot LFO links via the bank roster helper (docs/tasks/LFO_BANK.md Task 10)', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  async function startWithRobot(lfoSettings: Record<string, unknown>) {
+  it('calls primeRosterLinks once with the active locale\'s robots', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     const storeMod = await import('../stores/localeStore');
     const attenuationStyleMod = await import('../stores/attenuationStyleStore');
     const helpers = await import('../utils/localeHelpers');
-    const { lfoEngine } = await import('./lfoEngine');
+    const { primeRosterLinks } = await import('../systems/robotLfoLinks');
     const localeId = attenuationStyleMod.DEFAULT_LOCALE_ID;
     (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(localeId);
     storeMod.useLocaleStore.getState().setLocaleData(localeId, {
@@ -2239,66 +2223,49 @@ describe('AudioEngine.start — primes robot LFOs for robots that spawned before
         position: { x: 0, y: 0 },
         audioMode: 'none',
         audioAttributes: { layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }], adsr: TEST_ADSR },
-        lfoSettings,
+        lfoLinks: { 'layer0.gain': { lane: 'a', depth: 40 } },
       } as any],
     });
     vi.clearAllMocks();
-    vi.mocked(lfoEngine.connectLfoTarget).mockReturnValue(true);
 
     await AudioEngine.start();
-    return { lfoEngine };
-  }
 
-  it('primes a nonzero-rate target for a robot whose voice was reserved before start()', async () => {
-    const { lfoEngine } = await startWithRobot({ 'layer0.gain': { shape: 'sine', rate: 2, depth: 40 } });
-
-    expect(lfoEngine.setLfoRate).toHaveBeenCalledWith('layer0.gain', 2, 'pre-spawned-robot');
-    expect(lfoEngine.connectLfoTarget).toHaveBeenCalledWith('layer0.gain', 'pre-spawned-robot');
-    expect(lfoEngine.start).toHaveBeenCalledWith('layer0.gain', 'pre-spawned-robot');
+    expect(primeRosterLinks).toHaveBeenCalledTimes(1);
+    expect(primeRosterLinks).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ id: 'pre-spawned-robot' })])
+    );
   });
 
-  it('never connects a rate-0 target', async () => {
-    const { lfoEngine } = await startWithRobot({ 'layer0.detune': { shape: 'sine', rate: 0, depth: 10 } });
-
-    expect(lfoEngine.connectLfoTarget).not.toHaveBeenCalledWith('layer0.detune', 'pre-spawned-robot');
-    expect(lfoEngine.start).not.toHaveBeenCalledWith('layer0.detune', 'pre-spawned-robot');
-  });
-
-  it('runs after the global LFO priming loop, not before (global EQ/filter values must already be correct)', async () => {
+  it('runs after the bank priming, not before (EQ/filter values must already be correct)', async () => {
     const { AudioEngine } = await import('./AudioEngine');
-    const storeMod = await import('../stores/localeStore');
-    const attenuationStyleMod = await import('../stores/attenuationStyleStore');
-    const helpers = await import('../utils/localeHelpers');
-    const audioStoreMod = await import('../stores/audioStore');
     const { lfoEngine } = await import('./lfoEngine');
-    const localeId = attenuationStyleMod.DEFAULT_LOCALE_ID;
-    (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(localeId);
-    storeMod.useLocaleStore.getState().setLocaleData(localeId, {
-      robots: [{
-        id: 'order-robot',
-        position: { x: 0, y: 0 },
-        audioMode: 'none',
-        audioAttributes: { layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }], adsr: TEST_ADSR },
-        lfoSettings: { 'layer0.gain': { shape: 'sine', rate: 1, depth: 10 } },
-      } as any],
-    });
-    audioStoreMod.useAudioStore.setState({
-      globalLfo: { 'eq3.low': { shape: 'sine', rate: 1, depth: 10 } } as any,
-    });
+    const { primeRosterLinks } = await import('../systems/robotLfoLinks');
     vi.clearAllMocks();
-    vi.mocked(lfoEngine.connectLfoTarget).mockReturnValue(true);
     const callOrder: string[] = [];
-    vi.mocked(lfoEngine.setLfoRate).mockImplementation((target: unknown) => {
-      callOrder.push(target === 'eq3.low' ? 'global' : 'robot');
+    vi.mocked(lfoEngine.primeLfoBank).mockImplementation(() => {
+      callOrder.push('bank');
+    });
+    vi.mocked(primeRosterLinks).mockImplementation(() => {
+      callOrder.push('roster');
     });
 
     await AudioEngine.start();
 
-    expect(callOrder).toEqual(['global', 'robot']);
+    expect(callOrder).toEqual(['bank', 'roster']);
   });
 
   it('does not throw when no robots exist', async () => {
     const { AudioEngine } = await import('./AudioEngine');
+    await expect(AudioEngine.start()).resolves.not.toThrow();
+  });
+
+  it('a throw while priming roster links does not fail start()', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const { primeRosterLinks } = await import('../systems/robotLfoLinks');
+    vi.mocked(primeRosterLinks).mockImplementation(() => {
+      throw new Error('boom');
+    });
+
     await expect(AudioEngine.start()).resolves.not.toThrow();
   });
 });

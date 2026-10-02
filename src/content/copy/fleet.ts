@@ -17,7 +17,7 @@ export const fleet = {
     intro: {
       lore: 'Fleet Params — your key to mesh-wide performance.',
       loreDescription: 'Fleets of probes stay synchronized through Meridia Comms Group’s Undersea Mesh Network, broadcasting the same audio signature settings to every unit at once.',
-      humanDescription: 'This screen holds every control that shapes the sound of your whole fleet at once — pacing, EQ and filtering, drift, spatial effects, and output. Changes here apply to every probe simultaneously; to adjust one probe at a time, use the Probes screen instead.',
+      humanDescription: 'This screen holds every control that shapes the sound of your whole fleet at once — pacing, EQ and filtering, modulation lanes, spatial effects, and output. Changes here apply to every probe simultaneously; to adjust one probe at a time, use the Probes screen instead.',
     },
   },
 
@@ -56,7 +56,7 @@ export const fleet = {
         + '<li><strong>High-Pass Filter</strong>: cuts the deep, thumping bass and lets bright, high sounds through — like a small phone speaker.</li>'
         + '<li><strong>Low-Pass Filter</strong>: cuts the harsh high pitches and lets deep, low sounds through smoothly — like a thick blanket over the sound.</li>'
         + '</ul>'
-        + '<p>Each of these sliders has its own LFO (Low Frequency Oscillator) — an invisible hand that turns the slider’s knob back and forth automatically. Click a slider to see and edit its LFO below: Rate controls how fast the hand turns, Depth controls how far.</p>',
+        + '<p>Each of these sliders can link to one of the 4 shared LFO Bank lanes — an invisible hand that turns the slider’s knob back and forth automatically. The picker and Depth control sit right below the slider; Depth sets how far the hand turns. How fast it turns belongs to the lane itself, tuned once in the LFO Bank panel and shared by every slider linked to it.</p>',
     },
   },
   'fleet.eq': { human: '3-Band EQ', lore: 'Trace Metrics', heading: 'SPECTRAL FREQUENCY EQUALIZER' },
@@ -70,23 +70,30 @@ export const fleet = {
   'fleet.lpf.cutoff': { human: 'Cutoff', lore: 'Extraction Floor', unit: 'Hz' },
   'fleet.lpf.resonance': { human: 'Resonance', lore: 'Boundary Resonance' },
 
-  // ---------------------------------------------------------------- Drift
-  'fleet.drift': {
-    human: 'Drift',
-    lore: 'Signatures',
+  // ---------------------------------------------------------------- LFO Bank (docs/specs/LFO_BANK.md
+  // Task 15 — replaces the old 2-group Drift accordion above entirely: 'fleet.drift'/'.environmental'/
+  // '.voice' and their rate/depth children are gone, not renamed — Rate Drift/Depth Drift now belong
+  // to each of the 4 lanes below instead of 2 fixed groups. Lane names (laneA-D) restate ui.lfoLane's
+  // own a-d options verbatim (Task 11's own doc comment — the content model has no cross-key lookup,
+  // so this is a deliberate hand-kept duplicate). rateDrift/depthDrift carry forward the old
+  // fleet.drift.environmental entries' exact copy — one shared Rate/Depth Drift pair reused by all 4
+  // lanes, not per-lane-distinct text.
+  'fleet.lfoBank': {
+    human: 'LFO Bank',
+    lore: 'Phase Locking',
     intro: {
-      lore: 'Drift — a wandering hand behind every dial.',
-      loreDescription: 'No signal holds perfectly steady across an entire mesh network — Drift keeps every automated adjustment a little unpredictable, the way a real network would.',
-      humanDescription: '<p>Drift adds a second, slower LFO on top of an existing one — a hand turning the hand that’s turning the knob. Set Rate Drift positive and the underlying LFO’s speed wanders faster over time; set it negative and it wanders slower. Depth Drift works the same way for how far the LFO swings.</p>'
-        + '<p><strong>Environmental Drift</strong> affects the shared LFOs on the EQ & Filters sliders above — one setting for all of them together. <strong>Voice Drift</strong> affects every probe’s own oscillator LFOs the same way, fleet-wide.</p>',
+      lore: 'LFO Bank — four shared signatures driving every linked dial.',
+      loreDescription: 'Meridia Comms Group’s Undersea Mesh Network runs four independent oscillators at all times; any dial across the fleet can lock onto one and ride its signature.',
+      humanDescription: '<p>Four shared LFOs (Low Frequency Oscillators) run continuously. Any dial elsewhere in Fleet Params or on a probe can link to one of them — or none — and ride its motion at its own depth; several dials linked to the same lane move together.</p>'
+        + '<p>Each lane below has its own Shape and Rate, plus a Rate Drift/Depth Drift pair: Rate Drift makes the lane’s own speed wander over time, Depth Drift makes how far it swings wander instead.</p>',
     },
   },
-  'fleet.drift.environmental': { human: 'Environmental Drift', lore: 'Trace Appendix' },
-  'fleet.drift.environmental.rate': { human: 'Rate Drift', lore: 'Trace Pulse', unit: '%' },
-  'fleet.drift.environmental.depth': { human: 'Depth Drift', lore: 'Trace Bending', unit: '%' },
-  'fleet.drift.voice': { human: 'Voice Drift', lore: 'Probe Signature' },
-  'fleet.drift.voice.rate': { human: 'Rate Drift', lore: 'Ping Period', unit: '%' },
-  'fleet.drift.voice.depth': { human: 'Depth Drift', lore: 'Ping Flicker', unit: '%' },
+  'fleet.lfoBank.laneA': { human: 'Core LFO', lore: 'Apex Signature' },
+  'fleet.lfoBank.laneB': { human: 'Companion LFO', lore: 'Lateral Signature' },
+  'fleet.lfoBank.laneC': { human: 'Accent LFO', lore: 'Impulse Signature' },
+  'fleet.lfoBank.laneD': { human: 'Overtone LFO', lore: 'Canopy Signature' },
+  'fleet.lfoBank.rateDrift': { human: 'Rate Drift', lore: 'Trace Pulse', unit: '%' },
+  'fleet.lfoBank.depthDrift': { human: 'Depth Drift', lore: 'Trace Bending', unit: '%' },
 
   // ---------------------------------------------------------------- Time & Space
   'fleet.timeSpace': {

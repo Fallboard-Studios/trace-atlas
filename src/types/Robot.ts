@@ -1,6 +1,6 @@
 import type { Vec2 } from './Vec2';
 import type { VisualAudioMap, OscillatorLayer } from './layeredAudio';
-import type { RobotLfoTargetId, LfoSettings } from './lfo';
+import type { RobotLfoTargetId, LfoLink } from './lfo';
 
 /**
  * Note duration values for Tone.js scheduling
@@ -196,14 +196,11 @@ export interface Robot {
    */
   pitchRepeat?: number;
   /**
-   * Seeded LFO settings for all 9 RobotLfoTargetId modulation targets,
-   * generated once at spawn time (src/systems/spawnSystem.ts) the same way
-   * as the rest of audioAttributes, mirroring audioStore.ts's `globalLfo`
-   * shape. Each target is independently seeded on or off (Roadmap Phase 9) —
-   * `rate: 0` means the target isn't currently connected (see
-   * src/engine/lfoEngine.ts), not that it never will be.
+   * Seeded lane links for all 6 RobotLfoTargetId modulation targets (docs/specs/LFO_BANK.md),
+   * generated once at spawn time (src/systems/spawnSystem.ts's generateRobotLfoLinks). `lane: null`
+   * means the target isn't linked into the bank at all.
    */
-  lfoSettings?: Record<RobotLfoTargetId, LfoSettings>;
+  lfoLinks?: Record<RobotLfoTargetId, LfoLink>;
   /**
    * The Company (Roadmap Phase 10) this robot belongs to, if any. Undefined means Freelance —
    * the implicit default, not a distinct flag. Seeded at spawn (spawnSystem.ts's

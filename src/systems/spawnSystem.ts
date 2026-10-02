@@ -24,13 +24,14 @@ import {
 } from '../constants';
 import useLocaleStore from '../stores/localeStore';
 import { initRobotIdleCounter } from './idleSystem';
-import { primeRobotLfos, primeRosterLfos } from './robotLfoPriming';
+import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
-import type { RobotLfoTargetId, LfoSettings } from '../types/lfo';
-import { ROBOT_LFO_TARGET_IDS, LFO_SHAPES, LFO_RATE_MIN, LFO_RATE_MAX, LFO_DEPTH_MIN, LFO_DEPTH_MAX } from '../types/lfo';
+import type { RobotLfoTargetId, LfoLaneId, LfoLink } from '../types/lfo';
+import { ROBOT_LFO_TARGET_IDS, LFO_DEPTH_MIN } from '../types/lfo';
+import { pickLane, tallyLanes } from '../utils/lfoLaneDraw';
 
 // ========================================
 // CONSTANTS
@@ -366,49 +367,68 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
  * map at the same y (the spawn offset) with x values all inside [0, 1), so a
  * robot's draws are strongly correlated — robots tend to be mostly-on or
  * mostly-off rather than evenly sprinkled. Pre-existing, not changed here.
- * Only this constant moves: the `.quiet` dataId and draw order are
- * unchanged, so shapes/depths/on-rates are byte-identical to before (the
- * seed oracle in spawnSystem.test.ts pins that). Replaces the old separate
- * `active` boolean — see LFO_RATE_MIN's own doc comment (src/types/lfo.ts)
- * for why rate=0 is the "off" state.
  */
 const LFO_QUIET_THRESHOLD = 0.7;
-
-/** Mirrors Lfo.tsx's own RATE_STEP (SEEDED_SLIDER_VALUE_QUANTIZATION). */
-const LFO_RATE_STEP = 0.05;
 
 /** Rounds Depth to a whole percent (SEEDED_SLIDER_VALUE_QUANTIZATION follow-up) — already
  *  stored in percent units (0-100), so no unit conversion needed. */
 const LFO_DEPTH_STEP = 1;
 
+// ========================================
+// LFO BANK (docs/specs/LFO_BANK.md §1.3)
+// ========================================
+
+/** A lit target never seeds 0 on either field — a "lit" link (a real lane assigned) should always
+ *  be audible; depth 0 would be indistinguishable from quiet/off except for still consuming a
+ *  lane slot in the tally (seed-only floor; a user may still drag depth to 0 by hand). */
+export const ROBOT_LFO_DEPTH_SEED_MIN = 1;
+
+/** Per-field robot link depth seed windows (Crawford's own load-value tuning pass, 2026-10-02) —
+ *  gain and detune read very differently at the same depth percentage, so each gets its own
+ *  ceiling, both sharing the same never-zero floor above. */
+export const ROBOT_LFO_GAIN_DEPTH_SEED_RANGE = { min: ROBOT_LFO_DEPTH_SEED_MIN, max: 60 };
+export const ROBOT_LFO_DETUNE_DEPTH_SEED_RANGE = { min: ROBOT_LFO_DEPTH_SEED_MIN, max: 10 };
+
+function robotLfoDepthSeedRangeForTarget(target: RobotLfoTargetId): { min: number; max: number } {
+  return target.endsWith('.gain') ? ROBOT_LFO_GAIN_DEPTH_SEED_RANGE : ROBOT_LFO_DETUNE_DEPTH_SEED_RANGE;
+}
+
 /**
- * Generate seeded LfoSettings for all 9 RobotLfoTargetId modulation targets,
- * the same way as the rest of a robot's audio personality (generateAudioAttributes
- * above) — per docs/tasks/LFO_INTEGRATION_PLAN.md Task 13. Each target gets its
- * own dot-namespaced dataId ('robot.lfo.<target>.<field>'), so a single shared
- * `offset` naturally yields distinct values per target without needing the
- * per-index offset multiplier the oscillator-layer loop above uses (that's only
- * needed when multiple items share one dataId string). Each target has a real
- * ~50% chance (LFO_QUIET_THRESHOLD) of forcing rate to 0 instead of its own
- * sampled value, mirroring how the global Audio Rig chain already seeds some
- * effects' LFOs already-on per Attenuation Style — a freshly-spawned robot can
- * have real modulation already audible before anything is touched.
+ * Generate seeded LfoLinks for all 6 RobotLfoTargetId modulation targets — replaces
+ * generateRobotLfoSettings's per-target shape/rate with a lane pick (spec §1.3). Reuses
+ * LFO_QUIET_THRESHOLD (0.7) unchanged. The lane draw is roster-aware: `priorLaneCounts` is the
+ * tally of every already-spawned robot in the locale (computed by spawnRobot before calling this),
+ * and this robot's own earlier targets update that same running tally as the loop goes — so even
+ * one robot's six targets lean away from each other, not just away from the rest of the roster.
  */
-export function generateRobotLfoSettings(noiseMap: NoiseFunction2D, offset: number): Record<RobotLfoTargetId, LfoSettings> {
-  const entries = ROBOT_LFO_TARGET_IDS.map((target) => {
-    const shapeIdx = Math.min(
-      LFO_SHAPES.length - 1,
-      Math.floor(getSeededVal(noiseMap, `robot.lfo.${target}.shape`, offset, 0, LFO_SHAPES.length))
-    );
+export function generateRobotLfoLinks(
+  noiseMap: NoiseFunction2D,
+  offset: number,
+  priorLaneCounts: Readonly<Record<LfoLaneId, number>>,
+): Record<RobotLfoTargetId, LfoLink> {
+  const counts: Record<LfoLaneId, number> = { ...priorLaneCounts };
+  const result = {} as Record<RobotLfoTargetId, LfoLink>;
+
+  for (const target of ROBOT_LFO_TARGET_IDS) {
     const quiet = getSeededVal(noiseMap, `robot.lfo.${target}.quiet`, offset, 0, 1) < LFO_QUIET_THRESHOLD;
-    const settings: LfoSettings = {
-      shape: LFO_SHAPES[shapeIdx],
-      rate: quiet ? 0 : quantizeToStep(getSeededVal(noiseMap, `robot.lfo.${target}.rate`, offset, LFO_RATE_MIN, LFO_RATE_MAX), LFO_RATE_MIN, LFO_RATE_STEP),
-      depth: quantizeToStep(getSeededVal(noiseMap, `robot.lfo.${target}.depth`, offset, LFO_DEPTH_MIN, LFO_DEPTH_MAX), LFO_DEPTH_MIN, LFO_DEPTH_STEP),
-    };
-    return [target, settings] as const;
-  });
-  return Object.fromEntries(entries) as Record<RobotLfoTargetId, LfoSettings>;
+    if (quiet) {
+      result[target] = { lane: null, depth: 0 };
+      continue;
+    }
+
+    const laneT = getSeededVal(noiseMap, `robot.lfo.${target}.lane`, offset, 0, 1);
+    const lane = pickLane(laneT, counts);
+    counts[lane]++;
+
+    const depthRange = robotLfoDepthSeedRangeForTarget(target);
+    const depth = quantizeToStep(
+      getSeededVal(noiseMap, `robot.lfo.${target}.depth`, offset, depthRange.min, depthRange.max),
+      LFO_DEPTH_MIN,
+      LFO_DEPTH_STEP,
+    );
+    result[target] = { lane, depth };
+  }
+  return result;
 }
 
 /**
@@ -427,7 +447,9 @@ export interface RobotAudioBaseline {
   rhythmicMotifLength: ToggleValue;
   noteVariance: ToggleValue;
   pitchRepeat: number;
-  lfoSettings: Record<RobotLfoTargetId, LfoSettings>;
+  /** Mirrors spawnRobot's own lfoLinks branch (Session Storage/LFO Bank Task 18): copied on the
+   *  copy branch, freshly drawn (with the roster's running lane tally) on the fresh branch. */
+  lfoLinks: Record<RobotLfoTargetId, LfoLink>;
 }
 
 /**
@@ -465,15 +487,16 @@ export function generateRobotAudioBaseline(
 
   const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
   const octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
-  const lfoSettings = generateRobotLfoSettings(noiseMap, spawnCount);
   const rhythmicDensity = Math.round(getSeededVal(noiseMap, 'robot.rhythmicDensity', spawnCount, 0, 100));
   const motifRaw = getSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', spawnCount, 0, 1);
   const rhythmicMotifLength = seedToggleValue(motifRaw, RHYTHMIC_MOTIF_LENGTH_OFF_THRESHOLD);
   const noteVarianceRaw = getSeededVal(noiseMap, 'robot.noteVariance.active', spawnCount, 0, 1);
   const noteVariance = seedToggleValue(noteVarianceRaw, NOTE_VARIANCE_OFF_THRESHOLD);
   const pitchRepeat = Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', spawnCount, 0, 100));
+  const priorLaneCounts = tallyLanes(priorBaselines.flatMap((b) => Object.values(b.lfoLinks)));
+  const lfoLinks = generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts);
 
-  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, lfoSettings };
+  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, lfoLinks };
 }
 
 /**
@@ -559,7 +582,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
 
   // 30% seeded chance to copy an existing robot's audio personality instead of generating fresh.
   // Copied robots inherit: audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength,
-  // noteVariance, lfoSettings. Always fresh: id, name, position, direction, melody (regenerated
+  // noteVariance, lfoLinks. Always fresh: id, name, position, direction, melody (regenerated
   // from the copied octaveRange/rhythmicDensity/rhythmicMotifLength/noteVariance).
   const copyRoll = noiseMap
     ? getSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1)
@@ -578,7 +601,13 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   let spawnRhythmicMotifLength: ToggleValue;
   let spawnNoteVariance: ToggleValue;
   let spawnPitchRepeat: number;
-  let spawnLfoSettings: ReturnType<typeof generateRobotLfoSettings>;
+  let spawnLfoLinks: ReturnType<typeof generateRobotLfoLinks>;
+
+  // Roster-aware lane tally (docs/specs/LFO_BANK.md §1.3): every already-spawned robot's own
+  // lane picks lean this robot's fresh draw (if any) toward the least-used lanes. Computed
+  // unconditionally, before the copy/fresh branch, since the copy branch's own fallback
+  // (source.lfoLinks ?? generate) may still need it.
+  const priorLaneCounts = tallyLanes(robots.flatMap((r) => Object.values(r.lfoLinks ?? {})));
 
   if (shouldCopy) {
     const srcIdx = Math.min(
@@ -596,16 +625,16 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     spawnRhythmicMotifLength = source.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH;
     spawnNoteVariance = source.noteVariance ?? DEFAULT_NOTE_VARIANCE;
     spawnPitchRepeat = source.pitchRepeat ?? DEFAULT_PITCH_REPEAT;
-    spawnLfoSettings = source.lfoSettings ?? generateRobotLfoSettings(noiseMap ?? ((_x: number, _y: number) => 0 as number), spawnCount);
+    spawnLfoLinks = source.lfoLinks ?? generateRobotLfoLinks(noiseMap ?? ((_x: number, _y: number) => 0 as number), spawnCount, priorLaneCounts);
   } else {
     // Generate audio attributes — octaveRange is seeded directly inside generateAudioAttributes
     audioAttributes = noiseMap
       ? generateAudioAttributes(noiseMap, spawnCount)
       : generateAudioAttributes((_x: number, _y: number) => 0 as number, spawnCount);
     octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
-    spawnLfoSettings = noiseMap
-      ? generateRobotLfoSettings(noiseMap, spawnCount)
-      : generateRobotLfoSettings((_x: number, _y: number) => 0 as number, spawnCount);
+    spawnLfoLinks = noiseMap
+      ? generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts)
+      : generateRobotLfoLinks((_x: number, _y: number) => 0 as number, spawnCount, priorLaneCounts);
 
     spawnRhythmicDensity = Math.round(
       noiseMap
@@ -682,7 +711,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     rhythmicMotifLength: spawnRhythmicMotifLength,
     noteVariance: spawnNoteVariance,
     pitchRepeat: spawnPitchRepeat,
-    lfoSettings: spawnLfoSettings,
+    lfoLinks: spawnLfoLinks,
     masterVolume: (() => {
       const seeded = noiseMap
         ? getSeededVal(noiseMap, 'robot.masterVolume', spawnCount, MASTER_VOLUME_MIN, MASTER_VOLUME_MAX)
@@ -722,14 +751,14 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     const layers = (robot.audioAttributes as unknown as { layers?: OscillatorLayer[] })?.layers;
     if (Array.isArray(layers) && layers.length > 0) {
       const reserved = AudioEngine.reserveVoice(robot.id, layers, robot.audioAttributes.adsr, robot.audioAttributes.phase, robot.audioAttributes.detune, layers[0]?.pulseWidth, robot.masterVolume, robot.audioAttributes.filterFreq);
-      // Prime this robot's seeded LFO settings into lfoEngine now that it has a live voice to
-      // connect against (docs/specs/LFO_LOAD_FIX.md Task 7) — without this, seeded LFOs sit in
-      // state, shown in the UI, but never actually run until a user happens to edit one.
+      // Prime this robot's seeded lane links into the bank engine now that it has a live voice to
+      // connect against (docs/specs/LFO_BANK.md) — without this, seeded links sit in state, shown
+      // in the UI, but never actually run until a user happens to edit one.
       if (reserved) {
         try {
-          primeRobotLfos(robot);
+          primeRobotLinks(robot);
         } catch (err) {
-          if (DEV_TUNING) console.warn('[SpawnSystem] primeRobotLfos failed', err);
+          if (DEV_TUNING) console.warn('[SpawnSystem] primeRobotLinks failed', err);
         }
       }
     }
@@ -857,12 +886,11 @@ export function reRegisterAllRobotsAudio(localeId: string): void {
     AudioEngine.unregisterRobotMelody(robot.id);
     AudioEngine.registerRobotMelody(robot.id, robot.melody);
   });
-  // One round-robin pass over the whole roster, after every reservation — never per-robot inside
-  // the loop above, which would defeat primeRosterLfos's own round-robin request ordering (spec
-  // §1.2: every robot's first target admitted before any robot's second).
+  // One pass over the whole roster, after every reservation — never per-robot inside the loop
+  // above (docs/specs/LFO_BANK.md).
   try {
-    primeRosterLfos(robots);
+    primeRosterLinks(robots);
   } catch (err) {
-    if (DEV_TUNING) console.warn('[SpawnSystem] reRegisterAllRobotsAudio: primeRosterLfos failed', err);
+    if (DEV_TUNING) console.warn('[SpawnSystem] reRegisterAllRobotsAudio: primeRosterLinks failed', err);
   }
 }

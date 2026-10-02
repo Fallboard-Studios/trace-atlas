@@ -20,7 +20,6 @@ describe('CompanyOptionsSnapshot', () => {
     expect(empty.octaveRange).toBeUndefined();
     expect(empty.adsr).toBeUndefined();
     expect(empty.layers).toBeUndefined();
-    expect(empty.lfoSettings).toBeUndefined();
   });
 
   it('accepts every field populated', () => {
@@ -33,7 +32,6 @@ describe('CompanyOptionsSnapshot', () => {
       octaveRange: [3, 5],
       adsr: { attack: 0.1, decay: 0.2, sustain: 0.8, release: 0.5 },
       layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }],
-      lfoSettings: { 'layer0.gain': { shape: 'triangle', rate: 1, depth: 20 } },
     };
     expect(full.audioMode).toBe('solo');
     expect(full.masterVolume).toBe(0.75);
@@ -44,6 +42,12 @@ describe('CompanyOptionsSnapshot', () => {
   it('rejects a volumeLfo field at the type level — the Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9)', () => {
     // @ts-expect-error volumeLfo no longer exists on CompanyOptionsSnapshot
     const stale: CompanyOptionsSnapshot = { volumeLfo: { shape: 'sine', rate: 2, depth: 40 } };
+    expect(stale).toBeDefined();
+  });
+
+  it('rejects a lfoSettings field at the type level — replaced by lfoLinks (docs/tasks/LFO_BANK.md Task 17)', () => {
+    // @ts-expect-error lfoSettings no longer exists on CompanyOptionsSnapshot
+    const stale: CompanyOptionsSnapshot = { lfoSettings: { 'layer0.gain': { shape: 'triangle', rate: 1, depth: 20 } } };
     expect(stale).toBeDefined();
   });
 

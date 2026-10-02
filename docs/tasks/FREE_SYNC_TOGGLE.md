@@ -1,5 +1,7 @@
 # Implementation Plan: Free | Sync Toggle
 
+> **Stale against the LFO Bank (2026-10-01) — re-plan before executing any task below.** Every LFO-side task here (at least 1, 4, 5, 9, 12, 13, 15, 16 by name) targets the per-target `lfoEngine.ts`/`Lfo.tsx`/`LfoTargetGroup` surface `docs/tasks/LFO_BANK.md` deleted and replaced with 4 shared lanes (`lfoBank.<lane>.rate`) and per-field `LfoLink`s (`lane`/`depth`, no `rate` of their own). Re-scope the LFO half of this plan to one `sync` flag per lane (wired into `LfoBankLanePanel`, four lanes total) rather than per-field; the Delay Time tasks are untouched by the Bank and can proceed as planned. See the dated note atop `docs/specs/FREE_SYNC_TOGGLE.md`.
+
 Source spec: [docs/specs/FREE_SYNC_TOGGLE.md](../specs/FREE_SYNC_TOGGLE.md). Source intent: [docs/intent/free-sync-toggle.md](../intent/free-sync-toggle.md). Roadmap slot: Phase 33 (added in Task 17).
 
 > Process note: the `planning-and-task-breakdown` skill asks for `tasks/plan.md` + `tasks/todo.md`. This repo keeps both in one file under `docs/tasks/` (every sibling here), and that convention wins (CLAUDE.md "Authority and precedence"). Execution follows the house TDD rhythm: RED test first, one commit per task, mutation-check at the gates named below, stop and report at every checkpoint.

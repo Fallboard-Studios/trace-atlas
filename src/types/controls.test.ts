@@ -19,10 +19,10 @@ import {
   type ButtonSchema,
   type DualLabelSchema,
   type AccordionSchema,
-  type LfoSchema,
   type DirectionalPanelSchema,
   type PanelOrientation,
-  type LfoValue,
+  type LfoLinkSchema,
+  type LfoLinkValue,
 } from './controls';
 
 // ========================================
@@ -41,7 +41,7 @@ describe('CONTROL_SCHEMA_TYPES', () => {
         'stepper', 'stepperToggle',
         'sliderLinear', 'sliderLog', 'sliderCenteredZero',
         'radio', 'toggle', 'textInput', 'coordsInput',
-        'button', 'dualLabel', 'accordion', 'lfo',
+        'button', 'dualLabel', 'accordion', 'lfoLink',
         'directionalPanel',
       ].sort()
     );
@@ -62,12 +62,12 @@ describe('ControlSchema variants', () => {
     const button: ButtonSchema = { id: 'resetMelody', type: 'button' };
     const dualLabel: DualLabelSchema = { id: 'jobData', type: 'dualLabel' };
     const accordion: AccordionSchema = { id: 'pingControls', type: 'accordion' };
-    const lfo: LfoSchema = { id: 'volumeLfo', type: 'lfo' };
+    const lfoLink: LfoLinkSchema = { id: 'eq3LowLink', type: 'lfoLink' };
     const directionalPanel: DirectionalPanelSchema = { id: 'eq3Panel', type: 'directionalPanel', orientation: 'row' };
 
     const variants: ControlSchema[] = [
       stepper, stepperToggle, sliderLinear, sliderLog, sliderCenteredZero,
-      radio, toggle, textInput, coordsInput, button, dualLabel, accordion, lfo,
+      radio, toggle, textInput, coordsInput, button, dualLabel, accordion, lfoLink,
       directionalPanel,
     ];
 
@@ -128,10 +128,15 @@ describe('PanelOrientation', () => {
   });
 });
 
-describe('LfoValue', () => {
-  it('is a plain alias of LfoSettings — no separate active flag', () => {
-    const value: LfoValue = { shape: 'triangle', rate: 2, depth: 40 };
-    expect(value.shape).toBe('triangle');
-    expect('active' in value).toBe(false);
+describe('LfoLinkValue', () => {
+  it('is a plain alias of LfoLink (docs/specs/LFO_BANK.md §1.1)', () => {
+    const value: LfoLinkValue = { lane: 'a', depth: 40 };
+    expect(value.lane).toBe('a');
+    expect(value.depth).toBe(40);
+  });
+
+  it('accepts lane: null', () => {
+    const value: LfoLinkValue = { lane: null, depth: 0 };
+    expect(value.lane).toBeNull();
   });
 });

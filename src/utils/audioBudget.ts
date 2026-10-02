@@ -11,11 +11,7 @@ import {
   LOAD_POLYPHONY_MIN,
   MAX_POLYPHONY,
   MAX_ROBOTS,
-  ROBOT_LFO_CAP_FULL,
-  ROBOT_LFO_CAP_LIGHT,
-  ROBOT_LFO_CAP_STANDARD,
 } from '../constants';
-import type { LfoTargetId } from '../types/lfo';
 
 // ========================================
 // TYPES
@@ -44,8 +40,6 @@ export interface EffectsLoadLimits {
   driftEnabled: boolean;
   /** Global lpf/hpf frequency + Q LFOs (EQ-gain LFOs are always allowed). */
   filterLfosEnabled: boolean;
-  /** Audio-rate robot LFOs connected at once; flat at Standard's cap from Standard through Full. */
-  maxRobotLfos: number;
 }
 
 /** Every cap either Audio Load slider sets, combined — what `describeLimits` and the diagnostics HUD read. */
@@ -56,20 +50,6 @@ export type LoadLimits = RobotLoadLimits & EffectsLoadLimits;
 // ========================================
 
 const lerp = (from: number, to: number, t: number): number => from + (to - from) * t;
-
-/**
- * Robot-LFO cap: flat at Light's below Light, 4 → 12 between Light and Standard, then flat at
- * Standard's from there through Full (Task 11 perf gate, docs/PERFORMANCE.md — Full's previous
- * `Infinity` saturated the audio thread; see ROBOT_LFO_CAP_FULL).
- */
-function robotLfoCap(load: number): number {
-  const { light, standard } = AUDIO_LOAD_PRESETS;
-  if (load <= light) return ROBOT_LFO_CAP_LIGHT;
-  if (load <= standard) {
-    return Math.round(lerp(ROBOT_LFO_CAP_LIGHT, ROBOT_LFO_CAP_STANDARD, (load - light) / (standard - light)));
-  }
-  return ROBOT_LFO_CAP_FULL;
-}
 
 // ========================================
 // FUNCTIONS
@@ -91,13 +71,12 @@ export function robotLoadToLimits(robotLoad: number): RobotLoadLimits {
   };
 }
 
-/** The Effects Load slider in, its caps out — thresholds for the booleans, a tiered climb for the robot-LFO cap. */
+/** The Effects Load slider in, its caps out — thresholds for the booleans. */
 export function effectsLoadToLimits(effectsLoad: number): EffectsLoadLimits {
   const load = clampAudioLoad(effectsLoad);
   return {
     driftEnabled: load >= LOAD_DRIFT_MIN,
     filterLfosEnabled: load >= LOAD_FILTER_LFOS_MIN,
-    maxRobotLfos: robotLfoCap(load),
   };
 }
 
@@ -123,18 +102,14 @@ const LATENCY_LABELS: Record<LoadLatencyHint, string> = { playback: 'Playback', 
 
 /**
  * One line saying what a dial position means, for the Audio Load readout — e.g. "Up to 4 robots · 8 notes · no drift
- * or filter LFOs · 4 robot LFOs · latency: Playback (applies on next load)". The robot-LFO limit is shown only while
- * it is tight (at most Standard's); the latency clause only when the hint differs from interactive, with the caveat
- * that a context's latency is fixed at load. Never prints Infinity or NaN.
+ * or filter LFOs · latency: Playback (applies on next load)". The latency clause only when the hint differs from
+ * interactive, with the caveat that a context's latency is fixed at load. Never prints Infinity or NaN.
  */
 export function describeLimits(limits: LoadLimits): string {
   const parts = [`Up to ${limits.maxAudibleRobots} robots`, `${limits.maxPolyphony} notes`];
   if (limits.driftEnabled && limits.filterLfosEnabled) parts.push('all LFOs and drift');
   else if (!limits.driftEnabled && !limits.filterLfosEnabled) parts.push('no drift or filter LFOs');
   else parts.push(limits.driftEnabled ? 'no filter LFOs' : 'no drift');
-  if (Number.isFinite(limits.maxRobotLfos) && limits.maxRobotLfos <= ROBOT_LFO_CAP_STANDARD) {
-    parts.push(`${limits.maxRobotLfos} robot LFOs`);
-  }
   if (limits.latencyHint !== 'interactive') parts.push(`latency: ${LATENCY_LABELS[limits.latencyHint]} (applies on next load)`);
   return parts.join(' · ');
 }
@@ -318,27 +293,3 @@ export function reconcileSounding(
   return sameOrder(next, previous) ? previous : next;
 }
 
-// ========================================
-// LFO TIERS
-// ========================================
-
-const FILTER_TARGET = /^(lpf|hpf)\./;
-const PHASE_TARGET = /^layer\d+\.phase$/;
-
-/**
- * May this LFO be connected right now? EQ-gain global LFOs are always allowed (nearly free); the
- * filter-frequency/Q ones only when the dial enables them; a robot LFO only while fewer than
- * `maxRobotLfos` audio-rate robot LFOs are connected. `connectedRobotLfos` counts those already connected,
- * not including the one being asked about. `layerN.phase` LFOs are never counted or refused — they poll
- * at control rate (lfoEngine's phase fallback), not as an audio-rate connection.
- */
-export function lfoAllowed(
-  target: LfoTargetId,
-  scope: 'global' | 'robot',
-  limits: LoadLimits,
-  connectedRobotLfos: number,
-): boolean {
-  if (scope === 'global') return FILTER_TARGET.test(target) ? limits.filterLfosEnabled : true;
-  if (PHASE_TARGET.test(target)) return true;
-  return connectedRobotLfos < limits.maxRobotLfos;
-}

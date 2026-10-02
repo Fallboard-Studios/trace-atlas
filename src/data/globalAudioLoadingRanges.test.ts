@@ -33,18 +33,6 @@ const EXPECTED: Record<GlobalAudioSeedFieldKey, { min: number; max: number }> = 
   'compressor.release': { min: 0.05, max: 0.3 },
   'compressor.knee': { min: 1, max: 15 },
   'limiter.threshold': { min: -3, max: -1 },
-  // Not GLOBAL_CHAIN_GRID.md-sourced like every entry above — the grid
-  // predates lfoDrift entirely. Widened from a -0.4..0.4 first-pass default
-  // to -0.7..0.7 after the Phase 4 manual/audible check on
-  // docs/tasks/archive/LFO_DRIFT_GROUPS.md found the original window read as
-  // too subtle by default — confirmed with the user directly, not re-guessed.
-  // eq3/filterLPF/filterHPF's own 3 keys merged into one 'globalFx' key
-  // (docs/specs/FLEET_DRIFT_CONSOLIDATION.md), same -0.7..0.7 window carried
-  // forward unchanged.
-  'lfoDrift.globalFx.rateDrift': { min: -0.7, max: 0.7 },
-  'lfoDrift.globalFx.depthDrift': { min: -0.7, max: 0.7 },
-  'lfoDrift.robots.rateDrift': { min: -0.7, max: 0.7 },
-  'lfoDrift.robots.depthDrift': { min: -0.7, max: 0.7 },
 };
 
 describe('GLOBAL_AUDIO_LOADING_RANGES', () => {

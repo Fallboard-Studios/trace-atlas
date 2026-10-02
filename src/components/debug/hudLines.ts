@@ -45,6 +45,13 @@ function budgetLine({ robotLoad, effectsLoad, soundingRobots, maxAudibleRobots, 
   return `load ${pct(robotLoad)}·fx ${pct(effectsLoad)} · sounding ${count(soundingRobots)}/${count(maxAudibleRobots)} · standing by ${standingBy} · poly ${count(voices)}/${count(maxVoices)}`;
 }
 
+/** The LFO Bank in one line (docs/tasks/LFO_BANK.md): how many of the 4 shared lanes are
+ *  currently running (rate > 0), and how many modulation targets (global + every active robot's)
+ *  are linked into the bank out of the total that could be. */
+function bankLine({ bankRunning, linksOn, linksTotal }: DiagInfo): string {
+  return `bank ${count(bankRunning)}/4   links ${count(linksOn)}/${count(linksTotal)}`;
+}
+
 /** A linear level as dB with one decimal; `-inf` for silence, `-` when there is no reading. */
 function db(level: number | undefined): string {
   if (!isKnown(level)) return DASH;
@@ -95,8 +102,9 @@ export function buildHudLines(snapshot: DiagSnapshot, world: HudWorld, uptimeMs:
     `${seed} @ ${coords}   up ${formatUptime(uptimeMs)}`,
     `ctx ${timing.ctxState}   clock ${clock}   transport ${info.transport}`,
     `latency ${info.latencyHint}   ahead ${info.lookAheadMs}ms   base ${ms(info.baseLatencyMs)}`,
-    `voices ${info.voices}/${info.maxVoices}   audible ${info.audibleRobots}/${info.totalRobots}   LFOs ${info.globalLfosOn}/${info.globalLfosTotal}`,
+    `voices ${info.voices}/${info.maxVoices}   audible ${info.audibleRobots}/${info.totalRobots}`,
     budgetLine(info),
+    bankLine(info),
     `fps ${fps}   lag ${ms(timing.lagMs)} (max ${ms(timing.maxLagMs)})`,
     outputLine(info),
     underrunLine(info),

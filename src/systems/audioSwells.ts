@@ -1,7 +1,7 @@
 /**
  * Audio Swells — a rare, self-reversing ramp event on one global-chain or
  * robot-scoped parameter, resolving docs/tasks/AUDIO_SWELLS.md Task 3.
- * Deliberately NOT built on lfoEngine.ts/lfoDrift.ts (docs/specs/AUDIO_SWELLS.md
+ * Deliberately NOT built on lfoEngine.ts (docs/specs/AUDIO_SWELLS.md
  * §1.1) — no Tone.LFO, no Signal/Param connection. Every write flows through
  * the same store-backed path a human editing a control by hand would use
  * (setGlobalAudio here; robotOptionsActions.ts's apply* functions once the

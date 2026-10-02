@@ -3,8 +3,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // Same reasoning as AudioRigDrawer/SignatureArrayDrawer's own test files: the shared
-// vitest.setup.ts GSAP mock's timeline object has no kill() method, and useLfoTargetGroup's
-// unmount cleanup calls killTimeline on an already-registered entry.
+// vitest.setup.ts GSAP mock's timeline object has no kill() method, and a child's unmount
+// cleanup calls killTimeline on an already-registered entry.
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual implementation) so

@@ -147,9 +147,9 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
           if (DEV_TUNING) swallow(err, 'AudioEngine.unregisterRobotMelody');
         }
         try {
-          lfoEngine.disposeRobotLfos(robot.id);
+          lfoEngine.disposeRobotLinks(robot.id);
         } catch (err) {
-          if (DEV_TUNING) swallow(err, 'lfoEngine.disposeRobotLfos');
+          if (DEV_TUNING) swallow(err, 'lfoEngine.disposeRobotLinks');
         }
       }
     }
@@ -240,9 +240,9 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
       if (DEV_TUNING) swallow(err, 'AudioEngine.unregisterRobotMelody');
     }
     try {
-      lfoEngine.disposeRobotLfos(robotId);
+      lfoEngine.disposeRobotLinks(robotId);
     } catch (err) {
-      if (DEV_TUNING) swallow(err, 'lfoEngine.disposeRobotLfos');
+      if (DEV_TUNING) swallow(err, 'lfoEngine.disposeRobotLinks');
     }
 
     set((state) => {

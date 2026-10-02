@@ -1,8 +1,8 @@
 /**
  * Audio Swell types, resolving docs/tasks/AUDIO_SWELLS.md Task 1.
  * A "swell" is a rare, self-reversing ramp event — deliberately NOT an
- * extension of lfoEngine.ts/lfoDrift.ts (docs/specs/AUDIO_SWELLS.md §1.1):
- * no Tone.LFO, no Signal/Param connection. Two independent pools, each with
+ * extension of lfoEngine.ts (docs/specs/AUDIO_SWELLS.md §1.1): no Tone.LFO,
+ * no Signal/Param connection. Two independent pools, each with
  * its own eligible-target set (see docs/specs/AUDIO_SWELLS.md §1.2).
  */
 

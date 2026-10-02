@@ -10,7 +10,7 @@
  * Every function takes (robot, localeId, value) — never reads uiStore, never touches anything
  * beyond localeStore/AudioEngine/lfoEngine/regenerateMelody. Selection state is a caller concern.
  */
-import { applyRobotLfoToEngine, primeRobotLfos } from './robotLfoPriming';
+import { applyRobotLinkToEngine, primeRobotLinks } from './robotLfoLinks';
 import { useLocaleStore } from '@/stores/localeStore';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { regenerateMelody } from '@/engine/regenerateMelody';
@@ -18,8 +18,7 @@ import { buildClickTrackMelody } from '@/engine/clickTrack';
 import type { StepperWithToggleValue } from '@/components/ui/controls/StepperWithToggle';
 import type { Robot, ADSREnvelope } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
-import type { LfoValue } from '@/types/controls';
-import type { RobotLfoTargetId } from '@/types/lfo';
+import type { RobotLfoTargetId, LfoLink } from '@/types/lfo';
 
 // ========================================
 // AUDIO SETTING / VOLUME (RobotDisplaySection.tsx today)
@@ -126,22 +125,22 @@ export function applyLayersContinuous(robot: Robot, localeId: string, layers: Os
 
 /** Structural changes (type) — may cause a brief audio gap while the voice rebuilds. Muting a
  *  layer (gain: 0) goes through applyLayersContinuous instead — see its own doc comment.
- *  Re-primes the robot's LFOs after the rebuild (docs/specs/LFO_LOAD_FIX.md §1.3 — also the
- *  stale-signal fix): reReserveVoice disposes and reconstructs the composite voice's Tone nodes,
- *  so any LFO connected to the old nodes points at disposed objects until re-wired. */
+ *  Re-primes the robot's LFO links after the rebuild (docs/specs/LFO_BANK.md — also the
+ *  stale-signal fix, inherited from LFO Load Fix §1.3): reReserveVoice disposes and reconstructs
+ *  the composite voice's Tone nodes, so any link connected to the old nodes points at disposed
+ *  objects until re-wired. */
 export function applyLayersStructural(robot: Robot, localeId: string, layers: OscillatorLayer[]): void {
   useLocaleStore.getState().updateRobot(localeId, robot.id, {
     audioAttributes: { ...robot.audioAttributes, layers },
   });
   AudioEngine.reReserveVoice(robot.id);
-  primeRobotLfos(robot);
+  primeRobotLinks(robot);
 }
 
-/** Shared by every per-layer LFO frame (Gain/Detune/Phase/Interval) and, via applyVolumeLfo
- *  above, Volume's own LFO frame — mirrors audioStore.ts's setGlobalLfo pattern, robot-scoped:
- *  store write plus the matching lfoEngine calls, connecting/starting only when rate > 0. */
-export function applyLayerLfo(robot: Robot, localeId: string, target: RobotLfoTargetId, value: LfoValue): void {
-  const nextLfoSettings = { ...robot.lfoSettings, [target]: value } as Robot['lfoSettings'];
-  useLocaleStore.getState().updateRobot(localeId, robot.id, { lfoSettings: nextLfoSettings });
-  applyRobotLfoToEngine(robot.id, target, value);
+/** The LFO Bank's per-layer link edit (docs/tasks/LFO_BANK.md) — routed through the bank
+ *  engine (robotLfoLinks.applyRobotLinkToEngine). */
+export function applyLayerLfoLink(robot: Robot, localeId: string, target: RobotLfoTargetId, link: LfoLink): void {
+  const nextLfoLinks = { ...robot.lfoLinks, [target]: link } as Robot['lfoLinks'];
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { lfoLinks: nextLfoLinks });
+  applyRobotLinkToEngine(robot.id, target, link);
 }

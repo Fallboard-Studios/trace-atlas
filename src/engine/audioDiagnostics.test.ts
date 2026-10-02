@@ -56,10 +56,29 @@ let fakeTransportState = 'started';
 let fakeRobotLoad = 1;
 let fakeEffectsLoad = 1;
 let fakeSoundingIds: string[] = [];
+// docs/tasks/LFO_BANK.md Task 8: linksOn/linksTotal (global + robot) and bankRunning. A baseline with
+// some non-null lanes so the existing "publishes a snapshot" test's toMatchObject (which doesn't list
+// these fields) exercises the real read path rather than an all-zero edge case.
+let fakeGlobalLfoLinks: Record<string, { lane: string | null; depth: number }> = {
+  'eq3.low': { lane: 'a', depth: 40 },
+  'eq3.mid': { lane: null, depth: 0 },
+  'eq3.high': { lane: null, depth: 0 },
+  'lpf.frequency': { lane: 'b', depth: 30 },
+  'lpf.Q': { lane: null, depth: 0 },
+  'hpf.frequency': { lane: null, depth: 0 },
+  'hpf.Q': { lane: null, depth: 0 },
+};
+let fakeLfoBank: Record<string, { rate: number }> = {
+  a: { rate: 0.2 },
+  b: { rate: 0.8 },
+  c: { rate: 0 },
+  d: { rate: 0 },
+};
 vi.mock('../stores/audioStore', () => ({
   useAudioStore: {
     getState: () => ({
-      globalLfo: { a: { rate: 1 }, b: { rate: 0 }, c: { rate: 2.5 } },
+      globalLfoLinks: fakeGlobalLfoLinks,
+      lfoBank: fakeLfoBank,
       robotLoad: fakeRobotLoad,
       effectsLoad: fakeEffectsLoad,
       soundingRobotIds: fakeSoundingIds,
@@ -69,7 +88,13 @@ vi.mock('../stores/audioStore', () => ({
 
 // A stub of just the two reads readInfo makes. There is deliberately no `subscribe` on it: the
 // audible count must be sampled at the existing 500 ms tick, never via a store subscription.
-type FakeRobot = { id: string; audioMode?: 'none' | 'solo' | 'mute' | 'highlight' };
+type FakeRobot = {
+  id: string;
+  audioMode?: 'none' | 'solo' | 'mute' | 'highlight';
+  /** docs/tasks/LFO_BANK.md Task 8 — Robot.lfoLinks itself arrives in Task 9; until then this is a
+   *  test-only shape, read defensively by readLfoLinkCounts the same way it will once the real field exists. */
+  lfoLinks?: Record<string, { lane: string | null; depth: number }>;
+};
 let fakeLocales: Record<string, { robots?: FakeRobot[] }> = {};
 let fakeActiveLocaleId = 'L1';
 
@@ -134,6 +159,16 @@ describe('audioDiagnostics runtime', () => {
     fakeSoundingIds = [];
     fakeVoices = 3;
     fakeTransportState = 'started';
+    fakeGlobalLfoLinks = {
+      'eq3.low': { lane: 'a', depth: 40 },
+      'eq3.mid': { lane: null, depth: 0 },
+      'eq3.high': { lane: null, depth: 0 },
+      'lpf.frequency': { lane: 'b', depth: 30 },
+      'lpf.Q': { lane: null, depth: 0 },
+      'hpf.frequency': { lane: null, depth: 0 },
+      'hpf.Q': { lane: null, depth: 0 },
+    };
+    fakeLfoBank = { a: { rate: 0.2 }, b: { rate: 0.8 }, c: { rate: 0 }, d: { rate: 0 } };
     tapSpies.volume.mockReset();
     tapSpies.attach.mockClear();
     tapSpies.detach.mockClear();
@@ -161,8 +196,6 @@ describe('audioDiagnostics runtime', () => {
       voices: 3,
       maxVoices: 16,
       transport: 'started',
-      globalLfosOn: 2,
-      globalLfosTotal: 3,
       audibleRobots: 0,
       totalRobots: 0,
       robotLoad: 1,
@@ -273,6 +306,58 @@ describe('audioDiagnostics runtime', () => {
       fakeRobotLoad = 1;
       fakeEffectsLoad = 0.2;
       expect(budget()).toEqual({ robotLoad: 1, effectsLoad: 0.2, soundingRobots: 0, maxAudibleRobots: 12 });
+    });
+  });
+
+  describe('LFO Bank links/bankRunning (docs/tasks/LFO_BANK.md Task 8)', () => {
+    const links = () => {
+      advance();
+      const { linksOn, linksTotal, bankRunning } = diag.getDiagnosticsSnapshot().info;
+      return { linksOn, linksTotal, bankRunning };
+    };
+
+    it('counts linksOn/linksTotal from globalLfoLinks alone when there are no robots', () => {
+      fakeLocales = { L1: { robots: [] } };
+      // Baseline fixture: 2 of the 7 global targets have a non-null lane.
+      expect(links()).toMatchObject({ linksOn: 2, linksTotal: 7 });
+    });
+
+    it('adds every active robot\'s lfoLinks to both linksOn and linksTotal', () => {
+      fakeLocales = {
+        L1: {
+          robots: [
+            { id: 'r1', lfoLinks: { 'layer0.gain': { lane: 'a', depth: 50 }, 'layer0.detune': { lane: null, depth: 0 } } },
+            { id: 'r2', lfoLinks: { 'layer0.gain': { lane: 'b', depth: 20 } } },
+          ],
+        },
+      };
+      // global: 2 on / 7 total; each robot contributes its full 6-target slot count to linksTotal
+      // regardless of how many keys its lfoLinks object actually has: r1: 1 on / 6 total; r2: 1 on / 6 total.
+      expect(links()).toMatchObject({ linksOn: 4, linksTotal: 19 });
+    });
+
+    it('counts a robot with no lfoLinks field toward linksTotal (its 6 target slots exist regardless) but not linksOn (Task 9 has not run for it yet)', () => {
+      fakeLocales = { L1: { robots: [{ id: 'r1' }] } };
+      expect(links()).toMatchObject({ linksOn: 2, linksTotal: 13 });
+    });
+
+    it('only counts the active locale\'s robots, not other locales', () => {
+      fakeLocales = {
+        L1: { robots: [{ id: 'r1', lfoLinks: { 'layer0.gain': { lane: 'a', depth: 50 } } }] },
+        L2: { robots: [{ id: 'r2', lfoLinks: { 'layer0.gain': { lane: 'b', depth: 50 } } }] },
+      };
+      expect(links()).toMatchObject({ linksOn: 3, linksTotal: 13 }); // global 7 + r1's 6 — L2's robot is not counted
+    });
+
+    it('reads bankRunning as the count of lanes with rate > 0 (0-4)', () => {
+      fakeLfoBank = { a: { rate: 0 }, b: { rate: 0 }, c: { rate: 0 }, d: { rate: 0 } };
+      expect(links().bankRunning).toBe(0);
+
+      fakeLfoBank = { a: { rate: 0.1 }, b: { rate: 2 }, c: { rate: 0 }, d: { rate: 0 } };
+      expect(links().bankRunning).toBe(2);
+
+      fakeLfoBank = { a: { rate: 0.1 }, b: { rate: 2 }, c: { rate: 5 }, d: { rate: 8 } };
+      expect(links().bankRunning).toBe(4);
     });
   });
 

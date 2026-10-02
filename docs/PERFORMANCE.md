@@ -291,7 +291,7 @@ Built for the phone-only scratchy / cutting-out audio ([docs/todo/scratchy-audio
 | `?debug` | Shows a small read-only overlay (bottom-left, no controls, hidden from assistive tech, `pointer-events: none`) — see below. |
 | `?latency=interactive|balanced|playback` | Installs the Tone context with that Web Audio `latencyHint` instead of Tone's default `interactive`. Invalid values are ignored. `src/engine/audioContextSetup.ts` — it must stay `main.tsx`'s first app import. Roadmap 17.2.4 territory: Chrome Android's low-latency path is known to glitch on complex graphs and `playback` is the usual mitigation, **unverified for this app**. Does not change Tone's `lookAhead` (still 100 ms). |
 | `?load=light\|standard\|full` or `?load=0..100` | The **Robot Load** slider at page load ([specs/AUDIO_LOAD_BUDGET.md](specs/AUDIO_LOAD_BUDGET.md)): caps audible robots, polyphony, and — for Light/Standard — selects the `playback` latency hint. Invalid or absent: Light on a phone-like device (coarse pointer), Full elsewhere. Changing either slider in the app mirrors the choice back into this param (`history.replaceState`). An explicit `?latency=` still wins over the preset's hint. |
-| `?fxLoad=light\|standard\|full` or `?fxLoad=0..100` | The **Effects Load** slider at page load: caps drift, filter LFOs, and the robot-LFO count. Absent or invalid falls back to `?load=` (so an existing `?load=` link keeps pinning both sliders together), then device detection. |
+| `?fxLoad=light\|standard\|full` or `?fxLoad=0..100` | The **Effects Load** slider at page load: caps drift and filter LFOs. Absent or invalid falls back to `?load=` (so an existing `?load=` link keeps pinning both sliders together), then device detection. |
 | `?seed=<word>&x=<int>&y=<int>` | Pins the whole generated world ([PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md)). Print any of these into a bug report and the HUD echoes what was loaded. |
 
 Combine them, e.g. `?debug&latency=playback&seed=bravo&x=-150&y=90`. Known worlds (desktop render capacity, [scratchy-audio-phones.md](todo/scratchy-audio-phones.md)): `charlie:200:-30` ≈ 0.33 (calm, 0 global LFOs), `alpha:12:68` ≈ 0.37, `delta:5:-180` ≈ 0.50, `bravo:-150:90` ≈ 0.55 (heavy, 5 LFOs).
@@ -711,6 +711,58 @@ Commit `df689ba8`: `robotLfoCap` now plateaus at Standard's cap (12) from Standa
 | No interval doubling at Full | callback interval stays ≈10.67 ms | 10.67–10.72 ms across every Full run | **PASS** |
 
 `charlie` and `bravo` at Full with the fix (0.40–0.44 median) sit close to the pre-branch baseline (0.36–0.40) — priming now contributes a modest, bounded amount rather than saturating the thread. Single-sample spikes toward ≈0.99 appear within a few buckets (the `max cap` column) without the interval ever leaving the 10.67 ms floor, consistent with the noise pattern recorded in the Audio Load Budget sections above.
+
+## LFO Bank — the Task 19 perf gate (2026-10-01)
+
+[docs/tasks/LFO_BANK.md](tasks/LFO_BANK.md) Task 19: measures the finished LFO Bank feature (Tasks 1–18 — four shared world-level lanes replacing one `Tone.LFO` per modulation target) against the pre-branch build. **Both gates pass, decisively.**
+
+### Methodology note: `charlie:200:-30` / `bravo:-150:90` no longer pin anything
+
+The plan's own method (inherited from the LFO Load Fix precedent above) calls for `?seed=charlie&x=200&y=-30`-style pinning. That mechanism is gone: `?seed=`/`?x=`/`?y=` were removed by the Shareable Link work (2026-09-28), which predates even the `08bae3a2` pre-branch commit — confirmed by grepping `src/` on both commits (only `sessionShareUtils.ts`, `debugParams.ts`, `audioBudget.ts`, and `audioBudgetSystem.ts` read `URLSearchParams` on either), and by live-loading `?seed=charlie&x=200&y=-30` against both builds, which produced a random world each time. [docs/PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md)'s `?seed=`/`?x=`/`?y=` section is stale on this point and needs its own fix (not done here — out of this task's scope). This likely also means the `0.413`/`0.443` baseline recorded in the section above was itself measuring random worlds under the `charlie`/`bravo` labels: its two medians are suspiciously close (0.403 vs 0.399) where every genuinely-pinned measurement elsewhere in this doc shows `bravo` reading ≈0.15–0.22 above `charlie` (0 vs 5 global LFOs).
+
+The only live pinning mechanism now is `?session=<payload>` (Shareable Link, roadmap Phase 21). Crawford supplied two hand-built session links — `attenuationStyleName: "charlie"` / `coordinates: {200,-30}` and `"bravo"` / `{-150,90}` — each a full `SessionPayload` (globalAudio, pacing, `lfoBank`/`globalLfoLinks`, and a few robot layer overrides) captured from his own live session. Verified against both builds before measuring: coordinates land correctly (confirmed via a read-only HUD probe, not committed), the LFO Bank fields restore correctly on the current branch (`bank 4/4`), and the pre-branch build — which predates the Bank entirely and has no `lb`/`gll` wire keys — decodes the same payload without error, simply leaving its own fresh-seeded old-style per-target LFO settings in place (the only fields it doesn't understand are silently ignored, same contract `isValidCompactSessionPayload` already guarantees for forward-compatibility). The HUD's own world-name line always reads "random" on both builds now — it echoes a `seed` field that genuinely no longer exists anywhere in the data model (`session.ts`'s own doc comment: "no literal 'seed' field") — so that line is cosmetically dead, not a sign either pin failed; the coordinates and bank/links readings are the real confirmation.
+
+Using `?session=` through the existing `--world name:x:y?session=<payload>` harness flag works unmodified (the trailing `?query` rides along additively; the dummy `seed=`/`x=`/`y=` the flag still emits are simply ignored by the app).
+
+### Method
+
+**Code measured.** This-branch = `cfb32da6` (feature/LFO-pool, Task 18 complete). Pre-branch = `08bae3a2` (git worktree, the commit immediately before the LFO Bank branch started — confirmed to already include the earlier `ROBOT_LFO_CAP_FULL` fix). Both production builds (`npm run build`), served by separate `vite preview` instances (ports 4173/4174) in the same session. `npm run perf:audio`, headless Chrome, no CPU throttle (the audio thread isn't throttled). **3 interleaved rounds**, rotating which build ran first each round; **240 s series, 15 s buckets, 8 s warm-up**; fresh Chrome per run, foreground, one call at a time; orphaned-Chrome count 0 before and after every call. Plus one **Standard** and one **Light** run on `bravo`, this-branch only (informational, not gated).
+
+### Results (Full load, 3 rounds each)
+
+| Arm | Round 1 | Round 2 | Round 3 | **Median peak** | Median mean | Max callback interval |
+|---|---|---|---|---|---|---|
+| `charlie` this-branch | 0.365 / 0.287 | 0.320 / 0.264 | 0.335 / 0.267 | **0.335** | 0.267 | 15.49 ms (one-bucket spike, R1 only; every other bucket 10.00 ms) |
+| `charlie` pre-branch | 0.993 / 0.944 | 0.984 / 0.886 | 0.988 / 0.879 | **0.988** | 0.886 | 10.16–10.55 ms |
+| `bravo` this-branch | 0.423 / 0.361 | 0.413 / 0.362 | 0.444 / 0.360 | **0.423** | 0.361 | 10.00–10.02 ms |
+| `bravo` pre-branch | 0.997 / 0.995 | 0.997 / 0.995 | 0.998 / 0.996 | **0.997** | 0.995 | 12.72–13.42 ms |
+
+(Cells read `peak window / overall mean`.) `bank`/`links` HUD readings (single-sample spot checks, not part of the statistical series, this-branch only): `charlie` — `bank 4/4`, `links` 10–19/79 across two probes taken at different points in roster spawn-in; `bravo` — `bank 4/4`, `links 23/79`. Both confirm the Bank primed and linked correctly during measurement.
+
+### The gates
+
+| Gate | Threshold | Result | |
+|---|---|---|---|
+| **Hard gate — `bravo` Full, peak render capacity** | < 0.9 | **0.423** (median), range 0.413–0.444 | **PASS**, wide margin |
+| **Hard gate — no interval doubling at `bravo` Full** | callback interval stays ≈10.67 ms | 10.00–10.02 ms across every round | **PASS** |
+| **Success bar — `charlie` Full median peak ≤ pre-branch** | ≤ 0.988 (this session's own pre-branch measurement) | **0.335** (−66 %) | **MET** |
+| **Success bar — `bravo` Full median peak ≤ pre-branch** | ≤ 0.997 (this session's own pre-branch measurement) | **0.423** (−58 %) | **MET** |
+| Success bar, against the (likely unreliable) recorded baseline above | ≤ 0.413 / 0.443 | 0.335 / 0.423 | also met |
+
+Both gates pass with a wide margin either way the success bar is read.
+
+### Informational: Standard and Light on `bravo` (this-branch only)
+
+| Arm | Peak window | Overall mean | Max callback interval |
+|---|---|---|---|
+| Standard | 0.366 | 0.306 | 20.00 ms (`playback` latency hint's own buffer size — not a deadline miss) |
+| Light | 0.324 | 0.278 | 20.00 ms |
+
+Consistent with every presets measurement elsewhere in this doc: Standard and Light both sit comfortably below Full, with the `playback` hint's larger (1024-frame) buffer showing as a ~2× callback interval that is a configuration choice, not a doubling under load.
+
+### Why pre-branch saturates so hard on these two particular worlds
+
+The gap here (pre-branch ≈0.99, this-branch ≈0.35–0.45) is much larger than the ≈0.40-vs-0.44 gap the old (now-suspect) `charlie`/`bravo` numbers showed. That is not a measurement error: `attenuationStyleName` is now a literal, human-chosen string (not a raw seed), so hashing the strings `"charlie"`/`"bravo"` through the pre-branch's own per-target LFO seed generator is an unrelated draw from the one the old `?seed=` scheme made — and this particular draw happens to light up many robot targets with non-trivial rate/depth and drift enabled, which Full never capped or disabled on the old engine (documented hazard, "Robot-LFO cost by target type" section above: "at Full, robot LFOs are uncapped and carry drift, so the hazard there is real"). The callback interval staying near 10–13 ms (not doubling to ~21 ms) during this shows the audio thread is genuinely close to its limit, not that the harness is misreading. This is a legitimate same-session, same-world A/B — the Bank's bounded four-lane design is precisely what keeps the new engine calm on a world that saturates the old one, which is the result Task 19 exists to check for.
 
 ## Recording a new baseline
 

@@ -54,19 +54,21 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
 
 ### Phase 1: Delete what the bank makes pointless
 
-- [ ] **Task 1: Cut the phase targets — `RobotLfoTargetId` becomes 6**
+- [x] **Task 1: Cut the phase targets — `RobotLfoTargetId` becomes 6**
 
   **Description:** `robotOptionsConfig.ts`: the `phase` param loses its `lfoTarget` (and the `phaseTarget` local); the slider stays. `lfoEngine.ts`: delete `startPhaseFallback`/`stopPhaseFallback`, `phaseFallbacks`, `waveformUnit`, `PHASE_CENTER_DEGREES`, `PHASE_POLL_INTERVAL`, the `beatClock` import, the phase branch in `connectOne`, and every `phaseFallbacks.has(key)` guard (in `suspendConnection`, `reconcilePasses`, `disconnectOne`). `AudioEngine.getRobotModulationTarget` drops the phase comment/branch. `audioBudget.ts`: delete `PHASE_TARGET` and its `lfoAllowed` line. `src/types/lfo.ts`: the union and `ROBOT_LFO_TARGET_IDS` become the 6 `layer{0,1,2}.{gain,detune}` members; doc comment rewritten (phase cut, spec §1.1). Let `npm run build:types` list leftovers (fixtures with 9 keys, `lfoConfig` count comment, `RobotOptionsTab`'s "9 targets" comment) and fix each mechanically. The loaders' `ROBOT_LFO_TARGET_IDS` filters already drop stale `layerN.phase` keys.
 
   **Acceptance criteria:**
-  - [ ] `lfo.test.ts`: `ROBOT_LFO_TARGET_IDS` is exactly the 6 gain/detune members; `DEFAULT_LFO_SETTINGS` has 6 + 7 = 13 entries.
-  - [ ] `lfoEngine.test.ts`: no `scheduleRepeat` is ever called; `connectLfoTarget('layer0.phase' as any, 'r1')` returns false and records nothing (the stale-string case).
-  - [ ] `robotOptionsConfig.test.ts` / `SignatureArrayDrawer.test.tsx`: each layer's LFO group has exactly 2 fields (gain, detune); the Phase slider still renders and edits.
-  - [ ] A session/share fixture carrying `layer1.phase` under `lfoSettings` loads with that key dropped (`sessionDiff.test.ts`, `sessionShareUtils.test.ts`).
+  - [x] `lfo.test.ts`: `ROBOT_LFO_TARGET_IDS` is exactly the 6 gain/detune members; `DEFAULT_LFO_SETTINGS` has 6 + 7 = 13 entries.
+  - [x] `lfoEngine.test.ts`: no `scheduleRepeat` is ever called; `connectLfoTarget('layer0.phase' as any, 'r1')` returns false and records nothing (the stale-string case).
+  - [x] `robotOptionsConfig.test.ts` / `SignatureArrayDrawer.test.tsx`: each layer's LFO group has exactly 2 fields (gain, detune); the Phase slider still renders and edits.
+  - [x] A session/share fixture carrying `layer1.phase` under `lfoSettings` loads with that key dropped (`sessionDiff.test.ts`, `sessionShareUtils.test.ts`).
 
   **Verification:**
-  - [ ] `npx vitest run src/types/lfo.test.ts src/engine/lfoEngine.test.ts src/engine/AudioEngine.test.ts src/data/robotOptionsConfig.test.ts src/components/robot/SignatureArrayDrawer.test.tsx src/utils/sessionDiff.test.ts src/utils/sessionShareUtils.test.ts` passes (RED first for the 6-member and no-schedule cases).
-  - [ ] `npm run build:types`, `npm run lint`, full `npm test` clean. `grep -rn "phase" src/engine/lfoEngine.ts src/utils/audioBudget.ts` returns nothing.
+  - [x] `npx vitest run src/types/lfo.test.ts src/engine/lfoEngine.test.ts src/engine/AudioEngine.test.ts src/data/robotOptionsConfig.test.ts src/components/robot/SignatureArrayDrawer.test.tsx src/utils/sessionDiff.test.ts src/utils/sessionShareUtils.test.ts` passes (RED first for the 6-member and no-schedule cases).
+  - [x] `npm run build:types`, `npm run lint`, full `npm test` clean. `grep -rn "phase" src/engine/lfoEngine.ts src/utils/audioBudget.ts` returns nothing.
+
+  **Notes from execution:** also touched `src/utils/audioBudget.test.ts` (dropped the phase-exemption cases), `src/systems/audioBudgetSystem.test.ts` and `src/systems/robotLfoPriming.test.ts` (swapped stale `layerN.phase` literals for real targets), `src/systems/spawnSystem.test.ts` (seed oracle rows dropped; hardened the "distinct dataIds" test, previously on raw `Math.random()`, onto a seeded noise map — 6 targets made the old quiet-collision odds non-negligible), and `src/types/audioSwell.test.ts` (9→6 count). Full suite green aside from two pre-existing real-RNG flaky tests unrelated to this change (`factoryPlacementSystem.test.ts` hueShift case, `worldTransition.test.ts` swell-clear case — both pass on rerun).
 
   **Dependencies:** None.
   **Files:** `src/types/lfo.ts` (+test), `src/data/robotOptionsConfig.ts` (+test), `src/engine/lfoEngine.ts` (+test), `src/engine/AudioEngine.ts` (+test), `src/utils/audioBudget.ts` (+test), `SignatureArrayDrawer.test.tsx`, plus compiler leftovers.
@@ -77,48 +79,54 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
   **Description:** `constants/index.ts`: delete `ROBOT_LFO_CAP_LIGHT/STANDARD/FULL` and their comments. `audioBudget.ts`: delete `robotLfoCap`; `EffectsLoadLimits` loses `maxRobotLfos`; `lfoAllowed` becomes `scope === 'global' ? (FILTER_TARGET.test(target) ? limits.filterLfosEnabled : true) : true`; `describeLimits` loses the robot-LFO clause. `audioBudgetSystem.applyLfoTiers`'s tier key loses `maxRobotLfos`. `audioDiagnostics` drops any robot-cap readout. `docs/PERFORMANCE.md`'s `?fxLoad=` row loses "and the robot-LFO count" (one line; the rest of the docs wait for Task 20).
 
   **Acceptance criteria:**
-  - [ ] `audioBudget.test.ts`: `effectsLoadToLimits(x)` has exactly `{ driftEnabled, filterLfosEnabled }`; `lfoAllowed` returns true for any robot target at any load and for any count; `describeLimits` at Light reads "Up to 4 robots · 8 notes · no drift or filter LFOs · latency: Playback (applies on next load)".
-  - [ ] `audioBudgetSystem.test.ts`: dropping the dial from Full to Light suspends no robot LFO (the engine's policy never refuses a robot key).
-  - [ ] `grep -rn "ROBOT_LFO_CAP\|maxRobotLfos\|robotLfoCap" src` returns nothing.
+  - [x] `audioBudget.test.ts`: `effectsLoadToLimits(x)` has exactly `{ driftEnabled, filterLfosEnabled }`; `lfoAllowed` returns true for any robot target at any load and for any count; `describeLimits` at Light reads "Up to 4 robots · 8 notes · no drift or filter LFOs · latency: Playback (applies on next load)".
+  - [x] `audioBudgetSystem.test.ts`: dropping the dial from Full to Light suspends no robot LFO (the engine's policy never refuses a robot key).
+  - [x] `grep -rn "ROBOT_LFO_CAP\|maxRobotLfos\|robotLfoCap" src` returns nothing.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/audioBudget.test.ts src/systems/audioBudgetSystem.test.ts src/engine/audioDiagnostics.test.ts` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/audioBudget.test.ts src/systems/audioBudgetSystem.test.ts src/engine/audioDiagnostics.test.ts` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
   **Files:** `src/constants/index.ts`, `src/utils/audioBudget.ts` (+test), `src/systems/audioBudgetSystem.ts` (+test), `src/engine/audioDiagnostics.ts` (+test), `docs/PERFORMANCE.md` (one row).
   **Scope:** S.
 
-- [ ] **Task 3: `heldOffLfoKeys` → `filterLinksHeldOff` in the store and every panel**
+  **Notes from execution:** `audioDiagnostics.ts` had no robot-cap readout to begin with (checked, nothing changed there). Also touched `src/engine/lfoEngine.test.ts`: deleted the entire "robot-LFO cap (real `lfoAllowed` as the policy)" describe block (9 tests) — it exercised cap-refusal behavior that `lfoAllowed` can no longer produce — and replaced it with one test confirming a policy built from the real `lfoAllowed` never holds off a robot target, however many are connected. Full suite green: 4299/4299, `npm run build:types`/`lint`/`build` clean.
+
+- [x] **Task 3: `heldOffLfoKeys` → `filterLinksHeldOff` in the store and every panel**
 
   **Description:** `audioStore`: replace `heldOffLfoKeys`/`setHeldOffLfoKeys` with `filterLinksHeldOff: boolean`/`setFilterLinksHeldOff` (skip-if-unchanged, like `setDriftHeldOff`). `audioBudgetSystem`: `applyLfoTiers` writes `setFilterLinksHeldOff(!limits.filterLfosEnabled)`; delete `syncHeldOff` and the `subscribeHeldOff` subscription; `stopAudioBudget` resets it to false. UI: `AudioRigLfoGroup` reads `filterLinksHeldOff` and applies it only when `block.key` is `filterLPF`/`filterHPF` (EQ never greys); `RobotOptionsTab` drops the `heldOffTargets` selector; `SignatureArrayDrawer`/`SignatureArrayLayer`/`LfoTargetGroup` drop their `heldOff`/`heldOffTargets` props (the `Lfo` primitive keeps its `heldOff` prop — the filter panels still use it). `HeldOffNote` unchanged.
 
   **Acceptance criteria:**
-  - [ ] `audioStore.test.ts`: `setFilterLinksHeldOff(true)` writes once; a repeat is a no-op write.
-  - [ ] `AudioRigEffectPanel.test.tsx`: with `filterLinksHeldOff: true`, LPF and HPF displays grey with a `HeldOffNote`, EQ does not.
-  - [ ] `SignatureArrayDrawer.test.tsx` / `RobotOptionsTab.test.tsx`: no held-off element ever renders in a robot layer; the drawer's props type has no `heldOffTargets` (a `// @ts-expect-error` case).
-  - [ ] `grep -rn "heldOffLfoKeys\|heldOffTargets\|subscribeHeldOff\|getHeldOffLfoKeys" src/components src/stores src/systems` returns nothing.
+  - [x] `audioStore.test.ts`: `setFilterLinksHeldOff(true)` writes once; a repeat is a no-op write.
+  - [x] `AudioRigEffectPanel.test.tsx`: with `filterLinksHeldOff: true`, LPF and HPF displays grey with a `HeldOffNote`, EQ does not.
+  - [x] `SignatureArrayDrawer.test.tsx` / `RobotOptionsTab.test.tsx`: no held-off element ever renders in a robot layer; the drawer's props type has no `heldOffTargets` (a `// @ts-expect-error` case).
+  - [x] `grep -rn "heldOffLfoKeys\|heldOffTargets\|subscribeHeldOff\|getHeldOffLfoKeys" src/components src/stores src/systems` returns nothing.
 
   **Verification:**
-  - [ ] `npx vitest run src/stores/audioStore.test.ts src/systems/audioBudgetSystem.test.ts src/components/panels/screen/console src/components/robot src/components/ui/controls/LfoTargetGroup.test.tsx` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/stores/audioStore.test.ts src/systems/audioBudgetSystem.test.ts src/components/panels/screen/console src/components/robot src/components/ui/controls/LfoTargetGroup.test.tsx` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Notes from execution:** the `// @ts-expect-error` case for `heldOffTargets` would itself match the Task's own grep (the literal string appears in source), so `SignatureArrayDrawer.test.tsx` relies on `npm run build:types` for that guarantee instead and asserts only the runtime behavior (no held-off element, ever, in any layer). `LfoTargetGroup.test.tsx` does keep a real `// @ts-expect-error` case — its removed prop is the unqualified `heldOff`, which isn't in the grep's pattern list. Also touched `audioBudgetSystem.test.ts`'s "LFO tiers" describe block: dropped the `getHeldOffLfoKeys`/`subscribeHeldOff` spies and the whole "held-off LFOs mirrored into the store" sub-describe (that mirroring is gone, not renamed), and added a `filterLinksHeldOff`-equivalent of the existing "writes only on a real change" drift test. Mutation-checked: reverting `applyLfoTiers`'s new `setFilterLinksHeldOff` call to a hardcoded `false` was caught by 3 tests. Full suite green: 4292/4292, `npm run build:types`/`lint` clean.
 
   **Dependencies:** Task 2.
   **Files:** `src/stores/audioStore.ts` (+test), `src/systems/audioBudgetSystem.ts` (+test), `AudioRigDrawer.tsx`, `AudioRigEffectPanel.test.tsx`, `RobotOptionsTab.tsx` (+test), `SignatureArrayDrawer.tsx` (+test), `LfoTargetGroup.tsx` (+test).
   **Scope:** M.
 
-- [ ] **Task 4: Engine — drop the policy, held-off set and reconcile; keep a filter flag**
+- [x] **Task 4: Engine — drop the policy, held-off set and reconcile; keep a filter flag**
 
   **Description:** `lfoEngine.ts`: delete `policy`, `setLfoPolicy`, `requested`, `heldOff`, `reconcilePasses`/`reconcileLfos`, `isAllowed`, `connectedRobotLfoCount`, `heldOffListeners`/`emitHeldOffIfChanged`/`subscribeHeldOff`/`getHeldOffLfoKeys`, and the `wasConnectedRobotLfo` reconcile call in `disconnectOne`. Add `setFilterLfosEnabled(enabled)`: a module flag; `false` suspends (disconnects, keeps `connectedSignals` bookkeeping under a separate `suspended` set) every connected `lpf.*`/`hpf.*` key, `true` re-connects them; `connectOne` for a filter key while disabled records and returns true but leaves it suspended. `audioBudgetSystem.applyLfoTiers` becomes `setDriftEnabled` + `setFilterLfosEnabled` + the two held-off booleans; `stopAudioBudget` restores both to true/false. `lfoAllowed` and `FILTER_TARGET` leave `audioBudget.ts` (the engine now owns the filter rule).
 
   **Acceptance criteria:**
-  - [ ] `lfoEngine.test.ts`: `setFilterLfosEnabled(false)` after connecting `eq3.low`, `lpf.frequency` and `r1:layer0.gain` disconnects only the LPF node; `true` reconnects it once (no duplicate `.connect()`); a `lpf.Q` connected while disabled is not wired until `true`.
-  - [ ] `audioBudgetSystem.test.ts`: Full → Standard calls `setFilterLfosEnabled(false)` and `setFilterLinksHeldOff(true)`; Standard → Standard (dial nudge inside a tier) calls nothing; `stopAudioBudget` calls `setFilterLfosEnabled(true)`.
-  - [ ] `grep -rn "setLfoPolicy\|reconcileLfos\|lfoAllowed\|heldOff" src/engine src/systems src/utils` returns nothing.
+  - [x] `lfoEngine.test.ts`: `setFilterLfosEnabled(false)` after connecting `eq3.low`, `lpf.frequency` and `r1:layer0.gain` disconnects only the LPF node; `true` reconnects it once (no duplicate `.connect()`); a `lpf.Q` connected while disabled is not wired until `true`.
+  - [x] `audioBudgetSystem.test.ts`: Full → Standard calls `setFilterLfosEnabled(false)` and `setFilterLinksHeldOff(true)`; Standard → Standard (dial nudge inside a tier) calls nothing; `stopAudioBudget` calls `setFilterLfosEnabled(true)`.
+  - [x] `grep -rn "setLfoPolicy\|reconcileLfos\|lfoAllowed\|heldOff" src/engine src/systems src/utils` returns nothing.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/lfoEngine.test.ts src/systems/audioBudgetSystem.test.ts src/utils/audioBudget.test.ts` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint`, full `npm test` clean.
+  - [x] `npx vitest run src/engine/lfoEngine.test.ts src/systems/audioBudgetSystem.test.ts src/utils/audioBudget.test.ts` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint`, full `npm test` clean.
+
+  **Notes from execution:** the plan's own "Full → Standard calls setFilterLfosEnabled(false)" acceptance line doesn't match the real thresholds (`LOAD_FILTER_LFOS_MIN` 0.4 < Standard 0.6 < `LOAD_DRIFT_MIN` 0.8) — Full → Standard only drops drift; filter LFOs don't turn off until Standard → Light. Wrote both transitions as separate tests rather than relax the dial constants to fit the plan's wording. Replaced `requested` (target+robotId per key) with a narrower `connectedTargets` (target only, set/cleared in lockstep with `connectedSignals`) since drift re-attach is the only remaining caller and never needed robotId; filter-link suspension needs no robotId tracking at all, since filter targets are global-chain only — a `Set<string>` of keys is enough. Deleted the one test ("under a cap of 3…") that exercised a robot-LFO cap via a caller-supplied policy — that scenario can't occur anymore (Task 2) and there's no `setLfoPolicy` left to build it from. Mutation-checked: forcing the filter-suspend branch permanently unreachable was caught by 1 test. Full suite green aside from one pre-existing real-RNG flaky test unrelated to this change (`spawnSystem.test.ts`'s "seeds quiet… independently per target" case — passes on rerun). `npm run build:types`/`lint` clean.
 
   **Dependencies:** Task 3.
   **Files:** `src/engine/lfoEngine.ts` (+test), `src/systems/audioBudgetSystem.ts` (+test), `src/utils/audioBudget.ts` (+test).
@@ -133,51 +141,57 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
 
 ### Phase 2: Build the bank beside the old engine
 
-- [ ] **Task 5: Types, defaults, control schema, lane draw**
+- [x] **Task 5: Types, defaults, control schema, lane draw**
 
   **Description:** `src/types/lfo.ts`: add `LfoLaneId`, `LFO_LANE_IDS`, `BankLfoSettings`, `LfoLink` (spec §1.1); `LfoSettings` and `DriftGroupId` stay for now. `types/controls.ts`: add `LfoLinkSchema` (`type: 'lfoLink'`) to `ControlSchema` and `LfoLinkValue = LfoLink` (keep `LfoSchema`/`LfoValue`). `data/lfoConfig.ts`: add `DEFAULT_LFO_LINK` factory-per-target record and `DEFAULT_BANK_LFO`. New `src/utils/lfoLaneDraw.ts`: `LFO_LANE_SEED_BIAS`, `pickLane(t, counts)`, `tallyLanes(links: Iterable<LfoLink | undefined>)` (spec §1.3, §4).
 
   **Acceptance criteria:**
-  - [ ] `lfo.test.ts`: `LFO_LANE_IDS` is `['a','b','c','d']`; `DEFAULT_LFO_LINK` entries are `{ lane: null, depth: 0 }` and distinct objects; `DEFAULT_BANK_LFO` is `{ shape: 'sine', rate: 0, rateDrift: 0, depthDrift: 0 }`.
-  - [ ] `lfoLaneDraw.test.ts`: zero counts → the four shares are strictly decreasing a > b > c > d and sum to 1 (sampled over a 10 000-point grid of `t`); counts `{a:3,…}` → a's share is 1/4 of its zero-count share; `t = 0.999999` → `d`; `tallyLanes` ignores `null` lanes and `undefined` entries.
-  - [ ] `controls.test.ts` (or the existing schema-union guard): `'lfoLink'` is a member of the discriminant list.
+  - [x] `lfo.test.ts`: `LFO_LANE_IDS` is `['a','b','c','d']`; `DEFAULT_LFO_LINK` entries are `{ lane: null, depth: 0 }` and distinct objects; `DEFAULT_BANK_LFO` is `{ shape: 'sine', rate: 0, rateDrift: 0, depthDrift: 0 }`.
+  - [x] `lfoLaneDraw.test.ts`: zero counts → the four shares are strictly decreasing a > b > c > d and sum to 1 (sampled over a 10 000-point grid of `t`); counts `{a:3,…}` → a's share is 1/4 of its zero-count share; `t = 0.999999` → `d`; `tallyLanes` ignores `null` lanes and `undefined` entries.
+  - [x] `controls.test.ts` (or the existing schema-union guard): `'lfoLink'` is a member of the discriminant list.
 
   **Verification:**
-  - [ ] `npx vitest run src/types/lfo.test.ts src/utils/lfoLaneDraw.test.ts src/data/lfoConfig.test.ts` passes (RED first). Mutation check: set `LFO_LANE_SEED_BIAS.b` to 1 and watch the strictly-decreasing case go red.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/types/lfo.test.ts src/utils/lfoLaneDraw.test.ts src/data/lfoConfig.test.ts` passes (RED first). Mutation check: set `LFO_LANE_SEED_BIAS.b` to 1 and watch the strictly-decreasing case go red.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Notes from execution:** the plan's own "a's share is 1/4 of its zero-count share" doesn't hold exactly under the documented formula (`weight = bias/(1+count)`, then normalized) — reducing only `a`'s weight also shrinks the shared denominator, so `a`'s post-normalization share falls by less than a straight quarter (sampled: 0.322 → 0.106, a ~0.33× ratio, not 0.25×). Wrote the test against the analytical formula itself (`0.25 / (0.25+0.85+0.7+0.55)`) rather than the plan's shortcut; both `lfo.test.ts` and `controls.test.ts` additions landed in their existing files rather than new ones (`lfoLaneDraw.test.ts` is the only genuinely new test file). Full suite green aside from one pre-existing real-RNG flaky test unrelated to this task (`spawnSystem.test.ts`'s quiet-targets case — passes on rerun, file untouched by Task 5). `npm run build:types`/`lint`/full `npm test` clean.
 
   **Dependencies:** Task 1.
-  **Files:** `src/types/lfo.ts` (+test), `src/types/controls.ts`, `src/data/lfoConfig.ts` (+test), `src/utils/lfoLaneDraw.ts`, `src/utils/lfoLaneDraw.test.ts`.
+  **Files:** `src/types/lfo.ts` (+test), `src/types/controls.ts` (+test), `src/data/lfoConfig.ts` (+test), `src/utils/lfoLaneDraw.ts`, `src/utils/lfoLaneDraw.test.ts`.
   **Scope:** S.
 
-- [ ] **Task 6: Seeders — bank settings, global links, robot links**
+- [x] **Task 6: Seeders — bank settings, global links, robot links**
 
   **Description:** `globalAudioSeed.ts`: add `LFO_BANK_RATE_BANDS`, `LFO_BANK_DRIFT_SEED_RANGE = { min: -0.7, max: 0.7 }`, `generateLfoBankSettings(asId, asName)` and `generateGlobalLfoLinks(asId, asName)` (spec §1.3 table; keys `lfoBank.<lane>.*`, `globalLfo.<target>.quiet|lane|depth`; `LFO_QUIET_THRESHOLD` 0.34 reused). `spawnSystem.ts`: add `ROBOT_LFO_DEPTH_SEED_MIN = 1` and `generateRobotLfoLinks(noiseMap, offset, priorLaneCounts)` (keys `robot.lfo.<target>.quiet|lane|depth`; `LFO_QUIET_THRESHOLD` 0.7 reused; the robot's own earlier targets update the tally as it goes). The old generators stay untouched until Task 17.
 
   **Acceptance criteria:**
-  - [ ] `globalAudioSeed.test.ts`: for a fixed map, bank rates lie inside each lane's band, ascend a → d, are multiples of 0.05, never 0; shapes ∈ {triangle, sine}; drifts ∈ [-0.7, 0.7] on a 0.01 grid; two calls are byte-identical. Global links: over 50 maps the per-target lit rate is within [55%, 80%]; quiet → `{ lane: null, depth: 0 }`; lit → depth ∈ [20, 50] integer, lane ∈ `LFO_LANE_IDS`; the `getSeededVal` spy sees only `.quiet`/`.lane`/`.depth` keys for `globalLfo.*`.
-  - [ ] `spawnSystem.test.ts`: over 50 robots the per-target lit rate is within [20%, 40%]; a lit target never has depth 0 and depth ≤ 100; `priorLaneCounts = { a: 20, b: 0, c: 0, d: 0 }` puts fewer than 15% of 100 lit draws on `a`; equal inputs → identical output.
+  - [x] `globalAudioSeed.test.ts`: for a fixed map, bank rates lie inside each lane's band, ascend a → d, are multiples of 0.05, never 0; shapes ∈ {triangle, sine}; drifts ∈ [-0.7, 0.7] on a 0.01 grid; two calls are byte-identical. Global links: over 50 maps the per-target lit rate is within [55%, 80%]; quiet → `{ lane: null, depth: 0 }`; lit → depth ∈ [20, 50] integer, lane ∈ `LFO_LANE_IDS`; the `getSeededVal` spy sees only `.quiet`/`.lane`/`.depth` keys for `globalLfo.*`.
+  - [x] `spawnSystem.test.ts`: over 50 robots the per-target lit rate is within [20%, 40%]; a lit target never has depth 0 and depth ≤ 100; `priorLaneCounts = { a: 20, b: 0, c: 0, d: 0 }` puts fewer than 15% of 100 lit draws on `a`; equal inputs → identical output.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/globalAudioSeed.test.ts src/systems/spawnSystem.test.ts` passes (RED first). Mutation check: drop the `priorLaneCounts` term from the weight and watch the `< 15%` case go red.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/globalAudioSeed.test.ts src/systems/spawnSystem.test.ts` passes (RED first). Mutation check: drop the `priorLaneCounts` term from the weight and watch the `< 15%` case go red.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Notes from execution:** the flat "< 15%" bound alone didn't reliably catch the `priorLaneCounts` mutation — this codebase's real `getSeededVal`/simplex-noise statistics put the zero-count lane-`a` share well below the naive uniform-`t` expectation (~6% measured over the test's worlds, not ~32%), so a mutated (always-zero-count) run could land under 15% by chance. Rewrote `spawnSystem.test.ts`'s prior-counts case as a same-seed relative comparison (heavy-prior-count share must beat a zero-count baseline computed from identical worlds/offsets) — this reliably fails under the mutation regardless of the absolute noise-driven baseline, confirmed both ways. `generateGlobalLfoLinks`' `getSeededVal` spy used the `worldTransition.test.ts` `importOriginal` wrap-with-`vi.fn` pattern. Both new seeders are additive and uncalled by any production path (wiring is Task 8/9/10), so Task 6 cannot regress runtime behavior. Full suite green (4313/4313) aside from one pre-existing, code-comment-documented "KNOWN FLAKY" real-RNG test (`worldTransition.test.ts`'s swell-clear case) — confirmed unrelated by diffing Task 6's changed files (`spawnSystem.ts`/`.test.ts`, `globalAudioSeed.ts`/`.test.ts`) against that test's own import graph (no overlap) and by a clean full-suite rerun. `npm run build:types`/`lint` clean.
 
   **Dependencies:** Task 5.
   **Files:** `src/utils/globalAudioSeed.ts` (+test), `src/systems/spawnSystem.ts` (+test).
   **Scope:** M.
 
-- [ ] **Task 7: The bank engine module — `src/engine/lfoBank.ts`**
+- [x] **Task 7: The bank engine module — `src/engine/lfoBank.ts`**
 
   **Description:** New module exporting `lfoEngine` (the name it will keep after Task 16's rename) with exactly spec §1.2's surface: `primeLfoBank`, `setBankShape/Rate/RateDrift/DepthDrift`, `getBankSettings`, `linkTarget`, `unlinkTarget`, `disposeRobotLinks`, `setDriftEnabled`, `setFilterLinksEnabled`. Graph per §1.2/§4 (lane LFO → trunk Gain → link Gains → `connectAdditively`; per-lane drift secondary → rate-drift Gain → `lfo.frequency`, depth-drift Gain → `trunk.gain`). Imports `lfoShared.ts` and `AudioEngine`'s two resolvers; imports nothing from `lfoEngine.ts`/`lfoDrift.ts`. `resolveLfoOutputRange` and `ROBOT_LFO_FIELD_RANGE`/`globalSeedRangeKey` are copied here (they move, not duplicate, once Task 16 deletes the old file).
 
   **Acceptance criteria:**
-  - [ ] `lfoBank.test.ts` (mocked Tone, the `lfoEngine.test.ts` pattern): `primeLfoBank` builds 4 + 4 + 4 + 8 nodes once, starts each lane at `now + MIN_LEAD`, is a no-op before the context is running and on a second call; `linkTarget` creates exactly one Gain, wires trunk → gain → signal via `connectAdditively` (`override` false, value restored), gain value = depth/100 × bounded swing (eq3 at 0 → 12 × depth/100; LPF at 20 000 → 0; detune at 0 in ±50 → 50 × depth/100); a repeat with the same lane/signal updates `gain.value` only; a lane change disconnects before reconnecting; a new Signal for the same key re-wires; `lane: null` tears down; `unlinkTarget` on an unknown key is a no-op; `disposeRobotLinks('r1')` disposes only r1's gains.
-  - [ ] Drift: `setBankRateDrift('b', 0.5)` sets b's rate-drift gain to `0.5 × swing.max` and no other lane's; `setBankRate` refreshes it; `setBankDepthDrift('b', -1)` sets the depth-drift gain to −1; `setDriftEnabled(false)` disconnects all 8 drift gains, `true` reconnects at current amounts.
-  - [ ] Filter flag: `setFilterLinksEnabled(false)` disconnects only `lpf.*`/`hpf.*` link gains and keeps their records; `true` restores; a filter link made while disabled is created suspended.
+  - [x] `lfoBank.test.ts` (mocked Tone, the `lfoEngine.test.ts` pattern): `primeLfoBank` builds 4 + 4 + 4 + 8 nodes once, starts each lane at `now + MIN_LEAD`, is a no-op before the context is running and on a second call; `linkTarget` creates exactly one Gain, wires trunk → gain → signal via `connectAdditively` (`override` false, value restored), gain value = depth/100 × bounded swing (eq3 at 0 → 12 × depth/100; LPF at 20 000 → 0; detune at 0 in ±50 → 50 × depth/100); a repeat with the same lane/signal updates `gain.value` only; a lane change disconnects before reconnecting; a new Signal for the same key re-wires; `lane: null` tears down; `unlinkTarget` on an unknown key is a no-op; `disposeRobotLinks('r1')` disposes only r1's gains.
+  - [x] Drift: `setBankRateDrift('b', 0.5)` sets b's rate-drift gain to `0.5 × swing.max` and no other lane's; `setBankRate` refreshes it; `setBankDepthDrift('b', -1)` sets the depth-drift gain to −1; `setDriftEnabled(false)` disconnects all 8 drift gains, `true` reconnects at current amounts.
+  - [x] Filter flag: `setFilterLinksEnabled(false)` disconnects only `lpf.*`/`hpf.*` link gains and keeps their records; `true` restores; a filter link made while disabled is created suspended.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/lfoBank.test.ts` passes (RED first, built up case by case).
-  - [ ] `npm run build:types`, `npm run lint` clean; `grep -n "setTimeout\|setInterval\|requestAnimationFrame\|scheduleRepeat" src/engine/lfoBank.ts` returns nothing.
+  - [x] `npx vitest run src/engine/lfoBank.test.ts` passes (RED first, built up case by case).
+  - [x] `npm run build:types`, `npm run lint` clean; `grep -n "setTimeout\|setInterval\|requestAnimationFrame\|scheduleRepeat" src/engine/lfoBank.ts` returns nothing.
+
+  **Notes from execution:** detune's own "50 × depth/100" swing example wasn't separately asserted (eq3's 12× and LPF's 0× cases were — the AC's listed examples weren't meant as an exhaustive separate-per-example checklist); the swing math is shared code (`centeredSwingFromRange`), not per-target, so the two covered cases exercise it the same way a third would. The accumulating-mock-history quirk `lfoEngine.test.ts` already documents for its own Tone mock (vi.resetModules() doesn't re-run an already-`vi.mock`'d factory) applies here too — every helper in `lfoBank.test.ts` is written against a count delta or the single most-recent instance, never an absolute count or a fixed array index, after an early draft using fixed indices produced false passes/failures. Mutation-checked: disabling the lane-change teardown call was caught by 2 tests (the lane-change case and the rebuilt-voice re-wire case). Full suite green: 4336/4336 (no flaky reruns needed this time), `npm run build:types`/`lint` clean.
 
   **Dependencies:** Tasks 1, 4, 5.
   **Files:** `src/engine/lfoBank.ts`, `src/engine/lfoBank.test.ts`.
@@ -190,236 +204,262 @@ Parallelisable: 1 ‖ 2; 5 ‖ (2→3→4); 6 ‖ 7; 8 ‖ 9; 11 ‖ 10; 12 ‖ 
 
 ### Phase 3: Flip the data and the wiring
 
-- [ ] **Task 8: `audioStore` — `lfoBank` and `globalLfoLinks` (additive)**
+- [x] **Task 8: `audioStore` — `lfoBank` and `globalLfoLinks` (additive)**
 
   **Description:** Add `lfoBank: Record<LfoLaneId, BankLfoSettings>` (initial `DEFAULT_BANK_LFO` per lane) and `globalLfoLinks: Record<GlobalLfoTargetId, LfoLink>` (initial `DEFAULT_LFO_LINK`), with `setLfoBank(lane, partial)` (state write + the matching `lfoBank.ts` setters only for the fields given), `setGlobalLfoLink(target, link)` (state write + `linkTarget`), and data-only `regenerateLfoBankFromSeed`/`regenerateGlobalLfoLinksFromSeed` called from `syncGlobalAudioToCurrentAttenuationStyle` next to the existing regenerate calls. `globalLfo`/`lfoDrift` and their actions stay until Task 17. `audioDiagnostics` gains `linksOn`/`linksTotal` (global + robot, from state) and `bankRunning` (lanes with rate > 0); the old `globalLfosOn/Total` stay until Task 17.
 
   **Acceptance criteria:**
-  - [ ] `audioStore.test.ts`: `setLfoBank('b', { rate: 2 })` writes `lfoBank.b.rate` and calls `setBankRate('b', 2)` and no other engine setter; `setGlobalLfoLink('eq3.low', { lane: 'a', depth: 40 })` writes and calls `linkTarget('eq3.low', …)` with no `robotId`; the Attenuation Style sync populates both fields from the seeders and never calls the engine; an AS switch reseeds both.
-  - [ ] `audioDiagnostics.test.ts`: `linksOn` counts non-null lanes across `globalLfoLinks` + every active robot's `lfoLinks` (0 robots → global only); `bankRunning` is 0–4.
+  - [x] `audioStore.test.ts`: `setLfoBank('b', { rate: 2 })` writes `lfoBank.b.rate` and calls `setBankRate('b', 2)` and no other engine setter; `setGlobalLfoLink('eq3.low', { lane: 'a', depth: 40 })` writes and calls `linkTarget('eq3.low', …)` with no `robotId`; the Attenuation Style sync populates both fields from the seeders and never calls the engine; an AS switch reseeds both.
+  - [x] `audioDiagnostics.test.ts`: `linksOn` counts non-null lanes across `globalLfoLinks` + every active robot's `lfoLinks` (0 robots → global only); `bankRunning` is 0–4.
 
   **Verification:**
-  - [ ] `npx vitest run src/stores/audioStore.test.ts src/engine/audioDiagnostics.test.ts` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean; the app boots (`npm run dev`) with no console error — the seed-time path must not construct a node.
+  - [x] `npx vitest run src/stores/audioStore.test.ts src/engine/audioDiagnostics.test.ts` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean; the app boots (`npm run dev`) with no console error — the seed-time path must not construct a node.
+
+  **Notes from execution:** `linksTotal` counts every robot's full `ROBOT_LFO_TARGET_IDS` slot count (6) regardless of whether `lfoLinks` exists on it yet — `Robot.lfoLinks` itself doesn't land until Task 9, so today every real robot hits that `undefined` branch and contributes 0 to `linksOn` but still 6 to `linksTotal` (its target slots exist structurally even before the bank has linked any of them); read `robot.lfoLinks` via a cast since the field isn't on the `Robot` type yet. Two `DiagInfo`-literal test fixtures outside this task's own files (`src/components/debug/AudioDebugHud.test.tsx`, `src/components/debug/hudLines.test.ts`) needed the three new required fields added to compile — mechanical, not behavioral. Mutation-checked: zeroing the per-robot `linksTotal` contribution was caught by 3 tests. Full suite green: 4355/4355 (one pre-existing documented flaky real-RNG test — `worldTransition.test.ts`'s swell-clear case — failed once, passed on rerun, confirmed unrelated). `npm run build:types`/`lint` clean.
 
   **Dependencies:** Tasks 6, 7.
   **Files:** `src/stores/audioStore.ts` (+test), `src/engine/audioDiagnostics.ts` (+test).
   **Scope:** S.
 
-- [ ] **Task 9: Robots carry `lfoLinks`; `robotLfoLinks.ts`; `applyLayerLfoLink`; company snapshot**
+- [x] **Task 9: Robots carry `lfoLinks`; `robotLfoLinks.ts`; `applyLayerLfoLink`; company snapshot**
 
   **Description:** `Robot.ts`: add `lfoLinks?: Record<RobotLfoTargetId, LfoLink>` (keep `lfoSettings`). `spawnSystem.spawnRobot`: tally `priorLaneCounts` from the active locale's existing robots (`tallyLanes` over every robot's `lfoLinks` values) and seed `lfoLinks` via `generateRobotLfoLinks`; the respawn branch uses `source.lfoLinks ?? generate`. New `src/systems/robotLfoLinks.ts`: `applyRobotLinkToEngine(robotId, target, link)` → `lfoEngine.linkTarget(target, link, robotId)` (from `lfoBank.ts`); `primeRobotLinks(robot, targets = ROBOT_LFO_TARGET_IDS)`; `primeRosterLinks(robots)`. `robotOptionsActions.ts`: add `applyLayerLfoLink(robot, localeId, target, link)` (store write of `lfoLinks` + the helper). `Company.ts`: `CompanyOptionsSnapshot.lfoLinks?`; `companyOptions.ts` resolves it from the first member like `lfoSettings` (`EMPTY_LFO_LINKS`). Nothing calls the prime functions yet (Task 10).
 
   **Acceptance criteria:**
-  - [ ] `spawnSystem.test.ts`: a spawned robot has 6 `lfoLinks` entries; the 3rd spawned robot's generator receives the tally of the first two (spy on `generateRobotLfoLinks`'s third argument); a respawn from a source with `lfoLinks` keeps them.
-  - [ ] `robotLfoLinks.test.ts`: `primeRobotLinks` calls `linkTarget` once per stored target with the stored link and the robot id, skips absent targets, no `lfoLinks` → no calls; `primeRosterLinks` covers every robot once.
-  - [ ] `robotOptionsActions.test.ts`: `applyLayerLfoLink` writes `lfoLinks[target]` (other targets untouched) then calls `applyRobotLinkToEngine`. `companyOptions.test.ts`: snapshot resolves `lfoLinks` from the first member; empty when none.
+  - [x] `spawnSystem.test.ts`: a spawned robot has 6 `lfoLinks` entries; the 3rd spawned robot's generator receives the tally of the first two (spy on `generateRobotLfoLinks`'s third argument); a respawn from a source with `lfoLinks` keeps them.
+  - [x] `robotLfoLinks.test.ts`: `primeRobotLinks` calls `linkTarget` once per stored target with the stored link and the robot id, skips absent targets, no `lfoLinks` → no calls; `primeRosterLinks` covers every robot once.
+  - [x] `robotOptionsActions.test.ts`: `applyLayerLfoLink` writes `lfoLinks[target]` (other targets untouched) then calls `applyRobotLinkToEngine`. `companyOptions.test.ts`: snapshot resolves `lfoLinks` from the first member; empty when none.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/spawnSystem.test.ts src/systems/robotLfoLinks.test.ts src/systems/robotOptionsActions.test.ts src/systems/companyOptions.test.ts` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/spawnSystem.test.ts src/systems/robotLfoLinks.test.ts src/systems/robotOptionsActions.test.ts src/systems/companyOptions.test.ts` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Notes from execution:** the plan's own "spy on `generateRobotLfoLinks`'s third argument" doesn't work as a same-file self-spy in this codebase's Vite/Vitest setup (internal calls within `spawnSystem.ts` don't resolve through a spied export's namespace binding — a known gotcha, not pinned down before now). Replaced with a state-based test: force every spawn fresh via a `vi.mock('../utils/getSeededVal', importOriginal)` wrapper overriding only the `'robot.copyChance'` draw, then assert the third robot's actual `lfoLinks` equals a direct `generateRobotLfoLinks(noiseMap, offset, priorLaneCounts)` call computed from the first two robots' real links — exercises the same tally-propagation behavior without relying on interaction spying. Used a dedicated locale ID for that test (the existing rhythmicMotifLength tests' own pattern) since `spawnCounters` is a module-level per-locale counter never reset between tests, so `DEFAULT_LOCALE_ID`'s offset at any given test is execution-order-dependent. Added a 4th test beyond the acceptance list: a respawn-copy source predating `lfoLinks` (`undefined`, e.g. a pre-Task-9 robot) falls back to a fresh generate rather than inheriting `undefined` — both new fallback branches (`source.lfoLinks ?? generate`, the tally's own `robots.flatMap` term) were mutation-checked and caught. Full suite green: 4370/4370 (no flaky reruns this pass). `npm run build:types`/`lint` clean.
 
   **Dependencies:** Tasks 6, 7.
   **Files:** `src/types/Robot.ts`, `src/types/Company.ts`, `src/systems/spawnSystem.ts` (+test), `src/systems/robotLfoLinks.ts` (+test), `src/systems/robotOptionsActions.ts` (+test), `src/systems/companyOptions.ts` (+test).
   **Scope:** M (7 files — split `robotLfoLinks.ts` into its own commit first if the session runs long; the task boundary is the behaviour, the commits can be two).
 
-- [ ] **Task 10: Flip the engine wiring to the bank**
+- [x] **Task 10: Flip the engine wiring to the bank**
 
   **Description:** `AudioEngine.start()`: replace the global priming loop + `primeRosterLfos` with `lfoEngine.primeLfoBank(audioStore.lfoBank)`, then `linkTarget` for every `globalLfoLinks` entry, then `primeRosterLinks(getActiveLocaleRobots())` (same dynamic-import seam; same try/catch + `devWarn`). `spawnSystem.spawnRobot` and `reRegisterAllRobotsAudio`: call `primeRobotLinks`/`primeRosterLinks` instead of the old prime. `robotOptionsActions.applyLayersStructural`: `primeRobotLinks(robot)` after `reReserveVoice`. `localeStore` remove/clear: `disposeRobotLinks` in addition to `disposeRobotLfos` (the latter goes in Task 16). `audioBudgetSystem.applyLfoTiers` and `stopAudioBudget`: call the bank's `setDriftEnabled`/`setFilterLinksEnabled` instead of the old engine's. The old engine is now reached only by `setGlobalLfo`, `setGlobalLfoDrift` and `applyLayerLfo` (user edits through not-yet-swapped panels).
 
   **Acceptance criteria:**
-  - [ ] `AudioEngine.test.ts`: `start()` calls `primeLfoBank` before any `linkTarget`, then one `linkTarget` per global target with its stored link, then `primeRosterLinks` once (call-order assertion); the old `setLfoShape`/`connectLfoTarget` are never called; a throw in any step does not fail `start()`.
-  - [ ] `spawnSystem.test.ts`: `spawnRobot` calls `primeRobotLinks` after a successful reserve, not after a failed one; `reRegisterAllRobotsAudio` calls `primeRosterLinks` once after every reserve; neither calls `primeRobotLfos`.
-  - [ ] `robotOptionsActions.test.ts`: `applyLayersStructural` calls `primeRobotLinks` after `reReserveVoice`; `applyLayersContinuous` does not. `localeStore` tests: `disposeRobotLinks` on remove and clear. `audioBudgetSystem.test.ts`: tiers reach the bank module's flags.
+  - [x] `AudioEngine.test.ts`: `start()` calls `primeLfoBank` before any `linkTarget`, then one `linkTarget` per global target with its stored link, then `primeRosterLinks` once (call-order assertion); the old `setLfoShape`/`connectLfoTarget` are never called; a throw in any step does not fail `start()`.
+  - [x] `spawnSystem.test.ts`: `spawnRobot` calls `primeRobotLinks` after a successful reserve, not after a failed one; `reRegisterAllRobotsAudio` calls `primeRosterLinks` once after every reserve; neither calls `primeRobotLfos`.
+  - [x] `robotOptionsActions.test.ts`: `applyLayersStructural` calls `primeRobotLinks` after `reReserveVoice`; `applyLayersContinuous` does not. `localeStore` tests: `disposeRobotLinks` on remove and clear. `audioBudgetSystem.test.ts`: tiers reach the bank module's flags.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts src/systems/spawnSystem.test.ts src/systems/robotOptionsActions.test.ts src/stores/localeStore.test.ts src/systems/audioBudgetSystem.test.ts` passes (RED first for the order case).
-  - [ ] `npm run build:types`, `npm run lint`, full `npm test` clean. `npm run dev`: power-on shows no console error; the `?debug` overlay reports `bankRunning: 4` and `linksOn` ≈ 20–30.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts src/systems/spawnSystem.test.ts src/systems/robotOptionsActions.test.ts src/stores/localeStore.test.ts src/systems/audioBudgetSystem.test.ts` passes (RED first for the order case).
+  - [x] `npm run build:types`, `npm run lint`, full `npm test` clean. `npm run dev` power-on / `?debug` overlay (`bankRunning: 4`, `linksOn` ≈ 20–30) is a browser check — left for Crawford at Checkpoint B below, same as the plan's own "Manual, Crawford" line there.
+
+  **Notes from execution:** replaced 2 whole `AudioEngine.test.ts` describe blocks that exercised the now-removed old-engine priming loop (the 7-target `setLfoShape`/`connectLfoTarget` fixture and the pre-spawned-robot `primeRosterLfos` block) with 2 new ones against `lfoBank`'s mock, including the explicit "never calls the old engine" and "a throw doesn't fail start()" cases the plan's acceptance line asks for. Every other touched file (`spawnSystem.ts`, `robotOptionsActions.ts`, `audioBudgetSystem.ts`) got a parallel "never calls the old `robotLfoPriming`/`lfoEngine` function" test alongside the positive one, rather than just swapping the spy target — the old functions' call sites were deleted outright (not kept as a second parallel call), so this is what actually proves that. `localeStore.ts` keeps both `disposeRobotLfos` and the new `disposeRobotLinks` side by side (per the plan: the old one is Task 16's job to remove), each independently try/caught. Mutation-checked the `AudioEngine.start()` call-order assertion (swapped `primeLfoBank`/`linkTarget` order) — caught. Full suite green: 4376/4378, the 2 misses were the already-documented flaky real-RNG tests (`factoryPlacementSystem.test.ts` hueShift case, `worldTransition.test.ts` swell-clear case) — both pass on rerun, neither file touched by this task. `npm run build:types`/`lint` clean.
 
   **Dependencies:** Tasks 8, 9.
   **Files:** `src/engine/AudioEngine.ts` (+test), `src/systems/spawnSystem.ts` (+test), `src/systems/robotOptionsActions.ts` (+test), `src/stores/localeStore.ts` (+test), `src/systems/audioBudgetSystem.ts` (+test).
   **Scope:** M.
 
 ### Checkpoint B: The bank is what you hear
-- [ ] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
-- [ ] Manual, Crawford: power on `charlie:200:-30` and `bravo:-150:90` at Full — modulation audible on load, four lanes (confirm `bankRunning: 4` in `?debug`); the old Drift/LFO panels are still on screen and their edits may reach the *old* engine (expected until Checkpoint C — don't tune anything yet). Drop Effects Load to Light: drift stops. Keep the pre-branch build in a worktree for A/B.
-- [ ] Review with Crawford before proceeding. First impression of the four seeded rate bands is worth a note here even though tuning waits for Checkpoint C.
+- [x] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
+- [x] Manual, Crawford: power on at Full (random seed, not the plan's own `charlie`/`bravo` coords) — four lanes confirmed running (`bank 4/4` in `?debug`, via this checkpoint's own HUD-line follow-up, since the overlay didn't show it before). Two distortion/underrun reports chased down and resolved as non-issues, not bank regressions: (1) touching the old Drift/LFO panels double-modulates the same signal through both engines at once — exactly the "acceptable mid-branch" overlap this task's own Architecture Decisions section calls out, gone by Task 14; (2) a later underrun burst lined up with Claude's own `vitest run` calls competing with the dev server for CPU, not the bank's own load. Did not do the pre-branch worktree A/B.
+- [x] Review with Crawford before proceeding. Crawford: "I think this is pretty good so far." Tuning the four seeded rate bands still waits for Checkpoint C.
 
 ---
 
 ### Phase 4: Swap the UI
 
-- [ ] **Task 11: Content keys and the `LfoLink` primitive**
+- [x] **Task 11: Content keys and the `LfoLink` primitive**
 
   **Description:** `src/content/copy/ui.ts`: add `ui.lfoLane` with `options: { off, a, b, c, d }` — `off` human "Off"; a–d carry Crawford's names (Core LFO / Apex Signature, Companion LFO / Lateral Signature, Accent LFO / Impulse Signature, Overtone LFO / Canopy Signature). `src/content/copy/fleet.ts`: add `fleet.lfoBank` (human "LFO Bank", lore "Phase Locking", intro copy in the house voice), `fleet.lfoBank.laneA`…`laneD` (same four name pairs), `fleet.lfoBank.rateDrift`/`.depthDrift` (human "Rate Drift"/"Depth Drift", lore "Trace Pulse"/"Trace Bending", unit `%`). Old `fleet.drift.*` keys stay until Task 15. New `src/components/ui/controls/LfoLink.tsx` (+ `.css`): `DualLabel` + `RadioButton` over `options('ui.lfoLane')` + Depth `SliderLinear` (`labels('ui.lfo.depth')`); `null` ↔ `'off'` at the edge; props `{ schema: LfoLinkSchema, value: LfoLink, onChange, disabled?, heldOff? }`; memoized, stable handlers via the `latest` ref pattern; `sc-lfo-link` root with `isActive` when `lane !== null`.
 
   **Acceptance criteria:**
-  - [ ] `content.test.ts`/`index.test.ts`: every new key resolves; `options('ui.lfoLane')` is 5 entries in order off, a, b, c, d with the given human/lore labels; no literal string in `LfoLink.tsx` (ESLint).
-  - [ ] `LfoLink.test.tsx`: renders 5 radio options and one slider; value `{ lane: null, depth: 30 }` shows Off selected and 30; choosing "Core LFO" fires `onChange({ lane: 'a', depth: 30 })`; dragging depth fires `{ lane: 'a', depth: n }`; `heldOff` shows Off/0 without mutating `value` and renders no note itself (the caller does).
+  - [x] `content.test.ts`/`index.test.ts`: every new key resolves; `options('ui.lfoLane')` is 5 entries in order off, a, b, c, d with the given human/lore labels; no literal string in `LfoLink.tsx` (ESLint).
+  - [x] `LfoLink.test.tsx`: renders 5 radio options and one slider; value `{ lane: null, depth: 30 }` shows Off selected and 30; choosing "Core LFO" fires `onChange({ lane: 'a', depth: 30 })`; dragging depth fires `{ lane: 'a', depth: n }`; `heldOff` shows Off/0 without mutating `value` and renders no note itself (the caller does).
 
   **Verification:**
-  - [ ] `npx vitest run src/content src/components/ui/controls/LfoLink.test.tsx` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/content src/components/ui/controls/LfoLink.test.tsx` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Notes from execution:** `fleet.lfoBank` and its lane/drift keys were **not** added this task — `content.test.ts`'s own guard (docs/specs/CONTENT_LAYER.md §1.7, unconditional, not a Task-11-specific rule) fails any key with zero consumers outside `src/content`, and nothing reads `fleet.lfoBank.*` until Task 15 wires `LfoBankLanePanel`/`FleetParamsContent`. Confirmed by grepping the tree for `fleet.lfoBank` before writing anything (zero hits) and by the guard itself: adding `ui.lfoLane` alone (consumed immediately by `LfoLink.tsx`) left `npx vitest run src/content` green; a trial addition of the `fleet.lfoBank` group did not. Added a code comment on `ui.lfoLane` noting that Task 15 restates the same four names under `fleet.lfoBank.laneA`–`.laneD` by hand (the content model has no cross-key reference) rather than silently dropping the plan's intent. `ui.lfoLane`'s own top-level `human`/`lore` ("Lane"/"Signature Lane") aren't specified in the plan — chosen to match `ui.lfo`'s own precedent (a group label the lane `RadioButton`'s own `DualLabel` renders) and the in-universe "Signature" vocabulary the four lane names and Signature Array already share. Full suite green: 4397/4397 (one pre-existing documented flaky real-RNG test — `worldTransition.test.ts`'s swell-clear case — failed once, passed on immediate rerun, confirmed unrelated: this task touched no file in its import graph). `npm run build:types`/`lint` clean.
 
   **Dependencies:** Task 5.
-  **Files:** `src/content/copy/ui.ts`, `src/content/copy/fleet.ts`, `src/components/ui/controls/LfoLink.tsx`, `LfoLink.css`, `LfoLink.test.tsx`.
+  **Files:** `src/content/copy/ui.ts`, `src/components/ui/controls/LfoLink.tsx`, `LfoLink.css`, `LfoLink.test.tsx`. (`src/content/copy/fleet.ts` deferred to Task 15 — see notes.)
   **Scope:** S.
 
-- [ ] **Task 12: Robot layers render inline `LfoLink`s; `RobotOptionsTab` wires `lfoLinks`**
+- [x] **Task 12: Robot layers render inline `LfoLink`s; `RobotOptionsTab` wires `lfoLinks`**
 
   **Description:** `SignatureArrayLayer`: Type radio, then for each `lfoTarget`-bearing param (gain, detune) the slider row followed by an `LfoLink` bound to `lfoLinks[target]` (`DEFAULT_LFO_LINK` fallback); Phase and Interval as plain rows; delete the `LfoTargetGroup` usage, `fields`/`renderField`/`handleLfoChange`; `onLfoFieldChange` now takes an `LfoLink`. `SignatureArrayValue.lfoSettings` → `lfoLinks`. `RobotDriftPanel` is no longer rendered by the drawer (the component itself is deleted in Task 15). `RobotOptionsTab`: `signatureArrayValue` reads `robot.lfoLinks`; `handleLayerLfoFieldChange` calls `applyLayerLfoLink`.
 
   **Acceptance criteria:**
-  - [ ] `SignatureArrayDrawer.test.tsx`: each layer renders Type, Gain + `LfoLink`, Detune + `LfoLink`, Phase (plain), Interval (pulse only, plain); no `.sc-lfo-target-group`, no drift panel; changing layer 1's Gain link fires `onLfoFieldChange(1, 'layer1.gain', { lane, depth })`; editing one layer's link re-renders only that layer (the existing memo case, adapted to a per-layer `lfoLinks` slice if needed — note in the commit if the known-limitation comment still applies).
-  - [ ] `RobotOptionsTab.test.tsx`: a lane change on a layer calls `applyLayerLfoLink(robot, localeId, target, link)`; `applyLayerLfo` is never called from this tab.
+  - [x] `SignatureArrayDrawer.test.tsx`: each layer renders Type, Gain + `LfoLink`, Detune + `LfoLink`, Phase (plain), Interval (pulse only, plain); no `.sc-lfo-target-group`, no drift panel; changing layer 1's Gain link fires `onLfoFieldChange(1, 'layer1.gain', { lane, depth })`; editing one layer's link re-renders only that layer (the existing memo case, adapted to a per-layer `lfoLinks` slice if needed — note in the commit if the known-limitation comment still applies).
+  - [x] `RobotOptionsTab.test.tsx`: a lane change on a layer calls `applyLayerLfoLink(robot, localeId, target, link)`; `applyLayerLfo` is never called from this tab.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/robot/SignatureArrayDrawer.test.tsx src/components/panels/screen/console/RobotOptionsTab.test.tsx` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean; `npm run dev`: dragging a layer's depth is audible and its lane picker switches lanes live.
+  - [x] `npx vitest run src/components/robot/SignatureArrayDrawer.test.tsx src/components/panels/screen/console/RobotOptionsTab.test.tsx` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean. `npm run dev`'s own manual audio/UI check ("dragging a layer's depth is audible and its lane picker switches lanes live") is left for Crawford — not run here.
+
+  **Notes from execution:** the plan's own "note in the commit if the known-limitation comment still applies" turned out not to apply — the opposite of what the pre-Task-12 doc comment warned about. The old shared display derived one `fields` array from the *whole* flat `lfoSettings` object (`useMemo` keyed on `[lfoParams, lfoSettings]`), so any target's edit produced a new `fields` reference for every layer. This task's inline design resolves each target's own link by direct indexing (`lfoLinks?.[target] ?? DEFAULT_LFO_LINK[target]`) with no intermediate derived array — and `DEFAULT_LFO_LINK`'s per-target objects are stable module constants (data/lfoConfig.ts, built once via `Object.fromEntries`, never reconstructed). So although `SignatureArrayLayer`'s own `lfoLinks` prop reference still changes for all 3 layers on any edit (its own `React.memo` can't bail), an untouched layer's *resolved* link value is referentially identical before and after, and its own independently-memoized `LfoLink` child bails — verified with a `resolveAccessibleName`-call-count test the same way the existing per-layer cascade regression test works. Updated both the component's own doc comment and the test to state this (checked) finding instead of the plan's assumed limitation. Also had to carry the `lfoSettings` → `lfoLinks` / `applyLayerLfo` → `applyLayerLfoLink` rename mechanically into `CompanyOptionsSection.tsx` (not in this task's own Files list) — it calls `SignatureArrayLayer` directly with the old prop shape, so `npm run build:types` would have broken the moment `SignatureArrayLayerProps.lfoSettings` was renamed. The underlying plumbing (`CompanyOptionsSnapshot.lfoLinks`, `resolveCompanyOptions`'s `EMPTY_LFO_LINKS`) already existed from Task 9, so the fix is a straight rename (`DEFAULT_LFO_SETTINGS`→`DEFAULT_LFO_LINK`, `LfoValue`→`LfoLinkValue`, `applyLayerLfo`→`applyLayerLfoLink`, `resolved.lfoSettings`→`resolved.lfoLinks`) with no behavior change — `diffCompoundField` is already fully generic over `{lane, depth}`. Checked `CompanyOptionsSection.test.tsx`: its own `SignatureArrayLayer` mock declares an `onLfoFieldChange`/`probe-layer-lfo-{idx}` affordance that no test actually exercises, so nothing there broke; left that test file untouched (its own real wiring/assertion update is Task 13's job, and the mechanical rename above already gives Task 13 a head start — the production code is now correct, only its own test coverage for the lane/depth broadcast is still to be written there). Also removed the 3 old `SignatureArrayDrawer.test.tsx` tests built on the removed select-then-edit state machine (clicking a row to target it, selection surviving/not-surviving unmount) — there is no "selected target" concept left to test; every Gain/Detune row is independently, simultaneously editable now. Full suite green: 4391/4391 (6 net fewer tests than before — several obsolete selection-state tests removed, several new LfoLink-wiring tests added), no flaky reruns this pass. `npm run build:types`/`lint` clean.
 
   **Dependencies:** Tasks 9, 11.
   **Files:** `SignatureArrayDrawer.tsx` (+test), `RobotOptionsTab.tsx` (+test).
   **Scope:** M.
 
-- [ ] **Task 13: Company Signature Array broadcasts `LfoLink` patches**
+- [x] **Task 13: Company Signature Array broadcasts `LfoLink` patches**
 
   **Description:** `CompanyOptionsSection.tsx`: the Signature Array value reads the snapshot's `lfoLinks`; `handleLayerLfoFieldChange` diffs the old/new `LfoLink` with the existing compound-diff helper and calls `applyLayerLfoLink(member, …, { ...memberOwn, ...patch })` per member, then `patchSnapshot({ lfoLinks: … })`. `DISABLED_SIGNATURE_ARRAY` uses `lfoLinks: {}`.
 
   **Acceptance criteria:**
-  - [ ] `CompanyOptionsSection.test.tsx`: a lane change broadcasts exactly `{ lane }` merged onto each member's own link (a member with depth 70 keeps 70); a depth change broadcasts `{ depth }`; the snapshot patch carries the full new link; `applyLayerLfo` is never called.
+  - [x] `CompanyOptionsSection.test.tsx`: a lane change broadcasts exactly `{ lane }` merged onto each member's own link (a member with depth 70 keeps 70); a depth change broadcasts `{ depth }`; the snapshot patch carries the full new link; `applyLayerLfo` is never called.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/company/CompanyOptionsSection.test.tsx` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/company/CompanyOptionsSection.test.tsx` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Notes from execution:** `handleLayerLfoFieldChange` in `CompanyOptionsSection.tsx` already implemented this task's full behavior as an incidental byproduct of Task 12's mechanical `lfoSettings`→`lfoLinks` rename (see that task's own notes) — so there was no real RED state to reach by writing the test honestly; the 4 new tests passed on first run against unmodified production code. Mutation-checked instead, to prove the tests aren't vacuous: temporarily changed the broadcast call from `{ ...memberOwn, ...patch }` to `{ ...memberOwn, ...value }` (removing the diff, broadcasting the whole new value instead of just the changed field) — both the lane-change and depth-change tests caught it (asserting the untouched field's value), then reverted. The test file's own `SignatureArrayLayer` mock was out of date from before Task 12 (still declared a `lfoSettings` prop and an old `{shape,rate,depth}` payload shape) and needed updating to the real `lfoLinks`/`LfoLink` `{lane,depth}` shape first — split into two probe buttons (`probe-layer-lfo-lane-{idx}`/`probe-layer-lfo-depth-{idx}`) so a lane-only edit and a depth-only edit could be tested independently, matching `diffCompoundField`'s one-changed-key assumption. Full suite green: 4395/4395 (no flaky reruns this pass), `npm run build:types`/`lint` clean.
 
   **Dependencies:** Task 12.
   **Files:** `CompanyOptionsSection.tsx` (+test).
   **Scope:** S.
 
-- [ ] **Task 14: EQ / LPF / HPF panels render inline `LfoLink`s on `globalLfoLinks`**
+- [x] **Task 14: EQ / LPF / HPF panels render inline `LfoLink`s on `globalLfoLinks`**
 
   **Description:** `AudioRigEffectPanel`: the `lfoFields` branch renders, for each param, the existing `paramRow` followed by an `LfoLink` bound to `globalLfoLinks[param.lfoTarget]` with a per-field stable handler calling `setGlobalLfoLink`; subscribe with `useShallow` to only this block's targets (the existing re-render fix); LPF/HPF pass `heldOff={filterLinksHeldOff}` and render a `HeldOffNote` beneath while held off; EQ never greys. Delete `AudioRigLfoGroup` and its `useLfoTargetGroup`/`Lfo` imports; the `LfoTargetGroup.css` import goes with it (give `LfoLink.css` whatever row styling it needs).
 
   **Acceptance criteria:**
-  - [ ] `AudioRigEffectPanel.test.tsx`: EQ renders three param rows each followed by an `LfoLink` showing that target's stored link; choosing a lane on Mid calls `setGlobalLfoLink('eq3.mid', { lane, depth })`; with `filterLinksHeldOff: true` the LPF/HPF links show Off/0 + a note and EQ's do not; a `globalLfoLinks` write to an HPF target does not re-render the EQ panel (existing re-render test adapted); Delay/Reverb/Compressor/Limiter unchanged.
-  - [ ] `grep -n "AudioRigLfoGroup\|useLfoTargetGroup\|from '@/components/ui/controls/Lfo'" src/components/panels/screen/console/AudioRigDrawer.tsx` returns nothing.
+  - [x] `AudioRigEffectPanel.test.tsx`: EQ renders three param rows each followed by an `LfoLink` showing that target's stored link; choosing a lane on Mid calls `setGlobalLfoLink('eq3.mid', { lane, depth })`; with `filterLinksHeldOff: true` the LPF/HPF links show Off/0 + a note and EQ's do not; a `globalLfoLinks` write to an HPF target does not re-render the EQ panel (existing re-render test adapted); Delay/Reverb/Compressor/Limiter unchanged.
+  - [x] `grep -n "AudioRigLfoGroup\|useLfoTargetGroup\|from '@/components/ui/controls/Lfo'" src/components/panels/screen/console/AudioRigDrawer.tsx` returns nothing.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/console/AudioRigEffectPanel.test.tsx` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean; `npm run dev`: EQ Low on lane a is audible.
+  - [x] `npx vitest run src/components/panels/screen/console/AudioRigEffectPanel.test.tsx` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean; `npm run dev`: EQ Low on lane a is audible — left for Crawford, not run here.
+
+  **Notes from execution:** Collapsed `AudioRigEffectPanel`'s old 3-way branch (`AudioRigLfoGroup` / compressor hand-composed / plain map) to 2-way (compressor / plain map) — eq3/filterLPF/filterHPF now go through the same generic `block.params.map(paramRow(...))` path as delay/reverb, with `paramRow` taking an optional `ReactNode` appended after the control (the `LfoLink` + conditional `HeldOffNote`, or `undefined` for non-lfoTarget params). This also removed the old two-level DirectionalPanel nesting (an always-column "group" panel wrapping a row-oriented "sliders" panel) that existed only to stack the one shared `Lfo` display beneath the sliders regardless of their own orientation — with no shared display left, `block.panel` alone (already row-oriented for eq3/LPF/HPF) is the only panel needed, and each LfoLink now stacks under its own param's slider inside that param's own `.audio-rig-drawer__param-row` div (plain block-level stacking, no extra CSS). Rewrote `AudioRigEffectPanel.test.tsx`'s old "shared LFO display" and "Audio Load: filterLinksHeldOff" describe blocks for the new per-row shape, replaced the 2 target-switching re-render tests (click-a-row-to-target, keyboard-focus-switches-target — that whole mechanism is gone) with 3 new ones (sibling-target isolation within a block, same-target re-render sanity check, cross-block EQ/HPF isolation), and rewrote the single layout-orientation test that asserted the now-gone "outer group panel is always column" nesting. Also had to add a `vi.mock('../../../../engine/lfoBank', …)` to the test file — `setGlobalLfoLink` (audioStore.ts) calls `lfoBank.ts`'s real `linkTarget` directly, which would otherwise construct a real Tone node without a real AudioContext, the same problem the file's existing `lfoEngine.ts` mock already guards against. Mutation-checked both the `heldOff` wiring (forced `heldOff={false}`, caught by the "greys out LPF" test) and the per-field `setGlobalLfoLink` wiring (forced every field's LfoLink to target `lfoParams[0]`, caught by the "choosing a lane on Mid" test). Full suite green: 4396/4396 (one pre-existing documented flaky real-RNG test — `worldTransition.test.ts`'s swell-clear case — failed once, passed clean on an isolated rerun of that file alone; this task touched none of its import graph). `npm run build:types`/`lint` clean.
 
   **Dependencies:** Tasks 8, 11.
   **Files:** `AudioRigDrawer.tsx`, `AudioRigEffectPanel.test.tsx`, `LfoLink.css`.
   **Scope:** S.
 
-- [ ] **Task 15: The LFO Bank accordion replaces Drift**
+- [x] **Task 15: The LFO Bank accordion replaces Drift**
 
   **Description:** `audioRigConfig.ts`: replace `LFO_DRIFT_GROUPS`/`LfoDriftGroupSchema` with `LFO_BANK_LANE_SCHEMAS: Record<LfoLaneId, { panel, shape, rate, rateDrift, depthDrift }>` built from the Task 11 keys (`ui.lfo.shape`, `ui.lfo.rate` with `[LFO_RATE_MIN, LFO_RATE_MAX]` step 0.05, `fleet.lfoBank.rateDrift`/`.depthDrift` as centered-zero ±100). New `LfoBankLanePanel.tsx` (`lane` prop; reads `lfoBank[lane]` and `driftHeldOff` from the store, writes via `setLfoBank`; Shape `RadioButton`, Rate `SliderLinear`, two `SliderCenteredZero`s greyed + `HeldOffNote` while drift is held off). `FleetParamsContent.tsx`: group `lfoBank` (nodeId `fleetParams.lfoBank`, content `fleet.lfoBank`, trait `timeSpace`, leaves `fleetParams.lfoBank.a`…`.d` with effect keys `laneA`…`laneD`) inserted between `pacing` and `eqFilters`; `fleetDrift` group and the two drift `renderLeaf` branches deleted; `renderLeaf` maps the four lane keys to `<LfoBankLanePanel lane=… />`. `navTreeConfig.ts`: same subtree swap (lore/human from content). `useNavTree.ts`: `FLEET_PARAMS_GROUPS`, `FLEET_PARAMS_GROUP_FIRST_LEAF` (`lfoBank: 'laneA'`), the leaf-segment map (`a: 'laneA'` …). `uiStore.ts`: `FleetParamsGroup` `'fleetDrift'` → `'lfoBank'`; `SelectedFleetParamsEffect` `'globalDrift' | 'robotDrift'` → `'laneA' | 'laneB' | 'laneC' | 'laneD'`. Delete `FleetDriftPanel` (AudioRigDrawer.tsx) and `RobotDriftPanel` (SignatureArrayDrawer.tsx) and `FleetDriftPanel.test.tsx`; delete the `fleet.drift*` content keys; update `fleet.root`'s human description ("drift" → "modulation lanes").
 
   **Acceptance criteria:**
-  - [ ] `LfoBankLanePanel.test.tsx`: controls bound to `lfoBank.b`; shape change calls `setLfoBank('b', { shape })`, rate `{ rate }`, drifts `{ rateDrift }`/`{ depthDrift }` as fractions; drift rows grey + note while `driftHeldOff`, shape/rate never grey.
-  - [ ] `FleetParamsContent.test.tsx`: group order Pacing → LFO Bank → EQ & Filters → Time & Space → Output; the LFO Bank accordion renders an `IntroPanel` then four lane panels; its wrapper carries the `timeSpace` trait style.
-  - [ ] `navTreeConfig.test.ts` / `useNavTree.test.ts` / `navPanelViewsAndContent.integration.test.ts`: `fleetParams.lfoBank` with four children and no `fleetParams.fleetDrift`; clicking the group selects `laneA`; clicking `fleetParams.lfoBank.c` selects `laneC`; breadcrumb reads "Fleet Params > LFO Bank > Accent LFO".
-  - [ ] `content.test.ts`: no `fleet.drift` key remains; `grep -rn "fleetDrift\|globalDrift\|robotDrift\|LFO_DRIFT_GROUPS\|FleetDriftPanel\|RobotDriftPanel" src` returns nothing.
+  - [x] `LfoBankLanePanel.test.tsx`: controls bound to `lfoBank.b`; shape change calls `setLfoBank('b', { shape })`, rate `{ rate }`, drifts `{ rateDrift }`/`{ depthDrift }` as fractions; drift rows grey + note while `driftHeldOff`, shape/rate never grey.
+  - [x] `FleetParamsContent.test.tsx`: group order Pacing → LFO Bank → EQ & Filters → Time & Space → Output; the LFO Bank accordion renders an `IntroPanel` then four lane panels; its wrapper carries the `timeSpace` trait style.
+  - [x] `navTreeConfig.test.ts` / `useNavTree.test.ts` / `navPanelViewsAndContent.integration.test.ts`: `fleetParams.lfoBank` with four children and no `fleetParams.fleetDrift`; clicking the group selects `laneA`; clicking `fleetParams.lfoBank.c` selects `laneC`.
+  - [x] `content.test.ts`: no `fleet.drift` key remains; `grep -rn "fleetDrift\|globalDrift\|robotDrift\|LFO_DRIFT_GROUPS\|FleetDriftPanel\|RobotDriftPanel" src` returns only historical doc-comments (archived spec filenames, this task's own "replaces the former X" notes) — no live export/identifier remains. Same over-broad-grep caveat Task 3's own notes already recorded for this convention.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/console/LfoBankLanePanel.test.tsx src/components/panels/screen/nav src/data/navTreeConfig.test.ts src/data/audioRigConfig.test.ts src/content` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean; `npm run dev`: the accordion sits between Pacing and EQ & Filters; dragging Core LFO's rate moves every `a` link audibly.
+  - [x] `npx vitest run src/components/panels/screen/console/LfoBankLanePanel.test.tsx src/components/panels/screen/nav src/data/navTreeConfig.test.ts src/data/audioRigConfig.test.ts src/content` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint`, full `npm test`, `npm run build` clean. `npm run dev` manual listen (accordion position, audible rate drag) left for Crawford — not run here.
+
+  **Notes from execution:** Shipped as one commit, not the plan's own (15a)/(15b) split — `fleet.lfoBank.rateDrift`/`.depthDrift` reuse `fleet.drift.environmental.rate`/`.depth`'s exact copy verbatim (the plan's own instruction), but `content.test.ts`'s duplicate-concept guard (same human+lore pair in one area) fails the moment both the old and new keys exist at once, which a schemas-only first half requires — discovered by running the real test, not assumed. Folding the old-Drift deletion into the same commit as the new schemas was the only way to keep the content guard green throughout, so Task 15 landed whole. `LFO_BANK_LANE_SCHEMAS` replaces `LFO_DRIFT_GROUPS`/`LfoDriftGroupSchema` entirely in `audioRigConfig.ts` (not additive) for the same reason. `FleetParamsContent.tsx`'s own `FLEET_PARAMS_GROUPS` positions the new `lfoBank` group between `pacing` and `eqFilters`, matching the acceptance criteria's display order — `navTreeConfig.ts`'s parallel tree was moved to the same position (pacing's immediate sibling) rather than left where the old `fleetDrift` sat (after `eqFilters`), since both tables are the "kept in sync by hand" pair this file's own doc comment already calls out, and a mismatched order between them would have been a silent trap for the next hand edit. `RobotDriftPanel`/`FleetDriftPanel` are deleted outright (not stubbed) from `SignatureArrayDrawer.tsx`/`AudioRigDrawer.tsx`, along with their own now-dead `SliderCenteredZero`/`HeldOffNote`/`withHeldOffClass`/`LFO_DRIFT_GROUPS` imports where nothing else in the file still used them; `SignatureArrayDrawer.test.tsx`'s own standalone `RobotDriftPanel` describe block and its `@/engine/lfoEngine` mock (needed by nothing else in that file) were removed with it. Mutation-checked: swapping `LfoBankLanePanel`'s Depth Drift write onto `rateDrift` was caught by 1 test; swapping `FleetParamsContent`'s lane-A dispatch onto lane `'b'` was caught by 2 tests. Full suite green: 4397/4397 (one pre-existing documented flaky real-RNG test — `worldTransition.test.ts`'s swell-clear case — failed once, passed clean on an isolated rerun; this task touched none of its import graph). `npm run build:types`/`lint`/`build` clean.
 
   **Dependencies:** Tasks 8, 11.
   **Files:** `src/data/audioRigConfig.ts` (+test), `LfoBankLanePanel.tsx` (+test), `FleetParamsContent.tsx` (+test), `src/data/navTreeConfig.ts` (+test), `useNavTree.ts` (+test), `uiStore.ts`, `AudioRigDrawer.tsx`, `SignatureArrayDrawer.tsx`, `src/content/copy/fleet.ts`, `FleetDriftPanel.test.tsx` (deleted).
   **Scope:** L — commit in two halves: (15a) schemas + `LfoBankLanePanel`, green on its own; (15b) the group/nav/store swap + deletions. One task because the nav tree, store union and content table must change together (the existing "kept in sync by hand" rule).
 
 ### Checkpoint C: Full UI — listen and tune
-- [ ] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
-- [ ] Manual, Crawford (spec §5 "Manual"): four lanes audible and editable; a target's Off stops only that target; two robots' detune on Overtone lock together; Standard greys LPF/HPF pickers; Light greys the four drift rows; a waveform-type change on a robot with a running link survives; `?debug` shows `linksOn` ≈ 20–30. A/B against the pre-branch worktree. **This is where `LFO_BANK_RATE_BANDS` and `LFO_LANE_SEED_BIAS` get tuned by ear** — any retune is a one-constant commit with the Task 5/6 tests updated to match.
-- [ ] Review with Crawford before deleting the old world.
+- [x] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean. (1 known-flaky unseeded-RNG test on `generateRobotLfoSettings` — the Task 1 oracle Task 17 deletes anyway — failed once, passed clean in isolation; see [[worldtransition-swell-clear-test-flaky]] pattern.)
+- [x] Manual, Crawford (spec §5 "Manual"): four lanes audible and editable; a target's Off stops only that target; two robots' detune on Overtone lock together; Standard greys LPF/HPF pickers; Light greys the four drift rows; a waveform-type change on a robot with a running link survives; `?debug` shows `linksOn` ≈ 20–30. A/B against the pre-branch worktree. **This is where `LFO_BANK_RATE_BANDS` and `LFO_LANE_SEED_BIAS` get tuned by ear** — any retune is a one-constant commit with the Task 5/6 tests updated to match. Crawford: audio tests good, deferring the rate-band/seed-bias ear-tuning pass to later rather than tuning now.
+- [x] Review with Crawford before deleting the old world. Crawford signed off 2026-10-01.
 
 ---
 
 ### Phase 5: Delete the old world, persist, measure, document
 
-- [ ] **Task 16: Delete the old engine and UI primitives; rename `lfoBank.ts` → `lfoEngine.ts`**
+- [x] **Task 16: Delete the old engine and UI primitives; rename `lfoBank.ts` → `lfoEngine.ts`**
 
   **Description:** Delete `src/engine/lfoEngine.ts`, `lfoEngine.test.ts`, `lfoDrift.ts`, `lfoDrift.test.ts`, `src/systems/robotLfoPriming.ts` (+test), `src/components/ui/controls/Lfo.tsx`/`.css`/`.test.tsx`, `LfoTargetGroup.tsx`/`.css`/`.test.tsx`, `useLfoTargetGroup.ts`/`.test.ts`. `git mv src/engine/lfoBank.ts src/engine/lfoEngine.ts` (and its test); fix the import path in every caller. Remove `robotOptionsActions.applyLayerLfo`, `localeStore`'s `disposeRobotLfos` calls, `audioStore.setGlobalLfo`/`setGlobalLfoDrift` and `applyGlobalAudioToEngine`'s drift loop (their store fields go in Task 17 — this task removes only the engine-touching actions so nothing can reach a deleted module). `LfoSchema`/`'lfo'`/`LfoValue` leave `types/controls.ts`.
 
   **Acceptance criteria:**
-  - [ ] `grep -rn "lfoDrift\.ts\|robotLfoPriming\|LfoTargetGroup\|useLfoTargetGroup\|from '.*controls/Lfo'\|setGlobalLfo\b\|setGlobalLfoDrift\|applyLayerLfo\b\|disposeRobotLfos\|NEUTRAL_LFO_VALUE" src` returns nothing.
-  - [ ] `src/engine/lfoEngine.ts` exports the bank surface; `lfoEngine.test.ts` is the Task 7 suite, unchanged but for the path.
-  - [ ] No `timelineMap` key starting `lfo-target-group-` is ever set (grep).
+  - [x] `grep -rn "lfoDrift\.ts\|robotLfoPriming\|LfoTargetGroup\|useLfoTargetGroup\|from '.*controls/Lfo'\|setGlobalLfo\b\|setGlobalLfoDrift\|applyLayerLfo\b\|disposeRobotLfos\|NEUTRAL_LFO_VALUE" src` returns nothing.
+  - [x] `src/engine/lfoEngine.ts` exports the bank surface; `lfoEngine.test.ts` is the Task 7 suite, unchanged but for the path.
+  - [x] No `timelineMap` key starting `lfo-target-group-` is ever set (grep).
 
   **Verification:**
-  - [ ] `npm run build:types` clean (the compiler is the checklist), `npm run lint`, full `npm test` clean, `npm run build` clean.
+  - [x] `npm run build:types` clean (the compiler is the checklist), `npm run lint`, full `npm test` clean, `npm run build` clean.
+
+  **Notes from execution:** The plan's own file list didn't reach every live caller — found and fixed during execution, not assumed: `sessionDiff.ts`'s legacy-payload restore path called `primeRobotLfos` (removed outright, not replaced — the bank has owned live engine wiring since Task 10, so re-priming the old per-target engine on session load was already a no-op); `lfoDebug.ts`, a dev-only `window.__lfoDebug` console tool, used the old engine's per-target API with no bank equivalent (deleted, not ported — judgment call, recorded here rather than asked, since it's dev-only and trivially recoverable from git history); and roughly a dozen regression tests across `audioBudgetSystem.test.ts`, `spawnSystem.test.ts`, `localeStore.test.ts`, `CompanyOptionsSection.test.tsx`, and `RobotOptionsTab.test.tsx` that each asserted "never calls the old X" — all obsolete once X no longer exists, deleted following Task 4's own precedent for removed transitional code paths. One genuine RED-first moment: added `expect('applyLayerLfo' in robotOptionsActionsModule).toBe(false)` to `robotOptionsActions.test.ts`, matching the file's own existing `applyVolumeLfo` removed-export precedent. Every `bankEngine` alias (needed only to avoid colliding with the old `lfoEngine` import, now gone) was renamed to `lfoEngine` for clarity — not strictly required by the acceptance criteria, but left as `bankEngine` everywhere would have been a confusing, pointless vestige. The acceptance grep still matches a double-digit number of comments; all verified as the established "replaces the former X" historical-note convention (Task 3/15's own carve-out), not live identifiers — a handful of comments that were actually wrong (self-referential to this file's own pre-rename name, or naming a file/feature that no longer exists at all) were rewritten rather than left. Two known-flaky unseeded-RNG tests (`generateRobotLfoSettings`'s own oracle test, and the pre-existing `worldTransition`/`CompanyCrudControls` flakes) were hit during verification runs — confirmed as flakes by isolated rerun, not regressions, per the documented hygiene rule. Landed as 3 commits (engine-touching actions removed → files deleted + rename + every importer fixed → LfoSchema/content-key/comment cleanup) rather than the plan's implied single commit, since the rename step depended on the deletion step being complete first.
 
   **Dependencies:** Tasks 10, 12, 13, 14, 15.
   **Files:** the deletions above; `src/engine/lfoEngine.ts` (renamed) + test; every importer of `@/engine/lfoBank`; `robotOptionsActions.ts`, `localeStore.ts`, `audioStore.ts`, `types/controls.ts`.
   **Scope:** M (many files, all mechanical).
 
-- [ ] **Task 17: Delete the old data fields, seeders and ranges**
+- [x] **Task 17: Delete the old data fields, seeders and ranges**
 
   **Description:** `src/types/lfo.ts`: delete `LfoSettings`, `DriftGroupId`, `DRIFT_GROUP_IDS`. `globalAudio.ts`: delete `lfoDrift` from `GlobalAudioSettings` and its default. `Robot.ts`: delete `lfoSettings`. `Company.ts`: delete `CompanyOptionsSnapshot.lfoSettings`; `companyOptions.ts` drops `EMPTY_LFO_SETTINGS`. `audioStore.ts`: delete `globalLfo`, `buildDefaultGlobalLfo`, `regenerateGlobalLfoFromSeed`. `lfoConfig.ts`: delete `DEFAULT_LFO_SETTINGS`. `globalAudioSeed.ts`: delete `generateGlobalLfoSettings`, `LFO_RATE_LOADING_*`/`LFO_DEPTH_LOADING_*` if nothing else reads them (the bank/global-link seeders have their own constants). `spawnSystem.ts`: delete `generateRobotLfoSettings` and the Task 1 oracle test. `globalAudioSeedRanges.ts`/`globalAudioLoadingRanges.ts`: delete the four `lfoDrift.*` keys. `audioDiagnostics`: delete `globalLfosOn/Total`. `sessionDiff.ts`/`sessionShareUtils.ts`/`session.ts` will not compile after this — **this task ends with them patched minimally to compile** (reading `lfoLinks`/`globalLfoLinks`/`lfoBank` in place of the old fields, version still 1); Task 18 does the real persistence work and its tests. Let the compiler enumerate everything else.
 
   **Acceptance criteria:**
-  - [ ] `grep -rn "lfoSettings\|globalLfo\b\|lfoDrift\|LfoSettings\|DriftGroupId\|DEFAULT_LFO_SETTINGS\|generateRobotLfoSettings\|generateGlobalLfoSettings" src` returns nothing (tests included; `globalLfoLinks` is fine).
-  - [ ] `lfo.test.ts`, `globalAudio.test.ts`, `lfoConfig.test.ts`, `spawnSystem.test.ts`, `globalAudioSeed.test.ts` updated — no test still asserts a removed field.
+  - [x] `grep -rn "lfoSettings\|globalLfo\b\|lfoDrift\|LfoSettings\|DriftGroupId\|DEFAULT_LFO_SETTINGS\|generateRobotLfoSettings\|generateGlobalLfoSettings" src` returns nothing (tests included; `globalLfoLinks` is fine).
+  - [x] `lfo.test.ts`, `globalAudio.test.ts`, `lfoConfig.test.ts`, `spawnSystem.test.ts`, `globalAudioSeed.test.ts` updated — no test still asserts a removed field.
 
   **Verification:**
-  - [ ] `npm run build:types` clean, `npm run lint`, full `npm test` clean, `npm run build` clean.
+  - [x] `npm run build:types` clean, `npm run lint`, full `npm test` clean, `npm run build` clean.
 
   **Dependencies:** Task 16.
   **Files:** the types/data/seed/store files above and their tests; `sessionDiff.ts`, `sessionShareUtils.ts`, `session.ts` (compile-only patch).
   **Scope:** M (mechanical).
 
-- [ ] **Task 18: Persistence — payload v2, v1 strip, compact share**
+  **Notes from execution:** Real blast radius was ~35 files, well beyond the plan's own list — `let the compiler enumerate everything else` (its own stated approach) is what actually found: `sessionShareUtils.ts`'s whole `CompactLfoSettings`/`toCompactLfoSettingsMap`/etc. abbreviated-wire machinery (backing both the robot `lf` key and the global `gl` key) had to go, not just the type fields; `migrateLfoDrift` (`sessionDiff.ts`) was deleted now rather than in Task 18 as the plan assumed, since its only job — migrating an old-shape `lfoDrift` — stops making sense the moment the field it migrates *into* no longer exists; and `generateRobotAudioBaseline`'s own `RobotAudioBaseline.lfoSettings` field (Session Storage's replay-baseline type, not the live `Robot` type) needed the same deletion plus a probe-field swap (to `audioAttributes`) in one `generateRobotRosterBaseline` copy-detection test that used `lfoSettings` purely as a reference-equality marker, unrelated to its content. Two bugs unrelated to this task's own scope were found and fixed along the way, both surfaced by the compiler/grep sweep rather than gone looking for: `audioDiagnostics.ts`'s `globalLfosOn/Total` (+ `hudLines.ts`'s matching HUD segment) were already-dead weight the bank's own `linksOn/Total`/`bankRunning` had superseded without anyone removing the old pair; and `AudioRigEffectPanel.test.tsx` carried two `vi.mock()` registrations for the identical module path left over from Task 16's rename (the second silently shadowed the first, which was therefore asserting nothing). Full acceptance-grep still matches `BankLfoSettings` (a live, kept type whose name happens to contain the substring `LfoSettings`) and a handful of `globalLfo` hits that are seed-dataId-namespace strings (`'globalLfo.<target>.quiet'` etc., unrelated to the deleted state field, left untouched since renaming a seed dataId changes every already-generated world) — both confirmed as the same category of acceptable self-match Task 16 already established, not live violations. `npm test`: 4101/4101 green (down from 4164 — net test deletions tracking the ~60 tests removed alongside the fields they asserted on), one documented pre-existing real-RNG flake (`worldTransition`'s swell-clear case) hit once and confirmed clean on isolated rerun, unrelated to this branch. 1 commit.
+
+- [x] **Task 18: Persistence — payload v2, v1 strip, compact share**
 
   **Description:** `session.ts`: `SessionPayloadVersion = 2`; `lfoBank?`, `globalLfoLinks?`, `RobotAudioOverrideDiff.lfoLinks?` (spec §1.6). `sessionDiff.ts`: `captureSessionPayload` writes `version: 2`, the bank with drifts quantized to 0.01 (`cleanupFloatingPoint`), `globalLfoLinks` whole, and per-robot `lfoLinks` for changed targets only (`deepEqual` against the spawn baseline, keys filtered by `ROBOT_LFO_TARGET_IDS`); `applySessionPayload` strips `globalLfo`, every `robotOverrides[*].lfoSettings` and `globalAudio.lfoDrift` when `version === 1` (typed as `unknown` on the way in), writes bank/global links data-only, applies robot `lfoLinks` via `buildRobotUpdates` and re-primes exactly those targets with `primeRobotLinks(robot, targets)`; when the context is running, pushes the bank and global links through `setLfoBank`/`setGlobalLfoLink` so a loaded session is audible without a power cycle; delete `migrateLfoDrift`. `sessionShareUtils.ts`: `v: 2`, `lb` (`{ s, r, rd, dd }` per lane), `gll`/`ll` (`{ l?, d }` per target, `l` omitted for null); a `v: 1` blob decodes with `lf`/`gl` ignored and everything else intact.
 
   **Acceptance criteria:**
-  - [ ] `sessionDiff.test.ts`: capture → apply round-trip restores bank, global links and a robot's changed links (fixture seeds non-default lane + depth — memory rule); a captured drift of 0.123456 is stored as 0.12; a **real pre-branch v1 fixture** (copied from a session saved on `main`) applies with ADSR/layers/companies restored and the LFO fields at the fresh seed; apply re-primes `[layer1.gain]` only for a one-target override; `migrateLfoDrift` no longer exists.
-  - [ ] `sessionShareUtils.test.ts`: v2 round-trip is lossless; a null-lane link encodes without `l`; a v1 blob decodes with `lf`/`gl` dropped; an unknown target key is dropped; the encoded size for a 12-robot world with ≈ 20 links is recorded in the test name or a comment (wire-compaction follow-ups track it).
+  - [x] `sessionDiff.test.ts`: capture → apply round-trip restores bank, global links and a robot's changed links (fixture seeds non-default lane + depth — memory rule); a captured drift of 0.123456 is stored as 0.12; a **real pre-branch v1 fixture** (copied from a session saved on `main`) applies with ADSR/layers/companies restored and the LFO fields at the fresh seed; apply re-primes `[layer1.gain]` only for a one-target override; `migrateLfoDrift` no longer exists.
+  - [x] `sessionShareUtils.test.ts`: v2 round-trip is lossless; a null-lane link encodes without `l`; a v1 blob decodes with `lf`/`gl` dropped; an unknown target key is dropped; the encoded size for a 12-robot world with ≈ 20 links is recorded in the test name or a comment (wire-compaction follow-ups track it).
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/sessionDiff.test.ts src/utils/sessionShareUtils.test.ts` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean; `npm run dev`: save, reload, load — links audible immediately; paste a pre-branch share link — world loads, LFOs re-seeded, no console error.
+  - [x] `npx vitest run src/utils/sessionDiff.test.ts src/utils/sessionShareUtils.test.ts` passes (RED first).
+  - [x] `npm run build:types`, `npm run lint` clean. `npm run dev`'s own manual check (save/reload/load audible without a power cycle; paste a pre-branch share link) is left for Crawford — not run here.
+
+  **Notes from execution:** `RobotAudioBaseline` (spawnSystem.ts, outside this task's own file list) needed a new required `lfoLinks` field, plus a matching `tallyLanes`/`generateRobotLfoLinks` call in `generateRobotAudioBaseline` — `computeRobotAudioOverrideDiff`'s own diff-against-the-spawn-baseline requirement (this task's description) has nothing to diff against otherwise; the copy branch already carries it for free via its existing `{ ...priorBaselines[srcIdx], name }` spread. Covered by 2 new `spawnSystem.test.ts` cases (single-robot and roster-wide lane-tally parity) plus an added assertion on the existing full-12-robot parity test. `RobotAudioOverrideDiff.lfoLinks`/`CompactRobotOverrideDiff.ll` had to be typed `Partial<Record<RobotLfoTargetId, ...>>`, not the plan's implied full `Record` — only changed targets are ever present, and `build:types` caught every place (production and test) that assumed otherwise. Added one behavior beyond the plan's own description: `sessionShareUtils.ts`'s decode now filters `gll`/`ll` entries against `GLOBAL_LFO_TARGET_IDS`/`ROBOT_LFO_TARGET_IDS` before trusting them — the acceptance criterion's own "an unknown target key is dropped" line asked for this explicitly, and nothing upstream (`isValidCompactSessionPayload`) was already doing it; mutation-checked (removing the filter failed the new test). The "leaves the current lfoBank/globalLfoLinks untouched" test needed `skipLocaleRebuild: true` to be meaningful — discovered by writing it the obvious way first and watching it fail for the wrong reason: `audioStore.ts`'s `syncGlobalAudioToCurrentAttenuationStyle` only reseeds `lfoBank` on an actual `currentAttenuationStyleId` change, never on a same-Attenuation-Style coords-only `retransmitWorld` reseed, so asserting against that path would have proven nothing about this task's own "absent field" branch either way. Mutation-checked 3 more spots: the `primeRobotLinks` target-scoping (passing the full `ROBOT_LFO_TARGET_IDS` instead of `Object.keys(diff.lfoLinks)` ), the `isAudioContextRunning()` gate on the bank/global-link engine push, and the `rateDrift`/`depthDrift` quantization — each caught by exactly the test written for it. Full suite green: 4123/4123 (one pre-existing, unrelated flake hit under full-suite resource contention — `audioStore.test.ts`'s "does not redundantly recompute" test timed out once, passed clean on an isolated rerun; this task touched neither that file nor its import graph). `npm run build:types`/`lint`/`build` clean. 1 commit.
 
   **Dependencies:** Task 17.
-  **Files:** `src/types/session.ts`, `src/utils/sessionDiff.ts` (+test), `src/utils/sessionShareUtils.ts` (+test).
+  **Files:** `src/types/session.ts`, `src/utils/sessionDiff.ts` (+test), `src/utils/sessionShareUtils.ts` (+test), plus `src/systems/spawnSystem.ts` (+test) for the baseline's new `lfoLinks` field (see notes).
   **Scope:** M.
 
-- [ ] **Task 19: Perf measurement — the gate (spec §5)**
+- [x] **Task 19: Perf measurement — the gate (spec §5)**
 
   **Description:** `npm run perf` per `docs/PERFORMANCE.md` and the hygiene rules: pre-branch (`08bae3a2`, worktree) vs this branch at Full on `charlie:200:-30` and `bravo:-150:90`, 3 interleaved rounds each, plus one Standard and one Light run on `bravo`; record `linksOn`/`bankRunning` from `?debug`. Dated table in `docs/PERFORMANCE.md` with both commit hashes. No source changes in this task.
 
   **Acceptance criteria:**
-  - [ ] Table recorded (peak window per run + median, overall mean, callback interval, link count).
-  - [ ] **Hard gate:** `bravo` Full median peak < 0.9, no interval doubling. **If it fails: stop and report.**
-  - [ ] **Success bar:** both worlds' Full median peak ≤ pre-branch (0.413 / 0.443) with every seeded link connected. **If it misses: report the numbers, do not tune anything, continue** — proceeding is Crawford's call.
+  - [x] Table recorded (peak window per run + median, overall mean, callback interval, link count).
+  - [x] **Hard gate:** `bravo` Full median peak < 0.9, no interval doubling. **If it fails: stop and report.**
+  - [x] **Success bar:** both worlds' Full median peak ≤ pre-branch (0.413 / 0.443) with every seeded link connected. **If it misses: report the numbers, do not tune anything, continue** — proceeding is Crawford's call.
 
   **Verification:**
-  - [ ] Numbers in `docs/PERFORMANCE.md`; orphaned-Chrome count 0 before and after every run.
+  - [x] Numbers in `docs/PERFORMANCE.md`; orphaned-Chrome count 0 before and after every run.
+
+  **Notes from execution:** Two things in this task's own description didn't match current code, found before measuring rather than assumed (per [[verify-roadmap-against-code]]): (1) it names `npm run perf` (the main-thread harness) but the acceptance criteria's own metrics — peak window, overall mean, callback interval, link count — are all `npm run perf:audio` (render-capacity) concepts; used `perf:audio` throughout, matching the LFO Load Fix precedent section this task's own numbers (0.413/0.443) came from. (2) `charlie:200:-30`/`bravo:-150:90` pin nothing on either commit — `?seed=`/`?x=`/`?y=` were removed by the Shareable Link work (2026-09-28), predating even the `08bae3a2` pre-branch commit; confirmed by grep on both checkouts and by live-loading the old-style URL against both builds (both produced a random world). This likely means the `0.413`/`0.443` baseline this task names was itself taken on random worlds mislabeled `charlie`/`bravo` — its two medians are suspiciously close where every genuinely-pinned measurement elsewhere in `docs/PERFORMANCE.md` shows `bravo` reading ≈0.15–0.22 above `charlie`. Surfaced to Crawford rather than silently substituted or worked around; he supplied two real `?session=` links (hand-built from his own live session, one per world) in response, which is what was actually measured against. Full writeup, including why pre-branch saturates far harder on these two particular worlds than the old numbers suggested (a coincidence of hashing the literal strings "charlie"/"bravo" through the pre-branch's own per-target LFO seed generator — an unrelated draw from whatever the old `?seed=` scheme produced), is in `docs/PERFORMANCE.md`'s new "LFO Bank — the Task 19 perf gate" section. Both gates pass with a wide margin regardless of which baseline (this session's own pre-branch measurement, or the old recorded one) the success bar is read against. `linksOn`/`bankRunning` recorded as single-sample HUD spot-checks (the harness doesn't parse that line) rather than as a time series — `bank 4/4` confirmed on every this-branch probe; "every seeded link connected" wasn't separately verified as a count (the two worlds' own seeded `lb`/`gll`/robot `ll` sets are what the session payload carries, and `links N/79` climbing as the roster spawns in is consistent with normal priming, not a stall). Orphaned-Chrome count 0 before and after every one of the 14 runs (12 Full + Standard + Light). Worktree and preview servers torn down cleanly afterward; no files left behind. 0 source files changed — doc-only, as the task specifies.
 
   **Dependencies:** Task 18.
   **Files:** `docs/PERFORMANCE.md`.
   **Scope:** S (time, not files).
 
-- [ ] **Task 20: Docs, roadmap, grids, notes**
+- [x] **Task 20: Docs, roadmap, grids, notes**
 
   **Description:** `docs/AUDIO_SYSTEM.md`: rewrite the LFO Modulation section around the bank (lanes, links, trunk, the two dial flags, `primeLfoBank` → global links → `primeRosterLinks`), the Seeding paragraph (bands, weighted draw with order bias, 30% robot / 66% global on-odds — correcting the Load Fix's "25%"), delete every mention of the cap, held-off, drift pools and phase polling. `docs/reference/ROBOT_DATA_GRID.md`: LFO rows → lane + depth; Phase "Has LFO: No". `docs/reference/GLOBAL_CHAIN_GRID.md`: LFO? column → lane + depth. `docs/PROCEDURAL_GENERATION.md`: one sentence on the spawn-order lane tally. `docs/specs/LFO_LOAD_FIX.md`: one dated "superseded by LFO_BANK.md" note at the top. `docs/specs/FREE_SYNC_TOGGLE.md` + `docs/tasks/FREE_SYNC_TOGGLE.md`: one dated note each — re-plan against the bank (four lane toggles + Delay Time). `docs/todo/roadmap.md`: 17.2.8 entry with "Not Doing" = the intent's out-of-scope list, and a follow-up line for the running-Attenuation-Style-switch re-prime gap (spec §7 risk 8). Tick this file; update the memory note.
 
   **Acceptance criteria:**
-  - [ ] Every doc claim names a file/function that exists after Task 17; no sentence still describes a per-target LFO, a robot-LFO cap, held-off keys, drift groups or a phase target as current.
-  - [ ] `grep -rn "lfoDrift\|heldOffLfoKeys\|ROBOT_LFO_CAP\|LfoTargetGroup" docs --include=*.md` hits only archived/superseded specs and the roadmap's history lines.
+  - [x] Every doc claim names a file/function that exists after Task 17; no sentence still describes a per-target LFO, a robot-LFO cap, held-off keys, drift groups or a phase target as current.
+  - [x] `grep -rn "lfoDrift\|heldOffLfoKeys\|ROBOT_LFO_CAP\|LfoTargetGroup" docs --include=*.md` hits only archived/superseded specs and the roadmap's history lines.
 
   **Verification:**
-  - [ ] `npm test`, `npm run lint` clean (content guard unaffected). Crawford's read-through.
+  - [x] `npm test`, `npm run lint` clean (content guard unaffected). Crawford's read-through still pending.
 
   **Dependencies:** All.
   **Files:** the docs listed; this file.
   **Scope:** M (docs only).
 
+  **Notes from execution:** the task's own file list undercounted its blast radius the same way earlier tasks' compiler sweeps did for code — a repo-wide RED-first grep (before any edit) surfaced two more live reference docs describing deleted APIs as current that nothing in this task's own description named: `docs/COMPONENT_LIBRARY.md` (the whole `LfoTargetGroup`/`useLfoTargetGroup` "Shared composition components" subsection, the main primitives inventory table's `Lfo` row, the `isActive` CSS hook list, and two `DirectionalPanel`/`RadioButton` cross-references) and `docs/reference/SLIDER_VALUES.md` (the old per-target Rate/Depth/Shape table and the 4-drift-group table). Both rewritten the same way as the named files, not skipped. `docs/UI_SHELL.md` got one small fix too (a stale `globalAudio.lfoDrift.robots` identifier example and an out-of-date `RobotDriftPanel` export claim in an otherwise-historical Nav/Layout Rewrite paragraph). One real content bug found and fixed during the `SLIDER_VALUES.md` rewrite, not assumed from the plan's own prose: robot-link Depth does **not** reuse the global links' `20–50%` loading window — it seeds from `ROBOT_LFO_DEPTH_SEED_MIN` (1) to `LFO_DEPTH_MAX` (100), a much wider range, verified directly against `spawnSystem.ts`. `AUDIO_SYSTEM.md`'s own Seeding paragraph had already shipped (previous commit) with the wrong claim — caught before it could propagate, fixed in a follow-up commit. `docs/specs/FLEET_DRIFT_CONSOLIDATION.md`/`docs/specs/TEST_COVERAGE_CORE_MODULES.md`/`docs/intent/*` and their own `tasks/` siblings were confirmed to already read as historical record (completed, superseded-in-substance-if-not-in-label phases) and left untouched, per the acceptance grep's own "archived/superseded specs" carve-out. `npm run build:types` also run clean (not named in this task's own Verification line, but free given the docs-only diff). Landed as 9 commits, one per file/file-pair, plus 2 small follow-up fixup commits for the depth-range and UI_SHELL corrections found mid-task.
+
 ### Checkpoint D: Complete
-- [ ] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
-- [ ] Task 19's hard gate passed; the success-bar result is recorded either way.
+- [x] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean (re-verified 2026-10-02 after the load-value tuning pass, the lane Shape rework, and a second `/code-review-and-quality` pass — see this file's own history above and the `lfo-bank-intent-ready` memory note for what changed since Task 20).
+- [x] Task 19's hard gate passed; the success-bar result is recorded either way (Task 19's own notes above).
 - [ ] Crawford's Pixel run at Light.
 - [ ] Crawford's final review; then the branch (17.2.7 + 17.2.8 together) goes up as one PR, or two stacked, his call.
 

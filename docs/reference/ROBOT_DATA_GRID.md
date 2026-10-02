@@ -24,26 +24,24 @@
 | Release | RAREFACTION RATE | Slider - log Component | 0s | 10s | No | Logarithmic scaling for tail fade-out |
 | **DRAWER** | SIGNATURE ARRAY | Accordion Container | N/A | N/A | No | Parent container for oscillator layers |
 | Layer 1: Type | BASELINE GEOMETRY | Radio Button Component | N/A | N/A | No | Options: SWEEP (sine), GRADIENT (triangle), KINETIC (saw), BINARY (square), BURST (pulse) |
-| Layer 1: Gain | BASELINE SATURATION | Slider - linear Component | 0 | 2 | Yes | Linear scaling for held level ratio |
-| Layer 1: Detune | BASELINE DRIFT | Slider - centered zero Component | -50 cents | +50 cents | Yes | Linear scaling for held level ratio |
-| Layer 1: Phase | BASELINE ALIGNMENT | Slider - linear Component | 0 | 360 | Yes | Phase offset in degrees |
-| Layer 1: Interval | BASELINE PULSE WIDTH | Slider - linear Component | 0 | 1 | No | Only displayed when Type is BURST (pulse) — Tone.js's `OmniOscillator.width` getter returns `undefined` for every other type, including BINARY (square), so this was dropped from the BINARY case (`SignatureArrayDrawer.tsx`'s `showPulseWidth`). The pulse-width LFO target was removed (docs/specs/LFO_LOAD_FIX.md) — the slider itself stays, un-targeted; each layer's LFO group offers Gain/Detune/Phase only |
+| Layer 1: Gain | BASELINE SATURATION | Slider - linear Component | 0 | 2 | Yes | Linear scaling for held level ratio. Carries an inline Lane + Depth `LfoLink` (see LFO LINK rows below) — no per-field shape/rate; those live on the linked lane itself (Fleet Params → LFO Bank) |
+| Layer 1: Detune | BASELINE DRIFT | Slider - centered zero Component | -50 cents | +50 cents | Yes | Linear scaling for held level ratio. Carries an inline Lane + Depth `LfoLink` — see Layer 1: Gain's own note |
+| Layer 1: Phase | BASELINE ALIGNMENT | Slider - linear Component | 0 | 360 | No | Phase offset in degrees. No live Signal to modulate — cut from `RobotLfoTargetId` entirely (docs/tasks/LFO_BANK.md Task 1); stays a plain slider |
+| Layer 1: Interval | BASELINE PULSE WIDTH | Slider - linear Component | 0 | 1 | No | Only displayed when Type is BURST (pulse) — Tone.js's `OmniOscillator.width` getter returns `undefined` for every other type, including BINARY (square), so this was dropped from the BINARY case (`SignatureArrayDrawer.tsx`'s `showPulseWidth`). The pulse-width LFO target was removed (docs/specs/LFO_LOAD_FIX.md) — the slider itself stays, un-targeted; each layer now offers an `LfoLink` on Gain/Detune only (Phase was cut too, docs/tasks/LFO_BANK.md Task 1) |
 | Layer 2: Type | COAXIAL GEOMETRY | Radio Button Component | N/A | N/A | No | Options: SWEEP, GRADIENT, KINETIC, BINARY, BURST |
-| Layer 2: Gain | COAXIAL SATURATION | Slider - linear Component | 0 | 2 | Yes | Linear scaling for held level ratio. 0 also mutes the layer — there is no separate Active toggle; `AudioEngine.ts`'s `filterAudibleLayers` excludes a `gain: 0` layer from the composite voice, matching the removed toggle's old "mute, don't delete" behavior |
-| Layer 2: Detune | COAXIAL DRIFT | Slider - centered zero Component | -50 cents | +50 cents | Yes | Linear scaling for held level ratio |
-| Layer 2: Phase | COAXIAL ALIGNMENT | Slider - linear Component | 0 | 360 | Yes | Phase offset in degrees |
+| Layer 2: Gain | COAXIAL SATURATION | Slider - linear Component | 0 | 2 | Yes | Linear scaling for held level ratio. 0 also mutes the layer — there is no separate Active toggle; `AudioEngine.ts`'s `filterAudibleLayers` excludes a `gain: 0` layer from the composite voice, matching the removed toggle's old "mute, don't delete" behavior. Carries an inline Lane + Depth `LfoLink` — see Layer 1: Gain's own note |
+| Layer 2: Detune | COAXIAL DRIFT | Slider - centered zero Component | -50 cents | +50 cents | Yes | Linear scaling for held level ratio. Carries an inline Lane + Depth `LfoLink` — see Layer 1: Gain's own note |
+| Layer 2: Phase | COAXIAL ALIGNMENT | Slider - linear Component | 0 | 360 | No | Phase offset in degrees. No live Signal to modulate — see Layer 1: Phase's own note |
 | Layer 2: Interval | COAXIAL PULSE WIDTH | Slider - linear Component | 0 | 1 | No | Only displayed when Type is BURST (pulse) — see Layer 1: Interval's note |
 | Layer 3: Type | HARMONIC GEOMETRY | Radio Button Component | N/A | N/A | No | Options: SWEEP, GRADIENT, KINETIC, BINARY, BURST |
-| Layer 3: Gain | HARMONIC SATURATION | Slider - linear Component | 0 | 2 | Yes | Linear scaling for held level ratio. 0 also mutes the layer — see Layer 2: Gain's own note |
-| Layer 3: Detune | HARMONIC DRIFT | Slider - centered zero Component | -50 cents | +50 cents | Yes | Linear scaling for held level ratio |
-| Layer 3: Phase | HARMONIC ALIGNMENT | Slider - linear Component | 0 | 360 | Yes | Phase offset in degrees |
+| Layer 3: Gain | HARMONIC SATURATION | Slider - linear Component | 0 | 2 | Yes | Linear scaling for held level ratio. 0 also mutes the layer — see Layer 2: Gain's own note. Carries an inline Lane + Depth `LfoLink` — see Layer 1: Gain's own note |
+| Layer 3: Detune | HARMONIC DRIFT | Slider - centered zero Component | -50 cents | +50 cents | Yes | Linear scaling for held level ratio. Carries an inline Lane + Depth `LfoLink` — see Layer 1: Gain's own note |
+| Layer 3: Phase | HARMONIC ALIGNMENT | Slider - linear Component | 0 | 360 | No | Phase offset in degrees. No live Signal to modulate — see Layer 1: Phase's own note |
 | Layer 3: Interval | HARMONIC PULSE WIDTH | Slider - linear Component | 0 | 1 | No | Only displayed when Type is BURST (pulse) — see Layer 1: Interval's note |
-| **LFO MODULE** | OSCILLATION | LFO Component | N/A | N/A | No | Attached LFO module for parameters flagged with HAS LFO. Rendered inside a "Modulation" accordion — now wired with this lore label at every call site (`AudioRigDrawer.tsx`/`AudioSettingSection.tsx`/`LfoTargetGroup.tsx`) |
-| LFO Shape | OSCILLATION SHAPE | Radio Button Component | N/A | N/A | No | Options: TRIANGLE, SINE, SQUARE, SAWTOOTH |
-| LFO Rate | OSCILLATION RATE | Slider - linear Component | 0 Hz | 20 Hz | No | LFO modulation speed. 0 Hz is a real, meaningful value — the LFO's "off" state, replacing the removed OSCILLATION STATE toggle below |
-| LFO Depth | OSCILLATION DEPTH | Slider - linear Component | 0% | 100% | No | LFO modulation intensity |
+| **LFO LINK** | SIGNATURE LANE | `LfoLink` (Radio Button, inline per Gain/Detune row) | N/A | N/A | N/A | Picks one of 4 world lanes or Off (`ui.lfoLane`: Off, Core LFO/Apex Signature, Companion LFO/Lateral Signature, Accent LFO/Impulse Signature, Overtone LFO/Canopy Signature). Rendered directly beneath each linkable field — no separate "Modulation" accordion. Shape/Rate/Rate Drift/Depth Drift live on the lane itself, not per field — see `docs/AUDIO_SYSTEM.md`'s LFO Modulation section and Fleet Params → LFO Bank |
+| LFO Link Depth | — | `LfoLink` (Slider - linear, inline per Gain/Detune row) | 0% | 100% | N/A | This field's own modulation intensity from its linked lane |
 
-There is no separate OSCILLATION STATE / "LFO Active" toggle — it was removed. Rate=0 is now the "off" state, and a live LFO's `.connect()`/`.disconnect()` is driven off `rate > 0` instead of a boolean (see `src/stores/audioStore.ts`'s `setGlobalLfo` / `src/systems/robotOptionsActions.ts`'s `applyLayerLfo`).
+There is no separate shape/rate per field, and no OSCILLATION STATE / "LFO Active" toggle at the field level — a field's own "off" state is `lane: null` on its `LfoLink` (`src/types/lfo.ts`'s `LfoLink`), driven through `robotOptionsActions.ts`'s `applyLayerLfoLink` for a user edit.
 
 ## Draft — pending review
 

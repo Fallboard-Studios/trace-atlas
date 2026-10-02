@@ -210,11 +210,11 @@ function createNewAttenuationStyle(attenuationStyleName: string): AttenuationSty
  * one specific caller, sessionDiff.ts, not here).
  */
 function finalizeAttenuationStyleTransition(newAttenuationStyle: AttenuationStyle, oldAttenuationStyle: AttenuationStyle): void {
-  // Triggers audioStore's existing useAttenuationStyleStore.subscribe —
-  // reseeds globalAudio/globalLfo from the new Attenuation Style's own seed.
-  // Do not call regenerateGlobalAudioFromSeed/regenerateGlobalLfoFromSeed
-  // directly here. A no-op reseed when the id is unchanged (the self-collision
-  // case below): that subscription itself guards on the id actually differing.
+  // Triggers audioStore's existing useAttenuationStyleStore.subscribe — reseeds
+  // globalAudio/lfoBank/globalLfoLinks from the new Attenuation Style's own seed. Do not call
+  // regenerateGlobalAudioFromSeed/regenerateLfoBankFromSeed/regenerateGlobalLfoLinksFromSeed
+  // directly here. A no-op reseed when the id is unchanged (the self-collision case below): that
+  // subscription itself guards on the id actually differing.
   useAttenuationStyleStore.getState().setCurrentAttenuationStyleId(newAttenuationStyle.id);
   if (newAttenuationStyle.id === oldAttenuationStyle.id) return;
   useAttenuationStyleStore.getState().removeAttenuationStyle(oldAttenuationStyle.id);

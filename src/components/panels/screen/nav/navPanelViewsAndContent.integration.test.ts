@@ -73,28 +73,28 @@ describe('Nav panel — cross-branch regression (docs/tasks/NAV_PANEL_VIEWS_AND_
     expect(useUIStore.getState().selectedSubsection).toBe('coaxialOscillator');
   });
 
-  it('selecting fleetParams.fleetDrift.drift directly (no intermediate clicks) sets every ancestor expand field in one step (docs/specs/FLEET_DRIFT_CONSOLIDATION.md Task 11)', () => {
+  it('selecting fleetParams.lfoBank.a directly (no intermediate clicks) sets every ancestor expand field in one step (docs/tasks/LFO_BANK.md Task 15)', () => {
     const { result } = renderHook(() => useNavTree());
 
-    act(() => result.current.select('fleetParams.fleetDrift.drift'));
+    act(() => result.current.select('fleetParams.lfoBank.a'));
 
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('fleetParams');
     // Its own group is already always-expanded once Fleet Params itself is — no separate field
     // to set (docs/specs/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3).
-    expect(result.current.isExpanded('fleetParams.fleetDrift')).toBe(true);
+    expect(result.current.isExpanded('fleetParams.lfoBank')).toBe(true);
     expect(useUIStore.getState().activeHubTile).toBe('audioRig');
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('globalDrift');
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('laneA');
   });
 
-  it('selecting fleetParams.fleetDrift.robots directly (no intermediate clicks) sets every ancestor expand field in one step (Robot Drift moved here from Probes/Companies entirely)', () => {
+  it('selecting fleetParams.lfoBank.d directly (no intermediate clicks) sets every ancestor expand field in one step', () => {
     const { result } = renderHook(() => useNavTree());
 
-    act(() => result.current.select('fleetParams.fleetDrift.robots'));
+    act(() => result.current.select('fleetParams.lfoBank.d'));
 
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('fleetParams');
-    expect(result.current.isExpanded('fleetParams.fleetDrift')).toBe(true);
+    expect(result.current.isExpanded('fleetParams.lfoBank')).toBe(true);
     expect(useUIStore.getState().activeHubTile).toBe('audioRig');
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('robotDrift');
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('laneD');
   });
 
   it('the single-open-accordion derivation is consistent across every branch: a null/mid-level selection always resolves to a real leaf, never "nothing"', () => {
@@ -137,11 +137,5 @@ describe('Nav panel — rename-correctness guard (docs/tasks/NAV_PANEL_VIEWS_AND
     // The id segment itself is still 'volume' — ROBOT_SECTIONS_CONFIG's own id/content key
     // are separate fields, so 'Output' never becomes a literal id anywhere in this file.
     expect(configSource).not.toMatch(/id:\s*'[^']*output[.']/i);
-  });
-
-  it('RobotDriftPanel and the lfoDrift.robots field name are untouched by the Probe Drift rename', () => {
-    const signatureArrayDrawerSource = readSource('../../../robot/SignatureArrayDrawer.tsx');
-    expect(signatureArrayDrawerSource).toContain('export function RobotDriftPanel');
-    expect(signatureArrayDrawerSource).toContain('globalAudio.lfoDrift.robots');
   });
 });

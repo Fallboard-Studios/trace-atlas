@@ -5,9 +5,18 @@ import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
 import { generateRobotRosterBaseline, generateCompanyRosterBaseline, type RobotAudioBaseline } from '../systems/spawnSystem';
 import type { RobotAudioOverrideDiff, CompanyDiff, SessionPayload } from '../types/session';
-import { ROBOT_LFO_TARGET_IDS, DRIFT_GROUP_IDS, GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId, type LfoSettings } from '../types/lfo';
 import type { SwellRobotAttributeId } from '../types/audioSwell';
-import type { GlobalAudioSettings } from '../types/globalAudio';
+import {
+  ROBOT_LFO_TARGET_IDS,
+  LFO_LANE_IDS,
+  GLOBAL_LFO_TARGET_IDS,
+  type RobotLfoTargetId,
+  type LfoLaneId,
+  type GlobalLfoTargetId,
+  type LfoLink,
+  type BankLfoSettings,
+} from '../types/lfo';
+import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
@@ -15,10 +24,10 @@ import { getLocaleNoiseMap } from './noiseMaps';
 import { quantizeToStep } from './math';
 import { GLOBAL_AUDIO_SEED_RANGES } from '../data/globalAudioSeedRanges';
 import { retransmitWorld } from '../systems/worldTransition';
-import { primeRobotLfos } from '../systems/robotLfoPriming';
-import { devWarn } from './helpers';
 import { regenerateMelody } from '../engine/regenerateMelody';
 import { getActiveSwellSnapshot } from '../systems/audioSwells';
+import { primeRobotLinks } from '../systems/robotLfoLinks';
+import { isAudioContextRunning } from '../engine/lfoShared';
 
 // ========================================
 // FUNCTIONS
@@ -39,6 +48,31 @@ function deepEqual(a: unknown, b: unknown): boolean {
   const bKeys = Object.keys(b as object);
   if (aKeys.length !== bKeys.length) return false;
   return aKeys.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
+}
+
+/** Backfills any lane a payload's lfoBank is missing with DEFAULT_BANK_LFO -- the same guarantee
+ *  sessionShareUtils.ts's fromCompactSessionPayload already gives a `?session=` link, applied here
+ *  too so every applySessionPayload caller gets it, not just that one. A session loaded from
+ *  localStorage (SessionListItem.tsx) is never run through fromCompactSessionPayload at all, so a
+ *  stale/hand-edited/partial saved entry could otherwise reach AudioEngine.start()'s
+ *  primeLfoBank(lfoBank) with a hole and throw reading .rate off `undefined`. */
+function backfillLfoBank(bank: SessionPayload['lfoBank']): Record<LfoLaneId, BankLfoSettings> | undefined {
+  if (!bank) return undefined;
+  return Object.fromEntries(LFO_LANE_IDS.map((lane) => [lane, bank[lane] ?? DEFAULT_BANK_LFO])) as Record<
+    LfoLaneId,
+    BankLfoSettings
+  >;
+}
+
+/** Same backfill, for globalLfoLinks -- see backfillLfoBank above. */
+function backfillGlobalLfoLinks(
+  links: SessionPayload['globalLfoLinks'],
+): Record<GlobalLfoTargetId, LfoLink> | undefined {
+  if (!links) return undefined;
+  return Object.fromEntries(GLOBAL_LFO_TARGET_IDS.map((target) => [target, links[target] ?? DEFAULT_LFO_LINK[target]])) as Record<
+    GlobalLfoTargetId,
+    LfoLink
+  >;
 }
 
 /** If a swell is currently active on this (robotId, attribute) pair, return its baseValue for
@@ -167,18 +201,6 @@ function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioSto
     threshold: cleanupFloatingPoint(quantizeToStep(toCapture.limiter.threshold, GLOBAL_AUDIO_SEED_RANGES['limiter.threshold'].min, 1), 0),
   };
 
-  // Quantize lfoDrift fields to 0.01 (1% precision in -1..1 range) and clean up floating-point noise
-  toCapture.lfoDrift = {
-    globalFx: {
-      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.globalFx.rateDrift, -1, 0.01), 2),
-      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.globalFx.depthDrift, -1, 0.01), 2),
-    },
-    robots: {
-      rateDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.robots.rateDrift, -1, 0.01), 2),
-      depthDrift: cleanupFloatingPoint(quantizeToStep(toCapture.lfoDrift.robots.depthDrift, -1, 0.01), 2),
-    },
-  };
-
   return toCapture;
 }
 
@@ -229,13 +251,14 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
   if (!deepEqual(live.pitchRepeat, baseline.pitchRepeat)) diff.pitchRepeat = live.pitchRepeat;
   if (!deepEqual(live.name, baseline.name)) diff.name = live.name;
 
-  const lfoDiff: RobotAudioOverrideDiff['lfoSettings'] = {};
+  // LFO Bank (docs/tasks/LFO_BANK.md Task 18): only the targets whose link actually changed --
+  // an untouched target has no key, same "absent means untouched" contract as every field above.
+  const lfoLinksDiff: Partial<Record<RobotLfoTargetId, LfoLink>> = {};
   for (const target of ROBOT_LFO_TARGET_IDS) {
-    const liveSetting = live.lfoSettings?.[target];
-    const baselineSetting = baseline.lfoSettings[target];
-    if (!deepEqual(liveSetting, baselineSetting)) lfoDiff[target] = liveSetting;
+    const liveLink = live.lfoLinks?.[target] ?? DEFAULT_LFO_LINK[target];
+    if (!deepEqual(liveLink, baseline.lfoLinks[target])) lfoLinksDiff[target] = liveLink;
   }
-  if (Object.keys(lfoDiff).length > 0) diff.lfoSettings = lfoDiff;
+  if (Object.keys(lfoLinksDiff).length > 0) diff.lfoLinks = lfoLinksDiff;
 
   return diff;
 }
@@ -292,8 +315,25 @@ export function buildSessionPayload(): SessionPayload {
   }
 
   const audioState = useAudioStore.getState();
+
+  // LFO Bank (docs/tasks/LFO_BANK.md Task 18): always captured whole, never diffed -- there's no
+  // meaningful "untouched seed baseline" for a world-level lane/link set, same treatment as
+  // globalAudio itself. Drifts quantized to 2 decimal places, same floating-point cleanup every
+  // other seeded-then-hand-dragged field on this payload already gets.
+  const lfoBank = Object.fromEntries(
+    LFO_LANE_IDS.map((lane) => {
+      const settings = audioState.lfoBank[lane];
+      return [lane, {
+        ...settings,
+        rateDrift: cleanupFloatingPoint(settings.rateDrift, 2),
+        depthDrift: cleanupFloatingPoint(settings.depthDrift, 2),
+      }];
+    }),
+  ) as SessionPayload['lfoBank'];
+  const globalLfoLinks = { ...audioState.globalLfoLinks };
+
   return {
-    version: 1,
+    version: 2,
     attenuationStyleName: attenuationStyle.name,
     coordinates: locale.coordinates,
     globalAudio: applyGlobalSwellBasesToAudio(audioState.globalAudio),
@@ -301,7 +341,8 @@ export function buildSessionPayload(): SessionPayload {
     swellFrequency: audioState.swellFrequency,
     swellDuration: audioState.swellDuration,
     pingVarianceAutomation: audioState.pingVarianceAutomation,
-    globalLfo: audioState.globalLfo,
+    lfoBank,
+    globalLfoLinks,
     robotOverrides,
     companyDiffs,
     userCreatedCompanies,
@@ -309,8 +350,8 @@ export function buildSessionPayload(): SessionPayload {
 }
 
 /** Builds the Partial<Robot> update object for one robot's override diff — merging into the
- *  live audioAttributes/lfoSettings rather than replacing them wholesale, since a diff only ever
- *  carries the fields that actually changed. */
+ *  live audioAttributes rather than replacing it wholesale, since a diff only ever carries the
+ *  fields that actually changed. */
 function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<Robot> {
   const updates: Partial<Robot> = {};
   if (diff.adsr !== undefined || diff.layers !== undefined || diff.filterFreq !== undefined) {
@@ -327,16 +368,7 @@ function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<
   if (diff.noteVariance !== undefined) updates.noteVariance = diff.noteVariance;
   if (diff.pitchRepeat !== undefined) updates.pitchRepeat = diff.pitchRepeat;
   if (diff.name !== undefined) updates.name = diff.name;
-  if (diff.lfoSettings !== undefined) {
-    // Only keys in the CURRENT target set. A payload saved before 2026-09-30 can still carry the
-    // removed 'volume' / 'layerN.pulseWidth' entries (docs/specs/LFO_LOAD_FIX.md §1.4); they are
-    // dropped here rather than written into robot state, so nothing downstream ever sees them.
-    const known = Object.fromEntries(
-      (Object.entries(diff.lfoSettings) as [string, LfoSettings | undefined][])
-        .filter(([key, value]) => value !== undefined && (ROBOT_LFO_TARGET_IDS as readonly string[]).includes(key)),
-    );
-    updates.lfoSettings = { ...robot.lfoSettings, ...known } as Record<RobotLfoTargetId, LfoSettings>;
-  }
+  if (diff.lfoLinks !== undefined) updates.lfoLinks = { ...robot.lfoLinks, ...diff.lfoLinks } as Record<RobotLfoTargetId, LfoLink>;
   return updates;
 }
 
@@ -356,28 +388,34 @@ function reapplyCompanyMembership(localeId: string, companyId: string, targetRob
 }
 
 /**
- * Fills in any `DriftGroupId` missing from a payload's own `lfoDrift` with a safe `{ rateDrift:
- * 0, depthDrift: 0 }` default — a payload can be arbitrarily older than the running app (a
- * `?session=` link or a `localStorage` named session saved before Fleet Drift Consolidation
- * merged eq3/filterLPF/filterHPF into 'globalFx', docs/specs/FLEET_DRIFT_CONSOLIDATION.md), so its
- * own `lfoDrift` may still be missing keys the current `DriftGroupId` union expects. Without this,
- * `applyGlobalAudioToEngine` dereferences the missing group directly and throws — found live: a
- * stale `?session=`/saved session blanked the whole scene on power-on. Any OLD group key the
- * payload still carries (e.g. a pre-merge `eq3`) is simply ignored, not migrated into `globalFx` —
- * there's no principled way to combine 3 old amounts into 1, and silently picking one would be a
- * worse surprise than resetting to 0. Mirrors `decodeSessionPayload`'s own "fails soft on
- * untrusted/versioned external data" convention, one level deeper (per-field, not just per-payload).
+ * A version-1 payload may still carry fields the type no longer declares -- `globalLfo` at the
+ * top level, `globalAudio.lfoDrift`, and each `robotOverrides[id].lfoSettings` -- all deleted
+ * from SessionPayload by Task 17, but a real pre-branch session save or share link predates this
+ * branch and was never migrated forward, so those keys can still arrive as plain JSON. Stripped
+ * here so applying an old payload never leaves stale LFO-shaped data in the store; a version-2
+ * payload never carries them, so this is a no-op for every payload buildSessionPayload itself
+ * produces today.
  */
-function migrateLfoDrift(globalAudio: GlobalAudioSettings): GlobalAudioSettings {
-  const lfoDrift = { ...globalAudio.lfoDrift };
-  let changed = false;
-  for (const group of DRIFT_GROUP_IDS) {
-    if (!lfoDrift[group]) {
-      lfoDrift[group] = { rateDrift: 0, depthDrift: 0 };
-      changed = true;
-    }
-  }
-  return changed ? { ...globalAudio, lfoDrift } : globalAudio;
+function stripLegacyV1LfoFields(payload: SessionPayload): SessionPayload {
+  if (payload.version !== 1) return payload;
+  const raw = payload as unknown as Record<string, unknown>;
+  const globalAudio = { ...(raw.globalAudio as Record<string, unknown>) };
+  delete globalAudio.lfoDrift;
+  const rawRobotOverrides =
+    raw.robotOverrides && typeof raw.robotOverrides === 'object' ? (raw.robotOverrides as Record<string, Record<string, unknown>>) : {};
+  const robotOverrides = Object.fromEntries(
+    Object.entries(rawRobotOverrides).map(([id, diff]) => {
+      const cleanedDiff = { ...diff };
+      delete cleanedDiff.lfoSettings;
+      return [id, cleanedDiff];
+    }),
+  );
+  const { globalLfo: _globalLfo, ...rest } = raw;
+  return {
+    ...(rest as unknown as SessionPayload),
+    globalAudio: globalAudio as unknown as SessionPayload['globalAudio'],
+    robotOverrides: robotOverrides as unknown as SessionPayload['robotOverrides'],
+  };
 }
 
 /**
@@ -386,6 +424,7 @@ function migrateLfoDrift(globalAudio: GlobalAudioSettings): GlobalAudioSettings 
  * globalAudio, every robot override, every company diff, and every user-created company on top.
  */
 export function applySessionPayload(payload: SessionPayload, options?: { skipLocaleRebuild?: boolean }): void {
+  payload = stripLegacyV1LfoFields(payload);
   // worldTransition.ts's createNewAttenuationStyle always tries to CREATE a new Attenuation
   // Style for a given name (never "reuse the existing one with this name") and doesn't check
   // whether that creation actually succeeded — attenuationStyleStore.addAttenuationStyle silently
@@ -418,7 +457,7 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
     );
   }
 
-  const globalAudio = migrateLfoDrift(payload.globalAudio);
+  const globalAudio = payload.globalAudio;
   useAudioStore.setState({ globalAudio });
   applyGlobalAudioToEngine(globalAudio);
 
@@ -431,16 +470,28 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   if (payload.swellFrequency !== undefined) useAudioStore.getState().setSwellFrequency(payload.swellFrequency);
   if (payload.swellDuration !== undefined) useAudioStore.getState().setSwellDuration(payload.swellDuration);
   if (payload.pingVarianceAutomation !== undefined) useAudioStore.getState().setPingVarianceAutomation(payload.pingVarianceAutomation);
-  // Data-only, like regenerateGlobalLfoFromSeed's own seeding write -- never calls setGlobalLfo,
-  // which would construct/connect a real Tone.LFO node here. AudioEngine.start() is what primes
-  // lfoEngine from state, the same convention every OTHER seed-time globalLfo write already follows.
-  if (payload.globalLfo) {
-    const updatedGlobalLfo = { ...useAudioStore.getState().globalLfo };
-    for (const target of GLOBAL_LFO_TARGET_IDS) {
-      const setting = payload.globalLfo[target];
-      if (setting) updatedGlobalLfo[target] = setting;
+
+  // LFO Bank (docs/tasks/LFO_BANK.md Task 18): independently optional, same convention as the
+  // pacing fields above -- absent (a pre-this-change payload) leaves retransmitWorld's own fresh
+  // reseed untouched. When the audio context is already running (loading a session mid-session,
+  // not at boot), pushed through setLfoBank/setGlobalLfoLink too, so the change is audible without
+  // a power cycle; otherwise a plain data-only write -- AudioEngine.start() primes the bank from
+  // this same store state once the context actually starts.
+  const lfoBank = backfillLfoBank(payload.lfoBank);
+  if (lfoBank) {
+    if (isAudioContextRunning()) {
+      for (const lane of LFO_LANE_IDS) useAudioStore.getState().setLfoBank(lane, lfoBank[lane]);
+    } else {
+      useAudioStore.setState({ lfoBank });
     }
-    useAudioStore.setState({ globalLfo: updatedGlobalLfo });
+  }
+  const globalLfoLinks = backfillGlobalLfoLinks(payload.globalLfoLinks);
+  if (globalLfoLinks) {
+    if (isAudioContextRunning()) {
+      for (const target of GLOBAL_LFO_TARGET_IDS) useAudioStore.getState().setGlobalLfoLink(target, globalLfoLinks[target]);
+    } else {
+      useAudioStore.setState({ globalLfoLinks });
+    }
   }
 
   const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
@@ -468,23 +519,13 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
     // what's actually persisted (code review follow-up, confirmed by a reproduction test with an
     // out-of-range diff value).
     const updatedRobot = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
-    if (updatedRobot) regenerateMelody(updatedRobot, localeId);
-    // Re-prime only the overridden LFO targets (docs/specs/LFO_LOAD_FIX.md §1.3) — the robot's
-    // voice already exists (retransmitWorld's own spawn already primed the seed baseline via
-    // spawnRobot), so this just pushes the restored values for the targets that actually changed.
-    // Filtered against ROBOT_LFO_TARGET_IDS: a payload saved before the volume/pulseWidth targets
-    // were removed can still carry those keys under lfoSettings (spec §1.4), and they must never
-    // reach the engine. Wrapped like every other priming call site (spawnRobot, AudioEngine.start)
-    // — a priming failure must never block the rest of session restoration.
-    if (updatedRobot && diff.lfoSettings) {
-      const targets = (Object.keys(diff.lfoSettings) as RobotLfoTargetId[])
-        .filter((key) => (ROBOT_LFO_TARGET_IDS as readonly string[]).includes(key));
-      if (targets.length > 0) {
-        try {
-          primeRobotLfos(updatedRobot, targets);
-        } catch (err) {
-          devWarn('[sessionDiff] primeRobotLfos failed for', robot.id, err);
-        }
+    if (updatedRobot) {
+      regenerateMelody(updatedRobot, localeId);
+      // Re-primes only the targets this diff actually changed (docs/tasks/LFO_BANK.md Task 18) --
+      // every untouched target already has its freshly-seeded link primed by AudioEngine.start()
+      // (or will, once the context starts), so re-priming the whole roster here would be redundant.
+      if (diff.lfoLinks !== undefined) {
+        primeRobotLinks(updatedRobot, Object.keys(diff.lfoLinks) as RobotLfoTargetId[]);
       }
     }
   }

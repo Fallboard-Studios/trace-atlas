@@ -69,9 +69,24 @@ vi.mock('@/components/robot/PingContourDrawer', () => ({
   )),
 }));
 vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
-  SignatureArrayLayer: memo((props: { idx: number; layer: { type: string }; onTypeChange: (idx: number, type: string) => void; onParamChange: (idx: number, field: string, v: number) => void }) => (
+  SignatureArrayLayer: memo((props: {
+    idx: number;
+    layer: { type: string };
+    lfoLinks?: Record<string, { lane: string | null; depth: number }>;
+    onTypeChange: (idx: number, type: string) => void;
+    onParamChange: (idx: number, field: string, v: number) => void;
+    onLfoFieldChange: (idx: number, target: string, value: { lane: string | null; depth: number }) => void;
+  }) => (
     <div data-testid={`signature-array-layer-stub-${props.idx}`} data-type={props.layer.type}>
       <button onClick={() => props.onParamChange(props.idx, 'gain', 0.5)}>probe-layer-gain-{props.idx}</button>
+      <button
+        onClick={() => {
+          const current = props.lfoLinks?.[`layer${props.idx}.gain`] ?? { lane: null, depth: 0 };
+          props.onLfoFieldChange(props.idx, `layer${props.idx}.gain`, { ...current, lane: 'a' });
+        }}
+      >
+        probe-layer-lfo-{props.idx}
+      </button>
     </div>
   )),
 }));
@@ -135,7 +150,6 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     useUIStore.getState().setSelectedSection(null);
     useUIStore.getState().setSelectedSubsection(null);
     useLocaleStore.getState().setLocaleData(localeId, { robots: [] } as unknown as Partial<Locale>);
-    useAudioStore.setState({ heldOffLfoKeys: [] });
     installIntersectionObserverStub();
     SUBSECTION_IDS('r1').forEach(clearSectionRef);
     SUBSECTION_IDS('r2').forEach(clearSectionRef);
@@ -442,6 +456,20 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
 
       expect(cancelSpy).toHaveBeenCalledWith(robot.id, 'layer1.gain');
     });
+
+    // docs/tasks/LFO_BANK.md Task 12 — a lane change on a layer routes through the bank engine
+    // (applyLayerLfoLink); the old per-target LFO path is gone entirely (Task 16).
+    it('wires a layer\'s LFO lane change to robotOptionsActions.applyLayerLfoLink', () => {
+      const robot = makeRobot();
+      selectRobot(robot, 'source', 'coaxialOscillator');
+      const applyLinkSpy = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
+      render(<RobotOptionsTab />);
+      openAndApproach('probes.r1.source.coaxialOscillator');
+
+      fireEvent.click(screen.getByText('probe-layer-lfo-1'));
+
+      expect(applyLinkSpy).toHaveBeenCalledWith(robot, localeId, 'layer1.gain', { lane: 'a', depth: 0 });
+    });
   });
 
   describe('view-fade-in on arrival from a different view', () => {
@@ -494,20 +522,19 @@ describe('RobotOptionsTab — stacked view (docs/tasks/NAV_PANEL_VIEWS_AND_CONTE
     });
   });
 
-  // Audio Load Budget (plan task 22): the tab owns the store access and the robot id, so it turns
-  // the held-off keys into plain per-robot props for the (store-free) sections.
-  describe('Audio Load: held-off LFOs for THIS robot', () => {
-    // The Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 2): the tab
-    // no longer derives a volume held-off prop at all — even a stale ':volume' key in the store
-    // (an old session, or a budget reconcile from before the removal) produces nothing.
-    it('passes no volume held-off prop to the Audio Setting section, even when a stale :volume key is in the list', () => {
-      useAudioStore.setState({ heldOffLfoKeys: ['r1:volume'] });
+  // Audio Load Budget (docs/tasks/LFO_BANK.md Task 3): robot LFOs are never held off (the cap that
+  // used to make them held-off-able was removed in Task 2) — the tab derives no per-robot held-off
+  // props at all anymore, and SignatureArrayLayer's own prop type (mocked above) has no held-off
+  // slot left for it to pass one into.
+  describe('Audio Load: robot layers are never held off', () => {
+    it('renders no held-off note in a robot layer even while the dial holds filter links off', () => {
+      useAudioStore.setState({ filterLinksHeldOff: true });
       const robot = makeRobot('r1');
-      selectRobot(robot, 'volume', 'audioSettings');
+      selectRobot(robot, 'source', 'baselineOscillator');
       render(<RobotOptionsTab />);
-      openAndApproach('probes.r1.volume.audioSettings');
+      openAndApproach('probes.r1.source.baselineOscillator');
 
-      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-volume-held-off')).toBe('undefined');
+      expect(screen.queryByText('Held off by Audio Load')).toBeNull();
     });
   });
 });

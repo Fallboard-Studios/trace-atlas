@@ -75,8 +75,8 @@ describe('SWELL_ROBOT_ATTRIBUTE_IDS', () => {
     expect(SWELL_ROBOT_ATTRIBUTE_IDS).not.toContain('octaveRange');
   });
 
-  it('does not modify ROBOT_LFO_TARGET_IDS itself — still its own 9 members (volume/pulseWidth stay swell attributes even though they are no longer LFO targets)', () => {
-    expect(ROBOT_LFO_TARGET_IDS).toHaveLength(9);
+  it('does not modify ROBOT_LFO_TARGET_IDS itself — still its own 6 members (volume/pulseWidth/phase stay swell attributes even though they are no longer LFO targets)', () => {
+    expect(ROBOT_LFO_TARGET_IDS).toHaveLength(6);
     expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain('volume');
     expect(SWELL_ROBOT_ATTRIBUTE_IDS).toContain('layer0.pulseWidth');
   });
