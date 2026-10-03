@@ -107,6 +107,15 @@ describe('desaturateHex', () => {
   it('a reduction of 0 returns the color unchanged', () => {
     expect(desaturateHex(ACCENT_COLORS.orange, 0)).toBe(ACCENT_COLORS.orange);
   });
+
+  it('round-trips every 6-digit ACCENT_COLORS hue unchanged at reduction 0 (hex→HSL→hex parity across the whole palette)', () => {
+    // docs/tasks/WORLD_PALETTE_PULL.md Task 1: desaturateHex now delegates its hex→HSL step to
+    // colorUtils.hexToHsl. A lossy conversion would show up here as a one-off hex digit.
+    for (const [name, hex] of Object.entries(ACCENT_COLORS)) {
+      if (!/^#[0-9a-fA-F]{6}$/.test(hex)) continue; // 'white' is '#fff' — 3-digit, never passed to desaturateHex
+      expect(desaturateHex(hex, 0), name).toBe(hex);
+    }
+  });
 });
 
 describe('getDisabledTraitColorStyle', () => {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { type HSL, hslToString, clamp, applyColorShift, type ColorShift } from './colorUtils';
+import { type HSL, hslToString, clamp, applyColorShift, hexToHsl, type ColorShift } from './colorUtils';
+import { ACCENT_COLORS } from '../constants/accentColors';
 
 describe('colorUtils', () => {
   describe('hslToString', () => {
@@ -164,6 +165,45 @@ describe('colorUtils', () => {
       const tickA = applyColorShift(baseColor, noShift, 0.80001);
       const tickB = applyColorShift(baseColor, noShift, 0.80003);
       expect(tickA).toBe(tickB);
+    });
+  });
+
+  // docs/specs/WORLD_PALETTE_PULL.md §1.1 / docs/tasks/WORLD_PALETTE_PULL.md Task 1: the one
+  // shared hex→HSL conversion. traitColors.ts's private hexToRgb/rgbToHsl pair delegates to it.
+  describe('hexToHsl', () => {
+    it('converts the three pure primaries to their canonical hues at full saturation, half lightness', () => {
+      expect(hexToHsl('#ff0000')).toEqual({ h: 0, s: 100, l: 50 });
+      expect(hexToHsl('#00ff00')).toEqual({ h: 120, s: 100, l: 50 });
+      expect(hexToHsl('#0000ff')).toEqual({ h: 240, s: 100, l: 50 });
+    });
+
+    it('treats black and white as achromatic: zero saturation, hue 0, lightness at the ends', () => {
+      expect(hexToHsl('#000000')).toEqual({ h: 0, s: 0, l: 0 });
+      expect(hexToHsl('#ffffff')).toEqual({ h: 0, s: 0, l: 100 });
+    });
+
+    it('returns raw (unrounded) values with h in [0, 360) and s/l in [0, 100] for every accent hue', () => {
+      // Callers round if they need to (accentLean.ts stores raw hues) — rounding here would
+      // silently change traitColors.ts's desaturateHex output.
+      for (const hex of Object.values(ACCENT_COLORS)) {
+        if (!/^#[0-9a-fA-F]{6}$/.test(hex)) continue; // ACCENT_COLORS.white is '#fff' — out of scope (6-digit only)
+        const { h, s, l } = hexToHsl(hex);
+        expect(h).toBeGreaterThanOrEqual(0);
+        expect(h).toBeLessThan(360);
+        expect(s).toBeGreaterThanOrEqual(0);
+        expect(s).toBeLessThanOrEqual(100);
+        expect(l).toBeGreaterThanOrEqual(0);
+        expect(l).toBeLessThanOrEqual(100);
+      }
+    });
+
+    it('reproduces the exact pre-refactor output of traitColors.ts\'s private hexToRgb + rgbToHsl (parity oracle)', () => {
+      // Pinned 2026-10-02 by running a verbatim copy of those two private functions on the
+      // commit BEFORE this task (their s/l were 0..1 fractions; scaled ×100 here to match the
+      // HSL interface). If this ever fails, the delegation changed a UI colour — fix the
+      // conversion, never these numbers.
+      expect(hexToHsl(ACCENT_COLORS.teal)).toEqual({ h: 172.22222222222223, s: 45.378151260504204, l: 46.666666666666664 });
+      expect(hexToHsl(ACCENT_COLORS.burntOrange)).toEqual({ h: 20.168067226890756, s: 65.02732240437159, l: 35.88235294117647 });
     });
   });
 

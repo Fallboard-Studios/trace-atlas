@@ -449,3 +449,21 @@ A pure layout pass, no behaviour change. Nineteen sliders turn horizontal — th
 - **`'row'` on every tier for the compact pairs** — every pair is `'responsive'` (spec assumption 1); horizontal sliders have a 3-box floor and the nav panel is narrow below desktop.
 - **Levels / Composition / Envelope, and Phase 30's open items** — not on the checklist.
 - **Hoisting the fifteen per-file `stubMatchMedia` test helpers** — a separate cleanup.
+
+## 35. World Palette Pull
+
+Requested by Crawford, 2026-10-02 ("robots, buildings and bubbles more based on the UI color scheme"; the world "is very gray"). Idea [docs/ideas/world-palette-pull.md](../ideas/world-palette-pull.md), intent [docs/intent/world-palette-pull.md](../intent/world-palette-pull.md), spec [docs/specs/WORLD_PALETTE_PULL.md](../specs/WORLD_PALETTE_PULL.md), plan [docs/tasks/WORLD_PALETTE_PULL.md](../tasks/WORLD_PALETTE_PULL.md). **Implemented — all 7 tasks on `feature/world-colors` (unpushed, unmerged as of writing); Crawford's visual checkpoint passed after two tuning rounds (red, then lime).** First of a three-branch series from one `/idea-refine` session; the other two ([parametric robot hull](../ideas/parametric-robot-hull.md), [layer pods](../ideas/layer-pods-and-follow-through.md)) are idea one-pagers only, not yet interviewed or specced.
+
+### About
+
+Factories, and through them their bubbles, lean toward the console's accent palette. Each Attenuation Style seeds a primary accent hue out of the 18 `ACCENT_COLORS` plus its nearest wheel neighbour; at placement, and again on a style retransmit, every factory's final body hue is pulled halfway toward one of the two (seeded coin per factory) and its saturation lifted by 15 points, with both deltas folded into the `hueShift`/`satShift` the actor already stores. No render path, store shape, robot file or CSS changed. The half pull, not a snap, exists because the console's 25%-transparent panels sit over the world. Two visual-checkpoint tunings added a saturation cap of 45% in two hue bands — warm 330→45 and lime 80→115 — because a warm or lime primary plus the 24-building Monolith row's own +40..60 variant saturation read "like candy". `src/utils/accentLean.ts` holds every constant; see `docs/BUILDING_DESIGN.md` "Accent Lean" and `docs/PROCEDURAL_GENERATION.md` for the two new dataIds.
+
+### Not Doing (and why)
+
+- **Robots** — dropped from this branch in the interview: they are not the grey part, and the parametric-robot-hull branch rewrites their colour mapping anyway (including the identityColor-on-the-body guardrail amendment, which this phase does **not** touch).
+- **A lightness term** — Crawford: "I'm ok with there still being gray buildings." Stacks and Warehouse often still read grey; accepted.
+- **Per-locale accent pairs** — per style, Crawford's call; two locales under one style share the pair.
+- **Per-building accent variety** — one or two hues per style, never a rainbow; that was the oversaturation risk itself.
+- **Hard snap or snap-plus-offset** — soft pull only.
+- **The Ballast neutrals, bubble colours other than their building's, placement/variant/greebles** — untouched.
+- **A simpler "replace the base with a jittered accent" model** — considered at spec review and rejected in favour of the pull.

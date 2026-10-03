@@ -27,6 +27,13 @@ locale's factories in place (`recolorFactoriesForAttenuationStyle()`)
 without touching any of those other fields. See
 [docs/specs/ATTENUATION_STYLE.md](specs/ATTENUATION_STYLE.md) §1.2.
 
+A third additive step, the **accent lean** (roadmap Phase 35,
+[docs/specs/WORLD_PALETTE_PULL.md](specs/WORLD_PALETTE_PULL.md)), pulls the
+resulting body colour partway toward one of two console accent hues the
+Attenuation Style picks for itself, and lifts its saturation — see "Accent
+Lean" under Color System below. It is folded into the same two stored
+numbers at the same two write sites, so nothing downstream knows it exists.
+
 **Key source files:**
 
 | File | Purpose |
@@ -134,6 +141,53 @@ interface ColorShift {
   satShift: number;
 }
 ```
+
+### Accent Lean (Phase 35 — the world leans toward the console palette)
+
+Why: every variant's `body` is the same graphite base (`colorTheme.json`,
+15% saturation at 19% lightness), so a whole skyline averaged to grey. The
+lean makes the buildings read as one family that belongs with the console's
+accent palette, without snapping to it — the console's 25%-transparent
+panels sit over the world, so a full snap would oversaturate them.
+
+How (`src/utils/accentLean.ts`, applied in `factoryPlacementSystem.ts`):
+
+1. **The Attenuation Style picks an accent pair**, once per placement pass
+   (`deriveAsAccentPair(asNoiseMap)`): a primary hue drawn from the 18
+   console accents (`ACCENT_HUES`, in `ROBOT_IDENTITY_COLOR_NAMES` order) at
+   dataId `'factory.as.accentPrimary'` with a fixed non-integer offset
+   (`ACCENT_PAIR_OFFSET`, the simplex lattice-collapse guard), plus that
+   hue's nearest other accent on the wheel (`secondaryFor`, ≤60° apart by
+   construction). Per **style**, not per locale: every locale under one
+   style shares the pair, and a retransmit moves the whole skyline.
+2. **Each factory picks one of the two** by a seeded coin on its index
+   (`pickAccentTarget`, dataId `'factory.as.accentPick'`).
+3. **The lean is computed from the final pre-lean body** — variant base +
+   local shift + AS shift already applied — and returned as one more
+   additive `ColorShift` (`computeAccentLean(body, targetHue)`):
+   - `hueShift` = `ACCENT_PULL_FRACTION` (0.5) of the shortest arc to the
+     target (`hueArc`), so the body travels halfway, never overshoots, and
+     never goes the long way round.
+   - `satShift` = `ACCENT_SAT_LIFT` (+15), **except** when the post-pull
+     hue lands in a capped band (`SAT_CAP_BANDS`, read via
+     `satCapFor(hue)`): then `min(lift, cap − body.s)`, which can go
+     negative. Two bands today, both capped at 45%: the warm red→orange
+     band 330→45 (wrapping through 0; `isWarmHue`) and lime 80→115. Both
+     came out of Crawford's visual checkpoints ("like candy", then "a lime
+     green sticks out"); yellow, emerald and green sit outside the bands and
+     keep the full lift. Add a row to the table, never a third special case.
+4. **Folded, not rendered.** `createFactory`'s optional trailing
+   `accentTarget` adds the lean to the `hueShift`/`satShift` it already
+   stores; `recolorFactoriesForAttenuationStyle` repeats the identical
+   computation with the new style's map (a recolor equals a fresh placement,
+   factory for factory — tested). `Factory.tsx`, `factoryBubbleProps.ts`,
+   `applyColorShift`, day/night and `Actor.config`'s shape are untouched;
+   bubbles inherit the lean through the shift they already read.
+
+Lightness is deliberately **not** part of the lean — some buildings (Stacks
+and Warehouse after their negative variant saturation ranges) still read
+grey, and that is accepted (spec §7 item 1). Robots are not part of this
+phase at all.
 
 ### Applying Colour
 
