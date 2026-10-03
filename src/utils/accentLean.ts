@@ -28,6 +28,20 @@ export const ACCENT_PULL_FRACTION = 0.5;
 export const ACCENT_SAT_LIFT = 15;
 
 /**
+ * Warm-band saturation cap (Checkpoint B tuning, Crawford 2026-10-02 — spec §1.1 amendment).
+ * Warm seeds came out "like candy": six of the 18 accents sit in the red→orange band, a warm
+ * primary's nearest neighbour is warm too, and the 24-building Monolith row already carries a
+ * +40..60 variant saturation range — so lift + variant made a wall of hot red. Cool seeds read
+ * right, so the lift is tempered for warm hues only: when the POST-pull body hue lands inside
+ * [ACCENT_WARM_BAND_START, ACCENT_WARM_BAND_END] (wrapping through 0), the saturation delta is
+ * min(lift, cap − body.s) — it can go negative to pull an already-hot Monolith down to the cap.
+ * Tune by eye; never store.
+ */
+export const ACCENT_WARM_BAND_START = 330;
+export const ACCENT_WARM_BAND_END = 45;
+export const ACCENT_WARM_SAT_CAP = 45;
+
+/**
  * The 18 accent hues (degrees), in ROBOT_IDENTITY_COLOR_NAMES order so an index here is the same
  * index spawnSystem.ts's seeded robot-color draw uses. Computed once at import via the app's one
  * hex→HSL conversion. Raw, unrounded.
@@ -72,12 +86,19 @@ export function secondaryFor(primaryIndex: number): number {
  * always was, in shiftHSL at render, so this composes additively like the AS shift does.
  */
 export function computeAccentLeanWith(body: HSL, targetHue: number, fraction: number, lift: number): ColorShift {
-  return {
-    // `+ 0` folds the -0 a negative arc × 0 produces into +0, so a zero lean is Object.is-equal
-    // to a literal 0 in every stored-shift parity test.
-    hueShift: hueArc(body.h, targetHue) * fraction + 0,
-    satShift: lift,
-  };
+  // `+ 0` folds the -0 a negative arc × 0 produces into +0, so a zero lean is Object.is-equal
+  // to a literal 0 in every stored-shift parity test.
+  const hueShift = hueArc(body.h, targetHue) * fraction + 0;
+  const landedHue = (((body.h + hueShift) % 360) + 360) % 360;
+  const satShift = isWarmHue(landedHue) ? Math.min(lift, ACCENT_WARM_SAT_CAP - body.s) : lift;
+  return { hueShift, satShift };
+}
+
+/** True when `hue` (degrees, any real) falls inside the warm red→orange band, inclusive at both
+ *  ends, wrapping through 0 (330 → 360 → 45). */
+export function isWarmHue(hue: number): boolean {
+  const h = ((hue % 360) + 360) % 360;
+  return h >= ACCENT_WARM_BAND_START || h <= ACCENT_WARM_BAND_END;
 }
 
 /** computeAccentLeanWith bound to the module constants — the one the placement system calls. */

@@ -9,6 +9,10 @@ import {
   secondaryFor,
   computeAccentLean,
   computeAccentLeanWith,
+  isWarmHue,
+  ACCENT_WARM_BAND_START,
+  ACCENT_WARM_BAND_END,
+  ACCENT_WARM_SAT_CAP,
 } from './accentLean';
 import { hexToHsl, type HSL } from './colorUtils';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
@@ -152,6 +156,59 @@ describe('accentLean', () => {
 
     it('does not clamp saturation itself — composes additively like the AS shift (shiftHSL clamps at render)', () => {
       expect(computeAccentLeanWith({ h: 200, s: 95, l: 19 }, 180, 0.5, 15).satShift).toBe(15);
+    });
+  });
+
+  // Checkpoint B tuning (Crawford, 2026-10-02): warm seeds came out "like candy" — six of the 18
+  // accents sit in the red→orange band and the 24-building Monolith row already carries +40..60
+  // saturation, so a warm primary plus the lift made a wall of hot red. Cool seeds looked right,
+  // so the lift is tempered for warm hues only. Spec §1.1 amendment.
+  describe('warm-band saturation cap', () => {
+    it('isWarmHue covers the red→orange band inclusively and wraps across 0', () => {
+      expect(isWarmHue(ACCENT_WARM_BAND_START)).toBe(true);
+      expect(isWarmHue(ACCENT_WARM_BAND_END)).toBe(true);
+      expect(isWarmHue(0)).toBe(true);
+      expect(isWarmHue(359.9)).toBe(true);
+      expect(isWarmHue(ACCENT_WARM_BAND_START - 0.1)).toBe(false);
+      expect(isWarmHue(ACCENT_WARM_BAND_END + 0.1)).toBe(false);
+      expect(isWarmHue(172)).toBe(false); // teal
+      expect(isWarmHue(200)).toBe(false); // the graphite base
+    });
+
+    it('caps a hot warm body: the saturation delta brings it DOWN to the cap, not up by the lift', () => {
+      const hotRed: HSL = { h: 4, s: 70, l: 19 }; // a red Monolith after its own +50 variant shift
+      const lean = computeAccentLeanWith(hotRed, 4, 0.5, 15);
+      expect(lean.satShift).toBe(ACCENT_WARM_SAT_CAP - 70); // negative
+      expect(lean.satShift).toBeLessThan(0);
+    });
+
+    it('a warm body already under the cap gets the smaller of the full lift and the headroom to the cap', () => {
+      const underCap: HSL = { h: 20, s: ACCENT_WARM_SAT_CAP - 5, l: 19 };
+      expect(computeAccentLeanWith(underCap, 20, 0.5, 15).satShift).toBe(5);
+      const wellUnder: HSL = { h: 20, s: 10, l: 19 };
+      expect(computeAccentLeanWith(wellUnder, 20, 0.5, 15).satShift).toBe(15);
+    });
+
+    it('a cool body gets the full lift regardless of saturation — the cap is warm-only', () => {
+      expect(computeAccentLeanWith({ h: 172, s: 95, l: 19 }, 172, 0.5, 15).satShift).toBe(15);
+      expect(computeAccentLeanWith({ h: 200, s: 70, l: 19 }, 200, 0.5, 15).satShift).toBe(15);
+    });
+
+    it('judges warmth by the POST-pull hue, not the body or the target alone', () => {
+      // Graphite body at 200° pulled halfway toward red (4°) lands near 282° — cool — so no cap.
+      const half = computeAccentLeanWith({ h: 200, s: 70, l: 19 }, 4, 0.5, 15);
+      expect(isWarmHue(200 + half.hueShift)).toBe(false);
+      expect(half.satShift).toBe(15);
+      // The same body snapped all the way (fraction 1) lands ON red — warm — so the cap applies.
+      const snap = computeAccentLeanWith({ h: 200, s: 70, l: 19 }, 4, 1, 15);
+      expect(isWarmHue(((200 + snap.hueShift) % 360 + 360) % 360)).toBe(true);
+      expect(snap.satShift).toBe(ACCENT_WARM_SAT_CAP - 70);
+    });
+
+    it('ships with the tuned cap value', () => {
+      expect(ACCENT_WARM_SAT_CAP).toBe(45);
+      expect(ACCENT_WARM_BAND_START).toBe(330);
+      expect(ACCENT_WARM_BAND_END).toBe(45);
     });
   });
 

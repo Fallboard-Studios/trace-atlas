@@ -501,9 +501,12 @@ describe('FactoryPlacementSystem', () => {
       const lean = computeAccentLean(body, target);
 
       expect(actor.config?.hueShift).toBe(combined.hueShift + lean.hueShift);
-      expect(actor.config?.satShift).toBe(combined.satShift + ACCENT_SAT_LIFT);
+      // lean.satShift, not ACCENT_SAT_LIFT: the warm-band cap (accentLean.ts) can make the
+      // saturation delta smaller than the lift, or negative. The oracle is computeAccentLean.
+      expect(actor.config?.satShift).toBe(combined.satShift + lean.satShift);
       // And the lean really is non-trivial for this fixture — otherwise the equality proves nothing.
       expect(lean.hueShift).not.toBe(0);
+      expect(lean.satShift).toBe(ACCENT_SAT_LIFT); // teal target → cool → full lift, so this fixture also pins the uncapped path
     });
 
     it('moves the body hue strictly closer to the target without overshooting, for targets on both sides and across the 0/360 seam', () => {
@@ -598,14 +601,18 @@ describe('FactoryPlacementSystem', () => {
       let leanedToSecondary = 0;
       actors1.forEach((actor, index) => {
         const { combined, body } = preLean(actor, index, asMap);
-        const viaPrimary = combined.hueShift + computeAccentLean(body, pair.primary).hueShift;
-        const viaSecondary = combined.hueShift + computeAccentLean(body, pair.secondary).hueShift;
+        const leanPrimary = computeAccentLean(body, pair.primary);
+        const leanSecondary = computeAccentLean(body, pair.secondary);
+        const viaPrimary = combined.hueShift + leanPrimary.hueShift;
+        const viaSecondary = combined.hueShift + leanSecondary.hueShift;
         const stored = actor.config!.hueShift!;
         const matchesPrimary = Math.abs(stored - viaPrimary) < 1e-9;
         const matchesSecondary = Math.abs(stored - viaSecondary) < 1e-9;
         expect(matchesPrimary || matchesSecondary, `factory ${index}: stored ${stored}, primary ${viaPrimary}, secondary ${viaSecondary}`).toBe(true);
         if (matchesPrimary) leanedToPrimary++; else leanedToSecondary++;
-        expect(actor.config!.satShift!).toBeCloseTo(combined.satShift + ACCENT_SAT_LIFT, 9);
+        // The saturation delta follows the SAME target's lean (warm-band cap included) — not a flat lift.
+        const matchedLean = matchesPrimary ? leanPrimary : leanSecondary;
+        expect(actor.config!.satShift!).toBeCloseTo(combined.satShift + matchedLean.satShift, 9);
       });
       // The seeded coin is a real split, not a constant — both targets are used somewhere in
       // a ~60-factory skyline.
@@ -768,9 +775,11 @@ describe('FactoryPlacementSystem', () => {
         after.forEach((actor, index) => {
           const { combined, body } = preLean(actor, index, mapB);
           const stored = actor.config!.hueShift!;
-          const viaB = [pairB.primary, pairB.secondary].map((p) => combined.hueShift + computeAccentLean(body, p).hueShift);
-          expect(viaB.some((v) => Math.abs(stored - v) < 1e-9), `factory ${index} not on pair B`).toBe(true);
-          expect(actor.config!.satShift!).toBeCloseTo(combined.satShift + ACCENT_SAT_LIFT, 9);
+          const leansB = [pairB.primary, pairB.secondary].map((p) => computeAccentLean(body, p));
+          const matchedB = leansB.find((l) => Math.abs(stored - (combined.hueShift + l.hueShift)) < 1e-9);
+          expect(matchedB, `factory ${index} not on pair B`).toBeDefined();
+          // Saturation follows the matched target's own lean (warm-band cap included), not a flat lift.
+          expect(actor.config!.satShift!).toBeCloseTo(combined.satShift + matchedB!.satShift, 9);
           const viaA = [pairA.primary, pairA.secondary].map((p) => combined.hueShift + computeAccentLean(body, p).hueShift);
           if (!viaA.some((v) => Math.abs(stored - v) < 1e-9)) offOldPair++;
         });
