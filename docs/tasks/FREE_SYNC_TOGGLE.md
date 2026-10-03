@@ -100,11 +100,11 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   **Verification:** `npx vitest run src/utils/bpmSeed.test.ts src/stores/audioStore.test.ts src/systems/worldTransition.test.ts src/utils/sessionDiff.test.ts` (RED first for each behaviour change); `npm run build:types`, `npm run lint`; `npm run dev` boots, Tempo slider shows a seeded value.
   **Dependencies:** None in code; lands after 1–3 so Checkpoint A reviews it with the foundations. **Files:** `src/utils/bpmSeed.ts` + test (new), `localeBpmSeed.ts` + test (deleted), `src/stores/audioStore.ts` + test, `src/systems/worldTransition.ts` + test, `src/utils/sessionDiff.test.ts`, two comment-only files. **Scope:** M (wide but mechanical; the logic is one moved call).
 
-### Checkpoint A: Foundations + BPM
-- [ ] `npm test`, `npm run lint`, `npm run build:types` clean.
-- [ ] `noteValues`/`tempoSync` still have no importers outside their own tests.
-- [ ] Manual (Crawford): an Attenuation Style switch changes the tempo; a coordinates move keeps it, including a hand-dragged one; a saved session loads at its own tempo.
-- [ ] Review with Crawford before proceeding.
+### Checkpoint A: Foundations + BPM — PASSED (Crawford, 2026-10-03)
+- [x] `npm test`, `npm run lint`, `npm run build:types` clean.
+- [x] `noteValues`/`tempoSync` still have no importers outside their own tests (true as of Task 4; Tasks 5+ are their first importers by design).
+- [x] Manual (Crawford): an Attenuation Style switch changes the tempo; a coordinates move keeps it, including a hand-dragged one; a saved session loads at its own tempo.
+- [x] Review with Crawford before proceeding (signed off after the fact, together with D and E, once every task and the code-review pass had landed).
 
 ---
 
@@ -277,10 +277,10 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   **Verification:** `npx vitest run src/utils/sessionShareUtils.test.ts src/utils/sessionDiff.test.ts` (RED first). **Mutation check:** remove the delay sanitiser and watch the invalid-delay case go red.
   **Dependencies:** 2, 5. **Files:** `sessionShareUtils.ts`, `sessionDiff.ts` + tests. **Scope:** S.
 
-### Checkpoint D: Seeded worlds carry Sync, and it persists
-- [ ] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
-- [ ] Manual: a few fresh Attenuation Styles show the expected mix (slow lanes mostly Anchored, fast mostly Float, Delay mostly Anchored); save + reload and a share link both restore every toggle and note.
-- [ ] Review with Crawford before proceeding.
+### Checkpoint D: Seeded worlds carry Sync, and it persists — PASSED (Crawford, 2026-10-03)
+- [x] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
+- [x] Manual: a few fresh Attenuation Styles show the expected mix (slow lanes mostly Anchored, fast mostly Float, Delay mostly Anchored); save + reload and a share link both restore every toggle and note.
+- [x] Review with Crawford before proceeding.
 
 ---
 
@@ -296,11 +296,11 @@ Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
   **Verification:** `npm test` (content guard), `npm run lint`; read-through by Crawford.
   **Dependencies:** all. **Files:** the docs listed. **Scope:** M (docs only).
 
-### Checkpoint E: Complete
-- [ ] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
-- [ ] `grep -rn "\.rate\b\|\.delayTime\b" src --include=*.ts --include=*.tsx | grep -v "\.test\."` — every hit is a resolver, the Free-mode slider wiring, a seeder, a serialiser, or the engine's own Hz copy. Anything else is a miss.
-- [ ] Spec §5 manual list on the final build, including the Pixel listen at Light.
-- [ ] Crawford's final review.
+### Checkpoint E: Complete — PASSED (Crawford, 2026-10-03), Pixel listen deferred
+- [x] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean (re-verified independently in the code-review pass on e254f7a4; the one full-suite failure seen was the unmocked-RNG factory recolor flake, green alone).
+- [x] `grep -rn "\.rate\b\|\.delayTime\b" src --include=*.ts --include=*.tsx | grep -v "\.test\."` — every hit is a resolver, the Free-mode slider wiring, a seeder, a serialiser, or the engine's own Hz copy. Anything else is a miss. (Run twice: Task 15 and again in the code-review pass. No misses.)
+- [x] Spec §5 manual list on the final build — **except the Pixel listen at Light, which Crawford will do once the build is live** (desktop checks passed).
+- [x] Crawford's final review, plus a `code-review-and-quality` pass over the whole branch (verdict Approve; its five follow-up commits f3537bbf…e254f7a4 are on the branch: spec corrected to the as-built, shared `roundToDecimals`, undefined-valued keys stripped from the two merge setters, frozen empty list, Free | Sync store tests split into `audioStore.tempoSync.test.ts`).
 
 ## Risks and Mitigations
 
