@@ -47,6 +47,8 @@ const COMPRESSOR_KNEE_DECAY_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig
  *  mobile/tablet (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3). Delay Amount keeps its own
  *  full-width row. Reverses AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.7's "every slider own row" for Delay. */
 const DELAY_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.delay.topRow', type: 'directionalPanel', orientation: 'responsive' };
+/** Reverb Length beside Pre-Delay, the same way; Reverb Amount keeps its own row (§1.3). */
+const REVERB_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.reverb.topRow', type: 'directionalPanel', orientation: 'responsive' };
 
 /** Stable (and frozen) empty list for every non-Delay panel's `allowed` — see AudioRigEffectPanel's Delay selectors. */
 const NO_NOTE_VALUES: readonly NoteValue[] = Object.freeze([]);
@@ -98,10 +100,10 @@ function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, on
   );
 }
 
-/** Looks up one param by its field name — used by AudioRigEffectPanel's hand-composed delay/reverb
- *  layouts below to pull a specific control out of block.params by name, rather than mapping the
- *  array in bulk. Non-null assertion is safe: both call sites name fields that AUDIO_RIG_CONFIG's
- *  own delay/reverb blocks are guaranteed to carry (audioRigConfig.test.ts guards the field list). */
+/** Looks up one param by its field name — used by AudioRigEffectPanel's hand-composed compressor,
+ *  delay and reverb layouts below to pull a specific control out of block.params by name, rather
+ *  than mapping the array in bulk. Non-null assertion is safe: every call site names fields that
+ *  AUDIO_RIG_CONFIG's own blocks are guaranteed to carry (audioRigConfig.test.ts guards the field list). */
 function findParam(params: AudioRigParamSchema[], field: string): AudioRigParamSchema {
   return params.find((p) => p.field === field)!;
 }
@@ -322,6 +324,16 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
                 />
               </div>
               {paramRow(findParam(block.params, 'feedback'), effect, fieldOnChange.feedback, effectKey)}
+            </DirectionalPanel>
+            {paramRow(findParam(block.params, 'wet'), effect, fieldOnChange.wet, effectKey)}
+          </>
+        ) : block.key === 'reverb' ? (
+          // Reverb Length beside Pre-Delay on a responsive top row; Reverb Amount its own full-width row
+          // (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3).
+          <>
+            <DirectionalPanel schema={REVERB_TOP_ROW_SCHEMA}>
+              {paramRow(findParam(block.params, 'decay'), effect, fieldOnChange.decay, effectKey)}
+              {paramRow(findParam(block.params, 'preDelay'), effect, fieldOnChange.preDelay, effectKey)}
             </DirectionalPanel>
             {paramRow(findParam(block.params, 'wet'), effect, fieldOnChange.wet, effectKey)}
           </>

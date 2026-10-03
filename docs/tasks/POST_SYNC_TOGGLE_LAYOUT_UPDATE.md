@@ -93,14 +93,16 @@ Parallelisable: 1 ‖ 3 ‖ 4 ‖ 5 ‖ 7 ‖ 9 ‖ 10; 2 and 8 wait on 1. Phase
   **Verification:** `npx vitest run src/components/panels/screen/console/AudioRigEffectPanel.test.tsx` (RED first); `npm run lint`, `npm run build:types`. **Mutation check:** set the schema to `'row'` and watch the tablet `column` case go red.
   **Dependencies:** None. **Files:** `AudioRigDrawer.tsx`, `AudioRigEffectPanel.test.tsx`. **Scope:** S.
 
-- [ ] **Task 4: Reverb — Length beside Pre-Delay, Amount alone**
+- [x] **Task 4: Reverb — Length beside Pre-Delay, Amount alone**
 
   **Description:** Spec §1.3. Module-scope `REVERB_TOP_ROW_SCHEMA` (`audioRig.reverb.topRow`, `'responsive'`) and a new `block.key === 'reverb'` branch beside `delay`'s: `paramRow(decay)` + `paramRow(preDelay)` inside the panel, `paramRow(wet)` after it. Update `findParam`'s doc comment (it already names reverb as a caller).
 
   **Acceptance criteria:**
-  - [ ] Reverb's block content is one nested panel (Reverb Length then Pre-Delay) followed by one direct param-row (Reverb Amount); `row` on desktop, `column` on tablet.
-  - [ ] Reverb Length is still the `SliderLog` and Pre-Delay / Amount the `SliderLinear`s with their existing names and ranges (the arrow-key increment regression test stays green).
-  - [ ] The archived "Reverb renders 3 direct param-rows" test is replaced, not kept.
+  - [x] Reverb's block content is one nested panel (Reverb Length then Pre-Delay) followed by one direct param-row (Reverb Amount); `row` on desktop, `column` on tablet.
+  - [x] Reverb Length is still the `SliderLog` and Pre-Delay / Amount the `SliderLinear`s with their existing names and ranges (the arrow-key increment regression test stays green).
+  - [x] The archived "Reverb renders 3 direct param-rows" test is replaced, not kept.
+
+  **As built:** RED first (4 structural cases), then GREEN with one schema constant and a `reverb` branch beside `delay`'s; `findParam`'s doc comment now names all three hand-composed blocks. Two pins passed on first run as regression guards: each slider still bound to its own field (an arrow step on Pre-Delay moves only `preDelay`) and exactly one facade in the block. **Mutation check run:** forcing the schema to `'row'` turned the tablet/mobile `column` case red. 100/100; lint and types clean.
 
   **Verification:** as Task 3.
   **Dependencies:** None. **Files:** `AudioRigDrawer.tsx`, `AudioRigEffectPanel.test.tsx`. **Scope:** S.

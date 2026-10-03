@@ -181,14 +181,73 @@ describe('AudioRigEffectPanel', () => {
     });
   });
 
-  describe('Reverb param rows (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.7 — every slider own row, at every breakpoint, no paired topRow)', () => {
-    it('Reverb renders Decay, Pre-Delay, and Mix as 3 direct param-rows inside its own block panel — no nested row wrapper', () => {
+  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3 — Reverb mirrors Delay: Reverb Length and Pre-Delay
+  // share a 'responsive' top row; Reverb Amount keeps its own full-width row.
+  describe('Reverb rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3)', () => {
+    function reverbContent() {
+      return screen.getByText('Reverb').closest('.sc-directional-panel')!.querySelector(':scope > .sc-directional-panel__content')!;
+    }
+
+    it('is one nested top-row panel followed by one direct param-row (Reverb Amount), nothing else', () => {
       render(<AudioRigEffectPanel effectKey="reverb" />);
-      const reverbBlockContent = screen.getByText('Reverb').closest('.sc-directional-panel')!
-        .querySelector(':scope > .sc-directional-panel__content')!;
-      const directRows = reverbBlockContent.querySelectorAll(':scope > .audio-rig-drawer__param-row');
-      expect(directRows).toHaveLength(3);
-      expect(reverbBlockContent.querySelector(':scope > .sc-directional-panel')).toBeNull();
+      const children = [...reverbContent().children];
+      expect(children).toHaveLength(2);
+      expect(children[0].matches('.sc-directional-panel')).toBe(true);
+      expect(children[1].matches('.audio-rig-drawer__param-row')).toBe(true);
+      expect(within(children[1] as HTMLElement).getByRole('slider', { name: 'Reverb Amount' })).toBeTruthy();
+      expect(children[0].contains(screen.getByRole('slider', { name: 'Reverb Amount' }))).toBe(false);
+    });
+
+    it('the top row holds Reverb Length then Pre-Delay, each in its own param-row, and keeps Length a log slider', () => {
+      render(<AudioRigEffectPanel effectKey="reverb" />);
+      const topRow = reverbContent().querySelector(':scope > .sc-directional-panel')!;
+      expect(topRow.getAttribute('data-panel-id')).toBe('audioRig.reverb.topRow');
+      const rows = [...topRow.querySelectorAll(':scope > .sc-directional-panel__content > .audio-rig-drawer__param-row')];
+      expect(rows).toHaveLength(2);
+      const length = within(rows[0] as HTMLElement).getByRole('slider', { name: 'Reverb Length' });
+      expect(length.closest('.sc-slider-log')).not.toBeNull();
+      expect(within(rows[1] as HTMLElement).getByRole('slider', { name: 'Pre-Delay' })).toBeTruthy();
+      expect(topRow.querySelector('.sc-tempo-sync')).toBeNull();
+      expect(topRow.querySelector('.sc-lfo-link')).toBeNull();
+    });
+
+    it('the top row is side by side (row) on desktop', () => {
+      stubMatchMedia({ mobile: false, tablet: false });
+      render(<AudioRigEffectPanel effectKey="reverb" />);
+      const topRow = reverbContent().querySelector(':scope > .sc-directional-panel')!;
+      expect(topRow.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
+    });
+
+    it('the top row stacks (column) on tablet and on mobile, while the block itself stays a column', () => {
+      for (const tier of [{ mobile: false, tablet: true }, { mobile: true, tablet: true }]) {
+        stubMatchMedia(tier);
+        const { unmount } = render(<AudioRigEffectPanel effectKey="reverb" />);
+        const content = reverbContent();
+        expect(content.getAttribute('data-orientation'), JSON.stringify(tier)).toBe('column');
+        const topRow = content.querySelector(':scope > .sc-directional-panel')!;
+        expect(topRow.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation'), JSON.stringify(tier)).toBe('column');
+        unmount();
+      }
+    });
+
+    it('every Reverb slider is still bound to its own live value and edits its own field', () => {
+      useAudioStore.setState((s) => ({
+        globalAudio: { ...s.globalAudio, reverb: { ...s.globalAudio.reverb, decay: 2.5, preDelay: 0.25, wet: 0.4 } },
+      }));
+      render(<AudioRigEffectPanel effectKey="reverb" />);
+      expect(screen.getByRole('slider', { name: 'Pre-Delay' }).getAttribute('aria-valuenow')).toBe('0.25');
+      expect(screen.getByRole('slider', { name: 'Reverb Amount' }).getAttribute('aria-valuenow')).toBe('0.4');
+      const preDelay = screen.getByRole('slider', { name: 'Pre-Delay' });
+      preDelay.focus();
+      fireEvent.keyDown(preDelay, { key: 'ArrowRight' });
+      expect(useAudioStore.getState().globalAudio.reverb.preDelay).toBeCloseTo(0.26, 10);
+      expect(useAudioStore.getState().globalAudio.reverb.decay).toBe(2.5);
+      expect(useAudioStore.getState().globalAudio.reverb.wet).toBe(0.4);
+    });
+
+    it('the nested top row renders unframed — no second Cabinetry facade inside the Reverb block', () => {
+      const { container } = render(<AudioRigEffectPanel effectKey="reverb" />);
+      expect(container.querySelectorAll('.sc-directional-panel-facade')).toHaveLength(1);
     });
   });
 
