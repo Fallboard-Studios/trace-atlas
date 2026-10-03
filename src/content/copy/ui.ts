@@ -45,4 +45,23 @@ export const ui = {
       d: { human: 'Overtone LFO', lore: 'Canopy Signature' },
     },
   },
+  /** The Free | Sync toggle on a lane's Rate and on Delay Time (docs/specs/FREE_SYNC_TOGGLE.md §1.9),
+   *  read by TempoSyncToggle. Wording confirmed 2026-10-02. TWO label pairs, which are different things:
+   *  the entry's own { human: 'Tempo Sync', lore: 'Anchoring' } is the toggle's LABEL (what the control
+   *  is, shown beside the box; its human word is the switch's stable accessible name), and `options` is
+   *  the box's CONTENT, the current mode's pair: { 'Free', 'Float' } when Free, { 'Sync', 'Anchored' }
+   *  when synced. */
+  'ui.tempoSync': {
+    human: 'Tempo Sync',
+    lore: 'Anchoring',
+    options: { free: { human: 'Free', lore: 'Float' }, sync: { human: 'Sync', lore: 'Anchored' } },
+  },
+  /** A tempo-synced note's readout (docs/specs/FREE_SYNC_TOGGLE.md §1.9), assembled by
+   *  utils/formatNoteValue.ts: `1/8`, `1 bar`, `2 bars`, and `{note} {modifier}` for dotted/triplet.
+   *  Straight takes no suffix by rule, so it has no modifier option. The digits and slash are data. */
+  'ui.noteValue.fraction': { human: 'Fraction', template: '1/{n}' },
+  'ui.noteValue.bar': { human: '1 bar' },
+  'ui.noteValue.bars': { human: 'Bars', template: '{n} bars' },
+  'ui.noteValue.modifier': { human: 'Modifier', options: { dotted: { human: 'dotted' }, triplet: { human: 'triplet' } } },
+  'ui.noteValue.modified': { human: 'Modified note', template: '{note} {modifier}' },
 } as const satisfies Record<string, ContentEntry>;

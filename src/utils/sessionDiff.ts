@@ -16,12 +16,14 @@ import {
   type LfoLink,
   type BankLfoSettings,
 } from '../types/lfo';
+import type { DelaySettings } from '../types/globalAudio';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
+import { isNoteValue } from '../data/noteValues';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
 import { getLocaleNoiseMap } from './noiseMaps';
-import { quantizeToStep } from './math';
+import { quantizeToStep, roundToDecimals } from './math';
 import { GLOBAL_AUDIO_SEED_RANGES } from '../data/globalAudioSeedRanges';
 import { retransmitWorld } from '../systems/worldTransition';
 import { regenerateMelody } from '../engine/regenerateMelody';
@@ -64,6 +66,25 @@ function backfillLfoBank(bank: SessionPayload['lfoBank']): Record<LfoLaneId, Ban
   >;
 }
 
+/** Drops a lane's `sync` unless it is a real note value (docs/specs/FREE_SYNC_TOGGLE.md §1.8). A
+ *  payload is untrusted at this boundary -- a hand-edited localStorage save, a corrupt share link, a
+ *  future format. The resolvers already treat a bogus `sync` as Free for audio, but left in state the
+ *  toggle would read it, the next save would re-persist it, and a Free <-> Sync switch would act on a
+ *  state the audio isn't in. A Free result carries no `sync` key at all (never `sync: undefined`),
+ *  and a lane with nothing to drop is returned as-is -- the payload is never mutated. */
+function sanitizeLaneSync(lane: BankLfoSettings): BankLfoSettings {
+  if (!('sync' in lane) || isNoteValue(lane.sync)) return lane;
+  const { sync: _sync, ...free } = lane;
+  return free;
+}
+
+/** sanitizeLaneSync for the Delay -- same rule, same shape. */
+function sanitizeDelaySync(delay: DelaySettings): DelaySettings {
+  if (!('sync' in delay) || isNoteValue(delay.sync)) return delay;
+  const { sync: _sync, ...free } = delay;
+  return free;
+}
+
 /** Same backfill, for globalLfoLinks -- see backfillLfoBank above. */
 function backfillGlobalLfoLinks(
   links: SessionPayload['globalLfoLinks'],
@@ -100,14 +121,6 @@ function extractGlobalSwellBaseValueIfActive(target: string): number | undefined
     }
   }
   return undefined;
-}
-
-/** Clean up floating-point representation errors by rounding to the appropriate number
- *  of decimal places. E.g., -0.42000000000000004 → -0.42. For 2 decimal places: round to
- *  nearest 0.01 by shifting, rounding, and shifting back. */
-function cleanupFloatingPoint(value: number, decimalPlaces: number): number {
-  const factor = Math.pow(10, decimalPlaces);
-  return Math.round(value * factor) / factor;
 }
 
 /** Apply swell base values to globalAudio fields if swells are active, so persisted
@@ -164,41 +177,41 @@ function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioSto
 
   // Quantize all fields to eliminate floating-point rounding errors and clean up representation artifacts
   toCapture.compressor = {
-    threshold: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.threshold, GLOBAL_AUDIO_SEED_RANGES['compressor.threshold'].min, 1), 0),
-    ratio: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.ratio, GLOBAL_AUDIO_SEED_RANGES['compressor.ratio'].min, 1), 0),
-    attack: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.attack, GLOBAL_AUDIO_SEED_RANGES['compressor.attack'].min, 0.001), 3),
-    release: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.release, GLOBAL_AUDIO_SEED_RANGES['compressor.release'].min, 0.001), 3),
-    knee: cleanupFloatingPoint(quantizeToStep(toCapture.compressor.knee, GLOBAL_AUDIO_SEED_RANGES['compressor.knee'].min, 1), 0),
+    threshold: roundToDecimals(quantizeToStep(toCapture.compressor.threshold, GLOBAL_AUDIO_SEED_RANGES['compressor.threshold'].min, 1), 0),
+    ratio: roundToDecimals(quantizeToStep(toCapture.compressor.ratio, GLOBAL_AUDIO_SEED_RANGES['compressor.ratio'].min, 1), 0),
+    attack: roundToDecimals(quantizeToStep(toCapture.compressor.attack, GLOBAL_AUDIO_SEED_RANGES['compressor.attack'].min, 0.001), 3),
+    release: roundToDecimals(quantizeToStep(toCapture.compressor.release, GLOBAL_AUDIO_SEED_RANGES['compressor.release'].min, 0.001), 3),
+    knee: roundToDecimals(quantizeToStep(toCapture.compressor.knee, GLOBAL_AUDIO_SEED_RANGES['compressor.knee'].min, 1), 0),
   };
   toCapture.eq3 = {
-    low: cleanupFloatingPoint(quantizeToStep(toCapture.eq3.low, GLOBAL_AUDIO_SEED_RANGES['eq3.low'].min, 0.5), 1),
-    mid: cleanupFloatingPoint(quantizeToStep(toCapture.eq3.mid, GLOBAL_AUDIO_SEED_RANGES['eq3.mid'].min, 0.5), 1),
-    high: cleanupFloatingPoint(quantizeToStep(toCapture.eq3.high, GLOBAL_AUDIO_SEED_RANGES['eq3.high'].min, 0.5), 1),
+    low: roundToDecimals(quantizeToStep(toCapture.eq3.low, GLOBAL_AUDIO_SEED_RANGES['eq3.low'].min, 0.5), 1),
+    mid: roundToDecimals(quantizeToStep(toCapture.eq3.mid, GLOBAL_AUDIO_SEED_RANGES['eq3.mid'].min, 0.5), 1),
+    high: roundToDecimals(quantizeToStep(toCapture.eq3.high, GLOBAL_AUDIO_SEED_RANGES['eq3.high'].min, 0.5), 1),
   };
   toCapture.filterLPF = {
     ...toCapture.filterLPF,
-    frequency: cleanupFloatingPoint(quantizeToStep(toCapture.filterLPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterLPF.frequency'].min, 1), 0),
-    Q: cleanupFloatingPoint(quantizeToStep(toCapture.filterLPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterLPF.Q'].min, 0.01), 2),
+    frequency: roundToDecimals(quantizeToStep(toCapture.filterLPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterLPF.frequency'].min, 1), 0),
+    Q: roundToDecimals(quantizeToStep(toCapture.filterLPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterLPF.Q'].min, 0.01), 2),
   };
   toCapture.filterHPF = {
     ...toCapture.filterHPF,
-    frequency: cleanupFloatingPoint(quantizeToStep(toCapture.filterHPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterHPF.frequency'].min, 1), 0),
-    Q: cleanupFloatingPoint(quantizeToStep(toCapture.filterHPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterHPF.Q'].min, 0.01), 2),
+    frequency: roundToDecimals(quantizeToStep(toCapture.filterHPF.frequency, GLOBAL_AUDIO_SEED_RANGES['filterHPF.frequency'].min, 1), 0),
+    Q: roundToDecimals(quantizeToStep(toCapture.filterHPF.Q, GLOBAL_AUDIO_SEED_RANGES['filterHPF.Q'].min, 0.01), 2),
   };
   toCapture.delay = {
     ...toCapture.delay,
-    delayTime: cleanupFloatingPoint(quantizeToStep(toCapture.delay.delayTime, GLOBAL_AUDIO_SEED_RANGES['delay.delayTime'].min, 0.001), 3),
-    feedback: cleanupFloatingPoint(quantizeToStep(toCapture.delay.feedback, GLOBAL_AUDIO_SEED_RANGES['delay.feedback'].min, 0.01), 2),
-    wet: cleanupFloatingPoint(quantizeToStep(toCapture.delay.wet, GLOBAL_AUDIO_SEED_RANGES['delay.wet'].min, 0.01), 2),
+    delayTime: roundToDecimals(quantizeToStep(toCapture.delay.delayTime, GLOBAL_AUDIO_SEED_RANGES['delay.delayTime'].min, 0.001), 3),
+    feedback: roundToDecimals(quantizeToStep(toCapture.delay.feedback, GLOBAL_AUDIO_SEED_RANGES['delay.feedback'].min, 0.01), 2),
+    wet: roundToDecimals(quantizeToStep(toCapture.delay.wet, GLOBAL_AUDIO_SEED_RANGES['delay.wet'].min, 0.01), 2),
   };
   toCapture.reverb = {
     ...toCapture.reverb,
-    decay: cleanupFloatingPoint(quantizeToStep(toCapture.reverb.decay, GLOBAL_AUDIO_SEED_RANGES['reverb.decay'].min, 0.01), 2),
-    preDelay: cleanupFloatingPoint(quantizeToStep(toCapture.reverb.preDelay, GLOBAL_AUDIO_SEED_RANGES['reverb.preDelay'].min, 0.01), 2),
-    wet: cleanupFloatingPoint(quantizeToStep(toCapture.reverb.wet, GLOBAL_AUDIO_SEED_RANGES['reverb.wet'].min, 0.01), 2),
+    decay: roundToDecimals(quantizeToStep(toCapture.reverb.decay, GLOBAL_AUDIO_SEED_RANGES['reverb.decay'].min, 0.01), 2),
+    preDelay: roundToDecimals(quantizeToStep(toCapture.reverb.preDelay, GLOBAL_AUDIO_SEED_RANGES['reverb.preDelay'].min, 0.01), 2),
+    wet: roundToDecimals(quantizeToStep(toCapture.reverb.wet, GLOBAL_AUDIO_SEED_RANGES['reverb.wet'].min, 0.01), 2),
   };
   toCapture.limiter = {
-    threshold: cleanupFloatingPoint(quantizeToStep(toCapture.limiter.threshold, GLOBAL_AUDIO_SEED_RANGES['limiter.threshold'].min, 1), 0),
+    threshold: roundToDecimals(quantizeToStep(toCapture.limiter.threshold, GLOBAL_AUDIO_SEED_RANGES['limiter.threshold'].min, 1), 0),
   };
 
   return toCapture;
@@ -229,14 +242,14 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
   // Normalize baseline layers the same way for fair comparison.
   const baselineLayersNormalized = baseline.audioAttributes.layers?.map((layer) => ({
     type: layer.type,
-    gain: cleanupFloatingPoint(layer.gain, 2),
+    gain: roundToDecimals(layer.gain, 2),
     detune: layer.detune,
     phase: layer.phase,
     pulseWidth: layer.pulseWidth,
   }));
   const layersToCapture = live.audioAttributes.layers?.map((layer, layerIndex) => ({
     type: layer.type,
-    gain: cleanupFloatingPoint(extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.gain` as SwellRobotAttributeId) ?? layer.gain, 2),
+    gain: roundToDecimals(extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.gain` as SwellRobotAttributeId) ?? layer.gain, 2),
     detune: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.detune` as SwellRobotAttributeId) ?? layer.detune,
     phase: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.phase` as SwellRobotAttributeId) ?? layer.phase,
     pulseWidth: extractSwellBaseValueIfActive(live.id, `layer${layerIndex}.pulseWidth` as SwellRobotAttributeId) ?? layer.pulseWidth,
@@ -325,8 +338,8 @@ export function buildSessionPayload(): SessionPayload {
       const settings = audioState.lfoBank[lane];
       return [lane, {
         ...settings,
-        rateDrift: cleanupFloatingPoint(settings.rateDrift, 2),
-        depthDrift: cleanupFloatingPoint(settings.depthDrift, 2),
+        rateDrift: roundToDecimals(settings.rateDrift, 2),
+        depthDrift: roundToDecimals(settings.depthDrift, 2),
       }];
     }),
   ) as SessionPayload['lfoBank'];
@@ -457,12 +470,14 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
     );
   }
 
-  const globalAudio = payload.globalAudio;
+  const globalAudio = { ...payload.globalAudio, delay: sanitizeDelaySync(payload.globalAudio.delay) };
   useAudioStore.setState({ globalAudio });
-  applyGlobalAudioToEngine(globalAudio);
+  // A synced Delay resolves at the tempo this payload is about to install (setBPM below re-pushes it
+  // too, but the engine should never hear it at the live world's old tempo in between).
+  applyGlobalAudioToEngine(globalAudio, payload.bpm ?? useAudioStore.getState().bpm);
 
-  // Pacing fields: applied AFTER retransmitWorld above, which reseeds bpm (regenerateBpmFromSeed)
-  // and would otherwise win. Each is independently optional (undefined for a pre-this-change
+  // Pacing fields: applied AFTER retransmitWorld above, which reseeds bpm (via audioStore's
+  // Attenuation Style sync) whenever the style changed, and would otherwise win. Each is independently optional (undefined for a pre-this-change
   // payload), in which case the just-reseeded/carried-forward value is left alone rather than
   // zeroed out. setBPM also pushes to AudioEngine; the other three are plain state writes, same
   // as their own UI-slider setters.
@@ -476,11 +491,16 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   // reseed untouched. When the audio context is already running (loading a session mid-session,
   // not at boot), pushed through setLfoBank/setGlobalLfoLink too, so the change is audible without
   // a power cycle; otherwise a plain data-only write -- AudioEngine.start() primes the bank from
-  // this same store state once the context actually starts.
-  const lfoBank = backfillLfoBank(payload.lfoBank);
+  // this same store state once the context actually starts. The running branch REPLACES each lane
+  // rather than merging it: a setLfoBank merge cannot delete a key, so a Free lane in the payload
+  // would keep the live lane's stale `sync` (docs/specs/FREE_SYNC_TOGGLE.md assumption 6).
+  const backfilledBank = backfillLfoBank(payload.lfoBank);
+  const lfoBank =
+    backfilledBank &&
+    (Object.fromEntries(LFO_LANE_IDS.map((lane) => [lane, sanitizeLaneSync(backfilledBank[lane])])) as Record<LfoLaneId, BankLfoSettings>);
   if (lfoBank) {
     if (isAudioContextRunning()) {
-      for (const lane of LFO_LANE_IDS) useAudioStore.getState().setLfoBank(lane, lfoBank[lane]);
+      for (const lane of LFO_LANE_IDS) useAudioStore.getState().replaceLfoBankLane(lane, lfoBank[lane]);
     } else {
       useAudioStore.setState({ lfoBank });
     }

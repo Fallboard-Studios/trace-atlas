@@ -29,7 +29,7 @@ import { useAudioStore } from '../stores/audioStore';
 import { AudioEngine } from '../engine/AudioEngine';
 import { getLocaleNoiseMap, tryGetLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
-import { generateLocaleBpm } from '../utils/localeBpmSeed';
+import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
 import { initializeLocale, retransmitWorld } from './worldTransition';
 import { getCurrentMeasure } from '../engine/beatClock';
 import { recolorFactoriesForAttenuationStyle } from './factoryPlacementSystem';
@@ -289,17 +289,17 @@ describe('worldTransition', () => {
       expect(recolorFactoriesForAttenuationStyle).not.toHaveBeenCalled();
     });
 
-    it("reseeds audioStore.bpm from the new locale's own id/coordinates (docs/specs/BPM_CONTROL.md §1.3)", () => {
+    it('does NOT reseed audioStore.bpm — BPM follows the Attenuation Style, which a coordinates move never changes (docs/specs/FREE_SYNC_TOGGLE.md §1.7)', () => {
+      useAudioStore.getState().setBPM(190); // outside the [40, 100] seed range, so any drift is unambiguous
       retransmitWorld({ coordinates: { x: 1000, y: 2000 } });
-      const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
-      const newLocale = useLocaleStore.getState().getLocaleById(attenuationStyle.currentLocaleId!)!;
-      expect(useAudioStore.getState().bpm).toBe(generateLocaleBpm(newLocale.id, 1000, 2000));
+      expect(useAudioStore.getState().bpm).toBe(190);
     });
 
-    it('discards a manually-dialed bpm in favor of the freshly seeded value', () => {
-      useAudioStore.getState().setBPM(190); // outside the [40, 100] seed range, so it's unambiguous
+    it('keeps a hand-dragged bpm across repeated coordinate moves', () => {
+      useAudioStore.getState().setBPM(45);
       retransmitWorld({ coordinates: { x: 1000, y: 2000 } });
-      expect(useAudioStore.getState().bpm).not.toBe(190);
+      retransmitWorld({ coordinates: { x: -37, y: 5 } });
+      expect(useAudioStore.getState().bpm).toBe(45);
     });
   });
 
@@ -399,10 +399,12 @@ describe('worldTransition', () => {
       expect(recolorFactoriesForAttenuationStyle).toHaveBeenCalledWith(DEFAULT_LOCALE_ID, attenuationStyle.id, attenuationStyle.name);
     });
 
-    it("does NOT reseed audioStore.bpm — the preserved locale's coordinates never changed (docs/specs/BPM_CONTROL.md §1.3)", () => {
+    it("reseeds audioStore.bpm from the NEW Attenuation Style's own id/name, discarding a hand-dragged value (docs/specs/FREE_SYNC_TOGGLE.md §1.7)", () => {
       useAudioStore.getState().setBPM(190); // outside the seed range, so any drift is unambiguous
       retransmitWorld({ attenuationStyleName: 'Kryndara' });
-      expect(useAudioStore.getState().bpm).toBe(190);
+      const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+      expect(attenuationStyle.name).toBe('Kryndara');
+      expect(useAudioStore.getState().bpm).toBe(generateAttenuationStyleBpm(attenuationStyle.id, attenuationStyle.name));
     });
 
     it("preserves every factory's id/position/scale — only hueShift/satShift may change, per recolorFactoriesForAttenuationStyle", () => {
@@ -508,11 +510,11 @@ describe('worldTransition', () => {
       expect(recolorFactoriesForAttenuationStyle).not.toHaveBeenCalled();
     });
 
-    it("reseeds audioStore.bpm from the new locale's own id/coordinates (docs/specs/BPM_CONTROL.md §1.3)", () => {
+    it("reseeds audioStore.bpm from the new Attenuation Style's own id/name, discarding a hand-dragged value (docs/specs/FREE_SYNC_TOGGLE.md §1.7)", () => {
+      useAudioStore.getState().setBPM(190); // outside the seed range, so any drift is unambiguous
       retransmitWorld({ attenuationStyleName: 'Vessport Null', coordinates: { x: 42, y: 42 } });
       const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
-      const locale = useLocaleStore.getState().getLocaleById(attenuationStyle.currentLocaleId!)!;
-      expect(useAudioStore.getState().bpm).toBe(generateLocaleBpm(locale.id, 42, 42));
+      expect(useAudioStore.getState().bpm).toBe(generateAttenuationStyleBpm(attenuationStyle.id, attenuationStyle.name));
     });
   });
 

@@ -16,7 +16,8 @@ import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
 import type { SessionPayload } from '../types/session';
 import type { RobotAudioBaseline } from '../systems/spawnSystem';
-import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
+import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
+import { generateAttenuationStyleBpm } from './bpmSeed';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
 import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
@@ -27,6 +28,10 @@ import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_
 import { RHYTHMIC_DENSITY_MAX } from '../constants';
 import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
+import { noteValueHz } from '../data/noteValues';
+import { resolveLaneRateHz, resolveDelayTimeSeconds } from './tempoSync';
+import { lfoEngine } from '../engine/lfoEngine';
+import { AudioEngine } from '../engine/AudioEngine';
 
 afterEach(() => {
   stopRobotLifecycle();
@@ -523,10 +528,17 @@ describe('applySessionPayload', () => {
     useAudioStore.setState({ bpm: 77, swellFrequency: 9, swellDuration: 5, pingVarianceAutomation: 0.42 });
     const payload = buildSessionPayload();
 
-    // Wipe to different coordinates first -- retransmitWorld reseeds bpm via regenerateBpmFromSeed
-    // for the new locale (a real, different noise map), so restoring afterward must override
+    // Wipe to a different Attenuation Style and coordinates first, with bpm stripped from the wipe
+    // payload so nothing overrides the reseed: an Attenuation Style change reseeds bpm via
+    // regenerateBpmFromSeed (a coordinates-only move would not). Restoring afterward must override
     // whatever that reseed produced, not just coincidentally match an untouched value.
-    applySessionPayload({ ...payload, coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 } });
+    const { bpm: _bpm, ...wipePayload } = payload;
+    applySessionPayload({
+      ...wipePayload,
+      attenuationStyleName: 'Wipe Style',
+      coordinates: { x: payload.coordinates.x + 500, y: payload.coordinates.y + 500 },
+    });
+    expect(useAudioStore.getState().bpm).not.toBe(77);
 
     applySessionPayload(payload);
 
@@ -536,7 +548,7 @@ describe('applySessionPayload', () => {
     expect(useAudioStore.getState().pingVarianceAutomation).toBe(0.42);
   });
 
-  it('leaves the freshly-seeded bpm/swellFrequency/swellDuration/pingVarianceAutomation untouched when an older payload lacks those fields', () => {
+  it('leaves the current bpm/swellFrequency/swellDuration/pingVarianceAutomation untouched when an older payload lacks those fields', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     const payload = buildSessionPayload();
@@ -545,10 +557,25 @@ describe('applySessionPayload', () => {
     useAudioStore.setState({ bpm: 123, swellFrequency: 11, swellDuration: 8, pingVarianceAutomation: 0.9 });
     expect(() => applySessionPayload(oldShapePayload as typeof payload)).not.toThrow();
 
-    // retransmitWorld's own reseed ran (not this field's restore code, which had nothing to
-    // apply) -- just asserting it's no longer the pre-apply sentinel value proves the absent
-    // fields didn't crash or silently zero anything out.
-    expect(useAudioStore.getState().bpm).not.toBe(123);
+    // This payload keeps the current Attenuation Style, so retransmitWorld is a coordinates-only
+    // move and bpm is no longer reseeded (docs/specs/FREE_SYNC_TOGGLE.md §1.7) -- the carried-forward
+    // value survives. Asserting it is untouched proves the absent field didn't crash or silently
+    // zero anything out.
+    expect(useAudioStore.getState().bpm).toBe(123);
+  });
+
+  it('reseeds bpm from the new Attenuation Style when an older payload without bpm switches styles', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const { bpm: _bpm, ...oldShapePayload } = payload;
+
+    useAudioStore.setState({ bpm: 123 });
+    applySessionPayload({ ...oldShapePayload, attenuationStyleName: 'Reseed Style' } as typeof payload);
+
+    const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+    expect(attenuationStyle.name).toBe('Reseed Style');
+    expect(useAudioStore.getState().bpm).toBe(generateAttenuationStyleBpm(attenuationStyle.id, attenuationStyle.name));
   });
 
   it('restores a renamed company after a full save/wipe/load round trip', () => {
@@ -708,22 +735,341 @@ describe('applySessionPayload', () => {
     primeSpy.mockRestore();
   });
 
-  it('when the audio context is running, pushes lfoBank/globalLfoLinks through setLfoBank/setGlobalLfoLink so a loaded session is audible without a power cycle', async () => {
+  it('when the audio context is running, pushes lfoBank/globalLfoLinks through replaceLfoBankLane/setGlobalLfoLink so a loaded session is audible without a power cycle', async () => {
     const lfoShared = await import('../engine/lfoShared');
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     const payload = buildSessionPayload();
     const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+    const replaceLaneSpy = vi.spyOn(useAudioStore.getState(), 'replaceLfoBankLane');
     const setLfoBankSpy = vi.spyOn(useAudioStore.getState(), 'setLfoBank');
     const setGlobalLfoLinkSpy = vi.spyOn(useAudioStore.getState(), 'setGlobalLfoLink');
 
     applySessionPayload(payload, { skipLocaleRebuild: true });
 
-    expect(setLfoBankSpy).toHaveBeenCalled();
+    expect(replaceLaneSpy.mock.calls.map((call) => call[0]).sort()).toEqual([...LFO_LANE_IDS].sort());
+    // A per-lane setLfoBank merge cannot delete a stale `sync` key, so the restore must not use it.
+    expect(setLfoBankSpy).not.toHaveBeenCalled();
     expect(setGlobalLfoLinkSpy).toHaveBeenCalled();
     runningSpy.mockRestore();
+    replaceLaneSpy.mockRestore();
     setLfoBankSpy.mockRestore();
     setGlobalLfoLinkSpy.mockRestore();
+  });
+
+  // docs/specs/FREE_SYNC_TOGGLE.md assumption 6, Task 5: the restore REPLACES each lane. A merge
+  // would let a Free lane in the loaded session inherit the live lane's stale `sync`.
+  describe('lane Sync across a session restore', () => {
+    const QUARTER = { division: '1/4', modifier: 'straight' } as const;
+    const FREE_A = { shape: 'sine', rate: 1.5, rateDrift: 0, depthDrift: 0 } as const;
+
+    /** Live lane `a` synced; the payload carries lane `a` Free (and the given extra lane overrides). */
+    function setupStaleSync(extraLanes: Record<string, unknown> = {}) {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      const lfoBank = { ...payload.lfoBank!, a: { ...FREE_A }, ...extraLanes } as typeof payload.lfoBank;
+      useAudioStore.setState({ lfoBank: { ...useAudioStore.getState().lfoBank, a: { ...FREE_A, rate: 9, sync: QUARTER } } });
+      return { ...payload, lfoBank };
+    }
+
+    it('a Free lane in the payload leaves no stale `sync` on a live synced lane, when the audio context is running', async () => {
+      const lfoShared = await import('../engine/lfoShared');
+      const payload = setupStaleSync();
+      const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect('sync' in useAudioStore.getState().lfoBank.a).toBe(false);
+      expect(useAudioStore.getState().lfoBank.a).toEqual(FREE_A);
+      runningSpy.mockRestore();
+    });
+
+    it('a Free lane in the payload leaves no stale `sync` when the audio context is not running either (whole setState)', async () => {
+      const lfoShared = await import('../engine/lfoShared');
+      const payload = setupStaleSync();
+      const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(false);
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect('sync' in useAudioStore.getState().lfoBank.a).toBe(false);
+      runningSpy.mockRestore();
+    });
+
+    it('the engine receives the Free rate, not the stale synced Hz, after the restore', async () => {
+      const lfoShared = await import('../engine/lfoShared');
+      const payload = setupStaleSync();
+      const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+      lfoEngine.setBankRate('a', 8); // the engine's module state outlives each test -- start from a value the restore must overwrite
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect(lfoEngine.getBankSettings('a').rate).toBe(1.5);
+      runningSpy.mockRestore();
+    });
+
+    it('a synced lane in the payload restores with its note and reaches the engine as that note\'s Hz at the payload\'s own tempo', async () => {
+      const lfoShared = await import('../engine/lfoShared');
+      const payload = setupStaleSync({ b: { shape: 'triangle', rate: 7, rateDrift: 0.2, depthDrift: 0.1, sync: QUARTER } });
+      const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+      lfoEngine.setBankRate('b', 3); // start from a value the restore must overwrite
+
+      applySessionPayload({ ...payload, bpm: 90 }, { skipLocaleRebuild: true });
+
+      expect(useAudioStore.getState().lfoBank.b.sync).toEqual(QUARTER);
+      expect(lfoEngine.getBankSettings('b').rate).toBeCloseTo(noteValueHz(QUARTER, 90), 10); // 1.5 Hz, not the stored 7
+      runningSpy.mockRestore();
+    });
+  });
+
+  // docs/specs/FREE_SYNC_TOGGLE.md §1.3, §1.8, Task 11: a restored Delay reaches the node as seconds,
+  // resolved at the payload's own tempo — never the stored Free delayTime under a `sync`, and never
+  // the tempo the live world happened to be at a moment before the payload's bpm lands.
+  describe('Delay Sync across a session restore', () => {
+    const QUARTER = { division: '1/4', modifier: 'straight' } as const;
+
+    function payloadWithDelay(delay: Record<string, unknown>, bpm: number | undefined) {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      return { ...payload, bpm, globalAudio: { ...payload.globalAudio, delay: delay as never } };
+    }
+
+    it('pushes a synced Delay as that note\'s seconds at the payload\'s tempo — 1/4 at 120 BPM is 0.5 s, not the stored 3', async () => {
+      const payload = payloadWithDelay({ delayTime: 3, feedback: 0.3, wet: 0.2, sync: QUARTER }, 120);
+      useAudioStore.setState({ bpm: 60 }); // the live tempo differs: the payload's must win
+      const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      const pushed = pushSpy.mock.calls.map((call) => call[0]);
+      expect(pushed.at(-1)).toStrictEqual({ delayTime: 0.5 });
+      pushSpy.mockRestore();
+    });
+
+    it('never pushes a `sync` key to the engine, and never the stale stored delayTime at the end', async () => {
+      const payload = payloadWithDelay({ delayTime: 3, feedback: 0.3, wet: 0.2, sync: QUARTER }, 60);
+      const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      for (const [params] of pushSpy.mock.calls) expect('sync' in params).toBe(false);
+      expect(pushSpy.mock.calls.at(-1)![0].delayTime).toBe(1);
+      pushSpy.mockRestore();
+    });
+
+    it('keeps the note in state, so the next tempo change re-resolves it', async () => {
+      const payload = payloadWithDelay({ delayTime: 3, feedback: 0.3, wet: 0.2, sync: QUARTER }, 120);
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect(useAudioStore.getState().globalAudio.delay.sync).toEqual(QUARTER);
+      const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+      useAudioStore.getState().setBPM(60);
+      expect(pushSpy.mock.calls.at(-1)![0]).toStrictEqual({ delayTime: 1 });
+      pushSpy.mockRestore();
+    });
+
+    it('a payload with no bpm resolves at the tempo the world is at', async () => {
+      const payload = payloadWithDelay({ delayTime: 3, feedback: 0.3, wet: 0.2, sync: QUARTER }, undefined);
+      useAudioStore.setState({ bpm: 90 });
+      const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect(pushSpy.mock.calls.at(-1)![0].delayTime).toBeCloseTo(60 / 90, 10);
+      pushSpy.mockRestore();
+    });
+
+    it('a Free Delay in the payload reaches the engine as its stored delayTime', async () => {
+      const payload = payloadWithDelay({ delayTime: 3, feedback: 0.3, wet: 0.2 }, 120);
+      const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect(pushSpy.mock.calls.at(-1)![0]).toStrictEqual({ delayTime: 3, feedback: 0.3, wet: 0.2 });
+      pushSpy.mockRestore();
+    });
+  });
+
+  // docs/specs/FREE_SYNC_TOGGLE.md §1.8, Task 14: a `sync` that is not a real note (a hand-edited save,
+  // a corrupt share link, a future format) must not reach state — the resolvers would treat it as
+  // Free for audio, but the toggle would read it, the next save would re-persist it, and a UI
+  // switch would show a state the audio isn't in. Dropped at the one restore boundary instead.
+  describe('Sync sanitisers at the restore boundary', () => {
+    const QUARTER = { division: '1/4', modifier: 'straight' } as const;
+    const FREE_LANE = { shape: 'sine', rate: 1.5, rateDrift: 0, depthDrift: 0 } as const;
+    const FREE_DELAY = { delayTime: 0.4, feedback: 0.3, wet: 0.2 } as const;
+    const INVALID_SYNCS: Array<[string, unknown]> = [
+      ['an unknown division', { division: '1/3', modifier: 'straight' }],
+      ['a modifier the division does not offer (2 bars dotted)', { division: '2', modifier: 'dotted' }],
+      ['the string "off"', 'off'],
+      ['null', null],
+      ['an explicit undefined', undefined],
+      ['a number', 7],
+      ['a slash-form string', '1/4'],
+      ['an array', ['1/4', 'straight']],
+      ['a missing modifier', { division: '1/4' }],
+      ['an extra key', { division: '1/4', modifier: 'straight', extra: 1 }],
+      ['an empty object', {}],
+    ];
+    // Distinct per-lane rates so a lane can never match another's value by coincidence.
+    const STORED_RATES = { a: 1.5, b: 2, c: 3, d: 5 } as const;
+
+    /** A payload whose four lanes and Delay are exactly what the caller says — never the random seed. */
+    function buildPayload(lanes: Record<string, unknown>, delay: Record<string, unknown>, bpm?: number): SessionPayload {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      return {
+        ...payload,
+        bpm,
+        lfoBank: lanes as SessionPayload['lfoBank'],
+        globalAudio: { ...payload.globalAudio, delay: delay as never },
+      };
+    }
+
+    const allLanes = (lane: Record<string, unknown>) => ({ a: { ...lane }, b: { ...lane }, c: { ...lane }, d: { ...lane } });
+    const freeLanes = () =>
+      Object.fromEntries(LFO_LANE_IDS.map((l) => [l, { ...FREE_LANE, rate: STORED_RATES[l] }])) as Record<string, unknown>;
+
+    async function notRunning() {
+      const lfoShared = await import('../engine/lfoShared');
+      return vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(false);
+    }
+    async function running() {
+      const lfoShared = await import('../engine/lfoShared');
+      return vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+    }
+
+    describe('a lane', () => {
+      it.each(INVALID_SYNCS)('with %s applies as Free: no `sync` key left in state (context not running)', async (_label, bad) => {
+        const payload = buildPayload({ ...freeLanes(), a: { ...FREE_LANE, sync: bad } }, FREE_DELAY);
+        const spy = await notRunning();
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().lfoBank.a).toStrictEqual(FREE_LANE);
+        spy.mockRestore();
+      });
+
+      it.each(INVALID_SYNCS)('with %s applies as Free: no `sync` key in state, engine plays the stored rate (context running)', async (_label, bad) => {
+        const payload = buildPayload({ ...freeLanes(), a: { ...FREE_LANE, sync: bad } }, FREE_DELAY);
+        const spy = await running();
+        lfoEngine.setBankRate('a', 8); // the engine's state outlives each test -- start from a value the restore must overwrite
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().lfoBank.a).toStrictEqual(FREE_LANE);
+        expect(lfoEngine.getBankSettings('a').rate).toBe(1.5);
+        spy.mockRestore();
+      });
+
+      it('is sanitised on every lane, not just the first', async () => {
+        const bad = { division: '1/3', modifier: 'straight' };
+        const payload = buildPayload(allLanes({ ...FREE_LANE, sync: bad }), FREE_DELAY);
+        const spy = await notRunning();
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        for (const lane of LFO_LANE_IDS) expect(useAudioStore.getState().lfoBank[lane], lane).toStrictEqual(FREE_LANE);
+        spy.mockRestore();
+      });
+
+      it('keeps a valid `sync` exactly as it came — the sanitiser drops only what is not a note', async () => {
+        const payload = buildPayload({ ...freeLanes(), b: { ...FREE_LANE, rate: 7, sync: QUARTER } }, FREE_DELAY);
+        const spy = await notRunning();
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().lfoBank.b).toStrictEqual({ ...FREE_LANE, rate: 7, sync: QUARTER });
+        spy.mockRestore();
+      });
+
+      it('keeps the rest of an invalid-synced lane intact — shape, rate and both drifts survive', async () => {
+        const lane = { shape: 'triangle', rate: 3.25, rateDrift: 0.4, depthDrift: -0.3, sync: 'off' };
+        const payload = buildPayload({ ...freeLanes(), c: lane }, FREE_DELAY);
+        const spy = await notRunning();
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().lfoBank.c).toStrictEqual({ shape: 'triangle', rate: 3.25, rateDrift: 0.4, depthDrift: -0.3 });
+        spy.mockRestore();
+      });
+
+      it('does not mutate the payload it was given — a saved session object can be applied again', async () => {
+        const bad = { division: '1/3', modifier: 'straight' };
+        const payload = buildPayload({ ...freeLanes(), a: { ...FREE_LANE, sync: bad } }, FREE_DELAY);
+        const spy = await notRunning();
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(payload.lfoBank!.a).toStrictEqual({ ...FREE_LANE, sync: bad });
+        spy.mockRestore();
+      });
+    });
+
+    describe('the Delay', () => {
+      it.each(INVALID_SYNCS)('with %s applies as Free: no `sync` key in state, engine hears the stored delayTime', async (_label, bad) => {
+        const payload = buildPayload(freeLanes(), { ...FREE_DELAY, sync: bad }, 120);
+        const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().globalAudio.delay).toStrictEqual(FREE_DELAY);
+        expect(pushSpy.mock.calls.at(-1)![0]).toStrictEqual(FREE_DELAY);
+        pushSpy.mockRestore();
+      });
+
+      it('keeps a valid `sync` exactly as it came', async () => {
+        const payload = buildPayload(freeLanes(), { ...FREE_DELAY, sync: QUARTER }, 120);
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(useAudioStore.getState().globalAudio.delay).toStrictEqual({ ...FREE_DELAY, sync: QUARTER });
+      });
+
+      it('leaves every other effect untouched while it drops the bad Delay `sync`', async () => {
+        const payload = buildPayload(freeLanes(), { ...FREE_DELAY, sync: 'off' }, 120);
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        const { delay: _d, ...restApplied } = useAudioStore.getState().globalAudio;
+        const { delay: _p, ...restPayload } = payload.globalAudio;
+        expect(restApplied).toStrictEqual(restPayload);
+      });
+
+      it('does not mutate the payload it was given', async () => {
+        const payload = buildPayload(freeLanes(), { ...FREE_DELAY, sync: 'off' }, 120);
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        expect(payload.globalAudio.delay).toStrictEqual({ ...FREE_DELAY, sync: 'off' });
+      });
+    });
+
+    describe('a version-2 payload with no `sync` anywhere', () => {
+      it.each([20, 40, 100, 200])('resolves to its stored numbers at %i BPM — lanes in state and engine, Delay in state and engine', async (bpm) => {
+        const payload = buildPayload(freeLanes(), FREE_DELAY, bpm);
+        const spy = await running();
+        const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
+        for (const lane of LFO_LANE_IDS) lfoEngine.setBankRate(lane, 9); // a value the restore must overwrite
+
+        applySessionPayload(payload, { skipLocaleRebuild: true });
+
+        const { lfoBank, globalAudio } = useAudioStore.getState();
+        for (const lane of LFO_LANE_IDS) {
+          expect('sync' in lfoBank[lane], `${lane} has no sync`).toBe(false);
+          expect(resolveLaneRateHz(lfoBank[lane], bpm), `${lane} state`).toBe(STORED_RATES[lane]);
+          expect(lfoEngine.getBankSettings(lane).rate, `${lane} engine`).toBe(STORED_RATES[lane]);
+        }
+        expect('sync' in globalAudio.delay).toBe(false);
+        expect(resolveDelayTimeSeconds(globalAudio.delay, bpm)).toBe(FREE_DELAY.delayTime);
+        expect(pushSpy.mock.calls.at(-1)![0]).toStrictEqual(FREE_DELAY);
+        spy.mockRestore();
+        pushSpy.mockRestore();
+      });
+    });
   });
 
   it('when the audio context is not running, writes lfoBank/globalLfoLinks data-only -- no engine push', async () => {
@@ -765,7 +1111,7 @@ describe('applySessionPayload', () => {
     runningSpy.mockRestore();
   });
 
-  it('backfills the same hole when the audio context IS running -- setLfoBank/setGlobalLfoLink never receive undefined', async () => {
+  it('backfills the same hole when the audio context IS running -- replaceLfoBankLane/setGlobalLfoLink never receive undefined', async () => {
     const lfoShared = await import('../engine/lfoShared');
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
@@ -773,14 +1119,14 @@ describe('applySessionPayload', () => {
     const { d: _droppedLane, ...partialLfoBank } = payload.lfoBank!;
     const holeyPayload = { ...payload, lfoBank: partialLfoBank as typeof payload.lfoBank };
     const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
-    const setLfoBankSpy = vi.spyOn(useAudioStore.getState(), 'setLfoBank');
+    const replaceLaneSpy = vi.spyOn(useAudioStore.getState(), 'replaceLfoBankLane');
 
     applySessionPayload(holeyPayload, { skipLocaleRebuild: true });
 
-    const laneDCall = setLfoBankSpy.mock.calls.find((call) => call[0] === 'd');
+    const laneDCall = replaceLaneSpy.mock.calls.find((call) => call[0] === 'd');
     expect(laneDCall?.[1]).toEqual(DEFAULT_BANK_LFO);
     runningSpy.mockRestore();
-    setLfoBankSpy.mockRestore();
+    replaceLaneSpy.mockRestore();
   });
 
   it('leaves the current lfoBank/globalLfoLinks untouched when an older (v1) payload lacks those fields', () => {

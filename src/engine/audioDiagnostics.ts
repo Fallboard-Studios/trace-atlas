@@ -11,7 +11,8 @@ import { useLocaleStore } from '../stores/localeStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 import { robotLoadToLimits } from '../utils/audioBudget';
 import { isRobotAudible } from '../utils/robotAudibility';
-import { GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS } from '../types/lfo';
+import { GLOBAL_LFO_TARGET_IDS, ROBOT_LFO_TARGET_IDS, type BankLfoSettings } from '../types/lfo';
+import { isLaneRunning } from '../utils/tempoSync';
 import {
   SAMPLE_INTERVAL_MS,
   initDiagState,
@@ -39,7 +40,7 @@ export interface DiagInfo {
    *  out of every linkable target. */
   linksOn: number;
   linksTotal: number;
-  /** Count of the four LFO Bank lanes currently running (rate > 0), 0-4. */
+  /** Count of the four LFO Bank lanes currently running (rate > 0, or synced), 0-4. */
   bankRunning: number;
   /** Robots in the active locale that `isRobotAudible` lets sound right now (not muted / not solo-excluded). */
   audibleRobots: number;
@@ -172,9 +173,10 @@ function readLfoLinkCounts(globalLfoLinks: Record<string, { lane: unknown }>): {
   return { linksOn, linksTotal };
 }
 
-/** Count of the four LFO Bank lanes currently running (rate > 0), 0-4. */
-function readBankRunning(lfoBank: Record<string, { rate: number }>): number {
-  return Object.values(lfoBank).filter((lane) => lane.rate > 0).length;
+/** Count of the four LFO Bank lanes currently running, 0-4 — a synced lane always is, whatever Free
+ *  rate it keeps underneath (isLaneRunning, docs/specs/FREE_SYNC_TOGGLE.md §1.3). */
+function readBankRunning(lfoBank: Record<string, BankLfoSettings>): number {
+  return Object.values(lfoBank).filter(isLaneRunning).length;
 }
 
 function readInfo(): DiagInfo {

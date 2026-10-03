@@ -15,6 +15,13 @@ vi.mock('./getSeededVal', async (importOriginal) => {
   return { ...actual, getSeededVal: vi.fn(actual.getSeededVal) };
 });
 
+// Same wrapper for pickSeedNoteValue: real behavior by default, so the Sync tests exercise the true
+// pick, while one test can force it to `undefined` (every band empty) to prove the fallback.
+vi.mock('./tempoSync', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./tempoSync')>();
+  return { ...actual, pickSeedNoteValue: vi.fn(actual.pickSeedNoteValue) };
+});
+
 import {
   generateGlobalAudioSettings,
   generateLfoBankSettings,
@@ -25,9 +32,13 @@ import {
   scaleUnitValue,
   LFO_BANK_RATE_BANDS,
   LFO_BANK_DRIFT_SEED_RANGE,
+  LFO_BANK_SYNC_BAND_ORDER,
 } from './globalAudioSeed';
 import { evictAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal } from './getSeededVal';
+import { pickSeedNoteValue } from './tempoSync';
+import { generateAttenuationStyleBpm, BPM_SEED_RANGE } from './bpmSeed';
+import { allowedNoteValues, isNoteValue, noteValueHz, noteValueSeconds } from '@/data/noteValues';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { type GlobalAudioSeedFieldKey } from '@/data/globalAudioSeedRanges';
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES } from '@/types/lfo';
@@ -560,5 +571,318 @@ describe('generateSwellDuration (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.
       const value = generateSwellDuration(`seed-dur-sample-${i}`, `DurSample${i}`);
       expect(Number.isInteger(value), `attenuationStyle ${i}: ${value}`).toBe(true);
     }
+  });
+});
+
+// ========================================
+// SYNC DRAWS — docs/specs/FREE_SYNC_TOGGLE.md §1.7, docs/tasks/FREE_SYNC_TOGGLE.md Task 13
+// ========================================
+
+// The stated odds (spec §1.7), kept here as the TARGETS the measured share is held to. The seeder's
+// own constants may be calibrated away from these (simplex draws aren't uniform); these never move.
+const LANE_SYNC_TARGETS = { a: 0.75, b: 0.66, c: 0.33, d: 0.25 } as const;
+const DELAY_SYNC_TARGET = 0.66;
+const SHARE_TOLERANCE = 0.1;
+const SHARE_SAMPLES = 200;
+const DELAY_BAND = GLOBAL_AUDIO_LOADING_RANGES['delay.delayTime'];
+// The unmocked pick, so a test that forces `undefined` can put the real behaviour back afterwards.
+const actualTempoSync = await vi.importActual<typeof import('./tempoSync')>('./tempoSync');
+
+describe('Sync draws — lane fallback order', () => {
+  it('walks own band, then the next faster, then the next slower, then outward', () => {
+    expect(LFO_BANK_SYNC_BAND_ORDER).toEqual({
+      a: ['a', 'b', 'c', 'd'],
+      b: ['b', 'c', 'a', 'd'],
+      c: ['c', 'd', 'b', 'a'],
+      d: ['d', 'c', 'b', 'a'],
+    });
+  });
+
+  it('lists every lane exactly once for every lane', () => {
+    for (const lane of LFO_LANE_IDS) {
+      expect([...LFO_BANK_SYNC_BAND_ORDER[lane]].sort(), lane).toEqual([...LFO_LANE_IDS].sort());
+      expect(LFO_BANK_SYNC_BAND_ORDER[lane][0], lane).toBe(lane);
+    }
+  });
+});
+
+describe('Sync draws — band coverage', () => {
+  it('every lane band holds at least one note at every integer BPM in the seed range, so the fallback is never reached today', () => {
+    for (let bpm = BPM_SEED_RANGE.min; bpm <= BPM_SEED_RANGE.max; bpm++) {
+      for (const lane of LFO_LANE_IDS) {
+        expect(allowedNoteValues(bpm, LFO_BANK_RATE_BANDS[lane], 'hz').length, `lane ${lane} @ ${bpm} BPM`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('the Delay loading band holds at least one note at every integer BPM in the seed range', () => {
+    for (let bpm = BPM_SEED_RANGE.min; bpm <= BPM_SEED_RANGE.max; bpm++) {
+      expect(allowedNoteValues(bpm, DELAY_BAND, 'seconds').length, `${bpm} BPM`).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('generateLfoBankSettings — Sync draws', () => {
+  afterEach(() => {
+    vi.mocked(pickSeedNoteValue).mockImplementation(actualTempoSync.pickSeedNoteValue);
+    vi.mocked(getSeededVal).mockClear();
+    for (let i = 0; i < SHARE_SAMPLES; i++) evictAttenuationStyleNoiseMap(`bank-sync-sample-${i}`);
+  });
+
+  it('queries lfoBank.<lane>.syncMode and .syncNote for every lane', () => {
+    generateLfoBankSettings('bank-sync-sample-0', 'BankSync0');
+    const keys = vi.mocked(getSeededVal).mock.calls.map(([, dataId]) => dataId);
+    for (const lane of LFO_LANE_IDS) {
+      expect(keys, `${lane}.syncMode`).toContain(`lfoBank.${lane}.syncMode`);
+      expect(keys, `${lane}.syncNote`).toContain(`lfoBank.${lane}.syncNote`);
+    }
+  });
+
+  it('a Free lane carries no `sync` key at all; a Sync lane carries a real note value', () => {
+    let free = 0;
+    let synced = 0;
+    for (let i = 0; i < SHARE_SAMPLES; i++) {
+      const bank = generateLfoBankSettings(`bank-sync-sample-${i}`, `BankSync${i}`);
+      for (const lane of LFO_LANE_IDS) {
+        if ('sync' in bank[lane]) {
+          synced++;
+          expect(isNoteValue(bank[lane].sync), `${lane} (sample ${i})`).toBe(true);
+        } else {
+          free++;
+        }
+      }
+    }
+    // Both outcomes must actually occur, or the assertions above prove nothing.
+    expect(free).toBeGreaterThan(0);
+    expect(synced).toBeGreaterThan(0);
+  });
+
+  it('every Sync draw lies inside its own lane band at the Attenuation Style\'s seed BPM', () => {
+    for (let i = 0; i < SHARE_SAMPLES; i++) {
+      const id = `bank-sync-sample-${i}`;
+      const name = `BankSync${i}`;
+      const bank = generateLfoBankSettings(id, name);
+      const bpm = generateAttenuationStyleBpm(id, name);
+      for (const lane of LFO_LANE_IDS) {
+        const { sync } = bank[lane];
+        if (sync === undefined) continue;
+        const hz = noteValueHz(sync, bpm);
+        const { min, max } = LFO_BANK_RATE_BANDS[lane];
+        expect(hz, `${lane} (sample ${i}, ${bpm} BPM)`).toBeGreaterThanOrEqual(min);
+        expect(hz, `${lane} (sample ${i}, ${bpm} BPM)`).toBeLessThanOrEqual(max);
+      }
+    }
+  });
+
+  it('is deterministic for a Sync landing, including across a fresh noise map', () => {
+    for (let i = 0; i < 20; i++) {
+      const id = `bank-sync-sample-${i}`;
+      const first = generateLfoBankSettings(id, `BankSync${i}`);
+      evictAttenuationStyleNoiseMap(id);
+      expect(generateLfoBankSettings(id, `BankSync${i}`), `sample ${i}`).toStrictEqual(first);
+    }
+  });
+
+  it.each(LFO_LANE_IDS.map((lane) => [lane, LANE_SYNC_TARGETS[lane]] as const))(
+    'lane %s seeds Sync for ~%f of Attenuation Styles (±10 points)',
+    (lane, target) => {
+      let synced = 0;
+      for (let i = 0; i < SHARE_SAMPLES; i++) {
+        if (generateLfoBankSettings(`bank-sync-sample-${i}`, `BankSync${i}`)[lane].sync !== undefined) synced++;
+      }
+      const share = synced / SHARE_SAMPLES;
+      expect(share, `${lane}: ${synced}/${SHARE_SAMPLES}`).toBeGreaterThanOrEqual(target - SHARE_TOLERANCE);
+      expect(share, `${lane}: ${synced}/${SHARE_SAMPLES}`).toBeLessThanOrEqual(target + SHARE_TOLERANCE);
+    },
+  );
+
+  it('when no band has a note, every lane stays Free and its seeded rate is unchanged — and the pick is asked at the seed BPM', () => {
+    const id = 'bank-sync-sample-3';
+    const name = 'BankSync3';
+    const real = generateLfoBankSettings(id, name);
+    expect(LFO_LANE_IDS.some((lane) => real[lane].sync !== undefined), 'precondition: this style seeds some Sync').toBe(true);
+
+    vi.mocked(pickSeedNoteValue).mockClear();
+    vi.mocked(pickSeedNoteValue).mockReturnValue(undefined);
+    const forcedFree = generateLfoBankSettings(id, name);
+    const bpm = generateAttenuationStyleBpm(id, name);
+    for (const lane of LFO_LANE_IDS) {
+      const { sync: _sync, ...rest } = real[lane];
+      expect('sync' in forcedFree[lane], `${lane} stays Free`).toBe(false);
+      expect(forcedFree[lane], `${lane} keeps its Free values`).toStrictEqual(rest);
+    }
+    const calls = vi.mocked(pickSeedNoteValue).mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    for (const [, calledBpm, bands, unit] of calls) {
+      expect(calledBpm).toBe(bpm);
+      expect(unit).toBe('hz');
+      expect(bands).toHaveLength(LFO_LANE_IDS.length);
+    }
+  });
+});
+
+describe('generateGlobalAudioSettings — Delay Sync draw', () => {
+  afterEach(() => {
+    vi.mocked(pickSeedNoteValue).mockImplementation(actualTempoSync.pickSeedNoteValue);
+    vi.mocked(getSeededVal).mockClear();
+    for (let i = 0; i < SHARE_SAMPLES; i++) evictAttenuationStyleNoiseMap(`delay-sync-sample-${i}`);
+  });
+
+  it('queries globalAudio.delay.syncMode and .syncNote', () => {
+    generateGlobalAudioSettings('delay-sync-sample-0', 'DelaySync0');
+    const keys = vi.mocked(getSeededVal).mock.calls.map(([, dataId]) => dataId);
+    expect(keys).toContain('globalAudio.delay.syncMode');
+    expect(keys).toContain('globalAudio.delay.syncNote');
+  });
+
+  it('a Free Delay carries no `sync` key at all; a Sync Delay carries a real note value', () => {
+    let free = 0;
+    let synced = 0;
+    for (let i = 0; i < SHARE_SAMPLES; i++) {
+      const { delay } = generateGlobalAudioSettings(`delay-sync-sample-${i}`, `DelaySync${i}`);
+      if ('sync' in delay) {
+        synced++;
+        expect(isNoteValue(delay.sync), `sample ${i}`).toBe(true);
+      } else {
+        free++;
+      }
+    }
+    expect(free).toBeGreaterThan(0);
+    expect(synced).toBeGreaterThan(0);
+  });
+
+  it('every Sync draw lies inside the Delay loading band (0.05–0.5 s) at the seed BPM', () => {
+    for (let i = 0; i < SHARE_SAMPLES; i++) {
+      const id = `delay-sync-sample-${i}`;
+      const name = `DelaySync${i}`;
+      const { delay } = generateGlobalAudioSettings(id, name);
+      if (delay.sync === undefined) continue;
+      const seconds = noteValueSeconds(delay.sync, generateAttenuationStyleBpm(id, name));
+      expect(seconds, `sample ${i}`).toBeGreaterThanOrEqual(DELAY_BAND.min);
+      expect(seconds, `sample ${i}`).toBeLessThanOrEqual(DELAY_BAND.max);
+    }
+  });
+
+  it('seeds Sync for ~66% of Attenuation Styles (±10 points)', () => {
+    let synced = 0;
+    for (let i = 0; i < SHARE_SAMPLES; i++) {
+      if (generateGlobalAudioSettings(`delay-sync-sample-${i}`, `DelaySync${i}`).delay.sync !== undefined) synced++;
+    }
+    const share = synced / SHARE_SAMPLES;
+    expect(share, `${synced}/${SHARE_SAMPLES}`).toBeGreaterThanOrEqual(DELAY_SYNC_TARGET - SHARE_TOLERANCE);
+    expect(share, `${synced}/${SHARE_SAMPLES}`).toBeLessThanOrEqual(DELAY_SYNC_TARGET + SHARE_TOLERANCE);
+  });
+
+  it('a quiet Delay (wet 0) still rolls its own Sync independently of the quiet roll', () => {
+    let quietSynced = 0;
+    for (let i = 0; i < SHARE_SAMPLES; i++) {
+      const { delay } = generateGlobalAudioSettings(`delay-sync-sample-${i}`, `DelaySync${i}`);
+      if (delay.wet === 0 && delay.sync !== undefined) quietSynced++;
+    }
+    expect(quietSynced).toBeGreaterThan(0);
+  });
+
+  it('when no band has a note, the Delay stays Free with its seeded delayTime unchanged — and the pick is asked at the seed BPM', () => {
+    const id = 'delay-sync-sample-1';
+    const name = 'DelaySync1';
+    const real = generateGlobalAudioSettings(id, name).delay;
+    expect(real.sync, 'precondition: this style seeds a Sync Delay').toBeDefined();
+
+    vi.mocked(pickSeedNoteValue).mockClear();
+    vi.mocked(pickSeedNoteValue).mockReturnValue(undefined);
+    const forcedFree = generateGlobalAudioSettings(id, name).delay;
+    const { sync: _sync, ...rest } = real;
+    expect('sync' in forcedFree).toBe(false);
+    expect(forcedFree).toStrictEqual(rest);
+    const [[, calledBpm, bands, unit]] = vi.mocked(pickSeedNoteValue).mock.calls;
+    expect(calledBpm).toBe(generateAttenuationStyleBpm(id, name));
+    expect(bands).toEqual([DELAY_BAND]);
+    expect(unit).toBe('seconds');
+  });
+});
+
+// ========================================
+// SEED ORACLE — docs/specs/FREE_SYNC_TOGGLE.md §1.7 / §5, docs/tasks/FREE_SYNC_TOGGLE.md Task 3
+// ========================================
+
+// Complete, byte-exact output of the two seeders for two fixed Attenuation Styles, captured from the
+// code as it stood BEFORE the Free | Sync seeding (Task 13) touched it. They prove that adding the
+// Sync rolls leaves every Free value — and so every existing world's sound — exactly as it was.
+//
+// DO NOT REGENERATE THESE EXPECTATIONS. Re-recording them to make a failing test pass is a spec
+// violation, not a fix: a mismatch means the seeder's existing keys or draw order changed. Task 13
+// may only ADD a `sync` key to a lane or to `delay`, and only to these expectations.
+//
+// 'oracle-alpha' seeds an audible Delay (wet 0.24); 'oracle-theta' hits the quiet branch (wet forced
+// to 0), so both sides of the neighbouring DELAY_QUIET_THRESHOLD logic are pinned.
+describe('seed oracle (pre-Sync output, do not regenerate)', () => {
+  afterEach(() => {
+    evictAttenuationStyleNoiseMap('oracle-alpha');
+    evictAttenuationStyleNoiseMap('oracle-theta');
+  });
+
+  it('generateGlobalAudioSettings("oracle-alpha") — audible Delay', () => {
+    expect(generateGlobalAudioSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual({
+      compressorBeforeDelay: false,
+      compressor: {
+        threshold: -47,
+        ratio: 17,
+        attack: 0.02815783553749843,
+        release: 0.2207947804737712,
+        knee: 10,
+      },
+      eq3: { low: 3.5, mid: 3.5, high: 4 },
+      filterLPF: { type: 'lowpass', frequency: 9399.096577662036, Q: 2.2990614853419933 },
+      filterHPF: { type: 'highpass', frequency: 379.02404888390515, Q: 3.033962391581509 },
+      delay: { delayTime: 0.41300000000000003, feedback: 0.36, wet: 0.24 },
+      reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 0.24 },
+      limiter: { threshold: -1 },
+    });
+  });
+
+  it('generateGlobalAudioSettings("oracle-theta") — quiet Delay (wet forced to 0)', () => {
+    expect(generateGlobalAudioSettings('oracle-theta', 'oracle-theta')).toStrictEqual({
+      compressorBeforeDelay: false,
+      compressor: {
+        threshold: -51,
+        ratio: 14,
+        attack: 0.005351539547536516,
+        release: 0.12726233469418596,
+        knee: 6,
+      },
+      eq3: { low: -3.5, mid: -3.5, high: -3.5 },
+      filterLPF: { type: 'lowpass', frequency: 4751.3168173899885, Q: 0.21951212264688055 },
+      filterHPF: { type: 'highpass', frequency: 156.94304105044972, Q: 0.893615040856134 },
+      // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
+      delay: { delayTime: 0.139, feedback: 0.27, wet: 0, sync: { division: '1/16', modifier: 'straight' } },
+      reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 0.18 },
+      limiter: { threshold: -2 },
+    });
+  });
+
+  it('generateLfoBankSettings("oracle-alpha")', () => {
+    expect(generateLfoBankSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual({
+      a: { shape: 'sawtooth', rate: 0.35000000000000003, rateDrift: 0.59, depthDrift: 0.51 },
+      b: { shape: 'square', rate: 1.25, rateDrift: 0.15, depthDrift: 0.5700000000000001 },
+      c: { shape: 'sawtooth', rate: 3.4000000000000004, rateDrift: 0.19, depthDrift: 0.04 },
+      d: { shape: 'square', rate: 7.25, rateDrift: 0.48, depthDrift: 0.08 },
+    });
+  });
+
+  it('generateLfoBankSettings("oracle-theta")', () => {
+    // Task 13: lanes a and c landed Sync — the added `sync` keys are the only change to this
+    // expectation. b and d landed Free and stay byte-identical, with no `sync` key.
+    expect(generateLfoBankSettings('oracle-theta', 'oracle-theta')).toStrictEqual({
+      a: { shape: 'triangle', rate: 0.25, rateDrift: 0.23, depthDrift: 0.02, sync: { division: '1', modifier: 'dotted' } },
+      b: { shape: 'sawtooth', rate: 0.6000000000000001, rateDrift: -0.15, depthDrift: 0.17 },
+      c: { shape: 'square', rate: 1.8, rateDrift: -0.19, depthDrift: -0.3, sync: { division: '1/8', modifier: 'triplet' } },
+      d: { shape: 'triangle', rate: 5.2, rateDrift: -0.42, depthDrift: -0.08 },
+    });
+  });
+
+  it('is stable across a fresh noise map too, not just a cached one', () => {
+    const first = generateLfoBankSettings('oracle-alpha', 'oracle-alpha');
+    evictAttenuationStyleNoiseMap('oracle-alpha');
+    expect(generateLfoBankSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual(first);
   });
 });

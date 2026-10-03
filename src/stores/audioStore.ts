@@ -17,12 +17,21 @@ import {
 } from '../utils/globalAudioSeed';
 import { AUDIO_LOAD_PRESETS } from '../constants';
 import { clampAudioLoad, detectCoarsePointer, resolveInitialAudioLoad, resolveInitialEffectsLoad } from '../utils/audioBudget';
-import { generateLocaleBpm } from '../utils/localeBpmSeed';
+import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
+import {
+  delayToFree,
+  delayToSync,
+  laneToFree,
+  laneToSync,
+  resolveDelayTimeSeconds,
+  resolveLaneForEngine,
+  resolveLaneRateHz,
+} from '../utils/tempoSync';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from './attenuationStyleStore';
-import { useLocaleStore } from './localeStore';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
+import { isNoteValue } from '../data/noteValues';
 
-import type { GlobalAudioSettings } from '../types/globalAudio';
+import type { DelaySettings, GlobalAudioSettings } from '../types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
 import {
   GLOBAL_LFO_TARGET_IDS,
@@ -40,6 +49,35 @@ import {
 /** Keys of GlobalAudioSettings that are effect-param objects (excludes the one top-level flag). */
 type EffectKey = Exclude<keyof GlobalAudioSettings, 'compressorBeforeDelay'>;
 
+/**
+ * The engine is seconds-only (docs/specs/FREE_SYNC_TOGGLE.md §1.3): a Delay partial that carries
+ * `delayTime` or `sync` is pushed with its time RESOLVED from the stored Delay at `bpm`, and `sync`
+ * never reaches the engine. Anything else — an Audio Swell's `{ wet }`, a `{ feedback }` edit — is
+ * forwarded exactly as given, so a synced Delay's time isn't re-pushed on every swell tick. Reads the
+ * store lazily (it runs only from inside setGlobalAudio, after the merge), so GLOBAL_SETTER below
+ * still builds at module scope without touching useAudioStore during import.
+ */
+function setGlobalDelayResolved(params: Partial<DelaySettings>): void {
+  if (!('delayTime' in params) && !('sync' in params)) {
+    AudioEngine.setGlobalDelay(params);
+    return;
+  }
+  const { sync: _sync, ...rest } = params;
+  const { globalAudio, bpm } = useAudioStore.getState();
+  AudioEngine.setGlobalDelay({ ...rest, delayTime: resolveDelayTimeSeconds(globalAudio.delay, bpm) });
+}
+
+/**
+ * `partial` minus every undefined-valued key. A merge spreads `undefined` over a stored value as
+ * readily as a real one, so without this `{ sync: undefined }` would land an `undefined`-valued
+ * key in state (docs/specs/FREE_SYNC_TOGGLE.md §3: a Free result carries NO `sync` key, never
+ * `sync: undefined`) and act as a hidden Sync -> Free path that bypasses the mode actions. With it,
+ * an undefined-valued key is simply not an edit: a merge can never delete a key.
+ */
+function definedKeys<T extends object>(partial: Partial<T>): Partial<T> {
+  return Object.fromEntries(Object.entries(partial).filter(([, value]) => value !== undefined)) as Partial<T>;
+}
+
 /** Routes a setGlobalAudio(effect, partial) call to its matching AudioEngine setter. */
 const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]>) => void } = {
   compressor: AudioEngine.setGlobalCompressor,
@@ -47,7 +85,7 @@ const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]
   filterLPF: AudioEngine.setGlobalFilterLPF,
   filterHPF: AudioEngine.setGlobalFilterHPF,
   limiter: AudioEngine.setGlobalLimiter,
-  delay: AudioEngine.setGlobalDelay,
+  delay: setGlobalDelayResolved,
   reverb: AudioEngine.setGlobalReverb,
 };
 
@@ -60,15 +98,35 @@ const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]
  * store; regenerateGlobalAudioFromSeed's own push runs at module load, long
  * before those nodes exist, so it lands as a no-op on every one of these
  * setters and needs re-applying once real nodes exist).
+ *
+ * `bpm` is the tempo a synced Delay resolves at (docs/specs/FREE_SYNC_TOGGLE.md §1.3). It is a
+ * parameter, not read from the store, so a caller that is about to change the tempo can pass the
+ * one that will actually be in force.
  */
-export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings): void {
+export function applyGlobalAudioToEngine(globalAudio: GlobalAudioSettings, bpm: number): void {
+  const { sync: _sync, ...delay } = globalAudio.delay;
   AudioEngine.setGlobalCompressor(globalAudio.compressor);
   AudioEngine.setGlobalEQ(globalAudio.eq3);
   AudioEngine.setGlobalFilterLPF(globalAudio.filterLPF);
   AudioEngine.setGlobalFilterHPF(globalAudio.filterHPF);
   AudioEngine.setGlobalLimiter(globalAudio.limiter);
-  AudioEngine.setGlobalDelay(globalAudio.delay);
+  AudioEngine.setGlobalDelay({ ...delay, delayTime: resolveDelayTimeSeconds(globalAudio.delay, bpm) });
   AudioEngine.setGlobalReverb(globalAudio.reverb);
+}
+
+/**
+ * Re-push every tempo-synced value's resolved float after a tempo change (docs/specs/FREE_SYNC_TOGGLE.md
+ * §1.6). Free values never move with tempo, so they are never touched. Synchronous and safe before audio
+ * starts — lfoEngine.setBankRate just records the value until the lanes are primed, and the delay
+ * setter no-ops without a node.
+ */
+function reapplyTempoSyncedValues(state: Pick<AudioStore, 'bpm' | 'lfoBank' | 'globalAudio'>): void {
+  for (const lane of LFO_LANE_IDS) {
+    const settings = state.lfoBank[lane];
+    if (isNoteValue(settings.sync)) lfoEngine.setBankRate(lane, resolveLaneRateHz(settings, state.bpm));
+  }
+  const { delay } = state.globalAudio;
+  if (isNoteValue(delay.sync)) AudioEngine.setGlobalDelay({ delayTime: resolveDelayTimeSeconds(delay, state.bpm) });
 }
 
 /** Initial lfoBank — DEFAULT_BANK_LFO per lane (inert: rate 0, no drift) until the AS-sync below seeds real values. */
@@ -179,17 +237,25 @@ export interface AudioStore {
   driftHeldOff: boolean;
   setBPM: (bpm: number) => void;
   /**
-   * Reseed `bpm` for the given (newly built) locale — draws a fresh value
-   * via generateLocaleBpm and pushes it through the existing setBPM action
-   * (state write + AudioEngine.setBPM). Called only from worldTransition.ts's
-   * retransmitCoordsOnly/retransmitBoth (docs/specs/BPM_CONTROL.md §1.3) —
-   * NOT from retransmitAttenuationStyleOnly, and NOT a subscription.
+   * Reseed `bpm` for the given Attenuation Style — draws a fresh value via
+   * generateAttenuationStyleBpm and pushes it through the existing setBPM
+   * action (state write + AudioEngine.setBPM). Called from the module-scope
+   * Attenuation Style sync below, FIRST, so everything it reseeds afterwards
+   * resolves against the new tempo (docs/specs/FREE_SYNC_TOGGLE.md §1.7).
+   * A coordinates-only retransmit never reaches it.
    */
-  regenerateBpmFromSeed: (localeId: string, coordinates: { x: number; y: number }) => void;
+  regenerateBpmFromSeed: (attenuationStyleId: string, attenuationStyleName: string) => void;
   setGlobalAudio: <K extends EffectKey>(
     effect: K,
     partial: Partial<GlobalAudioSettings[K]>
   ) => void;
+  /**
+   * Flips Delay Time between Free (Float) and Sync (Anchored) (docs/specs/FREE_SYNC_TOGGLE.md §1.5):
+   * Free -> Sync snaps delayTime to the nearest allowed note at the current tempo, Sync -> Free keeps
+   * the seconds the user was hearing. A whole-object replacement of `globalAudio.delay`, so the Free
+   * result carries no `sync` key; pushes the resolved delayTime to the engine.
+   */
+  setDelaySyncMode: (synced: boolean) => void;
   /** Sets isMuted and pushes the resulting gain to AudioEngine — 0 when muted,
    *  volumePositionToGain(volume) (the live slider position) when not. Owns its own
    *  AudioEngine call, matching every other audioStore setter's shape (setBPM, etc.) —
@@ -238,9 +304,28 @@ export interface AudioStore {
   /**
    * Sets one LFO Bank lane's settings (docs/tasks/LFO_BANK.md Task 8) — updates state, then calls
    * the matching lfoEngine setter (setBankShape/Rate/RateDrift/DepthDrift) ONLY for the field(s)
-   * actually given in `partial`.
+   * actually given in `partial`. The engine only ever sees Hz: a `rate` or `sync` in the partial
+   * pushes the lane's RESOLVED rate (docs/specs/FREE_SYNC_TOGGLE.md §1.3), so a Free-rate edit on a
+   * synced lane re-sends the synced Hz rather than the number just typed.
+   *
+   * A merge can never delete a key, so this cannot turn a synced lane Free — that is
+   * setLfoBankLaneSyncMode / replaceLfoBankLane. An undefined-valued key (`{ sync: undefined }`)
+   * is dropped before the merge, not spread over the stored value.
    */
   setLfoBank: (lane: LfoLaneId, partial: Partial<BankLfoSettings>) => void;
+  /**
+   * Writes one lane WHOLE (no merge) and pushes all of it to lfoEngine — shape, the resolved Hz, both
+   * drifts. The only way to drop a lane's `sync` key (docs/specs/FREE_SYNC_TOGGLE.md assumption 6);
+   * also what a session restore uses, so a Free lane in a loaded session cannot inherit the live
+   * lane's stale `sync`.
+   */
+  replaceLfoBankLane: (lane: LfoLaneId, settings: BankLfoSettings) => void;
+  /**
+   * Flips one lane between Free (Float) and Sync (Anchored) (docs/specs/FREE_SYNC_TOGGLE.md §1.5):
+   * Free -> Sync snaps the rate to the nearest allowed note at the current tempo, Sync -> Free keeps
+   * the Hz the user was hearing. A whole-object replacement, so the Free result carries no `sync` key.
+   */
+  setLfoBankLaneSyncMode: (lane: LfoLaneId, synced: boolean) => void;
   /** Sets one global-chain target's LFO Bank link — updates state and calls lfoEngine.linkTarget
    *  (no robotId — global-chain targets are never robot-scoped). */
   setGlobalLfoLink: (target: GlobalLfoTargetId, link: LfoLink) => void;
@@ -279,19 +364,24 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     // Delegate to AudioEngine — the only module allowed to call Tone.js directly.
     // AudioEngine.setBPM guards against calling Transport before audio is started.
     AudioEngine.setBPM(bpm);
+    reapplyTempoSyncedValues(get());
   },
 
-  regenerateBpmFromSeed: (localeId, coordinates) => {
-    get().setBPM(generateLocaleBpm(localeId, coordinates.x, coordinates.y));
+  regenerateBpmFromSeed: (attenuationStyleId, attenuationStyleName) => {
+    get().setBPM(generateAttenuationStyleBpm(attenuationStyleId, attenuationStyleName));
   },
 
   setGlobalAudio: (effect, partial) => {
+    // An undefined-valued key is not an edit (definedKeys above); a partial with nothing left
+    // in it is a no-op — no state write, no engine push.
+    const edit = definedKeys(partial);
+    if (Object.keys(edit).length === 0) return;
     set((state) => ({
       globalAudio: {
         ...state.globalAudio,
         [effect]: {
           ...(state.globalAudio[effect] as object),
-          ...partial,
+          ...edit,
         },
       },
     }));
@@ -300,7 +390,14 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     // the same shape AudioEngine.ts's own ModulationTarget alias resolves for its
     // own unavoidable union return type.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (GLOBAL_SETTER[effect] as (params: any) => void)(partial);
+    (GLOBAL_SETTER[effect] as (params: any) => void)(edit);
+  },
+
+  setDelaySyncMode: (synced) => {
+    const { globalAudio, bpm } = get();
+    const delay = synced ? delayToSync(globalAudio.delay, bpm) : delayToFree(globalAudio.delay, bpm);
+    set({ globalAudio: { ...globalAudio, delay } });
+    AudioEngine.setGlobalDelay({ delayTime: resolveDelayTimeSeconds(delay, bpm) });
   },
 
   setCompressorBeforeDelay: (value) => {
@@ -388,7 +485,8 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
       ...(swellFrequency !== undefined ? { swellFrequency } : {}),
       ...(swellDuration !== undefined ? { swellDuration } : {}),
     });
-    applyGlobalAudioToEngine(globalAudio);
+    // bpm is already the new Attenuation Style's tempo: the AS-sync reseeds it before globalAudio.
+    applyGlobalAudioToEngine(globalAudio, get().bpm);
   },
 
   setLfoBank: (lane, partial) => {
@@ -397,11 +495,36 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     // (sessionShareUtils.ts) is supposed to backfill every lane, but a caller passing `undefined`
     // here should never throw regardless.
     if (!partial) return;
-    set((state) => ({ lfoBank: { ...state.lfoBank, [lane]: { ...state.lfoBank[lane], ...partial } } }));
-    if (partial.shape !== undefined) lfoEngine.setBankShape(lane, partial.shape);
-    if (partial.rate !== undefined) lfoEngine.setBankRate(lane, partial.rate);
-    if (partial.rateDrift !== undefined) lfoEngine.setBankRateDrift(lane, partial.rateDrift);
-    if (partial.depthDrift !== undefined) lfoEngine.setBankDepthDrift(lane, partial.depthDrift);
+    // An undefined-valued key is not an edit (definedKeys above): `{ sync: undefined }` neither
+    // lands `undefined` in state nor turns the lane Free — that is setLfoBankLaneSyncMode's job.
+    const edit = definedKeys(partial);
+    if (Object.keys(edit).length === 0) return;
+    set((state) => ({ lfoBank: { ...state.lfoBank, [lane]: { ...state.lfoBank[lane], ...edit } } }));
+    // Read the MERGED lane back: what the engine should hear depends on the whole lane, not the
+    // partial (a `rate` edit on a synced lane must not reach the engine as that rate).
+    const { lfoBank, bpm } = get();
+    const next = lfoBank[lane];
+    if (edit.shape !== undefined) lfoEngine.setBankShape(lane, edit.shape);
+    if ('rate' in edit || 'sync' in edit) lfoEngine.setBankRate(lane, resolveLaneRateHz(next, bpm));
+    if (edit.rateDrift !== undefined) lfoEngine.setBankRateDrift(lane, resolveLaneForEngine(next, bpm).rateDrift);
+    if (edit.depthDrift !== undefined) lfoEngine.setBankDepthDrift(lane, edit.depthDrift);
+  },
+
+  replaceLfoBankLane: (lane, settings) => {
+    // Same defense-in-depth as setLfoBank above.
+    if (!settings) return;
+    set((state) => ({ lfoBank: { ...state.lfoBank, [lane]: settings } }));
+    const engineLane = resolveLaneForEngine(settings, get().bpm);
+    lfoEngine.setBankShape(lane, engineLane.shape);
+    lfoEngine.setBankRate(lane, engineLane.rate);
+    lfoEngine.setBankRateDrift(lane, engineLane.rateDrift);
+    lfoEngine.setBankDepthDrift(lane, engineLane.depthDrift);
+  },
+
+  setLfoBankLaneSyncMode: (lane, synced) => {
+    const { lfoBank, bpm } = get();
+    const next = synced ? laneToSync(lfoBank[lane], bpm) : laneToFree(lfoBank[lane], bpm);
+    get().replaceLfoBankLane(lane, next);
   },
 
   setGlobalLfoLink: (target, link) => {
@@ -432,16 +555,25 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
 // ========================================
 // ATTENUATION STYLE SYNC
 // ========================================
-// Keep globalAudio seeded from whichever Attenuation Style is active — seeds
-// immediately for the one active at load (satisfies "app init"), then
-// re-seeds on every future currentAttenuationStyleId change (satisfies "any
-// future Attenuation Style switch") without requiring every future call site
-// of setCurrentAttenuationStyleId to remember to also call
-// regenerateGlobalAudioFromSeed. Mirrors attenuationStyleStore.ts's own
-// module-scope noise-map priming (`getAttenuationStyleNoiseMap('pelagos', 'Pelagos')`).
+// Keep bpm, globalAudio, lfoBank and globalLfoLinks seeded from whichever
+// Attenuation Style is active — seeds immediately for the one active at load
+// (satisfies "app init"), then re-seeds on every future
+// currentAttenuationStyleId change (satisfies "any future Attenuation Style
+// switch") without requiring every future call site of
+// setCurrentAttenuationStyleId to remember to also call each regenerate*.
+// Mirrors attenuationStyleStore.ts's own module-scope noise-map priming
+// (`getAttenuationStyleNoiseMap('pelagos', 'Pelagos')`).
+//
+// bpm reseeds FIRST: the tempo is an Attenuation Style property now
+// (docs/specs/FREE_SYNC_TOGGLE.md §1.7, inverting BPM_CONTROL.md §1.3's
+// locale seeding), and the globalAudio push right after it must resolve
+// against the new tempo. A coordinates-only retransmit never changes the
+// Attenuation Style, so it never reaches this and a hand-dragged tempo
+// survives a coordinate move.
 function syncGlobalAudioToCurrentAttenuationStyle(): void {
   const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   if (!attenuationStyle) return;
+  useAudioStore.getState().regenerateBpmFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateGlobalAudioFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateLfoBankFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateGlobalLfoLinksFromSeed(attenuationStyle.id, attenuationStyle.name);
@@ -453,22 +585,3 @@ useAttenuationStyleStore.subscribe((state, prevState) => {
     syncGlobalAudioToCurrentAttenuationStyle();
   }
 });
-
-// ========================================
-// LOCALE BPM SYNC (module load only — see docs/specs/BPM_CONTROL.md §1.3)
-// ========================================
-// Seeds audioStore.bpm for whichever locale is current at app boot. Every
-// LATER reseed is triggered explicitly by worldTransition.ts's
-// retransmitCoordsOnly/retransmitBoth, not by a subscription here — unlike
-// syncGlobalAudioToCurrentAttenuationStyle above, this deliberately does NOT
-// re-run on every currentAttenuationStyleId change, since
-// retransmitAttenuationStyleOnly must leave bpm untouched.
-function syncBpmToCurrentLocale(): void {
-  const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
-  const localeId = attenuationStyle?.currentLocaleId;
-  const locale = localeId ? useLocaleStore.getState().getLocaleById(localeId) : undefined;
-  if (!locale) return;
-  useAudioStore.getState().regenerateBpmFromSeed(locale.id, locale.coordinates);
-}
-
-syncBpmToCurrentLocale();

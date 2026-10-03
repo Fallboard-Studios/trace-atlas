@@ -6,6 +6,7 @@ import type { SessionPayload } from '../types/session';
 import type { LfoLaneId, GlobalLfoTargetId, LfoLink, BankLfoSettings } from '../types/lfo';
 import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
+import { NOTE_VALUES, type NoteValue } from '../data/noteValues';
 import { encodeSessionPayload, decodeSessionPayload, buildShareUrl, copySessionLink } from './sessionShareUtils';
 
 // ========================================
@@ -399,6 +400,166 @@ describe('encodeSessionPayload / decodeSessionPayload', () => {
 
     const stringPv = { ...validWire, pv: 'not a number' };
     expect(decodeSessionPayload(btoa(unescape(encodeURIComponent(JSON.stringify(stringPv)))))).toBeNull();
+  });
+});
+
+// ========================================
+// SYNC CODEC — docs/specs/FREE_SYNC_TOGGLE.md §1.8, docs/tasks/FREE_SYNC_TOGGLE.md Task 14
+// ========================================
+
+describe('lane `sync` on the wire (the `y` code)', () => {
+  const FREE_LANE: BankLfoSettings = { shape: 'sine', rate: 2, rateDrift: 0.1, depthDrift: -0.2 };
+  const nv = (division: NoteValue['division'], modifier: NoteValue['modifier'] = 'straight'): NoteValue => ({ division, modifier });
+
+  /** A wire blob built by hand, re-encoded the way the app encodes it. */
+  function encodeRawWire(wire: unknown): string {
+    return btoa(unescape(encodeURIComponent(JSON.stringify(wire))));
+  }
+
+  /** A v2 payload whose lane `a` is the given lane; the other lanes are Free. */
+  function payloadWithLaneA(lane: BankLfoSettings): SessionPayload {
+    return makePayload({ version: 2, lfoBank: makeLfoBank({ a: lane }), globalLfoLinks: makeGlobalLfoLinks() });
+  }
+
+  /** The wire of `payloadWithLaneA(FREE_LANE)` with lane `a`'s `y` forced to `y`, decoded. */
+  function decodeLaneAWithRawY(y: unknown): BankLfoSettings | undefined {
+    const wire = decodeRawWire(encodeSessionPayload(payloadWithLaneA(FREE_LANE))) as { lb: Record<string, Record<string, unknown>> };
+    wire.lb.a.y = y;
+    return decodeSessionPayload(encodeRawWire(wire))?.lfoBank?.a;
+  }
+
+  it.each(NOTE_VALUES.map((v) => [`${v.division} ${v.modifier}`, v] as const))(
+    'round-trips %s through `y`',
+    (_label, sync) => {
+      const payload = payloadWithLaneA({ ...FREE_LANE, sync });
+      const decoded = decodeSessionPayload(encodeSessionPayload(payload));
+      expect(decoded).toEqual(payload);
+      expect(decoded?.lfoBank?.a.sync).toEqual(sync);
+    },
+  );
+
+  it('writes the compact code: division token (32 16 8 4 2 1b 2b 4b) plus a modifier suffix (none / d / t)', () => {
+    const expected: Array<[NoteValue, string]> = [
+      [nv('1/32'), '32'], [nv('1/16'), '16'], [nv('1/8'), '8'], [nv('1/4'), '4'], [nv('1/2'), '2'],
+      [nv('1'), '1b'], [nv('2'), '2b'], [nv('4'), '4b'],
+      [nv('1/8', 'dotted'), '8d'], [nv('1/16', 'triplet'), '16t'], [nv('1/32', 'triplet'), '32t'],
+      [nv('1', 'dotted'), '1bd'], [nv('1/2', 'triplet'), '2t'],
+    ];
+    for (const [sync, code] of expected) {
+      const wire = decodeRawWire(encodeSessionPayload(payloadWithLaneA({ ...FREE_LANE, sync }))) as { lb: Record<string, { y?: string }> };
+      expect(wire.lb.a.y, `${sync.division} ${sync.modifier}`).toBe(code);
+    }
+  });
+
+  it('gives all 20 note values a distinct code', () => {
+    const codes = new Set(
+      NOTE_VALUES.map((sync) => {
+        const wire = decodeRawWire(encodeSessionPayload(payloadWithLaneA({ ...FREE_LANE, sync }))) as { lb: Record<string, { y?: string }> };
+        return wire.lb.a.y;
+      }),
+    );
+    expect(codes.size).toBe(NOTE_VALUES.length);
+    expect(codes.has(undefined)).toBe(false);
+  });
+
+  it('a Free lane adds no `y` to the wire — its entry is byte-for-byte the pre-Sync {s,r,rd,dd}', () => {
+    const wire = decodeRawWire(encodeSessionPayload(payloadWithLaneA(FREE_LANE))) as { lb: Record<string, Record<string, unknown>> };
+    for (const lane of LFO_LANE_IDS) expect(Object.keys(wire.lb[lane]).sort(), lane).toEqual(['dd', 'r', 'rd', 's']);
+  });
+
+  it('a synced lane adds exactly one key, `y`, and still carries its Free rate underneath', () => {
+    const payload = payloadWithLaneA({ ...FREE_LANE, rate: 3.5, sync: nv('1/8', 'dotted') });
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as { lb: Record<string, Record<string, unknown>> };
+    expect(Object.keys(wire.lb.a).sort()).toEqual(['dd', 'r', 'rd', 's', 'y']);
+    expect(wire.lb.a.r).toBe(3.5);
+    expect(decodeSessionPayload(encodeSessionPayload(payload))?.lfoBank?.a.rate).toBe(3.5);
+  });
+
+  it('a mixed Free / Sync bank round-trips toEqual, with each lane\'s own note', () => {
+    const payload = makePayload({
+      version: 2,
+      lfoBank: makeLfoBank({
+        a: { ...FREE_LANE, sync: nv('1/8', 'dotted') },
+        c: { ...FREE_LANE, shape: 'square', rate: 6, sync: nv('4') },
+      }),
+      globalLfoLinks: makeGlobalLfoLinks(),
+    });
+    const decoded = decodeSessionPayload(encodeSessionPayload(payload));
+    expect(decoded).toEqual(payload);
+    expect('sync' in decoded!.lfoBank!.b).toBe(false);
+    expect('sync' in decoded!.lfoBank!.d).toBe(false);
+  });
+
+  it('a Free lane decodes with no `sync` key at all — not `sync: undefined`', () => {
+    const decoded = decodeSessionPayload(encodeSessionPayload(payloadWithLaneA(FREE_LANE)));
+    expect(decoded?.lfoBank?.a).toStrictEqual(FREE_LANE);
+  });
+
+  it('an absent `y` decodes to a lane with no `sync` key (a pre-Sync share link)', () => {
+    expect(decodeLaneAWithRawY(undefined)).toStrictEqual(FREE_LANE);
+  });
+
+  it.each<[string, unknown]>([
+    ['an empty string', ''],
+    ['an unknown division', '3'],
+    ['letters', 'x'],
+    ['a typo\'d division', '4x'],
+    ['a doubled modifier', '8dd'],
+    ['a modifier the division does not offer: 2 bars dotted', '2bd'],
+    ['a modifier the division does not offer: 4 bars triplet', '4bt'],
+    ['an uppercase modifier', '8D'],
+    ['surrounding whitespace', ' 4'],
+    ['trailing whitespace', '4 '],
+    ['a slash form of the division', '1/4'],
+    ['an inherited-property name', 'constructor'],
+    ['__proto__', '__proto__'],
+    ['a number', 4],
+    ['null', null],
+    ['a boolean', true],
+    ['an object', { division: '1/4', modifier: 'straight' }],
+    ['an array', ['4']],
+  ])('garbage `y` (%s) decodes to a Free lane — no `sync` key — without throwing', (_label, y) => {
+    expect(() => decodeLaneAWithRawY(y)).not.toThrow();
+    expect(decodeLaneAWithRawY(y)).toStrictEqual(FREE_LANE);
+  });
+
+  it('garbage `y` on one lane leaves every other lane and the rest of the payload intact', () => {
+    const payload = makePayload({
+      version: 2,
+      lfoBank: makeLfoBank({ b: { ...FREE_LANE, sync: nv('1/4') } }),
+      globalLfoLinks: makeGlobalLfoLinks(),
+    });
+    const wire = decodeRawWire(encodeSessionPayload(payload)) as { lb: Record<string, Record<string, unknown>> };
+    wire.lb.a.y = 'garbage';
+    const decoded = decodeSessionPayload(encodeRawWire(wire));
+    expect(decoded?.lfoBank?.a).toStrictEqual(FREE_LANE);
+    expect(decoded?.lfoBank?.b.sync).toEqual(nv('1/4'));
+    expect(decoded?.coordinates).toEqual(payload.coordinates);
+  });
+
+  it('an in-memory lane carrying a bogus `sync` is written as Free — the encoder never emits a code it cannot vouch for', () => {
+    const bogus = { ...FREE_LANE, sync: { division: '1/3', modifier: 'straight' } } as unknown as BankLfoSettings;
+    const wire = decodeRawWire(encodeSessionPayload(payloadWithLaneA(bogus))) as { lb: Record<string, Record<string, unknown>> };
+    expect(wire.lb.a).not.toHaveProperty('y');
+    expect(decodeSessionPayload(encodeSessionPayload(payloadWithLaneA(bogus)))?.lfoBank?.a).toStrictEqual(FREE_LANE);
+  });
+});
+
+describe('Delay `sync` travels inside `g` whole', () => {
+  const delay = { delayTime: 0.3, feedback: 0.2, wet: 0.1 };
+
+  it('round-trips a synced Delay with its note, needing no codec of its own', () => {
+    const sync: NoteValue = { division: '1/8', modifier: 'dotted' };
+    const payload = makePayload({ version: 2, globalAudio: { delay: { ...delay, sync } } as unknown as SessionPayload['globalAudio'] });
+    const decoded = decodeSessionPayload(encodeSessionPayload(payload));
+    expect(decoded).toEqual(payload);
+    expect((decoded!.globalAudio as unknown as { delay: { sync: NoteValue } }).delay.sync).toEqual(sync);
+  });
+
+  it('a Free Delay stays Free — no `sync` key appears on the round trip', () => {
+    const payload = makePayload({ version: 2, globalAudio: { delay } as unknown as SessionPayload['globalAudio'] });
+    const decoded = decodeSessionPayload(encodeSessionPayload(payload));
+    expect('sync' in (decoded!.globalAudio as unknown as { delay: object }).delay).toBe(false);
   });
 });
 

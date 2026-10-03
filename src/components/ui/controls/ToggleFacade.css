@@ -1,0 +1,25 @@
+/* A toggle facade holds the size of its LARGEST content, so flipping the switch never resizes it
+   (measured live before this: "Float" 72.8px vs "Anchored" 111.3px; the nav ☰ 47.77px vs ✕ 45.98px).
+   Every state's content is a real child, and they all share ONE grid cell, so the cell is as wide AND
+   as tall as the biggest; every state but the current one is invisible but still takes its size.
+
+   Why real children and not ::before/::after pseudo-element sizers reading data attributes (the first
+   version): those could only size plain text, and with `overflow: hidden` on them they counted for
+   nothing at MIN-content, which is how Toggle.css's inline-size containment sizes the switch in some
+   placements (found live on the nav toggle). In-flow children have neither limit, and size a two-line
+   DualLabel as well as a glyph. Hence also: never `display: none`, a fixed height, or overflow on a
+   hidden state — any of them would drop its size from the cell. nowrap so a multi-word label's
+   min-content is its full width. The whole facade is aria-hidden (ToggleFacade.tsx). */
+.sc-toggle-facade {
+  display: inline-grid;
+  justify-items: center;
+  white-space: nowrap;
+}
+
+.sc-toggle-facade__state {
+  grid-area: 1 / 1;
+}
+
+.sc-toggle-facade__state:not([data-current]) {
+  visibility: hidden;
+}

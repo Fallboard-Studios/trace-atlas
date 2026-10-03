@@ -9,6 +9,9 @@ import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero'
 import { Stepper } from '@/components/ui/controls/Stepper';
 import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
 import { LfoLink } from '@/components/ui/controls/LfoLink';
+import { TempoSyncSlider } from '@/components/ui/controls/TempoSyncSlider';
+import type { NoteValue } from '@/data/noteValues';
+import { allowedDelayNoteValues } from '@/utils/tempoSync';
 import {
   AUDIO_RIG_CONFIG,
   DECAY_MODE_SCHEMA,
@@ -19,7 +22,7 @@ import {
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { cancelSwellForGlobalField, isGlobalTargetSwelling } from '@/systems/audioSwells';
 import type { Trait } from '@/types/traits';
-import type { DirectionalPanelSchema, LfoLinkSchema, LfoLinkValue } from '@/types/controls';
+import type { DirectionalPanelSchema, LfoLinkSchema, LfoLinkValue, SliderLinearSchema } from '@/types/controls';
 import type { GlobalAudioSettings } from '@/types/globalAudio';
 import type { GlobalLfoTargetId } from '@/types/lfo';
 import './AudioRigDrawer.css';
@@ -40,6 +43,9 @@ const COMPRESSOR_BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.com
 // Knee + Decay Mode's own row (Crawford's own request) — same 'responsive' shape as the 2 rows
 // above: side-by-side on desktop, stacked on mobile/tablet.
 const COMPRESSOR_KNEE_DECAY_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.compressor.kneeDecayRow', type: 'directionalPanel', orientation: 'responsive' };
+
+/** Stable (and frozen) empty list for every non-Delay panel's `allowed` — see AudioRigEffectPanel's Delay selectors. */
+const NO_NOTE_VALUES: readonly NoteValue[] = Object.freeze([]);
 
 const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
   eq3: 'spectral',
@@ -196,6 +202,21 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   const filterLinksHeldOff = useAudioStore((s) => isFilterBlock && s.filterLinksHeldOff);
   const compressorBeforeDelay = useAudioStore((s) => (effectKey === 'compressor' ? s.globalAudio.compressorBeforeDelay : undefined));
   const setCompressorBeforeDelay = useAudioStore((s) => s.setCompressorBeforeDelay);
+  // Delay Time's Tempo Sync (docs/specs/FREE_SYNC_TOGGLE.md §1.4): `sync` and `bpm` get their own selectors
+  // rather than widening the Record<string, number> cast above — the same unconditional-hook/
+  // conditional-selector shape compressorBeforeDelay uses. Off the Delay panel both return a constant, so
+  // a tempo change re-renders no other effect's panel.
+  const isDelay = effectKey === 'delay';
+  const delaySync = useAudioStore((s) => (isDelay ? s.globalAudio.delay.sync : undefined));
+  const bpm = useAudioStore((s) => (isDelay ? s.bpm : 0));
+  const setDelaySyncMode = useAudioStore((s) => s.setDelaySyncMode);
+  // Memoized on bpm so TempoSyncSlider's memo and its derived Sync schema both bail on every render that
+  // isn't a tempo change.
+  const delayNoteValues = useMemo(() => (isDelay ? allowedDelayNoteValues(bpm) : NO_NOTE_VALUES), [isDelay, bpm]);
+  const handleDelaySyncChange = useCallback(
+    (note: NoteValue) => setGlobalAudio('delay', { sync: note }),
+    [setGlobalAudio],
+  );
 
   // Stabilized (docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md Task 12) — this used to be a plain
   // function, rebuilt fresh every render; every one of the ~9 call shapes below built its own
@@ -274,6 +295,26 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
                 />
               </div>
             </DirectionalPanel>
+          </>
+        ) : block.key === 'delay' ? (
+          // Delay Time goes through TempoSyncSlider (Free = seconds, Sync = a note value); Repeats and
+          // Amount stay plain rows. Still three direct param-rows (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.7).
+          <>
+            <div className="audio-rig-drawer__param-row">
+              <TempoSyncSlider
+                // Safe cast: audioRigConfig.ts declares delayTime as a sliderLinear (the Free-mode schema).
+                schema={findParam(block.params, 'delayTime').schema as SliderLinearSchema}
+                freeValue={effect.delayTime}
+                syncValue={delaySync}
+                allowed={delayNoteValues}
+                onFreeChange={fieldOnChange.delayTime}
+                onSyncChange={handleDelaySyncChange}
+                onModeChange={setDelaySyncMode}
+                swelling={isGlobalTargetSwelling(effectKey, 'delayTime')}
+              />
+            </div>
+            {paramRow(findParam(block.params, 'feedback'), effect, fieldOnChange.feedback, effectKey)}
+            {paramRow(findParam(block.params, 'wet'), effect, fieldOnChange.wet, effectKey)}
           </>
         ) : (
           block.params.map((param) => paramRow(

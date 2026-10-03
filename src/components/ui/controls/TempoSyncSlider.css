@@ -1,0 +1,22 @@
+/* Slider with its Free | Sync toggle in a row of its own UNDER it (docs/specs/FREE_SYNC_TOGGLE.md §1.4;
+   Crawford, 2026-10-03), so the slider has the whole width like every other slider in the panel. Both
+   live in this one wrapper — a caller's one param-row per slider is preserved (the Delay block's "3 direct
+   param-rows" rule). Establishes no sc-control container of its own: the SliderLinear inside it does, and
+   size containment on this shrink-to-fit-capable wrapper would collapse it. The toggle's own sizing (it
+   must not claim width: 100%) lives in TempoSyncToggle.css. */
+.sc-tempo-sync {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-control);
+}
+
+/* The slider fills the column's width. align-self: stretch, NOT flex: 1 1 0 — in a column the flex axis
+   is the HEIGHT, and a zero flex-basis there collapses the slider to nothing (DirectionalPanel.css
+   documents the same trap). min-width: 0 lets the voxel track shrink rather than overflow. */
+.sc-tempo-sync__slider {
+  align-self: stretch;
+  min-width: 0;
+}

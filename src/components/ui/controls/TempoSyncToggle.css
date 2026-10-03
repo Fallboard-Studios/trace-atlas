@@ -1,0 +1,22 @@
+/* Toggle.css is written for a toggle in its own labelled row: `.sc-toggle` is width: 100% and an
+   inline-size container. Dropped into ANY flex row — beside the Rate slider, beside the Mutation Type
+   options — that 100% flex-basis claims the whole row and starves the neighbour (found live in Chrome:
+   the slider wrapper beside it measured 0px). Here the toggle is just its facade box, wherever it is
+   placed: never grown or shrunk by the row, sized to its content. The container-type is dropped too —
+   a shrink-to-fit flex item under inline-size containment collapses to 0px (SliderLinear.css documents
+   the same trap) — and nothing is lost: with facade content Toggle renders no DualLabel, the only thing
+   its sc-control container queries ever restyle. Specificity (0,2,0) beats Toggle.css's .sc-toggle
+   (0,1,0) whatever order the stylesheets load in. NavTreeNode.css makes the same width override. */
+.sc-tempo-sync-toggle {
+  flex: 0 0 auto;
+  /* The toggle's own label (Anchoring over Tempo Sync) beside the box, the way Toggle lays out any
+     labelled toggle. Centred on the box: both are two-line label pairs. */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sc-tempo-sync-toggle > .sc-toggle {
+  width: auto;
+  container-type: normal;
+}

@@ -5,7 +5,7 @@ Robot Detail view (`RobotOptionsTab.tsx` — `AudioSettingSection`, `PingControl
 `PingContourDrawer`, `SignatureArrayDrawer`). Sources: `src/data/audioRigConfig.ts`,
 `src/data/robotOptionsConfig.ts`, `src/components/ui/controls/LfoLink.tsx` for the schema/UI
 columns; `src/data/globalAudioSeedRanges.ts`, `src/data/globalAudioLoadingRanges.ts`,
-`src/utils/globalAudioSeed.ts`, `src/systems/spawnSystem.ts`, `src/utils/localeBpmSeed.ts` for the
+`src/utils/globalAudioSeed.ts`, `src/systems/spawnSystem.ts`, `src/utils/bpmSeed.ts` for the
 Load Min/Max columns (what a fresh seed/spawn can actually generate the attribute at, distinct
 from the Min/Max the slider itself lets you drag to).
 
@@ -69,13 +69,20 @@ pass, for unrelated reasons noted at each row.
 
 | Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
 |---|---|---|---|---|---|---|---|
-| Time | Linear | s | 0 | 10 | 0.001 | 0.05 | 0.5 |
+| Time¹⁶ | Linear | s | 0 | 10 | 0.001 | 0.05 | 0.5 |
 | Feedback | Linear | — | 0 | 0.95 | 0.01 | 0 | 0.4 |
 | Mix | Linear | — | 0 | 1 | 0.01 | 0¹ | 0.3 |
 
 ¹ Mix (`delay.wet`) has a ~25% seeded chance of loading at exactly `0` instead of a sampled value
 in `[0, 0.3]` (`DELAY_QUIET_THRESHOLD`, `globalAudioSeed.ts`) — the one global effect a fresh
 Attenuation Style can load silent.
+¹⁶ Time has a **Free | Sync** mode (`docs/specs/FREE_SYNC_TOGGLE.md`). The row above is Free. In Sync
+the same slider steps through note values instead (`allowedDelayNoteValues(bpm)`, `tempoSync.ts` —
+the `NOTE_VALUES` entries, `src/data/noteValues.ts`, whose duration at the current tempo falls inside
+`0–10` s, shortest to longest; the readout is the note's name, no unit), so Min/Max/Step above don't
+apply. A fresh seed rolls Sync with `DELAY_SYNC_ODDS` (`globalAudioSeed.ts`, 66%) and draws the note
+from the Load range `0.05–0.5` s at the style's tempo; the Free `delayTime` is still sampled as in the
+row, and kept underneath.
 
 ### Reverb
 
@@ -120,9 +127,11 @@ seeded load value is a whole dB now.
 | Tempo | Linear | BPM | 20 | 200 | 1 | 40 | 100³ |
 | Automatic Effects | Linear | % | 0 | 100 | 1 | 33 | 66⁴ |
 
-³ Sourced from the *locale's* own seed (`LOCALE_BPM_SEED_RANGE`, `localeBpmSeed.ts`), not the
-Attenuation Style — and explicitly `Math.round()`-ed before storage, so this one is correctly
-step-aligned.
+³ Sourced from the *Attenuation Style's* own seed (`BPM_SEED_RANGE`, `generateAttenuationStyleBpm`,
+`bpmSeed.ts`), not the locale — it moved off the locale with the Free | Sync toggle
+(`docs/specs/FREE_SYNC_TOGGLE.md` §1.7), so it reseeds on an Attenuation Style change and a
+coordinates-only move leaves it alone. Explicitly `Math.round()`-ed before storage, so this one is
+correctly step-aligned.
 ⁴ Sampled once as a continuous fraction (`PING_VARIANCE_AUTOMATION_SEED_RANGE`,
 `globalAudioSeed.ts`), then quantized in percent-space (`quantizeToStep(raw * 100, 0, 1) / 100`)
 before being converted back to a fraction — always lands on a whole percent now, matching the
@@ -274,7 +283,7 @@ are fixed, adjacent, and log-spaced, slow-to-fast by lane letter:
 | Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
 |---|---|---|---|---|---|---|---|
 | Shape | Radio (triangle/sine/square/sawtooth) | — | — | — | — | all 4, front-weighted¹³ | all 4, front-weighted¹³ |
-| Rate | Linear | Hz | 0 | 20 | 0.05 | lane a: 0.1, b: 0.4, c: 1.5, d: 4 | lane a: 0.4, b: 1.5, c: 4, d: 8 |
+| Rate¹⁷ | Linear | Hz | 0 | 20 | 0.05 | lane a: 0.1, b: 0.4, c: 1.5, d: 4 | lane a: 0.4, b: 1.5, c: 4, d: 8 |
 | Rate Drift | Centered Zero | % | -100 | 100 | —¹⁴ | -70 | 70 |
 | Depth Drift | Centered Zero | % | -100 | 100 | —¹⁴ | -70 | 70 |
 
@@ -285,6 +294,15 @@ front-to-back `[1, 0.5, 0.25, 0.125]` (sine 53%/triangle 27%/sawtooth 13%/square
 picked shape moves to the back of the queue before the next lane draws, so a shape can repeat across
 a world's 4 lanes, just less likely each time it's reused. Scoped to shape only — Rate/Rate
 Drift/Depth Drift below are unaffected and stay keyed to lane, not shape.
+¹⁷ Rate has a **Free | Sync** mode (`docs/specs/FREE_SYNC_TOGGLE.md`). The row above is Free. In Sync
+the same slider steps through note values instead (`allowedLaneNoteValues(bpm)`, `tempoSync.ts` — the
+`NOTE_VALUES` entries, `src/data/noteValues.ts`, whose rate at the current tempo falls inside `0–20`
+Hz, slowest to fastest; the readout is the note's name, no unit), so Min/Max/Step above don't apply.
+A fresh seed rolls Sync per lane with `LFO_BANK_SYNC_ODDS` (`globalAudioSeed.ts`; targets a 75%, b 66%,
+c 33%, d 25% — the constants are calibrated per lane because a simplex draw isn't uniform) and draws
+the note from the lane's own Load band at the style's tempo, falling back to the neighbouring bands
+only if a band holds no note at that tempo. The Free `rate` is still sampled as in the row, and kept
+underneath.
 ¹⁴ `SliderCenteredZero` still has no numeric `step` field in its *schema* — the UI slider's own
 granularity is unchanged. The *generation* side now rounds anyway: each lane's `rateDrift`/
 `depthDrift` (`generateLfoBankSettings`, `globalAudioSeed.ts`) quantizes to a whole hundredth in

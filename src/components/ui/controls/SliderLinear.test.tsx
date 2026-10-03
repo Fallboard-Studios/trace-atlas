@@ -155,6 +155,187 @@ describe('SliderLinear', () => {
     expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('4.999999999999999');
   });
 
+  // docs/specs/FREE_SYNC_TOGGLE.md §1.4 — mirrors SliderLogSchema.formatValue. The Sync-mode Rate/Delay
+  // slider is this primitive with value = an index into a note list, and the readout is the note's name.
+  describe('formatValue (docs/specs/FREE_SYNC_TOGGLE.md §1.4, Task 8)', () => {
+    const noteNames = ['1 bar', '1/2', '1/4', '1/8'];
+    const formatValue = (v: number) => noteNames[Math.round(v)];
+    const indexSchema: SliderLinearSchema = { id: 'noteIdx', type: 'sliderLinear', min: 0, max: 3, step: 1, orientation: 'horizontal', formatValue };
+
+    it('uses formatValue for the readout when present — the index renders as its name', () => {
+      render(<SliderLinear schema={indexSchema} value={2} onChange={() => {}} />);
+      expect(screen.getByText('1/4')).toBeTruthy();
+      expect(screen.queryByText('2')).toBeNull();
+    });
+
+    it('appends no unit even when the schema also carries one — formatValue owns the whole readout', () => {
+      const withUnit: SliderLinearSchema = { ...indexSchema, unit: 'Hz' };
+      render(<SliderLinear schema={withUnit} value={2} onChange={() => {}} />);
+      expect(screen.getByText('1/4')).toBeTruthy();
+      expect(screen.queryByText('1/4Hz')).toBeNull();
+    });
+
+    it('applies in the readOnly branch too — the one valueLabel is shared', () => {
+      render(<SliderLinear schema={indexSchema} value={3} onChange={() => {}} readOnly />);
+      expect(screen.getByText('1/8')).toBeTruthy();
+    });
+
+    it('is unchanged when formatValue is absent — {value}{unit} exactly as before (regression guard)', () => {
+      render(<SliderLinear schema={schema} value={2} onChange={() => {}} />);
+      expect(screen.getByText('2Hz')).toBeTruthy();
+    });
+
+    it('is unchanged when formatValue is absent and so is unit — the bare value (regression guard)', () => {
+      const bare: SliderLinearSchema = { id: 'x', type: 'sliderLinear', min: 0, max: 1, orientation: 'horizontal' };
+      render(<SliderLinear schema={bare} value={0.5} onChange={() => {}} />);
+      expect(screen.getByText('0.5')).toBeTruthy();
+    });
+
+    it('passes formatValue the unrounded value, not the 3-decimal display string — rounding is the formatter\'s job', () => {
+      const spy = vi.fn((v: number) => `raw:${v}`);
+      render(<SliderLinear schema={{ ...indexSchema, formatValue: spy }} value={1.0004999} onChange={() => {}} />);
+      expect(spy).toHaveBeenCalledWith(1.0004999);
+      expect(screen.getByText('raw:1.0004999')).toBeTruthy();
+    });
+
+    it('follows a prop-driven value change — the readout re-renders to the new index\'s name once the ease settles', () => {
+      const { rerender } = render(<SliderLinear schema={indexSchema} value={0} onChange={() => {}} />);
+      expect(screen.getByText('1 bar')).toBeTruthy();
+
+      rerender(<SliderLinear schema={indexSchema} value={3} onChange={() => {}} />);
+      expect(screen.getByText('1/8')).toBeTruthy();
+      expect(screen.queryByText('1 bar')).toBeNull();
+    });
+
+    it('follows a live keyboard step — ArrowRight moves the readout to the next name and calls onChange with the index', () => {
+      const onChange = vi.fn();
+      render(<SliderLinear schema={indexSchema} value={1} onChange={onChange} />);
+      const thumb = screen.getByRole('slider');
+      thumb.focus();
+      fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+
+      expect(onChange).toHaveBeenCalledWith(2); // the index, never the formatted text
+      expect(screen.getByText('1/4')).toBeTruthy();
+    });
+
+    it('leaves the thumb\'s numeric aria values alone — formatValue is display text only', () => {
+      render(<SliderLinear schema={indexSchema} value={2} onChange={() => {}} />);
+      const thumb = screen.getByRole('slider');
+      expect(thumb.getAttribute('aria-valuenow')).toBe('2');
+      expect(thumb.getAttribute('aria-valuemin')).toBe('0');
+      expect(thumb.getAttribute('aria-valuemax')).toBe('3');
+    });
+
+    it('an empty-string return renders an empty readout — no unit, no fallback to the number', () => {
+      const { container } = render(<SliderLinear schema={{ ...indexSchema, unit: 'Hz', formatValue: () => '' }} value={2} onChange={() => {}} />);
+      expect(container.querySelector('.sc-slider-linear__value')?.textContent).toBe('');
+    });
+
+    it('keeps the readout in the same slot with the same class — after the track horizontally, before it vertically', () => {
+      const horizontal = render(<SliderLinear schema={indexSchema} value={2} onChange={() => {}} />);
+      const hKids = Array.from(horizontal.container.querySelector('.sc-slider-linear')!.children);
+      expect(hKids.findIndex((c) => c.classList.contains('sc-slider-linear__root'))).toBeLessThan(
+        hKids.findIndex((c) => c.classList.contains('sc-slider-linear__value')),
+      );
+      horizontal.unmount();
+
+      const vertical = render(<SliderLinear schema={{ ...indexSchema, orientation: 'vertical' }} value={2} onChange={() => {}} />);
+      const vKids = Array.from(vertical.container.querySelector('.sc-slider-linear')!.children);
+      expect(vKids.findIndex((c) => c.classList.contains('sc-slider-linear__value'))).toBeLessThan(
+        vKids.findIndex((c) => c.classList.contains('sc-slider-linear__root')),
+      );
+    });
+
+    it('does not break the memo contract — a re-render with an identical schema (same formatValue reference) does not re-execute the render body', () => {
+      const onChange = () => {};
+      const { rerender } = render(<SliderLinear schema={indexSchema} value={2} onChange={onChange} />);
+      const callsAfterMount = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.length;
+
+      rerender(<SliderLinear schema={indexSchema} value={2} onChange={onChange} />);
+
+      expect((resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsAfterMount);
+    });
+
+    // docs/tasks/FREE_SYNC_TOGGLE.md Task 10 (folded in from Task 8's a11y gap): Radix exposes only
+    // the numeric index through aria-valuenow, so a screen reader would announce "2" for "1/4".
+    // aria-valuetext is the ARIA attribute that gives a value its human-readable form.
+    describe('aria-valuetext — the thumb announces what the readout shows', () => {
+      it('puts formatValue\'s return on the thumb, so the index is announced as its name', () => {
+        render(<SliderLinear schema={indexSchema} value={2} onChange={() => {}} />);
+        expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBe('1/4');
+      });
+
+      it('equals the visible readout exactly — one source for what is seen and what is heard', () => {
+        const { container } = render(<SliderLinear schema={indexSchema} value={3} onChange={() => {}} />);
+        expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBe(container.querySelector('.sc-slider-linear__value')?.textContent);
+      });
+
+      it('carries no unit even when the schema also has one — formatValue owns the whole text', () => {
+        render(<SliderLinear schema={{ ...indexSchema, unit: 'Hz' }} value={2} onChange={() => {}} />);
+        expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBe('1/4');
+      });
+
+      it('is built from the same unrounded value the readout gets', () => {
+        const spy = vi.fn((v: number) => `raw:${v}`);
+        render(<SliderLinear schema={{ ...indexSchema, formatValue: spy }} value={1.0004999} onChange={() => {}} />);
+        expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBe('raw:1.0004999');
+      });
+
+      it('follows a live keyboard step — ArrowRight moves the announced name along with the readout', () => {
+        render(<SliderLinear schema={indexSchema} value={1} onChange={() => {}} />);
+        const thumb = screen.getByRole('slider');
+        expect(thumb.getAttribute('aria-valuetext')).toBe('1/2');
+        thumb.focus();
+        fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+        expect(thumb.getAttribute('aria-valuetext')).toBe('1/4');
+      });
+
+      it('follows a prop-driven value change once the ease settles', () => {
+        const { rerender } = render(<SliderLinear schema={indexSchema} value={0} onChange={() => {}} />);
+        expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBe('1 bar');
+        rerender(<SliderLinear schema={indexSchema} value={3} onChange={() => {}} />);
+        expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBe('1/8');
+      });
+
+      it('leaves aria-valuenow numeric and untouched alongside it', () => {
+        render(<SliderLinear schema={indexSchema} value={2} onChange={() => {}} />);
+        expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('2');
+      });
+
+      it('is present on a vertical slider too', () => {
+        render(<SliderLinear schema={{ ...indexSchema, orientation: 'vertical' }} value={2} onChange={() => {}} />);
+        expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBe('1/4');
+      });
+
+      it('is still present when the slider is disabled — a disabled control is still read', () => {
+        render(<SliderLinear schema={indexSchema} value={2} onChange={() => {}} disabled />);
+        expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBe('1/4');
+      });
+
+      it('does not appear at all when the schema has no formatValue — existing sliders\' markup is unchanged', () => {
+        render(<SliderLinear schema={schema} value={2} onChange={() => {}} />);
+        expect(screen.getByRole('slider').hasAttribute('aria-valuetext')).toBe(false);
+      });
+
+      it('does not appear when there is no formatValue and no unit either', () => {
+        const bare: SliderLinearSchema = { id: 'x', type: 'sliderLinear', min: 0, max: 1, orientation: 'horizontal' };
+        render(<SliderLinear schema={bare} value={0.5} onChange={() => {}} />);
+        expect(screen.getByRole('slider').hasAttribute('aria-valuetext')).toBe(false);
+      });
+
+      it('does not leak into the readOnly branch, which has no thumb to carry it', () => {
+        const { container } = render(<SliderLinear schema={indexSchema} value={2} onChange={() => {}} readOnly />);
+        expect(container.querySelector('[aria-valuetext]')).toBeNull();
+      });
+
+      it('calls formatValue once per render, not once for the readout and again for the thumb', () => {
+        const spy = vi.fn((v: number) => `n${Math.round(v)}`);
+        render(<SliderLinear schema={{ ...indexSchema, formatValue: spy }} value={2} onChange={() => {}} />);
+        expect(spy).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+
   it('renders its own schema labels via an internally-composed DualLabel', () => {
     render(<SliderLinear schema={schema} value={2} onChange={() => {}} />);
     expect(screen.getByText('Oscillation Rate')).toBeTruthy();

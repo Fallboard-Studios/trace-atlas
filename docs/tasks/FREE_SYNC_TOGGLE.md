@@ -1,415 +1,324 @@
 # Implementation Plan: Free | Sync Toggle
 
-> **Stale against the LFO Bank (2026-10-01) — re-plan before executing any task below.** Every LFO-side task here (at least 1, 4, 5, 9, 12, 13, 15, 16 by name) targets the per-target `lfoEngine.ts`/`Lfo.tsx`/`LfoTargetGroup` surface `docs/tasks/LFO_BANK.md` deleted and replaced with 4 shared lanes (`lfoBank.<lane>.rate`) and per-field `LfoLink`s (`lane`/`depth`, no `rate` of their own). Re-scope the LFO half of this plan to one `sync` flag per lane (wired into `LfoBankLanePanel`, four lanes total) rather than per-field; the Delay Time tasks are untouched by the Bank and can proceed as planned. See the dated note atop `docs/specs/FREE_SYNC_TOGGLE.md`.
+> **Rewritten 2026-10-02 against the LFO Bank.** The 2026-09-30 17-task per-target plan is in git history. This plan implements the rewritten spec.
 
-Source spec: [docs/specs/FREE_SYNC_TOGGLE.md](../specs/FREE_SYNC_TOGGLE.md). Source intent: [docs/intent/free-sync-toggle.md](../intent/free-sync-toggle.md). Roadmap slot: Phase 33 (added in Task 17).
+Source spec: [docs/specs/FREE_SYNC_TOGGLE.md](../specs/FREE_SYNC_TOGGLE.md). Source intent: [docs/intent/free-sync-toggle.md](../intent/free-sync-toggle.md) (the 2026-10-02 re-scope section). Branch `feature/sync-toggle`, off `main` at `07da4a73`. Roadmap slot: Phase 33 (added in Task 15).
 
-> Process note: the `planning-and-task-breakdown` skill asks for `tasks/plan.md` + `tasks/todo.md`. This repo keeps both in one file under `docs/tasks/` (every sibling here), and that convention wins (CLAUDE.md "Authority and precedence"). Execution follows the house TDD rhythm: RED test first, one commit per task, mutation-check at the gates named below, stop and report at every checkpoint.
-
-> **Spec §7 item 4 resolved during planning (2026-09-30):** `localeStore`'s initial state already holds `DEFAULT_LOCALE` (`'pelagos-default'`), and `audioStore.ts` imports `localeStore` before its own module-load `syncGlobalAudioToCurrentAttenuationStyle()` runs — so a locale is guaranteed whenever the global seeders run, and `seedBpm` can always be `generateLocaleBpm(locale.id, x, y)`. No fallback tempo, no deferred re-seed. Task 17 amends the spec to say so.
+> Process note: `planning-and-task-breakdown` asks for `tasks/plan.md` + `tasks/todo.md`. This repo keeps both in one file under `docs/tasks/` (every sibling here), and that convention wins (CLAUDE.md "Authority and precedence"). Execution follows the house rhythm: RED test first, one commit per task, mutation-check at the named gates, stop and report at every checkpoint.
 
 ## Overview
 
-Add a per-target Free | Sync (Float | Anchored) toggle to Delay Time and every LFO Rate, storing synced values as a note division + modifier and deriving seconds/Hz from `audioStore.bpm` through pure resolvers, so tempo changes carry synced values and leave Free ones alone. Seventeen tasks in six phases, foundations first: pure data and resolvers (1–3), then the store→engine apply paths so a synced value is *audibly* correct before any UI exists (4–6), then seeding (7–8), then the UI (9–14), then persistence and company broadcast (15–16), then docs (17). The data shape is additive (optional `sync`), so the tree stays green and every old session loads Free at every commit.
+Five Free | Sync (Float | Anchored) toggles — one per LFO Bank lane, one on Delay Time — storing a synced value as a note division + modifier and deriving Hz/seconds from `audioStore.bpm` through pure resolvers; plus the structural move of BPM seeding from the locale to the Attenuation Style. Fifteen tasks in six phases: pure foundations and the BPM move (1–4), then the lane path end to end from store to panel (5–10) so a synced lane is audible and usable at Checkpoint B, then the same for Delay (11–12), then seeding and persistence (13–14), then docs (15). The data shape is additive (optional `sync`), so the tree is green and old sessions load Free at every commit.
 
 ## Architecture Decisions
 
-- **Foundations before consumers.** `noteValues.ts` and the resolvers land with no importers (Tasks 1–2), so their tests are the oracle every later task compares against, never a second copy of the math.
-- **The seed oracle is captured *before* any seeder changes (Task 3).** There is no snapshot fixture today; without this, "Free output is byte-identical" is unprovable.
-- **Store→engine paths migrate before the UI (Phase 2 before Phase 4).** A synced value can be set from a test or the devtools store and heard correct before a single component changes; the UI then only has to produce the right state.
-- **Engine additions are two tiny methods (`hasLfo`, `setLfoTempoLocked`) and one drift constant.** The engine never learns what a note value is.
-- **Conversions on toggle live with the component that owns the value** (`Lfo.tsx` for LFOs, the Delay branch for Delay) using pure helpers from `utils/tempoSync.ts` — `TempoSyncSlider` stays store-free and tempo-free.
-- **`bpm` is threaded as a prop**, never read inside a primitive or composition (COMPONENT_LIBRARY's stateless rule). Five callers subscribe.
-- **Company broadcast's removed-key fix is its own task (16)** because it changes `diffCompoundField` for every compound field, not just LFOs.
-- **Seeded robot LFOs not reaching the engine at spawn is out of scope** (spec §7.6, Crawford's own follow-up). Task 6's re-apply honours it via `hasLfo`; nothing here primes robots.
+- **Foundations have no importers when they land** (Tasks 1–2). Their tests are the oracle for every later task; nothing re-derives the math.
+- **The seed oracle is captured before any seeder changes** (Task 3). Without it, "Free values are byte-identical" is unprovable.
+- **BPM moves early and alone** (Task 4). It is the one structural change outside the toggle, it changes every unsaved world's tempo, and every later seeding task depends on `generateAttenuationStyleBpm`. Landing it first lets Crawford hear it at Checkpoint A before anything else moves.
+- **Vertical slices: lanes first, then Delay.** Lanes are four of the five toggles and carry the new composition, so the lane slice (5–10) builds and proves `TempoSyncSlider`; the Delay slice (11–12) then reuses it.
+- **The store owns conversions** (spec assumption 5). `TempoSyncSlider` stays store-free and tempo-free; `LfoBankLanePanel` and the Delay branch already write straight to the store.
+- **`lfoEngine.ts` is not touched.** Lanes are app-lifetime and `setBankRate` is safe before priming, so the re-apply needs no node guard and the engine never learns about sync.
+- **Whole-object replacement for Sync → Free** (spec assumption 6). The session-restore branch moves to it in Task 5, not later, because the bug it prevents appears the moment `sync` exists in state.
 
 ## Dependency Graph
 
 ```
-Task 1 (noteValues: table + math)
-    │
-    └──→ Task 2 (types: sync fields; utils/tempoSync resolvers + conversions)      Task 3 (seed oracle capture — independent, must precede 7/8)
-              │
+Task 1 (noteValues)                 Task 3 (seed oracle — before 13)
+   │
+   └─→ Task 2 (types.sync + utils/tempoSync)
+            │
+Task 4 (BPM → Attenuation Style)      none in code; ordered after 1–3 so Checkpoint A reviews it with them
    ── Checkpoint A ──
-              │
-Task 4 (lfoEngine hasLfo/setLfoTempoLocked; lfoDrift switch)                      ← 2
-    │
-    └──→ Task 5 (apply paths: setGlobalLfo, applyLayerLfo, start() priming, delay setter, diagnostics)   ← 2, 4
-              │
-              └──→ Task 6 (systems/tempoSync reapply + setBPM hook)              ← 4, 5
-   ── Checkpoint B ──
-Task 7 (global seeders + store callers thread seedBpm)                            ← 1, 2, 3
-Task 8 (robot seeder + spawn/baseline/sessionDiff thread seedBpm)                 ← 1, 2, 3
-   ── Checkpoint C ──
-Task 9  (content entries + formatNoteValue)                                       ← 1
-Task 10 (SliderLinearSchema.formatValue + readout)                                 none
-Task 11 (TempoSyncSlider composition)                                             ← 9, 10
-Task 12 (Lfo.tsx → TempoSyncSlider; bpm prop; LfoTargetGroup forwards)           ← 2, 11
-Task 13 (five callers thread bpm)                                                 ← 12
-Task 14 (Delay hand-composed branch)                                              ← 5, 11
-   ── Checkpoint D (manual UI walk) ──
-Task 15 (share-link codec; version-1 payload fixture test)                        ← 2
-Task 16 (diffCompoundField removed key + merge-site strip)                        ← 2
-Task 17 (docs, roadmap, spec amendment, grid correction)                          ← all
-   ── Checkpoint E ──
+Task 5 (lane store→engine, replace + mode actions, restore path)   ← 2
+   └─→ Task 6 (setBPM re-apply: lanes)                             ← 5
+Task 7 (content + formatNoteValue)                                 ← 1
+Task 8 (SliderLinearSchema.formatValue)                            none
+   └─→ Task 9 (TempoSyncSlider)                                    ← 7, 8
+            └─→ Task 10 (LfoBankLanePanel)                         ← 5, 9
+   ── Checkpoint B (lane slice, manual) ──
+Task 11 (delay store→engine + re-apply line)                       ← 2, 6
+   └─→ Task 12 (Delay panel branch)                                ← 9, 11
+   ── Checkpoint C (delay slice, manual) ──
+Task 13 (seeding: lane + Delay Sync rolls)                         ← 2, 3, 4
+Task 14 (share codec + restore sanitisers)                         ← 2, 5
+   ── Checkpoint D ──
+Task 15 (docs, roadmap)                                            ← all
+   ── Checkpoint E (final) ──
 ```
 
-Parallelisable: 1 ‖ 3; 7 ‖ 8; 9 ‖ 10; 15 ‖ 16 (both can start after Checkpoint A if a second session is free).
+Parallelisable: 1 ‖ 3; 7 ‖ 8 ‖ 5–6; 13 ‖ 14.
 
 ## Task List
 
-### Phase 1: Foundation — pure data and resolvers, no consumers
+### Phase 1: Foundation and the BPM move
 
-- [ ] **Task 1: `src/data/noteValues.ts` — the note-value table and its math**
+- [x] **Task 1: `src/data/noteValues.ts` — note-value table and math**
 
-  **Description:** Create `NoteDivision`/`NoteModifier`/`NoteValue`, the 20-entry `NOTE_VALUES` list (spec §1.2: six divisions × three modifiers, plus 2 and 4 bars straight-only), sorted ascending by beats at module load, and the pure functions `noteValueBeats`, `noteValueSeconds`, `noteValueHz`, `noteValueEquals`, `allowedNoteValues`, `nearestNoteValue`. No Tone, no store, no content import. Nothing imports it yet.
-
-  **Acceptance criteria:**
-  - [ ] `NOTE_VALUES` has exactly 20 entries, no duplicates (`noteValueEquals`), strictly ascending `noteValueBeats`; 1/4 triplet precedes 1/8 dotted; `'2'`/`'4'` appear only with `modifier: 'straight'`.
-  - [ ] At 60 BPM: 1/4 → 1 s / 1 Hz; 1/8 dotted → 0.75 s; 1/4 triplet → 0.6667 s (±1e-9); 1 bar → 4 s / 0.25 Hz; 4 bars → 16 s / 0.0625 Hz; 1/32 → 0.125 s / 8 Hz. At 120 BPM every seconds value halves.
-  - [ ] `allowedNoteValues(60, {min:0,max:10}, 'seconds')` includes 2 bars and excludes 4 bars; `allowedNoteValues(200, {min:0,max:20}, 'hz')` excludes 1/32 triplet; results preserve `NOTE_VALUES` order.
-  - [ ] `nearestNoteValue(0.3, 60, allowed, 'seconds')` is 1/4 triplet; an input above every allowed entry returns the last entry; below every entry returns the first.
-
-  **Verification:**
-  - [ ] `npx vitest run src/data/noteValues.test.ts` passes (RED first per function).
-  - [ ] `npm run build:types` clean.
-
-  **Dependencies:** None.
-  **Files:** `src/data/noteValues.ts`, `src/data/noteValues.test.ts`.
-  **Scope:** S.
-
-- [ ] **Task 2: Optional `sync` on the two settings types; `src/utils/tempoSync.ts` resolvers and conversions**
-
-  **Description:** Add `LfoSync = NoteValue | 'off'` and `LfoSettings.sync?` to `src/types/lfo.ts`; `DelaySettings.sync?: NoteValue` and `DELAY_TIME_RANGE_SECONDS = { min: 0, max: 10 }` to `src/types/globalAudio.ts` (point `globalFx.ts`'s `maxDelay: 10` comment at it — comment only). Create `src/utils/tempoSync.ts` with `resolveLfoRateHz`, `isLfoOn`, `resolveDelayTimeSeconds`, `resolveDelayForEngine`, plus the two conversion helpers `lfoToSync(settings, bpm, allowed)` / `lfoToFree(settings, bpm)` and `delayToSync`/`delayToFree` (spec §1.5). Defaults (`DEFAULT_LFO_SETTINGS`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, `NEUTRAL_LFO_VALUE`) stay Free — no edits. `lfoEngine.ts`'s own `LfoSettings` copies tolerate the extra optional field unchanged.
+  **Description:** `NoteDivision`/`NoteModifier`/`NoteValue`; the 20-entry `NOTE_VALUES` sorted ascending by beats at module load (spec §1.2); `noteValueBeats`, `noteValueSeconds`, `noteValueHz`, `noteValueEquals`, `isNoteValue`, `allowedNoteValues`, `nearestNoteValue`. No Tone, store or content import. Nothing imports it yet.
 
   **Acceptance criteria:**
-  - [ ] `resolveLfoRateHz`: Free passes `rate` through (0 and 20 included); `'off'` → 0; 1/4 at 60 → 1, at 120 → 2; 1/32 triplet at 200 clamps to `LFO_RATE_MAX`. `isLfoOn` truth table: Free/0 false, Free/>0 true, Sync/'off' false, Sync/note true (even when `rate` is 0).
-  - [ ] `resolveDelayTimeSeconds`: Free passes through; 2 bars at 20 BPM (24 s) clamps to 10. `resolveDelayForEngine` returns `feedback`/`wet` untouched and `delayTime` resolved.
-  - [ ] `lfoToSync` of `rate: 0` → `sync: 'off'`; of 1.5 Hz at 60 with the LFO allowed list → `sync` = 1/4 triplet; `rate` left as it was. `lfoToFree` of 1/8 dotted at 60 → `rate: 1.35` (quantised to `RATE_STEP` 0.05) and `'sync' in result === false` (key deleted, not `undefined`). Same pair of assertions for `delayToSync` (0.3 s at 60 → 1/4 triplet) / `delayToFree` (quantised to 0.001).
-  - [ ] Both types still satisfy their existing tests; a `LfoSettings` literal without `sync` compiles unchanged.
+  - [x] 20 entries, no duplicates, strictly ascending beats; 1/4 triplet before 1/8 dotted; `'2'`/`'4'` straight-only.
+  - [x] Spec §1.2's 60 BPM fixtures (±1e-9); at 120 BPM seconds halve. `allowedNoteValues(60,{0,10},'seconds')` includes 2 bars, excludes 4 bars; `allowedNoteValues(200,{0,20},'hz')` excludes 1/32 triplet; `nearestNoteValue(0.3, 60, …, 'seconds')` = 1/8 triplet (0.333 s); out-of-range → first/last.
+  - [x] `isNoteValue` accepts every `NOTE_VALUES` entry and rejects `{division:'1/3',modifier:'straight'}`, `{division:'2',modifier:'dotted'}`, `'off'`, `null`, `undefined`, a string.
 
-  **Verification:**
-  - [ ] `npx vitest run src/utils/tempoSync.test.ts src/types` passes (RED first).
-  - [ ] `npm run build:types` and `npm run lint` clean. Mutation check: flip the `'off'` branch to return `rate` and watch the truth-table case go red.
+  **Verification:** `npx vitest run src/data/noteValues.test.ts` (RED first per function); `npm run build:types`.
+  **Dependencies:** None. **Files:** `src/data/noteValues.ts`, `.test.ts`. **Scope:** S.
 
-  **Dependencies:** Task 1.
-  **Files:** `src/types/lfo.ts`, `src/types/globalAudio.ts`, `src/engine/audioEngine/globalFx.ts` (comment), `src/utils/tempoSync.ts`, `src/utils/tempoSync.test.ts`.
-  **Scope:** M.
+- [x] **Task 2: Optional `sync` on `BankLfoSettings`/`DelaySettings`; `src/utils/tempoSync.ts`**
 
-- [ ] **Task 3: Capture the seed oracle — current seeder output for two fixed names, before any seeder changes**
-
-  **Description:** Add tests that pin the *current* full output of `generateGlobalAudioSettings`, `generateGlobalLfoSettings` (two fixed Attenuation Style names) and `generateRobotLfoSettings` (a fixed locale noise map at two offsets) as inline expected objects. These are deliberately written GREEN against today's code: they are the "Free values and quiet pattern are byte-identical" oracle Tasks 7–8 must keep passing once the seeders change. Record in each test's comment that regenerating these expectations is a spec violation, not a fix.
+  **Description:** Add `sync?: NoteValue` to both types and `DELAY_TIME_RANGE_SECONDS` to `globalAudio.ts` (point `globalFx.ts`'s `maxDelay: 10` comment at it). Create `tempoSync.ts` with everything in spec §1.3 plus `pickSeedNoteValue` (§1.7) and `RATE_DRIFT_APPLIES_TO_SYNCED = true`. Defaults untouched.
 
   **Acceptance criteria:**
-  - [ ] Four `toEqual` assertions on complete objects (not spot fields), using names/offsets that are not already used by neighbouring tests.
-  - [ ] The test file comment states the rule above and cites spec §1.7 / §5.
+  - [x] Resolvers: spec §5 `tempoSync.test.ts` list in full (Free pass-through, invalid `sync` = Free, clamps, `isLaneRunning` table, `resolveLaneForEngine` strips `sync`).
+  - [x] Conversions: `laneToSync` (0 Hz → slowest; 1.5 Hz at 60 → 1/4 triplet, `rate` kept); `laneToFree` (1/8 dotted at 60 → 1.35, no `sync` key; 4 bars at 20 BPM → 0.05, never 0); `delayToSync`/`delayToFree` pair.
+  - [x] `pickSeedNoteValue`: first non-empty band wins, `undefined` when all empty, result inside its band.
 
-  **Verification:**
-  - [ ] `npx vitest run src/utils/globalAudioSeed.test.ts src/systems/spawnSystem.test.ts` passes.
+  **Verification:** `npx vitest run src/utils/tempoSync.test.ts` (RED first); `npm run build:types`, `npm run lint`. **Mutation check:** make `resolveLaneRateHz` ignore `isNoteValue` and watch the invalid-sync case go red.
+  **Dependencies:** 1. **Files:** `src/types/lfo.ts`, `src/types/globalAudio.ts`, `src/engine/audioEngine/globalFx.ts` (comment), `src/utils/tempoSync.ts`, `.test.ts`. **Scope:** M.
 
-  **Dependencies:** None (must land before Task 7 or 8 starts).
-  **Files:** `src/utils/globalAudioSeed.test.ts`, `src/systems/spawnSystem.test.ts`.
-  **Scope:** S.
+- [x] **Task 3: Capture the seed oracle before any seeder change**
 
-### Checkpoint A: Foundation
-- [ ] `npm test`, `npm run lint`, `npm run build:types` clean.
-- [ ] `grep -rn "noteValues\|tempoSync" src --include=*.ts --include=*.tsx | grep -v "^src/data/noteValues\|^src/utils/tempoSync"` returns nothing (still additive).
-- [ ] Review with Crawford before proceeding.
+  **Description:** Pin the current full output of `generateLfoBankSettings` and `generateGlobalAudioSettings` for two fixed Attenuation Style names (not used by neighbouring tests) as inline `toEqual` objects. Written GREEN against today's code. Each test's comment says regenerating these expectations is a spec violation (§1.7/§5), not a fix — Task 13 may only *add* `sync` keys to them.
+
+  **Acceptance criteria:** four complete-object assertions; comment present.
+
+  **As built:** Attenuation Styles `oracle-alpha` (audible Delay) and `oracle-theta` (quiet Delay, `wet` forced to 0), so both sides of the neighbouring quiet roll are pinned. The assertions are `toStrictEqual`, not `toEqual`: `toEqual` ignores a key set to `undefined`, so a stray `sync: undefined` would have passed and broken "a Free result carries no `sync` key". For Task 13: a Sync landing adds a `sync` object to these expectations; a Free landing must leave them byte-identical, with no `sync` key at all.
+  **Verification:** `npx vitest run src/utils/globalAudioSeed.test.ts`.
+  **Dependencies:** None (must precede 13). **Files:** `src/utils/globalAudioSeed.test.ts`. **Scope:** XS.
+
+- [x] **Task 4: BPM seeds from the Attenuation Style, reseeds on AS change only**
+
+  **Description:** Spec §1.7 "BPM". New `src/utils/bpmSeed.ts` (`BPM_SEED_RANGE`, `generateAttenuationStyleBpm(id, name)`, key `'globalAudio.bpm'` on the AS noise map — see "As built") and its test (ported from `localeBpmSeed.test.ts`, source-scan guard flipped, plus a ≥10-distinct-values-over-30-names check); delete `localeBpmSeed.ts`/`.test.ts`. `regenerateBpmFromSeed(attenuationStyleId, attenuationStyleName)`; called **first** inside `syncGlobalAudioToCurrentAttenuationStyle`; delete `syncBpmToCurrentLocale` and both `worldTransition.ts` calls (their comments go too). Fix the comment mentions in `audioRigConfig.ts` (`BPM_SCHEMA`) and `localeTemperature.ts`.
+
+  **Acceptance criteria:**
+  - [x] Integer in [40, 100]; deterministic incl. across an evicted map; ≥10 distinct values over 30 names; reads `getAttenuationStyleNoiseMap`, never `getLocaleNoiseMap`.
+  - [x] AS change → `bpm` reseeded, and before `globalAudio` (order asserted); coordinates-only retransmit leaves a hand-set `bpm`; both-changed retransmit reseeds; `applySessionPayload` with `payload.bpm` ends on the payload value.
+  - [x] `grep -rn "generateLocaleBpm\|localeBpmSeed\|syncBpmToCurrentLocale" src` returns nothing.
+
+  **As built:** The spec's bare key `'bpm'` at offset 0 hit the low-variety artifact the risk table predicted: measured over 300 styles it gave **9 distinct tempos (50–90)**, and two unrelated names collided on 89 in the 30-name test. Candidates measured the same way: `globalAudio.bpm` 36 distinct (42–98), `audio.bpm` 39 (46–94), `bpm`@1 44 (48–92), `bpm`@0.5 18, `globalAudio.tempo` 3. Chose **`'globalAudio.bpm'` at offset 0** — widest spread, and dot-namespaced like its neighbours. Spec §1.7 corrected to match. Two follow-ons: (1) `worldTransition.ts` keeps a bare side-effect `import '../stores/audioStore'` (comment says why) because it relied on audioStore's AS subscription and its only other audioStore use was the deleted calls; (2) the old `sessionDiff.test.ts` "older payload lacks bpm" case asserted a reseed that a coordinates-only retransmit no longer does, so it now asserts the carried-forward value survives, with a new case covering the AS-switch reseed; the round-trip case's wipe payload now strips `bpm` and switches style so the restore override is non-coincidental. **Known edge:** a both-changed retransmit whose new name case-insensitively collides with the *current* style reuses the same id, so the AS subscription sees no change and a hand-dragged tempo survives (old behaviour reseeded unconditionally). Not worth a special case; noted.
+
+  **Verification:** `npx vitest run src/utils/bpmSeed.test.ts src/stores/audioStore.test.ts src/systems/worldTransition.test.ts src/utils/sessionDiff.test.ts` (RED first for each behaviour change); `npm run build:types`, `npm run lint`; `npm run dev` boots, Tempo slider shows a seeded value.
+  **Dependencies:** None in code; lands after 1–3 so Checkpoint A reviews it with the foundations. **Files:** `src/utils/bpmSeed.ts` + test (new), `localeBpmSeed.ts` + test (deleted), `src/stores/audioStore.ts` + test, `src/systems/worldTransition.ts` + test, `src/utils/sessionDiff.test.ts`, two comment-only files. **Scope:** M (wide but mechanical; the logic is one moved call).
+
+### Checkpoint A: Foundations + BPM — PASSED (Crawford, 2026-10-03)
+- [x] `npm test`, `npm run lint`, `npm run build:types` clean.
+- [x] `noteValues`/`tempoSync` still have no importers outside their own tests (true as of Task 4; Tasks 5+ are their first importers by design).
+- [x] Manual (Crawford): an Attenuation Style switch changes the tempo; a coordinates move keeps it, including a hand-dragged one; a saved session loads at its own tempo.
+- [x] Review with Crawford before proceeding (signed off after the fact, together with D and E, once every task and the code-review pass had landed).
 
 ---
 
-### Phase 2: Store → engine — a synced value is audibly correct with no UI
+### Phase 2: Lane slice — synced lanes audible and editable
 
-- [ ] **Task 4: `lfoEngine.hasLfo` / `setLfoTempoLocked`; `lfoDrift` tempo-lock switch**
+- [x] **Task 5: Lane store → engine: resolve on push; `replaceLfoBankLane`; `setLfoBankLaneSyncMode`; priming; diagnostics; restore path**
 
-  **Description:** In `lfoEngine.ts` add `hasLfo(target, robotId?)` (true iff `activeLfos` has the key — never constructs) and `setLfoTempoLocked(target, locked, robotId?)` forwarding to a new `lfoDrift.setTempoLocked(key, locked)`. In `lfoDrift.ts` add `export const RATE_DRIFT_APPLIES_TO_SYNCED = true`, a `tempoLocked` boolean on each `driftLinks` entry (default false, set by `setTempoLocked`, remembered even if called before `attachDrift` for that key), and the gate in `refreshRateDriftGain` (spec §1.9). Correct the stale "LFO_RATE_MIN is 0.1" comment in `attachDrift` while there. The engine's rate contract and doc comment are unchanged.
-
-  **Acceptance criteria:**
-  - [ ] `hasLfo` is false before any setter and true after `setLfoRate`; it never changes `activeLfos.size`.
-  - [ ] With `RATE_DRIFT_APPLIES_TO_SYNCED` true, `refreshRateDriftGain` output for a locked key equals that of an unlocked key (existing drift tests unchanged). With it mocked false (`vi.spyOn`/module mock), a locked key's `rateDriftGain.gain.value` is 0 and an unlocked key's is unchanged; depth drift unaffected either way.
-  - [ ] `setTempoLocked` before `attachDrift` still applies once the link exists.
-
-  **Verification:**
-  - [ ] `npx vitest run src/engine/lfoEngine.test.ts src/engine/lfoDrift.test.ts` passes (RED first).
-  - [ ] `npm run build:types` clean.
-
-  **Dependencies:** Task 2.
-  **Files:** `src/engine/lfoEngine.ts`, `src/engine/lfoDrift.ts`, their tests.
-  **Scope:** S.
-
-- [ ] **Task 5: Migrate every apply path to the resolvers**
-
-  **Description:** Spec §1.3's table, verbatim: `audioStore.setGlobalLfo`, `robotOptionsActions.applyLayerLfo`, `AudioEngine.start()`'s global priming loop (add `isInitialized()` getter over the existing flag in the same edit), `audioDiagnostics.globalLfosOn`, and the Delay path — `GLOBAL_SETTER.delay` becomes a lazy wrapper `(p) => AudioEngine.setGlobalDelay(resolveDelayForEngine({ ...get().globalAudio.delay, ...p }, get().bpm))` defined where `get` is in scope (spec §7.5), and `applyGlobalAudioToEngine` takes `bpm` (or reads the store) and resolves likewise. Each LFO path also calls `setLfoTempoLocked`. `lfoDebug.ts` untouched.
+  **Description:** Spec §1.3 table rows for lanes and §1.5. `setLfoBank` pushes the resolved rate when `rate` or `sync` is in the partial, and `rateDrift` via `resolveLaneForEngine`. New `replaceLfoBankLane(lane, settings)` (whole write + full push) and `setLfoBankLaneSyncMode(lane, synced)` (`laneToSync`/`laneToFree` → replace). `AudioEngine.start()` primes with `resolveLfoBankForEngine(lfoBank, bpm)`. `audioDiagnostics.readBankRunning` → `isLaneRunning`. `sessionDiff.applySessionPayload`'s running-context branch uses `replaceLfoBankLane` instead of the per-lane `setLfoBank` merge.
 
   **Acceptance criteria:**
-  - [ ] `setGlobalLfo` with `{ sync: {1/4} }` at bpm 120 calls `lfoEngine.setLfoRate(target, 2)`, `setLfoTempoLocked(target, true)`, and connects; with `{ sync: 'off', rate: 5 }` it disconnects and never connects (the `rate: 5` is ignored). Free behaviour byte-identical to today's tests.
-  - [ ] `applyLayerLfo` mirrors the above with `robot.id`.
-  - [ ] `AudioEngine.start()` priming: a seeded global `sync` target connects at its resolved Hz; `isInitialized()` is false before `start()` and true after.
-  - [ ] `setGlobalAudio('delay', { sync: {1/4} })` at bpm 60 reaches `AudioEngine.setGlobalDelay` with `delayTime: 1`; `{ delayTime: 0.3 }` with no `sync` reaches it as 0.3. No import-time throw (the GLOBAL_SETTER table still builds at module scope).
-  - [ ] `audioDiagnostics.globalLfosOn` counts a Sync note target as on and a Sync `'off'` target as off.
-  - [ ] `grep -rn "\.rate\b" src --include=*.ts --include=*.tsx | grep -v "\.test\.\|rateDrift\|rateSchema\|frequency\|lfoDebug\|tempoSync.ts\|content/\|audioRigConfig\|seed\|spawnSystem\|sessionShare\|Lfo.tsx"` returns nothing — only the Task 12 (Lfo.tsx) and Task 15 (share) sites remain.
+  - [x] `setLfoBank(lane, { sync: 1/4 })` at bpm 120 → `setBankRate(lane, 2)`; `{ shape }` alone → no rate push; Free behaviour matches today's tests.
+  - [x] Mode round trip leaves `'sync' in lane === false`; `replaceLfoBankLane` with a Free lane over a synced one leaves no `sync`.
+  - [x] `start()` primes a synced lane at its resolved Hz; `readBankRunning` counts a synced `rate: 0` lane as running.
+  - [x] Restoring a session whose lane is Free over a live synced lane leaves no `sync`.
 
-  **Verification:**
-  - [ ] `npx vitest run src/stores/audioStore.test.ts src/systems/robotOptionsActions.test.ts src/engine/AudioEngine.test.ts src/engine/audioDiagnostics.test.ts` passes (RED first for each path).
-  - [ ] `npm run build:types`, `npm run lint` clean; `npm run dev` boots with no console error (module-scope table).
+  **As built:** `setLfoBank` reads the *merged* lane back from the store and resolves it, so a Free-rate edit on an already-synced lane re-sends the synced Hz (tested), and an unrecognised `sync` resolves Free instead of pushing NaN. *(Revised in the post-ship code review, 2026-10-03: undefined-valued keys are now stripped from every `setLfoBank` / `setGlobalAudio` partial before the merge — `definedKeys` in `audioStore.ts` — so `{ sync: undefined }` is a no-op rather than the hidden Sync → Free it was, nothing `undefined`-valued ever lands in state (spec §3), and an all-undefined partial writes and pushes nothing. The rate push fires on `'rate' in edit || 'sync' in edit` over the stripped partial.)* `rateDrift` goes through `resolveLaneForEngine(...).rateDrift` but is pushed only when `rateDrift` is in the partial — no mode change goes through `setLfoBank`, so when `RATE_DRIFT_APPLIES_TO_SYNCED` is flipped to `false` the Free↔Sync switch still re-sends drift correctly via `replaceLfoBankLane`'s full push. `replaceLfoBankLane` guards `undefined` like `setLfoBank`. `AudioEngine.ts` gains a static import of `tempoSync` (pure, no cycle). Existing `sessionDiff.test.ts` tests that pinned the per-lane `setLfoBank` merge now spy `replaceLfoBankLane` and assert `setLfoBank` is *not* used in the running branch. Engine-side assertions seed a distinct `lfoEngine` rate first (its module state outlives each test), so a missing push can't pass by coincidence. **Mutation check run:** reverting the restore branch to `setLfoBank` turned 4 tests red, including the engine playing the stale synced 1.6 Hz instead of the Free 1.5. Not yet covered by design: `sanitizeLaneSync` (Task 14), so a corrupt `sync` still reaches state from a restore and merely *resolves* Free.
 
-  **Dependencies:** Tasks 2, 4.
-  **Files:** `src/stores/audioStore.ts`, `src/systems/robotOptionsActions.ts`, `src/engine/AudioEngine.ts`, `src/engine/audioDiagnostics.ts`, plus their tests.
-  **Scope:** M.
+  **Verification:** `npx vitest run src/stores/audioStore.test.ts src/engine/AudioEngine.test.ts src/engine/audioDiagnostics.test.ts src/utils/sessionDiff.test.ts` (RED first). **Mutation check:** revert the restore branch to `setLfoBank` and watch the stale-`sync` case go red.
+  **Dependencies:** 2. **Files:** `audioStore.ts`, `AudioEngine.ts`, `audioDiagnostics.ts`, `sessionDiff.ts` + their tests. **Scope:** M.
 
-- [ ] **Task 6: `src/systems/tempoSync.ts` — the tempo-change re-apply, hooked into `setBPM`**
+- [x] **Task 6: `setBPM` re-applies synced lanes**
 
-  **Description:** Implement `reapplyTempoSyncedValues(bpm)` exactly per spec §1.6 (no-op unless `AudioEngine.isInitialized()`; Delay when `sync` present; each synced global target with `hasLfo`; each synced robot target with `hasLfo`, over the active locale's robots; never connect/disconnect/start/stop/construct) and call it at the end of `audioStore.setBPM`.
+  **Description:** Spec §1.6 step 1. `setBPM` = `set` → `AudioEngine.setBPM` → `reapplyTempoSyncedValues(get())`, a module function that pushes `setBankRate` for every lane with `sync`. (Task 11 adds the Delay line.)
 
-  **Acceptance criteria:**
-  - [ ] Not initialised → zero engine calls. Initialised: synced global + `hasLfo` → exactly one `setLfoRate` with the resolved Hz; synced + no node → none; Free → none; robot case called with `robot.id`; Delay with `sync` → one `setGlobalDelay` with resolved seconds, without → none; `connectLfoTarget`/`start`/`stop` never called.
-  - [ ] `setBPM(90)` writes state, calls `AudioEngine.setBPM(90)`, then the re-apply — in that order.
-  - [ ] A Sync `'off'` target is never requested (spec §7.8).
+  **Acceptance criteria:** call order asserted; synced lanes re-pushed at the new resolved Hz; Free lanes never touched; safe before audio start (no throw, no AudioEngine-initialised check needed).
 
-  **Verification:**
-  - [ ] `npx vitest run src/systems/tempoSync.test.ts src/stores/audioStore.test.ts` passes (RED first). Mutation check: delete the `hasLfo` guard and watch the "no node → none" case go red.
+  **As built:** The filter is `isNoteValue(lane.sync)`, not a bare "`sync` present": an unrecognised `sync` resolves Free everywhere else (spec assumption 9), so it is not re-pushed here either — a Free value never moves with tempo. Every tempo path goes through the one `setBPM` action, so the Attenuation Style reseed (`regenerateBpmFromSeed`) re-applies too (tested). 13 tests: one tick, resolved-not-stored Hz, Free untouched (no rate/shape/drift push), mixed bank, all four lanes, state → transport → lanes order (asserted by call order *and* by reading `bpm` inside the transport call), 20 Hz clamp, slow-note floor (4 bars at 20 BPM pushes ~0.021, never 0), invalid sync, a three-tick drag, lane state unchanged, the AS reseed path, safe pre-start. **Mutation check run:** dropping the `isNoteValue` filter turned 6 tests red, including "never touches a Free lane" and the invalid-sync case. **Known flake, pre-existing:** under a full parallel `npm test`, one random test in `audioStore.test.ts` times out at the 5 s default (each test re-imports the store after `vi.resetModules()`; the file takes ~18 s loaded vs ~5 s alone). Reproduced on the Task 5 commit with this change stashed, so not introduced here; the file passes on its own.
+  **Verification:** `npx vitest run src/stores/audioStore.test.ts` (RED first). **Mutation check:** drop the `sync` filter and watch the "Free untouched" case go red.
+  **Dependencies:** 5. **Files:** `audioStore.ts`, `audioStore.test.ts`. **Scope:** S.
 
-  **Dependencies:** Tasks 4, 5.
-  **Files:** `src/systems/tempoSync.ts`, `src/systems/tempoSync.test.ts`, `src/stores/audioStore.ts`.
-  **Scope:** S.
+- [x] **Task 7: Content entries + `src/utils/formatNoteValue.ts`**
 
-### Checkpoint B: Synced values audible with no UI
-- [ ] `npm test`, `npm run lint`, `npm run build:types` clean.
-- [ ] Manual (Crawford or agent via devtools): in `npm run dev`, start audio, `useAudioStore.getState().setGlobalLfo('eq3.mid', { shape:'sine', depth:40, rate:0, sync:{division:'1/4',modifier:'straight'} })`, then drag Tempo — the modulation rate audibly follows. `setBPM` back and forth leaves a Free target's rate untouched.
-- [ ] Review with Crawford before proceeding.
+  **Description:** Spec §1.9 entries in `src/content/copy/ui.ts`; `formatNoteValue(nv)` reading every word through `labels`/`options`/`fill`.
+
+  **Acceptance criteria:** `"1/8"`, `"1/8 dotted"`, `"1/4 triplet"`, `"1 bar"`, `"1 bar dotted"`, `"2 bars"`, `"4 bars"` — asserted against `CONTENT`, never a second literal; no trailing space on straight; `content.test.ts` green (if the "every key referenced" guard trips on `ui.tempoSync` before Task 9 references it, move that entry to Task 9 and say so in the commit).
+
+  **As built:** **`ui.tempoSync` moved to Task 9**, as this criterion allowed — nothing outside `src/content/` references it until `TempoSyncSlider` does, so adding it here would fail the "every key referenced" guard. Task 7 adds the five `ui.noteValue.*` keys only; Task 9 must add `ui.tempoSync` (spec §1.9) with the component that reads it. The helpers are the live `CONTENT`/`fill`/`optionsRecord`; the digit is the only data (`'1/8'.slice(2)`). Tests build every expected string from `CONTENT` pieces (never a retyped word) and, to prove the formatter reads content rather than hardcodes it, swap each content field for a sentinel and assert the output follows (singular bar, plural template, fraction template, both modifier words, the modified-note template's order, and that straight never touches that template). Also asserts all 20 `NOTE_VALUES` read distinct, trimmed, no-`undefined`/`{}`/doubled-space. **Mutation check run:** using the raw modifier key (`dotted`/`triplet`) as the word, which any literal-based test would pass, turned the sentinel test red. Full suite 202 files / 4354 tests green.
+  **Verification:** `npx vitest run src/utils/formatNoteValue.test.ts src/content` (RED first); `npm run lint`.
+  **Dependencies:** 1. **Files:** `src/content/copy/ui.ts`, `src/utils/formatNoteValue.ts`, `.test.ts`. **Scope:** S.
+
+- [x] **Task 8: `SliderLinearSchema.formatValue` + readout**
+
+  **Description:** Optional field (doc comment mirroring `SliderLogSchema.formatValue`) and one ternary in `SliderLinear.tsx`'s `valueLabel` (shared by the interactive and `readOnly` branches).
+
+  **Acceptance criteria:** with `formatValue` the readout is its return and no unit is appended; without it, unchanged; `controls.test.ts` still pins 14 types.
+
+  **As built:** Mirrors `SliderLog.tsx` line for line: `schema.formatValue ? schema.formatValue(displayValue) : `${formatDisplayValue(displayValue)}${schema.unit ?? ''}``. `formatValue` receives the **eased display value, unrounded** (fractional mid-ease), so Task 9's Sync formatter must `Math.round` its argument — the schema doc comment says so. 12 tests: name instead of index, no unit even when the schema carries one, readOnly branch, absent-formatValue regression (with and without unit), unrounded argument, prop-driven change, live keyboard step (`onChange` gets the index, never the text), `aria-valuenow/min/max` stay numeric, an empty-string return renders empty, readout slot/class unchanged horizontal and vertical, memo contract holds for an identical schema. **Mutation check run:** appending the unit to `formatValue`'s output turned 2 tests red. **Not done, on purpose (scope):** the thumb has no `aria-valuetext`, so a screen reader hears the index ("5") rather than the note ("1/8 dotted") in Sync mode. That is an a11y gap in the shipped feature, not in this task's one-ternary scope — see Open Questions for the proposed follow-up.
+  **Verification:** `npx vitest run src/components/ui/controls/SliderLinear.test.tsx src/types` (RED first).
+  **Dependencies:** None. **Files:** `src/types/controls.ts`, `SliderLinear.tsx`, `SliderLinear.test.tsx`. **Scope:** XS.
+
+- [x] **Task 9: `TempoSyncSlider` composition**
+
+  **Description:** `src/components/ui/controls/TempoSyncSlider.tsx` + `.css` + `.test.tsx` per spec §1.4's prop contract: slider + `Toggle` row, Sync schema memoised on `[schema, allowed]`, clamped display index with no write on render, facade = current mode's lore word, `memo`-wrapped.
+
+  **Acceptance criteria:** spec §5 `TempoSyncSlider` list in full (Free schema/readout; Sync max/step/readout/no unit; clamped index with no callback on render or re-render; toggle → `onModeChange` only, facade text from `CONTENT`; Sync arrow key → `onSyncChange(NoteValue)`, never `onFreeChange`).
+
+  **As built:** `ui.tempoSync` added to `src/content/copy/ui.ts` here, as Task 7 deferred. 46 tests (the spec §5 list plus edges). Four things the spec did not spell out, each found by a RED test:
+  - **The slider is keyed per mode** (`key={synced ? 'sync' : 'free'}`). `SliderLinear` eases any external value change over 250 ms, and a Free value (1.5 Hz) and a Sync index (3) are different spaces: without the key, flipping the toggle swept the thumb from 1.5 to 3 and the readout flashed the notes in between (RED: `aria-valuenow` read `1.5` right after the switch). Remounting lands on the value at once. A tempo change *within* Sync still eases, which is wanted.
+  - **A range is never zero-width.** The Sync schema's `max` is `Math.max(1, allowed.length - 1)`: with one stop (or none) Radix divides by `max - min` and positions the thumb at NaN (jsdom throws a CSS parse error, a browser would silently misplace it). A list with fewer than two stops renders the slider *disabled* (nothing to choose between) and leaves the toggle usable so the lane can still go Free. Unreachable at 20–200 BPM with the real lists (they are 10+ stops), so this is insurance; the spec's `max = allowed.length - 1` still holds for every real list.
+  - **The clamped index is the stop nearest in beats**, not "first/last by list direction": lane lists run slow → fast and Delay lists short → long, and this component knows neither. Nearest-in-beats gives the right end for both (tested with both orientations and with the real `allowedLaneNoteValues(200)` / `allowedDelayNoteValues(20)` lists). **Mutation check run:** returning 0 for any note outside the list turned 5 tests red.
+  - **The toggle's accessible name is "Tempo Sync" in both modes** (spec §1.4's `labels('ui.tempoSync')`); the state is `aria-checked`, and the facade shows the lore word (Float / Anchored, assumption 11). Spec assumption 11's phrase "the human pair (Free / Sync) as its accessible name" reads as the two states, which a switch announces through `aria-checked`; a name that changes with state would be announced as a different control. Say if the intent was otherwise.
+
+  **Post-checkpoint layout fixes (2026-10-03, Crawford's live review; both found by measuring in real Chrome, which jsdom cannot do):** (1) *The slider collapsed.* `Toggle.css` gives `.sc-toggle` `width: 100%` and `container-type: inline-size`; in the flex row that 100% basis claimed the whole row and the slider wrapper measured **0px** at every container width (the track spilled out at its 156px three-box floor, the toggle painted over it, while the Drift sliders below measured full width). `TempoSyncSlider.css` now sizes the toggle to its content (`width: auto; flex: 0 0 auto; container-type: normal` — the same override `NavTreeNode.css` already makes) and gives the slider wrapper `flex: 1 1 0`; measured 169 / 249 / 369px wrappers at 280 / 360 / 480px containers. (2) *The facade resized on flip* — 72.8px as "Float", 111.3px as "Anchored", shifting the slider. Crawford's rule: a control whose content changes holds the size of its **largest** content. The facade is now `<span class="sc-tempo-sync__mode" data-free-word data-sync-word aria-hidden>` holding only the current word, with both words as hidden `::before`/`::after` sizers in the same grid cell: 111.34px in both modes, no JS measuring, DOM text unchanged. Guarded by `tempoSyncSliderLayout.test.ts` (CSS source scan, the `accentGradientFill.test.ts` convention) plus 5 markup tests. **Open, not touched:** the nav `☰`/`✕` toggle is 47.77 vs 45.98px (a 1.8px shift of the same kind); and below a ~280px container in Anchored mode the slider's 156px three-box floor exceeds its space and the unlit boxes slide ~15px under the toggle — a wrap fallback was deliberately not added speculatively.
+
+  **Revised later the same day (Crawford's second review) — this supersedes the placement and facade described just above:** (a) *The toggle is in a row of its own UNDER the slider it affects, for the LFO lanes (under Rate) and for Delay (under Delay Time)* — Crawford's third look, which replaced an interim version that put it to the right of the Mutation Type options (built, measured, then dropped: it squeezed the shape options, and Delay had no equivalent row). `TempoSyncSlider` stacks them itself (`.sc-tempo-sync` is a column, `align-items: flex-start`; the slider wrapper `align-self: stretch` — **not** `flex: 1 1 0`, whose zero basis collapses a column's height, pinned in `tempoSyncSliderLayout.test.ts`), so the slider has the full width and no caller needs to know. Both sit inside the slider's existing param-row, so **the Delay block keeps its "3 direct param-rows" rule** (`AUDIO_RIG_RESPONSIVE_LAYOUT.md` §1.7) and a lane panel has four rows (Shape, Rate+toggle, two drifts). The toggle is its own component, `TempoSyncToggle` (+ `TempoSyncToggle.css`: `flex: 0 0 auto`, `.sc-toggle` `width: auto; container-type: normal`); the interim `hideToggle` prop, `.lfo-bank-lane__type-row` and `LfoBankLanePanel.css` were deleted. Measured in Chrome (real lane panel and real Delay block, 300 and 380px, Float and Anchored): toggle under the slider, left-aligned, 111.3px in both modes. (b) *The facade is now the shared `ToggleFacade`* (`value`/`off`/`on`; `.sc-toggle-facade` with `data-off`/`data-on` and `::before`/`::after` sizers), replacing the Tempo-Sync-specific `.sc-tempo-sync__mode`, and the nav `☰`/`✕` toggle uses it too (it was 47.77 vs 45.98px; now 47.77px in both states). **A flaw found by measuring the nav toggle, not the Tempo one:** the first sizer CSS had `overflow: hidden`, which gives a grid item a minimum contribution of 0, so inside `Toggle.css`'s inline-size containment (which resolves the switch to *min*-content) only the current glyph counted and ✕ sized to 17.98px while the hidden ☰ sizer measured 19.77px. The Tempo toggle passed because its wrapper drops the containment and sizes to max-content. Fixed by removing the clipping and adding `white-space: nowrap` (both pinned in `ToggleFacade.css.test.ts`). (c) *Lane b's seed odds:* `0.66` → `0.62` (raw share 72.3% → 66.2%), per Task 13's calibration note.
+
+  **Labels corrected (2026-10-03, Crawford, after the stacked placement) — this supersedes "the facade is the current mode's lore word", here and in Task 7/spec §1.4's wording:** the toggle has TWO different label pairs. Its **own label** is `{ human: 'Tempo Sync', lore: 'Anchoring' }` (the `ui.tempoSync` entry itself) — what the control IS, now actually *shown*, as a `DualLabel` to the left of the box (its human word stays the switch's stable accessible name, state in `aria-checked`). Its **content** is the *current mode's* pair from `ui.tempoSync.options`: `{ human: 'Free', lore: 'Float' }` when Free, `{ human: 'Sync', lore: 'Anchored' }` when synced — each a `DualLabel` (lore over human) in the box, the same convention as the Shape options (Free = a plain box, Sync = the accent gradient). The old build showed only the lore word, as a bare string, and no label at all, which is what read as confusing. **Mechanism change:** `ToggleFacade` now takes any `ReactNode` for `off`/`on` and renders *both* as real children stacked in one grid cell (all but the current marked `data-current`; the rest `visibility: hidden`), replacing the `::before`/`::after` `attr()` sizers — those could only size plain text, and a two-line label needs real children. Consequence: `switch.textContent` is now every state joined, so tests read the current state through `src/testUtils/toggleFacade.ts` (`facadeCurrentLabels`/`facadeCurrentText`/`facadeStates`). Measured in Chrome: the box is 84.2 × 44px in both modes, label before box, nav toggle still 47.77px in both states.
+
+  Also: handlers are stable (`latest`-ref pattern, as `LfoLink`), so the slider's `onChange` identity survives re-renders and routes to the newest callbacks; the Sync schema is memoised on `[schema, allowed]` only (a note change does not rebuild it). **Known gap, unchanged from Task 8:** the thumb still has no `aria-valuetext`, so a screen reader hears the index in Sync mode — folded into Task 10 by Crawford (2026-10-02). Crawford also confirmed the toggle's "Tempo Sync" accessible name.
+  **Verification:** `npx vitest run src/components/ui/controls/TempoSyncSlider.test.tsx` (RED first); `npm run lint`, `npm run build:types`. Full suite 203 files / 4412 tests; the two failures under the parallel run (`audioStore.test.ts` 5 s timeout, `worldTransition` swell-clear) are the recorded flakes and both pass alone.
+  **Dependencies:** 7, 8. **Files:** the three new files. **Scope:** M.
+
+- [x] **Task 10: `LfoBankLanePanel` renders Rate through `TempoSyncSlider`**
+
+  **Description:** Spec §1.4 lane paragraph: subscribe to `sync` and `bpm`, memoise `allowedLaneNoteValues(bpm)`, wire the three callbacks (stable — `useCallback` per lane, matching the memo precedent in `AudioRigEffectPanel`). Shape and drift rows untouched.
+
+  **Folded in (Crawford, 2026-10-02): the Sync-mode screen-reader gap found in Task 8.** In Sync mode the Radix thumb exposes only the numeric index (`aria-valuenow`), so a screen reader announces "5" instead of "1/8 dotted". Do this **first**, as its own RED → GREEN slice, before the panel wiring: `SliderLinear`'s `Slider.Thumb` gains `aria-valuetext={schema.formatValue?.(displayValue)}` (absent when there is no `formatValue`, so every existing slider's markup is unchanged); `aria-valuenow/min/max` stay numeric. `TempoSyncSlider` needs no change of its own — its Sync schema already carries `formatValue`, so Sync mode gets the note name and Free mode gets nothing. Delay (Task 12) inherits it for free. It sits in this task rather than Task 8/9 because Task 10 is the first one a user (and a screen reader) can reach; it does mean this task's commit spans three layers (`SliderLinear`, then the lane panel), so a revert of the panel wiring should keep the `SliderLinear` change.
+
+  **Acceptance criteria:** composition renders for each lane; toggle calls `setLfoBankLaneSyncMode(lane, true/false)`; Sync readout at a known index changes with mocked `bpm`; Free edits still call `setLfoBank(lane, { rate })`; drift held-off behaviour unchanged.
+  - [x] `SliderLinear`: a schema with `formatValue` puts its return on the thumb as `aria-valuetext`, equal to the visible readout, and it follows a live keyboard step; a schema without `formatValue` renders no `aria-valuetext` attribute at all; `aria-valuenow` stays the numeric value; the `readOnly` branch is unchanged (it has no thumb).
+  - [x] `TempoSyncSlider`: Sync mode's thumb reads the note name (`"1/8 dotted"`, from `formatNoteValue`), Free mode's has no `aria-valuetext`, and the toggle flip swaps between them.
+  - [x] `LfoBankLanePanel`: in Sync the lane's thumb announces the note at the mocked `bpm`.
+  **As built:** Three slices, RED first each time.
+  - **`SliderLinear` `aria-valuetext`** (+13 tests). `formatValue` is now called **once** per render and the result feeds both the visible readout and the thumb's `aria-valuetext`, so what is seen and what is heard cannot disagree (a test pins the single call). Absent attribute, not an empty one, when the schema has no `formatValue`; the `readOnly` branch has no thumb and carries none. **Mutation check run:** `aria-valuetext={formattedValue ?? String(displayValue)}` turned both "absent" guards red. The `TempoSyncSlider` a11y assertions (+6) were proven by removing the `SliderLinear` change and watching 5 of them fail.
+  - **`TempoSyncSlider` hardening** (+4 tests, not in the plan): an unrecognised stored `syncValue` (`{division:'1/3'…}`, a string, `null`, `0`, `{}`) now renders as **Free** — unchecked switch, number on the slider, steps write `onFreeChange`. The resolvers already treat it as Free (spec assumption 9), so without this the panel would have shown Anchored over audio that was running Free, until Task 14's restore-boundary sanitiser exists; `null` in particular counted as "synced" under the old `!== undefined` check. Done in the component, not the panel, so Delay (Task 12) inherits it. Validated once at the top (`isNoteValue`), so every later use sees a real note or `undefined`.
+  - **`LfoBankLanePanel`** (+20 tests, 11 → 31). Subscribes to `sync` and `bpm`, `useMemo`s `allowedLaneNoteValues(bpm)`, and three `useCallback` handlers keyed on `[lane, store action]`. Tested against the **real store** with only `lfoEngine` mocked, so a wrong wiring shows as wrong state: Free edit writes `rate` and no `sync` key; a Sync step writes the next note, leaves `rate` untouched and pushes that note's Hz; the toggle writes the nearest note at 60 and at 120 BPM; Anchored → Float deletes the key (`'sync' in lane === false`) and lands on 1.35; a round trip leaves no key; shape/drifts survive a flip; the other three lanes are untouched; all four lanes render and flip independently; the toggle and Rate stay enabled while drift is held off. **Mutation check run:** writing `rate` instead of `sync` from the Sync handler and forcing the mode handler to `true` turned 4 tests red.
+  - **Plan wording corrected:** "Sync readout at a known index changes with mocked `bpm`" is not quite true for lanes — lane lists run slow → fast from 0 Hz, so a note's index **does not move** with tempo; only the fast end shrinks. What does change with `bpm` is the slider's `max` and, for a stored fast note, the clamp: 1/32 triplet is 12 Hz at 60 BPM and 40 Hz at 200, so it shows the fastest allowed stop at 200 and the note again at 60, with nothing written to the store. That is what the test asserts.
+  - **Not covered, on purpose:** that `TempoSyncSlider` bails out of re-rendering on a drift edit (the handlers are stable by construction, but there is no render-count test at the panel level). **Manual only:** the row's look — the toggle beside the voxel track at the panel's real widths — is Checkpoint B's.
+  Full suite 203 files / 4456 tests; the one failure under the parallel run is the recorded `audioStore.test.ts` 5 s timeout (the `filterLPF/filterHPF` case), which passes alone.
+
+  **Verification:** `npx vitest run src/components/ui/controls/SliderLinear.test.tsx src/components/ui/controls/TempoSyncSlider.test.tsx src/components/panels/screen/console/LfoBankLanePanel.test.tsx` (RED first for each); `npm run build:types`, `npm run lint`. **Mutation check:** have `SliderLinear` set `aria-valuetext` unconditionally (to `''` or the numeric text) and watch the "absent without `formatValue`" case go red.
+  **Dependencies:** 5, 9. **Files:** `SliderLinear.tsx`, `SliderLinear.test.tsx`, `TempoSyncSlider.test.tsx` (assertions only), `LfoBankLanePanel.tsx`, `.test.tsx`. **Scope:** S–M.
+
+### Checkpoint B: Lane slice — PASSED (Crawford, 2026-10-02)
+- [x] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
+- [x] Manual (Crawford): flip a lane to Anchored, drag Tempo, hear its linked targets follow while a Float lane holds; Anchored → Float doesn't audibly jump; keyboard reaches the toggle and steps note values; the toggle's look in the panel (facade word veto, spec assumption 11). No vetoes raised.
+- [x] Review with Crawford before proceeding.
 
 ---
 
-### Phase 3: Seeding
+### Phase 3: Delay slice
 
-- [ ] **Task 7: Global seeders — `seedBpm` parameter, Delay + global-LFO Sync rolls, store callers**
+- [x] **Task 11: Delay store → engine; `setDelaySyncMode`; re-apply line**
 
-  **Description:** `generateGlobalAudioSettings(asId, asName, seedBpm)` and `generateGlobalLfoSettings(asId, asName, seedBpm)` per spec §1.7: new `getSeededVal` keys (`…syncMode`, `…syncIndex`), 50/50 per target, Sync draw uniform over `allowedNoteValues(seedBpm, band, unit)`, existing keys/order/quiet rolls untouched, empty-band fallback to Free. `audioStore.regenerateGlobalAudioFromSeed`/`regenerateGlobalLfoFromSeed` resolve `seedBpm` from the current locale via `generateLocaleBpm` (the same lookup `syncBpmToCurrentLocale` already does; locale guaranteed — see the planning note at the top). Update `applySessionPayload`'s callers only if they pass through these (they don't today — verify, don't assume).
-
-  **Acceptance criteria:**
-  - [ ] Task 3's oracle tests still pass with the new parameter supplied (`seedBpm` from the fixture locale), proving Free values and the quiet pattern are byte-identical; the new `sync` fields are the only diff.
-  - [ ] Determinism: identical inputs → `toEqual` twice. Over 50 names, Sync share per target ∈ [30%, 70%]; every Sync draw's `noteValueSeconds`/`Hz` at `seedBpm` lies inside its band; a quiet target in Sync mode is `'off'`; Delay never seeds `'off'`.
-  - [ ] For every integer BPM in `LOCALE_BPM_SEED_RANGE` (40–100) both bands are non-empty.
-  - [ ] The store's AS-sync at module load still runs without error (locale present); `regenerateGlobalLfoFromSeed` remains data-only (no `lfoEngine` call).
-
-  **Verification:**
-  - [ ] `npx vitest run src/utils/globalAudioSeed.test.ts src/stores/audioStore.test.ts` passes (RED first for each new behaviour).
-  - [ ] `npm run build:types`, `npm run lint` clean.
-
-  **Dependencies:** Tasks 1, 2, 3.
-  **Files:** `src/utils/globalAudioSeed.ts`, `src/utils/globalAudioSeed.test.ts`, `src/stores/audioStore.ts`, `src/stores/audioStore.test.ts`.
-  **Scope:** M.
-
-- [ ] **Task 8: Robot seeder — `seedBpm` through `generateRobotLfoSettings`, `spawnRobot`, `generateRobotRosterBaseline`, `sessionDiff`**
-
-  **Description:** Same rolls as Task 7 on `generateRobotLfoSettings(noiseMap, offset, seedBpm)` with the full-range band; thread `seedBpm = generateLocaleBpm(locale.id, x, y)` from `spawnRobot`, the copy-a-sibling branch (copied wholesale — no new draw), `generateRobotRosterBaseline`, and `sessionDiff.buildSessionPayload`'s replay.
+  **Description:** Spec §1.3 delay rows and §1.5–1.6. `GLOBAL_SETTER.delay` becomes a wrapper that resolves when the partial carries `delayTime` or `sync` (reading the store lazily at call time) and forwards anything else untouched. `applyGlobalAudioToEngine(globalAudio, bpm)` resolves Delay; update its three callers (`regenerateGlobalAudioFromSeed`, `AudioEngine.start()`, `sessionDiff.applySessionPayload`). New `setDelaySyncMode(synced)` (whole `delay` write + push). `reapplyTempoSyncedValues` gains the Delay line.
 
   **Acceptance criteria:**
-  - [ ] Task 3's robot oracle passes unchanged apart from `sync` fields; quiet → `'off'`; Sync draws inside [0, 20] Hz at `seedBpm`.
-  - [ ] Baseline parity: `generateRobotRosterBaseline` reproduces `spawnRobot`'s `lfoSettings` **including a Sync entry** for a roster where at least one target seeds Sync (the test asserts a non-`undefined` `sync` is present in the compared object — the World Clock parity-fixture lesson).
-  - [ ] A copied robot's `lfoSettings` equals its source's, `sync` included.
+  - [x] `setGlobalAudio('delay', { sync: 1/4 })` at 60 → `setGlobalDelay` with `delayTime: 1`; `{ delayTime: 0.3 }` with no `sync` → 0.3; `{ wet: 0.4 }` → forwarded as `{ wet: 0.4 }` exactly (swell path, spec §7 risk 4).
+  - [x] `applyGlobalAudioToEngine` pushes a resolved `delayTime` and no `sync`; mode round trip leaves no `sync` key; `setBPM` re-pushes a synced Delay and not a Free one.
+  - [x] `audioStore.ts` still imports cleanly (module-scope table builds; `npm run dev` boots with no console error).
+  **As built:** RED first (32 new tests failing, every Free-path passthrough test already green), then GREEN. +45 tests: 37 in `audioStore.test.ts`, 3 in `AudioEngine.test.ts`, 5 in `sessionDiff.test.ts`.
+  - **`setGlobalDelayResolved`** (a module function in `audioStore.ts`, wired as `GLOBAL_SETTER.delay`). A partial with `delayTime` or `sync` in it pushes `{ ...rest, delayTime: resolveDelayTimeSeconds(storedDelay, bpm) }` with `sync` stripped; anything else is forwarded as the very same partial. It resolves from the **stored** (already merged) delay, so a Free `delayTime` edit on a synced Delay re-sends the synced seconds, the same shape as lanes' `setLfoBank`. An explicit `sync: undefined` is a no-op (stripped before the merge by `definedKeys`, post-ship code review 2026-10-03; it previously resolved as Free, a hidden mode switch). Reads `useAudioStore` lazily, so the module-scope table still builds.
+  - **`applyGlobalAudioToEngine(globalAudio, bpm)`** takes the tempo as a required parameter and pushes `{ ...delay, delayTime: resolved }` with `sync` stripped; the input is not mutated. Callers: `regenerateGlobalAudioFromSeed` (store bpm, already the new Attenuation Style's because BPM reseeds first), `AudioEngine.start()` (the `bpm` it already destructured), `applySessionPayload` (**`payload.bpm ?? live bpm`** — the payload's own tempo, so a synced Delay is never pushed at the old world's tempo before `setBPM(payload.bpm)` lands; the later `setBPM` re-push is then a no-op in value).
+  - **`setDelaySyncMode(synced)`**: `delayToSync`/`delayToFree` on the stored delay, one whole `globalAudio.delay` write, one `setGlobalDelay({ delayTime })` push. Nothing else on the engine moves.
+  - **`reapplyTempoSyncedValues`** gains the Delay line (and its `Pick` gains `globalAudio`); a Free Delay is never pushed.
+  - **Edge cases pinned:** the Audio Swell's `{ wet }` and a `{ feedback }` edit stay byte-for-byte (no `delayTime` added) on a synced Delay; 4 bars at 40 BPM (24 s) pushes 10, and moving the tempo back restores the note's own seconds because the clamp is never written to state; Sync → Free stores the **quantised** seconds and pushes that same number (1/4 triplet at 70 BPM → 0.571), and from a clamped note stores 10, not 24; Free → Sync from 0 s lands on the shortest allowed note and from 10 s at 40 BPM on the longest; already-Sync keeps its note, already-Free is a no-op write; the state stays JSON-clean in both modes and a round trip leaves no `sync` key.
+  - **Seeded-Delay wiring tested ahead of Task 13:** `regenerateGlobalAudioFromSeed` is exercised with the seed generator mocked to emit a synced Delay, so the `get().bpm` argument is proven now, not discovered when Task 13 starts seeding Sync. **Mutation checks run:** removing the swell passthrough turned 3 tests red; making the re-apply push unconditionally turned "never touches a Free Delay" red.
+  Full suite 203 files / 4501 tests; the one failure under the parallel run is the recorded `worldTransition` swell-clear flake, which passes alone (43/43). `npm run build:types` and `npm run lint` clean. Manual: `npm run dev` boot not run (no browser in this session) — the module-scope table is exercised by every `audioStore.test.ts` import.
 
-  **Verification:**
-  - [ ] `npx vitest run src/systems/spawnSystem.test.ts src/utils/sessionDiff.test.ts` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  **Verification:** `npx vitest run src/stores/audioStore.test.ts src/engine/AudioEngine.test.ts src/utils/sessionDiff.test.ts` (RED first); `npm run build:types`, `npm run lint`.
+  **Dependencies:** 2, 6. **Files:** `audioStore.ts`, `AudioEngine.ts`, `sessionDiff.ts` + tests. **Scope:** M.
 
-  **Dependencies:** Tasks 1, 2, 3.
-  **Files:** `src/systems/spawnSystem.ts`, `src/systems/spawnSystem.test.ts`, `src/utils/sessionDiff.ts`, `src/utils/sessionDiff.test.ts`.
-  **Scope:** M.
+- [x] **Task 12: Delay hand-composed branch in `AudioRigEffectPanel`**
 
-### Checkpoint C: Seeded worlds carry Sync values
-- [ ] `npm test`, `npm run lint`, `npm run build:types` clean.
-- [ ] Manual: `npm run dev`, start audio, inspect `useAudioStore.getState().globalLfo` and `globalAudio.delay` — some entries carry `sync`; drag Tempo and hear the synced global ones follow (robot ones won't until Crawford's priming fix — expected).
-- [ ] Review with Crawford before proceeding.
+  **Description:** Spec §1.4 Delay paragraph: a `block.key === 'delay'` branch beside `compressor`; `delayTime` through `TempoSyncSlider` with `allowedDelayNoteValues(bpm)`; `feedback`/`wet` via `paramRow`; `sync`/`bpm` via their own conditional selectors (not by widening the `Record<string, number>` cast).
+
+  **Acceptance criteria:** delay block = one `TempoSyncSlider` + two plain rows; other blocks unchanged; toggle → `setDelaySyncMode`; Sync change → `setGlobalAudio('delay', { sync })`; a non-delay panel's re-render count on a `bpm` change is unchanged (selector returns a stable value off-delay).
+  **As built:** RED first (19 of the 33 new tests failing for the right reasons — no switch, no Sync readout, a step writing `delayTime` — and the Free-path/plain-row tests already green), then GREEN. `AudioRigEffectPanel.test.tsx` 55 → 88 tests.
+  - **The branch** (`block.key === 'delay'`, beside `compressor`): three direct param-rows as before (`AUDIO_RIG_RESPONSIVE_LAYOUT.md` §1.7's "no nested row" test still holds) — row 1 is `TempoSyncSlider` fed `findParam(…,'delayTime').schema` (a documented cast, the config declares it `sliderLinear`), `freeValue={effect.delayTime}`, `allowed={allowedDelayNoteValues(bpm)}`; rows 2–3 are the unchanged `paramRow`s for `feedback`/`wet`. `onFreeChange` is the existing `fieldOnChange.delayTime` (so a Free edit still cancels any swell on that field); `onSyncChange` is `setGlobalAudio('delay', { sync })`; `onModeChange` is the store's `setDelaySyncMode` itself (already stable).
+  - **Selectors:** `delaySync` and `bpm` have their own conditional selectors (`isDelay ? … : undefined / 0`), not a widened `Record<string, number>` cast. `allowed` is `useMemo`'d on `[isDelay, bpm]` and is a shared frozen-by-convention empty list off the Delay panel, so `TempoSyncSlider`'s memo and its derived Sync schema bail on every render that isn't a tempo change.
+  - **Re-render isolation, proven with a React `Profiler` (counts the panel's OWN commits — the per-control `resolveAccessibleName` counter can't, since memoised children hide a panel re-render):** a tempo change commits nothing in the Reverb, Compressor or EQ panels; a positive control proves the Delay panel does commit (so the check can fail); a Delay sync flip commits nothing in Reverb; a `wet` or `feedback` change (a swell tick) does not re-execute Delay Time's control in Free or Sync, nor Repeats.
+  - **Edge cases pinned (against the real store, only `lfoEngine` mocked):** Float facade/Anchored facade and aria-checked; `aria-valuetext` on the Sync thumb names the note and is absent in Free; Free value underneath never moves the Sync thumb and a Sync step never writes `delayTime` (0 s and 7.5 s underneath); steps both directions and a step at the long end writes nothing out of range; a stored 4 bars at 120 BPM shows the longest stop at 60 BPM and the note again on return, with the stored note untouched in between; an unrecognised stored `sync` (`1/3`) reads as Float; the toggle snaps 1 s to 1/4 at 60 BPM and 1/2 at 120, pushes that note's seconds, keeps what was heard on the way back (0.75 s) and leaves no `sync` key on a round trip; a 0 s Delay flips without crashing; Repeats/Amount edits leave `sync`/`delayTime` alone and an Amount edit reaches the engine as `{ wet }` alone on a synced Delay. **Mutation checks run:** making the `bpm` selector unconditional turned the 3 off-Delay isolation tests red; making the Sync handler write `delayTime` turned 3 step tests red.
+  - **Plan wording:** the plan calls the plain rows "`feedback`/`wet`"; on screen they are **Repeats** and **Delay Amount** (`fleet.delay.*`), so the tests find them by those names.
+  - **Manual only (Checkpoint C):** the row's look — the toggle beside the Delay Time track at the panel's real widths.
+  Full suite 203 files / 4534 tests; the one failure under the parallel run is the recorded unmocked-RNG `CompanyCrudControls` rename flake, which passes alone (49/49). `npm run build:types` and `npm run lint` clean.
+
+  **Verification:** `npx vitest run src/components/panels/screen/console/AudioRigEffectPanel.test.tsx` (RED first); `npm run build:types`, `npm run lint`.
+  **Dependencies:** 9, 11. **Files:** `AudioRigDrawer.tsx`, `AudioRigEffectPanel.test.tsx`. **Scope:** S.
+
+### Checkpoint C: Delay slice — PASSED (Crawford, 2026-10-02)
+- [x] `npm test`, `npm run lint`, `npm run build:types` clean as of Task 12 (parallel-run flakes pass alone). `npm run build` was not re-run for Tasks 11–12.
+- [x] Manual (Crawford): "delay looks good from my point of view" — signed off as a whole; the three listed sub-checks (tempo-to-20 clamp, Anchored → Float keeps the heard time, swell on Delay Amount) were not itemised, and no vetoes were raised.
+- [x] Review with Crawford before proceeding.
 
 ---
 
-### Phase 4: UI
+### Phase 4: Seeding and persistence
 
-- [ ] **Task 9: Content entries + `src/utils/formatNoteValue.ts`**
+- [x] **Task 13: Seeded Sync rolls for lanes and Delay**
 
-  **Description:** Add the §1.10 entries to `src/content/copy/ui.ts` (proposed wording; Crawford's veto applies to `ui.tempoSync`'s own human/lore and the readout words — change the strings, not the keys, if vetoed). Create `formatNoteValue(nv)` and `formatNoteValueOrOff(nv | 'off')` reading every word through `labels`/`options`/`fill`.
-
-  **Acceptance criteria:**
-  - [ ] `"1/8"`, `"1/8 dotted"`, `"1/4 triplet"`, `"1 bar"`, `"2 bars"`, `"4 bars"`, `"Off"` — asserted against `CONTENT` entries, never against a second literal.
-  - [ ] Straight has no suffix (no trailing space).
-  - [ ] `content.test.ts` green: every new key referenced (the formatter references all but `ui.tempoSync`, which Task 11 references — so this task's commit may legitimately leave `ui.tempoSync` unreferenced; if the guard fails on it, add the entry in Task 11 instead and say so in the commit).
-
-  **Verification:**
-  - [ ] `npx vitest run src/utils/formatNoteValue.test.ts src/content` passes (RED first).
-  - [ ] `npm run lint` clean (no literal copy outside `src/content`).
-
-  **Dependencies:** Task 1.
-  **Files:** `src/content/copy/ui.ts`, `src/utils/formatNoteValue.ts`, `src/utils/formatNoteValue.test.ts`.
-  **Scope:** S.
-
-- [ ] **Task 10: `SliderLinearSchema.formatValue` + readout**
-
-  **Description:** Add `formatValue?: (value: number) => string` to `SliderLinearSchema` (doc comment mirroring `SliderLogSchema.formatValue`'s) and the one ternary in `SliderLinear.tsx`'s `valueLabel` (both the interactive and `readOnly` branches share it already). `CONTROL_SCHEMA_TYPES` untouched.
+  **Description:** Spec §1.7 "Sync draws". `LFO_BANK_SYNC_ODDS` (a 0.75, b 0.66, c 0.33, d 0.25) and `DELAY_SYNC_ODDS` (0.66) in `globalAudioSeed.ts`; new keys `lfoBank.${lane}.syncMode/.syncNote` and `globalAudio.delay.syncMode/.syncNote`; candidate-band order own → next faster → next slower → outward; `seedBpm = generateAttenuationStyleBpm(id, name)` inside each seeder; existing keys and order untouched.
 
   **Acceptance criteria:**
-  - [ ] With `formatValue`, the readout text is its return value and `schema.unit` is not appended; without it, the readout is unchanged (existing tests).
-  - [ ] `controls.test.ts`'s "exactly 14 entries" still passes.
+  - [x] Task 3's oracle passes with only `sync` keys added.
+  - [x] Determinism; every band non-empty for every integer BPM 40–100; every Sync draw inside its candidate band at the seed BPM; Delay draws inside 0.05–0.5 s.
+  - [x] Measured Sync share over 200 names within ±10 points of 75/66/33/25/66 %. If one misses, calibrate that constant (comment records the measured raw share), never the target — and report it at the checkpoint.
 
-  **Verification:**
-  - [ ] `npx vitest run src/components/ui/controls/SliderLinear.test.tsx src/types/controls.test.ts` passes (RED first).
+  **As built:** Keys, draw order and band order exactly as specced; `LFO_BANK_SYNC_BAND_ORDER` is an exported literal table (a `abcd`, b `bcad`, c `cdba`, d `dcba`) so the fallback order is directly testable. The Free landing spreads `...(sync !== undefined && { sync })`, never `sync: undefined`. **Calibration (report at Checkpoint D):** a simplex draw bunches around 0.5, so two lane constants missed and were calibrated, measured over 3000 names: **a** 0.75 → 91.8 % raw, now **0.60** → 74.6 %; **d** 0.25 → 11.2 % raw, now **0.33** → 23.8 %. **c** (0.33 → 34.2 %) and **Delay** (0.66 → 66.4 %) are inside tolerance and left at their stated values. **b** (0.66 → 72.3 % raw, 6 points over target) was pulled to **0.62 → 66.2 %** at Crawford's request on 2026-10-03; the oracle and every seed test were unchanged by it. Constants' comments record every measured figure. **Variety check:** `lfoBank.c.syncMode` takes only 3 distinct values over 3000 names (the low-variety simplex artifact Task 4 hit), so lane c's share can only land in the gaps between them; its measured 34.2 % is fine, but it cannot be tuned finely. The `syncNote` draws have 24–178 distinct values, so note variety is not affected, and the spec's key names were kept. **Oracle:** `oracle-alpha` is all-Free and passes byte-identical; `oracle-theta` gained only `sync` keys (lane a `1 dotted`, lane c `1/8 triplet`, Delay `1/16`) — the failing diff had no changed or removed lines before the keys were added. **Fallback:** forcing `pickSeedNoteValue` to `undefined` (a mocked every-band-empty case) leaves every lane/Delay Free with its seeded Free values byte-identical, and asserts the pick is asked at the Attenuation Style's seed BPM with the right bands and unit. **Mutation checks run:** emitting `sync: undefined` on Free lanes turned 4 tests red (oracle ×2, the no-`sync`-key check, the fallback case); hard-coding seed BPM 60 turned the in-band and fallback-bpm tests red. **Knock-on found by the full suite:** `DEFAULT_ATTENUATION_STYLE_NAME` is a *random* name per module load, so audioStore tests that re-import the store boot a random world — before this task none could seed Sync, now ~2 in 3 do. Two tests had silently assumed a Free seed and failed intermittently (~2 of 3 runs): the "every setGlobal* setter" case (now expects the resolved engine-facing delay: `sync` stripped, `delayTime` resolved at the current bpm, true for Free and Sync alike) and `setLfoBank` "only rate is given" (now pins lane b Free). 6/6 repeat runs of `audioStore.test.ts` clean afterwards. Full suite: only the known worldTransition swell-clear flake, passing alone.
 
-  **Dependencies:** None.
-  **Files:** `src/types/controls.ts`, `src/components/ui/controls/SliderLinear.tsx`, `src/components/ui/controls/SliderLinear.test.tsx`.
-  **Scope:** XS.
+  **Verification:** `npx vitest run src/utils/globalAudioSeed.test.ts src/stores/audioStore.test.ts` (RED first); `npm run build:types`, `npm run lint`.
+  **Dependencies:** 2, 3, 4. **Files:** `globalAudioSeed.ts`, `globalAudioSeed.test.ts`. **Scope:** M.
 
-- [ ] **Task 11: `TempoSyncSlider` composition**
+- [x] **Task 14: Share-link `y` codec; restore-boundary sanitisers**
 
-  **Description:** `src/components/ui/controls/TempoSyncSlider.tsx` + `.css` + `.test.tsx` exactly per spec §1.4's prop contract and rendering rules: flex row of one `SliderLinear` and one `Toggle` (facade children = current mode's `DualLabel` from `options('ui.tempoSync')`); Free renders the given schema; Sync renders the derived index schema (`useMemo` on `[schema, allowed]`), value = index of `syncValue` or the clamped index when absent (display only — no `onChange` on render); `heldOffDisplay` mirrors `Lfo.tsx`'s existing held-off readout behaviour. Memoised like every other primitive.
+  **Description:** Spec §1.8. `CompactBankLfoSettings.y` encode/decode (unparseable → no `sync`). `sanitizeLaneSync`/`sanitizeDelaySync` in `sessionDiff.ts` beside `backfillLfoBank`, applied once in `applySessionPayload`.
 
-  **Acceptance criteria:**
-  - [ ] Free: slider min/max/step/unit from the given schema; readout with unit; arrow key → `onFreeChange` only.
-  - [ ] Sync: `max = allowed.length - 1`, `step = 1`, readout `"1/8 dotted"` at that index, no unit; arrow key → `onSyncChange` with the `NoteValue` (or `'off'` at index 0 when present) and never `onFreeChange`.
-  - [ ] `syncValue` absent from `allowed` → the clamped index is displayed and no `onChange`/`onSyncChange` fires during render or on re-render.
-  - [ ] Toggle click → `onModeChange(true/false)` only; the facade reads Float at rest and Anchored when popped (text from `CONTENT`).
-  - [ ] Root carries `isActive`-style class hooks consistent with `Lfo.tsx` (whatever `Lfo.tsx` needs in Task 12 — keep it minimal).
+  **Acceptance criteria:** spec §5 Persistence list in full (every entry round-trips; absent/garbage `y` → no key; mixed payload round-trips `toEqual`; `delay.sync` through `g`; invalid lane/delay `sync` applies as Free; no-`sync` v2 payload resolves to stored numbers).
+  **As built:** *Codec* — the decoder is a code→note `Map` built once from `NOTE_VALUES` (`NOTE_VALUE_BY_CODE`), so exactly the 20 real codes decode and everything else misses: unknown token, a modifier the division doesn't offer (`2bd`, `4bt`), wrong case, padding, a slash form, a non-string, and hostile keys (`__proto__`, `constructor` — a Map, not an object, so there is no inherited-property hit). The encoder gates on `isNoteValue`, so a lane carrying a bogus in-memory `sync` is written as Free and never emits a code it can't vouch for. A Free lane's wire entry is byte-for-byte the pre-Sync `{s,r,rd,dd}`; a synced lane adds exactly one key, `y`, and its Free `rate` still travels underneath. All 20 codes are distinct (tested). `delay.sync` needs no codec — it round-trips inside `g` (tested, no code change). *Sanitisers* — `sanitizeLaneSync`/`sanitizeDelaySync` sit beside `backfillLfoBank`; they return the input untouched when there's nothing to drop and otherwise a new object (the payload is never mutated, tested — a saved session object can be applied twice), and a Free result carries no `sync` key at all (an explicit `sync: undefined` is dropped too). Applied once each in `applySessionPayload`: the Delay on `payload.globalAudio` before the store write *and* the engine push, the lanes after the backfill and before the running / not-running branch split, so both branches get clean lanes. Eleven invalid shapes are covered for lanes (both branches) and the Delay: unknown division, 2-bars-dotted, `'off'`, `null`, explicit `undefined`, a number, a slash string, an array, a missing modifier, an extra key, `{}`. **Mutation checks run:** decoder trusting whatever `y` holds turned 19 tests red; removing the Delay sanitiser turned exactly the 11 invalid-Delay cases red; a sanitiser that strips *valid* notes too turned 2 red (the new keeps-valid lane test and Task 5's "synced lane restores with its note"). **Not done, on purpose:** no single end-to-end test pushes a `?session=` link carrying `y` all the way through `applySessionPayload`; each half is tested against the same `SessionPayload` shape at its own boundary, and Checkpoint D's manual share-link check covers the join. The full suite was green with no flake (203 files / 4646 tests).
 
-  **Verification:**
-  - [ ] `npx vitest run src/components/ui/controls/TempoSyncSlider.test.tsx` passes (RED first).
-  - [ ] `npm run lint`, `npm run build:types` clean.
+  **Verification:** `npx vitest run src/utils/sessionShareUtils.test.ts src/utils/sessionDiff.test.ts` (RED first). **Mutation check:** remove the delay sanitiser and watch the invalid-delay case go red.
+  **Dependencies:** 2, 5. **Files:** `sessionShareUtils.ts`, `sessionDiff.ts` + tests. **Scope:** S.
 
-  **Dependencies:** Tasks 9, 10.
-  **Files:** `TempoSyncSlider.tsx`, `TempoSyncSlider.css`, `TempoSyncSlider.test.tsx` (all under `src/components/ui/controls/`).
-  **Scope:** M.
-
-- [ ] **Task 12: `Lfo.tsx` renders its Rate through `TempoSyncSlider`; `bpm` prop; `LfoTargetGroup` forwards it**
-
-  **Description:** Replace the Rate `SliderLinear` with `TempoSyncSlider`; add required `bpm: number` to `LfoProps` and `LfoTargetGroupProps` (forwarded untouched); compute `allowed = ['off', ...allowedNoteValues(bpm, {LFO_RATE_MIN..MAX}, 'hz')]` memoised on `bpm`; `isActive` → `isLfoOn(value)`; held-off readout preserved; `onModeChange` performs `lfoToSync`/`lfoToFree` (Task 2) and emits a complete `LfoValue`; `onSyncChange` emits `{ ...value, sync }`. Update `Lfo.test.tsx` and `LfoTargetGroup.test.tsx` to pass `bpm={60}`; callers do not compile until Task 13 — run only the two test files here and accept the type break for one commit **or** pass a temporary `bpm={60}` at the callers in this same commit (preferred: do the latter and let Task 13 replace the literal with the subscription).
-
-  **Acceptance criteria:**
-  - [ ] Existing `Lfo.test.tsx` cases pass with `bpm={60}`.
-  - [ ] `isActive` follows `isLfoOn`: Sync `'off'` inactive; Sync 1/4 active even with `rate: 0`.
-  - [ ] Mode flip from Free `rate: 1.5` at 60 → `onChange` called once with `sync` = 1/4 triplet and `rate: 1.5` kept; flip back → `onChange` with `rate: 1.5` and no `sync` key.
-  - [ ] Sync arrow key → `onChange` with a complete `LfoValue` whose `sync` changed and nothing else.
-
-  **Verification:**
-  - [ ] `npx vitest run src/components/ui/controls/Lfo.test.tsx src/components/ui/controls/LfoTargetGroup.test.tsx` passes (RED first).
-  - [ ] `npm run build:types` clean at the end of the commit.
-
-  **Dependencies:** Tasks 2, 11.
-  **Files:** `Lfo.tsx`, `Lfo.test.tsx`, `LfoTargetGroup.tsx`, `LfoTargetGroup.test.tsx` (+ the temporary literal at callers if chosen).
-  **Scope:** M.
-
-- [ ] **Task 13: Thread `bpm` from the five callers**
-
-  **Description:** `AudioRigLfoGroup` (in `AudioRigDrawer.tsx`), `SignatureArrayDrawer.tsx`, `AudioSettingSection.tsx` (new prop, forwarded to its `Lfo`), `RobotOptionsTab.tsx` and `CompanyOptionsSection.tsx` subscribe `useAudioStore((s) => s.bpm)` and pass it down, replacing any Task 12 literal. Company broadcast of an LFO edit already goes through `handleLayerLfoFieldChange`/the volume handler with the full `LfoValue`, so a `sync` change broadcasts like any other field (the removed-key case is Task 16).
-
-  **Acceptance criteria:**
-  - [ ] Each of the five components' tests renders with a mocked store `bpm` and the rendered `Lfo` receives it (assert on the Sync readout at a known index, which depends on `bpm`).
-  - [ ] A Tempo change re-renders only LFO rows (sanity via existing memoisation tests — no new re-render regressions in `AudioRigEffectPanel.test.tsx`).
-
-  **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/console src/components/robot src/components/company` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean; no `bpm={60}` literal remains outside tests (`grep -rn "bpm={60}" src --include=*.tsx | grep -v test`).
-
-  **Dependencies:** Task 12.
-  **Files:** `AudioRigDrawer.tsx`, `SignatureArrayDrawer.tsx`, `AudioSettingSection.tsx`, `RobotOptionsTab.tsx`, `CompanyOptionsSection.tsx` (+ tests as needed).
-  **Scope:** M (5 files, mechanical).
-
-- [ ] **Task 14: Delay — hand-composed branch in `AudioRigEffectPanel`**
-
-  **Description:** Add a `block.key === 'delay'` branch beside the `compressor` one: `delayTime` through `TempoSyncSlider` (`allowed = allowedNoteValues(bpm, DELAY_TIME_RANGE_SECONDS, 'seconds')`, no `'off'`), `feedback`/`wet` through `paramRow`. `onModeChange` → `delayToSync`/`delayToFree` then `setGlobalAudio('delay', …)`; `onSyncChange` → `setGlobalAudio('delay', { sync })`; `onFreeChange` → the existing `fieldOnChange.delayTime`. Swell flag for `delayTime` passed as today.
-
-  **Acceptance criteria:**
-  - [ ] The delay block renders one `TempoSyncSlider` and two plain rows; `eq3`/`reverb` blocks unchanged.
-  - [ ] Toggling to Sync with `delayTime: 0.3` at bpm 60 stores `sync` = 1/4 triplet; a tempo drag to 20 BPM shows the clamped readout and the stored `sync` is unchanged.
-  - [ ] Toggling back stores `delayTime` = resolved seconds (quantised) and no `sync` key.
-
-  **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/console/AudioRigEffectPanel.test.tsx` passes (RED first).
-  - [ ] `npm run build:types`, `npm run lint` clean.
-
-  **Dependencies:** Tasks 5, 11.
-  **Files:** `src/components/panels/screen/console/AudioRigDrawer.tsx`, `AudioRigEffectPanel.test.tsx`.
-  **Scope:** S.
-
-### Checkpoint D: UI complete — manual walk
-- [ ] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
-- [ ] `grep -rn "\.rate\b\|\.delayTime\b" src --include=*.ts --include=*.tsx | grep -v "\.test\."` — every hit is in spec §1.3's table, `tempoSync.ts`, a seeder, `sessionShareUtils.ts`, `sessionDiff.ts`'s normalisation, or content/config labels. Anything else is a miss.
-- [ ] Manual, Crawford: flip an EQ LFO to Anchored, drag Tempo, hear it follow; flip one robot layer LFO to Anchored (then nudge it so it connects — the priming gap) with a sibling on Float, drag Tempo, hear one move and one hold; Delay 1/4 at 60 → Tempo to 20 → readout clamps, delay stops lengthening at 10 s; keyboard: Tab reaches the toggle and the slider, arrows step note values; reduced-motion unaffected (no new animation).
-- [ ] Review with Crawford before proceeding.
+### Checkpoint D: Seeded worlds carry Sync, and it persists — PASSED (Crawford, 2026-10-03)
+- [x] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
+- [x] Manual: a few fresh Attenuation Styles show the expected mix (slow lanes mostly Anchored, fast mostly Float, Delay mostly Anchored); save + reload and a share link both restore every toggle and note.
+- [x] Review with Crawford before proceeding.
 
 ---
 
-### Phase 5: Persistence and companies
+### Phase 5: Docs
 
-- [ ] **Task 15: Share-link codec for `sync`; version-1 payload fixture test**
+- [x] **Task 15: Docs and roadmap**
 
-  **Description:** `CompactLfoSettings.y?: string` with the §1.8 code (`32|16|8|4|2|1b|2b|4b` + `''|d|t`, or `off`); encode/decode in `toCompactLfoSettings`/`fromCompactLfoSettings`; absent → no `sync` key. Add a `sessionDiff` test applying a hand-written version-1 `SessionPayload` with no `sync` anywhere and asserting resolved Hz/seconds equal the stored numbers (no code change expected there — the test is the backward-compat proof).
+  **Description:** Every doc in spec §2's `docs/` list: `AUDIO_SYSTEM.md` (BPM / Tempo rewritten for AS seeding; LFO Bank section gains Sync, resolvers, drift switch), `PROCEDURAL_GENERATION.md`, `DUPLICATE_VALUE_AUDIT.md` item 1, `GLOBAL_CHAIN_GRID.md` delay row (0–1 → 0–10, Sync note), `SLIDER_VALUES.md`, `COMPONENT_LIBRARY.md`, `SESSION_STORAGE.md`, a dated superseded-note atop `specs/archive/BPM_CONTROL.md` §1.3, `todo/roadmap.md` Phase 33 (Not Doing per spec §6). Tick this file's boxes. Repo-wide RED-first grep for stale claims before editing (`generateLocaleBpm`, "locale-seeded", "seeded per locale", "0–1 s").
 
-  **Acceptance criteria:**
-  - [ ] Every `NOTE_VALUES` entry and `'off'` round-trips; absent `y` decodes to an object with no `sync` key; a full payload with mixed Free/Sync entries round-trips `toEqual`.
-  - [ ] The version-1 fixture applies without error and every LFO/Delay resolves to its stored number at any bpm.
-  - [ ] `globalAudio.delay.sync` survives the share round-trip through `g` with no codec change.
+  **Acceptance criteria:** every doc claim names a file and function that exist; the grep returns only historical spec/task records.
 
-  **Verification:**
-  - [ ] `npx vitest run src/utils/sessionShareUtils.test.ts src/utils/sessionDiff.test.ts` passes (RED first for the codec).
+  **As built:** *The RED-first grep, made executable.* `src/docs/freeSyncDocs.test.ts` (96 tests; 47 failed before any doc was touched) pins both acceptance criteria so they can't rot: (1) every live doc (`docs/*.md`, `docs/reference/*.md`) is free of the deleted names (`generateLocaleBpm`, `localeBpmSeed`, `syncBpmToCurrentLocale`, `LOCALE_BPM_SEED_RANGE` — assembled from fragments in the test so Task 4's `grep -rn … src` still returns nothing) and of "seeded per locale" / "locale-seeded tempo"; GLOBAL_CHAIN_GRID's Delay row says 0–10, and PROCEDURAL_GENERATION no longer lists BPM among locale-pinned values; (2) every code symbol a doc now names exists in the source file it is credited to. Archived specs/tasks/intent docs and the `docs/todo/` investigation notes are history and out of scope on purpose. *What changed:* **AUDIO_SYSTEM.md** — BPM / Tempo rewritten (per Attenuation Style, reseeded first on a style change, never on a coordinates move; the `'globalAudio.bpm'` dataId finding; `setBPM` re-applies synced values), a new "Free | Sync" subsection in the LFO section (data, resolvers, push sites, allowed lists, drift switch, UI, persistence), a Sync-rolls seeding bullet, the wiring paragraph updated for the `bpm` arguments, and the UI bullet for `TempoSyncSlider`; **PROCEDURAL_GENERATION.md**; **DUPLICATE_VALUE_AUDIT.md** item 1 (line-number links replaced by symbol names — they had drifted); **reference/GLOBAL_CHAIN_GRID.md** — Delay row 0–1 → 0–10 with a Sync footnote, the four lane rows gain `sync?`, and a second stale claim fixed (`maxDelay: 1` → `10`, the shared `DELAY_TIME_RANGE_SECONDS`); **reference/SLIDER_VALUES.md** — Tempo footnote, Delay Time and lane Rate rows with Sync footnotes (¹⁶, ¹⁷); **COMPONENT_LIBRARY.md** — the facade size rule + `ToggleFacade`, `SliderLinear.formatValue`, `TempoSyncSlider`/`TempoSyncToggle`, and the `.sc-toggle` flex-row gotcha; **SESSION_STORAGE.md** — a new Free | Sync section (saved sessions, `sanitizeLaneSync`/`sanitizeDelaySync`, the `y` code); **specs/archive/BPM_CONTROL.md** — a dated superseded note atop §1.3 (the original reasoning untouched below it); **todo/roadmap.md** — Phase 33 with its Not Doing list and the "every unsaved world gets a new tempo" note. *Boxes:* ticked Task 15 and the 22 acceptance boxes under Tasks 1–14 — all backed by committed tests and the green full suite, spot-checked against the test files before ticking; **Checkpoints A, D, E are left unticked on purpose** (they are Crawford's manual sign-offs). *Verified while writing, not just claimed:* `npm run build` clean; the real app boots headlessly in Chrome with no console errors or exceptions (plan line 217); the Checkpoint E `.rate` / `.delayTime` audit was run — every non-test hit is a resolver, the engine's own Hz copy (`lfoEngine.ts:227`, `globalFx.ts:392`), a seeder or schema key, a serialiser (`sessionDiff.ts:211`, `sessionShareUtils.ts:187`), the store's edit detection followed by a resolved push, or the Free-slider wiring — **no misses** (the box stays Crawford's to tick). *Found but not fixed (pre-existing, out of scope):* `PROCEDURAL_GENERATION.md`, `PERFORMANCE.md` and `todo/scratchy-audio-phones.md` still describe `?seed=` / `?x=` / `?y=`, which the Shareable Link phase removed (2026-09-28); and `COMPONENT_LIBRARY.md`'s Header Mute paragraph still describes the old two-string facade although `Header.tsx` is now a single glyph.
+  **Verification:** `npm test` (content guard), `npm run lint`; read-through by Crawford.
+  **Dependencies:** all. **Files:** the docs listed. **Scope:** M (docs only).
 
-  **Dependencies:** Task 2.
-  **Files:** `src/utils/sessionShareUtils.ts`, `src/utils/sessionShareUtils.test.ts`, `src/utils/sessionDiff.test.ts`.
-  **Scope:** S.
-
-- [ ] **Task 16: `diffCompoundField` detects a removed key; merge sites strip `undefined`**
-
-  **Description:** `diffCompoundField(prev, next)` returns `{ [key]: undefined }` for a key present in `prev` and absent in `next` (checked after the existing changed-key scan, still "first difference wins"). In `CompanyOptionsSection.tsx`'s `handleLayerLfoFieldChange`, the volume-LFO handler, and `patchSnapshot`'s LFO merges, strip an `undefined` `sync` after spreading so no member or snapshot ever stores `sync: undefined`.
-
-  **Acceptance criteria:**
-  - [ ] `diffCompoundField({shape,rate,depth,sync:{…}}, {shape,rate,depth})` → `{ sync: undefined }`; existing cases unchanged; a changed key still wins over a removed one when both occur (document the order in a test).
-  - [ ] Broadcasting Sync→Free to two members leaves neither with a `sync` key (`'sync' in m.lfoSettings[target] === false`) and the snapshot likewise.
-  - [ ] ADSR/toggle compound fields' existing tests unchanged.
-
-  **Verification:**
-  - [ ] `npx vitest run src/systems/companyOptions.test.ts src/components/company/CompanyOptionsSection.test.tsx` passes (RED first). Mutation check: remove the strip and watch the `'sync' in` assertion go red.
-
-  **Dependencies:** Task 2.
-  **Files:** `src/systems/companyOptions.ts`, `src/systems/companyOptions.test.ts`, `src/components/company/CompanyOptionsSection.tsx`, `CompanyOptionsSection.test.tsx`.
-  **Scope:** S.
-
----
-
-### Phase 6: Docs
-
-- [ ] **Task 17: Docs, roadmap entry, spec amendment, grid correction**
-
-  **Description:** `docs/AUDIO_SYSTEM.md` LFO section (rate is Hz at the engine; Sync resolves above it in `utils/tempoSync.ts`; the drift switch; `hasLfo`/`setLfoTempoLocked`); `docs/reference/GLOBAL_CHAIN_GRID.md` delay row corrected to 0–10 s / `maxDelay: 10` with a Sync note; `docs/reference/ROBOT_DATA_GRID.md` LFO Rate row Sync note; `docs/COMPONENT_LIBRARY.md` (`TempoSyncSlider` composition, `SliderLinearSchema.formatValue`); `docs/SESSION_STORAGE.md` (optional `sync`, absent = Free, no version bump); `docs/COMPANIES.md` (removed-key diff); `docs/todo/roadmap.md` Phase 33 entry with "Not Doing" per spec §6 and the seeded-robot-LFO priming gap recorded as a pre-existing follow-up; spec §7 item 4 marked resolved per this plan's note; tick this file's boxes.
-
-  **Acceptance criteria:**
-  - [ ] Every doc claim names a file that exists and a function that exists (verify-roadmap-against-code rule).
-  - [ ] No stale "free-running Hz" sentence remains that contradicts Sync.
-
-  **Verification:**
-  - [ ] `npm test` (content guard unaffected), `npm run lint`.
-  - [ ] Read-through by Crawford.
-
-  **Dependencies:** All.
-  **Files:** the docs listed; `docs/specs/FREE_SYNC_TOGGLE.md`; this file.
-  **Scope:** M (docs only).
-
-### Checkpoint E: Complete
-- [ ] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean.
-- [ ] Spec §5's Checkpoint E list done on the final build: EQ LFO follows tempo; mixed robot LFOs move/hold; Delay clamps at 10 s; a pre-branch session loads with every toggle on Float; a mixed-member company Sync→Free broadcast lands on every member.
-- [ ] Crawford's final review and wording vetoes applied (spec §7 items 1–3).
+### Checkpoint E: Complete — PASSED (Crawford, 2026-10-03), Pixel listen deferred
+- [x] `npm test`, `npm run lint`, `npm run build:types`, `npm run build` clean (re-verified independently in the code-review pass on e254f7a4; the one full-suite failure seen was the unmocked-RNG factory recolor flake, green alone).
+- [x] `grep -rn "\.rate\b\|\.delayTime\b" src --include=*.ts --include=*.tsx | grep -v "\.test\."` — every hit is a resolver, the Free-mode slider wiring, a seeder, a serialiser, or the engine's own Hz copy. Anything else is a miss. (Run twice: Task 15 and again in the code-review pass. No misses.)
+- [x] Spec §5 manual list on the final build — **except the Pixel listen at Light, which Crawford will do once the build is live** (desktop checks passed).
+- [x] Crawford's final review, plus a `code-review-and-quality` pass over the whole branch (verdict Approve; its five follow-up commits f3537bbf…e254f7a4 are on the branch: spec corrected to the as-built, shared `roundToDecimals`, undefined-valued keys stripped from the two merge setters, frozen empty list, Free | Sync store tests split into `audioStore.tempoSync.test.ts`).
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| A consumer still reads `rate`/`delayTime` directly after migration | High (silent wrong audio in Sync) | Task 5's grep criterion and Checkpoint D's grep; the resolver is the only sanctioned reader. |
-| Seeder change perturbs Free output | High (every world sounds different) | Task 3's oracle captured first; Tasks 7–8 must keep it green with only `sync` fields added. |
-| `GLOBAL_SETTER` lazy wrapper throws at import | Med | Task 5 verifies `npm run dev` boots; wrapper reads the store lazily, never at module scope. |
-| `useEasedControlValue` shows fractional indices mid-ease | Low (cosmetic) | `formatValue` rounds; Task 11 asserts readout at integer index. |
-| `bpm` prop threading breaks memoisation | Low | `bpm` is a primitive; memo bail-outs unaffected. Task 13 checks the existing re-render tests. |
-| Seeded robot LFOs don't run at spawn (pre-existing) | Med (expectation) | Out of scope by Crawford's decision; Checkpoint D's manual step nudges the robot LFO to connect; roadmap records the gap. |
-| `diffCompoundField` change affects ADSR/toggle fields | Low | Own task (16) with the existing compound-field tests as regression. |
-| Wording veto arrives after Task 9 | Low | Only strings in `ui.ts` change; keys and tests (which read `CONTENT`) are unaffected. |
+| A consumer still reads `rate`/`delayTime` directly | High (wrong audio in Sync) | Spec §1.3's table is the checklist; Checkpoint E grep. |
+| A seeder change perturbs Free values | High (every world sounds different) | Task 3 oracle captured first; Task 13 may only add `sync` keys. |
+| Partial-merge leaves a stale `sync` | High (Free lane stuck synced after a load) | Whole-object replacement for every Sync → Free path; Task 5 mutation check. |
+| Simplex draw doesn't give the stated odds | Med | Task 13 measured-share test; calibrate the constant. |
+| BPM's new key has the offset-0 low-variety artifact | Med (similar tempos everywhere) | Task 4 distinct-values check; if it fails, pick a different key/offset and say so. |
+| Delay wrapper slows or alters the swell path | Med | Key check only on `{ wet }`; Task 11 exact-forward test. |
+| `GLOBAL_SETTER` wrapper throws at import | Med | Lazy store read; Task 11 `npm run dev` boot check. |
+| Fractional eased index in the Sync readout | Low | `formatValue` rounds; Task 9 asserts readout at integer index. |
+| Facade word veto after Task 9 | Low | String/option swap in one component; Checkpoint B asks. |
 
 ## Open Questions
 
-- Spec §7 items 1–3 (toggle name, readout words, modifiers on multi-bar) — Crawford's wording vetoes. They don't block any task: Task 9 lands the proposed words and a veto is a one-file string edit.
-- Spec §7 item 4 — resolved (see the note at the top).
-- Spec §7 item 5 — resolved by Task 5's lazy-wrapper shape; the `npm run dev` boot check is the proof.
+- None blocking. The lore word on the toggle facade (spec assumption 11) is put to Crawford at Checkpoint B.
+- **A11y gap found in Task 8 — RESOLVED 2026-10-02 (Crawford): folded into Task 10.** In Sync mode the Radix thumb exposed only the numeric index, so a screen reader announced "5" instead of the note name. Fix: `aria-valuetext` on `SliderLinear`'s thumb from the same `formatValue`; see Task 10's "Folded in" paragraph.
+- **Spec assumption 11 (toggle accessible name) — RESOLVED 2026-10-02 (Crawford):** the switch is named "Tempo Sync" in both modes; Free/Sync is announced through `aria-checked`, and the facade shows the lore word. Not a Checkpoint B veto item any more except for the Float/Anchored facade wording itself.
+- **Not done, on purpose:** `SliderLog` has the same `formatValue` and the same missing `aria-valuetext` (Automation Rate uses it). Out of this feature's scope; flagged for a separate a11y follow-up.
