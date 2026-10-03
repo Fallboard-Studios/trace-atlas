@@ -723,6 +723,78 @@ describe('FactoryPlacementSystem', () => {
       ).not.toThrow();
     });
 
+    // docs/specs/WORLD_PALETTE_PULL.md §1.3 (last paragraph) / docs/tasks/WORLD_PALETTE_PULL.md Task 5.
+    describe('accent lean (Phase 35)', () => {
+      const coords = { x: 44, y: -17 };
+      const makeLocale = (id: string, attenuationStyleId: string) => ({
+        id, attenuationStyleId, name: id, coordinates: coords,
+        robots: [], actors: [], companies: [], currentMeasure: 0, createdAtMeasure: 0, dayStartTimestamp: Date.now(),
+      });
+      const styleA = { id: 'recolor-lean-a', name: 'recolor-lean-alpha' };
+      const styleB = { id: 'recolor-lean-b', name: 'recolor-lean-beta' };
+
+      function preLean(actor: Actor, index: number, asMap: NoiseFunction2D) {
+        const row = actor.config?.row ?? EXPECTED_DEFAULT_FACTORY_ROW;
+        const local = selectVariantFromSeed(actor.id, actor.position.x, row, getRowConfig(row)?.availableFactoryTypes);
+        const as = {
+          hueShift: getSeededVal(asMap, 'factory.as.hueShift', index, -30, 30),
+          satShift: getSeededVal(asMap, 'factory.as.satShift', index, -20, 20),
+        };
+        const combined = { hueShift: local.hueShift + as.hueShift, satShift: local.satShift + as.satShift };
+        return { combined, body: shiftHSL(VARIANT_CONF[local.variant].colors.body, combined) };
+      }
+
+      beforeEach(() => {
+        useAttenuationStyleStore.getState().addAttenuationStyle({ ...styleA, locales: [] });
+        useAttenuationStyleStore.getState().addAttenuationStyle({ ...styleB, locales: [] });
+      });
+
+      it("moves every factory onto the NEW style's accent pair, and off the old one", () => {
+        const mapA = getAttenuationStyleNoiseMap(styleA.id, styleA.name);
+        const mapB = getAttenuationStyleNoiseMap(styleB.id, styleB.name);
+        const pairA = deriveAsAccentPair(mapA);
+        const pairB = deriveAsAccentPair(mapB);
+        // Precondition on the fixture names — the "off the old one" half is meaningless otherwise.
+        expect(pairB.primary).not.toBe(pairA.primary);
+
+        useLocaleStore.getState().addLocale(styleA.id, makeLocale('recolor-lean-locale', styleA.id));
+        placeFactories('recolor-lean-locale');
+
+        recolorFactoriesForAttenuationStyle('recolor-lean-locale', styleB.id, styleB.name);
+        const after = useLocaleStore.getState().locales['recolor-lean-locale'].actors;
+        expect(after.length).toBeGreaterThan(0);
+
+        let offOldPair = 0;
+        after.forEach((actor, index) => {
+          const { combined, body } = preLean(actor, index, mapB);
+          const stored = actor.config!.hueShift!;
+          const viaB = [pairB.primary, pairB.secondary].map((p) => combined.hueShift + computeAccentLean(body, p).hueShift);
+          expect(viaB.some((v) => Math.abs(stored - v) < 1e-9), `factory ${index} not on pair B`).toBe(true);
+          expect(actor.config!.satShift!).toBeCloseTo(combined.satShift + ACCENT_SAT_LIFT, 9);
+          const viaA = [pairA.primary, pairA.secondary].map((p) => combined.hueShift + computeAccentLean(body, p).hueShift);
+          if (!viaA.some((v) => Math.abs(stored - v) < 1e-9)) offOldPair++;
+        });
+        // Parity-fixture rule: the two formulas must actually distinguish for at least one factory.
+        expect(offOldPair).toBeGreaterThan(0);
+      });
+
+      it('equals a fresh placeFactories under the new style at the same coordinates, factory for factory — the two write sites agree', () => {
+        useLocaleStore.getState().addLocale(styleA.id, makeLocale('recolor-lean-from-a', styleA.id));
+        useLocaleStore.getState().addLocale(styleB.id, makeLocale('recolor-lean-fresh-b', styleB.id));
+        placeFactories('recolor-lean-from-a');
+        const fresh = placeFactories('recolor-lean-fresh-b');
+
+        recolorFactoriesForAttenuationStyle('recolor-lean-from-a', styleB.id, styleB.name);
+        const recolored = useLocaleStore.getState().locales['recolor-lean-from-a'].actors;
+
+        expect(recolored.map((a) => a.id)).toEqual(fresh.map((a) => a.id));
+        recolored.forEach((a, i) => {
+          expect(a.config?.hueShift, `factory ${i} hue`).toBeCloseTo(fresh[i].config!.hueShift!, 9);
+          expect(a.config?.satShift, `factory ${i} sat`).toBeCloseTo(fresh[i].config!.satShift!, 9);
+        });
+      });
+    });
+
     it("falls back to DEFAULT_FACTORY_ROW when a factory's config.row is missing, matching Factory.tsx's own render-time fallback", () => {
       // Every real factory from createFactory/placeFactories always has
       // config.row set, so this path is unreachable via the public spawn

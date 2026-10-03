@@ -330,6 +330,10 @@ export function recolorFactoriesForAttenuationStyle(localeId: string, attenuatio
   const locale = useLocaleStore.getState().getLocaleById(localeId);
   if (!locale) return;
   const asNoiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
+  // Phase 35: the NEW style's accent pair — a retransmit moves the whole skyline onto it
+  // (docs/specs/WORLD_PALETTE_PULL.md §1.3, last paragraph). Same per-factory computation as
+  // placeFactories → createFactory, so the two write sites always agree.
+  const accentPair = deriveAsAccentPair(asNoiseMap);
 
   let factoryIndex = 0;
   const nextActors = locale.actors.map((actor) => {
@@ -340,14 +344,16 @@ export function recolorFactoriesForAttenuationStyle(localeId: string, attenuatio
     // default — this must reproduce what's actually rendered.
     const row = actor.config?.row ?? DEFAULT_FACTORY_ROW;
     const availableTypes = getRowConfig(row)?.availableFactoryTypes;
-    const { hueShift: localHue, satShift: localSat } = selectVariantFromSeed(actor.id, actor.position.x, row, availableTypes);
+    const { variant, hueShift: localHue, satShift: localSat } = selectVariantFromSeed(actor.id, actor.position.x, row, availableTypes);
     const asShift = deriveAsColorShift(asNoiseMap, index);
+    const combined = { hueShift: localHue + asShift.hueShift, satShift: localSat + asShift.satShift };
+    const lean = computeAccentLean(shiftHSL(VARIANT_CONF[variant].colors.body, combined), pickAccentTarget(asNoiseMap, accentPair, index));
     return {
       ...actor,
       config: {
         ...actor.config,
-        hueShift: localHue + asShift.hueShift,
-        satShift: localSat + asShift.satShift,
+        hueShift: combined.hueShift + lean.hueShift,
+        satShift: combined.satShift + lean.satShift,
       },
     };
   });
