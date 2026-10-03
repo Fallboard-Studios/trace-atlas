@@ -7,7 +7,7 @@ import { RobotSleek } from './RobotSleek';
 
 // The 4 shape variants share an identical RobotSVGProps contract (colors,
 // scale, detailLevel, shapeParams?, dimOpacity?) and the same detailLevel/
-// dimOpacity/.propeller behavioral hooks — confirmed by direct read — so
+// dimOpacity behavioral hooks — confirmed by direct read — so
 // they're exercised here as one shared parametrized file rather than four
 // near-duplicate ones (docs/specs/TEST_COVERAGE_CORE_MODULES.md §3.4).
 const VARIANTS = [
@@ -66,8 +66,9 @@ describe.each(VARIANTS)('%s', (_name, Component) => {
     expect(biasedRootGroup?.getAttribute('transform')).toBe('scale(3)');
   });
 
-  it('renders a .propeller-classed element (the target swimAnimation.ts queries for)', () => {
+  it('renders no propeller or propeller mounting arm', () => {
     const { container } = render(<svg><Component {...baseProps} /></svg>);
-    expect(container.querySelector('.propeller')).not.toBeNull();
+    expect(container.querySelector('.propeller')).toBeNull();
+    expect(container.querySelector('.propeller-arm')).toBeNull();
   });
 });

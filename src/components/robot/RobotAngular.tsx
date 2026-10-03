@@ -41,7 +41,6 @@ interface RobotSVGProps {
  */
 export const RobotAngular = React.memo(function RobotAngular({ colors, scale, detailLevel, shapeParams, dimOpacity = 1 }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
-  const appendageLength = shapeParams?.appendageLength ?? 1;
   const scaleBias = shapeParams?.scaleBias ?? 0;
   const overall = scale * (1 + scaleBias);
 
@@ -68,19 +67,6 @@ export const RobotAngular = React.memo(function RobotAngular({ colors, scale, de
             fill="#000000"
             opacity="0.3"
           />
-
-          {/* Propeller mounting - angular strut */}
-          <g className="propeller-arm">
-            <polygon points={`80,32 ${86 + Math.round(6 * (appendageLength - 1))},34 ${86 + Math.round(6 * (appendageLength - 1))},38 80,40`} fill={colors.secondary} />
-            <polygon points="80,32 86,34 85,33 80,31" fill="#a9adb0" opacity="0.5" />
-            <polygon points="80,40 86,38 85,39 80,41" fill="#000000" opacity="0.3" />
-          </g>
-
-          {/* Propeller - diamond cross */}
-          <g className="propeller" transform="translate(88, 36)">
-            <polygon points="0,-8 2,0 0,8 -2,0" fill={colors.secondary} />
-            <polygon points="-8,0 0,2 8,0 0,-2" fill={colors.secondary} />
-          </g>
 
           {/* Viewport - diamond shape — dims as battery drains */}
           <g opacity={dimOpacity}>

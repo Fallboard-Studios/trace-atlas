@@ -41,7 +41,6 @@ interface RobotSVGProps {
  */
 export const RobotOrganic = React.memo(function RobotOrganic({ colors, scale, detailLevel, shapeParams, dimOpacity = 1 }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
-  const appendageLength = shapeParams?.appendageLength ?? 1;
   const scaleBias = shapeParams?.scaleBias ?? 0;
   const overall = scale * (1 + scaleBias);
 
@@ -57,19 +56,6 @@ export const RobotOrganic = React.memo(function RobotOrganic({ colors, scale, de
 
         {/* Hull shadow - curved lower */}
         <ellipse cx="48" cy="44" rx="32" ry="16" fill="#000000" opacity="0.2" />
-
-        {/* Propeller mounting pod */}
-        <g className="propeller-arm">
-          <ellipse cx="84" cy="36" rx="6" ry={Math.max(6, Math.round(10 * appendageLength))} fill={colors.secondary} />
-          <ellipse cx="84" cy="32" rx="4" ry="4" fill="#a9adb0" opacity="0.5" />
-          <ellipse cx="84" cy="40" rx="4" ry="4" fill="#000000" opacity="0.3" />
-        </g>
-
-        {/* Propeller - rounded blades */}
-        <g className="propeller" transform="translate(90, 36)">
-          <ellipse cx="0" cy="0" rx="2" ry="8" fill={colors.secondary} />
-          <ellipse cx="0" cy="0" rx="8" ry="2" fill={colors.secondary} />
-        </g>
 
         {/* Central viewport - circular — dims as battery drains */}
         <g opacity={dimOpacity}>

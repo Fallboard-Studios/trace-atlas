@@ -41,7 +41,6 @@ interface RobotSVGProps {
  */
 export const RobotSleek = React.memo(function RobotSleek({ colors, scale, detailLevel, shapeParams, dimOpacity = 1 }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
-  const appendageLength = shapeParams?.appendageLength ?? 1;
   const scaleBias = shapeParams?.scaleBias ?? 0;
 
   const overall = scale * (1 + scaleBias);
@@ -69,19 +68,6 @@ export const RobotSleek = React.memo(function RobotSleek({ colors, scale, detail
             fill="#000000"
             opacity="0.3"
           />
-
-          {/* Propeller mounting strut */}
-          <g className="propeller-arm">
-            <rect x="80" y="32" width="10" height={Math.max(4, Math.round(8 * appendageLength))} fill={colors.secondary} />
-            <path d="M 80,33 H 89 V 32 H 80 Z" fill="#a9adb0" opacity="0.5" />
-            <path d="M 80,39 H 89 V 40 H 80 Z" fill="#000000" opacity="0.3" />
-          </g>
-
-          {/* Propeller - cross blade design */}
-          <g className="propeller" transform="translate(90, 36)">
-            <rect x="-1" y="-8" width="2" height="16" fill={colors.secondary} />
-            <rect x="-8" y="-1" width="16" height="2" fill={colors.secondary} />
-          </g>
 
           {/* Window — dims as battery drains */}
           <g opacity={dimOpacity}>

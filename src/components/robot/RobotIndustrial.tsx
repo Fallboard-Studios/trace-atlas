@@ -41,7 +41,6 @@ interface RobotSVGProps {
  */
 export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, scale, detailLevel, shapeParams, dimOpacity = 1 }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
-  const appendageLength = shapeParams?.appendageLength ?? 1;
   const scaleBias = shapeParams?.scaleBias ?? 0;
   const overall = scale * (1 + scaleBias);
 
@@ -66,19 +65,6 @@ export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, sca
         <rect x="72" y="20" width="16" height="32" fill={colors.primary} />
         <path d="M 72,20 H 88 L 87,21 H 73 Z" fill="#a9adb0" opacity="0.6" />
         <path d="M 72,52 H 88 L 87,51 H 73 Z" fill="#000000" opacity="0.3" />
-
-        {/* Propeller mounting - industrial bracket */}
-        <g className="propeller-arm">
-          <rect x="88" y="32" width="4" height={Math.max(4, Math.round(8 * appendageLength))} fill={colors.secondary} />
-          <path d="M 88,32 H 92 L 91,33 H 89 Z" fill="#a9adb0" opacity="0.5" />
-        </g>
-
-        {/* Propeller - mechanical blades */}
-        <g className="propeller" transform="translate(92, 36)">
-          <rect x="-1" y="-8" width="2" height="16" fill={colors.secondary} />
-          <rect x="-8" y="-1" width="16" height="2" fill={colors.secondary} />
-          <rect x="-6" y="-6" width="12" height="12" fill="none" stroke={colors.secondary} strokeWidth="1" />
-        </g>
 
         {/* Central viewport — dims as battery drains */}
         <g opacity={dimOpacity}>
