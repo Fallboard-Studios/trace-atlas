@@ -214,13 +214,15 @@ Parallelisable: 1 ‖ 3 ‖ 4 ‖ 5 ‖ 7 ‖ 9 ‖ 10; 2 and 8 wait on 1. Phase
 
 ### Phase 7: Docs
 
-- [ ] **Task 11: Docs and roadmap**
+- [x] **Task 11: Docs and roadmap**
 
   **Description:** `COMPONENT_LIBRARY.md`: the `LfoLink` entry (row on desktop via the tier hook, column below; both consumers), the slider table's "Used by"/orientation notes and the `'vertical'` paragraph (mode retained, no live consumer after Phase 34), and the stale "side-by-side groupings deferred (`VERTICAL_SLIDERS.md` §1.2, §7)" note resolved. `AUDIO_SYSTEM.md`: the `LfoLink` paragraph (Lane | Depth row beneath each field). `todo/roadmap.md`: **Phase 34 — Layout Updates Pass 2: Post-Sync-Toggle Row Reshuffle** with "About" (spec §1 in brief) and "Not Doing" (vertical mode removal; `'row'`-on-every-tier variants; Levels/Composition/Envelope; Phase 30's open items). The reference grids state no orientation (checked 2026-10-03), so they are not touched. Tick this file's boxes; leave the checkpoints to Crawford.
 
   **Acceptance criteria:**
-  - [ ] Every doc claim names a file, class or symbol that exists; `src/docs/freeSyncDocs.test.ts`'s symbol checks still green.
-  - [ ] `grep -rn "vertical" docs/COMPONENT_LIBRARY.md` shows only the retained-mode paragraph and the (now resolved) history note, no claim of a live vertical consumer.
+  - [x] Every doc claim names a file, class or symbol that exists; `src/docs/freeSyncDocs.test.ts`'s symbol checks still green.
+  - [x] `grep -rn "vertical" docs/COMPONENT_LIBRARY.md` shows only the retained-mode paragraph and the (now resolved) history note, no claim of a live vertical consumer.
+
+  **As built:** `COMPONENT_LIBRARY.md` — the `LfoLink` table row and section gain the tier-driven row layout; the `'vertical'` bullet records "no live consumer since Phase 34" and points at `sliderOrientation.test.ts`; the `'auto'` bullet notes no real schema uses it; the stale "side-by-side groupings deferred" paragraph is replaced by how pairs are actually done (nested `'responsive'` panels) and where. `AUDIO_SYSTEM.md` — the `LfoLink` UI paragraph and its three call-site bullets describe the new rows. `todo/roadmap.md` — Phase 34 with About and Not Doing. The reference grids state no orientation (checked 2026-10-03) and were left alone. Every symbol and file named exists; the docs guard (`freeSyncDocs.test.ts`) and the content guard stayed green. Checkpoints A–D are left for Crawford.
 
   **Verification:** `npm test`, `npm run lint`; read-through by Crawford. **Dependencies:** all. **Files:** the three docs. **Scope:** S (docs only).
 
