@@ -124,14 +124,16 @@ Parallelisable: 1 ‖ 3 ‖ 4 ‖ 5 ‖ 7 ‖ 9 ‖ 10; 2 and 8 wait on 1. Phase
   **Verification:** `npx vitest run src/data/audioRigConfig.test.ts` (RED first); `npm run build:types`.
   **Dependencies:** None. **Files:** `audioRigConfig.ts`, `audioRigConfig.test.ts`. **Scope:** XS.
 
-- [ ] **Task 6: Lane panel — Shape | Rate+Tempo Sync, then Rate Drift | Depth Drift**
+- [x] **Task 6: Lane panel — Shape | Rate+Tempo Sync, then Rate Drift | Depth Drift**
 
   **Description:** Spec §1.1. `LfoBankLanePanel` wraps the Shape param-row and the `TempoSyncSlider` param-row in `<DirectionalPanel schema={schema.topRow}>`, and the two drift param-rows (still `withHeldOffClass`) in `<DirectionalPanel schema={schema.driftRow}>`; `HeldOffNote` stays a direct child after the drift row. Store wiring and handlers untouched.
 
   **Acceptance criteria:**
-  - [ ] The lane panel's content has exactly two direct nested panels; the first holds Shape then the Rate composition (slider + Tempo Sync switch), the second Rate Drift then Depth Drift; the held-off note, when shown, is a direct child after them.
-  - [ ] Both nested panels are `row` on a stubbed desktop tier and `column` on tablet (copy the local `stubMatchMedia` helper; the file's `lfoEngine` mock stays).
-  - [ ] Every existing wiring test (Free/Sync writes, mode flips at 60/120 BPM, drift held-off greying, four lanes independent) unchanged and green; the "exactly four param-rows" test is replaced by the structure above (still four param-rows, now two per nested panel).
+  - [x] The lane panel's content has exactly two direct nested panels; the first holds Shape then the Rate composition (slider + Tempo Sync switch), the second Rate Drift then Depth Drift; the held-off note, when shown, is a direct child after them.
+  - [x] Both nested panels are `row` on a stubbed desktop tier and `column` on tablet (copy the local `stubMatchMedia` helper; the file's `lfoEngine` mock stays).
+  - [x] Every existing wiring test (Free/Sync writes, mode flips at 60/120 BPM, drift held-off greying, four lanes independent) unchanged and green; the "exactly four param-rows" test is replaced by the structure above (still four param-rows, now two per nested panel).
+
+  **As built:** RED first (7 cases: exact child list, top-row contents, drift-row contents, desktop `row` with the lane panel still `column`, tablet/mobile `column`, held-off note placement + held-off class only on the drift rows, per-lane row ids), then GREEN with the two `DirectionalPanel` wraps. The "exactly four param-rows" test was kept, not replaced — it is still true (two per nested row) and still worth pinning. One pin passed first run: one facade per lane panel. **Mutation check run:** moving the Rate composition into the drift row turned 3 cases red (top-row contents, drift-row contents, the exact child list of the held-off case). 43/43; lint and types clean.
 
   **Verification:** `npx vitest run src/components/panels/screen/console/LfoBankLanePanel.test.tsx` (RED first); `npm run lint`, `npm run build:types`. **Mutation check:** move the Tempo Sync composition into the drift row and watch the top-row order test go red.
   **Dependencies:** 5. **Files:** `LfoBankLanePanel.tsx`, `LfoBankLanePanel.test.tsx`. **Scope:** S.
