@@ -3,7 +3,7 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
-import { lerp, quantizeToStep } from './math';
+import { lerp, quantizeToStep, roundToDecimals } from './math';
 
 // ========================================
 // TEST SUITE
@@ -79,6 +79,28 @@ describe('math utilities', () => {
         const stepsFromMin = (result - min) / step;
         expect(Math.abs(stepsFromMin - Math.round(stepsFromMin))).toBeLessThan(1e-9);
       }
+    });
+  });
+
+  describe('roundToDecimals', () => {
+    it('removes floating-point residue: -0.42000000000000004 → -0.42 at 2 places', () => {
+      expect(roundToDecimals(-0.42000000000000004, 2)).toBe(-0.42);
+    });
+
+    it('cleans a quantizeToStep result so state never carries residue (1.3500000000000001 → 1.35)', () => {
+      expect(roundToDecimals(quantizeToStep(1.35, 0, 0.05), 2)).toBe(1.35);
+      expect(roundToDecimals(quantizeToStep(0.333, 0, 0.001), 3)).toBe(0.333);
+    });
+
+    it('rounds, not truncates, and 0 places gives an integer', () => {
+      expect(roundToDecimals(2.5, 0)).toBe(3);
+      expect(roundToDecimals(2.449, 0)).toBe(2);
+      expect(roundToDecimals(0.0049, 2)).toBe(0);
+    });
+
+    it('leaves an exact value alone', () => {
+      expect(roundToDecimals(10, 3)).toBe(10);
+      expect(roundToDecimals(0, 2)).toBe(0);
     });
   });
 });

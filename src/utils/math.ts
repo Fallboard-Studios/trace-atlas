@@ -27,3 +27,21 @@ export function lerp(a: number, b: number, t: number): number {
 export function quantizeToStep(value: number, min: number, step: number): number {
   return min + Math.round((value - min) / step) * step;
 }
+
+// ========================================
+// FLOATING-POINT CLEANUP
+// ========================================
+
+/**
+ * Rounds to `decimalPlaces`, removing floating-point representation residue so a value that
+ * should be on a decimal grid IS that decimal (-0.42000000000000004 → -0.42, and
+ * quantizeToStep's 1.3500000000000001 → 1.35). Shift, round, shift back. Used wherever a number
+ * is about to be stored or serialised (sessionDiff's capture normalisation, tempoSync's
+ * Sync → Free conversions).
+ * @param value - Value to clean
+ * @param decimalPlaces - Places to keep (0 gives an integer)
+ */
+export function roundToDecimals(value: number, decimalPlaces: number): number {
+  const factor = Math.pow(10, decimalPlaces);
+  return Math.round(value * factor) / factor;
+}

@@ -33,7 +33,7 @@ import {
   DELAY_TIME_STEP_SECONDS,
   type DelaySettings,
 } from '@/types/globalAudio';
-import { quantizeToStep } from '@/utils/math';
+import { quantizeToStep, roundToDecimals } from '@/utils/math';
 
 // ========================================
 // CONSTANTS
@@ -52,11 +52,11 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-/** quantizeToStep, then rounded to the step's own decimal places so state never carries
+/** quantizeToStep, then roundToDecimals at the step's own decimal places so state never carries
  *  floating-point residue (1.3500000000000001 instead of 1.35). */
 function quantizeClean(value: number, min: number, step: number): number {
   const decimals = String(step).split('.')[1]?.length ?? 0;
-  return Number(quantizeToStep(value, min, step).toFixed(decimals));
+  return roundToDecimals(quantizeToStep(value, min, step), decimals);
 }
 
 // ========================================
