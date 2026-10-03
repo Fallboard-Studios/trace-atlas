@@ -94,7 +94,7 @@ Parallelisable: 6 ‖ 3–5 (6 only needs 2). Everything else is a chain.
 
 ### Phase 2: Core wiring (the two write sites) and the bubble pin
 
-- [ ] **Task 3: `createFactory` — optional `accentTarget`, lean folded into the stored shift**
+- [x] **Task 3: `createFactory` — optional `accentTarget`, lean folded into the stored shift** — commit `3c24926f`. As built: 5 tests (parity with explicit `undefined`, exact delta, closer-not-overshoot for 4 targets, short-way-round seam case, non-colour fields identical). Mutation (lean from unshifted base) went red in 3 tests. Process note: restoring the mutation with `git checkout --` also wiped the uncommitted implementation — reapplied from the recorded edits; later mutations restore from a temp backup copy instead.
 
   **Description:** Spec §1.3. Add `accentTarget?: number` (degrees) as the trailing parameter after `asShift`. When `undefined`, output is byte-identical to today. When present: `combined = local + asShift`; `bodyBeforeLean = shiftHSL(VARIANT_CONF[variant].colors.body, combined)`; `lean = computeAccentLean(bodyBeforeLean, accentTarget)`; store `combined + lean`. `placeFactories` and `recolor` do **not** pass it yet (Tasks 4–5), so the live app is unchanged after this commit. Comment cites `docs/specs/WORLD_PALETTE_PULL.md §1.3`.
 
@@ -115,7 +115,7 @@ Parallelisable: 6 ‖ 3–5 (6 only needs 2). Everything else is a chain.
 
   **Estimated scope:** S (one function, tests)
 
-- [ ] **Task 4: `placeFactories` — seed the style's pair, pick per factory, pass the target**
+- [x] **Task 4: `placeFactories` — seed the style's pair, pick per factory, pass the target** — commit `98809eb7`. As built: `ACCENT_PAIR_OFFSET = 0.37`; the existing fixture names `as-planet-alpha`/`as-planet-beta` draw different primaries (no rename needed); the same-style test also asserts the coin really splits (both targets used across the skyline). Mutation (offset → 0) was caught by the offset spy only — the spread guard still passed at offset 0, so this dataId's hash is not near a lattice point today; the spread guard stays as the tripwire for the future.
 
   **Description:** Spec §1.2. Add `ACCENT_PAIR_OFFSET = 0.37` (doc comment citing PROCEDURAL_GENERATION.md's lattice gotcha), `deriveAsAccentPair(asNoiseMap): AccentPair` (dataId `'factory.as.accentPrimary'`, fixed offset, clamped index — mirror `generateRobotIdentityColor`'s clamp) and `pickAccentTarget(asNoiseMap, pair, index)` (dataId `'factory.as.accentPick'`, offset = factory index, `< 0.5` ⇒ primary). Both exported for tests only (comment says so). `placeFactories` derives the pair once when `asNoiseMap` is non-null and passes `pickAccentTarget(...)` into `createFactory` via `nextFactory`; a null `asNoiseMap` passes `undefined` (no lean — same fallback shape as the zero `asShift`).
 
@@ -138,7 +138,7 @@ Parallelisable: 6 ‖ 3–5 (6 only needs 2). Everything else is a chain.
 
   **Estimated scope:** S (two helpers, one wiring line, tests)
 
-- [ ] **Task 5: `recolorFactoriesForAttenuationStyle` — recompute the lean against the new style**
+- [x] **Task 5: `recolorFactoriesForAttenuationStyle` — recompute the lean against the new style** — commit `2c0a4f95`. As built: both new tests RED first (the "equals fresh placement" case failed by ~19° before the fold); all 5 pre-existing recolor tests unmodified and green. Mutation (skip the lean) went red in both new tests.
 
   **Description:** Spec §1.3, last paragraph. Inside the existing `locale.actors.map`, derive the **new** style's pair once (from `asNoiseMap`), and per factory compute `combined = localShift + deriveAsColorShift(asNoiseMap, index)` then `lean = computeAccentLean(shiftHSL(body, combined), pickAccentTarget(asNoiseMap, pair, index))`, writing `combined + lean` into `config.hueShift`/`satShift` only. Use the same `variant` lookup the function already does for `localShift`. Still writes nothing else.
 
@@ -158,7 +158,7 @@ Parallelisable: 6 ‖ 3–5 (6 only needs 2). Everything else is a chain.
 
   **Estimated scope:** S (one function body, tests)
 
-- [ ] **Task 6: `factoryBubbleProps.test.ts` — bubbles inherit the leaned hue (test-only)**
+- [x] **Task 6: `factoryBubbleProps.test.ts` — bubbles inherit the leaned hue (test-only)** — commit `39a43d27`. Passed first run against unchanged source, as intended (a pin, not a RED/GREEN).
 
   **Description:** Spec §5. No source change. Add a case alongside the existing `hueShift: 10, satShift: -5` test: build an actor whose `config.hueShift`/`satShift` are `base + computeAccentLean(shiftHSL(body, base), someAccentHue)`, and assert the bubble fill hue equals `shiftHSL(VARIANT_CONF[variant].colors.body, config).h` — i.e. the bubble follows the stored shift, so the lean reaches it with no rule of its own. Comment ties the case to this phase.
 
@@ -177,8 +177,8 @@ Parallelisable: 6 ‖ 3–5 (6 only needs 2). Everything else is a chain.
   **Estimated scope:** XS (test only)
 
 ### Checkpoint B: Wiring complete — the real success criterion
-- [ ] `npm run build:types`, `npm run lint`, `npm test` all clean (full suite; note the known-flaky unmocked-random tests — re-run once, never edit assertions).
-- [ ] `npm run build` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test` all clean (full suite: 215 files / 4913 tests green on the first run, 2026-10-02; none of the known-flaky tests tripped).
+- [x] `npm run build` clean.
 - [ ] **Crawford's visual check (`npm run dev`):** same `?session=` link on `main` and on this branch, with the Nav panel and a Content pane open over the world. Pass = visibly less grey; buildings read as one family that belongs with the console; robots stand out rather than blend; the 75%-opaque panels are not muddy or oversaturated. Then retransmit a different Attenuation Style and confirm the skyline moves to a different family. Some buildings still reading grey is **expected and accepted** (spec §7 item 1).
 - [ ] If strength is off, one tuning commit changes `ACCENT_PULL_FRACTION` and/or `ACCENT_SAT_LIFT` only (Task 2's sweep tests are constant-agnostic by design — only the `computeAccentLean === computeAccentLeanWith(…constants)` binding case reads them, and it stays green). Record the final numbers in the spec's §1.1 and §7 item 5.
 - [ ] Reviewed with Crawford before docs.
