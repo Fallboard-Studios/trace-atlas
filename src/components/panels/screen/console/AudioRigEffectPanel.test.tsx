@@ -124,16 +124,64 @@ describe('AudioRigEffectPanel', () => {
     }
   });
 
-  describe('Delay/Reverb param rows (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.7 — every slider own row, at every breakpoint, no paired topRow)', () => {
-    it('Delay renders Time, Feedback, and Mix as 3 direct param-rows inside its own block panel — no nested row wrapper', () => {
+  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3 — reverses AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.7's
+  // "every slider own row, no paired topRow" for Delay: Delay Time (over its Tempo Sync toggle) and
+  // Repeats share a 'responsive' top row; Delay Amount keeps its own full-width row.
+  describe('Delay rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3)', () => {
+    function delayContent() {
+      return screen.getByText('Delay').closest('.sc-directional-panel')!.querySelector(':scope > .sc-directional-panel__content')!;
+    }
+
+    it('is one nested top-row panel followed by one direct param-row (Delay Amount), nothing else', () => {
       render(<AudioRigEffectPanel effectKey="delay" />);
-      const delayBlockContent = screen.getByText('Delay').closest('.sc-directional-panel')!
-        .querySelector(':scope > .sc-directional-panel__content')!;
-      const directRows = delayBlockContent.querySelectorAll(':scope > .audio-rig-drawer__param-row');
-      expect(directRows).toHaveLength(3);
-      expect(delayBlockContent.querySelector(':scope > .sc-directional-panel')).toBeNull();
+      const content = delayContent();
+      const children = [...content.children];
+      expect(children).toHaveLength(2);
+      expect(children[0].matches('.sc-directional-panel')).toBe(true);
+      expect(children[1].matches('.audio-rig-drawer__param-row')).toBe(true);
+      expect(within(children[1] as HTMLElement).getByRole('slider', { name: 'Delay Amount' })).toBeTruthy();
+      expect(children[0].contains(screen.getByRole('slider', { name: 'Delay Amount' }))).toBe(false);
     });
 
+    it('the top row holds the Tempo Sync composition (Delay Time over its toggle) first, then Repeats, each in its own param-row', () => {
+      render(<AudioRigEffectPanel effectKey="delay" />);
+      const topRow = delayContent().querySelector(':scope > .sc-directional-panel')!;
+      expect(topRow.getAttribute('data-panel-id')).toBe('audioRig.delay.topRow');
+      const rows = [...topRow.querySelectorAll(':scope > .sc-directional-panel__content > .audio-rig-drawer__param-row')];
+      expect(rows).toHaveLength(2);
+      expect(rows[0].querySelector('.sc-tempo-sync')).not.toBeNull();
+      expect(within(rows[0] as HTMLElement).getByRole('slider', { name: 'Delay Time' })).toBeTruthy();
+      expect(within(rows[0] as HTMLElement).getByRole('switch')).toBeTruthy();
+      expect(within(rows[1] as HTMLElement).getByRole('slider', { name: 'Repeats' })).toBeTruthy();
+      expect(rows[1].querySelector('.sc-tempo-sync')).toBeNull();
+    });
+
+    it('the top row is side by side (row) on desktop', () => {
+      stubMatchMedia({ mobile: false, tablet: false });
+      render(<AudioRigEffectPanel effectKey="delay" />);
+      const topRow = delayContent().querySelector(':scope > .sc-directional-panel')!;
+      expect(topRow.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
+    });
+
+    it('the top row stacks (column) on tablet and on mobile, while the block itself stays a column', () => {
+      for (const tier of [{ mobile: false, tablet: true }, { mobile: true, tablet: true }]) {
+        stubMatchMedia(tier);
+        const { unmount } = render(<AudioRigEffectPanel effectKey="delay" />);
+        const content = delayContent();
+        expect(content.getAttribute('data-orientation'), JSON.stringify(tier)).toBe('column');
+        const topRow = content.querySelector(':scope > .sc-directional-panel')!;
+        expect(topRow.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation'), JSON.stringify(tier)).toBe('column');
+        unmount();
+      }
+    });
+
+    it('the nested top row renders unframed — no second Cabinetry facade inside the Delay block', () => {
+      const { container } = render(<AudioRigEffectPanel effectKey="delay" />);
+      expect(container.querySelectorAll('.sc-directional-panel-facade')).toHaveLength(1);
+    });
+  });
+
+  describe('Reverb param rows (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.7 — every slider own row, at every breakpoint, no paired topRow)', () => {
     it('Reverb renders Decay, Pre-Delay, and Mix as 3 direct param-rows inside its own block panel — no nested row wrapper', () => {
       render(<AudioRigEffectPanel effectKey="reverb" />);
       const reverbBlockContent = screen.getByText('Reverb').closest('.sc-directional-panel')!
@@ -777,7 +825,9 @@ describe('AudioRigEffectPanel', () => {
         expect(wet.closest('.sc-tempo-sync')).toBeNull();
       });
 
-      it('Delay Time\'s Tempo Sync composition sits inside its own param-row, in the same first position as before', () => {
+      // Three param-rows in DOM order — the first two inside the nested top-row panel, Delay Amount a
+      // direct child of the block (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3).
+      it('Delay Time\'s Tempo Sync composition sits inside its own param-row, first in DOM order, inside the top-row panel', () => {
         const { container } = render(<AudioRigEffectPanel effectKey="delay" />);
         const rows = container.querySelectorAll('.audio-rig-drawer__effect-block .sc-directional-panel__content > .audio-rig-drawer__param-row');
         expect(rows).toHaveLength(3);
@@ -785,10 +835,14 @@ describe('AudioRigEffectPanel', () => {
         expect(within(rows[0] as HTMLElement).getByRole('slider', { name: 'Delay Time' })).toBeTruthy();
         expect(within(rows[1] as HTMLElement).getByRole('slider', { name: 'Repeats' })).toBeTruthy();
         expect(within(rows[2] as HTMLElement).getByRole('slider', { name: 'Delay Amount' })).toBeTruthy();
+        const topRow = container.querySelector('[data-panel-id="audioRig.delay.topRow"]')!;
+        expect(topRow.contains(rows[0])).toBe(true);
+        expect(topRow.contains(rows[1])).toBe(true);
+        expect(topRow.contains(rows[2])).toBe(false);
       });
 
       // The toggle sits in its own row UNDER Delay Time (Crawford, 2026-10-03), inside Delay Time's own
-      // param-row — so the block keeps its "3 direct param-rows" rule while the slider keeps the full width.
+      // param-row, so the slider keeps the full width of its half of the top row.
       it('the Tempo Sync switch is in the Delay Time row, after the Delay Time slider — and in no other row', () => {
         const { container } = render(<AudioRigEffectPanel effectKey="delay" />);
         const rows = container.querySelectorAll('.audio-rig-drawer__effect-block .sc-directional-panel__content > .audio-rig-drawer__param-row');

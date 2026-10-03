@@ -79,14 +79,16 @@ Parallelisable: 1 ‖ 3 ‖ 4 ‖ 5 ‖ 7 ‖ 9 ‖ 10; 2 and 8 wait on 1. Phase
 
 ### Phase 3: Time & Space slice
 
-- [ ] **Task 3: Delay — Delay Time (over Tempo Sync) beside Repeats, Delay Amount alone**
+- [x] **Task 3: Delay — Delay Time (over Tempo Sync) beside Repeats, Delay Amount alone**
 
   **Description:** Spec §1.3. Module-scope `DELAY_TOP_ROW_SCHEMA` (`audioRig.delay.topRow`, `'responsive'`) beside the Compressor's; the `delay` branch wraps the existing `TempoSyncSlider` param-row and the Repeats `paramRow` in that panel, then renders Delay Amount's `paramRow` as a direct child. The archived §1.7 "3 direct param-rows" tests for Delay are replaced in this commit.
 
   **Acceptance criteria:**
-  - [ ] Delay's block content has exactly one direct nested `.sc-directional-panel` (first) and one direct `.audio-rig-drawer__param-row` (Delay Amount, last); inside the nested panel the Tempo Sync composition's row precedes Repeats' row.
-  - [ ] The nested panel's `data-orientation` is `row` on a stubbed desktop tier and `column` on tablet.
-  - [ ] Every Delay Tempo Sync test (switch placement "in the Delay Time row", readouts, mode flips, swell isolation, Profiler re-render tests) unchanged and green, with only its row-locating selectors updated where they counted direct rows.
+  - [x] Delay's block content has exactly one direct nested `.sc-directional-panel` (first) and one direct `.audio-rig-drawer__param-row` (Delay Amount, last); inside the nested panel the Tempo Sync composition's row precedes Repeats' row.
+  - [x] The nested panel's `data-orientation` is `row` on a stubbed desktop tier and `column` on tablet.
+  - [x] Every Delay Tempo Sync test (switch placement "in the Delay Time row", readouts, mode flips, swell isolation, Profiler re-render tests) unchanged and green, with only its row-locating selectors updated where they counted direct rows.
+
+  **As built:** RED first (5 cases: exact child list of the block, top-row contents + `data-panel-id`, desktop `row`, tablet/mobile `column` with the block itself still `column`, and the existing "first position" layout case re-pointed at the nested panel), then GREEN with one schema constant and the `DirectionalPanel` wrap. One extra pin passed on first run: exactly one Cabinetry facade in the block (the nested row renders unframed — the DirectionalPanel nesting context). The old §1.7 Delay case is gone; the Reverb one stays until Task 4. **Mutation check run:** forcing the schema to `'row'` turned the tablet/mobile `column` case red. 95/95; lint and types clean.
 
   **Verification:** `npx vitest run src/components/panels/screen/console/AudioRigEffectPanel.test.tsx` (RED first); `npm run lint`, `npm run build:types`. **Mutation check:** set the schema to `'row'` and watch the tablet `column` case go red.
   **Dependencies:** None. **Files:** `AudioRigDrawer.tsx`, `AudioRigEffectPanel.test.tsx`. **Scope:** S.

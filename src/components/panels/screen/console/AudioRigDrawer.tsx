@@ -43,6 +43,10 @@ const COMPRESSOR_BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.com
 // Knee + Decay Mode's own row (Crawford's own request) — same 'responsive' shape as the 2 rows
 // above: side-by-side on desktop, stacked on mobile/tablet.
 const COMPRESSOR_KNEE_DECAY_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.compressor.kneeDecayRow', type: 'directionalPanel', orientation: 'responsive' };
+/** Delay Time (over its Tempo Sync toggle) beside Repeats — side by side on desktop, stacked on
+ *  mobile/tablet (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3). Delay Amount keeps its own
+ *  full-width row. Reverses AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.7's "every slider own row" for Delay. */
+const DELAY_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.delay.topRow', type: 'directionalPanel', orientation: 'responsive' };
 
 /** Stable (and frozen) empty list for every non-Delay panel's `allowed` — see AudioRigEffectPanel's Delay selectors. */
 const NO_NOTE_VALUES: readonly NoteValue[] = Object.freeze([]);
@@ -299,23 +303,26 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
             </DirectionalPanel>
           </>
         ) : block.key === 'delay' ? (
-          // Delay Time goes through TempoSyncSlider (Free = seconds, Sync = a note value); Repeats and
-          // Amount stay plain rows. Still three direct param-rows (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.7).
+          // Delay Time goes through TempoSyncSlider (Free = seconds, Sync = a note value; the toggle is
+          // in a row of its own under the slider, inside this one param-row) and shares the top row with
+          // Repeats; Delay Amount is its own full-width row (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3).
           <>
-            <div className="audio-rig-drawer__param-row">
-              <TempoSyncSlider
-                // Safe cast: audioRigConfig.ts declares delayTime as a sliderLinear (the Free-mode schema).
-                schema={findParam(block.params, 'delayTime').schema as SliderLinearSchema}
-                freeValue={effect.delayTime}
-                syncValue={delaySync}
-                allowed={delayNoteValues}
-                onFreeChange={fieldOnChange.delayTime}
-                onSyncChange={handleDelaySyncChange}
-                onModeChange={setDelaySyncMode}
-                swelling={isGlobalTargetSwelling(effectKey, 'delayTime')}
-              />
-            </div>
-            {paramRow(findParam(block.params, 'feedback'), effect, fieldOnChange.feedback, effectKey)}
+            <DirectionalPanel schema={DELAY_TOP_ROW_SCHEMA}>
+              <div className="audio-rig-drawer__param-row">
+                <TempoSyncSlider
+                  // Safe cast: audioRigConfig.ts declares delayTime as a sliderLinear (the Free-mode schema).
+                  schema={findParam(block.params, 'delayTime').schema as SliderLinearSchema}
+                  freeValue={effect.delayTime}
+                  syncValue={delaySync}
+                  allowed={delayNoteValues}
+                  onFreeChange={fieldOnChange.delayTime}
+                  onSyncChange={handleDelaySyncChange}
+                  onModeChange={setDelaySyncMode}
+                  swelling={isGlobalTargetSwelling(effectKey, 'delayTime')}
+                />
+              </div>
+              {paramRow(findParam(block.params, 'feedback'), effect, fieldOnChange.feedback, effectKey)}
+            </DirectionalPanel>
             {paramRow(findParam(block.params, 'wet'), effect, fieldOnChange.wet, effectKey)}
           </>
         ) : (
