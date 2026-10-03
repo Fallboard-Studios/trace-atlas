@@ -147,14 +147,16 @@ Parallelisable: 1 ‖ 3 ‖ 4 ‖ 5 ‖ 7 ‖ 9 ‖ 10; 2 and 8 wait on 1. Phase
 
 ### Phase 5: Probes → Source slice
 
-- [ ] **Task 7: Probe layer config — horizontal sliders, column panel, row schemas; no vertical schema left anywhere**
+- [x] **Task 7: Probe layer config — horizontal sliders, column panel, row schemas; no vertical schema left anywhere**
 
   **Description:** Spec §1.4. In `robotOptionsConfig.ts`'s `makeLayerBlock`: `gain`/`detune`/`phase`/`pulseWidth` → `orientation: 'horizontal'`, `verticalHeight` removed; the layer `panel` → `'column'`; `SignatureArrayLayerBlock` gains `rows: { typeGain, phaseInterval }` (`robotOptions.${key}.typeGainRow` / `.phaseIntervalRow`, `'responsive'`, no labels). Add the spec §5 cross-config pin: no schema in `AUDIO_RIG_CONFIG`, `LFO_BANK_LANE_SCHEMAS` or `SIGNATURE_ARRAY_CONFIG` is `'vertical'`.
 
   **Acceptance criteria:**
-  - [ ] `robotOptionsConfig.test.ts`: "Signature Array is vertical on every layer" becomes horizontal; the verticalHeight-budget case becomes "declares no verticalHeight"; the layer panel is `'column'`; `rows.*` are `'responsive'` with the stated ids, unique across layers.
-  - [ ] A test in `audioRigConfig.test.ts` (or a small new `sliderOrientation.test.ts` beside it) walks both configs and asserts no `'vertical'` orientation remains — the "no live vertical consumer" fact from the spec survey, pinned.
-  - [ ] Type radio, ranges, ids and `lfoTarget`s unchanged (existing cases green).
+  - [x] `robotOptionsConfig.test.ts`: "Signature Array is vertical on every layer" becomes horizontal; the verticalHeight-budget case becomes "declares no verticalHeight"; the layer panel is `'column'`; `rows.*` are `'responsive'` with the stated ids, unique across layers.
+  - [x] A test in `audioRigConfig.test.ts` (or a small new `sliderOrientation.test.ts` beside it) walks both configs and asserts no `'vertical'` orientation remains — the "no live vertical consumer" fact from the spec survey, pinned.
+  - [x] Type radio, ranges, ids and `lfoTarget`s unchanged (existing cases green).
+
+  **As built:** RED first (7 cases across two files), then GREEN with the `rows` field, two row schemas, the panel → `'column'`, and four `orientation: 'horizontal'` lines with their `verticalHeight` dropped. The cross-config pin is a new `src/data/sliderOrientation.test.ts` walking `AUDIO_RIG_CONFIG`, `LFO_BANK_LANE_SCHEMAS` and `SIGNATURE_ARRAY_CONFIG` (≥ 43 slider schemas, every one `'horizontal'`, none with a `verticalHeight`) — a separate file because it is a whole-app fact, not one config's. The probe drawer's own tests stayed green on the horizontal config (its structure is Task 8's). 88/88; lint and types clean.
 
   **Verification:** `npx vitest run src/data/robotOptionsConfig.test.ts src/data/audioRigConfig.test.ts` (RED first); `npm run build:types`.
   **Dependencies:** None (Task 2 must have landed for the cross-config pin to be green; it has, by phase order). **Files:** `robotOptionsConfig.ts`, `robotOptionsConfig.test.ts`, `audioRigConfig.test.ts`. **Scope:** S.
