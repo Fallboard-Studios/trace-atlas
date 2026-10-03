@@ -44,8 +44,8 @@ const COMPRESSOR_BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.com
 // above: side-by-side on desktop, stacked on mobile/tablet.
 const COMPRESSOR_KNEE_DECAY_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.compressor.kneeDecayRow', type: 'directionalPanel', orientation: 'responsive' };
 
-/** Stable empty list for every non-Delay panel's `allowed` — see AudioRigEffectPanel's Delay selectors. */
-const NO_NOTE_VALUES: readonly NoteValue[] = [];
+/** Stable (and frozen) empty list for every non-Delay panel's `allowed` — see AudioRigEffectPanel's Delay selectors. */
+const NO_NOTE_VALUES: readonly NoteValue[] = Object.freeze([]);
 
 const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
   eq3: 'spectral',
