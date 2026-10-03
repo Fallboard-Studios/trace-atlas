@@ -41,6 +41,36 @@ export function hslToString(hsl: HSL, alpha?: number): string {
 }
 
 /**
+ * Convert a 6-digit `#rrggbb` hex color to HSL (h in [0, 360), s/l in 0..100). Raw, unrounded
+ * values — callers round if they need to. The one hex→HSL conversion in the app
+ * (docs/specs/WORLD_PALETTE_PULL.md §1.1): traitColors.ts's `desaturateHex` delegates here, and
+ * accentLean.ts builds its 18-entry accent-hue table from it. 3-digit shorthand (`#fff`) is not
+ * supported — no caller passes one (ACCENT_COLORS.white is excluded from ROBOT_IDENTITY_COLOR_NAMES).
+ */
+export function hexToHsl(hex: string): HSL {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.slice(0, 2), 16) / 255;
+  const g = parseInt(clean.slice(2, 4), 16) / 255;
+  const b = parseInt(clean.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      default: h = (r - g) / d + 4; break;
+    }
+    h *= 60;
+  }
+  return { h, s: s * 100, l: l * 100 };
+}
+
+/**
  * Clamp a number to the inclusive range [min, max]. Useful when
  * adjusting saturation/brightness so values never escape 0..100.
  *

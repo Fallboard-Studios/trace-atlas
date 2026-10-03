@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 
+import { hexToHsl } from './colorUtils';
 import { ACCENT_COLORS } from '@/constants/accentColors';
 import type { Trait } from '@/types/traits';
 
@@ -105,34 +106,9 @@ export function relativeLuminance(hex: string): number {
   return 0.2126 * srgbChannelToLinear(r) + 0.7152 * srgbChannelToLinear(g) + 0.0722 * srgbChannelToLinear(b);
 }
 
-function hexToRgb(hex: string): [number, number, number] {
-  const clean = hex.replace('#', '');
-  return [parseInt(clean.slice(0, 2), 16), parseInt(clean.slice(2, 4), 16), parseInt(clean.slice(4, 6), 16)];
-}
-
 function rgbToHex(r: number, g: number, b: number): string {
   const toHex = (v: number) => Math.round(v).toString(16).padStart(2, '0');
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
-
-function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let h = 0;
-  let s = 0;
-  const l = (max + min) / 2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      default: h = (r - g) / d + 4; break;
-    }
-    h *= 60;
-  }
-  return [h, s, l];
 }
 
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
@@ -146,9 +122,12 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
  *  lightness unchanged. Used by getDisabledTraitColorStyle to mute a trait's own 2 tones rather
  *  than replace them with a flat neutral. */
 export function desaturateHex(hex: string, reduction: number): string {
-  const [r, g, b] = hexToRgb(hex);
-  const [h, s, l] = rgbToHsl(r, g, b);
-  const [nr, ng, nb] = hslToRgb(h, s * (1 - reduction), l);
+  // hexToHsl (colorUtils.ts — the app's one hex→HSL conversion, docs/specs/WORLD_PALETTE_PULL.md
+  // §1.1) returns s/l in 0..100; hslToRgb below wants 0..1 fractions, hence the /100. Output is
+  // byte-identical to the private hexToRgb/rgbToHsl pair that used to live here
+  // (colorUtils.test.ts pins the pre-refactor values).
+  const { h, s, l } = hexToHsl(hex);
+  const [nr, ng, nb] = hslToRgb(h, (s / 100) * (1 - reduction), l / 100);
   return rgbToHex(nr, ng, nb);
 }
 
