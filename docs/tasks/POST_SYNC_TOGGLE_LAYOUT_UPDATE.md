@@ -40,14 +40,16 @@ Parallelisable: 1 ‖ 3 ‖ 4 ‖ 5 ‖ 7 ‖ 9 ‖ 10; 2 and 8 wait on 1. Phase
 
 ### Phase 1: The shared primitive
 
-- [ ] **Task 1: `LfoLink` lays Lane | Depth side by side on desktop**
+- [x] **Task 1: `LfoLink` lays Lane | Depth side by side on desktop**
 
   **Description:** Spec §1.5. `LfoLink.tsx` reads `useResponsivePanelOrientation()` and sets `data-orientation` on `.sc-lfo-link`. `LfoLink.css` gains the row rule: `.sc-lfo-link[data-orientation='row'] { flex-direction: row; align-items: flex-start; }` and `.sc-lfo-link[data-orientation='row'] > * { flex: 1 1 0; min-width: 0; }` (DirectionalPanel.css's row rule restated — equal halves, and it overrides `RadioButton`'s `width: 100%`). Column stays the default. Handlers, memo, `heldOff`, active class and the first-child `DualLabel` are untouched. New `LfoLink.css.test.ts` scans the stylesheet.
 
   **Acceptance criteria:**
-  - [ ] `data-orientation` is `row` with the tier stubbed to desktop and `column` on mobile and on tablet; the Lane radio precedes the Depth slider in DOM order in both.
-  - [ ] CSS scan: the row rule sets `flex-direction: row` on the root and `flex: 1 1 0` + `min-width: 0` on its children; the base `.sc-lfo-link` rule still says `flex-direction: column` and keeps its `sc-control` container.
-  - [ ] Every existing `LfoLink.test.tsx` case (lane/depth onChange, heldOff, disabled, memo, no-literal) unchanged and green.
+  - [x] `data-orientation` is `row` with the tier stubbed to desktop and `column` on mobile and on tablet; the Lane radio precedes the Depth slider in DOM order in both.
+  - [x] CSS scan: the row rule sets `flex-direction: row` on the root and `flex: 1 1 0` + `min-width: 0` on its children; the base `.sc-lfo-link` rule still says `flex-direction: column` and keeps its `sc-control` container.
+  - [x] Every existing `LfoLink.test.tsx` case (lane/depth onChange, heldOff, disabled, memo, no-literal) unchanged and green.
+
+  **As built:** RED first (7 component cases + 2 of 4 scan cases failing), then GREEN with one hook read and two CSS rules. Edge cases beyond the plan: no `matchMedia` at all resolves to `row` (the tier hook's desktop default, which is also why the fourteen pre-existing unstubbed tests needed no change); a live tier change flips the attribute without a remount (the stub's `fireChange`, the `useResponsivePanelOrientation.test.ts` shape, copied locally with the correct `639px` mobile query — note `AudioRigEffectPanel.test.tsx`'s own copy checks `640px`, which never matches, so it only distinguishes "both true" from "both false"); `heldOff` display is unaffected by the orientation. The DOM-order test anchors on the Off radio: `RadioButton` exposes no `radiogroup` role. **Mutation check run:** dropping `min-width: 0` turned exactly the children-rule scan red. Both consumers (`AudioRigEffectPanel.test.tsx`, `SignatureArrayDrawer.test.tsx`) green unchanged — the hook is `useSyncExternalStore` over the shared tier, so no re-render tests moved.
 
   **Verification:** `npx vitest run src/components/ui/controls/LfoLink.test.tsx src/components/ui/controls/LfoLink.css.test.ts` (RED first); `npm run lint`, `npm run build:types`. **Mutation check:** drop `min-width: 0` from the row rule and watch the scan go red.
   **Dependencies:** None. **Files:** `LfoLink.tsx`, `LfoLink.css`, `LfoLink.test.tsx`, `LfoLink.css.test.ts` (new). **Scope:** S.
