@@ -306,6 +306,11 @@ export interface SignatureArrayLayerBlock {
    *  Reuses this block's own humanLabel/loreLabel verbatim (Baseline/Coaxial/Harmonic already had
    *  exactly the right per-layer label; no new copy). */
   panel: DirectionalPanelSchema;
+  /** The layer's two paired rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4): Type | Gain
+   *  on top, Phase | Interval last (rendered only while Interval is shown). Nested 'responsive'
+   *  panels — side by side on desktop, stacked below — unlabeled: the layer panel's own label is
+   *  the only heading. */
+  rows: { typeGain: DirectionalPanelSchema; phaseInterval: DirectionalPanelSchema };
   params: SignatureArrayParamSchema[];
 }
 
@@ -332,7 +337,14 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
     key,
     humanLabel,
     loreLabel,
-    panel: { id: `robotOptions.${key}.panel`, type: 'directionalPanel', ...labels(c.root), orientation: 'row' },
+    // 'column': the panel holds one stacked column of rows (it was 'row' with a single child, which
+    // did nothing). Sliders are horizontal since docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4
+    // (they were vertical at 256px); no verticalHeight, since nothing here is vertical.
+    panel: { id: `robotOptions.${key}.panel`, type: 'directionalPanel', ...labels(c.root), orientation: 'column' },
+    rows: {
+      typeGain: { id: `robotOptions.${key}.typeGainRow`, type: 'directionalPanel', orientation: 'responsive' },
+      phaseInterval: { id: `robotOptions.${key}.phaseIntervalRow`, type: 'directionalPanel', orientation: 'responsive' },
+    },
     params: [
       {
         field: 'type',
@@ -347,7 +359,7 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
         schema: {
           id: `robotOptions.${key}.gain`, type: 'sliderLinear',
           ...labels(c.gain),
-          min: 0, max: 2, step: 0.01, orientation: 'vertical', verticalHeight: 256,
+          min: 0, max: 2, step: 0.01, orientation: 'horizontal',
         } satisfies SliderLinearSchema,
         lfoTarget: gainTarget,
       },
@@ -356,7 +368,7 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
         schema: {
           id: `robotOptions.${key}.detune`, type: 'sliderCenteredZero',
           ...labels(c.detune),
-          min: -50, max: 50, orientation: 'vertical', verticalHeight: 256,
+          min: -50, max: 50, orientation: 'horizontal',
         } satisfies SliderCenteredZeroSchema,
         lfoTarget: detuneTarget,
       },
@@ -369,7 +381,7 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
         schema: {
           id: `robotOptions.${key}.phase`, type: 'sliderLinear',
           ...labels(c.phase),
-          min: 0, max: 360, orientation: 'vertical', verticalHeight: 256,
+          min: 0, max: 360, orientation: 'horizontal',
         } satisfies SliderLinearSchema,
       },
       {
@@ -380,7 +392,7 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
         schema: {
           id: `robotOptions.${key}.pulseWidth`, type: 'sliderLinear',
           ...labels(c.interval),
-          min: 0, max: 1, step: 0.01, orientation: 'vertical', verticalHeight: 256,
+          min: 0, max: 1, step: 0.01, orientation: 'horizontal',
         } satisfies SliderLinearSchema,
       },
     ],

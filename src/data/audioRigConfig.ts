@@ -63,54 +63,58 @@ function panelSchema(key: AudioRigEffectKey, content: ContentKey, orientation: P
 
 export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
   {
+  // EQ and both filters: 'column' panels of horizontal sliders, each band/param one stacked row
+  // (slider, then its Lane | Depth LfoLink row) — docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md
+  // §1.2. They were 'row' panels of vertical sliders (AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3/§1.4);
+  // no verticalHeight now, since nothing here is vertical.
     key: 'eq3',
-    panel: panelSchema('eq3', 'fleet.eq', 'row'),
+    panel: panelSchema('eq3', 'fleet.eq', 'column'),
     params: [
       {
         field: 'low',
-        schema: { id: 'eq3.low', type: 'sliderCenteredZero', ...labels('fleet.eq.bass'), min: -12, max: 12, step: 0.5, orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'eq3.low', type: 'sliderCenteredZero', ...labels('fleet.eq.bass'), min: -12, max: 12, step: 0.5, orientation: 'horizontal' },
         lfoTarget: 'eq3.low',
       },
       {
         field: 'mid',
-        schema: { id: 'eq3.mid', type: 'sliderCenteredZero', ...labels('fleet.eq.mid'), min: -12, max: 12, step: 0.5, orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'eq3.mid', type: 'sliderCenteredZero', ...labels('fleet.eq.mid'), min: -12, max: 12, step: 0.5, orientation: 'horizontal' },
         lfoTarget: 'eq3.mid',
       },
       {
         field: 'high',
-        schema: { id: 'eq3.high', type: 'sliderCenteredZero', ...labels('fleet.eq.treble'), min: -12, max: 12, step: 0.5, orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'eq3.high', type: 'sliderCenteredZero', ...labels('fleet.eq.treble'), min: -12, max: 12, step: 0.5, orientation: 'horizontal' },
         lfoTarget: 'eq3.high',
       },
     ],
   },
   {
     key: 'filterLPF',
-    panel: panelSchema('filterLPF', 'fleet.lpf', 'row'),
+    panel: panelSchema('filterLPF', 'fleet.lpf', 'column'),
     params: [
       {
         field: 'frequency',
-        schema: { id: 'filterLPF.frequency', type: 'sliderLog', ...labels('fleet.lpf.cutoff'), min: 20, max: 20000, orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'filterLPF.frequency', type: 'sliderLog', ...labels('fleet.lpf.cutoff'), min: 20, max: 20000, orientation: 'horizontal' },
         lfoTarget: 'lpf.frequency',
       },
       {
         field: 'Q',
-        schema: { id: 'filterLPF.Q', type: 'sliderLog', ...labels('fleet.lpf.resonance'), min: 0.1, max: 20, orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'filterLPF.Q', type: 'sliderLog', ...labels('fleet.lpf.resonance'), min: 0.1, max: 20, orientation: 'horizontal' },
         lfoTarget: 'lpf.Q',
       },
     ],
   },
   {
     key: 'filterHPF',
-    panel: panelSchema('filterHPF', 'fleet.hpf', 'row'),
+    panel: panelSchema('filterHPF', 'fleet.hpf', 'column'),
     params: [
       {
         field: 'frequency',
-        schema: { id: 'filterHPF.frequency', type: 'sliderLog', ...labels('fleet.hpf.cutoff'), min: 20, max: 20000, orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'filterHPF.frequency', type: 'sliderLog', ...labels('fleet.hpf.cutoff'), min: 20, max: 20000, orientation: 'horizontal' },
         lfoTarget: 'hpf.frequency',
       },
       {
         field: 'Q',
-        schema: { id: 'filterHPF.Q', type: 'sliderLog', ...labels('fleet.hpf.resonance'), min: 0.1, max: 20, orientation: 'vertical', verticalHeight: 256 },
+        schema: { id: 'filterHPF.Q', type: 'sliderLog', ...labels('fleet.hpf.resonance'), min: 0.1, max: 20, orientation: 'horizontal' },
         lfoTarget: 'hpf.Q',
       },
     ],
@@ -190,6 +194,12 @@ export const DECAY_MODE_SCHEMA: RadioButtonSchema = {
 
 export interface LfoBankLaneSchema {
   panel: DirectionalPanelSchema;
+  /** Shape | Rate (over its Tempo Sync toggle) — a nested 'responsive' row, side by side on desktop,
+   *  stacked below (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.1). Unlabeled: the lane panel's
+   *  own label is the only heading. */
+  topRow: DirectionalPanelSchema;
+  /** Rate Drift | Depth Drift — the same nested 'responsive' row shape (§1.1). */
+  driftRow: DirectionalPanelSchema;
   shape: RadioButtonSchema;
   rate: SliderLinearSchema;
   rateDrift: SliderCenteredZeroSchema;
@@ -208,6 +218,8 @@ const LFO_BANK_LANE_CONTENT: Record<LfoLaneId, ContentKey> = {
 function lfoBankLaneSchema(lane: LfoLaneId): LfoBankLaneSchema {
   return {
     panel: { id: `audioRig.lfoBank.${lane}`, type: 'directionalPanel', ...labels(LFO_BANK_LANE_CONTENT[lane]), orientation: 'column' },
+    topRow: { id: `audioRig.lfoBank.${lane}.topRow`, type: 'directionalPanel', orientation: 'responsive' },
+    driftRow: { id: `audioRig.lfoBank.${lane}.driftRow`, type: 'directionalPanel', orientation: 'responsive' },
     shape: { id: `audioRig.lfoBank.${lane}.shape`, type: 'radio', ...labels('ui.lfo.shape'), options: options('ui.lfo.shape') },
     rate: {
       id: `audioRig.lfoBank.${lane}.rate`,

@@ -43,6 +43,12 @@ const COMPRESSOR_BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.com
 // Knee + Decay Mode's own row (Crawford's own request) — same 'responsive' shape as the 2 rows
 // above: side-by-side on desktop, stacked on mobile/tablet.
 const COMPRESSOR_KNEE_DECAY_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.compressor.kneeDecayRow', type: 'directionalPanel', orientation: 'responsive' };
+/** Delay Time (over its Tempo Sync toggle) beside Repeats — side by side on desktop, stacked on
+ *  mobile/tablet (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3). Delay Amount keeps its own
+ *  full-width row. Reverses AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.7's "every slider own row" for Delay. */
+const DELAY_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.delay.topRow', type: 'directionalPanel', orientation: 'responsive' };
+/** Reverb Length beside Pre-Delay, the same way; Reverb Amount keeps its own row (§1.3). */
+const REVERB_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.reverb.topRow', type: 'directionalPanel', orientation: 'responsive' };
 
 /** Stable (and frozen) empty list for every non-Delay panel's `allowed` — see AudioRigEffectPanel's Delay selectors. */
 const NO_NOTE_VALUES: readonly NoteValue[] = Object.freeze([]);
@@ -59,15 +65,17 @@ const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
 
 /** Dispatches a param's ControlSchema to its matching primitive. Covers only
  *  the 4 variants GLOBAL_CHAIN_GRID.md's UI column actually uses for this
- *  drawer — audioRigConfig.test.ts is what guards the closed set in practice. */
+ *  drawer — audioRigConfig.test.ts is what guards the closed set in practice.
+ *  No verticalHeight is forwarded: every Audio Rig slider is horizontal since
+ *  docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.2 (pinned in audioRigConfig.test.ts). */
 function renderParamControl(param: AudioRigParamSchema, value: number, onChange: (v: number) => void, swelling: boolean) {
   switch (param.schema.type) {
     case 'sliderLinear':
-      return <SliderLinear schema={param.schema} value={value} onChange={onChange} verticalHeight={param.schema.verticalHeight} swelling={swelling} />;
+      return <SliderLinear schema={param.schema} value={value} onChange={onChange} swelling={swelling} />;
     case 'sliderLog':
-      return <SliderLog schema={param.schema} value={value} onChange={onChange} verticalHeight={param.schema.verticalHeight} swelling={swelling} />;
+      return <SliderLog schema={param.schema} value={value} onChange={onChange} swelling={swelling} />;
     case 'sliderCenteredZero':
-      return <SliderCenteredZero schema={param.schema} value={value} onChange={onChange} verticalHeight={param.schema.verticalHeight} swelling={swelling} />;
+      return <SliderCenteredZero schema={param.schema} value={value} onChange={onChange} swelling={swelling} />;
     case 'stepper':
       return <Stepper schema={param.schema} value={value} onChange={onChange} />;
     default:
@@ -92,10 +100,10 @@ function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, on
   );
 }
 
-/** Looks up one param by its field name — used by AudioRigEffectPanel's hand-composed delay/reverb
- *  layouts below to pull a specific control out of block.params by name, rather than mapping the
- *  array in bulk. Non-null assertion is safe: both call sites name fields that AUDIO_RIG_CONFIG's
- *  own delay/reverb blocks are guaranteed to carry (audioRigConfig.test.ts guards the field list). */
+/** Looks up one param by its field name — used by AudioRigEffectPanel's hand-composed compressor,
+ *  delay and reverb layouts below to pull a specific control out of block.params by name, rather
+ *  than mapping the array in bulk. Non-null assertion is safe: every call site names fields that
+ *  AUDIO_RIG_CONFIG's own blocks are guaranteed to carry (audioRigConfig.test.ts guards the field list). */
 function findParam(params: AudioRigParamSchema[], field: string): AudioRigParamSchema {
   return params.find((p) => p.field === field)!;
 }
@@ -297,23 +305,36 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
             </DirectionalPanel>
           </>
         ) : block.key === 'delay' ? (
-          // Delay Time goes through TempoSyncSlider (Free = seconds, Sync = a note value); Repeats and
-          // Amount stay plain rows. Still three direct param-rows (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.7).
+          // Delay Time goes through TempoSyncSlider (Free = seconds, Sync = a note value; the toggle is
+          // in a row of its own under the slider, inside this one param-row) and shares the top row with
+          // Repeats; Delay Amount is its own full-width row (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3).
           <>
-            <div className="audio-rig-drawer__param-row">
-              <TempoSyncSlider
-                // Safe cast: audioRigConfig.ts declares delayTime as a sliderLinear (the Free-mode schema).
-                schema={findParam(block.params, 'delayTime').schema as SliderLinearSchema}
-                freeValue={effect.delayTime}
-                syncValue={delaySync}
-                allowed={delayNoteValues}
-                onFreeChange={fieldOnChange.delayTime}
-                onSyncChange={handleDelaySyncChange}
-                onModeChange={setDelaySyncMode}
-                swelling={isGlobalTargetSwelling(effectKey, 'delayTime')}
-              />
-            </div>
-            {paramRow(findParam(block.params, 'feedback'), effect, fieldOnChange.feedback, effectKey)}
+            <DirectionalPanel schema={DELAY_TOP_ROW_SCHEMA}>
+              <div className="audio-rig-drawer__param-row">
+                <TempoSyncSlider
+                  // Safe cast: audioRigConfig.ts declares delayTime as a sliderLinear (the Free-mode schema).
+                  schema={findParam(block.params, 'delayTime').schema as SliderLinearSchema}
+                  freeValue={effect.delayTime}
+                  syncValue={delaySync}
+                  allowed={delayNoteValues}
+                  onFreeChange={fieldOnChange.delayTime}
+                  onSyncChange={handleDelaySyncChange}
+                  onModeChange={setDelaySyncMode}
+                  swelling={isGlobalTargetSwelling(effectKey, 'delayTime')}
+                />
+              </div>
+              {paramRow(findParam(block.params, 'feedback'), effect, fieldOnChange.feedback, effectKey)}
+            </DirectionalPanel>
+            {paramRow(findParam(block.params, 'wet'), effect, fieldOnChange.wet, effectKey)}
+          </>
+        ) : block.key === 'reverb' ? (
+          // Reverb Length beside Pre-Delay on a responsive top row; Reverb Amount its own full-width row
+          // (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3).
+          <>
+            <DirectionalPanel schema={REVERB_TOP_ROW_SCHEMA}>
+              {paramRow(findParam(block.params, 'decay'), effect, fieldOnChange.decay, effectKey)}
+              {paramRow(findParam(block.params, 'preDelay'), effect, fieldOnChange.preDelay, effectKey)}
+            </DirectionalPanel>
             {paramRow(findParam(block.params, 'wet'), effect, fieldOnChange.wet, effectKey)}
           </>
         ) : (

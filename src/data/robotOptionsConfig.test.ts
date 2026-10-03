@@ -272,30 +272,54 @@ describe('slider orientation classification (docs/specs/VERTICAL_SLIDERS.md §1.
     });
   });
 
-  it('Signature Array (Gain/Detune/Phase/Interval) is vertical on every layer', () => {
+  it('Signature Array (Gain/Detune/Phase/Interval) is horizontal on every layer (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4 — was vertical)', () => {
     SIGNATURE_ARRAY_CONFIG.forEach((block) => {
       for (const field of ['gain', 'detune', 'phase', 'pulseWidth']) {
         const param = block.params.find((p) => p.field === field)!;
-        expect((param.schema as { orientation?: string }).orientation, `${block.key}.${field}`).toBe('vertical');
+        expect((param.schema as { orientation?: string }).orientation, `${block.key}.${field}`).toBe('horizontal');
       }
     });
   });
 });
 
-describe('vertical slider verticalHeight budget (roadmap 13 — "Vertical Slider Label Overflow")', () => {
-  // Regression guard: every real vertical slider used to fall through to the same *implicit*
-  // VOXEL_TRACK_DEFAULT_VERTICAL_HEIGHT default regardless of how much room its own panel
-  // actually had, which is what let some (not all) vertical sliders overflow their panel and
-  // show a native scrollbar (found live, roadmap 13) while others happened to fit by luck. Every
-  // vertical schema below must now declare its own explicit verticalHeight, so the budget is
-  // visibly tunable per-panel instead of a silent, one-size-fits-all fallback.
-  it('Signature Array (Gain/Detune/Phase/Interval) declares an explicit verticalHeight on every layer', () => {
+describe('verticalHeight budget (roadmap 13 — "Vertical Slider Label Overflow"; no horizontal schema carries one)', () => {
+  // History: every real vertical slider used to fall through to the same *implicit*
+  // VOXEL_TRACK_DEFAULT_VERTICAL_HEIGHT default and some overflowed their panel (found live,
+  // roadmap 13), so each vertical schema had to declare its own budget. Since
+  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4 none of these sliders is vertical, so a
+  // leftover verticalHeight would be dead config that misleads the next reader about the mode.
+  it('Signature Array (Gain/Detune/Phase/Interval) declares no verticalHeight on any layer — horizontal now', () => {
     SIGNATURE_ARRAY_CONFIG.forEach((block) => {
       for (const field of ['gain', 'detune', 'phase', 'pulseWidth']) {
         const param = block.params.find((p) => p.field === field)!;
-        expect((param.schema as { verticalHeight?: number }).verticalHeight, `${block.key}.${field}`).toBe(256);
+        expect((param.schema as { verticalHeight?: number }).verticalHeight, `${block.key}.${field}`).toBeUndefined();
+        expect('verticalHeight' in param.schema, `${block.key}.${field}`).toBe(false);
       }
     });
+  });
+});
+
+// docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4: Type | Gain share a top row, Phase | Interval share
+// the last row (only when Interval is shown) — each a nested 'responsive' panel, side by side on
+// desktop, stacked below, unlabeled.
+describe('SignatureArrayLayerBlock.rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4)', () => {
+  it("every layer's rows.typeGain and rows.phaseInterval are unlabeled 'responsive' directionalPanels under the layer's own id", () => {
+    for (const block of SIGNATURE_ARRAY_CONFIG) {
+      expect(block.rows.typeGain, `${block.key}.typeGain`).toEqual({ id: `robotOptions.${block.key}.typeGainRow`, type: 'directionalPanel', orientation: 'responsive' });
+      expect(block.rows.phaseInterval, `${block.key}.phaseInterval`).toEqual({ id: `robotOptions.${block.key}.phaseIntervalRow`, type: 'directionalPanel', orientation: 'responsive' });
+      expect('humanLabel' in block.rows.typeGain, `${block.key}.typeGain label`).toBe(false);
+      expect('loreLabel' in block.rows.phaseInterval, `${block.key}.phaseInterval label`).toBe(false);
+    }
+  });
+
+  it('row ids are unique across the three layers and distinct from the layer panel ids', () => {
+    const ids = SIGNATURE_ARRAY_CONFIG.flatMap((b) => [b.panel.id, b.rows.typeGain.id, b.rows.phaseInterval.id]);
+    expect(ids).toHaveLength(9);
+    expect(new Set(ids).size).toBe(9);
+  });
+
+  it('remains JSON-serializable', () => {
+    expect(() => JSON.stringify(SIGNATURE_ARRAY_CONFIG)).not.toThrow();
   });
 });
 
@@ -404,9 +428,9 @@ describe('RESET_MELODY_SCHEMA no longer exists (Deterministic Robot Melody Gener
 });
 
 describe('SignatureArrayLayerBlock.panel (additive, Task 3)', () => {
-  it('every layer has a panel field, type directionalPanel, row orientation', () => {
+  it("every layer has a panel field, type directionalPanel, column orientation — it holds one stacked column of rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4; was 'row' with a single child, which did nothing)", () => {
     for (const block of SIGNATURE_ARRAY_CONFIG) {
-      expect(block.panel, block.key).toMatchObject({ type: 'directionalPanel', orientation: 'row' });
+      expect(block.panel, block.key).toMatchObject({ type: 'directionalPanel', orientation: 'column' });
     }
   });
 

@@ -4,6 +4,7 @@ import { DualLabel } from './DualLabel';
 import { RadioButton } from './RadioButton';
 import { SliderLinear } from './SliderLinear';
 import { withActiveClass } from './activeClass';
+import { useResponsivePanelOrientation } from './useResponsivePanelOrientation';
 import { LFO_DEPTH_MIN, LFO_DEPTH_MAX } from '@/types/lfo';
 import type { LfoLinkSchema, LfoLinkValue, RadioButtonSchema, SliderLinearSchema } from '@/types/controls';
 import { labels, options } from '@/content';
@@ -69,8 +70,17 @@ function LfoLinkInner({ schema, value, onChange, disabled, heldOff }: LfoLinkPro
   const laneDisplay = heldOff ? OFF_VALUE : value.lane ?? OFF_VALUE;
   const depthDisplay = heldOff ? 0 : value.depth;
 
+  // Lane left, Depth right on desktop; stacked below it (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md
+  // §1.5) — the same viewport tier every 'responsive' DirectionalPanel reads, so this row and the
+  // paired rows around it always agree. Its own CSS (LfoLink.css) keys off the attribute; a primitive
+  // stays a primitive, with no DirectionalPanel inside it.
+  const orientation = useResponsivePanelOrientation();
+
   return (
-    <div className={withActiveClass(heldOff ? 'sc-lfo-link sc-held-off' : 'sc-lfo-link', !heldOff && value.lane !== null)}>
+    <div
+      className={withActiveClass(heldOff ? 'sc-lfo-link sc-held-off' : 'sc-lfo-link', !heldOff && value.lane !== null)}
+      data-orientation={orientation}
+    >
       <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
       <RadioButton
         schema={laneSchema}

@@ -430,3 +430,18 @@ UI: the toggle sits in a row of its own under the slider it affects, with its ow
 - **An Off step on the Sync slider** — dropped (perf-neutral): a lane's `0` Hz stays the Free slider's own end.
 - **Multi-bar dotted / triplet notes** — 2 and 4 bars are straight-only.
 - **Fixing the pre-existing Attenuation-Style-switch lane re-prime gap** — `regenerateLfoBankFromSeed` is data-only (17.2.8's follow-up), so a style switch doesn't re-push the lanes to the running engine. This phase neither fixes nor worsens it: synced and Free lanes are equally stale until it is fixed.
+
+## 34. Layout Updates Pass 2: Post-Sync-Toggle Row Reshuffle
+
+Requested by Crawford, 2026-10-03, as a plain checklist (reproduced verbatim in the spec's §0). Spec [docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md](../specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md), plan [docs/tasks/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md](../tasks/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md). **Implemented — all 11 tasks on `layout/post-sync-toggle` (cut from `feature/sync-toggle`; unpushed, unmerged as of writing); the manual checkpoints (A–D: the look at ~360 / ~800 / ≥1024 px, and exactly 1024 px for the half-width Tempo Sync composition) are with Crawford.**
+
+### About
+
+A pure layout pass, no behaviour change. Nineteen sliders turn horizontal — the seven EQ/filter ones and the twelve probe-layer ones, which were the only vertical sliders in the app, so **no slider schema is vertical any more** (`src/data/sliderOrientation.test.ts` pins it; the primitives keep the mode, unused). Eight control pairs move onto shared rows, each a nested `'responsive'` `DirectionalPanel` (side by side on desktop, stacked below — the Compressor sub-rows' own shape): Shape | Rate and Rate Drift | Depth Drift on each LFO Bank lane; Delay Time (over its Tempo Sync toggle) | Repeats, and Reverb Length | Pre-Delay, each with the Amount slider on its own full-width row; Type | Gain and Phase | Interval on each probe layer. `LfoLink` lays Lane left and Depth right on desktop from the same tier, by its own CSS rather than a panel inside the primitive. EQ bands and filter params read top to bottom, each a horizontal slider over its Lane | Depth row. In Settings, Retransmit is aligned left and a saved session's timestamp sits beside its title.
+
+### Not Doing (and why)
+
+- **Removing the sliders' vertical mode** — it has no consumer after this pass, but deleting it touches the three primitives, the voxel-track maths and roadmap 11.1.5.x / 13's work; its own decision, "ask first" in the spec.
+- **`'row'` on every tier for the compact pairs** — every pair is `'responsive'` (spec assumption 1); horizontal sliders have a 3-box floor and the nav panel is narrow below desktop.
+- **Levels / Composition / Envelope, and Phase 30's open items** — not on the checklist.
+- **Hoisting the fifteen per-file `stubMatchMedia` test helpers** — a separate cleanup.

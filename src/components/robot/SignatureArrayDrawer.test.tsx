@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 
 // CabinetBox (used by every RadioButton here — the Type radio and each LfoLink's own lane
@@ -45,13 +45,30 @@ function layerSection(container: HTMLElement, key: 'layer0' | 'layer1' | 'layer2
   return el as HTMLElement;
 }
 
-/** The `.signature-array-drawer__param` wrapper around one specific field's own slider + (for
- *  Gain/Detune) its LfoLink — found by that slider's own accessible name. */
+/** The `.signature-array-drawer__param` wrapper around one specific field's own slider — found by
+ *  that slider's own accessible name. Holds the slider only: a Gain/Detune LfoLink lives in the NEXT
+ *  wrapper (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4, assumption 3), see linkRow. */
 function paramRow(section: HTMLElement, sliderName: string | RegExp): HTMLElement {
   const slider = within(section).getByRole('slider', { name: sliderName });
   const row = slider.closest('.signature-array-drawer__param');
   if (!row) throw new Error(`no param row for slider "${sliderName}"`);
   return row as HTMLElement;
+}
+
+/** The `.signature-array-drawer__param` wrapper holding the LfoLink that belongs to `sliderName`
+ *  (Gain or Detune): the full-width row directly under that slider's own top-level row in the layer
+ *  — for Gain that row is the nested Type | Gain panel, for Detune its own wrapper. */
+function linkRow(section: HTMLElement, sliderName: string | RegExp): HTMLElement {
+  const own = paramRow(section, sliderName);
+  const layerDiv = own.closest('.signature-array-drawer__layer');
+  if (!layerDiv) throw new Error(`slider "${sliderName}" is not inside a layer`);
+  let row: Element = own;
+  while (row.parentElement && row.parentElement !== layerDiv) row = row.parentElement;
+  const next = row.nextElementSibling;
+  if (!next || !next.classList.contains('signature-array-drawer__param') || !next.querySelector('.sc-lfo-link')) {
+    throw new Error(`no LfoLink row directly under slider "${sliderName}"`);
+  }
+  return next as HTMLElement;
 }
 
 const noop = { onContinuousChange: () => {}, onStructuralChange: () => {}, onLfoChange: () => {} };
@@ -214,15 +231,18 @@ describe('SignatureArrayDrawer', () => {
       const { container } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
 
       const pulseLayer = layerSection(container, 'layer1');
-      expect(paramRow(pulseLayer, 'Companion Gain').querySelector('.sc-lfo-link')).not.toBeNull();
-      expect(paramRow(pulseLayer, 'Companion Detune').querySelector('.sc-lfo-link')).not.toBeNull();
+      // The link is the row UNDER its slider, never inside the slider's own wrapper (§1.4, assumption 3).
+      expect(linkRow(pulseLayer, 'Companion Gain').querySelector('.sc-lfo-link')).not.toBeNull();
+      expect(paramRow(pulseLayer, 'Companion Gain').querySelector('.sc-lfo-link')).toBeNull();
+      expect(linkRow(pulseLayer, 'Companion Detune').querySelector('.sc-lfo-link')).not.toBeNull();
+      expect(paramRow(pulseLayer, 'Companion Detune').querySelector('.sc-lfo-link')).toBeNull();
       expect(paramRow(pulseLayer, /phase/i).querySelector('.sc-lfo-link')).toBeNull();
       expect(paramRow(pulseLayer, /interval/i).querySelector('.sc-lfo-link')).toBeNull();
 
       // A non-pulse layer has the same Gain/Detune LfoLinks and no Interval at all.
       const plainLayer = layerSection(container, 'layer0');
-      expect(paramRow(plainLayer, 'Core Gain').querySelector('.sc-lfo-link')).not.toBeNull();
-      expect(paramRow(plainLayer, 'Core Detune').querySelector('.sc-lfo-link')).not.toBeNull();
+      expect(linkRow(plainLayer, 'Core Gain').querySelector('.sc-lfo-link')).not.toBeNull();
+      expect(linkRow(plainLayer, 'Core Detune').querySelector('.sc-lfo-link')).not.toBeNull();
       expect(within(plainLayer).queryByRole('slider', { name: /interval/i })).toBeNull();
     });
 
@@ -236,7 +256,7 @@ describe('SignatureArrayDrawer', () => {
 
     it('defaults an unlinked Gain/Detune to Off, depth 0 (DEFAULT_LFO_LINK)', () => {
       const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      const gainRow = paramRow(layerSection(container, 'layer0'), 'Core Gain');
+      const gainRow = linkRow(layerSection(container, 'layer0'), 'Core Gain');
       expect(within(gainRow).getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
       expect(within(gainRow).getByRole('slider', { name: 'Depth' }).getAttribute('aria-valuenow')).toBe('0');
     });
@@ -248,8 +268,8 @@ describe('SignatureArrayDrawer', () => {
       const { container } = render(
         <SignatureArrayDrawer value={makeValue({ lfoLinks: lfoLinks as SignatureArrayValue['lfoLinks'] })} {...noop} />,
       );
-      const gainRow = paramRow(layerSection(container, 'layer0'), 'Core Gain');
-      const detuneRow = paramRow(layerSection(container, 'layer0'), 'Core Detune');
+      const gainRow = linkRow(layerSection(container, 'layer0'), 'Core Gain');
+      const detuneRow = linkRow(layerSection(container, 'layer0'), 'Core Detune');
       expect(within(gainRow).getByRole('radio', { name: 'Companion LFO' }).getAttribute('aria-checked')).toBe('true');
       expect(within(gainRow).getByRole('slider', { name: 'Depth' }).getAttribute('aria-valuenow')).toBe('40');
       // Detune's own link is untouched — still the default Off/0.
@@ -269,7 +289,7 @@ describe('SignatureArrayDrawer', () => {
           onLfoChange={onLfoChange}
         />,
       );
-      const gainRow = paramRow(layerSection(container, 'layer1'), 'Companion Gain');
+      const gainRow = linkRow(layerSection(container, 'layer1'), 'Companion Gain');
       fireEvent.click(within(gainRow).getByRole('radio', { name: 'Core LFO' }));
 
       expect(onLfoChange).toHaveBeenCalledWith('layer1.gain', { lane: 'a', depth: 30 });
@@ -288,7 +308,7 @@ describe('SignatureArrayDrawer', () => {
           onLfoChange={onLfoChange}
         />,
       );
-      const detuneRow = paramRow(layerSection(container, 'layer2'), 'Accent Detune');
+      const detuneRow = linkRow(layerSection(container, 'layer2'), 'Accent Detune');
       const depthSlider = within(detuneRow).getByRole('slider', { name: 'Depth' });
       depthSlider.focus();
       fireEvent.keyDown(depthSlider, { key: 'ArrowRight' });
@@ -302,7 +322,7 @@ describe('SignatureArrayDrawer', () => {
       const { container } = render(
         <SignatureArrayDrawer value={makeValue()} onContinuousChange={onContinuousChange} onStructuralChange={onStructuralChange} onLfoChange={() => {}} />,
       );
-      const gainRow = paramRow(layerSection(container, 'layer0'), 'Core Gain');
+      const gainRow = linkRow(layerSection(container, 'layer0'), 'Core Gain');
       fireEvent.click(within(gainRow).getByRole('radio', { name: 'Core LFO' }));
 
       expect(onContinuousChange).not.toHaveBeenCalled();
@@ -363,7 +383,7 @@ describe('SignatureArrayDrawer', () => {
     expect(within(baseline).getByRole('slider', { name: /gain/i }).getAttribute('data-disabled')).toBe('');
     expect(within(layerSection(container, 'layer1')).getByRole('slider', { name: 'Companion Gain' }).getAttribute('data-disabled')).toBe('');
 
-    const gainRow = paramRow(baseline, 'Core Gain');
+    const gainRow = linkRow(baseline, 'Core Gain');
     expect(within(gainRow).getByRole('radio', { name: 'Off' }).getAttribute('data-disabled')).toBe('');
     expect(within(gainRow).getByRole('slider', { name: 'Depth' }).getAttribute('data-disabled')).toBe('');
   });
@@ -405,6 +425,132 @@ describe('SignatureArrayDrawer', () => {
       const lfoLinkEl = root.querySelector('.sc-lfo-link');
       expect(lfoLinkEl).not.toBeNull();
       expect(root.contains(lfoLinkEl)).toBe(true);
+    });
+  });
+
+  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4: per layer, Type | Gain share a nested 'responsive'
+  // top row; Gain's Lane | Depth link is the full-width row under it (assumption 3: not inside Gain's
+  // half); then Detune; then Detune's link; then Phase | Interval as a nested row for a pulse layer, or
+  // Phase alone with no nested panel otherwise. Every slider is horizontal.
+  describe('row layout (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4)', () => {
+    function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        configurable: true,
+        value: vi.fn().mockImplementation((query: string) => ({
+          matches: query.includes('639px') ? state.mobile : state.tablet,
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        })),
+      });
+    }
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+    afterEach(() => {
+      if (originalMatchMedia) Object.defineProperty(window, 'matchMedia', originalMatchMedia);
+      else delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    });
+
+    const orientationOf = (panel: Element) => panel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation');
+    const PARAM = 'signature-array-drawer__param';
+
+    function describeChildren(section: HTMLElement): string[] {
+      return [...section.children].map((el) => {
+        const panelId = el.getAttribute('data-panel-id');
+        if (panelId) return `panel:${panelId}`;
+        if (!el.classList.contains(PARAM)) return `other:${el.className}`;
+        if (el.querySelector('.sc-lfo-link')) return 'link';
+        const slider = el.querySelector('[role="slider"]');
+        return `slider:${slider?.getAttribute('aria-label') ?? '?'}`;
+      });
+    }
+
+    it('a non-pulse layer is: [Type | Gain row], Gain link, Detune, Detune link, Phase alone — five children, no Phase | Interval panel', () => {
+      const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
+      expect(describeChildren(layerSection(container, 'layer0'))).toEqual([
+        'panel:robotOptions.layer0.typeGainRow', 'link', 'slider:Core Detune', 'link', 'slider:Core Phase',
+      ]);
+      expect(container.querySelector('[data-panel-id="robotOptions.layer0.phaseIntervalRow"]')).toBeNull();
+    });
+
+    it('a pulse layer ends with the Phase | Interval row instead of a bare Phase', () => {
+      const layers = makeLayers();
+      layers[1] = { ...layers[1], type: 'pulse' };
+      const { container } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
+      expect(describeChildren(layerSection(container, 'layer1'))).toEqual([
+        'panel:robotOptions.layer1.typeGainRow', 'link', 'slider:Companion Detune', 'link', 'panel:robotOptions.layer1.phaseIntervalRow',
+      ]);
+      const last = container.querySelector('[data-panel-id="robotOptions.layer1.phaseIntervalRow"]')!;
+      const rows = [...last.querySelectorAll(`:scope > .sc-directional-panel__content > .${PARAM}`)];
+      expect(rows).toHaveLength(2);
+      expect(within(rows[0] as HTMLElement).getByRole('slider', { name: /phase/i })).toBeTruthy();
+      expect(within(rows[1] as HTMLElement).getByRole('slider', { name: /interval/i })).toBeTruthy();
+    });
+
+    it('the top row holds the Type options then Gain, each in its own param wrapper, and NOT the Gain link (assumption 3)', () => {
+      const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
+      const topRow = container.querySelector('[data-panel-id="robotOptions.layer0.typeGainRow"]')!;
+      const rows = [...topRow.querySelectorAll(`:scope > .sc-directional-panel__content > .${PARAM}`)];
+      expect(rows).toHaveLength(2);
+      expect(rows[0].querySelector('.sc-radio-button')).not.toBeNull();
+      expect(rows[0].querySelector('[role="slider"]')).toBeNull();
+      expect(within(rows[1] as HTMLElement).getByRole('slider', { name: 'Core Gain' })).toBeTruthy();
+      expect(topRow.querySelector('.sc-lfo-link')).toBeNull();
+    });
+
+    it('both nested rows are side by side (row) on desktop while the layer panel itself is a column', () => {
+      stubMatchMedia({ mobile: false, tablet: false });
+      const layers = makeLayers();
+      layers[0] = { ...layers[0], type: 'pulse' };
+      const { container } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
+      const layerPanel = layerSection(container, 'layer0').closest('.sc-directional-panel')!;
+      expect(orientationOf(layerPanel)).toBe('column');
+      expect(orientationOf(container.querySelector('[data-panel-id="robotOptions.layer0.typeGainRow"]')!)).toBe('row');
+      expect(orientationOf(container.querySelector('[data-panel-id="robotOptions.layer0.phaseIntervalRow"]')!)).toBe('row');
+    });
+
+    it('both nested rows stack (column) on tablet and on mobile', () => {
+      for (const tier of [{ mobile: false, tablet: true }, { mobile: true, tablet: true }]) {
+        stubMatchMedia(tier);
+        const layers = makeLayers();
+        layers[0] = { ...layers[0], type: 'pulse' };
+        const { container, unmount } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
+        expect(orientationOf(container.querySelector('[data-panel-id="robotOptions.layer0.typeGainRow"]')!), JSON.stringify(tier)).toBe('column');
+        expect(orientationOf(container.querySelector('[data-panel-id="robotOptions.layer0.phaseIntervalRow"]')!), JSON.stringify(tier)).toBe('column');
+        unmount();
+      }
+    });
+
+    it('every slider on every layer is horizontal', () => {
+      const layers = makeLayers();
+      layers[1] = { ...layers[1], type: 'pulse' };
+      render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
+      for (const slider of screen.getAllByRole('slider')) {
+        expect(slider.getAttribute('aria-orientation'), slider.getAttribute('aria-label') ?? '?').toBe('horizontal');
+      }
+    });
+
+    it('switching a layer to pulse adds the Phase | Interval row, and back removes it — Phase returns to its own wrapper', () => {
+      const layers = makeLayers();
+      const { container, rerender } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
+      expect(describeChildren(layerSection(container, 'layer2')).at(-1)).toBe('slider:Accent Phase');
+
+      const pulse = makeLayers();
+      pulse[2] = { ...pulse[2], type: 'pulse', pulseWidth: 0.3 };
+      rerender(<SignatureArrayDrawer value={makeValue({ layers: pulse })} {...noop} />);
+      expect(describeChildren(layerSection(container, 'layer2')).at(-1)).toBe('panel:robotOptions.layer2.phaseIntervalRow');
+      expect(within(layerSection(container, 'layer2')).getByRole('slider', { name: /interval/i }).getAttribute('aria-valuenow')).toBe('0.3');
+
+      rerender(<SignatureArrayDrawer value={makeValue({ layers: makeLayers() })} {...noop} />);
+      expect(describeChildren(layerSection(container, 'layer2')).at(-1)).toBe('slider:Accent Phase');
+      expect(container.querySelector('[data-panel-id="robotOptions.layer2.phaseIntervalRow"]')).toBeNull();
+    });
+
+    it('the nested rows render unframed — exactly one Cabinetry facade per layer, three for the drawer', () => {
+      const layers = makeLayers();
+      layers[1] = { ...layers[1], type: 'pulse' };
+      const { container } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
+      expect(container.querySelectorAll('.sc-directional-panel-facade')).toHaveLength(3);
     });
   });
 
@@ -508,8 +654,7 @@ describe('SignatureArrayLayer — exported standalone (docs/tasks/NAV_PANEL_VIEW
       lfoLinks: { 'layer1.gain': { lane: null, depth: 25 } },
     });
     const layerEl = screen.getByText(CONTENT['probe.source.companion'].human).closest('.sc-directional-panel') as HTMLElement;
-    const gainSlider = within(layerEl).getByRole('slider', { name: 'Companion Gain' });
-    const gainRow = gainSlider.closest('.signature-array-drawer__param') as HTMLElement;
+    const gainRow = linkRow(layerEl, 'Companion Gain');
 
     fireEvent.click(within(gainRow).getByRole('radio', { name: 'Core LFO' }));
 

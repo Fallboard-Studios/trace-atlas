@@ -14,8 +14,20 @@
   color: #b3362c;
 }
 
-.session-list-item__label {
+/* The name + timestamp group takes the row's flex share (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md
+   §1.6); before, the name alone was `flex: 1` and pushed the timestamp to the far end, beside the
+   buttons. min-width: 0 on both lets a long name still ellipsise inside the group. Pinned by
+   SessionListItem.test.tsx's CSS scan. */
+.session-list-item__title {
   flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.session-list-item__label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

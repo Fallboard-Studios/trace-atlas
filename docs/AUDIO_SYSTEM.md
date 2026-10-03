@@ -319,11 +319,11 @@ Each lane's Rate and the global Delay's Time can run **Free** (a plain Hz / seco
 
 ### UI
 
-The inline `LfoLink` primitive (`src/components/ui/controls/LfoLink.tsx`) replaces the old shared `Lfo`/`LfoTargetGroup` display entirely: a `RadioButton` lane picker (`ui.lfoLane` — Off, Core/Apex, Companion/Lateral, Accent/Impulse, Overtone/Canopy) plus a Depth `SliderLinear`, rendered directly beneath the field it modulates rather than in a separate shared "Modulation" accordion. Three call sites:
+The inline `LfoLink` primitive (`src/components/ui/controls/LfoLink.tsx`) replaces the old shared `Lfo`/`LfoTargetGroup` display entirely: a `RadioButton` lane picker (`ui.lfoLane` — Off, Core/Apex, Companion/Lateral, Accent/Impulse, Overtone/Canopy) plus a Depth `SliderLinear`, rendered as the row directly beneath the field it modulates rather than in a separate shared "Modulation" accordion — Lane left and Depth right on desktop, stacked below (`docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md` §1.5). Three call sites:
 
-- **Robot layers** (`SignatureArrayDrawer.tsx`) — each layer's Gain/Detune row is followed by its own `LfoLink`, independently editable (no more click-to-target state machine).
-- **EQ/LPF/HPF** (`AudioRigEffectPanel.tsx`) — each param row the same way, bound to `globalLfoLinks`; LPF/HPF pass `heldOff={filterLinksHeldOff}` (EQ never greys).
-- **The lanes themselves** — Fleet Params → LFO Bank (`LfoBankLanePanel.tsx`, one per lane): Shape `RadioButton`, Rate `TempoSyncSlider` (a `SliderLinear` with its Free | Sync `TempoSyncToggle` in a row of its own under it — see "Free | Sync" above), Rate Drift/Depth Drift `SliderCenteredZero`s (the two drift rows grey + `HeldOffNote` while `driftHeldOff`; Shape/Rate never grey) — this is where a lane's own oscillator is tuned, replacing the old per-group Drift accordions (Fleet Drift, Probe Drift) entirely.
+- **Robot layers** (`SignatureArrayDrawer.tsx`) — per layer: Type beside Gain on a responsive top row, Gain's `LfoLink` as the full-width row under it, Detune, Detune's `LfoLink`, then Phase (beside Interval on a pulse layer). Each link is independently editable (no more click-to-target state machine). Every slider is horizontal.
+- **EQ/LPF/HPF** (`AudioRigEffectPanel.tsx`) — each band / filter param is one stacked row: the (horizontal) slider, then its `LfoLink`, bound to `globalLfoLinks`; LPF/HPF pass `heldOff={filterLinksHeldOff}` (EQ never greys). The three blocks are column panels (they were row panels of vertical sliders before Phase 34).
+- **The lanes themselves** — Fleet Params → LFO Bank (`LfoBankLanePanel.tsx`, one per lane): a responsive top row of Shape `RadioButton` beside Rate `TempoSyncSlider` (a `SliderLinear` with its Free | Sync `TempoSyncToggle` in a row of its own under it — see "Free | Sync" above), then a responsive drift row of Rate Drift beside Depth Drift (`SliderCenteredZero`s; the two drift rows grey + `HeldOffNote` while `driftHeldOff`; Shape/Rate never grey) — this is where a lane's own oscillator is tuned, replacing the old per-group Drift accordions (Fleet Drift, Probe Drift) entirely.
 
 ## Audio Swells
 

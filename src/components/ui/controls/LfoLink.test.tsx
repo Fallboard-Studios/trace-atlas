@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 
 import { LfoLink } from './LfoLink';
 import { LFO_DEPTH_MIN, LFO_DEPTH_MAX } from '@/types/lfo';
@@ -127,6 +127,100 @@ describe('LfoLink', () => {
   describe('React.memo', () => {
     it('is a React.memo-wrapped component', () => {
       expect((LfoLink as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+    });
+  });
+
+  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.5: Lane left, Depth right on desktop; stacked
+  // below it — the same viewport tier every 'responsive' DirectionalPanel reads. jsdom computes no
+  // layout, so the orientation is pinned through the data attribute the CSS keys off (LfoLink.css,
+  // pinned by LfoLink.css.test.ts) and the DOM order of the two controls.
+  describe('layout: Lane | Depth share a row on desktop (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.5)', () => {
+    /** Mobile (max-width: 639px) and tablet (max-width: 1023px) queries controlled independently,
+     *  with their 'change' listeners triggerable — the useResponsivePanelOrientation.test.ts shape. */
+    function stubMatchMedia(initial: { mobile: boolean; tablet: boolean }) {
+      const state = { ...initial };
+      const listeners = new Map<string, Set<(e: { matches: boolean }) => void>>();
+      const queryKind = (query: string): 'mobile' | 'tablet' => (query.includes('639px') ? 'mobile' : 'tablet');
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        configurable: true,
+        value: vi.fn().mockImplementation((query: string) => {
+          const kind = queryKind(query);
+          if (!listeners.has(query)) listeners.set(query, new Set());
+          return {
+            get matches() { return state[kind]; },
+            media: query,
+            addEventListener: (_: string, cb: (e: { matches: boolean }) => void) => { listeners.get(query)!.add(cb); },
+            removeEventListener: (_: string, cb: (e: { matches: boolean }) => void) => { listeners.get(query)!.delete(cb); },
+          };
+        }),
+      });
+      return {
+        fireChange(kind: 'mobile' | 'tablet', matches: boolean) {
+          state[kind] = matches;
+          for (const [query, cbs] of listeners) if (queryKind(query) === kind) cbs.forEach((cb) => cb({ matches }));
+        },
+      };
+    }
+
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+    afterEach(() => {
+      if (originalMatchMedia) Object.defineProperty(window, 'matchMedia', originalMatchMedia);
+      else delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    });
+
+    const root = (container: HTMLElement) => container.querySelector('.sc-lfo-link')!;
+
+    it("is a row on desktop (neither the mobile nor the tablet query matches)", () => {
+      stubMatchMedia({ mobile: false, tablet: false });
+      const { container } = render(<LfoLink schema={schema} value={value} onChange={() => {}} />);
+      expect(root(container).getAttribute('data-orientation')).toBe('row');
+    });
+
+    it('is a column on tablet', () => {
+      stubMatchMedia({ mobile: false, tablet: true });
+      const { container } = render(<LfoLink schema={schema} value={value} onChange={() => {}} />);
+      expect(root(container).getAttribute('data-orientation')).toBe('column');
+    });
+
+    it('is a column on mobile', () => {
+      stubMatchMedia({ mobile: true, tablet: true });
+      const { container } = render(<LfoLink schema={schema} value={value} onChange={() => {}} />);
+      expect(root(container).getAttribute('data-orientation')).toBe('column');
+    });
+
+    it('is a row when matchMedia does not exist at all (the tier hook defaults to desktop)', () => {
+      delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+      const { container } = render(<LfoLink schema={schema} value={value} onChange={() => {}} />);
+      expect(root(container).getAttribute('data-orientation')).toBe('row');
+    });
+
+    it('keeps the Lane radio group before the Depth slider in DOM order, in both orientations', () => {
+      for (const tier of [{ mobile: false, tablet: false }, { mobile: false, tablet: true }]) {
+        stubMatchMedia(tier);
+        const { unmount } = render(<LfoLink schema={schema} value={value} onChange={() => {}} />);
+        const lane = screen.getByRole('radio', { name: 'Off' });
+        const depth = screen.getByRole('slider');
+        expect(lane.compareDocumentPosition(depth) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        unmount();
+      }
+    });
+
+    it('follows a live tier change without a remount — desktop to tablet flips row to column', () => {
+      const media = stubMatchMedia({ mobile: false, tablet: false });
+      const { container } = render(<LfoLink schema={schema} value={value} onChange={() => {}} />);
+      expect(root(container).getAttribute('data-orientation')).toBe('row');
+      act(() => media.fireChange('tablet', true));
+      expect(root(container).getAttribute('data-orientation')).toBe('column');
+    });
+
+    it('the row orientation changes nothing about heldOff: Off and depth 0 are still what is shown', () => {
+      stubMatchMedia({ mobile: false, tablet: false });
+      const { container } = render(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} disabled heldOff />);
+      expect(root(container).getAttribute('data-orientation')).toBe('row');
+      expect(screen.getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
+      expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('0');
+      expect(container.querySelector('.sc-lfo-link.isActive')).toBeNull();
     });
   });
 });

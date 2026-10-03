@@ -19,7 +19,6 @@ import {
   AUDIO_ROBOT_LOAD_SCHEMA,
   AUDIO_EFFECTS_LOAD_SCHEMA,
   AUDIO_LOAD_PANEL_SCHEMA,
-  type AudioRigEffectKey,
 } from './audioRigConfig';
 import { AUDIO_LOAD_PRESETS } from '../constants';
 import { GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
@@ -312,13 +311,34 @@ describe('LFO_BANK_LANE_SCHEMAS (docs/specs/LFO_BANK.md Task 15)', () => {
     }
   });
 
-  it('every id across all 4 lanes (5 fields each) is unique', () => {
+  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.1: Shape | Rate (over its Tempo Sync toggle) share a
+  // top row, Rate Drift | Depth Drift share a drift row — each a nested 'responsive' panel (side by side
+  // on desktop, stacked below), unlabeled, so the lane panel's own label is the only heading.
+  it("every lane's topRow and driftRow are unlabeled 'responsive' directionalPanels under the lane's own id", () => {
+    for (const lane of LFO_LANE_IDS) {
+      const schema = LFO_BANK_LANE_SCHEMAS[lane];
+      expect(schema.topRow, `${lane}.topRow`).toEqual({ id: `audioRig.lfoBank.${lane}.topRow`, type: 'directionalPanel', orientation: 'responsive' });
+      expect(schema.driftRow, `${lane}.driftRow`).toEqual({ id: `audioRig.lfoBank.${lane}.driftRow`, type: 'directionalPanel', orientation: 'responsive' });
+      expect('humanLabel' in schema.topRow, `${lane}.topRow label`).toBe(false);
+      expect('loreLabel' in schema.driftRow, `${lane}.driftRow label`).toBe(false);
+    }
+  });
+
+  it("the row panels are never 'auto' (per-parent measuring) or a fixed 'row' — only the shared viewport tier decides", () => {
+    for (const lane of LFO_LANE_IDS) {
+      const schema = LFO_BANK_LANE_SCHEMAS[lane];
+      expect(['auto', 'row', 'column']).not.toContain(schema.topRow.orientation);
+      expect(['auto', 'row', 'column']).not.toContain(schema.driftRow.orientation);
+    }
+  });
+
+  it('every id across all 4 lanes (7 schemas each: panel, shape, rate, rateDrift, depthDrift, topRow, driftRow) is unique', () => {
     const allIds = LFO_LANE_IDS.flatMap((lane) => {
       const schema = LFO_BANK_LANE_SCHEMAS[lane];
-      return [schema.panel.id, schema.shape.id, schema.rate.id, schema.rateDrift.id, schema.depthDrift.id];
+      return [schema.panel.id, schema.shape.id, schema.rate.id, schema.rateDrift.id, schema.depthDrift.id, schema.topRow.id, schema.driftRow.id];
     });
-    expect(allIds).toHaveLength(20);
-    expect(new Set(allIds).size).toBe(20);
+    expect(allIds).toHaveLength(28);
+    expect(new Set(allIds).size).toBe(28);
   });
 
   it('remains JSON-serializable', () => {
@@ -483,17 +503,17 @@ function orientationOf(schema: ControlSchema): string | undefined {
   return (schema as { orientation?: string }).orientation;
 }
 
-describe('slider orientation classification (docs/specs/VERTICAL_SLIDERS.md §1.1)', () => {
-  it('3-Band EQ (Low/Mid/High) is vertical', () => {
+describe('slider orientation classification (docs/specs/VERTICAL_SLIDERS.md §1.1; EQ/filters horizontal since docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.2)', () => {
+  it('3-Band EQ (Low/Mid/High) is horizontal — one stacked band row each, the slider over its Lane | Depth row', () => {
     for (const field of ['low', 'mid', 'high']) {
-      expect(orientationOf(findParam('eq3', field).schema), field).toBe('vertical');
+      expect(orientationOf(findParam('eq3', field).schema), field).toBe('horizontal');
     }
   });
 
-  it('Low-Pass/High-Pass Filter (Frequency/Resonance) is vertical (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3 — reverses the earlier auto classification)', () => {
+  it('Low-Pass/High-Pass Filter (Frequency/Resonance) is horizontal — Cutoff and Resonance each a stacked row (reverses AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3\'s vertical classification)', () => {
     for (const key of ['filterLPF', 'filterHPF'] as const) {
       for (const field of ['frequency', 'Q']) {
-        expect(orientationOf(findParam(key, field).schema), `${key}.${field}`).toBe('vertical');
+        expect(orientationOf(findParam(key, field).schema), `${key}.${field}`).toBe('horizontal');
       }
     }
   });
@@ -540,23 +560,33 @@ function verticalHeightOf(schema: ControlSchema): number | undefined {
   return (schema as { verticalHeight?: number }).verticalHeight;
 }
 
-describe('vertical slider verticalHeight budget (roadmap 13 — "Vertical Slider Label Overflow")', () => {
-  // Regression guard: every real vertical slider used to fall through to the same *implicit*
-  // VOXEL_TRACK_DEFAULT_VERTICAL_HEIGHT default regardless of how much room its own panel
-  // actually had, which is what let some (not all) vertical sliders overflow their panel and
-  // show a native scrollbar (found live, roadmap 13) while others happened to fit by luck.
-  // Every vertical schema below must now declare its own explicit verticalHeight, so the budget
-  // is visibly tunable per-panel instead of a silent, one-size-fits-all fallback.
-  it('3-Band EQ (Low/Mid/High) declares an explicit verticalHeight', () => {
+describe('verticalHeight budget (roadmap 13 — "Vertical Slider Label Overflow"; no horizontal schema carries one)', () => {
+  // History: every real vertical slider used to fall through to the same *implicit*
+  // VOXEL_TRACK_DEFAULT_VERTICAL_HEIGHT default and some overflowed their panel (found live,
+  // roadmap 13), so each vertical schema had to declare its own budget. Since
+  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.2 none of these sliders is vertical, so a
+  // leftover verticalHeight would be dead config that misleads the next reader about the mode.
+  it('3-Band EQ (Low/Mid/High) declares no verticalHeight — it is horizontal now', () => {
     for (const field of ['low', 'mid', 'high']) {
-      expect(verticalHeightOf(findParam('eq3', field).schema), field).toBe(256);
+      expect(verticalHeightOf(findParam('eq3', field).schema), field).toBeUndefined();
+      expect('verticalHeight' in findParam('eq3', field).schema, field).toBe(false);
     }
   });
 
-  it('Low-Pass/High-Pass Filter (Frequency/Resonance) declares an explicit verticalHeight', () => {
+  it('Low-Pass/High-Pass Filter (Frequency/Resonance) declares no verticalHeight — horizontal now', () => {
     for (const key of ['filterLPF', 'filterHPF'] as const) {
       for (const field of ['frequency', 'Q']) {
-        expect(verticalHeightOf(findParam(key, field).schema), `${key}.${field}`).toBe(256);
+        expect(verticalHeightOf(findParam(key, field).schema), `${key}.${field}`).toBeUndefined();
+        expect('verticalHeight' in findParam(key, field).schema, `${key}.${field}`).toBe(false);
+      }
+    }
+  });
+
+  it('no param schema in AUDIO_RIG_CONFIG is vertical or carries a verticalHeight', () => {
+    for (const block of AUDIO_RIG_CONFIG) {
+      for (const param of block.params) {
+        expect(orientationOf(param.schema), `${block.key}.${param.field}`).not.toBe('vertical');
+        expect(verticalHeightOf(param.schema), `${block.key}.${param.field}`).toBeUndefined();
       }
     }
   });
@@ -595,10 +625,9 @@ describe('AudioRigEffectBlock.panel (DirectionalPanel wiring, Tasks 1-2)', () =>
     }
   });
 
-  it('eq3/filterLPF/filterHPF are row-orientation panels — delay/reverb/compressor/limiter are column', () => {
-    const rowBlocks: AudioRigEffectKey[] = ['eq3', 'filterLPF', 'filterHPF'];
+  it('every block panel is column-orientation — eq3/filterLPF/filterHPF stack their bands/params since docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.2 (they were the only row panels)', () => {
     for (const block of AUDIO_RIG_CONFIG) {
-      expect(block.panel.orientation, block.key).toBe(rowBlocks.includes(block.key) ? 'row' : 'column');
+      expect(block.panel.orientation, block.key).toBe('column');
     }
   });
 

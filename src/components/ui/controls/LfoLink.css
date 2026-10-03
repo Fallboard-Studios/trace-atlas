@@ -7,3 +7,20 @@
   container-type: inline-size;
   container-name: sc-control;
 }
+
+/* Lane left, Depth right on desktop (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.5); the column
+   above is the mobile/tablet shape. LfoLink.tsx sets data-orientation from the same viewport tier
+   every 'responsive' DirectionalPanel reads. `flex: 1 1 0` + `min-width: 0` on the children is
+   DirectionalPanel.css's own row rule, restated: a zero flex-basis gives each child an equal,
+   content-independent half (no voxel-track box-count feedback loop), and it is what stops
+   RadioButton's `width: 100%` from claiming the whole row — the trap the Tempo Sync toggle hit
+   beside a slider (TempoSyncToggle.css). Pinned by LfoLink.css.test.ts. */
+.sc-lfo-link[data-orientation='row'] {
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.sc-lfo-link[data-orientation='row'] > * {
+  flex: 1 1 0;
+  min-width: 0;
+}

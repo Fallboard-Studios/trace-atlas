@@ -28,6 +28,9 @@ interface LfoBankLanePanelProps {
  * `rate`, Sync edits write `sync`, and the toggle goes through the store's
  * setLfoBankLaneSyncMode, which owns the Free <-> Sync conversion. The toggle sits in a row of its own
  * under Rate. This panel only supplies the tempo-dependent list of allowed notes.
+ *
+ * Layout (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.1): Shape | Rate share the lane's top row
+ * and Rate Drift | Depth Drift its drift row, both nested 'responsive' panels from the lane schema.
  */
 export function LfoBankLanePanel({ lane }: LfoBankLanePanelProps) {
   const schema = LFO_BANK_LANE_SCHEMAS[lane];
@@ -50,43 +53,51 @@ export function LfoBankLanePanel({ lane }: LfoBankLanePanelProps) {
   const handleSyncChange = useCallback((note: NoteValue) => setLfoBank(lane, { sync: note }), [lane, setLfoBank]);
   const handleModeChange = useCallback((synced: boolean) => setLfoBankLaneSyncMode(lane, synced), [lane, setLfoBankLaneSyncMode]);
 
+  // Two nested 'responsive' rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.1): Shape beside
+  // Rate (the composition stacks Rate over its Free | Sync toggle), then Rate Drift beside Depth
+  // Drift — side by side on desktop, stacked on mobile/tablet, the Compressor sub-rows' own shape.
+  // Each control keeps its own param-row; the held-off note stays a direct child after the drift row.
   return (
     <DirectionalPanel schema={schema.panel}>
-      <div className="audio-rig-drawer__param-row">
-        <RadioButton
-          schema={schema.shape}
-          value={shape}
-          onChange={(v) => setLfoBank(lane, { shape: v as LfoShape })}
-        />
-      </div>
-      {/* Rate's own row holds the slider and, in a row of its own under it, its Free | Sync toggle. */}
-      <div className="audio-rig-drawer__param-row">
-        <TempoSyncSlider
-          schema={schema.rate}
-          freeValue={rate}
-          syncValue={sync}
-          allowed={allowed}
-          onFreeChange={handleRateChange}
-          onSyncChange={handleSyncChange}
-          onModeChange={handleModeChange}
-        />
-      </div>
-      <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
-        <SliderCenteredZero
-          schema={schema.rateDrift}
-          value={driftHeldOff ? 0 : rateDrift * 100}
-          onChange={(v) => setLfoBank(lane, { rateDrift: v / 100 })}
-          disabled={driftHeldOff}
-        />
-      </div>
-      <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
-        <SliderCenteredZero
-          schema={schema.depthDrift}
-          value={driftHeldOff ? 0 : depthDrift * 100}
-          onChange={(v) => setLfoBank(lane, { depthDrift: v / 100 })}
-          disabled={driftHeldOff}
-        />
-      </div>
+      <DirectionalPanel schema={schema.topRow}>
+        <div className="audio-rig-drawer__param-row">
+          <RadioButton
+            schema={schema.shape}
+            value={shape}
+            onChange={(v) => setLfoBank(lane, { shape: v as LfoShape })}
+          />
+        </div>
+        {/* Rate's own row holds the slider and, in a row of its own under it, its Free | Sync toggle. */}
+        <div className="audio-rig-drawer__param-row">
+          <TempoSyncSlider
+            schema={schema.rate}
+            freeValue={rate}
+            syncValue={sync}
+            allowed={allowed}
+            onFreeChange={handleRateChange}
+            onSyncChange={handleSyncChange}
+            onModeChange={handleModeChange}
+          />
+        </div>
+      </DirectionalPanel>
+      <DirectionalPanel schema={schema.driftRow}>
+        <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
+          <SliderCenteredZero
+            schema={schema.rateDrift}
+            value={driftHeldOff ? 0 : rateDrift * 100}
+            onChange={(v) => setLfoBank(lane, { rateDrift: v / 100 })}
+            disabled={driftHeldOff}
+          />
+        </div>
+        <div className={withHeldOffClass('audio-rig-drawer__param-row', driftHeldOff)}>
+          <SliderCenteredZero
+            schema={schema.depthDrift}
+            value={driftHeldOff ? 0 : depthDrift * 100}
+            onChange={(v) => setLfoBank(lane, { depthDrift: v / 100 })}
+            disabled={driftHeldOff}
+          />
+        </div>
+      </DirectionalPanel>
       {driftHeldOff && <HeldOffNote />}
     </DirectionalPanel>
   );

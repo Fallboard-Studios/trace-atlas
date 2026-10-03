@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, fireEvent, act } from '@testing-library/react';
 
 // The LFO Bank engine (docs/tasks/LFO_BANK.md Task 7/14) — setLfoBank (audioStore.ts) calls this
@@ -365,6 +365,115 @@ describe('LfoBankLanePanel — Free | Sync on Rate', () => {
     it('leaves the panel with exactly four param-rows: Shape, Rate (slider + toggle), Rate Drift, Depth Drift', () => {
       const { container } = render(<LfoBankLanePanel lane="b" />);
       expect(container.querySelectorAll('.audio-rig-drawer__param-row')).toHaveLength(4);
+    });
+  });
+
+  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.1: the four param-rows are grouped two and two —
+  // Shape | Rate (over its toggle) in a nested 'responsive' top row, Rate Drift | Depth Drift in a
+  // nested 'responsive' drift row — side by side on desktop, stacked below. The held-off note stays a
+  // direct child of the lane panel, after the drift row.
+  describe('row layout (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.1)', () => {
+    /** Mobile (max-width: 639px) / tablet (max-width: 1023px) queries, independently controlled. */
+    function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        configurable: true,
+        value: vi.fn().mockImplementation((query: string) => ({
+          matches: query.includes('639px') ? state.mobile : state.tablet,
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        })),
+      });
+    }
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+    afterEach(() => {
+      if (originalMatchMedia) Object.defineProperty(window, 'matchMedia', originalMatchMedia);
+      else delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    });
+
+    function laneContent(container: HTMLElement) {
+      return container.querySelector('[data-panel-id="audioRig.lfoBank.b"] > .sc-directional-panel__content') as HTMLElement;
+    }
+    const orientationOf = (panel: Element) => panel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation');
+
+    it('the lane panel content is exactly two nested panels — the top row then the drift row — and nothing else when drift is on', () => {
+      const { container } = render(<LfoBankLanePanel lane="b" />);
+      const children = [...laneContent(container).children];
+      expect(children).toHaveLength(2);
+      expect(children[0].getAttribute('data-panel-id')).toBe('audioRig.lfoBank.b.topRow');
+      expect(children[1].getAttribute('data-panel-id')).toBe('audioRig.lfoBank.b.driftRow');
+    });
+
+    it('the top row holds the Shape options then the Rate composition (slider + Tempo Sync switch), each in its own param-row', () => {
+      const { container } = render(<LfoBankLanePanel lane="b" />);
+      const topRow = container.querySelector('[data-panel-id="audioRig.lfoBank.b.topRow"]')!;
+      const rows = [...topRow.querySelectorAll(':scope > .sc-directional-panel__content > .audio-rig-drawer__param-row')];
+      expect(rows).toHaveLength(2);
+      expect(within(rows[0] as HTMLElement).getByRole('group', { name: 'Shape' })).toBeTruthy();
+      expect(rows[0].querySelector('.sc-tempo-sync')).toBeNull();
+      expect(rows[1].querySelector('.sc-tempo-sync')).not.toBeNull();
+      expect(within(rows[1] as HTMLElement).getByRole('slider', { name: 'Rate' })).toBeTruthy();
+      expect(within(rows[1] as HTMLElement).getByRole('switch', { name: TOGGLE_NAME })).toBeTruthy();
+      expect(topRow.querySelector('[role="slider"][aria-label="Rate Drift"], [role="slider"][aria-label="Depth Drift"]')).toBeNull();
+    });
+
+    it('the drift row holds Rate Drift then Depth Drift, each in its own held-off-aware param-row, and no switch', () => {
+      const { container } = render(<LfoBankLanePanel lane="b" />);
+      const driftRow = container.querySelector('[data-panel-id="audioRig.lfoBank.b.driftRow"]')!;
+      const rows = [...driftRow.querySelectorAll(':scope > .sc-directional-panel__content > .audio-rig-drawer__param-row')];
+      expect(rows).toHaveLength(2);
+      expect(within(rows[0] as HTMLElement).getByRole('slider', { name: 'Rate Drift' })).toBeTruthy();
+      expect(within(rows[1] as HTMLElement).getByRole('slider', { name: 'Depth Drift' })).toBeTruthy();
+      expect(driftRow.querySelector('[role="switch"]')).toBeNull();
+      expect(driftRow.querySelector('.sc-tempo-sync')).toBeNull();
+    });
+
+    it('both nested rows are side by side (row) on desktop while the lane panel itself stays a column', () => {
+      stubMatchMedia({ mobile: false, tablet: false });
+      const { container } = render(<LfoBankLanePanel lane="b" />);
+      expect(laneContent(container).getAttribute('data-orientation')).toBe('column');
+      expect(orientationOf(container.querySelector('[data-panel-id="audioRig.lfoBank.b.topRow"]')!)).toBe('row');
+      expect(orientationOf(container.querySelector('[data-panel-id="audioRig.lfoBank.b.driftRow"]')!)).toBe('row');
+    });
+
+    it('both nested rows stack (column) on tablet and on mobile', () => {
+      for (const tier of [{ mobile: false, tablet: true }, { mobile: true, tablet: true }]) {
+        stubMatchMedia(tier);
+        const { container, unmount } = render(<LfoBankLanePanel lane="b" />);
+        expect(orientationOf(container.querySelector('[data-panel-id="audioRig.lfoBank.b.topRow"]')!), JSON.stringify(tier)).toBe('column');
+        expect(orientationOf(container.querySelector('[data-panel-id="audioRig.lfoBank.b.driftRow"]')!), JSON.stringify(tier)).toBe('column');
+        unmount();
+      }
+    });
+
+    it('the nested rows render unframed — one Cabinetry facade per lane panel', () => {
+      const { container } = render(<LfoBankLanePanel lane="b" />);
+      expect(container.querySelectorAll('.sc-directional-panel-facade')).toHaveLength(1);
+    });
+
+    it('when drift is held off, the held-off note is a direct child of the lane panel after the drift row, not inside either nested row', () => {
+      useAudioStore.setState({ driftHeldOff: true });
+      const { container } = render(<LfoBankLanePanel lane="b" />);
+      const children = [...laneContent(container).children];
+      expect(children).toHaveLength(3);
+      expect(children[1].getAttribute('data-panel-id')).toBe('audioRig.lfoBank.b.driftRow');
+      expect(children[2].textContent).toContain('Held off by Audio Load');
+      expect(children[1].textContent).not.toContain('Held off by Audio Load');
+      // The drift rows carry the held-off class; the top row's rows do not.
+      const driftRow = container.querySelector('[data-panel-id="audioRig.lfoBank.b.driftRow"]')!;
+      expect(driftRow.querySelectorAll('.audio-rig-drawer__param-row.sc-held-off')).toHaveLength(2);
+      const topRow = container.querySelector('[data-panel-id="audioRig.lfoBank.b.topRow"]')!;
+      expect(topRow.querySelectorAll('.sc-held-off')).toHaveLength(0);
+    });
+
+    it('every lane gets its own row panel ids', () => {
+      for (const lane of LFO_LANE_IDS) {
+        const { container, unmount } = render(<LfoBankLanePanel lane={lane} />);
+        expect(container.querySelector(`[data-panel-id="audioRig.lfoBank.${lane}.topRow"]`), lane).not.toBeNull();
+        expect(container.querySelector(`[data-panel-id="audioRig.lfoBank.${lane}.driftRow"]`), lane).not.toBeNull();
+        unmount();
+      }
     });
   });
 
