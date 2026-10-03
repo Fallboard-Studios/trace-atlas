@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
@@ -13,6 +16,7 @@ vi.mock('@/utils/sessionShareUtils', () => ({
 }));
 
 import { SessionListItem } from './SessionListItem';
+import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { useSessionStore } from '@/stores/sessionStore';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { deleteNamedSession } from '@/utils/sessionStorageEngine';
@@ -81,6 +85,73 @@ describe('SessionListItem -- named entry', () => {
     render(<SessionListItem entry={makeEntry({ name: 'Deep Dive', savedAt })} />);
 
     expect(screen.getByText(formatSessionTimestamp(savedAt))).toBeTruthy();
+  });
+
+  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.6 (Save & Share): the timestamp sits beside its
+  // title. Before, the name was `flex: 1` and pushed the timestamp to the far end of the row, next to
+  // the buttons. Now name + timestamp form one `__title` group that takes the `flex: 1`.
+  describe('title group (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.6)', () => {
+    const cssSource = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'SessionListItem.css'), 'utf-8');
+
+    it('the timestamp is inside the same title group as the name, immediately after it', () => {
+      const savedAt = new Date('2026-09-28T14:14:00').getTime();
+      const { container } = render(<SessionListItem entry={makeEntry({ name: 'Deep Dive', savedAt })} />);
+      const title = container.querySelector('.session-list-item__title')!;
+      expect(title).not.toBeNull();
+      const name = screen.getByText('Deep Dive');
+      const time = screen.getByText(formatSessionTimestamp(savedAt));
+      expect(title.contains(name)).toBe(true);
+      expect(title.contains(time)).toBe(true);
+      expect(name.nextElementSibling).toBe(time);
+      expect([...title.children]).toHaveLength(2);
+    });
+
+    it('the three buttons are outside the title group, after it, in Load / Share / Delete order', () => {
+      const { container } = render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+      const title = container.querySelector('.session-list-item__title')!;
+      const buttons = screen.getAllByRole('button');
+      expect(buttons).toHaveLength(3);
+      for (const b of buttons) {
+        expect(title.contains(b)).toBe(false);
+        expect(title.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      }
+      expect(buttons.map((b) => b.textContent)).toEqual(buttons.map((b) => b.textContent).sort((a, b) => ['Load', 'Share', 'Delete'].findIndex((w) => a?.includes(w)) - ['Load', 'Share', 'Delete'].findIndex((w) => b?.includes(w))));
+    });
+
+    it('a share-status note, when shown, is outside the title group too', async () => {
+      vi.useFakeTimers();
+      (copySessionLink as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+      const { container } = render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+      });
+      const note = screen.getByRole('status');
+      expect(container.querySelector('.session-list-item__title')!.contains(note)).toBe(false);
+      vi.useRealTimers();
+    });
+
+    it('CSS: the title group takes the row\'s flex share and can shrink; the name itself no longer does', () => {
+      const title = getCssRuleBody(cssSource, '.session-list-item__title');
+      expect(title).not.toBeNull();
+      expect(title).toContain('flex: 1;');
+      expect(title).toContain('display: flex;');
+      expect(title).toContain('min-width: 0;');
+      expect(title).toMatch(/gap:\s*[\d.]+(rem|px);/);
+
+      const label = getCssRuleBody(cssSource, '.session-list-item__label');
+      expect(label).not.toBeNull();
+      expect(label).not.toMatch(/flex:\s*1/);
+      expect(label).toContain('min-width: 0;');
+      expect(label).toContain('text-overflow: ellipsis;');
+      expect(label).toContain('white-space: nowrap;');
+    });
+
+    it('CSS: the timestamp keeps its muted, small, no-wrap style', () => {
+      const savedAt = getCssRuleBody(cssSource, '.session-list-item__saved-at');
+      expect(savedAt).not.toBeNull();
+      expect(savedAt).toContain('white-space: nowrap;');
+      expect(savedAt).toContain('color: var(--color-text-muted);');
+    });
   });
 
   it('two different entries show two different saved times', () => {

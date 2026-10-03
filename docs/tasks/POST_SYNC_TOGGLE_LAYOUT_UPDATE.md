@@ -184,24 +184,28 @@ Parallelisable: 1 ‖ 3 ‖ 4 ‖ 5 ‖ 7 ‖ 9 ‖ 10; 2 and 8 wait on 1. Phase
 
 ### Phase 6: Settings
 
-- [ ] **Task 9: Seeds — Retransmit aligned left**
+- [x] **Task 9: Seeds — Retransmit aligned left**
 
   **Description:** Spec §1.6. `.sector-settings-drawer__retransmit { justify-content: flex-start; }`. A CSS source-scan assertion in `SectorSettingsDrawer.test.tsx` (or a tiny `SectorSettingsDrawer.css.test.ts`) pins it.
 
   **Acceptance criteria:**
-  - [ ] The scan finds `justify-content: flex-start` and not `flex-end` in that rule.
-  - [ ] Every existing drawer test (presets, Retransmit inputs, trait colours, no-literal) unchanged and green.
+  - [x] The scan finds `justify-content: flex-start` and not `flex-end` in that rule.
+  - [x] Every existing drawer test (presets, Retransmit inputs, trait colours, no-literal) unchanged and green.
+
+  **As built:** RED first (the CSS scan), then GREEN with one declaration. A DOM pin passed on first run and stays as the anchor that the scanned class is the one the button actually sits in, after both seed sections. Lint wanted the `node:` imports ahead of the library ones (import/order) — moved.
 
   **Verification:** `npx vitest run src/components/panels/screen/console/SectorSettingsDrawer.test.tsx` (RED first). **Dependencies:** None. **Files:** `SectorSettingsDrawer.css`, `SectorSettingsDrawer.test.tsx`. **Scope:** XS.
 
-- [ ] **Task 10: Save & Share — the timestamp sits beside its title**
+- [x] **Task 10: Save & Share — the timestamp sits beside its title**
 
   **Description:** Spec §1.6. `SessionListItem` wraps name + timestamp in `<span className="session-list-item__title">`; CSS: `__title { flex: 1; display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; }`, `__label` drops `flex: 1` and gains `min-width: 0` (keeps ellipsis), `__saved-at` unchanged. Buttons follow the group as before.
 
   **Acceptance criteria:**
-  - [ ] The timestamp element is inside the same `__title` group as the name and is its next sibling; Load / Share / Delete are outside the group, in that order.
-  - [ ] CSS scan: `__title` carries `flex: 1` and `min-width: 0`; `__label` no longer carries `flex: 1`.
-  - [ ] Every existing row test (Load/Share/Delete behaviour, "shows the entry's saved time next to its name", status notes, delete confirm, no-literal) unchanged and green.
+  - [x] The timestamp element is inside the same `__title` group as the name and is its next sibling; Load / Share / Delete are outside the group, in that order.
+  - [x] CSS scan: `__title` carries `flex: 1` and `min-width: 0`; `__label` no longer carries `flex: 1`.
+  - [x] Every existing row test (Load/Share/Delete behaviour, "shows the entry's saved time next to its name", status notes, delete confirm, no-literal) unchanged and green.
+
+  **As built:** RED first (4 cases: the group's exact two children with the timestamp the name's next sibling, the three buttons outside and after it in order, the share-status note outside it, the CSS scan), then GREEN with the `__title` span and its rule; `__label` keeps ellipsis and gains `min-width: 0` so a long name still truncates inside the group. The timestamp's own style is pinned unchanged. `SessionsPanel.test.tsx` and the Settings integration test stayed green. **Mutation check run:** restoring `flex: 1` on `__label` turned the scan red.
 
   **Verification:** `npx vitest run src/components/panels/screen/console/SessionListItem.test.tsx src/components/panels/screen/console/SessionsPanel.test.tsx` (RED first). **Mutation check:** restore `flex: 1` on `__label` and watch the scan go red.
   **Dependencies:** None. **Files:** `SessionListItem.tsx`, `SessionListItem.css`, `SessionListItem.test.tsx`. **Scope:** S.

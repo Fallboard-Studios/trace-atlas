@@ -56,8 +56,13 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
 
   return (
     <div className="session-list-item">
-      <span className="session-list-item__label">{label}</span>
-      <span className="session-list-item__saved-at">{formatSessionTimestamp(entry.savedAt)}</span>
+      {/* Name + timestamp form one title group that takes the row's flex share, so the timestamp sits
+          beside the name rather than being pushed to the far end next to the buttons
+          (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.6). */}
+      <span className="session-list-item__title">
+        <span className="session-list-item__label">{label}</span>
+        <span className="session-list-item__saved-at">{formatSessionTimestamp(entry.savedAt)}</span>
+      </span>
       <Button schema={loadSchema} onClick={handleLoad} />
       <Button schema={shareSchema} onClick={handleShare} />
       <Button schema={deleteSchema} onClick={() => setConfirmOpen(true)} />
