@@ -74,12 +74,14 @@ export interface SignatureArrayLayerProps {
 }
 
 /**
- * One layer's own Type radio, then Gain/Detune each paired with their own inline `LfoLink`
- * (docs/specs/LFO_BANK.md section 1.5, assumption 10 — replaces the shared `Lfo`/`LfoTargetGroup`
- * display: a target no longer owns a shape/rate of its own, it links to one of the 4 world lanes
- * at a depth, so the select-then-edit indirection no longer earns its own state machine). Phase
- * and Interval still render as their own plain rows — neither is a modulation target (Phase since
- * docs/specs/LFO_BANK.md Task 1, Interval since docs/specs/LFO_LOAD_FIX.md assumption 9).
+ * One layer's own Type radio beside Gain, then Gain's inline `LfoLink` row, Detune, Detune's
+ * `LfoLink` row, and Phase (beside Interval on a pulse layer) — docs/specs/
+ * POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4. The per-field `LfoLink` is docs/specs/LFO_BANK.md
+ * section 1.5, assumption 10 — it replaced the shared `Lfo`/`LfoTargetGroup` display: a target no
+ * longer owns a shape/rate of its own, it links to one of the 4 world lanes at a depth, so the
+ * select-then-edit indirection no longer earns its own state machine. Phase and Interval carry no
+ * link — neither is a modulation target (Phase since docs/specs/LFO_BANK.md Task 1, Interval since
+ * docs/specs/LFO_LOAD_FIX.md assumption 9).
  *
  * Extracted out of `SignatureArrayDrawerInner`'s own `.map()` and `React.memo`-wrapped
  * (docs/todo/backlog.md #27 follow-up, 2026-09-15) — found live: editing one layer's Gain
@@ -147,24 +149,47 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
   const handleGainLinkChange = useCallback((v: LfoLinkValue) => onLfoFieldChange(idx, gainTarget, v), [idx, gainTarget, onLfoFieldChange]);
   const handleDetuneLinkChange = useCallback((v: LfoLinkValue) => onLfoFieldChange(idx, detuneTarget, v), [idx, detuneTarget, onLfoFieldChange]);
 
+  // Phase is rendered in one of two places (beside Interval, or alone) — one element, placed once.
+  const phaseSlider = (
+    <div className="signature-array-drawer__param">
+      <SliderLinear
+        schema={phaseParam.schema as SliderLinearSchema}
+        value={paramValue(layer, 'phase')}
+        onChange={handlePhaseChange}
+        disabled={disabled}
+        swelling={swelling?.phase}
+      />
+    </div>
+  );
+
+  // Row layout (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4): Type | Gain share a nested
+  // 'responsive' top row; Gain's Lane | Depth link is the full-width row under it (not inside Gain's
+  // half — assumption 3); then Detune, then Detune's link; then Phase | Interval as a nested row while
+  // Interval is shown, or Phase alone with no nested panel. Every slider is horizontal (config), so no
+  // verticalHeight is forwarded. Each control keeps its own __param wrapper.
   return (
     <DirectionalPanel schema={block.panel}>
       <div className="signature-array-drawer__layer" data-layer-key={block.key}>
-        <RadioButton
-          schema={typeParam.schema as RadioButtonSchema}
-          value={layer.type}
-          onChange={handleTypeChange}
-          disabled={disabled}
-        />
+        <DirectionalPanel schema={block.rows.typeGain}>
+          <div className="signature-array-drawer__param">
+            <RadioButton
+              schema={typeParam.schema as RadioButtonSchema}
+              value={layer.type}
+              onChange={handleTypeChange}
+              disabled={disabled}
+            />
+          </div>
+          <div className="signature-array-drawer__param">
+            <SliderLinear
+              schema={gainParam.schema as SliderLinearSchema}
+              value={paramValue(layer, 'gain')}
+              onChange={handleGainChange}
+              disabled={disabled}
+              swelling={swelling?.gain}
+            />
+          </div>
+        </DirectionalPanel>
         <div className="signature-array-drawer__param">
-          <SliderLinear
-            schema={gainParam.schema as SliderLinearSchema}
-            value={paramValue(layer, 'gain')}
-            onChange={handleGainChange}
-            disabled={disabled}
-            verticalHeight={(gainParam.schema as SliderLinearSchema).verticalHeight}
-            swelling={swelling?.gain}
-          />
           <LfoLink schema={gainLinkSchema} value={gainLink} onChange={handleGainLinkChange} disabled={disabled} />
         </div>
         <div className="signature-array-drawer__param">
@@ -173,32 +198,27 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
             value={paramValue(layer, 'detune')}
             onChange={handleDetuneChange}
             disabled={disabled}
-            verticalHeight={(detuneParam.schema as SliderCenteredZeroSchema).verticalHeight}
             swelling={swelling?.detune}
           />
-          <LfoLink schema={detuneLinkSchema} value={detuneLink} onChange={handleDetuneLinkChange} disabled={disabled} />
         </div>
         <div className="signature-array-drawer__param">
-          <SliderLinear
-            schema={phaseParam.schema as SliderLinearSchema}
-            value={paramValue(layer, 'phase')}
-            onChange={handlePhaseChange}
-            disabled={disabled}
-            verticalHeight={(phaseParam.schema as SliderLinearSchema).verticalHeight}
-            swelling={swelling?.phase}
-          />
+          <LfoLink schema={detuneLinkSchema} value={detuneLink} onChange={handleDetuneLinkChange} disabled={disabled} />
         </div>
-        {showPulseWidth && (
-          <div className="signature-array-drawer__param signature-array-drawer__interval">
-            <SliderLinear
-              schema={pulseWidthParam.schema as SliderLinearSchema}
-              value={paramValue(layer, 'pulseWidth')}
-              onChange={handlePulseWidthChange}
-              disabled={disabled}
-              verticalHeight={(pulseWidthParam.schema as SliderLinearSchema).verticalHeight}
-              swelling={swelling?.pulseWidth}
-            />
-          </div>
+        {showPulseWidth ? (
+          <DirectionalPanel schema={block.rows.phaseInterval}>
+            {phaseSlider}
+            <div className="signature-array-drawer__param signature-array-drawer__interval">
+              <SliderLinear
+                schema={pulseWidthParam.schema as SliderLinearSchema}
+                value={paramValue(layer, 'pulseWidth')}
+                onChange={handlePulseWidthChange}
+                disabled={disabled}
+                swelling={swelling?.pulseWidth}
+              />
+            </div>
+          </DirectionalPanel>
+        ) : (
+          phaseSlider
         )}
       </div>
     </DirectionalPanel>
