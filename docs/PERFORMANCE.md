@@ -49,7 +49,7 @@ The default step sequence: power on → open Fleet Params → open each of its a
 - **Throttling is main-thread only.** `Emulation.setCPUThrottlingRate` does not slow compositor or raster worker threads. Treat throttled numbers as a *relative* signal for main-thread work, not a phone simulator.
 - **Headless Chrome's raster/compositing path differs from a phone GPU's.** Paint and compositing figures (roadmap 17.2.5) are directional until confirmed on real hardware.
 - **Audio isn't measured directly.** Headless Chrome has no real audio output (`--mute-audio` is on). The 100 ms threshold is the *proxy* for an audible pause; confirm by ear on a real device.
-- **The world is random per load unless pinned.** For like-for-like comparisons (especially audio load) load `?seed=<word>&x=<int>&y=<int>` — `?seed=` alone leaves the locale coordinates random, so robots, BPM and day phase still differ between runs (see [PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md)). The harness does not add these params itself; pass them via `--url`. Baselines recorded before 2026-09-19 were taken on random worlds.
+- **The world is random per load unless pinned.** For like-for-like comparisons (especially audio load) pin it: a `?session=` shareable link (Phase 21) is what pins a world now — `?seed=`/`?x=`/`?y=`, which the older sections below still cite, were removed on 2026-09-28. The harness does not add these params itself; pass them via `--url`. `perf:idle` sidesteps this by running every variant in one session on one world. Baselines recorded before 2026-09-19 were taken on random worlds.
 - **Run-to-run variance is large** (e.g. Probes at 4× throttle: 2.3 s in one run, 3.9 s in another — background robot/swell activity differs per run). Run 3× and compare medians, and only trust differences bigger than that spread.
 - **Trace durations overlap.** A `FunctionCall` contains its own layouts, so compare an event's total across runs, never across event names.
 - **Trace `RasterTask` totals are unstable** between runs (worker-thread events); ignore them.
@@ -763,6 +763,59 @@ Consistent with every presets measurement elsewhere in this doc: Standard and Li
 ### Why pre-branch saturates so hard on these two particular worlds
 
 The gap here (pre-branch ≈0.99, this-branch ≈0.35–0.45) is much larger than the ≈0.40-vs-0.44 gap the old (now-suspect) `charlie`/`bravo` numbers showed. That is not a measurement error: `attenuationStyleName` is now a literal, human-chosen string (not a raw seed), so hashing the strings `"charlie"`/`"bravo"` through the pre-branch's own per-target LFO seed generator is an unrelated draw from the one the old `?seed=` scheme made — and this particular draw happens to light up many robot targets with non-trivial rate/depth and drift enabled, which Full never capped or disabled on the old engine (documented hazard, "Robot-LFO cost by target type" section above: "at Full, robot LFOs are uncapped and carry drift, so the hazard there is real"). The callback interval staying near 10–13 ms (not doubling to ~21 ms) during this shows the audio thread is genuinely close to its limit, not that the harness is misreading. This is a legitimate same-session, same-world A/B — the Bank's bounded four-lane design is precisely what keeps the new engine calm on a world that saturates the old one, which is the result Task 19 exists to check for.
+
+## Idle paint & composite — roadmap 17.2.5 (2026-10-02)
+
+The last of the 17.2.x series: with nothing open, the main thread was ~84 % busy at 4× throttle, almost all of it native paint/composite work (the "(program)" row in the idle profile above). This section records how it was localized, the two fixes that landed, one that was measured and reverted, and what remains.
+
+### The localizer — `npm run perf:idle`
+
+`scripts/perf/idle-paint.mjs` traces the powered-on blank hub in **one Chrome session on one world** (so every variant is comparable) and answers "what repaints every frame?" two ways:
+
+- **Attribution:** every `Paint` trace event names the DOM node it painted; the stock window reports paint time per node, resolved to a selector, plus the clip area.
+- **Ablation:** the same 6 s window is re-traced with one suspect switched off at a time — a `<style>` injected into the page (no rebuild), or, for the moving nodes, the nodes *removed* from the DOM. It also summarizes Chrome's invalidation-tracking events (`StyleRecalc` / `Layout` reason + node), which is what names the culprit directly.
+
+Flags: `--throttle n` (default 4), `--window ms` (6000), `--width px` (1280), `--url`, `--only a,b` (ablation names; `stock` always runs first), `--help` lists the ablations. Each row reports main-thread busy time (`RunTask` on the renderer main thread), frames, `Paint` count/ms, `PaintArtifactCompositor::Update` ms, style/layout ms and JS buckets. Two things learned building it: pick the renderer main thread by its `thread_name` metadata (the busiest thread in a trace is not it), and `display: none` is **not** "nothing moves" — GSAP keeps writing transforms to a hidden element and Blink still invalidates style for it, so the moving-node ablations detach the nodes instead.
+
+### What was found (main `368e5cd4`, desktop 1280×900, production build, 6 s windows)
+
+Every frame, the whole ocean scene repainted at full viewport size (the `div.world-view` row, clip 1280×900, one paint per frame), and the factories were what made each repaint expensive:
+
+| Variant (one session, 1× throttle) | main busy (ms) | Paint (ms) | Compositor::Update (ms) |
+|---|---|---|---|
+| stock | 3121 | 1096 | 840 |
+| no factories (hidden) | 2060 | 95 | 135 |
+| bubbles detached | 3164 | 992 | 721 |
+| bubbles + robots detached (fill transitions still on) | 2509 | 943 | 11 |
+| bubbles + robots detached + fill transitions off | **897** | **23** | 13 |
+
+Two independent causes, each sufficient to repaint the whole scene every frame:
+
+1. **The CSS `fill 4.8s` transition on every lighting-driven factory fill** (`FILL_TRANSITION`). Lightness is rounded to a whole number and steps every ~2 s, so with a 4.8 s transition some fill was *always* mid-transition, and a running transition style-invalidates its element on every frame (`StyleRecalc Animation` on hundreds of `rect`/`polygon` nodes). With the moving nodes gone this alone was 943 ms of paint per 6 s.
+2. **Robots and bubbles moving inside the same `<svg>` as the sixty static factories.** Any transform write dirtied the one paint layer, so the factories re-rasterized every frame. Removing the factories cut paint from 1096 to 95 ms with the same number of paints.
+
+The flicker overlay (`.screen-viewport::before`), the rocker light pulse and the depth-gradient rects were all ruled out (no change when switched off).
+
+### Fixes — the ledger (all unthrottled, 6 s idle window, same session; `npm run perf:idle --only none --url …` against three served builds)
+
+| Build | main busy (ms) | Paint (ms) | Compositor::Update (ms) | Verdict |
+|---|---|---|---|---|
+| main `368e5cd4` | 3229 | 1006 | 773 | baseline |
+| fix 1 — `FILL_TRANSITION` removed (`a70b9022`) | 2093 | 900 | 718 | **kept** — −35 % busy; paint barely moves (the robots still repaint the scene) but the per-frame style recalc of every factory fill is gone |
+| fix 1 + fix 2 — scene split into static/moving layers (`c4a61d15`) | 1672 | 147 | 446 | **kept** — paint −85 % vs main; the factory layers now paint 6 times per 6 s (the lighting tick), the moving layers every frame |
+| fix 3 — robots as HTML-positioned, individually composited divs (not committed) | 1404 / 1788 / 1793 vs fix 2's 1377 / 1748 / 1817 (three interleaved rounds) | 82–114 | 457–495 | **reverted** — inside run-to-run noise |
+
+At 4× throttle fix 1+2 reads paint 416 ms / compositor 1319 ms per 6 s against ~2000 / ~1600 on main; the main thread is still saturated there because the JS half (below) alone fills it at 4×.
+
+**Fix 2's shape** (OceanScene.tsx): four stacked `<svg>` layers sharing the viewBox and `xMidYMid slice` fit — static back (background + midground factories and the depth gradients), moving robots, moving bubbles, static front (foreground factories). The moving layers carry `will-change: transform` so they are compositor layers of their own. Bubbles moved out of `Factory.tsx` into `BubbleLayer` (vent/seed/tint/depth derived in `factoryBubbleProps.ts`); z-order is unchanged except that every building's bubbles now rise above the robots and below the foreground row.
+
+**Why fix 3 did nothing:** the hypothesis was that the remaining `PaintArtifactCompositor::Update` (~450 ms per 6 s) came from the robots' SVG `<g>` transforms rebuilding the paint property tree every frame — detaching the robots does take it from ~390 to 9 ms. But with each robot an HTML `div` with `will-change: transform` the compositor update stayed at 457–495 ms, so it is the twelve moving layers themselves (or GSAP's per-frame style writes) that cost it, not the SVG transforms. The propellers were also checked (detached: −40 ms paint, −100 ms compositor) and are not worth a change.
+
+### What remains at idle (fix 1+2, unthrottled)
+
+- **Robots: ≈ 800 ms per 6 s** (removing them: 1580 → 749 ms busy). GSAP ticker JS, per-robot SVG relayout, and the compositor update above. Not a paint problem any more; an architecture one (fewer moving things, or cheaper ones).
+- **JavaScript: ≈ 750 ms per 6 s of `FunctionCall` + ≈ 300 ms `TimerFire`** with the whole scene removed (`no-scene` ablation at 4×: 2.4 s of 6 s busy). The audio-swell `16n` tick and its store writes (noted under 17.2.1 above) live here; not investigated in this pass.
+- **Real phone: not yet confirmed.** Headless Chrome's software raster is not a phone GPU (caveats above), and the layer split trades per-frame paint for three extra full-screen compositor layers (≈ 10 MB each at the Pixel 8's 1080×2400). Crawford's Pixel run is the gate before this is called fixed.
 
 ## Recording a new baseline
 

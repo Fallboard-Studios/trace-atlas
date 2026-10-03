@@ -61,7 +61,10 @@ const ABLATIONS = [
   // Irreversible (sticky) steps, last: moving nodes are REMOVED from the DOM, not hidden — GSAP keeps writing transforms
   // to a display:none element and Blink still invalidates style/layout for it, so display:none is not "nothing moves".
   { name: 'detach-bubbles', sticky: true, js: `document.querySelectorAll(${JSON.stringify(BUBBLES)}).forEach((e) => e.remove())` },
-  { name: 'detach-bubbles+robots', sticky: true, js: `document.querySelectorAll('#robot-layer > g').forEach((e) => e.remove())` },
+  { name: 'detach-bubbles+robots', sticky: true, js: `document.querySelectorAll('#robot-layer > .robot').forEach((e) => e.remove())` },
+  // How much of a robot's per-frame cost is the body moving vs. the propeller spinning (docs/PERFORMANCE.md, 17.2.5:
+  // the propellers turned out to be a small share, and HTML-positioned robots were measured neutral and reverted).
+  { name: 'detach-propellers', sticky: true, js: `document.querySelectorAll('.propeller').forEach((e) => e.remove())` },
   { name: 'detached+no-transitions', css: '.ocean-scene * { transition: none !important; }' },
   { name: 'detached+all-anim-off', css: '.ocean-scene * { transition: none !important; } .screen-viewport::before, .rocker-light { animation: none !important; }' },
 ];
@@ -261,7 +264,7 @@ async function run(cdp) {
   const robots = await evaluate(`document.querySelectorAll('#robot-layer .robot').length`);
   const factories = await evaluate(`document.querySelectorAll('[data-factory-type]').length`);
   const bubbles = await evaluate(`document.querySelectorAll(${JSON.stringify(BUBBLES)}).length`);
-  const layers = await evaluate(`document.querySelectorAll('svg.ocean-scene__layer').length`);
+  const layers = await evaluate(`document.querySelectorAll('.ocean-scene__layer').length`);
   console.log(`Idle paint localizer — ${opts.url}, ${opts.throttle}x throttle, ${width}px, ${WINDOW_MS} ms windows`);
   console.log(`Scene: ${robots} robots, ${factories} factories, ${bubbles} circles in the bubble/factory layers, ${layers} scene layers (0 = the pre-17.2.5 single svg)\n`);
 
