@@ -5,6 +5,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import { createFactory, placeFactories, getRowConfig, getAllRowConfigs } from './factoryPlacementSystem';
 import { VARIANT_CONF, selectVariantFromSeed } from '../components/actors/factoryVariants';
+import { shiftHSL } from '../utils/colorUtils';
+import { computeAccentLean, hueArc, ACCENT_SAT_LIFT } from '../utils/accentLean';
 
 // duplicate constants from placement system for use in assertions
 const WORLD_BOUNDS = { width: 1920, height: 1080 };
@@ -457,6 +459,91 @@ describe('FactoryPlacementSystem', () => {
         expect(actor.config?.hueShift).toBe(local.hueShift);
         expect(actor.config?.satShift).toBe(local.satShift);
       });
+    });
+  });
+
+  // docs/specs/WORLD_PALETTE_PULL.md §1.3 / docs/tasks/WORLD_PALETTE_PULL.md Task 3: createFactory's
+  // optional trailing `accentTarget` folds the accent lean into the stored hueShift/satShift.
+  describe('accent lean (Phase 35) — createFactory accentTarget', () => {
+    const pos = { x: 500, y: 1000 };
+    const row = 1;
+    // Non-default AS shift on EVERY fixture (parity-test rule: an "unchanged" assertion must
+    // not be able to pass because both sides are zero).
+    const asShift = { hueShift: 10, satShift: -5 };
+
+    /** The body colour the lean is computed from: variant base + local + AS, exactly as the
+     *  implementation must compute it (spec §1.3). */
+    function bodyBeforeLean(id: string) {
+      const availableTypes = getRowConfig(row)?.availableFactoryTypes;
+      const local = selectVariantFromSeed(id, pos.x, row, availableTypes);
+      const combined = { hueShift: local.hueShift + asShift.hueShift, satShift: local.satShift + asShift.satShift };
+      return { combined, body: shiftHSL(VARIANT_CONF[local.variant].colors.body, combined) };
+    }
+
+    it('an explicit `undefined` accentTarget produces a byte-identical actor to omitting it (no lean = today)', () => {
+      const without = createFactory(pos, row, 1, 'lean-parity-id', asShift);
+      const withUndefined = createFactory(pos, row, 1, 'lean-parity-id', asShift, undefined);
+      expect(withUndefined).toStrictEqual(without);
+    });
+
+    it('with an accentTarget, the stored shift differs from local + AS by exactly computeAccentLean(bodyBeforeLean, target)', () => {
+      const id = 'lean-delta-id';
+      const { combined, body } = bodyBeforeLean(id);
+      const target = 172; // ≈ teal
+
+      const actor = createFactory(pos, row, 1, id, asShift, target);
+      const lean = computeAccentLean(body, target);
+
+      expect(actor.config?.hueShift).toBe(combined.hueShift + lean.hueShift);
+      expect(actor.config?.satShift).toBe(combined.satShift + ACCENT_SAT_LIFT);
+      // And the lean really is non-trivial for this fixture — otherwise the equality proves nothing.
+      expect(lean.hueShift).not.toBe(0);
+    });
+
+    it('moves the body hue strictly closer to the target without overshooting, for targets on both sides and across the 0/360 seam', () => {
+      const id = 'lean-arc-id';
+      const { body } = bodyBeforeLean(id);
+      const variant = selectVariantFromSeed(id, pos.x, row, getRowConfig(row)?.availableFactoryTypes).variant;
+      const base = VARIANT_CONF[variant].colors.body;
+
+      for (const target of [5, 100, 250, 355]) {
+        const actor = createFactory(pos, row, 1, id, asShift, target);
+        const after = shiftHSL(base, { hueShift: actor.config!.hueShift!, satShift: actor.config!.satShift! });
+        const arcBefore = hueArc(body.h, target);
+        const arcAfter = hueArc(after.h, target);
+        if (arcBefore === 0) {
+          expect(arcAfter, `target ${target}`).toBeCloseTo(0, 9);
+          continue;
+        }
+        expect(Math.abs(arcAfter), `target ${target}`).toBeLessThan(Math.abs(arcBefore));
+        expect(Math.sign(arcAfter), `target ${target}`).toBe(Math.sign(arcBefore));
+      }
+    });
+
+    it('a target across the seam pulls the short way round (via 360), never the long way through the hue wheel', () => {
+      // Graphite base is h≈200; local Skyscraper shift is ±120 so the pre-lean body can sit
+      // anywhere — so assert the direction relative to the body actually produced.
+      const id = 'lean-seam-id';
+      const { body } = bodyBeforeLean(id);
+      const variant = selectVariantFromSeed(id, pos.x, row, getRowConfig(row)?.availableFactoryTypes).variant;
+      const base = VARIANT_CONF[variant].colors.body;
+      const target = ((body.h + 170) % 360 + 360) % 360; // 170° away — the short arc is +170, not −190
+      const actor = createFactory(pos, row, 1, id, asShift, target);
+      const after = shiftHSL(base, { hueShift: actor.config!.hueShift!, satShift: actor.config!.satShift! });
+      // Half of +170 = +85 of travel in the positive direction.
+      expect(hueArc(body.h, after.h)).toBeCloseTo(85, 6);
+    });
+
+    it('leaves every non-colour field identical with and without an accentTarget', () => {
+      const without = createFactory(pos, row, 1, 'lean-rest-id', asShift);
+      const withTarget = createFactory(pos, row, 1, 'lean-rest-id', asShift, 20);
+      const { config: cW, ...restWithout } = without;
+      const { config: cT, ...restWith } = withTarget;
+      expect(restWith).toStrictEqual(restWithout);
+      const { hueShift: _h1, satShift: _s1, ...cfgWithout } = cW!;
+      const { hueShift: _h2, satShift: _s2, ...cfgWith } = cT!;
+      expect(cfgWith).toStrictEqual(cfgWithout);
+      expect(cT!.hueShift).not.toBe(cW!.hueShift); // the lean did land
     });
   });
 

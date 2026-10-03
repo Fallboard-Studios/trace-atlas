@@ -13,7 +13,8 @@ import { calcSilhouetteSize } from '../components/actors/silhouetteUtils';
 import { getLocaleNoiseMap, getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import { generateUUID } from '../utils/randomId';
-import type { ColorShift } from '../utils/colorUtils';
+import { shiftHSL, type ColorShift } from '../utils/colorUtils';
+import { computeAccentLean } from '../utils/accentLean';
 
 // ========================================
 // CONSTANTS
@@ -104,6 +105,11 @@ function deriveAsColorShift(noiseMap: NoiseFunction2D, index: number): ColorShif
  * at spawn time. The `Math.random()`/`crypto.randomUUID()` defaults only apply when calling
  * `createFactory` directly with no locale context (e.g. tests), the same fallback pattern
  * `generateMelodyForRobot`'s `rand` parameter uses.
+ *
+ * `accentTarget` (degrees, optional — docs/specs/WORLD_PALETTE_PULL.md §1.3): when present, the
+ * FINAL pre-lean body colour (variant base + local + AS shift) is pulled toward it and its
+ * saturation lifted, with both deltas folded into the stored hueShift/satShift so no renderer
+ * changes. `undefined` means no lean — byte-identical to the pre-Phase-35 output.
  */
 export function createFactory(
   position: { x: number; y: number },
@@ -111,12 +117,24 @@ export function createFactory(
   scale: number = 0.9 + Math.random() * 0.2, // 0.9–1.1
   id: string = generateUUID(),
   asShift: ColorShift = { hueShift: 0, satShift: 0 },
+  accentTarget?: number,
 ): Actor {
   // Use the same availableTypes that Factory.tsx will use, so the variant —
   // and therefore greeble pools — are consistent between spawn and render.
   const availableTypes = getRowConfig(row)?.availableFactoryTypes;
 
-  const { hueShift, satShift, rooftopGreeble, facadeGreeble, beltCourseCount, purpose } = selectVariantFromSeed(id, position.x, row, availableTypes);
+  const { variant, hueShift: localHue, satShift: localSat, rooftopGreeble, facadeGreeble, beltCourseCount, purpose } = selectVariantFromSeed(id, position.x, row, availableTypes);
+
+  // Additive: locale-seeded local shift + AS-seeded shift, never a
+  // replacement. See docs/specs/ATTENUATION_STYLE.md §1.2.
+  const combined = { hueShift: localHue + asShift.hueShift, satShift: localSat + asShift.satShift };
+  // Phase 35 accent lean — one more additive delta, computed from the body colour the
+  // combined shift actually produces, so the pull aims from where the building really sits.
+  const lean = accentTarget === undefined
+    ? { hueShift: 0, satShift: 0 }
+    : computeAccentLean(shiftHSL(VARIANT_CONF[variant].colors.body, combined), accentTarget);
+  const hueShift = combined.hueShift + lean.hueShift;
+  const satShift = combined.satShift + lean.satShift;
 
   return {
     id,
@@ -130,10 +148,8 @@ export function createFactory(
     config: {
       productionInterval: PRODUCTION_INTERVAL,
       row,
-      // Additive: locale-seeded local shift + AS-seeded shift, never a
-      // replacement. See docs/specs/ATTENUATION_STYLE.md §1.2.
-      hueShift: hueShift + asShift.hueShift,
-      satShift: satShift + asShift.satShift,
+      hueShift,
+      satShift,
       rooftopGreeble,
       facadeGreeble,
       beltCourseCount,
