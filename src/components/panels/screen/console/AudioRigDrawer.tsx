@@ -59,15 +59,17 @@ const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
 
 /** Dispatches a param's ControlSchema to its matching primitive. Covers only
  *  the 4 variants GLOBAL_CHAIN_GRID.md's UI column actually uses for this
- *  drawer — audioRigConfig.test.ts is what guards the closed set in practice. */
+ *  drawer — audioRigConfig.test.ts is what guards the closed set in practice.
+ *  No verticalHeight is forwarded: every Audio Rig slider is horizontal since
+ *  docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.2 (pinned in audioRigConfig.test.ts). */
 function renderParamControl(param: AudioRigParamSchema, value: number, onChange: (v: number) => void, swelling: boolean) {
   switch (param.schema.type) {
     case 'sliderLinear':
-      return <SliderLinear schema={param.schema} value={value} onChange={onChange} verticalHeight={param.schema.verticalHeight} swelling={swelling} />;
+      return <SliderLinear schema={param.schema} value={value} onChange={onChange} swelling={swelling} />;
     case 'sliderLog':
-      return <SliderLog schema={param.schema} value={value} onChange={onChange} verticalHeight={param.schema.verticalHeight} swelling={swelling} />;
+      return <SliderLog schema={param.schema} value={value} onChange={onChange} swelling={swelling} />;
     case 'sliderCenteredZero':
-      return <SliderCenteredZero schema={param.schema} value={value} onChange={onChange} verticalHeight={param.schema.verticalHeight} swelling={swelling} />;
+      return <SliderCenteredZero schema={param.schema} value={value} onChange={onChange} swelling={swelling} />;
     case 'stepper':
       return <Stepper schema={param.schema} value={value} onChange={onChange} />;
     default:

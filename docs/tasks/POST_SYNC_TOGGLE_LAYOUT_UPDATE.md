@@ -56,14 +56,16 @@ Parallelisable: 1 ‖ 3 ‖ 4 ‖ 5 ‖ 7 ‖ 9 ‖ 10; 2 and 8 wait on 1. Phase
 
 ### Phase 2: EQ & Filters slice
 
-- [ ] **Task 2: EQ and filter sliders go horizontal; their blocks become columns**
+- [x] **Task 2: EQ and filter sliders go horizontal; their blocks become columns**
 
   **Description:** Spec §1.2. In `audioRigConfig.ts`: `eq3.low/mid/high`, `filterLPF.frequency/Q`, `filterHPF.frequency/Q` → `orientation: 'horizontal'`, `verticalHeight` removed; `panelSchema('eq3' | 'filterLPF' | 'filterHPF', …, 'column')`. In `AudioRigDrawer.tsx`, `renderParamControl` stops forwarding `verticalHeight` (no schema carries it). The generic branch is otherwise untouched: each param-row already renders the slider then its `LfoLink`.
 
   **Acceptance criteria:**
-  - [ ] `audioRigConfig.test.ts`: the "3-Band EQ is vertical" / "LPF/HPF is vertical" cases become horizontal; the verticalHeight-budget cases become "declares no verticalHeight"; the panel-orientation case says every block panel is `'column'`.
-  - [ ] `AudioRigEffectPanel.test.tsx`: eq3/filterLPF/filterHPF panels are column-orientation; each band/param row holds a slider with `aria-orientation="horizontal"` followed by its `LfoLink`; inside that `LfoLink` the Lane radio precedes the Depth slider.
-  - [ ] Every LfoLink-wiring, held-off, swell-isolation and re-render test in both files unchanged and green.
+  - [x] `audioRigConfig.test.ts`: the "3-Band EQ is vertical" / "LPF/HPF is vertical" cases become horizontal; the verticalHeight-budget cases become "declares no verticalHeight"; the panel-orientation case says every block panel is `'column'`.
+  - [x] `AudioRigEffectPanel.test.tsx`: eq3/filterLPF/filterHPF panels are column-orientation; each band/param row holds a slider with `aria-orientation="horizontal"` followed by its `LfoLink`; inside that `LfoLink` the Lane radio precedes the Depth slider.
+  - [x] Every LfoLink-wiring, held-off, swell-isolation and re-render test in both files unchanged and green.
+
+  **As built:** RED first (8 cases: the two orientation flips, the two no-verticalHeight cases, a new whole-config "nothing vertical, no verticalHeight anywhere" pin, the config panel-orientation case, the component column case and the `aria-orientation="horizontal"` case), then GREEN with seven schema lines, three `panelSchema(..., 'column')` calls and three dropped `verticalHeight` forwards in `renderParamControl`. Two of the three new component pins (direct param-rows in config order with no nested panel; slider-then-LfoLink with Lane before Depth) were already true of the old structure and passed on first run — they are regression guards for the shape §1.2 relies on, not proof of the change; the RED set above is. The `AudioRigEffectKey` type import became unused in the config test and was removed. Both files green (95 + 91); lint and types clean.
 
   **Verification:** `npx vitest run src/data/audioRigConfig.test.ts src/components/panels/screen/console/AudioRigEffectPanel.test.tsx` (RED first); `npm run lint`, `npm run build:types`.
   **Dependencies:** 1. **Files:** `audioRigConfig.ts`, `audioRigConfig.test.ts`, `AudioRigDrawer.tsx`, `AudioRigEffectPanel.test.tsx`. **Scope:** M.

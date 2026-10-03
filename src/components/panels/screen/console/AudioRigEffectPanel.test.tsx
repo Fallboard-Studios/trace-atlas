@@ -144,8 +144,8 @@ describe('AudioRigEffectPanel', () => {
     });
   });
 
-  it('Delay/Reverb/Compressor/Limiter (no LFO group) render as column-orientation blocks', () => {
-    for (const [key, label] of [['delay', 'Delay'], ['reverb', 'Reverb'], ['compressor', 'Compressor'], ['limiter', 'Limiter']] as const) {
+  it('every effect block renders as a column-orientation panel — eq3/filterLPF/filterHPF included since docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.2 (they were row panels of vertical sliders)', () => {
+    for (const [key, label] of [['eq3', '3-Band EQ'], ['filterLPF', 'Low-Pass Filter'], ['filterHPF', 'High-Pass Filter'], ['delay', 'Delay'], ['reverb', 'Reverb'], ['compressor', 'Compressor'], ['limiter', 'Limiter']] as const) {
       const { unmount } = render(<AudioRigEffectPanel effectKey={key} />);
       const panel = screen.getByText(label).closest('.sc-directional-panel')!;
       expect(panel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation'), label).toBe('column');
@@ -153,18 +153,57 @@ describe('AudioRigEffectPanel', () => {
     }
   });
 
-  it("3-Band EQ's, Low-Pass's, and High-Pass's own sliders each render in a row-orientation panel (docs/specs/AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.4) — single panel now (Task 14, docs/tasks/LFO_BANK.md removed the old always-column outer group wrapper)", () => {
-    const { unmount: unmountEq } = render(<AudioRigEffectPanel effectKey="eq3" />);
-    const eqPanel = screen.getByRole('slider', { name: 'Bass' }).closest('.sc-directional-panel') as HTMLElement;
-    expect(eqPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
-    unmountEq();
+  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.2: each band / filter param is one stacked row holding
+  // a HORIZONTAL slider, then its LfoLink (Lane left, Depth right — LfoLink.css, Task 1). No new wrapper
+  // was needed: paramRow already renders "slider, then LfoLink" in one param-row div.
+  describe('EQ & Filters band rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.2)', () => {
+    const CASES = [
+      ['eq3', ['Bass', 'Mid', 'Treble']],
+      ['filterLPF', ['Cutoff', 'Resonance']],
+      ['filterHPF', ['Cutoff', 'Resonance']],
+    ] as const;
 
-    for (const key of ['filterLPF', 'filterHPF'] as const) {
-      const { unmount } = render(<AudioRigEffectPanel effectKey={key} />);
-      const slidersPanel = screen.getByRole('slider', { name: 'Cutoff' }).closest('.sc-directional-panel') as HTMLElement;
-      expect(slidersPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation'), key).toBe('row');
-      unmount();
-    }
+    it('renders every EQ band and filter param slider horizontally', () => {
+      for (const [key, names] of CASES) {
+        const { unmount } = render(<AudioRigEffectPanel effectKey={key} />);
+        for (const name of names) {
+          expect(screen.getByRole('slider', { name }).getAttribute('aria-orientation'), `${key} ${name}`).toBe('horizontal');
+        }
+        unmount();
+      }
+    });
+
+    it('stacks the bands/params as direct param-rows of the block, in config order, with no nested row panel', () => {
+      for (const [key, names] of CASES) {
+        const { unmount } = render(<AudioRigEffectPanel effectKey={key} />);
+        const content = screen.getByRole('slider', { name: names[0] }).closest('.sc-directional-panel')!
+          .querySelector(':scope > .sc-directional-panel__content')!;
+        const rows = [...content.querySelectorAll(':scope > .audio-rig-drawer__param-row')];
+        expect(rows, key).toHaveLength(names.length);
+        rows.forEach((row, i) => {
+          expect(within(row as HTMLElement).getByRole('slider', { name: names[i] }), `${key} row ${i}`).toBeTruthy();
+        });
+        expect(content.querySelector(':scope > .sc-directional-panel'), key).toBeNull();
+        unmount();
+      }
+    });
+
+    it("each row is the band's slider, then its LfoLink with the Lane radio before the Depth slider", () => {
+      for (const [key, names] of CASES) {
+        const { unmount } = render(<AudioRigEffectPanel effectKey={key} />);
+        for (const name of names) {
+          const slider = screen.getByRole('slider', { name });
+          const row = slider.closest('.audio-rig-drawer__param-row') as HTMLElement;
+          const link = row.querySelector('.sc-lfo-link') as HTMLElement;
+          expect(link, `${key} ${name} link`).toBeTruthy();
+          expect(slider.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING, `${key} ${name}: link after slider`).toBeTruthy();
+          const lane = within(link).getByRole('radio', { name: 'Off' });
+          const depth = within(link).getByRole('slider');
+          expect(lane.compareDocumentPosition(depth) & Node.DOCUMENT_POSITION_FOLLOWING, `${key} ${name}: Lane before Depth`).toBeTruthy();
+        }
+        unmount();
+      }
+    });
   });
 
   it('renders a param control bound to its live store value', () => {
