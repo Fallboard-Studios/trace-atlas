@@ -45,16 +45,12 @@ const GAMMA = 2.2;
 // EXPORTS
 // ========================================
 
-/**
- * CSS `transition` value applied to every SVG element whose `fill` is driven
- * by the lighting system.  One full quantise step is 4 measures; at 60 BPM
- * each measure is ~4 s, so 4 measures ≈ 16 s.  A 4.8 s ease-in-out covers
- * ~30 % of that window — long enough to look smooth, short enough to stay
- * responsive.
- *
- * Import this constant anywhere an SVG element needs a lighting fade.
- */
-export const FILL_TRANSITION = 'fill 4.8s ease-in-out';
+// There is deliberately no CSS `transition` for lighting-driven fills any more (roadmap 17.2.5,
+// 2026-10-02). The old `FILL_TRANSITION = 'fill 4.8s ease-in-out'` was written for a 4-measure
+// quantise step that no longer exists: lighting now follows the per-second local-time tick with
+// whole-number lightness rounding (colorUtils.ts), so a fill steps by ~1 % every ~2 s — and a
+// running `fill` transition style-invalidates its element on every frame, which kept the whole
+// ocean scene repainting at idle (scripts/perf/idle-paint.mjs). Steps that small need no easing.
 
 /**
  * Computes how "dark" the scene currently is as a 0–1 scalar.

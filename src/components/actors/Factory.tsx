@@ -6,7 +6,7 @@ import { selectVariantFromSeed, VARIANT_CONF, isBubbleEligible } from './factory
 import { getRowConfig, DEFAULT_FACTORY_ROW } from '../../systems/factoryPlacementSystem';
 import { calcSilhouetteSize, bottomAnchorTransform } from './silhouetteUtils';
 import { applyColorShift, shiftHSL, clamp } from '../../utils/colorUtils';
-import { getLighting, getNightDepth, FLICKER_PERIOD, FILL_TRANSITION, DAY_CYCLE_MEASURES } from '../../utils/lightingUtils';
+import { getLighting, getNightDepth, FLICKER_PERIOD, DAY_CYCLE_MEASURES } from '../../utils/lightingUtils';
 import { ROOFTOP_RENDERERS, ROOFTOP_LAYOUT_PAINT } from './greebles/rooftopGreebles';
 import { FACADE_RENDERERS, FACADE_LAYOUT_PAINT } from './greebles/facadeGreebles';
 import type { RooftopGreeble, FacadeGreeble, GreebleRendererContext, GreebleElement, GreebleRenderer } from './greebles/greebleTypes';
@@ -362,8 +362,8 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor, totalBubbleBuildings = 1 
       const beltElements: React.ReactElement[] = beltSeparatorYs.map((by, i) => (
         // Belt separators: left rect = west face, right rect = east face
         <React.Fragment key={`belt-${i}`}>
-          <rect x={0} y={by} width={frontCornerX} height={BELT_H} fill={westBeltFill} style={{ transition: FILL_TRANSITION }} />
-          <rect x={frontCornerX} y={by} width={100 - frontCornerX} height={BELT_H} fill={eastBeltFill} style={{ transition: FILL_TRANSITION }} />
+          <rect x={0} y={by} width={frontCornerX} height={BELT_H} fill={westBeltFill} />
+          <rect x={frontCornerX} y={by} width={100 - frontCornerX} height={BELT_H} fill={eastBeltFill} />
         </React.Fragment>
       ));
       facadeContent = <>{zoneElements}</>;
@@ -397,9 +397,12 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor, totalBubbleBuildings = 1 
 
         <g transform={`scale(${(width * (actor.scaleX ?? 1)) / 100}, ${(height * (actor.scaleY ?? 1)) / 100})`}>
           {/* Body: base rect = left (west) face; overlay clipped to right (east) face */}
-          <rect x="0" y="0" width="100" height="100" fill={westFill} style={{ transition: FILL_TRANSITION }} />
+          {/* No CSS transition on these fills (roadmap 17.2.5): a running `fill` transition
+              style-invalidates its element every frame, and with lightness stepping every ~2 s
+              some fill was always mid-transition — the whole scene repainted at idle. */}
+          <rect x="0" y="0" width="100" height="100" fill={westFill} />
           <g clipPath={`url(#${westClipId})`}>
-            <rect x="0" y="0" width="100" height="100" fill={eastFill} style={{ transition: FILL_TRANSITION }} />
+            <rect x="0" y="0" width="100" height="100" fill={eastFill} />
           </g>
           {/* Facade greebles clipped to body bounds */}
           <g clipPath={`url(#${bodyClipId})`}>{facadeContent}</g>

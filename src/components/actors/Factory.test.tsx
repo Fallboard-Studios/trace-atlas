@@ -278,6 +278,29 @@ describe('Factory — lighting-dependent greebles change across a lighting tick'
   });
 });
 
+describe('Factory — no CSS transition on lighting fills (roadmap 17.2.5)', () => {
+  // The idle paint localizer (scripts/perf/idle-paint.mjs, 2026-10-02) found the whole ocean
+  // scene repainting on every frame at idle, and one of the two causes was the `fill 4.8s`
+  // CSS transition on every lighting-driven body/belt/rooftop fill: the rounded lightness
+  // steps every ~2 s, so with a 4.8 s transition some fill is ALWAYS mid-transition, and a
+  // running transition style-invalidates its element on every frame. With the moving nodes
+  // removed, that alone was 943 ms of paint per 6 s unthrottled (23 ms with transitions off).
+  // A 1 %-lightness step every ~2 s needs no easing to look smooth.
+  it.each(ALL_VARIANTS)('%s: no element carries an inline transition', (variant) => {
+    const actor = makeActor({ rooftopGreeble: 'pitchedRoof', facadeGreeble: 'squareWindows', beltCourseCount: 2 }, idsByVariant[variant]);
+    setLocalTime(12);
+    const { container } = render(<Factory actor={actor} />);
+    expect(container.querySelectorAll('[style*="transition"]').length).toBe(0);
+  });
+
+  it.each(['steppeRoof', 'crownSpire'] as const)('rooftop %s: no element carries an inline transition', (rooftopGreeble) => {
+    const actor = makeActor({ rooftopGreeble, facadeGreeble: undefined }, idsByVariant.Skyscraper);
+    setLocalTime(12);
+    const { container } = render(<Factory actor={actor} />);
+    expect(container.querySelectorAll('[style*="transition"]').length).toBe(0);
+  });
+});
+
 describe('Factory — regression guard (documents pre-fix behavior; tightened by Task 4)', () => {
   // This isn't the call-count spy the spec's Task 4 will add (nothing to spy on yet — the
   // static/dynamic split doesn't exist until then). It just confirms the tick really does
