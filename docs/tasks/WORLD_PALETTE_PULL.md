@@ -45,7 +45,7 @@ Parallelisable: 6 ‖ 3–5 (6 only needs 2). Everything else is a chain.
 
 ### Phase 1: Foundations (no importers yet)
 
-- [ ] **Task 1: `src/utils/colorUtils.ts` — `hexToHsl`, and `traitColors.ts` delegates to it**
+- [x] **Task 1: `src/utils/colorUtils.ts` — `hexToHsl`, and `traitColors.ts` delegates to it** — commit `84f3b4cf`. As built: oracle values pinned from a verbatim scratch copy of the pre-refactor private helpers (teal / burntOrange); `traitColors.test.ts` gained the whole-palette `desaturateHex(x, 0) === x` sweep (only the orange case existed).
 
   **Description:** Add `export function hexToHsl(hex: string): HSL` to `colorUtils.ts` (6-digit `#rrggbb` only — the 18 accent hues are all 6-digit; `white: '#fff'` is not in `ROBOT_IDENTITY_COLOR_NAMES`). Then replace `traitColors.ts`'s private `hexToRgb` + `rgbToHsl` pair with a call to it inside `desaturateHex` (keep `hslToRgb`/`rgbToHex` there — they have no colorUtils equivalent and are out of scope). RED step first: pin, in `colorUtils.test.ts`, the current `traitColors.ts` output for two accent hex values (compute them with the private helpers *before* editing, via `desaturateHex(hex, 0)` round-trip, which returns the hex unchanged only if h/s/l survive) so the delegation is a proven parity refactor.
 
@@ -64,7 +64,7 @@ Parallelisable: 6 ‖ 3–5 (6 only needs 2). Everything else is a chain.
 
   **Estimated scope:** S (one new function, one delegation, tests)
 
-- [ ] **Task 2: `src/utils/accentLean.ts` — accent hues, arcs, `computeAccentLean`**
+- [x] **Task 2: `src/utils/accentLean.ts` — accent hues, arcs, `computeAccentLean`** — commit `8bdae4ae`. As built: `computeAccentLeanWith` adds `+ 0` so a negative arc × fraction 0 yields `+0`, not `-0` (caught by the fraction-0 case). Mutation 1 (long-way `hueArc`) went red in 3 tests as predicted; mutation 2 (`ACCENT_PULL_FRACTION = 1`) was caught by the constant-pin test, **not** the half-arc sweep — the sweep passes explicit fractions by design so Checkpoint B tuning can't break it; the pin is the intended tripwire.
 
   **Description:** New pure module per spec §1.1: `ACCENT_PULL_FRACTION = 0.5`, `ACCENT_SAT_LIFT = 15` (each with the glass-overlay "why this number" doc comment), `ACCENT_HUES` (18 entries, `ROBOT_IDENTITY_COLOR_NAMES` order, computed once at import via `hexToHsl`), `hueArc`, `nearestAccentIndex`, `secondaryFor`, `AccentPair`, `computeAccentLeanWith(body, targetHue, fraction, lift)` and `computeAccentLean(body, targetHue)` which binds the two constants. No store, React, Tone or content import. Nothing imports it yet.
 
@@ -86,8 +86,8 @@ Parallelisable: 6 ‖ 3–5 (6 only needs 2). Everything else is a chain.
   **Estimated scope:** S (one new module + test)
 
 ### Checkpoint A: Foundations
-- [ ] `npm run build:types`, `npm run lint` clean; `npx vitest run src/utils` green.
-- [ ] Proven so far: hex→HSL is one shared conversion with pinned parity; the hue math is exact and wrap-safe; the 18-hue table matches the palette; nothing in the app has changed behaviour (no importers).
+- [x] `npm run build:types`, `npm run lint` clean; `npx vitest run src/utils` green (36 files, 927 tests, 2026-10-02).
+- [x] Proven so far: hex→HSL is one shared conversion with pinned parity; the hue math is exact and wrap-safe; the 18-hue table matches the palette; nothing in the app has changed behaviour (no importers).
 - [ ] Reviewed with Crawford before Phase 2.
 
 ---
