@@ -1,17 +1,16 @@
 import React, { useMemo } from 'react';
-import Alea from 'alea';
 
 import type { Actor } from '../../types/Actor';
-import { selectVariantFromSeed, VARIANT_CONF, isBubbleEligible } from './factoryVariants';
+import { selectVariantFromSeed, VARIANT_CONF } from './factoryVariants';
+import { hashActorId } from './factoryBubbleProps';
 import { getRowConfig, DEFAULT_FACTORY_ROW } from '../../systems/factoryPlacementSystem';
 import { calcSilhouetteSize, bottomAnchorTransform } from './silhouetteUtils';
 import { applyColorShift, shiftHSL, clamp } from '../../utils/colorUtils';
-import { getLighting, getNightDepth, FLICKER_PERIOD, FILL_TRANSITION, DAY_CYCLE_MEASURES } from '../../utils/lightingUtils';
+import { getLighting, getNightDepth, FLICKER_PERIOD, DAY_CYCLE_MEASURES } from '../../utils/lightingUtils';
 import { ROOFTOP_RENDERERS, ROOFTOP_LAYOUT_PAINT } from './greebles/rooftopGreebles';
 import { FACADE_RENDERERS, FACADE_LAYOUT_PAINT } from './greebles/facadeGreebles';
 import type { RooftopGreeble, FacadeGreeble, GreebleRendererContext, GreebleElement, GreebleRenderer } from './greebles/greebleTypes';
 import { useUIStore } from '../../stores/uiStore';
-import BubbleStream from './BubbleStream';
 
 // ========================================
 // DEBUG LIGHTING
@@ -41,23 +40,6 @@ const DEBUG_LIGHTING_PRESET = null as keyof typeof LIGHTING_PRESETS | null;
 
 /** Belt course thickness in normalised 0-100 SVG units. */
 const BELT_H = 2;
-
-// ========================================
-// HELPERS
-// ========================================
-
-/**
- * Deterministic pseudo-random integer derived from the full actor id, used
- * for `buildingSeed`. Real factory ids all share a `factory-{index}-` prefix
- * (see `factoryPlacementSystem.ts`'s `generateFactoryId`), so seeding from
- * only a fixed-length prefix — the previous `parseInt(id.slice(0, 8), 16)` —
- * landed on the same value for every building. Reuses the same `Alea` PRNG
- * every other id-seeded value in this codebase goes through (e.g.
- * `factoryVariants.ts`'s `selectVariantFromSeed`) rather than a bespoke hash.
- */
-function hashActorId(id: string): number {
-  return Math.floor(Alea(id)() * 0x100000000);
-}
 
 // ========================================
 // STATIC/DYNAMIC GREEBLE RESOLUTION
@@ -109,19 +91,14 @@ interface FacadeZoneStatic {
 
 interface FactoryProps {
   actor: Actor;
-  /**
-   * Total number of bubble-eligible buildings in the current locale. Each
-   * building's own bubble-burst interval scales with this count so the
-   * *aggregate* burst rate across the whole world stays roughly constant —
-   * see `BubbleStream`'s docblock. Defaults to 1 (a single building bursting
-   * on its own base interval) for standalone rendering/tests.
-   */
-  totalBubbleBuildings?: number;
 }
 
-
-
-const FactoryInner: React.FC<FactoryProps> = ({ actor, totalBubbleBuildings = 1 }) => {
+/**
+ * The building's bubbles are NOT rendered here any more (roadmap 17.2.5): they live in
+ * `BubbleLayer`, a scene layer of their own, so their per-frame transform writes stop repainting
+ * every static factory in this layer. See `factoryBubbleProps.ts` for the vent derivation.
+ */
+const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
   // Everything below is actor-derived and fixed for the factory's lifetime (per-instance
   // config fields are all documented "read-only after spawn" — see Actor.ts) — computed once
   // per mount, never recomputed by the once/sec lighting tick that drives the render below.
@@ -285,10 +262,6 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor, totalBubbleBuildings = 1 
   /** Average used for elements spanning the full roof width */
   const roofLMultiplier = (eastLMultiplier + westLMultiplier) / 2;
 
-  // --- bubble vent helper values
-  const isOffline = actor.config?.isOffline ?? false;
-  const isActive = !isOffline;
-
   // Apply lightness multipliers to body color using already-shifted palette
   const eastFill = applyColorShift(shiftedColors.body, { hueShift: 0, satShift: 0 }, eastLMultiplier);
   const westFill = applyColorShift(shiftedColors.body, { hueShift: 0, satShift: 0 }, westLMultiplier);
@@ -297,13 +270,6 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor, totalBubbleBuildings = 1 
   const safeId = String(actor.id).replace(/[^a-zA-Z0-9-_]/g, '-');
   const bodyClipId = `body-clip-${safeId}`;
   const westClipId = `west-clip-${safeId}`;
-
-  // --- bubble vent coordinates (scene space) ---------------------------------
-  const ventXnorm = (buildingSeed % 60) + 20; // 20–80% of normalised width
-  // ventXWorld combines the local building offset (ventXnorm) with actor.position.x for world space
-  const ventXWorld = actor.position.x + (ventXnorm / 100) * actualWidth;
-  // ventY is top edge of building in world coords
-  const ventY = actor.position.y - actualHeight;
 
   const rooftopPaintCtx: GreebleRendererContext = {
     buildingWidth: actualWidth,
@@ -362,19 +328,14 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor, totalBubbleBuildings = 1 
       const beltElements: React.ReactElement[] = beltSeparatorYs.map((by, i) => (
         // Belt separators: left rect = west face, right rect = east face
         <React.Fragment key={`belt-${i}`}>
-          <rect x={0} y={by} width={frontCornerX} height={BELT_H} fill={westBeltFill} style={{ transition: FILL_TRANSITION }} />
-          <rect x={frontCornerX} y={by} width={100 - frontCornerX} height={BELT_H} fill={eastBeltFill} style={{ transition: FILL_TRANSITION }} />
+          <rect x={0} y={by} width={frontCornerX} height={BELT_H} fill={westBeltFill} />
+          <rect x={frontCornerX} y={by} width={100 - frontCornerX} height={BELT_H} fill={eastBeltFill} />
         </React.Fragment>
       ));
       facadeContent = <>{zoneElements}</>;
       beltContent = <>{beltElements}</>;
     }
   }
-
-  // Derive bubble depth scale from the row layer label.
-  // foreground rows get full-size bubbles; midground = half; background = one-third.
-  const rowLabel = getRowConfig(actor.config?.row ?? 0)?.row;
-  const bubbleDepthScale = rowLabel === 'background' ? 1 / 3 : rowLabel === 'midground' ? 0.5 : 1;
 
   return (
     <>
@@ -397,9 +358,12 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor, totalBubbleBuildings = 1 
 
         <g transform={`scale(${(width * (actor.scaleX ?? 1)) / 100}, ${(height * (actor.scaleY ?? 1)) / 100})`}>
           {/* Body: base rect = left (west) face; overlay clipped to right (east) face */}
-          <rect x="0" y="0" width="100" height="100" fill={westFill} style={{ transition: FILL_TRANSITION }} />
+          {/* No CSS transition on these fills (roadmap 17.2.5): a running `fill` transition
+              style-invalidates its element every frame, and with lightness stepping every ~2 s
+              some fill was always mid-transition — the whole scene repainted at idle. */}
+          <rect x="0" y="0" width="100" height="100" fill={westFill} />
           <g clipPath={`url(#${westClipId})`}>
-            <rect x="0" y="0" width="100" height="100" fill={eastFill} style={{ transition: FILL_TRANSITION }} />
+            <rect x="0" y="0" width="100" height="100" fill={eastFill} />
           </g>
           {/* Facade greebles clipped to body bounds */}
           <g clipPath={`url(#${bodyClipId})`}>{facadeContent}</g>
@@ -410,22 +374,6 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor, totalBubbleBuildings = 1 
         {rooftopElement}
       </g>
       {/* end scaled/positioned factory group */}
-
-      {/* bubble vent animation (scene coordinates) - placed outside transform group */}
-      {
-        isBubbleEligible(actor.config?.purpose) && (
-          <BubbleStream
-            actorId={actor.id}
-            ventX={ventXWorld}
-            ventY={ventY}
-            seed={buildingSeed}
-            isActive={isActive}
-            bodyHue={shiftedColors.body.h}
-            depthScale={bubbleDepthScale}
-            totalBuildings={totalBubbleBuildings}
-          />
-        )
-      }
     </>
   );
 };

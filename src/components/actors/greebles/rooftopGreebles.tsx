@@ -1,7 +1,6 @@
 import React from 'react';
 import type { RooftopGreeble, GreebleRendererContext, GreebleRenderer, GreebleElement } from './greebleTypes';
 import { hslToString, applyColorShift } from '../../../utils/colorUtils';
-import { FILL_TRANSITION } from '../../../utils/lightingUtils';
 import colorTheme from '../../../constants/colorTheme.json';
 
 // ========================================
@@ -179,8 +178,8 @@ export function paintPitchedRoof(layout: PitchedRoofLayout | null, ctx: GreebleR
 
   return (
     <>
-      <polygon points={layout.slopePoints} fill={westFill} style={{ transition: FILL_TRANSITION }} />
-      <polygon points={layout.wallPoints} fill={eastFill} style={{ transition: FILL_TRANSITION }} />
+      <polygon points={layout.slopePoints} fill={westFill} />
+      <polygon points={layout.wallPoints} fill={eastFill} />
     </>
   );
 }
@@ -292,12 +291,12 @@ export function paintCrownSpire(layout: CrownSpireLayout, ctx: GreebleRendererCo
     const eastFill = applyColorShift(ctx.colors.accent, noShift, ctx.eastLMultiplier!);
     layout.tiers.forEach((tier, i) => {
       elements.push(
-        <rect key={`front-${i}`} x={tier.frontX} y={tier.y} width={tier.frontW} height={tier.height} fill={westFill} style={{ transition: FILL_TRANSITION }} />,
-        <rect key={`side-${i}`} x={tier.sideX} y={tier.y} width={tier.sideW} height={tier.height} fill={eastFill} style={{ transition: FILL_TRANSITION }} />,
+        <rect key={`front-${i}`} x={tier.frontX} y={tier.y} width={tier.frontW} height={tier.height} fill={westFill} />,
+        <rect key={`side-${i}`} x={tier.sideX} y={tier.y} width={tier.sideW} height={tier.height} fill={eastFill} />,
       );
     });
     elements.push(
-      <rect key="antenna" x={layout.antenna.x} y={layout.antenna.y} width={layout.antenna.width} height={layout.antenna.height} fill={westFill} style={{ transition: FILL_TRANSITION }} />,
+      <rect key="antenna" x={layout.antenna.x} y={layout.antenna.y} width={layout.antenna.width} height={layout.antenna.height} fill={westFill} />,
     );
   } else {
     const fill = hslToString(ctx.colors.accent);

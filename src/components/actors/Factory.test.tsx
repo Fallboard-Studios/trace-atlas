@@ -2,14 +2,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { act, render } from '@testing-library/react';
 import { vi } from 'vitest';
 
-// Same isolation reasoning as FactoryBubbleStream.test.tsx: BubbleStream's own timing/GSAP
-// internals are irrelevant to what this file verifies (lighting-driven re-render behavior),
-// so it's stubbed out rather than exercised.
-vi.mock('./BubbleStream', () => ({
-  __esModule: true,
-  default: () => <div data-testid="bubble-stream-stub" />,
-}));
-
 import { Factory } from './Factory';
 import { selectVariantFromSeed } from './factoryVariants';
 import type { FactoryVariant } from './factoryVariants';
@@ -275,6 +267,29 @@ describe('Factory — lighting-dependent greebles change across a lighting tick'
 
     setLocalTime(0);
     expect(getFacadeHTML(container)).not.toBe(dayHTML);
+  });
+});
+
+describe('Factory — no CSS transition on lighting fills (roadmap 17.2.5)', () => {
+  // The idle paint localizer (scripts/perf/idle-paint.mjs, 2026-10-02) found the whole ocean
+  // scene repainting on every frame at idle, and one of the two causes was the `fill 4.8s`
+  // CSS transition on every lighting-driven body/belt/rooftop fill: the rounded lightness
+  // steps every ~2 s, so with a 4.8 s transition some fill is ALWAYS mid-transition, and a
+  // running transition style-invalidates its element on every frame. With the moving nodes
+  // removed, that alone was 943 ms of paint per 6 s unthrottled (23 ms with transitions off).
+  // A 1 %-lightness step every ~2 s needs no easing to look smooth.
+  it.each(ALL_VARIANTS)('%s: no element carries an inline transition', (variant) => {
+    const actor = makeActor({ rooftopGreeble: 'pitchedRoof', facadeGreeble: 'squareWindows', beltCourseCount: 2 }, idsByVariant[variant]);
+    setLocalTime(12);
+    const { container } = render(<Factory actor={actor} />);
+    expect(container.querySelectorAll('[style*="transition"]').length).toBe(0);
+  });
+
+  it.each(['steppeRoof', 'crownSpire'] as const)('rooftop %s: no element carries an inline transition', (rooftopGreeble) => {
+    const actor = makeActor({ rooftopGreeble, facadeGreeble: undefined }, idsByVariant.Skyscraper);
+    setLocalTime(12);
+    const { container } = render(<Factory actor={actor} />);
+    expect(container.querySelectorAll('[style*="transition"]').length).toBe(0);
   });
 });
 

@@ -3,6 +3,7 @@
 // ========================================
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, cleanup, act } from '@testing-library/react';
+import type { ReactElement } from 'react';
 
 // A plain vi.fn(), not React.memo-wrapped — deliberately, so its own call count is a reliable
 // proxy for "did OceanScene's render body reconstruct the robot layer again" (docs/todo/
@@ -10,6 +11,12 @@ import { render, cleanup, act } from '@testing-library/react';
 // technique RobotOptionsTab.test.tsx/CompanyOptionsSection.test.tsx already use.
 vi.mock('@/components/robot/Robot', () => ({ Robot: vi.fn(() => null) }));
 vi.mock('@/components/actors/Factory', () => ({ Factory: () => null, default: () => null }));
+// Records what the scene hands its bubble layer (which factories, what total) without running
+// BubbleStream's GSAP timelines.
+const bubbleLayerMock = vi.fn((_props: { factories: { id: string }[]; totalBuildings: number }): ReactElement | null => null);
+vi.mock('@/components/actors/BubbleLayer', () => ({
+  BubbleLayer: (props: { factories: { id: string }[]; totalBuildings: number }) => bubbleLayerMock(props),
+}));
 
 const initializeLocaleMock = vi.fn();
 vi.mock('@/systems/worldTransition', () => ({
@@ -46,6 +53,9 @@ import { OceanScene } from './OceanScene';
 import { Robot } from '@/components/robot/Robot';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '@/stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
+import { getAllRowConfigs } from '@/systems/factoryPlacementSystem';
+import { ActorType } from '@/types/Actor';
+import type { Actor } from '@/types/Actor';
 import type { Robot as RobotType } from '@/types/Robot';
 
 function makeRobot(overrides: Partial<RobotType> = {}): RobotType {
@@ -185,6 +195,92 @@ describe('OceanScene', () => {
       });
 
       expect((Robot as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsAfterMount);
+    });
+  });
+
+  describe('scene layers (roadmap 17.2.5 — idle paint)', () => {
+    // The idle paint localizer (scripts/perf/idle-paint.mjs) found one <svg> holding sixty static
+    // factories AND every moving robot and bubble, so every GSAP transform write repainted the whole
+    // scene at full viewport size on every frame. The scene is now four stacked <svg> layers:
+    // static back (background + midground factories and the depth gradients), moving bubbles, moving
+    // robots, static front (foreground factories). Z-order within the old single svg is preserved
+    // except that every building's bubbles now rise behind the robots (Crawford's call, 2026-10-02:
+    // foreground-row bubbles used to pass in front of them) and below the foreground row.
+    const rowIndexFor = (label: 'background' | 'midground' | 'foreground'): number =>
+      getAllRowConfigs().findIndex((r) => r.row === label);
+    const makeFactory = (id: string, row: number, purpose: 'heavyIndustry' | 'observationComms' = 'heavyIndustry'): Actor => ({
+      id, type: ActorType.FACTORY, position: { x: 100, y: 900 }, isActive: true, cooldownRemaining: 0, config: { row, purpose },
+    });
+
+    beforeEach(() => {
+      bubbleLayerMock.mockClear();
+      useLocaleStore.setState({
+        locales: {
+          [DEFAULT_LOCALE_ID]: {
+            ...DEFAULT_LOCALE,
+            robots: [makeRobot({ id: 'r1' })],
+            actors: [
+              makeFactory('bg-1', rowIndexFor('background')),
+              makeFactory('mid-1', rowIndexFor('midground'), 'observationComms'),
+              makeFactory('fg-1', rowIndexFor('foreground')),
+            ],
+          },
+        },
+      });
+    });
+
+    it('renders four svg layers in back → bubbles → robots → front order, all inside the scene box', () => {
+      const { container } = render(<OceanScene />);
+      const scene = container.querySelector('.ocean-scene');
+      expect(scene?.tagName.toLowerCase()).toBe('div');
+      const layers = Array.from(scene!.querySelectorAll(':scope > svg.ocean-scene__layer'));
+      expect(layers.map((l) => l.getAttribute('data-scene-layer'))).toEqual(['back', 'bubbles', 'robots', 'front']);
+    });
+
+    it('every layer shares the viewBox and the cover (slice) fit of the old single svg', () => {
+      const { container } = render(<OceanScene />);
+      for (const layer of container.querySelectorAll('svg.ocean-scene__layer')) {
+        expect(layer.getAttribute('viewBox')).toBe('0 0 1920 1080');
+        expect(layer.getAttribute('preserveAspectRatio')).toBe('xMidYMid slice');
+      }
+    });
+
+    it('marks the robots and bubbles layers as moving, and the back and front layers as not', () => {
+      const { container } = render(<OceanScene />);
+      const byName = (name: string) => container.querySelector(`svg[data-scene-layer="${name}"]`)!;
+      expect(byName('robots').classList.contains('ocean-scene__layer--moving')).toBe(true);
+      expect(byName('robots').classList.contains('ocean-scene__layer--robots')).toBe(true);
+      expect(byName('bubbles').classList.contains('ocean-scene__layer--moving')).toBe(true);
+      expect(byName('back').classList.contains('ocean-scene__layer--moving')).toBe(false);
+      expect(byName('front').classList.contains('ocean-scene__layer--moving')).toBe(false);
+    });
+
+    it('keeps the factory rows and the robot layer in their layers: background + midground (with the depth gradients) in back, robots in robots, foreground in front', () => {
+      const { container } = render(<OceanScene />);
+      const back = container.querySelector('svg[data-scene-layer="back"]')!;
+      expect(back.querySelector('#factory-background-layer')).not.toBeNull();
+      expect(back.querySelector('#gradient-back-mid')).not.toBeNull();
+      expect(back.querySelector('#factory-midground-layer')).not.toBeNull();
+      expect(back.querySelector('#gradient-mid-front')).not.toBeNull();
+      expect(back.querySelector('#factory-foreground-layer')).toBeNull();
+      expect(container.querySelector('svg[data-scene-layer="robots"] #robot-layer')).not.toBeNull();
+      expect(container.querySelector('svg[data-scene-layer="front"] #factory-foreground-layer')).not.toBeNull();
+      expect(container.querySelector('svg[data-scene-layer="front"] #robot-layer')).toBeNull();
+    });
+
+    it('hands the bubble layer every factory (all rows) and the locale-wide bubble-eligible count', () => {
+      render(<OceanScene />);
+      expect(bubbleLayerMock).toHaveBeenCalled();
+      const props = bubbleLayerMock.mock.calls.at(-1)![0];
+      expect(props.factories.map((f) => f.id).sort()).toEqual(['bg-1', 'fg-1', 'mid-1']);
+      expect(props.totalBuildings).toBe(2); // mid-1 is observationComms — no vent
+    });
+
+    it('keeps the bubble layer inside the bubbles svg', () => {
+      bubbleLayerMock.mockImplementation(() => <g data-testid="bubble-layer-stub" />);
+      const { container } = render(<OceanScene />);
+      expect(container.querySelector('svg[data-scene-layer="bubbles"] [data-testid="bubble-layer-stub"]')).not.toBeNull();
+      bubbleLayerMock.mockImplementation(() => null);
     });
   });
 });

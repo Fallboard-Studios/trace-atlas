@@ -32,6 +32,8 @@ without touching any of those other fields. See
 | File | Purpose |
 |------|---------|
 | `src/components/actors/Factory.tsx` | Renders the silhouette + greebles for a given actor |
+| `src/components/actors/BubbleLayer.tsx` | Every building's `BubbleStream`, in the scene's own bubble layer (roadmap 17.2.5) |
+| `src/components/actors/factoryBubbleProps.ts` | Vent position, seed, tint and depth for a building's bubbles, from the actor alone |
 | `src/components/actors/factoryVariants.ts` | `VARIANT_CONF`, variant selection, type definitions |
 | `src/components/actors/silhouetteUtils.ts` | Colour math, sizing, greeble generation, anchor transforms |
 | `src/systems/factoryPlacementSystem.ts` | Row configs, placement logic |
@@ -229,8 +231,8 @@ When factories are created at runtime, `createFactory` stashes per-instance deri
 - `cooldownRemaining` — initialised to `PRODUCTION_INTERVAL` so production scheduling and UI can read a serialisable cooldown value.
 
 Other related runtime details:
-- Bubble/vent timing: each building's burst interval is `TARGET_GLOBAL_BURST_INTERVAL_SECONDS * totalBuildings` (currently 4s × the locale's total bubble-eligible building count, computed once in `OceanScene.tsx` and threaded through `Factory`'s `totalBubbleBuildings` prop) — plain wall-clock time, deliberately decoupled from `bpm`/measures since the effect is decorative, not musical. This spreads bursts so roughly one building bubbles every ~4s world-wide, rather than every building bursting on the same fixed interval regardless of how many buildings exist. Per-burst parameters (count, radius, stagger, wobble, rise) are seeded; see `src/components/actors/BubbleStream.tsx`.
-- `depthScale` (foreground 1, midground 0.5, background 1/3 — derived from the row label in `Factory.tsx`) scales bubble radius, wobble amplitude and the minimum rise height so vents in distant rows read as smaller and further away. Rise speed is not scaled.
+- Bubble/vent timing: each building's burst interval is `TARGET_GLOBAL_BURST_INTERVAL_SECONDS * totalBuildings` (currently 4s × the locale's total bubble-eligible building count, computed once in `OceanScene.tsx` and passed to `BubbleLayer`'s `totalBuildings` prop) — plain wall-clock time, deliberately decoupled from `bpm`/measures since the effect is decorative, not musical. This spreads bursts so roughly one building bubbles every ~4s world-wide, rather than every building bursting on the same fixed interval regardless of how many buildings exist. Per-burst parameters (count, radius, stagger, wobble, rise) are seeded; see `src/components/actors/BubbleStream.tsx`.
+- `depthScale` (foreground 1, midground 0.5, background 1/3 — derived from the row label in `factoryBubbleProps.ts`) scales bubble radius, wobble amplitude and the minimum rise height so vents in distant rows read as smaller and further away. Rise speed is not scaled.
 
 Runtime files to reference:
 - `src/components/actors/factoryVariants.ts` — variant config and `selectVariantFromSeed` (PRNG draw order).
@@ -620,9 +622,12 @@ BPM or to measures; the effect is decorative, not musical.
 - Eligibility: `purpose` is one of `heavyIndustry`, `chemicalProcessing`,
   `pipeWorks`, `storageLogistics` (Skyscraper's `observationComms` is the only
   variant without a vent). An unset `purpose` falls back to `heavyIndustry`.
-- One `BubbleStream` per building, rendered outside the building's transform
-  group in scene coordinates. Vent X is seeded to 20–80% of the facade width;
-  vent Y is the roofline.
+- One `BubbleStream` per building, rendered by `BubbleLayer` in scene
+  coordinates inside the scene's own bubble layer — a compositor layer separate
+  from the static factory layers (roadmap 17.2.5; `Factory.tsx` itself renders
+  no bubbles). Vent X is seeded to 20–80% of the facade width; vent Y is the
+  roofline (`factoryBubbleProps.ts`). Bubbles from every row share the one
+  layer: they rise behind the robots and below the foreground factories.
 - Each burst releases 5–10 bubbles (seeded), each its own `<circle>` placed at
   the vent once via `cx`/`cy`/`r`. Bubbles are released `0.2–0.4 s` apart
   (seeded), rise `100–500 px` at `40–70 px/s` (so duration follows distance),
@@ -636,7 +641,7 @@ BPM or to measures; the effect is decorative, not musical.
   resetting every bubble to `x:0, y:0, scale:1, opacity:0`.
 - Burst interval per building = `TARGET_GLOBAL_BURST_INTERVAL_SECONDS` (4 s)
   × the locale's bubble-eligible building count (`OceanScene.tsx` →
-  `Factory`'s `totalBubbleBuildings` prop). Each building also gets a seeded
+  `BubbleLayer`'s `totalBuildings` prop). Each building also gets a seeded
   initial phase offset within its own interval so bursts never line up.
 - One GSAP timeline per building (`gsap.timeline({ repeat: -1 })` holding one
   child timeline per bubble), stored in `timelineMap` under `bubble-{actorId}`
