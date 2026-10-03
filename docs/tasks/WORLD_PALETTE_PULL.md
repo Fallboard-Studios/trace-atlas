@@ -179,15 +179,15 @@ Parallelisable: 6 ‖ 3–5 (6 only needs 2). Everything else is a chain.
 ### Checkpoint B: Wiring complete — the real success criterion
 - [x] `npm run build:types`, `npm run lint`, `npm test` all clean (full suite: 215 files / 4913 tests green on the first run, 2026-10-02; none of the known-flaky tests tripped).
 - [x] `npm run build` clean.
-- [ ] **Crawford's visual check (`npm run dev`):** same `?session=` link on `main` and on this branch, with the Nav panel and a Content pane open over the world. Pass = visibly less grey; buildings read as one family that belongs with the console; robots stand out rather than blend; the 75%-opaque panels are not muddy or oversaturated. Then retransmit a different Attenuation Style and confirm the skyline moves to a different family. Some buildings still reading grey is **expected and accepted** (spec §7 item 1).
+- [x] **Crawford's visual check (`npm run dev`):** same `?session=` link on `main` and on this branch, with the Nav panel and a Content pane open over the world. Pass = visibly less grey; buildings read as one family that belongs with the console; robots stand out rather than blend; the 75%-opaque panels are not muddy or oversaturated. Then retransmit a different Attenuation Style and confirm the skyline moves to a different family. Some buildings still reading grey is **expected and accepted** (spec §7 item 1). **Passed 2026-10-02 after two tuning rounds** (red → warm cap; lime → band table): "ok looks good".
 - [x] If strength is off, one tuning commit changes `ACCENT_PULL_FRACTION` and/or `ACCENT_SAT_LIFT` only (Task 2's sweep tests are constant-agnostic by design — only the `computeAccentLean === computeAccentLeanWith(…constants)` binding case reads them, and it stays green). Record the final numbers in the spec's §1.1 and §7 item 5. **As built (2026-10-02):** Crawford's first look — "a little too heavy on the red, otherwise it looks great … like candy a lot of the time". Not a strength problem across the board, so neither constant moved; the tuning commit instead added a warm-band saturation cap (`isWarmHue`, `ACCENT_WARM_BAND_START/END` 330/45, `ACCENT_WARM_SAT_CAP` 45 — spec §1.1 amendment), RED-first in `accentLean.test.ts` (5 new cases), and the Task 3/4/5 saturation assertions were changed to follow the matched target's `computeAccentLean(...).satShift` rather than a flat lift (they had been passing only because no fixture skyline landed warm). **Second look:** "red looks good now" but "a lime green sticks out from time to time" → the warm band became row 1 of `SAT_CAP_BANDS` and lime (`{ 80, 115, 45 }`) row 2, via `satCapFor(hue)`; yellow/emerald/green pinned uncapped by name (5 more RED-first cases). Awaiting Crawford's third look.
-- [ ] Reviewed with Crawford before docs.
+- [x] Reviewed with Crawford before docs ("finish it up", 2026-10-02).
 
 ---
 
 ### Phase 3: Docs
 
-- [ ] **Task 7: BUILDING_DESIGN.md, PROCEDURAL_GENERATION.md, roadmap §35 — document the shipped behaviour**
+- [x] **Task 7: BUILDING_DESIGN.md, PROCEDURAL_GENERATION.md, roadmap §35 — document the shipped behaviour** — As built: BUILDING_DESIGN.md gained an intro paragraph plus a full "Accent Lean" subsection under Color System (including both cap bands); PROCEDURAL_GENERATION.md's call-site row and Gotchas name the two new dataIds and `ACCENT_PAIR_OFFSET`; roadmap §35 written; idea + intent files carry a "Shipped" header note. Every identifier grep-checked against `src/` before commit.
 
   **Description:** BUILDING_DESIGN.md "Color System": add the lean step after the AS-shift paragraph (what it does, the two constants and their final tuned values, the body-as-reference rule, that bubbles inherit it, that lightness is deliberately untouched and grey buildings are accepted). PROCEDURAL_GENERATION.md call-site table: `factoryPlacementSystem.ts` row gains `'factory.as.accentPrimary'` (fixed offset, Attenuation Style map) and `'factory.as.accentPick'`; "Gotchas" gets a one-line pointer that `ACCENT_PAIR_OFFSET` exists because of the lattice collapse. `docs/todo/roadmap.md`: **Phase 35 "World Palette Pull"** in the house shape (requested-by 2026-10-02, links to idea/intent/spec/plan, status, About, Not Doing carried from the intent — robots, Ballast neutrals, per-building variety, hard snap, lightness). Spot-check every identifier against the final shipped source, not this plan.
 
@@ -207,11 +207,11 @@ Parallelisable: 6 ‖ 3–5 (6 only needs 2). Everything else is a chain.
   **Estimated scope:** S (docs only, five files)
 
 ### Checkpoint C: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] All automated acceptance criteria across Tasks 1–7 met.
-- [ ] Docs match shipped names.
-- [ ] Checkpoint B's visual check explicitly recorded as done (with the final constants) or explicitly flagged as outstanding — never silently skipped.
-- [ ] Ready for PR against `main` (description links spec §1 + intent; one other reviewer; attribution line per session reminder).
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (full suite 215 files / 4924 tests, 2026-10-02).
+- [x] All automated acceptance criteria across Tasks 1–7 met.
+- [x] Docs match shipped names (grep-verified).
+- [x] Checkpoint B's visual check recorded as done: passed after two tuning rounds. Final constants: `ACCENT_PULL_FRACTION` 0.5, `ACCENT_SAT_LIFT` 15, `SAT_CAP_BANDS` warm 330→45 and lime 80→115 both capped at 45, `ACCENT_PAIR_OFFSET` 0.37.
+- [ ] Ready for PR against `main` (description links spec §1 + intent; one other reviewer; attribution line per session reminder). **Branch is unpushed; PR not yet opened — Crawford's call.**
 
 ## Risks and Mitigations
 

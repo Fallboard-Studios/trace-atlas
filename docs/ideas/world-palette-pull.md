@@ -1,5 +1,7 @@
 # World Palette Pull
 
+> **Shipped (roadmap Phase 35, 2026-10-02)** — see [docs/intent/world-palette-pull.md](../intent/world-palette-pull.md), [docs/specs/WORLD_PALETTE_PULL.md](../specs/WORLD_PALETTE_PULL.md), [docs/tasks/WORLD_PALETTE_PULL.md](../tasks/WORLD_PALETTE_PULL.md). The interview narrowed this one-pager: robots dropped, a saturation lift added, pair per style. This file is kept as the idea-stage record.
+
 Refined 2026-10-02 via the idea-refine skill. First of three sequenced branches:
 world-palette-pull → parametric-robot-hull → layer-pods-and-follow-through.
 

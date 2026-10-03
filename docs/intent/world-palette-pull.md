@@ -1,5 +1,7 @@
 # Intent: World Palette Pull (factories & bubbles)
 
+> **Shipped (roadmap Phase 35, 2026-10-02)** — spec [docs/specs/WORLD_PALETTE_PULL.md](../specs/WORLD_PALETTE_PULL.md), plan [docs/tasks/WORLD_PALETTE_PULL.md](../tasks/WORLD_PALETTE_PULL.md). Two visual-checkpoint tunings (warm and lime saturation caps) are recorded in the spec's §1.1 amendments; every decision below held.
+
 Confirmed via `interview-me` on 2026-10-02, ahead of a `spec-driven-development` pass. Refined
 from [docs/ideas/world-palette-pull.md](../ideas/world-palette-pull.md); the interview narrowed
 that one-pager in two ways recorded below (robots dropped, saturation lift added).
