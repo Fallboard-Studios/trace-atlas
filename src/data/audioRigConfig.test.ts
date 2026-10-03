@@ -311,13 +311,34 @@ describe('LFO_BANK_LANE_SCHEMAS (docs/specs/LFO_BANK.md Task 15)', () => {
     }
   });
 
-  it('every id across all 4 lanes (5 fields each) is unique', () => {
+  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.1: Shape | Rate (over its Tempo Sync toggle) share a
+  // top row, Rate Drift | Depth Drift share a drift row — each a nested 'responsive' panel (side by side
+  // on desktop, stacked below), unlabeled, so the lane panel's own label is the only heading.
+  it("every lane's topRow and driftRow are unlabeled 'responsive' directionalPanels under the lane's own id", () => {
+    for (const lane of LFO_LANE_IDS) {
+      const schema = LFO_BANK_LANE_SCHEMAS[lane];
+      expect(schema.topRow, `${lane}.topRow`).toEqual({ id: `audioRig.lfoBank.${lane}.topRow`, type: 'directionalPanel', orientation: 'responsive' });
+      expect(schema.driftRow, `${lane}.driftRow`).toEqual({ id: `audioRig.lfoBank.${lane}.driftRow`, type: 'directionalPanel', orientation: 'responsive' });
+      expect('humanLabel' in schema.topRow, `${lane}.topRow label`).toBe(false);
+      expect('loreLabel' in schema.driftRow, `${lane}.driftRow label`).toBe(false);
+    }
+  });
+
+  it("the row panels are never 'auto' (per-parent measuring) or a fixed 'row' — only the shared viewport tier decides", () => {
+    for (const lane of LFO_LANE_IDS) {
+      const schema = LFO_BANK_LANE_SCHEMAS[lane];
+      expect(['auto', 'row', 'column']).not.toContain(schema.topRow.orientation);
+      expect(['auto', 'row', 'column']).not.toContain(schema.driftRow.orientation);
+    }
+  });
+
+  it('every id across all 4 lanes (7 schemas each: panel, shape, rate, rateDrift, depthDrift, topRow, driftRow) is unique', () => {
     const allIds = LFO_LANE_IDS.flatMap((lane) => {
       const schema = LFO_BANK_LANE_SCHEMAS[lane];
-      return [schema.panel.id, schema.shape.id, schema.rate.id, schema.rateDrift.id, schema.depthDrift.id];
+      return [schema.panel.id, schema.shape.id, schema.rate.id, schema.rateDrift.id, schema.depthDrift.id, schema.topRow.id, schema.driftRow.id];
     });
-    expect(allIds).toHaveLength(20);
-    expect(new Set(allIds).size).toBe(20);
+    expect(allIds).toHaveLength(28);
+    expect(new Set(allIds).size).toBe(28);
   });
 
   it('remains JSON-serializable', () => {

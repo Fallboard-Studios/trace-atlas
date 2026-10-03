@@ -194,6 +194,12 @@ export const DECAY_MODE_SCHEMA: RadioButtonSchema = {
 
 export interface LfoBankLaneSchema {
   panel: DirectionalPanelSchema;
+  /** Shape | Rate (over its Tempo Sync toggle) — a nested 'responsive' row, side by side on desktop,
+   *  stacked below (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.1). Unlabeled: the lane panel's
+   *  own label is the only heading. */
+  topRow: DirectionalPanelSchema;
+  /** Rate Drift | Depth Drift — the same nested 'responsive' row shape (§1.1). */
+  driftRow: DirectionalPanelSchema;
   shape: RadioButtonSchema;
   rate: SliderLinearSchema;
   rateDrift: SliderCenteredZeroSchema;
@@ -212,6 +218,8 @@ const LFO_BANK_LANE_CONTENT: Record<LfoLaneId, ContentKey> = {
 function lfoBankLaneSchema(lane: LfoLaneId): LfoBankLaneSchema {
   return {
     panel: { id: `audioRig.lfoBank.${lane}`, type: 'directionalPanel', ...labels(LFO_BANK_LANE_CONTENT[lane]), orientation: 'column' },
+    topRow: { id: `audioRig.lfoBank.${lane}.topRow`, type: 'directionalPanel', orientation: 'responsive' },
+    driftRow: { id: `audioRig.lfoBank.${lane}.driftRow`, type: 'directionalPanel', orientation: 'responsive' },
     shape: { id: `audioRig.lfoBank.${lane}.shape`, type: 'radio', ...labels('ui.lfo.shape'), options: options('ui.lfo.shape') },
     rate: {
       id: `audioRig.lfoBank.${lane}.rate`,

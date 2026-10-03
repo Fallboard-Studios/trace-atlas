@@ -111,13 +111,15 @@ Parallelisable: 1 ‖ 3 ‖ 4 ‖ 5 ‖ 7 ‖ 9 ‖ 10; 2 and 8 wait on 1. Phase
 
 ### Phase 4: Params → LFO Bank lane slice
 
-- [ ] **Task 5: Lane schemas gain `topRow` and `driftRow`**
+- [x] **Task 5: Lane schemas gain `topRow` and `driftRow`**
 
   **Description:** Spec §1.1. `LfoBankLaneSchema` gains `topRow` and `driftRow: DirectionalPanelSchema` (`audioRig.lfoBank.${lane}.topRow` / `.driftRow`, `type: 'directionalPanel'`, `orientation: 'responsive'`, no labels), built in `lfoBankLaneSchema()`.
 
   **Acceptance criteria:**
-  - [ ] `audioRigConfig.test.ts`: every lane's `topRow`/`driftRow` are `'responsive'` `directionalPanel`s with those exact ids and no `humanLabel`/`loreLabel`; ids are unique across the four lanes.
-  - [ ] Shape/Rate/drift schemas unchanged (existing cases green).
+  - [x] `audioRigConfig.test.ts`: every lane's `topRow`/`driftRow` are `'responsive'` `directionalPanel`s with those exact ids and no `humanLabel`/`loreLabel`; ids are unique across the four lanes.
+  - [x] Shape/Rate/drift schemas unchanged (existing cases green).
+
+  **As built:** RED first (3 cases: exact row schemas with no label keys, never `'auto'`/fixed `'row'`/`'column'`, the id-uniqueness count 20 → 28), then GREEN with two fields on `LfoBankLaneSchema` and two lines in `lfoBankLaneSchema()`. 97/97; lint and types clean.
 
   **Verification:** `npx vitest run src/data/audioRigConfig.test.ts` (RED first); `npm run build:types`.
   **Dependencies:** None. **Files:** `audioRigConfig.ts`, `audioRigConfig.test.ts`. **Scope:** XS.
