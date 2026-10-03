@@ -41,8 +41,10 @@
   gap: 6px;
 }
 
+/* Retransmit sits on the left (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.6, Crawford's own
+   request; was flex-end). Pinned by SectorSettingsDrawer.test.tsx's CSS scan. */
 .sector-settings-drawer__retransmit {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   padding: 8px 4px;
 }
