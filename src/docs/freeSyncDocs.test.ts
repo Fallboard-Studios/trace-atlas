@@ -182,12 +182,25 @@ describe('the Free | Sync task plan is ticked off', () => {
     }
   });
 
-  it('leaves the manual checkpoints for Crawford (A, D, E) unticked — they are not mine to sign off', () => {
+  // Until 2026-10-03 this test pinned the opposite — A, D and E UNTICKED, because they were
+  // Crawford's manual sign-offs and not the agent's to tick. He signed them off on 2026-10-03 (commit
+  // "Tick Checkpoints A, D and E"), so the pin now guards the signed-off state: every box ticked, each
+  // heading carrying his PASSED mark, and Checkpoint E recording the one deliberately deferred item.
+  it('records Crawford\'s sign-off of the manual checkpoints (A, D, E): every box ticked, PASSED in the heading', () => {
     for (const heading of ['Checkpoint A: Foundations + BPM', 'Checkpoint D: Seeded worlds carry Sync', 'Checkpoint E: Complete']) {
       const at = plan.indexOf(`### ${heading}`);
       expect(at, heading).toBeGreaterThan(-1);
       const section = plan.slice(at, plan.indexOf('\n###', at + 5) === -1 ? undefined : plan.indexOf('\n###', at + 5));
-      expect(section, `${heading} still has an unticked box`).toMatch(/- \[ \]/);
+      expect(section, `${heading} heading carries PASSED`).toMatch(/^### .*PASSED \(Crawford, 2026-10-\d\d\)/m);
+      expect(section, `${heading} has no unticked box left`).not.toMatch(/- \[ \]/);
+      expect(section, `${heading} has at least one ticked box`).toMatch(/- \[x\]/);
     }
+  });
+
+  it('Checkpoint E records the Pixel listen as deferred until the build is live, not as done', () => {
+    const at = plan.indexOf('### Checkpoint E: Complete');
+    const section = plan.slice(at, plan.indexOf('\n## ', at));
+    expect(section).toMatch(/Pixel listen.*deferred/i);
+    expect(section).toMatch(/once the build is live/i);
   });
 });
