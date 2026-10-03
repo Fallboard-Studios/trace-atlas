@@ -1,5 +1,5 @@
 /* The scene is four stacked <svg> layers, not one (roadmap 17.2.5): static back (background +
-   midground factories and the depth gradients), moving robots, moving bubbles, static front
+   midground factories and the depth gradients), moving bubbles, moving robots, static front
    (foreground factories). Each layer fills this box and shares the same viewBox and slice fit, so
    the four coordinate systems map to the same pixels; the moving layers are promoted to compositor
    layers of their own, so a robot's or bubble's per-frame transform write repaints only its own

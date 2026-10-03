@@ -627,7 +627,7 @@ BPM or to measures; the effect is decorative, not musical.
   from the static factory layers (roadmap 17.2.5; `Factory.tsx` itself renders
   no bubbles). Vent X is seeded to 20–80% of the facade width; vent Y is the
   roofline (`factoryBubbleProps.ts`). Bubbles from every row share the one
-  layer: they rise above the robots and below the foreground factories.
+  layer: they rise behind the robots and below the foreground factories.
 - Each burst releases 5–10 bubbles (seeded), each its own `<circle>` placed at
   the vent once via `cx`/`cy`/`r`. Bubbles are released `0.2–0.4 s` apart
   (seeded), rise `100–500 px` at `40–70 px/s` (so duration follows distance),

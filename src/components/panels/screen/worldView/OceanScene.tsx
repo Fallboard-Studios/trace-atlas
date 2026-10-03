@@ -82,7 +82,7 @@ function SceneLayer({ name, width, height, moving = false, children }: SceneLaye
 /**
  * Root scene component. Renders four stacked SVG layers (roadmap 17.2.5): a static back layer
  * (background → midground factories with the depth-gradient overlays between them), the moving
- * robot layer, the moving bubble layer (every building's vent bubbles), and a static front layer
+ * bubble layer (every building's vent bubbles), the moving robot layer, and a static front layer
  * (foreground factories). Kicks off factory placement, robot spawning and factory production
  * scheduling on mount.
  *
@@ -92,8 +92,9 @@ function SceneLayer({ name, width, height, moving = false, children }: SceneLaye
  * of their own now (OceanScene.css), so a transform write repaints only a dozen robots or a
  * handful of circles; the factory layers repaint once a second, on the lighting tick.
  *
- * Z-order is the old order with one change: bubbles from every row rise above the robots and
- * below the foreground factories (background/midground bubbles used to pass behind the robots).
+ * Z-order is the old order with one change: bubbles from every row rise behind the robots and
+ * below the foreground factories (foreground-row bubbles used to pass in front of the robots —
+ * Crawford chose behind, 2026-10-02).
  *
  * @param width           - SVG viewBox width in pixels (default 1920).
  * @param height          - SVG viewBox height in pixels (default 1080).
@@ -243,6 +244,11 @@ export function OceanScene({
         />
       </SceneLayer>
 
+      {/* Moving: every building's vent bubbles, all rows (BubbleStream timelines), behind the robots. */}
+      <SceneLayer name="bubbles" width={width} height={height} moving>
+        <BubbleLayer factories={factories} totalBuildings={bubbleBuildingCount} />
+      </SceneLayer>
+
       {/* Moving: the robots (GSAP-driven transforms, Robot.tsx). The one layer that takes clicks. */}
       <SceneLayer name="robots" width={width} height={height} moving>
         <g id="robot-layer">
@@ -250,11 +256,6 @@ export function OceanScene({
             <Robot key={id} robotId={id} />
           ))}
         </g>
-      </SceneLayer>
-
-      {/* Moving: every building's vent bubbles, all rows (BubbleStream timelines). */}
-      <SceneLayer name="bubbles" width={width} height={height} moving>
-        <BubbleLayer factories={factories} totalBuildings={bubbleBuildingCount} />
       </SceneLayer>
 
       {/* Static front layer: foreground-row factories (rendered closest to viewer). */}

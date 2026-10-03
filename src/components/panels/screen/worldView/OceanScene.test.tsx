@@ -202,9 +202,10 @@ describe('OceanScene', () => {
     // The idle paint localizer (scripts/perf/idle-paint.mjs) found one <svg> holding sixty static
     // factories AND every moving robot and bubble, so every GSAP transform write repainted the whole
     // scene at full viewport size on every frame. The scene is now four stacked <svg> layers:
-    // static back (background + midground factories and the depth gradients), moving robots, moving
-    // bubbles, static front (foreground factories). Z-order within the old single svg is preserved
-    // except that every building's bubbles now rise above the robots and below the foreground row.
+    // static back (background + midground factories and the depth gradients), moving bubbles, moving
+    // robots, static front (foreground factories). Z-order within the old single svg is preserved
+    // except that every building's bubbles now rise behind the robots (Crawford's call, 2026-10-02:
+    // foreground-row bubbles used to pass in front of them) and below the foreground row.
     const rowIndexFor = (label: 'background' | 'midground' | 'foreground'): number =>
       getAllRowConfigs().findIndex((r) => r.row === label);
     const makeFactory = (id: string, row: number, purpose: 'heavyIndustry' | 'observationComms' = 'heavyIndustry'): Actor => ({
@@ -228,12 +229,12 @@ describe('OceanScene', () => {
       });
     });
 
-    it('renders four svg layers in back → robots → bubbles → front order, all inside the scene box', () => {
+    it('renders four svg layers in back → bubbles → robots → front order, all inside the scene box', () => {
       const { container } = render(<OceanScene />);
       const scene = container.querySelector('.ocean-scene');
       expect(scene?.tagName.toLowerCase()).toBe('div');
       const layers = Array.from(scene!.querySelectorAll(':scope > svg.ocean-scene__layer'));
-      expect(layers.map((l) => l.getAttribute('data-scene-layer'))).toEqual(['back', 'robots', 'bubbles', 'front']);
+      expect(layers.map((l) => l.getAttribute('data-scene-layer'))).toEqual(['back', 'bubbles', 'robots', 'front']);
     });
 
     it('every layer shares the viewBox and the cover (slice) fit of the old single svg', () => {

@@ -17,8 +17,8 @@ interface BubbleLayerProps {
  *
  * Rendered inside OceanScene's "bubbles" `<svg>` — a compositor layer separate from the static
  * factory skyline — so a rising bubble's transform writes repaint only this layer. Bubbles from
- * every row share the one layer: they rise above the robots and below the foreground factories,
- * where the old per-row placement put background/midground bubbles behind the robots.
+ * every row share the one layer: they rise behind the robots and below the foreground factories,
+ * where the old per-row placement put foreground-row bubbles in front of the robots.
  */
 const BubbleLayerInner: React.FC<BubbleLayerProps> = ({ factories, totalBuildings }) => {
   const streams = useMemo(

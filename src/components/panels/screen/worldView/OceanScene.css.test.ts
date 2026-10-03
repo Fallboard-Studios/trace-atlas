@@ -31,7 +31,7 @@ describe('OceanScene.css scene layers', () => {
     expect(body).toContain('width: 100%;');
     expect(body).toContain('height: 100%;');
     expect(body).toContain('display: block;');
-    // Layers above the robots must not swallow the robots' clicks.
+    // The static front layer sits above the robots and must not swallow their clicks.
     expect(body).toContain('pointer-events: none;');
   });
 
