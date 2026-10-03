@@ -41,6 +41,27 @@ export const ACCENT_WARM_BAND_START = 330;
 export const ACCENT_WARM_BAND_END = 45;
 export const ACCENT_WARM_SAT_CAP = 45;
 
+/** One hue band whose post-pull saturation is capped. `start`→`end` inclusive, wrapping through
+ *  0 when start > end. */
+export interface SatCapBand {
+  start: number;
+  end: number;
+  cap: number;
+}
+
+/**
+ * The capped bands, in no particular order (they don't overlap). Crawford's second look
+ * (2026-10-02): "there's a lime green that sticks out from time to time" — the lime accent
+ * (#a9e583, h≈97°) is a yellow-green, loud at any lightness once saturated, the same failure as
+ * red through a different door. So the warm band became the first row of a table and lime the
+ * second; yellow (~57°), emerald (~143°) and green (~148°) sit between/outside the bands and
+ * keep the full lift. Add a row here, never a third special case.
+ */
+export const SAT_CAP_BANDS: readonly SatCapBand[] = [
+  { start: ACCENT_WARM_BAND_START, end: ACCENT_WARM_BAND_END, cap: ACCENT_WARM_SAT_CAP },
+  { start: 80, end: 115, cap: ACCENT_WARM_SAT_CAP },
+];
+
 /**
  * The 18 accent hues (degrees), in ROBOT_IDENTITY_COLOR_NAMES order so an index here is the same
  * index spawnSystem.ts's seeded robot-color draw uses. Computed once at import via the app's one
@@ -90,12 +111,26 @@ export function computeAccentLeanWith(body: HSL, targetHue: number, fraction: nu
   // to a literal 0 in every stored-shift parity test.
   const hueShift = hueArc(body.h, targetHue) * fraction + 0;
   const landedHue = (((body.h + hueShift) % 360) + 360) % 360;
-  const satShift = isWarmHue(landedHue) ? Math.min(lift, ACCENT_WARM_SAT_CAP - body.s) : lift;
+  const cap = satCapFor(landedHue);
+  const satShift = cap === null ? lift : Math.min(lift, cap - body.s);
   return { hueShift, satShift };
 }
 
-/** True when `hue` (degrees, any real) falls inside the warm red→orange band, inclusive at both
- *  ends, wrapping through 0 (330 → 360 → 45). */
+/** The saturation cap that applies to `hue` (degrees, any real), or null when it falls in no
+ *  SAT_CAP_BANDS row. Band ends are inclusive; a band with start > end wraps through 0. */
+export function satCapFor(hue: number): number | null {
+  const h = ((hue % 360) + 360) % 360;
+  for (const band of SAT_CAP_BANDS) {
+    const inside = band.start <= band.end
+      ? h >= band.start && h <= band.end
+      : h >= band.start || h <= band.end;
+    if (inside) return band.cap;
+  }
+  return null;
+}
+
+/** True when `hue` falls inside the warm red→orange band (the first SAT_CAP_BANDS row),
+ *  inclusive at both ends, wrapping through 0 (330 → 360 → 45). */
 export function isWarmHue(hue: number): boolean {
   const h = ((hue % 360) + 360) % 360;
   return h >= ACCENT_WARM_BAND_START || h <= ACCENT_WARM_BAND_END;

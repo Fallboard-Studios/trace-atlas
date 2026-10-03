@@ -10,6 +10,8 @@ import {
   computeAccentLean,
   computeAccentLeanWith,
   isWarmHue,
+  satCapFor,
+  SAT_CAP_BANDS,
   ACCENT_WARM_BAND_START,
   ACCENT_WARM_BAND_END,
   ACCENT_WARM_SAT_CAP,
@@ -209,6 +211,52 @@ describe('accentLean', () => {
       expect(ACCENT_WARM_SAT_CAP).toBe(45);
       expect(ACCENT_WARM_BAND_START).toBe(330);
       expect(ACCENT_WARM_BAND_END).toBe(45);
+    });
+
+    // Second look (Crawford, 2026-10-02): "there's a lime green that sticks out from time to
+    // time" — the lime accent (#a9e583, h≈97°) is a yellow-green, loud at any lightness once
+    // saturated. Same cap, second band; the warm band became the first row of a table.
+    describe('lime band (the cap is a table of bands, not one special case)', () => {
+      it('the lime accent itself falls inside the lime band and no other accent does', () => {
+        const limeIndex = ROBOT_IDENTITY_COLOR_NAMES.indexOf('lime');
+        expect(satCapFor(ACCENT_HUES[limeIndex])).toBe(ACCENT_WARM_SAT_CAP);
+        ROBOT_IDENTITY_COLOR_NAMES.forEach((name, i) => {
+          if (name === 'lime') return;
+          const h = ACCENT_HUES[i];
+          if (isWarmHue(h)) return; // warm accents are capped by the first band, by design
+          expect(satCapFor(h), name).toBeNull();
+        });
+      });
+
+      it('caps a hot lime body the same way it caps a hot red one', () => {
+        const hotLime: HSL = { h: 97, s: 70, l: 19 };
+        expect(computeAccentLeanWith(hotLime, 97, 0.5, 15).satShift).toBe(ACCENT_WARM_SAT_CAP - 70);
+      });
+
+      it('leaves the neighbouring greens alone: emerald (~143°) and green (~148°) get the full lift', () => {
+        for (const name of ['emerald', 'green'] as const) {
+          const h = ACCENT_HUES[ROBOT_IDENTITY_COLOR_NAMES.indexOf(name)];
+          expect(satCapFor(h), name).toBeNull();
+          expect(computeAccentLeanWith({ h, s: 70, l: 19 }, h, 0.5, 15).satShift, name).toBe(15);
+        }
+      });
+
+      it('yellow (~57°) is NOT capped — only red was reported too strong on that side, and the warm band ends at 45°', () => {
+        const h = ACCENT_HUES[ROBOT_IDENTITY_COLOR_NAMES.indexOf('yellow')];
+        expect(h).toBeGreaterThan(ACCENT_WARM_BAND_END);
+        expect(satCapFor(h)).toBeNull();
+      });
+
+      it('satCapFor returns the band cap inside every band and null between bands, inclusive at band ends', () => {
+        for (const band of SAT_CAP_BANDS) {
+          expect(satCapFor(band.start)).toBe(band.cap);
+          expect(satCapFor(band.end)).toBe(band.cap);
+        }
+        expect(satCapFor(200)).toBeNull(); // the graphite base
+        expect(satCapFor(172)).toBeNull(); // teal
+        expect(satCapFor(60)).toBeNull();  // between the warm and lime bands
+        expect(satCapFor(130)).toBeNull(); // between lime and the cool greens
+      });
     });
   });
 
