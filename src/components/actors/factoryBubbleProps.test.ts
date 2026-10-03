@@ -5,6 +5,7 @@ import { selectVariantFromSeed, VARIANT_CONF } from './factoryVariants';
 import { calcSilhouetteSize } from './silhouetteUtils';
 import { getRowConfig, getAllRowConfigs } from '../../systems/factoryPlacementSystem';
 import { shiftHSL } from '../../utils/colorUtils';
+import { computeAccentLean } from '../../utils/accentLean';
 import { ActorType } from '../../types/Actor';
 import type { Actor } from '../../types/Actor';
 
@@ -80,6 +81,24 @@ describe('getFactoryBubbleProps', () => {
     const config = selectVariantFromSeed(actor.id, actor.position.x, row, getRowConfig(row)?.availableFactoryTypes);
     const expectedHue = shiftHSL(VARIANT_CONF[config.variant].colors.body, { hueShift: 10, satShift: -5 }).h;
     expect(getFactoryBubbleProps(actor)!.bodyHue).toBe(expectedHue);
+  });
+
+  it('follows a Phase 35 accent-leaned shift with no rule of its own — the lean reaches the bubbles through the stored hueShift/satShift', () => {
+    // docs/specs/WORLD_PALETTE_PULL.md §1.3 / docs/tasks/WORLD_PALETTE_PULL.md Task 6 (test-only):
+    // placement folds the lean into config.hueShift/satShift; this helper reads exactly those, so
+    // the bubble tint moves with the building without any bubble-side code.
+    const base = { hueShift: 10, satShift: -5 };
+    const row = rowIndexFor('midground');
+    const probe = makeActor({ config: { row } });
+    const variant = selectVariantFromSeed(probe.id, probe.position.x, row, getRowConfig(row)?.availableFactoryTypes).variant;
+    const body = VARIANT_CONF[variant].colors.body;
+    const lean = computeAccentLean(shiftHSL(body, base), 172); // ≈ teal
+    expect(lean.hueShift).not.toBe(0); // a trivial lean would prove nothing
+    const leaned = { hueShift: base.hueShift + lean.hueShift, satShift: base.satShift + lean.satShift };
+
+    const actor = makeActor({ config: { row, ...leaned } });
+    expect(getFactoryBubbleProps(actor)!.bodyHue).toBe(shiftHSL(body, leaned).h);
+    expect(getFactoryBubbleProps(actor)!.bodyHue).not.toBe(shiftHSL(body, base).h);
   });
 
   it.each([
