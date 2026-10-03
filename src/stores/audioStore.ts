@@ -67,6 +67,17 @@ function setGlobalDelayResolved(params: Partial<DelaySettings>): void {
   AudioEngine.setGlobalDelay({ ...rest, delayTime: resolveDelayTimeSeconds(globalAudio.delay, bpm) });
 }
 
+/**
+ * `partial` minus every undefined-valued key. A merge spreads `undefined` over a stored value as
+ * readily as a real one, so without this `{ sync: undefined }` would land an `undefined`-valued
+ * key in state (docs/specs/FREE_SYNC_TOGGLE.md §3: a Free result carries NO `sync` key, never
+ * `sync: undefined`) and act as a hidden Sync -> Free path that bypasses the mode actions. With it,
+ * an undefined-valued key is simply not an edit: a merge can never delete a key.
+ */
+function definedKeys<T extends object>(partial: Partial<T>): Partial<T> {
+  return Object.fromEntries(Object.entries(partial).filter(([, value]) => value !== undefined)) as Partial<T>;
+}
+
 /** Routes a setGlobalAudio(effect, partial) call to its matching AudioEngine setter. */
 const GLOBAL_SETTER: { [K in EffectKey]: (params: Partial<GlobalAudioSettings[K]>) => void } = {
   compressor: AudioEngine.setGlobalCompressor,
@@ -298,7 +309,8 @@ export interface AudioStore {
    * synced lane re-sends the synced Hz rather than the number just typed.
    *
    * A merge can never delete a key, so this cannot turn a synced lane Free — that is
-   * setLfoBankLaneSyncMode / replaceLfoBankLane.
+   * setLfoBankLaneSyncMode / replaceLfoBankLane. An undefined-valued key (`{ sync: undefined }`)
+   * is dropped before the merge, not spread over the stored value.
    */
   setLfoBank: (lane: LfoLaneId, partial: Partial<BankLfoSettings>) => void;
   /**
@@ -360,12 +372,16 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   },
 
   setGlobalAudio: (effect, partial) => {
+    // An undefined-valued key is not an edit (definedKeys above); a partial with nothing left
+    // in it is a no-op — no state write, no engine push.
+    const edit = definedKeys(partial);
+    if (Object.keys(edit).length === 0) return;
     set((state) => ({
       globalAudio: {
         ...state.globalAudio,
         [effect]: {
           ...(state.globalAudio[effect] as object),
-          ...partial,
+          ...edit,
         },
       },
     }));
@@ -374,7 +390,7 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     // the same shape AudioEngine.ts's own ModulationTarget alias resolves for its
     // own unavoidable union return type.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (GLOBAL_SETTER[effect] as (params: any) => void)(partial);
+    (GLOBAL_SETTER[effect] as (params: any) => void)(edit);
   },
 
   setDelaySyncMode: (synced) => {
@@ -479,15 +495,19 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     // (sessionShareUtils.ts) is supposed to backfill every lane, but a caller passing `undefined`
     // here should never throw regardless.
     if (!partial) return;
-    set((state) => ({ lfoBank: { ...state.lfoBank, [lane]: { ...state.lfoBank[lane], ...partial } } }));
+    // An undefined-valued key is not an edit (definedKeys above): `{ sync: undefined }` neither
+    // lands `undefined` in state nor turns the lane Free — that is setLfoBankLaneSyncMode's job.
+    const edit = definedKeys(partial);
+    if (Object.keys(edit).length === 0) return;
+    set((state) => ({ lfoBank: { ...state.lfoBank, [lane]: { ...state.lfoBank[lane], ...edit } } }));
     // Read the MERGED lane back: what the engine should hear depends on the whole lane, not the
     // partial (a `rate` edit on a synced lane must not reach the engine as that rate).
     const { lfoBank, bpm } = get();
     const next = lfoBank[lane];
-    if (partial.shape !== undefined) lfoEngine.setBankShape(lane, partial.shape);
-    if (partial.rate !== undefined || 'sync' in partial) lfoEngine.setBankRate(lane, resolveLaneRateHz(next, bpm));
-    if (partial.rateDrift !== undefined) lfoEngine.setBankRateDrift(lane, resolveLaneForEngine(next, bpm).rateDrift);
-    if (partial.depthDrift !== undefined) lfoEngine.setBankDepthDrift(lane, partial.depthDrift);
+    if (edit.shape !== undefined) lfoEngine.setBankShape(lane, edit.shape);
+    if ('rate' in edit || 'sync' in edit) lfoEngine.setBankRate(lane, resolveLaneRateHz(next, bpm));
+    if (edit.rateDrift !== undefined) lfoEngine.setBankRateDrift(lane, resolveLaneForEngine(next, bpm).rateDrift);
+    if (edit.depthDrift !== undefined) lfoEngine.setBankDepthDrift(lane, edit.depthDrift);
   },
 
   replaceLfoBankLane: (lane, settings) => {

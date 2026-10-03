@@ -621,12 +621,22 @@ describe('useAudioStore - lane Sync: setLfoBank resolves, replaceLfoBankLane / s
       expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
     });
 
-    it('{ sync: undefined } resolves the lane as Free and pushes its stored rate — never a NaN or the stale synced Hz', async () => {
+    it('{ sync: undefined } is a no-op: a merge can never delete a key, so the lane stays synced, no `undefined` lands in state, and nothing is pushed', async () => {
       const { useAudioStore, lfoEngine } = await setup('b', { ...FREE_LANE, sync: QUARTER }, 120);
 
       useAudioStore.getState().setLfoBank('b', { sync: undefined });
 
-      expect(lfoEngine.setBankRate).toHaveBeenCalledWith('b', 1.5);
+      expect(useAudioStore.getState().lfoBank.b.sync).toEqual(QUARTER);
+      expect(lfoEngine.setBankRate).not.toHaveBeenCalled();
+    });
+
+    it('an undefined-valued key never lands in state through the merge (spec §3: a Free result has no `sync` key, never `sync: undefined`)', async () => {
+      const { useAudioStore } = await setup('b', FREE_LANE, 120);
+
+      useAudioStore.getState().setLfoBank('b', { sync: undefined, rateDrift: 0.3 });
+
+      expect('sync' in useAudioStore.getState().lfoBank.b).toBe(false);
+      expect(useAudioStore.getState().lfoBank.b.rateDrift).toBe(0.3);
     });
 
     it('an unrecognised sync value resolves as Free — the stored rate is pushed, not NaN from a bogus note', async () => {
@@ -909,12 +919,23 @@ describe('useAudioStore - Delay Sync (docs/specs/FREE_SYNC_TOGGLE.md Task 11)', 
       expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 10 });
     });
 
-    it('an explicit `sync: undefined` resolves as Free — the stored delayTime, not NaN', async () => {
+    it('an explicit `sync: undefined` is a no-op: the Delay stays synced, no `undefined` lands in state, nothing is pushed', async () => {
       const { useAudioStore, AudioEngine } = await setup({ ...FREE_DELAY, sync: QUARTER }, 60);
 
       useAudioStore.getState().setGlobalAudio('delay', { sync: undefined });
 
-      expect(lastDelayPush(AudioEngine)).toStrictEqual({ delayTime: 0.9 });
+      expect(useAudioStore.getState().globalAudio.delay.sync).toEqual(QUARTER);
+      expect(AudioEngine.setGlobalDelay).not.toHaveBeenCalled();
+    });
+
+    it('an undefined-valued key is dropped from the merge while the rest of the partial still applies', async () => {
+      const { useAudioStore, AudioEngine } = await setup(FREE_DELAY, 60);
+
+      useAudioStore.getState().setGlobalAudio('delay', { sync: undefined, feedback: 0.45 });
+
+      expect('sync' in useAudioStore.getState().globalAudio.delay).toBe(false);
+      expect(useAudioStore.getState().globalAudio.delay.feedback).toBe(0.45);
+      expect(lastDelayPush(AudioEngine)).toStrictEqual({ feedback: 0.45 });
     });
 
     it('leaves every other effect\'s setter untouched', async () => {
