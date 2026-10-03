@@ -1,12 +1,18 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import alea from 'alea';
+import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 
-import { createFactory, placeFactories, getRowConfig, getAllRowConfigs } from './factoryPlacementSystem';
+import { createFactory, placeFactories, getRowConfig, getAllRowConfigs, deriveAsAccentPair, pickAccentTarget } from './factoryPlacementSystem';
 import { VARIANT_CONF, selectVariantFromSeed } from '../components/actors/factoryVariants';
 import { shiftHSL } from '../utils/colorUtils';
-import { computeAccentLean, hueArc, ACCENT_SAT_LIFT } from '../utils/accentLean';
+import { computeAccentLean, hueArc, ACCENT_SAT_LIFT, ACCENT_HUES } from '../utils/accentLean';
+import { getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
+import { getSeededVal } from '../utils/getSeededVal';
+import * as getSeededValModule from '../utils/getSeededVal';
+import { deriveAttenuationStyleSeed } from '../utils/seedUtils';
 
 // duplicate constants from placement system for use in assertions
 const WORLD_BOUNDS = { width: 1920, height: 1080 };
@@ -544,6 +550,116 @@ describe('FactoryPlacementSystem', () => {
       const { hueShift: _h2, satShift: _s2, ...cfgWith } = cT!;
       expect(cfgWith).toStrictEqual(cfgWithout);
       expect(cT!.hueShift).not.toBe(cW!.hueShift); // the lean did land
+    });
+  });
+
+  // docs/specs/WORLD_PALETTE_PULL.md §1.2 / docs/tasks/WORLD_PALETTE_PULL.md Task 4: placeFactories
+  // seeds the style's accent pair once and leans every factory toward one of the two.
+  describe('accent lean (Phase 35) — placeFactories pair and pick', () => {
+    const coords = { x: 30, y: 30 };
+    const makeLocale = (id: string, attenuationStyleId: string) => ({
+      id, attenuationStyleId, name: id, coordinates: coords,
+      robots: [], actors: [], companies: [], currentMeasure: 0, createdAtMeasure: 0, dayStartTimestamp: Date.now(),
+    });
+
+    /** Re-derives the pre-lean combined shift for a placed factory the way the system does.
+     *  The AS component is re-sampled here with the system's own dataIds and ranges
+     *  (AS_FACTORY_HUE/SAT_SHIFT_RANGE are private; the rowless-row test below already pins the
+     *  ±30 range the same way) — a deliberate, DAMP duplication so this test can isolate the lean. */
+    function preLean(actor: Actor, index: number, asMap: NoiseFunction2D) {
+      const row = actor.config?.row ?? EXPECTED_DEFAULT_FACTORY_ROW;
+      const local = selectVariantFromSeed(actor.id, actor.position.x, row, getRowConfig(row)?.availableFactoryTypes);
+      const as = {
+        hueShift: getSeededVal(asMap, 'factory.as.hueShift', index, -30, 30),
+        satShift: getSeededVal(asMap, 'factory.as.satShift', index, -20, 20),
+      };
+      const combined = { hueShift: local.hueShift + as.hueShift, satShift: local.satShift + as.satShift };
+      return { combined, body: shiftHSL(VARIANT_CONF[local.variant].colors.body, combined) };
+    }
+
+    it('two locales under the SAME Attenuation Style share one accent pair, and every placed factory leans toward exactly one of its two hues', () => {
+      useAttenuationStyleStore.getState().addAttenuationStyle({ id: 'as-pair-shared', name: 'as-pair-shared-name', locales: [] });
+      useLocaleStore.getState().addLocale('as-pair-shared', makeLocale('locale-pair-1', 'as-pair-shared'));
+      useLocaleStore.getState().addLocale('as-pair-shared', makeLocale('locale-pair-2', 'as-pair-shared'));
+      const asMap = getAttenuationStyleNoiseMap('as-pair-shared', 'as-pair-shared-name');
+
+      const pair = deriveAsAccentPair(asMap);
+      expect(deriveAsAccentPair(asMap)).toEqual(pair); // stable across calls
+      expect(pair.primary).not.toBe(pair.secondary);
+      expect(ACCENT_HUES).toContain(pair.primary);
+      expect(ACCENT_HUES).toContain(pair.secondary);
+
+      const actors1 = placeFactories('locale-pair-1');
+      const actors2 = placeFactories('locale-pair-2');
+      expect(actors1.length).toBeGreaterThan(0);
+      expect(actors1.map((a) => [a.config?.hueShift, a.config?.satShift])).toEqual(actors2.map((a) => [a.config?.hueShift, a.config?.satShift]));
+
+      let leanedToPrimary = 0;
+      let leanedToSecondary = 0;
+      actors1.forEach((actor, index) => {
+        const { combined, body } = preLean(actor, index, asMap);
+        const viaPrimary = combined.hueShift + computeAccentLean(body, pair.primary).hueShift;
+        const viaSecondary = combined.hueShift + computeAccentLean(body, pair.secondary).hueShift;
+        const stored = actor.config!.hueShift!;
+        const matchesPrimary = Math.abs(stored - viaPrimary) < 1e-9;
+        const matchesSecondary = Math.abs(stored - viaSecondary) < 1e-9;
+        expect(matchesPrimary || matchesSecondary, `factory ${index}: stored ${stored}, primary ${viaPrimary}, secondary ${viaSecondary}`).toBe(true);
+        if (matchesPrimary) leanedToPrimary++; else leanedToSecondary++;
+        expect(actor.config!.satShift!).toBeCloseTo(combined.satShift + ACCENT_SAT_LIFT, 9);
+      });
+      // The seeded coin is a real split, not a constant — both targets are used somewhere in
+      // a ~60-factory skyline.
+      expect(leanedToPrimary).toBeGreaterThan(0);
+      expect(leanedToSecondary).toBeGreaterThan(0);
+    });
+
+    it('two different Attenuation Styles draw different accent pairs (for the fixture names used by the AS-shift test above)', () => {
+      const a = deriveAsAccentPair(getAttenuationStyleNoiseMap('as-planet-a', 'as-planet-alpha'));
+      const b = deriveAsAccentPair(getAttenuationStyleNoiseMap('as-planet-b', 'as-planet-beta'));
+      // 18 possible primaries — a collision is possible for some pair of names; if this ever
+      // trips after a palette change, swap one fixture name here rather than weakening it.
+      expect(a.primary).not.toBe(b.primary);
+    });
+
+    it("samples the style-level primary at a fixed NON-integer, non-zero offset — the simplex lattice-collapse guard (PROCEDURAL_GENERATION.md 'Gotchas')", () => {
+      const spy = vi.spyOn(getSeededValModule, 'getSeededVal');
+      try {
+        deriveAsAccentPair(getAttenuationStyleNoiseMap('as-offset-guard', 'as-offset-guard-name'));
+        const calls = spy.mock.calls.filter((c) => c[1] === 'factory.as.accentPrimary');
+        expect(calls.length).toBeGreaterThan(0);
+        for (const [, , offset] of calls) {
+          expect(offset).not.toBe(0);
+          expect(Number.isInteger(offset)).toBe(false);
+        }
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('spread guard: across 50 real style seeds the primary covers at least 10 of the 18 accent hues', () => {
+      // Real maps, not mocks — this measures the real hash of the dataId. If it fails, change
+      // ACCENT_PAIR_OFFSET in factoryPlacementSystem.ts, never this threshold.
+      const primaries = new Set<number>();
+      for (let i = 0; i < 50; i++) {
+        const map = createNoise2D(alea(deriveAttenuationStyleSeed(`accent-spread-${i}`)));
+        primaries.add(deriveAsAccentPair(map).primary);
+      }
+      expect(primaries.size).toBeGreaterThanOrEqual(10);
+    });
+
+    it('pickAccentTarget: a seeded value below 0.5 picks the primary, at/above 0.5 the secondary', () => {
+      const pair = { primary: 100, secondary: 140 };
+      const lowMap: NoiseFunction2D = () => -1; // getSeededVal maps -1 → 0
+      const highMap: NoiseFunction2D = () => 1;  // and +1 → 1
+      expect(pickAccentTarget(lowMap, pair, 0)).toBe(100);
+      expect(pickAccentTarget(highMap, pair, 0)).toBe(140);
+    });
+
+    it('pickAccentTarget keys on the factory index, so neighbouring factories can differ under one real map', () => {
+      const map = getAttenuationStyleNoiseMap('as-pick-index', 'as-pick-index-name');
+      const pair = { primary: 100, secondary: 140 };
+      const picks = new Set(Array.from({ length: 60 }, (_, i) => pickAccentTarget(map, pair, i)));
+      expect(picks.size).toBe(2);
     });
   });
 

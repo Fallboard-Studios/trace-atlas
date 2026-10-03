@@ -14,7 +14,8 @@ import { getLocaleNoiseMap, getAttenuationStyleNoiseMap } from '../utils/noiseMa
 import { getSeededVal } from '../utils/getSeededVal';
 import { generateUUID } from '../utils/randomId';
 import { shiftHSL, type ColorShift } from '../utils/colorUtils';
-import { computeAccentLean } from '../utils/accentLean';
+import { computeAccentLean, secondaryFor, ACCENT_HUES, type AccentPair } from '../utils/accentLean';
+import { ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 
 // ========================================
 // CONSTANTS
@@ -72,6 +73,13 @@ export const DEFAULT_FACTORY_ROW = 1;
 const AS_FACTORY_HUE_SHIFT_RANGE: [number, number] = [-30, 30];
 const AS_FACTORY_SAT_SHIFT_RANGE: [number, number] = [-20, 20];
 
+/** Fixed non-zero, non-integer offset for the Attenuation-Style-level accent-pair draw — a
+ *  single-value dataId sampled at offset 0 can collapse to 3–4 values across every seed if its
+ *  hash lands near a simplex lattice point (PROCEDURAL_GENERATION.md "Gotchas", the cut
+ *  consoleTheme.ts). The test suite's spread guard measures this; if it ever trips, change this
+ *  number, never the threshold. docs/specs/WORLD_PALETTE_PULL.md §1.2. */
+const ACCENT_PAIR_OFFSET = 0.37;
+
 // ========================================
 // EXPORTS
 // ========================================
@@ -95,6 +103,27 @@ function deriveAsColorShift(noiseMap: NoiseFunction2D, index: number): ColorShif
     hueShift: getSeededVal(noiseMap, 'factory.as.hueShift', index, ...AS_FACTORY_HUE_SHIFT_RANGE),
     satShift: getSeededVal(noiseMap, 'factory.as.satShift', index, ...AS_FACTORY_SAT_SHIFT_RANGE),
   };
+}
+
+/**
+ * The Attenuation Style's two accent-lean targets (docs/specs/WORLD_PALETTE_PULL.md §1.2): a
+ * seeded primary out of the 18 console accent hues plus its nearest other accent on the wheel
+ * (analogous by construction). Per STYLE, not per locale — every locale under one style shares
+ * the pair, and a style retransmit moves the whole skyline (spec §7 item 2, Crawford's call).
+ * Exported only so tests can assert "target ∈ pair", the same way spawnSystem.ts exports
+ * generateCompanyIdentityColor; placeFactories/recolor are the only real callers.
+ */
+export function deriveAsAccentPair(asNoiseMap: NoiseFunction2D): AccentPair {
+  // Clamped index, mirroring generateRobotIdentityColor's own guard in spawnSystem.ts.
+  const raw = Math.floor(getSeededVal(asNoiseMap, 'factory.as.accentPrimary', ACCENT_PAIR_OFFSET, 0, ROBOT_IDENTITY_COLOR_NAMES.length));
+  const primaryIndex = Math.max(0, Math.min(ROBOT_IDENTITY_COLOR_NAMES.length - 1, raw));
+  return { primary: ACCENT_HUES[primaryIndex], secondary: ACCENT_HUES[secondaryFor(primaryIndex)] };
+}
+
+/** Which of the style's pair this factory leans toward — a seeded coin keyed by the factory's
+ *  index in the locale's actor array, the same offset convention deriveAsColorShift uses. */
+export function pickAccentTarget(asNoiseMap: NoiseFunction2D, pair: AccentPair, index: number): number {
+  return getSeededVal(asNoiseMap, 'factory.as.accentPick', index, 0, 1) < 0.5 ? pair.primary : pair.secondary;
 }
 
 /**
@@ -179,6 +208,9 @@ export function placeFactories(localeId: string): Actor[] {
   // doesn't resolve to any Attenuation Style currently in the store.
   const attenuationStyle = locale ? useAttenuationStyleStore.getState().attenuationStyles.find((p) => p.id === locale.attenuationStyleId) : undefined;
   const asNoiseMap = attenuationStyle ? getAttenuationStyleNoiseMap(attenuationStyle.id, attenuationStyle.name) : null;
+  // Phase 35: the style's accent pair, drawn once per placement pass. Null map ⇒ no lean, the
+  // same fallback shape as the zero asShift below.
+  const accentPair = asNoiseMap ? deriveAsAccentPair(asNoiseMap) : null;
   // Monotonic counter across every factory this call places, embedded in each factory's own
   // id/scale seed offset — mirrors spawnSystem.ts's spawnCount pattern.
   let factoryIndex = 0;
@@ -194,7 +226,8 @@ export function placeFactories(localeId: string): Actor[] {
       ? getSeededVal(noiseMap, 'factory.scale', index, 0.9, 1.1)
       : 0.9 + alea(`${localeId}:factory:${index}:scale`)() * 0.2;
     const asShift = asNoiseMap ? deriveAsColorShift(asNoiseMap, index) : { hueShift: 0, satShift: 0 };
-    return createFactory(position, row, scale, id, asShift);
+    const accentTarget = asNoiseMap && accentPair ? pickAccentTarget(asNoiseMap, accentPair, index) : undefined;
+    return createFactory(position, row, scale, id, asShift, accentTarget);
   }
 
   function computeFactoryWidth(
