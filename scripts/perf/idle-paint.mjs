@@ -36,28 +36,31 @@ const { values: opts } = parseArgs({
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const WINDOW_MS = Number(opts.window);
 
+/** The bubble circles: in their own scene layer since the 17.2.5 layer split, inside the factory layers before it. */
+const BUBBLES = 'svg[data-scene-layer="bubbles"] circle, #factory-background-layer circle, #factory-midground-layer circle, #factory-foreground-layer circle';
+
 /** Each ablation is a CSS snippet injected into the page. `stock` is traced first and last so drift is visible. */
 const ABLATIONS = [
   { name: 'stock', css: '' },
   { name: 'no-fill-transitions', css: '.ocean-scene * { transition: none !important; }' },
   { name: 'no-bridge-flicker', css: '.screen-viewport::before { animation: none !important; }' },
   { name: 'no-rocker-pulse', css: '.rocker-light { animation: none !important; }' },
-  { name: 'no-bubbles', css: '#factory-background-layer circle, #factory-midground-layer circle, #factory-foreground-layer circle { display: none !important; }' },
+  { name: 'no-bubbles', css: `${BUBBLES} { display: none !important; }` },
   { name: 'no-robots', css: '#robot-layer { display: none !important; }' },
   { name: 'no-factories', css: '#factory-background-layer, #factory-midground-layer, #factory-foreground-layer { display: none !important; }' },
   { name: 'no-scene', css: '.ocean-scene { display: none !important; }' },
   // Combined: nothing moves inside the scene (robots and bubbles hidden) but the per-second lighting fills still transition.
-  { name: 'no-robots+no-bubbles', css: '#robot-layer, #factory-background-layer circle, #factory-midground-layer circle, #factory-foreground-layer circle { display: none !important; }' },
+  { name: 'no-robots+no-bubbles', css: `#robot-layer, ${BUBBLES} { display: none !important; }` },
   // Combined: nothing moves AND the fill transitions are off — if the scene still repaints every frame, something else invalidates it.
-  { name: 'static-scene', css: '#robot-layer, #factory-background-layer circle, #factory-midground-layer circle, #factory-foreground-layer circle { display: none !important; } .ocean-scene * { transition: none !important; }' },
+  { name: 'static-scene', css: `#robot-layer, ${BUBBLES} { display: none !important; } .ocean-scene * { transition: none !important; }` },
   { name: 'no-gradient-rects', css: '#gradient-back-mid, #gradient-mid-front { display: none !important; }' },
   // Everything animated that this script knows about, off at once.
-  { name: 'all-anim-off', css: '#robot-layer, #factory-background-layer circle, #factory-midground-layer circle, #factory-foreground-layer circle { display: none !important; } .ocean-scene * { transition: none !important; } .screen-viewport::before, .rocker-light { animation: none !important; }' },
-  { name: 'all-anim-off+no-header', css: '#robot-layer, #factory-background-layer circle, #factory-midground-layer circle, #factory-foreground-layer circle { display: none !important; } .ocean-scene * { transition: none !important; } .screen-viewport::before, .rocker-light { animation: none !important; } header, .header { display: none !important; }' },
+  { name: 'all-anim-off', css: `#robot-layer, ${BUBBLES} { display: none !important; } .ocean-scene * { transition: none !important; } .screen-viewport::before, .rocker-light { animation: none !important; }` },
+  { name: 'all-anim-off+no-header', css: `#robot-layer, ${BUBBLES} { display: none !important; } .ocean-scene * { transition: none !important; } .screen-viewport::before, .rocker-light { animation: none !important; } header, .header { display: none !important; }` },
   { name: 'stock (again)', css: '' },
   // Irreversible (sticky) steps, last: moving nodes are REMOVED from the DOM, not hidden — GSAP keeps writing transforms
   // to a display:none element and Blink still invalidates style/layout for it, so display:none is not "nothing moves".
-  { name: 'detach-bubbles', sticky: true, js: `document.querySelectorAll('#factory-background-layer circle, #factory-midground-layer circle, #factory-foreground-layer circle').forEach((e) => e.remove())` },
+  { name: 'detach-bubbles', sticky: true, js: `document.querySelectorAll(${JSON.stringify(BUBBLES)}).forEach((e) => e.remove())` },
   { name: 'detach-bubbles+robots', sticky: true, js: `document.querySelectorAll('#robot-layer > g').forEach((e) => e.remove())` },
   { name: 'detached+no-transitions', css: '.ocean-scene * { transition: none !important; }' },
   { name: 'detached+all-anim-off', css: '.ocean-scene * { transition: none !important; } .screen-viewport::before, .rocker-light { animation: none !important; }' },
@@ -257,9 +260,10 @@ async function run(cdp) {
   await sleep(8000); // power-on + spawn settle
   const robots = await evaluate(`document.querySelectorAll('#robot-layer .robot').length`);
   const factories = await evaluate(`document.querySelectorAll('[data-factory-type]').length`);
-  const bubbles = await evaluate(`document.querySelectorAll('#factory-background-layer circle, #factory-midground-layer circle, #factory-foreground-layer circle').length`);
+  const bubbles = await evaluate(`document.querySelectorAll(${JSON.stringify(BUBBLES)}).length`);
+  const layers = await evaluate(`document.querySelectorAll('svg.ocean-scene__layer').length`);
   console.log(`Idle paint localizer — ${opts.url}, ${opts.throttle}x throttle, ${width}px, ${WINDOW_MS} ms windows`);
-  console.log(`Scene: ${robots} robots, ${factories} factories, ${bubbles} bubble circles\n`);
+  console.log(`Scene: ${robots} robots, ${factories} factories, ${bubbles} circles in the bubble/factory layers, ${layers} scene layers (0 = the pre-17.2.5 single svg)\n`);
 
   const wanted = opts.only ? new Set(opts.only.split(',').map((s) => s.trim())) : null;
   const rows = [];

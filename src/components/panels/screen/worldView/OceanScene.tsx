@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import './OceanScene.css';
@@ -11,6 +11,7 @@ import { initializeLocale } from '@/systems/worldTransition';
 import { consumeSessionSharePayload } from '@/utils/sessionShareUtils';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { Factory } from '@/components/actors/Factory';
+import { BubbleLayer } from '@/components/actors/BubbleLayer';
 import { isBubbleEligible } from '@/components/actors/factoryVariants';
 import { getRowConfig } from '@/systems/factoryPlacementSystem';
 import { ActorType } from '@/types/Actor';
@@ -29,14 +30,70 @@ interface OceanSceneProps {
 }
 
 // ========================================
+// SCENE LAYER
+// ========================================
+
+interface SceneLayerProps {
+  /** Which of the four layers — becomes `data-scene-layer`, keyed on by tests and the perf harness. */
+  name: 'back' | 'robots' | 'bubbles' | 'front';
+  width: number;
+  height: number;
+  /** A layer whose content moves every frame — promoted to its own compositor layer (OceanScene.css). */
+  moving?: boolean;
+  children: React.ReactNode;
+}
+
+/**
+ * One of the scene's stacked `<svg>` layers. All four share the viewBox and the "slice" (cover)
+ * fit, and OceanScene.css makes each fill the same box, so their coordinate systems map to the
+ * same pixels — a robot at scene (x, y) in the robots layer sits exactly over scene (x, y) in the
+ * factory layers.
+ */
+function SceneLayer({ name, width, height, moving = false, children }: SceneLayerProps) {
+  const className = [
+    'ocean-scene__layer',
+    moving && 'ocean-scene__layer--moving',
+    name === 'robots' && 'ocean-scene__layer--robots',
+  ].filter(Boolean).join(' ');
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className={className}
+      data-scene-layer={name}
+      width={width}
+      height={height}
+      // "slice" (cover), not the default "meet" (contain) — the back layer's background rect fills
+      // the whole viewBox, and it must never be smaller than the tablet screen in either
+      // direction. slice scales the scene UP until both dimensions cover the box, centered,
+      // cropping whichever axis overflows — never scaled down to fit with letterbox bars outside
+      // it. The SVG's own default overflow:hidden (and .world-view's, WorldView.css) clips the
+      // crop; nothing scrolls.
+      preserveAspectRatio="xMidYMid slice"
+    >
+      {children}
+    </svg>
+  );
+}
+
+// ========================================
 // COMPONENT
 // ========================================
 
 /**
- * Root SVG scene component. Renders factory building layers (background →
- * midground → foreground), depth-gradient overlays, the robot layer, and the
- * debug UI overlay. Kicks off factory placement, robot spawning, factory
- * production scheduling on mount.
+ * Root scene component. Renders four stacked SVG layers (roadmap 17.2.5): a static back layer
+ * (background → midground factories with the depth-gradient overlays between them), the moving
+ * robot layer, the moving bubble layer (every building's vent bubbles), and a static front layer
+ * (foreground factories). Kicks off factory placement, robot spawning and factory production
+ * scheduling on mount.
+ *
+ * Why layers: the idle paint localizer (scripts/perf/idle-paint.mjs) found the old single <svg>
+ * repainting all sixty factories at full viewport size on every frame, because the robots and
+ * bubbles that move every frame shared its paint layer. The moving layers are compositor layers
+ * of their own now (OceanScene.css), so a transform write repaints only a dozen robots or a
+ * handful of circles; the factory layers repaint once a second, on the lighting tick.
+ *
+ * Z-order is the old order with one change: bubbles from every row rise above the robots and
+ * below the foreground factories (background/midground bubbles used to pass behind the robots).
  *
  * @param width           - SVG viewBox width in pixels (default 1920).
  * @param height          - SVG viewBox height in pixels (default 1080).
@@ -65,35 +122,27 @@ export function OceanScene({
 
   // categorize factory actors by row — memoised so robot updates don't
   // create new array references and trigger unnecessary Factory re-renders
+  const factories = useMemo(() => actors.filter((a) => a.type === ActorType.FACTORY), [actors]);
   const backgroundFactories = useMemo(
-    () => actors.filter((a) => {
-      if (a.type !== ActorType.FACTORY) return false;
-      return getRowConfig(a.config?.row ?? -1)?.row === 'background';
-    }),
-    [actors],
+    () => factories.filter((a) => getRowConfig(a.config?.row ?? -1)?.row === 'background'),
+    [factories],
   );
   const midgroundFactories = useMemo(
-    () => actors.filter((a) => {
-      if (a.type !== ActorType.FACTORY) return false;
-      return getRowConfig(a.config?.row ?? -1)?.row === 'midground';
-    }),
-    [actors],
+    () => factories.filter((a) => getRowConfig(a.config?.row ?? -1)?.row === 'midground'),
+    [factories],
   );
   const foregroundFactories = useMemo(
-    () => actors.filter((a) => {
-      if (a.type !== ActorType.FACTORY) return false;
-      return getRowConfig(a.config?.row ?? -1)?.row === 'foreground';
-    }),
-    [actors],
+    () => factories.filter((a) => getRowConfig(a.config?.row ?? -1)?.row === 'foreground'),
+    [factories],
   );
 
   // Locale-wide count of bubble-eligible buildings (all rows, not just one),
-  // passed to every Factory so BubbleStream can spread the aggregate
+  // passed to the bubble layer so each BubbleStream can spread the aggregate
   // bubble-burst rate across all of them rather than have each one burst on
-  // its own fixed interval — see Factory's totalBubbleBuildings prop doc.
+  // its own fixed interval — see BubbleStream's totalBuildings prop doc.
   const bubbleBuildingCount = useMemo(
-    () => actors.filter((a) => a.type === ActorType.FACTORY && isBubbleEligible(a.config?.purpose)).length,
-    [actors],
+    () => factories.filter((a) => isBubbleEligible(a.config?.purpose)).length,
+    [factories],
   );
 
   // Bring the active locale online on mount — guarded factory placement + the
@@ -141,21 +190,9 @@ export function OceanScene({
 
 
   return (
-    <>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="ocean-scene"
-        width={width}
-        height={height}
-        // "slice" (cover), not the default "meet" (contain) — the background
-        // rect a few lines down fills the whole viewBox, and it must never be
-        // smaller than the tablet screen in either direction. slice scales
-        // the scene UP until both dimensions cover the box, centered,
-        // cropping whichever axis overflows — never scaled down to fit with
-        // letterbox bars outside it. The SVG's own default overflow:hidden
-        // (and .world-view's, WorldView.css) clips the crop; nothing scrolls.
-        preserveAspectRatio="xMidYMid slice"
-      >
+    <div className="ocean-scene">
+      {/* Static back layer: ocean floor, background → midground factories, depth gradients. */}
+      <SceneLayer name="back" width={width} height={height}>
         <defs>
           {/* Gradients between factory rows */}
           <linearGradient id="gradient-0-1" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -174,7 +211,7 @@ export function OceanScene({
         {/* Background-row factories (rendered furthest back) */}
         <g id="factory-background-layer">
           {backgroundFactories.map((actor) => (
-            <Factory key={actor.id} actor={actor} totalBubbleBuildings={bubbleBuildingCount} />
+            <Factory key={actor.id} actor={actor} />
           ))}
         </g>
         {/* Gradient between background and midground layers */}
@@ -191,7 +228,7 @@ export function OceanScene({
         <g id="factory-midground-layer">
           {/* full-type rows */}
           {midgroundFactories.map((actor) => (
-            <Factory key={actor.id} actor={actor} totalBubbleBuildings={bubbleBuildingCount} />
+            <Factory key={actor.id} actor={actor} />
           ))}
         </g>
         {/* Gradient between midground and foreground layers */}
@@ -204,22 +241,31 @@ export function OceanScene({
           fill="url(#gradient-1-2)"
           pointerEvents="none"
         />
+      </SceneLayer>
 
-
-
+      {/* Moving: the robots (GSAP-driven transforms, Robot.tsx). The one layer that takes clicks. */}
+      <SceneLayer name="robots" width={width} height={height} moving>
         <g id="robot-layer">
           {robotIds.map((id) => (
             <Robot key={id} robotId={id} />
           ))}
         </g>
-        {/* Foreground-row factories (rendered closest to viewer) */}
+      </SceneLayer>
+
+      {/* Moving: every building's vent bubbles, all rows (BubbleStream timelines). */}
+      <SceneLayer name="bubbles" width={width} height={height} moving>
+        <BubbleLayer factories={factories} totalBuildings={bubbleBuildingCount} />
+      </SceneLayer>
+
+      {/* Static front layer: foreground-row factories (rendered closest to viewer). */}
+      <SceneLayer name="front" width={width} height={height}>
         <g id="factory-foreground-layer">
           {foregroundFactories.map((actor) => (
-            <Factory key={actor.id} actor={actor} totalBubbleBuildings={bubbleBuildingCount} />
+            <Factory key={actor.id} actor={actor} />
           ))}
         </g>
         <g id="ui-layer" />
-      </svg>
-    </>
+      </SceneLayer>
+    </div>
   );
 }

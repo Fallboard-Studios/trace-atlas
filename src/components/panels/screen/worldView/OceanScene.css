@@ -1,7 +1,32 @@
+/* The scene is four stacked <svg> layers, not one (roadmap 17.2.5): static back (background +
+   midground factories and the depth gradients), moving robots, moving bubbles, static front
+   (foreground factories). Each layer fills this box and shares the same viewBox and slice fit, so
+   the four coordinate systems map to the same pixels; the moving layers are promoted to compositor
+   layers of their own, so a robot's or bubble's per-frame transform write repaints only its own
+   layer instead of the sixty static factories behind it. The world-view (WorldView.css) is the
+   positioned ancestor. */
 .ocean-scene {
+  position: absolute;
+  inset: 0;
+}
+
+.ocean-scene__layer {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
+  /* Only the robots layer takes clicks (below); the bubbles layer sits above it and must not
+     swallow them, and the static layers never needed them. */
+  pointer-events: none;
+}
+
+.ocean-scene__layer--moving {
+  will-change: transform;
+}
+
+.ocean-scene__layer--robots {
+  pointer-events: auto;
 }
 
 /* Robot styling */

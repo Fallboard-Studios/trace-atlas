@@ -2,14 +2,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { act, render } from '@testing-library/react';
 import { vi } from 'vitest';
 
-// Same isolation reasoning as FactoryBubbleStream.test.tsx: BubbleStream's own timing/GSAP
-// internals are irrelevant to what this file verifies (lighting-driven re-render behavior),
-// so it's stubbed out rather than exercised.
-vi.mock('./BubbleStream', () => ({
-  __esModule: true,
-  default: () => <div data-testid="bubble-stream-stub" />,
-}));
-
 import { Factory } from './Factory';
 import { selectVariantFromSeed } from './factoryVariants';
 import type { FactoryVariant } from './factoryVariants';
