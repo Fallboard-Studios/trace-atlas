@@ -32,11 +32,12 @@ unimplemented (Phase 12 design only). Covered by `src/components/actors/Factory.
 changes and behavior with no locale selected).
 
 There were two independent sources of truth for "this locale's current BPM":
-- Live value: `audioStore.bpm` — seeded per-locale via `generateLocaleBpm` (range `[40,100]`,
-  `src/utils/localeBpmSeed.ts`), live-adjustable via the Tempo slider, drives
-  `AudioEngine`/Transport. Initial default at [`audioStore.ts:191`](../src/stores/audioStore.ts#L191)
-  (`bpm: 60`), regenerated via `regenerateBpmFromSeed`
-  ([`audioStore.ts:205-206`](../src/stores/audioStore.ts#L205-L206)).
+- Live value: `audioStore.bpm` — live-adjustable via the Tempo slider, drives `AudioEngine`/Transport.
+  Seeded per **Attenuation Style** via `generateAttenuationStyleBpm` (range `[40,100]`,
+  `src/utils/bpmSeed.ts`); it was drawn from the locale's coordinates when this item was fixed, and
+  `docs/specs/FREE_SYNC_TOGGLE.md` §1.7 moved it so a Sync draw can compute it from the style alone.
+  Initial default `bpm: 60` in `audioStore.ts`, reseeded via `regenerateBpmFromSeed` on every
+  Attenuation Style change (the line-number links this item used to carry had drifted and are gone).
 - Stale value (removed): `locale.settings.bpm` — written once at locale creation and never updated
   again, hardcoded to `{ bpm: 60 }` at both creation sites.
 
