@@ -31,7 +31,7 @@ ASSUMPTIONS I'm making beyond the intent's decisions (correct now or I'll procee
 8. **Drift keeps applying to synced lanes**, behind one constant in `utils/tempoSync.ts` (`RATE_DRIFT_APPLIES_TO_SYNCED = true`). When `false`, the resolver hands the engine `rateDrift: 0` for a synced lane. The engine never learns about sync.
 9. **Untrusted `sync` values are dropped, not trusted.** `isNoteValue` guards the resolvers (an unrecognised `sync` resolves as Free) and `applySessionPayload` strips an invalid `sync` from lanes and Delay before it reaches state — the same boundary-backfill shape the LFO Bank code review established (`backfillLfoBank`).
 10. **Seed odds are thresholds on one seeded draw** (`t < odds` ⇒ Sync), the codebase's existing convention (`DELAY_QUIET_THRESHOLD`, `LFO_QUIET_THRESHOLD`). `getSeededVal` samples simplex noise, which is not uniform, so a measured-share test (§5) checks the real odds; if one lands outside tolerance, the plan calibrates that threshold constant, never the target.
-11. **The toggle's facade text is the current mode's lore word** — "Float" at rest, "Anchored" popped. Its accessible name is the stable "Tempo Sync" (`labels('ui.tempoSync')`) in both modes, with Free/Sync carried by `aria-checked` (confirmed by Crawford 2026-10-02; an earlier draft of this line said the human pair Free / Sync was the name, which would rename the control as it flips). Click Track's facade uses its human word; this one uses lore because Float/Anchored are the confirmed names for the two states.
+11. **The toggle carries two different label pairs** (as built 2026-10-03, after Crawford's review; this replaces the earlier "lore word alone as facade text" draft, which showed no label and read as confusing). Its **own label** is the `ui.tempoSync` entry itself, { Tempo Sync / Anchoring }: what the control *is*, shown as a `DualLabel` beside the box; its human word is the switch's stable accessible name in both modes, with Free/Sync carried by `aria-checked` (a name that changed with state would announce as a different control). Its **content** is the *current mode's* pair from `ui.tempoSync.options`, { Free / Float } at rest and { Sync / Anchored } popped, rendered as a `DualLabel` (lore over human, the Shape options' convention) inside the shared `ToggleFacade`, which renders both states' content stacked in one grid cell and hides the inactive one, so the box holds the larger content's size and never resizes on a flip.
 
 ---
 
@@ -172,7 +172,7 @@ interface TempoSyncSliderProps {
 }
 ```
 
-Rendering: a flex row (`.sc-tempo-sync`) holding one `SliderLinear` (flex 1) and one `Toggle`. Free: the given schema and `freeValue`, unchanged. Sync: `{ ...schema, id: `${schema.id}.sync`, min: 0, max: allowed.length - 1, step: 1, unit: undefined, formatValue: (i) => formatNoteValue(allowed[Math.round(i)]) }` (memoised on `[schema, allowed]`), value = index of `syncValue` in `allowed`, or — when a tempo change has pushed it out — the clamped index (last entry if it is now too long/slow, first if too short/fast). Display-only: nothing is written on render, and moving the tempo back restores the stored note. Toggle: `schema = { id: `${schema.id}.mode`, type: 'toggle', ...labels('ui.tempoSync') }`, `value = syncValue !== undefined`, facade children = the current mode's lore word from `options('ui.tempoSync')` (assumption 11). Memoised like every other primitive.
+Rendering (as built 2026-10-03; Crawford's review replaced the first draft's side-by-side row): a **column** (`.sc-tempo-sync`) holding one `SliderLinear` on top, stretched to the full width, and the toggle in a row of its own **under** it. Both live inside the caller's one param-row, so the lane panel keeps four rows and the Delay block keeps its three. Free: the given schema and `freeValue`, unchanged. Sync: `{ ...schema, id: `${schema.id}.sync`, min: 0, max: Math.max(1, allowed.length - 1), step: 1, unit: undefined, formatValue: (i) => formatNoteValue(allowed[Math.round(i)]) }` (memoised on `[schema, allowed]`; the `max` floor of 1 keeps Radix's thumb maths off a zero-width range, and a list of fewer than two stops renders the slider disabled), value = index of `syncValue` in `allowed`, or — when a tempo change has pushed it out — the stop nearest it **in beats** (direction-agnostic, so it lands on the right end for both the lanes' slow→fast list and Delay's short→long list). Display-only: nothing is written on render, and moving the tempo back restores the stored note. The slider is keyed per mode (`key={synced ? 'sync' : 'free'}`): `SliderLinear` eases external value changes, and a Free value and a Sync index are different spaces, so a remount lands on the value at once instead of sweeping the thumb through meaningless notes. An unrecognised stored `syncValue` (fails `isNoteValue`) renders as Free, matching the resolvers. The toggle is its own component, **`TempoSyncToggle`** (`schemaId` → `{ id: `${schemaId}.mode`, type: 'toggle', ...labels('ui.tempoSync') }`, `synced`, `onChange`, `disabled`): a `DualLabel` of the toggle's own label beside a `Toggle` whose facade is a `ToggleFacade` with the two modes' `DualLabel` pairs as `off`/`on` content (assumption 11). Its wrapper sizes the toggle to its content (`width: auto; container-type: normal` over `Toggle.css`'s `width: 100%` + inline-size containment, which in any flex row would otherwise starve the neighbour). Both components are `memo`-wrapped; handlers use the `latest`-ref pattern so the slider's `onChange` identity survives re-renders.
 
 **`LfoBankLanePanel`** subscribes to `s.lfoBank[lane].sync` and `s.bpm`, memoises `allowedLaneNoteValues(bpm)`, and replaces its Rate `SliderLinear` with `TempoSyncSlider`: `onFreeChange` → `setLfoBank(lane, { rate })`, `onSyncChange` → `setLfoBank(lane, { sync })`, `onModeChange` → `setLfoBankLaneSyncMode(lane, on)`. Shape and both drift rows are untouched.
 
@@ -212,10 +212,10 @@ export function pickSeedNoteValue(t: number, bpm: number, bands: readonly { min:
 
 `seedBpm` is always `generateAttenuationStyleBpm(id, name)` — pure, computed inside each seeder, nothing threaded.
 
-| seeder | new `getSeededVal` keys | Sync odds (`t < odds`) | candidate bands, in order | on Sync |
+| seeder | new `getSeededVal` keys | target Sync share → threshold constant (`t < odds`) | candidate bands, in order | on Sync |
 |---|---|---|---|---|
-| `generateLfoBankSettings` | `lfoBank.${lane}.syncMode`, `lfoBank.${lane}.syncNote` | `LFO_BANK_SYNC_ODDS` a 0.75, b 0.66, c 0.33, d 0.25 | own lane's `LFO_BANK_RATE_BANDS` entry, then next faster lane's, then next slower, widening outward the same way | `sync = pick`; `rate` still sampled exactly as today (the kept Free value) |
-| `generateGlobalAudioSettings` — Delay | `globalAudio.delay.syncMode`, `globalAudio.delay.syncNote` | `DELAY_SYNC_ODDS` 0.66 | `GLOBAL_AUDIO_LOADING_RANGES['delay.delayTime']` (0.05–0.5 s) only | `delay.sync = pick`; `delayTime` still sampled as today |
+| `generateLfoBankSettings` | `lfoBank.${lane}.syncMode`, `lfoBank.${lane}.syncNote` | a 75 / b 66 / c 33 / d 25 % → `LFO_BANK_SYNC_ODDS` **a 0.60, b 0.62, c 0.33, d 0.33** (calibrated per assumption 10 — a simplex draw bunches around 0.5; the constant's comment records every measured share) | own lane's `LFO_BANK_RATE_BANDS` entry, then next faster lane's, then next slower, widening outward the same way (`LFO_BANK_SYNC_BAND_ORDER`) | `sync = pick`; `rate` still sampled exactly as today (the kept Free value) |
+| `generateGlobalAudioSettings` — Delay | `globalAudio.delay.syncMode`, `globalAudio.delay.syncNote` | 66 % → `DELAY_SYNC_ODDS` 0.66 (measured 66.4 %, uncalibrated) | `GLOBAL_AUDIO_LOADING_RANGES['delay.delayTime']` (0.05–0.5 s) only | `delay.sync = pick`; `delayTime` still sampled as today |
 
 If `pickSeedNoteValue` returns `undefined`, the target stays Free. At today's 40–100 seed range every lane band and the Delay band is non-empty at every integer BPM (a test proves it), so the fallback is insurance against a future retune. Existing keys and their order are untouched: with the coin landing Free, a world's seeded values are byte-identical to today's.
 
@@ -273,11 +273,17 @@ src/
 │   ├── audioEngine/globalFx.ts             comment only (maxDelay ↔ DELAY_TIME_RANGE_SECONDS)
 │   └── audioDiagnostics.ts                 isLaneRunning
 ├── components/
-│   ├── ui/controls/TempoSyncSlider.tsx / .css / .test.tsx   NEW composition
-│   ├── ui/controls/SliderLinear.tsx / .test.tsx             formatValue readout
-│   └── panels/screen/console/
-│       ├── LfoBankLanePanel.tsx / .test.tsx                 Rate → TempoSyncSlider
-│       └── AudioRigDrawer.tsx, AudioRigEffectPanel.test.tsx  delay hand-composed branch
+│   ├── ui/controls/TempoSyncSlider.tsx / .css / .test.tsx   NEW composition (slider over its toggle)
+│   ├── ui/controls/TempoSyncToggle.tsx / .css / .test.tsx   NEW — the toggle with its own label and mode content (assumption 11)
+│   ├── ui/controls/ToggleFacade.tsx / .css / .test.tsx      NEW shared facade that holds its largest state's size; .css.test.ts pins the sizing rules
+│   ├── ui/controls/tempoSyncSliderLayout.test.ts            CSS source scan: column layout, no zero-basis collapse
+│   ├── ui/controls/SliderLinear.tsx / .test.tsx             formatValue readout + aria-valuetext on the thumb
+│   └── panels/screen/
+│       ├── console/LfoBankLanePanel.tsx / .test.tsx         Rate → TempoSyncSlider
+│       ├── console/AudioRigDrawer.tsx, AudioRigEffectPanel.test.tsx  delay hand-composed branch
+│       └── nav/NavToggleButton.tsx / .test.tsx              ☰/✕ through ToggleFacade (outside the toggle itself; Crawford's largest-content rule, 2026-10-03)
+├── testUtils/toggleFacade.ts               reads a facade's CURRENT state in tests (every state is in the DOM)
+├── docs/freeSyncDocs.test.ts               guards the live docs: no deleted names, every cited symbol exists
 └── content/copy/ui.ts                      §1.9
 docs/
 ├── AUDIO_SYSTEM.md                         BPM / Tempo rewritten (AS-seeded); LFO Bank section: Sync on lanes, resolvers, drift switch
