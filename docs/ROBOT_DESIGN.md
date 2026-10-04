@@ -67,6 +67,22 @@ locale's time of day. This is a rendering-context override only: it doesn't touc
 active on an `ignoreDaylight` thumbnail), and in-world `Robot.tsx` instances don't pass it, so
 their day/night behavior is unchanged.
 
+## Identity layer
+
+One documented exception to "visuals map strictly to audio attributes": `Robot.identityColor`
+(one of the 18 `ROBOT_IDENTITY_COLOR_NAMES` hues, seeded at spawn) drives exactly two SVG elements
+on every shape — the window glass and the lamp — nothing else on the body. Both derive their
+fills from `identityGlass(hex)` (`robotVisualHelpers.ts`), which returns `{ glass, sheen }`:
+`glass` is the identity hex itself, `sheen` is the same hue lightened (+20, capped 95). The
+window's `g.window` group and the lamp's `g.lamp` group each render `glass`/`sheen` directly;
+neither is touched by `generateColors()`'s ADSR/waveform mapping, and neither is affected by
+day/night (`lightnessMultiplier`, above, never reaches them) — though both are still dimmed by
+battery (`dimOpacity`/`lampOpacity`), and the lamp additionally tracks live audible-layer gain
+(`calculateLampIntensity`). The same class of exception as the two brightness overlays above:
+narrower than, and layered on top of, the shape/color identity mapping — never a replacement for
+it. Everything else on the body — primary/secondary/accent/highlight/shadow fills, rivets, vents —
+stays derived from ADSR + waveform.
+
 ## Data Flow
 
 `audioAttributes` (`adsr`, `waveform`, `filterFreq`, `layers`, `visualAudioMap`) is fully serializable and lives on `Robot` in Zustand (see [src/types/Robot.ts](../src/types/Robot.ts)). Visual props are recomputed from this data at render time — never construct Tone.js objects, and never store computed shape/color props back in state.
@@ -78,5 +94,5 @@ their day/night behavior is unchanged.
 ## Forbidden Patterns
 
 - Storing computed colors, shape props, or greeble counts in Zustand — recompute from `audioAttributes` at render time.
-- Adding a static/fixed color palette — colors must stay derived from ADSR + waveform.
+- Adding a static/fixed color palette to the **body** — body colours must stay derived from ADSR + waveform; the only non-audio colour is `identityColor`, confined to the window glass and lamp (see "Identity layer").
 - Constructing Tone.js objects for visual-only purposes.

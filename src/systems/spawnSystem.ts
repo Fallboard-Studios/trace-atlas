@@ -134,7 +134,7 @@ function generateRobotName(noiseMap: NoiseFunction2D, offset: number): string {
  * Deterministic per-robot identity color (Roadmap Phase 14, docs/specs/
  * COLOR_SCHEME_TRAIT_THEMING.md §1.4) — UI chrome only (RobotSelectionCard/RobotDisplaySection),
  * never the SVG body's own ADSR/waveform-derived HSL fill. Same generation mechanism as
- * generateRobotName above: one getSeededVal draw against ROBOT_IDENTITY_COLOR_NAMES (the 13 hue
+ * generateRobotName above: one getSeededVal draw against ROBOT_IDENTITY_COLOR_NAMES (the 18 hue
  * keys — black/white/darkGray are deliberately excluded there, not filtered here).
  */
 function generateRobotIdentityColor(noiseMap: NoiseFunction2D, offset: number): string {
