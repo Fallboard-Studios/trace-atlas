@@ -135,6 +135,24 @@ describe.each(VARIANTS)('%s', (_name, Component) => {
     expect(withoutGreebles.querySelector('[data-testid="greebles-marker"]')).toBeNull();
   });
 
+  it('places a given sockets node after g.lamp and before .details; renders nothing when omitted (Phase 38 Task 4)', () => {
+    const marker = <g data-testid="sockets-marker" />;
+    const { container: withSockets } = render(<svg><Component {...baseProps} detailLevel={0.6} sockets={marker} /></svg>);
+    const all = Array.from(withSockets.querySelectorAll('*'));
+    const lampEl = withSockets.querySelector('g.lamp');
+    const markerEl = withSockets.querySelector('[data-testid="sockets-marker"]');
+    const detailsEl = withSockets.querySelector('.details');
+    expect(lampEl, 'lamp group').not.toBeNull();
+    expect(markerEl, 'sockets marker').not.toBeNull();
+    expect(detailsEl, 'details group').not.toBeNull();
+    expect(all.indexOf(lampEl!)).toBeLessThan(all.indexOf(markerEl!));
+    expect(all.indexOf(markerEl!)).toBeLessThan(all.indexOf(detailsEl!));
+
+    const { container: withoutSockets } = render(<svg><Component {...baseProps} /></svg>);
+    expect(withoutSockets.querySelector('[data-testid="sockets-marker"]')).toBeNull();
+    expect(withoutSockets.querySelector('.sockets')).toBeNull();
+  });
+
   it('the four audio-driven greeble props no longer type-check (compile-time) — Phase 37 Task 5', () => {
     const { container } = render(<svg><Component {...baseProps} /></svg>);
     expect(container.querySelector('svg')).not.toBeNull();

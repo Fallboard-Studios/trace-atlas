@@ -32,6 +32,9 @@ interface RobotSVGProps {
   /** Seeded hardware parts (RobotGreebles), placed between the hull shadow and the window — the
    *  shape never learns about kinds or slots, just where this node sits. */
   greebles?: React.ReactNode;
+  /** The two always-present identity sockets (RobotLayerSockets), placed after the lamp and
+   *  before .details — the shape never learns about positions or gains, just where this sits. */
+  sockets?: React.ReactNode;
 }
 
 // ========================================
@@ -41,7 +44,7 @@ interface RobotSVGProps {
  * RobotIndustrial - Boxy, mechanical design for industrial synth voices
  * Heavy industrial construction with layered armor plates
  */
-export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2', lampOpacity = 1, greebles }: RobotSVGProps) {
+export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2', lampOpacity = 1, greebles, sockets }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
   const { glass, sheen } = identityGlass(identityColor);
 
@@ -94,6 +97,8 @@ export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, sca
           <rect x="78" y="32" width="4" height="8" fill={glass} />
           <rect x="78" y="32" width="4" height="4" fill={sheen} />
         </g>
+
+        {sockets}
 
         {detailLevel > 0.5 && (
           <g className="details">
