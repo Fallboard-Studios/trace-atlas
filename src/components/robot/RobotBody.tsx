@@ -62,7 +62,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, hideGr
 
   // Identity colour is seeded, not audio-derived — read outside the memo, same reasoning as
   // battery/daylight above. Confined to the window glass and lamp (docs/ROBOT_DESIGN.md
-  // "Identity layer").
+  // "Non-audio layers").
   const identityColor = robot.identityColor;
 
   // Everything audio-derived — no lightnessMultiplier anywhere in this memo or its

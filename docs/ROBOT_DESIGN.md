@@ -47,7 +47,7 @@ of growing from the origin.
 ## Greebles & Lights
 
 - **Greeble count**: `calculateGreebleCount(filterFreq, detailLevel, waveform, adsr)`, weighting filter-derived detail (60%), explicit detail (25%), and sustain (15%), with a small bonus for sawtooth/square waveforms. Capped at 16. Computed live; not yet drawn on any shape — Roadmap Phase 37 (Robot Greebles) owns rendering it.
-- **Lamp**: every shape renders one always-visible `g.lamp` (outside `.details`, present at every detail level), identity-coloured (see "Identity layer" below), lit by `calculateLampIntensity(layers, detail)` — averaged audible-layer gain (muted layers excluded from the average, not counted as zero) blended 60/40 with detail, floored at `LAMP_MIN` (0.4) so a quiet, short-release robot still shows a carrier. `RobotBody.tsx` composes the final `lampOpacity` with battery dim outside the audio memo, the same split `dimOpacity` already uses.
+- **Lamp**: every shape renders one always-visible `g.lamp` (outside `.details`, present at every detail level), identity-coloured (see "Non-audio layers" below), lit by `calculateLampIntensity(layers, detail)` — averaged audible-layer gain (muted layers excluded from the average, not counted as zero) blended 60/40 with detail, floored at `LAMP_MIN` (0.4) so a quiet, short-release robot still shows a carrier. `RobotBody.tsx` composes the final `lampOpacity` with battery dim outside the audio memo, the same split `dimOpacity` already uses.
 
 ## Non-Audio Brightness Overlays
 
@@ -76,21 +76,37 @@ locale's time of day. This is a rendering-context override only: it doesn't touc
 active on an `ignoreDaylight` thumbnail), and in-world `Robot.tsx` instances don't pass it, so
 their day/night behavior is unchanged.
 
-## Identity layer
+## Non-audio layers
 
-One documented exception to "visuals map strictly to audio attributes": `Robot.identityColor`
-(one of the 18 `ROBOT_IDENTITY_COLOR_NAMES` hues, seeded at spawn) drives exactly two SVG elements
-on every shape — the window glass and the lamp — nothing else on the body. Both derive their
-fills from `identityGlass(hex)` (`robotVisualHelpers.ts`), which returns `{ glass, sheen }`:
-`glass` is the identity hex itself, `sheen` is the same hue lightened (+20, capped 95). The
-window's `g.window` group and the lamp's `g.lamp` group each render `glass`/`sheen` directly;
-neither is touched by `generateColors()`'s ADSR/waveform mapping, and neither is affected by
-day/night (`lightnessMultiplier`, above, never reaches them) — though both are still dimmed by
-battery (`dimOpacity`/`lampOpacity`), and the lamp additionally tracks live audible-layer gain
-(`calculateLampIntensity`). The same class of exception as the two brightness overlays above:
-narrower than, and layered on top of, the shape/color identity mapping — never a replacement for
-it. Everything else on the body — primary/secondary/accent/highlight/shadow fills, rivets, vents —
-stays derived from ADSR + waveform.
+Two documented exceptions to "visuals map strictly to audio attributes":
+
+1. **Identity colour.** `Robot.identityColor` (one of the 18 `ROBOT_IDENTITY_COLOR_NAMES` hues,
+   seeded at spawn) drives exactly two SVG elements on every shape — the window glass and the
+   lamp — nothing else on the body. Both derive their fills from `identityGlass(hex)`
+   (`robotVisualHelpers.ts`), which returns `{ glass, sheen }`: `glass` is the identity hex
+   itself, `sheen` is the same hue lightened (+20, capped 95). The window's `g.window` group and
+   the lamp's `g.lamp` group each render `glass`/`sheen` directly; neither is touched by
+   `generateColors()`'s ADSR/waveform mapping, and neither is affected by day/night
+   (`lightnessMultiplier`, above, never reaches them) — though both are still dimmed by battery
+   (`dimOpacity`/`lampOpacity`), and the lamp additionally tracks live audible-layer gain
+   (`calculateLampIntensity`).
+2. **The greeble set (Roadmap Phase 37).** `Robot.greebles` (`{ kind, slot }[]`) is drawn once at
+   spawn (`generateGreebles`, `spawnSystem.ts`) from a count in `GREEBLE_COUNT_RANGE` (2..5), then
+   that many independent kind/slot draws with no robot ever repeating a slot — seeded hardware,
+   not audio-derived. `kind` indexes `RobotGreebles.tsx`'s fixed vocabulary of `KIND_COUNT` parts
+   (panel/tank/dish/antenna/decal, one or two SVG elements each); `slot` indexes the current
+   shape's `GREEBLE_SLOTS` table (`greebleSlots.ts`, `SLOT_COUNT` entries per shape, hand-measured
+   to clear the window, lamp, vent and the reserved layer-socket fixtures), so a waveform change
+   re-slots the same parts onto the new outline without touching robot data. Parts draw only from
+   `colors.accent`, `colors.shadow` and the hardware greys — never `identityColor`, never
+   `primary` — so this is a **shape/placement** exception, not a colour one. `RobotBody` builds
+   `<RobotGreebles>` outside its audio memo and hides it only on the 64px selection card
+   (`hideGreebles`); the detail avatar and in-world robots always show parts.
+
+Both are the same class of exception as the two brightness overlays above: narrower than, and
+layered on top of, the shape/color identity mapping — never a replacement for it. Everything else
+on the body — primary/secondary/accent/highlight/shadow fills, rivets, vents — stays derived from
+ADSR + waveform.
 
 ## Data Flow
 
@@ -101,5 +117,6 @@ stays derived from ADSR + waveform.
 ## Forbidden Patterns
 
 - Storing computed colors, shape props, or greeble counts in Zustand — recompute from `audioAttributes` at render time.
-- Adding a static/fixed color palette to the **body** — body colours must stay derived from ADSR + waveform; the only non-audio colour is `identityColor`, confined to the window glass and lamp (see "Identity layer").
+- Adding a static/fixed color palette to the **body** — body colours must stay derived from ADSR + waveform; the only non-audio colour is `identityColor`, confined to the window glass and lamp (see "Non-audio layers").
+- Making greeble count, kind or placement depend on anything other than the seed (audio, battery, time, or a user edit) — the seeded `Robot.greebles` set is the only non-audio shape exception, confined to the vocabulary's own slots (see "Non-audio layers").
 - Constructing Tone.js objects for visual-only purposes.

@@ -25,7 +25,7 @@ interface RobotSVGProps {
   microVariants?: MicroVariants;
   /** Opacity multiplier (1 = full brightness) for the viewport — dims as battery drains. */
   dimOpacity?: number;
-  /** Robot.identityColor hex — the window glass's only non-ADSR color (docs/ROBOT_DESIGN.md "Identity layer"). */
+  /** Robot.identityColor hex — the window glass's only non-ADSR color (docs/ROBOT_DESIGN.md "Non-audio layers"). */
   identityColor?: string;
   /** Opacity multiplier for the lamp, driven by live audible-layer gain; battery-composed like dimOpacity. */
   lampOpacity?: number;
