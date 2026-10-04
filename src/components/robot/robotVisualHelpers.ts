@@ -3,6 +3,7 @@
 // ========================================
 import type { AudioAttributes, WaveformType, ADSREnvelope } from '../../types/Robot';
 import type { OscillatorLayer } from '../../types/layeredAudio';
+import { hexToHsl, hslToString } from '../../utils/colorUtils';
 import { RobotSleek } from './RobotSleek';
 import { RobotAngular } from './RobotAngular';
 import { RobotOrganic } from './RobotOrganic';
@@ -16,6 +17,8 @@ export interface RobotColors {
   primary: string;
   secondary: string;
   accent: string;
+  highlight: string; // secondary hue, lightness +25 (cap 95) — replaces the fixed #a9adb0
+  shadow: string; // accent hue, lightness -25 (floor 5) — replaces the fixed #000000
 }
 
 export type RobotSVGComponent = typeof RobotSleek | typeof RobotAngular | typeof RobotOrganic | typeof RobotIndustrial;
@@ -112,10 +115,17 @@ export function generateColors(attrs: AudioAttributes): RobotColors {
   const sat = toSaturation(adsr.attack);
   const lum = toLuminance(adsr.sustain);
 
+  const secondarySat = Math.round(sat * 0.9);
+  const secondaryLum = Math.max(8, Math.round(lum * 0.9));
+  const accentSat = Math.round(Math.min(100, sat * 1.1));
+  const accentLum = Math.max(6, Math.round(lum * 0.95));
+
   return {
     primary: `hsl(${Math.round(primaryHue)}, ${sat}%, ${lum}%)`,
-    secondary: `hsl(${Math.round(secondaryHue)}, ${Math.round(sat * 0.9)}%, ${Math.max(8, Math.round(lum * 0.9))}%)`,
-    accent: `hsl(${Math.round(accentHue)}, ${Math.round(Math.min(100, sat * 1.1))}%, ${Math.max(6, Math.round(lum * 0.95))}%)`,
+    secondary: `hsl(${Math.round(secondaryHue)}, ${secondarySat}%, ${secondaryLum}%)`,
+    accent: `hsl(${Math.round(accentHue)}, ${accentSat}%, ${accentLum}%)`,
+    highlight: `hsl(${Math.round(secondaryHue)}, ${secondarySat}%, ${Math.min(95, secondaryLum + 25)}%)`,
+    shadow: `hsl(${Math.round(accentHue)}, ${accentSat}%, ${Math.max(5, accentLum - 25)}%)`,
   };
 }
 
@@ -319,6 +329,20 @@ export function applyLightnessMultiplier(colors: RobotColors, multiplier: number
     primary: adjustHslLightness(colors.primary, multiplier),
     secondary: adjustHslLightness(colors.secondary, multiplier),
     accent: adjustHslLightness(colors.accent, multiplier),
+    highlight: adjustHslLightness(colors.highlight, multiplier),
+    shadow: adjustHslLightness(colors.shadow, multiplier),
+  };
+}
+
+/**
+ * Derive the robot's window-glass fill and its lighter sheen from the identity colour.
+ * Reuses the identity hex as the glass fill; the sheen is the same hue/saturation lightened.
+ */
+export function identityGlass(hex: string): { glass: string; sheen: string } {
+  const hsl = hexToHsl(hex);
+  return {
+    glass: hex,
+    sheen: hslToString({ ...hsl, l: Math.min(95, hsl.l + 20) }),
   };
 }
 
@@ -365,17 +389,3 @@ function adjustHslLightness(input: string, multiplier: number) {
   return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${newL}%)`;
 }
 
-// ========================================
-// HELPERS
-// ========================================
-
-/**
- * Darken an HSL color string by a factor (0-1).
- */
-export function darken(hsl: string, factor: number): string {
-  const parsed = parseHslString(hsl);
-  if (!parsed) return hsl;
-  const { h, s, l } = parsed;
-  const newL = Math.round(clamp01((l / 100) * (1 - factor)) * 100);
-  return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${newL}%)`;
-}

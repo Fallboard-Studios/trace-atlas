@@ -19,10 +19,14 @@ import {
   BODY_SCALE_MIN,
   calculateLampIntensity,
   LAMP_MIN,
+  identityGlass,
+  applyLightnessMultiplier,
 } from './robotVisualHelpers';
 import { RobotSleek } from './RobotSleek';
 import type { AudioAttributes, ADSREnvelope } from '../../types/Robot';
 import type { OscillatorLayer } from '../../types/layeredAudio';
+import { hexToHsl } from '@/utils/colorUtils';
+import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '@/constants/accentColors';
 
 describe('robotVisualHelpers', () => {
   describe('selectRobotShape', () => {
@@ -242,6 +246,74 @@ describe('robotVisualHelpers', () => {
   describe('LAMP_MIN', () => {
     it('is 0.4', () => {
       expect(LAMP_MIN).toBe(0.4);
+    });
+  });
+
+  describe('generateColors highlight/shadow', () => {
+    const attrs = {
+      adsr: { attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.5 },
+      filterFreq: 1000,
+      waveform: 'sine',
+    } as unknown as AudioAttributes;
+
+    it('highlight is lighter than primary, and shadow is darker than primary', () => {
+      const colors = generateColors(attrs);
+      const lightnessOf = (hsl: string) => Number(/,\s*([\d.]+)%\)$/.exec(hsl)?.[1]);
+
+      expect(lightnessOf(colors.highlight)).toBeGreaterThan(lightnessOf(colors.primary));
+      expect(lightnessOf(colors.primary)).toBeGreaterThan(lightnessOf(colors.shadow));
+    });
+
+    it('highlight and shadow are hsl(...) strings', () => {
+      const colors = generateColors(attrs);
+      const hslRegex = /^hsl\(\d+,\s*\d+%,\s*\d+%\)$/;
+      expect(hslRegex.test(colors.highlight)).toBe(true);
+      expect(hslRegex.test(colors.shadow)).toBe(true);
+    });
+  });
+
+  describe('applyLightnessMultiplier', () => {
+    it('zeroes all five colour fields at multiplier 0', () => {
+      const colors = generateColors({
+        adsr: { attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.5 },
+        filterFreq: 1000,
+        waveform: 'sine',
+      } as unknown as AudioAttributes);
+
+      const dimmed = applyLightnessMultiplier(colors, 0);
+      const lightnessOf = (hsl: string) => Number(/,\s*([\d.]+)%\)$/.exec(hsl)?.[1]);
+
+      expect(lightnessOf(dimmed.primary)).toBe(0);
+      expect(lightnessOf(dimmed.secondary)).toBe(0);
+      expect(lightnessOf(dimmed.accent)).toBe(0);
+      expect(lightnessOf(dimmed.highlight)).toBe(0);
+      expect(lightnessOf(dimmed.shadow)).toBe(0);
+    });
+  });
+
+  describe('identityGlass', () => {
+    const sheenLightness = (sheen: string) => Number(/,\s*([\d.]+)%\)$/.exec(sheen)?.[1]);
+
+    it('glass equals the input hex for every ROBOT_IDENTITY_COLOR_NAMES colour, with a lighter sheen', () => {
+      for (const name of ROBOT_IDENTITY_COLOR_NAMES) {
+        const hex = ACCENT_COLORS[name];
+        const { glass, sheen } = identityGlass(hex);
+
+        expect(glass).toBe(hex);
+        expect(sheenLightness(sheen)).toBeGreaterThan(hexToHsl(hex).l);
+      }
+    });
+
+    it('caps the sheen lightness at 95', () => {
+      const { sheen } = identityGlass('#ffffff');
+      expect(sheenLightness(sheen)).toBeLessThanOrEqual(95);
+    });
+  });
+
+  describe('darken', () => {
+    it('is no longer exported from robotVisualHelpers', async () => {
+      const helpers: Record<string, unknown> = await import('./robotVisualHelpers');
+      expect(helpers.darken).toBeUndefined();
     });
   });
 });
