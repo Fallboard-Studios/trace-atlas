@@ -31,6 +31,8 @@ interface RobotSVGProps {
   dimOpacity?: number;
   /** Robot.identityColor hex — the window glass's only non-ADSR color (docs/ROBOT_DESIGN.md "Identity layer"). */
   identityColor?: string;
+  /** Opacity multiplier for the lamp, driven by live audible-layer gain; battery-composed like dimOpacity. */
+  lampOpacity?: number;
 }
 
 // ========================================
@@ -40,7 +42,7 @@ interface RobotSVGProps {
  * RobotIndustrial - Boxy, mechanical design for industrial synth voices
  * Heavy industrial construction with layered armor plates
  */
-export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2' }: RobotSVGProps) {
+export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2', lampOpacity = 1 }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
   const { glass, sheen } = identityGlass(identityColor);
 
@@ -84,6 +86,14 @@ export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, sca
         <circle cx="14" cy="58" r="1.5" fill="#4f5458" />
         <circle cx="66" cy="58" r="1.5" fill="#4f5458" />
 
+        {/* Status housing — fixed, outside the lamp group; the lamp itself is identity-coloured,
+            always visible, and lit by live audible-layer gain */}
+        <rect x="76" y="28" width="8" height="16" fill="#818589" />
+        <g className="lamp" opacity={lampOpacity}>
+          <rect x="78" y="32" width="4" height="8" fill={glass} />
+          <rect x="78" y="32" width="4" height="4" fill={sheen} />
+        </g>
+
         {detailLevel > 0.5 && (
           <g className="details">
             {/* Vent panel */}
@@ -94,13 +104,6 @@ export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, sca
             <path d="M 46,22 H 54" stroke="#928ba9" strokeWidth="1" opacity="0.5" />
             <path d="M 46,26 H 54" stroke="#928ba9" strokeWidth="1" opacity="0.5" />
             <path d="M 46,30 H 54" stroke="#928ba9" strokeWidth="1" opacity="0.5" />
-
-            {/* Status indicator — housing stays fixed; only the light glow dims as battery drains */}
-            <rect x="76" y="28" width="8" height="16" fill="#818589" />
-            <g opacity={dimOpacity}>
-              <rect x="78" y="32" width="4" height="8" fill="#39ff14" opacity="0.8" />
-              <rect x="78" y="32" width="4" height="4" fill="#a2ff8a" opacity="0.7" />
-            </g>
 
             {/* Warning stripes */}
             <rect x="20" y="48" width="8" height="4" fill={colors.accent} opacity="0.6" />

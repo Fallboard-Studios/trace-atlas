@@ -31,6 +31,8 @@ interface RobotSVGProps {
   dimOpacity?: number;
   /** Robot.identityColor hex — the window glass's only non-ADSR color (docs/ROBOT_DESIGN.md "Identity layer"). */
   identityColor?: string;
+  /** Opacity multiplier for the lamp, driven by live audible-layer gain; battery-composed like dimOpacity. */
+  lampOpacity?: number;
 }
 
 // ========================================
@@ -40,7 +42,7 @@ interface RobotSVGProps {
  * RobotAngular - Sharp, geometric design for angular synth voices
  * Industrial hexagonal hull with aggressive angles
  */
-export const RobotAngular = React.memo(function RobotAngular({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2' }: RobotSVGProps) {
+export const RobotAngular = React.memo(function RobotAngular({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2', lampOpacity = 1 }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
   const { glass, sheen } = identityGlass(identityColor);
 
@@ -79,6 +81,12 @@ export const RobotAngular = React.memo(function RobotAngular({ colors, scale, de
           <circle cx="70" cy="16" r="1.5" fill="#4f5458" />
           <circle cx="26" cy="56" r="1.5" fill="#4f5458" />
           <circle cx="70" cy="56" r="1.5" fill="#4f5458" />
+
+          {/* Lamp — identity-coloured, always visible, lit by live audible-layer gain */}
+          <g className="lamp" opacity={lampOpacity}>
+            <circle cx="73" cy="36" r="3" fill={glass} />
+            <circle cx="73" cy="35" r="1.8" fill={sheen} />
+          </g>
 
           {detailLevel > 0.5 && (
             <g className="details">

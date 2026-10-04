@@ -98,4 +98,23 @@ describe.each(VARIANTS)('%s', (_name, Component) => {
     expect(container.querySelector('[fill="#b3e5f2"]')).toBeNull();
     expect(container.querySelector('[fill="#e0ffff"]')).toBeNull();
   });
+
+  it('renders a lamp outside .details, with its own opacity; no fixed green status-light fills (Phase 36 Task 11)', () => {
+    // detailLevel 0.2 is below the 0.5 cliff — the lamp must still render.
+    const { container } = render(<svg><Component {...baseProps} detailLevel={0.2} lampOpacity={0.7} /></svg>);
+    const lamp = container.querySelector('g.lamp');
+    expect(lamp).not.toBeNull();
+    expect(lamp?.getAttribute('opacity')).toBe('0.7');
+    expect(lamp?.closest('.details')).toBeNull();
+    expect(container.querySelector('[fill="#39ff14"]')).toBeNull();
+    expect(container.querySelector('[fill="#a2ff8a"]')).toBeNull();
+  });
+
+  it('any #818589 housing (Industrial only) stays outside g.lamp', () => {
+    const { container } = render(<svg><Component {...baseProps} /></svg>);
+    const housing = container.querySelector('[fill="#818589"]');
+    if (housing) {
+      expect(housing.closest('g.lamp')).toBeNull();
+    }
+  });
 });

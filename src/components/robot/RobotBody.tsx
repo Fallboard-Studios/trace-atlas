@@ -14,6 +14,8 @@ import {
   calculateGreeblePlacementBias,
   bodyShapeFromAdsr,
   calculateBodyScale,
+  calculateLampIntensity,
+  LAMP_MIN,
   applyLightnessMultiplier,
   computeBatteryDimOpacity,
 } from './robotVisualHelpers';
@@ -99,6 +101,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
     ));
 
     const detail = bodyShape.detail;
+    const lampIntensity = calculateLampIntensity(robot.audioAttributes.layers, detail);
     const registerMid = (octaveRange[0] + octaveRange[1]) / 2;
     const registerGreebleBias = Math.round((registerMid - 3.5) * 2); // bass≈-2, mid≈0, treble≈+2
     const baseGreebleCount = calculateGreebleCount(filterFreq, detail, robot.audioAttributes.waveform, adsr);
@@ -118,6 +121,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
       greebleSize,
       greeblePersistence,
       greeblePlacementBias,
+      lampIntensity,
     };
   }, [robot.audioAttributes, robot.octaveRange]) as {
     Component: RobotSVGComponent;
@@ -130,7 +134,12 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
     greebleSize: number;
     greeblePersistence: number;
     greeblePlacementBias: number;
+    lampIntensity: number;
   };
+
+  // Battery is not audio — composed with the memoised lampIntensity outside the memo, same
+  // reasoning as dimOpacity above.
+  const lampOpacity = (LAMP_MIN + (1 - LAMP_MIN) * audioVisual.lampIntensity) * dimOpacity;
 
   // Cheap — recomputed every render/tick, same as Factory.tsx's own body/belt fills
   // (docs/specs/FACTORY_LIGHTING_RERENDER.md's staticVisual precedent).
@@ -151,6 +160,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
       greeblePlacementBias={greeblePlacementBias}
       dimOpacity={dimOpacity}
       identityColor={identityColor}
+      lampOpacity={lampOpacity}
     />
   );
 });

@@ -31,6 +31,8 @@ interface RobotSVGProps {
   dimOpacity?: number;
   /** Robot.identityColor hex — the window glass's only non-ADSR color (docs/ROBOT_DESIGN.md "Identity layer"). */
   identityColor?: string;
+  /** Opacity multiplier for the lamp, driven by live audible-layer gain; battery-composed like dimOpacity. */
+  lampOpacity?: number;
 }
 
 // ========================================
@@ -40,7 +42,7 @@ interface RobotSVGProps {
  * RobotOrganic - Rounded, biomechanical design for polyphonic synth voices
  * Industrial construction with curved organic hull
  */
-export const RobotOrganic = React.memo(function RobotOrganic({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2' }: RobotSVGProps) {
+export const RobotOrganic = React.memo(function RobotOrganic({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2', lampOpacity = 1 }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
   const { glass, sheen } = identityGlass(identityColor);
 
@@ -70,6 +72,12 @@ export const RobotOrganic = React.memo(function RobotOrganic({ colors, scale, de
         <circle cx="20" cy="52" r="1.5" fill="#4f5458" />
         <circle cx="64" cy="52" r="1.5" fill="#4f5458" />
 
+        {/* Lamp — identity-coloured, always visible, lit by live audible-layer gain */}
+        <g className="lamp" opacity={lampOpacity}>
+          <circle cx="60" cy="24" r="3.5" fill={glass} />
+          <circle cx="60" cy="23" r="2" fill={sheen} />
+        </g>
+
         {detailLevel > 0.5 && (
           <g className="details">
             {/* Panel seam lines */}
@@ -79,12 +87,6 @@ export const RobotOrganic = React.memo(function RobotOrganic({ colors, scale, de
             {/* Bio-vent detail */}
             <ellipse cx="56" cy="36" rx="6" ry="8" fill="#6a6384" opacity="0.8" />
             <ellipse cx="56" cy="34" rx="4" ry="3" fill="#928ba9" opacity="0.5" />
-
-            {/* Status light — dims as battery drains */}
-            <g opacity={dimOpacity}>
-              <circle cx="60" cy="24" r="3" fill="#39ff14" opacity="0.8" />
-              <circle cx="60" cy="23" r="2" fill="#a2ff8a" opacity="0.9" />
-            </g>
           </g>
         )}
       </svg>

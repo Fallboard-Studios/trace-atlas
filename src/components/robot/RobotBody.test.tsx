@@ -49,6 +49,10 @@ function windowFill(container: HTMLElement): string | null {
   return container.querySelector('g.window')?.firstElementChild?.getAttribute('fill') ?? null;
 }
 
+function lampOpacity(container: HTMLElement): string | null {
+  return container.querySelector('g.lamp')?.getAttribute('opacity') ?? null;
+}
+
 // The root body group is centre-scaled: translate(48,36) scale(s) translate(-48,-36) (Task 5).
 function rootTransform(container: HTMLElement): string | null {
   return container.querySelector('g[transform^="translate(48,36)"]')?.getAttribute('transform') ?? null;
@@ -192,6 +196,61 @@ describe('RobotBody', () => {
       // Nothing else in the body changes.
       expect(orangeTransform).toBe(blueTransform);
       expect(orangePrimary).toBe(bluePrimary);
+    });
+  });
+
+  describe('lamp lit by live audible-layer gain (Phase 36 Task 11)', () => {
+    function layers(coaxialGain: number) {
+      return [
+        { type: 'sine' as const, gain: 1, detune: 0, phase: 0 },
+        { type: 'sine' as const, gain: coaxialGain, detune: 0, phase: 0 },
+        { type: 'sine' as const, gain: 1, detune: 0, phase: 0 },
+      ];
+    }
+
+    it('differing only in layers[1].gain (0 vs 0.2) changes the lamp opacity', () => {
+      // 0.2, not 1: muting excludes the layer from the average rather than counting it as zero
+      // (Task 3's own rule), so a muted-vs-full-gain pair with equal-gain neighbors would average
+      // to the same value either way. 0.2 actually shifts the mean once it's counted in.
+      const muted = makeRobot({ audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine', layers: layers(0) } });
+      const audible = makeRobot({ audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine', layers: layers(0.2) } });
+
+      const { container: mutedContainer, unmount } = render(<svg><RobotBody robot={muted} /></svg>);
+      const mutedOpacity = lampOpacity(mutedContainer);
+      unmount();
+
+      const { container: audibleContainer } = render(<svg><RobotBody robot={audible} /></svg>);
+      const audibleOpacity = lampOpacity(audibleContainer);
+
+      expect(mutedOpacity).not.toBeNull();
+      expect(audibleOpacity).not.toBeNull();
+      expect(mutedOpacity).not.toBe(audibleOpacity);
+    });
+
+    it('full battery, every layer muted, still clears LAMP_MIN (times full dimOpacity)', () => {
+      const robot = makeRobot({ batteryLevel: 100, audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine', layers: layers(0) } });
+      // Baseline (layers[0]) is also muted here to hit the true all-muted fallback.
+      robot.audioAttributes.layers![0].gain = 0;
+      robot.audioAttributes.layers![2].gain = 0;
+
+      const { container } = render(<svg><RobotBody robot={robot} /></svg>);
+      const opacity = Number(lampOpacity(container));
+
+      expect(opacity).toBeGreaterThanOrEqual(robotVisualHelpers.LAMP_MIN);
+    });
+
+    it('critical battery dims the lamp to 0.1x the full-battery value, same audio', () => {
+      const full = makeRobot({ batteryLevel: 100, audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine', layers: layers(1) } });
+      const critical = makeRobot({ batteryLevel: 5, audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine', layers: layers(1) } });
+
+      const { container: fullContainer, unmount } = render(<svg><RobotBody robot={full} /></svg>);
+      const fullOpacity = Number(lampOpacity(fullContainer));
+      unmount();
+
+      const { container: criticalContainer } = render(<svg><RobotBody robot={critical} /></svg>);
+      const criticalOpacity = Number(lampOpacity(criticalContainer));
+
+      expect(criticalOpacity).toBeCloseTo(fullOpacity * 0.1, 6);
     });
   });
 });
