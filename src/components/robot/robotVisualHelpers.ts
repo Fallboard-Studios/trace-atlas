@@ -2,6 +2,7 @@
 // IMPORTS
 // ========================================
 import type { AudioAttributes, WaveformType, ADSREnvelope } from '../../types/Robot';
+import type { OscillatorLayer } from '../../types/layeredAudio';
 import { RobotSleek } from './RobotSleek';
 import { RobotAngular } from './RobotAngular';
 import { RobotOrganic } from './RobotOrganic';
@@ -151,6 +152,16 @@ export const BODY_SCALE_MIN = 0.735; // 1.5x the pre-Phase-36 floor of 0.49 (Cra
 export function calculateBodyScale(octaveRange: [number, number], bodyScale01: number): number {
   const bias = Math.max(-0.4, Math.min(0.4, (bodyScale01 - 0.5) * 0.6));
   return Math.max(BODY_SCALE_MIN, calculateScale(octaveRange) * (1 + bias));
+}
+
+export const LAMP_MIN = 0.4;
+
+/** Averaged audible-layer gain (gain !== 0; 1 if none — spawnSystem's own rule) blended with
+ *  detail. Gains are seeded 0.2..1.2, so the blend is clamped. */
+export function calculateLampIntensity(layers: OscillatorLayer[] | undefined, detail: number): number {
+  const audible = (layers ?? []).filter((l) => l.gain !== 0);
+  const averagedGain = audible.length > 0 ? audible.reduce((s, l) => s + l.gain, 0) / audible.length : 1;
+  return clamp01(averagedGain * 0.6 + detail * 0.4);
 }
 
 // ========================================

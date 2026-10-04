@@ -17,9 +17,12 @@ import {
   BODY_NORMALISER,
   calculateBodyScale,
   BODY_SCALE_MIN,
+  calculateLampIntensity,
+  LAMP_MIN,
 } from './robotVisualHelpers';
 import { RobotSleek } from './RobotSleek';
 import type { AudioAttributes, ADSREnvelope } from '../../types/Robot';
+import type { OscillatorLayer } from '../../types/layeredAudio';
 
 describe('robotVisualHelpers', () => {
   describe('selectRobotShape', () => {
@@ -208,6 +211,37 @@ describe('robotVisualHelpers', () => {
 
     it('mid register at a neutral attack bias sits at 1.0, above the floor so it is untouched', () => {
       expect(calculateBodyScale([2, 4], 0.5)).toBe(1.0);
+    });
+  });
+
+  describe('calculateLampIntensity', () => {
+    const layer = (gain: number): OscillatorLayer => ({ type: 'sine', gain, detune: 0, phase: 0 });
+
+    it('falls back to a gain of 1 when every layer is muted', () => {
+      const layers = [layer(0), layer(0), layer(0)];
+      expect(calculateLampIntensity(layers, 0)).toBe(0.6); // 1 * 0.6 + 0 * 0.4
+    });
+
+    it('falls back to a gain of 1 when layers is undefined', () => {
+      expect(calculateLampIntensity(undefined, 1)).toBe(1); // 1 * 0.6 + 1 * 0.4
+    });
+
+    it('clamps to 1 for gains above 1 even with full detail', () => {
+      const layers = [layer(1.2), layer(0), layer(1.2)];
+      expect(calculateLampIntensity(layers, 1)).toBe(1);
+    });
+
+    it('excludes a muted layer from the average instead of averaging it in as zero', () => {
+      const layers = [layer(0.2), layer(0)];
+      // Averaging the muted layer in as 0 would give (0.2+0)/2 * 0.6 = 0.06; excluding it gives
+      // 0.2 * 0.6 = 0.12.
+      expect(calculateLampIntensity(layers, 0)).toBeCloseTo(0.12);
+    });
+  });
+
+  describe('LAMP_MIN', () => {
+    it('is 0.4', () => {
+      expect(LAMP_MIN).toBe(0.4);
     });
   });
 });
