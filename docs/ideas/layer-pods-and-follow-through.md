@@ -1,5 +1,10 @@
 # Layer Pods and Follow-Through
 
+> **Re-sequenced (2026-10-03).** The parametric hull this depended on is set aside. The static
+> half of this idea (a marker per audible layer, no motion) is branch 3 of
+> [robot-visual-rework.md](robot-visual-rework.md); the motion half (orbits, trailing, lean)
+> becomes a later branch on top of those markers. Kept as the idea-stage record.
+
 Refined 2026-10-02 via the idea-refine skill. Third of three sequenced branches:
 world-palette-pull → parametric-robot-hull → layer-pods-and-follow-through. Depends on the
 parametric hull landing first.
