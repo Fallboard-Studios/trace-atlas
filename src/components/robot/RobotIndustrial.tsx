@@ -2,6 +2,7 @@
 // IMPORTS
 // ========================================
 import React from 'react';
+import { identityGlass } from './robotVisualHelpers';
 
 // ========================================
 // TYPES
@@ -28,6 +29,8 @@ interface RobotSVGProps {
   greeblePlacementBias?: number;
   /** Opacity multiplier (1 = full brightness) for the viewport/status light — dims as battery drains. */
   dimOpacity?: number;
+  /** Robot.identityColor hex — the window glass's only non-ADSR color (docs/ROBOT_DESIGN.md "Identity layer"). */
+  identityColor?: string;
 }
 
 // ========================================
@@ -37,8 +40,9 @@ interface RobotSVGProps {
  * RobotIndustrial - Boxy, mechanical design for industrial synth voices
  * Heavy industrial construction with layered armor plates
  */
-export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, scale, detailLevel, shapeParams, dimOpacity = 1 }: RobotSVGProps) {
+export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2' }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
+  const { glass, sheen } = identityGlass(identityColor);
 
   return (
     <g transform={`translate(48,36) scale(${scale}) translate(-48,-36)`}>
@@ -62,10 +66,10 @@ export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, sca
         <path d="M 72,20 H 88 L 87,21 H 73 Z" fill={colors.highlight} opacity="0.6" />
         <path d="M 72,52 H 88 L 87,51 H 73 Z" fill={colors.shadow} opacity="0.3" />
 
-        {/* Central viewport — dims as battery drains */}
-        <g opacity={dimOpacity}>
-          <rect x="20" y="20" width="16" height="12" fill="#78cce2" opacity="0.8" />
-          <path d="M 20,20 L 21,21 H 35 L 36,20 Z" fill="#b3e5f2" opacity="0.6" />
+        {/* Central viewport — carries the identity colour; dims as battery drains */}
+        <g className="window" opacity={dimOpacity}>
+          <rect x="20" y="20" width="16" height="12" fill={glass} opacity="0.8" />
+          <path d="M 20,20 L 21,21 H 35 L 36,20 Z" fill={sheen} opacity="0.6" />
         </g>
 
         {/* Corner rivets - top section */}

@@ -2,6 +2,7 @@
 // IMPORTS
 // ========================================
 import React from 'react';
+import { identityGlass } from './robotVisualHelpers';
 
 // ========================================
 // TYPES
@@ -28,6 +29,8 @@ interface RobotSVGProps {
   greeblePlacementBias?: number;
   /** Opacity multiplier (1 = full brightness) for the window — dims as battery drains. */
   dimOpacity?: number;
+  /** Robot.identityColor hex — the window glass's only non-ADSR color (docs/ROBOT_DESIGN.md "Identity layer"). */
+  identityColor?: string;
 }
 
 // ========================================
@@ -37,8 +40,9 @@ interface RobotSVGProps {
  * RobotSleek - Smooth, streamlined design for melodic synth voices
  * Industrial submarine aesthetic with curved hull sections
  */
-export const RobotSleek = React.memo(function RobotSleek({ colors, scale, detailLevel, shapeParams, dimOpacity = 1 }: RobotSVGProps) {
+export const RobotSleek = React.memo(function RobotSleek({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2' }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
+  const { glass, sheen } = identityGlass(identityColor);
 
   return (
     <g transform={`translate(48,36) scale(${scale}) translate(-48,-36)`}>
@@ -64,10 +68,10 @@ export const RobotSleek = React.memo(function RobotSleek({ colors, scale, detail
             opacity="0.3"
           />
 
-          {/* Window — dims as battery drains */}
-          <g opacity={dimOpacity}>
-            <ellipse cx="24" cy="36" rx="8" ry="10" fill="#78cce2" opacity="0.8" />
-            <ellipse cx="24" cy="34" rx="6" ry="4" fill="#b3e5f2" opacity="0.6" />
+          {/* Window — carries the identity colour; dims as battery drains */}
+          <g className="window" opacity={dimOpacity}>
+            <ellipse cx="24" cy="36" rx="8" ry="10" fill={glass} opacity="0.8" />
+            <ellipse cx="24" cy="34" rx="6" ry="4" fill={sheen} opacity="0.6" />
           </g>
 
           {/* Corner rivets */}

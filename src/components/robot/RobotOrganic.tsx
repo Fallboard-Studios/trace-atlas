@@ -2,6 +2,7 @@
 // IMPORTS
 // ========================================
 import React from 'react';
+import { identityGlass } from './robotVisualHelpers';
 
 // ========================================
 // TYPES
@@ -28,6 +29,8 @@ interface RobotSVGProps {
   greeblePlacementBias?: number;
   /** Opacity multiplier (1 = full brightness) for the viewport/status light — dims as battery drains. */
   dimOpacity?: number;
+  /** Robot.identityColor hex — the window glass's only non-ADSR color (docs/ROBOT_DESIGN.md "Identity layer"). */
+  identityColor?: string;
 }
 
 // ========================================
@@ -37,8 +40,9 @@ interface RobotSVGProps {
  * RobotOrganic - Rounded, biomechanical design for polyphonic synth voices
  * Industrial construction with curved organic hull
  */
-export const RobotOrganic = React.memo(function RobotOrganic({ colors, scale, detailLevel, shapeParams, dimOpacity = 1 }: RobotSVGProps) {
+export const RobotOrganic = React.memo(function RobotOrganic({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2' }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
+  const { glass, sheen } = identityGlass(identityColor);
 
   return (
     <g transform={`translate(48,36) scale(${scale}) translate(-48,-36)`}>
@@ -53,11 +57,11 @@ export const RobotOrganic = React.memo(function RobotOrganic({ colors, scale, de
         {/* Hull shadow - curved lower */}
         <ellipse cx="48" cy="44" rx="32" ry="16" fill={colors.shadow} opacity="0.2" />
 
-        {/* Central viewport - circular — dims as battery drains */}
-        <g opacity={dimOpacity}>
-          <circle cx="32" cy="36" r="12" fill="#78cce2" opacity="0.8" />
-          <circle cx="32" cy="32" r="8" fill="#b3e5f2" opacity="0.6" />
-          <circle cx="34" cy="30" r="3" fill="#e0ffff" opacity="0.8" />
+        {/* Central viewport - circular — carries the identity colour; dims as battery drains */}
+        <g className="window" opacity={dimOpacity}>
+          <circle cx="32" cy="36" r="12" fill={glass} opacity="0.8" />
+          <circle cx="32" cy="32" r="8" fill={sheen} opacity="0.6" />
+          <circle cx="34" cy="30" r="3" fill={sheen} opacity="0.8" />
         </g>
 
         {/* Segmentation rivets */}

@@ -57,6 +57,11 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
   // the audio-derived `visual` memo below (battery isn't an audio attribute).
   const dimOpacity = computeBatteryDimOpacity(robot.batteryLevel);
 
+  // Identity colour is seeded, not audio-derived — read outside the memo, same reasoning as
+  // battery/daylight above. Confined to the window glass and lamp (docs/ROBOT_DESIGN.md
+  // "Identity layer").
+  const identityColor = robot.identityColor;
+
   // Everything audio-derived — no lightnessMultiplier anywhere in this memo or its
   // dependency array. `lightnessMultiplier` is read in exactly one place downstream
   // (`applyLightnessMultiplier`, below, outside the memo) — confirmed directly via a search of
@@ -145,6 +150,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
       greeblePersistence={greeblePersistence}
       greeblePlacementBias={greeblePlacementBias}
       dimOpacity={dimOpacity}
+      identityColor={identityColor}
     />
   );
 });

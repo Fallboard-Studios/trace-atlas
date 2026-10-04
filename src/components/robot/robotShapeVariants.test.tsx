@@ -21,6 +21,7 @@ const baseProps = {
   colors: { primary: '#111111', secondary: '#222222', accent: '#333333', highlight: '#444444', shadow: '#050505' },
   scale: 1,
   detailLevel: 0.2,
+  identityColor: '#428d95',
 };
 
 describe.each(VARIANTS)('%s', (_name, Component) => {
@@ -36,19 +37,16 @@ describe.each(VARIANTS)('%s', (_name, Component) => {
     expect(aboveThreshold.querySelector('.details')).not.toBeNull();
   });
 
-  it('defaults dimOpacity to 1 on the viewport group when omitted', () => {
-    // opacity="1" uniquely identifies the dimOpacity-driven group — every
-    // other opacity attribute in these components is a static decorative
-    // value below 1 (highlights/shadows/etc.), never exactly "1".
+  it('defaults dimOpacity to 1 on the window group when omitted', () => {
     const { container } = render(<svg><Component {...baseProps} /></svg>);
-    const dimmed = container.querySelector('[opacity="1"]');
-    expect(dimmed).not.toBeNull();
+    const window_ = container.querySelector('g.window');
+    expect(window_?.getAttribute('opacity')).toBe('1');
   });
 
-  it('applies an explicit dimOpacity to the viewport group', () => {
+  it('applies an explicit dimOpacity to the window group', () => {
     const { container } = render(<svg><Component {...baseProps} dimOpacity={0.4} /></svg>);
-    const dimmed = container.querySelector('[opacity="0.4"]');
-    expect(dimmed).not.toBeNull();
+    const window_ = container.querySelector('g.window');
+    expect(window_?.getAttribute('opacity')).toBe('0.4');
   });
 
   it('centre-scales the root about (48,36): translate(48,36) scale(s) translate(-48,-36)', () => {
@@ -89,5 +87,15 @@ describe.each(VARIANTS)('%s', (_name, Component) => {
     expect(container.querySelector('[fill="#000000"]')).toBeNull();
     expect(container.querySelector(`[fill="${baseProps.colors.highlight}"]`)).not.toBeNull();
     expect(container.querySelector(`[fill="${baseProps.colors.shadow}"]`)).not.toBeNull();
+  });
+
+  it('window glass carries the identity colour, no fixed #78cce2 (Phase 36 Task 10)', () => {
+    const { container } = render(<svg><Component {...baseProps} /></svg>);
+    const window_ = container.querySelector('g.window');
+    expect(window_).not.toBeNull();
+    expect(window_?.firstElementChild?.getAttribute('fill')).toBe(baseProps.identityColor);
+    expect(container.querySelector('[fill="#78cce2"]')).toBeNull();
+    expect(container.querySelector('[fill="#b3e5f2"]')).toBeNull();
+    expect(container.querySelector('[fill="#e0ffff"]')).toBeNull();
   });
 });

@@ -27,6 +27,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     masterVolume: 0.7,
     docking: 'active',
     batteryLevel: 50,
+    identityColor: '#428d95',
     ...overrides,
   } as Robot;
 }
@@ -38,10 +39,14 @@ function primaryFill(container: HTMLElement): string | null {
   return container.querySelector('path')?.getAttribute('fill') ?? null;
 }
 
-// The Window group is wrapped in `<g opacity={dimOpacity}>` (battery-driven, independent of
-// day/night) — selected via its known static ellipse fill rather than a class, since none exists.
+// The Window group is `<g className="window" opacity={dimOpacity}>` (battery-driven, independent
+// of day/night).
 function windowGroupOpacity(container: HTMLElement): string | null {
-  return container.querySelector('ellipse[fill="#78cce2"]')?.closest('g')?.getAttribute('opacity') ?? null;
+  return container.querySelector('g.window')?.getAttribute('opacity') ?? null;
+}
+
+function windowFill(container: HTMLElement): string | null {
+  return container.querySelector('g.window')?.firstElementChild?.getAttribute('fill') ?? null;
 }
 
 // The root body group is centre-scaled: translate(48,36) scale(s) translate(-48,-36) (Task 5).
@@ -160,6 +165,33 @@ describe('RobotBody', () => {
 
       const { container: long } = render(<svg><RobotBody robot={longRelease} /></svg>);
       expect(long.querySelector('.details')).not.toBeNull();
+    });
+  });
+
+  describe('window glass carries the identity colour (Phase 36 Task 10)', () => {
+    it('changing only identityColor changes the window fill and nothing else in the body', () => {
+      const blue = makeRobot({ identityColor: '#428d95' });
+      const orange = makeRobot({ identityColor: '#d97b29' });
+
+      const { container: blueContainer, unmount } = render(<svg><RobotBody robot={blue} /></svg>);
+      const blueFill = windowFill(blueContainer);
+      const blueTransform = rootTransform(blueContainer);
+      const bluePrimary = primaryFill(blueContainer);
+      unmount();
+
+      const { container: orangeContainer } = render(<svg><RobotBody robot={orange} /></svg>);
+      const orangeFill = windowFill(orangeContainer);
+      const orangeTransform = rootTransform(orangeContainer);
+      const orangePrimary = primaryFill(orangeContainer);
+
+      expect(blueFill).not.toBeNull();
+      expect(orangeFill).not.toBeNull();
+      expect(blueFill).not.toBe(orangeFill);
+      expect(blueFill).toBe('#428d95');
+      expect(orangeFill).toBe('#d97b29');
+      // Nothing else in the body changes.
+      expect(orangeTransform).toBe(blueTransform);
+      expect(orangePrimary).toBe(bluePrimary);
     });
   });
 });

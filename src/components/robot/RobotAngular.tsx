@@ -2,6 +2,7 @@
 // IMPORTS
 // ========================================
 import React from 'react';
+import { identityGlass } from './robotVisualHelpers';
 
 // ========================================
 // TYPES
@@ -28,6 +29,8 @@ interface RobotSVGProps {
   greeblePlacementBias?: number;
   /** Opacity multiplier (1 = full brightness) for the viewport — dims as battery drains. */
   dimOpacity?: number;
+  /** Robot.identityColor hex — the window glass's only non-ADSR color (docs/ROBOT_DESIGN.md "Identity layer"). */
+  identityColor?: string;
 }
 
 // ========================================
@@ -37,8 +40,9 @@ interface RobotSVGProps {
  * RobotAngular - Sharp, geometric design for angular synth voices
  * Industrial hexagonal hull with aggressive angles
  */
-export const RobotAngular = React.memo(function RobotAngular({ colors, scale, detailLevel, shapeParams, dimOpacity = 1 }: RobotSVGProps) {
+export const RobotAngular = React.memo(function RobotAngular({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2' }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
+  const { glass, sheen } = identityGlass(identityColor);
 
   return (
     <g transform={`translate(48,36) scale(${scale}) translate(-48,-36)`}>
@@ -64,10 +68,10 @@ export const RobotAngular = React.memo(function RobotAngular({ colors, scale, de
             opacity="0.3"
           />
 
-          {/* Viewport - diamond shape — dims as battery drains */}
-          <g opacity={dimOpacity}>
-            <polygon points="36,36 44,28 52,36 44,44" fill="#78cce2" opacity="0.8" />
-            <polygon points="36,36 44,29 52,36 44,32" fill="#b3e5f2" opacity="0.6" />
+          {/* Viewport - diamond shape — carries the identity colour; dims as battery drains */}
+          <g className="window" opacity={dimOpacity}>
+            <polygon points="36,36 44,28 52,36 44,44" fill={glass} opacity="0.8" />
+            <polygon points="36,36 44,29 52,36 44,32" fill={sheen} opacity="0.6" />
           </g>
 
           {/* Corner rivets */}
