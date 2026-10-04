@@ -8,10 +8,6 @@ import {
   selectRobotShape,
   generateColors,
   shapeParamsFromAudio,
-  calculateGreebleCount,
-  calculateGreebleSize,
-  calculateGreeblePersistence,
-  calculateGreeblePlacementBias,
   bodyShapeFromAdsr,
   calculateBodyScale,
   calculateLampIntensity,
@@ -77,7 +73,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, hideGr
   // tick into this memo used to force the whole audio→shape/greeble pipeline to recompute every
   // second for no reason.
   const audioVisual = useMemo(() => {
-    const { adsr, filterFreq } = robot.audioAttributes;
+    const { adsr } = robot.audioAttributes;
     const octaveRange = robot.audioAttributes.octaveRange ?? robot.octaveRange;
 
     // Roadmap Phase 9: OscillatorLayer.type is WaveformType only now ('noise' removed), so this
@@ -107,13 +103,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, hideGr
 
     const detail = bodyShape.detail;
     const lampIntensity = calculateLampIntensity(robot.audioAttributes.layers, detail);
-    const registerMid = (octaveRange[0] + octaveRange[1]) / 2;
-    const registerGreebleBias = Math.round((registerMid - 3.5) * 2); // bass≈-2, mid≈0, treble≈+2
-    const baseGreebleCount = calculateGreebleCount(filterFreq, detail, robot.audioAttributes.waveform, adsr);
-    const greebleCount = Math.max(0, Math.min(16, baseGreebleCount + registerGreebleBias));
-    const greebleSize = calculateGreebleSize(adsr.sustain);
-    const greeblePersistence = calculateGreeblePersistence(adsr.release);
-    const greeblePlacementBias = calculateGreeblePlacementBias(adsr.decay, adsr.release);
 
     return {
       Component: selectRobotShape(waveform),
@@ -123,10 +112,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, hideGr
       detailLevel: detail,
       shapeParams,
       microVariants,
-      greebleCount,
-      greebleSize,
-      greeblePersistence,
-      greeblePlacementBias,
       lampIntensity,
     };
   }, [robot.audioAttributes, robot.octaveRange]) as {
@@ -137,10 +122,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, hideGr
     detailLevel: number;
     shapeParams: ShapeParams;
     microVariants: MicroVariants;
-    greebleCount: number;
-    greebleSize: number;
-    greeblePersistence: number;
-    greeblePlacementBias: number;
     lampIntensity: number;
   };
 

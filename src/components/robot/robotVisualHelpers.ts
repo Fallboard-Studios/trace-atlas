@@ -29,10 +29,6 @@ export type RobotSVGComponent = typeof RobotSleek | typeof RobotAngular | typeof
 // ADSR thresholds for color mapping
 const FAST_ATTACK_THRESHOLD = 0.1;   // seconds
 
-// Filter thresholds for detail level mapping
-const HIGH_FILTER_THRESHOLD = 2000;  // Hz
-const LOW_FILTER_THRESHOLD = 500;    // Hz
-
 // Base hue per waveform (degrees)
 const BASE_HUE: Record<WaveformType, number> = {
   sine: 210,
@@ -216,60 +212,6 @@ export function shapeParamsFromAudio(attrs: AudioAttributes & { octaveOffset?: n
   return { shapeParams: clamped, microVariants: micro };
 }
 
-// ========================================
-// Greeble calculations
-// ========================================
-
-/**
- * Deterministic greeble count driven by filterFreq, detailLevel, waveform, and ADSR
- * Caps at 16 and returns an integer >= 0
- */
-export function calculateGreebleCount(
-  filterFreq: number,
-  detailLevel: number,
-  waveform: AudioAttributes['waveform'],
-  adsr: AudioAttributes['adsr']
-): number {
-  const freqDetail = calculateDetailLevel(filterFreq); // 0..1
-  const sustainFactor = clamp01(adsr.sustain); // 0..1
-
-  // Weighted combination: favor filter freq and explicit detailLevel
-  const base = freqDetail * 0.6 + clamp01(detailLevel) * 0.25 + sustainFactor * 0.15;
-
-  const waveformBias = waveform === 'sawtooth' || waveform === 'square' ? 1 : 0;
-
-  const raw = Math.round(base * 15) + waveformBias; // 0..15 + bias -> up to 16
-  return Math.max(0, Math.min(16, raw));
-}
-
-/**
- * Map sustain (0..1) to greeble visual size (px)
- */
-export function calculateGreebleSize(sustain: number): number {
-  const s = clamp01(sustain);
-  // 1px (staccato) -> 6px (sustained)
-  return Math.max(1, Math.round(1 + s * 5));
-}
-
-/**
- * Map release (seconds) to greeble persistence (seconds), clamped
- */
-export function calculateGreeblePersistence(release: number): number {
-  const clamped = Math.max(0.05, Math.min(3.0, release));
-  // Visual safety clamp to 0.1..3.0
-  return Math.max(0.1, Math.min(3.0, clamped));
-}
-
-/**
- * Placement bias derived from decay/release ratio (0..1)
- * Higher decay relative to release biases placement toward front (value closer to 1)
- */
-export function calculateGreeblePlacementBias(decay: number, release: number): number {
-  const denom = Math.max(MIN_DENOMINATOR, decay + release);
-  const ratio = decay / denom; // 0..1
-  return clamp01(ratio);
-}
-
 /**
  * Calculate scale from pitch range
  * High pitch → smaller (0.7x)
@@ -281,22 +223,6 @@ export function calculateScale(octaveRange: [number, number]): number {
   if (mid <= 2) return 1.3;  // bass register [1,3]
   if (mid >= 4) return 0.7;  // treble register [3,5]
   return 1.0;                 // mid register [2,4]
-}
-
-/**
- * Calculate detail level from filter frequency
- * Low filter → minimal details (0.0)
- * High filter → maximum details (1.0)
- * Linear interpolation between thresholds
- */
-export function calculateDetailLevel(filterFreq: number): number {
-  if (filterFreq <= LOW_FILTER_THRESHOLD) {
-    return 0.0;
-  } else if (filterFreq >= HIGH_FILTER_THRESHOLD) {
-    return 1.0;
-  } else {
-    return (filterFreq - LOW_FILTER_THRESHOLD) / (HIGH_FILTER_THRESHOLD - LOW_FILTER_THRESHOLD);
-  }
 }
 
 /**
