@@ -1,5 +1,7 @@
 # Intent: Robot Layer Markers (two always-present sockets, lit by layer gain)
 
+> **Shipped (roadmap Phase 38, 2026-10-03)** — spec [docs/specs/ROBOT_LAYER_MARKERS.md](../specs/ROBOT_LAYER_MARKERS.md), plan [docs/tasks/ROBOT_LAYER_MARKERS.md](../tasks/ROBOT_LAYER_MARKERS.md). All 7 tasks landed on `feature/robot-rework`; Crawford's Checkpoint B visual pass confirmed.
+
 Confirmed via a short `interview-me` on 2026-10-03 (four direct answers plus one question), ahead
 of a `spec-driven-development` pass. Branch 3 of three in
 [docs/ideas/robot-visual-rework.md](../ideas/robot-visual-rework.md) (live visuals → greebles →

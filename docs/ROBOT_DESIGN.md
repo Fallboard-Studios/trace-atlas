@@ -117,9 +117,10 @@ Two documented exceptions to "visuals map strictly to audio attributes":
    always visible, never removed) plus a glass/sheen pair whose *opacity* is `socketLitOpacity`
    (`robotVisualHelpers.ts`) of that layer's live gain (`layers[1]`/`layers[2]`), composed with
    battery dim exactly like the lamp. A socket's **lit state is audio** (gain 0 → `SOCKET_DARK`,
-   gain up to `SOCKET_GAIN_MAX` → fully lit) — **only its hue is identity**, from the same
-   `identityGlass(hex)` the window and lamp use. Nothing pops in or out on an edit; a muted layer
-   just goes dark, same ruling as the greebles' permanence.
+   gain up to `SOCKET_GAIN_MAX` → fully lit, floored at `SOCKET_MIN` once any gain registers) —
+   **only its hue is identity**, from the same `identityGlass(hex)` the window and lamp use.
+   Nothing pops in or out on an edit; a muted layer just goes dark, same ruling as the greebles'
+   permanence.
 
 All three are the same class of exception as the two brightness overlays above: narrower than, and
 layered on top of, the shape/color identity mapping — never a replacement for it. Everything else

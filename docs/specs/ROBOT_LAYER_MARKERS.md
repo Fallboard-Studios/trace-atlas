@@ -1,5 +1,7 @@
 # Phase Spec: Robot Layer Markers (two always-present identity sockets, lit by layer gain)
 
+> **Shipped (roadmap Phase 38, 2026-10-03)** — plan [docs/tasks/ROBOT_LAYER_MARKERS.md](../tasks/ROBOT_LAYER_MARKERS.md). All 7 tasks landed on `feature/robot-rework`; Crawford's Checkpoint B visual pass confirmed.
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types` (`tsc -p tsconfig.app.json --noEmit`)

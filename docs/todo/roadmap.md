@@ -543,3 +543,45 @@ in-world robots always show parts. The five dead audio-driven greeble helpers
   detail avatar and in-world robots show them.
 - **Layer markers / pod motion** — the two reserved socket positions this branch's sketch measures
   are Roadmap Phase 38's own fixtures, not drawn here.
+
+## 38. Robot Layer Markers
+
+Third of the three-branch series on the existing four hand-drawn shapes (Roadmap Phase 36 → 37 →
+**38**). Idea [docs/ideas/robot-visual-rework.md](../ideas/robot-visual-rework.md), intent
+[docs/intent/robot-layer-markers.md](../intent/robot-layer-markers.md), spec
+[docs/specs/ROBOT_LAYER_MARKERS.md](../specs/ROBOT_LAYER_MARKERS.md), plan
+[docs/tasks/ROBOT_LAYER_MARKERS.md](../tasks/ROBOT_LAYER_MARKERS.md). **Implemented — all 7 tasks
+on `feature/robot-rework`; Crawford's Checkpoint B visual pass confirmed.**
+
+### About
+
+Gives every robot two always-present, identity-coloured sockets — Coaxial and Harmonic — lit in
+proportion to that layer's live gain and dark when muted, so a robot's Signature Array edits
+reach the body the same way lamp and greebles already do. `socketLitOpacity` (`gain`) in
+`robotVisualHelpers.ts` maps gain 0 (or a missing layer) to `SOCKET_DARK`, interpolating up to
+fully lit at `SOCKET_GAIN_MAX` (floored at `SOCKET_MIN` once any gain registers) — the same curve
+shape as the lamp's `calculateLampIntensity`. `SOCKET_POSITIONS` (`greebleSlots.ts`) transcribes
+the two per-shape centers the Phase 37 sketch already reserved at the tail of each shape's
+`FIXTURE_BOXES`. `RobotLayerSockets.tsx` draws each socket as a housing ring (always visible, so a
+dark socket reads as a fixture, not a hole) plus a glass/sheen pair whose group opacity carries
+the gain-derived brightness; the four shapes take it as a `sockets` node placed after the lamp and
+before `.details`. `RobotBody` derives `socketLit` from `layers[1]`/`layers[2]` inside its audio
+memo, composes battery dim outside it exactly like the lamp, and wires the node into every render
+context — card, detail, world. Nothing pops in or out on an edit; a muted layer just goes dark,
+the same ruling the greebles got. `CLAUDE.md`'s Visual Mapping guardrail gains a third non-audio
+carrier alongside the window glass and lamp: the two layer sockets, with the note that a socket's
+lit state is still audio (gain) and only its hue is identity (`docs/ROBOT_DESIGN.md` "Non-audio
+layers").
+
+### Not Doing (and why)
+
+- **Audio-driven socket count or position** — there are always exactly two, Coaxial and Harmonic,
+  at fixed per-shape positions; nothing about count or placement is audio-derived.
+- **A socket for the Baseline layer** — only the two optional layers (Coaxial, Harmonic) get a
+  socket; Baseline is never quiet and has no socket of its own.
+- **Detune or phase mapped to the sockets** — gain only for now; those wait for a motion branch.
+- **Pod motion (orbits, trailing, lean)** — the static form of
+  [layer-pods-and-follow-through.md](../ideas/layer-pods-and-follow-through.md); its own branch on
+  top of this one.
+- **Hiding sockets on the card** — both avatars show them, unlike greebles' `hideGreebles`
+  carve-out.
