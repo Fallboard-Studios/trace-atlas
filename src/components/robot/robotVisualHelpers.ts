@@ -145,6 +145,14 @@ export function bodyShapeFromAdsr(adsr: ADSREnvelope): BodyShape {
   };
 }
 
+export const BODY_SCALE_MIN = 0.735; // 1.5x the pre-Phase-36 floor of 0.49 (Crawford, 2026-10-03)
+
+/** Final body scale: register step x attack-driven bias, floored. */
+export function calculateBodyScale(octaveRange: [number, number], bodyScale01: number): number {
+  const bias = Math.max(-0.4, Math.min(0.4, (bodyScale01 - 0.5) * 0.6));
+  return Math.max(BODY_SCALE_MIN, calculateScale(octaveRange) * (1 + bias));
+}
+
 // ========================================
 // Shape params
 // ========================================

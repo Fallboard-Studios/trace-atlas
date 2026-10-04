@@ -15,6 +15,8 @@ import {
   computeBatteryDimOpacity,
   bodyShapeFromAdsr,
   BODY_NORMALISER,
+  calculateBodyScale,
+  BODY_SCALE_MIN,
 } from './robotVisualHelpers';
 import { RobotSleek } from './RobotSleek';
 import type { AudioAttributes, ADSREnvelope } from '../../types/Robot';
@@ -186,6 +188,26 @@ describe('robotVisualHelpers', () => {
     it('sustain at its max gives exactly 1 roundness', () => {
       const adsr: ADSREnvelope = { attack: 0, decay: 0, sustain: 1, release: 0 };
       expect(bodyShapeFromAdsr(adsr).roundness).toBe(1);
+    });
+  });
+
+  describe('BODY_SCALE_MIN', () => {
+    it('is at least 1.5x the pre-Phase-36 floor of 0.49', () => {
+      expect(BODY_SCALE_MIN).toBeGreaterThanOrEqual(0.49 * 1.5);
+    });
+  });
+
+  describe('calculateBodyScale', () => {
+    it('treble register at the slowest attack bottoms out at BODY_SCALE_MIN, not the unfloored 0.49', () => {
+      expect(calculateBodyScale([3, 5], 0)).toBe(BODY_SCALE_MIN);
+    });
+
+    it('bass register at the fastest attack reaches the ceiling of 1.69', () => {
+      expect(calculateBodyScale([1, 3], 1)).toBeCloseTo(1.69);
+    });
+
+    it('mid register at a neutral attack bias sits at 1.0, above the floor so it is untouched', () => {
+      expect(calculateBodyScale([2, 4], 0.5)).toBe(1.0);
     });
   });
 });
