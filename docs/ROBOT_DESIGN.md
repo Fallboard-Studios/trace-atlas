@@ -111,8 +111,17 @@ Two documented exceptions to "visuals map strictly to audio attributes":
    `primary` — so this is a **shape/placement** exception, not a colour one. `RobotBody` builds
    `<RobotGreebles>` outside its audio memo and hides it only on the 64px selection card
    (`hideGreebles`); the detail avatar and in-world robots always show parts.
+3. **The two layer sockets (Roadmap Phase 38).** Every robot always shows two identity-coloured
+   sockets — Coaxial and Harmonic — at fixed, hand-measured positions (`SOCKET_POSITIONS`,
+   `greebleSlots.ts`). `RobotLayerSockets.tsx` draws each as a housing ring (`colors.shadow`,
+   always visible, never removed) plus a glass/sheen pair whose *opacity* is `socketLitOpacity`
+   (`robotVisualHelpers.ts`) of that layer's live gain (`layers[1]`/`layers[2]`), composed with
+   battery dim exactly like the lamp. A socket's **lit state is audio** (gain 0 → `SOCKET_DARK`,
+   gain up to `SOCKET_GAIN_MAX` → fully lit) — **only its hue is identity**, from the same
+   `identityGlass(hex)` the window and lamp use. Nothing pops in or out on an edit; a muted layer
+   just goes dark, same ruling as the greebles' permanence.
 
-Both are the same class of exception as the two brightness overlays above: narrower than, and
+All three are the same class of exception as the two brightness overlays above: narrower than, and
 layered on top of, the shape/color identity mapping — never a replacement for it. Everything else
 on the body — primary/secondary/accent/highlight/shadow fills, rivets, vents — stays derived from
 ADSR + waveform.

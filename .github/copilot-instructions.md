@@ -40,7 +40,7 @@ Critical architecture rules (short)
 
 Guardrails (must not be relaxed)
 - Melody Logic: "Melodies must store note indices (0..7), never literal pitch strings; 96 measures = 1 day cycle."
-- Visual Mapping: "Robot visuals (shape/color) must map strictly to audio attributes (synth/ADSR/phase/detune) as defined in ROBOT_DESIGN.md — with two documented non-audio layers: `Robot.identityColor` on the window glass and lamp, and the seeded `Robot.greebles` hardware set inside the silhouette (ROBOT_DESIGN.md 'Non-audio layers'), the same class of exception as the day/night and battery brightness overlays."
+- Visual Mapping: "Robot visuals (shape/color) must map strictly to audio attributes (synth/ADSR/phase/detune) as defined in ROBOT_DESIGN.md — with three documented non-audio carriers: `Robot.identityColor` on the window glass, lamp and the two layer sockets, and the seeded `Robot.greebles` hardware set inside the silhouette (ROBOT_DESIGN.md 'Non-audio layers'), the same class of exception as the day/night and battery brightness overlays. A socket's lit state is still audio (layer gain) — only its hue is identity."
 - Strict Separation: "GSAP timelines must only trigger semantic state changes, never call AudioEngine directly."
 - UI Shell: "All interactive UI (transport, navigation, controls) lives inside GlassViewport only — never in the decorative SleeveContainer."
 

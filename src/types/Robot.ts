@@ -127,9 +127,11 @@ export interface Robot {
   /**
    * Deterministic per-robot identity color (one of the 18 `ROBOT_IDENTITY_COLOR_NAMES` hues,
    * seeded at spawn) — UI chrome (RobotSelectionCard/RobotDisplaySection) **and** the SVG body's
-   * window glass + lamp, nothing else on the body (docs/ROBOT_DESIGN.md "Non-audio layers"); the
-   * body's own fills stay ADSR/waveform-derived. See docs/specs/COLOR_SCHEME_TRAIT_THEMING.md
-   * §1.4 and docs/specs/ROBOT_LIVE_VISUALS.md §1.5-1.7.
+   * window glass, lamp and the two layer sockets, nothing else on the body (docs/ROBOT_DESIGN.md
+   * "Non-audio layers"); a socket's lit state is still audio (layer gain), only its hue is
+   * identity. The body's own fills stay ADSR/waveform-derived. See
+   * docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.4, docs/specs/ROBOT_LIVE_VISUALS.md §1.5-1.7 and
+   * docs/specs/ROBOT_LAYER_MARKERS.md §1.5.
    */
   identityColor: string;
   /**
