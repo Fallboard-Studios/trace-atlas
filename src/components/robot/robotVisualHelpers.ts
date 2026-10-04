@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import type { AudioAttributes, WaveformType } from '../../types/Robot';
+import type { AudioAttributes, WaveformType, ADSREnvelope } from '../../types/Robot';
 import { RobotSleek } from './RobotSleek';
 import { RobotAngular } from './RobotAngular';
 import { RobotOrganic } from './RobotOrganic';
@@ -115,6 +115,33 @@ export function generateColors(attrs: AudioAttributes): RobotColors {
     primary: `hsl(${Math.round(primaryHue)}, ${sat}%, ${lum}%)`,
     secondary: `hsl(${Math.round(secondaryHue)}, ${Math.round(sat * 0.9)}%, ${Math.max(8, Math.round(lum * 0.9))}%)`,
     accent: `hsl(${Math.round(accentHue)}, ${Math.round(Math.min(100, sat * 1.1))}%, ${Math.max(6, Math.round(lum * 0.95))}%)`,
+  };
+}
+
+// ========================================
+// Live body shape (replaces the spawn-time snapshot)
+// ========================================
+
+/** Normalises the shared envelope into 0..1 body params. Matches the seeded generation range
+ *  (spawnSystem's ATTACK_RANGE/RELEASE_RANGE max 5s); edits past it clamp. */
+export const BODY_NORMALISER = { attack: 5, sustain: 1, release: 5 } as const;
+
+export interface BodyShape {
+  scale: number; // 0..1 — snappier attack → bigger body
+  roundness: number; // 0..1 — sustain → torso aspect
+  detail: number; // 0..1 — release → detail cliff
+}
+
+/**
+ * Live replacement for the old spawn-time snapshot: scale/roundness/detail from the current
+ * ADSR envelope, so Robot Options edits reach the body.
+ */
+export function bodyShapeFromAdsr(adsr: ADSREnvelope): BodyShape {
+  const attackRatio = clamp01(adsr.attack / BODY_NORMALISER.attack);
+  return {
+    scale: 0.25 + (1 - attackRatio) * 0.75,
+    roundness: clamp01(adsr.sustain / BODY_NORMALISER.sustain),
+    detail: clamp01(adsr.release / BODY_NORMALISER.release),
   };
 }
 

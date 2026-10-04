@@ -13,6 +13,8 @@ import {
   toLuminance,
   calculateGreebleCount,
   computeBatteryDimOpacity,
+  bodyShapeFromAdsr,
+  BODY_NORMALISER,
 } from './robotVisualHelpers';
 import { RobotSleek } from './RobotSleek';
 import type { AudioAttributes, ADSREnvelope } from '../../types/Robot';
@@ -151,6 +153,39 @@ describe('robotVisualHelpers', () => {
       // If tiers were summed (0.25 + 0.5 + 0.9 dim), opacity would go negative.
       // The deepest applicable tier alone applies.
       expect(computeBatteryDimOpacity(0)).toBe(0.1);
+    });
+  });
+
+  describe('BODY_NORMALISER', () => {
+    it('matches the seeded attack/release range (5s) and sustain range (1)', () => {
+      expect(BODY_NORMALISER).toEqual({ attack: 5, sustain: 1, release: 5 });
+    });
+  });
+
+  describe('bodyShapeFromAdsr', () => {
+    it('an all-zero envelope maps to the biggest, squarest, plainest body', () => {
+      const adsr: ADSREnvelope = { attack: 0, decay: 0, sustain: 0, release: 0 };
+      expect(bodyShapeFromAdsr(adsr)).toEqual({ scale: 1, roundness: 0, detail: 0 });
+    });
+
+    it('attack at the normaliser clamps scale to its floor (0.25)', () => {
+      const adsr: ADSREnvelope = { attack: 5, decay: 0, sustain: 0, release: 0 };
+      expect(bodyShapeFromAdsr(adsr).scale).toBe(0.25);
+    });
+
+    it('attack beyond the normaliser still clamps scale to 0.25, not negative', () => {
+      const adsr: ADSREnvelope = { attack: 10, decay: 0, sustain: 0, release: 0 };
+      expect(bodyShapeFromAdsr(adsr).scale).toBe(0.25);
+    });
+
+    it('release at half the normaliser gives exactly 0.5 detail', () => {
+      const adsr: ADSREnvelope = { attack: 0, decay: 0, sustain: 0, release: 2.5 };
+      expect(bodyShapeFromAdsr(adsr).detail).toBe(0.5);
+    });
+
+    it('sustain at its max gives exactly 1 roundness', () => {
+      const adsr: ADSREnvelope = { attack: 0, decay: 0, sustain: 1, release: 0 };
+      expect(bodyShapeFromAdsr(adsr).roundness).toBe(1);
     });
   });
 });
