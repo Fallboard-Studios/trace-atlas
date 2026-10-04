@@ -1,5 +1,7 @@
 # Intent: Robot Live Visuals
 
+> **Shipped (roadmap Phase 36, 2026-10-03)** — spec [docs/specs/ROBOT_LIVE_VISUALS.md](../specs/ROBOT_LIVE_VISUALS.md), plan [docs/tasks/ROBOT_LIVE_VISUALS.md](../tasks/ROBOT_LIVE_VISUALS.md). Crawford's visual checkpoint passed; every decision below held.
+
 Confirmed via `interview-me` on 2026-10-03, ahead of a `spec-driven-development` pass. Branch 1
 of three in [docs/ideas/robot-visual-rework.md](../ideas/robot-visual-rework.md)
 (live visuals → greebles → layer markers); branch `feature/robot-rework`. The interview changed

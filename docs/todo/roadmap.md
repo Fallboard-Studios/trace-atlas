@@ -467,3 +467,35 @@ Factories, and through them their bubbles, lean toward the console's accent pale
 - **Hard snap or snap-plus-offset** — soft pull only.
 - **The Ballast neutrals, bubble colours other than their building's, placement/variant/greebles** — untouched.
 - **A simpler "replace the base with a jittered accent" model** — considered at spec review and rejected in favour of the pull.
+
+## 36. Robot Live Visuals
+
+Requested by Crawford, 2026-10-03, after the parametric hull (branch 2 of the earlier
+world-visuals series) was set aside as not matching the app's look. First of a new three-branch
+series on the existing four hand-drawn shapes. Idea [docs/ideas/robot-visual-rework.md](../ideas/robot-visual-rework.md), intent [docs/intent/robot-live-visuals.md](../intent/robot-live-visuals.md), spec [docs/specs/ROBOT_LIVE_VISUALS.md](../specs/ROBOT_LIVE_VISUALS.md), plan [docs/tasks/ROBOT_LIVE_VISUALS.md](../tasks/ROBOT_LIVE_VISUALS.md). **Implemented — all 13 tasks on `feature/robot-rework`; Crawford's visual checkpoint passed.**
+
+### About
+
+Deletes a spawn-time `visualAudioMap` snapshot of body scale/roundness/detail that never refreshed
+on a Robot Options edit, replacing it with a live computation (`bodyShapeFromAdsr`,
+`calculateBodyScale` — floored at `BODY_SCALE_MIN`, 1.5× the old unfloored minimum) so attack,
+sustain and release edits visibly reach the body. The four shapes now scale about their own centre
+(48,36) instead of the origin, and both avatar viewBoxes widen to frame the larger range without
+clipping. Every shape's highlight/shadow shading switches from a fixed grey/black to the robot's
+own hue-shifted colours (`colors.highlight`/`colors.shadow`). The window glass on every shape now
+carries the robot's `identityColor` (`identityGlass()`), replacing a fixed blue, so a robot's
+window reads the same hue as its selection card. One always-visible lamp (`g.lamp`, outside
+`.details`) replaces the two green status lights Organic and Industrial used to gate behind the
+detail cliff — lit by `calculateLampIntensity`, live audible-layer gain blended with detail,
+floored at `LAMP_MIN`. `CLAUDE.md`'s Visual Mapping guardrail is amended to carve out exactly this
+one non-audio exception: `identityColor` on the window glass and lamp, nothing else on the body
+(`docs/ROBOT_DESIGN.md` "Identity layer").
+
+### Not Doing (and why)
+
+- **Reviving the parametric hull** — rejected by eye; `feature/robot-v2` stays unmerged, not to be revived.
+- **Greebles** — computed live (`calculateGreebleCount`), still not drawn on any shape; Roadmap Phase 37 (Robot Greebles) owns rendering them.
+- **`microVariants`** — unread by every shape; parked pending Phase 37, which may cover the one non-redundant case (fast attack → stripes) with a greeble part instead.
+- **Layer markers / pod motion** — the always-present Coaxial/Harmonic sockets and any orbit/swim motion are their own later branches (Roadmap Phase 38 and beyond), not this one.
+- **Identity colour anywhere else on the body** — the guardrail amendment is scoped to exactly two elements; widening it needs its own decision.
+- **Changing `calculateScale`'s register steps** — the size fix is a floor clamp (`BODY_SCALE_MIN`), not a shift of the 0.7/1.0/1.3 steps themselves.

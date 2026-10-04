@@ -53,10 +53,7 @@ the mapper and `layerVisuals`, and computes the same formulas from the live enve
 
 ## The three branches
 
-1. **Live visuals** (roadmap Phase 36): the prerequisite above; `secondary` and a darkened
-   `primary` replace the fixed grey/black highlight and shadow; a lamp on all four shapes driven
-   by `lightsProps` intensity, composed with the existing battery dim; `appendageLength` deleted.
-   No sketch needed — wiring existing values into existing shapes. Small, one sitting.
+1. **Live visuals** (roadmap Phase 36) — **shipped, 2026-10-03** (intent [docs/intent/robot-live-visuals.md](../intent/robot-live-visuals.md), spec [docs/specs/ROBOT_LIVE_VISUALS.md](../specs/ROBOT_LIVE_VISUALS.md), plan [docs/tasks/ROBOT_LIVE_VISUALS.md](../tasks/ROBOT_LIVE_VISUALS.md)). The prerequisite above, done: `colors.highlight`/`colors.shadow` (hue-shifted derivations of the robot's own colours) replace the fixed grey/black; the window glass carries `identityColor`; one always-visible lamp on all four shapes driven by `calculateLampIntensity`, composed with the existing battery dim; `appendageLength` deleted.
 2. **Greebles** (roadmap Phase 37): a small part vocabulary in the current flat style, a
    deterministic placement inside each shape's interior region (placement source must be audio
    fields — phase/detune/cutoff — not a seed, to stay inside the visuals-map-to-audio guardrail),

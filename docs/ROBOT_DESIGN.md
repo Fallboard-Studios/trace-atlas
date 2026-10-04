@@ -2,10 +2,10 @@
 
 ## Overview
 
-Robots are single unified SVG entities whose visual appearance (shape, color, detail) is derived entirely from `audioAttributes` — never stored separately. This keeps `Robot` fully serializable for Zustand while visuals stay a pure function of audio data, computed at render time in [robotVisualHelpers.ts](../src/components/robot/robotVisualHelpers.ts) and [robotVisualMapper.ts](../src/components/robot/robotVisualMapper.ts).
+Robots are single unified SVG entities whose visual appearance (shape, color, detail) is derived entirely from `audioAttributes` — never stored separately. This keeps `Robot` fully serializable for Zustand while visuals stay a pure function of audio data, computed live at render time in [robotVisualHelpers.ts](../src/components/robot/robotVisualHelpers.ts).
 
 **Related references:**
-- [Audio System Guide](AUDIO_SYSTEM.md) — AudioEngine, layered voices, `visualAudioMap`
+- [Audio System Guide](AUDIO_SYSTEM.md) — AudioEngine, layered voices
 - [Animation System Guide](ANIMATION_SYSTEM.md) — GSAP timeline patterns for robot motion
 
 ## Shape Components
@@ -30,15 +30,24 @@ Four SVG variants live in `src/components/robot/`: `RobotSleek.tsx`, `RobotAngul
 
 ## Shape Parameters
 
-Two complementary sources feed body geometry, composed together in `RobotBody.tsx`:
+Body scale, roundness and detail are computed live from the robot's current `audioAttributes.adsr`
+(Roadmap Phase 36) — no spawn-time snapshot. `bodyShapeFromAdsr(adsr)` (`robotVisualHelpers.ts`)
+normalises by `BODY_NORMALISER` (`{ attack: 5, sustain: 1, release: 5 }`, matching the seeded
+generation range — edits past it clamp): `scale ≈ 0.25 + (1 − attack/5) × 0.75`, `roundness =
+sustain`, `detail = release/5` (all 0..1). `calculateBodyScale(octaveRange, bodyShape.scale)` then
+folds in the register step (0.7/1.0/1.3 from `calculateScale`) and an attack-driven bias, floored
+at `BODY_SCALE_MIN` (0.735 — 1.5× the pre-Phase-36 floor of 0.49). `RobotBody.tsx` passes the
+result as the shape's single `scale` prop; each shape centre-scales its root about (48,36) instead
+of growing from the origin.
 
-1. **Spawn-time (`audioAttributes.visualAudioMap.shapeParams`)** — computed once in `spawnSystem.ts` directly from the robot's one shared ADSR envelope (`audioAttributes.adsr`), normalized by the `ADSR_MAX` mapping constant: `scale ≈ 0.25 + (1 − attack/ADSR_MAX.attack) × 0.75`, `roundness ≈ sustain/ADSR_MAX.sustain`, `detail ≈ release/ADSR_MAX.release` (all 0..1). Roadmap Phase 9 collapsed per-layer ADSR overrides down to this single shared envelope — there's nothing left to average across layers. This is the preferred source, converted to component props via `mapVisualAudioToProps()`.
-2. **Live (`shapeParamsFromAudio()`)** — derives `torsoAspect`, `appendageLength`, and `scaleBias` from `octaveRange`, `filterFreq`, and waveform/ADSR, plus `MicroVariants` (`stripes`/`smooth`/`spikes`) keyed off waveform and fast-attack envelopes.
+`shapeParamsFromAudio()` separately derives `torsoAspect` from `octaveRange` (plus `MicroVariants`
+— `stripes`/`smooth`/`spikes` — from waveform and fast-attack envelopes), blended 70% ADSR-driven /
+30% register-driven in `RobotBody.tsx`. `ShapeParams` itself is `{ torsoAspect }` — nothing else.
 
 ## Greebles & Lights
 
-- **Greeble count**: prefers `mapped.greebleProps.count` (≈ `detail × 6`, from `visualAudioMap`); falls back to `calculateGreebleCount(filterFreq, detailLevel, waveform, adsr)`, which weights filter-derived detail (60%), explicit detail (25%), and sustain (15%), with a small bonus for sawtooth/square waveforms. Capped at 16.
-- **Light intensity**: blends `averagedGain × 0.6 + detail × 0.4`; light hue derives from scale (`200 − scale × 120`). Computed by `mapVisualAudioToProps()` but not currently passed to any shape component — `lightsProps` is unwired output, not a rendered element.
+- **Greeble count**: `calculateGreebleCount(filterFreq, detailLevel, waveform, adsr)`, weighting filter-derived detail (60%), explicit detail (25%), and sustain (15%), with a small bonus for sawtooth/square waveforms. Capped at 16. Computed live; not yet drawn on any shape — Roadmap Phase 37 (Robot Greebles) owns rendering it.
+- **Lamp**: every shape renders one always-visible `g.lamp` (outside `.details`, present at every detail level), identity-coloured (see "Identity layer" below), lit by `calculateLampIntensity(layers, detail)` — averaged audible-layer gain (muted layers excluded from the average, not counted as zero) blended 60/40 with detail, floored at `LAMP_MIN` (0.4) so a quiet, short-release robot still shows a carrier. `RobotBody.tsx` composes the final `lampOpacity` with battery dim outside the audio memo, the same split `dimOpacity` already uses.
 
 ## Non-Audio Brightness Overlays
 
@@ -85,11 +94,9 @@ stays derived from ADSR + waveform.
 
 ## Data Flow
 
-`audioAttributes` (`adsr`, `waveform`, `filterFreq`, `layers`, `visualAudioMap`) is fully serializable and lives on `Robot` in Zustand (see [src/types/Robot.ts](../src/types/Robot.ts)). Visual props are recomputed from this data at render time — never construct Tone.js objects, and never store computed shape/color props back in state.
+`audioAttributes` (`adsr`, `waveform`, `filterFreq`, `layers`) is fully serializable and lives on `Robot` in Zustand (see [src/types/Robot.ts](../src/types/Robot.ts)). Visual props are recomputed from this data at render time — never construct Tone.js objects, and never store computed shape/color props back in state.
 
 `filterFreq` is audible as well as visible: it is the cutoff of the robot's per-voice bus low-pass (`AudioEngine.reserveVoice`'s `filterFreq` parameter — see AUDIO_SYSTEM.md "Signal Graph"), so the detail level and greeble count it drives correspond to a real difference in timbre. Until 2026-09-30 that bus filter was a fixed 1,200 Hz and the mapping was visual-only.
-
-`AudioVisualInspector.tsx` (`src/components/debug/`) exposes the live mapping for debugging.
 
 ## Forbidden Patterns
 

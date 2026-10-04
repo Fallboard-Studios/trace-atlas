@@ -192,21 +192,21 @@ Polyphony management controls the maximum number of simultaneous audio voices to
 
 ## Layered / Composite Voices and Visual Mapping
 
-Trace Atlas uses serializable audio descriptors at spawn time so visuals and audio can share the same data without constructing Tone objects during render. The canonical descriptor is now the robot's `audioAttributes.layers` array, and the compact visual mapping is stored in `audioAttributes.visualAudioMap`.
+Trace Atlas uses serializable audio descriptors at spawn time so visuals and audio can share the same data without constructing Tone objects during render. The canonical descriptor is the robot's `audioAttributes.layers` array; visual shape/color/lamp props are computed live from `layers`/`adsr`/`waveform` at render time (`robotVisualHelpers.ts`, `RobotBody.tsx` — see docs/ROBOT_DESIGN.md), not stored on the robot. Roadmap Phase 36 removed an earlier spawn-time snapshot of these same values, which went stale the moment a Robot Options edit changed the ADSR it was computed from.
 
 Key points:
 - Each layer is an `OscillatorLayer` with `type` (a `WaveformType` — `'noise'` was removed in Roadmap Phase 9), `gain`, `detune`, `phase`, and optional `pulseWidth`. There is no separate `active` flag — `gain: 0` is how Coaxial/Harmonic are muted (Baseline always seeds a real, nonzero gain); see `filterAudibleLayers` below. There is no per-layer `adsr` field either — every layer shares the one envelope on `audioAttributes.adsr` (Roadmap Phase 9 collapsed Signature Array editing down to a single shared envelope per robot).
-- Spawn-time logic in `src/systems/spawnSystem.ts` always generates exactly 3 layers (Baseline/Coaxial/Harmonic) and derives compact `shapeParams` for robot visuals directly from the one shared `adsr` — there's nothing left to average across layers.
+- Spawn-time logic in `src/systems/spawnSystem.ts` always generates exactly 3 layers (Baseline/Coaxial/Harmonic); robot visuals derive their body shape and lamp directly from the live `layers`/`adsr` at render time (`bodyShapeFromAdsr`, `calculateLampIntensity` — `robotVisualHelpers.ts`), not from anything computed at spawn.
 - `AudioEngine.reserveVoice()` consumes those layers to create a runtime composite voice and route it through a per-robot sub-bus (panner → gain → filter → global chain entry, EQ3 — see Signal Graph below). Its own `filterAudibleLayers` excludes any layer with `gain === 0` from the composite voice it actually builds (no synth node created for it) — muting a layer doesn't discard its configuration, which stays in `Robot` state untouched. Note the exclusion only applies the next time the voice is actually rebuilt (a Type change, or `reReserveVoice` for any other reason) — dragging Gain itself to exactly 0 goes through the continuous, no-rebuild path (`applyLayersContinuous`/`updateVoiceLayerParams`), so it silences immediately via a live gain write on the still-built node, and only gets excluded from the graph on the next real rebuild. The bus's own gain node is seeded from the optional `masterVolume` parameter (default `1`) and stays live afterward via `AudioEngine.updateRobotMasterVolume(robotId, masterVolume)` — a continuously-updatable AudioParam, not a value baked into any note's own trigger, so a live Volume edit (Robot Options) affects an already-sounding note's tail too, not just the next one. `masterVolume` (0–1, UI displays it as 0–100%) is never applied to the bus gain directly — it's passed through `volumePositionToGain()` (`src/engine/audioEngine/volumeTaper.ts`) first, a perceptual/logarithmic taper (position mapped to a dB offset, then to linear gain over a 40dB range) rather than a linear pass-through. A linear mapping felt almost flat across most of the fader's travel, since human loudness perception is roughly logarithmic — real, shipped feedback caught post-launch.
 - Composite voices expose `triggerAttackRelease`, `set`, and `dispose` semantics so scheduling code can use a single high-level API. The shared ADSR is applied at construction (`createCompositeVoice(descriptor, adsr)`, identically to every included layer) and can be updated live afterward via `AudioEngine.updateVoiceEnvelope(robotId, adsr)`, which reuses the same continuous-update `set({ layers })` path `updateVoiceLayerParams` uses for gain/detune/phase/pulseWidth edits — no audio gap.
 - Because the mapping is stored on the robot as serializable data, visuals can be rendered in non-audio contexts without requiring Tone.js objects.
 
 Recommended usage:
-- At spawn: persist the generated `audioAttributes.layers` and the compact `audioAttributes.visualAudioMap` on the robot.
+- At spawn: persist the generated `audioAttributes.layers` on the robot.
 - At audio init: call `AudioEngine.reserveVoice(robotId, layers, adsr, phase, detune, pulseWidth, masterVolume)` to allocate an isolated composite voice. Reservation returns `false` only if voice creation fails; polyphony enforcement happens later when notes are triggered via `AudioEngine.scheduleNote()`.
 - For a live Volume edit after reservation: call `AudioEngine.updateRobotMasterVolume(robotId, masterVolume)` rather than re-reserving — instant, affects anything currently sounding.
 - For envelope edits after reservation: call `AudioEngine.updateVoiceEnvelope(robotId, adsr)` rather than re-reserving — instant, no audio gap.
-- In components: prefer reading `audioAttributes.visualAudioMap` for visual properties; do not instantiate synths in components.
+- In components: compute visual properties live from `audioAttributes` via `robotVisualHelpers.ts` (see docs/ROBOT_DESIGN.md); do not instantiate synths in components.
 
 ### Global volume vs. robot volume — two unrelated fields, one shared taper
 
@@ -545,7 +545,7 @@ Before committing audio code:
 
 Each robot follows a compact lifecycle:
 
-1. **Spawn**: persist `audioAttributes.layers` and `audioAttributes.visualAudioMap`, then reserve a composite voice for the robot.
+1. **Spawn**: persist `audioAttributes.layers`, then reserve a composite voice for the robot.
 2. **Register**: register the melody with `AudioEngine`.
 3. **Update**: change layer parameters through `AudioEngine.updateVoiceLayerParams()` or `AudioEngine.reReserveVoice()`.
 4. **Cleanup**: unregister the melody and release the voice when the robot is removed.

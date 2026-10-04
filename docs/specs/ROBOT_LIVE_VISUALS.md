@@ -1,5 +1,7 @@
 # Phase Spec: Robot Live Visuals (edits reach the body; window + lamp carry the card colour)
 
+> **Shipped (roadmap Phase 36, 2026-10-03)** — plan [docs/tasks/ROBOT_LIVE_VISUALS.md](../tasks/ROBOT_LIVE_VISUALS.md). All 13 tasks landed on `feature/robot-rework`; Crawford's visual checkpoint passed.
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types` (`tsc -p tsconfig.app.json --noEmit`)
