@@ -1,5 +1,7 @@
 # Intent: Robot Greebles (seeded, permanent hardware)
 
+> **Shipped (roadmap Phase 37, 2026-10-03)** — spec [docs/specs/ROBOT_GREEBLES.md](../specs/ROBOT_GREEBLES.md), plan [docs/tasks/ROBOT_GREEBLES.md](../tasks/ROBOT_GREEBLES.md). Crawford's sketch sign-off and the perf + visual checkpoint both passed; every decision below held.
+
 Written 2026-10-03 from Crawford's direct decisions, no interview needed — ahead of a sketch gate
 and a `spec-driven-development` pass. Branch 2 of three in
 [docs/ideas/robot-visual-rework.md](../ideas/robot-visual-rework.md) (live visuals → greebles →

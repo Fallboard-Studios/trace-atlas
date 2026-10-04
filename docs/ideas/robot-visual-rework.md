@@ -54,11 +54,7 @@ the mapper and `layerVisuals`, and computes the same formulas from the live enve
 ## The three branches
 
 1. **Live visuals** (roadmap Phase 36) — **shipped, 2026-10-03** (intent [docs/intent/robot-live-visuals.md](../intent/robot-live-visuals.md), spec [docs/specs/ROBOT_LIVE_VISUALS.md](../specs/ROBOT_LIVE_VISUALS.md), plan [docs/tasks/ROBOT_LIVE_VISUALS.md](../tasks/ROBOT_LIVE_VISUALS.md)). The prerequisite above, done: `colors.highlight`/`colors.shadow` (hue-shifted derivations of the robot's own colours) replace the fixed grey/black; the window glass carries `identityColor`; one always-visible lamp on all four shapes driven by `calculateLampIntensity`, composed with the existing battery dim; `appendageLength` deleted.
-2. **Greebles** (roadmap Phase 37): a small part vocabulary in the current flat style, a
-   deterministic placement inside each shape's interior region (placement source must be audio
-   fields — phase/detune/cutoff — not a seed, to stay inside the visuals-map-to-audio guardrail),
-   count from filter cutoff, hidden at thumbnail scale. Persistence (a duration) is dropped or
-   becomes a GSAP fade later. Static HTML sketch gate before React, as the hull did. Medium.
+2. **Greebles** (roadmap Phase 37) — **shipped, 2026-10-03** (intent [docs/intent/robot-greebles.md](../intent/robot-greebles.md), spec [docs/specs/ROBOT_GREEBLES.md](../specs/ROBOT_GREEBLES.md), plan [docs/tasks/ROBOT_GREEBLES.md](../tasks/ROBOT_GREEBLES.md), sketch [docs/sketches/robot-greebles.html](../sketches/robot-greebles.html)). Supersedes the audio-driven placement proposed above: Crawford didn't want parts popping in/out on an edit, so the actual shipped mechanism is a seeded, **permanent** `Robot.greebles` set (`{ kind, slot }[]`, a count in 2..5, drawn once at spawn) — a second non-audio layer alongside `identityColor`, not a third audio mapping. Five-part vocabulary (panel/tank/dish/antenna/decal), hidden on the 64px card, shown on the detail avatar and in-world.
 3. **Layer markers** (roadmap Phase 38): two always-present lamp-like sockets per robot
    (Coaxial, Harmonic), identity-coloured, lit in proportion to the layer's live gain and dark
    when muted — nothing appears or disappears on an edit (Crawford, 2026-10-03: "it goes dark";

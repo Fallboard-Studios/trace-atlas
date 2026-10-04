@@ -499,3 +499,47 @@ one non-audio exception: `identityColor` on the window glass and lamp, nothing e
 - **Layer markers / pod motion** — the always-present Coaxial/Harmonic sockets and any orbit/swim motion are their own later branches (Roadmap Phase 38 and beyond), not this one.
 - **Identity colour anywhere else on the body** — the guardrail amendment is scoped to exactly two elements; widening it needs its own decision.
 - **Changing `calculateScale`'s register steps** — the size fix is a floor clamp (`BODY_SCALE_MIN`), not a shift of the 0.7/1.0/1.3 steps themselves.
+
+## 37. Robot Greebles
+
+Second of the three-branch series on the existing four hand-drawn shapes (Roadmap Phase 36 →
+**37** → 38). Idea [docs/ideas/robot-visual-rework.md](../ideas/robot-visual-rework.md), intent
+[docs/intent/robot-greebles.md](../intent/robot-greebles.md), spec
+[docs/specs/ROBOT_GREEBLES.md](../specs/ROBOT_GREEBLES.md), plan
+[docs/tasks/ROBOT_GREEBLES.md](../tasks/ROBOT_GREEBLES.md), sketch
+[docs/sketches/robot-greebles.html](../sketches/robot-greebles.html). **Implemented — all 9 tasks
+on `feature/robot-rework`; Crawford's sketch sign-off and the perf + visual checkpoint both
+passed.**
+
+### About
+
+Gives every robot a small, seeded, permanent set of hardware parts — panels, tanks, dishes,
+antennas, decals — placed inside its own silhouette. `Robot.greebles` (`{ kind, slot }[]`) is
+drawn once at spawn (`generateGreebles`, `spawnSystem.ts`): a count in `GREEBLE_COUNT_RANGE`
+(2..5), then that many independent kind/slot draws with no robot ever repeating a slot. `kind`
+indexes `RobotGreebles.tsx`'s fixed five-part vocabulary (`KIND_COUNT`, one or two SVG elements
+each, coloured only from `colors.accent`/`colors.shadow` and the hardware greys); `slot` indexes
+the current shape's `GREEBLE_SLOTS` table (`greebleSlots.ts`, `SLOT_COUNT` entries per shape,
+hand-measured in the sketch to clear the window, lamp, vent and the two layer-socket positions
+Roadmap Phase 38 reserves). `RobotBody` builds the node outside its audio memo and passes it to
+the shape, which places it between the hull shadow and the window without ever learning about
+kinds or slots — a waveform change re-slots the same parts onto the new outline instead of
+regenerating them. `hideGreebles` omits it only on the 64px selection card; the detail avatar and
+in-world robots always show parts. The five dead audio-driven greeble helpers
+(`calculateGreebleCount`/`Size`/`Persistence`/`PlacementBias`, `calculateDetailLevel`) are deleted.
+`CLAUDE.md`'s Visual Mapping guardrail gains a second non-audio layer alongside Phase 36's
+`identityColor`: the seeded greeble set, confined to the vocabulary's own slots
+(`docs/ROBOT_DESIGN.md` "Non-audio layers").
+
+### Not Doing (and why)
+
+- **Audio-driven greeble count/size/placement** — rejected in the intent interview: Crawford
+  didn't want parts popping in/out; a seeded, permanent set reads as "natural and lore friendly".
+- **Persistence/decay of individual parts** — there is nothing to decay; the set is permanent for
+  the robot's lifetime.
+- **More than two elements per kind, or more than `SLOT_COUNT` (8) slots per shape** — the Phase
+  36 idle-paint lesson keeps element count bounded; the perf gate at Checkpoint C confirmed it.
+- **Rendering parts on the 64px selection card** — `hideGreebles` keeps the card clean; only the
+  detail avatar and in-world robots show them.
+- **Layer markers / pod motion** — the two reserved socket positions this branch's sketch measures
+  are Roadmap Phase 38's own fixtures, not drawn here.

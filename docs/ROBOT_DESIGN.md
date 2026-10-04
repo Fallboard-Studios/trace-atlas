@@ -46,7 +46,15 @@ of growing from the origin.
 
 ## Greebles & Lights
 
-- **Greeble count**: `calculateGreebleCount(filterFreq, detailLevel, waveform, adsr)`, weighting filter-derived detail (60%), explicit detail (25%), and sustain (15%), with a small bonus for sawtooth/square waveforms. Capped at 16. Computed live; not yet drawn on any shape — Roadmap Phase 37 (Robot Greebles) owns rendering it.
+- **Greebles (Roadmap Phase 37)**: `Robot.greebles` is a seeded, permanent `{ kind, slot }[]` — see
+  "Non-audio layers" below for how it's drawn and why it's not audio-derived. `RobotBody.tsx`
+  builds `<RobotGreebles greebles={robot.greebles} slots={GREEBLE_SLOTS[waveform]} colors={colors} />`
+  outside its audio memo (it depends on `colors`, which is already post-daylight, and
+  `robot.greebles`, which is seeded identity data) and passes it to the shape as a `greebles`
+  node, rendered between the hull shadow and the window — the shape itself never learns about
+  kinds or slots. `RobotBody`'s `hideGreebles?: boolean` omits the node entirely; only
+  `RobotSelectionCard`'s 64px card thumbnail sets it. `RobotDisplaySection`'s 96px detail avatar
+  and in-world `Robot.tsx` instances always show parts.
 - **Lamp**: every shape renders one always-visible `g.lamp` (outside `.details`, present at every detail level), identity-coloured (see "Non-audio layers" below), lit by `calculateLampIntensity(layers, detail)` — averaged audible-layer gain (muted layers excluded from the average, not counted as zero) blended 60/40 with detail, floored at `LAMP_MIN` (0.4) so a quiet, short-release robot still shows a carrier. `RobotBody.tsx` composes the final `lampOpacity` with battery dim outside the audio memo, the same split `dimOpacity` already uses.
 
 ## Non-Audio Brightness Overlays
@@ -96,7 +104,8 @@ Two documented exceptions to "visuals map strictly to audio attributes":
    not audio-derived. `kind` indexes `RobotGreebles.tsx`'s fixed vocabulary of `KIND_COUNT` parts
    (panel/tank/dish/antenna/decal, one or two SVG elements each); `slot` indexes the current
    shape's `GREEBLE_SLOTS` table (`greebleSlots.ts`, `SLOT_COUNT` entries per shape, hand-measured
-   to clear the window, lamp, vent and the reserved layer-socket fixtures), so a waveform change
+   against that same module's `FIXTURE_BOXES` to clear the window, lamp, vent and the reserved
+   layer-socket fixtures), so a waveform change
    re-slots the same parts onto the new outline without touching robot data. Parts draw only from
    `colors.accent`, `colors.shadow` and the hardware greys — never `identityColor`, never
    `primary` — so this is a **shape/placement** exception, not a colour one. `RobotBody` builds

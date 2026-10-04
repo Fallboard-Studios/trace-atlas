@@ -1,5 +1,7 @@
 # Phase Spec: Robot Greebles (seeded, permanent hardware parts inside the silhouette)
 
+> **Shipped (roadmap Phase 37, 2026-10-03)** — plan [docs/tasks/ROBOT_GREEBLES.md](../tasks/ROBOT_GREEBLES.md). All 9 tasks landed on `feature/robot-rework`; Crawford's sketch sign-off and the perf + visual checkpoint both passed.
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types` (`tsc -p tsconfig.app.json --noEmit`)

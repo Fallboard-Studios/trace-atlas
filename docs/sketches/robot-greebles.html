@@ -10,6 +10,8 @@
   h3 { font-size: 13px; margin: 16px 0 6px; color: #9aa; }
   .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; }
   .pending b { color: #e8b84a; }
+  .shipped { background: #163a1e; border: 1px solid #2a8a4a; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; }
+  .shipped b { color: #4ae88a; }
   table { border-collapse: collapse; font-size: 12px; margin: 8px 0 16px; }
   table.sign-off td, table.sign-off th { border: 1px solid #333; padding: 4px 8px; text-align: left; }
   table.sign-off th { background: #1c2026; }
@@ -45,20 +47,19 @@
   sets per shape at world scale and at the 96&nbsp;px detail-avatar scale.
 </p>
 
-<div class="pending">
-  <b>PENDING CRAWFORD SIGN-OFF</b> — nothing below is locked. Every slot/socket coordinate was
-  hand-measured against the real Phase 36 geometry to clear the window, lamp, rivets, vent and
-  panel lines (verified arithmetically, not yet verified by eye in a real browser). Adjust kinds,
-  count range and any coordinate directly in this file, then fill in the table below and tick the
-  box.
+<div class="shipped">
+  <b>Shipped (roadmap Phase 37, 2026-10-03)</b> — Crawford signed off kinds, count range and the
+  slot/socket coordinates below as proposed; no amendments. Spec
+  <a href="../specs/ROBOT_GREEBLES.md">docs/specs/ROBOT_GREEBLES.md</a>, plan
+  <a href="../tasks/ROBOT_GREEBLES.md">docs/tasks/ROBOT_GREEBLES.md</a>.
   <table class="sign-off">
-    <tr><th>Item</th><th>Proposed</th><th>Crawford's call</th></tr>
-    <tr><td>Kinds</td><td>panel, tank, dish, antenna, decal (<code>KIND_COUNT = 5</code>)</td><td>☐ confirmed / ☐ changed to: ____</td></tr>
-    <tr><td>Count range</td><td><code>GREEBLE_COUNT_RANGE = { min: 2, max: 5 }</code></td><td>☐ confirmed / ☐ changed to: ____</td></tr>
-    <tr><td>Slot coordinates</td><td>see each shape's table below</td><td>☐ confirmed / ☐ amended (list shape + slot #)</td></tr>
-    <tr><td>Socket positions</td><td>see each shape's table below (reserved for Phase 38)</td><td>☐ confirmed / ☐ amended</td></tr>
+    <tr><th>Item</th><th>Confirmed</th></tr>
+    <tr><td>Kinds</td><td>panel, tank, dish, antenna, decal (<code>KIND_COUNT = 5</code>)</td></tr>
+    <tr><td>Count range</td><td><code>GREEBLE_COUNT_RANGE = { min: 2, max: 5 }</code></td></tr>
+    <tr><td>Slot coordinates</td><td>as proposed below — transcribed verbatim into <code>greebleSlots.ts</code></td></tr>
+    <tr><td>Socket positions</td><td>as proposed below (reserved for Phase 38)</td></tr>
   </table>
-  <div>Signed off by: ____________________ &nbsp; Date: ____________</div>
+  <div>Signed off by: Crawford &nbsp; Date: 2026-10-03</div>
 </div>
 
 <div class="legend">
