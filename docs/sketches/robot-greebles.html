@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Robot Greebles — sketch (Phase 37)</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #12151a; color: #e4e6ea; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  h3 { font-size: 13px; margin: 16px 0 6px; color: #9aa; }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; }
+  .pending b { color: #e8b84a; }
+  table { border-collapse: collapse; font-size: 12px; margin: 8px 0 16px; }
+  table.sign-off td, table.sign-off th { border: 1px solid #333; padding: 4px 8px; text-align: left; }
+  table.sign-off th { background: #1c2026; }
+  .shapes-row { display: flex; gap: 24px; flex-wrap: wrap; }
+  .shape-card { background: #1a1d23; border: 1px solid #2a2e36; border-radius: 8px; padding: 12px; }
+  .shape-card svg { background: #0d0f12; border-radius: 4px; display: block; }
+  .shape-card figcaption { font-size: 11px; color: #8a8f99; margin-top: 6px; }
+  .vocab-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .vocab-card { background: #1a1d23; border: 1px solid #2a2e36; border-radius: 8px; padding: 8px; text-align: center; }
+  .vocab-card svg { background: #0d0f12; border-radius: 4px; }
+  .vocab-card div { font-size: 11px; color: #8a8f99; margin-top: 4px; }
+  .sets-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .set-card { background: #1a1d23; border: 1px solid #2a2e36; border-radius: 6px; padding: 6px; text-align: center; }
+  .set-card svg { background: #0d0f12; display: block; }
+  .set-card div { font-size: 10px; color: #777; margin-top: 3px; }
+  .slot-box { fill: none; stroke: #4aa3ff; stroke-width: 0.6; stroke-dasharray: 2,1; }
+  .socket-dot-ring { fill: none; stroke: #ff7ab8; stroke-width: 0.8; }
+  .socket-dot-core { fill: #ff7ab8; opacity: 0.35; }
+  .fixture-label { fill: #4aa3ff; font-size: 4px; font-family: monospace; }
+  .legend { font-size: 11px; color: #9aa; margin: 4px 0 16px; }
+  .legend span { display: inline-block; margin-right: 16px; }
+  .swatch { display: inline-block; width: 10px; height: 10px; vertical-align: middle; margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<h1>Robot Greebles — sketch (Phase 37)</h1>
+<p style="color:#8a8f99; margin-top:0;">
+  docs/tasks/ROBOT_GREEBLES.md Task 1 (Checkpoint A gate). Four shapes as they stand after Phase 36
+  (centre-scaled root, identity window, always-visible lamp, <code>.details</code> shown). Eight
+  candidate slot boxes per shape, the five candidate greeble kinds drawn once each, two reserved
+  layer-socket positions per shape (lamp-sized dots, Phase 38's fixtures), and six seeded example
+  sets per shape at world scale and at the 96&nbsp;px detail-avatar scale.
+</p>
+
+<div class="pending">
+  <b>PENDING CRAWFORD SIGN-OFF</b> — nothing below is locked. Every slot/socket coordinate was
+  hand-measured against the real Phase 36 geometry to clear the window, lamp, rivets, vent and
+  panel lines (verified arithmetically, not yet verified by eye in a real browser). Adjust kinds,
+  count range and any coordinate directly in this file, then fill in the table below and tick the
+  box.
+  <table class="sign-off">
+    <tr><th>Item</th><th>Proposed</th><th>Crawford's call</th></tr>
+    <tr><td>Kinds</td><td>panel, tank, dish, antenna, decal (<code>KIND_COUNT = 5</code>)</td><td>☐ confirmed / ☐ changed to: ____</td></tr>
+    <tr><td>Count range</td><td><code>GREEBLE_COUNT_RANGE = { min: 2, max: 5 }</code></td><td>☐ confirmed / ☐ changed to: ____</td></tr>
+    <tr><td>Slot coordinates</td><td>see each shape's table below</td><td>☐ confirmed / ☐ amended (list shape + slot #)</td></tr>
+    <tr><td>Socket positions</td><td>see each shape's table below (reserved for Phase 38)</td><td>☐ confirmed / ☐ amended</td></tr>
+  </table>
+  <div>Signed off by: ____________________ &nbsp; Date: ____________</div>
+</div>
+
+<div class="legend">
+  <span><span class="swatch" style="border:1px dashed #4aa3ff;"></span>candidate slot box (8 per shape)</span>
+  <span><span class="swatch" style="border-radius:50%; background:#ff7ab8; opacity:.5;"></span>reserved layer-socket position (2 per shape, Phase 38)</span>
+</div>
+
+<h2>1. Shape outlines with candidate slots + reserved sockets</h2>
+<div class="shapes-row" id="outline-row"></div>
+<div id="slot-tables"></div>
+
+<h2>2. Candidate vocabulary (one of each, world scale)</h2>
+<div class="vocab-row" id="vocab-row"></div>
+
+<h2>3. Six seeded sets per shape — world scale, then 96&nbsp;px detail-avatar scale</h2>
+<div id="sets-section"></div>
+
+<script>
+// ------------------------------------------------------------------
+// Deterministic PRNG (mulberry32) — sketch-only stand-in for the real
+// getSeededVal/noise-map draw; just needs to be reproducible across reloads.
+// ------------------------------------------------------------------
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ------------------------------------------------------------------
+// Greeble vocabulary — each kind ≤ 2 SVG elements (spec §1.3 / Task 4).
+// Colour-only from accent/shadow + hardware greys; never primary, never identity.
+// ------------------------------------------------------------------
+const HARDWARE_GREY = '#6a6384';
+const KINDS = ['panel', 'tank', 'dish', 'antenna', 'decal'];
+
+function drawKind(kind, cx, cy, w, h, accent, shadow) {
+  switch (kind) {
+    case 'panel':
+      return `<rect x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" fill="${accent}" opacity="0.9"/>` +
+             `<line x1="${cx - w / 2 + 1}" y1="${cy}" x2="${cx + w / 2 - 1}" y2="${cy}" stroke="${shadow}" stroke-width="0.8"/>`;
+    case 'tank': {
+      const r = Math.min(w, h) / 4;
+      return `<rect x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" rx="${r}" fill="${accent}"/>` +
+             `<rect x="${cx - w / 2 + 1}" y="${cy - h / 2 + 1}" width="${w - 2}" height="${h / 3}" rx="${r}" fill="${HARDWARE_GREY}" opacity="0.6"/>`;
+    }
+    case 'dish': {
+      const r = Math.min(w, h) / 2;
+      return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${accent}"/>` +
+             `<path d="M ${cx - r * 0.7},${cy - r * 0.7} A ${r},${r} 0 0 1 ${cx + r * 0.7},${cy - r * 0.7}" fill="none" stroke="${shadow}" stroke-width="0.8"/>`;
+    }
+    case 'antenna':
+      return `<line x1="${cx}" y1="${cy + h / 2}" x2="${cx}" y2="${cy - h / 2}" stroke="${accent}" stroke-width="1.2"/>` +
+             `<circle cx="${cx}" cy="${cy - h / 2}" r="1.3" fill="${shadow}"/>`;
+    case 'decal':
+      return `<polygon points="${cx - w / 2},${cy + h / 2} ${cx},${cy - h / 2} ${cx + w / 2},${cy + h / 2}" fill="${accent}"/>`;
+    default:
+      return '';
+  }
+}
+
+// ------------------------------------------------------------------
+// Shape geometry (as they stand after Phase 36 — Checkpoint C passed).
+// Fixtures are the real, already-shipped elements a greeble must clear.
+// Slots/sockets below are this task's proposal, hand-measured against them.
+// Box convention: {x, y, w, h} with (x, y) = CENTER (matches the socket-
+// marker convention in docs/specs/ROBOT_LAYER_MARKERS.md §1.6).
+// ------------------------------------------------------------------
+const SHAPES = {
+  RobotSleek: {
+    viewBox: '0 0 96 72',
+    body: (p, s) => `
+      <path d="M 8,16 L 12,12 H 72 L 80,20 V 52 L 72,60 H 12 L 8,56 Z" fill="${p.primary}"/>
+      <path d="M 8,16 L 9,17 H 71 L 79,25 V 20 L 72,13 H 13 L 9,17 L 8,16 Z" fill="${p.highlight}" opacity="0.6"/>
+      <path d="M 8,56 L 9,55 H 71 L 79,47 V 52 L 72,59 H 13 L 9,55 L 8,56 Z" fill="${p.shadow}" opacity="0.3"/>
+      ${s}
+      <g opacity="1"><ellipse cx="24" cy="36" rx="8" ry="10" fill="${p.identity}" opacity="0.8"/><ellipse cx="24" cy="34" rx="6" ry="4" fill="${p.sheen}" opacity="0.6"/></g>
+      <circle cx="14" cy="14" r="1.5" fill="#4f5458"/><circle cx="70" cy="14" r="1.5" fill="#4f5458"/>
+      <circle cx="14" cy="58" r="1.5" fill="#4f5458"/><circle cx="70" cy="58" r="1.5" fill="#4f5458"/>
+      <g class="lamp"><circle cx="70" cy="36" r="3.5" fill="${p.identity}"/><circle cx="70" cy="35" r="2" fill="${p.sheen}"/></g>
+      <path d="M 40,12 L 40,60" stroke="${p.accent}" stroke-width="1" opacity="0.4"/>
+      <path d="M 60,12 L 60,60" stroke="${p.accent}" stroke-width="1" opacity="0.4"/>
+      <rect x="48" y="28" width="12" height="16" fill="#6a6384" opacity="0.8"/>
+    `,
+    fixtures: [
+      { label: 'window', x: 24, y: 36, w: 16, h: 20 },
+      { label: 'lamp', x: 70, y: 36, w: 7, h: 7 },
+      { label: 'vent', x: 54, y: 36, w: 12, h: 16 },
+    ],
+    slots: [
+      { x: 21, y: 19, w: 6, h: 6 }, { x: 36, y: 18, w: 4, h: 6 },
+      { x: 50, y: 18, w: 12, h: 6 }, { x: 64.5, y: 18, w: 5, h: 6 },
+      { x: 21, y: 52, w: 6, h: 5 }, { x: 36, y: 53, w: 4, h: 6 },
+      { x: 50, y: 53, w: 12, h: 6 }, { x: 64.5, y: 53, w: 5, h: 6 },
+    ],
+    sockets: [
+      { name: 'coaxial', x: 36.5, y: 36, r: 2.4 },
+      { name: 'harmonic', x: 63.4, y: 36, r: 1.9 },
+    ],
+  },
+  RobotAngular: {
+    viewBox: '0 0 96 72',
+    body: (p, s) => `
+      <polygon points="16,36 24,12 72,12 80,36 72,60 24,60" fill="${p.primary}"/>
+      <polygon points="16,36 24,13 72,13 79,36 78,36 71,14 25,14 17,36" fill="${p.highlight}" opacity="0.6"/>
+      <polygon points="16,36 24,59 72,59 79,36 78,36 71,58 25,58 17,36" fill="${p.shadow}" opacity="0.3"/>
+      ${s}
+      <g opacity="1"><polygon points="36,36 44,28 52,36 44,44" fill="${p.identity}" opacity="0.8"/><polygon points="36,36 44,29 52,36 44,32" fill="${p.sheen}" opacity="0.6"/></g>
+      <circle cx="26" cy="16" r="1.5" fill="#4f5458"/><circle cx="70" cy="16" r="1.5" fill="#4f5458"/>
+      <circle cx="26" cy="56" r="1.5" fill="#4f5458"/><circle cx="70" cy="56" r="1.5" fill="#4f5458"/>
+      <g class="lamp"><circle cx="73" cy="36" r="3" fill="${p.identity}"/><circle cx="73" cy="35" r="1.8" fill="${p.sheen}"/></g>
+      <line x1="48" y1="12" x2="48" y2="60" stroke="${p.accent}" stroke-width="1" opacity="0.4"/>
+      <line x1="24" y1="36" x2="72" y2="36" stroke="${p.accent}" stroke-width="1" opacity="0.4"/>
+      <polygon points="56,20 64,20 62,24 58,24" fill="${p.accent}" opacity="0.7"/>
+      <polygon points="56,48 64,48 62,52 58,52" fill="${p.accent}" opacity="0.7"/>
+      <rect x="60" y="28" width="8" height="16" fill="#6a6384" opacity="0.8"/>
+    `,
+    fixtures: [
+      { label: 'window', x: 44, y: 36, w: 16, h: 16 },
+      { label: 'lamp', x: 73, y: 36, w: 6, h: 6 },
+      { label: 'vent', x: 64, y: 36, w: 8, h: 16 },
+      { label: 'stripe-top', x: 60, y: 22, w: 8, h: 4 },
+      { label: 'stripe-bot', x: 60, y: 50, w: 8, h: 4 },
+    ],
+    slots: [
+      { x: 32, y: 26, w: 6, h: 14 }, { x: 42, y: 21.5, w: 10, h: 8 },
+      { x: 52.5, y: 20, w: 5, h: 6 }, { x: 67, y: 21.5, w: 4, h: 8 },
+      { x: 32, y: 46, w: 6, h: 14 }, { x: 42, y: 50.5, w: 10, h: 8 },
+      { x: 52.5, y: 52, w: 5, h: 6 }, { x: 67, y: 50.5, w: 4, h: 8 },
+    ],
+    sockets: [
+      { name: 'coaxial', x: 32, y: 36, r: 2.3 },
+      { name: 'harmonic', x: 48.5, y: 21, r: 1.4 },
+    ],
+  },
+  RobotOrganic: {
+    viewBox: '0 0 96 72',
+    body: (p, s) => `
+      <ellipse cx="48" cy="36" rx="36" ry="28" fill="${p.primary}"/>
+      <ellipse cx="48" cy="28" rx="32" ry="16" fill="${p.highlight}" opacity="0.5"/>
+      <ellipse cx="48" cy="44" rx="32" ry="16" fill="${p.shadow}" opacity="0.2"/>
+      ${s}
+      <g opacity="1"><circle cx="32" cy="36" r="12" fill="${p.identity}" opacity="0.8"/><circle cx="32" cy="32" r="8" fill="${p.sheen}" opacity="0.6"/><circle cx="34" cy="30" r="3" fill="${p.sheen}" opacity="0.8"/></g>
+      <circle cx="20" cy="20" r="1.5" fill="#4f5458"/><circle cx="64" cy="20" r="1.5" fill="#4f5458"/>
+      <circle cx="20" cy="52" r="1.5" fill="#4f5458"/><circle cx="64" cy="52" r="1.5" fill="#4f5458"/>
+      <g class="lamp"><circle cx="60" cy="24" r="3.5" fill="${p.identity}"/><circle cx="60" cy="23" r="2" fill="${p.sheen}"/></g>
+      <ellipse cx="48" cy="36" rx="28" ry="20" fill="none" stroke="${p.accent}" stroke-width="1" opacity="0.4"/>
+      <ellipse cx="48" cy="36" rx="20" ry="14" fill="none" stroke="${p.accent}" stroke-width="1" opacity="0.3"/>
+      <ellipse cx="56" cy="36" rx="6" ry="8" fill="#6a6384" opacity="0.8"/>
+    `,
+    fixtures: [
+      { label: 'window', x: 32, y: 36, w: 26, h: 26 },
+      { label: 'lamp', x: 60, y: 24, w: 9, h: 9 },
+      { label: 'vent', x: 56, y: 36, w: 14, h: 18 },
+    ],
+    slots: [
+      { x: 28, y: 15, w: 8, h: 5 }, { x: 48, y: 13, w: 14, h: 5 },
+      { x: 67.5, y: 14, w: 5, h: 4 }, { x: 28, y: 58, w: 8, h: 5 },
+      { x: 48, y: 59, w: 14, h: 5 }, { x: 67.5, y: 58, w: 5, h: 4 },
+      { x: 72, y: 36, w: 10, h: 10 }, { x: 70, y: 24, w: 8, h: 8 },
+    ],
+    sockets: [
+      { name: 'coaxial', x: 47, y: 36, r: 1.8 },
+      { name: 'harmonic', x: 72, y: 48, r: 2 },
+    ],
+  },
+  RobotIndustrial: {
+    viewBox: '0 0 96 72',
+    body: (p, s) => `
+      <path d="M 8,8 L 12,12 H 68 L 72,8 H 88 L 92,12 V 60 L 88,64 H 72 L 68,60 H 12 L 8,64 Z" fill="${p.primary}"/>
+      <path d="M 12,12 H 68 V 28 H 12 Z" fill="${p.primary}"/>
+      <path d="M 12,12 H 68 L 67,13 H 13 Z" fill="${p.highlight}" opacity="0.6"/>
+      <path d="M 12,28 H 68 L 67,27 H 13 Z" fill="${p.shadow}" opacity="0.3"/>
+      <path d="M 12,44 H 68 V 60 H 12 Z" fill="${p.primary}"/>
+      <path d="M 12,44 H 68 L 67,45 H 13 Z" fill="${p.highlight}" opacity="0.6"/>
+      <path d="M 12,60 H 68 L 67,59 H 13 Z" fill="${p.shadow}" opacity="0.3"/>
+      <rect x="72" y="20" width="16" height="32" fill="${p.primary}"/>
+      <path d="M 72,20 H 88 L 87,21 H 73 Z" fill="${p.highlight}" opacity="0.6"/>
+      <path d="M 72,52 H 88 L 87,51 H 73 Z" fill="${p.shadow}" opacity="0.3"/>
+      ${s}
+      <g opacity="1"><rect x="20" y="20" width="16" height="12" fill="${p.identity}" opacity="0.8"/><path d="M 20,20 L 21,21 H 35 L 36,20 Z" fill="${p.sheen}" opacity="0.6"/></g>
+      <circle cx="14" cy="14" r="1.5" fill="#4f5458"/><circle cx="66" cy="14" r="1.5" fill="#4f5458"/>
+      <circle cx="14" cy="26" r="1.5" fill="#4f5458"/><circle cx="66" cy="26" r="1.5" fill="#4f5458"/>
+      <circle cx="14" cy="46" r="1.5" fill="#4f5458"/><circle cx="66" cy="46" r="1.5" fill="#4f5458"/>
+      <circle cx="14" cy="58" r="1.5" fill="#4f5458"/><circle cx="66" cy="58" r="1.5" fill="#4f5458"/>
+      <rect x="44" y="18" width="12" height="16" fill="#6a6384" opacity="0.8"/>
+      <rect x="76" y="28" width="8" height="16" fill="#818589"/>
+      <g class="lamp"><rect x="78" y="32" width="4" height="8" fill="${p.identity}"/><rect x="78" y="32" width="4" height="4" fill="${p.sheen}"/></g>
+      <rect x="20" y="48" width="8" height="4" fill="${p.accent}" opacity="0.6"/>
+      <rect x="52" y="48" width="8" height="4" fill="${p.accent}" opacity="0.6"/>
+    `,
+    fixtures: [
+      { label: 'window', x: 28, y: 26, w: 16, h: 12 },
+      { label: 'lamp-housing', x: 80, y: 36, w: 8, h: 16 },
+      { label: 'vent', x: 50, y: 26, w: 12, h: 16 },
+      { label: 'stripe-l', x: 24, y: 50, w: 8, h: 4 },
+      { label: 'stripe-r', x: 56, y: 50, w: 8, h: 4 },
+    ],
+    slots: [
+      { x: 40, y: 20, w: 8, h: 12 }, { x: 59.5, y: 21, w: 5, h: 6 },
+      { x: 15, y: 20.5, w: 6, h: 5 }, { x: 15.5, y: 36, w: 7, h: 14 },
+      { x: 72, y: 22, w: 14, h: 8 }, { x: 40, y: 39, w: 6, h: 8 },
+      { x: 72, y: 50, w: 14, h: 8 }, { x: 88.5, y: 36, w: 5, h: 14 },
+    ],
+    sockets: [
+      { name: 'coaxial', x: 40, y: 50, r: 3 },
+      { name: 'harmonic', x: 60, y: 55, r: 2.5 },
+    ],
+  },
+};
+
+// ------------------------------------------------------------------
+// Six representative "robots" — fixed palettes standing in for generateColors()
+// output, just for visual variety across the seeded sets.
+// ------------------------------------------------------------------
+const PALETTES = [
+  { primary: '#2d4f6b', secondary: '#3a6688', accent: '#e0943f', highlight: '#5a85a8', shadow: '#162b3c', identity: '#428d95', sheen: '#7ec4ca' },
+  { primary: '#5a3a6b', secondary: '#754a88', accent: '#c9533f', highlight: '#9068a8', shadow: '#2e1d38', identity: '#d97b29', sheen: '#f0ab6e' },
+  { primary: '#3a6b4a', secondary: '#4a8860', accent: '#d0c23f', highlight: '#6ea880', shadow: '#1d3826', identity: '#c0392b', sheen: '#e37a6e' },
+  { primary: '#6b4a2d', secondary: '#886035', accent: '#4fb0c9', highlight: '#a87e52', shadow: '#3a2516', identity: '#2e86ab', sheen: '#79c3dc' },
+  { primary: '#4a2d6b', secondary: '#603a88', accent: '#8ec93f', highlight: '#8268a8', shadow: '#26163a', identity: '#8e44ad', sheen: '#c07adc' },
+  { primary: '#2d5a5a', secondary: '#3a7575', accent: '#e05f8a', highlight: '#5a9090', shadow: '#162e2e', identity: '#16a085', sheen: '#6ed4bf' },
+];
+
+function freshSlots(shape) { return shape.slots.map((_, i) => i); }
+
+/** Mirrors spawnSystem.ts's proposed generateGreebles: count in range, no shared slot. */
+function seedGreebles(rng, shape, countMin, countMax) {
+  const count = countMin + Math.floor(rng() * (countMax - countMin + 1));
+  const free = freshSlots(shape);
+  const out = [];
+  for (let i = 0; i < count && free.length > 0; i++) {
+    const kind = Math.floor(rng() * KINDS.length);
+    const pick = Math.floor(rng() * free.length);
+    out.push({ kind, slot: free.splice(pick, 1)[0] });
+  }
+  return out;
+}
+
+function renderGreebles(shape, greebles, palette) {
+  return greebles.map(({ kind, slot }) => {
+    const box = shape.slots[slot];
+    return `<g class="greeble greeble--${KINDS[kind]}">${drawKind(KINDS[kind], box.x, box.y, Math.min(box.w, 8), Math.min(box.h, 8), palette.accent, palette.shadow)}</g>`;
+  }).join('');
+}
+
+function svgOpen(viewBox, w, h) {
+  return `<svg viewBox="${viewBox}" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">`;
+}
+
+// --- Section 1: outlines with slot boxes + socket dots -------------------
+const outlineRow = document.getElementById('outline-row');
+const slotTables = document.getElementById('slot-tables');
+Object.entries(SHAPES).forEach(([name, shape]) => {
+  const palette = PALETTES[0];
+  const slotBoxes = shape.slots.map((b, i) =>
+    `<rect class="slot-box" x="${b.x - b.w / 2}" y="${b.y - b.h / 2}" width="${b.w}" height="${b.h}"/>` +
+    `<text class="fixture-label" x="${b.x - 1.5}" y="${b.y + 1}">${i}</text>`
+  ).join('');
+  const socketDots = shape.sockets.map((s) =>
+    `<circle class="socket-dot-ring" cx="${s.x}" cy="${s.y}" r="${s.r}"/><circle class="socket-dot-core" cx="${s.x}" cy="${s.y}" r="${s.r}"/>`
+  ).join('');
+  const card = document.createElement('figure');
+  card.className = 'shape-card';
+  card.innerHTML = `
+    ${svgOpen(shape.viewBox, 240, 180)}
+      ${shape.body(palette, '')}
+      ${slotBoxes}
+      ${socketDots}
+    </svg>
+    <figcaption>${name} — 8 slots (numbered), 2 reserved sockets (pink)</figcaption>
+  `;
+  outlineRow.appendChild(card);
+
+  const table = document.createElement('table');
+  table.className = 'sign-off';
+  table.innerHTML = `
+    <tr><th colspan="5">${name} — slots</th></tr>
+    <tr><th>#</th><th>x</th><th>y</th><th>w</th><th>h</th></tr>
+    ${shape.slots.map((b, i) => `<tr><td>${i}</td><td>${b.x}</td><td>${b.y}</td><td>${b.w}</td><td>${b.h}</td></tr>`).join('')}
+    <tr><th colspan="5">${name} — reserved sockets (Phase 38 fixtures)</th></tr>
+    <tr><th>name</th><th>x</th><th>y</th><th>r</th><th></th></tr>
+    ${shape.sockets.map((s) => `<tr><td>${s.name}</td><td>${s.x}</td><td>${s.y}</td><td>${s.r}</td><td></td></tr>`).join('')}
+  `;
+  slotTables.appendChild(table);
+});
+
+// --- Section 2: vocabulary, once each -------------------------------------
+const vocabRow = document.getElementById('vocab-row');
+KINDS.forEach((kind) => {
+  const card = document.createElement('div');
+  card.className = 'vocab-card';
+  card.innerHTML = `
+    ${svgOpen('0 0 24 24', 80, 80)}
+      <rect x="0" y="0" width="24" height="24" fill="#0d0f12"/>
+      ${drawKind(kind, 12, 12, 8, 8, PALETTES[0].accent, PALETTES[0].shadow)}
+    </svg>
+    <div>${kind} (≤2 elements)</div>
+  `;
+  vocabRow.appendChild(card);
+});
+
+// --- Section 3: six seeded sets per shape, world scale + avatar scale -----
+const setsSection = document.getElementById('sets-section');
+Object.entries(SHAPES).forEach(([name, shape]) => {
+  const h3 = document.createElement('h3');
+  h3.textContent = name;
+  setsSection.appendChild(h3);
+  const row = document.createElement('div');
+  row.className = 'sets-row';
+  for (let i = 0; i < 6; i++) {
+    const rng = mulberry32(name.length * 1000 + i * 37 + 7);
+    const palette = PALETTES[i];
+    const greebles = seedGreebles(rng, shape, 2, 5);
+    const parts = renderGreebles(shape, greebles, palette);
+
+    const card = document.createElement('div');
+    card.className = 'set-card';
+    card.innerHTML = `
+      ${svgOpen(shape.viewBox, 140, 105)}
+        ${shape.body(palette, '')}
+        ${parts}
+      </svg>
+      ${svgOpen(shape.viewBox, 96, 72)}
+        ${shape.body(palette, '')}
+        ${parts}
+      </svg>
+      <div>set ${i + 1} — ${greebles.length} parts (96px avatar below)</div>
+    `;
+    row.appendChild(card);
+  }
+  setsSection.appendChild(row);
+});
+</script>
+</body>
+</html>
