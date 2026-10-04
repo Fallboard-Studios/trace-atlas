@@ -18,6 +18,7 @@ import type { ToggleValue } from '../engine/melodyGenerator';
 import { AudioEngine } from '../engine/AudioEngine';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import type { Company } from '../types/Company';
+import { SLOT_COUNT } from '../components/robot/greebleSlots';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
@@ -148,10 +149,8 @@ function generateRobotIdentityColor(noiseMap: NoiseFunction2D, offset: number): 
 /** How many seeded hardware parts (docs/specs/ROBOT_GREEBLES.md) a robot gets. Tuned in the sketch. */
 export const GREEBLE_COUNT_RANGE = { min: 2, max: 5 } as const;
 
-// TEMPORARY: both constants are declared here only until Task 3/4 of ROBOT_GREEBLES.md land.
-// SLOT_COUNT's canonical home is greebleSlots.ts (Task 3); KIND_COUNT's is RobotGreebles.tsx
-// (Task 4) — spawnSystem.ts will import both from there instead of declaring them locally.
-const SLOT_COUNT = 8;
+// TEMPORARY: declared here only until Task 4 of ROBOT_GREEBLES.md lands. KIND_COUNT's
+// canonical home is RobotGreebles.tsx — spawnSystem.ts will import it from there instead.
 export const KIND_COUNT = 5;
 
 /**
