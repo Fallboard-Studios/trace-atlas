@@ -47,6 +47,12 @@ describe('RobotGreebles', () => {
     expect(group?.children.length).toBe(0);
   });
 
+  it('treats a missing greebles prop as empty rather than throwing (test fixtures predating Phase 37)', () => {
+    // @ts-expect-error greebles is typed as required — this covers real-world callers that still
+    // pass an older, greebles-less Robot fixture at runtime (the plan's own documented mitigation).
+    expect(() => render(<svg><RobotGreebles slots={SLOTS} colors={colors} /></svg>)).not.toThrow();
+  });
+
   it('does not crash and skips an entry whose slot index is out of range', () => {
     expect(() => render(<svg><RobotGreebles greebles={[{ kind: 0, slot: 99 }]} slots={SLOTS} colors={colors} /></svg>)).not.toThrow();
   });

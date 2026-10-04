@@ -295,6 +295,11 @@ describe('RobotSelectionCard', () => {
     expect(avatar?.getAttribute('viewBox')).toBe('-40 -52 176 176');
   });
 
+  it('hides the seeded greebles on the 64px card avatar (Phase 37 Task 6)', () => {
+    const { container } = renderCard({ greebles: [{ kind: 0, slot: 0 }] });
+    expect(container.querySelector('.greebles')).toBeNull();
+  });
+
   it("has an accessible name matching the robot's name", () => {
     renderCard({ name: 'Unit One' });
     expect(screen.getByRole('button', { name: 'Unit One' })).toBeTruthy();

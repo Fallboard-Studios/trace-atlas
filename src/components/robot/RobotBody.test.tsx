@@ -28,6 +28,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     docking: 'active',
     batteryLevel: 50,
     identityColor: '#428d95',
+    greebles: [{ kind: 0, slot: 0 }, { kind: 2, slot: 3 }],
     ...overrides,
   } as Robot;
 }
@@ -51,6 +52,13 @@ function windowFill(container: HTMLElement): string | null {
 
 function lampOpacity(container: HTMLElement): string | null {
   return container.querySelector('g.lamp')?.getAttribute('opacity') ?? null;
+}
+
+function greebleParts(container: HTMLElement): { cls: string; transform: string | null }[] {
+  return Array.from(container.querySelectorAll('.greeble')).map((el) => ({
+    cls: el.getAttribute('class') ?? '',
+    transform: el.getAttribute('transform'),
+  }));
 }
 
 // The root body group is centre-scaled: translate(48,36) scale(s) translate(-48,-36) (Task 5).
@@ -251,6 +259,75 @@ describe('RobotBody', () => {
       const criticalOpacity = Number(lampOpacity(criticalContainer));
 
       expect(criticalOpacity).toBeCloseTo(fullOpacity * 0.1, 6);
+    });
+  });
+
+  describe('greebles wired via RobotGreebles (Phase 37 Task 6)', () => {
+    it('.greebles is present by default and absent with hideGreebles', () => {
+      const robot = makeRobot();
+      const { container: shown } = render(<svg><RobotBody robot={robot} /></svg>);
+      expect(shown.querySelector('.greebles')).not.toBeNull();
+      expect(shown.querySelectorAll('.greeble')).toHaveLength(2);
+
+      const { container: hidden } = render(<svg><RobotBody robot={robot} hideGreebles /></svg>);
+      expect(hidden.querySelector('.greebles')).toBeNull();
+    });
+
+    it('changing only adsr.attack leaves the .greeble count and classes unchanged (parts never pop)', () => {
+      const fast = makeRobot({ audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine' } });
+      const slow = makeRobot({ audioAttributes: { adsr: { attack: 4, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine' } });
+
+      const { container: fastContainer, unmount } = render(<svg><RobotBody robot={fast} /></svg>);
+      const fastParts = greebleParts(fastContainer);
+      unmount();
+
+      const { container: slowContainer } = render(<svg><RobotBody robot={slow} /></svg>);
+      const slowParts = greebleParts(slowContainer);
+
+      expect(slowParts).toEqual(fastParts);
+    });
+
+    it('a muted layer leaves the .greeble count and classes unchanged', () => {
+      const audible = makeRobot({ audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine', layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] } });
+      const muted = makeRobot({ audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine', layers: [{ type: 'sine', gain: 0, detune: 0, phase: 0 }] } });
+
+      const { container: audibleContainer, unmount } = render(<svg><RobotBody robot={audible} /></svg>);
+      const audibleParts = greebleParts(audibleContainer);
+      unmount();
+
+      const { container: mutedContainer } = render(<svg><RobotBody robot={muted} /></svg>);
+      const mutedParts = greebleParts(mutedContainer);
+
+      expect(mutedParts).toEqual(audibleParts);
+    });
+
+    it('changing the Baseline waveform keeps the same greeble--{kind} classes but moves them (re-slot)', () => {
+      const sine = makeRobot({ audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine' } });
+      const square = makeRobot({ audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'square' } });
+
+      const { container: sineContainer, unmount } = render(<svg><RobotBody robot={sine} /></svg>);
+      const sineParts = greebleParts(sineContainer);
+      unmount();
+
+      const { container: squareContainer } = render(<svg><RobotBody robot={square} /></svg>);
+      const squareParts = greebleParts(squareContainer);
+
+      expect(squareParts.map((p) => p.cls)).toEqual(sineParts.map((p) => p.cls));
+      expect(squareParts.map((p) => p.transform)).not.toEqual(sineParts.map((p) => p.transform));
+    });
+
+    it('robot.greebles is not in the audio memo\'s dependency array — a greebles-only change does not recompute shapeParamsFromAudio', () => {
+      const spy = vi.spyOn(robotVisualHelpers, 'shapeParamsFromAudio');
+      const robot = makeRobot();
+      const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
+      const callsAfterMount = spy.mock.calls.length;
+      expect(callsAfterMount).toBeGreaterThan(0);
+
+      const sameAudioDifferentGreebles = { ...robot, greebles: [{ kind: 4, slot: 5 }] };
+      rerender(<svg><RobotBody robot={sameAudioDifferentGreebles} /></svg>);
+
+      expect(spy.mock.calls.length).toBe(callsAfterMount);
+      spy.mockRestore();
     });
   });
 });

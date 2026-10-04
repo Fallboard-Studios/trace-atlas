@@ -3,7 +3,7 @@
 // ========================================
 import { memo, useMemo } from 'react';
 
-import type { Robot, AudioAttributes } from '../../types/Robot';
+import type { Robot, AudioAttributes, WaveformType } from '../../types/Robot';
 import {
   selectRobotShape,
   generateColors,
@@ -21,6 +21,8 @@ import {
 } from './robotVisualHelpers';
 import type { RobotColors, RobotSVGComponent, ShapeParams, MicroVariants } from './robotVisualHelpers';
 import { useUIStore } from '../../stores/uiStore';
+import { RobotGreebles } from './RobotGreebles';
+import { GREEBLE_SLOTS } from './greebleSlots';
 
 // ========================================
 // TYPES
@@ -35,6 +37,9 @@ interface RobotBodyProps {
    * so their day/night behavior is unchanged.
    */
   ignoreDaylight?: boolean;
+  /** Hides the seeded greeble set — passed only by RobotSelectionCard's 64px card thumbnail;
+   *  the detail avatar and in-world robots show parts (docs/specs/ROBOT_GREEBLES.md §1.4). */
+  hideGreebles?: boolean;
 }
 
 // ========================================
@@ -44,7 +49,7 @@ interface RobotBodyProps {
  * RobotBody - Selects appropriate robot shape variant and calculates visual properties
  * from audio attributes. Memoized to prevent unnecessary recalculations.
  */
-export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: RobotBodyProps) {
+export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, hideGreebles }: RobotBodyProps) {
   // Derive lightness from the active locale's local time so robots track the
   // same day/night cycle as buildings. activeLocaleLocalTime is a 0..24 float
   // written by AttenuationStyleView every second. ignoreDaylight fixes this at a
@@ -112,6 +117,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
 
     return {
       Component: selectRobotShape(waveform),
+      waveform,
       baseColors,
       scale: calculateBodyScale(octaveRange, bodyShape.scale),
       detailLevel: detail,
@@ -125,6 +131,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
     };
   }, [robot.audioAttributes, robot.octaveRange]) as {
     Component: RobotSVGComponent;
+    waveform: WaveformType;
     baseColors: RobotColors;
     scale: number;
     detailLevel: number;
@@ -147,6 +154,13 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
 
   const { Component, scale, detailLevel, shapeParams, microVariants } = audioVisual;
 
+  // robot.greebles is seeded hardware, not audio — built outside the memo, same reasoning as
+  // identityColor/dimOpacity/lampOpacity above. hideGreebles is a render-context override only
+  // (RobotSelectionCard's 64px card thumbnail), like ignoreDaylight.
+  const greebles = hideGreebles ? undefined : (
+    <RobotGreebles greebles={robot.greebles} slots={GREEBLE_SLOTS[audioVisual.waveform]} colors={colors} />
+  );
+
   return (
     <Component
       colors={colors}
@@ -157,6 +171,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
       dimOpacity={dimOpacity}
       identityColor={identityColor}
       lampOpacity={lampOpacity}
+      greebles={greebles}
     />
   );
 });

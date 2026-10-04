@@ -86,7 +86,7 @@ const DRAW_KIND = [drawPanel, drawTank, drawDish, drawAntenna, drawDecal] as con
  * (Roadmap Phase 37). Shapes place this as an opaque node; it is the only thing that knows about
  * kinds or slots. No per-part state, no keys beyond index — the array never reorders.
  */
-export const RobotGreebles = memo(function RobotGreebles({ greebles, slots, colors }: RobotGreeblesProps) {
+export const RobotGreebles = memo(function RobotGreebles({ greebles = [], slots, colors }: RobotGreeblesProps) {
   return (
     <g className="greebles">
       {greebles.map((g, i) => {
