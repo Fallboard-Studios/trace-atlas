@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SLOT_COUNT, GREEBLE_SLOTS, FIXTURE_BOXES, type GreebleSlot } from './greebleSlots';
+import { SLOT_COUNT, GREEBLE_SLOTS, FIXTURE_BOXES, SOCKET_POSITIONS, type GreebleSlot } from './greebleSlots';
 import type { WaveformType } from '../../types/Robot';
 
 const WAVEFORMS: WaveformType[] = ['sine', 'square', 'triangle', 'sawtooth', 'pulse'];
@@ -67,6 +67,61 @@ describe('greebleSlots', () => {
   it('pulse uses sine\'s table (pulse = sine, per the spec)', () => {
     expect(GREEBLE_SLOTS.pulse).toBe(GREEBLE_SLOTS.sine);
     expect(FIXTURE_BOXES.pulse).toBe(FIXTURE_BOXES.sine);
+  });
+
+  describe('SOCKET_POSITIONS', () => {
+    it.each(WAVEFORMS)('%s has exactly two positions (coaxial, harmonic)', (waveform) => {
+      expect(SOCKET_POSITIONS[waveform]).toHaveLength(2);
+    });
+
+    it('pulse uses sine\'s positions (pulse = sine)', () => {
+      expect(SOCKET_POSITIONS.pulse).toBe(SOCKET_POSITIONS.sine);
+    });
+
+    describe.each(WAVEFORMS)('%s', (waveform) => {
+      it('each socket position sits exactly on that shape\'s reserved fixture box (the tail two entries of FIXTURE_BOXES)', () => {
+        const fixtures = FIXTURE_BOXES[waveform];
+        const reserved = fixtures.slice(-2); // [coaxial, harmonic] — reserved for this phase at Phase 37 Task 2/3
+        SOCKET_POSITIONS[waveform].forEach((pos, i) => {
+          // The socket's own footprint IS that reserved box, hand-measured per shape (not a
+          // uniform radius — Organic's coaxial socket has only ~4 units of clearance between
+          // the window and vent, so its reserved box is narrower than Sleek's).
+          const socketBox = boxOf({ x: pos.x, y: pos.y, w: reserved[i].w, h: reserved[i].h });
+          const reservedBox = boxOf(reserved[i]);
+          expect(socketBox, `socket ${i}`).toEqual(reservedBox);
+        });
+      });
+
+      it('no socket\'s footprint intersects the window, lamp, vent or stripe fixtures (every fixture but the reserved tail two)', () => {
+        const fixtures = FIXTURE_BOXES[waveform];
+        const reserved = fixtures.slice(-2);
+        const nonReserved = fixtures.slice(0, -2).map(boxOf);
+        SOCKET_POSITIONS[waveform].forEach((pos, i) => {
+          const socketBox = boxOf({ x: pos.x, y: pos.y, w: reserved[i].w, h: reserved[i].h });
+          nonReserved.forEach((fixture, j) => {
+            expect(intersects(socketBox, fixture), `socket ${i} vs fixture ${j}`).toBe(false);
+          });
+        });
+      });
+    });
+
+    // Spot-check against the Phase 37 sketch header's reserved coordinates
+    // (docs/sketches/robot-greebles.html), per this task's own acceptance criterion.
+    it('sine (Sleek) positions match the sketch', () => {
+      expect(SOCKET_POSITIONS.sine).toEqual([{ x: 36.5, y: 36 }, { x: 63.4, y: 36 }]);
+    });
+
+    it('square (Angular) positions match the sketch', () => {
+      expect(SOCKET_POSITIONS.square).toEqual([{ x: 32, y: 36 }, { x: 48.5, y: 21 }]);
+    });
+
+    it('triangle (Organic) positions match the sketch', () => {
+      expect(SOCKET_POSITIONS.triangle).toEqual([{ x: 47, y: 36 }, { x: 72, y: 48 }]);
+    });
+
+    it('sawtooth (Industrial) positions match the sketch', () => {
+      expect(SOCKET_POSITIONS.sawtooth).toEqual([{ x: 40, y: 50 }, { x: 60, y: 55 }]);
+    });
   });
 
   // Spot-check three slots per shape against the signed-off sketch header

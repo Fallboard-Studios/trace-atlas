@@ -118,6 +118,45 @@ const INDUSTRIAL_FIXTURES: readonly FixtureBox[] = [
   { x: 60, y: 55, w: 5, h: 5 }, // harmonic socket (reserved)
 ];
 
+export interface Pos {
+  x: number;
+  y: number;
+}
+
+// ========================================
+// Layer socket positions (Phase 38) — the same two points as each shape's "reserved" entries
+// at the tail of its FIXTURE_BOXES array above; transcribed from the Phase 37 sketch header.
+// ========================================
+const SLEEK_SOCKETS: readonly [Pos, Pos] = [
+  { x: 36.5, y: 36 }, // coaxial
+  { x: 63.4, y: 36 }, // harmonic
+];
+
+const ANGULAR_SOCKETS: readonly [Pos, Pos] = [
+  { x: 32, y: 36 }, // coaxial
+  { x: 48.5, y: 21 }, // harmonic
+];
+
+const ORGANIC_SOCKETS: readonly [Pos, Pos] = [
+  { x: 47, y: 36 }, // coaxial
+  { x: 72, y: 48 }, // harmonic
+];
+
+const INDUSTRIAL_SOCKETS: readonly [Pos, Pos] = [
+  { x: 40, y: 50 }, // coaxial
+  { x: 60, y: 55 }, // harmonic
+];
+
+/** Coaxial, Harmonic socket centers per shape; hand-measured in
+ *  docs/sketches/robot-greebles.html, also reserved as fixtures above. Pulse = sine. */
+export const SOCKET_POSITIONS: Record<WaveformType, readonly [Pos, Pos]> = {
+  sine: SLEEK_SOCKETS,
+  square: ANGULAR_SOCKETS,
+  triangle: ORGANIC_SOCKETS,
+  sawtooth: INDUSTRIAL_SOCKETS,
+  pulse: SLEEK_SOCKETS,
+};
+
 /** Hand-measured from each shape's SVG after Phase 36; every slot clears the window, lamp,
  *  rivets and the .details group in its shown state (docs/sketches/robot-greebles.html). */
 export const GREEBLE_SLOTS: Record<WaveformType, readonly GreebleSlot[]> = {
