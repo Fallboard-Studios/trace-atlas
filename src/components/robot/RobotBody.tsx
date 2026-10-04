@@ -145,7 +145,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
   // (docs/specs/FACTORY_LIGHTING_RERENDER.md's staticVisual precedent).
   const colors = applyLightnessMultiplier(audioVisual.baseColors, lightnessMultiplier);
 
-  const { Component, scale, detailLevel, shapeParams, microVariants, greebleCount, greebleSize, greeblePersistence, greeblePlacementBias } = audioVisual;
+  const { Component, scale, detailLevel, shapeParams, microVariants } = audioVisual;
 
   return (
     <Component
@@ -154,10 +154,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
       detailLevel={detailLevel}
       shapeParams={shapeParams}
       microVariants={microVariants}
-      greebleCount={greebleCount}
-      greebleSize={greebleSize}
-      greeblePersistence={greeblePersistence}
-      greeblePlacementBias={greeblePlacementBias}
       dimOpacity={dimOpacity}
       identityColor={identityColor}
       lampOpacity={lampOpacity}

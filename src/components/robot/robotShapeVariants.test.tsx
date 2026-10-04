@@ -117,4 +117,34 @@ describe.each(VARIANTS)('%s', (_name, Component) => {
       expect(housing.closest('g.lamp')).toBeNull();
     }
   });
+
+  it('places a given greebles node after the hull shadow and before g.window; renders nothing when omitted (Phase 37 Task 5)', () => {
+    const marker = <g data-testid="greebles-marker" />;
+    const { container: withGreebles } = render(<svg><Component {...baseProps} greebles={marker} /></svg>);
+    const all = Array.from(withGreebles.querySelectorAll('*'));
+    const shadowEl = withGreebles.querySelector(`[fill="${baseProps.colors.shadow}"]`);
+    const markerEl = withGreebles.querySelector('[data-testid="greebles-marker"]');
+    const windowEl = withGreebles.querySelector('g.window');
+    expect(shadowEl, 'shadow element').not.toBeNull();
+    expect(markerEl, 'greebles marker').not.toBeNull();
+    expect(windowEl, 'window group').not.toBeNull();
+    expect(all.indexOf(shadowEl!)).toBeLessThan(all.indexOf(markerEl!));
+    expect(all.indexOf(markerEl!)).toBeLessThan(all.indexOf(windowEl!));
+
+    const { container: withoutGreebles } = render(<svg><Component {...baseProps} /></svg>);
+    expect(withoutGreebles.querySelector('[data-testid="greebles-marker"]')).toBeNull();
+  });
+
+  it('the four audio-driven greeble props no longer type-check (compile-time) — Phase 37 Task 5', () => {
+    const { container } = render(<svg><Component {...baseProps} /></svg>);
+    expect(container.querySelector('svg')).not.toBeNull();
+    // @ts-expect-error greebleCount no longer exists on RobotSVGProps
+    render(<svg><Component {...baseProps} greebleCount={3} /></svg>);
+    // @ts-expect-error greebleSize no longer exists on RobotSVGProps
+    render(<svg><Component {...baseProps} greebleSize={2} /></svg>);
+    // @ts-expect-error greeblePersistence no longer exists on RobotSVGProps
+    render(<svg><Component {...baseProps} greeblePersistence={0.5} /></svg>);
+    // @ts-expect-error greeblePlacementBias no longer exists on RobotSVGProps
+    render(<svg><Component {...baseProps} greeblePlacementBias={0.5} /></svg>);
+  });
 });

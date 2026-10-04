@@ -23,16 +23,15 @@ interface RobotSVGProps {
   detailLevel: number; // 0-1, controls decoration complexity
   shapeParams?: ShapeParams;
   microVariants?: MicroVariants;
-  greebleCount?: number;
-  greebleSize?: number;
-  greeblePersistence?: number;
-  greeblePlacementBias?: number;
   /** Opacity multiplier (1 = full brightness) for the viewport/status light — dims as battery drains. */
   dimOpacity?: number;
   /** Robot.identityColor hex — the window glass's only non-ADSR color (docs/ROBOT_DESIGN.md "Identity layer"). */
   identityColor?: string;
   /** Opacity multiplier for the lamp, driven by live audible-layer gain; battery-composed like dimOpacity. */
   lampOpacity?: number;
+  /** Seeded hardware parts (RobotGreebles), placed between the hull shadow and the window — the
+   *  shape never learns about kinds or slots, just where this node sits. */
+  greebles?: React.ReactNode;
 }
 
 // ========================================
@@ -42,7 +41,7 @@ interface RobotSVGProps {
  * RobotOrganic - Rounded, biomechanical design for polyphonic synth voices
  * Industrial construction with curved organic hull
  */
-export const RobotOrganic = React.memo(function RobotOrganic({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2', lampOpacity = 1 }: RobotSVGProps) {
+export const RobotOrganic = React.memo(function RobotOrganic({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2', lampOpacity = 1, greebles }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
   const { glass, sheen } = identityGlass(identityColor);
 
@@ -58,6 +57,8 @@ export const RobotOrganic = React.memo(function RobotOrganic({ colors, scale, de
 
         {/* Hull shadow - curved lower */}
         <ellipse cx="48" cy="44" rx="32" ry="16" fill={colors.shadow} opacity="0.2" />
+
+        {greebles}
 
         {/* Central viewport - circular — carries the identity colour; dims as battery drains */}
         <g className="window" opacity={dimOpacity}>
