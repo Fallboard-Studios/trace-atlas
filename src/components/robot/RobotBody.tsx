@@ -12,12 +12,11 @@ import {
   calculateGreebleSize,
   calculateGreeblePersistence,
   calculateGreeblePlacementBias,
-  calculateScale,
-  calculateDetailLevel,
+  bodyShapeFromAdsr,
+  calculateBodyScale,
   applyLightnessMultiplier,
   computeBatteryDimOpacity,
 } from './robotVisualHelpers';
-import mapVisualAudioToProps from './robotVisualMapper';
 import type { RobotColors, RobotSVGComponent, ShapeParams, MicroVariants } from './robotVisualHelpers';
 import { useUIStore } from '../../stores/uiStore';
 
@@ -61,12 +60,12 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
   // Everything audio-derived — no lightnessMultiplier anywhere in this memo or its
   // dependency array. `lightnessMultiplier` is read in exactly one place downstream
   // (`applyLightnessMultiplier`, below, outside the memo) — confirmed directly via a search of
-  // robotVisualHelpers.ts/robotVisualMapper.ts (neither reads it anywhere else) while writing
+  // robotVisualHelpers.ts (nothing else reads it) while writing
   // docs/specs/ROBOT_BODY_LIGHTING_RERENDER.md (backlog item 22). Folding the once/sec lighting
   // tick into this memo used to force the whole audio→shape/greeble pipeline to recompute every
   // second for no reason.
   const audioVisual = useMemo(() => {
-    const { adsr, filterFreq, visualAudioMap } = robot.audioAttributes;
+    const { adsr, filterFreq } = robot.audioAttributes;
     const octaveRange = robot.audioAttributes.octaveRange ?? robot.octaveRange;
 
     // Roadmap Phase 9: OscillatorLayer.type is WaveformType only now ('noise' removed), so this
@@ -78,17 +77,13 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
     // Pre-lightness colors — `applyLightnessMultiplier` is applied fresh every render, below.
     const baseColors = generateColors(attrsForColor);
 
-    const mapped = mapVisualAudioToProps(visualAudioMap);
-
-    // Convert mapped bodyShapeProps (scale, roundness, detail) into the
-    // component-specific ShapeParams expected by SVG components.
-    const bodyShape = mapped.bodyShapeProps ?? { scale: 0.5, roundness: 0.5, detail: 0.3 };
+    // Live replacement for the old spawn-time snapshot: scale/roundness/detail from the
+    // current envelope, so Robot Options edits reach the body (Phase 36).
+    const bodyShape = bodyShapeFromAdsr(adsr);
     const adsrTorso = Math.max(0.7, Math.min(1.3, 0.85 + (bodyShape.roundness - 0.5) * 0.6));
     const shapeParams = {
       torsoAspect: adsrTorso, // blended with register below after fromAudio is computed
     };
-    // Shapes now take `scale` alone (no scaleBias prop), so the bias is folded in here.
-    const scaleBias = Math.max(-0.4, Math.min(0.4, (bodyShape.scale - 0.5) * 0.6));
 
     const fromAudio = shapeParamsFromAudio(robot.audioAttributes, octaveRange);
     const microVariants = fromAudio.microVariants;
@@ -98,21 +93,19 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
       adsrTorso * 0.7 + fromAudio.shapeParams.torsoAspect * 0.3
     ));
 
-    // Greeble values come from mapped greebleProps when present, else fall back
-    // to the original deterministic calculations.
-    const detail = bodyShape.detail ?? calculateDetailLevel(filterFreq);
+    const detail = bodyShape.detail;
     const registerMid = (octaveRange[0] + octaveRange[1]) / 2;
     const registerGreebleBias = Math.round((registerMid - 3.5) * 2); // bass≈-2, mid≈0, treble≈+2
-    const baseGreebleCount = mapped.greebleProps?.count ?? calculateGreebleCount(filterFreq, detail, robot.audioAttributes.waveform, adsr);
+    const baseGreebleCount = calculateGreebleCount(filterFreq, detail, robot.audioAttributes.waveform, adsr);
     const greebleCount = Math.max(0, Math.min(16, baseGreebleCount + registerGreebleBias));
-    const greebleSize = mapped.greebleProps?.scale ? Math.max(1, Math.round(mapped.greebleProps.scale * 6)) : calculateGreebleSize(adsr.sustain);
+    const greebleSize = calculateGreebleSize(adsr.sustain);
     const greeblePersistence = calculateGreeblePersistence(adsr.release);
     const greeblePlacementBias = calculateGreeblePlacementBias(adsr.decay, adsr.release);
 
     return {
       Component: selectRobotShape(waveform),
       baseColors,
-      scale: calculateScale(octaveRange) * (1 + scaleBias),
+      scale: calculateBodyScale(octaveRange, bodyShape.scale),
       detailLevel: detail,
       shapeParams,
       microVariants,
@@ -120,7 +113,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
       greebleSize,
       greeblePersistence,
       greeblePlacementBias,
-      lightsProps: mapped.lightsProps,
     };
   }, [robot.audioAttributes, robot.octaveRange]) as {
     Component: RobotSVGComponent;
@@ -133,7 +125,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
     greebleSize: number;
     greeblePersistence: number;
     greeblePlacementBias: number;
-    lightsProps?: { intensity: number; color: string };
   };
 
   // Cheap — recomputed every render/tick, same as Factory.tsx's own body/belt fills

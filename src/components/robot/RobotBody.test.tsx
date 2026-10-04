@@ -44,6 +44,11 @@ function windowGroupOpacity(container: HTMLElement): string | null {
   return container.querySelector('ellipse[fill="#78cce2"]')?.closest('g')?.getAttribute('opacity') ?? null;
 }
 
+// The root body group is centre-scaled: translate(48,36) scale(s) translate(-48,-36) (Task 5).
+function rootTransform(container: HTMLElement): string | null {
+  return container.querySelector('g[transform^="translate(48,36)"]')?.getAttribute('transform') ?? null;
+}
+
 describe('RobotBody', () => {
   afterEach(() => {
     cleanup();
@@ -127,5 +132,34 @@ describe('RobotBody', () => {
 
     expect(spy.mock.calls.length).toBe(callsAfterMount);
     spy.mockRestore();
+  });
+
+  describe('live body (Phase 36 Task 6 — edits reach the body, no spawn-time snapshot)', () => {
+    it('a faster attack produces a different (larger) body scale than a slower one', () => {
+      const fastAttack = makeRobot({ audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine' } });
+      const slowAttack = makeRobot({ audioAttributes: { adsr: { attack: 4, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine' } });
+
+      const { container: fast, unmount: u1 } = render(<svg><RobotBody robot={fastAttack} /></svg>);
+      const fastTransform = rootTransform(fast);
+      u1();
+
+      const { container: slow } = render(<svg><RobotBody robot={slowAttack} /></svg>);
+      const slowTransform = rootTransform(slow);
+
+      expect(fastTransform).not.toBeNull();
+      expect(slowTransform).not.toBeNull();
+      expect(fastTransform).not.toBe(slowTransform);
+    });
+
+    it('release past the 2.5s midpoint of the 5s normaliser toggles the .details group live', () => {
+      const shortRelease = makeRobot({ audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 1 }, filterFreq: 0, waveform: 'sine' } });
+      const longRelease = makeRobot({ audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 4 }, filterFreq: 0, waveform: 'sine' } });
+
+      const { container: short } = render(<svg><RobotBody robot={shortRelease} /></svg>);
+      expect(short.querySelector('.details')).toBeNull();
+
+      const { container: long } = render(<svg><RobotBody robot={longRelease} /></svg>);
+      expect(long.querySelector('.details')).not.toBeNull();
+    });
   });
 });
