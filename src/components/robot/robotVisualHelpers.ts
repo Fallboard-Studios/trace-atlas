@@ -1,7 +1,9 @@
 // ========================================
 // IMPORTS
 // ========================================
-import type { AudioAttributes, WaveformType } from '../../types/Robot';
+import type { AudioAttributes, WaveformType, ADSREnvelope } from '../../types/Robot';
+import type { OscillatorLayer } from '../../types/layeredAudio';
+import { hexToHsl, hslToString } from '../../utils/colorUtils';
 import { RobotSleek } from './RobotSleek';
 import { RobotAngular } from './RobotAngular';
 import { RobotOrganic } from './RobotOrganic';
@@ -15,6 +17,8 @@ export interface RobotColors {
   primary: string;
   secondary: string;
   accent: string;
+  highlight: string; // secondary hue, lightness +25 (cap 95) — replaces the fixed #a9adb0
+  shadow: string; // accent hue, lightness -25 (floor 5) — replaces the fixed #000000
 }
 
 export type RobotSVGComponent = typeof RobotSleek | typeof RobotAngular | typeof RobotOrganic | typeof RobotIndustrial;
@@ -24,10 +28,6 @@ export type RobotSVGComponent = typeof RobotSleek | typeof RobotAngular | typeof
 // ========================================
 // ADSR thresholds for color mapping
 const FAST_ATTACK_THRESHOLD = 0.1;   // seconds
-
-// Filter thresholds for detail level mapping
-const HIGH_FILTER_THRESHOLD = 2000;  // Hz
-const LOW_FILTER_THRESHOLD = 500;    // Hz
 
 // Base hue per waveform (degrees)
 const BASE_HUE: Record<WaveformType, number> = {
@@ -111,11 +111,63 @@ export function generateColors(attrs: AudioAttributes): RobotColors {
   const sat = toSaturation(adsr.attack);
   const lum = toLuminance(adsr.sustain);
 
+  const secondarySat = Math.round(sat * 0.9);
+  const secondaryLum = Math.max(8, Math.round(lum * 0.9));
+  const accentSat = Math.round(Math.min(100, sat * 1.1));
+  const accentLum = Math.max(6, Math.round(lum * 0.95));
+
   return {
     primary: `hsl(${Math.round(primaryHue)}, ${sat}%, ${lum}%)`,
-    secondary: `hsl(${Math.round(secondaryHue)}, ${Math.round(sat * 0.9)}%, ${Math.max(8, Math.round(lum * 0.9))}%)`,
-    accent: `hsl(${Math.round(accentHue)}, ${Math.round(Math.min(100, sat * 1.1))}%, ${Math.max(6, Math.round(lum * 0.95))}%)`,
+    secondary: `hsl(${Math.round(secondaryHue)}, ${secondarySat}%, ${secondaryLum}%)`,
+    accent: `hsl(${Math.round(accentHue)}, ${accentSat}%, ${accentLum}%)`,
+    highlight: `hsl(${Math.round(secondaryHue)}, ${secondarySat}%, ${Math.min(95, secondaryLum + 25)}%)`,
+    shadow: `hsl(${Math.round(accentHue)}, ${accentSat}%, ${Math.max(5, accentLum - 25)}%)`,
   };
+}
+
+// ========================================
+// Live body shape (replaces the spawn-time snapshot)
+// ========================================
+
+/** Normalises the shared envelope into 0..1 body params. Matches the seeded generation range
+ *  (spawnSystem's ATTACK_RANGE/RELEASE_RANGE max 5s); edits past it clamp. */
+export const BODY_NORMALISER = { attack: 5, sustain: 1, release: 5 } as const;
+
+export interface BodyShape {
+  scale: number; // 0..1 — snappier attack → bigger body
+  roundness: number; // 0..1 — sustain → torso aspect
+  detail: number; // 0..1 — release → detail cliff
+}
+
+/**
+ * Live replacement for the old spawn-time snapshot: scale/roundness/detail from the current
+ * ADSR envelope, so Robot Options edits reach the body.
+ */
+export function bodyShapeFromAdsr(adsr: ADSREnvelope): BodyShape {
+  const attackRatio = clamp01(adsr.attack / BODY_NORMALISER.attack);
+  return {
+    scale: 0.25 + (1 - attackRatio) * 0.75,
+    roundness: clamp01(adsr.sustain / BODY_NORMALISER.sustain),
+    detail: clamp01(adsr.release / BODY_NORMALISER.release),
+  };
+}
+
+export const BODY_SCALE_MIN = 0.735; // 1.5x the pre-Phase-36 floor of 0.49 (Crawford, 2026-10-03)
+
+/** Final body scale: register step x attack-driven bias, floored. */
+export function calculateBodyScale(octaveRange: [number, number], bodyScale01: number): number {
+  const bias = Math.max(-0.4, Math.min(0.4, (bodyScale01 - 0.5) * 0.6));
+  return Math.max(BODY_SCALE_MIN, calculateScale(octaveRange) * (1 + bias));
+}
+
+export const LAMP_MIN = 0.4;
+
+/** Averaged audible-layer gain (gain !== 0; 1 if none — spawnSystem's own rule) blended with
+ *  detail. Gains are seeded 0.2..1.2, so the blend is clamped. */
+export function calculateLampIntensity(layers: OscillatorLayer[] | undefined, detail: number): number {
+  const audible = (layers ?? []).filter((l) => l.gain !== 0);
+  const averagedGain = audible.length > 0 ? audible.reduce((s, l) => s + l.gain, 0) / audible.length : 1;
+  return clamp01(averagedGain * 0.6 + detail * 0.4);
 }
 
 // ========================================
@@ -123,9 +175,7 @@ export function generateColors(attrs: AudioAttributes): RobotColors {
 // ========================================
 
 export interface ShapeParams {
-  torsoAspect: number;      // horizontal stretch (0.7..1.3)
-  appendageLength: number;  // multiplier for propeller/strut lengths (0.6..1.4)
-  scaleBias: number;        // additive bias applied to overall scale (-0.3..0.3)
+  torsoAspect: number; // horizontal stretch (0.7..1.3)
 }
 
 export interface MicroVariants {
@@ -139,7 +189,7 @@ export interface MicroVariants {
  * Keeps values clamped to safe visual ranges.
  */
 export function shapeParamsFromAudio(attrs: AudioAttributes & { octaveOffset?: number }, octaveRange?: [number, number]) {
-  const { filterFreq, waveform, adsr, octaveOffset } = attrs;
+  const { waveform, adsr } = attrs;
 
   // Prefer caller-supplied octaveRange, then audioAttributes.octaveRange, then mid-register fallback
   const register: [number, number] = octaveRange ?? attrs.octaveRange ?? [2, 4];
@@ -149,23 +199,6 @@ export function shapeParamsFromAudio(attrs: AudioAttributes & { octaveOffset?: n
   const pitchNorm = clamp01((mid - 1) / 4); // map [1..5] midpoints to 0..1
   const torsoAspect = 1.15 - pitchNorm * 0.3; // 1.15 -> 0.85
 
-  // appendageLength: use filterFreq (more detail -> longer appendages)
-  const detailNorm = calculateDetailLevel(filterFreq); // 0..1
-  const appendageLength = 0.7 + detailNorm * 0.8; // 0.7..1.5
-
-  // scaleBias: derived from register (reuse calculateScale as anchor)
-  const baseScale = calculateScale(register); // 0.7|1|1.3
-  const scaleBias = Math.round((baseScale - 1) * 100) / 100; // -0.3|0|0.3
-
-  // octaveOffset nudges scale if provided (0 = fastest/smallest -> slight negative bias)
-  let octaveBias = 0;
-  if (typeof octaveOffset === 'number') {
-    // map 0->-0.06, 1->0, 2->+0.06
-    octaveBias = (octaveOffset - 1) * 0.06;
-  }
-
-  const finalScaleBias = clamp01(0.5 + (scaleBias + octaveBias)) - 0.5; // keep within roughly -0.5..0.5 then recentre
-
   const micro: MicroVariants = {};
   if (waveform === 'square') micro.stripes = true;
   if (waveform === 'sine') micro.smooth = true;
@@ -174,65 +207,9 @@ export function shapeParamsFromAudio(attrs: AudioAttributes & { octaveOffset?: n
 
   const clamped: ShapeParams = {
     torsoAspect: Math.max(0.7, Math.min(1.3, torsoAspect)),
-    appendageLength: Math.max(0.6, Math.min(1.4, appendageLength)),
-    scaleBias: Math.max(-0.4, Math.min(0.4, finalScaleBias)),
   };
 
   return { shapeParams: clamped, microVariants: micro };
-}
-
-// ========================================
-// Greeble calculations
-// ========================================
-
-/**
- * Deterministic greeble count driven by filterFreq, detailLevel, waveform, and ADSR
- * Caps at 16 and returns an integer >= 0
- */
-export function calculateGreebleCount(
-  filterFreq: number,
-  detailLevel: number,
-  waveform: AudioAttributes['waveform'],
-  adsr: AudioAttributes['adsr']
-): number {
-  const freqDetail = calculateDetailLevel(filterFreq); // 0..1
-  const sustainFactor = clamp01(adsr.sustain); // 0..1
-
-  // Weighted combination: favor filter freq and explicit detailLevel
-  const base = freqDetail * 0.6 + clamp01(detailLevel) * 0.25 + sustainFactor * 0.15;
-
-  const waveformBias = waveform === 'sawtooth' || waveform === 'square' ? 1 : 0;
-
-  const raw = Math.round(base * 15) + waveformBias; // 0..15 + bias -> up to 16
-  return Math.max(0, Math.min(16, raw));
-}
-
-/**
- * Map sustain (0..1) to greeble visual size (px)
- */
-export function calculateGreebleSize(sustain: number): number {
-  const s = clamp01(sustain);
-  // 1px (staccato) -> 6px (sustained)
-  return Math.max(1, Math.round(1 + s * 5));
-}
-
-/**
- * Map release (seconds) to greeble persistence (seconds), clamped
- */
-export function calculateGreeblePersistence(release: number): number {
-  const clamped = Math.max(0.05, Math.min(3.0, release));
-  // Visual safety clamp to 0.1..3.0
-  return Math.max(0.1, Math.min(3.0, clamped));
-}
-
-/**
- * Placement bias derived from decay/release ratio (0..1)
- * Higher decay relative to release biases placement toward front (value closer to 1)
- */
-export function calculateGreeblePlacementBias(decay: number, release: number): number {
-  const denom = Math.max(MIN_DENOMINATOR, decay + release);
-  const ratio = decay / denom; // 0..1
-  return clamp01(ratio);
 }
 
 /**
@@ -249,22 +226,6 @@ export function calculateScale(octaveRange: [number, number]): number {
 }
 
 /**
- * Calculate detail level from filter frequency
- * Low filter → minimal details (0.0)
- * High filter → maximum details (1.0)
- * Linear interpolation between thresholds
- */
-export function calculateDetailLevel(filterFreq: number): number {
-  if (filterFreq <= LOW_FILTER_THRESHOLD) {
-    return 0.0;
-  } else if (filterFreq >= HIGH_FILTER_THRESHOLD) {
-    return 1.0;
-  } else {
-    return (filterFreq - LOW_FILTER_THRESHOLD) / (HIGH_FILTER_THRESHOLD - LOW_FILTER_THRESHOLD);
-  }
-}
-
-/**
  * Adjust RobotColors by applying a lightness multiplier to each color.
  * Multiplier scales the L component of HSL (0..1) and clamps results.
  */
@@ -273,7 +234,32 @@ export function applyLightnessMultiplier(colors: RobotColors, multiplier: number
     primary: adjustHslLightness(colors.primary, multiplier),
     secondary: adjustHslLightness(colors.secondary, multiplier),
     accent: adjustHslLightness(colors.accent, multiplier),
+    highlight: adjustHslLightness(colors.highlight, multiplier),
+    shadow: adjustHslLightness(colors.shadow, multiplier),
   };
+}
+
+/**
+ * Derive the robot's window-glass fill and its lighter sheen from the identity colour.
+ * Reuses the identity hex as the glass fill; the sheen is the same hue/saturation lightened.
+ */
+export function identityGlass(hex: string): { glass: string; sheen: string } {
+  const hsl = hexToHsl(hex);
+  return {
+    glass: hex,
+    sheen: hslToString({ ...hsl, l: Math.min(95, hsl.l + 20) }),
+  };
+}
+
+export const SOCKET_DARK = 0.15;
+export const SOCKET_MIN = LAMP_MIN;
+export const SOCKET_GAIN_MAX = 1.2;
+
+/** Glass opacity for one layer socket before battery dim. gain 0/undefined → dark socket;
+ *  interpolates SOCKET_MIN..1 up to the seeded max gain, clamped above it. */
+export function socketLitOpacity(gain: number | undefined): number {
+  if (!gain) return SOCKET_DARK;
+  return SOCKET_MIN + (1 - SOCKET_MIN) * clamp01(gain / SOCKET_GAIN_MAX);
 }
 
 function clamp01(v: number) {
@@ -319,17 +305,3 @@ function adjustHslLightness(input: string, multiplier: number) {
   return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${newL}%)`;
 }
 
-// ========================================
-// HELPERS
-// ========================================
-
-/**
- * Darken an HSL color string by a factor (0-1).
- */
-export function darken(hsl: string, factor: number): string {
-  const parsed = parseHslString(hsl);
-  if (!parsed) return hsl;
-  const { h, s, l } = parsed;
-  const newL = Math.round(clamp01((l / 100) * (1 - factor)) * 100);
-  return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${newL}%)`;
-}

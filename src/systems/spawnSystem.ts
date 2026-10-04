@@ -4,7 +4,7 @@
 import alea from 'alea';
 import type { NoiseFunction2D } from 'simplex-noise';
 import type { Vec2 } from '../types/Vec2';
-import type { AudioAttributes, WaveformType, Robot } from '../types/Robot';
+import type { AudioAttributes, WaveformType, Robot, Greeble } from '../types/Robot';
 import { RobotState, DockingState } from '../types/Robot';
 import {
   generateMelodyForRobot,
@@ -18,6 +18,8 @@ import type { ToggleValue } from '../engine/melodyGenerator';
 import { AudioEngine } from '../engine/AudioEngine';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import type { Company } from '../types/Company';
+import { SLOT_COUNT } from '../components/robot/greebleSlots';
+import { KIND_COUNT } from '../components/robot/RobotGreebles';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
@@ -51,11 +53,8 @@ const SUSTAIN_RANGE = { min: 0.0, max: 1.0 };
 const RELEASE_RANGE = { min: 0.0, max: 5.0 };
 
 // Signature Array is a fixed 3-slot layer array (Roadmap Phase 9) — Baseline/Coaxial/Harmonic,
-// replacing the old variable 1..MAX_LAYERS count. ADSR_MAX is a separate normalization constant
-// for mapping the shared adsr into 0..1 shape params below — unrelated to the generation ranges
-// above, unchanged by this phase.
+// replacing the old variable 1..MAX_LAYERS count.
 const LAYER_COUNT = 3;
-const ADSR_MAX = { attack: 2, decay: 2, sustain: 1, release: 5 };
 /** Probability threshold Coaxial's/Harmonic's own "start muted" seed draw ([0, 1]) must clear to
  *  force gain to 0 — a plain 50/50 coin flip. No product requirement pinned a specific bias; this
  *  is the least-presumptuous default for "each independently seeded on or muted." Replaces the
@@ -137,7 +136,7 @@ function generateRobotName(noiseMap: NoiseFunction2D, offset: number): string {
  * Deterministic per-robot identity color (Roadmap Phase 14, docs/specs/
  * COLOR_SCHEME_TRAIT_THEMING.md §1.4) — UI chrome only (RobotSelectionCard/RobotDisplaySection),
  * never the SVG body's own ADSR/waveform-derived HSL fill. Same generation mechanism as
- * generateRobotName above: one getSeededVal draw against ROBOT_IDENTITY_COLOR_NAMES (the 13 hue
+ * generateRobotName above: one getSeededVal draw against ROBOT_IDENTITY_COLOR_NAMES (the 18 hue
  * keys — black/white/darkGray are deliberately excluded there, not filtered here).
  */
 function generateRobotIdentityColor(noiseMap: NoiseFunction2D, offset: number): string {
@@ -146,6 +145,31 @@ function generateRobotIdentityColor(noiseMap: NoiseFunction2D, offset: number): 
   // undefined CSS custom property, not just a missing name syllable.
   const index = Math.min(ROBOT_IDENTITY_COLOR_NAMES.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.identityColor', offset, 0, ROBOT_IDENTITY_COLOR_NAMES.length)));
   return ACCENT_COLORS[ROBOT_IDENTITY_COLOR_NAMES[index]];
+}
+
+/** How many seeded hardware parts (docs/specs/ROBOT_GREEBLES.md) a robot gets. Tuned in the sketch. */
+export const GREEBLE_COUNT_RANGE = { min: 2, max: 5 } as const;
+
+/**
+ * Deterministic, permanent hardware set (Roadmap Phase 37, docs/specs/ROBOT_GREEBLES.md §1.1) —
+ * same generation shape as generateRobotIdentityColor above: hardware/identity, not audio, drawn
+ * once at spawn, never inherited on the copy path. A count draw, then count independent kind/slot
+ * draws with slots removed from a `free` pool so no robot ever repeats a slot.
+ */
+function generateGreebles(noiseMap: NoiseFunction2D, spawnCount: number): Greeble[] {
+  const count = Math.min(
+    GREEBLE_COUNT_RANGE.max,
+    Math.floor(getSeededVal(noiseMap, 'robot.greeble.count', spawnCount, GREEBLE_COUNT_RANGE.min, GREEBLE_COUNT_RANGE.max + 1))
+  );
+  const free = Array.from({ length: SLOT_COUNT }, (_, i) => i);
+  const out: Greeble[] = [];
+  for (let i = 0; i < count; i++) {
+    const off = spawnCount * 10 + i;
+    const kind = Math.min(KIND_COUNT - 1, Math.floor(getSeededVal(noiseMap, 'robot.greeble.kind', off, 0, KIND_COUNT)));
+    const pick = Math.min(free.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.greeble.slot', off, 0, free.length)));
+    out.push({ kind, slot: free.splice(pick, 1)[0] });
+  }
+  return out;
 }
 
 // Org-flavored noun list for company names (Roadmap Phase 10) — distinct from robot NOUNS above,
@@ -288,14 +312,8 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
   // Seeded waveform — evenly distributed (~20% each)
   const waveform = WAVEFORMS[Math.min(WAVEFORMS.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.audio.waveform', offset, 0, WAVEFORMS.length)))];
 
-  // Derive a compact visualAudioMap to store on the robot at spawn time.
-  // ---
   // Generate the fixed 3-layer Signature Array (Baseline/Coaxial/Harmonic, Roadmap Phase 9).
-  // There is no per-layer ADSR anymore — every layer shares the one `adsr` envelope above; shape
-  // params are mapped directly from it (normalized by ADSR_MAX), not a gain-weighted average
-  // across layers. If you change the mapping, update docs and robotVisualMapper accordingly.
-  const clamp = (v: number) => Math.max(0, Math.min(1, v));
-
+  // There is no per-layer ADSR anymore — every layer shares the one `adsr` envelope above.
   const layers: OscillatorLayer[] = [];
   for (let i = 0; i < LAYER_COUNT; i++) {
     const layerOffset = offset * 10 + i;
@@ -314,31 +332,6 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
     layers.push(layerWave);
   }
 
-  // Averaged over only the audible (nonzero-gain) layers — a muted layer's gain is always exactly
-  // 0 now (never a real sampled-but-unused draw), so folding it into the average would pull a
-  // robot's visual brightness down without it actually contributing any sound. Falls back to 1
-  // if every layer happens to be muted (all-silent edge case), matching the old fallback's intent.
-  const audibleLayers = layers.filter((l) => l.gain !== 0);
-  const averagedGain = audibleLayers.length > 0
-    ? audibleLayers.reduce((s, l) => s + l.gain, 0) / audibleLayers.length
-    : 1;
-
-  // Map the shared adsr (normalized by ADSR_MAX) into simple ShapeParams (0..1)
-  // Mapping rules:
-  //   - scale: larger when attack is shorter (snappier envelope → bigger robot)
-  //   - roundness: mapped from sustain (higher sustain → rounder shape)
-  //   - detail: mapped from release (longer release → more detail/greebles)
-  // If you adjust these, update robotVisualMapper and docs for consistency.
-  const scale = clamp(0.25 + (1 - adsr.attack / ADSR_MAX.attack) * 0.75);
-  const roundness = clamp(adsr.sustain / ADSR_MAX.sustain);
-  const detail = clamp(adsr.release / ADSR_MAX.release);
-
-  const visualAudioMap = {
-    averagedGain,
-    shapeParams: { scale, roundness, detail },
-    layerVisuals: layers.map((l) => ({ color: undefined, scale: clamp((l.gain ?? 1) / 1.2,), offset: { x: 0, y: 0 } })),
-  };
-
   // Phase: 0..360 degrees (used for oscillator phase)
   const phase = Math.floor(getSeededVal(noiseMap, 'robot.audio.phase', offset, 0, 361));
   // Detune: default 0 cents (fine pitch adjustment)
@@ -348,7 +341,7 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
   const pulseWidth = Math.max(0.01, Math.min(0.99, rawPulse));
 
   // Include `layers` as the canonical audio description. Flat fields are left for compatibility.
-  return { adsr, octaveRange, filterFreq, waveform, visualAudioMap, phase, detune, pulseWidth, layers } as AudioAttributes;
+  return { adsr, octaveRange, filterFreq, waveform, phase, detune, pulseWidth, layers } as AudioAttributes;
 }
 
 /**
@@ -696,6 +689,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     identityColor: noiseMap
       ? generateRobotIdentityColor(noiseMap, spawnCount)
       : generateRobotIdentityColor((_x: number, _y: number) => 0 as number, spawnCount),
+    greebles: noiseMap
+      ? generateGreebles(noiseMap, spawnCount)
+      : generateGreebles((_x: number, _y: number) => 0 as number, spawnCount),
     state: RobotState.Idle,
     position,
     destination: null,

@@ -118,24 +118,22 @@ describe('createSwimTimeline — with a registered ref', () => {
     expect(noFlipPropulsionCall?.[2]).toBe(0);
   });
 
-  it('sets the propeller tween repeat to Math.ceil(duration / PROPELLER_ROTATION_SPEED) - 1 when a .propeller element exists', () => {
+  it('adds no spin tween, even if a .propeller element is present', () => {
     const robot = fakeRobot({ id: 'r5', position: { x: 0, y: 0 } });
     registerFakeRef('r5', true);
     const tl = gsap.timeline();
     const toSpy = vi.spyOn(tl, 'to');
     vi.spyOn(gsap, 'timeline').mockReturnValueOnce(tl);
 
-    // distance 240 / SWIM_SPEED 120 = duration 2s; PROPELLER_ROTATION_SPEED = 2s -> ceil(2/2)=1 -> repeat = 0
     createSwimTimeline(robot, { x: 240, y: 0 }, 'right');
 
-    const propellerCall = toSpy.mock.calls.find(
-      (call) => typeof call[1] === 'object' && call[1] !== null && 'rotation' in (call[1] as object) && 'repeat' in (call[1] as object),
+    const spinCall = toSpy.mock.calls.find(
+      (call) => typeof call[1] === 'object' && call[1] !== null && 'repeat' in (call[1] as object),
     );
-    expect(propellerCall).toBeDefined();
-    expect((propellerCall?.[1] as unknown as { repeat: number }).repeat).toBe(0);
+    expect(spinCall).toBeUndefined();
   });
 
-  it('does not attempt a propeller tween and does not throw when no .propeller child exists', () => {
+  it('does not throw without a .propeller child', () => {
     const robot = fakeRobot({ id: 'r6', position: { x: 0, y: 0 } });
     registerFakeRef('r6', false);
     expect(() => createSwimTimeline(robot, { x: 60, y: 0 }, 'right')).not.toThrow();

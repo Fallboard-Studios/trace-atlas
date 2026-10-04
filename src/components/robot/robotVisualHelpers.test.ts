@@ -6,16 +6,29 @@ import { describe, it, expect } from 'vitest';
 import {
   selectRobotShape,
   calculateScale,
-  calculateDetailLevel,
   generateColors,
   hueOffset,
   toSaturation,
   toLuminance,
-  calculateGreebleCount,
   computeBatteryDimOpacity,
+  bodyShapeFromAdsr,
+  BODY_NORMALISER,
+  calculateBodyScale,
+  BODY_SCALE_MIN,
+  calculateLampIntensity,
+  LAMP_MIN,
+  identityGlass,
+  applyLightnessMultiplier,
+  socketLitOpacity,
+  SOCKET_DARK,
+  SOCKET_MIN,
+  SOCKET_GAIN_MAX,
 } from './robotVisualHelpers';
 import { RobotSleek } from './RobotSleek';
 import type { AudioAttributes, ADSREnvelope } from '../../types/Robot';
+import type { OscillatorLayer } from '../../types/layeredAudio';
+import { hexToHsl } from '@/utils/colorUtils';
+import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '@/constants/accentColors';
 
 describe('robotVisualHelpers', () => {
   describe('selectRobotShape', () => {
@@ -77,24 +90,6 @@ describe('robotVisualHelpers', () => {
       const high = toLuminance(1.0);
       expect(high).toBeGreaterThan(low);
     });
-
-    it('calculateGreebleCount: deterministic, integer, and capped at 16', () => {
-      const waveform = 'sawtooth' as const;
-      const adsr1: ADSREnvelope = { attack: 0.01, decay: 0.1, sustain: 1.0, release: 0.2 };
-      const adsr2: ADSREnvelope = { attack: 0.5, decay: 1.0, sustain: 0.1, release: 1.0 };
-
-      const c1 = calculateGreebleCount(2200, 1.0, waveform, adsr1);
-      const c2 = calculateGreebleCount(200, 0.0, waveform, adsr2);
-
-      expect(Number.isInteger(c1)).toBe(true);
-      expect(Number.isInteger(c2)).toBe(true);
-      expect(c1).toBeGreaterThanOrEqual(0);
-      expect(c1).toBeLessThanOrEqual(16);
-      expect(c2).toBeGreaterThanOrEqual(0);
-      expect(c2).toBeLessThanOrEqual(16);
-      // different inputs should often produce different results
-      expect(c1).not.toEqual(c2);
-    });
   });
 
   describe('calculateScale', () => {
@@ -108,18 +103,6 @@ describe('robotVisualHelpers', () => {
 
     it('returns 1.3 for bass register', () => {
       expect(calculateScale([1, 3])).toBe(1.3);
-    });
-  });
-
-  describe('calculateDetailLevel', () => {
-    it('returns 0.0 for filter frequency at or below low threshold', () => {
-      expect(calculateDetailLevel(400)).toBe(0.0);
-      expect(calculateDetailLevel(500)).toBe(0.0);
-    });
-
-    it('returns 1.0 for filter frequency at or above high threshold', () => {
-      expect(calculateDetailLevel(2000)).toBe(1.0);
-      expect(calculateDetailLevel(3000)).toBe(1.0);
     });
   });
 
@@ -151,6 +134,195 @@ describe('robotVisualHelpers', () => {
       // If tiers were summed (0.25 + 0.5 + 0.9 dim), opacity would go negative.
       // The deepest applicable tier alone applies.
       expect(computeBatteryDimOpacity(0)).toBe(0.1);
+    });
+  });
+
+  describe('BODY_NORMALISER', () => {
+    it('matches the seeded attack/release range (5s) and sustain range (1)', () => {
+      expect(BODY_NORMALISER).toEqual({ attack: 5, sustain: 1, release: 5 });
+    });
+  });
+
+  describe('bodyShapeFromAdsr', () => {
+    it('an all-zero envelope maps to the biggest, squarest, plainest body', () => {
+      const adsr: ADSREnvelope = { attack: 0, decay: 0, sustain: 0, release: 0 };
+      expect(bodyShapeFromAdsr(adsr)).toEqual({ scale: 1, roundness: 0, detail: 0 });
+    });
+
+    it('attack at the normaliser clamps scale to its floor (0.25)', () => {
+      const adsr: ADSREnvelope = { attack: 5, decay: 0, sustain: 0, release: 0 };
+      expect(bodyShapeFromAdsr(adsr).scale).toBe(0.25);
+    });
+
+    it('attack beyond the normaliser still clamps scale to 0.25, not negative', () => {
+      const adsr: ADSREnvelope = { attack: 10, decay: 0, sustain: 0, release: 0 };
+      expect(bodyShapeFromAdsr(adsr).scale).toBe(0.25);
+    });
+
+    it('release at half the normaliser gives exactly 0.5 detail', () => {
+      const adsr: ADSREnvelope = { attack: 0, decay: 0, sustain: 0, release: 2.5 };
+      expect(bodyShapeFromAdsr(adsr).detail).toBe(0.5);
+    });
+
+    it('sustain at its max gives exactly 1 roundness', () => {
+      const adsr: ADSREnvelope = { attack: 0, decay: 0, sustain: 1, release: 0 };
+      expect(bodyShapeFromAdsr(adsr).roundness).toBe(1);
+    });
+  });
+
+  describe('BODY_SCALE_MIN', () => {
+    it('is at least 1.5x the pre-Phase-36 floor of 0.49', () => {
+      expect(BODY_SCALE_MIN).toBeGreaterThanOrEqual(0.49 * 1.5);
+    });
+  });
+
+  describe('calculateBodyScale', () => {
+    it('treble register at the slowest attack bottoms out at BODY_SCALE_MIN, not the unfloored 0.49', () => {
+      expect(calculateBodyScale([3, 5], 0)).toBe(BODY_SCALE_MIN);
+    });
+
+    it('bass register at the fastest attack reaches the ceiling of 1.69', () => {
+      expect(calculateBodyScale([1, 3], 1)).toBeCloseTo(1.69);
+    });
+
+    it('mid register at a neutral attack bias sits at 1.0, above the floor so it is untouched', () => {
+      expect(calculateBodyScale([2, 4], 0.5)).toBe(1.0);
+    });
+  });
+
+  describe('calculateLampIntensity', () => {
+    const layer = (gain: number): OscillatorLayer => ({ type: 'sine', gain, detune: 0, phase: 0 });
+
+    it('falls back to a gain of 1 when every layer is muted', () => {
+      const layers = [layer(0), layer(0), layer(0)];
+      expect(calculateLampIntensity(layers, 0)).toBe(0.6); // 1 * 0.6 + 0 * 0.4
+    });
+
+    it('falls back to a gain of 1 when layers is undefined', () => {
+      expect(calculateLampIntensity(undefined, 1)).toBe(1); // 1 * 0.6 + 1 * 0.4
+    });
+
+    it('clamps to 1 for gains above 1 even with full detail', () => {
+      const layers = [layer(1.2), layer(0), layer(1.2)];
+      expect(calculateLampIntensity(layers, 1)).toBe(1);
+    });
+
+    it('excludes a muted layer from the average instead of averaging it in as zero', () => {
+      const layers = [layer(0.2), layer(0)];
+      // Averaging the muted layer in as 0 would give (0.2+0)/2 * 0.6 = 0.06; excluding it gives
+      // 0.2 * 0.6 = 0.12.
+      expect(calculateLampIntensity(layers, 0)).toBeCloseTo(0.12);
+    });
+  });
+
+  describe('LAMP_MIN', () => {
+    it('is 0.4', () => {
+      expect(LAMP_MIN).toBe(0.4);
+    });
+  });
+
+  describe('socketLitOpacity', () => {
+    it('is SOCKET_DARK for gain 0', () => {
+      expect(socketLitOpacity(0)).toBe(SOCKET_DARK);
+    });
+
+    it('is SOCKET_DARK for an undefined gain (missing layer)', () => {
+      expect(socketLitOpacity(undefined)).toBe(SOCKET_DARK);
+    });
+
+    it('is fully lit at the seeded max gain (1.2)', () => {
+      expect(socketLitOpacity(SOCKET_GAIN_MAX)).toBe(1);
+    });
+
+    it('clamps to fully lit above the seeded max gain (edited past 1.2)', () => {
+      expect(socketLitOpacity(2)).toBe(1);
+    });
+
+    it('interpolates between SOCKET_MIN and 1 for a partial gain', () => {
+      expect(socketLitOpacity(0.2)).toBeCloseTo(SOCKET_MIN + (1 - SOCKET_MIN) * (0.2 / SOCKET_GAIN_MAX));
+    });
+
+    it('is monotonic non-decreasing across the gain range', () => {
+      let prev = socketLitOpacity(0.01);
+      for (let gain = 0.02; gain <= SOCKET_GAIN_MAX + 0.001; gain += 0.01) {
+        const next = socketLitOpacity(gain);
+        expect(next).toBeGreaterThanOrEqual(prev);
+        prev = next;
+      }
+    });
+  });
+
+  describe('SOCKET_MIN', () => {
+    it('matches LAMP_MIN', () => {
+      expect(SOCKET_MIN).toBe(LAMP_MIN);
+    });
+  });
+
+  describe('generateColors highlight/shadow', () => {
+    const attrs = {
+      adsr: { attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.5 },
+      filterFreq: 1000,
+      waveform: 'sine',
+    } as unknown as AudioAttributes;
+
+    it('highlight is lighter than primary, and shadow is darker than primary', () => {
+      const colors = generateColors(attrs);
+      const lightnessOf = (hsl: string) => Number(/,\s*([\d.]+)%\)$/.exec(hsl)?.[1]);
+
+      expect(lightnessOf(colors.highlight)).toBeGreaterThan(lightnessOf(colors.primary));
+      expect(lightnessOf(colors.primary)).toBeGreaterThan(lightnessOf(colors.shadow));
+    });
+
+    it('highlight and shadow are hsl(...) strings', () => {
+      const colors = generateColors(attrs);
+      const hslRegex = /^hsl\(\d+,\s*\d+%,\s*\d+%\)$/;
+      expect(hslRegex.test(colors.highlight)).toBe(true);
+      expect(hslRegex.test(colors.shadow)).toBe(true);
+    });
+  });
+
+  describe('applyLightnessMultiplier', () => {
+    it('zeroes all five colour fields at multiplier 0', () => {
+      const colors = generateColors({
+        adsr: { attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.5 },
+        filterFreq: 1000,
+        waveform: 'sine',
+      } as unknown as AudioAttributes);
+
+      const dimmed = applyLightnessMultiplier(colors, 0);
+      const lightnessOf = (hsl: string) => Number(/,\s*([\d.]+)%\)$/.exec(hsl)?.[1]);
+
+      expect(lightnessOf(dimmed.primary)).toBe(0);
+      expect(lightnessOf(dimmed.secondary)).toBe(0);
+      expect(lightnessOf(dimmed.accent)).toBe(0);
+      expect(lightnessOf(dimmed.highlight)).toBe(0);
+      expect(lightnessOf(dimmed.shadow)).toBe(0);
+    });
+  });
+
+  describe('identityGlass', () => {
+    const sheenLightness = (sheen: string) => Number(/,\s*([\d.]+)%\)$/.exec(sheen)?.[1]);
+
+    it('glass equals the input hex for every ROBOT_IDENTITY_COLOR_NAMES colour, with a lighter sheen', () => {
+      for (const name of ROBOT_IDENTITY_COLOR_NAMES) {
+        const hex = ACCENT_COLORS[name];
+        const { glass, sheen } = identityGlass(hex);
+
+        expect(glass).toBe(hex);
+        expect(sheenLightness(sheen)).toBeGreaterThan(hexToHsl(hex).l);
+      }
+    });
+
+    it('caps the sheen lightness at 95', () => {
+      const { sheen } = identityGlass('#ffffff');
+      expect(sheenLightness(sheen)).toBeLessThanOrEqual(95);
+    });
+  });
+
+  describe('darken', () => {
+    it('is no longer exported from robotVisualHelpers', async () => {
+      const helpers: Record<string, unknown> = await import('./robotVisualHelpers');
+      expect(helpers.darken).toBeUndefined();
     });
   });
 });

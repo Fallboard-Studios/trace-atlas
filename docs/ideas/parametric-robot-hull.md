@@ -1,5 +1,10 @@
 # Parametric Robot Hull
 
+> **Set aside (2026-10-03).** Built end to end on `feature/robot-v2` (unmerged, 18 commits) and
+> reviewed by eye: the design didn't match the rest of the app. Not to be revived. The robot
+> direction is now [robot-visual-rework.md](robot-visual-rework.md) — improve the existing four
+> hand-drawn shapes. Kept as the idea-stage record; several of its decisions carry forward there.
+
 Refined 2026-10-02 via the idea-refine skill. Second of three sequenced branches:
 world-palette-pull → parametric-robot-hull → layer-pods-and-follow-through.
 

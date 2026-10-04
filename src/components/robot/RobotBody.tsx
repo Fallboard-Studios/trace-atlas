@@ -3,23 +3,25 @@
 // ========================================
 import { memo, useMemo } from 'react';
 
-import type { Robot, AudioAttributes } from '../../types/Robot';
+import type { Robot, AudioAttributes, WaveformType } from '../../types/Robot';
 import {
   selectRobotShape,
   generateColors,
   shapeParamsFromAudio,
-  calculateGreebleCount,
-  calculateGreebleSize,
-  calculateGreeblePersistence,
-  calculateGreeblePlacementBias,
-  calculateScale,
-  calculateDetailLevel,
+  bodyShapeFromAdsr,
+  calculateBodyScale,
+  calculateLampIntensity,
+  LAMP_MIN,
   applyLightnessMultiplier,
   computeBatteryDimOpacity,
+  socketLitOpacity,
+  identityGlass,
 } from './robotVisualHelpers';
-import mapVisualAudioToProps from './robotVisualMapper';
 import type { RobotColors, RobotSVGComponent, ShapeParams, MicroVariants } from './robotVisualHelpers';
 import { useUIStore } from '../../stores/uiStore';
+import { RobotGreebles } from './RobotGreebles';
+import { RobotLayerSockets } from './RobotLayerSockets';
+import { GREEBLE_SLOTS, SOCKET_POSITIONS } from './greebleSlots';
 
 // ========================================
 // TYPES
@@ -34,6 +36,9 @@ interface RobotBodyProps {
    * so their day/night behavior is unchanged.
    */
   ignoreDaylight?: boolean;
+  /** Hides the seeded greeble set — passed only by RobotSelectionCard's 64px card thumbnail;
+   *  the detail avatar and in-world robots show parts (docs/specs/ROBOT_GREEBLES.md §1.4). */
+  hideGreebles?: boolean;
 }
 
 // ========================================
@@ -43,7 +48,7 @@ interface RobotBodyProps {
  * RobotBody - Selects appropriate robot shape variant and calculates visual properties
  * from audio attributes. Memoized to prevent unnecessary recalculations.
  */
-export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: RobotBodyProps) {
+export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, hideGreebles }: RobotBodyProps) {
   // Derive lightness from the active locale's local time so robots track the
   // same day/night cycle as buildings. activeLocaleLocalTime is a 0..24 float
   // written by AttenuationStyleView every second. ignoreDaylight fixes this at a
@@ -58,15 +63,20 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
   // the audio-derived `visual` memo below (battery isn't an audio attribute).
   const dimOpacity = computeBatteryDimOpacity(robot.batteryLevel);
 
+  // Identity colour is seeded, not audio-derived — read outside the memo, same reasoning as
+  // battery/daylight above. Confined to the window glass and lamp (docs/ROBOT_DESIGN.md
+  // "Non-audio layers").
+  const identityColor = robot.identityColor;
+
   // Everything audio-derived — no lightnessMultiplier anywhere in this memo or its
   // dependency array. `lightnessMultiplier` is read in exactly one place downstream
   // (`applyLightnessMultiplier`, below, outside the memo) — confirmed directly via a search of
-  // robotVisualHelpers.ts/robotVisualMapper.ts (neither reads it anywhere else) while writing
+  // robotVisualHelpers.ts (nothing else reads it) while writing
   // docs/specs/ROBOT_BODY_LIGHTING_RERENDER.md (backlog item 22). Folding the once/sec lighting
   // tick into this memo used to force the whole audio→shape/greeble pipeline to recompute every
   // second for no reason.
   const audioVisual = useMemo(() => {
-    const { adsr, filterFreq, visualAudioMap } = robot.audioAttributes;
+    const { adsr } = robot.audioAttributes;
     const octaveRange = robot.audioAttributes.octaveRange ?? robot.octaveRange;
 
     // Roadmap Phase 9: OscillatorLayer.type is WaveformType only now ('noise' removed), so this
@@ -78,16 +88,12 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
     // Pre-lightness colors — `applyLightnessMultiplier` is applied fresh every render, below.
     const baseColors = generateColors(attrsForColor);
 
-    const mapped = mapVisualAudioToProps(visualAudioMap);
-
-    // Convert mapped bodyShapeProps (scale, roundness, detail) into the
-    // component-specific ShapeParams expected by SVG components.
-    const bodyShape = mapped.bodyShapeProps ?? { scale: 0.5, roundness: 0.5, detail: 0.3 };
+    // Live replacement for the old spawn-time snapshot: scale/roundness/detail from the
+    // current envelope, so Robot Options edits reach the body (Phase 36).
+    const bodyShape = bodyShapeFromAdsr(adsr);
     const adsrTorso = Math.max(0.7, Math.min(1.3, 0.85 + (bodyShape.roundness - 0.5) * 0.6));
     const shapeParams = {
       torsoAspect: adsrTorso, // blended with register below after fromAudio is computed
-      appendageLength: Math.max(0.6, Math.min(1.4, 0.8 + bodyShape.detail * 0.9)),
-      scaleBias: Math.max(-0.4, Math.min(0.4, (bodyShape.scale - 0.5) * 0.6)),
     };
 
     const fromAudio = shapeParamsFromAudio(robot.audioAttributes, octaveRange);
@@ -98,49 +104,64 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
       adsrTorso * 0.7 + fromAudio.shapeParams.torsoAspect * 0.3
     ));
 
-    // Greeble values come from mapped greebleProps when present, else fall back
-    // to the original deterministic calculations.
-    const detail = bodyShape.detail ?? calculateDetailLevel(filterFreq);
-    const registerMid = (octaveRange[0] + octaveRange[1]) / 2;
-    const registerGreebleBias = Math.round((registerMid - 3.5) * 2); // bass≈-2, mid≈0, treble≈+2
-    const baseGreebleCount = mapped.greebleProps?.count ?? calculateGreebleCount(filterFreq, detail, robot.audioAttributes.waveform, adsr);
-    const greebleCount = Math.max(0, Math.min(16, baseGreebleCount + registerGreebleBias));
-    const greebleSize = mapped.greebleProps?.scale ? Math.max(1, Math.round(mapped.greebleProps.scale * 6)) : calculateGreebleSize(adsr.sustain);
-    const greeblePersistence = calculateGreeblePersistence(adsr.release);
-    const greeblePlacementBias = calculateGreeblePlacementBias(adsr.decay, adsr.release);
+    const detail = bodyShape.detail;
+    const lampIntensity = calculateLampIntensity(robot.audioAttributes.layers, detail);
+
+    // Coaxial (layers[1]), Harmonic (layers[2]) — audio-only, same reasoning as lampIntensity;
+    // battery is composed outside the memo below (docs/specs/ROBOT_LAYER_MARKERS.md §1.1).
+    const layers = robot.audioAttributes.layers;
+    const socketLit: [number, number] = [
+      socketLitOpacity(layers?.[1]?.gain),
+      socketLitOpacity(layers?.[2]?.gain),
+    ];
 
     return {
       Component: selectRobotShape(waveform),
+      waveform,
       baseColors,
-      scale: calculateScale(octaveRange),
+      scale: calculateBodyScale(octaveRange, bodyShape.scale),
       detailLevel: detail,
       shapeParams,
       microVariants,
-      greebleCount,
-      greebleSize,
-      greeblePersistence,
-      greeblePlacementBias,
-      lightsProps: mapped.lightsProps,
+      lampIntensity,
+      socketLit,
     };
   }, [robot.audioAttributes, robot.octaveRange]) as {
     Component: RobotSVGComponent;
+    waveform: WaveformType;
     baseColors: RobotColors;
     scale: number;
     detailLevel: number;
     shapeParams: ShapeParams;
     microVariants: MicroVariants;
-    greebleCount: number;
-    greebleSize: number;
-    greeblePersistence: number;
-    greeblePlacementBias: number;
-    lightsProps?: { intensity: number; color: string };
+    lampIntensity: number;
+    socketLit: [number, number];
   };
+
+  // Battery is not audio — composed with the memoised lampIntensity outside the memo, same
+  // reasoning as dimOpacity above.
+  const lampOpacity = (LAMP_MIN + (1 - LAMP_MIN) * audioVisual.lampIntensity) * dimOpacity;
+  const socketOpacities: [number, number] = [audioVisual.socketLit[0] * dimOpacity, audioVisual.socketLit[1] * dimOpacity];
 
   // Cheap — recomputed every render/tick, same as Factory.tsx's own body/belt fills
   // (docs/specs/FACTORY_LIGHTING_RERENDER.md's staticVisual precedent).
   const colors = applyLightnessMultiplier(audioVisual.baseColors, lightnessMultiplier);
 
-  const { Component, scale, detailLevel, shapeParams, microVariants, greebleCount, greebleSize, greeblePersistence, greeblePlacementBias } = audioVisual;
+  const { Component, scale, detailLevel, shapeParams, microVariants } = audioVisual;
+
+  // robot.greebles is seeded hardware, not audio — built outside the memo, same reasoning as
+  // identityColor/dimOpacity/lampOpacity above. hideGreebles is a render-context override only
+  // (RobotSelectionCard's 64px card thumbnail), like ignoreDaylight.
+  const greebles = hideGreebles ? undefined : (
+    <RobotGreebles greebles={robot.greebles} slots={GREEBLE_SLOTS[audioVisual.waveform]} colors={colors} />
+  );
+
+  // Identity colour, not audio — same reasoning as the window/lamp glass above. Falls back to
+  // the same default the shape components themselves apply when a fixture omits identityColor.
+  const { glass, sheen } = identityGlass(identityColor ?? '#78cce2');
+  const sockets = (
+    <RobotLayerSockets positions={SOCKET_POSITIONS[audioVisual.waveform]} opacities={socketOpacities} glass={glass} sheen={sheen} housing={colors.shadow} />
+  );
 
   return (
     <Component
@@ -149,11 +170,11 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
       detailLevel={detailLevel}
       shapeParams={shapeParams}
       microVariants={microVariants}
-      greebleCount={greebleCount}
-      greebleSize={greebleSize}
-      greeblePersistence={greeblePersistence}
-      greeblePlacementBias={greeblePlacementBias}
       dimOpacity={dimOpacity}
+      identityColor={identityColor}
+      lampOpacity={lampOpacity}
+      greebles={greebles}
+      sockets={sockets}
     />
   );
 });

@@ -1,5 +1,5 @@
 import type { Vec2 } from './Vec2';
-import type { VisualAudioMap, OscillatorLayer } from './layeredAudio';
+import type { OscillatorLayer } from './layeredAudio';
 import type { RobotLfoTargetId, LfoLink } from './lfo';
 
 /**
@@ -78,8 +78,17 @@ export interface AudioAttributes {
   /** Detune in cents (e.g. -100..100) applied to synth at reservation time */
   detune?: number; // cents (e.g. -100..100)
   /** Deprecated: pulseWidth moved to per-layer `layers[].pulseWidth`. */
-  /** Optional compact visual/audio mapping produced at spawn time and stored on the robot */
-  visualAudioMap?: VisualAudioMap;
+}
+
+/**
+ * Seeded, permanent hardware part (docs/ROBOT_DESIGN.md "Non-audio layers"). `kind` indexes
+ * RobotGreebles.tsx's ordered vocabulary (< KIND_COUNT); `slot` indexes the current shape's
+ * GREEBLE_SLOTS table (greebleSlots.ts, every shape has SLOT_COUNT entries), so a waveform
+ * change moves the same parts onto the new outline without touching robot data.
+ */
+export interface Greeble {
+  kind: number;
+  slot: number;
 }
 
 /**
@@ -116,12 +125,21 @@ export interface Robot {
   /** Human-readable display name (generated at spawn) */
   name?: string;
   /**
-   * Deterministic per-robot identity color (one of ACCENT_COLORS' 13 hues, seeded at spawn) — UI
-   * chrome only (RobotSelectionCard/RobotDisplaySection), never the SVG body's own ADSR/waveform-
-   * derived HSL fill (docs/ROBOT_DESIGN.md, unaffected). See
-   * docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.4.
+   * Deterministic per-robot identity color (one of the 18 `ROBOT_IDENTITY_COLOR_NAMES` hues,
+   * seeded at spawn) — UI chrome (RobotSelectionCard/RobotDisplaySection) **and** the SVG body's
+   * window glass, lamp and the two layer sockets, nothing else on the body (docs/ROBOT_DESIGN.md
+   * "Non-audio layers"); a socket's lit state is still audio (layer gain), only its hue is
+   * identity. The body's own fills stay ADSR/waveform-derived. See
+   * docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.4, docs/specs/ROBOT_LIVE_VISUALS.md §1.5-1.7 and
+   * docs/specs/ROBOT_LAYER_MARKERS.md §1.5.
    */
   identityColor: string;
+  /**
+   * Seeded, permanent hardware parts (docs/ROBOT_DESIGN.md "Non-audio layers"). Drawn once at
+   * spawn ('robot.greeble.*' dataIds), never user-edited, never inherited on the copy path,
+   * never diffed into a session — regenerated identically from the seed, like identityColor.
+   */
+  greebles: Greeble[];
   state: RobotState;
   position: Vec2;
   destination: Vec2 | null;

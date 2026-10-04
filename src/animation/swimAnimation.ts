@@ -13,7 +13,6 @@ import { DEV_TUNING } from '../constants';
 // CONSTANTS
 // ========================================
 const SWIM_SPEED = 120; // pixels per second
-const PROPELLER_ROTATION_SPEED = 2; // seconds per 360deg rotation
 const TILT_ANGLE = 5; // degrees of body tilt during movement
 const ORIENTATION_DURATION = 0.5; // seconds to flip orientation
 const PROPULSION_OVERLAP = 0.2; // seconds of overlap between orientation and propulsion phases
@@ -122,24 +121,6 @@ export function createSwimTimeline(
     duration,
     ease: 'sine.inOut',
   }, propulsionStart);
-
-  // ========================================
-  // PROPELLER ROTATION (parallel with movement)
-  // ========================================
-  const propeller = ref.querySelector('.propeller');
-  if (propeller) {
-    const numRotations = Math.ceil(duration / PROPELLER_ROTATION_SPEED);
-    tl.to(
-      propeller,
-      {
-        rotation: '+=360',
-        duration: PROPELLER_ROTATION_SPEED,
-        repeat: numRotations - 1,
-        ease: 'none',
-      },
-      propulsionStart
-    );
-  }
 
   // ========================================
   // BODY TILT (optional polish)

@@ -467,3 +467,121 @@ Factories, and through them their bubbles, lean toward the console's accent pale
 - **Hard snap or snap-plus-offset** — soft pull only.
 - **The Ballast neutrals, bubble colours other than their building's, placement/variant/greebles** — untouched.
 - **A simpler "replace the base with a jittered accent" model** — considered at spec review and rejected in favour of the pull.
+
+## 36. Robot Live Visuals
+
+Requested by Crawford, 2026-10-03, after the parametric hull (branch 2 of the earlier
+world-visuals series) was set aside as not matching the app's look. First of a new three-branch
+series on the existing four hand-drawn shapes. Idea [docs/ideas/robot-visual-rework.md](../ideas/robot-visual-rework.md), intent [docs/intent/robot-live-visuals.md](../intent/robot-live-visuals.md), spec [docs/specs/ROBOT_LIVE_VISUALS.md](../specs/ROBOT_LIVE_VISUALS.md), plan [docs/tasks/ROBOT_LIVE_VISUALS.md](../tasks/ROBOT_LIVE_VISUALS.md). **Implemented — all 13 tasks on `feature/robot-rework`; Crawford's visual checkpoint passed.**
+
+### About
+
+Deletes a spawn-time `visualAudioMap` snapshot of body scale/roundness/detail that never refreshed
+on a Robot Options edit, replacing it with a live computation (`bodyShapeFromAdsr`,
+`calculateBodyScale` — floored at `BODY_SCALE_MIN`, 1.5× the old unfloored minimum) so attack,
+sustain and release edits visibly reach the body. The four shapes now scale about their own centre
+(48,36) instead of the origin, and both avatar viewBoxes widen to frame the larger range without
+clipping. Every shape's highlight/shadow shading switches from a fixed grey/black to the robot's
+own hue-shifted colours (`colors.highlight`/`colors.shadow`). The window glass on every shape now
+carries the robot's `identityColor` (`identityGlass()`), replacing a fixed blue, so a robot's
+window reads the same hue as its selection card. One always-visible lamp (`g.lamp`, outside
+`.details`) replaces the two green status lights Organic and Industrial used to gate behind the
+detail cliff — lit by `calculateLampIntensity`, live audible-layer gain blended with detail,
+floored at `LAMP_MIN`. `CLAUDE.md`'s Visual Mapping guardrail is amended to carve out exactly this
+one non-audio exception: `identityColor` on the window glass and lamp, nothing else on the body
+(`docs/ROBOT_DESIGN.md` "Identity layer").
+
+### Not Doing (and why)
+
+- **Reviving the parametric hull** — rejected by eye; `feature/robot-v2` stays unmerged, not to be revived.
+- **Greebles** — computed live (`calculateGreebleCount`), still not drawn on any shape; Roadmap Phase 37 (Robot Greebles) owns rendering them.
+- **`microVariants`** — unread by every shape; parked pending Phase 37, which may cover the one non-redundant case (fast attack → stripes) with a greeble part instead.
+- **Layer markers / pod motion** — the always-present Coaxial/Harmonic sockets and any orbit/swim motion are their own later branches (Roadmap Phase 38 and beyond), not this one.
+- **Identity colour anywhere else on the body** — the guardrail amendment is scoped to exactly two elements; widening it needs its own decision.
+- **Changing `calculateScale`'s register steps** — the size fix is a floor clamp (`BODY_SCALE_MIN`), not a shift of the 0.7/1.0/1.3 steps themselves.
+
+## 37. Robot Greebles
+
+Second of the three-branch series on the existing four hand-drawn shapes (Roadmap Phase 36 →
+**37** → 38). Idea [docs/ideas/robot-visual-rework.md](../ideas/robot-visual-rework.md), intent
+[docs/intent/robot-greebles.md](../intent/robot-greebles.md), spec
+[docs/specs/ROBOT_GREEBLES.md](../specs/ROBOT_GREEBLES.md), plan
+[docs/tasks/ROBOT_GREEBLES.md](../tasks/ROBOT_GREEBLES.md), sketch
+[docs/sketches/robot-greebles.html](../sketches/robot-greebles.html). **Implemented — all 9 tasks
+on `feature/robot-rework`; Crawford's sketch sign-off and the perf + visual checkpoint both
+passed.**
+
+### About
+
+Gives every robot a small, seeded, permanent set of hardware parts — panels, tanks, dishes,
+antennas, decals — placed inside its own silhouette. `Robot.greebles` (`{ kind, slot }[]`) is
+drawn once at spawn (`generateGreebles`, `spawnSystem.ts`): a count in `GREEBLE_COUNT_RANGE`
+(2..5), then that many independent kind/slot draws with no robot ever repeating a slot. `kind`
+indexes `RobotGreebles.tsx`'s fixed five-part vocabulary (`KIND_COUNT`, one or two SVG elements
+each, coloured only from `colors.accent`/`colors.shadow` and the hardware greys); `slot` indexes
+the current shape's `GREEBLE_SLOTS` table (`greebleSlots.ts`, `SLOT_COUNT` entries per shape,
+hand-measured in the sketch to clear the window, lamp, vent and the two layer-socket positions
+Roadmap Phase 38 reserves). `RobotBody` builds the node outside its audio memo and passes it to
+the shape, which places it between the hull shadow and the window without ever learning about
+kinds or slots — a waveform change re-slots the same parts onto the new outline instead of
+regenerating them. `hideGreebles` omits it only on the 64px selection card; the detail avatar and
+in-world robots always show parts. The five dead audio-driven greeble helpers
+(`calculateGreebleCount`/`Size`/`Persistence`/`PlacementBias`, `calculateDetailLevel`) are deleted.
+`CLAUDE.md`'s Visual Mapping guardrail gains a second non-audio layer alongside Phase 36's
+`identityColor`: the seeded greeble set, confined to the vocabulary's own slots
+(`docs/ROBOT_DESIGN.md` "Non-audio layers").
+
+### Not Doing (and why)
+
+- **Audio-driven greeble count/size/placement** — rejected in the intent interview: Crawford
+  didn't want parts popping in/out; a seeded, permanent set reads as "natural and lore friendly".
+- **Persistence/decay of individual parts** — there is nothing to decay; the set is permanent for
+  the robot's lifetime.
+- **More than two elements per kind, or more than `SLOT_COUNT` (8) slots per shape** — the Phase
+  36 idle-paint lesson keeps element count bounded; the perf gate at Checkpoint C confirmed it.
+- **Rendering parts on the 64px selection card** — `hideGreebles` keeps the card clean; only the
+  detail avatar and in-world robots show them.
+- **Layer markers / pod motion** — the two reserved socket positions this branch's sketch measures
+  are Roadmap Phase 38's own fixtures, not drawn here.
+
+## 38. Robot Layer Markers
+
+Third of the three-branch series on the existing four hand-drawn shapes (Roadmap Phase 36 → 37 →
+**38**). Idea [docs/ideas/robot-visual-rework.md](../ideas/robot-visual-rework.md), intent
+[docs/intent/robot-layer-markers.md](../intent/robot-layer-markers.md), spec
+[docs/specs/ROBOT_LAYER_MARKERS.md](../specs/ROBOT_LAYER_MARKERS.md), plan
+[docs/tasks/ROBOT_LAYER_MARKERS.md](../tasks/ROBOT_LAYER_MARKERS.md). **Implemented — all 7 tasks
+on `feature/robot-rework`; Crawford's Checkpoint B visual pass confirmed.**
+
+### About
+
+Gives every robot two always-present, identity-coloured sockets — Coaxial and Harmonic — lit in
+proportion to that layer's live gain and dark when muted, so a robot's Signature Array edits
+reach the body the same way lamp and greebles already do. `socketLitOpacity` (`gain`) in
+`robotVisualHelpers.ts` maps gain 0 (or a missing layer) to `SOCKET_DARK`, interpolating up to
+fully lit at `SOCKET_GAIN_MAX` (floored at `SOCKET_MIN` once any gain registers) — the same curve
+shape as the lamp's `calculateLampIntensity`. `SOCKET_POSITIONS` (`greebleSlots.ts`) transcribes
+the two per-shape centers the Phase 37 sketch already reserved at the tail of each shape's
+`FIXTURE_BOXES`. `RobotLayerSockets.tsx` draws each socket as a housing ring (always visible, so a
+dark socket reads as a fixture, not a hole) plus a glass/sheen pair whose group opacity carries
+the gain-derived brightness; the four shapes take it as a `sockets` node placed after the lamp and
+before `.details`. `RobotBody` derives `socketLit` from `layers[1]`/`layers[2]` inside its audio
+memo, composes battery dim outside it exactly like the lamp, and wires the node into every render
+context — card, detail, world. Nothing pops in or out on an edit; a muted layer just goes dark,
+the same ruling the greebles got. `CLAUDE.md`'s Visual Mapping guardrail gains a third non-audio
+carrier alongside the window glass and lamp: the two layer sockets, with the note that a socket's
+lit state is still audio (gain) and only its hue is identity (`docs/ROBOT_DESIGN.md` "Non-audio
+layers").
+
+### Not Doing (and why)
+
+- **Audio-driven socket count or position** — there are always exactly two, Coaxial and Harmonic,
+  at fixed per-shape positions; nothing about count or placement is audio-derived.
+- **A socket for the Baseline layer** — only the two optional layers (Coaxial, Harmonic) get a
+  socket; Baseline is never quiet and has no socket of its own.
+- **Detune or phase mapped to the sockets** — gain only for now; those wait for a motion branch.
+- **Pod motion (orbits, trailing, lean)** — the static form of
+  [layer-pods-and-follow-through.md](../ideas/layer-pods-and-follow-through.md); its own branch on
+  top of this one.
+- **Hiding sockets on the card** — both avatars show them, unlike greebles' `hideGreebles`
+  carve-out.

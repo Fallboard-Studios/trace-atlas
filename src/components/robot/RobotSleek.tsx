@@ -2,14 +2,13 @@
 // IMPORTS
 // ========================================
 import React from 'react';
+import { identityGlass } from './robotVisualHelpers';
 
 // ========================================
 // TYPES
 // ========================================
 interface ShapeParams {
   torsoAspect: number;
-  appendageLength: number;
-  scaleBias: number;
 }
 
 interface MicroVariants {
@@ -19,17 +18,23 @@ interface MicroVariants {
 }
 
 interface RobotSVGProps {
-  colors: { primary: string; secondary: string; accent: string };
+  colors: { primary: string; secondary: string; accent: string; highlight: string; shadow: string };
   scale: number;
   detailLevel: number; // 0-1, controls decoration complexity
   shapeParams?: ShapeParams;
   microVariants?: MicroVariants;
-  greebleCount?: number;
-  greebleSize?: number;
-  greeblePersistence?: number;
-  greeblePlacementBias?: number;
   /** Opacity multiplier (1 = full brightness) for the window — dims as battery drains. */
   dimOpacity?: number;
+  /** Robot.identityColor hex — the window glass's only non-ADSR color (docs/ROBOT_DESIGN.md "Non-audio layers"). */
+  identityColor?: string;
+  /** Opacity multiplier for the lamp, driven by live audible-layer gain; battery-composed like dimOpacity. */
+  lampOpacity?: number;
+  /** Seeded hardware parts (RobotGreebles), placed between the hull shadow and the window — the
+   *  shape never learns about kinds or slots, just where this node sits. */
+  greebles?: React.ReactNode;
+  /** The two always-present identity sockets (RobotLayerSockets), placed after the lamp and
+   *  before .details — the shape never learns about positions or gains, just where this sits. */
+  sockets?: React.ReactNode;
 }
 
 // ========================================
@@ -39,15 +44,12 @@ interface RobotSVGProps {
  * RobotSleek - Smooth, streamlined design for melodic synth voices
  * Industrial submarine aesthetic with curved hull sections
  */
-export const RobotSleek = React.memo(function RobotSleek({ colors, scale, detailLevel, shapeParams, dimOpacity = 1 }: RobotSVGProps) {
+export const RobotSleek = React.memo(function RobotSleek({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2', lampOpacity = 1, greebles, sockets }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
-  const appendageLength = shapeParams?.appendageLength ?? 1;
-  const scaleBias = shapeParams?.scaleBias ?? 0;
-
-  const overall = scale * (1 + scaleBias);
+  const { glass, sheen } = identityGlass(identityColor);
 
   return (
-    <g transform={`scale(${overall})`}>
+    <g transform={`translate(48,36) scale(${scale}) translate(-48,-36)`}>
       <g transform={`scale(${torsoAspect},1)`}>
         <svg viewBox="0 0 96 72" width={96} height={72}>
           {/* Base hull - streamlined curved shape */}
@@ -59,34 +61,23 @@ export const RobotSleek = React.memo(function RobotSleek({ colors, scale, detail
           {/* Hull highlight */}
           <path
             d="M 8,16 L 9,17 H 71 L 79,25 V 20 L 72,13 H 13 L 9,17 L 8,16 Z"
-            fill="#a9adb0"
+            fill={colors.highlight}
             opacity="0.6"
           />
 
           {/* Hull shadow */}
           <path
             d="M 8,56 L 9,55 H 71 L 79,47 V 52 L 72,59 H 13 L 9,55 L 8,56 Z"
-            fill="#000000"
+            fill={colors.shadow}
             opacity="0.3"
           />
 
-          {/* Propeller mounting strut */}
-          <g className="propeller-arm">
-            <rect x="80" y="32" width="10" height={Math.max(4, Math.round(8 * appendageLength))} fill={colors.secondary} />
-            <path d="M 80,33 H 89 V 32 H 80 Z" fill="#a9adb0" opacity="0.5" />
-            <path d="M 80,39 H 89 V 40 H 80 Z" fill="#000000" opacity="0.3" />
-          </g>
+          {greebles}
 
-          {/* Propeller - cross blade design */}
-          <g className="propeller" transform="translate(90, 36)">
-            <rect x="-1" y="-8" width="2" height="16" fill={colors.secondary} />
-            <rect x="-8" y="-1" width="16" height="2" fill={colors.secondary} />
-          </g>
-
-          {/* Window — dims as battery drains */}
-          <g opacity={dimOpacity}>
-            <ellipse cx="24" cy="36" rx="8" ry="10" fill="#78cce2" opacity="0.8" />
-            <ellipse cx="24" cy="34" rx="6" ry="4" fill="#b3e5f2" opacity="0.6" />
+          {/* Window — carries the identity colour; dims as battery drains */}
+          <g className="window" opacity={dimOpacity}>
+            <ellipse cx="24" cy="36" rx="8" ry="10" fill={glass} opacity="0.8" />
+            <ellipse cx="24" cy="34" rx="6" ry="4" fill={sheen} opacity="0.6" />
           </g>
 
           {/* Corner rivets */}
@@ -94,6 +85,14 @@ export const RobotSleek = React.memo(function RobotSleek({ colors, scale, detail
           <circle cx="70" cy="14" r="1.5" fill="#4f5458" />
           <circle cx="14" cy="58" r="1.5" fill="#4f5458" />
           <circle cx="70" cy="58" r="1.5" fill="#4f5458" />
+
+          {/* Lamp — identity-coloured, always visible, lit by live audible-layer gain */}
+          <g className="lamp" opacity={lampOpacity}>
+            <circle cx="70" cy="36" r="3.5" fill={glass} />
+            <circle cx="70" cy="35" r="2" fill={sheen} />
+          </g>
+
+          {sockets}
 
           {detailLevel > 0.5 && (
             <g className="details">

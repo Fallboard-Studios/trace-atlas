@@ -17,29 +17,3 @@ export interface OscillatorLayer {
   pulseWidth?: number // 0..1, meaningful for pulse/square oscillators
 }
 
-/** Small set of shape parameters derived from averaged audio values */
-export interface ShapeParams {
-  scale: number // 0..1
-  roundness: number // 0..1
-  detail: number // 0..1
-}
-
-/** Visual properties for an individual audio layer (spawn-time, serializable) */
-export interface LayerVisual {
-  color?: string
-  scale?: number // 0..1
-  offset?: { x: number; y: number }
-}
-
-/**
- * Visual mapping derived from audio for spawn-time storage on robots. `averagedADSR` was removed
- * in Roadmap Phase 9 — there's only one ADSR envelope per robot now (Robot.audioAttributes.adsr),
- * nothing left to average (see docs/ROBOT_DESIGN.md).
- */
-export interface VisualAudioMap {
-  averagedGain?: number
-  shapeParams?: ShapeParams
-  layerVisuals?: LayerVisual[]
-}
-
-

@@ -289,6 +289,22 @@ describe('RobotSelectionCard', () => {
     expect(midnightFill).toBe(noonFill);
   });
 
+  it('frames the avatar with the widened, centred viewBox so the largest body is unclipped (Phase 36 Task 7)', () => {
+    const { container } = renderCard();
+    const avatar = container.querySelector('svg.robot-selection-card__avatar');
+    expect(avatar?.getAttribute('viewBox')).toBe('-40 -52 176 176');
+  });
+
+  it('hides the seeded greebles on the 64px card avatar (Phase 37 Task 6)', () => {
+    const { container } = renderCard({ greebles: [{ kind: 0, slot: 0 }] });
+    expect(container.querySelector('.greebles')).toBeNull();
+  });
+
+  it('shows two layer sockets on the card avatar (Phase 38 Task 5)', () => {
+    const { container } = renderCard();
+    expect(container.querySelectorAll('.socket')).toHaveLength(2);
+  });
+
   it("has an accessible name matching the robot's name", () => {
     renderCard({ name: 'Unit One' });
     expect(screen.getByRole('button', { name: 'Unit One' })).toBeTruthy();

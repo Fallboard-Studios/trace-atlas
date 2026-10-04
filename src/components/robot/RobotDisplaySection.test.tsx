@@ -52,6 +52,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     batteryLevel: 82,
     audioMode: 'none',
     job: { type: 'acousticSurvey', assignedAtMeasure: 0 },
+    greebles: [{ kind: 1, slot: 2 }],
     ...overrides,
   } as Robot;
 }
@@ -68,6 +69,20 @@ describe('RobotDisplaySection', () => {
     useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
     useUIStore.getState().setActiveLocaleLocalTime(null);
     useAudioStore.setState({ soundingRobotIds: [] });
+  });
+
+  it('renders the seeded greebles (unlike the 64px card, which hides them) — Phase 37 Task 6', () => {
+    const robot = makeRobot();
+    useLocaleStore.getState().addRobot(localeId, robot);
+    const { container } = render(<RobotDisplaySection robot={robot} />);
+    expect(container.querySelector('.greebles')).not.toBeNull();
+  });
+
+  it('renders two layer sockets (Phase 38 Task 5)', () => {
+    const robot = makeRobot();
+    useLocaleStore.getState().addRobot(localeId, robot);
+    const { container } = render(<RobotDisplaySection robot={robot} />);
+    expect(container.querySelectorAll('.socket')).toHaveLength(2);
   });
 
   it('renders the same sunlight/time-agnostic robot avatar RobotSelectionCard uses (ignoreDaylight passed through)', () => {

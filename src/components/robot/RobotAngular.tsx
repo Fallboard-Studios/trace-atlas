@@ -2,14 +2,13 @@
 // IMPORTS
 // ========================================
 import React from 'react';
+import { identityGlass } from './robotVisualHelpers';
 
 // ========================================
 // TYPES
 // ========================================
 interface ShapeParams {
   torsoAspect: number;
-  appendageLength: number;
-  scaleBias: number;
 }
 
 interface MicroVariants {
@@ -19,17 +18,23 @@ interface MicroVariants {
 }
 
 interface RobotSVGProps {
-  colors: { primary: string; secondary: string; accent: string };
+  colors: { primary: string; secondary: string; accent: string; highlight: string; shadow: string };
   scale: number;
   detailLevel: number; // 0-1, controls decoration complexity
   shapeParams?: ShapeParams;
   microVariants?: MicroVariants;
-  greebleCount?: number;
-  greebleSize?: number;
-  greeblePersistence?: number;
-  greeblePlacementBias?: number;
   /** Opacity multiplier (1 = full brightness) for the viewport — dims as battery drains. */
   dimOpacity?: number;
+  /** Robot.identityColor hex — the window glass's only non-ADSR color (docs/ROBOT_DESIGN.md "Non-audio layers"). */
+  identityColor?: string;
+  /** Opacity multiplier for the lamp, driven by live audible-layer gain; battery-composed like dimOpacity. */
+  lampOpacity?: number;
+  /** Seeded hardware parts (RobotGreebles), placed between the hull shadow and the window — the
+   *  shape never learns about kinds or slots, just where this node sits. */
+  greebles?: React.ReactNode;
+  /** The two always-present identity sockets (RobotLayerSockets), placed after the lamp and
+   *  before .details — the shape never learns about positions or gains, just where this sits. */
+  sockets?: React.ReactNode;
 }
 
 // ========================================
@@ -39,14 +44,12 @@ interface RobotSVGProps {
  * RobotAngular - Sharp, geometric design for angular synth voices
  * Industrial hexagonal hull with aggressive angles
  */
-export const RobotAngular = React.memo(function RobotAngular({ colors, scale, detailLevel, shapeParams, dimOpacity = 1 }: RobotSVGProps) {
+export const RobotAngular = React.memo(function RobotAngular({ colors, scale, detailLevel, shapeParams, dimOpacity = 1, identityColor = '#78cce2', lampOpacity = 1, greebles, sockets }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
-  const appendageLength = shapeParams?.appendageLength ?? 1;
-  const scaleBias = shapeParams?.scaleBias ?? 0;
-  const overall = scale * (1 + scaleBias);
+  const { glass, sheen } = identityGlass(identityColor);
 
   return (
-    <g transform={`scale(${overall})`}>
+    <g transform={`translate(48,36) scale(${scale}) translate(-48,-36)`}>
       <g transform={`scale(${torsoAspect},1)`}>
         <svg viewBox="0 0 96 72" width={96} height={72}>
           {/* Base hull - hexagonal segmented */}
@@ -58,34 +61,23 @@ export const RobotAngular = React.memo(function RobotAngular({ colors, scale, de
           {/* Hull highlights */}
           <polygon
             points="16,36 24,13 72,13 79,36 78,36 71,14 25,14 17,36"
-            fill="#a9adb0"
+            fill={colors.highlight}
             opacity="0.6"
           />
 
           {/* Hull shadows */}
           <polygon
             points="16,36 24,59 72,59 79,36 78,36 71,58 25,58 17,36"
-            fill="#000000"
+            fill={colors.shadow}
             opacity="0.3"
           />
 
-          {/* Propeller mounting - angular strut */}
-          <g className="propeller-arm">
-            <polygon points={`80,32 ${86 + Math.round(6 * (appendageLength - 1))},34 ${86 + Math.round(6 * (appendageLength - 1))},38 80,40`} fill={colors.secondary} />
-            <polygon points="80,32 86,34 85,33 80,31" fill="#a9adb0" opacity="0.5" />
-            <polygon points="80,40 86,38 85,39 80,41" fill="#000000" opacity="0.3" />
-          </g>
+          {greebles}
 
-          {/* Propeller - diamond cross */}
-          <g className="propeller" transform="translate(88, 36)">
-            <polygon points="0,-8 2,0 0,8 -2,0" fill={colors.secondary} />
-            <polygon points="-8,0 0,2 8,0 0,-2" fill={colors.secondary} />
-          </g>
-
-          {/* Viewport - diamond shape — dims as battery drains */}
-          <g opacity={dimOpacity}>
-            <polygon points="36,36 44,28 52,36 44,44" fill="#78cce2" opacity="0.8" />
-            <polygon points="36,36 44,29 52,36 44,32" fill="#b3e5f2" opacity="0.6" />
+          {/* Viewport - diamond shape — carries the identity colour; dims as battery drains */}
+          <g className="window" opacity={dimOpacity}>
+            <polygon points="36,36 44,28 52,36 44,44" fill={glass} opacity="0.8" />
+            <polygon points="36,36 44,29 52,36 44,32" fill={sheen} opacity="0.6" />
           </g>
 
           {/* Corner rivets */}
@@ -93,6 +85,14 @@ export const RobotAngular = React.memo(function RobotAngular({ colors, scale, de
           <circle cx="70" cy="16" r="1.5" fill="#4f5458" />
           <circle cx="26" cy="56" r="1.5" fill="#4f5458" />
           <circle cx="70" cy="56" r="1.5" fill="#4f5458" />
+
+          {/* Lamp — identity-coloured, always visible, lit by live audible-layer gain */}
+          <g className="lamp" opacity={lampOpacity}>
+            <circle cx="73" cy="36" r="3" fill={glass} />
+            <circle cx="73" cy="35" r="1.8" fill={sheen} />
+          </g>
+
+          {sockets}
 
           {detailLevel > 0.5 && (
             <g className="details">
