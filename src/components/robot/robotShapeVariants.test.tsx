@@ -18,7 +18,7 @@ const VARIANTS = [
 ] as const;
 
 const baseProps = {
-  colors: { primary: '#111111', secondary: '#222222', accent: '#333333' },
+  colors: { primary: '#111111', secondary: '#222222', accent: '#333333', highlight: '#444444', shadow: '#050505' },
   scale: 1,
   detailLevel: 0.2,
 };
@@ -81,5 +81,13 @@ describe.each(VARIANTS)('%s', (_name, Component) => {
     const { container } = render(<svg><Component {...baseProps} /></svg>);
     expect(container.querySelector('.propeller')).toBeNull();
     expect(container.querySelector('.propeller-arm')).toBeNull();
+  });
+
+  it('shades from the robot\'s own highlight/shadow colours, not a fixed grey/black (Phase 36 Task 9)', () => {
+    const { container } = render(<svg><Component {...baseProps} /></svg>);
+    expect(container.querySelector('[fill="#a9adb0"]')).toBeNull();
+    expect(container.querySelector('[fill="#000000"]')).toBeNull();
+    expect(container.querySelector(`[fill="${baseProps.colors.highlight}"]`)).not.toBeNull();
+    expect(container.querySelector(`[fill="${baseProps.colors.shadow}"]`)).not.toBeNull();
   });
 });

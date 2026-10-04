@@ -17,7 +17,7 @@ interface MicroVariants {
 }
 
 interface RobotSVGProps {
-  colors: { primary: string; secondary: string; accent: string };
+  colors: { primary: string; secondary: string; accent: string; highlight: string; shadow: string };
   scale: number;
   detailLevel: number; // 0-1, controls decoration complexity
   shapeParams?: ShapeParams;
@@ -53,14 +53,14 @@ export const RobotSleek = React.memo(function RobotSleek({ colors, scale, detail
           {/* Hull highlight */}
           <path
             d="M 8,16 L 9,17 H 71 L 79,25 V 20 L 72,13 H 13 L 9,17 L 8,16 Z"
-            fill="#a9adb0"
+            fill={colors.highlight}
             opacity="0.6"
           />
 
           {/* Hull shadow */}
           <path
             d="M 8,56 L 9,55 H 71 L 79,47 V 52 L 72,59 H 13 L 9,55 L 8,56 Z"
-            fill="#000000"
+            fill={colors.shadow}
             opacity="0.3"
           />
 

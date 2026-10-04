@@ -17,7 +17,7 @@ interface MicroVariants {
 }
 
 interface RobotSVGProps {
-  colors: { primary: string; secondary: string; accent: string };
+  colors: { primary: string; secondary: string; accent: string; highlight: string; shadow: string };
   scale: number;
   detailLevel: number; // 0-1, controls decoration complexity
   shapeParams?: ShapeParams;
@@ -53,14 +53,14 @@ export const RobotAngular = React.memo(function RobotAngular({ colors, scale, de
           {/* Hull highlights */}
           <polygon
             points="16,36 24,13 72,13 79,36 78,36 71,14 25,14 17,36"
-            fill="#a9adb0"
+            fill={colors.highlight}
             opacity="0.6"
           />
 
           {/* Hull shadows */}
           <polygon
             points="16,36 24,59 72,59 79,36 78,36 71,58 25,58 17,36"
-            fill="#000000"
+            fill={colors.shadow}
             opacity="0.3"
           />
 

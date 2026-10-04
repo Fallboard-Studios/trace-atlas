@@ -17,7 +17,7 @@ interface MicroVariants {
 }
 
 interface RobotSVGProps {
-  colors: { primary: string; secondary: string; accent: string };
+  colors: { primary: string; secondary: string; accent: string; highlight: string; shadow: string };
   scale: number;
   detailLevel: number; // 0-1, controls decoration complexity
   shapeParams?: ShapeParams;
@@ -49,18 +49,18 @@ export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, sca
 
         {/* Top armor plate */}
         <path d="M 12,12 H 68 V 28 H 12 Z" fill={colors.primary} />
-        <path d="M 12,12 H 68 L 67,13 H 13 Z" fill="#a9adb0" opacity="0.6" />
-        <path d="M 12,28 H 68 L 67,27 H 13 Z" fill="#000000" opacity="0.3" />
+        <path d="M 12,12 H 68 L 67,13 H 13 Z" fill={colors.highlight} opacity="0.6" />
+        <path d="M 12,28 H 68 L 67,27 H 13 Z" fill={colors.shadow} opacity="0.3" />
 
         {/* Bottom armor plate */}
         <path d="M 12,44 H 68 V 60 H 12 Z" fill={colors.primary} />
-        <path d="M 12,44 H 68 L 67,45 H 13 Z" fill="#a9adb0" opacity="0.6" />
-        <path d="M 12,60 H 68 L 67,59 H 13 Z" fill="#000000" opacity="0.3" />
+        <path d="M 12,44 H 68 L 67,45 H 13 Z" fill={colors.highlight} opacity="0.6" />
+        <path d="M 12,60 H 68 L 67,59 H 13 Z" fill={colors.shadow} opacity="0.3" />
 
         {/* Right section */}
         <rect x="72" y="20" width="16" height="32" fill={colors.primary} />
-        <path d="M 72,20 H 88 L 87,21 H 73 Z" fill="#a9adb0" opacity="0.6" />
-        <path d="M 72,52 H 88 L 87,51 H 73 Z" fill="#000000" opacity="0.3" />
+        <path d="M 72,20 H 88 L 87,21 H 73 Z" fill={colors.highlight} opacity="0.6" />
+        <path d="M 72,52 H 88 L 87,51 H 73 Z" fill={colors.shadow} opacity="0.3" />
 
         {/* Central viewport — dims as battery drains */}
         <g opacity={dimOpacity}>

@@ -17,7 +17,7 @@ interface MicroVariants {
 }
 
 interface RobotSVGProps {
-  colors: { primary: string; secondary: string; accent: string };
+  colors: { primary: string; secondary: string; accent: string; highlight: string; shadow: string };
   scale: number;
   detailLevel: number; // 0-1, controls decoration complexity
   shapeParams?: ShapeParams;
@@ -48,10 +48,10 @@ export const RobotOrganic = React.memo(function RobotOrganic({ colors, scale, de
         <ellipse cx="48" cy="36" rx="36" ry="28" fill={colors.primary} />
 
         {/* Hull highlight - curved upper */}
-        <ellipse cx="48" cy="28" rx="32" ry="16" fill="#a9adb0" opacity="0.5" />
+        <ellipse cx="48" cy="28" rx="32" ry="16" fill={colors.highlight} opacity="0.5" />
 
         {/* Hull shadow - curved lower */}
-        <ellipse cx="48" cy="44" rx="32" ry="16" fill="#000000" opacity="0.2" />
+        <ellipse cx="48" cy="44" rx="32" ry="16" fill={colors.shadow} opacity="0.2" />
 
         {/* Central viewport - circular — dims as battery drains */}
         <g opacity={dimOpacity}>
