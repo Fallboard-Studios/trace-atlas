@@ -78,6 +78,13 @@ describe('RobotDisplaySection', () => {
     expect(container.querySelector('.greebles')).not.toBeNull();
   });
 
+  it('renders two layer sockets (Phase 38 Task 5)', () => {
+    const robot = makeRobot();
+    useLocaleStore.getState().addRobot(localeId, robot);
+    const { container } = render(<RobotDisplaySection robot={robot} />);
+    expect(container.querySelectorAll('.socket')).toHaveLength(2);
+  });
+
   it('renders the same sunlight/time-agnostic robot avatar RobotSelectionCard uses (ignoreDaylight passed through)', () => {
     const robot = makeRobot();
     useLocaleStore.getState().addRobot(localeId, robot);

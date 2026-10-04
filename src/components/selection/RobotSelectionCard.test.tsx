@@ -300,6 +300,11 @@ describe('RobotSelectionCard', () => {
     expect(container.querySelector('.greebles')).toBeNull();
   });
 
+  it('shows two layer sockets on the card avatar (Phase 38 Task 5)', () => {
+    const { container } = renderCard();
+    expect(container.querySelectorAll('.socket')).toHaveLength(2);
+  });
+
   it("has an accessible name matching the robot's name", () => {
     renderCard({ name: 'Unit One' });
     expect(screen.getByRole('button', { name: 'Unit One' })).toBeTruthy();

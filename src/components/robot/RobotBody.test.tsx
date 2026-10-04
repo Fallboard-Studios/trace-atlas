@@ -61,6 +61,14 @@ function greebleParts(container: HTMLElement): { cls: string; transform: string 
   }));
 }
 
+function socketOpacities(container: HTMLElement): (string | null)[] {
+  return Array.from(container.querySelectorAll('.socket')).map((el) => el.querySelector('[opacity]')?.getAttribute('opacity') ?? null);
+}
+
+function socketGlassFills(container: HTMLElement): (string | null)[] {
+  return Array.from(container.querySelectorAll('.socket')).map((el) => el.querySelector('[opacity]')?.firstElementChild?.getAttribute('fill') ?? null);
+}
+
 // The root body group is centre-scaled: translate(48,36) scale(s) translate(-48,-36) (Task 5).
 function rootTransform(container: HTMLElement): string | null {
   return container.querySelector('g[transform^="translate(48,36)"]')?.getAttribute('transform') ?? null;
@@ -325,6 +333,92 @@ describe('RobotBody', () => {
 
       const sameAudioDifferentGreebles = { ...robot, greebles: [{ kind: 4, slot: 5 }] };
       rerender(<svg><RobotBody robot={sameAudioDifferentGreebles} /></svg>);
+
+      expect(spy.mock.calls.length).toBe(callsAfterMount);
+      spy.mockRestore();
+    });
+  });
+
+  describe('layer sockets (Phase 38 Task 5)', () => {
+    function layers(coaxialGain: number, harmonicGain = 1) {
+      return [
+        { type: 'sine' as const, gain: 1, detune: 0, phase: 0 },
+        { type: 'sine' as const, gain: coaxialGain, detune: 0, phase: 0 },
+        { type: 'sine' as const, gain: harmonicGain, detune: 0, phase: 0 },
+      ];
+    }
+
+    it('renders exactly two .socket, both at SOCKET_DARK, when layers is undefined', () => {
+      const robot = makeRobot({ batteryLevel: 100 }); // full battery isolates dimOpacity=1; default audioAttributes carries no `layers`
+      const { container } = render(<svg><RobotBody robot={robot} /></svg>);
+
+      const sockets = container.querySelectorAll('.socket');
+      expect(sockets).toHaveLength(2);
+      const opacities = socketOpacities(container).map(Number);
+      expect(opacities[0]).toBeCloseTo(robotVisualHelpers.SOCKET_DARK);
+      expect(opacities[1]).toBeCloseTo(robotVisualHelpers.SOCKET_DARK);
+    });
+
+    it('layers[1].gain 0 vs 1 changes only the coaxial socket\'s opacity, not the harmonic one', () => {
+      const muted = makeRobot({ audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine', layers: layers(0) } });
+      const lit = makeRobot({ audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine', layers: layers(1) } });
+
+      const { container: mutedContainer, unmount } = render(<svg><RobotBody robot={muted} /></svg>);
+      const mutedOpacities = socketOpacities(mutedContainer);
+      unmount();
+
+      const { container: litContainer } = render(<svg><RobotBody robot={lit} /></svg>);
+      const litOpacities = socketOpacities(litContainer);
+
+      expect(litOpacities[0]).not.toBe(mutedOpacities[0]);
+      expect(litOpacities[1]).toBe(mutedOpacities[1]);
+    });
+
+    it('critical battery multiplies both socket opacities by 0.1, same audio', () => {
+      const full = makeRobot({ batteryLevel: 100, audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine', layers: layers(1, 1) } });
+      const critical = makeRobot({ batteryLevel: 5, audioAttributes: { adsr: { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine', layers: layers(1, 1) } });
+
+      const { container: fullContainer, unmount } = render(<svg><RobotBody robot={full} /></svg>);
+      const fullOpacities = socketOpacities(fullContainer).map(Number);
+      unmount();
+
+      const { container: criticalContainer } = render(<svg><RobotBody robot={critical} /></svg>);
+      const criticalOpacities = socketOpacities(criticalContainer).map(Number);
+
+      expect(criticalOpacities[0]).toBeCloseTo(fullOpacities[0] * 0.1, 6);
+      expect(criticalOpacities[1]).toBeCloseTo(fullOpacities[1] * 0.1, 6);
+    });
+
+    it('changing only identityColor changes the socket glass fill and nothing else in the body', () => {
+      const blue = makeRobot({ identityColor: '#428d95' });
+      const orange = makeRobot({ identityColor: '#d97b29' });
+
+      const { container: blueContainer, unmount } = render(<svg><RobotBody robot={blue} /></svg>);
+      const blueGlass = socketGlassFills(blueContainer);
+      const blueTransform = rootTransform(blueContainer);
+      const bluePrimary = primaryFill(blueContainer);
+      unmount();
+
+      const { container: orangeContainer } = render(<svg><RobotBody robot={orange} /></svg>);
+      const orangeGlass = socketGlassFills(orangeContainer);
+      const orangeTransform = rootTransform(orangeContainer);
+      const orangePrimary = primaryFill(orangeContainer);
+
+      expect(blueGlass).toEqual(['#428d95', '#428d95']);
+      expect(orangeGlass).toEqual(['#d97b29', '#d97b29']);
+      expect(orangeTransform).toBe(blueTransform);
+      expect(orangePrimary).toBe(bluePrimary);
+    });
+
+    it('robot.batteryLevel is not in the audio memo\'s dependency array — a battery-only change does not recompute shapeParamsFromAudio', () => {
+      const spy = vi.spyOn(robotVisualHelpers, 'shapeParamsFromAudio');
+      const robot = makeRobot();
+      const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
+      const callsAfterMount = spy.mock.calls.length;
+      expect(callsAfterMount).toBeGreaterThan(0);
+
+      const sameAudioDifferentBattery = { ...robot, batteryLevel: 5 };
+      rerender(<svg><RobotBody robot={sameAudioDifferentBattery} /></svg>);
 
       expect(spy.mock.calls.length).toBe(callsAfterMount);
       spy.mockRestore();

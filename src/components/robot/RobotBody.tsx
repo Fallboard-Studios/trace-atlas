@@ -14,11 +14,14 @@ import {
   LAMP_MIN,
   applyLightnessMultiplier,
   computeBatteryDimOpacity,
+  socketLitOpacity,
+  identityGlass,
 } from './robotVisualHelpers';
 import type { RobotColors, RobotSVGComponent, ShapeParams, MicroVariants } from './robotVisualHelpers';
 import { useUIStore } from '../../stores/uiStore';
 import { RobotGreebles } from './RobotGreebles';
-import { GREEBLE_SLOTS } from './greebleSlots';
+import { RobotLayerSockets } from './RobotLayerSockets';
+import { GREEBLE_SLOTS, SOCKET_POSITIONS } from './greebleSlots';
 
 // ========================================
 // TYPES
@@ -104,6 +107,14 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, hideGr
     const detail = bodyShape.detail;
     const lampIntensity = calculateLampIntensity(robot.audioAttributes.layers, detail);
 
+    // Coaxial (layers[1]), Harmonic (layers[2]) — audio-only, same reasoning as lampIntensity;
+    // battery is composed outside the memo below (docs/specs/ROBOT_LAYER_MARKERS.md §1.1).
+    const layers = robot.audioAttributes.layers;
+    const socketLit: [number, number] = [
+      socketLitOpacity(layers?.[1]?.gain),
+      socketLitOpacity(layers?.[2]?.gain),
+    ];
+
     return {
       Component: selectRobotShape(waveform),
       waveform,
@@ -113,6 +124,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, hideGr
       shapeParams,
       microVariants,
       lampIntensity,
+      socketLit,
     };
   }, [robot.audioAttributes, robot.octaveRange]) as {
     Component: RobotSVGComponent;
@@ -123,11 +135,13 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, hideGr
     shapeParams: ShapeParams;
     microVariants: MicroVariants;
     lampIntensity: number;
+    socketLit: [number, number];
   };
 
   // Battery is not audio — composed with the memoised lampIntensity outside the memo, same
   // reasoning as dimOpacity above.
   const lampOpacity = (LAMP_MIN + (1 - LAMP_MIN) * audioVisual.lampIntensity) * dimOpacity;
+  const socketOpacities: [number, number] = [audioVisual.socketLit[0] * dimOpacity, audioVisual.socketLit[1] * dimOpacity];
 
   // Cheap — recomputed every render/tick, same as Factory.tsx's own body/belt fills
   // (docs/specs/FACTORY_LIGHTING_RERENDER.md's staticVisual precedent).
@@ -142,6 +156,13 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, hideGr
     <RobotGreebles greebles={robot.greebles} slots={GREEBLE_SLOTS[audioVisual.waveform]} colors={colors} />
   );
 
+  // Identity colour, not audio — same reasoning as the window/lamp glass above. Falls back to
+  // the same default the shape components themselves apply when a fixture omits identityColor.
+  const { glass, sheen } = identityGlass(identityColor ?? '#78cce2');
+  const sockets = (
+    <RobotLayerSockets positions={SOCKET_POSITIONS[audioVisual.waveform]} opacities={socketOpacities} glass={glass} sheen={sheen} housing={colors.shadow} />
+  );
+
   return (
     <Component
       colors={colors}
@@ -153,6 +174,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, hideGr
       identityColor={identityColor}
       lampOpacity={lampOpacity}
       greebles={greebles}
+      sockets={sockets}
     />
   );
 });
