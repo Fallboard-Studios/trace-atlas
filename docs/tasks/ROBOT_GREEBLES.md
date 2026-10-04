@@ -33,7 +33,7 @@ Parallelisable after A: T2 ‖ T3 ‖ T4. T5 needs only T4's component type; T6 
 
 ## Task 1: Static sketch `docs/sketches/robot-greebles.html`
 
-**Description:** One self-contained HTML page (no build, open in a browser). For each of the four shapes, as they stand after Phase 36 (centre-scaled root, identity window, lamp, `.details` shown): the eight candidate slot boxes drawn as outlines, the candidate vocabulary (panel, tank, dish, antenna, decal — plus any Crawford adds) drawn once each at world scale, and six seeded sets per shape rendered at world scale and at the 96 px avatar scale. A header block records the sign-off: final kinds, count range, and the slot coordinates per shape.
+**Description:** One self-contained HTML page (no build, open in a browser). For each of the four shapes, as they stand after Phase 36 (centre-scaled root, identity window, lamp, `.details` shown): the eight candidate slot boxes drawn as outlines, the candidate vocabulary (panel, tank, dish, antenna, decal — plus any Crawford adds) drawn once each at world scale, **two reserved layer-socket positions per shape (Coaxial, Harmonic — branch 3's fixtures, see docs/intent/robot-layer-markers.md) drawn as lamp-sized dots and entered into `FIXTURE_BOXES`,** and six seeded sets per shape rendered at world scale and at the 96 px avatar scale. A header block records the sign-off: final kinds, count range, and the slot coordinates per shape.
 
 **Acceptance criteria:**
 - [ ] Opens with no console errors; every part sits inside its shape's outline and overlaps no fixture, by eye.

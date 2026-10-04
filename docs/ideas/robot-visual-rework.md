@@ -62,10 +62,11 @@ the mapper and `layerVisuals`, and computes the same formulas from the live enve
    fields — phase/detune/cutoff — not a seed, to stay inside the visuals-map-to-audio guardrail),
    count from filter cutoff, hidden at thumbnail scale. Persistence (a duration) is dropped or
    becomes a GSAP fade later. Static HTML sketch gate before React, as the hull did. Medium.
-3. **Layer markers** (roadmap Phase 38): one marker per audible Coaxial/Harmonic layer
-   (`layers[1..]`, `gain > 0`), read live from the layers array — sized by gain, placed by
-   phase, tinted by that layer's waveform hue. Gain to zero removes it (the shipped mute rule).
-   Spawn odds: ~half the robots get one, a quarter two, a quarter none. The static form of
+3. **Layer markers** (roadmap Phase 38): two always-present lamp-like sockets per robot
+   (Coaxial, Harmonic), identity-coloured, lit in proportion to the layer's live gain and dark
+   when muted — nothing appears or disappears on an edit (Crawford, 2026-10-03: "it goes dark";
+   same ruling as the greebles). Gain only for now; detune/phase wait for motion. Shown on the
+   card. Intent: [docs/intent/robot-layer-markers.md](../intent/robot-layer-markers.md). The static form of
    [layer-pods-and-follow-through.md](layer-pods-and-follow-through.md); orbits and swim
    trailing are a later motion branch on top. Depends on branch 1. Small to medium.
 
