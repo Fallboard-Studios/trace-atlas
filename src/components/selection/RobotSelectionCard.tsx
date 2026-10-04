@@ -118,7 +118,7 @@ export const RobotSelectionCard = memo(function RobotSelectionCard({ robotId }: 
         onKeyDown={handleKeyDown}
       >
         <div className="robot-selection-card__meta-row">
-          <svg className="robot-selection-card__avatar" viewBox="-80 -80 160 160" aria-hidden="true">
+          <svg className="robot-selection-card__avatar" viewBox="-40 -52 176 176" aria-hidden="true">
             <RobotBody robot={robot} ignoreDaylight />
           </svg>
 

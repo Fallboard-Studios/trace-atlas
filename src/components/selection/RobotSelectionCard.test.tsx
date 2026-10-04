@@ -289,6 +289,12 @@ describe('RobotSelectionCard', () => {
     expect(midnightFill).toBe(noonFill);
   });
 
+  it('frames the avatar with the widened, centred viewBox so the largest body is unclipped (Phase 36 Task 7)', () => {
+    const { container } = renderCard();
+    const avatar = container.querySelector('svg.robot-selection-card__avatar');
+    expect(avatar?.getAttribute('viewBox')).toBe('-40 -52 176 176');
+  });
+
   it("has an accessible name matching the robot's name", () => {
     renderCard({ name: 'Unit One' });
     expect(screen.getByRole('button', { name: 'Unit One' })).toBeTruthy();

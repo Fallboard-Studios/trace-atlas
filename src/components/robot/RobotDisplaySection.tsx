@@ -67,7 +67,7 @@ function RobotDisplaySectionInner({ robot }: RobotDisplaySectionProps) {
           <span className="robot-display-section__value">{jobLabel.humanLabel}</span>
         </div>
 
-        <svg className="robot-display-section__avatar" viewBox="-80 -80 160 160" aria-hidden="true">
+        <svg className="robot-display-section__avatar" viewBox="-40 -52 176 176" aria-hidden="true">
           <RobotBody robot={robot} ignoreDaylight />
         </svg>
 
