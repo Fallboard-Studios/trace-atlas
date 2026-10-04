@@ -86,9 +86,9 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
     const adsrTorso = Math.max(0.7, Math.min(1.3, 0.85 + (bodyShape.roundness - 0.5) * 0.6));
     const shapeParams = {
       torsoAspect: adsrTorso, // blended with register below after fromAudio is computed
-      appendageLength: Math.max(0.6, Math.min(1.4, 0.8 + bodyShape.detail * 0.9)),
-      scaleBias: Math.max(-0.4, Math.min(0.4, (bodyShape.scale - 0.5) * 0.6)),
     };
+    // Shapes now take `scale` alone (no scaleBias prop), so the bias is folded in here.
+    const scaleBias = Math.max(-0.4, Math.min(0.4, (bodyShape.scale - 0.5) * 0.6));
 
     const fromAudio = shapeParamsFromAudio(robot.audioAttributes, octaveRange);
     const microVariants = fromAudio.microVariants;
@@ -112,7 +112,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
     return {
       Component: selectRobotShape(waveform),
       baseColors,
-      scale: calculateScale(octaveRange),
+      scale: calculateScale(octaveRange) * (1 + scaleBias),
       detailLevel: detail,
       shapeParams,
       microVariants,

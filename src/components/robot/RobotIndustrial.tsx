@@ -8,8 +8,6 @@ import React from 'react';
 // ========================================
 interface ShapeParams {
   torsoAspect: number;
-  appendageLength: number;
-  scaleBias: number;
 }
 
 interface MicroVariants {
@@ -41,11 +39,9 @@ interface RobotSVGProps {
  */
 export const RobotIndustrial = React.memo(function RobotIndustrial({ colors, scale, detailLevel, shapeParams, dimOpacity = 1 }: RobotSVGProps) {
   const torsoAspect = shapeParams?.torsoAspect ?? 1;
-  const scaleBias = shapeParams?.scaleBias ?? 0;
-  const overall = scale * (1 + scaleBias);
 
   return (
-    <g transform={`scale(${overall})`}>
+    <g transform={`translate(48,36) scale(${scale}) translate(-48,-36)`}>
       <g transform={`scale(${torsoAspect},1)`}>
       <svg viewBox="0 0 96 72" width={96} height={72}>
         {/* Base hull - layered rectangular sections */}

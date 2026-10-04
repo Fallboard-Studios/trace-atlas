@@ -51,19 +51,30 @@ describe.each(VARIANTS)('%s', (_name, Component) => {
     expect(dimmed).not.toBeNull();
   });
 
-  it('applies scale * (1 + scaleBias) to the root transform, defaulting scaleBias to 0', () => {
-    const { container: defaultCase } = render(<svg><Component {...baseProps} scale={2} /></svg>);
-    const rootGroup = defaultCase.querySelector('g[transform^="scale("]');
-    expect(rootGroup?.getAttribute('transform')).toBe('scale(2)');
+  it('centre-scales the root about (48,36): translate(48,36) scale(s) translate(-48,-36)', () => {
+    const { container } = render(<svg><Component {...baseProps} scale={2} /></svg>);
+    const rootGroup = container.querySelector('g[transform^="translate(48,36)"]');
+    expect(rootGroup?.getAttribute('transform')).toBe('translate(48,36) scale(2) translate(-48,-36)');
+  });
 
-    const { container: biasedCase } = render(
-      <svg>
-        <Component {...baseProps} scale={2} shapeParams={{ torsoAspect: 1, appendageLength: 1, scaleBias: 0.5 }} />
-      </svg>,
+  it('leaves the inner torsoAspect scale group unchanged', () => {
+    const { container } = render(
+      <svg><Component {...baseProps} shapeParams={{ torsoAspect: 1.2 }} /></svg>,
     );
-    const biasedRootGroup = biasedCase.querySelector('g[transform^="scale("]');
-    // overall = scale * (1 + scaleBias) = 2 * 1.5 = 3
-    expect(biasedRootGroup?.getAttribute('transform')).toBe('scale(3)');
+    const torsoGroup = container.querySelector('g[transform^="scale("]');
+    expect(torsoGroup?.getAttribute('transform')).toBe('scale(1.2,1)');
+  });
+
+  it('shapeParams is { torsoAspect } only — appendageLength/scaleBias no longer type-check (compile-time)', () => {
+    // Each line is a type error once the fields are gone: an excess-property check on the
+    // object literal passed as shapeParams. Runtime: render ignores unknown props, so this
+    // stays green. One element per line, per the project's ts-expect-error convention.
+    const { container } = render(<svg><Component {...baseProps} shapeParams={{ torsoAspect: 1 }} /></svg>);
+    expect(container.querySelector('svg')).not.toBeNull();
+    // @ts-expect-error appendageLength no longer exists on ShapeParams
+    render(<svg><Component {...baseProps} shapeParams={{ torsoAspect: 1, appendageLength: 1 }} /></svg>);
+    // @ts-expect-error scaleBias no longer exists on ShapeParams
+    render(<svg><Component {...baseProps} shapeParams={{ torsoAspect: 1, scaleBias: 0.5 }} /></svg>);
   });
 
   it('renders no propeller or propeller mounting arm', () => {

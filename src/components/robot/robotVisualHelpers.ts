@@ -179,9 +179,7 @@ export function calculateLampIntensity(layers: OscillatorLayer[] | undefined, de
 // ========================================
 
 export interface ShapeParams {
-  torsoAspect: number;      // horizontal stretch (0.7..1.3)
-  appendageLength: number;  // multiplier for propeller/strut lengths (0.6..1.4)
-  scaleBias: number;        // additive bias applied to overall scale (-0.3..0.3)
+  torsoAspect: number; // horizontal stretch (0.7..1.3)
 }
 
 export interface MicroVariants {
@@ -195,7 +193,7 @@ export interface MicroVariants {
  * Keeps values clamped to safe visual ranges.
  */
 export function shapeParamsFromAudio(attrs: AudioAttributes & { octaveOffset?: number }, octaveRange?: [number, number]) {
-  const { filterFreq, waveform, adsr, octaveOffset } = attrs;
+  const { waveform, adsr } = attrs;
 
   // Prefer caller-supplied octaveRange, then audioAttributes.octaveRange, then mid-register fallback
   const register: [number, number] = octaveRange ?? attrs.octaveRange ?? [2, 4];
@@ -205,23 +203,6 @@ export function shapeParamsFromAudio(attrs: AudioAttributes & { octaveOffset?: n
   const pitchNorm = clamp01((mid - 1) / 4); // map [1..5] midpoints to 0..1
   const torsoAspect = 1.15 - pitchNorm * 0.3; // 1.15 -> 0.85
 
-  // appendageLength: use filterFreq (more detail -> longer appendages)
-  const detailNorm = calculateDetailLevel(filterFreq); // 0..1
-  const appendageLength = 0.7 + detailNorm * 0.8; // 0.7..1.5
-
-  // scaleBias: derived from register (reuse calculateScale as anchor)
-  const baseScale = calculateScale(register); // 0.7|1|1.3
-  const scaleBias = Math.round((baseScale - 1) * 100) / 100; // -0.3|0|0.3
-
-  // octaveOffset nudges scale if provided (0 = fastest/smallest -> slight negative bias)
-  let octaveBias = 0;
-  if (typeof octaveOffset === 'number') {
-    // map 0->-0.06, 1->0, 2->+0.06
-    octaveBias = (octaveOffset - 1) * 0.06;
-  }
-
-  const finalScaleBias = clamp01(0.5 + (scaleBias + octaveBias)) - 0.5; // keep within roughly -0.5..0.5 then recentre
-
   const micro: MicroVariants = {};
   if (waveform === 'square') micro.stripes = true;
   if (waveform === 'sine') micro.smooth = true;
@@ -230,8 +211,6 @@ export function shapeParamsFromAudio(attrs: AudioAttributes & { octaveOffset?: n
 
   const clamped: ShapeParams = {
     torsoAspect: Math.max(0.7, Math.min(1.3, torsoAspect)),
-    appendageLength: Math.max(0.6, Math.min(1.4, appendageLength)),
-    scaleBias: Math.max(-0.4, Math.min(0.4, finalScaleBias)),
   };
 
   return { shapeParams: clamped, microVariants: micro };
