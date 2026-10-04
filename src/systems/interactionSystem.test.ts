@@ -73,6 +73,7 @@ const createTestRobot = (id: string, state = RobotState.Idle): Robot => ({
   id,
   compositionSeed: 0.5,
   identityColor: '#428d95',
+  greebles: [],
   state,
   position: { x: 0, y: 0 },
   destination: null,

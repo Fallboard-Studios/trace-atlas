@@ -72,6 +72,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     compositionSeed: 0.5,
     name: 'Test Robot',
     identityColor: '#428d95',
+    greebles: [],
     state: 'idle',
     position: { x: 100, y: 100 },
     destination: null,

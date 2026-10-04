@@ -4,7 +4,7 @@
 import alea from 'alea';
 import type { NoiseFunction2D } from 'simplex-noise';
 import type { Vec2 } from '../types/Vec2';
-import type { AudioAttributes, WaveformType, Robot } from '../types/Robot';
+import type { AudioAttributes, WaveformType, Robot, Greeble } from '../types/Robot';
 import { RobotState, DockingState } from '../types/Robot';
 import {
   generateMelodyForRobot,
@@ -143,6 +143,37 @@ function generateRobotIdentityColor(noiseMap: NoiseFunction2D, offset: number): 
   // undefined CSS custom property, not just a missing name syllable.
   const index = Math.min(ROBOT_IDENTITY_COLOR_NAMES.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.identityColor', offset, 0, ROBOT_IDENTITY_COLOR_NAMES.length)));
   return ACCENT_COLORS[ROBOT_IDENTITY_COLOR_NAMES[index]];
+}
+
+/** How many seeded hardware parts (docs/specs/ROBOT_GREEBLES.md) a robot gets. Tuned in the sketch. */
+export const GREEBLE_COUNT_RANGE = { min: 2, max: 5 } as const;
+
+// TEMPORARY: both constants are declared here only until Task 3/4 of ROBOT_GREEBLES.md land.
+// SLOT_COUNT's canonical home is greebleSlots.ts (Task 3); KIND_COUNT's is RobotGreebles.tsx
+// (Task 4) — spawnSystem.ts will import both from there instead of declaring them locally.
+const SLOT_COUNT = 8;
+export const KIND_COUNT = 5;
+
+/**
+ * Deterministic, permanent hardware set (Roadmap Phase 37, docs/specs/ROBOT_GREEBLES.md §1.1) —
+ * same generation shape as generateRobotIdentityColor above: hardware/identity, not audio, drawn
+ * once at spawn, never inherited on the copy path. A count draw, then count independent kind/slot
+ * draws with slots removed from a `free` pool so no robot ever repeats a slot.
+ */
+function generateGreebles(noiseMap: NoiseFunction2D, spawnCount: number): Greeble[] {
+  const count = Math.min(
+    GREEBLE_COUNT_RANGE.max,
+    Math.floor(getSeededVal(noiseMap, 'robot.greeble.count', spawnCount, GREEBLE_COUNT_RANGE.min, GREEBLE_COUNT_RANGE.max + 1))
+  );
+  const free = Array.from({ length: SLOT_COUNT }, (_, i) => i);
+  const out: Greeble[] = [];
+  for (let i = 0; i < count; i++) {
+    const off = spawnCount * 10 + i;
+    const kind = Math.min(KIND_COUNT - 1, Math.floor(getSeededVal(noiseMap, 'robot.greeble.kind', off, 0, KIND_COUNT)));
+    const pick = Math.min(free.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.greeble.slot', off, 0, free.length)));
+    out.push({ kind, slot: free.splice(pick, 1)[0] });
+  }
+  return out;
 }
 
 // Org-flavored noun list for company names (Roadmap Phase 10) — distinct from robot NOUNS above,
@@ -662,6 +693,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     identityColor: noiseMap
       ? generateRobotIdentityColor(noiseMap, spawnCount)
       : generateRobotIdentityColor((_x: number, _y: number) => 0 as number, spawnCount),
+    greebles: noiseMap
+      ? generateGreebles(noiseMap, spawnCount)
+      : generateGreebles((_x: number, _y: number) => 0 as number, spawnCount),
     state: RobotState.Idle,
     position,
     destination: null,
