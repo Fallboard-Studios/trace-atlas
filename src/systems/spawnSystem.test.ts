@@ -119,20 +119,16 @@ describe('spawnSystem', () => {
       expect(uniqueAttacks.size).toBeGreaterThan(10); // Should have variety
     });
 
-    it('always produces exactly 3 layers (Baseline/Coaxial/Harmonic), Baseline always audible, shapeParams in range', () => {
+    it('always produces exactly 3 layers (Baseline/Coaxial/Harmonic), Baseline always audible', () => {
       const attrs = generateAudioAttributes(mockNoiseMap, 0);
-      const vm = attrs.visualAudioMap;
-      expect(vm).toBeDefined();
       const layers = attrs.layers ?? [];
       expect(layers).toHaveLength(3);
       expect(layers[0].gain).not.toBe(0); // Baseline never mutes — no quiet roll for layer0
-      // shape params 0..1
-      expect(vm?.shapeParams?.scale).toBeGreaterThanOrEqual(0);
-      expect(vm?.shapeParams?.scale).toBeLessThanOrEqual(1);
-      expect(vm?.shapeParams?.roundness).toBeGreaterThanOrEqual(0);
-      expect(vm?.shapeParams?.roundness).toBeLessThanOrEqual(1);
-      expect(vm?.shapeParams?.detail).toBeGreaterThanOrEqual(0);
-      expect(vm?.shapeParams?.detail).toBeLessThanOrEqual(1);
+    });
+
+    it('has no visualAudioMap key — body/greeble shape params are computed live from adsr now (Phase 36)', () => {
+      const attrs = generateAudioAttributes(mockNoiseMap, 0);
+      expect(attrs).not.toHaveProperty('visualAudioMap');
     });
 
     it('no layer is ever typed \'noise\' — dropped entirely per Roadmap Phase 9', () => {
@@ -142,23 +138,6 @@ describe('spawnSystem', () => {
       expect(allTypes).not.toContain('noise');
       const validWaveforms = ['sine', 'square', 'triangle', 'sawtooth', 'pulse'];
       allTypes.forEach((t) => expect(validWaveforms).toContain(t));
-    });
-
-    it('has no averagedADSR field — nothing left to average with one shared envelope', () => {
-      const attrs = generateAudioAttributes(mockNoiseMap, 0);
-      expect((attrs.visualAudioMap as unknown as { averagedADSR?: unknown })?.averagedADSR).toBeUndefined();
-    });
-
-    it('shapeParams derive directly from the shared adsr (deterministic: min-valued adsr -> scale 1, roundness/detail 0)', () => {
-      // deterministicNoiseMap always returns -1, mapping every getSeededVal to its min: adsr is
-      // {attack: 0, decay: 0, sustain: 0, release: 0}. Normalized by ADSR_MAX
-      // ({attack:2, decay:2, sustain:1, release:5}), every ratio is 0.
-      const attrs = generateAudioAttributes(deterministicNoiseMap, 0);
-      expect(attrs.adsr).toEqual({ attack: 0, decay: 0, sustain: 0, release: 0 });
-      const shapeParams = attrs.visualAudioMap!.shapeParams!;
-      expect(shapeParams.scale).toBeCloseTo(1, 6);      // 0.25 + (1 - 0/2) * 0.75
-      expect(shapeParams.roundness).toBeCloseTo(0, 6);  // 0/1
-      expect(shapeParams.detail).toBeCloseTo(0, 6);     // 0/5
     });
 
     it('Coaxial and Harmonic are each independently seeded muted/audible (not both forced the same value)', () => {

@@ -1,5 +1,5 @@
 import type { Vec2 } from './Vec2';
-import type { VisualAudioMap, OscillatorLayer } from './layeredAudio';
+import type { OscillatorLayer } from './layeredAudio';
 import type { RobotLfoTargetId, LfoLink } from './lfo';
 
 /**
@@ -78,8 +78,6 @@ export interface AudioAttributes {
   /** Detune in cents (e.g. -100..100) applied to synth at reservation time */
   detune?: number; // cents (e.g. -100..100)
   /** Deprecated: pulseWidth moved to per-layer `layers[].pulseWidth`. */
-  /** Optional compact visual/audio mapping produced at spawn time and stored on the robot */
-  visualAudioMap?: VisualAudioMap;
 }
 
 /**
