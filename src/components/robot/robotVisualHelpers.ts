@@ -251,6 +251,17 @@ export function identityGlass(hex: string): { glass: string; sheen: string } {
   };
 }
 
+export const SOCKET_DARK = 0.15;
+export const SOCKET_MIN = LAMP_MIN;
+export const SOCKET_GAIN_MAX = 1.2;
+
+/** Glass opacity for one layer socket before battery dim. gain 0/undefined → dark socket;
+ *  interpolates SOCKET_MIN..1 up to the seeded max gain, clamped above it. */
+export function socketLitOpacity(gain: number | undefined): number {
+  if (!gain) return SOCKET_DARK;
+  return SOCKET_MIN + (1 - SOCKET_MIN) * clamp01(gain / SOCKET_GAIN_MAX);
+}
+
 function clamp01(v: number) {
   return Math.max(0, Math.min(1, v));
 }

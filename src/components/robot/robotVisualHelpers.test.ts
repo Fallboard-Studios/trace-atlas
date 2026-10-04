@@ -19,6 +19,10 @@ import {
   LAMP_MIN,
   identityGlass,
   applyLightnessMultiplier,
+  socketLitOpacity,
+  SOCKET_DARK,
+  SOCKET_MIN,
+  SOCKET_GAIN_MAX,
 } from './robotVisualHelpers';
 import { RobotSleek } from './RobotSleek';
 import type { AudioAttributes, ADSREnvelope } from '../../types/Robot';
@@ -214,6 +218,43 @@ describe('robotVisualHelpers', () => {
   describe('LAMP_MIN', () => {
     it('is 0.4', () => {
       expect(LAMP_MIN).toBe(0.4);
+    });
+  });
+
+  describe('socketLitOpacity', () => {
+    it('is SOCKET_DARK for gain 0', () => {
+      expect(socketLitOpacity(0)).toBe(SOCKET_DARK);
+    });
+
+    it('is SOCKET_DARK for an undefined gain (missing layer)', () => {
+      expect(socketLitOpacity(undefined)).toBe(SOCKET_DARK);
+    });
+
+    it('is fully lit at the seeded max gain (1.2)', () => {
+      expect(socketLitOpacity(SOCKET_GAIN_MAX)).toBe(1);
+    });
+
+    it('clamps to fully lit above the seeded max gain (edited past 1.2)', () => {
+      expect(socketLitOpacity(2)).toBe(1);
+    });
+
+    it('interpolates between SOCKET_MIN and 1 for a partial gain', () => {
+      expect(socketLitOpacity(0.2)).toBeCloseTo(SOCKET_MIN + (1 - SOCKET_MIN) * (0.2 / SOCKET_GAIN_MAX));
+    });
+
+    it('is monotonic non-decreasing across the gain range', () => {
+      let prev = socketLitOpacity(0.01);
+      for (let gain = 0.02; gain <= SOCKET_GAIN_MAX + 0.001; gain += 0.01) {
+        const next = socketLitOpacity(gain);
+        expect(next).toBeGreaterThanOrEqual(prev);
+        prev = next;
+      }
+    });
+  });
+
+  describe('SOCKET_MIN', () => {
+    it('matches LAMP_MIN', () => {
+      expect(SOCKET_MIN).toBe(LAMP_MIN);
     });
   });
 
