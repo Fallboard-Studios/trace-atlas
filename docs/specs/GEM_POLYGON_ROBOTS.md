@@ -183,9 +183,13 @@ lightnessMultiplier, midLit)` is built outside the memo (cheap, like today's
 - **World** (`Robot.tsx`): unchanged — GSAP owns the root `<g>`; `RobotBody` draws into it. The
   flip (`scaleX: -1`, `transformOrigin: 50% 50%`) works on the new bbox as before.
 - **Avatar** (`RobotDisplaySection`, 96 px) and **card** (`RobotSelectionCard`, 64 px): viewBox
-  becomes per-robot `0 0 ${gemWidth(getRobotGem(robot.gemSeed))} 80` with
+  becomes per-robot `gemViewBox(getRobotGem(robot.gemSeed))` = `0 0 ${gemWidth} 80` with
   `preserveAspectRatio="xMidYMid meet"` — the whole canvas, orbiters included, letterboxed
-  (Crawford's call, 2026-10-04). Helper `gemWidth(gem)` in `polygon.ts`.
+  (Crawford's call, 2026-10-04). Both also pass **`ignoreScale`**, so `RobotBody` draws them at
+  scale 1. *(Task 8 finding: body scale runs 0.735–1.69, and scaling about the centre pushed the
+  corner orbiters out of a `0 0 W 80` viewBox whenever scale > 1. Crawford chose "fit each
+  robot" over a fixed padded frame: every robot fills its tile; scale shows in-world only. Fit
+  at scale 1 is pixel-identical to scaling and fitting the viewBox to the scaled extent.)*
 
 ### 1.7 Removed
 

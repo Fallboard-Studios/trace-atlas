@@ -207,12 +207,14 @@ the shape files, greebles and sockets are left in place, unused.
 ## Task 8: Card and avatar viewBox
 
 **Description:** `RobotSelectionCard` and `RobotDisplaySection` use
-`viewBox={\`0 0 ${gemWidth(getRobotGem(robot.gemSeed))} ${GEM_CANVAS_H}\`}` with
-`preserveAspectRatio="xMidYMid meet"`; the card drops `hideGreebles`.
+`viewBox={gemViewBox(getRobotGem(robot.gemSeed))}` with `preserveAspectRatio="xMidYMid meet"` and
+pass `ignoreScale` to `RobotBody` (as built — see the spec §1.6 finding: scale > 1 clipped the
+orbiters; Crawford chose "fit each robot"). The card's `hideGreebles` was already dropped in T7.
 
 **Acceptance criteria:**
-- [ ] Both tests assert the per-robot viewBox for width factors 1 and 2 and the presence of `.gem`.
-- [ ] No `hideGreebles` anywhere in `src/`.
+- [ ] Both tests assert the per-robot viewBox for width factors 1 and 2, letterboxing, and scale 1
+      on a maximum-scale (bass, instant-attack) robot.
+- [ ] No `hideGreebles` anywhere in `src/` outside the docs tests.
 
 **Verification:** `npx vitest run src/components/selection/RobotSelectionCard.test.tsx src/components/robot/RobotDisplaySection.test.tsx`.
 **Dependencies:** T7. **Files:** `RobotSelectionCard.tsx`, `.test.tsx`, `RobotDisplaySection.tsx`,

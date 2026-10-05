@@ -29,6 +29,12 @@ interface RobotBodyProps {
    * is a separate, non-audio signal and is unaffected either way.
    */
   ignoreDaylight?: boolean;
+  /**
+   * When true, draws at scale 1 so the robot exactly fills its own canvas — the card and avatar
+   * pair this with gemViewBox, fitting every robot to its tile. Body scale (octave range ×
+   * attack, up to 1.69) still shows in-world, where nothing frames it.
+   */
+  ignoreScale?: boolean;
 }
 
 /** Same default the hand-drawn shapes applied when a fixture omitted identityColor. */
@@ -45,7 +51,7 @@ const FALLBACK_IDENTITY = '#78cce2';
  * intensity, each Mid's lit level, and scale — computed in the memo below, which nothing
  * non-audio may enter (backlog item 22: the once/sec daylight tick must not recompute it).
  */
-export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: RobotBodyProps) {
+export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignoreScale }: RobotBodyProps) {
   // Day/night from the active locale's local time (0..24, written once a second by
   // AttenuationStyleView) — the same curve buildings use.
   const localTime = useUIStore((s) => s.activeLocaleLocalTime ?? 12);
@@ -73,5 +79,5 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight }: Robo
   const palette = gemPalette(gem, robot.identityColor ?? FALLBACK_IDENTITY, daylight, audio.midLit, batteryFacetContrast(dimOpacity));
   const lightOpacity = (LAMP_MIN + (1 - LAMP_MIN) * audio.lampIntensity) * dimOpacity;
 
-  return <RobotGem gem={gem} palette={palette} lightOpacity={lightOpacity} scale={audio.scale} />;
+  return <RobotGem gem={gem} palette={palette} lightOpacity={lightOpacity} scale={ignoreScale ? 1 : audio.scale} />;
 });

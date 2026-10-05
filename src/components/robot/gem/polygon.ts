@@ -446,6 +446,13 @@ export function gemWidth(gem: RobotGem): number {
   return GEM_CANVAS_H * gem.widthFactor;
 }
 
+/** The card/avatar viewBox: exactly the unscaled canvas, letterboxed by the caller's
+ *  preserveAspectRatio. Pair with RobotBody's ignoreScale, so a body scale > 1 can't push the
+ *  corner orbiters out of frame (Crawford, 2026-10-04: fit each robot to its tile). */
+export function gemViewBox(gem: RobotGem): string {
+  return `0 0 ${gemWidth(gem)} ${GEM_CANVAS_H}`;
+}
+
 const gemCache = new Map<number, RobotGem>();
 
 /** The geometry for a seed — generated once, then a Map hit. Never stored in state:

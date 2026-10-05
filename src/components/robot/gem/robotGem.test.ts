@@ -8,6 +8,7 @@ import {
   generateRobotGem,
   getRobotGem,
   gemWidth,
+  gemViewBox,
   inset,
   bevelDepth,
   isSymmetric,
@@ -103,6 +104,10 @@ function collect(check: (part: GemPart, name: string, gem: RobotGem) => string |
 // LAYOUT
 // ========================================
 describe('generateRobotGem — layout (docs/specs/GEM_POLYGON_ROBOTS.md §1.1, Gate 1 amendments)', () => {
+  it('gemViewBox frames exactly the unscaled canvas — the card/avatar viewBox (Task 8)', () => {
+    gems.slice(0, 50).forEach((g) => expect(gemViewBox(g)).toBe(`0 0 ${80 * g.widthFactor} 80`));
+  });
+
   it('canvas is GEM_CANVAS_H (80) tall and 80 × one of the five width factors wide', () => {
     expect(GEM_CANVAS_H).toBe(80);
     expect([...WIDTH_FACTORS]).toEqual([1, 1.25, 1.5, 1.75, 2]);

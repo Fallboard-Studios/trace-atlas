@@ -180,6 +180,16 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
       expect(rootTransform(slow)).not.toBe(fastTransform);
     });
 
+    it('ignoreScale (card/avatar, Task 8) draws at scale 1 so the robot fits its own canvas; in-world keeps the audio scale', () => {
+      // bass register × instant attack = the maximum body scale (1.3 × 1.3 = 1.69)
+      const big = makeRobot({ octaveRange: [1, 3], audioAttributes: { adsr: { ...ADSR, attack: 0 }, filterFreq: 0, waveform: 'sine' } });
+      const { container: world, unmount } = draw(big);
+      expect(rootTransform(world)).toContain('scale(1.69');
+      unmount();
+      const { container: thumb } = render(<svg><RobotBody robot={big} ignoreDaylight ignoreScale /></svg>);
+      expect(rootTransform(thumb)).toContain('scale(1)');
+    });
+
     it('a waveform change never alters the geometry — nothing pops (the shape is seeded, not audio)', () => {
       const { container: sine, unmount } = draw(makeRobot());
       const sinePoints = facetPoints(sine);

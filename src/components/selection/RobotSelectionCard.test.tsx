@@ -13,6 +13,7 @@ vi.mock('@/components/ui/controls/VoxelTrack', () => ({
 }));
 
 import { RobotSelectionCard } from './RobotSelectionCard';
+import { getRobotGem } from '@/components/robot/gem/polygon';
 import { useUIStore } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
@@ -290,15 +291,22 @@ describe('RobotSelectionCard', () => {
     expect(midnightFill).toBe(noonFill);
   });
 
-  it('frames the avatar with the widened, centred viewBox so the largest body is unclipped (Phase 36 Task 7)', () => {
-    const { container } = renderCard();
-    const avatar = container.querySelector('svg.robot-selection-card__avatar');
-    expect(avatar?.getAttribute('viewBox')).toBe('-40 -52 176 176');
+  // Phase 36's fixed '-40 -52 176 176' viewBox and Phase 37's hide-the-greebles card test were
+  // superseded in Phase 39 Task 8: the card now fits each gem robot to its own canvas at scale 1
+  // (the framing tests below), and gem robots have no greebles.
+
+  it.each([1, 2])('frames a width-factor-%s robot to its own canvas, letterboxed (Phase 39 Task 8)', (factor) => {
+    let seed = 0;
+    while (getRobotGem(seed).widthFactor !== factor) seed++;
+    const { container } = renderCard({ gemSeed: seed });
+    const avatar = container.querySelector('svg.robot-selection-card__avatar')!;
+    expect(avatar.getAttribute('viewBox')).toBe(`0 0 ${80 * factor} 80`);
+    expect(avatar.getAttribute('preserveAspectRatio')).toBe('xMidYMid meet');
   });
 
-  it('hides the seeded greebles on the 64px card avatar (Phase 37 Task 6)', () => {
-    const { container } = renderCard({ greebles: [{ kind: 0, slot: 0 }] });
-    expect(container.querySelector('.greebles')).toBeNull();
+  it('draws the card robot at scale 1, so even the largest robot\'s orbiters stay inside the tile', () => {
+    const { container } = renderCard({ octaveRange: [1, 3], audioAttributes: { adsr: { attack: 0, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine' } });
+    expect(container.querySelector('.robot-selection-card__avatar g.gem')!.getAttribute('transform')).toContain('scale(1)');
   });
 
   it('shows the gem body on the card avatar, both Mids included (Phase 39 Task 7)', () => {
