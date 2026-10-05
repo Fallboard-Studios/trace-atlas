@@ -1,5 +1,7 @@
 # Gem Polygon Robots
 
+> **Shipped (roadmap Phase 39, 2026-10-05)** — Branch A only — spec [docs/specs/GEM_POLYGON_ROBOTS.md](../specs/GEM_POLYGON_ROBOTS.md), plan [docs/tasks/GEM_POLYGON_ROBOTS.md](../tasks/GEM_POLYGON_ROBOTS.md). Branches B and C below are still ideas. Gate 1 (sketch) and Gate 2 (live) passed; the idle-paint gate closed with 3 facet tones on an accepted residual. Branch `back-to-gen-robots`.
+
 Refined 2026-10-04 via the idea-refine skill, from Crawford's outline and two sketches (a bevel-ring
 gem reference, and a three-panel graph-paper build order). Supersedes the direction in
 [robot-visual-rework.md](robot-visual-rework.md): this is a near-complete departure from the four

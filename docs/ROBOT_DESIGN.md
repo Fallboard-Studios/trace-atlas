@@ -1,147 +1,139 @@
 # Robot Visual Design Guide
 
-> **Phase 39 in progress (2026-10-04).** `RobotBody` now draws gem polygon robots
-> ([`gem/RobotGem.tsx`](../src/components/robot/gem/RobotGem.tsx), spec
-> [GEM_POLYGON_ROBOTS.md](specs/GEM_POLYGON_ROBOTS.md)). The hand-drawn shapes, greebles and
-> sockets described below are no longer rendered; their files are deleted in Task 10–11 and this
-> guide is rewritten in Task 13. Until then, treat everything below as the pre-Phase-39 design.
-
 ## Overview
 
-Robots are single unified SVG entities whose visual appearance (shape, color, detail) is derived entirely from `audioAttributes` — never stored separately. This keeps `Robot` fully serializable for Zustand while visuals stay a pure function of audio data, computed live at render time in [robotVisualHelpers.ts](../src/components/robot/robotVisualHelpers.ts).
+A robot is a seeded stack of low-poly **gem polygons** (Roadmap Phase 39, spec
+[GEM_POLYGON_ROBOTS.md](specs/GEM_POLYGON_ROBOTS.md), sketch
+[gem-polygon-robots.html](sketches/gem-polygon-robots.html)). Its body is **identity and seed, not
+audio**: the geometry comes from `Robot.gemSeed`, the colour from `Robot.identityColor`. Audio
+reaches the body only through three continuous dials — the two lights, each Mid polygon's lit
+level, and the body scale — so an audio edit can brighten, dim or resize a robot but never change a
+count, a side, a line or a position. Day/night lightness and battery dimming are the two overlays.
+
+The geometry is never stored: `Robot.gemSeed` is the only persisted value, and
+`getRobotGem(gemSeed)` derives the parts on demand, cached per seed for the life of the page
+(runtime-only, like `timelineMap` — never in Zustand, never in a session).
 
 **Related references:**
 - [Audio System Guide](AUDIO_SYSTEM.md) — AudioEngine, layered voices
 - [Animation System Guide](ANIMATION_SYSTEM.md) — GSAP timeline patterns for robot motion
+- [Procedural Generation](PROCEDURAL_GENERATION.md) — `getSeededVal`, the `'robot.gem.seed'` dataId
+- [Performance](PERFORMANCE.md) — "Gem Polygon Robots — the Task 9 idle-paint gate"
 
-## Shape Components
+## The generator
 
-Four SVG variants live in `src/components/robot/`: `RobotSleek.tsx`, `RobotAngular.tsx`, `RobotOrganic.tsx`, `RobotIndustrial.tsx`. Selection is by oscillator `waveform` via `selectRobotShape()`:
+`src/components/robot/gem/polygon.ts`, pure functions over a seeded stream (`alea`), ported from the
+Gate 1 sketch. `generateRobotGem` lays out one robot on a canvas `GEM_CANVAS_H` (80) units tall and
+80 × a seeded width factor (1, 1.25, 1.5, 1.75 or 2) wide:
 
-| Waveform | Shape |
-|---|---|
-| `sine` | RobotSleek |
-| `square` | RobotAngular |
-| `triangle` | RobotOrganic |
-| `sawtooth` | RobotIndustrial |
-| `pulse` / unknown | RobotSleek (default) |
+| Part | Box | Rules | Lines | Lights | Z |
+|---|---|---|---|---|---|
+| Backing | 25k × 25, centred | `BASE_RULES`: convex, may be symmetric, no bevel, near-black | 0 | 0 | lowest |
+| Orbiters ×4 | 24 × 16, one per corner — never stretched by the width factor | `ORBIT_RULES`: ≤ 4 concave corners, may be symmetric | 1 each | 0 | 2nd lowest |
+| Mid left | 20–24k × 34–36, right edge on the centre line | `MAIN_RULES`: ≤ 2 concave, never symmetric | 2 | 0 | 3rd highest |
+| Mid right | 20–24k × 34–36, left edge on the centre line | `MAIN_RULES` | 2 | 0 | 2nd highest |
+| Top | 32k × 32, centred | `MAIN_RULES` | 4 | 2 | highest |
 
-## Color Mapping
+(k = width factor.) The 80-unit height keeps the orbiters clear of the body at rest; contact is
+reserved for animation.
 
-`generateColors(adsr, waveform)` in `robotVisualHelpers.ts` computes HSL colors directly — there is no static color-palette table:
+Every polygon has 8–12 sides, every edge at a multiple of 15°, at most 4 right angles, and touches
+all four edges of its own box. `genPolygon` builds a chamfered rectangle — each corner left square,
+cut once (`chamfer`), cut twice at complementary angles (`double`) or stepped with a slanted inner
+wall (`step`, one concave corner) — with every cut capped at 45 % of its edge, then rejection-samples
+until the rules hold **and** `bevelHolds`: the part's own bevel must not invert any edge (short edges
+otherwise bow-tie under the inset).
 
-- **Hue**: each waveform has a `BASE_HUE` (sine 210°, square 24°, triangle 280°, sawtooth 140°, pulse 60°), offset by `hueOffset(adsr)` — a small deterministic shift from the decay/release and attack/sustain ratios. Secondary/accent hues are +14°/−22° from primary.
-- **Saturation**: from `adsr.attack` — faster attack → higher saturation (30–100%).
-- **Luminance**: from `adsr.sustain` — higher sustain → higher luminance (20–72%).
+Boundary lines (`genLine`) run from one inner edge to another as one 45° run plus one axis-aligned
+run, at least 0.35 units clear of every facet edge (half the 0.8 stroke). Lights (`genLights`) sit
+at two non-adjacent inner vertices, pulled 30 % toward the vertex mean. Each part retries its
+outline until all its lines and lights fit, so the counts are guaranteed.
 
-## Shape Parameters
+## Bevel and shading
 
-Body scale, roundness and detail are computed live from the robot's current `audioAttributes.adsr`
-(Roadmap Phase 36) — no spawn-time snapshot. `bodyShapeFromAdsr(adsr)` (`robotVisualHelpers.ts`)
-normalises by `BODY_NORMALISER` (`{ attack: 5, sustain: 1, release: 5 }`, matching the seeded
-generation range — edits past it clamp): `scale ≈ 0.25 + (1 − attack/5) × 0.75`, `roundness =
-sustain`, `detail = release/5` (all 0..1). `calculateBodyScale(octaveRange, bodyShape.scale)` then
-folds in the register step (0.7/1.0/1.3 from `calculateScale`) and an attack-driven bias, floored
-at `BODY_SCALE_MIN` (0.735 — 1.5× the pre-Phase-36 floor of 0.49). `RobotBody.tsx` passes the
-result as the shape's single `scale` prop; each shape centre-scales its root about (48,36) instead
-of growing from the origin.
+Every part except the backing is a **bevel ring**: the outline, its inset by `bevelDepth(w, h)` =
+min(2.5, 18 % of the short side), and one trapezoid facet per edge between them; the inset is the
+flat face. `src/components/robot/gem/gemShading.ts`:
 
-`shapeParamsFromAudio()` separately derives `torsoAspect` from `octaveRange` (plus `MicroVariants`
-— `stripes`/`smooth`/`spikes` — from waveform and fast-attack envelopes), blended 70% ADSR-driven /
-30% register-driven in `RobotBody.tsx`. `ShapeParams` itself is `{ torsoAspect }` — nothing else.
+- **One light for every robot**, `GEM_LIGHT`, from the top-left. A facet's shade is its edge's
+  outward normal · `GEM_LIGHT` (−1..1).
+- `facetTone` moves the host colour's lightness by shade × `GEM_FACET_CONTRAST` (20).
+- **`GEM_FACET_TONES` = 3**: shades are quantized to three levels (fully lit, neutral, fully
+  shaded) before toning. This was a performance decision (the moving robot layer re-rasterizes
+  every frame and its cost tracks paint operations); the extremes keep full contrast.
 
-## Greebles & Lights
+`RobotGem` draws each part's facets as one `<path>` per tone (`facetPaths` in `gemPaths.ts`), its
+face as one polygon and its boundary lines as one path — about 40 drawn shapes per robot.
 
-- **Greebles (Roadmap Phase 37)**: `Robot.greebles` is a seeded, permanent `{ kind, slot }[]` — see
-  "Non-audio layers" below for how it's drawn and why it's not audio-derived. `RobotBody.tsx`
-  builds `<RobotGreebles greebles={robot.greebles} slots={GREEBLE_SLOTS[waveform]} colors={colors} />`
-  outside its audio memo (it depends on `colors`, which is already post-daylight, and
-  `robot.greebles`, which is seeded identity data) and passes it to the shape as a `greebles`
-  node, rendered between the hull shadow and the window — the shape itself never learns about
-  kinds or slots. `RobotBody`'s `hideGreebles?: boolean` omits the node entirely; only
-  `RobotSelectionCard`'s 64px card thumbnail sets it. `RobotDisplaySection`'s 96px detail avatar
-  and in-world `Robot.tsx` instances always show parts.
-- **Lamp**: every shape renders one always-visible `g.lamp` (outside `.details`, present at every detail level), identity-coloured (see "Non-audio layers" below), lit by `calculateLampIntensity(layers, detail)` — averaged audible-layer gain (muted layers excluded from the average, not counted as zero) blended 60/40 with detail, floored at `LAMP_MIN` (0.4) so a quiet, short-release robot still shows a carrier. `RobotBody.tsx` composes the final `lampOpacity` with battery dim outside the audio memo, the same split `dimOpacity` already uses.
+## Colour
 
-## Non-Audio Brightness Overlays
+`src/components/robot/gem/gemPalette.ts` — `gemPalette(gem, identityColor, daylight, midLit,
+contrast)` resolves every colour `RobotGem` draws into a string; the renderer computes none.
 
-Two things dim a robot's rendering for reasons that are **not** audio attributes. Both are a
-distinct, narrower layer than the shape/color identity mapping above — they scale brightness on
-top of it, they never replace it — so they don't relax the "visuals map strictly to audio
-attributes" guardrail, they extend the one existing precedent for it:
+| Part | Fill | Lines |
+|---|---|---|
+| Top, orbiters | `identityColor` | identity, lightness −26 |
+| Mid | from near-neutral dark toward identity (lightness −16, saturation −18) by its lit level, keeping identity's hue | the matching dark→identity line tone |
+| Backing | near-black, fixed | — |
+| Lights | warm white, fixed (emissive) | — |
 
-- **Day/night** (`RobotBody.tsx`): `lightnessMultiplier`, a sine curve over the active locale's
-  local time, scales the whole body's HSL lightness via `applyLightnessMultiplier()`.
-- **Battery dim** (`RobotBody.tsx` + `robotVisualHelpers.ts`'s `computeBatteryDimOpacity()`): a
-  battery-level step function (thresholds in `src/constants/index.ts`:
-  `BATTERY_DIM_THRESHOLD_LOW/MID/CRITICAL`) that dims only each shape component's window/viewport
-  and status-light elements (the hardcoded blue "Window"/"Viewport" ellipses/polygons/rects and
-  green "Status light" circles/rects in `RobotSleek.tsx`/`RobotAngular.tsx`/`RobotOrganic.tsx`/
-  `RobotIndustrial.tsx` — those elements use fixed hex fills, not `colors`, which is why day/night
-  doesn't touch them either). Passed down as a `dimOpacity` prop, wrapping the target elements in a
-  `<g opacity={dimOpacity}>`. Body hue/shape/greeble-count are untouched by battery level.
+Facet fills are the face colour toned per quantized shade; the facet stroke is the fully shaded tone.
 
-**`ignoreDaylight` (Roadmap Phase 8)**: `RobotBody`'s optional `ignoreDaylight?: boolean` prop
-fixes the day/night `lightnessMultiplier` at a neutral `1` instead of deriving it from
-`uiStore.activeLocaleLocalTime` — used by `RobotSelectionCard`'s avatar thumbnail
-(`src/components/selection/`) so a card's appearance stays consistent regardless of the active
-locale's time of day. This is a rendering-context override only: it doesn't touch what
-`audioAttributes` produce, doesn't affect battery dim (a separate, non-audio signal — still fully
-active on an `ignoreDaylight` thumbnail), and in-world `Robot.tsx` instances don't pass it, so
-their day/night behavior is unchanged.
+## What audio drives
 
-## Non-audio layers
+Three continuous dials, all computed in `RobotBody`'s audio memo from `robotVisualHelpers.ts` — and
+nothing else:
 
-Two documented exceptions to "visuals map strictly to audio attributes":
+- **Lights** — `calculateLampIntensity(layers, detail)`: averaged audible layer gain blended with
+  release (`bodyShapeFromAdsr(adsr).detail`), floored at `LAMP_MIN`; both lights equal.
+- **Mid lit level** — `layerLitLevel(gain)`: Mid left ← Coaxial (`layers[1]`), Mid right ←
+  Harmonic (`layers[2]`). Gain 0 or no layer → `MID_DARK_LEVEL`; otherwise `MID_LIT_MIN`..1 up to
+  `MID_GAIN_MAX`. A gain drag slides the Mid's tone; nothing pops.
+- **Body scale** — `calculateBodyScale(octaveRange, bodyShapeFromAdsr(adsr).scale)`: register step
+  × attack bias, floored at `BODY_SCALE_MIN`; range 0.735–1.69, about the canvas centre.
 
-1. **Identity colour.** `Robot.identityColor` (one of the 18 `ROBOT_IDENTITY_COLOR_NAMES` hues,
-   seeded at spawn) drives exactly two SVG elements on every shape — the window glass and the
-   lamp — nothing else on the body. Both derive their fills from `identityGlass(hex)`
-   (`robotVisualHelpers.ts`), which returns `{ glass, sheen }`: `glass` is the identity hex
-   itself, `sheen` is the same hue lightened (+20, capped 95). The window's `g.window` group and
-   the lamp's `g.lamp` group each render `glass`/`sheen` directly; neither is touched by
-   `generateColors()`'s ADSR/waveform mapping, and neither is affected by day/night
-   (`lightnessMultiplier`, above, never reaches them) — though both are still dimmed by battery
-   (`dimOpacity`/`lampOpacity`), and the lamp additionally tracks live audible-layer gain
-   (`calculateLampIntensity`).
-2. **The greeble set (Roadmap Phase 37).** `Robot.greebles` (`{ kind, slot }[]`) is drawn once at
-   spawn (`generateGreebles`, `spawnSystem.ts`) from a count in `GREEBLE_COUNT_RANGE` (2..5), then
-   that many independent kind/slot draws with no robot ever repeating a slot — seeded hardware,
-   not audio-derived. `kind` indexes `RobotGreebles.tsx`'s fixed vocabulary of `KIND_COUNT` parts
-   (panel/tank/dish/antenna/decal, one or two SVG elements each); `slot` indexes the current
-   shape's `GREEBLE_SLOTS` table (`greebleSlots.ts`, `SLOT_COUNT` entries per shape, hand-measured
-   against that same module's `FIXTURE_BOXES` to clear the window, lamp, vent and the reserved
-   layer-socket fixtures), so a waveform change
-   re-slots the same parts onto the new outline without touching robot data. Parts draw only from
-   `colors.accent`, `colors.shadow` and the hardware greys — never `identityColor`, never
-   `primary` — so this is a **shape/placement** exception, not a colour one. `RobotBody` builds
-   `<RobotGreebles>` outside its audio memo and hides it only on the 64px selection card
-   (`hideGreebles`); the detail avatar and in-world robots always show parts.
-3. **The two layer sockets (Roadmap Phase 38).** Every robot always shows two identity-coloured
-   sockets — Coaxial and Harmonic — at fixed, hand-measured positions (`SOCKET_POSITIONS`,
-   `greebleSlots.ts`). `RobotLayerSockets.tsx` draws each as a housing ring (`colors.shadow`,
-   always visible, never removed) plus a glass/sheen pair whose *opacity* is `socketLitOpacity`
-   (`robotVisualHelpers.ts`) of that layer's live gain (`layers[1]`/`layers[2]`), composed with
-   battery dim exactly like the lamp. A socket's **lit state is audio** (gain 0 → `SOCKET_DARK`,
-   gain up to `SOCKET_GAIN_MAX` → fully lit, floored at `SOCKET_MIN` once any gain registers) —
-   **only its hue is identity**, from the same `identityGlass(hex)` the window and lamp use.
-   Nothing pops in or out on an edit; a muted layer just goes dark, same ruling as the greebles'
-   permanence.
+Waveform, filter frequency, phase and detune have no visual mapping on gem robots (later branches
+in [gem-polygon-robots.md](ideas/gem-polygon-robots.md) may map them to geometry or motion).
 
-All three are the same class of exception as the two brightness overlays above: narrower than, and
-layered on top of, the shape/color identity mapping — never a replacement for it. Everything else
-on the body — primary/secondary/accent/highlight/shadow fills, rivets, vents — stays derived from
-ADSR + waveform.
+## Non-audio overlays
 
-## Data Flow
+Both are read outside the audio memo, so the once-a-second daylight tick never recomputes it
+(backlog item 22).
 
-`audioAttributes` (`adsr`, `waveform`, `filterFreq`, `layers`) is fully serializable and lives on `Robot` in Zustand (see [src/types/Robot.ts](../src/types/Robot.ts)). Visual props are recomputed from this data at render time — never construct Tone.js objects, and never store computed shape/color props back in state.
+- **Day/night** — the active locale's local time gives a 0..1 daylight multiplier that scales the
+  lightness of every palette colour except the lights. `ignoreDaylight` pins it to 1.
+- **Battery** — `computeBatteryDimOpacity(batteryLevel)` (1 / 0.75 / 0.5 / 0.1) multiplies the
+  lights' opacity, and `batteryFacetContrast` lowers facet contrast with it, floored at
+  `GEM_BATTERY_CONTRAST_FLOOR` (0.25) so the bevel never vanishes.
 
-`filterFreq` is audible as well as visible: it is the cutoff of the robot's per-voice bus low-pass (`AudioEngine.reserveVoice`'s `filterFreq` parameter — see AUDIO_SYSTEM.md "Signal Graph"), so the detail level and greeble count it drives correspond to a real difference in timbre. Until 2026-09-30 that bus filter was a fixed 1,200 Hz and the mapping was visual-only.
+## Render contexts
 
-## Forbidden Patterns
+- **World** — `Robot.tsx` owns the root `<g>` (GSAP sets position and the `scaleX` flip; React
+  sets no transform) and renders `RobotBody`, which composes `RobotGem` with the audio scale.
+- **Detail avatar (96 px) and selection card (64 px)** — `viewBox={gemViewBox(gem)}` (`0 0 W 80`),
+  `preserveAspectRatio="xMidYMid meet"`, and `RobotBody ignoreDaylight ignoreScale`: every robot is
+  fitted to its tile at scale 1, orbiters included. Body scale shows in-world only.
 
-- Storing computed colors, shape props, or greeble counts in Zustand — recompute from `audioAttributes` at render time.
-- Adding a static/fixed color palette to the **body** — body colours must stay derived from ADSR + waveform; the only non-audio colour is `identityColor`, confined to the window glass and lamp (see "Non-audio layers").
-- Making greeble count, kind or placement depend on anything other than the seed (audio, battery, time, or a user edit) — the seeded `Robot.greebles` set is the only non-audio shape exception, confined to the vocabulary's own slots (see "Non-audio layers").
-- Constructing Tone.js objects for visual-only purposes.
+## Data flow
+
+```
+spawnSystem: getSeededVal('robot.gem.seed') ──► Robot.gemSeed (persisted)
+                                                   │
+RobotBody ─ getRobotGem(gemSeed) [cache] ──► RobotGem geometry (runtime only)
+        ├─ audio memo: scale, lamp intensity, midLit   (audioAttributes, octaveRange)
+        ├─ outside:    daylight, battery dim, identityColor
+        └─ gemPalette(...) ──► RobotGem (draw-only)
+```
+
+`gemSeed` is drawn once at spawn, never user-edited, never inherited on the copy path and never
+diffed into a session — a reloaded world regenerates the same seed, hence the same robot.
+
+## Forbidden patterns
+
+- Storing generated geometry (a `RobotGem`) in Zustand, a session or a fixture — only `gemSeed`.
+- Any audio edit changing a part's count, sides, lines, lights or position, or swapping geometry.
+- Computing a colour inside `RobotGem`, or drawing one element per facet or line.
+- Hand-placed, per-shape positions — everything is generated relative to the part's own polygon.
+- A palette for the body that ignores `identityColor`, or a new non-audio visual input beyond
+  identity, seed, daylight and battery without amending the Visual Mapping guardrail.
+- `requestAnimationFrame` loops or timers for robot visuals; GSAP owns motion.

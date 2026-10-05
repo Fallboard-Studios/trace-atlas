@@ -1,5 +1,7 @@
 # Layer Pods and Follow-Through
 
+> **Superseded (2026-10-05)** by [gem-polygon-robots.md](gem-polygon-robots.md) (roadmap Phase 39): the gem robots' four orbiters take the place of pods, and their motion is that idea's Branch C. Kept as the record.
+
 > **Re-sequenced (2026-10-03); static half shipped (Phase 38), motion remains.** The parametric
 > hull this depended on is set aside. The static half of this idea (a marker per audible layer, no
 > motion) is branch 3 of [robot-visual-rework.md](robot-visual-rework.md) — shipped as

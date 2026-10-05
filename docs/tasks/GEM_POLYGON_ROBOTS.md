@@ -362,6 +362,10 @@ Robots (Branch A)` with the decisions and gates. Add "superseded by gem-polygon-
 **Scope:** M (docs).
 
 ### Checkpoint C: Complete (Crawford)
+
+> **Tasks 10–13 done 2026-10-05** (fceeae40, 6e0a146a, fcb2f774, and the Task 13 docs commit).
+> Suite 220 files / 5083 tests, `build:types`, `lint` and `build` clean. Remaining: Crawford's
+> final review, the Pixel listen, push and PR.
 - [ ] `npm test`, `npm run build:types`, `npm run lint`, `npm run build` all clean.
 - [ ] `git diff --name-only main...HEAD` contains nothing outside the files named above.
 - [ ] Crawford's final review; Pixel listen for new dropouts; push + PR.

@@ -42,6 +42,13 @@ describe('the identity guardrail is rewritten for gem robots (Task 12)', () => {
     for (const stale of STALE) expect(text, `${file} matches ${stale}`).not.toMatch(stale);
   });
 
+  it('ROBOT_DESIGN.md no longer describes the deleted carriers or the hand-drawn shape files', () => {
+    const doc = read('docs/ROBOT_DESIGN.md');
+    for (const stale of [...STALE, /RobotSleek|RobotAngular|RobotOrganic|RobotIndustrial/, /in progress/i]) {
+      expect(doc, `ROBOT_DESIGN.md matches ${stale}`).not.toMatch(stale);
+    }
+  });
+
   it('Robot.ts\'s identityColor comment says identity colours the gem body and points at the gem seed', () => {
     const src = read('src/types/Robot.ts');
     const at = src.indexOf('identityColor: string;');
@@ -49,5 +56,77 @@ describe('the identity guardrail is rewritten for gem robots (Task 12)', () => {
     expect(comment).toMatch(/gem/i);
     expect(comment).toContain('gemSeed');
     expect(comment).not.toMatch(/ADSR\/waveform-derived/);
+  });
+});
+
+describe('ROBOT_DESIGN.md is rewritten around the gem generator (Task 13)', () => {
+  const doc = read('docs/ROBOT_DESIGN.md');
+
+  it('has the spec §1.1–§1.6 sections, in order', () => {
+    const headings = doc.split('\n').filter((l) => l.startsWith('## ')).map((l) => l.slice(3).trim());
+    expect(headings).toEqual([
+      'Overview',
+      'The generator',
+      'Bevel and shading',
+      'Colour',
+      'What audio drives',
+      'Non-audio overlays',
+      'Render contexts',
+      'Data flow',
+      'Forbidden patterns',
+    ]);
+  });
+
+  const symbols: Array<[symbol: string, file: string]> = [
+    ['getRobotGem', 'src/components/robot/gem/polygon.ts'],
+    ['generateRobotGem', 'src/components/robot/gem/polygon.ts'],
+    ['bevelHolds', 'src/components/robot/gem/polygon.ts'],
+    ['gemViewBox', 'src/components/robot/gem/polygon.ts'],
+    ['GEM_CANVAS_H', 'src/components/robot/gem/polygon.ts'],
+    ['GEM_FACET_TONES', 'src/components/robot/gem/gemShading.ts'],
+    ['GEM_LIGHT', 'src/components/robot/gem/gemShading.ts'],
+    ['batteryFacetContrast', 'src/components/robot/gem/gemShading.ts'],
+    ['gemPalette', 'src/components/robot/gem/gemPalette.ts'],
+    ['facetPaths', 'src/components/robot/gem/gemPaths.ts'],
+    ['RobotGem', 'src/components/robot/gem/RobotGem.tsx'],
+    ['layerLitLevel', 'src/components/robot/robotVisualHelpers.ts'],
+    ['calculateBodyScale', 'src/components/robot/robotVisualHelpers.ts'],
+    ['calculateLampIntensity', 'src/components/robot/robotVisualHelpers.ts'],
+    ['computeBatteryDimOpacity', 'src/components/robot/robotVisualHelpers.ts'],
+    ['ignoreScale', 'src/components/robot/RobotBody.tsx'],
+    ['gemSeed', 'src/types/Robot.ts'],
+  ];
+
+  it.each(symbols)('names %s, which exists in %s', (symbol, file) => {
+    expect(doc, `ROBOT_DESIGN.md names ${symbol}`).toContain(symbol);
+    expect(read(file), `${file} defines ${symbol}`).toMatch(new RegExp(`\\b${symbol}\\b`));
+  });
+
+  it.each(['CLAUDE.md', '.github/copilot-instructions.md'])('%s describes ROBOT_DESIGN.md as the gem generator guide', (file) => {
+    const line = read(file).split('\n').find((l) => l.includes('`docs/ROBOT_DESIGN.md`'));
+    expect(line).toBeDefined();
+    expect(line).toMatch(/gem/i);
+    expect(line).not.toMatch(/SVG generation rules/);
+  });
+});
+
+describe('the roadmap and the phase docs record Phase 39 (Task 13)', () => {
+  it('the roadmap has a Phase 39 entry linking idea, intent, spec, plan and sketch', () => {
+    const roadmap = read('docs/todo/roadmap.md');
+    expect(roadmap).toMatch(/^## 39\. Gem Polygon Robots \(Branch A\)$/m);
+    const phase = roadmap.slice(roadmap.indexOf('## 39. Gem Polygon Robots'));
+    for (const link of ['docs/ideas/gem-polygon-robots.md', 'docs/intent/gem-polygon-robots.md', 'docs/specs/GEM_POLYGON_ROBOTS.md', 'docs/tasks/GEM_POLYGON_ROBOTS.md', 'docs/sketches/gem-polygon-robots.html']) {
+      expect(phase, `Phase 39 links ${link}`).toContain(link);
+    }
+  });
+
+  it.each(['docs/intent/gem-polygon-robots.md', 'docs/specs/GEM_POLYGON_ROBOTS.md', 'docs/ideas/gem-polygon-robots.md', 'docs/sketches/gem-polygon-robots.html'])('%s is marked Shipped (Phase 39)', (file) => {
+    expect(read(file).slice(0, 1200)).toMatch(/Shipped \(roadmap Phase 39/);
+  });
+
+  it.each(['docs/ideas/robot-visual-rework.md', 'docs/ideas/layer-pods-and-follow-through.md'])('%s is headed as superseded by the gem robots', (file) => {
+    const head = read(file).slice(0, 1200);
+    expect(head).toMatch(/Superseded/);
+    expect(head).toContain('gem-polygon-robots.md');
   });
 });

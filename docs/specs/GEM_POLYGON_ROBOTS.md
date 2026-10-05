@@ -1,5 +1,7 @@
 # Phase Spec: Gem Polygon Robots — Branch A (seeded body, audio light)
 
+> **Shipped (roadmap Phase 39, 2026-10-05)** — plan [docs/tasks/GEM_POLYGON_ROBOTS.md](../tasks/GEM_POLYGON_ROBOTS.md); as-built deviations are recorded inline and in the plan. Gate 1 (sketch) and Gate 2 (live) passed; the idle-paint gate closed with 3 facet tones on an accepted residual. Branch `back-to-gen-robots`.
+
 Roadmap Phase 39. Idea: [docs/ideas/gem-polygon-robots.md](../ideas/gem-polygon-robots.md).
 Intent: [docs/intent/gem-polygon-robots.md](../intent/gem-polygon-robots.md). Sketch:
 [docs/sketches/gem-polygon-robots.html](../sketches/gem-polygon-robots.html) — **Gate 1 passed

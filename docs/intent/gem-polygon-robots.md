@@ -1,5 +1,7 @@
 # Intent: Gem Polygon Robots — Branch A
 
+> **Shipped (roadmap Phase 39, 2026-10-05)** — spec [docs/specs/GEM_POLYGON_ROBOTS.md](../specs/GEM_POLYGON_ROBOTS.md), plan [docs/tasks/GEM_POLYGON_ROBOTS.md](../tasks/GEM_POLYGON_ROBOTS.md). Gate 1 (sketch) and Gate 2 (live) passed; the idle-paint gate closed with 3 facet tones on an accepted residual. Branch `back-to-gen-robots`.
+
 Confirmed 2026-10-04 via the interview-me skill (four questions, each guess confirmed), from
 [docs/ideas/gem-polygon-robots.md](../ideas/gem-polygon-robots.md). Branches B (signal chain) and
 C (motion) have their own intent passes later, gated on this one shipping.

@@ -585,3 +585,40 @@ layers").
   top of this one.
 - **Hiding sockets on the card** — both avatars show them, unlike greebles' `hideGreebles`
   carve-out.
+## 39. Gem Polygon Robots (Branch A)
+
+Replaces the robot series above (Phases 36–38) rather than extending it: the four hand-drawn
+shapes, their greebles and layer sockets are gone. Idea
+[docs/ideas/gem-polygon-robots.md](../ideas/gem-polygon-robots.md), intent
+[docs/intent/gem-polygon-robots.md](../intent/gem-polygon-robots.md), spec
+[docs/specs/GEM_POLYGON_ROBOTS.md](../specs/GEM_POLYGON_ROBOTS.md), plan
+[docs/tasks/GEM_POLYGON_ROBOTS.md](../tasks/GEM_POLYGON_ROBOTS.md), sketch
+[docs/sketches/gem-polygon-robots.html](../sketches/gem-polygon-robots.html). **Implemented on
+`back-to-gen-robots`: Gate 1 (sketch) and Gate 2 (live, by eye) passed; Task 9's perf gate closed
+on an accepted residual (below).** Requested by Crawford 2026-10-04: the old robots didn't match the
+console, blurred together and felt lifeless.
+
+### About
+
+A robot is a seeded stack of low-poly gem polygons — a near-black backing, four 24 × 16 orbiters in
+the corners, two Mids hanging off the centre line and a Top polygon with two lights — each a
+chamfered rectangle on a 15° grid with a bevel ring lit by one world light. Geometry is derived from
+`Robot.gemSeed` by `getRobotGem` and never stored. The guardrail is inverted: `identityColor` is
+the body; audio reaches it only through three continuous dials (lights, each Mid's lit level from
+its layer's gain, body scale), so nothing pops on an edit. Card and avatar fit each robot to its
+tile at scale 1 (`gemViewBox` + `ignoreScale`). See docs/ROBOT_DESIGN.md.
+
+**Decisions made while building** (all recorded in spec and plan): geometry derived from the seed,
+never stored; Mid z-order follows the outline (the spec draft had it reversed); generator fixes the
+sketch lacked (double-chamfer 15° drift, bevel bow-ties via `bevelHolds`, line clearance); card
+framing "fit each robot"; facets merged into one path per tone and quantized to 3 tones
+(`GEM_FACET_TONES`) after the idle-paint gate — busy +6 % / paint +34 % over the hand-drawn robots,
+down from +14 % / +94 %, the residual accepted by Crawford (docs/PERFORMANCE.md). The three
+`robot.greeble.*` dataIds are retired, not renamed — a breaking change to world generation, accepted.
+
+### Not Doing (and why)
+
+- **Audio → geometry, bevel or Mid hue** — Branch B (signal chain) in the idea one-pager.
+- **Orbiter motion, wobble and enter/leave** — Branch C (motion); absorbs the pods idea.
+- **Waveform as an angle dialect** — held from the Gate 1 sketch; no evidence yet it reads at 1×.
+- **Closing the last +6 % idle cost** — accepted; the residual is paint per element.

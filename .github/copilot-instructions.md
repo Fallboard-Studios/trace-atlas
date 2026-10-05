@@ -83,6 +83,6 @@ See also (short pointers)
 - `docs/POLYPHONY_GUIDE.md`: Voice management, polyphony budget, and voice-stealing policies.
 - `docs/ANIMATION_SYSTEM.md`: GSAP timeline patterns, `timelineMap` lifecycle, and ref registry usage.
 - `docs/BUILDING_DESIGN.md`: Factory and placement rules, production cooldowns, and placement algorithms.
-- `docs/ROBOT_DESIGN.md`: Robot visual design, audio→visual attribute mapping (synth/ADSR/phase/detune), and SVG generation rules.
+- `docs/ROBOT_DESIGN.md`: Gem polygon robots (Phase 39) — the seeded generator (`getRobotGem` from `Robot.gemSeed`), bevel and 3-tone facet shading, the identity-colour palette, the three audio dials (lights, Mid lit level, body scale), the day/night and battery overlays, and the world/avatar/card render contexts.
 - `docs/CONTRIBUTION_GUIDE.md`: PR process, testing expectations, and where to record exceptions.
 - `docs/poc_guides/UI_GUIDES/UI_ISSUE_OVERVIEW.md`: Sleeve & Glass UI architecture, store responsibilities, and milestone issue breakdown.
