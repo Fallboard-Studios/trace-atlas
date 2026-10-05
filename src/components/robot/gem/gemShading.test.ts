@@ -105,8 +105,8 @@ describe('quantizeShade — fewer facet tones, so merged facet paths collapse (T
     }
   });
 
-  it('ships switched off until Crawford\'s sketch check says yes', () => {
-    expect(GEM_FACET_TONES).toBe(0);
+  it('ships at 3 tones (Crawford, 2026-10-05: +6 % busy / +34 % paint over main, accepted)', () => {
+    expect(GEM_FACET_TONES).toBe(3);
   });
 });
 

@@ -54,10 +54,11 @@ export function facetTone(base: HSL, shade: number, contrast: number): HSL {
 /**
  * Facet tone levels per part (Task 9b). Quantizing makes facets share fills, so RobotGem's merged
  * facet paths collapse to ≤ k per part — the moving robot layer's paint cost tracks element count
- * (docs/PERFORMANCE.md, Phase 39 Task 9). 0 = off (one tone per edge direction, the Gate 1/2 look);
- * switched on only after Crawford's sketch check.
+ * (docs/PERFORMANCE.md, Phase 39 Task 9). 0 = off (one tone per edge direction, the Gate 1/2 look).
+ * 3 shipped on Crawford's call (2026-10-05) after the sketch check: idle busy +6 % / paint +34 %
+ * over the hand-drawn robots, down from +14 % / +94 %, the residual accepted.
  */
-export const GEM_FACET_TONES = 0;
+export const GEM_FACET_TONES = 3;
 
 /** Snap a shade (−1..1) to k evenly spaced levels including both extremes; k < 2 → unchanged.
  *  Written as (2·level − (k−1)) / (k−1) so levels are exact (±1/3, not ±0.33333333333333337). */

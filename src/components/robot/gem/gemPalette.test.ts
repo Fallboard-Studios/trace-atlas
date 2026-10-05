@@ -95,8 +95,8 @@ describe('gemPalette — every colour RobotGem draws, as strings', () => {
     lit.orbiters.forEach((o) => expect(o.face).toBe(lit.top.face));
   });
 
-  it('gives each bevelled part one facet fill per outline edge, toned by that edge\'s light', () => {
-    bevelledParts(lit).forEach((paint, i) => {
+  it('gives each bevelled part one facet fill per outline edge, toned by that edge\'s light (tones = 0, unquantized)', () => {
+    bevelledParts(gemPalette(gem, TEAL, 1, [1, 1], 20, 0)).forEach((paint, i) => {
       const shades = partFacetShades(parts[i].pts);
       expect(paint.facets).toHaveLength(parts[i].pts.length);
       const face = hsl(paint.face).l;
@@ -129,8 +129,9 @@ describe('gemPalette — every colour RobotGem draws, as strings', () => {
     });
   });
 
-  it('tones defaults to GEM_FACET_TONES (0 = off): the default palette is today\'s per-edge tones', () => {
-    expect(gemPalette(gem, TEAL, 1, [1, 1], 20)).toEqual(gemPalette(gem, TEAL, 1, [1, 1], 20, 0));
+  it('tones defaults to GEM_FACET_TONES — the shipped palette is 3-tone', () => {
+    expect(gemPalette(gem, TEAL, 1, [1, 1], 20)).toEqual(gemPalette(gem, TEAL, 1, [1, 1], 20, 3));
+    expect(gemPalette(gem, TEAL, 1, [1, 1], 20)).not.toEqual(gemPalette(gem, TEAL, 1, [1, 1], 20, 0));
   });
 
   it('contrast 0 flattens every facet to its face', () => {

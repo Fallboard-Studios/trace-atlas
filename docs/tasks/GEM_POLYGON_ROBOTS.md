@@ -265,6 +265,10 @@ shared facet edges may differ by a fraction of the 0.25 stroke).
 
 ## Task 9b: Quantized facet tones (sketch-gated)
 
+> **Done 2026-10-05.** Measured (docs/PERFORMANCE.md follow-up): 3 tones → busy +6 % / paint
+> +34 % over main (from +14 % / +94 %); merge-only was worse than unmerged, so 9a only pays off
+> with tones. Crawford: **ship 3 tones, residual accepted.** `GEM_FACET_TONES = 3`.
+
 **Description:** Facet shade quantized to `GEM_FACET_TONES` levels per part (3 or 4) before
 `facetTone`, so T9a's merge collapses to ~40–47 shapes per robot. Sketch gets a tones toggle; a
 3-tone build is A/B'd against `main` with T9's method. **Stop and report** with the sketch and the
