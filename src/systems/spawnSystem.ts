@@ -147,6 +147,18 @@ function generateRobotIdentityColor(noiseMap: NoiseFunction2D, offset: number): 
   return ACCENT_COLORS[ROBOT_IDENTITY_COLOR_NAMES[index]];
 }
 
+/** Exclusive upper bound for Robot.gemSeed. */
+const GEM_SEED_MAX = 2 ** 31;
+
+/**
+ * The robot's gem-polygon body seed (Roadmap Phase 39, docs/specs/GEM_POLYGON_ROBOTS.md §1.1) —
+ * same shape as generateRobotIdentityColor above: identity, not audio, drawn once at spawn,
+ * never inherited on the copy path. Clamped because the noise sampler can return exactly `max`.
+ */
+function generateGemSeed(noiseMap: NoiseFunction2D, offset: number): number {
+  return Math.min(GEM_SEED_MAX - 1, Math.floor(getSeededVal(noiseMap, 'robot.gem.seed', offset, 0, GEM_SEED_MAX)));
+}
+
 /** How many seeded hardware parts (docs/specs/ROBOT_GREEBLES.md) a robot gets. Tuned in the sketch. */
 export const GREEBLE_COUNT_RANGE = { min: 2, max: 5 } as const;
 
@@ -689,6 +701,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     identityColor: noiseMap
       ? generateRobotIdentityColor(noiseMap, spawnCount)
       : generateRobotIdentityColor((_x: number, _y: number) => 0 as number, spawnCount),
+    gemSeed: noiseMap
+      ? generateGemSeed(noiseMap, spawnCount)
+      : generateGemSeed((_x: number, _y: number) => 0 as number, spawnCount),
     greebles: noiseMap
       ? generateGreebles(noiseMap, spawnCount)
       : generateGreebles((_x: number, _y: number) => 0 as number, spawnCount),

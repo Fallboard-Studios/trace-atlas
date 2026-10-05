@@ -135,6 +135,13 @@ export interface Robot {
    */
   identityColor: string;
   /**
+   * Seed for the robot's gem-polygon body (docs/specs/GEM_POLYGON_ROBOTS.md §1.1). The geometry
+   * is derived — `getRobotGem(gemSeed)` in components/robot/gem/polygon.ts, cached per seed — and
+   * never stored here. Drawn once at spawn ('robot.gem.seed'), never user-edited, never inherited
+   * on the copy path, never diffed into a session — regenerated identically from the world seed.
+   */
+  gemSeed: number;
+  /**
    * Seeded, permanent hardware parts (docs/ROBOT_DESIGN.md "Non-audio layers"). Drawn once at
    * spawn ('robot.greeble.*' dataIds), never user-edited, never inherited on the copy path,
    * never diffed into a session — regenerated identically from the seed, like identityColor.

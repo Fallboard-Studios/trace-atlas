@@ -73,6 +73,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     name: 'Test Robot',
     identityColor: '#428d95',
     greebles: [],
+    gemSeed: 1,
     state: 'idle',
     position: { x: 100, y: 100 },
     destination: null,
