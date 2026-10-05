@@ -13,7 +13,7 @@ import {
   LAMP_MIN,
 } from './robotVisualHelpers';
 import { useUIStore } from '../../stores/uiStore';
-import { RobotGem } from './gem/RobotGem';
+import { RobotGem, type RobotGemOrbiters } from './gem/RobotGem';
 import { getRobotGem } from './gem/polygon';
 import { gemPalette } from './gem/gemPalette';
 import { batteryFacetContrast } from './gem/gemShading';
@@ -79,5 +79,9 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
   const palette = gemPalette(gem, robot.identityColor ?? FALLBACK_IDENTITY, daylight, audio.midLit, batteryFacetContrast(dimOpacity));
   const lightOpacity = (LAMP_MIN + (1 - LAMP_MIN) * audio.lampIntensity) * dimOpacity;
 
-  return <RobotGem gem={gem} palette={palette} lightOpacity={lightOpacity} scale={ignoreScale ? 1 : audio.scale} />;
+  // Placeholder until Task 7 wires the real composition dials — keeps today's app pixel-identical
+  // (all four corners, the old fixed line width, strip fully transparent, no motion).
+  const orbiters: RobotGemOrbiters = { count: 4, size: 1, lineWidth: 0.8, stripOpacity: 0, cornerOrder: [0, 1, 2, 3], motion: false };
+
+  return <RobotGem gem={gem} palette={palette} lightOpacity={lightOpacity} scale={ignoreScale ? 1 : audio.scale} orbiters={orbiters} />;
 });

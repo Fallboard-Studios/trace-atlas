@@ -1,10 +1,11 @@
 // ========================================
 // IMPORTS
 // ========================================
+import { createRef } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 
-import { RobotGem } from './RobotGem';
+import { RobotGem, type RobotGemOrbiters } from './RobotGem';
 import source from './RobotGem.tsx?raw';
 import { getRobotGem, gemWidth, GEM_CANVAS_H, type GemPart } from './polygon';
 import { gemPalette, type GemPalette, type GemPartPaint } from './gemPalette';
@@ -26,10 +27,21 @@ const parts: Array<[string, GemPart]> = [
   ['top', gem.top],
 ];
 
-function draw(p: GemPalette = palette, lightOpacity = 0.7, scale = 0.9) {
+/** The temporary prop RobotBody passes until Task 7 lands — all four corners, today's fixed line
+ *  width, strip fully transparent, no motion. Keeps the live app pixel-identical through T5/T6. */
+const ALL_FOUR_STATIC: RobotGemOrbiters = {
+  lineWidth: 0.8,
+  stripOpacity: 0,
+  size: 1,
+  count: 4,
+  cornerOrder: [0, 1, 2, 3],
+  motion: false,
+};
+
+function draw(p: GemPalette = palette, lightOpacity = 0.7, scale = 0.9, orbiters: RobotGemOrbiters = ALL_FOUR_STATIC) {
   const { container } = render(
     <svg>
-      <RobotGem gem={gem} palette={p} lightOpacity={lightOpacity} scale={scale} />
+      <RobotGem gem={gem} palette={p} lightOpacity={lightOpacity} scale={scale} orbiters={orbiters} />
     </svg>,
   );
   return container;
@@ -48,12 +60,17 @@ const paintOf = (i: number): GemPartPaint =>
 // ========================================
 // TESTS
 // ========================================
-describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.5)', () => {
+describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.5, ORBITING_POLYGONS.md §1.3)', () => {
   it('draws the parts in z order: backing, four orbiters, mid--left, mid--right, top', () => {
     const groups = partGroups(draw());
     expect(groups).toHaveLength(8);
-    groups.forEach((g, i) => expect(g.getAttribute('class')).toContain(`gem__${parts[i][0]}`));
-    ['tl', 'tr', 'bl', 'br'].forEach((corner, i) => expect(groups[1 + i].getAttribute('class')).toContain(`gem__orbiter--${corner}`));
+    groups.forEach((g, i) => {
+      const [name] = parts[i];
+      // The four orbiter inner parts no longer carry the corner class themselves (Task 5: that
+      // moved to the new `.gem__orbiter--{corner}` wrapper) — they're bare `.gem__part`.
+      if (name === 'orbiter') expect(g.getAttribute('class')).toBe('gem__part');
+      else expect(g.getAttribute('class')).toContain(`gem__${name}`);
+    });
   });
 
   it('places each part at its layout position', () => {
@@ -63,8 +80,8 @@ describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.
     });
   });
 
-  // Task 9a: facets are merged into one path per distinct fill, lines into one path per part —
-  // the moving robot layer's per-frame cost tracks element count (docs/PERFORMANCE.md, Task 9).
+  // Task 9a (Phase 39): facets are merged into one path per distinct fill, lines into one path per
+  // part — the moving robot layer's per-frame cost tracks element count (docs/PERFORMANCE.md).
   it('facets: one .gem__facets path per distinct fill whose subpaths cover every outline edge once; none on the backing; one face each', () => {
     partGroups(draw()).forEach((g, i) => {
       const [name, part] = parts[i];
@@ -133,14 +150,113 @@ describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.
     expect(root.getAttribute('transform')).toBe(`translate(${W / 2} ${GEM_CANVAS_H / 2}) scale(0.8) translate(${-W / 2} ${-GEM_CANVAS_H / 2})`);
   });
 
-  it('drawable element count is exactly Σ(distinct facet fills + face + one lines path) + 2 circles per light — a perf cut shows here', () => {
+  it('drawable element count is exactly Σ(distinct facet fills + face + one lines path + one strip path per shown orbiter) + 2 circles per light', () => {
     const container = draw();
     const drawn = container.querySelectorAll('polygon, polyline, path, circle').length;
     const bevelled = [...gem.orbiters, gem.midLeft, gem.midRight, gem.top];
     const expected =
       1 + // backing face
       bevelled.reduce((n, p, i) => n + new Set(paintOf(i + 1).facets).size + 1 + (p.lines.length ? 1 : 0), 0) +
-      gem.top.lights.length * 2;
+      gem.top.lights.length * 2 +
+      gem.orbiters.filter((p) => p.lines.length > 0).length; // one .gem__strip per shown orbiter with a line
     expect(drawn).toBe(expected);
+  });
+
+  it('forwards ref to the root g.gem (the useOrbiterMotion GSAP scope, Task 8)', () => {
+    const ref = createRef<SVGGElement>();
+    const { container } = render(
+      <svg>
+        <RobotGem ref={ref} gem={gem} palette={palette} lightOpacity={0.5} scale={1} orbiters={ALL_FOUR_STATIC} />
+      </svg>,
+    );
+    expect(ref.current).toBe(container.querySelector('g.gem'));
+  });
+});
+
+// ========================================
+// ORBITER DIALS — static (motion: false) path, Task 5
+// ========================================
+describe('RobotGem — static orbiters: count, cornerOrder, size, line width, strip (spec §1.3, Task 5)', () => {
+  it('count 2, cornerOrder [3, 0, 1, 2] renders exactly .gem__orbiter--br and --tl, in that DOM order, between backing and mid--left, both data-depth=rest', () => {
+    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, count: 2, cornerOrder: [3, 0, 1, 2] });
+    const root = container.querySelector('g.gem')!;
+    const orbiterWrappers = [...root.querySelectorAll(':scope > .gem__orbiter')];
+    expect(orbiterWrappers.map((g) => g.getAttribute('class'))).toEqual([
+      'gem__orbiter gem__orbiter--br',
+      'gem__orbiter gem__orbiter--tl',
+    ]);
+    orbiterWrappers.forEach((g) => expect(g.getAttribute('data-depth')).toBe('rest'));
+
+    const children = [...root.children];
+    const backingIndex = children.findIndex((c) => c.classList.contains('gem__backing'));
+    const midLeftIndex = children.findIndex((c) => c.classList.contains('gem__mid--left'));
+    const orbiterIndices = children
+      .map((c, i) => (c.classList.contains('gem__orbiter') ? i : -1))
+      .filter((i) => i >= 0);
+    expect(orbiterIndices.every((i) => i > backingIndex && i < midLeftIndex)).toBe(true);
+  });
+
+  it.each([1, 2, 3, 4] as const)('count %d shows the first %d corners of cornerOrder, no more', (count) => {
+    const cornerOrder = [2, 3, 1, 0];
+    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, count, cornerOrder });
+    const wrappers = [...container.querySelectorAll('.gem__orbiter')];
+    expect(wrappers).toHaveLength(count);
+    const expectedCorners = cornerOrder.slice(0, count).map((c) => ['tl', 'tr', 'bl', 'br'][c]);
+    expect(wrappers.map((w) => w.getAttribute('class'))).toEqual(expectedCorners.map((c) => `gem__orbiter gem__orbiter--${c}`));
+  });
+
+  it('.gem__orbiter-local carries scale(0.75) for size 0.75, transform-origin at the part centre', () => {
+    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, size: 0.75 });
+    const local = container.querySelector('.gem__orbiter--tl .gem__orbiter-local')!;
+    expect(local.getAttribute('transform')).toBe('scale(0.75)');
+    const part = gem.orbiters[0];
+    const cx = Number((part.x + part.w / 2).toFixed(2));
+    const cy = Number((part.y + part.h / 2).toFixed(2));
+    expect((local as HTMLElement).style.transformOrigin).toBe(`${cx}px ${cy}px`);
+  });
+
+  it('a different size value produces a different scale() factor, 2 dp', () => {
+    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, size: 1.25 });
+    const local = container.querySelector('.gem__orbiter--tl .gem__orbiter-local')!;
+    expect(local.getAttribute('transform')).toBe('scale(1.25)');
+  });
+
+  it('an orbiter .gem__lines stroke-width equals the lineWidth dial', () => {
+    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, lineWidth: 0.45 });
+    const lines = container.querySelector('.gem__orbiter--tl .gem__lines')!;
+    expect(lines.getAttribute('stroke-width')).toBe('0.45');
+  });
+
+  it('Mid and Top .gem__lines keep stroke-width 0.8 regardless of the orbiter lineWidth dial', () => {
+    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, lineWidth: 0.3 });
+    expect(container.querySelector('.gem__mid--left .gem__lines')!.getAttribute('stroke-width')).toBe('0.8');
+    expect(container.querySelector('.gem__mid--right .gem__lines')!.getAttribute('stroke-width')).toBe('0.8');
+    expect(container.querySelector('.gem__top .gem__lines')!.getAttribute('stroke-width')).toBe('0.8');
+  });
+
+  it('.gem__strip exists per shown orbiter with the same d as .gem__lines, stroke palette.light, width lineWidth/3, opacity stripOpacity', () => {
+    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, lineWidth: 0.9, stripOpacity: 0.62 });
+    ['tl', 'tr', 'bl', 'br'].forEach((corner) => {
+      const lines = container.querySelector(`.gem__orbiter--${corner} .gem__lines`)!;
+      const strip = container.querySelector(`.gem__orbiter--${corner} .gem__strip`)!;
+      expect(strip.getAttribute('d')).toBe(lines.getAttribute('d'));
+      expect(strip.getAttribute('stroke')).toBe(palette.light);
+      expect(strip.getAttribute('stroke-width')).toBe('0.3'); // 0.9 / 3
+      expect(strip.getAttribute('opacity')).toBe('0.62');
+    });
+  });
+
+  it('stripOpacity 0 still renders the strip (opacity 0, not absent)', () => {
+    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, stripOpacity: 0 });
+    const strip = container.querySelector('.gem__orbiter--tl .gem__strip');
+    expect(strip).not.toBeNull();
+    expect(strip!.getAttribute('opacity')).toBe('0');
+  });
+
+  it('no .gem__strip on Mid or Top', () => {
+    const container = draw();
+    expect(container.querySelector('.gem__mid--left .gem__strip')).toBeNull();
+    expect(container.querySelector('.gem__mid--right .gem__strip')).toBeNull();
+    expect(container.querySelector('.gem__top .gem__strip')).toBeNull();
   });
 });

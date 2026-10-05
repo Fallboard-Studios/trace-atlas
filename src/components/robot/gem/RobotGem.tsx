@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { memo } from 'react';
+import { memo, type Ref } from 'react';
 
 import { gemWidth, GEM_CANVAS_H, type GemPart, type GemPoint, type RobotGem as RobotGemGeometry } from './polygon';
 import type { GemPalette, GemPartPaint } from './gemPalette';
@@ -10,6 +10,18 @@ import { facetPaths, linesPath } from './gemPaths';
 // ========================================
 // TYPES
 // ========================================
+/** The orbiter dials and seeded layout RobotBody computes (docs/specs/ORBITING_POLYGONS.md §1.3).
+ *  `motion: false` (cards) renders the first `count` corners of `cornerOrder`, statically, at
+ *  `scale(size)`. `motion: true` is Task 6. */
+export interface RobotGemOrbiters {
+  lineWidth: number;
+  stripOpacity: number;
+  size: number;
+  count: 1 | 2 | 3 | 4;
+  cornerOrder: readonly number[];
+  motion: boolean;
+}
+
 interface RobotGemProps {
   /** getRobotGem(robot.gemSeed) — runtime-only geometry. */
   gem: RobotGemGeometry;
@@ -19,13 +31,18 @@ interface RobotGemProps {
   lightOpacity: number;
   /** Body scale from octave range/envelope, about the canvas centre. */
   scale: number;
+  /** Orbiter dials and layout (docs/specs/ORBITING_POLYGONS.md §1.1–§1.3). */
+  orbiters: RobotGemOrbiters;
+  /** Forwarded to the root `g.gem` — the `useOrbiterMotion` hook's GSAP scope (Task 8). */
+  ref?: Ref<SVGGElement>;
 }
 
 // ========================================
 // HELPERS
 // ========================================
 const FACET_STROKE_WIDTH = 0.25;
-const LINE_WIDTH = 0.8;
+/** Mids' and Top's fixed boundary-line width — orbiters use the Note Variance dial instead. */
+const BODY_LINE_WIDTH = 0.8;
 const BACKING_STROKE_WIDTH = 0.5;
 const LIGHT_HALO_R = 3;
 const LIGHT_HALO_OPACITY = 0.18;
@@ -35,19 +52,22 @@ const r2 = (n: number) => Number(n.toFixed(2));
 const points = (pts: readonly GemPoint[]) => pts.map(([x, y]) => `${r2(x)},${r2(y)}`).join(' ');
 const ORBITER_CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 
-function BevelledPart({ part, paint, className, lightOpacity, lightColor }: {
+function BevelledPart({ part, paint, className, lightOpacity, lightColor, lineWidth, strip }: {
   part: GemPart;
   paint: GemPartPaint;
   className: string;
   lightOpacity?: number;
   lightColor?: string;
+  lineWidth: number;
+  /** The orbiter-only centre stroke in `palette.light` (never on Mids/Top). */
+  strip?: { opacity: number; color: string };
 }) {
   const { pts, inner } = part;
   const lines = linesPath(part.lines);
   // Merged paths, not one element per facet/line: the moving robot layer re-rasterizes every
   // child each frame, so its cost tracks element count (docs/PERFORMANCE.md, Phase 39 Task 9).
   return (
-    <g className={`gem__part ${className}`} transform={`translate(${r2(part.x)} ${r2(part.y)})`}>
+    <g className={`gem__part ${className}`.trim()} transform={`translate(${r2(part.x)} ${r2(part.y)})`}>
       {facetPaths(pts, inner, paint.facets).map(({ fill, d }) => (
         <path
           key={fill}
@@ -66,7 +86,19 @@ function BevelledPart({ part, paint, className, lightOpacity, lightColor }: {
           d={lines}
           fill="none"
           stroke={paint.line}
-          strokeWidth={LINE_WIDTH}
+          strokeWidth={lineWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+      {lines && strip && (
+        <path
+          className="gem__strip"
+          d={lines}
+          fill="none"
+          stroke={strip.color}
+          strokeWidth={r2(lineWidth / 3)}
+          opacity={strip.opacity}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -81,21 +113,48 @@ function BevelledPart({ part, paint, className, lightOpacity, lightColor }: {
   );
 }
 
+/** One static (non-animated) orbiter: `.gem__orbiter--{corner}[data-depth=rest]` at `scale(size)`
+ *  about its own centre, wrapping the part's usual facets/face/lines/strip. */
+function StaticOrbiter({ gem, palette, orbiters, corner }: {
+  gem: RobotGemGeometry;
+  palette: GemPalette;
+  orbiters: RobotGemOrbiters;
+  corner: number;
+}) {
+  const part = gem.orbiters[corner];
+  const cx = r2(part.x + part.w / 2);
+  const cy = r2(part.y + part.h / 2);
+  return (
+    <g className={`gem__orbiter gem__orbiter--${ORBITER_CORNERS[corner]}`} data-depth="rest">
+      <g className="gem__orbiter-local" transform={`scale(${r2(orbiters.size)})`} style={{ transformOrigin: `${cx}px ${cy}px` }}>
+        <BevelledPart
+          part={part}
+          paint={palette.orbiters[corner]}
+          className=""
+          lineWidth={orbiters.lineWidth}
+          strip={{ opacity: orbiters.stripOpacity, color: palette.light }}
+        />
+      </g>
+    </g>
+  );
+}
+
 // ========================================
 // COMPONENT
 // ========================================
 /**
- * RobotGem — draw-only memo for a gem polygon robot (Roadmap Phase 39). Z order is DOM order:
- * backing, four orbiters, mid--left, mid--right, top. Geometry from getRobotGem, colours from
- * gemPalette; nothing here derives either. The root <g> GSAP animates lives in Robot.tsx, outside.
+ * RobotGem — draw-only memo for a gem polygon robot (Roadmap Phase 39/40). Z order is DOM order:
+ * backing, shown orbiters, mid--left, mid--right, top. Geometry from getRobotGem, colours from
+ * gemPalette, orbiter dials/layout from RobotBody; nothing here derives any of them.
  */
-export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, scale }: RobotGemProps) {
+export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, scale, orbiters, ref }: RobotGemProps) {
   const cx = gemWidth(gem) / 2;
   const cy = GEM_CANVAS_H / 2;
   const { backing } = gem;
+  const shownCorners = orbiters.cornerOrder.slice(0, orbiters.count);
 
   return (
-    <g className="gem" transform={`translate(${cx} ${cy}) scale(${scale}) translate(${-cx} ${-cy})`}>
+    <g ref={ref} className="gem" transform={`translate(${cx} ${cy}) scale(${scale}) translate(${-cx} ${-cy})`}>
       <g className="gem__part gem__backing" transform={`translate(${r2(backing.x)} ${r2(backing.y)})`}>
         <polygon
           className="gem__face"
@@ -105,17 +164,19 @@ export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, sca
           strokeWidth={BACKING_STROKE_WIDTH}
         />
       </g>
-      {gem.orbiters.map((part, i) => (
-        <BevelledPart
-          key={ORBITER_CORNERS[i]}
-          part={part}
-          paint={palette.orbiters[i]}
-          className={`gem__orbiter gem__orbiter--${ORBITER_CORNERS[i]}`}
-        />
+      {shownCorners.map((corner) => (
+        <StaticOrbiter key={ORBITER_CORNERS[corner]} gem={gem} palette={palette} orbiters={orbiters} corner={corner} />
       ))}
-      <BevelledPart part={gem.midLeft} paint={palette.midLeft} className="gem__mid gem__mid--left" />
-      <BevelledPart part={gem.midRight} paint={palette.midRight} className="gem__mid gem__mid--right" />
-      <BevelledPart part={gem.top} paint={palette.top} className="gem__top" lightOpacity={lightOpacity} lightColor={palette.light} />
+      <BevelledPart part={gem.midLeft} paint={palette.midLeft} className="gem__mid gem__mid--left" lineWidth={BODY_LINE_WIDTH} />
+      <BevelledPart part={gem.midRight} paint={palette.midRight} className="gem__mid gem__mid--right" lineWidth={BODY_LINE_WIDTH} />
+      <BevelledPart
+        part={gem.top}
+        paint={palette.top}
+        className="gem__top"
+        lightOpacity={lightOpacity}
+        lightColor={palette.light}
+        lineWidth={BODY_LINE_WIDTH}
+      />
     </g>
   );
 });
