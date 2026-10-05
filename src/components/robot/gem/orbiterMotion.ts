@@ -11,7 +11,7 @@
 // ========================================
 import alea from 'alea';
 
-import type { Rng } from './polygon';
+import { gemWidth, GEM_CANVAS_H, ORBITER_W, ORBITER_H, type Rng, type RobotGem } from './polygon';
 import type { OrbiterDials } from './orbiterDials';
 
 // ========================================
@@ -44,6 +44,32 @@ export interface OrbitDraw {
   wait: number;
 }
 
+/** Rest centre, unit vector toward the canvas centre, and its length, for one orbiter corner. */
+export interface CornerFrame {
+  cx: number;
+  cy: number;
+  ux: number;
+  uy: number;
+  r: number;
+}
+
+/** Offset from the corner's rest position at hoop angle θ; θ = 0 is at rest. */
+export interface RingPose {
+  x: number;
+  y: number;
+  scale: number;
+  opacity: number;
+  depth: 'front' | 'rest' | 'behind';
+}
+
+/** The quarter hoop a spawn or despawn plays, with no seeded freedom (open 0 always — Gate 1: any
+ *  offset let the orbiter be seen appearing/disappearing). */
+export interface ArcSpec {
+  dir: 1 | -1;
+  from: number;
+  to: number;
+}
+
 // ========================================
 // CONSTANTS
 // ========================================
@@ -66,6 +92,18 @@ export const DRIFT_PERIOD: readonly [number, number] = [6, 10];
 /** Hoop openness ceiling — 0 is the edge-on centre line; up to this fattens it into a thin ellipse
  *  seen at an angle (Gate 1: variety comes from openness and direction, never a line tilt). */
 export const ORBIT_OPEN_MAX = 0.3;
+
+/** Front-half peak scale over rest, at the centre crossing (sketch default, Gate 1: "front half ~1.15x"). */
+export const ORBIT_FRONT_SCALE = 0.15;
+/** Behind-half trough scale under rest, at the centre crossing. */
+export const ORBIT_BEHIND_SCALE = 0.2;
+/** Behind-half opacity dip under 1, at the centre crossing (Q4, kept at Gate 1). */
+export const ORBIT_BEHIND_DIM = 0.2;
+
+/** Despawn: the exact centre line (open 0), rest to behind at the canvas centre. */
+export const DESPAWN_ARC: ArcSpec = { dir: -1, from: 0, to: Math.PI / 2 };
+/** Spawn: the reverse — behind at the canvas centre to rest. */
+export const SPAWN_ARC: ArcSpec = { dir: 1, from: (3 * Math.PI) / 2, to: 2 * Math.PI };
 
 // ========================================
 // HELPERS
@@ -124,4 +162,84 @@ export function nextOrbit(R: Rng, dials: OrbiterDials): OrbitDraw {
     open: R() * ORBIT_OPEN_MAX,
     wait: dials.orbitGap * (1 + R()),
   };
+}
+
+// ========================================
+// RING GEOMETRY (spec §1.2, §4)
+// ========================================
+/** A corner's rest centre, the unit vector toward the canvas centre and the distance between
+ *  them. The ring and every arc run along this line, through the body, to the far side. */
+export function cornerFrame(gem: RobotGem, corner: number): CornerFrame {
+  const part = gem.orbiters[corner];
+  const cx = part.x + part.w / 2;
+  const cy = part.y + part.h / 2;
+  const canvasCx = gemWidth(gem) / 2;
+  const canvasCy = GEM_CANVAS_H / 2;
+  const dx = canvasCx - cx;
+  const dy = canvasCy - cy;
+  const r = Math.hypot(dx, dy);
+  return { cx, cy, ux: r === 0 ? 0 : dx / r, uy: r === 0 ? 0 : dy / r, r };
+}
+
+/**
+ * Offset from the corner's rest position at hoop angle θ; θ = 0 is at rest. Ported from the
+ * sketch's ringPose (Gate 1 reference — a constant change lands there first).
+ */
+export function ringPose(gem: RobotGem, corner: number, dir: 1 | -1, theta: number, open: number): RingPose {
+  const { ux, uy, r } = cornerFrame(gem, corner);
+  const along = r * (1 - Math.cos(theta));
+  const across = open * r * Math.sin(theta);
+  const d = dir * Math.sin(theta);
+  return {
+    x: along * ux - across * uy,
+    y: along * uy + across * ux,
+    scale: d >= 0 ? 1 + ORBIT_FRONT_SCALE * d : 1 - ORBIT_BEHIND_SCALE * -d,
+    opacity: d >= 0 ? 1 : 1 - ORBIT_BEHIND_DIM * -d,
+    depth: Math.abs(d) < 1e-9 ? 'rest' : d > 0 ? 'front' : 'behind',
+  };
+}
+
+// ========================================
+// AVATAR FRAME (spec §1.7)
+// ========================================
+/** Degree step for sampling the hoop's reach — fine enough that the pad never under-covers it. */
+const VIEWBOX_SAMPLE_STEP_DEG = 1;
+
+/**
+ * The detail avatar's viewBox: the canvas padded by the largest excursion any orbiter can make —
+ * the openness bulge at `ORBIT_OPEN_MAX`, half an orbiter at the 1.15 front scale, and drift —
+ * rounded up to whole units, symmetric, so the robot stays centred. The hoop itself never leaves
+ * the canvas (its far point is the partner's corner), so an `open: 0` hoop needs no pad beyond the
+ * orbiter's own half-size and drift.
+ */
+export function gemMotionViewBox(gem: RobotGem): string {
+  const width = gemWidth(gem);
+  const height = GEM_CANVAS_H;
+  const halfW = (ORBITER_W / 2) * (1 + ORBIT_FRONT_SCALE);
+  const halfH = (ORBITER_H / 2) * (1 + ORBIT_FRONT_SCALE);
+  const driftMax = DRIFT_AMPLITUDE[1];
+
+  let padLeft = 0;
+  let padRight = 0;
+  let padTop = 0;
+  let padBottom = 0;
+  for (let corner = 0; corner < 4; corner++) {
+    const { cx, cy } = cornerFrame(gem, corner);
+    for (let deg = 0; deg <= 360; deg += VIEWBOX_SAMPLE_STEP_DEG) {
+      const theta = (deg * Math.PI) / 180;
+      for (const dir of [1, -1] as const) {
+        const { x, y } = ringPose(gem, corner, dir, theta, ORBIT_OPEN_MAX);
+        const px = cx + x;
+        const py = cy + y;
+        padLeft = Math.max(padLeft, -(px - halfW - driftMax));
+        padRight = Math.max(padRight, px + halfW + driftMax - width);
+        padTop = Math.max(padTop, -(py - halfH - driftMax));
+        padBottom = Math.max(padBottom, py + halfH + driftMax - height);
+      }
+    }
+  }
+
+  const padX = Math.ceil(Math.max(padLeft, padRight, 0));
+  const padY = Math.ceil(Math.max(padTop, padBottom, 0));
+  return `${-padX} ${-padY} ${width + 2 * padX} ${height + 2 * padY}`;
 }
