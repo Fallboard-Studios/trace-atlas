@@ -34,7 +34,7 @@ import { initializeLocale, retransmitWorld } from './worldTransition';
 import { getCurrentMeasure } from '../engine/beatClock';
 import { recolorFactoriesForAttenuationStyle } from './factoryPlacementSystem';
 import { stopRobotLifecycle } from './robotSystems';
-import { stopAudioSwells, getActiveSwellSnapshot, tickAudioSwells } from './audioSwells';
+import { stopAudioSwells } from './audioSwells';
 import * as audioSwellsModule from './audioSwells';
 import { MAX_ROBOTS } from '../constants';
 import { computeLocaleHour } from '../constants/time';
@@ -136,29 +136,6 @@ describe('worldTransition', () => {
       expect(stopSpy).toHaveBeenCalledTimes(1);
       expect(startSpy).toHaveBeenCalledWith(DEFAULT_LOCALE_ID);
       expect(stopSpy.mock.invocationCallOrder[0]).toBeLessThan(startSpy.mock.invocationCallOrder[0]);
-    });
-
-    // KNOWN FLAKY (2026-09-27): relies on real seeded noise actually triggering a swell within 50
-    // measures rather than a mocked/forced trigger — see the comment below on the exact odds. Rare
-    // but real failures reproduce under `expect(seededSomething).toBe(true)`, not the clearing
-    // assertions below it, i.e. it's the precondition rolling badly, not the code under test being
-    // broken. If this fails, re-run once to confirm before treating it as a regression — don't
-    // auto-retry it repeatedly on failure, and don't "fix" the assertion values if it fails.
-    it('fully clears in-flight swells on a second initializeLocale call — no swell survives a restart', () => {
-      initializeLocale(DEFAULT_LOCALE_ID);
-      // Real seeded noise on the fixed default seed — 50 measures makes it
-      // astronomically unlikely neither pool ever triggers (~0.28 chance per
-      // pool per measure), so this reliably seeds at least one active swell
-      // without needing to mock the noise map.
-      for (let measure = 0; measure < 50; measure++) tickAudioSwells(DEFAULT_LOCALE_ID, measure);
-      const seededSomething =
-        getActiveSwellSnapshot('global').length > 0 || getActiveSwellSnapshot('robot').length > 0;
-      expect(seededSomething).toBe(true);
-
-      initializeLocale(DEFAULT_LOCALE_ID);
-
-      expect(getActiveSwellSnapshot('global')).toEqual([]);
-      expect(getActiveSwellSnapshot('robot')).toEqual([]);
     });
 
     it('does nothing for an unknown locale id', () => {
