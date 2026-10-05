@@ -251,16 +251,26 @@ export function identityGlass(hex: string): { glass: string; sheen: string } {
   };
 }
 
-export const SOCKET_DARK = 0.15;
-export const SOCKET_MIN = LAMP_MIN;
-export const SOCKET_GAIN_MAX = 1.2;
+/** A muted (gain 0) or missing layer's Mid polygon lit level (docs/specs/GEM_POLYGON_ROBOTS.md §1.4). */
+export const MID_DARK_LEVEL = 0.15;
+/** Lit level of the quietest audible layer — the same floor as the lights. */
+export const MID_LIT_MIN = LAMP_MIN;
+/** Seeded max layer gain; at or above it a Mid is fully lit. */
+export const MID_GAIN_MAX = 1.2;
 
-/** Glass opacity for one layer socket before battery dim. gain 0/undefined → dark socket;
- *  interpolates SOCKET_MIN..1 up to the seeded max gain, clamped above it. */
-export function socketLitOpacity(gain: number | undefined): number {
-  if (!gain) return SOCKET_DARK;
-  return SOCKET_MIN + (1 - SOCKET_MIN) * clamp01(gain / SOCKET_GAIN_MAX);
+/** How lit a layer's Mid polygon is, before battery dim. gain 0/undefined → MID_DARK_LEVEL;
+ *  interpolates MID_LIT_MIN..1 up to the seeded max gain, clamped above it. Continuous, so a gain
+ *  drag slides the Mid's tone rather than popping it (Phase 38's socket curve, renamed). */
+export function layerLitLevel(gain: number | undefined): number {
+  if (!gain) return MID_DARK_LEVEL;
+  return MID_LIT_MIN + (1 - MID_LIT_MIN) * clamp01(gain / MID_GAIN_MAX);
 }
+
+// Phase 38 names, kept only until the sockets are deleted (Phase 39 Task 10).
+export const SOCKET_DARK = MID_DARK_LEVEL;
+export const SOCKET_MIN = MID_LIT_MIN;
+export const SOCKET_GAIN_MAX = MID_GAIN_MAX;
+export const socketLitOpacity = layerLitLevel;
 
 function clamp01(v: number) {
   return Math.max(0, Math.min(1, v));

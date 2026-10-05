@@ -118,9 +118,12 @@ Parallelisable: T1→T2 ‖ T3 ‖ T4 ‖ T6. T5 needs T2, T3, T4. T7 needs T5, 
 **Description:** `GEM_BACKING`, `GEM_BACKING_STROKE`, `GEM_MID_DARK`, `GEM_LIGHT_COLOR`,
 `tone(hex, dl, ds)`, `blendHsl(a, b, t)`, and `gemPalette(identityHex, lightnessMultiplier,
 midLit: [number, number], facetContrast)` returning every fill/line/stroke string the renderer
-needs (`GemPalette`). Move `socketLitOpacity` → `layerLitLevel` here with its constants renamed
-(`MID_DARK_LEVEL` 0.15, `MID_LIT_MIN` = `LAMP_MIN`, `MID_GAIN_MAX` 1.2); leave a re-export under
-the old name in `robotVisualHelpers.ts` until T10 so the sockets keep compiling.
+needs (`GemPalette`). Rename `socketLitOpacity` → `layerLitLevel` **in place in
+`robotVisualHelpers.ts`** (spec §1.7) with its constants renamed (`MID_DARK_LEVEL` 0.15,
+`MID_LIT_MIN` = `LAMP_MIN`, `MID_GAIN_MAX` 1.2), keeping the old names as aliases until T10 so the
+sockets keep compiling. *(As built: an earlier draft moved it into `gemPalette.ts`, which would
+cycle with `LAMP_MIN`; the palette takes the lit level as an input instead. It also takes `gem`,
+because facet tones depend on each edge's normal.)*
 
 **Acceptance criteria:**
 - [ ] `layerLitLevel` cases carried over verbatim from `socketLitOpacity`'s tests (0/undefined →
