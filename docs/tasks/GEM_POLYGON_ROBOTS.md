@@ -79,7 +79,7 @@ Parallelisable: T1→T2 ‖ T3 ‖ T4 ‖ T6. T5 needs T2, T3, T4. T7 needs T5, 
 **Description:** Add `genLine(R, inner)` (45° + axis segment, endpoints 0.4 inside, ≤ 60 tries),
 `genLights(R, inner)` (two non-adjacent inner vertices pulled 30 % to the centroid), `GemPart`,
 `RobotGem`, `WIDTH_FACTORS`, `GEM_CANVAS_H = 80`, `ORBITER_W = 24`, `ORBITER_H = 16`,
-`generateRobotGem(R)` in the sketch's draw order (backing, 4 orbiters, midRight, midLeft, top),
+`generateRobotGem(R)` in draw order (backing, 4 orbiters, midLeft, midRight, top — see the spec's z-order correction),
 `gemWidth(gem)`, and `getRobotGem(seed)` — a `Map<number, RobotGem>` cache over
 `generateRobotGem(alea(String(seed)))`. Pin one fixture seed's output to `gem.fixture.json`.
 
@@ -93,7 +93,7 @@ Parallelisable: T1→T2 ‖ T3 ‖ T4 ‖ T6. T5 needs T2, T3, T4. T7 needs T5, 
 - [ ] `getRobotGem(FIXTURE_SEED)` deep-equals `gem.fixture.json`.
 
 **Verification:** `npx vitest run src/components/robot/gem/polygon.test.ts`; `npm run build:types`.
-**Dependencies:** T1. **Files:** `gem/polygon.ts`, `gem/polygon.test.ts`, `gem/gem.fixture.json`.
+**Dependencies:** T1. **Files:** `gem/polygon.ts`, `gem/robotGem.test.ts`, `gem/gem.fixture.json`.
 **Scope:** S.
 
 ## Task 3: `gemShading.ts`
@@ -148,7 +148,7 @@ the old name in `robotVisualHelpers.ts` until T10 so the sockets keep compiling.
 mid--right, mid--left, top; facets, face, lines, two lights). No colour computed inside.
 
 **Acceptance criteria:**
-- [ ] DOM order backing → orbiter ×4 → `.gem__mid--right` → `.gem__mid--left` → `.gem__top`.
+- [ ] DOM order backing → orbiter ×4 → `.gem__mid--left` → `.gem__mid--right` → `.gem__top`.
 - [ ] `.gem__facet` count per bevelled part = that part's side count; 0 on the backing; lines
       4/2/2/1; exactly 2 `.gem__light` and only inside `.gem__top`; light opacity attribute equals
       `lightOpacity`.

@@ -54,13 +54,18 @@ rest):
 export type GemPoint = [number, number];
 
 export interface GemPart {
+  /** Top-left of the part's box on the canvas — layout is computed here, not in the renderer
+   *  (Task 2), so RobotGem stays draw-only. */
+  x: number; y: number;
   /** Bounding box the polygon fills (touches all four edges); orbiters are always 24×16. */
   w: number; h: number;
-  /** Clockwise outline, 8–12 vertices, every edge at a multiple of 15°. */
+  /** Clockwise outline, 8–12 vertices, every edge at a multiple of 15°. Box-local. */
   pts: GemPoint[];
+  /** The bevel inset of `pts` (the face); equals `pts` on the unbevelled backing (Task 2). */
+  inner: GemPoint[];
   /** Boundary lines on the inner polygon: 2–3 points each, 0°/45°/90° segments only. */
   lines: GemPoint[][];
-  /** Top polygon only: the two light positions (inner-polygon space). Empty elsewhere. */
+  /** Top polygon only: the two light positions. Empty elsewhere. */
   lights: GemPoint[];
 }
 
@@ -68,12 +73,17 @@ export interface RobotGem {
   /** Canvas width = GEM_CANVAS_H × widthFactor. */
   widthFactor: 1 | 1.25 | 1.5 | 1.75 | 2;
   backing: GemPart;   // ~25k×25, convex, may be symmetric, no bevel
+  orbiters: [GemPart, GemPart, GemPart, GemPart]; // 24×16, TL/TR/BL/BR, 1 line each
+  midLeft: GemPart;   // 20–24k × 34–36, right edge on the canvas centre line, 2 lines — third-highest z
+  midRight: GemPart;  // 20–24k × 34–36, left edge on the canvas centre line, 2 lines — second-highest z
   top: GemPart;       // 32k×32, 4 lines, 2 lights
-  midLeft: GemPart;   // 20–24k × 34–36, right edge on the canvas centre line, 2 lines
-  midRight: GemPart;  // 20–24k × 34–36, left edge on the canvas centre line, 2 lines
-  orbiters: [GemPart, GemPart, GemPart, GemPart]; // 24×16, one per corner, 1 line each
 }
 ```
+
+> **Z-order correction (Task 2, 2026-10-04).** An earlier draft of this spec drew `midRight` below
+> `midLeft`. Crawford's outline gives the Mid whose *left* edge is on the centre line (`midRight`)
+> the second-highest z and the other the third, and the Gate 1 sketch draws them that way. Draw
+> order is therefore backing → orbiters → midLeft → midRight → top throughout.
 
 `gemSeed` is drawn at spawn in `spawnSystem.ts` like `identityColor`/`greebles`:
 `Math.floor(getSeededVal(noiseMap, 'robot.gem.seed', spawnCount, 0, 2 ** 31))`. Not inherited on
@@ -90,23 +100,30 @@ Pure functions over a `() => number` stream, ported 1:1 from the sketch's `<scri
   `chamfer` (1 extra side; angle ∈ {15,30,45,60,75}°), `double` (2 extra sides; complementary pairs
   (75,15) or (60,30) meeting at an interior vertex) or `step` (Main/orbiter only; 2 extra sides, one
   concave corner + one right angle, inner wall at 45° or 60°). Every cut's reach along an edge is
-  capped at 45% of that edge (so two cuts never meet); a step's inner wall is floored at 25% of the
-  short side (above the bevel cap) or falls back to a chamfer. Rejection-sampled until: 8 ≤ sides
-  ≤ 12, right ≤ 4, concave ≤ `rules.maxConcave`, and (Main) not mirror-symmetric on either axis.
+  capped at 45% of that edge (so two cuts never meet); a step's inner wall is floored at 20% of the
+  short side or falls back to a chamfer. The `double` corner solves its two edges' intersection
+  generally (the sketch's formula assumed equal cut lengths and drifted off the 15° grid otherwise —
+  Task 1). Rejection-sampled until: 8 ≤ sides ≤ 12, right ≤ 4, concave ≤ `rules.maxConcave`,
+  (Main) not mirror-symmetric on either axis, and **`bevelHolds(pts, bevelDepth(w, h))`** — the
+  part's own bevel inverts no edge (Task 1: short step walls and leftover box edges bow-tied under
+  a 2.5 bevel; one rejection rule covers every corner kind). `bevelDepth`/`GEM_BEVEL_DEPTH`
+  therefore live in `polygon.ts`; `gemShading.ts` re-exports them.
   Rules: `BASE_RULES` (convex, symmetric ok, 0 concave), `MAIN_RULES` (≤2 concave, asymmetric),
   `ORBIT_RULES` (≤4 concave, symmetric ok). Edge-touch holds by construction (cuts < half an edge).
 - `inset(pts, d)` — miter offset of every edge inward by `d`; outward normals from winding
   (signed area), not the centroid.
 - `genLine(R, inner)` — a boundary line from one inner edge to another, routed as one 45° segment
-  plus one axis-aligned segment (order seeded), endpoints pulled 0.4 inside the inner polygon so the
-  line never touches a facet; sampled points must all lie inside; up to 60 tries, else no line.
-- `genLights(R, inner)` — two non-adjacent inner vertices, each pulled 30% toward the centroid.
-- `generateRobotGem(R)` — width factor from {1, 1.25, 1.5, 1.75, 2}, then the parts in §1.1's order
-  (backing, four orbiters, midRight, midLeft, top — the sketch's draw order, so a seed reproduces
-  the sketch).
+  plus one axis-aligned segment (order seeded), endpoints 0.4 inside the inner polygon, and every
+  segment at least `LINE_CLEARANCE` 0.35 from every inner edge (≈ half the 0.8 stroke, so the
+  *drawn* line never touches a facet — Task 2 found lines bending past concave corners closer than
+  that); up to 60 tries, else null.
+- `genLights(R, inner)` — two non-adjacent inner vertices, each pulled 30% toward the vertex mean.
+- `generateRobotGem(R)` — width factor from {1, 1.25, 1.5, 1.75, 2}, then the parts in draw order
+  (backing, four orbiters, midLeft, midRight, top). Each part retries its whole outline until all
+  its lines and lights fit, so the counts are guaranteed.
 
-Determinism: the same stream seed yields byte-identical `RobotGem`; `polygon.test.ts` pins one
-fixture seed's output.
+Determinism: the same stream seed yields byte-identical `RobotGem`; `robotGem.test.ts` pins one
+fixture seed's output (`gem.fixture.json`).
 
 ### 1.3 Bevel and facet shading (`gemShading.ts`)
 
@@ -145,11 +162,11 @@ Light opacity: `(LAMP_MIN + (1 − LAMP_MIN) × lampIntensity) × dimOpacity`, b
 g.gem (transform: scale about canvas centre)
   g.gem__backing   polygon.gem__face
   g.gem__orbiter ×4 (.gem__orbiter--tl/--tr/--bl/--br)   polygon.gem__facet ×sides, polygon.gem__face, polyline.gem__line
-  g.gem__mid.gem__mid--right, g.gem__mid.gem__mid--left   facets, face, lines ×2
+  g.gem__mid.gem__mid--left, g.gem__mid.gem__mid--right   facets, face, lines ×2
   g.gem__top       facets, face, lines ×4, g.gem__light ×2
 ```
 
-Z order is DOM order: backing, orbiters, midRight, midLeft, top. Part translation is the §1.1
+Z order is DOM order: backing, orbiters, midLeft, midRight, top. Part translation is the §1.1
 layout on a canvas `W = 80 × widthFactor` by `GEM_CANVAS_H = 80`: backing centred; top centred;
 mids centred vertically, flush to the centre line; orbiters at the four corners. No colour is
 computed inside the renderer.
@@ -280,7 +297,7 @@ sketch value they came from.
   a top-left edge shades > 0, bottom-right < 0; `facetTone` monotonic in shade.
 - **`gemPalette.test.ts`:** `layerLitLevel` cases carried over from `socketLitOpacity`; `t = 0` →
   `GEM_MID_DARK`, `t = 1` → the lit tone; lightness multiplier scales every entry.
-- **`RobotGem.test.tsx`:** DOM order backing → orbiters → mid--right → mid--left → top; facet count =
+- **`RobotGem.test.tsx`:** DOM order backing → orbiters → mid--left → mid--right → top; facet count =
   sides per bevelled part; 0 facets on the backing; 4/2/2/1 lines; exactly 2 `.gem__light` in the
   top only; fills equal the palette strings passed in; `scale` lands on `g.gem`'s transform.
 - **`RobotBody.test.tsx`:** item-22 spy test (lightness tick does not recompute the audio memo)

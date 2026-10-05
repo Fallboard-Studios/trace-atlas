@@ -5,6 +5,11 @@
 // the sketch first, then here. Pure: every function takes its randomness as a stream, never
 // Math.random(), so a seed reproduces a robot exactly.
 
+// ========================================
+// IMPORTS
+// ========================================
+import alea from 'alea';
+
 /** Box-local point in canvas units. */
 export type GemPoint = [number, number];
 
@@ -252,4 +257,204 @@ export function inset(pts: readonly GemPoint[], d: number): GemPoint[] {
     const t = ((q0[0] - p0[0]) * s[1] - (q0[1] - p0[1]) * s[0]) / den;
     return [p0[0] + r[0] * t, p0[1] + r[1] * t];
   });
+}
+
+// ========================================
+// BOUNDARY LINES & LIGHTS
+// ========================================
+/** Line endpoints sit this far inside the inner polygon, so a line never touches a facet. */
+const LINE_INSET = 0.4;
+/** Every line segment keeps at least this from every facet edge — about half the 0.8 stroke, so
+ *  the drawn line never touches the bevel, including where it bends past a concave corner. */
+const LINE_CLEARANCE = 0.35;
+/** Shortest straight-line span a boundary line may cover. */
+const LINE_MIN_SPAN = 4;
+const LINE_TRIES = 60;
+/** Lights sit this share of the way from an inner vertex to the vertex mean. */
+const LIGHT_PULL = 0.3;
+
+function segmentsTouch(a: GemPoint, b: GemPoint, c: GemPoint, d: GemPoint): boolean {
+  const o = (p: GemPoint, q: GemPoint, r: GemPoint) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  return o(c, d, a) * o(c, d, b) <= 0 && o(a, b, c) * o(a, b, d) <= 0;
+}
+
+function lerpPoint(p: GemPoint, q: GemPoint, t: number): GemPoint {
+  return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
+}
+
+function pointSegmentDistance(p: GemPoint, a: GemPoint, b: GemPoint): number {
+  const vx = b[0] - a[0];
+  const vy = b[1] - a[1];
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / (vx * vx + vy * vy)));
+  return Math.hypot(p[0] - (a[0] + t * vx), p[1] - (a[1] + t * vy));
+}
+
+function segmentDistance(a: GemPoint, b: GemPoint, c: GemPoint, d: GemPoint): number {
+  if (segmentsTouch(a, b, c, d)) return 0;
+  return Math.min(pointSegmentDistance(a, c, d), pointSegmentDistance(b, c, d), pointSegmentDistance(c, a, b), pointSegmentDistance(d, a, b));
+}
+
+/** Inside `poly` with at least LINE_CLEARANCE between every segment and every edge of `poly`. */
+function pathInside(path: readonly GemPoint[], poly: readonly GemPoint[]): boolean {
+  if (!path.every((pt) => pointInPolygon(pt, poly))) return false;
+  for (let i = 0; i < path.length - 1; i++) {
+    for (let e = 0; e < poly.length; e++) {
+      if (segmentDistance(path[i], path[i + 1], poly[e], poly[(e + 1) % poly.length]) < LINE_CLEARANCE) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * A boundary line from one inner edge to another: a 45° run plus an axis-aligned run (order
+ * seeded), endpoints LINE_INSET inside the inner polygon. Null when no route fits in LINE_TRIES.
+ */
+export function genLine(R: Rng, inner: readonly GemPoint[]): GemPoint[] | null {
+  const n = inner.length;
+  const safe = inset(inner, LINE_INSET);
+  for (let tries = 0; tries < LINE_TRIES; tries++) {
+    const e1 = Math.floor(R() * n);
+    const e2 = Math.floor(R() * n);
+    const t1 = range(R, 0.2, 0.8);
+    const t2 = range(R, 0.2, 0.8);
+    const diagFirst = R() < 0.5;
+    if (e1 === e2) continue;
+    const s = lerpPoint(safe[e1], safe[(e1 + 1) % n], t1);
+    const f = lerpPoint(safe[e2], safe[(e2 + 1) % n], t2);
+    const dx = f[0] - s[0];
+    const dy = f[1] - s[1];
+    if (Math.hypot(dx, dy) < LINE_MIN_SPAN) continue;
+    const m = Math.min(Math.abs(dx), Math.abs(dy));
+    const diag: GemPoint = [Math.sign(dx) * m, Math.sign(dy) * m];
+    const bend: GemPoint = diagFirst ? [s[0] + diag[0], s[1] + diag[1]] : [f[0] - diag[0], f[1] - diag[1]];
+    // A purely axis-aligned or purely diagonal route has no bend — drop the duplicate point.
+    const path = [s, bend, f].filter((p, i, all) => i === 0 || Math.hypot(p[0] - all[i - 1][0], p[1] - all[i - 1][1]) > 1e-6);
+    if (pathInside(path, inner)) return path;
+  }
+  return null;
+}
+
+/** Two lights at non-adjacent inner vertices, each pulled LIGHT_PULL toward the vertex mean. */
+export function genLights(R: Rng, inner: readonly GemPoint[]): GemPoint[] {
+  const n = inner.length;
+  const c: GemPoint = [inner.reduce((s, v) => s + v[0], 0) / n, inner.reduce((s, v) => s + v[1], 0) / n];
+  const i = Math.floor(R() * n);
+  const others = inner.map((_, j) => j).filter((j) => Math.min(Math.abs(i - j), n - Math.abs(i - j)) >= 2);
+  const j = pick(R, others);
+  return [i, j].map((k) => lerpPoint(inner[k], c, LIGHT_PULL));
+}
+
+// ========================================
+// ROBOT
+// ========================================
+/** Canvas height; width is GEM_CANVAS_H × widthFactor (Gate 1 amendment: 80 tall so orbiters
+ *  clear the body at rest). */
+export const GEM_CANVAS_H = 80;
+export const WIDTH_FACTORS = [1, 1.25, 1.5, 1.75, 2] as const;
+export type WidthFactor = (typeof WIDTH_FACTORS)[number];
+/** Orbiters ignore the width factor — always "somewhat square" (Crawford, 2026-10-04). */
+export const ORBITER_W = 24;
+export const ORBITER_H = 16;
+const PART_TRIES = 50;
+
+export interface GemPart {
+  /** Top-left of the part's box in canvas units. */
+  x: number;
+  y: number;
+  /** Box the outline fills (touches all four edges). */
+  w: number;
+  h: number;
+  /** Outline, box-local, 8–12 vertices on the 15° grid. */
+  pts: GemPoint[];
+  /** Bevel inset of `pts` (the face); equals `pts` on the unbevelled backing. */
+  inner: GemPoint[];
+  /** Boundary lines, box-local, 2–3 points each, 0°/45°/90° runs. */
+  lines: GemPoint[][];
+  /** Light positions, box-local — two on the top, none elsewhere. */
+  lights: GemPoint[];
+}
+
+/** Runtime-only (never in Zustand): derived from Robot.gemSeed by getRobotGem. */
+export interface RobotGem {
+  widthFactor: WidthFactor;
+  backing: GemPart;
+  /** TL, TR, BL, BR. */
+  orbiters: [GemPart, GemPart, GemPart, GemPart];
+  /** Right edge on the canvas centre line; drawn below midRight. */
+  midLeft: GemPart;
+  /** Left edge on the canvas centre line; drawn above midLeft. */
+  midRight: GemPart;
+  top: GemPart;
+}
+
+interface PartSpec {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rules: PolygonRules;
+  bevel: boolean;
+  lines: number;
+  lights: number;
+}
+
+/** One part; retries its outline until every line (and light) fits, so counts are guaranteed. */
+function makePart(R: Rng, spec: PartSpec): GemPart {
+  const { x, y, w, h, rules, bevel } = spec;
+  for (let tries = 0; tries < PART_TRIES; tries++) {
+    const pts = genPolygon(R, w, h, rules);
+    const inner = bevel ? inset(pts, bevelDepth(w, h)) : pts;
+    const lines: GemPoint[][] = [];
+    for (let k = 0; k < spec.lines; k++) {
+      const line = genLine(R, inner);
+      if (!line) break;
+      lines.push(line);
+    }
+    if (lines.length < spec.lines) continue;
+    const lights = spec.lights > 0 ? genLights(R, inner) : [];
+    if (!lights.every((L) => pointInPolygon(L, inner))) continue;
+    return { x, y, w, h, pts, inner, lines, lights };
+  }
+  throw new Error(`makePart: no ${w}x${h} part fit its lines/lights in ${PART_TRIES} tries`);
+}
+
+/** Every part of one robot, in draw (z) order: backing, orbiters, midLeft, midRight, top. */
+export function generateRobotGem(R: Rng): RobotGem {
+  const widthFactor = pick(R, WIDTH_FACTORS);
+  const k = widthFactor;
+  const W = GEM_CANVAS_H * k;
+  const H = GEM_CANVAS_H;
+
+  const backing = makePart(R, { x: (W - 25 * k) / 2, y: (H - 25) / 2, w: 25 * k, h: 25, rules: BASE_RULES, bevel: false, lines: 0, lights: 0 });
+  const corners: GemPoint[] = [[0, 0], [W - ORBITER_W, 0], [0, H - ORBITER_H], [W - ORBITER_W, H - ORBITER_H]];
+  const [tl, tr, bl, br] = corners.map(([x, y]) =>
+    makePart(R, { x, y, w: ORBITER_W, h: ORBITER_H, rules: ORBIT_RULES, bevel: true, lines: 1, lights: 0 }),
+  );
+  const leftW = range(R, 20, 24) * k;
+  const leftH = range(R, 34, 36);
+  const midLeft = makePart(R, { x: W / 2 - leftW, y: (H - leftH) / 2, w: leftW, h: leftH, rules: MAIN_RULES, bevel: true, lines: 2, lights: 0 });
+  const rightW = range(R, 20, 24) * k;
+  const rightH = range(R, 34, 36);
+  const midRight = makePart(R, { x: W / 2, y: (H - rightH) / 2, w: rightW, h: rightH, rules: MAIN_RULES, bevel: true, lines: 2, lights: 0 });
+  const top = makePart(R, { x: (W - 32 * k) / 2, y: (H - 32) / 2, w: 32 * k, h: 32, rules: MAIN_RULES, bevel: true, lines: 4, lights: 2 });
+
+  return { widthFactor, backing, orbiters: [tl, tr, bl, br], midLeft, midRight, top };
+}
+
+/** Canvas width of a robot, in canvas units. */
+export function gemWidth(gem: RobotGem): number {
+  return GEM_CANVAS_H * gem.widthFactor;
+}
+
+const gemCache = new Map<number, RobotGem>();
+
+/** The geometry for a seed — generated once, then a Map hit. Never stored in state:
+ *  Robot.gemSeed is the only persisted value (Crawford, 2026-10-04). */
+export function getRobotGem(seed: number): RobotGem {
+  let gem = gemCache.get(seed);
+  if (!gem) {
+    gem = generateRobotGem(alea(String(seed)));
+    gemCache.set(seed, gem);
+  }
+  return gem;
 }
