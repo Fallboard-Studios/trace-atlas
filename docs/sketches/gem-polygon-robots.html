@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Gem Polygon Robots — sketch (Branch A gate)</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #12161a; color: #e4e6ea; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  p.note { font-size: 12px; color: #9aa; max-width: 900px; margin: 4px 0 12px; }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; }
+  .pending b { color: #e8b84a; }
+  .controls { display: flex; gap: 12px; align-items: center; font-size: 13px; margin: 12px 0 20px; flex-wrap: wrap; }
+  .controls input[type=text] { background: #1a2027; color: #e4e6ea; border: 1px solid rgba(140,190,210,.14); padding: 4px 8px; font-family: monospace; width: 160px; }
+  .controls button { background: #1a2027; color: #e4e6ea; border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; }
+  .controls label { color: #9aa; }
+  .controls input[type=range] { width: 90px; vertical-align: middle; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+  .card { background: #1a2027; border: 1px solid rgba(140,190,210,.14); border-radius: 3px; padding: 8px; text-align: center; }
+  .card svg { display: block; margin: 0 auto; }
+  .card.world svg { background: #12161a; }
+  .card figcaption { font-size: 10px; color: #8a8f99; margin-top: 5px; font-family: monospace; white-space: pre; text-align: left; }
+  .strip { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px; background: #1a2027; border-radius: 3px; width: max-content; }
+  .strip svg { display: block; }
+  .legend { font-size: 11px; color: #9aa; margin: 4px 0 12px; }
+  .legend span { display: inline-block; margin-right: 14px; }
+  .swatch { display: inline-block; width: 10px; height: 10px; vertical-align: middle; margin-right: 4px; }
+  .fail { color: #cd5e57; }
+  .world-bg { fill: #12161a; }
+</style>
+</head>
+<body>
+
+<h1>Gem Polygon Robots — sketch</h1>
+<p class="note">Branch A gate for <code>docs/ideas/gem-polygon-robots.md</code>. Everything on this page comes from the seeded generator below, obeying the polygon rulebook (15° angles, 8–12 sides, ≤4 right angles, ≤2 concave corners on Top/Mids, ≤4 on orbiters, Backing convex, Top/Mids never symmetric, every polygon touches all four edges of its own box). Bevel ring = inset polygon + one trapezoid facet per edge, toned by that edge's outward normal against a single top-left light. Boundary lines live on the inner polygon, 0°/45°/90° only. Identity colours are the real 18 <code>ACCENT_COLORS</code>, no repeats across the 12.</p>
+
+<div class="pending"><b>Gate question:</b> does this read better than the current robots at world scale, 96 px and 64 px — and does it match the console? Secondary: are all 12 distinguishable at 64 px, and is each obviously the same robot across the three sizes?</div>
+
+<div class="controls">
+  <label>Seed <input type="text" id="seed" value="pelagos" /></label>
+  <button id="regen">Regenerate</button>
+  <button id="next">Next seed</button>
+  <label>Bevel depth <input type="range" id="bevel" min="1" max="5" step="0.25" value="2.5" /> <span id="bevelv">2.5</span></label>
+  <label>Facet contrast <input type="range" id="contrast" min="0" max="40" step="2" value="20" /> <span id="contrastv">20</span></label>
+  <label><input type="checkbox" id="showBoxes" /> show boxes</label>
+  <label><input type="checkbox" id="allLit" /> all Mids lit</label>
+</div>
+
+<h2>The 12, at 64 px (card)</h2>
+<p class="note">Distinctness check. Each tile is the robot's whole canvas fitted into 64×64, so wide canvases get letterboxed — exactly what the card will do.</p>
+<div class="strip" id="strip64"></div>
+
+<h2>Each robot at world scale (2 px/unit), 96 px avatar, 64 px card</h2>
+<p class="note">Canvas is 80 tall and 80–160 wide (seeded); every polygon keeps its outline size, so the orbiters sit clear of the body at rest with room to drift in while animating.</p>
+<div class="row" id="grid"></div>
+
+<h2>Polygon vocabulary from this seed</h2>
+<p class="note">Robot 1's parts in isolation, so the bevel and line routing can be judged without the stack. Caption: sides / right angles / concave corners.</p>
+<div class="row" id="parts"></div>
+
+<script>
+// ---------- seeded rng ----------
+function rngFrom(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+  let a = (h ^= h >>> 16) >>> 0;
+  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const pick = (R, arr) => arr[Math.floor(R() * arr.length)];
+const range = (R, lo, hi) => lo + R() * (hi - lo);
+
+// ---------- colour ----------
+function hexToHsl(hex) {
+  const n = parseInt(hex.slice(1), 16); const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  return [h, s * 100, l * 100];
+}
+const hsl = (h, s, l) => `hsl(${h.toFixed(1)} ${Math.max(0, Math.min(100, s)).toFixed(1)}% ${Math.max(0, Math.min(100, l)).toFixed(1)}%)`;
+function tone(hex, dl, ds = 0) { const [h, s, l] = hexToHsl(hex); return hsl(h, s + ds, l + dl); }
+
+const ACCENT = { orange:'#da7e1b', red:'#cd5e57', pink:'#ae5378', purple:'#7a5484', plum:'#65617f', blue:'#4f6d7a', cyan:'#428d95', teal:'#41ad9f', green:'#68cb97', lime:'#a9e583', yellow:'#e9e377', tangerine:'#e2b149', beige:'#f7f5d3', emerald:'#4fc27a', indigo:'#5a5c9e' };
+const ACCENT_NAMES = Object.keys(ACCENT);
+const BACKING = '#0e1013';
+const MID_DARK = '#262a31';
+
+// ---------- geometry ----------
+const TAN = { 15: Math.tan(Math.PI / 12), 30: Math.tan(Math.PI / 6), 45: 1, 60: Math.tan(Math.PI / 3), 75: Math.tan(5 * Math.PI / 12) };
+// corner-local axes: a = back along incoming edge, b = along outgoing edge (clockwise, y down)
+const CORNERS = [
+  { p: (w, h) => [0, 0], a: [0, 1], b: [1, 0] },   // TL
+  { p: (w, h) => [w, 0], a: [-1, 0], b: [0, 1] },  // TR
+  { p: (w, h) => [w, h], a: [0, -1], b: [-1, 0] }, // BR
+  { p: (w, h) => [0, h], a: [1, 0], b: [0, -1] },  // BL
+];
+const add = (p, v, k) => [p[0] + v[0] * k, p[1] + v[1] * k];
+
+/**
+ * Chamfered rectangle + optional slanted steps. opts: { convex, allowSymmetric, maxConcave, maxRight }
+ * Returns { pts, sides, right, concave } or null after too many tries.
+ */
+function genPolygon(R, w, h, opts) {
+  const minDim = Math.min(w, h);
+  for (let tries = 0; tries < 400; tries++) {
+    const pts = []; let sides = 4, right = 0, concave = 0;
+    const kinds = opts.convex ? ['none', 'chamfer', 'chamfer', 'double'] : ['none', 'chamfer', 'chamfer', 'double', 'step'];
+    for (let i = 0; i < 4; i++) {
+      const C = CORNERS[i], P = C.p(w, h);
+      let kind = pick(R, kinds);
+      // every cut's reach along an edge is capped at 45% of that edge, so the two cuts sharing
+      // an edge can never meet or cross (the outline would fold back on itself)
+      const lenA = i % 2 === 0 ? h : w, lenB = i % 2 === 0 ? w : h;
+      const capA = 0.45 * lenA, capB = 0.45 * lenB;
+      const cut = range(R, 0.22, 0.42) * minDim;
+      if (kind === 'step') {
+        // slanted inner wall, one concave corner, one right angle; wall B stays above the bevel
+        // cap (0.18·minDim) so the inset never self-intersects, else fall back to a chamfer
+        const phi = pick(R, [45, 60]); const t = TAN[phi];
+        const B = Math.min(minDim * range(R, 0.25, 0.34), capB, (capA - 0.1) / t);
+        if (B >= 0.2 * minDim) {
+          const A = Math.min(B * t + cut * range(R, 0.3, 0.6), capA);
+          pts.push(add(P, C.a, A), add(add(P, C.a, A - B * t), C.b, B), add(P, C.b, B));
+          sides += 2; right += 1; concave += 1; continue;
+        }
+        kind = 'chamfer';
+      }
+      if (kind === 'none') { pts.push(P); right++; continue; }
+      if (kind === 'chamfer') {
+        const phi = pick(R, [15, 30, 45, 60, 75]); const t = TAN[phi];
+        let La = t >= 1 ? cut : cut * t, Lb = t >= 1 ? cut / t : cut;
+        const k = Math.min(1, capA / La, capB / Lb); La *= k; Lb *= k;
+        pts.push(add(P, C.a, La), add(P, C.b, Lb)); sides += 1; continue;
+      }
+      // double: two chamfers at complementary angles meeting at an interior vertex
+      const [p1, p2] = pick(R, [[75, 15], [60, 30]]); const T1 = TAN[p1], T2 = TAN[p2];
+      const v = (1 - T2) / (T1 - T2), u = 1 - v * T1;
+      const A = Math.min(cut, capA), B = Math.min(cut * range(R, 0.8, 1.25), capB);
+      pts.push(add(P, C.a, A), add(add(P, C.a, A * u), C.b, B * v), add(P, C.b, B)); sides += 2;
+    }
+    if (sides < 8 || sides > 12 || right > opts.maxRight || concave > opts.maxConcave) continue;
+    if (!opts.allowSymmetric && (isSymmetric(pts, w, h, 'h') || isSymmetric(pts, w, h, 'v'))) continue;
+    return { pts, sides, right, concave, w, h };
+  }
+  return null;
+}
+function isSymmetric(pts, w, h, axis) {
+  const m = pts.map(([x, y]) => axis === 'h' ? [w - x, y] : [x, h - y]);
+  return m.every(q => pts.some(p => Math.abs(p[0] - q[0]) < .3 && Math.abs(p[1] - q[1]) < .3));
+}
+function centroid(pts) { let x = 0, y = 0; for (const p of pts) { x += p[0]; y += p[1]; } return [x / pts.length, y / pts.length]; }
+function edgeNormals(pts) {
+  // outward side from winding (signed area), not the centroid — the centroid test picks the
+  // wrong side on a short step wall beside a concave corner
+  let area = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; area += p[0] * q[1] - q[0] * p[1]; }
+  const sgn = area > 0 ? -1 : 1; const out = [];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[(i + 1) % pts.length]; const dx = q[0] - p[0], dy = q[1] - p[1]; const len = Math.hypot(dx, dy) || 1;
+    out.push([sgn * -dy / len, sgn * dx / len]);
+  }
+  return out;
+}
+function inset(pts, d) {
+  const N = edgeNormals(pts); const n = pts.length; const res = [];
+  for (let i = 0; i < n; i++) {
+    const i0 = (i - 1 + n) % n; // edge i0: pts[i0]→pts[i]; edge i: pts[i]→pts[i+1]
+    const [p0, p1] = [add(pts[i0], N[i0], -d), add(pts[i], N[i0], -d)];
+    const [q0, q1] = [add(pts[i], N[i], -d), add(pts[(i + 1) % n], N[i], -d)];
+    const r = [p1[0] - p0[0], p1[1] - p0[1]], s = [q1[0] - q0[0], q1[1] - q0[1]];
+    const den = r[0] * s[1] - r[1] * s[0];
+    if (Math.abs(den) < 1e-6) { res.push(q0); continue; }
+    const t = ((q0[0] - p0[0]) * s[1] - (q0[1] - p0[1]) * s[0]) / den;
+    res.push([p0[0] + r[0] * t, p0[1] + r[1] * t]);
+  }
+  return res;
+}
+function inside(pt, pts) {
+  let ok = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) ok = !ok;
+  } return ok;
+}
+const LIGHT = (() => { const l = [-0.55, -0.83]; const k = Math.hypot(...l); return [l[0] / k, l[1] / k]; })();
+
+/** Boundary line: edge→edge on the inner polygon, 0/45/90 segments, never touching the facet. */
+function genLine(R, inner) {
+  const n = inner.length; const safe = inset(inner, 0.4);
+  for (let tries = 0; tries < 60; tries++) {
+    const e1 = Math.floor(R() * n); let e2 = Math.floor(R() * n); if (e2 === e1) continue;
+    const at = (e, t) => { const p = safe[e], q = safe[(e + 1) % n]; return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]; };
+    const s = at(e1, range(R, .2, .8)), f = at(e2, range(R, .2, .8));
+    const dx = f[0] - s[0], dy = f[1] - s[1]; const m = Math.min(Math.abs(dx), Math.abs(dy));
+    const diag = [Math.sign(dx) * m, Math.sign(dy) * m];
+    const path = R() < .5 ? [s, [s[0] + diag[0], s[1] + diag[1]], f] : [s, [f[0] - diag[0], f[1] - diag[1]], f];
+    if (Math.hypot(dx, dy) < 4) continue;
+    let ok = true;
+    for (let k = 0; k < path.length - 1 && ok; k++) for (let t = .1; t < 1; t += .15) {
+      const p = [path[k][0] + (path[k + 1][0] - path[k][0]) * t, path[k][1] + (path[k + 1][1] - path[k][1]) * t];
+      if (!inside(p, safe)) { ok = false; break; }
+    }
+    if (ok) return path;
+  }
+  return null;
+}
+
+// ---------- parts & robots ----------
+// Canvas: CANVAS_H tall, 1–2× that wide (seeded). Part sizes are the outline's 64-unit numbers, unscaled
+// vertically, scaled horizontally by the width factor k (orbiters excepted: always 24×16) — the taller canvas is what keeps orbiters
+// clear of the body at rest (Crawford, 2026-10-04: contact is fine while animating, not by default).
+const CANVAS_H = 80;
+const BASE_RULES = { convex: true, allowSymmetric: true, maxConcave: 0, maxRight: 4 };
+const MAIN_RULES = { convex: false, allowSymmetric: false, maxConcave: 2, maxRight: 4 };
+const ORBIT_RULES = { convex: false, allowSymmetric: true, maxConcave: 4, maxRight: 4 };
+
+function makePart(R, w, h, rules, lines, lights) {
+  const poly = genPolygon(R, w, h, rules); if (!poly) return null;
+  poly.lines = []; poly.lights = [];
+  poly.lineCount = lines; poly.lightCount = lights;
+  return poly;
+}
+function makeRobot(seed, idx, colorName) {
+  const R = rngFrom(seed + ':' + idx);
+  const H = CANVAS_H, W = CANVAS_H * pick(R, [1, 1.25, 1.5, 1.75, 2]), k = W / CANVAS_H;
+  const parts = [];
+  parts.push({ role: 'backing', x: (W - 25 * k) / 2, y: (H - 25) / 2, poly: makePart(R, 25 * k, 25, BASE_RULES, 0, 0) });
+  // orbiters ignore the width factor — always 24×16 (Crawford, 2026-10-04: "somewhat square")
+  for (const [cx, cy] of [[0, 0], [W - 24, 0], [0, H - 16], [W - 24, H - 16]])
+    parts.push({ role: 'orbit', x: cx, y: cy, poly: makePart(R, 24, 16, ORBIT_RULES, 1, 0) });
+  const mw2 = range(R, 20, 24) * k, mh2 = range(R, 34, 36);
+  parts.push({ role: 'mid', x: W / 2 - mw2, y: (H - mh2) / 2, lit: R() < .7, poly: makePart(R, mw2, mh2, MAIN_RULES, 2, 0) });
+  const mw1 = range(R, 20, 24) * k, mh1 = range(R, 34, 36);
+  parts.push({ role: 'mid', x: W / 2, y: (H - mh1) / 2, lit: R() < .7, poly: makePart(R, mw1, mh1, MAIN_RULES, 2, 0) });
+  parts.push({ role: 'top', x: (W - 32 * k) / 2, y: (H - 32) / 2, poly: makePart(R, 32 * k, 32, MAIN_RULES, 4, 2) });
+  // decorate (depends on bevel depth, so done at render) — stash the rng state via a sub-seed
+  return { seed, idx, W, H, k, color: ACCENT[colorName], colorName, parts, decoSeed: seed + ':deco:' + idx };
+}
+
+// ---------- render ----------
+function renderPart(part, robot, opt, R) {
+  const { poly } = part; if (!poly) return '';
+  const fillHex = part.role === 'backing' ? BACKING : part.role === 'mid' ? ((part.lit || opt.allLit) ? null : MID_DARK) : robot.color;
+  const midLit = part.role === 'mid' && fillHex === null;
+  const base = midLit ? tone(robot.color, -16, -18) : fillHex;
+  const baseHex = part.role === 'mid' && midLit ? robot.color : fillHex;
+  const g = [`<g transform="translate(${part.x.toFixed(2)} ${part.y.toFixed(2)})">`];
+  const outer = poly.pts;
+  const ptsStr = p => p.map(q => q[0].toFixed(2) + ',' + q[1].toFixed(2)).join(' ');
+  if (opt.boxes) g.push(`<rect width="${poly.w}" height="${poly.h}" fill="none" stroke="#4aa3ff" stroke-width=".3" stroke-dasharray="1 .6"/>`);
+  if (part.role === 'backing') {
+    g.push(`<polygon points="${ptsStr(outer)}" fill="${BACKING}" stroke="#1c2026" stroke-width=".5"/>`);
+    g.push('</g>'); return g.join('');
+  }
+  const d = Math.min(opt.bevel, Math.min(poly.w, poly.h) * 0.18);
+  const inner = inset(outer, d); const N = edgeNormals(outer);
+  const lightK = opt.contrast; const dim = midLit ? -14 : part.role === 'mid' ? -4 : 0;
+  const toneOf = (shade) => midLit ? tone(robot.color, -16 + shade * lightK * .7, -18) : part.role === 'mid' ? tone(MID_DARK, shade * lightK * .5) : tone(robot.color, shade * lightK);
+  for (let i = 0; i < outer.length; i++) {
+    const j = (i + 1) % outer.length; const shade = N[i][0] * LIGHT[0] + N[i][1] * LIGHT[1];
+    g.push(`<polygon points="${ptsStr([outer[i], outer[j], inner[j], inner[i]])}" fill="${toneOf(shade)}" stroke="${toneOf(-1)}" stroke-width=".25" stroke-linejoin="round"/>`);
+  }
+  g.push(`<polygon points="${ptsStr(inner)}" fill="${base}" stroke="none"/>`);
+  // boundary lines
+  const lineColor = midLit ? tone(robot.color, -32, -18) : part.role === 'mid' ? tone(MID_DARK, -8) : tone(robot.color, -26);
+  for (let k = 0; k < poly.lineCount; k++) {
+    const path = genLine(R, inner); if (!path) continue;
+    g.push(`<polyline points="${ptsStr(path)}" fill="none" stroke="${lineColor}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"/>`);
+  }
+  // lights: at two distinct inner vertices, pulled toward the centroid
+  if (poly.lightCount) {
+    const c = centroid(inner); const used = new Set();
+    for (let k = 0; k < poly.lightCount; k++) {
+      let vi; for (let t = 0; t < 10; t++) { vi = Math.floor(R() * inner.length); if (!used.has(vi) && !used.has((vi + 1) % inner.length) && !used.has((vi - 1 + inner.length) % inner.length)) break; }
+      used.add(vi); const v = inner[vi]; const p = [v[0] + (c[0] - v[0]) * .3, v[1] + (c[1] - v[1]) * .3];
+      g.push(`<circle cx="${p[0].toFixed(2)}" cy="${p[1].toFixed(2)}" r="3" fill="#fff3c4" opacity=".18"/><circle cx="${p[0].toFixed(2)}" cy="${p[1].toFixed(2)}" r="1.4" fill="#fff3c4"/>`);
+    }
+  }
+  g.push('</g>'); return g.join('');
+}
+function renderRobot(robot, opt, pxW, pxH) {
+  const R = rngFrom(robot.decoSeed);
+  const body = robot.parts.map(p => renderPart(p, robot, opt, R)).join('');
+  return `<svg width="${pxW}" height="${pxH}" viewBox="0 0 ${robot.W} ${robot.H}" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision">${body}</svg>`;
+}
+function stats(robot) {
+  const fmt = p => p.poly ? `${p.poly.sides}/${p.poly.right}/${p.poly.concave}` : 'FAIL';
+  const t = robot.parts.find(p => p.role === 'top'), m = robot.parts.filter(p => p.role === 'mid'), o = robot.parts.filter(p => p.role === 'orbit'), b = robot.parts.find(p => p.role === 'backing');
+  return `${robot.colorName}  W=${robot.W}×${robot.H}\ntop ${fmt(t)}  mids ${m.map(fmt).join(' ')}\norb ${o.map(fmt).join(' ')}  back ${fmt(b)}`;
+}
+
+// ---------- page ----------
+let seedN = 0;
+function opts() {
+  return { bevel: +document.getElementById('bevel').value, contrast: +document.getElementById('contrast').value, boxes: document.getElementById('showBoxes').checked, allLit: document.getElementById('allLit').checked };
+}
+function build() {
+  const seed = document.getElementById('seed').value; const o = opts();
+  const R = rngFrom(seed + ':colors'); const names = ACCENT_NAMES.slice();
+  const robots = [];
+  for (let i = 0; i < 12; i++) { const n = names.splice(Math.floor(R() * names.length), 1)[0]; robots.push(makeRobot(seed, i, n)); }
+  document.getElementById('strip64').innerHTML = robots.map(r => renderRobot(r, o, 64, 64)).join('');
+  document.getElementById('grid').innerHTML = robots.map(r => `
+    <div class="card world"><figure style="margin:0">
+      <div style="display:flex;gap:10px;align-items:flex-end;justify-content:center">
+        ${renderRobot(r, o, r.W * 2, r.H * 2)}${renderRobot(r, o, 96, 96)}${renderRobot(r, o, 64, 64)}
+      </div>
+      <figcaption>${stats(r)}</figcaption></figure></div>`).join('');
+  const r0 = robots[0]; const Rp = rngFrom(r0.decoSeed);
+  document.getElementById('parts').innerHTML = r0.parts.map(p => {
+    if (!p.poly) return '';
+    const svg = `<svg width="${Math.round(p.poly.w * 3)}" height="${Math.round(p.poly.h * 3)}" viewBox="0 0 ${p.poly.w} ${p.poly.h}" style="background:#12161a">${renderPart({ ...p, x: 0, y: 0 }, r0, { ...o, boxes: true }, Rp)}</svg>`;
+    return `<div class="card"><figure style="margin:0">${svg}<figcaption>${p.role}  ${p.poly.sides}/${p.poly.right}/${p.poly.concave}${p.role === 'mid' ? (p.lit ? '  lit' : '  dark') : ''}</figcaption></figure></div>`;
+  }).join('');
+}
+document.getElementById('regen').onclick = build;
+document.getElementById('next').onclick = () => { document.getElementById('seed').value = 'pelagos-' + (++seedN); build(); };
+for (const id of ['bevel', 'contrast', 'showBoxes', 'allLit']) document.getElementById(id).oninput = () => {
+  document.getElementById('bevelv').textContent = document.getElementById('bevel').value;
+  document.getElementById('contrastv').textContent = document.getElementById('contrast').value;
+  build();
+};
+build();
+</script>
+</body>
+</html>
