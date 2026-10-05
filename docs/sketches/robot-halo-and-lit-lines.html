@@ -1,0 +1,625 @@
+<!doctype html>
+<!-- Robot halo + lit Top/Mid boundary lines — sketch for a proposed Phase 41 (after Phase 40, Orbiting Polygons).
+     Built 2026-10-05 while Phase 40 sits at Task 1 of 16, so nothing here touches the live renderer or the Phase 40
+     sketch: the generator below is a verbatim copy of docs/sketches/gem-polygon-robots.html's, and the orbiter
+     spawn/despawn arcs are ported from its motion panel (one arc at a time over an explicit shown set, open 0, no
+     drift, no pair orbits — those stay Phase 40's and are not reproduced). Plain rAF here only; the app uses GSAP.
+
+     Scope agreed with Crawford, 2026-10-05:
+       1  Top/Mid boundary lines gain the orbiter light strip; line width ← that layer's gain-LFO link depth
+          (Top = layer0.gain, Mid left = layer1.gain / Coaxial, Mid right = layer2.gain / Harmonic). Unlinked lane
+          reads as depth 0 (Claude's suggestion, accepted). Strip opacity source for Top/Mids still open — selector below.
+       1a Every strip flickers a few times over 2 s when the attribute it is tied to changes, never in unison
+          (seeded pattern per line); a drag restarts the window.
+       H  A halo behind the Mids: colour = company colour (freelance → identityColor); outer radius ← masterVolume;
+          radial brightness = the ADSR drawn as a ring: invisible inside 10 units, up to peak at the end of attack,
+          down to sustain over decay, flat over a fixed hold, out to 0 over release. Peak capped (default 0.55).
+       R  On an orbiter spawn arc the halo's bright ring runs 10 → edge repeatedly until the orbiter is home; on a
+          despawn arc it runs 95 % → 10 repeatedly until the orbiter is hidden. Whole cycles per arc.
+     Cut before this sketch (Crawford): Top/Mid drift from detune (perf already pushed); bevel depth from phase
+     (lines would have to reposition — a second guardrail amendment).
+     Verdicts (Crawford, fill in per control: keep / new value):
+       halo slot (behind backing | above backing): ____   shape (circle | ellipse ×k): ____   peak cap 0.55: ____
+       inner hole 10: ____   radius 20–40 ← volume: ____   hold share 1 s-equivalent: ____   halo tween 0.5 s: ____
+       daylight on halo: ____   battery dim on halo: ____
+       line width 0.3–0.7 ← depth: ____   strip opacity source: ____   flicker 3–5 blinks / 2 s, dip to 0: ____
+       ripple period ≈1 s (whole cycles per arc): ____   ring width 0.08: ____   ripple opacity 0.9: ____   base dim while rippling 0.25: ____ -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Robot halo + lit lines — sketch</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #12161a; color: #e4e6ea; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 28px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  p.note { font-size: 12px; color: #9aa; max-width: 980px; margin: 4px 0 12px; }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; max-width: 980px; }
+  .pending b { color: #e8b84a; }
+  .controls { display: flex; gap: 12px; align-items: center; font-size: 13px; margin: 12px 0 16px; flex-wrap: wrap; }
+  .controls input[type=text] { background: #1a2027; color: #e4e6ea; border: 1px solid rgba(140,190,210,.14); padding: 4px 8px; font-family: monospace; width: 120px; }
+  .controls button, .mcol button { background: #1a2027; color: #e4e6ea; border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; }
+  .controls label, .mcol label { color: #9aa; }
+  .mgrid { display: flex; gap: 26px; flex-wrap: wrap; margin: 8px 0 14px; }
+  .mcol { font-size: 12px; color: #9aa; min-width: 330px; }
+  .mcol h3 { font-size: 12px; color: #e4e6ea; margin: 0 0 6px; text-transform: uppercase; letter-spacing: .06em; }
+  .mcol label { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+  .mcol input[type=range] { width: 120px; }
+  .mcol span { font-family: monospace; color: #e4e6ea; min-width: 40px; }
+  .mcol select, .mcol input[type=text] { background: #1a2027; color: #e4e6ea; border: 1px solid rgba(140,190,210,.14); padding: 2px 6px; font-family: monospace; }
+  .readout { font-family: monospace; font-size: 11px; color: #8a8f99; background: #1a2027; padding: 6px 8px; margin: 8px 0 0; border-radius: 3px; white-space: pre; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+  .stage { background: #1a2027; border: 1px solid rgba(140,190,210,.14); border-radius: 3px; padding: 8px; text-align: center; font-size: 10px; color: #8a8f99; font-family: monospace; }
+  .stage svg { display: block; margin: 0 auto 4px; background: #12161a; }
+  .swatch { display: inline-block; width: 12px; height: 12px; vertical-align: middle; border: 1px solid #333; }
+</style>
+</head>
+<body>
+
+<h1>Robot halo + lit boundary lines — sketch</h1>
+<p class="note">Gate sketch for a proposed Phase 41 on the gem robots. One robot from the seed, drawn three ways: world scale (2 px/unit, frame padded like the Phase 40 avatar), the 96 px detail avatar, and the 64 px card (static: halo and strips, no ripple, no arcs). The <em>halo</em> is one ellipse with a radial gradient whose stops are the robot's ADSR laid out along the radius; the <em>ripple</em> is a second ellipse with a narrow bright ring that travels outward during a spawn arc and inward during a despawn arc. Top and Mid boundary lines carry the Phase 40 light strip; their width follows that layer's gain-LFO depth. Any change to an attribute a line is tied to makes that strip flicker for two seconds on its own seeded pattern.</p>
+<div class="pending"><b>Gate questions:</b> Does the halo read as light from behind the body rather than a disc? Does the ADSR ring shape read at world scale, and is the peak cap right against the lit Mids? Behind-the-backing or above it? Circle or stretched with the canvas? Does the ripple sell "the halo is sending the orbiter out / pulling it in", and is one cycle per second right? Do the Top/Mid strips at depth 0 (width 0.3) read as present? Does the flicker read as a reaction, not a fault?</div>
+
+<div class="controls">
+  <label>Seed <input type="text" id="seed" value="pelagos" /></label>
+  <button id="regen">Regenerate</button>
+  <button id="next">Next seed</button>
+  <label>Robot <select id="robot"></select></label>
+  <label>Time × <select id="speed"><option selected>1</option><option>2</option><option>4</option></select></label>
+  <label><input type="checkbox" id="reduced" /> reduced motion (no arcs, no ripple, no flicker)</label>
+</div>
+
+<div class="mgrid">
+  <div class="mcol">
+    <h3>Halo</h3>
+    <label>Company colour <input type="text" id="company" value="#ae5378" size="8" /> <i class="swatch" id="companySw"></i> <input type="checkbox" id="freelance" /> freelance (uses identity)</label>
+    <label>Volume (masterVolume) <input type="range" id="volume" min="0" max="1" step="0.01" value="0.75" /> <span></span></label>
+    <label>Radius at volume 0 / 1 <input type="range" id="rMin" min="10" max="40" step="1" value="20" /> <span></span> <input type="range" id="rMax" min="10" max="60" step="1" value="40" /> <span></span></label>
+    <label>Inner hole <input type="range" id="inner" min="0" max="25" step="1" value="10" /> <span></span> units</label>
+    <label>Peak cap <input type="range" id="peak" min="0" max="1" step="0.05" value="0.55" /> <span></span></label>
+    <label>Slot <select id="slot"><option value="above" selected>above backing, below orbiters</option><option value="behind">behind backing</option></select></label>
+    <label>Shape <select id="shape"><option value="ellipse" selected>ellipse × width factor</option><option value="circle">circle</option></select></label>
+    <label>Halo tween on edit <input type="range" id="haloTween" min="0" max="2" step="0.1" value="0.5" /> <span></span> s</label>
+    <label><input type="checkbox" id="haloDaylight" /> daylight dims halo &nbsp; daylight <input type="range" id="daylight" min="0" max="1" step="0.05" value="1" /> <span></span></label>
+    <label><input type="checkbox" id="haloBattery" checked /> battery dims halo &nbsp; battery <select id="battery"><option value="1" selected>full</option><option value="0.75">≤50 %</option><option value="0.5">&lt;25 %</option><option value="0.1">≤12 %</option></select></label>
+    <h3 style="margin-top:10px">Envelope (ADSR → halo ring)</h3>
+    <label>Attack <input type="range" id="attack" min="0" max="5" step="0.05" value="0.4" /> <span></span> s</label>
+    <label>Decay <input type="range" id="decay" min="0" max="5" step="0.05" value="0.8" /> <span></span> s</label>
+    <label>Sustain <input type="range" id="sustain" min="0" max="1" step="0.01" value="0.6" /> <span></span></label>
+    <label>Release <input type="range" id="release" min="0" max="5" step="0.05" value="1.5" /> <span></span> s</label>
+    <label>Hold (fixed, not in ADSR) <input type="range" id="hold" min="0" max="5" step="0.05" value="1" /> <span></span> s-equivalent</label>
+    <pre id="haloOut" class="readout"></pre>
+  </div>
+  <div class="mcol">
+    <h3>Lines + strips</h3>
+    <label>Line width at depth 0 / 100 <input type="range" id="lwMin" min="0.1" max="1.2" step="0.05" value="0.3" /> <span></span> <input type="range" id="lwMax" min="0.1" max="1.5" step="0.05" value="0.7" /> <span></span></label>
+    <label>Top ← layer0.gain depth <input type="range" id="depth0" min="0" max="100" value="40" /> <span></span> <input type="checkbox" id="link0" checked /> linked</label>
+    <label>Mid L ← layer1.gain depth <input type="range" id="depth1" min="0" max="100" value="70" /> <span></span> <input type="checkbox" id="link1" checked /> linked</label>
+    <label>Mid R ← layer2.gain depth <input type="range" id="depth2" min="0" max="100" value="15" /> <span></span> <input type="checkbox" id="link2" /> linked</label>
+    <label>Top/Mid strip opacity from <select id="stripSrc"><option value="fixed" selected>fixed</option><option value="lit">Mid lit level (Top = 1)</option><option value="gain">layer gain</option></select> fixed <input type="range" id="stripFixed" min="0" max="1" step="0.05" value="0.6" /> <span></span></label>
+    <label>Layer 1 gain (Coaxial) <input type="range" id="gain1" min="0" max="1.2" step="0.05" value="0.9" /> <span></span></label>
+    <label>Layer 2 gain (Harmonic) <input type="range" id="gain2" min="0" max="1.2" step="0.05" value="0" /> <span></span></label>
+    <label>Orbiter line ← Note Variance <input type="range" id="variance" min="0" max="8" value="2" /> <span></span></label>
+    <label>Orbiter strip ← Pitch Repeat <input type="range" id="repeat" min="0" max="100" value="30" /> <span></span></label>
+    <h3 style="margin-top:10px">Flicker (1a)</h3>
+    <label>Blinks over 2 s <input type="range" id="blinksMin" min="1" max="8" value="3" /> <span></span> – <input type="range" id="blinksMax" min="1" max="8" value="5" /> <span></span></label>
+    <label>Blink length <input type="range" id="blinkLen" min="0.03" max="0.3" step="0.01" value="0.1" /> <span></span> s &nbsp; dip to <input type="range" id="blinkLow" min="0" max="1" step="0.05" value="0" /> <span></span></label>
+    <label><button id="flickAll">flicker every strip now</button></label>
+    <h3 style="margin-top:10px">Ripple on spawn / despawn (R)</h3>
+    <label>Orbiter count ← Rhythmic Density <input type="range" id="density" min="0" max="100" value="50" /> <span></span></label>
+    <label>Arc duration <input type="range" id="arc" min="1" max="5" step="0.25" value="3" /> <span></span> s (Phase 40: orbit / 2 = 2–4 s)</label>
+    <label>Preferred ripple period <input type="range" id="period" min="0.4" max="3" step="0.1" value="1" /> <span></span> s → whole cycles per arc</label>
+    <label>Ring width <input type="range" id="ringW" min="0.02" max="0.3" step="0.01" value="0.08" /> <span></span> of radius</label>
+    <label>Ripple opacity <input type="range" id="rippleOp" min="0" max="1" step="0.05" value="0.9" /> <span></span></label>
+    <label>Despawn start <input type="range" id="despawnFrom" min="0.5" max="1" step="0.01" value="0.95" /> <span></span> of radius</label>
+    <label>Base halo dim while rippling <input type="range" id="rippleDim" min="0" max="1" step="0.05" value="0.25" /> <span></span></label>
+    <label><button id="spawnOne">+1 orbiter</button> <button id="despawnOne">−1 orbiter</button> (same queue as a density drag)</label>
+    <pre id="lineOut" class="readout"></pre>
+  </div>
+</div>
+<div class="row" id="stage"></div>
+
+<script>
+// =====================================================================================
+// GENERATOR — verbatim from docs/sketches/gem-polygon-robots.html (Phase 39), so this page draws the
+// same robots for the same seed. Nothing below this banner is new until "HALO".
+// =====================================================================================
+function rngFrom(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+  let a = (h ^= h >>> 16) >>> 0;
+  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const pick = (R, arr) => arr[Math.floor(R() * arr.length)];
+const range = (R, lo, hi) => lo + R() * (hi - lo);
+
+function hexToHsl(hex) {
+  const n = parseInt(hex.slice(1), 16); const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  return [h, s * 100, l * 100];
+}
+const hsl = (h, s, l) => `hsl(${h.toFixed(1)} ${Math.max(0, Math.min(100, s)).toFixed(1)}% ${Math.max(0, Math.min(100, l)).toFixed(1)}%)`;
+function tone(hex, dl, ds = 0) { const [h, s, l] = hexToHsl(hex); return hsl(h, s + ds, l + dl); }
+
+const ACCENT = { orange:'#da7e1b', red:'#cd5e57', pink:'#ae5378', purple:'#7a5484', plum:'#65617f', blue:'#4f6d7a', cyan:'#428d95', teal:'#41ad9f', green:'#68cb97', lime:'#a9e583', yellow:'#e9e377', tangerine:'#e2b149', beige:'#f7f5d3', emerald:'#4fc27a', indigo:'#5a5c9e' };
+const ACCENT_NAMES = Object.keys(ACCENT);
+const BACKING = '#0e1013';
+const MID_DARK = '#262a31';
+const LIGHT_HEX = '#fff3c4';
+
+const TAN = { 15: Math.tan(Math.PI / 12), 30: Math.tan(Math.PI / 6), 45: 1, 60: Math.tan(Math.PI / 3), 75: Math.tan(5 * Math.PI / 12) };
+const CORNERS = [
+  { p: (w, h) => [0, 0], a: [0, 1], b: [1, 0] },
+  { p: (w, h) => [w, 0], a: [-1, 0], b: [0, 1] },
+  { p: (w, h) => [w, h], a: [0, -1], b: [-1, 0] },
+  { p: (w, h) => [0, h], a: [1, 0], b: [0, -1] },
+];
+const add = (p, v, k) => [p[0] + v[0] * k, p[1] + v[1] * k];
+
+function genPolygon(R, w, h, opts) {
+  const minDim = Math.min(w, h);
+  for (let tries = 0; tries < 400; tries++) {
+    const pts = []; let sides = 4, right = 0, concave = 0;
+    const kinds = opts.convex ? ['none', 'chamfer', 'chamfer', 'double'] : ['none', 'chamfer', 'chamfer', 'double', 'step'];
+    for (let i = 0; i < 4; i++) {
+      const C = CORNERS[i], P = C.p(w, h);
+      let kind = pick(R, kinds);
+      const lenA = i % 2 === 0 ? h : w, lenB = i % 2 === 0 ? w : h;
+      const capA = 0.45 * lenA, capB = 0.45 * lenB;
+      const cut = range(R, 0.22, 0.42) * minDim;
+      if (kind === 'step') {
+        const phi = pick(R, [45, 60]); const t = TAN[phi];
+        const B = Math.min(minDim * range(R, 0.25, 0.34), capB, (capA - 0.1) / t);
+        if (B >= 0.2 * minDim) {
+          const A = Math.min(B * t + cut * range(R, 0.3, 0.6), capA);
+          pts.push(add(P, C.a, A), add(add(P, C.a, A - B * t), C.b, B), add(P, C.b, B));
+          sides += 2; right += 1; concave += 1; continue;
+        }
+        kind = 'chamfer';
+      }
+      if (kind === 'none') { pts.push(P); right++; continue; }
+      if (kind === 'chamfer') {
+        const phi = pick(R, [15, 30, 45, 60, 75]); const t = TAN[phi];
+        let La = t >= 1 ? cut : cut * t, Lb = t >= 1 ? cut / t : cut;
+        const k = Math.min(1, capA / La, capB / Lb); La *= k; Lb *= k;
+        pts.push(add(P, C.a, La), add(P, C.b, Lb)); sides += 1; continue;
+      }
+      const [p1, p2] = pick(R, [[75, 15], [60, 30]]); const T1 = TAN[p1], T2 = TAN[p2];
+      const v = (1 - T2) / (T1 - T2), u = 1 - v * T1;
+      const A = Math.min(cut, capA), B = Math.min(cut * range(R, 0.8, 1.25), capB);
+      pts.push(add(P, C.a, A), add(add(P, C.a, A * u), C.b, B * v), add(P, C.b, B)); sides += 2;
+    }
+    if (sides < 8 || sides > 12 || right > opts.maxRight || concave > opts.maxConcave) continue;
+    if (!opts.allowSymmetric && (isSymmetric(pts, w, h, 'h') || isSymmetric(pts, w, h, 'v'))) continue;
+    return { pts, sides, right, concave, w, h };
+  }
+  return null;
+}
+function isSymmetric(pts, w, h, axis) {
+  const m = pts.map(([x, y]) => axis === 'h' ? [w - x, y] : [x, h - y]);
+  return m.every(q => pts.some(p => Math.abs(p[0] - q[0]) < .3 && Math.abs(p[1] - q[1]) < .3));
+}
+function centroid(pts) { let x = 0, y = 0; for (const p of pts) { x += p[0]; y += p[1]; } return [x / pts.length, y / pts.length]; }
+function edgeNormals(pts) {
+  let area = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; area += p[0] * q[1] - q[0] * p[1]; }
+  const sgn = area > 0 ? -1 : 1; const out = [];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[(i + 1) % pts.length]; const dx = q[0] - p[0], dy = q[1] - p[1]; const len = Math.hypot(dx, dy) || 1;
+    out.push([sgn * -dy / len, sgn * dx / len]);
+  }
+  return out;
+}
+function inset(pts, d) {
+  const N = edgeNormals(pts); const n = pts.length; const res = [];
+  for (let i = 0; i < n; i++) {
+    const i0 = (i - 1 + n) % n;
+    const [p0, p1] = [add(pts[i0], N[i0], -d), add(pts[i], N[i0], -d)];
+    const [q0, q1] = [add(pts[i], N[i], -d), add(pts[(i + 1) % n], N[i], -d)];
+    const r = [p1[0] - p0[0], p1[1] - p0[1]], s = [q1[0] - q0[0], q1[1] - q0[1]];
+    const den = r[0] * s[1] - r[1] * s[0];
+    if (Math.abs(den) < 1e-6) { res.push(q0); continue; }
+    const t = ((q0[0] - p0[0]) * s[1] - (q0[1] - p0[1]) * s[0]) / den;
+    res.push([p0[0] + r[0] * t, p0[1] + r[1] * t]);
+  }
+  return res;
+}
+function inside(pt, pts) {
+  let ok = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) ok = !ok;
+  } return ok;
+}
+function quantize(shade, k) { if (!k || k < 2) return shade; const s = k - 1; return (2 * Math.round(((shade + 1) / 2) * s) - s) / s; }
+const LIGHT = (() => { const l = [-0.55, -0.83]; const k = Math.hypot(...l); return [l[0] / k, l[1] / k]; })();
+
+function genLine(R, inner) {
+  const n = inner.length; const safe = inset(inner, 0.4);
+  for (let tries = 0; tries < 60; tries++) {
+    const e1 = Math.floor(R() * n); let e2 = Math.floor(R() * n); if (e2 === e1) continue;
+    const at = (e, t) => { const p = safe[e], q = safe[(e + 1) % n]; return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]; };
+    const s = at(e1, range(R, .2, .8)), f = at(e2, range(R, .2, .8));
+    const dx = f[0] - s[0], dy = f[1] - s[1]; const m = Math.min(Math.abs(dx), Math.abs(dy));
+    const diag = [Math.sign(dx) * m, Math.sign(dy) * m];
+    const path = R() < .5 ? [s, [s[0] + diag[0], s[1] + diag[1]], f] : [s, [f[0] - diag[0], f[1] - diag[1]], f];
+    if (Math.hypot(dx, dy) < 4) continue;
+    let ok = true;
+    for (let k = 0; k < path.length - 1 && ok; k++) for (let t = .1; t < 1; t += .15) {
+      const p = [path[k][0] + (path[k + 1][0] - path[k][0]) * t, path[k][1] + (path[k + 1][1] - path[k][1]) * t];
+      if (!inside(p, safe)) { ok = false; break; }
+    }
+    if (ok) return path;
+  }
+  return null;
+}
+
+const CANVAS_H = 80;
+const BASE_RULES = { convex: true, allowSymmetric: true, maxConcave: 0, maxRight: 4 };
+const MAIN_RULES = { convex: false, allowSymmetric: false, maxConcave: 2, maxRight: 4 };
+const ORBIT_RULES = { convex: false, allowSymmetric: true, maxConcave: 4, maxRight: 4 };
+const ORB_W = 24, ORB_H = 16;
+const BEVEL = 2.5, CONTRAST = 20, TONES = 3;   // shipped Phase 39 values
+
+function makePart(R, w, h, rules, lines, lights) {
+  const poly = genPolygon(R, w, h, rules); if (!poly) return null;
+  poly.lineCount = lines; poly.lightCount = lights;
+  return poly;
+}
+function makeRobot(seed, idx, colorName) {
+  const R = rngFrom(seed + ':' + idx);
+  const H = CANVAS_H, W = CANVAS_H * pick(R, [1, 1.25, 1.5, 1.75, 2]), k = W / CANVAS_H;
+  const parts = [];
+  parts.push({ role: 'backing', key: 'backing', x: (W - 25 * k) / 2, y: (H - 25) / 2, poly: makePart(R, 25 * k, 25, BASE_RULES, 0, 0) });
+  let oi = 0;
+  for (const [cx, cy] of [[0, 0], [W - 24, 0], [0, H - 16], [W - 24, H - 16]])
+    parts.push({ role: 'orbit', key: 'orb' + (oi++), x: cx, y: cy, poly: makePart(R, 24, 16, ORBIT_RULES, 1, 0) });
+  const mw2 = range(R, 20, 24) * k, mh2 = range(R, 34, 36);
+  parts.push({ role: 'mid', key: 'midL', x: W / 2 - mw2, y: (H - mh2) / 2, lit: R() < .7, poly: makePart(R, mw2, mh2, MAIN_RULES, 2, 0) });
+  const mw1 = range(R, 20, 24) * k, mh1 = range(R, 34, 36);
+  parts.push({ role: 'mid', key: 'midR', x: W / 2, y: (H - mh1) / 2, lit: R() < .7, poly: makePart(R, mw1, mh1, MAIN_RULES, 2, 0) });
+  parts.push({ role: 'top', key: 'top', x: (W - 32 * k) / 2, y: (H - 32) / 2, poly: makePart(R, 32 * k, 32, MAIN_RULES, 4, 2) });
+  return { seed, idx, W, H, k, color: ACCENT[colorName], colorName, parts, decoSeed: seed + ':deco:' + idx };
+}
+/** Lines and lights, generated once per robot in the same R order the Phase 39 sketch used at render. */
+function decorate(robot) {
+  const R = rngFrom(robot.decoSeed);
+  for (const part of robot.parts) {
+    const { poly } = part; if (!poly || part.role === 'backing') continue;
+    const d = Math.min(BEVEL, Math.min(poly.w, poly.h) * 0.18);
+    part.inner = inset(poly.pts, d);
+    part.lines = [];
+    for (let k = 0; k < poly.lineCount; k++) { const path = genLine(R, part.inner); if (path) part.lines.push(path); }
+    part.lights = [];
+    if (poly.lightCount) {
+      const c = centroid(part.inner); const used = new Set();
+      for (let k = 0; k < poly.lightCount; k++) {
+        let vi; for (let t = 0; t < 10; t++) { vi = Math.floor(R() * part.inner.length); if (!used.has(vi) && !used.has((vi + 1) % part.inner.length) && !used.has((vi - 1 + part.inner.length) % part.inner.length)) break; }
+        used.add(vi); const v = part.inner[vi]; part.lights.push([v[0] + (c[0] - v[0]) * .3, v[1] + (c[1] - v[1]) * .3]);
+      }
+    }
+  }
+  return robot;
+}
+
+// =====================================================================================
+// LINE DIALS (item 1) and MID LIT LEVEL — mirrors robotVisualHelpers.layerLitLevel
+// =====================================================================================
+const $ = id => document.getElementById(id);
+const num = id => +$(id).value;
+const MID_DARK_LEVEL = 0.15, MID_LIT_MIN = 0.4, MID_GAIN_MAX = 1.2;
+function litLevel(gain) { return !gain ? MID_DARK_LEVEL : MID_LIT_MIN + (1 - MID_LIT_MIN) * Math.min(1, gain / MID_GAIN_MAX); }
+/** Line width from the layer's gain-LFO link depth; an unlinked lane reads as depth 0 (suggestion accepted 2026-10-05). */
+function lineWidthFromDepth(depth, linked, lwMin, lwMax) { const d = linked ? depth / 100 : 0; return lwMin + (lwMax - lwMin) * d; }
+function lineDials() {
+  const lwMin = num('lwMin'), lwMax = num('lwMax');
+  const g = { 1: num('gain1'), 2: num('gain2') };
+  const lit = { top: 1, midL: litLevel(g[1]), midR: litLevel(g[2]) };
+  const src = $('stripSrc').value;
+  const stripOf = (key, layer) => src === 'fixed' ? num('stripFixed') : src === 'lit' ? lit[key] : layer === 0 ? 1 : Math.min(1, g[layer] / MID_GAIN_MAX);
+  return {
+    top:  { lw: lineWidthFromDepth(num('depth0'), $('link0').checked, lwMin, lwMax), strip: stripOf('top', 0) },
+    midL: { lw: lineWidthFromDepth(num('depth1'), $('link1').checked, lwMin, lwMax), strip: stripOf('midL', 1) },
+    midR: { lw: lineWidthFromDepth(num('depth2'), $('link2').checked, lwMin, lwMax), strip: stripOf('midR', 2) },
+    orb:  { lw: (3 + num('variance')) / 10, strip: 0.35 + 0.65 * num('repeat') / 100 },   // Phase 40 §1.1
+    lit,
+  };
+}
+
+// =====================================================================================
+// HALO (H) — ADSR as a radial gradient; one ellipse, no filter (a blur filter is a paint cost the
+// moving robot layer cannot afford; the stops alone must sell the softness).
+// =====================================================================================
+function haloParams() {
+  const vol = num('volume');
+  return {
+    color: $('freelance').checked ? null : $('company').value,
+    R: num('rMin') + (num('rMax') - num('rMin')) * vol,
+    inner: num('inner'), peak: num('peak'),
+    a: num('attack'), d: num('decay'), s: num('sustain'), r: num('release'), hold: num('hold'),
+  };
+}
+/** Gradient stops [offset 0..1, opacity] — radius read as time: hole, attack up, decay down to sustain, hold flat, release out. */
+function haloStops(p) {
+  let { a, d, hold, r } = p; let total = a + d + hold + r;
+  if (total <= 0) { a = d = hold = r = 1; total = 4; }          // all-zero envelope: an even ring
+  const span = Math.max(0, p.R - p.inner), f = (t) => (p.inner + span * t / total) / p.R;
+  return [
+    [0, 0], [p.inner / p.R, 0],
+    [f(a), p.peak],
+    [f(a + d), p.peak * p.s],
+    [f(a + d + hold), p.peak * p.s],
+    [1, 0],
+  ];
+}
+const lerp = (a, b, t) => a + (b - a) * t;
+function lerpStops(A, B, t) { return A.map((s, i) => [lerp(s[0], B[i][0], t), lerp(s[1], B[i][1], t)]); }
+
+// =====================================================================================
+// RENDER — Phase 39 look, plus strips on every line, the halo/ripple ellipses and depth twins for
+// the orbiters (ported from the Phase 40 panel so an arc can pass behind the backing).
+// =====================================================================================
+const ptsStr = p => p.map(q => q[0].toFixed(2) + ',' + q[1].toFixed(2)).join(' ');
+function renderPart(part, robot, L) {
+  const { poly } = part; if (!poly) return '';
+  const g = [`<g transform="translate(${part.x.toFixed(2)} ${part.y.toFixed(2)})">`];
+  const outer = poly.pts;
+  if (part.role === 'backing') { g.push(`<polygon points="${ptsStr(outer)}" fill="${BACKING}" stroke="#1c2026" stroke-width=".5"/></g>`); return g.join(''); }
+  const t = part.role === 'mid' ? L.lit[part.key] : 1;
+  const midLit = part.role === 'mid';
+  const N = edgeNormals(outer);
+  // Mid face: from MID_DARK toward identity (−16 L, −18 S) by lit level t, keeping identity's hue (gemPalette.toward)
+  const [ih, is, il] = hexToHsl(robot.color), [dh, ds, dl] = hexToHsl(MID_DARK);
+  const midFace = (dL) => hsl(ih, ds + (is - 18 - ds) * t, dl + (il - 16 - dl) * t + dL);
+  const toneOf = (shade) => midLit ? midFace(shade * CONTRAST * .7) : tone(robot.color, shade * CONTRAST);
+  for (let i = 0; i < outer.length; i++) {
+    const j = (i + 1) % outer.length; const shade = quantize(N[i][0] * LIGHT[0] + N[i][1] * LIGHT[1], TONES);
+    g.push(`<polygon points="${ptsStr([outer[i], outer[j], part.inner[j], part.inner[i]])}" fill="${toneOf(shade)}" stroke="${toneOf(-1)}" stroke-width=".25" stroke-linejoin="round"/>`);
+  }
+  g.push(`<polygon points="${ptsStr(part.inner)}" fill="${midLit ? midFace(0) : robot.color}" stroke="none"/>`);
+  const lineColor = midLit ? hsl(ih, ds + (is - 18 - ds) * t, (dl - 8) + (il - 32 - (dl - 8)) * t) : tone(robot.color, -26);
+  const dial = part.role === 'orbit' ? L.orb : L[part.key];
+  for (const path of part.lines) {
+    g.push(`<polyline points="${ptsStr(path)}" fill="none" stroke="${lineColor}" stroke-width="${dial.lw.toFixed(3)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+    g.push(`<polyline class="strip" data-line="${part.key}" data-base="${dial.strip.toFixed(3)}" points="${ptsStr(path)}" fill="none" stroke="${LIGHT_HEX}" stroke-width="${(dial.lw / 3).toFixed(3)}" opacity="${dial.strip.toFixed(3)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+  }
+  for (const p of part.lights) g.push(`<circle cx="${p[0].toFixed(2)}" cy="${p[1].toFixed(2)}" r="3" fill="${LIGHT_HEX}" opacity=".18"/><circle cx="${p[0].toFixed(2)}" cy="${p[1].toFixed(2)}" r="1.4" fill="${LIGHT_HEX}"/>`);
+  g.push('</g>'); return g.join('');
+}
+function haloMarkup(robot, id, withRipple) {
+  const p = haloParams(); const stops = haloStops(p);
+  const color = p.color || robot.color;
+  const rx = $('shape').value === 'ellipse' ? p.R * robot.k : p.R, ry = p.R;
+  const stop = ([o, op]) => `<stop offset="${(o * 100).toFixed(2)}%" stop-color="${color}" stop-opacity="${op.toFixed(3)}"/>`;
+  const defs = `<defs><radialGradient id="halo-${id}" class="halo-g">${stops.map(stop).join('')}</radialGradient>` +
+    (withRipple ? `<radialGradient id="ripple-${id}" class="ripple-g">${[[0,0],[0,0],[0,0],[0,0],[1,0]].map(stop).join('')}</radialGradient>` : '') + `</defs>`;
+  const halo = `<ellipse class="halo" cx="${robot.W / 2}" cy="${robot.H / 2}" rx="${rx.toFixed(2)}" ry="${ry.toFixed(2)}" fill="url(#halo-${id})"/>`;
+  const ripple = withRipple ? `<ellipse class="ripple" cx="${robot.W / 2}" cy="${robot.H / 2}" rx="${rx.toFixed(2)}" ry="${ry.toFixed(2)}" fill="url(#ripple-${id})" opacity="0"/>` : '';
+  return defs + halo + ripple;
+}
+function renderRobot(robot, L, id, mode /* 'motion' | 'card' */) {
+  const svg = (p) => renderPart(p, robot, L);
+  const backing = svg(robot.parts.find(p => p.role === 'backing'));
+  const orbs = robot.parts.filter(p => p.role === 'orbit').map(svg);
+  const mids = robot.parts.filter(p => p.role === 'mid').map(svg).join('');
+  const top = svg(robot.parts.find(p => p.role === 'top'));
+  const halo = haloMarkup(robot, id, mode === 'motion');
+  const slotBehind = $('slot').value === 'behind';
+  if (mode === 'card') {
+    const shown = M.plan.cornerOrder.filter(c => M.orbs[c].shown);
+    return (slotBehind ? halo + backing : backing + halo) + shown.map(i => orbs[i]).join('') + mids + top;
+  }
+  const wrap = (i, depth) => `<g class="orb" data-c="${i}" data-depth="${depth}">${orbs[i]}</g>`;
+  return [0, 1, 2, 3].map(i => wrap(i, 'behind')).join('') + (slotBehind ? halo + backing : backing + halo) +
+    [0, 1, 2, 3].map(i => wrap(i, 'rest')).join('') + mids + top + [0, 1, 2, 3].map(i => wrap(i, 'front')).join('');
+}
+
+// =====================================================================================
+// ARCS — ported from the Phase 40 panel (spec §1.2): the corner→centre line, open 0, dir −1 for
+// despawn (θ 0 → π/2, hidden at the centre behind the backing), dir +1 for spawn (θ 3π/2 → 2π).
+// =====================================================================================
+const FRONT = 0.15, BEHIND = 0.2, DIM = 0.2;
+const easeInOut = t => -(Math.cos(Math.PI * t) - 1) / 2;
+function cornerFrame(robot, corner) {
+  const part = robot.parts.filter(p => p.role === 'orbit')[corner];
+  const cx = part.x + ORB_W / 2, cy = part.y + ORB_H / 2;
+  const dx = cx - robot.W / 2, dy = cy - robot.H / 2;
+  return { cx, cy, sx: Math.sign(dx), sy: Math.sign(dy), dx: Math.abs(dx), dy: Math.abs(dy) };
+}
+function ringPose(robot, corner, dir, theta) {
+  const { sx, sy, dx, dy } = cornerFrame(robot, corner);
+  const r = Math.hypot(dx, dy);
+  const a = Math.atan2(-sy * dy, -sx * dx);
+  const ux = Math.cos(a), uy = Math.sin(a);
+  const along = r * (1 - Math.cos(theta));
+  const d = dir * Math.sin(theta);
+  return { x: along * ux, y: along * uy, scale: d >= 0 ? 1 + FRONT * d : 1 - BEHIND * -d, opacity: d >= 0 ? 1 : 1 - DIM * -d, depth: Math.abs(d) < 1e-6 ? 'rest' : d > 0 ? 'front' : 'behind' };
+}
+const orbiterCount = (density) => density < 25 ? 1 : density <= 50 ? 2 : density <= 75 ? 3 : 4;
+function startSpawn(o) {
+  o.shown = true;
+  if (M.reduced) { o.busy = { kind: 'fade', t0: M.t, dur: 0.3, from: 0, to: 1 }; return; }
+  o.busy = { kind: 'spawn', dir: 1, t0: M.t, dur: num('arc'), from: 1.5 * Math.PI, to: 2 * Math.PI };
+  startRipple('spawn', o.busy);
+}
+function startDespawn(o) {
+  if (M.reduced) { o.busy = { kind: 'fadeOut', t0: M.t, dur: 0.3, from: 1, to: 0 }; return; }
+  o.busy = { kind: 'despawn', dir: -1, t0: M.t, dur: num('arc'), from: 0, to: 0.5 * Math.PI };
+  startRipple('despawn', o.busy);
+}
+/** One step per call, one arc at a time, explicit shown set (Phase 40 Gate 1 rules). */
+function reconcile() {
+  if (M.orbs.some(o => o.busy)) return;
+  const order = M.plan.cornerOrder, shown = order.filter(c => M.orbs[c].shown);
+  if (shown.length < M.targetCount) { const c = order.find(c => !M.orbs[c].shown); if (c !== undefined) startSpawn(M.orbs[c]); }
+  else if (shown.length > M.targetCount) startDespawn(M.orbs[shown[shown.length - 1]]);
+}
+
+// =====================================================================================
+// RIPPLE (R) — a narrow bright ring on the halo's own gradient, travelling 10 → edge on spawn and
+// 95 % → 10 on despawn, a whole number of cycles per arc so the last ring lands with the orbiter.
+// =====================================================================================
+function startRipple(kind, arc) {
+  const cycles = Math.max(1, Math.round(arc.dur / num('period')));
+  M.ripple = { kind, t0: arc.t0, dur: arc.dur, cycles };
+}
+function rippleStops(p, u) {
+  const r = M.ripple, innerF = p.inner / p.R, w = num('ringW'), op = num('rippleOp');
+  const f = (u * r.cycles) % 1;
+  const pos = r.kind === 'spawn' ? lerp(innerF, 1, f) : lerp(num('despawnFrom'), innerF, f);
+  const env = Math.min(1, u / 0.1, (1 - u) / 0.1);              // fade the ripple in/out over the arc's first and last 10 %
+  const lo = Math.max(innerF, pos - w), hi = Math.min(1, pos + w);
+  return { stops: [[0, 0], [lo, 0], [pos, op * env], [hi, 0], [1, 0]], env };
+}
+
+// =====================================================================================
+// FLICKER (1a) — per-strip seeded blink pattern over 2 s; a repeat change restarts the window.
+// =====================================================================================
+const FLICKER_WINDOW = 2;
+function startFlicker(key) {
+  if (M.reduced) return;
+  const n = (M.flickRuns[key] = (M.flickRuns[key] || 0) + 1);
+  const R = rngFrom(M.robot.decoSeed + ':flicker:' + key + ':' + n);
+  const blinks = Math.round(range(R, num('blinksMin'), num('blinksMax')));
+  const len = num('blinkLen'), pattern = [];
+  for (let i = 0; i < blinks; i++) pattern.push({ at: range(R, 0, FLICKER_WINDOW - len), len: len * range(R, 0.7, 1.3) });
+  pattern.sort((a, b) => a.at - b.at);
+  M.flicker[key] = { t0: M.t, pattern };
+}
+function flickerK(key) {
+  const f = M.flicker[key]; if (!f) return 1;
+  const u = M.t - f.t0; if (u > FLICKER_WINDOW) { delete M.flicker[key]; return 1; }
+  return f.pattern.some(b => u >= b.at && u < b.at + b.len) ? num('blinkLow') : 1;
+}
+/** Which strips react to which control (item 1a): the attribute each line is tied to. */
+const FLICKER_TRIGGERS = {
+  depth0: ['top'], link0: ['top'], depth1: ['midL'], link1: ['midL'], depth2: ['midR'], link2: ['midR'],
+  variance: ['orb0', 'orb1', 'orb2', 'orb3'], repeat: ['orb0', 'orb1', 'orb2', 'orb3'],
+  gain1: ['midL'], gain2: ['midR'], stripFixed: ['top', 'midL', 'midR'], stripSrc: ['top', 'midL', 'midR'],
+};
+
+// =====================================================================================
+// PAGE STATE + FRAME LOOP
+// =====================================================================================
+const M = { robot: null, plan: null, orbs: [], t: 0, last: null, targetCount: 2, ripple: null, flicker: {}, flickRuns: {}, haloCur: null, haloFrom: null, haloT0: -1, reduced: false, stages: [] };
+const PAD_X = 14, PAD_Y = 10;   // half an orbiter at 1.15 + a little; the open-0 arc never leaves the canvas
+
+function build(fullReset) {
+  const seed = $('seed').value;
+  const Rc = rngFrom(seed + ':colors'); const names = ACCENT_NAMES.slice();
+  const robots = []; for (let i = 0; i < 12; i++) { const n = names.splice(Math.floor(Rc() * names.length), 1)[0]; robots.push(decorate(makeRobot(seed, i, n))); }
+  const robot = robots[+$('robot').value || 0];
+  M.reduced = $('reduced').checked;
+  const changed = fullReset || !M.robot || M.robot.idx !== robot.idx || M.robot.seed !== robot.seed;
+  M.robot = robot;
+  if (changed) {
+    const R = rngFrom(seed + ':orbit:' + robot.idx);
+    const order = [0, 1, 2, 3]; for (let i = 3; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    M.plan = { cornerOrder: order };
+    M.orbs = [0, 1, 2, 3].map(c => ({ c, shown: false, busy: null }));
+    M.targetCount = orbiterCount(num('density'));
+    for (let i = 0; i < M.targetCount; i++) M.orbs[order[i]].shown = true;
+    M.ripple = null; M.flicker = {}; M.flickRuns = {};
+    M.haloCur = null; M.haloT0 = -1;
+  }
+  const L = lineDials();
+  const vb = `${-PAD_X} ${-PAD_Y} ${robot.W + 2 * PAD_X} ${robot.H + 2 * PAD_Y}`;
+  const outline = `<rect x="0" y="0" width="${robot.W}" height="${robot.H}" fill="none" stroke="#2a3340" stroke-width=".4" stroke-dasharray="2 1.5"/>`;
+  $('stage').innerHTML = `
+    <div class="stage"><svg data-stage="world" width="${(robot.W + 2 * PAD_X) * 2}" height="${(robot.H + 2 * PAD_Y) * 2}" viewBox="${vb}" shape-rendering="geometricPrecision">${outline}${renderRobot(robot, L, 'world', 'motion')}</svg>world 2 px/unit (frame = Phase 40 avatar pad)</div>
+    <div class="stage"><svg data-stage="avatar" width="96" height="96" viewBox="${vb}" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision">${renderRobot(robot, L, 'avatar', 'motion')}</svg>avatar 96 px</div>
+    <div class="stage"><svg width="64" height="64" viewBox="0 0 ${robot.W} ${robot.H}" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision">${renderRobot(robot, L, 'card', 'card')}</svg>card 64 px, static</div>`;
+  M.stages = [...document.querySelectorAll('#stage svg')];
+  M.groups = [...document.querySelectorAll('#stage svg[data-stage] g.orb')];
+  M.strips = [...document.querySelectorAll('#stage .strip')];
+  // halo target (tweened in frame); the markup above was rendered at the target, so seed "current" from it on first build
+  const p = haloParams(); M.haloTarget = { R: p.R, stops: haloStops(p) };
+  if (!M.haloCur) M.haloCur = M.haloTarget;
+  $('companySw').style.background = p.color || robot.color;
+  const d = M.haloTarget.stops;
+  $('haloOut').textContent = `halo ${p.color ? 'company ' + p.color : 'freelance → identity ' + robot.color}   R ${p.R.toFixed(1)} (${$('shape').value === 'ellipse' ? 'rx ' + (p.R * robot.k).toFixed(1) + ' × ry ' + p.R.toFixed(1) : 'circle'})\n` +
+    `stops  hole→${(d[1][0] * p.R).toFixed(1)}u 0   attack→${(d[2][0] * p.R).toFixed(1)}u ${d[2][1].toFixed(2)}   decay→${(d[3][0] * p.R).toFixed(1)}u ${d[3][1].toFixed(2)}   hold→${(d[4][0] * p.R).toFixed(1)}u ${d[4][1].toFixed(2)}   release→${p.R.toFixed(1)}u 0`;
+  $('lineOut').textContent = `line width  top ${L.top.lw.toFixed(2)}  midL ${L.midL.lw.toFixed(2)}  midR ${L.midR.lw.toFixed(2)}  orbiters ${L.orb.lw.toFixed(2)}\nstrip       top ${L.top.strip.toFixed(2)}  midL ${L.midL.strip.toFixed(2)}  midR ${L.midR.strip.toFixed(2)}  orbiters ${L.orb.strip.toFixed(2)}   (mid lit L ${L.lit.midL.toFixed(2)} R ${L.lit.midR.toFixed(2)})\n` +
+    `orbiters ${M.orbs.filter(o => o.shown).length} shown of target ${M.targetCount}, order ${M.plan.cornerOrder.map(c => ['TL','TR','BL','BR'][c]).join(' ')}   ripple ${Math.max(1, Math.round(num('arc') / num('period')))} cycle(s) per ${num('arc')} s arc`;
+  for (const el of document.querySelectorAll('.mcol input[type=range]')) { const s = el.nextElementSibling; if (s && s.tagName === 'SPAN') s.textContent = el.value; }
+}
+
+function setStops(grad, stops) { const els = grad.children; for (let i = 0; i < els.length && i < stops.length; i++) { els[i].setAttribute('offset', (stops[i][0] * 100).toFixed(2) + '%'); els[i].setAttribute('stop-opacity', stops[i][1].toFixed(3)); } }
+
+function frame(now) {
+  if (M.last == null) M.last = now;
+  const dt = Math.min(0.1, (now - M.last) / 1000) * num('speed'); M.last = now; M.t += dt;
+  const robot = M.robot;
+  // --- halo tween (0.5 s, never a pop) ---
+  if (M.haloT0 >= 0) {
+    const tw = num('haloTween'); const u = tw > 0 ? Math.min(1, (M.t - M.haloT0) / tw) : 1; const e = Math.sin(u * Math.PI / 2);
+    M.haloCur = { R: lerp(M.haloFrom.R, M.haloTarget.R, e), stops: lerpStops(M.haloFrom.stops, M.haloTarget.stops, e) };
+    if (u >= 1) M.haloT0 = -1;
+  }
+  const p = haloParams(); const rippling = !!M.ripple;
+  const dimK = ($('haloBattery').checked ? +$('battery').value : 1) * (1 - (rippling ? num('rippleDim') : 0));
+  for (const svg of M.stages) {
+    const g = svg.querySelector('.halo-g'); if (g) setStops(g, M.haloCur.stops);
+    const h = svg.querySelector('.halo');
+    if (h) { const rx = $('shape').value === 'ellipse' ? M.haloCur.R * robot.k : M.haloCur.R; h.setAttribute('rx', rx.toFixed(2)); h.setAttribute('ry', M.haloCur.R.toFixed(2)); h.setAttribute('opacity', dimK.toFixed(3)); }
+  }
+  // --- ripple ---
+  if (M.ripple) {
+    const u = Math.min(1, (M.t - M.ripple.t0) / M.ripple.dur);
+    const { stops } = rippleStops({ ...p, R: M.haloCur.R }, u);
+    for (const svg of M.stages) { const g = svg.querySelector('.ripple-g'); const e = svg.querySelector('.ripple'); if (g && e) { setStops(g, stops); e.setAttribute('opacity', ($('haloBattery').checked ? +$('battery').value : 1).toFixed(3)); e.setAttribute('rx', ($('shape').value === 'ellipse' ? M.haloCur.R * robot.k : M.haloCur.R).toFixed(2)); e.setAttribute('ry', M.haloCur.R.toFixed(2)); } }
+    if (u >= 1) { M.ripple = null; for (const svg of M.stages) { const e = svg.querySelector('.ripple'); if (e) e.setAttribute('opacity', '0'); } }
+  }
+  // --- arcs (twins swap on depth) ---
+  for (const o of M.orbs) {
+    const { cx, cy } = cornerFrame(robot, o.c);
+    let pose = { x: 0, y: 0, scale: 1, opacity: 1, depth: 'rest' }, visible = o.shown, fade = 1;
+    if (o.busy) {
+      const b = o.busy, u = Math.min(1, (M.t - b.t0) / b.dur);
+      if (b.kind === 'fade' || b.kind === 'fadeOut') { fade = lerp(b.from, b.to, u); if (u >= 1) { if (b.kind === 'fadeOut') o.shown = false; o.busy = null; reconcile(); } }
+      else {
+        pose = ringPose(robot, o.c, b.dir, b.from + (b.to - b.from) * easeInOut(u)); visible = true;
+        if (u >= 1) { o.busy = null; pose = { x: 0, y: 0, scale: 1, opacity: 1, depth: 'rest' }; if (b.kind === 'despawn') { o.shown = false; visible = false; } reconcile(); }
+      }
+    }
+    for (const g of M.groups) {
+      if (+g.dataset.c !== o.c) continue;
+      const on = visible && g.dataset.depth === pose.depth;
+      g.style.display = on ? '' : 'none'; if (!on) continue;
+      g.setAttribute('transform', `translate(${(cx + pose.x).toFixed(2)} ${(cy + pose.y).toFixed(2)}) scale(${pose.scale.toFixed(3)}) translate(${-cx} ${-cy})`);
+      g.setAttribute('opacity', (pose.opacity * fade).toFixed(3));
+    }
+  }
+  // --- strip flicker ---
+  for (const s of M.strips) s.setAttribute('opacity', (+s.dataset.base * flickerK(s.dataset.line)).toFixed(3));
+  requestAnimationFrame(frame);
+}
+
+// =====================================================================================
+// WIRING
+// =====================================================================================
+const sel = $('robot'); for (let i = 0; i < 12; i++) { const op = document.createElement('option'); op.value = i; op.textContent = 'robot ' + (i + 1); sel.appendChild(op); }
+sel.onchange = () => build(true);
+$('regen').onclick = () => build(true);
+$('next').onclick = () => { $('seed').value = 'pelagos-' + (++M.seedN || (M.seedN = 1)); build(true); };
+$('reduced').onchange = () => build(false);
+// halo edits re-target the tween; structure edits (slot/shape) rebuild
+const haloIds = ['company', 'freelance', 'volume', 'rMin', 'rMax', 'inner', 'peak', 'attack', 'decay', 'sustain', 'release', 'hold', 'haloTween', 'haloDaylight', 'daylight', 'haloBattery', 'battery'];
+for (const id of haloIds) $(id).oninput = $(id).onchange = () => {
+  M.haloFrom = M.haloCur; build(false); M.haloT0 = M.t;
+};
+for (const id of ['slot', 'shape']) $(id).onchange = () => build(false);
+// line/strip edits re-render immediately (Phase 40 Q5) and flicker the strips tied to that attribute
+for (const id of Object.keys(FLICKER_TRIGGERS).concat(['lwMin', 'lwMax'])) $(id).oninput = $(id).onchange = () => {
+  build(false);
+  for (const key of FLICKER_TRIGGERS[id] || []) startFlicker(key);
+};
+for (const id of ['blinksMin', 'blinksMax', 'blinkLen', 'blinkLow', 'arc', 'period', 'ringW', 'rippleOp', 'despawnFrom', 'rippleDim', 'speed']) $(id).oninput = $(id).onchange = () => build(false);
+$('flickAll').onclick = () => { for (const key of ['top', 'midL', 'midR', 'orb0', 'orb1', 'orb2', 'orb3']) startFlicker(key); };
+$('density').oninput = () => { build(false); M.targetCount = orbiterCount(num('density')); reconcile(); };
+$('spawnOne').onclick = () => { M.targetCount = Math.min(4, M.targetCount + 1); reconcile(); build(false); };
+$('despawnOne').onclick = () => { M.targetCount = Math.max(0, M.targetCount - 1); reconcile(); build(false); };
+build(true);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
