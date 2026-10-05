@@ -587,3 +587,193 @@ describe('useOrbiterMotion — pair orbit scheduler and the twin swap (spec §1.
     expect(findProxyTweens()).toHaveLength(0);
   });
 });
+
+// ========================================
+// Task 10: count changes — spawn/despawn arcs and the queue
+// ========================================
+/** The arc proxy targets a plain `{ u: 0 }` object, distinct from the orbit proxy's `{ t: 0 }`. */
+function findArcProxyTweens() {
+  return toCalls.filter((c) => typeof c.target === 'object' && c.target !== null && 'u' in (c.target as object));
+}
+
+/** Still-active (not yet killed) drift tweens for a corner's rest-copy local group — `toCalls` is
+ *  an append-only log, so a killed tween's creation record stays in it forever; filter those out. */
+function driftTweensFor(container: HTMLElement, corner: number) {
+  const local = localEl(container, corner, 'rest');
+  return toCalls.filter((c) => c.target === local && c.vars.repeat === -1 && c.tween.kill.mock.calls.length === 0);
+}
+
+describe('useOrbiterMotion — count changes: spawn/despawn arcs and the queue (spec §1.4, Task 10)', () => {
+  // cornerOrder [0, 3, 1, 2]: pair [0,3] fills first, pair [1,2] second — predictable spawn/despawn
+  // order for every test here, regardless of what the real seed's own order happens to be.
+  const customPlan = { ...orbiterPlan(GEM_SEED), cornerOrder: [0, 3, 1, 2] as [number, number, number, number] };
+  // A huge gap keeps every pair scheduler's own orbit from firing during these tests.
+  const BIG_GAP = 10_000;
+
+  beforeEach(() => {
+    setCalls.length = 0;
+    toCalls.length = 0;
+    createdTimelines.length = 0;
+    nextOrbitQueue = [];
+    killAllTimelines();
+    vi.useFakeTimers();
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it('2 -> 3: one spawn arc on the first unshown corner, behind at the canvas centre with no drift yet; ending rest with drift running and its pair scheduled', () => {
+    const { rerender, container } = render(
+      <Harness plan={customPlan} dials={dials({ count: 2, orbitGap: BIG_GAP, orbitDuration: 2 })} />,
+    );
+    expect(timelineMap.has('orbit-world-r1-1')).toBe(false); // pair [1,2] has no shown member yet
+
+    act(() => {
+      rerender(<Harness plan={customPlan} dials={dials({ count: 3, orbitGap: BIG_GAP, orbitDuration: 2 })} />);
+    });
+
+    // Corner 1 is the first unshown corner in [0, 3, 1, 2] — its arc starts immediately, behind.
+    expect(depthOf(container, 1)).toBe('behind');
+    expect(driftTweensFor(container, 1)).toHaveLength(0); // no drift yet — "drift gain 0" at arc start
+
+    act(() => { vi.advanceTimersByTime(1000); }); // orbitDuration / 2 = 1s
+    expect(depthOf(container, 1)).toBe('rest');
+    expect(driftTweensFor(container, 1)).toHaveLength(2); // x and y drift now running
+    expect(timelineMap.has('orbit-world-r1-1')).toBe(true); // pair [1,2] now has a scheduler
+  });
+
+  it('2 -> 4: the second arc starts only after the first completes', () => {
+    const { rerender, container } = render(
+      <Harness plan={customPlan} dials={dials({ count: 2, orbitGap: BIG_GAP, orbitDuration: 2 })} />,
+    );
+    act(() => {
+      rerender(<Harness plan={customPlan} dials={dials({ count: 4, orbitGap: BIG_GAP, orbitDuration: 2 })} />);
+    });
+
+    expect(depthOf(container, 1)).toBe('behind'); // first spawn arc running
+    (['behind', 'rest', 'front'] as const).forEach((d) => expect(copyEl(container, 2, d).style.display).toBe('none'));
+
+    act(() => { vi.advanceTimersByTime(1000); }); // first arc completes
+    expect(depthOf(container, 1)).toBe('rest');
+    expect(depthOf(container, 2)).toBe('behind'); // second spawn arc now running
+
+    act(() => { vi.advanceTimersByTime(1000); }); // second arc completes
+    expect(depthOf(container, 2)).toBe('rest');
+  });
+
+  it('2 -> 4 -> 2 while the first arc is still in flight settles at 2, with corner 1 left fully hidden again', () => {
+    const { rerender, container } = render(
+      <Harness plan={customPlan} dials={dials({ count: 2, orbitGap: BIG_GAP, orbitDuration: 2 })} />,
+    );
+    act(() => {
+      rerender(<Harness plan={customPlan} dials={dials({ count: 4, orbitGap: BIG_GAP, orbitDuration: 2 })} />);
+    });
+    expect(depthOf(container, 1)).toBe('behind'); // spawn arc for corner 1 in flight
+
+    act(() => {
+      rerender(<Harness plan={customPlan} dials={dials({ count: 2, orbitGap: BIG_GAP, orbitDuration: 2 })} />);
+    });
+    expect(findArcProxyTweens()).toHaveLength(1); // the target changed, but no second arc started yet
+
+    act(() => { vi.advanceTimersByTime(1000); }); // the in-flight spawn completes; reconcile re-evaluates
+    // Target is 2, shown is now {0, 3, 1} = 3 -> despawns the last-in-order shown corner, which is 1.
+    act(() => { vi.advanceTimersByTime(1000); }); // the despawn arc completes
+
+    (['behind', 'rest', 'front'] as const).forEach((d) => expect(copyEl(container, 1, d).style.display).toBe('none'));
+    expect(depthOf(container, 0)).toBe('rest');
+    expect(depthOf(container, 3)).toBe('rest');
+  });
+
+  it('3 -> 2: the last shown corner despawns via the open-0, dir -1 arc, ends fully hidden with no drift; its pair survives', () => {
+    const { rerender, container } = render(
+      <Harness plan={customPlan} dials={dials({ count: 3, orbitGap: BIG_GAP, orbitDuration: 2 })} />,
+    );
+    expect(timelineMap.has('orbit-world-r1-1')).toBe(true); // pair [1,2] scheduled (corner 1 shown)
+
+    act(() => {
+      rerender(<Harness plan={customPlan} dials={dials({ count: 2, orbitGap: BIG_GAP, orbitDuration: 2 })} />);
+    });
+    expect(depthOf(container, 1)).toBe('rest'); // despawn arc starts at theta 0 (rest), open 0
+
+    act(() => { vi.advanceTimersByTime(1000); }); // orbitDuration / 2
+    (['behind', 'rest', 'front'] as const).forEach((d) => expect(copyEl(container, 1, d).style.display).toBe('none'));
+    expect(driftTweensFor(container, 1)).toHaveLength(0);
+    expect(timelineMap.has('orbit-world-r1-1')).toBe(true); // the pair's scheduler survives, idle
+  });
+
+  it('the Gate 1 loop case: 3 -> 2 then -> 4 while the despawn is mid-arc settles at 4 after exactly two further arcs, never spawning a shown corner', () => {
+    const { rerender, container } = render(
+      <Harness plan={customPlan} dials={dials({ count: 3, orbitGap: BIG_GAP, orbitDuration: 2 })} />,
+    );
+    act(() => {
+      rerender(<Harness plan={customPlan} dials={dials({ count: 2, orbitGap: BIG_GAP, orbitDuration: 2 })} />);
+    });
+    expect(findArcProxyTweens()).toHaveLength(1); // the despawn of corner 1 is in flight
+
+    act(() => {
+      rerender(<Harness plan={customPlan} dials={dials({ count: 4, orbitGap: BIG_GAP, orbitDuration: 2 })} />);
+    });
+    expect(findArcProxyTweens()).toHaveLength(1); // still just the despawn — blocked by "one arc at a time"
+
+    act(() => { vi.advanceTimersByTime(1000); }); // despawn completes -> reconcile spawns corner 1 again
+    expect(findArcProxyTweens()).toHaveLength(2);
+
+    act(() => { vi.advanceTimersByTime(1000); }); // that spawn completes -> reconcile spawns corner 2
+    expect(findArcProxyTweens()).toHaveLength(3);
+
+    act(() => { vi.advanceTimersByTime(1000); }); // final spawn completes -> settled at 4
+    expect(findArcProxyTweens()).toHaveLength(3); // no further arc — target reached
+
+    [0, 1, 2, 3].forEach((c) => expect(depthOf(container, c)).toBe('rest'));
+  });
+
+  it('a despawn requested while the target corner is mid-orbit waits for the orbit to finish', () => {
+    nextOrbitQueue = [{ dir: 1, open: 0, wait: 20 }];
+    const { rerender, container } = render(
+      <Harness plan={customPlan} dials={dials({ count: 2, orbitGap: 5, orbitDuration: 4 })} />,
+    );
+    const waitMs = customPlan.initialWait[0] * 5 * 1000;
+    act(() => { vi.advanceTimersByTime(waitMs + 10); }); // pair [0,3]'s orbit starts
+    expect(findProxyTweens()).toHaveLength(1);
+
+    act(() => {
+      rerender(<Harness plan={customPlan} dials={dials({ count: 1, orbitGap: 5, orbitDuration: 4 })} />);
+    });
+    expect(findArcProxyTweens()).toHaveLength(0); // corner 3 (the despawn target) is mid-orbit
+
+    act(() => { vi.advanceTimersByTime(4000); }); // the orbit completes -> reconcile retries
+    expect(findArcProxyTweens()).toHaveLength(1);
+    act(() => { vi.advanceTimersByTime(2000); }); // orbitDuration / 2 for the despawn arc (4 / 2 = 2s)
+    (['behind', 'rest', 'front'] as const).forEach((d) => expect(copyEl(container, 3, d).style.display).toBe('none'));
+  });
+
+  it('reduced motion: a count change tweens opacity over 0.3 s on the rest copy — no ring arc', () => {
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+
+    const { rerender, container } = render(
+      <Harness plan={customPlan} dials={dials({ count: 2, orbitGap: BIG_GAP, orbitDuration: 2 })} />,
+    );
+    act(() => {
+      rerender(<Harness plan={customPlan} dials={dials({ count: 3, orbitGap: BIG_GAP, orbitDuration: 2 })} />);
+    });
+
+    expect(findArcProxyTweens()).toHaveLength(0); // no ring arc under reduced motion
+    const rest = copyEl(container, 1, 'rest');
+    const fade = toCalls.find((c) => c.target === rest && c.vars.duration === 0.3);
+    expect(fade).toBeDefined();
+    expect(fade!.vars.opacity).toBe(1);
+  });
+});
