@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { setTimeline, killTimeline, timelineMap } from '../../animation/timelineMap';
+import { prefersReducedMotion } from '../../utils/reducedMotion';
 
 // ----------------------------------------
 // TYPES
@@ -75,8 +76,6 @@ const POP_SCALE = 2.5;
 /** Peak opacity of a fully risen bubble. */
 const PEAK_OPACITY = 0.6;
 
-const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
-
 // ----------------------------------------
 // HELPERS
 // ----------------------------------------
@@ -92,13 +91,6 @@ function makeLcg(seed: number): () => number {
     s = (s * 1664525 + 1013904223) >>> 0;
     return s / 0x100000000;
   };
-}
-
-/** Read once per effect run; purely decorative motion is exactly what this preference asks to drop. */
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined'
-    && typeof window.matchMedia === 'function'
-    && window.matchMedia(REDUCED_MOTION_QUERY).matches;
 }
 
 // ----------------------------------------
