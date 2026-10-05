@@ -317,6 +317,16 @@ describe('RobotSelectionCard', () => {
     expect(container.querySelector('.socket, .greeble')).toBeNull();
   });
 
+  it('a density-80 robot shows 4 orbiters, density-10 shows 1; viewBox stays 0 0 80k 80 (Phase 40 Task 7)', () => {
+    const { container: low } = renderCard({ id: 'low-density', rhythmicDensity: 10 });
+    expect(low.querySelectorAll('.gem__orbiter')).toHaveLength(1);
+
+    const { container: high } = renderCard({ id: 'high-density', rhythmicDensity: 80 });
+    expect(high.querySelectorAll('.gem__orbiter')).toHaveLength(4);
+    const avatar = high.querySelector('svg.robot-selection-card__avatar')!;
+    expect(avatar.getAttribute('viewBox')).toBe(`0 0 ${80 * getRobotGem(20261004).widthFactor} 80`);
+  });
+
   it("has an accessible name matching the robot's name", () => {
     renderCard({ name: 'Unit One' });
     expect(screen.getByRole('button', { name: 'Unit One' })).toBeTruthy();

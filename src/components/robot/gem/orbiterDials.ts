@@ -26,17 +26,18 @@ import {
   DEFAULT_NOTE_VARIANCE,
   DEFAULT_PITCH_REPEAT,
 } from '@/engine/melodyGenerator';
-import type { Robot } from '@/types/Robot';
+import type { Robot, AudioAttributes } from '@/types/Robot';
 
 // ========================================
 // TYPES
 // ========================================
 /** The composition fields `orbiterDials` reads — the same resolution `regenerateMelody.ts` and
- *  `RobotBody`'s audio memo already use. */
-export type OrbiterDialsInput = Pick<
-  Robot,
-  'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat' | 'octaveRange' | 'audioAttributes'
->;
+ *  `RobotBody`'s audio memo already use. `audioAttributes` is narrowed to just `octaveRange` (the
+ *  only field read) so a caller's memo can depend on that one property, not the whole object —
+ *  an `adsr` edit must not recompute RobotBody's composition memo. */
+export type OrbiterDialsInput = Pick<Robot, 'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat' | 'octaveRange'> & {
+  audioAttributes: Pick<AudioAttributes, 'octaveRange'>;
+};
 
 export interface OrbiterDials {
   count: 1 | 2 | 3 | 4;

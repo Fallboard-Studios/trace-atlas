@@ -3,12 +3,16 @@ import { act, render, cleanup } from '@testing-library/react';
 
 import { RobotBody } from './RobotBody';
 import * as robotVisualHelpers from './robotVisualHelpers';
+import * as orbiterDialsModule from './gem/orbiterDials';
 import { getRobotGem } from './gem/polygon';
 import { gemPalette } from './gem/gemPalette';
 import { GEM_FACET_CONTRAST } from './gem/gemShading';
+import { orbiterPlan } from './gem/orbiterMotion';
 import { useUIStore } from '@/stores/uiStore';
 import type { Robot } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
+
+const ORBITER_CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 
 // Phase 39 (docs/specs/GEM_POLYGON_ROBOTS.md §1.5): RobotBody composes RobotGem. The audio memo
 // holds only scale, lamp intensity and the two Mid lit levels; identity, battery, daylight and the
@@ -63,7 +67,9 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
   });
 
   it('draws the robot\'s own seeded geometry and none of the old hand-drawn parts', () => {
-    const { container } = draw(makeRobot());
+    // rhythmicDensity 80 (Phase 40 Task 7's real dial, not the old fixed-4 placeholder) keeps all
+    // four orbiters shown, so this still counts backing + 4 orbiters + 2 mids + top.
+    const { container } = draw(makeRobot({ rhythmicDensity: 80 }));
     const gem = getRobotGem(20261004);
     expect(container.querySelectorAll('g.gem__part')).toHaveLength(8);
     expect(facetQuads(container, '.gem__top')).toHaveLength(gem.top.pts.length);
@@ -242,6 +248,96 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
       expect(topFace(orange)).not.toBe(before.face);
       expect(rootTransform(orange)).toBe(before.transform);
       expect(facetPoints(orange)).toEqual(before.points);
+    });
+  });
+
+  // Phase 40 (docs/specs/ORBITING_POLYGONS.md §1.5, Task 7): the composition memo maps the five
+  // composition fields to the orbiter dials, separate from the audio memo above.
+  describe('orbiter composition (Phase 40, Task 7)', () => {
+    it('rhythmicDensity 80 shows 4 orbiters, 10 shows 1, in the seeded corner order', () => {
+      const plan = orbiterPlan(20261004);
+      const { container: low, unmount } = draw(makeRobot({ rhythmicDensity: 10 }));
+      const lowWrappers = [...low.querySelectorAll('.gem__orbiter')];
+      expect(lowWrappers).toHaveLength(1);
+      expect(lowWrappers[0].getAttribute('class')).toBe(`gem__orbiter gem__orbiter--${ORBITER_CORNERS[plan.cornerOrder[0]]}`);
+      unmount();
+      const { container: high } = draw(makeRobot({ rhythmicDensity: 80 }));
+      const highWrappers = [...high.querySelectorAll('.gem__orbiter')];
+      expect(highWrappers).toHaveLength(4);
+      expect(highWrappers.map((w) => w.getAttribute('class'))).toEqual(
+        plan.cornerOrder.map((c) => `gem__orbiter gem__orbiter--${ORBITER_CORNERS[c]}`),
+      );
+    });
+
+    it('rhythmicMotifLength.value 0 scales orbiters to 0.75', () => {
+      const { container } = draw(makeRobot({ rhythmicMotifLength: { active: false, value: 0 } }));
+      const local = container.querySelector('.gem__orbiter-local')!;
+      expect(local.getAttribute('transform')).toBe('scale(0.75)');
+    });
+
+    it('noteVariance.value 8 sets the orbiter line width to 1.1', () => {
+      const { container } = draw(makeRobot({ noteVariance: { active: true, value: 8 } }));
+      const lines = container.querySelector('.gem__orbiter .gem__lines')!;
+      expect(lines.getAttribute('stroke-width')).toBe('1.1');
+    });
+
+    it('pitchRepeat 100 sets the orbiter strip opacity to 1', () => {
+      const { container } = draw(makeRobot({ pitchRepeat: 100 }));
+      const strip = container.querySelector('.gem__orbiter .gem__strip')!;
+      expect(strip.getAttribute('opacity')).toBe('1');
+    });
+
+    it('motion undefined renders the static path — no depth-copy wrapper, only the seeded count shown', () => {
+      const { container } = draw(makeRobot());
+      expect(container.querySelector('.gem__orbiter[data-depth="behind"]')).toBeNull();
+      expect(container.querySelectorAll('.gem__orbiter')).toHaveLength(2); // DEFAULT_RHYTHMIC_DENSITY 50 -> count 2
+    });
+
+    it('motion="world" renders the motion: true path — all 12 depth copies', () => {
+      const { container } = render(<svg><RobotBody robot={makeRobot()} motion="world" /></svg>);
+      expect(container.querySelectorAll('.gem__orbiter')).toHaveLength(12);
+      (['behind', 'rest', 'front'] as const).forEach((depth) => {
+        expect(container.querySelectorAll(`.gem__orbiter[data-depth="${depth}"]`)).toHaveLength(4);
+      });
+    });
+  });
+
+  describe('the composition memo recomputes only for composition fields', () => {
+    it('daylight ticks do not recompute it', () => {
+      const spy = vi.spyOn(orbiterDialsModule, 'orbiterDials');
+      useUIStore.getState().setActiveLocaleLocalTime(12);
+      draw(makeRobot());
+      const afterMount = spy.mock.calls.length;
+      expect(afterMount).toBeGreaterThan(0);
+      act(() => { useUIStore.getState().setActiveLocaleLocalTime(0); });
+      act(() => { useUIStore.getState().setActiveLocaleLocalTime(18); });
+      expect(spy.mock.calls.length).toBe(afterMount);
+      spy.mockRestore();
+    });
+
+    it('an adsr-only change does not recompute it', () => {
+      const spy = vi.spyOn(orbiterDialsModule, 'orbiterDials');
+      const robot = makeRobot();
+      const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
+      const afterMount = spy.mock.calls.length;
+      expect(afterMount).toBeGreaterThan(0);
+      rerender(<svg><RobotBody robot={{ ...robot, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, attack: 4 } } }} /></svg>);
+      expect(spy.mock.calls.length).toBe(afterMount);
+      spy.mockRestore();
+    });
+
+    it('a density-only change recomputes the composition memo but not the audio memo', () => {
+      const compositionSpy = vi.spyOn(orbiterDialsModule, 'orbiterDials');
+      const audioSpy = vi.spyOn(robotVisualHelpers, 'bodyShapeFromAdsr');
+      const robot = makeRobot({ rhythmicDensity: 10 });
+      const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
+      const compositionAfterMount = compositionSpy.mock.calls.length;
+      const audioAfterMount = audioSpy.mock.calls.length;
+      rerender(<svg><RobotBody robot={{ ...robot, rhythmicDensity: 80 }} /></svg>);
+      expect(compositionSpy.mock.calls.length).toBeGreaterThan(compositionAfterMount);
+      expect(audioSpy.mock.calls.length).toBe(audioAfterMount);
+      compositionSpy.mockRestore();
+      audioSpy.mockRestore();
     });
   });
 });

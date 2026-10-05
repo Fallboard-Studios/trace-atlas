@@ -17,6 +17,8 @@ import { RobotGem, type RobotGemOrbiters } from './gem/RobotGem';
 import { getRobotGem } from './gem/polygon';
 import { gemPalette } from './gem/gemPalette';
 import { batteryFacetContrast } from './gem/gemShading';
+import { orbiterDials } from './gem/orbiterDials';
+import { orbiterPlan } from './gem/orbiterMotion';
 
 // ========================================
 // TYPES
@@ -35,6 +37,12 @@ interface RobotBodyProps {
    * attack, up to 1.69) still shows in-world, where nothing frames it.
    */
   ignoreScale?: boolean;
+  /**
+   * 'world' | 'avatar' enables orbiter motion — passed through to `RobotGem`'s `orbiters.motion`.
+   * Not yet wired by any caller (Task 12 wires `Robot.tsx`/`RobotDisplaySection.tsx`); until then
+   * every real caller stays on the static path by omitting this prop.
+   */
+  motion?: 'world' | 'avatar';
 }
 
 /** Same default the hand-drawn shapes applied when a fixture omitted identityColor. */
@@ -51,7 +59,7 @@ const FALLBACK_IDENTITY = '#78cce2';
  * intensity, each Mid's lit level, and scale — computed in the memo below, which nothing
  * non-audio may enter (backlog item 22: the once/sec daylight tick must not recompute it).
  */
-export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignoreScale }: RobotBodyProps) {
+export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignoreScale, motion }: RobotBodyProps) {
   // Day/night from the active locale's local time (0..24, written once a second by
   // AttenuationStyleView) — the same curve buildings use.
   const localTime = useUIStore((s) => s.activeLocaleLocalTime ?? 12);
@@ -74,14 +82,43 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     };
   }, [robot.audioAttributes, robot.octaveRange]);
 
+  // Composition only — separate from the audio memo above so an envelope edit never recomputes
+  // this, and a composition edit never recomputes that (backlog item 22's same discipline).
+  const composition = useMemo(
+    () =>
+      orbiterDials({
+        rhythmicDensity: robot.rhythmicDensity,
+        rhythmicMotifLength: robot.rhythmicMotifLength,
+        noteVariance: robot.noteVariance,
+        pitchRepeat: robot.pitchRepeat,
+        octaveRange: robot.octaveRange,
+        audioAttributes: { octaveRange: robot.audioAttributes.octaveRange },
+      }),
+    [
+      robot.rhythmicDensity,
+      robot.rhythmicMotifLength,
+      robot.noteVariance,
+      robot.pitchRepeat,
+      robot.octaveRange,
+      robot.audioAttributes.octaveRange,
+    ],
+  );
+  // Seeded layout — a Map hit after the first render of this seed, outside both memos.
+  const plan = orbiterPlan(robot.gemSeed);
+
   // Seeded identity — a Map hit after the first render of this seed.
   const gem = getRobotGem(robot.gemSeed);
   const palette = gemPalette(gem, robot.identityColor ?? FALLBACK_IDENTITY, daylight, audio.midLit, batteryFacetContrast(dimOpacity));
   const lightOpacity = (LAMP_MIN + (1 - LAMP_MIN) * audio.lampIntensity) * dimOpacity;
 
-  // Placeholder until Task 7 wires the real composition dials — keeps today's app pixel-identical
-  // (all four corners, the old fixed line width, strip fully transparent, no motion).
-  const orbiters: RobotGemOrbiters = { count: 4, size: 1, lineWidth: 0.8, stripOpacity: 0, cornerOrder: [0, 1, 2, 3], motion: false };
+  const orbiters: RobotGemOrbiters = {
+    count: composition.count,
+    size: composition.size,
+    lineWidth: composition.lineWidth,
+    stripOpacity: composition.stripOpacity,
+    cornerOrder: plan.cornerOrder,
+    motion: motion !== undefined,
+  };
 
   return <RobotGem gem={gem} palette={palette} lightOpacity={lightOpacity} scale={ignoreScale ? 1 : audio.scale} orbiters={orbiters} />;
 });

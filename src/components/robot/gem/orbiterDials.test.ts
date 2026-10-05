@@ -23,11 +23,7 @@ import {
 function robotFixture(overrides: Partial<OrbiterDialsInput> = {}): OrbiterDialsInput {
   return {
     octaveRange: [1, 7],
-    audioAttributes: {
-      adsr: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.3 },
-      filterFreq: 2000,
-      waveform: 'sine',
-    },
+    audioAttributes: {},
     ...overrides,
   };
 }
@@ -148,12 +144,7 @@ describe('orbiterDials — audioAttributes.octaveRange wins over robot.octaveRan
     const dials = orbiterDials(
       robotFixture({
         octaveRange: [1, 1],
-        audioAttributes: {
-          adsr: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.3 },
-          filterFreq: 2000,
-          waveform: 'sine',
-          octaveRange: [2, 5],
-        },
+        audioAttributes: { octaveRange: [2, 5] },
       })
     );
     expect(dials.orbitGap).toBeCloseTo(19, 10);
