@@ -221,6 +221,8 @@ orbiters; Crawford chose "fit each robot"). The card's `hideGreebles` was alread
 `.test.tsx`. **Scope:** S.
 
 ### Checkpoint B: Gate 2 (Crawford, by eye — stop and report)
+
+> **Passed 2026-10-05** (Crawford: "Passed — do T9–T13"). Tuning constants accepted as-is.
 - [ ] World, 96 px avatar and 64 px card all show gem robots; each is recognisably the same robot
       across the three; the orbiters sit clear of the body at rest.
 - [ ] A gain drag re-lights its Mid live; a company broadcast re-lights every member; day/night and
@@ -232,6 +234,11 @@ orbiters; Crawford chose "fit each robot"). The card's `hideGreebles` was alread
 ### Phase 3: Perf gate
 
 ## Task 9: Idle-paint A/B
+
+> **Run 2026-10-05 — gate MISSED; stopped and reported** (docs/PERFORMANCE.md "Gem Polygon Robots —
+> the Task 9 idle-paint gate"). Paint +94 %, busy +14 %, outside noise in every round. Cause is
+> element count (~87 shapes/robot vs ~35), not area. Cut 1 (orbiter lines) changes nothing; cut
+> 1+2 (facet strokes) recovers ~30 ms paint of ~185. T10–T13 wait for Crawford's decision.
 
 **Description:** `npm run build && npx vite preview --port 4173`, then `npm run perf:idle` on the
 same `?session=` link on `main` and on this branch, foreground, one run at a time, no orphaned
