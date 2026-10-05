@@ -105,15 +105,15 @@ describe('orbiterDials — strip opacity (Pitch Repeat, intent table row "Line l
 
 describe('orbiterDials — orbit gap (min octave, intent table row "Gap between orbits")', () => {
   it.each([
-    [1, 17],
-    [7, 29],
+    [1, 8.5],
+    [7, 14.5],
   ])('min octave %d → gap %d s', (minOctave, gap) => {
     expect(orbiterDials(robotFixture({ octaveRange: [minOctave, minOctave] })).orbitGap).toBeCloseTo(gap, 10);
   });
 
-  it('base/per-octave constants match the table', () => {
-    expect(ORBIT_GAP_BASE).toBe(15);
-    expect(ORBIT_GAP_PER_OCTAVE).toBe(2);
+  it('base/per-octave constants match the post-Checkpoint-C correction (orbits roughly twice as frequent)', () => {
+    expect(ORBIT_GAP_BASE).toBe(7.5);
+    expect(ORBIT_GAP_PER_OCTAVE).toBe(1);
   });
 });
 
@@ -132,9 +132,9 @@ describe('orbiterDials — orbit duration (max octave, Gate 1 correction)', () =
 });
 
 describe('orbiterDials — octave range [2, 5] (Task 2 acceptance example)', () => {
-  it('gives gap 19 s and duration 6.67 s', () => {
+  it('gives gap 9.5 s and duration 6.67 s', () => {
     const dials = orbiterDials(robotFixture({ octaveRange: [2, 5] }));
-    expect(dials.orbitGap).toBeCloseTo(19, 10);
+    expect(dials.orbitGap).toBeCloseTo(9.5, 10);
     expect(dials.orbitDuration).toBeCloseTo(6.67, 2);
   });
 });
@@ -147,13 +147,13 @@ describe('orbiterDials — audioAttributes.octaveRange wins over robot.octaveRan
         audioAttributes: { octaveRange: [2, 5] },
       })
     );
-    expect(dials.orbitGap).toBeCloseTo(19, 10);
+    expect(dials.orbitGap).toBeCloseTo(9.5, 10);
     expect(dials.orbitDuration).toBeCloseTo(6.67, 2);
   });
 
   it('falls back to robot.octaveRange when audioAttributes.octaveRange is absent', () => {
     const dials = orbiterDials(robotFixture({ octaveRange: [2, 5] }));
-    expect(dials.orbitGap).toBeCloseTo(19, 10);
+    expect(dials.orbitGap).toBeCloseTo(9.5, 10);
     expect(dials.orbitDuration).toBeCloseTo(6.67, 2);
   });
 });
@@ -188,7 +188,7 @@ describe('orbiterDials — out-of-range inputs clamp to the constant ranges', ()
 
   it('clamps octaveRange values outside 1..7', () => {
     const dials = orbiterDials(robotFixture({ octaveRange: [0, 10] }));
-    expect(dials.orbitGap).toBeCloseTo(17, 10); // min clamps to 1
+    expect(dials.orbitGap).toBeCloseTo(8.5, 10); // min clamps to 1
     expect(dials.orbitDuration).toBeCloseTo(8, 10); // max clamps to 7
   });
 });

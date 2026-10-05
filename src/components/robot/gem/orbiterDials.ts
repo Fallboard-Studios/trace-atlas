@@ -70,9 +70,11 @@ export const ORBITER_LINE_BASE = 3;
 export const ORBITER_STRIP_OPACITY_MIN = 0.35;
 
 /** Orbit gap on the robot's min octave (intent table row "Gap between orbits"), per diagonal pair:
- *  15 + 2 × minOctave → 17..29 s. */
-export const ORBIT_GAP_BASE = 15;
-export const ORBIT_GAP_PER_OCTAVE = 2;
+ *  7.5 + minOctave → 8.5..14.5 s. Post-Checkpoint-C correction (Crawford, 2026-10-05): orbits read
+ *  too infrequent in the world — halved from the Gate 1 value (15 + 2 × minOctave → 17..29 s),
+ *  landed in the sketch first. */
+export const ORBIT_GAP_BASE = 7.5;
+export const ORBIT_GAP_PER_OCTAVE = 1;
 
 /** Orbit duration on the robot's max octave (Gate 1 correction: intent's 2–5 s was "too fast, down
  *  by at least 50 %", then "top speed fine, bottom range up 20 %" → 4 + (maxOctave - 1) × 2/3 → 4..8 s). */

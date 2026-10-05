@@ -64,18 +64,23 @@ export interface OrbiterDials {
   size: number;           // 0.75 + 0.5 × motifValue / 8  → 0.75 (0) … 1.0 (4) … 1.25 (8)
   lineWidth: number;      // (3 + varianceValue) / 10        → 0.3 … 1.1   (today's fixed 0.8 sits inside)
   stripOpacity: number;   // 0.35 + 0.65 × pitchRepeat / 100 → 0.35 … 1.0
-  orbitGap: number;       // 15 + 2 × minOctave  → 17 … 29 s   (per diagonal pair, §1.2)
+  orbitGap: number;       // 7.5 + minOctave  → 8.5 … 14.5 s   (per diagonal pair, §1.2; post-Checkpoint-C correction, was 15 + 2 × minOctave → 17 … 29 s)
   orbitDuration: number;  // 4 + (maxOctave − 1) × 2/3 → 4 … 8 s   (Gate 1: intent's 2–5 s halved, then the slow end brought up 20 %)
 }
 export function orbiterDials(robot: Pick<Robot, 'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat' | 'octaveRange' | 'audioAttributes'>): OrbiterDials;
 ```
 
 Constants `ORBITER_COUNT_BREAKS = [25, 50, 75]`, `ORBITER_SIZE_MIN/MAX = 0.75/1.25`,
-`ORBITER_LINE_BASE = 3`, `ORBITER_STRIP_OPACITY_MIN = 0.35`, `ORBIT_GAP_BASE/PER_OCTAVE = 15/2`,
+`ORBITER_LINE_BASE = 3`, `ORBITER_STRIP_OPACITY_MIN = 0.35`, `ORBIT_GAP_BASE/PER_OCTAVE = 7.5/1`,
 `ORBIT_DURATION_BASE/PER_OCTAVE = 4/(2/3)`, each with a comment naming the intent-table row (or the
 Gate 1 correction). Inputs are clamped to their constant ranges first. Spawn-default robots: variance
 value is seeded at spawn, so most lines land above 0.3; a hand-built fixture with no fields gets 2
-orbiters, size 1.25, line 0.3, strip 0.35, gap 19 s, duration 4 s.
+orbiters, size 1.25, line 0.3, strip 0.35, gap 9.5 s, duration 4 s.
+
+> **Post-Checkpoint-C correction (Crawford, 2026-10-05):** orbits read too infrequent once seen
+> live in the world. `ORBIT_GAP_BASE`/`ORBIT_GAP_PER_OCTAVE` halved from `15`/`2` (17–29 s) to
+> `7.5`/`1` (8.5–14.5 s), doubling orbit frequency; `orbitDuration` unchanged. Landed in the Gate 1
+> sketch first, per the usual rule.
 
 ### 1.2 Seeded motion plan (`gem/orbiterMotion.ts`, pure)
 
@@ -116,7 +121,7 @@ export function ringPose(gem: RobotGem, corner: number, dir: 1 | -1, theta: numb
 
 θ runs 0 → 2π over `orbitDuration` with `sine.inOut` on one proxy tween per pair; `ringPose` is
 evaluated in its `onUpdate` for each member and written to the active copy with `gsap.set` (one pair
-at a time per robot, every 17–29 s — negligible per-frame work). The copy swap happens when `depth`
+at a time per robot, every 8.5–14.5 s — negligible per-frame work). The copy swap happens when `depth`
 changes (`display: none`/`''` on the three copies). Front peak 1.15× at the centre crossing, behind
 trough 0.8× and dimmer; no rotation anywhere.
 

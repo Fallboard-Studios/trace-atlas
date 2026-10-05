@@ -106,8 +106,9 @@ input clamped to its `constants/index.ts` range.
 **Acceptance criteria:**
 - [ ] Count: density 0/24 → 1, 25/50 → 2, 51/75 → 3, 76/100 → 4.
 - [ ] Size 0.75 / 1.0 / 1.25 at motif value 0 / 4 / 8; line 0.3 / 1.1 at variance 0 / 8; strip
-      0.35 / 1.0 at pitchRepeat 0 / 100; gap 17 / 29 s at min octave 1 / 7; duration 4 / 8 s at max
-      octave 1 / 7 (Gate 1 numbers: `4 + (max − 1) × 2/3`); `[2, 5]` → gap 19, duration 6.67.
+      0.35 / 1.0 at pitchRepeat 0 / 100; gap 8.5 / 14.5 s at min octave 1 / 7 (post-Checkpoint-C
+      correction: halved from the Gate 1 numbers 17 / 29 s); duration 4 / 8 s at max octave 1 / 7
+      (Gate 1 numbers: `4 + (max − 1) × 2/3`); `[2, 5]` → gap 9.5, duration 6.67.
 - [ ] All fields undefined → `{ count: 2, size: 1.25, lineWidth: 0.3, stripOpacity: 0.35 }` with
       octaves from `robot.octaveRange`; `audioAttributes.octaveRange` wins when present.
 - [ ] Density 150 and −5, motif value 12, pitchRepeat 200 clamp to the range ends; a `value` is used

@@ -104,6 +104,12 @@ Motion panel; the table above is kept as interviewed, these amend it. Spec:
 - **Speeds:** orbit duration 4 → 8 s (was 2 → 5: "too fast, down by at least 50 %", then "top speed
   fine, bottom range up 20 %"); drift cycle 6 → 10 s (was 3 → 6). Gap 17 → 29 s per pair, unchanged.
 
+## Post-Checkpoint-C correction (2026-10-05)
+
+Judged live in the world after Task 12's wiring (Crawford): orbits read too infrequent. Gap halved
+from 17–29 s to 8.5–14.5 s (`ORBIT_GAP_BASE`/`ORBIT_GAP_PER_OCTAVE`: 15/2 → 7.5/1), doubling orbit
+frequency — orbit duration unchanged. Landed in the Gate 1 sketch first, per the usual rule.
+
 ## Corrections during the interview
 
 - Orbit duration: the literal "2 + max octave" gave 3–9 s; Crawford wanted ~2 s up to ~5 s.

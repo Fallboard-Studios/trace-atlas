@@ -10,7 +10,9 @@
        orbit 4–8 s (was 2–5; halved, then the slow end brought up 20 %): ____   drift period 6–10 s (was 3–6): ____   gap 17–29 s: ____
        Gate feedback so far (2026-10-05): x/y/z rings replaced by the corner→centre ring; speeds halved then slow end +20 %; drift fades over
        spawn/despawn arcs and arcs ignore openness, so the orbiter is fully behind the backing when it vanishes; the spawn/despawn queue
-       rewritten after a loop was found (one arc at a time, explicit shown set). -->
+       rewritten after a loop was found (one arc at a time, explicit shown set).
+       Post-ship correction (Crawford, after Checkpoint C): orbits read too infrequent in the world — gap halved from 15+2*minOctave
+       (17-29s) to 7.5+minOctave (8.5-14.5s), doubling orbit frequency. orbitDuration unchanged. -->
 <!-- Spec correction found while building this panel: for the ellipse z ring the corner's start angle is φ0 = atan2(sy, sx) (±45°/±135°), not atan2(sy·dy, sx·dx) — the latter is only right for the circle. Carry into spec §1.2 before Task 4. -->
 <html lang="en">
 <head>
@@ -408,7 +410,9 @@ function orbiterDials(c) {
     size: 0.75 + 0.5 * c.motif / 8,
     lineWidth: (3 + c.variance) / 10,
     stripOpacity: 0.35 + 0.65 * c.repeat / 100,
-    orbitGap: 15 + 2 * minO,
+    // 2026-10-05 post-ship: Crawford wants orbits roughly twice as frequent -- halved from 15+2*minO
+    // (17-29s) to 7.5+minO (8.5-14.5s).
+    orbitGap: 7.5 + minO,
     // 2026-10-05 gate: "too fast, down by ≥ 50 % even at the low end" (2–5 s → 4–10 s), then "top speed fine,
     // bottom range up 20 %" → fastest stays 4 s, slowest 10 s → 8 s.
     orbitDuration: 4 + (maxO - 1) * (4 / 6),
