@@ -146,9 +146,10 @@ because facet tones depend on each edge's normal.)*
 
 ## Task 5: `RobotGem.tsx` draw-only renderer
 
-**Description:** Memo component taking `gem`, `palette`, `lightOpacity`, `midLit`, `facetContrast`,
-`scale`; emits the spec §1.5 DOM (`g.gem` scaled about the canvas centre; backing, four orbiters,
-mid--right, mid--left, top; facets, face, lines, two lights). No colour computed inside.
+**Description:** Memo component taking `gem`, `palette`, `lightOpacity`, `scale` (as built: the
+palette already carries the Mid lit levels and facet contrast, so `midLit`/`facetContrast` props
+were dropped); emits the spec §1.5 DOM (`g.gem` scaled about the canvas centre; backing, four
+orbiters, mid--left, mid--right, top; facets, face, lines, two lights). No colour computed inside.
 
 **Acceptance criteria:**
 - [ ] DOM order backing → orbiter ×4 → `.gem__mid--left` → `.gem__mid--right` → `.gem__top`.
@@ -156,8 +157,9 @@ mid--right, mid--left, top; facets, face, lines, two lights). No colour computed
       4/2/2/1; exactly 2 `.gem__light` and only inside `.gem__top`; light opacity attribute equals
       `lightOpacity`.
 - [ ] Every fill equals the string in the palette passed in (no `hsl(` literal in the file).
-- [ ] `g.gem`'s transform contains `scale(${scale})` with the canvas centre as origin; element
-      count per robot ≤ 100 (asserted, so perf cuts are visible).
+- [ ] `g.gem`'s transform contains `scale(${scale})` with the canvas centre as origin; drawable
+      element count asserted **exactly** = 1 + Σ(sides + 1 + lines) + 2 per light, so perf cuts are
+      visible. (As built: "≤ 100" was wrong — an all-12-sided robot draws ~120.)
 
 **Verification:** `npx vitest run src/components/robot/gem/RobotGem.test.tsx`.
 **Dependencies:** T2, T3, T4. **Files:** `gem/RobotGem.tsx`, `gem/RobotGem.test.tsx`. **Scope:** S.
