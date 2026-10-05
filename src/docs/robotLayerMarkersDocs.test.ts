@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -80,26 +80,8 @@ describe('the third guardrail carve-out (Task 6)', () => {
   });
 });
 
-describe('the live docs name real code (Task 7)', () => {
-  const symbols: Array<[symbol: string, file: string]> = [
-    ['socketLitOpacity', 'src/components/robot/robotVisualHelpers.ts'],
-    ['SOCKET_DARK', 'src/components/robot/robotVisualHelpers.ts'],
-    ['SOCKET_MIN', 'src/components/robot/robotVisualHelpers.ts'],
-    ['SOCKET_GAIN_MAX', 'src/components/robot/robotVisualHelpers.ts'],
-    ['SOCKET_POSITIONS', 'src/components/robot/greebleSlots.ts'],
-    ['RobotLayerSockets', 'src/components/robot/RobotLayerSockets.tsx'],
-  ];
-
-  it.each(symbols)('%s exists in %s', (symbol, file) => {
-    expect(existsSync(resolve(repoRoot, file)), `${file} exists`).toBe(true);
-    expect(read(file), `${file} defines ${symbol}`).toMatch(new RegExp(`\\b${symbol}\\b`));
-  });
-
-  it('docs/ROBOT_DESIGN.md names every one of the live socket symbols above', () => {
-    const doc = read('docs/ROBOT_DESIGN.md');
-    for (const [symbol] of symbols) expect(doc, `ROBOT_DESIGN.md names ${symbol}`).toContain(symbol);
-  });
-});
+// "The live docs name real code (Task 7)" — every socket symbol it pinned was deleted with the
+// sockets in Phase 39 Task 10. This whole file is replaced by the gem docs test in Task 12.
 
 describe('the roadmap records Phase 38 (Task 7)', () => {
   it('has a Phase 38 — Robot Layer Markers entry linking intent, spec and plan', () => {

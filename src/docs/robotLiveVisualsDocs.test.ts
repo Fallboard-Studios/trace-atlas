@@ -115,7 +115,6 @@ describe('the live docs name real code (Task 13)', () => {
     ['bodyShapeFromAdsr', 'src/components/robot/robotVisualHelpers.ts'],
     ['calculateBodyScale', 'src/components/robot/robotVisualHelpers.ts'],
     ['calculateLampIntensity', 'src/components/robot/robotVisualHelpers.ts'],
-    ['identityGlass', 'src/components/robot/robotVisualHelpers.ts'],
     ['BODY_SCALE_MIN', 'src/components/robot/robotVisualHelpers.ts'],
     ['LAMP_MIN', 'src/components/robot/robotVisualHelpers.ts'],
     ['BODY_NORMALISER', 'src/components/robot/robotVisualHelpers.ts'],

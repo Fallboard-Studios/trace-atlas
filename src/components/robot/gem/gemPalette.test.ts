@@ -22,7 +22,6 @@ import {
   MID_DARK_LEVEL,
   MID_LIT_MIN,
   MID_GAIN_MAX,
-  socketLitOpacity,
 } from '../robotVisualHelpers';
 import { hexToHsl } from '../../../utils/colorUtils';
 
@@ -50,7 +49,7 @@ const parts: GemPart[] = [...gem.orbiters, gem.midLeft, gem.midRight, gem.top];
 const lit = gemPalette(gem, TEAL, 1, [1, 1], 20);
 
 // ========================================
-// layerLitLevel (moved from robotVisualHelpers' socketLitOpacity, same curve)
+// layerLitLevel (robotVisualHelpers.ts; Phase 38's socket curve, renamed in place)
 // ========================================
 describe('layerLitLevel — a Mid\'s lit level from its layer gain', () => {
   it('keeps the socket constants: dark 0.15, lit floor = LAMP_MIN, full at the seeded max gain 1.2', () => {
@@ -79,10 +78,6 @@ describe('layerLitLevel — a Mid\'s lit level from its layer gain', () => {
       expect(layerLitLevel(g)).toBeGreaterThanOrEqual(prev);
       prev = layerLitLevel(g);
     }
-  });
-
-  it('is still reachable as socketLitOpacity until the sockets are deleted (Task 10)', () => {
-    expect(socketLitOpacity).toBe(layerLitLevel);
   });
 });
 

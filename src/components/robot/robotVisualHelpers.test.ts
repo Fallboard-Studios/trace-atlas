@@ -3,13 +3,10 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
+// Phase 39 Task 10: the colour/shape/socket helpers for the hand-drawn robots are deleted (their
+// absence is pinned in legacyRemoval.test.ts); layerLitLevel's cases live in gem/gemPalette.test.ts.
 import {
-  selectRobotShape,
   calculateScale,
-  generateColors,
-  hueOffset,
-  toSaturation,
-  toLuminance,
   computeBatteryDimOpacity,
   bodyShapeFromAdsr,
   BODY_NORMALISER,
@@ -17,81 +14,11 @@ import {
   BODY_SCALE_MIN,
   calculateLampIntensity,
   LAMP_MIN,
-  identityGlass,
-  applyLightnessMultiplier,
-  socketLitOpacity,
-  SOCKET_DARK,
-  SOCKET_MIN,
-  SOCKET_GAIN_MAX,
 } from './robotVisualHelpers';
-import { RobotSleek } from './RobotSleek';
-import type { AudioAttributes, ADSREnvelope } from '../../types/Robot';
+import type { ADSREnvelope } from '../../types/Robot';
 import type { OscillatorLayer } from '../../types/layeredAudio';
-import { hexToHsl } from '@/utils/colorUtils';
-import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '@/constants/accentColors';
 
 describe('robotVisualHelpers', () => {
-  describe('selectRobotShape', () => {
-    it('returns a default RobotSleek for sine waveform', () => {
-      const result = selectRobotShape('sine' as const);
-      expect(result).toBe(RobotSleek);
-    });
-  });
-
-  describe('generateColors (new HSL mapping)', () => {
-    it('returns HSL strings for primary/secondary/accent', () => {
-      const attrs = {
-        adsr: { attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.5 },
-        filterFreq: 1000,
-        waveform: 'sine',
-      } as unknown as AudioAttributes;
-
-      const colors = generateColors(attrs);
-      const hslRegex = /^hsl\(\d+,\s*\d+%,\s*\d+%\)$/;
-      expect(hslRegex.test(colors.primary)).toBe(true);
-      expect(hslRegex.test(colors.secondary)).toBe(true);
-      expect(hslRegex.test(colors.accent)).toBe(true);
-    });
-
-    it('varies primary hue by waveform', () => {
-      const base = {
-        adsr: { attack: 0.05, decay: 0.2, sustain: 0.5, release: 0.2 },
-        filterFreq: 800,
-      } as unknown as Omit<AudioAttributes, 'waveform'>;
-
-      // generateColors now varies primarily by ADSR; ensure different ADSR yields different primary hues
-      const a = generateColors({ ...base, waveform: 'sine', adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 } } as AudioAttributes);
-      const b = generateColors({ ...base, waveform: 'sine', adsr: { attack: 0.5, decay: 1.0, sustain: 0.1, release: 1.0 } } as AudioAttributes);
-      expect(a.primary).not.toEqual(b.primary);
-    });
-  });
-
-  describe('color helpers', () => {
-    it('hueOffset returns a finite number and varies with ADSR', () => {
-      const a: AudioAttributes['adsr'] = { attack: 0.05, decay: 0.1, sustain: 0.5, release: 0.2 };
-      const b: AudioAttributes['adsr'] = { attack: 0.5, decay: 1.5, sustain: 0.2, release: 1.0 };
-
-      const ha = hueOffset(a);
-      const hb = hueOffset(b);
-
-      expect(Number.isFinite(ha)).toBe(true);
-      expect(Number.isFinite(hb)).toBe(true);
-      expect(ha).not.toEqual(hb);
-    });
-
-    it('toSaturation: faster attack -> higher saturation', () => {
-      const fast = toSaturation(0.01);
-      const slow = toSaturation(0.7);
-      expect(fast).toBeGreaterThan(slow);
-    });
-
-    it('toLuminance: higher sustain -> higher luminance', () => {
-      const low = toLuminance(0.0);
-      const high = toLuminance(1.0);
-      expect(high).toBeGreaterThan(low);
-    });
-  });
-
   describe('calculateScale', () => {
     it('returns 0.7 for treble register', () => {
       expect(calculateScale([3, 5])).toBe(0.7);
@@ -218,104 +145,6 @@ describe('robotVisualHelpers', () => {
   describe('LAMP_MIN', () => {
     it('is 0.4', () => {
       expect(LAMP_MIN).toBe(0.4);
-    });
-  });
-
-  describe('socketLitOpacity', () => {
-    it('is SOCKET_DARK for gain 0', () => {
-      expect(socketLitOpacity(0)).toBe(SOCKET_DARK);
-    });
-
-    it('is SOCKET_DARK for an undefined gain (missing layer)', () => {
-      expect(socketLitOpacity(undefined)).toBe(SOCKET_DARK);
-    });
-
-    it('is fully lit at the seeded max gain (1.2)', () => {
-      expect(socketLitOpacity(SOCKET_GAIN_MAX)).toBe(1);
-    });
-
-    it('clamps to fully lit above the seeded max gain (edited past 1.2)', () => {
-      expect(socketLitOpacity(2)).toBe(1);
-    });
-
-    it('interpolates between SOCKET_MIN and 1 for a partial gain', () => {
-      expect(socketLitOpacity(0.2)).toBeCloseTo(SOCKET_MIN + (1 - SOCKET_MIN) * (0.2 / SOCKET_GAIN_MAX));
-    });
-
-    it('is monotonic non-decreasing across the gain range', () => {
-      let prev = socketLitOpacity(0.01);
-      for (let gain = 0.02; gain <= SOCKET_GAIN_MAX + 0.001; gain += 0.01) {
-        const next = socketLitOpacity(gain);
-        expect(next).toBeGreaterThanOrEqual(prev);
-        prev = next;
-      }
-    });
-  });
-
-  describe('SOCKET_MIN', () => {
-    it('matches LAMP_MIN', () => {
-      expect(SOCKET_MIN).toBe(LAMP_MIN);
-    });
-  });
-
-  describe('generateColors highlight/shadow', () => {
-    const attrs = {
-      adsr: { attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.5 },
-      filterFreq: 1000,
-      waveform: 'sine',
-    } as unknown as AudioAttributes;
-
-    it('highlight is lighter than primary, and shadow is darker than primary', () => {
-      const colors = generateColors(attrs);
-      const lightnessOf = (hsl: string) => Number(/,\s*([\d.]+)%\)$/.exec(hsl)?.[1]);
-
-      expect(lightnessOf(colors.highlight)).toBeGreaterThan(lightnessOf(colors.primary));
-      expect(lightnessOf(colors.primary)).toBeGreaterThan(lightnessOf(colors.shadow));
-    });
-
-    it('highlight and shadow are hsl(...) strings', () => {
-      const colors = generateColors(attrs);
-      const hslRegex = /^hsl\(\d+,\s*\d+%,\s*\d+%\)$/;
-      expect(hslRegex.test(colors.highlight)).toBe(true);
-      expect(hslRegex.test(colors.shadow)).toBe(true);
-    });
-  });
-
-  describe('applyLightnessMultiplier', () => {
-    it('zeroes all five colour fields at multiplier 0', () => {
-      const colors = generateColors({
-        adsr: { attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.5 },
-        filterFreq: 1000,
-        waveform: 'sine',
-      } as unknown as AudioAttributes);
-
-      const dimmed = applyLightnessMultiplier(colors, 0);
-      const lightnessOf = (hsl: string) => Number(/,\s*([\d.]+)%\)$/.exec(hsl)?.[1]);
-
-      expect(lightnessOf(dimmed.primary)).toBe(0);
-      expect(lightnessOf(dimmed.secondary)).toBe(0);
-      expect(lightnessOf(dimmed.accent)).toBe(0);
-      expect(lightnessOf(dimmed.highlight)).toBe(0);
-      expect(lightnessOf(dimmed.shadow)).toBe(0);
-    });
-  });
-
-  describe('identityGlass', () => {
-    const sheenLightness = (sheen: string) => Number(/,\s*([\d.]+)%\)$/.exec(sheen)?.[1]);
-
-    it('glass equals the input hex for every ROBOT_IDENTITY_COLOR_NAMES colour, with a lighter sheen', () => {
-      for (const name of ROBOT_IDENTITY_COLOR_NAMES) {
-        const hex = ACCENT_COLORS[name];
-        const { glass, sheen } = identityGlass(hex);
-
-        expect(glass).toBe(hex);
-        expect(sheenLightness(sheen)).toBeGreaterThan(hexToHsl(hex).l);
-      }
-    });
-
-    it('caps the sheen lightness at 95', () => {
-      const { sheen } = identityGlass('#ffffff');
-      expect(sheenLightness(sheen)).toBeLessThanOrEqual(95);
     });
   });
 

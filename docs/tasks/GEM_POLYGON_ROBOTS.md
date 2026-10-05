@@ -293,6 +293,12 @@ Chrome (docs/PERFORMANCE.md). Add a row to the PERFORMANCE.md baseline table.
 
 ## Task 10: Delete the shape, greeble and socket components and dead helpers
 
+> **As built (2026-10-05):** `RobotGreebles.tsx` and `greebleSlots.ts` moved to Task 11 —
+> `spawnSystem.ts` still imports their `KIND_COUNT`/`SLOT_COUNT` for the greeble draws Task 11
+> removes. `calculateScale` kept (`calculateBodyScale` calls it; the spec listed it in error).
+> The old docs tests lose only their rows for deleted symbols (the T7 precedent); their
+> guardrail assertions live until Task 12. Removal pinned by `legacyRemoval.test.ts`.
+
 **Description:** Delete `RobotSleek/Angular/Organic/Industrial.tsx`, `RobotGreebles.tsx`,
 `RobotLayerSockets.tsx`, `greebleSlots.ts`, their tests and `robotShapeVariants.test.tsx`. Remove
 from `robotVisualHelpers.ts`: `selectRobotShape`, `RobotSVGComponent`, `RobotColors`,
