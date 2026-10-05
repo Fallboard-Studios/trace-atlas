@@ -1,5 +1,17 @@
 <!doctype html>
 <!-- Shipped (roadmap Phase 39, 2026-10-05): Gate 1 passed 2026-10-04 with the 80-tall canvas and 24x16 orbiter amendments; the Facet tones selector was added for Task 9b (3 tones shipped). The live renderer is src/components/robot/gem/. -->
+<!-- Phase 40 (Orbiting Polygons) motion panel added 2026-10-05 as Gate 1 for docs/specs/ORBITING_POLYGONS.md — Task 1 in docs/tasks/ORBITING_POLYGONS.md.
+     Verdicts (Crawford, fill in per constant: keep / new value):
+       Q1 ring: corner→centre line, paired with the diagonal partner on one hoop, openness seeded 0–0.3: ____   (x/y/z axis rings dropped, then the ±10° tilt band dropped for pairing, 2026-10-05)
+       Q2 drift always-on: ____        drift amplitude 2–3: ____   drift period 3–6 s: ____
+       Q3 arc duration (orbit/2 | fixed __ s): ____
+       Q4 behind dim 0.2 (→ 0.8 opacity): ____   front scale +0.15: ____   behind scale −0.2: ____
+       Q5 line/strip tween (immediate | 0.5 s): ____   size tween 0.5 s: ____
+       orbit 4–8 s (was 2–5; halved, then the slow end brought up 20 %): ____   drift period 6–10 s (was 3–6): ____   gap 17–29 s: ____
+       Gate feedback so far (2026-10-05): x/y/z rings replaced by the corner→centre ring; speeds halved then slow end +20 %; drift fades over
+       spawn/despawn arcs and arcs ignore openness, so the orbiter is fully behind the backing when it vanishes; the spawn/despawn queue
+       rewritten after a loop was found (one arc at a time, explicit shown set). -->
+<!-- Spec correction found while building this panel: for the ellipse z ring the corner's start angle is φ0 = atan2(sy, sx) (±45°/±135°), not atan2(sy·dy, sx·dx) — the latter is only right for the circle. Carry into spec §1.2 before Task 4. -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -28,6 +40,15 @@
   .swatch { display: inline-block; width: 10px; height: 10px; vertical-align: middle; margin-right: 4px; }
   .fail { color: #cd5e57; }
   .world-bg { fill: #12161a; }
+  .mgrid { display: flex; gap: 28px; flex-wrap: wrap; margin: 8px 0 14px; }
+  .mcol { font-size: 12px; color: #9aa; min-width: 360px; }
+  .mcol h3 { font-size: 12px; color: #e4e6ea; margin: 0 0 6px; text-transform: uppercase; letter-spacing: .06em; }
+  .mcol label { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+  .mcol input[type=range] { width: 130px; }
+  .mcol span { font-family: monospace; color: #e4e6ea; min-width: 36px; }
+  .readout { font-family: monospace; font-size: 11px; color: #8a8f99; background: #1a2027; padding: 6px 8px; margin: 8px 0 0; border-radius: 3px; }
+  .mstage-card { background: #1a2027; border: 1px solid rgba(140,190,210,.14); border-radius: 3px; padding: 8px; text-align: center; font-size: 10px; color: #8a8f99; font-family: monospace; }
+  .mstage-card svg { display: block; margin: 0 auto 4px; background: #12161a; }
 </style>
 </head>
 <body>
@@ -55,6 +76,45 @@
 <h2>Each robot at world scale (2 px/unit), 96 px avatar, 64 px card</h2>
 <p class="note">Canvas is 80 tall and 80–160 wide (seeded); every polygon keeps its outline size, so the orbiters sit clear of the body at rest with room to drift in while animating.</p>
 <div class="row" id="grid"></div>
+
+<h2>Motion — orbiting polygons (Phase 40 gate)</h2>
+<p class="note">Gate 1 for <code>docs/specs/ORBITING_POLYGONS.md</code>. One robot from the seed above, animated with plain JS here (the app uses GSAP). Orbiters drift near their corners, now and then ride a ring <em>through</em> the body — out along the line toward the canvas centre, behind the body, to the far side, and back in front (or the reverse) — and enter or leave by the first quarter of that ring, exactly on the centre line, so they vanish or appear at the canvas centre behind the body. (The x / y / z axis rings of the first draft ran along the canvas edges and never passed the body; replaced 2026-10-05.) Every dial comes from the composition settings on the left; the tuning constants on the right are the spec's defaults — move them, then write the verdict into this file's header comment. Left: world scale (2 px/unit) with the canvas outlined; middle: the 96 px detail avatar in its padded frame; right: the 64 px card, static.</p>
+<div class="pending"><b>Gate questions (spec §7):</b> Q1 (was: z ring shape) is now: paired orbits on the corner→centre hoop with openness seeded 0–0.3 — right? Q2 is drift worth its always-on cost? Q3 arc duration — half an orbit, or fixed? Q4 behind dimming 0.8 — enough? Q5 should line width / strip tween like size? Also: do 1.15× front / 0.8× behind sell the depth, and do 2–5 s orbits feel right against the swim?</div>
+
+<div class="controls" id="mctl">
+  <label>Robot <select id="mRobot"></select></label>
+  <label>Time × <select id="mSpeed"><option selected>1</option><option>2</option><option>4</option><option>8</option></select> (judge speed at 1×)</label>
+  <label><input type="checkbox" id="mReduced" /> reduced motion</label>
+  <label><input type="checkbox" id="mPaths" /> show ring paths</label>
+  <button id="mFireBehind">orbit, behind first</button><button id="mFireFront">orbit, front first</button>
+  <label>on orbiter <select id="mWhich"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+</div>
+<div class="mgrid">
+  <div class="mcol">
+    <h3>Composition dials</h3>
+    <label>Rhythmic Density <input type="range" id="mDensity" min="0" max="100" value="50" /> <span></span></label>
+    <label>Phrase Length <input type="range" id="mMotif" min="0" max="8" value="8" /> <span></span></label>
+    <label>Note Variance <input type="range" id="mVariance" min="0" max="8" value="2" /> <span></span></label>
+    <label>Pitch Repeat <input type="range" id="mRepeat" min="0" max="100" value="0" /> <span></span></label>
+    <label>Min octave <input type="range" id="mOctMin" min="1" max="7" value="2" /> <span></span></label>
+    <label>Max octave <input type="range" id="mOctMax" min="1" max="7" value="5" /> <span></span></label>
+    <pre id="mDials" class="readout"></pre>
+  </div>
+  <div class="mcol">
+    <h3>Tuning (spec defaults)</h3>
+    <label>Ring openness, seeded 0 → <input type="range" id="mOpenMax" min="0" max="0.6" step="0.05" value="0.3" /> <span></span> (0 = edge-on line through the centre; orbits only — arcs are always 0)</label>
+    <label><input type="checkbox" id="mPaired" checked /> paired orbits — the diagonal partner rides the same hoop, π apart</label>
+    <label>Front scale + <input type="range" id="mFront" min="0" max="0.4" step="0.01" value="0.15" /> <span></span></label>
+    <label>Behind scale − <input type="range" id="mBehind" min="0" max="0.4" step="0.01" value="0.2" /> <span></span></label>
+    <label>Behind dim − <input type="range" id="mDim" min="0" max="0.6" step="0.05" value="0.2" /> <span></span></label>
+    <label>Drift amplitude ±<input type="range" id="mDriftA" min="0" max="6" step="0.5" value="2.5" /> <span></span> (seeded 2–3 at 2.5)</label>
+    <label>Drift period <input type="range" id="mDriftP" min="2" max="24" step="0.5" value="8" /> <span></span> s (seeded ±2 around it: 6–10 at 8; was 3–6, then 6–12)</label>
+    <label>Arc duration <select id="mArcMode"><option value="half" selected>orbit / 2 (spec)</option><option value="fixed">fixed</option></select> <input type="range" id="mArcFixed" min="0.5" max="4" step="0.25" value="1.5" /> <span></span> s</label>
+    <label>Size tween <input type="range" id="mSizeTween" min="0" max="2" step="0.1" value="0.5" /> <span></span> s</label>
+    <pre id="mFrame" class="readout"></pre>
+  </div>
+</div>
+<div class="row" id="mstage"></div>
 
 <h2>Polygon vocabulary from this seed</h2>
 <p class="note">Robot 1's parts in isolation, so the bevel and line routing can be judged without the stack. Caption: sides / right angles / concave corners.</p>
@@ -265,9 +325,13 @@ function renderPart(part, robot, opt, R) {
   g.push(`<polygon points="${ptsStr(inner)}" fill="${base}" stroke="none"/>`);
   // boundary lines
   const lineColor = midLit ? tone(robot.color, -32, -18) : part.role === 'mid' ? tone(MID_DARK, -8) : tone(robot.color, -26);
+  // Phase 40 motion panel: orbiter line width is a dial (Note Variance) and carries a light strip (Pitch Repeat).
+  const lw = part.role === 'orbit' && opt.orbLine != null ? opt.orbLine : .8;
   for (let k = 0; k < poly.lineCount; k++) {
     const path = genLine(R, inner); if (!path) continue;
-    g.push(`<polyline points="${ptsStr(path)}" fill="none" stroke="${lineColor}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"/>`);
+    g.push(`<polyline points="${ptsStr(path)}" fill="none" stroke="${lineColor}" stroke-width="${lw}" stroke-linecap="round" stroke-linejoin="round"/>`);
+    if (part.role === 'orbit' && opt.strip != null)
+      g.push(`<polyline class="light-strip" points="${ptsStr(path)}" fill="none" stroke="#fff3c4" stroke-width="${(lw / 3).toFixed(3)}" opacity="${opt.strip}" stroke-linecap="round" stroke-linejoin="round"/>`);
   }
   // lights: at two distinct inner vertices, pulled toward the centroid
   if (poly.lightCount) {
@@ -323,6 +387,298 @@ for (const id of ['bevel', 'contrast', 'showBoxes', 'allLit', 'tones']) document
   build();
 };
 build();
+</script>
+
+<script>
+// =====================================================================================
+// MOTION PANEL — Phase 40 gate (docs/specs/ORBITING_POLYGONS.md). Plain rAF here only; the
+// app does this with GSAP (useOrbiterMotion). Every number below mirrors a spec constant.
+// =====================================================================================
+const $ = id => document.getElementById(id);
+const ORB_W = 24, ORB_H = 16;
+const easeInOut = t => -(Math.cos(Math.PI * t) - 1) / 2;   // GSAP sine.inOut
+const easeOut = t => Math.sin((t * Math.PI) / 2);           // GSAP power-ish out for the size tween
+
+// ---------- dials (spec §1.1) ----------
+function orbiterDials(c) {
+  const count = c.density < 25 ? 1 : c.density <= 50 ? 2 : c.density <= 75 ? 3 : 4;
+  const minO = Math.min(c.octMin, c.octMax), maxO = Math.max(c.octMin, c.octMax);
+  return {
+    count,
+    size: 0.75 + 0.5 * c.motif / 8,
+    lineWidth: (3 + c.variance) / 10,
+    stripOpacity: 0.35 + 0.65 * c.repeat / 100,
+    orbitGap: 15 + 2 * minO,
+    // 2026-10-05 gate: "too fast, down by ≥ 50 % even at the low end" (2–5 s → 4–10 s), then "top speed fine,
+    // bottom range up 20 %" → fastest stays 4 s, slowest 10 s → 8 s.
+    orbitDuration: 4 + (maxO - 1) * (4 / 6),
+  };
+}
+
+// ---------- seeded plan (spec §1.2) ----------
+function orbiterPlan(robot, tune) {
+  const R = rngFrom(robot.seed + ':orbit:' + robot.idx);
+  const order = [0, 1, 2, 3]; for (let i = 3; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  const drift = [], initialWait = [];
+  for (let i = 0; i < 4; i++) {
+    drift.push({ ax: range(R, -0.5, 0.5), ay: range(R, -0.5, 0.5), px: range(R, -2, 2), py: range(R, -2, 2), phase: R(), phase2: R() });
+    initialWait.push(R());
+  }
+  return { cornerOrder: order, drift, initialWait, R };
+}
+// drift params are stored as offsets around the sliders so the slider shifts the seeded band
+const driftOf = (d, tune) => ({ ax: Math.max(0, tune.driftA + d.ax), ay: Math.max(0, tune.driftA + d.ay), px: Math.max(0.5, tune.driftP + d.px), py: Math.max(0.5, tune.driftP + d.py), phase: d.phase, phase2: d.phase2 });
+
+// ---------- ring geometry (spec §1.2 table) ----------
+function cornerFrame(robot, corner) {
+  const part = robot.parts.filter(p => p.role === 'orbit')[corner];
+  const cx = part.x + ORB_W / 2, cy = part.y + ORB_H / 2;           // rest centre, canvas coords
+  const dx = cx - robot.W / 2, dy = cy - robot.H / 2;                  // signed offset from canvas centre
+  return { cx, cy, sx: Math.sign(dx), sy: Math.sign(dy), dx: Math.abs(dx), dy: Math.abs(dy) };
+}
+/** The corner's own angle toward the canvas centre (degrees from horizontal, 0–90), for the readout. */
+function cornerAngleDeg(robot, corner) { const { dx, dy } = cornerFrame(robot, corner); return Math.atan2(dy, dx) * 180 / Math.PI; }
+/**
+ * One ring family (Crawford, 2026-10-05, replacing the x/y/z axes): a ring around the canvas centre seen
+ * nearly edge-on, whose line runs from the corner THROUGH the body to the far side and back — behind the
+ * body on the way out, in front on the way back (or the reverse, by `dir`). `delta` tilts the line away
+ * from the exact corner→centre direction (always 0 since paired orbits, 2026-10-05 — a tilted line through
+ * one corner is a different line from the one through its partner's). `open` (0..1) fattens the edge-on
+ * line into a thin ellipse — the hoop seen at an angle; both partners sit on the same ellipse, π apart.
+ */
+function ringPose(robot, corner, delta, dir, theta, tune, open = 0) {
+  const { sx, sy, dx, dy } = cornerFrame(robot, corner);
+  const r = Math.hypot(dx, dy);
+  const a0 = Math.atan2(-sy * dy, -sx * dx);          // from the corner toward the centre
+  const a = a0 + delta * Math.PI / 180;
+  const ux = Math.cos(a), uy = Math.sin(a), vx = -uy, vy = ux;
+  const along = r * (1 - Math.cos(theta)), across = open * r * Math.sin(theta);
+  const d = dir * Math.sin(theta);
+  return {
+    x: along * ux + across * vx,
+    y: along * uy + across * vy,
+    scale: d >= 0 ? 1 + tune.front * d : 1 - tune.behind * -d,
+    opacity: d >= 0 ? 1 : 1 - tune.dim * -d,
+    depth: Math.abs(d) < 1e-6 ? 'rest' : d > 0 ? 'front' : 'behind',
+  };
+}
+/** Spec §1.7: the avatar frame — canvas padded by the ring reach (sampled at the max openness), half an orbiter at the front scale, and drift. */
+function motionPad(robot, tune) {
+  let px = 0, py = 0;
+  for (let c = 0; c < 4; c++) {
+    const { cx, cy } = cornerFrame(robot, c);
+    for (const dir of [1, -1]) for (let t = 0; t <= 1.0001; t += 1 / 90) {
+      const p = ringPose(robot, c, 0, dir, 2 * Math.PI * t, tune, tune.openMax);
+      const half = (1 + tune.front) ;
+      px = Math.max(px, -(cx + p.x) + (ORB_W / 2) * half, (cx + p.x) + (ORB_W / 2) * half - robot.W);
+      py = Math.max(py, -(cy + p.y) + (ORB_H / 2) * half, (cy + p.y) + (ORB_H / 2) * half - robot.H);
+    }
+  }
+  return { px: Math.ceil(Math.max(0, px) + 3), py: Math.ceil(Math.max(0, py) + 3) };
+}
+
+// ---------- markup: one robot with depth twins ----------
+// Each orbiter: g.orb[data-depth] (ring offset + depth scale) > g.local (drift + size) > the part's own translate.
+function renderMotionRobot(robot, o, dials, plan, mode /* 'motion' | 'card' */) {
+  const R = rngFrom(robot.decoSeed);
+  const parts = robot.parts.map(p => ({ p, svg: renderPart(p, robot, { ...o, orbLine: p.role === 'orbit' ? dials.lineWidth : undefined, strip: p.role === 'orbit' ? dials.stripOpacity : undefined }, R) }));
+  const orbs = parts.filter(x => x.p.role === 'orbit');
+  const wrap = (i, depth, extra = '') => `<g class="orb" data-c="${i}" data-depth="${depth}"${extra}><g class="local">${orbs[i].svg}</g></g>`;
+  const backing = parts.find(x => x.p.role === 'backing').svg;
+  const mids = parts.filter(x => x.p.role === 'mid').map(x => x.svg).join('');
+  const top = parts.find(x => x.p.role === 'top').svg;
+  if (mode === 'card') {
+    const shown = plan.cornerOrder.slice(0, dials.count);
+    const scaleAbout = (i) => { const { cx, cy } = cornerFrame(robot, i); return ` transform="translate(${cx} ${cy}) scale(${dials.size}) translate(${-cx} ${-cy})"`; };
+    return backing + shown.map(i => `<g class="orb" data-depth="rest"><g class="local"${scaleAbout(i)}>${orbs[i].svg}</g></g>`).join('') + mids + top;
+  }
+  return [0, 1, 2, 3].map(i => wrap(i, 'behind')).join('') + backing + [0, 1, 2, 3].map(i => wrap(i, 'rest')).join('') + mids + top + [0, 1, 2, 3].map(i => wrap(i, 'front')).join('');
+}
+function ringPathMarkup(robot, tune) {
+  const out = [`<circle cx="${robot.W / 2}" cy="${robot.H / 2}" r="1.2" fill="#4aa3ff" opacity=".7"/>`];
+  for (let c = 0; c < 4; c++) {
+    const { cx, cy } = cornerFrame(robot, c);
+    for (const open of [0, tune.openMax]) {
+      const pts = []; for (let t = 0; t <= 1.0001; t += 1 / 72) { const p = ringPose(robot, c, 0, 1, 2 * Math.PI * t, tune, open); pts.push((cx + p.x).toFixed(1) + ',' + (cy + p.y).toFixed(1)); }
+      out.push(`<polyline points="${pts.join(' ')}" fill="none" stroke="${open === 0 ? '#4aa3ff' : '#ff8a4a'}" stroke-width=".3" stroke-dasharray="1 1" opacity="${open === 0 ? .7 : .4}"/>`);
+    }
+  }
+  return out.join('');
+}
+
+// ---------- simulation state ----------
+const M = { robot: null, plan: null, dials: null, tune: null, comp: null, orbs: [], t: 0, last: null, targetCount: 0, sizeFrom: 1, sizeTo: 1, sizeT0: -1 };
+function readComp() { return { density: +$('mDensity').value, motif: +$('mMotif').value, variance: +$('mVariance').value, repeat: +$('mRepeat').value, octMin: +$('mOctMin').value, octMax: +$('mOctMax').value }; }
+function readTune() { return { openMax: +$('mOpenMax').value, paired: $('mPaired').checked, front: +$('mFront').value, behind: +$('mBehind').value, dim: +$('mDim').value, driftA: +$('mDriftA').value, driftP: +$('mDriftP').value, arcMode: $('mArcMode').value, arcFixed: +$('mArcFixed').value, sizeTween: +$('mSizeTween').value, speed: +$('mSpeed').value, reduced: $('mReduced').checked, paths: $('mPaths').checked }; }
+function arcDuration() { return M.tune.arcMode === 'half' ? M.dials.orbitDuration / 2 : M.tune.arcFixed; }
+
+function newOrbState(c) { return { c, shown: false, busy: null, fade: null }; }
+// Orbits are scheduled per DIAGONAL PAIR (TL+BR = corners 0+3, TR+BL = 1+2), not per orbiter (2026-10-05:
+// a solo orbit's far point is exactly the partner's resting spot, so it clipped through it; now the partner
+// rides the same hoop π apart — both reach the canvas centre together, one behind, one in front).
+const PAIRS = [[0, 3], [1, 2]];
+const pairOf = (c) => PAIRS.findIndex((p) => p.includes(c));
+const partnerOf = (c) => 3 - c;
+function scheduleNext(p, initial) {
+  const lead = PAIRS[p][0];
+  const w = initial ? M.plan.initialWait[lead] * M.dials.orbitGap : M.dials.orbitGap * (1 + M.plan.R());
+  M.pairNext[p] = M.t + w;
+}
+/** Try to start the pair's orbit: both shown members on one hoop (same openness, opposite side); solo if the partner is hidden. */
+function startOrbit(p, forceDir) {
+  const members = PAIRS[p].filter((c) => M.orbs[c].shown);
+  if (members.length === 0) { M.pairNext[p] = Infinity; return false; }
+  if (PAIRS[p].some((c) => M.orbs[c].busy)) { M.pairNext[p] = M.t + 0.5; return false; }   // an arc or a forced orbit is running — retry shortly
+  const dir = forceDir || (M.plan.R() < 0.5 ? 1 : -1);
+  const open = range(M.plan.R, 0, M.tune.openMax);
+  const t0 = M.t, dur = M.dials.orbitDuration;
+  const lead = members[0];
+  for (const c of members) {
+    if (c !== lead && !M.tune.paired) continue;
+    // the partner's pose in ITS OWN frame is the same θ with the same openness and the opposite depth sign
+    M.orbs[c].busy = { kind: 'orbit', delta: 0, dir: c === lead ? dir : -dir, open, t0, dur, from: 0, to: 2 * Math.PI, lead: c === lead };
+  }
+  return true;
+}
+// Spawn/despawn: exactly the corner→centre line (delta 0), behind half, so the midpoint is the canvas centre.
+function startSpawn(o) {
+  o.shown = true;
+  if (M.tune.reduced) { o.fade = { t0: M.t, dur: 0.3, from: 0, to: 1 }; o.busy = { kind: 'fade', t0: M.t, dur: 0.3 }; return; }
+  o.busy = { kind: 'spawn', delta: 0, dir: 1, t0: M.t, dur: arcDuration(), from: 1.5 * Math.PI, to: 2 * Math.PI };
+}
+function startDespawn(o) {
+  if (M.tune.reduced) { o.fade = { t0: M.t, dur: 0.3, from: 1, to: 0 }; o.busy = { kind: 'fadeOut', t0: M.t, dur: 0.3 }; return; }
+  o.busy = { kind: 'despawn', delta: 0, dir: -1, t0: M.t, dur: arcDuration(), from: 0, to: 0.5 * Math.PI };
+}
+/**
+ * One step per call; every arc/orbit completion calls it again (spec §1.4). Rules found at the gate
+ * (2026-10-05, a spawn/despawn loop): at most ONE arc in flight per robot; spawn = the first corner in
+ * the seeded order that is not shown; despawn = the LAST shown corner in that order (last in, first
+ * out); never spawn a shown corner or despawn a hidden one; a corner mid-orbit is left to finish.
+ * (The first draft indexed by position and assumed the shown set was always a prefix of the order —
+ * a spawn starting while another corner was still mid-despawn broke that, and every completion then
+ * re-spawned an already-shown corner forever.)
+ */
+const isArc = (o) => !!o.busy && o.busy.kind !== 'orbit';
+function reconcile() {
+  if (M.orbs.some(isArc)) return;                       // one arc at a time; its completion re-enters
+  const order = M.plan.cornerOrder;
+  const shown = order.filter(c => M.orbs[c].shown);
+  if (shown.length < M.targetCount) {
+    const c = order.find(c => !M.orbs[c].shown);
+    if (c !== undefined && !M.orbs[c].busy) startSpawn(M.orbs[c]);
+  } else if (shown.length > M.targetCount) {
+    const o = M.orbs[shown[shown.length - 1]];
+    if (!o.busy) startDespawn(o);                       // mid-orbit: its completion calls reconcile
+  }
+}
+
+function rebuild(fullReset) {
+  const o = opts(); const seed = $('seed').value;
+  const Rc = rngFrom(seed + ':colors'); const names = ACCENT_NAMES.slice();
+  const robots = []; for (let i = 0; i < 12; i++) { const n = names.splice(Math.floor(Rc() * names.length), 1)[0]; robots.push(makeRobot(seed, i, n)); }
+  const robot = robots[+$('mRobot').value || 0];
+  M.comp = readComp(); M.tune = readTune(); M.dials = orbiterDials(M.comp);
+  const robotChanged = fullReset || !M.robot || M.robot.idx !== robot.idx || M.robot.seed !== robot.seed;
+  M.robot = robot;
+  if (robotChanged) {
+    M.plan = orbiterPlan(robot, M.tune);
+    M.orbs = [0, 1, 2, 3].map(newOrbState);
+    M.targetCount = M.dials.count;
+    M.pairNext = [Infinity, Infinity];
+    for (let i = 0; i < M.dials.count; i++) M.orbs[M.plan.cornerOrder[i]].shown = true;
+    for (let p = 0; p < 2; p++) if (PAIRS[p].some((c) => M.orbs[c].shown)) scheduleNext(p, true);
+    M.sizeFrom = M.sizeTo = M.dials.size; M.sizeT0 = -1;
+  }
+  const { px, py } = motionPad(robot, M.tune);
+  const vb = `${-px} ${-py} ${robot.W + 2 * px} ${robot.H + 2 * py}`;
+  const outline = `<rect x="0" y="0" width="${robot.W}" height="${robot.H}" fill="none" stroke="#2a3340" stroke-width=".4" stroke-dasharray="2 1.5"/>`;
+  const paths = M.tune.paths ? ringPathMarkup(robot, M.tune) : '';
+  const body = renderMotionRobot(robot, o, M.dials, M.plan, 'motion');
+  const card = renderMotionRobot(robot, o, M.dials, M.plan, 'card');
+  $('mstage').innerHTML = `
+    <div class="mstage-card"><svg data-stage="world" width="${(robot.W + 2 * px) * 2}" height="${(robot.H + 2 * py) * 2}" viewBox="${vb}" shape-rendering="geometricPrecision">${outline}${paths}${body}</svg>world 2 px/unit (frame = avatar viewBox)</div>
+    <div class="mstage-card"><svg data-stage="avatar" width="96" height="96" viewBox="${vb}" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision">${body}</svg>avatar 96 px</div>
+    <div class="mstage-card"><svg data-stage="plain" width="96" height="96" viewBox="0 0 ${robot.W} ${robot.H}" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" style="overflow:visible">${outline}${body}</svg>avatar, unpadded + overflow (Q1 option 3)</div>
+    <div class="mstage-card"><svg width="64" height="64" viewBox="0 0 ${robot.W} ${robot.H}" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision">${card}</svg>card 64 px, static</div>`;
+  M.groups = [...document.querySelectorAll('#mstage svg[data-stage] g.orb')];
+  const d = M.dials;
+  $('mDials').textContent = `count ${d.count}   size ${d.size.toFixed(3)}×   line ${d.lineWidth.toFixed(2)}   strip ${d.stripOpacity.toFixed(2)}\norbit gap ${d.orbitGap}s (×${M.tune.speed} time)   orbit ${d.orbitDuration.toFixed(1)}s   arc ${arcDuration().toFixed(2)}s\ncorner order ${M.plan.cornerOrder.map(c => ['TL','TR','BL','BR'][c]).join(' ')}`;
+  const f = cornerFrame(robot, 0), ang = cornerAngleDeg(robot, 0).toFixed(0);
+  $('mFrame').textContent = `canvas ${robot.W}×${robot.H} (k=${robot.k})   corner→centre dx ${f.dx} dy ${f.dy} → ${ang}° (every orbit and arc runs on this line; hoop openness seeded 0–${M.tune.openMax})\navatar pad x ${px} y ${py} → viewBox ${vb}\nbody height in avatar ${(100 * robot.H / (robot.H + 2 * py)).toFixed(0)} % (was 100 %)`;
+  for (const id of ['mDensity','mMotif','mVariance','mRepeat','mOctMin','mOctMax','mOpenMax','mFront','mBehind','mDim','mDriftA','mDriftP','mArcFixed','mSizeTween']) { const el = $(id); el.nextElementSibling.textContent = el.value; }
+}
+
+// ---------- per-frame ----------
+function frame(now) {
+  if (M.last == null) M.last = now;
+  const dt = Math.min(0.1, (now - M.last) / 1000) * M.tune.speed; M.last = now; M.t += dt;
+  const robot = M.robot, tune = M.tune;
+  // size tween
+  let size = M.sizeTo;
+  if (M.sizeT0 >= 0) { const u = tune.sizeTween > 0 ? Math.min(1, (M.t - M.sizeT0) / tune.sizeTween) : 1; size = M.sizeFrom + (M.sizeTo - M.sizeFrom) * easeOut(u); if (u >= 1) M.sizeT0 = -1; }
+  if (!tune.reduced) for (let p = 0; p < 2; p++) if (M.t >= M.pairNext[p]) startOrbit(p);
+  for (const o of M.orbs) {
+    const { cx, cy } = cornerFrame(robot, o.c);
+    const dr = driftOf(M.plan.drift[o.c], tune);
+    // Drift fades out over a despawn arc and in over a spawn arc, so the orbiter is exactly on the centre
+    // line — fully behind the backing — when it vanishes or appears (gate feedback 2026-10-05: it could
+    // be seen disappearing; drift was wobbling it past the backing's edge on narrow robots).
+    let driftK = o.shown && !tune.reduced ? 1 : 0;
+    if (o.busy && (o.busy.kind === 'despawn' || o.busy.kind === 'spawn')) {
+      const u = Math.min(1, (M.t - o.busy.t0) / o.busy.dur);
+      driftK *= o.busy.kind === 'despawn' ? 1 - u : u;
+    }
+    const ddx = driftK * dr.ax * Math.sin(2 * Math.PI * (M.t / dr.px + dr.phase));
+    const ddy = driftK * dr.ay * Math.sin(2 * Math.PI * (M.t / dr.py + dr.phase2));
+    let pose = { x: 0, y: 0, scale: 1, opacity: 1, depth: 'rest' }, visible = o.shown, fadeOpacity = 1;
+    if (o.busy) {
+      const b = o.busy, u = Math.min(1, (M.t - b.t0) / b.dur);
+      if (b.kind === 'fade' || b.kind === 'fadeOut') { fadeOpacity = o.fade.from + (o.fade.to - o.fade.from) * u; if (u >= 1) { if (b.kind === 'fadeOut') o.shown = false; o.busy = null; o.fade = null; if (b.kind === 'fade' && M.pairNext[pairOf(o.c)] === Infinity) scheduleNext(pairOf(o.c), true); reconcile(); } }
+      else {
+        const theta = b.from + (b.to - b.from) * easeInOut(u);
+        // spawn/despawn arcs: tilt 0 AND openness 0 — the quarter point must be the canvas centre, behind the backing
+        pose = ringPose(robot, o.c, b.delta, b.dir, theta, tune, b.kind === 'orbit' ? b.open : 0); visible = true;
+        if (u >= 1) {
+          o.busy = null; pose = { x: 0, y: 0, scale: 1, opacity: 1, depth: 'rest' };
+          if (b.kind === 'despawn') { o.shown = false; visible = false; }
+          else if (b.kind === 'spawn') { if (M.pairNext[pairOf(o.c)] === Infinity) scheduleNext(pairOf(o.c), true); }
+          else if (b.lead) scheduleNext(pairOf(o.c), false);
+          reconcile();
+        }
+      }
+    }
+    // write the three copies in both animated stages
+    for (const g of M.groups) {
+      if (+g.dataset.c !== o.c) continue;
+      const on = visible && g.dataset.depth === pose.depth;
+      g.style.display = on ? '' : 'none';
+      if (!on) continue;
+      g.setAttribute('transform', `translate(${(cx + pose.x).toFixed(2)} ${(cy + pose.y).toFixed(2)}) scale(${pose.scale.toFixed(3)}) translate(${-cx} ${-cy})`);
+      g.setAttribute('opacity', (pose.opacity * fadeOpacity).toFixed(3));
+      g.firstElementChild.setAttribute('transform', `translate(${ddx.toFixed(2)} ${ddy.toFixed(2)}) translate(${cx} ${cy}) scale(${size.toFixed(3)}) translate(${-cx} ${-cy})`);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---------- wiring ----------
+const sel = $('mRobot'); for (let i = 0; i < 12; i++) { const op = document.createElement('option'); op.value = i; op.textContent = 'robot ' + (i + 1); sel.appendChild(op); }
+sel.onchange = () => rebuild(true);
+$('regen').addEventListener('click', () => rebuild(true));
+$('next').addEventListener('click', () => rebuild(true));
+for (const id of ['bevel', 'contrast', 'tones']) $(id).addEventListener('input', () => rebuild(false));
+// composition dials: count queues through reconcile, size tweens, line/strip re-render immediately (Q5)
+for (const id of ['mDensity', 'mMotif', 'mVariance', 'mRepeat', 'mOctMin', 'mOctMax']) $(id).oninput = () => {
+  const before = M.dials; rebuild(false);
+  if (M.dials.count !== before.count) { M.targetCount = M.dials.count; reconcile(); }
+  if (M.dials.size !== before.size) { M.sizeFrom = M.sizeT0 >= 0 ? M.sizeFrom + (M.sizeTo - M.sizeFrom) * easeOut(Math.min(1, (M.t - M.sizeT0) / Math.max(1e-6, M.tune.sizeTween))) : before.size; M.sizeTo = M.dials.size; M.sizeT0 = M.t; }
+};
+for (const id of ['mOpenMax', 'mPaired', 'mFront', 'mBehind', 'mDim', 'mDriftA', 'mDriftP', 'mArcMode', 'mArcFixed', 'mSizeTween', 'mSpeed', 'mReduced', 'mPaths']) $(id).oninput = $(id).onchange = () => rebuild(false);
+const fire = dir => () => { const c = M.plan.cornerOrder[+$('mWhich').value - 1]; if (M.orbs[c].shown) startOrbit(pairOf(c), dir); };
+$('mFireBehind').onclick = fire(-1); $('mFireFront').onclick = fire(1);
+rebuild(true);
+requestAnimationFrame(frame);
 </script>
 </body>
 </html>
