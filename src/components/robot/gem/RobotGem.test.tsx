@@ -7,7 +7,8 @@ import { render } from '@testing-library/react';
 import { RobotGem } from './RobotGem';
 import source from './RobotGem.tsx?raw';
 import { getRobotGem, gemWidth, GEM_CANVAS_H, type GemPart } from './polygon';
-import { gemPalette, type GemPalette } from './gemPalette';
+import { gemPalette, type GemPalette, type GemPartPaint } from './gemPalette';
+import { quadPath } from './gemPaths';
 
 // ========================================
 // FIXTURES
@@ -39,6 +40,10 @@ function partGroups(container: HTMLElement): Element[] {
 }
 
 const fmt = (n: number) => Number(n.toFixed(2));
+const subpaths = (d: string) => d.split('Z').map((s) => s.trim()).filter(Boolean);
+/** Palette entry for parts[i] (0 = backing, which has no facets). */
+const paintOf = (i: number): GemPartPaint =>
+  [palette.orbiters[0], palette.orbiters[0], palette.orbiters[1], palette.orbiters[2], palette.orbiters[3], palette.midLeft, palette.midRight, palette.top][i];
 
 // ========================================
 // TESTS
@@ -58,25 +63,37 @@ describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.
     });
   });
 
-  it('one facet per outline edge on every bevelled part, none on the backing; one face each', () => {
+  // Task 9a: facets are merged into one path per distinct fill, lines into one path per part —
+  // the moving robot layer's per-frame cost tracks element count (docs/PERFORMANCE.md, Task 9).
+  it('facets: one .gem__facets path per distinct fill whose subpaths cover every outline edge once; none on the backing; one face each', () => {
     partGroups(draw()).forEach((g, i) => {
       const [name, part] = parts[i];
-      expect(g.querySelectorAll('.gem__facet')).toHaveLength(name === 'backing' ? 0 : part.pts.length);
+      const paths = [...g.querySelectorAll('.gem__facets')];
       expect(g.querySelectorAll('.gem__face')).toHaveLength(1);
+      if (name === 'backing') {
+        expect(paths).toHaveLength(0);
+        return;
+      }
+      const fills = paintOf(i).facets;
+      expect(paths.map((p) => p.getAttribute('fill'))).toEqual([...new Set(fills)]);
+      expect(paths.flatMap((p) => subpaths(p.getAttribute('d')!))).toHaveLength(part.pts.length);
     });
   });
 
-  it('each facet is the quad between an outline edge and its inset edge', () => {
+  it('each facet subpath is the quad between an outline edge and its inset edge, in the path of its own fill', () => {
     const top = partGroups(draw())[7];
-    const facet = top.querySelectorAll('.gem__facet')[0];
     const { pts, inner } = gem.top;
-    const quad = [pts[0], pts[1], inner[1], inner[0]].map(([x, y]) => `${fmt(x)},${fmt(y)}`).join(' ');
-    expect(facet.getAttribute('points')).toBe(quad);
+    const path = [...top.querySelectorAll('.gem__facets')].find((p) => p.getAttribute('fill') === palette.top.facets[0])!;
+    expect(subpaths(path.getAttribute('d')!)).toContain(quadPath([pts[0], pts[1], inner[1], inner[0]]).replace('Z', ''));
   });
 
-  it('boundary lines: top 4, each mid 2, each orbiter 1, backing 0', () => {
+  it('boundary lines: one .gem__lines path per part holding top 4, mids 2, orbiters 1 lines; none on the backing', () => {
     const want = [0, 1, 1, 1, 1, 2, 2, 4];
-    partGroups(draw()).forEach((g, i) => expect(g.querySelectorAll('.gem__line')).toHaveLength(want[i]));
+    partGroups(draw()).forEach((g, i) => {
+      const paths = g.querySelectorAll('.gem__lines');
+      expect(paths).toHaveLength(want[i] ? 1 : 0);
+      if (want[i]) expect(paths[0].getAttribute('d')!.split('M').filter(Boolean)).toHaveLength(want[i]);
+    });
   });
 
   it('exactly two lights, only inside the top, carrying lightOpacity', () => {
@@ -105,8 +122,8 @@ describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.
 
   it('a palette change reaches the matching elements (mid--left facets follow palette.midLeft)', () => {
     const groups = partGroups(draw());
-    const fills = [...groups[5].querySelectorAll('.gem__facet')].map((f) => f.getAttribute('fill'));
-    expect(fills).toEqual(palette.midLeft.facets);
+    const fills = [...groups[5].querySelectorAll('.gem__facets')].map((f) => f.getAttribute('fill'));
+    expect(fills).toEqual([...new Set(palette.midLeft.facets)]);
     expect(groups[7].querySelector('.gem__face')!.getAttribute('fill')).toBe(palette.top.face);
   });
 
@@ -116,12 +133,13 @@ describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.
     expect(root.getAttribute('transform')).toBe(`translate(${W / 2} ${GEM_CANVAS_H / 2}) scale(0.8) translate(${-W / 2} ${-GEM_CANVAS_H / 2})`);
   });
 
-  it('drawable element count is exactly Σ(facets + face + lines) + 2 circles per light — a perf cut shows here', () => {
+  it('drawable element count is exactly Σ(distinct facet fills + face + one lines path) + 2 circles per light — a perf cut shows here', () => {
     const container = draw();
-    const drawn = container.querySelectorAll('polygon, polyline, circle').length;
+    const drawn = container.querySelectorAll('polygon, polyline, path, circle').length;
+    const bevelled = [...gem.orbiters, gem.midLeft, gem.midRight, gem.top];
     const expected =
       1 + // backing face
-      [...gem.orbiters, gem.midLeft, gem.midRight, gem.top].reduce((n, p) => n + p.pts.length + 1 + p.lines.length, 0) +
+      bevelled.reduce((n, p, i) => n + new Set(paintOf(i + 1).facets).size + 1 + (p.lines.length ? 1 : 0), 0) +
       gem.top.lights.length * 2;
     expect(drawn).toBe(expected);
   });

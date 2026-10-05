@@ -5,6 +5,7 @@ import { memo } from 'react';
 
 import { gemWidth, GEM_CANVAS_H, type GemPart, type GemPoint, type RobotGem as RobotGemGeometry } from './polygon';
 import type { GemPalette, GemPartPaint } from './gemPalette';
+import { facetPaths, linesPath } from './gemPaths';
 
 // ========================================
 // TYPES
@@ -42,35 +43,34 @@ function BevelledPart({ part, paint, className, lightOpacity, lightColor }: {
   lightColor?: string;
 }) {
   const { pts, inner } = part;
+  const lines = linesPath(part.lines);
+  // Merged paths, not one element per facet/line: the moving robot layer re-rasterizes every
+  // child each frame, so its cost tracks element count (docs/PERFORMANCE.md, Phase 39 Task 9).
   return (
     <g className={`gem__part ${className}`} transform={`translate(${r2(part.x)} ${r2(part.y)})`}>
-      {pts.map((p, i) => {
-        const j = (i + 1) % pts.length;
-        return (
-          <polygon
-            key={i}
-            className="gem__facet"
-            points={points([p, pts[j], inner[j], inner[i]])}
-            fill={paint.facets[i]}
-            stroke={paint.stroke}
-            strokeWidth={FACET_STROKE_WIDTH}
-            strokeLinejoin="round"
-          />
-        );
-      })}
+      {facetPaths(pts, inner, paint.facets).map(({ fill, d }) => (
+        <path
+          key={fill}
+          className="gem__facets"
+          d={d}
+          fill={fill}
+          stroke={paint.stroke}
+          strokeWidth={FACET_STROKE_WIDTH}
+          strokeLinejoin="round"
+        />
+      ))}
       <polygon className="gem__face" points={points(inner)} fill={paint.face} />
-      {part.lines.map((line, i) => (
-        <polyline
-          key={i}
-          className="gem__line"
-          points={points(line)}
+      {lines && (
+        <path
+          className="gem__lines"
+          d={lines}
           fill="none"
           stroke={paint.line}
           strokeWidth={LINE_WIDTH}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-      ))}
+      )}
       {part.lights.map(([x, y], i) => (
         <g key={i} className="gem__light" opacity={lightOpacity}>
           <circle cx={r2(x)} cy={r2(y)} r={LIGHT_HALO_R} fill={lightColor} opacity={LIGHT_HALO_OPACITY} />

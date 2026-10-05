@@ -51,7 +51,10 @@ const topFace = (c: HTMLElement) => fill(c, '.gem__top .gem__face');
 const midFace = (c: HTMLElement, side: 'left' | 'right') => fill(c, `.gem__mid--${side} .gem__face`);
 const lightOpacity = (c: HTMLElement) => Number(c.querySelector('.gem__light')?.getAttribute('opacity'));
 const rootTransform = (c: HTMLElement) => c.querySelector('g.gem')?.getAttribute('transform') ?? null;
-const facetPoints = (c: HTMLElement) => [...c.querySelectorAll('.gem__facet')].map((f) => f.getAttribute('points'));
+// Facets are merged into one path per tone (Task 9a); compare the sorted facet quads — pure geometry,
+// independent of which facets happen to share a tone for a given colour.
+const facetQuads = (c: HTMLElement, scope = '') => [...c.querySelectorAll(`${scope} .gem__facets`)].flatMap((p) => p.getAttribute('d')!.split('Z').filter(Boolean)).sort();
+const facetPoints = (c: HTMLElement) => facetQuads(c);
 const lightness = (css: string | null) => Number(/, ([\d.]+)%\)$/.exec(css ?? '')?.[1]);
 
 describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
@@ -64,7 +67,7 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
     const { container } = draw(makeRobot());
     const gem = getRobotGem(20261004);
     expect(container.querySelectorAll('g.gem__part')).toHaveLength(8);
-    expect(container.querySelectorAll('.gem__top .gem__facet')).toHaveLength(gem.top.pts.length);
+    expect(facetQuads(container, '.gem__top')).toHaveLength(gem.top.pts.length);
     expect(container.querySelector('.window, .lamp, .greeble, .greebles, .socket, .details')).toBeNull();
   });
 
@@ -126,7 +129,7 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
 
     it('a low battery flattens the facets (lower contrast), floored so the bevel never vanishes', () => {
       const spread = (c: HTMLElement) => {
-        const ls = [...c.querySelectorAll('.gem__top .gem__facet')].map((f) => lightness(f.getAttribute('fill')));
+        const ls = [...c.querySelectorAll('.gem__top .gem__facets')].map((f) => lightness(f.getAttribute('fill')));
         return Math.max(...ls) - Math.min(...ls);
       };
       const { container: full, unmount } = draw(makeRobot({ batteryLevel: 100 }), true);

@@ -78,7 +78,8 @@ describe('RobotDisplaySection', () => {
     useLocaleStore.getState().addRobot(localeId, robot);
     const { container } = render(<RobotDisplaySection robot={robot} />);
     expect(container.querySelector('svg .gem')).not.toBeNull();
-    expect(container.querySelectorAll('.gem__top .gem__facet')).toHaveLength(getRobotGem(20261004).top.pts.length);
+    const quads = [...container.querySelectorAll('.gem__top .gem__facets')].flatMap((p) => p.getAttribute('d')!.split('Z').filter(Boolean));
+    expect(quads).toHaveLength(getRobotGem(20261004).top.pts.length);
   });
 
   it.each([1, 2])('frames a width-factor-%s robot to its own canvas at scale 1, letterboxed (Phase 39 Task 8)', (factor) => {

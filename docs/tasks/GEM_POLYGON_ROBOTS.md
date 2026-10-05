@@ -239,6 +239,39 @@ orbiters; Crawford chose "fit each robot"). The card's `hideGreebles` was alread
 > the Task 9 idle-paint gate"). Paint +94 %, busy +14 %, outside noise in every round. Cause is
 > element count (~87 shapes/robot vs ~35), not area. Cut 1 (orbiter lines) changes nothing; cut
 > 1+2 (facet strokes) recovers ~30 ms paint of ~185. T10–T13 wait for Crawford's decision.
+>
+> **Decision 2026-10-05 (Crawford): merge into paths.** Estimated drawn shapes per robot over 500
+> robots: today 87.7, exact-tone merge 78.6, 4 tones 47.0, 3 tones 39.8 (old robots ≈ 35). Exact
+> merging alone cannot pass (paint has tracked shape count), so T9a builds the merge (no visual
+> change) and T9b quantizes tones, sketch-checked before it lands.
+
+## Task 9a: Facets and lines drawn as merged paths
+
+**Description:** `RobotGem` draws each bevelled part's facets as one `<path class="gem__facets">` per
+distinct facet fill (subpaths = that fill's facet quads, first-appearance order) and the part's
+boundary lines as one `<path class="gem__lines">`. Pure path builders in `gem/gemPaths.ts`. No
+palette change — at today's per-edge tones this is visually unchanged (stroke overlap order at
+shared facet edges may differ by a fraction of the 0.25 stroke).
+
+**Acceptance criteria:**
+- [ ] Facet subpaths across a part's `.gem__facets` paths = its side count; one path per distinct
+      fill; each subpath is that facet's outline/inset quad; lines one path per part with
+      subpaths = line count; element-count formula updated.
+- [ ] Every fill/stroke still a palette string; RobotBody/avatar/card tests re-pointed.
+
+**Verification:** `npx vitest run src/components/robot/`; `npm test`. **Dependencies:** T9.
+**Files:** `gem/gemPaths.ts` (+test), `gem/RobotGem.tsx` (+test), `RobotBody.test.tsx`,
+`RobotDisplaySection.test.tsx`. **Scope:** M.
+
+## Task 9b: Quantized facet tones (sketch-gated)
+
+**Description:** Facet shade quantized to `GEM_FACET_TONES` levels per part (3 or 4) before
+`facetTone`, so T9a's merge collapses to ~40–47 shapes per robot. Sketch gets a tones toggle; a
+3-tone build is A/B'd against `main` with T9's method. **Stop and report** with the sketch and the
+numbers — lands only on Crawford's yes.
+
+**Dependencies:** T9a. **Files:** `gem/gemShading.ts`, `gem/gemPalette.ts` (+tests), the sketch,
+`docs/PERFORMANCE.md`. **Scope:** S + measurement.
 
 **Description:** `npm run build && npx vite preview --port 4173`, then `npm run perf:idle` on the
 same `?session=` link on `main` and on this branch, foreground, one run at a time, no orphaned
