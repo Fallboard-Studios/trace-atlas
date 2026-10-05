@@ -1,5 +1,11 @@
 # Robot Visual Design Guide
 
+> **Phase 39 in progress (2026-10-04).** `RobotBody` now draws gem polygon robots
+> ([`gem/RobotGem.tsx`](../src/components/robot/gem/RobotGem.tsx), spec
+> [GEM_POLYGON_ROBOTS.md](specs/GEM_POLYGON_ROBOTS.md)). The hand-drawn shapes, greebles and
+> sockets described below are no longer rendered; their files are deleted in Task 10–11 and this
+> guide is rewritten in Task 13. Until then, treat everything below as the pre-Phase-39 design.
+
 ## Overview
 
 Robots are single unified SVG entities whose visual appearance (shape, color, detail) is derived entirely from `audioAttributes` — never stored separately. This keeps `Robot` fully serializable for Zustand while visuals stay a pure function of audio data, computed live at render time in [robotVisualHelpers.ts](../src/components/robot/robotVisualHelpers.ts).

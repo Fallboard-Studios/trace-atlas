@@ -41,6 +41,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     masterVolume: 0.7,
     docking: 'active',
     batteryLevel: 72.4,
+    gemSeed: 20261004,
     ...overrides,
   } as Robot;
 }
@@ -300,9 +301,12 @@ describe('RobotSelectionCard', () => {
     expect(container.querySelector('.greebles')).toBeNull();
   });
 
-  it('shows two layer sockets on the card avatar (Phase 38 Task 5)', () => {
+  it('shows the gem body on the card avatar, both Mids included (Phase 39 Task 7)', () => {
     const { container } = renderCard();
-    expect(container.querySelectorAll('.socket')).toHaveLength(2);
+    expect(container.querySelector('.robot-selection-card__avatar .gem')).not.toBeNull();
+    expect(container.querySelector('.gem__mid--left')).not.toBeNull();
+    expect(container.querySelector('.gem__mid--right')).not.toBeNull();
+    expect(container.querySelector('.socket, .greeble')).toBeNull();
   });
 
   it("has an accessible name matching the robot's name", () => {

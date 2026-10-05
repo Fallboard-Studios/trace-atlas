@@ -24,6 +24,7 @@ vi.mock('@/components/ui/controls/RadioButton', async (importOriginal) => {
 });
 
 import { RobotDisplaySection } from './RobotDisplaySection';
+import { getRobotGem } from './gem/polygon';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -53,6 +54,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     audioMode: 'none',
     job: { type: 'acousticSurvey', assignedAtMeasure: 0 },
     greebles: [{ kind: 1, slot: 2 }],
+    gemSeed: 20261004,
     ...overrides,
   } as Robot;
 }
@@ -71,18 +73,20 @@ describe('RobotDisplaySection', () => {
     useAudioStore.setState({ soundingRobotIds: [] });
   });
 
-  it('renders the seeded greebles (unlike the 64px card, which hides them) — Phase 37 Task 6', () => {
+  it('renders the robot\'s own seeded gem body (Phase 39 Task 7)', () => {
     const robot = makeRobot();
     useLocaleStore.getState().addRobot(localeId, robot);
     const { container } = render(<RobotDisplaySection robot={robot} />);
-    expect(container.querySelector('.greebles')).not.toBeNull();
+    expect(container.querySelector('svg .gem')).not.toBeNull();
+    expect(container.querySelectorAll('.gem__top .gem__facet')).toHaveLength(getRobotGem(20261004).top.pts.length);
   });
 
-  it('renders two layer sockets (Phase 38 Task 5)', () => {
+  it('renders both Mid polygons — the layer carriers that replaced the Phase 38 sockets', () => {
     const robot = makeRobot();
     useLocaleStore.getState().addRobot(localeId, robot);
     const { container } = render(<RobotDisplaySection robot={robot} />);
-    expect(container.querySelectorAll('.socket')).toHaveLength(2);
+    expect(container.querySelector('.gem__mid--left')).not.toBeNull();
+    expect(container.querySelector('.gem__mid--right')).not.toBeNull();
   });
 
   it('renders the same sunlight/time-agnostic robot avatar RobotSelectionCard uses (ignoreDaylight passed through)', () => {
@@ -91,14 +95,14 @@ describe('RobotDisplaySection', () => {
 
     useUIStore.getState().setActiveLocaleLocalTime(12);
     const { container: noon, unmount } = render(<RobotDisplaySection robot={robot} />);
-    const noonPath = noon.querySelector('path');
+    const noonPath = noon.querySelector('.gem__top .gem__face');
     expect(noonPath).not.toBeNull();
     const noonFill = noonPath!.getAttribute('fill');
     unmount();
 
     useUIStore.getState().setActiveLocaleLocalTime(0);
     const { container: midnight, unmount: unmountMidnight } = render(<RobotDisplaySection robot={robot} />);
-    const midnightPath = midnight.querySelector('path');
+    const midnightPath = midnight.querySelector('.gem__top .gem__face');
     expect(midnightPath).not.toBeNull();
     const midnightFill = midnightPath!.getAttribute('fill');
     unmountMidnight();

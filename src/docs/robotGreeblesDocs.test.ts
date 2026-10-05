@@ -102,7 +102,8 @@ describe('the live docs name real code (Task 9)', () => {
     ['FIXTURE_BOXES', 'src/components/robot/greebleSlots.ts'],
     ['KIND_COUNT', 'src/components/robot/RobotGreebles.tsx'],
     ['RobotGreebles', 'src/components/robot/RobotGreebles.tsx'],
-    ['hideGreebles', 'src/components/robot/RobotBody.tsx'],
+    // hideGreebles removed with the Phase 39 swap (RobotBody composes RobotGem, which has no
+    // greebles); this whole file is replaced by the gem docs test in Phase 39 Task 12.
   ];
 
   it.each(symbols)('%s exists in %s', (symbol, file) => {

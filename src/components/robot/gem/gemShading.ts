@@ -29,6 +29,15 @@ export const GEM_LIGHT: GemPoint = (() => {
 /** Lightness points a facet gains facing the light / loses facing away (sketch slider, Gate 1). */
 export const GEM_FACET_CONTRAST = 20;
 
+/** A low battery flattens the facets (contrast × battery dim), floored here so the bevel never
+ *  vanishes entirely (spec assumption 5, Crawford 2026-10-04; tune by eye at Gate 2). */
+export const GEM_BATTERY_CONTRAST_FLOOR = 0.25;
+
+/** Facet contrast for a robot's battery dim (computeBatteryDimOpacity, 0.1..1). */
+export function batteryFacetContrast(dimOpacity: number): number {
+  return GEM_FACET_CONTRAST * Math.max(dimOpacity, GEM_BATTERY_CONTRAST_FLOOR);
+}
+
 // ========================================
 // SHADING
 // ========================================
