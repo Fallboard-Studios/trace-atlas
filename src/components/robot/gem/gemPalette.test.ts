@@ -114,6 +114,25 @@ describe('gemPalette — every colour RobotGem draws, as strings', () => {
     });
   });
 
+  it('tones = 3 gives each part at most 3 distinct facet fills, including the full lit and shaded extremes', () => {
+    const q = gemPalette(gem, TEAL, 1, [1, 1], 20, 3);
+    bevelledParts(q).forEach((paint, i) => {
+      expect(new Set(paint.facets).size).toBeLessThanOrEqual(3);
+      const ls = paint.facets.map((f) => hsl(f).l);
+      const face = hsl(paint.face).l;
+      const shades = partFacetShades(parts[i].pts);
+      // a facet squarely facing the light keeps the full +20; one facing away the full -20
+      shades.forEach((s, k) => {
+        if (s > 2 / 3) expect(ls[k]).toBe(Math.min(100, face + 20));
+        if (s < -2 / 3) expect(ls[k]).toBe(Math.max(0, face - 20));
+      });
+    });
+  });
+
+  it('tones defaults to GEM_FACET_TONES (0 = off): the default palette is today\'s per-edge tones', () => {
+    expect(gemPalette(gem, TEAL, 1, [1, 1], 20)).toEqual(gemPalette(gem, TEAL, 1, [1, 1], 20, 0));
+  });
+
   it('contrast 0 flattens every facet to its face', () => {
     const flat = gemPalette(gem, TEAL, 1, [1, 1], 0);
     bevelledParts(flat).forEach((paint) => paint.facets.forEach((f) => expect(f).toBe(paint.face)));

@@ -51,6 +51,23 @@ export function facetTone(base: HSL, shade: number, contrast: number): HSL {
   return { h: base.h, s: base.s, l: clamp(base.l + shade * contrast, 0, 100) };
 }
 
+/**
+ * Facet tone levels per part (Task 9b). Quantizing makes facets share fills, so RobotGem's merged
+ * facet paths collapse to ≤ k per part — the moving robot layer's paint cost tracks element count
+ * (docs/PERFORMANCE.md, Phase 39 Task 9). 0 = off (one tone per edge direction, the Gate 1/2 look);
+ * switched on only after Crawford's sketch check.
+ */
+export const GEM_FACET_TONES = 0;
+
+/** Snap a shade (−1..1) to k evenly spaced levels including both extremes; k < 2 → unchanged.
+ *  Written as (2·level − (k−1)) / (k−1) so levels are exact (±1/3, not ±0.33333333333333337). */
+export function quantizeShade(shade: number, tones: number): number {
+  if (tones < 2) return shade;
+  const steps = tones - 1;
+  const level = Math.round(((shade + 1) / 2) * steps);
+  return (2 * level - steps) / steps;
+}
+
 /** One shade per outline edge (facet i sits on edge pts[i] → pts[i+1]). */
 export function partFacetShades(pts: readonly GemPoint[]): number[] {
   return edgeNormals(pts).map(facetShade);

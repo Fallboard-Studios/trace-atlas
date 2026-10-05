@@ -10,7 +10,7 @@
 // IMPORTS
 // ========================================
 import { clamp, hexToHsl, hslToString, type HSL } from '../../../utils/colorUtils';
-import { facetTone, partFacetShades } from './gemShading';
+import { facetTone, partFacetShades, quantizeShade, GEM_FACET_TONES } from './gemShading';
 import type { GemPart, RobotGem } from './polygon';
 
 // ========================================
@@ -78,9 +78,9 @@ function css(tone: HSL, daylight: number): string {
   });
 }
 
-function paintPart(part: GemPart, face: HSL, line: HSL, contrast: number, daylight: number): GemPartPaint {
+function paintPart(part: GemPart, face: HSL, line: HSL, contrast: number, daylight: number, tones: number): GemPartPaint {
   return {
-    facets: partFacetShades(part.pts).map((s) => css(facetTone(face, s, contrast), daylight)),
+    facets: partFacetShades(part.pts).map((s) => css(facetTone(face, quantizeShade(s, tones), contrast), daylight)),
     face: css(face, daylight),
     line: css(line, daylight),
     stroke: css(facetTone(face, -1, contrast), daylight),
@@ -96,6 +96,7 @@ function paintPart(part: GemPart, face: HSL, line: HSL, contrast: number, daylig
  * @param daylight    0..1 lightness multiplier (1 = neutral)
  * @param midLit      [midLeft, midRight] lit levels (layerLitLevel of layers[1] / layers[2])
  * @param contrast    facet contrast (GEM_FACET_CONTRAST, lowered by battery)
+ * @param tones       facet tone levels per part (quantizeShade); 0 = one tone per edge direction
  */
 export function gemPalette(
   gem: RobotGem,
@@ -103,6 +104,7 @@ export function gemPalette(
   daylight: number,
   midLit: [number, number],
   contrast: number,
+  tones: number = GEM_FACET_TONES,
 ): GemPalette {
   const identity = hexToHsl(identityHex);
   const topLine = shift(identity, TOP_LINE_DL);
@@ -112,8 +114,8 @@ export function gemPalette(
   const midLitLine = shift(identity, MID_LIT_LINE_DL, MID_LIT_DS);
 
   const mid = (part: GemPart, t: number) =>
-    paintPart(part, toward(midDark, midLitFace, t), toward(midDarkLine, midLitLine, t), contrast, daylight);
-  const body = (part: GemPart) => paintPart(part, identity, topLine, contrast, daylight);
+    paintPart(part, toward(midDark, midLitFace, t), toward(midDarkLine, midLitLine, t), contrast, daylight, tones);
+  const body = (part: GemPart) => paintPart(part, identity, topLine, contrast, daylight, tones);
   const [tl, tr, bl, br] = gem.orbiters;
 
   return {

@@ -11,6 +11,8 @@ import {
   facetShade,
   facetTone,
   partFacetShades,
+  quantizeShade,
+  GEM_FACET_TONES,
 } from './gemShading';
 import * as polygon from './polygon';
 import type { GemPoint } from './polygon';
@@ -75,6 +77,36 @@ describe('facetTone', () => {
   it('clamps lightness to 0..100 (beige at full light, near-black backing at full shade)', () => {
     expect(facetTone({ h: 55, s: 70, l: 90 }, 1, 20).l).toBe(100);
     expect(facetTone({ h: 210, s: 10, l: 6 }, -1, 20).l).toBe(0);
+  });
+});
+
+describe('quantizeShade — fewer facet tones, so merged facet paths collapse (Task 9b)', () => {
+  it('snaps to k evenly spaced levels including both extremes', () => {
+    expect([-1, -0.4, -0.2, 0.2, 0.4, 1].map((s) => quantizeShade(s, 3))).toEqual([-1, 0, 0, 0, 0, 1]);
+    expect(quantizeShade(0.6, 3)).toBe(1);
+    expect(quantizeShade(-0.6, 3)).toBe(-1);
+    expect([-1, -0.5, 0.2, 0.5, 1].map((s) => quantizeShade(s, 4))).toEqual([-1, -1 / 3, 1 / 3, 1 / 3, 1]);
+  });
+
+  it('never yields more than k distinct values over the whole shade range', () => {
+    for (const k of [2, 3, 4, 5]) {
+      const seen = new Set<number>();
+      for (let s = -1; s <= 1.0001; s += 0.01) seen.add(quantizeShade(Math.min(1, s), k));
+      expect(seen.size).toBe(k);
+    }
+  });
+
+  it('is monotonic, and the identity for tones = 0 (off) — today\'s look', () => {
+    let prev = -Infinity;
+    for (let s = -1; s <= 1; s += 0.05) {
+      expect(quantizeShade(s, 3)).toBeGreaterThanOrEqual(prev);
+      prev = quantizeShade(s, 3);
+      expect(quantizeShade(s, 0)).toBe(s);
+    }
+  });
+
+  it('ships switched off until Crawford\'s sketch check says yes', () => {
+    expect(GEM_FACET_TONES).toBe(0);
   });
 });
 
