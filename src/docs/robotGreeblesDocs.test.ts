@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 
@@ -93,43 +93,8 @@ describe('live docs carry no stale "Identity layer" claim (Task 8/9)', () => {
   });
 });
 
-describe('the live docs name real code (Task 9)', () => {
-  const symbols: Array<[symbol: string, file: string]> = [
-    ['generateGreebles', 'src/systems/spawnSystem.ts'],
-    ['GREEBLE_COUNT_RANGE', 'src/systems/spawnSystem.ts'],
-    ['GREEBLE_SLOTS', 'src/components/robot/greebleSlots.ts'],
-    ['SLOT_COUNT', 'src/components/robot/greebleSlots.ts'],
-    ['FIXTURE_BOXES', 'src/components/robot/greebleSlots.ts'],
-    ['KIND_COUNT', 'src/components/robot/RobotGreebles.tsx'],
-    ['RobotGreebles', 'src/components/robot/RobotGreebles.tsx'],
-    // hideGreebles removed with the Phase 39 swap (RobotBody composes RobotGem, which has no
-    // greebles); this whole file is replaced by the gem docs test in Phase 39 Task 12.
-  ];
-
-  it.each(symbols)('%s exists in %s', (symbol, file) => {
-    expect(existsSync(resolve(repoRoot, file)), `${file} exists`).toBe(true);
-    expect(read(file), `${file} defines ${symbol}`).toMatch(new RegExp(`\\b${symbol}\\b`));
-  });
-
-  it('the three greeble dataIds are named in spawnSystem.ts', () => {
-    const file = read('src/systems/spawnSystem.ts');
-    for (const dataId of ['robot.greeble.count', 'robot.greeble.kind', 'robot.greeble.slot']) {
-      expect(file, `spawnSystem.ts names ${dataId}`).toContain(dataId);
-    }
-  });
-
-  it('docs/PROCEDURAL_GENERATION.md\'s dataId table names the three greeble dataIds', () => {
-    const doc = read('docs/PROCEDURAL_GENERATION.md');
-    for (const dataId of ['robot.greeble.count', 'robot.greeble.kind', 'robot.greeble.slot']) {
-      expect(doc, `PROCEDURAL_GENERATION.md names ${dataId}`).toContain(dataId);
-    }
-  });
-
-  it('docs/ROBOT_DESIGN.md names every one of the live greeble symbols above', () => {
-    const doc = read('docs/ROBOT_DESIGN.md');
-    for (const [symbol] of symbols) expect(doc, `ROBOT_DESIGN.md names ${symbol}`).toContain(symbol);
-  });
-});
+// "The live docs name real code (Task 9)" — every greeble symbol and dataId it pinned was retired in
+// Phase 39 Task 11. This whole file is replaced by the gem docs test in Task 12.
 
 describe('the roadmap records Phase 37 (Task 9)', () => {
   it('has a Phase 37 — Robot Greebles entry linking intent, spec, plan and sketch', () => {

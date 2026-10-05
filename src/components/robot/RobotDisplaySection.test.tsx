@@ -53,7 +53,6 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     batteryLevel: 82,
     audioMode: 'none',
     job: { type: 'acousticSurvey', assignedAtMeasure: 0 },
-    greebles: [{ kind: 1, slot: 2 }],
     gemSeed: 20261004,
     ...overrides,
   } as Robot;

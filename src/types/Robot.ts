@@ -81,17 +81,6 @@ export interface AudioAttributes {
 }
 
 /**
- * Seeded, permanent hardware part (docs/ROBOT_DESIGN.md "Non-audio layers"). `kind` indexes
- * RobotGreebles.tsx's ordered vocabulary (< KIND_COUNT); `slot` indexes the current shape's
- * GREEBLE_SLOTS table (greebleSlots.ts, every shape has SLOT_COUNT entries), so a waveform
- * change moves the same parts onto the new outline without touching robot data.
- */
-export interface Greeble {
-  kind: number;
-  slot: number;
-}
-
-/**
  * Single melody event within a robot's one-measure, 16-sixteenth-note loop
  */
 export interface MelodyEvent {
@@ -141,12 +130,6 @@ export interface Robot {
    * on the copy path, never diffed into a session — regenerated identically from the world seed.
    */
   gemSeed: number;
-  /**
-   * Seeded, permanent hardware parts (docs/ROBOT_DESIGN.md "Non-audio layers"). Drawn once at
-   * spawn ('robot.greeble.*' dataIds), never user-edited, never inherited on the copy path,
-   * never diffed into a session — regenerated identically from the seed, like identityColor.
-   */
-  greebles: Greeble[];
   state: RobotState;
   position: Vec2;
   destination: Vec2 | null;

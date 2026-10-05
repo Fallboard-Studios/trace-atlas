@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -59,5 +59,26 @@ describe('Task 10 — the hand-drawn shapes, layer sockets and their helpers are
     'MID_GAIN_MAX',
   ])('robotVisualHelpers still exports the live %s', (name) => {
     expect(name in helpers).toBe(true);
+  });
+});
+
+describe('Task 11 — the robot greeble set (data, generator, renderer, slots) is deleted', () => {
+  const repoRoot = resolve(here, '..', '..', '..');
+  const read = (relative: string) => readFileSync(resolve(repoRoot, relative), 'utf-8');
+
+  it.each(['RobotGreebles.tsx', 'RobotGreebles.test.tsx', 'greebleSlots.ts', 'greebleSlots.test.ts'])('%s no longer exists', (file) => {
+    expect(existsSync(resolve(here, file))).toBe(false);
+  });
+
+  it('spawnSystem no longer exports GREEBLE_COUNT_RANGE or draws any robot.greeble.* dataId', async () => {
+    const spawn: Record<string, unknown> = await import('../../systems/spawnSystem');
+    expect('GREEBLE_COUNT_RANGE' in spawn).toBe(false);
+    expect(read('src/systems/spawnSystem.ts')).not.toMatch(/robot\.greeble\./);
+  });
+
+  it('PROCEDURAL_GENERATION.md lists robot.gem.seed and no longer lists the retired greeble dataIds', () => {
+    const doc = read('docs/PROCEDURAL_GENERATION.md');
+    expect(doc).toContain('robot.gem.seed');
+    expect(doc).not.toMatch(/robot\.greeble\./);
   });
 });

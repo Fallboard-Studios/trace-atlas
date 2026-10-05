@@ -32,7 +32,6 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     batteryLevel: 100,
     identityColor: '#428d95',
     gemSeed: 20261004,
-    greebles: [],
     ...overrides,
   } as Robot;
 }

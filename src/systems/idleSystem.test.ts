@@ -18,7 +18,6 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     id: 'idle-test-robot',
     compositionSeed: 0.5,
     identityColor: '#428d95',
-    greebles: [],
     gemSeed: 1,
     state: RobotState.Idle,
     position: { x: 100, y: 100 },

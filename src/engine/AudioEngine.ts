@@ -633,8 +633,8 @@ export const AudioEngine = {
    *   without re-reserving.
    * @param filterFreq - The robot's seeded `audioAttributes.filterFreq` (Hz): the cutoff of the
    *   per-robot bus low-pass (`composite.output → panner → busGain → busFilter → chain entry`).
-   *   This is the audible side of ROBOT_DESIGN's visual↔audio mapping — the same number already
-   *   drives body detail and greeble count. `0` opens the filter fully ("no filter", Robot.ts);
+   *   The same number once drove the hand-drawn robots' body detail and greeble count; gem
+   *   robots (Phase 39) give it no visual mapping. `0` opens the filter fully ("no filter", Robot.ts);
    *   omitted keeps the legacy fixed 1,200 Hz so older callers/fixtures sound as before.
    */
   reserveVoice(
