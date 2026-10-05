@@ -260,3 +260,92 @@ describe('RobotGem — static orbiters: count, cornerOrder, size, line width, st
     expect(container.querySelector('.gem__top .gem__strip')).toBeNull();
   });
 });
+
+// ========================================
+// MOTION MODE — depth twins, Task 6
+// ========================================
+const MOTION: RobotGemOrbiters = {
+  lineWidth: 0.55,
+  stripOpacity: 0.4,
+  size: 1.1, // ignored in motion mode — no React scale
+  count: 2, // ignored in motion mode — all 12 copies present regardless
+  cornerOrder: [0, 1, 2, 3],
+  motion: true,
+};
+
+describe('RobotGem — motion mode: depth twins, GSAP-owned (spec §1.3, Task 6)', () => {
+  it('renders 12 .gem__orbiter (4 per depth), ignoring count and size', () => {
+    const container = draw(palette, 0.7, 0.9, MOTION);
+    const wrappers = [...container.querySelectorAll('.gem__orbiter')];
+    expect(wrappers).toHaveLength(12);
+    (['behind', 'rest', 'front'] as const).forEach((depth) => {
+      const atDepth = wrappers.filter((w) => w.getAttribute('data-depth') === depth);
+      expect(atDepth).toHaveLength(4);
+      expect(atDepth.map((w) => w.getAttribute('class')).sort()).toEqual(
+        ['tl', 'tr', 'bl', 'br'].map((c) => `gem__orbiter gem__orbiter--${c}`).sort(),
+      );
+    });
+  });
+
+  it('DOM order: 4 behind, backing, 4 rest, mid--left, mid--right, top, 4 front', () => {
+    const container = draw(palette, 0.7, 0.9, MOTION);
+    const root = container.querySelector('g.gem')!;
+    const roles = [...root.children].map((c) => {
+      if (c.classList.contains('gem__orbiter')) return `orbiter-${c.getAttribute('data-depth')}`;
+      if (c.classList.contains('gem__backing')) return 'backing';
+      if (c.classList.contains('gem__mid--left')) return 'mid--left';
+      if (c.classList.contains('gem__mid--right')) return 'mid--right';
+      if (c.classList.contains('gem__top')) return 'top';
+      return 'unknown';
+    });
+    expect(roles).toEqual([
+      'orbiter-behind', 'orbiter-behind', 'orbiter-behind', 'orbiter-behind',
+      'backing',
+      'orbiter-rest', 'orbiter-rest', 'orbiter-rest', 'orbiter-rest',
+      'mid--left', 'mid--right', 'top',
+      'orbiter-front', 'orbiter-front', 'orbiter-front', 'orbiter-front',
+    ]);
+  });
+
+  it('no .gem__orbiter or .gem__orbiter-local carries a transform, style, display or opacity attribute; the inner corner group keeps its translate', () => {
+    const container = draw(palette, 0.7, 0.9, MOTION);
+    container.querySelectorAll('.gem__orbiter, .gem__orbiter-local').forEach((el) => {
+      expect(el.getAttribute('transform')).toBeNull();
+      expect(el.getAttribute('style')).toBeNull();
+      expect(el.getAttribute('display')).toBeNull();
+      expect(el.getAttribute('opacity')).toBeNull();
+    });
+    const part = gem.orbiters[0];
+    const inner = container.querySelector('.gem__orbiter--tl .gem__part')!;
+    expect(inner.getAttribute('transform')).toBe(`translate(${fmt(part.x)} ${fmt(part.y)})`);
+  });
+
+  it('each of the 12 copies has its own strip and lines with the dial attributes (T5 assertions hold per copy)', () => {
+    const container = draw(palette, 0.7, 0.9, MOTION);
+    container.querySelectorAll('.gem__orbiter').forEach((wrapper) => {
+      const lines = wrapper.querySelector('.gem__lines')!;
+      const strip = wrapper.querySelector('.gem__strip')!;
+      expect(lines.getAttribute('stroke-width')).toBe('0.55');
+      expect(strip.getAttribute('d')).toBe(lines.getAttribute('d'));
+      expect(strip.getAttribute('stroke')).toBe(palette.light);
+      expect(strip.getAttribute('stroke-width')).toBe('0.18'); // 0.55 / 3, 2dp
+      expect(strip.getAttribute('opacity')).toBe('0.4');
+    });
+  });
+
+  it('motion: false output is unchanged from Task 5 (DOM order and class list)', () => {
+    const container = draw();
+    const root = container.querySelector('g.gem')!;
+    expect([...root.children].map((c) => c.getAttribute('class'))).toEqual([
+      'gem__part gem__backing',
+      'gem__orbiter gem__orbiter--tl',
+      'gem__orbiter gem__orbiter--tr',
+      'gem__orbiter gem__orbiter--bl',
+      'gem__orbiter gem__orbiter--br',
+      'gem__part gem__mid gem__mid--left',
+      'gem__part gem__mid gem__mid--right',
+      'gem__part gem__top',
+    ]);
+    root.querySelectorAll('.gem__orbiter').forEach((w) => expect(w.getAttribute('data-depth')).toBe('rest'));
+  });
+});
