@@ -4,6 +4,8 @@ import type { Robot } from '../types/Robot';
 import { setRef, clearRefs } from '../utils/refs';
 import { setTimeline, getTimeline } from './timelineMap';
 import { createSwimTimeline } from './swimAnimation';
+import swimAnimationSource from './swimAnimation.ts?raw';
+import robotSource from '../components/robot/Robot.tsx?raw';
 
 function fakeRobot(overrides: Partial<Robot> = {}): Robot {
   return {
@@ -22,8 +24,8 @@ afterEach(() => {
 describe('createSwimTimeline — no ref registered', () => {
   it('does not throw and returns a timeline when no ref is registered for the robot', () => {
     const robot = fakeRobot({ id: 'no-ref-robot' });
-    expect(() => createSwimTimeline(robot, { x: 100, y: 0 }, 'right')).not.toThrow();
-    const tl = createSwimTimeline(robot, { x: 100, y: 0 }, 'right');
+    expect(() => createSwimTimeline(robot, { x: 100, y: 0 })).not.toThrow();
+    const tl = createSwimTimeline(robot, { x: 100, y: 0 });
     expect(tl).toBeDefined();
   });
 
@@ -32,7 +34,7 @@ describe('createSwimTimeline — no ref registered', () => {
     const robot = fakeRobot({ id: 'no-ref-robot', position: { x: 0, y: 0 } });
     const onComplete = vi.fn();
 
-    createSwimTimeline(robot, { x: 120, y: 0 }, 'right', onComplete);
+    createSwimTimeline(robot, { x: 120, y: 0 }, onComplete);
 
     expect(delayedCallSpy).toHaveBeenCalledTimes(1);
     const [estimatedDuration, scheduledFn] = delayedCallSpy.mock.calls[0];
@@ -64,7 +66,7 @@ describe('createSwimTimeline — with a registered ref', () => {
     const killSpy = vi.spyOn(priorTimeline, 'kill');
     setTimeline('swim-r1', priorTimeline);
 
-    createSwimTimeline(robot, { x: 50, y: 0 }, 'right');
+    createSwimTimeline(robot, { x: 50, y: 0 });
 
     expect(killSpy).toHaveBeenCalled();
     // The map now holds a different (new) timeline under the same key.
@@ -79,7 +81,7 @@ describe('createSwimTimeline — with a registered ref', () => {
     vi.spyOn(gsap, 'timeline').mockReturnValueOnce(tl);
 
     // distance = sqrt(90^2 + 120^2) = 150; SWIM_SPEED = 120 -> duration = 1.25
-    createSwimTimeline(robot, { x: 90, y: 120 }, 'right');
+    createSwimTimeline(robot, { x: 90, y: 120 });
 
     const propulsionCall = toSpy.mock.calls.find(
       (call) => typeof call[1] === 'object' && call[1] !== null && 'x' in (call[1] as object),
@@ -87,35 +89,41 @@ describe('createSwimTimeline — with a registered ref', () => {
     expect((propulsionCall?.[1] as unknown as { duration: number }).duration).toBeCloseTo(1.25);
   });
 
-  it('uses an offset start (ORIENTATION_DURATION - PROPULSION_OVERLAP) for propulsion when a flip is needed, vs. 0 when it is not', () => {
-    const flipRobot = fakeRobot({ id: 'r3', direction: 'left' }); // currently left, target right -> flip needed
-    registerFakeRef('r3', false);
-    const flipTimeline = gsap.timeline();
-    const flipToSpy = vi.spyOn(flipTimeline, 'to');
-    vi.spyOn(gsap, 'timeline').mockReturnValueOnce(flipTimeline);
+  // Phase 40 Task 7b (docs/specs/ORBITING_POLYGONS.md §1.6): robots have no discernible front any
+  // more, so the orientation (flip) phase is gone — propulsion always starts at position 0,
+  // regardless of the robot's stored `direction`.
+  it.each(['left', 'right'] as const)('propulsion starts at position 0 regardless of direction (%s)', (direction) => {
+    const robot = fakeRobot({ id: `r-${direction}`, direction });
+    registerFakeRef(robot.id, false);
+    const tl = gsap.timeline();
+    const toSpy = vi.spyOn(tl, 'to');
+    vi.spyOn(gsap, 'timeline').mockReturnValueOnce(tl);
 
-    createSwimTimeline(flipRobot, { x: 50, y: 0 }, 'right');
+    createSwimTimeline(robot, { x: 50, y: 0 });
 
-    // Propulsion tween's position argument should be ORIENTATION_DURATION(0.5) - PROPULSION_OVERLAP(0.2) = 0.3
-    const propulsionCall = flipToSpy.mock.calls.find(
+    const propulsionCall = toSpy.mock.calls.find(
       (call) => typeof call[1] === 'object' && call[1] !== null && 'x' in (call[1] as object),
     );
-    expect(propulsionCall?.[2]).toBeCloseTo(0.3);
+    expect(propulsionCall?.[2]).toBe(0);
+  });
 
-    vi.restoreAllMocks();
+  it('adds no scaleX tween — robots no longer flip on direction change', () => {
+    const robot = fakeRobot({ id: 'r-no-flip', direction: 'left' });
+    registerFakeRef(robot.id, false);
+    const tl = gsap.timeline();
+    const toSpy = vi.spyOn(tl, 'to');
+    const setSpy = vi.spyOn(tl, 'set');
+    vi.spyOn(gsap, 'timeline').mockReturnValueOnce(tl);
 
-    const noFlipRobot = fakeRobot({ id: 'r4', direction: 'right' }); // already right, target right -> no flip
-    registerFakeRef('r4', false);
-    const noFlipTimeline = gsap.timeline();
-    const noFlipToSpy = vi.spyOn(noFlipTimeline, 'to');
-    vi.spyOn(gsap, 'timeline').mockReturnValueOnce(noFlipTimeline);
+    createSwimTimeline(robot, { x: 50, y: 0 });
 
-    createSwimTimeline(noFlipRobot, { x: 50, y: 0 }, 'right');
-
-    const noFlipPropulsionCall = noFlipToSpy.mock.calls.find(
-      (call) => typeof call[1] === 'object' && call[1] !== null && 'x' in (call[1] as object),
-    );
-    expect(noFlipPropulsionCall?.[2]).toBe(0);
+    const scaleXTo = toSpy.mock.calls.find((call) => typeof call[1] === 'object' && call[1] !== null && 'scaleX' in (call[1] as object));
+    const scaleXSet = setSpy.mock.calls.find((call) => typeof call[1] === 'object' && call[1] !== null && 'scaleX' in (call[1] as object));
+    expect(scaleXTo).toBeUndefined();
+    expect(scaleXSet).toBeUndefined();
+    // The tilt still needs the centred origin.
+    const originSet = setSpy.mock.calls.find((call) => typeof call[1] === 'object' && call[1] !== null && 'transformOrigin' in (call[1] as object));
+    expect(originSet?.[1]).toMatchObject({ transformOrigin: '50% 50%' });
   });
 
   it('adds no spin tween, even if a .propeller element is present', () => {
@@ -125,7 +133,7 @@ describe('createSwimTimeline — with a registered ref', () => {
     const toSpy = vi.spyOn(tl, 'to');
     vi.spyOn(gsap, 'timeline').mockReturnValueOnce(tl);
 
-    createSwimTimeline(robot, { x: 240, y: 0 }, 'right');
+    createSwimTimeline(robot, { x: 240, y: 0 });
 
     const spinCall = toSpy.mock.calls.find(
       (call) => typeof call[1] === 'object' && call[1] !== null && 'repeat' in (call[1] as object),
@@ -136,6 +144,13 @@ describe('createSwimTimeline — with a registered ref', () => {
   it('does not throw without a .propeller child', () => {
     const robot = fakeRobot({ id: 'r6', position: { x: 0, y: 0 } });
     registerFakeRef('r6', false);
-    expect(() => createSwimTimeline(robot, { x: 60, y: 0 }, 'right')).not.toThrow();
+    expect(() => createSwimTimeline(robot, { x: 60, y: 0 })).not.toThrow();
+  });
+});
+
+describe('flip removal — no scaleX anywhere in the two files that used to own it (spec §1.6)', () => {
+  it('Robot.tsx and swimAnimation.ts no longer mention scaleX', () => {
+    expect(robotSource).not.toMatch(/scaleX/i);
+    expect(swimAnimationSource).not.toMatch(/scaleX/i);
   });
 });

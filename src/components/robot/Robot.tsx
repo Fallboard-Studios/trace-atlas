@@ -27,9 +27,11 @@ interface RobotProps {
  * Handles click events and stores SVG ref for GSAP animations
  *
  * IMPORTANT: The top-level <g> has NO React-managed `transform` attribute.
- * GSAP is the single source of truth for all transforms (position, scaleX,
- * rotation) on this element. React re-renders must never overwrite GSAP's
- * SVG transform attribute, otherwise scaleX resets cause instant flips.
+ * GSAP is the single source of truth for all transforms (position, rotation)
+ * on this element. React re-renders must never overwrite GSAP's SVG
+ * transform attribute. Robots have no discernible front (Roadmap Phase 40,
+ * docs/specs/ORBITING_POLYGONS.md §1.6) and no longer mirror on direction
+ * change — only x/y and the swim tilt's rotation are GSAP-owned.
  *
  * Takes `robotId`, not the whole `Robot` object (docs/todo/backlog.md #27 follow-up, 2026-09-15)
  * — looks its own robot up directly via `useLocaleStore` (`.find()` returns the existing array
@@ -70,7 +72,6 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
       gsap.set(ref.current, {
         x: robot.position.x,
         y: robot.position.y,
-        scaleX: robot.direction === 'right' ? 1 : -1,
         transformOrigin: '50% 50%',
       });
       // isReturning: true — the robot is entering from its south-only spawn
