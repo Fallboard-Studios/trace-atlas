@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useRef } from 'react';
 
 import type { Robot } from '../../types/Robot';
 import {
@@ -14,6 +14,7 @@ import {
 } from './robotVisualHelpers';
 import { useUIStore } from '../../stores/uiStore';
 import { RobotGem, type RobotGemOrbiters } from './gem/RobotGem';
+import { useOrbiterMotion } from './gem/useOrbiterMotion';
 import { getRobotGem } from './gem/polygon';
 import { gemPalette } from './gem/gemPalette';
 import { batteryFacetContrast } from './gem/gemShading';
@@ -120,5 +121,25 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     motion: motion !== undefined,
   };
 
-  return <RobotGem gem={gem} palette={palette} lightOpacity={lightOpacity} scale={ignoreScale ? 1 : audio.scale} orbiters={orbiters} />;
+  const gemRef = useRef<SVGGElement>(null);
+  useOrbiterMotion({
+    root: gemRef,
+    robotId: robot.id,
+    context: motion ?? 'world',
+    gem,
+    plan,
+    dials: composition,
+    enabled: motion !== undefined,
+  });
+
+  return (
+    <RobotGem
+      ref={gemRef}
+      gem={gem}
+      palette={palette}
+      lightOpacity={lightOpacity}
+      scale={ignoreScale ? 1 : audio.scale}
+      orbiters={orbiters}
+    />
+  );
 });

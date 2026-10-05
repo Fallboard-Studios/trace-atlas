@@ -25,6 +25,7 @@ vi.mock('@/components/ui/controls/RadioButton', async (importOriginal) => {
 
 import { RobotDisplaySection } from './RobotDisplaySection';
 import { getRobotGem } from './gem/polygon';
+import { gemMotionViewBox } from './gem/orbiterMotion';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -81,16 +82,23 @@ describe('RobotDisplaySection', () => {
     expect(quads).toHaveLength(getRobotGem(20261004).top.pts.length);
   });
 
-  it.each([1, 2])('frames a width-factor-%s robot to its own canvas at scale 1, letterboxed (Phase 39 Task 8)', (factor) => {
+  it.each([1, 2])('frames a width-factor-%s robot to its own motion-padded canvas at scale 1 (Phase 40 Task 12)', (factor) => {
     let seed = 0;
     while (getRobotGem(seed).widthFactor !== factor) seed++;
     const robot = makeRobot({ gemSeed: seed, octaveRange: [1, 3], audioAttributes: { adsr: { attack: 0, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine' } });
     useLocaleStore.getState().addRobot(localeId, robot);
     const { container } = render(<RobotDisplaySection robot={robot} />);
     const avatar = container.querySelector('svg.robot-display-section__avatar')!;
-    expect(avatar.getAttribute('viewBox')).toBe(`0 0 ${80 * factor} 80`);
+    expect(avatar.getAttribute('viewBox')).toBe(gemMotionViewBox(getRobotGem(seed)));
     expect(avatar.getAttribute('preserveAspectRatio')).toBe('xMidYMid meet');
     expect(avatar.querySelector('g.gem')!.getAttribute('transform')).toContain('scale(1)');
+  });
+
+  it('the avatar shows motion — a front depth copy is present (Phase 40 Task 12)', () => {
+    const robot = makeRobot();
+    useLocaleStore.getState().addRobot(localeId, robot);
+    const { container } = render(<RobotDisplaySection robot={robot} />);
+    expect(container.querySelector('.robot-display-section__avatar .gem__orbiter[data-depth="front"]')).not.toBeNull();
   });
 
   it('renders both Mid polygons — the layer carriers that replaced the Phase 38 sockets', () => {

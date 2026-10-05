@@ -9,6 +9,7 @@ import { gemPalette } from './gem/gemPalette';
 import { GEM_FACET_CONTRAST } from './gem/gemShading';
 import { orbiterPlan } from './gem/orbiterMotion';
 import { useUIStore } from '@/stores/uiStore';
+import { timelineMap, killAllTimelines } from '@/animation/timelineMap';
 import type { Robot } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 
@@ -299,6 +300,17 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
       (['behind', 'rest', 'front'] as const).forEach((depth) => {
         expect(container.querySelectorAll(`.gem__orbiter[data-depth="${depth}"]`)).toHaveLength(4);
       });
+    });
+
+    it('motion="world" registers orbiters-world-<id>; without motion, no key is registered (Phase 40 Task 12)', () => {
+      killAllTimelines();
+      render(<svg><RobotBody robot={makeRobot({ id: 'r-world' })} motion="world" /></svg>);
+      expect(timelineMap.has('orbiters-world-r-world')).toBe(true);
+      killAllTimelines();
+
+      render(<svg><RobotBody robot={makeRobot({ id: 'r-static' })} /></svg>);
+      expect(timelineMap.has('orbiters-world-r-static')).toBe(false);
+      killAllTimelines();
     });
   });
 

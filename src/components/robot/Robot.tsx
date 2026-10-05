@@ -109,7 +109,7 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
       onClick={handleClick}
       style={{ cursor: 'pointer' }}
     >
-      <RobotBody robot={robot} />
+      <RobotBody robot={robot} motion="world" />
     </g>
   );
 });
