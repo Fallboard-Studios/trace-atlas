@@ -843,6 +843,24 @@ Medians: main busy **~2110**, gem **~2396 (+14 %)**; paint **198 → 384 (+94 %)
 
 What would close it (not tested): draw each part's facets as one `<path>` per tone (and each part's lines as one path) — roughly 35–45 shapes per robot, the old count. Exact-fill merging is invisible but saves little (few facets share a rounded tone); quantizing to ~3–4 tones per part changes the look slightly. Decision for Crawford.
 
+### Follow-up — merged paths and quantized tones (Tasks 9a/9b, 2026-10-05)
+
+Crawford chose merging into paths. Task 9a (`975c2786`) draws each part's facets as one `<path>` per fill and its lines as one path; Task 9b (`4a8bc274`) adds `quantizeShade` / `GEM_FACET_TONES`, shipped at 0 (off). Same method, same pinned world, same `main` build; variants built from HEAD with the constant patched (never committed). Three rounds, order rotated.
+
+| Build | main busy (ms) | Paint (ms) | Layout (ms) | Shapes / robot (render) |
+|---|---|---|---|---|
+| main | 2058 · 2100 · 2131 | 190 · 202 · 194 | 118–122 | ~35 |
+| merge only (HEAD, tones off) | 2544 · 2600 · 2507 | 418 · 453 · 423 | 227–241 | 73–84 |
+| 4 tones | 2200 · 2404 · 2200 | 285 · 320 · 278 | 155–170 | 47 |
+| 3 tones | 2226 · 2224 · 2201 | 266 · 257 · 260 | 144–147 | 39–40 |
+| 3 tones, no facet strokes (1 run) | 2217 | 252 | 145 | 39–40 |
+
+- **Merging alone is worse than not merging** (paint ~423 vs ~384 for Task 8's separate polygons; busy ~2544 vs ~2396): fewer elements, but stroked multi-subpath paths cost more per element. It only pays off with quantized tones, which collapse the paths. If tones stay off, Task 9a should be reverted.
+- **3 tones** brings the gem robots to busy **+6 %** / paint **+34 %** over main (from +14 % / +94 %) — most of the gap, still outside the strict noise band. Facet strokes are not worth cutting on top (252 vs 260).
+- Visually (real `RobotGem` + `gemPalette` render, 6 robots × per-edge / 4 / 3 tones): the tone steps barely register at world scale and not at all at 64 px. The sketch has a matching "Facet tones" selector.
+
+Decision for Crawford: ship 3 tones and accept the residual, or keep the strict gate and look further (the residual is paint per element — face, lines and lights are now a larger share).
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

@@ -44,6 +44,7 @@
   <label>Facet contrast <input type="range" id="contrast" min="0" max="40" step="2" value="20" /> <span id="contrastv">20</span></label>
   <label><input type="checkbox" id="showBoxes" /> show boxes</label>
   <label><input type="checkbox" id="allLit" /> all Mids lit</label>
+  <label title="Phase 39 Task 9b: fewer facet tones so facets merge into fewer paths (idle-paint cost tracks element count)">Facet tones <select id="tones"><option value="0">per edge (shipped)</option><option value="4">4</option><option value="3">3</option></select></label>
 </div>
 
 <h2>The 12, at 64 px (card)</h2>
@@ -180,6 +181,8 @@ function inside(pt, pts) {
     if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) ok = !ok;
   } return ok;
 }
+// Same as src/components/robot/gem/gemShading.ts quantizeShade: k levels including both extremes; k < 2 = off.
+function quantize(shade, k) { if (!k || k < 2) return shade; const s = k - 1; return (2 * Math.round(((shade + 1) / 2) * s) - s) / s; }
 const LIGHT = (() => { const l = [-0.55, -0.83]; const k = Math.hypot(...l); return [l[0] / k, l[1] / k]; })();
 
 /** Boundary line: edge→edge on the inner polygon, 0/45/90 segments, never touching the facet. */
@@ -255,7 +258,7 @@ function renderPart(part, robot, opt, R) {
   const lightK = opt.contrast; const dim = midLit ? -14 : part.role === 'mid' ? -4 : 0;
   const toneOf = (shade) => midLit ? tone(robot.color, -16 + shade * lightK * .7, -18) : part.role === 'mid' ? tone(MID_DARK, shade * lightK * .5) : tone(robot.color, shade * lightK);
   for (let i = 0; i < outer.length; i++) {
-    const j = (i + 1) % outer.length; const shade = N[i][0] * LIGHT[0] + N[i][1] * LIGHT[1];
+    const j = (i + 1) % outer.length; const shade = quantize(N[i][0] * LIGHT[0] + N[i][1] * LIGHT[1], opt.tones);
     g.push(`<polygon points="${ptsStr([outer[i], outer[j], inner[j], inner[i]])}" fill="${toneOf(shade)}" stroke="${toneOf(-1)}" stroke-width=".25" stroke-linejoin="round"/>`);
   }
   g.push(`<polygon points="${ptsStr(inner)}" fill="${base}" stroke="none"/>`);
@@ -290,7 +293,7 @@ function stats(robot) {
 // ---------- page ----------
 let seedN = 0;
 function opts() {
-  return { bevel: +document.getElementById('bevel').value, contrast: +document.getElementById('contrast').value, boxes: document.getElementById('showBoxes').checked, allLit: document.getElementById('allLit').checked };
+  return { bevel: +document.getElementById('bevel').value, contrast: +document.getElementById('contrast').value, boxes: document.getElementById('showBoxes').checked, allLit: document.getElementById('allLit').checked, tones: +document.getElementById('tones').value };
 }
 function build() {
   const seed = document.getElementById('seed').value; const o = opts();
@@ -313,7 +316,7 @@ function build() {
 }
 document.getElementById('regen').onclick = build;
 document.getElementById('next').onclick = () => { document.getElementById('seed').value = 'pelagos-' + (++seedN); build(); };
-for (const id of ['bevel', 'contrast', 'showBoxes', 'allLit']) document.getElementById(id).oninput = () => {
+for (const id of ['bevel', 'contrast', 'showBoxes', 'allLit', 'tones']) document.getElementById(id).oninput = () => {
   document.getElementById('bevelv').textContent = document.getElementById('bevel').value;
   document.getElementById('contrastv').textContent = document.getElementById('contrast').value;
   build();
