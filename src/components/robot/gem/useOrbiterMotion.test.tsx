@@ -392,9 +392,10 @@ function depthOf(container: HTMLElement, corner: number): 'behind' | 'rest' | 'f
   throw new Error(`corner ${corner} has no visible copy`);
 }
 
-/** The orbit proxy tween targets a plain `{ t: 0 }` object, unlike drift's DOM-element targets. */
+/** The orbit proxy tween targets a plain `{ t: 0 }` object — distinct from drift's DOM-element
+ *  targets and from the Task 11 size tween's NodeList target (neither has a `t` key). */
 function findProxyTweens() {
-  return toCalls.filter((c) => typeof c.target === 'object' && c.target !== null && !('style' in (c.target as object)) && 'duration' in c.vars);
+  return toCalls.filter((c) => typeof c.target === 'object' && c.target !== null && 't' in (c.target as object) && 'duration' in c.vars);
 }
 
 function pairIndexOf(corner: number): number {
@@ -775,5 +776,108 @@ describe('useOrbiterMotion — count changes: spawn/despawn arcs and the queue (
     const fade = toCalls.find((c) => c.target === rest && c.vars.duration === 0.3);
     expect(fade).toBeDefined();
     expect(fade!.vars.opacity).toBe(1);
+  });
+});
+
+// ========================================
+// Task 11: size tween and live dial refs
+// ========================================
+function allLocalEls(container: HTMLElement): HTMLElement[] {
+  return [...container.querySelectorAll('.gem__orbiter-local')] as HTMLElement[];
+}
+
+function sizeTweenCalls() {
+  return toCalls.filter((c) => Array.isArray(c.target) && 'scale' in c.vars && c.vars.duration !== undefined && c.vars.ease === 'power2.out');
+}
+
+describe('useOrbiterMotion — size tween and live dial refs (spec §1.4, Task 11)', () => {
+  beforeEach(() => {
+    setCalls.length = 0;
+    toCalls.length = 0;
+    createdTimelines.length = 0;
+    nextOrbitQueue = [];
+    killAllTimelines();
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('a size change tweens scale over 0.5s, power2.out, on every local group — shown and hidden', () => {
+    const { rerender, container } = render(<Harness dials={dials({ count: 2, size: 1.0 })} />);
+    const locals = allLocalEls(container);
+    expect(locals).toHaveLength(12); // motion: true always renders all 4 corners x 3 depth copies
+    toCalls.length = 0; // mount itself fires a size tween (1.0) — isolate the change under test
+
+    rerender(<Harness dials={dials({ count: 2, size: 1.25 })} />);
+
+    const calls = sizeTweenCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0].vars).toMatchObject({ scale: 1.25, duration: 0.5, ease: 'power2.out' });
+    expect([...(calls[0].target as HTMLElement[])].sort()).toEqual([...locals].sort());
+  });
+
+  it('registers the size tween under orbiter-size-${context}-${robotId}', () => {
+    const { rerender } = render(<Harness robotId="r-size" context="avatar" dials={dials({ size: 1.0 })} />);
+    rerender(<Harness robotId="r-size" context="avatar" dials={dials({ size: 0.9 })} />);
+    expect(timelineMap.has('orbiter-size-avatar-r-size')).toBe(true);
+  });
+
+  it('a second size change re-targets the same key rather than stacking a second tween', () => {
+    const KEY = 'orbiter-size-world-r1';
+    const { rerender } = render(<Harness dials={dials({ size: 1.0 })} />);
+    toCalls.length = 0; // mount itself fires a size tween (1.0) — isolate the two changes under test
+    rerender(<Harness dials={dials({ size: 1.1 })} />);
+    const firstTween = timelineMap.get(KEY);
+    rerender(<Harness dials={dials({ size: 1.2 })} />);
+    const secondTween = timelineMap.get(KEY);
+    expect(sizeTweenCalls()).toHaveLength(2); // two distinct gsap.to calls were made...
+    expect(firstTween).not.toBe(secondTween); // ...but the key holds only the latest one
+    expect(sizeTweenCalls()[1].vars.scale).toBe(1.2);
+  });
+
+  it('reduced motion: scale is set with duration 0', () => {
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    const { rerender } = render(<Harness dials={dials({ size: 1.0 })} />);
+    toCalls.length = 0; // mount itself fires a size tween (1.0, duration 0) — isolate the change under test
+    rerender(<Harness dials={dials({ size: 1.3 })} />);
+    const calls = sizeTweenCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0].vars).toMatchObject({ scale: 1.3, duration: 0 });
+  });
+
+  it('a duration edit while an orbit runs leaves that orbit\'s own duration unchanged, but the next orbit drawn after it uses the new value', () => {
+    nextOrbitQueue = [{ dir: 1, open: 0, wait: 5 }, { dir: 1, open: 0, wait: 999 }];
+    vi.useFakeTimers();
+    const plan = orbiterPlan(GEM_SEED);
+    const { rerender } = render(<Harness dials={dials({ count: 1, orbitGap: 5, orbitDuration: 4 })} />);
+    const waitMs = plan.initialWait[pairIndexOf(plan.cornerOrder[0])] * 5 * 1000;
+    act(() => { vi.advanceTimersByTime(waitMs + 10); });
+    expect(findProxyTweens()).toHaveLength(1);
+    const runningTween = findProxyTweens()[0];
+    expect(runningTween.vars.duration).toBe(4); // the orbit already in flight keeps its own duration
+
+    act(() => {
+      rerender(<Harness dials={dials({ count: 1, orbitGap: 5, orbitDuration: 9 })} />);
+    });
+    expect(runningTween.tween.kill).not.toHaveBeenCalled(); // the in-flight orbit is untouched
+    expect(runningTween.vars.duration).toBe(4); // still 4 — unaffected by the dial edit
+
+    act(() => { runningTween.tween.progress(1); }); // completes -> schedules the next wait (5s, from this draw)
+    act(() => { vi.advanceTimersByTime(5100); }); // that wait elapses -> the next nextOrbit draw happens
+    expect(findProxyTweens()).toHaveLength(2);
+    expect(findProxyTweens()[1].vars.duration).toBe(9); // the new orbit reads the updated orbitDuration
+    vi.useRealTimers();
   });
 });

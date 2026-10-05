@@ -2,9 +2,9 @@
 // useOrbiterMotion (docs/specs/ORBITING_POLYGONS.md §1.4)
 // ========================================
 // GSAP-owned motion for a robot's orbiters: mount state, drift and reduced motion (Task 8); the
-// pair orbit scheduler (Task 9); count-change spawn/despawn arcs and the queue (Task 10). The size
-// tween (Task 11) lands in a later commit. GSAP timelines only ever trigger semantic state — this
-// hook never reads Zustand or calls AudioEngine.
+// pair orbit scheduler (Task 9); count-change spawn/despawn arcs and the queue (Task 10); the size
+// tween and live dial refs (Task 11). GSAP timelines only ever trigger semantic state — this hook
+// never reads Zustand or calls AudioEngine.
 
 // ========================================
 // IMPORTS
@@ -54,8 +54,10 @@ type Depth = (typeof DEPTHS)[number];
 
 /** Retry delay for a pair whose member is mid-arc when its orbit would otherwise start. */
 const ORBIT_RETRY = 0.5;
-/** Reduced-motion count-change fade duration — also Task 11's size-tween fade constant. */
+/** Reduced-motion count-change fade duration (spawn/despawn). */
 const ORBITER_FADE = 0.3;
+/** Size-dial tween duration — 0 under reduced motion (a snap, not a glide). */
+const ORBITER_SIZE_TWEEN = 0.5;
 
 // ========================================
 // HELPERS
@@ -120,6 +122,21 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
     targetCountRef.current = dials.count;
     reconcileRef.current();
   }, [dials.count]);
+
+  // Size tween — every local group (shown and hidden, so a later spawn is already the right
+  // size), keyed so a second change re-targets rather than stacking a second tween.
+  useGSAP(
+    () => {
+      if (!enabled || !root.current) return;
+      const locals = [...root.current.querySelectorAll<SVGGElement>('.gem__orbiter-local')];
+      if (!locals.length) return;
+      const key = `orbiter-size-${context}-${robotId}`;
+      const tween = gsap.to(locals, { scale: dials.size, duration: reducedMotion ? 0 : ORBITER_SIZE_TWEEN, ease: 'power2.out' });
+      setTimeline(key, tween as unknown as ReturnType<typeof gsap.timeline>);
+      return () => killTimeline(key);
+    },
+    { scope: root, dependencies: [dials.size, enabled, reducedMotion], revertOnUpdate: true },
+  );
 
   useGSAP(
     () => {
