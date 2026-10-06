@@ -16,14 +16,15 @@ import { quadPath } from './gemPaths';
 // ========================================
 const gem = getRobotGem(20261004);
 const palette = gemPalette(gem, '#41ad9f', 1, [1, 0.15], 20);
+// Phase 40 amendment: orbiters dock between Mid and Top, not between backing and Mid.
 const parts: Array<[string, GemPart]> = [
   ['backing', gem.backing],
+  ['mid--left', gem.midLeft],
+  ['mid--right', gem.midRight],
   ['orbiter', gem.orbiters[0]],
   ['orbiter', gem.orbiters[1]],
   ['orbiter', gem.orbiters[2]],
   ['orbiter', gem.orbiters[3]],
-  ['mid--left', gem.midLeft],
-  ['mid--right', gem.midRight],
   ['top', gem.top],
 ];
 
@@ -55,13 +56,13 @@ const fmt = (n: number) => Number(n.toFixed(2));
 const subpaths = (d: string) => d.split('Z').map((s) => s.trim()).filter(Boolean);
 /** Palette entry for parts[i] (0 = backing, which has no facets). */
 const paintOf = (i: number): GemPartPaint =>
-  [palette.orbiters[0], palette.orbiters[0], palette.orbiters[1], palette.orbiters[2], palette.orbiters[3], palette.midLeft, palette.midRight, palette.top][i];
+  [palette.orbiters[0], palette.midLeft, palette.midRight, palette.orbiters[0], palette.orbiters[1], palette.orbiters[2], palette.orbiters[3], palette.top][i];
 
 // ========================================
 // TESTS
 // ========================================
 describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.5, ORBITING_POLYGONS.md §1.3)', () => {
-  it('draws the parts in z order: backing, four orbiters, mid--left, mid--right, top', () => {
+  it('draws the parts in z order: backing, mid--left, mid--right, four orbiters, top', () => {
     const groups = partGroups(draw());
     expect(groups).toHaveLength(8);
     groups.forEach((g, i) => {
@@ -105,7 +106,7 @@ describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.
   });
 
   it('boundary lines: one .gem__lines path per part holding top 4, mids 2, orbiters 1 lines; none on the backing', () => {
-    const want = [0, 1, 1, 1, 1, 2, 2, 4];
+    const want = [0, 2, 2, 1, 1, 1, 1, 4];
     partGroups(draw()).forEach((g, i) => {
       const paths = g.querySelectorAll('.gem__lines');
       expect(paths).toHaveLength(want[i] ? 1 : 0);
@@ -139,7 +140,7 @@ describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.
 
   it('a palette change reaches the matching elements (mid--left facets follow palette.midLeft)', () => {
     const groups = partGroups(draw());
-    const fills = [...groups[5].querySelectorAll('.gem__facets')].map((f) => f.getAttribute('fill'));
+    const fills = [...groups[1].querySelectorAll('.gem__facets')].map((f) => f.getAttribute('fill'));
     expect(fills).toEqual([...new Set(palette.midLeft.facets)]);
     expect(groups[7].querySelector('.gem__face')!.getAttribute('fill')).toBe(palette.top.face);
   });
@@ -153,7 +154,7 @@ describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.
   it('drawable element count is exactly Σ(distinct facet fills + face + one lines path + one strip path per shown orbiter) + 2 circles per light', () => {
     const container = draw();
     const drawn = container.querySelectorAll('polygon, polyline, path, circle').length;
-    const bevelled = [...gem.orbiters, gem.midLeft, gem.midRight, gem.top];
+    const bevelled = [gem.midLeft, gem.midRight, ...gem.orbiters, gem.top];
     const expected =
       1 + // backing face
       bevelled.reduce((n, p, i) => n + new Set(paintOf(i + 1).facets).size + 1 + (p.lines.length ? 1 : 0), 0) +
@@ -177,7 +178,7 @@ describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.
 // ORBITER DIALS — static (motion: false) path, Task 5
 // ========================================
 describe('RobotGem — static orbiters: count, cornerOrder, size, line width, strip (spec §1.3, Task 5)', () => {
-  it('count 2, cornerOrder [3, 0, 1, 2] renders exactly .gem__orbiter--br and --tl, in that DOM order, between backing and mid--left, both data-depth=rest', () => {
+  it('count 2, cornerOrder [3, 0, 1, 2] renders exactly .gem__orbiter--br and --tl, in that DOM order, between mid--right and top (Phase 40 amendment: docked, not between backing and mid)', () => {
     const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, count: 2, cornerOrder: [3, 0, 1, 2] });
     const root = container.querySelector('g.gem')!;
     const orbiterWrappers = [...root.querySelectorAll(':scope > .gem__orbiter')];
@@ -185,15 +186,14 @@ describe('RobotGem — static orbiters: count, cornerOrder, size, line width, st
       'gem__orbiter gem__orbiter--br',
       'gem__orbiter gem__orbiter--tl',
     ]);
-    orbiterWrappers.forEach((g) => expect(g.getAttribute('data-depth')).toBe('rest'));
 
     const children = [...root.children];
-    const backingIndex = children.findIndex((c) => c.classList.contains('gem__backing'));
-    const midLeftIndex = children.findIndex((c) => c.classList.contains('gem__mid--left'));
+    const midRightIndex = children.findIndex((c) => c.classList.contains('gem__mid--right'));
+    const topIndex = children.findIndex((c) => c.classList.contains('gem__top'));
     const orbiterIndices = children
       .map((c, i) => (c.classList.contains('gem__orbiter') ? i : -1))
       .filter((i) => i >= 0);
-    expect(orbiterIndices.every((i) => i > backingIndex && i < midLeftIndex)).toBe(true);
+    expect(orbiterIndices.every((i) => i > midRightIndex && i < topIndex)).toBe(true);
   });
 
   it.each([1, 2, 3, 4] as const)('count %d shows the first %d corners of cornerOrder, no more', (count) => {
@@ -262,49 +262,39 @@ describe('RobotGem — static orbiters: count, cornerOrder, size, line width, st
 });
 
 // ========================================
-// MOTION MODE — depth twins, Task 6
+// MOTION MODE — docked, GSAP-owned (Phase 40 amendment: single copy per corner, no depth twins)
 // ========================================
 const MOTION: RobotGemOrbiters = {
   lineWidth: 0.55,
   stripOpacity: 0.4,
   size: 1.1, // ignored in motion mode — no React scale
-  count: 2, // ignored in motion mode — all 12 copies present regardless
+  count: 2, // ignored in motion mode — all 4 copies present regardless
   cornerOrder: [0, 1, 2, 3],
   motion: true,
 };
 
-describe('RobotGem — motion mode: depth twins, GSAP-owned (spec §1.3, Task 6)', () => {
-  it('renders 12 .gem__orbiter (4 per depth), ignoring count and size', () => {
+describe('RobotGem — motion mode: docked orbiters, GSAP-owned (Phase 40 amendment)', () => {
+  it('renders exactly 4 .gem__orbiter (one per corner), ignoring count and size', () => {
     const container = draw(palette, 0.7, 0.9, MOTION);
     const wrappers = [...container.querySelectorAll('.gem__orbiter')];
-    expect(wrappers).toHaveLength(12);
-    (['behind', 'rest', 'front'] as const).forEach((depth) => {
-      const atDepth = wrappers.filter((w) => w.getAttribute('data-depth') === depth);
-      expect(atDepth).toHaveLength(4);
-      expect(atDepth.map((w) => w.getAttribute('class')).sort()).toEqual(
-        ['tl', 'tr', 'bl', 'br'].map((c) => `gem__orbiter gem__orbiter--${c}`).sort(),
-      );
-    });
+    expect(wrappers).toHaveLength(4);
+    expect(wrappers.map((w) => w.getAttribute('class')).sort()).toEqual(
+      ['tl', 'tr', 'bl', 'br'].map((c) => `gem__orbiter gem__orbiter--${c}`).sort(),
+    );
   });
 
-  it('DOM order: 4 behind, backing, 4 rest, mid--left, mid--right, top, 4 front', () => {
+  it('DOM order: backing, mid--left, mid--right, 4 orbiters, top', () => {
     const container = draw(palette, 0.7, 0.9, MOTION);
     const root = container.querySelector('g.gem')!;
     const roles = [...root.children].map((c) => {
-      if (c.classList.contains('gem__orbiter')) return `orbiter-${c.getAttribute('data-depth')}`;
+      if (c.classList.contains('gem__orbiter')) return 'orbiter';
       if (c.classList.contains('gem__backing')) return 'backing';
       if (c.classList.contains('gem__mid--left')) return 'mid--left';
       if (c.classList.contains('gem__mid--right')) return 'mid--right';
       if (c.classList.contains('gem__top')) return 'top';
       return 'unknown';
     });
-    expect(roles).toEqual([
-      'orbiter-behind', 'orbiter-behind', 'orbiter-behind', 'orbiter-behind',
-      'backing',
-      'orbiter-rest', 'orbiter-rest', 'orbiter-rest', 'orbiter-rest',
-      'mid--left', 'mid--right', 'top',
-      'orbiter-front', 'orbiter-front', 'orbiter-front', 'orbiter-front',
-    ]);
+    expect(roles).toEqual(['backing', 'mid--left', 'mid--right', 'orbiter', 'orbiter', 'orbiter', 'orbiter', 'top']);
   });
 
   it('no .gem__orbiter or .gem__orbiter-local carries a transform, style, display or opacity attribute; the inner corner group keeps its translate', () => {
@@ -320,7 +310,7 @@ describe('RobotGem — motion mode: depth twins, GSAP-owned (spec §1.3, Task 6)
     expect(inner.getAttribute('transform')).toBe(`translate(${fmt(part.x)} ${fmt(part.y)})`);
   });
 
-  it('each of the 12 copies has its own strip and lines with the dial attributes (T5 assertions hold per copy)', () => {
+  it('each of the 4 copies has its own strip and lines with the dial attributes (T5 assertions hold per copy)', () => {
     const container = draw(palette, 0.7, 0.9, MOTION);
     container.querySelectorAll('.gem__orbiter').forEach((wrapper) => {
       const lines = wrapper.querySelector('.gem__lines')!;
@@ -333,19 +323,18 @@ describe('RobotGem — motion mode: depth twins, GSAP-owned (spec §1.3, Task 6)
     });
   });
 
-  it('motion: false output is unchanged from Task 5 (DOM order and class list)', () => {
+  it('motion: false output is unchanged (DOM order and class list)', () => {
     const container = draw();
     const root = container.querySelector('g.gem')!;
     expect([...root.children].map((c) => c.getAttribute('class'))).toEqual([
       'gem__part gem__backing',
+      'gem__part gem__mid gem__mid--left',
+      'gem__part gem__mid gem__mid--right',
       'gem__orbiter gem__orbiter--tl',
       'gem__orbiter gem__orbiter--tr',
       'gem__orbiter gem__orbiter--bl',
       'gem__orbiter gem__orbiter--br',
-      'gem__part gem__mid gem__mid--left',
-      'gem__part gem__mid gem__mid--right',
       'gem__part gem__top',
     ]);
-    root.querySelectorAll('.gem__orbiter').forEach((w) => expect(w.getAttribute('data-depth')).toBe('rest'));
   });
 });

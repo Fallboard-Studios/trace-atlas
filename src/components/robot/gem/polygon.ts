@@ -378,7 +378,7 @@ export interface GemPart {
 export interface RobotGem {
   widthFactor: WidthFactor;
   backing: GemPart;
-  /** TL, TR, BL, BR. */
+  /** TL, TR, BL, BR — docked at Top's four corners (Phase 40 amendment), drawn between midRight and top. */
   orbiters: [GemPart, GemPart, GemPart, GemPart];
   /** Right edge on the canvas centre line; drawn below midRight. */
   midLeft: GemPart;
@@ -418,7 +418,8 @@ function makePart(R: Rng, spec: PartSpec): GemPart {
   throw new Error(`makePart: no ${w}x${h} part fit its lines/lights in ${PART_TRIES} tries`);
 }
 
-/** Every part of one robot, in draw (z) order: backing, orbiters, midLeft, midRight, top. */
+/** Every part of one robot. Draw (z) order (RobotGem.tsx): backing, midLeft, midRight, orbiters,
+ *  top — orbiters dock at Top's corners (Phase 40 amendment) and are drawn just under it. */
 export function generateRobotGem(R: Rng): RobotGem {
   const widthFactor = pick(R, WIDTH_FACTORS);
   const k = widthFactor;
@@ -426,7 +427,23 @@ export function generateRobotGem(R: Rng): RobotGem {
   const H = GEM_CANVAS_H;
 
   const backing = makePart(R, { x: (W - 25 * k) / 2, y: (H - 25) / 2, w: 25 * k, h: 25, rules: BASE_RULES, bevel: false, lines: 0, lights: 0 });
-  const corners: GemPoint[] = [[0, 0], [W - ORBITER_W, 0], [0, H - ORBITER_H], [W - ORBITER_W, H - ORBITER_H]];
+
+  // Dock corners (Phase 40 amendment: orbiters attach to the hull — docs/intent/orbiting-polygons.md
+  // amendment): straddling Top's four corners, half tucked under it, so each one reads as
+  // nestled between Top and Mid once drawn between mid--right and top (RobotGem.tsx's DOM
+  // order). `topX/topY/topW` mirror `top`'s own formula below exactly, computed early (no RNG
+  // draw — pure k/constant arithmetic) so this doesn't shift the seeded draw order any other
+  // part relies on (orbiterPlan's own stream, gem.fixture.json's byte-identical pts/lines/lights).
+  const topX = (W - 32 * k) / 2;
+  const topY = (H - 32) / 2;
+  const topW = 32 * k;
+  const topH = 32;
+  const corners: GemPoint[] = [
+    [topX - ORBITER_W / 2, topY], // tl
+    [topX + topW - ORBITER_W / 2, topY], // tr
+    [topX - ORBITER_W / 2, topY + topH - ORBITER_H], // bl
+    [topX + topW - ORBITER_W / 2, topY + topH - ORBITER_H], // br
+  ];
   const [tl, tr, bl, br] = corners.map(([x, y]) =>
     makePart(R, { x, y, w: ORBITER_W, h: ORBITER_H, rules: ORBIT_RULES, bevel: true, lines: 1, lights: 0 }),
   );
@@ -436,7 +453,7 @@ export function generateRobotGem(R: Rng): RobotGem {
   const rightW = range(R, 20, 24) * k;
   const rightH = range(R, 34, 36);
   const midRight = makePart(R, { x: W / 2, y: (H - rightH) / 2, w: rightW, h: rightH, rules: MAIN_RULES, bevel: true, lines: 2, lights: 0 });
-  const top = makePart(R, { x: (W - 32 * k) / 2, y: (H - 32) / 2, w: 32 * k, h: 32, rules: MAIN_RULES, bevel: true, lines: 4, lights: 2 });
+  const top = makePart(R, { x: topX, y: topY, w: topW, h: topH, rules: MAIN_RULES, bevel: true, lines: 4, lights: 2 });
 
   return { widthFactor, backing, orbiters: [tl, tr, bl, br], midLeft, midRight, top };
 }

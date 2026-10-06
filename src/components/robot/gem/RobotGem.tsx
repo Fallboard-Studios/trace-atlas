@@ -12,9 +12,10 @@ import { facetPaths, linesPath } from './gemPaths';
 // ========================================
 /** The orbiter dials and seeded layout RobotBody computes (docs/specs/ORBITING_POLYGONS.md §1.3).
  *  `motion: false` (cards) renders the first `count` corners of `cornerOrder`, statically, at
- *  `scale(size)`. `motion: true` (world/avatar) renders all four corners as three depth copies
- *  each (behind/rest/front), ignoring `count` and `size` — `useOrbiterMotion` (Task 8) owns which
- *  copy is shown and its transform. */
+ *  `scale(size)`. `motion: true` (world/avatar) renders all four corners, one copy each, ignoring
+ *  `count` and `size` — `useOrbiterMotion` owns which copy is shown (attached) and its transform
+ *  (Phase 40 amendment: no more depth copies — orbiters dock on the hull, they no longer pass in front of or
+ *  behind it). */
 export interface RobotGemOrbiters {
   lineWidth: number;
   stripOpacity: number;
@@ -116,17 +117,16 @@ function BevelledPart({ part, paint, className, lightOpacity, lightColor, lineWi
 }
 
 /**
- * One orbiter copy. Static (`motion: false`, cards): a single `[data-depth=rest]` copy at
- * `scale(size)` about its own centre, React-owned. Animated (`motion: true`): one of three copies
- * (behind/rest/front) with no transform/style on either outer group — `useOrbiterMotion`'s GSAP
- * `gsap.set` is the only writer of their position, scale, opacity and display (Task 8).
+ * One orbiter copy. Static (`motion: false`, cards): at `scale(size)` about its own centre,
+ * React-owned. Animated (`motion: true`): no transform/style on either outer group —
+ * `useOrbiterMotion`'s GSAP `gsap.set` is the only writer of position, scale, opacity and display
+ * (the attach/detach flight).
  */
-function OrbiterCopy({ gem, palette, orbiters, corner, depth, motion }: {
+function OrbiterCopy({ gem, palette, orbiters, corner, motion }: {
   gem: RobotGemGeometry;
   palette: GemPalette;
   orbiters: RobotGemOrbiters;
   corner: number;
-  depth: 'behind' | 'rest' | 'front';
   motion: boolean;
 }) {
   const part = gem.orbiters[corner];
@@ -134,7 +134,7 @@ function OrbiterCopy({ gem, palette, orbiters, corner, depth, motion }: {
   const cy = r2(part.y + part.h / 2);
   const localProps = motion ? {} : { transform: `scale(${r2(orbiters.size)})`, style: { transformOrigin: `${cx}px ${cy}px` } };
   return (
-    <g className={`gem__orbiter gem__orbiter--${ORBITER_CORNERS[corner]}`} data-depth={depth}>
+    <g className={`gem__orbiter gem__orbiter--${ORBITER_CORNERS[corner]}`}>
       <g className="gem__orbiter-local" {...localProps}>
         <BevelledPart
           part={part}
@@ -155,8 +155,9 @@ const ALL_CORNERS = [0, 1, 2, 3] as const;
 // ========================================
 /**
  * RobotGem — draw-only memo for a gem polygon robot (Roadmap Phase 39/40). Z order is DOM order:
- * backing, shown orbiters, mid--left, mid--right, top. Geometry from getRobotGem, colours from
- * gemPalette, orbiter dials/layout from RobotBody; nothing here derives any of them.
+ * backing, mid--left, mid--right, docked orbiters, top — orbiters sit nestled between Mid and Top
+ * (Phase 40 amendment). Geometry from getRobotGem, colours from gemPalette, orbiter dials/layout from
+ * RobotBody; nothing here derives any of them.
  */
 export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, scale, orbiters, ref }: RobotGemProps) {
   const cx = gemWidth(gem) / 2;
@@ -166,10 +167,6 @@ export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, sca
 
   return (
     <g ref={ref} className="gem" transform={`translate(${cx} ${cy}) scale(${scale}) translate(${-cx} ${-cy})`}>
-      {orbiters.motion &&
-        ALL_CORNERS.map((corner) => (
-          <OrbiterCopy key={`behind-${ORBITER_CORNERS[corner]}`} gem={gem} palette={palette} orbiters={orbiters} corner={corner} depth="behind" motion />
-        ))}
       <g className="gem__part gem__backing" transform={`translate(${r2(backing.x)} ${r2(backing.y)})`}>
         <polygon
           className="gem__face"
@@ -179,15 +176,15 @@ export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, sca
           strokeWidth={BACKING_STROKE_WIDTH}
         />
       </g>
-      {orbiters.motion
-        ? ALL_CORNERS.map((corner) => (
-            <OrbiterCopy key={`rest-${ORBITER_CORNERS[corner]}`} gem={gem} palette={palette} orbiters={orbiters} corner={corner} depth="rest" motion />
-          ))
-        : shownCorners.map((corner) => (
-            <OrbiterCopy key={ORBITER_CORNERS[corner]} gem={gem} palette={palette} orbiters={orbiters} corner={corner} depth="rest" motion={false} />
-          ))}
       <BevelledPart part={gem.midLeft} paint={palette.midLeft} className="gem__mid gem__mid--left" lineWidth={BODY_LINE_WIDTH} />
       <BevelledPart part={gem.midRight} paint={palette.midRight} className="gem__mid gem__mid--right" lineWidth={BODY_LINE_WIDTH} />
+      {orbiters.motion
+        ? ALL_CORNERS.map((corner) => (
+            <OrbiterCopy key={ORBITER_CORNERS[corner]} gem={gem} palette={palette} orbiters={orbiters} corner={corner} motion />
+          ))
+        : shownCorners.map((corner) => (
+            <OrbiterCopy key={ORBITER_CORNERS[corner]} gem={gem} palette={palette} orbiters={orbiters} corner={corner} motion={false} />
+          ))}
       <BevelledPart
         part={gem.top}
         paint={palette.top}
@@ -196,10 +193,6 @@ export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, sca
         lightColor={palette.light}
         lineWidth={BODY_LINE_WIDTH}
       />
-      {orbiters.motion &&
-        ALL_CORNERS.map((corner) => (
-          <OrbiterCopy key={`front-${ORBITER_CORNERS[corner]}`} gem={gem} palette={palette} orbiters={orbiters} corner={corner} depth="front" motion />
-        ))}
     </g>
   );
 });

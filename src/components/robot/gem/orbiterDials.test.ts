@@ -10,10 +10,6 @@ import {
   ORBITER_SIZE_MAX,
   ORBITER_LINE_BASE,
   ORBITER_STRIP_OPACITY_MIN,
-  ORBIT_GAP_BASE,
-  ORBIT_GAP_PER_OCTAVE,
-  ORBIT_DURATION_BASE,
-  ORBIT_DURATION_PER_OCTAVE,
   type OrbiterDialsInput,
 } from './orbiterDials';
 
@@ -21,11 +17,7 @@ import {
 // FIXTURES
 // ========================================
 function robotFixture(overrides: Partial<OrbiterDialsInput> = {}): OrbiterDialsInput {
-  return {
-    octaveRange: [1, 7],
-    audioAttributes: {},
-    ...overrides,
-  };
+  return { ...overrides };
 }
 
 // ========================================
@@ -103,61 +95,6 @@ describe('orbiterDials — strip opacity (Pitch Repeat, intent table row "Line l
   });
 });
 
-describe('orbiterDials — orbit gap (min octave, intent table row "Gap between orbits")', () => {
-  it.each([
-    [1, 8.5],
-    [7, 14.5],
-  ])('min octave %d → gap %d s', (minOctave, gap) => {
-    expect(orbiterDials(robotFixture({ octaveRange: [minOctave, minOctave] })).orbitGap).toBeCloseTo(gap, 10);
-  });
-
-  it('base/per-octave constants match the post-Checkpoint-C correction (orbits roughly twice as frequent)', () => {
-    expect(ORBIT_GAP_BASE).toBe(7.5);
-    expect(ORBIT_GAP_PER_OCTAVE).toBe(1);
-  });
-});
-
-describe('orbiterDials — orbit duration (max octave, Gate 1 correction)', () => {
-  it.each([
-    [1, 4],
-    [7, 8],
-  ])('max octave %d → duration %d s', (maxOctave, duration) => {
-    expect(orbiterDials(robotFixture({ octaveRange: [maxOctave, maxOctave] })).orbitDuration).toBeCloseTo(duration, 10);
-  });
-
-  it('base/per-octave constants match the Gate 1 numbers (4 + (max - 1) * 2/3)', () => {
-    expect(ORBIT_DURATION_BASE).toBe(4);
-    expect(ORBIT_DURATION_PER_OCTAVE).toBeCloseTo(2 / 3, 10);
-  });
-});
-
-describe('orbiterDials — octave range [2, 5] (Task 2 acceptance example)', () => {
-  it('gives gap 9.5 s and duration 6.67 s', () => {
-    const dials = orbiterDials(robotFixture({ octaveRange: [2, 5] }));
-    expect(dials.orbitGap).toBeCloseTo(9.5, 10);
-    expect(dials.orbitDuration).toBeCloseTo(6.67, 2);
-  });
-});
-
-describe('orbiterDials — audioAttributes.octaveRange wins over robot.octaveRange', () => {
-  it('uses audioAttributes.octaveRange when present', () => {
-    const dials = orbiterDials(
-      robotFixture({
-        octaveRange: [1, 1],
-        audioAttributes: { octaveRange: [2, 5] },
-      })
-    );
-    expect(dials.orbitGap).toBeCloseTo(9.5, 10);
-    expect(dials.orbitDuration).toBeCloseTo(6.67, 2);
-  });
-
-  it('falls back to robot.octaveRange when audioAttributes.octaveRange is absent', () => {
-    const dials = orbiterDials(robotFixture({ octaveRange: [2, 5] }));
-    expect(dials.orbitGap).toBeCloseTo(9.5, 10);
-    expect(dials.orbitDuration).toBeCloseTo(6.67, 2);
-  });
-});
-
 describe('orbiterDials — every field undefined (melody defaults)', () => {
   it('matches the melody generator defaults', () => {
     const dials = orbiterDials(robotFixture());
@@ -165,6 +102,10 @@ describe('orbiterDials — every field undefined (melody defaults)', () => {
     expect(dials.size).toBeCloseTo(1.25, 10); // DEFAULT_RHYTHMIC_MOTIF_LENGTH.value 8
     expect(dials.lineWidth).toBeCloseTo(0.3, 10); // DEFAULT_NOTE_VARIANCE.value 0
     expect(dials.stripOpacity).toBeCloseTo(0.35, 10); // DEFAULT_PITCH_REPEAT 0
+  });
+
+  it('has exactly four fields — no orbit-timing dials (Phase 40 amendment: docking has no speed)', () => {
+    expect(Object.keys(orbiterDials(robotFixture())).sort()).toEqual(['count', 'lineWidth', 'size', 'stripOpacity']);
   });
 });
 
@@ -184,11 +125,5 @@ describe('orbiterDials — out-of-range inputs clamp to the constant ranges', ()
 
   it('clamps pitchRepeat above 100', () => {
     expect(orbiterDials(robotFixture({ pitchRepeat: 200 })).stripOpacity).toBeCloseTo(1.0, 10);
-  });
-
-  it('clamps octaveRange values outside 1..7', () => {
-    const dials = orbiterDials(robotFixture({ octaveRange: [0, 10] }));
-    expect(dials.orbitGap).toBeCloseTo(8.5, 10); // min clamps to 1
-    expect(dials.orbitDuration).toBeCloseTo(8, 10); // max clamps to 7
   });
 });

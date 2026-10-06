@@ -129,32 +129,31 @@ describe('generateRobotGem — layout (docs/specs/GEM_POLYGON_ROBOTS.md §1.1, G
     })).toEqual([]);
   });
 
-  it('places backing and top centred, mids flush to the centre line and centred vertically, orbiters in the corners', () => {
+  it('places backing and top centred, mids flush to the centre line and centred vertically, orbiters docked at Top\'s four corners (Phase 40 amendment)', () => {
     expect(collect((p, name, g) => {
       const W = gemWidth(g);
       const H = GEM_CANVAS_H;
       const centred = (q: GemPart) => Math.abs(q.x + q.w / 2 - W / 2) < EPS && Math.abs(q.y + q.h / 2 - H / 2) < EPS;
+      const top = g.top;
       const ok =
         name === 'backing' || name === 'top' ? centred(p)
         : name === 'midLeft' ? Math.abs(p.x + p.w - W / 2) < EPS && Math.abs(p.y + p.h / 2 - H / 2) < EPS
         : name === 'midRight' ? Math.abs(p.x - W / 2) < EPS && Math.abs(p.y + p.h / 2 - H / 2) < EPS
-        : name === 'orbiterTL' ? p.x === 0 && p.y === 0
-        : name === 'orbiterTR' ? Math.abs(p.x - (W - 24)) < EPS && p.y === 0
-        : name === 'orbiterBL' ? p.x === 0 && p.y === H - 16
-        : Math.abs(p.x - (W - 24)) < EPS && p.y === H - 16;
+        : name === 'orbiterTL' ? Math.abs(p.x - (top.x - 24 / 2)) < EPS && Math.abs(p.y - top.y) < EPS
+        : name === 'orbiterTR' ? Math.abs(p.x - (top.x + top.w - 24 / 2)) < EPS && Math.abs(p.y - top.y) < EPS
+        : name === 'orbiterBL' ? Math.abs(p.x - (top.x - 24 / 2)) < EPS && Math.abs(p.y - (top.y + top.h - 16)) < EPS
+        : Math.abs(p.x - (top.x + top.w - 24 / 2)) < EPS && Math.abs(p.y - (top.y + top.h - 16)) < EPS;
       return ok ? null : `at ${p.x},${p.y}`;
     })).toEqual([]);
   });
 
-  it('orbiters sit clear of the body at rest (Crawford, 2026-10-04: contact only while animating)', () => {
+  it("orbiters straddle Top's corners, half tucked under it (Phase 40 amendment: docked, not clear of the body)", () => {
     expect(collect((p, name, g) => {
       if (!name.startsWith('orbiter')) return null;
       const [ax0, ay0, ax1, ay1] = box(p);
-      const hit = [g.backing, g.midLeft, g.midRight, g.top].some((b) => {
-        const [bx0, by0, bx1, by1] = box(b);
-        return ax0 < bx1 && bx0 < ax1 && ay0 < by1 && by0 < ay1;
-      });
-      return hit ? 'overlaps the body' : null;
+      const [tx0, ty0, tx1, ty1] = box(g.top);
+      const overlapsTop = ax0 < tx1 && tx0 < ax1 && ay0 < ty1 && ty0 < ay1;
+      return overlapsTop ? null : 'does not overlap Top — not nestled';
     })).toEqual([]);
   });
 

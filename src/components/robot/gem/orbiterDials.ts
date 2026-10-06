@@ -1,9 +1,10 @@
 // ========================================
 // ORBITER DIALS (docs/specs/ORBITING_POLYGONS.md §1.1)
 // ========================================
-// Pure mapping from a robot's composition settings to the six dials that drive its orbiters:
-// count, size, line width, strip opacity and the two orbit timings. Nothing here reads LFOs, BPM
-// or AudioEngine — composition settings only (docs/intent/orbiting-polygons.md).
+// Pure mapping from a robot's composition settings to the four dials that drive its orbiters:
+// count, size, line width and strip opacity (Phase 40 amendment: orbiters dock on the hull and no
+// longer orbit, so the two orbit-timing dials are gone). Nothing here reads LFOs, BPM or
+// AudioEngine — composition settings only (docs/intent/orbiting-polygons.md).
 
 // ========================================
 // IMPORTS
@@ -15,8 +16,6 @@ import {
   RHYTHMIC_MOTIF_LENGTH_MAX,
   NOTE_VARIANCE_MIN,
   NOTE_VARIANCE_MAX,
-  OCTAVE_RANGE_MIN,
-  OCTAVE_RANGE_MAX,
   PITCH_REPEAT_MIN,
   PITCH_REPEAT_MAX,
 } from '@/constants';
@@ -26,28 +25,21 @@ import {
   DEFAULT_NOTE_VARIANCE,
   DEFAULT_PITCH_REPEAT,
 } from '@/engine/melodyGenerator';
-import type { Robot, AudioAttributes } from '@/types/Robot';
+import type { Robot } from '@/types/Robot';
 
 // ========================================
 // TYPES
 // ========================================
 /** The composition fields `orbiterDials` reads — the same resolution `regenerateMelody.ts` and
- *  `RobotBody`'s audio memo already use. `audioAttributes` is narrowed to just `octaveRange` (the
- *  only field read) so a caller's memo can depend on that one property, not the whole object —
- *  an `adsr` edit must not recompute RobotBody's composition memo. */
-export type OrbiterDialsInput = Pick<Robot, 'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat' | 'octaveRange'> & {
-  audioAttributes: Pick<AudioAttributes, 'octaveRange'>;
-};
+ *  `RobotBody`'s audio memo already use. No octave-range field (Phase 40 amendment: the two
+ *  orbit-timing dials that read it are gone — docking doesn't have a speed). */
+export type OrbiterDialsInput = Pick<Robot, 'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat'>;
 
 export interface OrbiterDials {
   count: 1 | 2 | 3 | 4;
   size: number;
   lineWidth: number;
   stripOpacity: number;
-  /** Seconds between the end of one orbit and the earliest draw of the next, per diagonal pair. */
-  orbitGap: number;
-  /** Seconds for one full hoop cycle (θ: 0 → 2π). */
-  orbitDuration: number;
 }
 
 // ========================================
@@ -68,18 +60,6 @@ export const ORBITER_LINE_BASE = 3;
 /** Strip opacity floor on Pitch Repeat (intent table row "Line light strip"): 0.35 keeps the
  *  emissive centre stroke visible at night; it is never battery-dimmed. */
 export const ORBITER_STRIP_OPACITY_MIN = 0.35;
-
-/** Orbit gap on the robot's min octave (intent table row "Gap between orbits"), per diagonal pair:
- *  7.5 + minOctave → 8.5..14.5 s. Post-Checkpoint-C correction (Crawford, 2026-10-05): orbits read
- *  too infrequent in the world — halved from the Gate 1 value (15 + 2 × minOctave → 17..29 s),
- *  landed in the sketch first. */
-export const ORBIT_GAP_BASE = 7.5;
-export const ORBIT_GAP_PER_OCTAVE = 1;
-
-/** Orbit duration on the robot's max octave (Gate 1 correction: intent's 2–5 s was "too fast, down
- *  by at least 50 %", then "top speed fine, bottom range up 20 %" → 4 + (maxOctave - 1) × 2/3 → 4..8 s). */
-export const ORBIT_DURATION_BASE = 4;
-export const ORBIT_DURATION_PER_OCTAVE = 2 / 3;
 
 // ========================================
 // HELPERS
@@ -113,16 +93,10 @@ export function orbiterDials(robot: OrbiterDialsInput): OrbiterDials {
   );
   const pitchRepeat = clampTo(robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT, PITCH_REPEAT_MIN, PITCH_REPEAT_MAX);
 
-  const [rangeLo, rangeHi] = robot.audioAttributes.octaveRange ?? robot.octaveRange;
-  const minOctave = clampTo(Math.min(rangeLo, rangeHi), OCTAVE_RANGE_MIN, OCTAVE_RANGE_MAX);
-  const maxOctave = clampTo(Math.max(rangeLo, rangeHi), OCTAVE_RANGE_MIN, OCTAVE_RANGE_MAX);
-
   return {
     count: orbiterCount(density),
     size: ORBITER_SIZE_MIN + (ORBITER_SIZE_MAX - ORBITER_SIZE_MIN) * (motifValue / RHYTHMIC_MOTIF_LENGTH_MAX),
     lineWidth: (ORBITER_LINE_BASE + varianceValue) / 10,
     stripOpacity: ORBITER_STRIP_OPACITY_MIN + (1 - ORBITER_STRIP_OPACITY_MIN) * (pitchRepeat / PITCH_REPEAT_MAX),
-    orbitGap: ORBIT_GAP_BASE + ORBIT_GAP_PER_OCTAVE * minOctave,
-    orbitDuration: ORBIT_DURATION_BASE + (maxOctave - 1) * ORBIT_DURATION_PER_OCTAVE,
   };
 }

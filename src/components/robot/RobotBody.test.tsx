@@ -288,18 +288,14 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
       expect(strip.getAttribute('opacity')).toBe('1');
     });
 
-    it('motion undefined renders the static path — no depth-copy wrapper, only the seeded count shown', () => {
+    it('motion undefined renders the static path — only the seeded count shown', () => {
       const { container } = draw(makeRobot());
-      expect(container.querySelector('.gem__orbiter[data-depth="behind"]')).toBeNull();
       expect(container.querySelectorAll('.gem__orbiter')).toHaveLength(2); // DEFAULT_RHYTHMIC_DENSITY 50 -> count 2
     });
 
-    it('motion="world" renders the motion: true path — all 12 depth copies', () => {
+    it('motion="world" renders the motion: true path — all 4 docked copies', () => {
       const { container } = render(<svg><RobotBody robot={makeRobot()} motion="world" /></svg>);
-      expect(container.querySelectorAll('.gem__orbiter')).toHaveLength(12);
-      (['behind', 'rest', 'front'] as const).forEach((depth) => {
-        expect(container.querySelectorAll(`.gem__orbiter[data-depth="${depth}"]`)).toHaveLength(4);
-      });
+      expect(container.querySelectorAll('.gem__orbiter')).toHaveLength(4);
     });
 
     it('motion="world" registers orbiters-world-<id>; without motion, no key is registered (Phase 40 Task 12)', () => {

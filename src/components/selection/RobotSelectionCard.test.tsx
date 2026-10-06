@@ -327,9 +327,9 @@ describe('RobotSelectionCard', () => {
     expect(avatar.getAttribute('viewBox')).toBe(`0 0 ${80 * getRobotGem(20261004).widthFactor} 80`);
   });
 
-  it('the card avatar is static — no depth-copy wrapper, no motion (Phase 40 Task 12)', () => {
-    const { container } = renderCard();
-    expect(container.querySelector('.gem__orbiter[data-depth="front"], .gem__orbiter[data-depth="behind"]')).toBeNull();
+  it('the card avatar is static — renders only the seeded count, not all four docked copies (Phase 40 amendment)', () => {
+    const { container } = renderCard({ rhythmicDensity: 10 }); // DEFAULT count 1
+    expect(container.querySelectorAll('.gem__orbiter')).toHaveLength(1);
   });
 
   it("has an accessible name matching the robot's name", () => {

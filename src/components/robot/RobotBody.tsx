@@ -92,17 +92,8 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
         rhythmicMotifLength: robot.rhythmicMotifLength,
         noteVariance: robot.noteVariance,
         pitchRepeat: robot.pitchRepeat,
-        octaveRange: robot.octaveRange,
-        audioAttributes: { octaveRange: robot.audioAttributes.octaveRange },
       }),
-    [
-      robot.rhythmicDensity,
-      robot.rhythmicMotifLength,
-      robot.noteVariance,
-      robot.pitchRepeat,
-      robot.octaveRange,
-      robot.audioAttributes.octaveRange,
-    ],
+    [robot.rhythmicDensity, robot.rhythmicMotifLength, robot.noteVariance, robot.pitchRepeat],
   );
   // Seeded layout — a Map hit after the first render of this seed, outside both memos.
   const plan = orbiterPlan(robot.gemSeed);

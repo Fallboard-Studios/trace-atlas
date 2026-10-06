@@ -94,11 +94,11 @@ describe('RobotDisplaySection', () => {
     expect(avatar.querySelector('g.gem')!.getAttribute('transform')).toContain('scale(1)');
   });
 
-  it('the avatar shows motion — a front depth copy is present (Phase 40 Task 12)', () => {
+  it('the avatar shows motion — a docked orbiter copy is present (Phase 40 amendment)', () => {
     const robot = makeRobot();
     useLocaleStore.getState().addRobot(localeId, robot);
     const { container } = render(<RobotDisplaySection robot={robot} />);
-    expect(container.querySelector('.robot-display-section__avatar .gem__orbiter[data-depth="front"]')).not.toBeNull();
+    expect(container.querySelector('.robot-display-section__avatar .gem__orbiter')).not.toBeNull();
   });
 
   it('renders both Mid polygons — the layer carriers that replaced the Phase 38 sockets', () => {

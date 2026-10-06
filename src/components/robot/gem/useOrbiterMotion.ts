@@ -1,10 +1,13 @@
 // ========================================
-// useOrbiterMotion (docs/specs/ORBITING_POLYGONS.md §1.4)
+// useOrbiterMotion (docs/specs/ORBITING_POLYGONS.md §1.4, Phase 40 amendment)
 // ========================================
-// GSAP-owned motion for a robot's orbiters: mount state, drift and reduced motion (Task 8); the
-// pair orbit scheduler (Task 9); count-change spawn/despawn arcs and the queue (Task 10); the size
-// tween and live dial refs (Task 11). GSAP timelines only ever trigger semantic state — this hook
-// never reads Zustand or calls AudioEngine.
+// GSAP-owned motion for a robot's orbiters: mount state and the size tween (Task 8/11, unchanged);
+// count-change attach/detach flights and the one-arc-at-a-time queue (Task 10, retargeted). Phase
+// 41 (Crawford): orbiters no longer drift or orbit — on spawn (initial mount, or a count increase)
+// they fly a short straight hop into their dock at Top's corner and stay rigid with the body from
+// then on; a count decrease plays the same hop in reverse, then hides. A later session's job
+// animations will detach them again to do "work" — this hook stays ignorant of that; it never
+// reads Zustand or calls AudioEngine.
 
 // ========================================
 // IMPORTS
@@ -12,29 +15,18 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
-import alea from 'alea';
 
 import { setTimeline, killTimeline } from '../../../animation/timelineMap';
 import { prefersReducedMotion } from '../../../utils/reducedMotion';
 import type { RobotGem as RobotGemGeometry } from './polygon';
-import {
-  ORBIT_PAIRS,
-  partnerOf,
-  nextOrbit,
-  ringPose,
-  DESPAWN_ARC,
-  SPAWN_ARC,
-  type OrbiterPlan,
-  type OrbitDraw,
-  type ArcSpec,
-} from './orbiterMotion';
+import { ATTACH_DROP, ATTACH_START_SCALE, ATTACH_DURATION, type OrbiterPlan } from './orbiterMotion';
 import type { OrbiterDials } from './orbiterDials';
 
 // ========================================
 // TYPES
 // ========================================
 export interface UseOrbiterMotionOptions {
-  /** `g.gem` — the GSAP scope this hook queries `.gem__orbiter[data-depth]` beneath. */
+  /** `g.gem` — the GSAP scope this hook queries `.gem__orbiter` beneath. */
   root: RefObject<SVGGElement | null>;
   robotId: string;
   context: 'world' | 'avatar';
@@ -49,12 +41,8 @@ export interface UseOrbiterMotionOptions {
 // CONSTANTS
 // ========================================
 const ORBITER_CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
-const DEPTHS = ['behind', 'rest', 'front'] as const;
-type Depth = (typeof DEPTHS)[number];
 
-/** Retry delay for a pair whose member is mid-arc when its orbit would otherwise start. */
-const ORBIT_RETRY = 0.5;
-/** Reduced-motion count-change fade duration (spawn/despawn). */
+/** Reduced-motion count-change fade duration (attach/detach, in place of the hop). */
 const ORBITER_FADE = 0.3;
 /** Size-dial tween duration — 0 under reduced motion (a snap, not a glide). */
 const ORBITER_SIZE_TWEEN = 0.5;
@@ -62,41 +50,12 @@ const ORBITER_SIZE_TWEEN = 0.5;
 // ========================================
 // HELPERS
 // ========================================
-function queryCopy(root: SVGGElement, corner: number, depth: Depth): SVGGElement | null {
-  return root.querySelector<SVGGElement>(`.gem__orbiter--${ORBITER_CORNERS[corner]}[data-depth="${depth}"]`);
+function queryCopy(root: SVGGElement, corner: number): SVGGElement | null {
+  return root.querySelector<SVGGElement>(`.gem__orbiter--${ORBITER_CORNERS[corner]}`);
 }
 
 function queryLocal(copy: SVGGElement): SVGGElement | null {
   return copy.querySelector<SVGGElement>('.gem__orbiter-local');
-}
-
-/** A corner is "busy" while its own orbit or an arc is driving it — a plain DOM data attribute on
- *  its rest copy, so both mechanisms share one simple, observable signal. */
-function isCornerBusy(root: SVGGElement, corner: number): boolean {
-  return queryCopy(root, corner, 'rest')?.dataset.motionBusy === '1';
-}
-
-function markCornerBusy(root: SVGGElement, corner: number, busy: boolean): void {
-  const rest = queryCopy(root, corner, 'rest');
-  if (!rest) return;
-  if (busy) rest.dataset.motionBusy = '1';
-  else delete rest.dataset.motionBusy;
-}
-
-/** A fresh seeded stream for this robot's ongoing orbit draws, independent of the stream that
- *  built `plan` (that one is already spent). Seeded from the plan's own seeded fields, so it is
- *  still deterministic per `gemSeed` without the hook needing the seed itself. */
-function orbitDrawRng(plan: OrbiterPlan): () => number {
-  return alea(plan.cornerOrder.join(''), plan.initialWait[0], plan.initialWait[1]);
-}
-
-/** Hide every depth copy of a corner except `only` (or all three, when `only` is omitted). */
-function hideCopiesExcept(root: SVGGElement, corner: number, only?: Depth): void {
-  for (const depth of DEPTHS) {
-    if (depth === only) continue;
-    const copy = queryCopy(root, corner, depth);
-    if (copy) gsap.set(copy, { display: 'none' });
-  }
 }
 
 // ========================================
@@ -106,15 +65,16 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
   const reducedMotion = prefersReducedMotion();
   const masterKey = `orbiters-${context}-${robotId}`;
 
-  // Read at draw time, not mount time — a gap/duration/count/size edit affects only the next
-  // orbit this scheduler draws or arc it plays, never the one already in flight (spec §1.4).
+  // Read at draw time, not mount time — a size edit affects only the next attach/detach flight
+  // this hook plays, never one already in flight (same discipline the orbit scheduler used to
+  // need for gap/duration; size is now the only live dial left).
   const dialsRef = useRef(dials);
   useEffect(() => {
     dialsRef.current = dials;
   }, [dials]);
 
   // The explicit shown set and target count (spec §1.4's queue) — mutated by reconcile(), read
-  // live by the pair schedulers, independent of the mount effect's own re-run conditions.
+  // live by the next effect run's closures, independent of the mount effect's own re-run conditions.
   const shownRef = useRef<Set<number>>(new Set());
   const targetCountRef = useRef(dials.count);
   const reconcileRef = useRef<() => void>(() => {});
@@ -146,245 +106,103 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
       shownRef.current = new Set(plan.cornerOrder.slice(0, dials.count));
       targetCountRef.current = dials.count;
       const arcInFlightRef = { current: false };
-      const pairSchedulerActive: [boolean, boolean] = [false, false];
-      const schedulerKeys = new Set<string>();
-      const driftKillers = new Map<number, () => void>();
       const arcKillers = new Map<number, () => void>();
-
-      const tl = gsap.timeline();
+      // Every corner currently mid-flight, from *either* source — the initial-mount batch (which
+      // isn't gated by arcInFlightRef, since those all run in parallel) or a queued count-change
+      // arc. reconcile() must never retarget a corner that's already animating, or two tweens would
+      // fight over the same local group's x/y/scale/opacity (code review, 2026-10-05).
+      const busyCorners = new Set<number>();
 
       for (let corner = 0; corner < 4; corner++) {
-        for (const depth of DEPTHS) {
-          const copy = queryCopy(rootEl, corner, depth);
-          if (!copy) continue;
-          const show = depth === 'rest' && shownRef.current.has(corner);
-          gsap.set(copy, { transformOrigin: '50% 50%', display: show ? '' : 'none' });
-
-          const local = queryLocal(copy);
-          if (!local) continue;
-          gsap.set(local, { scale: dials.size, x: 0, y: 0, transformOrigin: '50% 50%' });
-        }
+        const copy = queryCopy(rootEl, corner);
+        if (!copy) continue;
+        gsap.set(copy, { transformOrigin: '50% 50%', display: 'none' });
+        const local = queryLocal(copy);
+        if (!local) continue;
+        gsap.set(local, { scale: dials.size, x: 0, y: 0, transformOrigin: '50% 50%' });
       }
 
       // ----------------------------------------
-      // Drift (Task 8)
+      // Attach / detach (Task 8+9+10, Phase 40 amendment) — a short hop straight down from the
+      // dock, scaling and fading in, then rigid; `gatesQueue` is false for the initial-mount
+      // flourish (every initially-shown corner attaches at once, not one-at-a-time) and true for
+      // a count-increase spawn (goes through reconcile's one-arc-at-a-time queue).
       // ----------------------------------------
-      const startDrift = (corner: number) => {
-        const rest = queryCopy(rootEl, corner, 'rest');
-        const local = rest && queryLocal(rest);
-        if (!local) return;
-        const drift = plan.drift[corner];
+      const flyIn = (corner: number, gatesQueue: boolean) => {
+        const copy = queryCopy(rootEl, corner);
+        const local = copy && queryLocal(copy);
+        if (!copy || !local) return;
+        gsap.set(copy, { display: '' });
+        busyCorners.add(corner);
 
-        gsap.set(local, { x: -drift.ax });
-        const xTween = gsap.to(local, { x: drift.ax, duration: drift.px / 2, repeat: -1, yoyo: true, ease: 'sine.inOut' });
-        xTween.progress(drift.phase);
-        tl.add(xTween, 0);
-
-        gsap.set(local, { y: -drift.ay });
-        const yTween = gsap.to(local, { y: drift.ay, duration: drift.py / 2, repeat: -1, yoyo: true, ease: 'sine.inOut' });
-        yTween.progress(drift.phase2);
-        tl.add(yTween, 0);
-
-        driftKillers.set(corner, () => {
-          xTween.kill();
-          yTween.kill();
-        });
-      };
-
-      const killDrift = (corner: number) => {
-        driftKillers.get(corner)?.();
-        driftKillers.delete(corner);
-        const rest = queryCopy(rootEl, corner, 'rest');
-        const local = rest && queryLocal(rest);
-        if (local) gsap.set(local, { x: 0, y: 0 });
-      };
-
-      // ----------------------------------------
-      // Pair orbit scheduler (Task 9) — lead/partner are resolved fresh on every draw, not fixed
-      // at creation, so a scheduler can go solo or idle as the shown set changes (Task 10).
-      // ----------------------------------------
-      let reconcile: () => void = () => {};
-
-      const createPairScheduler = (pairIndex: number) => {
-        const [cornerA, cornerB] = ORBIT_PAIRS[pairIndex];
-        pairSchedulerActive[pairIndex] = true;
-        const schedulerKey = `orbit-${context}-${robotId}-${pairIndex}`;
-        const activeDepth = new Map<number, Depth>();
-        let current: { kill: () => void } = { kill: () => {} };
-
-        const resetToRest = (corner: number) => {
-          hideCopiesExcept(rootEl, corner, 'rest');
-          const rest = queryCopy(rootEl, corner, 'rest');
-          if (rest) gsap.set(rest, { display: '', x: 0, y: 0, scale: 1, opacity: 1 });
-          activeDepth.set(corner, 'rest');
-        };
-
-        const applyPose = (corner: number, dir: 1 | -1, theta: number, open: number) => {
-          const pose = ringPose(gem, corner, dir, theta, open);
-          if (activeDepth.get(corner) !== pose.depth) {
-            const prevDepth = activeDepth.get(corner);
-            const prevCopy = prevDepth && queryCopy(rootEl, corner, prevDepth);
-            if (prevCopy) gsap.set(prevCopy, { display: 'none' });
-            const nextCopy = queryCopy(rootEl, corner, pose.depth);
-            if (nextCopy) gsap.set(nextCopy, { display: '' });
-            activeDepth.set(corner, pose.depth);
-          }
-          const active = queryCopy(rootEl, corner, pose.depth);
-          if (active) gsap.set(active, { x: pose.x, y: pose.y, scale: pose.scale, opacity: pose.opacity });
-        };
-
-        const scheduleWait = (waitSeconds: number) => {
-          current = gsap.delayedCall(waitSeconds, attemptDraw);
-        };
-
-        const attemptDraw = () => {
-          const aShown = shownRef.current.has(cornerA);
-          const bShown = shownRef.current.has(cornerB);
-          if (!aShown && !bShown) {
-            scheduleWait(dialsRef.current.orbitGap); // idle — nothing to orbit right now
-            return;
-          }
-          const lead = aShown ? cornerA : cornerB;
-          const partner = partnerOf(lead);
-          const partnerShown = aShown && bShown;
-
-          if (isCornerBusy(rootEl, lead) || (partnerShown && isCornerBusy(rootEl, partner))) {
-            scheduleWait(ORBIT_RETRY);
-            return;
-          }
-
-          const draw: OrbitDraw = nextOrbit(orbitRng, dialsRef.current);
-          markCornerBusy(rootEl, lead, true);
-          if (partnerShown) markCornerBusy(rootEl, partner, true);
-          activeDepth.set(lead, 'rest');
-          if (partnerShown) activeDepth.set(partner, 'rest');
-
-          const proxy = { t: 0 };
-          current = gsap.to(proxy, {
-            t: 1,
-            duration: dialsRef.current.orbitDuration,
-            ease: 'sine.inOut',
-            onUpdate: () => {
-              const theta = proxy.t * Math.PI * 2;
-              applyPose(lead, draw.dir, theta, draw.open);
-              if (partnerShown) applyPose(partner, -draw.dir as 1 | -1, theta, draw.open);
-            },
+        if (reducedMotion) {
+          gsap.set(local, { x: 0, y: 0, scale: dialsRef.current.size, opacity: 0 });
+          const tween = gsap.to(local, {
+            opacity: 1,
+            duration: ORBITER_FADE,
             onComplete: () => {
-              resetToRest(lead);
-              markCornerBusy(rootEl, lead, false);
-              if (partnerShown) {
-                resetToRest(partner);
-                markCornerBusy(rootEl, partner, false);
-              }
-              scheduleWait(draw.wait);
+              arcKillers.delete(corner);
+              busyCorners.delete(corner);
+              if (gatesQueue) arcInFlightRef.current = false;
               reconcile();
             },
           });
-        };
-
-        scheduleWait(plan.initialWait[pairIndex] * dialsRef.current.orbitGap);
-        schedulerKeys.add(schedulerKey);
-        setTimeline(schedulerKey, { kill: () => current.kill() } as unknown as ReturnType<typeof gsap.timeline>);
-      };
-
-      const ensurePairScheduler = (corner: number) => {
-        const pairIndex = ORBIT_PAIRS.findIndex((pair) => pair.includes(corner));
-        if (pairSchedulerActive[pairIndex]) return;
-        createPairScheduler(pairIndex);
-      };
-
-      // ----------------------------------------
-      // Spawn / despawn arcs and the queue (Task 10)
-      // ----------------------------------------
-      const runRingArc = (corner: number, spec: ArcSpec, onDone: () => void) => {
-        const initialPose = ringPose(gem, corner, spec.dir, spec.from, 0);
-        hideCopiesExcept(rootEl, corner, initialPose.depth);
-        let activeDepth = initialPose.depth;
-        const initialCopy = queryCopy(rootEl, corner, activeDepth);
-        if (initialCopy) {
-          gsap.set(initialCopy, { display: '', x: initialPose.x, y: initialPose.y, scale: initialPose.scale, opacity: initialPose.opacity });
+          arcKillers.set(corner, () => tween.kill());
+          return;
         }
 
-        const proxy = { u: 0 };
-        const tween = gsap.to(proxy, {
-          u: 1,
-          duration: dialsRef.current.orbitDuration / 2,
-          ease: 'sine.inOut',
-          onUpdate: () => {
-            const theta = spec.from + (spec.to - spec.from) * proxy.u;
-            const pose = ringPose(gem, corner, spec.dir, theta, 0);
-            if (activeDepth !== pose.depth) {
-              const prevCopy = queryCopy(rootEl, corner, activeDepth);
-              if (prevCopy) gsap.set(prevCopy, { display: 'none' });
-              const nextCopy = queryCopy(rootEl, corner, pose.depth);
-              if (nextCopy) gsap.set(nextCopy, { display: '' });
-              activeDepth = pose.depth;
-            }
-            const active = queryCopy(rootEl, corner, pose.depth);
-            if (active) gsap.set(active, { x: pose.x, y: pose.y, scale: pose.scale, opacity: pose.opacity });
+        if (gatesQueue) arcInFlightRef.current = true;
+        gsap.set(local, { x: 0, y: ATTACH_DROP, scale: dialsRef.current.size * ATTACH_START_SCALE, opacity: 0 });
+        const tween = gsap.to(local, {
+          y: 0,
+          scale: dialsRef.current.size,
+          opacity: 1,
+          duration: ATTACH_DURATION,
+          ease: 'back.out(1.7)',
+          onComplete: () => {
+            arcKillers.delete(corner);
+            busyCorners.delete(corner);
+            if (gatesQueue) arcInFlightRef.current = false;
+            reconcile();
           },
-          onComplete: onDone,
         });
         arcKillers.set(corner, () => tween.kill());
       };
 
-      const settleSpawn = (corner: number) => {
+      const settleDetach = (corner: number) => {
         arcKillers.delete(corner);
-        markCornerBusy(rootEl, corner, false);
-        arcInFlightRef.current = false;
-        hideCopiesExcept(rootEl, corner, 'rest');
-        const rest = queryCopy(rootEl, corner, 'rest');
-        if (rest) gsap.set(rest, { display: '', x: 0, y: 0, scale: dialsRef.current.size, opacity: 1 });
-        if (!reducedMotion) startDrift(corner);
-        ensurePairScheduler(corner);
-        reconcile();
-      };
-
-      const settleDespawn = (corner: number) => {
-        arcKillers.delete(corner);
-        markCornerBusy(rootEl, corner, false);
-        arcInFlightRef.current = false;
+        busyCorners.delete(corner);
+        const copy = queryCopy(rootEl, corner);
+        if (copy) gsap.set(copy, { display: 'none' });
         shownRef.current.delete(corner);
-        hideCopiesExcept(rootEl, corner);
-        killDrift(corner);
+        arcInFlightRef.current = false;
         reconcile();
       };
 
-      const playSpawnArc = (corner: number) => {
+      const flyOut = (corner: number) => {
+        const copy = queryCopy(rootEl, corner);
+        const local = copy && queryLocal(copy);
+        if (!copy || !local) return;
         arcInFlightRef.current = true;
-        shownRef.current.add(corner);
-        markCornerBusy(rootEl, corner, true);
+        busyCorners.add(corner);
 
         if (reducedMotion) {
-          const rest = queryCopy(rootEl, corner, 'rest');
-          if (rest) {
-            gsap.set(rest, { display: '', opacity: 0 });
-            const tween = gsap.to(rest, { opacity: 1, duration: ORBITER_FADE });
-            arcKillers.set(corner, () => tween.kill());
-          }
-          settleSpawn(corner);
+          const tween = gsap.to(local, { opacity: 0, duration: ORBITER_FADE, onComplete: () => settleDetach(corner) });
+          arcKillers.set(corner, () => tween.kill());
           return;
         }
-        runRingArc(corner, SPAWN_ARC, () => settleSpawn(corner));
+        const tween = gsap.to(local, {
+          y: ATTACH_DROP,
+          scale: dialsRef.current.size * ATTACH_START_SCALE,
+          opacity: 0,
+          duration: ATTACH_DURATION,
+          ease: 'power2.in',
+          onComplete: () => settleDetach(corner),
+        });
+        arcKillers.set(corner, () => tween.kill());
       };
 
-      const playDespawnArc = (corner: number) => {
-        arcInFlightRef.current = true;
-        markCornerBusy(rootEl, corner, true);
-        killDrift(corner);
-
-        if (reducedMotion) {
-          const rest = queryCopy(rootEl, corner, 'rest');
-          if (rest) {
-            const tween = gsap.to(rest, { opacity: 0, duration: ORBITER_FADE });
-            arcKillers.set(corner, () => tween.kill());
-          }
-          settleDespawn(corner);
-          return;
-        }
-        runRingArc(corner, DESPAWN_ARC, () => settleDespawn(corner));
-      };
-
+      let reconcile: () => void = () => {};
       reconcile = () => {
         if (arcInFlightRef.current) return;
         const shown = shownRef.current;
@@ -393,34 +211,34 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
         if (shown.size < target) {
           const spawnCorner = plan.cornerOrder.find((c) => !shown.has(c));
           if (spawnCorner === undefined) return;
-          if (isCornerBusy(rootEl, spawnCorner)) return; // mid-orbit — its own completion retries
-          playSpawnArc(spawnCorner);
+          shown.add(spawnCorner);
+          flyIn(spawnCorner, true);
         } else {
-          const shownInOrder = plan.cornerOrder.filter((c) => shown.has(c));
+          // Skips a corner still mid-flight (e.g. its own initial-mount attach hasn't settled
+          // yet) — flyOut()ing it now would fight that tween for the same x/y/scale/opacity.
+          const shownInOrder = plan.cornerOrder.filter((c) => shown.has(c) && !busyCorners.has(c));
           const despawnCorner = shownInOrder[shownInOrder.length - 1];
-          if (despawnCorner === undefined) return;
-          if (isCornerBusy(rootEl, despawnCorner)) return; // mid-orbit — its own completion retries
-          playDespawnArc(despawnCorner);
+          if (despawnCorner === undefined) return; // every shown corner is busy — flyIn's own onComplete retries
+          flyOut(despawnCorner);
         }
       };
       reconcileRef.current = reconcile;
 
       // ----------------------------------------
-      // Initial mount state
+      // Initial mount — every initially-shown corner attaches at once (a robot powering up, not a
+      // queued sequence; the queue above is only for a later count change).
       // ----------------------------------------
-      const orbitRng = orbitDrawRng(plan);
-      if (!reducedMotion) {
-        shownRef.current.forEach((corner) => startDrift(corner));
-        ORBIT_PAIRS.forEach(([a, b], pairIndex) => {
-          if (shownRef.current.has(a) || shownRef.current.has(b)) createPairScheduler(pairIndex);
-        });
-      }
+      shownRef.current.forEach((corner) => flyIn(corner, false));
 
-      setTimeline(masterKey, tl);
+      // A lightweight registration token, not a real GSAP timeline — nothing is ever added to it
+      // (no drift to parent, unlike the pre-docking design), so a genuine `gsap.timeline()` here
+      // would just be a standing, never-used GSAP object per robot per context (the exact category
+      // of cost the Task 13 perf investigation flagged). `timelineMap` only ever calls `.kill()` on
+      // what's stored, so a plain stub satisfies the contract (same pattern the old per-pair
+      // scheduler keys used, code review 2026-10-05).
+      setTimeline(masterKey, { kill: () => {} } as unknown as ReturnType<typeof gsap.timeline>);
       return () => {
         killTimeline(masterKey);
-        schedulerKeys.forEach((key) => killTimeline(key));
-        driftKillers.forEach((kill) => kill());
         arcKillers.forEach((kill) => kill());
         reconcileRef.current = () => {};
       };
