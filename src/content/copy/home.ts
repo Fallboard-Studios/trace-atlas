@@ -2,10 +2,13 @@ import type { ContentEntry } from '../types';
 
 /** The Deck / home view. Transcribed verbatim on 2026-09-30 (Task 5) from ContentPane.tsx's
  *  HOME_HTML — split into the IntroPanel shape (headline, lore blurb, human explanation) with
- *  the HTML kept as-is; ContentPane renders the three parts back-to-back (Task 13). */
+ *  the HTML kept as-is; ContentPane renders the three parts back-to-back (Task 13).
+ *  `human` ("Welcome") is the landing-state Accordion's own trigger label — unused elsewhere,
+ *  so it was free to repoint from the app name to this surface when the blank/landing state
+ *  moved from an always-visible Textbox into a collapsible AccordionContainer + IntroPanel. */
 export const home = {
   'home.root': {
-    human: 'Trace Atlas',
+    human: 'Welcome',
     intro: {
       lore: 'Trace Atlas',
       loreDescription: '<p>A Meridia Telemetry Group product.<br>\n  Locating the resources you need now.</p>\n'
