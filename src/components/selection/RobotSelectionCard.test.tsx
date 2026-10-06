@@ -291,6 +291,16 @@ describe('RobotSelectionCard', () => {
     expect(midnightFill).toBe(noonFill);
   });
 
+  it('draws no halo at all — cards never spawn/despawn orbiters, so the halo never appears (amendment, 2026-10-06)', () => {
+    const robot = makeRobot({ masterVolume: 0.7 });
+    useLocaleStore.getState().addRobot(localeId, robot);
+    const { container } = render(<RobotSelectionCard robotId={robot.id} />);
+    expect(container.querySelector('ellipse.gem__halo')).toBeNull();
+    expect(container.querySelector('radialGradient')).toBeNull();
+    expect(container.querySelector('.gem__ripple')).toBeNull();
+    expect(container.querySelector('.gem__strip[data-line="top"]')).not.toBeNull();
+  });
+
   // Phase 36's fixed '-40 -52 176 176' viewBox and Phase 37's hide-the-greebles card test were
   // superseded in Phase 39 Task 8: the card now fits each gem robot to its own canvas at scale 1
   // (the framing tests below), and gem robots have no greebles.

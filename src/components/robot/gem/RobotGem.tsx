@@ -1,11 +1,12 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { memo, type Ref } from 'react';
+import { memo, useState, type Ref } from 'react';
 
 import { gemWidth, GEM_CANVAS_H, type GemPart, type GemPoint, type RobotGem as RobotGemGeometry } from './polygon';
 import type { GemPalette, GemPartPaint } from './gemPalette';
 import { facetPaths, linesPath } from './gemPaths';
+import type { HaloStop } from './haloDials';
 
 // ========================================
 // TYPES
@@ -25,6 +26,41 @@ export interface RobotGemOrbiters {
   motion: boolean;
 }
 
+/** The Top/Mid line-width dials and the fixed strip opacity RobotBody computes
+ *  (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.2/§1.4): each body line's `.gem__lines` width is its
+ *  own dial; its `.gem__strip` is ⅓ as wide at `stripOpacity`. */
+export interface RobotGemBodyLines {
+  top: number;
+  midLeft: number;
+  midRight: number;
+  stripOpacity: number;
+}
+
+/** The halo RobotBody computes (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.1/§1.4): one ellipse
+ *  behind the Mids filled by a six-stop radial gradient — the envelope laid along the radius in the
+ *  company colour. `gradientId` is per rendered instance (`halo-${context}-${robotId}`): the world
+ *  and the avatar show one robot at once and a shared id would paint the wrong gradient.
+ *  Amendment (2026-10-06, Crawford): the halo is designed to appear only during a spawn/despawn
+ *  arc, so `RobotGem` renders its markup (`<defs>` + `ellipse.gem__halo`) only in the motion
+ *  contexts (world/avatar, `orbiters.motion`) — cards get neither. React still writes every
+ *  attribute once at mount there; the hook that owns them afterwards (Task 8) keeps opacity at 0
+ *  until something calls `decorateArc` to raise it. As of this branch nothing does (Amendment 2 —
+ *  the Phase 40 orbiter attach/detach hop was tried as that caller and reverted, reserved for a
+ *  future job-detach or docking animation instead), so today the halo markup exists in world/avatar
+ *  but never becomes visible there either. */
+export interface RobotGemHalo {
+  color: string;
+  rx: number;
+  ry: number;
+  stops: HaloStop[];
+  /** Battery dim (daylight is deliberately absent). */
+  opacity: number;
+  gradientId: string;
+}
+
+/** `data-line` on a `.gem__strip` — which flicker trigger tuple it answers to (useStripFlicker). */
+type StripLine = 'top' | 'midLeft' | 'midRight' | 'orbiters';
+
 interface RobotGemProps {
   /** getRobotGem(robot.gemSeed) — runtime-only geometry. */
   gem: RobotGemGeometry;
@@ -36,22 +72,35 @@ interface RobotGemProps {
   scale: number;
   /** Orbiter dials and layout (docs/specs/ORBITING_POLYGONS.md §1.1–§1.3). */
   orbiters: RobotGemOrbiters;
+  /** Top/Mid line widths and strip opacity (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4). */
+  bodyLines: RobotGemBodyLines;
+  /** The gradient halo behind the Mids (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4). */
+  halo: RobotGemHalo;
+  /** The ripple ellipse (animated contexts only, Task 11's `decorateArc`) — world/avatar pass this;
+   *  cards never do, and `orbiters.motion` already gates the whole halo subtree out for them. */
+  ripple?: RobotGemRipple;
   /** Forwarded to the root `g.gem` — the `useOrbiterMotion` hook's GSAP scope (Task 8). */
   ref?: Ref<SVGGElement>;
+}
+
+/** The ripple's gradient id only — Task 11's `decorateArc` owns every stop/opacity after mount
+ *  (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4). */
+export interface RobotGemRipple {
+  gradientId: string;
 }
 
 // ========================================
 // HELPERS
 // ========================================
 const FACET_STROKE_WIDTH = 0.25;
-/** Mids' and Top's fixed boundary-line width — orbiters use the Note Variance dial instead. */
-const BODY_LINE_WIDTH = 0.8;
 const BACKING_STROKE_WIDTH = 0.5;
 const LIGHT_HALO_R = 3;
 const LIGHT_HALO_OPACITY = 0.18;
 const LIGHT_CORE_R = 1.4;
 
 const r2 = (n: number) => Number(n.toFixed(2));
+/** Gradient stop offset as SVG wants it: a percentage, 2 dp (the sketch's `stop()` formatting). */
+const pct = (offset: number) => `${(offset * 100).toFixed(2)}%`;
 const points = (pts: readonly GemPoint[]) => pts.map(([x, y]) => `${r2(x)},${r2(y)}`).join(' ');
 const ORBITER_CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 
@@ -62,8 +111,9 @@ function BevelledPart({ part, paint, className, lightOpacity, lightColor, lineWi
   lightOpacity?: number;
   lightColor?: string;
   lineWidth: number;
-  /** The orbiter-only centre stroke in `palette.light` (never on Mids/Top). */
-  strip?: { opacity: number; color: string };
+  /** The lit centre stroke in `palette.light`, ⅓ of the line's width. `line` names the flicker
+   *  trigger it answers to; `data-base` carries the dial opacity so a flicker timeline can restore it. */
+  strip?: { opacity: number; color: string; line: StripLine };
 }) {
   const { pts, inner } = part;
   const lines = linesPath(part.lines);
@@ -102,6 +152,8 @@ function BevelledPart({ part, paint, className, lightOpacity, lightColor, lineWi
           stroke={strip.color}
           strokeWidth={r2(lineWidth / 3)}
           opacity={strip.opacity}
+          data-line={strip.line}
+          data-base={strip.opacity}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -141,7 +193,7 @@ function OrbiterCopy({ gem, palette, orbiters, corner, motion }: {
           paint={palette.orbiters[corner]}
           className=""
           lineWidth={orbiters.lineWidth}
-          strip={{ opacity: orbiters.stripOpacity, color: palette.light }}
+          strip={{ opacity: orbiters.stripOpacity, color: palette.light, line: 'orbiters' }}
         />
       </g>
     </g>
@@ -150,16 +202,60 @@ function OrbiterCopy({ gem, palette, orbiters, corner, motion }: {
 
 const ALL_CORNERS = [0, 1, 2, 3] as const;
 
+/** Five evenly-spaced placeholder offsets for the ripple gradient's initial stops — all at opacity
+ *  0 (never shown) until `decorateArc` (Task 11) starts writing real ones each frame of an arc. */
+const RIPPLE_INITIAL_OFFSETS = [0, 0.25, 0.5, 0.75, 1] as const;
+
+/**
+ * The halo subtree (`<defs>` + `ellipse.gem__halo`, plus the ripple in motion contexts) —
+ * `RobotGem` only ever mounts this when `orbiters.motion` is true (cards never spawn/despawn, so
+ * cards never render a halo at all, Phase 41 amendment). Two owners, never both (spec Assumption
+ * 3): React writes every attribute once at mount, then freezes its own copy of `halo`/`ripple` in a
+ * lazy `useState` initializer and keeps rendering *that* on every later re-render, so a
+ * volume/envelope edit that bumps the `halo` prop never fights `useHaloMotion`'s GSAP tween for
+ * the same attributes. (A ref would do the same freezing, but reading `ref.current` during render
+ * is a lint error — `react-hooks/refs` — so the frozen copy lives in state instead, set once via
+ * `useState`'s initializer function, which React never calls again after mount.)
+ */
+function HaloLayer({ cx, cy, halo, ripple }: { cx: number; cy: number; halo: RobotGemHalo; ripple?: RobotGemRipple }) {
+  const [frozen] = useState<{ halo: RobotGemHalo; ripple?: RobotGemRipple }>(() => ({ halo, ripple }));
+
+  return (
+    <>
+      <defs>
+        <radialGradient id={frozen.halo.gradientId}>
+          {frozen.halo.stops.map((stop, i) => (
+            <stop key={i} offset={pct(stop.offset)} stopColor={frozen.halo.color} stopOpacity={stop.opacity} />
+          ))}
+        </radialGradient>
+        {frozen.ripple && (
+          <radialGradient id={frozen.ripple.gradientId}>
+            {RIPPLE_INITIAL_OFFSETS.map((offset, i) => (
+              <stop key={i} offset={pct(offset)} stopColor={frozen.halo.color} stopOpacity={0} />
+            ))}
+          </radialGradient>
+        )}
+      </defs>
+      <ellipse className="gem__halo" cx={cx} cy={cy} rx={frozen.halo.rx} ry={frozen.halo.ry} fill={`url(#${frozen.halo.gradientId})`} opacity={frozen.halo.opacity} />
+      {frozen.ripple && (
+        <ellipse className="gem__ripple" cx={cx} cy={cy} rx={frozen.halo.rx} ry={frozen.halo.ry} fill={`url(#${frozen.ripple.gradientId})`} opacity={0} />
+      )}
+    </>
+  );
+}
+
 // ========================================
 // COMPONENT
 // ========================================
 /**
- * RobotGem — draw-only memo for a gem polygon robot (Roadmap Phase 39/40). Z order is DOM order:
- * backing, mid--left, mid--right, docked orbiters, top — orbiters sit nestled between Mid and Top
- * (Phase 40 amendment). Geometry from getRobotGem, colours from gemPalette, orbiter dials/layout from
- * RobotBody; nothing here derives any of them.
+ * RobotGem — draw-only memo for a gem polygon robot (Roadmap Phase 39/40/41). Z order is DOM order:
+ * backing, halo (its <defs> gradient then the ellipse), mid--left, mid--right, docked orbiters, top
+ * — the halo reads as light from behind the body, orbiters sit nestled between Mid and Top (Phase 40
+ * amendment). Geometry from getRobotGem, colours from gemPalette, orbiter dials/layout, the Top/Mid
+ * line dials and the halo (Phase 41) from RobotBody; nothing here derives any of them. No SVG
+ * filter anywhere: the gradient stops alone carry the halo's softness (spec Assumption 5).
  */
-export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, scale, orbiters, ref }: RobotGemProps) {
+export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, scale, orbiters, bodyLines, halo, ripple, ref }: RobotGemProps) {
   const cx = gemWidth(gem) / 2;
   const cy = GEM_CANVAS_H / 2;
   const { backing } = gem;
@@ -176,8 +272,21 @@ export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, sca
           strokeWidth={BACKING_STROKE_WIDTH}
         />
       </g>
-      <BevelledPart part={gem.midLeft} paint={palette.midLeft} className="gem__mid gem__mid--left" lineWidth={BODY_LINE_WIDTH} />
-      <BevelledPart part={gem.midRight} paint={palette.midRight} className="gem__mid gem__mid--right" lineWidth={BODY_LINE_WIDTH} />
+      {orbiters.motion && <HaloLayer cx={cx} cy={cy} halo={halo} ripple={ripple} />}
+      <BevelledPart
+        part={gem.midLeft}
+        paint={palette.midLeft}
+        className="gem__mid gem__mid--left"
+        lineWidth={bodyLines.midLeft}
+        strip={{ opacity: bodyLines.stripOpacity, color: palette.light, line: 'midLeft' }}
+      />
+      <BevelledPart
+        part={gem.midRight}
+        paint={palette.midRight}
+        className="gem__mid gem__mid--right"
+        lineWidth={bodyLines.midRight}
+        strip={{ opacity: bodyLines.stripOpacity, color: palette.light, line: 'midRight' }}
+      />
       {orbiters.motion
         ? ALL_CORNERS.map((corner) => (
             <OrbiterCopy key={ORBITER_CORNERS[corner]} gem={gem} palette={palette} orbiters={orbiters} corner={corner} motion />
@@ -191,7 +300,8 @@ export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, sca
         className="gem__top"
         lightOpacity={lightOpacity}
         lightColor={palette.light}
-        lineWidth={BODY_LINE_WIDTH}
+        lineWidth={bodyLines.top}
+        strip={{ opacity: bodyLines.stripOpacity, color: palette.light, line: 'top' }}
       />
     </g>
   );

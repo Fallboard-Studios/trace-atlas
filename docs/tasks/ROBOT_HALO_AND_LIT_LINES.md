@@ -41,8 +41,12 @@ constant it guards.
 - **Two owners, never both** (spec Assumption 3). On cards React writes the halo attributes every
   render; in motion contexts React writes them at mount and the hook owns them after. T9's
   stable-props wrapper is what keeps React from rewriting what GSAP owns.
-- **The ripple is a child of the arc** (Assumption 6). One `decorateArc` option on Phase 40's hook
-  (T10, its own commit) is the only Phase 40 edit; killing the arc kills the ripple.
+- **The ripple is designed as a child of the arc** (Assumption 6): a `decorateArc` option on
+  whatever hook drives the eventual spawn/despawn arc, so killing the arc kills the ripple. T10 put
+  that option on Phase 40's hook and it shipped for one commit; Crawford then reverted it the same
+  session (Amendment 2, before Task 8) — the orbiter attach/detach hop isn't a real spawn/despawn
+  event, so `useOrbiterMotion` ships with no `decorateArc` option, and the halo is reserved for a
+  future job-detach or docking animation's own call site instead.
 - **Flicker restores from `data-base`** (spec §7 Q4, plan's choice: accepted as-is). React writes the
   dial value to the strip's `data-base`; the flicker timeline reads it at the end. Simpler than a
   second owner for strip opacity; the drag-mid-flicker overwrite is two seconds and cosmetic.
@@ -220,21 +224,54 @@ eyeball a card, the avatar and the world. **Dependencies:** T1, T2, T5, T6. **Fi
 
 ### Phase 3: Motion
 
+> **Amendment (2026-10-06, Crawford)** — see spec §1 for the full note. The halo is designed to be
+> visible only during a spawn/despawn arc; cards never show it. Landed ahead of Task 8 as its own
+> commit: `RobotGem` gates the `<defs>`/`ellipse.gem__halo` behind `orbiters.motion`, with the
+> RobotGem/RobotBody/RobotSelectionCard/RobotDisplaySection tests updated to match (card tests now
+> assert absence; the halo-structure tests moved to a motion context). Tasks 8 and 11 below are
+> amended in place: Task 8 no longer tweens the ellipse's own opacity off `dimOpacity` (there is no
+> idle baseline to tween to); Task 11's `decorateArc` owns opacity entirely, fading 0 → `dimOpacity`
+> → 0 across the arc via `rippleEnvelope`, replacing the old "dip to `dimOpacity × (1 −
+> HALO_RIPPLE_DIM)`" behaviour. `HALO_RIPPLE_DIM` is deleted.
+>
+> **Amendment 2 (2026-10-06, Crawford, after Task 13 — halo left unwired).** Task 10 below
+> originally wired `decorateArc` into the Phase 40 orbiter attach/detach hop and shipped that way
+> for one commit. Crawford then reversed it: that hop is density-driven (`rhythmicDensity` via
+> `orbiterDials().count`), not a real spawn/despawn event, and the halo reads better tied to the
+> **job-detach or docking-recharge animation** coming in the next week or two instead. The revert
+> (own commit, `3b8a3574`) removed `useOrbiterMotion`'s `decorateArc` option entirely, including the
+> paused-`gsap.timeline` wrapping Task 10 had added around each hop's tween solely to call a
+> decorator on it before play — with no decorator to call, that wrapping was scaffolding with no
+> job, so it came out too (plain `gsap.to` again). **Net result: the halo is currently invisible in
+> every context, including world and avatar** — Tasks 1–13 are shipped, tested and correct, but
+> nothing in the app calls `decorateArc`, so its opacity never leaves 0. Task 10's description and
+> acceptance criteria below are left as written for the historical record of what was built and
+> undone; they do not describe the current behaviour of `useOrbiterMotion.ts` (see its own
+> 2026-10-06 header comment, and spec §1 Amendment 2, for the shipped state).
+
 ## Task 8: `useHaloMotion` — mount state, dial tween, reduced motion
 
-**Description:** New hook per spec §1.4, without `decorateArc` yet: `useGSAP` (scope `root`, deps
-`[enabled, reducedMotion]`) that `gsap.set`s the six halo stops, `rx`/`ry` and the ellipse opacity
-from the `halo` and `dimOpacity` props at mount; an effect on `[halo, dimOpacity]` (skipping mount)
-that `gsap.to`s them over `HALO_TWEEN` (`power2.out`, duration 0 under `prefersReducedMotion()`),
-keyed `halo-${context}-${robotId}` in `timelineMap`, re-targeting on a second change. `enabled`
-false → nothing. Returns `{ decorateArc }` as a no-op for now.
+**Description (amended 2026-10-06 — halo opacity is arc-only, see spec §1 amendment):** New hook
+per spec §1.4, without `decorateArc` yet: `useGSAP` (scope `root`, deps `[enabled, reducedMotion]`)
+that `gsap.set`s the six halo stops and `rx`/`ry` from the `halo` prop at mount, and sets the
+ellipse opacity to 0 (there is no idle baseline — Task 11's `decorateArc` is the only thing that
+ever makes it non-zero); an effect on `[halo]` (skipping mount) that `gsap.to`s the stops/`rx`/`ry`
+over `HALO_TWEEN` (`power2.out`, duration 0 under `prefersReducedMotion()`), keyed
+`halo-${context}-${robotId}` in `timelineMap`, re-targeting on a second change — this tween never
+touches opacity, so the dial keeps updating while hidden and is correct the next time it appears.
+`dimOpacity` is stored in a ref (read live by Task 11's `decorateArc`, same pattern as
+`useOrbiterMotion`'s `dialsRef`), not tweened here. `enabled: false` → nothing. Returns
+`{ decorateArc }` as a no-op for now.
 
 **Acceptance criteria:**
-- [ ] Mount: one `gsap.set` per owned attribute group; `timelineMap` has no key until a change.
+- [ ] Mount: one `gsap.set` for the six stops + `rx`/`ry`, and one `gsap.set` of the ellipse
+      opacity to 0; `timelineMap` has no key until a `halo` change.
 - [ ] A `halo` change → one tween, key `halo-world-r1`, duration 0.5, targets the six stops' `offset`
-      and `stop-opacity`, `rx`, `ry`; a second change mid-tween replaces it (one key, one active tween).
-- [ ] A `dimOpacity` change tweens the ellipse opacity; reduced motion → duration 0; `enabled: false`
-      → no `gsap.*` calls; unmount kills the key; world and avatar for one id coexist.
+      and `stop-opacity`, `rx`, `ry` only (never opacity); a second change mid-tween replaces it (one
+      key, one active tween).
+- [ ] A `dimOpacity` change alone touches no `gsap.*` call (it only updates the ref Task 11 reads).
+- [ ] Reduced motion → duration 0; `enabled: false` → no `gsap.*` calls; unmount kills the key;
+      world and avatar for one id coexist.
 
 **Verification:** `npx vitest run src/components/robot/gem/useHaloMotion.test.tsx`. **Dependencies:** T1, T7.
 **Files:** `gem/useHaloMotion.ts`, `gem/useHaloMotion.test.tsx`. **Scope:** S.
@@ -259,38 +296,55 @@ reuse it), so React never rewrites what the hook owns. In `motion: false` it re-
 
 ## Task 10: Phase 40 — `decorateArc` option on `useOrbiterMotion` (its own commit)
 
-**Description:** Add `decorateArc?: (kind: 'spawn' | 'despawn', duration: number, arcTl: gsap.core.Timeline) => void`
-to `UseOrbiterMotionOptions`, called once per spawn/despawn arc after the arc timeline is built and
-before it plays (not for orbits, not for reduced-motion fades). Export the `ArcDecorator` type.
-Nothing else in the file changes.
+> **Reverted (2026-10-06, same session — see Amendment 2 above).** This task shipped, then was
+> undone a few commits later: `useOrbiterMotion.ts` has no `decorateArc` option today, and nothing
+> calls it. Kept below only as a record of what was built and why it came back out.
+
+**Description (corrected 2026-10-06 — "arc" is Phase 40's docking hop, not the pre-docking orbit
+arc the original wording assumed):** `useOrbiterMotion` has no `arcTl` to hand over today — each
+attach/detach hop is a single bare `gsap.to`, not a timeline, so `flyIn`/`flyOut` must each build a
+`gsap.timeline()` wrapping that hop tween, call `decorateArc` on it before the timeline plays, and
+keep every existing `onComplete` bookkeeping (busyCorners/arcKillers/reconcile) working off the
+wrapping timeline instead of the bare tween. Add `decorateArc?: (kind: 'spawn' | 'despawn', duration: number, arcTl: gsap.core.Timeline) => void`
+to `UseOrbiterMotionOptions`, called once per hop after its timeline is built and before it plays
+(not for reduced-motion fades, which stay bare tweens — Task 9's spec §7 Q2 answer is "none" there
+anyway). Export the `ArcDecorator` type (from `useHaloMotion.ts`, which already defines it for
+Task 8's return value — `useOrbiterMotion` imports it rather than redefining it). Nothing else in
+the file changes.
 
 **Acceptance criteria:**
-- [ ] Count 2 → 3: `decorateArc` called once with `('spawn', orbitDuration / 2, tl)` where `tl` is the
-      arc's timeline; 3 → 2: once with `'despawn'`; a pair orbit: never; reduced motion: never.
+- [ ] Count 2 → 3: `decorateArc` called once with `('spawn', ATTACH_DURATION, tl)` where `tl` is the
+      hop's own wrapping timeline (not Phase 40's old `orbitDuration / 2` — there is no orbit any
+      more); 3 → 2: once with `'despawn'`; reduced motion: never.
 - [ ] Omitted → every existing `useOrbiterMotion` test passes unchanged.
 
 **Verification:** `npx vitest run src/components/robot/gem/useOrbiterMotion.test.tsx`.
 **Dependencies:** Phase 40 T10 built. **Files:** `gem/useOrbiterMotion.ts`, `gem/useOrbiterMotion.test.tsx`. **Scope:** S.
 
-## Task 11: `useHaloMotion.decorateArc` — the ripple
+## Task 11: `useHaloMotion.decorateArc` — the ripple, and the halo's only moment of visibility
 
-**Description:** Implement `decorateArc(kind, duration, arcTl)` per spec §1.4: on `arcTl` add, at
-position 0, a set of the ripple ellipse opacity to `dimOpacity` and the halo ellipse opacity to
-`dimOpacity × (1 − HALO_RIPPLE_DIM)`; a proxy `{ u: 0 → 1 }` tween over `duration`, `ease: 'none'`,
-whose `onUpdate` sets the five ripple stops from `ripplePosition(kind, u, rippleCycles(duration), holeOffset)`
-and `rippleEnvelope(u)`; and at the end a set of the ripple opacity to 0 and the halo opacity back
-to `dimOpacity`. `holeOffset` and `dimOpacity` come from refs updated every render. Nothing is
-registered separately. Under reduced motion `decorateArc` is a no-op.
+**Description (amended 2026-10-06 — see spec §1 amendment):** Implement `decorateArc(kind,
+duration, arcTl)` per spec §1.4: a proxy `{ u: 0 → 1 }` tween on `arcTl`, at position 0, over
+`duration`, `ease: 'none'`, whose `onUpdate` sets the five ripple stops from
+`ripplePosition(kind, u, rippleCycles(duration), holeOffset)` and `rippleEnvelope(u)`, sets the
+ripple ellipse opacity to `dimOpacity × rippleEnvelope(u)`, and — this is the halo's only writer of
+opacity anywhere — sets the halo ellipse opacity to that same `dimOpacity × rippleEnvelope(u)`, so
+the halo fades 0 → `dimOpacity` → 0 across the arc in lockstep with the ripple, never an instant
+set (a pop would violate the "never a pop" guardrail now that there's no visible baseline to dip
+from). `holeOffset` and `dimOpacity` come from refs updated every render. Nothing is registered
+separately. Under reduced motion `decorateArc` is a no-op (the halo stays invisible; Phase 40's own
+0.3 s fade plays alone, per spec §7 Q2).
 
 **Acceptance criteria:**
 - [ ] `decorateArc('spawn', 3, tl)`: at `tl.progress(0.5)` the ring stop's offset equals
-      `ripplePosition('spawn', 0.5, 1, hole)` (2 dp), the ripple ellipse opacity > 0, the halo ellipse at
-      `dimOpacity × 0.75`; at `progress(1)` ripple opacity 0 and halo back at `dimOpacity`.
+      `ripplePosition('spawn', 0.5, 1, hole)` (2 dp); both the ripple and halo ellipse opacities equal
+      `dimOpacity × rippleEnvelope(0.5)` (> 0); at `progress(0)` and `progress(1)` both are 0.
 - [ ] `'despawn'` at `progress(0)` → ring at 0.95; `decorateArc('spawn', 5, tl)` restarts the ring at
       `progress(0.5)` (two cycles).
 - [ ] Killing `tl` leaves no tween alive (`gsap.getTweensOf` the ripple stops → empty); reduced motion →
-      `tl` gains no children; no callback touches `useLocaleStore`.
-- [ ] Mutation check: dropping `rippleEnvelope` fails the "opacity 0 at progress 1" ring-opacity case.
+      `tl` gains no children (halo opacity stays 0 throughout); no callback touches `useLocaleStore`.
+- [ ] Mutation check: dropping `rippleEnvelope` fails the "opacity 0 at progress 0/1" case for *both*
+      the ripple and the halo ellipse.
 
 **Verification:** `npx vitest run src/components/robot/gem/useHaloMotion.test.tsx`. **Dependencies:** T3, T8, T9, T10.
 **Files:** `gem/useHaloMotion.ts`, `gem/useHaloMotion.test.tsx`. **Scope:** S.
@@ -316,6 +370,13 @@ per blink a `set` of `opacity` to `FLICKER_LOW` at `at` and back to each target'
 
 ## Task 13: Wire the world and the avatar
 
+> **Amended (2026-10-06, same session — see Amendment 2 above).** `decorateArc` is *not* passed
+> into `useOrbiterMotion` — that wiring shipped in Task 10, then was reverted. `RobotBody` still
+> destructures `decorateArc` from `useHaloMotion`'s return value but hands it nowhere; it has no
+> current caller. The integration criterion below (a spawn arc's timeline carrying the ripple proxy
+> tween) described the Task-10-wired behaviour and no longer holds — there is no such tween to find
+> today. Kept as written for the historical record.
+
 **Description:** `RobotBody`: `flickerTriggers` memo (`top ← [depth0, lane0]`, `midLeft ← [depth1, lane1, gain1]`,
 `midRight ← [depth2, lane2, gain2]`, `orbiters ← [noteVariance.value, pitchRepeat]`);
 `const { decorateArc } = useHaloMotion({ root: gemRef, robotId, context: motion, halo, dimOpacity, enabled: motion !== undefined })`;
@@ -326,8 +387,9 @@ pass `ripple: { gradientId: ripple-${motion}-${robot.id} }` to `RobotGem` when `
 **Acceptance criteria:**
 - [ ] `RobotBody` with `motion="world"`: a volume edit registers `halo-world-<id>`; a depth edit
       registers `flicker-world-<id>-top`; without `motion`: no keys, no `.gem__ripple`.
-- [ ] Integration: `<Robot>` with the real body, count 2 → 3 → one spawn arc whose timeline carries
-      the ripple proxy tween (spy on `decorateArc` or inspect `tl.getChildren()`).
+- [ ] ~~Integration: `<Robot>` with the real body, count 2 → 3 → one spawn arc whose timeline
+      carries the ripple proxy tween (spy on `decorateArc` or inspect `tl.getChildren()`).~~
+      Superseded — no longer true as of the amendment above; there is no such caller.
 - [ ] `RobotDisplaySection.test.tsx`: `.gem__ripple` present in the avatar; card test: absent.
 - [ ] `npm run build` clean.
 
@@ -336,12 +398,17 @@ pass `ripple: { gradientId: ripple-${motion}-${robot.id} }` to `RobotGem` when `
 
 ### Checkpoint C: Visual gate (Crawford, spec §5 "Gate") — stop and report
 - [ ] Full suite, types, lint, build green.
-- [ ] World: halo tweens on a volume or envelope drag; a density drag's spawn arcs carry a slow
-      outward ring and despawns an inward one, the base halo dipping meanwhile; an LFO depth edit
-      flickers only that line, out of step across lines; Note Variance / Pitch Repeat flicker the
-      orbiter strips.
-- [ ] Avatar: the same; cards static and correct; reduced motion → no flicker, no ripple, halo snaps.
-- [ ] Verdicts on spec §7 Q2–Q3 (reduced-motion ripple: none; docked/critical: battery dim only).
+- [ ] **As actually shipped (Amendment 2 above):** halo is invisible everywhere — world and avatar
+      too, not just cards — because nothing calls `decorateArc`. There is no density drag or any
+      other current action that shows it. What to verify now: an LFO depth edit flickers only that
+      line, out of step across lines; Note Variance / Pitch Repeat flicker the orbiter strips;
+      strips read at depth 0 and widen with depth, identically in world/avatar/cards; reduced
+      motion → no flicker (nothing to reduce on the halo side — it's already invisible).
+- [ ] **Deferred:** the halo/ripple half of this gate (spawn arc fades the halo up with an outward
+      ring, despawn the same inward, a dial edit mid-hide showing correctly next time it appears) —
+      re-run once a future task wires `decorateArc` into the job-detach or docking animation.
+- [ ] Verdicts on spec §7 Q2–Q3 (reduced-motion ripple: none, halo stays hidden; docked/critical:
+      no change — a hidden halo has no battery-dim distinction to show until it next appears).
 
 ### Phase 4: Perf gate
 

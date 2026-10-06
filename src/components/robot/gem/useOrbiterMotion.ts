@@ -8,6 +8,15 @@
 // then on; a count decrease plays the same hop in reverse, then hides. A later session's job
 // animations will detach them again to do "work" — this hook stays ignorant of that; it never
 // reads Zustand or calls AudioEngine.
+//
+// 2026-10-06 (Crawford): this hop is density-driven (every call today traces back to
+// `rhythmicDensity` via `orbiterDials().count`), and the halo's ripple is reserved for the future
+// job-detach or docking animation instead — so this file does not decorate its arcs and has no
+// `decorateArc` option. (An earlier pass of this same change wrapped the hop's bare `gsap.to` in a
+// paused `gsap.timeline` so a decorator could be called on it before play; that wrapping was
+// removed once the decision landed, since nothing calls it — plain tweens again, as before Phase
+// 41.) `useHaloMotion` and its `ArcDecorator` type are untouched; when job or docking animations
+// land they'll call `decorateArc` from whatever new call site drives them, not from here.
 
 // ========================================
 // IMPORTS

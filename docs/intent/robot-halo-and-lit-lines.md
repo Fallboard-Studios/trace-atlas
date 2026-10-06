@@ -8,6 +8,13 @@ confirmed except where noted under "Corrections"). Builds on shipped Phase 39
 before the sketch (see "Cut"). Sketch: [robot-halo-and-lit-lines.html](../sketches/robot-halo-and-lit-lines.html)
 ("these all look great", 2026-10-05 — its defaults are the numbers below).
 
+> **Status (2026-10-06):** built and tested (roadmap Phase 41, Tasks 1–13), but the ripple/halo
+> tie to "an orbiter spawn arc" below was tried against the Phase 40 attach/detach hop and
+> deliberately reverted the same day — that hop is density-driven, not a real spawn/despawn event.
+> The halo exists, fully inert, reserved for a future job-detach or docking animation to call
+> instead. See [docs/specs/ROBOT_HALO_AND_LIT_LINES.md](../specs/ROBOT_HALO_AND_LIT_LINES.md) §1
+> Amendments for the full account. The rules below are the original ask, unedited.
+
 - **Outcome:** Each gem robot gains a company-coloured halo behind its Mids, shaped by its envelope
   and sized by its volume; lit strips on the Top and Mid boundary lines, widened by that layer's
   gain-LFO depth; a two-second out-of-step flicker on any strip whose driving attribute changes; and

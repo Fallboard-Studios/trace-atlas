@@ -165,6 +165,8 @@ function Harness({
         lightOpacity={0.7}
         scale={1}
         orbiters={{ lineWidth: d.lineWidth, stripOpacity: d.stripOpacity, size: d.size, count: d.count, cornerOrder: plan.cornerOrder, motion: true }}
+        bodyLines={{ top: 0.8, midLeft: 0.8, midRight: 0.8, stripOpacity: 0 }}
+        halo={{ color: '#41ad9f', rx: 30, ry: 30, stops: [], opacity: 1, gradientId: `halo-${context}-${robotId}` }}
       />
     </svg>
   );
@@ -519,5 +521,43 @@ describe('useOrbiterMotion — size tween and live dial refs', () => {
     const calls = sizeTweenCalls();
     expect(calls).toHaveLength(1);
     expect(calls[0].vars).toMatchObject({ scale: 1.3, duration: 0 });
+  });
+});
+
+// ========================================
+// No halo decoration — the density-driven hop no longer decorates its arcs (Crawford, 2026-10-06:
+// the halo's ripple is reserved for the future job-detach animation instead; `decorateArc` and the
+// `ArcDecorator` type are gone from this hook's own options, see useHaloMotion.ts/RobotBody.tsx)
+// ========================================
+describe('useOrbiterMotion — no halo decoration (amendment, 2026-10-06)', () => {
+  beforeEach(() => {
+    setCalls.length = 0;
+    toCalls.length = 0;
+    createdTimelines.length = 0;
+    killAllTimelines();
+    setMatchMedia(false);
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('a count-increase spawn hop and a count-decrease despawn hop both play normally with nothing to decorate them', () => {
+    vi.useFakeTimers();
+    const plan = orbiterPlan(GEM_SEED);
+    const { container, rerender } = render(<Harness dials={dials({ count: 1 })} plan={plan} />);
+    act(() => { vi.advanceTimersByTime(ATTACH_DURATION * 1000); });
+    const corner = plan.cornerOrder[0];
+    expect(isShown(container, corner)).toBe(true);
+
+    rerender(<Harness dials={dials({ count: 2 })} plan={plan} />);
+    act(() => { vi.advanceTimersByTime(ATTACH_DURATION * 1000); });
+    const nextCorner = plan.cornerOrder[1];
+    expect(isShown(container, nextCorner)).toBe(true);
+
+    rerender(<Harness dials={dials({ count: 1 })} plan={plan} />);
+    act(() => { vi.advanceTimersByTime(ATTACH_DURATION * 1000); });
+    expect(isShown(container, nextCorner)).toBe(false);
+    vi.useRealTimers();
   });
 });

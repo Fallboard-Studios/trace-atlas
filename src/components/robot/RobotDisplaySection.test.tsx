@@ -94,6 +94,21 @@ describe('RobotDisplaySection', () => {
     expect(avatar.querySelector('g.gem')!.getAttribute('transform')).toContain('scale(1)');
   });
 
+  it('the avatar draws the halo at the robot\'s radius under the avatar gradient id, invisible at rest, with the ripple element present (Phase 41 Task 13)', () => {
+    const robot = makeRobot({ masterVolume: 0.5 });
+    useLocaleStore.getState().addRobot(localeId, robot);
+    const { container } = render(<RobotDisplaySection robot={robot} />);
+    const halo = container.querySelector('.robot-display-section__avatar ellipse.gem__halo')!;
+    expect(halo).not.toBeNull();
+    expect(halo.getAttribute('ry')).toBe('30');
+    expect(halo.getAttribute('fill')).toBe('url(#halo-avatar-r1)');
+    expect(halo.getAttribute('opacity')).toBe('0'); // amendment: invisible except during a spawn/despawn arc
+    const ripple = container.querySelector('.gem__ripple')!;
+    expect(ripple).not.toBeNull();
+    expect(ripple.getAttribute('fill')).toBe('url(#ripple-avatar-r1)');
+    expect(ripple.getAttribute('opacity')).toBe('0');
+  });
+
   it('the avatar shows motion — a docked orbiter copy is present (Phase 40 amendment)', () => {
     const robot = makeRobot();
     useLocaleStore.getState().addRobot(localeId, robot);
