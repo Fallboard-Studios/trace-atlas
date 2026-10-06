@@ -34,6 +34,11 @@ import '@fontsource/titillium-web/latin-600.css'
 import '@fontsource/titillium-web/latin-ext-600.css'
 import '@fontsource/titillium-web/latin-700.css'
 import '@fontsource/titillium-web/latin-ext-700.css'
+// Self-hosted (npm @fontsource/fugaz-one). Single-weight display face (400
+// only; the font has no other weight) — latin subset only, since Fugaz One
+// has no latin-ext build. index.css's --font-display token is the only
+// consumer; no component references it yet.
+import '@fontsource/fugaz-one/latin-400.css'
 import './index.css'
 
 import { startAudioBudget } from './systems/audioBudgetSystem'

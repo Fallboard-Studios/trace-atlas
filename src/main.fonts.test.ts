@@ -63,3 +63,14 @@ describe('main.tsx font imports', () => {
     }
   });
 });
+
+describe('main.tsx Fugaz One import', () => {
+  it('declares @fontsource/fugaz-one as a dependency', () => {
+    expect(packageJson.dependencies['@fontsource/fugaz-one']).toBe('^5.3.0');
+  });
+
+  it('imports the Fugaz One 400 weight, latin subset only (no latin-ext build exists)', () => {
+    expect(mainTsxSource).toContain("import '@fontsource/fugaz-one/latin-400.css'");
+    expect(mainTsxSource).not.toMatch(/@fontsource\/fugaz-one\/latin-ext-400\.css/);
+  });
+});

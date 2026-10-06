@@ -11,6 +11,9 @@
      before the generic stack, mirroring --font-sans's own fallback shape. */
   --font-controls: 'Titillium Web', 'Rajdhani', system-ui, Avenir, Helvetica, Arial, sans-serif;
   --font-mono: var(--font-sans), ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Segoe UI Mono", monospace;
+  /* Fugaz One (self-hosted, main.tsx) — single weight (400, the only one the
+     font has). Defined, ready, unused — no component references it yet. */
+  --font-display: 'Fugaz One', var(--font-sans);
 
   /* New semantic type scale (docs/specs/TYPE_SCALE.md §1.2). --font-size-body
      and the 3 --font-size-heading-* tokens have no real consumer yet — same
