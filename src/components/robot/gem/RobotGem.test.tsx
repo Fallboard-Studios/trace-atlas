@@ -5,7 +5,7 @@ import { createRef } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 
-import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo } from './RobotGem';
+import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo, type RobotGemRipple } from './RobotGem';
 import source from './RobotGem.tsx?raw';
 import { getRobotGem, gemWidth, GEM_CANVAS_H, type GemPart } from './polygon';
 import { gemPalette, type GemPalette, type GemPartPaint } from './gemPalette';
@@ -61,10 +61,11 @@ function draw(
   orbiters: RobotGemOrbiters = ALL_FOUR_STATIC,
   bodyLines: RobotGemBodyLines = BODY_LINES_LEGACY,
   halo: RobotGemHalo = HALO_LEGACY,
+  ripple?: RobotGemRipple,
 ) {
   const { container } = render(
     <svg>
-      <RobotGem gem={gem} palette={p} lightOpacity={lightOpacity} scale={scale} orbiters={orbiters} bodyLines={bodyLines} halo={halo} />
+      <RobotGem gem={gem} palette={p} lightOpacity={lightOpacity} scale={scale} orbiters={orbiters} bodyLines={bodyLines} halo={halo} ripple={ripple} />
     </svg>,
   );
   return container;
@@ -494,12 +495,59 @@ describe('RobotGem — halo: radial-gradient ellipse behind the Mids (Phase 41, 
     expect(gradients[1].querySelector('stop')!.getAttribute('stop-color')).toBe('#123456');
   });
 
-  it('no .gem__ripple yet (the ripple element is Task 9)', () => {
+  it('no ripple prop → no .gem__ripple, even in motion mode', () => {
     expect(draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO).querySelector('.gem__ripple')).toBeNull();
   });
 
   it('the halo ellipse is not a drawable the element-count case counts, and adds no g.gem__part', () => {
     expect(partGroups(draw())).toHaveLength(8);
+  });
+});
+
+// ========================================
+// HALO LAYER — the stable-props wrapper and the ripple element (Phase 41, Task 9)
+// ========================================
+describe('RobotGem — HaloLayer: ripple element and the stable-props wrapper (Phase 41, Task 9)', () => {
+  const HALO: RobotGemHalo = {
+    color: '#ae5378',
+    rx: 60,
+    ry: 30,
+    stops: [0, 1 / 3, 0.5, 0.625, 0.875, 1].map((offset) => ({ offset, opacity: 0.2 })),
+    opacity: 0.8,
+    gradientId: 'halo-world-r1',
+  };
+  const RIPPLE: RobotGemRipple = { gradientId: 'ripple-world-r1' };
+
+  it('motion: true with a ripple prop → ellipse.gem__ripple at opacity 0, five-stop gradient id === ripple.gradientId', () => {
+    const container = draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO, RIPPLE);
+    const ripple = container.querySelector('ellipse.gem__ripple')!;
+    expect(ripple).not.toBeNull();
+    expect(ripple.getAttribute('opacity')).toBe('0');
+    const rippleGradient = container.querySelector(`radialGradient#${RIPPLE.gradientId}`)!;
+    expect(rippleGradient).not.toBeNull();
+    expect(rippleGradient.querySelectorAll('stop')).toHaveLength(5);
+    [...rippleGradient.querySelectorAll('stop')].forEach((s) => expect(s.getAttribute('stop-opacity')).toBe('0'));
+  });
+
+  it('motion: false → no .gem__ripple even when a ripple prop is passed (the whole halo subtree is gated out)', () => {
+    const container = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY_LINES_LEGACY, HALO, RIPPLE);
+    expect(container.querySelector('.gem__ripple')).toBeNull();
+    expect(container.querySelector(`radialGradient#${RIPPLE.gradientId}`)).toBeNull();
+  });
+
+  it('motion: true — re-rendering with a different halo.rx leaves the DOM attribute unchanged (React freezes its copy; GSAP owns it from here)', () => {
+    const { container, rerender } = render(
+      <svg>
+        <RobotGem gem={gem} palette={palette} lightOpacity={0.7} scale={1} orbiters={MOTION} bodyLines={BODY_LINES_LEGACY} halo={HALO} ripple={RIPPLE} />
+      </svg>,
+    );
+    expect(container.querySelector('ellipse.gem__halo')!.getAttribute('rx')).toBe('60');
+    rerender(
+      <svg>
+        <RobotGem gem={gem} palette={palette} lightOpacity={0.7} scale={1} orbiters={MOTION} bodyLines={BODY_LINES_LEGACY} halo={{ ...HALO, rx: 41 }} ripple={RIPPLE} />
+      </svg>,
+    );
+    expect(container.querySelector('ellipse.gem__halo')!.getAttribute('rx')).toBe('60');
   });
 });
 

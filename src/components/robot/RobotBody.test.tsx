@@ -399,11 +399,20 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
         expect(new Set(stopColors(container))).toEqual(new Set(['#428d95']));
       });
 
-      it('a company colour change recolours the halo live', () => {
+      it('the halo memo recomputes on a company colour change (HaloLayer freezes its own DOM copy until Task 13 wires useHaloMotion, Phase 41 Task 9 — the memo itself is still live)', () => {
+        useLocaleStore.getState().addCompany(localeId, COMPANY);
+        const haloSpy = vi.spyOn(haloDialsModule, 'haloDials');
+        draw(makeRobot({ companyId: 'c1' }), false, 'world');
+        const afterMount = haloSpy.mock.calls.length;
+        act(() => { useLocaleStore.getState().updateCompany(localeId, 'c1', { color: '#123456' }); });
+        expect(haloSpy.mock.calls.length).toBeGreaterThan(afterMount);
+        haloSpy.mockRestore();
+      });
+
+      it('a company colour already set at mount shows in the frozen halo', () => {
         useLocaleStore.getState().addCompany(localeId, COMPANY);
         const { container } = draw(makeRobot({ companyId: 'c1' }), false, 'world');
-        act(() => { useLocaleStore.getState().updateCompany(localeId, 'c1', { color: '#123456' }); });
-        expect(new Set(stopColors(container))).toEqual(new Set(['#123456']));
+        expect(new Set(stopColors(container))).toEqual(new Set(['#ae5378']));
       });
     });
 
@@ -424,13 +433,23 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
         expect(haloEl(loud).getAttribute('rx')).toBe(String(HALO_RADIUS_MAX * gem.widthFactor));
       });
 
-      it('six stops, the envelope laid out: an ADSR edit moves the stops', () => {
+      it('six stops, the envelope laid out: a different ADSR at mount moves the stops (HaloLayer freezes its DOM copy after mount until Task 13 wires useHaloMotion — the dial itself, asserted at mount, still differs)', () => {
         const robot = makeRobot();
-        const { container, rerender } = render(<svg><RobotBody robot={robot} motion="world" /></svg>);
-        const before = stopOffsets(container);
-        expect(before).toHaveLength(6);
+        const before = draw(robot, false, 'world').container;
+        expect(stopOffsets(before)).toHaveLength(6);
+        cleanup();
+        const after = draw({ ...robot, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, attack: 4 } } }, false, 'world').container;
+        expect(stopOffsets(after)).not.toEqual(stopOffsets(before));
+      });
+
+      it('the halo memo itself recomputes live on an ADSR edit of an already-mounted robot (frozen DOM, live memo — Task 13 wires the hook that closes this gap)', () => {
+        const haloSpy = vi.spyOn(haloDialsModule, 'haloDials');
+        const robot = makeRobot();
+        const { rerender } = render(<svg><RobotBody robot={robot} motion="world" /></svg>);
+        const afterMount = haloSpy.mock.calls.length;
         rerender(<svg><RobotBody robot={{ ...robot, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, attack: 4 } } }} motion="world" /></svg>);
-        expect(stopOffsets(container)).not.toEqual(before);
+        expect(haloSpy.mock.calls.length).toBeGreaterThan(afterMount);
+        haloSpy.mockRestore();
       });
 
       it('sustain 0 → stops 3 and 4 transparent; sustain 1 → at the peak', () => {
