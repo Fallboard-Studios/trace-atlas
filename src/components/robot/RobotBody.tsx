@@ -70,8 +70,9 @@ const FALLBACK_IDENTITY = '#78cce2';
  * its own inputs: the halo (volume, envelope, identity and the company colour — the one non-audio
  * visual input, read with a narrow selector so a company rename never re-renders the body) and
  * the Top/Mid line widths (the gain-LFO link depths). In world/avatar, `useHaloMotion` owns the
- * halo's attributes after mount (its `decorateArc` feeds `useOrbiterMotion`'s spawn/despawn hop,
- * which is the halo's only moment of visibility — amendment, 2026-10-06) and `useStripFlicker`
+ * halo's attributes after mount; its `decorateArc` is not currently wired to anything (2026-10-06:
+ * the density-driven orbiter attach/detach hop no longer decorates — the halo is reserved for a
+ * future job-detach animation), so the halo is not currently visible anywhere. `useStripFlicker`
  * plays each line's two-second flicker on its own trigger tuple. On cards (no `motion`) neither
  * hook runs — `enabled: false` returns before touching GSAP — and the halo never renders at all.
  */
@@ -182,7 +183,12 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
   const gemRef = useRef<SVGGElement>(null);
   const motionEnabled = motion !== undefined;
 
-  const { decorateArc } = useHaloMotion({
+  // 2026-10-06 (Crawford): the orbiter attach/detach hop below is density-driven (every hop today
+  // traces to rhythmicDensity via orbiterDials().count), and the halo's ripple is reserved for the
+  // future job-detach animation instead — so its `decorateArc` is no longer wired into
+  // useOrbiterMotion here. useHaloMotion itself is unchanged; this call still owns the halo's
+  // mount state and dial tween.
+  useHaloMotion({
     root: gemRef,
     robotId: robot.id,
     context: motion ?? 'world',
@@ -199,7 +205,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     plan,
     dials: composition,
     enabled: motionEnabled,
-    decorateArc,
   });
 
   useStripFlicker({

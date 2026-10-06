@@ -8,6 +8,12 @@
 // then on; a count decrease plays the same hop in reverse, then hides. A later session's job
 // animations will detach them again to do "work" — this hook stays ignorant of that; it never
 // reads Zustand or calls AudioEngine.
+//
+// 2026-10-06 (Crawford): this hop is density-driven (every call today traces back to
+// `rhythmicDensity` via `orbiterDials().count`), and the halo's ripple is reserved for the future
+// job-detach animation instead — so this file no longer decorates its arcs at all. `useHaloMotion`
+// and `ArcDecorator` are untouched; when job animations land they'll call `decorateArc` from
+// whatever new call site drives them, not from here.
 
 // ========================================
 // IMPORTS
@@ -38,10 +44,6 @@ export interface UseOrbiterMotionOptions {
   dials: OrbiterDials;
   /** Cards (`motion: false`) pass `false` — the hook returns before creating anything. */
   enabled: boolean;
-  /** `useHaloMotion`'s ripple (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4, Task 10): called once
-   *  per attach/detach hop, after its wrapping timeline is built and before it plays. Never called
-   *  for a reduced-motion fade (those stay bare tweens, no timeline to decorate). */
-  decorateArc?: ArcDecorator;
 }
 
 // ========================================
@@ -68,7 +70,7 @@ function queryLocal(copy: SVGGElement): SVGGElement | null {
 // ========================================
 // HOOK
 // ========================================
-export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, enabled, decorateArc }: UseOrbiterMotionOptions): void {
+export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, enabled }: UseOrbiterMotionOptions): void {
   const reducedMotion = prefersReducedMotion();
   const masterKey = `orbiters-${context}-${robotId}`;
 
@@ -79,14 +81,6 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
   useEffect(() => {
     dialsRef.current = dials;
   }, [dials]);
-
-  // Read at flight time, not mount time — `useHaloMotion`'s own `decorateArc` isn't memoized
-  // across renders, so the closures below (built once per `[gem, enabled, reducedMotion]` effect
-  // run) must call through a ref rather than capture a stale reference.
-  const decorateArcRef = useRef(decorateArc);
-  useEffect(() => {
-    decorateArcRef.current = decorateArc;
-  }, [decorateArc]);
 
   // The explicit shown set and target count (spec §1.4's queue) — mutated by reconcile(), read
   // live by the next effect run's closures, independent of the mount effect's own re-run conditions.
@@ -182,7 +176,6 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
             reconcile();
           },
         });
-        decorateArcRef.current?.('spawn', ATTACH_DURATION, tl);
         arcKillers.set(corner, () => tl.kill());
         tl.play();
       };
@@ -218,7 +211,6 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
           ease: 'power2.in',
           onComplete: () => settleDetach(corner),
         });
-        decorateArcRef.current?.('despawn', ATTACH_DURATION, tl);
         arcKillers.set(corner, () => tl.kill());
         tl.play();
       };
