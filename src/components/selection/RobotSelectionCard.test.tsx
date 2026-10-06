@@ -291,6 +291,18 @@ describe('RobotSelectionCard', () => {
     expect(midnightFill).toBe(noonFill);
   });
 
+  it('draws the static halo at the robot\'s radius (volume 0.7 → ry 34) with no ripple element and no halo timeline key (Phase 41 Task 7)', () => {
+    const robot = makeRobot({ masterVolume: 0.7 });
+    useLocaleStore.getState().addRobot(localeId, robot);
+    const { container } = render(<RobotSelectionCard robotId={robot.id} />);
+    const halo = container.querySelector('ellipse.gem__halo')!;
+    expect(halo).not.toBeNull();
+    expect(halo.getAttribute('ry')).toBe('34');
+    expect(halo.getAttribute('fill')).toBe('url(#halo-card-r1)');
+    expect(container.querySelector('.gem__ripple')).toBeNull();
+    expect(container.querySelector('.gem__strip[data-line="top"]')).not.toBeNull();
+  });
+
   // Phase 36's fixed '-40 -52 176 176' viewBox and Phase 37's hide-the-greebles card test were
   // superseded in Phase 39 Task 8: the card now fits each gem robot to its own canvas at scale 1
   // (the framing tests below), and gem robots have no greebles.

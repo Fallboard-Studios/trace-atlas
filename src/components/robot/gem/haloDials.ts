@@ -10,14 +10,17 @@
 // ========================================
 // IMPORTS
 // ========================================
-import type { ADSREnvelope, Robot } from '@/types/Robot';
+import type { ADSREnvelope, AudioAttributes, Robot } from '@/types/Robot';
 
 // ========================================
 // TYPES
 // ========================================
-/** The fields `haloDials` reads. `identityColor` is optional here only so fixtures that omit it
- *  get the same fallback `RobotBody` applies. */
-export type HaloDialsInput = Pick<Robot, 'masterVolume' | 'audioAttributes'> & Partial<Pick<Robot, 'identityColor'>>;
+/** The fields `haloDials` reads — only the envelope out of `audioAttributes`, so `RobotBody`'s memo
+ *  can depend on `audioAttributes.adsr` alone (a waveform or layer edit never recomputes the halo).
+ *  `identityColor` is optional here only so fixtures that omit it get the same fallback
+ *  `RobotBody` applies. */
+export type HaloDialsInput = Pick<Robot, 'masterVolume'> &
+  Partial<Pick<Robot, 'identityColor'>> & { audioAttributes: Pick<AudioAttributes, 'adsr'> };
 
 /** One gradient stop; `offset` is 0..1 of the radius. */
 export interface HaloStop {

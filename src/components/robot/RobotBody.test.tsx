@@ -4,10 +4,18 @@ import { act, render, cleanup } from '@testing-library/react';
 import { RobotBody } from './RobotBody';
 import * as robotVisualHelpers from './robotVisualHelpers';
 import * as orbiterDialsModule from './gem/orbiterDials';
+import * as haloDialsModule from './gem/haloDials';
+import * as bodyLineDialsModule from './gem/bodyLineDials';
+import * as gemPaletteModule from './gem/gemPalette';
 import { getRobotGem } from './gem/polygon';
 import { gemPalette } from './gem/gemPalette';
+import { HALO_RADIUS_MIN, HALO_RADIUS_MAX } from './gem/haloDials';
+import { BODY_STRIP_OPACITY } from './gem/bodyLineDials';
 import { GEM_FACET_CONTRAST } from './gem/gemShading';
 import { orbiterPlan } from './gem/orbiterMotion';
+import { useLocaleStore } from '@/stores/localeStore';
+import { getActiveLocaleId } from '@/utils/localeHelpers';
+import type { Locale } from '@/types/locale';
 import { useUIStore } from '@/stores/uiStore';
 import { timelineMap, killAllTimelines } from '@/animation/timelineMap';
 import type { Robot } from '@/types/Robot';
@@ -346,6 +354,238 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
       expect(audioSpy.mock.calls.length).toBe(audioAfterMount);
       compositionSpy.mockRestore();
       audioSpy.mockRestore();
+    });
+  });
+
+  // Phase 41 (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.5, Task 7): the halo and body-line memos,
+  // the company-colour selector, and the static wiring into RobotGem.
+  describe('halo and body lines (Phase 41, Task 7)', () => {
+    const localeId = getActiveLocaleId();
+    const gem = getRobotGem(20261004);
+    const COMPANY = { id: 'c1', name: 'Acme', color: '#ae5378', robotIds: [] as string[] };
+
+    afterEach(() => {
+      useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+    });
+
+    const OFF = { lane: 'a' as const, depth: 0 };
+    /** Every robot LFO target linked at depth 0, with overrides — the shape spawnSystem writes. */
+    const links = (overrides: Partial<NonNullable<Robot['lfoLinks']>>) => ({
+      'layer0.gain': OFF, 'layer0.detune': OFF, 'layer1.gain': OFF, 'layer1.detune': OFF, 'layer2.gain': OFF, 'layer2.detune': OFF,
+      ...overrides,
+    }) as Robot['lfoLinks'];
+
+    const haloEl = (c: HTMLElement) => c.querySelector('ellipse.gem__halo')!;
+    const stopColors = (c: HTMLElement) => [...c.querySelectorAll('stop')].map((s) => s.getAttribute('stop-color'));
+    const stopOffsets = (c: HTMLElement) => [...c.querySelectorAll('stop')].map((s) => s.getAttribute('offset'));
+    const stopOpacities = (c: HTMLElement) => [...c.querySelectorAll('stop')].map((s) => Number(s.getAttribute('stop-opacity')));
+    const lineWidth = (c: HTMLElement, sel: string) => c.querySelector(`${sel} .gem__lines`)!.getAttribute('stroke-width');
+
+    describe('halo colour (company, else identity)', () => {
+      it('a robot in a company with colour #ae5378 draws its halo in that colour', () => {
+        useLocaleStore.getState().addCompany(localeId, COMPANY);
+        const { container } = draw(makeRobot({ companyId: 'c1' }));
+        expect(new Set(stopColors(container))).toEqual(new Set(['#ae5378']));
+      });
+
+      it('companyId undefined → identityColor (freelance glows in its own card colour)', () => {
+        useLocaleStore.getState().addCompany(localeId, COMPANY);
+        const { container } = draw(makeRobot({ identityColor: '#428d95' }));
+        expect(new Set(stopColors(container))).toEqual(new Set(['#428d95']));
+      });
+
+      it('a companyId with no matching company → identityColor', () => {
+        const { container } = draw(makeRobot({ companyId: 'ghost', identityColor: '#428d95' }));
+        expect(new Set(stopColors(container))).toEqual(new Set(['#428d95']));
+      });
+
+      it('a company colour change recolours the halo live', () => {
+        useLocaleStore.getState().addCompany(localeId, COMPANY);
+        const { container } = draw(makeRobot({ companyId: 'c1' }));
+        act(() => { useLocaleStore.getState().updateCompany(localeId, 'c1', { color: '#123456' }); });
+        expect(new Set(stopColors(container))).toEqual(new Set(['#123456']));
+      });
+    });
+
+    describe('halo size and shape', () => {
+      it('volume 0 → ry 20, volume 1 → ry 40; rx = radius × the gem\'s width factor', () => {
+        const quiet = draw(makeRobot({ masterVolume: 0 })).container;
+        expect(haloEl(quiet).getAttribute('ry')).toBe(String(HALO_RADIUS_MIN));
+        expect(haloEl(quiet).getAttribute('rx')).toBe(String(HALO_RADIUS_MIN * gem.widthFactor));
+        cleanup();
+        const loud = draw(makeRobot({ masterVolume: 1 })).container;
+        expect(haloEl(loud).getAttribute('ry')).toBe(String(HALO_RADIUS_MAX));
+        expect(haloEl(loud).getAttribute('rx')).toBe(String(HALO_RADIUS_MAX * gem.widthFactor));
+      });
+
+      it('six stops, the envelope laid out: an ADSR edit moves the stops', () => {
+        const robot = makeRobot();
+        const { container, rerender } = render(<svg><RobotBody robot={robot} /></svg>);
+        const before = stopOffsets(container);
+        expect(before).toHaveLength(6);
+        rerender(<svg><RobotBody robot={{ ...robot, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, attack: 4 } } }} /></svg>);
+        expect(stopOffsets(container)).not.toEqual(before);
+      });
+
+      it('sustain 0 → stops 3 and 4 transparent; sustain 1 → at the peak', () => {
+        const low = draw(makeRobot({ audioAttributes: { adsr: { ...ADSR, sustain: 0 }, filterFreq: 0, waveform: 'sine' } })).container;
+        expect(stopOpacities(low).slice(3, 5)).toEqual([0, 0]);
+        cleanup();
+        const high = draw(makeRobot({ audioAttributes: { adsr: { ...ADSR, sustain: 1 }, filterFreq: 0, waveform: 'sine' } })).container;
+        expect(stopOpacities(high)[2]).toBeGreaterThan(0);
+        expect(stopOpacities(high).slice(2, 5)).toEqual([stopOpacities(high)[2], stopOpacities(high)[2], stopOpacities(high)[2]]);
+      });
+
+      it('the halo ellipse opacity is the battery dim: full battery 1, critical battery dimmed; daylight leaves it alone', () => {
+        useUIStore.getState().setActiveLocaleLocalTime(0);
+        const full = draw(makeRobot({ batteryLevel: 100 })).container;
+        expect(haloEl(full).getAttribute('opacity')).toBe('1');
+        cleanup();
+        const critical = draw(makeRobot({ batteryLevel: 5 })).container;
+        expect(Number(haloEl(critical).getAttribute('opacity'))).toBeLessThan(1);
+        expect(Number(haloEl(critical).getAttribute('opacity'))).toBeGreaterThan(0);
+      });
+
+      it('gradient id is halo-card-<id> without motion, halo-world-<id> / halo-avatar-<id> with it', () => {
+        expect(draw(makeRobot({ id: 'r9' })).container.querySelector('radialGradient')!.getAttribute('id')).toBe('halo-card-r9');
+        cleanup();
+        const { container: world } = render(<svg><RobotBody robot={makeRobot({ id: 'r9' })} motion="world" /></svg>);
+        expect(world.querySelector('radialGradient')!.getAttribute('id')).toBe('halo-world-r9');
+        expect(haloEl(world).getAttribute('fill')).toBe('url(#halo-world-r9)');
+        cleanup();
+        const { container: avatar } = render(<svg><RobotBody robot={makeRobot({ id: 'r9' })} motion="avatar" /></svg>);
+        expect(avatar.querySelector('radialGradient')!.getAttribute('id')).toBe('halo-avatar-r9');
+      });
+
+      it('motion undefined → no .gem__ripple and no halo timeline key (static, React-written)', () => {
+        const { container } = draw(makeRobot({ id: 'r-static' }));
+        expect(container.querySelector('.gem__ripple')).toBeNull();
+        expect([...timelineMap.keys()].some((k) => k.startsWith('halo-'))).toBe(false);
+      });
+    });
+
+    describe('body lines from lfoLinks', () => {
+      it('layer1.gain depth 100 → mid--left lines 0.7, mid--right and top 0.3', () => {
+        const { container } = draw(makeRobot({ lfoLinks: links({ 'layer1.gain': { lane: 'b', depth: 100 } }) }));
+        expect(lineWidth(container, '.gem__mid--left')).toBe('0.7');
+        expect(lineWidth(container, '.gem__mid--right')).toBe('0.3');
+        expect(lineWidth(container, '.gem__top')).toBe('0.3');
+      });
+
+      it('no lfoLinks at all → every body line 0.3', () => {
+        const { container } = draw(makeRobot());
+        expect(lineWidth(container, '.gem__mid--left')).toBe('0.3');
+        expect(lineWidth(container, '.gem__mid--right')).toBe('0.3');
+        expect(lineWidth(container, '.gem__top')).toBe('0.3');
+      });
+
+      it('every body strip is at BODY_STRIP_OPACITY (0.6), fixed, regardless of gains or depth', () => {
+        const { container } = draw(withLayers([1, 0, 1], { lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 100 } }) }));
+        ['top', 'midLeft', 'midRight'].forEach((line) => {
+          const strip = container.querySelector(`.gem__strip[data-line="${line}"]`)!;
+          expect(strip.getAttribute('opacity')).toBe(String(BODY_STRIP_OPACITY));
+          expect(strip.getAttribute('data-base')).toBe(String(BODY_STRIP_OPACITY));
+        });
+      });
+
+      it('orbiter strips keep their own Pitch Repeat opacity, not the body constant', () => {
+        const { container } = draw(makeRobot({ pitchRepeat: 100 }));
+        expect(container.querySelector('.gem__strip[data-line="orbiters"]')!.getAttribute('opacity')).toBe('1');
+      });
+    });
+
+    describe('the halo and bodyLines memos recompute only for their own inputs', () => {
+      it('an envelope edit recomputes the halo memo but not the composition memo', () => {
+        const haloSpy = vi.spyOn(haloDialsModule, 'haloDials');
+        const compositionSpy = vi.spyOn(orbiterDialsModule, 'orbiterDials');
+        const robot = makeRobot();
+        const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
+        const haloAfterMount = haloSpy.mock.calls.length;
+        const compositionAfterMount = compositionSpy.mock.calls.length;
+        expect(haloAfterMount).toBeGreaterThan(0);
+        rerender(<svg><RobotBody robot={{ ...robot, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, release: 2 } } }} /></svg>);
+        expect(haloSpy.mock.calls.length).toBeGreaterThan(haloAfterMount);
+        expect(compositionSpy.mock.calls.length).toBe(compositionAfterMount);
+        haloSpy.mockRestore();
+        compositionSpy.mockRestore();
+      });
+
+      it('a volume edit recomputes the halo memo', () => {
+        const haloSpy = vi.spyOn(haloDialsModule, 'haloDials');
+        const robot = makeRobot({ masterVolume: 0.2 });
+        const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
+        const afterMount = haloSpy.mock.calls.length;
+        rerender(<svg><RobotBody robot={{ ...robot, masterVolume: 0.9 }} /></svg>);
+        expect(haloSpy.mock.calls.length).toBeGreaterThan(afterMount);
+        haloSpy.mockRestore();
+      });
+
+      it('a density edit recomputes neither the halo nor the bodyLines memo', () => {
+        const haloSpy = vi.spyOn(haloDialsModule, 'haloDials');
+        const linesSpy = vi.spyOn(bodyLineDialsModule, 'bodyLineDials');
+        const robot = makeRobot({ rhythmicDensity: 10 });
+        const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
+        const haloAfterMount = haloSpy.mock.calls.length;
+        const linesAfterMount = linesSpy.mock.calls.length;
+        expect(linesAfterMount).toBeGreaterThan(0);
+        rerender(<svg><RobotBody robot={{ ...robot, rhythmicDensity: 80 }} /></svg>);
+        expect(haloSpy.mock.calls.length).toBe(haloAfterMount);
+        expect(linesSpy.mock.calls.length).toBe(linesAfterMount);
+        haloSpy.mockRestore();
+        linesSpy.mockRestore();
+      });
+
+      it('an lfoLinks replacement recomputes the bodyLines memo; an ADSR edit does not', () => {
+        const linesSpy = vi.spyOn(bodyLineDialsModule, 'bodyLineDials');
+        const robot = makeRobot();
+        const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
+        const afterMount = linesSpy.mock.calls.length;
+        rerender(<svg><RobotBody robot={{ ...robot, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, attack: 3 } } }} /></svg>);
+        expect(linesSpy.mock.calls.length).toBe(afterMount);
+        rerender(<svg><RobotBody robot={{ ...robot, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 50 } }) }} /></svg>);
+        expect(linesSpy.mock.calls.length).toBeGreaterThan(afterMount);
+        linesSpy.mockRestore();
+      });
+
+      it('daylight ticks recompute neither memo (item-22 discipline extends to the new memos)', () => {
+        const haloSpy = vi.spyOn(haloDialsModule, 'haloDials');
+        const linesSpy = vi.spyOn(bodyLineDialsModule, 'bodyLineDials');
+        useUIStore.getState().setActiveLocaleLocalTime(12);
+        draw(makeRobot());
+        const haloAfterMount = haloSpy.mock.calls.length;
+        const linesAfterMount = linesSpy.mock.calls.length;
+        act(() => { useUIStore.getState().setActiveLocaleLocalTime(0); });
+        expect(haloSpy.mock.calls.length).toBe(haloAfterMount);
+        expect(linesSpy.mock.calls.length).toBe(linesAfterMount);
+        haloSpy.mockRestore();
+        linesSpy.mockRestore();
+      });
+    });
+
+    describe('the company selector (spec Assumption 2)', () => {
+      it('a company rename does not re-render the body; a company colour change does', () => {
+        useLocaleStore.getState().addCompany(localeId, COMPANY);
+        const renderSpy = vi.spyOn(gemPaletteModule, 'gemPalette');
+        draw(makeRobot({ companyId: 'c1' }));
+        const afterMount = renderSpy.mock.calls.length;
+        expect(afterMount).toBeGreaterThan(0);
+        act(() => { useLocaleStore.getState().updateCompany(localeId, 'c1', { name: 'Renamed' }); });
+        expect(renderSpy.mock.calls.length).toBe(afterMount);
+        act(() => { useLocaleStore.getState().updateCompany(localeId, 'c1', { color: '#654321' }); });
+        expect(renderSpy.mock.calls.length).toBeGreaterThan(afterMount);
+        renderSpy.mockRestore();
+      });
+
+      it('another company\'s colour change does not re-render this robot\'s body', () => {
+        useLocaleStore.getState().addCompany(localeId, COMPANY);
+        useLocaleStore.getState().addCompany(localeId, { id: 'c2', name: 'Other', color: '#000000', robotIds: [] });
+        const renderSpy = vi.spyOn(gemPaletteModule, 'gemPalette');
+        draw(makeRobot({ companyId: 'c1' }));
+        const afterMount = renderSpy.mock.calls.length;
+        act(() => { useLocaleStore.getState().updateCompany(localeId, 'c2', { color: '#ffffff' }); });
+        expect(renderSpy.mock.calls.length).toBe(afterMount);
+        renderSpy.mockRestore();
+      });
     });
   });
 });

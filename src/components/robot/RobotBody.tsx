@@ -13,6 +13,8 @@ import {
   LAMP_MIN,
 } from './robotVisualHelpers';
 import { useUIStore } from '../../stores/uiStore';
+import { useLocaleStore } from '../../stores/localeStore';
+import { getActiveLocaleId } from '../../utils/localeHelpers';
 import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo } from './gem/RobotGem';
 import { useOrbiterMotion } from './gem/useOrbiterMotion';
 import { getRobotGem } from './gem/polygon';
@@ -20,6 +22,8 @@ import { gemPalette } from './gem/gemPalette';
 import { batteryFacetContrast } from './gem/gemShading';
 import { orbiterDials } from './gem/orbiterDials';
 import { orbiterPlan } from './gem/orbiterMotion';
+import { haloDials } from './gem/haloDials';
+import { bodyLineDials, BODY_STRIP_OPACITY } from './gem/bodyLineDials';
 
 // ========================================
 // TYPES
@@ -49,14 +53,6 @@ interface RobotBodyProps {
 /** Same default the hand-drawn shapes applied when a fixture omitted identityColor. */
 const FALLBACK_IDENTITY = '#78cce2';
 
-/** Interim (Phase 41 Task 5 → Task 7): Phase 40's fixed 0.8 body lines with the strip transparent,
- *  so the live app stays pixel-identical until the bodyLineDials memo replaces this. */
-const BODY_LINES_LEGACY: RobotGemBodyLines = { top: 0.8, midLeft: 0.8, midRight: 0.8, stripOpacity: 0 };
-
-/** Interim (Phase 41 Task 6 → Task 7): six fully transparent stops, so the halo element exists but
- *  shows nothing until the haloDials memo replaces this. */
-const HALO_LEGACY_STOPS = [0, 0.2, 0.4, 0.6, 0.8, 1].map((offset) => ({ offset, opacity: 0 }));
-
 // ========================================
 // COMPONENT
 // ========================================
@@ -67,6 +63,12 @@ const HALO_LEGACY_STOPS = [0, 0.2, 0.4, 0.6, 0.8, 1].map((offset) => ({ offset, 
  * colour robot.identityColor. Audio reaches it through three continuous dials only — light
  * intensity, each Mid's lit level, and scale — computed in the memo below, which nothing
  * non-audio may enter (backlog item 22: the once/sec daylight tick must not recompute it).
+ *
+ * Phase 41 (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.5) adds two more memos beside it, each with
+ * its own inputs: the halo (volume, envelope, identity and the company colour — the one non-audio
+ * visual input, read with a narrow selector so a company rename never re-renders the body) and
+ * the Top/Mid line widths (the gain-LFO link depths). In every context React writes the halo each
+ * render for now; the motion hook that takes it over is Task 8.
  */
 export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignoreScale, motion }: RobotBodyProps) {
   // Day/night from the active locale's local time (0..24, written once a second by
@@ -106,6 +108,27 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
   // Seeded layout — a Map hit after the first render of this seed, outside both memos.
   const plan = orbiterPlan(robot.gemSeed);
 
+  // Company colour — the halo's one non-audio input (spec Assumption 2). The selector returns a
+  // single string, so only a colour change of *this* robot's company re-renders the body.
+  const localeId = getActiveLocaleId();
+  const companyColor = useLocaleStore((s) => s.locales[localeId]?.companies?.find((c) => c.id === robot.companyId)?.color);
+
+  // Halo only — volume, envelope, identity and company colour (spec §1.1). Its own memo so a
+  // waveform, layer or composition edit never recomputes it.
+  const { masterVolume, identityColor } = robot;
+  const { adsr } = robot.audioAttributes;
+  const haloDial = useMemo(
+    () => haloDials({ masterVolume, identityColor, audioAttributes: { adsr } }, companyColor),
+    [masterVolume, adsr, identityColor, companyColor],
+  );
+
+  // Body line widths only — the gain-LFO link depths (spec §1.2). `lfoLinks` is replaced wholesale
+  // on edit, so the reference is the dependency.
+  const bodyLines = useMemo<RobotGemBodyLines>(
+    () => ({ ...bodyLineDials(robot.lfoLinks), stripOpacity: BODY_STRIP_OPACITY }),
+    [robot.lfoLinks],
+  );
+
   // Seeded identity — a Map hit after the first render of this seed.
   const gem = getRobotGem(robot.gemSeed);
   const palette = gemPalette(gem, robot.identityColor ?? FALLBACK_IDENTITY, daylight, audio.midLit, batteryFacetContrast(dimOpacity));
@@ -120,11 +143,13 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     motion: motion !== undefined,
   };
 
+  // The ellipse is stretched with the canvas (rx = radius × widthFactor, spec §1.1 "Shape");
+  // battery dims it, daylight deliberately does not. Gradient id per rendered instance.
   const halo: RobotGemHalo = {
-    color: robot.identityColor ?? FALLBACK_IDENTITY,
-    rx: 30,
-    ry: 30,
-    stops: HALO_LEGACY_STOPS,
+    color: haloDial.color,
+    rx: haloDial.radius * gem.widthFactor,
+    ry: haloDial.radius,
+    stops: haloDial.stops,
     opacity: dimOpacity,
     gradientId: `halo-${motion ?? 'card'}-${robot.id}`,
   };
@@ -148,7 +173,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
       lightOpacity={lightOpacity}
       scale={ignoreScale ? 1 : audio.scale}
       orbiters={orbiters}
-      bodyLines={BODY_LINES_LEGACY}
+      bodyLines={bodyLines}
       halo={halo}
     />
   );

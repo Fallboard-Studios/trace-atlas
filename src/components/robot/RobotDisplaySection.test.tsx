@@ -94,6 +94,17 @@ describe('RobotDisplaySection', () => {
     expect(avatar.querySelector('g.gem')!.getAttribute('transform')).toContain('scale(1)');
   });
 
+  it('the avatar draws the static halo at the robot\'s radius under the avatar gradient id, with no ripple yet (Phase 41 Task 7)', () => {
+    const robot = makeRobot({ masterVolume: 0.5 });
+    useLocaleStore.getState().addRobot(localeId, robot);
+    const { container } = render(<RobotDisplaySection robot={robot} />);
+    const halo = container.querySelector('.robot-display-section__avatar ellipse.gem__halo')!;
+    expect(halo).not.toBeNull();
+    expect(halo.getAttribute('ry')).toBe('30');
+    expect(halo.getAttribute('fill')).toBe('url(#halo-avatar-r1)');
+    expect(container.querySelector('.gem__ripple')).toBeNull();
+  });
+
   it('the avatar shows motion — a docked orbiter copy is present (Phase 40 amendment)', () => {
     const robot = makeRobot();
     useLocaleStore.getState().addRobot(localeId, robot);
