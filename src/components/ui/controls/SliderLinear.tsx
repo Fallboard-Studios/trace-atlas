@@ -43,6 +43,11 @@ interface SliderLinearProps {
    *  useEasedControlValue so its visual ease steps aside for a swell's own already-smooth ramp
    *  instead of stacking a second, independent one on top. See useEasedControlValue.ts. */
   swelling?: boolean;
+  /** Overrides the live, breakpoint-tier voxel box size with a fixed value at every tier —
+   *  for a read-only consumer that wants a smaller, constant footprint regardless of viewport
+   *  (e.g. the battery readout). Omitted, box size tracks the current CabinetTier as usual. */
+  boxSize?: number;
+  gapSize?: number;
 }
 
 /**
@@ -57,11 +62,11 @@ interface SliderLinearProps {
  * Renders its own `displayValue` (a locally-eased copy of `value`), never `value` directly —
  * see useEasedControlValue.ts for the full derivation (shared by all 3 slider primitives).
  */
-function SliderLinearInner({ schema, value, onChange, disabled, verticalHeight, readOnly, swelling }: SliderLinearProps) {
+function SliderLinearInner({ schema, value, onChange, disabled, verticalHeight, readOnly, swelling, boxSize: boxSizeOverride, gapSize: gapSizeOverride }: SliderLinearProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const orientation = useAutoSliderOrientation(wrapperRef, schema.orientation);
   const isVertical = orientation === 'vertical';
-  const { boxSize, gap, boxCount, rootStyle } = useVoxelTrackSlider(wrapperRef, orientation, verticalHeight);
+  const { boxSize, gap, boxCount, rootStyle } = useVoxelTrackSlider(wrapperRef, orientation, verticalHeight, { boxSizeOverride, gapSizeOverride });
 
   const { displayValue, handleValueChange } = useEasedControlValue(value, swelling);
 

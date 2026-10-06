@@ -49,6 +49,15 @@ export const BATTERY_READOUT_SCHEMA: SliderLinearSchema = {
   orientation: 'horizontal',
 };
 
+/**
+ * Fixed voxel box size for the battery readout, overriding SliderLinear's usual live,
+ * breakpoint-tier box size (32/40/48px — CABINET_BOX_HEIGHT) at every tier. Read-only and
+ * purely informational, so it doesn't need the same touch-target footprint an interactive
+ * slider does; Crawford called the tier-based size too large for what it is.
+ */
+export const BATTERY_READOUT_BOX_SIZE = 24;
+export const BATTERY_READOUT_GAP_SIZE = 8;
+
 // ========================================
 // VALUE LABELS (draft — pending review, see ROBOT_DATA_GRID.md)
 // ========================================

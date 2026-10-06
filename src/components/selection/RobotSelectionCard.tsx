@@ -10,10 +10,12 @@ import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getAudibilityState, isRobotSounding } from '@/utils/robotAudibility';
 import {
   BATTERY_READOUT_SCHEMA,
+  BATTERY_READOUT_BOX_SIZE,
   JOB_TYPE_LABELS,
   UNASSIGNED_JOB_LABEL,
   DOCKING_STATE_LABELS,
   AUDIBILITY_LABELS,
+  BATTERY_READOUT_GAP_SIZE,
 } from '@/data/robotSelectionConfig';
 import { FREELANCE_VALUE, buildCompanyAssignmentSchema } from '@/data/companyConfig';
 import { getRobotColorStyle } from '@/utils/traitColors';
@@ -135,8 +137,10 @@ export const RobotSelectionCard = memo(function RobotSelectionCard({ robotId }: 
         <SliderLinear
           schema={batteryReadoutSchema}
           value={Math.round(robot.batteryLevel)}
-          onChange={() => {}}
+          onChange={() => { }}
           readOnly
+          boxSize={BATTERY_READOUT_BOX_SIZE}
+          gapSize={BATTERY_READOUT_GAP_SIZE}
         />
       </div>
 
