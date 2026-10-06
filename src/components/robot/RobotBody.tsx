@@ -13,7 +13,7 @@ import {
   LAMP_MIN,
 } from './robotVisualHelpers';
 import { useUIStore } from '../../stores/uiStore';
-import { RobotGem, type RobotGemOrbiters } from './gem/RobotGem';
+import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines } from './gem/RobotGem';
 import { useOrbiterMotion } from './gem/useOrbiterMotion';
 import { getRobotGem } from './gem/polygon';
 import { gemPalette } from './gem/gemPalette';
@@ -48,6 +48,10 @@ interface RobotBodyProps {
 
 /** Same default the hand-drawn shapes applied when a fixture omitted identityColor. */
 const FALLBACK_IDENTITY = '#78cce2';
+
+/** Interim (Phase 41 Task 5 → Task 7): Phase 40's fixed 0.8 body lines with the strip transparent,
+ *  so the live app stays pixel-identical until the bodyLineDials memo replaces this. */
+const BODY_LINES_LEGACY: RobotGemBodyLines = { top: 0.8, midLeft: 0.8, midRight: 0.8, stripOpacity: 0 };
 
 // ========================================
 // COMPONENT
@@ -131,6 +135,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
       lightOpacity={lightOpacity}
       scale={ignoreScale ? 1 : audio.scale}
       orbiters={orbiters}
+      bodyLines={BODY_LINES_LEGACY}
     />
   );
 });
