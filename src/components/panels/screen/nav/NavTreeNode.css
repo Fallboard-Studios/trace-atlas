@@ -38,6 +38,18 @@
   width: fit-content;
 }
 
+/* Opts the row's own name button back into the dynamic --color-text-primary DualLabel.css's own
+   default now forces white — this IS the robot/company title (1a/2a), which must keep flipping
+   black against a light identityColor/node.color the same way NavCabinetRow's own title already
+   does (that selector never went through DualLabel to begin with). Scoped to this row
+   specifically so every other DualLabel in the app (accordion triggers, leaf-control labels)
+   stays on the forced-white default. Crawford's own correction, 2026-10-06, found live: the
+   Button+Toggle branch (not NavCabinetRow) renders a light-colored robot/company's own name in
+   this path, and the earlier blanket white-default broke its contrast. */
+.nav-tree-node__row .sc-dual-label__human {
+  color: var(--color-text-primary);
+}
+
 /* Oblique Cabinetry facade wrapper — only ever rendered as .nav-tree-node__group's
    one child (NavTreeNode.tsx). display: block + height: auto (overriding
    CabinetBox.css's own fixed height: var(--cabinet-box-height) default by

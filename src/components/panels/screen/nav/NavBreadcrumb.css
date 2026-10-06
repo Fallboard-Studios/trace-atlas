@@ -69,7 +69,7 @@
 
 .nav-breadcrumb__segment--link:hover,
 .nav-breadcrumb__segment--link:focus-visible {
-  color: var(--color-text-primary);
+  color: var(--color-text-primary-fixed);
 }
 
 .nav-breadcrumb__segment--link:focus-visible {

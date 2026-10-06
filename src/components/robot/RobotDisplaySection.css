@@ -60,6 +60,9 @@
 }
 
 .robot-display-section__value {
-  color: var(--color-text-primary);
+  /* Fixed, not the dynamic --color-text-primary — robot meta data on this detail page must
+     stay white even under RobotOptionsTab's own getRobotColorStyle override for a light
+     identityColor (Crawford's own call, 2026-10-06). */
+  color: var(--color-text-primary-fixed);
   font-weight: var(--font-weight-medium);
 }

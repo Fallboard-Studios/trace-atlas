@@ -20,7 +20,7 @@
   border: 1px solid var(--color-border);
   border-radius: 4px;
   background-color: var(--color-surface);
-  color: var(--color-text-primary);
+  color: var(--color-text-primary-fixed);
   cursor: pointer;
   line-height: 1;
 }
@@ -42,5 +42,5 @@
 .sc-stepper__value {
   min-width: 2ch;
   text-align: center;
-  color: var(--color-text-primary);
+  color: var(--color-text-primary-fixed);
 }

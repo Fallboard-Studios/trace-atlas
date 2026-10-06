@@ -21,7 +21,7 @@
 }
 
 .sector-settings-drawer__status-line {
-  color: var(--color-text-primary);
+  color: var(--color-text-primary-fixed);
   font-size: var(--font-size-label);
 }
 
