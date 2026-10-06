@@ -105,8 +105,14 @@ vi.mock('gsap', () => {
       return noop();
     },
     set: () => { },
-    to: () => { },
-    fromTo: () => { },
+    // Module-level to()/fromTo() (distinct from a timeline instance's own .to()/.fromTo() above)
+    // return a real GSAP Tween whose .progress()/.kill()/.pause()/.play() callers may chain off
+    // immediately and synchronously — useOrbiterMotion.ts's drift setup does exactly this
+    // (`gsap.to(el, {...}).progress(phase)`) at mount, for every real RobotBody render in any
+    // test file that doesn't supply its own gsap mock. No onUpdate/onComplete auto-fire, same as
+    // every other mock in this file — only a shape safe to chain off, not real tween behavior.
+    to: () => ({ progress: () => 0, kill: () => { }, pause: () => { }, play: () => { } }),
+    fromTo: () => ({ progress: () => 0, kill: () => { }, pause: () => { }, play: () => { } }),
     // Minimal delayedCall mock — does NOT auto-fire fn (unlike .timeline's
     // onComplete above): idleSystem.ts uses delayedCall to throttle repeated
     // self-scheduling (handleRobotIdle -> handleRobotArrival -> delayedCall ->

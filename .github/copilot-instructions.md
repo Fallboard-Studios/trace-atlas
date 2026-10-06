@@ -40,7 +40,7 @@ Critical architecture rules (short)
 
 Guardrails (must not be relaxed)
 - Melody Logic: "Melodies must store note indices (0..7), never literal pitch strings; 96 measures = 1 day cycle."
-- Visual Mapping: "Robot visuals (shape/color) must map strictly to audio attributes (synth/ADSR/phase/detune) as defined in ROBOT_DESIGN.md — with three documented non-audio carriers: `Robot.identityColor` on the window glass, lamp and the two layer sockets, and the seeded `Robot.greebles` hardware set inside the silhouette (ROBOT_DESIGN.md 'Non-audio layers'), the same class of exception as the day/night and battery brightness overlays. A socket's lit state is still audio (layer gain) — only its hue is identity."
+- Visual Mapping: "A robot's body is seeded, permanent gem-polygon geometry (derived from `Robot.gemSeed`) in its `identityColor` — identity and seed, not audio. Audio and composition settings reach the body only through the dials listed in ROBOT_DESIGN.md, each continuous or animated, never a pop. The backing, Mids and Top keep their seeded polygon count, sides and boundary-line layout on every edit; orbiters may attach and detach by their hop, never popping. Day/night lightness and battery dimming remain the two overlay exceptions."
 - Strict Separation: "GSAP timelines must only trigger semantic state changes, never call AudioEngine directly."
 - UI Shell: "All interactive UI (transport, navigation, controls) lives inside GlassViewport only — never in the decorative SleeveContainer."
 
@@ -83,6 +83,6 @@ See also (short pointers)
 - `docs/POLYPHONY_GUIDE.md`: Voice management, polyphony budget, and voice-stealing policies.
 - `docs/ANIMATION_SYSTEM.md`: GSAP timeline patterns, `timelineMap` lifecycle, and ref registry usage.
 - `docs/BUILDING_DESIGN.md`: Factory and placement rules, production cooldowns, and placement algorithms.
-- `docs/ROBOT_DESIGN.md`: Robot visual design, audio→visual attribute mapping (synth/ADSR/phase/detune), and SVG generation rules.
+- `docs/ROBOT_DESIGN.md`: Gem polygon robots (Phase 39) — the seeded generator (`getRobotGem` from `Robot.gemSeed`), bevel and 3-tone facet shading, the identity-colour palette, the three audio dials (lights, Mid lit level, body scale), the day/night and battery overlays, and the world/avatar/card render contexts.
 - `docs/CONTRIBUTION_GUIDE.md`: PR process, testing expectations, and where to record exceptions.
 - `docs/poc_guides/UI_GUIDES/UI_ISSUE_OVERVIEW.md`: Sleeve & Glass UI architecture, store responsibilities, and milestone issue breakdown.

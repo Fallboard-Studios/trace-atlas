@@ -1028,7 +1028,7 @@ describe('AudioEngine - Motif Group Accent', () => {
       id,
       compositionSeed: 0.5,
       identityColor: '#428d95',
-      greebles: [],
+      gemSeed: 1,
       rhythmicMotifLength,
       audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine' as const, filterFreq: 100 },
       masterVolume: 0.8,
@@ -1208,7 +1208,7 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
       id,
       compositionSeed: 0.5,
       identityColor: '#428d95',
-      greebles: [],
+      gemSeed: 1,
       clickTrackActive: overrides.clickTrackActive ?? false,
       audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine' as const, filterFreq: 100 },
       masterVolume: 0.8,
@@ -1510,7 +1510,7 @@ describe('AudioEngine - Composite Voices (Layered)', () => {
     (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(attenuationStyleMod.DEFAULT_LOCALE_ID);
     storeMod.useLocaleStore.getState().setLocaleData(attenuationStyleMod.DEFAULT_LOCALE_ID, {
       robots: [{
-        id: 'pan-recompute-robot', compositionSeed: 0.5, identityColor: '#428d95', greebles: [], audioMode: 'none',
+        id: 'pan-recompute-robot', compositionSeed: 0.5, identityColor: '#428d95', gemSeed: 1, audioMode: 'none',
         audioAttributes: { adsr: TEST_ADSR, waveform: 'sine' as const, filterFreq: 100 },
         masterVolume: 0.8, melody: [], octaveRange: [3, 4] as [number, number],
         // x: 0 maps to pan -0.5 (calculatePanFromPosition) — clearly distinct from the

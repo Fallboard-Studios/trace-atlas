@@ -1,5 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 import { RobotBody } from '@/components/robot/RobotBody';
+import { getRobotGem } from '@/components/robot/gem/polygon';
+import { gemMotionViewBox } from '@/components/robot/gem/orbiterMotion';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -67,8 +69,8 @@ function RobotDisplaySectionInner({ robot }: RobotDisplaySectionProps) {
           <span className="robot-display-section__value">{jobLabel.humanLabel}</span>
         </div>
 
-        <svg className="robot-display-section__avatar" viewBox="-40 -52 176 176" aria-hidden="true">
-          <RobotBody robot={robot} ignoreDaylight />
+        <svg className="robot-display-section__avatar" viewBox={gemMotionViewBox(getRobotGem(robot.gemSeed))} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <RobotBody robot={robot} ignoreDaylight ignoreScale motion="avatar" />
         </svg>
 
         <div className="robot-display-section__field robot-display-section__field--docking">

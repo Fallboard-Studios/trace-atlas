@@ -585,3 +585,98 @@ layers").
   top of this one.
 - **Hiding sockets on the card** — both avatars show them, unlike greebles' `hideGreebles`
   carve-out.
+## 39. Gem Polygon Robots (Branch A)
+
+Replaces the robot series above (Phases 36–38) rather than extending it: the four hand-drawn
+shapes, their greebles and layer sockets are gone. Idea
+[docs/ideas/gem-polygon-robots.md](../ideas/gem-polygon-robots.md), intent
+[docs/intent/gem-polygon-robots.md](../intent/gem-polygon-robots.md), spec
+[docs/specs/GEM_POLYGON_ROBOTS.md](../specs/GEM_POLYGON_ROBOTS.md), plan
+[docs/tasks/GEM_POLYGON_ROBOTS.md](../tasks/GEM_POLYGON_ROBOTS.md), sketch
+[docs/sketches/gem-polygon-robots.html](../sketches/gem-polygon-robots.html). **Implemented on
+`back-to-gen-robots`: Gate 1 (sketch) and Gate 2 (live, by eye) passed; Task 9's perf gate closed
+on an accepted residual (below).** Requested by Crawford 2026-10-04: the old robots didn't match the
+console, blurred together and felt lifeless.
+
+### About
+
+A robot is a seeded stack of low-poly gem polygons — a near-black backing, four 24 × 16 orbiters in
+the corners, two Mids hanging off the centre line and a Top polygon with two lights — each a
+chamfered rectangle on a 15° grid with a bevel ring lit by one world light. Geometry is derived from
+`Robot.gemSeed` by `getRobotGem` and never stored. The guardrail is inverted: `identityColor` is
+the body; audio reaches it only through three continuous dials (lights, each Mid's lit level from
+its layer's gain, body scale), so nothing pops on an edit. Card and avatar fit each robot to its
+tile at scale 1 (`gemViewBox` + `ignoreScale`). See docs/ROBOT_DESIGN.md.
+
+**Decisions made while building** (all recorded in spec and plan): geometry derived from the seed,
+never stored; Mid z-order follows the outline (the spec draft had it reversed); generator fixes the
+sketch lacked (double-chamfer 15° drift, bevel bow-ties via `bevelHolds`, line clearance); card
+framing "fit each robot"; facets merged into one path per tone and quantized to 3 tones
+(`GEM_FACET_TONES`) after the idle-paint gate — busy +6 % / paint +34 % over the hand-drawn robots,
+down from +14 % / +94 %, the residual accepted by Crawford (docs/PERFORMANCE.md). The three
+`robot.greeble.*` dataIds are retired, not renamed — a breaking change to world generation, accepted.
+
+### Not Doing (and why)
+
+- **Audio → geometry, bevel or Mid hue** — Branch B (signal chain) in the idea one-pager.
+- **Orbiter motion, wobble and enter/leave** — Branch C (motion); absorbs the pods idea. Shipped,
+  redesigned, as Phase 40 below — not the wobble/orbit form this bullet originally named.
+- **Waveform as an angle dialect** — held from the Gate 1 sketch; no evidence yet it reads at 1×.
+- **Closing the last +6 % idle cost** — accepted; the residual is paint per element.
+
+## 40. Orbiting Polygons
+
+Idea [docs/ideas/gem-polygon-robots.md](../ideas/gem-polygon-robots.md) (Branch C, superseded),
+intent [docs/intent/orbiting-polygons.md](../intent/orbiting-polygons.md), spec
+[docs/specs/ORBITING_POLYGONS.md](../specs/ORBITING_POLYGONS.md), plan
+[docs/tasks/ORBITING_POLYGONS.md](../tasks/ORBITING_POLYGONS.md), sketch
+[docs/sketches/gem-polygon-robots.html](../sketches/gem-polygon-robots.html) (Motion panel).
+**Shipped on `feature/orbiting-polygons`, redesigned mid-build.**
+
+### About
+
+Phase 39's four orbiters stop sitting static at the canvas corners: they now attach to the hull.
+Composition settings (density → count, Phrase Length → size, Note Variance → boundary-line width,
+Pitch Repeat → a new emissive centre strip) drive the same four dials the original plan specified.
+Where the plan diverges is motion — the original design had orbiters drift near their corners and
+periodically ride a paired hoop through the body, entering and leaving by that ring. Gate 1 (the
+motion sketch) passed with that design and Task 13's idle-paint gate found it busy +63 % over the
+Phase 39 baseline, driven by the standing per-pair orbit-scheduler construct count (not drift, not
+orbit frequency — both were ablated and ruled out; see docs/PERFORMANCE.md). Crawford cut the whole
+orbit/drift mechanism rather than chase the perf gate further: orbiters now dock at Top's four
+corners, nestled between Mid and Top, and sit rigid with the body once attached. On spawn —
+including a robot's own first mount — each attaches with a short hop (dropped, shrunk, faded, then
+`back.out` into place); a count decrease plays the hop in reverse. Job animations (detach to do
+"work") are an explicit later phase, not this one.
+
+### Decisions made while building
+
+- **Dock position:** four distinct slots at Top's corners (not one shared cluster), so
+  `cornerOrder`/count/the dial mapping stay meaningful — Crawford's call when the redesign was
+  interviewed.
+- **Despawn before job animations exist:** mirrors the attach hop in reverse (fly out, then hide) —
+  keeps the existing one-arc-at-a-time queue (Task 10 of the plan) symmetric without needing to
+  invent "work" animations early.
+- **Depth twins removed:** the original plan's three copies per orbiter (behind/rest/front, for
+  passing in front of/behind the body mid-orbit) collapsed to one copy per corner — nothing passes
+  through the body any more, so the DOM z-order (orbiters drawn between Mid and Top) does all the
+  "nestled" work the twins used to.
+- **A code-review pass before committing** (CLAUDE.md's `code-review-and-quality` skill) found and
+  fixed three things: a race where the initial-mount attach batch (deliberately ungated, so every
+  orbiter pops in at once) wasn't tracked by the one-arc-at-a-time guard, letting a rapid count
+  change start a detach hop fighting an in-flight attach tween; a standing-but-always-empty
+  `gsap.timeline()` per robot per context, swapped for a lightweight stub; and `gemMotionViewBox`
+  not padding for the `size` dial's maximum, which the old hoop-based viewBox's generous padding
+  had been masking by accident.
+- **Flip removal** (§1.6 of the spec, its own task): robots no longer mirror on direction change —
+  unrelated to the motion redesign, landed alongside it.
+
+### Not Doing (and why)
+
+- **Drift and the ring/hoop orbit** — built, gated past Gate 1, measured at the perf gate, then cut
+  entirely per Crawford's redesign call; not a residual to revisit, a replaced design.
+- **Job animations (detach to do "work")** — explicitly the next phase on this feature, not scoped
+  here; `useOrbiterMotion.ts` stays ignorant of what a later detach will mean.
+- **LFO → orbiter links** — dropped for good at the intent stage (orbiter motion is composition-
+  driven, never LFO-driven).
+- **Top/Mid oscillator-driven rules** — a separate later pass, per the intent doc.

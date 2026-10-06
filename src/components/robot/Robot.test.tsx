@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
+import gsap from 'gsap';
 
 // This test is about Robot.tsx's own click/navigation behavior (Roadmap Phase 8, Task 11), not
 // about RobotBody's rendering or idleSystem's real wander behavior — same boundary
@@ -156,5 +157,23 @@ describe('Robot company-member glow (Roadmap Phase 10)', () => {
     const { container } = renderRobot({ id: 'r1', companyId: undefined });
 
     expect(container.querySelector('.robot.isCompanyMember')).toBeNull();
+  });
+});
+
+describe('Robot mount transform (Phase 40 Task 7b — no flip)', () => {
+  beforeEach(() => {
+    useUIStore.getState().selectRobot(null);
+    useUIStore.getState().setActiveHubTile(null);
+    useLocaleStore.getState().setLocaleData(localeId, { robots: [] } as unknown as Partial<Locale>);
+  });
+
+  it.each(['left', 'right'] as const)("the mount gsap.set has no scaleX, regardless of direction (%s)", (direction) => {
+    const setSpy = vi.spyOn(gsap, 'set');
+    renderRobot({ id: 'r1', direction });
+    const call = setSpy.mock.calls.find(([, vars]) => vars !== null && typeof vars === 'object' && 'x' in (vars as object));
+    expect(call).toBeDefined();
+    expect(call![1]).not.toHaveProperty('scaleX');
+    expect(call![1]).toMatchObject({ x: 10, y: 20, transformOrigin: '50% 50%' });
+    setSpy.mockRestore();
   });
 });

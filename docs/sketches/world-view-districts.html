@@ -1,0 +1,695 @@
+<!doctype html>
+<!-- World view: districts, new silhouette families, terrain and water — idea sketch, 2026-10-05.
+     Proposed as a world-view phase AFTER Phase 40 (Orbiting Polygons), which sits at Task 7b of 16 on
+     feature/orbiting-polygons. Nothing here touches the live renderer: the row table, variant sizes and hue
+     ranges are copied from src/systems/factoryPlacementSystem.ts and src/components/actors/factoryVariants.ts,
+     the lighting curve from src/utils/lightingUtils.ts and the palette from src/constants/colorTheme.json.
+     Plain JS, no animation (everything proposed here is static per lighting tick — nothing per-frame).
+
+     The problem (Crawford, 2026-10-05): every x/y shows only buildings. Root cause: FACTORY_ROWS is one fixed
+     nine-row recipe, so every locale draws the same skyline in different colours.
+
+     Decisions so far (Crawford, 2026-10-05): first pass "love everything"; the world IS underwater (framing
+     defaults to it, coast kept only for comparison); asked for more kinds of item. Known issue, deferred: some
+     foreground buildings float above the new ground line — the legacy row at y 900 sits above the terrain
+     profile (1010–1060); fix when the row table becomes per-district.
+
+     Families, each behind its own toggle so it can be judged alone. All keep the factory rules: two faces lit
+     east/west by getLighting, 90/45 outlines, single-colour squares / rectangles / circles / ellipses for
+     decoration, ground-locked, seeded per locale.
+       First pass:  D districts (seeded recipe per locale) · T tanks · C cranes · B pipe bridges · P pylons ·
+                    W walls · X derelict · J gem accents (robot vocabulary: pylon heads, tower panels, beacons) ·
+                    G terrain (seabed ridge + stepped ground) · S water follows hour
+       Second pass (underwater variety, 2026-10-05):
+         pipelines     seabed pipe runs on stanchions with a riser and valve at one end
+         domes         habitat / pressure modules: rectangular base, half-ellipse dome, porthole row, hatch
+         wrecks        a sunken hull lying on the seabed: 45° raked bow, deckhouse, funnel, dead portholes
+         turbines      tidal turbines: post, nacelle, hub, four blades on the 45° grid (static here; spin later)
+         boulders      seabed rocks in the robots' gem vocabulary (chamfered, three facet tones), neutral colour
+         vents         hydrothermal chimneys: stepped 90/45 cone, glowing mouth, faint plume (bubbles exist live)
+         containers    container stacks in the two style accents, lit label squares
+         scaffolds     buildings under construction: solid lower floors, open frame with 45° braces above
+         tethers       mooring lines from a seabed anchor up out of frame (the surface is above), one 45° dog-leg
+         floodlights   masts with a lit head and a 45° beam that strengthens at night
+         docks         robot docking pads: low slab, edge lights, a gem on a short mast (ties to Docking state)
+         dishes        sonar / comms dishes: post with a 45°-tilted ellipse
+         light shafts  (atmosphere) surface light in 45° bands from the top edge, fading with depth and hour
+         marine snow   (atmosphere) seeded static particulate, low opacity
+       Districts (9): dense · outskirts · towers · yard · derelict · habitat · wreck field · vent field · construction
+
+     Gate questions: Do nine seeds now read as nine places? Which families earn a spot, and in which depth row?
+     Does the seabed ridge read as terrain rather than one more building? Do the light shafts sell "underwater"
+     without fighting the depth gradients? Are derelict buildings and wrecks legible at night? Is the robots' gem
+     vocabulary on boulders and docks a rhyme or a confusion (do rocks look like robots)?
+     Verdicts (Crawford, fill in per item: keep / cut / new value):
+       districts: ____   recipe set (9): ____   tanks: ____   cranes: ____   pipe bridges: ____   pylons: ____
+       walls: ____   derelict: ____   derelict ratio 0.25: ____   terrain: ____   ridge: ____
+       gem accents: ____   (pylon heads | tower panels | beacons — which earn a spot): ____
+       pipelines: ____   domes: ____   wrecks: ____   turbines: ____   boulders: ____   vents: ____
+       containers: ____   scaffolds: ____   tethers: ____   floodlights: ____   docks: ____   dishes: ____
+       light shafts: ____   marine snow: ____   row caps 0.7 / 0.85 / 1.0: ____ -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>World view districts — sketch</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #12161a; color: #e4e6ea; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 28px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  p.note { font-size: 12px; color: #9aa; max-width: 980px; margin: 4px 0 12px; }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; max-width: 980px; }
+  .pending b { color: #e8b84a; }
+  .controls { display: flex; gap: 14px; align-items: center; font-size: 13px; margin: 12px 0 10px; flex-wrap: wrap; }
+  .controls input[type=text] { background: #1a2027; color: #e4e6ea; border: 1px solid rgba(140,190,210,.14); padding: 4px 8px; font-family: monospace; width: 140px; }
+  .controls button { background: #1a2027; color: #e4e6ea; border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; }
+  .controls label { color: #9aa; display: flex; align-items: center; gap: 6px; }
+  .controls input[type=range] { width: 110px; }
+  .controls select { background: #1a2027; color: #e4e6ea; border: 1px solid rgba(140,190,210,.14); padding: 2px 6px; font-family: monospace; }
+  .controls span.v { font-family: monospace; color: #e4e6ea; min-width: 44px; }
+  .controls .grp { color: #e4e6ea; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; min-width: 80px; }
+  .toggles label { padding: 2px 8px; border: 1px solid rgba(140,190,210,.14); border-radius: 3px; cursor: pointer; }
+  .toggles label.on { border-color: #41ad9f; color: #e4e6ea; }
+  .stage { background: #1a2027; border: 1px solid rgba(140,190,210,.14); border-radius: 3px; padding: 8px; display: inline-block; font-size: 11px; color: #8a8f99; font-family: monospace; vertical-align: top; margin: 0 8px 8px 0; }
+  .stage svg { display: block; margin: 0 auto 4px; background: #0a1128; }
+  .readout { font-family: monospace; font-size: 11px; color: #8a8f99; background: #1a2027; padding: 6px 8px; margin: 8px 0 0; border-radius: 3px; white-space: pre-wrap; max-width: 980px; }
+</style>
+</head>
+<body>
+
+<h1>World view: districts, new silhouettes, terrain, water — sketch</h1>
+<p class="note">The app's 1920×1080 scene at half size, drawn from a seed the way the live placer draws a locale. The top stage is the one you tune; the strip below shows eight other seeds with the same settings, which is the real test: do different coordinates now look like different places? Everything is static, two-faced, 90/45 and single-colour, in the current palette. Hour drives the east/west faces exactly as <code>getLighting</code> does. The world is underwater: the surface is above the frame, the ridge is seabed, the tethers go up to it.</p>
+<div class="pending"><b>Gate questions:</b> Do nine seeds read as nine places? Which of the families earn a spot, and in which depth row? Does the seabed ridge read as terrain rather than one more building? Do the light shafts sell "underwater" without fighting the depth gradients? Are derelict buildings and wrecks legible at night? Do the gem boulders rhyme with the robots or get mistaken for them?</div>
+
+<div class="controls">
+  <label>seed <input id="seed" type="text" value="plot 12, -40" /></label>
+  <button id="rand">random seed</button>
+  <label>hour <input id="hour" type="range" min="0" max="24" step="0.25" value="9" /><span class="v" id="hourV">9.00</span></label>
+  <label>recipe <select id="recipe">
+    <option value="seeded">seeded (per locale)</option>
+    <option value="legacy">legacy (today's fixed rows)</option>
+    <option value="dense">dense industrial</option>
+    <option value="outskirts">outskirts</option>
+    <option value="towers">tower cluster</option>
+    <option value="yard">storage yard</option>
+    <option value="derelict">derelict district</option>
+    <option value="habitat">habitat colony</option>
+    <option value="wreckfield">wreck field</option>
+    <option value="ventfield">vent field</option>
+    <option value="construction">construction site</option>
+  </select></label>
+  <label>framing <select id="framing"><option value="underwater" selected>underwater</option><option value="coast">coast (comparison only)</option></select></label>
+  <label>derelict ratio <input id="derelict" type="range" min="0" max="1" step="0.05" value="0.25" /><span class="v" id="derelictV">0.25</span></label>
+  <button id="allOn">all on</button><button id="allOff">all off</button>
+</div>
+<div class="controls toggles" id="togglesA"><span class="grp">first pass</span></div>
+<div class="controls toggles" id="togglesB"><span class="grp">underwater</span></div>
+<div class="controls toggles" id="togglesC"><span class="grp">atmosphere</span></div>
+
+<h2>Main stage</h2>
+<div class="stage"><svg id="main" viewBox="0 0 1920 1080" width="960" height="540" preserveAspectRatio="xMidYMid slice"></svg><span id="mainLabel"></span></div>
+<div class="readout" id="readout"></div>
+
+<h2>Eight other seeds, same settings</h2>
+<p class="note">With "seeded" recipe each picks its own district; with the main stage that is one stage per district. With any fixed recipe they differ only in colour, scale and greebles, which is roughly today's situation.</p>
+<div id="strip"></div>
+
+<script>
+// ---------- seeded PRNG (stand-in for the app's Alea + simplex registry) ----------
+function hash32(str) { let h = 2166136261 >>> 0; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function rng(seedStr) { let a = hash32(seedStr) || 1; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const lerp = (a, b, t) => a + (b - a) * t;
+const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
+const range = (r, lo, hi) => lo + r() * (hi - lo);
+const irange = (r, lo, hi) => Math.floor(range(r, lo, hi + 1));
+
+// ---------- palette (colorTheme.json) ----------
+const THEME = {
+  body: { base: { h: 200, s: 15, l: 19 }, highlight: { h: 200, s: 13, l: 31 }, shadow: { h: 203, s: 13, l: 12 } },
+  shell: { base: { h: 210, s: 3, l: 52 }, highlight: { h: 206, s: 4, l: 68 }, shadow: { h: 207, s: 5, l: 33 } },
+  vent: { base: { h: 253, s: 14, l: 45 }, highlight: { h: 254, s: 15, l: 60 }, shadow: { h: 251, s: 17, l: 26 } },
+  glass: { base: { h: 192, s: 65, l: 68 } },
+  indicator: { powered: { h: 111, s: 100, l: 54 }, off: { h: 146, s: 64, l: 22 } },
+  alert: { powered: { h: 351, s: 89, l: 48 } },
+  shadowDepth: { h: 0, s: 0, l: 10 },
+};
+const hsl = (c, lMul = 1, alpha = 1) => `hsla(${Math.round(c.h)},${Math.round(Math.max(0, Math.min(100, c.s)))}%,${Math.round(Math.max(0, Math.min(100, c.l * lMul)))}%,${alpha})`;
+const shift = (c, dh, ds) => ({ h: (c.h + dh + 360) % 360, s: Math.max(0, Math.min(100, c.s + ds)), l: c.l });
+// Phase 35 accent lean, approximated: halfway toward one of two accent hues the "style" picks, +15 sat.
+const ACCENT_HUES = [0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320, 340];
+function lean(c, target) { let d = ((target - c.h + 540) % 360) - 180; return { h: (c.h + d * 0.5 + 360) % 360, s: Math.min(100, c.s + 15), l: c.l }; }
+const accentBase = (hue) => ({ h: hue, s: 55, l: 42 });
+
+// ---------- lighting (lightingUtils.ts, verbatim constants) ----------
+const NIGHT_L = 0.15, PEAK_L = 1.05, GAMMA = 2.2;
+function getLighting(hour) {
+  const th = (hour / 24) * 2 * Math.PI;
+  const e = (Math.sin(th - Math.PI / 2 + Math.PI / 4) + 1) / 2;
+  const w = (Math.sin(th - Math.PI / 2 - Math.PI / 4) + 1) / 2;
+  const L = { eastL: NIGHT_L + (PEAK_L - NIGHT_L) * Math.pow(e, GAMMA), westL: NIGHT_L + (PEAK_L - NIGHT_L) * Math.pow(w, GAMMA) };
+  L.nd = Math.max(0, Math.min(1, 1 - ((L.eastL + L.westL) / 2 - NIGHT_L) / (PEAK_L - NIGHT_L)));
+  L.m = (L.eastL + L.westL) / 2;
+  return L;
+}
+const ROW_CAP = { background: 0.7, midground: 0.85, foreground: 1.0 };
+
+// ---------- variants (factoryVariants.ts sizes + hue ranges) ----------
+const VARIANTS = {
+  Monolith: { w: [120, 180], h: [200, 300], hue: [-15, 15], sat: [40, 60], roof: ['steppe', 'machinery'], win: 'square', belts: 2 },
+  Stacks: { w: [480, 520], h: [160, 180], hue: [-15, 15], sat: [-60, -40], roof: ['machinery', 'stacks'], win: 'wide', belts: 1 },
+  Refinery: { w: [176, 264], h: [160, 240], hue: [60, 150], sat: [-35, 20], roof: ['machinery', 'antenna'], win: 'wide', belts: 1 },
+  Skyscraper: { w: [160, 240], h: [440, 660], hue: [-120, 120], sat: [0, 30], roof: ['pitched', 'spire', 'antenna'], win: 'tall', belts: 3 },
+  Warehouse: { w: [160, 240], h: [240, 360], hue: [45, 60], sat: [-30, 20], roof: ['flat', 'spire'], win: 'square', belts: 0 },
+};
+
+// ---------- families: [flag, label, group]; the toggles are built from this table ----------
+const FAMILIES = [
+  ['districts', 'D districts (seeded recipe)', 'A'], ['tanks', 'T tanks', 'A'], ['cranes', 'C cranes', 'A'], ['bridges', 'B pipe bridges', 'A'],
+  ['pylons', 'P pylons', 'A'], ['walls', 'W walls', 'A'], ['derelictOn', 'X derelict', 'A'], ['gems', 'J gem accents', 'A'],
+  ['pipelines', 'pipelines', 'B'], ['domes', 'habitat domes', 'B'], ['wrecks', 'wrecks', 'B'], ['turbines', 'tidal turbines', 'B'],
+  ['boulders', 'gem boulders', 'B'], ['vents', 'vent chimneys', 'B'], ['containers', 'container stacks', 'B'], ['scaffolds', 'scaffolds', 'B'],
+  ['tethers', 'mooring tethers', 'B'], ['floodlights', 'floodlights', 'B'], ['docks', 'docking pads', 'B'], ['dishes', 'sonar dishes', 'B'],
+  ['terrain', 'G seabed ridge + ground', 'C'], ['sky', 'S water follows hour', 'C'], ['shafts', 'light shafts', 'C'], ['snow', 'marine snow', 'C'], ['gradients', 'depth gradients (as today)', 'C'],
+];
+// Which toggle hides which placed kind. factory has none (districts decide what rows exist).
+const KIND_FLAG = { tank: 'tanks', crane: 'cranes', pylon: 'pylons', wall: 'walls', beacon: 'gems', pipeline: 'pipelines', dome: 'domes', wreck: 'wrecks', turbine: 'turbines', boulder: 'boulders', vent: 'vents', containers: 'containers', scaffold: 'scaffolds', tether: 'tethers', floodlight: 'floodlights', dock: 'docks', dish: 'dishes' };
+
+// ---------- recipes (today's FACTORY_ROWS + the proposed districts) ----------
+// kind: factory | one of KIND_FLAG. spread: full | center | edges. derelict: per-row override of the ratio.
+const LEGACY = [
+  { y: 700, spread: 'center', n: 3, cw: 0.3, kind: 'factory', types: ['Skyscraper'], row: 'background' },
+  { y: 1000, spread: 'center', n: 5, cw: 0.5, kind: 'factory', types: ['Skyscraper'], row: 'background' },
+  { y: 980, spread: 'full', n: 24, kind: 'factory', types: ['Monolith'], row: 'background' },
+  { y: 1019, spread: 'full', n: 5, kind: 'factory', types: ['Refinery', 'Stacks'], row: 'midground' },
+  { y: 1030, spread: 'full', n: 4, kind: 'factory', types: ['Refinery', 'Stacks', 'Warehouse'], row: 'midground' },
+  { y: 1180, spread: 'center', n: 8, cw: 0.5, kind: 'factory', types: ['Refinery'], row: 'foreground' },
+  { y: 900, spread: 'edges', n: 4, ew: 0.05, kind: 'factory', types: ['Warehouse'], row: 'foreground' },
+  { y: 1000, spread: 'edges', n: 3, ew: 0.2, kind: 'factory', types: ['Warehouse', 'Monolith'], row: 'foreground' },
+  { y: 1200, spread: 'edges', n: 8, ew: 0.3, kind: 'factory', types: ['Warehouse'], row: 'foreground' },
+];
+const B = 'background', M = 'midground', F = 'foreground';
+const RECIPES = {
+  legacy: LEGACY,
+  dense: [
+    ...LEGACY,
+    { y: 985, spread: 'full', n: 6, kind: 'pylon', row: B },
+    { y: 1025, spread: 'full', n: 3, kind: 'tank', row: M },
+    { y: 1028, spread: 'center', n: 1, cw: 0.6, kind: 'pipeline', row: M },
+    { y: 1190, spread: 'edges', n: 2, ew: 0.25, kind: 'crane', row: F },
+    { y: 1195, spread: 'edges', n: 2, ew: 0.12, kind: 'floodlight', row: F },
+    { y: 1200, spread: 'edges', n: 2, ew: 0.3, kind: 'containers', row: F },
+  ],
+  outskirts: [
+    { y: 1000, spread: 'center', n: 2, cw: 0.35, kind: 'factory', types: ['Skyscraper'], row: B },
+    { y: 985, spread: 'full', n: 5, kind: 'pylon', row: B },
+    { y: 990, spread: 'full', n: 4, kind: 'boulder', row: B },
+    { y: 988, spread: 'edges', n: 2, ew: 0.3, kind: 'turbine', row: B },
+    { y: 1025, spread: 'edges', n: 2, ew: 0.15, kind: 'factory', types: ['Refinery', 'Warehouse'], row: M },
+    { y: 1028, spread: 'center', n: 2, cw: 0.3, kind: 'tank', row: M },
+    { y: 1030, spread: 'center', n: 1, cw: 0.2, kind: 'dish', row: M },
+    { y: 1190, spread: 'full', n: 6, kind: 'wall', row: F },
+    { y: 1200, spread: 'edges', n: 2, ew: 0.1, kind: 'factory', types: ['Warehouse'], row: F },
+    { y: 1195, spread: 'center', n: 2, cw: 0.5, kind: 'beacon', row: F },
+    { y: 1192, spread: 'full', n: 2, kind: 'tether', row: F },
+  ],
+  towers: [
+    { y: 700, spread: 'center', n: 5, cw: 0.35, kind: 'factory', types: ['Skyscraper'], row: B },
+    { y: 1000, spread: 'center', n: 4, cw: 0.5, kind: 'factory', types: ['Skyscraper'], row: B },
+    { y: 990, spread: 'edges', n: 2, ew: 0.25, kind: 'dish', row: B },
+    { y: 1020, spread: 'edges', n: 4, ew: 0.2, kind: 'factory', types: ['Monolith'], row: M },
+    { y: 1025, spread: 'edges', n: 2, ew: 0.08, kind: 'pylon', row: M },
+    { y: 1028, spread: 'edges', n: 2, ew: 0.35, kind: 'dome', row: M },
+    { y: 1190, spread: 'edges', n: 4, ew: 0.2, kind: 'factory', types: ['Warehouse'], row: F },
+    { y: 1195, spread: 'center', n: 4, cw: 0.4, kind: 'wall', row: F },
+    { y: 1196, spread: 'center', n: 1, cw: 0.2, kind: 'dock', row: F },
+    { y: 1192, spread: 'edges', n: 2, ew: 0.05, kind: 'tether', row: F },
+  ],
+  yard: [
+    { y: 990, spread: 'full', n: 10, kind: 'factory', types: ['Monolith'], row: B },
+    { y: 1020, spread: 'full', n: 6, kind: 'tank', row: M },
+    { y: 1030, spread: 'edges', n: 2, ew: 0.2, kind: 'factory', types: ['Stacks'], row: M },
+    { y: 1026, spread: 'full', n: 4, kind: 'containers', row: M },
+    { y: 1029, spread: 'center', n: 1, cw: 0.7, kind: 'pipeline', row: M },
+    { y: 1190, spread: 'full', n: 3, kind: 'crane', row: F },
+    { y: 1200, spread: 'edges', n: 6, ew: 0.3, kind: 'factory', types: ['Warehouse'], row: F },
+    { y: 1195, spread: 'full', n: 8, kind: 'wall', row: F },
+    { y: 1195, spread: 'edges', n: 2, ew: 0.08, kind: 'beacon', row: F },
+    { y: 1196, spread: 'center', n: 2, cw: 0.5, kind: 'dock', row: F },
+    { y: 1194, spread: 'edges', n: 2, ew: 0.18, kind: 'floodlight', row: F },
+  ],
+  derelict: [
+    { y: 1000, spread: 'full', n: 3, kind: 'factory', types: ['Skyscraper'], row: B, derelict: 0.8 },
+    { y: 985, spread: 'full', n: 12, kind: 'factory', types: ['Monolith'], row: B, derelict: 0.8 },
+    { y: 990, spread: 'edges', n: 2, ew: 0.2, kind: 'vent', row: B },
+    { y: 1020, spread: 'full', n: 4, kind: 'factory', types: ['Refinery', 'Stacks'], row: M, derelict: 0.6 },
+    { y: 1028, spread: 'edges', n: 2, ew: 0.1, kind: 'tank', row: M, derelict: 0.6 },
+    { y: 1030, spread: 'center', n: 3, cw: 0.4, kind: 'pylon', row: M },
+    { y: 1029, spread: 'center', n: 1, cw: 0.3, kind: 'scaffold', row: M, derelict: 1 },
+    { y: 1200, spread: 'edges', n: 4, ew: 0.25, kind: 'factory', types: ['Warehouse'], row: F, derelict: 0.6 },
+    { y: 1195, spread: 'full', n: 5, kind: 'wall', row: F },
+    { y: 1196, spread: 'center', n: 1, cw: 0.3, kind: 'wreck', row: F },
+    { y: 1194, spread: 'full', n: 3, kind: 'boulder', row: F },
+  ],
+  habitat: [
+    { y: 1000, spread: 'center', n: 2, cw: 0.3, kind: 'factory', types: ['Skyscraper'], row: B },
+    { y: 985, spread: 'full', n: 4, kind: 'pylon', row: B },
+    { y: 990, spread: 'edges', n: 2, ew: 0.2, kind: 'turbine', row: B },
+    { y: 1026, spread: 'full', n: 3, kind: 'dome', row: M },
+    { y: 1028, spread: 'center', n: 2, cw: 0.6, kind: 'dock', row: M },
+    { y: 1030, spread: 'edges', n: 2, ew: 0.1, kind: 'dish', row: M },
+    { y: 1029, spread: 'center', n: 1, cw: 0.5, kind: 'pipeline', row: M },
+    { y: 1196, spread: 'center', n: 1, cw: 0.25, kind: 'dome', row: F },
+    { y: 1194, spread: 'edges', n: 2, ew: 0.15, kind: 'floodlight', row: F },
+    { y: 1192, spread: 'full', n: 3, kind: 'tether', row: F },
+    { y: 1195, spread: 'edges', n: 3, ew: 0.25, kind: 'wall', row: F },
+    { y: 1195, spread: 'edges', n: 2, ew: 0.06, kind: 'beacon', row: F },
+  ],
+  wreckfield: [
+    { y: 985, spread: 'full', n: 6, kind: 'factory', types: ['Monolith'], row: B, derelict: 0.9 },
+    { y: 990, spread: 'full', n: 5, kind: 'boulder', row: B },
+    { y: 988, spread: 'center', n: 2, cw: 0.4, kind: 'vent', row: B },
+    { y: 1026, spread: 'edges', n: 2, ew: 0.3, kind: 'wreck', row: M },
+    { y: 1028, spread: 'full', n: 4, kind: 'boulder', row: M },
+    { y: 1030, spread: 'center', n: 1, cw: 0.2, kind: 'pylon', row: M },
+    { y: 1196, spread: 'center', n: 1, cw: 0.4, kind: 'wreck', row: F },
+    { y: 1194, spread: 'edges', n: 4, ew: 0.25, kind: 'boulder', row: F },
+    { y: 1192, spread: 'edges', n: 2, ew: 0.08, kind: 'tether', row: F },
+    { y: 1200, spread: 'edges', n: 2, ew: 0.12, kind: 'factory', types: ['Warehouse'], row: F, derelict: 0.7 },
+  ],
+  ventfield: [
+    { y: 985, spread: 'full', n: 6, kind: 'vent', row: B },
+    { y: 1000, spread: 'center', n: 2, cw: 0.3, kind: 'factory', types: ['Refinery'], row: B },
+    { y: 990, spread: 'edges', n: 2, ew: 0.2, kind: 'boulder', row: B },
+    { y: 1026, spread: 'full', n: 2, kind: 'pipeline', row: M },
+    { y: 1028, spread: 'edges', n: 2, ew: 0.15, kind: 'tank', row: M },
+    { y: 1030, spread: 'center', n: 3, cw: 0.5, kind: 'vent', row: M },
+    { y: 1194, spread: 'edges', n: 3, ew: 0.25, kind: 'boulder', row: F },
+    { y: 1196, spread: 'center', n: 1, cw: 0.4, kind: 'pipeline', row: F },
+    { y: 1195, spread: 'center', n: 1, cw: 0.15, kind: 'floodlight', row: F },
+    { y: 1200, spread: 'edges', n: 2, ew: 0.1, kind: 'factory', types: ['Refinery', 'Stacks'], row: F },
+  ],
+  construction: [
+    { y: 1000, spread: 'center', n: 2, cw: 0.4, kind: 'factory', types: ['Skyscraper'], row: B },
+    { y: 985, spread: 'full', n: 6, kind: 'factory', types: ['Monolith'], row: B },
+    { y: 1026, spread: 'full', n: 3, kind: 'scaffold', row: M },
+    { y: 1028, spread: 'edges', n: 3, ew: 0.3, kind: 'containers', row: M },
+    { y: 1029, spread: 'center', n: 1, cw: 0.4, kind: 'pipeline', row: M },
+    { y: 1190, spread: 'full', n: 3, kind: 'crane', row: F },
+    { y: 1200, spread: 'edges', n: 4, ew: 0.3, kind: 'containers', row: F },
+    { y: 1194, spread: 'edges', n: 2, ew: 0.1, kind: 'floodlight', row: F },
+    { y: 1195, spread: 'center', n: 2, cw: 0.4, kind: 'wall', row: F },
+  ],
+};
+const RECIPE_NAMES = ['dense', 'outskirts', 'towers', 'yard', 'derelict', 'habitat', 'wreckfield', 'ventfield', 'construction'];
+const W = 1920, H = 1080;
+
+// ---------- per-kind item generation (sizes seeded; every item is ground-locked at row.y) ----------
+const GEN = {
+  factory(it, r, row) {
+    const v = pick(r, row.types); const V = VARIANTS[v]; const scale = range(r, 0.9, 1.1);
+    it.variant = v; it.w = range(r, V.w[0], V.w[1]) * scale; it.h = range(r, V.h[0], V.h[1]) * scale;
+    it.hue = range(r, V.hue[0], V.hue[1]); it.sat = range(r, V.sat[0], V.sat[1]);
+    it.roof = pick(r, V.roof); it.win = V.win; it.belts = irange(r, 0, V.belts); it.corner = range(r, 0.25, 0.75);
+  },
+  tank(it, r) { it.w = range(r, 90, 150); it.h = range(r, 140, 260); it.hue = range(r, -10, 10); it.sat = range(r, -20, 20); it.corner = range(r, 0.35, 0.65); it.belts = irange(r, 1, 3); },
+  crane(it, r) { it.w = range(r, 220, 360); it.h = range(r, 260, 380); it.load = range(r, 0.2, 0.8); },
+  pylon(it, r) { it.w = range(r, 60, 90); it.h = range(r, 260, 420); },
+  wall(it, r) { it.w = range(r, 160, 420); it.h = range(r, 28, 70); it.hue = range(r, 40, 60); it.sat = range(r, -30, 0); },
+  beacon(it, r) { it.h = range(r, 120, 220); it.gw = range(r, 40, 64); },
+  pipeline(it, r) { it.w = range(r, 320, 720); it.d = range(r, 14, 22); it.e = range(r, 34, 60); it.rh = range(r, 90, 220); it.side = r() < 0.5 ? -1 : 1; },
+  dome(it, r) { it.w = range(r, 170, 300); it.bh = range(r, 30, 60); it.ry = it.w * range(r, 0.28, 0.42); it.ports = irange(r, 3, 6); it.hue = range(r, -10, 10); },
+  wreck(it, r) { it.w = range(r, 340, 580); it.h = range(r, 70, 120); it.corner = range(r, 0.3, 0.6); it.house = range(r, 0.2, 0.3); it.ports = irange(r, 4, 9); },
+  turbine(it, r) { it.h = range(r, 170, 290); it.R = range(r, 60, 95); },
+  boulder(it, r) { it.n = irange(r, 1, 3); it.w = range(r, 60, 150); it.hue = range(r, -12, 12); it.sat = range(r, -6, 8); },
+  vent(it, r) { it.wb = range(r, 44, 90); it.steps = irange(r, 4, 6); it.sh = range(r, 22, 44); it.glow = range(r, 0.5, 1); },
+  containers(it, r) { it.cols = irange(r, 2, 4); it.rows = irange(r, 1, 3); it.cw = range(r, 72, 110); it.ch = range(r, 36, 44); it.alt = r() < 0.5; },
+  scaffold(it, r) { it.w = range(r, 160, 260); it.h = range(r, 220, 380); it.solid = range(r, 0.25, 0.45); it.bays = irange(r, 2, 3); it.hue = range(r, -15, 15); it.sat = range(r, 20, 50); },
+  tether(it, r) { it.h1 = range(r, 120, 320); it.dx = range(r, 40, 90) * (r() < 0.5 ? -1 : 1); it.float = r() < 0.6; },
+  floodlight(it, r) { it.h = range(r, 190, 310); it.side = r() < 0.5 ? -1 : 1; },
+  dock(it, r) { it.w = range(r, 180, 300); it.h = 16; it.mastSide = r() < 0.5 ? -1 : 1; it.gw = range(r, 28, 40); },
+  dish(it, r) { it.h = range(r, 90, 170); it.rx = range(r, 30, 48); it.dir = r() < 0.5 ? -1 : 1; },
+};
+
+// ---------- placement (placeFactories' three spread modes, simplified) ----------
+function placeRow(r, row, flags) {
+  const items = [], xs = [];
+  if (row.spread === 'full') { const gap = W / row.n; for (let i = 0; i < row.n; i++) xs.push(gap * i + gap * range(r, 0.2, 0.8)); }
+  else if (row.spread === 'center') { const cw = W * row.cw, x0 = (W - cw) / 2, gap = cw / row.n; for (let i = 0; i < row.n; i++) xs.push(x0 + gap * i + gap * range(r, 0.2, 0.8)); }
+  else { const ew = W * row.ew, half = Math.ceil(row.n / 2); for (let i = 0; i < row.n; i++) xs.push(i < half ? (ew / half) * i + range(r, 0, ew / half) : W - ew + (ew / half) * (i - half) + range(r, 0, ew / half)); }
+  for (const x of xs) {
+    const kind = row.kind;
+    const it = { kind, x, y: row.y, row: row.row, seed: r() };
+    GEN[kind](it, r, row);
+    const dr = row.derelict !== undefined ? row.derelict : flags.derelictRatio;
+    it.derelict = kind === 'wreck' || (flags.derelictOn && ['factory', 'tank', 'dome', 'scaffold'].includes(kind) && r() < dr);
+    if (KIND_FLAG[kind] && !flags[KIND_FLAG[kind]]) continue; // after the draws, so toggling never reshuffles the rest
+    items.push(it);
+  }
+  return items;
+}
+
+// ---------- shared drawing helpers ----------
+// Two faces of a rectangle: west (left of the corner) lit by westL, east by eastL.
+function faces(x0, y, w, h, cornerX, body, L, cap, alpha = 1) {
+  const cx = x0 + w * cornerX;
+  return `<rect x="${x0}" y="${y - h}" width="${cx - x0}" height="${h}" fill="${hsl(body, L.westL * cap)}" opacity="${alpha}"/>` +
+         `<rect x="${cx}" y="${y - h}" width="${x0 + w - cx}" height="${h}" fill="${hsl(body, L.eastL * cap)}" opacity="${alpha}"/>`;
+}
+const lamp = (c, L, lo = 0.5) => hsl(c, lerp(lo, 1, L.nd));
+function derelictise(body, cap, derelict) { return derelict ? [{ ...body, s: body.s * 0.4 }, cap * 0.55] : [body, cap]; }
+// A chamfered polygon in the robots' vocabulary: 15°-grid chamfers, three facet tones, lit from the brighter face.
+function gem(cx, cy, w, h, L, cap, base, lit) {
+  const c = Math.min(w, h) * 0.3; const x0 = cx - w / 2, y0 = cy - h / 2;
+  const glow = lit ? lerp(0.9, 1.6, L.nd) : L.m * cap;
+  const outline = `${x0 + c},${y0} ${x0 + w - c},${y0} ${x0 + w},${y0 + c} ${x0 + w},${y0 + h - c} ${x0 + w - c},${y0 + h} ${x0 + c},${y0 + h} ${x0},${y0 + h - c} ${x0},${y0 + c}`;
+  let s = `<polygon points="${outline}" fill="${hsl(base, glow * 0.75)}"/>`;
+  s += `<polygon points="${x0 + c},${y0} ${x0 + w - c},${y0} ${x0 + w - c * 1.6},${y0 + c * 0.8} ${x0 + c * 1.6},${y0 + c * 0.8}" fill="${hsl(base, glow * 1.25)}"/>`;
+  s += `<polygon points="${x0 + c},${y0 + h} ${x0 + w - c},${y0 + h} ${x0 + w - c * 1.6},${y0 + h - c * 0.8} ${x0 + c * 1.6},${y0 + h - c * 0.8}" fill="${hsl(base, glow * 0.5)}"/>`;
+  const sideX = L.eastL >= L.westL ? [x0 + w, x0 + w - c * 0.8] : [x0, x0 + c * 0.8];
+  s += `<polygon points="${sideX[0]},${y0 + c} ${sideX[0]},${y0 + h - c} ${sideX[1]},${y0 + h - c * 1.6} ${sideX[1]},${y0 + c * 1.6}" fill="${hsl(base, glow * 1.1)}"/>`;
+  s += `<polygon points="${outline}" fill="none" stroke="${hsl(THEME.body.shadow, 0.8)}" stroke-width="2"/>`;
+  return s;
+}
+// A 90/45 stepped profile from x=0 to W, closed to the bottom edge. Steps are 45° (dx == |dy|).
+function steppedProfile(r, y0, yMin, yMax, runLo, runHi, steps) {
+  let pts = `0,${H} 0,${y0}`; let x = 0, y = y0;
+  while (x < W) {
+    const run = range(r, runLo, runHi); const dy = pick(r, steps);
+    if (dy !== 0) { const ny = Math.max(yMin, Math.min(yMax, y + dy)); const d = Math.abs(ny - y); pts += ` ${x + d},${ny}`; x += d; y = ny; }
+    pts += ` ${x + run},${y}`; x += run;
+  }
+  return `<polygon points="${pts} ${W},${y} ${W},${H}"`;
+}
+
+// ---------- renderers (each: two faces, 90/45, single-colour primitives). ctx = { accent, flags, uid } ----------
+function windows(it, lit, L, cap, r) {
+  const { x, y, w, h } = it; const x0 = x - w / 2;
+  const cw = it.win === 'tall' ? 10 : it.win === 'wide' ? 26 : 12, ch = it.win === 'tall' ? 26 : it.win === 'wide' ? 10 : 12;
+  // Sparser than the live facade greebles on purpose: the sketch redraws nine stages on every slider move.
+  const cols = Math.max(1, Math.floor((w - 30) / (cw * 3))), rows = Math.max(1, Math.floor((h - 50) / (ch * 3.2)));
+  let s = '';
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+    const on = !it.derelict && r() < L.nd * 0.85;
+    s += `<rect x="${x0 + 15 + i * cw * 3}" y="${y - h + 30 + j * ch * 3.2}" width="${cw}" height="${ch}" fill="${on ? hsl(lit) : hsl(THEME.vent.shadow, cap * 0.9)}"/>`;
+  }
+  return s;
+}
+const DRAW = {
+  factory(it, L, cap, ctx) {
+    const { x, y, w, h } = it; const x0 = x - w / 2;
+    const [body, capL] = derelictise(lean(shift(THEME.body.base, it.hue, it.sat), ctx.accent), cap, it.derelict);
+    const lit = { h: THEME.vent.shadow.h, s: THEME.vent.shadow.s, l: THEME.vent.shadow.l + 30 };
+    let s = faces(x0, y, w, h, it.corner, body, L, capL);
+    for (let b = 0; b < it.belts; b++) s += `<rect x="${x0}" y="${y - h * (0.25 + 0.25 * b)}" width="${w}" height="6" fill="${hsl(THEME.shell.base, L.m * capL)}"/>`;
+    s += windows(it, lit, L, capL, rng(`win${it.seed}`));
+    const roofCol = hsl(THEME.body.shadow, L.m * capL * 1.3), ry = y - h;
+    if (it.roof === 'pitched') s += `<polygon points="${x0},${ry} ${x0 + w / 2},${ry - w / 2} ${x0 + w},${ry}" fill="${roofCol}"/>`;
+    else if (it.roof === 'steppe') s += `<rect x="${x0 + w * 0.2}" y="${ry - 28}" width="${w * 0.6}" height="28" fill="${roofCol}"/><rect x="${x0 + w * 0.35}" y="${ry - 50}" width="${w * 0.3}" height="22" fill="${roofCol}"/>`;
+    else if (it.roof === 'machinery') s += `<rect x="${x0 + w * 0.1}" y="${ry - 24}" width="${w * 0.3}" height="24" fill="${roofCol}"/><rect x="${x0 + w * 0.6}" y="${ry - 40}" width="${w * 0.12}" height="40" fill="${roofCol}"/>`;
+    else if (it.roof === 'stacks') for (let i = 0; i < 4; i++) s += `<rect x="${x0 + w * (0.15 + i * 0.2)}" y="${ry - 70}" width="${w * 0.06}" height="70" fill="${roofCol}"/>`;
+    else if (it.roof === 'spire') s += `<polygon points="${x0 + w * 0.42},${ry} ${x0 + w * 0.5},${ry - w * 0.3} ${x0 + w * 0.58},${ry}" fill="${roofCol}"/>`;
+    else if (it.roof === 'antenna') s += `<rect x="${x0 + w * 0.48}" y="${ry - 90}" width="4" height="90" fill="${roofCol}"/>` + (it.derelict ? '' : `<circle cx="${x0 + w * 0.48 + 2}" cy="${ry - 94}" r="5" fill="${hsl(THEME.alert.powered)}"/>`);
+    if (ctx.flags.gems && it.variant === 'Skyscraper' && !it.derelict && it.seed > 0.4) s += gem(x, ry + 40, Math.min(70, w * 0.4), 26, L, cap, accentBase(ctx.accent), true);
+    return s;
+  },
+  tank(it, L, cap, ctx) {
+    const { x, y, w, h } = it; const x0 = x - w / 2, sh = w * 0.3;
+    const [body, capL] = derelictise(lean(shift(THEME.shell.shadow, it.hue, it.sat), ctx.accent), cap, it.derelict);
+    const cx = x0 + w * it.corner, top = y - h + sh;
+    let s = `<polygon points="${x0},${y} ${x0},${top} ${x0 + sh},${top - sh} ${cx},${top - sh} ${cx},${y}" fill="${hsl(body, L.westL * capL)}"/>`;
+    s += `<polygon points="${cx},${y} ${cx},${top - sh} ${x0 + w - sh},${top - sh} ${x0 + w},${top} ${x0 + w},${y}" fill="${hsl(body, L.eastL * capL)}"/>`;
+    for (let b = 0; b < it.belts; b++) s += `<rect x="${x0}" y="${y - h * (0.2 + 0.22 * b)}" width="${w}" height="5" fill="${hsl(THEME.shell.base, L.m * capL)}"/>`;
+    s += `<circle cx="${x}" cy="${y - h * 0.55}" r="${w * 0.08}" fill="${it.derelict ? hsl(THEME.indicator.off, L.m * capL) : lamp(THEME.indicator.powered, L, 0.6)}"/>`;
+    return s;
+  },
+  crane(it, L, cap) {
+    const { x, y, w, h } = it; const x0 = x - w / 2, p = 14, beam = 18;
+    const col = hsl(THEME.body.shadow, L.m * cap * 1.2), colW = hsl(THEME.body.shadow, L.westL * cap * 1.2), colE = hsl(THEME.body.shadow, L.eastL * cap * 1.2);
+    let s = `<rect x="${x0}" y="${y - h}" width="${p}" height="${h}" fill="${colW}"/><rect x="${x0 + w - p}" y="${y - h}" width="${p}" height="${h}" fill="${colE}"/>`;
+    s += `<rect x="${x0 - 30}" y="${y - h}" width="${w + 60}" height="${beam}" fill="${col}"/>`;
+    s += `<polygon points="${x0 + p},${y - h + beam} ${x0 + p + 40},${y - h + beam} ${x0 + p},${y - h + beam + 40}" fill="${colW}"/>`;
+    const lx = x0 + w * it.load, ll = h * 0.35;
+    s += `<rect x="${lx - 2}" y="${y - h + beam}" width="4" height="${ll}" fill="${col}"/><rect x="${lx - 40}" y="${y - h + beam + ll}" width="80" height="50" fill="${hsl(THEME.vent.base, L.m * cap)}"/>`;
+    s += `<circle cx="${x0 + w + 26}" cy="${y - h + beam / 2}" r="5" fill="${lamp(THEME.alert.powered, L)}"/>`;
+    return s;
+  },
+  pylon(it, L, cap, ctx) {
+    const { x, y, w, h } = it; const col = hsl(THEME.body.shadow, L.m * cap * 1.15);
+    let s = `<polygon points="${x - w / 2},${y} ${x - 4},${y - h} ${x + 4},${y - h} ${x + w / 2},${y}" fill="${col}"/>`;
+    for (let i = 1; i <= 3; i++) { const t = i / 4, yy = y - h * t, hw = (w / 2) * (1 - t) + 4; s += `<rect x="${x - hw - 14}" y="${yy}" width="${hw * 2 + 28}" height="5" fill="${col}"/>`; }
+    s += ctx.flags.gems ? gem(x, y - h - 14, 26, 18, L, cap, accentBase(ctx.accent), true) : `<circle cx="${x}" cy="${y - h - 6}" r="5" fill="${lamp(THEME.alert.powered, L)}"/>`;
+    return s;
+  },
+  wall(it, L, cap, ctx) {
+    const { x, y, w, h } = it; const body = lean(shift(THEME.body.base, it.hue, it.sat), ctx.accent);
+    return faces(x - w / 2, y, w, h, 0.5, body, L, cap) + `<rect x="${x - w / 2}" y="${y - h}" width="${w}" height="5" fill="${hsl(THEME.shell.shadow, L.m * cap)}"/>`;
+  },
+  beacon(it, L, cap, ctx) {
+    const { x, y, h } = it; const col = hsl(THEME.body.shadow, L.m * cap * 1.15);
+    return `<rect x="${x - 5}" y="${y - h}" width="10" height="${h}" fill="${col}"/><rect x="${x - 30}" y="${y - 12}" width="60" height="12" fill="${col}"/>` + gem(x, y - h - it.gw * 0.33, it.gw, it.gw * 0.66, L, cap, accentBase(ctx.accent), true);
+  },
+  // Seabed pipe run: a horizontal cylinder is lit top/bottom, not east/west — top highlight strip, dark body.
+  pipeline(it, L, cap) {
+    const { x, y, w, d, e, rh } = it; const x0 = x - w / 2, py = y - e - d;
+    const body = THEME.shell.shadow, col = hsl(body, L.m * cap), hi = hsl(THEME.shell.base, L.m * cap);
+    let s = `<rect x="${x0}" y="${py}" width="${w}" height="${d}" fill="${col}"/><rect x="${x0}" y="${py}" width="${w}" height="${d * 0.35}" fill="${hi}"/>`;
+    for (let sx = x0 + 40; sx < x0 + w - 20; sx += 110) s += `<rect x="${sx}" y="${py + d}" width="8" height="${e}" fill="${hsl(THEME.body.shadow, L.m * cap * 1.2)}"/>`;
+    const rx = it.side < 0 ? x0 : x0 + w - d;
+    s += faces(rx, py + d, d, rh + d, 0.5, body, L, cap);
+    s += `<rect x="${rx - 4}" y="${py - rh}" width="${d + 8}" height="6" fill="${hi}"/>`;
+    s += `<circle cx="${rx + d / 2}" cy="${py - rh * 0.5}" r="${d * 0.55}" fill="${hsl(THEME.alert.powered, L.m * cap * 1.1)}"/>`;
+    return s;
+  },
+  // Habitat module: rectangular base with two faces, a half-ellipse dome split at the centre line, portholes.
+  dome(it, L, cap, ctx) {
+    const { x, y, w, bh, ry } = it; const x0 = x - w / 2, rx = w / 2, yb = y - bh;
+    const [body, capL] = derelictise(lean(shift(THEME.shell.base, it.hue, 10), ctx.accent), cap, it.derelict);
+    let s = faces(x0, y, w, bh, 0.5, THEME.body.base, L, capL);
+    s += `<path d="M ${x0},${yb} A ${rx} ${ry} 0 0 1 ${x},${yb - ry} L ${x},${yb} Z" fill="${hsl(body, L.westL * capL)}"/>`;
+    s += `<path d="M ${x},${yb - ry} A ${rx} ${ry} 0 0 1 ${x0 + w},${yb} L ${x},${yb} Z" fill="${hsl(body, L.eastL * capL)}"/>`;
+    const r = rng(`dome${it.seed}`);
+    for (let i = 0; i < it.ports; i++) {
+      const t = (i + 1) / (it.ports + 1), px = x0 + w * t, pyy = yb - ry * 0.5 * Math.sqrt(Math.max(0, 1 - Math.pow((px - x) / rx, 2))) - 4;
+      const on = !it.derelict && r() < 0.4 + L.nd * 0.6;
+      s += `<circle cx="${px}" cy="${pyy}" r="7" fill="${on ? hsl(THEME.glass.base, lerp(0.8, 1.05, L.nd)) : hsl(THEME.vent.shadow, capL)}"/>`;
+    }
+    s += `<rect x="${x - 14}" y="${y - bh + 6}" width="28" height="${bh - 6}" fill="${hsl(THEME.body.shadow, L.m * capL * 1.2)}"/>`;
+    s += `<rect x="${x - 2}" y="${yb - ry - 26}" width="4" height="26" fill="${hsl(THEME.body.shadow, L.m * capL * 1.3)}"/>` + (it.derelict ? '' : `<circle cx="${x}" cy="${yb - ry - 30}" r="4" fill="${lamp(THEME.alert.powered, L)}"/>`);
+    return s;
+  },
+  // Sunken hull: stern block, 45° raked bow, deckhouse, funnel, dead portholes. Always derelict.
+  wreck(it, L, cap) {
+    const { x, y, w, h } = it; const x0 = x - w / 2, x1 = x0 + w, xc = x0 + w * it.corner;
+    const body = { ...THEME.body.base, s: 6 }; const capL = cap * 0.5;
+    let s = `<polygon points="${x0},${y} ${x0},${y - h} ${xc},${y - h} ${xc},${y}" fill="${hsl(body, L.westL * capL)}"/>`;
+    s += `<polygon points="${xc},${y} ${xc},${y - h} ${x1},${y - h} ${x1 - h},${y}" fill="${hsl(body, L.eastL * capL)}"/>`;
+    s += `<rect x="${x0}" y="${y - h * 0.62}" width="${w - h * 0.62}" height="5" fill="${hsl(THEME.shell.shadow, L.m * capL)}"/>`;
+    const hw = w * it.house, hx = x0 + w * 0.12;
+    s += faces(hx, y - h, hw, 46, 0.5, THEME.body.shadow, L, capL * 1.3);
+    s += `<rect x="${hx + hw * 0.6}" y="${y - h - 46 - 40}" width="${hw * 0.16}" height="40" fill="${hsl(THEME.body.shadow, L.m * capL * 1.4)}"/>`;
+    for (let i = 0; i < it.ports; i++) { const t = (i + 0.5) / it.ports; s += `<circle cx="${x0 + (w - h) * t}" cy="${y - h * 0.3}" r="6" fill="${hsl(THEME.shadowDepth, 0.9)}"/>`; }
+    s += `<rect x="${x0 - 10}" y="${y - 10}" width="${w + 20}" height="10" fill="${hsl(THEME.shadowDepth, 1.1)}"/>`;
+    return s;
+  },
+  // Tidal turbine: post, nacelle, hub, four blades on the 45° grid. Static here; a slow spin is a later motion pass.
+  turbine(it, L, cap) {
+    const { x, y, h, R } = it; const hy = y - h; const post = hsl(THEME.body.shadow, L.m * cap * 1.15), blade = hsl(THEME.shell.base, L.m * cap);
+    let s = `<rect x="${x - 7}" y="${hy}" width="14" height="${h}" fill="${post}"/><rect x="${x - 34}" y="${hy - 12}" width="68" height="24" fill="${hsl(THEME.shell.shadow, L.m * cap)}"/>`;
+    s += `<g transform="rotate(45 ${x} ${hy})"><rect x="${x - R}" y="${hy - 6}" width="${R * 2}" height="12" fill="${blade}"/><rect x="${x - 6}" y="${hy - R}" width="12" height="${R * 2}" fill="${blade}"/></g>`;
+    s += `<circle cx="${x}" cy="${hy}" r="11" fill="${hsl(THEME.shell.highlight, L.m * cap)}"/><circle cx="${x}" cy="${hy}" r="4" fill="${lamp(THEME.alert.powered, L)}"/>`;
+    return s;
+  },
+  // Seabed rocks in the gem vocabulary, neutral colour, never lit. Clusters of 1–3, half-sunk.
+  boulder(it, L, cap) {
+    const r = rng(`rock${it.seed}`); let s = ''; let cx = it.x - (it.n - 1) * it.w * 0.35;
+    for (let i = 0; i < it.n; i++) { const w = it.w * range(r, 0.55, 1), h = w * range(r, 0.5, 0.75); s += gem(cx, it.y - h / 2 + 8, w, h, L, cap, shift({ ...THEME.body.base, s: 12 }, it.hue, it.sat), false); cx += w * 0.75; }
+    return s;
+  },
+  // Hydrothermal chimney: stepped 90/45 cone, glowing mouth, faint plume (the live scene has real bubbles).
+  vent(it, L, cap) {
+    const { x, y, wb, steps, sh } = it; let s = ''; let w = wb, yy = y;
+    for (let i = 0; i < steps; i++) { s += `<rect x="${x - w / 2}" y="${yy - sh}" width="${w}" height="${sh}" fill="${hsl(THEME.shadowDepth, 1.3 * cap)}"/>`; yy -= sh; w = Math.max(14, w - sh * 0.9); }
+    s += `<ellipse cx="${x}" cy="${yy - 70}" rx="${w * 0.9}" ry="70" fill="${hsl(THEME.vent.highlight)}" opacity="${0.06 * it.glow}"/><ellipse cx="${x}" cy="${yy - 170}" rx="${w * 1.6}" ry="90" fill="${hsl(THEME.vent.highlight)}" opacity="${0.03 * it.glow}"/>`;
+    s += `<circle cx="${x}" cy="${yy}" r="${w * 0.45}" fill="${hsl(THEME.alert.powered, lerp(0.9, 1.3, L.nd))}" opacity="${0.5 + 0.4 * L.nd * it.glow}"/>`;
+    return s;
+  },
+  // Container stacks in the style's two accents, each box two-faced, one lit label square per box.
+  containers(it, L, cap, ctx) {
+    const { x, y, cols, rows, cw, ch } = it; const r = rng(`box${it.seed}`); const x0 = x - (cols * cw) / 2; let s = '';
+    const hues = [ctx.accent, ctx.accent2];
+    for (let j = 0; j < rows; j++) { const n = Math.max(1, cols - j), off = range(r, 0, 10);
+      for (let i = 0; i < n; i++) { const bx = x0 + off + i * cw, by = y - j * ch; const col = accentBase(hues[(i + j + (it.alt ? 1 : 0)) % 2]);
+        s += faces(bx, by, cw - 3, ch - 2, 0.5, { ...col, l: 30, s: 35 }, L, cap);
+        s += `<rect x="${bx + 8}" y="${by - ch + 8}" width="7" height="7" fill="${r() < 0.5 + L.nd * 0.5 ? lamp(THEME.indicator.powered, L) : hsl(THEME.indicator.off, L.m * cap)}"/>`; } }
+    return s;
+  },
+  // Under construction: solid lower floors, open frame with 45° braces above, a warning light on top.
+  scaffold(it, L, cap, ctx) {
+    const { x, y, w, h, solid, bays } = it; const x0 = x - w / 2, sy = y - h * solid, top = y - h;
+    const [body, capL] = derelictise(lean(shift(THEME.body.base, it.hue, it.sat), ctx.accent), cap, it.derelict);
+    const frame = hsl(it.derelict ? THEME.shell.shadow : THEME.shell.base, L.m * capL);
+    let s = faces(x0, y, w, h * solid, 0.5, body, L, capL);
+    const bay = w / bays, lvl = 60, px = 6;
+    for (let b = 0; b <= bays; b++) s += `<rect x="${x0 + b * bay - px / 2}" y="${top}" width="${px}" height="${sy - top}" fill="${frame}"/>`;
+    for (let yy = sy; yy >= top; yy -= lvl) s += `<rect x="${x0 - 8}" y="${yy - 3}" width="${w + 16}" height="5" fill="${frame}"/>`;
+    const bl = Math.min(bay, lvl);
+    for (let b = 0; b < bays; b++) for (let yy = sy, k = 0; yy - bl >= top; yy -= lvl, k++) { if ((b + k) % 2) continue; const bx = x0 + b * bay + (bay - bl) / 2; s += `<polygon points="${bx},${yy} ${bx + 4},${yy} ${bx + bl + 4},${yy - bl} ${bx + bl},${yy - bl}" fill="${frame}"/>`; }
+    s += it.derelict ? '' : `<circle cx="${x0 + w}" cy="${top - 8}" r="5" fill="${lamp(THEME.alert.powered, L)}"/>`;
+    return s;
+  },
+  // Mooring tether: anchor block, line up out of frame with one 45° dog-leg, an optional float.
+  tether(it, L, cap) {
+    const { x, y, h1, dx } = it; const col = hsl(THEME.shell.shadow, L.m * cap * 1.1); const ax = Math.abs(dx), y1 = y - h1;
+    let s = `<rect x="${x - 18}" y="${y - 16}" width="36" height="16" fill="${hsl(THEME.body.shadow, L.m * cap * 1.2)}"/>`;
+    s += `<rect x="${x - 1.5}" y="${y1}" width="3" height="${h1 - 16}" fill="${col}"/>`;
+    s += `<polygon points="${x},${y1} ${x + 3},${y1} ${x + dx + 3},${y1 - ax} ${x + dx},${y1 - ax}" fill="${col}"/>`;
+    s += `<rect x="${x + dx - 1.5}" y="-20" width="3" height="${y1 - ax + 20}" fill="${col}"/>`;
+    if (it.float) s += `<ellipse cx="${x + dx}" cy="${y1 - ax - 60}" rx="9" ry="14" fill="${hsl(THEME.alert.powered, L.m * cap * 1.2)}"/>`;
+    return s;
+  },
+  // Floodlight: mast, lit head, a 45° beam (one vertical edge, one 45° edge) that strengthens at night.
+  floodlight(it, L, cap) {
+    const { x, y, h, side } = it; const hy = y - h; const post = hsl(THEME.body.shadow, L.m * cap * 1.15);
+    const bx = x + side * 14, bw = y - hy;
+    let s = `<polygon points="${bx - 8},${hy + 10} ${bx + 8},${hy + 10} ${bx + 8 + side * bw},${y} ${bx - 8 + side * bw},${y}" fill="${hsl(THEME.glass.base)}" opacity="${0.04 + 0.12 * L.nd}"/>`;
+    s += `<ellipse cx="${bx + side * bw * 0.9}" cy="${y}" rx="${bw * 0.5}" ry="14" fill="${hsl(THEME.glass.base)}" opacity="${0.03 + 0.1 * L.nd}"/>`;
+    s += `<rect x="${x - 5}" y="${hy}" width="10" height="${h}" fill="${post}"/><rect x="${Math.min(x, bx) - 6}" y="${hy}" width="${Math.abs(bx - x) + 12}" height="6" fill="${post}"/>`;
+    s += `<rect x="${bx - 18}" y="${hy - 4}" width="36" height="16" fill="${post}"/><rect x="${bx - 14}" y="${hy + 8}" width="28" height="5" fill="${hsl(THEME.glass.base, lerp(0.8, 1.1, L.nd))}"/>`;
+    return s;
+  },
+  // Robot docking pad: low slab, edge lights, a gem (or plain light) on a short mast at one end.
+  dock(it, L, cap, ctx) {
+    const { x, y, w, h, mastSide, gw } = it; const x0 = x - w / 2;
+    let s = faces(x0, y, w, h, 0.5, THEME.shell.shadow, L, cap);
+    for (let lx = x0 + 14; lx < x0 + w - 8; lx += 40) s += `<rect x="${lx}" y="${y - h - 6}" width="8" height="6" fill="${lamp(THEME.indicator.powered, L, 0.45)}"/>`;
+    const mx = x + mastSide * (w / 2 - 16);
+    s += `<rect x="${mx - 4}" y="${y - h - 70}" width="8" height="70" fill="${hsl(THEME.body.shadow, L.m * cap * 1.2)}"/>`;
+    s += ctx.flags.gems ? gem(mx, y - h - 80, gw, gw * 0.66, L, cap, accentBase(ctx.accent), true) : `<circle cx="${mx}" cy="${y - h - 76}" r="6" fill="${lamp(THEME.indicator.powered, L)}"/>`;
+    return s;
+  },
+  // Sonar dish: post with a 45°-tilted ellipse, feed stub, status light.
+  dish(it, L, cap) {
+    const { x, y, h, rx, dir } = it; const hy = y - h; const post = hsl(THEME.body.shadow, L.m * cap * 1.15);
+    let s = `<rect x="${x - 5}" y="${hy}" width="10" height="${h}" fill="${post}"/>`;
+    s += `<g transform="rotate(${45 * dir} ${x} ${hy - 10})"><ellipse cx="${x}" cy="${hy - 10}" rx="${rx}" ry="${rx * 0.32}" fill="${hsl(THEME.shell.highlight, L.m * cap)}"/><rect x="${x - 2}" y="${hy - 10 - rx * 0.9}" width="4" height="${rx * 0.9}" fill="${post}"/></g>`;
+    s += `<circle cx="${x}" cy="${hy - 10}" r="4" fill="${lamp(THEME.alert.powered, L)}"/>`;
+    return s;
+  },
+};
+function bridges(items, L, cap) {
+  // Pipe bridges: between adjacent factories in the same row whose gap is 60–260.
+  const fs = items.filter((i) => i.kind === 'factory').sort((a, b) => a.x - b.x); let s = '';
+  for (let i = 0; i + 1 < fs.length; i++) {
+    const a = fs[i], b = fs[i + 1]; const ax = a.x + a.w / 2, bx = b.x - b.w / 2, gap = bx - ax; if (gap < 60 || gap > 260) continue;
+    const yy = Math.max(a.y - a.h, b.y - b.h) + 40 + a.seed * 60; const col = hsl(THEME.shell.shadow, L.m * cap);
+    s += `<rect x="${ax - 10}" y="${yy}" width="${gap + 20}" height="10" fill="${col}"/><rect x="${ax + gap / 2 - 4}" y="${yy}" width="8" height="${Math.max(a.y, b.y) - yy}" fill="${col}"/>`;
+  }
+  return s;
+}
+function terrain(r, L) {
+  // Seabed ridge (drawn before the background row, at a cap below it) and the stepped foreground ground.
+  const ridge = steppedProfile(r, 860, 640, 900, 80, 260, [-60, -40, 0, 0, 40, 60]) + ` fill="${hsl(THEME.shadowDepth, 1 + L.m * 1.2)}"/>`;
+  const ground = steppedProfile(r, 1040, 1010, 1060, 120, 400, [-20, 0, 0, 0, 20]) + ` fill="${hsl(THEME.body.shadow, L.m * 0.9)}"/>`;
+  return { ridge, ground };
+}
+// Water column (or, for comparison, a coastal sky). Gradient ids carry the stage uid: nine <svg>s share one document.
+function water(hour, framing, flags, uid) {
+  if (!flags.sky) return `<rect width="${W}" height="${H}" fill="#0a1128"/>`;
+  const L = getLighting(hour); const d = 1 - L.nd; const id = `skyG-${uid}`;
+  if (framing === 'underwater') {
+    const top = { h: 200, s: 45, l: lerp(8, 30, d) }, bot = { h: 230, s: 45, l: lerp(4, 12, d) };
+    return `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${hsl(top)}"/><stop offset="1" stop-color="${hsl(bot)}"/></linearGradient></defs><rect width="${W}" height="${H}" fill="url(#${id})"/>` +
+      (d > 0.2 ? `<ellipse cx="${lerp(300, 1620, hour / 24)}" cy="60" rx="360" ry="70" fill="${hsl({ h: 192, s: 50, l: 70 }, 1, 0.08 * d)}"/>` : '');
+  }
+  const dawn = Math.max(0, 1 - Math.abs(hour - 6.5) / 2), dusk = Math.max(0, 1 - Math.abs(hour - 17.5) / 2), warm = Math.max(dawn, dusk);
+  const top = { h: lerp(230, 205, d), s: 40, l: lerp(6, 38, d) }, bot = { h: lerp(250, 30, warm), s: lerp(30, 60, warm), l: lerp(10, 55, Math.max(d * 0.8, warm)) };
+  let s = `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${hsl(top)}"/><stop offset="0.85" stop-color="${hsl(bot)}"/></linearGradient></defs><rect width="${W}" height="${H}" fill="url(#${id})"/>`;
+  const sunX = lerp(-100, W + 100, (hour - 5) / 14), sunY = 700 - Math.sin(Math.max(0, Math.min(Math.PI, ((hour - 5) / 14) * Math.PI))) * 560;
+  s += hour > 5 && hour < 19 ? `<circle cx="${sunX}" cy="${sunY}" r="34" fill="${hsl({ h: 40, s: 90, l: 85 }, 1, 0.9)}"/>` : `<circle cx="${lerp(W + 100, -100, ((hour + 5) % 24) / 14)}" cy="300" r="22" fill="${hsl(THEME.shell.highlight)}"/>`;
+  return s;
+}
+// Surface light in 45° bands from the top edge (one vertical edge, one 45° edge each), fading with depth and hour.
+function lightShafts(r, L, uid) {
+  const id = `shaftG-${uid}`; const a = 0.11 * (1 - L.nd); if (a < 0.005) return '';
+  let s = `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${hsl(THEME.glass.base)}" stop-opacity="${a}"/><stop offset="1" stop-color="${hsl(THEME.glass.base)}" stop-opacity="0"/></linearGradient></defs>`;
+  const n = irange(r, 3, 5), dir = r() < 0.5 ? -1 : 1;
+  for (let i = 0; i < n; i++) { const xt = range(r, -200, W), w = range(r, 50, 160), depth = range(r, 420, 760); s += `<polygon points="${xt},0 ${xt + w},0 ${xt + w + dir * depth},${depth} ${xt + dir * depth},${depth}" fill="url(#${id})"/>`; }
+  return s;
+}
+// Marine snow: seeded static particulate. (Live: a static layer; drifting it would be a moving-layer, perf-gated change.)
+function marineSnow(r, L) {
+  let s = ''; const n = 140;
+  for (let i = 0; i < n; i++) s += `<circle cx="${range(r, 0, W)}" cy="${range(r, 0, H)}" r="${range(r, 1.2, 3)}" fill="${hsl(THEME.shell.highlight)}" opacity="${range(r, 0.08, 0.3) * lerp(0.6, 1, 1 - L.nd)}"/>`;
+  return s;
+}
+
+// ---------- scene ----------
+function render(svg, seedStr, hour, recipeName, framing, flags, uid) {
+  const r = rng(seedStr);
+  const accent = pick(r, ACCENT_HUES); const accent2 = ACCENT_HUES[(ACCENT_HUES.indexOf(accent) + pick(r, [2, 3, 15, 16])) % ACCENT_HUES.length];
+  const ctx = { accent, accent2, flags, uid };
+  let recipe = recipeName;
+  // Own stream (the live app would use its own dataId, e.g. 'locale.district') so the pick is independent of
+  // every other draw and a locale's neighbours do not share a district by hash accident.
+  if (recipe === 'seeded') recipe = flags.districts ? pick(rng(`${seedStr}:district`), RECIPE_NAMES) : 'legacy';
+  const rows = RECIPES[recipe];
+  const L = getLighting(hour);
+  const byRow = { background: [], midground: [], foreground: [] };
+  rows.forEach((row, i) => placeRow(rng(`${seedStr}:row${i}:${row.y}:${row.kind}`), row, flags).forEach((it) => byRow[row.row].push(it)));
+  let s = water(hour, framing, flags, uid);
+  if (flags.shafts && framing === 'underwater') s += lightShafts(rng(`${seedStr}:shafts`), L, uid);
+  const land = flags.terrain ? terrain(rng(`${seedStr}:terrain`), L) : null;
+  if (land) s += land.ridge;
+  const draw = (items, rowName) => {
+    const cap = ROW_CAP[rowName]; let out = '';
+    items.sort((a, b) => a.y - b.y);
+    for (const it of items) out += DRAW[it.kind](it, L, cap, ctx);
+    if (flags.bridges) out += bridges(items, L, cap);
+    return out;
+  };
+  s += draw(byRow.background, 'background');
+  if (flags.gradients) s += `<rect width="${W}" height="${H}" fill="${hsl(THEME.vent.shadow)}" opacity="0.35"/>`;
+  s += draw(byRow.midground, 'midground');
+  if (flags.gradients) s += `<rect width="${W}" height="${H}" fill="${hsl(THEME.vent.shadow)}" opacity="0.25"/>`;
+  if (land) s += land.ground;
+  s += draw(byRow.foreground, 'foreground');
+  if (flags.snow && framing === 'underwater') s += marineSnow(rng(`${seedStr}:snow`), L);
+  svg.innerHTML = s;
+  const counts = Object.values(byRow).flat().reduce((m, i) => (m[i.kind] = (m[i.kind] || 0) + 1, m), {});
+  return { recipe, counts, L };
+}
+
+// ---------- controls ----------
+const $ = (id) => document.getElementById(id);
+const flags = Object.fromEntries(FAMILIES.map(([f]) => [f, true])); flags.derelictRatio = 0.25;
+for (const [f, label, grp] of FAMILIES) {
+  const el = document.createElement('label'); el.className = 'on'; el.innerHTML = `<input type="checkbox" data-f="${f}" checked /> ${label}`;
+  $('toggles' + grp).appendChild(el);
+}
+// Chosen so the default load shows every district once (main stage "plot 12, -40" is the wreck field).
+const OTHER_SEEDS = ['plot -200, -130', 'plot -200, -160', 'plot -200, -200', 'plot -200, -70', 'plot -200, -90', 'plot -200, -180', 'plot -200, -50', 'plot -200, -190'];
+function update() {
+  const seed = $('seed').value, hour = parseFloat($('hour').value), recipe = $('recipe').value, framing = $('framing').value;
+  flags.derelictRatio = parseFloat($('derelict').value);
+  $('hourV').textContent = hour.toFixed(2); $('derelictV').textContent = flags.derelictRatio.toFixed(2);
+  const info = render($('main'), seed, hour, recipe, framing, flags, 'main');
+  $('mainLabel').textContent = `${seed} · ${info.recipe}`;
+  const off = FAMILIES.filter(([f]) => !flags[f]).map(([f]) => f);
+  $('readout').textContent = `recipe ${info.recipe}   eastL ${info.L.eastL.toFixed(2)}  westL ${info.L.westL.toFixed(2)}  nightDepth ${info.L.nd.toFixed(2)}\nplaced: ${Object.entries(info.counts).map(([k, v]) => `${k} ${v}`).join(', ')}${off.length ? `\noff: ${off.join(', ')}` : ''}`;
+  const strip = $('strip'); strip.innerHTML = '';
+  OTHER_SEEDS.forEach((sd, i) => {
+    const box = document.createElement('div'); box.className = 'stage';
+    box.innerHTML = `<svg viewBox="0 0 1920 1080" width="470" height="264" preserveAspectRatio="xMidYMid slice"></svg><span></span>`;
+    strip.appendChild(box);
+    const r = render(box.querySelector('svg'), sd, hour, recipe, framing, flags, 's' + i);
+    box.querySelector('span').textContent = `${sd} · ${r.recipe}`;
+  });
+}
+['seed', 'hour', 'recipe', 'framing', 'derelict'].forEach((id) => $(id).addEventListener('input', update));
+$('rand').addEventListener('click', () => { $('seed').value = `plot ${Math.floor(Math.random() * 400 - 200)}, ${Math.floor(Math.random() * 400 - 200)}`; update(); });
+const setAll = (on) => { document.querySelectorAll('.toggles input').forEach((cb) => { cb.checked = on; flags[cb.dataset.f] = on; cb.parentElement.classList.toggle('on', on); }); update(); };
+$('allOn').addEventListener('click', () => setAll(true)); $('allOff').addEventListener('click', () => setAll(false));
+document.querySelectorAll('.toggles input').forEach((cb) => cb.addEventListener('change', () => { flags[cb.dataset.f] = cb.checked; cb.parentElement.classList.toggle('on', cb.checked); update(); }));
+update();
+</script>
+</body>
+</html>

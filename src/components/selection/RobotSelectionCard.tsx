@@ -1,5 +1,6 @@
 import { memo, type KeyboardEvent } from 'react';
 import { RobotBody } from '@/components/robot/RobotBody';
+import { getRobotGem, gemViewBox } from '@/components/robot/gem/polygon';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { useUIStore } from '@/stores/uiStore';
@@ -118,8 +119,8 @@ export const RobotSelectionCard = memo(function RobotSelectionCard({ robotId }: 
         onKeyDown={handleKeyDown}
       >
         <div className="robot-selection-card__meta-row">
-          <svg className="robot-selection-card__avatar" viewBox="-40 -52 176 176" aria-hidden="true">
-            <RobotBody robot={robot} ignoreDaylight hideGreebles />
+          <svg className="robot-selection-card__avatar" viewBox={gemViewBox(getRobotGem(robot.gemSeed))} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            <RobotBody robot={robot} ignoreDaylight ignoreScale />
           </svg>
 
           <div className="robot-selection-card__meta-text">

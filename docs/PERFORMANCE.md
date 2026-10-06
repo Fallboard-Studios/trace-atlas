@@ -817,6 +817,50 @@ At 4× throttle fix 1+2 reads paint 416 ms / compositor 1319 ms per 6 s against 
 - **JavaScript: ≈ 750 ms per 6 s of `FunctionCall` + ≈ 300 ms `TimerFire`** with the whole scene removed (`no-scene` ablation at 4×: 2.4 s of 6 s busy). The audio-swell `16n` tick and its store writes (noted under 17.2.1 above) live here; not investigated in this pass.
 - **Real phone: not yet confirmed.** Headless Chrome's software raster is not a phone GPU (caveats above), and the layer split trades per-frame paint for three extra full-screen compositor layers (≈ 10 MB each at the Pixel 8's 1080×2400). Crawford's Pixel run is the gate before this is called fixed.
 
+## Gem Polygon Robots — the Task 9 idle-paint gate (2026-10-05, Phase 39)
+
+Gate ([docs/tasks/GEM_POLYGON_ROBOTS.md](tasks/GEM_POLYGON_ROBOTS.md) Task 9): idle paint/composite on the gem-robot build within the 17.2.5 noise band of `main`. **Missed** — and the plan's two cuts (orbiter lines, then facet strokes) do not close it.
+
+**Method:** production builds served side by side — `main` `fe306004` (:4173), branch `41da1793` (:4175), and three throwaway variants built by patch → build → `git checkout` (never committed): **cut1** no orbiter boundary lines (:4176), **cut1+2** also no facet strokes (:4177), **size** gem robots drawn at 0.6× body scale ≈ the old on-screen footprint, a diagnostic not a candidate (:4178). One pinned world for all (`?session=`, Attenuation Style `rwnpswe5` at (130, −60), captured from the dev app with `buildSessionPayload`); `npm run perf:idle --throttle 1 --only none` (stock 6 s window, desktop 1280×900, headless); foreground, one call at a time, orphaned-Chrome count 0 before; 6 rounds of main vs gem and 3 rounds of all five, order rotated each round. Both builds verified to load the same robots at matching positions (old parts on main, `.gem` on the branch) before measuring.
+
+### Results (6 s idle window, 1×; every run)
+
+| Build | main busy (ms) | Paint (ms) | Layout (ms) | Compositor::Update (ms) |
+|---|---|---|---|---|
+| main | 2080 · 2127 · 2050 · 2124 · 2103 · 2144 | 198 · 198 · 194 · 198 · 206 · 199 | 118–122 | 552–579 |
+| gem | 2401 · 2377 · 2425 · 2391 · 2482 · 2385 | 382 · 383 · 387 · 369 · 396 · 384 | 218–227 | 537–569 |
+| cut1 (no orbiter lines) | 2406 · 2395 · 2458 | 381 · 372 · 385 | 208–215 | 533–563 |
+| cut1+2 (+ no facet strokes) | 2336 · 2372 · 2361 | 350 · 351 · 355 | 205–214 | 542–546 |
+| size (0.6× footprint) | 2453 · 2357 · 2427 | 392 · 383 · 379 | 216–224 | 544–557 |
+
+Medians: main busy **~2110**, gem **~2396 (+14 %)**; paint **198 → 384 (+94 %)**; layout ~120 → ~220. The ranges never overlap. Compositor is flat. The robot layer alone (paint-by-node) went 67 → 161 ms per 6 s, and `Layout SVG changed` invalidations doubled (≈51 k → ≈103 k): each frame a moving robot `<g>` re-lays-out and the moving layer re-rasterizes every child.
+
+### Why — element count, not area
+
+- **Element count:** drawn shapes in `#robot-layer` (12 robots): main **417** (~35/robot), gem **1046** (~87/robot), cut1+2 998. Paint scales with it (×1.94 for ×2.5 shapes).
+- **Not area:** the size probe shrinks the gem robots to about the old footprint and paint does not move (379–392 vs 369–396). The moving robot layer re-rasterizes every frame and its cost is per display item, not per pixel.
+- **The plan's cuts are the wrong lever:** orbiter lines are 48 of the 1046 shapes (no measurable change); dropping every facet stroke saves ~30 ms of paint and ~40 ms busy — still far outside the band. Facets themselves (one polygon per outline edge, ~45 per robot) are the bulk.
+
+What would close it (not tested): draw each part's facets as one `<path>` per tone (and each part's lines as one path) — roughly 35–45 shapes per robot, the old count. Exact-fill merging is invisible but saves little (few facets share a rounded tone); quantizing to ~3–4 tones per part changes the look slightly. Decision for Crawford.
+
+### Follow-up — merged paths and quantized tones (Tasks 9a/9b, 2026-10-05)
+
+Crawford chose merging into paths. Task 9a (`975c2786`) draws each part's facets as one `<path>` per fill and its lines as one path; Task 9b (`4a8bc274`) adds `quantizeShade` / `GEM_FACET_TONES`, shipped at 0 (off). Same method, same pinned world, same `main` build; variants built from HEAD with the constant patched (never committed). Three rounds, order rotated.
+
+| Build | main busy (ms) | Paint (ms) | Layout (ms) | Shapes / robot (render) |
+|---|---|---|---|---|
+| main | 2058 · 2100 · 2131 | 190 · 202 · 194 | 118–122 | ~35 |
+| merge only (HEAD, tones off) | 2544 · 2600 · 2507 | 418 · 453 · 423 | 227–241 | 73–84 |
+| 4 tones | 2200 · 2404 · 2200 | 285 · 320 · 278 | 155–170 | 47 |
+| 3 tones | 2226 · 2224 · 2201 | 266 · 257 · 260 | 144–147 | 39–40 |
+| 3 tones, no facet strokes (1 run) | 2217 | 252 | 145 | 39–40 |
+
+- **Merging alone is worse than not merging** (paint ~423 vs ~384 for Task 8's separate polygons; busy ~2544 vs ~2396): fewer elements, but stroked multi-subpath paths cost more per element. It only pays off with quantized tones, which collapse the paths. If tones stay off, Task 9a should be reverted.
+- **3 tones** brings the gem robots to busy **+6 %** / paint **+34 %** over main (from +14 % / +94 %) — most of the gap, still outside the strict noise band. Facet strokes are not worth cutting on top (252 vs 260).
+- Visually (real `RobotGem` + `gemPalette` render, 6 robots × per-edge / 4 / 3 tones): the tone steps barely register at world scale and not at all at 64 px. The sketch has a matching "Facet tones" selector.
+
+Decision for Crawford: ship 3 tones and accept the residual, or keep the strict gate and look further (the residual is paint per element — face, lines and lights are now a larger share).
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

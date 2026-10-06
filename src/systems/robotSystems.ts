@@ -54,9 +54,7 @@ function beginDeparting(localeId: string, robot: Robot, measure: number): void {
   const exitDestination = pickExitDestination(robot.position);
   const direction = robot.direction;
 
-  // Pass the pre-update robot so createSwimTimeline knows the old direction
-  // (matches idleSystem.ts's handleRobotIdle's own established pattern).
-  createSwimTimeline(robot, exitDestination, direction);
+  createSwimTimeline(robot, exitDestination);
 
   useLocaleStore.getState().updateRobot(localeId, robot.id, {
     docking: DockingState.Departing,

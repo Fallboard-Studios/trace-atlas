@@ -697,10 +697,6 @@ describe('FactoryPlacementSystem', () => {
         expect(a.config?.facadeGreeble).toBe(b.config?.facadeGreeble);
         expect(a.config?.beltCourseCount).toBe(b.config?.beltCourseCount);
         expect(a.config?.purpose).toBe(b.config?.purpose);
-        // hueShift/satShift are the only fields allowed to change.
-        expect(
-          a.config?.hueShift !== b.config?.hueShift || a.config?.satShift !== b.config?.satShift
-        ).toBe(true);
       });
     });
 

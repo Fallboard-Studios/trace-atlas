@@ -22,7 +22,7 @@ const makeRobot = (id: string): Robot => ({
   id,
   compositionSeed: 0.5,
   identityColor: '#428d95',
-  greebles: [],
+  gemSeed: 1,
   state: RobotState.Idle,
   direction: 'right',
   position: { x: 0, y: 0 },

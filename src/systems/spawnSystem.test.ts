@@ -6,8 +6,8 @@ import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { Robot } from '../types/Robot';
 
-import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS, GREEBLE_COUNT_RANGE } from './spawnSystem';
-import { KIND_COUNT } from '../components/robot/RobotGreebles';
+import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { getRobotGem } from '../components/robot/gem/polygon';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -1146,48 +1146,44 @@ describe('spawnSystem', () => {
     });
   });
 
-  describe('spawnRobot — greebles (Phase 37, Robot Greebles, Task 2)', () => {
+  describe('spawnRobot — gemSeed (Phase 39, Gem Polygon Robots, Task 6)', () => {
     beforeEach(() => {
       useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
       vi.clearAllMocks();
     });
 
-    it('every robot gets a greebles array within GREEBLE_COUNT_RANGE, no repeated slot, every kind < KIND_COUNT', () => {
+    it('every robot gets an integer gemSeed in [0, 2^31), and they are not all the same', () => {
       for (let i = 0; i < 60; i++) spawnRobot(DEFAULT_LOCALE_ID);
       const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
       expect(robots).toHaveLength(60);
-
-      const seenCounts = new Set<number>();
       robots.forEach((r) => {
-        expect(r.greebles.length).toBeGreaterThanOrEqual(GREEBLE_COUNT_RANGE.min);
-        expect(r.greebles.length).toBeLessThanOrEqual(GREEBLE_COUNT_RANGE.max);
-        seenCounts.add(r.greebles.length);
-
-        const slots = r.greebles.map((g) => g.slot);
-        expect(new Set(slots).size, 'no robot repeats a slot').toBe(slots.length);
-
-        r.greebles.forEach((g) => {
-          expect(Number.isInteger(g.kind)).toBe(true);
-          expect(g.kind).toBeGreaterThanOrEqual(0);
-          expect(g.kind).toBeLessThan(KIND_COUNT);
-          expect(Number.isInteger(g.slot)).toBe(true);
-        });
+        expect(Number.isInteger(r.gemSeed)).toBe(true);
+        expect(r.gemSeed).toBeGreaterThanOrEqual(0);
+        expect(r.gemSeed).toBeLessThan(2 ** 31);
       });
-
-      // Over 60 spawns, count takes every value in [min, max].
-      for (let c = GREEBLE_COUNT_RANGE.min; c <= GREEBLE_COUNT_RANGE.max; c++) {
-        expect(seenCounts.has(c), `count ${c} appeared at least once`).toBe(true);
-      }
+      expect(new Set(robots.map((r) => r.gemSeed)).size).toBeGreaterThan(50);
     });
 
-    it('is deterministic — spawning against the same coordinates reproduces identical greebles per robot', async () => {
+    it('every spawned gemSeed generates a robot (the geometry is derived, never stored)', () => {
+      for (let i = 0; i < 24; i++) spawnRobot(DEFAULT_LOCALE_ID);
+      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
+      robots.forEach((r) => {
+        // guard first: getRobotGem(undefined) would happily seed from the string "undefined"
+        expect(Number.isInteger(r.gemSeed)).toBe(true);
+        expect(() => getRobotGem(r.gemSeed)).not.toThrow();
+        expect(r).not.toHaveProperty('gem');
+        expect(r).not.toHaveProperty('greebles'); // Phase 39 Task 11: the greeble set is retired
+      });
+    });
+
+    it('is deterministic — spawning against the same coordinates reproduces the same gemSeed per robot', async () => {
       vi.resetModules();
       const run1 = await import('./spawnSystem');
       const store1 = await import('../stores/localeStore');
       const attenuationStyle1 = await import('../stores/attenuationStyleStore');
       store1.useLocaleStore.setState({ locales: { [attenuationStyle1.DEFAULT_LOCALE_ID]: store1.DEFAULT_LOCALE } });
       run1.spawnInitialRoster(attenuationStyle1.DEFAULT_LOCALE_ID);
-      const greeblesRun1 = (store1.useLocaleStore.getState().getLocaleById(attenuationStyle1.DEFAULT_LOCALE_ID)?.robots ?? []).map((r) => r.greebles);
+      const seedsRun1 = (store1.useLocaleStore.getState().getLocaleById(attenuationStyle1.DEFAULT_LOCALE_ID)?.robots ?? []).map((r) => r.gemSeed);
 
       vi.resetModules();
       const run2 = await import('./spawnSystem');
@@ -1195,15 +1191,16 @@ describe('spawnSystem', () => {
       const attenuationStyle2 = await import('../stores/attenuationStyleStore');
       store2.useLocaleStore.setState({ locales: { [attenuationStyle2.DEFAULT_LOCALE_ID]: store2.DEFAULT_LOCALE } });
       run2.spawnInitialRoster(attenuationStyle2.DEFAULT_LOCALE_ID);
-      const greeblesRun2 = (store2.useLocaleStore.getState().getLocaleById(attenuationStyle2.DEFAULT_LOCALE_ID)?.robots ?? []).map((r) => r.greebles);
+      const seedsRun2 = (store2.useLocaleStore.getState().getLocaleById(attenuationStyle2.DEFAULT_LOCALE_ID)?.robots ?? []).map((r) => r.gemSeed);
 
-      expect(greeblesRun2).toEqual(greeblesRun1);
+      expect(seedsRun1.length).toBeGreaterThan(0);
+      // two arrays of undefined would also compare equal — require real seeds
+      seedsRun1.forEach((s) => expect(Number.isInteger(s)).toBe(true));
+      expect(seedsRun2).toEqual(seedsRun1);
     });
 
-    it('a copied robot gets its own greebles, never the source\'s', () => {
-      // Same copy-detection pattern as the compositionSeed copy test above: group by a field that
-      // IS inherited on copy (lfoLinks, by reference) to reliably find a copy pair, then assert
-      // greebles -- which must NOT be inherited -- actually differs between them.
+    it('a copied robot gets its own gemSeed, never the source\'s', () => {
+      // Same copy-detection pattern as the compositionSeed copy test: lfoLinks IS inherited by reference.
       for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
       const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
       const byLinks = new Map<Robot['lfoLinks'], Robot[]>();
@@ -1215,7 +1212,7 @@ describe('spawnSystem', () => {
       const sharedGroup = [...byLinks.values()].find((g) => g.length > 1);
       expect(sharedGroup, 'expected at least one copy to share its source\'s lfoLinks reference').toBeDefined();
       const [a, b] = sharedGroup!;
-      expect(a.greebles).not.toEqual(b.greebles);
+      expect(a.gemSeed).not.toBe(b.gemSeed);
     });
   });
 

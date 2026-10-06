@@ -47,20 +47,50 @@ The reusable animation helper is [src/animation/swimAnimation.ts](../src/animati
 function createSwimTimeline(
   robot: Robot,
   destination: Vec2,
-  targetDirection: 'left' | 'right',
   onComplete?: (robotId: string) => void,
 ): gsap.core.Timeline
 ```
 
-Constants: `SWIM_SPEED = 120` px/s (duration = distance / SWIM_SPEED) · `TILT_ANGLE = 5` degrees · `ORIENTATION_DURATION = 0.5` s · `PROPULSION_OVERLAP = 0.2` s · `PROPELLER_ROTATION_SPEED = 2` s per 360°.
+Constants: `SWIM_SPEED = 120` px/s (duration = distance / SWIM_SPEED) · `TILT_ANGLE = 5` degrees.
+
+Robots have no discernible front (Roadmap Phase 40, `docs/specs/ORBITING_POLYGONS.md` §1.6) — no
+`scaleX` flip, no `targetDirection` parameter, no orientation phase to wait on; propulsion starts
+at position 0 every time. The gem-polygon robots (Roadmap Phase 39) also have no propeller, so
+there is no rotation tween for one.
 
 Sequence:
 - Resolves the robot SVG via `getRef(`robot-${robot.id}`)`. **If the ref isn't registered yet**, the function still returns an (empty) timeline and schedules `onComplete` via `gsap.delayedCall(estimatedDuration, ...)` so callers waiting on the callback don't hang.
-- Kills any existing `swim-${robot.id}` timeline, then flips orientation (`scaleX`) over `ORIENTATION_DURATION` only if direction actually changed.
-- Animates to the destination over `distance / SWIM_SPEED` seconds, starting at `propulsionStart = needsFlip ? ORIENTATION_DURATION - PROPULSION_OVERLAP : 0`. **`propulsionStart` must be an absolute timeline position, not a relative offset like `"-=0.2"`** — relative offsets drift as more tweens are added to the timeline and cause it to grow past the intended swim duration. This was a real bug; don't reintroduce it.
-- Rotates `.propeller` (if present) continuously for `ceil(duration / PROPELLER_ROTATION_SPEED)` full turns, in parallel with the movement tween.
+- Kills any existing `swim-${robot.id}` timeline, sets `transformOrigin: '50% 50%'` once (the tilt below rotates about the centre).
+- Animates to the destination over `distance / SWIM_SPEED` seconds, starting at position 0.
 - Applies a body tilt (`± TILT_ANGLE`, direction-dependent) that ramps in over the first 30% of the duration and back out over the last 30%.
 - Stores the timeline in `timelineMap` under `swim-${robot.id}` and plays it (it's created `paused: true` so it can be registered before playing).
+
+### Orbiter attach/detach — a worked key family
+[src/components/robot/gem/useOrbiterMotion.ts](../src/components/robot/gem/useOrbiterMotion.ts)
+(Roadmap Phase 40, `docs/specs/ORBITING_POLYGONS.md` §1.4) is a small reference for a hook that owns
+several related keys per instance, not just one:
+
+- **Master key** `orbiters-${context}-${robotId}` — one per rendered instance (the world and the
+  avatar show the same robot at once; `setTimeline` kills a duplicate key on remount). It registers
+  a lightweight `{ kill: () => {} }` stub, not a real `gsap.timeline()` — nothing is ever added to
+  it, so a genuine timeline object would just be a standing, never-used GSAP allocation per robot
+  per context. `timelineMap`'s contract only ever calls `.kill()` on what's stored, so a stub
+  satisfies it.
+- **Size-tween key** `orbiter-size-${context}-${robotId}` — `setTimeline` re-targets this one on
+  every `size` dial edit rather than stacking a second tween, the standard "one key per concern"
+  pattern this file's intro recommends.
+- **No per-element key at all for the attach/detach hop itself** — each corner's `gsap.to()` is
+  tracked in a local `Map<corner, killFn>` inside the closure, killed on unmount alongside the
+  tracked keys above, but never registered in the shared `timelineMap`. A hook-local resource that
+  never outlives its own effect doesn't need a globally-addressable key; only resources another
+  module might need to find or kill (`killAllTimelines()` on a world transition, a debug inspector)
+  belong in `timelineMap`.
+- **Coordinating two sources of the same animation** — a spawn/despawn arc can be triggered by a
+  live count-dial edit (queued, one at a time, via an `arcInFlightRef` boolean) *or* by the initial
+  mount (every initially-shown corner flies in at once, deliberately not queued — a robot "powering
+  up"). A plain `Set<number>` of busy corners, written at the start of either path and cleared on
+  completion, is the single source of truth `reconcile()` checks before picking a target — cheaper
+  and more robust than teaching the queued path's own boolean about the unqueued path's parallelism.
 
 ### Scene layers — what may move where
 The ocean scene (`OceanScene.tsx`) is four stacked `<svg>` layers that share one viewBox and `xMidYMid slice` fit: static back (background + midground factories, depth gradients), moving bubbles, moving robots, static front (foreground factories). The moving layers carry `will-change: transform` (OceanScene.css) and are compositor layers of their own, so a per-frame transform write repaints only them. This is a roadmap 17.2.5 finding, not a style choice: with everything in one `<svg>`, every GSAP write re-rasterized all sixty factories at full viewport size on every frame. Two rules follow:

@@ -81,17 +81,6 @@ export interface AudioAttributes {
 }
 
 /**
- * Seeded, permanent hardware part (docs/ROBOT_DESIGN.md "Non-audio layers"). `kind` indexes
- * RobotGreebles.tsx's ordered vocabulary (< KIND_COUNT); `slot` indexes the current shape's
- * GREEBLE_SLOTS table (greebleSlots.ts, every shape has SLOT_COUNT entries), so a waveform
- * change moves the same parts onto the new outline without touching robot data.
- */
-export interface Greeble {
-  kind: number;
-  slot: number;
-}
-
-/**
  * Single melody event within a robot's one-measure, 16-sixteenth-note loop
  */
 export interface MelodyEvent {
@@ -126,20 +115,22 @@ export interface Robot {
   name?: string;
   /**
    * Deterministic per-robot identity color (one of the 18 `ROBOT_IDENTITY_COLOR_NAMES` hues,
-   * seeded at spawn) — UI chrome (RobotSelectionCard/RobotDisplaySection) **and** the SVG body's
-   * window glass, lamp and the two layer sockets, nothing else on the body (docs/ROBOT_DESIGN.md
-   * "Non-audio layers"); a socket's lit state is still audio (layer gain), only its hue is
-   * identity. The body's own fills stay ADSR/waveform-derived. See
-   * docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.4, docs/specs/ROBOT_LIVE_VISUALS.md §1.5-1.7 and
-   * docs/specs/ROBOT_LAYER_MARKERS.md §1.5.
+   * seeded at spawn) — UI chrome (RobotSelectionCard/RobotDisplaySection) **and** the colour of
+   * the robot's whole gem-polygon body: the Top polygon and orbiters take it directly, the Mids a
+   * darker tone of it lit by their layer's gain (gem/gemPalette.ts). Identity and seed, not audio:
+   * the body's geometry is `getRobotGem(gemSeed)`; audio and composition settings reach it only
+   * through the dials in docs/ROBOT_DESIGN.md (the Visual Mapping guardrail). See
+   * docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.4, docs/specs/GEM_POLYGON_ROBOTS.md §1.4 and
+   * docs/specs/ORBITING_POLYGONS.md (the orbiter dials).
    */
   identityColor: string;
   /**
-   * Seeded, permanent hardware parts (docs/ROBOT_DESIGN.md "Non-audio layers"). Drawn once at
-   * spawn ('robot.greeble.*' dataIds), never user-edited, never inherited on the copy path,
-   * never diffed into a session — regenerated identically from the seed, like identityColor.
+   * Seed for the robot's gem-polygon body (docs/specs/GEM_POLYGON_ROBOTS.md §1.1). The geometry
+   * is derived — `getRobotGem(gemSeed)` in components/robot/gem/polygon.ts, cached per seed — and
+   * never stored here. Drawn once at spawn ('robot.gem.seed'), never user-edited, never inherited
+   * on the copy path, never diffed into a session — regenerated identically from the world seed.
    */
-  greebles: Greeble[];
+  gemSeed: number;
   state: RobotState;
   position: Vec2;
   destination: Vec2 | null;

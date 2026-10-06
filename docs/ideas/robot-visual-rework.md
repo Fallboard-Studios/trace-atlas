@@ -1,5 +1,7 @@
 # Robot Visual Rework (series)
 
+> **Superseded (2026-10-05)** by [gem-polygon-robots.md](gem-polygon-robots.md) (roadmap Phase 39): the three branches below shipped (Phases 36–38) and were then replaced wholesale — the hand-drawn shapes, greebles and layer sockets are deleted. Kept as the record.
+
 Decided 2026-10-03 after a context pass on branch `feature/robot-rework`. A sequenced series of
 three branches that improve the **existing four hand-drawn robot shapes** rather than replace
 them. Supersedes the robot half of the earlier world-visuals series

@@ -141,9 +141,7 @@ export function handleRobotIdle(localeId: string, robotId: string, opts?: { isRe
 
   const direction = destination.x > robot.position.x ? 'right' : 'left';
 
-  // Pass PRE-UPDATE robot to createSwimTimeline so it knows the old direction
-  // and can correctly determine whether a flip animation is needed.
-  createSwimTimeline(robot, destination, direction, () => handleRobotArrival(localeId, robotId));
+  createSwimTimeline(robot, destination, () => handleRobotArrival(localeId, robotId));
 
   useLocaleStore.getState().updateRobot(localeId, robotId, {
     state: RobotState.Moving,

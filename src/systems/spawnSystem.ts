@@ -4,7 +4,7 @@
 import alea from 'alea';
 import type { NoiseFunction2D } from 'simplex-noise';
 import type { Vec2 } from '../types/Vec2';
-import type { AudioAttributes, WaveformType, Robot, Greeble } from '../types/Robot';
+import type { AudioAttributes, WaveformType, Robot } from '../types/Robot';
 import { RobotState, DockingState } from '../types/Robot';
 import {
   generateMelodyForRobot,
@@ -18,8 +18,6 @@ import type { ToggleValue } from '../engine/melodyGenerator';
 import { AudioEngine } from '../engine/AudioEngine';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import type { Company } from '../types/Company';
-import { SLOT_COUNT } from '../components/robot/greebleSlots';
-import { KIND_COUNT } from '../components/robot/RobotGreebles';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
@@ -147,30 +145,21 @@ function generateRobotIdentityColor(noiseMap: NoiseFunction2D, offset: number): 
   return ACCENT_COLORS[ROBOT_IDENTITY_COLOR_NAMES[index]];
 }
 
-/** How many seeded hardware parts (docs/specs/ROBOT_GREEBLES.md) a robot gets. Tuned in the sketch. */
-export const GREEBLE_COUNT_RANGE = { min: 2, max: 5 } as const;
+/** Exclusive upper bound for Robot.gemSeed. */
+const GEM_SEED_MAX = 2 ** 31;
 
 /**
- * Deterministic, permanent hardware set (Roadmap Phase 37, docs/specs/ROBOT_GREEBLES.md §1.1) —
- * same generation shape as generateRobotIdentityColor above: hardware/identity, not audio, drawn
- * once at spawn, never inherited on the copy path. A count draw, then count independent kind/slot
- * draws with slots removed from a `free` pool so no robot ever repeats a slot.
+ * The robot's gem-polygon body seed (Roadmap Phase 39, docs/specs/GEM_POLYGON_ROBOTS.md §1.1) —
+ * same shape as generateRobotIdentityColor above: identity, not audio, drawn once at spawn,
+ * never inherited on the copy path. Clamped because the noise sampler can return exactly `max`.
  */
-function generateGreebles(noiseMap: NoiseFunction2D, spawnCount: number): Greeble[] {
-  const count = Math.min(
-    GREEBLE_COUNT_RANGE.max,
-    Math.floor(getSeededVal(noiseMap, 'robot.greeble.count', spawnCount, GREEBLE_COUNT_RANGE.min, GREEBLE_COUNT_RANGE.max + 1))
-  );
-  const free = Array.from({ length: SLOT_COUNT }, (_, i) => i);
-  const out: Greeble[] = [];
-  for (let i = 0; i < count; i++) {
-    const off = spawnCount * 10 + i;
-    const kind = Math.min(KIND_COUNT - 1, Math.floor(getSeededVal(noiseMap, 'robot.greeble.kind', off, 0, KIND_COUNT)));
-    const pick = Math.min(free.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.greeble.slot', off, 0, free.length)));
-    out.push({ kind, slot: free.splice(pick, 1)[0] });
-  }
-  return out;
+function generateGemSeed(noiseMap: NoiseFunction2D, offset: number): number {
+  return Math.min(GEM_SEED_MAX - 1, Math.floor(getSeededVal(noiseMap, 'robot.gem.seed', offset, 0, GEM_SEED_MAX)));
 }
+
+// Phase 37's seeded greeble set (generateGreebles, GREEBLE_COUNT_RANGE and its three count/kind/
+// slot dataIds) was retired in Phase 39 Task 11 — the gem robot's seeded detail is its geometry
+// (gemSeed above). The dataIds are retired, not renamed.
 
 // Org-flavored noun list for company names (Roadmap Phase 10) — distinct from robot NOUNS above,
 // deliberately, so a company and a robot can never generate the identical name.
@@ -689,9 +678,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     identityColor: noiseMap
       ? generateRobotIdentityColor(noiseMap, spawnCount)
       : generateRobotIdentityColor((_x: number, _y: number) => 0 as number, spawnCount),
-    greebles: noiseMap
-      ? generateGreebles(noiseMap, spawnCount)
-      : generateGreebles((_x: number, _y: number) => 0 as number, spawnCount),
+    gemSeed: noiseMap
+      ? generateGemSeed(noiseMap, spawnCount)
+      : generateGemSeed((_x: number, _y: number) => 0 as number, spawnCount),
     state: RobotState.Idle,
     position,
     destination: null,
