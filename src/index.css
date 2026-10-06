@@ -90,6 +90,7 @@
      follows; see src/utils/traitColors.ts's own comment for the full
      rebalance). */
   --color-bg: #12161a;
+  --color-bg-transparent: rgba(18, 22, 26, 0.8);
   --color-surface: #1a2027;
   --color-border: rgba(140, 190, 210, 0.14);
   --color-accent-a: #41ad9f;

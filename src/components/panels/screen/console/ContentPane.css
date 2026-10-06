@@ -45,4 +45,5 @@
   width: min(420px, calc(100% - 32px));
   color: var(--text-color, #e6eef0);
   --color-surface: rgba(26, 26, 26, 0.75);
+  margin-top: 64px;
 }
