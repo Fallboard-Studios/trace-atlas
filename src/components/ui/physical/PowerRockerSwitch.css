@@ -232,7 +232,7 @@
 .power-confirm__title {
   font-family: var(--font-mono);
   font-size: var(--font-size-label);
-  color: var(--color-text-primary);
+  color: var(--color-text-primary-fixed);
   margin: 0;
 }
 
@@ -262,7 +262,7 @@
   border: var(--border-width) solid var(--border-color);
   border-radius: var(--border-radius);
   background: transparent;
-  color: var(--color-text-primary);
+  color: var(--color-text-primary-fixed);
   /* --font-size-label-lore, matching .power-confirm__description above —
      same reasoning, same "smaller than the title" role. */
   font-size: var(--font-size-label-lore);

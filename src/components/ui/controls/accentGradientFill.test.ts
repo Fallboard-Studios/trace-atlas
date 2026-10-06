@@ -82,8 +82,15 @@ describe("Toggle.css .sc-toggle__root[data-state='checked'] .sc-cabinet-box__fro
     expect(body).not.toContain('background-color: var(--color-accent);');
   });
 
-  it('leaves the unchecked state on CabinetBox.css\'s own --color-surface default (no rule overriding it here)', () => {
-    expect(cssSource).not.toMatch(/\[data-state=['"]unchecked['"]\][^{]*\.sc-cabinet-box__front/);
+  it('leaves the unchecked state\'s background on CabinetBox.css\'s own --color-surface default (no background rule overriding it here)', () => {
+    // A color-only override DOES exist for the unchecked state — it forces text back to the fixed
+    // white default, since --color-text-primary can be overridden to black by an ancestor's light
+    // robot/company color and the unchecked front face never actually carries that color as its
+    // own background. The background itself must still fall through to CabinetBox.css's own
+    // default untouched.
+    const body = getCssRuleBody(cssSource, ".sc-toggle__root[data-state='unchecked'] .sc-cabinet-box__front");
+    expect(body).not.toBeNull();
+    expect(body).not.toContain('background');
   });
 
   it('leaves the focus-visible outline on the solid --color-accent (a gradient is invalid there)', () => {

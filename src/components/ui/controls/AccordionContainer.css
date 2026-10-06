@@ -66,9 +66,16 @@
   padding: 0;
 }
 
+/* Forced to the fixed white default in both open and closed states — unlike Toggle.css's own
+   checked state, this indicator's own CabinetBox front face never gets an accent-gradient/
+   colored background in either state (no rule here does that), so it never actually sits on a
+   robot/company's own light color. Without this, the ambient --color-text-primary it would
+   otherwise inherit can still read black there (traitColors.ts's getRobotColorStyle on an
+   ancestor), which is wrong for text on an uncolored surface. */
 .sc-accordion__indicator {
   font-weight: var(--font-weight-medium);
   line-height: 1;
+  color: var(--color-text-primary-fixed);
 }
 
 /* Direct fix for the "accordion labels read too small" complaint

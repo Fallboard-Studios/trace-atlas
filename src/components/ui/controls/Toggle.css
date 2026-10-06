@@ -63,3 +63,16 @@
 .sc-toggle__root[data-state='checked'] .sc-cabinet-box__front {
   background: var(--color-accent-gradient);
 }
+
+/* Text/icon content (PingControlsDrawer's Click Track label, Header's Mute icon) sits on
+   CabinetBox's own --color-surface default when unchecked — no accent-gradient background, per
+   the rule above — yet it still inherits --color-text-primary, which an ancestor's light robot/
+   company color (traitColors.ts's getRobotColorStyle) can override to black. That override only
+   makes sense when the text truly sits on the light color as its own background, which is never
+   true here (unlike the checked state below, whose front face DOES become that color via the
+   accent-gradient override). Forced back to the fixed white default instead. Found live in
+   NavTreeNode's own +/- expand toggle for a light-colored robot/company row, but scoped
+   generically to every Toggle instance, not just the nav tree. */
+.sc-toggle__root[data-state='unchecked'] .sc-cabinet-box__front {
+  color: var(--color-text-primary-fixed);
+}

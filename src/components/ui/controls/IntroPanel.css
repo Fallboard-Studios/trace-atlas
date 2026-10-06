@@ -1,4 +1,9 @@
 .sc-intro-panel {
+    /* Fixed, not the ambient (inherited) --color-text-primary — this panel's own headline and
+       descriptions must stay white even when nested under an ancestor's getRobotColorStyle
+       override for a light robot/company identityColor (e.g. RobotOptionsTab.tsx's whole-tab
+       wrapper); Crawford's own call, 2026-10-06. */
+    color: var(--color-text-primary-fixed);
     text-shadow: 0px 0px 32px var(--color-accent-a);
     padding: 16px;
     border: 4px double var(--color-accent-b);
