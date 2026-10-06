@@ -146,8 +146,14 @@ export function flickerPattern(R: Rng): Blink[];          // 3–5 blinks, sorte
 export function flickerGain(pattern: Blink[], t: number): number;   // FLICKER_LOW inside a blink, else 1; 1 after the window
 ```
 
-Phase 40's arc is `orbitDuration / 2` = 2–4 s, so `rippleCycles` is 1 for arcs under 3.75 s and 2
-above — a single slow ring on most robots, by decision (Phase 40's arc length is not changed).
+**Correction (2026-10-06).** This paragraph described the pre-docking orbit design's 2–4 s arc. The
+docking redesign (Phase 40, already shipped before this spec was written) replaced that arc with a
+fixed 0.5 s hop (`ATTACH_DURATION`, `orbiterMotion.ts`). `rippleCycles(0.5) = max(1, round(0.5 / 2.5)) = 1`,
+so every ripple is one ring sweeping the halo's full radius inside the 0.5 s hop — fast, not the
+"slow" ring the intent interview asked for. That tension is a property of the hop's own duration,
+not something this spec's maths can fix; `RIPPLE_PERIOD` stays 2.5 s per the intent (a change lands
+in the sketch first, per §1 "Ask first"), and the ring's actual speed is confirmed or revisited at
+Checkpoint C.
 
 ### 1.4 Renderer and controller
 

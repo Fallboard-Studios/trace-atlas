@@ -21,6 +21,9 @@ import { prefersReducedMotion } from '../../../utils/reducedMotion';
 import type { RobotGem as RobotGemGeometry } from './polygon';
 import { ATTACH_DROP, ATTACH_START_SCALE, ATTACH_DURATION, type OrbiterPlan } from './orbiterMotion';
 import type { OrbiterDials } from './orbiterDials';
+import type { ArcDecorator } from './useHaloMotion';
+
+export type { ArcDecorator };
 
 // ========================================
 // TYPES
@@ -35,6 +38,10 @@ export interface UseOrbiterMotionOptions {
   dials: OrbiterDials;
   /** Cards (`motion: false`) pass `false` — the hook returns before creating anything. */
   enabled: boolean;
+  /** `useHaloMotion`'s ripple (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4, Task 10): called once
+   *  per attach/detach hop, after its wrapping timeline is built and before it plays. Never called
+   *  for a reduced-motion fade (those stay bare tweens, no timeline to decorate). */
+  decorateArc?: ArcDecorator;
 }
 
 // ========================================
@@ -61,7 +68,7 @@ function queryLocal(copy: SVGGElement): SVGGElement | null {
 // ========================================
 // HOOK
 // ========================================
-export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, enabled }: UseOrbiterMotionOptions): void {
+export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, enabled, decorateArc }: UseOrbiterMotionOptions): void {
   const reducedMotion = prefersReducedMotion();
   const masterKey = `orbiters-${context}-${robotId}`;
 
@@ -72,6 +79,14 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
   useEffect(() => {
     dialsRef.current = dials;
   }, [dials]);
+
+  // Read at flight time, not mount time — `useHaloMotion`'s own `decorateArc` isn't memoized
+  // across renders, so the closures below (built once per `[gem, enabled, reducedMotion]` effect
+  // run) must call through a ref rather than capture a stale reference.
+  const decorateArcRef = useRef(decorateArc);
+  useEffect(() => {
+    decorateArcRef.current = decorateArc;
+  }, [decorateArc]);
 
   // The explicit shown set and target count (spec §1.4's queue) — mutated by reconcile(), read
   // live by the next effect run's closures, independent of the mount effect's own re-run conditions.
@@ -153,7 +168,8 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
 
         if (gatesQueue) arcInFlightRef.current = true;
         gsap.set(local, { x: 0, y: ATTACH_DROP, scale: dialsRef.current.size * ATTACH_START_SCALE, opacity: 0 });
-        const tween = gsap.to(local, {
+        const tl = gsap.timeline({ paused: true });
+        tl.to(local, {
           y: 0,
           scale: dialsRef.current.size,
           opacity: 1,
@@ -166,7 +182,9 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
             reconcile();
           },
         });
-        arcKillers.set(corner, () => tween.kill());
+        decorateArcRef.current?.('spawn', ATTACH_DURATION, tl);
+        arcKillers.set(corner, () => tl.kill());
+        tl.play();
       };
 
       const settleDetach = (corner: number) => {
@@ -191,7 +209,8 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
           arcKillers.set(corner, () => tween.kill());
           return;
         }
-        const tween = gsap.to(local, {
+        const tl = gsap.timeline({ paused: true });
+        tl.to(local, {
           y: ATTACH_DROP,
           scale: dialsRef.current.size * ATTACH_START_SCALE,
           opacity: 0,
@@ -199,7 +218,9 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
           ease: 'power2.in',
           onComplete: () => settleDetach(corner),
         });
-        arcKillers.set(corner, () => tween.kill());
+        decorateArcRef.current?.('despawn', ATTACH_DURATION, tl);
+        arcKillers.set(corner, () => tl.kill());
+        tl.play();
       };
 
       let reconcile: () => void = () => {};

@@ -35,6 +35,10 @@ interface FakeTimeline {
   pause: ReturnType<typeof vi.fn>;
   set: (target: unknown, vars: Record<string, unknown>) => FakeTimeline;
   add: (child: unknown, position?: number) => FakeTimeline;
+  /** A child tween, created via `tl.to(...)` (Task 10's attach/detach wrapping timeline) — tracked
+   *  in the same global `toCalls` the bare `gsap.to()` calls use, so existing helpers that search
+   *  `toCalls` (e.g. `hopTweensFor`) find these too. */
+  to: (target: unknown, vars: Record<string, unknown>) => FakeTween;
 }
 
 function applyDisplay(target: unknown, vars: Record<string, unknown>) {
@@ -89,6 +93,12 @@ function makeTimeline(): FakeTimeline {
       tl.children.push({ child, position });
       return tl;
     },
+    to: (target, vars) => {
+      const tween = makeTween(target, vars);
+      toCalls.push({ target, vars, tween });
+      tl.children.push({ child: tween });
+      return tween;
+    },
   };
   createdTimelines.push(tl);
   return tl;
@@ -142,6 +152,7 @@ function Harness({
   enabled = true,
   dials: d = dials(),
   plan: planOverride,
+  decorateArc,
 }: {
   robotId?: string;
   context?: 'world' | 'avatar';
@@ -151,11 +162,12 @@ function Harness({
   /** Overrides the real seeded plan — used to pin a predictable attach order in tests without
    *  fighting the real seed's own corner order. */
   plan?: ReturnType<typeof orbiterPlan>;
+  decorateArc?: (kind: 'spawn' | 'despawn', duration: number, arcTl: unknown) => void;
 }) {
   const ref = createRef<SVGGElement>();
   const gem = getRobotGem(gemSeed);
   const plan = planOverride ?? orbiterPlan(gemSeed);
-  useOrbiterMotion({ root: ref, robotId, context, gem, plan, dials: d, enabled });
+  useOrbiterMotion({ root: ref, robotId, context, gem, plan, dials: d, enabled, decorateArc: decorateArc as never });
   return (
     <svg>
       <RobotGem
@@ -521,5 +533,89 @@ describe('useOrbiterMotion — size tween and live dial refs', () => {
     const calls = sizeTweenCalls();
     expect(calls).toHaveLength(1);
     expect(calls[0].vars).toMatchObject({ scale: 1.3, duration: 0 });
+  });
+});
+
+// ========================================
+// decorateArc — the halo's ripple hook (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4, Phase 41 Task 10)
+// ========================================
+describe('useOrbiterMotion — decorateArc option (Phase 41, Task 10)', () => {
+  beforeEach(() => {
+    setCalls.length = 0;
+    toCalls.length = 0;
+    createdTimelines.length = 0;
+    killAllTimelines();
+    setMatchMedia(false);
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('a spawn hop (count increase) calls decorateArc once with (\'spawn\', ATTACH_DURATION, its own wrapping timeline), before the timeline plays', () => {
+    vi.useFakeTimers();
+    const plan = orbiterPlan(GEM_SEED);
+    const calls: Array<{ kind: string; duration: number; tl: unknown }> = [];
+    const decorateArc = (kind: 'spawn' | 'despawn', duration: number, tl: unknown) => {
+      calls.push({ kind, duration, tl });
+      expect((tl as { play: ReturnType<typeof vi.fn> }).play).not.toHaveBeenCalled();
+    };
+    const { rerender } = render(<Harness dials={dials({ count: 1 })} plan={plan} decorateArc={decorateArc} />);
+    act(() => { vi.advanceTimersByTime(ATTACH_DURATION * 1000); }); // settle the mount's own attach
+    calls.length = 0;
+
+    rerender(<Harness dials={dials({ count: 2 })} plan={plan} decorateArc={decorateArc} />);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].kind).toBe('spawn');
+    expect(calls[0].duration).toBe(ATTACH_DURATION);
+    expect((calls[0].tl as FakeTimeline).play).toHaveBeenCalled(); // played after decorateArc ran
+    vi.useRealTimers();
+  });
+
+  it('a despawn hop (count decrease) calls decorateArc once with \'despawn\'', () => {
+    vi.useFakeTimers();
+    const plan = orbiterPlan(GEM_SEED);
+    const calls: Array<{ kind: string; duration: number }> = [];
+    const decorateArc = (kind: 'spawn' | 'despawn', duration: number) => { calls.push({ kind, duration }); };
+    const { rerender } = render(<Harness dials={dials({ count: 2 })} plan={plan} decorateArc={decorateArc} />);
+    act(() => { vi.advanceTimersByTime(ATTACH_DURATION * 1000); });
+    calls.length = 0;
+
+    rerender(<Harness dials={dials({ count: 1 })} plan={plan} decorateArc={decorateArc} />);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].kind).toBe('despawn');
+    expect(calls[0].duration).toBe(ATTACH_DURATION);
+    vi.useRealTimers();
+  });
+
+  it('reduced motion: decorateArc is never called (fades stay bare tweens, no timeline to decorate)', () => {
+    setMatchMedia(true);
+    vi.useFakeTimers();
+    const plan = orbiterPlan(GEM_SEED);
+    const decorateArc = vi.fn();
+    const { rerender } = render(<Harness dials={dials({ count: 1 })} plan={plan} decorateArc={decorateArc} />);
+    act(() => { vi.advanceTimersByTime(1000); });
+    decorateArc.mockClear();
+
+    rerender(<Harness dials={dials({ count: 2 })} plan={plan} decorateArc={decorateArc} />);
+    expect(decorateArc).not.toHaveBeenCalled();
+    rerender(<Harness dials={dials({ count: 1 })} plan={plan} decorateArc={decorateArc} />);
+    expect(decorateArc).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('omitted decorateArc → every existing behaviour (attach/detach, display, queue) is unchanged', () => {
+    vi.useFakeTimers();
+    const plan = orbiterPlan(GEM_SEED);
+    const { container, rerender } = render(<Harness dials={dials({ count: 1 })} plan={plan} />);
+    act(() => { vi.advanceTimersByTime(ATTACH_DURATION * 1000); });
+    const corner = plan.cornerOrder[0];
+    expect(isShown(container, corner)).toBe(true);
+
+    rerender(<Harness dials={dials({ count: 2 })} plan={plan} />);
+    act(() => { vi.advanceTimersByTime(ATTACH_DURATION * 1000); });
+    const nextCorner = plan.cornerOrder[1];
+    expect(isShown(container, nextCorner)).toBe(true);
+    vi.useRealTimers();
   });
 });

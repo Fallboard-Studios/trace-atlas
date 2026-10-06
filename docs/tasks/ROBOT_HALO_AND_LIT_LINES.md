@@ -277,14 +277,22 @@ reuse it), so React never rewrites what the hook owns. In `motion: false` it re-
 
 ## Task 10: Phase 40 — `decorateArc` option on `useOrbiterMotion` (its own commit)
 
-**Description:** Add `decorateArc?: (kind: 'spawn' | 'despawn', duration: number, arcTl: gsap.core.Timeline) => void`
-to `UseOrbiterMotionOptions`, called once per spawn/despawn arc after the arc timeline is built and
-before it plays (not for orbits, not for reduced-motion fades). Export the `ArcDecorator` type.
-Nothing else in the file changes.
+**Description (corrected 2026-10-06 — "arc" is Phase 40's docking hop, not the pre-docking orbit
+arc the original wording assumed):** `useOrbiterMotion` has no `arcTl` to hand over today — each
+attach/detach hop is a single bare `gsap.to`, not a timeline, so `flyIn`/`flyOut` must each build a
+`gsap.timeline()` wrapping that hop tween, call `decorateArc` on it before the timeline plays, and
+keep every existing `onComplete` bookkeeping (busyCorners/arcKillers/reconcile) working off the
+wrapping timeline instead of the bare tween. Add `decorateArc?: (kind: 'spawn' | 'despawn', duration: number, arcTl: gsap.core.Timeline) => void`
+to `UseOrbiterMotionOptions`, called once per hop after its timeline is built and before it plays
+(not for reduced-motion fades, which stay bare tweens — Task 9's spec §7 Q2 answer is "none" there
+anyway). Export the `ArcDecorator` type (from `useHaloMotion.ts`, which already defines it for
+Task 8's return value — `useOrbiterMotion` imports it rather than redefining it). Nothing else in
+the file changes.
 
 **Acceptance criteria:**
-- [ ] Count 2 → 3: `decorateArc` called once with `('spawn', orbitDuration / 2, tl)` where `tl` is the
-      arc's timeline; 3 → 2: once with `'despawn'`; a pair orbit: never; reduced motion: never.
+- [ ] Count 2 → 3: `decorateArc` called once with `('spawn', ATTACH_DURATION, tl)` where `tl` is the
+      hop's own wrapping timeline (not Phase 40's old `orbitDuration / 2` — there is no orbit any
+      more); 3 → 2: once with `'despawn'`; reduced motion: never.
 - [ ] Omitted → every existing `useOrbiterMotion` test passes unchanged.
 
 **Verification:** `npx vitest run src/components/robot/gem/useOrbiterMotion.test.tsx`.
