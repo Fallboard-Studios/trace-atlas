@@ -8,18 +8,23 @@ import { render, cleanup } from '@testing-library/react';
 // ----------------------------------------
 // RECORDING GSAP MOCK — overrides vitest.setup.ts's global no-op mock (same recipe
 // useOrbiterMotion.test.tsx uses), extended so `gsap.timeline()` returns an object whose `.to()`
-// records each child tween (target + vars) and whose `.kill()` is a spy — enough to inspect both
-// the mount `gsap.set` calls and the dial tween's children without a real GSAP runtime.
+// records each child tween (target + vars) and supports `.progress(p)` (driving the child's own
+// `onUpdate`, same as a real nested GSAP tween would at that point in its parent's timeline — this
+// mock's timelines only ever carry the one proxy child `decorateArc` creates, so forwarding
+// progress 1:1 is exact, not an approximation) — enough to inspect both the mount `gsap.set` calls
+// and drive the ripple's per-frame maths without a real GSAP runtime.
 // ----------------------------------------
 interface FakeTween {
   target: unknown;
   vars: Record<string, unknown>;
+  progress: (p: number) => void;
 }
 
 interface FakeTimeline {
   kill: ReturnType<typeof vi.fn>;
   children: FakeTween[];
   to: (target: unknown, vars: Record<string, unknown>, position?: number) => FakeTween;
+  progress: (p: number) => void;
 }
 
 const setCalls: FakeTween[] = [];
@@ -30,9 +35,21 @@ function makeTimeline(): FakeTimeline {
     kill: vi.fn(),
     children: [],
     to: (target, vars) => {
-      const tween: FakeTween = { target, vars };
+      const tween: FakeTween = {
+        target,
+        vars,
+        progress: (p: number) => {
+          if (target && typeof target === 'object' && 'u' in (target as Record<string, unknown>)) {
+            (target as { u: number }).u = p;
+          }
+          if (typeof vars.onUpdate === 'function') (vars.onUpdate as () => void)();
+        },
+      };
       tl.children.push(tween);
       return tween;
+    },
+    progress: (p: number) => {
+      tl.children.forEach((child) => child.progress(p));
     },
   };
   createdTimelines.push(tl);
@@ -43,7 +60,7 @@ vi.mock('gsap', () => {
   const mocked = {
     timeline: () => makeTimeline(),
     set: (target: unknown, vars: Record<string, unknown>) => {
-      setCalls.push({ target, vars });
+      setCalls.push({ target, vars, progress: () => {} });
       return mocked;
     },
     to: () => ({}),
@@ -56,8 +73,12 @@ vi.mock('gsap', () => {
 // ========================================
 // OTHER IMPORTS (after the gsap mock — vitest hoists vi.mock calls above these anyway)
 // ========================================
+import gsap from 'gsap';
+
 import { useHaloMotion, type HaloMotionDial } from './useHaloMotion';
 import { timelineMap, killAllTimelines } from '../../../animation/timelineMap';
+import { HALO_HOLE } from './haloDials';
+import { rippleCycles, ripplePosition, rippleEnvelope } from './haloRipple';
 
 // ========================================
 // FIXTURES
@@ -86,21 +107,32 @@ function setMatchMedia(reduced: boolean) {
   })) as unknown as typeof window.matchMedia;
 }
 
+const RIPPLE_STOP_COUNT = 5;
+
 function Harness({
   robotId = 'r1',
   context = 'world' as 'world' | 'avatar',
   haloDial,
   dimOpacity = 1,
   enabled = true,
+  withRipple = false,
+  onDecorateArc,
 }: {
   robotId?: string;
   context?: 'world' | 'avatar';
   haloDial: HaloMotionDial;
   dimOpacity?: number;
   enabled?: boolean;
+  /** Renders `ellipse.gem__ripple` + its 5-stop gradient, matching RobotGem's real markup (Task 9),
+   *  so `decorateArc` has elements to find. */
+  withRipple?: boolean;
+  /** Receives the hook's `decorateArc` on every render — the test drives it directly. */
+  onDecorateArc?: (decorateArc: ReturnType<typeof useHaloMotion>['decorateArc']) => void;
 }) {
   const ref = useRef<SVGGElement>(null);
-  useHaloMotion({ root: ref, robotId, context, halo: haloDial, dimOpacity, enabled });
+  const { decorateArc } = useHaloMotion({ root: ref, robotId, context, halo: haloDial, dimOpacity, enabled });
+  onDecorateArc?.(decorateArc);
+  const rippleId = `ripple-${context}-${robotId}`;
   return (
     <svg>
       <g ref={ref} className="gem">
@@ -110,8 +142,16 @@ function Harness({
               <stop key={i} offset={`${(s.offset * 100).toFixed(2)}%`} stopColor="#ae5378" stopOpacity={s.opacity} />
             ))}
           </radialGradient>
+          {withRipple && (
+            <radialGradient id={rippleId}>
+              {Array.from({ length: RIPPLE_STOP_COUNT }, (_, i) => (
+                <stop key={i} offset={`${((i / (RIPPLE_STOP_COUNT - 1)) * 100).toFixed(2)}%`} stopColor="#ae5378" stopOpacity={0} />
+              ))}
+            </radialGradient>
+          )}
         </defs>
         <ellipse className="gem__halo" cx={0} cy={0} rx={haloDial.rx} ry={haloDial.ry} opacity={1} />
+        {withRipple && <ellipse className="gem__ripple" cx={0} cy={0} rx={haloDial.rx} ry={haloDial.ry} fill={`url(#${rippleId})`} opacity={0} />}
       </g>
     </svg>
   );
@@ -121,12 +161,28 @@ function setsFor(target: unknown): FakeTween[] {
   return setCalls.filter((c) => c.target === target);
 }
 
+function lastSetFor(target: unknown): FakeTween | undefined {
+  const matches = setsFor(target);
+  return matches[matches.length - 1];
+}
+
 function haloEllipse(container: HTMLElement): SVGEllipseElement {
   return container.querySelector('ellipse.gem__halo')!;
 }
 
+function rippleEllipse(container: HTMLElement): SVGEllipseElement {
+  return container.querySelector('ellipse.gem__ripple')!;
+}
+
+/** jsdom gotcha: a descendant selector through an SVG gradient element (e.g. `radialGradient
+ *  stop`) matches nothing — query `stop` alone and slice by DOM order instead (halo's 6 render
+ *  before the ripple's 5, Harness below). */
 function stopEls(container: HTMLElement): SVGStopElement[] {
-  return [...container.querySelectorAll('stop')];
+  return [...container.querySelectorAll('stop')].slice(0, 6);
+}
+
+function rippleStopEls(container: HTMLElement): SVGStopElement[] {
+  return [...container.querySelectorAll('stop')].slice(6);
 }
 
 // ========================================
@@ -244,5 +300,70 @@ describe('useHaloMotion — mount state, dial tween, reduced motion (Phase 41, T
 
     // Mounting/changing the avatar instance must not have touched the world instance's key.
     expect(timelineMap.has('halo-world-r1')).toBe(true);
+  });
+});
+
+describe('useHaloMotion.decorateArc — the ripple, and the halo’s only moment of visibility (Phase 41, Task 11)', () => {
+  function mount(haloDial: HaloMotionDial, dimOpacity = 1) {
+    let decorateArc!: ReturnType<typeof useHaloMotion>['decorateArc'];
+    const { container } = render(
+      <Harness haloDial={haloDial} dimOpacity={dimOpacity} withRipple onDecorateArc={(d) => { decorateArc = d; }} />,
+    );
+    return { container, decorateArc };
+  }
+
+  it('spawn: at tl.progress(0.5) the ring sits where ripplePosition says, both ellipses fade to dimOpacity × rippleEnvelope(0.5); at progress(1) both are 0', () => {
+    const { container, decorateArc } = mount(halo(), 0.8);
+    const tl = (gsap.timeline() as unknown as FakeTimeline);
+    decorateArc('spawn', 3, tl as unknown as Parameters<typeof decorateArc>[2]);
+    expect(tl.children).toHaveLength(1); // the one proxy tween
+
+    tl.progress(0.5);
+    const hole = HALO_HOLE / halo().ry;
+    const expectedPosition = ripplePosition('spawn', 0.5, rippleCycles(3), hole);
+    const envelope = rippleEnvelope(0.5);
+    const ringStop = rippleStopEls(container)[2]; // rippleStops' 3rd of 5 is the ring itself
+    expect(lastSetFor(ringStop)!.vars).toMatchObject({ attr: { offset: `${(expectedPosition * 100).toFixed(2)}%` } });
+    expect(Number((lastSetFor(rippleEllipse(container))!.vars as { opacity: number }).opacity)).toBeCloseTo(0.8 * envelope, 5);
+    expect(Number((lastSetFor(haloEllipse(container))!.vars as { opacity: number }).opacity)).toBeCloseTo(0.8 * envelope, 5);
+
+    tl.progress(1);
+    expect(Number((lastSetFor(rippleEllipse(container))!.vars as { opacity: number }).opacity)).toBe(0);
+    expect(Number((lastSetFor(haloEllipse(container))!.vars as { opacity: number }).opacity)).toBe(0);
+  });
+
+  it('despawn: at tl.progress(0) the ring sits at 0.95 (RIPPLE_DESPAWN_FROM)', () => {
+    const { container, decorateArc } = mount(halo());
+    const tl = (gsap.timeline() as unknown as FakeTimeline);
+    decorateArc('despawn', 3, tl as unknown as Parameters<typeof decorateArc>[2]);
+    tl.progress(0);
+    const ringStop = rippleStopEls(container)[2];
+    expect(lastSetFor(ringStop)!.vars).toMatchObject({ attr: { offset: '95.00%' } });
+  });
+
+  it('a 5s spawn arc runs two cycles — the ring restarts (near the hole) at progress(0.5)', () => {
+    const { container, decorateArc } = mount(halo());
+    const tl = (gsap.timeline() as unknown as FakeTimeline);
+    decorateArc('spawn', 5, tl as unknown as Parameters<typeof decorateArc>[2]);
+    tl.progress(0.5);
+    const hole = HALO_HOLE / halo().ry;
+    const ringStop = rippleStopEls(container)[2];
+    expect(lastSetFor(ringStop)!.vars).toMatchObject({ attr: { offset: `${(hole * 100).toFixed(2)}%` } });
+  });
+
+  it('reduced motion: decorateArc is a no-op — the arc timeline gains no children', () => {
+    setMatchMedia(true);
+    const { decorateArc } = mount(halo());
+    const tl = (gsap.timeline() as unknown as FakeTimeline);
+    decorateArc('spawn', 3, tl as unknown as Parameters<typeof decorateArc>[2]);
+    expect(tl.children).toHaveLength(0);
+  });
+
+  it('enabled: false or no ripple elements — decorateArc does nothing (no elements to find)', () => {
+    let decorateArc!: ReturnType<typeof useHaloMotion>['decorateArc'];
+    render(<Harness haloDial={halo()} withRipple={false} onDecorateArc={(d) => { decorateArc = d; }} />);
+    const tl = (gsap.timeline() as unknown as FakeTimeline);
+    expect(() => decorateArc('spawn', 3, tl as unknown as Parameters<typeof decorateArc>[2])).not.toThrow();
+    expect(tl.children).toHaveLength(0);
   });
 });

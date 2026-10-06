@@ -12,9 +12,9 @@ import {
   HALO_PEAK,
   HALO_HOLD,
   HALO_TWEEN,
-  HALO_RIPPLE_DIM,
   type HaloDialsInput,
 } from './haloDials';
+import source from './haloDials.ts?raw';
 import type { ADSREnvelope } from '@/types/Robot';
 
 // ========================================
@@ -203,13 +203,16 @@ describe('haloDials — colour (intent table row "Halo colour")', () => {
 });
 
 describe('haloDials — constants match the intent table / sketch defaults', () => {
-  it('hole 10, radius 20-40, peak 0.55, hold 1, tween 0.5, ripple dim 0.25', () => {
+  it('hole 10, radius 20-40, peak 0.55, hold 1, tween 0.5', () => {
     expect(HALO_HOLE).toBe(10);
     expect(HALO_RADIUS_MIN).toBe(20);
     expect(HALO_RADIUS_MAX).toBe(40);
     expect(HALO_PEAK).toBe(0.55);
     expect(HALO_HOLD).toBe(1);
     expect(HALO_TWEEN).toBe(0.5);
-    expect(HALO_RIPPLE_DIM).toBe(0.25);
+  });
+
+  it('HALO_RIPPLE_DIM is gone — amendment (2026-10-06): the halo has no visible baseline for a ripple to dip from any more', () => {
+    expect(source).not.toMatch(/HALO_RIPPLE_DIM/);
   });
 });

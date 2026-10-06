@@ -58,9 +58,6 @@ export const HALO_HOLD = 1;
 /** Dial tween length in seconds, `power2.out` (row "Halo size": "a volume drag resizes it smoothly"). */
 export const HALO_TWEEN = 0.5;
 
-/** How much the base halo dims while a ripple runs (row "Ripple": "the base halo dims by 0.25"). */
-export const HALO_RIPPLE_DIM = 0.25;
-
 /** Spawn ranges (spawnSystem.ts ATTACK/DECAY/RELEASE_RANGE max): inputs are clamped here first. */
 const ADSR_MAX_SECONDS = 5;
 

@@ -2,11 +2,11 @@
 // useHaloMotion (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4, Task 8)
 // ========================================
 // GSAP-owned motion for a robot's halo: mount state and the dial tween (stops/rx/ry, Task 8);
-// `decorateArc` (Task 11) is still a no-op here — it will be the halo's only writer of opacity,
-// fading it 0 -> dimOpacity -> 0 across a spawn/despawn arc (Amendment, 2026-10-06: the halo is
-// invisible except during that arc, on every robot, in every context — see spec §1). This hook
-// never reads Zustand or calls AudioEngine; the `halo` dial and `dimOpacity` are computed by
-// `RobotBody` and handed in as plain props.
+// `decorateArc` (Task 11) is the halo's only writer of opacity anywhere, fading it 0 -> dimOpacity
+// -> 0 across a spawn/despawn arc (Amendment, 2026-10-06: the halo is invisible except during that
+// arc, on every robot, in every context — see spec §1). This hook never reads Zustand or calls
+// AudioEngine; the `halo` dial and `dimOpacity` are computed by `RobotBody` and handed in as plain
+// props.
 
 // ========================================
 // IMPORTS
@@ -17,7 +17,8 @@ import gsap from 'gsap';
 
 import { setTimeline, killTimeline } from '../../../animation/timelineMap';
 import { prefersReducedMotion } from '../../../utils/reducedMotion';
-import { HALO_TWEEN, type HaloStop } from './haloDials';
+import { HALO_HOLE, HALO_TWEEN, type HaloStop } from './haloDials';
+import { rippleCycles, ripplePosition, rippleEnvelope, rippleStops } from './haloRipple';
 
 // ========================================
 // TYPES
@@ -70,6 +71,21 @@ function queryStops(root: SVGGElement): SVGStopElement[] {
   return [...root.querySelectorAll<SVGStopElement>('stop')];
 }
 
+function queryRippleEllipse(root: SVGGElement): SVGEllipseElement | null {
+  return root.querySelector<SVGEllipseElement>('.gem__ripple');
+}
+
+/** The ripple ellipse's own five stops — found via the gradient its `fill` references (its id is
+ *  per-instance, so there's no fixed selector; the halo's six stops live in a different gradient
+ *  entirely, so this never collides with `queryStops`). */
+function queryRippleStops(root: SVGGElement, rippleEllipse: SVGEllipseElement): SVGStopElement[] {
+  const fill = rippleEllipse.getAttribute('fill') ?? '';
+  const match = /url\(#(.+)\)/.exec(fill);
+  if (!match) return [];
+  const gradient = root.querySelector(`#${match[1]}`);
+  return gradient ? [...gradient.querySelectorAll<SVGStopElement>('stop')] : [];
+}
+
 // ========================================
 // HOOK
 // ========================================
@@ -83,6 +99,14 @@ export function useHaloMotion({ root, robotId, context, halo, dimOpacity, enable
   useEffect(() => {
     dimOpacityRef.current = dimOpacity;
   }, [dimOpacity]);
+
+  // Read live by decorateArc, same reason: an arc can be mid-flight when a volume edit changes the
+  // halo's radius (ry) — the ripple's hole offset (HALO_HOLE / ry) must track the latest value, not
+  // a snapshot from whenever the arc started.
+  const haloRyRef = useRef(halo.ry);
+  useEffect(() => {
+    haloRyRef.current = halo.ry;
+  }, [halo.ry]);
 
   // ----------------------------------------
   // Mount — the stops, rx/ry, and the ellipse opacity to 0 (amendment: no idle baseline).
@@ -134,8 +158,45 @@ export function useHaloMotion({ root, robotId, context, halo, dimOpacity, enable
     { scope: root, dependencies: [halo, enabled, reducedMotion], revertOnUpdate: true },
   );
 
-  // decorateArc — Task 11.
-  const decorateArc: ArcDecorator = () => {};
+  // ----------------------------------------
+  // decorateArc (Task 11) — the halo's only writer of opacity, anywhere. A proxy `{ u: 0 -> 1 }`
+  // tween on the arc's own timeline, `ease: 'none'` (the ring is linear in time; the arc's own
+  // ease is on position, not this). Each frame: the ripple's five stops from `rippleStops`, and
+  // both the ripple and halo ellipse opacity set to `dimOpacity x rippleEnvelope(u)` — fading the
+  // halo up and back down to nothing across the arc, never an instant set (amendment: there is no
+  // visible baseline to pop from). Reduced motion: a no-op (the arc's own 0.3s fade plays alone).
+  // ----------------------------------------
+  const decorateArc: ArcDecorator = (kind, duration, arcTl) => {
+    if (reducedMotion || !root.current) return;
+    const haloEllipse = queryHaloEllipse(root.current);
+    const rippleEllipse = queryRippleEllipse(root.current);
+    if (!haloEllipse || !rippleEllipse) return;
+    const rippleStopEls = queryRippleStops(root.current, rippleEllipse);
+    const cycles = rippleCycles(duration);
+    const proxy = { u: 0 };
+    arcTl.to(
+      proxy,
+      {
+        u: 1,
+        duration,
+        ease: 'none',
+        onUpdate: () => {
+          const holeOffset = HALO_HOLE / haloRyRef.current;
+          const position = ripplePosition(kind, proxy.u, cycles, holeOffset);
+          const envelope = rippleEnvelope(proxy.u);
+          rippleStops(position, holeOffset, envelope).forEach((s, i) => {
+            const el = rippleStopEls[i];
+            if (!el) return;
+            gsap.set(el, { attr: { offset: pct(s.offset), 'stop-opacity': s.opacity } });
+          });
+          const opacity = dimOpacityRef.current * envelope;
+          gsap.set(rippleEllipse, { opacity });
+          gsap.set(haloEllipse, { opacity });
+        },
+      },
+      0,
+    );
+  };
 
   return { decorateArc };
 }
