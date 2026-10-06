@@ -166,6 +166,7 @@ function Harness({
         scale={1}
         orbiters={{ lineWidth: d.lineWidth, stripOpacity: d.stripOpacity, size: d.size, count: d.count, cornerOrder: plan.cornerOrder, motion: true }}
         bodyLines={{ top: 0.8, midLeft: 0.8, midRight: 0.8, stripOpacity: 0 }}
+        halo={{ color: '#41ad9f', rx: 30, ry: 30, stops: [], opacity: 1, gradientId: `halo-${context}-${robotId}` }}
       />
     </svg>
   );

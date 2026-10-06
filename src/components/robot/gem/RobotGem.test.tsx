@@ -5,7 +5,7 @@ import { createRef } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 
-import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines } from './RobotGem';
+import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo } from './RobotGem';
 import source from './RobotGem.tsx?raw';
 import { getRobotGem, gemWidth, GEM_CANVAS_H, type GemPart } from './polygon';
 import { gemPalette, type GemPalette, type GemPartPaint } from './gemPalette';
@@ -43,16 +43,28 @@ const ALL_FOUR_STATIC: RobotGemOrbiters = {
  *  0.8 on every body line, strip fully transparent. Keeps the live app pixel-identical through T5/T6. */
 const BODY_LINES_LEGACY: RobotGemBodyLines = { top: 0.8, midLeft: 0.8, midRight: 0.8, stripOpacity: 0 };
 
+/** The temporary halo RobotBody passes until Phase 41 Task 7 lands — six stops, every one
+ *  transparent, so the live app shows no halo yet. */
+const HALO_LEGACY: RobotGemHalo = {
+  color: '#41ad9f',
+  rx: 30,
+  ry: 30,
+  stops: [0, 0.33, 0.5, 0.66, 0.83, 1].map((offset) => ({ offset, opacity: 0 })),
+  opacity: 1,
+  gradientId: 'halo-test-r1',
+};
+
 function draw(
   p: GemPalette = palette,
   lightOpacity = 0.7,
   scale = 0.9,
   orbiters: RobotGemOrbiters = ALL_FOUR_STATIC,
   bodyLines: RobotGemBodyLines = BODY_LINES_LEGACY,
+  halo: RobotGemHalo = HALO_LEGACY,
 ) {
   const { container } = render(
     <svg>
-      <RobotGem gem={gem} palette={p} lightOpacity={lightOpacity} scale={scale} orbiters={orbiters} bodyLines={bodyLines} />
+      <RobotGem gem={gem} palette={p} lightOpacity={lightOpacity} scale={scale} orbiters={orbiters} bodyLines={bodyLines} halo={halo} />
     </svg>,
   );
   return container;
@@ -142,7 +154,9 @@ describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.
     draw().querySelectorAll('[fill], [stroke]').forEach((el) => {
       for (const attr of ['fill', 'stroke']) {
         const v = el.getAttribute(attr);
-        if (v !== null) expect(allowed.has(v)).toBe(true);
+        // The halo ellipse's fill is a gradient reference; its colour is the halo prop's stop-color
+        // (asserted in the halo cases), the one colour that bypasses the palette on purpose.
+        if (v !== null && !v.startsWith('url(#')) expect(allowed.has(v)).toBe(true);
       }
     });
     expect(source).not.toMatch(/hsl\(|#[0-9a-f]{6}\b|hexToHsl|facetTone/i);
@@ -177,7 +191,7 @@ describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.
     const ref = createRef<SVGGElement>();
     const { container } = render(
       <svg>
-        <RobotGem ref={ref} gem={gem} palette={palette} lightOpacity={0.5} scale={1} orbiters={ALL_FOUR_STATIC} bodyLines={BODY_LINES_LEGACY} />
+        <RobotGem ref={ref} gem={gem} palette={palette} lightOpacity={0.5} scale={1} orbiters={ALL_FOUR_STATIC} bodyLines={BODY_LINES_LEGACY} halo={HALO_LEGACY} />
       </svg>,
     );
     expect(ref.current).toBe(container.querySelector('g.gem'));
@@ -372,6 +386,112 @@ describe('RobotGem — bodyLines: Top/Mid line width dial and lit strips (Phase 
 });
 
 // ========================================
+// HALO — the static gradient ellipse (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.1/§1.4, Task 6)
+// ========================================
+describe('RobotGem — halo: radial-gradient ellipse behind the Mids (Phase 41, Task 6)', () => {
+  const HALO: RobotGemHalo = {
+    color: '#ae5378',
+    rx: 60,
+    ry: 30,
+    stops: [
+      { offset: 0, opacity: 0 },
+      { offset: 1 / 3, opacity: 0 },
+      { offset: 0.5, opacity: 0.55 },
+      { offset: 0.625, opacity: 0.275 },
+      { offset: 0.875, opacity: 0.275 },
+      { offset: 1, opacity: 0 },
+    ],
+    opacity: 0.8,
+    gradientId: 'halo-world-r1',
+  };
+  const W = gemWidth(gem);
+
+  it('emits <defs><radialGradient id={gradientId}> with exactly six <stop>s', () => {
+    const container = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY_LINES_LEGACY, HALO);
+    const gradient = container.querySelector('g.gem > defs > radialGradient')!;
+    expect(gradient).not.toBeNull();
+    expect(gradient.getAttribute('id')).toBe('halo-world-r1');
+    expect(gradient.querySelectorAll('stop')).toHaveLength(6);
+  });
+
+  it('each stop carries offset as a percentage (2 dp), stop-color = halo colour, stop-opacity from the dial', () => {
+    const container = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY_LINES_LEGACY, HALO);
+    const stops = [...container.querySelectorAll('stop')];
+    expect(stops.map((s) => s.getAttribute('offset'))).toEqual(['0.00%', '33.33%', '50.00%', '62.50%', '87.50%', '100.00%']);
+    expect(stops.map((s) => s.getAttribute('stop-opacity'))).toEqual(['0', '0', '0.55', '0.275', '0.275', '0']);
+    stops.forEach((s) => expect(s.getAttribute('stop-color')).toBe('#ae5378'));
+  });
+
+  it('ellipse.gem__halo is centred on the canvas, sized rx/ry, filled by its own gradient, at the given opacity', () => {
+    const container = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY_LINES_LEGACY, HALO);
+    const halo = container.querySelector('ellipse.gem__halo')!;
+    expect(halo).not.toBeNull();
+    expect(halo.getAttribute('cx')).toBe(String(W / 2));
+    expect(halo.getAttribute('cy')).toBe(String(GEM_CANVAS_H / 2));
+    expect(halo.getAttribute('rx')).toBe('60');
+    expect(halo.getAttribute('ry')).toBe('30');
+    expect(halo.getAttribute('fill')).toBe('url(#halo-world-r1)');
+    expect(halo.getAttribute('opacity')).toBe('0.8');
+  });
+
+  it('the halo sits directly after the backing and before mid--left, in both motion modes', () => {
+    for (const orbiters of [ALL_FOUR_STATIC, MOTION]) {
+      const root = draw(palette, 0.7, 0.9, orbiters, BODY_LINES_LEGACY, HALO).querySelector('g.gem')!;
+      const kids = [...root.children];
+      const backingAt = kids.findIndex((c) => c.classList.contains('gem__backing'));
+      expect(kids[backingAt + 1].tagName).toBe('defs');
+      expect(kids[backingAt + 2].classList.contains('gem__halo')).toBe(true);
+      expect(kids[backingAt + 3].classList.contains('gem__mid--left')).toBe(true);
+    }
+  });
+
+  it('exactly one halo ellipse and one gradient per robot; no <filter> anywhere (spec Assumption 5)', () => {
+    const container = draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO);
+    expect(container.querySelectorAll('.gem__halo')).toHaveLength(1);
+    expect(container.querySelectorAll('radialGradient')).toHaveLength(1);
+    expect(container.querySelector('filter')).toBeNull();
+    expect(source).not.toMatch(/<filter|feGaussianBlur/);
+  });
+
+  it('a different halo prop re-renders the stops, size and opacity (React owns the halo on cards)', () => {
+    const container = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY_LINES_LEGACY, { ...HALO, rx: 40, ry: 20, opacity: 0.1, stops: HALO.stops.map((s) => ({ ...s, opacity: 0 })) });
+    const halo = container.querySelector('ellipse.gem__halo')!;
+    expect(halo.getAttribute('rx')).toBe('40');
+    expect(halo.getAttribute('ry')).toBe('20');
+    expect(halo.getAttribute('opacity')).toBe('0.1');
+    container.querySelectorAll('stop').forEach((s) => expect(s.getAttribute('stop-opacity')).toBe('0'));
+  });
+
+  it('a halo prop with every stop transparent still emits the ellipse and six stops (the interim RobotBody prop)', () => {
+    const container = draw();
+    expect(container.querySelector('ellipse.gem__halo')).not.toBeNull();
+    expect(container.querySelectorAll('stop')).toHaveLength(6);
+  });
+
+  it('two RobotGems with different gradientIds produce two gradients, each ellipse referencing its own', () => {
+    const { container } = render(
+      <svg>
+        <RobotGem gem={gem} palette={palette} lightOpacity={0.7} scale={1} orbiters={ALL_FOUR_STATIC} bodyLines={BODY_LINES_LEGACY} halo={{ ...HALO, gradientId: 'halo-card-r1' }} />
+        <RobotGem gem={gem} palette={palette} lightOpacity={0.7} scale={1} orbiters={ALL_FOUR_STATIC} bodyLines={BODY_LINES_LEGACY} halo={{ ...HALO, color: '#123456', gradientId: 'halo-avatar-r1' }} />
+      </svg>,
+    );
+    const gradients = [...container.querySelectorAll('radialGradient')];
+    expect(gradients.map((g) => g.getAttribute('id'))).toEqual(['halo-card-r1', 'halo-avatar-r1']);
+    const halos = [...container.querySelectorAll('ellipse.gem__halo')];
+    expect(halos.map((h) => h.getAttribute('fill'))).toEqual(['url(#halo-card-r1)', 'url(#halo-avatar-r1)']);
+    expect(gradients[1].querySelector('stop')!.getAttribute('stop-color')).toBe('#123456');
+  });
+
+  it('no .gem__ripple yet (the ripple element is Task 9)', () => {
+    expect(draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO).querySelector('.gem__ripple')).toBeNull();
+  });
+
+  it('the halo ellipse is not a drawable the element-count case counts, and adds no g.gem__part', () => {
+    expect(partGroups(draw())).toHaveLength(8);
+  });
+});
+
+// ========================================
 // MOTION MODE — docked, GSAP-owned (Phase 40 amendment: single copy per corner, no depth twins)
 // ========================================
 const MOTION: RobotGemOrbiters = {
@@ -393,10 +513,12 @@ describe('RobotGem — motion mode: docked orbiters, GSAP-owned (Phase 40 amendm
     );
   });
 
-  it('DOM order: backing, mid--left, mid--right, 4 orbiters, top', () => {
+  it('DOM order: backing, defs, halo, mid--left, mid--right, 4 orbiters, top', () => {
     const container = draw(palette, 0.7, 0.9, MOTION);
     const root = container.querySelector('g.gem')!;
     const roles = [...root.children].map((c) => {
+      if (c.tagName === 'defs') return 'defs';
+      if (c.classList.contains('gem__halo')) return 'halo';
       if (c.classList.contains('gem__orbiter')) return 'orbiter';
       if (c.classList.contains('gem__backing')) return 'backing';
       if (c.classList.contains('gem__mid--left')) return 'mid--left';
@@ -404,7 +526,7 @@ describe('RobotGem — motion mode: docked orbiters, GSAP-owned (Phase 40 amendm
       if (c.classList.contains('gem__top')) return 'top';
       return 'unknown';
     });
-    expect(roles).toEqual(['backing', 'mid--left', 'mid--right', 'orbiter', 'orbiter', 'orbiter', 'orbiter', 'top']);
+    expect(roles).toEqual(['backing', 'defs', 'halo', 'mid--left', 'mid--right', 'orbiter', 'orbiter', 'orbiter', 'orbiter', 'top']);
   });
 
   it('no .gem__orbiter or .gem__orbiter-local carries a transform, style, display or opacity attribute; the inner corner group keeps its translate', () => {
@@ -438,8 +560,10 @@ describe('RobotGem — motion mode: docked orbiters, GSAP-owned (Phase 40 amendm
   it('motion: false output is unchanged (DOM order and class list)', () => {
     const container = draw();
     const root = container.querySelector('g.gem')!;
-    expect([...root.children].map((c) => c.getAttribute('class'))).toEqual([
+    expect([...root.children].map((c) => c.getAttribute('class') ?? c.tagName)).toEqual([
       'gem__part gem__backing',
+      'defs',
+      'gem__halo',
       'gem__part gem__mid gem__mid--left',
       'gem__part gem__mid gem__mid--right',
       'gem__orbiter gem__orbiter--tl',

@@ -13,7 +13,7 @@ import {
   LAMP_MIN,
 } from './robotVisualHelpers';
 import { useUIStore } from '../../stores/uiStore';
-import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines } from './gem/RobotGem';
+import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo } from './gem/RobotGem';
 import { useOrbiterMotion } from './gem/useOrbiterMotion';
 import { getRobotGem } from './gem/polygon';
 import { gemPalette } from './gem/gemPalette';
@@ -52,6 +52,10 @@ const FALLBACK_IDENTITY = '#78cce2';
 /** Interim (Phase 41 Task 5 → Task 7): Phase 40's fixed 0.8 body lines with the strip transparent,
  *  so the live app stays pixel-identical until the bodyLineDials memo replaces this. */
 const BODY_LINES_LEGACY: RobotGemBodyLines = { top: 0.8, midLeft: 0.8, midRight: 0.8, stripOpacity: 0 };
+
+/** Interim (Phase 41 Task 6 → Task 7): six fully transparent stops, so the halo element exists but
+ *  shows nothing until the haloDials memo replaces this. */
+const HALO_LEGACY_STOPS = [0, 0.2, 0.4, 0.6, 0.8, 1].map((offset) => ({ offset, opacity: 0 }));
 
 // ========================================
 // COMPONENT
@@ -116,6 +120,15 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     motion: motion !== undefined,
   };
 
+  const halo: RobotGemHalo = {
+    color: robot.identityColor ?? FALLBACK_IDENTITY,
+    rx: 30,
+    ry: 30,
+    stops: HALO_LEGACY_STOPS,
+    opacity: dimOpacity,
+    gradientId: `halo-${motion ?? 'card'}-${robot.id}`,
+  };
+
   const gemRef = useRef<SVGGElement>(null);
   useOrbiterMotion({
     root: gemRef,
@@ -136,6 +149,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
       scale={ignoreScale ? 1 : audio.scale}
       orbiters={orbiters}
       bodyLines={BODY_LINES_LEGACY}
+      halo={halo}
     />
   );
 });

@@ -6,6 +6,7 @@ import { memo, type Ref } from 'react';
 import { gemWidth, GEM_CANVAS_H, type GemPart, type GemPoint, type RobotGem as RobotGemGeometry } from './polygon';
 import type { GemPalette, GemPartPaint } from './gemPalette';
 import { facetPaths, linesPath } from './gemPaths';
+import type { HaloStop } from './haloDials';
 
 // ========================================
 // TYPES
@@ -35,6 +36,21 @@ export interface RobotGemBodyLines {
   stripOpacity: number;
 }
 
+/** The halo RobotBody computes (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.1/§1.4): one ellipse
+ *  behind the Mids filled by a six-stop radial gradient — the envelope laid along the radius in the
+ *  company colour. `gradientId` is per rendered instance (`halo-${context}-${robotId}`): the world
+ *  and the avatar show one robot at once and a shared id would paint the wrong gradient. On cards
+ *  React writes every attribute each render; in motion contexts the hook owns them after mount. */
+export interface RobotGemHalo {
+  color: string;
+  rx: number;
+  ry: number;
+  stops: HaloStop[];
+  /** Battery dim (daylight is deliberately absent). */
+  opacity: number;
+  gradientId: string;
+}
+
 /** `data-line` on a `.gem__strip` — which flicker trigger tuple it answers to (useStripFlicker). */
 type StripLine = 'top' | 'midLeft' | 'midRight' | 'orbiters';
 
@@ -51,6 +67,8 @@ interface RobotGemProps {
   orbiters: RobotGemOrbiters;
   /** Top/Mid line widths and strip opacity (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4). */
   bodyLines: RobotGemBodyLines;
+  /** The gradient halo behind the Mids (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4). */
+  halo: RobotGemHalo;
   /** Forwarded to the root `g.gem` — the `useOrbiterMotion` hook's GSAP scope (Task 8). */
   ref?: Ref<SVGGElement>;
 }
@@ -65,6 +83,8 @@ const LIGHT_HALO_OPACITY = 0.18;
 const LIGHT_CORE_R = 1.4;
 
 const r2 = (n: number) => Number(n.toFixed(2));
+/** Gradient stop offset as SVG wants it: a percentage, 2 dp (the sketch's `stop()` formatting). */
+const pct = (offset: number) => `${(offset * 100).toFixed(2)}%`;
 const points = (pts: readonly GemPoint[]) => pts.map(([x, y]) => `${r2(x)},${r2(y)}`).join(' ');
 const ORBITER_CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 
@@ -170,12 +190,14 @@ const ALL_CORNERS = [0, 1, 2, 3] as const;
 // COMPONENT
 // ========================================
 /**
- * RobotGem — draw-only memo for a gem polygon robot (Roadmap Phase 39/40). Z order is DOM order:
- * backing, mid--left, mid--right, docked orbiters, top — orbiters sit nestled between Mid and Top
- * (Phase 40 amendment). Geometry from getRobotGem, colours from gemPalette, orbiter dials/layout and
- * the Top/Mid line dials (Phase 41) from RobotBody; nothing here derives any of them.
+ * RobotGem — draw-only memo for a gem polygon robot (Roadmap Phase 39/40/41). Z order is DOM order:
+ * backing, halo (its <defs> gradient then the ellipse), mid--left, mid--right, docked orbiters, top
+ * — the halo reads as light from behind the body, orbiters sit nestled between Mid and Top (Phase 40
+ * amendment). Geometry from getRobotGem, colours from gemPalette, orbiter dials/layout, the Top/Mid
+ * line dials and the halo (Phase 41) from RobotBody; nothing here derives any of them. No SVG
+ * filter anywhere: the gradient stops alone carry the halo's softness (spec Assumption 5).
  */
-export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, scale, orbiters, bodyLines, ref }: RobotGemProps) {
+export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, scale, orbiters, bodyLines, halo, ref }: RobotGemProps) {
   const cx = gemWidth(gem) / 2;
   const cy = GEM_CANVAS_H / 2;
   const { backing } = gem;
@@ -192,6 +214,14 @@ export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, sca
           strokeWidth={BACKING_STROKE_WIDTH}
         />
       </g>
+      <defs>
+        <radialGradient id={halo.gradientId}>
+          {halo.stops.map((stop, i) => (
+            <stop key={i} offset={pct(stop.offset)} stopColor={halo.color} stopOpacity={stop.opacity} />
+          ))}
+        </radialGradient>
+      </defs>
+      <ellipse className="gem__halo" cx={cx} cy={cy} rx={halo.rx} ry={halo.ry} fill={`url(#${halo.gradientId})`} opacity={halo.opacity} />
       <BevelledPart
         part={gem.midLeft}
         paint={palette.midLeft}
