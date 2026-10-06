@@ -35,10 +35,6 @@ interface FakeTimeline {
   pause: ReturnType<typeof vi.fn>;
   set: (target: unknown, vars: Record<string, unknown>) => FakeTimeline;
   add: (child: unknown, position?: number) => FakeTimeline;
-  /** A child tween, created via `tl.to(...)` (Task 10's attach/detach wrapping timeline) — tracked
-   *  in the same global `toCalls` the bare `gsap.to()` calls use, so existing helpers that search
-   *  `toCalls` (e.g. `hopTweensFor`) find these too. */
-  to: (target: unknown, vars: Record<string, unknown>) => FakeTween;
 }
 
 function applyDisplay(target: unknown, vars: Record<string, unknown>) {
@@ -92,12 +88,6 @@ function makeTimeline(): FakeTimeline {
     add: (child, position) => {
       tl.children.push({ child, position });
       return tl;
-    },
-    to: (target, vars) => {
-      const tween = makeTween(target, vars);
-      toCalls.push({ target, vars, tween });
-      tl.children.push({ child: tween });
-      return tween;
     },
   };
   createdTimelines.push(tl);

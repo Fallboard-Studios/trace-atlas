@@ -11,9 +11,12 @@
 //
 // 2026-10-06 (Crawford): this hop is density-driven (every call today traces back to
 // `rhythmicDensity` via `orbiterDials().count`), and the halo's ripple is reserved for the future
-// job-detach animation instead — so this file no longer decorates its arcs at all. `useHaloMotion`
-// and `ArcDecorator` are untouched; when job animations land they'll call `decorateArc` from
-// whatever new call site drives them, not from here.
+// job-detach or docking animation instead — so this file does not decorate its arcs and has no
+// `decorateArc` option. (An earlier pass of this same change wrapped the hop's bare `gsap.to` in a
+// paused `gsap.timeline` so a decorator could be called on it before play; that wrapping was
+// removed once the decision landed, since nothing calls it — plain tweens again, as before Phase
+// 41.) `useHaloMotion` and its `ArcDecorator` type are untouched; when job or docking animations
+// land they'll call `decorateArc` from whatever new call site drives them, not from here.
 
 // ========================================
 // IMPORTS
@@ -27,9 +30,6 @@ import { prefersReducedMotion } from '../../../utils/reducedMotion';
 import type { RobotGem as RobotGemGeometry } from './polygon';
 import { ATTACH_DROP, ATTACH_START_SCALE, ATTACH_DURATION, type OrbiterPlan } from './orbiterMotion';
 import type { OrbiterDials } from './orbiterDials';
-import type { ArcDecorator } from './useHaloMotion';
-
-export type { ArcDecorator };
 
 // ========================================
 // TYPES
@@ -162,8 +162,7 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
 
         if (gatesQueue) arcInFlightRef.current = true;
         gsap.set(local, { x: 0, y: ATTACH_DROP, scale: dialsRef.current.size * ATTACH_START_SCALE, opacity: 0 });
-        const tl = gsap.timeline({ paused: true });
-        tl.to(local, {
+        const tween = gsap.to(local, {
           y: 0,
           scale: dialsRef.current.size,
           opacity: 1,
@@ -176,8 +175,7 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
             reconcile();
           },
         });
-        arcKillers.set(corner, () => tl.kill());
-        tl.play();
+        arcKillers.set(corner, () => tween.kill());
       };
 
       const settleDetach = (corner: number) => {
@@ -202,8 +200,7 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
           arcKillers.set(corner, () => tween.kill());
           return;
         }
-        const tl = gsap.timeline({ paused: true });
-        tl.to(local, {
+        const tween = gsap.to(local, {
           y: ATTACH_DROP,
           scale: dialsRef.current.size * ATTACH_START_SCALE,
           opacity: 0,
@@ -211,8 +208,7 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
           ease: 'power2.in',
           onComplete: () => settleDetach(corner),
         });
-        arcKillers.set(corner, () => tl.kill());
-        tl.play();
+        arcKillers.set(corner, () => tween.kill());
       };
 
       let reconcile: () => void = () => {};

@@ -40,11 +40,14 @@ export interface RobotGemBodyLines {
  *  behind the Mids filled by a six-stop radial gradient — the envelope laid along the radius in the
  *  company colour. `gradientId` is per rendered instance (`halo-${context}-${robotId}`): the world
  *  and the avatar show one robot at once and a shared id would paint the wrong gradient.
- *  Amendment (2026-10-06, Crawford): the halo only ever appears while a robot's orbiters are
- *  spawning or despawning, so `RobotGem` renders it (`<defs>` + `ellipse.gem__halo`) only when
- *  `orbiters.motion` is true — cards never spawn/despawn, so cards never render a halo at all. In
- *  the motion contexts (world/avatar) React still writes every attribute at mount; the hook that
- *  owns them afterwards (Task 8) keeps opacity at 0 outside an arc. */
+ *  Amendment (2026-10-06, Crawford): the halo is designed to appear only during a spawn/despawn
+ *  arc, so `RobotGem` renders its markup (`<defs>` + `ellipse.gem__halo`) only in the motion
+ *  contexts (world/avatar, `orbiters.motion`) — cards get neither. React still writes every
+ *  attribute once at mount there; the hook that owns them afterwards (Task 8) keeps opacity at 0
+ *  until something calls `decorateArc` to raise it. As of this branch nothing does (Amendment 2 —
+ *  the Phase 40 orbiter attach/detach hop was tried as that caller and reverted, reserved for a
+ *  future job-detach or docking animation instead), so today the halo markup exists in world/avatar
+ *  but never becomes visible there either. */
 export interface RobotGemHalo {
   color: string;
   rx: number;

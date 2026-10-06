@@ -10,9 +10,10 @@ A gem robot gains four things. A **halo** — one radial-gradient ellipse behind
 the robot's company (identity when freelance), sized by its volume, with the envelope drawn along
 its radius. **Lit strips** on the Top and Mid boundary lines, whose width follows that layer's
 gain-LFO depth. A **flicker**: any strip whose driving attribute changes blinks a few times over the
-next two seconds, on its own seeded pattern. A **ripple**: during a Phase 40 spawn arc the halo's
-bright ring runs outward repeatedly; during a despawn arc, inward. Nothing comes from BPM, the
-transport or the audio engine.
+next two seconds, on its own seeded pattern. A **ripple**: during a spawn arc the halo's bright ring
+runs outward repeatedly; during a despawn arc, inward — designed, built and tested, but as shipped
+(Amendment 2, §1) with no arc wired to trigger it, so the halo and ripple are invisible everywhere
+today. Nothing comes from BPM, the transport or the audio engine.
 
 ## Assumptions (correct these before the plan)
 
@@ -36,10 +37,11 @@ transport or the audio engine.
    world show one robot at once; a duplicated id would silently paint the wrong gradient.
 5. **No filter, no blur.** The halo is a single `<ellipse>` with a `<radialGradient>` of six stops;
    the softness comes from the stops. This is the first SVG gradient in `src/` (checked 2026-10-05).
-6. **The ripple is a child of the arc timeline**, not a sibling: `useOrbiterMotion` gains an
-   optional `decorateArc` callback (§1.4) that `RobotBody` fills from the halo module, so killing or
-   finishing the arc kills the ripple with it and the one-arc-at-a-time rule gives at most one
-   ripple per robot for free.
+6. **The ripple is designed as a child of the arc timeline**, not a sibling: whatever hook drives
+   the eventual spawn/despawn arc calls the halo module's `decorateArc` callback (§1.4) on its own
+   timeline, so killing or finishing the arc kills the ripple with it. As built, `useOrbiterMotion`
+   does not take this callback (Amendment 2, §1) — the orbiter attach/detach hop was tried and
+   rejected as that caller; the real one is a future job-detach or docking animation.
 7. **Timing is wall-clock GSAP time**, never the transport. Flicker patterns and nothing else are
    seeded; the seed stream is `alea(`${gemSeed}:flicker:${line}:${run}`)` so Phase 39's geometry
    stream and Phase 40's `:orbit` stream are untouched and the fixture still pins.
@@ -57,18 +59,34 @@ React 19, TypeScript 5.9, Zustand 5, GSAP 3 via `@gsap/react`, Vitest + Testing 
 ## 1. Overview & Claude Explanation
 
 > **Amendment (2026-10-06, Crawford, mid-implementation of Phase 3).** The halo is no longer
-> always visible. It appears only while a robot's orbiters are spawning or despawning (the
-> Phase 40 attach/detach hop) and is otherwise fully transparent — including on selection cards,
-> which never spawn or despawn an orbiter and so never show a halo at all. `RobotGem` renders the
-> halo markup (`<defs>` + `ellipse.gem__halo`) only when `orbiters.motion` is true; cards get
-> neither the gradient nor the ellipse. In world/avatar, the halo's stops/`rx`/`ry` still tween
-> continuously off the envelope/volume dial exactly as §1.1 describes (so it's correct the instant
-> it next appears), but its **opacity** is no longer driven by battery dim at rest — it sits at 0
-> between arcs and is owned entirely by `decorateArc` (§1.4), which fades it up to the battery-dim
-> level and back down to 0 over the arc, keyed to the same envelope that drives the ripple's
-> fade-in/fade-out (`rippleEnvelope`), so appearing and disappearing is always a tween, never a
-> pop. `HALO_RIPPLE_DIM` (the old "dip to 75%" constant) is removed — there is no longer a visible
-> baseline for a ripple to dip from.
+> always visible. It is designed to appear only during a spawn/despawn arc and is otherwise fully
+> transparent — including on selection cards, which never spawn or despawn an orbiter and so never
+> show a halo at all. `RobotGem` renders the halo markup (`<defs>` + `ellipse.gem__halo`) only when
+> `orbiters.motion` is true; cards get neither the gradient nor the ellipse. In world/avatar, the
+> halo's stops/`rx`/`ry` still tween continuously off the envelope/volume dial exactly as §1.1
+> describes (so it's correct the instant it next appears), but its **opacity** is no longer driven
+> by battery dim at rest — it sits at 0 at all times and is owned entirely by `decorateArc` (§1.4),
+> which (when called) fades it up to the battery-dim level and back down to 0 over the arc, keyed
+> to the same envelope that drives the ripple's fade-in/fade-out (`rippleEnvelope`), so appearing
+> and disappearing is always a tween, never a pop. `HALO_RIPPLE_DIM` (the old "dip to 75%"
+> constant) is removed — there is no longer a visible baseline for a ripple to dip from.
+>
+> **Amendment 2 (2026-10-06, Crawford, after Task 13 — halo left unwired).** Tasks 1–13 are
+> shipped: the halo, ripple, flicker and strip dials all exist, are fully tested, and render
+> correctly. But `decorateArc` (§1.4) has **no caller anywhere in the codebase.** The Phase 40
+> orbiter attach/detach hop — the only existing spawn/despawn arc — was wired to call it for one
+> commit, then deliberately unwired (`useOrbiterMotion.ts`'s own 2026-10-06 note): that hop is
+> driven by `rhythmicDensity`, not a meaningful "spawn/despawn" event, and the halo reads better
+> tied to the **job-detach or docking-recharge animation** Crawford is building in the next week
+> or two instead. Net effect: **the halo is currently invisible in every context, including world
+> and avatar** — not just cards — because nothing ever calls `decorateArc` to bring its opacity
+> above 0. Every claim below and in §1.4/§5 describing the halo/ripple appearing during "a spawn
+> arc" or "a density drag" describes the **designed, not-yet-wired** behaviour; read it as what
+> `decorateArc`'s eventual caller will produce, not as what `npm run dev` shows today. The
+> speculative plumbing that was added to support wiring it into the orbiter hop (wrapping each
+> hop's tween in a paused `gsap.timeline` so a decorator could run before `.play()`) was removed
+> in the same cleanup — `useOrbiterMotion.ts` has no `decorateArc` option and never will unless a
+> future task adds one back for its real caller.
 
 ### 1.1 Halo dials (`src/components/robot/gem/haloDials.ts`, pure)
 
@@ -200,9 +218,12 @@ export function useHaloMotion(opts: { root: RefObject<SVGGElement | null>; robot
   the arc's key owns it. Skipped under reduced motion (Phase 40 then plays its 0.3 s fade with no
   ripple and no halo).
 
-**`useOrbiterMotion`** (Phase 40) gains the optional `decorateArc?: ArcDecorator` option and calls it
-once per spawn/despawn arc, after the arc timeline is built and before it plays. That is the only
-change to Phase 40 code.
+**`useOrbiterMotion`** (Phase 40) does **not** call `decorateArc` (Amendment 2, §1 above): it has no
+`decorateArc` option at all. The original plan had it gain one and call it once per spawn/despawn
+arc; that was built, then deliberately reverted the same session, because the orbiter attach/detach
+hop is density-driven, not a real spawn/despawn event, and the halo is reserved for a future
+job-detach or docking animation's own call site instead. `decorateArc` exists only on
+`useHaloMotion`'s return value today, called by nothing.
 
 **`gem/useStripFlicker.ts`**:
 
@@ -272,7 +293,8 @@ src/components/robot/gem/
   stripFlicker.ts / .test.ts       NEW — flickerPattern, flickerGain, FLICKER_*
   useHaloMotion.ts / .test.tsx     NEW — halo tween + decorateArc (ripple)
   useStripFlicker.ts / .test.tsx   NEW — per-line flicker timelines
-  useOrbiterMotion.ts / .test.tsx  edit — decorateArc option (Phase 40 file)
+  useOrbiterMotion.ts / .test.tsx  edit — tried and reverted a decorateArc option (Phase 40 file);
+                                     shipped with none (Amendment 2, §1)
   RobotGem.tsx / .test.tsx         edit — halo/ripple elements, body strips, bodyLines prop, BODY_LINE_WIDTH removed
 src/components/robot/
   RobotBody.tsx / .test.tsx        edit — company selector, halo/bodyLines/trigger memos, two hook calls
@@ -299,7 +321,8 @@ docs/specs/ORBITING_POLYGONS.md    edit — one line under §7 Q5: the flicker i
   in the sketch first); lengthening Phase 40's arcs; any seeded freedom in the ripple; daylight on the
   halo; a strip-opacity source other than fixed; widening lines past 0.7 (means touching the
   generator's clearance); animating the cards; any further non-audio visual input; a CSS transition
-  in place of a GSAP tween; any Phase 40 change beyond the `decorateArc` option.
+  in place of a GSAP tween; wiring `decorateArc` into any call site (Amendment 2, §1 — that's a
+  separate future task, not this one).
 - **Never:** BeatClock, Transport, BPM or `AudioEngine` near this code; timers or `requestAnimationFrame`;
   reading Zustand or calling store actions inside a tween callback; an SVG `<filter>`; storing a
   timeline, element or dial object in state; a display string in a component; a gradient id shared
@@ -369,9 +392,11 @@ Constants `UPPER_SNAKE`, each commented with its intent row or the interview ver
   `flicker-world-r1-top`, only `[data-line=top]` strips set, 3–5 opacity dips inside 2 s, final opacity
   = `data-base`; `midLeft` untouched; a second change inside the window kills and rebuilds (one key);
   `orbiters` change hits every orbiter copy; reduced motion → nothing; `enabled: false` → nothing.
-- **`useOrbiterMotion.test.tsx`** (Phase 40 file): `decorateArc` called once per spawn and per despawn
-  with the arc's kind, duration and timeline; not called for orbits or reduced-motion fades; absent →
-  behaviour unchanged.
+- **`useOrbiterMotion.test.tsx`** (Phase 40 file): the amendment's final shape — no `decorateArc`
+  option exists on this hook at all; its own describe block (`'no halo decoration (amendment,
+  2026-10-06)'`) asserts a count-increase spawn hop and a count-decrease despawn hop both play
+  normally with nothing to decorate them. (The plan originally called for the opposite — this hook
+  gaining `decorateArc` and calling it per hop — see §1 Amendment 2.)
 - **`RobotBody.test.tsx`:** item-22 daylight spy test kept; the halo memo recomputes on a volume or
   ADSR edit and not on a density edit; the bodyLines memo recomputes on an `lfoLinks` replacement
   and not on an ADSR edit; a company rename does not re-render the body, a company colour change
@@ -390,15 +415,16 @@ Constants `UPPER_SNAKE`, each commented with its intent row or the interview ver
   strips; the ripple ellipse at opacity 0 should not paint — verify). Fail → the ladder, in order,
   each re-measured: (1) `rx`/`ry` not tweened (stops only); (2) halo on the selected robot and the
   avatar only; (3) halo as a flat two-stop gradient. Crawford picks the rung.
-- **Gate (Crawford, by eye):** the halo is invisible at rest, in every context, including cards; a
-  density drag's spawn arc fades the halo up (in the company colour, identity when freelance, with
-  the hole/attack/decay/hold/release envelope visible along its radius) while a slow outward ring
-  runs, then fades both back to nothing; a despawn arc does the same with an inward ring; a volume
-  or envelope edit made before the next arc is reflected correctly when the halo next appears;
-  Top/Mid strips read at depth 0 and widen with depth (unaffected by the amendment — always
-  visible); an LFO depth edit flickers only that line; the avatar matches; cards show strips but
-  never a halo; reduced motion → no flicker, no ripple, halo stays invisible throughout.
-  Pixel listen: no new dropouts.
+- **Gate (Crawford, by eye) — as actually shipped (Amendment 2, §1):** the halo is invisible in
+  every context today, including world and avatar, not just cards — there is no density drag or
+  any other current action that shows it, because `decorateArc` has no caller. What to verify now:
+  Top/Mid strips read at depth 0 and widen with depth, unaffected by either amendment (always
+  visible, on cards too); an LFO depth edit flickers only that line; strips behave identically in
+  world/avatar/cards; reduced motion → no flicker (the halo has nothing to be reduced from). The
+  halo/ripple visual gate itself — a volume/envelope edit reflected correctly, a slow outward or
+  inward ring, the fade-up/fade-down — is **deferred** to whichever future task wires `decorateArc`
+  into the job-detach or docking animation; re-run this gate's original wording then. Pixel listen:
+  no new dropouts.
 
 ## 6. Git & Workflow Context
 
