@@ -376,9 +376,19 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
     }) as Robot['lfoLinks'];
 
     const haloEl = (c: HTMLElement) => c.querySelector('ellipse.gem__halo')!;
-    const stopColors = (c: HTMLElement) => [...c.querySelectorAll('stop')].map((s) => s.getAttribute('stop-color'));
-    const stopOffsets = (c: HTMLElement) => [...c.querySelectorAll('stop')].map((s) => s.getAttribute('offset'));
-    const stopOpacities = (c: HTMLElement) => [...c.querySelectorAll('stop')].map((s) => Number(s.getAttribute('stop-opacity')));
+    // The halo's own gradient, resolved via the ellipse's `fill` (not a combined selector through
+    // <radialGradient> — a jsdom gotcha, see project memory: that descendant selector matches
+    // nothing). Scoping this way also keeps these helpers correct now that a ripple gradient's
+    // five stops sit alongside the halo's six (Task 13 wires `ripple`).
+    const haloGradient = (c: HTMLElement) => {
+      const el = c.querySelector('ellipse.gem__halo');
+      const match = el && /url\(#(.+)\)/.exec(el.getAttribute('fill') ?? '');
+      return match ? c.querySelector(`#${match[1]}`) : null;
+    };
+    const haloStopEls = (c: HTMLElement) => [...(haloGradient(c)?.querySelectorAll('stop') ?? [])];
+    const stopColors = (c: HTMLElement) => haloStopEls(c).map((s) => s.getAttribute('stop-color'));
+    const stopOffsets = (c: HTMLElement) => haloStopEls(c).map((s) => s.getAttribute('offset'));
+    const stopOpacities = (c: HTMLElement) => haloStopEls(c).map((s) => Number(s.getAttribute('stop-opacity')));
     const lineWidth = (c: HTMLElement, sel: string) => c.querySelector(`${sel} .gem__lines`)!.getAttribute('stroke-width');
 
     describe('halo colour (company, else identity)', () => {
@@ -461,14 +471,13 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
         expect(stopOpacities(high).slice(2, 5)).toEqual([stopOpacities(high)[2], stopOpacities(high)[2], stopOpacities(high)[2]]);
       });
 
-      it('the halo ellipse opacity is the battery dim: full battery 1, critical battery dimmed; daylight leaves it alone', () => {
+      it('the halo ellipse opacity starts at 0 regardless of battery (amendment, 2026-10-06: no idle baseline — battery dim only ever shows during a spawn/despawn arc, useHaloMotion.test.tsx’s decorateArc suite)', () => {
         useUIStore.getState().setActiveLocaleLocalTime(0);
         const full = draw(makeRobot({ batteryLevel: 100 }), false, 'world').container;
-        expect(haloEl(full).getAttribute('opacity')).toBe('1');
+        expect(haloEl(full).getAttribute('opacity')).toBe('0');
         cleanup();
         const critical = draw(makeRobot({ batteryLevel: 5 }), false, 'world').container;
-        expect(Number(haloEl(critical).getAttribute('opacity'))).toBeLessThan(1);
-        expect(Number(haloEl(critical).getAttribute('opacity'))).toBeGreaterThan(0);
+        expect(haloEl(critical).getAttribute('opacity')).toBe('0');
       });
 
       it('no halo and no radialGradient without motion; halo-world-<id> / halo-avatar-<id> with it', () => {
@@ -516,6 +525,49 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
       it('orbiter strips keep their own Pitch Repeat opacity, not the body constant', () => {
         const { container } = draw(makeRobot({ pitchRepeat: 100 }));
         expect(container.querySelector('.gem__strip[data-line="orbiters"]')!.getAttribute('opacity')).toBe('1');
+      });
+    });
+
+    describe('motion wiring: useHaloMotion, decorateArc into useOrbiterMotion, useStripFlicker (Phase 41, Task 13)', () => {
+      it('motion="world": a volume edit registers halo-world-<id>', () => {
+        const robot = makeRobot({ id: 'r1', masterVolume: 0.5 });
+        const { rerender } = render(<svg><RobotBody robot={robot} motion="world" /></svg>);
+        expect(timelineMap.has('halo-world-r1')).toBe(false); // mount never tweens
+        rerender(<svg><RobotBody robot={{ ...robot, masterVolume: 0.9 }} motion="world" /></svg>);
+        expect(timelineMap.has('halo-world-r1')).toBe(true);
+      });
+
+      it('motion="world": an lfoLinks depth edit registers flicker-world-<id>-top, not any other line’s key', () => {
+        const robot = makeRobot({ id: 'r1', lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 0 } }) });
+        const { rerender } = render(<svg><RobotBody robot={robot} motion="world" /></svg>);
+        rerender(<svg><RobotBody robot={{ ...robot, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 80 } }) }} motion="world" /></svg>);
+        expect(timelineMap.has('flicker-world-r1-top')).toBe(true);
+        expect(timelineMap.has('flicker-world-r1-midLeft')).toBe(false);
+        expect(timelineMap.has('flicker-world-r1-midRight')).toBe(false);
+      });
+
+      it('without motion: no halo or flicker keys, ever — cards stay fully static', () => {
+        const robot = makeRobot({ id: 'r1', masterVolume: 0.5, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 0 } }) });
+        const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
+        rerender(<svg><RobotBody robot={{ ...robot, masterVolume: 0.9, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 80 } }) }} /></svg>);
+        expect([...timelineMap.keys()].some((k) => k.startsWith('halo-') || k.startsWith('flicker-'))).toBe(false);
+      });
+
+      it('motion="world": RobotGem receives the ripple prop (gradientId ripple-world-<id>)', () => {
+        const { container } = render(<svg><RobotBody robot={makeRobot({ id: 'r1' })} motion="world" /></svg>);
+        const ripple = container.querySelector('.gem__ripple')!;
+        expect(ripple).not.toBeNull();
+        expect(ripple.getAttribute('fill')).toBe('url(#ripple-world-r1)');
+      });
+
+      it('motion="avatar" uses its own context throughout — halo-avatar-<id> / flicker-avatar-<id>-top / orbiters-avatar-<id>', () => {
+        const robot = makeRobot({ id: 'r1', masterVolume: 0.5, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 0 } }) });
+        const { rerender } = render(<svg><RobotBody robot={robot} motion="avatar" /></svg>);
+        expect(timelineMap.has('orbiters-avatar-r1')).toBe(true);
+        rerender(<svg><RobotBody robot={{ ...robot, masterVolume: 0.9, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 80 } }) }} motion="avatar" /></svg>);
+        expect(timelineMap.has('halo-avatar-r1')).toBe(true);
+        expect(timelineMap.has('flicker-avatar-r1-top')).toBe(true);
+        expect(timelineMap.has('halo-world-r1')).toBe(false);
       });
     });
 

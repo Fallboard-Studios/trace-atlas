@@ -15,8 +15,10 @@ import {
 import { useUIStore } from '../../stores/uiStore';
 import { useLocaleStore } from '../../stores/localeStore';
 import { getActiveLocaleId } from '../../utils/localeHelpers';
-import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo } from './gem/RobotGem';
+import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo, type RobotGemRipple } from './gem/RobotGem';
 import { useOrbiterMotion } from './gem/useOrbiterMotion';
+import { useHaloMotion } from './gem/useHaloMotion';
+import { useStripFlicker, type StripLine, type FlickerTrigger } from './gem/useStripFlicker';
 import { getRobotGem } from './gem/polygon';
 import { gemPalette } from './gem/gemPalette';
 import { batteryFacetContrast } from './gem/gemShading';
@@ -67,8 +69,11 @@ const FALLBACK_IDENTITY = '#78cce2';
  * Phase 41 (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.5) adds two more memos beside it, each with
  * its own inputs: the halo (volume, envelope, identity and the company colour — the one non-audio
  * visual input, read with a narrow selector so a company rename never re-renders the body) and
- * the Top/Mid line widths (the gain-LFO link depths). In every context React writes the halo each
- * render for now; the motion hook that takes it over is Task 8.
+ * the Top/Mid line widths (the gain-LFO link depths). In world/avatar, `useHaloMotion` owns the
+ * halo's attributes after mount (its `decorateArc` feeds `useOrbiterMotion`'s spawn/despawn hop,
+ * which is the halo's only moment of visibility — amendment, 2026-10-06) and `useStripFlicker`
+ * plays each line's two-second flicker on its own trigger tuple. On cards (no `motion`) neither
+ * hook runs — `enabled: false` returns before touching GSAP — and the halo never renders at all.
  */
 export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignoreScale, motion }: RobotBodyProps) {
   // Day/night from the active locale's local time (0..24, written once a second by
@@ -129,6 +134,22 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     [robot.lfoLinks],
   );
 
+  // Flicker triggers only — each line's own tuple (spec §1.4, Task 13): a change in any of a
+  // line's values restarts that line's two-second flicker, and no other line's.
+  const flickerTriggers = useMemo<Record<StripLine, FlickerTrigger>>(() => {
+    const links = robot.lfoLinks;
+    const top = links?.['layer0.gain'];
+    const midLeft = links?.['layer1.gain'];
+    const midRight = links?.['layer2.gain'];
+    const layers = robot.audioAttributes.layers;
+    return {
+      top: [top?.depth, top?.lane],
+      midLeft: [midLeft?.depth, midLeft?.lane, layers?.[1]?.gain],
+      midRight: [midRight?.depth, midRight?.lane, layers?.[2]?.gain],
+      orbiters: [robot.noteVariance?.value, robot.pitchRepeat],
+    };
+  }, [robot.lfoLinks, robot.audioAttributes.layers, robot.noteVariance, robot.pitchRepeat]);
+
   // Seeded identity — a Map hit after the first render of this seed.
   const gem = getRobotGem(robot.gemSeed);
   const palette = gemPalette(gem, robot.identityColor ?? FALLBACK_IDENTITY, daylight, audio.midLit, batteryFacetContrast(dimOpacity));
@@ -143,18 +164,33 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     motion: motion !== undefined,
   };
 
-  // The ellipse is stretched with the canvas (rx = radius × widthFactor, spec §1.1 "Shape");
-  // battery dims it, daylight deliberately does not. Gradient id per rendered instance.
+  // The ellipse is stretched with the canvas (rx = radius × widthFactor, spec §1.1 "Shape").
+  // Opacity: cards never render the halo at all (RobotGem gates it on orbiters.motion), so its
+  // value there is moot; in world/avatar it starts at 0 (amendment: no idle baseline — the halo
+  // is invisible except during a spawn/despawn arc) and `useHaloMotion` owns it from mount on.
+  // Gradient id per rendered instance.
   const halo: RobotGemHalo = {
     color: haloDial.color,
     rx: haloDial.radius * gem.widthFactor,
     ry: haloDial.radius,
     stops: haloDial.stops,
-    opacity: dimOpacity,
+    opacity: motion !== undefined ? 0 : dimOpacity,
     gradientId: `halo-${motion ?? 'card'}-${robot.id}`,
   };
+  const ripple: RobotGemRipple | undefined = motion !== undefined ? { gradientId: `ripple-${motion}-${robot.id}` } : undefined;
 
   const gemRef = useRef<SVGGElement>(null);
+  const motionEnabled = motion !== undefined;
+
+  const { decorateArc } = useHaloMotion({
+    root: gemRef,
+    robotId: robot.id,
+    context: motion ?? 'world',
+    halo: { rx: halo.rx, ry: halo.ry, stops: halo.stops },
+    dimOpacity,
+    enabled: motionEnabled,
+  });
+
   useOrbiterMotion({
     root: gemRef,
     robotId: robot.id,
@@ -162,7 +198,17 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     gem,
     plan,
     dials: composition,
-    enabled: motion !== undefined,
+    enabled: motionEnabled,
+    decorateArc,
+  });
+
+  useStripFlicker({
+    root: gemRef,
+    robotId: robot.id,
+    context: motion ?? 'world',
+    gemSeed: robot.gemSeed,
+    triggers: flickerTriggers,
+    enabled: motionEnabled,
   });
 
   return (
@@ -175,6 +221,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
       orbiters={orbiters}
       bodyLines={bodyLines}
       halo={halo}
+      ripple={ripple}
     />
   );
 });
