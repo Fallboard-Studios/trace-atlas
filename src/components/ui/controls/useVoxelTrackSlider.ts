@@ -28,6 +28,14 @@ export interface VoxelTrackSliderOptions {
    * docs/specs/OBLIQUE_CABINETRY_SLIDER_CENTERED_ZERO.md §1.4.
    */
   forceEven?: boolean;
+  /**
+   * Overrides the live, breakpoint-tier box size (useCabinetBoxHeight) with a
+   * fixed value for every tier — for a read-only consumer that wants a
+   * smaller, constant footprint regardless of viewport (e.g. the battery
+   * readout). Omitted, this hook's behavior is unchanged.
+   */
+  boxSizeOverride?: number;
+  gapSizeOverride?: number;
 }
 
 /**
@@ -54,8 +62,10 @@ export function useVoxelTrackSlider(
   verticalHeight?: number,
   options?: VoxelTrackSliderOptions,
 ): VoxelTrackSliderLayout {
-  const boxSize = useCabinetBoxHeight();
-  const gap = useVoxelTrackGap();
+  const tierBoxSize = useCabinetBoxHeight();
+  const boxSize = options?.boxSizeOverride ?? tierBoxSize;
+  const gapSize = useVoxelTrackGap();
+  const gap = options?.gapSizeOverride ?? gapSize;
   const isVertical = orientation === 'vertical';
   const explicitLength = isVertical ? (verticalHeight ?? VOXEL_TRACK_DEFAULT_VERTICAL_HEIGHT) : undefined;
   const trailingReserve = computeVoxelTrackTrailingReserve(orientation);
