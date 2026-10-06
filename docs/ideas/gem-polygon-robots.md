@@ -64,12 +64,15 @@ idea, promoted from a socket to a whole polygon). Orbiters = active LFO lane lin
 `Robot.lfoLinks` (6 targets, 4 corners — see Open Questions). ADSR drives continuous dials only:
 attack → bevel depth *d*, sustain → facet contrast, release → boundary-line brightness.
 
-**Branch C — motion carries audio.** Orbiter speed wobbles ±5% so they run a little ahead then a
-little behind the body (Crawford's Q5); wobble amplitude ← that link's LFO depth, each orbiter's
-wobble phase ← oscillator `phase`, and `detune` sets the wobble rate — the first design where phase
-and detune are visible at all. The Top polygon gets a slow idle bob. All GSAP child tweens inside
-the robot `<g>` (GSAP keeps the root transform, `Robot.tsx` unchanged in that respect), registered
-in `timelineMap`, never calling AudioEngine. Absorbs and retires
+**Branch C — motion carries audio.** *Superseded by [docs/intent/orbiting-polygons.md](../intent/orbiting-polygons.md)
+(Roadmap Phase 40) — orbiter motion shipped driven by composition settings, not LFO links/phase/
+detune as sketched below; see that doc for what was actually built (and its own "Redesign" section
+for the mid-build pivot from orbiting to docking).* Orbiter speed wobbles ±5% so they run a little
+ahead then a little behind the body (Crawford's Q5); wobble amplitude ← that link's LFO depth, each
+orbiter's wobble phase ← oscillator `phase`, and `detune` sets the wobble rate — the first design
+where phase and detune are visible at all. The Top polygon gets a slow idle bob. All GSAP child
+tweens inside the robot `<g>` (GSAP keeps the root transform, `Robot.tsx` unchanged in that
+respect), registered in `timelineMap`, never calling AudioEngine. Absorbs and retires
 [layer-pods-and-follow-through.md](layer-pods-and-follow-through.md).
 
 Held as a question for the Branch A sketch gate, not decided: **waveform as angle dialect** (sine →

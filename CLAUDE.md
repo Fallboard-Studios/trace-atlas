@@ -46,7 +46,7 @@ Critical architecture rules (short)
 
 Guardrails (must not be relaxed)
 - Melody Logic: "Melodies must store note indices (0..7), never literal pitch strings; 96 measures = 1 day cycle."
-- Visual Mapping: "A robot's body is seeded, permanent gem-polygon geometry (derived from `Robot.gemSeed`) in its `identityColor` — identity and seed, not audio. Audio reaches the body only through continuous dials defined in ROBOT_DESIGN.md: the two Top lights (layer gain and release), each Mid polygon's lit level (its layer's gain) and the body scale (octave register and attack). Day/night lightness and battery dimming remain the two overlay exceptions. No count, side, line or position may change on an audio edit."
+- Visual Mapping: "A robot's body is seeded, permanent gem-polygon geometry (derived from `Robot.gemSeed`) in its `identityColor` — identity and seed, not audio. Audio and composition settings reach the body only through the dials listed in ROBOT_DESIGN.md, each continuous or animated, never a pop. The backing, Mids and Top keep their seeded polygon count, sides and boundary-line layout on every edit; orbiters may attach and detach by their hop, never popping. Day/night lightness and battery dimming remain the two overlay exceptions."
 - Strict Separation: "GSAP timelines must only trigger semantic state changes, never call AudioEngine directly."
 - UI Shell: "All interactive UI (transport, navigation, controls) lives inside ScreenViewport only — never in the decorative SleeveContainer."
 

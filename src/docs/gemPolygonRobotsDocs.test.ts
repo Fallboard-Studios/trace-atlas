@@ -12,13 +12,13 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (relative: string) => readFileSync(resolve(repoRoot, relative), 'utf-8').replace(/\r\n/g, '\n');
 
-/** Spec §1.8, with the two dials stated as built (lights: layer gain + release; scale: register + attack). */
+/** Orbiting Polygons spec §1.8 / Visual Mapping rewrite (Roadmap Phase 40, docking redesign). */
 const GUARDRAIL =
   '- Visual Mapping: "A robot\'s body is seeded, permanent gem-polygon geometry (derived from `Robot.gemSeed`) ' +
-  'in its `identityColor` — identity and seed, not audio. Audio reaches the body only through continuous dials ' +
-  'defined in ROBOT_DESIGN.md: the two Top lights (layer gain and release), each Mid polygon\'s lit level (its ' +
-  'layer\'s gain) and the body scale (octave register and attack). Day/night lightness and battery dimming remain ' +
-  'the two overlay exceptions. No count, side, line or position may change on an audio edit."';
+  'in its `identityColor` — identity and seed, not audio. Audio and composition settings reach the body only ' +
+  'through the dials listed in ROBOT_DESIGN.md, each continuous or animated, never a pop. The backing, Mids and ' +
+  'Top keep their seeded polygon count, sides and boundary-line layout on every edit; orbiters may attach and ' +
+  'detach by their hop, never popping. Day/night lightness and battery dimming remain the two overlay exceptions."';
 
 const STALE = [/greeble/i, /socket/i, /window glass/i, /non-audio carriers/i];
 
@@ -70,6 +70,7 @@ describe('ROBOT_DESIGN.md is rewritten around the gem generator (Task 13)', () =
       'Bevel and shading',
       'Colour',
       'What audio drives',
+      'Orbiters',
       'Non-audio overlays',
       'Render contexts',
       'Data flow',
@@ -95,6 +96,10 @@ describe('ROBOT_DESIGN.md is rewritten around the gem generator (Task 13)', () =
     ['computeBatteryDimOpacity', 'src/components/robot/robotVisualHelpers.ts'],
     ['ignoreScale', 'src/components/robot/RobotBody.tsx'],
     ['gemSeed', 'src/types/Robot.ts'],
+    ['orbiterDials', 'src/components/robot/gem/orbiterDials.ts'],
+    ['orbiterPlan', 'src/components/robot/gem/orbiterMotion.ts'],
+    ['gemMotionViewBox', 'src/components/robot/gem/orbiterMotion.ts'],
+    ['useOrbiterMotion', 'src/components/robot/gem/useOrbiterMotion.ts'],
   ];
 
   it.each(symbols)('names %s, which exists in %s', (symbol, file) => {

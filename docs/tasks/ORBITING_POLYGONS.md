@@ -11,6 +11,18 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 (The planning skill's default output paths `tasks/plan.md` / `tasks/todo.md` are overridden by the
 repo convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
+> **Status: shipped, redesigned mid-build (2026-10-05), commit `7963135c`.** Tasks T1–T12 below
+> built the orbit/drift design exactly as written and it's a complete, accurate record of that
+> work — Gate 1 passed, Checkpoint C (the visual gate) passed, everything through T12 is real and
+> unchanged. **T13 (the perf gate) missed** at +63% busy over the Phase 39 baseline, and rather than
+> work the ladder in T13's own description, Crawford redesigned the feature: drift and the ring
+> orbit are cut entirely; orbiters now dock at Top's corners on spawn and sit rigid with the body.
+> T14–T16 (guardrail rewrite, ROBOT_DESIGN.md, roadmap) describe the *old* design's doc changes and
+> were never executed as written — the actual doc updates for the shipped design are recorded in
+> the spec itself (§8–§10) and in [[orbiting-polygons-redesigned-to-docking]], not here. See the
+> spec's own header for the full story. This file is kept as the historical build record of T1–T12
+> and is not being rewritten task-by-task to match the redesign.
+>
 > **Gate 1 (T1, the motion sketch) passed 2026-10-05.** Four spec changes came out of it and are
 > folded into the tasks below (see the spec's Gate 1 note): one paired corner→centre hoop instead of
 > x/y/z rings (no tilt band, seeded openness 0–0.3), orbits 4–8 s / drift 6–10 s, arcs with zero
@@ -436,11 +448,16 @@ run-to-run spread (~±2 % busy, ~±5 % paint). On a miss, build throwaway varian
 avatar only, (3) no drift. Crawford picks the rung.
 
 **Acceptance criteria:**
-- [ ] A results table (both builds, three rounds each, plus any variants) and the method line
-      written up for docs/PERFORMANCE.md (landed in T15).
-- [ ] Shapes per robot = Phase 39's count + 4 strips (the twins paint nothing) — if not, find out why
-      before reading the paint numbers.
-- [ ] Either pass, or a chosen rung implemented as its own commit with the gate re-run and green.
+- [x] A results table (both builds, three rounds each, plus any variants) and the method line
+      written up — [[orbiting-polygons-task13-perf-gate-miss]], not docs/PERFORMANCE.md as planned
+      (superseded before a doc landing task ran).
+- [x] Shapes per robot checked — not the cause; the gap was JS/scheduler overhead (paint was
+      actually *better*, −9%).
+- [x] **Missed, +63% busy.** Every rung in the original ladder (drift period/amplitude, drift on
+      the selected robot only) was superseded before being tried — the ladder's own diagnostic work
+      (a later, unplanned probe: consolidating the 24 standing per-pair schedulers into one shared
+      ticker) also measured flat, which is what led to cutting the mechanism outright instead of
+      working this ladder further. See spec §8 and [[orbiting-polygons-redesigned-to-docking]].
 
 **Verification:** the table. **Dependencies:** T12. **Files:** none (or the rung's edit in
 `gem/useOrbiterMotion.ts` / `orbiterMotion.ts` + tests). **Scope:** S–M.

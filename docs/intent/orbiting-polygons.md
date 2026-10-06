@@ -1,5 +1,10 @@
 # Intent: Orbiting Polygons
 
+**Shipped (roadmap Phase 40, 2026-10-05) — redesigned mid-build.** Everything below is the
+interview record and is kept for history, but the orbit/drift motion it describes was cut and
+replaced after the Task 13 perf gate; see "Redesign: docking, not orbiting" at the end for what
+actually shipped. Spec: [docs/specs/ORBITING_POLYGONS.md](../specs/ORBITING_POLYGONS.md).
+
 Confirmed 2026-10-05 via the interview-me skill (13 questions; guesses confirmed except where noted
 under "Corrections"). Builds on shipped Phase 39 ([gem-polygon-robots.md](gem-polygon-robots.md));
 replaces Branch C of [docs/ideas/gem-polygon-robots.md](../ideas/gem-polygon-robots.md) — orbiter
@@ -126,3 +131,35 @@ frequency — orbit duration unchanged. Landed in the Gate 1 sketch first, per t
 - Ranges: `RHYTHMIC_DENSITY` 0–100, `NOTE_VARIANCE` 0–8, `OCTAVE_RANGE` 1–7 (`constants/index.ts`);
   `rhythmicMotifLength.value` and `pitchRepeat` per `types/Robot.ts`. Boundary lines today are a
   single 0.8-unit stroke in a darker tone of the host colour — no light strip exists yet.
+
+## Redesign: docking, not orbiting (2026-10-05)
+
+The design above — drift near the corners, a paired hoop orbit through the body, spawn/despawn by
+that same ring — passed Gate 1 (the motion sketch) and was fully built. It missed the Task 13
+idle-paint gate at +63 % busy over the Phase 39 baseline. The ladder of perf probes (reverting the
+orbit-frequency tuning, capping concurrent orbits, consolidating the per-pair schedulers into one
+shared ticker) each measured flat — the cost tracked the *standing count* of live per-pair
+scheduler constructs, not how often they fired or how many were concurrently active (see
+[[orbiting-polygons-task13-perf-gate-miss]] / docs/PERFORMANCE.md). Rather than keep chasing that
+gate, Crawford cut the mechanism outright:
+
+- **No more drift, no more orbit.** Orbiters don't move once attached.
+- **Attach, not spawn.** On a robot's own first mount, and on any later count increase, the
+  newly-shown orbiter(s) fly a short hop into a dock at Top's own corner — dropped, shrunk, faded,
+  then eased into place (`back.out`) — and then sit rigid with the body.
+- **Detach mirrors attach.** A count decrease plays the same hop in reverse, then hides the orbiter.
+  This stands in for the job-animation detach that doesn't exist yet (see below).
+- **Dock position, not orbit radius.** Four distinct slots, pulled in to straddle Top's own four
+  corners (half tucked under it) rather than the far canvas corners the orbit design needed room to
+  swing from — "nestled between Mid and Top," Crawford's own framing for the look.
+- **Depth twins gone.** With nothing passing in front of or behind the body, each orbiter is one
+  DOM copy, not three — the DOM z-order (orbiters between Mid and Top) does the layering work the
+  twins used to.
+- **Job animations — detaching to do "work" — are an explicit, separate, later phase.** This
+  redesign only had to make today's count-driven attach/detach make sense without them.
+
+All six of the original composition dials survive except the two orbit-timing ones (`orbitGap`,
+`orbitDuration`, and the octave-range input they read) — docking doesn't have a speed. Count, size,
+line width and strip opacity are unchanged. The redesign is documented in full in
+[docs/specs/ORBITING_POLYGONS.md](../specs/ORBITING_POLYGONS.md) (rewritten in place rather than
+kept as a second spec) and [[orbiting-polygons-redesigned-to-docking]].

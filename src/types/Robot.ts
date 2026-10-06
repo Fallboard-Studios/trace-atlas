@@ -118,9 +118,10 @@ export interface Robot {
    * seeded at spawn) — UI chrome (RobotSelectionCard/RobotDisplaySection) **and** the colour of
    * the robot's whole gem-polygon body: the Top polygon and orbiters take it directly, the Mids a
    * darker tone of it lit by their layer's gain (gem/gemPalette.ts). Identity and seed, not audio:
-   * the body's geometry is `getRobotGem(gemSeed)`; audio reaches it only through the continuous
-   * dials in docs/ROBOT_DESIGN.md (the Phase 39 Visual Mapping guardrail). See
-   * docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.4 and docs/specs/GEM_POLYGON_ROBOTS.md §1.4.
+   * the body's geometry is `getRobotGem(gemSeed)`; audio and composition settings reach it only
+   * through the dials in docs/ROBOT_DESIGN.md (the Visual Mapping guardrail). See
+   * docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.4, docs/specs/GEM_POLYGON_ROBOTS.md §1.4 and
+   * docs/specs/ORBITING_POLYGONS.md (the orbiter dials).
    */
   identityColor: string;
   /**
