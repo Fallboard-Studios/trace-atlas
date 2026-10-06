@@ -9,10 +9,19 @@ flight; nothing here touches robots. Branch from whatever Phase 40 merges into �
 
 Every locale becomes a seeded underwater **district**: one of nine row recipes replaces the single
 fixed `FACTORY_ROWS` table, drawn over a seabed ridge, a stepped ground line and a water column that
-follows the hour, and populated by eighteen static **scenery families** that obey the factory rules.
+follows the hour, and populated by seventeen static **scenery families** that obey the factory rules.
 Shipped as a series of three branches: **D1** districts + terrain + water, **D2** the families,
 **D3** atmosphere. This one spec covers all three; D2 and D3 constants are the sketch's and are
 re-confirmed live at each branch's gate.
+
+> **Amendment (2026-10-06):** the `dock` pad family is dropped — roadmap Phase 43 (Robot Jobs and
+> Charging Stations, [docs/ideas/robot-jobs-and-stations.md](../ideas/robot-jobs-and-stations.md))
+> replaces pads with floating charging stations. 16 `SceneryKind`s plus derived pipe bridges; the
+> towers, yard and habitat recipes lose their dock rows. The sketch still draws pads; it is not
+> updated. Phase 43 also builds on two things this spec already has — keep them: renderers read all
+> geometry from `deriveSceneryParams(actor)` (its `workAnchors` reuse it outside React), and
+> `config.derelict` / the row's `offscreen` anchor stay readable after placement (they gate which
+> items can host jobs).
 
 > **Execution Commands**
 > - Build check: `npm run build`
@@ -100,10 +109,10 @@ not the depth's default — background `floor`, midground `floor`, foreground `g
 |---|---|
 | **dense** | B: Skyscraper center 3 (0.3) *ridge*; Skyscraper center 5 (0.5); Monolith full 24; pylon full 6 · M: Refinery/Stacks full 5; Refinery/Stacks/Warehouse full 4; tank full 3; pipeline center 1 (0.6) · F: Refinery center 8 (0.5) *offscreen*; Warehouse edges 4 (0.05); Warehouse/Monolith edges 3 (0.2); Warehouse edges 8 (0.3) *offscreen*; crane edges 2 (0.25); floodlight edges 2 (0.12); containers edges 2 (0.3) |
 | **outskirts** | B: Skyscraper center 2 (0.35); pylon full 5; boulder full 4; turbine edges 2 (0.3) · M: Refinery/Warehouse edges 2 (0.15); tank center 2 (0.3); dish center 1 (0.2) · F: wall full 6; Warehouse edges 2 (0.1); beacon center 2 (0.5); tether full 2 |
-| **towers** | B: Skyscraper center 5 (0.35) *ridge*; Skyscraper center 4 (0.5); dish edges 2 (0.25) · M: Monolith edges 4 (0.2); pylon edges 2 (0.08); dome edges 2 (0.35) · F: Warehouse edges 4 (0.2); wall center 4 (0.4); dock center 1 (0.2); tether edges 2 (0.05) |
-| **yard** | B: Monolith full 10 · M: tank full 6; Stacks edges 2 (0.2); containers full 4; pipeline center 1 (0.7) · F: crane full 3; Warehouse edges 6 (0.3) *offscreen*; wall full 8; beacon edges 2 (0.08); dock center 2 (0.5); floodlight edges 2 (0.18) |
+| **towers** | B: Skyscraper center 5 (0.35) *ridge*; Skyscraper center 4 (0.5); dish edges 2 (0.25) · M: Monolith edges 4 (0.2); pylon edges 2 (0.08); dome edges 2 (0.35) · F: Warehouse edges 4 (0.2); wall center 4 (0.4); tether edges 2 (0.05) |
+| **yard** | B: Monolith full 10 · M: tank full 6; Stacks edges 2 (0.2); containers full 4; pipeline center 1 (0.7) · F: crane full 3; Warehouse edges 6 (0.3) *offscreen*; wall full 8; beacon edges 2 (0.08); floodlight edges 2 (0.18) |
 | **derelict** | B: Skyscraper full 3 (derelict 0.8); Monolith full 12 (0.8); vent edges 2 (0.2) · M: Refinery/Stacks full 4 (0.6); tank edges 2 (0.1, 0.6); pylon center 3 (0.4); scaffold center 1 (0.3, derelict 1) · F: Warehouse edges 4 (0.25, 0.6); wall full 5; wreck center 1 (0.3); boulder full 3 |
-| **habitat** | B: Skyscraper center 2 (0.3); pylon full 4; turbine edges 2 (0.2) · M: dome full 3; dock center 2 (0.6); dish edges 2 (0.1); pipeline center 1 (0.5) · F: dome center 1 (0.25); floodlight edges 2 (0.15); tether full 3; wall edges 3 (0.25); beacon edges 2 (0.06) |
+| **habitat** | B: Skyscraper center 2 (0.3); pylon full 4; turbine edges 2 (0.2) · M: dome full 3; dish edges 2 (0.1); pipeline center 1 (0.5) · F: dome center 1 (0.25); floodlight edges 2 (0.15); tether full 3; wall edges 3 (0.25); beacon edges 2 (0.06) |
 | **wreckfield** | B: Monolith full 6 (derelict 0.9); boulder full 5; vent center 2 (0.4) · M: wreck edges 2 (0.3); boulder full 4; pylon center 1 (0.2) · F: wreck center 1 (0.4); boulder edges 4 (0.25); tether edges 2 (0.08); Warehouse edges 2 (0.12, derelict 0.7) |
 | **ventfield** | B: vent full 6; Refinery center 2 (0.3); boulder edges 2 (0.2) · M: pipeline full 2; tank edges 2 (0.15); vent center 3 (0.5) · F: boulder edges 3 (0.25); pipeline center 1 (0.4); floodlight center 1 (0.15); Refinery/Stacks edges 2 (0.1) |
 | **construction** | B: Skyscraper center 2 (0.4); Monolith full 6 · M: scaffold full 3; containers edges 3 (0.3); pipeline center 1 (0.4) · F: crane full 3; containers edges 4 (0.3); floodlight edges 2 (0.1); wall center 2 (0.4) |
@@ -181,7 +190,7 @@ is corrected to these values and to say the cap is now applied. Lit elements (`i
 
 - `ActorType.SCENERY`; `Actor.config.kind: SceneryKind` with `SceneryKind` = `tank · crane · pylon ·
   wall · beacon · pipeline · dome · wreck · turbine · boulder · vent · containers · scaffold · tether ·
-  floodlight · dock · dish` (17; pipe bridges are derived, §1.9).
+  floodlight · dish` (16; pipe bridges are derived, §1.9).
 - `Scenery.tsx` (memoised like `Factory`) reads `kind` and dispatches to `SCENERY_RENDERERS[kind]`,
   each a pure function `(ctx: SceneryContext) => JSX` where `ctx` carries the actor, the
   `Alea(id)`-seeded parameters (derived once in a `useMemo`, the `staticVisual` pattern), the
@@ -193,7 +202,7 @@ is corrected to these values and to say the cap is now applied. Lit elements (`i
   shared `foldBodyShift()` extracted from `createFactory`), so `recolorFactoriesForAttenuationStyle`
   — generalised to every actor with a body and renamed `recolorActorsForAttenuationStyle` —
   recolors them on retransmit, factory for factory, item for item (parity-tested). Structural
-  families (crane, pylon, pipeline, turbine, tether, floodlight, dock, dish, wreck, vent, boulder)
+  families (crane, pylon, pipeline, turbine, tether, floodlight, dish, wreck, vent, boulder)
   use fixed palette tones and store no shift.
 
 ### 1.9 The families (D2) — shapes and constants
@@ -218,7 +227,6 @@ at `corner` and lit west/east; "lit" means `lamp(colour, nightDepth)` = lightnes
 | scaffold | M | w 160–260, h 220–380, solid lower 25–45 % (`body.base` + shift, two faces), posts 6 wide per bay (2–3 bays), levels every 60 (5 tall, ±8 overhang), 45° braces `min(bay, 60)` in alternating bays; frame `shell.base`; derelict-capable (`shell.shadow`, no light) | top-corner `alert.powered` r 5 |
 | tether | F | anchor 36 × 16, line 3 wide up h1 120–320, one 45° dog-leg of `|dx|` 40–90, then vertical to y −20 (off frame); 60 % carry a float ellipse 9 × 14 `alert.powered` above the dog-leg; `shell.shadow` × 1.1 | none |
 | floodlight | F | mast 10 × (190–310), arm to a head 36 × 16 offset ±14, lit bar 28 × 5; beam polygon with one vertical edge and one 45° edge from the head to the ground, `glass.base` opacity `0.04 + 0.12 nd`; ground pool ellipse opacity `0.03 + 0.10 nd` | head bar `glass.base` |
-| dock | M, F | slab w 180–300 × 16 `shell.shadow`, edge lights 8 × 6 every 40, mast 8 × 70 at one end carrying a gem (gw 28–40) or a plain light | edge lights `indicator.powered`, gem |
 | dish | B, M | post 10 × (90–170), ellipse rx 30–48 × `0.32 rx` `shell.highlight` in a `rotate(±45)` group with a feed stub | centre `alert.powered` r 4 |
 
 **Pipe bridges** (derived, D2): for each pair of x-adjacent factory actors in one row whose facade
@@ -235,7 +243,7 @@ quantisation (`quantizeShade`) rather than re-deriving tones; it does not reuse 
 (`getRobotGem`), since a rock or a beacon head is one polygon, not a body. Lit gems use
 `accentBase(primary) = hsl(primary, 55, 42)` at lightness × lerp(0.9, 1.6, nd); boulders pass their
 own neutral base and `lit: false`. Placed on: pylon heads, Skyscrapers (one 26-tall panel at
-`roof + 40`, 60 % of towers by seed, never derelict), beacons, dock masts, boulders.
+`roof + 40`, 60 % of towers by seed, never derelict), beacons, boulders.
 
 ### 1.11 Vents vent bubbles (D2)
 
@@ -280,7 +288,7 @@ src/
 │   │       ├── sceneryParams.ts                     # per-kind Alea(id) parameter derivation (the GEN table)
 │   │       ├── gemShape.ts                          # §1.10
 │   │       ├── pipeBridges.tsx                      # §1.9 derived element
-│   │       └── renderers/<kind>.tsx                 # one file per family (17)
+│   │       └── renderers/<kind>.tsx                 # one file per family (16)
 │   └── panels/screen/worldView/
 │       ├── OceanScene.tsx                           # WaterColumn, TerrainLayer, scenery per depth, atmosphere layers
 │       ├── WaterColumn.tsx                          # §1.5

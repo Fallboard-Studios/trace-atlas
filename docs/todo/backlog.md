@@ -85,6 +85,9 @@ docking logic and melody/rhythm generation. Not yet scoped — open question is 
 "groove" is a single global dial (e.g. a Sector Settings or Audio Rig control) or a
 per-robot/per-locale value.
 
+Note (2026-10-06): roadmap Phase 43 puts docked robots inside 2–3 charging stations (capacity 6
+each), so the robots sharing a station are a natural grouping for "who syncs with whom".
+
 ### 7. Audio: More Chord Progressions + Selection UI
 
 Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprioritized
@@ -102,6 +105,10 @@ behind launch. `JobType` (`Robot.ts`, see `docs/ROBOT_LIFECYCLE.md`) exists and 
 as data/text (`RobotSelectionCard`, `RobotDisplaySection`), but nothing in the
 actor-rendering layer visually differentiates a robot by its current job today. Genuinely
 new visual work; not yet scoped.
+
+**Superseded (2026-10-06)** by roadmap Phase 43, Robot Jobs and Charging Stations
+([docs/ideas/robot-jobs-and-stations.md](../ideas/robot-jobs-and-stations.md)): orbiters detach
+and play the job's moves at a host building. Move this item to the archive when Phase 43 ships.
 
 ### 9. Visuals: Better Building Details
 
