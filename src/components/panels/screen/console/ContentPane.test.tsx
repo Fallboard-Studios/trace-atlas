@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 import ContentPane from './ContentPane';
 import { CONTENT } from '@/content';
@@ -22,11 +22,20 @@ describe('ContentPane — blank/landing state renders a sized-to-content home ca
     useUIStore.setState(UI_INITIAL_STATE, true);
   });
 
-  it('renders .content-pane__home with welcome copy when activeHubTile is null, not .content-pane', () => {
+  it('renders .content-pane__home with a welcome accordion when activeHubTile is null, not .content-pane', () => {
     const { container } = render(<ContentPane />);
     expect(container.querySelector('.content-pane__home')).toBeTruthy();
     expect(container.querySelector('.content-pane')).toBeNull();
+    expect(screen.getByText(CONTENT['home.root'].human)).toBeTruthy();
     expect(screen.getByRole('heading', { name: CONTENT['home.root'].intro.lore })).toBeTruthy();
+  });
+
+  it('starts the welcome accordion open, and collapses it on trigger click', () => {
+    render(<ContentPane />);
+    const trigger = screen.getByText(CONTENT['home.root'].human).closest('button')!;
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(trigger);
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('does not render ConsolePanel in the blank/landing state', () => {
