@@ -94,7 +94,7 @@ describe('RobotDisplaySection', () => {
     expect(avatar.querySelector('g.gem')!.getAttribute('transform')).toContain('scale(1)');
   });
 
-  it('the avatar draws the static halo at the robot\'s radius under the avatar gradient id, with no ripple yet (Phase 41 Task 7)', () => {
+  it('the avatar draws the halo at the robot\'s radius under the avatar gradient id, with no ripple yet (Phase 41 Task 7)', () => {
     const robot = makeRobot({ masterVolume: 0.5 });
     useLocaleStore.getState().addRobot(localeId, robot);
     const { container } = render(<RobotDisplaySection robot={robot} />);

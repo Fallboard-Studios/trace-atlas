@@ -291,14 +291,12 @@ describe('RobotSelectionCard', () => {
     expect(midnightFill).toBe(noonFill);
   });
 
-  it('draws the static halo at the robot\'s radius (volume 0.7 → ry 34) with no ripple element and no halo timeline key (Phase 41 Task 7)', () => {
+  it('draws no halo at all — cards never spawn/despawn orbiters, so the halo never appears (amendment, 2026-10-06)', () => {
     const robot = makeRobot({ masterVolume: 0.7 });
     useLocaleStore.getState().addRobot(localeId, robot);
     const { container } = render(<RobotSelectionCard robotId={robot.id} />);
-    const halo = container.querySelector('ellipse.gem__halo')!;
-    expect(halo).not.toBeNull();
-    expect(halo.getAttribute('ry')).toBe('34');
-    expect(halo.getAttribute('fill')).toBe('url(#halo-card-r1)');
+    expect(container.querySelector('ellipse.gem__halo')).toBeNull();
+    expect(container.querySelector('radialGradient')).toBeNull();
     expect(container.querySelector('.gem__ripple')).toBeNull();
     expect(container.querySelector('.gem__strip[data-line="top"]')).not.toBeNull();
   });

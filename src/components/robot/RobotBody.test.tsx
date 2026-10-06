@@ -54,8 +54,8 @@ function withLayers(gains: [number, number, number], extra: Partial<Robot> = {})
   return makeRobot({ audioAttributes: { adsr: ADSR, filterFreq: 0, waveform: 'sine', layers }, ...extra });
 }
 
-function draw(robot: Robot, ignoreDaylight = false) {
-  return render(<svg><RobotBody robot={robot} ignoreDaylight={ignoreDaylight} /></svg>);
+function draw(robot: Robot, ignoreDaylight = false, motion?: 'world' | 'avatar') {
+  return render(<svg><RobotBody robot={robot} ignoreDaylight={ignoreDaylight} motion={motion} /></svg>);
 }
 
 const fill = (c: HTMLElement, sel: string) => c.querySelector(sel)?.getAttribute('fill') ?? null;
@@ -384,70 +384,76 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
     describe('halo colour (company, else identity)', () => {
       it('a robot in a company with colour #ae5378 draws its halo in that colour', () => {
         useLocaleStore.getState().addCompany(localeId, COMPANY);
-        const { container } = draw(makeRobot({ companyId: 'c1' }));
+        const { container } = draw(makeRobot({ companyId: 'c1' }), false, 'world');
         expect(new Set(stopColors(container))).toEqual(new Set(['#ae5378']));
       });
 
       it('companyId undefined → identityColor (freelance glows in its own card colour)', () => {
         useLocaleStore.getState().addCompany(localeId, COMPANY);
-        const { container } = draw(makeRobot({ identityColor: '#428d95' }));
+        const { container } = draw(makeRobot({ identityColor: '#428d95' }), false, 'world');
         expect(new Set(stopColors(container))).toEqual(new Set(['#428d95']));
       });
 
       it('a companyId with no matching company → identityColor', () => {
-        const { container } = draw(makeRobot({ companyId: 'ghost', identityColor: '#428d95' }));
+        const { container } = draw(makeRobot({ companyId: 'ghost', identityColor: '#428d95' }), false, 'world');
         expect(new Set(stopColors(container))).toEqual(new Set(['#428d95']));
       });
 
       it('a company colour change recolours the halo live', () => {
         useLocaleStore.getState().addCompany(localeId, COMPANY);
-        const { container } = draw(makeRobot({ companyId: 'c1' }));
+        const { container } = draw(makeRobot({ companyId: 'c1' }), false, 'world');
         act(() => { useLocaleStore.getState().updateCompany(localeId, 'c1', { color: '#123456' }); });
         expect(new Set(stopColors(container))).toEqual(new Set(['#123456']));
       });
     });
 
-    describe('halo size and shape', () => {
+    describe('halo size and shape (world/avatar only — amendment: the halo never renders on cards)', () => {
+      it('cards (no motion) render no halo at all', () => {
+        const { container } = draw(makeRobot());
+        expect(container.querySelector('ellipse.gem__halo')).toBeNull();
+        expect(container.querySelector('radialGradient')).toBeNull();
+      });
+
       it('volume 0 → ry 20, volume 1 → ry 40; rx = radius × the gem\'s width factor', () => {
-        const quiet = draw(makeRobot({ masterVolume: 0 })).container;
+        const quiet = draw(makeRobot({ masterVolume: 0 }), false, 'world').container;
         expect(haloEl(quiet).getAttribute('ry')).toBe(String(HALO_RADIUS_MIN));
         expect(haloEl(quiet).getAttribute('rx')).toBe(String(HALO_RADIUS_MIN * gem.widthFactor));
         cleanup();
-        const loud = draw(makeRobot({ masterVolume: 1 })).container;
+        const loud = draw(makeRobot({ masterVolume: 1 }), false, 'world').container;
         expect(haloEl(loud).getAttribute('ry')).toBe(String(HALO_RADIUS_MAX));
         expect(haloEl(loud).getAttribute('rx')).toBe(String(HALO_RADIUS_MAX * gem.widthFactor));
       });
 
       it('six stops, the envelope laid out: an ADSR edit moves the stops', () => {
         const robot = makeRobot();
-        const { container, rerender } = render(<svg><RobotBody robot={robot} /></svg>);
+        const { container, rerender } = render(<svg><RobotBody robot={robot} motion="world" /></svg>);
         const before = stopOffsets(container);
         expect(before).toHaveLength(6);
-        rerender(<svg><RobotBody robot={{ ...robot, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, attack: 4 } } }} /></svg>);
+        rerender(<svg><RobotBody robot={{ ...robot, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, attack: 4 } } }} motion="world" /></svg>);
         expect(stopOffsets(container)).not.toEqual(before);
       });
 
       it('sustain 0 → stops 3 and 4 transparent; sustain 1 → at the peak', () => {
-        const low = draw(makeRobot({ audioAttributes: { adsr: { ...ADSR, sustain: 0 }, filterFreq: 0, waveform: 'sine' } })).container;
+        const low = draw(makeRobot({ audioAttributes: { adsr: { ...ADSR, sustain: 0 }, filterFreq: 0, waveform: 'sine' } }), false, 'world').container;
         expect(stopOpacities(low).slice(3, 5)).toEqual([0, 0]);
         cleanup();
-        const high = draw(makeRobot({ audioAttributes: { adsr: { ...ADSR, sustain: 1 }, filterFreq: 0, waveform: 'sine' } })).container;
+        const high = draw(makeRobot({ audioAttributes: { adsr: { ...ADSR, sustain: 1 }, filterFreq: 0, waveform: 'sine' } }), false, 'world').container;
         expect(stopOpacities(high)[2]).toBeGreaterThan(0);
         expect(stopOpacities(high).slice(2, 5)).toEqual([stopOpacities(high)[2], stopOpacities(high)[2], stopOpacities(high)[2]]);
       });
 
       it('the halo ellipse opacity is the battery dim: full battery 1, critical battery dimmed; daylight leaves it alone', () => {
         useUIStore.getState().setActiveLocaleLocalTime(0);
-        const full = draw(makeRobot({ batteryLevel: 100 })).container;
+        const full = draw(makeRobot({ batteryLevel: 100 }), false, 'world').container;
         expect(haloEl(full).getAttribute('opacity')).toBe('1');
         cleanup();
-        const critical = draw(makeRobot({ batteryLevel: 5 })).container;
+        const critical = draw(makeRobot({ batteryLevel: 5 }), false, 'world').container;
         expect(Number(haloEl(critical).getAttribute('opacity'))).toBeLessThan(1);
         expect(Number(haloEl(critical).getAttribute('opacity'))).toBeGreaterThan(0);
       });
 
-      it('gradient id is halo-card-<id> without motion, halo-world-<id> / halo-avatar-<id> with it', () => {
-        expect(draw(makeRobot({ id: 'r9' })).container.querySelector('radialGradient')!.getAttribute('id')).toBe('halo-card-r9');
+      it('no halo and no radialGradient without motion; halo-world-<id> / halo-avatar-<id> with it', () => {
+        expect(draw(makeRobot({ id: 'r9' })).container.querySelector('radialGradient')).toBeNull();
         cleanup();
         const { container: world } = render(<svg><RobotBody robot={makeRobot({ id: 'r9' })} motion="world" /></svg>);
         expect(world.querySelector('radialGradient')!.getAttribute('id')).toBe('halo-world-r9');
@@ -457,7 +463,7 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
         expect(avatar.querySelector('radialGradient')!.getAttribute('id')).toBe('halo-avatar-r9');
       });
 
-      it('motion undefined → no .gem__ripple and no halo timeline key (static, React-written)', () => {
+      it('motion undefined → no .gem__ripple and no halo timeline key (cards never render the halo)', () => {
         const { container } = draw(makeRobot({ id: 'r-static' }));
         expect(container.querySelector('.gem__ripple')).toBeNull();
         expect([...timelineMap.keys()].some((k) => k.startsWith('halo-'))).toBe(false);

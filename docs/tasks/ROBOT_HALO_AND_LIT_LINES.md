@@ -220,21 +220,39 @@ eyeball a card, the avatar and the world. **Dependencies:** T1, T2, T5, T6. **Fi
 
 ### Phase 3: Motion
 
+> **Amendment (2026-10-06, Crawford)** — see spec §1 for the full note. The halo is visible only
+> during a spawn/despawn arc; cards never show it. Landed ahead of Task 8 as its own commit:
+> `RobotGem` gates the `<defs>`/`ellipse.gem__halo` behind `orbiters.motion`, with the
+> RobotGem/RobotBody/RobotSelectionCard/RobotDisplaySection tests updated to match (card tests now
+> assert absence; the halo-structure tests moved to a motion context). Tasks 8 and 11 below are
+> amended in place: Task 8 no longer tweens the ellipse's own opacity off `dimOpacity` (there is no
+> idle baseline to tween to); Task 11's `decorateArc` owns opacity entirely, fading 0 → `dimOpacity`
+> → 0 across the arc via `rippleEnvelope`, replacing the old "dip to `dimOpacity × (1 −
+> HALO_RIPPLE_DIM)`" behaviour. `HALO_RIPPLE_DIM` is deleted.
+
 ## Task 8: `useHaloMotion` — mount state, dial tween, reduced motion
 
-**Description:** New hook per spec §1.4, without `decorateArc` yet: `useGSAP` (scope `root`, deps
-`[enabled, reducedMotion]`) that `gsap.set`s the six halo stops, `rx`/`ry` and the ellipse opacity
-from the `halo` and `dimOpacity` props at mount; an effect on `[halo, dimOpacity]` (skipping mount)
-that `gsap.to`s them over `HALO_TWEEN` (`power2.out`, duration 0 under `prefersReducedMotion()`),
-keyed `halo-${context}-${robotId}` in `timelineMap`, re-targeting on a second change. `enabled`
-false → nothing. Returns `{ decorateArc }` as a no-op for now.
+**Description (amended 2026-10-06 — halo opacity is arc-only, see spec §1 amendment):** New hook
+per spec §1.4, without `decorateArc` yet: `useGSAP` (scope `root`, deps `[enabled, reducedMotion]`)
+that `gsap.set`s the six halo stops and `rx`/`ry` from the `halo` prop at mount, and sets the
+ellipse opacity to 0 (there is no idle baseline — Task 11's `decorateArc` is the only thing that
+ever makes it non-zero); an effect on `[halo]` (skipping mount) that `gsap.to`s the stops/`rx`/`ry`
+over `HALO_TWEEN` (`power2.out`, duration 0 under `prefersReducedMotion()`), keyed
+`halo-${context}-${robotId}` in `timelineMap`, re-targeting on a second change — this tween never
+touches opacity, so the dial keeps updating while hidden and is correct the next time it appears.
+`dimOpacity` is stored in a ref (read live by Task 11's `decorateArc`, same pattern as
+`useOrbiterMotion`'s `dialsRef`), not tweened here. `enabled: false` → nothing. Returns
+`{ decorateArc }` as a no-op for now.
 
 **Acceptance criteria:**
-- [ ] Mount: one `gsap.set` per owned attribute group; `timelineMap` has no key until a change.
+- [ ] Mount: one `gsap.set` for the six stops + `rx`/`ry`, and one `gsap.set` of the ellipse
+      opacity to 0; `timelineMap` has no key until a `halo` change.
 - [ ] A `halo` change → one tween, key `halo-world-r1`, duration 0.5, targets the six stops' `offset`
-      and `stop-opacity`, `rx`, `ry`; a second change mid-tween replaces it (one key, one active tween).
-- [ ] A `dimOpacity` change tweens the ellipse opacity; reduced motion → duration 0; `enabled: false`
-      → no `gsap.*` calls; unmount kills the key; world and avatar for one id coexist.
+      and `stop-opacity`, `rx`, `ry` only (never opacity); a second change mid-tween replaces it (one
+      key, one active tween).
+- [ ] A `dimOpacity` change alone touches no `gsap.*` call (it only updates the ref Task 11 reads).
+- [ ] Reduced motion → duration 0; `enabled: false` → no `gsap.*` calls; unmount kills the key;
+      world and avatar for one id coexist.
 
 **Verification:** `npx vitest run src/components/robot/gem/useHaloMotion.test.tsx`. **Dependencies:** T1, T7.
 **Files:** `gem/useHaloMotion.ts`, `gem/useHaloMotion.test.tsx`. **Scope:** S.
@@ -272,25 +290,30 @@ Nothing else in the file changes.
 **Verification:** `npx vitest run src/components/robot/gem/useOrbiterMotion.test.tsx`.
 **Dependencies:** Phase 40 T10 built. **Files:** `gem/useOrbiterMotion.ts`, `gem/useOrbiterMotion.test.tsx`. **Scope:** S.
 
-## Task 11: `useHaloMotion.decorateArc` — the ripple
+## Task 11: `useHaloMotion.decorateArc` — the ripple, and the halo's only moment of visibility
 
-**Description:** Implement `decorateArc(kind, duration, arcTl)` per spec §1.4: on `arcTl` add, at
-position 0, a set of the ripple ellipse opacity to `dimOpacity` and the halo ellipse opacity to
-`dimOpacity × (1 − HALO_RIPPLE_DIM)`; a proxy `{ u: 0 → 1 }` tween over `duration`, `ease: 'none'`,
-whose `onUpdate` sets the five ripple stops from `ripplePosition(kind, u, rippleCycles(duration), holeOffset)`
-and `rippleEnvelope(u)`; and at the end a set of the ripple opacity to 0 and the halo opacity back
-to `dimOpacity`. `holeOffset` and `dimOpacity` come from refs updated every render. Nothing is
-registered separately. Under reduced motion `decorateArc` is a no-op.
+**Description (amended 2026-10-06 — see spec §1 amendment):** Implement `decorateArc(kind,
+duration, arcTl)` per spec §1.4: a proxy `{ u: 0 → 1 }` tween on `arcTl`, at position 0, over
+`duration`, `ease: 'none'`, whose `onUpdate` sets the five ripple stops from
+`ripplePosition(kind, u, rippleCycles(duration), holeOffset)` and `rippleEnvelope(u)`, sets the
+ripple ellipse opacity to `dimOpacity × rippleEnvelope(u)`, and — this is the halo's only writer of
+opacity anywhere — sets the halo ellipse opacity to that same `dimOpacity × rippleEnvelope(u)`, so
+the halo fades 0 → `dimOpacity` → 0 across the arc in lockstep with the ripple, never an instant
+set (a pop would violate the "never a pop" guardrail now that there's no visible baseline to dip
+from). `holeOffset` and `dimOpacity` come from refs updated every render. Nothing is registered
+separately. Under reduced motion `decorateArc` is a no-op (the halo stays invisible; Phase 40's own
+0.3 s fade plays alone, per spec §7 Q2).
 
 **Acceptance criteria:**
 - [ ] `decorateArc('spawn', 3, tl)`: at `tl.progress(0.5)` the ring stop's offset equals
-      `ripplePosition('spawn', 0.5, 1, hole)` (2 dp), the ripple ellipse opacity > 0, the halo ellipse at
-      `dimOpacity × 0.75`; at `progress(1)` ripple opacity 0 and halo back at `dimOpacity`.
+      `ripplePosition('spawn', 0.5, 1, hole)` (2 dp); both the ripple and halo ellipse opacities equal
+      `dimOpacity × rippleEnvelope(0.5)` (> 0); at `progress(0)` and `progress(1)` both are 0.
 - [ ] `'despawn'` at `progress(0)` → ring at 0.95; `decorateArc('spawn', 5, tl)` restarts the ring at
       `progress(0.5)` (two cycles).
 - [ ] Killing `tl` leaves no tween alive (`gsap.getTweensOf` the ripple stops → empty); reduced motion →
-      `tl` gains no children; no callback touches `useLocaleStore`.
-- [ ] Mutation check: dropping `rippleEnvelope` fails the "opacity 0 at progress 1" ring-opacity case.
+      `tl` gains no children (halo opacity stays 0 throughout); no callback touches `useLocaleStore`.
+- [ ] Mutation check: dropping `rippleEnvelope` fails the "opacity 0 at progress 0/1" case for *both*
+      the ripple and the halo ellipse.
 
 **Verification:** `npx vitest run src/components/robot/gem/useHaloMotion.test.tsx`. **Dependencies:** T3, T8, T9, T10.
 **Files:** `gem/useHaloMotion.ts`, `gem/useHaloMotion.test.tsx`. **Scope:** S.
@@ -336,12 +359,15 @@ pass `ripple: { gradientId: ripple-${motion}-${robot.id} }` to `RobotGem` when `
 
 ### Checkpoint C: Visual gate (Crawford, spec §5 "Gate") — stop and report
 - [ ] Full suite, types, lint, build green.
-- [ ] World: halo tweens on a volume or envelope drag; a density drag's spawn arcs carry a slow
-      outward ring and despawns an inward one, the base halo dipping meanwhile; an LFO depth edit
-      flickers only that line, out of step across lines; Note Variance / Pitch Repeat flicker the
-      orbiter strips.
-- [ ] Avatar: the same; cards static and correct; reduced motion → no flicker, no ripple, halo snaps.
-- [ ] Verdicts on spec §7 Q2–Q3 (reduced-motion ripple: none; docked/critical: battery dim only).
+- [ ] World: halo is invisible at rest; a density drag's spawn arc fades the halo up while a slow
+      outward ring runs, then fades both back out, and despawn does the same inward; a dial edit
+      made between arcs shows correctly the next time the halo appears; an LFO depth edit flickers
+      only that line, out of step across lines; Note Variance / Pitch Repeat flicker the orbiter
+      strips.
+- [ ] Avatar: the same; cards show strips but never a halo; reduced motion → no flicker, no ripple,
+      halo stays invisible throughout (no snap, because there's nothing to snap to).
+- [ ] Verdicts on spec §7 Q2–Q3 (reduced-motion ripple: none, halo stays hidden; docked/critical:
+      no change — a hidden halo has no battery-dim distinction to show until it next appears).
 
 ### Phase 4: Perf gate
 

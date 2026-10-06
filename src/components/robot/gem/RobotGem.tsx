@@ -39,8 +39,12 @@ export interface RobotGemBodyLines {
 /** The halo RobotBody computes (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.1/§1.4): one ellipse
  *  behind the Mids filled by a six-stop radial gradient — the envelope laid along the radius in the
  *  company colour. `gradientId` is per rendered instance (`halo-${context}-${robotId}`): the world
- *  and the avatar show one robot at once and a shared id would paint the wrong gradient. On cards
- *  React writes every attribute each render; in motion contexts the hook owns them after mount. */
+ *  and the avatar show one robot at once and a shared id would paint the wrong gradient.
+ *  Amendment (2026-10-06, Crawford): the halo only ever appears while a robot's orbiters are
+ *  spawning or despawning, so `RobotGem` renders it (`<defs>` + `ellipse.gem__halo`) only when
+ *  `orbiters.motion` is true — cards never spawn/despawn, so cards never render a halo at all. In
+ *  the motion contexts (world/avatar) React still writes every attribute at mount; the hook that
+ *  owns them afterwards (Task 8) keeps opacity at 0 outside an arc. */
 export interface RobotGemHalo {
   color: string;
   rx: number;
@@ -214,14 +218,18 @@ export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, sca
           strokeWidth={BACKING_STROKE_WIDTH}
         />
       </g>
-      <defs>
-        <radialGradient id={halo.gradientId}>
-          {halo.stops.map((stop, i) => (
-            <stop key={i} offset={pct(stop.offset)} stopColor={halo.color} stopOpacity={stop.opacity} />
-          ))}
-        </radialGradient>
-      </defs>
-      <ellipse className="gem__halo" cx={cx} cy={cy} rx={halo.rx} ry={halo.ry} fill={`url(#${halo.gradientId})`} opacity={halo.opacity} />
+      {orbiters.motion && (
+        <>
+          <defs>
+            <radialGradient id={halo.gradientId}>
+              {halo.stops.map((stop, i) => (
+                <stop key={i} offset={pct(stop.offset)} stopColor={halo.color} stopOpacity={stop.opacity} />
+              ))}
+            </radialGradient>
+          </defs>
+          <ellipse className="gem__halo" cx={cx} cy={cy} rx={halo.rx} ry={halo.ry} fill={`url(#${halo.gradientId})`} opacity={halo.opacity} />
+        </>
+      )}
       <BevelledPart
         part={gem.midLeft}
         paint={palette.midLeft}
