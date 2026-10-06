@@ -61,6 +61,9 @@ function RobotDisplaySectionInner({ robot }: RobotDisplaySectionProps) {
 
   return (
     <div className="robot-display-section">
+      <svg className="robot-display-section__avatar" viewBox={gemMotionViewBox(getRobotGem(robot.gemSeed))} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <RobotBody robot={robot} ignoreDaylight ignoreScale motion="avatar" />
+      </svg>
       <div className="robot-display-section__grid">
         <div className="robot-display-section__field robot-display-section__field--name">
           <DualLabel {...ROBOT_SELECTION_ROW_SCHEMAS.name} />
@@ -71,9 +74,7 @@ function RobotDisplaySectionInner({ robot }: RobotDisplaySectionProps) {
           <span className="robot-display-section__value">{jobLabel.humanLabel}</span>
         </div>
 
-        <svg className="robot-display-section__avatar" viewBox={gemMotionViewBox(getRobotGem(robot.gemSeed))} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <RobotBody robot={robot} ignoreDaylight ignoreScale motion="avatar" />
-        </svg>
+
 
         <div className="robot-display-section__field robot-display-section__field--docking">
           <DualLabel {...ROBOT_SELECTION_ROW_SCHEMAS.docking} />
@@ -83,22 +84,22 @@ function RobotDisplaySectionInner({ robot }: RobotDisplaySectionProps) {
           <DualLabel {...ROBOT_SELECTION_ROW_SCHEMAS.status} />
           <span className="robot-display-section__value">{statusLabel.humanLabel}</span>
         </div>
+        <SliderLinear
+          schema={BATTERY_READOUT_SCHEMA}
+          value={Math.round(robot.batteryLevel)}
+          onChange={() => { }}
+          readOnly
+          boxSize={BATTERY_READOUT_BOX_SIZE}
+          gapSize={BATTERY_READOUT_GAP_SIZE}
+        />
+
+        <RadioButton
+          schema={companyAssignmentSchema}
+          value={robot.companyId ?? FREELANCE_VALUE}
+          onChange={handleCompanyChange}
+        />
       </div>
 
-      <SliderLinear
-        schema={BATTERY_READOUT_SCHEMA}
-        value={Math.round(robot.batteryLevel)}
-        onChange={() => { }}
-        readOnly
-        boxSize={BATTERY_READOUT_BOX_SIZE}
-        gapSize={BATTERY_READOUT_GAP_SIZE}
-      />
-
-      <RadioButton
-        schema={companyAssignmentSchema}
-        value={robot.companyId ?? FREELANCE_VALUE}
-        onChange={handleCompanyChange}
-      />
     </div>
   );
 }
