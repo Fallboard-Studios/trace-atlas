@@ -4,13 +4,12 @@ import { lerp } from '../../../utils/math';
 import { quantizeShade } from '../../robot/gem/gemShading';
 import colorTheme from '../../../constants/colorTheme.json';
 import { NO_SHIFT } from './sceneryColor';
+import { gemChamfer } from './gemGeometry';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.10)
 // ========================================
 
-/** Chamfer size: 0.3 × min(w, h). */
-const GEM_CHAMFER_FRAC = 0.3;
 /** Outline stroke width. */
 const GEM_OUTLINE_STROKE_WIDTH = 2;
 /** The outline stroke's own lightness fraction of `body.shadow` — a material edge, not a lit
@@ -36,11 +35,6 @@ function facetMultiplier(rawShade: number): number {
 /** Lit-gem base colour (§1.10): `hsl(primary, 55, 42)`. */
 export function accentBase(hue: number): HSL {
   return { h: hue, s: 55, l: 42 };
-}
-
-/** The octagon's corner cut, shared with the work anchors. */
-export function gemChamfer(w: number, h: number): number {
-  return Math.min(w, h) * GEM_CHAMFER_FRAC;
 }
 
 export interface GemShapeProps {

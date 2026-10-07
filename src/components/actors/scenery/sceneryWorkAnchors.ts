@@ -34,7 +34,7 @@ import { pipelineLayout } from './renderers/pipeline';
 import { TURBINE_ROTOR_DEG, turbineLayout } from './renderers/turbine';
 import { floodlightLayout } from './renderers/floodlight';
 import { dishLayout } from './renderers/dish';
-import { gemChamfer } from './gemShape';
+import { gemChamfer } from './gemGeometry';
 import { SCENERY_GEM_ACCENTS } from './Scenery';
 
 // ========================================
