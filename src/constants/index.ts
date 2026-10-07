@@ -155,6 +155,26 @@ export const WORLD_MARGIN = 100;
  */
 export const PARK_CLEARANCE = 70;
 
+/**
+ * Charging stations per world (stations.ts, docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.6): 2–3,
+ * seeded. The minimum times STATION_CAPACITY must hold the whole roster at load.
+ */
+export const STATION_COUNT_MIN = 2;
+export const STATION_COUNT_MAX = 3;
+/** Robots one station holds — six slot lights. */
+export const STATION_CAPACITY = 6;
+/** Every pair of station centres is at least this far apart (scene units). */
+export const STATION_MIN_SPACING = 480;
+/** Where a station centre may sit: clear of the edges, above the midground roofs. */
+export const STATION_X_RANGE: readonly [number, number] = [240, 1680];
+export const STATION_Y_RANGE: readonly [number, number] = [220, 560];
+/**
+ * The station's box, centred on its centre, which must overlap no host's bounds. PLACEHOLDER:
+ * Task 0's sketch supplies the real size with Crawford's station design.
+ */
+export const STATION_BOX_W = 160;
+export const STATION_BOX_H = 120;
+
 /** Roster-balancing cap: at most this many robots may hold the same job type at once. */
 export const JOB_MAX_ROBOTS_PER_TYPE = 3;
 

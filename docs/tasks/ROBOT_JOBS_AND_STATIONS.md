@@ -489,7 +489,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   **Dependencies:** T7, T11. **Files:** `src/systems/jobCoverage.ts` (+ test),
   `src/systems/districtRecipes.ts`, `src/systems/districts.ts`. **Scope:** M.
 
-- [ ] **Task 13: `stations.ts`**
+- [x] **Task 13: `stations.ts`**
 
   **Description:** `getStations(localeId): Station[]` (spec §1.6) — count 2–3, positions with
   re-draw until spacing ≥ `STATION_MIN_SPACING` and no overlap with any host `bounds`, cached like
@@ -497,9 +497,34 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   `nearestFreeStation(centre, stations, occupancy)`. Station box size from the sketch (T0).
 
   **Acceptance criteria:**
-  - [ ] Over the seed grid: 2–3 stations, pairwise spacing ≥ 480, no host overlap, inside
-        x [240, 1680] / y [220, 560]; deterministic.
-  - [ ] Load assignment never exceeds capacity 6; `nearestFreeStation` skips a full station.
+  - [x] Over the seed grid: 2–3 stations, pairwise spacing ≥ 480, no host overlap, inside
+        x [240, 1680] / y [220, 560]; deterministic. — 50 of 121 worlds roll 3; 44 fit around
+        their hosts, 6 step down to 2. No grid world needs the overlap fallback.
+  - [x] Load assignment never exceeds capacity 6; `nearestFreeStation` skips a full station.
+
+  **As shipped:** (1) **The box size is a placeholder.** T0 hasn't run, so
+  `STATION_BOX_W/H` = 160 × 120 and `port` = the centre. Both are marked placeholder in
+  `constants/index.ts` and the module. The sketch replaces them, and the grid tests re-check
+  the overlap rule at whatever size it picks. (2) **Pure core.** `deriveStations(noiseMap,
+  obstacles)` is pure. `getStations(localeId)` reads the locale's coordinates and actors from
+  the store and caches by the actors array (a `WeakMap`), so a re-placed world re-derives.
+  It returns `[]` for an unknown locale. Never cache by actor id (T9 gotcha). (3) **Obstacles
+  are every host at every depth** (`hostObstacles`: each `getWorkSite` bounds), background
+  too, so J4 flipping `BACK_HOSTS_ENABLED` doesn't move any station. (4) **One draw at offset
+  0 is near-constant.** At `y = 0`, simplex noise takes about 3 values across all worlds.
+  With one sample, no grid world rolled 3 stations, and first stations clumped (86 distinct
+  centres over 121 worlds). Every station draw now hashes three samples, at `offset + [0,
+  137.42, 911.77]`, through `alea()`. That's `pickDistrict`'s fix. Result: 121 distinct first
+  centres and 50/121 three-station worlds. (5) **Layouts restart.** Greedy placement
+  dead-ends when the first two stations land near the middle: 3 points ≥ 480 apart in
+  1440 × 340 leave little room. So a station that finds no spot in 16 candidates restarts the
+  whole layout from the next draw, up to 16 layouts. If no layout fits, the count steps down
+  to 2. If 2 don't fit, the overlap rule goes (spacing always holds). The last fallback is the
+  range's two ends. So the roster always fits. (6) `assignStationsAtLoad` throws rather than
+  overfill (the fixed roster never does). `nearestFreeStation` treats a missing occupancy
+  entry as empty, breaks ties to the earlier station, and returns null when everything is
+  full. (7) Mutation checks: no spacing check, no obstacle check, one layout only, one sample
+  per draw, no step-down, `>` for full, and no capacity throw each fail tests.
 
   **Verification:** `npx vitest run src/systems/stations.test.ts`. **Dependencies:** T11 (bounds),
   T0 (box size). **Files:** `src/systems/stations.ts` (+ test), `src/constants/index.ts`.
