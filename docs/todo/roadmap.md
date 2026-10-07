@@ -740,8 +740,11 @@ coordinates and saved `?session=` links show is accepted.
 
 ## 43. Robot Jobs and Charging Stations
 
-Idea [docs/ideas/robot-jobs-and-stations.md](../ideas/robot-jobs-and-stations.md). **Idea refined
-2026-10-06 (`planning/jobs-locales-docking`); interview, spec and plan not started.** Depends on
+Idea [docs/ideas/robot-jobs-and-stations.md](../ideas/robot-jobs-and-stations.md), intent
+[docs/intent/robot-jobs-and-stations.md](../intent/robot-jobs-and-stations.md), spec
+[docs/specs/ROBOT_JOBS_AND_STATIONS.md](../specs/ROBOT_JOBS_AND_STATIONS.md). **Intent confirmed
+and spec drafted 2026-10-06 (`planning/jobs-locales-docking`); spec awaiting Crawford's review;
+plan, sketch gate and code not started.** Depends on
 [42](#42-world-view-districts) (D1 + D2, for the host buildings), [40](#40-orbiting-polygons) (the
 orbiters that do the work), [41](#41-robot-halo-and-lit-lines) (the halo ripple on station
 enter/exit) and [20.5](#205-world-clock-deterministic-lifecycle-replay) (the replay this phase
