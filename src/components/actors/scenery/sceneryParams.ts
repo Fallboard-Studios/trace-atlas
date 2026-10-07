@@ -57,8 +57,10 @@ export interface ScaffoldParams { w: number; h: number; bays: number; solidFrac:
 export interface TetherParams { w: number; h1: number; dx: number; hasFloat: boolean }
 /** §1.9 row: floodlight. */
 export interface FloodlightParams { w: number; mastH: number; headOffset: number }
-/** §1.9 row: dish. */
-export interface DishParams { w: number; rx: number }
+/** §1.9 row: dish. `postH` (90–170) and `tiltRight` (the `rotate(±45)` sign) were missing from
+ *  the Task 11 first pass — the row's own "post 10 x (90–170)" and "rotate(±45)" never made it
+ *  into the params shape until the renderer (Task 16) actually needed them. */
+export interface DishParams { w: number; rx: number; postH: number; tiltRight: boolean }
 
 /**
  * Per-actor scenery parameters (docs/specs/WORLD_VIEW_DISTRICTS.md §1.8/§4):
@@ -172,8 +174,13 @@ const RANGE_TABLE: { [K in SceneryKind]: Draw<NonNullable<SceneryParams[K]>> } =
   tether: (rng): TetherParams => ({ w: 36, h1: lerp(rng, 120, 320), dx: lerp(rng, 40, 90), hasFloat: rng() < 0.6 }),
   // floodlight (F): mast 10 x (190-310), head offset ±14.
   floodlight: (rng): FloodlightParams => ({ w: 40, mastH: lerp(rng, 190, 310), headOffset: lerp(rng, -14, 14) }),
-  // dish (B, M): post 10 x (90-170), ellipse rx 30-48.
-  dish: (rng): DishParams => { const rx = lerp(rng, 30, 48); return { w: rx * 2, rx }; },
+  // dish (B, M): post 10 x (90-170), ellipse rx 30-48 x 0.32 rx in a rotate(+-45) group.
+  dish: (rng): DishParams => {
+    const rx = lerp(rng, 30, 48);
+    const postH = lerp(rng, 90, 170);
+    const tiltRight = rng() < 0.5;
+    return { w: rx * 2, rx, postH, tiltRight };
+  },
 };
 
 /**

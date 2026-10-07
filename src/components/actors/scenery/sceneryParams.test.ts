@@ -30,7 +30,7 @@ const RANGES: Record<SceneryKind, Record<string, [number, number]>> = {
   scaffold: { w: [160, 260], h: [220, 380], bays: [2, 3], solidFrac: [0.25, 0.45], hueShift: [-20, 20], satShift: [-15, 15] },
   tether: { h1: [120, 320], dx: [40, 90] },
   floodlight: { mastH: [190, 310], headOffset: [-14, 14] },
-  dish: { rx: [30, 48] },
+  dish: { rx: [30, 48], postH: [90, 170] },
 };
 
 const ALL_KINDS = Object.keys(RANGES) as SceneryKind[];

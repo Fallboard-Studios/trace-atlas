@@ -58,12 +58,15 @@ describe('Scenery dispatcher', () => {
   });
 
   it('renders nothing for a kind with no registered renderer', () => {
-    const { container } = render(<Scenery actor={makeActor({ kind: 'tether' as never, district: 'habitat', row: 11 })} />);
+    const { container } = render(<Scenery actor={makeActor({ kind: 'wreck' as never, district: 'ventfield', row: 2 })} />);
     expect(container.innerHTML).toBe('');
   });
 
-  it('SCENERY_RENDERERS only has entries for shipped kinds (wall, pylon, beacon, boulder, tank, dome, scaffold, containers, crane, pipeline — D2 Tasks 11-15)', () => {
-    expect(Object.keys(SCENERY_RENDERERS)).toEqual(['wall', 'pylon', 'beacon', 'boulder', 'tank', 'dome', 'scaffold', 'containers', 'crane', 'pipeline']);
+  it('SCENERY_RENDERERS only has entries for shipped kinds (wall, pylon, beacon, boulder, tank, dome, scaffold, containers, crane, pipeline, turbine, tether, floodlight, dish — D2 Tasks 11-16)', () => {
+    expect(Object.keys(SCENERY_RENDERERS)).toEqual([
+      'wall', 'pylon', 'beacon', 'boulder', 'tank', 'dome', 'scaffold', 'containers',
+      'crane', 'pipeline', 'turbine', 'tether', 'floodlight', 'dish',
+    ]);
   });
 
   it('dispatches the Task 15 kinds (crane, pipeline) to their renderers', () => {
@@ -72,6 +75,20 @@ describe('Scenery dispatcher', () => {
 
     const pipelineCtx = render(<Scenery actor={makeActor({ kind: 'pipeline', district: 'dense', row: 6 })} />);
     expect(pipelineCtx.container.querySelector('[data-scenery="pipeline"]')).not.toBeNull();
+  });
+
+  it('dispatches the Task 16 kinds (turbine, tether, floodlight, dish) to their renderers', () => {
+    const turbineCtx = render(<Scenery actor={makeActor({ kind: 'turbine', district: 'habitat', row: 2 })} />);
+    expect(turbineCtx.container.querySelector('[data-scenery="turbine"]')).not.toBeNull();
+
+    const tetherCtx = render(<Scenery actor={makeActor({ kind: 'tether', district: 'habitat', row: 9 })} />);
+    expect(tetherCtx.container.querySelector('[data-scenery="tether"]')).not.toBeNull();
+
+    const floodlightCtx = render(<Scenery actor={makeActor({ kind: 'floodlight', district: 'yard', row: 4 })} />);
+    expect(floodlightCtx.container.querySelector('[data-scenery="floodlight"]')).not.toBeNull();
+
+    const dishCtx = render(<Scenery actor={makeActor({ kind: 'dish', district: 'habitat', row: 5 })} />);
+    expect(dishCtx.container.querySelector('[data-scenery="dish"]')).not.toBeNull();
   });
 
   it('dispatches the Task 12-14 kinds (pylon, beacon, boulder, tank, dome, scaffold, containers) to their renderers', () => {
