@@ -1,0 +1,599 @@
+<!doctype html>
+<!-- Charging station — rolls sketch for roadmap Phase 43 (Robot jobs & stations), Task 0's station panel.
+     Built 2026-10-07 on feature/jobs-lifecycle (J1 code-complete). Nothing here touches the live renderer; the robot
+     generator and shading are a trimmed copy of docs/sketches/gem-polygon-robots.html's (Phase 39), orbiters docked at
+     the Top's corners as Phase 40 shipped them, and the ripple ring is docs/sketches/robot-halo-and-lit-lines.html's
+     (Phase 41) maths with the station as its centre. Plain rAF here only; the app uses GSAP.
+
+     Design agreed with Crawford, 2026-10-07 (his 15 points + the review that followed):
+       * Same manufacturer as the robots: ACCENT palette, BACKING/MID_DARK, bevel ring + 3 facet tones, boundary lines.
+       * Four layers, each a loosely triangular gem, each rotated against the next. Layer 4 (back) is one solid piece;
+         layers 1–3 are rings broken into three pieces with a ~20 px gap (10 units here, slider).
+       * Robots ENTER between layers 2 and 3, EXIT between layers 3 and 4, the halo ripple sits between layers 1 and 2.
+         So the SVG order back→front is: L4, exiting robots, L3, entering robots, L2, halo + ripple, L1 — the station is
+         three fragments interleaved with the robots layer, not one component drawn after them (spec §1.6 correction).
+       * Entering: swim to the centre, then vanish as the inward ripple runs. Exiting: appear at the centre behind L3
+         as the outward ripple runs, then swim away. A ripple already running means the new one is skipped (point 13).
+       * Occupancy = the pieces themselves: six of the nine broken pieces are slots, lit back-to-front in the stored
+         robot's identityColor, with one light dot each (points 14/15). Extra decoration: a port gem at the centre
+         that brightens with occupancy, and an optional static halo in the station's accent.
+       * Each layer bobs in unison (one asset per layer). Spec §1.6's "no continuous animation on the station" is the
+         perf rule this collides with — the bob selector below lets whole-station / per-layer / none be judged.
+       * Exiting robots come out in the BACK robot row (Crawford, 2026-10-07). That row is J4 of this phase (spec §1.10,
+         not built yet): robots-back sits under the 0-1 depth gradient (#0c1c4f at .7 over the vent shadow) at
+         BACK_LAYER_SCALE 0.75. So L4 and the exiting robots live in that back layer, under the tint, and only L3–L1 stay
+         in the front robots layer — the exit slot is a cross-layer seam, not just a document-order one. The robot keeps
+         the back-row style as it swims off; J4's layer switch happens later, off this stage.
+     Assumption: 1 sketch unit = 1 scene unit; the robot canvas is 80 units tall (GEM_CANVAS_H) so the 160×120
+     placeholder box is twice a robot canvas. Zoom only changes the screen pixels.
+     Verdicts (Crawford, 2026-10-07 — the defaults below are set to these):
+       box 200×200 (was 160×120)   bevel 5 (was 2.5)   front layer colour: accent   slot display: lit piece + dot
+       lines on pieces: yes   port gem: yes   static halo: yes, radius 60 (was 52)   bob: NONE (spec §1.6 stands; amp/period n/a)
+       arc 1 s (was 0.9)   ripple period 2 s → 1 whole cycle per arc (was 0.45)   ring width 0.2 (was 0.08)
+       RANGES, driven by the world's global rig (GlobalAudioSettings, seeded by Attenuation Style, continuous — no pop):
+         gap 10–25 u        ← HPF cutoff, log 20 Hz → 20 kHz          (more high-pass = thinner sound = more air between pieces)
+         band width 8–16 u  ← LPF cutoff, log 20 Hz → 20 kHz          (wide open = full-bodied = thicker ring)
+         spread 30–60°      ← EQ3 mid −12 → +12 dB                    (mid boost = more twist between layers)
+         size falloff .03–.12 ← EQ3 tilt (low − high) −24 → +24 dB   (bass-heavy = bottom-heavy stack, big back layers)
+         Flat EQ + open filters (the defaults) land at gap 10, band 16, spread 45°, falloff 0.075. Filter Q unused.
+       TBD: depth tint on/off + opacity (0.7 placeholder)   swim speed (SWIM_SPEED 120 placeholder)   back-row scale (0.75 placeholder)
+       Still open: enter side / exit side   port = centre   chosen roll (seed:idx) -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Charging station — rolls sketch</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #12161a; color: #e4e6ea; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 28px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  p.note { font-size: 12px; color: #9aa; max-width: 980px; margin: 4px 0 12px; }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; max-width: 980px; }
+  .pending b { color: #e8b84a; }
+  .controls { display: flex; gap: 12px; align-items: center; font-size: 13px; margin: 12px 0 16px; flex-wrap: wrap; }
+  .controls input[type=text] { background: #1a2027; color: #e4e6ea; border: 1px solid rgba(140,190,210,.14); padding: 4px 8px; font-family: monospace; width: 120px; }
+  button { background: #1a2027; color: #e4e6ea; border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; }
+  button:disabled { opacity: .4; cursor: default; }
+  .controls label, .mcol label { color: #9aa; }
+  .mgrid { display: flex; gap: 26px; flex-wrap: wrap; margin: 8px 0 14px; }
+  .mcol { font-size: 12px; color: #9aa; min-width: 300px; }
+  .mcol h3 { font-size: 12px; color: #e4e6ea; margin: 0 0 6px; text-transform: uppercase; letter-spacing: .06em; }
+  .mcol label { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+  .mcol input[type=range] { width: 120px; }
+  .mcol span { font-family: monospace; color: #e4e6ea; min-width: 40px; }
+  .mcol select { background: #1a2027; color: #e4e6ea; border: 1px solid rgba(140,190,210,.14); padding: 2px 6px; font-family: monospace; }
+  .readout { font-family: monospace; font-size: 11px; color: #8a8f99; background: #1a2027; padding: 6px 8px; margin: 8px 0 0; border-radius: 3px; white-space: pre; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+  .stage { background: #1a2027; border: 1px solid rgba(140,190,210,.14); border-radius: 3px; padding: 8px; text-align: center; font-size: 10px; color: #8a8f99; font-family: monospace; cursor: pointer; }
+  .stage.sel { border-color: #41ad9f; }
+  .stage svg { display: block; margin: 0 auto 4px; background: #12161a; }
+  #motionStage { cursor: default; }
+</style>
+</head>
+<body>
+
+<h1>Charging station — rolls</h1>
+<p class="note">Six seeded stations from the same generator, then one of them (click a roll) in motion with a robot entering and exiting. Four loosely triangular gem layers, each rotated against the next; layers 1–3 are rings cut into three pieces, layer 4 is solid. Six of the nine pieces are slots and light up back-to-front in the stored robot's colour as robots dock. The halo ripple runs between layers 1 and 2: inward as a robot vanishes at the centre, outward as one appears. Shading, bevel, facet tones, boundary lines and palette are the Phase 39 robot's.</p>
+<div class="pending"><b>Gate questions:</b> Does it read as the same manufacturer as the robots? Do four rotated layers read as depth, or as a mess — and does per-layer bob help or hurt that? Is a 10-unit gap right (20 px at world scale)? Do lit pieces read as "robots stored", or is the port gem or a light dot the clearer count? Does entering between L2/L3 and exiting between L3/L4 read as into and out of, with the vanish timed to the inward ripple? Is one ripple skipped under overlap acceptable when 12 robots exit at world open? Accent on the front layer, or dark with only the slots and port lit?</div>
+
+<div class="controls">
+  <label>Seed <input type="text" id="seed" value="still-echo" /></label>
+  <button id="reroll">reroll</button>
+  <label>Zoom <input type="range" id="zoom" min="1" max="3" step="0.5" value="2" /> <span id="zoomv">2</span>×</label>
+  <label>Occupancy <input type="range" id="occ" min="0" max="6" step="1" value="3" /> <span id="occv">3</span>/6</label>
+  <label>Exploded view <input type="range" id="explode" min="0" max="30" step="1" value="0" /> <span id="explodev">0</span></label>
+</div>
+
+<div class="mgrid">
+  <div class="mcol"><h3>Geometry</h3>
+    <label>Box W <input type="range" id="boxW" min="100" max="260" step="10" value="200" /><span></span></label>
+    <label>Box H <input type="range" id="boxH" min="80" max="260" step="10" value="200" /><span></span></label>
+    <label>Gap between pieces <input type="range" id="gap" min="2" max="30" step="0.5" value="10" /><span></span> u</label>
+    <label>Band width <input type="range" id="band" min="6" max="26" step="0.5" value="16" /><span></span> u</label>
+    <label>Rotation spread / layer <input type="range" id="spread" min="0" max="70" step="1" value="45" /><span></span>°</label>
+    <label>Size falloff / layer <input type="range" id="falloff" min="0" max="0.15" step="0.005" value="0.075" /><span></span></label>
+    <label>Bevel depth <input type="range" id="bevel" min="1" max="6" step="0.25" value="5" /><span></span></label>
+  </div>
+  <div class="mcol"><h3>Audio rig → geometry</h3>
+    <label><input type="checkbox" id="rigDrive" checked /> drive gap / band / spread / falloff from the rig (locks those sliders)</label>
+    <label>HPF cutoff → gap <input type="range" id="hpf" min="0" max="1" step="0.01" value="0" /><span></span> Hz</label>
+    <label>LPF cutoff → band <input type="range" id="lpf" min="0" max="1" step="0.01" value="1" /><span></span> Hz</label>
+    <label>EQ3 low <input type="range" id="eqLow" min="-12" max="12" step="0.5" value="0" /><span></span> dB</label>
+    <label>EQ3 mid → spread <input type="range" id="eqMid" min="-12" max="12" step="0.5" value="0" /><span></span> dB</label>
+    <label>EQ3 high <input type="range" id="eqHigh" min="-12" max="12" step="0.5" value="0" /><span></span> dB</label>
+    <label>(low − high) tilt → falloff</label>
+  </div>
+  <div class="mcol"><h3>Dressing</h3>
+    <label>Front layer colour <select id="frontColor"><option value="accent">station accent</option><option value="dark">dark (slots + port only)</option></select></label>
+    <label>Slot display <select id="slotMode"><option value="both">lit piece + light dot</option><option value="fill">lit piece only</option><option value="dot">light dot only</option></select></label>
+    <label><input type="checkbox" id="lines" checked /> boundary lines on pieces</label>
+    <label><input type="checkbox" id="port" checked /> port gem at the centre (brightens with occupancy)</label>
+    <label><input type="checkbox" id="haloOn" checked /> static halo in the station accent (opacity ← occupancy)</label>
+    <label>Halo radius <input type="range" id="haloR" min="30" max="110" step="2" value="60" /><span></span> u</label>
+    <label><input type="checkbox" id="depthTint" checked /> depth tint over L4 + back-row robots (the 0-1 gradient's #0c1c4f)</label>
+    <label>Tint opacity <input type="range" id="tintOp" min="0" max="1" step="0.05" value="0.7" /><span></span></label>
+    <label><input type="checkbox" id="showBoxes" /> show the placement box</label>
+  </div>
+  <div class="mcol"><h3>Motion</h3>
+    <label>Bob <select id="bobMode"><option value="none">none (Crawford's call; spec §1.6 as written)</option><option value="whole">whole station</option><option value="layers">per layer, in unison per layer</option></select></label>
+    <label>Bob amplitude <input type="range" id="bobAmp" min="0" max="6" step="0.5" value="2" /><span></span> u</label>
+    <label>Bob period <input type="range" id="bobT" min="1" max="8" step="0.5" value="3" /><span></span> s</label>
+    <label>Arc (appear / vanish) <input type="range" id="arc" min="0.3" max="2" step="0.1" value="1" /><span></span> s</label>
+    <label>Ripple period <input type="range" id="period" min="0.2" max="3" step="0.05" value="2" /><span></span> s → whole cycles per arc</label>
+    <label>Ring width <input type="range" id="ringW" min="0.02" max="0.4" step="0.01" value="0.2" /><span></span></label>
+    <label>Swim speed <input type="range" id="speed" min="40" max="300" step="10" value="120" /><span></span> u/s</label>
+    <label>Back-row scale (exit) <input type="range" id="backScale" min="0.5" max="1" step="0.05" value="0.75" /><span></span></label>
+    <label><input type="checkbox" id="reduced" /> reduced motion (opacity only, no ripple, no bob)</label>
+  </div>
+</div>
+
+<h2>Rolls</h2>
+<p class="note">Six stations from the seed. Caption: accent / layer rotations (front→back) / cut style. Click one to put it in motion below. Occupancy applies to every roll; the stored robots are the first <em>n</em> of the seed's roster, so slot colours are real identity colours.</p>
+<div class="row" id="rolls"></div>
+
+<h2>Motion</h2>
+<p class="note">The selected roll in a wider scene. <b>Enter</b> sends a free robot in from the right; <b>Exit</b> lets the last stored robot out to the left. The SVG order is the agreed interleave (L4, exiting, L3, entering, L2, halo, L1). Vanish and appear last the arc; the ripple runs the same arc, inward on enter and outward on exit, and is skipped if one is already running (the readout counts the skips). The exiting robot appears in the <b>back robot row</b> (J4, spec §1.10, not built yet): 0.75 scale, under the blue depth tint that also covers layer 4.</p>
+<div class="controls">
+  <button id="btnEnter">Enter</button><button id="btnExit">Exit</button><button id="btnAuto">Auto loop</button>
+  <label>Enter from <select id="enterSide"><option value="1">right</option><option value="-1">left</option></select></label>
+  <label>Exit to <select id="exitSide"><option value="-1">left</option><option value="1">right</option></select></label>
+</div>
+<div class="row"><div class="stage" id="motionStage"></div></div>
+<div class="readout" id="readout"></div>
+
+<script>
+// ---------- seeded rng (Phase 39 sketch) ----------
+function rngFrom(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+  let a = (h ^= h >>> 16) >>> 0;
+  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const pick = (R, arr) => arr[Math.floor(R() * arr.length)];
+const range = (R, lo, hi) => lo + R() * (hi - lo);
+const $ = id => document.getElementById(id);
+const num = id => +$(id).value;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// ---------- colour (Phase 39 sketch) ----------
+function hexToHsl(hex) {
+  const n = parseInt(hex.slice(1), 16); const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  return [h, s * 100, l * 100];
+}
+const hsl = (h, s, l) => `hsl(${h.toFixed(1)} ${Math.max(0, Math.min(100, s)).toFixed(1)}% ${Math.max(0, Math.min(100, l)).toFixed(1)}%)`;
+function tone(hex, dl, ds = 0) { const [h, s, l] = hexToHsl(hex); return hsl(h, s + ds, l + dl); }
+const ACCENT = { orange:'#da7e1b', red:'#cd5e57', pink:'#ae5378', purple:'#7a5484', plum:'#65617f', blue:'#4f6d7a', cyan:'#428d95', teal:'#41ad9f', green:'#68cb97', lime:'#a9e583', yellow:'#e9e377', tangerine:'#e2b149', beige:'#f7f5d3', emerald:'#4fc27a', indigo:'#5a5c9e' };
+const ACCENT_NAMES = Object.keys(ACCENT);
+const BACKING = '#0e1013';
+const MID_DARK = '#262a31';
+const LIGHT_DOT = '#fff3c4';
+
+// ---------- geometry (Phase 39 sketch) ----------
+const TAN = { 15: Math.tan(Math.PI / 12), 30: Math.tan(Math.PI / 6), 45: 1, 60: Math.tan(Math.PI / 3), 75: Math.tan(5 * Math.PI / 12) };
+const CORNERS = [
+  { p: (w, h) => [0, 0], a: [0, 1], b: [1, 0] }, { p: (w, h) => [w, 0], a: [-1, 0], b: [0, 1] },
+  { p: (w, h) => [w, h], a: [0, -1], b: [-1, 0] }, { p: (w, h) => [0, h], a: [1, 0], b: [0, -1] },
+];
+const add = (p, v, k) => [p[0] + v[0] * k, p[1] + v[1] * k];
+const ptsStr = p => p.map(q => q[0].toFixed(2) + ',' + q[1].toFixed(2)).join(' ');
+function centroid(pts) { let x = 0, y = 0; for (const p of pts) { x += p[0]; y += p[1]; } return [x / pts.length, y / pts.length]; }
+function edgeNormals(pts) {
+  let area = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; area += p[0] * q[1] - q[0] * p[1]; }
+  const sgn = area > 0 ? -1 : 1; const out = [];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[(i + 1) % pts.length]; const dx = q[0] - p[0], dy = q[1] - p[1]; const len = Math.hypot(dx, dy) || 1;
+    out.push([sgn * -dy / len, sgn * dx / len]);
+  }
+  return out;
+}
+function inset(pts, d) {
+  const N = edgeNormals(pts); const n = pts.length; const res = [];
+  for (let i = 0; i < n; i++) {
+    const i0 = (i - 1 + n) % n;
+    const [p0, p1] = [add(pts[i0], N[i0], -d), add(pts[i], N[i0], -d)];
+    const [q0, q1] = [add(pts[i], N[i], -d), add(pts[(i + 1) % n], N[i], -d)];
+    const r = [p1[0] - p0[0], p1[1] - p0[1]], s = [q1[0] - q0[0], q1[1] - q0[1]];
+    const den = r[0] * s[1] - r[1] * s[0];
+    if (Math.abs(den) < 1e-6) { res.push(q0); continue; }
+    const t = ((q0[0] - p0[0]) * s[1] - (q0[1] - p0[1]) * s[0]) / den;
+    res.push([p0[0] + r[0] * t, p0[1] + r[1] * t]);
+  }
+  return res;
+}
+function inside(pt, pts) {
+  let ok = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) ok = !ok;
+  } return ok;
+}
+function quantize(shade, k) { if (!k || k < 2) return shade; const s = k - 1; return (2 * Math.round(((shade + 1) / 2) * s) - s) / s; }
+const LIGHT = (() => { const l = [-0.55, -0.83]; const k = Math.hypot(...l); return [l[0] / k, l[1] / k]; })();
+const TONES = 3;
+function genLine(R, inner) {
+  const n = inner.length; const safe = inset(inner, 0.4);
+  for (let tries = 0; tries < 60; tries++) {
+    const e1 = Math.floor(R() * n); let e2 = Math.floor(R() * n); if (e2 === e1) continue;
+    const at = (e, t) => { const p = safe[e], q = safe[(e + 1) % n]; return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]; };
+    const s = at(e1, range(R, .2, .8)), f = at(e2, range(R, .2, .8));
+    const dx = f[0] - s[0], dy = f[1] - s[1]; const m = Math.min(Math.abs(dx), Math.abs(dy));
+    const diag = [Math.sign(dx) * m, Math.sign(dy) * m];
+    const path = R() < .5 ? [s, [s[0] + diag[0], s[1] + diag[1]], f] : [s, [f[0] - diag[0], f[1] - diag[1]], f];
+    if (Math.hypot(dx, dy) < 4) continue;
+    let ok = true;
+    for (let k = 0; k < path.length - 1 && ok; k++) for (let t = .1; t < 1; t += .15) {
+      const p = [path[k][0] + (path[k + 1][0] - path[k][0]) * t, path[k][1] + (path[k + 1][1] - path[k][1]) * t];
+      if (!inside(p, safe)) { ok = false; break; }
+    }
+    if (ok) return path;
+  }
+  return null;
+}
+/** Bevel ring + inner fill for any polygon — the Phase 39 facet treatment. toneOf(shade) gives the facet colour. */
+function gemMarkup(outer, bevel, toneOf, base) {
+  const shortest = Math.min(...outer.map((p, i) => Math.hypot(p[0] - outer[(i + 1) % outer.length][0], p[1] - outer[(i + 1) % outer.length][1])));
+  const d = Math.min(bevel, Math.max(0.6, shortest * 0.3));
+  const inner = inset(outer, d); const N = edgeNormals(outer); const g = [];
+  for (let i = 0; i < outer.length; i++) {
+    const j = (i + 1) % outer.length; const shade = quantize(N[i][0] * LIGHT[0] + N[i][1] * LIGHT[1], TONES);
+    g.push(`<polygon points="${ptsStr([outer[i], outer[j], inner[j], inner[i]])}" fill="${toneOf(shade)}" stroke="${toneOf(-1)}" stroke-width=".25" stroke-linejoin="round"/>`);
+  }
+  g.push(`<polygon points="${ptsStr(inner)}" fill="${base}" stroke="none"/>`);
+  return { markup: g.join(''), inner };
+}
+
+// ---------- robot (trimmed Phase 39 generator; orbiters docked at the Top's corners per Phase 40) ----------
+function genPolygon(R, w, h, opts) {
+  const minDim = Math.min(w, h);
+  for (let tries = 0; tries < 400; tries++) {
+    const pts = []; let sides = 4, right = 0, concave = 0;
+    const kinds = opts.convex ? ['none', 'chamfer', 'chamfer', 'double'] : ['none', 'chamfer', 'chamfer', 'double', 'step'];
+    for (let i = 0; i < 4; i++) {
+      const C = CORNERS[i], P = C.p(w, h); let kind = pick(R, kinds);
+      const lenA = i % 2 === 0 ? h : w, lenB = i % 2 === 0 ? w : h; const capA = 0.45 * lenA, capB = 0.45 * lenB;
+      const cut = range(R, 0.22, 0.42) * minDim;
+      if (kind === 'step') {
+        const phi = pick(R, [45, 60]); const t = TAN[phi];
+        const B = Math.min(minDim * range(R, 0.25, 0.34), capB, (capA - 0.1) / t);
+        if (B >= 0.2 * minDim) { const A = Math.min(B * t + cut * range(R, 0.3, 0.6), capA);
+          pts.push(add(P, C.a, A), add(add(P, C.a, A - B * t), C.b, B), add(P, C.b, B)); sides += 2; right += 1; concave += 1; continue; }
+        kind = 'chamfer';
+      }
+      if (kind === 'none') { pts.push(P); right++; continue; }
+      if (kind === 'chamfer') { const phi = pick(R, [15, 30, 45, 60, 75]); const t = TAN[phi];
+        let La = t >= 1 ? cut : cut * t, Lb = t >= 1 ? cut / t : cut; const k = Math.min(1, capA / La, capB / Lb); La *= k; Lb *= k;
+        pts.push(add(P, C.a, La), add(P, C.b, Lb)); sides += 1; continue; }
+      const [p1, p2] = pick(R, [[75, 15], [60, 30]]); const T1 = TAN[p1], T2 = TAN[p2];
+      const v = (1 - T2) / (T1 - T2), u = 1 - v * T1; const A = Math.min(cut, capA), B = Math.min(cut * range(R, 0.8, 1.25), capB);
+      pts.push(add(P, C.a, A), add(add(P, C.a, A * u), C.b, B * v), add(P, C.b, B)); sides += 2;
+    }
+    if (sides < 8 || sides > 12 || right > opts.maxRight || concave > opts.maxConcave) continue;
+    return { pts, w, h };
+  }
+  return null;
+}
+const CANVAS_H = 80;
+const BASE_RULES = { convex: true, maxConcave: 0, maxRight: 4 }, MAIN_RULES = { convex: false, maxConcave: 2, maxRight: 4 }, ORBIT_RULES = { convex: false, maxConcave: 4, maxRight: 4 };
+function makeRobot(seed, idx, colorName) {
+  const R = rngFrom(seed + ':' + idx);
+  const H = CANVAS_H, W = CANVAS_H * pick(R, [1, 1.25, 1.5, 1.75, 2]), k = W / CANVAS_H; const parts = [];
+  parts.push({ role: 'backing', x: (W - 25 * k) / 2, y: (H - 25) / 2, poly: genPolygon(R, 25 * k, 25, BASE_RULES), lines: 0 });
+  const orbs = []; for (let i = 0; i < 4; i++) orbs.push({ role: 'orbit', poly: genPolygon(R, 24, 16, ORBIT_RULES), lines: 1 });
+  const mw2 = range(R, 20, 24) * k, mh2 = range(R, 34, 36);
+  parts.push({ role: 'mid', x: W / 2 - mw2, y: (H - mh2) / 2, lit: R() < .7, poly: genPolygon(R, mw2, mh2, MAIN_RULES), lines: 2 });
+  const mw1 = range(R, 20, 24) * k, mh1 = range(R, 34, 36);
+  parts.push({ role: 'mid', x: W / 2, y: (H - mh1) / 2, lit: R() < .7, poly: genPolygon(R, mw1, mh1, MAIN_RULES), lines: 2 });
+  const tx = (W - 32 * k) / 2, ty = (H - 32) / 2;
+  parts.push({ role: 'top', x: tx, y: ty, poly: genPolygon(R, 32 * k, 32, MAIN_RULES), lines: 4, lights: 2 });
+  // dock the four orbiters centred on the Top box's corners
+  [[tx, ty], [tx + 32 * k, ty], [tx, ty + 32], [tx + 32 * k, ty + 32]].forEach(([cx, cy], i) => { orbs[i].x = cx - 12; orbs[i].y = cy - 8; parts.push(orbs[i]); });
+  return { W, H, k, color: ACCENT[colorName], colorName, parts, decoSeed: seed + ':deco:' + idx };
+}
+function renderRobot(robot, bevel) {
+  const R = rngFrom(robot.decoSeed); const g = [];
+  for (const part of robot.parts) {
+    const poly = part.poly; if (!poly) continue;
+    g.push(`<g transform="translate(${part.x.toFixed(2)} ${part.y.toFixed(2)})">`);
+    if (part.role === 'backing') { g.push(`<polygon points="${ptsStr(poly.pts)}" fill="${BACKING}" stroke="#1c2026" stroke-width=".5"/></g>`); continue; }
+    const midLit = part.role === 'mid' && part.lit;
+    const toneOf = s => midLit ? tone(robot.color, -16 + s * 12 * .7, -18) : part.role === 'mid' ? tone(MID_DARK, s * 12 * .5) : tone(robot.color, s * 12);
+    const base = midLit ? tone(robot.color, -16, -18) : part.role === 'mid' ? MID_DARK : robot.color;
+    const { markup, inner } = gemMarkup(poly.pts, Math.min(bevel, Math.min(poly.w, poly.h) * 0.18), toneOf, base);
+    g.push(markup);
+    const lineColor = midLit ? tone(robot.color, -32, -18) : part.role === 'mid' ? tone(MID_DARK, -8) : tone(robot.color, -26);
+    for (let k = 0; k < part.lines; k++) { const path = genLine(R, inner); if (path) g.push(`<polyline points="${ptsStr(path)}" fill="none" stroke="${lineColor}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"/>`); }
+    if (part.lights) { const c = centroid(inner); for (let k = 0; k < part.lights; k++) { const v = inner[Math.floor(R() * inner.length)]; const p = [v[0] + (c[0] - v[0]) * .3, v[1] + (c[1] - v[1]) * .3];
+      g.push(`<circle cx="${p[0].toFixed(2)}" cy="${p[1].toFixed(2)}" r="3" fill="${LIGHT_DOT}" opacity=".18"/><circle cx="${p[0].toFixed(2)}" cy="${p[1].toFixed(2)}" r="1.4" fill="${LIGHT_DOT}"/>`); } }
+    g.push('</g>');
+  }
+  return g.join('');
+}
+
+// ---------- station generator ----------
+const DEG = Math.PI / 180;
+const cross = (a, b) => a[0] * b[1] - a[1] * b[0];
+/** A loosely triangular convex polygon, vertices sorted by angle about the origin: three corners ~120° apart with jitter, each chamfered. */
+function triGem(R, radius, rotDeg) {
+  const corners = [];
+  for (let k = 0; k < 3; k++) { const a = (rotDeg + k * 120 + range(R, -12, 12)) * DEG; const r = radius * range(R, .9, 1); corners.push([Math.cos(a) * r, Math.sin(a) * r]); }
+  const pts = [];
+  for (let k = 0; k < 3; k++) {
+    const P = corners[k], Pa = corners[(k + 2) % 3], Pb = corners[(k + 1) % 3]; const c = range(R, .1, .24);
+    pts.push([P[0] + (Pa[0] - P[0]) * c, P[1] + (Pa[1] - P[1]) * c], [P[0] + (Pb[0] - P[0]) * c, P[1] + (Pb[1] - P[1]) * c]);
+  }
+  const c0 = centroid(pts); return pts.map(p => [p[0] - c0[0], p[1] - c0[1]]); // recentred so the origin is well inside
+}
+/** Distance from the origin to the nearest edge line of a convex polygon around it. */
+function inradius(pts) {
+  let best = Infinity;
+  for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; const e = [q[0] - p[0], q[1] - p[1]]; best = Math.min(best, Math.abs(cross(p, e)) / Math.hypot(e[0], e[1])); }
+  return best;
+}
+/** Ray from the origin at `ang` against a convex polygon around the origin: { pt, i (edge index), s (edge param), r (distance) }. */
+function rayHit(pts, ang) {
+  const d = [Math.cos(ang), Math.sin(ang)]; let best = null;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[(i + 1) % pts.length]; const e = [q[0] - p[0], q[1] - p[1]]; const den = cross(d, e); if (Math.abs(den) < 1e-9) continue;
+    const t = cross(p, e) / den, s = cross(p, d) / den;
+    if (t > 0 && s >= -1e-6 && s <= 1 + 1e-6 && (!best || t < best.r)) best = { pt: [d[0] * t, d[1] * t], i, s, r: t };
+  }
+  return best;
+}
+/** Walk an angle-sorted convex polygon forward from the hit on edge hA to the hit on edge hB. */
+function walk(pts, hA, hB) {
+  const n = pts.length; const out = [hA.pt];
+  if (hA.i === hB.i && hB.s >= hA.s) { out.push(hB.pt); return out; }
+  for (let i = (hA.i + 1) % n, guard = 0; guard <= n; i = (i + 1) % n, guard++) { out.push(pts[i]); if (i === hB.i) break; }
+  out.push(hB.pt); return out;
+}
+/** One ring piece between cut angles a → b (radians, increasing), with a `gap`-unit break at each cut. */
+function ringPiece(outer, inner, a, b, gap) {
+  const half = gap / 2;
+  const hit = (pts, ang, sign) => { const r0 = rayHit(pts, ang).r; const d = Math.asin(Math.min(.9, half / r0)); return rayHit(pts, ang + sign * d); };
+  const oA = hit(outer, a, 1), oB = hit(outer, b, -1), iA = hit(inner, a, 1), iB = hit(inner, b, -1);
+  return walk(outer, oA, oB).concat(walk(inner, iA, iB).reverse());
+}
+const RADIUS_OF = (W, H) => Math.min(W / 2, H / 2) * 0.95;
+function makeStation(seed, idx, cfg) {
+  const R = rngFrom(seed + ':station:' + idx);
+  const colorName = pick(R, ACCENT_NAMES); const color = ACCENT[colorName];
+  const rot0 = range(R, 0, 360); const dir = R() < .5 ? 1 : -1;
+  const cutStyle = pick(R, ['corners', 'edges', 'mixed']);
+  const layers = [];
+  for (let i = 0; i < 4; i++) { // 0 = front (L1) … 3 = back (L4, solid)
+    const radius = RADIUS_OF(cfg.W, cfg.H) * (1 - cfg.falloff * (3 - i));
+    const rot = rot0 + dir * i * cfg.spread + range(R, -8, 8);
+    const outer = triGem(R, radius, rot);
+    const layer = { i, rot, radius, outer, pieces: [] };
+    if (i < 3) {
+      const band = Math.min(cfg.band, inradius(outer) * 0.7); layer.band = band; // the inner ring must still enclose the origin
+      const inner = inset(outer, band); layer.inner = inner;
+      const cutBase = cutStyle === 'corners' ? 0 : cutStyle === 'edges' ? 60 : (R() < .5 ? 0 : 60);
+      const cuts = [0, 1, 2].map(k => (rot + cutBase + k * 120 + range(R, -15, 15)) * DEG);
+      for (let k = 0; k < 3; k++) {
+        const a = cuts[k], b = cuts[(k + 1) % 3] + (k === 2 ? 2 * Math.PI : 0);
+        layer.pieces.push({ pts: ringPiece(outer, inner, a, b, cfg.gap), slot: -1 });
+      }
+    }
+    layers.push(layer);
+  }
+  // six slots: two pieces per broken layer, filled back-to-front (L3, then L2, then L1)
+  let slot = 0;
+  for (const i of [2, 1, 0]) { const order = [0, 1, 2].sort(() => R() - .5); for (const k of order.slice(0, 2)) layers[i].pieces[k].slot = slot++; }
+  const portPts = triGem(R, 10, rot0 + 180 + range(R, -20, 20));
+  return { seed, idx, color, colorName, rot0, cutStyle, layers, portPts, decoSeed: seed + ':station-deco:' + idx };
+}
+
+// ---------- station render ----------
+function cfgNow() { return { W: num('boxW'), H: num('boxH'), gap: num('gap'), band: num('band'), spread: num('spread'), falloff: num('falloff'), bevel: num('bevel') }; }
+/** Returns { frames, layers[4], halo } markup so the stage can interleave robots between the fragments. `stored` = robots in slot order. */
+function renderStation(st, cfg, stored, id) {
+  const R = rngFrom(st.decoSeed); const occ = stored.length;
+  const frontAccent = $('frontColor').value === 'accent'; const slotMode = $('slotMode').value; const lines = $('lines').checked;
+  const layerMarkup = (layer) => {
+    const g = [];
+    if (layer.i === 3) { g.push(`<polygon points="${ptsStr(layer.outer)}" fill="${BACKING}" stroke="#1c2026" stroke-width=".5"/>`); return g.join(''); }
+    for (const piece of layer.pieces) {
+      const filled = piece.slot >= 0 && piece.slot < occ && slotMode !== 'dot';
+      const robotColor = filled ? stored[piece.slot].color : null;
+      const accent = frontAccent && layer.i === 0;
+      const toneOf = filled ? s => tone(robotColor, -16 + s * 12 * .7, -18) : accent ? s => tone(st.color, s * 12) : s => tone(MID_DARK, s * 12 * .5);
+      const base = filled ? tone(robotColor, -16, -18) : accent ? st.color : MID_DARK;
+      const { markup, inner } = gemMarkup(piece.pts, cfg.bevel, toneOf, base);
+      g.push(markup);
+      const lineColor = filled ? tone(robotColor, -32, -18) : accent ? tone(st.color, -26) : tone(MID_DARK, -8);
+      const path = genLine(R, inner); // always drawn from the stream so toggling lines never re-rolls the dots
+      if (lines && path) g.push(`<polyline points="${ptsStr(path)}" fill="none" stroke="${lineColor}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"/>`);
+      if (piece.slot >= 0 && slotMode !== 'fill') {
+        const c = centroid(inner); const on = piece.slot < occ;
+        g.push(`<circle cx="${c[0].toFixed(2)}" cy="${c[1].toFixed(2)}" r="3.2" fill="${LIGHT_DOT}" opacity="${on ? .22 : .05}"/><circle cx="${c[0].toFixed(2)}" cy="${c[1].toFixed(2)}" r="1.5" fill="${LIGHT_DOT}" opacity="${on ? 1 : .18}"/>`);
+      }
+    }
+    if (layer.i === 0 && $('port').checked) {
+      const lit = occ / 6; const toneOf = s => tone(st.color, -34 + lit * 30 + s * 10); const base = tone(st.color, -30 + lit * 34, lit * 10);
+      g.push(gemMarkup(st.portPts, Math.min(cfg.bevel, 2), toneOf, base).markup);
+    }
+    return g.join('');
+  };
+  const frames = $('showBoxes').checked ? `<rect x="${-cfg.W / 2}" y="${-cfg.H / 2}" width="${cfg.W}" height="${cfg.H}" fill="none" stroke="#4aa3ff" stroke-width=".4" stroke-dasharray="2 1.2"/>` : '';
+  const haloR = num('haloR'); const haloOn = $('haloOn').checked;
+  const stop = (o, c, op) => `<stop offset="${(o * 100).toFixed(1)}%" stop-color="${c}" stop-opacity="${op.toFixed(3)}"/>`;
+  const halo = `<defs><radialGradient id="halo-${id}">${stop(0, st.color, 0)}${stop(.18, st.color, 0)}${stop(.55, st.color, haloOn ? .12 + .3 * occ / 6 : 0)}${stop(1, st.color, 0)}</radialGradient>` +
+    `<radialGradient id="ripple-${id}" class="ripple-g">${[0, 0, 0, 0, 1].map(o => stop(o, st.color, 0)).join('')}</radialGradient></defs>` +
+    `<circle cx="0" cy="0" r="${haloR}" fill="url(#halo-${id})"/><circle class="ripple" cx="0" cy="0" r="${haloR}" fill="url(#ripple-${id})" opacity="0"/>`;
+  return { frames, layers: st.layers.map(layerMarkup), halo };
+}
+function stationSvg(st, cfg, stored, id, viewW, viewH, zoom) {
+  const r = renderStation(st, cfg, stored, id); const ex = num('explode');
+  const L = i => `<g class="bob" data-i="${i}"><g transform="translate(0 ${(-(3 - i) * ex).toFixed(1)})">${r.layers[i]}</g></g>`;
+  // the agreed interleave, back → front
+  // L4 and the exiting robots sit in the back robot layer (spec §1.10), under the 0-1 depth gradient like background buildings
+  const tint = $('depthTint').checked ? `<rect x="${-viewW / 2}" y="${-viewH / 2}" width="${viewW}" height="${viewH}" fill="#0c1c4f" opacity="${num('tintOp')}" pointer-events="none"/>` : '';
+  const inner = `${r.frames}${L(3)}<g class="slot-exit"></g>${tint}${L(2)}<g class="slot-enter"></g>${L(1)}<g class="bob" data-i="0.5"><g transform="translate(0 ${(-2.5 * ex).toFixed(1)})">${r.halo}</g></g>${L(0)}`;
+  return `<svg width="${viewW * zoom}" height="${viewH * zoom}" viewBox="${-viewW / 2} ${-viewH / 2} ${viewW} ${viewH}">${inner}</svg>`;
+}
+
+// ---------- audio rig → geometry ----------
+// The world's GlobalAudioSettings (types/globalAudio.ts): EQ3 low/mid/high −12..12 dB, LPF/HPF 20..20000 Hz.
+// Sliders for the filters are log positions 0..1 → Hz. All four mappings are linear in the dial's natural
+// space (dB, or log Hz), so a dial drag deforms the station continuously — the rng stream is untouched.
+const hz = p => 20 * Math.pow(1000, p);
+const RIG_MAP = {
+  gap:     { lo: 10, hi: 25,   t: () => num('hpf') },                               // HPF up → more air between pieces
+  band:    { lo: 8,  hi: 16,   t: () => num('lpf') },                               // LPF open → thicker ring
+  spread:  { lo: 30, hi: 60,   t: () => (num('eqMid') + 12) / 24 },                 // mid boost → more twist
+  falloff: { lo: .03, hi: .12, t: () => (num('eqLow') - num('eqHigh') + 24) / 48 }, // bass-heavy → bottom-heavy stack
+};
+function applyRig() {
+  const on = $('rigDrive').checked;
+  for (const [id, m] of Object.entries(RIG_MAP)) {
+    const el = $(id); el.disabled = on;
+    if (on) { el.value = lerp(m.lo, m.hi, m.t()).toFixed(3); const span = el.parentElement.querySelector('span'); if (span) span.textContent = (+el.value).toFixed(id === 'falloff' ? 3 : 1); }
+  }
+}
+
+// ---------- build ----------
+const S = { seed: 'still-echo', stations: [], roster: [], sel: 0, stored: [], movers: [], ripple: null, skipped: 0, t: 0, last: null, auto: false, autoNext: 0 };
+function build(full) {
+  if (full) {
+    S.seed = $('seed').value || 'still-echo'; S.roster = [];
+    const Rc = rngFrom(S.seed + ':roster'); const names = ACCENT_NAMES.slice();
+    for (let i = 0; i < 12; i++) S.roster.push(makeRobot(S.seed, i, names.splice(Math.floor(Rc() * names.length), 1)[0]));
+    S.movers = []; S.ripple = null; S.skipped = 0; S.stored = S.roster.slice(0, num('occ'));
+  }
+  applyRig();
+  S.stations = [0, 1, 2, 3, 4, 5].map(i => makeStation(S.seed, i, cfgNow()));
+  const cfg = cfgNow(); const zoom = num('zoom');
+  $('rolls').innerHTML = S.stations.map((st, i) =>
+    `<div class="stage ${i === S.sel ? 'sel' : ''}" data-i="${i}">${stationSvg(st, cfg, S.stored, 'r' + i, cfg.W + 40, cfg.H + 40, zoom * .75)}` +
+    `${S.seed}:${i} · ${st.colorName} · ${st.layers.map(l => Math.round(((l.rot % 360) + 360) % 360) + '°').join(' ')} · cuts at ${st.cutStyle}</div>`).join('');
+  for (const el of document.querySelectorAll('#rolls .stage')) el.onclick = () => { S.sel = +el.dataset.i; build(false); };
+  buildMotion();
+}
+function buildMotion() {
+  const cfg = cfgNow(); const st = S.stations[S.sel];
+  $('motionStage').innerHTML = stationSvg(st, cfg, S.stored, 'm', 520, Math.max(cfg.H, 100) + 100, num('zoom')) + `<div>${S.seed}:${S.sel} · occupancy ${S.stored.length}/6</div>`;
+  for (const m of S.movers) mountMover(m);
+  updateButtons(); readout();
+}
+function readout() {
+  const st = S.stations[S.sel]; const cfg = cfgNow();
+  $('readout').textContent =
+    `station ${S.seed}:${S.sel}   accent ${st.colorName} ${st.color}   box ${cfg.W}×${cfg.H}   back radius ${RADIUS_OF(cfg.W, cfg.H).toFixed(1)}\n` +
+    `layers (front→back): ${st.layers.map(l => `L${l.i + 1} r=${l.radius.toFixed(1)}${l.band != null ? ' band=' + l.band.toFixed(1) : ''} rot=${(((l.rot % 360) + 360) % 360).toFixed(0)}°`).join('  |  ')}\n` +
+    `slots: ${st.layers.slice(0, 3).map(l => `L${l.i + 1}[${l.pieces.map(p => p.slot >= 0 ? p.slot : '·').join(',')}]`).join(' ')}   stored: ${S.stored.map(r => r.colorName).join(', ') || '—'}   ripples skipped: ${S.skipped}\n` +
+    `rig: HPF ${hz(num('hpf')).toFixed(0)} Hz → gap ${num('gap').toFixed(1)}   LPF ${hz(num('lpf')).toFixed(0)} Hz → band ${num('band').toFixed(1)}   EQ mid ${num('eqMid')} dB → spread ${num('spread').toFixed(0)}°   tilt ${num('eqLow') - num('eqHigh')} dB → falloff ${num('falloff').toFixed(3)}${$('rigDrive').checked ? '' : '   (rig drive OFF — sliders are manual)'}\n` +
+    `ripple ${Math.max(1, Math.round(num('arc') / num('period')))} cycle(s) per ${num('arc')} s arc   prod shape estimate: 4 layer paths (facets merged per tone ×3 → ~10) + 6 dots + port + halo + ripple ≈ 19 vs STATION_SHAPE_BUDGET 16 — dots as one path brings it to 14`;
+}
+
+// ---------- motion ----------
+function updateButtons() {
+  const entering = S.movers.some(m => m.kind === 'enter'), exiting = S.movers.some(m => m.kind === 'exit');
+  $('btnEnter').disabled = entering || S.stored.length >= 6 || !freeRobot();
+  $('btnExit').disabled = exiting || S.stored.length === 0;
+}
+function freeRobot() { return S.roster.find(r => !S.stored.includes(r) && !S.movers.some(m => m.robot === r)); }
+function startEnter() {
+  const robot = freeRobot(); if (!robot) return; const side = +$('enterSide').value; const D = 260, speed = num('speed');
+  const m = { robot, kind: 'enter', side, t0: S.t, swim: D / speed, arc: num('arc'), D, el: null, rippleStarted: false, done: false };
+  S.movers.push(m); mountMover(m); updateButtons();
+}
+function startExit() {
+  if (!S.stored.length) return; const robot = S.stored[S.stored.length - 1]; const side = +$('exitSide').value; const D = 260, speed = num('speed');
+  S.stored = S.stored.slice(0, -1); // the slot frees as the robot appears
+  S.movers.push({ robot, kind: 'exit', side, t0: S.t, swim: D / speed, arc: num('arc'), D, el: null, done: false });
+  startRipple('exit'); buildMotion();
+}
+function startRipple(kind) {
+  if ($('reduced').checked) return;
+  if (S.ripple) { S.skipped++; readout(); return; } // point 13: a running ripple wins
+  const dur = num('arc'); S.ripple = { kind, t0: S.t, dur, cycles: Math.max(1, Math.round(dur / num('period'))) };
+}
+function mountMover(m) {
+  const svg = $('motionStage').querySelector('svg'); if (!svg) return;
+  const slot = svg.querySelector(m.kind === 'enter' ? '.slot-enter' : '.slot-exit');
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.innerHTML = renderRobot(m.robot, num('bevel')); g.setAttribute('opacity', m.kind === 'exit' ? '0' : '1'); slot.appendChild(g); m.el = g;
+}
+function finishMover(m) {
+  m.done = true; if (m.el) m.el.remove(); S.movers = S.movers.filter(q => q !== m);
+}
+function poseMover(m) {
+  const u = S.t - m.t0; const reduced = $('reduced').checked; let x, s = 1, op = 1;
+  if (m.kind === 'enter') {
+    if (u < m.swim) { x = m.side * m.D * (1 - u / m.swim); }
+    else {
+      const v = Math.min(1, (u - m.swim) / m.arc); x = 0;
+      if (!m.rippleStarted) { m.rippleStarted = true; startRipple('enter'); }
+      s = reduced ? 1 : lerp(1, .15, v * v); op = 1 - v;
+      if (v >= 1) { finishMover(m); S.stored = S.stored.concat([m.robot]); buildMotion(); return; }
+    }
+  } else {
+    const back = num('backScale'); // BACK_LAYER_SCALE: the robot appears in the back row and stays there until J4's layer switch, off-stage
+    if (u < m.arc) { const v = u / m.arc; x = 0; s = reduced ? back : lerp(.15, back, Math.sqrt(v)); op = v; }
+    else { const w = (u - m.arc) / m.swim; x = m.side * m.D * Math.min(1, w); s = back; if (w >= 1) { finishMover(m); updateButtons(); readout(); return; } }
+  }
+  const bobY = Math.sin(S.t * 2.1 + m.robot.k) * 1.5;
+  m.el.setAttribute('transform', `translate(${x.toFixed(2)} ${bobY.toFixed(2)}) scale(${s.toFixed(3)}) translate(${(-m.robot.W / 2).toFixed(2)} ${(-m.robot.H / 2).toFixed(2)})`);
+  m.el.setAttribute('opacity', op.toFixed(3));
+}
+function rippleStops(u) {
+  const r = S.ripple; const innerF = .18, w = num('ringW'); const f = (u * r.cycles) % 1;
+  const pos = r.kind === 'exit' ? lerp(innerF, 1, f) : lerp(1, innerF, f);
+  const env = Math.min(1, u / 0.1, (1 - u) / 0.1); // fade in/out over the arc's first and last 10 %
+  return [[0, 0], [Math.max(innerF, pos - w), 0], [pos, .9 * env], [Math.min(1, pos + w), 0], [1, 0]];
+}
+function frame(now) {
+  if (S.last == null) S.last = now; S.t += Math.min(0.1, (now - S.last) / 1000); S.last = now;
+  const svg = $('motionStage').querySelector('svg');
+  if (svg) {
+    const mode = $('reduced').checked ? 'none' : $('bobMode').value; const amp = num('bobAmp'), T = num('bobT');
+    for (const g of svg.querySelectorAll('.bob')) {
+      const i = +g.dataset.i; const phase = mode === 'layers' ? i * 0.9 : 0;
+      const y = mode === 'none' ? 0 : amp * Math.sin(2 * Math.PI * S.t / T + phase);
+      g.setAttribute('transform', `translate(0 ${y.toFixed(2)})`);
+    }
+    for (const m of S.movers.slice()) if (m.el) poseMover(m);
+    if (S.ripple) {
+      const u = Math.min(1, (S.t - S.ripple.t0) / S.ripple.dur); const stops = rippleStops(u);
+      const grad = svg.querySelector('.ripple-g'), el = svg.querySelector('.ripple');
+      if (grad && el) {
+        const mover = S.movers.find(m => m.kind === S.ripple.kind); const color = mover ? mover.robot.color : S.stations[S.sel].color;
+        grad.innerHTML = stops.map(([o, op]) => `<stop offset="${(o * 100).toFixed(1)}%" stop-color="${color}" stop-opacity="${op.toFixed(3)}"/>`).join(''); el.setAttribute('opacity', '1');
+      }
+      if (u >= 1) { S.ripple = null; if (el) el.setAttribute('opacity', '0'); }
+    }
+    if (S.auto && S.t >= S.autoNext) {
+      updateButtons(); const canEnter = !$('btnEnter').disabled, canExit = !$('btnExit').disabled;
+      if (canEnter && (!canExit || Math.random() < .5)) startEnter(); else if (canExit) startExit();
+      S.autoNext = S.t + range(Math.random, 1.2, 3.5);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------- wiring ----------
+const REBUILD = ['boxW', 'boxH', 'gap', 'band', 'spread', 'falloff', 'bevel', 'haloR', 'tintOp'];
+for (const id of [...REBUILD, 'bobAmp', 'bobT', 'arc', 'period', 'ringW', 'speed', 'backScale']) {
+  const el = $(id), span = el.parentElement.querySelector('span'); const show = () => { if (span) span.textContent = el.value; };
+  show(); el.oninput = () => { show(); if (REBUILD.includes(id)) build(false); else readout(); };
+}
+for (const id of ['frontColor', 'slotMode', 'lines', 'port', 'haloOn', 'showBoxes', 'depthTint', 'rigDrive']) $(id).onchange = () => build(false);
+for (const id of ['hpf', 'lpf', 'eqLow', 'eqMid', 'eqHigh']) {
+  const el = $(id), span = el.parentElement.querySelector('span');
+  const show = () => { span.textContent = id === 'hpf' || id === 'lpf' ? hz(+el.value).toFixed(0) : el.value; };
+  show(); el.oninput = () => { show(); build(false); };
+}
+$('zoom').oninput = () => { $('zoomv').textContent = $('zoom').value; build(false); };
+$('occ').oninput = () => { $('occv').textContent = $('occ').value; S.movers = []; S.ripple = null; S.stored = S.roster.slice(0, num('occ')); build(false); };
+$('explode').oninput = () => { $('explodev').textContent = $('explode').value; build(false); };
+$('seed').onchange = () => build(true);
+$('reroll').onclick = () => { $('seed').value = Math.random().toString(36).slice(2, 8); build(true); };
+$('btnEnter').onclick = startEnter; $('btnExit').onclick = startExit;
+$('btnAuto').onclick = () => { S.auto = !S.auto; $('btnAuto').textContent = S.auto ? 'Stop auto' : 'Auto loop'; S.autoNext = S.t; };
+build(true);
+</script>
+</body>
+</html>
