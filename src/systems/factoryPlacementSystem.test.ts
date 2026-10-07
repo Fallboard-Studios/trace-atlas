@@ -5,8 +5,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 
-import { createFactory, placeFactories, getRowConfig, getAllRowConfigs, deriveAsAccentPair, pickAccentTarget } from './factoryPlacementSystem';
+import { createFactory, placeFactories, getRowConfig, getAllRowConfigs, deriveAsAccentPair, pickAccentTarget, getRecipeRow, factoryWidthAt, spreadXs } from './factoryPlacementSystem';
 import { VARIANT_CONF, selectVariantFromSeed } from '../components/actors/factoryVariants';
+import { calcSilhouetteSize } from '../components/actors/silhouetteUtils';
+import { RECIPES } from './districtRecipes';
 import { shiftHSL } from '../utils/colorUtils';
 import { computeAccentLean, hueArc, ACCENT_SAT_LIFT, ACCENT_HUES } from '../utils/accentLean';
 import { getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
@@ -237,6 +239,83 @@ describe('FactoryPlacementSystem', () => {
         expect(cfg).toHaveProperty('y');
         expect(cfg).toHaveProperty('factoriesPerRow');
       });
+    });
+  });
+
+  describe('getRecipeRow (roadmap Phase 42 Task 4 — the districts.ts successor to getRowConfig)', () => {
+    it('returns dense row 0', () => {
+      expect(getRecipeRow('dense', 0)).toEqual(RECIPES.dense[0]);
+    });
+
+    it('returns every row of every district, by index', () => {
+      for (const district of Object.keys(RECIPES) as (keyof typeof RECIPES)[]) {
+        RECIPES[district].forEach((row, idx) => {
+          expect(getRecipeRow(district, idx)).toEqual(row);
+        });
+      }
+    });
+
+    it('returns null for an out-of-range row', () => {
+      expect(getRecipeRow('dense', -1)).toBeNull();
+      expect(getRecipeRow('dense', RECIPES.dense.length)).toBeNull();
+    });
+  });
+
+  describe('factoryWidthAt', () => {
+    it('agrees with the variant selection createFactory itself makes for the same (id, x, row, availableTypes)', () => {
+      // createFactory(position, row) internally filters via getRowConfig(row)?.availableFactoryTypes
+      // (FACTORY_ROWS row 2 = ['Monolith']) — factoryWidthAt must be given the same filter to agree.
+      const availableTypes = getRowConfig(2)?.availableFactoryTypes;
+      const factory = createFactory({ x: 300, y: 1000 }, 2, 1, 'width-check-id');
+      const { variant, noiseValue } = selectVariantFromSeed('width-check-id', 300, 2, availableTypes);
+      const expectedWidth = calcSilhouetteSize(noiseValue, VARIANT_CONF[variant].sizeRange).width;
+      expect(factoryWidthAt('width-check-id', 300, 2, availableTypes)).toBe(expectedWidth);
+      // sanity: createFactory picked the same variant this helper assumed
+      expect(factory.config?.purpose).toBe(VARIANT_CONF[variant].purpose);
+    });
+
+    it('is deterministic for the same inputs', () => {
+      expect(factoryWidthAt('det-id', 500, 1)).toBe(factoryWidthAt('det-id', 500, 1));
+    });
+  });
+
+  describe('spreadXs', () => {
+    const fakeNoiseMap = createNoise2D(alea('spreadxs-fixture'));
+
+    it("'full': places exactly `count` items (nextWidth called once per item, return value ignored)", () => {
+      const widths: number[] = [];
+      spreadXs({ spread: 'full', count: 5 }, (x) => { widths.push(x); return 999; }, fakeNoiseMap, 0);
+      expect(widths.length).toBe(5);
+    });
+
+    it("'edges': splits count between left and right halves (ceil/floor)", () => {
+      const xs: number[] = [];
+      spreadXs({ spread: 'edges', count: 5, edgeWidth: 0.3 }, (x) => { xs.push(x); return 60; }, fakeNoiseMap, 0);
+      // half = ceil(5/2) = 3 on the left, halfRight = floor(5/2) = 2 on the right, capped by
+      // how many fit before the limit — assert the total never exceeds count and both sides are used.
+      expect(xs.length).toBeLessThanOrEqual(5);
+      const mid = WORLD_BOUNDS.width / 2;
+      expect(xs.some((x) => x < mid)).toBe(true);
+      expect(xs.some((x) => x >= mid)).toBe(true);
+    });
+
+    it("'center': calls getSeededVal's 'factory.spacing' jitter at offset rowIndex*1000 + placedCenter", () => {
+      const spy = vi.spyOn(getSeededValModule, 'getSeededVal');
+      try {
+        spreadXs({ spread: 'center', count: 3, centerWidth: 0.4 }, () => 60, fakeNoiseMap, 7);
+        const calls = spy.mock.calls.filter((c) => c[1] === 'factory.spacing');
+        expect(calls.length).toBeGreaterThan(0);
+        for (const [, , offset] of calls) {
+          expect(offset).toBeGreaterThanOrEqual(7000);
+          expect(offset).toBeLessThan(8000);
+        }
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('falls back to alea (not a crash) when noiseMap is null', () => {
+      expect(() => spreadXs({ spread: 'center', count: 2, centerWidth: 0.3 }, () => 60, null, 0)).not.toThrow();
     });
   });
 

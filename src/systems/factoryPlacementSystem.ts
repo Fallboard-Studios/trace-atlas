@@ -16,11 +16,16 @@ import { generateUUID } from '../utils/randomId';
 import { shiftHSL, type ColorShift } from '../utils/colorUtils';
 import { computeAccentLean, secondaryFor, ACCENT_HUES, type AccentPair } from '../utils/accentLean';
 import { ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
+import { RECIPES, type DistrictRow } from './districtRecipes';
+import type { DistrictName } from '../types/Actor';
 
 // ========================================
 // CONSTANTS
 // ========================================
-const WORLD_BOUNDS = { width: 1920, height: 1080 };
+// Exported for districts.ts's placeDistrict (roadmap Phase 42 Task 4), which
+// needs the world height for its 'offscreen' anchor. Roadmap Phase 42 Task 6
+// moves this to constants/sceneDepth.ts; this is its current home.
+export const WORLD_BOUNDS = { width: 1920, height: 1080 };
 interface FactoryRowConfig {
   y: number;
   spreadType?: 'edges' | 'full' | 'center'; // How to spread factories across row width (default: full)
@@ -85,9 +90,10 @@ const ACCENT_PAIR_OFFSET = 0.37;
 // ========================================
 
 /** Deterministic factory Actor ID — mirrors generateRobotId/generateCompanyId's shape
- *  (spawnSystem.ts): own dataId, own counter namespace, no crypto.randomUUID(). Private
- *  to this file, like its two siblings. */
-function generateFactoryId(noiseMap: NoiseFunction2D, index: number): string {
+ *  (spawnSystem.ts): own dataId, own counter namespace, no crypto.randomUUID(). Exported
+ *  for districts.ts's placeDistrict (roadmap Phase 42 Task 4), which reuses this exact
+ *  seeding so factory ids stay stable under the recipe-driven placement path. */
+export function generateFactoryId(noiseMap: NoiseFunction2D, index: number): string {
   const idSeed = getSeededVal(noiseMap, 'factory.id', index, 0, 1);
   return `factory-${index}-${idSeed.toString(36).slice(2, 10)}`;
 }
@@ -98,7 +104,7 @@ function generateFactoryId(noiseMap: NoiseFunction2D, index: number): string {
  *  the locale's actor array (the same getSeededVal(noiseMap, dataId, offset,
  *  min, max) pattern every other seeded field in this file already uses).
  *  See docs/specs/ATTENUATION_STYLE.md §1.2. */
-function deriveAsColorShift(noiseMap: NoiseFunction2D, index: number): ColorShift {
+export function deriveAsColorShift(noiseMap: NoiseFunction2D, index: number): ColorShift {
   return {
     hueShift: getSeededVal(noiseMap, 'factory.as.hueShift', index, ...AS_FACTORY_HUE_SHIFT_RANGE),
     satShift: getSeededVal(noiseMap, 'factory.as.satShift', index, ...AS_FACTORY_SAT_SHIFT_RANGE),
@@ -376,4 +382,98 @@ export function getRowConfig(rowIndex: number) {
  */
 export function getAllRowConfigs() {
   return FACTORY_ROWS;
+}
+
+/**
+ * Get one row of a district's recipe (districtRecipes.ts) — the
+ * recipe-driven successor to `getRowConfig`, added alongside it (roadmap
+ * Phase 42 Task 4; Task 5 migrates every reader and deletes `getRowConfig`).
+ * Out-of-range → `null`, same contract as `getRowConfig`.
+ */
+export function getRecipeRow(district: DistrictName, row: number): DistrictRow | null {
+  const recipe = RECIPES[district];
+  if (row < 0 || row >= recipe.length) {
+    return null;
+  }
+  return recipe[row];
+}
+
+/**
+ * The width of the factory variant that `createFactory`/`selectVariantFromSeed`
+ * would pick for this exact (id, x, row, availableTypes) — used by `spreadXs`
+ * callers to advance spacing before the next item's x is chosen. Mirrors
+ * `placeFactories`' own inline `computeFactoryWidth`.
+ */
+export function factoryWidthAt(factoryId: string, x: number, row: number, availableTypes?: FactoryVariant[]): number {
+  const { variant, noiseValue } = selectVariantFromSeed(factoryId, x, row, availableTypes);
+  const range = VARIANT_CONF[variant].sizeRange;
+  return calcSilhouetteSize(noiseValue, range).width;
+}
+
+/**
+ * The edges/full/center spread logic `placeFactories` uses, extracted so
+ * `districts.ts`'s `placeDistrict` (roadmap Phase 42 Task 4) can place a
+ * district recipe's rows the same way without duplicating it. `placeFactories`
+ * keeps its own untouched inline copy until Task 5 deletes it.
+ *
+ * `nextWidth(x)` is called once per position this function picks; it must
+ * place the actor as a side effect (so every spread type still creates an
+ * actor at `x`, even 'full', which doesn't need the returned width) and
+ * return that actor's width so 'edges'/'center' can advance `x` past it.
+ */
+export function spreadXs(
+  row: Pick<DistrictRow, 'spread' | 'count' | 'edgeWidth' | 'centerWidth'>,
+  nextWidth: (x: number) => number,
+  noiseMap: NoiseFunction2D | null,
+  rowIndex: number,
+): void {
+  if (row.spread === 'edges') {
+    const edgeWidth = row.edgeWidth ?? DEFAULT_ROW_EDGE_WIDTH;
+    const leftLimit = WORLD_BOUNDS.width * edgeWidth;
+    const rightMin = WORLD_BOUNDS.width * (1 - edgeWidth);
+    const rightLimit = WORLD_BOUNDS.width + 100;
+
+    let currX = -20;
+    let placedLeft = 0;
+    const half = Math.ceil(row.count / 2);
+    while (currX < leftLimit && placedLeft < half) {
+      const w = nextWidth(currX);
+      placedLeft++;
+      currX += w - 20;
+    }
+
+    currX = rightMin;
+    let placedRight = 0;
+    const halfRight = Math.floor(row.count / 2);
+    while (currX < rightLimit && placedRight < halfRight) {
+      const w = nextWidth(currX);
+      placedRight++;
+      currX += w - 20;
+    }
+  } else if (row.spread === 'full') {
+    let currX = -20;
+    const rightBoundary = WORLD_BOUNDS.width;
+    let placed = 0;
+    while (currX < rightBoundary && placed < row.count) {
+      nextWidth(currX);
+      placed++;
+      currX = (WORLD_BOUNDS.width / row.count) * placed; // ideal even spacing
+    }
+  } else if (row.spread === 'center') {
+    const centerWidth = row.centerWidth ?? DEFAULT_CENTER_WIDTH;
+    let currX = (WORLD_BOUNDS.width * (1 - centerWidth)) / 2 - 20;
+    const rightBoundary = (WORLD_BOUNDS.width * (1 + centerWidth)) / 2 + 20;
+    let placedCenter = 0;
+    while (currX < rightBoundary && placedCenter < row.count) {
+      const w = nextWidth(currX);
+      placedCenter++;
+      // Own dataId/offset namespace (rowIndex*1000 + placedCenter) — same
+      // convention placeFactories' inline center branch uses.
+      const spacingOffset = rowIndex * 1000 + placedCenter;
+      const mult = noiseMap
+        ? getSeededVal(noiseMap, 'factory.spacing', spacingOffset, 0.8, 1.2)
+        : 0.8 + Math.random() * 0.4;
+      currX += (w - 20) * mult;
+    }
+  }
 }

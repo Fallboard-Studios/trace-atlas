@@ -3,8 +3,23 @@
 // ========================================
 import alea from 'alea';
 import type { NoiseFunction2D } from 'simplex-noise';
-import type { DistrictName } from '../types/Actor';
+import type { Actor, DistrictName, SceneryKind } from '../types/Actor';
 import { getSeededVal } from '../utils/getSeededVal';
+import { useLocaleStore } from '../stores/localeStore';
+import { useAttenuationStyleStore } from '../stores/attenuationStyleStore';
+import { getLocaleNoiseMap, getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
+import { getTerrainProfile, ridgeYAt, groundYAt } from './terrainProfile';
+import { RECIPES, DERELICT_RATIO, type DistrictRow } from './districtRecipes';
+import {
+  createFactory,
+  generateFactoryId,
+  deriveAsColorShift,
+  deriveAsAccentPair,
+  pickAccentTarget,
+  factoryWidthAt,
+  spreadXs,
+  WORLD_BOUNDS,
+} from './factoryPlacementSystem';
 
 // ========================================
 // CONSTANTS
@@ -62,4 +77,111 @@ export function pickDistrict(noiseMap: NoiseFunction2D): DistrictName {
   const flattened = alea(samples.join(':'))();
   const index = Math.min(DISTRICT_NAMES.length - 1, Math.floor(flattened * DISTRICT_NAMES.length));
   return DISTRICT_NAMES[index];
+}
+
+/**
+ * Scenery families currently lit up for placement (docs/specs/WORLD_VIEW_DISTRICTS.md
+ * §1.2). Empty in D1 — the recipe tables ship complete with every row, including
+ * families that don't exist yet, but `placeDistrict` skips any row whose `kind`
+ * isn't `'factory'` and isn't in this set. Roadmap Phase 42 Task 11 (D2) redefines
+ * this to `new Set(Object.keys(SCENERY_RENDERERS))` as families land.
+ */
+export const SHIPPED_SCENERY: Set<SceneryKind> = new Set();
+
+/** Families that can roll `config.derelict` at placement — docs/specs/WORLD_VIEW_DISTRICTS.md
+ *  §1.6. Wrecks are always derelict and carry no flag, so they're deliberately absent here. */
+const DERELICT_CAPABLE_KINDS = new Set<DistrictRow['kind']>(['factory', 'tank', 'dome', 'scaffold']);
+
+/** This row's base y for an item at `x`, resolved from its anchor (§1.4). `floorY` is
+ *  guaranteed present when `anchor === 'floor'` by Task 2's own `districtRecipes.test.ts`. */
+function resolveBaseY(row: DistrictRow, profile: ReturnType<typeof getTerrainProfile>, x: number): number {
+  switch (row.anchor) {
+    case 'ridge':
+      return ridgeYAt(profile.ridge, x);
+    case 'ground':
+      return groundYAt(profile.ground, x);
+    case 'floor':
+      return row.floorY!;
+    case 'offscreen':
+      return WORLD_BOUNDS.height + 100;
+  }
+}
+
+/**
+ * Picks a locale's district, builds its terrain profile, and places every
+ * row of its recipe (docs/specs/WORLD_VIEW_DISTRICTS.md §1.1-1.2, §1.4, §1.6)
+ * — the recipe-driven successor to `placeFactories` (roadmap Phase 42
+ * Task 4). `placeFactories` remains untouched; Task 5 migrates the readers
+ * and deletes it.
+ *
+ * Rows whose `kind` is not `'factory'` and not in `SHIPPED_SCENERY` place
+ * nothing (D1 ships every table but no scenery renderer yet). Factory rows
+ * call the existing `createFactory`, seeded exactly as `placeFactories` does
+ * (same `factory.id`/`factory.scale`/AS-shift/accent-lean draws) so ids and
+ * colors stay stable whichever placement path a factory came from.
+ */
+export function placeDistrict(localeId: string): Actor[] {
+  const actors: Actor[] = [];
+  const locale = useLocaleStore.getState().getLocaleById(localeId);
+  if (!locale) {
+    useLocaleStore.getState().setLocaleData(localeId, { actors });
+    return actors;
+  }
+
+  const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+  const district = pickDistrict(noiseMap);
+  const profile = getTerrainProfile(localeId, noiseMap);
+  const recipe = RECIPES[district];
+
+  const attenuationStyle = useAttenuationStyleStore.getState().attenuationStyles.find((p) => p.id === locale.attenuationStyleId);
+  const asNoiseMap = attenuationStyle ? getAttenuationStyleNoiseMap(attenuationStyle.id, attenuationStyle.name) : null;
+  const accentPair = asNoiseMap ? deriveAsAccentPair(asNoiseMap) : null;
+
+  // Two independent counters, mirroring placeFactories' factoryIndex: one for
+  // factory id/scale/AS seeding, one for the per-actor 'actor.derelict' draw
+  // (§1.6 — "offset = actorIndex"), so neither shifts if the other's draw count
+  // ever changes.
+  let factoryIndex = 0;
+  let actorIndex = 0;
+
+  recipe.forEach((row, rowIndex) => {
+    if (row.kind !== 'factory' && !SHIPPED_SCENERY.has(row.kind as SceneryKind)) return;
+
+    const nextWidth = (x: number): number => {
+      const index = factoryIndex++;
+      const id = generateFactoryId(noiseMap, index);
+      const scale = getSeededVal(noiseMap, 'factory.scale', index, 0.9, 1.1);
+      const asShift = asNoiseMap ? deriveAsColorShift(asNoiseMap, index) : { hueShift: 0, satShift: 0 };
+      const accentTarget = asNoiseMap && accentPair ? pickAccentTarget(asNoiseMap, accentPair, index) : undefined;
+
+      const px = Math.round(x);
+      const y = Math.round(resolveBaseY(row, profile, px));
+      const actor = createFactory({ x: px, y }, rowIndex, scale, id, asShift, accentTarget);
+
+      const actorIdx = actorIndex++;
+      const ratio = row.derelict ?? DERELICT_RATIO;
+      // Re-hashed through alea() before the threshold compare — same fix as
+      // pickDistrict's bucket split (see its doc comment). Raw simplex output
+      // is bell-curved, not uniform, so `rawRoll < ratio` alone under-fires
+      // for any ratio off-center from 0.5 (measured: a nominal 0.25 ratio
+      // fired ~0.15 of the time with the raw value, ~0.25 once re-hashed).
+      const rawRoll = getSeededVal(noiseMap, 'actor.derelict', actorIdx, 0, 1);
+      const roll = alea(String(rawRoll))();
+      const isDerelict = DERELICT_CAPABLE_KINDS.has(row.kind) && roll < ratio;
+
+      actor.config = {
+        ...actor.config,
+        district,
+        ...(isDerelict ? { derelict: true as const } : {}),
+      };
+      actors.push(actor);
+
+      return factoryWidthAt(id, x, rowIndex, row.variants);
+    };
+
+    spreadXs(row, nextWidth, noiseMap, rowIndex);
+  });
+
+  useLocaleStore.getState().setLocaleData(localeId, { actors });
+  return actors;
 }
