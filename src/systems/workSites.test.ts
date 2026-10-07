@@ -11,7 +11,7 @@ import { getRecipeRow } from './factoryPlacementSystem';
 import { SIM_SEED_COORDS } from './lifecycleSim';
 import { factoryGeometry } from '../components/actors/factoryGeometry';
 import { getActorBubbleProps } from '../components/actors/factoryBubbleProps';
-import { sceneryWorkAnchors, ANCHORED_KINDS } from '../components/actors/scenery/sceneryWorkAnchors';
+import { sceneryWorkAnchors } from '../components/actors/scenery/sceneryWorkAnchors';
 import { useLocaleStore } from '../stores/localeStore';
 import { ActorType, type Actor } from '../types/Actor';
 import { PARK_CLEARANCE, WORLD_MARGIN, WORLD_WIDTH, WORLD_HEIGHT } from '../constants';
@@ -281,12 +281,13 @@ describe('workSites — factories (Phase 43 Task 9, spec §1.5)', () => {
 });
 
 describe('workSites — scenery group A (Phase 43 Task 10)', () => {
+  const GROUP_A = ['tank', 'dome', 'scaffold', 'containers', 'wreck', 'vent'] as const;
   const sceneryHosts = GRID_ACTORS.filter((a) => a.type === ActorType.SCENERY && hostJobs(a).length > 0);
-  const anchoredHosts = sceneryHosts.filter((a) => ANCHORED_KINDS.has(a.config!.kind!));
+  const anchoredHosts = sceneryHosts.filter((a) => (GROUP_A as readonly string[]).includes(a.config!.kind!));
   const depthOf = (a: Actor) => getRecipeRow(a.config!.district!, a.config!.row!)!.depth;
 
   it('the grid places hosts of every group-A kind', () => {
-    for (const kind of ANCHORED_KINDS) {
+    for (const kind of GROUP_A) {
       expect(anchoredHosts.some((a) => a.config!.kind === kind), kind).toBe(true);
     }
   });
@@ -335,9 +336,42 @@ describe('workSites — scenery group A (Phase 43 Task 10)', () => {
     }
   });
 
-  it('a scenery host without anchors yet (group B, Task 11) still has no site', () => {
-    const groupB = sceneryHosts.filter((a) => !ANCHORED_KINDS.has(a.config!.kind!));
-    expect(groupB.length).toBeGreaterThan(0);
-    for (const a of groupB) expect(getWorkSite(a), a.id).toBeNull();
+});
+
+describe('workSites — scenery group B and exhaustiveness (Phase 43 Task 11)', () => {
+  const GROUP_B = ['crane', 'pylon', 'beacon', 'pipeline', 'turbine', 'floodlight', 'dish'] as const;
+  const sceneryHosts = GRID_ACTORS.filter((a) => a.type === ActorType.SCENERY && hostJobs(a).length > 0);
+  const groupBHosts = sceneryHosts.filter((a) => (GROUP_B as readonly string[]).includes(a.config!.kind!));
+
+  it('the grid places hosts of every group-B kind', () => {
+    for (const kind of GROUP_B) expect(groupBHosts.some((a) => a.config!.kind === kind), kind).toBe(true);
+  });
+
+  it('every host in the grid — factory or scenery, any depth — has a site', () => {
+    const hosts = GRID_ACTORS.filter((a) => hostJobs(a).length > 0);
+    expect(hosts.length).toBeGreaterThan(GRID_HOSTS.length);
+    for (const a of hosts) expect(getWorkSite(a), `${a.id} ${a.config?.kind ?? 'factory'}`).not.toBeNull();
+  });
+
+  it('every non-host still has no site', () => {
+    const nonHosts = GRID_ACTORS.filter((a) => hostJobs(a).length === 0);
+    expect(nonHosts.length).toBeGreaterThan(0);
+    for (const a of nonHosts) expect(getWorkSite(a), a.id).toBeNull();
+  });
+
+  it('every group-B site carries its depth\'s anchors and parks per the rule', () => {
+    for (const a of groupBHosts) {
+      const site = siteOf(a);
+      const anchors = sceneryWorkAnchors(a, { foreground: site.depth === 'foreground', rand: Alea(`${a.id}:work`) })!;
+      expect(site.points, a.id).toEqual(anchors.points);
+      expect(site.path, a.id).toEqual(anchors.path);
+      expect(site.park.y, a.id).toBe(clampY(site.bounds.y0 - PARK_CLEARANCE));
+    }
+  });
+
+  it('every eligible group-B site parks above its top', () => {
+    const eligible = groupBHosts.filter((a) => isWorkSiteEligible(a, { backHosts: false }));
+    expect(eligible.length).toBeGreaterThan(20);
+    for (const a of eligible) expect(siteOf(a).park.y, a.id).toBeLessThan(siteOf(a).bounds.y0);
   });
 });

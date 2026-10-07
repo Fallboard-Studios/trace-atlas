@@ -2,6 +2,7 @@ import colorTheme from '../../../../constants/colorTheme.json';
 import { applyColorShift } from '../../../../utils/colorUtils';
 import { GemShape, accentBase } from '../gemShape';
 import { NO_SHIFT } from '../sceneryColor';
+import type { BeaconParams } from '../sceneryParams';
 import type { SceneryRenderer } from '../sceneryTypes';
 
 // ========================================
@@ -9,11 +10,16 @@ import type { SceneryRenderer } from '../sceneryTypes';
 // ========================================
 
 const MAST_WIDTH = 10;
-const FOOT_HEIGHT = 12;
+export const BEACON_FOOT_HEIGHT = 12;
 /** The gem's height is 0.66× its width (§1.9); its centre sits this fraction of its own width
  *  above the mast top, so its bottom edge meets the mast. */
 const GEM_H_FRAC = 0.66;
 const GEM_CENTER_OFFSET_FRAC = 0.33;
+
+/** The head gem's centre and size — shared with the work anchors. */
+export function beaconGem(x: number, y: number, { mastH, gemW }: BeaconParams) {
+  return { cx: x, cy: y - mastH - gemW * GEM_CENTER_OFFSET_FRAC, w: gemW, h: gemW * GEM_H_FRAC };
+}
 
 /**
  * Beacon (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9): a mast and foot topped by a gem — the
@@ -24,7 +30,8 @@ export const beacon: SceneryRenderer = ({ actor, params, cap, eastL, westL, nigh
   const { x, y } = actor.position;
   const p = params.beacon;
   if (!p) return <g data-scenery="beacon" />;
-  const { w, mastH, gemW } = p;
+  const { w, mastH } = p;
+  const gem = beaconGem(x, y, p);
 
   const m = (eastL + westL) / 2;
   const steel = applyColorShift(colorTheme.body.shadow, NO_SHIFT, m * cap * 1.15);
@@ -32,12 +39,12 @@ export const beacon: SceneryRenderer = ({ actor, params, cap, eastL, westL, nigh
   return (
     <g data-scenery="beacon">
       <rect x={x - MAST_WIDTH / 2} y={y - mastH} width={MAST_WIDTH} height={mastH} fill={steel} />
-      <rect x={x - w / 2} y={y - FOOT_HEIGHT} width={w} height={FOOT_HEIGHT} fill={steel} />
+      <rect x={x - w / 2} y={y - BEACON_FOOT_HEIGHT} width={w} height={BEACON_FOOT_HEIGHT} fill={steel} />
       <GemShape
-        cx={x}
-        cy={y - mastH - gemW * GEM_CENTER_OFFSET_FRAC}
-        w={gemW}
-        h={gemW * GEM_H_FRAC}
+        cx={gem.cx}
+        cy={gem.cy}
+        w={gem.w}
+        h={gem.h}
         base={accentBase(accent.primary)}
         lit
         eastL={eastL}

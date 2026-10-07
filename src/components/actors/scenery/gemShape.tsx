@@ -38,6 +38,11 @@ export function accentBase(hue: number): HSL {
   return { h: hue, s: 55, l: 42 };
 }
 
+/** The octagon's corner cut, shared with the work anchors. */
+export function gemChamfer(w: number, h: number): number {
+  return Math.min(w, h) * GEM_CHAMFER_FRAC;
+}
+
 export interface GemShapeProps {
   cx: number;
   cy: number;
@@ -63,7 +68,7 @@ export interface GemShapeProps {
  * free-angle bevel lines.
  */
 export function GemShape({ cx, cy, w, h, base, lit, eastL, westL, nightDepth, cap = 1 }: GemShapeProps) {
-  const c = Math.min(w, h) * GEM_CHAMFER_FRAC;
+  const c = gemChamfer(w, h);
   const x0 = cx - w / 2;
   const y0 = cy - h / 2;
   const glow = lit ? lerp(0.9, 1.6, nightDepth) : ((eastL + westL) / 2) * cap;

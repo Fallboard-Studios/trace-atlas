@@ -1,6 +1,7 @@
 import colorTheme from '../../../../constants/colorTheme.json';
 import { applyColorShift, hslToString } from '../../../../utils/colorUtils';
 import { NO_SHIFT, lamp } from '../sceneryColor';
+import type { FloodlightParams } from '../sceneryParams';
 import type { SceneryRenderer } from '../sceneryTypes';
 
 // ========================================
@@ -20,6 +21,18 @@ const BEAM_OPACITY_RANGE = 0.12;
 /** "ground pool ellipse opacity `0.03 + 0.10 nd`". */
 const POOL_OPACITY_BASE = 0.03;
 const POOL_OPACITY_RANGE = 0.1;
+
+/** The mast top, head box and lit bar, in scene units — shared with the work anchors. */
+export function floodlightLayout(x: number, y: number, { mastH, headOffset }: FloodlightParams) {
+  const mastTop = y - mastH;
+  const headX = x + headOffset;
+  const headTop = mastTop - HEAD_H;
+  return {
+    mast: { x0: x - MAST_W / 2, x1: x + MAST_W / 2, y: mastTop },
+    head: { x0: headX - HEAD_W / 2, x1: headX + HEAD_W / 2, y: headTop, bottom: mastTop },
+    litBar: { cx: headX, cy: headTop + HEAD_H / 2 },
+  };
+}
 
 /**
  * Floodlight (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9): a mast, an offset head with a lit bar,
@@ -41,10 +54,11 @@ export const floodlight: SceneryRenderer = ({ actor, params, cap, eastL, westL, 
   const litBarFill = lamp(colorTheme.glass.base, nightDepth);
   const beamFill = hslToString(colorTheme.glass.base);
 
-  const mastTop = y - mastH;
+  const { mast, head } = floodlightLayout(x, y, p);
+  const mastTop = mast.y;
   const headX = x + headOffset;
-  const headBottom = mastTop;
-  const headTop = headBottom - HEAD_H;
+  const headBottom = head.bottom;
+  const headTop = head.y;
 
   const beamOpacity = BEAM_OPACITY_BASE + BEAM_OPACITY_RANGE * nightDepth;
   const poolOpacity = POOL_OPACITY_BASE + POOL_OPACITY_RANGE * nightDepth;

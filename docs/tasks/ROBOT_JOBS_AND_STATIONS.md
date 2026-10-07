@@ -393,14 +393,46 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   **Dependencies:** T9. **Files:** `src/components/actors/scenery/sceneryWorkAnchors.ts` (+ test),
   `src/systems/workSites.ts`. **Scope:** M.
 
-- [ ] **Task 11: Work sites — scenery group B (crane, pylon, beacon, pipeline, turbine, floodlight, dish)**
+- [x] **Task 11: Work sites — scenery group B (crane, pylon, beacon, pipeline, turbine, floodlight, dish)**
 
   **Description:** The structural kinds: crane beam ends + hanger, pylon head + cross-arms, beacon
   gem, pipeline run as `path` + valve + riser top, turbine hub, floodlight head, dish centre + feed.
 
   **Acceptance criteria:**
-  - [ ] Same invariants as T10; the exhaustiveness test now passes for every host kind
-        (`getWorkSite` non-null for every host in `jobHosts`).
+  - [x] Same invariants as T10; the exhaustiveness test now passes for every host kind
+        (`getWorkSite` non-null for every host in `jobHosts`). — every host the placer puts down
+        over the 121-seed grid, factory or scenery, at every depth; every non-host stays null.
+        `ANCHORED_KINDS` now equals the 13 non-empty `SCENERY_HOST_JOBS` rows (pinned).
+
+  **As shipped:** (1) **Shared layouts again.** Each group-B renderer's geometry moved into an
+  exported helper the renderer and the anchors both call: `craneLayout`, `pylonArms` /
+  `pylonTowerTop` / `pylonHeadCentre`, `beaconGem` (+ `gemChamfer` in `gemShape.tsx`),
+  `pipelineLayout`, `turbineLayout`, `floodlightLayout`, `dishLayout`. All renderer tests pass
+  unmodified. (2) **Rotated kinds.** Turbine blades and the dish sit in `rotate(…)` groups, so
+  their anchors apply the same rotation. The turbine's outline is the rotor bar's upper edge
+  (leftmost → topmost → rightmost corner). The dish's is the tilted reflector's upper rim, with
+  the left/top/right extremes exact. The test's shape-extent helper now follows a group's
+  `rotate` and measures ellipses exactly; the vent plumes and the floodlight's beam and pool are
+  skipped as translucent decoration. (3) Per kind:
+  - Crane: the beam's top. Foreground `[left end, hanger head, right end]`; midground
+    `[left end, load centre, beam-end light]`.
+  - Pylon: the tower's narrow top. Foreground `[head, top corners]`; midground `[head, both ends
+    of one seeded cross-arm]`. The head follows `SCENERY_GEM_ACCENTS`.
+  - Beacon: the gem's top edge. Bounds include the gem, which can be wider than the foot
+    (64 vs 60). Midground `[gem centre, gem top, a seeded foot point]`.
+  - Pipeline: one set at every depth: `[valve, riser top, a seeded run point]`. `path` is the pipe
+    run from the flange's inner edge to the far end, so it never passes under the riser.
+  - Turbine: foreground on the rotor's upper edge; midground `[hub, both blade tips]`.
+  - Floodlight: the head's top; midground `[lit bar, a head-top point]`.
+  - Dish: foreground on the rim; midground `[centre light, feed tip, a rim point]`. The feed may
+    rise past the rim like a mast; the box's top is the reflector's.
+  (4) **Found, not fixed (renderer, out of scope):** the crane's knee brace is a zero-area
+  polygon. All four of its vertices lie on one 45° diagonal, so it draws nothing, and the line it
+  traces runs *up* from the beam's underside to 24 above the beam's top. The anchors ignore it.
+  (5) Mutation checks: dropping the crane light from the bounds, an unrotated turbine, a pipe run
+  under the flange, always the first pylon arm, beacon bounds from the foot only, and an untilted
+  dish rim each fail tests. (6) The T10 titles' mojibake (`â€”` etc.) in
+  `sceneryWorkAnchors.test.tsx` was fixed in passing.
 
   **Verification:** as T10. **Dependencies:** T10. **Files:** as T10. **Scope:** M.
 

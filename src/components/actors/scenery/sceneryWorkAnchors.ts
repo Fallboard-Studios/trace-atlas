@@ -13,6 +13,13 @@ import {
   type ContainersParams,
   type WreckParams,
   type VentParams,
+  type CraneParams,
+  type PylonParams,
+  type BeaconParams,
+  type PipelineParams,
+  type TurbineParams,
+  type FloodlightParams,
+  type DishParams,
 } from './sceneryParams';
 import { TANK_SHOULDER_FRACTION, TANK_GAUGE_Y_FRAC } from './renderers/tank';
 import { DOME_MAST_H, DOME_HATCH_H, domePortholeCentres } from './renderers/dome';
@@ -20,6 +27,15 @@ import { SCAFFOLD_LEVEL_OVERHANG, scaffoldBraces } from './renderers/scaffold';
 import { containerRows } from './renderers/containers';
 import { wreckLayout } from './renderers/wreck';
 import { VENT_PLUME_INNER_OFFSET } from './renderers/vent';
+import { CRANE_BEAM_END_LIGHT_R, craneLayout } from './renderers/crane';
+import { pylonArms, pylonTowerTop, pylonHeadCentre } from './renderers/pylon';
+import { BEACON_FOOT_HEIGHT, beaconGem } from './renderers/beacon';
+import { pipelineLayout } from './renderers/pipeline';
+import { TURBINE_ROTOR_DEG, turbineLayout } from './renderers/turbine';
+import { floodlightLayout } from './renderers/floodlight';
+import { dishLayout } from './renderers/dish';
+import { gemChamfer } from './gemShape';
+import { SCENERY_GEM_ACCENTS } from './Scenery';
 
 // ========================================
 // TYPES
@@ -61,7 +77,10 @@ export const ANCHOR_RISE_MAX = 40;
 /** The dome arc's outline is sampled in this many straight segments. */
 const DOME_ARC_SEGMENTS = 12;
 
-/** The scenery kinds with anchors so far (group A, Phase 43 Task 10). */
+/**
+ * The scenery kinds with anchors — every host kind (group A, Phase 43 Task 10; group B, Task 11).
+ * Wall, boulder and tether host nothing, so have none.
+ */
 export const ANCHORED_KINDS: ReadonlySet<SceneryKind> = new Set<SceneryKind>([
   'tank',
   'dome',
@@ -69,6 +88,13 @@ export const ANCHORED_KINDS: ReadonlySet<SceneryKind> = new Set<SceneryKind>([
   'containers',
   'wreck',
   'vent',
+  'crane',
+  'pylon',
+  'beacon',
+  'pipeline',
+  'turbine',
+  'floodlight',
+  'dish',
 ]);
 
 // ========================================
@@ -99,6 +125,44 @@ export function outlineYAt(outline: Vec2[], x: number): number | null {
 function outlinePointAt(outline: Vec2[], t: number): Vec2 {
   const x = outline[0].x + t * (outline[outline.length - 1].x - outline[0].x);
   return { x, y: outlineYAt(outline, x)! };
+}
+
+/** SVG's `rotate(deg cx cy)`: p turned `deg` (clockwise on screen) about `centre`. */
+function rotateAbout(p: Vec2, centre: Vec2, deg: number): Vec2 {
+  const c = Math.cos((deg * Math.PI) / 180);
+  const s = Math.sin((deg * Math.PI) / 180);
+  const dx = p.x - centre.x;
+  const dy = p.y - centre.y;
+  return { x: centre.x + dx * c - dy * s, y: centre.y + dx * s + dy * c };
+}
+
+/** The point at fraction t along the segment a → b. */
+const along = (a: Vec2, b: Vec2, t: number): Vec2 => ({ x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) });
+
+/** Python-style modulo into [0, 2π). */
+const wrap = (t: number) => ((t % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+
+/**
+ * The upper half of an ellipse (centre c, radii rx/ry) turned `deg` about its centre: leftmost
+ * point → topmost → rightmost, the three extremes exact, `perHalf` segments either side of the top.
+ */
+function rotatedEllipseTop(c: Vec2, rx: number, ry: number, deg: number, perHalf: number): Vec2[] {
+  const phi = (deg * Math.PI) / 180;
+  const at = (t: number) => rotateAbout({ x: c.x + rx * Math.cos(t), y: c.y + ry * Math.sin(t) }, c, deg);
+  // dx/dt = 0 and dy/dt = 0 of the rotated rim, each at t and t + π.
+  const tx = Math.atan2(-ry * Math.sin(phi), rx * Math.cos(phi));
+  const ty = Math.atan2(ry * Math.cos(phi), rx * Math.sin(phi));
+  const tLeft = at(tx).x < at(tx + Math.PI).x ? tx : tx + Math.PI;
+  const tTop = at(ty).y < at(ty + Math.PI).y ? ty : ty + Math.PI;
+  const tRight = tLeft + Math.PI;
+  // Walk left → top → right the way round that passes the top (left and right are π apart).
+  const dir = wrap(tTop - tLeft) < Math.PI ? 1 : -1;
+  const d1 = dir * wrap(dir * (tTop - tLeft));
+  const d2 = dir * wrap(dir * (tRight - tTop));
+  const pts: Vec2[] = [];
+  for (let k = 0; k <= perHalf; k++) pts.push(at(tLeft + (d1 * k) / perHalf));
+  for (let k = 1; k <= perHalf; k++) pts.push(at(tTop + (d2 * k) / perHalf));
+  return pts;
 }
 
 /** The top edge of a stack of flat-topped spans (each `x0 … x1` at height `y`), left to right. */
@@ -271,6 +335,160 @@ function ventAnchors(actor: Actor, p: VentParams): SceneryAnchors {
   };
 }
 
+/**
+ * Crane: the beam's top from end to end; foreground works the hanger's head on the beam,
+ * midground the load and the beam-end light. (The knee brace draws as a zero-area polygon on one
+ * diagonal, so it adds nothing to the silhouette.)
+ */
+function craneAnchors(actor: Actor, p: CraneParams, { foreground }: AnchorOptions): SceneryAnchors {
+  const { y } = actor.position;
+  const l = craneLayout(actor.position.x, y, p);
+  const left = { x: l.beamLeft, y: l.beamTop };
+  const right = { x: l.beamRight, y: l.beamTop };
+  const outline = [left, right];
+  return {
+    bounds: { x0: l.beamLeft, y0: l.beamTop, x1: l.beamRight + CRANE_BEAM_END_LIGHT_R, y1: y },
+    outline,
+    points: foreground
+      ? [left, { x: l.hangerX, y: l.beamTop }, right]
+      : [left, { x: l.load.x + l.load.w / 2, y: l.load.y + l.load.h / 2 }, { x: l.beamRight, y: (l.beamTop + l.beamBottom) / 2 }],
+    path: outline,
+  };
+}
+
+/** Pylon: the head over the tower's narrow top; midground works both ends of one seeded cross-arm. */
+function pylonAnchors(actor: Actor, p: PylonParams, { foreground, rand }: AnchorOptions): SceneryAnchors {
+  const { x, y } = actor.position;
+  const outline = pylonTowerTop(x, y, p.w, p.h);
+  const arms = pylonArms(x, y, p.w, p.h);
+  const head = pylonHeadCentre(x, y, p.h, SCENERY_GEM_ACCENTS);
+  const arm = arms[Math.floor(rand() * arms.length)];
+  return {
+    bounds: {
+      x0: Math.min(x - p.w / 2, ...arms.map((a) => a.x0)),
+      y0: y - p.h,
+      x1: Math.max(x + p.w / 2, ...arms.map((a) => a.x1)),
+      y1: y,
+    },
+    outline,
+    points: foreground ? [head, outline[1], outline[2]] : [head, { x: arm.x0, y: arm.y }, { x: arm.x1, y: arm.y }],
+    path: outline,
+  };
+}
+
+/** Beacon: the gem's top edge; midground adds the gem's face and a point on the foot. */
+function beaconAnchors(actor: Actor, p: BeaconParams, { foreground, rand }: AnchorOptions): SceneryAnchors {
+  const { x, y } = actor.position;
+  const gem = beaconGem(x, y, p);
+  const c = gemChamfer(gem.w, gem.h);
+  const gx0 = gem.cx - gem.w / 2;
+  const gy0 = gem.cy - gem.h / 2;
+  const outline = [
+    { x: gx0, y: gy0 + c },
+    { x: gx0 + c, y: gy0 },
+    { x: gx0 + gem.w - c, y: gy0 },
+    { x: gx0 + gem.w, y: gy0 + c },
+  ];
+  const topPoint = along(outline[1], outline[2], between(rand, 0.2, 0.8));
+  const side = rand() < 0.5 ? -1 : 1;
+  const foot = { x: x + side * between(rand, 0.3, 0.9) * (p.w / 2), y: y - BEACON_FOOT_HEIGHT };
+  const half = Math.max(p.w, gem.w) / 2;
+  return {
+    bounds: { x0: x - half, y0: gy0, x1: x + half, y1: y },
+    outline,
+    points: foreground ? [outline[1], topPoint, outline[2]] : [{ x: gem.cx, y: gem.cy }, topPoint, foot],
+    path: outline,
+  };
+}
+
+/** Pipeline: the valve, the riser's top, and the pipe run beside the riser (the path). */
+function pipelineAnchors(actor: Actor, p: PipelineParams, { rand }: AnchorOptions): SceneryAnchors {
+  const { x, y } = actor.position;
+  const l = pipelineLayout(x, y, p);
+  const pipe = { x0: x - p.w / 2, x1: x + p.w / 2 };
+  const flange = { x0: l.flange.x, x1: l.flange.x + l.flange.w };
+  const outline = spansTopOutline([
+    { ...pipe, y: l.pipeTop },
+    { x0: l.riserX, x1: l.riserX + p.d, y: l.riserTop },
+    { ...flange, y: l.flange.y },
+  ]);
+  // The run: from the flange's inner edge to the pipe's far end, never under the riser.
+  const run = p.riserRight ? { a: pipe.x0, b: flange.x0 } : { a: flange.x1, b: pipe.x1 };
+  const path = [{ x: run.a, y: l.pipeTop }, { x: run.b, y: l.pipeTop }];
+  // Every point is on or above the outline, so one set serves every depth.
+  return {
+    bounds: { x0: Math.min(pipe.x0, flange.x0), y0: l.flange.y, x1: Math.max(pipe.x1, flange.x1), y1: y },
+    outline,
+    points: [
+      { x: l.valve.cx, y: l.valve.cy },
+      { x: l.valve.cx, y: l.flange.y },
+      along(path[0], path[1], between(rand, 0.2, 0.8)),
+    ],
+    path,
+  };
+}
+
+/** Turbine: the rotor's upper edge; midground works the hub and both blade tips. */
+function turbineAnchors(actor: Actor, p: TurbineParams, { foreground, rand }: AnchorOptions): SceneryAnchors {
+  const { x, y } = actor.position;
+  const l = turbineLayout(x, y, p);
+  const turn = (q: Vec2) => rotateAbout(q, l.hub, TURBINE_ROTOR_DEG);
+  const corners = [-1, 1].flatMap((sx) => [-1, 1].map((sy) => turn({ x: l.hub.x + sx * l.bladeHalfW, y: l.hub.y + sy * l.bladeR })));
+  const leftmost = corners.reduce((a, b) => (b.x < a.x ? b : a));
+  const rightmost = corners.reduce((a, b) => (b.x > a.x ? b : a));
+  const topmost = corners.reduce((a, b) => (b.y < a.y ? b : a));
+  const outline = [leftmost, topmost, rightmost];
+  return {
+    bounds: {
+      x0: Math.min(leftmost.x, l.nacelle.x0, l.hub.x - l.hubR),
+      y0: topmost.y,
+      x1: Math.max(rightmost.x, l.nacelle.x1, l.hub.x + l.hubR),
+      y1: y,
+    },
+    outline,
+    points: foreground
+      ? [along(leftmost, topmost, between(rand, 0.3, 0.8)), topmost, rightmost]
+      : [l.hub, turn({ x: l.hub.x, y: l.hub.y - l.bladeR }), turn({ x: l.hub.x, y: l.hub.y + l.bladeR })],
+    path: outline,
+  };
+}
+
+/** Floodlight: the head's top; midground adds the lit bar on its face. */
+function floodlightAnchors(actor: Actor, p: FloodlightParams, { foreground, rand }: AnchorOptions): SceneryAnchors {
+  const { y } = actor.position;
+  const { mast, head, litBar } = floodlightLayout(actor.position.x, y, p);
+  const outline = spansTopOutline([{ x0: head.x0, x1: head.x1, y: head.y }, mast]);
+  const headTop = (t: number) => ({ x: head.x0 + t * (head.x1 - head.x0), y: head.y });
+  return {
+    bounds: { x0: Math.min(head.x0, mast.x0), y0: head.y, x1: Math.max(head.x1, mast.x1), y1: y },
+    outline,
+    points: foreground
+      ? [headTop(between(rand, 0.1, 0.4)), headTop(between(rand, 0.6, 0.9))]
+      : [{ x: litBar.cx, y: litBar.cy }, headTop(between(rand, 0.1, 0.9))],
+    path: [headTop(0), headTop(1)],
+  };
+}
+
+/** Dish: the tilted reflector's upper rim; midground works its centre and the feed's tip. */
+function dishAnchors(actor: Actor, p: DishParams, { foreground, rand }: AnchorOptions): SceneryAnchors {
+  const { x, y } = actor.position;
+  const l = dishLayout(x, y, p);
+  const outline = rotatedEllipseTop(l.centre, l.rx, l.ry, l.deg, DOME_ARC_SEGMENTS / 2);
+  const turn = (q: Vec2) => rotateAbout(q, l.centre, l.deg);
+  const feed = [-1, 1].flatMap((sx) => [l.feed.y0, l.feed.y1].map((fy) => turn({ x: x + sx * l.feed.halfW, y: fy })));
+  const top = outline.reduce((a, b) => (b.y < a.y ? b : a));
+  const xs = [...outline, ...feed].map((q) => q.x);
+  return {
+    // The feed may rise past the rim like a mast; the box's top is the reflector's.
+    bounds: { x0: Math.min(...xs, x - l.postHalfW), y0: top.y, x1: Math.max(...xs, x + l.postHalfW), y1: y },
+    outline,
+    points: foreground
+      ? [outlinePointAt(outline, between(rand, 0.1, 0.35)), top, outlinePointAt(outline, between(rand, 0.65, 0.9))]
+      : [l.centre, turn({ x, y: l.feed.y0 }), outlinePointAt(outline, between(rand, 0.2, 0.8))],
+    path: outline,
+  };
+}
+
 // ========================================
 // API
 // ========================================
@@ -297,6 +515,20 @@ export function sceneryWorkAnchors(
       return params.wreck ? wreckAnchors(actor, params.wreck, opts) : null;
     case 'vent':
       return params.vent ? ventAnchors(actor, params.vent) : null;
+    case 'crane':
+      return params.crane ? craneAnchors(actor, params.crane, opts) : null;
+    case 'pylon':
+      return params.pylon ? pylonAnchors(actor, params.pylon, opts) : null;
+    case 'beacon':
+      return params.beacon ? beaconAnchors(actor, params.beacon, opts) : null;
+    case 'pipeline':
+      return params.pipeline ? pipelineAnchors(actor, params.pipeline, opts) : null;
+    case 'turbine':
+      return params.turbine ? turbineAnchors(actor, params.turbine, opts) : null;
+    case 'floodlight':
+      return params.floodlight ? floodlightAnchors(actor, params.floodlight, opts) : null;
+    case 'dish':
+      return params.dish ? dishAnchors(actor, params.dish, opts) : null;
     default:
       return null;
   }
