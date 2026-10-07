@@ -10,7 +10,16 @@ import type { ReactElement } from 'react';
 // backlog.md #27 follow-up, 2026-09-15), the same "unmemoized mock as a render-count marker"
 // technique RobotOptionsTab.test.tsx/CompanyOptionsSection.test.tsx already use.
 vi.mock('@/components/robot/Robot', () => ({ Robot: vi.fn(() => null) }));
-vi.mock('@/components/actors/Factory', () => ({ Factory: () => null, default: () => null }));
+// Render an identifying marker (actor id + row) rather than null, so the scenery-interleave
+// tests below can assert document order without needing the real Factory/Scenery visuals.
+vi.mock('@/components/actors/Factory', () => ({
+  Factory: (props: { actor: Actor }) => <g data-factory-mock={props.actor.id} data-row={props.actor.config?.row} />,
+  default: (props: { actor: Actor }) => <g data-factory-mock={props.actor.id} data-row={props.actor.config?.row} />,
+}));
+vi.mock('@/components/actors/scenery/Scenery', () => ({
+  Scenery: (props: { actor: Actor }) => <g data-scenery-mock={props.actor.id} data-row={props.actor.config?.row} />,
+  default: (props: { actor: Actor }) => <g data-scenery-mock={props.actor.id} data-row={props.actor.config?.row} />,
+}));
 // Records what the scene hands its bubble layer (which factories, what total) without running
 // BubbleStream's GSAP timelines.
 const bubbleLayerMock = vi.fn((_props: { factories: { id: string }[]; totalBuildings: number }): ReactElement | null => null);
@@ -325,6 +334,42 @@ describe('OceanScene', () => {
       // still exists, so `npm run build:types` catches a regression even though vitest itself
       // doesn't type-check.
       render(<OceanScene backgroundColor="#000000" />);
+    });
+  });
+
+  // Scenery actors (docs/specs/WORLD_VIEW_DISTRICTS.md §1.8, roadmap Phase 42 Task 11): rendered
+  // in the same depth group as factories, interleaved in the recipe's own row order.
+  describe('scenery interleave (roadmap Phase 42 Task 11)', () => {
+    it("renders a lower-row scenery actor before a higher-row factory within the same depth group — sensitive to the row-order sort (removing it would concatenate factories-then-scenery and put this factory first instead)", () => {
+      const district = 'outskirts';
+      const wallRow = RECIPES.outskirts.findIndex((r) => r.kind === 'wall');
+      const factoryRow = RECIPES.outskirts.findIndex((r) => r.depth === 'foreground' && r.kind === 'factory');
+      expect(wallRow).toBeGreaterThanOrEqual(0);
+      expect(factoryRow).toBeGreaterThanOrEqual(0);
+      expect(wallRow).toBeLessThan(factoryRow); // the real recipe's own ordering this test relies on
+
+      useLocaleStore.setState({
+        locales: {
+          [DEFAULT_LOCALE_ID]: {
+            ...DEFAULT_LOCALE,
+            robots: [],
+            actors: [
+              { id: 'wall-1', type: ActorType.SCENERY, position: { x: 0, y: 0 }, isActive: false, cooldownRemaining: 0, config: { kind: 'wall', district, row: wallRow } },
+              { id: 'fg-factory-1', type: ActorType.FACTORY, position: { x: 0, y: 0 }, isActive: true, cooldownRemaining: 0, config: { district, row: factoryRow, purpose: 'heavyIndustry' } },
+            ],
+          },
+        },
+      });
+
+      const { container } = render(<OceanScene />);
+      const front = container.querySelector('svg[data-scene-layer="front"] #factory-foreground-layer')!;
+      const children = Array.from(front.children);
+      const wallIdx = children.findIndex((el) => el.getAttribute('data-scenery-mock') === 'wall-1');
+      const factoryIdx = children.findIndex((el) => el.getAttribute('data-factory-mock') === 'fg-factory-1');
+
+      expect(wallIdx).toBeGreaterThanOrEqual(0);
+      expect(factoryIdx).toBeGreaterThanOrEqual(0);
+      expect(wallIdx).toBeLessThan(factoryIdx);
     });
   });
 });

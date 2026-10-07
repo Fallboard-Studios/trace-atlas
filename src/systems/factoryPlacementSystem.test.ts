@@ -246,7 +246,10 @@ describe('FactoryPlacementSystem', () => {
       // seeded ids happen to collide — this test verifies selectVariantFromSeed is
       // deterministic given the same id, not that placeDistrict assigns colliding ids.
       useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [] });
-      const factories = placeDistrict(DEFAULT_LOCALE_ID);
+      // Scenery rows (roadmap Phase 42 Task 11) may share this locale's district recipe — filter
+      // to factory actors, since this test is about selectVariantFromSeed's color-shift fields,
+      // which only factories carry.
+      const factories = placeDistrict(DEFAULT_LOCALE_ID).filter((a) => a.type === ActorType.FACTORY);
 
       // Verify that all factories have valid color shifts and greeble selections
       factories.forEach((factory) => {
@@ -371,7 +374,7 @@ describe('FactoryPlacementSystem', () => {
       useLocaleStore.getState().addLocale('no-such-planet', orphanLocale);
 
       expect(() => placeDistrict('locale-orphan')).not.toThrow();
-      const actors = useLocaleStore.getState().locales['locale-orphan'].actors;
+      const actors = useLocaleStore.getState().locales['locale-orphan'].actors.filter((a) => a.type === ActorType.FACTORY);
       expect(actors.length).toBeGreaterThan(0);
 
       // No AS contribution: stored hueShift/satShift must equal the pure local shift.
@@ -688,7 +691,7 @@ describe('FactoryPlacementSystem', () => {
         placeDistrict('recolor-lean-locale');
 
         recolorFactoriesForAttenuationStyle('recolor-lean-locale', styleB.id, styleB.name);
-        const after = useLocaleStore.getState().locales['recolor-lean-locale'].actors;
+        const after = useLocaleStore.getState().locales['recolor-lean-locale'].actors.filter((a) => a.type === ActorType.FACTORY);
         expect(after.length).toBeGreaterThan(0);
 
         let offOldPair = 0;
@@ -711,10 +714,10 @@ describe('FactoryPlacementSystem', () => {
         useLocaleStore.getState().addLocale(styleA.id, makeLocale('recolor-lean-from-a', styleA.id));
         useLocaleStore.getState().addLocale(styleB.id, makeLocale('recolor-lean-fresh-b', styleB.id));
         placeDistrict('recolor-lean-from-a');
-        const fresh = placeDistrict('recolor-lean-fresh-b');
+        const fresh = placeDistrict('recolor-lean-fresh-b').filter((a) => a.type === ActorType.FACTORY);
 
         recolorFactoriesForAttenuationStyle('recolor-lean-from-a', styleB.id, styleB.name);
-        const recolored = useLocaleStore.getState().locales['recolor-lean-from-a'].actors;
+        const recolored = useLocaleStore.getState().locales['recolor-lean-from-a'].actors.filter((a) => a.type === ActorType.FACTORY);
 
         expect(recolored.map((a) => a.id)).toEqual(fresh.map((a) => a.id));
         recolored.forEach((a, i) => {

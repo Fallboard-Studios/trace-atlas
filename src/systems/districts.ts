@@ -3,7 +3,7 @@
 // ========================================
 import alea from 'alea';
 import type { NoiseFunction2D } from 'simplex-noise';
-import type { Actor, DistrictName, SceneryKind } from '../types/Actor';
+import { ActorType, type Actor, type DistrictName, type SceneryKind } from '../types/Actor';
 import { getSeededVal } from '../utils/getSeededVal';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAttenuationStyleStore } from '../stores/attenuationStyleStore';
@@ -20,6 +20,8 @@ import {
   spreadXs,
   WORLD_BOUNDS,
 } from './factoryPlacementSystem';
+import { SCENERY_RENDERERS } from '../components/actors/scenery/Scenery';
+import { deriveSceneryParams } from '../components/actors/scenery/sceneryParams';
 
 // ========================================
 // CONSTANTS
@@ -81,12 +83,12 @@ export function pickDistrict(noiseMap: NoiseFunction2D): DistrictName {
 
 /**
  * Scenery families currently lit up for placement (docs/specs/WORLD_VIEW_DISTRICTS.md
- * §1.2). Empty in D1 — the recipe tables ship complete with every row, including
- * families that don't exist yet, but `placeDistrict` skips any row whose `kind`
- * isn't `'factory'` and isn't in this set. Roadmap Phase 42 Task 11 (D2) redefines
- * this to `new Set(Object.keys(SCENERY_RENDERERS))` as families land.
+ * §1.2) — every kind with a registered renderer (`SCENERY_RENDERERS`, Scenery.tsx).
+ * `placeDistrict` skips any row whose `kind` isn't `'factory'` and isn't in this set,
+ * so a recipe table can ship a row for a family before its renderer exists (D1 did
+ * this for all sixteen; D2, roadmap Phase 42 Task 11+, lights them up one at a time).
  */
-export const SHIPPED_SCENERY: Set<SceneryKind> = new Set();
+export const SHIPPED_SCENERY: Set<SceneryKind> = new Set(Object.keys(SCENERY_RENDERERS) as SceneryKind[]);
 
 /** Families that can roll `config.derelict` at placement — docs/specs/WORLD_VIEW_DISTRICTS.md
  *  §1.6. Wrecks are always derelict and carry no flag, so they're deliberately absent here. */
@@ -137,46 +139,84 @@ export function placeDistrict(localeId: string): Actor[] {
 
   // Two independent counters: one for factory id/scale/AS seeding, one for the
   // per-actor 'actor.derelict' draw (§1.6 — "offset = actorIndex"), so neither
-  // shifts if the other's draw count ever changes.
+  // shifts if the other's draw count ever changes. A third counts scenery ids
+  // in their own dataId/offset namespace, independent of both.
   let factoryIndex = 0;
   let actorIndex = 0;
+  let sceneryIndex = 0;
+
+  // Shared by both branches below: rolls this actor's derelict flag (§1.6),
+  // re-hashed through alea() before the threshold compare — same fix as
+  // pickDistrict's bucket split (see its doc comment). Raw simplex output
+  // is bell-curved, not uniform, so `rawRoll < ratio` alone under-fires
+  // for any ratio off-center from 0.5 (measured: a nominal 0.25 ratio
+  // fired ~0.15 of the time with the raw value, ~0.25 once re-hashed).
+  const rollDerelict = (row: DistrictRow): boolean => {
+    const actorIdx = actorIndex++;
+    const ratio = row.derelict ?? DERELICT_RATIO;
+    const rawRoll = getSeededVal(noiseMap, 'actor.derelict', actorIdx, 0, 1);
+    const roll = alea(String(rawRoll))();
+    return DERELICT_CAPABLE_KINDS.has(row.kind) && roll < ratio;
+  };
 
   recipe.forEach((row, rowIndex) => {
-    if (row.kind !== 'factory' && !SHIPPED_SCENERY.has(row.kind as SceneryKind)) return;
+    if (row.kind === 'factory') {
+      const nextWidth = (x: number): number => {
+        const index = factoryIndex++;
+        const id = generateFactoryId(noiseMap, index);
+        const scale = getSeededVal(noiseMap, 'factory.scale', index, 0.9, 1.1);
+        const asShift = asNoiseMap ? deriveAsColorShift(asNoiseMap, index) : { hueShift: 0, satShift: 0 };
+        const accentTarget = asNoiseMap && accentPair ? pickAccentTarget(asNoiseMap, accentPair, index) : undefined;
 
-    const nextWidth = (x: number): number => {
-      const index = factoryIndex++;
-      const id = generateFactoryId(noiseMap, index);
-      const scale = getSeededVal(noiseMap, 'factory.scale', index, 0.9, 1.1);
-      const asShift = asNoiseMap ? deriveAsColorShift(asNoiseMap, index) : { hueShift: 0, satShift: 0 };
-      const accentTarget = asNoiseMap && accentPair ? pickAccentTarget(asNoiseMap, accentPair, index) : undefined;
+        const px = Math.round(x);
+        const y = Math.round(resolveBaseY(row, profile, px));
+        const actor = createFactory({ x: px, y }, rowIndex, scale, id, asShift, accentTarget, row.variants);
+
+        const isDerelict = rollDerelict(row);
+        actor.config = {
+          ...actor.config,
+          district,
+          ...(isDerelict ? { derelict: true as const } : {}),
+        };
+        actors.push(actor);
+
+        return factoryWidthAt(id, x, rowIndex, row.variants);
+      };
+
+      spreadXs(row, nextWidth, noiseMap, rowIndex);
+      return;
+    }
+
+    if (!SHIPPED_SCENERY.has(row.kind as SceneryKind)) return;
+
+    const nextSceneryWidth = (x: number): number => {
+      const index = sceneryIndex++;
+      const idSeed = getSeededVal(noiseMap, 'scenery.id', index, 0, 1);
+      const id = `scenery-${index}-${idSeed.toString(36).slice(2, 10)}`;
 
       const px = Math.round(x);
       const y = Math.round(resolveBaseY(row, profile, px));
-      const actor = createFactory({ x: px, y }, rowIndex, scale, id, asShift, accentTarget, row.variants);
+      const isDerelict = rollDerelict(row);
 
-      const actorIdx = actorIndex++;
-      const ratio = row.derelict ?? DERELICT_RATIO;
-      // Re-hashed through alea() before the threshold compare — same fix as
-      // pickDistrict's bucket split (see its doc comment). Raw simplex output
-      // is bell-curved, not uniform, so `rawRoll < ratio` alone under-fires
-      // for any ratio off-center from 0.5 (measured: a nominal 0.25 ratio
-      // fired ~0.15 of the time with the raw value, ~0.25 once re-hashed).
-      const rawRoll = getSeededVal(noiseMap, 'actor.derelict', actorIdx, 0, 1);
-      const roll = alea(String(rawRoll))();
-      const isDerelict = DERELICT_CAPABLE_KINDS.has(row.kind) && roll < ratio;
-
-      actor.config = {
-        ...actor.config,
-        district,
-        ...(isDerelict ? { derelict: true as const } : {}),
+      const actor: Actor = {
+        id,
+        type: ActorType.SCENERY,
+        position: { x: px, y },
+        isActive: false,
+        cooldownRemaining: 0,
+        config: {
+          kind: row.kind as SceneryKind,
+          row: rowIndex,
+          district,
+          ...(isDerelict ? { derelict: true as const } : {}),
+        },
       };
       actors.push(actor);
 
-      return factoryWidthAt(id, x, rowIndex, row.variants);
+      return deriveSceneryParams(actor)[row.kind as SceneryKind]?.w ?? 0;
     };
 
-    spreadXs(row, nextWidth, noiseMap, rowIndex);
+    spreadXs(row, nextSceneryWidth, noiseMap, rowIndex);
   });
 
   useLocaleStore.getState().setLocaleData(localeId, { actors });

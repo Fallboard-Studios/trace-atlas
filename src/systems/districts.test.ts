@@ -162,8 +162,8 @@ describe('districts', () => {
   });
 
   describe('SHIPPED_SCENERY', () => {
-    it('is empty in D1 — no scenery family is shipped until D2', () => {
-      expect(SHIPPED_SCENERY.size).toBe(0);
+    it('is wall only, as of roadmap Phase 42 Task 11 (D2)', () => {
+      expect(SHIPPED_SCENERY).toEqual(new Set(['wall']));
     });
   });
 
@@ -185,7 +185,7 @@ describe('districts', () => {
 
     describe('every district, 20 seeds', () => {
       for (const district of DISTRICT_NAMES) {
-        it(`${district}: every actor carries config.district/.row, factory count per row <= recipe count, no non-factory actors exist (D1)`, () => {
+        it(`${district}: every actor carries config.district/.row, matches its row's kind (factory vs. shipped scenery), count per row <= recipe count`, () => {
           const placements = placeDistrictSeeds(district, 20, 'basic');
           const recipe = RECIPES[district];
 
@@ -195,8 +195,11 @@ describe('districts', () => {
               expect(actor.config?.district).toBe(district);
               expect(actor.config?.row).toBeGreaterThanOrEqual(0);
               expect(actor.config?.row).toBeLessThan(recipe.length);
-              expect(actor.type).toBe(ActorType.FACTORY); // D1: no scenery kind is shipped yet
               const row = actor.config!.row!;
+              const rowKind = recipe[row].kind;
+              expect(SHIPPED_SCENERY.has(rowKind as never) || rowKind === 'factory').toBe(true);
+              expect(actor.type).toBe(rowKind === 'factory' ? ActorType.FACTORY : ActorType.SCENERY);
+              if (actor.type === ActorType.SCENERY) expect(actor.config?.kind).toBe(rowKind);
               countPerRow.set(row, (countPerRow.get(row) ?? 0) + 1);
             }
             for (const [row, count] of countPerRow) {
@@ -308,13 +311,17 @@ describe('districts', () => {
         }
       });
 
-      it('D1 never places a non-derelict-capable kind, so no non-capable actor ever carries the flag', () => {
-        // Every D1 actor is ActorType.FACTORY (SHIPPED_SCENERY is empty, see above) and factory
-        // IS derelict-capable, so this is the one real check available until D2 ships a
-        // non-capable kind (e.g. pylon) and can assert it never carries config.derelict.
-        const placements = placeDistrictSeeds('derelict', 5, 'derelict-capability-doc');
-        const allFactory = placements.every((actors) => actors.every((a) => a.type === ActorType.FACTORY));
-        expect(allFactory).toBe(true);
+      it('wall is not derelict-capable: no wall actor ever carries config.derelict', () => {
+        // 'derelict' and 'outskirts' both carry a wall row, so this exercises the shipped
+        // non-capable kind directly rather than only documenting the absence of one (D1's
+        // version of this test, before Task 11 shipped wall).
+        const placements = [
+          ...placeDistrictSeeds('derelict', 5, 'derelict-capability-wall'),
+          ...placeDistrictSeeds('outskirts', 5, 'derelict-capability-wall'),
+        ];
+        const wallActors = placements.flatMap((actors) => actors.filter((a) => a.config?.kind === 'wall'));
+        expect(wallActors.length).toBeGreaterThan(0);
+        expect(wallActors.every((a) => a.config?.derelict === undefined)).toBe(true);
       });
     });
   });
@@ -329,7 +336,7 @@ describe('districts', () => {
       for (const district of DISTRICT_NAMES) {
         const [{ x, y }] = findCoordsForDistrict(district, 1);
         const id = registerLocale(`spawn-render-agree-${district}`, x, y);
-        const actors = placeDistrict(id);
+        const actors = placeDistrict(id).filter((a) => a.type === ActorType.FACTORY);
         expect(actors.length).toBeGreaterThan(0);
 
         for (const actor of actors) {
@@ -344,7 +351,7 @@ describe('districts', () => {
     it("mutation check: comparing against a DIFFERENT row's variant filter fails the agreement case, so this guard really is sensitive to which row's recipe is consulted", () => {
       const [{ x, y }] = findCoordsForDistrict('dense', 1);
       const id = registerLocale('spawn-render-agree-mutation', x, y);
-      const actors = placeDistrict(id);
+      const actors = placeDistrict(id).filter((a) => a.type === ActorType.FACTORY);
       const recipeLength = RECIPES.dense.length;
 
       const mismatches = actors.filter((actor) => {

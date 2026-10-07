@@ -13,10 +13,11 @@ import { initializeLocale } from '@/systems/worldTransition';
 import { consumeSessionSharePayload } from '@/utils/sessionShareUtils';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { Factory } from '@/components/actors/Factory';
+import { Scenery } from '@/components/actors/scenery/Scenery';
 import { BubbleLayer } from '@/components/actors/BubbleLayer';
 import { isBubbleEligible } from '@/components/actors/factoryVariants';
 import { getRecipeRow } from '@/systems/factoryPlacementSystem';
-import { ActorType } from '@/types/Actor';
+import { ActorType, type Actor } from '@/types/Actor';
 
 import colorTheme from '@/constants/colorTheme.json';
 import { hslToString } from '@/utils/colorUtils';
@@ -123,18 +124,30 @@ export function OceanScene({
   // categorize factory actors by row — memoised so robot updates don't
   // create new array references and trigger unnecessary Factory re-renders
   const factories = useMemo(() => actors.filter((a) => a.type === ActorType.FACTORY), [actors]);
-  const backgroundFactories = useMemo(
-    () => factories.filter((a) => getRecipeRow(a.config?.district ?? 'dense', a.config?.row ?? -1)?.depth === 'background'),
-    [factories],
+  // Scenery actors (roadmap Phase 42 Task 11, D2) share the same depth groups as factories,
+  // interleaved in recipe row order (docs/specs/WORLD_VIEW_DISTRICTS.md §1.8) — one sorted
+  // list per depth, by `config.row`, same as the recipe's own draw order.
+  const sceneryActors = useMemo(() => actors.filter((a) => a.type === ActorType.SCENERY), [actors]);
+  const depthOf = (a: Actor) => getRecipeRow(a.config?.district ?? 'dense', a.config?.row ?? -1)?.depth;
+  const byRow = (a: Actor, b: Actor) => (a.config?.row ?? 0) - (b.config?.row ?? 0);
+  const backgroundActors = useMemo(
+    () => [...factories, ...sceneryActors].filter((a) => depthOf(a) === 'background').sort(byRow),
+    [factories, sceneryActors],
   );
-  const midgroundFactories = useMemo(
-    () => factories.filter((a) => getRecipeRow(a.config?.district ?? 'dense', a.config?.row ?? -1)?.depth === 'midground'),
-    [factories],
+  const midgroundActors = useMemo(
+    () => [...factories, ...sceneryActors].filter((a) => depthOf(a) === 'midground').sort(byRow),
+    [factories, sceneryActors],
   );
-  const foregroundFactories = useMemo(
-    () => factories.filter((a) => getRecipeRow(a.config?.district ?? 'dense', a.config?.row ?? -1)?.depth === 'foreground'),
-    [factories],
+  const foregroundActors = useMemo(
+    () => [...factories, ...sceneryActors].filter((a) => depthOf(a) === 'foreground').sort(byRow),
+    [factories, sceneryActors],
   );
+
+  /** Dispatches a factory or scenery actor to its renderer (§1.8). */
+  const renderActor = (actor: Actor) =>
+    actor.type === ActorType.FACTORY
+      ? <Factory key={actor.id} actor={actor} />
+      : <Scenery key={actor.id} actor={actor} />;
 
   // Locale-wide count of bubble-eligible buildings (all rows, not just one),
   // passed to the bubble layer so each BubbleStream can spread the aggregate
@@ -216,9 +229,7 @@ export function OceanScene({
         {/* Factory rows rendered back-to-front for proper depth perception */}
         {/* Background-row factories (rendered furthest back) */}
         <g id="factory-background-layer">
-          {backgroundFactories.map((actor) => (
-            <Factory key={actor.id} actor={actor} />
-          ))}
+          {backgroundActors.map(renderActor)}
         </g>
         {/* Gradient between background and midground layers */}
         <rect
@@ -232,10 +243,7 @@ export function OceanScene({
         />
 
         <g id="factory-midground-layer">
-          {/* full-type rows */}
-          {midgroundFactories.map((actor) => (
-            <Factory key={actor.id} actor={actor} />
-          ))}
+          {midgroundActors.map(renderActor)}
         </g>
         {/* Gradient between midground and foreground layers */}
         <rect
@@ -270,9 +278,7 @@ export function OceanScene({
       {/* Static front layer: foreground-row factories (rendered closest to viewer). */}
       <SceneLayer name="front" width={width} height={height}>
         <g id="factory-foreground-layer">
-          {foregroundFactories.map((actor) => (
-            <Factory key={actor.id} actor={actor} />
-          ))}
+          {foregroundActors.map(renderActor)}
         </g>
         <g id="ui-layer" />
       </SceneLayer>
