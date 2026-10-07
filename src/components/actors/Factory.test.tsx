@@ -3,9 +3,11 @@ import { act, render } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { Factory } from './Factory';
-import { selectVariantFromSeed } from './factoryVariants';
+import { selectVariantFromSeed, VARIANT_CONF } from './factoryVariants';
 import type { FactoryVariant } from './factoryVariants';
 import * as colorUtils from '../../utils/colorUtils';
+import { hslToString } from '../../utils/colorUtils';
+import { getLighting, DAY_CYCLE_MEASURES } from '../../utils/lightingUtils';
 import { useAttenuationStyleStore } from '../../stores/attenuationStyleStore';
 import { useLocaleStore } from '../../stores/localeStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -43,9 +45,9 @@ function setStoreFixtures() {
 }
 
 /**
- * `row: 99` is deliberately out of `FACTORY_ROWS`' range (factoryPlacementSystem.ts has 9
- * entries, indices 0-8) so `getRowConfig(99)` returns `null` — every real row restricts
- * `availableFactoryTypes` to a subset, but this file wants free rein over which
+ * `row: 99` is deliberately out of the (fallback) `'dense'` district recipe's range
+ * (districtRecipes.ts) so `getRecipeRow('dense', 99)` returns `null` — every real row
+ * restricts its variants to a subset, but this file wants free rein over which
  * `FactoryVariant` a given seed resolves to (see `idsByVariant` below), which only an
  * unrestricted `availableTypes` (the `selectVariantFromSeed` default: all 5 variants) makes
  * predictable to search for.
@@ -345,5 +347,110 @@ describe('Factory — Task 4: staticVisual isolates geometry from the lighting t
 
     expect(shiftSpy.mock.calls.length).toBe(callsAfterMount);
     shiftSpy.mockRestore();
+  });
+});
+
+describe('Factory — Task 6: depth lightness cap and derelict rendering', () => {
+  // Mirrors Factory.tsx's own localTime → lightMeasure → getLighting derivation so the
+  // expected east-face multiplier matches exactly what the component computes.
+  function eastLAt(hour: number): number {
+    const lightMeasure = (hour / 24) * DAY_CYCLE_MEASURES;
+    return getLighting(lightMeasure % DAY_CYCLE_MEASURES).eastL;
+  }
+
+  /** Reads back whichever FactoryVariant actually got selected — the test doesn't care
+   *  which one, only that the cap/derelict math is applied correctly to its base color. */
+  function renderedVariant(container: HTMLElement): FactoryVariant {
+    return container.querySelector('[data-factory-type]')!.getAttribute('data-factory-type') as FactoryVariant;
+  }
+
+  function parseHslPercent(hsl: string, which: 's' | 'l'): number {
+    const match = hsl.match(which === 's' ? /,\s*([\d.]+)%,/ : /,\s*[\d.]+%,\s*([\d.]+)%\)/);
+    if (!match) throw new Error(`could not parse ${which} out of "${hsl}"`);
+    return Number(match[1]);
+  }
+
+  it('background row body lightness at noon = base × eastL × 0.7 (±1 rounding)', () => {
+    // dense row 2: background, full spread, Monolith-only (districtRecipes.ts).
+    const actor = makeActor({ district: 'dense', row: 2 }, idsByVariant.Monolith);
+    setLocalTime(12);
+    const { container } = render(<Factory actor={actor} />);
+    const base = VARIANT_CONF[renderedVariant(container)].colors.body;
+    const expectedL = Math.round(base.l * eastLAt(12) * 0.7);
+    const [, eastFill] = getBodyFills(container);
+    expect(parseHslPercent(eastFill, 'l')).toBeCloseTo(expectedL, 0);
+  });
+
+  it('foreground row body lightness at noon = base × eastL × 1.0 (uncapped)', () => {
+    // dense row 10: foreground, edges spread, Warehouse/Monolith (districtRecipes.ts).
+    const actor = makeActor({ district: 'dense', row: 10 }, idsByVariant.Monolith);
+    setLocalTime(12);
+    const { container } = render(<Factory actor={actor} />);
+    const base = VARIANT_CONF[renderedVariant(container)].colors.body;
+    const expectedL = Math.round(base.l * eastLAt(12));
+    const [, eastFill] = getBodyFills(container);
+    expect(parseHslPercent(eastFill, 'l')).toBeCloseTo(expectedL, 0);
+  });
+
+  it('a lit window fill is identical in a background and a foreground row (never capped)', () => {
+    const bgActor = makeActor(
+      { district: 'dense', row: 2, rooftopGreeble: undefined, facadeGreeble: 'squareWindows', beltCourseCount: 0 },
+      idsByVariant.Monolith,
+    );
+    const fgActor = makeActor(
+      { district: 'dense', row: 10, rooftopGreeble: undefined, facadeGreeble: 'squareWindows', beltCourseCount: 0 },
+      idsByVariant.Monolith,
+    );
+    setLocalTime(0); // midnight — highest nightDepth, windows most likely lit
+    const { container: bgContainer } = render(<Factory actor={bgActor} />);
+    const { container: fgContainer } = render(<Factory actor={fgActor} />);
+
+    const bgVariant = renderedVariant(bgContainer);
+    const fgVariant = renderedVariant(fgContainer);
+    const bgIlluminated = hslToString(VARIANT_CONF[bgVariant].colors.illuminated);
+    const fgIlluminated = hslToString(VARIANT_CONF[fgVariant].colors.illuminated);
+
+    expect(getFacadeHTML(bgContainer)).toContain(bgIlluminated);
+    expect(getFacadeHTML(fgContainer)).toContain(fgIlluminated);
+  });
+
+  it('derelict: zero lit-window fills, body saturation 40% of a non-derelict twin, antenna light absent', () => {
+    const live = makeActor(
+      { rooftopGreeble: 'antennae', facadeGreeble: 'squareWindows', beltCourseCount: 0 },
+      idsByVariant.Stacks,
+    );
+    const derelict = makeActor(
+      { rooftopGreeble: 'antennae', facadeGreeble: 'squareWindows', beltCourseCount: 0, derelict: true },
+      idsByVariant.Stacks,
+    );
+    setLocalTime(0); // midnight — highest nightDepth, so the live twin's windows are almost
+    // certainly lit, making "the derelict twin has none" a meaningful assertion rather than
+    // a coincidence of both being dark.
+
+    const { container: liveContainer } = render(<Factory actor={live} />);
+    const { container: derelictContainer } = render(<Factory actor={derelict} />);
+
+    // Antenna light absent.
+    expect(getRooftopHTML(liveContainer)).not.toBe('');
+    expect(getRooftopHTML(derelictContainer)).toBe('');
+
+    // Zero lit-window fills.
+    const variant = renderedVariant(liveContainer);
+    const illuminatedFill = hslToString(VARIANT_CONF[variant].colors.illuminated);
+    expect(getFacadeHTML(liveContainer)).toContain(illuminatedFill);
+    expect(getFacadeHTML(derelictContainer)).not.toContain(illuminatedFill);
+
+    // Body saturation 40% of the non-derelict twin.
+    const [, liveEastFill] = getBodyFills(liveContainer);
+    const [, derelictEastFill] = getBodyFills(derelictContainer);
+    const liveSat = parseHslPercent(liveEastFill, 's');
+    const derelictSat = parseHslPercent(derelictEastFill, 's');
+    expect(derelictSat).toBeCloseTo(liveSat * 0.4, 1);
+  });
+
+  it('mutation check: a derelict actor still renders without throwing when it has no rooftop/facade greeble', () => {
+    const actor = makeActor({ rooftopGreeble: undefined, facadeGreeble: undefined, derelict: true }, idsByVariant.Monolith);
+    setLocalTime(0);
+    expect(() => render(<Factory actor={actor} />)).not.toThrow();
   });
 });

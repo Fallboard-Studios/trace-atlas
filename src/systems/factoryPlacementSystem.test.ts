@@ -5,11 +5,15 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 
-import { createFactory, placeFactories, getRowConfig, getAllRowConfigs, deriveAsAccentPair, pickAccentTarget } from './factoryPlacementSystem';
+import { createFactory, deriveAsAccentPair, pickAccentTarget, getRecipeRow, factoryWidthAt, spreadXs } from './factoryPlacementSystem';
+import { placeDistrict, pickDistrict } from './districts';
 import { VARIANT_CONF, selectVariantFromSeed } from '../components/actors/factoryVariants';
+import type { FactoryVariant } from '../components/actors/factoryVariants';
+import { calcSilhouetteSize } from '../components/actors/silhouetteUtils';
+import { RECIPES } from './districtRecipes';
 import { shiftHSL } from '../utils/colorUtils';
 import { computeAccentLean, hueArc, ACCENT_SAT_LIFT, ACCENT_HUES } from '../utils/accentLean';
-import { getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
+import { getAttenuationStyleNoiseMap, getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import * as getSeededValModule from '../utils/getSeededVal';
 import { deriveAttenuationStyleSeed } from '../utils/seedUtils';
@@ -23,10 +27,11 @@ import { useLocaleStore } from '../stores/localeStore';
 import { useAttenuationStyleStore, DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { ActorType } from '../types/Actor';
 import type { Actor } from '../types/Actor';
-import { recolorFactoriesForAttenuationStyle } from './factoryPlacementSystem';
+import { recolorActorsForAttenuationStyle, foldBodyShift } from './factoryPlacementSystem';
+import { BODY_BEARING_BASE } from '../components/actors/scenery/sceneryParams';
 
 // The row Factory.tsx's own render-time fallback and
-// recolorFactoriesForAttenuationStyle's row lookup both use when a factory's
+// recolorActorsForAttenuationStyle's row lookup both use when a factory's
 // config.row is missing. Intentionally a literal here, NOT imported from
 // factoryPlacementSystem.ts — this test exists to characterize that
 // observable behavior (row falls back to 1) independent of however the
@@ -70,173 +75,132 @@ describe('FactoryPlacementSystem', () => {
     });
   });
 
-  describe('placeFactories', () => {
-    beforeEach(() => {
-      useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [] });
+  // Roadmap Phase 42 Task 13: `foldBodyShift` is the pure fold `createFactory` always did
+  // inline, now extracted so scenery's body-bearing families (wall, tank, …) can share it.
+  describe('foldBodyShift (extracted from createFactory)', () => {
+    const baseBody = { h: 200, s: 15, l: 19 };
+    const localShift = { hueShift: 10, satShift: 5 };
+    const asShift = { hueShift: -4, satShift: 2 };
+
+    it('with no accentTarget, sums local + AS only (no lean) — matches createFactory with accentTarget omitted', () => {
+      const result = foldBodyShift(baseBody, localShift, asShift, undefined);
+      expect(result).toEqual({ hueShift: localShift.hueShift + asShift.hueShift, satShift: localShift.satShift + asShift.satShift });
     });
 
-    it('writes actors to the given localeId, not a hardcoded default', () => {
-      const otherLocale = {
-        id: 'other-locale',
-        attenuationStyleId: 'pelagos',
-        name: 'Other',
-        coordinates: { x: 5, y: 5 },
-        dayStartTimestamp: Date.now(),
-        createdAtMeasure: 0,
-        robots: [],
-        actors: [],
-        companies: [],
-        currentMeasure: 0,
-      };
-      useLocaleStore.getState().addLocale('pelagos', otherLocale);
-
-      placeFactories('other-locale');
-
-      expect(useLocaleStore.getState().locales['other-locale'].actors.length).toBeGreaterThan(0);
-      expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors).toEqual([]);
+    it('an explicit undefined accentTarget is byte-identical to omitting it', () => {
+      expect(foldBodyShift(baseBody, localShift, asShift, undefined)).toStrictEqual(foldBodyShift(baseBody, localShift, asShift));
     });
 
-    it('assigns valid row indices to every actor', () => {
-      placeFactories(DEFAULT_LOCALE_ID);
-      const state = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID];
-      state.actors.forEach((a) => {
-        expect(a.config?.row).toBeGreaterThanOrEqual(0);
-        const rows = getAllRowConfigs();
-        expect(a.config?.row).toBeLessThan(rows.length);
-      });
+    it('with an accentTarget, adds computeAccentLean(shiftHSL(baseBody, combined), target) on top of the combined shift', () => {
+      const target = 172; // ~teal
+      const combined = { hueShift: localShift.hueShift + asShift.hueShift, satShift: localShift.satShift + asShift.satShift };
+      const lean = computeAccentLean(shiftHSL(baseBody, combined), target);
+      const result = foldBodyShift(baseBody, localShift, asShift, target);
+      expect(result.hueShift).toBe(combined.hueShift + lean.hueShift);
+      expect(result.satShift).toBe(combined.satShift + lean.satShift);
+      expect(lean.hueShift).not.toBe(0); // fixture really exercises the lean, not a 0-delta no-op
     });
 
-    it('assigns a small random scale to each factory (0.9-1.1)', () => {
-      placeFactories(DEFAULT_LOCALE_ID);
-      const state = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID];
+    it("createFactory now delegates to it: its stored shift equals foldBodyShift's result for the same variant base/local/AS/target (regression — the extraction changed no observable output)", () => {
+      const id = 'fold-delegate-id';
+      const pos = { x: 500, y: 1000 };
+      const row = 1;
+      const asShiftArg = { hueShift: 10, satShift: -5 };
+      const target = 172;
+      const local = selectVariantFromSeed(id, pos.x, row);
+      const expected = foldBodyShift(
+        VARIANT_CONF[local.variant].colors.body,
+        { hueShift: local.hueShift, satShift: local.satShift },
+        asShiftArg,
+        target,
+      );
+      const actor = createFactory(pos, row, 1, id, asShiftArg, target);
+      expect(actor.config?.hueShift).toBe(expected.hueShift);
+      expect(actor.config?.satShift).toBe(expected.satShift);
+    });
+  });
 
-      state.actors.forEach((a) => {
-        expect(a.scaleX).toBeGreaterThanOrEqual(0.9);
-        expect(a.scaleX).toBeLessThanOrEqual(1.1);
-        expect(a.scaleY).toBeGreaterThanOrEqual(0.9);
-        expect(a.scaleY).toBeLessThanOrEqual(1.1);
-      });
+  // The generic placement-loop properties the legacy fixed-table placement path used to cover
+  // here (row validity, scale range, world-bounds, per-row count caps, spreadType semantics)
+  // are now exercised against the real recipe tables by districts.test.ts's `placeDistrict`
+  // suite (every district, 20 seeds) and this file's own `spreadXs` unit tests below — nothing
+  // is re-authored here (roadmap Phase 42 Task 5, "Architecture Decisions: pure modules first").
+
+  describe('getRecipeRow (roadmap Phase 42 Task 4 — the districts.ts placement path)', () => {
+    it('returns dense row 0', () => {
+      expect(getRecipeRow('dense', 0)).toEqual(RECIPES.dense[0]);
     });
 
-    it('places every factory at the Y coordinate of its row', () => {
-      placeFactories(DEFAULT_LOCALE_ID);
-      const state = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID];
-      state.actors.forEach((a) => {
-        const row = a.config?.row;
-        expect(row).toBeDefined();
-        const cfg = getRowConfig(row!);
-        expect(cfg).not.toBeNull();
-        expect(a.position.y).toBe(cfg!.y);
-      });
+    it('returns every row of every district, by index', () => {
+      for (const district of Object.keys(RECIPES) as (keyof typeof RECIPES)[]) {
+        RECIPES[district].forEach((row, idx) => {
+          expect(getRecipeRow(district, idx)).toEqual(row);
+        });
+      }
     });
 
-    it('obeys spreadType semantics for each row', () => {
-      placeFactories(DEFAULT_LOCALE_ID);
-      const state = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID];
-      const rows = getAllRowConfigs();
+    it('returns null for an out-of-range row', () => {
+      expect(getRecipeRow('dense', -1)).toBeNull();
+      expect(getRecipeRow('dense', RECIPES.dense.length)).toBeNull();
+    });
+  });
 
-      rows.forEach((cfg, idx) => {
-        const actors = state.actors.filter((a) => a.config?.row === idx);
-        if (cfg.spreadType === 'edges') {
-          // spacing sometimes drifts outside the strict edge width when scale or
-          // spacing multipliers are applied; just ensure factories end up in the
-          // left or right half of the screen so they look edge‑anchored.
-          actors.forEach((f) => {
-            const mid = WORLD_BOUNDS.width / 2;
-            const isLeft = f.position.x <= mid;
-            const isRight = f.position.x >= mid;
-            expect(isLeft || isRight).toBe(true);
-          });
-        } else if (cfg.spreadType === 'center') {
-          // center rows are allowed some randomness;
-          // no strict X assertions required for test stability
-          actors.forEach((f) => {
-            expect(f.position.x).toBeGreaterThanOrEqual(-100);
-            expect(f.position.x).toBeLessThanOrEqual(WORLD_BOUNDS.width + 100);
-          });
-        } else if (cfg.spreadType === 'full' || cfg.spreadType === undefined) {
-          actors.forEach((f) => {
-            expect(f.position.x).toBeGreaterThanOrEqual(-20);
-            expect(f.position.x).toBeLessThanOrEqual(WORLD_BOUNDS.width + 20);
-          });
+  describe('factoryWidthAt', () => {
+    it('agrees with the variant selection createFactory itself makes for the same (id, x, row, availableTypes)', () => {
+      // createFactory's availableTypes is now an explicit caller-supplied filter (roadmap Phase
+      // 42 Task 5), not an internal table lookup — factoryWidthAt must be given the same filter
+      // to agree.
+      const availableTypes: FactoryVariant[] = ['Monolith'];
+      const factory = createFactory({ x: 300, y: 1000 }, 2, 1, 'width-check-id', undefined, undefined, availableTypes);
+      const { variant, noiseValue } = selectVariantFromSeed('width-check-id', 300, 2, availableTypes);
+      const expectedWidth = calcSilhouetteSize(noiseValue, VARIANT_CONF[variant].sizeRange).width;
+      expect(factoryWidthAt('width-check-id', 300, 2, availableTypes)).toBe(expectedWidth);
+      // sanity: createFactory picked the same variant this helper assumed
+      expect(factory.config?.purpose).toBe(VARIANT_CONF[variant].purpose);
+    });
+
+    it('is deterministic for the same inputs', () => {
+      expect(factoryWidthAt('det-id', 500, 1)).toBe(factoryWidthAt('det-id', 500, 1));
+    });
+  });
+
+  describe('spreadXs', () => {
+    const fakeNoiseMap = createNoise2D(alea('spreadxs-fixture'));
+
+    it("'full': places exactly `count` items (nextWidth called once per item, return value ignored)", () => {
+      const widths: number[] = [];
+      spreadXs({ spread: 'full', count: 5 }, (x) => { widths.push(x); return 999; }, fakeNoiseMap, 0);
+      expect(widths.length).toBe(5);
+    });
+
+    it("'edges': splits count between left and right halves (ceil/floor)", () => {
+      const xs: number[] = [];
+      spreadXs({ spread: 'edges', count: 5, edgeWidth: 0.3 }, (x) => { xs.push(x); return 60; }, fakeNoiseMap, 0);
+      // half = ceil(5/2) = 3 on the left, halfRight = floor(5/2) = 2 on the right, capped by
+      // how many fit before the limit — assert the total never exceeds count and both sides are used.
+      expect(xs.length).toBeLessThanOrEqual(5);
+      const mid = WORLD_BOUNDS.width / 2;
+      expect(xs.some((x) => x < mid)).toBe(true);
+      expect(xs.some((x) => x >= mid)).toBe(true);
+    });
+
+    it("'center': calls getSeededVal's 'factory.spacing' jitter at offset rowIndex*1000 + placedCenter", () => {
+      const spy = vi.spyOn(getSeededValModule, 'getSeededVal');
+      try {
+        spreadXs({ spread: 'center', count: 3, centerWidth: 0.4 }, () => 60, fakeNoiseMap, 7);
+        const calls = spy.mock.calls.filter((c) => c[1] === 'factory.spacing');
+        expect(calls.length).toBeGreaterThan(0);
+        for (const [, , offset] of calls) {
+          expect(offset).toBeGreaterThanOrEqual(7000);
+          expect(offset).toBeLessThan(8000);
         }
-      });
+      } finally {
+        spy.mockRestore();
+      }
     });
 
-    // gap/overlap test is handled implicitly by spreadType checks above;
-    // edges rows tend to overlap, full/center use randomized spacing so a
-    // deterministic numeric assertion isn’t useful.
-
-
-
-    // spacing randomness in full rows is deliberately loose; overlapping is
-    // controlled by placement loop rather than an absolute max step, so no test
-    // is necessary here.
-
-    it('keeps factories roughly within world bounds (allow a bit of overflow)', () => {
-      placeFactories(DEFAULT_LOCALE_ID);
-      const state = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID];
-
-      state.actors.forEach((actor) => {
-        expect(actor.position.x).toBeGreaterThanOrEqual(-20); // allow off-screen first
-        // placement may overshoot right edge by up to ~100px (see rightLimit)
-        expect(actor.position.x).toBeLessThanOrEqual(WORLD_BOUNDS.width + 100);
-      });
-    });
-
-    it('each row respects its factoriesPerRow maximum', () => {
-      placeFactories(DEFAULT_LOCALE_ID);
-      const state = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID];
-      const rows = getAllRowConfigs();
-      rows.forEach((cfg, idx) => {
-        const rowActors = state.actors.filter((a) => a.config?.row === idx);
-        expect(rowActors.length).toBeLessThanOrEqual(cfg.factoriesPerRow);
-      });
-    });
-
-    it('placement is unaffected by changing factoriesPerRow values', () => {
-      placeFactories(DEFAULT_LOCALE_ID);
-      const state1 = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors.map((a) => a.id);
-
-      const rows = getAllRowConfigs();
-      const original = rows[0].factoriesPerRow;
-      rows[0].factoriesPerRow = original + 10;
-
-      placeFactories(DEFAULT_LOCALE_ID);
-      const state2 = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors.map((a) => a.id);
-
-      rows[0].factoriesPerRow = original;
-
-      // ids should be completely recalculated but count may be same/different
-      expect(state1).not.toEqual(state2);
-    });
-  });
-
-  describe('getRowConfig', () => {
-    it('returns config for valid row indices', () => {
-      const rows = getAllRowConfigs();
-      rows.forEach((cfg, idx) => {
-        expect(getRowConfig(idx)).toEqual(cfg);
-      });
-    });
-
-    it('returns null for invalid row indices', () => {
-      const rows = getAllRowConfigs();
-      expect(getRowConfig(-1)).toBeNull();
-      expect(getRowConfig(rows.length)).toBeNull();
-      expect(getRowConfig(999)).toBeNull();
-    });
-  });
-
-  describe('getAllRowConfigs', () => {
-    it('returns the complete configuration array', () => {
-      const rows = getAllRowConfigs();
-      expect(Array.isArray(rows)).toBe(true);
-      expect(rows.length).toBeGreaterThan(0);
-      rows.forEach((cfg) => {
-        expect(cfg).toHaveProperty('y');
-        expect(cfg).toHaveProperty('factoriesPerRow');
-      });
+    it('falls back to alea (not a crash) when noiseMap is null', () => {
+      expect(() => spreadXs({ spread: 'center', count: 2, centerWidth: 0.3 }, () => 60, null, 0)).not.toThrow();
     });
   });
 
@@ -259,9 +223,9 @@ describe('FactoryPlacementSystem', () => {
     it('generates color shifts within expected ranges and valid greebles', () => {
       const factory = createFactory({ x: 500, y: 1000 }, 1);
 
-      // Resolve the variant so we can check against its actual colorRanges
-      const availableTypes = getRowConfig(factory.config?.row ?? 0)?.availableFactoryTypes;
-      const variantConf = VARIANT_CONF[selectVariantFromSeed(factory.id, factory.position.x, factory.config?.row ?? 0, availableTypes).variant];
+      // Resolve the variant so we can check against its actual colorRanges — createFactory was
+      // given no availableTypes filter above, so neither does this re-derivation.
+      const variantConf = VARIANT_CONF[selectVariantFromSeed(factory.id, factory.position.x, factory.config?.row ?? 0).variant];
       // Use Math.min/max to handle ranges that are specified high-to-low (e.g. [-45, -90])
       const hueMin = Math.min(...variantConf.colorRanges.hueShiftRange);
       const hueMax = Math.max(...variantConf.colorRanges.hueShiftRange);
@@ -290,8 +254,7 @@ describe('FactoryPlacementSystem', () => {
 
     it('beltCourseCount is within variant maxBeltCourses range', () => {
       const factory = createFactory({ x: 700, y: 1000 }, 1);
-      const availableTypes = getRowConfig(factory.config?.row ?? 0)?.availableFactoryTypes;
-      const variant = selectVariantFromSeed(factory.id, factory.position.x, factory.config?.row ?? 0, availableTypes).variant;
+      const variant = selectVariantFromSeed(factory.id, factory.position.x, factory.config?.row ?? 0).variant;
       const maxBeltCourses = (VARIANT_CONF[variant] as { greebleConfig?: { maxBeltCourses?: number } })
         .greebleConfig?.maxBeltCourses ?? 0;
       expect(factory.config!.beltCourseCount).toBeGreaterThanOrEqual(0);
@@ -300,9 +263,8 @@ describe('FactoryPlacementSystem', () => {
 
     it('beltCourseCount is deterministic with the same actor id', () => {
       const factory = createFactory({ x: 400, y: 900 }, 0);
-      const availableTypes = getRowConfig(factory.config?.row ?? 0)?.availableFactoryTypes;
-      const a = selectVariantFromSeed(factory.id, factory.position.x, 0, availableTypes);
-      const b = selectVariantFromSeed(factory.id, factory.position.x, 0, availableTypes);
+      const a = selectVariantFromSeed(factory.id, factory.position.x, 0);
+      const b = selectVariantFromSeed(factory.id, factory.position.x, 0);
       expect(a.beltCourseCount).toBe(b.beltCourseCount);
       expect(a.beltCourseCount).toBe(factory.config?.beltCourseCount);
     });
@@ -317,8 +279,7 @@ describe('FactoryPlacementSystem', () => {
     it('factory.config.purpose matches selectVariantFromSeed and survives JSON stringify', () => {
       const factory = createFactory({ x: 200, y: 800 }, 0);
       expect(factory.config?.purpose).toBeDefined();
-      const availableTypes = getRowConfig(factory.config?.row ?? 0)?.availableFactoryTypes;
-      const info = selectVariantFromSeed(factory.id, factory.position.x, factory.config?.row ?? 0, availableTypes);
+      const info = selectVariantFromSeed(factory.id, factory.position.x, factory.config?.row ?? 0);
       expect(factory.config?.purpose).toBe(info.purpose);
       expect(() => JSON.stringify(factory)).not.toThrow();
       const parsed = JSON.parse(JSON.stringify(factory));
@@ -329,8 +290,12 @@ describe('FactoryPlacementSystem', () => {
       // Each factory's own id is itself seeded from the locale's noise map (not
       // crypto.randomUUID()), so two factories only get identical color shifts if their
       // seeded ids happen to collide — this test verifies selectVariantFromSeed is
-      // deterministic given the same id, not that placeFactories assigns colliding ids.
-      const factories = placeFactories(DEFAULT_LOCALE_ID);
+      // deterministic given the same id, not that placeDistrict assigns colliding ids.
+      useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [] });
+      // Scenery rows (roadmap Phase 42 Task 11) may share this locale's district recipe — filter
+      // to factory actors, since this test is about selectVariantFromSeed's color-shift fields,
+      // which only factories carry.
+      const factories = placeDistrict(DEFAULT_LOCALE_ID).filter((a) => a.type === ActorType.FACTORY);
 
       // Verify that all factories have valid color shifts and greeble selections
       factories.forEach((factory) => {
@@ -374,8 +339,8 @@ describe('FactoryPlacementSystem', () => {
       useLocaleStore.getState().addLocale('p', localeA);
       useLocaleStore.getState().addLocale('p', localeB);
 
-      const actorsA = placeFactories('locale-a');
-      const actorsB = placeFactories('locale-b');
+      const actorsA = placeDistrict('locale-a');
+      const actorsB = placeDistrict('locale-b');
 
       expect(actorsA.length).toBeGreaterThan(0);
       expect(actorsA).toEqual(actorsB);
@@ -393,8 +358,8 @@ describe('FactoryPlacementSystem', () => {
       useLocaleStore.getState().addLocale('p', localeA);
       useLocaleStore.getState().addLocale('p', localeB);
 
-      const actorsC = placeFactories('locale-c');
-      const actorsD = placeFactories('locale-d');
+      const actorsC = placeDistrict('locale-c');
+      const actorsD = placeDistrict('locale-d');
 
       expect(actorsC).not.toEqual(actorsD);
     });
@@ -417,7 +382,7 @@ describe('FactoryPlacementSystem', () => {
       expect(withShift.config?.satShift).toBe((base.config?.satShift ?? 0) - 5);
     });
 
-    it("placeFactories folds in the locale's own Attenuation Style noise map, distinct from another Attenuation Style's", () => {
+    it("placeDistrict folds in the locale's own Attenuation Style noise map, distinct from another Attenuation Style's", () => {
       // Two locales at IDENTICAL coordinates get identical local-seeded ids/shifts
       // (the locale noise map is a pure function of (x, y)) — so any difference in
       // the final stored hueShift/satShift must come from the AS input.
@@ -435,8 +400,8 @@ describe('FactoryPlacementSystem', () => {
       useLocaleStore.getState().addLocale('as-planet-a', localeOnA);
       useLocaleStore.getState().addLocale('as-planet-b', localeOnB);
 
-      const actorsA = placeFactories('locale-as-a');
-      const actorsB = placeFactories('locale-as-b');
+      const actorsA = placeDistrict('locale-as-a');
+      const actorsB = placeDistrict('locale-as-b');
 
       expect(actorsA.length).toBeGreaterThan(0);
       expect(actorsA.map((a) => a.id)).toEqual(actorsB.map((a) => a.id));
@@ -447,21 +412,23 @@ describe('FactoryPlacementSystem', () => {
       expect(anyShiftDiffers).toBe(true);
     });
 
-    it("placeFactories falls back to a zero asShift (not a crash) when the locale's attenuationStyleId doesn't resolve to any Attenuation Style in the store", () => {
+    it("placeDistrict falls back to a zero asShift (not a crash) when the locale's attenuationStyleId doesn't resolve to any Attenuation Style in the store", () => {
       const orphanLocale = {
         id: 'locale-orphan', attenuationStyleId: 'no-such-planet', name: 'Orphan', coordinates: { x: 8, y: 8 },
         robots: [], actors: [], companies: [], currentMeasure: 0, createdAtMeasure: 0, dayStartTimestamp: Date.now(),
       };
       useLocaleStore.getState().addLocale('no-such-planet', orphanLocale);
 
-      expect(() => placeFactories('locale-orphan')).not.toThrow();
-      const actors = useLocaleStore.getState().locales['locale-orphan'].actors;
+      expect(() => placeDistrict('locale-orphan')).not.toThrow();
+      const actors = useLocaleStore.getState().locales['locale-orphan'].actors.filter((a) => a.type === ActorType.FACTORY);
       expect(actors.length).toBeGreaterThan(0);
 
       // No AS contribution: stored hueShift/satShift must equal the pure local shift.
       actors.forEach((actor) => {
-        const availableTypes = getRowConfig(actor.config?.row ?? 0)?.availableFactoryTypes;
-        const local = selectVariantFromSeed(actor.id, actor.position.x, actor.config?.row ?? 0, availableTypes);
+        const district = actor.config!.district!;
+        const row = actor.config?.row ?? 0;
+        const availableTypes = getRecipeRow(district, row)?.variants;
+        const local = selectVariantFromSeed(actor.id, actor.position.x, row, availableTypes);
         expect(actor.config?.hueShift).toBe(local.hueShift);
         expect(actor.config?.satShift).toBe(local.satShift);
       });
@@ -480,8 +447,7 @@ describe('FactoryPlacementSystem', () => {
     /** The body colour the lean is computed from: variant base + local + AS, exactly as the
      *  implementation must compute it (spec §1.3). */
     function bodyBeforeLean(id: string) {
-      const availableTypes = getRowConfig(row)?.availableFactoryTypes;
-      const local = selectVariantFromSeed(id, pos.x, row, availableTypes);
+      const local = selectVariantFromSeed(id, pos.x, row);
       const combined = { hueShift: local.hueShift + asShift.hueShift, satShift: local.satShift + asShift.satShift };
       return { combined, body: shiftHSL(VARIANT_CONF[local.variant].colors.body, combined) };
     }
@@ -512,7 +478,7 @@ describe('FactoryPlacementSystem', () => {
     it('moves the body hue strictly closer to the target without overshooting, for targets on both sides and across the 0/360 seam', () => {
       const id = 'lean-arc-id';
       const { body } = bodyBeforeLean(id);
-      const variant = selectVariantFromSeed(id, pos.x, row, getRowConfig(row)?.availableFactoryTypes).variant;
+      const variant = selectVariantFromSeed(id, pos.x, row).variant;
       const base = VARIANT_CONF[variant].colors.body;
 
       for (const target of [5, 100, 250, 355]) {
@@ -534,7 +500,7 @@ describe('FactoryPlacementSystem', () => {
       // anywhere — so assert the direction relative to the body actually produced.
       const id = 'lean-seam-id';
       const { body } = bodyBeforeLean(id);
-      const variant = selectVariantFromSeed(id, pos.x, row, getRowConfig(row)?.availableFactoryTypes).variant;
+      const variant = selectVariantFromSeed(id, pos.x, row).variant;
       const base = VARIANT_CONF[variant].colors.body;
       const target = ((body.h + 170) % 360 + 360) % 360; // 170° away — the short arc is +170, not −190
       const actor = createFactory(pos, row, 1, id, asShift, target);
@@ -556,10 +522,14 @@ describe('FactoryPlacementSystem', () => {
     });
   });
 
-  // docs/specs/WORLD_PALETTE_PULL.md §1.2 / docs/tasks/WORLD_PALETTE_PULL.md Task 4: placeFactories
+  // docs/specs/WORLD_PALETTE_PULL.md §1.2 / docs/tasks/WORLD_PALETTE_PULL.md Task 4: placeDistrict
   // seeds the style's accent pair once and leans every factory toward one of the two.
-  describe('accent lean (Phase 35) — placeFactories pair and pick', () => {
-    const coords = { x: 30, y: 30 };
+  describe('accent lean (Phase 35) — placeDistrict pair and pick', () => {
+    // (-100, -25) lands on the 'dense' district (60 factory actors across its 12 factory
+    // rows) — picked so the "both targets are used somewhere" assertion below has enough
+    // actors to make a real split likely, unlike a sparser district (e.g. 'habitat' at the
+    // old (30, 30) fixture, which places only 2 factories and can land all-one-side by chance).
+    const coords = { x: -100, y: -25 };
     const makeLocale = (id: string, attenuationStyleId: string) => ({
       id, attenuationStyleId, name: id, coordinates: coords,
       robots: [], actors: [], companies: [], currentMeasure: 0, createdAtMeasure: 0, dayStartTimestamp: Date.now(),
@@ -570,8 +540,9 @@ describe('FactoryPlacementSystem', () => {
      *  (AS_FACTORY_HUE/SAT_SHIFT_RANGE are private; the rowless-row test below already pins the
      *  ±30 range the same way) — a deliberate, DAMP duplication so this test can isolate the lean. */
     function preLean(actor: Actor, index: number, asMap: NoiseFunction2D) {
+      const district = actor.config?.district ?? 'dense';
       const row = actor.config?.row ?? EXPECTED_DEFAULT_FACTORY_ROW;
-      const local = selectVariantFromSeed(actor.id, actor.position.x, row, getRowConfig(row)?.availableFactoryTypes);
+      const local = selectVariantFromSeed(actor.id, actor.position.x, row, getRecipeRow(district, row)?.variants);
       const as = {
         hueShift: getSeededVal(asMap, 'factory.as.hueShift', index, -30, 30),
         satShift: getSeededVal(asMap, 'factory.as.satShift', index, -20, 20),
@@ -592,14 +563,19 @@ describe('FactoryPlacementSystem', () => {
       expect(ACCENT_HUES).toContain(pair.primary);
       expect(ACCENT_HUES).toContain(pair.secondary);
 
-      const actors1 = placeFactories('locale-pair-1');
-      const actors2 = placeFactories('locale-pair-2');
+      const actors1 = placeDistrict('locale-pair-1');
+      const actors2 = placeDistrict('locale-pair-2');
       expect(actors1.length).toBeGreaterThan(0);
       expect(actors1.map((a) => [a.config?.hueShift, a.config?.satShift])).toEqual(actors2.map((a) => [a.config?.hueShift, a.config?.satShift]));
 
+      // 'dense' also places pylon actors (roadmap Phase 42 Task 12) interspersed among the
+      // factories — filter to factories so `index` below still lines up with createFactory's own
+      // factoryIndex (preLean's seeded AS-shift draw), not the actor array's raw position.
+      const factories1 = actors1.filter((a) => a.type === ActorType.FACTORY);
+
       let leanedToPrimary = 0;
       let leanedToSecondary = 0;
-      actors1.forEach((actor, index) => {
+      factories1.forEach((actor, index) => {
         const { combined, body } = preLean(actor, index, asMap);
         const leanPrimary = computeAccentLean(body, pair.primary);
         const leanSecondary = computeAccentLean(body, pair.secondary);
@@ -670,17 +646,17 @@ describe('FactoryPlacementSystem', () => {
     });
   });
 
-  describe('recolorFactoriesForAttenuationStyle', () => {
+  describe('recolorActorsForAttenuationStyle', () => {
     beforeEach(() => {
       useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [] });
-      placeFactories(DEFAULT_LOCALE_ID);
+      placeDistrict(DEFAULT_LOCALE_ID);
     });
 
     it('changes only config.hueShift/config.satShift on every factory — everything else round-trips byte-identical', () => {
       useAttenuationStyleStore.getState().addAttenuationStyle({ id: 'recolor-planet', name: 'recolor-planet-name', locales: [] });
       const before = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors;
 
-      recolorFactoriesForAttenuationStyle(DEFAULT_LOCALE_ID, 'recolor-planet', 'recolor-planet-name');
+      recolorActorsForAttenuationStyle(DEFAULT_LOCALE_ID, 'recolor-planet', 'recolor-planet-name');
 
       const after = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors;
       expect(after.length).toBe(before.length);
@@ -693,6 +669,7 @@ describe('FactoryPlacementSystem', () => {
         expect(a.scaleY).toBe(b.scaleY);
         expect(a.rotation).toBe(b.rotation);
         expect(a.config?.row).toBe(b.config?.row);
+        expect(a.config?.district).toBe(b.config?.district);
         expect(a.config?.rooftopGreeble).toBe(b.config?.rooftopGreeble);
         expect(a.config?.facadeGreeble).toBe(b.config?.facadeGreeble);
         expect(a.config?.beltCourseCount).toBe(b.config?.beltCourseCount);
@@ -703,10 +680,10 @@ describe('FactoryPlacementSystem', () => {
     it('is idempotent under repeated calls with the same AS (no drift)', () => {
       useAttenuationStyleStore.getState().addAttenuationStyle({ id: 'idempotent-planet', name: 'idempotent-planet-name', locales: [] });
 
-      recolorFactoriesForAttenuationStyle(DEFAULT_LOCALE_ID, 'idempotent-planet', 'idempotent-planet-name');
+      recolorActorsForAttenuationStyle(DEFAULT_LOCALE_ID, 'idempotent-planet', 'idempotent-planet-name');
       const first = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors;
 
-      recolorFactoriesForAttenuationStyle(DEFAULT_LOCALE_ID, 'idempotent-planet', 'idempotent-planet-name');
+      recolorActorsForAttenuationStyle(DEFAULT_LOCALE_ID, 'idempotent-planet', 'idempotent-planet-name');
       const second = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors;
 
       expect(second).toEqual(first);
@@ -715,14 +692,14 @@ describe('FactoryPlacementSystem', () => {
     it('is a safe no-op on a locale with zero factories', () => {
       useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [] });
       expect(() =>
-        recolorFactoriesForAttenuationStyle(DEFAULT_LOCALE_ID, 'pelagos', 'pelagos-name')
+        recolorActorsForAttenuationStyle(DEFAULT_LOCALE_ID, 'pelagos', 'pelagos-name')
       ).not.toThrow();
       expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors).toEqual([]);
     });
 
     it('is a safe no-op on a nonexistent locale id', () => {
       expect(() =>
-        recolorFactoriesForAttenuationStyle('no-such-locale', 'pelagos', 'pelagos-name')
+        recolorActorsForAttenuationStyle('no-such-locale', 'pelagos', 'pelagos-name')
       ).not.toThrow();
     });
 
@@ -737,8 +714,9 @@ describe('FactoryPlacementSystem', () => {
       const styleB = { id: 'recolor-lean-b', name: 'recolor-lean-beta' };
 
       function preLean(actor: Actor, index: number, asMap: NoiseFunction2D) {
+        const district = actor.config?.district ?? 'dense';
         const row = actor.config?.row ?? EXPECTED_DEFAULT_FACTORY_ROW;
-        const local = selectVariantFromSeed(actor.id, actor.position.x, row, getRowConfig(row)?.availableFactoryTypes);
+        const local = selectVariantFromSeed(actor.id, actor.position.x, row, getRecipeRow(district, row)?.variants);
         const as = {
           hueShift: getSeededVal(asMap, 'factory.as.hueShift', index, -30, 30),
           satShift: getSeededVal(asMap, 'factory.as.satShift', index, -20, 20),
@@ -761,10 +739,10 @@ describe('FactoryPlacementSystem', () => {
         expect(pairB.primary).not.toBe(pairA.primary);
 
         useLocaleStore.getState().addLocale(styleA.id, makeLocale('recolor-lean-locale', styleA.id));
-        placeFactories('recolor-lean-locale');
+        placeDistrict('recolor-lean-locale');
 
-        recolorFactoriesForAttenuationStyle('recolor-lean-locale', styleB.id, styleB.name);
-        const after = useLocaleStore.getState().locales['recolor-lean-locale'].actors;
+        recolorActorsForAttenuationStyle('recolor-lean-locale', styleB.id, styleB.name);
+        const after = useLocaleStore.getState().locales['recolor-lean-locale'].actors.filter((a) => a.type === ActorType.FACTORY);
         expect(after.length).toBeGreaterThan(0);
 
         let offOldPair = 0;
@@ -783,14 +761,14 @@ describe('FactoryPlacementSystem', () => {
         expect(offOldPair).toBeGreaterThan(0);
       });
 
-      it('equals a fresh placeFactories under the new style at the same coordinates, factory for factory — the two write sites agree', () => {
+      it('equals a fresh placeDistrict under the new style at the same coordinates, factory for factory — the two write sites agree', () => {
         useLocaleStore.getState().addLocale(styleA.id, makeLocale('recolor-lean-from-a', styleA.id));
         useLocaleStore.getState().addLocale(styleB.id, makeLocale('recolor-lean-fresh-b', styleB.id));
-        placeFactories('recolor-lean-from-a');
-        const fresh = placeFactories('recolor-lean-fresh-b');
+        placeDistrict('recolor-lean-from-a');
+        const fresh = placeDistrict('recolor-lean-fresh-b').filter((a) => a.type === ActorType.FACTORY);
 
-        recolorFactoriesForAttenuationStyle('recolor-lean-from-a', styleB.id, styleB.name);
-        const recolored = useLocaleStore.getState().locales['recolor-lean-from-a'].actors;
+        recolorActorsForAttenuationStyle('recolor-lean-from-a', styleB.id, styleB.name);
+        const recolored = useLocaleStore.getState().locales['recolor-lean-from-a'].actors.filter((a) => a.type === ActorType.FACTORY);
 
         expect(recolored.map((a) => a.id)).toEqual(fresh.map((a) => a.id));
         recolored.forEach((a, i) => {
@@ -800,39 +778,145 @@ describe('FactoryPlacementSystem', () => {
       });
     });
 
-    it("falls back to DEFAULT_FACTORY_ROW when a factory's config.row is missing, matching Factory.tsx's own render-time fallback", () => {
-      // Every real factory from createFactory/placeFactories always has
-      // config.row set, so this path is unreachable via the public spawn
-      // API — exercised directly here with a hand-built actor so the
-      // fallback itself has real coverage, not just a comment's word for it.
+    it("falls back to DEFAULT_FACTORY_ROW and district 'dense' when a factory's config.row/district are missing, matching Factory.tsx's own render-time fallback", () => {
+      // Every real factory from createFactory/placeDistrict always has
+      // config.row/config.district set, so this path is unreachable via the
+      // public spawn API — exercised directly here with a hand-built actor
+      // so the fallback itself has real coverage, not just a comment's word
+      // for it.
       const rowlessActor: Actor = {
         id: 'rowless-actor', type: ActorType.FACTORY,
         position: { x: 100, y: 900 }, scaleX: 1, scaleY: 1, rotation: 0,
         isActive: true, cooldownRemaining: 0,
-        config: { hueShift: 0, satShift: 0 }, // no `row` key at all
+        config: { hueShift: 0, satShift: 0 }, // no `row`/`district` keys at all
       };
       useAttenuationStyleStore.getState().addAttenuationStyle({ id: 'rowless-planet', name: 'rowless-planet-name', locales: [] });
       useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [rowlessActor] });
 
-      recolorFactoriesForAttenuationStyle(DEFAULT_LOCALE_ID, 'rowless-planet', 'rowless-planet-name');
+      recolorActorsForAttenuationStyle(DEFAULT_LOCALE_ID, 'rowless-planet', 'rowless-planet-name');
 
       const recolored = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors[0];
       // Never invents a row — position/count/id/variant/row/greebles stay
       // untouched by recolor, this actor included; it round-trips absent.
       expect(recolored.config?.row).toBeUndefined();
+      expect(recolored.config?.district).toBeUndefined();
 
-      // The local (non-AS) component must match DEFAULT_FACTORY_ROW's own
+      // The local (non-AS) component must match the fallback district/row's own
       // variant pool specifically — not some other row's. Isolate it by
       // subtracting the AS-only contribution, bounded by the reverted
       // baseline's own AS_FACTORY_HUE_SHIFT_RANGE ([-30, 30]): a wrong row
       // would very likely pick a different variant with a very different
       // base hue, pushing this delta far outside that window.
-      const expectedAvailableTypes = getRowConfig(EXPECTED_DEFAULT_FACTORY_ROW)?.availableFactoryTypes;
+      const expectedAvailableTypes = getRecipeRow('dense', EXPECTED_DEFAULT_FACTORY_ROW)?.variants;
       const expectedLocal = selectVariantFromSeed(
         rowlessActor.id, rowlessActor.position.x, EXPECTED_DEFAULT_FACTORY_ROW, expectedAvailableTypes
       );
       const asOnlyHueDelta = (recolored.config?.hueShift ?? 0) - expectedLocal.hueShift;
       expect(Math.abs(asOnlyHueDelta)).toBeLessThanOrEqual(30);
+    });
+
+    // docs/specs/WORLD_VIEW_DISTRICTS.md §1.8 / roadmap Phase 42 Task 13: body-bearing scenery
+    // (wall, tank) now folds and recolors exactly like a factory, via the shared foldBodyShift.
+    describe('scenery (body-bearing families fold and recolor like factories)', () => {
+      const styleA = { id: 'scenery-recolor-a', name: 'scenery-recolor-alpha' };
+      const styleB = { id: 'scenery-recolor-b', name: 'scenery-recolor-beta' };
+
+      /** Scans real coordinates with the real `pickDistrict` for one that lands on 'outskirts' —
+       *  the only district whose recipe carries BOTH a wall row and a tank row alongside
+       *  factories (districtRecipes.ts), so a single locale fixture exercises every
+       *  foldBodyShift-folding kind at once. */
+      function findOutskirtsCoords(): { x: number; y: number } {
+        for (let x = -500; x <= 500; x += 5) {
+          for (let y = -500; y <= 500; y += 5) {
+            const map = getLocaleNoiseMap(`outskirts-scan-${x}-${y}`, x, y);
+            if (pickDistrict(map) === 'outskirts') return { x, y };
+          }
+        }
+        throw new Error('no outskirts coordinates found in scan range');
+      }
+
+      const makeLocale = (id: string, attenuationStyleId: string, coords: { x: number; y: number }) => ({
+        id, attenuationStyleId, name: id, coordinates: coords,
+        robots: [], actors: [], companies: [], currentMeasure: 0, createdAtMeasure: 0, dayStartTimestamp: Date.now(),
+      });
+
+      beforeEach(() => {
+        useAttenuationStyleStore.getState().addAttenuationStyle({ ...styleA, locales: [] });
+        useAttenuationStyleStore.getState().addAttenuationStyle({ ...styleB, locales: [] });
+      });
+
+      it('equals a fresh placeDistrict under the new style, actor for actor, for a locale with factories, walls AND tanks — the lean moved at least one actor ≥10° (parity-fixture rule)', () => {
+        const coords = findOutskirtsCoords();
+        useLocaleStore.getState().addLocale(styleA.id, makeLocale('scenery-recolor-from-a', styleA.id, coords));
+        useLocaleStore.getState().addLocale(styleB.id, makeLocale('scenery-recolor-fresh-b', styleB.id, coords));
+
+        const fromA = placeDistrict('scenery-recolor-from-a');
+        const fresh = placeDistrict('scenery-recolor-fresh-b');
+
+        // Precondition: the fixture really exercises wall AND tank, not just factories.
+        expect(fromA.some((a) => a.config?.kind === 'wall')).toBe(true);
+        expect(fromA.some((a) => a.config?.kind === 'tank')).toBe(true);
+
+        recolorActorsForAttenuationStyle('scenery-recolor-from-a', styleB.id, styleB.name);
+        const recolored = useLocaleStore.getState().locales['scenery-recolor-from-a'].actors;
+
+        expect(recolored.map((a) => a.id)).toEqual(fresh.map((a) => a.id));
+        let maxHueMove = 0;
+        recolored.forEach((a, i) => {
+          const label = `actor ${i} (${a.config?.kind ?? 'factory'})`;
+          expect(a.config?.hueShift ?? 0, `${label} hue`).toBeCloseTo(fresh[i].config?.hueShift ?? 0, 9);
+          expect(a.config?.satShift ?? 0, `${label} sat`).toBeCloseTo(fresh[i].config?.satShift ?? 0, 9);
+          maxHueMove = Math.max(maxHueMove, Math.abs((a.config?.hueShift ?? 0) - (fromA[i].config?.hueShift ?? 0)));
+        });
+        // Parity-fixture rule (project memory): the two formulas must actually distinguish for
+        // at least one actor, or an "equal" assertion above could pass with the lean disabled.
+        expect(maxHueMove).toBeGreaterThanOrEqual(10);
+      });
+
+      it('mutation check: wall/tank actors are themselves recolored onto the new style (isolates scenery from the combined check above, which a factory alone could satisfy)', () => {
+        const coords = findOutskirtsCoords();
+        useLocaleStore.getState().addLocale(styleA.id, makeLocale('scenery-recolor-isolate', styleA.id, coords));
+        const before = placeDistrict('scenery-recolor-isolate');
+        const sceneryBefore = before.filter((a) => a.config?.kind === 'wall' || a.config?.kind === 'tank');
+        expect(sceneryBefore.length).toBeGreaterThan(0);
+
+        recolorActorsForAttenuationStyle('scenery-recolor-isolate', styleB.id, styleB.name);
+        const after = useLocaleStore.getState().locales['scenery-recolor-isolate'].actors;
+
+        const anySceneryShiftChanged = sceneryBefore.some((b) => {
+          const a = after.find((candidate) => candidate.id === b.id)!;
+          return a.config?.hueShift !== b.config?.hueShift || a.config?.satShift !== b.config?.satShift;
+        });
+        expect(anySceneryShiftChanged).toBe(true);
+      });
+
+      it('leaves every non-body-bearing scenery actor (boulder, pylon, turbine, …) completely untouched by recolor', () => {
+        const coords = findOutskirtsCoords();
+        useLocaleStore.getState().addLocale(styleA.id, makeLocale('scenery-recolor-structural', styleA.id, coords));
+        const before = placeDistrict('scenery-recolor-structural');
+        const structural = before.filter((a) => a.type === ActorType.SCENERY && !BODY_BEARING_BASE[a.config!.kind!]);
+        expect(structural.length).toBeGreaterThan(0);
+
+        recolorActorsForAttenuationStyle('scenery-recolor-structural', styleB.id, styleB.name);
+        const after = useLocaleStore.getState().locales['scenery-recolor-structural'].actors;
+
+        structural.forEach((b) => {
+          const a = after.find((candidate) => candidate.id === b.id)!;
+          expect(a).toEqual(b);
+        });
+      });
+
+      it('is a safe no-op on a locale with zero scenery actors (only factories)', () => {
+        useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [] });
+        const factoryOnly: Actor = {
+          id: 'factory-only-actor', type: ActorType.FACTORY,
+          position: { x: 100, y: 900 }, scaleX: 1, scaleY: 1, rotation: 0,
+          isActive: true, cooldownRemaining: 0,
+          config: { row: 0, district: 'dense', hueShift: 0, satShift: 0 },
+        };
+        useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [factoryOnly] });
+        expect(() => recolorActorsForAttenuationStyle(DEFAULT_LOCALE_ID, styleB.id, styleB.name)).not.toThrow();
+      });
     });
   });
 });

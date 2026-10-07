@@ -1,10 +1,13 @@
 import Alea from 'alea';
 
-import type { Actor } from '../../types/Actor';
+import { ActorType, type Actor } from '../../types/Actor';
 import { selectVariantFromSeed, VARIANT_CONF, isBubbleEligible } from './factoryVariants';
-import { getRowConfig, DEFAULT_FACTORY_ROW } from '../../systems/factoryPlacementSystem';
+import { getRecipeRow, DEFAULT_FACTORY_ROW } from '../../systems/factoryPlacementSystem';
+import type { DistrictRow } from '../../systems/districtRecipes';
 import { calcSilhouetteSize } from './silhouetteUtils';
 import { shiftHSL } from '../../utils/colorUtils';
+import { deriveSceneryParams, ventTotalHeight } from './scenery/sceneryParams';
+import colorTheme from '../../constants/colorTheme.json';
 
 /**
  * Everything a building's `BubbleStream` needs, derived from the actor alone (roadmap 17.2.5).
@@ -42,20 +45,48 @@ export function hashActorId(id: string): number {
   return Math.floor(Alea(id)() * 0x100000000);
 }
 
-/** Bubble depth scale from the row label: foreground 1, midground 0.5, background 1/3, unknown 1. */
-export function bubbleDepthScaleForRow(row: number | undefined): number {
-  const rowLabel = getRowConfig(row ?? 0)?.row;
-  return rowLabel === 'background' ? 1 / 3 : rowLabel === 'midground' ? 0.5 : 1;
+/** Bubble depth scale from the row's depth label: foreground 1, midground 0.5, background 1/3,
+ *  unknown (no recipe row, e.g. an out-of-range row) 1. */
+export function bubbleDepthScaleForRow(depth: DistrictRow['depth'] | undefined): number {
+  return depth === 'background' ? 1 / 3 : depth === 'midground' ? 0.5 : 1;
 }
 
-/** The bubble props for a factory actor, or null when its purpose has no vent. */
-export function getFactoryBubbleProps(actor: Actor): FactoryBubbleProps | null {
+/**
+ * The bubble props for a vent scenery actor (docs/specs/WORLD_VIEW_DISTRICTS.md §1.11), or null
+ * for any other scenery kind. The mouth position is resolved from the SAME `ventSteps` geometry
+ * `renderers/vent.tsx` draws from, so the stream never drifts from the drawn mouth.
+ */
+function getVentBubbleProps(actor: Actor): FactoryBubbleProps | null {
+  if (actor.config?.kind !== 'vent') return null;
+  const params = deriveSceneryParams(actor).vent;
+  if (!params) return null;
+
+  const district = actor.config?.district ?? 'dense';
+  const row = actor.config?.row ?? 0;
+  const rowCfg = getRecipeRow(district, row);
+
+  return {
+    actorId: actor.id,
+    ventX: actor.position.x,
+    ventY: actor.position.y - ventTotalHeight(params),
+    seed: hashActorId(actor.id),
+    isActive: true,
+    bodyHue: colorTheme.vent.shadow.h,
+    depthScale: bubbleDepthScaleForRow(rowCfg?.depth),
+  };
+}
+
+/** The bubble props for a factory or vent actor, or null when the actor has no vent (§1.11). */
+export function getActorBubbleProps(actor: Actor): FactoryBubbleProps | null {
+  if (actor.type === ActorType.SCENERY) return getVentBubbleProps(actor);
   if (!isBubbleEligible(actor.config?.purpose)) return null;
 
   // Same silhouette derivation as Factory.tsx's staticVisual — the vent must sit on the roof the
   // building actually draws.
+  const district = actor.config?.district ?? 'dense';
   const row = actor.config?.row ?? DEFAULT_FACTORY_ROW;
-  const config = selectVariantFromSeed(actor.id, actor.position.x, row, getRowConfig(row)?.availableFactoryTypes);
+  const rowCfg = getRecipeRow(district, row);
+  const config = selectVariantFromSeed(actor.id, actor.position.x, row, rowCfg?.variants);
   const { width, height } = calcSilhouetteSize(config.noiseValue, VARIANT_CONF[config.variant].sizeRange);
   const actualWidth = width * (actor.scaleX ?? 1);
   const actualHeight = height * (actor.scaleY ?? 1);
@@ -73,6 +104,6 @@ export function getFactoryBubbleProps(actor: Actor): FactoryBubbleProps | null {
     seed: buildingSeed,
     isActive: !(actor.config?.isOffline ?? false),
     bodyHue,
-    depthScale: bubbleDepthScaleForRow(actor.config?.row),
+    depthScale: bubbleDepthScaleForRow(rowCfg?.depth),
   };
 }

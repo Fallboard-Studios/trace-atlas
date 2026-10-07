@@ -716,8 +716,9 @@ on any strip whose driving attribute changes. The strips and flicker are live ev
 Intent [docs/intent/world-view-districts.md](../intent/world-view-districts.md), spec
 [docs/specs/WORLD_VIEW_DISTRICTS.md](../specs/WORLD_VIEW_DISTRICTS.md), plan
 [docs/tasks/WORLD_VIEW_DISTRICTS.md](../tasks/WORLD_VIEW_DISTRICTS.md), sketch
-[docs/sketches/world-view-districts.html](../sketches/world-view-districts.html). **Spec'd and
-planned (committed `f414bebe`); not started.**
+[docs/sketches/world-view-districts.html](../sketches/world-view-districts.html). **D1 shipped on
+`feature/world-districts`; D2 (the scenery families) shipped on `feature/world-scenery`; D3
+(atmosphere) shipped on `feature/world-atmosphere` — all three branch tips, 2026-10-07.**
 
 ### About
 
@@ -726,6 +727,18 @@ Every locale becomes a seeded underwater district: one of nine row recipes repla
 follows the hour, populated by static scenery families that obey the factory rules. Three branches:
 **D1** districts + terrain + water, **D2** the families, **D3** atmosphere. Changing what existing
 coordinates and saved `?session=` links show is accepted.
+
+### Not Doing
+
+- **Coast framing** — the sketch kept it for comparison only; the world is underwater, full stop.
+- **The legacy `FACTORY_ROWS` table as a tenth district** — dropped; one in ten worlds looking like
+  today defeats the point of districts.
+- **Preserving existing worlds / saved `?session=` links** — accepted breaking change (intent
+  "Out of scope"); regenerating a different-looking locale at the same coordinates is the point.
+- **Audio → world mapping** (global audio parameters driving the recipe pick, derelict ratio or
+  lighting) — a separate session; the recipe pick and derelict ratio stay explicit per-locale values
+  so that future session has clean targets.
+- **Robot visuals** — untouched; Phase 40/41 own them on their own branches.
 
 ### Decisions made after the spec
 
@@ -737,6 +750,16 @@ coordinates and saved `?session=` links show is accepted.
   anchor (via `config.row` + the district) to decide which items can host jobs.
 - **D1 + D2 block Phase 43** — its building-to-job host lists are written against the district
   families. D3 does not.
+- **`MarineSnow` is cut (2026-10-07)** — built, judged live by Crawford, and dropped: it read as
+  film grain over the scene rather than drifting particulate, making the already-static world look
+  stiller, not more alive. Three motion variants were perf-measured as a follow-up and none
+  changed the verdict. `LightShafts` ships alone as D3's atmosphere layer. See
+  docs/specs/WORLD_VIEW_DISTRICTS.md's 2026-10-07 amendment and docs/tasks/WORLD_VIEW_DISTRICTS.md
+  Task 21.
+- **D3's perf gate pinned an hour, not a district** — `computeLocaleHour` reads `abs(x % 24)` off
+  `dayStartTimestamp` at locale build time, so Task 22 picked `x = 12` (shafts on) and `x = 0`
+  (shafts off) directly rather than scanning for a district; passed within the existing noise band
+  at both hours (docs/PERFORMANCE.md).
 
 ## 43. Robot Jobs and Charging Stations
 

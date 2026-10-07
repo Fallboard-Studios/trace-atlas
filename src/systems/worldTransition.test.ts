@@ -11,12 +11,12 @@ vi.mock('../engine/beatClock', () => ({
   getCurrentMeasurePrecise: vi.fn(() => 0),
 }));
 
-// Spy on recolorFactoriesForAttenuationStyle while keeping every other export
-// (placeFactories, createFactory, ...) real — initializeLocale/placeFactories
-// must keep spawning real factories for the other describe blocks below.
+// Spy on recolorActorsForAttenuationStyle while keeping every other export
+// (createFactory, ...) real — initializeLocale/placeDistrict must keep
+// spawning real factories for the other describe blocks below.
 vi.mock('./factoryPlacementSystem', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./factoryPlacementSystem')>();
-  return { ...actual, recolorFactoriesForAttenuationStyle: vi.fn(actual.recolorFactoriesForAttenuationStyle) };
+  return { ...actual, recolorActorsForAttenuationStyle: vi.fn(actual.recolorActorsForAttenuationStyle) };
 });
 
 // ========================================
@@ -32,7 +32,7 @@ import { getSeededVal } from '../utils/getSeededVal';
 import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
 import { initializeLocale, retransmitWorld } from './worldTransition';
 import { getCurrentMeasure } from '../engine/beatClock';
-import { recolorFactoriesForAttenuationStyle } from './factoryPlacementSystem';
+import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { stopRobotLifecycle } from './robotSystems';
 import { stopAudioSwells } from './audioSwells';
 import * as audioSwellsModule from './audioSwells';
@@ -262,9 +262,9 @@ describe('worldTransition', () => {
       expect(newLocale.createdAtMeasure).toBe(137);
     });
 
-    it('never calls recolorFactoriesForAttenuationStyle — this branch never changes the AS', () => {
+    it('never calls recolorActorsForAttenuationStyle — this branch never changes the AS', () => {
       retransmitWorld({ coordinates: { x: 1000, y: 2000 } });
-      expect(recolorFactoriesForAttenuationStyle).not.toHaveBeenCalled();
+      expect(recolorActorsForAttenuationStyle).not.toHaveBeenCalled();
     });
 
     it('does NOT reseed audioStore.bpm — BPM follows the Attenuation Style, which a coordinates move never changes (docs/specs/FREE_SYNC_TOGGLE.md §1.7)', () => {
@@ -370,11 +370,11 @@ describe('worldTransition', () => {
       expect(after).toBe(before); // byte-identical, not just "close enough"
     });
 
-    it('calls recolorFactoriesForAttenuationStyle exactly once, with the preserved locale id and the NEW attenuationStyle id/name', () => {
+    it('calls recolorActorsForAttenuationStyle exactly once, with the preserved locale id and the NEW attenuationStyle id/name', () => {
       retransmitWorld({ attenuationStyleName: 'Kryndara' });
       const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
-      expect(recolorFactoriesForAttenuationStyle).toHaveBeenCalledTimes(1);
-      expect(recolorFactoriesForAttenuationStyle).toHaveBeenCalledWith(DEFAULT_LOCALE_ID, attenuationStyle.id, attenuationStyle.name);
+      expect(recolorActorsForAttenuationStyle).toHaveBeenCalledTimes(1);
+      expect(recolorActorsForAttenuationStyle).toHaveBeenCalledWith(DEFAULT_LOCALE_ID, attenuationStyle.id, attenuationStyle.name);
     });
 
     it("reseeds audioStore.bpm from the NEW Attenuation Style's own id/name, discarding a hand-dragged value (docs/specs/FREE_SYNC_TOGGLE.md §1.7)", () => {
@@ -385,8 +385,8 @@ describe('worldTransition', () => {
       expect(useAudioStore.getState().bpm).toBe(generateAttenuationStyleBpm(attenuationStyle.id, attenuationStyle.name));
     });
 
-    it("preserves every factory's id/position/scale — only hueShift/satShift may change, per recolorFactoriesForAttenuationStyle", () => {
-      initializeLocale(DEFAULT_LOCALE_ID); // real placeFactories — populates real actors
+    it("preserves every factory's id/position/scale — only hueShift/satShift may change, per recolorActorsForAttenuationStyle", () => {
+      initializeLocale(DEFAULT_LOCALE_ID); // real placeDistrict — populates real actors
       const before = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.actors;
       expect(before.length).toBeGreaterThan(0);
 
@@ -483,9 +483,9 @@ describe('worldTransition', () => {
       expect(computeLocaleHour(locale.dayStartTimestamp)).toBeCloseTo(Math.abs(42 % 24), 0);
     });
 
-    it('never calls recolorFactoriesForAttenuationStyle — the old locale is discarded, not recolored', () => {
+    it('never calls recolorActorsForAttenuationStyle — the old locale is discarded, not recolored', () => {
       retransmitWorld({ attenuationStyleName: 'Vessport Null', coordinates: { x: 42, y: 42 } });
-      expect(recolorFactoriesForAttenuationStyle).not.toHaveBeenCalled();
+      expect(recolorActorsForAttenuationStyle).not.toHaveBeenCalled();
     });
 
     it("reseeds audioStore.bpm from the new Attenuation Style's own id/name, discarding a hand-dragged value (docs/specs/FREE_SYNC_TOGGLE.md §1.7)", () => {

@@ -1,5 +1,13 @@
 # Intent: World View Districts
 
+> **Shipped (roadmap Phase 42, 2026-10-07)** — spec
+> [docs/specs/WORLD_VIEW_DISTRICTS.md](../specs/WORLD_VIEW_DISTRICTS.md), plan
+> [docs/tasks/WORLD_VIEW_DISTRICTS.md](../tasks/WORLD_VIEW_DISTRICTS.md). All three branches
+> shipped: D1 (`feature/world-districts`), D2 (`feature/world-scenery`), D3
+> (`feature/world-atmosphere`). Two cuts along the way: the `dock` pad family (superseded by
+> Phase 43's charging stations) and `MarineSnow` (read as film grain, not drifting particulate —
+> see the spec's 2026-10-07 amendment). Every perf gate (Tasks 9, 18, 22) passed.
+
 Confirmed 2026-10-05 via the interview-me skill (four questions, every guess confirmed), from the
 sketch [docs/sketches/world-view-districts.html](../sketches/world-view-districts.html) (two passes,
 both "love everything"). Ahead of a `spec-driven-development` pass. Sequenced **after** Phase 40

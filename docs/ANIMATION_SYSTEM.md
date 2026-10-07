@@ -93,7 +93,21 @@ several related keys per instance, not just one:
   and more robust than teaching the queued path's own boolean about the unqueued path's parallelism.
 
 ### Scene layers — what may move where
-The ocean scene (`OceanScene.tsx`) is four stacked `<svg>` layers that share one viewBox and `xMidYMid slice` fit: static back (background + midground factories, depth gradients), moving bubbles, moving robots, static front (foreground factories). The moving layers carry `will-change: transform` (OceanScene.css) and are compositor layers of their own, so a per-frame transform write repaints only them. This is a roadmap 17.2.5 finding, not a style choice: with everything in one `<svg>`, every GSAP write re-rasterized all sixty factories at full viewport size on every frame. Two rules follow:
+The ocean scene (`OceanScene.tsx`) is four stacked `<svg>` layers that share one viewBox and `xMidYMid slice` fit: static back (background + midground factories/scenery, the terrain ridge, the water column, depth gradients), moving bubbles, moving robots, static front (foreground factories/scenery). The moving layers carry `will-change: transform` (OceanScene.css) and are compositor layers of their own, so a per-frame transform write repaints only them. This is a roadmap 17.2.5 finding, not a style choice: with everything in one `<svg>`, every GSAP write re-rasterized all sixty factories at full viewport size on every frame. Two rules follow:
+
+`TerrainLayer` (the ridge/ground polygons) and `WaterColumn` (the gradient + surface glow) are
+static-layer content, same as the factories: both re-fill on the once-a-second lighting tick only
+(`activeLocaleLocalTime` → `getLighting`, whole-percent rounding), never per frame and never via a
+CSS `transition` (roadmap Phase 42, docs/specs/WORLD_VIEW_DISTRICTS.md §1.3/§1.5).
+
+`LightShafts` (Phase 42 D3, back layer, §1.12) is the same static-layer content, on the same
+lighting tick. A moving variant was tried for the atmosphere layer's other element, `MarineSnow`
+(continuous per-circle drift, a teleport, an opacity-only twinkle) and perf-measured against this
+section's own rule before Crawford cut the element on visual grounds, not cost — see
+docs/PERFORMANCE.md's Task 21 follow-up. The twinkle shape read as the cheapest and least
+bug-like of the three (opacity-only, no position write), so a future "drift the snow" idea, if ever
+revisited, is a moving-layer addition and must clear the same idle-paint gate this section
+describes before it ships, not after.
 
 - Anything that moves every frame goes in a moving layer (robots in the robots layer, bubbles in `BubbleLayer`), never inside the static factory layers.
 - No CSS `transition`/`animation` on scene SVG fills or attributes — a running transition style-invalidates its element every frame, which is how the old `fill 4.8s` lighting fade kept the whole scene repainting. Lighting steps once a second instead.

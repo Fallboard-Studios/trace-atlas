@@ -23,8 +23,9 @@ summed with the locale-seeded shift above. Nothing else about a factory is
 affected — placement, count, id, variant, scale, and greeble selection stay
 driven exclusively by the locale seed regardless of which Attenuation Style
 is active. Retransmitting a new Attenuation Style recolors an existing
-locale's factories in place (`recolorFactoriesForAttenuationStyle()`)
-without touching any of those other fields. See
+locale's factories in place (`recolorActorsForAttenuationStyle()` — roadmap
+Phase 42 D2 generalised it to cover every body-bearing scenery actor too,
+see "Scenery families" below) without touching any of those other fields. See
 [docs/specs/ATTENUATION_STYLE.md](specs/ATTENUATION_STYLE.md) §1.2.
 
 A third additive step, the **accent lean** (roadmap Phase 35,
@@ -178,7 +179,7 @@ How (`src/utils/accentLean.ts`, applied in `factoryPlacementSystem.ts`):
      keep the full lift. Add a row to the table, never a third special case.
 4. **Folded, not rendered.** `createFactory`'s optional trailing
    `accentTarget` adds the lean to the `hueShift`/`satShift` it already
-   stores; `recolorFactoriesForAttenuationStyle` repeats the identical
+   stores; `recolorActorsForAttenuationStyle` repeats the identical
    computation with the new style's map (a recolor equals a fresh placement,
    factory for factory — tested). `Factory.tsx`, `factoryBubbleProps.ts`,
    `applyColorShift`, day/night and `Actor.config`'s shape are untouched;
@@ -221,16 +222,32 @@ function applyColorShift(
 
 Farther depth rows have a compressed L range — their maximum attainable
 lightness is capped below 100%. This simulates atmospheric perspective
-underwater.
+underwater. `ROW_L_CAP` (`src/constants/sceneDepth.ts`, roadmap Phase 42) is the real constant, and
+the cap is now applied:
 
-| Row depth | Max L | Notes |
+| Row depth | `ROW_L_CAP` | Notes |
 |-----------|-------|-------|
-| Foreground (closest) | 100% | Full brightness at midday |
-| Mid-depth | ~80% | Slightly muted |
-| Far depth | ~60–70% | Noticeably darker ceiling |
+| Foreground (closest) | 1.0 | Full brightness at midday |
+| Mid-depth | 0.85 | Slightly muted |
+| Far depth | 0.7 | Noticeably darker ceiling |
 
-The per-row cap is multiplied into the day/night `lMultiplier` before it
-reaches `applyColorShift`, so variant code doesn't need to be aware of it.
+`Factory.tsx` multiplies `ROW_L_CAP[depth]` into `eastLMultiplier`/`westLMultiplier` before they
+reach `applyColorShift`; every scenery renderer does the same with its own depth. Lit elements
+(`indicator.powered`, `alert.powered`, `glass.base`, lit windows) are never capped — a light is a
+light at any depth.
+
+### Derelict
+
+An actor can roll `config.derelict: true` at placement (`'actor.derelict'`, offset = actor index,
+`< row.derelict ?? DERELICT_RATIO` — default `0.25`; see PROCEDURAL_GENERATION.md). Families that
+can be derelict: factory, tank, dome, scaffold. Wrecks are always derelict and carry no flag.
+Render-time effect (`Factory.tsx` and every derelict-capable scenery renderer):
+
+- `nightDepth` forced to `0` — no lit windows regardless of time of day.
+- Lightness cap × `DERELICT_L_CAP` (0.55); body saturation × `DERELICT_SAT` (0.4).
+- Factories: the antenna light and any rooftop indicator are also dark.
+- Lit elements stay un-capped by `ROW_L_CAP` as above, but are themselves turned off by the
+  `nightDepth` forcing — a derelict building is dark, not merely dim.
 
 ---
 
@@ -291,21 +308,163 @@ Other related runtime details:
 Runtime files to reference:
 - `src/components/actors/factoryVariants.ts` — variant config and `selectVariantFromSeed` (PRNG draw order).
 - `src/components/actors/silhouetteUtils.ts` — `calcSilhouetteSize`, `bottomAnchorTransform`.
-- `src/systems/factoryPlacementSystem.ts` — `FACTORY_ROWS` and placement algorithm.
+- `src/systems/factoryPlacementSystem.ts` — `createFactory` and `getRecipeRow`; row tables live in
+  `src/systems/districtRecipes.ts` (see "Districts" below).
 
 Facade greebles on each side receive the L multiplier of their respective
 facade. Rooftop greebles centred over the split use the average of
 east/west L.
 
-## Placement & Rows (runtime)
+## Districts
 
-The runtime places factories using a row configuration table (`FACTORY_ROWS`) that defines multiple depth rows. Each row entry contains a `y` position, a `spreadType` (`edges` | `full` | `center`), and `factoriesPerRow` which acts as a per-row density cap. Additional per-row fields include `edgeWidth` and `centerWidth` to control the horizontal extents for `edges` and `center` spreads respectively. Placement computes each factory's silhouette size via `calcSilhouetteSize` and advances placement by the computed width to avoid overlaps. See `src/systems/factoryPlacementSystem.ts` for the exact algorithm.
+Each locale is one of nine seeded **districts** (`src/systems/districts.ts`, `src/systems/districtRecipes.ts`
+— roadmap Phase 42). `pickDistrict(noiseMap)` draws `'locale.district'` once on the locale noise
+map and maps it to a `DistrictName` (`dense · outskirts · towers · yard · derelict · habitat ·
+wreckfield · ventfield · construction`). `placeDistrict(localeId)` replaces the old single fixed
+row table: it picks the district, builds the terrain profile (see "Terrain" below), and places
+every row of that district's recipe.
 
-- `edges`: fill left and right bands (edge width configurable) until count reached.
-- `full`: spread evenly across the full width with a soft cap of `factoriesPerRow`.
-- `center`: constrain placement to a centered segment (configurable `centerWidth`).
+A recipe is an ordered list of `DistrictRow`s:
+
+```typescript
+interface DistrictRow {
+  depth: 'background' | 'midground' | 'foreground';
+  anchor: 'ridge' | 'floor' | 'ground' | 'offscreen';
+  floorY?: number;            // anchor 'floor' only
+  spread: 'full' | 'center' | 'edges';
+  count: number;
+  centerWidth?: number;       // 'center' — fraction of WORLD_BOUNDS.width
+  edgeWidth?: number;         // 'edges'  — fraction per side
+  kind: 'factory' | SceneryKind;
+  variants?: FactoryVariant[]; // kind 'factory' only
+  derelict?: number;          // per-row override of DERELICT_RATIO
+}
+```
+
+Rows say **where an item stands**, never a literal `y`. The three spreads (`edges`/`full`/`center`)
+are unchanged from the legacy table, including the seeded `factory.spacing` jitter for `center`;
+placement still computes each factory's silhouette size via `calcSilhouetteSize` and advances by the
+computed width to avoid overlaps.
+
+### Anchors and the ground-lock invariant
+
+`placeDistrict` resolves each row's `anchor` into the actor's real `Actor.position.y`, from the
+terrain profile:
+
+| Anchor | Base y | Who |
+|---|---|---|
+| `ridge` | `ridgeYAt(x)` | background rows standing on the ridge |
+| `floor` | `row.floorY` | the default for background and midground rows |
+| `ground` | `groundYAt(x)` | the default for foreground rows |
+| `offscreen` | below the frame bottom | foreground rows whose base is cut by the frame |
+
+**Invariant:** after placement, every actor's base is on a terrain profile, under the ground
+polygon, or at/below the frame bottom — no visible base floats. This is asserted by a test that
+runs every district across 20 seeds.
+
+### `config.district` and `getRecipeRow`
+
+A row index alone cannot be resolved without knowing which district's table it indexes into, so
+every placed actor stores both `config.row` **and** `config.district: DistrictName` (serialisable,
+written once by `placeDistrict`). Render-time readers (`Factory.tsx`, `factoryBubbleProps.ts`, the
+recolor path) resolve the variant filter and depth label via
+`getRecipeRow(actor.config.district, actor.config.row)`, which replaces the now-removed
+single-argument row lookup.
 
 Placement is deterministic per actor (seeded) and respects row depth for rendering order (background → midground → foreground).
+
+---
+
+## Scenery families
+
+Roadmap Phase 42 D2 lands the sixteen non-factory **scenery families** a district recipe can place
+(`src/components/actors/scenery/`, docs/specs/WORLD_VIEW_DISTRICTS.md §1.8–§1.11):
+`tank · crane · pylon · wall · beacon · pipeline · dome · wreck · turbine · boulder · vent ·
+containers · scaffold · tether · floodlight · dish`. `Actor.config.kind: SceneryKind` selects the
+family; `ActorType.SCENERY` distinguishes it from `ActorType.FACTORY`. `Scenery.tsx` (memoised, same
+`staticVisual` pattern as `Factory.tsx`) dispatches on `SCENERY_RENDERERS[kind]`, and `OceanScene`
+renders scenery actors in the same per-depth groups as factories, interleaved by `config.row` so
+z-order always follows the recipe.
+
+### The `SceneryContext` contract
+
+Every renderer is a pure function `(ctx: SceneryContext) => JSX` (`scenery/sceneryTypes.ts`), built
+once per actor by `Scenery.tsx`:
+
+```typescript
+interface SceneryContext {
+  actor: Actor;
+  params: SceneryParams;          // Alea(actor.id)-derived once per actor (sceneryParams.ts)
+  cap: number;                    // ROW_L_CAP[depth] * (derelict ? DERELICT_L_CAP : 1)
+  eastL: number; westL: number;   // getLighting(lightMeasure) — cap-free; the renderer applies cap
+  nightDepth: number;             // 0 when derelict
+  accent: AccentPair;             // the active style's accent pair (deriveAsAccentPair)
+  gems: boolean;                  // the SCENERY_GEM_ACCENTS build flag
+}
+```
+
+A renderer never reads the lighting tick, the recipe table or `ROW_L_CAP` directly — `Scenery.tsx`
+resolves all of it into `ctx` so every family sees the same shape, the scenery equivalent of
+`Factory.tsx` recomputing its own per-tick colour math.
+
+### Gem accents
+
+`scenery/gemShape.tsx`'s `GemShape` draws a chamfered polygon in the Phase 39 gem-robot vocabulary —
+chamfer, three facet tones, one outline — but **reuses** `gemShading.ts`'s tone quantisation
+(`quantizeShade`) rather than the robot generator (`getRobotGem`): a rock or a beacon head is one
+polygon, not a body. Pylon heads, beacons and boulders carry gem accents (beacon is a gems-only
+family — `placeDistrict` skips its rows when `SCENERY_GEM_ACCENTS` is off); boulders pass a neutral
+base and `lit: false` so they rhyme with the robots instead of reading as one.
+
+### Body-bearing vs structural families
+
+Five families carry a body that recolors like a factory's: **tank, wall, dome, containers,
+scaffold**. Each stores a local `hueShift`/`satShift` (its own range in `sceneryParams.ts`) that
+`placeDistrict` folds with the active Attenuation Style's shift and the Phase 35 accent lean via the
+shared `foldBodyShift()` (extracted from `createFactory`) into `Actor.config.hueShift`/`.satShift` —
+the same two stored numbers a factory uses, read the same way by the renderer.
+
+The remaining structural families — **crane, pylon, pipeline, turbine, tether, floodlight, dish,
+wreck, vent, boulder** — use fixed palette tones from `colorTheme.json` and store no shift; they
+look the same under every Attenuation Style.
+
+### Recolor coverage
+
+`recolorActorsForAttenuationStyle` (see "Applying Colour" above, where it is generalised from
+factories to every body-bearing actor) iterates every actor with a body — factory or scenery — re-deriving the
+local shift and folding the new style's shift and lean, so a Sector Settings retransmit recolors
+walls, tanks, domes, containers and scaffolds right alongside the skyline. Structural families are
+untouched, since they store no shift to recompute.
+
+### The 90/45 test helper
+
+Every scenery shape, like every factory shape, draws on a 90°/45° grid. `assertNinetyFortyFive`
+(`scenery/sceneryTestHelpers.ts`) walks an SVG root and asserts every `rect`/`polygon`/`line` edge is
+horizontal, vertical or exactly 45°, treating the interior of a `rotate(±45)` group (turbine's blades,
+dish's ellipse) as grid-by-construction rather than failing it. Every family's test runs this helper
+over 50 seeds.
+
+---
+
+## Atmosphere
+
+Roadmap Phase 42 D3 adds one atmosphere layer: `LightShafts` (`worldView/LightShafts.tsx`), 3–5
+static polygons in the back layer, after `WaterColumn` and before the terrain ridge. Each has one
+vertical edge and one 45° edge (the scenery families' own grid rule), seeded on the locale's own
+noise map (`'atmos.shaft.*'` dataIds), and fills with a vertical gradient from `glass.base` at opacity
+`0.11 × (1 − nightDepth)` down to 0 — sold at midday, gone at night (the group renders nothing once
+that opacity drops below 0.005). It reads the lighting tick the same way `WaterColumn` and
+`TerrainLayer` do: no GSAP, no CSS transition, a re-fill only when the rounded hour steps.
+
+A second element, `MarineSnow` (140 static particulate circles in the front layer), was built,
+shown to Crawford at a dev-server review, and **cut**: at that density it read as film grain over
+the scene rather than drifting particulate, making the world look stiller instead of more alive —
+the opposite of the intent. Three motion variants (continuous drift, teleport-with-fade, an
+opacity-only twinkle) were perf-measured as a follow-up; none changed the verdict that static
+particulate doesn't belong in this scene. See docs/specs/WORLD_VIEW_DISTRICTS.md's 2026-10-07
+amendment and docs/tasks/WORLD_VIEW_DISTRICTS.md Task 21 for the full record — if marine snow is
+ever revisited, the twinkle shape is the one with headroom (it measured as free), but it needs a
+new design pass, not a reinstatement of what was cut.
 
 ---
 
@@ -703,6 +862,13 @@ BPM or to measures; the effect is decorative, not musical.
   and paused (`pause(0)`) so its own first `.set()` hides every bubble.
 - Honours `prefers-reduced-motion: reduce`: no timeline is built and the
   circles stay at opacity 0.
+- **Vent scenery joins the stream (roadmap Phase 42 D2).** `getActorBubbleProps`
+  also returns a position for every `vent` scenery actor — the mouth at the
+  top of its stepped cone, `isActive`
+  always `true`, tinted by the vent's own shadow hue — so vents bubble the
+  same way eligible factories do. `OceanScene.bubbleBuildingCount` counts
+  vents alongside eligible factories so the ~4s-per-burst world-wide rate
+  stays level as districts add vents; every other scenery kind returns `null`.
 
 ---
 

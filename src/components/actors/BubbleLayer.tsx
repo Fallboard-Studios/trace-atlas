@@ -2,12 +2,13 @@ import React, { useMemo } from 'react';
 
 import type { Actor } from '../../types/Actor';
 import BubbleStream from './BubbleStream';
-import { getFactoryBubbleProps } from './factoryBubbleProps';
+import { getActorBubbleProps } from './factoryBubbleProps';
 import type { FactoryBubbleProps } from './factoryBubbleProps';
 
 interface BubbleLayerProps {
-  /** Every factory actor in the locale, all rows — the layer filters to the bubble-eligible ones. */
-  factories: Actor[];
+  /** Every actor in the locale, factories and scenery alike, all rows — the layer filters to the
+   *  bubble-eligible ones (factories, per `isBubbleEligible`, and `vent` scenery, §1.11). */
+  actors: Actor[];
   /** Locale-wide bubble-eligible building count (see BubbleStream's `totalBuildings`). */
   totalBuildings: number;
 }
@@ -18,12 +19,14 @@ interface BubbleLayerProps {
  * Rendered inside OceanScene's "bubbles" `<svg>` — a compositor layer separate from the static
  * factory skyline — so a rising bubble's transform writes repaint only this layer. Bubbles from
  * every row share the one layer: they rise behind the robots and below the foreground factories,
- * where the old per-row placement put foreground-row bubbles in front of the robots.
+ * where the old per-row placement put foreground-row bubbles in front of the robots. Vents
+ * (roadmap Phase 42 Task 17, §1.11) bubble the same way — `getActorBubbleProps` filters every
+ * other scenery kind out via its own `null` return.
  */
-const BubbleLayerInner: React.FC<BubbleLayerProps> = ({ factories, totalBuildings }) => {
+const BubbleLayerInner: React.FC<BubbleLayerProps> = ({ actors, totalBuildings }) => {
   const streams = useMemo(
-    () => factories.map(getFactoryBubbleProps).filter((p): p is FactoryBubbleProps => p !== null),
-    [factories],
+    () => actors.map(getActorBubbleProps).filter((p): p is FactoryBubbleProps => p !== null),
+    [actors],
   );
 
   return (

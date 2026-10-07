@@ -1,5 +1,11 @@
 # Phase Spec: World View Districts (underwater districts, scenery families, atmosphere)
 
+> **Shipped (roadmap Phase 42, 2026-10-07)** — intent
+> [docs/intent/world-view-districts.md](../intent/world-view-districts.md), plan
+> [docs/tasks/WORLD_VIEW_DISTRICTS.md](../tasks/WORLD_VIEW_DISTRICTS.md). D1/D2/D3 all shipped per
+> this spec's §6 branch sequence; the `dock` family and `MarineSnow` cuts are recorded in the
+> amendments above. Every perf gate (Tasks 9, 18, 22) passed within the 17.2.5 noise band.
+
 Roadmap Phase 42 (proposed; 41 is the halo spec). Intent:
 [docs/intent/world-view-districts.md](../intent/world-view-districts.md) (confirmed 2026-10-05, four
 questions). Sketch: [docs/sketches/world-view-districts.html](../sketches/world-view-districts.html)
@@ -22,6 +28,16 @@ re-confirmed live at each branch's gate.
 > geometry from `deriveSceneryParams(actor)` (its `workAnchors` reuse it outside React), and
 > `config.derelict` / the row's `offscreen` anchor stay readable after placement (they gate which
 > items can host jobs).
+
+> **Amendment (2026-10-07):** `MarineSnow` is cut — built on `feature/world-atmosphere` (Task 21),
+> judged live by Crawford, and dropped: at 140 static circles it read as film grain over the scene
+> rather than drifting particulate, and made the (already-static) world look stiller, not more
+> alive. Three motion variants (continuous per-circle drift, a 10/second teleport-with-fade, a
+> 10/second opacity-only twinkle) were perf-measured and visually checked as a follow-up — the
+> twinkle variant cost nothing measurable over the static baseline and looked the least like a bug
+> — but none changed the verdict that the element doesn't belong in the scene. `LightShafts` (Task
+> 20) is unaffected and ships alone as D3's atmosphere layer. §1.12's marine snow bullet below is
+> kept for the record, struck through in spirit; do not resurrect it without a new design pass.
 
 > **Execution Commands**
 > - Build check: `npm run build`
@@ -98,6 +114,13 @@ interface DistrictRow {
   derelict?: number;                                     // per-row override of DERELICT_RATIO
 }
 ```
+
+> **Plan-time correction (carried in, Task 10):** a row index alone is ambiguous — `Factory.tsx`,
+> `factoryBubbleProps.ts` and the recolor path all resolve `config.row` into a variant filter, and a
+> row index is only meaningful relative to *which* district's table it indexes into. Every placed
+> actor therefore also stores `config.district: DistrictName` (serialisable, written once by
+> `placeDistrict`), and the old `getRowConfig(row)` becomes `getRecipeRow(district, row)`, which
+> looks up `RECIPES[district][row]`.
 
 Spread semantics are today's three (`placeFactories`' edges/full/center loops, including the
 seeded `factory.spacing` jitter for center). Factory rows keep their variant filters. A row whose
@@ -197,6 +220,9 @@ is corrected to these values and to say the cap is now applied. Lit elements (`i
   depth cap, the east/west multipliers, `nightDepth`, the style's accent pair and the gem flag.
 - `OceanScene` renders scenery in the same depth groups as factories, interleaved in recipe row
   order (one sorted list per depth, by row index), so z-order is the recipe's.
+- Every scenery actor also carries `config.district` and `config.row`, same as factories (§1.2's
+  plan-time correction), so render-time readers resolve the family's row via
+  `getRecipeRow(district, row)` the same way `Factory.tsx` does.
 - Colour: families with a body (tank, wall, dome, containers, scaffold) store `hueShift`/`satShift`
   computed like `createFactory` (variant-style base + locale shift + AS shift + Phase 35 lean, via a
   shared `foldBodyShift()` extracted from `createFactory`), so `recolorFactoriesForAttenuationStyle`
@@ -259,11 +285,11 @@ has 9) because each stream is a GSAP timeline in the moving layer (§5.3).
   3–5 polygons from the top edge, each `x` −200..1920, width 50–160, depth 420–760, one vertical
   edge and one 45° edge (seeded direction, one per locale), filled by a vertical gradient from
   `glass.base` at opacity `0.11 × (1 − nd)` to 0. Omitted entirely when that opacity < 0.005.
-- **Marine snow** — `MarineSnow` in the **front** static layer, after the foreground row: 140
-  circles r 1.2–3 at seeded positions, `shell.highlight`, opacity `(0.08–0.3) × lerp(0.6, 1, 1 − nd)`.
-  Static. Drifting it is out of scope.
-- Both subscribe to the lighting tick like the water column; both have dataIds on the locale map
-  (`'atmos.shaft.*'`, `'atmos.snow.*'`).
+- **Marine snow — cut (2026-10-07 amendment above).** Was: `MarineSnow` in the **front** static
+  layer, after the foreground row: 140 circles r 1.2–3 at seeded positions, `shell.highlight`,
+  opacity `(0.08–0.3) × lerp(0.6, 1, 1 − nd)`, static. Read as film grain, not snow; removed.
+- `LightShafts` subscribes to the lighting tick like the water column; has a dataId on the locale
+  map (`'atmos.shaft.*'`).
 
 ## 2. Target File Structure
 
@@ -293,8 +319,7 @@ src/
 │       ├── OceanScene.tsx                           # WaterColumn, TerrainLayer, scenery per depth, atmosphere layers
 │       ├── WaterColumn.tsx                          # §1.5
 │       ├── TerrainLayer.tsx                         # §1.3 (ridge + ground polygons)
-│       ├── LightShafts.tsx                          # §1.12 (D3)
-│       └── MarineSnow.tsx                           # §1.12 (D3)
+│       └── LightShafts.tsx                          # §1.12 (D3; MarineSnow built then cut, see amendment)
 docs/
 ├── specs/WORLD_VIEW_DISTRICTS.md                    # this file
 ├── tasks/WORLD_VIEW_DISTRICTS.md                    # the plan (next)
@@ -426,7 +451,8 @@ none`, three rounds, order rotated, foreground, orphaned Chrome 0.
   water reads as water at 0 / 6 / 12 / 18 h; the ridge reads as terrain.
 - **D2 gate:** each family on, then off, in its districts; derelict legible at night; gem accents
   rhyme with the robots rather than read as robots; a retransmit recolors scenery with the skyline.
-- **D3 gate:** shafts sell "underwater" without fighting the depth gradients; snow is felt, not seen.
+- **D3 gate:** shafts sell "underwater" without fighting the depth gradients. (Marine snow was
+  judged here too, on 2026-10-07, and cut — see the amendment above.)
 
 ## 6. Git & Workflow Context
 

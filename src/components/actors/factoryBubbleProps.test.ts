@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 
-import { getFactoryBubbleProps, hashActorId } from './factoryBubbleProps';
+import { getActorBubbleProps, hashActorId } from './factoryBubbleProps';
 import { selectVariantFromSeed, VARIANT_CONF } from './factoryVariants';
 import { calcSilhouetteSize } from './silhouetteUtils';
-import { getRowConfig, getAllRowConfigs } from '../../systems/factoryPlacementSystem';
+import { getRecipeRow } from '../../systems/factoryPlacementSystem';
+import { RECIPES } from '../../systems/districtRecipes';
 import { shiftHSL } from '../../utils/colorUtils';
 import { computeAccentLean } from '../../utils/accentLean';
+import { deriveSceneryParams, ventTotalHeight } from './scenery/sceneryParams';
+import colorTheme from '../../constants/colorTheme.json';
 import { ActorType } from '../../types/Actor';
 import type { Actor } from '../../types/Actor';
 
@@ -14,8 +17,10 @@ import type { Actor } from '../../types/Actor';
 // actor alone, instead of inside Factory's render. These tests re-derive each value through the
 // same public helpers Factory uses for its silhouette, so the two can't drift apart silently.
 
+// Every actor below uses the 'dense' district (getActorBubbleProps' own fallback), so a row
+// index alone resolves the same depth label the real implementation would see.
 const rowIndexFor = (label: 'background' | 'midground' | 'foreground'): number =>
-  getAllRowConfigs().findIndex((r) => r.row === label);
+  RECIPES.dense.findIndex((r) => r.depth === label);
 
 function makeActor(overrides: Partial<Actor> & { config?: Actor['config'] } = {}): Actor {
   return {
@@ -25,7 +30,7 @@ function makeActor(overrides: Partial<Actor> & { config?: Actor['config'] } = {}
     isActive: true,
     cooldownRemaining: 0,
     ...overrides,
-    config: { row: rowIndexFor('midground'), purpose: 'heavyIndustry', hueShift: 10, satShift: -5, ...(overrides.config ?? {}) },
+    config: { row: rowIndexFor('midground'), district: 'dense', purpose: 'heavyIndustry', hueShift: 10, satShift: -5, ...(overrides.config ?? {}) },
   };
 }
 
@@ -39,36 +44,36 @@ describe('hashActorId', () => {
   });
 });
 
-describe('getFactoryBubbleProps', () => {
+describe('getActorBubbleProps', () => {
   it('returns null for a purpose with no vent (observationComms)', () => {
-    expect(getFactoryBubbleProps(makeActor({ config: { purpose: 'observationComms' } }))).toBeNull();
+    expect(getActorBubbleProps(makeActor({ config: { purpose: 'observationComms' } }))).toBeNull();
   });
 
   it('treats an unset purpose as eligible (the heavyIndustry fallback)', () => {
-    expect(getFactoryBubbleProps(makeActor({ config: { purpose: undefined } }))).not.toBeNull();
+    expect(getActorBubbleProps(makeActor({ config: { purpose: undefined } }))).not.toBeNull();
   });
 
   it('keys the stream to the actor and seeds it from the full-id hash', () => {
     const actor = makeActor();
-    const props = getFactoryBubbleProps(actor)!;
+    const props = getActorBubbleProps(actor)!;
     expect(props.actorId).toBe(actor.id);
     expect(props.seed).toBe(hashActorId(actor.id));
   });
 
   it('is active unless the building is offline', () => {
-    expect(getFactoryBubbleProps(makeActor())!.isActive).toBe(true);
-    expect(getFactoryBubbleProps(makeActor({ config: { isOffline: true } }))!.isActive).toBe(false);
+    expect(getActorBubbleProps(makeActor())!.isActive).toBe(true);
+    expect(getActorBubbleProps(makeActor({ config: { isOffline: true } }))!.isActive).toBe(false);
   });
 
   it('puts the vent on the roofline, 20–80 % across the facade, in scene coordinates', () => {
     const actor = makeActor({ scaleX: 1.1, scaleY: 0.9 });
     const row = actor.config!.row!;
-    const config = selectVariantFromSeed(actor.id, actor.position.x, row, getRowConfig(row)?.availableFactoryTypes);
+    const config = selectVariantFromSeed(actor.id, actor.position.x, row, getRecipeRow('dense', row)?.variants);
     const { width, height } = calcSilhouetteSize(config.noiseValue, VARIANT_CONF[config.variant].sizeRange);
     const actualWidth = width * 1.1;
     const actualHeight = height * 0.9;
 
-    const props = getFactoryBubbleProps(actor)!;
+    const props = getActorBubbleProps(actor)!;
     expect(props.ventY).toBeCloseTo(actor.position.y - actualHeight, 6);
     expect(props.ventX).toBeCloseTo(actor.position.x + (((hashActorId(actor.id) % 60) + 20) / 100) * actualWidth, 6);
     expect(props.ventX).toBeGreaterThanOrEqual(actor.position.x + 0.2 * actualWidth);
@@ -78,9 +83,9 @@ describe('getFactoryBubbleProps', () => {
   it('tints the bubbles with the building\'s shifted body hue', () => {
     const actor = makeActor();
     const row = actor.config!.row!;
-    const config = selectVariantFromSeed(actor.id, actor.position.x, row, getRowConfig(row)?.availableFactoryTypes);
+    const config = selectVariantFromSeed(actor.id, actor.position.x, row, getRecipeRow('dense', row)?.variants);
     const expectedHue = shiftHSL(VARIANT_CONF[config.variant].colors.body, { hueShift: 10, satShift: -5 }).h;
-    expect(getFactoryBubbleProps(actor)!.bodyHue).toBe(expectedHue);
+    expect(getActorBubbleProps(actor)!.bodyHue).toBe(expectedHue);
   });
 
   it('follows a Phase 35 accent-leaned shift with no rule of its own — the lean reaches the bubbles through the stored hueShift/satShift', () => {
@@ -90,15 +95,15 @@ describe('getFactoryBubbleProps', () => {
     const base = { hueShift: 10, satShift: -5 };
     const row = rowIndexFor('midground');
     const probe = makeActor({ config: { row } });
-    const variant = selectVariantFromSeed(probe.id, probe.position.x, row, getRowConfig(row)?.availableFactoryTypes).variant;
+    const variant = selectVariantFromSeed(probe.id, probe.position.x, row, getRecipeRow('dense', row)?.variants).variant;
     const body = VARIANT_CONF[variant].colors.body;
     const lean = computeAccentLean(shiftHSL(body, base), 172); // ≈ teal
     expect(lean.hueShift).not.toBe(0); // a trivial lean would prove nothing
     const leaned = { hueShift: base.hueShift + lean.hueShift, satShift: base.satShift + lean.satShift };
 
     const actor = makeActor({ config: { row, ...leaned } });
-    expect(getFactoryBubbleProps(actor)!.bodyHue).toBe(shiftHSL(body, leaned).h);
-    expect(getFactoryBubbleProps(actor)!.bodyHue).not.toBe(shiftHSL(body, base).h);
+    expect(getActorBubbleProps(actor)!.bodyHue).toBe(shiftHSL(body, leaned).h);
+    expect(getActorBubbleProps(actor)!.bodyHue).not.toBe(shiftHSL(body, base).h);
   });
 
   it.each([
@@ -106,10 +111,64 @@ describe('getFactoryBubbleProps', () => {
     ['midground', 0.5],
     ['foreground', 1],
   ] as const)('scales bubbles by row depth: %s → %s', (label, depthScale) => {
-    expect(getFactoryBubbleProps(makeActor({ config: { row: rowIndexFor(label) } }))!.depthScale).toBeCloseTo(depthScale, 9);
+    expect(getActorBubbleProps(makeActor({ config: { row: rowIndexFor(label) } }))!.depthScale).toBeCloseTo(depthScale, 9);
   });
 
   it('falls back to full-size bubbles when the row is unknown', () => {
-    expect(getFactoryBubbleProps(makeActor({ config: { row: 99 } }))!.depthScale).toBe(1);
+    expect(getActorBubbleProps(makeActor({ config: { row: 99 } }))!.depthScale).toBe(1);
+  });
+});
+
+// Roadmap Phase 42 Task 17 (§1.11): vents vent bubbles too — getActorBubbleProps resolves a
+// vent's mouth position from the SAME ventSteps geometry its renderer (renderers/vent.tsx) draws
+// from, so the real BubbleStream never drifts from the drawn mouth.
+describe('getActorBubbleProps — vent scenery', () => {
+  const ventRowFor = (label: 'background' | 'midground'): number =>
+    RECIPES.ventfield.findIndex((r) => r.kind === 'vent' && r.depth === label);
+
+  function makeVentActor(overrides: Partial<Actor> & { config?: Actor['config'] } = {}): Actor {
+    return {
+      id: 'vent-9',
+      type: ActorType.SCENERY,
+      position: { x: 300, y: 1000 },
+      isActive: false,
+      cooldownRemaining: 0,
+      ...overrides,
+      config: { kind: 'vent', row: ventRowFor('background'), district: 'ventfield', ...(overrides.config ?? {}) },
+    };
+  }
+
+  it('returns null for non-vent scenery (e.g. a wall)', () => {
+    const wallActor = makeVentActor({ config: { kind: 'wall', row: ventRowFor('background'), district: 'ventfield' } });
+    expect(getActorBubbleProps(wallActor)).toBeNull();
+  });
+
+  it('is always active', () => {
+    expect(getActorBubbleProps(makeVentActor())!.isActive).toBe(true);
+  });
+
+  it('seeds the stream from the full-id hash, same as a factory', () => {
+    const actor = makeVentActor();
+    expect(getActorBubbleProps(actor)!.seed).toBe(hashActorId(actor.id));
+  });
+
+  it('tints the bubbles with colorTheme.vent.shadow.h (§1.11: "bodyHue: vent.shadow.h")', () => {
+    expect(getActorBubbleProps(makeVentActor())!.bodyHue).toBe(colorTheme.vent.shadow.h);
+  });
+
+  it('places the mouth at the actor\'s x and exactly ventTotalHeight(params) above the base y — the same geometry vent.tsx draws', () => {
+    const actor = makeVentActor();
+    const params = deriveSceneryParams(actor).vent!;
+    const props = getActorBubbleProps(actor)!;
+    expect(props.ventX).toBe(actor.position.x);
+    expect(props.ventY).toBeCloseTo(actor.position.y - ventTotalHeight(params), 6);
+  });
+
+  it.each([
+    ['background', 1 / 3],
+    ['midground', 0.5],
+  ] as const)('scales vent bubbles by row depth: %s → %s', (label, depthScale) => {
+    const actor = makeVentActor({ config: { kind: 'vent', row: ventRowFor(label), district: 'ventfield' } });
+    expect(getActorBubbleProps(actor)!.depthScale).toBeCloseTo(depthScale, 9);
   });
 });

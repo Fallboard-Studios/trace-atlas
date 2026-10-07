@@ -82,7 +82,7 @@ See also (short pointers)
 - `docs/HARMONY_SYSTEM.md`: Harmony progression rules and chord selection used by the systems.
 - `docs/POLYPHONY_GUIDE.md`: Voice management, polyphony budget, and voice-stealing policies.
 - `docs/ANIMATION_SYSTEM.md`: GSAP timeline patterns, `timelineMap` lifecycle, and ref registry usage.
-- `docs/BUILDING_DESIGN.md`: Factory and placement rules, production cooldowns, and placement algorithms.
+- `docs/BUILDING_DESIGN.md`: Factory and placement rules, production cooldowns, and placement algorithms, plus the nine seeded districts (roadmap Phase 42) that replaced the single fixed row table.
 - `docs/ROBOT_DESIGN.md`: Gem polygon robots (Phase 39) — the seeded generator (`getRobotGem` from `Robot.gemSeed`), bevel and 3-tone facet shading, the identity-colour palette, the three audio dials (lights, Mid lit level, body scale), the day/night and battery overlays, and the world/avatar/card render contexts.
 - `docs/CONTRIBUTION_GUIDE.md`: PR process, testing expectations, and where to record exceptions.
 - `docs/poc_guides/UI_GUIDES/UI_ISSUE_OVERVIEW.md`: Sleeve & Glass UI architecture, store responsibilities, and milestone issue breakdown.

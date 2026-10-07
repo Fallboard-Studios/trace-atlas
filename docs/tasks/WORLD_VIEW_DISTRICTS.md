@@ -29,7 +29,8 @@ real depth lightness cap and the derelict flag — with factories only, so "nine
 places" is judged before any new silhouette exists. **D2** (Tasks 11–19) lands the sixteen scenery
 families through one dispatcher, in groups that share a mechanism (gem users, body-bearing items
 that recolor, structural items, the bubble-venting vent), plus derived pipe bridges. **D3**
-(Tasks 20–23) adds light shafts and marine snow. Every branch ends with Crawford's live gate, an
+(Tasks 20–23) adds light shafts (marine snow was built in Task 21 and then cut — see that task).
+Every branch ends with Crawford's live gate, an
 idle-paint perf gate that stops and reports, and a docs task. Every task leaves types, lint and the
 suite green; RED first; one commit per task; mutation-check each rule test by breaking the constant
 or branch it guards and naming the check in the commit message.
@@ -70,7 +71,7 @@ D2  T11 scenery scaffolding + wall ─► T12 gemShape + pylon/beacon/boulder
                                    ─► T13 foldBodyShift + recolorActors + tank ─► T14 dome/scaffold/containers
                                    ─► T15 crane/pipeline/pipe bridges ─► T16 turbine/tether/floodlight/dish ─► T17 wreck/vent + bubbles
                                                                        Checkpoint B ─► T18 perf gate (stop) ─► T19 docs
-D3  T20 LightShafts ─► T21 MarineSnow ─► Checkpoint C ─► T22 perf gate (stop) ─► T23 docs + roadmap
+D3  T20 LightShafts ─► T21 MarineSnow (built, cut) ─► Checkpoint C ─► T22 perf gate (stop) ─► T23 docs + roadmap
 ```
 
 Parallelisable: T1 ‖ T2 ‖ T3 ‖ T6. T4 needs T1–T3. T7 needs T4 (reads the profile the placer uses).
@@ -522,25 +523,49 @@ vertical gradient `glass.base` at opacity `0.11 × (1 − nd)` → 0; renders no
 complete. **Files:** `worldView/LightShafts.tsx` (+ test), `worldView/OceanScene.tsx` (+ test).
 **Scope:** S.
 
-## Task 21: `MarineSnow`
+## Task 21: `MarineSnow` — built, then cut (2026-10-07)
 
-**Description:** Front-layer component after the foreground row: 140 circles, r 1.2–3, seeded
-positions (`'atmos.snow.x'`, `'atmos.snow.y'`, `'atmos.snow.r'`, `'atmos.snow.a'`, offset = index),
-`shell.highlight`, opacity `(0.08–0.3) × lerp(0.6, 1, 1 − nd)`. `data-atmos="snow"`. The D3 budget
-test asserts atmosphere ≤ 200 shapes.
+**Original description:** front-layer component after the foreground row: 140 circles, r 1.2–3,
+seeded positions (`'atmos.snow.x'`, `'atmos.snow.y'`, `'atmos.snow.r'`, `'atmos.snow.a'`, offset =
+index), `shell.highlight`, opacity `(0.08–0.3) × lerp(0.6, 1, 1 − nd)`. `data-atmos="snow"`. The D3
+budget test asserted atmosphere ≤ 200 shapes (`MAX_SHAFT_COUNT + SNOW_COUNT`).
 
-**Acceptance criteria:**
-- [ ] Exactly 140 circles, deterministic per locale, every attribute in range; opacity at hour 0 is
-      0.6× its hour-12 value (±0.005).
-- [ ] Rendered inside `[data-scene-layer="front"]` after `#factory-foreground-layer`.
+**What happened:** implemented, TDD'd (`MarineSnow.tsx` + test, the budget test in
+`districtRecipes.test.ts`, wired into `OceanScene.tsx` after `#factory-foreground-layer`), full
+suite/types/lint green, committed. Shown to Crawford at dev-server review (ahead of Checkpoint C):
+at 140 static circles it read as film grain over the scene, making the world look *stiller*, not
+more alive — the opposite of the intent. **Cut**, not shipped.
 
-**Verification:** `npx vitest run src/components/panels/screen/worldView src/systems/districtRecipes.test.ts`.
-**Dependencies:** T20. **Files:** `worldView/MarineSnow.tsx` (+ test), `worldView/OceanScene.tsx`,
-`src/systems/districtRecipes.test.ts`. **Scope:** S.
+Three motion variants were perf-measured and visually checked as a follow-up, to see whether
+drift (explicitly out of scope per spec §1.12, see docs/PERFORMANCE.md-style A/B below) would fix
+the "looks still" complaint before deciding to cut outright:
+- Continuous per-circle drift (all 140, GSAP `x`/`y` tween, infinite yoyo): main busy +~48%, Paint
+  +~28% vs the static build — clearly outside the 24–41% round-to-round noise band Tasks 9/18
+  documented on this same `dense` world.
+- Teleport (10/sec: fade out → reposition via `attr: {cx, cy}` → fade in): busy +~35%, Paint +~20%,
+  but compositor +~40% (worse than continuous drift there) — the fade round-trip itself is costly.
+  Also looked like a visual bug (a particle vanishing and reappearing elsewhere).
+- Opacity-only twinkle (10/sec, no position write): every metric landed at or below the static
+  baseline's own round-to-round spread — effectively free, and looked the most intentional of the
+  three (no position pop).
+
+None of the three changed the verdict — the element itself doesn't belong in the scene, independent
+of motion or cost. **Revert:** `MarineSnow.tsx` + `MarineSnow.test.tsx` deleted; `OceanScene.tsx`'s
+import/render call removed; the atmosphere-budget `describe` block and its `SNOW_COUNT`/
+`MAX_SHAFT_COUNT` imports removed from `districtRecipes.test.ts`; `MAX_SHAFT_COUNT` un-exported from
+`LightShafts.tsx` (nothing imports it now). `docs/specs/WORLD_VIEW_DISTRICTS.md` §1.12 and its file
+tree carry the same amendment. If marine snow is ever revisited, start from the twinkle shape — see
+the spec amendment for the reasoning — but it needs a new design pass, not a reinstatement of this
+task.
+
+**Verification:** `npm test`; `npm run build:types`; `npm run lint`. **Dependencies:** T20.
+**Files:** (removed) `worldView/MarineSnow.tsx`, `worldView/MarineSnow.test.tsx`; (reverted)
+`worldView/OceanScene.tsx`, `src/systems/districtRecipes.test.ts`,
+`worldView/LightShafts.tsx`. **Scope:** S.
 
 ### Checkpoint C: D3 live gate (Crawford, `npm run dev`) — stop and report
 - [ ] Shafts sell "underwater" at 9 / 12 / 15 h without fighting the depth gradients; gone at night.
-- [ ] Snow is felt, not seen; nothing reads as a bug at 1024 px or on the Pixel.
+- [x] Snow was judged here (ahead of schedule, during Task 21 itself) and cut — see Task 21.
 
 ## Task 22: D3 perf gate — stop and report
 

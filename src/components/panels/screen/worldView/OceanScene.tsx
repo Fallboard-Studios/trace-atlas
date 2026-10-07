@@ -2,6 +2,9 @@ import React, { useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import './OceanScene.css';
+import { TerrainLayer } from './TerrainLayer';
+import { WaterColumn } from './WaterColumn';
+import { LightShafts } from './LightShafts';
 
 import { Robot } from '@/components/robot/Robot'
 import { useLocaleStore } from '@/stores/localeStore';
@@ -11,10 +14,12 @@ import { initializeLocale } from '@/systems/worldTransition';
 import { consumeSessionSharePayload } from '@/utils/sessionShareUtils';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { Factory } from '@/components/actors/Factory';
+import { Scenery } from '@/components/actors/scenery/Scenery';
+import { PipeBridges } from '@/components/actors/scenery/pipeBridges';
 import { BubbleLayer } from '@/components/actors/BubbleLayer';
 import { isBubbleEligible } from '@/components/actors/factoryVariants';
-import { getRowConfig } from '@/systems/factoryPlacementSystem';
-import { ActorType } from '@/types/Actor';
+import { getRecipeRow } from '@/systems/factoryPlacementSystem';
+import { ActorType, type Actor } from '@/types/Actor';
 
 import colorTheme from '@/constants/colorTheme.json';
 import { hslToString } from '@/utils/colorUtils';
@@ -25,7 +30,6 @@ import { hslToString } from '@/utils/colorUtils';
 interface OceanSceneProps {
   width?: number;
   height?: number;
-  backgroundColor?: string;
   localTime?: number;
 }
 
@@ -98,12 +102,10 @@ function SceneLayer({ name, width, height, moving = false, children }: SceneLaye
  *
  * @param width           - SVG viewBox width in pixels (default 1920).
  * @param height          - SVG viewBox height in pixels (default 1080).
- * @param backgroundColor - CSS colour string for the ocean background rect.
  */
 export function OceanScene({
   width = 1920,
   height = 1080,
-  backgroundColor = '#0a1128',
   localTime: _localTime,
 }: OceanSceneProps) {
 
@@ -124,26 +126,47 @@ export function OceanScene({
   // categorize factory actors by row — memoised so robot updates don't
   // create new array references and trigger unnecessary Factory re-renders
   const factories = useMemo(() => actors.filter((a) => a.type === ActorType.FACTORY), [actors]);
-  const backgroundFactories = useMemo(
-    () => factories.filter((a) => getRowConfig(a.config?.row ?? -1)?.row === 'background'),
-    [factories],
+  // Scenery actors (roadmap Phase 42 Task 11, D2) share the same depth groups as factories,
+  // interleaved in recipe row order (docs/specs/WORLD_VIEW_DISTRICTS.md §1.8) — one sorted
+  // list per depth, by `config.row`, same as the recipe's own draw order.
+  const sceneryActors = useMemo(() => actors.filter((a) => a.type === ActorType.SCENERY), [actors]);
+  const depthOf = (a: Actor) => getRecipeRow(a.config?.district ?? 'dense', a.config?.row ?? -1)?.depth;
+  const byRow = (a: Actor, b: Actor) => (a.config?.row ?? 0) - (b.config?.row ?? 0);
+  const backgroundActors = useMemo(
+    () => [...factories, ...sceneryActors].filter((a) => depthOf(a) === 'background').sort(byRow),
+    [factories, sceneryActors],
   );
-  const midgroundFactories = useMemo(
-    () => factories.filter((a) => getRowConfig(a.config?.row ?? -1)?.row === 'midground'),
-    [factories],
+  const midgroundActors = useMemo(
+    () => [...factories, ...sceneryActors].filter((a) => depthOf(a) === 'midground').sort(byRow),
+    [factories, sceneryActors],
   );
-  const foregroundFactories = useMemo(
-    () => factories.filter((a) => getRowConfig(a.config?.row ?? -1)?.row === 'foreground'),
-    [factories],
+  const foregroundActors = useMemo(
+    () => [...factories, ...sceneryActors].filter((a) => depthOf(a) === 'foreground').sort(byRow),
+    [factories, sceneryActors],
   );
+  // Pipe bridges (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9, roadmap Phase 42 Task 15) are derived
+  // from each depth's FACTORY actors only — no actor is created for them — so these lists are
+  // separate from the factory+scenery lists above.
+  const backgroundFactories = useMemo(() => factories.filter((a) => depthOf(a) === 'background'), [factories]);
+  const midgroundFactories = useMemo(() => factories.filter((a) => depthOf(a) === 'midground'), [factories]);
+  const foregroundFactories = useMemo(() => factories.filter((a) => depthOf(a) === 'foreground'), [factories]);
 
-  // Locale-wide count of bubble-eligible buildings (all rows, not just one),
-  // passed to the bubble layer so each BubbleStream can spread the aggregate
-  // bubble-burst rate across all of them rather than have each one burst on
-  // its own fixed interval — see BubbleStream's totalBuildings prop doc.
+  /** Dispatches a factory or scenery actor to its renderer (§1.8). */
+  const renderActor = (actor: Actor) =>
+    actor.type === ActorType.FACTORY
+      ? <Factory key={actor.id} actor={actor} />
+      : <Scenery key={actor.id} actor={actor} />;
+
+  // Locale-wide count of bubble-eligible buildings (all rows, not just one) PLUS vents
+  // (docs/specs/WORLD_VIEW_DISTRICTS.md §1.11 — vents vent bubbles too), passed to the bubble
+  // layer so each BubbleStream can spread the aggregate bubble-burst rate across all of them
+  // rather than have each one burst on its own fixed interval — see BubbleStream's
+  // totalBuildings prop doc.
   const bubbleBuildingCount = useMemo(
-    () => factories.filter((a) => isBubbleEligible(a.config?.purpose)).length,
-    [factories],
+    () =>
+      factories.filter((a) => isBubbleEligible(a.config?.purpose)).length +
+      sceneryActors.filter((a) => a.config?.kind === 'vent').length,
+    [factories, sceneryActors],
   );
 
   // Bring the active locale online on mount — guarded factory placement + the
@@ -206,15 +229,24 @@ export function OceanScene({
           </linearGradient>
         </defs>
 
-        <rect fill={backgroundColor} width={width} height={height} />
+        {/* Water column (§1.5): vertical gradient + surface glow, replacing the old flat
+            backgroundColor rect. */}
+        <WaterColumn localeId={localeId} width={width} height={height} />
+
+        {/* Light shafts (docs/specs/WORLD_VIEW_DISTRICTS.md §1.12), after the water column and
+            before the ridge so they read as light falling through the water onto the terrain. */}
+        <LightShafts localeId={localeId} />
+
+        {/* Seabed ridge (docs/specs/WORLD_VIEW_DISTRICTS.md §1.3), drawn before every
+            factory so background-row towers can stand in front of it. */}
+        <TerrainLayer localeId={localeId} part="ridge" width={width} height={height} />
 
         {/* Factory rows rendered back-to-front for proper depth perception */}
         {/* Background-row factories (rendered furthest back) */}
         <g id="factory-background-layer">
-          {backgroundFactories.map((actor) => (
-            <Factory key={actor.id} actor={actor} />
-          ))}
+          {backgroundActors.map(renderActor)}
         </g>
+        <PipeBridges factories={backgroundFactories} />
         {/* Gradient between background and midground layers */}
         <rect
           id="gradient-back-mid"
@@ -227,11 +259,9 @@ export function OceanScene({
         />
 
         <g id="factory-midground-layer">
-          {/* full-type rows */}
-          {midgroundFactories.map((actor) => (
-            <Factory key={actor.id} actor={actor} />
-          ))}
+          {midgroundActors.map(renderActor)}
         </g>
+        <PipeBridges factories={midgroundFactories} />
         {/* Gradient between midground and foreground layers */}
         <rect
           id="gradient-mid-front"
@@ -242,11 +272,16 @@ export function OceanScene({
           fill="url(#gradient-1-2)"
           pointerEvents="none"
         />
+
+        {/* Stepped ground line (§1.3), drawn after the mid/front gradient so midground
+            bases bury under it rather than floating above it. */}
+        <TerrainLayer localeId={localeId} part="ground" width={width} height={height} />
       </SceneLayer>
 
-      {/* Moving: every building's vent bubbles, all rows (BubbleStream timelines), behind the robots. */}
+      {/* Moving: every building's AND vent's bubbles, all rows (BubbleStream timelines), behind
+          the robots (docs/specs/WORLD_VIEW_DISTRICTS.md §1.11). */}
       <SceneLayer name="bubbles" width={width} height={height} moving>
-        <BubbleLayer factories={factories} totalBuildings={bubbleBuildingCount} />
+        <BubbleLayer actors={actors} totalBuildings={bubbleBuildingCount} />
       </SceneLayer>
 
       {/* Moving: the robots (GSAP-driven transforms, Robot.tsx). The one layer that takes clicks. */}
@@ -261,10 +296,9 @@ export function OceanScene({
       {/* Static front layer: foreground-row factories (rendered closest to viewer). */}
       <SceneLayer name="front" width={width} height={height}>
         <g id="factory-foreground-layer">
-          {foregroundFactories.map((actor) => (
-            <Factory key={actor.id} actor={actor} />
-          ))}
+          {foregroundActors.map(renderActor)}
         </g>
+        <PipeBridges factories={foregroundFactories} />
         <g id="ui-layer" />
       </SceneLayer>
     </div>
