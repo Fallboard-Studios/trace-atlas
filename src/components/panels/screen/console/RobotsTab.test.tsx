@@ -82,7 +82,7 @@ describe('RobotsTab', () => {
     resetStores();
     useLocaleStore.getState().addRobot(localeId, {
       ...makeRobot('r1', 'Unit One'),
-      job: { type: 'acousticSurvey', assignedAtMeasure: 1 },
+      job: 'acousticSurvey',
       batteryLevel: 63,
       docking: 'active',
       audioMode: 'highlight',

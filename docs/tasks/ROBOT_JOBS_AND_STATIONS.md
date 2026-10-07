@@ -187,7 +187,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   **Dependencies:** T2. **Files:** `src/systems/robotSystems.ts`, `src/constants/index.ts` (+ tests).
   **Scope:** S.
 
-- [ ] **Task 4: Six job types; `job` becomes the bare type**
+- [x] **Task 4: Six job types; `job` becomes the bare type**
 
   **Description:** `JobType` gains `salvage` and `maintenance`; `Robot.job` becomes `JobType`
   (drop `assignedAtMeasure`). `probe.job` gains Salvage and Maintenance with lore lines (copy-tone
@@ -196,8 +196,9 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   Cards read `robot.job` directly.
 
   **Acceptance criteria:**
-  - [ ] `JOB_TYPE_LABELS` has six entries; content test green; no literals in components.
-  - [ ] Cards show the job label for a robot with a job and "Unassigned" without one.
+  - [x] `JOB_TYPE_LABELS` has six entries; content test green; no literals in components.
+  - [x] Cards show the job label for a robot with a job and "Unassigned" without one. — lore lines
+        "DERELICT HULL SALVAGE" / "GRID INFRASTRUCTURE MAINTENANCE" await Crawford's review.
 
   **Verification:** `npx vitest run src/content src/components/selection src/components/robot/RobotDisplaySection.test.tsx`.
   **Dependencies:** T1. **Files:** `src/types/Robot.ts`, `src/systems/robotSystems.ts`,

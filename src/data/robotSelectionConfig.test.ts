@@ -87,6 +87,14 @@ describe('robotSelectionConfig', () => {
         expect(JOB_TYPE_LABELS[type].humanLabel).toBeTruthy();
       }
     });
+
+    it('has six entries, Salvage and Maintenance among them (Phase 43 Task 4)', () => {
+      expect(Object.keys(JOB_TYPE_LABELS)).toHaveLength(6);
+      expect(JOB_TYPE_LABELS.salvage.humanLabel).toBe('Salvage');
+      expect(JOB_TYPE_LABELS.maintenance.humanLabel).toBe('Maintenance');
+      expect(JOB_TYPE_LABELS.salvage.loreLabel).toBeTruthy();
+      expect(JOB_TYPE_LABELS.maintenance.loreLabel).toBeTruthy();
+    });
   });
 
   describe('UNASSIGNED_JOB_LABEL', () => {

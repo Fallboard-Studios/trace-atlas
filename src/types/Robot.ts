@@ -35,14 +35,17 @@ export const DockingState = {
 export type DockingState = (typeof DockingState)[keyof typeof DockingState];
 
 /**
- * The four job profiles a robot can be assigned once it lands on Active.
- * Pure data/scoring — see robotSystems.ts's scoreJobAffinities/assignJob.
+ * The six jobs a robot can hold (Phase 43). Live visual state, never replayed or persisted.
+ * The legacy scorer (robotSystems.ts's scoreJobAffinities/assignJob) still picks only the first
+ * four; Salvage and Maintenance are only chosen once the work loop lands (J2).
  */
 export const JobType = {
   VentExtraction: 'ventExtraction',
   AcousticSurvey: 'acousticSurvey',
   StructuralInspection: 'structuralInspection',
   FluidMonitoring: 'fluidMonitoring',
+  Salvage: 'salvage',
+  Maintenance: 'maintenance',
 } as const;
 export type JobType = (typeof JobType)[keyof typeof JobType];
 
@@ -164,7 +167,7 @@ export interface Robot {
   batteryLevel: number;
   /** Assigned automatically when a robot lands on Active. Not cleared when a robot lands on Docked —
    *  it persists, stale, until the robot next lands on Active and is assigned a fresh one. */
-  job?: { type: JobType; assignedAtMeasure: number };
+  job?: JobType;
   /**
    * Solo/mute/highlight mode set by the Robot Audio editor.
    * Runtime semantics (enforced by AudioEngine):

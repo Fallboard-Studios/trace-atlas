@@ -132,7 +132,7 @@ describe('robotSystems', () => {
     });
 
     it.each(Object.values(JobType))('drains the same flat BATTERY_DRAIN_ACTIVE for job type %s — the job no longer costs battery', (jobType) => {
-      const robot = makeRobot({ batteryLevel: 80, job: { type: jobType, assignedAtMeasure: 0 } });
+      const robot = makeRobot({ batteryLevel: 80, job: jobType });
       setupLocaleWithRobots([robot]);
 
       tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
@@ -142,7 +142,7 @@ describe('robotSystems', () => {
     });
 
     it('a mixed roster with every job drains every Active robot by the same amount in one tick', () => {
-      const robots = Object.values(JobType).map((type, i) => makeRobot({ id: `mixed-${i}`, batteryLevel: 70, job: { type, assignedAtMeasure: 0 } }));
+      const robots = Object.values(JobType).map((type, i) => makeRobot({ id: `mixed-${i}`, batteryLevel: 70, job: type }));
       setupLocaleWithRobots([...robots, makeRobot({ id: 'mixed-none', batteryLevel: 70, job: undefined })]);
 
       tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
@@ -152,7 +152,7 @@ describe('robotSystems', () => {
     });
 
     it('floors battery at 0, never negative', () => {
-      const robot = makeRobot({ batteryLevel: 1, job: { type: JobType.FluidMonitoring, assignedAtMeasure: 0 } });
+      const robot = makeRobot({ batteryLevel: 1, job: JobType.FluidMonitoring });
       setupLocaleWithRobots([robot]);
 
       tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
@@ -436,7 +436,7 @@ describe('robotSystems', () => {
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
       expect(updated?.job).toBeDefined();
-      expect(Object.values(JobType)).toContain(updated?.job?.type);
+      expect(Object.values(JobType)).toContain(updated?.job);
     });
 
     it('restarts idle wandering via handleRobotIdle, flagged as a return so the first destination stays in the bottom half', () => {
@@ -558,7 +558,7 @@ describe('robotSystems', () => {
         noteVariance: { active: true, value: 2 },
       });
       const scores = scoreJobAffinities(robot);
-      const highest = (Object.keys(scores) as JobType[]).sort((a, b) => scores[b] - scores[a])[0];
+      const highest = (Object.keys(scores) as (keyof typeof scores)[]).sort((a, b) => scores[b] - scores[a])[0];
       expect(highest).toBe(JobType.VentExtraction);
     });
 
@@ -570,7 +570,7 @@ describe('robotSystems', () => {
         noteVariance: { active: false, value: 0 },
       });
       const scores = scoreJobAffinities(robot);
-      const highest = (Object.keys(scores) as JobType[]).sort((a, b) => scores[b] - scores[a])[0];
+      const highest = (Object.keys(scores) as (keyof typeof scores)[]).sort((a, b) => scores[b] - scores[a])[0];
       expect(highest).toBe(JobType.AcousticSurvey);
     });
 
@@ -582,7 +582,7 @@ describe('robotSystems', () => {
         noteVariance: { active: false, value: 0 },
       });
       const scores = scoreJobAffinities(robot);
-      const highest = (Object.keys(scores) as JobType[]).sort((a, b) => scores[b] - scores[a])[0];
+      const highest = (Object.keys(scores) as (keyof typeof scores)[]).sort((a, b) => scores[b] - scores[a])[0];
       expect(highest).toBe(JobType.StructuralInspection);
     });
 
@@ -593,7 +593,7 @@ describe('robotSystems', () => {
         noteVariance: { active: false, value: 0 },
       });
       const scores = scoreJobAffinities(robot);
-      const highest = (Object.keys(scores) as JobType[]).sort((a, b) => scores[b] - scores[a])[0];
+      const highest = (Object.keys(scores) as (keyof typeof scores)[]).sort((a, b) => scores[b] - scores[a])[0];
       expect(highest).toBe(JobType.FluidMonitoring);
     });
 
@@ -627,6 +627,14 @@ describe('robotSystems', () => {
       const robot = makeRobot({ octaveRange: [2, 5], rhythmicDensity: 65 });
       expect(scoreJobAffinities(robot)).toEqual(scoreJobAffinities(robot));
     });
+
+    it('scores only the four legacy job types — Salvage and Maintenance wait for the work loop (Phase 43 Task 4)', () => {
+      const scores = scoreJobAffinities(makeRobot());
+      expect(Object.keys(scores).sort()).toEqual(
+        [JobType.VentExtraction, JobType.AcousticSurvey, JobType.StructuralInspection, JobType.FluidMonitoring].sort(),
+      );
+      for (const score of Object.values(scores)) expect(Number.isFinite(score)).toBe(true);
+    });
   });
 
   describe('assignJob', () => {
@@ -644,8 +652,8 @@ describe('robotSystems', () => {
       assignJob(DEFAULT_LOCALE_ID, robot.id);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
-      expect(updated?.job?.type).toBe(JobType.VentExtraction);
-      expect(updated?.job?.assignedAtMeasure).toBe(42); // mocked getCurrentMeasure
+      // The bare type, no assignment measure (Phase 43 Task 4).
+      expect(updated?.job).toBe(JobType.VentExtraction);
     });
 
     it('respects JOB_MAX_ROBOTS_PER_TYPE — a 4th same-profile robot gets its next-best available type', () => {
@@ -656,7 +664,7 @@ describe('robotSystems', () => {
         noteVariance: { active: true, value: 2 },
       };
       const alreadyAssigned = Array.from({ length: JOB_MAX_ROBOTS_PER_TYPE }, (_, i) =>
-        makeRobot({ id: `vent-${i}`, ...ventProfile, job: { type: JobType.VentExtraction, assignedAtMeasure: 0 } })
+        makeRobot({ id: `vent-${i}`, ...ventProfile, job: JobType.VentExtraction })
       );
       const newcomer = makeRobot({ id: 'vent-overflow', ...ventProfile, job: undefined });
       setupLocaleWithRobots([...alreadyAssigned, newcomer]);
@@ -664,8 +672,53 @@ describe('robotSystems', () => {
       assignJob(DEFAULT_LOCALE_ID, newcomer.id);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, newcomer.id);
-      expect(updated?.job?.type).not.toBe(JobType.VentExtraction);
-      expect(Object.values(JobType)).toContain(updated?.job?.type);
+      expect(updated?.job).not.toBe(JobType.VentExtraction);
+      expect([JobType.AcousticSurvey, JobType.StructuralInspection, JobType.FluidMonitoring]).toContain(updated?.job);
+    });
+
+    it('never picks Salvage or Maintenance, even with every scored type at the cap — falls back to the top-scoring of the four', () => {
+      const ventProfile = {
+        octaveRange: [1, 2] as [number, number],
+        rhythmicDensity: 90,
+        rhythmicMotifLength: { active: true, value: 2 },
+        noteVariance: { active: true, value: 2 },
+      };
+      const scored = [JobType.VentExtraction, JobType.AcousticSurvey, JobType.StructuralInspection, JobType.FluidMonitoring];
+      const capped = scored.flatMap((type) =>
+        Array.from({ length: JOB_MAX_ROBOTS_PER_TYPE }, (_, i) => makeRobot({ id: `${type}-${i}`, docking: DockingState.Active, job: type })),
+      );
+      const newcomer = makeRobot({ id: 'overflow', ...ventProfile, job: undefined });
+      setupLocaleWithRobots([...capped, newcomer]);
+
+      assignJob(DEFAULT_LOCALE_ID, newcomer.id);
+
+      expect(useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, newcomer.id)?.job).toBe(JobType.VentExtraction);
+    });
+
+    it('counts only Active robots toward the cap — a Docked robot holding a stale job does not block it', () => {
+      const ventProfile = {
+        octaveRange: [1, 2] as [number, number],
+        rhythmicDensity: 90,
+        rhythmicMotifLength: { active: true, value: 2 },
+        noteVariance: { active: true, value: 2 },
+      };
+      const stale = Array.from({ length: JOB_MAX_ROBOTS_PER_TYPE }, (_, i) =>
+        makeRobot({ id: `stale-${i}`, docking: DockingState.Docked, job: JobType.VentExtraction }),
+      );
+      const newcomer = makeRobot({ id: 'vent-fresh', ...ventProfile, job: undefined });
+      setupLocaleWithRobots([...stale, newcomer]);
+
+      assignJob(DEFAULT_LOCALE_ID, newcomer.id);
+
+      expect(useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, newcomer.id)?.job).toBe(JobType.VentExtraction);
+    });
+  });
+
+  describe('JobType', () => {
+    it('has six members — the four legacy profiles plus salvage and maintenance (Phase 43 Task 4)', () => {
+      expect(Object.values(JobType).sort()).toEqual(
+        ['acousticSurvey', 'fluidMonitoring', 'maintenance', 'salvage', 'structuralInspection', 'ventExtraction'],
+      );
     });
   });
 
@@ -1112,14 +1165,14 @@ describe('robotSystems', () => {
           id: 'prove-it-0',
           docking: DockingState.Active,
           batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE * REPLAY_MEASURES,
-          job: { type: JobType.FluidMonitoring, assignedAtMeasure: 0 },
+          job: JobType.FluidMonitoring,
         }),
         makeRobot({
           id: 'prove-it-1',
           docking: DockingState.Recalled,
           dockingHoldUntilMeasure: 1,
           batteryLevel: 5,
-          job: { type: JobType.AcousticSurvey, assignedAtMeasure: 0 },
+          job: JobType.AcousticSurvey,
         }),
         ...Array.from({ length: MAX_ROBOTS - 2 }, (_, i) =>
           makeRobot({ id: `prove-it-${i + 2}`, docking: DockingState.Docked, batteryLevel: 40 + i, job: undefined }),

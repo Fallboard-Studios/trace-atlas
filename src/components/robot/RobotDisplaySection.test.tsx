@@ -53,7 +53,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     docking: 'active',
     batteryLevel: 82,
     audioMode: 'none',
-    job: { type: 'acousticSurvey', assignedAtMeasure: 0 },
+    job: 'acousticSurvey',
     gemSeed: 20261004,
     ...overrides,
   } as Robot;
@@ -310,6 +310,15 @@ describe('RobotDisplaySection', () => {
     useLocaleStore.getState().addRobot(localeId, robot);
     render(<RobotDisplaySection robot={robot} />);
     expect(screen.getByText('Unassigned')).toBeTruthy();
+  });
+
+  it('shows the Maintenance label for a robot holding one of the new job types (Phase 43 Task 4)', () => {
+    const robot = makeRobot({ job: 'maintenance' });
+    useLocaleStore.getState().addRobot(localeId, robot);
+    const { container } = render(<RobotDisplaySection robot={robot} />);
+    const values = Array.from(container.querySelectorAll('.robot-display-section__value')).map((el) => el.textContent);
+    expect(values).toContain('Maintenance');
+    expect(values).not.toContain('Unassigned');
   });
 
   it('renders no job-reassignment or docking-override control anywhere', () => {

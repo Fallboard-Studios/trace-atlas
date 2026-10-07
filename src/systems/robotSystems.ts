@@ -356,12 +356,20 @@ export function landOnDocked(localeId: string, robotId: string, driftedMelody: R
 // JOB AFFINITY SCORING
 // ========================================
 
+/** The four job types the legacy scorer knows. Salvage and Maintenance are never scored — they
+ *  are only chosen once the work loop replaces this scorer (Phase 43, deleted in Task 24). */
+type ScoredJobType =
+  | typeof JobType.VentExtraction
+  | typeof JobType.AcousticSurvey
+  | typeof JobType.StructuralInspection
+  | typeof JobType.FluidMonitoring;
+
 /**
- * Deterministic affinity score (higher = better fit) for each of the four job
- * profiles, purely from a robot's already-seeded melodic attributes. No new
+ * Deterministic affinity score (higher = better fit) for each of the four legacy
+ * job profiles, purely from a robot's already-seeded melodic attributes. No new
  * randomness — the inputs were seeded at spawn; this is plain arithmetic.
  */
-export function scoreJobAffinities(robot: Robot): Record<JobTypeValue, number> {
+export function scoreJobAffinities(robot: Robot): Record<ScoredJobType, number> {
   const [octMin, octMax] = robot.octaveRange;
   const avgOctave = (octMin + octMax) / 2; // ~1-7
   const octaveSpan = octMax - octMin; // 0-6
@@ -410,7 +418,7 @@ export function scoreJobAffinities(robot: Robot): Record<JobTypeValue, number> {
     [JobType.AcousticSurvey]: acousticSurvey,
     [JobType.StructuralInspection]: structuralInspection,
     [JobType.FluidMonitoring]: fluidMonitoring,
-  } as Record<JobTypeValue, number>;
+  };
 }
 
 /**
@@ -426,18 +434,16 @@ export function assignJob(localeId: string, robotId: string): void {
   if (!locale || !robot) return;
 
   const scores = scoreJobAffinities(robot);
-  const sortedTypes = (Object.values(JobType) as JobTypeValue[]).sort((a, b) => scores[b] - scores[a]);
+  const sortedTypes = (Object.keys(scores) as ScoredJobType[]).sort((a, b) => scores[b] - scores[a]);
 
   const countByType = new Map<JobTypeValue, number>();
   for (const r of locale.robots) {
     if (r.id !== robotId && r.docking === DockingState.Active && r.job) {
-      countByType.set(r.job.type, (countByType.get(r.job.type) ?? 0) + 1);
+      countByType.set(r.job, (countByType.get(r.job) ?? 0) + 1);
     }
   }
 
   const chosen = sortedTypes.find((t) => (countByType.get(t) ?? 0) < JOB_MAX_ROBOTS_PER_TYPE) ?? sortedTypes[0];
 
-  useLocaleStore.getState().updateRobot(localeId, robotId, {
-    job: { type: chosen, assignedAtMeasure: getCurrentMeasure() },
-  });
+  useLocaleStore.getState().updateRobot(localeId, robotId, { job: chosen });
 }

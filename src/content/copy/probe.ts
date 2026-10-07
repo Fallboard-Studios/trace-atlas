@@ -56,6 +56,8 @@ export const probe = {
       acousticSurvey: { human: 'Acoustic Survey', lore: 'HIGH-ALTITUDE ACOUSTIC SURVEY' },
       structuralInspection: { human: 'Structural Inspection', lore: 'STRUCTURAL INTEGRITY INSPECTION' },
       fluidMonitoring: { human: 'Fluid Monitoring', lore: 'SUBSTATION FLUID MONITORING' },
+      salvage: { human: 'Salvage', lore: 'DERELICT HULL SALVAGE' },
+      maintenance: { human: 'Maintenance', lore: 'GRID INFRASTRUCTURE MAINTENANCE' },
     },
   },
   'probe.job.unassigned': { human: 'Unassigned', lore: 'NO PROTOCOL ASSIGNED' },
