@@ -3,7 +3,16 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
-import { RECIPES, DERELICT_RATIO, SCENERY_SHAPE_BUDGET, type DistrictRow } from './districtRecipes';
+import {
+  RECIPES,
+  DERELICT_RATIO,
+  SCENERY_SHAPE_BUDGET,
+  COVERAGE_TOP_UP,
+  coverageTopUpRow,
+  type DistrictRow,
+} from './districtRecipes';
+import { SCENERY_HOST_JOBS } from './jobHosts';
+import { maxShapes } from '../components/actors/scenery/sceneryParams';
 import { VARIANT_CONF } from '../components/actors/factoryVariants';
 import type { DistrictName, SceneryKind } from '../types/Actor';
 
@@ -192,6 +201,47 @@ describe('districtRecipes', () => {
           .filter((r) => r.kind !== 'factory')
           .reduce((sum, r) => sum + r.count, 0);
         expect(SCENERY_SHAPE_BUDGET).toBeGreaterThanOrEqual(nonFactoryItems * MIN_SHAPES_PER_ITEM);
+      }
+    });
+  });
+
+  describe('COVERAGE_TOP_UP (Phase 43 Task 12, spec §1.4)', () => {
+    it('every district has an ordered, non-empty list', () => {
+      expect(Object.keys(COVERAGE_TOP_UP).sort()).toEqual([...DISTRICT_NAMES].sort());
+      for (const d of DISTRICT_NAMES) expect(COVERAGE_TOP_UP[d].length, d).toBeGreaterThan(0);
+    });
+
+    it('every item is a host kind at midground or foreground (the depths coverage counts)', () => {
+      for (const d of DISTRICT_NAMES) {
+        for (const t of COVERAGE_TOP_UP[d]) {
+          expect(SCENERY_HOST_JOBS[t.kind].length, `${d} ${t.kind}`).toBeGreaterThan(0);
+          expect(['midground', 'foreground']).toContain(t.depth);
+        }
+      }
+    });
+
+    it('no top-up is a vent (each vent is a moving BubbleStream; the per-district cap stays exact)', () => {
+      for (const d of DISTRICT_NAMES) expect(COVERAGE_TOP_UP[d].some((t) => t.kind === 'vent'), d).toBe(false);
+    });
+
+    it('wreck field\'s list leads with the kinds it is short of (acoustic survey / maintenance hosts)', () => {
+      expect(SCENERY_HOST_JOBS[COVERAGE_TOP_UP.wreckfield[0].kind]).toEqual(expect.arrayContaining(['acousticSurvey', 'maintenance']));
+    });
+
+    it('coverageTopUpRow: foreground on the ground, midground on the midground floor; one item, never derelict', () => {
+      expect(coverageTopUpRow({ kind: 'crane', depth: 'foreground' })).toEqual({
+        depth: 'foreground', anchor: 'ground', spread: 'center', centerWidth: 0.7, count: 1, kind: 'crane', derelict: 0,
+      });
+      expect(coverageTopUpRow({ kind: 'pylon', depth: 'midground' })).toEqual({
+        depth: 'midground', anchor: 'floor', floorY: 1020, spread: 'center', centerWidth: 0.7, count: 1, kind: 'pylon', derelict: 0,
+      });
+    });
+
+    it('the shape budget holds with every top-up placed, at each kind\'s real shape ceiling', () => {
+      for (const d of DISTRICT_NAMES) {
+        const rows = [...RECIPES[d], ...COVERAGE_TOP_UP[d].map(coverageTopUpRow)];
+        const shapes = rows.filter((r) => r.kind !== 'factory').reduce((sum, r) => sum + r.count * maxShapes(r.kind as SceneryKind), 0);
+        expect(shapes, d).toBeLessThanOrEqual(SCENERY_SHAPE_BUDGET);
       }
     });
   });

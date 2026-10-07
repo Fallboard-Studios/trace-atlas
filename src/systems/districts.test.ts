@@ -11,7 +11,7 @@ import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getRecipeRow } from './factoryPlacementSystem';
 import { selectVariantFromSeed } from '../components/actors/factoryVariants';
 import { getTerrainProfile, ridgeYAt, groundYAt, __clearTerrainProfileCache } from './terrainProfile';
-import { RECIPES } from './districtRecipes';
+import { RECIPES, COVERAGE_TOP_UP, coverageTopUpRow } from './districtRecipes';
 import { useLocaleStore } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { ActorType, type Actor, type DistrictName } from '../types/Actor';
@@ -200,23 +200,24 @@ describe('districts', () => {
       for (const district of DISTRICT_NAMES) {
         it(`${district}: every actor carries config.district/.row, matches its row's kind (factory vs. shipped scenery), count per row <= recipe count`, () => {
           const placements = placeDistrictSeeds(district, 20, 'basic');
-          const recipe = RECIPES[district];
+          // Recipe rows, then one row per coverage top-up (Phase 43 Task 12).
+          const rowCount = RECIPES[district].length + COVERAGE_TOP_UP[district].length;
 
           for (const actors of placements) {
             const countPerRow = new Map<number, number>();
             for (const actor of actors) {
               expect(actor.config?.district).toBe(district);
               expect(actor.config?.row).toBeGreaterThanOrEqual(0);
-              expect(actor.config?.row).toBeLessThan(recipe.length);
+              expect(actor.config?.row).toBeLessThan(rowCount);
               const row = actor.config!.row!;
-              const rowKind = recipe[row].kind;
+              const rowKind = getRecipeRow(district, row)!.kind;
               expect(SHIPPED_SCENERY.has(rowKind as never) || rowKind === 'factory').toBe(true);
               expect(actor.type).toBe(rowKind === 'factory' ? ActorType.FACTORY : ActorType.SCENERY);
               if (actor.type === ActorType.SCENERY) expect(actor.config?.kind).toBe(rowKind);
               countPerRow.set(row, (countPerRow.get(row) ?? 0) + 1);
             }
             for (const [row, count] of countPerRow) {
-              expect(count).toBeLessThanOrEqual(recipe[row].count);
+              expect(count).toBeLessThanOrEqual(getRecipeRow(district, row)!.count);
             }
           }
         });
@@ -226,7 +227,6 @@ describe('districts', () => {
     it('ground-lock invariant: every actor base sits on its anchor profile, never floating', () => {
       for (const district of DISTRICT_NAMES) {
         const coords = findCoordsForDistrict(district, 5);
-        const recipe = RECIPES[district];
 
         coords.forEach(({ x, y }, i) => {
           const id = registerLocale(`groundlock-${district}-${i}`, x, y);
@@ -235,7 +235,7 @@ describe('districts', () => {
           const profile = getTerrainProfile(id, noiseMap);
 
           for (const actor of actors) {
-            const row = recipe[actor.config!.row!];
+            const row = getRecipeRow(district, actor.config!.row!)!;
             if (row.anchor === 'ridge') {
               expect(Math.abs(actor.position.y - ridgeYAt(profile.ridge, actor.position.x))).toBeLessThanOrEqual(0.5);
             } else if (row.anchor === 'ground') {
@@ -394,9 +394,16 @@ describe('districts', () => {
       expect(getRecipeRow('dense', 0)).toEqual(RECIPES.dense[0]);
     });
 
-    it('returns null for an out-of-range row', () => {
+    it('rows past the recipe resolve to the coverage top-ups, in list order (Phase 43 Task 12)', () => {
+      const n = RECIPES.wreckfield.length;
+      COVERAGE_TOP_UP.wreckfield.forEach((t, i) => {
+        expect(getRecipeRow('wreckfield', n + i)).toEqual(coverageTopUpRow(t));
+      });
+    });
+
+    it('returns null for an out-of-range row (below 0, or past the last top-up)', () => {
       expect(getRecipeRow('dense', -1)).toBeNull();
-      expect(getRecipeRow('dense', RECIPES.dense.length)).toBeNull();
+      expect(getRecipeRow('dense', RECIPES.dense.length + COVERAGE_TOP_UP.dense.length)).toBeNull();
     });
   });
 });

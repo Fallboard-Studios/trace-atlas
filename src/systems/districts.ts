@@ -9,7 +9,15 @@ import { useLocaleStore } from '../stores/localeStore';
 import { useAttenuationStyleStore } from '../stores/attenuationStyleStore';
 import { getLocaleNoiseMap, getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
 import { getTerrainProfile, ridgeYAt, groundYAt } from './terrainProfile';
-import { RECIPES, DERELICT_RATIO, type DistrictRow } from './districtRecipes';
+import {
+  RECIPES,
+  DERELICT_RATIO,
+  COVERAGE_TOP_UP,
+  COVERAGE_CENTER_WIDTH,
+  coverageTopUpRow,
+  type DistrictRow,
+} from './districtRecipes';
+import { ensureJobCoverage } from './jobCoverage';
 import {
   createFactory,
   generateFactoryId,
@@ -100,6 +108,11 @@ export function isGemGatedRow(kind: DistrictRow['kind'], gemsOn: boolean): boole
   return kind === 'beacon' && !gemsOn;
 }
 
+/** A shipped scenery kind that isn't gem-gated off — what a scenery row or top-up can place. */
+function isPlaceableScenery(kind: DistrictRow['kind']): kind is SceneryKind {
+  return kind !== 'factory' && SHIPPED_SCENERY.has(kind) && !isGemGatedRow(kind, SCENERY_GEM_ACCENTS);
+}
+
 /** Families that can roll `config.derelict` at placement — docs/specs/WORLD_VIEW_DISTRICTS.md
  *  §1.6. Wrecks are always derelict and carry no flag, so they're deliberately absent here. */
 const DERELICT_CAPABLE_KINDS = new Set<DistrictRow['kind']>(['factory', 'tank', 'dome', 'scaffold']);
@@ -129,6 +142,10 @@ function resolveBaseY(row: DistrictRow, profile: ReturnType<typeof getTerrainPro
  * nothing (D1 ships every table but no scenery renderer yet). Factory rows
  * call the existing `createFactory` (same `factory.id`/`factory.scale`/
  * AS-shift/accent-lean draws Factory.tsx's render path expects).
+ *
+ * Then the coverage guarantee (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.4): if the world has
+ * fewer than 3 jobs with 4 eligible hosts each, `ensureJobCoverage` appends the district's
+ * `COVERAGE_TOP_UP` items, one at a time, on rows `recipe.length + i`.
  */
 export function placeDistrict(localeId: string): Actor[] {
   const actors: Actor[] = [];
@@ -169,6 +186,47 @@ export function placeDistrict(localeId: string): Actor[] {
     return DERELICT_CAPABLE_KINDS.has(row.kind) && roll < ratio;
   };
 
+  // One seeded, ground-locked, recolorable scenery actor of `row` at `x` (not yet pushed), and
+  // its footprint width for spreadXs. Shared by the recipe rows and the coverage top-ups.
+  const placeScenery = (row: DistrictRow, rowIndex: number, x: number): { actor: Actor; w: number } => {
+    const index = sceneryIndex++;
+    const idSeed = getSeededVal(noiseMap, 'scenery.id', index, 0, 1);
+    const id = `scenery-${index}-${idSeed.toString(36).slice(2, 10)}`;
+    const kind = row.kind as SceneryKind;
+
+    const px = Math.round(x);
+    const y = Math.round(resolveBaseY(row, profile, px));
+    const isDerelict = rollDerelict(row);
+
+    const actor: Actor = {
+      id,
+      type: ActorType.SCENERY,
+      position: { x: px, y },
+      isActive: false,
+      config: {
+        kind,
+        row: rowIndex,
+        district,
+        ...(isDerelict ? { derelict: true as const } : {}),
+      },
+    };
+
+    // Body-bearing families (wall, tank, …; §1.8) fold a shift exactly like a factory's —
+    // local range + AS shift + Phase 35 lean, via the shared foldBodyShift — so
+    // recolorActorsForAttenuationStyle can recolor them on retransmit. Structural families
+    // have no entry in BODY_BEARING_BASE and are left without a shift (none is rendered).
+    const params = deriveSceneryParams(actor)[kind] as ({ w: number } & Partial<{ hueShift: number; satShift: number }>) | undefined;
+    const baseBody = BODY_BEARING_BASE[kind];
+    if (baseBody && params && params.hueShift !== undefined && params.satShift !== undefined) {
+      const asShift = asNoiseMap ? deriveSceneryAsColorShift(asNoiseMap, index) : { hueShift: 0, satShift: 0 };
+      const accentTarget = asNoiseMap && accentPair ? pickSceneryAccentTarget(asNoiseMap, accentPair, index) : undefined;
+      const { hueShift, satShift } = foldBodyShift(baseBody, { hueShift: params.hueShift, satShift: params.satShift }, asShift, accentTarget);
+      actor.config = { ...actor.config, hueShift, satShift };
+    }
+
+    return { actor, w: params?.w ?? 0 };
+  };
+
   recipe.forEach((row, rowIndex) => {
     if (row.kind === 'factory') {
       const nextWidth = (x: number): number => {
@@ -197,52 +255,28 @@ export function placeDistrict(localeId: string): Actor[] {
       return;
     }
 
-    if (!SHIPPED_SCENERY.has(row.kind as SceneryKind)) return;
-    if (isGemGatedRow(row.kind, SCENERY_GEM_ACCENTS)) return;
+    if (!isPlaceableScenery(row.kind)) return;
 
     const nextSceneryWidth = (x: number): number => {
-      const index = sceneryIndex++;
-      const idSeed = getSeededVal(noiseMap, 'scenery.id', index, 0, 1);
-      const id = `scenery-${index}-${idSeed.toString(36).slice(2, 10)}`;
-      const kind = row.kind as SceneryKind;
-
-      const px = Math.round(x);
-      const y = Math.round(resolveBaseY(row, profile, px));
-      const isDerelict = rollDerelict(row);
-
-      const actor: Actor = {
-        id,
-        type: ActorType.SCENERY,
-        position: { x: px, y },
-        isActive: false,
-        config: {
-          kind,
-          row: rowIndex,
-          district,
-          ...(isDerelict ? { derelict: true as const } : {}),
-        },
-      };
-
-      // Body-bearing families (wall, tank, …; §1.8) fold a shift exactly like a factory's —
-      // local range + AS shift + Phase 35 lean, via the shared foldBodyShift — so
-      // recolorActorsForAttenuationStyle can recolor them on retransmit. Structural families
-      // have no entry in BODY_BEARING_BASE and are left without a shift (none is rendered).
-      const params = deriveSceneryParams(actor)[kind] as ({ w: number } & Partial<{ hueShift: number; satShift: number }>) | undefined;
-      const baseBody = BODY_BEARING_BASE[kind];
-      if (baseBody && params && params.hueShift !== undefined && params.satShift !== undefined) {
-        const asShift = asNoiseMap ? deriveSceneryAsColorShift(asNoiseMap, index) : { hueShift: 0, satShift: 0 };
-        const accentTarget = asNoiseMap && accentPair ? pickSceneryAccentTarget(asNoiseMap, accentPair, index) : undefined;
-        const { hueShift, satShift } = foldBodyShift(baseBody, { hueShift: params.hueShift, satShift: params.satShift }, asShift, accentTarget);
-        actor.config = { ...actor.config, hueShift, satShift };
-      }
-
+      const { actor, w } = placeScenery(row, rowIndex, x);
       actors.push(actor);
-
-      return params?.w ?? 0;
+      return w;
     };
 
     spreadXs(row, nextSceneryWidth, noiseMap, rowIndex);
   });
+
+  // Coverage top-ups (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.4): row `recipe.length + i`, at a
+  // seeded x in the middle of the world, through the same scenery placement as the rows above.
+  // The raw draw is re-hashed through alea() for the same bell-curve reason as rollDerelict.
+  actors.push(
+    ...ensureJobCoverage(actors, COVERAGE_TOP_UP[district], (topUp, i) => {
+      if (!isPlaceableScenery(topUp.kind)) return null;
+      const raw = getSeededVal(noiseMap, 'locale.coverage.x', i, 0, 1);
+      const x = WORLD_BOUNDS.width * ((1 - COVERAGE_CENTER_WIDTH) / 2 + COVERAGE_CENTER_WIDTH * alea(String(raw))());
+      return placeScenery(coverageTopUpRow(topUp), recipe.length + i, x).actor;
+    }),
+  );
 
   useLocaleStore.getState().setLocaleData(localeId, { actors });
   return actors;

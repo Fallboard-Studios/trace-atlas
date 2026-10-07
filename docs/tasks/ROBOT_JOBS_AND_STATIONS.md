@@ -436,7 +436,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
 
   **Verification:** as T10. **Dependencies:** T10. **Files:** as T10. **Scope:** M.
 
-- [ ] **Task 12: Coverage guarantee and top-up lists**
+- [x] **Task 12: Coverage guarantee and top-up lists**
 
   **Description:** `jobCoverage.ts`'s `ensureJobCoverage(localeId)` (spec §1.4) counts eligible
   midground + foreground hosts per job and appends `coverageTopUp` items through the district
@@ -445,10 +445,40 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   calls it.
 
   **Acceptance criteria:**
-  - [ ] Over the 121-seed grid every world satisfies the rule after placement; top-ups are
-        deterministic and ground-locked; the recipe element budgets still hold.
-  - [ ] Mutation check: emptying wreck field's top-up list fails the grid test.
-  - [ ] Worlds that already satisfy the rule are unchanged (no top-up placed — asserted on a seed).
+  - [x] Over the 121-seed grid every world satisfies the rule after placement; top-ups are
+        deterministic and ground-locked; the recipe element budgets still hold. — the shape
+        budget is checked at each kind's real `maxShapes` with every top-up placed; no top-up is
+        a vent, so the vent cap is unchanged.
+  - [x] Mutation check: emptying wreck field's top-up list fails the grid test.
+  - [x] Worlds that already satisfy the rule are unchanged (no top-up placed — asserted on a seed).
+
+  **As shipped:** (1) **Far more worlds fell short than the spec expected.** The spec named
+  wreck field (2 vents) as the known case. Measured before the change over the 121-seed grid,
+  56 worlds failed: every ventfield (13), derelict (10), wreckfield (11) and outskirts (13)
+  world, and 9 of 15 towers. Dense, yard, habitat and construction never fail. The missing
+  third job is nearly always acoustic survey or maintenance, so the lists lead with midground
+  pylons, which host both. After the change: 92 top-ups over 56 worlds, at most 3 per world.
+  ventfield gets floodlight + pylon + crane (all 13 worlds), wreckfield 3 pylons, outskirts 1–2
+  pylons (24 over 13 worlds, + a tank in 6), derelict 1 pylon, towers 1–2 pylons. (2) **Shape of the data.**
+  `RECIPES` is `Record<DistrictName, DistrictRow[]>`, an array per district, so the lists sit
+  beside it as `COVERAGE_TOP_UP: Record<DistrictName, CoverageTopUp[]>` (`{ kind, depth }`,
+  scenery only, midground/foreground only). (3) **Top-up rows.** Top-up `i` is placed on row
+  `recipe.length + i`, and `getRecipeRow` resolves that to `coverageTopUpRow(topUp)`. That row
+  is ground-locked in the foreground, at `MG_FLOOR` in the midground, `count: 1`,
+  `derelict: 0` (a derelict roll would swap the jobs it was placed for). So Scenery.tsx,
+  jobHosts, workSites and OceanScene's depth sort read top-ups with no change. The tests that
+  assumed `row < recipe.length` (districts, factoryPlacementSystem) now go through
+  `getRecipeRow`. (4) **Signature.** `ensureJobCoverage(actors, topUps, place)` is pure, and
+  the placer is passed in, not `ensureJobCoverage(localeId)`. The seeded counters (scenery id,
+  derelict, AS recolor index) live inside `placeDistrict`. Placing top-ups through the same
+  closure keeps them in that sequence, so `recolorActorsForAttenuationStyle`'s in-order index
+  still matches. The scenery item build moved into a shared `placeScenery` closure. A gem-gated
+  beacon returns null and the walk moves on. (5) `x` = 15 %–85 % of the width from
+  `'locale.coverage.x'` at offset `i`, re-hashed through `alea()` (the bell-curve fix
+  `rollDerelict` uses). (6) Mutation checks: no coverage call, every top-up on one row, and a
+  walk that ignores the stop rule each fail tests. (7) Not decided here, still open: off-world
+  foreground Warehouse hosts (T9 (3)) still count toward coverage, because counting goes
+  through `hostJobs`. If they stop hosting, coverage follows, and the grid test re-checks it.
 
   **Verification:** `npx vitest run src/systems/jobCoverage.test.ts src/systems/districtRecipes.test.ts src/systems/districts.test.ts`.
   **Dependencies:** T7, T11. **Files:** `src/systems/jobCoverage.ts` (+ test),

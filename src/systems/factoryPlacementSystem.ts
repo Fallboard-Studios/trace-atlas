@@ -14,7 +14,7 @@ import { generateUUID } from '../utils/randomId';
 import { shiftHSL, type ColorShift, type HSL } from '../utils/colorUtils';
 import { computeAccentLean, secondaryFor, ACCENT_HUES, type AccentPair } from '../utils/accentLean';
 import { ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
-import { RECIPES, type DistrictRow } from './districtRecipes';
+import { RECIPES, COVERAGE_TOP_UP, coverageTopUpRow, type DistrictRow } from './districtRecipes';
 import type { DistrictName, SceneryKind } from '../types/Actor';
 import { WORLD_BOUNDS } from '../constants/sceneDepth';
 import { BODY_BEARING_BASE, deriveSceneryParams } from '../components/actors/scenery/sceneryParams';
@@ -272,14 +272,15 @@ export function recolorActorsForAttenuationStyle(localeId: string, attenuationSt
 /**
  * Get one row of a district's recipe (districtRecipes.ts) — a factory's variant filter and
  * depth group now come from here (roadmap Phase 42 Task 4; Task 5 migrated every reader off
- * the legacy fixed-table lookup and deleted it). Out-of-range → `null`.
+ * the legacy fixed-table lookup and deleted it). Rows past the recipe are its coverage top-ups,
+ * in list order (Phase 43 Task 12). Out-of-range → `null`.
  */
 export function getRecipeRow(district: DistrictName, row: number): DistrictRow | null {
   const recipe = RECIPES[district];
-  if (row < 0 || row >= recipe.length) {
-    return null;
-  }
-  return recipe[row];
+  if (row < 0) return null;
+  if (row < recipe.length) return recipe[row];
+  const topUp = COVERAGE_TOP_UP[district][row - recipe.length];
+  return topUp ? coverageTopUpRow(topUp) : null;
 }
 
 /**

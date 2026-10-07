@@ -31,6 +31,15 @@ export interface DistrictRow {
   derelict?: number;
 }
 
+/**
+ * One coverage top-up (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.4): a host kind placed at a
+ * depth coverage counts, only when the district's own rows leave the world short of jobs.
+ */
+export interface CoverageTopUp {
+  kind: SceneryKind;
+  depth: 'midground' | 'foreground';
+}
+
 // ========================================
 // CONSTANTS
 // ========================================
@@ -56,6 +65,9 @@ export const SCENERY_SHAPE_BUDGET = 700;
 const BG_FLOOR = 990;
 // Midground 'floor' rows sit under the ground polygon, within 1015-1030.
 const MG_FLOOR = 1020;
+
+/** Top-ups stand within the middle 70 % of the world (x 15 %–85 %), clear of the edges. */
+export const COVERAGE_CENTER_WIDTH = 0.7;
 
 // ========================================
 // RECIPES
@@ -210,3 +222,54 @@ export const RECIPES: Record<DistrictName, DistrictRow[]> = {
     { depth: 'foreground', anchor: 'ground', spread: 'center', count: 2, centerWidth: 0.4, kind: 'wall', derelict: 0 },
   ],
 };
+
+// ========================================
+// COVERAGE TOP-UPS
+// ========================================
+
+const mg = (kind: SceneryKind): CoverageTopUp => ({ kind, depth: 'midground' });
+const fg = (kind: SceneryKind): CoverageTopUp => ({ kind, depth: 'foreground' });
+
+/**
+ * Each district's ordered coverage top-ups (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.4):
+ * `ensureJobCoverage` places them one at a time, in order, until the world has ≥ 3 jobs with
+ * ≥ 4 hosts, or the list runs out. Written against the 121-seed grid (Phase 43 Task 12), where
+ * every ventfield, derelict, wreckfield and outskirts world and 9 of 15 towers worlds fell short.
+ * The missing third job is usually acoustic survey or maintenance, so lists lead with pylons,
+ * which host both. Pylons, cranes, floodlights and beacons can't roll derelict, so a top-up never
+ * loses its jobs. Dense, yard, habitat and construction never fall short on the grid; theirs are
+ * safety nets for other worlds.
+ */
+export const COVERAGE_TOP_UP: Record<DistrictName, CoverageTopUp[]> = {
+  dense: [mg('pylon'), fg('crane'), fg('containers')],
+  // acoustic 3, maintenance 2: two pylons, then whichever of vent/fluid/salvage is closest.
+  outskirts: [mg('pylon'), mg('pylon'), mg('tank'), fg('containers'), fg('containers'), fg('crane')],
+  // acoustic 2, maintenance 2-3.
+  towers: [mg('pylon'), mg('pylon'), fg('beacon')],
+  yard: [mg('pylon'), fg('crane'), mg('dome')],
+  // acoustic 3, maintenance 3: one pylon does it.
+  derelict: [mg('pylon'), mg('pylon'), fg('beacon')],
+  habitat: [mg('pylon'), fg('crane'), fg('containers')],
+  // acoustic 1, maintenance 1, structural 3-5: three pylons, then structure.
+  wreckfield: [mg('pylon'), mg('pylon'), mg('pylon'), fg('crane'), fg('wreck')],
+  // vent and fluid plenty; maintenance 1.
+  ventfield: [fg('floodlight'), mg('pylon'), fg('crane'), fg('floodlight')],
+  construction: [mg('pylon'), mg('dome'), mg('tank')],
+};
+
+/**
+ * The recipe row a top-up stands on: ground-locked in the foreground, on the midground floor
+ * otherwise; one item, never derelict (a derelict roll would swap its jobs out). Readers reach it
+ * through `getRecipeRow(district, recipe.length + topUpIndex)`.
+ */
+export function coverageTopUpRow({ kind, depth }: CoverageTopUp): DistrictRow {
+  return {
+    depth,
+    ...(depth === 'foreground' ? { anchor: 'ground' as const } : { anchor: 'floor' as const, floorY: MG_FLOOR }),
+    spread: 'center',
+    centerWidth: COVERAGE_CENTER_WIDTH,
+    count: 1,
+    kind,
+    derelict: 0,
+  };
+}

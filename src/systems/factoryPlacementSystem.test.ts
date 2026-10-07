@@ -10,7 +10,7 @@ import { placeDistrict, pickDistrict } from './districts';
 import { VARIANT_CONF, selectVariantFromSeed } from '../components/actors/factoryVariants';
 import type { FactoryVariant } from '../components/actors/factoryVariants';
 import { calcSilhouetteSize } from '../components/actors/silhouetteUtils';
-import { RECIPES } from './districtRecipes';
+import { RECIPES, COVERAGE_TOP_UP } from './districtRecipes';
 import { shiftHSL } from '../utils/colorUtils';
 import { computeAccentLean, hueArc, ACCENT_SAT_LIFT, ACCENT_HUES } from '../utils/accentLean';
 import { getAttenuationStyleNoiseMap, getLocaleNoiseMap } from '../utils/noiseMaps';
@@ -179,9 +179,9 @@ describe('FactoryPlacementSystem', () => {
       }
     });
 
-    it('returns null for an out-of-range row', () => {
+    it('returns null for an out-of-range row (rows past the recipe are its coverage top-ups, Phase 43 Task 12)', () => {
       expect(getRecipeRow('dense', -1)).toBeNull();
-      expect(getRecipeRow('dense', RECIPES.dense.length)).toBeNull();
+      expect(getRecipeRow('dense', RECIPES.dense.length + COVERAGE_TOP_UP.dense.length)).toBeNull();
     });
   });
 
