@@ -929,6 +929,57 @@ polygons + 1 outline = 5 shapes) with wide room left for the heavier body-bearin
 is Task 18's D2 perf run, once renderers exist to measure the lighting-tick repaint cost directly rather
 than infer it.
 
+## Districts — the Task 18 D2 perf gate (2026-10-06, Phase 42)
+
+Gate ([docs/tasks/WORLD_VIEW_DISTRICTS.md](tasks/WORLD_VIEW_DISTRICTS.md) Task 18): D2 (all sixteen scenery
+families live, through the one dispatcher) idle busy/Paint within the noise band of the D1 tip, on the
+three pinned worlds with the heaviest scenery, most bubbles and most body-bearing items. **Passed** on all
+three — `dense`, `ventfield` and `yard`.
+
+**Method:** production builds served side by side — D1 tip `4e30ac62` (Task 10, the last D1 commit, before
+any scenery renderer exists; :4177 after port contention pushed both builds up from the usual 4173/4175)
+and D2 tip `d2a573cf` (Task 17 complete; :4178). Coordinates were found the same way as Task 9
+(`findCoordsForDistrict` against the real `pickDistrict`) for `dense` (−500, −480), `ventfield`
+(−500, −495) and `yard` (−500, −455) — different from Task 9's own `ventfield` pin because that scan
+takes the *first* match and nothing guarantees stability across unrelated table edits; both builds in this
+run share the one coordinate set per world, which is what apples-to-apples requires, not matching Task 9's
+literal numbers. Encoded with `encodeSessionPayload` (`attenuationStyleName: 'alpha'`,
+`DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides). `npm run perf:idle --throttle 1 --only none --port 9301`
+(stock-only window, desktop 1280×900, headless); foreground, one call at a time, orphaned headless-Chrome
+count 0 before and after. Three rounds per world per build, order rotated.
+
+### Results (6 s idle window, 1×, `--only none`)
+
+| World | Build | main busy (ms) | Paint (ms) | Factories | Bubble/factory circles | Vents |
+|---|---|---|---|---|---|---|
+| dense | D1 (`4e30ac62`) | 2570 · 2409 · 3376 | 295 · 304 · 414 | 59 | 746 | 0 |
+| dense | D2 (`d2a573cf`) | 2492 · 2500 · 3092 | 309 · 303 · 371 | 59 | 753 | 0 |
+| ventfield | D1 (`4e30ac62`) | 1962 · 2543 · 2316 | 272 · 343 · 310 | 4 | 68 | 0 |
+| ventfield | D2 (`d2a573cf`) | 2095 · 3055 · 2452 | 266 · 411 · 325 | 4 | 148 | 9 |
+| yard | D1 (`4e30ac62`) | 2421 · 2935 · 3376 | 292 · 322 · 414 | 18 | 255 | 0 |
+| yard | D2 (`d2a573cf`) | 2463 · 3148 · 3135 | 301 · 365 · 339 | 18 | 265 | 0 |
+
+- **Factory counts are identical build-to-build on every world** (59 / 4 / 18) — unlike Task 9's
+  `ventfield` reading, this is a genuinely apples-to-apples comparison: D2 adds scenery actors on top of
+  the same factory placement, nothing about the factories themselves changed.
+- **Median busy/Paint deltas (D2 vs D1): dense −2.7 % / +1.6 %, ventfield +5.9 % / +4.8 %, yard +6.8 % /
+  +5.3 %** — every delta sits well inside each build's own round-to-round spread on the same world (24–41 %,
+  the same robot-driven noise source 17.2.5 documented and Task 9 re-confirmed), so none of the three reads
+  as a regression.
+- **The bubbles-layer cost of `ventfield`'s 9 vents is unmeasurable at idle, not "small":** its circle count
+  rises 68 → 148 (+80, tracking the vents' static plume ellipses) while busy/Paint stay in band and the
+  bubbles layer never appears in the stock window's top-12 paint-by-node attribution in either build — the
+  same "static content only repaints on the lighting tick" finding Task 9 made for terrain/water holds for
+  vent plumes too. `no-bubbles` was not run this gate (`--only none`, per the method); `no-bubbles` is the
+  ablation that would isolate it if a future gate needs to.
+- **`SCENERY_SHAPE_BUDGET = 700` is met with wide headroom**, confirmed two ways: the existing budget test
+  (`districtRecipes.test.ts`) stays green unchanged, and a one-off DOM count on the D2 build (not part of
+  the harness, same caveat as Task 9's count) found 120 scenery shapes across 19 actors on `dense`, 173
+  shapes across 23 actors (incl. 9 vents) on `ventfield`, and 157 shapes across 29 actors on `yard` — the
+  busiest of the three pinned worlds uses 25 % of the budget.
+
+**Verdict:** no miss to report. No lever was pulled — every family already shipped keeps its spot.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
