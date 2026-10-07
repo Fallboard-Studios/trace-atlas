@@ -151,7 +151,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   **Files:** `src/types/Robot.ts`, `src/systems/robotSystems.ts`, `src/systems/spawnSystem.ts`,
   `src/content/copy/probe.ts`, `src/data/robotSelectionConfig.ts` (+ their tests). **Scope:** M.
 
-- [ ] **Task 2: Injectable drain + the drain sim — stop and report**
+- [x] **Task 2: Injectable drain + the drain sim — stop and report**
 
   **Description:** `stepRobotLifecycle`/`replayLifecycle` take an optional `drain(snapshot)`
   defaulting to today's rule (`BATTERY_DRAIN_BASE + surcharge`). A new `lifecycleSim.ts` (pure)
@@ -162,13 +162,13 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   **Acceptance criteria:**
   - [x] Default behaviour unchanged: the prove-it replay test passes unmodified.
   - [x] The sim is deterministic (same table twice) and touches no store or BeatClock.
-  - [ ] Report table posted; Crawford confirms the flat value (expected 6).
+  - [x] Report table posted; Crawford confirms the flat value (expected 6). — confirmed 6, 2026-10-07.
 
   **Verification:** `npx vitest run src/systems/robotSystems.test.ts src/systems/lifecycleSim.test.ts`.
   **Dependencies:** T1. **Files:** `src/systems/robotSystems.ts`, `src/systems/lifecycleSim.ts`
   (+ tests). **Scope:** S.
 
-- [ ] **Task 3: Flat drain; job out of replay**
+- [x] **Task 3: Flat drain; job out of replay**
 
   **Description:** `BATTERY_DRAIN_ACTIVE` (the confirmed value) replaces `BATTERY_DRAIN_BASE` and
   `JOB_BATTERY_DRAIN_SURCHARGE`; the default `drain` returns it for every Active robot.
@@ -177,10 +177,11 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   (legacy, T5) — it writes the store only.
 
   **Acceptance criteria:**
-  - [ ] Every Active robot drains `BATTERY_DRAIN_ACTIVE` regardless of `job`.
-  - [ ] The prove-it test passes with the narrowed snapshot; mutation check: re-introducing a job
+  - [x] Every Active robot drains `BATTERY_DRAIN_ACTIVE` regardless of `job`.
+  - [x] The prove-it test passes with the narrowed snapshot; mutation check: re-introducing a job
         surcharge in the live tick breaks it.
-  - [ ] Invariant, hold and pitch-drift tests pass unmodified.
+  - [x] Invariant, hold and pitch-drift tests pass unmodified. — logic unmodified; their battery
+        fixtures name `BATTERY_DRAIN_ACTIVE` where they named `BATTERY_DRAIN_BASE`.
 
   **Verification:** `npx vitest run src/systems/robotSystems.test.ts`; `npm run build:types`.
   **Dependencies:** T2. **Files:** `src/systems/robotSystems.ts`, `src/constants/index.ts` (+ tests).

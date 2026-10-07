@@ -1,5 +1,3 @@
-import type { JobType } from '../types/Robot';
-
 /** Fixed roster size — every locale spawns exactly this many robots once, at load. */
 export const MAX_ROBOTS = 12;
 
@@ -122,16 +120,13 @@ export const PITCH_REPEAT_MAX = 100;
 export const INITIAL_ACTIVE_ROBOTS_MIN = 2;
 export const INITIAL_ACTIVE_ROBOTS_MAX = 4;
 
-/** Battery drain, percent per measure, while a robot is Active — before any job surcharge. */
-export const BATTERY_DRAIN_BASE = 2;
-
-/** Additional percent-per-measure drain while Active, on top of BATTERY_DRAIN_BASE, by job type. */
-export const JOB_BATTERY_DRAIN_SURCHARGE: Record<JobType, number> = {
-  ventExtraction: 1,
-  acousticSurvey: 3,
-  structuralInspection: 5,
-  fluidMonitoring: 7,
-};
+/**
+ * Battery drain, percent per measure, while a robot is Active — flat, the same for every robot and
+ * every job (Phase 43: the job is live visual state, not part of the replayed lifecycle). 6 keeps
+ * the mean Active count closest to the old per-job surcharge rule's (lifecycleSim.ts, 121 seeds ×
+ * 2000 measures: old rule 5.05, flat 6 5.14).
+ */
+export const BATTERY_DRAIN_ACTIVE = 6;
 
 /** Battery recharge, percent per measure, while a robot is Docked — flat, same for every robot. */
 export const BATTERY_RECHARGE_RATE = 5;

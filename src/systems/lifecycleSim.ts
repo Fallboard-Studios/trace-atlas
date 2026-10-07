@@ -7,15 +7,15 @@ import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import { DockingState } from '../types/Robot';
 import { getSeededVal } from '../utils/getSeededVal';
 import { generateRobotRosterBaseline } from './spawnSystem';
-import { stepRobotLifecycle, chooseJobForSnapshot, surchargeDrain } from './robotSystems';
+import { stepRobotLifecycle } from './robotSystems';
 import type { DrainRule, RobotLifecycleSnapshot } from './robotSystems';
 import { MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX } from '../constants';
 
 /**
  * Headless lifecycle sims (docs/specs/ROBOT_JOBS_AND_STATIONS.md §5.2, Phase 43 Task 2). Pure: real
- * seeded rosters, the real stepRobotLifecycle, no store, no BeatClock, no GSAP. Answers one
- * question before the flat drain ships — which flat per-measure drain keeps as many robots out
- * (Active) as today's per-job surcharge rule does, over the same seeds and the same replay code.
+ * seeded rosters, the real stepRobotLifecycle, no store, no BeatClock, no GSAP. The drain sim
+ * picked BATTERY_DRAIN_ACTIVE = 6: its mean Active count (5.14) was closest to the retired per-job
+ * surcharge rule's (5.05) over the 121-seed grid × 2000 measures (commit 5bbbff3f has the table).
  */
 
 // ========================================
@@ -42,17 +42,14 @@ export function simNoiseMap(x: number, y: number): NoiseFunction2D {
 
 /**
  * The roster a fresh locale on this noise map starts with, as lifecycle snapshots: spawnInitialRoster's
- * seeded Active count and Docked batteries, generateRobotRosterBaseline's job-scoring attributes, then
- * initializeLocale's assignJob pass over the Active robots in spawn order. Melody is empty — it only
- * feeds pitch drift, which never touches battery or docking.
+ * seeded Active count and Docked batteries, with generateRobotRosterBaseline's note variance. Melody
+ * is empty — it only feeds pitch drift, which never touches battery or docking.
  */
 export function buildSimRoster(noiseMap: NoiseFunction2D): RobotLifecycleSnapshot[] {
   const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
     getSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1),
   );
-  const baselines = generateRobotRosterBaseline(noiseMap, MAX_ROBOTS);
-
-  const roster: RobotLifecycleSnapshot[] = baselines.map((b, i) => {
+  return generateRobotRosterBaseline(noiseMap, MAX_ROBOTS).map((b, i) => {
     const active = i < activeCount;
     return {
       id: `sim-${i}`,
@@ -60,17 +57,9 @@ export function buildSimRoster(noiseMap: NoiseFunction2D): RobotLifecycleSnapsho
       batteryLevel: active ? 100 : Math.floor(getSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)),
       melody: [],
       dockCycleCount: 0,
-      octaveRange: b.octaveRange,
-      rhythmicDensity: b.rhythmicDensity,
-      rhythmicMotifLength: b.rhythmicMotifLength,
       noteVariance: b.noteVariance,
     };
   });
-
-  for (const robot of roster) {
-    if (robot.docking === DockingState.Active) robot.job = chooseJobForSnapshot(robot, roster, 0);
-  }
-  return roster;
 }
 
 // ========================================
@@ -87,9 +76,8 @@ export interface DrainCandidate {
   drain: DrainRule;
 }
 
-/** Today's per-job surcharge rule, then the flat values the spec brackets around its mean of 6. */
+/** The flat values Task 2 compared; flat 6 shipped as BATTERY_DRAIN_ACTIVE. */
 export const DRAIN_CANDIDATES: readonly DrainCandidate[] = [
-  { label: 'today', drain: surchargeDrain },
   { label: 'flat 5', drain: flatDrain(5) },
   { label: 'flat 6', drain: flatDrain(6) },
   { label: 'flat 7', drain: flatDrain(7) },
@@ -147,19 +135,6 @@ export function runDrainSim(options: {
     const mean = samples.reduce((s, v) => s + v, 0) / samples.length;
     return { label, mean, p10: percentile(samples, 10), p90: percentile(samples, 90) };
   });
-}
-
-/** The flat candidate whose mean Active count is closest to today's; an exact tie goes to the
- *  earlier (lower-drain) row. */
-export function closestFlatToToday(rows: readonly DrainSimRow[]): string {
-  const today = rows.find((r) => r.label === 'today');
-  const flats = rows.filter((r) => r.label !== 'today');
-  if (!today || flats.length === 0) throw new Error('closestFlatToToday needs a today row and at least one flat row');
-  let best = flats[0];
-  for (const r of flats.slice(1)) {
-    if (Math.abs(r.mean - today.mean) < Math.abs(best.mean - today.mean)) best = r;
-  }
-  return best.label;
 }
 
 /** A markdown table of the rows, for the stop-and-report and docs/ROBOT_LIFECYCLE.md. */

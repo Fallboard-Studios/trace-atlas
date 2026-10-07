@@ -18,11 +18,9 @@ import {
   activeCountsOverTime,
   percentile,
   runDrainSim,
-  closestFlatToToday,
   formatDrainReport,
-  type DrainSimRow,
 } from './lifecycleSim';
-import { surchargeDrain, assignJob } from './robotSystems';
+import { activeDrain } from './robotSystems';
 import { spawnInitialRoster } from './spawnSystem';
 import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 import { useLocaleStore } from '../stores/localeStore';
@@ -76,44 +74,38 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
   });
 
   describe('buildSimRoster', () => {
-    it(`builds ${MAX_ROBOTS} robots, a seeded ${INITIAL_ACTIVE_ROBOTS_MIN}-${INITIAL_ACTIVE_ROBOTS_MAX} of them Active at full battery with a job, the rest Docked below 100 with none`, () => {
+    it(`builds ${MAX_ROBOTS} robots, a seeded ${INITIAL_ACTIVE_ROBOTS_MIN}-${INITIAL_ACTIVE_ROBOTS_MAX} of them Active at full battery, the rest Docked below 100 — no job anywhere (Task 3)`, () => {
       for (const { x, y } of FEW_COORDS) {
         const roster = buildSimRoster(simNoiseMap(x, y));
         expect(roster).toHaveLength(MAX_ROBOTS);
         const active = roster.filter((r) => r.docking === DockingState.Active);
         expect(active.length).toBeGreaterThanOrEqual(INITIAL_ACTIVE_ROBOTS_MIN);
         expect(active.length).toBeLessThanOrEqual(INITIAL_ACTIVE_ROBOTS_MAX);
-        for (const r of active) {
-          expect(r.batteryLevel).toBe(100);
-          expect(r.job).toBeDefined();
-        }
+        for (const r of active) expect(r.batteryLevel).toBe(100);
         for (const r of roster.filter((s) => s.docking === DockingState.Docked)) {
           expect(r.batteryLevel).toBeGreaterThanOrEqual(0);
           expect(r.batteryLevel).toBeLessThan(100);
-          expect(r.job).toBeUndefined();
         }
+        for (const r of roster) expect('job' in r).toBe(false);
         expect(new Set(roster.map((r) => r.id)).size).toBe(MAX_ROBOTS);
       }
     });
 
-    it('matches the real spawn path robot for robot — spawnInitialRoster + initializeLocale\'s assignJob pass, same coordinates', () => {
+    it('matches the real spawn path robot for robot — spawnInitialRoster, same coordinates', () => {
       const x = 40;
       const y = -80;
       const localeId = 'lifecycle-sim-parity';
       registerLocale(localeId, x, y);
       spawnInitialRoster(localeId);
-      const spawned = useLocaleStore.getState().getLocaleById(localeId)!.robots;
-      spawned.filter((r) => r.docking === DockingState.Active).forEach((r) => assignJob(localeId, r.id));
       const real = useLocaleStore.getState().getLocaleById(localeId)!.robots;
 
       const sim = buildSimRoster(simNoiseMap(x, y));
-      expect(sim.map((s) => ({ docking: s.docking, batteryLevel: s.batteryLevel, octaveRange: s.octaveRange, rhythmicDensity: s.rhythmicDensity, rhythmicMotifLength: s.rhythmicMotifLength, noteVariance: s.noteVariance, job: s.job?.type }))).toEqual(
-        real.map((r) => ({ docking: r.docking, batteryLevel: r.batteryLevel, octaveRange: r.octaveRange, rhythmicDensity: r.rhythmicDensity, rhythmicMotifLength: r.rhythmicMotifLength, noteVariance: r.noteVariance, job: r.job?.type })),
+      expect(sim.map((s) => ({ docking: s.docking, batteryLevel: s.batteryLevel, noteVariance: s.noteVariance }))).toEqual(
+        real.map((r) => ({ docking: r.docking, batteryLevel: r.batteryLevel, noteVariance: r.noteVariance })),
       );
 
       // Guard against a coincidental pass on defaults: this seed must actually vary.
       expect(new Set(real.filter((r) => r.docking === DockingState.Docked).map((r) => r.batteryLevel)).size).toBeGreaterThan(1);
-      expect(new Set(real.map((r) => r.rhythmicDensity)).size).toBeGreaterThan(1);
     });
 
     it('uses the same noise map the live locale would (no attenuation-style override)', () => {
@@ -124,21 +116,20 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
   });
 
   describe('flatDrain', () => {
-    it('returns the same number for every snapshot, job or no job', () => {
+    it('returns the same number for every snapshot, whatever its battery or docking', () => {
       const [a, b] = buildSimRoster(simNoiseMap(0, 0));
       expect(flatDrain(6)(a)).toBe(6);
-      expect(flatDrain(6)({ ...b, job: undefined })).toBe(6);
+      expect(flatDrain(6)({ ...b, batteryLevel: 1, docking: DockingState.Docked })).toBe(6);
     });
   });
 
   describe('DRAIN_CANDIDATES', () => {
-    it('is today\'s surcharge rule then flat 5, 6 and 7, in that order', () => {
-      expect(DRAIN_CANDIDATES.map((c) => c.label)).toEqual(['today', 'flat 5', 'flat 6', 'flat 7']);
-      expect(DRAIN_CANDIDATES[0].drain).toBe(surchargeDrain);
+    it('is flat 5, 6 and 7, in that order — today\'s per-job rule is gone (Task 3), and flat 6 is the shipped default', () => {
+      expect(DRAIN_CANDIDATES.map((c) => c.label)).toEqual(['flat 5', 'flat 6', 'flat 7']);
       const [r] = buildSimRoster(simNoiseMap(0, 0));
-      expect(DRAIN_CANDIDATES.slice(1).map((c) => c.drain(r))).toEqual([5, 6, 7]);
-    });
-  });
+      expect(DRAIN_CANDIDATES.map((c) => c.drain(r))).toEqual([5, 6, 7]);
+      expect(activeDrain(r)).toBe(DRAIN_CANDIDATES[1].drain(r));
+    });  });
 
   describe('activeCountsOverTime', () => {
     it('returns one Active count per measure, never zero (the never-zero-Active invariant) and never above the roster', () => {
@@ -212,33 +203,18 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       expect(getCurrentMeasure).not.toHaveBeenCalled();
     });
 
-    it('over the full grid and 2000 measures, reports every candidate (the table Crawford picks from)', () => {
+    it('over the full grid and 2000 measures, reports every candidate — flat 6 reproduces Task 2\'s 5.14 mean Active', () => {
       const rows = runDrainSim();
-      expect(rows.map((r) => r.label)).toEqual(['today', 'flat 5', 'flat 6', 'flat 7']);
+      expect(rows.map((r) => r.label)).toEqual(['flat 5', 'flat 6', 'flat 7']);
       for (const r of rows) expect(Number.isFinite(r.mean)).toBe(true);
       // Flat drains are ordered: more drain, fewer robots out.
+      expect(rows[0].mean).toBeGreaterThan(rows[1].mean);
       expect(rows[1].mean).toBeGreaterThan(rows[2].mean);
-      expect(rows[2].mean).toBeGreaterThan(rows[3].mean);
+      // Narrowing the snapshot (no job, no scoring fields) must not move the flat numbers Crawford
+      // chose from (commit 5bbbff3f: flat 5 5.70, flat 6 5.14, flat 7 4.60).
+      expect(rows.map((r) => r.mean.toFixed(2))).toEqual(['5.70', '5.14', '4.60']);
       if (process.env.LIFECYCLE_SIM_REPORT) console.log(`\n${formatDrainReport(rows)}`);
     }, 60_000);
-  });
-
-  describe('closestFlatToToday', () => {
-    const row = (label: string, mean: number): DrainSimRow => ({ label, mean, p10: mean, p90: mean });
-
-    it('names the flat candidate whose mean Active count is closest to today\'s', () => {
-      expect(closestFlatToToday([row('today', 4.1), row('flat 5', 4.9), row('flat 6', 4.2), row('flat 7', 3.6)])).toBe('flat 6');
-      expect(closestFlatToToday([row('today', 3.5), row('flat 5', 4.9), row('flat 6', 4.2), row('flat 7', 3.6)])).toBe('flat 7');
-    });
-
-    it('breaks an exact tie toward the lower drain (the earlier row)', () => {
-      expect(closestFlatToToday([row('today', 4), row('flat 5', 4.5), row('flat 6', 3.5), row('flat 7', 3)])).toBe('flat 5');
-    });
-
-    it('throws without a today row or without any flat row', () => {
-      expect(() => closestFlatToToday([row('flat 6', 4)])).toThrow();
-      expect(() => closestFlatToToday([row('today', 4)])).toThrow();
-    });
   });
 
   describe('formatDrainReport', () => {

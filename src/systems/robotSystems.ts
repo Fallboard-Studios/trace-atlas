@@ -16,8 +16,7 @@ import { generateSpawnPosition } from './spawnSystem';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import {
-  BATTERY_DRAIN_BASE,
-  JOB_BATTERY_DRAIN_SURCHARGE,
+  BATTERY_DRAIN_ACTIVE,
   BATTERY_RECHARGE_RATE,
   BATTERY_CRITICAL_THRESHOLD,
   BATTERY_FULL_THRESHOLD,
@@ -77,64 +76,33 @@ function beginUndocking(localeId: string, robotId: string, measure: number): voi
 // ========================================
 
 /** The subset of Robot fields a lifecycle replay reads or writes -- deliberately narrower than
- *  Robot itself. Includes the fields scoreJobAffinities needs (read-only, never written by
- *  replay) alongside the fields a tick actually transitions. */
+ *  Robot itself. No job and no job-scoring fields (Phase 43): the job is live visual state the
+ *  work loop owns, and nothing the replay computes reads it. `noteVariance` stays for pitch drift. */
 export interface RobotLifecycleSnapshot {
   id: string;
   docking: DockingState;
   batteryLevel: number;
   dockingHoldUntilMeasure?: number;
-  job?: { type: JobTypeValue; assignedAtMeasure: number };
   melody: Robot['melody'];
   /** How many times this robot has landed on Docked so far -- the replay-derived equivalent of
    *  the live dockCycleCounters module map below, threaded as part of the snapshot itself (not a
    *  side channel) so stepRobotLifecycle stays a pure function of its own input. Starts at 0. */
   dockCycleCount: number;
-  octaveRange: [number, number];
-  rhythmicDensity?: number;
-  rhythmicMotifLength?: Robot['rhythmicMotifLength'];
   noteVariance?: Robot['noteVariance'];
 }
 
 /** How much one Active measure drains a robot's battery — injectable so lifecycleSim.ts can compare
- *  today's rule against flat candidates on the same replay code (Phase 43 Task 2). Pure. */
+ *  candidate rules on the same replay code (Phase 43 Task 2). Pure. */
 export type DrainRule = (snapshot: RobotLifecycleSnapshot) => number;
 
-/** Today's rule, and the default: BATTERY_DRAIN_BASE plus the robot's job surcharge (none without a job). */
-export const surchargeDrain: DrainRule = (snapshot) =>
-  BATTERY_DRAIN_BASE + (snapshot.job ? JOB_BATTERY_DRAIN_SURCHARGE[snapshot.job.type] : 0);
-
-/** scoreJobAffinities only reads the melodic-attribute fields RobotLifecycleSnapshot already
- *  carries -- this cast is safe (no field it actually reads is missing) and avoids widening
- *  RobotLifecycleSnapshot with fields (melody, audioAttributes, ...) a lifecycle step never uses. */
-function scoreSnapshotJobAffinities(snapshot: RobotLifecycleSnapshot): Record<JobTypeValue, number> {
-  return scoreJobAffinities(snapshot as unknown as Robot);
-}
-
-/** Pure per-robot balancing, mirrors assignJob's rule exactly: best-scoring type, skipping any
- *  type already at JOB_MAX_ROBOTS_PER_TYPE among the OTHER robots in `roster` that are Active.
- *  Exported for lifecycleSim.ts's initial job pass (mirrors initializeLocale's assignJob loop). */
-export function chooseJobForSnapshot(snapshot: RobotLifecycleSnapshot, roster: RobotLifecycleSnapshot[], measure: number): RobotLifecycleSnapshot['job'] {
-  const scores = scoreSnapshotJobAffinities(snapshot);
-  const sortedTypes = (Object.values(JobType) as JobTypeValue[]).sort((a, b) => scores[b] - scores[a]);
-
-  const countByType = new Map<JobTypeValue, number>();
-  for (const r of roster) {
-    if (r.id !== snapshot.id && r.docking === DockingState.Active && r.job) {
-      countByType.set(r.job.type, (countByType.get(r.job.type) ?? 0) + 1);
-    }
-  }
-
-  const chosen = sortedTypes.find((t) => (countByType.get(t) ?? 0) < JOB_MAX_ROBOTS_PER_TYPE) ?? sortedTypes[0];
-  return { type: chosen, assignedAtMeasure: measure };
-}
+/** The default: a flat BATTERY_DRAIN_ACTIVE for every Active robot, whatever it is doing. */
+export const activeDrain: DrainRule = () => BATTERY_DRAIN_ACTIVE;
 
 /**
- * One measure's worth of battery/docking/job transition for an entire roster, pure -- mirrors
- * tickRobotLifecycle's per-robot logic (the `drain` rule — default surchargeDrain, i.e.
- * BATTERY_DRAIN_BASE/JOB_BATTERY_DRAIN_SURCHARGE — BATTERY_RECHARGE_RATE/BATTERY_CRITICAL_THRESHOLD/BATTERY_FULL_THRESHOLD, the "never zero
- * Active" invariant, assignJob's balancing) exactly, reusing the same constants/scoreJobAffinities
- * -- never a second copy of the arithmetic. Mutates a local working array as it iterates (matching
+ * One measure's worth of battery/docking transition for an entire roster, pure -- mirrors
+ * tickRobotLifecycle's per-robot logic (the `drain` rule — default activeDrain —
+ * BATTERY_RECHARGE_RATE/BATTERY_CRITICAL_THRESHOLD/BATTERY_FULL_THRESHOLD, the "never zero
+ * Active" invariant) exactly, reusing the same constants -- never a second copy of the arithmetic. Mutates a local working array as it iterates (matching
  * tickRobotLifecycle's own "re-read fresh, not the stale snapshot" invariant check), in roster
  * array order, so within-measure ordering effects match a real tick bit for bit. Imports neither
  * useLocaleStore nor getCurrentMeasure -- zero side effects, zero store access.
@@ -150,7 +118,7 @@ export function stepRobotLifecycle(
   roster: RobotLifecycleSnapshot[],
   measure: number,
   noiseMap: NoiseFunction2D,
-  drain: DrainRule = surchargeDrain,
+  drain: DrainRule = activeDrain,
 ): RobotLifecycleSnapshot[] {
   const working = roster.map((r) => ({ ...r }));
 
@@ -178,7 +146,6 @@ export function stepRobotLifecycle(
       if (robot.docking === DockingState.Undocking) {
         robot.docking = DockingState.Active;
         robot.dockingHoldUntilMeasure = undefined;
-        robot.job = chooseJobForSnapshot(robot, working, measure);
       } else {
         robot.docking = DockingState.Docked;
         robot.dockingHoldUntilMeasure = undefined;
@@ -208,7 +175,7 @@ export function replayLifecycle(
   fromMeasure: number,
   toMeasure: number,
   noiseMap: NoiseFunction2D,
-  drain: DrainRule = surchargeDrain,
+  drain: DrainRule = activeDrain,
 ): RobotLifecycleSnapshot[] {
   let working = roster;
   for (let measure = fromMeasure + 1; measure <= toMeasure; measure++) {
@@ -226,12 +193,8 @@ function toLifecycleSnapshot(robot: Robot): RobotLifecycleSnapshot {
     docking: robot.docking,
     batteryLevel: robot.batteryLevel,
     dockingHoldUntilMeasure: robot.dockingHoldUntilMeasure,
-    job: robot.job,
     melody: robot.melody,
     dockCycleCount: dockCycleCounters.get(robot.id) ?? 0,
-    octaveRange: robot.octaveRange,
-    rhythmicDensity: robot.rhythmicDensity,
-    rhythmicMotifLength: robot.rhythmicMotifLength,
     noteVariance: robot.noteVariance,
   };
 }
@@ -242,14 +205,12 @@ function toLifecycleSnapshot(robot: Robot): RobotLifecycleSnapshot {
  * drive it without a real transport — see startRobotLifecycle for the BeatClock-wired entry
  * point.
  *
- * Delegates the actual battery/docking/job/melody-drift arithmetic to stepRobotLifecycle (World
+ * Delegates the actual battery/docking/melody-drift arithmetic to stepRobotLifecycle (World
  * Clock, docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md) — this function's own job is
  * comparing pre/post snapshots and firing the existing landing effects (beginRecall/
  * beginUndocking/landOnActive/landOnDocked, GSAP/AudioEngine/idle-wandering side effects included)
- * exactly where a transition happened, same as before this refactor. landOnActive still assigns
- * its own job via assignJob (reading the live store fresh) rather than stepRobotLifecycle's own
- * job pick — both use the identical balancing algorithm, but only assignJob's result is ever
- * written to the store, so there is no risk of the two diverging in what actually ships.
+ * exactly where a transition happened. The job never enters the comparison: landOnActive's
+ * assignJob writes it to the store only (live visual state, Phase 43), and the replay never reads it.
  */
 export function tickRobotLifecycle(localeId: string, measure: number): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
