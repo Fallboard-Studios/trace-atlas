@@ -84,22 +84,22 @@ function RobotDisplaySectionInner({ robot }: RobotDisplaySectionProps) {
           <DualLabel {...ROBOT_SELECTION_ROW_SCHEMAS.status} />
           <span className="robot-display-section__value">{statusLabel.humanLabel}</span>
         </div>
-        <SliderLinear
-          schema={BATTERY_READOUT_SCHEMA}
-          value={Math.round(robot.batteryLevel)}
-          onChange={() => { }}
-          readOnly
-          boxSize={BATTERY_READOUT_BOX_SIZE}
-          gapSize={BATTERY_READOUT_GAP_SIZE}
-        />
-
-        <RadioButton
-          schema={companyAssignmentSchema}
-          value={robot.companyId ?? FREELANCE_VALUE}
-          onChange={handleCompanyChange}
-        />
       </div>
 
+      <SliderLinear
+        schema={BATTERY_READOUT_SCHEMA}
+        value={Math.round(robot.batteryLevel)}
+        onChange={() => { }}
+        readOnly
+        boxSize={BATTERY_READOUT_BOX_SIZE}
+        gapSize={BATTERY_READOUT_GAP_SIZE}
+      />
+
+      <RadioButton
+        schema={companyAssignmentSchema}
+        value={robot.companyId ?? FREELANCE_VALUE}
+        onChange={handleCompanyChange}
+      />
     </div>
   );
 }
