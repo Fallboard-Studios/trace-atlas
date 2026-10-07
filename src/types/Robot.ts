@@ -23,14 +23,14 @@ export type RobotState = (typeof RobotState)[keyof typeof RobotState];
 /**
  * Docking state machine — orthogonal to RobotState. Purely battery-driven
  * (see src/systems/robotSystems.ts): Docked/Active are the two "settled"
- * states; Docking/Departing are held for up to one measure as a transition
+ * states; Undocking/Recalled are held for up to one measure as a transition
  * buffer before landing on Active/Docked respectively.
  */
 export const DockingState = {
   Docked: 'docked',
-  Docking: 'docking',
-  Departing: 'departing',
+  Undocking: 'undocking',
   Active: 'active',
+  Recalled: 'recalled',
 } as const;
 export type DockingState = (typeof DockingState)[keyof typeof DockingState];
 
@@ -155,7 +155,7 @@ export interface Robot {
   /** Docking state — see DockingState. Every robot has one from creation. */
   docking: DockingState;
   /**
-   * Measure at which a Docking/Departing hold ends and the robot lands on
+   * Measure at which an Undocking/Recalled hold ends and the robot lands on
    * Active/Docked. Undefined when docking is Docked or Active (no hold in
    * progress). Set by robotSystems.ts on threshold crossing.
    */

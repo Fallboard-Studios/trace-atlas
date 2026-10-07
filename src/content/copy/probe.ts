@@ -65,9 +65,9 @@ export const probe = {
     lore: 'DOCKING STATE',
     options: {
       docked: { human: 'Docked', lore: 'DOCKED' },
-      docking: { human: 'Docking', lore: 'DOCKING' },
-      departing: { human: 'Departing', lore: 'DEPARTING' },
+      undocking: { human: 'Undocking', lore: 'UNDOCKING' },
       active: { human: 'Active', lore: 'ACTIVE' },
+      recalled: { human: 'Recalled', lore: 'RECALLED' },
     },
   },
   'probe.status': {

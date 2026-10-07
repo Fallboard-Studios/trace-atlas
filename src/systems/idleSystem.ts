@@ -89,8 +89,8 @@ export function pickDestination(
 /**
  * Every robot enters and exits exclusively via the bottom of the world view —
  * matches spawnSystem.ts's generateSpawnPosition, which spawns/docks every
- * robot south-only now. Used to send a Departing robot visibly swimming
- * off-screen before it docks (robotSystems.ts's beginDeparting): straight
+ * robot south-only now. Used to send a Recalled robot visibly swimming
+ * off-screen before it docks (robotSystems.ts's beginRecall): straight
  * down from its current position, not the nearest edge.
  */
 export function pickExitDestination(pos: Vec2): Vec2 {

@@ -318,7 +318,7 @@ describe('RobotDisplaySection', () => {
     render(<RobotDisplaySection robot={robot} />);
 
     expect(screen.queryByRole('combobox', { name: /job/i })).toBeNull();
-    expect(screen.queryByRole('radio', { name: /docked|docking|departing|active/i })).toBeNull();
+    expect(screen.queryByRole('radio', { name: /docked|undocking|active|recalled/i })).toBeNull();
   });
 
   // Audio Setting/Volume/Volume-LFO assertions live in AudioSettingSection.test.tsx as of Task 13

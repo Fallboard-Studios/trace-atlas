@@ -147,7 +147,7 @@ describe('idleSystem', () => {
       useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
     });
 
-    it.each([DockingState.Docked, DockingState.Docking, DockingState.Departing])(
+    it.each([DockingState.Docked, DockingState.Undocking, DockingState.Recalled])(
       'is a no-op for an Idle robot whose docking is %s',
       (docking) => {
         const robot = makeRobot({ state: RobotState.Idle, docking });
@@ -167,7 +167,7 @@ describe('idleSystem', () => {
     // 12 robots every locale load, logged as a console.warn and dominating the console with
     // React's dev-mode component-stack dump on top of each one. Only a genuinely missing robot
     // (the store lookup itself failing) is actually unexpected and worth a warning.
-    it.each([DockingState.Docked, DockingState.Docking, DockingState.Departing])(
+    it.each([DockingState.Docked, DockingState.Undocking, DockingState.Recalled])(
       'does NOT warn for the ordinary case — an Idle robot whose docking is %s (ordinary, expected precondition, not a bug)',
       (docking) => {
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

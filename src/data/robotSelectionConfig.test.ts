@@ -104,6 +104,14 @@ describe('robotSelectionConfig', () => {
         expect(DOCKING_STATE_LABELS[state].humanLabel).toBeTruthy();
       }
     });
+
+    it('labels exactly the four renamed states — Docked / Undocking / Active / Recalled, no stale Docking/Departing entry (Phase 43 §1.1)', () => {
+      expect(Object.keys(DOCKING_STATE_LABELS).sort()).toEqual([...Object.values(DockingState)].sort());
+      expect(DOCKING_STATE_LABELS[DockingState.Docked].humanLabel).toBe('Docked');
+      expect(DOCKING_STATE_LABELS[DockingState.Undocking].humanLabel).toBe('Undocking');
+      expect(DOCKING_STATE_LABELS[DockingState.Active].humanLabel).toBe('Active');
+      expect(DOCKING_STATE_LABELS[DockingState.Recalled].humanLabel).toBe('Recalled');
+    });
   });
 
   describe('AUDIO_MODE_LABELS', () => {

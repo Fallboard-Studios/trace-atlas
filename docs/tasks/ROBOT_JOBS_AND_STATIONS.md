@@ -133,7 +133,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
 
 ### Phase J1: Lifecycle and world data (`feature/jobs-lifecycle`)
 
-- [ ] **Task 1: Rename the docking states**
+- [x] **Task 1: Rename the docking states**
 
   **Description:** `DockingState` becomes `Docked / Undocking / Active / Recalled` with values
   `'docked' / 'undocking' / 'active' / 'recalled'` (spec §1.1). Rename `beginDocking` →
@@ -142,9 +142,9 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   Undocking / Active / Recalled") and `DOCKING_STATE_LABELS`. Pure rename — no behaviour change.
 
   **Acceptance criteria:**
-  - [ ] No reference to `DockingState.Docking`/`Departing` or the strings `'docking'`/`'departing'`
+  - [x] No reference to `DockingState.Docking`/`Departing` or the strings `'docking'`/`'departing'`
         remains in `src/` (grep in the test).
-  - [ ] All existing lifecycle, replay, spawn, idle and card tests pass with only the renamed
+  - [x] All existing lifecycle, replay, spawn, idle and card tests pass with only the renamed
         identifiers changed.
 
   **Verification:** `npm test`; `npm run build:types`, `npm run lint`. **Dependencies:** None.

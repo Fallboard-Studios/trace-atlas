@@ -136,9 +136,9 @@ export const JOB_BATTERY_DRAIN_SURCHARGE: Record<JobType, number> = {
 /** Battery recharge, percent per measure, while a robot is Docked — flat, same for every robot. */
 export const BATTERY_RECHARGE_RATE = 5;
 
-/** Active robot at or below this battery level begins Departing (recall to dock). */
+/** Active robot at or below this battery level is Recalled (sent back to dock). */
 export const BATTERY_CRITICAL_THRESHOLD = 10;
-/** Docked robot at or above this battery level begins Docking (redeploy-eligible). */
+/** Docked robot at or above this battery level begins Undocking (redeploy-eligible). */
 export const BATTERY_FULL_THRESHOLD = 100;
 
 /** Fraction of a robot's melody events whose pitch (noteIndex only) re-rolls each time it lands on Docked. */

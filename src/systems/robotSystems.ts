@@ -39,7 +39,7 @@ const dockCycleCounters = new Map<string, number>();
 // ========================================
 
 /**
- * Begin the Departing hold and, in the same instant, send the robot visibly
+ * Begin the Recalled hold and, in the same instant, send the robot visibly
  * swimming off-screen — it should head off-screen before it freezes (lands
  * on Docked, muted), not freeze wherever its last idle motion happened to
  * leave it. The swim's own completion is not what governs the actual
@@ -47,7 +47,7 @@ const dockCycleCounters = new Map<string, number>();
  * — so this is a fire-and-forget visual cue, matching how idle wandering
  * itself is already decoupled from any other timing.
  */
-function beginDeparting(localeId: string, robot: Robot, measure: number): void {
+function beginRecall(localeId: string, robot: Robot, measure: number): void {
   // pickExitDestination is straight down now (bottom-only exit) — no horizontal
   // component to base a facing flip on, so keep the robot's current direction
   // rather than recomputing one from an x-comparison that would always read 'left'.
@@ -57,7 +57,7 @@ function beginDeparting(localeId: string, robot: Robot, measure: number): void {
   createSwimTimeline(robot, exitDestination);
 
   useLocaleStore.getState().updateRobot(localeId, robot.id, {
-    docking: DockingState.Departing,
+    docking: DockingState.Recalled,
     dockingHoldUntilMeasure: measure + 1,
     state: RobotState.Moving,
     destination: exitDestination,
@@ -65,9 +65,9 @@ function beginDeparting(localeId: string, robot: Robot, measure: number): void {
   });
 }
 
-function beginDocking(localeId: string, robotId: string, measure: number): void {
+function beginUndocking(localeId: string, robotId: string, measure: number): void {
   useLocaleStore.getState().updateRobot(localeId, robotId, {
-    docking: DockingState.Docking,
+    docking: DockingState.Undocking,
     dockingHoldUntilMeasure: measure + 1,
   });
 }
@@ -130,7 +130,7 @@ function chooseJobForSnapshot(snapshot: RobotLifecycleSnapshot, roster: RobotLif
  * array order, so within-measure ordering effects match a real tick bit for bit. Imports neither
  * useLocaleStore nor getCurrentMeasure -- zero side effects, zero store access.
  *
- * A Departing->Docked landing also drifts `melody` via the same reRollMelodyPitches/
+ * A Recalled -> Docked landing also drifts `melody` via the same reRollMelodyPitches/
  * DOCKED_PITCH_DRIFT_RATIO rule landOnDocked applies live, seeded identically
  * (getSeededVal(noiseMap, 'robot.pitchDrift', dockCycleCount * 100 + callIndex, 0, 1) using the
  * POST-increment dockCycleCount, matching landOnDocked's own `(counter ?? 0) + 1` before seeding).
@@ -147,22 +147,22 @@ export function stepRobotLifecycle(roster: RobotLifecycleSnapshot[], measure: nu
       if (robot.batteryLevel <= BATTERY_CRITICAL_THRESHOLD) {
         const stillActiveElsewhere = working.some((r) => r.id !== robot.id && r.docking === DockingState.Active);
         if (stillActiveElsewhere) {
-          robot.docking = DockingState.Departing;
+          robot.docking = DockingState.Recalled;
           robot.dockingHoldUntilMeasure = measure + 1;
         }
       }
     } else if (robot.docking === DockingState.Docked) {
       robot.batteryLevel = Math.min(100, robot.batteryLevel + BATTERY_RECHARGE_RATE);
       if (robot.batteryLevel >= BATTERY_FULL_THRESHOLD) {
-        robot.docking = DockingState.Docking;
+        robot.docking = DockingState.Undocking;
         robot.dockingHoldUntilMeasure = measure + 1;
       }
     } else if (
-      (robot.docking === DockingState.Docking || robot.docking === DockingState.Departing) &&
+      (robot.docking === DockingState.Undocking || robot.docking === DockingState.Recalled) &&
       robot.dockingHoldUntilMeasure !== undefined &&
       measure >= robot.dockingHoldUntilMeasure
     ) {
-      if (robot.docking === DockingState.Docking) {
+      if (robot.docking === DockingState.Undocking) {
         robot.docking = DockingState.Active;
         robot.dockingHoldUntilMeasure = undefined;
         robot.job = chooseJobForSnapshot(robot, working, measure);
@@ -225,8 +225,8 @@ function toLifecycleSnapshot(robot: Robot): RobotLifecycleSnapshot {
  *
  * Delegates the actual battery/docking/job/melody-drift arithmetic to stepRobotLifecycle (World
  * Clock, docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md) — this function's own job is
- * comparing pre/post snapshots and firing the existing landing effects (beginDeparting/
- * beginDocking/landOnActive/landOnDocked, GSAP/AudioEngine/idle-wandering side effects included)
+ * comparing pre/post snapshots and firing the existing landing effects (beginRecall/
+ * beginUndocking/landOnActive/landOnDocked, GSAP/AudioEngine/idle-wandering side effects included)
  * exactly where a transition happened, same as before this refactor. landOnActive still assigns
  * its own job via assignJob (reading the live store fresh) rather than stepRobotLifecycle's own
  * job pick — both use the identical balancing algorithm, but only assignJob's result is ever
@@ -251,13 +251,13 @@ export function tickRobotLifecycle(localeId: string, measure: number): void {
 
     if (preState.docking === postState.docking) return;
 
-    if (preState.docking === DockingState.Active && postState.docking === DockingState.Departing) {
-      beginDeparting(localeId, robot, measure);
-    } else if (preState.docking === DockingState.Docked && postState.docking === DockingState.Docking) {
-      beginDocking(localeId, robot.id, measure);
-    } else if (preState.docking === DockingState.Docking && postState.docking === DockingState.Active) {
+    if (preState.docking === DockingState.Active && postState.docking === DockingState.Recalled) {
+      beginRecall(localeId, robot, measure);
+    } else if (preState.docking === DockingState.Docked && postState.docking === DockingState.Undocking) {
+      beginUndocking(localeId, robot.id, measure);
+    } else if (preState.docking === DockingState.Undocking && postState.docking === DockingState.Active) {
       landOnActive(localeId, robot.id);
-    } else if (preState.docking === DockingState.Departing && postState.docking === DockingState.Docked) {
+    } else if (preState.docking === DockingState.Recalled && postState.docking === DockingState.Docked) {
       landOnDocked(localeId, robot.id, postState.melody);
     }
   });
@@ -359,7 +359,7 @@ export function landOnDocked(localeId: string, robotId: string, driftedMelody: R
     position: dockPosition,
     melody: driftedMelody,
     audioMode: 'mute',
-    // beginDeparting set state: Moving for the exit swim — settle back to
+    // beginRecall set state: Moving for the exit swim — settle back to
     // Idle here so a later landOnActive's handleRobotIdle call (which
     // requires state === Idle) isn't blocked by its own guard.
     state: RobotState.Idle,
