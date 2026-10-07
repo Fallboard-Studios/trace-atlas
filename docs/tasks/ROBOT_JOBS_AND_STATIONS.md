@@ -312,7 +312,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   **Files:** `src/components/actors/factoryGeometry.ts` (+ test), `src/components/actors/Factory.tsx`.
   **Scope:** S.
 
-- [ ] **Task 9: Work sites — `workSites.ts` and factories**
+- [x] **Task 9: Work sites — `workSites.ts` and factories**
 
   **Description:** `getWorkSite(actor): WorkSite | null` (spec §1.5) with the factory branch:
   `bounds` from `factoryGeometry`, `park` per the park rule (`PARK_CLEARANCE` = 70, `WORLD_MARGIN`
@@ -321,9 +321,34 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   top outline. Cached per actor id.
 
   **Acceptance criteria:**
-  - [ ] Deterministic per actor id; `null` for non-hosts.
-  - [ ] Over 200 seeded factories: `park` inside the world margin and above `bounds.y0`;
+  - [x] Deterministic per actor id; `null` for non-hosts.
+  - [x] Over 200 seeded factories: `park` inside the world margin and above `bounds.y0`;
         foreground `points`/`path` never below `bounds.y0`; `path.length ≥ 2`, `points` 2–4.
+        — every real factory host the placer puts down over the 121-seed grid (well over 200).
+        Points and path sit on or above the roof at every depth, not only foreground. "Above
+        `bounds.y0`" holds for every eligible (midground/foreground) site, but not for every
+        background one: see (2).
+
+  **As shipped:** (1) **The cache is keyed by the actor object (`WeakMap`), not the id.** Actor
+  ids repeat across locales: 730 of 4210 actors over the grid share an id with another locale's,
+  652 of them with different geometry. An id key would hand the next world a stale site (a test
+  pins this with a real colliding pair). `deriveWorkSite` is the uncached derivation.
+  (2) **Park clamp vs. "above the roof".** Background Skyscrapers can have a roof as high as
+  y = 48. There, `roof − 70` clamps to `WORLD_MARGIN`, so the park is *below* the roof line. Only
+  background sites hit this, and those stay ineligible until J4 (`BACK_HOSTS_ENABLED`). J4 must
+  decide it: drop such sites, or park beside them. (3) **Visible roof.** Some hosts run off a
+  world edge (x0 = −20; x1 up to ~2250), and some foreground Warehouse hosts sit wholly past it
+  (x0 ≥ 1977). Points, path and the park centre use the part of the roof inside [0, 1920]; a roof
+  wholly outside falls back to the whole roof. Whether off-world hosts should host at all is open
+  for T12/Crawford. (4) Per variant: Stacks/Refinery `[mouth, valve]`, where the mouth is the bubble vent's x
+  (`factoryVentFraction`, now shared with `factoryBubbleProps.ts`) on the drawn roof, and the valve
+  is in the other half. Warehouse has `[a, b]`, one in each half. Monolith/Skyscraper has
+  `[seeded mid point, roof 10 %, roof 90 %]`. `path` is the top outline, through the front corner
+  when it's visible. (5) `WORLD_MARGIN` moved into `constants/index.ts`; `idleSystem.ts` imports it
+  and `WORLD_WIDTH`/`WORLD_HEIGHT` instead of its own copies. Scenery hosts return `null` until
+  T10/T11. (6) Mutation checks: dropping the visible-span clip, the unrounded vent y, dropping the
+  park clamp, an id-keyed cache, and zeroing the park jitter each fail tests. The jitter mutant
+  survived the first version of its test, so the test was tightened.
 
   **Verification:** `npx vitest run src/systems/workSites.test.ts`. **Dependencies:** T7, T8.
   **Files:** `src/systems/workSites.ts` (+ test), `src/constants/index.ts`. **Scope:** M.

@@ -45,6 +45,12 @@ export function hashActorId(id: string): number {
   return Math.floor(Alea(id)() * 0x100000000);
 }
 
+/** Where a factory's vent mouth sits across its roof, 0.2–0.8 of the drawn width — read by the
+ *  bubbles and by the work sites' stack mouth (Phase 43), so the two can't drift. */
+export function factoryVentFraction(actorId: string): number {
+  return ((hashActorId(actorId) % 60) + 20) / 100;
+}
+
 /** Bubble depth scale from the row's depth label: foreground 1, midground 0.5, background 1/3,
  *  unknown (no recipe row, e.g. an out-of-range row) 1. */
 export function bubbleDepthScaleForRow(depth: DistrictRow['depth'] | undefined): number {
@@ -92,14 +98,13 @@ export function getActorBubbleProps(actor: Actor): FactoryBubbleProps | null {
   const actualHeight = height * (actor.scaleY ?? 1);
 
   const buildingSeed = hashActorId(actor.id);
-  const ventXnorm = (buildingSeed % 60) + 20; // 20–80 % of normalised width
 
   const shift = { hueShift: actor.config?.hueShift ?? 0, satShift: actor.config?.satShift ?? 0 };
   const bodyHue = shiftHSL(VARIANT_CONF[config.variant].colors.body, shift).h;
 
   return {
     actorId: actor.id,
-    ventX: actor.position.x + (ventXnorm / 100) * actualWidth,
+    ventX: actor.position.x + factoryVentFraction(actor.id) * actualWidth,
     ventY: actor.position.y - actualHeight,
     seed: buildingSeed,
     // Factories never go offline (Phase 43 removed the production fields) — every stream runs.

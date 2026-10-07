@@ -146,6 +146,15 @@ export const DOCKED_PITCH_DRIFT_RATIO = 0.25;
  */
 export const BACK_HOSTS_ENABLED = false;
 
+/** Keep robot destinations at least this far inside every world edge (scene units). */
+export const WORLD_MARGIN = 100;
+
+/**
+ * How far above a work site's roof a working robot's centre parks — the gem body's half-height
+ * plus a margin (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.5, workSites.ts).
+ */
+export const PARK_CLEARANCE = 70;
+
 /** Roster-balancing cap: at most this many robots may hold the same job type at once. */
 export const JOB_MAX_ROBOTS_PER_TYPE = 3;
 

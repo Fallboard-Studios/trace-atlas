@@ -9,15 +9,12 @@ import useLocaleStore from '../stores/localeStore';
 import { createSwimTimeline } from '../animation/swimAnimation';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
-import { BATTERY_LOWER_THIRD_THRESHOLD } from '../constants';
+import { BATTERY_LOWER_THIRD_THRESHOLD, WORLD_WIDTH, WORLD_HEIGHT, WORLD_MARGIN } from '../constants';
 import type { Vec2 } from '../types/Vec2';
 
 // ========================================
 // CONSTANTS
 // ========================================
-const WORLD_WIDTH = 1920;
-const WORLD_HEIGHT = 1080;
-const WORLD_MARGIN = 100; // Keep destinations away from edges
 const IDLE_DELAY = 1.0; // Seconds before picking next destination
 /** Distance outside the SVG viewBox for an exit destination — matches spawnSystem.ts's own OFFSCREEN_OFFSET. */
 const OFFSCREEN_OFFSET = 150;
