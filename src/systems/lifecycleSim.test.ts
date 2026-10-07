@@ -2,6 +2,8 @@
 // IMPORTS
 // ========================================
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import alea from 'alea';
+import gsap from 'gsap';
 
 vi.mock('../engine/beatClock', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../engine/beatClock')>();
@@ -19,14 +21,47 @@ import {
   percentile,
   runDrainSim,
   formatDrainReport,
+  SIM_LOOP_SECONDS,
+  SIM_LOOP_BPMS,
+  COOLDOWN_CANDIDATES,
+  clampedCooldown,
+  buildLoopWorld,
+  simOrbiterCounts,
+  runLoopSim,
+  runReadinessSim,
+  formatReadinessReport,
+  type LifecycleStep,
+  type LoopSimEvent,
+  type LoopSimOptions,
+  type LoopSimResult,
+  type LoopSimWorld,
+  type ReadinessRow,
+  type ReadinessSeedRow,
 } from './lifecycleSim';
-import { activeDrain } from './robotSystems';
+import { activeDrain, type RobotLifecycleSnapshot } from './robotSystems';
 import { spawnInitialRoster } from './spawnSystem';
+import { placeDistrict } from './districts';
+import { getWorkSite } from './workSites';
+import { isWorkSiteEligible } from './jobHosts';
+import { deriveStations, hostObstacles, type Station } from './stations';
+import { siteCooldown } from './siteChoice';
+import { jobDuration } from '../animation/jobMoves/jobDuration';
+import { orbiterDials } from '../components/robot/gem/orbiterDials';
 import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 import { useLocaleStore } from '../stores/localeStore';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { DockingState } from '../types/Robot';
-import { MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX } from '../constants';
+import { DockingState, JobType } from '../types/Robot';
+import type { Actor } from '../types/Actor';
+import {
+  MAX_ROBOTS,
+  INITIAL_ACTIVE_ROBOTS_MIN,
+  INITIAL_ACTIVE_ROBOTS_MAX,
+  SWIM_SPEED,
+  STATION_ARC_SECONDS,
+  WAIT_RETRY_SECONDS,
+  BEATS_PER_MEASURE,
+  BACK_HOSTS_ENABLED,
+} from '../constants';
 
 // ========================================
 // HELPERS
@@ -229,6 +264,457 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       expect(lines[2]).toBe('| today | 4.12 | 3 | 5 |');
       expect(lines[3]).toBe('| flat 6 | 4.20 | 3 | 6 |');
       expect(lines).toHaveLength(4);
+    });
+  });
+});
+
+// ========================================
+// LOOP SIM (Phase 43 Task 15 — readiness and handoff, spec §5.2)
+// ========================================
+
+const VENT = JobType.VentExtraction;
+const SURVEY = JobType.AcousticSurvey;
+
+/** A station stub. */
+const station = (id: string, x: number, y: number, capacity = 6): Station => ({ id, center: { x, y }, port: { x, y }, capacity });
+
+/** A lifecycle snapshot stub. */
+function snap(id: string, docking: DockingState): RobotLifecycleSnapshot {
+  return { id, docking, batteryLevel: docking === DockingState.Active ? 100 : 50, melody: [], dockCycleCount: 0 };
+}
+
+/** A lifecycle that only changes docking where the script says, at that measure. */
+function scripted(plan: Record<number, Record<string, DockingState>> = {}): LifecycleStep {
+  return (roster, measure) => roster.map((r) => (plan[measure]?.[r.id] ? { ...r, docking: plan[measure][r.id] } : r));
+}
+
+/** 240 BPM → one measure per second, so measure m lands at t = m. */
+const ONE_SECOND_MEASURES = 240;
+
+function runScenario(opts: Partial<LoopSimOptions> & Pick<LoopSimOptions, 'world' | 'roster'>): { result: LoopSimResult; trace: LoopSimEvent[] } {
+  const trace: LoopSimEvent[] = [];
+  const result = runLoopSim({
+    orbiterCounts: opts.roster.map(() => 1),
+    bpm: ONE_SECOND_MEASURES,
+    seconds: 12,
+    rand: alea('scenario'),
+    step: scripted(),
+    cooldown: () => 3,
+    trace: (e) => trace.push(e),
+    ...opts,
+  });
+  return { result, trace };
+}
+
+const eventsOf = (trace: LoopSimEvent[], robotId: string) => trace.filter((e) => e.robotId === robotId);
+
+/** Every [start, end) interval during which a robot held each site (transit or working). */
+function siteHolds(trace: LoopSimEvent[], end: number): { siteId: string; robotId: string; from: number; to: number }[] {
+  const open = new Map<string, { siteId: string; from: number }>();
+  const holds: { siteId: string; robotId: string; from: number; to: number }[] = [];
+  for (const e of trace) {
+    const cur = open.get(e.robotId);
+    const holding = (e.activity === 'transit' || e.activity === 'working') && e.siteId !== undefined;
+    if (cur && (!holding || cur.siteId !== e.siteId)) {
+      holds.push({ siteId: cur.siteId, robotId: e.robotId, from: cur.from, to: e.t });
+      open.delete(e.robotId);
+    }
+    if (holding && !open.has(e.robotId)) open.set(e.robotId, { siteId: e.siteId!, from: e.t });
+  }
+  for (const [robotId, cur] of open) holds.push({ siteId: cur.siteId, robotId, from: cur.from, to: end });
+  return holds;
+}
+
+/** One placed world off the real placer, for the world-building tests. */
+function placedWorld(x: number, y: number): { actors: Actor[]; noiseMap: ReturnType<typeof simNoiseMap> } {
+  const id = `loop-sim-${x}-${y}`;
+  registerLocale(id, x, y);
+  return { actors: placeDistrict(id), noiseMap: simNoiseMap(x, y) };
+}
+
+describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', () => {
+  it('pins the loop constants it runs on', () => {
+    expect(SWIM_SPEED).toBe(120);
+    expect(STATION_ARC_SECONDS).toBe(0.9);
+    expect(WAIT_RETRY_SECONDS).toBe(2);
+    expect(BEATS_PER_MEASURE).toBe(4);
+    expect(SIM_LOOP_SECONDS).toBe(600);
+    expect(SIM_LOOP_BPMS).toEqual([20, 200]);
+  });
+
+  describe('buildLoopWorld', () => {
+    it('is every eligible host as a site (its work site jobs and park) and the world\'s seeded stations', () => {
+      const { actors, noiseMap } = placedWorld(-120, 40);
+      const world = buildLoopWorld(actors, noiseMap);
+      const eligible = actors.filter((a) => isWorkSiteEligible(a, { backHosts: BACK_HOSTS_ENABLED }));
+      expect(world.sites).toHaveLength(eligible.length);
+      expect(world.sites.length).toBeGreaterThan(0);
+      eligible.forEach((a, i) => {
+        const ws = getWorkSite(a)!;
+        expect(world.sites[i].jobs).toEqual(ws.jobs);
+        expect(world.sites[i].park).toEqual(ws.park);
+      });
+      // Actor ids collide across locales and may repeat; sim site ids must be unique within a world.
+      expect(new Set(world.sites.map((s) => s.id)).size).toBe(world.sites.length);
+      expect(world.stations).toEqual(deriveStations(noiseMap, hostObstacles(actors)));
+    });
+  });
+
+  describe('simOrbiterCounts', () => {
+    it('matches orbiterDials().count of the real spawned roster, robot for robot, and is 1–4', () => {
+      const x = 80;
+      const y = 160;
+      const localeId = 'loop-sim-orbiter-parity';
+      registerLocale(localeId, x, y);
+      spawnInitialRoster(localeId);
+      const real = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      const counts = simOrbiterCounts(simNoiseMap(x, y));
+      expect(counts).toEqual(real.map((r) => orbiterDials(r).count));
+      for (const n of counts) expect([1, 2, 3, 4]).toContain(n);
+      // Guard against a coincidental pass on one default count.
+      expect(new Set(counts).size).toBeGreaterThan(1);
+    });
+  });
+
+  describe('runLoopSim — one robot, one site (hand-worked timeline)', () => {
+    const world: LoopSimWorld = { stations: [station('s0', 0, 0)], sites: [{ id: 'a', jobs: [VENT], park: { x: 120, y: 0 } }] };
+    const d = jobDuration(VENT, 1);
+
+    it('exits, swims at SWIM_SPEED, works for jobDuration, then waits out the cooldown in WAIT_RETRY_SECONDS bobs', () => {
+      const { result, trace } = runScenario({ world, roster: [snap('r0', DockingState.Active)] });
+      const r0 = eventsOf(trace, 'r0').map((e) => [e.activity, +e.t.toFixed(3)]);
+      const workEnd = 1.9 + d; // exit 0.9 + swim 120 px / 120 px/s
+      // Cooldown 3 > one retry, so two bobs before the site is ready again; the swim back is zero-length.
+      expect(r0).toEqual([
+        ['exiting', 0],
+        ['transit', 0.9],
+        ['working', 1.9],
+        ['waiting', +workEnd.toFixed(3)],
+        ['transit', +(workEnd + 4).toFixed(3)],
+        ['working', +(workEnd + 4).toFixed(3)],
+      ]);
+      expect(result.waitingSeconds).toBeCloseTo(4);
+      expect(result.waits.map((w) => +w.toFixed(3))).toEqual([4]);
+      expect(result.activeSeconds).toBeCloseTo(12);
+      expect(result.stints).toBe(1);
+      expect(result.switches).toBe(0);
+      expect(result.turnBacks).toBe(0);
+      expect(result.chargingWhileVisible).toBe(0);
+    });
+
+    it('more orbiters, shorter jobs', () => {
+      const one = runScenario({ world, roster: [snap('r0', DockingState.Active)], orbiterCounts: [1] }).trace;
+      const four = runScenario({ world, roster: [snap('r0', DockingState.Active)], orbiterCounts: [4] }).trace;
+      const firstWaitAt = (t: LoopSimEvent[]) => t.find((e) => e.activity === 'waiting')!.t;
+      expect(firstWaitAt(one)).toBeCloseTo(1.9 + jobDuration(VENT, 1));
+      expect(firstWaitAt(four)).toBeCloseTo(1.9 + jobDuration(VENT, 4));
+      expect(firstWaitAt(four)).toBeLessThan(firstWaitAt(one));
+    });
+
+    it('with no sites at all, waits the whole shift as one unbroken wait', () => {
+      const { result } = runScenario({ world: { stations: world.stations, sites: [] }, roster: [snap('r0', DockingState.Active)] });
+      expect(result.waits).toHaveLength(1);
+      expect(result.waits[0]).toBeCloseTo(12 - STATION_ARC_SECONDS);
+      expect(result.waitingSeconds / result.activeSeconds).toBeCloseTo((12 - STATION_ARC_SECONDS) / 12);
+    });
+
+    it('a Docked robot stays hidden at its station and is never active time', () => {
+      const { result, trace } = runScenario({ world, roster: [snap('r0', DockingState.Active), snap('r1', DockingState.Docked)] });
+      expect(eventsOf(trace, 'r1')).toEqual([{ t: 0, robotId: 'r1', activity: 'charging', stationId: 's0', visible: false }]);
+      expect(result.activeSeconds).toBeCloseTo(12);
+      expect(result.stints).toBe(1);
+    });
+  });
+
+  describe('runLoopSim — sites and jobs', () => {
+    it('one robot per site: two robots, one site, never both holding it', () => {
+      const world: LoopSimWorld = { stations: [station('s0', 0, 0)], sites: [{ id: 'a', jobs: [VENT], park: { x: 120, y: 0 } }] };
+      const { result, trace } = runScenario({ world, roster: [snap('r0', DockingState.Active), snap('r1', DockingState.Active)], seconds: 30 });
+      const holds = siteHolds(trace, 30);
+      expect(holds.length).toBeGreaterThan(2);
+      for (const a of holds) for (const b of holds) {
+        if (a === b || a.siteId !== b.siteId) continue;
+        expect(a.to <= b.from + 1e-9 || b.to <= a.from + 1e-9).toBe(true);
+      }
+      expect(result.waitingSeconds).toBeGreaterThan(0);
+    });
+
+    it('the variety rule: the second robot out takes the job the first does not hold, even with a second site for it free', () => {
+      // Two VENT sites, so a held site alone can't force the difference — only heldJobs can.
+      const world: LoopSimWorld = {
+        stations: [station('s0', 0, 0)],
+        sites: [
+          { id: 'a', jobs: [VENT], park: { x: 120, y: 0 } },
+          { id: 'a2', jobs: [VENT], park: { x: 130, y: 0 } },
+          { id: 'b', jobs: [SURVEY], park: { x: -120, y: 0 } },
+        ],
+      };
+      const firstJobs = new Set<string>();
+      for (let i = 0; i < 20; i++) {
+        const { trace } = runScenario({ world, roster: [snap('r0', DockingState.Active), snap('r1', DockingState.Active)], rand: alea(`v${i}`) });
+        const first = (id: string) => eventsOf(trace, id).find((e) => e.activity === 'transit')!.job;
+        expect(first('r0')).not.toBe(first('r1'));
+        firstJobs.add(first('r0')!);
+      }
+      // Guard: r0 really picked VENT in some runs (the case where the rule matters).
+      expect(firstJobs.has(VENT)).toBe(true);
+    });
+
+    it('counts a job switch when the robot\'s own job has no ready site', () => {
+      const world: LoopSimWorld = {
+        stations: [station('s0', 0, 0)],
+        sites: [
+          { id: 'a', jobs: [VENT], park: { x: 120, y: 0 } },
+          { id: 'b', jobs: [SURVEY], park: { x: 240, y: 0 } },
+        ],
+      };
+      // Long cooldown: after one job at each site, nothing is ready, so exactly one switch.
+      const { result, trace } = runScenario({ world, roster: [snap('r0', DockingState.Active)], cooldown: () => 100, seconds: 20 });
+      expect(new Set(eventsOf(trace, 'r0').filter((e) => e.activity === 'working').map((e) => e.siteId))).toEqual(new Set(['a', 'b']));
+      expect(result.switches).toBe(1);
+      expect(result.stints).toBe(1);
+    });
+
+    it('a site freed by an abandoned transit is ready at once (no cooldown) for the next robot', () => {
+      const world: LoopSimWorld = { stations: [station('s0', 0, 0)], sites: [{ id: 'a', jobs: [VENT], park: { x: 1200, y: 0 } }] };
+      // r0 is recalled 1.1 s into a 10 s swim; r1 undocks at t = 3 and must find 'a' ready.
+      const step = scripted({ 2: { r0: DockingState.Recalled }, 3: { r1: DockingState.Active } });
+      const { trace } = runScenario({ world, roster: [snap('r0', DockingState.Active), snap('r1', DockingState.Docked)], step });
+      const r1 = eventsOf(trace, 'r1').map((e) => [e.activity, +e.t.toFixed(3), e.siteId]);
+      expect(r1.slice(1, 3)).toEqual([['exiting', 3, undefined], ['transit', 3.9, 'a']]);
+    });
+  });
+
+  describe('runLoopSim — recall and handoff', () => {
+    const world: LoopSimWorld = { stations: [station('s0', 0, 0)], sites: [{ id: 'a', jobs: [VENT], park: { x: 120, y: 0 } }] };
+    const d = jobDuration(VENT, 1);
+
+    it('recalled mid-job: finishes the job, then returns, enters and is hidden — Docked while still visible is measured', () => {
+      const step = scripted({ 3: { r0: DockingState.Recalled }, 4: { r0: DockingState.Docked } });
+      const { result, trace } = runScenario({ world, roster: [snap('r0', DockingState.Active)], step });
+      const workEnd = 1.9 + d;
+      expect(eventsOf(trace, 'r0').map((e) => [e.activity, +e.t.toFixed(3), e.visible])).toEqual([
+        ['exiting', 0, true],
+        ['transit', 0.9, true],
+        ['working', 1.9, true],
+        ['returning', +workEnd.toFixed(3), true],
+        ['entering', +(workEnd + 1).toFixed(3), true],
+        ['charging', +(workEnd + 1 + STATION_ARC_SECONDS).toFixed(3), false],
+      ]);
+      expect(result.waitingSeconds).toBe(0);
+      expect(result.turnBacks).toBe(0);
+      expect(result.chargingWhileVisible).toBe(0);
+      // Docked at t = 4, hidden at workEnd + 1.9.
+      expect(result.longestDockedVisible).toBeCloseTo(workEnd + 1 + STATION_ARC_SECONDS - 4);
+      expect(result.dockedVisibleSeconds).toBeCloseTo(result.longestDockedVisible);
+    });
+
+    it('recalled in transit: abandons the swim and returns from where it is', () => {
+      const far: LoopSimWorld = { stations: world.stations, sites: [{ id: 'a', jobs: [VENT], park: { x: 1200, y: 0 } }] };
+      const { trace } = runScenario({ world: far, roster: [snap('r0', DockingState.Active)], step: scripted({ 2: { r0: DockingState.Recalled } }) });
+      // At t = 2 it is (2 − 0.9) × 120 = 132 px out; 1.1 s home.
+      expect(eventsOf(trace, 'r0').map((e) => [e.activity, +e.t.toFixed(3)])).toEqual([
+        ['exiting', 0],
+        ['transit', 0.9],
+        ['returning', 2],
+        ['entering', 3.1],
+        ['charging', 4],
+      ]);
+    });
+
+    it('recalled while waiting: stops waiting and returns now', () => {
+      const { result, trace } = runScenario({ world: { stations: world.stations, sites: [] }, roster: [snap('r0', DockingState.Active)], step: scripted({ 3: { r0: DockingState.Recalled } }) });
+      expect(eventsOf(trace, 'r0').map((e) => [e.activity, +e.t.toFixed(3)])).toEqual([
+        ['exiting', 0],
+        ['waiting', 0.9],
+        ['returning', 3],
+        ['entering', 3],
+        ['charging', 3.9],
+      ]);
+      expect(result.waits.map((w) => +w.toFixed(3))).toEqual([2.1]);
+    });
+
+    it('recalled while exiting: finishes the exit, then turns straight round', () => {
+      const { trace } = runScenario({ world, roster: [snap('r0', DockingState.Active)], bpm: 480, step: scripted({ 1: { r0: DockingState.Recalled } }) });
+      // 480 BPM → measure 1 at t = 0.5, mid-exit.
+      expect(eventsOf(trace, 'r0').map((e) => [e.activity, +e.t.toFixed(3)]).slice(0, 3)).toEqual([
+        ['exiting', 0],
+        ['returning', 0.9],
+        ['entering', 0.9],
+      ]);
+    });
+
+    it('turn-back while returning: Active again before it gets home → back to work, never charging', () => {
+      const mid: LoopSimWorld = { stations: world.stations, sites: [{ id: 'a', jobs: [VENT], park: { x: 240, y: 0 } }] };
+      // Work 2.9 → 2.9 + d; recalled at 3 (finishes), returning 2 s; Active at 8 → turn-back mid-swim.
+      const step = scripted({ 3: { r0: DockingState.Recalled }, 8: { r0: DockingState.Active } });
+      const { result, trace } = runScenario({ world: mid, roster: [snap('r0', DockingState.Active)], step });
+      const r0 = eventsOf(trace, 'r0');
+      const back = r0.findIndex((e) => e.activity === 'returning');
+      expect(r0[back + 1].t).toBeCloseTo(8);
+      expect(r0[back + 1].activity).not.toBe('entering');
+      expect(r0.some((e) => e.activity === 'charging')).toBe(false);
+      expect(result.turnBacks).toBe(1);
+      expect(result.stints).toBe(1);
+    });
+
+    it('turn-back mid-entry: Active lands during the entry arc → it comes straight back out to work, never charging', () => {
+      // Work 1.9 → 1.9 + d; recalled at 3 (finishes); home 1 s; entering 2.9 + d … 3.8 + d (d = 4.3: 7.2 … 8.1).
+      const step = scripted({ 3: { r0: DockingState.Recalled }, 8: { r0: DockingState.Active } });
+      const { result, trace } = runScenario({ world, roster: [snap('r0', DockingState.Active)], step });
+      const r0 = eventsOf(trace, 'r0');
+      const entering = r0.findIndex((e) => e.activity === 'entering');
+      expect(r0[entering].t).toBeLessThan(8);
+      expect(r0[entering + 1].t).toBeCloseTo(8);
+      expect(r0[entering + 1].activity).toBe('waiting'); // 'a' is still resting (cooldown 3 from 1.9 + d)
+      expect(r0.some((e) => e.activity === 'charging')).toBe(false);
+      expect(result.turnBacks).toBe(1);
+    });
+
+    it('turn-back at the end of entry: Active again while it finished a recalled job → enters, then exits at once', () => {
+      // Recalled at 3 while working (pending), Active again at 5, still working: it still goes home.
+      const step = scripted({ 3: { r0: DockingState.Recalled }, 5: { r0: DockingState.Active } });
+      const { result, trace } = runScenario({ world, roster: [snap('r0', DockingState.Active)], step });
+      const r0 = eventsOf(trace, 'r0');
+      const entered = r0.findIndex((e) => e.activity === 'charging');
+      expect(r0[entered].visible).toBe(false);
+      expect(r0[entered + 1].activity).toBe('exiting');
+      expect(r0[entered + 1].t).toBe(r0[entered].t);
+      expect(result.turnBacks).toBe(1);
+      expect(result.stints).toBe(2);
+      expect(result.chargingWhileVisible).toBe(0);
+    });
+
+    it('a charging robot that turns Active exits and starts a stint', () => {
+      const { result, trace } = runScenario({ world, roster: [snap('r0', DockingState.Active), snap('r1', DockingState.Docked)], step: scripted({ 5: { r1: DockingState.Active } }) });
+      expect(eventsOf(trace, 'r1')[1]).toEqual({ t: 5, robotId: 'r1', activity: 'exiting', stationId: 's0', visible: true });
+      expect(result.stints).toBe(2);
+    });
+
+    it('returning robots take the nearest station with a free slot — a full one is skipped', () => {
+      // r0 leaves s0 (far) and works beside s1, which the Docked r1 fills (capacity 1).
+      const twoStations: LoopSimWorld = {
+        stations: [station('s0', 0, 0, 1), station('s1', 200, 0, 1)],
+        sites: [{ id: 'a', jobs: [VENT], park: { x: 150, y: 0 } }],
+      };
+      const step = scripted({ 3: { r0: DockingState.Recalled } });
+      const { trace } = runScenario({ world: twoStations, roster: [snap('r0', DockingState.Active), snap('r1', DockingState.Docked)], step });
+      expect(eventsOf(trace, 'r1')).toHaveLength(1); // charging at s1 throughout
+      expect(eventsOf(trace, 'r0').find((e) => e.activity === 'returning')!.stationId).toBe('s0');
+      expect(eventsOf(trace, 'r0').find((e) => e.activity === 'charging')!.stationId).toBe('s0');
+    });
+
+    it('…and the nearest station wins when it has room', () => {
+      const twoStations: LoopSimWorld = {
+        stations: [station('s0', 0, 0, 2), station('s1', 200, 0, 2)],
+        sites: [{ id: 'a', jobs: [VENT], park: { x: 150, y: 0 } }],
+      };
+      const step = scripted({ 3: { r0: DockingState.Recalled } });
+      const { trace } = runScenario({ world: twoStations, roster: [snap('r0', DockingState.Active), snap('r1', DockingState.Docked)], step });
+      expect(eventsOf(trace, 'r0').find((e) => e.activity === 'charging')!.stationId).toBe('s1');
+    });
+  });
+
+  describe('runLoopSim — purity', () => {
+    const world: LoopSimWorld = {
+      stations: [station('s0', 0, 0), station('s1', 900, 300)],
+      sites: [
+        { id: 'a', jobs: [VENT], park: { x: 300, y: 200 } },
+        { id: 'b', jobs: [SURVEY, VENT], park: { x: 700, y: 400 } },
+      ],
+    };
+    const roster = ['r0', 'r1', 'r2'].map((id, i) => snap(id, i < 2 ? DockingState.Active : DockingState.Docked));
+
+    it('is deterministic for the same rand seed', () => {
+      const run = () => runScenario({ world, roster, rand: alea('det'), seconds: 120, step: scripted({ 10: { r0: DockingState.Recalled }, 20: { r2: DockingState.Active } }) });
+      expect(run()).toEqual(run());
+    });
+
+    it('touches no store, no BeatClock and no GSAP', () => {
+      const getState = vi.spyOn(useLocaleStore, 'getState');
+      const to = vi.spyOn(gsap, 'to');
+      const timeline = vi.spyOn(gsap, 'timeline');
+      vi.mocked(subscribeToMeasure).mockClear();
+      vi.mocked(getCurrentMeasure).mockClear();
+      runScenario({ world, roster, seconds: 120 });
+      expect(getState).not.toHaveBeenCalled();
+      expect(to).not.toHaveBeenCalled();
+      expect(timeline).not.toHaveBeenCalled();
+      expect(subscribeToMeasure).not.toHaveBeenCalled();
+      expect(getCurrentMeasure).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('COOLDOWN_CANDIDATES', () => {
+    it('leads with the shipped siteCooldown, then clamped alternatives labelled per/min/max', () => {
+      const [shipped, ...rest] = COOLDOWN_CANDIDATES;
+      for (const n of [0, 5, 9, 14, 24, 60]) expect(shipped.cooldown(n)).toBe(siteCooldown(n));
+      expect(rest.length).toBeGreaterThan(0);
+      const c = clampedCooldown(0.3, 2, 30);
+      expect(c.label).toBe('0.3/2/30');
+      expect(c.cooldown(1)).toBe(2);
+      expect(c.cooldown(14)).toBeCloseTo(4.2);
+      expect(c.cooldown(200)).toBe(30);
+    });
+  });
+
+  describe('runReadinessSim', () => {
+    const worlds = FEW_COORDS.map(({ x, y }) => ({ x, y, actors: placedWorld(x, y).actors }));
+
+    it('returns one row per candidate × tempo, shares in [0, 1], and one seed row per world per row', () => {
+      const { rows, seeds } = runReadinessSim({ worlds, seconds: 120 });
+      expect(rows.map((r) => [r.label, r.bpm])).toEqual(COOLDOWN_CANDIDATES.flatMap((c) => SIM_LOOP_BPMS.map((bpm) => [c.label, bpm])));
+      for (const r of rows) {
+        expect(r.meanWaitingShare).toBeGreaterThanOrEqual(0);
+        expect(r.p95WaitingShare).toBeLessThanOrEqual(1);
+        expect(r.meanWaitingShare).toBeLessThanOrEqual(r.p95WaitingShare + 1e-9);
+        expect(r.longestWait).toBeGreaterThanOrEqual(0);
+        expect(r.chargingWhileVisible).toBe(0);
+      }
+      expect(seeds).toHaveLength(rows.length * worlds.length);
+    });
+
+    it('is deterministic and store-free once the worlds are placed', () => {
+      const a = runReadinessSim({ worlds, seconds: 60 });
+      const getState = vi.spyOn(useLocaleStore, 'getState');
+      const b = runReadinessSim({ worlds, seconds: 60 });
+      expect(getState).not.toHaveBeenCalled();
+      expect(b).toEqual(a);
+    });
+
+    it('at 200 BPM the lifecycle docks a recalled robot sooner, so it is visible-while-Docked longer than at 20 BPM', () => {
+      // Turn-backs are not compared: with recharge 5/measure the shortest Docked stay (~20 measures,
+      // 24 s at 200 BPM) outlasts the longest walk home, so both tempos measure 0 (Task 15 report).
+      const { rows } = runReadinessSim({ worlds, seconds: 600 });
+      const at = (bpm: number) => rows.find((r) => r.bpm === bpm)!;
+      expect(Number.isFinite(at(200).longestDockedVisible)).toBe(true);
+      expect(at(200).longestDockedVisible).toBeGreaterThan(at(20).longestDockedVisible);
+    }, 30_000);
+
+    it('over the full grid at 20 and 200 BPM for 10 minutes: zero robots charging while visible (the report is printed with LIFECYCLE_SIM_REPORT)', () => {
+      const grid = SIM_SEED_COORDS.map(({ x, y }) => ({ x, y, actors: placedWorld(x, y).actors }));
+      const { rows, seeds } = runReadinessSim({ worlds: grid });
+      for (const r of rows) expect(r.chargingWhileVisible).toBe(0);
+      if (process.env.LIFECYCLE_SIM_REPORT) console.log(`\n${formatReadinessReport(rows, seeds)}`);
+    }, 120_000);
+  });
+
+  describe('formatReadinessReport', () => {
+    it('renders the overall table, then the worst seeds by waiting share', () => {
+      const rows: ReadinessRow[] = [
+        { label: 'c', bpm: 20, meanWaitingShare: 0.05, p95WaitingShare: 0.12, longestWait: 14, p95Wait: 6, switchesPerStint: 1.5, turnBacks: 0, chargingWhileVisible: 0, longestDockedVisible: 0 },
+      ];
+      const seeds: ReadinessSeedRow[] = [
+        { label: 'c', bpm: 20, x: 0, y: 0, sites: 9, waitingShare: 0.01, longestWait: 2, switchesPerStint: 1, turnBacks: 0 },
+        { label: 'c', bpm: 20, x: 40, y: -80, sites: 5, waitingShare: 0.2, longestWait: 14, switchesPerStint: 2, turnBacks: 0 },
+      ];
+      const lines = formatReadinessReport(rows, seeds).trim().split('\n');
+      expect(lines[0]).toMatch(/^\| Cooldown \| BPM \|/);
+      expect(lines[2]).toBe('| c | 20 | 5.0 % | 12.0 % | 14.0 s | 6.0 s | 1.50 | 0 | 0 | 0.0 s |');
+      const worst = lines.findIndex((l) => l.includes('| 40 | -80 |'));
+      const best = lines.findIndex((l) => l.includes('| 0 | 0 | 9 |'));
+      expect(worst).toBeGreaterThan(2);
+      expect(worst).toBeLessThan(best);
     });
   });
 });

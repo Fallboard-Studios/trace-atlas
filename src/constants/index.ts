@@ -1,3 +1,5 @@
+import type { JobType } from '../types/Robot';
+
 /** Fixed roster size — every locale spawns exactly this many robots once, at load. */
 export const MAX_ROBOTS = 12;
 
@@ -184,6 +186,34 @@ export const STATION_BOX_H = 120;
 export const COOLDOWN_PER_SITE = 0.6;
 export const COOLDOWN_MIN = 4;
 export const COOLDOWN_MAX = 30;
+
+/** A waiting robot's one finite bob before it asks for a site again, in seconds (spec §1.7). */
+export const WAIT_RETRY_SECONDS = 2;
+
+/** A station enter or exit arc — scale + autoAlpha at the port — in seconds (spec §1.7). */
+export const STATION_ARC_SECONDS = 0.9;
+
+/**
+ * Job time (spec §1.9): jobDuration(job, n) = max(JOB_MIN_SECONDS, JOB_BASE_SECONDS −
+ * JOB_WORK_RATE[job] × n) for n orbiters. First guesses — Task 0's sketch pins them. Every rate is
+ * the spec's 0.5–0.9 midpoint until then; the sketch gives each job its own.
+ */
+export const JOB_BASE_SECONDS = 5;
+export const JOB_MIN_SECONDS = 1.5;
+export const JOB_WORK_RATE: Readonly<Record<JobType, number>> = {
+  ventExtraction: 0.7,
+  acousticSurvey: 0.7,
+  structuralInspection: 0.7,
+  fluidMonitoring: 0.7,
+  salvage: 0.7,
+  maintenance: 0.7,
+};
+
+/** Robot swim speed, scene units per second (swimAnimation.ts; the loop sim's swims). */
+export const SWIM_SPEED = 120;
+
+/** 4/4 throughout (beatClock.ts); one measure lasts BEATS_PER_MEASURE × 60 / BPM seconds. */
+export const BEATS_PER_MEASURE = 4;
 
 /** Roster-balancing cap: at most this many robots may hold the same job type at once. */
 export const JOB_MAX_ROBOTS_PER_TYPE = 3;

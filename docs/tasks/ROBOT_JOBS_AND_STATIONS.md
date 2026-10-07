@@ -571,13 +571,60 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   visible.
 
   **Acceptance criteria:**
-  - [ ] Deterministic; no store, BeatClock or GSAP.
+  - [x] Deterministic; no store, BeatClock or GSAP. — `runLoopSim` and `runReadinessSim` (given
+        placed worlds) are spied store-, BeatClock- and GSAP-free; placing the grid's worlds
+        (`placeDistrict`) stays in the test, as in the coverage and stations tests.
   - [ ] Report posted; Crawford confirms `COOLDOWN_*` (target: mean waiting < 10 % of active time,
-        no wait > 15 s) and the constants are written back.
-  - [ ] Zero "charging while visible" cases at both tempos.
+        no wait > 15 s) and the constants are written back. — **report posted, the first guess
+        misses; awaiting Crawford.**
+  - [x] Zero "charging while visible" cases at both tempos.
+
+  **As shipped (awaiting the cooldown decision):** (1) **Pulled forward.** `jobDuration` (T19's
+  pure function, `src/animation/jobMoves/jobDuration.ts`) with `JOB_BASE_SECONDS` 5,
+  `JOB_MIN_SECONDS` 1.5 and `JOB_WORK_RATE` 0.7 for every job (the spec's 0.5–0.9 midpoint; T0
+  gives each job its own). `WAIT_RETRY_SECONDS` 2 and `STATION_ARC_SECONDS` 0.9 are in constants.
+  `SWIM_SPEED` (from `swimAnimation.ts`) and `BEATS_PER_MEASURE` (from `beatClock.ts`) moved into
+  constants, and both modules import them, so the sim has no second copy. (2) **The model.**
+  `runLoopSim` is an event loop in seconds (spec §1.7, one world) interleaved with lifecycle
+  measures of 4 × 60 / BPM s. Active → Recalled is `'recalled'`, anything → Active is `'active'`,
+  and measures win ties. Robots start at their load-assigned station's port (correction 2: Active
+  ones exit at t = 0). The lifecycle step and the cooldown are injectable, so scripted lifecycles
+  test each spec §1.7 branch to the hand-worked second: recall mid-job, in transit, waiting or
+  exiting, turn-back mid-return, mid-entry and at entry end, a full station skipped. An abandoned
+  transit releases its site **with no cooldown** (the robot never worked there). Sim site ids are
+  actor indexes (actor ids can repeat). (3) **"Charging while visible"** is checked as the
+  invariant `activity === 'charging' && visible`, and it is 0 everywhere. The lifecycle reading
+  (Docked or Undocking while still visible) is reported separately as "Longest Docked visible". It
+  is non-zero by design (spec §1.7 `'docked'`: keep returning). At 200 BPM a robot is still
+  swimming home up to 16.7 s after it docked. (4) **Turn-backs are 0 at both tempos, and
+  structurally so.** Recharge 5 per measure from ≤ 10 makes the shortest Docked stay about 20
+  measures (24 s at 200 BPM). That outlasts the longest walk home (finish a ≤ 4.3 s job, swim
+  ≤ ~1500 px, 0.9 s entry). The turn-back branches are covered by the scripted tests only.
+  (5) **Results (121 seeds × 600 s, `LIFECYCLE_SIM_REPORT=1 npx vitest run src/systems/lifecycleSim.test.ts`):**
+
+  | Cooldown | BPM | Mean waiting | p95 waiting | Longest wait | p95 wait | Switches / stint | Seeds missing a target |
+  |---|---|---|---|---|---|---|---|
+  | **0.6/4/30 (first guess)** | 20 | 10.9 % | 24.0 % | 42 s | 10 s | 4.48 | 69 / 121 |
+  | **0.6/4/30 (first guess)** | 200 | 7.3 % | 17.3 % | 17.1 s | 8 s | 0.60 | 32 / 121 |
+  | 0.4/3/30 | 20 | 6.4 % | 17.3 % | 34 s | 8 s | 3.92 | 32 / 121 |
+  | 0.4/3/30 | 200 | 3.7 % | 12.4 % | 14 s | 6 s | 0.46 | 15 / 121 |
+  | 0.3/2/30 | 20 | 4.2 % | 11.5 % | 30 s | 7.3 s | 3.24 | 15 / 121 |
+  | 0.3/2/30 | 200 | 2.4 % | 9.3 % | 12 s | 4.2 s | 0.39 | 3 / 121 |
+  | 0.2/2/30 | 20 | 2.7 % | 10.2 % | 36 s | 4 s | 2.70 | 8 / 121 |
+  | 0.2/2/30 | 200 | 1.5 % | 5.8 % | 8 s | 4 s | 0.30 | 1 / 121 |
+  | 0/0/0 (reference) | 20 | 0.0 % | 0.0 % | 48 s | 48 s | 0.00 | 3 / 121 |
+  | 0/0/0 (reference) | 200 | 0.0 % | 0.0 % | 6 s | 6 s | 0.00 | 0 / 121 |
+
+  **The "no wait > 15 s" target can't be met at 20 BPM by any cooldown, zero included.** Traced
+  case: world (−120, 80) has 9 sites, and all 9 were held by working robots while a 10th waited
+  24 s (two measures). When more robots are Active than there are sites, only a recall frees one,
+  and at 20 BPM recalls come every 12 s. Zero rest also means zero job switches (robots camp on one
+  site). Waits are multiples of `WAIT_RETRY_SECONDS`. Eligible sites per world: 9–24 (median 14).
 
   **Verification:** `npx vitest run src/systems/lifecycleSim.test.ts`. **Dependencies:** T13, T14.
-  **Files:** `src/systems/lifecycleSim.ts` (+ test), `src/constants/index.ts`. **Scope:** M.
+  **Files:** `src/systems/lifecycleSim.ts` (+ test), `src/constants/index.ts`; as shipped also
+  `src/animation/jobMoves/jobDuration.ts` (+ test), `src/animation/swimAnimation.ts`,
+  `src/engine/beatClock.ts`. **Scope:** M.
 
 ### Checkpoint B: J1 complete
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
