@@ -58,12 +58,20 @@ describe('Scenery dispatcher', () => {
   });
 
   it('renders nothing for a kind with no registered renderer', () => {
-    const { container } = render(<Scenery actor={makeActor({ kind: 'crane' as never, district: 'yard', row: 5 })} />);
+    const { container } = render(<Scenery actor={makeActor({ kind: 'tether' as never, district: 'habitat', row: 11 })} />);
     expect(container.innerHTML).toBe('');
   });
 
-  it('SCENERY_RENDERERS only has entries for shipped kinds (wall, pylon, beacon, boulder, tank, dome, scaffold, containers — D2 Tasks 11-14)', () => {
-    expect(Object.keys(SCENERY_RENDERERS)).toEqual(['wall', 'pylon', 'beacon', 'boulder', 'tank', 'dome', 'scaffold', 'containers']);
+  it('SCENERY_RENDERERS only has entries for shipped kinds (wall, pylon, beacon, boulder, tank, dome, scaffold, containers, crane, pipeline — D2 Tasks 11-15)', () => {
+    expect(Object.keys(SCENERY_RENDERERS)).toEqual(['wall', 'pylon', 'beacon', 'boulder', 'tank', 'dome', 'scaffold', 'containers', 'crane', 'pipeline']);
+  });
+
+  it('dispatches the Task 15 kinds (crane, pipeline) to their renderers', () => {
+    const craneCtx = render(<Scenery actor={makeActor({ kind: 'crane', district: 'yard', row: 5 })} />);
+    expect(craneCtx.container.querySelector('[data-scenery="crane"]')).not.toBeNull();
+
+    const pipelineCtx = render(<Scenery actor={makeActor({ kind: 'pipeline', district: 'dense', row: 6 })} />);
+    expect(pipelineCtx.container.querySelector('[data-scenery="pipeline"]')).not.toBeNull();
   });
 
   it('dispatches the Task 12-14 kinds (pylon, beacon, boulder, tank, dome, scaffold, containers) to their renderers', () => {

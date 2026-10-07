@@ -184,13 +184,17 @@ const RANGE_TABLE: { [K in SceneryKind]: Draw<NonNullable<SceneryParams[K]>> } =
  */
 const MAX_SHAPES: Record<SceneryKind, number> = {
   tank: 10,
+  // 2 posts + beam + knee brace + hanger line + load + beam-end light (Task 15).
   crane: 8,
   // 1 tapered tower + 3 cross-arms + 5-shape gem head (GemShape, Task 12's largest branch).
   pylon: 9,
   wall: 3,
   // mast rect + foot rect + 5-shape gem head.
   beacon: 7,
-  pipeline: 8,
+  // pipe + highlight + riser + flange + valve (5) + up to 7 stanchions at w=720
+  // (⌊(720-60)/110⌋+1, Task 15's own acceptance formula) — raised from the Task 11
+  // first-pass guess of 8, which never accounted for the stanchion count scaling with w.
+  pipeline: 12,
   // 2 base rects + 2 dome arc paths + up to 6 portholes + hatch rect + mast rod + mast light.
   dome: 13,
   wreck: 16,

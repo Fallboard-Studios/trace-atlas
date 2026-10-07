@@ -18,6 +18,8 @@ import { tank } from './renderers/tank';
 import { dome } from './renderers/dome';
 import { scaffold } from './renderers/scaffold';
 import { containers } from './renderers/containers';
+import { crane } from './renderers/crane';
+import { pipeline } from './renderers/pipeline';
 
 /**
  * Gem-accent build flag (docs/specs/WORLD_VIEW_DISTRICTS.md §1.10, spec §7 Q4) — removed in
@@ -40,6 +42,8 @@ export const SCENERY_RENDERERS: Partial<Record<SceneryKind, SceneryRenderer>> = 
   dome,
   scaffold,
   containers,
+  crane,
+  pipeline,
 };
 
 const NO_ACCENT: AccentPair = { primary: 0, secondary: 0 };

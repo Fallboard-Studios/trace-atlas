@@ -14,6 +14,7 @@ import { consumeSessionSharePayload } from '@/utils/sessionShareUtils';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { Factory } from '@/components/actors/Factory';
 import { Scenery } from '@/components/actors/scenery/Scenery';
+import { PipeBridges } from '@/components/actors/scenery/pipeBridges';
 import { BubbleLayer } from '@/components/actors/BubbleLayer';
 import { isBubbleEligible } from '@/components/actors/factoryVariants';
 import { getRecipeRow } from '@/systems/factoryPlacementSystem';
@@ -142,6 +143,12 @@ export function OceanScene({
     () => [...factories, ...sceneryActors].filter((a) => depthOf(a) === 'foreground').sort(byRow),
     [factories, sceneryActors],
   );
+  // Pipe bridges (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9, roadmap Phase 42 Task 15) are derived
+  // from each depth's FACTORY actors only — no actor is created for them — so these lists are
+  // separate from the factory+scenery lists above.
+  const backgroundFactories = useMemo(() => factories.filter((a) => depthOf(a) === 'background'), [factories]);
+  const midgroundFactories = useMemo(() => factories.filter((a) => depthOf(a) === 'midground'), [factories]);
+  const foregroundFactories = useMemo(() => factories.filter((a) => depthOf(a) === 'foreground'), [factories]);
 
   /** Dispatches a factory or scenery actor to its renderer (§1.8). */
   const renderActor = (actor: Actor) =>
@@ -231,6 +238,7 @@ export function OceanScene({
         <g id="factory-background-layer">
           {backgroundActors.map(renderActor)}
         </g>
+        <PipeBridges factories={backgroundFactories} />
         {/* Gradient between background and midground layers */}
         <rect
           id="gradient-back-mid"
@@ -245,6 +253,7 @@ export function OceanScene({
         <g id="factory-midground-layer">
           {midgroundActors.map(renderActor)}
         </g>
+        <PipeBridges factories={midgroundFactories} />
         {/* Gradient between midground and foreground layers */}
         <rect
           id="gradient-mid-front"
@@ -280,6 +289,7 @@ export function OceanScene({
         <g id="factory-foreground-layer">
           {foregroundActors.map(renderActor)}
         </g>
+        <PipeBridges factories={foregroundFactories} />
         <g id="ui-layer" />
       </SceneLayer>
     </div>
