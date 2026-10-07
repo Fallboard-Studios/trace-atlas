@@ -284,5 +284,25 @@ describe('OceanScene', () => {
       expect(container.querySelector('svg[data-scene-layer="bubbles"] [data-testid="bubble-layer-stub"]')).not.toBeNull();
       bubbleLayerMock.mockImplementation(() => null);
     });
+
+    // Terrain (docs/specs/WORLD_VIEW_DISTRICTS.md §1.3, roadmap Phase 42 Task 7): the ridge
+    // must stand behind every factory, and the ground must bury under midground bases, so
+    // their document-order position relative to the existing groups is load-bearing, not
+    // cosmetic.
+    it('renders the ridge before the background factory group, and the ground after the mid/front gradient, both in the back layer', () => {
+      const { container } = render(<OceanScene />);
+      const back = container.querySelector('svg[data-scene-layer="back"]')!;
+      const children = Array.from(back.children);
+
+      const ridgeIndex = children.findIndex((el) => el.getAttribute('data-terrain') === 'ridge');
+      const backgroundIndex = children.findIndex((el) => el.id === 'factory-background-layer');
+      const gradientMidFrontIndex = children.findIndex((el) => el.id === 'gradient-mid-front');
+      const groundIndex = children.findIndex((el) => el.getAttribute('data-terrain') === 'ground');
+
+      expect(ridgeIndex).toBeGreaterThanOrEqual(0);
+      expect(groundIndex).toBeGreaterThanOrEqual(0);
+      expect(ridgeIndex).toBeLessThan(backgroundIndex);
+      expect(groundIndex).toBeGreaterThan(gradientMidFrontIndex);
+    });
   });
 });

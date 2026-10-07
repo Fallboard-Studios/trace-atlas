@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import './OceanScene.css';
+import { TerrainLayer } from './TerrainLayer';
 
 import { Robot } from '@/components/robot/Robot'
 import { useLocaleStore } from '@/stores/localeStore';
@@ -208,6 +209,10 @@ export function OceanScene({
 
         <rect fill={backgroundColor} width={width} height={height} />
 
+        {/* Seabed ridge (docs/specs/WORLD_VIEW_DISTRICTS.md §1.3), drawn before every
+            factory so background-row towers can stand in front of it. */}
+        <TerrainLayer localeId={localeId} part="ridge" width={width} height={height} />
+
         {/* Factory rows rendered back-to-front for proper depth perception */}
         {/* Background-row factories (rendered furthest back) */}
         <g id="factory-background-layer">
@@ -242,6 +247,10 @@ export function OceanScene({
           fill="url(#gradient-1-2)"
           pointerEvents="none"
         />
+
+        {/* Stepped ground line (§1.3), drawn after the mid/front gradient so midground
+            bases bury under it rather than floating above it. */}
+        <TerrainLayer localeId={localeId} part="ground" width={width} height={height} />
       </SceneLayer>
 
       {/* Moving: every building's vent bubbles, all rows (BubbleStream timelines), behind the robots. */}
