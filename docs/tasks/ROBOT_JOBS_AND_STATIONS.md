@@ -39,7 +39,8 @@ repo convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence"
 ## Overview
 
 Thirty-six tasks plus a sketch gate. **Task 0** is the motion sketch: Crawford signs off the five
-moves, the station enter/exit and the placeholder station before any code. **J1** (Tasks 1–16)
+moves, the station enter/exit and the placeholder station before any code *(as shipped: split into
+0a, the station, done 2026-10-07, and 0b, the moves and jobs, still open — see Task 0)*. **J1** (Tasks 1–16)
 changes the lifecycle underneath today's visuals — renamed states, a measured flat drain, the job out
 of replay, the legacy seam, dead code out — and builds the world data the loop will need: host
 lists, factory geometry, work sites, the coverage guarantee, stations, the pure site choice and the
@@ -128,6 +129,32 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
 
   **Verification:** Crawford, by eye. **Dependencies:** None. **Files:**
   `docs/sketches/robot-jobs-and-stations.html`. **Scope:** M (one file, the gate before code).
+
+  **As shipped (2026-10-07): split into 0a and 0b.** The station panel ran first, as its own file,
+  because its design came out of a working session rather than the placeholder gem; the moves and
+  jobs panel is still to build.
+
+  - [x] **Task 0a: Station sketch — `docs/sketches/robot-charging-station.html`.** Six seeded
+    rolls plus a motion stage with enter/exit, built with Crawford live. Both station criteria
+    above pass. Design and verdicts are in the file header and folded into spec §1.6. Headline
+    results: box **200 × 200**; four loosely triangular gem layers, L4 solid, L1–L3 rings cut into
+    three pieces; six of the nine pieces are the slots, lit back-to-front in the stored robot's
+    identityColor with one light dot each; a port gem at the centre and a static halo (radius 60)
+    both brighten with occupancy; **no bob** (spec §1.6's no-continuous-animation rule stands);
+    `STATION_ARC_SECONDS` **1.0**, ripple one whole cycle per arc, ring width 0.2; gap, band
+    width, rotation spread and size falloff are **driven live by the world's global rig** (HPF,
+    LPF, EQ3 mid, EQ3 low−high tilt — ranges in §1.6). Two structural findings for J2: the station
+    renders as **three fragments interleaved with the robots** (L4 · exiting robots · L3 · entering
+    robots · L2 · halo · L1), and the **exiting robot appears in the back robot row** (J4's layer,
+    0.75 scale under the 0-1 depth tint) — T20 gains a J4 dependency with a front-row fallback.
+    Left TBD in the header: depth tint on/off and opacity, swim speed, back-row scale, enter/exit
+    sides, port = centre, the chosen roll. Verified in jsdom over 60 seeds × 6 stations
+    (3,240 pieces, none degenerate), not by eye in a browser beyond Crawford's session.
+  - [ ] **Task 0b: Moves and jobs sketch — `docs/sketches/robot-jobs-and-stations.html`.** The
+    (a)/(b) panels above: a robot beside a Refinery-style factory and a dome playing the five moves
+    and six job sequences, with the orbiter-count, `JOB_WORK_RATE` and `JOB_BASE_SECONDS` sliders,
+    reduced motion and the 0.75× toggle. Gates T19/T20's timing constants and J3; build on the J2
+    branch before T19.
 
 ---
 

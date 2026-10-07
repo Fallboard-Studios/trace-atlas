@@ -32,9 +32,11 @@ layers. This spec covers all four.
 >    18) (§1.9).
 >
 > Values measured in J1: `BATTERY_DRAIN_ACTIVE` = 6 (§5.2 drain sim), site cooldown 0.4/3/30
-> (§5.2 readiness sim, Crawford's pick). Still first guesses until the motion sketch (Task 0, not
-> yet run): the station box and port, `JOB_WORK_RATE`, `JOB_BASE_SECONDS`, `JOB_MIN_SECONDS`,
-> `STATION_ARC_SECONDS`. Per-task detail ("As shipped") is in
+> (§5.2 readiness sim, Crawford's pick). Pinned by the station sketch (Task 0a, 2026-10-07):
+> the station box 200 × 200, `STATION_ARC_SECONDS` 1.0, the station design and the render-order
+> and back-row-exit corrections in §1.6. Still first guesses until the moves sketch (Task 0b, not
+> yet run): `JOB_WORK_RATE`, `JOB_BASE_SECONDS`, `JOB_MIN_SECONDS`; the port stays at the centre
+> pending Crawford. Per-task detail ("As shipped") is in
 > [docs/tasks/ROBOT_JOBS_AND_STATIONS.md](../tasks/ROBOT_JOBS_AND_STATIONS.md).
 
 > **Execution Commands**
@@ -258,14 +260,50 @@ interface WorkSite {
   worlds, and no world rolled 3 stations. A station that finds no spot in 16 candidates restarts
   the layout, up to 16 layouts. After that, the count steps down to 2, and then the overlap rule
   is dropped (spacing always holds). Result over the grid: 50 of 121 worlds have 3 stations, and
-  no world needs the overlap fallback. **Placeholders until the sketch (Task 0):**
-  `STATION_BOX_W`/`STATION_BOX_H` = 160 × 120, and `port` = the centre.
-- **Render:** `ChargingStation.tsx` (memoised) draws each station in the **front robots layer, after
-  the robots** — a robot entering passes under it. Gem art style, placeholder geometry until the
-  sketch supplies Crawford's design; **≤ `STATION_SHAPE_BUDGET` = 16 shapes** each (merged paths,
-  3 facet tones, per Phase 39). Six slot lights; lit count = robots with that `stationId` and
-  `activity === 'charging'`, read with a narrow number selector so only a count change re-renders.
-  No continuous animation on the station itself.
+  no world needs the overlap fallback. *(Task 0a, 2026-10-07:)* the sketch pinned the box at
+  **`STATION_BOX_W`/`STATION_BOX_H` = 200 × 200** (code still carries the 160 × 120 placeholder
+  until T20 moves it; the grid re-check in `stations.test.ts` must still show no overlap fallback
+  at the new size). `port` = the centre stays, marked open in the sketch header.
+- **Design (Task 0a, `docs/sketches/robot-charging-station.html`):** same manufacturer as the
+  robots — ACCENT palette, BACKING/MID_DARK, bevel ring with 3 facet tones, boundary lines. Four
+  loosely triangular gem layers, L1 (front) to L4 (back), each rotated against the next; L4 is one
+  solid piece in BACKING, L1–L3 are rings cut into three pieces with a gap; L1 is in the station's
+  seeded accent, L2–L3 in MID_DARK. **Six of the nine pieces are the slots** (two per broken
+  layer, seeded), lit back-to-front in the stored robot's `identityColor` in the lit-Mid style,
+  each with one light dot — so the slot lights *are* the occupancy display. A small **port gem** at
+  the centre of L1 and a **static halo** (radius 60) in the station accent both brighten with
+  occupancy. **No bob** — this bullet's no-continuous-animation rule stands (Crawford's call).
+  Four geometry dials are **driven live by the world's `GlobalAudioSettings`** (continuous in the
+  dial's natural space, same rng stream, so a drag deforms the station without a pop — the robots'
+  dial rule applied to the station): gap 10–25 u ← HPF cutoff (log 20 Hz → 20 kHz); band width
+  8–16 u ← LPF cutoff (log); rotation spread 30–60° ← EQ3 mid (−12 → +12 dB); size falloff
+  0.03–0.12 ← EQ3 tilt, low − high (−24 → +24 dB). Flat EQ and open filters give gap 10, band 16,
+  spread 45°, falloff 0.075; filter Q is unused; every station in a world shares these four, and
+  per-station variety comes from the seed (base rotation, corner jitter, cut style, slot picks).
+  Bevel depth 5. Still TBD in the sketch header: depth-tint on/off and opacity, swim speed,
+  back-row scale, enter/exit sides.
+- **Render:** ~~`ChargingStation.tsx` (memoised) draws each station in the **front robots layer, after
+  the robots** — a robot entering passes under it.~~ *(Task 0a correction:)* the station is **three
+  fragments interleaved with the robots**, back to front: **L4 · exiting robots · L3 · entering
+  robots · L2 · halo + ripple · L1**. SVG z is document order, so `OceanScene` renders the robots
+  layer as siblings sorted by activity between the station fragments (`exiting` first, then
+  everyone else), and a robot *entering* passes between L2 and L3, not under the whole station.
+  Further, the **exiting robot appears in the back robot row** (§1.10, J4): L4 and the exiting
+  robots live in `robots-back`, under the 0-1 depth gradient at `BACK_LAYER_SCALE`, and only L1–L3
+  stay in `robots`. **T20 therefore depends on J4**; until J4 lands, exits use the front row
+  (between L3 and L4 in the front layer, scale 1) as the fallback. Gem art style per the Design
+  bullet; **≤ `STATION_SHAPE_BUDGET` = 16 shapes** each (merged paths, 3 facet tones, per Phase
+  39 — the sketch's estimate is ~14 once the six light dots are one path). Six slot lights = the
+  six slot pieces plus their dots; lit count = robots with that `stationId` and `activity ===
+  'charging'`, read with a narrow number selector so only a count change re-renders. No
+  continuous animation on the station itself (confirmed at the sketch).
+- **Enter / exit motion (Task 0a):** entering, the robot swims to the port and vanishes over
+  `STATION_ARC_SECONDS` = **1.0** (scale 1 → 0.15 and opacity 1 → 0) while the halo ripple runs
+  **inward** for the same arc; exiting, it appears at the port behind L3 (scale 0.15 → back-row
+  scale, opacity 0 → 1) while the ripple runs **outward**, then swims off. The ripple is Phase
+  41's ring (one whole cycle per arc, ring width 0.2) in the moving robot's `identityColor`; a
+  ripple already running means the new one is **skipped**, so twelve robots exiting at world open
+  play one ripple. Reduced motion: opacity only, no ripple.
 - **Assignment:** at locale load, **every** robot is assigned a station by roster index modulo
   station count (capacity 6 × ≥ 2 stations ≥ 12, so it always fits — `assignStationsAtLoad` throws
   rather than overfill) and starts at the port. Docked robots start hidden (`activity:
@@ -480,7 +518,8 @@ src/
 docs/
 ├── specs/ROBOT_JOBS_AND_STATIONS.md     # this file
 ├── tasks/ROBOT_JOBS_AND_STATIONS.md     # the plan (next)
-├── sketches/robot-jobs-and-stations.html# the motion-sketch gate
+├── sketches/robot-charging-station.html # Task 0a: the station (rolls + enter/exit), done
+├── sketches/robot-jobs-and-stations.html# Task 0b: the moves and jobs panel (open)
 ├── ROBOT_LIFECYCLE.md                   # rewritten (J1 lifecycle, J2 stations/loop)
 ├── ANIMATION_SYSTEM.md                  # registry, job timelines, scene stack (J4)
 ├── BUILDING_DESIGN.md                   # hosts, work sites, coverage
@@ -624,7 +663,9 @@ is its gate.
 
 - **Sketch gate** (before J1 code): `docs/sketches/robot-jobs-and-stations.html` — the five moves on
   two host types at 1×, a station enter/exit with the halo ripple and the placeholder station.
-  Constants that pass become this spec's values.
+  Constants that pass become this spec's values. *(As run: split. Task 0a, the station, passed
+  2026-10-07 in `docs/sketches/robot-charging-station.html` — §1.6 carries its values. Task 0b,
+  the moves and jobs, is still to run and gates T19/T20's timing constants.)*
 - **J2/J3/J4 live:** a few worlds; can he tell what each robot is doing; no long waits; no pops at
   stations or layer switches. **Pixel listen:** no new dropouts — the hard line.
 - **Halo gate:** Phase 41's deferred halo/ripple visual gate re-runs at J2 with its original
@@ -640,7 +681,10 @@ is its gate.
 
 ## 7. Open Questions
 
-1. **Station design** — Crawford's drawing arrives via the sketch; until then a placeholder gem.
+1. ~~**Station design** — Crawford's drawing arrives via the sketch; until then a placeholder gem.~~
+   *Resolved (Task 0a, 2026-10-07):* the four-layer rotated-triangle gem in §1.6. Still open from
+   that sketch: depth tint on/off and opacity, swim speed, back-row scale, enter/exit sides, and
+   whether the port stays at the centre.
 2. ~~**Coverage top-up lists** — written per recipe once D2's real hosts exist; wreck field first.~~
    *Resolved in J1 (Task 12):* lists for every district, led by midground pylons; see §1.4.
 3. **J4 re-mount cost** — a layer switch re-mounts the robot (orbiter/halo/flicker hooks re-init).
@@ -648,7 +692,8 @@ is its gate.
    clipping) is a stop-and-report, not a silent swap.
 4. **Lore copy** for Salvage, Maintenance and the seven activities — Crawford reviews.
 5. **`BATTERY_DRAIN_ACTIVE`, cooldown constants, job rates** — pinned by §5.2 and the sketch.
-   *J1:* drain 6 and cooldown 0.4/3/30 pinned. The job rates, `JOB_BASE_SECONDS`,
-   `JOB_MIN_SECONDS`, `STATION_ARC_SECONDS` and the station box still wait for the sketch.
+   *J1:* drain 6 and cooldown 0.4/3/30 pinned. *Task 0a:* `STATION_ARC_SECONDS` = 1.0 and the
+   station box 200 × 200 pinned (code moves at T20). The job rates, `JOB_BASE_SECONDS` and
+   `JOB_MIN_SECONDS` still wait for Task 0b.
 6. *(Raised in J1.)* **Background Skyscraper parks** clamp below the roof (§1.5) — J4 decides:
    drop such sites or park beside them.
