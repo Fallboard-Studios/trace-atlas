@@ -58,15 +58,15 @@ describe('Scenery dispatcher', () => {
   });
 
   it('renders nothing for a kind with no registered renderer', () => {
-    const { container } = render(<Scenery actor={makeActor({ kind: 'dome' as never, district: 'towers', row: 5 })} />);
+    const { container } = render(<Scenery actor={makeActor({ kind: 'crane' as never, district: 'yard', row: 5 })} />);
     expect(container.innerHTML).toBe('');
   });
 
-  it('SCENERY_RENDERERS only has entries for shipped kinds (wall, pylon, beacon, boulder, tank — D2 Tasks 11-13)', () => {
-    expect(Object.keys(SCENERY_RENDERERS)).toEqual(['wall', 'pylon', 'beacon', 'boulder', 'tank']);
+  it('SCENERY_RENDERERS only has entries for shipped kinds (wall, pylon, beacon, boulder, tank, dome, scaffold, containers — D2 Tasks 11-14)', () => {
+    expect(Object.keys(SCENERY_RENDERERS)).toEqual(['wall', 'pylon', 'beacon', 'boulder', 'tank', 'dome', 'scaffold', 'containers']);
   });
 
-  it('dispatches the Task 12/13 kinds (pylon, beacon, boulder, tank) to their renderers', () => {
+  it('dispatches the Task 12-14 kinds (pylon, beacon, boulder, tank, dome, scaffold, containers) to their renderers', () => {
     const pylonCtx = render(<Scenery actor={makeActor({ kind: 'pylon', district: 'dense', row: 3 })} />);
     expect(pylonCtx.container.querySelector('[data-scenery="pylon"]')).not.toBeNull();
 
@@ -78,6 +78,15 @@ describe('Scenery dispatcher', () => {
 
     const tankCtx = render(<Scenery actor={makeActor({ kind: 'tank', district: 'outskirts', row: 5 })} />);
     expect(tankCtx.container.querySelector('[data-scenery="tank"]')).not.toBeNull();
+
+    const domeCtx = render(<Scenery actor={makeActor({ kind: 'dome', district: 'habitat', row: 2 })} />);
+    expect(domeCtx.container.querySelector('[data-scenery="dome"]')).not.toBeNull();
+
+    const scaffoldCtx = render(<Scenery actor={makeActor({ kind: 'scaffold', district: 'derelict', row: 5 })} />);
+    expect(scaffoldCtx.container.querySelector('[data-scenery="scaffold"]')).not.toBeNull();
+
+    const containersCtx = render(<Scenery actor={makeActor({ kind: 'containers', district: 'yard', row: 3 })} />);
+    expect(containersCtx.container.querySelector('[data-scenery="containers"]')).not.toBeNull();
   });
 
   it('does not throw across a range of hours (lighting tick)', () => {

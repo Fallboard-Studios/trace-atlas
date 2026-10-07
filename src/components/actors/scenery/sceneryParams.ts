@@ -27,8 +27,13 @@ export interface WallParams { w: number; h: number; hueShift: number; satShift: 
 export interface BeaconParams { w: number; mastH: number; gemW: number }
 /** §1.9 row: pipeline. */
 export interface PipelineParams { w: number; d: number; e: number; riserH: number; riserRight: boolean }
-/** §1.9 row: dome. */
-export interface DomeParams { w: number; bh: number; portholes: number }
+/** §1.9 row: dome. `hueShift`/`satShift` are the LOCAL-only range (roadmap Phase 42 Task 14) —
+ *  `placeDistrict` folds them with the AS shift and lean via `foldBodyShift` into
+ *  `Actor.config.hueShift`/`.satShift`, which `renderers/dome.tsx` reads instead of these.
+ *  `portholeLitRoll` is one seeded 0..1 draw per porthole (length === `portholes`), compared
+ *  against the "seeded 40% + 60% × nd" threshold at render time so the lit fraction rises with
+ *  `nightDepth` without re-rolling on every tick. */
+export interface DomeParams { w: number; bh: number; ry: number; portholes: number; portholeLitRoll: number[]; hueShift: number; satShift: number }
 /** §1.9 row: wreck. */
 export interface WreckParams { w: number; h: number; deckhouseFrac: number; portholes: number }
 /** §1.9 row: turbine. */
@@ -37,10 +42,17 @@ export interface TurbineParams { w: number; postH: number; bladeR: number }
 export interface BoulderParams { w: number; hFrac: number; count: number; hueShift: number; satShift: number }
 /** §1.9 row: vent. */
 export interface VentParams { w: number; steps: number }
-/** §1.9 row: containers. */
-export interface ContainersParams { w: number; cols: number; rows: number; boxW: number; boxH: number }
-/** §1.9 row: scaffold. */
-export interface ScaffoldParams { w: number; h: number; bays: number; solidFrac: number }
+/** §1.9 row: containers. `hueShift`/`satShift` are the LOCAL-only range (roadmap Phase 42 Task
+ *  14) — folded like wall/tank/dome/scaffold into `Actor.config.hueShift`/`.satShift` and applied
+ *  on top of whichever accent-pair hue a given box picks (not a replacement for it), so a Sector
+ *  Settings retransmit still varies containers the same way it varies every other body-bearing
+ *  family. `rowOffsets` (one per row, 0..10) and `labelLitRoll` (one bool per box slot, row-major,
+ *  sized `cols * rows` as an upper bound) are both seeded once per actor. */
+export interface ContainersParams { w: number; cols: number; rows: number; boxW: number; boxH: number; rowOffsets: number[]; labelLitRoll: boolean[]; hueShift: number; satShift: number }
+/** §1.9 row: scaffold. `hueShift`/`satShift` are the LOCAL-only range (roadmap Phase 42 Task 14) —
+ *  folded the same way as dome/wall/tank; `renderers/scaffold.tsx` reads the folded
+ *  `Actor.config.hueShift`/`.satShift` for the solid-lower body instead of these. */
+export interface ScaffoldParams { w: number; h: number; bays: number; solidFrac: number; hueShift: number; satShift: number }
 /** §1.9 row: tether. */
 export interface TetherParams { w: number; h1: number; dx: number; hasFloat: boolean }
 /** §1.9 row: floodlight. */
@@ -104,8 +116,20 @@ const RANGE_TABLE: { [K in SceneryKind]: Draw<NonNullable<SceneryParams[K]>> } =
   beacon: (rng): BeaconParams => ({ w: 60, mastH: lerp(rng, 120, 220), gemW: lerp(rng, 40, 64) }),
   // pipeline (M, F): w 320-720, pipe d 14-22, elevation e 34-60, riser d x (90-220) at a seeded end.
   pipeline: (rng): PipelineParams => ({ w: lerp(rng, 320, 720), d: lerp(rng, 14, 22), e: lerp(rng, 34, 60), riserH: lerp(rng, 90, 220), riserRight: rng() < 0.5 }),
-  // dome (M, F): w 170-300, base bh 30-60, 3-6 portholes.
-  dome: (rng): DomeParams => ({ w: lerp(rng, 170, 300), bh: lerp(rng, 30, 60), portholes: int(rng, 3, 6) }),
+  // dome (M, F): w 170-300, base bh 30-60, dome ry 0.28-0.42 w, 3-6 portholes, each with its own
+  // seeded lit-threshold roll. body body.base + shift (lean folded at placement, Task 14) — hue
+  // +-20, sat +-15 is a first-pass range (spec §1.9 gives no explicit numbers for dome's body,
+  // same caveat as tank's), tune here if a manual check finds it reads wrong.
+  dome: (rng): DomeParams => {
+    const w = lerp(rng, 170, 300);
+    const bh = lerp(rng, 30, 60);
+    const ry = lerp(rng, 0.28, 0.42) * w;
+    const portholes = int(rng, 3, 6);
+    const portholeLitRoll = Array.from({ length: portholes }, () => rng());
+    const hueShift = lerp(rng, -20, 20);
+    const satShift = lerp(rng, -15, 15);
+    return { w, bh, ry, portholes, portholeLitRoll, hueShift, satShift };
+  },
   // wreck (M, F): w 340-580, h 70-120, deckhouse 0.2-0.3 w, 4-9 dead portholes.
   wreck: (rng): WreckParams => ({ w: lerp(rng, 340, 580), h: lerp(rng, 70, 120), deckhouseFrac: lerp(rng, 0.2, 0.3), portholes: int(rng, 4, 9) }),
   // turbine (B): post 14 x (170-290), blades of 2R (R 60-95) in a rotate(45) group.
@@ -120,13 +144,30 @@ const RANGE_TABLE: { [K in SceneryKind]: Draw<NonNullable<SceneryParams[K]>> } =
   }),
   // vent (B, M): base wb 44-90, 4-6 steps.
   vent: (rng): VentParams => ({ w: lerp(rng, 44, 90), steps: int(rng, 4, 6) }),
-  // containers (M, F): cols 2-4 x rows 1-3 of (72-110) x (36-44) boxes.
+  // containers (M, F): cols 2-4 x rows 1-3 of (72-110) x (36-44) boxes, one seeded row offset
+  // (0-10) per row and one seeded label-lit roll per box slot. Box hue comes from the style's
+  // accent pair (§1.9), not body.base — hue +-20, sat +-15 is the per-actor variety shift folded
+  // on top of whichever accent hue a box picks (Task 14; same first-pass-range caveat as dome).
   containers: (rng): ContainersParams => {
     const cols = int(rng, 2, 4); const rows = int(rng, 1, 3); const boxW = lerp(rng, 72, 110); const boxH = lerp(rng, 36, 44);
-    return { w: cols * boxW, cols, rows, boxW, boxH };
+    const rowOffsets = Array.from({ length: rows }, () => lerp(rng, 0, 10));
+    const labelLitRoll = Array.from({ length: cols * rows }, () => rng() < 0.5);
+    const hueShift = lerp(rng, -20, 20);
+    const satShift = lerp(rng, -15, 15);
+    return { w: cols * boxW, cols, rows, boxW, boxH, rowOffsets, labelLitRoll, hueShift, satShift };
   },
-  // scaffold (M): w 160-260, h 220-380, 2-3 bays, solid lower 25-45%.
-  scaffold: (rng): ScaffoldParams => ({ w: lerp(rng, 160, 260), h: lerp(rng, 220, 380), bays: int(rng, 2, 3), solidFrac: lerp(rng, 0.25, 0.45) }),
+  // scaffold (M): w 160-260, h 220-380, 2-3 bays, solid lower 25-45%. body body.base + shift
+  // (lean folded at placement, Task 14) — hue +-20, sat +-15 is a first-pass range, same caveat
+  // as dome/tank above.
+  scaffold: (rng): ScaffoldParams => {
+    const w = lerp(rng, 160, 260);
+    const h = lerp(rng, 220, 380);
+    const bays = int(rng, 2, 3);
+    const solidFrac = lerp(rng, 0.25, 0.45);
+    const hueShift = lerp(rng, -20, 20);
+    const satShift = lerp(rng, -15, 15);
+    return { w, h, bays, solidFrac, hueShift, satShift };
+  },
   // tether (F): anchor 36 x 16, line up h1 120-320, dog-leg |dx| 40-90, 60% carry a float.
   tether: (rng): TetherParams => ({ w: 36, h1: lerp(rng, 120, 320), dx: lerp(rng, 40, 90), hasFloat: rng() < 0.6 }),
   // floodlight (F): mast 10 x (190-310), head offset ±14.
@@ -150,7 +191,8 @@ const MAX_SHAPES: Record<SceneryKind, number> = {
   // mast rect + foot rect + 5-shape gem head.
   beacon: 7,
   pipeline: 8,
-  dome: 12,
+  // 2 base rects + 2 dome arc paths + up to 6 portholes + hatch rect + mast rod + mast light.
+  dome: 13,
   wreck: 16,
   turbine: 6,
   // up to 3 gems x 5 shapes each (GemShape).
@@ -169,12 +211,21 @@ const MAX_SHAPES: Record<SceneryKind, number> = {
  * `foldBodyShift` (factoryPlacementSystem.ts) computes the Phase 35 lean from, exactly as
  * `VARIANT_CONF[variant].colors.body` does for factories. Only kinds present here get a
  * stored, AS-recolorable shift (`placeDistrict`/`recolorActorsForAttenuationStyle`); dome,
- * containers and scaffold join in roadmap Phase 42 Task 14. Structural families (crane, pylon,
- * boulder, …) are deliberately absent — they store no shift (§1.8).
+ * containers and scaffold join here in roadmap Phase 42 Task 14. Structural families (crane,
+ * pylon, boulder, …) are deliberately absent — they store no shift (§1.8).
+ *
+ * `containers` is the one entry whose renderer doesn't actually paint this colour (its boxes
+ * paint the style's accent pair instead, §1.9) — `body.base` here is only the lean's reference
+ * direction, same role it plays for dome/scaffold/wall; the fold's *output* shift still lands on
+ * `Actor.config` and still gets applied on top of the accent hue at render time, so retransmit
+ * still moves containers the same way it moves every other body-bearing family.
  */
 export const BODY_BEARING_BASE: Partial<Record<SceneryKind, HSL>> = {
   wall: colorTheme.body.base,
   tank: colorTheme.shell.shadow,
+  dome: colorTheme.body.base,
+  scaffold: colorTheme.body.base,
+  containers: colorTheme.body.base,
 };
 
 // ========================================

@@ -21,13 +21,13 @@ const RANGES: Record<SceneryKind, Record<string, [number, number]>> = {
   wall: { w: [160, 420], h: [28, 70], hueShift: [40, 60], satShift: [-30, 0] },
   beacon: { mastH: [120, 220], gemW: [40, 64] },
   pipeline: { w: [320, 720], d: [14, 22], e: [34, 60], riserH: [90, 220] },
-  dome: { w: [170, 300], bh: [30, 60], portholes: [3, 6] },
+  dome: { w: [170, 300], bh: [30, 60], ry: [170 * 0.28, 300 * 0.42], portholes: [3, 6], hueShift: [-20, 20], satShift: [-15, 15] },
   wreck: { w: [340, 580], h: [70, 120], deckhouseFrac: [0.2, 0.3], portholes: [4, 9] },
   turbine: { postH: [170, 290], bladeR: [60, 95] },
   boulder: { w: [60, 150], hFrac: [0.5, 0.75], count: [1, 3], hueShift: [-12, 12], satShift: [-6, 6] },
   vent: { w: [44, 90], steps: [4, 6] },
-  containers: { cols: [2, 4], rows: [1, 3], boxW: [72, 110], boxH: [36, 44] },
-  scaffold: { w: [160, 260], h: [220, 380], bays: [2, 3], solidFrac: [0.25, 0.45] },
+  containers: { cols: [2, 4], rows: [1, 3], boxW: [72, 110], boxH: [36, 44], hueShift: [-20, 20], satShift: [-15, 15] },
+  scaffold: { w: [160, 260], h: [220, 380], bays: [2, 3], solidFrac: [0.25, 0.45], hueShift: [-20, 20], satShift: [-15, 15] },
   tether: { h1: [120, 320], dx: [40, 90] },
   floodlight: { mastH: [190, 310], headOffset: [-14, 14] },
   dish: { rx: [30, 48] },
@@ -87,11 +87,11 @@ describe('maxShapes', () => {
   });
 });
 
-// Roadmap Phase 42 Task 13: only families whose stored shift `foldBodyShift`/
+// Roadmap Phase 42 Task 13/14: only families whose stored shift `foldBodyShift`/
 // `recolorActorsForAttenuationStyle` fold and recolor carry a base body colour here.
 describe('BODY_BEARING_BASE', () => {
-  it('has exactly wall and tank as of Task 13 (dome/containers/scaffold join in Task 14)', () => {
-    expect(Object.keys(BODY_BEARING_BASE).sort()).toEqual(['tank', 'wall']);
+  it('has exactly wall, tank, dome, containers and scaffold as of Task 14', () => {
+    expect(Object.keys(BODY_BEARING_BASE).sort()).toEqual(['containers', 'dome', 'scaffold', 'tank', 'wall']);
   });
 
   it('every entry is a valid HSL triple', () => {
