@@ -51,16 +51,17 @@ export const DEFAULT_FACTORY_ROW = 1;
  *  recolors the skyline without a single roll being able to wash it out
  *  entirely. First-pass default, not spec-mandated — see
  *  docs/specs/ATTENUATION_STYLE.md §7 item 2; tune here if a manual check
- *  finds it reads as invisible or overwhelming. */
-const AS_FACTORY_HUE_SHIFT_RANGE: [number, number] = [-30, 30];
-const AS_FACTORY_SAT_SHIFT_RANGE: [number, number] = [-20, 20];
+ *  finds it reads as invisible or overwhelming. Shared by factory and scenery
+ *  AS-shift draws (roadmap Phase 42 Task 13 gave scenery its own dataId
+ *  namespace, not its own magnitude — see deriveAsColorShiftFor below). */
+const AS_HUE_SHIFT_RANGE: [number, number] = [-30, 30];
+const AS_SAT_SHIFT_RANGE: [number, number] = [-20, 20];
 
-/** Same magnitude as the factory AS ranges above, own dataId namespace (roadmap Phase 42
- *  Task 13) — body-bearing scenery (wall, tank, …) gets its own AS-seeded delta rather than
- *  sharing the factory draw, matching the project's one-dataId-per-family convention
- *  ('scenery.id' vs 'factory.id', 'actor.derelict', …). */
-const AS_SCENERY_HUE_SHIFT_RANGE: [number, number] = [-30, 30];
-const AS_SCENERY_SAT_SHIFT_RANGE: [number, number] = [-20, 20];
+/** The two AS-shift dataId namespaces (roadmap Phase 42 Task 13) — factory and scenery each
+ *  get their own draw rather than sharing one, matching the project's one-dataId-per-family
+ *  convention ('scenery.id' vs 'factory.id', 'actor.derelict', …), kept distinct so neither
+ *  family's placement order can shift the other's seeded shift. */
+type AsShiftNamespace = 'factory' | 'scenery';
 
 /** Fixed non-zero, non-integer offset for the Attenuation-Style-level accent-pair draw — a
  *  single-value dataId sampled at offset 0 can collapse to 3–4 values across every seed if its
@@ -82,17 +83,23 @@ export function generateFactoryId(noiseMap: NoiseFunction2D, index: number): str
   return `factory-${index}-${idSeed.toString(36).slice(2, 10)}`;
 }
 
-/** AS-seeded color delta for one factory, additive on top of its existing
- *  locale-seeded hueShift/satShift — never a replacement. Sampled from the
- *  active Attenuation Style's own noise map, keyed by the factory's position in
- *  the locale's actor array (the same getSeededVal(noiseMap, dataId, offset,
- *  min, max) pattern every other seeded field in this file already uses).
+/** AS-seeded color delta for one actor, additive on top of its existing locale-seeded
+ *  hueShift/satShift — never a replacement. Sampled from the active Attenuation Style's own
+ *  noise map, keyed by the actor's position in its own family's placement order (the same
+ *  getSeededVal(noiseMap, dataId, offset, min, max) pattern every other seeded field in this
+ *  file already uses). `deriveAsColorShift`/`deriveSceneryAsColorShift` below are the named,
+ *  per-family entry points real callers use; this is the one body both share.
  *  See docs/specs/ATTENUATION_STYLE.md §1.2. */
-export function deriveAsColorShift(noiseMap: NoiseFunction2D, index: number): ColorShift {
+function deriveAsColorShiftFor(namespace: AsShiftNamespace, noiseMap: NoiseFunction2D, index: number): ColorShift {
   return {
-    hueShift: getSeededVal(noiseMap, 'factory.as.hueShift', index, ...AS_FACTORY_HUE_SHIFT_RANGE),
-    satShift: getSeededVal(noiseMap, 'factory.as.satShift', index, ...AS_FACTORY_SAT_SHIFT_RANGE),
+    hueShift: getSeededVal(noiseMap, `${namespace}.as.hueShift`, index, ...AS_HUE_SHIFT_RANGE),
+    satShift: getSeededVal(noiseMap, `${namespace}.as.satShift`, index, ...AS_SAT_SHIFT_RANGE),
   };
+}
+
+/** `deriveAsColorShiftFor('factory', …)` — see its doc comment. */
+export function deriveAsColorShift(noiseMap: NoiseFunction2D, index: number): ColorShift {
+  return deriveAsColorShiftFor('factory', noiseMap, index);
 }
 
 /**
@@ -110,25 +117,29 @@ export function deriveAsAccentPair(asNoiseMap: NoiseFunction2D): AccentPair {
   return { primary: ACCENT_HUES[primaryIndex], secondary: ACCENT_HUES[secondaryFor(primaryIndex)] };
 }
 
-/** Which of the style's pair this factory leans toward — a seeded coin keyed by the factory's
- *  index in the locale's actor array, the same offset convention deriveAsColorShift uses. */
-export function pickAccentTarget(asNoiseMap: NoiseFunction2D, pair: AccentPair, index: number): number {
-  return getSeededVal(asNoiseMap, 'factory.as.accentPick', index, 0, 1) < 0.5 ? pair.primary : pair.secondary;
+/** Which of the style's pair an actor leans toward — a seeded coin keyed by the actor's index
+ *  in its own family's placement order, the same offset convention `deriveAsColorShiftFor`
+ *  uses. `pickAccentTarget`/`pickSceneryAccentTarget` below are the named, per-family entry
+ *  points real callers use; this is the one body both share. */
+function pickAccentTargetFor(namespace: AsShiftNamespace, asNoiseMap: NoiseFunction2D, pair: AccentPair, index: number): number {
+  return getSeededVal(asNoiseMap, `${namespace}.as.accentPick`, index, 0, 1) < 0.5 ? pair.primary : pair.secondary;
 }
 
-/** `deriveAsColorShift`'s scenery counterpart (roadmap Phase 42 Task 13) — same shape, own
- *  dataId namespace, keyed by the scenery actor's index in the locale's scenery counter
+/** `pickAccentTargetFor('factory', …)` — see its doc comment. */
+export function pickAccentTarget(asNoiseMap: NoiseFunction2D, pair: AccentPair, index: number): number {
+  return pickAccentTargetFor('factory', asNoiseMap, pair, index);
+}
+
+/** `deriveAsColorShift`'s scenery counterpart (roadmap Phase 42 Task 13) — own dataId
+ *  namespace, keyed by the scenery actor's index in the locale's scenery counter
  *  (`districts.ts`'s `sceneryIndex`), not the factory one. */
 export function deriveSceneryAsColorShift(noiseMap: NoiseFunction2D, index: number): ColorShift {
-  return {
-    hueShift: getSeededVal(noiseMap, 'scenery.as.hueShift', index, ...AS_SCENERY_HUE_SHIFT_RANGE),
-    satShift: getSeededVal(noiseMap, 'scenery.as.satShift', index, ...AS_SCENERY_SAT_SHIFT_RANGE),
-  };
+  return deriveAsColorShiftFor('scenery', noiseMap, index);
 }
 
 /** `pickAccentTarget`'s scenery counterpart — own dataId, same seeded-coin shape. */
 export function pickSceneryAccentTarget(asNoiseMap: NoiseFunction2D, pair: AccentPair, index: number): number {
-  return getSeededVal(asNoiseMap, 'scenery.as.accentPick', index, 0, 1) < 0.5 ? pair.primary : pair.secondary;
+  return pickAccentTargetFor('scenery', asNoiseMap, pair, index);
 }
 
 /**
