@@ -104,24 +104,19 @@ describe('districts', () => {
       expect(pickDistrict(map)).toBe(pickDistrict(map));
     });
 
-    it('draws only on its own dataId, independent of every other draw, at three distinct non-integer offsets', () => {
-      const spy = vi.spyOn(getSeededValModule, 'getSeededVal');
+    // The three-sample hash itself (three distinct non-integer offsets) is pinned by
+    // getSeededVal.test.ts's getUniformSeededVal formula test.
+    it('makes one uniform draw, on its own dataId only, independent of every other draw', () => {
+      const uniformSpy = vi.spyOn(getSeededValModule, 'getUniformSeededVal');
+      const rawSpy = vi.spyOn(getSeededValModule, 'getSeededVal');
       try {
         const map = createNoise2D(alea('districts-dataid-fixture'));
         pickDistrict(map);
-        const calls = spy.mock.calls.filter((c) => c[1] === 'locale.district');
-        expect(calls.length).toBe(3);
-        const offsets = new Set<number>();
-        for (const [, , offset, min, max] of calls) {
-          expect(min).toBe(0);
-          expect(max).toBe(1);
-          offsets.add(offset as number);
-        }
-        expect(offsets.size).toBe(3);
-        const nonIntegerCount = [...offsets].filter((o) => !Number.isInteger(o)).length;
-        expect(nonIntegerCount).toBeGreaterThanOrEqual(2);
+        expect(uniformSpy.mock.calls).toEqual([[map, 'locale.district']]);
+        expect(rawSpy).not.toHaveBeenCalled();
       } finally {
-        spy.mockRestore();
+        uniformSpy.mockRestore();
+        rawSpy.mockRestore();
       }
     });
 

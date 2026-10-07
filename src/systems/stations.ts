@@ -1,13 +1,12 @@
 // ========================================
 // IMPORTS
 // ========================================
-import alea from 'alea';
 import type { NoiseFunction2D } from 'simplex-noise';
 
 import type { Actor } from '../types/Actor';
 import type { Vec2 } from '../types/Vec2';
 import { getWorkSite } from './workSites';
-import { getSeededVal } from '../utils/getSeededVal';
+import { getUniformSeededVal } from '../utils/getSeededVal';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { useLocaleStore } from '../stores/localeStore';
 import {
@@ -56,9 +55,6 @@ const MAX_DRAWS_PER_STATION = 16;
 /** Layouts tried before a count is given up on. */
 const MAX_LAYOUTS = 16;
 
-/** Added to a draw's offset for its three samples — the same shifts pickDistrict uses. */
-const SAMPLE_SHIFTS = [0, 137.42, 911.77] as const;
-
 // ========================================
 // HELPERS
 // ========================================
@@ -67,14 +63,8 @@ const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 &
 
 const distance = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
 
-/**
- * A uniform [0, 1) draw at `offset`. Raw simplex output is bell-curved, and one sample at offset 0
- * takes only ~3 values across all worlds (measured: no grid world rolled 3 stations), so three
- * samples at spread offsets are hashed together through alea() — pickDistrict's fix (districts.ts).
- */
-const uniform = (noiseMap: NoiseFunction2D, dataId: string, offset: number) =>
-  alea(SAMPLE_SHIFTS.map((s) => getSeededVal(noiseMap, dataId, offset + s, 0, 1)).join(':'))();
-
+// Every draw here is getUniformSeededVal, never one getSeededVal sample: that takes only ~3 values
+// at offset 0 across all worlds (measured: no grid world rolled 3 stations).
 const inRange = ([lo, hi]: readonly [number, number], t: number) => Math.round(lo + t * (hi - lo));
 
 /**
@@ -90,8 +80,8 @@ function drawCentres(noiseMap: NoiseFunction2D, count: number, obstacles: Box[])
     const centres: Vec2[] = [];
     for (let tries = 0; centres.length < count && tries < MAX_DRAWS_PER_STATION; draw++) {
       const c = {
-        x: inRange(STATION_X_RANGE, uniform(noiseMap, 'station.x', draw)),
-        y: inRange(STATION_Y_RANGE, uniform(noiseMap, 'station.y', draw)),
+        x: inRange(STATION_X_RANGE, getUniformSeededVal(noiseMap, 'station.x', draw)),
+        y: inRange(STATION_Y_RANGE, getUniformSeededVal(noiseMap, 'station.y', draw)),
       };
       const box = stationBox(c);
       if (centres.some((p) => distance(p, c) < STATION_MIN_SPACING) || obstacles.some((o) => overlaps(box, o))) {
@@ -139,7 +129,7 @@ export function hostObstacles(actors: Actor[]): Box[] {
  */
 export function deriveStations(noiseMap: NoiseFunction2D, obstacles: Box[]): Station[] {
   const span = STATION_COUNT_MAX - STATION_COUNT_MIN + 1;
-  const count = STATION_COUNT_MIN + Math.min(span - 1, Math.floor(uniform(noiseMap, 'station.count', 0) * span));
+  const count = STATION_COUNT_MIN + Math.min(span - 1, Math.floor(getUniformSeededVal(noiseMap, 'station.count') * span));
 
   let centres = drawCentres(noiseMap, count, obstacles);
   for (let n = count - 1; !centres && n >= STATION_COUNT_MIN; n--) centres = drawCentres(noiseMap, n, obstacles);
