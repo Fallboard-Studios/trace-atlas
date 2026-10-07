@@ -2,6 +2,7 @@ import colorTheme from '../../../../constants/colorTheme.json';
 import { applyColorShift } from '../../../../utils/colorUtils';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import type { SceneryRenderer } from '../sceneryTypes';
+import type { ContainersParams } from '../sceneryParams';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 containers row)
@@ -10,6 +11,25 @@ import type { SceneryRenderer } from '../sceneryTypes';
 const BOX_SAT = 35;
 const BOX_L = 30;
 const LABEL_SIZE = 7;
+
+/** One row of the pyramid, bottom row first. */
+export interface ContainerRow { startX: number; count: number; topY: number }
+
+/**
+ * The pyramid's rows: each row above the bottom one box fewer (never under one), centred on x and
+ * staggered by its seeded offset. Shared with the work-site anchors (Phase 43), so the two can't
+ * drift.
+ */
+export function containerRows(x: number, y: number, p: Pick<ContainersParams, 'cols' | 'rows' | 'boxW' | 'boxH' | 'rowOffsets'>): ContainerRow[] {
+  return Array.from({ length: p.rows }, (_, row) => {
+    const count = Math.max(1, p.cols - row);
+    return {
+      startX: x - (count * p.boxW) / 2 + (p.rowOffsets[row] ?? 0),
+      count,
+      topY: y - row * p.boxH - p.boxH,
+    };
+  });
+}
 
 /**
  * Containers (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9): a pyramid of box rows — each row above
@@ -33,14 +53,7 @@ export const containers: SceneryRenderer = ({ actor, params, cap, eastL, westL, 
 
   return (
     <g data-scenery="containers">
-      {Array.from({ length: rows }, (_, row) => {
-        const boxCount = Math.max(1, cols - row);
-        const rowWidth = boxCount * boxW;
-        const rowOffset = rowOffsets[row] ?? 0;
-        const rowStartX = x - rowWidth / 2 + rowOffset;
-        const rowBottomY = y - row * boxH;
-        const rowTopY = rowBottomY - boxH;
-
+      {containerRows(x, y, { cols, rows, boxW, boxH, rowOffsets }).map(({ startX: rowStartX, count: boxCount, topY: rowTopY }, row) => {
         return (
           <g key={row} data-container-row={row}>
             {Array.from({ length: boxCount }, (_, col) => {

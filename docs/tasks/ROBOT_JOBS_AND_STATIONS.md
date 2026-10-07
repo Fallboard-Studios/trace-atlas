@@ -353,7 +353,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   **Verification:** `npx vitest run src/systems/workSites.test.ts`. **Dependencies:** T7, T8.
   **Files:** `src/systems/workSites.ts` (+ test), `src/constants/index.ts`. **Scope:** M.
 
-- [ ] **Task 10: Work sites — scenery group A (tank, dome, scaffold, containers, wreck, vent)**
+- [x] **Task 10: Work sites — scenery group A (tank, dome, scaffold, containers, wreck, vent)**
 
   **Description:** Per-kind anchor functions beside `deriveSceneryParams` (one
   `sceneryWorkAnchors.ts` in `components/actors/scenery/`), reading only those parameters: tank
@@ -362,9 +362,32 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   `getWorkSite` dispatches to them.
 
   **Acceptance criteria:**
-  - [ ] Each kind: same invariants as T9 over 50 seeds per kind; anchors lie inside the silhouette's
-        `bounds` (or ≤ 40 above it for mouths/masts).
-  - [ ] A param change in `deriveSceneryParams` moves the anchors (mutation check on one kind).
+  - [x] Each kind: same invariants as T9 over 50 seeds per kind; anchors lie inside the silhouette's
+        `bounds` (or ≤ 40 above it for mouths/masts). — at both depths. The foreground rule is
+        measured against the true top outline (on a vertical step's edge counts as on it).
+  - [x] A param change in `deriveSceneryParams` moves the anchors (mutation check on one kind).
+
+  **As shipped:** (1) Each kind's anchors return `{ bounds, outline, points, path }`. `outline`
+  is the silhouette's x-monotonic top edge, which is what "on or above" is measured to. It isn't
+  on `WorkSite`. (2) **Shared layouts, not re-derived.** The geometry that was more than a
+  one-liner moved out of the renderers into exported helpers that the renderer and the anchors
+  both call: `domePortholeCentres`, `scaffoldBraces`, `containerRows`, `wreckLayout`. The tank,
+  dome, scaffold and vent constants the anchors need are exported too. All four renderers' tests
+  pass unmodified. (3) **Render-parity tests.** Every named anchor is checked against the element
+  it names in the rendered DOM: the tank gauge, dome mast light / portholes / hatch, scaffold
+  light and braces, container labels and stack top, wreck funnel, vent mouth glow and plume. The
+  vent mouth is also checked against the bubbles. The bounds must contain every drawn
+  rect/polygon/circle, with lights up to 40 above. (4) Foreground vs. not:
+  - Foreground keeps to the outline: tank top between the shoulders, dome portholes (on the arc),
+    scaffold post heads, container outline samples.
+  - Midground also uses facade points: tank gauge, dome hatch, scaffold brace, container labels.
+  - Wreck and vent points are all on the outline at every depth.
+  (5) **The park has its own seeded stream** (`Alea(id + ':park')`), so the park doesn't depend
+  on how many draws a kind's points take. This changed the T9 factory parks' seeded offsets, but
+  not their rule. (6) Scenery points are not clipped to the visible span; only the park centre
+  is. The group-B kinds return `null` until T11 (pinned by a test that T11 must flip). (7) Mutation
+  checks: ignoring the passed params, a facade hatch on a foreground dome, `foreground` never set
+  by `workSites`, and dropping the scaffold overhang from its bounds each fail tests.
 
   **Verification:** `npx vitest run src/components/actors/scenery src/systems/workSites.test.ts`.
   **Dependencies:** T9. **Files:** `src/components/actors/scenery/sceneryWorkAnchors.ts` (+ test),

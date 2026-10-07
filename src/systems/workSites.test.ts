@@ -2,6 +2,7 @@
 // IMPORTS
 // ========================================
 import { describe, it, expect } from 'vitest';
+import Alea from 'alea';
 
 import { getWorkSite, deriveWorkSite, type WorkSite } from './workSites';
 import { hostJobs, isWorkSiteEligible } from './jobHosts';
@@ -10,6 +11,7 @@ import { getRecipeRow } from './factoryPlacementSystem';
 import { SIM_SEED_COORDS } from './lifecycleSim';
 import { factoryGeometry } from '../components/actors/factoryGeometry';
 import { getActorBubbleProps } from '../components/actors/factoryBubbleProps';
+import { sceneryWorkAnchors, ANCHORED_KINDS } from '../components/actors/scenery/sceneryWorkAnchors';
 import { useLocaleStore } from '../stores/localeStore';
 import { ActorType, type Actor } from '../types/Actor';
 import { PARK_CLEARANCE, WORLD_MARGIN, WORLD_WIDTH, WORLD_HEIGHT } from '../constants';
@@ -34,11 +36,12 @@ function registerLocale(id: string, x: number, y: number): void {
 }
 
 /** Every factory the real district placer puts down over the 121-seed grid. */
-const GRID_FACTORIES: Actor[] = SIM_SEED_COORDS.flatMap(({ x, y }) => {
+const GRID_ACTORS: Actor[] = SIM_SEED_COORDS.flatMap(({ x, y }) => {
   const id = `work-sites-${x}-${y}`;
   registerLocale(id, x, y);
-  return placeDistrict(id).filter((a) => a.type === ActorType.FACTORY);
+  return placeDistrict(id);
 });
+const GRID_FACTORIES = GRID_ACTORS.filter((a) => a.type === ActorType.FACTORY);
 const GRID_HOSTS = GRID_FACTORIES.filter((a) => hostJobs(a).length > 0);
 
 const clampX = (x: number) => Math.min(Math.max(x, WORLD_MARGIN), WORLD_WIDTH - WORLD_MARGIN);
@@ -274,5 +277,67 @@ describe('workSites — factories (Phase 43 Task 9, spec §1.5)', () => {
         expect(site.points[0].x, a.id).toBeLessThan(site.points[1].x);
       }
     });
+  });
+});
+
+describe('workSites — scenery group A (Phase 43 Task 10)', () => {
+  const sceneryHosts = GRID_ACTORS.filter((a) => a.type === ActorType.SCENERY && hostJobs(a).length > 0);
+  const anchoredHosts = sceneryHosts.filter((a) => ANCHORED_KINDS.has(a.config!.kind!));
+  const depthOf = (a: Actor) => getRecipeRow(a.config!.district!, a.config!.row!)!.depth;
+
+  it('the grid places hosts of every group-A kind', () => {
+    for (const kind of ANCHORED_KINDS) {
+      expect(anchoredHosts.some((a) => a.config!.kind === kind), kind).toBe(true);
+    }
+  });
+
+  it('every group-A host gets a site: id, jobs, depth, and the anchors for its depth', () => {
+    for (const a of anchoredHosts) {
+      const site = siteOf(a);
+      expect(site.id).toBe(a.id);
+      expect(site.jobs).toEqual(hostJobs(a));
+      expect(site.depth).toBe(depthOf(a));
+      const anchors = sceneryWorkAnchors(a, { foreground: site.depth === 'foreground', rand: Alea(`${a.id}:work`) })!;
+      expect(site.bounds, a.id).toEqual(anchors.bounds);
+      expect(site.points, a.id).toEqual(anchors.points);
+      expect(site.path, a.id).toEqual(anchors.path);
+    }
+  });
+
+  it('the grid has foreground group-A hosts, so the foreground branch is the one placement uses', () => {
+    expect(anchoredHosts.some((a) => depthOf(a) === 'foreground')).toBe(true);
+    expect(anchoredHosts.some((a) => depthOf(a) === 'midground')).toBe(true);
+  });
+
+  it('a derelict host is a site with the derelict jobs', () => {
+    const derelict = anchoredHosts.find((a) => a.config?.derelict);
+    expect(derelict).toBeDefined();
+    expect(siteOf(derelict!).jobs).toEqual(hostJobs(derelict!));
+  });
+
+  it('park: inside the margin, roof − PARK_CLEARANCE clamped, within 40 of the visible centre', () => {
+    for (const a of anchoredHosts) {
+      const site = siteOf(a);
+      const { lo, hi } = visibleSpan(site);
+      const centre = (lo + hi) / 2;
+      expect(site.park.y, a.id).toBe(clampY(site.bounds.y0 - PARK_CLEARANCE));
+      expect(site.park.x, a.id).toBeGreaterThanOrEqual(clampX(centre - 40) - 1e-9);
+      expect(site.park.x, a.id).toBeLessThanOrEqual(clampX(centre + 40) + 1e-9);
+    }
+  });
+
+  it('every eligible group-A site parks above its top', () => {
+    const eligible = anchoredHosts.filter((a) => isWorkSiteEligible(a, { backHosts: false }));
+    expect(eligible.length).toBeGreaterThan(50);
+    for (const a of eligible) {
+      const site = siteOf(a);
+      expect(site.park.y, a.id).toBeLessThan(site.bounds.y0);
+    }
+  });
+
+  it('a scenery host without anchors yet (group B, Task 11) still has no site', () => {
+    const groupB = sceneryHosts.filter((a) => !ANCHORED_KINDS.has(a.config!.kind!));
+    expect(groupB.length).toBeGreaterThan(0);
+    for (const a of groupB) expect(getWorkSite(a), a.id).toBeNull();
   });
 });

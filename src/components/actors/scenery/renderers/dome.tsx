@@ -12,7 +12,7 @@ import type { SceneryRenderer } from '../sceneryTypes';
 const DOME_SAT_BOOST = 10;
 /** Hatch footprint, scene units. */
 const HATCH_W = 28;
-const HATCH_H = 14;
+export const DOME_HATCH_H = 14;
 /** Porthole radius. */
 const PORTHOLE_R = 7;
 /** Portholes are spread across this angular span either side of the dome's apex. */
@@ -21,9 +21,21 @@ const PORTHOLE_ANGLE_SPAN_DEG = 70;
 const PORTHOLE_LIT_BASE = 0.4;
 const PORTHOLE_LIT_ND_SCALE = 0.6;
 /** Mast height above the dome apex, and the light's radius. */
-const MAST_H = 26;
+export const DOME_MAST_H = 26;
 const MAST_W = 4;
 const MAST_LIGHT_R = 5;
+
+/**
+ * The porthole centres, spread over ±70° of the dome's arc from its apex — each one on the arc
+ * itself. Shared with the work-site anchors (Phase 43), so the two can't drift.
+ */
+export function domePortholeCentres(x: number, top: number, rx: number, ry: number, count: number): { x: number; y: number }[] {
+  return Array.from({ length: count }, (_, i) => {
+    const t = count === 1 ? 0 : -1 + (2 * i) / (count - 1);
+    const theta = (t * PORTHOLE_ANGLE_SPAN_DEG * Math.PI) / 180;
+    return { x: x + rx * Math.sin(theta), y: top - ry * Math.cos(theta) };
+  });
+}
 
 /**
  * Dome (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9): a two-faced base block topped by a half-ellipse
@@ -63,16 +75,11 @@ export const dome: SceneryRenderer = ({ actor, params, cap, eastL, westL, nightD
   const eastArcD = `M ${x},${apex} A ${rx},${ry} 0 0 1 ${x + rx},${top} L ${x},${top} Z`;
 
   const threshold = PORTHOLE_LIT_BASE + PORTHOLE_LIT_ND_SCALE * nightDepth;
-  const portholePositions = Array.from({ length: portholes }, (_, i) => {
-    const t = portholes === 1 ? 0 : -1 + (2 * i) / (portholes - 1);
-    const thetaDeg = t * PORTHOLE_ANGLE_SPAN_DEG;
-    const theta = (thetaDeg * Math.PI) / 180;
-    return {
-      cx: x + rx * Math.sin(theta),
-      cy: top - ry * Math.cos(theta),
-      lit: !derelict && portholeLitRoll[i] < threshold,
-    };
-  });
+  const portholePositions = domePortholeCentres(x, top, rx, ry, portholes).map((c, i) => ({
+    cx: c.x,
+    cy: c.y,
+    lit: !derelict && portholeLitRoll[i] < threshold,
+  }));
 
   const hatchFill = ambient;
   const mastFill = ambient;
@@ -94,10 +101,10 @@ export const dome: SceneryRenderer = ({ actor, params, cap, eastL, westL, nightD
           fill={porthole.lit ? lamp(colorTheme.glass.base, nightDepth) : applyColorShift(colorTheme.shadowDepth, NO_SHIFT, cap)}
         />
       ))}
-      <rect x={x - HATCH_W / 2} y={y - HATCH_H} width={HATCH_W} height={HATCH_H} fill={hatchFill} />
-      <rect x={x - MAST_W / 2} y={apex - MAST_H} width={MAST_W} height={MAST_H} fill={mastFill} />
+      <rect x={x - HATCH_W / 2} y={y - DOME_HATCH_H} width={HATCH_W} height={DOME_HATCH_H} fill={hatchFill} />
+      <rect x={x - MAST_W / 2} y={apex - DOME_MAST_H} width={MAST_W} height={DOME_MAST_H} fill={mastFill} />
       {!derelict && (
-        <circle data-dome="mast-light" cx={x} cy={apex - MAST_H} r={MAST_LIGHT_R} fill={lamp(colorTheme.alert.powered, nightDepth)} />
+        <circle data-dome="mast-light" cx={x} cy={apex - DOME_MAST_H} r={MAST_LIGHT_R} fill={lamp(colorTheme.alert.powered, nightDepth)} />
       )}
     </g>
   );

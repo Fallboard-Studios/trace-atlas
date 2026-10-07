@@ -11,6 +11,7 @@ import { hostJobs } from './jobHosts';
 import { getRecipeRow, DEFAULT_FACTORY_ROW } from './factoryPlacementSystem';
 import { factoryGeometry } from '../components/actors/factoryGeometry';
 import { factoryVentFraction } from '../components/actors/factoryBubbleProps';
+import { sceneryWorkAnchors } from '../components/actors/scenery/sceneryWorkAnchors';
 import { PARK_CLEARANCE, WORLD_MARGIN, WORLD_WIDTH, WORLD_HEIGHT } from '../constants';
 
 // ========================================
@@ -66,20 +67,28 @@ function visibleSpan(x0: number, x1: number): { lo: number; hi: number } {
   return hi > lo ? { lo, hi } : { lo: x0, hi: x1 };
 }
 
+/**
+ * The robot's centre while working: over the visible part of the top, ± a seeded 0–40, and
+ * PARK_CLEARANCE above the top, clamped into the world. Its own seeded stream, so it never
+ * depends on how many draws a kind's points take.
+ */
+function parkFor(actorId: string, bounds: WorkSite['bounds']): Vec2 {
+  const { lo, hi } = visibleSpan(bounds.x0, bounds.x1);
+  const jitter = between(Alea(`${actorId}:park`), -PARK_JITTER, PARK_JITTER);
+  return {
+    x: clamp((lo + hi) / 2 + jitter, WORLD_MARGIN, WORLD_WIDTH - WORLD_MARGIN),
+    y: clamp(bounds.y0 - PARK_CLEARANCE, WORLD_MARGIN, WORLD_HEIGHT - WORLD_MARGIN),
+  };
+}
+
 /** The factory branch: a flat roof at the drawn box's top, worked from above (spec §1.5). */
-function deriveFactorySite(actor: Actor, jobs: JobType[], depth: DistrictRow['depth']): WorkSite {
+function factoryAnchors(actor: Actor): Pick<WorkSite, 'bounds' | 'points' | 'path'> {
   const { variant, frontCornerX, box } = factoryGeometry(actor);
   const roofY = box.y0;
   const { lo, hi } = visibleSpan(box.x0, box.x1);
-  // Draw order is fixed: park offset first, then the variant's points.
   const rand = Alea(`${actor.id}:work`);
 
   const roofAt = (t: number): Vec2 => ({ x: lo + t * (hi - lo), y: roofY });
-
-  const park = {
-    x: clamp((lo + hi) / 2 + between(rand, -PARK_JITTER, PARK_JITTER),WORLD_MARGIN, WORLD_WIDTH - WORLD_MARGIN),
-    y: clamp(roofY - PARK_CLEARANCE, WORLD_MARGIN, WORLD_HEIGHT - WORLD_MARGIN),
-  };
 
   // The top outline, through the east/west face split when it shows.
   const cornerX = box.x0 + (frontCornerX / 100) * (box.x1 - box.x0);
@@ -110,7 +119,7 @@ function deriveFactorySite(actor: Actor, jobs: JobType[], depth: DistrictRow['de
       break;
   }
 
-  return { id: actor.id, depth, jobs, bounds: box, park, points, path };
+  return { bounds: box, points, path };
 }
 
 // ========================================
@@ -119,15 +128,22 @@ function deriveFactorySite(actor: Actor, jobs: JobType[], depth: DistrictRow['de
 
 /**
  * The work site for an actor, derived fresh, or null when the actor hosts nothing. Pure: reads
- * only the actor. Factories only so far — scenery sites land in Phase 43 Tasks 10–11.
+ * only the actor. Factories, and the scenery kinds with anchors (`ANCHORED_KINDS`; the rest land
+ * in Phase 43 Task 11).
  */
 export function deriveWorkSite(actor: Actor): WorkSite | null {
   const jobs = hostJobs(actor);
   if (jobs.length === 0) return null;
   const row = getRecipeRow(actor.config?.district ?? 'dense', actor.config?.row ?? DEFAULT_FACTORY_ROW);
-  const depth = row?.depth ?? 'foreground'; // Factory.tsx's render fallback
-  if (actor.type === ActorType.FACTORY) return deriveFactorySite(actor, jobs, depth);
-  return null;
+  const depth = row?.depth ?? 'foreground'; // the renderers' fallback
+
+  const anchors = actor.type === ActorType.FACTORY
+    ? factoryAnchors(actor)
+    : sceneryWorkAnchors(actor, { foreground: depth === 'foreground', rand: Alea(`${actor.id}:work`) });
+  if (!anchors) return null;
+
+  const { bounds, points, path } = anchors;
+  return { id: actor.id, depth, jobs, bounds, park: parkFor(actor.id, bounds), points, path };
 }
 
 // Keyed by the actor object, not its id: factory and scenery ids repeat across locales (730 of

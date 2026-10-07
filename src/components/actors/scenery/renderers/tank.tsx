@@ -9,13 +9,13 @@ import type { SceneryRenderer } from '../sceneryTypes';
 // ========================================
 
 /** "45° shoulders of 0.3 w" — the top-corner bevel run, in both x and y. */
-const SHOULDER_FRACTION = 0.3;
+export const TANK_SHOULDER_FRACTION = 0.3;
 /** Belt course rects are "5 tall". */
 const BELT_HEIGHT = 5;
 /** Gauge circle radius is `0.08 w`. */
 const GAUGE_R_FRAC = 0.08;
 /** Gauge sits at `0.55 h` down from the top. */
-const GAUGE_Y_FRAC = 0.55;
+export const TANK_GAUGE_Y_FRAC = 0.55;
 
 /**
  * Tank (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9): a belted storage cylinder with two bevelled
@@ -45,7 +45,7 @@ export const tank: SceneryRenderer = ({ actor, params, cap, eastL, westL, nightD
   const beltFill = applyColorShift(colorTheme.shell.base, NO_SHIFT, ((eastL + westL) / 2) * cap);
 
   const top = y - h;
-  const shoulder = w * SHOULDER_FRACTION;
+  const shoulder = w * TANK_SHOULDER_FRACTION;
   const splitX = x - w / 2 + corner * w;
 
   const westPoints = [
@@ -65,7 +65,7 @@ export const tank: SceneryRenderer = ({ actor, params, cap, eastL, westL, nightD
   ].join(' ');
 
   const gaugeR = GAUGE_R_FRAC * w;
-  const gaugeY = top + GAUGE_Y_FRAC * h;
+  const gaugeY = top + TANK_GAUGE_Y_FRAC * h;
   const gaugeFill = derelict
     ? applyColorShift(colorTheme.indicator.off, NO_SHIFT, 1)
     : lamp(colorTheme.indicator.powered, nightDepth);

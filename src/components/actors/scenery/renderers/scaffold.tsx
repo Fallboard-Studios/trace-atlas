@@ -11,9 +11,30 @@ import type { SceneryRenderer } from '../sceneryTypes';
 const POST_W = 6;
 const LEVEL_SPACING = 60;
 const LEVEL_H = 5;
-const LEVEL_OVERHANG = 8;
+export const SCAFFOLD_LEVEL_OVERHANG = 8;
 const BRACE_THICKNESS = 4;
 const LIGHT_R = 5;
+
+/** One 45° brace: its bottom-left corner and its run (equal in x and y). */
+export interface ScaffoldBrace { x0: number; y0: number; d: number }
+
+/**
+ * The braces, in a checkerboard of alternating bays per level. Shared with the work-site anchors
+ * (Phase 43), so the two can't drift.
+ */
+export function scaffoldBraces(x: number, y: number, w: number, h: number, bays: number): ScaffoldBrace[] {
+  const bayWidth = w / bays;
+  const levelCount = Math.max(1, Math.floor(h / LEVEL_SPACING));
+  const braces: ScaffoldBrace[] = [];
+  for (let level = 0; level < levelCount; level++) {
+    const cellBottom = y - level * LEVEL_SPACING;
+    for (let bay = 0; bay < bays; bay++) {
+      if ((bay + level) % 2 !== 0) continue;
+      braces.push({ x0: x - w / 2 + bay * bayWidth, y0: cellBottom, d: Math.min(bayWidth, LEVEL_SPACING) });
+    }
+  }
+  return braces;
+}
 
 /**
  * Scaffold (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9): a two-faced solid-lower block (the
@@ -44,15 +65,7 @@ export const scaffold: SceneryRenderer = ({ actor, params, cap, eastL, westL, ni
   const bayWidth = w / bays;
   const levelCount = Math.max(1, Math.floor(h / LEVEL_SPACING));
 
-  const braces: { x0: number; y0: number; d: number }[] = [];
-  for (let level = 0; level < levelCount; level++) {
-    const cellBottom = y - level * LEVEL_SPACING;
-    for (let bay = 0; bay < bays; bay++) {
-      if ((bay + level) % 2 !== 0) continue;
-      const cellX0 = x - half + bay * bayWidth;
-      braces.push({ x0: cellX0, y0: cellBottom, d: Math.min(bayWidth, LEVEL_SPACING) });
-    }
-  }
+  const braces = scaffoldBraces(x, y, w, h, bays);
 
   const half45 = BRACE_THICKNESS / 2;
 
@@ -77,9 +90,9 @@ export const scaffold: SceneryRenderer = ({ actor, params, cap, eastL, westL, ni
           <rect
             key={`level-${i}`}
             data-scaffold="level"
-            x={x - half - LEVEL_OVERHANG}
+            x={x - half - SCAFFOLD_LEVEL_OVERHANG}
             y={levelY - LEVEL_H / 2}
-            width={w + LEVEL_OVERHANG * 2}
+            width={w + SCAFFOLD_LEVEL_OVERHANG * 2}
             height={LEVEL_H}
             fill={frameFill}
           />
