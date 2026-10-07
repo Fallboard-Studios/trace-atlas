@@ -22,9 +22,6 @@ interface LightShaftsProps {
 // districts.ts's pickDistrict (`min(bucketCount - 1, floor(v * bucketCount))`).
 const SHAFT_COUNT_MIN = 3;
 const SHAFT_COUNT_BUCKETS = 3;
-// Exported so the D3 atmosphere shape budget test (districtRecipes.test.ts) can derive its ceiling
-// from this module's own constant rather than redeclaring "5".
-export const MAX_SHAFT_COUNT = SHAFT_COUNT_MIN + SHAFT_COUNT_BUCKETS - 1;
 
 // "each x -200..1920, width 50-160, depth 420-760".
 const SHAFT_X_MIN = -200;

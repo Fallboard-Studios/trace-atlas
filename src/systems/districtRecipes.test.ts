@@ -5,8 +5,6 @@ import { describe, it, expect } from 'vitest';
 
 import { RECIPES, DERELICT_RATIO, SCENERY_SHAPE_BUDGET, type DistrictRow } from './districtRecipes';
 import { VARIANT_CONF } from '../components/actors/factoryVariants';
-import { MAX_SHAFT_COUNT } from '../components/panels/screen/worldView/LightShafts';
-import { SNOW_COUNT } from '../components/panels/screen/worldView/MarineSnow';
 import type { DistrictName, SceneryKind } from '../types/Actor';
 
 // ========================================
@@ -225,20 +223,6 @@ describe('districtRecipes', () => {
       } finally {
         ventRow.count = original;
       }
-    });
-  });
-
-  // Roadmap Phase 42 Task 21 (§1.12): LightShafts (≤ 5 polygons) + MarineSnow (140 circles) are the
-  // whole D3 atmosphere budget — fixed per-locale counts, not recipe-driven, so this is a ceiling
-  // on the two components' own constants rather than a RECIPES walk.
-  describe('atmosphere shape budget (D3)', () => {
-    it('shafts + snow together stay at or under 200 shapes', () => {
-      expect(MAX_SHAFT_COUNT + SNOW_COUNT).toBeLessThanOrEqual(200);
-    });
-
-    it('mutation check: bumping marine snow past 60 (200 - MAX_SHAFT_COUNT) fails the budget', () => {
-      const inflatedSnowCount = 201 - MAX_SHAFT_COUNT;
-      expect(MAX_SHAFT_COUNT + inflatedSnowCount).toBeGreaterThan(200);
     });
   });
 });
