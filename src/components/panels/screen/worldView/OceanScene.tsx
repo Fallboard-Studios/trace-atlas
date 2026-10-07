@@ -5,6 +5,7 @@ import './OceanScene.css';
 import { TerrainLayer } from './TerrainLayer';
 import { WaterColumn } from './WaterColumn';
 import { LightShafts } from './LightShafts';
+import { MarineSnow } from './MarineSnow';
 
 import { Robot } from '@/components/robot/Robot'
 import { useLocaleStore } from '@/stores/localeStore';
@@ -299,6 +300,11 @@ export function OceanScene({
           {foregroundActors.map(renderActor)}
         </g>
         <PipeBridges factories={foregroundFactories} />
+
+        {/* Marine snow (docs/specs/WORLD_VIEW_DISTRICTS.md §1.12), after the foreground row so it
+            reads as drifting particulate in front of the nearest buildings. */}
+        <MarineSnow localeId={localeId} />
+
         <g id="ui-layer" />
       </SceneLayer>
     </div>
