@@ -304,5 +304,27 @@ describe('OceanScene', () => {
       expect(ridgeIndex).toBeLessThan(backgroundIndex);
       expect(groundIndex).toBeGreaterThan(gradientMidFrontIndex);
     });
+
+    // Water column (docs/specs/WORLD_VIEW_DISTRICTS.md §1.5, roadmap Phase 42 Task 8): replaces
+    // the old flat backgroundColor rect, so it must stand behind the ridge (and everything else)
+    // in the back layer, and OceanScene must no longer accept the removed prop.
+    it('renders the water column before the ridge in the back layer', () => {
+      const { container } = render(<OceanScene />);
+      const back = container.querySelector('svg[data-scene-layer="back"]')!;
+      const children = Array.from(back.children);
+
+      const waterIndex = children.findIndex((el) => el.hasAttribute('data-water'));
+      const ridgeIndex = children.findIndex((el) => el.getAttribute('data-terrain') === 'ridge');
+
+      expect(waterIndex).toBeGreaterThanOrEqual(0);
+      expect(waterIndex).toBeLessThan(ridgeIndex);
+    });
+
+    it('no longer accepts a backgroundColor prop (type-checked by npm run build:types)', () => {
+      // @ts-expect-error backgroundColor was removed (§1.5) — this line only compiles if the prop
+      // still exists, so `npm run build:types` catches a regression even though vitest itself
+      // doesn't type-check.
+      render(<OceanScene backgroundColor="#000000" />);
+    });
   });
 });

@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 
 import './OceanScene.css';
 import { TerrainLayer } from './TerrainLayer';
+import { WaterColumn } from './WaterColumn';
 
 import { Robot } from '@/components/robot/Robot'
 import { useLocaleStore } from '@/stores/localeStore';
@@ -26,7 +27,6 @@ import { hslToString } from '@/utils/colorUtils';
 interface OceanSceneProps {
   width?: number;
   height?: number;
-  backgroundColor?: string;
   localTime?: number;
 }
 
@@ -99,12 +99,10 @@ function SceneLayer({ name, width, height, moving = false, children }: SceneLaye
  *
  * @param width           - SVG viewBox width in pixels (default 1920).
  * @param height          - SVG viewBox height in pixels (default 1080).
- * @param backgroundColor - CSS colour string for the ocean background rect.
  */
 export function OceanScene({
   width = 1920,
   height = 1080,
-  backgroundColor = '#0a1128',
   localTime: _localTime,
 }: OceanSceneProps) {
 
@@ -207,7 +205,9 @@ export function OceanScene({
           </linearGradient>
         </defs>
 
-        <rect fill={backgroundColor} width={width} height={height} />
+        {/* Water column (§1.5): vertical gradient + surface glow, replacing the old flat
+            backgroundColor rect. */}
+        <WaterColumn localeId={localeId} width={width} height={height} />
 
         {/* Seabed ridge (docs/specs/WORLD_VIEW_DISTRICTS.md §1.3), drawn before every
             factory so background-row towers can stand in front of it. */}
