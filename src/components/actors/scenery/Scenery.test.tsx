@@ -35,7 +35,6 @@ function makeActor(configOverrides: Actor['config'] = {}): Actor {
     type: ActorType.SCENERY,
     position: { x: 500, y: 1030 },
     isActive: false,
-    cooldownRemaining: 0,
     config: { kind: 'wall', district: 'outskirts', row: 7, ...configOverrides },
   };
 }

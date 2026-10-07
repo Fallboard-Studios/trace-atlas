@@ -8,7 +8,6 @@ function stubActor(id: string, kind: SceneryKind): Actor {
     type: ActorType.SCENERY,
     position: { x: 0, y: 0 },
     isActive: false,
-    cooldownRemaining: 0,
     config: { kind },
   };
 }
@@ -48,7 +47,7 @@ describe('deriveSceneryParams', () => {
   });
 
   it('a kindless actor gets an empty params object', () => {
-    const actor: Actor = { id: 'no-kind', type: ActorType.SCENERY, position: { x: 0, y: 0 }, isActive: false, cooldownRemaining: 0 };
+    const actor: Actor = { id: 'no-kind', type: ActorType.SCENERY, position: { x: 0, y: 0 }, isActive: false };
     expect(deriveSceneryParams(actor)).toEqual({});
   });
 

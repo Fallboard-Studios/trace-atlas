@@ -58,7 +58,6 @@ function makeActor(configOverrides: Actor['config'] = {}, id = 'factory-lighting
     type: ActorType.FACTORY,
     position: { x: 100, y: 900 },
     isActive: true,
-    cooldownRemaining: 0,
     config: { row: 99, hueShift: 0, satShift: 0, ...configOverrides },
   };
 }

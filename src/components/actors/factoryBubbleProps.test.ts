@@ -28,7 +28,6 @@ function makeActor(overrides: Partial<Actor> & { config?: Actor['config'] } = {}
     type: ActorType.FACTORY,
     position: { x: 400, y: 1000 },
     isActive: true,
-    cooldownRemaining: 0,
     ...overrides,
     config: { row: rowIndexFor('midground'), district: 'dense', purpose: 'heavyIndustry', hueShift: 10, satShift: -5, ...(overrides.config ?? {}) },
   };
@@ -60,9 +59,15 @@ describe('getActorBubbleProps', () => {
     expect(props.seed).toBe(hashActorId(actor.id));
   });
 
-  it('is active unless the building is offline', () => {
-    expect(getActorBubbleProps(makeActor())!.isActive).toBe(true);
-    expect(getActorBubbleProps(makeActor({ config: { isOffline: true } }))!.isActive).toBe(false);
+  it('is always active — factories no longer go offline (Phase 43 Task 6)', () => {
+    for (const purpose of ['heavyIndustry', 'chemicalProcessing', 'pipeWorks', undefined] as const) {
+      expect(getActorBubbleProps(makeActor({ config: { purpose } }))!.isActive).toBe(true);
+    }
+    // Even a derelict building keeps venting — derelict is a look, not a production state.
+    expect(getActorBubbleProps(makeActor({ config: { derelict: true } }))!.isActive).toBe(true);
+    // A stale saved/legacy actor still carrying the retired field is ignored, not honoured.
+    const legacy = makeActor({ config: { ['isOff' + 'line']: true } as unknown as Actor['config'] });
+    expect(getActorBubbleProps(legacy)!.isActive).toBe(true);
   });
 
   it('puts the vent on the roofline, 20–80 % across the facade, in scene coordinates', () => {
@@ -132,7 +137,6 @@ describe('getActorBubbleProps — vent scenery', () => {
       type: ActorType.SCENERY,
       position: { x: 300, y: 1000 },
       isActive: false,
-      cooldownRemaining: 0,
       ...overrides,
       config: { kind: 'vent', row: ventRowFor('background'), district: 'ventfield', ...(overrides.config ?? {}) },
     };

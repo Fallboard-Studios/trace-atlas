@@ -102,7 +102,8 @@ export function getActorBubbleProps(actor: Actor): FactoryBubbleProps | null {
     ventX: actor.position.x + (ventXnorm / 100) * actualWidth,
     ventY: actor.position.y - actualHeight,
     seed: buildingSeed,
-    isActive: !(actor.config?.isOffline ?? false),
+    // Factories never go offline (Phase 43 removed the production fields) — every stream runs.
+    isActive: true,
     bodyHue,
     depthScale: bubbleDepthScaleForRow(rowCfg?.depth),
   };

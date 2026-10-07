@@ -12,7 +12,6 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
     type: ActorType.SCENERY,
     position: { x: 500, y: 1030 },
     isActive: false,
-    cooldownRemaining: 0,
     config: { kind: 'scaffold', district: 'derelict', row: 5, hueShift: 10, satShift: -5 },
   };
   return {
@@ -88,7 +87,6 @@ describe('scaffold renderer', () => {
       type: ActorType.SCENERY,
       position: { x: 500, y: 1030 },
       isActive: false,
-      cooldownRemaining: 0,
       config: { kind: 'scaffold', district: 'derelict', row: 5, hueShift: 10, satShift: -5, derelict: true },
     };
     const live = render(scaffold(makeCtx()));
@@ -105,7 +103,6 @@ describe('scaffold renderer', () => {
       type: ActorType.SCENERY,
       position: { x: 500, y: 1030 },
       isActive: false,
-      cooldownRemaining: 0,
       config: { kind: 'scaffold', district: 'derelict', row: 5, hueShift: 0, satShift: 0, derelict: true },
     };
     const liveActor: Actor = { ...derelictActor, id: 'scaffold-sat-live', config: { ...derelictActor.config, derelict: undefined } };

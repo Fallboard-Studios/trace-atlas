@@ -28,8 +28,6 @@ export { WORLD_BOUNDS };
 // CONSTANTS
 // ========================================
 
-const PRODUCTION_INTERVAL = 60; // measures
-
 const DEFAULT_ROW_EDGE_WIDTH = 0.3; // 30% of screen width on each edge
 const DEFAULT_CENTER_WIDTH = 0.4; // 40% of screen width for center spread
 
@@ -191,9 +189,7 @@ export function createFactory(
     scaleY: scale,
     rotation: 0,
     isActive: true,
-    cooldownRemaining: PRODUCTION_INTERVAL,
     config: {
-      productionInterval: PRODUCTION_INTERVAL,
       row,
       hueShift,
       satShift,

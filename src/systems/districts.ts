@@ -215,7 +215,6 @@ export function placeDistrict(localeId: string): Actor[] {
         type: ActorType.SCENERY,
         position: { x: px, y },
         isActive: false,
-        cooldownRemaining: 0,
         config: {
           kind,
           row: rowIndex,

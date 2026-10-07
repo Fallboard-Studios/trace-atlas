@@ -236,15 +236,18 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   `src/systems/robotSystems.ts`, `src/systems/lifecycleVisuals.ts` (+ tests, moved cases).
   **Scope:** M.
 
-- [ ] **Task 6: Delete the interaction system and the factory production fields**
+- [x] **Task 6: Delete the interaction system and the factory production fields**
 
   **Description:** Delete `interactionSystem.ts` and its test (no callers). Remove
   `cooldownRemaining`, `productionInterval`, `isOffline`, `offlineSince` from `Actor`,
   `createFactory` and `PRODUCTION_INTERVAL`; `factoryBubbleProps.ts`'s `isActive` becomes `true`.
 
   **Acceptance criteria:**
-  - [ ] No reference to the removed names in `src/`; bubble tests pass with `isActive: true`.
-  - [ ] Full suite green (the deleted test file is the only removed test).
+  - [x] No reference to the removed names in `src/`; bubble tests pass with `isActive: true`.
+        — enforced by a source-scan test in `factoryPlacementSystem.test.ts`.
+  - [x] Full suite green (the deleted test file is the only removed test). — 6503 − 10 deleted
+        + 3 new = 6496. `districts.ts` scenery also dropped its `cooldownRemaining: 0` (the field
+        is gone from `Actor`), and ~23 test fixtures lost the same line.
 
   **Verification:** `npm test`; `npm run build:types`. **Dependencies:** None. **Files:**
   `src/systems/interactionSystem.ts` (+ test, deleted), `src/types/Actor.ts`,

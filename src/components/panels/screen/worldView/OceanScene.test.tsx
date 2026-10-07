@@ -220,7 +220,7 @@ describe('OceanScene', () => {
     const rowIndexFor = (label: 'background' | 'midground' | 'foreground'): number =>
       RECIPES.dense.findIndex((r) => r.depth === label);
     const makeFactory = (id: string, row: number, purpose: 'heavyIndustry' | 'observationComms' = 'heavyIndustry'): Actor => ({
-      id, type: ActorType.FACTORY, position: { x: 100, y: 900 }, isActive: true, cooldownRemaining: 0, config: { row, district: 'dense', purpose },
+      id, type: ActorType.FACTORY, position: { x: 100, y: 900 }, isActive: true, config: { row, district: 'dense', purpose },
     });
 
     beforeEach(() => {
@@ -306,7 +306,6 @@ describe('OceanScene', () => {
                 type: ActorType.SCENERY,
                 position: { x: 50, y: 900 },
                 isActive: false,
-                cooldownRemaining: 0,
                 config: { kind: 'vent', row: ventRow, district: 'ventfield' },
               },
             ],
@@ -403,8 +402,8 @@ describe('OceanScene', () => {
             ...DEFAULT_LOCALE,
             robots: [],
             actors: [
-              { id: 'wall-1', type: ActorType.SCENERY, position: { x: 0, y: 0 }, isActive: false, cooldownRemaining: 0, config: { kind: 'wall', district, row: wallRow } },
-              { id: 'fg-factory-1', type: ActorType.FACTORY, position: { x: 0, y: 0 }, isActive: true, cooldownRemaining: 0, config: { district, row: factoryRow, purpose: 'heavyIndustry' } },
+              { id: 'wall-1', type: ActorType.SCENERY, position: { x: 0, y: 0 }, isActive: false, config: { kind: 'wall', district, row: wallRow } },
+              { id: 'fg-factory-1', type: ActorType.FACTORY, position: { x: 0, y: 0 }, isActive: true, config: { district, row: factoryRow, purpose: 'heavyIndustry' } },
             ],
           },
         },

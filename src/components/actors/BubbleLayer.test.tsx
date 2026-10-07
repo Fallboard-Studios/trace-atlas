@@ -33,7 +33,6 @@ function makeActor(id: string, purpose: FactoryPurpose | undefined, row = rowInd
     type: ActorType.FACTORY,
     position: { x: 100, y: 900 },
     isActive: true,
-    cooldownRemaining: 0,
     config: { purpose, row, district: 'dense', ...extra },
   };
 }
@@ -60,10 +59,10 @@ describe('BubbleLayer (roadmap 17.2.5 — bubbles in their own scene layer)', ()
     expect(stubs(container).map((el) => el.getAttribute('data-total-buildings'))).toEqual(['37', '37']);
   });
 
-  it('forwards each building\'s own row depth and offline state', () => {
+  it('forwards each building\'s own row depth, every stream active (Phase 43 Task 6: no offline state)', () => {
     const factories = [
       makeActor('bg', 'heavyIndustry', rowIndexFor('background')),
-      makeActor('mid', 'heavyIndustry', rowIndexFor('midground'), { isOffline: true }),
+      makeActor('mid', 'heavyIndustry', rowIndexFor('midground'), { derelict: true }),
       makeActor('fg', 'heavyIndustry', rowIndexFor('foreground')),
     ];
     const { container } = render(<svg><BubbleLayer actors={factories} totalBuildings={3} /></svg>);
@@ -71,7 +70,8 @@ describe('BubbleLayer (roadmap 17.2.5 — bubbles in their own scene layer)', ()
     expect(Number(byId.bg.getAttribute('data-depth-scale'))).toBeCloseTo(1 / 3, 9);
     expect(byId.mid.getAttribute('data-depth-scale')).toBe('0.5');
     expect(byId.fg.getAttribute('data-depth-scale')).toBe('1');
-    expect(byId.mid.getAttribute('data-active')).toBe('false');
+    expect(byId.bg.getAttribute('data-active')).toBe('true');
+    expect(byId.mid.getAttribute('data-active')).toBe('true');
     expect(byId.fg.getAttribute('data-active')).toBe('true');
   });
 
@@ -93,7 +93,6 @@ describe('BubbleLayer (roadmap 17.2.5 — bubbles in their own scene layer)', ()
       type: ActorType.SCENERY,
       position: { x: 200, y: 1000 },
       isActive: false,
-      cooldownRemaining: 0,
       config: { kind: 'vent', row: ventRow, district: 'ventfield' },
     };
     const actors = [makeActor('f-heavy', 'heavyIndustry'), ventActor];
@@ -107,7 +106,6 @@ describe('BubbleLayer (roadmap 17.2.5 — bubbles in their own scene layer)', ()
       type: ActorType.SCENERY,
       position: { x: 200, y: 1000 },
       isActive: false,
-      cooldownRemaining: 0,
       config: { kind: 'wall', row: 0, district: 'outskirts' },
     };
     const { container } = render(<svg><BubbleLayer actors={[wallActor]} totalBuildings={0} /></svg>);

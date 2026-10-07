@@ -13,7 +13,6 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
     type: ActorType.SCENERY,
     position: { x: 500, y: 1030 },
     isActive: false,
-    cooldownRemaining: 0,
     config: { kind: 'dome', district: 'habitat', row: 2, hueShift: 10, satShift: -5 },
   };
   return {
@@ -91,7 +90,6 @@ describe('dome renderer', () => {
       type: ActorType.SCENERY,
       position: { x: 500, y: 1030 },
       isActive: false,
-      cooldownRemaining: 0,
       config: { kind: 'dome', district: 'habitat', row: 2, hueShift: 10, satShift: -5, derelict: true },
     };
     // Even at nightDepth 1 (which would otherwise light every porthole), derelict forces none lit.
@@ -109,7 +107,6 @@ describe('dome renderer', () => {
       type: ActorType.SCENERY,
       position: { x: 500, y: 1030 },
       isActive: false,
-      cooldownRemaining: 0,
       config: { kind: 'dome', district: 'habitat', row: 2, hueShift: 0, satShift: 0 },
     };
     const { container } = render(dome(makeCtx({ actor: zeroShiftActor, cap: 1, eastL: 1, westL: 1 })));

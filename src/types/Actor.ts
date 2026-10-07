@@ -60,8 +60,6 @@ export interface Actor {
   scaleX?: number;
   scaleY?: number;
   isActive: boolean;
-  /** Measures remaining until the actor can activate again. */
-  cooldownRemaining: number;
   /**
    * Variant-specific spawn-time configuration.  All values are serializable
    * primitives so the world state can be saved/loaded without conversion.
@@ -72,7 +70,6 @@ export interface Actor {
    */
   config?: {
     robotBlueprint?: string;
-    productionInterval?: number;
     /** Index into this actor's district recipe (systems/districtRecipes.ts, via `config.district`); use getRecipeRow(district, row)?.depth for the depth group ('background'/'midground'/'foreground'). */
     row?: number;
     /**
@@ -100,10 +97,6 @@ export interface Actor {
     beltCourseCount?: number;
     /** High‑level purpose derived from factory variant. Read-only after spawn. */
     purpose?: import('../components/actors/factoryVariants').FactoryPurpose;
-    /** Convenience flag set when a factory has been powered down. */
-    isOffline?: boolean;
-    /** Measure at which the factory went offline. */
-    offlineSince?: number;
     /** Scenery family (ActorType.SCENERY only); drives SCENERY_RENDERERS lookup. */
     kind?: SceneryKind;
     /** The district recipe (districtRecipes.ts) this actor's `row` indexes into. */
