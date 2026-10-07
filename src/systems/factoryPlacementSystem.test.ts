@@ -6,14 +6,14 @@ import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 
 import { createFactory, deriveAsAccentPair, pickAccentTarget, getRecipeRow, factoryWidthAt, spreadXs } from './factoryPlacementSystem';
-import { placeDistrict } from './districts';
+import { placeDistrict, pickDistrict } from './districts';
 import { VARIANT_CONF, selectVariantFromSeed } from '../components/actors/factoryVariants';
 import type { FactoryVariant } from '../components/actors/factoryVariants';
 import { calcSilhouetteSize } from '../components/actors/silhouetteUtils';
 import { RECIPES } from './districtRecipes';
 import { shiftHSL } from '../utils/colorUtils';
 import { computeAccentLean, hueArc, ACCENT_SAT_LIFT, ACCENT_HUES } from '../utils/accentLean';
-import { getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
+import { getAttenuationStyleNoiseMap, getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import * as getSeededValModule from '../utils/getSeededVal';
 import { deriveAttenuationStyleSeed } from '../utils/seedUtils';
@@ -27,10 +27,11 @@ import { useLocaleStore } from '../stores/localeStore';
 import { useAttenuationStyleStore, DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
 import { ActorType } from '../types/Actor';
 import type { Actor } from '../types/Actor';
-import { recolorFactoriesForAttenuationStyle } from './factoryPlacementSystem';
+import { recolorActorsForAttenuationStyle, foldBodyShift } from './factoryPlacementSystem';
+import { BODY_BEARING_BASE } from '../components/actors/scenery/sceneryParams';
 
 // The row Factory.tsx's own render-time fallback and
-// recolorFactoriesForAttenuationStyle's row lookup both use when a factory's
+// recolorActorsForAttenuationStyle's row lookup both use when a factory's
 // config.row is missing. Intentionally a literal here, NOT imported from
 // factoryPlacementSystem.ts — this test exists to characterize that
 // observable behavior (row falls back to 1) independent of however the
@@ -71,6 +72,51 @@ describe('FactoryPlacementSystem', () => {
     it('factory data is serializable', () => {
       const factory = createFactory({ x: 500, y: 1000 }, 2);
       expect(() => JSON.stringify(factory)).not.toThrow();
+    });
+  });
+
+  // Roadmap Phase 42 Task 13: `foldBodyShift` is the pure fold `createFactory` always did
+  // inline, now extracted so scenery's body-bearing families (wall, tank, …) can share it.
+  describe('foldBodyShift (extracted from createFactory)', () => {
+    const baseBody = { h: 200, s: 15, l: 19 };
+    const localShift = { hueShift: 10, satShift: 5 };
+    const asShift = { hueShift: -4, satShift: 2 };
+
+    it('with no accentTarget, sums local + AS only (no lean) — matches createFactory with accentTarget omitted', () => {
+      const result = foldBodyShift(baseBody, localShift, asShift, undefined);
+      expect(result).toEqual({ hueShift: localShift.hueShift + asShift.hueShift, satShift: localShift.satShift + asShift.satShift });
+    });
+
+    it('an explicit undefined accentTarget is byte-identical to omitting it', () => {
+      expect(foldBodyShift(baseBody, localShift, asShift, undefined)).toStrictEqual(foldBodyShift(baseBody, localShift, asShift));
+    });
+
+    it('with an accentTarget, adds computeAccentLean(shiftHSL(baseBody, combined), target) on top of the combined shift', () => {
+      const target = 172; // ~teal
+      const combined = { hueShift: localShift.hueShift + asShift.hueShift, satShift: localShift.satShift + asShift.satShift };
+      const lean = computeAccentLean(shiftHSL(baseBody, combined), target);
+      const result = foldBodyShift(baseBody, localShift, asShift, target);
+      expect(result.hueShift).toBe(combined.hueShift + lean.hueShift);
+      expect(result.satShift).toBe(combined.satShift + lean.satShift);
+      expect(lean.hueShift).not.toBe(0); // fixture really exercises the lean, not a 0-delta no-op
+    });
+
+    it("createFactory now delegates to it: its stored shift equals foldBodyShift's result for the same variant base/local/AS/target (regression — the extraction changed no observable output)", () => {
+      const id = 'fold-delegate-id';
+      const pos = { x: 500, y: 1000 };
+      const row = 1;
+      const asShiftArg = { hueShift: 10, satShift: -5 };
+      const target = 172;
+      const local = selectVariantFromSeed(id, pos.x, row);
+      const expected = foldBodyShift(
+        VARIANT_CONF[local.variant].colors.body,
+        { hueShift: local.hueShift, satShift: local.satShift },
+        asShiftArg,
+        target,
+      );
+      const actor = createFactory(pos, row, 1, id, asShiftArg, target);
+      expect(actor.config?.hueShift).toBe(expected.hueShift);
+      expect(actor.config?.satShift).toBe(expected.satShift);
     });
   });
 
@@ -600,7 +646,7 @@ describe('FactoryPlacementSystem', () => {
     });
   });
 
-  describe('recolorFactoriesForAttenuationStyle', () => {
+  describe('recolorActorsForAttenuationStyle', () => {
     beforeEach(() => {
       useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [] });
       placeDistrict(DEFAULT_LOCALE_ID);
@@ -610,7 +656,7 @@ describe('FactoryPlacementSystem', () => {
       useAttenuationStyleStore.getState().addAttenuationStyle({ id: 'recolor-planet', name: 'recolor-planet-name', locales: [] });
       const before = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors;
 
-      recolorFactoriesForAttenuationStyle(DEFAULT_LOCALE_ID, 'recolor-planet', 'recolor-planet-name');
+      recolorActorsForAttenuationStyle(DEFAULT_LOCALE_ID, 'recolor-planet', 'recolor-planet-name');
 
       const after = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors;
       expect(after.length).toBe(before.length);
@@ -634,10 +680,10 @@ describe('FactoryPlacementSystem', () => {
     it('is idempotent under repeated calls with the same AS (no drift)', () => {
       useAttenuationStyleStore.getState().addAttenuationStyle({ id: 'idempotent-planet', name: 'idempotent-planet-name', locales: [] });
 
-      recolorFactoriesForAttenuationStyle(DEFAULT_LOCALE_ID, 'idempotent-planet', 'idempotent-planet-name');
+      recolorActorsForAttenuationStyle(DEFAULT_LOCALE_ID, 'idempotent-planet', 'idempotent-planet-name');
       const first = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors;
 
-      recolorFactoriesForAttenuationStyle(DEFAULT_LOCALE_ID, 'idempotent-planet', 'idempotent-planet-name');
+      recolorActorsForAttenuationStyle(DEFAULT_LOCALE_ID, 'idempotent-planet', 'idempotent-planet-name');
       const second = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors;
 
       expect(second).toEqual(first);
@@ -646,14 +692,14 @@ describe('FactoryPlacementSystem', () => {
     it('is a safe no-op on a locale with zero factories', () => {
       useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [] });
       expect(() =>
-        recolorFactoriesForAttenuationStyle(DEFAULT_LOCALE_ID, 'pelagos', 'pelagos-name')
+        recolorActorsForAttenuationStyle(DEFAULT_LOCALE_ID, 'pelagos', 'pelagos-name')
       ).not.toThrow();
       expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors).toEqual([]);
     });
 
     it('is a safe no-op on a nonexistent locale id', () => {
       expect(() =>
-        recolorFactoriesForAttenuationStyle('no-such-locale', 'pelagos', 'pelagos-name')
+        recolorActorsForAttenuationStyle('no-such-locale', 'pelagos', 'pelagos-name')
       ).not.toThrow();
     });
 
@@ -695,7 +741,7 @@ describe('FactoryPlacementSystem', () => {
         useLocaleStore.getState().addLocale(styleA.id, makeLocale('recolor-lean-locale', styleA.id));
         placeDistrict('recolor-lean-locale');
 
-        recolorFactoriesForAttenuationStyle('recolor-lean-locale', styleB.id, styleB.name);
+        recolorActorsForAttenuationStyle('recolor-lean-locale', styleB.id, styleB.name);
         const after = useLocaleStore.getState().locales['recolor-lean-locale'].actors.filter((a) => a.type === ActorType.FACTORY);
         expect(after.length).toBeGreaterThan(0);
 
@@ -721,7 +767,7 @@ describe('FactoryPlacementSystem', () => {
         placeDistrict('recolor-lean-from-a');
         const fresh = placeDistrict('recolor-lean-fresh-b').filter((a) => a.type === ActorType.FACTORY);
 
-        recolorFactoriesForAttenuationStyle('recolor-lean-from-a', styleB.id, styleB.name);
+        recolorActorsForAttenuationStyle('recolor-lean-from-a', styleB.id, styleB.name);
         const recolored = useLocaleStore.getState().locales['recolor-lean-from-a'].actors.filter((a) => a.type === ActorType.FACTORY);
 
         expect(recolored.map((a) => a.id)).toEqual(fresh.map((a) => a.id));
@@ -747,7 +793,7 @@ describe('FactoryPlacementSystem', () => {
       useAttenuationStyleStore.getState().addAttenuationStyle({ id: 'rowless-planet', name: 'rowless-planet-name', locales: [] });
       useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [rowlessActor] });
 
-      recolorFactoriesForAttenuationStyle(DEFAULT_LOCALE_ID, 'rowless-planet', 'rowless-planet-name');
+      recolorActorsForAttenuationStyle(DEFAULT_LOCALE_ID, 'rowless-planet', 'rowless-planet-name');
 
       const recolored = useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].actors[0];
       // Never invents a row — position/count/id/variant/row/greebles stay
@@ -767,6 +813,110 @@ describe('FactoryPlacementSystem', () => {
       );
       const asOnlyHueDelta = (recolored.config?.hueShift ?? 0) - expectedLocal.hueShift;
       expect(Math.abs(asOnlyHueDelta)).toBeLessThanOrEqual(30);
+    });
+
+    // docs/specs/WORLD_VIEW_DISTRICTS.md §1.8 / roadmap Phase 42 Task 13: body-bearing scenery
+    // (wall, tank) now folds and recolors exactly like a factory, via the shared foldBodyShift.
+    describe('scenery (body-bearing families fold and recolor like factories)', () => {
+      const styleA = { id: 'scenery-recolor-a', name: 'scenery-recolor-alpha' };
+      const styleB = { id: 'scenery-recolor-b', name: 'scenery-recolor-beta' };
+
+      /** Scans real coordinates with the real `pickDistrict` for one that lands on 'outskirts' —
+       *  the only district whose recipe carries BOTH a wall row and a tank row alongside
+       *  factories (districtRecipes.ts), so a single locale fixture exercises every
+       *  foldBodyShift-folding kind at once. */
+      function findOutskirtsCoords(): { x: number; y: number } {
+        for (let x = -500; x <= 500; x += 5) {
+          for (let y = -500; y <= 500; y += 5) {
+            const map = getLocaleNoiseMap(`outskirts-scan-${x}-${y}`, x, y);
+            if (pickDistrict(map) === 'outskirts') return { x, y };
+          }
+        }
+        throw new Error('no outskirts coordinates found in scan range');
+      }
+
+      const makeLocale = (id: string, attenuationStyleId: string, coords: { x: number; y: number }) => ({
+        id, attenuationStyleId, name: id, coordinates: coords,
+        robots: [], actors: [], companies: [], currentMeasure: 0, createdAtMeasure: 0, dayStartTimestamp: Date.now(),
+      });
+
+      beforeEach(() => {
+        useAttenuationStyleStore.getState().addAttenuationStyle({ ...styleA, locales: [] });
+        useAttenuationStyleStore.getState().addAttenuationStyle({ ...styleB, locales: [] });
+      });
+
+      it('equals a fresh placeDistrict under the new style, actor for actor, for a locale with factories, walls AND tanks — the lean moved at least one actor ≥10° (parity-fixture rule)', () => {
+        const coords = findOutskirtsCoords();
+        useLocaleStore.getState().addLocale(styleA.id, makeLocale('scenery-recolor-from-a', styleA.id, coords));
+        useLocaleStore.getState().addLocale(styleB.id, makeLocale('scenery-recolor-fresh-b', styleB.id, coords));
+
+        const fromA = placeDistrict('scenery-recolor-from-a');
+        const fresh = placeDistrict('scenery-recolor-fresh-b');
+
+        // Precondition: the fixture really exercises wall AND tank, not just factories.
+        expect(fromA.some((a) => a.config?.kind === 'wall')).toBe(true);
+        expect(fromA.some((a) => a.config?.kind === 'tank')).toBe(true);
+
+        recolorActorsForAttenuationStyle('scenery-recolor-from-a', styleB.id, styleB.name);
+        const recolored = useLocaleStore.getState().locales['scenery-recolor-from-a'].actors;
+
+        expect(recolored.map((a) => a.id)).toEqual(fresh.map((a) => a.id));
+        let maxHueMove = 0;
+        recolored.forEach((a, i) => {
+          const label = `actor ${i} (${a.config?.kind ?? 'factory'})`;
+          expect(a.config?.hueShift ?? 0, `${label} hue`).toBeCloseTo(fresh[i].config?.hueShift ?? 0, 9);
+          expect(a.config?.satShift ?? 0, `${label} sat`).toBeCloseTo(fresh[i].config?.satShift ?? 0, 9);
+          maxHueMove = Math.max(maxHueMove, Math.abs((a.config?.hueShift ?? 0) - (fromA[i].config?.hueShift ?? 0)));
+        });
+        // Parity-fixture rule (project memory): the two formulas must actually distinguish for
+        // at least one actor, or an "equal" assertion above could pass with the lean disabled.
+        expect(maxHueMove).toBeGreaterThanOrEqual(10);
+      });
+
+      it('mutation check: wall/tank actors are themselves recolored onto the new style (isolates scenery from the combined check above, which a factory alone could satisfy)', () => {
+        const coords = findOutskirtsCoords();
+        useLocaleStore.getState().addLocale(styleA.id, makeLocale('scenery-recolor-isolate', styleA.id, coords));
+        const before = placeDistrict('scenery-recolor-isolate');
+        const sceneryBefore = before.filter((a) => a.config?.kind === 'wall' || a.config?.kind === 'tank');
+        expect(sceneryBefore.length).toBeGreaterThan(0);
+
+        recolorActorsForAttenuationStyle('scenery-recolor-isolate', styleB.id, styleB.name);
+        const after = useLocaleStore.getState().locales['scenery-recolor-isolate'].actors;
+
+        const anySceneryShiftChanged = sceneryBefore.some((b) => {
+          const a = after.find((candidate) => candidate.id === b.id)!;
+          return a.config?.hueShift !== b.config?.hueShift || a.config?.satShift !== b.config?.satShift;
+        });
+        expect(anySceneryShiftChanged).toBe(true);
+      });
+
+      it('leaves every non-body-bearing scenery actor (boulder, pylon, turbine, …) completely untouched by recolor', () => {
+        const coords = findOutskirtsCoords();
+        useLocaleStore.getState().addLocale(styleA.id, makeLocale('scenery-recolor-structural', styleA.id, coords));
+        const before = placeDistrict('scenery-recolor-structural');
+        const structural = before.filter((a) => a.type === ActorType.SCENERY && !BODY_BEARING_BASE[a.config!.kind!]);
+        expect(structural.length).toBeGreaterThan(0);
+
+        recolorActorsForAttenuationStyle('scenery-recolor-structural', styleB.id, styleB.name);
+        const after = useLocaleStore.getState().locales['scenery-recolor-structural'].actors;
+
+        structural.forEach((b) => {
+          const a = after.find((candidate) => candidate.id === b.id)!;
+          expect(a).toEqual(b);
+        });
+      });
+
+      it('is a safe no-op on a locale with zero scenery actors (only factories)', () => {
+        useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [] });
+        const factoryOnly: Actor = {
+          id: 'factory-only-actor', type: ActorType.FACTORY,
+          position: { x: 100, y: 900 }, scaleX: 1, scaleY: 1, rotation: 0,
+          isActive: true, cooldownRemaining: 0,
+          config: { row: 0, district: 'dense', hueShift: 0, satShift: 0 },
+        };
+        useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [factoryOnly] });
+        expect(() => recolorActorsForAttenuationStyle(DEFAULT_LOCALE_ID, styleB.id, styleB.name)).not.toThrow();
+      });
     });
   });
 });

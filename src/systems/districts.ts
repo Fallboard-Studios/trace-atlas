@@ -16,12 +16,15 @@ import {
   deriveAsColorShift,
   deriveAsAccentPair,
   pickAccentTarget,
+  deriveSceneryAsColorShift,
+  pickSceneryAccentTarget,
+  foldBodyShift,
   factoryWidthAt,
   spreadXs,
   WORLD_BOUNDS,
 } from './factoryPlacementSystem';
 import { SCENERY_RENDERERS, SCENERY_GEM_ACCENTS } from '../components/actors/scenery/Scenery';
-import { deriveSceneryParams } from '../components/actors/scenery/sceneryParams';
+import { deriveSceneryParams, BODY_BEARING_BASE } from '../components/actors/scenery/sceneryParams';
 
 // ========================================
 // CONSTANTS
@@ -201,6 +204,7 @@ export function placeDistrict(localeId: string): Actor[] {
       const index = sceneryIndex++;
       const idSeed = getSeededVal(noiseMap, 'scenery.id', index, 0, 1);
       const id = `scenery-${index}-${idSeed.toString(36).slice(2, 10)}`;
+      const kind = row.kind as SceneryKind;
 
       const px = Math.round(x);
       const y = Math.round(resolveBaseY(row, profile, px));
@@ -213,15 +217,29 @@ export function placeDistrict(localeId: string): Actor[] {
         isActive: false,
         cooldownRemaining: 0,
         config: {
-          kind: row.kind as SceneryKind,
+          kind,
           row: rowIndex,
           district,
           ...(isDerelict ? { derelict: true as const } : {}),
         },
       };
+
+      // Body-bearing families (wall, tank, …; §1.8) fold a shift exactly like a factory's —
+      // local range + AS shift + Phase 35 lean, via the shared foldBodyShift — so
+      // recolorActorsForAttenuationStyle can recolor them on retransmit. Structural families
+      // have no entry in BODY_BEARING_BASE and are left without a shift (none is rendered).
+      const params = deriveSceneryParams(actor)[kind] as ({ w: number } & Partial<{ hueShift: number; satShift: number }>) | undefined;
+      const baseBody = BODY_BEARING_BASE[kind];
+      if (baseBody && params && params.hueShift !== undefined && params.satShift !== undefined) {
+        const asShift = asNoiseMap ? deriveSceneryAsColorShift(asNoiseMap, index) : { hueShift: 0, satShift: 0 };
+        const accentTarget = asNoiseMap && accentPair ? pickSceneryAccentTarget(asNoiseMap, accentPair, index) : undefined;
+        const { hueShift, satShift } = foldBodyShift(baseBody, { hueShift: params.hueShift, satShift: params.satShift }, asShift, accentTarget);
+        actor.config = { ...actor.config, hueShift, satShift };
+      }
+
       actors.push(actor);
 
-      return deriveSceneryParams(actor)[row.kind as SceneryKind]?.w ?? 0;
+      return params?.w ?? 0;
     };
 
     spreadXs(row, nextSceneryWidth, noiseMap, rowIndex);

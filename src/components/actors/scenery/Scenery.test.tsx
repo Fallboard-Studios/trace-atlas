@@ -58,15 +58,15 @@ describe('Scenery dispatcher', () => {
   });
 
   it('renders nothing for a kind with no registered renderer', () => {
-    const { container } = render(<Scenery actor={makeActor({ kind: 'tank' as never, district: 'outskirts', row: 5 })} />);
+    const { container } = render(<Scenery actor={makeActor({ kind: 'dome' as never, district: 'towers', row: 5 })} />);
     expect(container.innerHTML).toBe('');
   });
 
-  it('SCENERY_RENDERERS only has entries for shipped kinds (wall, pylon, beacon, boulder — D2 Tasks 11-12)', () => {
-    expect(Object.keys(SCENERY_RENDERERS)).toEqual(['wall', 'pylon', 'beacon', 'boulder']);
+  it('SCENERY_RENDERERS only has entries for shipped kinds (wall, pylon, beacon, boulder, tank — D2 Tasks 11-13)', () => {
+    expect(Object.keys(SCENERY_RENDERERS)).toEqual(['wall', 'pylon', 'beacon', 'boulder', 'tank']);
   });
 
-  it('dispatches the Task 12 kinds (pylon, beacon, boulder) to their renderers', () => {
+  it('dispatches the Task 12/13 kinds (pylon, beacon, boulder, tank) to their renderers', () => {
     const pylonCtx = render(<Scenery actor={makeActor({ kind: 'pylon', district: 'dense', row: 3 })} />);
     expect(pylonCtx.container.querySelector('[data-scenery="pylon"]')).not.toBeNull();
 
@@ -75,6 +75,9 @@ describe('Scenery dispatcher', () => {
 
     const boulderCtx = render(<Scenery actor={makeActor({ kind: 'boulder', district: 'outskirts', row: 2 })} />);
     expect(boulderCtx.container.querySelector('[data-scenery="boulder"]')).not.toBeNull();
+
+    const tankCtx = render(<Scenery actor={makeActor({ kind: 'tank', district: 'outskirts', row: 5 })} />);
+    expect(tankCtx.container.querySelector('[data-scenery="tank"]')).not.toBeNull();
   });
 
   it('does not throw across a range of hours (lighting tick)', () => {

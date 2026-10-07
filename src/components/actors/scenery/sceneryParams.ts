@@ -1,5 +1,7 @@
 import Alea from 'alea';
 import type { Actor, SceneryKind } from '../../../types/Actor';
+import type { HSL } from '../../../utils/colorUtils';
+import colorTheme from '../../../constants/colorTheme.json';
 
 // ========================================
 // TYPES
@@ -9,13 +11,17 @@ import type { Actor, SceneryKind } from '../../../types/Actor';
 // `factoryWidthAt` plays for factory rows.
 // ========================================
 
-/** §1.9 row: tank. */
-export interface TankParams { w: number; h: number; corner: number; beltCourses: number }
+/** §1.9 row: tank. `hueShift`/`satShift` are the LOCAL-only range (roadmap Phase 42 Task 13) —
+ *  `placeDistrict` folds them with the AS shift and lean via `foldBodyShift` into
+ *  `Actor.config.hueShift`/`.satShift`, which `renderers/tank.tsx` reads instead of these. */
+export interface TankParams { w: number; h: number; corner: number; beltCourses: number; hueShift: number; satShift: number }
 /** §1.9 row: crane. */
 export interface CraneParams { w: number; h: number; hangerFrac: number }
 /** §1.9 row: pylon. */
 export interface PylonParams { w: number; h: number }
-/** §1.9 row: wall. */
+/** §1.9 row: wall. `hueShift`/`satShift` are the LOCAL-only range (roadmap Phase 42 Task 13) —
+ *  `placeDistrict` folds them with the AS shift and lean via `foldBodyShift` into
+ *  `Actor.config.hueShift`/`.satShift`, which `renderers/wall.tsx` reads instead of these. */
 export interface WallParams { w: number; h: number; hueShift: number; satShift: number }
 /** §1.9 row: beacon. */
 export interface BeaconParams { w: number; mastH: number; gemW: number }
@@ -80,13 +86,19 @@ const int = (rng: () => number, min: number, max: number): number => Math.floor(
 type Draw<T> = (rng: () => number) => T;
 
 const RANGE_TABLE: { [K in SceneryKind]: Draw<NonNullable<SceneryParams[K]>> } = {
-  // tank (M, F): w 90-150, h 140-260, corner 0.35-0.65, 1-3 belt courses.
-  tank: (rng): TankParams => ({ w: lerp(rng, 90, 150), h: lerp(rng, 140, 260), corner: lerp(rng, 0.35, 0.65), beltCourses: int(rng, 1, 3) }),
+  // tank (M, F): w 90-150, h 140-260, corner 0.35-0.65, 1-3 belt courses. body shell.shadow +
+  // shift (lean folded at placement, Task 13) — hue ±20, sat ±15 is a first-pass range (spec §1.9
+  // gives no explicit numbers for tank, unlike wall's +40..60/-30..0); tune here if a manual check
+  // finds it reads as invisible or overwhelming, same caveat as AS_FACTORY_HUE_SHIFT_RANGE.
+  tank: (rng): TankParams => ({
+    w: lerp(rng, 90, 150), h: lerp(rng, 140, 260), corner: lerp(rng, 0.35, 0.65), beltCourses: int(rng, 1, 3),
+    hueShift: lerp(rng, -20, 20), satShift: lerp(rng, -15, 15),
+  }),
   // crane (F): w 220-360, h 260-380, hanger at 0.2-0.8 w.
   crane: (rng): CraneParams => ({ w: lerp(rng, 220, 360), h: lerp(rng, 260, 380), hangerFrac: lerp(rng, 0.2, 0.8) }),
   // pylon (B, M): w 60-90, h 260-420.
   pylon: (rng): PylonParams => ({ w: lerp(rng, 60, 90), h: lerp(rng, 260, 420) }),
-  // wall (F): w 160-420, h 28-70, body hue +40..60, sat -30..0 (lean added at placement, T13).
+  // wall (F): w 160-420, h 28-70, body hue +40..60, sat -30..0 + lean (folded at placement, Task 13).
   wall: (rng): WallParams => ({ w: lerp(rng, 160, 420), h: lerp(rng, 28, 70), hueShift: lerp(rng, 40, 60), satShift: lerp(rng, -30, 0) }),
   // beacon (F): mast 10 x (120-220), foot 60 x 12, gem gw 40-64.
   beacon: (rng): BeaconParams => ({ w: 60, mastH: lerp(rng, 120, 220), gemW: lerp(rng, 40, 64) }),
@@ -149,6 +161,20 @@ const MAX_SHAPES: Record<SceneryKind, number> = {
   tether: 5,
   floodlight: 6,
   dish: 5,
+};
+
+/**
+ * The pre-shift base body colour for each body-bearing scenery family (docs/specs/
+ * WORLD_VIEW_DISTRICTS.md §1.8) — the "variant base" equivalent for scenery that
+ * `foldBodyShift` (factoryPlacementSystem.ts) computes the Phase 35 lean from, exactly as
+ * `VARIANT_CONF[variant].colors.body` does for factories. Only kinds present here get a
+ * stored, AS-recolorable shift (`placeDistrict`/`recolorActorsForAttenuationStyle`); dome,
+ * containers and scaffold join in roadmap Phase 42 Task 14. Structural families (crane, pylon,
+ * boulder, …) are deliberately absent — they store no shift (§1.8).
+ */
+export const BODY_BEARING_BASE: Partial<Record<SceneryKind, HSL>> = {
+  wall: colorTheme.body.base,
+  tank: colorTheme.shell.shadow,
 };
 
 // ========================================

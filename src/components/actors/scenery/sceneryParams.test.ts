@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ActorType, type Actor, type SceneryKind } from '../../../types/Actor';
-import { deriveSceneryParams, maxShapes } from './sceneryParams';
+import { deriveSceneryParams, maxShapes, BODY_BEARING_BASE } from './sceneryParams';
 
 function stubActor(id: string, kind: SceneryKind): Actor {
   return {
@@ -15,7 +15,7 @@ function stubActor(id: string, kind: SceneryKind): Actor {
 
 /** [min, max] (inclusive) per field, keyed by kind — mirrors §1.9's table (RANGE_TABLE comments). */
 const RANGES: Record<SceneryKind, Record<string, [number, number]>> = {
-  tank: { w: [90, 150], h: [140, 260], corner: [0.35, 0.65], beltCourses: [1, 3] },
+  tank: { w: [90, 150], h: [140, 260], corner: [0.35, 0.65], beltCourses: [1, 3], hueShift: [-20, 20], satShift: [-15, 15] },
   crane: { w: [220, 360], h: [260, 380], hangerFrac: [0.2, 0.8] },
   pylon: { w: [60, 90], h: [260, 420] },
   wall: { w: [160, 420], h: [28, 70], hueShift: [40, 60], satShift: [-30, 0] },
@@ -84,5 +84,24 @@ describe('maxShapes', () => {
 
   it('wall\'s budget covers its actual rendered element count (3: west/east body + cap rail)', () => {
     expect(maxShapes('wall')).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// Roadmap Phase 42 Task 13: only families whose stored shift `foldBodyShift`/
+// `recolorActorsForAttenuationStyle` fold and recolor carry a base body colour here.
+describe('BODY_BEARING_BASE', () => {
+  it('has exactly wall and tank as of Task 13 (dome/containers/scaffold join in Task 14)', () => {
+    expect(Object.keys(BODY_BEARING_BASE).sort()).toEqual(['tank', 'wall']);
+  });
+
+  it('every entry is a valid HSL triple', () => {
+    for (const hsl of Object.values(BODY_BEARING_BASE)) {
+      expect(hsl!.h).toBeGreaterThanOrEqual(0);
+      expect(hsl!.h).toBeLessThanOrEqual(360);
+      expect(hsl!.s).toBeGreaterThanOrEqual(0);
+      expect(hsl!.s).toBeLessThanOrEqual(100);
+      expect(hsl!.l).toBeGreaterThanOrEqual(0);
+      expect(hsl!.l).toBeLessThanOrEqual(100);
+    }
   });
 });

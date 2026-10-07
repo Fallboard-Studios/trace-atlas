@@ -162,8 +162,8 @@ describe('districts', () => {
   });
 
   describe('SHIPPED_SCENERY', () => {
-    it('is wall, pylon, beacon, boulder, as of roadmap Phase 42 Tasks 11-12 (D2)', () => {
-      expect(SHIPPED_SCENERY).toEqual(new Set(['wall', 'pylon', 'beacon', 'boulder']));
+    it('is wall, pylon, beacon, boulder, tank, as of roadmap Phase 42 Tasks 11-13 (D2)', () => {
+      expect(SHIPPED_SCENERY).toEqual(new Set(['wall', 'pylon', 'beacon', 'boulder', 'tank']));
     });
   });
 

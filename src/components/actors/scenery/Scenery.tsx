@@ -14,6 +14,7 @@ import { wall } from './renderers/wall';
 import { pylon } from './renderers/pylon';
 import { beacon } from './renderers/beacon';
 import { boulder } from './renderers/boulder';
+import { tank } from './renderers/tank';
 
 /**
  * Gem-accent build flag (docs/specs/WORLD_VIEW_DISTRICTS.md §1.10, spec §7 Q4) — removed in
@@ -32,6 +33,7 @@ export const SCENERY_RENDERERS: Partial<Record<SceneryKind, SceneryRenderer>> = 
   pylon,
   beacon,
   boulder,
+  tank,
 };
 
 const NO_ACCENT: AccentPair = { primary: 0, secondary: 0 };

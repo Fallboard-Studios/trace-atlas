@@ -13,7 +13,7 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
     position: { x: 500, y: 1030 },
     isActive: false,
     cooldownRemaining: 0,
-    config: { kind: 'wall', district: 'outskirts', row: 7 },
+    config: { kind: 'wall', district: 'outskirts', row: 7, hueShift: 50, satShift: -15 },
   };
   return {
     actor,

@@ -8,7 +8,7 @@ import { useUIStore } from '../stores/uiStore';
 // bpm/globalAudio/lfoBank/globalLfoLinks on a style change (finalizeAttenuationStyleTransition
 // relies on it), so it must be loaded wherever a retransmit can run.
 import '../stores/audioStore';
-import { recolorFactoriesForAttenuationStyle } from './factoryPlacementSystem';
+import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { placeDistrict } from './districts';
 import { spawnInitialRoster, spawnInitialCompanies } from './spawnSystem';
 import { startRobotLifecycle, stopRobotLifecycle, assignJob } from './robotSystems';
@@ -227,7 +227,7 @@ function finalizeAttenuationStyleTransition(newAttenuationStyle: AttenuationStyl
  *  it, so there is genuinely nothing to regenerate. dayStartTimestamp is NOT
  *  recalculated here — inverted from the old Attenuation-Style-owned-time
  *  behavior, see docs/specs/ATTENUATION_STYLE.md §1.1. Factory colors DO
- *  change — recolorFactoriesForAttenuationStyle is new coupling, not a
+ *  change — recolorActorsForAttenuationStyle is new coupling, not a
  *  preservation exception; see §1.2. */
 function retransmitAttenuationStyleOnly(oldAttenuationStyle: AttenuationStyle, oldLocaleId: string | undefined, attenuationStyleName: string): void {
   const newAttenuationStyle = createNewAttenuationStyle(attenuationStyleName);
@@ -239,7 +239,7 @@ function retransmitAttenuationStyleOnly(oldAttenuationStyle: AttenuationStyle, o
     // dayStartTimestamp even indirectly, since it isn't mentioned.
     useLocaleStore.getState().setLocaleData(oldLocaleId, { attenuationStyleId: newAttenuationStyle.id });
     useAttenuationStyleStore.getState().setCurrentLocale(newAttenuationStyle.id, oldLocaleId);
-    recolorFactoriesForAttenuationStyle(oldLocaleId, newAttenuationStyle.id, newAttenuationStyle.name);
+    recolorActorsForAttenuationStyle(oldLocaleId, newAttenuationStyle.id, newAttenuationStyle.name);
   }
 
   // finalizeAttenuationStyleTransition's removeAttenuationStyle(oldAttenuationStyle)

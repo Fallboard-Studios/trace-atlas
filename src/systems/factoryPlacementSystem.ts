@@ -11,12 +11,13 @@ import { calcSilhouetteSize } from '../components/actors/silhouetteUtils';
 import { getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import { generateUUID } from '../utils/randomId';
-import { shiftHSL, type ColorShift } from '../utils/colorUtils';
+import { shiftHSL, type ColorShift, type HSL } from '../utils/colorUtils';
 import { computeAccentLean, secondaryFor, ACCENT_HUES, type AccentPair } from '../utils/accentLean';
 import { ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { RECIPES, type DistrictRow } from './districtRecipes';
-import type { DistrictName } from '../types/Actor';
+import type { DistrictName, SceneryKind } from '../types/Actor';
 import { WORLD_BOUNDS } from '../constants/sceneDepth';
+import { BODY_BEARING_BASE, deriveSceneryParams } from '../components/actors/scenery/sceneryParams';
 
 // Re-exported so districts.ts's existing `import { WORLD_BOUNDS } from
 // './factoryPlacementSystem'` (roadmap Phase 42 Task 4) keeps working after
@@ -36,7 +37,7 @@ const DEFAULT_CENTER_WIDTH = 0.4; // 40% of screen width for center spread
  *  Actor whose config.row is missing — a defensive default, not a real
  *  spawn-time path (createFactory always writes config.row explicitly, so
  *  every real factory has one). Shared by Factory.tsx's own render-time
- *  fallback and recolorFactoriesForAttenuationStyle's row lookup so the two
+ *  fallback and recolorActorsForAttenuationStyle's row lookup so the two
  *  can't silently drift apart — previously two independent `?? 1` literals
  *  kept in sync only by a comment. Distinct from createFactory's own `row = 0`
  *  parameter default below, which is a different thing for a different
@@ -53,6 +54,13 @@ export const DEFAULT_FACTORY_ROW = 1;
  *  finds it reads as invisible or overwhelming. */
 const AS_FACTORY_HUE_SHIFT_RANGE: [number, number] = [-30, 30];
 const AS_FACTORY_SAT_SHIFT_RANGE: [number, number] = [-20, 20];
+
+/** Same magnitude as the factory AS ranges above, own dataId namespace (roadmap Phase 42
+ *  Task 13) — body-bearing scenery (wall, tank, …) gets its own AS-seeded delta rather than
+ *  sharing the factory draw, matching the project's one-dataId-per-family convention
+ *  ('scenery.id' vs 'factory.id', 'actor.derelict', …). */
+const AS_SCENERY_HUE_SHIFT_RANGE: [number, number] = [-30, 30];
+const AS_SCENERY_SAT_SHIFT_RANGE: [number, number] = [-20, 20];
 
 /** Fixed non-zero, non-integer offset for the Attenuation-Style-level accent-pair draw — a
  *  single-value dataId sampled at offset 0 can collapse to 3–4 values across every seed if its
@@ -108,6 +116,38 @@ export function pickAccentTarget(asNoiseMap: NoiseFunction2D, pair: AccentPair, 
   return getSeededVal(asNoiseMap, 'factory.as.accentPick', index, 0, 1) < 0.5 ? pair.primary : pair.secondary;
 }
 
+/** `deriveAsColorShift`'s scenery counterpart (roadmap Phase 42 Task 13) — same shape, own
+ *  dataId namespace, keyed by the scenery actor's index in the locale's scenery counter
+ *  (`districts.ts`'s `sceneryIndex`), not the factory one. */
+export function deriveSceneryAsColorShift(noiseMap: NoiseFunction2D, index: number): ColorShift {
+  return {
+    hueShift: getSeededVal(noiseMap, 'scenery.as.hueShift', index, ...AS_SCENERY_HUE_SHIFT_RANGE),
+    satShift: getSeededVal(noiseMap, 'scenery.as.satShift', index, ...AS_SCENERY_SAT_SHIFT_RANGE),
+  };
+}
+
+/** `pickAccentTarget`'s scenery counterpart — own dataId, same seeded-coin shape. */
+export function pickSceneryAccentTarget(asNoiseMap: NoiseFunction2D, pair: AccentPair, index: number): number {
+  return getSeededVal(asNoiseMap, 'scenery.as.accentPick', index, 0, 1) < 0.5 ? pair.primary : pair.secondary;
+}
+
+/**
+ * The pure fold every body-bearing actor's final stored `hueShift`/`satShift` goes through
+ * (docs/specs/WORLD_VIEW_DISTRICTS.md §1.8) — extracted from `createFactory` (roadmap Phase 42
+ * Task 13) so scenery's body-bearing families (wall, tank, …) can share the exact same math
+ * instead of re-deriving it: local shift (variant-style or scenery-kind range) + AS shift,
+ * additively, then an optional Phase 35 accent lean computed from the body colour that
+ * combined shift actually produces on `baseBody`. `undefined` accentTarget means no lean —
+ * byte-identical to summing local + AS alone.
+ */
+export function foldBodyShift(baseBody: HSL, localShift: ColorShift, asShift: ColorShift, accentTarget?: number): ColorShift {
+  const combined = { hueShift: localShift.hueShift + asShift.hueShift, satShift: localShift.satShift + asShift.satShift };
+  const lean = accentTarget === undefined
+    ? { hueShift: 0, satShift: 0 }
+    : computeAccentLean(shiftHSL(baseBody, combined), accentTarget);
+  return { hueShift: combined.hueShift + lean.hueShift, satShift: combined.satShift + lean.satShift };
+}
+
 /**
  * Create a single factory actor with position and scale.
  *
@@ -138,16 +178,10 @@ export function createFactory(
 ): Actor {
   const { variant, hueShift: localHue, satShift: localSat, rooftopGreeble, facadeGreeble, beltCourseCount, purpose } = selectVariantFromSeed(id, position.x, row, availableTypes);
 
-  // Additive: locale-seeded local shift + AS-seeded shift, never a
-  // replacement. See docs/specs/ATTENUATION_STYLE.md §1.2.
-  const combined = { hueShift: localHue + asShift.hueShift, satShift: localSat + asShift.satShift };
-  // Phase 35 accent lean — one more additive delta, computed from the body colour the
-  // combined shift actually produces, so the pull aims from where the building really sits.
-  const lean = accentTarget === undefined
-    ? { hueShift: 0, satShift: 0 }
-    : computeAccentLean(shiftHSL(VARIANT_CONF[variant].colors.body, combined), accentTarget);
-  const hueShift = combined.hueShift + lean.hueShift;
-  const satShift = combined.satShift + lean.satShift;
+  // Additive: locale-seeded local shift + AS-seeded shift + Phase 35 accent lean, never a
+  // replacement. See docs/specs/ATTENUATION_STYLE.md §1.2; foldBodyShift (roadmap Phase 42
+  // Task 13) is this exact fold, shared with scenery's body-bearing families.
+  const { hueShift, satShift } = foldBodyShift(VARIANT_CONF[variant].colors.body, { hueShift: localHue, satShift: localSat }, asShift, accentTarget);
 
   return {
     id,
@@ -172,52 +206,68 @@ export function createFactory(
 }
 
 /**
- * Recolor an existing locale's factories in place for a new Attenuation
- * Style — position/count/id/variant/scale/greebles/purpose are all
- * untouched; only each factory's stored hueShift/satShift change. Re-derives
- * each factory's locale-seeded LOCAL shift from scratch (same inputs
- * Factory.tsx's own render already recomputes) rather than trying to
- * subtract out the previous AS delta, so repeated AS changes never
- * accumulate drift. Called only from retransmitAttenuationStyleOnly (worldTransition.ts)
- * — never from placeDistrict's own fresh-spawn path, which folds the current
- * AS's shift in at creation time instead. See docs/specs/ATTENUATION_STYLE.md §1.2.
+ * Recolor an existing locale's factories AND body-bearing scenery (wall, tank, … —
+ * `BODY_BEARING_BASE`, roadmap Phase 42 Task 13) in place for a new Attenuation Style —
+ * position/count/id/variant/scale/greebles/purpose are all untouched; only each actor's
+ * stored hueShift/satShift change. Re-derives each actor's locale-seeded LOCAL shift from
+ * scratch (same inputs the render path already recomputes) rather than trying to subtract
+ * out the previous AS delta, so repeated AS changes never accumulate drift. Called only from
+ * retransmitAttenuationStyleOnly (worldTransition.ts) — never from placeDistrict's own
+ * fresh-spawn path, which folds the current AS's shift in at creation time instead. See
+ * docs/specs/ATTENUATION_STYLE.md §1.2, docs/specs/WORLD_VIEW_DISTRICTS.md §1.8.
+ *
+ * Structural scenery (crane, pylon, boulder, …) stores no shift and is left untouched —
+ * `BODY_BEARING_BASE[kind]` is `undefined` for every one of them, so the scenery branch below
+ * is a no-op for them without a separate check.
  *
  * District/row (roadmap Phase 42 Task 5): a factory's variant filter is now its own district
  * recipe row's `variants`, read via `getRecipeRow(district, row)` — `district` falls back to
  * `'dense'` and `row` to `DEFAULT_FACTORY_ROW` (matching `Factory.tsx`'s own render-time
  * fallback) only for a hand-built actor missing one; every real factory has both.
  */
-export function recolorFactoriesForAttenuationStyle(localeId: string, attenuationStyleId: string, attenuationStyleName: string): void {
+export function recolorActorsForAttenuationStyle(localeId: string, attenuationStyleId: string, attenuationStyleName: string): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
   if (!locale) return;
   const asNoiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
   // Phase 35: the NEW style's accent pair — a retransmit moves the whole skyline onto it
-  // (docs/specs/WORLD_PALETTE_PULL.md §1.3, last paragraph). Same per-factory computation as
-  // placeDistrict → createFactory, so the two write sites always agree.
+  // (docs/specs/WORLD_PALETTE_PULL.md §1.3, last paragraph). Same per-actor computation as
+  // placeDistrict → createFactory/body-bearing scenery, so the two write sites always agree.
   const accentPair = deriveAsAccentPair(asNoiseMap);
 
+  // Two independent counters, mirroring placeDistrict's own factoryIndex/sceneryIndex split
+  // (districts.ts) — each increments once per actor of its type, in locale.actors' array
+  // order, which is the exact order placeDistrict built it in.
   let factoryIndex = 0;
+  let sceneryIndex = 0;
   const nextActors = locale.actors.map((actor) => {
-    if (actor.type !== ActorType.FACTORY) return actor;
-    const index = factoryIndex++;
-    const district = actor.config?.district ?? 'dense';
-    // DEFAULT_FACTORY_ROW matches Factory.tsx's own render-time fallback —
-    // shared constant, not createFactory's separate `row = 0` spawn-time
-    // default — this must reproduce what's actually rendered.
-    const row = actor.config?.row ?? DEFAULT_FACTORY_ROW;
-    const availableTypes = getRecipeRow(district, row)?.variants;
-    const { variant, hueShift: localHue, satShift: localSat } = selectVariantFromSeed(actor.id, actor.position.x, row, availableTypes);
-    const asShift = deriveAsColorShift(asNoiseMap, index);
-    const combined = { hueShift: localHue + asShift.hueShift, satShift: localSat + asShift.satShift };
-    const lean = computeAccentLean(shiftHSL(VARIANT_CONF[variant].colors.body, combined), pickAccentTarget(asNoiseMap, accentPair, index));
-    return {
-      ...actor,
-      config: {
-        ...actor.config,
-        hueShift: combined.hueShift + lean.hueShift,
-        satShift: combined.satShift + lean.satShift,
-      },
-    };
+    if (actor.type === ActorType.FACTORY) {
+      const index = factoryIndex++;
+      const district = actor.config?.district ?? 'dense';
+      // DEFAULT_FACTORY_ROW matches Factory.tsx's own render-time fallback —
+      // shared constant, not createFactory's separate `row = 0` spawn-time
+      // default — this must reproduce what's actually rendered.
+      const row = actor.config?.row ?? DEFAULT_FACTORY_ROW;
+      const availableTypes = getRecipeRow(district, row)?.variants;
+      const { variant, hueShift: localHue, satShift: localSat } = selectVariantFromSeed(actor.id, actor.position.x, row, availableTypes);
+      const asShift = deriveAsColorShift(asNoiseMap, index);
+      const accentTarget = pickAccentTarget(asNoiseMap, accentPair, index);
+      const { hueShift, satShift } = foldBodyShift(VARIANT_CONF[variant].colors.body, { hueShift: localHue, satShift: localSat }, asShift, accentTarget);
+      return { ...actor, config: { ...actor.config, hueShift, satShift } };
+    }
+
+    if (actor.type === ActorType.SCENERY) {
+      const index = sceneryIndex++;
+      const kind = actor.config?.kind as SceneryKind | undefined;
+      const baseBody = kind ? BODY_BEARING_BASE[kind] : undefined;
+      if (!baseBody) return actor; // structural scenery stores no shift — untouched
+      const local = deriveSceneryParams(actor)[kind!] as { hueShift: number; satShift: number };
+      const asShift = deriveSceneryAsColorShift(asNoiseMap, index);
+      const accentTarget = pickSceneryAccentTarget(asNoiseMap, accentPair, index);
+      const { hueShift, satShift } = foldBodyShift(baseBody, { hueShift: local.hueShift, satShift: local.satShift }, asShift, accentTarget);
+      return { ...actor, config: { ...actor.config, hueShift, satShift } };
+    }
+
+    return actor;
   });
 
   useLocaleStore.getState().setLocaleData(localeId, { actors: nextActors });
