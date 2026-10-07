@@ -87,6 +87,14 @@ describe('robotSelectionConfig', () => {
         expect(JOB_TYPE_LABELS[type].humanLabel).toBeTruthy();
       }
     });
+
+    it('has six entries, Salvage and Maintenance among them (Phase 43 Task 4)', () => {
+      expect(Object.keys(JOB_TYPE_LABELS)).toHaveLength(6);
+      expect(JOB_TYPE_LABELS.salvage.humanLabel).toBe('Salvage');
+      expect(JOB_TYPE_LABELS.maintenance.humanLabel).toBe('Maintenance');
+      expect(JOB_TYPE_LABELS.salvage.loreLabel).toBeTruthy();
+      expect(JOB_TYPE_LABELS.maintenance.loreLabel).toBeTruthy();
+    });
   });
 
   describe('UNASSIGNED_JOB_LABEL', () => {
@@ -103,6 +111,14 @@ describe('robotSelectionConfig', () => {
         expect(DOCKING_STATE_LABELS[state].loreLabel).toBeTruthy();
         expect(DOCKING_STATE_LABELS[state].humanLabel).toBeTruthy();
       }
+    });
+
+    it('labels exactly the four renamed states — Docked / Undocking / Active / Recalled, no stale Docking/Departing entry (Phase 43 §1.1)', () => {
+      expect(Object.keys(DOCKING_STATE_LABELS).sort()).toEqual([...Object.values(DockingState)].sort());
+      expect(DOCKING_STATE_LABELS[DockingState.Docked].humanLabel).toBe('Docked');
+      expect(DOCKING_STATE_LABELS[DockingState.Undocking].humanLabel).toBe('Undocking');
+      expect(DOCKING_STATE_LABELS[DockingState.Active].humanLabel).toBe('Active');
+      expect(DOCKING_STATE_LABELS[DockingState.Recalled].humanLabel).toBe('Recalled');
     });
   });
 

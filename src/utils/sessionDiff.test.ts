@@ -192,7 +192,7 @@ describe('computeRobotAudioOverrideDiff', () => {
       masterVolume: 0.99,
       docking: 'docked',
       batteryLevel: 12,
-      job: { type: 'acousticSurvey', assignedAtMeasure: 4 },
+      job: 'acousticSurvey',
     });
     const diff = computeRobotAudioOverrideDiff(live, baseline);
     expect(diff).not.toHaveProperty('audioMode');

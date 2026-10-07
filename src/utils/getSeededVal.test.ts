@@ -1,11 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { NoiseFunction2D } from 'simplex-noise';
+import alea from 'alea';
+import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 
 vi.mock('./seedUtils', () => ({
   getGlobalAttenuationStyleSeedOverride: vi.fn(() => null),
 }));
 
-import { precomputeDataX, getSeededVal } from './getSeededVal';
+import { precomputeDataX, getSeededVal, getUniformSeededVal } from './getSeededVal';
 import { getGlobalAttenuationStyleSeedOverride } from './seedUtils';
 
 describe('precomputeDataX', () => {
@@ -55,5 +56,31 @@ describe('getSeededVal', () => {
     expect(getSeededVal(stubNoiseMap(0), 'k')).toBe(0.5);
     expect(getSeededVal(stubNoiseMap(-1), 'k')).toBe(0);
     expect(getSeededVal(stubNoiseMap(1), 'k')).toBe(1);
+  });
+});
+
+describe('getUniformSeededVal', () => {
+  const GRID_AXIS = [-200, -160, -120, -80, -40, 0, 40, 80, 120, 160, 200];
+  const worldMaps = GRID_AXIS.flatMap((x) => GRID_AXIS.map((y) => createNoise2D(alea(`${x}:${y}`))));
+
+  it('is alea() over three getSeededVal samples at offset + [0, 137.42, 911.77], joined by ":"', () => {
+    const noiseMap = worldMaps[17];
+    const samples = [0, 137.42, 911.77].map((s) => getSeededVal(noiseMap, 'k', 5 + s, 0, 1));
+    expect(getUniformSeededVal(noiseMap, 'k', 5)).toBe(alea(samples.join(':'))());
+  });
+
+  it('defaults offset to 0 and stays in [0, 1)', () => {
+    for (const noiseMap of worldMaps) {
+      const v = getUniformSeededVal(noiseMap, 'k');
+      expect(v).toBe(getUniformSeededVal(noiseMap, 'k', 0));
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThan(1);
+    }
+  });
+
+  it('spreads across worlds at offset 0, where one getSeededVal sample barely moves', () => {
+    const distinct = (vals: number[]) => new Set(vals.map((v) => Math.round(v * 1000))).size;
+    expect(distinct(worldMaps.map((m) => getSeededVal(m, 'locale.coverage.x', 0, 0, 1)))).toBeLessThan(10);
+    expect(distinct(worldMaps.map((m) => getUniformSeededVal(m, 'locale.coverage.x', 0)))).toBeGreaterThan(110);
   });
 });

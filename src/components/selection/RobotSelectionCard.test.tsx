@@ -79,8 +79,14 @@ describe('RobotSelectionCard', () => {
   });
 
   it("renders the assigned job's human label when job is set", () => {
-    renderCard({ job: { type: 'acousticSurvey', assignedAtMeasure: 1 } });
+    renderCard({ job: 'acousticSurvey' });
     expect(screen.getByText(JOB_TYPE_LABELS.acousticSurvey.humanLabel)).toBeTruthy();
+  });
+
+  it.each(['salvage', 'maintenance'] as const)("renders the new %s job's human label (Phase 43 Task 4)", (job) => {
+    renderCard({ job });
+    expect(screen.getByText(JOB_TYPE_LABELS[job].humanLabel)).toBeTruthy();
+    expect(screen.queryByText(UNASSIGNED_JOB_LABEL.humanLabel)).toBeNull();
   });
 
   it('renders "Unassigned" when the robot has no job', () => {

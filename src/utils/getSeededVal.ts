@@ -58,3 +58,17 @@ export function getSeededVal(
   const raw = noiseMap(x, offset); // simplex noise in [-1, 1]
   return min + ((raw + 1) / 2) * (max - min);
 }
+
+/** Added to the offset for getUniformSeededVal's three samples — arbitrary, non-integer, far apart. */
+const UNIFORM_SAMPLE_SHIFTS = [0, 137.42, 911.77] as const;
+
+/**
+ * A uniform [0, 1) draw that varies from world to world at every offset. One getSeededVal sample
+ * is bell-curved, and at offset 0 it takes only ~3 values across all worlds; three samples at
+ * spread offsets, hashed together through alea(), fix both. Use it wherever one seeded draw picks
+ * a world-level choice or position (district, stations, coverage top-ups).
+ */
+export function getUniformSeededVal(noiseMap: NoiseFunction2D, dataId: string, offset = 0): number {
+  const samples = UNIFORM_SAMPLE_SHIFTS.map((shift) => getSeededVal(noiseMap, dataId, offset + shift, 0, 1));
+  return alea(samples.join(':'))();
+}

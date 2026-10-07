@@ -2,6 +2,7 @@ import colorTheme from '../../../../constants/colorTheme.json';
 import { applyColorShift, clamp } from '../../../../utils/colorUtils';
 import { NO_SHIFT } from '../sceneryColor';
 import type { SceneryRenderer } from '../sceneryTypes';
+import type { WreckParams } from '../sceneryParams';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 wreck row)
@@ -28,6 +29,42 @@ const WRECK_BODY_SAT = 6;
  *  directly instead. */
 const WRECK_CAP_MULT = 0.5;
 
+/** The wreck's hull and superstructure geometry, scene units. */
+export interface WreckLayout {
+  /** Hull top (the bow's top corner sits here). */
+  top: number;
+  /** Where the flat deck ends and the 45° raked bow begins. */
+  splitX: number;
+  /** The hull's right edge (the bow's foot). */
+  x1: number;
+  /** The deck rail's top. */
+  deckY: number;
+  deckhouseX: number;
+  deckhouseW: number;
+  deckhouseTop: number;
+  funnelX: number;
+  funnelW: number;
+  funnelTop: number;
+}
+
+/** Shared with the work-site anchors (Phase 43), so the two can't drift. */
+export function wreckLayout(x: number, y: number, p: Pick<WreckParams, 'w' | 'h' | 'deckhouseFrac'>): WreckLayout {
+  const { w, h, deckhouseFrac } = p;
+  const top = y - h;
+  // "45° raked bow (x1 - h)" — x1 is the hull's right edge; the raked edge starts h short of it,
+  // so its horizontal and vertical run are both exactly h.
+  const x1 = x + w / 2;
+  const splitX = x1 - h;
+  const deckY = top - DECK_RAIL_H;
+  const deckW = w - h; // the flat deck's own width, before the raked bow
+  const deckhouseW = deckhouseFrac * w;
+  const deckhouseX = x - w / 2 + deckW / 2 - deckhouseW / 2;
+  const deckhouseTop = deckY - DECKHOUSE_H;
+  const funnelW = deckhouseW * FUNNEL_W_FRAC;
+  const funnelX = deckhouseX + deckhouseW / 2 - funnelW / 2;
+  return { top, splitX, x1, deckY, deckhouseX, deckhouseW, deckhouseTop, funnelX, funnelW, funnelTop: deckhouseTop - FUNNEL_H };
+}
+
 /**
  * Wreck (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9): a stern block and a 45°-raked bow, a deck
  * rail, a deckhouse with a funnel, a row of dead (unlit) portholes, and a keel shadow. Always
@@ -38,17 +75,14 @@ export const wreck: SceneryRenderer = ({ actor, params, cap, eastL, westL }) => 
   const { x, y } = actor.position;
   const p = params.wreck;
   if (!p) return <g data-scenery="wreck" />;
-  const { w, h, deckhouseFrac, portholes } = p;
+  const { w, h, portholes } = p;
 
   const effectiveCap = cap * WRECK_CAP_MULT;
   const avgL = (eastL + westL) / 2;
   const bodyBase = { ...colorTheme.body.base, s: clamp(WRECK_BODY_SAT, 0, 100) };
 
-  const top = y - h;
-  // "45° raked bow (x1 - h)" — x1 is the hull's right edge; the raked edge starts h short of it,
-  // so its horizontal and vertical run are both exactly h.
-  const x1 = x + w / 2;
-  const splitX = x1 - h;
+  const { top, splitX, x1, deckY, deckhouseX, deckhouseW, deckhouseTop, funnelX, funnelW, funnelTop } = wreckLayout(x, y, p);
+  const deckW = w - h; // the flat deck's own width, before the raked bow
 
   const hullWestPoints = [`${x - w / 2},${y}`, `${x - w / 2},${top}`, `${splitX},${top}`, `${splitX},${y}`].join(' ');
   const bowPoints = [`${splitX},${top}`, `${x1},${y}`, `${splitX},${y}`].join(' ');
@@ -59,13 +93,6 @@ export const wreck: SceneryRenderer = ({ actor, params, cap, eastL, westL }) => 
   const superstructureFill = applyColorShift(colorTheme.shell.shadow, NO_SHIFT, avgL * effectiveCap);
   const portholeFill = applyColorShift(colorTheme.shadowDepth, NO_SHIFT, effectiveCap);
   const keelFill = applyColorShift(colorTheme.shadowDepth, NO_SHIFT, avgL * effectiveCap);
-
-  const deckY = top - DECK_RAIL_H;
-  const deckW = w - h; // the flat deck's own width, before the raked bow
-  const deckhouseW = deckhouseFrac * w;
-  const deckhouseX = x - w / 2 + deckW / 2 - deckhouseW / 2;
-  const deckhouseTop = deckY - DECKHOUSE_H;
-  const funnelW = deckhouseW * FUNNEL_W_FRAC;
 
   const portholeSpan = deckW - PORTHOLE_R * 4;
   const portholeStartX = x - w / 2 + PORTHOLE_R * 2;
@@ -79,8 +106,8 @@ export const wreck: SceneryRenderer = ({ actor, params, cap, eastL, westL }) => 
       <rect data-wreck="deckhouse" x={deckhouseX} y={deckhouseTop} width={deckhouseW} height={DECKHOUSE_H} fill={superstructureFill} />
       <rect
         data-wreck="funnel"
-        x={deckhouseX + deckhouseW / 2 - funnelW / 2}
-        y={deckhouseTop - FUNNEL_H}
+        x={funnelX}
+        y={funnelTop}
         width={funnelW}
         height={FUNNEL_H}
         fill={superstructureFill}

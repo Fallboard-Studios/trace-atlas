@@ -56,6 +56,8 @@ export const probe = {
       acousticSurvey: { human: 'Acoustic Survey', lore: 'HIGH-ALTITUDE ACOUSTIC SURVEY' },
       structuralInspection: { human: 'Structural Inspection', lore: 'STRUCTURAL INTEGRITY INSPECTION' },
       fluidMonitoring: { human: 'Fluid Monitoring', lore: 'SUBSTATION FLUID MONITORING' },
+      salvage: { human: 'Salvage', lore: 'DERELICT HULL SALVAGE' },
+      maintenance: { human: 'Maintenance', lore: 'GRID INFRASTRUCTURE MAINTENANCE' },
     },
   },
   'probe.job.unassigned': { human: 'Unassigned', lore: 'NO PROTOCOL ASSIGNED' },
@@ -65,9 +67,9 @@ export const probe = {
     lore: 'DOCKING STATE',
     options: {
       docked: { human: 'Docked', lore: 'DOCKED' },
-      docking: { human: 'Docking', lore: 'DOCKING' },
-      departing: { human: 'Departing', lore: 'DEPARTING' },
+      undocking: { human: 'Undocking', lore: 'UNDOCKING' },
       active: { human: 'Active', lore: 'ACTIVE' },
+      recalled: { human: 'Recalled', lore: 'RECALLED' },
     },
   },
   'probe.status': {

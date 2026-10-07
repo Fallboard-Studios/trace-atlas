@@ -13,7 +13,6 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
     type: ActorType.SCENERY,
     position: { x: 500, y: 990 },
     isActive: false,
-    cooldownRemaining: 0,
     config: { kind: 'boulder', district: 'outskirts', row: 2 },
   };
   return {

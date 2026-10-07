@@ -46,7 +46,7 @@ interface RobotDisplaySectionProps {
  */
 function RobotDisplaySectionInner({ robot }: RobotDisplaySectionProps) {
   const localeId = getActiveLocaleId();
-  const jobLabel = robot.job ? JOB_TYPE_LABELS[robot.job.type] : UNASSIGNED_JOB_LABEL;
+  const jobLabel = robot.job ? JOB_TYPE_LABELS[robot.job] : UNASSIGNED_JOB_LABEL;
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
   // Boolean selector, not the whole robots array — same re-render-avoidance shape
   // RobotSelectionCard.tsx already uses for the identical isRobotAudible call.

@@ -2,7 +2,7 @@
 // IMPORTS
 // ========================================
 import { devWarn } from '../utils/helpers';
-import { DAY_CYCLE_MEASURES } from '../constants';
+import { BEATS_PER_MEASURE, DAY_CYCLE_MEASURES } from '../constants';
 import { generateUUID } from '../utils/randomId';
 
 // Minimal transport-like interface to avoid importing Tone.js here.
@@ -19,7 +19,6 @@ let transportInstance: TransportLike | null = null;
 // ========================================
 // CONSTANTS
 // ========================================
-const BEATS_PER_MEASURE = 4;
 const MEASURES_PER_HOUR = 4;
 
 // ========================================

@@ -69,7 +69,7 @@ interface ValueLabel {
 
 export const JOB_TYPE_LABELS: Record<JobType, ValueLabel> = optionsRecord('probe.job');
 
-/** Shown in the Job Data row for a robot with no `job` yet (Docked/Docking/Departing). */
+/** Shown in the Job Data row for a robot with no `job` yet (Docked/Undocking/Recalled). */
 export const UNASSIGNED_JOB_LABEL: ValueLabel = labels('probe.job.unassigned');
 
 export const DOCKING_STATE_LABELS: Record<DockingState, ValueLabel> = optionsRecord('probe.status.docking');

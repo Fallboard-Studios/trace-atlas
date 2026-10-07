@@ -14,7 +14,7 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 (The planning skill's default output paths `tasks/plan.md` / `tasks/todo.md` are overridden by the
 repo convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
-> **Spec corrections found while planning (Task 16 folds them into the spec):**
+> **Spec corrections found while planning (folded into the spec by Task 16, 2026-10-07):**
 > 1. **Every branch must leave the app working.** As specced, J1 deletes wandering and strips the
 >    tick's visual effects while the loop that replaces them lands in J2 — between the two, recalled
 >    robots would sit on screen muted and nothing would move. So J1 adds the `onLifecycleChange`
@@ -133,7 +133,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
 
 ### Phase J1: Lifecycle and world data (`feature/jobs-lifecycle`)
 
-- [ ] **Task 1: Rename the docking states**
+- [x] **Task 1: Rename the docking states**
 
   **Description:** `DockingState` becomes `Docked / Undocking / Active / Recalled` with values
   `'docked' / 'undocking' / 'active' / 'recalled'` (spec §1.1). Rename `beginDocking` →
@@ -142,16 +142,16 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   Undocking / Active / Recalled") and `DOCKING_STATE_LABELS`. Pure rename — no behaviour change.
 
   **Acceptance criteria:**
-  - [ ] No reference to `DockingState.Docking`/`Departing` or the strings `'docking'`/`'departing'`
+  - [x] No reference to `DockingState.Docking`/`Departing` or the strings `'docking'`/`'departing'`
         remains in `src/` (grep in the test).
-  - [ ] All existing lifecycle, replay, spawn, idle and card tests pass with only the renamed
+  - [x] All existing lifecycle, replay, spawn, idle and card tests pass with only the renamed
         identifiers changed.
 
   **Verification:** `npm test`; `npm run build:types`, `npm run lint`. **Dependencies:** None.
   **Files:** `src/types/Robot.ts`, `src/systems/robotSystems.ts`, `src/systems/spawnSystem.ts`,
   `src/content/copy/probe.ts`, `src/data/robotSelectionConfig.ts` (+ their tests). **Scope:** M.
 
-- [ ] **Task 2: Injectable drain + the drain sim — stop and report**
+- [x] **Task 2: Injectable drain + the drain sim — stop and report**
 
   **Description:** `stepRobotLifecycle`/`replayLifecycle` take an optional `drain(snapshot)`
   defaulting to today's rule (`BATTERY_DRAIN_BASE + surcharge`). A new `lifecycleSim.ts` (pure)
@@ -160,15 +160,15 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   flat 5, 6 and 7. A test asserts the report's shape; the numbers go to Crawford.
 
   **Acceptance criteria:**
-  - [ ] Default behaviour unchanged: the prove-it replay test passes unmodified.
-  - [ ] The sim is deterministic (same table twice) and touches no store or BeatClock.
-  - [ ] Report table posted; Crawford confirms the flat value (expected 6).
+  - [x] Default behaviour unchanged: the prove-it replay test passes unmodified.
+  - [x] The sim is deterministic (same table twice) and touches no store or BeatClock.
+  - [x] Report table posted; Crawford confirms the flat value (expected 6). — confirmed 6, 2026-10-07.
 
   **Verification:** `npx vitest run src/systems/robotSystems.test.ts src/systems/lifecycleSim.test.ts`.
   **Dependencies:** T1. **Files:** `src/systems/robotSystems.ts`, `src/systems/lifecycleSim.ts`
   (+ tests). **Scope:** S.
 
-- [ ] **Task 3: Flat drain; job out of replay**
+- [x] **Task 3: Flat drain; job out of replay**
 
   **Description:** `BATTERY_DRAIN_ACTIVE` (the confirmed value) replaces `BATTERY_DRAIN_BASE` and
   `JOB_BATTERY_DRAIN_SURCHARGE`; the default `drain` returns it for every Active robot.
@@ -177,16 +177,17 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   (legacy, T5) — it writes the store only.
 
   **Acceptance criteria:**
-  - [ ] Every Active robot drains `BATTERY_DRAIN_ACTIVE` regardless of `job`.
-  - [ ] The prove-it test passes with the narrowed snapshot; mutation check: re-introducing a job
+  - [x] Every Active robot drains `BATTERY_DRAIN_ACTIVE` regardless of `job`.
+  - [x] The prove-it test passes with the narrowed snapshot; mutation check: re-introducing a job
         surcharge in the live tick breaks it.
-  - [ ] Invariant, hold and pitch-drift tests pass unmodified.
+  - [x] Invariant, hold and pitch-drift tests pass unmodified. — logic unmodified; their battery
+        fixtures name `BATTERY_DRAIN_ACTIVE` where they named `BATTERY_DRAIN_BASE`.
 
   **Verification:** `npx vitest run src/systems/robotSystems.test.ts`; `npm run build:types`.
   **Dependencies:** T2. **Files:** `src/systems/robotSystems.ts`, `src/constants/index.ts` (+ tests).
   **Scope:** S.
 
-- [ ] **Task 4: Six job types; `job` becomes the bare type**
+- [x] **Task 4: Six job types; `job` becomes the bare type**
 
   **Description:** `JobType` gains `salvage` and `maintenance`; `Robot.job` becomes `JobType`
   (drop `assignedAtMeasure`). `probe.job` gains Salvage and Maintenance with lore lines (copy-tone
@@ -195,15 +196,16 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   Cards read `robot.job` directly.
 
   **Acceptance criteria:**
-  - [ ] `JOB_TYPE_LABELS` has six entries; content test green; no literals in components.
-  - [ ] Cards show the job label for a robot with a job and "Unassigned" without one.
+  - [x] `JOB_TYPE_LABELS` has six entries; content test green; no literals in components.
+  - [x] Cards show the job label for a robot with a job and "Unassigned" without one. — lore lines
+        "DERELICT HULL SALVAGE" / "GRID INFRASTRUCTURE MAINTENANCE" await Crawford's review.
 
   **Verification:** `npx vitest run src/content src/components/selection src/components/robot/RobotDisplaySection.test.tsx`.
   **Dependencies:** T1. **Files:** `src/types/Robot.ts`, `src/systems/robotSystems.ts`,
   `src/content/copy/probe.ts`, `src/data/robotSelectionConfig.ts`, the two card components (+ tests).
   **Scope:** M.
 
-- [ ] **Task 5: The `onLifecycleChange` seam and the legacy adapter**
+- [x] **Task 5: The `onLifecycleChange` seam and the legacy adapter**
 
   **Description:** New `src/systems/lifecycleVisuals.ts` exports `onLifecycleChange(localeId,
   robotId, to: 'recalled' | 'active' | 'docked')` and, behind it, today's visuals moved verbatim out
@@ -214,25 +216,38 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   (spec §1.1, correction 1).
 
   **Acceptance criteria:**
-  - [ ] `robotSystems.ts` imports nothing from `idleSystem`, `swimAnimation` or `spawnSystem`'s
+  - [x] `robotSystems.ts` imports nothing from `idleSystem`, `swimAnimation` or `spawnSystem`'s
         position helper.
-  - [ ] The moved exit-swim, dock-position and idle-restart tests pass unmodified against the
+  - [x] The moved exit-swim, dock-position and idle-restart tests pass unmodified against the
         adapter (behaviour parity); the landing tests assert the seam is called with the right `to`.
-  - [ ] Mutation check: dropping the seam call from `landOnDocked` fails a test.
+        — the assertions are unchanged; only the entry call changed (`onLifecycleChange` instead of
+        the tick/landing function). An end-to-end test through the real tick also proves parity.
+  - [x] Mutation check: dropping the seam call from `landOnDocked` fails a test.
+
+  **As shipped:** (1) `dockCycleCounters` moved to a new `src/systems/dockCycles.ts`
+  (`getDockCycleCount` / `recordDockLanding`). The off-screen dock position is seeded by the dock
+  cycle, and the count also seeds pitch drift. A shared module lets both read one counter without
+  an import cycle. `landOnDocked` advances it; the adapter reads it. (2) `scoreJobAffinities` and
+  `assignJob` moved into `lifecycleVisuals.ts` with the rest of the legacy visuals. That avoids an
+  import cycle with `robotSystems.ts`, and they get deleted together in T24. `worldTransition.ts`
+  imports `assignJob` from there now.
 
   **Verification:** `npx vitest run src/systems`. **Dependencies:** T3, T4. **Files:**
   `src/systems/robotSystems.ts`, `src/systems/lifecycleVisuals.ts` (+ tests, moved cases).
   **Scope:** M.
 
-- [ ] **Task 6: Delete the interaction system and the factory production fields**
+- [x] **Task 6: Delete the interaction system and the factory production fields**
 
   **Description:** Delete `interactionSystem.ts` and its test (no callers). Remove
   `cooldownRemaining`, `productionInterval`, `isOffline`, `offlineSince` from `Actor`,
   `createFactory` and `PRODUCTION_INTERVAL`; `factoryBubbleProps.ts`'s `isActive` becomes `true`.
 
   **Acceptance criteria:**
-  - [ ] No reference to the removed names in `src/`; bubble tests pass with `isActive: true`.
-  - [ ] Full suite green (the deleted test file is the only removed test).
+  - [x] No reference to the removed names in `src/`; bubble tests pass with `isActive: true`.
+        — enforced by a source-scan test in `factoryPlacementSystem.test.ts`.
+  - [x] Full suite green (the deleted test file is the only removed test). — 6503 − 10 deleted
+        + 3 new = 6496. `districts.ts` scenery also dropped its `cooldownRemaining: 0` (the field
+        is gone from `Actor`), and ~23 test fixtures lost the same line.
 
   **Verification:** `npm test`; `npm run build:types`. **Dependencies:** None. **Files:**
   `src/systems/interactionSystem.ts` (+ test, deleted), `src/types/Actor.ts`,
@@ -240,12 +255,14 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   **Scope:** S.
 
 ### Checkpoint A: Lifecycle parity
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Live (`npm run dev`): robots wander, depart down, dock off-screen and return exactly as on
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean. — 6496 tests at 20039099; lint
+      has only the two pre-existing react-refresh warnings.
+- [x] Live (`npm run dev`): robots wander, depart down, dock off-screen and return exactly as on
       main; cards say Undocking/Recalled where they said Docking/Departing.
-- [ ] Reviewed with Crawford before the world-data half.
+- [x] Reviewed with Crawford before the world-data half. — passed 2026-10-07 ("everything looks
+      good"), taken to include the T4 Salvage/Maintenance lore lines.
 
-- [ ] **Task 7: `jobHosts.ts`**
+- [x] **Task 7: `jobHosts.ts`**
 
   **Description:** `hostJobs(actor): JobType[]` — the spec §1.3 table for the five factory
   variants and sixteen scenery kinds, the derelict override (`[salvage, structuralInspection]`),
@@ -253,15 +270,25 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   adds the depth filter (background only when `backHosts`). `BACK_HOSTS_ENABLED = false`.
 
   **Acceptance criteria:**
-  - [ ] Every row of the table asserted; every `SceneryKind` and `FactoryVariant` covered
-        (exhaustiveness test over the type unions).
-  - [ ] Derelict tank → `[salvage, structuralInspection]`; offscreen Warehouse → `[]`; background
+  - [x] Every row of the table asserted; every `SceneryKind` and `FactoryVariant` covered
+        (exhaustiveness test over the type unions). — `Record<Union, true>` sets in the test, so
+        `build:types` fails if a kind or variant is added and left out.
+  - [x] Derelict tank → `[salvage, structuralInspection]`; offscreen Warehouse → `[]`; background
         Skyscraper ineligible with `backHosts: false`, eligible with `true`.
+
+  **As shipped:** (1) The tables are exported as `FACTORY_HOST_JOBS` / `SCENERY_HOST_JOBS`. A
+  factory's variant is derived the way `Factory.tsx` derives it (`selectVariantFromSeed` with the
+  row's `variants`); T8 can switch this to `factoryGeometry`. (2) Two rules the spec leaves open,
+  decided here: offscreen beats derelict (an offscreen derelict hosts nothing), and a derelict
+  non-host (wall, boulder, tether) stays a non-host. (3) An unresolvable row counts as foreground,
+  the same fallback `Factory.tsx` uses. (4) Mutation checks: dropping the offscreen check, the
+  derelict override, the depth filter, the row's variant list or the non-host guard each fail
+  tests.
 
   **Verification:** `npx vitest run src/systems/jobHosts.test.ts`. **Dependencies:** T4.
   **Files:** `src/systems/jobHosts.ts` (+ test), `src/constants/index.ts`. **Scope:** S.
 
-- [ ] **Task 8: Extract `factoryGeometry(actor)`**
+- [x] **Task 8: Extract `factoryGeometry(actor)`**
 
   **Description:** Cut `selectVariantFromSeed` + `calcSilhouetteSize` + the bottom-anchor maths out
   of `Factory.tsx`'s `staticVisual` into `components/actors/factoryGeometry.ts`, returning
@@ -269,14 +296,23 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   `x … x + w·sx`, `y − h·sy … y`). `Factory.tsx` calls it.
 
   **Acceptance criteria:**
-  - [ ] `Factory.test.tsx` and `Factory.test.ts` pass unmodified (render parity).
-  - [ ] For 50 seeded factories, `box` equals the rendered outer group's translate plus scaled size.
+  - [x] `Factory.test.tsx` and `Factory.test.ts` pass unmodified (render parity).
+  - [x] For 50 seeded factories, `box` equals the rendered outer group's translate plus scaled size.
+
+  **As shipped:** (1) `box.y0` is `Math.round(y − h·sy)`, rounded the way the rendered translate
+  (`bottomAnchorTransform`) is, and `y1 = y0 + h·sy`. So the box is the drawn body exactly, and its
+  bottom can sit up to 0.5 units off `actor.position.y`. (2) `Factory.tsx` passes the geometry a
+  copy of the actor built from its memo's own dependencies (`position.y` was added to them), so the
+  React compiler's memoisation check still passes. (3) `jobHosts.ts` now takes the factory variant
+  from `factoryGeometry`. `factoryBubbleProps.ts` and `pipeBridges.tsx` still derive it themselves
+  (out of scope). (4) Mutation checks: dropping the rounding, swapping the scale axes, or dropping
+  the row's variant list each fail tests.
 
   **Verification:** `npx vitest run src/components/actors`. **Dependencies:** None.
   **Files:** `src/components/actors/factoryGeometry.ts` (+ test), `src/components/actors/Factory.tsx`.
   **Scope:** S.
 
-- [ ] **Task 9: Work sites — `workSites.ts` and factories**
+- [x] **Task 9: Work sites — `workSites.ts` and factories**
 
   **Description:** `getWorkSite(actor): WorkSite | null` (spec §1.5) with the factory branch:
   `bounds` from `factoryGeometry`, `park` per the park rule (`PARK_CLEARANCE` = 70, `WORLD_MARGIN`
@@ -285,14 +321,39 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   top outline. Cached per actor id.
 
   **Acceptance criteria:**
-  - [ ] Deterministic per actor id; `null` for non-hosts.
-  - [ ] Over 200 seeded factories: `park` inside the world margin and above `bounds.y0`;
+  - [x] Deterministic per actor id; `null` for non-hosts.
+  - [x] Over 200 seeded factories: `park` inside the world margin and above `bounds.y0`;
         foreground `points`/`path` never below `bounds.y0`; `path.length ≥ 2`, `points` 2–4.
+        — every real factory host the placer puts down over the 121-seed grid (well over 200).
+        Points and path sit on or above the roof at every depth, not only foreground. "Above
+        `bounds.y0`" holds for every eligible (midground/foreground) site, but not for every
+        background one: see (2).
+
+  **As shipped:** (1) **The cache is keyed by the actor object (`WeakMap`), not the id.** Actor
+  ids repeat across locales: 730 of 4210 actors over the grid share an id with another locale's,
+  652 of them with different geometry. An id key would hand the next world a stale site (a test
+  pins this with a real colliding pair). `deriveWorkSite` is the uncached derivation.
+  (2) **Park clamp vs. "above the roof".** Background Skyscrapers can have a roof as high as
+  y = 48. There, `roof − 70` clamps to `WORLD_MARGIN`, so the park is *below* the roof line. Only
+  background sites hit this, and those stay ineligible until J4 (`BACK_HOSTS_ENABLED`). J4 must
+  decide it: drop such sites, or park beside them. (3) **Visible roof.** Some hosts run off a
+  world edge (x0 = −20; x1 up to ~2250), and some foreground Warehouse hosts sit wholly past it
+  (x0 ≥ 1977). Points, path and the park centre use the part of the roof inside [0, 1920]. A
+  roof wholly outside first fell back to the whole roof; since Crawford's "off screen means no
+  job" ruling (see T12 (7)), such an actor hosts nothing, and the fallback is gone. (4) Per variant: Stacks/Refinery `[mouth, valve]`, where the mouth is the bubble vent's x
+  (`factoryVentFraction`, now shared with `factoryBubbleProps.ts`) on the drawn roof, and the valve
+  is in the other half. Warehouse has `[a, b]`, one in each half. Monolith/Skyscraper has
+  `[seeded mid point, roof 10 %, roof 90 %]`. `path` is the top outline, through the front corner
+  when it's visible. (5) `WORLD_MARGIN` moved into `constants/index.ts`; `idleSystem.ts` imports it
+  and `WORLD_WIDTH`/`WORLD_HEIGHT` instead of its own copies. Scenery hosts return `null` until
+  T10/T11. (6) Mutation checks: dropping the visible-span clip, the unrounded vent y, dropping the
+  park clamp, an id-keyed cache, and zeroing the park jitter each fail tests. The jitter mutant
+  survived the first version of its test, so the test was tightened.
 
   **Verification:** `npx vitest run src/systems/workSites.test.ts`. **Dependencies:** T7, T8.
   **Files:** `src/systems/workSites.ts` (+ test), `src/constants/index.ts`. **Scope:** M.
 
-- [ ] **Task 10: Work sites — scenery group A (tank, dome, scaffold, containers, wreck, vent)**
+- [x] **Task 10: Work sites — scenery group A (tank, dome, scaffold, containers, wreck, vent)**
 
   **Description:** Per-kind anchor functions beside `deriveSceneryParams` (one
   `sceneryWorkAnchors.ts` in `components/actors/scenery/`), reading only those parameters: tank
@@ -301,26 +362,81 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   `getWorkSite` dispatches to them.
 
   **Acceptance criteria:**
-  - [ ] Each kind: same invariants as T9 over 50 seeds per kind; anchors lie inside the silhouette's
-        `bounds` (or ≤ 40 above it for mouths/masts).
-  - [ ] A param change in `deriveSceneryParams` moves the anchors (mutation check on one kind).
+  - [x] Each kind: same invariants as T9 over 50 seeds per kind; anchors lie inside the silhouette's
+        `bounds` (or ≤ 40 above it for mouths/masts). — at both depths. The foreground rule is
+        measured against the true top outline (on a vertical step's edge counts as on it).
+  - [x] A param change in `deriveSceneryParams` moves the anchors (mutation check on one kind).
+
+  **As shipped:** (1) Each kind's anchors return `{ bounds, outline, points, path }`. `outline`
+  is the silhouette's x-monotonic top edge, which is what "on or above" is measured to. It isn't
+  on `WorkSite`. (2) **Shared layouts, not re-derived.** The geometry that was more than a
+  one-liner moved out of the renderers into exported helpers that the renderer and the anchors
+  both call: `domePortholeCentres`, `scaffoldBraces`, `containerRows`, `wreckLayout`. The tank,
+  dome, scaffold and vent constants the anchors need are exported too. All four renderers' tests
+  pass unmodified. (3) **Render-parity tests.** Every named anchor is checked against the element
+  it names in the rendered DOM: the tank gauge, dome mast light / portholes / hatch, scaffold
+  light and braces, container labels and stack top, wreck funnel, vent mouth glow and plume. The
+  vent mouth is also checked against the bubbles. The bounds must contain every drawn
+  rect/polygon/circle, with lights up to 40 above. (4) Foreground vs. not:
+  - Foreground keeps to the outline: tank top between the shoulders, dome portholes (on the arc),
+    scaffold post heads, container outline samples.
+  - Midground also uses facade points: tank gauge, dome hatch, scaffold brace, container labels.
+  - Wreck and vent points are all on the outline at every depth.
+  (5) **The park has its own seeded stream** (`Alea(id + ':park')`), so the park doesn't depend
+  on how many draws a kind's points take. This changed the T9 factory parks' seeded offsets, but
+  not their rule. (6) Scenery points are not clipped to the visible span; only the park centre
+  is. The group-B kinds return `null` until T11 (pinned by a test that T11 must flip). (7) Mutation
+  checks: ignoring the passed params, a facade hatch on a foreground dome, `foreground` never set
+  by `workSites`, and dropping the scaffold overhang from its bounds each fail tests.
 
   **Verification:** `npx vitest run src/components/actors/scenery src/systems/workSites.test.ts`.
   **Dependencies:** T9. **Files:** `src/components/actors/scenery/sceneryWorkAnchors.ts` (+ test),
   `src/systems/workSites.ts`. **Scope:** M.
 
-- [ ] **Task 11: Work sites — scenery group B (crane, pylon, beacon, pipeline, turbine, floodlight, dish)**
+- [x] **Task 11: Work sites — scenery group B (crane, pylon, beacon, pipeline, turbine, floodlight, dish)**
 
   **Description:** The structural kinds: crane beam ends + hanger, pylon head + cross-arms, beacon
   gem, pipeline run as `path` + valve + riser top, turbine hub, floodlight head, dish centre + feed.
 
   **Acceptance criteria:**
-  - [ ] Same invariants as T10; the exhaustiveness test now passes for every host kind
-        (`getWorkSite` non-null for every host in `jobHosts`).
+  - [x] Same invariants as T10; the exhaustiveness test now passes for every host kind
+        (`getWorkSite` non-null for every host in `jobHosts`). — every host the placer puts down
+        over the 121-seed grid, factory or scenery, at every depth; every non-host stays null.
+        `ANCHORED_KINDS` now equals the 13 non-empty `SCENERY_HOST_JOBS` rows (pinned).
+
+  **As shipped:** (1) **Shared layouts again.** Each group-B renderer's geometry moved into an
+  exported helper the renderer and the anchors both call: `craneLayout`, `pylonArms` /
+  `pylonTowerTop` / `pylonHeadCentre`, `beaconGem` (+ `gemChamfer` in `gemShape.tsx`),
+  `pipelineLayout`, `turbineLayout`, `floodlightLayout`, `dishLayout`. All renderer tests pass
+  unmodified. (2) **Rotated kinds.** Turbine blades and the dish sit in `rotate(…)` groups, so
+  their anchors apply the same rotation. The turbine's outline is the rotor bar's upper edge
+  (leftmost → topmost → rightmost corner). The dish's is the tilted reflector's upper rim, with
+  the left/top/right extremes exact. The test's shape-extent helper now follows a group's
+  `rotate` and measures ellipses exactly; the vent plumes and the floodlight's beam and pool are
+  skipped as translucent decoration. (3) Per kind:
+  - Crane: the beam's top. Foreground `[left end, hanger head, right end]`; midground
+    `[left end, load centre, beam-end light]`.
+  - Pylon: the tower's narrow top. Foreground `[head, top corners]`; midground `[head, both ends
+    of one seeded cross-arm]`. The head follows `SCENERY_GEM_ACCENTS`.
+  - Beacon: the gem's top edge. Bounds include the gem, which can be wider than the foot
+    (64 vs 60). Midground `[gem centre, gem top, a seeded foot point]`.
+  - Pipeline: one set at every depth: `[valve, riser top, a seeded run point]`. `path` is the pipe
+    run from the flange's inner edge to the far end, so it never passes under the riser.
+  - Turbine: foreground on the rotor's upper edge; midground `[hub, both blade tips]`.
+  - Floodlight: the head's top; midground `[lit bar, a head-top point]`.
+  - Dish: foreground on the rim; midground `[centre light, feed tip, a rim point]`. The feed may
+    rise past the rim like a mast; the box's top is the reflector's.
+  (4) **Found, not fixed (renderer, out of scope):** the crane's knee brace is a zero-area
+  polygon. All four of its vertices lie on one 45° diagonal, so it draws nothing, and the line it
+  traces runs *up* from the beam's underside to 24 above the beam's top. The anchors ignore it.
+  (5) Mutation checks: dropping the crane light from the bounds, an unrotated turbine, a pipe run
+  under the flange, always the first pylon arm, beacon bounds from the foot only, and an untilted
+  dish rim each fail tests. (6) The T10 titles' mojibake (`â€”` etc.) in
+  `sceneryWorkAnchors.test.tsx` was fixed in passing.
 
   **Verification:** as T10. **Dependencies:** T10. **Files:** as T10. **Scope:** M.
 
-- [ ] **Task 12: Coverage guarantee and top-up lists**
+- [x] **Task 12: Coverage guarantee and top-up lists**
 
   **Description:** `jobCoverage.ts`'s `ensureJobCoverage(localeId)` (spec §1.4) counts eligible
   midground + foreground hosts per job and appends `coverageTopUp` items through the district
@@ -329,16 +445,51 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   calls it.
 
   **Acceptance criteria:**
-  - [ ] Over the 121-seed grid every world satisfies the rule after placement; top-ups are
-        deterministic and ground-locked; the recipe element budgets still hold.
-  - [ ] Mutation check: emptying wreck field's top-up list fails the grid test.
-  - [ ] Worlds that already satisfy the rule are unchanged (no top-up placed — asserted on a seed).
+  - [x] Over the 121-seed grid every world satisfies the rule after placement; top-ups are
+        deterministic and ground-locked; the recipe element budgets still hold. — the shape
+        budget is checked at each kind's real `maxShapes` with every top-up placed; no top-up is
+        a vent, so the vent cap is unchanged.
+  - [x] Mutation check: emptying wreck field's top-up list fails the grid test.
+  - [x] Worlds that already satisfy the rule are unchanged (no top-up placed — asserted on a seed).
+
+  **As shipped:** (1) **Far more worlds fell short than the spec expected.** The spec named
+  wreck field (2 vents) as the known case. Measured before the change over the 121-seed grid,
+  56 worlds failed: every ventfield (13), derelict (10), wreckfield (11) and outskirts (13)
+  world, and 9 of 15 towers. Dense, yard, habitat and construction never fail. The missing
+  third job is nearly always acoustic survey or maintenance, so the lists lead with midground
+  pylons, which host both. After the change: 92 top-ups over 56 worlds, at most 3 per world.
+  ventfield gets floodlight + pylon + crane (all 13 worlds), wreckfield 3 pylons, outskirts 1–2
+  pylons (24 over 13 worlds, + a tank in 6), derelict 1 pylon, towers 1–2 pylons. (2) **Shape of the data.**
+  `RECIPES` is `Record<DistrictName, DistrictRow[]>`, an array per district, so the lists sit
+  beside it as `COVERAGE_TOP_UP: Record<DistrictName, CoverageTopUp[]>` (`{ kind, depth }`,
+  scenery only, midground/foreground only). (3) **Top-up rows.** Top-up `i` is placed on row
+  `recipe.length + i`, and `getRecipeRow` resolves that to `coverageTopUpRow(topUp)`. That row
+  is ground-locked in the foreground, at `MG_FLOOR` in the midground, `count: 1`,
+  `derelict: 0` (a derelict roll would swap the jobs it was placed for). So Scenery.tsx,
+  jobHosts, workSites and OceanScene's depth sort read top-ups with no change. The tests that
+  assumed `row < recipe.length` (districts, factoryPlacementSystem) now go through
+  `getRecipeRow`. (4) **Signature.** `ensureJobCoverage(actors, topUps, place)` is pure, and
+  the placer is passed in, not `ensureJobCoverage(localeId)`. The seeded counters (scenery id,
+  derelict, AS recolor index) live inside `placeDistrict`. Placing top-ups through the same
+  closure keeps them in that sequence, so `recolorActorsForAttenuationStyle`'s in-order index
+  still matches. The scenery item build moved into a shared `placeScenery` closure. A gem-gated
+  beacon returns null and the walk moves on. (5) `x` = 15 %–85 % of the width from
+  `'locale.coverage.x'` at offset `i`, re-hashed through `alea()` (the bell-curve fix
+  `rollDerelict` uses). (6) Mutation checks: no coverage call, every top-up on one row, and a
+  walk that ignores the stop rule each fail tests. (7) **Off screen means no job** (Crawford, 2026-10-07, settling T9 (3)). `hostJobs`
+  returns `[]` for an actor whose drawn body lies wholly outside `[0, WORLD_WIDTH]`: the
+  factory box, or the scenery anchors' bounds. A body that straddles an edge still hosts. This
+  removed 43 grid hosts: 8 foreground Warehouses past the right edge, and 35 foreground
+  floodlights that the left-edge spread (starting at x = −20) puts wholly off the left edge;
+  only their beams reach the screen. Coverage still holds on every grid world with the same
+  top-ups. `workSites.ts`'s wholly-off-screen fallback (T9 (3)) became unreachable and was
+  removed. Spec §1.3 updated.
 
   **Verification:** `npx vitest run src/systems/jobCoverage.test.ts src/systems/districtRecipes.test.ts src/systems/districts.test.ts`.
   **Dependencies:** T7, T11. **Files:** `src/systems/jobCoverage.ts` (+ test),
   `src/systems/districtRecipes.ts`, `src/systems/districts.ts`. **Scope:** M.
 
-- [ ] **Task 13: `stations.ts`**
+- [x] **Task 13: `stations.ts`**
 
   **Description:** `getStations(localeId): Station[]` (spec §1.6) — count 2–3, positions with
   re-draw until spacing ≥ `STATION_MIN_SPACING` and no overlap with any host `bounds`, cached like
@@ -346,31 +497,71 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   `nearestFreeStation(centre, stations, occupancy)`. Station box size from the sketch (T0).
 
   **Acceptance criteria:**
-  - [ ] Over the seed grid: 2–3 stations, pairwise spacing ≥ 480, no host overlap, inside
-        x [240, 1680] / y [220, 560]; deterministic.
-  - [ ] Load assignment never exceeds capacity 6; `nearestFreeStation` skips a full station.
+  - [x] Over the seed grid: 2–3 stations, pairwise spacing ≥ 480, no host overlap, inside
+        x [240, 1680] / y [220, 560]; deterministic. — 50 of 121 worlds roll 3; 44 fit around
+        their hosts, 6 step down to 2. No grid world needs the overlap fallback.
+  - [x] Load assignment never exceeds capacity 6; `nearestFreeStation` skips a full station.
+
+  **As shipped:** (1) **The box size is a placeholder.** T0 hasn't run, so
+  `STATION_BOX_W/H` = 160 × 120 and `port` = the centre. Both are marked placeholder in
+  `constants/index.ts` and the module. The sketch replaces them, and the grid tests re-check
+  the overlap rule at whatever size it picks. (2) **Pure core.** `deriveStations(noiseMap,
+  obstacles)` is pure. `getStations(localeId)` reads the locale's coordinates and actors from
+  the store and caches by the actors array (a `WeakMap`), so a re-placed world re-derives.
+  It returns `[]` for an unknown locale. Never cache by actor id (T9 gotcha). (3) **Obstacles
+  are every host at every depth** (`hostObstacles`: each `getWorkSite` bounds), background
+  too, so J4 flipping `BACK_HOSTS_ENABLED` doesn't move any station. (4) **One draw at offset
+  0 is near-constant.** At `y = 0`, simplex noise takes about 3 values across all worlds.
+  With one sample, no grid world rolled 3 stations, and first stations clumped (86 distinct
+  centres over 121 worlds). Every station draw now hashes three samples, at `offset + [0,
+  137.42, 911.77]`, through `alea()`. That's `pickDistrict`'s fix. Result: 121 distinct first
+  centres and 50/121 three-station worlds. (5) **Layouts restart.** Greedy placement
+  dead-ends when the first two stations land near the middle: 3 points ≥ 480 apart in
+  1440 × 340 leave little room. So a station that finds no spot in 16 candidates restarts the
+  whole layout from the next draw, up to 16 layouts. If no layout fits, the count steps down
+  to 2. If 2 don't fit, the overlap rule goes (spacing always holds). The last fallback is the
+  range's two ends. So the roster always fits. (6) `assignStationsAtLoad` throws rather than
+  overfill (the fixed roster never does). `nearestFreeStation` treats a missing occupancy
+  entry as empty, breaks ties to the earlier station, and returns null when everything is
+  full. (7) Mutation checks: no spacing check, no obstacle check, one layout only, one sample
+  per draw, no step-down, `>` for full, and no capacity throw each fail tests.
 
   **Verification:** `npx vitest run src/systems/stations.test.ts`. **Dependencies:** T11 (bounds),
   T0 (box size). **Files:** `src/systems/stations.ts` (+ test), `src/constants/index.ts`.
   **Scope:** S.
 
-- [ ] **Task 14: `siteChoice.ts` — `chooseNextSite`, `siteCooldown`, held jobs**
+- [x] **Task 14: `siteChoice.ts` — `chooseNextSite`, `siteCooldown`, held jobs**
 
   **Description:** The pure decision functions of spec §1.7 and §4's snippet, in their own module
   (correction 3), plus `heldJobs(robots, selfId)` per correction 4. `siteCooldown(n) = clamp(n ×
   COOLDOWN_PER_SITE, COOLDOWN_MIN, COOLDOWN_MAX)` with the first-guess constants.
 
   **Acceptance criteria:**
-  - [ ] Keeps the robot's job when a ready site hosts it (nearest wins); otherwise prefers an unheld
+  - [x] Keeps the robot's job when a ready site hosts it (nearest wins); otherwise prefers an unheld
         job, weighted by ready-site count (seeded `rand`, frequency test over 10 000 draws within 2 %);
         falls back to held jobs when all are held; `null` when nothing is ready.
-  - [ ] `heldJobs` ignores charging/returning/entering robots and the robot itself.
-  - [ ] `siteCooldown` clamps at both ends.
+  - [x] `heldJobs` ignores charging/returning/entering robots and the robot itself.
+  - [x] `siteCooldown` clamps at both ends.
+
+  **As shipped:** (1) **`RobotActivity` came forward from T21.** `heldJobs` reads `activity`,
+  so the type is now in `types/Robot.ts`. The `Robot.activity` field still arrives with its
+  writer in T21. `heldJobs` takes a structural `HeldJobsRobot` (`id`, `docking`, `job?`,
+  `activity?`), so T21 needs no change here. A robot with no `activity` holds nothing. (2) **A
+  non-Active robot holds nothing**, whatever its activity (correction 4 says "whose `docking` is
+  Active"). (3) **Spec §4's snippet, as written.** Keeping the job never draws `rand`, and a
+  switch draws exactly once. A multi-job site adds one to each of its jobs' weights. Only jobs
+  with a ready site count toward "every job is held". Distance is Euclidean from the robot's
+  centre to the site's `park`, and ties go to the earlier site. (4) `COOLDOWN_PER_SITE` 0.6,
+  `COOLDOWN_MIN` 4, `COOLDOWN_MAX` 30 (seconds) are first guesses until T15. (5) `Robot.test.ts`'s
+  old-state guard matches the string `'docking'`, so `Pick<Robot, 'docking' | …>` trips it. The
+  shape is spelled out instead. (6) Mutation checks: no keep step, held jobs ignored, no held
+  fallback, unweighted pick, unready sites kept, x-only distance, ties to the later site, either
+  clamp removed, self counted, non-Active counted, and charging holding a job each fail tests.
 
   **Verification:** `npx vitest run src/systems/siteChoice.test.ts`. **Dependencies:** T7.
   **Files:** `src/systems/siteChoice.ts` (+ test), `src/constants/index.ts`. **Scope:** S.
 
-- [ ] **Task 15: Readiness and handoff sim — stop and report**
+- [x] **Task 15: Readiness and handoff sim — stop and report**
 
   **Description:** Extend `lifecycleSim.ts` with a loop sim: the real lifecycle at a given BPM, real
   work sites and stations per seed, `chooseNextSite` + `siteCooldown`, swims at `SWIM_SPEED`, job
@@ -380,21 +571,74 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   visible.
 
   **Acceptance criteria:**
-  - [ ] Deterministic; no store, BeatClock or GSAP.
-  - [ ] Report posted; Crawford confirms `COOLDOWN_*` (target: mean waiting < 10 % of active time,
-        no wait > 15 s) and the constants are written back.
-  - [ ] Zero "charging while visible" cases at both tempos.
+  - [x] Deterministic; no store, BeatClock or GSAP. — `runLoopSim` and `runReadinessSim` (given
+        placed worlds) are spied store-, BeatClock- and GSAP-free; placing the grid's worlds
+        (`placeDistrict`) stays in the test, as in the coverage and stations tests.
+  - [x] Report posted; Crawford confirms `COOLDOWN_*` (target: mean waiting < 10 % of active time,
+        no wait > 15 s) and the constants are written back. — the first guess missed; **Crawford
+        chose 0.4/3/30 (2026-10-07)**, written to `constants/index.ts`. The mean target holds at
+        both tempos (6.4 % / 3.7 %), and so does the 15 s cap at 200 BPM (14 s). The 20 BPM
+        longest wait (34 s) is accepted as measure-bound. He picked it over 0.3/2/30 for more job
+        variety (3.92 vs 3.24 switches per stint at 20 BPM).
+  - [x] Zero "charging while visible" cases at both tempos.
+
+  **As shipped:** (1) **Pulled forward.** `jobDuration` (T19's
+  pure function, `src/animation/jobMoves/jobDuration.ts`) with `JOB_BASE_SECONDS` 5,
+  `JOB_MIN_SECONDS` 1.5 and `JOB_WORK_RATE` 0.7 for every job (the spec's 0.5–0.9 midpoint; T0
+  gives each job its own). `WAIT_RETRY_SECONDS` 2 and `STATION_ARC_SECONDS` 0.9 are in constants.
+  `SWIM_SPEED` (from `swimAnimation.ts`) and `BEATS_PER_MEASURE` (from `beatClock.ts`) moved into
+  constants, and both modules import them, so the sim has no second copy. (2) **The model.**
+  `runLoopSim` is an event loop in seconds (spec §1.7, one world) interleaved with lifecycle
+  measures of 4 × 60 / BPM s. Active → Recalled is `'recalled'`, anything → Active is `'active'`,
+  and measures win ties. Robots start at their load-assigned station's port (correction 2: Active
+  ones exit at t = 0). The lifecycle step and the cooldown are injectable, so scripted lifecycles
+  test each spec §1.7 branch to the hand-worked second: recall mid-job, in transit, waiting or
+  exiting, turn-back mid-return, mid-entry and at entry end, a full station skipped. An abandoned
+  transit releases its site **with no cooldown** (the robot never worked there). Sim site ids are
+  actor indexes (actor ids can repeat). (3) **"Charging while visible"** is checked as the
+  invariant `activity === 'charging' && visible`, and it is 0 everywhere. The lifecycle reading
+  (Docked or Undocking while still visible) is reported separately as "Longest Docked visible". It
+  is non-zero by design (spec §1.7 `'docked'`: keep returning). At 200 BPM a robot is still
+  swimming home up to 16.7 s after it docked. (4) **Turn-backs are 0 at both tempos, and
+  structurally so.** Recharge 5 per measure from ≤ 10 makes the shortest Docked stay about 20
+  measures (24 s at 200 BPM). That outlasts the longest walk home (finish a ≤ 4.3 s job, swim
+  ≤ ~1500 px, 0.9 s entry). The turn-back branches are covered by the scripted tests only.
+  (5) **Results (121 seeds × 600 s, `LIFECYCLE_SIM_REPORT=1 npx vitest run src/systems/lifecycleSim.test.ts`):**
+
+  | Cooldown | BPM | Mean waiting | p95 waiting | Longest wait | p95 wait | Switches / stint | Seeds missing a target |
+  |---|---|---|---|---|---|---|---|
+  | 0.6/4/30 (first guess) | 20 | 10.9 % | 24.0 % | 42 s | 10 s | 4.48 | 69 / 121 |
+  | 0.6/4/30 (first guess) | 200 | 7.3 % | 17.3 % | 17.1 s | 8 s | 0.60 | 32 / 121 |
+  | **0.4/3/30 (shipped)** | 20 | 6.4 % | 17.3 % | 34 s | 8 s | 3.92 | 32 / 121 |
+  | **0.4/3/30 (shipped)** | 200 | 3.7 % | 12.4 % | 14 s | 6 s | 0.46 | 15 / 121 |
+  | 0.3/2/30 | 20 | 4.2 % | 11.5 % | 30 s | 7.3 s | 3.24 | 15 / 121 |
+  | 0.3/2/30 | 200 | 2.4 % | 9.3 % | 12 s | 4.2 s | 0.39 | 3 / 121 |
+  | 0.2/2/30 | 20 | 2.7 % | 10.2 % | 36 s | 4 s | 2.70 | 8 / 121 |
+  | 0.2/2/30 | 200 | 1.5 % | 5.8 % | 8 s | 4 s | 0.30 | 1 / 121 |
+  | 0/0/0 (reference) | 20 | 0.0 % | 0.0 % | 48 s | 48 s | 0.00 | 3 / 121 |
+  | 0/0/0 (reference) | 200 | 0.0 % | 0.0 % | 6 s | 6 s | 0.00 | 0 / 121 |
+
+  **The "no wait > 15 s" target can't be met at 20 BPM by any cooldown, zero included.** Traced
+  case: world (−120, 80) has 9 sites, and all 9 were held by working robots while a 10th waited
+  24 s (two measures). When more robots are Active than there are sites, only a recall frees one,
+  and at 20 BPM recalls come every 12 s. Zero rest also means zero job switches (robots camp on one
+  site). Waits are multiples of `WAIT_RETRY_SECONDS`. Eligible sites per world: 9–24 (median 14).
 
   **Verification:** `npx vitest run src/systems/lifecycleSim.test.ts`. **Dependencies:** T13, T14.
-  **Files:** `src/systems/lifecycleSim.ts` (+ test), `src/constants/index.ts`. **Scope:** M.
+  **Files:** `src/systems/lifecycleSim.ts` (+ test), `src/constants/index.ts`; as shipped also
+  `src/animation/jobMoves/jobDuration.ts` (+ test), `src/animation/swimAnimation.ts`,
+  `src/engine/beatClock.ts`. **Scope:** M.
 
 ### Checkpoint B: J1 complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] J1 perf: busy-only `perf:idle` vs the branch base — no measurable change expected (nothing new
-      draws); a change is a stop-and-report.
-- [ ] Reviewed with Crawford; J1 merge decision is his.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. — Crawford ran
+      them at 20fd82d9 (2026-10-07).
+- [x] J1 perf: busy-only `perf:idle` vs the branch base — no measurable change expected (nothing new
+      draws); a change is a stop-and-report. — **passed** 2026-10-07: busy median 1892 vs 1921 ms
+      (−1.5 %), paint 238 vs 241 (−1.2 %), inside the base's own spread; three rotated rounds on
+      the D3 gate's pinned hour-0 world (docs/PERFORMANCE.md, "Robot Jobs J1").
+- [x] Reviewed with Crawford; J1 merge decision is his. — approved for merge 2026-10-07.
 
-- [ ] **Task 16: J1 docs and spec corrections**
+- [x] **Task 16: J1 docs and spec corrections**
 
   **Description:** ROBOT_LIFECYCLE.md: renamed states, flat drain with the T2 table, the narrowed
   snapshot, the seam. PROCEDURAL_GENERATION.md: `station.*`, `locale.coverage.x`. BUILDING_DESIGN.md:
@@ -402,10 +646,47 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   Roadmap Phase 43 status line.
 
   **Acceptance criteria:**
-  - [ ] Every named identifier spot-checked against shipped source; docs tests green.
+  - [x] Every named identifier spot-checked against shipped source; docs tests green. — every
+        export, constant, dataId and test file named was grepped in `src/`, the removed names
+        confirmed absent; docs tests 184 green, full suite 6795.
+
+  **As shipped:** (1) **ROBOT_LIFECYCLE.md** is rewritten for J1 as it stands. It covers the
+  renamed states, the flat drain with the Task 2 table, the narrowed snapshot and `DrainRule`, a new
+  "Visual Seam" section (what the legacy adapter does per `to`, and `dockCycles.ts`), and a new
+  "Headless Sims" section (drain and loop sims, the turn-back and Docked-but-visible findings). It
+  also says what J2 deletes. The wandering and exit-swim sections are kept, marked legacy until
+  J2. J2 (Task 27) rewrites the doc for stations and the loop. (2) **BUILDING_DESIGN.md** has a new
+  "Robot jobs — hosts, work sites, coverage" section, plus a note on the top-up rows in
+  `getRecipeRow`. Two stale passages were fixed: "Runtime fields & production timing" (the deleted
+  production fields) and the unbuilt "Offline State" goal (its `config.isOffline` wiring is gone).
+  (3) **PROCEDURAL_GENERATION.md** gains call-site rows for `stations.ts` (`'station.*'`),
+  `districts.ts`'s `'locale.coverage.x'` and `workSites.ts`'s `Alea` streams. The deleted
+  `interactionSystem.ts` row is gone. A gotcha records the three-sample hash and why it was needed.
+  (4) **The spec** opens with an amendment block (corrections 1–5, the measured values, what still
+  waits for the sketch). Inline *(J1)* notes are in Assumptions 3 and 10 and §1.1, §1.2, §1.3,
+  §1.4, §1.5, §1.6, §1.7, §1.9, §2, §5.1, §5.2 and §7. Open question 2 is resolved, and a sixth
+  (background Skyscraper parks, for J4) was added. **Task 0's constants are not folded in: the
+  sketch hasn't run.** The spec lists what is still a placeholder. (5) **Roadmap** Phase 43
+  status: J1 code-complete, with Checkpoint B's review and merge call still Crawford's. (6) **Found,
+  not fixed:** PROCEDURAL_GENERATION.md still describes `?seed=` / `?x=` / `?y=` as live (they were
+  removed 2026-09-28). That is outside this task, so it's flagged rather than rewritten.
 
   **Verification:** `npm test`. **Dependencies:** T1–T15. **Files:** the docs above, the spec,
   `docs/todo/roadmap.md`. **Scope:** S.
+
+**J1 code review (2026-10-07, after Checkpoint B).** Four findings, each fixed in its own commit:
+(1) **Coverage top-up x had almost no spread.** One `'locale.coverage.x'` sample re-hashed through
+`alea()` took 3 values at offset 0 over the grid, so all 56 topped-up worlds stood their first
+top-up at x = 368, 929 or 1538. It is now a `getUniformSeededVal` draw. That is the three-sample
+hash, extracted from `pickDistrict` and `stations.ts` into `src/utils/getSeededVal.ts` with no
+change to their output. Top-ups move in those 56 worlds. The Task 15 table above predates this.
+Re-run at the shipped 0.4/3/30: mean waiting unchanged (6.4 % / 3.7 %), turn-backs and
+charging-visible still 0. The 200 BPM longest wait went 14 s → 17.1 s; seeds missing a target
+went 32 / 15 → 33 / 13. (2) **Bubble vents read `factoryGeometry`**, the third copy of the
+variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, ≤ 0.5 px. (3)
+**Coverage counts each actor once** (`eligibleHostJobs`; incremental top-up counts):
+`placeDistrict` 3.6–4.2 → 1.8–2.4 ms per world on desktop. (4) **`gemChamfer` moved to
+`gemGeometry.ts`**, clearing the one lint warning the branch added.
 
 ---
 

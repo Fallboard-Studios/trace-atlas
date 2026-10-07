@@ -13,7 +13,6 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
     type: ActorType.SCENERY,
     position: { x: 500, y: 1030 },
     isActive: false,
-    cooldownRemaining: 0,
     config: { kind: 'tank', district: 'outskirts', row: 5, hueShift: 10, satShift: -5 },
   };
   return {
@@ -77,7 +76,6 @@ describe('tank renderer', () => {
             type: ActorType.SCENERY,
             position: { x: 500, y: 1030 },
             isActive: false,
-            cooldownRemaining: 0,
             config: { kind: 'tank', district: 'outskirts', row: 5, hueShift: 10, satShift: -5, derelict: true },
           },
         }),
@@ -99,7 +97,6 @@ describe('tank renderer', () => {
       type: ActorType.SCENERY,
       position: { x: 500, y: 1030 },
       isActive: false,
-      cooldownRemaining: 0,
       config: { kind: 'tank', district: 'outskirts', row: 5, hueShift: 0, satShift: 0, derelict: true },
     };
     const liveActor: Actor = { ...derelictActor, id: 'tank-sat-live', config: { ...derelictActor.config, derelict: undefined } };
@@ -158,7 +155,6 @@ describe('tank renderer', () => {
       type: ActorType.SCENERY,
       position: { x: 500, y: 1030 },
       isActive: false,
-      cooldownRemaining: 0,
       config: { kind: 'tank', district: 'outskirts', row: 5, hueShift: 0, satShift: 0 },
     };
     const { container } = render(tank(makeCtx({ actor: zeroShiftActor, cap: 1, eastL: 1, westL: 1 })));

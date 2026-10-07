@@ -122,27 +122,101 @@ export const PITCH_REPEAT_MAX = 100;
 export const INITIAL_ACTIVE_ROBOTS_MIN = 2;
 export const INITIAL_ACTIVE_ROBOTS_MAX = 4;
 
-/** Battery drain, percent per measure, while a robot is Active — before any job surcharge. */
-export const BATTERY_DRAIN_BASE = 2;
-
-/** Additional percent-per-measure drain while Active, on top of BATTERY_DRAIN_BASE, by job type. */
-export const JOB_BATTERY_DRAIN_SURCHARGE: Record<JobType, number> = {
-  ventExtraction: 1,
-  acousticSurvey: 3,
-  structuralInspection: 5,
-  fluidMonitoring: 7,
-};
+/**
+ * Battery drain, percent per measure, while a robot is Active — flat, the same for every robot and
+ * every job (Phase 43: the job is live visual state, not part of the replayed lifecycle). 6 keeps
+ * the mean Active count closest to the old per-job surcharge rule's (lifecycleSim.ts, 121 seeds ×
+ * 2000 measures: old rule 5.05, flat 6 5.14).
+ */
+export const BATTERY_DRAIN_ACTIVE = 6;
 
 /** Battery recharge, percent per measure, while a robot is Docked — flat, same for every robot. */
 export const BATTERY_RECHARGE_RATE = 5;
 
-/** Active robot at or below this battery level begins Departing (recall to dock). */
+/** Active robot at or below this battery level is Recalled (sent back to dock). */
 export const BATTERY_CRITICAL_THRESHOLD = 10;
-/** Docked robot at or above this battery level begins Docking (redeploy-eligible). */
+/** Docked robot at or above this battery level begins Undocking (redeploy-eligible). */
 export const BATTERY_FULL_THRESHOLD = 100;
 
 /** Fraction of a robot's melody events whose pitch (noteIndex only) re-rolls each time it lands on Docked. */
 export const DOCKED_PITCH_DRIFT_RATIO = 0.25;
+
+/**
+ * Whether background-depth buildings host work sites (jobHosts.ts's isWorkSiteEligible). False
+ * until the depth-layer branch (Phase 43 J4) lands the back robot layer — until then only
+ * midground and foreground actors host. See docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.10.
+ */
+export const BACK_HOSTS_ENABLED = false;
+
+/** Keep robot destinations at least this far inside every world edge (scene units). */
+export const WORLD_MARGIN = 100;
+
+/**
+ * How far above a work site's roof a working robot's centre parks — the gem body's half-height
+ * plus a margin (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.5, workSites.ts).
+ */
+export const PARK_CLEARANCE = 70;
+
+/**
+ * Charging stations per world (stations.ts, docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.6): 2–3,
+ * seeded. The minimum times STATION_CAPACITY must hold the whole roster at load.
+ */
+export const STATION_COUNT_MIN = 2;
+export const STATION_COUNT_MAX = 3;
+/** Robots one station holds — six slot lights. */
+export const STATION_CAPACITY = 6;
+/** Every pair of station centres is at least this far apart (scene units). */
+export const STATION_MIN_SPACING = 480;
+/** Where a station centre may sit: clear of the edges, above the midground roofs. */
+export const STATION_X_RANGE: readonly [number, number] = [240, 1680];
+export const STATION_Y_RANGE: readonly [number, number] = [220, 560];
+/**
+ * The station's box, centred on its centre, which must overlap no host's bounds. PLACEHOLDER:
+ * Task 0's sketch supplies the real size with Crawford's station design.
+ */
+export const STATION_BOX_W = 160;
+export const STATION_BOX_H = 120;
+
+/**
+ * A work site's rest after a robot leaves it, in seconds: siteCooldown(n) = clamp(n ×
+ * COOLDOWN_PER_SITE, COOLDOWN_MIN, COOLDOWN_MAX) for n eligible sites (siteChoice.ts, spec §1.7).
+ * More buildings, longer rest, so work spreads; few buildings, short rest, so robots don't starve.
+ * Crawford chose 0.4/3/30 from the readiness sim (Phase 43 Task 15, 2026-10-07) over the 0.6/4/30
+ * first guess: mean waiting 6.4 % / 3.7 % of active time at 20 / 200 BPM, with more job variety
+ * than shorter rests. The 20 BPM longest wait (34 s) is accepted — it is measure-bound, not
+ * cooldown-bound (docs/tasks/ROBOT_JOBS_AND_STATIONS.md, Task 15).
+ */
+export const COOLDOWN_PER_SITE = 0.4;
+export const COOLDOWN_MIN = 3;
+export const COOLDOWN_MAX = 30;
+
+/** A waiting robot's one finite bob before it asks for a site again, in seconds (spec §1.7). */
+export const WAIT_RETRY_SECONDS = 2;
+
+/** A station enter or exit arc — scale + autoAlpha at the port — in seconds (spec §1.7). */
+export const STATION_ARC_SECONDS = 0.9;
+
+/**
+ * Job time (spec §1.9): jobDuration(job, n) = max(JOB_MIN_SECONDS, JOB_BASE_SECONDS −
+ * JOB_WORK_RATE[job] × n) for n orbiters. First guesses — Task 0's sketch pins them. Every rate is
+ * the spec's 0.5–0.9 midpoint until then; the sketch gives each job its own.
+ */
+export const JOB_BASE_SECONDS = 5;
+export const JOB_MIN_SECONDS = 1.5;
+export const JOB_WORK_RATE: Readonly<Record<JobType, number>> = {
+  ventExtraction: 0.7,
+  acousticSurvey: 0.7,
+  structuralInspection: 0.7,
+  fluidMonitoring: 0.7,
+  salvage: 0.7,
+  maintenance: 0.7,
+};
+
+/** Robot swim speed, scene units per second (swimAnimation.ts; the loop sim's swims). */
+export const SWIM_SPEED = 120;
+
+/** 4/4 throughout (beatClock.ts); one measure lasts BEATS_PER_MEASURE × 60 / BPM seconds. */
+export const BEATS_PER_MEASURE = 4;
 
 /** Roster-balancing cap: at most this many robots may hold the same job type at once. */
 export const JOB_MAX_ROBOTS_PER_TYPE = 3;

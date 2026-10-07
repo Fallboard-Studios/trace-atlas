@@ -23,28 +23,37 @@ export type RobotState = (typeof RobotState)[keyof typeof RobotState];
 /**
  * Docking state machine — orthogonal to RobotState. Purely battery-driven
  * (see src/systems/robotSystems.ts): Docked/Active are the two "settled"
- * states; Docking/Departing are held for up to one measure as a transition
+ * states; Undocking/Recalled are held for up to one measure as a transition
  * buffer before landing on Active/Docked respectively.
  */
 export const DockingState = {
   Docked: 'docked',
-  Docking: 'docking',
-  Departing: 'departing',
+  Undocking: 'undocking',
   Active: 'active',
+  Recalled: 'recalled',
 } as const;
 export type DockingState = (typeof DockingState)[keyof typeof DockingState];
 
 /**
- * The four job profiles a robot can be assigned once it lands on Active.
- * Pure data/scoring — see robotSystems.ts's scoreJobAffinities/assignJob.
+ * The six jobs a robot can hold (Phase 43). Live visual state, never replayed or persisted.
+ * The legacy scorer (lifecycleVisuals.ts's scoreJobAffinities/assignJob) still picks only the first
+ * four; Salvage and Maintenance are only chosen once the work loop lands (J2).
  */
 export const JobType = {
   VentExtraction: 'ventExtraction',
   AcousticSurvey: 'acousticSurvey',
   StructuralInspection: 'structuralInspection',
   FluidMonitoring: 'fluidMonitoring',
+  Salvage: 'salvage',
+  Maintenance: 'maintenance',
 } as const;
 export type JobType = (typeof JobType)[keyof typeof JobType];
+
+/**
+ * The work loop's live visual state (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.2). Never replayed;
+ * nothing audio-side reads it. The `Robot.activity` field arrives with its writer (Phase 43 Task 21).
+ */
+export type RobotActivity = 'charging' | 'exiting' | 'transit' | 'working' | 'waiting' | 'returning' | 'entering';
 
 /**
  * Oscillator waveform shapes for timbral variety
@@ -155,7 +164,7 @@ export interface Robot {
   /** Docking state — see DockingState. Every robot has one from creation. */
   docking: DockingState;
   /**
-   * Measure at which a Docking/Departing hold ends and the robot lands on
+   * Measure at which an Undocking/Recalled hold ends and the robot lands on
    * Active/Docked. Undefined when docking is Docked or Active (no hold in
    * progress). Set by robotSystems.ts on threshold crossing.
    */
@@ -164,7 +173,7 @@ export interface Robot {
   batteryLevel: number;
   /** Assigned automatically when a robot lands on Active. Not cleared when a robot lands on Docked —
    *  it persists, stale, until the robot next lands on Active and is assigned a fresh one. */
-  job?: { type: JobType; assignedAtMeasure: number };
+  job?: JobType;
   /**
    * Solo/mute/highlight mode set by the Robot Audio editor.
    * Runtime semantics (enforced by AudioEngine):

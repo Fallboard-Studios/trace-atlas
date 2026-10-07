@@ -10,7 +10,7 @@ import { placeDistrict, pickDistrict } from './districts';
 import { VARIANT_CONF, selectVariantFromSeed } from '../components/actors/factoryVariants';
 import type { FactoryVariant } from '../components/actors/factoryVariants';
 import { calcSilhouetteSize } from '../components/actors/silhouetteUtils';
-import { RECIPES } from './districtRecipes';
+import { RECIPES, COVERAGE_TOP_UP } from './districtRecipes';
 import { shiftHSL } from '../utils/colorUtils';
 import { computeAccentLean, hueArc, ACCENT_SAT_LIFT, ACCENT_HUES } from '../utils/accentLean';
 import { getAttenuationStyleNoiseMap, getLocaleNoiseMap } from '../utils/noiseMaps';
@@ -67,6 +67,46 @@ describe('FactoryPlacementSystem', () => {
       expect(factory.scaleY).toBeGreaterThanOrEqual(0.9);
       expect(factory.scaleY).toBeLessThanOrEqual(1.1);
       expect(factory.config?.row).toBe(0);
+    });
+
+    it('carries no production fields — factories never cool down or go offline (Phase 43 Task 6)', () => {
+      for (const row of [0, 1, 2]) {
+        const factory = createFactory({ x: 500, y: 1000 }, row);
+        expect(factory).not.toHaveProperty('cooldownRemaining');
+        expect(factory.config).not.toHaveProperty('productionInterval');
+        expect(factory.config).not.toHaveProperty('isOffline');
+        expect(factory.config).not.toHaveProperty('offlineSince');
+      }
+    });
+
+    it('placed scenery carries no cooldown either (Phase 43 Task 6)', () => {
+      const scenery = placeDistrict(DEFAULT_LOCALE_ID).filter((a) => a.type === ActorType.SCENERY);
+      expect(scenery.length).toBeGreaterThan(0);
+      for (const actor of scenery) expect(actor).not.toHaveProperty('cooldownRemaining');
+    });
+
+    it('the interaction system and every removed production name are gone from src/ (Phase 43 Task 6)', async () => {
+      const { readdirSync, readFileSync, existsSync, statSync } = await import('node:fs');
+      const { resolve, join } = await import('node:path');
+      const srcRoot = resolve(__dirname, '..');
+      expect(existsSync(join(__dirname, 'interactionSystem.ts'))).toBe(false);
+      expect(existsSync(join(__dirname, 'interactionSystem.test.ts'))).toBe(false);
+
+      const removed = ['interactionSystem', 'cooldownRemaining', 'productionInterval', 'isOffline', 'offlineSince', 'PRODUCTION_INTERVAL'];
+      const self = resolve(__filename);
+      const offenders: string[] = [];
+      const walk = (dir: string): void => {
+        for (const name of readdirSync(dir)) {
+          const path = join(dir, name);
+          if (statSync(path).isDirectory()) walk(path);
+          else if (/\.(ts|tsx)$/.test(name) && path !== self) {
+            const text = readFileSync(path, 'utf8');
+            for (const word of removed) if (text.includes(word)) offenders.push(`${path}: ${word}`);
+          }
+        }
+      };
+      walk(srcRoot);
+      expect(offenders).toEqual([]);
     });
 
     it('factory data is serializable', () => {
@@ -139,9 +179,9 @@ describe('FactoryPlacementSystem', () => {
       }
     });
 
-    it('returns null for an out-of-range row', () => {
+    it('returns null for an out-of-range row (rows past the recipe are its coverage top-ups, Phase 43 Task 12)', () => {
       expect(getRecipeRow('dense', -1)).toBeNull();
-      expect(getRecipeRow('dense', RECIPES.dense.length)).toBeNull();
+      expect(getRecipeRow('dense', RECIPES.dense.length + COVERAGE_TOP_UP.dense.length)).toBeNull();
     });
   });
 
@@ -787,7 +827,7 @@ describe('FactoryPlacementSystem', () => {
       const rowlessActor: Actor = {
         id: 'rowless-actor', type: ActorType.FACTORY,
         position: { x: 100, y: 900 }, scaleX: 1, scaleY: 1, rotation: 0,
-        isActive: true, cooldownRemaining: 0,
+        isActive: true,
         config: { hueShift: 0, satShift: 0 }, // no `row`/`district` keys at all
       };
       useAttenuationStyleStore.getState().addAttenuationStyle({ id: 'rowless-planet', name: 'rowless-planet-name', locales: [] });
@@ -911,7 +951,7 @@ describe('FactoryPlacementSystem', () => {
         const factoryOnly: Actor = {
           id: 'factory-only-actor', type: ActorType.FACTORY,
           position: { x: 100, y: 900 }, scaleX: 1, scaleY: 1, rotation: 0,
-          isActive: true, cooldownRemaining: 0,
+          isActive: true,
           config: { row: 0, district: 'dense', hueShift: 0, satShift: 0 },
         };
         useLocaleStore.getState().setLocaleData(DEFAULT_LOCALE_ID, { actors: [factoryOnly] });

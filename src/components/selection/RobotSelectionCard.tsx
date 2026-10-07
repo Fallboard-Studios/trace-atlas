@@ -80,7 +80,7 @@ export const RobotSelectionCard = memo(function RobotSelectionCard({ robotId }: 
 
   const companyAssignmentSchema = buildCompanyAssignmentSchema(companies);
   const displayName = robot.name || robot.id;
-  const jobLabel = robot.job ? JOB_TYPE_LABELS[robot.job.type] : UNASSIGNED_JOB_LABEL;
+  const jobLabel = robot.job ? JOB_TYPE_LABELS[robot.job] : UNASSIGNED_JOB_LABEL;
   const dockingLabel = DOCKING_STATE_LABELS[robot.docking];
   const statusLabel = AUDIBILITY_LABELS[getAudibilityState(robot.audioMode, anySolo, isSounding)];
   // BATTERY_READOUT_SCHEMA is one shared, static object (robotSelectionConfig.ts) — reused as-is

@@ -4,13 +4,12 @@ import { lerp } from '../../../utils/math';
 import { quantizeShade } from '../../robot/gem/gemShading';
 import colorTheme from '../../../constants/colorTheme.json';
 import { NO_SHIFT } from './sceneryColor';
+import { gemChamfer } from './gemGeometry';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.10)
 // ========================================
 
-/** Chamfer size: 0.3 × min(w, h). */
-const GEM_CHAMFER_FRAC = 0.3;
 /** Outline stroke width. */
 const GEM_OUTLINE_STROKE_WIDTH = 2;
 /** The outline stroke's own lightness fraction of `body.shadow` — a material edge, not a lit
@@ -63,7 +62,7 @@ export interface GemShapeProps {
  * free-angle bevel lines.
  */
 export function GemShape({ cx, cy, w, h, base, lit, eastL, westL, nightDepth, cap = 1 }: GemShapeProps) {
-  const c = Math.min(w, h) * GEM_CHAMFER_FRAC;
+  const c = gemChamfer(w, h);
   const x0 = cx - w / 2;
   const y0 = cy - h / 2;
   const glow = lit ? lerp(0.9, 1.6, nightDepth) : ((eastL + westL) / 2) * cap;

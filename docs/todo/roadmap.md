@@ -765,9 +765,19 @@ coordinates and saved `?session=` links show is accepted.
 
 Idea [docs/ideas/robot-jobs-and-stations.md](../ideas/robot-jobs-and-stations.md), intent
 [docs/intent/robot-jobs-and-stations.md](../intent/robot-jobs-and-stations.md), spec
-[docs/specs/ROBOT_JOBS_AND_STATIONS.md](../specs/ROBOT_JOBS_AND_STATIONS.md). **Intent confirmed
-and spec drafted 2026-10-06 (`planning/jobs-locales-docking`); spec awaiting Crawford's review;
-plan, sketch gate and code not started.** Depends on
+[docs/specs/ROBOT_JOBS_AND_STATIONS.md](../specs/ROBOT_JOBS_AND_STATIONS.md), plan
+[docs/tasks/ROBOT_JOBS_AND_STATIONS.md](../tasks/ROBOT_JOBS_AND_STATIONS.md). **J1 (lifecycle +
+world data) code-complete 2026-10-07 on `feature/jobs-lifecycle`** (Tasks 1–16, unpushed, unmerged).
+J1 shipped:
+- the renamed docking states;
+- the flat drain (6), with the job out of the replay;
+- the `onLifecycleChange` seam with a legacy adapter (today's visuals, unchanged on screen);
+- host lists, work sites and the coverage top-ups (the only visible change, in 5 districts);
+- seeded stations, site choice, and the drain and readiness sims (site cooldown 0.4/3/30).
+
+Checkpoint B's static checks and idle-perf gate passed (busy −1.5 % vs main, docs/PERFORMANCE.md);
+Crawford's review and the J1 merge call remain. The motion-sketch gate (Task 0) has not run, so the
+station box and job timing constants are placeholders. J2–J4 not started. Depends on
 [42](#42-world-view-districts) (D1 + D2, for the host buildings), [40](#40-orbiting-polygons) (the
 orbiters that do the work), [41](#41-robot-halo-and-lit-lines) (the halo ripple on station
 enter/exit) and [20.5](#205-world-clock-deterministic-lifecycle-replay) (the replay this phase
@@ -795,4 +805,5 @@ assumptions to validate, MVP and Not Doing list are in the idea doc.
 - The bottom-only entry/exit, random idle wandering and low-battery lower-third rules
   ([docs/ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md)), job affinity scoring and per-job battery
   surcharges — all removed by this phase, along with the dead `interactionSystem.ts` and factory
-  production fields.
+  production fields. J1 removed the surcharges, `interactionSystem.ts` and the production fields;
+  the rest goes in J2, when the work loop replaces the legacy adapter.

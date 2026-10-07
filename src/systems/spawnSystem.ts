@@ -268,7 +268,7 @@ function getAndIncrementSpawnCount(localeId: string): number {
  * bottom edge. Robots are invisible here (SVG clips to viewBox) and swim
  * inward on their first idle tick, creating a natural "surfacing from below"
  * entrance. Every robot enters and exits exclusively via the bottom of the
- * world view — this is also what robotSystems.ts's landOnDocked reuses to
+ * world view — this is also what lifecycleVisuals.ts's 'docked' branch reuses to
  * reposition a robot once it's actually docked, so a robot's off-screen
  * resting spot is always south too, never to the sides or above.
  */

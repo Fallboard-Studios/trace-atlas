@@ -77,7 +77,7 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
       // isReturning: true — the robot is entering from its south-only spawn
       // spot (see spawnSystem.ts's generateSpawnPosition), so its first
       // on-screen destination stays in the bottom half, same as a dock-cycle
-      // return (robotSystems.ts's landOnActive).
+      // return (lifecycleVisuals.ts's 'active' branch).
       handleRobotIdle(localeId, robotId, { isReturning: true });
     }
     return () => deleteRef(`robot-${robotId}`);

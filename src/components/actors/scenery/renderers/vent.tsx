@@ -22,7 +22,7 @@ const PLUME_INNER_RX_FRAC = 0.6;
 const PLUME_INNER_RY_FRAC = 0.3;
 const PLUME_OUTER_RX_FRAC = 0.9;
 const PLUME_OUTER_RY_FRAC = 0.45;
-const PLUME_INNER_OFFSET = 10;
+export const VENT_PLUME_INNER_OFFSET = 10;
 const PLUME_OUTER_OFFSET = 24;
 
 /**
@@ -60,7 +60,7 @@ export const vent: SceneryRenderer = ({ actor, params, cap, eastL, westL, nightD
       <ellipse
         data-vent="plume"
         cx={x}
-        cy={mouthY - PLUME_INNER_OFFSET}
+        cy={mouthY - VENT_PLUME_INNER_OFFSET}
         rx={topWidth * PLUME_INNER_RX_FRAC}
         ry={topWidth * PLUME_INNER_RY_FRAC}
         fill={plumeFill}

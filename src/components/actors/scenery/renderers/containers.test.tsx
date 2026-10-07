@@ -12,7 +12,6 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
     type: ActorType.SCENERY,
     position: { x: 500, y: 1030 },
     isActive: false,
-    cooldownRemaining: 0,
     config: { kind: 'containers', district: 'yard', row: 3, hueShift: 10, satShift: -5 },
   };
   return {

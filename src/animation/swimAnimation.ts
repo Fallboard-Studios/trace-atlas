@@ -7,12 +7,11 @@ import type { Robot } from '../types/Robot';
 import type { Vec2 } from '../types/Vec2';
 import { getRef } from '../utils/refs';
 import { setTimeline, killTimeline } from './timelineMap';
-import { DEV_TUNING } from '../constants';
+import { DEV_TUNING, SWIM_SPEED } from '../constants';
 
 // ========================================
 // CONSTANTS
 // ========================================
-const SWIM_SPEED = 120; // pixels per second
 const TILT_ANGLE = 5; // degrees of body tilt during movement
 
 // ========================================

@@ -9,15 +9,12 @@ import useLocaleStore from '../stores/localeStore';
 import { createSwimTimeline } from '../animation/swimAnimation';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
-import { BATTERY_LOWER_THIRD_THRESHOLD } from '../constants';
+import { BATTERY_LOWER_THIRD_THRESHOLD, WORLD_WIDTH, WORLD_HEIGHT, WORLD_MARGIN } from '../constants';
 import type { Vec2 } from '../types/Vec2';
 
 // ========================================
 // CONSTANTS
 // ========================================
-const WORLD_WIDTH = 1920;
-const WORLD_HEIGHT = 1080;
-const WORLD_MARGIN = 100; // Keep destinations away from edges
 const IDLE_DELAY = 1.0; // Seconds before picking next destination
 /** Distance outside the SVG viewBox for an exit destination — matches spawnSystem.ts's own OFFSCREEN_OFFSET. */
 const OFFSCREEN_OFFSET = 150;
@@ -89,8 +86,8 @@ export function pickDestination(
 /**
  * Every robot enters and exits exclusively via the bottom of the world view —
  * matches spawnSystem.ts's generateSpawnPosition, which spawns/docks every
- * robot south-only now. Used to send a Departing robot visibly swimming
- * off-screen before it docks (robotSystems.ts's beginDeparting): straight
+ * robot south-only now. Used to send a Recalled robot visibly swimming
+ * off-screen before it docks (lifecycleVisuals.ts's 'recalled' branch): straight
  * down from its current position, not the nearest edge.
  */
 export function pickExitDestination(pos: Vec2): Vec2 {
@@ -103,7 +100,7 @@ export function pickExitDestination(pos: Vec2): Vec2 {
  *
  * `opts.isReturning` marks a robot's first move after entering from its
  * south-only spawn/dock spot — locale-load mount (Robot.tsx) and a dock-cycle
- * landing (robotSystems.ts's landOnActive) both pass it, so that first
+ * landing (lifecycleVisuals.ts's 'active' branch) both pass it, so that first
  * on-screen destination stays in the bottom half rather than jumping
  * anywhere on the map. Absent that, a robot below BATTERY_LOWER_THIRD_THRESHOLD
  * is confined to the lower third instead, so it stays close to its exit
