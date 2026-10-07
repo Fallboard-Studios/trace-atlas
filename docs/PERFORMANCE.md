@@ -993,7 +993,7 @@ reverted — net content vs D2 is LightShafts only) on :4173. `computeLocaleHour
 `dayStartTimestamp`, which `buildLocale` stamps as `abs(coordinates.x % 24)` at load time (`src/constants/
 time.ts`, `src/systems/worldTransition.ts`), so the in-world hour at power-on is just `abs(x % 24)` — no
 scan for a district was needed, only an `x` with the right remainder: `x = 12` (hour 12, shafts' opacity
-`0.11 × (1 − nd)` near its daytime peak) and `x = 0` (hour 0, the group absent per Task 20's `< 0.005`
+`0.11 × (1 − nd)` at its daytime peak, nd = 0 at noon) and `x = 0` (hour 0, the group absent per Task 20's `< 0.005`
 cutoff), `y = 50` for both, encoded with `encodeSessionPayload` (`attenuationStyleName: 'alpha'`,
 `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides — same recipe as Tasks 9/18). `npm run perf:idle --throttle 1
 --only none` (stock-only window, desktop 1280×900, headless); foreground, one call at a time; three rounds
