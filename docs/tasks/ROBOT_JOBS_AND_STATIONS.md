@@ -636,7 +636,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
       draws); a change is a stop-and-report. — **passed** 2026-10-07: busy median 1892 vs 1921 ms
       (−1.5 %), paint 238 vs 241 (−1.2 %), inside the base's own spread; three rotated rounds on
       the D3 gate's pinned hour-0 world (docs/PERFORMANCE.md, "Robot Jobs J1").
-- [ ] Reviewed with Crawford; J1 merge decision is his.
+- [x] Reviewed with Crawford; J1 merge decision is his. — approved for merge 2026-10-07.
 
 - [x] **Task 16: J1 docs and spec corrections**
 
