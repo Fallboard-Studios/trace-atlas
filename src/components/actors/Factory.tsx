@@ -7,6 +7,7 @@ import { getRecipeRow, DEFAULT_FACTORY_ROW } from '../../systems/factoryPlacemen
 import { calcSilhouetteSize, bottomAnchorTransform } from './silhouetteUtils';
 import { applyColorShift, shiftHSL, clamp } from '../../utils/colorUtils';
 import { getLighting, getNightDepth, FLICKER_PERIOD, DAY_CYCLE_MEASURES } from '../../utils/lightingUtils';
+import { ROW_L_CAP, DERELICT_L_CAP, DERELICT_SAT } from '../../constants/sceneDepth';
 import { ROOFTOP_RENDERERS, ROOFTOP_LAYOUT_PAINT } from './greebles/rooftopGreebles';
 import { FACADE_RENDERERS, FACADE_LAYOUT_PAINT } from './greebles/facadeGreebles';
 import type { RooftopGreeble, FacadeGreeble, GreebleRendererContext, GreebleElement, GreebleRenderer } from './greebles/greebleTypes';
@@ -108,6 +109,10 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
     const district = actor.config?.district ?? 'dense';
     const rowCfg = getRecipeRow(district, row);
     const available = rowCfg?.variants;
+    // Defensive fallback for an actor whose row can't be resolved (not a real spawn-time
+    // path — see DEFAULT_FACTORY_ROW above): 'foreground' is ROW_L_CAP's no-op entry, so an
+    // unresolved row renders exactly as it did before Task 6 added the cap.
+    const depth = rowCfg?.depth ?? 'foreground';
     const config = selectVariantFromSeed(actor.id, actor.position.x, row, available);
 
     const sizeRange = VARIANT_CONF[config.variant].sizeRange;
@@ -213,7 +218,7 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
     }
 
     return {
-      config, width, height, frontCornerX, buildingSeed, buildingPhase, shiftedColors,
+      config, width, height, frontCornerX, buildingSeed, buildingPhase, shiftedColors, depth,
       actualWidth, actualHeight, rooftopSlot, facadeGreeble, beltCourseCount, facadeZones,
       beltSeparatorYs,
     };
@@ -224,7 +229,7 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
   ]);
 
   const {
-    config, width, height, frontCornerX, buildingSeed, buildingPhase, shiftedColors,
+    config, width, height, frontCornerX, buildingSeed, buildingPhase, shiftedColors, depth,
     actualWidth, actualHeight, rooftopSlot, facadeGreeble, beltCourseCount, facadeZones,
     beltSeparatorYs,
   } = staticVisual;
@@ -259,13 +264,27 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
     return getLighting(cycleMeasure).westL;
   })();
 
-  const nightDepth = getNightDepth(eastLMultiplier, westLMultiplier);
+  const derelict = !!actor.config?.derelict;
+
+  // Derelict forces nightDepth to 0 (docs/specs/WORLD_VIEW_DISTRICTS.md §1.6): no lit windows,
+  // no lit indicators, regardless of the real hour — a derelict building has no power.
+  const nightDepth = derelict ? 0 : getNightDepth(eastLMultiplier, westLMultiplier);
   /** Average used for elements spanning the full roof width */
   const roofLMultiplier = (eastLMultiplier + westLMultiplier) / 2;
 
+  // Depth lightness cap (§1.7): background/midground buildings read hazier/dimmer than
+  // foreground ones at the same hour. Derelict buildings compound the cap further (§1.6).
+  // Lit elements (windows, indicators) are NOT capped — they live outside this fill.
+  const lCap = ROW_L_CAP[depth] * (derelict ? DERELICT_L_CAP : 1);
+  // Derelict body saturation is 40% of normal (§1.6) — folded into the body color up front
+  // so every downstream applyColorShift call (east/west faces) picks it up for free.
+  const bodyColor = derelict
+    ? { ...shiftedColors.body, s: shiftedColors.body.s * DERELICT_SAT }
+    : shiftedColors.body;
+
   // Apply lightness multipliers to body color using already-shifted palette
-  const eastFill = applyColorShift(shiftedColors.body, { hueShift: 0, satShift: 0 }, eastLMultiplier);
-  const westFill = applyColorShift(shiftedColors.body, { hueShift: 0, satShift: 0 }, westLMultiplier);
+  const eastFill = applyColorShift(bodyColor, { hueShift: 0, satShift: 0 }, eastLMultiplier * lCap);
+  const westFill = applyColorShift(bodyColor, { hueShift: 0, satShift: 0 }, westLMultiplier * lCap);
 
   const transform = bottomAnchorTransform(actor, height);
   const safeId = String(actor.id).replace(/[^a-zA-Z0-9-_]/g, '-');
@@ -285,7 +304,12 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
     nightDepth,
     flickerEpoch,
   };
-  const rooftopElement = paintSlot(rooftopSlot, rooftopPaintCtx);
+  // Derelict: the antenna's indicator light goes dark (§1.6) — it's the only rooftop greeble
+  // with a lit element (ROOFTOP_RENDERERS' other 7 renderers are inert geometry), so it's
+  // suppressed outright rather than threading a "dark" variant through rooftopGreebles.tsx.
+  const rooftopElement = derelict && actor.config?.rooftopGreeble === 'antennae'
+    ? null
+    : paintSlot(rooftopSlot, rooftopPaintCtx);
 
   // ----------------------------------------
   // Facade: belt courses + window zones

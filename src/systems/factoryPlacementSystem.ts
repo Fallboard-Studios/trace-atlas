@@ -16,14 +16,16 @@ import { computeAccentLean, secondaryFor, ACCENT_HUES, type AccentPair } from '.
 import { ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { RECIPES, type DistrictRow } from './districtRecipes';
 import type { DistrictName } from '../types/Actor';
+import { WORLD_BOUNDS } from '../constants/sceneDepth';
+
+// Re-exported so districts.ts's existing `import { WORLD_BOUNDS } from
+// './factoryPlacementSystem'` (roadmap Phase 42 Task 4) keeps working after
+// Task 6 moved the real declaration to constants/sceneDepth.ts (spec §7 Q3).
+export { WORLD_BOUNDS };
 
 // ========================================
 // CONSTANTS
 // ========================================
-// Exported for districts.ts's placeDistrict (roadmap Phase 42 Task 4), which
-// needs the world height for its 'offscreen' anchor. Roadmap Phase 42 Task 6
-// moves this to constants/sceneDepth.ts; this is its current home.
-export const WORLD_BOUNDS = { width: 1920, height: 1080 };
 
 const PRODUCTION_INTERVAL = 60; // measures
 
