@@ -20,7 +20,7 @@ import {
   spreadXs,
   WORLD_BOUNDS,
 } from './factoryPlacementSystem';
-import { SCENERY_RENDERERS } from '../components/actors/scenery/Scenery';
+import { SCENERY_RENDERERS, SCENERY_GEM_ACCENTS } from '../components/actors/scenery/Scenery';
 import { deriveSceneryParams } from '../components/actors/scenery/sceneryParams';
 
 // ========================================
@@ -89,6 +89,13 @@ export function pickDistrict(noiseMap: NoiseFunction2D): DistrictName {
  * this for all sixteen; D2, roadmap Phase 42 Task 11+, lights them up one at a time).
  */
 export const SHIPPED_SCENERY: Set<SceneryKind> = new Set(Object.keys(SCENERY_RENDERERS) as SceneryKind[]);
+
+/** Beacon is gems-only (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9): "placed nothing when gems
+ *  off". Pulled out of `placeDistrict` as its own pure predicate so the gating logic is testable
+ *  without flipping the real `SCENERY_GEM_ACCENTS` build flag. */
+export function isGemGatedRow(kind: DistrictRow['kind'], gemsOn: boolean): boolean {
+  return kind === 'beacon' && !gemsOn;
+}
 
 /** Families that can roll `config.derelict` at placement — docs/specs/WORLD_VIEW_DISTRICTS.md
  *  §1.6. Wrecks are always derelict and carry no flag, so they're deliberately absent here. */
@@ -188,6 +195,7 @@ export function placeDistrict(localeId: string): Actor[] {
     }
 
     if (!SHIPPED_SCENERY.has(row.kind as SceneryKind)) return;
+    if (isGemGatedRow(row.kind, SCENERY_GEM_ACCENTS)) return;
 
     const nextSceneryWidth = (x: number): number => {
       const index = sceneryIndex++;

@@ -24,7 +24,7 @@ const RANGES: Record<SceneryKind, Record<string, [number, number]>> = {
   dome: { w: [170, 300], bh: [30, 60], portholes: [3, 6] },
   wreck: { w: [340, 580], h: [70, 120], deckhouseFrac: [0.2, 0.3], portholes: [4, 9] },
   turbine: { postH: [170, 290], bladeR: [60, 95] },
-  boulder: { w: [60, 150], hFrac: [0.5, 0.75], count: [1, 3] },
+  boulder: { w: [60, 150], hFrac: [0.5, 0.75], count: [1, 3], hueShift: [-12, 12], satShift: [-6, 6] },
   vent: { w: [44, 90], steps: [4, 6] },
   containers: { cols: [2, 4], rows: [1, 3], boxW: [72, 110], boxH: [36, 44] },
   scaffold: { w: [160, 260], h: [220, 380], bays: [2, 3], solidFrac: [0.25, 0.45] },

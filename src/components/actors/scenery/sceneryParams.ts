@@ -28,7 +28,7 @@ export interface WreckParams { w: number; h: number; deckhouseFrac: number; port
 /** §1.9 row: turbine. */
 export interface TurbineParams { w: number; postH: number; bladeR: number }
 /** §1.9 row: boulder. */
-export interface BoulderParams { w: number; hFrac: number; count: number }
+export interface BoulderParams { w: number; hFrac: number; count: number; hueShift: number; satShift: number }
 /** §1.9 row: vent. */
 export interface VentParams { w: number; steps: number }
 /** §1.9 row: containers. */
@@ -98,8 +98,14 @@ const RANGE_TABLE: { [K in SceneryKind]: Draw<NonNullable<SceneryParams[K]>> } =
   wreck: (rng): WreckParams => ({ w: lerp(rng, 340, 580), h: lerp(rng, 70, 120), deckhouseFrac: lerp(rng, 0.2, 0.3), portholes: int(rng, 4, 9) }),
   // turbine (B): post 14 x (170-290), blades of 2R (R 60-95) in a rotate(45) group.
   turbine: (rng): TurbineParams => { const bladeR = lerp(rng, 60, 95); return { w: bladeR * 2, postH: lerp(rng, 170, 290), bladeR }; },
-  // boulder (B, M, F): 1-3 gems, w 60-150, h 0.5-0.75 w.
-  boulder: (rng): BoulderParams => ({ w: lerp(rng, 60, 150), hFrac: lerp(rng, 0.5, 0.75), count: int(rng, 1, 3) }),
+  // boulder (B, M, F): 1-3 gems, w 60-150, h 0.5-0.75 w; body.base sat 12, hue +-12, sat +-6.
+  boulder: (rng): BoulderParams => ({
+    w: lerp(rng, 60, 150),
+    hFrac: lerp(rng, 0.5, 0.75),
+    count: int(rng, 1, 3),
+    hueShift: lerp(rng, -12, 12),
+    satShift: lerp(rng, -6, 6),
+  }),
   // vent (B, M): base wb 44-90, 4-6 steps.
   vent: (rng): VentParams => ({ w: lerp(rng, 44, 90), steps: int(rng, 4, 6) }),
   // containers (M, F): cols 2-4 x rows 1-3 of (72-110) x (36-44) boxes.
@@ -126,14 +132,17 @@ const RANGE_TABLE: { [K in SceneryKind]: Draw<NonNullable<SceneryParams[K]>> } =
 const MAX_SHAPES: Record<SceneryKind, number> = {
   tank: 10,
   crane: 8,
-  pylon: 6,
+  // 1 tapered tower + 3 cross-arms + 5-shape gem head (GemShape, Task 12's largest branch).
+  pylon: 9,
   wall: 3,
-  beacon: 6,
+  // mast rect + foot rect + 5-shape gem head.
+  beacon: 7,
   pipeline: 8,
   dome: 12,
   wreck: 16,
   turbine: 6,
-  boulder: 6,
+  // up to 3 gems x 5 shapes each (GemShape).
+  boulder: 15,
   vent: 10,
   containers: 24,
   scaffold: 24,

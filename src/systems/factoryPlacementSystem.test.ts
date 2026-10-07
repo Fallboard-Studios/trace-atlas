@@ -522,9 +522,14 @@ describe('FactoryPlacementSystem', () => {
       expect(actors1.length).toBeGreaterThan(0);
       expect(actors1.map((a) => [a.config?.hueShift, a.config?.satShift])).toEqual(actors2.map((a) => [a.config?.hueShift, a.config?.satShift]));
 
+      // 'dense' also places pylon actors (roadmap Phase 42 Task 12) interspersed among the
+      // factories — filter to factories so `index` below still lines up with createFactory's own
+      // factoryIndex (preLean's seeded AS-shift draw), not the actor array's raw position.
+      const factories1 = actors1.filter((a) => a.type === ActorType.FACTORY);
+
       let leanedToPrimary = 0;
       let leanedToSecondary = 0;
-      actors1.forEach((actor, index) => {
+      factories1.forEach((actor, index) => {
         const { combined, body } = preLean(actor, index, asMap);
         const leanPrimary = computeAccentLean(body, pair.primary);
         const leanSecondary = computeAccentLean(body, pair.secondary);

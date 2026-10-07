@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 
-import { DISTRICT_NAMES, SHIPPED_SCENERY, pickDistrict, placeDistrict } from './districts';
+import { DISTRICT_NAMES, SHIPPED_SCENERY, pickDistrict, placeDistrict, isGemGatedRow } from './districts';
 import * as getSeededValModule from '../utils/getSeededVal';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getRecipeRow } from './factoryPlacementSystem';
@@ -162,8 +162,18 @@ describe('districts', () => {
   });
 
   describe('SHIPPED_SCENERY', () => {
-    it('is wall only, as of roadmap Phase 42 Task 11 (D2)', () => {
-      expect(SHIPPED_SCENERY).toEqual(new Set(['wall']));
+    it('is wall, pylon, beacon, boulder, as of roadmap Phase 42 Tasks 11-12 (D2)', () => {
+      expect(SHIPPED_SCENERY).toEqual(new Set(['wall', 'pylon', 'beacon', 'boulder']));
+    });
+  });
+
+  describe('isGemGatedRow', () => {
+    it('gates only beacon, and only when gems are off (§1.9: "placed nothing when gems off")', () => {
+      expect(isGemGatedRow('beacon', false)).toBe(true);
+      expect(isGemGatedRow('beacon', true)).toBe(false);
+      expect(isGemGatedRow('wall', false)).toBe(false);
+      expect(isGemGatedRow('pylon', false)).toBe(false);
+      expect(isGemGatedRow('factory', false)).toBe(false);
     });
   });
 
