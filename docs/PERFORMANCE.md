@@ -980,6 +980,60 @@ count 0 before and after. Three rounds per world per build, order rotated.
 
 **Verdict:** no miss to report. No lever was pulled — every family already shipped keeps its spot.
 
+## Districts — the Task 22 D3 perf gate (2026-10-07, Phase 42)
+
+Gate ([docs/tasks/WORLD_VIEW_DISTRICTS.md](tasks/WORLD_VIEW_DISTRICTS.md) Task 22): D3 (LightShafts; MarineSnow
+was built, judged at Checkpoint C, and cut — Task 21) idle busy/Paint within the noise band of the D2 tip,
+on one pinned world at hour 12 (shafts on) and the same locale's coordinate rotated to hour 0 (shafts off).
+**Passed** at both hours.
+
+**Method:** production builds served side by side — D2 tip `a8f35cbe` (Task 19, the last D2 commit; a
+`git worktree` checkout, built fresh) on :4175, and D3 branch tip `87c279a3` (Task 21, MarineSnow built then
+reverted — net content vs D2 is LightShafts only) on :4173. `computeLocaleHour` reads straight off a locale's
+`dayStartTimestamp`, which `buildLocale` stamps as `abs(coordinates.x % 24)` at load time (`src/constants/
+time.ts`, `src/systems/worldTransition.ts`), so the in-world hour at power-on is just `abs(x % 24)` — no
+scan for a district was needed, only an `x` with the right remainder: `x = 12` (hour 12, shafts' opacity
+`0.11 × (1 − nd)` near its daytime peak) and `x = 0` (hour 0, the group absent per Task 20's `< 0.005`
+cutoff), `y = 50` for both, encoded with `encodeSessionPayload` (`attenuationStyleName: 'alpha'`,
+`DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides — same recipe as Tasks 9/18). `npm run perf:idle --throttle 1
+--only none` (stock-only window, desktop 1280×900, headless); foreground, one call at a time; three rounds
+per world per build, order rotated.
+
+**Gotcha, caught before trusting the numbers:** the first attempt reused ports 4173/4175 without checking
+who already held them — leftover `vite preview` processes from an earlier, unrelated session (orphaned,
+not cleaned up) were still listening there, so both URLs served the *same* stock bundle regardless of which
+`--outDir` was requested. Caught by diffing the served `assets/index-*.js` filename against each build's own
+(`CY1QB4Xr` branch vs `Cq5aYoYF` D2 tip) before trusting any reading — they matched on both ports, which is
+impossible for two different commits. All six readings taken before the check were discarded; every orphaned
+`vite preview` process was killed, both servers restarted, and the bundle check re-run clean before any
+number below was recorded. Verify what a URL actually serves before measuring it, not just that it answers.
+
+### Results (6 s idle window, 1×, `--only none`)
+
+| World (hour) | Build | main busy (ms) | Paint (ms) |
+|---|---|---|---|
+| x=12 (hour 12, shafts on) | D2 tip (`a8f35cbe`) | 2334 · 2386 · 2390 | 229 · 239 · 240 |
+| x=12 (hour 12, shafts on) | D3 branch (`87c279a3`) | 2430 · 2440 · 2337 | 226 · 240 · 231 |
+| x=0 (hour 0, shafts off) | D2 tip (`a8f35cbe`) | 1651 · 1661 · 1639 | 217 · 216 · 216 |
+| x=0 (hour 0, shafts off) | D3 branch (`87c279a3`) | 1653 · 1609 · 1624 | 220 · 216 · 217 |
+
+Medians (branch vs D2 tip): hour 12 busy 2430 vs 2386 (**+1.8 %**), paint 231 vs 239 (**−3.3 %**); hour 0
+busy 1624 vs 1651 (**−1.6 %**), paint 217 vs 216 (**+0.5 %**) — every delta sits well inside the 24–41 %
+round-to-round spread Tasks 9/18 documented on this same robot-driven noise source, so neither hour reads as
+a regression in either direction.
+
+- **Front layer's `Layout SVG changed` count unchanged:** top invalidation at hour 12 was `g.gem` /
+  `polygon.gem__face` (the twelve robots' facets) at 49,743 (branch) vs 49,603 (D2 tip) — both builds
+  dominated by the same robot layer, confirming LightShafts' static back-layer polygons don't add per-frame
+  layout churn (same "static content only repaints on the lighting tick" finding Tasks 9/18 made for
+  terrain/water/vent plumes).
+- **Hour 0 confirms the `< 0.005` opacity cutoff costs nothing to leave the group unmounted:** busy/paint at
+  hour 0 are in-band on both builds, and lower than hour 12 on both (fewer painted shapes at the lower
+  gradient opacity generally, consistent with less going on, not a build difference).
+
+**Verdict:** no miss to report. MarineSnow's revert (Task 21) left no residual: branch content vs D2 tip is
+LightShafts alone, and it costs nothing measurable at idle in either shafts-on or shafts-off state.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
