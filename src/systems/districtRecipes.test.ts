@@ -3,7 +3,7 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
-import { RECIPES, DERELICT_RATIO, type DistrictRow } from './districtRecipes';
+import { RECIPES, DERELICT_RATIO, SCENERY_SHAPE_BUDGET, type DistrictRow } from './districtRecipes';
 import { VARIANT_CONF } from '../components/actors/factoryVariants';
 import type { DistrictName, SceneryKind } from '../types/Actor';
 
@@ -173,5 +173,26 @@ describe('districtRecipes', () => {
 
   it('DERELICT_RATIO is 0.25', () => {
     expect(DERELICT_RATIO).toBe(0.25);
+  });
+
+  describe('SCENERY_SHAPE_BUDGET', () => {
+    /** GemShape (T12) is the simplest scenery body: "exactly four polygons + one outline"
+     *  (spec §1.10) — no shipped kind can draw fewer than 5 shapes per item. */
+    const MIN_SHAPES_PER_ITEM = 5;
+
+    it('is the D1-derived constant, 700 (docs/PERFORMANCE.md, Task 9 D1 perf gate)', () => {
+      expect(SCENERY_SHAPE_BUDGET).toBe(700);
+    });
+
+    it('covers even the simplest shipped kind across every row of the busiest district', () => {
+      // Mutation check: a budget this test can't rule out as too small (e.g. 50) must fail here —
+      // outskirts alone needs 24 items * 5 shapes >= 120.
+      for (const district of Object.keys(RECIPES) as DistrictName[]) {
+        const nonFactoryItems = RECIPES[district]
+          .filter((r) => r.kind !== 'factory')
+          .reduce((sum, r) => sum + r.count, 0);
+        expect(SCENERY_SHAPE_BUDGET).toBeGreaterThanOrEqual(nonFactoryItems * MIN_SHAPES_PER_ITEM);
+      }
+    });
   });
 });

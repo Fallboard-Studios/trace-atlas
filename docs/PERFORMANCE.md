@@ -861,6 +861,74 @@ Crawford chose merging into paths. Task 9a (`975c2786`) draws each part's facets
 
 Decision for Crawford: ship 3 tones and accept the residual, or keep the strict gate and look further (the residual is paint per element — face, lines and lights are now a larger share).
 
+## Districts — the Task 9 D1 perf gate (2026-10-06, Phase 42)
+
+Gate ([docs/tasks/WORLD_VIEW_DISTRICTS.md](tasks/WORLD_VIEW_DISTRICTS.md) Task 9): D1 (districts, terrain,
+water column, factories only — no scenery renderers yet) idle busy/Paint within the 17.2.5 noise band of
+base, on the two heaviest pinned districts. **Passed** on `dense` (apples-to-apples content); `ventfield`
+is not a like-for-like comparison in D1, for a reason explained below, but shows no overhead either.
+
+**Method:** production builds served side by side — base `c600d2ac` (:4173, the commit D1 branched from,
+pre-districts) and branch tip `ed7cc3dc` (:4175, Tasks 1–8 complete). One pinned `?session=` world per
+district: coordinates were found by scanning the real `pickDistrict` (same technique as
+`districts.test.ts`'s `findCoordsForDistrict`) for the first `(x, y)` landing on `dense` (−500, −480) and
+`ventfield` (−500, −410), then encoded with `encodeSessionPayload` (`attenuationStyleName: 'alpha'`,
+`DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides) — base predates `placeDistrict` entirely but, like the
+Shareable Link payload contract guarantees, decodes the same `coordinates` field it already understands.
+`npm run perf:idle --throttle 1 --only none --port 9301` (stock-only window, desktop 1280×900, headless);
+foreground, one call at a time, orphaned-Chrome count 0 before and after. Three rounds per
+world per build, order rotated.
+
+### Results (6 s idle window, 1×, `--only none`)
+
+| World | Build | main busy (ms) | Paint (ms) | Factories | Circles |
+|---|---|---|---|---|---|
+| dense | base (`c600d2ac`) | 2715 · 2882 · 2802 | 341 · 354 · 341 | 59 | 748 |
+| dense | branch (`ed7cc3dc`) | 2684 · 2861 · 2771 | 342 · 371 · 354 | 59 | 746 |
+| ventfield | base (`c600d2ac`) | 3725 · 3896 · 3941 | 394 · 399 · 410 | 60 | 880 |
+| ventfield | branch (`ed7cc3dc`) | 1880 · 2483 · 2698 | 314 · 392 · 465 | 4 | 42 |
+
+(One `dense`/branch round read 3277 ms/413 ms, well outside its own other two rounds; a same-build recheck
+immediately after read 2771 ms/354 ms, back in band — treated as a one-off scheduling blip, not a result,
+per the "never chase a flaky single reading" rule.)
+
+- **`dense` passes cleanly:** base and branch place the same ~59 factories (the old fixed `FACTORY_ROWS`
+  table and the new `dense` recipe happen to be nearly the same size at this locale), so this is the valid
+  apples-to-apples reading. Busy and Paint medians overlap base's own round-to-round spread; `Layout SVG
+  changed` invalidations in both builds are dominated by the twelve robots' gem facets (`g.gem`,
+  `polygon.gem__face`, ≈45k events/window either way) — `TerrainLayer`'s ridge/ground polygons and
+  `WaterColumn`'s gradient/glow never appear in the top-8 invalidation or paint-by-node attribution, and
+  each new static `<svg>` layer paints only 3–7 times across the ~340-frame window (on par with the
+  existing static factory layers), not once per frame. Static layers are not re-laying-out between ticks.
+- **`ventfield` is not comparable, by design, not by regression:** base has no concept of districts — the
+  same ~59–60-factory table renders at every coordinate — while branch's `ventfield` recipe is
+  deliberately sparse in D1 (SHIPPED_SCENERY is empty; most of its rows are reserved for `vent`,
+  `pipeline`, `tank` etc. that don't exist until D2) and places only 4 factories. Branch's lower busy time
+  there is the expected consequence of placing less, not evidence either way about per-element cost; the
+  ~30–40 % run-to-run spread on both builds' `ventfield` readings tracks back to the twelve
+  always-present, always-moving robots (unaffected by district), the same noise source 17.2.5 already
+  documented for the robot layer, not to anything district-specific.
+- Element counts (via a one-off DOM query, not part of the harness): `dense`/branch has 1281 shapes in
+  `#factory-background-layer`, 257 in `#factory-midground-layer`, 958 in `#factory-foreground-layer`
+  (≈2,500 total static factory shapes) plus 2 terrain polygons and 1 water shape — 3,490 shapes total,
+  against base's 3,491 (the 1-shape difference being terrain/water's net effect at this locale). Adding
+  two entire new static layers moved the shape count by under 0.1 % and the measured busy/Paint by nothing
+  outside base's own noise.
+
+### D2 element budget (spec §7 Q1)
+
+`SCENERY_SHAPE_BUDGET = 700` (`src/systems/districtRecipes.ts`), keeping the sketch's provisional number
+rather than raising it, derived from the above: static SVG content (factories today, scenery from D2) only
+repaints on the lighting tick, not per frame, so idle busy/Paint — this gate's own metric — can't observe a
+per-shape cost for it the way Phase 39 did for the continuously-moving robot layer. What this run does show
+is headroom: `dense`'s ~2,500 static factory shapes, plus two brand-new static layers, together cost
+nothing measurable at idle. A 700-shape ceiling for all of D2's scenery combined is well under that
+already-proven-safe footprint (28 %), and `districtRecipes.test.ts` confirms it comfortably covers even
+`outskirts` (26 non-factory items, the busiest district) at the simplest shipped body (GemShape's 4
+polygons + 1 outline = 5 shapes) with wide room left for the heavier body-bearing kinds. The real backstop
+is Task 18's D2 perf run, once renderers exist to measure the lighting-tick repaint cost directly rather
+than infer it.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

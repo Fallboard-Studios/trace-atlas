@@ -38,6 +38,20 @@ export interface DistrictRow {
 /** Default derelict odds for a derelict-capable row with no per-row override. */
 export const DERELICT_RATIO = 0.25;
 
+/**
+ * Per-scene ceiling on scenery shapes (spec §7 Q1), derived from the D1 perf gate
+ * (docs/PERFORMANCE.md, "Districts — the Task 9 D1 perf gate"): adding TerrainLayer + WaterColumn
+ * (two new static layers) on the `dense` and `ventfield` pinned worlds moved idle busy/Paint by
+ * nothing measurable against the pre-D1 base — `dense`'s existing static factory layers alone
+ * already carry ~2,500 shapes at that same zero-measured-cost, because static (non-moving) SVG
+ * content only repaints on the lighting tick, not per frame (Phase 39's "cost is per moving
+ * element" finding doesn't apply here). 700 keeps D2 well under that proven-safe footprint —
+ * districtRecipes.test.ts confirms it comfortably covers even `outskirts` (the busiest
+ * non-factory row count) at the simplest shipped body (GemShape's 5 shapes) — while T18's D2 perf
+ * gate is the empirical backstop once real renderers exist to measure against.
+ */
+export const SCENERY_SHAPE_BUDGET = 700;
+
 // Background 'floor' rows sit behind the ridge body, within 980-1000.
 const BG_FLOOR = 990;
 // Midground 'floor' rows sit under the ground polygon, within 1015-1030.
