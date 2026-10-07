@@ -630,9 +630,12 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   `src/engine/beatClock.ts`. **Scope:** M.
 
 ### Checkpoint B: J1 complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] J1 perf: busy-only `perf:idle` vs the branch base — no measurable change expected (nothing new
-      draws); a change is a stop-and-report.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. — Crawford ran
+      them at 20fd82d9 (2026-10-07).
+- [x] J1 perf: busy-only `perf:idle` vs the branch base — no measurable change expected (nothing new
+      draws); a change is a stop-and-report. — **passed** 2026-10-07: busy median 1892 vs 1921 ms
+      (−1.5 %), paint 238 vs 241 (−1.2 %), inside the base's own spread; three rotated rounds on
+      the D3 gate's pinned hour-0 world (docs/PERFORMANCE.md, "Robot Jobs J1").
 - [ ] Reviewed with Crawford; J1 merge decision is his.
 
 - [ ] **Task 16: J1 docs and spec corrections**

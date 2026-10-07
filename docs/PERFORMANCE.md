@@ -1034,6 +1034,35 @@ a regression in either direction.
 **Verdict:** no miss to report. MarineSnow's revert (Task 21) left no residual: branch content vs D2 tip is
 LightShafts alone, and it costs nothing measurable at idle in either shafts-on or shafts-off state.
 
+## Robot Jobs J1 — the Checkpoint B perf gate (2026-10-07, Phase 43)
+
+Gate ([docs/tasks/ROBOT_JOBS_AND_STATIONS.md](tasks/ROBOT_JOBS_AND_STATIONS.md) Checkpoint B): J1 changes the
+lifecycle and builds world data but draws nothing new, so idle busy should not move against the branch base.
+**Passed.**
+
+**Method:** production builds served side by side from scratch `--outDir`s on fresh ports. Branch
+`feature/jobs-lifecycle` `20fd82d9` (Task 15) went on :4177 (`index-qpTXpUqM.js`). The base, main `0d9cc51f`, was
+built from a throwaway `git worktree` and served on :4178 (`index-CY1QB4Xr.js`, the same bundle the D3 gate
+recorded). Each port's served bundle filename was checked against its build before measuring. The pinned world is the D3 gate's hour-0 one,
+built from code with `encodeSessionPayload`: style `alpha`, `(0, 50)`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no
+overrides. Both builds rendered the same scene: 12 robots, 2 factories, 36 circles. `npm run perf:idle --throttle 1 --only
+none`; three rounds, order rotated, foreground; 0 orphaned Chrome before and after every round.
+
+| Round (order) | Branch busy / paint (ms) | Base busy / paint (ms) |
+|---|---|---|
+| 1 (branch first) | 1779 / 233 | 1952 / 242 |
+| 2 (base first) | 1893 / 240 | 1921 / 241 |
+| 3 (branch first) | 1892 / 238 | 1896 / 234 |
+| **Median** | **1892 / 238** | **1921 / 241** |
+
+Busy **−1.5 %**, paint **−1.2 %**. Both are inside one build's own round-to-round spread (base 1896–1952), so
+the gate reads no change, as expected. The robots' moving layer is still the only node that paints every
+frame, on both builds (106–110 ms per 6 s).
+
+**Don't gate on a default-throttle run.** A `perf:idle` run at the default `--throttle 4` read main busy
+≈ 5950–5985 ms of the 6000 ms window in every ablation. At 4× the main thread is saturated, so busy can't
+show a change either way. Gate at `--throttle 1`.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
