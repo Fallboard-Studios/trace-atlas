@@ -1,10 +1,10 @@
 import Alea from 'alea';
 
 import { ActorType, type Actor } from '../../types/Actor';
-import { selectVariantFromSeed, VARIANT_CONF, isBubbleEligible } from './factoryVariants';
+import { VARIANT_CONF, isBubbleEligible } from './factoryVariants';
+import { factoryGeometry } from './factoryGeometry';
 import { getRecipeRow, DEFAULT_FACTORY_ROW } from '../../systems/factoryPlacementSystem';
 import type { DistrictRow } from '../../systems/districtRecipes';
-import { calcSilhouetteSize } from './silhouetteUtils';
 import { shiftHSL } from '../../utils/colorUtils';
 import { deriveSceneryParams, ventTotalHeight } from './scenery/sceneryParams';
 import colorTheme from '../../constants/colorTheme.json';
@@ -25,7 +25,7 @@ export interface FactoryBubbleProps {
   ventY: number;
   /** Deterministic seed for sizing/timing variation (the full-id hash). */
   seed: number;
-  /** False while the building is offline — the stream rewinds and pauses. */
+  /** False rewinds and pauses the stream. Always true today: no building goes offline (Phase 43). */
   isActive: boolean;
   /** Hue of the building's (shifted) body colour, mixed faintly into the bubble fill. */
   bodyHue: number;
@@ -87,25 +87,19 @@ export function getActorBubbleProps(actor: Actor): FactoryBubbleProps | null {
   if (actor.type === ActorType.SCENERY) return getVentBubbleProps(actor);
   if (!isBubbleEligible(actor.config?.purpose)) return null;
 
-  // Same silhouette derivation as Factory.tsx's staticVisual — the vent must sit on the roof the
-  // building actually draws.
-  const district = actor.config?.district ?? 'dense';
-  const row = actor.config?.row ?? DEFAULT_FACTORY_ROW;
-  const rowCfg = getRecipeRow(district, row);
-  const config = selectVariantFromSeed(actor.id, actor.position.x, row, rowCfg?.variants);
-  const { width, height } = calcSilhouetteSize(config.noiseValue, VARIANT_CONF[config.variant].sizeRange);
-  const actualWidth = width * (actor.scaleX ?? 1);
-  const actualHeight = height * (actor.scaleY ?? 1);
+  // The geometry Factory.tsx renders from — the vent must sit on the roof the building draws.
+  const { variant, box } = factoryGeometry(actor);
+  const rowCfg = getRecipeRow(actor.config?.district ?? 'dense', actor.config?.row ?? DEFAULT_FACTORY_ROW);
 
   const buildingSeed = hashActorId(actor.id);
 
   const shift = { hueShift: actor.config?.hueShift ?? 0, satShift: actor.config?.satShift ?? 0 };
-  const bodyHue = shiftHSL(VARIANT_CONF[config.variant].colors.body, shift).h;
+  const bodyHue = shiftHSL(VARIANT_CONF[variant].colors.body, shift).h;
 
   return {
     actorId: actor.id,
-    ventX: actor.position.x + factoryVentFraction(actor.id) * actualWidth,
-    ventY: actor.position.y - actualHeight,
+    ventX: box.x0 + factoryVentFraction(actor.id) * (box.x1 - box.x0),
+    ventY: box.y0,
     seed: buildingSeed,
     // Factories never go offline (Phase 43 removed the production fields) — every stream runs.
     isActive: true,

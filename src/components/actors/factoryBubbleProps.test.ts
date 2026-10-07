@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 
 import { getActorBubbleProps, hashActorId } from './factoryBubbleProps';
+import { factoryGeometry } from './factoryGeometry';
 import { selectVariantFromSeed, VARIANT_CONF } from './factoryVariants';
-import { calcSilhouetteSize } from './silhouetteUtils';
 import { getRecipeRow } from '../../systems/factoryPlacementSystem';
 import { RECIPES } from '../../systems/districtRecipes';
 import { shiftHSL } from '../../utils/colorUtils';
@@ -70,19 +70,17 @@ describe('getActorBubbleProps', () => {
     expect(getActorBubbleProps(legacy)!.isActive).toBe(true);
   });
 
-  it('puts the vent on the roofline, 20–80 % across the facade, in scene coordinates', () => {
+  it('puts the vent on the drawn roof — factoryGeometry\'s box, as Factory.tsx renders it — 20–80 % across, in scene coordinates', () => {
     const actor = makeActor({ scaleX: 1.1, scaleY: 0.9 });
-    const row = actor.config!.row!;
-    const config = selectVariantFromSeed(actor.id, actor.position.x, row, getRecipeRow('dense', row)?.variants);
-    const { width, height } = calcSilhouetteSize(config.noiseValue, VARIANT_CONF[config.variant].sizeRange);
-    const actualWidth = width * 1.1;
-    const actualHeight = height * 0.9;
+    const { box } = factoryGeometry(actor);
+    const boxWidth = box.x1 - box.x0;
 
     const props = getActorBubbleProps(actor)!;
-    expect(props.ventY).toBeCloseTo(actor.position.y - actualHeight, 6);
-    expect(props.ventX).toBeCloseTo(actor.position.x + (((hashActorId(actor.id) % 60) + 20) / 100) * actualWidth, 6);
-    expect(props.ventX).toBeGreaterThanOrEqual(actor.position.x + 0.2 * actualWidth);
-    expect(props.ventX).toBeLessThanOrEqual(actor.position.x + 0.8 * actualWidth);
+    // The rendered translate is rounded, so the drawn roof is box.y0, not position.y − height·sy.
+    expect(props.ventY).toBe(box.y0);
+    expect(props.ventX).toBeCloseTo(box.x0 + (((hashActorId(actor.id) % 60) + 20) / 100) * boxWidth, 9);
+    expect(props.ventX).toBeGreaterThanOrEqual(box.x0 + 0.2 * boxWidth);
+    expect(props.ventX).toBeLessThanOrEqual(box.x0 + 0.8 * boxWidth);
   });
 
   it('tints the bubbles with the building\'s shifted body hue', () => {
