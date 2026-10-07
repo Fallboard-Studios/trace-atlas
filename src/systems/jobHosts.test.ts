@@ -13,7 +13,10 @@ import { RECIPES, type DistrictRow } from './districtRecipes';
 import { selectVariantFromSeed, type FactoryVariant } from '../components/actors/factoryVariants';
 import { ActorType, type Actor, type DistrictName, type SceneryKind } from '../types/Actor';
 import { JobType } from '../types/Robot';
-import { BACK_HOSTS_ENABLED } from '../constants';
+import { BACK_HOSTS_ENABLED, WORLD_WIDTH } from '../constants';
+import { getRecipeRow } from './factoryPlacementSystem';
+import { factoryGeometry } from '../components/actors/factoryGeometry';
+import { deriveSceneryParams } from '../components/actors/scenery/sceneryParams';
 
 // ========================================
 // CONSTANTS
@@ -233,6 +236,57 @@ describe('hostJobs', () => {
 
   it('an offscreen derelict hosts nothing (offscreen beats derelict)', () => {
     expect(hostJobs(factoryActor('Refinery', { anchor: 'offscreen', derelict: true }))).toEqual([]);
+  });
+
+  describe('off screen means no job (Crawford, 2026-10-07)', () => {
+    // A foreground Warehouse in a Warehouse-only row, so moving it never changes its variant.
+    const warehouseAt = (x0: number, derelict = false): Actor => {
+      const base = factoryActor('Warehouse', { depth: 'foreground', anchor: 'ground', derelict });
+      expect(getRecipeRow(base.config!.district!, base.config!.row!)!.variants).toEqual(['Warehouse']);
+      return { ...base, position: { ...base.position, x: x0 } };
+    };
+    const boxOf = (a: Actor) => factoryGeometry(a).box;
+    const tankAt = (x: number): Actor => ({ ...sceneryActor('tank', { depth: 'midground' }), position: { x, y: 1020 } });
+    const tankHalfW = (a: Actor) => deriveSceneryParams(a).tank!.w / 2;
+
+    it('a factory whose drawn body starts at or past the right edge hosts nothing', () => {
+      const a = warehouseAt(WORLD_WIDTH);
+      expect(boxOf(a).x0).toBeGreaterThanOrEqual(WORLD_WIDTH);
+      expect(hostJobs(a)).toEqual([]);
+    });
+
+    it('…and one unit inside the edge still hosts', () => {
+      const a = warehouseAt(WORLD_WIDTH - 1);
+      expect(boxOf(a).x0).toBeLessThan(WORLD_WIDTH);
+      expect(hostJobs(a)).toEqual([Salvage]);
+    });
+
+    it('a factory wholly past the left edge hosts nothing; one straddling it still hosts', () => {
+      const gone = warehouseAt(-3000);
+      expect(boxOf(gone).x1).toBeLessThanOrEqual(0);
+      expect(hostJobs(gone)).toEqual([]);
+      const straddling = warehouseAt(-10);
+      expect(boxOf(straddling).x0).toBeLessThan(0);
+      expect(boxOf(straddling).x1).toBeGreaterThan(0);
+      expect(hostJobs(straddling)).toEqual([Salvage]);
+    });
+
+    it('off screen beats derelict too', () => {
+      expect(hostJobs(warehouseAt(WORLD_WIDTH, true))).toEqual([]);
+    });
+
+    it('a scenery host wholly off either edge hosts nothing; one straddling an edge still hosts', () => {
+      const probe = tankAt(0);
+      const half = tankHalfW(probe);
+      expect(hostJobs(tankAt(WORLD_WIDTH + half))).toEqual([]);
+      expect(hostJobs(tankAt(-half))).toEqual([]);
+      expect(hostJobs(tankAt(WORLD_WIDTH + half - 1))).toEqual(SCENERY_TABLE.tank);
+      expect(hostJobs(tankAt(-half + 1))).toEqual(SCENERY_TABLE.tank);
+    });
+
+    it('an off-screen host is never eligible, at any depth setting', () => {
+      expect(isWorkSiteEligible(warehouseAt(WORLD_WIDTH), { backHosts: true })).toBe(false);
+    });
   });
 
   it('a scenery actor with no kind hosts nothing', () => {

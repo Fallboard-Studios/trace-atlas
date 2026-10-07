@@ -47,11 +47,9 @@ const GRID_HOSTS = GRID_FACTORIES.filter((a) => hostJobs(a).length > 0);
 const clampX = (x: number) => Math.min(Math.max(x, WORLD_MARGIN), WORLD_WIDTH - WORLD_MARGIN);
 const clampY = (y: number) => Math.min(Math.max(y, WORLD_MARGIN), WORLD_HEIGHT - WORLD_MARGIN);
 
-/** The part of the roof inside the world's width, or the whole roof when none of it is. */
+/** The part of the roof inside the world's width (never empty: off-screen actors host nothing). */
 function visibleSpan(site: WorkSite): { lo: number; hi: number } {
-  const lo = Math.max(site.bounds.x0, 0);
-  const hi = Math.min(site.bounds.x1, WORLD_WIDTH);
-  return hi > lo ? { lo, hi } : { lo: site.bounds.x0, hi: site.bounds.x1 };
+  return { lo: Math.max(site.bounds.x0, 0), hi: Math.min(site.bounds.x1, WORLD_WIDTH) };
 }
 
 function siteOf(actor: Actor): WorkSite {
@@ -239,13 +237,16 @@ describe('workSites — factories (Phase 43 Task 9, spec §1.5)', () => {
       }
     });
 
-    it('a roof wholly past the world edge falls back to the whole roof (still a site)', () => {
-      const offWorld = GRID_HOSTS.filter((a) => factoryGeometry(a).box.x0 >= WORLD_WIDTH);
+    it('a building wholly past the world edge is no site — off screen means no job', () => {
+      // The grid places foreground Warehouses whose whole body is past the right edge.
+      const offWorld = GRID_FACTORIES.filter((a) => {
+        const { box } = factoryGeometry(a);
+        return box.x0 >= WORLD_WIDTH || box.x1 <= 0;
+      });
       expect(offWorld.length).toBeGreaterThan(0);
       for (const a of offWorld) {
-        const site = siteOf(a);
-        expect(site.path[0].x).toBe(site.bounds.x0);
-        expect(site.path[site.path.length - 1].x).toBe(site.bounds.x1);
+        expect(hostJobs(a), a.id).toEqual([]);
+        expect(getWorkSite(a), a.id).toBeNull();
       }
     });
 
@@ -351,6 +352,15 @@ describe('workSites — scenery group B and exhaustiveness (Phase 43 Task 11)', 
     const hosts = GRID_ACTORS.filter((a) => hostJobs(a).length > 0);
     expect(hosts.length).toBeGreaterThan(GRID_HOSTS.length);
     for (const a of hosts) expect(getWorkSite(a), `${a.id} ${a.config?.kind ?? 'factory'}`).not.toBeNull();
+  });
+
+  it('every site, factory or scenery, overlaps the screen', () => {
+    for (const a of GRID_ACTORS) {
+      const site = getWorkSite(a);
+      if (!site) continue;
+      expect(site.bounds.x1, a.id).toBeGreaterThan(0);
+      expect(site.bounds.x0, a.id).toBeLessThan(WORLD_WIDTH);
+    }
   });
 
   it('every non-host still has no site', () => {

@@ -59,12 +59,10 @@ const between = (rand: () => number, lo: number, hi: number) => lo + rand() * (h
 
 /**
  * The part of the roof inside the world's width, so a building that runs off the edge is worked
- * where it can be seen. A roof wholly past the edge falls back to the whole roof.
+ * where it can be seen. Never empty for a host: off screen means no job (`hostJobs`).
  */
 function visibleSpan(x0: number, x1: number): { lo: number; hi: number } {
-  const lo = Math.max(x0, 0);
-  const hi = Math.min(x1, WORLD_WIDTH);
-  return hi > lo ? { lo, hi } : { lo: x0, hi: x1 };
+  return { lo: Math.max(x0, 0), hi: Math.min(x1, WORLD_WIDTH) };
 }
 
 /**

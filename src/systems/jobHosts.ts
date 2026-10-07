@@ -5,7 +5,9 @@ import { ActorType, type Actor, type SceneryKind } from '../types/Actor';
 import { JobType } from '../types/Robot';
 import type { FactoryVariant } from '../components/actors/factoryVariants';
 import { factoryGeometry } from '../components/actors/factoryGeometry';
+import { sceneryWorkAnchors } from '../components/actors/scenery/sceneryWorkAnchors';
 import { getRecipeRow, DEFAULT_FACTORY_ROW } from './factoryPlacementSystem';
+import { WORLD_WIDTH } from '../constants';
 
 // ========================================
 // CONSTANTS
@@ -60,6 +62,23 @@ function recipeRowOf(actor: Actor) {
   return getRecipeRow(actor.config?.district ?? 'dense', actor.config?.row ?? DEFAULT_FACTORY_ROW);
 }
 
+/**
+ * The drawn body's horizontal extent: the factory's box, or the scenery silhouette's bounds
+ * (null for a kind without anchors — none of those host anyway).
+ */
+function drawnSpan(actor: Actor): { x0: number; x1: number } | null {
+  if (actor.type === ActorType.SCENERY) {
+    return sceneryWorkAnchors(actor, { foreground: false, rand: () => 0.5 })?.bounds ?? null;
+  }
+  return factoryGeometry(actor).box;
+}
+
+/** Whether none of the drawn body is inside the world's width — off screen means no job. */
+function isOffScreen(actor: Actor): boolean {
+  const span = drawnSpan(actor);
+  return span !== null && (span.x1 <= 0 || span.x0 >= WORLD_WIDTH);
+}
+
 /** The table row for the actor's own kind — the variant the renderer draws, for a factory. */
 function normalJobs(actor: Actor): readonly JobType[] {
   if (actor.type === ActorType.SCENERY) {
@@ -74,14 +93,17 @@ function normalJobs(actor: Actor): readonly JobType[] {
 // ========================================
 
 /**
- * The jobs this actor hosts; empty means "not a host". An actor in an `offscreen` row hosts
- * nothing; a derelict host hosts [salvage, structuralInspection] instead of its normal row (a
- * derelict non-host stays a non-host). Returns a fresh array.
+ * The jobs this actor hosts; empty means "not a host". Off screen means no job: an actor in an
+ * `offscreen` row, or one whose drawn body lies wholly outside the world's width (a body that
+ * straddles an edge still hosts), hosts nothing. A derelict host hosts [salvage,
+ * structuralInspection] instead of its normal row (a derelict non-host stays a non-host).
+ * Returns a fresh array.
  */
 export function hostJobs(actor: Actor): JobType[] {
   if (recipeRowOf(actor)?.anchor === 'offscreen') return [];
   const jobs = normalJobs(actor);
   if (jobs.length === 0) return [];
+  if (isOffScreen(actor)) return [];
   return [...(actor.config?.derelict ? DERELICT_HOST_JOBS : jobs)];
 }
 

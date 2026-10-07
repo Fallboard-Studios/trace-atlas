@@ -119,7 +119,9 @@ layers. This spec covers all four.
 
 `hostJobs(actor): JobType[]` — empty means "not a host". Factories by variant, scenery by `kind`;
 an actor with `config.derelict` hosts `[salvage, structuralInspection]` instead of its normal list;
-any actor in an `offscreen` row hosts nothing.
+off screen means no job: any actor in an `offscreen` row, or whose drawn body lies wholly outside
+the world's width (`x1 ≤ 0` or `x0 ≥ WORLD_WIDTH`), hosts nothing. A body that straddles an edge
+still hosts, worked where it can be seen.
 
 | Host | Jobs |
 |---|---|

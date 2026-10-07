@@ -338,9 +338,9 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   background sites hit this, and those stay ineligible until J4 (`BACK_HOSTS_ENABLED`). J4 must
   decide it: drop such sites, or park beside them. (3) **Visible roof.** Some hosts run off a
   world edge (x0 = −20; x1 up to ~2250), and some foreground Warehouse hosts sit wholly past it
-  (x0 ≥ 1977). Points, path and the park centre use the part of the roof inside [0, 1920]; a roof
-  wholly outside falls back to the whole roof. Whether off-world hosts should host at all is open
-  for T12/Crawford. (4) Per variant: Stacks/Refinery `[mouth, valve]`, where the mouth is the bubble vent's x
+  (x0 ≥ 1977). Points, path and the park centre use the part of the roof inside [0, 1920]. A
+  roof wholly outside first fell back to the whole roof; since Crawford's "off screen means no
+  job" ruling (see T12 (7)), such an actor hosts nothing, and the fallback is gone. (4) Per variant: Stacks/Refinery `[mouth, valve]`, where the mouth is the bubble vent's x
   (`factoryVentFraction`, now shared with `factoryBubbleProps.ts`) on the drawn roof, and the valve
   is in the other half. Warehouse has `[a, b]`, one in each half. Monolith/Skyscraper has
   `[seeded mid point, roof 10 %, roof 90 %]`. `path` is the top outline, through the front corner
@@ -476,9 +476,14 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   beacon returns null and the walk moves on. (5) `x` = 15 %–85 % of the width from
   `'locale.coverage.x'` at offset `i`, re-hashed through `alea()` (the bell-curve fix
   `rollDerelict` uses). (6) Mutation checks: no coverage call, every top-up on one row, and a
-  walk that ignores the stop rule each fail tests. (7) Not decided here, still open: off-world
-  foreground Warehouse hosts (T9 (3)) still count toward coverage, because counting goes
-  through `hostJobs`. If they stop hosting, coverage follows, and the grid test re-checks it.
+  walk that ignores the stop rule each fail tests. (7) **Off screen means no job** (Crawford, 2026-10-07, settling T9 (3)). `hostJobs`
+  returns `[]` for an actor whose drawn body lies wholly outside `[0, WORLD_WIDTH]`: the
+  factory box, or the scenery anchors' bounds. A body that straddles an edge still hosts. This
+  removed 43 grid hosts: 8 foreground Warehouses past the right edge, and 35 foreground
+  floodlights that the left-edge spread (starting at x = −20) puts wholly off the left edge;
+  only their beams reach the screen. Coverage still holds on every grid world with the same
+  top-ups. `workSites.ts`'s wholly-off-screen fallback (T9 (3)) became unreachable and was
+  removed. Spec §1.3 updated.
 
   **Verification:** `npx vitest run src/systems/jobCoverage.test.ts src/systems/districtRecipes.test.ts src/systems/districts.test.ts`.
   **Dependencies:** T7, T11. **Files:** `src/systems/jobCoverage.ts` (+ test),
