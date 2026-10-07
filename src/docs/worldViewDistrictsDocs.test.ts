@@ -106,9 +106,9 @@ describe('the roadmap: Phase 42 carries D1 shipped and a Not Doing list', () => 
     expect(at).toBeGreaterThan(-1);
   });
 
-  it('records D1 as shipped and D3 as planned', () => {
+  it('records D1 and D3 as shipped', () => {
     expect(phase).toMatch(/D1[^.]*shipped/i);
-    expect(phase).toMatch(/D3[^.]*planned/i);
+    expect(phase).toMatch(/D3[^.]*shipped/i);
   });
 
   it('has a Not Doing list carrying the spec/intent out-of-scope items', () => {

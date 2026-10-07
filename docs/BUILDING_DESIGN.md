@@ -446,6 +446,28 @@ over 50 seeds.
 
 ---
 
+## Atmosphere
+
+Roadmap Phase 42 D3 adds one atmosphere layer: `LightShafts` (`worldView/LightShafts.tsx`), 3–5
+static polygons in the back layer, after `WaterColumn` and before the terrain ridge. Each has one
+vertical edge and one 45° edge (the scenery families' own grid rule), seeded on the locale's own
+noise map (`'atmos.shaft.*'` dataIds), and fills with a vertical gradient from `glass.base` at opacity
+`0.11 × (1 − nightDepth)` down to 0 — sold at midday, gone at night (the group renders nothing once
+that opacity drops below 0.005). It reads the lighting tick the same way `WaterColumn` and
+`TerrainLayer` do: no GSAP, no CSS transition, a re-fill only when the rounded hour steps.
+
+A second element, `MarineSnow` (140 static particulate circles in the front layer), was built,
+shown to Crawford at a dev-server review, and **cut**: at that density it read as film grain over
+the scene rather than drifting particulate, making the world look stiller instead of more alive —
+the opposite of the intent. Three motion variants (continuous drift, teleport-with-fade, an
+opacity-only twinkle) were perf-measured as a follow-up; none changed the verdict that static
+particulate doesn't belong in this scene. See docs/specs/WORLD_VIEW_DISTRICTS.md's 2026-10-07
+amendment and docs/tasks/WORLD_VIEW_DISTRICTS.md Task 21 for the full record — if marine snow is
+ever revisited, the twinkle shape is the one with headroom (it measured as free), but it needs a
+new design pass, not a reinstatement of what was cut.
+
+---
+
 ## Size System
 
 ### Size Ranges in VARIANT_CONF

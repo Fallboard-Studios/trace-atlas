@@ -42,12 +42,18 @@
      without fighting the depth gradients? Are derelict buildings and wrecks legible at night? Is the robots' gem
      vocabulary on boulders and docks a rhyme or a confusion (do rocks look like robots)?
      Verdicts (Crawford, fill in per item: keep / cut / new value):
-       districts: ____   recipe set (9): ____   tanks: ____   cranes: ____   pipe bridges: ____   pylons: ____
-       walls: ____   derelict: ____   derelict ratio 0.25: ____   terrain: ____   ridge: ____
-       gem accents: ____   (pylon heads | tower panels | beacons — which earn a spot): ____
-       pipelines: ____   domes: ____   wrecks: ____   turbines: ____   boulders: ____   vents: ____
-       containers: ____   scaffolds: ____   tethers: ____   floodlights: ____   docks: ____   dishes: ____
-       light shafts: ____   marine snow: ____   row caps 0.7 / 0.85 / 1.0: ____ -->
+       districts: keep (all 9 shipped)   recipe set (9): keep   tanks: keep   cranes: keep   pipe bridges: keep   pylons: keep
+       walls: keep   derelict: keep   derelict ratio 0.25: keep (habitat/construction overridden to 0)   terrain: keep   ridge: keep
+       gem accents: keep   (pylon heads | tower panels | beacons — which earn a spot): all three shipped
+       pipelines: keep   domes: keep   wrecks: keep   turbines: keep   boulders: keep   vents: keep
+       containers: keep   scaffolds: keep   tethers: keep   floodlights: keep   docks: cut (Phase 43's floating charging stations replace it)   dishes: keep
+       light shafts: keep   marine snow: cut (read as film grain, not drifting particulate; see spec's 2026-10-07 amendment)   row caps 0.7 / 0.85 / 1.0: keep -->
+
+<!-- Shipped (roadmap Phase 42, 2026-10-07): all three branches (D1 feature/world-districts, D2
+     feature/world-scenery, D3 feature/world-atmosphere) shipped; verdicts above filled from
+     Checkpoints A-C. Live renderer: src/systems/districts.ts, src/systems/districtRecipes.ts,
+     src/components/actors/scenery/, src/components/panels/screen/worldView/{TerrainLayer,
+     WaterColumn,LightShafts}.tsx. -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />

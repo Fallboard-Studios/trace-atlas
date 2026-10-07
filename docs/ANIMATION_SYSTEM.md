@@ -100,6 +100,15 @@ static-layer content, same as the factories: both re-fill on the once-a-second l
 (`activeLocaleLocalTime` → `getLighting`, whole-percent rounding), never per frame and never via a
 CSS `transition` (roadmap Phase 42, docs/specs/WORLD_VIEW_DISTRICTS.md §1.3/§1.5).
 
+`LightShafts` (Phase 42 D3, back layer, §1.12) is the same static-layer content, on the same
+lighting tick. A moving variant was tried for the atmosphere layer's other element, `MarineSnow`
+(continuous per-circle drift, a teleport, an opacity-only twinkle) and perf-measured against this
+section's own rule before Crawford cut the element on visual grounds, not cost — see
+docs/PERFORMANCE.md's Task 21 follow-up. The twinkle shape read as the cheapest and least
+bug-like of the three (opacity-only, no position write), so a future "drift the snow" idea, if ever
+revisited, is a moving-layer addition and must clear the same idle-paint gate this section
+describes before it ships, not after.
+
 - Anything that moves every frame goes in a moving layer (robots in the robots layer, bubbles in `BubbleLayer`), never inside the static factory layers.
 - No CSS `transition`/`animation` on scene SVG fills or attributes — a running transition style-invalidates its element every frame, which is how the old `fill 4.8s` lighting fade kept the whole scene repainting. Lighting steps once a second instead.
 

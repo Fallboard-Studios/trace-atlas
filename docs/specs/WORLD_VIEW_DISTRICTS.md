@@ -1,5 +1,11 @@
 # Phase Spec: World View Districts (underwater districts, scenery families, atmosphere)
 
+> **Shipped (roadmap Phase 42, 2026-10-07)** — intent
+> [docs/intent/world-view-districts.md](../intent/world-view-districts.md), plan
+> [docs/tasks/WORLD_VIEW_DISTRICTS.md](../tasks/WORLD_VIEW_DISTRICTS.md). D1/D2/D3 all shipped per
+> this spec's §6 branch sequence; the `dock` family and `MarineSnow` cuts are recorded in the
+> amendments above. Every perf gate (Tasks 9, 18, 22) passed within the 17.2.5 noise band.
+
 Roadmap Phase 42 (proposed; 41 is the halo spec). Intent:
 [docs/intent/world-view-districts.md](../intent/world-view-districts.md) (confirmed 2026-10-05, four
 questions). Sketch: [docs/sketches/world-view-districts.html](../sketches/world-view-districts.html)
