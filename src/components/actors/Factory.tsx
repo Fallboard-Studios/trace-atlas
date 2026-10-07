@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
 
-import type { Actor } from '../../types/Actor';
-import { selectVariantFromSeed, VARIANT_CONF } from './factoryVariants';
+import { ActorType, type Actor } from '../../types/Actor';
+import { VARIANT_CONF } from './factoryVariants';
+import { factoryGeometry } from './factoryGeometry';
 import { hashActorId } from './factoryBubbleProps';
 import { getRecipeRow, DEFAULT_FACTORY_ROW } from '../../systems/factoryPlacementSystem';
-import { calcSilhouetteSize, bottomAnchorTransform } from './silhouetteUtils';
+import { bottomAnchorTransform } from './silhouetteUtils';
 import { applyColorShift, shiftHSL, clamp } from '../../utils/colorUtils';
 import { getLighting, getNightDepth, FLICKER_PERIOD, DAY_CYCLE_MEASURES } from '../../utils/lightingUtils';
 import { ROW_L_CAP, DERELICT_L_CAP, DERELICT_SAT } from '../../constants/sceneDepth';
@@ -107,21 +108,25 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
   const staticVisual = useMemo(() => {
     const row = actor.config?.row ?? DEFAULT_FACTORY_ROW;
     const district = actor.config?.district ?? 'dense';
-    const rowCfg = getRecipeRow(district, row);
-    const available = rowCfg?.variants;
     // Defensive fallback for an actor whose row can't be resolved (not a real spawn-time
     // path — see DEFAULT_FACTORY_ROW above): 'foreground' is ROW_L_CAP's no-op entry, so an
     // unresolved row renders exactly as it did before Task 6 added the cap.
-    const depth = rowCfg?.depth ?? 'foreground';
-    const config = selectVariantFromSeed(actor.id, actor.position.x, row, available);
-
-    const sizeRange = VARIANT_CONF[config.variant].sizeRange;
-    const { width, height } = calcSilhouetteSize(config.noiseValue, sizeRange);
+    const depth = getRecipeRow(district, row)?.depth ?? 'foreground';
+    // Variant, size and box come from the same derivation the work sites read (Phase 43). Built
+    // from the memo's own dependencies, not the whole actor, so the dependency list stays exact.
+    const { variant, width, height, frontCornerX } = factoryGeometry({
+      id: actor.id,
+      type: ActorType.FACTORY,
+      position: { x: actor.position.x, y: actor.position.y },
+      scaleX: actor.scaleX,
+      scaleY: actor.scaleY,
+      isActive: true,
+      config: { row: actor.config?.row, district: actor.config?.district },
+    });
 
     const hueShift = actor.config?.hueShift ?? 0;
     const satShift = actor.config?.satShift ?? 0;
     const shift = { hueShift, satShift };
-    const frontCornerX = config.frontCornerX;
 
     // Per-building phase offset (0..FLICKER_PERIOD-1) staggers window rerolls
     // across FLICKER_PERIOD consecutive measures so no two buildings re-render
@@ -131,7 +136,7 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
 
     // Pre-shift the palette so all greebles (roof + facade) share the
     // building's per-instance hue/sat variation.
-    const rawColors = VARIANT_CONF[config.variant].colors;
+    const rawColors = VARIANT_CONF[variant].colors;
     const shiftedColors = {
       body: shiftHSL(rawColors.body, shift),
       accent: shiftHSL(rawColors.accent, shift),
@@ -218,18 +223,18 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
     }
 
     return {
-      config, width, height, frontCornerX, buildingSeed, buildingPhase, shiftedColors, depth,
+      variant, width, height, frontCornerX, buildingSeed, buildingPhase, shiftedColors, depth,
       actualWidth, actualHeight, rooftopSlot, facadeGreeble, beltCourseCount, facadeZones,
       beltSeparatorYs,
     };
   }, [
-    actor.id, actor.position.x, actor.config?.row, actor.config?.district, actor.config?.hueShift, actor.config?.satShift,
+    actor.id, actor.position.x, actor.position.y, actor.config?.row, actor.config?.district, actor.config?.hueShift, actor.config?.satShift,
     actor.config?.rooftopGreeble, actor.config?.facadeGreeble, actor.config?.beltCourseCount,
     actor.scaleX, actor.scaleY,
   ]);
 
   const {
-    config, width, height, frontCornerX, buildingSeed, buildingPhase, shiftedColors, depth,
+    variant, width, height, frontCornerX, buildingSeed, buildingPhase, shiftedColors, depth,
     actualWidth, actualHeight, rooftopSlot, facadeGreeble, beltCourseCount, facadeZones,
     beltSeparatorYs,
   } = staticVisual;
@@ -366,7 +371,7 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
     <>
       <g
         transform={transform}
-        data-factory-type={config.variant}
+        data-factory-type={variant}
         data-rooftop-greeble={actor.config?.rooftopGreeble ?? 'none'}
         data-facade-greeble={actor.config?.facadeGreeble ?? 'none'}
       >

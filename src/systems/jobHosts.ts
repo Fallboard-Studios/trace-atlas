@@ -3,7 +3,8 @@
 // ========================================
 import { ActorType, type Actor, type SceneryKind } from '../types/Actor';
 import { JobType } from '../types/Robot';
-import { selectVariantFromSeed, type FactoryVariant } from '../components/actors/factoryVariants';
+import type { FactoryVariant } from '../components/actors/factoryVariants';
+import { factoryGeometry } from '../components/actors/factoryGeometry';
 import { getRecipeRow, DEFAULT_FACTORY_ROW } from './factoryPlacementSystem';
 
 // ========================================
@@ -56,9 +57,7 @@ const DERELICT_HOST_JOBS: readonly JobType[] = [Salvage, StructuralInspection];
 
 /** The actor's recipe row, resolved the same way Factory.tsx and factoryBubbleProps.ts do. */
 function recipeRowOf(actor: Actor) {
-  const row = actor.config?.row ?? DEFAULT_FACTORY_ROW;
-  const district = actor.config?.district ?? 'dense';
-  return { row, rowCfg: getRecipeRow(district, row) };
+  return getRecipeRow(actor.config?.district ?? 'dense', actor.config?.row ?? DEFAULT_FACTORY_ROW);
 }
 
 /** The table row for the actor's own kind — the variant the renderer draws, for a factory. */
@@ -67,9 +66,7 @@ function normalJobs(actor: Actor): readonly JobType[] {
     const kind = actor.config?.kind;
     return kind ? SCENERY_HOST_JOBS[kind] : [];
   }
-  const { row, rowCfg } = recipeRowOf(actor);
-  const { variant } = selectVariantFromSeed(actor.id, actor.position.x, row, rowCfg?.variants);
-  return FACTORY_HOST_JOBS[variant];
+  return FACTORY_HOST_JOBS[factoryGeometry(actor).variant];
 }
 
 // ========================================
@@ -82,7 +79,7 @@ function normalJobs(actor: Actor): readonly JobType[] {
  * derelict non-host stays a non-host). Returns a fresh array.
  */
 export function hostJobs(actor: Actor): JobType[] {
-  if (recipeRowOf(actor).rowCfg?.anchor === 'offscreen') return [];
+  if (recipeRowOf(actor)?.anchor === 'offscreen') return [];
   const jobs = normalJobs(actor);
   if (jobs.length === 0) return [];
   return [...(actor.config?.derelict ? DERELICT_HOST_JOBS : jobs)];
@@ -95,6 +92,6 @@ export function hostJobs(actor: Actor): JobType[] {
  */
 export function isWorkSiteEligible(actor: Actor, { backHosts }: { backHosts: boolean }): boolean {
   if (hostJobs(actor).length === 0) return false;
-  const depth = recipeRowOf(actor).rowCfg?.depth ?? 'foreground';
+  const depth = recipeRowOf(actor)?.depth ?? 'foreground';
   return backHosts || depth !== 'background';
 }

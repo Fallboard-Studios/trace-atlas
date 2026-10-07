@@ -288,7 +288,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   **Verification:** `npx vitest run src/systems/jobHosts.test.ts`. **Dependencies:** T4.
   **Files:** `src/systems/jobHosts.ts` (+ test), `src/constants/index.ts`. **Scope:** S.
 
-- [ ] **Task 8: Extract `factoryGeometry(actor)`**
+- [x] **Task 8: Extract `factoryGeometry(actor)`**
 
   **Description:** Cut `selectVariantFromSeed` + `calcSilhouetteSize` + the bottom-anchor maths out
   of `Factory.tsx`'s `staticVisual` into `components/actors/factoryGeometry.ts`, returning
@@ -296,8 +296,17 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   `x … x + w·sx`, `y − h·sy … y`). `Factory.tsx` calls it.
 
   **Acceptance criteria:**
-  - [ ] `Factory.test.tsx` and `Factory.test.ts` pass unmodified (render parity).
-  - [ ] For 50 seeded factories, `box` equals the rendered outer group's translate plus scaled size.
+  - [x] `Factory.test.tsx` and `Factory.test.ts` pass unmodified (render parity).
+  - [x] For 50 seeded factories, `box` equals the rendered outer group's translate plus scaled size.
+
+  **As shipped:** (1) `box.y0` is `Math.round(y − h·sy)`, rounded the way the rendered translate
+  (`bottomAnchorTransform`) is, and `y1 = y0 + h·sy`. So the box is the drawn body exactly, and its
+  bottom can sit up to 0.5 units off `actor.position.y`. (2) `Factory.tsx` passes the geometry a
+  copy of the actor built from its memo's own dependencies (`position.y` was added to them), so the
+  React compiler's memoisation check still passes. (3) `jobHosts.ts` now takes the factory variant
+  from `factoryGeometry`. `factoryBubbleProps.ts` and `pipeBridges.tsx` still derive it themselves
+  (out of scope). (4) Mutation checks: dropping the rounding, swapping the scale axes, or dropping
+  the row's variant list each fail tests.
 
   **Verification:** `npx vitest run src/components/actors`. **Dependencies:** None.
   **Files:** `src/components/actors/factoryGeometry.ts` (+ test), `src/components/actors/Factory.tsx`.
