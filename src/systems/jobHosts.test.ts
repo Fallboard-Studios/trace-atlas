@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   hostJobs,
   isWorkSiteEligible,
+  eligibleHostJobs,
   FACTORY_HOST_JOBS,
   SCENERY_HOST_JOBS,
 } from './jobHosts';
@@ -342,5 +343,28 @@ describe('isWorkSiteEligible — the depth filter (spec Assumption 7)', () => {
 
   it('an offscreen host row is never eligible', () => {
     expect(isWorkSiteEligible(factoryActor('Warehouse', { anchor: 'offscreen' }), { backHosts: true })).toBe(false);
+  });
+});
+
+describe('eligibleHostJobs — hostJobs behind the depth filter, in one call', () => {
+  const cases: [string, Actor][] = [
+    ['background Skyscraper', factoryActor('Skyscraper', { depth: 'background' })],
+    ['midground tank', sceneryActor('tank', { depth: 'midground' })],
+    ['foreground tank', sceneryActor('tank', { depth: 'foreground' })],
+    ['foreground wall', sceneryActor('wall', { depth: 'foreground' })],
+    ['offscreen Warehouse', factoryActor('Warehouse', { anchor: 'offscreen' })],
+  ];
+
+  it.each(cases)('%s: hostJobs when isWorkSiteEligible, else [] — for both backHosts settings', (_, actor) => {
+    for (const backHosts of [false, true]) {
+      const expected = isWorkSiteEligible(actor, { backHosts }) ? hostJobs(actor) : [];
+      expect(eligibleHostJobs(actor, { backHosts })).toEqual(expected);
+    }
+  });
+
+  it('the background Skyscraper case really differs between the two settings', () => {
+    const actor = cases[0][1];
+    expect(eligibleHostJobs(actor, { backHosts: false })).toEqual([]);
+    expect(eligibleHostJobs(actor, { backHosts: true })).toEqual(FACTORY_HOST_JOBS.Skyscraper);
   });
 });

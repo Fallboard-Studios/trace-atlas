@@ -1,12 +1,13 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { jobHostCounts, meetsCoverage, ensureJobCoverage, COVERAGE_MIN_JOBS, COVERAGE_MIN_HOSTS } from './jobCoverage';
 import { placeDistrict } from './districts';
 import { RECIPES, COVERAGE_TOP_UP, type CoverageTopUp } from './districtRecipes';
 import { getRecipeRow } from './factoryPlacementSystem';
+import * as jobHostsModule from './jobHosts';
 import { hostJobs } from './jobHosts';
 import { SIM_SEED_COORDS } from './lifecycleSim';
 import { getTerrainProfile, groundYAt } from './terrainProfile';
@@ -134,6 +135,20 @@ describe('jobCoverage (Phase 43 Task 12, spec §1.4)', () => {
       expect(added.map((a) => a.id)).toEqual(['c0', 'c1', 'c2', 'c3']);
       expect(placed.map((p) => p.index)).toEqual([0, 1, 2, 3]);
       expect(meetsCoverage(jobHostCounts([...fourTanks, ...added]))).toBe(true);
+    });
+
+    it('asks jobHosts about each actor once — the base world once, each placed top-up once (it runs on every world switch)', () => {
+      // Every jobHosts entry point; a spy sees only calls from outside the module, i.e. jobCoverage's.
+      const spies = (['hostJobs', 'isWorkSiteEligible', 'eligibleHostJobs'] as const).map((name) => vi.spyOn(jobHostsModule, name));
+      try {
+        const list: CoverageTopUp[] = Array.from({ length: 6 }, () => ({ kind: 'containers', depth: 'foreground' }) as CoverageTopUp);
+        const added = ensureJobCoverage(fourTanks, list, asContainers);
+        expect(added).toHaveLength(4);
+        const calls = spies.reduce((n, s) => n + s.mock.calls.length, 0);
+        expect(calls).toBe(fourTanks.length + added.length);
+      } finally {
+        spies.forEach((s) => s.mockRestore());
+      }
     });
 
     it('a placer that skips an item (null) moves on to the next', () => {

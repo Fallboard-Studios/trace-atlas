@@ -112,8 +112,16 @@ export function hostJobs(actor: Actor): JobType[] {
  * unless `backHosts` (BACK_HOSTS_ENABLED, spec Assumption 7). An unresolvable row counts as
  * foreground, matching Factory.tsx's render fallback.
  */
-export function isWorkSiteEligible(actor: Actor, { backHosts }: { backHosts: boolean }): boolean {
-  if (hostJobs(actor).length === 0) return false;
+export function isWorkSiteEligible(actor: Actor, options: { backHosts: boolean }): boolean {
+  return eligibleHostJobs(actor, options).length > 0;
+}
+
+/**
+ * hostJobs(actor) when the actor is a work site right now (isWorkSiteEligible), else []. One
+ * hostJobs derivation, so a caller that needs both the answer and the jobs pays for one.
+ */
+export function eligibleHostJobs(actor: Actor, { backHosts }: { backHosts: boolean }): JobType[] {
   const depth = recipeRowOf(actor)?.depth ?? 'foreground';
-  return backHosts || depth !== 'background';
+  if (!backHosts && depth === 'background') return [];
+  return hostJobs(actor);
 }
