@@ -561,7 +561,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   **Verification:** `npx vitest run src/systems/siteChoice.test.ts`. **Dependencies:** T7.
   **Files:** `src/systems/siteChoice.ts` (+ test), `src/constants/index.ts`. **Scope:** S.
 
-- [ ] **Task 15: Readiness and handoff sim — stop and report**
+- [x] **Task 15: Readiness and handoff sim — stop and report**
 
   **Description:** Extend `lifecycleSim.ts` with a loop sim: the real lifecycle at a given BPM, real
   work sites and stations per seed, `chooseNextSite` + `siteCooldown`, swims at `SWIM_SPEED`, job
@@ -574,12 +574,15 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   - [x] Deterministic; no store, BeatClock or GSAP. — `runLoopSim` and `runReadinessSim` (given
         placed worlds) are spied store-, BeatClock- and GSAP-free; placing the grid's worlds
         (`placeDistrict`) stays in the test, as in the coverage and stations tests.
-  - [ ] Report posted; Crawford confirms `COOLDOWN_*` (target: mean waiting < 10 % of active time,
-        no wait > 15 s) and the constants are written back. — **report posted, the first guess
-        misses; awaiting Crawford.**
+  - [x] Report posted; Crawford confirms `COOLDOWN_*` (target: mean waiting < 10 % of active time,
+        no wait > 15 s) and the constants are written back. — the first guess missed; **Crawford
+        chose 0.4/3/30 (2026-10-07)**, written to `constants/index.ts`. The mean target holds at
+        both tempos (6.4 % / 3.7 %), and so does the 15 s cap at 200 BPM (14 s). The 20 BPM
+        longest wait (34 s) is accepted as measure-bound. He picked it over 0.3/2/30 for more job
+        variety (3.92 vs 3.24 switches per stint at 20 BPM).
   - [x] Zero "charging while visible" cases at both tempos.
 
-  **As shipped (awaiting the cooldown decision):** (1) **Pulled forward.** `jobDuration` (T19's
+  **As shipped:** (1) **Pulled forward.** `jobDuration` (T19's
   pure function, `src/animation/jobMoves/jobDuration.ts`) with `JOB_BASE_SECONDS` 5,
   `JOB_MIN_SECONDS` 1.5 and `JOB_WORK_RATE` 0.7 for every job (the spec's 0.5–0.9 midpoint; T0
   gives each job its own). `WAIT_RETRY_SECONDS` 2 and `STATION_ARC_SECONDS` 0.9 are in constants.
@@ -604,10 +607,10 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
 
   | Cooldown | BPM | Mean waiting | p95 waiting | Longest wait | p95 wait | Switches / stint | Seeds missing a target |
   |---|---|---|---|---|---|---|---|
-  | **0.6/4/30 (first guess)** | 20 | 10.9 % | 24.0 % | 42 s | 10 s | 4.48 | 69 / 121 |
-  | **0.6/4/30 (first guess)** | 200 | 7.3 % | 17.3 % | 17.1 s | 8 s | 0.60 | 32 / 121 |
-  | 0.4/3/30 | 20 | 6.4 % | 17.3 % | 34 s | 8 s | 3.92 | 32 / 121 |
-  | 0.4/3/30 | 200 | 3.7 % | 12.4 % | 14 s | 6 s | 0.46 | 15 / 121 |
+  | 0.6/4/30 (first guess) | 20 | 10.9 % | 24.0 % | 42 s | 10 s | 4.48 | 69 / 121 |
+  | 0.6/4/30 (first guess) | 200 | 7.3 % | 17.3 % | 17.1 s | 8 s | 0.60 | 32 / 121 |
+  | **0.4/3/30 (shipped)** | 20 | 6.4 % | 17.3 % | 34 s | 8 s | 3.92 | 32 / 121 |
+  | **0.4/3/30 (shipped)** | 200 | 3.7 % | 12.4 % | 14 s | 6 s | 0.46 | 15 / 121 |
   | 0.3/2/30 | 20 | 4.2 % | 11.5 % | 30 s | 7.3 s | 3.24 | 15 / 121 |
   | 0.3/2/30 | 200 | 2.4 % | 9.3 % | 12 s | 4.2 s | 0.39 | 3 / 121 |
   | 0.2/2/30 | 20 | 2.7 % | 10.2 % | 36 s | 4 s | 2.70 | 8 / 121 |

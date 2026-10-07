@@ -192,13 +192,13 @@ describe('siteChoice (Phase 43 Task 14, spec §1.7)', () => {
   });
 
   describe('siteCooldown', () => {
-    it('pins the first-guess constants (the readiness sim, Task 15, sets the real ones)', () => {
-      expect([COOLDOWN_PER_SITE, COOLDOWN_MIN, COOLDOWN_MAX]).toEqual([0.6, 4, 30]);
+    it('pins the constants Crawford chose from the Task 15 readiness sim (0.4/3/30, over the 0.6/4/30 first guess)', () => {
+      expect([COOLDOWN_PER_SITE, COOLDOWN_MIN, COOLDOWN_MAX]).toEqual([0.4, 3, 30]);
     });
 
     it('is n × COOLDOWN_PER_SITE between the clamps', () => {
-      expect(siteCooldown(10)).toBeCloseTo(6);
-      expect(siteCooldown(20)).toBeCloseTo(12);
+      expect(siteCooldown(14)).toBeCloseTo(5.6);
+      expect(siteCooldown(20)).toBeCloseTo(8);
     });
 
     it('clamps at the low end: few sites, short rest', () => {
@@ -208,7 +208,7 @@ describe('siteChoice (Phase 43 Task 14, spec §1.7)', () => {
     });
 
     it('clamps at the high end: many sites, long rest', () => {
-      expect(siteCooldown(50)).toBe(COOLDOWN_MAX);
+      expect(siteCooldown(100)).toBe(COOLDOWN_MAX);
       expect(siteCooldown(1000)).toBe(COOLDOWN_MAX);
     });
 
