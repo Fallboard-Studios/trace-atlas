@@ -36,7 +36,7 @@ export type DockingState = (typeof DockingState)[keyof typeof DockingState];
 
 /**
  * The six jobs a robot can hold (Phase 43). Live visual state, never replayed or persisted.
- * The legacy scorer (robotSystems.ts's scoreJobAffinities/assignJob) still picks only the first
+ * The legacy scorer (lifecycleVisuals.ts's scoreJobAffinities/assignJob) still picks only the first
  * four; Salvage and Maintenance are only chosen once the work loop lands (J2).
  */
 export const JobType = {

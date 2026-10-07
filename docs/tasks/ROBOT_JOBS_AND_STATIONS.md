@@ -205,7 +205,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   `src/content/copy/probe.ts`, `src/data/robotSelectionConfig.ts`, the two card components (+ tests).
   **Scope:** M.
 
-- [ ] **Task 5: The `onLifecycleChange` seam and the legacy adapter**
+- [x] **Task 5: The `onLifecycleChange` seam and the legacy adapter**
 
   **Description:** New `src/systems/lifecycleVisuals.ts` exports `onLifecycleChange(localeId,
   robotId, to: 'recalled' | 'active' | 'docked')` and, behind it, today's visuals moved verbatim out
@@ -216,11 +216,21 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   (spec §1.1, correction 1).
 
   **Acceptance criteria:**
-  - [ ] `robotSystems.ts` imports nothing from `idleSystem`, `swimAnimation` or `spawnSystem`'s
+  - [x] `robotSystems.ts` imports nothing from `idleSystem`, `swimAnimation` or `spawnSystem`'s
         position helper.
-  - [ ] The moved exit-swim, dock-position and idle-restart tests pass unmodified against the
+  - [x] The moved exit-swim, dock-position and idle-restart tests pass unmodified against the
         adapter (behaviour parity); the landing tests assert the seam is called with the right `to`.
-  - [ ] Mutation check: dropping the seam call from `landOnDocked` fails a test.
+        — the assertions are unchanged; only the entry call changed (`onLifecycleChange` instead of
+        the tick/landing function). An end-to-end test through the real tick also proves parity.
+  - [x] Mutation check: dropping the seam call from `landOnDocked` fails a test.
+
+  **As shipped:** (1) `dockCycleCounters` moved to a new `src/systems/dockCycles.ts`
+  (`getDockCycleCount` / `recordDockLanding`). The off-screen dock position is seeded by the dock
+  cycle, and the count also seeds pitch drift. A shared module lets both read one counter without
+  an import cycle. `landOnDocked` advances it; the adapter reads it. (2) `scoreJobAffinities` and
+  `assignJob` moved into `lifecycleVisuals.ts` with the rest of the legacy visuals. That avoids an
+  import cycle with `robotSystems.ts`, and they get deleted together in T24. `worldTransition.ts`
+  imports `assignJob` from there now.
 
   **Verification:** `npx vitest run src/systems`. **Dependencies:** T3, T4. **Files:**
   `src/systems/robotSystems.ts`, `src/systems/lifecycleVisuals.ts` (+ tests, moved cases).
