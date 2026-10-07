@@ -195,4 +195,34 @@ describe('districtRecipes', () => {
       }
     });
   });
+
+  // Roadmap Phase 42 Task 17 (§1.11): each vent is a GSAP BubbleStream in the moving layer, so
+  // every district's vent count is capped at 9 (ventfield, the busiest, has exactly 9).
+  describe('vents per district', () => {
+    it('no district places more than 9 vent-kind items', () => {
+      for (const district of Object.keys(RECIPES) as DistrictName[]) {
+        const ventCount = RECIPES[district]
+          .filter((r) => r.kind === 'vent')
+          .reduce((sum, r) => sum + r.count, 0);
+        expect(ventCount).toBeLessThanOrEqual(9);
+      }
+    });
+
+    it('ventfield — the busiest vent district — is exactly at the cap (9)', () => {
+      const ventCount = RECIPES.ventfield.filter((r) => r.kind === 'vent').reduce((sum, r) => sum + r.count, 0);
+      expect(ventCount).toBe(9);
+    });
+
+    it('mutation check: bumping ventfield\'s own vent count past 9 fails the per-district cap', () => {
+      const ventRow = RECIPES.ventfield.find((r) => r.kind === 'vent' && r.depth === 'background')!;
+      const original = ventRow.count;
+      try {
+        ventRow.count = original + 1; // 6 -> 7, pushing the district total from 9 to 10
+        const ventCount = RECIPES.ventfield.filter((r) => r.kind === 'vent').reduce((sum, r) => sum + r.count, 0);
+        expect(ventCount).toBeGreaterThan(9);
+      } finally {
+        ventRow.count = original;
+      }
+    });
+  });
 });

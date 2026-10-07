@@ -57,15 +57,19 @@ describe('Scenery dispatcher', () => {
     expect(container.querySelector('[data-scenery="wall"]')).not.toBeNull();
   });
 
-  it('renders nothing for a kind with no registered renderer', () => {
-    const { container } = render(<Scenery actor={makeActor({ kind: 'wreck' as never, district: 'ventfield', row: 2 })} />);
+  it('renders nothing for an actor with no kind', () => {
+    // D2 (roadmap Phase 42 Tasks 11-17) ships all sixteen SceneryKinds, so there is no real
+    // kind left to exercise the "no registered renderer" branch with — a kind-less actor
+    // takes the same `renderer` undefined path (Scenery.tsx: `kind ? SCENERY_RENDERERS[kind] :
+    // undefined`), so it still proves `if (!renderer) return null` works.
+    const { container } = render(<Scenery actor={makeActor({ kind: undefined, district: 'ventfield', row: 2 })} />);
     expect(container.innerHTML).toBe('');
   });
 
-  it('SCENERY_RENDERERS only has entries for shipped kinds (wall, pylon, beacon, boulder, tank, dome, scaffold, containers, crane, pipeline, turbine, tether, floodlight, dish — D2 Tasks 11-16)', () => {
+  it('SCENERY_RENDERERS has entries for all sixteen SceneryKinds (D2 complete, roadmap Phase 42 Tasks 11-17)', () => {
     expect(Object.keys(SCENERY_RENDERERS)).toEqual([
       'wall', 'pylon', 'beacon', 'boulder', 'tank', 'dome', 'scaffold', 'containers',
-      'crane', 'pipeline', 'turbine', 'tether', 'floodlight', 'dish',
+      'crane', 'pipeline', 'turbine', 'tether', 'floodlight', 'dish', 'wreck', 'vent',
     ]);
   });
 
@@ -112,6 +116,14 @@ describe('Scenery dispatcher', () => {
 
     const containersCtx = render(<Scenery actor={makeActor({ kind: 'containers', district: 'yard', row: 3 })} />);
     expect(containersCtx.container.querySelector('[data-scenery="containers"]')).not.toBeNull();
+  });
+
+  it('dispatches the Task 17 kinds (wreck, vent) to their renderers', () => {
+    const wreckCtx = render(<Scenery actor={makeActor({ kind: 'wreck', district: 'wreckfield', row: 3 })} />);
+    expect(wreckCtx.container.querySelector('[data-scenery="wreck"]')).not.toBeNull();
+
+    const ventCtx = render(<Scenery actor={makeActor({ kind: 'vent', district: 'ventfield', row: 0 })} />);
+    expect(ventCtx.container.querySelector('[data-scenery="vent"]')).not.toBeNull();
   });
 
   it('does not throw across a range of hours (lighting tick)', () => {

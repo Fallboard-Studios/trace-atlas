@@ -260,3 +260,41 @@ export function deriveSceneryParams(actor: Actor): SceneryParams {
 export function maxShapes(kind: SceneryKind): number {
   return MAX_SHAPES[kind];
 }
+
+// ========================================
+// VENT GEOMETRY (shared between renderers/vent.tsx and factoryBubbleProps.ts)
+// §1.9 vent row: "4-6 steps of 22-44 tall narrowing by 0.9 x step". The per-step height is a
+// fixed value within that 22-44 range (not itself seeded, same "fixed within range" pattern as
+// tank.tsx's BELT_HEIGHT) so both the renderer and getActorBubbleProps's mouth-position resolve
+// identical geometry from nothing but `VentParams` — the same "spawn/render agree" discipline
+// calcSilhouetteSize gives factories.
+// ========================================
+
+/** A single stepped-cone tier (§1.9 vent row). */
+export interface VentStep { width: number; height: number }
+
+/** Fixed height per vent step, scene units — within the row's own 22-44 range. */
+export const VENT_STEP_HEIGHT = 30;
+/** "narrowing by 0.9 x step". */
+const VENT_NARROW_FACTOR = 0.9;
+/** The narrowing floor — a step is never narrower than this. */
+const VENT_MIN_STEP_WIDTH = 14;
+
+/**
+ * The vent's stepped-cone tiers, base-first (widest to narrowest), per §1.9: step 0 is
+ * `params.w` wide: each following step is `0.9 x` the previous step's width, floored at 14.
+ */
+export function ventSteps(params: VentParams): VentStep[] {
+  const steps: VentStep[] = [];
+  let width = params.w;
+  for (let i = 0; i < params.steps; i++) {
+    steps.push({ width, height: VENT_STEP_HEIGHT });
+    width = Math.max(VENT_MIN_STEP_WIDTH, width * VENT_NARROW_FACTOR);
+  }
+  return steps;
+}
+
+/** Total stack height — the vertical distance from the vent's base to its mouth (top step). */
+export function ventTotalHeight(params: VentParams): number {
+  return params.steps * VENT_STEP_HEIGHT;
+}

@@ -162,10 +162,10 @@ describe('districts', () => {
   });
 
   describe('SHIPPED_SCENERY', () => {
-    it('is wall, pylon, beacon, boulder, tank, dome, scaffold, containers, crane, pipeline, turbine, tether, floodlight, dish, as of roadmap Phase 42 Tasks 11-16 (D2)', () => {
+    it('is all sixteen SceneryKinds, as of roadmap Phase 42 Tasks 11-17 (D2 complete)', () => {
       expect(SHIPPED_SCENERY).toEqual(new Set([
         'wall', 'pylon', 'beacon', 'boulder', 'tank', 'dome', 'scaffold', 'containers',
-        'crane', 'pipeline', 'turbine', 'tether', 'floodlight', 'dish',
+        'crane', 'pipeline', 'turbine', 'tether', 'floodlight', 'dish', 'wreck', 'vent',
       ]));
     });
   });
@@ -335,6 +335,17 @@ describe('districts', () => {
         const wallActors = placements.flatMap((actors) => actors.filter((a) => a.config?.kind === 'wall'));
         expect(wallActors.length).toBeGreaterThan(0);
         expect(wallActors.every((a) => a.config?.derelict === undefined)).toBe(true);
+      });
+
+      it('wreck is not derelict-capable: no wreck actor ever carries config.derelict (always-derelict is the renderer\'s own rule, not a flag — roadmap Phase 42 Task 17, §1.6/§1.9)', () => {
+        // 'derelict' and 'wreckfield' both carry a wreck row.
+        const placements = [
+          ...placeDistrictSeeds('derelict', 5, 'derelict-capability-wreck'),
+          ...placeDistrictSeeds('wreckfield', 5, 'derelict-capability-wreck'),
+        ];
+        const wreckActors = placements.flatMap((actors) => actors.filter((a) => a.config?.kind === 'wreck'));
+        expect(wreckActors.length).toBeGreaterThan(0);
+        expect(wreckActors.every((a) => a.config?.derelict === undefined)).toBe(true);
       });
     });
   });

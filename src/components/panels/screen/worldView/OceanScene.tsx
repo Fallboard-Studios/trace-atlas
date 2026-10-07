@@ -156,13 +156,16 @@ export function OceanScene({
       ? <Factory key={actor.id} actor={actor} />
       : <Scenery key={actor.id} actor={actor} />;
 
-  // Locale-wide count of bubble-eligible buildings (all rows, not just one),
-  // passed to the bubble layer so each BubbleStream can spread the aggregate
-  // bubble-burst rate across all of them rather than have each one burst on
-  // its own fixed interval — see BubbleStream's totalBuildings prop doc.
+  // Locale-wide count of bubble-eligible buildings (all rows, not just one) PLUS vents
+  // (docs/specs/WORLD_VIEW_DISTRICTS.md §1.11 — vents vent bubbles too), passed to the bubble
+  // layer so each BubbleStream can spread the aggregate bubble-burst rate across all of them
+  // rather than have each one burst on its own fixed interval — see BubbleStream's
+  // totalBuildings prop doc.
   const bubbleBuildingCount = useMemo(
-    () => factories.filter((a) => isBubbleEligible(a.config?.purpose)).length,
-    [factories],
+    () =>
+      factories.filter((a) => isBubbleEligible(a.config?.purpose)).length +
+      sceneryActors.filter((a) => a.config?.kind === 'vent').length,
+    [factories, sceneryActors],
   );
 
   // Bring the active locale online on mount — guarded factory placement + the
@@ -270,9 +273,10 @@ export function OceanScene({
         <TerrainLayer localeId={localeId} part="ground" width={width} height={height} />
       </SceneLayer>
 
-      {/* Moving: every building's vent bubbles, all rows (BubbleStream timelines), behind the robots. */}
+      {/* Moving: every building's AND vent's bubbles, all rows (BubbleStream timelines), behind
+          the robots (docs/specs/WORLD_VIEW_DISTRICTS.md §1.11). */}
       <SceneLayer name="bubbles" width={width} height={height} moving>
-        <BubbleLayer factories={factories} totalBuildings={bubbleBuildingCount} />
+        <BubbleLayer actors={actors} totalBuildings={bubbleBuildingCount} />
       </SceneLayer>
 
       {/* Moving: the robots (GSAP-driven transforms, Robot.tsx). The one layer that takes clicks. */}

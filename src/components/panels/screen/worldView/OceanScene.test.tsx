@@ -20,11 +20,11 @@ vi.mock('@/components/actors/scenery/Scenery', () => ({
   Scenery: (props: { actor: Actor }) => <g data-scenery-mock={props.actor.id} data-row={props.actor.config?.row} />,
   default: (props: { actor: Actor }) => <g data-scenery-mock={props.actor.id} data-row={props.actor.config?.row} />,
 }));
-// Records what the scene hands its bubble layer (which factories, what total) without running
+// Records what the scene hands its bubble layer (which actors, what total) without running
 // BubbleStream's GSAP timelines.
-const bubbleLayerMock = vi.fn((_props: { factories: { id: string }[]; totalBuildings: number }): ReactElement | null => null);
+const bubbleLayerMock = vi.fn((_props: { actors: { id: string }[]; totalBuildings: number }): ReactElement | null => null);
 vi.mock('@/components/actors/BubbleLayer', () => ({
-  BubbleLayer: (props: { factories: { id: string }[]; totalBuildings: number }) => bubbleLayerMock(props),
+  BubbleLayer: (props: { actors: { id: string }[]; totalBuildings: number }) => bubbleLayerMock(props),
 }));
 
 const initializeLocaleMock = vi.fn();
@@ -279,12 +279,44 @@ describe('OceanScene', () => {
       expect(container.querySelector('svg[data-scene-layer="front"] #robot-layer')).toBeNull();
     });
 
-    it('hands the bubble layer every factory (all rows) and the locale-wide bubble-eligible count', () => {
+    it('hands the bubble layer every actor (all rows) and the locale-wide bubble-eligible count', () => {
       render(<OceanScene />);
       expect(bubbleLayerMock).toHaveBeenCalled();
       const props = bubbleLayerMock.mock.calls.at(-1)![0];
-      expect(props.factories.map((f) => f.id).sort()).toEqual(['bg-1', 'fg-1', 'mid-1']);
+      expect(props.actors.map((f) => f.id).sort()).toEqual(['bg-1', 'fg-1', 'mid-1']);
       expect(props.totalBuildings).toBe(2); // mid-1 is observationComms — no vent
+    });
+
+    // Roadmap Phase 42 Task 17 (§1.11): vents vent bubbles too, so bubbleBuildingCount must
+    // count them alongside bubble-eligible factories, and BubbleLayer must receive the vent
+    // actor itself (via the shared `actors` prop, not a factories-only one).
+    it('counts vent scenery actors toward the bubble-eligible total and hands them to the bubble layer', () => {
+      const ventRow = RECIPES.ventfield.findIndex((r) => r.kind === 'vent' && r.depth === 'background');
+      useLocaleStore.setState({
+        locales: {
+          [DEFAULT_LOCALE_ID]: {
+            ...DEFAULT_LOCALE,
+            robots: [makeRobot({ id: 'r1' })],
+            actors: [
+              makeFactory('bg-1', rowIndexFor('background')),
+              makeFactory('mid-1', rowIndexFor('midground'), 'observationComms'),
+              makeFactory('fg-1', rowIndexFor('foreground')),
+              {
+                id: 'vent-1',
+                type: ActorType.SCENERY,
+                position: { x: 50, y: 900 },
+                isActive: false,
+                cooldownRemaining: 0,
+                config: { kind: 'vent', row: ventRow, district: 'ventfield' },
+              },
+            ],
+          },
+        },
+      });
+      render(<OceanScene />);
+      const props = bubbleLayerMock.mock.calls.at(-1)![0];
+      expect(props.actors.map((f) => f.id).sort()).toEqual(['bg-1', 'fg-1', 'mid-1', 'vent-1']);
+      expect(props.totalBuildings).toBe(3); // 2 bubble-eligible factories + 1 vent
     });
 
     it('keeps the bubble layer inside the bubbles svg', () => {

@@ -24,6 +24,8 @@ import { turbine } from './renderers/turbine';
 import { tether } from './renderers/tether';
 import { floodlight } from './renderers/floodlight';
 import { dish } from './renderers/dish';
+import { wreck } from './renderers/wreck';
+import { vent } from './renderers/vent';
 
 /**
  * Gem-accent build flag (docs/specs/WORLD_VIEW_DISTRICTS.md §1.10, spec §7 Q4) — removed in
@@ -52,6 +54,8 @@ export const SCENERY_RENDERERS: Partial<Record<SceneryKind, SceneryRenderer>> = 
   tether,
   floodlight,
   dish,
+  wreck,
+  vent,
 };
 
 const NO_ACCENT: AccentPair = { primary: 0, secondary: 0 };
