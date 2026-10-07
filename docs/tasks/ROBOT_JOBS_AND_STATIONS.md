@@ -674,6 +674,20 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   **Verification:** `npm test`. **Dependencies:** T1–T15. **Files:** the docs above, the spec,
   `docs/todo/roadmap.md`. **Scope:** S.
 
+**J1 code review (2026-10-07, after Checkpoint B).** Four findings, each fixed in its own commit:
+(1) **Coverage top-up x had almost no spread.** One `'locale.coverage.x'` sample re-hashed through
+`alea()` took 3 values at offset 0 over the grid, so all 56 topped-up worlds stood their first
+top-up at x = 368, 929 or 1538. It is now a `getUniformSeededVal` draw. That is the three-sample
+hash, extracted from `pickDistrict` and `stations.ts` into `src/utils/getSeededVal.ts` with no
+change to their output. Top-ups move in those 56 worlds. The Task 15 table above predates this.
+Re-run at the shipped 0.4/3/30: mean waiting unchanged (6.4 % / 3.7 %), turn-backs and
+charging-visible still 0. The 200 BPM longest wait went 14 s → 17.1 s; seeds missing a target
+went 32 / 15 → 33 / 13. (2) **Bubble vents read `factoryGeometry`**, the third copy of the
+variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, ≤ 0.5 px. (3)
+**Coverage counts each actor once** (`eligibleHostJobs`; incremental top-up counts):
+`placeDistrict` 3.6–4.2 → 1.8–2.4 ms per world on desktop. (4) **`gemChamfer` moved to
+`gemGeometry.ts`**, clearing the one lint warning the branch added.
+
 ---
 
 ### Phase J2: Stations and the loop (`feature/jobs-loop`)
