@@ -110,15 +110,13 @@ function resolveBaseY(row: DistrictRow, profile: ReturnType<typeof getTerrainPro
 /**
  * Picks a locale's district, builds its terrain profile, and places every
  * row of its recipe (docs/specs/WORLD_VIEW_DISTRICTS.md §1.1-1.2, §1.4, §1.6)
- * — the recipe-driven successor to `placeFactories` (roadmap Phase 42
- * Task 4). `placeFactories` remains untouched; Task 5 migrates the readers
- * and deletes it.
+ * — the sole factory/scenery placement path (roadmap Phase 42 Task 4; Task 5
+ * deleted the legacy fixed-table placement path and every reader of it).
  *
  * Rows whose `kind` is not `'factory'` and not in `SHIPPED_SCENERY` place
  * nothing (D1 ships every table but no scenery renderer yet). Factory rows
- * call the existing `createFactory`, seeded exactly as `placeFactories` does
- * (same `factory.id`/`factory.scale`/AS-shift/accent-lean draws) so ids and
- * colors stay stable whichever placement path a factory came from.
+ * call the existing `createFactory` (same `factory.id`/`factory.scale`/
+ * AS-shift/accent-lean draws Factory.tsx's render path expects).
  */
 export function placeDistrict(localeId: string): Actor[] {
   const actors: Actor[] = [];
@@ -137,10 +135,9 @@ export function placeDistrict(localeId: string): Actor[] {
   const asNoiseMap = attenuationStyle ? getAttenuationStyleNoiseMap(attenuationStyle.id, attenuationStyle.name) : null;
   const accentPair = asNoiseMap ? deriveAsAccentPair(asNoiseMap) : null;
 
-  // Two independent counters, mirroring placeFactories' factoryIndex: one for
-  // factory id/scale/AS seeding, one for the per-actor 'actor.derelict' draw
-  // (§1.6 — "offset = actorIndex"), so neither shifts if the other's draw count
-  // ever changes.
+  // Two independent counters: one for factory id/scale/AS seeding, one for the
+  // per-actor 'actor.derelict' draw (§1.6 — "offset = actorIndex"), so neither
+  // shifts if the other's draw count ever changes.
   let factoryIndex = 0;
   let actorIndex = 0;
 
@@ -156,7 +153,7 @@ export function placeDistrict(localeId: string): Actor[] {
 
       const px = Math.round(x);
       const y = Math.round(resolveBaseY(row, profile, px));
-      const actor = createFactory({ x: px, y }, rowIndex, scale, id, asShift, accentTarget);
+      const actor = createFactory({ x: px, y }, rowIndex, scale, id, asShift, accentTarget, row.variants);
 
       const actorIdx = actorIndex++;
       const ratio = row.derelict ?? DERELICT_RATIO;

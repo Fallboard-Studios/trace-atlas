@@ -29,7 +29,7 @@ export type SceneryKind =
 
 /**
  * The nine seeded district recipes a locale is drawn from (roadmap
- * Phase 42, D1), replacing the single fixed FACTORY_ROWS table. See
+ * Phase 42, D1), replacing the legacy single fixed row table. See
  * docs/specs/WORLD_VIEW_DISTRICTS.md §1.1-1.2.
  */
 export type DistrictName =
@@ -73,7 +73,7 @@ export interface Actor {
   config?: {
     robotBlueprint?: string;
     productionInterval?: number;
-    /** Index into FACTORY_ROWS (systems/factoryPlacementSystem.ts); use getRowConfig(row)?.row for the depth group ('background'/'midground'/'foreground'). */
+    /** Index into this actor's district recipe (systems/districtRecipes.ts, via `config.district`); use getRecipeRow(district, row)?.depth for the depth group ('background'/'midground'/'foreground'). */
     row?: number;
     /**
      * Degrees of hue rotation applied to the variant's base body color.

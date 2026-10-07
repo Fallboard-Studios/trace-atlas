@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import type { Actor } from '../../types/Actor';
 import { selectVariantFromSeed, VARIANT_CONF } from './factoryVariants';
 import { hashActorId } from './factoryBubbleProps';
-import { getRowConfig, DEFAULT_FACTORY_ROW } from '../../systems/factoryPlacementSystem';
+import { getRecipeRow, DEFAULT_FACTORY_ROW } from '../../systems/factoryPlacementSystem';
 import { calcSilhouetteSize, bottomAnchorTransform } from './silhouetteUtils';
 import { applyColorShift, shiftHSL, clamp } from '../../utils/colorUtils';
 import { getLighting, getNightDepth, FLICKER_PERIOD, DAY_CYCLE_MEASURES } from '../../utils/lightingUtils';
@@ -105,8 +105,9 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
   // docs/specs/FACTORY_LIGHTING_RERENDER.md §1.3 (backlog item 21).
   const staticVisual = useMemo(() => {
     const row = actor.config?.row ?? DEFAULT_FACTORY_ROW;
-    const rowCfg = getRowConfig(row);
-    const available = rowCfg?.availableFactoryTypes;
+    const district = actor.config?.district ?? 'dense';
+    const rowCfg = getRecipeRow(district, row);
+    const available = rowCfg?.variants;
     const config = selectVariantFromSeed(actor.id, actor.position.x, row, available);
 
     const sizeRange = VARIANT_CONF[config.variant].sizeRange;
@@ -217,7 +218,7 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
       beltSeparatorYs,
     };
   }, [
-    actor.id, actor.position.x, actor.config?.row, actor.config?.hueShift, actor.config?.satShift,
+    actor.id, actor.position.x, actor.config?.row, actor.config?.district, actor.config?.hueShift, actor.config?.satShift,
     actor.config?.rooftopGreeble, actor.config?.facadeGreeble, actor.config?.beltCourseCount,
     actor.scaleX, actor.scaleY,
   ]);

@@ -8,7 +8,8 @@ import { useUIStore } from '../stores/uiStore';
 // bpm/globalAudio/lfoBank/globalLfoLinks on a style change (finalizeAttenuationStyleTransition
 // relies on it), so it must be loaded wherever a retransmit can run.
 import '../stores/audioStore';
-import { placeFactories, recolorFactoriesForAttenuationStyle } from './factoryPlacementSystem';
+import { recolorFactoriesForAttenuationStyle } from './factoryPlacementSystem';
+import { placeDistrict } from './districts';
 import { spawnInitialRoster, spawnInitialCompanies } from './spawnSystem';
 import { startRobotLifecycle, stopRobotLifecycle, assignJob } from './robotSystems';
 import { startAudioSwells, stopAudioSwells } from './audioSwells';
@@ -103,7 +104,7 @@ export function initializeLocale(localeId: string): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
   if (!locale) return;
 
-  if (locale.actors.length === 0) placeFactories(localeId);
+  if (locale.actors.length === 0) placeDistrict(localeId);
   if (locale.robots.length === 0) {
     spawnInitialRoster(localeId);
     spawnInitialCompanies(localeId); // Roadmap Phase 10 — same guard as the roster it depends on

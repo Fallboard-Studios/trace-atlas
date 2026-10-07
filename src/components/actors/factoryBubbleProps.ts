@@ -2,7 +2,8 @@ import Alea from 'alea';
 
 import type { Actor } from '../../types/Actor';
 import { selectVariantFromSeed, VARIANT_CONF, isBubbleEligible } from './factoryVariants';
-import { getRowConfig, DEFAULT_FACTORY_ROW } from '../../systems/factoryPlacementSystem';
+import { getRecipeRow, DEFAULT_FACTORY_ROW } from '../../systems/factoryPlacementSystem';
+import type { DistrictRow } from '../../systems/districtRecipes';
 import { calcSilhouetteSize } from './silhouetteUtils';
 import { shiftHSL } from '../../utils/colorUtils';
 
@@ -42,10 +43,10 @@ export function hashActorId(id: string): number {
   return Math.floor(Alea(id)() * 0x100000000);
 }
 
-/** Bubble depth scale from the row label: foreground 1, midground 0.5, background 1/3, unknown 1. */
-export function bubbleDepthScaleForRow(row: number | undefined): number {
-  const rowLabel = getRowConfig(row ?? 0)?.row;
-  return rowLabel === 'background' ? 1 / 3 : rowLabel === 'midground' ? 0.5 : 1;
+/** Bubble depth scale from the row's depth label: foreground 1, midground 0.5, background 1/3,
+ *  unknown (no recipe row, e.g. an out-of-range row) 1. */
+export function bubbleDepthScaleForRow(depth: DistrictRow['depth'] | undefined): number {
+  return depth === 'background' ? 1 / 3 : depth === 'midground' ? 0.5 : 1;
 }
 
 /** The bubble props for a factory actor, or null when its purpose has no vent. */
@@ -54,8 +55,10 @@ export function getFactoryBubbleProps(actor: Actor): FactoryBubbleProps | null {
 
   // Same silhouette derivation as Factory.tsx's staticVisual — the vent must sit on the roof the
   // building actually draws.
+  const district = actor.config?.district ?? 'dense';
   const row = actor.config?.row ?? DEFAULT_FACTORY_ROW;
-  const config = selectVariantFromSeed(actor.id, actor.position.x, row, getRowConfig(row)?.availableFactoryTypes);
+  const rowCfg = getRecipeRow(district, row);
+  const config = selectVariantFromSeed(actor.id, actor.position.x, row, rowCfg?.variants);
   const { width, height } = calcSilhouetteSize(config.noiseValue, VARIANT_CONF[config.variant].sizeRange);
   const actualWidth = width * (actor.scaleX ?? 1);
   const actualHeight = height * (actor.scaleY ?? 1);
@@ -73,6 +76,6 @@ export function getFactoryBubbleProps(actor: Actor): FactoryBubbleProps | null {
     seed: buildingSeed,
     isActive: !(actor.config?.isOffline ?? false),
     bodyHue,
-    depthScale: bubbleDepthScaleForRow(actor.config?.row),
+    depthScale: bubbleDepthScaleForRow(rowCfg?.depth),
   };
 }

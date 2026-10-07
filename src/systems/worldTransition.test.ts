@@ -12,8 +12,8 @@ vi.mock('../engine/beatClock', () => ({
 }));
 
 // Spy on recolorFactoriesForAttenuationStyle while keeping every other export
-// (placeFactories, createFactory, ...) real — initializeLocale/placeFactories
-// must keep spawning real factories for the other describe blocks below.
+// (createFactory, ...) real — initializeLocale/placeDistrict must keep
+// spawning real factories for the other describe blocks below.
 vi.mock('./factoryPlacementSystem', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./factoryPlacementSystem')>();
   return { ...actual, recolorFactoriesForAttenuationStyle: vi.fn(actual.recolorFactoriesForAttenuationStyle) };
@@ -386,7 +386,7 @@ describe('worldTransition', () => {
     });
 
     it("preserves every factory's id/position/scale — only hueShift/satShift may change, per recolorFactoriesForAttenuationStyle", () => {
-      initializeLocale(DEFAULT_LOCALE_ID); // real placeFactories — populates real actors
+      initializeLocale(DEFAULT_LOCALE_ID); // real placeDistrict — populates real actors
       const before = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.actors;
       expect(before.length).toBeGreaterThan(0);
 

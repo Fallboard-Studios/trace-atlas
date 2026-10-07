@@ -43,9 +43,9 @@ function setStoreFixtures() {
 }
 
 /**
- * `row: 99` is deliberately out of `FACTORY_ROWS`' range (factoryPlacementSystem.ts has 9
- * entries, indices 0-8) so `getRowConfig(99)` returns `null` — every real row restricts
- * `availableFactoryTypes` to a subset, but this file wants free rein over which
+ * `row: 99` is deliberately out of the (fallback) `'dense'` district recipe's range
+ * (districtRecipes.ts) so `getRecipeRow('dense', 99)` returns `null` — every real row
+ * restricts its variants to a subset, but this file wants free rein over which
  * `FactoryVariant` a given seed resolves to (see `idsByVariant` below), which only an
  * unrestricted `availableTypes` (the `selectVariantFromSeed` default: all 5 variants) makes
  * predictable to search for.

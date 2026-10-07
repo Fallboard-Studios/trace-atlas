@@ -53,7 +53,7 @@ import { OceanScene } from './OceanScene';
 import { Robot } from '@/components/robot/Robot';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '@/stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
-import { getAllRowConfigs } from '@/systems/factoryPlacementSystem';
+import { RECIPES } from '@/systems/districtRecipes';
 import { ActorType } from '@/types/Actor';
 import type { Actor } from '@/types/Actor';
 import type { Robot as RobotType } from '@/types/Robot';
@@ -206,10 +206,12 @@ describe('OceanScene', () => {
     // robots, static front (foreground factories). Z-order within the old single svg is preserved
     // except that every building's bubbles now rise behind the robots (Crawford's call, 2026-10-02:
     // foreground-row bubbles used to pass in front of them) and below the foreground row.
+    // 'dense' is OceanScene's own fallback district (getRecipeRow(a.config?.district ?? 'dense', ...)),
+    // so a row index alone resolves the same depth label the real implementation would see.
     const rowIndexFor = (label: 'background' | 'midground' | 'foreground'): number =>
-      getAllRowConfigs().findIndex((r) => r.row === label);
+      RECIPES.dense.findIndex((r) => r.depth === label);
     const makeFactory = (id: string, row: number, purpose: 'heavyIndustry' | 'observationComms' = 'heavyIndustry'): Actor => ({
-      id, type: ActorType.FACTORY, position: { x: 100, y: 900 }, isActive: true, cooldownRemaining: 0, config: { row, purpose },
+      id, type: ActorType.FACTORY, position: { x: 100, y: 900 }, isActive: true, cooldownRemaining: 0, config: { row, district: 'dense', purpose },
     });
 
     beforeEach(() => {

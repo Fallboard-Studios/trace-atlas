@@ -9,6 +9,7 @@ import { DISTRICT_NAMES, SHIPPED_SCENERY, pickDistrict, placeDistrict } from './
 import * as getSeededValModule from '../utils/getSeededVal';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getRecipeRow } from './factoryPlacementSystem';
+import { selectVariantFromSeed } from '../components/actors/factoryVariants';
 import { getTerrainProfile, ridgeYAt, groundYAt, __clearTerrainProfileCache } from './terrainProfile';
 import { RECIPES } from './districtRecipes';
 import { useLocaleStore } from '../stores/localeStore';
@@ -315,6 +316,45 @@ describe('districts', () => {
         const allFactory = placements.every((actors) => actors.every((a) => a.type === ActorType.FACTORY));
         expect(allFactory).toBe(true);
       });
+    });
+  });
+
+  // Roadmap Phase 42 Task 5: Factory.tsx/factoryBubbleProps.ts resolve a factory's variant at
+  // render time via getRecipeRow(actor.config.district, actor.config.row)?.variants —
+  // placeDistrict (above) must pass that SAME row's own `variants` into createFactory at spawn
+  // time, or the two resolutions silently diverge (the "spawn and render agree" guarantee
+  // createFactory's own doc comment makes).
+  describe('spawn and render agree (roadmap Phase 42 Task 5)', () => {
+    it('for every factory row of every district, the variant selectVariantFromSeed resolves at render time (filtered by getRecipeRow) matches the variant stored at placement', () => {
+      for (const district of DISTRICT_NAMES) {
+        const [{ x, y }] = findCoordsForDistrict(district, 1);
+        const id = registerLocale(`spawn-render-agree-${district}`, x, y);
+        const actors = placeDistrict(id);
+        expect(actors.length).toBeGreaterThan(0);
+
+        for (const actor of actors) {
+          const row = actor.config!.row!;
+          const availableTypes = getRecipeRow(district, row)?.variants;
+          const rendered = selectVariantFromSeed(actor.id, actor.position.x, row, availableTypes);
+          expect(rendered.purpose).toBe(actor.config?.purpose);
+        }
+      }
+    });
+
+    it("mutation check: comparing against a DIFFERENT row's variant filter fails the agreement case, so this guard really is sensitive to which row's recipe is consulted", () => {
+      const [{ x, y }] = findCoordsForDistrict('dense', 1);
+      const id = registerLocale('spawn-render-agree-mutation', x, y);
+      const actors = placeDistrict(id);
+      const recipeLength = RECIPES.dense.length;
+
+      const mismatches = actors.filter((actor) => {
+        const row = actor.config!.row!;
+        const wrongRow = (row + 1) % recipeLength; // deliberately the wrong row's recipe
+        const availableTypes = getRecipeRow('dense', wrongRow)?.variants;
+        const rendered = selectVariantFromSeed(actor.id, actor.position.x, row, availableTypes);
+        return rendered.purpose !== actor.config?.purpose;
+      });
+      expect(mismatches.length).toBeGreaterThan(0);
     });
   });
 

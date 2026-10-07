@@ -13,7 +13,7 @@ import { applySessionPayload } from '@/utils/sessionDiff';
 import { Factory } from '@/components/actors/Factory';
 import { BubbleLayer } from '@/components/actors/BubbleLayer';
 import { isBubbleEligible } from '@/components/actors/factoryVariants';
-import { getRowConfig } from '@/systems/factoryPlacementSystem';
+import { getRecipeRow } from '@/systems/factoryPlacementSystem';
 import { ActorType } from '@/types/Actor';
 
 import colorTheme from '@/constants/colorTheme.json';
@@ -125,15 +125,15 @@ export function OceanScene({
   // create new array references and trigger unnecessary Factory re-renders
   const factories = useMemo(() => actors.filter((a) => a.type === ActorType.FACTORY), [actors]);
   const backgroundFactories = useMemo(
-    () => factories.filter((a) => getRowConfig(a.config?.row ?? -1)?.row === 'background'),
+    () => factories.filter((a) => getRecipeRow(a.config?.district ?? 'dense', a.config?.row ?? -1)?.depth === 'background'),
     [factories],
   );
   const midgroundFactories = useMemo(
-    () => factories.filter((a) => getRowConfig(a.config?.row ?? -1)?.row === 'midground'),
+    () => factories.filter((a) => getRecipeRow(a.config?.district ?? 'dense', a.config?.row ?? -1)?.depth === 'midground'),
     [factories],
   );
   const foregroundFactories = useMemo(
-    () => factories.filter((a) => getRowConfig(a.config?.row ?? -1)?.row === 'foreground'),
+    () => factories.filter((a) => getRecipeRow(a.config?.district ?? 'dense', a.config?.row ?? -1)?.depth === 'foreground'),
     [factories],
   );
 

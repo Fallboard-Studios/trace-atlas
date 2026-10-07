@@ -17,13 +17,15 @@ vi.mock('./BubbleStream', () => ({
 }));
 
 import { BubbleLayer } from './BubbleLayer';
-import { getAllRowConfigs } from '../../systems/factoryPlacementSystem';
+import { RECIPES } from '../../systems/districtRecipes';
 import { ActorType } from '../../types/Actor';
 import type { Actor } from '../../types/Actor';
 import type { FactoryPurpose } from './factoryVariants';
 
+// Actors here use the 'dense' district (factoryBubbleProps.ts's own fallback) by default, so a
+// row index alone resolves the same depth label getFactoryBubbleProps/Factory.tsx would see.
 const rowIndexFor = (label: 'background' | 'midground' | 'foreground'): number =>
-  getAllRowConfigs().findIndex((r) => r.row === label);
+  RECIPES.dense.findIndex((r) => r.depth === label);
 
 function makeActor(id: string, purpose: FactoryPurpose | undefined, row = rowIndexFor('foreground'), extra: Actor['config'] = {}): Actor {
   return {
@@ -32,7 +34,7 @@ function makeActor(id: string, purpose: FactoryPurpose | undefined, row = rowInd
     position: { x: 100, y: 900 },
     isActive: true,
     cooldownRemaining: 0,
-    config: { purpose, row, ...extra },
+    config: { purpose, row, district: 'dense', ...extra },
   };
 }
 

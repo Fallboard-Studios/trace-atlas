@@ -1,16 +1,14 @@
 // ========================================
 // IMPORTS
 // ========================================
-import alea from 'alea';
 import type { NoiseFunction2D } from 'simplex-noise';
 import type { Actor } from '../types/Actor';
 import { ActorType } from '../types/Actor';
 import useLocaleStore from '../stores/localeStore';
-import { useAttenuationStyleStore } from '../stores/attenuationStyleStore';
 import type { FactoryVariant } from '../components/actors/factoryVariants';
 import { VARIANT_CONF, selectVariantFromSeed } from '../components/actors/factoryVariants';
 import { calcSilhouetteSize } from '../components/actors/silhouetteUtils';
-import { getLocaleNoiseMap, getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
+import { getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import { generateUUID } from '../utils/randomId';
 import { shiftHSL, type ColorShift } from '../utils/colorUtils';
@@ -26,30 +24,6 @@ import type { DistrictName } from '../types/Actor';
 // needs the world height for its 'offscreen' anchor. Roadmap Phase 42 Task 6
 // moves this to constants/sceneDepth.ts; this is its current home.
 export const WORLD_BOUNDS = { width: 1920, height: 1080 };
-interface FactoryRowConfig {
-  y: number;
-  spreadType?: 'edges' | 'full' | 'center'; // How to spread factories across row width (default: full)
-  availableFactoryTypes?: FactoryVariant[]; // Optional filter for which factory variants can be placed in this row
-  factoriesPerRow: number; // Maximum number of factories in this row
-  edgeWidth?: number; // For 'edges' spreadType, width of each edge segment (default: 20% of screen width)
-  centerWidth?: number; // For 'center' spreadType, width of center segment (default: 40% of screen width)
-  row?: 'background' | 'midground' | 'foreground'; // Optional label for rendering order and floor layering
-}
-// Factory placement rows (3 depth layers)
-const FACTORY_ROWS: FactoryRowConfig[] = [
-  // BACKGROUND
-  { y: 700, spreadType: 'center', factoriesPerRow: 3, centerWidth: 0.3, availableFactoryTypes: ['Skyscraper'], row: 'background' },
-  { y: 1000, spreadType: 'center', factoriesPerRow: 5, centerWidth: 0.5, availableFactoryTypes: ['Skyscraper'], row: 'background' },
-  { y: 980, spreadType: 'full', factoriesPerRow: 24, centerWidth: 0.7, availableFactoryTypes: ['Monolith'], row: 'background' },
-  // MIDGROUND
-  { y: 1019, spreadType: 'full', factoriesPerRow: 5, availableFactoryTypes: ['Refinery', 'Stacks'], row: 'midground' },
-  { y: 1030, spreadType: 'full', factoriesPerRow: 4, availableFactoryTypes: ['Refinery', 'Stacks', 'Warehouse'], row: 'midground' },
-  // FOREGROUND
-  { y: 1180, spreadType: 'center', factoriesPerRow: 8, centerWidth: 0.5, availableFactoryTypes: ['Refinery'], row: 'foreground' },
-  { y: 900, spreadType: 'edges', factoriesPerRow: 4, edgeWidth: 0.05, availableFactoryTypes: ['Warehouse'], row: 'foreground' },
-  { y: 1000, spreadType: 'edges', factoriesPerRow: 3, edgeWidth: 0.2, availableFactoryTypes: ['Warehouse', 'Monolith'], row: 'foreground' },
-  { y: 1200, spreadType: 'edges', factoriesPerRow: 8, edgeWidth: 0.3, availableFactoryTypes: ['Warehouse'], row: 'foreground' },
-];
 
 const PRODUCTION_INTERVAL = 60; // measures
 
@@ -117,7 +91,7 @@ export function deriveAsColorShift(noiseMap: NoiseFunction2D, index: number): Co
  * (analogous by construction). Per STYLE, not per locale — every locale under one style shares
  * the pair, and a style retransmit moves the whole skyline (spec §7 item 2, Crawford's call).
  * Exported only so tests can assert "target ∈ pair", the same way spawnSystem.ts exports
- * generateCompanyIdentityColor; placeFactories/recolor are the only real callers.
+ * generateCompanyIdentityColor; placeDistrict/recolor are the only real callers.
  */
 export function deriveAsAccentPair(asNoiseMap: NoiseFunction2D): AccentPair {
   // Clamped index, mirroring generateRobotIdentityColor's own guard in spawnSystem.ts.
@@ -135,7 +109,7 @@ export function pickAccentTarget(asNoiseMap: NoiseFunction2D, pair: AccentPair, 
 /**
  * Create a single factory actor with position and scale.
  *
- * `scale` and `id` are deterministic when `placeFactories` supplies them (seeded from the
+ * `scale` and `id` are deterministic when `placeDistrict` (districts.ts) supplies them (seeded from the
  * locale's noise map, per PROCEDURAL_GENERATION.md) — this is the actual generation path used
  * at spawn time. The `Math.random()`/`crypto.randomUUID()` defaults only apply when calling
  * `createFactory` directly with no locale context (e.g. tests), the same fallback pattern
@@ -145,6 +119,11 @@ export function pickAccentTarget(asNoiseMap: NoiseFunction2D, pair: AccentPair, 
  * FINAL pre-lean body colour (variant base + local + AS shift) is pulled toward it and its
  * saturation lifted, with both deltas folded into the stored hueShift/satShift so no renderer
  * changes. `undefined` means no lean — byte-identical to the pre-Phase-35 output.
+ *
+ * `availableTypes` (roadmap Phase 42 Task 5): the variant filter for this row, supplied by the
+ * caller rather than looked up internally — `placeDistrict` (districts.ts) passes a district
+ * recipe row's own `variants`, so the same `(id, x, row)` seed resolves the same variant
+ * `Factory.tsx`'s render-time `getRecipeRow(district, row)` lookup will see.
  */
 export function createFactory(
   position: { x: number; y: number },
@@ -153,11 +132,8 @@ export function createFactory(
   id: string = generateUUID(),
   asShift: ColorShift = { hueShift: 0, satShift: 0 },
   accentTarget?: number,
+  availableTypes?: FactoryVariant[],
 ): Actor {
-  // Use the same availableTypes that Factory.tsx will use, so the variant —
-  // and therefore greeble pools — are consistent between spawn and render.
-  const availableTypes = getRowConfig(row)?.availableFactoryTypes;
-
   const { variant, hueShift: localHue, satShift: localSat, rooftopGreeble, facadeGreeble, beltCourseCount, purpose } = selectVariantFromSeed(id, position.x, row, availableTypes);
 
   // Additive: locale-seeded local shift + AS-seeded shift, never a
@@ -194,134 +170,6 @@ export function createFactory(
 }
 
 /**
- * Place factories along the ocean floor using the `FACTORY_ROWS` config (9 rows
- * across background/midground/foreground depth groups, each with its own y position,
- * factory type filter, and spread type — 'edges', 'full', or 'center').
- * Scale variation (0.9–1.1) is seeded from the locale's noise map, same as every other
- * spawn-time attribute — the same locale (same coordinates) always regenerates the exact
- * same factory backdrop, required for Session Storage's reload/shared-link replay
- * (docs/SESSION_STORAGE.md) same as robots and companies.
- * Returns array of actors (factories only; floor rects rendered in OceanScene)
- */
-export function placeFactories(localeId: string): Actor[] {
-  const actors: Actor[] = [];
-  const locale = useLocaleStore.getState().getLocaleById(localeId);
-  const noiseMap = locale ? getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y) : null;
-  // Resolve the locale's own Attenuation Style internally, mirroring the locale noise
-  // map lookup immediately above — placeFactories' exported signature is
-  // unchanged; this is a new useAttenuationStyleStore dependency, not a new parameter.
-  // Falls back to a zero asShift (never a crash) if the locale's attenuationStyleId
-  // doesn't resolve to any Attenuation Style currently in the store.
-  const attenuationStyle = locale ? useAttenuationStyleStore.getState().attenuationStyles.find((p) => p.id === locale.attenuationStyleId) : undefined;
-  const asNoiseMap = attenuationStyle ? getAttenuationStyleNoiseMap(attenuationStyle.id, attenuationStyle.name) : null;
-  // Phase 35: the style's accent pair, drawn once per placement pass. Null map ⇒ no lean, the
-  // same fallback shape as the zero asShift below.
-  const accentPair = asNoiseMap ? deriveAsAccentPair(asNoiseMap) : null;
-  // Monotonic counter across every factory this call places, embedded in each factory's own
-  // id/scale seed offset — mirrors spawnSystem.ts's spawnCount pattern.
-  let factoryIndex = 0;
-
-  /** Seeded createFactory wrapper — id and scale both keyed by factoryIndex, falling back to
-   *  `alea` (still deterministic, just not noise-map-based) if the locale isn't registered. */
-  function nextFactory(position: { x: number; y: number }, row: number): Actor {
-    const index = factoryIndex++;
-    const id = noiseMap
-      ? generateFactoryId(noiseMap, index)
-      : `factory-${index}-${alea(`${localeId}:factory:${index}:id`)().toString(36).slice(2, 10)}`;
-    const scale = noiseMap
-      ? getSeededVal(noiseMap, 'factory.scale', index, 0.9, 1.1)
-      : 0.9 + alea(`${localeId}:factory:${index}:scale`)() * 0.2;
-    const asShift = asNoiseMap ? deriveAsColorShift(asNoiseMap, index) : { hueShift: 0, satShift: 0 };
-    const accentTarget = asNoiseMap && accentPair ? pickAccentTarget(asNoiseMap, accentPair, index) : undefined;
-    return createFactory(position, row, scale, id, asShift, accentTarget);
-  }
-
-  function computeFactoryWidth(
-    factory: Actor,
-    rowIndex: number,
-    rowConfig: FactoryRowConfig,
-    currX: number,
-  ): number {
-    const { variant, noiseValue } = selectVariantFromSeed(
-      factory.id,
-      currX,
-      rowIndex,
-      rowConfig.availableFactoryTypes
-    );
-    const range = VARIANT_CONF[variant].sizeRange;
-    return calcSilhouetteSize(noiseValue, range).width;
-  }
-
-  FACTORY_ROWS.forEach((rowConfig, rowIndex) => {
-    const y = rowConfig.y;
-
-    if (rowConfig.spreadType === 'edges') {
-      const FRONT_ROW_LEFT_MAX = WORLD_BOUNDS.width * (rowConfig.edgeWidth ?? DEFAULT_ROW_EDGE_WIDTH);
-      const FRONT_ROW_RIGHT_MIN = WORLD_BOUNDS.width * (1 - (rowConfig.edgeWidth ?? DEFAULT_ROW_EDGE_WIDTH));
-      let currX = -20;
-      const leftLimit = FRONT_ROW_LEFT_MAX;
-      let placedLeft = 0;
-      const half = Math.ceil(rowConfig.factoriesPerRow / 2);
-      while (currX < leftLimit && placedLeft < half) {
-        const factory = nextFactory({ x: currX, y }, rowIndex);
-        actors.push(factory);
-        placedLeft++;
-        const w = computeFactoryWidth(factory, rowIndex, rowConfig, currX);
-        currX += w - 20;
-      }
-
-      // fill right edge, currX increasing rightward from FRONT_ROW_RIGHT_MIN toward rightLimit
-      currX = FRONT_ROW_RIGHT_MIN;
-      const rightLimit = WORLD_BOUNDS.width + 100; // account for max factory width to prevent overflow
-      let placedRight = 0;
-      const halfRight = Math.floor(rowConfig.factoriesPerRow / 2);
-      while (currX < rightLimit && placedRight < halfRight) {
-        const factory = nextFactory({ x: currX, y }, rowIndex);
-        actors.push(factory);
-        placedRight++;
-        const w = computeFactoryWidth(factory, rowIndex, rowConfig, currX);
-        currX += w - 20;
-      }
-    } else if (rowConfig.spreadType === 'full') {
-      let currX = -20;
-      const rightBoundary = WORLD_BOUNDS.width;
-      let placed = 0;
-      while (currX < rightBoundary && placed < rowConfig.factoriesPerRow) {
-        const factory = nextFactory({ x: currX, y }, rowIndex);
-        actors.push(factory);
-        placed++;
-        currX = WORLD_BOUNDS.width / rowConfig.factoriesPerRow * placed; // ideal even spacing
-      }
-    } else if (rowConfig.spreadType === 'center') {
-      let currX = (WORLD_BOUNDS.width * (1 - (rowConfig.centerWidth ?? DEFAULT_CENTER_WIDTH)) / 2) - 20; // start at left edge of center segment
-      const rightBoundary = (WORLD_BOUNDS.width * (1 + (rowConfig.centerWidth ?? DEFAULT_CENTER_WIDTH)) / 2) + 20; // end at right edge of center segment, account for max factory width
-      let placedCenter = 0;
-      while (currX < rightBoundary && placedCenter < rowConfig.factoriesPerRow) {
-        const factory = nextFactory({ x: currX, y }, rowIndex);
-        actors.push(factory);
-        placedCenter++;
-        const w = computeFactoryWidth(factory, rowIndex, rowConfig, currX);
-        // Own dataId/offset namespace (rowIndex*1000 + placedCenter) — distinct from
-        // factoryIndex, since this jitters *spacing between* factories, not a factory's
-        // own attribute, but must stay just as seeded for the same reload-determinism reason.
-        const spacingOffset = rowIndex * 1000 + placedCenter;
-        const mult = noiseMap
-          ? getSeededVal(noiseMap, 'factory.spacing', spacingOffset, 0.8, 1.2)
-          : 0.8 + alea(`${localeId}:factory:spacing:${spacingOffset}`)() * 0.4;
-        currX += (w - 20) * mult;
-      }
-    } else {
-      // default fallback: no spread type defined
-    }
-  });
-
-
-
-  useLocaleStore.getState().setLocaleData(localeId, { actors });
-  return actors;
-}
-
-/**
  * Recolor an existing locale's factories in place for a new Attenuation
  * Style — position/count/id/variant/scale/greebles/purpose are all
  * untouched; only each factory's stored hueShift/satShift change. Re-derives
@@ -329,8 +177,13 @@ export function placeFactories(localeId: string): Actor[] {
  * Factory.tsx's own render already recomputes) rather than trying to
  * subtract out the previous AS delta, so repeated AS changes never
  * accumulate drift. Called only from retransmitAttenuationStyleOnly (worldTransition.ts)
- * — never from placeFactories' own fresh-spawn path, which folds the current
+ * — never from placeDistrict's own fresh-spawn path, which folds the current
  * AS's shift in at creation time instead. See docs/specs/ATTENUATION_STYLE.md §1.2.
+ *
+ * District/row (roadmap Phase 42 Task 5): a factory's variant filter is now its own district
+ * recipe row's `variants`, read via `getRecipeRow(district, row)` — `district` falls back to
+ * `'dense'` and `row` to `DEFAULT_FACTORY_ROW` (matching `Factory.tsx`'s own render-time
+ * fallback) only for a hand-built actor missing one; every real factory has both.
  */
 export function recolorFactoriesForAttenuationStyle(localeId: string, attenuationStyleId: string, attenuationStyleName: string): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
@@ -338,18 +191,19 @@ export function recolorFactoriesForAttenuationStyle(localeId: string, attenuatio
   const asNoiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
   // Phase 35: the NEW style's accent pair — a retransmit moves the whole skyline onto it
   // (docs/specs/WORLD_PALETTE_PULL.md §1.3, last paragraph). Same per-factory computation as
-  // placeFactories → createFactory, so the two write sites always agree.
+  // placeDistrict → createFactory, so the two write sites always agree.
   const accentPair = deriveAsAccentPair(asNoiseMap);
 
   let factoryIndex = 0;
   const nextActors = locale.actors.map((actor) => {
     if (actor.type !== ActorType.FACTORY) return actor;
     const index = factoryIndex++;
+    const district = actor.config?.district ?? 'dense';
     // DEFAULT_FACTORY_ROW matches Factory.tsx's own render-time fallback —
     // shared constant, not createFactory's separate `row = 0` spawn-time
     // default — this must reproduce what's actually rendered.
     const row = actor.config?.row ?? DEFAULT_FACTORY_ROW;
-    const availableTypes = getRowConfig(row)?.availableFactoryTypes;
+    const availableTypes = getRecipeRow(district, row)?.variants;
     const { variant, hueShift: localHue, satShift: localSat } = selectVariantFromSeed(actor.id, actor.position.x, row, availableTypes);
     const asShift = deriveAsColorShift(asNoiseMap, index);
     const combined = { hueShift: localHue + asShift.hueShift, satShift: localSat + asShift.satShift };
@@ -368,27 +222,9 @@ export function recolorFactoriesForAttenuationStyle(localeId: string, attenuatio
 }
 
 /**
- * Get factory row metadata (y position, scale, floor height)
- */
-export function getRowConfig(rowIndex: number) {
-  if (rowIndex < 0 || rowIndex >= FACTORY_ROWS.length) {
-    return null;
-  }
-  return FACTORY_ROWS[rowIndex];
-}
-
-/**
- * Get all factory rows for rendering floor and gradient layers
- */
-export function getAllRowConfigs() {
-  return FACTORY_ROWS;
-}
-
-/**
- * Get one row of a district's recipe (districtRecipes.ts) — the
- * recipe-driven successor to `getRowConfig`, added alongside it (roadmap
- * Phase 42 Task 4; Task 5 migrates every reader and deletes `getRowConfig`).
- * Out-of-range → `null`, same contract as `getRowConfig`.
+ * Get one row of a district's recipe (districtRecipes.ts) — a factory's variant filter and
+ * depth group now come from here (roadmap Phase 42 Task 4; Task 5 migrated every reader off
+ * the legacy fixed-table lookup and deleted it). Out-of-range → `null`.
  */
 export function getRecipeRow(district: DistrictName, row: number): DistrictRow | null {
   const recipe = RECIPES[district];
@@ -401,8 +237,7 @@ export function getRecipeRow(district: DistrictName, row: number): DistrictRow |
 /**
  * The width of the factory variant that `createFactory`/`selectVariantFromSeed`
  * would pick for this exact (id, x, row, availableTypes) — used by `spreadXs`
- * callers to advance spacing before the next item's x is chosen. Mirrors
- * `placeFactories`' own inline `computeFactoryWidth`.
+ * callers to advance spacing before the next item's x is chosen.
  */
 export function factoryWidthAt(factoryId: string, x: number, row: number, availableTypes?: FactoryVariant[]): number {
   const { variant, noiseValue } = selectVariantFromSeed(factoryId, x, row, availableTypes);
@@ -411,10 +246,8 @@ export function factoryWidthAt(factoryId: string, x: number, row: number, availa
 }
 
 /**
- * The edges/full/center spread logic `placeFactories` uses, extracted so
- * `districts.ts`'s `placeDistrict` (roadmap Phase 42 Task 4) can place a
- * district recipe's rows the same way without duplicating it. `placeFactories`
- * keeps its own untouched inline copy until Task 5 deletes it.
+ * The edges/full/center spread logic `districts.ts`'s `placeDistrict` (roadmap
+ * Phase 42 Task 4) uses to place a district recipe's rows.
  *
  * `nextWidth(x)` is called once per position this function picks; it must
  * place the actor as a side effect (so every spread type still creates an
@@ -467,8 +300,9 @@ export function spreadXs(
     while (currX < rightBoundary && placedCenter < row.count) {
       const w = nextWidth(currX);
       placedCenter++;
-      // Own dataId/offset namespace (rowIndex*1000 + placedCenter) — same
-      // convention placeFactories' inline center branch uses.
+      // Own dataId/offset namespace (rowIndex*1000 + placedCenter) — distinct from
+      // the factory's own id/scale seed offset, but just as seeded for the same
+      // reload-determinism reason.
       const spacingOffset = rowIndex * 1000 + placedCenter;
       const mult = noiseMap
         ? getSeededVal(noiseMap, 'factory.spacing', spacingOffset, 0.8, 1.2)
