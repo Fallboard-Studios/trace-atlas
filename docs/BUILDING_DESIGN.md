@@ -556,8 +556,9 @@ It stops when the rule holds or the list runs out.
 - Top-up `i` is an ordinary actor on row `recipe.length + i`. `coverageTopUpRow(topUp)` turns it
   into a `DistrictRow`: ground-locked in the foreground, at the midground floor in the midground,
   `count: 1`, and `derelict: 0` (a derelict roll would swap away the jobs it was placed for). Its x
-  is a `'locale.coverage.x'` draw (offset `i`) in the middle 70 % of the width
-  (`COVERAGE_CENTER_WIDTH`).
+  is a uniform `'locale.coverage.x'` draw (`getUniformSeededVal`, offset `i`) in the middle 70 %
+  of the width (`COVERAGE_CENTER_WIDTH`). One re-hashed sample isn't enough: at offset 0 it put
+  every world's first top-up at one of three x positions.
 - Top-ups go through the same seeded scenery placement as the recipe rows, so they are recoloured
   in the same order and counted by the element budget. No top-up is a vent, so the vent cap is
   unchanged.

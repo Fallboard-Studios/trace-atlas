@@ -263,12 +263,12 @@ export function placeDistrict(localeId: string): Actor[] {
 
   // Coverage top-ups (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.4): row `recipe.length + i`, at a
   // seeded x in the middle of the world, through the same scenery placement as the rows above.
-  // The raw draw is re-hashed through alea() for the same bell-curve reason as rollDerelict.
+  // A uniform draw, not one re-hashed sample: that took 3 values at offset 0 over the whole grid.
   actors.push(
     ...ensureJobCoverage(actors, COVERAGE_TOP_UP[district], (topUp, i) => {
       if (!isPlaceableScenery(topUp.kind)) return null;
-      const raw = getSeededVal(noiseMap, 'locale.coverage.x', i, 0, 1);
-      const x = WORLD_BOUNDS.width * ((1 - COVERAGE_CENTER_WIDTH) / 2 + COVERAGE_CENTER_WIDTH * alea(String(raw))());
+      const t = getUniformSeededVal(noiseMap, 'locale.coverage.x', i);
+      const x = WORLD_BOUNDS.width * ((1 - COVERAGE_CENTER_WIDTH) / 2 + COVERAGE_CENTER_WIDTH * t);
       return placeScenery(coverageTopUpRow(topUp), recipe.length + i, x).actor;
     }),
   );

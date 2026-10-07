@@ -223,6 +223,23 @@ describe('jobCoverage (Phase 43 Task 12, spec §1.4)', () => {
       expect(xs.size).toBeGreaterThan(10);
     });
 
+    it('each top-up index lands at a different x in nearly every world that places it', () => {
+      // A single 'locale.coverage.x' sample at offset 0 took 3 values over the whole grid, so every
+      // world's first top-up stood at one of three spots (Phase 43 review finding 1).
+      const xsByIndex = new Map<number, number[]>();
+      for (const w of GRID) {
+        for (const a of w.actors.filter(isTopUp)) {
+          const i = a.config!.row! - RECIPES[a.config!.district!].length;
+          xsByIndex.set(i, [...(xsByIndex.get(i) ?? []), a.position.x]);
+        }
+      }
+      expect(xsByIndex.get(0)?.length).toBeGreaterThanOrEqual(10);
+      for (const [i, xs] of xsByIndex) {
+        if (xs.length < 10) continue;
+        expect(new Set(xs).size, `top-up ${i}: ${xs.length} worlds`).toBeGreaterThanOrEqual(Math.floor(xs.length * 0.8));
+      }
+    });
+
     it('deterministic: placing a top-up world again gives identical actors', () => {
       const w = GRID.find((g) => g.actors.some(isTopUp))!;
       expect(placeDistrict(w.id)).toEqual(w.actors);
