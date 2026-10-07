@@ -23,8 +23,9 @@ summed with the locale-seeded shift above. Nothing else about a factory is
 affected — placement, count, id, variant, scale, and greeble selection stay
 driven exclusively by the locale seed regardless of which Attenuation Style
 is active. Retransmitting a new Attenuation Style recolors an existing
-locale's factories in place (`recolorFactoriesForAttenuationStyle()`)
-without touching any of those other fields. See
+locale's factories in place (`recolorActorsForAttenuationStyle()` — roadmap
+Phase 42 D2 generalised it to cover every body-bearing scenery actor too,
+see "Scenery families" below) without touching any of those other fields. See
 [docs/specs/ATTENUATION_STYLE.md](specs/ATTENUATION_STYLE.md) §1.2.
 
 A third additive step, the **accent lean** (roadmap Phase 35,
@@ -178,7 +179,7 @@ How (`src/utils/accentLean.ts`, applied in `factoryPlacementSystem.ts`):
      keep the full lift. Add a row to the table, never a third special case.
 4. **Folded, not rendered.** `createFactory`'s optional trailing
    `accentTarget` adds the lean to the `hueShift`/`satShift` it already
-   stores; `recolorFactoriesForAttenuationStyle` repeats the identical
+   stores; `recolorActorsForAttenuationStyle` repeats the identical
    computation with the new style's map (a recolor equals a fresh placement,
    factory for factory — tested). `Factory.tsx`, `factoryBubbleProps.ts`,
    `applyColorShift`, day/night and `Actor.config`'s shape are untouched;
@@ -371,6 +372,77 @@ recolor path) resolve the variant filter and depth label via
 single-argument row lookup.
 
 Placement is deterministic per actor (seeded) and respects row depth for rendering order (background → midground → foreground).
+
+---
+
+## Scenery families
+
+Roadmap Phase 42 D2 lands the sixteen non-factory **scenery families** a district recipe can place
+(`src/components/actors/scenery/`, docs/specs/WORLD_VIEW_DISTRICTS.md §1.8–§1.11):
+`tank · crane · pylon · wall · beacon · pipeline · dome · wreck · turbine · boulder · vent ·
+containers · scaffold · tether · floodlight · dish`. `Actor.config.kind: SceneryKind` selects the
+family; `ActorType.SCENERY` distinguishes it from `ActorType.FACTORY`. `Scenery.tsx` (memoised, same
+`staticVisual` pattern as `Factory.tsx`) dispatches on `SCENERY_RENDERERS[kind]`, and `OceanScene`
+renders scenery actors in the same per-depth groups as factories, interleaved by `config.row` so
+z-order always follows the recipe.
+
+### The `SceneryContext` contract
+
+Every renderer is a pure function `(ctx: SceneryContext) => JSX` (`scenery/sceneryTypes.ts`), built
+once per actor by `Scenery.tsx`:
+
+```typescript
+interface SceneryContext {
+  actor: Actor;
+  params: SceneryParams;          // Alea(actor.id)-derived once per actor (sceneryParams.ts)
+  cap: number;                    // ROW_L_CAP[depth] * (derelict ? DERELICT_L_CAP : 1)
+  eastL: number; westL: number;   // getLighting(lightMeasure) — cap-free; the renderer applies cap
+  nightDepth: number;             // 0 when derelict
+  accent: AccentPair;             // the active style's accent pair (deriveAsAccentPair)
+  gems: boolean;                  // the SCENERY_GEM_ACCENTS build flag
+}
+```
+
+A renderer never reads the lighting tick, the recipe table or `ROW_L_CAP` directly — `Scenery.tsx`
+resolves all of it into `ctx` so every family sees the same shape, the scenery equivalent of
+`Factory.tsx` recomputing its own per-tick colour math.
+
+### Gem accents
+
+`scenery/gemShape.tsx`'s `GemShape` draws a chamfered polygon in the Phase 39 gem-robot vocabulary —
+chamfer, three facet tones, one outline — but **reuses** `gemShading.ts`'s tone quantisation
+(`quantizeShade`) rather than the robot generator (`getRobotGem`): a rock or a beacon head is one
+polygon, not a body. Pylon heads, beacons and boulders carry gem accents (beacon is a gems-only
+family — `placeDistrict` skips its rows when `SCENERY_GEM_ACCENTS` is off); boulders pass a neutral
+base and `lit: false` so they rhyme with the robots instead of reading as one.
+
+### Body-bearing vs structural families
+
+Five families carry a body that recolors like a factory's: **tank, wall, dome, containers,
+scaffold**. Each stores a local `hueShift`/`satShift` (its own range in `sceneryParams.ts`) that
+`placeDistrict` folds with the active Attenuation Style's shift and the Phase 35 accent lean via the
+shared `foldBodyShift()` (extracted from `createFactory`) into `Actor.config.hueShift`/`.satShift` —
+the same two stored numbers a factory uses, read the same way by the renderer.
+
+The remaining structural families — **crane, pylon, pipeline, turbine, tether, floodlight, dish,
+wreck, vent, boulder** — use fixed palette tones from `colorTheme.json` and store no shift; they
+look the same under every Attenuation Style.
+
+### Recolor coverage
+
+`recolorActorsForAttenuationStyle` (see "Applying Colour" above, where it is generalised from
+factories to every body-bearing actor) iterates every actor with a body — factory or scenery — re-deriving the
+local shift and folding the new style's shift and lean, so a Sector Settings retransmit recolors
+walls, tanks, domes, containers and scaffolds right alongside the skyline. Structural families are
+untouched, since they store no shift to recompute.
+
+### The 90/45 test helper
+
+Every scenery shape, like every factory shape, draws on a 90°/45° grid. `assertNinetyFortyFive`
+(`scenery/sceneryTestHelpers.ts`) walks an SVG root and asserts every `rect`/`polygon`/`line` edge is
+horizontal, vertical or exactly 45°, treating the interior of a `rotate(±45)` group (turbine's blades,
+dish's ellipse) as grid-by-construction rather than failing it. Every family's test runs this helper
+over 50 seeds.
 
 ---
 
@@ -768,6 +840,13 @@ BPM or to measures; the effect is decorative, not musical.
   and paused (`pause(0)`) so its own first `.set()` hides every bubble.
 - Honours `prefers-reduced-motion: reduce`: no timeline is built and the
   circles stay at opacity 0.
+- **Vent scenery joins the stream (roadmap Phase 42 D2).** `getActorBubbleProps`
+  also returns a position for every `vent` scenery actor — the mouth at the
+  top of its stepped cone, `isActive`
+  always `true`, tinted by the vent's own shadow hue — so vents bubble the
+  same way eligible factories do. `OceanScene.bubbleBuildingCount` counts
+  vents alongside eligible factories so the ~4s-per-burst world-wide rate
+  stays level as districts add vents; every other scenery kind returns `null`.
 
 ---
 

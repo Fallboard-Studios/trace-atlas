@@ -67,6 +67,10 @@ flat face. `src/components/robot/gem/gemShading.ts`:
 - **`GEM_FACET_TONES` = 3**: shades are quantized to three levels (fully lit, neutral, fully
   shaded) before toning. This was a performance decision (the moving robot layer re-rasterizes
   every frame and its cost tracks paint operations); the extremes keep full contrast.
+- `quantizeShade` is shared with world scenery (roadmap Phase 42 D2): `scenery/gemShape.tsx`
+  imports it from `gemShading.ts` for its own three-tone gem accents, rather than re-deriving tone
+  quantisation or reusing the robot generator (`getRobotGem`) — see BUILDING_DESIGN.md "Scenery
+  families".
 
 `RobotGem` draws each part's facets as one `<path>` per tone (`facetPaths` in `gemPaths.ts`), its
 face as one polygon and its boundary lines as one path — about 40 drawn shapes per robot.

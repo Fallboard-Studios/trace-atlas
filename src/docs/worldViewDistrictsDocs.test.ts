@@ -106,9 +106,9 @@ describe('the roadmap: Phase 42 carries D1 shipped and a Not Doing list', () => 
     expect(at).toBeGreaterThan(-1);
   });
 
-  it('records D1 as shipped, D2/D3 as planned', () => {
-    expect(phase).toMatch(/D1[^.\n]*shipped/i);
-    expect(phase).toMatch(/D2.*D3.*planned|D2\/D3.*planned/i);
+  it('records D1 as shipped and D3 as planned', () => {
+    expect(phase).toMatch(/D1[^.]*shipped/i);
+    expect(phase).toMatch(/D3[^.]*planned/i);
   });
 
   it('has a Not Doing list carrying the spec/intent out-of-scope items', () => {
@@ -137,6 +137,129 @@ describe('CLAUDE.md: the BUILDING_DESIGN.md reference line mentions districts', 
     const line = read(file).split('\n').find((l) => l.includes('`docs/BUILDING_DESIGN.md`'));
     expect(line).toBeDefined();
     expect(line).toMatch(/district/i);
+  });
+});
+
+// docs/tasks/WORLD_VIEW_DISTRICTS.md Task 19 (D2 docs). Same "a docs task has no behaviour to test,
+// so make its acceptance criteria executable" approach as Task 10 above: BUILDING_DESIGN.md gains a
+// "Scenery families" section naming every SceneryKind, the SceneryContext contract, gem accents,
+// body-bearing vs structural, recolor coverage and the 90/45 test helper; "Goal 2 — Bubble Streams"
+// notes vents; PROCEDURAL_GENERATION.md notes the render-time Alea(actor.id) draw; ROBOT_DESIGN.md
+// notes quantizeShade is shared with scenery; the roadmap's Phase 42 line carries D2 shipped; and no
+// live doc still describes the pre-rename `recolorFactoriesForAttenuationStyle`/
+// `getFactoryBubbleProps` names as current behaviour.
+
+const ALL_SCENERY_KINDS = [
+  'tank',
+  'crane',
+  'pylon',
+  'wall',
+  'beacon',
+  'pipeline',
+  'dome',
+  'wreck',
+  'turbine',
+  'boulder',
+  'vent',
+  'containers',
+  'scaffold',
+  'tether',
+  'floodlight',
+  'dish',
+];
+
+describe('BUILDING_DESIGN.md: Scenery families (D2)', () => {
+  const doc = read('docs/BUILDING_DESIGN.md');
+
+  it('has a "Scenery families" heading', () => {
+    expect(doc).toMatch(/^## Scenery families$/m);
+  });
+
+  const section = (() => {
+    const at = doc.search(/^## Scenery families$/m);
+    const next = doc.indexOf('\n## ', at + 1);
+    return doc.slice(at, next === -1 ? undefined : next);
+  })();
+
+  it.each(ALL_SCENERY_KINDS)('names every SceneryKind — %s', (kind) => {
+    expect(section).toMatch(new RegExp(`\\b${kind}\\b`));
+  });
+
+  it('documents the SceneryContext contract', () => {
+    expect(section).toContain('SceneryContext');
+    expect(section).toMatch(/nightDepth/);
+    expect(section).toMatch(/\bcap\b/);
+  });
+
+  it('documents gem accents', () => {
+    expect(section).toMatch(/gem/i);
+    expect(section).toMatch(/quantizeShade/);
+  });
+
+  it('distinguishes body-bearing families from structural ones', () => {
+    expect(section).toMatch(/body-bearing/i);
+    expect(section).toMatch(/structural/i);
+  });
+
+  it('documents recolor coverage via recolorActorsForAttenuationStyle', () => {
+    expect(section).toContain('recolorActorsForAttenuationStyle');
+  });
+
+  it('documents the 90/45 test helper', () => {
+    expect(section).toContain('assertNinetyFortyFive');
+  });
+});
+
+describe('BUILDING_DESIGN.md: Goal 2 — Bubble Streams notes vents', () => {
+  const doc = read('docs/BUILDING_DESIGN.md');
+
+  it('the Goal 2 section mentions vent scenery and getActorBubbleProps', () => {
+    const at = doc.indexOf('## Goal 2 — Bubble Streams');
+    expect(at).toBeGreaterThan(-1);
+    const next = doc.indexOf('\n## ', at + 1);
+    const section = doc.slice(at, next === -1 ? undefined : next);
+    expect(section).toMatch(/\bvent\b/i);
+  });
+});
+
+describe('BUILDING_DESIGN.md: no stale pre-rename names describing current behaviour', () => {
+  const doc = read('docs/BUILDING_DESIGN.md');
+
+  it('does not call the recolor function by its pre-Task-13 name', () => {
+    expect(doc).not.toContain('recolorFactoriesForAttenuationStyle');
+  });
+
+  it('does not call the bubble-props function by its pre-Task-17 name', () => {
+    expect(doc).not.toContain('getFactoryBubbleProps');
+  });
+});
+
+describe('PROCEDURAL_GENERATION.md: the render-time Alea(actor.id) draw for scenery', () => {
+  const doc = read('docs/PROCEDURAL_GENERATION.md');
+
+  it('notes deriveSceneryParams draws Alea(actor.id) at render, not through the noise-map registry', () => {
+    expect(doc).toContain('deriveSceneryParams');
+    expect(doc).toMatch(/Alea\(actor\.id\)/);
+  });
+});
+
+describe('ROBOT_DESIGN.md: quantizeShade is shared with scenery', () => {
+  const doc = read('docs/ROBOT_DESIGN.md');
+
+  it('has a line naming gemShading.quantizeShade as shared with scenery', () => {
+    expect(doc).toMatch(/quantizeShade/);
+    expect(doc).toMatch(/scenery/i);
+  });
+});
+
+describe('the roadmap: Phase 42 carries D2 shipped', () => {
+  const roadmap = read('docs/todo/roadmap.md');
+  const at = roadmap.indexOf('## 42. World View Districts');
+  const next = roadmap.indexOf('\n## 43.', at);
+  const phase = roadmap.slice(at, next === -1 ? undefined : next);
+
+  it('records D2 as shipped', () => {
+    expect(phase).toMatch(/D2[^.\n]*shipped/i);
   });
 });
 

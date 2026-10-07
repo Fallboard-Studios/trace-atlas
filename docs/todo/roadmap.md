@@ -717,7 +717,8 @@ Intent [docs/intent/world-view-districts.md](../intent/world-view-districts.md),
 [docs/specs/WORLD_VIEW_DISTRICTS.md](../specs/WORLD_VIEW_DISTRICTS.md), plan
 [docs/tasks/WORLD_VIEW_DISTRICTS.md](../tasks/WORLD_VIEW_DISTRICTS.md), sketch
 [docs/sketches/world-view-districts.html](../sketches/world-view-districts.html). **D1 shipped on
-`feature/world-districts`; D2 (the scenery families) and D3 (atmosphere) planned, not started.**
+`feature/world-districts`; D2 (the scenery families) shipped on `feature/world-scenery`; D3
+(atmosphere) planned, not started.**
 
 ### About
 
