@@ -262,7 +262,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
 - [x] Reviewed with Crawford before the world-data half. — passed 2026-10-07 ("everything looks
       good"), taken to include the T4 Salvage/Maintenance lore lines.
 
-- [ ] **Task 7: `jobHosts.ts`**
+- [x] **Task 7: `jobHosts.ts`**
 
   **Description:** `hostJobs(actor): JobType[]` — the spec §1.3 table for the five factory
   variants and sixteen scenery kinds, the derelict override (`[salvage, structuralInspection]`),
@@ -270,10 +270,20 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   adds the depth filter (background only when `backHosts`). `BACK_HOSTS_ENABLED = false`.
 
   **Acceptance criteria:**
-  - [ ] Every row of the table asserted; every `SceneryKind` and `FactoryVariant` covered
-        (exhaustiveness test over the type unions).
-  - [ ] Derelict tank → `[salvage, structuralInspection]`; offscreen Warehouse → `[]`; background
+  - [x] Every row of the table asserted; every `SceneryKind` and `FactoryVariant` covered
+        (exhaustiveness test over the type unions). — `Record<Union, true>` sets in the test, so
+        `build:types` fails if a kind or variant is added and left out.
+  - [x] Derelict tank → `[salvage, structuralInspection]`; offscreen Warehouse → `[]`; background
         Skyscraper ineligible with `backHosts: false`, eligible with `true`.
+
+  **As shipped:** (1) The tables are exported as `FACTORY_HOST_JOBS` / `SCENERY_HOST_JOBS`. A
+  factory's variant is derived the way `Factory.tsx` derives it (`selectVariantFromSeed` with the
+  row's `variants`); T8 can switch this to `factoryGeometry`. (2) Two rules the spec leaves open,
+  decided here: offscreen beats derelict (an offscreen derelict hosts nothing), and a derelict
+  non-host (wall, boulder, tether) stays a non-host. (3) An unresolvable row counts as foreground,
+  the same fallback `Factory.tsx` uses. (4) Mutation checks: dropping the offscreen check, the
+  derelict override, the depth filter, the row's variant list or the non-host guard each fail
+  tests.
 
   **Verification:** `npx vitest run src/systems/jobHosts.test.ts`. **Dependencies:** T4.
   **Files:** `src/systems/jobHosts.ts` (+ test), `src/constants/index.ts`. **Scope:** S.

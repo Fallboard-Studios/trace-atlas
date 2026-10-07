@@ -139,6 +139,13 @@ export const BATTERY_FULL_THRESHOLD = 100;
 /** Fraction of a robot's melody events whose pitch (noteIndex only) re-rolls each time it lands on Docked. */
 export const DOCKED_PITCH_DRIFT_RATIO = 0.25;
 
+/**
+ * Whether background-depth buildings host work sites (jobHosts.ts's isWorkSiteEligible). False
+ * until the depth-layer branch (Phase 43 J4) lands the back robot layer — until then only
+ * midground and foreground actors host. See docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.10.
+ */
+export const BACK_HOSTS_ENABLED = false;
+
 /** Roster-balancing cap: at most this many robots may hold the same job type at once. */
 export const JOB_MAX_ROBOTS_PER_TYPE = 3;
 
