@@ -255,10 +255,12 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   **Scope:** S.
 
 ### Checkpoint A: Lifecycle parity
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Live (`npm run dev`): robots wander, depart down, dock off-screen and return exactly as on
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean. — 6496 tests at 20039099; lint
+      has only the two pre-existing react-refresh warnings.
+- [x] Live (`npm run dev`): robots wander, depart down, dock off-screen and return exactly as on
       main; cards say Undocking/Recalled where they said Docking/Departing.
-- [ ] Reviewed with Crawford before the world-data half.
+- [x] Reviewed with Crawford before the world-data half. — passed 2026-10-07 ("everything looks
+      good"), taken to include the T4 Salvage/Maintenance lore lines.
 
 - [ ] **Task 7: `jobHosts.ts`**
 
