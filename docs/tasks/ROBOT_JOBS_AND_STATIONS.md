@@ -160,8 +160,8 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   flat 5, 6 and 7. A test asserts the report's shape; the numbers go to Crawford.
 
   **Acceptance criteria:**
-  - [ ] Default behaviour unchanged: the prove-it replay test passes unmodified.
-  - [ ] The sim is deterministic (same table twice) and touches no store or BeatClock.
+  - [x] Default behaviour unchanged: the prove-it replay test passes unmodified.
+  - [x] The sim is deterministic (same table twice) and touches no store or BeatClock.
   - [ ] Report table posted; Crawford confirms the flat value (expected 6).
 
   **Verification:** `npx vitest run src/systems/robotSystems.test.ts src/systems/lifecycleSim.test.ts`.

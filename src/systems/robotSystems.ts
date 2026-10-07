@@ -96,6 +96,14 @@ export interface RobotLifecycleSnapshot {
   noteVariance?: Robot['noteVariance'];
 }
 
+/** How much one Active measure drains a robot's battery — injectable so lifecycleSim.ts can compare
+ *  today's rule against flat candidates on the same replay code (Phase 43 Task 2). Pure. */
+export type DrainRule = (snapshot: RobotLifecycleSnapshot) => number;
+
+/** Today's rule, and the default: BATTERY_DRAIN_BASE plus the robot's job surcharge (none without a job). */
+export const surchargeDrain: DrainRule = (snapshot) =>
+  BATTERY_DRAIN_BASE + (snapshot.job ? JOB_BATTERY_DRAIN_SURCHARGE[snapshot.job.type] : 0);
+
 /** scoreJobAffinities only reads the melodic-attribute fields RobotLifecycleSnapshot already
  *  carries -- this cast is safe (no field it actually reads is missing) and avoids widening
  *  RobotLifecycleSnapshot with fields (melody, audioAttributes, ...) a lifecycle step never uses. */
@@ -104,8 +112,9 @@ function scoreSnapshotJobAffinities(snapshot: RobotLifecycleSnapshot): Record<Jo
 }
 
 /** Pure per-robot balancing, mirrors assignJob's rule exactly: best-scoring type, skipping any
- *  type already at JOB_MAX_ROBOTS_PER_TYPE among the OTHER robots in `roster` that are Active. */
-function chooseJobForSnapshot(snapshot: RobotLifecycleSnapshot, roster: RobotLifecycleSnapshot[], measure: number): RobotLifecycleSnapshot['job'] {
+ *  type already at JOB_MAX_ROBOTS_PER_TYPE among the OTHER robots in `roster` that are Active.
+ *  Exported for lifecycleSim.ts's initial job pass (mirrors initializeLocale's assignJob loop). */
+export function chooseJobForSnapshot(snapshot: RobotLifecycleSnapshot, roster: RobotLifecycleSnapshot[], measure: number): RobotLifecycleSnapshot['job'] {
   const scores = scoreSnapshotJobAffinities(snapshot);
   const sortedTypes = (Object.values(JobType) as JobTypeValue[]).sort((a, b) => scores[b] - scores[a]);
 
@@ -122,8 +131,8 @@ function chooseJobForSnapshot(snapshot: RobotLifecycleSnapshot, roster: RobotLif
 
 /**
  * One measure's worth of battery/docking/job transition for an entire roster, pure -- mirrors
- * tickRobotLifecycle's per-robot logic (BATTERY_DRAIN_BASE/JOB_BATTERY_DRAIN_SURCHARGE/
- * BATTERY_RECHARGE_RATE/BATTERY_CRITICAL_THRESHOLD/BATTERY_FULL_THRESHOLD, the "never zero
+ * tickRobotLifecycle's per-robot logic (the `drain` rule — default surchargeDrain, i.e.
+ * BATTERY_DRAIN_BASE/JOB_BATTERY_DRAIN_SURCHARGE — BATTERY_RECHARGE_RATE/BATTERY_CRITICAL_THRESHOLD/BATTERY_FULL_THRESHOLD, the "never zero
  * Active" invariant, assignJob's balancing) exactly, reusing the same constants/scoreJobAffinities
  * -- never a second copy of the arithmetic. Mutates a local working array as it iterates (matching
  * tickRobotLifecycle's own "re-read fresh, not the stale snapshot" invariant check), in roster
@@ -137,13 +146,17 @@ function chooseJobForSnapshot(snapshot: RobotLifecycleSnapshot, roster: RobotLif
  * `noiseMap` is required, not optional -- no alea(...) fallback is ported from landOnDocked's live
  * defensive branch (spec §7 item 2 -- replay only ever runs against an already-spawned locale).
  */
-export function stepRobotLifecycle(roster: RobotLifecycleSnapshot[], measure: number, noiseMap: NoiseFunction2D): RobotLifecycleSnapshot[] {
+export function stepRobotLifecycle(
+  roster: RobotLifecycleSnapshot[],
+  measure: number,
+  noiseMap: NoiseFunction2D,
+  drain: DrainRule = surchargeDrain,
+): RobotLifecycleSnapshot[] {
   const working = roster.map((r) => ({ ...r }));
 
   for (const robot of working) {
     if (robot.docking === DockingState.Active) {
-      const surcharge = robot.job ? JOB_BATTERY_DRAIN_SURCHARGE[robot.job.type] : 0;
-      robot.batteryLevel = Math.max(0, robot.batteryLevel - (BATTERY_DRAIN_BASE + surcharge));
+      robot.batteryLevel = Math.max(0, robot.batteryLevel - drain(robot));
       if (robot.batteryLevel <= BATTERY_CRITICAL_THRESHOLD) {
         const stillActiveElsewhere = working.some((r) => r.id !== robot.id && r.docking === DockingState.Active);
         if (stillActiveElsewhere) {
@@ -190,10 +203,16 @@ export function stepRobotLifecycle(roster: RobotLifecycleSnapshot[], measure: nu
  * the "always replay from creation" decision) -- this function itself doesn't enforce that,
  * callers do. The one caller-facing entry point for headless lifecycle replay.
  */
-export function replayLifecycle(roster: RobotLifecycleSnapshot[], fromMeasure: number, toMeasure: number, noiseMap: NoiseFunction2D): RobotLifecycleSnapshot[] {
+export function replayLifecycle(
+  roster: RobotLifecycleSnapshot[],
+  fromMeasure: number,
+  toMeasure: number,
+  noiseMap: NoiseFunction2D,
+  drain: DrainRule = surchargeDrain,
+): RobotLifecycleSnapshot[] {
   let working = roster;
   for (let measure = fromMeasure + 1; measure <= toMeasure; measure++) {
-    working = stepRobotLifecycle(working, measure, noiseMap);
+    working = stepRobotLifecycle(working, measure, noiseMap, drain);
   }
   return working;
 }

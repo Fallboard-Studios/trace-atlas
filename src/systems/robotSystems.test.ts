@@ -13,6 +13,7 @@ import {
   landOnDocked,
   stepRobotLifecycle,
   replayLifecycle,
+  surchargeDrain,
 } from './robotSystems';
 import type { RobotLifecycleSnapshot } from './robotSystems';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
@@ -306,7 +307,7 @@ describe('robotSystems', () => {
   });
 
   describe('tickRobotLifecycle — hold-elapsed landing', () => {
-    it('a Docking robot whose hold has elapsed lands on Active', () => {
+    it('an Undocking robot whose hold has elapsed lands on Active', () => {
       const robot = makeRobot({
         docking: DockingState.Undocking,
         dockingHoldUntilMeasure: 10,
@@ -322,7 +323,7 @@ describe('robotSystems', () => {
       expect(updated?.dockingHoldUntilMeasure).toBeUndefined();
     });
 
-    it('a Docking robot whose hold has NOT elapsed stays Docking', () => {
+    it('an Undocking robot whose hold has NOT elapsed stays Undocking', () => {
       const robot = makeRobot({ docking: DockingState.Undocking, dockingHoldUntilMeasure: 15, batteryLevel: 100 });
       setupLocaleWithRobots([robot]);
 
@@ -761,6 +762,58 @@ describe('robotSystems', () => {
       expect(result.batteryLevel).toBe(0);
     });
 
+    describe('injectable drain (Phase 43 Task 2)', () => {
+      it('surchargeDrain is today\'s rule — BATTERY_DRAIN_BASE alone with no job, plus the job surcharge with one', () => {
+        expect(surchargeDrain(makeSnapshot({ job: undefined }))).toBe(BATTERY_DRAIN_BASE);
+        for (const jobType of Object.values(JobType)) {
+          expect(surchargeDrain(makeSnapshot({ job: { type: jobType, assignedAtMeasure: 0 } }))).toBe(BATTERY_DRAIN_BASE + JOB_BATTERY_DRAIN_SURCHARGE[jobType]);
+        }
+      });
+
+      it('omitting drain is identical to passing surchargeDrain explicitly', () => {
+        const roster = [
+          makeSnapshot({ id: 'a', batteryLevel: 40, job: { type: JobType.StructuralInspection, assignedAtMeasure: 0 } }),
+          makeSnapshot({ id: 'b', batteryLevel: 13, job: { type: JobType.AcousticSurvey, assignedAtMeasure: 0 } }),
+          makeSnapshot({ id: 'c', docking: DockingState.Docked, batteryLevel: 97 }),
+        ];
+        expect(stepRobotLifecycle(roster, 10, TEST_NOISE_MAP)).toEqual(stepRobotLifecycle(roster, 10, TEST_NOISE_MAP, surchargeDrain));
+      });
+
+      it('an Active robot drains by whatever the injected rule returns, ignoring its job surcharge', () => {
+        const snap = makeSnapshot({ batteryLevel: 80, job: { type: JobType.FluidMonitoring, assignedAtMeasure: 0 } });
+        const [result] = stepRobotLifecycle([snap], 10, TEST_NOISE_MAP, () => 6);
+        expect(result.batteryLevel).toBe(74);
+      });
+
+      it('calls the rule only for Active robots, once each, with that robot\'s own snapshot', () => {
+        // Record at call time — the step mutates its working copy after the rule returns.
+        const seen: Array<{ id: string; batteryLevel: number }> = [];
+        const drain = (s: RobotLifecycleSnapshot) => {
+          seen.push({ id: s.id, batteryLevel: s.batteryLevel });
+          return 6;
+        };
+        const active = makeSnapshot({ id: 'active', batteryLevel: 80 });
+        const docked = makeSnapshot({ id: 'docked', docking: DockingState.Docked, batteryLevel: 50 });
+        const held = makeSnapshot({ id: 'held', docking: DockingState.Recalled, dockingHoldUntilMeasure: 20, batteryLevel: 5 });
+        stepRobotLifecycle([active, docked, held], 10, TEST_NOISE_MAP, drain);
+        expect(seen).toEqual([{ id: 'active', batteryLevel: 80 }]);
+      });
+
+      it('still floors at 0 when the rule drains more than the robot has', () => {
+        const [result] = stepRobotLifecycle([makeSnapshot({ batteryLevel: 4 })], 10, TEST_NOISE_MAP, () => 6);
+        expect(result.batteryLevel).toBe(0);
+      });
+
+      it('a bigger drain reaches the critical threshold sooner — the rule drives recall timing, not just the number', () => {
+        const robot = makeSnapshot({ id: 'r', batteryLevel: BATTERY_CRITICAL_THRESHOLD + 6, job: undefined });
+        const companion = makeSnapshot({ id: 'companion', batteryLevel: 100, job: undefined });
+        const [today] = stepRobotLifecycle([robot, companion], 10, TEST_NOISE_MAP);
+        const [flat] = stepRobotLifecycle([robot, companion], 10, TEST_NOISE_MAP, () => 6);
+        expect(today.docking).toBe(DockingState.Active);
+        expect(flat.docking).toBe(DockingState.Recalled);
+      });
+    });
+
     it('recharges a Docked robot by BATTERY_RECHARGE_RATE', () => {
       const snap = makeSnapshot({ docking: DockingState.Docked, batteryLevel: 50 });
       const [result] = stepRobotLifecycle([snap], 10, TEST_NOISE_MAP);
@@ -811,7 +864,7 @@ describe('robotSystems', () => {
       expect(result.dockingHoldUntilMeasure).toBe(21);
     });
 
-    it('a Docking robot whose hold has elapsed lands on Active with a job assigned', () => {
+    it('an Undocking robot whose hold has elapsed lands on Active with a job assigned', () => {
       const snap = makeSnapshot({ docking: DockingState.Undocking, dockingHoldUntilMeasure: 20, batteryLevel: 100 });
       const [result] = stepRobotLifecycle([snap], 20, TEST_NOISE_MAP);
       expect(result.docking).toBe(DockingState.Active);
@@ -866,7 +919,7 @@ describe('robotSystems', () => {
         expect(result.dockCycleCount).toBe(1);
       });
 
-      it('a Undocking -> Active landing does NOT touch dockCycleCount or melody', () => {
+      it('an Undocking -> Active landing does NOT touch dockCycleCount or melody', () => {
         const originalMelody = makeRobot().melody;
         const snap = makeSnapshot({ docking: DockingState.Undocking, dockingHoldUntilMeasure: 20, batteryLevel: 100, dockCycleCount: 3, melody: originalMelody });
         const [result] = stepRobotLifecycle([snap], 20, TEST_NOISE_MAP);
@@ -1014,6 +1067,17 @@ describe('robotSystems', () => {
       const snap = makeSnapshot({ batteryLevel: 50, job: undefined });
       const [result] = replayLifecycle([snap], 0, 3, TEST_NOISE_MAP);
       expect(result.batteryLevel).toBe(50 - BATTERY_DRAIN_BASE * 3);
+    });
+
+    it('forwards an injected drain to every replayed step (Phase 43 Task 2)', () => {
+      const snap = makeSnapshot({ batteryLevel: 50, job: { type: JobType.FluidMonitoring, assignedAtMeasure: 0 } });
+      const flat6 = () => 6;
+      let handRolled = [snap];
+      for (let m = 1; m <= 4; m++) handRolled = stepRobotLifecycle(handRolled, m, TEST_NOISE_MAP, flat6);
+
+      const replayed = replayLifecycle([snap], 0, 4, TEST_NOISE_MAP, flat6);
+      expect(replayed).toEqual(handRolled);
+      expect(replayed[0].batteryLevel).toBe(50 - 6 * 4);
     });
   });
 
