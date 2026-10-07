@@ -26,7 +26,7 @@ repo convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence"
 Twenty-three tasks in three branches. **D1** (Tasks 1–10) replaces the fixed row table with nine
 seeded district recipes, adds the terrain profile and ground lock, the hour-driven water column, the
 real depth lightness cap and the derelict flag — with factories only, so "nine seeds read as nine
-places" is judged before any new silhouette exists. **D2** (Tasks 11–19) lands the seventeen scenery
+places" is judged before any new silhouette exists. **D2** (Tasks 11–19) lands the sixteen scenery
 families through one dispatcher, in groups that share a mechanism (gem users, body-bearing items
 that recolor, structural items, the bubble-venting vent), plus derived pipe bridges. **D3**
 (Tasks 20–23) adds light shafts and marine snow. Every branch ends with Crawford's live gate, an
@@ -68,7 +68,7 @@ D1  T1 terrainProfile ─┐
     T6 sceneDepth constants + Factory cap/derelict (independent of T4/T5) ─────────────────────────────────────────────────────────────────┘
 D2  T11 scenery scaffolding + wall ─► T12 gemShape + pylon/beacon/boulder
                                    ─► T13 foldBodyShift + recolorActors + tank ─► T14 dome/scaffold/containers
-                                   ─► T15 crane/pipeline/pipe bridges ─► T16 turbine/tether/floodlight/dock/dish ─► T17 wreck/vent + bubbles
+                                   ─► T15 crane/pipeline/pipe bridges ─► T16 turbine/tether/floodlight/dish ─► T17 wreck/vent + bubbles
                                                                        Checkpoint B ─► T18 perf gate (stop) ─► T19 docs
 D3  T20 LightShafts ─► T21 MarineSnow ─► Checkpoint C ─► T22 perf gate (stop) ─► T23 docs + roadmap
 ```
@@ -107,7 +107,7 @@ the §1.3 row they implement; the ground band's "raised above every midground fl
 
 ## Task 2: Actor types and the nine recipe tables
 
-**Description:** `ActorType.SCENERY`; `SceneryKind` (17 names) and `DistrictName` (9) in
+**Description:** `ActorType.SCENERY`; `SceneryKind` (16 names) and `DistrictName` (9) in
 `types/Actor.ts`; `Actor.config` gains `kind?: SceneryKind`, `district?: DistrictName`,
 `derelict?: true`. `districtRecipes.ts`: the `DistrictRow` type (spec §1.2, `anchor` + optional
 `floorY`, no literal `y`) and `RECIPES` — all nine tables exactly as spec §1.2, including rows for
@@ -306,7 +306,7 @@ Spec: fold the plan-time correction (`config.district`, `getRecipeRow`) into §1
 
 **Description:** `scenery/sceneryTypes.ts` (`SceneryContext`, `SceneryRenderer`, spec §4);
 `scenery/sceneryParams.ts` (`deriveSceneryParams(actor)` — the per-kind `Alea(id)` ranges of spec
-§1.9, all 17 kinds, each range commented with its row; also `maxShapes(kind)` for the budget test);
+§1.9, all 16 kinds, each range commented with its row; also `maxShapes(kind)` for the budget test);
 `scenery/Scenery.tsx` (memoised; builds the context from `config`, `ROW_L_CAP`, the lighting tick,
 `deriveAsAccentPair`, `SCENERY_GEM_ACCENTS = true`; dispatches on `SCENERY_RENDERERS[kind]`);
 `SHIPPED_SCENERY` becomes `new Set(Object.keys(SCENERY_RENDERERS))`. `OceanScene` renders
@@ -417,13 +417,14 @@ component that takes that depth's factory actors, finds x-adjacent pairs in one 
 **Dependencies:** T11. **Files:** `renderers/crane.tsx`, `renderers/pipeline.tsx`,
 `scenery/pipeBridges.tsx` (+ 3 tests), `worldView/OceanScene.tsx`. **Scope:** M.
 
-## Task 16: Structural families — turbine, tether, floodlight, dock, dish
+## Task 16: Structural families — turbine, tether, floodlight, dish
 
-**Description:** Five small renderers per spec §1.9: `turbine.tsx` (blades in one `rotate(45)`
+**Description:** Four small renderers per spec §1.9: `turbine.tsx` (blades in one `rotate(45)`
 group, hub light), `tether.tsx` (anchor, vertical, one 45° parallelogram dog-leg, vertical to y −20,
 optional float), `floodlight.tsx` (beam polygon with one vertical and one 45° edge, opacity
-`0.04 + 0.12 nd`, ground pool ellipse), `dock.tsx` (slab, edge lights every 40, mast with gem or
-light), `dish.tsx` (ellipse in `rotate(±45)` with feed stub, centre light).
+`0.04 + 0.12 nd`, ground pool ellipse), `dish.tsx` (ellipse in `rotate(±45)` with feed stub, centre
+light). (The `dock` pad family was dropped 2026-10-06 — roadmap Phase 43's charging stations
+replace it; see the spec's amendment note.)
 
 **Acceptance criteria:**
 - [ ] Turbine: blade rects are inside a `rotate(45 …)` group; hub radius 11.
@@ -431,12 +432,11 @@ light), `dish.tsx` (ellipse in `rotate(±45)` with feed stub, centre light).
       y −20; float present on the seeds the params flag.
 - [ ] Floodlight: beam opacity 0.04 at hour 12 and 0.16 at hour 0 (±0.005); one beam edge
       vertical, one 45°.
-- [ ] Dock: edge-light count = ⌊(w − 22) / 40⌋ + 1; mast carries a `GemShape` with gems on.
 - [ ] `assertNinetyFortyFive` over 50 seeds each; budgets hold.
 
 **Verification:** `npx vitest run src/components/actors/scenery`. **Dependencies:** T12 (GemShape).
 **Files:** `renderers/turbine.tsx`, `renderers/tether.tsx`, `renderers/floodlight.tsx`,
-`renderers/dock.tsx`, `renderers/dish.tsx` (+ 5 tests). **Scope:** M (five small files; split into
+`renderers/dish.tsx` (+ 4 tests). **Scope:** M (four small files; split into
 16a/16b if any renderer runs past ~80 lines).
 
 ## Task 17: Wreck, vent, and vents that vent bubbles

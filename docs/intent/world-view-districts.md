@@ -5,6 +5,14 @@ sketch [docs/sketches/world-view-districts.html](../sketches/world-view-district
 both "love everything"). Ahead of a `spec-driven-development` pass. Sequenced **after** Phase 40
 (Orbiting Polygons, in flight on `feature/orbiting-polygons`); nothing here touches that branch.
 
+> **Amendment (2026-10-06):** the docking pads family is dropped. Roadmap Phase 43 (Robot Jobs and
+> Charging Stations, [docs/ideas/robot-jobs-and-stations.md](../ideas/robot-jobs-and-stations.md))
+> replaces pads with 2–3 floating charging stations that robots enter, which settles the "robots
+> docking on the pads" out-of-scope item below. That makes seventeen families, counting pipe
+> bridges, and no dock masts among the gem accents. Phase 43 builds on D1 + D2: its host buildings
+> are these families. See the spec's amendment note. The rules below are the original ask,
+> unedited.
+
 - **Outcome:** Every locale becomes a seeded underwater district: one of nine recipes, drawn over a
   seabed ridge, a stepped ground line and a water column that follows the hour, populated by
   eighteen silhouette families and two atmosphere layers. Shipped as a **series of three branches**:

@@ -676,7 +676,100 @@ including a robot's own first mount — each attaches with a short hop (dropped,
 - **Drift and the ring/hoop orbit** — built, gated past Gate 1, measured at the perf gate, then cut
   entirely per Crawford's redesign call; not a residual to revisit, a replaced design.
 - **Job animations (detach to do "work")** — explicitly the next phase on this feature, not scoped
-  here; `useOrbiterMotion.ts` stays ignorant of what a later detach will mean.
+  here; `useOrbiterMotion.ts` stays ignorant of what a later detach will mean. Now
+  [Phase 43](#43-robot-jobs-and-charging-stations).
 - **LFO → orbiter links** — dropped for good at the intent stage (orbiter motion is composition-
   driven, never LFO-driven).
 - **Top/Mid oscillator-driven rules** — a separate later pass, per the intent doc.
+
+## 41. Robot Halo and Lit Lines
+
+Intent [docs/intent/robot-halo-and-lit-lines.md](../intent/robot-halo-and-lit-lines.md), spec
+[docs/specs/ROBOT_HALO_AND_LIT_LINES.md](../specs/ROBOT_HALO_AND_LIT_LINES.md), plan
+[docs/tasks/ROBOT_HALO_AND_LIT_LINES.md](../tasks/ROBOT_HALO_AND_LIT_LINES.md), sketch
+[docs/sketches/robot-halo-and-lit-lines.html](../sketches/robot-halo-and-lit-lines.html).
+**Merged to main (PR #528, `feature/mystery-light`), Tasks 1–13; the halo is built but has no
+caller yet.**
+
+### About
+
+Crawford's "mysterious light" pass, the Top/Mid pass Phase 40 reserved. Each gem robot gains a
+company-coloured halo behind its Mids (shaped by envelope, sized by volume), lit strips on the Top
+and Mid boundary lines widened by that layer's gain-LFO depth, and a two-second out-of-step flicker
+on any strip whose driving attribute changes. The strips and flicker are live everywhere.
+
+### Decisions made while building
+
+- **The halo ripple is not tied to the orbiter hop.** Wiring `decorateArc` into Phase 40's
+  attach/detach hop was tried and reverted the same day (2026-10-06): that hop is density-driven,
+  not a real spawn/despawn event. The halo exists, fully inert, reserved for a job-detach or
+  docking animation — [Phase 43](#43-robot-jobs-and-charging-stations)'s station enter/exit is its
+  first planned caller. See the spec's §1 Amendments.
+
+### Not Doing (and why)
+
+- **The halo/ripple visual gate** — deferred, per the spec's §5 gate note, to whichever task first
+  wires `decorateArc`; that task re-runs the gate's original wording (and the idle-paint check).
+
+## 42. World View Districts
+
+Intent [docs/intent/world-view-districts.md](../intent/world-view-districts.md), spec
+[docs/specs/WORLD_VIEW_DISTRICTS.md](../specs/WORLD_VIEW_DISTRICTS.md), plan
+[docs/tasks/WORLD_VIEW_DISTRICTS.md](../tasks/WORLD_VIEW_DISTRICTS.md), sketch
+[docs/sketches/world-view-districts.html](../sketches/world-view-districts.html). **Spec'd and
+planned (committed `f414bebe`); not started.**
+
+### About
+
+Every locale becomes a seeded underwater district: one of nine row recipes replaces the single fixed
+`FACTORY_ROWS` table, drawn over a seabed ridge, a stepped ground line and a water column that
+follows the hour, populated by static scenery families that obey the factory rules. Three branches:
+**D1** districts + terrain + water, **D2** the families, **D3** atmosphere. Changing what existing
+coordinates and saved `?session=` links show is accepted.
+
+### Decisions made after the spec
+
+- **The `dock` pad family is dropped (2026-10-06)** — [Phase 43](#43-robot-jobs-and-charging-stations)'s
+  charging stations replace it; 16 scenery families, not 17.
+- **Phase 43 reuses `deriveSceneryParams(actor)`** (already a pure module in the plan, Task 11) for
+  its `workAnchors(actor)` and headless readiness sim — so renderers must keep reading geometry from
+  it, never deriving sizes inline. Phase 43 also reads `config.derelict` and the row's `offscreen`
+  anchor (via `config.row` + the district) to decide which items can host jobs.
+- **D1 + D2 block Phase 43** — its building-to-job host lists are written against the district
+  families. D3 does not.
+
+## 43. Robot Jobs and Charging Stations
+
+Idea [docs/ideas/robot-jobs-and-stations.md](../ideas/robot-jobs-and-stations.md), intent
+[docs/intent/robot-jobs-and-stations.md](../intent/robot-jobs-and-stations.md), spec
+[docs/specs/ROBOT_JOBS_AND_STATIONS.md](../specs/ROBOT_JOBS_AND_STATIONS.md). **Intent confirmed
+and spec drafted 2026-10-06 (`planning/jobs-locales-docking`); spec awaiting Crawford's review;
+plan, sketch gate and code not started.** Depends on
+[42](#42-world-view-districts) (D1 + D2, for the host buildings), [40](#40-orbiting-polygons) (the
+orbiters that do the work), [41](#41-robot-halo-and-lit-lines) (the halo ripple on station
+enter/exit) and [20.5](#205-world-clock-deterministic-lifecycle-replay) (the replay this phase
+narrows).
+
+### About
+
+Robots stop wandering at random and do work their world asks for. Host buildings carry job lists;
+a building is ready when no robot holds it and its cooldown has elapsed, and a robot finishing a job
+(or leaving a station) goes to the nearest ready building for its job — or switches to a job no
+other robot holds when none is ready. At the building the robot bobs while its orbiters detach and
+play the job's moves (`hover-pulse`, `trace`, `ring`, `carry`, `fan`) at the building's work anchors,
+faster with more orbiters. Low battery sends it, once the current job finishes, into one of 2–3
+seeded floating gem stations (capacity 6, slot lights), where it is invisible while charging. A
+second moving robot layer behind the midground lets background buildings host work.
+
+Battery stays on the measure tick at one flat drain rate, so the job leaves the World Clock replay;
+battery, docking and pitch drift still replay exactly. Animation runs on wall-clock time and never
+touches the music. Six jobs: the existing four plus Salvage and Maintenance. Full direction,
+assumptions to validate, MVP and Not Doing list are in the idea doc.
+
+### Supersedes
+
+- [docs/todo/backlog.md](backlog.md) item 8 (Visuals: Job Animations).
+- The bottom-only entry/exit, random idle wandering and low-battery lower-third rules
+  ([docs/ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md)), job affinity scoring and per-job battery
+  surcharges — all removed by this phase, along with the dead `interactionSystem.ts` and factory
+  production fields.
