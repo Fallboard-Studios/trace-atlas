@@ -50,6 +50,12 @@ export const JobType = {
 export type JobType = (typeof JobType)[keyof typeof JobType];
 
 /**
+ * The work loop's live visual state (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.2). Never replayed;
+ * nothing audio-side reads it. The `Robot.activity` field arrives with its writer (Phase 43 Task 21).
+ */
+export type RobotActivity = 'charging' | 'exiting' | 'transit' | 'working' | 'waiting' | 'returning' | 'entering';
+
+/**
  * Oscillator waveform shapes for timbral variety
  */
 export type WaveformType = 'sine' | 'square' | 'triangle' | 'sawtooth' | 'pulse';

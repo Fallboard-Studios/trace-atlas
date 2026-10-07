@@ -530,18 +530,33 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   T0 (box size). **Files:** `src/systems/stations.ts` (+ test), `src/constants/index.ts`.
   **Scope:** S.
 
-- [ ] **Task 14: `siteChoice.ts` — `chooseNextSite`, `siteCooldown`, held jobs**
+- [x] **Task 14: `siteChoice.ts` — `chooseNextSite`, `siteCooldown`, held jobs**
 
   **Description:** The pure decision functions of spec §1.7 and §4's snippet, in their own module
   (correction 3), plus `heldJobs(robots, selfId)` per correction 4. `siteCooldown(n) = clamp(n ×
   COOLDOWN_PER_SITE, COOLDOWN_MIN, COOLDOWN_MAX)` with the first-guess constants.
 
   **Acceptance criteria:**
-  - [ ] Keeps the robot's job when a ready site hosts it (nearest wins); otherwise prefers an unheld
+  - [x] Keeps the robot's job when a ready site hosts it (nearest wins); otherwise prefers an unheld
         job, weighted by ready-site count (seeded `rand`, frequency test over 10 000 draws within 2 %);
         falls back to held jobs when all are held; `null` when nothing is ready.
-  - [ ] `heldJobs` ignores charging/returning/entering robots and the robot itself.
-  - [ ] `siteCooldown` clamps at both ends.
+  - [x] `heldJobs` ignores charging/returning/entering robots and the robot itself.
+  - [x] `siteCooldown` clamps at both ends.
+
+  **As shipped:** (1) **`RobotActivity` came forward from T21.** `heldJobs` reads `activity`,
+  so the type is now in `types/Robot.ts`. The `Robot.activity` field still arrives with its
+  writer in T21. `heldJobs` takes a structural `HeldJobsRobot` (`id`, `docking`, `job?`,
+  `activity?`), so T21 needs no change here. A robot with no `activity` holds nothing. (2) **A
+  non-Active robot holds nothing**, whatever its activity (correction 4 says "whose `docking` is
+  Active"). (3) **Spec §4's snippet, as written.** Keeping the job never draws `rand`, and a
+  switch draws exactly once. A multi-job site adds one to each of its jobs' weights. Only jobs
+  with a ready site count toward "every job is held". Distance is Euclidean from the robot's
+  centre to the site's `park`, and ties go to the earlier site. (4) `COOLDOWN_PER_SITE` 0.6,
+  `COOLDOWN_MIN` 4, `COOLDOWN_MAX` 30 (seconds) are first guesses until T15. (5) `Robot.test.ts`'s
+  old-state guard matches the string `'docking'`, so `Pick<Robot, 'docking' | …>` trips it. The
+  shape is spelled out instead. (6) Mutation checks: no keep step, held jobs ignored, no held
+  fallback, unweighted pick, unready sites kept, x-only distance, ties to the later site, either
+  clamp removed, self counted, non-Active counted, and charging holding a job each fail tests.
 
   **Verification:** `npx vitest run src/systems/siteChoice.test.ts`. **Dependencies:** T7.
   **Files:** `src/systems/siteChoice.ts` (+ test), `src/constants/index.ts`. **Scope:** S.

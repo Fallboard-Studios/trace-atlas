@@ -175,6 +175,16 @@ export const STATION_Y_RANGE: readonly [number, number] = [220, 560];
 export const STATION_BOX_W = 160;
 export const STATION_BOX_H = 120;
 
+/**
+ * A work site's rest after a robot leaves it, in seconds: siteCooldown(n) = clamp(n ×
+ * COOLDOWN_PER_SITE, COOLDOWN_MIN, COOLDOWN_MAX) for n eligible sites (siteChoice.ts, spec §1.7).
+ * More buildings, longer rest, so work spreads; few buildings, short rest, so robots don't starve.
+ * First guesses — the readiness sim (Phase 43 Task 15) pins them.
+ */
+export const COOLDOWN_PER_SITE = 0.6;
+export const COOLDOWN_MIN = 4;
+export const COOLDOWN_MAX = 30;
+
 /** Roster-balancing cap: at most this many robots may hold the same job type at once. */
 export const JOB_MAX_ROBOTS_PER_TYPE = 3;
 
