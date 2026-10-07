@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import './OceanScene.css';
 import { TerrainLayer } from './TerrainLayer';
 import { WaterColumn } from './WaterColumn';
+import { LightShafts } from './LightShafts';
 
 import { Robot } from '@/components/robot/Robot'
 import { useLocaleStore } from '@/stores/localeStore';
@@ -231,6 +232,10 @@ export function OceanScene({
         {/* Water column (§1.5): vertical gradient + surface glow, replacing the old flat
             backgroundColor rect. */}
         <WaterColumn localeId={localeId} width={width} height={height} />
+
+        {/* Light shafts (docs/specs/WORLD_VIEW_DISTRICTS.md §1.12), after the water column and
+            before the ridge so they read as light falling through the water onto the terrain. */}
+        <LightShafts localeId={localeId} />
 
         {/* Seabed ridge (docs/specs/WORLD_VIEW_DISTRICTS.md §1.3), drawn before every
             factory so background-row towers can stand in front of it. */}

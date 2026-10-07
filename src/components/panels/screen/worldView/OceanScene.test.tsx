@@ -361,6 +361,23 @@ describe('OceanScene', () => {
       expect(waterIndex).toBeLessThan(ridgeIndex);
     });
 
+    // Light shafts (docs/specs/WORLD_VIEW_DISTRICTS.md §1.12, roadmap Phase 42 Task 20): read as
+    // light falling through the water onto the terrain, so they must stand after the water
+    // column and before the ridge in document order.
+    it('renders light shafts after the water column and before the ridge in the back layer', () => {
+      const { container } = render(<OceanScene />);
+      const back = container.querySelector('svg[data-scene-layer="back"]')!;
+      const children = Array.from(back.children);
+
+      const waterIndex = children.findIndex((el) => el.hasAttribute('data-water'));
+      const shaftsIndex = children.findIndex((el) => el.getAttribute('data-atmos') === 'shafts');
+      const ridgeIndex = children.findIndex((el) => el.getAttribute('data-terrain') === 'ridge');
+
+      expect(shaftsIndex).toBeGreaterThanOrEqual(0);
+      expect(waterIndex).toBeLessThan(shaftsIndex);
+      expect(shaftsIndex).toBeLessThan(ridgeIndex);
+    });
+
     it('no longer accepts a backgroundColor prop (type-checked by npm run build:types)', () => {
       // @ts-expect-error backgroundColor was removed (§1.5) — this line only compiles if the prop
       // still exists, so `npm run build:types` catches a regression even though vitest itself
