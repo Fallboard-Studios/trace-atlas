@@ -221,16 +221,32 @@ function applyColorShift(
 
 Farther depth rows have a compressed L range — their maximum attainable
 lightness is capped below 100%. This simulates atmospheric perspective
-underwater.
+underwater. `ROW_L_CAP` (`src/constants/sceneDepth.ts`, roadmap Phase 42) is the real constant, and
+the cap is now applied:
 
-| Row depth | Max L | Notes |
+| Row depth | `ROW_L_CAP` | Notes |
 |-----------|-------|-------|
-| Foreground (closest) | 100% | Full brightness at midday |
-| Mid-depth | ~80% | Slightly muted |
-| Far depth | ~60–70% | Noticeably darker ceiling |
+| Foreground (closest) | 1.0 | Full brightness at midday |
+| Mid-depth | 0.85 | Slightly muted |
+| Far depth | 0.7 | Noticeably darker ceiling |
 
-The per-row cap is multiplied into the day/night `lMultiplier` before it
-reaches `applyColorShift`, so variant code doesn't need to be aware of it.
+`Factory.tsx` multiplies `ROW_L_CAP[depth]` into `eastLMultiplier`/`westLMultiplier` before they
+reach `applyColorShift`; every scenery renderer does the same with its own depth. Lit elements
+(`indicator.powered`, `alert.powered`, `glass.base`, lit windows) are never capped — a light is a
+light at any depth.
+
+### Derelict
+
+An actor can roll `config.derelict: true` at placement (`'actor.derelict'`, offset = actor index,
+`< row.derelict ?? DERELICT_RATIO` — default `0.25`; see PROCEDURAL_GENERATION.md). Families that
+can be derelict: factory, tank, dome, scaffold. Wrecks are always derelict and carry no flag.
+Render-time effect (`Factory.tsx` and every derelict-capable scenery renderer):
+
+- `nightDepth` forced to `0` — no lit windows regardless of time of day.
+- Lightness cap × `DERELICT_L_CAP` (0.55); body saturation × `DERELICT_SAT` (0.4).
+- Factories: the antenna light and any rooftop indicator are also dark.
+- Lit elements stay un-capped by `ROW_L_CAP` as above, but are themselves turned off by the
+  `nightDepth` forcing — a derelict building is dark, not merely dim.
 
 ---
 
@@ -291,19 +307,68 @@ Other related runtime details:
 Runtime files to reference:
 - `src/components/actors/factoryVariants.ts` — variant config and `selectVariantFromSeed` (PRNG draw order).
 - `src/components/actors/silhouetteUtils.ts` — `calcSilhouetteSize`, `bottomAnchorTransform`.
-- `src/systems/factoryPlacementSystem.ts` — `FACTORY_ROWS` and placement algorithm.
+- `src/systems/factoryPlacementSystem.ts` — `createFactory` and `getRecipeRow`; row tables live in
+  `src/systems/districtRecipes.ts` (see "Districts" below).
 
 Facade greebles on each side receive the L multiplier of their respective
 facade. Rooftop greebles centred over the split use the average of
 east/west L.
 
-## Placement & Rows (runtime)
+## Districts
 
-The runtime places factories using a row configuration table (`FACTORY_ROWS`) that defines multiple depth rows. Each row entry contains a `y` position, a `spreadType` (`edges` | `full` | `center`), and `factoriesPerRow` which acts as a per-row density cap. Additional per-row fields include `edgeWidth` and `centerWidth` to control the horizontal extents for `edges` and `center` spreads respectively. Placement computes each factory's silhouette size via `calcSilhouetteSize` and advances placement by the computed width to avoid overlaps. See `src/systems/factoryPlacementSystem.ts` for the exact algorithm.
+Each locale is one of nine seeded **districts** (`src/systems/districts.ts`, `src/systems/districtRecipes.ts`
+— roadmap Phase 42). `pickDistrict(noiseMap)` draws `'locale.district'` once on the locale noise
+map and maps it to a `DistrictName` (`dense · outskirts · towers · yard · derelict · habitat ·
+wreckfield · ventfield · construction`). `placeDistrict(localeId)` replaces the old single fixed
+row table: it picks the district, builds the terrain profile (see "Terrain" below), and places
+every row of that district's recipe.
 
-- `edges`: fill left and right bands (edge width configurable) until count reached.
-- `full`: spread evenly across the full width with a soft cap of `factoriesPerRow`.
-- `center`: constrain placement to a centered segment (configurable `centerWidth`).
+A recipe is an ordered list of `DistrictRow`s:
+
+```typescript
+interface DistrictRow {
+  depth: 'background' | 'midground' | 'foreground';
+  anchor: 'ridge' | 'floor' | 'ground' | 'offscreen';
+  floorY?: number;            // anchor 'floor' only
+  spread: 'full' | 'center' | 'edges';
+  count: number;
+  centerWidth?: number;       // 'center' — fraction of WORLD_BOUNDS.width
+  edgeWidth?: number;         // 'edges'  — fraction per side
+  kind: 'factory' | SceneryKind;
+  variants?: FactoryVariant[]; // kind 'factory' only
+  derelict?: number;          // per-row override of DERELICT_RATIO
+}
+```
+
+Rows say **where an item stands**, never a literal `y`. The three spreads (`edges`/`full`/`center`)
+are unchanged from the legacy table, including the seeded `factory.spacing` jitter for `center`;
+placement still computes each factory's silhouette size via `calcSilhouetteSize` and advances by the
+computed width to avoid overlaps.
+
+### Anchors and the ground-lock invariant
+
+`placeDistrict` resolves each row's `anchor` into the actor's real `Actor.position.y`, from the
+terrain profile:
+
+| Anchor | Base y | Who |
+|---|---|---|
+| `ridge` | `ridgeYAt(x)` | background rows standing on the ridge |
+| `floor` | `row.floorY` | the default for background and midground rows |
+| `ground` | `groundYAt(x)` | the default for foreground rows |
+| `offscreen` | below the frame bottom | foreground rows whose base is cut by the frame |
+
+**Invariant:** after placement, every actor's base is on a terrain profile, under the ground
+polygon, or at/below the frame bottom — no visible base floats. This is asserted by a test that
+runs every district across 20 seeds.
+
+### `config.district` and `getRecipeRow`
+
+A row index alone cannot be resolved without knowing which district's table it indexes into, so
+every placed actor stores both `config.row` **and** `config.district: DistrictName` (serialisable,
+written once by `placeDistrict`). Render-time readers (`Factory.tsx`, `factoryBubbleProps.ts`, the
+recolor path) resolve the variant filter and depth label via
+`getRecipeRow(actor.config.district, actor.config.row)`, which replaces the now-removed
+single-argument row lookup.
 
 Placement is deterministic per actor (seeded) and respects row depth for rendering order (background → midground → foreground).
 

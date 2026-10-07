@@ -99,6 +99,13 @@ interface DistrictRow {
 }
 ```
 
+> **Plan-time correction (carried in, Task 10):** a row index alone is ambiguous — `Factory.tsx`,
+> `factoryBubbleProps.ts` and the recolor path all resolve `config.row` into a variant filter, and a
+> row index is only meaningful relative to *which* district's table it indexes into. Every placed
+> actor therefore also stores `config.district: DistrictName` (serialisable, written once by
+> `placeDistrict`), and the old `getRowConfig(row)` becomes `getRecipeRow(district, row)`, which
+> looks up `RECIPES[district][row]`.
+
 Spread semantics are today's three (`placeFactories`' edges/full/center loops, including the
 seeded `factory.spacing` jitter for center). Factory rows keep their variant filters. A row whose
 `kind` is a family not yet shipped places nothing (D1 ships the tables with every row; D2 lights
@@ -197,6 +204,9 @@ is corrected to these values and to say the cap is now applied. Lit elements (`i
   depth cap, the east/west multipliers, `nightDepth`, the style's accent pair and the gem flag.
 - `OceanScene` renders scenery in the same depth groups as factories, interleaved in recipe row
   order (one sorted list per depth, by row index), so z-order is the recipe's.
+- Every scenery actor also carries `config.district` and `config.row`, same as factories (§1.2's
+  plan-time correction), so render-time readers resolve the family's row via
+  `getRecipeRow(district, row)` the same way `Factory.tsx` does.
 - Colour: families with a body (tank, wall, dome, containers, scaffold) store `hueShift`/`satShift`
   computed like `createFactory` (variant-style base + locale shift + AS shift + Phase 35 lean, via a
   shared `foldBodyShift()` extracted from `createFactory`), so `recolorFactoriesForAttenuationStyle`

@@ -716,8 +716,8 @@ on any strip whose driving attribute changes. The strips and flicker are live ev
 Intent [docs/intent/world-view-districts.md](../intent/world-view-districts.md), spec
 [docs/specs/WORLD_VIEW_DISTRICTS.md](../specs/WORLD_VIEW_DISTRICTS.md), plan
 [docs/tasks/WORLD_VIEW_DISTRICTS.md](../tasks/WORLD_VIEW_DISTRICTS.md), sketch
-[docs/sketches/world-view-districts.html](../sketches/world-view-districts.html). **Spec'd and
-planned (committed `f414bebe`); not started.**
+[docs/sketches/world-view-districts.html](../sketches/world-view-districts.html). **D1 shipped on
+`feature/world-districts`; D2 (the scenery families) and D3 (atmosphere) planned, not started.**
 
 ### About
 
@@ -726,6 +726,18 @@ Every locale becomes a seeded underwater district: one of nine row recipes repla
 follows the hour, populated by static scenery families that obey the factory rules. Three branches:
 **D1** districts + terrain + water, **D2** the families, **D3** atmosphere. Changing what existing
 coordinates and saved `?session=` links show is accepted.
+
+### Not Doing
+
+- **Coast framing** — the sketch kept it for comparison only; the world is underwater, full stop.
+- **The legacy `FACTORY_ROWS` table as a tenth district** — dropped; one in ten worlds looking like
+  today defeats the point of districts.
+- **Preserving existing worlds / saved `?session=` links** — accepted breaking change (intent
+  "Out of scope"); regenerating a different-looking locale at the same coordinates is the point.
+- **Audio → world mapping** (global audio parameters driving the recipe pick, derelict ratio or
+  lighting) — a separate session; the recipe pick and derelict ratio stay explicit per-locale values
+  so that future session has clean targets.
+- **Robot visuals** — untouched; Phase 40/41 own them on their own branches.
 
 ### Decisions made after the spec
 
