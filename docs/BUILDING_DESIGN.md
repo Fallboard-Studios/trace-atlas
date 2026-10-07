@@ -294,12 +294,11 @@ renderer draws the rectangular base **twice**, each clipped to one side:
       clip-path="url(#west-clip-{id})" />
 
 
-## Runtime fields & production timing
+## Runtime fields & timing
 
-When factories are created at runtime, `createFactory` stashes per-instance derived fields on `Actor.config` so they are serialisable and available to renderers and systems. In particular:
+When factories are created at runtime, `createFactory` stashes per-instance derived fields on `Actor.config` (`row`, `hueShift`, `satShift`, `rooftopGreeble`, `facadeGreeble`, `beltCourseCount`, `purpose`) so they are serialisable and available to renderers and systems.
 
-- `config.productionInterval` — set to the `PRODUCTION_INTERVAL` constant (runtime default `60` measures).
-- `cooldownRemaining` — initialised to `PRODUCTION_INTERVAL` so production scheduling and UI can read a serialisable cooldown value.
+Factories no longer carry production state. `config.productionInterval`, `cooldownRemaining`, `isOffline`, `offlineSince` and the `PRODUCTION_INTERVAL` constant were removed in roadmap Phase 43 (Task 6): nothing read them, and the interaction system that once might have was deleted with them. A building's "readiness" for robot work is live work-loop state, never stored on the `Actor` (see "Robot jobs" below).
 
 Other related runtime details:
 - Bubble/vent timing: each building's burst interval is `TARGET_GLOBAL_BURST_INTERVAL_SECONDS * totalBuildings` (currently 4s × the locale's total bubble-eligible building count, computed once in `OceanScene.tsx` and passed to `BubbleLayer`'s `totalBuildings` prop) — plain wall-clock time, deliberately decoupled from `bpm`/measures since the effect is decorative, not musical. This spreads bursts so roughly one building bubbles every ~4s world-wide, rather than every building bursting on the same fixed interval regardless of how many buildings exist. Per-burst parameters (count, radius, stagger, wobble, rise) are seeded; see `src/components/actors/BubbleStream.tsx`.
@@ -369,7 +368,8 @@ every placed actor stores both `config.row` **and** `config.district: DistrictNa
 written once by `placeDistrict`). Render-time readers (`Factory.tsx`, `factoryBubbleProps.ts`, the
 recolor path) resolve the variant filter and depth label via
 `getRecipeRow(actor.config.district, actor.config.row)`, which replaces the now-removed
-single-argument row lookup.
+single-argument row lookup. Rows past the end of the recipe are its job-coverage top-ups, in list
+order (see "Robot jobs" below), so every reader resolves a top-up with no special case.
 
 Placement is deterministic per actor (seeded) and respects row depth for rendering order (background → midground → foreground).
 
@@ -465,6 +465,117 @@ particulate doesn't belong in this scene. See docs/specs/WORLD_VIEW_DISTRICTS.md
 amendment and docs/tasks/WORLD_VIEW_DISTRICTS.md Task 21 for the full record — if marine snow is
 ever revisited, the twinkle shape is the one with headroom (it measured as free), but it needs a
 new design pass, not a reinstatement of what was cut.
+
+---
+
+## Robot jobs — hosts, work sites, coverage (Phase 43)
+
+Roadmap Phase 43 ([spec](specs/ROBOT_JOBS_AND_STATIONS.md)) gives robots work at the buildings.
+Its first branch (J1) built the world data below. The work loop that uses it lands in J2, so in J1
+nothing on screen changes except the coverage top-ups.
+
+### Hosts (`src/systems/jobHosts.ts`)
+
+`hostJobs(actor): JobType[]` lists the jobs a building hosts; empty means "not a host". Factories
+host by variant (`FACTORY_HOST_JOBS`) and scenery by kind (`SCENERY_HOST_JOBS`). The full table
+is spec §1.3. Wall, boulder and tether host nothing, and pipe bridges are not actors. Three
+overrides apply, in this order:
+
+1. **Off screen means no job.** An actor in an `offscreen` row hosts nothing, and so does one whose
+   drawn body lies wholly outside `[0, WORLD_WIDTH]`. A body that straddles an edge still hosts.
+   This rule removed 43 grid hosts: 8 foreground Warehouses past the right edge, and 35 foreground
+   floodlights that the left-edge spread (starting at x = −20) puts wholly off-screen, with only
+   their beams reaching in.
+2. **Non-hosts stay non-hosts**, derelict or not.
+3. **Derelict hosts** host `[salvage, structuralInspection]` instead of their normal list (a dead
+   tank doesn't vent). Wrecks are always derelict.
+
+`isWorkSiteEligible(actor, { backHosts })` adds the depth filter. Background hosts only count when
+`BACK_HOSTS_ENABLED` is on, and it stays `false` until the depth-layers branch (J4) passes its gate.
+An unresolvable row counts as foreground, like `Factory.tsx`'s render fallback.
+
+### Factory geometry (`src/components/actors/factoryGeometry.ts`)
+
+`factoryGeometry(actor)` was cut out of `Factory.tsx`'s `staticVisual`, and `Factory.tsx` now calls
+it, so the renderer and the work sites can't drift apart. It returns `{ variant, width, height,
+frontCornerX, box }` in scene units. It uses `selectVariantFromSeed` with the row's `variants`,
+then `calcSilhouetteSize`, then the bottom-anchor maths. `box.y0` is rounded the way
+`bottomAnchorTransform` rounds the rendered translate, so the box is the drawn body exactly, and
+its bottom can sit up to 0.5 units off `actor.position.y`. `jobHosts.ts` reads the variant from
+here too.
+
+### Work sites (`src/systems/workSites.ts`)
+
+`getWorkSite(actor): WorkSite | null` returns one per host, `null` for a non-host:
+`{ id, depth, jobs, bounds, park, points, path }`.
+
+- **`bounds`** is the silhouette box: `factoryGeometry`'s box for factories. For scenery it is the
+  per-kind anchor function's box, which contains every drawn shape, with lights up to 40 above.
+- **`park`** is where a robot's *centre* sits while working: `PARK_CLEARANCE` (70) above the roof,
+  seeded ± 40 sideways from `Alea(id + ':park')`, and clamped into the world (`WORLD_MARGIN` 100).
+  The sideways placement uses only the part of the roof inside `[0, WORLD_WIDTH]`. The clamp has
+  one gap: a background Skyscraper's roof can sit as high as y = 48, so its park lands *below* the
+  roof line. Background sites are ineligible until J4, and J4 must decide whether to drop such
+  sites or park beside them.
+- **`points`** (2–4 work points: mouths, valves, mast heads, roof corners) and **`path`** (a
+  polyline of at least 2 points: the top outline, a pipe run, a hull line) come from the site's
+  own `Alea(id + ':work')` stream, never per robot.
+- **Foreground rule:** foreground buildings draw *over* the robots, so a foreground site's points
+  and path lie on or above its top outline. Orbiters work at the silhouette from outside. Midground
+  and background sites may also use facade points (a tank gauge, a dome hatch, container labels).
+- **Factories** use variant-specific points. Stacks and Refinery get `[mouth, valve]`, where the
+  mouth is the bubble vent's x (`factoryVentFraction`, shared with `factoryBubbleProps.ts`).
+  Warehouse gets one point in each half of the roof. Monolith and Skyscraper get a seeded mid point
+  plus the roof's 10 % and 90 % points. Points and path use the visible part of the roof.
+- **Scenery** uses `sceneryWorkAnchors(actor, …)` (`scenery/sceneryWorkAnchors.ts`), one anchor
+  function per hosting kind (`ANCHORED_KINDS`), reading only `deriveSceneryParams(actor)`. Where a
+  renderer's geometry was more than a one-liner, it moved into an exported layout helper that the
+  renderer and the anchors both call: `domePortholeCentres`, `scaffoldBraces`, `containerRows`,
+  `wreckLayout`, `craneLayout`, `pylonArms`, `beaconGem`, `pipelineLayout`, `turbineLayout`,
+  `floodlightLayout` and `dishLayout`. Render-parity tests check every named anchor against the
+  element it names in the rendered DOM. Turbine and dish anchors apply their renderer's rotation.
+- **Caching is by the actor object (`WeakMap`), never the id.** Actor ids repeat across locales:
+  730 of 4210 actors over the 121-seed grid share an id with another locale's actor, and 652 of
+  those have different geometry. `deriveWorkSite` is the uncached derivation.
+
+Found while building the anchors and not fixed (it's renderer scope): the crane's knee brace in
+`renderers/crane.tsx` is a zero-area polygon, all four vertices on one 45° diagonal, so it draws
+nothing. The anchors ignore it.
+
+### Coverage guarantee (`src/systems/jobCoverage.ts`)
+
+Every world must have **at least 3 jobs with at least 4 eligible midground + foreground hosts
+each** (`COVERAGE_MIN_JOBS`, `COVERAGE_MIN_HOSTS`). Only those depths count, so the guarantee holds
+whether or not J4 ships. `placeDistrict` ends with `ensureJobCoverage(actors, topUps, place)`,
+which is pure (the placer is passed in). It counts hosts per job (`jobHostCounts`). While
+`meetsCoverage` is false, it places the district's next `COVERAGE_TOP_UP` item and checks again.
+It stops when the rule holds or the list runs out.
+
+- `COVERAGE_TOP_UP: Record<DistrictName, CoverageTopUp[]>` (`districtRecipes.ts`) gives each
+  district an ordered list of `{ kind, depth }`, scenery only, midground or foreground.
+- Top-up `i` is an ordinary actor on row `recipe.length + i`. `coverageTopUpRow(topUp)` turns it
+  into a `DistrictRow`: ground-locked in the foreground, at the midground floor in the midground,
+  `count: 1`, and `derelict: 0` (a derelict roll would swap away the jobs it was placed for). Its x
+  is a `'locale.coverage.x'` draw (offset `i`) in the middle 70 % of the width
+  (`COVERAGE_CENTER_WIDTH`).
+- Top-ups go through the same seeded scenery placement as the recipe rows, so they are recoloured
+  in the same order and counted by the element budget. No top-up is a vent, so the vent cap is
+  unchanged.
+- **Measured (121-seed grid):** 56 worlds fell short before top-ups. That was every ventfield,
+  derelict, wreckfield and outskirts world, and 9 of 15 towers. Dense, yard, habitat and
+  construction worlds never fall short. The missing third job is nearly always acoustic survey or
+  maintenance, so the lists lead with midground pylons, which host both. After top-ups every world
+  passes, using 92 top-ups in total and at most 3 per world. This changes how those districts
+  look: ventfield always gains a floodlight, a pylon and a crane, and wreckfield gains 3 pylons.
+- A list that can't satisfy the rule fails `jobCoverage.test.ts`, so a short list gets fixed in
+  data, never at runtime.
+
+### Stations avoid hosts
+
+Charging stations (`src/systems/stations.ts`, spec §1.6) are placed clear of every host's `bounds`
+at **every** depth (`hostObstacles`), background included. That way, turning on
+`BACK_HOSTS_ENABLED` in J4 can't move a station. The station box is a placeholder (160 × 120)
+until the motion sketch supplies Crawford's design.
 
 ---
 
@@ -892,8 +1003,10 @@ post-apocalyptic world without being a constant visual distraction.
 - **Visual effects while offline:**
   - `nightDepth` forced to `0` — no lit windows regardless of time of day.
   - Bubble stream GSAP timeline is rewound and paused (`BubbleStream`'s
-    `isActive={false}` path — already wired to `config.isOffline`; the
-    `offlineSystem` that would set the flag is not yet built).
+    `isActive={false}` path). The `config.isOffline` wiring was removed
+    with the unused fields in roadmap Phase 43 (`factoryBubbleProps.ts`
+    passes `isActive: true`), and the `offlineSystem` was never built —
+    building this goal means re-adding both.
   - Antennae indicator light `<circle>` elements have `opacity: 0`.
   - Body fill is slightly desaturated (saturation clamped down ~20%).
 - Online recovery reverses all of the above instantly (no transition needed;

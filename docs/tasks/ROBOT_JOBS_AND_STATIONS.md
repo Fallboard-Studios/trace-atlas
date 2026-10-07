@@ -14,7 +14,7 @@ Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run l
 (The planning skill's default output paths `tasks/plan.md` / `tasks/todo.md` are overridden by the
 repo convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence".)
 
-> **Spec corrections found while planning (Task 16 folds them into the spec):**
+> **Spec corrections found while planning (folded into the spec by Task 16, 2026-10-07):**
 > 1. **Every branch must leave the app working.** As specced, J1 deletes wandering and strips the
 >    tick's visual effects while the loop that replaces them lands in J2 — between the two, recalled
 >    robots would sit on screen muted and nothing would move. So J1 adds the `onLifecycleChange`
@@ -638,7 +638,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
       the D3 gate's pinned hour-0 world (docs/PERFORMANCE.md, "Robot Jobs J1").
 - [ ] Reviewed with Crawford; J1 merge decision is his.
 
-- [ ] **Task 16: J1 docs and spec corrections**
+- [x] **Task 16: J1 docs and spec corrections**
 
   **Description:** ROBOT_LIFECYCLE.md: renamed states, flat drain with the T2 table, the narrowed
   snapshot, the seam. PROCEDURAL_GENERATION.md: `station.*`, `locale.coverage.x`. BUILDING_DESIGN.md:
@@ -646,7 +646,30 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   Roadmap Phase 43 status line.
 
   **Acceptance criteria:**
-  - [ ] Every named identifier spot-checked against shipped source; docs tests green.
+  - [x] Every named identifier spot-checked against shipped source; docs tests green. — every
+        export, constant, dataId and test file named was grepped in `src/`, the removed names
+        confirmed absent; docs tests 184 green, full suite 6795.
+
+  **As shipped:** (1) **ROBOT_LIFECYCLE.md** is rewritten for J1 as it stands. It covers the
+  renamed states, the flat drain with the Task 2 table, the narrowed snapshot and `DrainRule`, a new
+  "Visual Seam" section (what the legacy adapter does per `to`, and `dockCycles.ts`), and a new
+  "Headless Sims" section (drain and loop sims, the turn-back and Docked-but-visible findings). It
+  also says what J2 deletes. The wandering and exit-swim sections are kept, marked legacy until
+  J2. J2 (Task 27) rewrites the doc for stations and the loop. (2) **BUILDING_DESIGN.md** has a new
+  "Robot jobs — hosts, work sites, coverage" section, plus a note on the top-up rows in
+  `getRecipeRow`. Two stale passages were fixed: "Runtime fields & production timing" (the deleted
+  production fields) and the unbuilt "Offline State" goal (its `config.isOffline` wiring is gone).
+  (3) **PROCEDURAL_GENERATION.md** gains call-site rows for `stations.ts` (`'station.*'`),
+  `districts.ts`'s `'locale.coverage.x'` and `workSites.ts`'s `Alea` streams. The deleted
+  `interactionSystem.ts` row is gone. A gotcha records the three-sample hash and why it was needed.
+  (4) **The spec** opens with an amendment block (corrections 1–5, the measured values, what still
+  waits for the sketch). Inline *(J1)* notes are in Assumptions 3 and 10 and §1.1, §1.2, §1.3,
+  §1.4, §1.5, §1.6, §1.7, §1.9, §2, §5.1, §5.2 and §7. Open question 2 is resolved, and a sixth
+  (background Skyscraper parks, for J4) was added. **Task 0's constants are not folded in: the
+  sketch hasn't run.** The spec lists what is still a placeholder. (5) **Roadmap** Phase 43
+  status: J1 code-complete, with Checkpoint B's review and merge call still Crawford's. (6) **Found,
+  not fixed:** PROCEDURAL_GENERATION.md still describes `?seed=` / `?x=` / `?y=` as live (they were
+  removed 2026-09-28). That is outside this task, so it's flagged rather than rewritten.
 
   **Verification:** `npm test`. **Dependencies:** T1–T15. **Files:** the docs above, the spec,
   `docs/todo/roadmap.md`. **Scope:** S.

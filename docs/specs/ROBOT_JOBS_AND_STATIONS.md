@@ -19,6 +19,24 @@ Shipped as a **motion-sketch gate** then four branches: **J1** lifecycle + world
 stations + the loop with one move + card states, **J3** all moves and all six jobs, **J4** depth
 layers. This spec covers all four.
 
+> **Amended 2026-10-07 (J1 as shipped, plan Task 16).** The plan's five planning-time corrections
+> and the values J1 measured are folded in below, marked *(J1)* where they changed the text:
+> 1. **Every branch leaves the app working** — J1 adds the `onLifecycleChange` seam with a
+>    *legacy adapter* that keeps today's visuals; J2 swaps it for the loop and only then deletes
+>    the wandering code (§1.1, Assumption 10).
+> 2. **Initially Active robots exit a station at load** (§1.6).
+> 3. **`chooseNextSite`, `siteCooldown` and `heldJobs` live in `src/systems/siteChoice.ts`** (J1),
+>    not `workLoop.ts`, so the readiness sim could run before the loop exists (§1.7).
+> 4. **"Held"** in the variety rule is defined precisely (§1.7).
+> 5. **Centre vs position** — one conversion pair, `robotCentre` / `positionForCentre` (J2 Task
+>    18) (§1.9).
+>
+> Values measured in J1: `BATTERY_DRAIN_ACTIVE` = 6 (§5.2 drain sim), site cooldown 0.4/3/30
+> (§5.2 readiness sim, Crawford's pick). Still first guesses until the motion sketch (Task 0, not
+> yet run): the station box and port, `JOB_WORK_RATE`, `JOB_BASE_SECONDS`, `JOB_MIN_SECONDS`,
+> `STATION_ARC_SECONDS`. Per-task detail ("As shipped") is in
+> [docs/tasks/ROBOT_JOBS_AND_STATIONS.md](../tasks/ROBOT_JOBS_AND_STATIONS.md).
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types` (`tsc -p tsconfig.app.json --noEmit`)
@@ -42,7 +60,8 @@ layers. This spec covers all four.
    `activity`; nothing the replay computes reads `activity`, `job`, `position` or `stationId`.
 3. **Flat drain ≈ 6 %/measure.** Today's mean Active drain with balanced jobs is 2 + mean(1,3,5,7)
    = 6. J1 pins the integer by measurement (§5.2), choosing the value whose mean Active count over
-   the seed grid is closest to today's.
+   the seed grid is closest to today's. *(J1: measured and confirmed — `BATTERY_DRAIN_ACTIVE` = 6,
+   mean Active 5.14 against the old rule's 5.05; table in docs/ROBOT_LIFECYCLE.md.)*
 4. **The job is live state, not replayed or persisted.** `Robot.job` becomes a plain `JobType`
    written by the work loop; `assignedAtMeasure` goes. Sessions already never persist it
    (`sessionDiff.ts`, `types/session.ts`).
@@ -61,13 +80,15 @@ layers. This spec covers all four.
 9. **Reduced motion** follows the existing patterns: swims unchanged (as today); station enter/exit
    and orbiter attach become 0.3 s fades in place; job moves become an in-place orbiter opacity
    pulse for the job's duration; `decorateArc` already no-ops.
-10. **Dead code goes in J1:** `interactionSystem.ts`, `idleSystem.ts` (whole module — the loop
-    replaces it), `Robot.destination`, `Robot.direction` (written, only ever read to copy itself),
-    `RobotState`, the factory production fields (`cooldownRemaining`, `productionInterval`,
-    `isOffline`, `offlineSince`; `factoryBubbleProps.ts`'s `isActive` becomes `true`),
-    `scoreJobAffinities`, `assignJob`, `JOB_BATTERY_DRAIN_SURCHARGE`, `JOB_MAX_ROBOTS_PER_TYPE`,
-    `BATTERY_LOWER_THIRD_THRESHOLD`, `pickExitDestination`, and bottom-only `generateSpawnPosition`
-    for docking.
+10. **Dead code goes in two steps** *(J1, correction 1)*. **J1** deleted what nothing calls:
+    `interactionSystem.ts`, the factory production fields (`cooldownRemaining`,
+    `productionInterval`, `isOffline`, `offlineSince`, `PRODUCTION_INTERVAL`;
+    `factoryBubbleProps.ts`'s `isActive` became `true`), `BATTERY_DRAIN_BASE` and
+    `JOB_BATTERY_DRAIN_SURCHARGE`. **J2** (Task 24, when the loop replaces the legacy adapter)
+    deletes what the adapter still uses: `idleSystem.ts` (whole module), `lifecycleVisuals.ts`,
+    `Robot.destination`, `Robot.direction` (written, only ever read to copy itself), `RobotState`,
+    `scoreJobAffinities`, `assignJob`, `JOB_MAX_ROBOTS_PER_TYPE`, `BATTERY_LOWER_THIRD_THRESHOLD`,
+    `pickExitDestination`, and bottom-only `generateSpawnPosition` for docking.
 
 ## 1. Overview & Claude Explanation
 
@@ -92,10 +113,20 @@ layers. This spec covers all four.
     `onLifecycleChange(…, 'active')`. No `assignJob`, no `handleRobotIdle`.
   - `landOnDocked`: `docking: Docked`, clears hold, `audioMode: 'mute'`, drifted melody +
     `AudioEngine.registerRobotMelody` (unchanged), then `onLifecycleChange(…, 'docked')`. **No
-    position write** — the loop owns position (§1.7). `dockCycleCounters` stays (it seeds drift).
+    position write** — the loop owns position (§1.7). The dock-cycle counter stays (it seeds
+    drift). *(J1: it moved to `src/systems/dockCycles.ts` — `getDockCycleCount` /
+    `recordDockLanding` — so the tick and the legacy adapter read one counter without an import
+    cycle.)*
+- **The seam in J1 is a legacy adapter** *(correction 1)*. `onLifecycleChange` lives in
+  `src/systems/lifecycleVisuals.ts`, and in J1 it does exactly what the landing effects did before,
+  moved verbatim: `'recalled'` → the exit swim; `'active'` → `assignJob` + `handleRobotIdle({
+  isReturning: true })`; `'docked'` → the off-screen dock spot. Behaviour parity is proven by the
+  moved tests passing unmodified. `scoreJobAffinities`/`assignJob` moved there too. J2 (Task 24)
+  re-points the seam at `workLoop.ts` and deletes the adapter. The tick itself never changes again
+  after J1.
 - The tick is a BeatClock subscriber, not a GSAP callback, so calling into the loop from it is
   allowed (today it calls `createSwimTimeline`/`handleRobotIdle` the same way).
-- `worldTransition.ts`'s `initializeLocale` drops the initial `assignJob` pass and calls
+- **(J2)** `worldTransition.ts`'s `initializeLocale` drops the initial `assignJob` pass and calls
   `stopWorkLoop(); startWorkLoop(localeId)` beside the lifecycle pair. `powerController.ts`'s
   `shutdown` and its orchestrated twin call `stopWorkLoop()` beside `stopRobotLifecycle()`.
 
@@ -114,6 +145,11 @@ layers. This spec covers all four.
 
 `RobotActivity = 'charging' | 'exiting' | 'transit' | 'working' | 'waiting' | 'returning' |
 'entering'`. `JobType` gains `salvage` and `maintenance` (six). All fields stay JSON-serializable.
+
+*(J1, correction 1.)* J1 shipped the renamed `docking` values, the bare `job` and the
+`RobotActivity` type (`siteChoice.ts`'s `heldJobs` reads it structurally). The `activity`,
+`stationId` and `siteId` fields arrive in J2 with their writer (Task 21), and `state`,
+`destination` and `direction` go in J2 Task 24.
 
 ### 1.3 Hosts (J1, `src/systems/jobHosts.ts`)
 
@@ -146,7 +182,9 @@ still hosts, worked where it can be seen.
 | wall, boulder, tether | — |
 
 Pipe bridges are not actors and never host. `isWorkSiteEligible(actor, { backHosts })` adds the
-depth filter (§Assumption 7).
+depth filter (§Assumption 7). *(J1)* Two orderings the table leaves open: off screen beats
+derelict (an off-screen derelict hosts nothing), and a derelict non-host (wall, boulder, tether)
+stays a non-host. An unresolvable row counts as foreground, like `Factory.tsx`'s fallback.
 
 ### 1.4 Coverage guarantee (J1, `src/systems/jobCoverage.ts`)
 
@@ -158,6 +196,15 @@ machinery at a seeded x (`'locale.coverage.x'`, offset by top-up index), until t
 list is exhausted. Top-ups are ordinary actors (seeded, deterministic, recolored, counted by the
 element budget). A recipe whose top-up list cannot satisfy the rule fails the coverage test (§5.1),
 so the tables are fixed in data, never at runtime. Wreck field is the known case (2 vents).
+
+*(J1, as shipped.)* The lists are `COVERAGE_TOP_UP: Record<DistrictName, CoverageTopUp[]>` beside
+`RECIPES`, and the signature is the pure `ensureJobCoverage(actors, topUps, place)`, with
+`placeDistrict` passing its own placer. Top-up `i` sits on row `recipe.length + i`, which
+`getRecipeRow` resolves through `coverageTopUpRow` (ground-locked or on the midground floor,
+`count: 1`, `derelict: 0`). Its x is in the middle 70 % of the width. Far more worlds fell short
+than expected: 56 of 121 on the grid, not just wreck field. The missing third job is nearly always
+acoustic survey or maintenance, so the lists lead with midground pylons. Every world passes after
+top-ups (92 in all, at most 3 per world).
 
 ### 1.5 Work sites and anchors (J1, `src/systems/workSites.ts`)
 
@@ -185,7 +232,16 @@ interface WorkSite {
   `points` and `path` lie on or above its top outline — orbiters work at the silhouette from
   outside, never behind its face. Midground and background sites may use facade points.
 - Points are seeded per site (`Alea(actor.id + ':work')`), not per robot; per-robot variation comes
-  from §1.9.
+  from §1.9. *(J1)* The park's ± 40 sideways offset has its own stream (`Alea(actor.id + ':park')`).
+- *(J1)* **Cached by the actor object (`WeakMap`), never the id.** Actor ids repeat across
+  locales: 730 of 4210 over the grid, 652 of them with different geometry.
+- *(J1)* Park and points use the part of the roof inside `[0, WORLD_WIDTH]`. A background
+  Skyscraper's roof can sit above `WORLD_MARGIN + PARK_CLEARANCE`, so its clamped park lands
+  below the roof line. Background sites are ineligible until J4, and J4 decides whether to drop
+  them or park beside them.
+- *(J1)* Scenery anchors live in `components/actors/scenery/sceneryWorkAnchors.ts`. Where the
+  renderer's geometry was more than a one-liner, it moved into an exported layout helper that the
+  renderer and the anchors both call (BUILDING_DESIGN.md "Robot jobs").
 
 ### 1.6 Stations (J1 data, J2 render)
 
@@ -194,16 +250,31 @@ interface WorkSite {
   re-drawn (next offset) until every pair is ≥ `STATION_MIN_SPACING` = 480 apart and the station's
   box overlaps no host's `bounds`. `Station = { id, center: Vec2, port: Vec2, capacity: 6 }`. Not
   state — derived from the seed on demand.
+  *(J1, as shipped in `src/systems/stations.ts`.)* The pure core is `deriveStations(noiseMap,
+  obstacles)`. `getStations(localeId)` caches it per placed world (keyed by the actors array) and
+  returns `[]` for an unknown locale. The obstacles are every host's bounds at **every** depth
+  (`hostObstacles`), so J4 can't move a station. Every draw hashes three samples (offset + `[0,
+  137.42, 911.77]`) through `alea()`: a single sample at offset 0 took about 3 values across all
+  worlds, and no world rolled 3 stations. A station that finds no spot in 16 candidates restarts
+  the layout, up to 16 layouts. After that, the count steps down to 2, and then the overlap rule
+  is dropped (spacing always holds). Result over the grid: 50 of 121 worlds have 3 stations, and
+  no world needs the overlap fallback. **Placeholders until the sketch (Task 0):**
+  `STATION_BOX_W`/`STATION_BOX_H` = 160 × 120, and `port` = the centre.
 - **Render:** `ChargingStation.tsx` (memoised) draws each station in the **front robots layer, after
   the robots** — a robot entering passes under it. Gem art style, placeholder geometry until the
   sketch supplies Crawford's design; **≤ `STATION_SHAPE_BUDGET` = 16 shapes** each (merged paths,
   3 facet tones, per Phase 39). Six slot lights; lit count = robots with that `stationId` and
   `activity === 'charging'`, read with a narrow number selector so only a count change re-renders.
   No continuous animation on the station itself.
-- **Assignment:** at locale load, Docked robots are assigned stations by roster index modulo station
-  count (capacity 6 × ≥ 2 stations ≥ 12, so it always fits) and start hidden at the port. A recalled
-  robot picks the nearest station whose occupancy (robots with that `stationId` and activity
-  `returning | entering | charging`) is below capacity, reserving the slot on decision.
+- **Assignment:** at locale load, **every** robot is assigned a station by roster index modulo
+  station count (capacity 6 × ≥ 2 stations ≥ 12, so it always fits — `assignStationsAtLoad` throws
+  rather than overfill) and starts at the port. Docked robots start hidden (`activity:
+  'charging'`); *(correction 2)* initially Active robots start `activity: 'exiting'` and
+  `onRobotMounted` plays `exitStation` for them, so a fresh world opens with robots leaving their
+  stations. A recalled robot picks the nearest station whose occupancy (robots with that
+  `stationId` and activity `returning | entering | charging`) is below capacity, reserving the slot
+  on decision (`nearestFreeStation`: a missing occupancy entry is empty, ties go to the earlier
+  station, `null` when all are full).
 
 ### 1.7 The work loop (J2, `src/systems/workLoop.ts`)
 
@@ -219,7 +290,9 @@ and the set of robots with a pending recall. Public surface:
   power-cycle and remount story (§Out of scope: power-cycle polish).
 - `onLifecycleChange(localeId, robotId, to)` — called by the tick (§1.1):
   - `'recalled'`: mark recall pending. `working` → let the job finish (its `onComplete` sees the
-    flag). `transit` → kill the swim, release the site, return now. `waiting` → return now.
+    flag). `transit` → kill the swim, release the site **with no cooldown** (the robot never worked
+    there — *J1 readiness sim*), return now. `waiting` → return now. `exiting` → let the arc
+    finish; its `next()` sees the flag.
   - `'active'`: if `charging` → `exitStation`. If `returning`/`entering` (still outside) → the
     **turn-back rule**: release the station slot, clear the flag, `next()`.
   - `'docked'`: no visual change; the robot keeps returning/entering and becomes `charging` when its
@@ -227,17 +300,28 @@ and the set of robots with a pending recall. Public surface:
 - `next(robotId)` — the only decision point. If recall is pending or `docking` is Recalled/Docked →
   `returnToStation`. Else `chooseNextSite(…)` (below) → `transit` (swim to `park`) → `working`; or
   `null` → `waiting` (one finite bob of `WAIT_RETRY_SECONDS` = 2, then `next()`).
-- **`chooseNextSite(input): { siteId, job } | null`** — pure, `rand` injected:
+- **`chooseNextSite(input): { siteId, job } | null`** — pure, `rand` injected. *(Correction 3:
+  it lives in `src/systems/siteChoice.ts`, shipped in J1, with `siteCooldown` and `heldJobs`;
+  `workLoop.ts` imports them.)*
   1. Ready sites = not held and `now ≥ readyAt`, eligible per §1.3.
   2. If the robot has a `job` and a ready site hosts it → the nearest such site (keep the job).
   3. Else pick a job among those with ≥ 1 ready site, preferring jobs **no other robot holds**
      (if every such job is held, all of them), weighted by its ready-site count; then the nearest
      ready site for it.
   4. None ready → `null`.
+
+  *(J1)* Distance is Euclidean from the robot's centre to the site's `park`, and ties go to the
+  earlier site. Keeping the job never draws `rand`, and a switch draws it exactly once. A
+  multi-job site adds one to each of its jobs' weights.
+- **Held** *(correction 4)*: `heldJobs(robots, selfId)` is the `job` of every *other* robot whose
+  `docking` is Active and whose `activity` is `exiting | transit | working | waiting`. Charging,
+  returning and entering robots hold nothing (their `job` is stale), and neither does a
+  non-Active robot or one with no `activity`.
 - **Cooldown:** on leaving a site, `readyAt = now + siteCooldown(eligibleSiteCount)`, where
   `siteCooldown(n) = clamp(n × COOLDOWN_PER_SITE, COOLDOWN_MIN, COOLDOWN_MAX)` — more buildings,
   longer rest, so work spreads; few buildings, short rest, so robots don't starve. First guesses
-  `0.6 s`, `4 s`, `30 s`; the readiness sim pins them (§5.2).
+  were `0.6 s`, `4 s`, `30 s`. **Pinned by the readiness sim (§5.2): `0.4 s`, `3 s`, `30 s`**
+  *(J1, Crawford's pick, 2026-10-07)*.
 - **Stations:** `exitStation` — at the port, `autoAlpha 0 → 1`, scale `0.4 → 1`, the registered
   `decorateArc('spawn', d, tl)`, `activity: 'exiting'` → `next()`. `returnToStation` — reserve a
   slot, `activity: 'returning'`, swim to the port, then `entering`: scale `1 → 0.4`, `autoAlpha → 0`,
@@ -295,6 +379,11 @@ and the set of robots with a pending recall. Public surface:
   pure — inverts the robot `<g>` translate, the `g.gem` `translate(c) scale(s) translate(−c)` (with
   `s = bodyScale × layerScale`) and the corner's dock offset. `robot.position` is the gem canvas's
   top-left, not its centre.
+- **Centre vs position** *(correction 5)*: station ports and site `park`s are robot **centres**.
+  One pure pair, `robotCentre(robot)` / `positionForCentre(centre)` (J2 Task 18), is the only
+  conversion; spawn, the loop and the layer switch all use it.
+- *(J1)* `jobDuration` shipped early, at `src/animation/jobMoves/jobDuration.ts`, for the readiness
+  sim. `JOB_WORK_RATE` is 0.7 for every job (the midpoint) until the sketch gives each its own.
 - **Per-robot variation:** `Alea(gemSeed + ':work')` picks stagger, ring direction, radius ±15 %
   and trace direction — company members that look alike work differently.
 - J2 ships `hoverPulse` + ventExtraction only (other jobs fall back to it); J3 adds the rest.
@@ -351,10 +440,14 @@ src/
 ├── constants/index.ts                   # BATTERY_DRAIN_ACTIVE; job/station/loop constants; removals
 ├── systems/
 │   ├── robotSystems.ts                  # §1.1 — flat drain, renamed effects, scoring removed
-│   ├── workLoop.ts                      # §1.7 (J2) — loop, chooseNextSite, siteCooldown
+│   ├── lifecycleVisuals.ts              # §1.1 (J1) — onLifecycleChange + legacy adapter; deleted J2
+│   ├── dockCycles.ts                    # §1.1 (J1) — the dock-cycle counter (drift + dock spot)
+│   ├── lifecycleSim.ts                  # §5.2 (J1) — drain sim, loop/readiness sim
+│   ├── siteChoice.ts                    # §1.7 (J1) — chooseNextSite, siteCooldown, heldJobs
+│   ├── workLoop.ts                      # §1.7 (J2) — the loop (imports siteChoice.ts)
 │   ├── jobHosts.ts                      # §1.3 — hostJobs, isWorkSiteEligible
 │   ├── jobCoverage.ts                   # §1.4 — ensureJobCoverage
-│   ├── workSites.ts                     # §1.5 — getWorkSite, per-kind anchors
+│   ├── workSites.ts                     # §1.5 — getWorkSite (factories; scenery via sceneryWorkAnchors)
 │   ├── stations.ts                      # §1.6 — getStations, station assignment
 │   ├── districtRecipes.ts               # + coverageTopUp per recipe (from Phase 42)
 │   ├── districts.ts                     # placeDistrict calls ensureJobCoverage (from Phase 42)
@@ -366,11 +459,12 @@ src/
 ├── animation/
 │   ├── robotMotionRegistry.ts           # §1.8 (J2)
 │   ├── swimAnimation.ts                 # unchanged API
-│   └── jobMoves/                        # §1.9 — moveTargets.ts, sceneToOrbiterLocal.ts,
+│   └── jobMoves/                        # §1.9 — jobDuration.ts (J1), moveTargets.ts, sceneToOrbiterLocal.ts,
 │                                        #   hoverPulse/trace/ring/carry/fan.ts, buildJobTimeline.ts
 ├── components/
 │   ├── actors/Factory.tsx               # staticVisual reads factoryGeometry()
 │   ├── actors/factoryGeometry.ts        # extracted, pure
+│   ├── actors/scenery/sceneryWorkAnchors.ts # §1.5 (J1) — per-kind scenery anchors
 │   ├── actors/factoryBubbleProps.ts     # isActive: true (isOffline gone)
 │   ├── robot/Robot.tsx                  # mount → onRobotMounted
 │   ├── robot/RobotBody.tsx              # registers decorateArc; layer-switch remount flag
@@ -475,8 +569,10 @@ export function chooseNextSite({ robot, sites, heldJobs, rand }: SiteChoiceInput
   or above the top outline; park inside world margins; determinism per actor id.
 - `stations.test.ts`: count 2–3, spacing ≥ 480, no host overlap, determinism; load assignment never
   exceeds capacity; nearest-free selection.
-- `workLoop.test.ts`: `chooseNextSite` keeps the job when it can, prefers unheld jobs, weights by
-  ready count (seeded `rand`), returns null when nothing is ready; `siteCooldown` clamps; one robot
+- `siteChoice.test.ts` *(J1)*: `chooseNextSite` keeps the job when it can, prefers unheld jobs,
+  weights by ready count (seeded `rand`), returns null when nothing is ready; `siteCooldown` clamps;
+  `heldJobs` per correction 4.
+- `workLoop.test.ts`: one robot
   per site; recall mid-job finishes then returns; recall in transit/waiting returns now; turn-back
   when Active lands before entry; `onRobotMounted` for each docking state; `stopWorkLoop` kills every
   key; callbacks never touch `AudioEngine` (spy).
@@ -497,6 +593,19 @@ export function chooseNextSite({ robot, sites, heldJobs, rand }: SiteChoiceInput
   active time, no robot waiting > 15 s.
 - **Handoff:** lifecycle at 20 and 200 BPM with recorded swim/job durations — count turn-backs and
   confirm no robot is ever both `charging` and visible.
+
+*(J1 results.)* **Drain:** flat 6 (mean Active 5.14 against the old rule's 5.05), confirmed
+2026-10-07; table in docs/ROBOT_LIFECYCLE.md. **Readiness + handoff** (one sim, `runLoopSim` /
+`runReadinessSim`, 121 seeds × 600 s at 20 and 200 BPM). The first-guess cooldown 0.6/4/30
+missed: mean waiting 10.9 % at 20 BPM, longest wait 42 s. Crawford chose **0.4/3/30**, which gives
+mean waiting 6.4 % / 3.7 % at 20 / 200 BPM and a 14 s longest wait at 200 BPM. **The "no wait
+> 15 s" target can't be met at 20 BPM by any cooldown, zero included** (34 s at 0.4/3/30, accepted).
+Waits there are measure-bound: when more robots are Active than there are sites, only a recall
+frees one, and at 20 BPM a measure is 12 s. There are zero "charging while visible" cases and zero
+turn-backs at both tempos. Turn-backs can't happen with these battery constants: the shortest
+Docked stay (~20 measures) outlasts the longest walk home. At 200 BPM a robot can still be visibly
+heading home up to ~17 s after it lands on Docked, which §1.7's `'docked'` rule allows. Full table:
+plan Task 15.
 
 ### 5.3 Static checks
 
@@ -532,9 +641,14 @@ is its gate.
 ## 7. Open Questions
 
 1. **Station design** — Crawford's drawing arrives via the sketch; until then a placeholder gem.
-2. **Coverage top-up lists** — written per recipe once D2's real hosts exist; wreck field first.
+2. ~~**Coverage top-up lists** — written per recipe once D2's real hosts exist; wreck field first.~~
+   *Resolved in J1 (Task 12):* lists for every district, led by midground pylons; see §1.4.
 3. **J4 re-mount cost** — a layer switch re-mounts the robot (orbiter/halo/flicker hooks re-init).
    If that reads as a hitch at 1×, the alternative (one robot layer, midground occlusion by
    clipping) is a stop-and-report, not a silent swap.
 4. **Lore copy** for Salvage, Maintenance and the seven activities — Crawford reviews.
 5. **`BATTERY_DRAIN_ACTIVE`, cooldown constants, job rates** — pinned by §5.2 and the sketch.
+   *J1:* drain 6 and cooldown 0.4/3/30 pinned. The job rates, `JOB_BASE_SECONDS`,
+   `JOB_MIN_SECONDS`, `STATION_ARC_SECONDS` and the station box still wait for the sketch.
+6. *(Raised in J1.)* **Background Skyscraper parks** clamp below the roof (§1.5) — J4 decides:
+   drop such sites or park beside them.
