@@ -834,7 +834,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   as shipped also `src/components/robot/gem/useHaloMotion.ts`.
   **Scope:** M.
 
-- [ ] **Task 18: Centre/position and scene→orbiter maths**
+- [x] **Task 18: Centre/position and scene→orbiter maths**
 
   **Description:** `jobMoves/sceneToOrbiterLocal.ts`: `robotCentre(robot, gem, scale)`,
   `positionForCentre(centre, gem, scale)` (correction 5) and `sceneToOrbiterLocal(point, { robotPos,
@@ -842,12 +842,28 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `translate(c) scale(s) translate(−c)` and the corner's dock offset.
 
   **Acceptance criteria:**
-  - [ ] Round-trip: a point mapped to local and pushed back through the real transform chain (built
+  - [x] Round-trip: a point mapped to local and pushed back through the real transform chain (built
         from `RobotGem`'s transform string) lands within 0.01 units, for 50 gems × scales 1/1.69/0.75.
-  - [ ] `positionForCentre(robotCentre(r)) === r.position`.
+  - [x] `positionForCentre(robotCentre(r)) === r.position`.
+
+  **As shipped:** (1) **No `scale` parameter on the centre pair.** `g.gem` scales about the canvas
+  centre, so a robot's centre doesn't move with body or layer scale. The pair is
+  `robotCentre(robot, gem)` / `positionForCentre(centre, gem)`. A test pins that the centre is the
+  fixed point of the rendered `g.gem` transform at every scale. (2) **"===" holds exactly only for
+  positions on a binary-exact grid** (integers, quarter units). Half the gem width is always an
+  exact integer (40–80), but `(0.1 + 70) − 70` is not `0.1` in floating point. Arbitrary fractional
+  positions round-trip to 1e-9, and that is tested separately. (3) **The output is the GSAP `x`/`y`
+  that puts the orbiter's centre on the point.** `{ x: 0, y: 0 }` is docked. The local group's own
+  scale is about the orbiter's centre, so it plays no part. (4) **The round-trip test renders the
+  real `RobotGem`** (world context) inside a translated `<g>` and walks every rendered `transform`
+  from the orbiter's part up to the `<svg>`. It covers 50 gems × 4 scale pairs (1, 1.69, 0.75,
+  1.69 × 0.75) × 4 corners. (5) **A non-positive or NaN combined scale throws `RangeError`** (no
+  inverse). (6) **The robot's swim `rotation` is not inverted.** A job runs on a robot at rest, and
+  J2 deletes the wandering code that tilts it. (7) **Mutation checks:** 10 mutants, 10 killed.
 
   **Verification:** `npx vitest run src/animation/jobMoves`. **Dependencies:** None.
-  **Files:** `src/animation/jobMoves/sceneToOrbiterLocal.ts` (+ test). **Scope:** S.
+  **Files:** `src/animation/jobMoves/sceneToOrbiterLocal.ts` (+ test, `.test.tsx` because it
+  renders `RobotGem`). **Scope:** S.
 
 - [ ] **Task 19: `hoverPulse` and `buildJobTimeline`**
 
