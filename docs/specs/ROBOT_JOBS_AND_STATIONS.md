@@ -155,6 +155,12 @@ layers. This spec covers all four.
 `stationId` and `siteId` fields arrive in J2 with their writer (Task 21), and `state`,
 `destination` and `direction` go in J2 Task 24.
 
+> **Shipped (J2, 2026-10-08).** As the table says. `activity` is required since Task 24:
+> `spawnRobot` sets it from `docking` (Active → `'exiting'`, else `'charging'`) and
+> `placeRosterAtStations` sets it again at the port. `state`, `destination`, `direction` and
+> `RobotState` are gone, guarded by `types/Robot.test.ts`. `layer` is still unused (J4). Noticed,
+> not touched: `Robot.lastInteractionMeasure` has had no writer since Task 6.
+
 ### 1.3 Hosts (J1, `src/systems/jobHosts.ts`)
 
 `hostJobs(actor): JobType[]` — empty means "not a host". Factories by variant, scenery by `kind`;
@@ -322,6 +328,19 @@ interface WorkSite {
   on decision (`nearestFreeStation`: a missing occupancy entry is empty, ties go to the earlier
   station, `null` when all are full).
 
+> **Shipped (J2, 2026-10-08; Tasks 20, 21, 23).** Crawford's Task 0a design in
+> `src/components/stations/` (`stationGem.ts`, `stationPaint.ts`, `stationOccupancy.ts`,
+> `ChargingStation.tsx`). `OceanScene`'s robots layer is `#station-l4-layer`,
+> `#station-l3-layer`, `#robot-layer`, `#station-front-layer`. **Not as specced:** exiting robots
+> still draw in `#robot-layer` (above L3, under the front fragment), not between L4 and L3. That
+> needs `OceanScene` to order robots by activity without remounting them, so it moves to J4.
+> `STATION_SHAPE_BUDGET` is 25, not 16 (Crawford's call, Task 20). Slots light in **roster order**
+> of the charging robots, not arrival order, so colours shift one slot when a lower-roster robot
+> docks. The port scale is `STATION_PORT_SCALE` = 0.15 (this section's, over §1.7's 0.4), and the
+> eases are the sketch's: √v out, v² in, opacity linear. The station ripple is
+> `src/animation/stationRipple.ts`. The station doesn't dim at night (no rule here; Checkpoint C
+> passed it). `port` = `center` stays open. Checkpoint C passed it all on 2026-10-08.
+
 ### 1.7 The work loop (J2, `src/systems/workLoop.ts`)
 
 The visual-side state machine. Module state (runtime only, never Zustand — an `Actor` write would
@@ -380,6 +399,26 @@ and the set of robots with a pending recall. Public surface:
 - **Hidden tabs:** the Transport keeps ticking while GSAP slows, so the lifecycle can run ahead of
   the visuals. Every `next()` reconciles against `docking` first, so the visuals always converge.
 
+> **Shipped (J2, 2026-10-08; Tasks 22–24).** `src/systems/workLoop.ts` holds the loop and
+> `onLifecycleChange` itself (type `LifecycleChange`), which `robotSystems.ts` imports. Differences
+> from the text above, each recorded in the plan: (1) **No recall flag.** Every decision reads
+> `docking` (`next()` sends the robot home unless it's Active), so a flag would duplicate it.
+> (2) **The arcs** use `STATION_PORT_SCALE` = **0.15** (§1.6's sketch value, not 0.4) and
+> `STATION_ARC_SECONDS` = **1.0** (not 0.9). Reduced motion is a 0.3 s fade
+> (`STATION_REDUCED_ARC_SECONDS`). (3) **Turn-back while entering finishes the arc first**:
+> killing it would pop the robot to full size, so the arc's end sees Active and exits from the
+> port. Returning turns back at once. (4) **`next()` does nothing while returning or entering**
+> (the leg in flight decides); charging and Active → exit. (5) **Mounts adopt**: `startWorkLoop`
+> adopts every mounted robot (a power-on mounts before the loop starts) and `onRobotMounted`
+> adopts when the loop runs. Adopting drops the legs (a job is finished silently), abandons the
+> site with no cooldown, then hides, exits or resumes the robot. With no loop, a mount only hides.
+> (6) **`stop` also kills `bob-wait-*`** and runs a job in progress to its end without its
+> callback, so the orbiters are docked when unlocked. (7) **Settle**: a leg cut short writes the
+> body's GSAP x/y back to `position` before the next leg. (8) **Turn-backs only happen in a hidden
+> tab**: critical → Active takes 20 measures, longer than any swim home.
+> `workLoop.integration.test.ts` drives both cases at 200 BPM. Docs:
+> [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md).
+
 ### 1.8 Orbiter and halo hand-off (J2, `src/animation/robotMotionRegistry.ts`)
 
 - `registerArcDecorator(robotId, fn)` / `getArcDecorator(robotId)` — `RobotBody` registers its
@@ -392,6 +431,14 @@ and the set of robots with a pending recall. Public surface:
   reattaching, never replaying each intermediate change.
 - `useOrbiterMotion`'s header note that it "stays ignorant of job animations" is replaced: it knows
   only that it can be locked.
+
+> **Shipped (J2, 2026-10-08; Tasks 17, 23).** As above, plus: `lock` **finishes any hop in
+> flight** (`progress(1)`) so every group is at rest; the deletes take an optional **owner** and
+> remove only their own entry (a stale unmount can't strip a remount's); `decorateArc` is
+> memoised so audio edits don't re-register it; and both registrations moved to
+> `useLayoutEffect` so the first exit arc gets its halo ripple. **Open:** the lock doesn't stop
+> `useOrbiterMotion`'s Size tween, so a Size edit mid-job would fight the pulse on `scale`. Docs:
+> [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#robot-motion-registry).
 
 ### 1.9 Jobs and moves (J2: one move end to end; J3: all)
 
@@ -458,6 +505,15 @@ and the set of robots with a pending recall. Public surface:
   and trace direction — company members that look alike work differently.
 - J2 ships `hoverPulse` + ventExtraction only (other jobs fall back to it); J3 adds the rest.
 
+> **Shipped (J2, 2026-10-08; Tasks 18, 19).** `buildJobTimeline` runs `hoverPulse` on the site's
+> first point for **every** job. Differences: `robotCentre(robot, gem)` / `positionForCentre(centre,
+> gem)` take **no scale** (the centre is the fixed point of `g.gem`'s scale); a **counter-bob** on
+> each `.gem__orbiter` copy keeps a detached orbiter still in the scene; gather targets are spaced
+> by **slot, not corner** (corner spacing collides at count 3), the first directly above the
+> point; the reattach restores nothing (the pulse already ends at rest — T29's flicker must too).
+> Not yet: per-robot variation, and `WorkSite.path` → `paths` (both T28). Docs:
+> [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#job-timeline).
+
 ### 1.10 Depth layers (J4, `OceanScene.tsx`)
 
 - **Layer stack:** `back` (water, terrain, background buildings) → **`robots-back`** (moving) →
@@ -492,6 +548,12 @@ and the set of robots with a pending recall. Public surface:
   `DOCKING_STATE_LABELS`; `JOB_TYPE_LABELS` reads `robot.job` directly.
 - `RobotSelectionCard`: status line `{docking} · {activity} · {audibility}`. `RobotDisplaySection`:
   an Activity row after Docked Status. No change to the avatar's orbiters.
+
+> **Shipped (J2, 2026-10-08; Task 25).** As above. `probe.status.activity`'s field lore is
+> "OPERATIONAL PHASE", with ALL-CAPS option lore lines. Both the docking and the activity word on
+> the card line are **held** at their widest label (`HeldWord`, a stacked grid cell), so nothing
+> after them reflows. `ROBOT_SELECTION_ROW_SCHEMAS.activity` captions the detail row. Checkpoint C
+> (2026-10-08) took the lore lines and the card-line gap as reviewed.
 
 ### 1.12 Performance rules
 

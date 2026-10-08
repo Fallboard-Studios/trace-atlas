@@ -1,28 +1,32 @@
 # Robot Lifecycle Specification
 
-Source of truth: [`src/systems/robotSystems.ts`](../src/systems/robotSystems.ts) (battery and docking),
-[`src/systems/lifecycleVisuals.ts`](../src/systems/lifecycleVisuals.ts) (what a transition looks like).
+Source of truth: [`src/systems/robotSystems.ts`](../src/systems/robotSystems.ts) (battery and docking,
+on the measure tick) and [`src/systems/workLoop.ts`](../src/systems/workLoop.ts) (what a robot is
+doing on screen, on wall-clock time: work sites, charging stations, recall and turn-back).
 
-Robot Lifecycle (Roadmap Phase 7) replaces the dynamic spawn/despawn/persistence machinery that
-existed through Phases 4–6 as test scaffolding. A locale's roster is now created once, in full, at
-locale load — every robot cycles between `Docked` and `Active` for the rest of the session, driven
+Robot Lifecycle (Roadmap Phase 7) replaced the dynamic spawn/despawn/persistence machinery that
+existed through Phases 4–6 as test scaffolding. A locale's roster is created once, in full, at
+locale load. Every robot cycles between `Docked` and `Active` for the rest of the session, driven
 purely by its own battery level. Nothing is ever removed from the roster.
 
-Robot Jobs and Stations (Roadmap Phase 43, [spec](specs/ROBOT_JOBS_AND_STATIONS.md)) changes the
-lifecycle underneath today's visuals in its first branch, J1: the states are renamed, the drain is
-flat, the job leaves the replay, and every visual consequence of a transition goes through one seam,
-`onLifecycleChange`. Until J2 lands, that seam is a **legacy adapter** that keeps the pre-Phase-43
-visuals exactly (exit swim, wandering, the off-screen dock spot). J2 re-points the seam at the work
-loop (charging stations, work sites) and this document is rewritten again then.
+Robot Jobs and Stations (Roadmap Phase 43, [spec](specs/ROBOT_JOBS_AND_STATIONS.md)) split what a
+robot *is* from what it *looks like it's doing*. J1 renamed the docking states, made the drain flat,
+took the job out of the replay and routed every visual consequence of a transition through one seam,
+`onLifecycleChange`. J2 points that seam at the **work loop**: robots exit seeded charging stations,
+go to buildings that are ready for their job, work there, and swim back into a station when the
+tick recalls them. The random wandering and the off-screen dock spot are gone (see "Removed in
+Phase 43" at the end). J3 adds the remaining job moves and J4 the second robot layer; neither
+changes anything below.
 
 ## Core Principles
 
 1. **Fixed roster, created once**: every locale spawns exactly `MAX_ROBOTS` (12) robots at load — no dynamic spawn scheduler, no manual spawn action, no removal.
-2. **Battery-driven, not job-driven**: the `Docked ↔ Active` cycle is governed purely by battery level, and every Active robot drains at the same flat rate whatever it is doing. The job is live visual state, written as a side effect of going `Active` (today, by the legacy adapter); nothing in the lifecycle reads it.
-3. **Measure-quantized transitions**: every state change is evaluated once per measure via BeatClock — never `setTimeout`/`setInterval`. This determinism is what makes the whole cycle (battery/docking, plus the pitch drift below) headlessly replayable — see "Deterministic Replay" below.
-4. **One seam to the visuals**: the tick writes docking, battery, audio mode and melody, then calls `onLifecycleChange(localeId, robotId, to)` for the transitions that have a visual consequence. It never starts a swim, writes a position or picks a job itself.
-5. **Orthogonal to `RobotState`** (until J2): `Robot.docking` is a second state machine, independent of `Robot.state` (`Idle`/`Moving`/`Selected`/`Interacting`/`Leaving`), which still governs in-world wandering for whichever robots are `Active`. J2 replaces `state` with `Robot.activity`.
-6. **Off-screen and muted-by-default while Docked, but overridable**: a `Docked` robot sits at a position outside the world bounds and has `audioMode: 'mute'` — the *same* field Robot Options' Audio Mode toggle writes to. Its `AudioEngine` voice stays reserved and its melody stays registered the whole time, exactly like an `Active` robot's — mute is enforced only at `scheduleNote()`'s `audioMode === 'mute'` check, so a user can flip a Docked robot's Audio Mode back to `none` in Robot Options and genuinely hear it, without anything in the lifecycle system fighting that override.
+2. **Two state machines, two clocks**: `Robot.docking` (Docked/Undocking/Active/Recalled) is battery-driven and ticks once per measure. `Robot.activity` (charging/exiting/transit/working/waiting/returning/entering) is the work loop's and runs on wall-clock GSAP time. The docking machine never reads `activity`; the work loop reads `docking` at every decision.
+3. **Battery-driven, not job-driven**: every Active robot drains at the same flat rate whatever it is doing. The job, the site, the station and the position are live visual state; nothing in the lifecycle reads them.
+4. **Measure-quantized transitions**: every docking change is evaluated once per measure via BeatClock — never `setTimeout`/`setInterval`. This is what makes battery, docking and pitch drift headlessly replayable — see "Deterministic Replay" below.
+5. **One seam to the visuals**: the tick writes docking, battery, audio mode and melody, then calls `onLifecycleChange(localeId, robotId, to)` for the transitions that have a visual consequence. It never starts a swim, writes a position or picks a job itself.
+6. **Muted by default while Docked, but overridable**: a `Docked` robot is hidden inside its station and has `audioMode: 'mute'` — the *same* field Robot Options' Audio Mode toggle writes to. Its `AudioEngine` voice stays reserved and its melody stays registered the whole time, exactly like an `Active` robot's — mute is enforced only at `scheduleNote()`'s `audioMode === 'mute'` check, so a user can flip a Docked robot's Audio Mode back to `none` in Robot Options and genuinely hear it, without anything in the lifecycle system fighting that override.
+7. **Animation never touches audio**: every work-loop timeline callback calls only work-loop functions or store writes, never `AudioEngine` (the Strict Separation guardrail). Animation speed doesn't follow the music, except that a job's length is read from the tempo when it starts (`jobDuration(bpm)`).
 
 ## Data Structures
 
@@ -46,12 +50,13 @@ const JobType = {
 } as const;
 type JobType = (typeof JobType)[keyof typeof JobType];
 
-/** The work loop's live visual state (J2 adds the Robot.activity field; the type is already here). */
+/** The work loop's live visual state. */
 type RobotActivity = 'charging' | 'exiting' | 'transit' | 'working' | 'waiting' | 'returning' | 'entering';
 ```
 
-The names were inverted before Phase 43: `Docking` meant *leaving* the dock and `Departing` meant
-*going back to it*. They are now `Undocking` and `Recalled`; the transitions and holds are unchanged.
+The docking names were inverted before Phase 43: `Docking` meant *leaving* the dock and `Departing`
+meant *going back to it*. They are now `Undocking` and `Recalled`; the transitions and holds are
+unchanged.
 
 Fields on `Robot`:
 
@@ -61,13 +66,22 @@ docking: DockingState;
 dockingHoldUntilMeasure?: number;
 /** 0-100. Drains while Active, recharges while Docked. Seeded at spawn. */
 batteryLevel: number;
-/** The bare job type. Live visual state: never replayed, never persisted. Written when a robot lands
- *  on Active and left, stale, while it is Docked. */
+/** Taken with a site (chooseNextSite) and kept across sites until none ready hosts it. Undefined
+ *  until the first site; stale while charging. */
 job?: JobType;
+/** Set at spawn from docking (Docked → 'charging', Active → 'exiting'), the work loop's after that. */
+activity: RobotActivity;
+/** The station the robot is in, heading to, or last left. Assigned at locale load. */
+stationId?: string;
+/** The actor id of the work site the robot holds (heading to or working at). */
+siteId?: string;
+/** The gem canvas's top-left in the scene. Written by the work loop on every leg's arrival. */
+position: Vec2;
 ```
 
-`Robot.persists` — the old power-cycle-survival flag — is gone. Every robot survives a power cycle
-now; there is nothing left for a robot to "persist" against.
+All of these are plain JSON. None of `job`, `activity`, `stationId`, `siteId` or `position` is
+replayed or saved in a session (see [SESSION_STORAGE.md](SESSION_STORAGE.md)). Timelines, site
+cooldowns and DOM refs live outside the store.
 
 ## The Docking State Machine
 
@@ -84,11 +98,11 @@ Docked ─────────────────▶ Undocking
 
 - **`Docked` → `Undocking`**: triggered the measure a `Docked` robot's battery reaches
   `BATTERY_FULL_THRESHOLD` (100). Not an immediate jump to `Active` — `Undocking` is a real held
-  state, and a silent one: `beginUndocking` writes the hold only and calls no seam.
+  state, and a silent one: `beginUndocking` writes the hold only and calls no seam. The robot stays
+  hidden in its station.
 - **`Active` → `Recalled`**: triggered the measure an `Active` robot's battery reaches
   `BATTERY_CRITICAL_THRESHOLD` (10) or below. `beginRecall` writes the docking state and hold, then
-  calls `onLifecycleChange(…, 'recalled')`. Today the legacy adapter answers with the exit swim (see
-  below).
+  calls `onLifecycleChange(…, 'recalled')` (see "Recall" below).
   - **Invariant — never zero `Active` robots**: before honoring a critical-battery trigger, the
     step checks whether any *other* robot is currently `Active`, reading the working roster as
     already updated this measure (not the stale pre-tick snapshot, so an earlier robot's recall
@@ -103,9 +117,166 @@ Docked ─────────────────▶ Undocking
   robot lands (`Undocking` → `Active`, `Recalled` → `Docked`) the first measure tick at or after
   that value — "up to one measure," not always a full one: a threshold crossed right after a
   measure boundary waits nearly a full measure, one crossed right before it lands almost
-  immediately. No visual's duration governs a landing.
+  immediately. No visual's duration governs a landing: a recalled robot can land on `Docked` while
+  it is still swimming home, and the work loop simply finishes the trip.
 - **Landing effects** (`landOnActive`/`landOnDocked` in `robotSystems.ts`) are where audio and
   docking authoritatively change; each then calls the seam.
+
+## The Activity State Machine
+
+`Robot.activity` is the work loop's ([`workLoop.ts`](../src/systems/workLoop.ts)), on wall-clock
+time. Every arrow is the end of a GSAP leg (or a seam call that cuts one short), and every decision
+reads `docking`:
+
+```
+             ┌──────────────────────────────────────────────┐
+             ▼                                              │
+'charging' ──(Active)──▶ 'exiting' ──▶ next() ──▶ 'transit' ──▶ 'working' ──┐
+   ▲                                    │  ▲                               │
+   │                                    │  └──── 'waiting' ◀──(no site)────┤ next()
+   │                                    │                                  │
+'entering' ◀── 'returning' ◀──(not Active)──────────────────────────────────┘
+```
+
+| Activity | What the robot is doing | Ends when |
+|---|---|---|
+| `'charging'` | Hidden at its station's port (`autoAlpha: 0`), its slot lit | the seam's `'active'` (it exits) |
+| `'exiting'` | The exit arc: appearing out of the port | the arc ends → `next()` |
+| `'transit'` | Swimming to a site's `park`, holding the site | arrival → `'working'` |
+| `'working'` | Its job timeline: bob, orbiters detach, work, reattach | the timeline ends → release → `next()` |
+| `'waiting'` | No ready site: one finite bob of `WAIT_RETRY_SECONDS` (2 s) | the bob ends → `next()` |
+| `'returning'` | Swimming to a station port, its slot reserved | arrival → `'entering'` |
+| `'entering'` | The entry arc: vanishing into the port | the arc ends → `'charging'` (or `'exiting'`, see "Turn-back") |
+
+A robot appears and disappears only at a station port. There's no off-screen spot any more.
+
+## The Visual Seam
+
+`onLifecycleChange(localeId, robotId, to: LifecycleChange)` (`workLoop.ts`;
+`LifecycleChange = 'recalled' | 'active' | 'docked'`) is the only way the tick reaches anything
+visual. `robotSystems.ts` imports it from `./workLoop`, and `robotSystems.test.ts` pins that import
+as the tick's only route to visuals. It is called after the transition's own store writes have
+landed. `Undocking` has no visual consequence and no call. A call for a locale other than the
+running loop's, or with no loop running, does nothing.
+
+The tick is a BeatClock subscriber, not a GSAP callback, so calling into animation code from it is
+allowed (Strict Separation forbids the reverse: GSAP callbacks calling `AudioEngine`).
+
+| `to` | What the work loop does |
+|---|---|
+| `'recalled'` | In `'transit'` or `'waiting'`: the swim or bob is killed, the site released with no cooldown, and the robot heads home now. In `'working'` or `'exiting'`: nothing — the leg finishes and its `next()` sends the robot home. |
+| `'active'` | In `'charging'`: it exits. In `'returning'`: the swim home is killed and it goes back to work (turn-back). In `'entering'`: nothing — the arc finishes, then turns it back at the port. |
+| `'docked'` | Nothing. The robot is already returning, entering or charging, and the entry ends in `'charging'` on its own. |
+
+## The Work Loop
+
+`startWorkLoop(localeId, { now?, rand? })` / `stopWorkLoop()` are an idempotent singleton pair,
+like the lifecycle's. `now` defaults to `gsap.ticker.time` and `rand` to
+`` Alea(`${localeId}:work`) ``. A start derives the world's eligible work sites once
+(`isWorkSiteEligible` + `getWorkSite`, keyed by actor id — unique within any one world) and the
+world's stations (`getStations`).
+
+`next(robotId)` is the decision point, called as each leg ends:
+
+- `'returning'` or `'entering'`: nothing — the leg in flight decides.
+- `'charging'`: exit if `docking` is Active, else nothing.
+- Otherwise, if `docking` isn't Active: home (`returnToStation`).
+- Otherwise `chooseNextSite` (`siteChoice.ts`): keep the robot's job at the nearest ready site that
+  hosts it; if none, switch to a job no other robot holds (`heldJobs`), weighted by its ready-site
+  count, at its nearest ready site; if nothing is ready, `null` → `'waiting'`.
+
+A site is **ready** when nobody holds it and its rest has run out. Leaving a site after working
+there sets `readyAt = now + siteCooldown(n)`, where `n` is the world's eligible site count: `n` ×
+`COOLDOWN_PER_SITE` (0.3 s), clamped to `COOLDOWN_MIN` (2 s) .. `COOLDOWN_MAX` (30 s). More
+buildings, longer rest, so work spreads; few buildings, short rest, so robots don't starve. The
+three values were pinned by the readiness sim below. One robot per site. The site state (`Map<siteId, { heldBy?, readyAt }>`) is module state, never Zustand: an
+`Actor` write would re-render every factory layer. `getSiteState(siteId)` reads it, for tests and
+diagnostics. `stopWorkLoop` clears it.
+
+**A job.** In `'transit'` the robot swims to the site's `park` (`createSwimTimeline`, keyed
+`swim-${id}`). On arrival `position` is written and it goes `'working'`: `buildJobTimeline` locks
+its orbiters (`getOrbiterWork(id).lock()`), runs one `work-${id}` timeline lasting exactly
+`jobDuration(bpm)` (10 s at 20 BPM down to 6 s at 200 BPM, the live tempo read at job start), and
+in its `onComplete` unlocks them, releases the site with the cooldown and calls `next()`. J2 ships
+one move (`hoverPulse`) for every job; J3 adds the rest. The timeline itself is in
+[ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#job-timeline).
+
+**Coordinates.** Station ports and site `park`s are robot **centres**; `position` is the gem
+canvas's top-left. `robotCentre(robot, gem)` / `positionForCentre(centre, gem)`
+(`animation/jobMoves/sceneToOrbiterLocal.ts`) are the only conversion. Body scale doesn't move
+the centre (`g.gem` scales about it), so neither takes a scale.
+
+**Settling.** A leg cut short mid-swim or mid-bob leaves the body ahead of the store's `position`
+(the last leg's destination). Before the next leg starts, the body's GSAP `x`/`y` is written back
+to `position` if it is more than 0.01 u off.
+
+**No body.** A robot with no mounted body gets keyed, target-less timelines of the same length
+(travel time, `jobDuration`, the wait, the arc), so `stopWorkLoop` can still kill them.
+
+**Every callback is guarded by run identity**: a leg that ends after a stop or a restart writes
+nothing.
+
+## Charging Stations
+
+Each world has 2–3 seeded stations (`getStations(localeId)`, `src/systems/stations.ts`; placement
+and the art are in [BUILDING_DESIGN.md](BUILDING_DESIGN.md#robot-jobs--hosts-work-sites-coverage-phase-43) and spec §1.6), each holding
+`STATION_CAPACITY` (6) robots. A station is not state: it is derived from the seed on demand.
+
+- **At load**, `spawnInitialRoster` ends with `placeRosterAtStations`: `assignStationsAtLoad` gives
+  every robot a station by roster index modulo station count (it throws rather than overfill;
+  6 × ≥ 2 ≥ 12 always fits), and one `setLocaleData` write puts every robot at its port, Docked ones
+  `'charging'` and Active ones `'exiting'`. So a fresh world opens with its Active robots leaving
+  their stations.
+- **Going home**, a robot picks `nearestFreeStation` from its centre: the nearest station whose
+  occupancy (robots with that `stationId` and activity `'returning' | 'entering' | 'charging'`) is
+  below capacity, ties to the earlier station. The slot is reserved by writing `stationId` and
+  `'returning'`, and frees itself when the activity changes. Every station full can't happen with
+  12 robots; if it ever did, the robot would wait and ask again.
+- **Entering** (`'entering'`), the robot vanishes into the port over `STATION_ARC_SECONDS` (1 s):
+  scale 1 → `STATION_PORT_SCALE` (0.15) and opacity 1 → 0. Its halo ripple runs inward and the
+  station's ripple (`playStationRipple`) plays beside it. It is then `'charging'`: hidden, `visibility: hidden`, out of
+  the raster.
+- **Exiting** (`'exiting'`), the reverse: it appears at the port (scale 0.15 → 1, opacity 0 → 1),
+  ripples outward, then `next()`. A robot exits through the station it last entered.
+- **Reduced motion**: both arcs are a `STATION_REDUCED_ARC_SECONDS` (0.3 s) fade in place, with no
+  scale and no station ripple.
+- **Slot lights** are the occupancy display: a station lights one slot per robot with its
+  `stationId` and activity `'charging'`, in the robot's identity colour, back to front in roster
+  order. The selector key is `chargingColorsKey` (`stationOccupancy.ts`), so only a change to that
+  station's lit set re-renders it.
+
+The arcs, eases and timeline keys are in [ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#station-arcs).
+
+### Recall
+
+The measure tick recalls a robot (`'recalled'`). What happens depends on what it is doing:
+
+- **Working**: the job runs to its full length (the orbiters reattach and the bob ends at rest),
+  then the job's own `next()` sees `docking` isn't Active and sends it home. The site gets its
+  normal cooldown. It is muted from the tick, so it may finish silently.
+- **In transit or waiting**: the swim or bob is killed and the robot heads home at once. It never
+  worked at the site it held, so the site is released with **no cooldown** (`readyAt = now`).
+- **Exiting**: the arc finishes, and its `next()` sends it straight back.
+
+There is no "recall pending" flag. `docking` is the flag: every decision reads it.
+
+### Turn-back
+
+If a robot lands on `Active` again before it is inside its station, it turns back to work:
+
+- **Returning**: the swim home is killed and the robot decides again from where its body is. The
+  slot frees with the activity.
+- **Entering**: killing the arc mid-way would pop the robot back to full size, so the arc
+  finishes. Its end sees `docking` Active and plays the exit arc from where the entry left it.
+  The robot never becomes `'charging'`.
+
+**A turn-back can't happen on its own.** From a critical recall back to Active takes 20 measures
+(the hold, 18 measures of recharge at 5 per measure from ≤ 10, and the undocking hold), longer
+than any robot's swim home at any tempo — the loop sim measures 0 turn-backs. The only real path is
+a **hidden tab**: the browser slows GSAP, but the Transport keeps ticking, so the lifecycle runs
+ahead of the visuals. Because every decision reads `docking`, the visuals converge however far
+behind they fall. `workLoop.integration.test.ts` drives both turn-back cases at 200 BPM by running
+the Transport ahead of GSAP.
 
 ## Battery
 
@@ -114,7 +285,7 @@ Evaluated once per measure by `tickRobotLifecycle(localeId, measure)`, called fr
 
 | State | Per-measure change |
 |---|---|
-| `Active` | `-BATTERY_DRAIN_ACTIVE` (6), whatever its job |
+| `Active` | `-BATTERY_DRAIN_ACTIVE` (6), whatever its job or activity |
 | `Docked` | `+BATTERY_RECHARGE_RATE` (5), capped at 100 |
 | `Undocking`, `Recalled` | none (the hold) |
 
@@ -168,69 +339,13 @@ elapses:
    post-drift pitches. The caller, `tickRobotLifecycle`, computes the drift via
    `stepRobotLifecycle` and passes it in.
 4. Calls `onLifecycleChange(localeId, robotId, 'docked')`. **No position write** here — position is
-   the seam's.
+   the work loop's.
 
 No voice is released and no melody is unregistered — muting is `audioMode` alone.
 
-## The Visual Seam (Phase 43)
-
-`onLifecycleChange(localeId, robotId, to: 'recalled' | 'active' | 'docked')`
-(`lifecycleVisuals.ts`) is the only way the tick reaches anything visual. It is called after the
-transition's own store writes have landed. `Undocking` has no visual consequence and no call.
-
-The tick is a BeatClock subscriber, not a GSAP callback, so calling into animation code from it is
-allowed (Strict Separation forbids the reverse: GSAP callbacks calling `AudioEngine`).
-
-**J1's legacy adapter** keeps the pre-Phase-43 behaviour, moved verbatim out of `robotSystems.ts`:
-
-| `to` | What the adapter does |
-|---|---|
-| `'recalled'` | The exit swim: `idleSystem.ts`'s `pickExitDestination(robot.position)` (straight down, off-screen) and `swimAnimation.ts`'s `createSwimTimeline`, with `state: Moving` and the `destination` written to the store. Facing is kept, not recomputed (a straight-down exit has no horizontal component). Fire-and-forget: no `onComplete`, nothing waits for it. |
-| `'active'` | `assignJob` (below), then `handleRobotIdle(…, { isReturning: true })` to restart wandering. `Robot.tsx` only calls `handleRobotIdle` once, on mount, so a robot that stayed mounted while Docked needs this restart. |
-| `'docked'` | The off-screen dock spot: `spawnSystem.ts`'s `generateSpawnPosition(noiseMap, dockCycle)`, seeded by the count `landOnDocked` just advanced, so successive dock cycles sample different noise rows. Also `state: Idle` and `destination: null`, so the next `'active'` restart isn't blocked by `handleRobotIdle`'s `state === Idle` guard. |
-
-The dock spot and the exit swim's end point are computed independently; both are simply off-screen,
-and nothing re-syncs the GSAP transform from the store afterward.
-
 **The dock-cycle count** lives in `src/systems/dockCycles.ts` (`getDockCycleCount` /
-`recordDockLanding`): one counter, two readers. `landOnDocked` advances it and the replay snapshot
-threads it into pitch drift; the adapter reads it to seed the dock spot. Live state only — never
-replayed or persisted.
-
-J2 (plan Task 24) re-points the seam at the work loop and deletes the adapter, `idleSystem.ts`,
-`RobotState`, `destination`, `direction`, `scoreJobAffinities`/`assignJob`,
-`JOB_MAX_ROBOTS_PER_TYPE` and `BATTERY_LOWER_THIRD_THRESHOLD`.
-
-## Exit and Entrance Swims (legacy adapter, until J2)
-
-The visible "head off-screen, then later come back" motion is stitched together from two existing
-mechanisms, not a new animation system:
-
-- **Exit** (`Active` → `Recalled`): the adapter's `'recalled'` branch, above.
-- **Entrance** (`Undocking` → `Active`): the adapter's `'active'` branch calls `handleRobotIdle`,
-  which animates from the robot's current position to a new on-screen destination — since that
-  current position is genuinely off-screen, this reads as a natural "swim back on-screen", the same
-  way a brand-new spawn's first `handleRobotIdle` call already does.
-
-### Bottom-only, always
-
-Every robot enters and exits exclusively via the bottom of the world view — never the sides or
-top — for every entrance/exit, not just docking-driven ones:
-
-- `spawnSystem.ts`'s `generateSpawnPosition` spawns straight below the bottom edge only. This is
-  what every robot's initial off-screen position uses at locale load (Active or Docked), and what
-  the adapter reuses for the dock spot — so a robot's resting dock spot is always south.
-- `idleSystem.ts`'s `pickExitDestination` exits straight down from the robot's current position.
-- `handleRobotIdle` takes an optional `{ isReturning: true }`, passed by both `Robot.tsx`'s mount
-  effect (locale load) and the adapter's `'active'` branch — either way, the robot is surfacing from
-  its south-only spawn/dock spot, so its first on-screen destination is confined to the bottom half
-  of the world view (`BOTTOM_HALF_Y_RANGE`). Ordinary re-picks after that omit the flag and range
-  freely.
-- Independently, any robot below `BATTERY_LOWER_THIRD_THRESHOLD` (15%) has its idle wandering
-  confined to the lower third of the world view (`LOWER_THIRD_Y_RANGE`), re-evaluated on every
-  `handleRobotIdle` call from its live `batteryLevel` — so by the time it crosses
-  `BATTERY_CRITICAL_THRESHOLD` and is recalled, it's already near the bottom, keeping the exit swim
-  short. `isReturning` takes precedence when both would apply.
+`recordDockLanding`). Its one reader is pitch drift: `tickRobotLifecycle` threads it into each
+replay snapshot. Live state only — never replayed or persisted.
 
 ## Pitch Drift
 
@@ -258,8 +373,9 @@ Battery, docking and pitch drift are replayable headlessly — given a roster's 
 a target elapsed-measures count, the exact end state a real measure-by-measure run would have
 produced can be computed in a tight loop, with zero BeatClock subscription and zero
 AudioEngine/GSAP side effects. This is the same "store the recipe, not the derived state" principle
-melody's own base generation already follows (roadmap Phase 31). **The job is not replayed** (Phase
-43): it is live visual state, and nothing the replay computes reads it.
+melody's own base generation already follows (roadmap Phase 31). **Nothing the work loop owns is
+replayed** (Phase 43): job, activity, station, site and position are live visual state on
+wall-clock time, and nothing the replay computes reads them.
 
 **`Locale.createdAtMeasure: number`** (`types/locale.ts`) — stamped once, at the same point
 `dayStartTimestamp` is (`worldTransition.ts`'s `buildLocale`), reading `getCurrentMeasure()` at
@@ -296,10 +412,11 @@ for headless replay. In practice always called with `fromMeasure` = the locale's
 mid-point checkpoint, which is what lets pitch drift (and its own `dockCycleCount` sequencing) fall
 out of the replay loop for free instead of needing separately-persisted history.
 
-**What replay does *not* reproduce, and why that's fine:** on-screen position, motion and the job
-are not measure-snapshot state — there's no "position at elapsed measure N" to replay *to*. The one
-coupling between battery and movement (`idleSystem.ts`'s wander-Y-range bias below
-`BATTERY_LOWER_THIRD_THRESHOLD`) is one-way and irrelevant to anything replay computes.
+**What replay does *not* reproduce, and why that's fine:** on-screen position, motion, the job and
+the activity are not measure-snapshot state — there's no "position at elapsed measure N" to replay
+*to*. A replayed world would hand the work loop a roster whose `docking` is correct, and the loop
+converges on it the same way it does after a hidden tab: Docked and Undocking robots are hidden in
+their station, Active ones decide from where they are.
 
 **No consumer wires this in yet.** Session Storage's `SessionPayload`, the shareable link (roadmap
 Phase 21), and a future configuration scrubber (roadmap Phase 32) are all real candidates, but none
@@ -320,42 +437,19 @@ by design) and would need a different, not-yet-built primitive if a future phase
 GSAP. It runs over `SIM_SEED_COORDS`, the districts tests' 121-coordinate grid.
 
 - **Drain sim** (`runDrainSim`, Task 2) — the table above.
-- **Loop sim** (`runLoopSim` / `runReadinessSim`, Task 15) — the J2 work loop's decisions (site
+- **Loop sim** (`runLoopSim` / `runReadinessSim`, Task 15) — the work loop's decisions (site
   choice, site cooldown, swims, job durations, station arcs) in seconds, interleaved with lifecycle
   measures at a given BPM, over each world's real work sites and stations. It pinned the site
   cooldown at 0.4/3/30 (Task 15), then, re-run at 20, 110 and 200 BPM once jobs became
-  `jobDuration(bpm)` (6–10 s), at **0.3/2/30** (Task 16b); it also measures the hand-off between
-  the lifecycle and the visuals. Results and method:
-  [docs/tasks/ROBOT_JOBS_AND_STATIONS.md](tasks/ROBOT_JOBS_AND_STATIONS.md), Tasks 15 and 16b. Two findings belong here: with recharge at 5 per measure the shortest Docked stay is
-  about 20 measures, longer than any robot's walk home, so a robot is never made Active again
-  before it is back in its station (no turn-backs) at either tempo; and at 200 BPM a robot can
-  still be visibly heading home up to ~17 s after it has landed on `Docked`.
+  `jobDuration(bpm)` (6–10 s), at **0.3/2/30** (Task 16b). Results and method:
+  [docs/tasks/ROBOT_JOBS_AND_STATIONS.md](tasks/ROBOT_JOBS_AND_STATIONS.md), Tasks 15, 16b and 20.
+  Two findings belong here: no turn-backs at any tempo (see "Turn-back"), and at 200 BPM a robot
+  can still be visibly heading home up to ~17 s after it has landed on `Docked`.
+
+The sim models the loop; it doesn't run `workLoop.ts`. The real loop under the real tick is
+covered by `workLoop.integration.test.ts`.
 
 Set `LIFECYCLE_SIM_REPORT=1` to print either report from `npx vitest run src/systems/lifecycleSim.test.ts`.
-
-## Job Assignment (legacy adapter, until J2)
-
-The job no longer affects battery (above) and is never replayed. Until the J2 work loop chooses jobs
-by which buildings are ready, the legacy adapter keeps the pre-Phase-43 scorer, moved into
-`lifecycleVisuals.ts`.
-
-`scoreJobAffinities(robot)` is a pure, deterministic function over a robot's already-seeded melodic
-attributes — no new randomness, since the *inputs* were seeded at spawn and the scoring itself is
-plain arithmetic. It scores only the original four jobs; **Salvage and Maintenance are never chosen
-until the work loop lands**:
-
-| Job | Favors |
-|---|---|
-| **Vent Extraction** | low register, dense rhythm, short/tight motif, low note variance |
-| **Acoustic Survey** | high register, sparse rhythm, long/scattered motif, high/unrestricted variance |
-| **Structural Inspection** | wide octave span, mid-length motif (4–8), balanced density |
-| **Fluid Monitoring** | mid register, density and variance near their defaults |
-
-`assignJob(localeId, robotId)` sorts the four types by score for the deploying robot, skips any
-type already held by `JOB_MAX_ROBOTS_PER_TYPE` (3) other Active robots in that locale, and writes
-the first available type as the bare `job`. At the fixed 12-robot roster, 4 types × cap 3 = 12, so
-the cap only matters transiently. The job is pure data here: no world position, no per-job visual
-behavior.
 
 ## Roster Creation
 
@@ -366,47 +460,53 @@ locale load:
   `Active` at full battery.
 - The rest start `Docked`, each with an independently seeded, varied starting battery (0–99) so
   they don't all finish recharging in lockstep.
-- Does **not** assign jobs — `worldTransition.ts`'s `initializeLocale` does that for the
-  initially-`Active` robots immediately after, calling `assignJob` from `lifecycleVisuals.ts`.
-  `lifecycleVisuals.ts` imports `generateSpawnPosition` from `spawnSystem.ts`, so `spawnSystem.ts`
-  never imports back from it.
-- `spawnRobot(localeId, { docking, batteryLevel })`'s `AudioEngine.reserveVoice`/
-  `registerRobotMelody` calls are **unconditional** — every robot gets a voice and a registered
-  melody at spawn regardless of docking state. `audioMode` is set to `'mute'` when created `Docked`
-  and `'none'` when created `Active`, so muting is consistent from the very first tick, not just
-  after a robot's first dock/undock cycle.
+- `spawnRobot(localeId, { docking, batteryLevel })` sets `activity` from `docking` (Active →
+  `'exiting'`, else `'charging'`) and places the robot at `generateSpawnPosition` (below the bottom
+  edge). That position only stands for a lone `spawnRobot` call: `spawnInitialRoster` then runs
+  `placeRosterAtStations`, which moves every robot to its station's port (see "Charging
+  Stations").
+- No job is assigned at load. A robot takes its first job at its first site.
+- `spawnRobot`'s `AudioEngine.reserveVoice`/`registerRobotMelody` calls are **unconditional** —
+  every robot gets a voice and a registered melody at spawn regardless of docking state.
+  `audioMode` is set to `'mute'` when created `Docked` and `'none'` when created `Active`, so
+  muting is consistent from the very first tick, not just after a robot's first dock/undock cycle.
 
 ## Audibility and the Audio Load Budget
 
 Whether a robot is *heard* is now two independent things. **`audioMode`** (mute / solo, `isRobotAudible` in `src/utils/robotAudibility.ts`, unchanged) is the lifecycle's and the user's switch: `landOnDocked` mutes, `landOnActive` unmutes, and a user can override either. **The Audio Load budget** ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)) then caps how many *eligible* robots may sound at once (2–12 by the Robot Load slider; all 12 at Full — the separate Effects Load slider doesn't affect this cap): `audioBudgetSystem` admits them first come, first served, and one that is eligible but over the cap **stands by** — silent, shown as "Standing by" on its card, otherwise unchanged.
 
-Standing-by robots keep the whole lifecycle: they swim, drain, dock, recharge, drift pitch and keep their reserved voice and registered melody; only the note trigger is gated (`triggerWithCap`). So the battery cycle is what supplies the turnover — a robot docking (`audioMode: 'mute'`) frees its slot for the earliest waiter within a measure or two. An explicit unmute of a docked robot when the set is full does not jump the queue (it shows "Standing by" until a slot frees); a soloed robot always sounds. The lifecycle code itself is untouched — the budget system only reads `audioMode` and `docking` through a signature and writes nothing back to a robot.
+Standing-by robots keep the whole lifecycle: they work, drain, dock, recharge, drift pitch and keep their reserved voice and registered melody; only the note trigger is gated (`triggerWithCap`). So the battery cycle is what supplies the turnover — a robot docking (`audioMode: 'mute'`) frees its slot for the earliest waiter within a measure or two. An explicit unmute of a docked robot when the set is full does not jump the queue (it shows "Standing by" until a slot frees); a soloed robot always sounds. The lifecycle code itself is untouched — the budget system only reads `audioMode` and `docking` through a signature and writes nothing back to a robot.
 
-## Existing-System Guards
+The robot card shows all three side by side: `{docking} · {activity} · {audibility}` (spec §1.11).
 
-One already-shipping system needed a `docking === Active` guard added, since it was not
-originally docking-aware:
-
-- **`idleSystem.ts`'s `handleRobotIdle`**: early-returns for a non-`Active` robot, so a `Docked`
-  robot never wanders off its off-screen position.
-
-(`collisionSystem.ts` also gained the same guard at the time, but the module was unused —
-`startCollisionDetection` was never called from anywhere — and was removed outright rather than
-kept or backfilled with tests; see roadmap Phase 19. `interactionSystem.ts`, also uncalled, was
-deleted in Phase 43 Task 6.)
-
-## Power Cycle Integration
+## Mounts and the Power Cycle
 
 `startRobotLifecycle(localeId)`/`stopRobotLifecycle()` are a module-singleton pair (one active
 `subscribeToMeasure` unsubscribe function at a time), mirroring the retired
 `startSpawnScheduler`/`stopSpawnScheduler`'s exact pattern. `worldTransition.ts`'s
-`initializeLocale` calls `stopRobotLifecycle(); startRobotLifecycle(localeId);` unconditionally on
-every call — this is what makes a power cycle work, not just a locale swap:
-`AudioEngine.killAll()` (called on power-off, via `powerController.ts`) triggers `resetBeatClock()`
-internally, which silently clears every `subscribeToMeasure` listener. Without
-`stopRobotLifecycle()` running first to null out the module's `lifecycleUnsubscribe` reference, a
-later `startRobotLifecycle()` would see it as "already running" and never resubscribe — permanently
-killing the tick after the first power cycle.
+`initializeLocale` calls `stopRobotLifecycle(); startRobotLifecycle(localeId);` and then
+`stopWorkLoop(); startWorkLoop(localeId);` unconditionally on every call — this is what makes a
+power cycle work, not just a locale swap: `AudioEngine.killAll()` (called on power-off, via
+`powerController.ts`) triggers `resetBeatClock()` internally, which silently clears every
+`subscribeToMeasure` listener. Without `stopRobotLifecycle()` running first to null out the
+module's `lifecycleUnsubscribe` reference, a later `startRobotLifecycle()` would see it as "already
+running" and never resubscribe — permanently killing the tick after the first power cycle.
+
+Both power-off paths in `powerController.ts` call `stopRobotLifecycle()`, then `stopWorkLoop()`,
+then `AudioEngine.killAll()`. `stopWorkLoop` kills every `work-*`, `swim-*`, `bob-wait-*` and
+`station-*` timeline and clears the site state. A job in progress is first run to its end without
+its callback, so the orbiters are back on their docks and the bob at rest before they're unlocked.
+The robot keeps whatever `activity` it had; the next start decides what follows.
+
+**Mounts.** `Robot.tsx`'s mount (a `useGSAP` layout effect) calls `onRobotMounted(localeId, robotId)`:
+
+- **With the loop running** for that locale, the loop **adopts** the robot: its legs are dropped
+  (a job finished silently), any site it held is released with no cooldown, and then it is hidden
+  in its station (Docked or Undocking), exits it (`'exiting'`, or `'charging'` but Active), or is
+  shown at full size and decides from where its body is.
+- **With no loop yet** (a power-on mounts the scene before `initializeLocale` starts the loop), it
+  only hides — Docked and Undocking robots at their port, `'exiting'` and `'charging'` ones in
+  place — so nothing shows for a frame. `startWorkLoop` then adopts every robot with a mounted body.
 
 `powerController.ts`'s `start()` calls `spawnSystem.ts`'s `reRegisterAllRobotsAudio(localeId)` on
 power-on, which re-registers **every** robot in the locale (not filtered by docking) — every robot
@@ -417,27 +517,56 @@ power cycle; the re-registration may be unnecessary defensive work carried over 
 verified requirement. `audioMode` (unaffected by the power cycle, since it lives in
 `useLocaleStore`, not `AudioEngine`) is what keeps Docked robots silent afterward.
 
+## Known gaps (J2)
+
+- **Exiting robots draw in the front robot group** (`#robot-layer`, between L3 and the station's
+  front fragment), not between L4 and L3 as spec §1.6 has it. That needs `OceanScene` to order
+  robots by activity without remounting them, which is J4's layer work.
+- **The orbiters' Size tween isn't stopped by the lock.** A Size edit mid-job would fight the pulse
+  on `scale`.
+- **The station ignores daylight**: the robots dim at night, the station doesn't. No spec rule asks
+  for it.
+- `Robot.lastInteractionMeasure` has had no writer since Task 6 deleted `interactionSystem.ts`.
+
 ## Testing Notes
 
-The current tests (`robotSystems.test.ts`, `lifecycleVisuals.test.ts`, `lifecycleSim.test.ts`, plus
-coverage in `idleSystem.test.ts`, `spawnSystem.test.ts`, `worldTransition.test.ts`) cover:
+`robotSystems.test.ts`, `workLoop.test.ts`, `workLoop.integration.test.ts`, `lifecycleSim.test.ts`,
+`siteChoice.test.ts`, `stations.test.ts`, `spawnSystem.test.ts`, `worldTransition.test.ts` and `powerController.test.ts`
+cover:
 - the flat drain for every Active robot whatever its job (mutation-checked: a re-introduced job surcharge breaks the prove-it test), recharge math, both clamped
-- threshold-triggered `Undocking`/`Recalled` entry with the hold, not an immediate landing
-- hold-elapsed landing on `Active`/`Docked`
-- `landOnActive`/`landOnDocked` setting `audioMode` (not touching voice reservation/melody registration), writing no position, job or swim themselves, and calling `onLifecycleChange` with the right `to` (mutation-checked: dropping the call from `landOnDocked` fails a test)
-- the legacy adapter's parity with the pre-Phase-43 behaviour — the exit swim (`pickExitDestination`/`createSwimTimeline` with an off-screen destination, `state: Moving`, facing preserved), the dock spot seeded by the dock-cycle count with `state` settled back to `Idle`, and the job + idle restart on `'active'` — moved from `robotSystems.test.ts` with their assertions unchanged, plus an end-to-end test through the real tick
-- `idleSystem.ts`'s `pickExitDestination` always exiting straight down, genuinely outside the world bounds
-- `spawnSystem.ts`'s `generateSpawnPosition` only ever spawning below the bottom edge
-- `pickDestination`'s `yRange` parameter, and `handleRobotIdle` selecting the lower-third range below `BATTERY_LOWER_THIRD_THRESHOLD`, the bottom-half range for `{ isReturning: true }`, and `isReturning` taking precedence when both would apply
+- threshold-triggered `Undocking`/`Recalled` entry with the hold, not an immediate landing; hold-elapsed landing on `Active`/`Docked`
+- `landOnActive`/`landOnDocked` setting `audioMode` (not touching voice reservation/melody registration), writing no position, job or swim themselves, and calling `onLifecycleChange` with the right `to`; the `./workLoop` import as the tick's only route to visuals
 - `landOnDocked` re-registering the drifted melody with `AudioEngine` so a manual mute override plays the post-drift pitches
-- `scoreJobAffinities` determinism and each profile scoring highest for a robot matching its description; `assignJob` respecting `JOB_MAX_ROBOTS_PER_TYPE` and writing the bare job type
-- `startRobotLifecycle`/`stopRobotLifecycle` idempotency
-- the `idleSystem.ts` docking guard
-- `spawnInitialRoster`'s active/docked split, seeded battery variation, its determinism across identical coordinates, and that every robot (Docked included) has a reserved voice/registered melody with `audioMode` matching its docking state
 - the never-zero-`Active` invariant: a sole `Active` robot at/below critical battery stays `Active` (including floored at exactly 0) instead of being recalled; it is recalled on a later tick once another robot has landed back on `Active`; and when two robots cross critical in the same tick, only one is recalled while the other is held
-- `stepRobotLifecycle`'s own battery/docking/pitch-drift arithmetic in isolation (no store, no BeatClock), the injected `DrainRule` (called only for Active robots, with the pre-drain snapshot) and `replayLifecycle` forwarding it
-- `stepRobotLifecycle`'s pitch drift matching `landOnDocked`'s live seed formula (checked against an independently-computed expected result, never by comparing the function to itself), no cross-robot seed collision, and a robot's second dock cycle compounding on its first rather than re-drifting the original melody
-- `replayLifecycle`'s no-op case, parity with a hand-rolled loop, and that `fromMeasure` itself is excluded (not re-replayed)
-- the prove-it test: a real 12-robot roster with a contrived (not left to chance) starting state exercising both the invariant and a dock-triggered drift, run for N real ticks via `tickRobotLifecycle` and separately replayed via `replayLifecycle` from the same starting snapshot — asserted identical, field-for-field, for all 12 robots; mutation-checked against a broken invariant guard, against `tickRobotLifecycle` wiring the wrong (pre-drift) melody into `landOnDocked`, and against a re-introduced job surcharge
-- a dedicated multi-measure integration test driving a full `Active`→`Recalled`→`Docked` cycle across four real ticks with hand-computed expected battery values at each step, alongside a companion robot proving the invariant/landing effects don't cross-contaminate
+- `stepRobotLifecycle`/`replayLifecycle` (the injected `DrainRule`, pitch drift matching the live seed formula, no cross-robot seed collision, compounding drift, the no-op case, `fromMeasure` excluded) and the prove-it test: a real 12-robot roster run for N real ticks and separately replayed, asserted identical field for field (mutation-checked against a broken invariant guard, the pre-drift melody and a job surcharge)
+- the work loop: one robot per site, the cooldown, the job sticking until no ready site hosts it, recall in each activity, both turn-backs, adoption on mount and on start, settling, the body-less timelines, stop finishing a job silently, and callbacks that never touch `AudioEngine` (spy); every mutant run in Tasks 22–24 is killed
+- the real tick into the real loop at 20/110/200 BPM: exit → transit → working → recall → the job finishes at full length → returning → entering → charging (hidden, slot lit) → undock → exit → working, plus the two hidden-tab turn-backs at 200 BPM (removing the returning turn-back fails that case)
+- `spawnInitialRoster`'s active/docked split, seeded battery variation, determinism, every robot at its station's port with the right `activity`, one store write, and every robot (Docked included) holding a reserved voice/registered melody with `audioMode` matching its docking state
+- `startRobotLifecycle`/`stopRobotLifecycle` and `startWorkLoop`/`stopWorkLoop` idempotency, and the power-off order
+- `types/Robot.test.ts`: the deleted files are gone and no file in `src/` names a deleted identifier (below)
 - `lifecycleSim.ts`: the sim roster matching the real spawn path, determinism, no store/BeatClock (and no GSAP for the loop sim), the pinned flat-drain rows, and the loop sim's hand-worked timelines for each work-loop branch
+
+## Removed in Phase 43
+
+History, so an old reference can be traced. None of this exists in `src/` any more; `types/Robot.test.ts` guards it.
+
+- **The legacy adapter** (`lifecycleVisuals.ts`, J1): the seam's first target, which kept the
+  pre-Phase-43 visuals. On `'recalled'` it swam the robot straight down off-screen
+  (`pickExitDestination` + `createSwimTimeline`); on `'docked'` it wrote an off-screen dock spot
+  from `generateSpawnPosition`, seeded by the dock-cycle count; on `'active'` it ran `assignJob`
+  then `handleRobotIdle(…, { isReturning: true })`. Deleted at Task 24.
+- **Idle wandering** (`idleSystem.ts`): `handleRobotIdle` picked a random on-screen destination
+  (`pickDestination`, the `'idle.target.*'` noise keys) and swam there, forever. Its bottom-only
+  rules confined a returning robot to `BOTTOM_HALF_Y_RANGE` and a robot below
+  `BATTERY_LOWER_THIRD_THRESHOLD` (15 %) to `LOWER_THIRD_Y_RANGE`, so exits stayed short. Replaced
+  by the work loop.
+- **`RobotState`** (`Robot.state`: Idle/Moving/Selected/Interacting/Leaving), `Robot.destination`
+  and `Robot.direction`: the wandering's state. Replaced by `Robot.activity`.
+- **Job affinity scoring**: `scoreJobAffinities` scored the original four jobs from a robot's
+  seeded melodic attributes (register, density, motif length, variance), and `assignJob` gave each
+  newly Active robot its best job not already held by `JOB_MAX_ROBOTS_PER_TYPE` (3) others. Salvage
+  and Maintenance were never chosen. Replaced by `chooseNextSite`: jobs follow which buildings are
+  ready.
+- **Per-job battery surcharges** and the job in the replay snapshot (J1, above).
+- `interactionSystem.ts` and the factory production fields (J1 Task 6); `collisionSystem.ts` went
+  earlier, in roadmap Phase 19.

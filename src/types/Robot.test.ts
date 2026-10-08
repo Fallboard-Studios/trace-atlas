@@ -62,8 +62,11 @@ describe('the legacy wandering and job scorer are gone (Phase 43 Task 24)', () =
         'BATTERY_LOWER_THIRD_THRESHOLD|pickExitDestination|pickDestination|initRobotIdleCounter|handleRobotIdle|' +
         'handleRobotArrival|cancelPendingIdleDelay)\\b|idle\\.target\\.',
     );
+    // The J2 docs test (Task 27) names them too: it checks ROBOT_LIFECYCLE.md keeps them only in
+    // its "Removed in Phase 43" history section.
+    const docsTest = resolve(SRC, 'docs', 'robotJobsJ2Docs.test.ts');
     const offenders = walk(SRC)
-      .filter((p) => p !== THIS_FILE)
+      .filter((p) => p !== THIS_FILE && p !== docsTest)
       .filter((p) => stale.test(readFileSync(p, 'utf8')))
       .map((p) => relative(SRC, p))
       .sort();

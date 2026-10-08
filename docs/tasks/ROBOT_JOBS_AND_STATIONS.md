@@ -1288,7 +1288,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   **Verification:** the harness. **Dependencies:** Checkpoint C. **Files:** `docs/PERFORMANCE.md`;
   as run also `scripts/perf/idle-paint.mjs`. **Scope:** S.
 
-- [ ] **Task 27: J2 docs**
+- [x] **Task 27: J2 docs**
 
   **Description:** ROBOT_LIFECYCLE.md rewritten around the two state machines, the loop, stations,
   recall and turn-back. ANIMATION_SYSTEM.md: the registry, the job timeline, the station arcs, keys.
@@ -1297,7 +1297,41 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   lines.
 
   **Acceptance criteria:**
-  - [ ] Every named identifier spot-checked against source; docs tests green.
+  - [x] Every named identifier spot-checked against source; docs tests green.
+
+  **As shipped (2026-10-08):** (1) **The criteria are executable.** New
+  `src/docs/robotJobsJ2Docs.test.ts` (83 tests), following the D1 and Phase 39 docs tests. It checks
+  each doc's required sections, that relative links resolve, and that the constants in
+  ROBOT_LIFECYCLE.md carry their real values (imported from `constants`). The spot-check is a table
+  of 45 `[identifier, source file]` pairs: each name must appear, word-bounded, in its doc and in
+  its source file. (2) **ROBOT_LIFECYCLE.md** is rewritten. It has two state machines (docking on
+  the measure tick, activity on wall-clock time, with an activity table), the visual seam as a
+  `to` → behaviour table, the work loop, charging stations, Recall, Turn-back (hidden tab only; the
+  20-measure argument), mounts and the power cycle, and a "Known gaps (J2)" list. Every deleted
+  name (the legacy adapter, idle wandering, `RobotState`, affinity scoring) is now only in a closing
+  "Removed in Phase 43" history section, and the test holds that boundary. (3)
+  **ANIMATION_SYSTEM.md** gains four sections: Robot motion registry, Job timeline, Station arcs
+  (an exit/entry table), and Robot timeline keys (owner, lifetime and killer of each robot key).
+  (4) **Beyond the task's list**, because they were stale against J2: `PROCEDURAL_GENERATION.md`'s
+  two "idle/interaction behaviour" phrases (T24 left its wander wording to this task); the roadmap's
+  Phase 43 status (it still said J1 unmerged and J2 not started) and its "faster with more orbiters"
+  line; and two stale ANIMATION_SYSTEM.md pointers, to the deleted interaction systems and to a
+  `src/systems/removeSystem.ts` that doesn't exist (the link test found the second). (5)
+  **SESSION_STORAGE.md:** the old "drift continuously as the sim runs" reason was replaced. It now
+  says a restored world respawns from the seed, the replay has no consumer yet, and the work-loop
+  fields are wall-clock visual state. (6) **Spec:** `> **Shipped (J2)**` blocks in §1.2, §1.6,
+  §1.7, §1.8, §1.9 and §1.11. Each records the plan's deviations: no recall flag, port scale 0.15,
+  arc 1.0, entering finishes its arc, adoption, exits still in `#robot-layer` (J4), the Size tween
+  the lock doesn't stop, and `paths` and per-robot variation deferred to T28. The **intent**'s line
+  marks "More orbiters finish faster" as superseded. (7) **One test outside docs changed:**
+  `types/Robot.test.ts`'s deleted-identifier guard now exempts the new docs test, which has to name
+  those identifiers. A planted `handleRobotIdle` in another file still fails the guard. (8)
+  **Mutation checks:** 7 doc mutants were each run alone. They were the affinity wording back in
+  CLAUDE.md, a deleted name in a current section, a wrong port scale, the Turn-back heading
+  renamed, a broken link, `stationId` dropped from never-persisted, and a misspelt identifier. The
+  misspelt identifier (`getOrbiterWorkX`) survived, because the doc check was a substring match.
+  It's now word-bounded, and all 7 are killed. Suite 7083 green, types clean, lint at main's 2
+  warnings.
 
   **Verification:** `npm test`. **Dependencies:** T26. **Files:** the docs above. **Scope:** S.
 

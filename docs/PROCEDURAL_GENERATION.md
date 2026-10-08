@@ -6,7 +6,7 @@ Source of truth: [`src/utils/seedUtils.ts`](../src/utils/seedUtils.ts) · [`src/
 
 ## What It Is
 
-Trace Atlas replaces `Math.random()` with a deterministic noise-based sampler almost everywhere game logic needs randomness. The guarantee: **the same Attenuation Style name + the same locale coordinates always produce the same world** — same robot names, spawn positions, audio attributes, melodies, and idle/interaction behavior. Nothing about the generated world is persisted beyond the seed inputs themselves.
+Trace Atlas replaces `Math.random()` with a deterministic noise-based sampler almost everywhere game logic needs randomness. The guarantee: **the same Attenuation Style name + the same locale coordinates always produce the same world** — same robot names, audio attributes, melodies, work sites and charging stations. Nothing about the generated world is persisted beyond the seed inputs themselves.
 
 An **Attenuation Style noise map** is seeded from the Attenuation Style's own name and used for genuinely Attenuation-Style-level generation — the global Audio Rig chain, global LFOs (see [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md)), the transport tempo (`generateAttenuationStyleBpm`, `src/utils/bpmSeed.ts` — seeded per Attenuation Style, no longer per locale), the Free-vs-Sync roll on each LFO lane and on the Delay (`globalAudioSeed.ts`), and the additive AS-seeded factory color shift (`deriveAsColorShift()` — see [BUILDING_DESIGN.md](BUILDING_DESIGN.md)). A **locale noise map** per locale is seeded independently, derived directly from that locale's own `(x, y)` coordinates — **not** from the Attenuation Style at all. Individual values (a robot's attack time, a spawn X position, an idle target) are then sampled from the relevant locale's noise map via a stable string key. World time (`dayStartTimestamp`) lives on `Locale` too, computed directly from a locale's own `x` coordinate — not seed-derived, and not an Attenuation-Style-level value at all (see [docs/specs/ATTENUATION_STYLE.md](specs/ATTENUATION_STYLE.md)).
 
@@ -22,7 +22,7 @@ deriveAttenuationStyleSeed(name: string): string   // lowercase, strip non a-z0-
 
 A debug/testing escape hatch: setting `window.__GLOBAL_ATTENUATION_STYLE_SEED__` before load, passing `?seed=` in the URL, or calling `setGlobalAttenuationStyleSeedOverride(seed)` forces **every** Attenuation Style seed and **every** `precomputeDataX` key to be derived from one shared override string, for reproducible screenshots/tests/bug repros. `getGlobalAttenuationStyleSeedOverride()` reads the current override (`null` if unset).
 
-**`?seed=` alone does not pin the whole world.** It fixes the *Attenuation Style* noise map (global Audio Rig, global LFOs, the tempo and the Free | Sync rolls, audio swells, AS-level factory placement) and is folded into the locale map's key (`${seed}:${x}:${y}`), but the default locale's coordinates are still random on every page load — so robots, temperature, idle/interaction behaviour and the time-of-day phase (`dayStartTimestamp`, derived from `x`) all differ between loads.
+**`?seed=` alone does not pin the whole world.** It fixes the *Attenuation Style* noise map (global Audio Rig, global LFOs, the tempo and the Free | Sync rolls, audio swells, AS-level factory placement) and is folded into the locale map's key (`${seed}:${x}:${y}`), but the default locale's coordinates are still random on every page load — so robots, temperature and the time-of-day phase (`dayStartTimestamp`, derived from `x`) all differ between loads.
 
 ### Locale coordinate override (`?x=` / `?y=`)
 
