@@ -1264,7 +1264,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   card-line gap after short words, and T25's draft activity lore lines. Task 26's harness run came
   before this checkpoint, and nothing in the robots layer changed after it, so it stands.
 
-- [ ] **Task 26: J2 perf gate — stop and report**
+- [x] **Task 26: J2 perf gate — stop and report**
 
   **Description:** Spec §5.4 method against J2's base (J1 tip): busy and Paint within the 17.2.5
   noise band, per-element counts for the robots layer (stations included), dated section in
@@ -1284,6 +1284,9 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   at about 30 ms each on J2 vs 16 on J1, cause not measured; it's flagged in PERFORMANCE.md for J3.
   `scripts/perf/idle-paint.mjs` gained the robots-stack element counts and a `no-stations` ablation.
   "Moves off" wasn't needed, since nothing missed.
+
+  **Pixel listen passed 2026-10-08**, taken on J3 (`feature/jobs-moves`, which carries all of J2's
+  code), so it covers J2 too (Crawford: "pixel is doing ok"). Task 26 is done.
 
   **Verification:** the harness. **Dependencies:** Checkpoint C. **Files:** `docs/PERFORMANCE.md`;
   as run also `scripts/perf/idle-paint.mjs`. **Scope:** S.
@@ -1493,7 +1496,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `sceneToOrbiterLocal.test.tsx` timed out at vitest's 5 s. It is a load-dependent timeout and
   didn't show in his run. Still open, and not chased.
 
-- [ ] **Task 30: J3 perf gate — stop and report** — as T26 against J2's tip. **Files:**
+- [x] **Task 30: J3 perf gate — stop and report** — as T26 against J2's tip. **Files:**
   `docs/PERFORMANCE.md`. **Scope:** S.
 
   **As run (2026-10-08), harness half; the task stays open for Crawford's Pixel listen:** branch
@@ -1508,7 +1511,8 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   2007/160 vs 1987/158. T26's per-visible-robot paint lead, re-checked: ≈ 37 ms on both builds, so
   J3's moves add nothing measurable. The J2-vs-J1 gap stays an unexplained one-run lead. No
   ablations beyond `no-robots` were needed, and no harness change. **Crawford accepted the lean as
-  noise (2026-10-08: "passable").**
+  noise (2026-10-08: "passable").** **Pixel listen passed 2026-10-08** (Crawford: "pixel is doing
+  ok"). Task 30 is done.
 
 - [ ] **Task 31: J3 docs** — ANIMATION_SYSTEM.md moves section; BUILDING_DESIGN.md job → host →
   move table; spec `> **Shipped (J3)**`. **Scope:** XS.
