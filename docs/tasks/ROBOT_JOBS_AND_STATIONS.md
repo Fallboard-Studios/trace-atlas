@@ -733,7 +733,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 
 ### Between J1 and J2: the sketch gate's code (`feature/job-lifecycle-2`)
 
-- [ ] **Task 16b: `jobDuration(bpm)`, the retired constants, and the readiness sim re-run**
+- [x] **Task 16b: `jobDuration(bpm)`, the retired constants, and the readiness sim re-run**
 
   **Description:** Carry Task 0b's timing verdicts into code before J2 builds on them. Rewrite
   `src/animation/jobMoves/jobDuration.ts` as `jobDuration(bpm): number` = `lerp(JOB_BASE_MAX_SECONDS,
@@ -747,12 +747,52 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   **Acceptance criteria:**
   - [x] `jobDuration(20)` = 10, `jobDuration(110)` = 8, `jobDuration(200)` = 6; clamped outside 20–200.
   - [x] No reference to `JOB_WORK_RATE`, `JOB_MIN_SECONDS` or `JOB_BASE_SECONDS` remains in `src/` or `scripts/` (grep; docs keep them as history).
-  - [ ] The readiness sim runs and its table is in the commit message; cooldown decision recorded.
+  - [x] The readiness sim runs and its table is in the commit message; cooldown decision recorded.
+        — table in 311716f1's message and below; **Crawford chose 0.3/2/30 (2026-10-07)**.
+
+  **As shipped:** (1) **The function** is as described, with the 20/200 BPM ends as file-local
+  constants. Tests cover the three named tempos, linearity, strict monotonicity and the clamp
+  (below 20, 0, negative, above 200, 240 and `Infinity`). (2) **The sim lost its orbiter
+  plumbing.** `simOrbiterCounts`, `LoopSimOptions.orbiterCounts` and its parity test are gone, since
+  orbiter count no longer touches timing. A job lasts `jobDuration(bpm)` at the sim's tempo.
+  `SIM_LOOP_BPMS` is now `[20, 110, 200]`. Two scripted turn-back tests were hand-timed for 4.3 s
+  jobs and were retimed for 6 s (Active at measure 10 and 9). `COOLDOWN_CANDIDATES` now leads with
+  the shipped 0.3/2/30 and keeps 0.4/3/30 as a comparison row. A test keeps labels unique. (3)
+  **No `vite-node` script was needed.** The re-run is the existing
+  `LIFECYCLE_SIM_REPORT=1 npx vitest run src/systems/lifecycleSim.test.ts` (there is no
+  `readinessSim` file; the verification line's path predates Task 15's naming). (4) **Results**
+  (121 seeds × 600 s; the 0.4/3/30 rows are the first run, at the old cooldown):
+
+  | Cooldown | BPM | Mean waiting | p95 waiting | Longest wait | p95 wait | Switches / stint | Seeds missing a target |
+  |---|---|---|---|---|---|---|---|
+  | **0.3/2/30 (shipped)** | 20 | 1.2 % | 5.6 % | 20.0 s | 8.0 s | 1.40 | 4 / 121 |
+  | **0.3/2/30 (shipped)** | 110 | 1.2 % | 5.6 % | 14.0 s | 6.0 s | 0.36 | 1 / 121 |
+  | **0.3/2/30 (shipped)** | 200 | 1.3 % | 6.8 % | 10.0 s | 6.0 s | 0.23 | 1 / 121 |
+  | 0.4/3/30 (Task 15 pick) | 20 | 1.9 % | 7.7 % | 35.1 s | 6.1 s | 1.52 | 7 / 121 |
+  | 0.4/3/30 (Task 15 pick) | 110 | 1.8 % | 8.2 % | 14.0 s | 6.0 s | 0.44 | 1 / 121 |
+  | 0.4/3/30 (Task 15 pick) | 200 | 2.2 % | 8.9 % | 16.0 s | 6.0 s | 0.26 | 5 / 121 |
+  | 0.6/4/30 | 20 | 3.6 % | 11.4 % | 38.3 s | 10.0 s | 1.85 | 21 / 121 |
+  | 0.6/4/30 | 110 | 3.7 % | 11.6 % | 22.0 s | 8.0 s | 0.55 | 13 / 121 |
+  | 0.6/4/30 | 200 | 4.2 % | 14.0 % | 17.1 s | 8.0 s | 0.35 | 14 / 121 |
+  | 0.2/2/30 | 20 | 0.8 % | 4.0 % | 40.0 s | 4.0 s | 1.10 | 2 / 121 |
+  | 0.2/2/30 | 110 | 0.7 % | 4.5 % | 12.0 s | 4.0 s | 0.29 | 0 / 121 |
+  | 0.2/2/30 | 200 | 0.8 % | 4.5 % | 8.0 s | 4.0 s | 0.17 | 0 / 121 |
+  | 0/0/0 (reference) | 20 | 0.0 % | 0.1 % | 52.0 s | 52.0 s | 0.00 | 3 / 121 |
+  | 0/0/0 (reference) | 110 | 0.1 % | 0.4 % | 12.0 s | 8.0 s | 0.00 | 0 / 121 |
+  | 0/0/0 (reference) | 200 | 0.1 % | 0.8 % | 8.0 s | 6.0 s | 0.00 | 0 / 121 |
+
+  Turn-backs and charging-while-visible are 0 in every row. Longer jobs **lowered** waiting rather
+  than raising it (robots spend more of each shift working) and roughly halved job switches per
+  stint (3.92 → 1.52 at 20 BPM on 0.4/3/30), which shrank 0.4/3/30's variety edge to 1.52 vs 1.40.
+  0.4/3/30 also went 1 s over the 15 s cap at 200 BPM. 0.3/2/30 meets the cap at 110 and 200 BPM
+  and cuts the 20 BPM longest wait from 35 s to 20 s; 20 BPM is still over it, measure-bound as
+  before. `STATION_ARC_SECONDS` stays 0.9 in code and in the sim; the sketch's 1.0 moves at Task 20.
 
   **Verification:** `npx vitest run src/animation/jobMoves src/systems/readinessSim` + the sim.
   **Dependencies:** Task 0b. **Files:** `src/animation/jobMoves/jobDuration.ts` (+ test),
   `src/constants/index.ts`, `src/components/robot/gem/orbiterMotion.ts` (+ test), the Task 15 sim
-  script. **Scope:** S–M (stop gate on the sim).
+  script; as shipped also `src/systems/lifecycleSim.ts` (+ test), `src/systems/siteChoice.test.ts`,
+  docs/ROBOT_LIFECYCLE.md. **Scope:** S–M (stop gate on the sim).
 
 ---
 

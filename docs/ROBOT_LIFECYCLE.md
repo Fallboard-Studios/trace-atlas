@@ -323,9 +323,10 @@ GSAP. It runs over `SIM_SEED_COORDS`, the districts tests' 121-coordinate grid.
 - **Loop sim** (`runLoopSim` / `runReadinessSim`, Task 15) — the J2 work loop's decisions (site
   choice, site cooldown, swims, job durations, station arcs) in seconds, interleaved with lifecycle
   measures at a given BPM, over each world's real work sites and stations. It pinned the site
-  cooldown at 0.4/3/30 and measured the hand-off between the lifecycle and the visuals at 20 and 200
-  BPM. Results and method: [docs/tasks/ROBOT_JOBS_AND_STATIONS.md](tasks/ROBOT_JOBS_AND_STATIONS.md),
-  Task 15. Two findings belong here: with recharge at 5 per measure the shortest Docked stay is
+  cooldown at 0.4/3/30 (Task 15), then, re-run at 20, 110 and 200 BPM once jobs became
+  `jobDuration(bpm)` (6–10 s), at **0.3/2/30** (Task 16b); it also measures the hand-off between
+  the lifecycle and the visuals. Results and method:
+  [docs/tasks/ROBOT_JOBS_AND_STATIONS.md](tasks/ROBOT_JOBS_AND_STATIONS.md), Tasks 15 and 16b. Two findings belong here: with recharge at 5 per measure the shortest Docked stay is
   about 20 measures, longer than any robot's walk home, so a robot is never made Active again
   before it is back in its station (no turn-backs) at either tempo; and at 200 BPM a robot can
   still be visibly heading home up to ~17 s after it has landed on `Docked`.

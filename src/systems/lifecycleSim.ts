@@ -563,14 +563,14 @@ export function clampedCooldown(perSite: number, min: number, max: number): Cool
 }
 
 /**
- * The shipped siteCooldown (0.4/3/30, Crawford's pick) first, then the 0.6/4/30 first guess and
- * shorter rests for comparison. `0/0/0` (no rest) is a reference, not a candidate: robots camp on
- * one site forever.
+ * The shipped siteCooldown (0.3/2/30, Crawford's Task 16b pick) first, then the previous pick
+ * 0.4/3/30 (Task 15), the 0.6/4/30 first guess and a shorter rest for comparison. `0/0/0` (no rest)
+ * is a reference, not a candidate: robots camp on one site forever.
  */
 export const COOLDOWN_CANDIDATES: readonly CooldownCandidate[] = [
   { label: `${COOLDOWN_PER_SITE}/${COOLDOWN_MIN}/${COOLDOWN_MAX}`, cooldown: siteCooldown },
+  clampedCooldown(0.4, 3, 30),
   clampedCooldown(0.6, 4, 30),
-  clampedCooldown(0.3, 2, 30),
   clampedCooldown(0.2, 2, 30),
   clampedCooldown(0, 0, 0),
 ];

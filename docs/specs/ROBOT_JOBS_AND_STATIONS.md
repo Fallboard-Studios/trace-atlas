@@ -32,12 +32,13 @@ layers. This spec covers all four.
 >    18) (§1.9).
 >
 > Values measured in J1: `BATTERY_DRAIN_ACTIVE` = 6 (§5.2 drain sim), site cooldown 0.4/3/30
-> (§5.2 readiness sim, Crawford's pick). Pinned by the station sketch (Task 0a, 2026-10-07):
+> (§5.2 readiness sim, Crawford's pick) — re-pinned to **0.3/2/30** at Task 16b against the
+> longer 6–10 s jobs. Pinned by the station sketch (Task 0a, 2026-10-07):
 > the station box 200 × 200, `STATION_ARC_SECONDS` 1.0, the station design and the render-order
 > and back-row-exit corrections in §1.6. Pinned by the moves sketch (Task 0b, 2026-10-07):
 > `jobDuration(bpm)` 6–10 s from the tempo with orbiter count cut from timing, `JOB_WORK_RATE` and
 > `JOB_MIN_SECONDS` retired, `ATTACH_DURATION` 1 s, the move constants and two paths per site
-> (§1.5, §1.9). Code catches up at Task 16b. The port stays at the centre pending Crawford. Per-task detail ("As shipped") is in
+> (§1.5, §1.9). Code caught up at Task 16b. The port stays at the centre pending Crawford. Per-task detail ("As shipped") is in
 > [docs/tasks/ROBOT_JOBS_AND_STATIONS.md](../tasks/ROBOT_JOBS_AND_STATIONS.md).
 
 > **Execution Commands**
@@ -364,8 +365,9 @@ and the set of robots with a pending recall. Public surface:
 - **Cooldown:** on leaving a site, `readyAt = now + siteCooldown(eligibleSiteCount)`, where
   `siteCooldown(n) = clamp(n × COOLDOWN_PER_SITE, COOLDOWN_MIN, COOLDOWN_MAX)` — more buildings,
   longer rest, so work spreads; few buildings, short rest, so robots don't starve. First guesses
-  were `0.6 s`, `4 s`, `30 s`. **Pinned by the readiness sim (§5.2): `0.4 s`, `3 s`, `30 s`**
-  *(J1, Crawford's pick, 2026-10-07)*.
+  were `0.6 s`, `4 s`, `30 s`. ~~Pinned by the readiness sim (§5.2): `0.4 s`, `3 s`, `30 s`
+  (J1, Crawford's pick, 2026-10-07).~~ **Re-pinned by the Task 16b re-run at 6–10 s jobs (§5.2):
+  `0.3 s`, `2 s`, `30 s`** *(Crawford, 2026-10-07)*.
 - **Stations:** `exitStation` — at the port, `autoAlpha 0 → 1`, scale `0.4 → 1`, the registered
   `decorateArc('spawn', d, tl)`, `activity: 'exiting'` → `next()`. `returnToStation` — reserve a
   slot, `activity: 'returning'`, swim to the port, then `entering`: scale `1 → 0.4`, `autoAlpha → 0`,
@@ -401,7 +403,8 @@ and the set of robots with a pending recall. Public surface:
   `JOB_BASE_MIN_SECONDS` = **6** at 200 BPM (`10 − 4 × (bpm − 20) / 180`; 110 BPM → 8 s). Slower
   tempo, longer job. `bpm` is the live transport tempo, read at job start; a tempo change mid-job
   doesn't retime a running timeline. Orbiter count (`orbiterDials().count`, 1–4, never 0) still
-  decides how many orbiters work. Code: Task 16b replaces the shipped `jobDuration(job, count)`.
+  decides how many orbiters work. Code *(Task 16b, shipped)*: `jobDuration(bpm)` in
+  `src/animation/jobMoves/jobDuration.ts`, clamped to 10 s below 20 BPM and 6 s above 200.
 - **Flights inside the duration (Task 0b, A1 confirmed):** detach and reattach are part of
   `jobDuration`, not added to it — `ATTACH_DURATION` = **1.0 s** (was 0.5) each way. A two-move
   job at 6 s therefore has ≈ 3.3 s of actual work; at 10 s, ≈ 7.6 s.
@@ -448,7 +451,8 @@ and the set of robots with a pending recall. Public surface:
 - *(J1)* `jobDuration` shipped early, at `src/animation/jobMoves/jobDuration.ts`, for the readiness
   sim, as `jobDuration(job, count)` with `JOB_WORK_RATE` 0.7. *(Task 0b)* superseded — Task 16b
   rewrites it as `jobDuration(bpm)` and re-runs the readiness sim at 6–10 s, since Task 15 pinned
-  the cooldown 0.4/3/30 against 2.2–4.3 s jobs.
+  the cooldown 0.4/3/30 against 2.2–4.3 s jobs. *(Task 16b)* done; the cooldown moved to 0.3/2/30
+  (§1.7, §5.2).
 - **Per-robot variation:** `Alea(gemSeed + ':work')` picks stagger, ring direction, radius ±15 %
   and trace direction — company members that look alike work differently.
 - J2 ships `hoverPulse` + ventExtraction only (other jobs fall back to it); J3 adds the rest.
@@ -673,6 +677,22 @@ Docked stay (~20 measures) outlasts the longest walk home. At 200 BPM a robot ca
 heading home up to ~17 s after it lands on Docked, which §1.7's `'docked'` rule allows. Full table:
 plan Task 15.
 
+*(Task 16b re-run, 2026-10-07.)* Jobs are now `jobDuration(bpm)`, 6–10 s, so the readiness sim
+was re-run at 20, 110 and 200 BPM (121 seeds × 600 s). Longer jobs lowered waiting rather than
+raising it, and roughly halved job switches per stint (3.92 → 1.52 at 20 BPM on 0.4/3/30). The old
+pick went 1 s over the 15 s cap at 200 BPM. Crawford chose **0.3/2/30**:
+
+| Cooldown | BPM | Mean waiting | p95 waiting | Longest wait | p95 wait | Switches / stint | Seeds missing a target |
+|---|---|---|---|---|---|---|---|
+| **0.3/2/30 (shipped)** | 20 | 1.2 % | 5.6 % | 20.0 s | 8.0 s | 1.40 | 4 / 121 |
+| **0.3/2/30 (shipped)** | 110 | 1.2 % | 5.6 % | 14.0 s | 6.0 s | 0.36 | 1 / 121 |
+| **0.3/2/30 (shipped)** | 200 | 1.3 % | 6.8 % | 10.0 s | 6.0 s | 0.23 | 1 / 121 |
+| 0.4/3/30 (Task 15 pick) | 20 | 1.9 % | 7.7 % | 35.1 s | 6.1 s | 1.52 | 7 / 121 |
+| 0.4/3/30 (Task 15 pick) | 110 | 1.8 % | 8.2 % | 14.0 s | 6.0 s | 0.44 | 1 / 121 |
+| 0.4/3/30 (Task 15 pick) | 200 | 2.2 % | 8.9 % | 16.0 s | 6.0 s | 0.26 | 5 / 121 |
+
+Turn-backs and "charging while visible" stay 0 everywhere. Full table: plan Task 16b.
+
 ### 5.3 Static checks
 
 `npm run build:types`, `npm run lint`, `npm test`, `npm run build` — clean on every branch.
@@ -723,6 +743,7 @@ is its gate.
    *J1:* drain 6 and cooldown 0.4/3/30 pinned. *Task 0a:* `STATION_ARC_SECONDS` = 1.0 and the
    station box 200 × 200 pinned (code moves at T20). *Task 0b:* `jobDuration(bpm)` 6–10 s,
    orbiter coupling cut, `JOB_WORK_RATE`/`JOB_MIN_SECONDS` retired, `ATTACH_DURATION` 1 s (code
-   moves at Task 16b, which also re-runs the readiness sim). **Resolved.**
+   moved at Task 16b). *Task 16b:* the readiness re-run moved the cooldown to 0.3/2/30.
+   **Resolved.**
 6. *(Raised in J1.)* **Background Skyscraper parks** clamp below the roof (§1.5) — J4 decides:
    drop such sites or park beside them.

@@ -179,13 +179,14 @@ export const STATION_BOX_H = 120;
  * A work site's rest after a robot leaves it, in seconds: siteCooldown(n) = clamp(n ×
  * COOLDOWN_PER_SITE, COOLDOWN_MIN, COOLDOWN_MAX) for n eligible sites (siteChoice.ts, spec §1.7).
  * More buildings, longer rest, so work spreads; few buildings, short rest, so robots don't starve.
- * Crawford chose 0.4/3/30 from the readiness sim (Phase 43 Task 15, 2026-10-07) over the 0.6/4/30
- * first guess: mean waiting 6.4 % / 3.7 % of active time at 20 / 200 BPM, with more job variety
- * than shorter rests. The 20 BPM longest wait (34 s) is accepted — it is measure-bound, not
- * cooldown-bound (docs/tasks/ROBOT_JOBS_AND_STATIONS.md, Task 15).
+ * Crawford chose 0.3/2/30 from the readiness re-run at 6–10 s jobs (Phase 43 Task 16b, 2026-10-07):
+ * mean waiting 1.2 % / 1.2 % / 1.3 % of active time at 20 / 110 / 200 BPM, longest wait 20 / 14 /
+ * 10 s. The previous pick, 0.4/3/30 (Task 15, against 2.2–4.3 s jobs), went 1 s over the 15 s cap
+ * at 200 BPM once jobs got longer, and its variety edge had shrunk to 1.52 vs 1.40 switches per
+ * stint (docs/tasks/ROBOT_JOBS_AND_STATIONS.md, Tasks 15 and 16b).
  */
-export const COOLDOWN_PER_SITE = 0.4;
-export const COOLDOWN_MIN = 3;
+export const COOLDOWN_PER_SITE = 0.3;
+export const COOLDOWN_MIN = 2;
 export const COOLDOWN_MAX = 30;
 
 /** A waiting robot's one finite bob before it asks for a site again, in seconds (spec §1.7). */

@@ -640,6 +640,12 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       expect(c.cooldown(14)).toBeCloseTo(4.2);
       expect(c.cooldown(200)).toBe(30);
     });
+
+    it('has no duplicate rows: every label is unique, and the previous pick 0.4/3/30 is kept for comparison (Task 16b)', () => {
+      const labels = COOLDOWN_CANDIDATES.map((c) => c.label);
+      expect(new Set(labels).size).toBe(labels.length);
+      expect(labels).toEqual(['0.3/2/30', '0.4/3/30', '0.6/4/30', '0.2/2/30', '0/0/0']);
+    });
   });
 
   describe('runReadinessSim', () => {
