@@ -589,11 +589,39 @@ and the set of robots with a pending recall. Public surface:
   `<use href="#…">` of the robot's own group in the other layer's `<svg>` (one GSAP target, no
   second React mount or registry entry); confirm it renders the live transforms before relying on
   it.
+
+  > **Shipped (Task 34) — the back → front direction differs.** As written, a robot re-mounted in
+  > the front row at full opacity covers the back copy entirely, so the haze would still pop; the
+  > sketch's own rule is that the *front* copy fades over an opaque back one in both directions. So
+  > the copy is always a front-row `<use>` (OceanScene's `#robot-dissolve-layer`, after
+  > `#robot-layer`) of the robot's group (`#world-robot-{id}`), and the robot is always the opaque
+  > back one during the fade. **Front → back:** at the switch point the robot re-mounts in the back
+  > row; the copy fades 1 → 0 over it, then goes. **Back → front:** the robot stays in the back row;
+  > the copy fades 0 → 1 over it while it swims on; once the swim *and* the fade are done, the robot
+  > re-mounts in front at rest under the now-opaque, identical copy, which then goes. The task's
+  > criteria hold as written (copy 1 → 0 or 0 → 1, the re-mounted robot always opaque); only "a copy
+  > in the row it left" is wrong for back → front. Cost: after a back → front fade the robot is drawn
+  > twice for the rest of that swim. The `<use>` was checked in headless Chrome first: it follows
+  > live transform changes on the referenced group and an inner scaled group across two inline
+  > `<svg>`s, and resolves a gradient defined in the other one. **Scale:** the row scale is on a new
+  > `.robot__row` wrapper inside `.robot`, set with `svgOrigin` at the gem canvas centre, which is the
+  > frame `sceneToOrbiterLocal` assumes (`.robot`'s own origin is its bounding box's centre). It eases
+  > over the second swim, or straight from where it is on any other leg. **No switch point for a station
+  > leg** (sites with none are skipped, stations can't be): the robot switches where it is.
 - **Re-mount without a flourish:** `RobotBody` skips the orbiters' initial-mount attach and the
   arc decorator re-registers silently when the remount is a layer switch (a runtime
   `layerSwitching` set in the registry, cleared after mount).
+
+  > **Shipped (Task 34).** `markLayerSwitching` / `isLayerSwitching` / `clearLayerSwitching` in
+  > `robotMotionRegistry.ts`. The loop marks the robot just before it writes `layer`.
+  > `useOrbiterMotion` (a child, so it mounts before `Robot`'s own mount) then shows the shown
+  > corners docked at once, with no hop and no reduced-motion fade, in the world context only.
+  > `onRobotMounted` always clears the mark and runs the leg's continuation, or adopts the robot if
+  > the leg was dropped in between. `RobotBody` itself needed no change: its decorator registration
+  > was already silent, and the halo and strip flicker play nothing on mount.
 - **Fallback:** if J4 fails its gates, it doesn't merge: `BACK_HOSTS_ENABLED` stays false and
-  background buildings don't host.
+  background buildings don't host. *(Task 34 flipped it to true on `feature/jobs-depth`; the gate
+  is Task 35.)*
 
 ### 1.11 Cards and content (J2)
 

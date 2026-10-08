@@ -316,8 +316,8 @@ describe('hostJobs', () => {
 });
 
 describe('isWorkSiteEligible — the depth filter (spec Assumption 7)', () => {
-  it('BACK_HOSTS_ENABLED ships false until J4', () => {
-    expect(BACK_HOSTS_ENABLED).toBe(false);
+  it('BACK_HOSTS_ENABLED ships true from J4 (Task 34): background buildings host', () => {
+    expect(BACK_HOSTS_ENABLED).toBe(true);
   });
 
   it('a background Skyscraper is ineligible with backHosts: false', () => {

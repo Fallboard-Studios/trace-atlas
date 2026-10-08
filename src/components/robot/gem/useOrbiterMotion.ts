@@ -32,7 +32,12 @@ import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 
 import { setTimeline, killTimeline } from '../../../animation/timelineMap';
-import { registerOrbiterWork, deleteOrbiterWork, type OrbiterWork } from '../../../animation/robotMotionRegistry';
+import {
+  registerOrbiterWork,
+  deleteOrbiterWork,
+  isLayerSwitching,
+  type OrbiterWork,
+} from '../../../animation/robotMotionRegistry';
 import { prefersReducedMotion } from '../../../utils/reducedMotion';
 import type { RobotGem as RobotGemGeometry } from './polygon';
 import { ATTACH_DROP, ATTACH_START_SCALE, ATTACH_DURATION, type OrbiterPlan } from './orbiterMotion';
@@ -283,9 +288,21 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
 
       // ----------------------------------------
       // Initial mount — every initially-shown corner attaches at once (a robot powering up, not a
-      // queued sequence; the queue above is only for a later count change).
+      // queued sequence; the queue above is only for a later count change). A layer-switch
+      // re-mount (Phase 43 J4, spec §1.10) is the same robot mid-leg in the other robot row, its
+      // orbiters already docked: they show docked at once, no hop and no fade.
       // ----------------------------------------
-      shownRef.current.forEach((corner) => flyIn(corner, false));
+      if (context === 'world' && isLayerSwitching(robotId)) {
+        shownRef.current.forEach((corner) => {
+          const copy = queryCopy(rootEl, corner);
+          const local = copy && queryLocal(copy);
+          if (!copy || !local) return;
+          gsap.set(copy, { display: '' });
+          gsap.set(local, { x: 0, y: 0, scale: dials.size, opacity: 1 });
+        });
+      } else {
+        shownRef.current.forEach((corner) => flyIn(corner, false));
+      }
 
       // A lightweight registration token, not a real GSAP timeline — nothing is ever added to it
       // (no drift to parent, unlike the pre-docking design), so a genuine `gsap.timeline()` here

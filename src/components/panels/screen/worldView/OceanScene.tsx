@@ -22,6 +22,7 @@ import { getRecipeRow } from '@/systems/factoryPlacementSystem';
 import { getStations } from '@/systems/stations';
 import { ChargingStation } from '@/components/stations/ChargingStation';
 import { ActorType, type Actor } from '@/types/Actor';
+import { setRef, deleteRef } from '@/utils/refs';
 
 import colorTheme from '@/constants/colorTheme.json';
 import { hslToString } from '@/utils/colorUtils';
@@ -75,6 +76,12 @@ function SceneLayer({ name, width, height, moving = false, children }: SceneLaye
       {children}
     </svg>
   );
+}
+
+/** Registers the dissolve copies' group for the work loop (getRef('robot-dissolve-layer')). */
+function registerDissolveLayer(el: SVGGElement | null): void {
+  if (el) setRef('robot-dissolve-layer', el);
+  else deleteRef('robot-dissolve-layer');
 }
 
 // ========================================
@@ -363,6 +370,10 @@ export function OceanScene({
             <Robot key={id} robotId={id} />
           ))}
         </g>
+        {/* Layer-switch dissolve copies (Phase 43 J4, spec §1.10): the work loop appends an SVG
+            `<use>` of a switching robot here — the front row's look of it, fading over the back
+            row's. Empty in JSX, so React never touches what the loop puts in it. */}
+        <g id="robot-dissolve-layer" ref={registerDissolveLayer} />
         <g id="station-front-layer">
           {stations.map((s) => (
             <ChargingStation key={s.id} localeId={localeId} station={s} fragment="front" />

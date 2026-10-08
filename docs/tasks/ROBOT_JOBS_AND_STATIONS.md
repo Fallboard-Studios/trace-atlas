@@ -1701,7 +1701,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   it; `OceanScene.css.test.ts` rewritten for the new rule. 16/16 mutants killed. Full suite 7355
   green (the Task 18 50-gem timeout passed this run).
 
-- [ ] **Task 34: Layer-aware legs; re-mount without a flourish; the dissolve**
+- [x] **Task 34: Layer-aware legs; re-mount without a flourish; the dissolve**
 
   **Description:** The loop splits a leg at the switch point: swim there, write `layer` +
   `position`, mark the robot in the registry's `layerSwitching` set; `onRobotMounted` continues the
@@ -1725,6 +1725,53 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   **Dependencies:** T33. **Files:** `src/systems/workLoop.ts`, `src/animation/robotMotionRegistry.ts`,
   `src/components/robot/RobotBody.tsx`, `src/components/robot/gem/useOrbiterMotion.ts`,
   `src/constants/index.ts` (+ tests). **Scope:** M.
+
+  **As shipped (2026-10-08, `feature/jobs-depth`):** (1) **Back → front differs from the
+  description** (spec §1.10 "Shipped (Task 34)"). If the robot re-mounted in front at the switch
+  point at full opacity, it would cover the back copy and the haze would pop anyway. So in both
+  directions the *front* copy fades and the *back* robot is opaque. Front → back re-mounts at the
+  switch point and the copy fades 1 → 0. Back → front keeps the robot in the back row while the copy
+  fades 0 → 1, and re-mounts in front only when the swim and the fade are both done, at rest under
+  an identical opaque copy. The criteria hold as written. (2) **The `<use>` copy, checked in
+  headless Chrome first:** it follows live transforms across the two inline `<svg>`s, an inner
+  scaled group included, and resolves the other `<svg>`'s gradient. It lives in a new empty
+  `<g id="robot-dissolve-layer">` in the robots layer (after `#robot-layer`), registered with
+  `setRef('robot-dissolve-layer')`, and points at `#world-robot-{id}`, a new id on Robot.tsx's
+  group. It is keyed `dissolve-{id}` (in `LOOP_KEY_PREFIXES`), ended (fade killed, copy removed) by
+  `killLegs`, by a new `dropLeg` (recall and turn-back, which before killed only the swim and bob)
+  and by `stopWorkLoop`. A new dissolve ends any earlier one first. (3) **Scale on a new `.robot__row`
+  wrapper,** with `svgOrigin` at the gem canvas centre, because `.robot` scales about its bounding
+  box, not the frame `sceneToOrbiterLocal` assumes. `swimTo` takes the destination row's scale and
+  eases the row over the swim when it isn't there already; `adopt` places it before any branch (the
+  first cut set it only on the resume path, so an exiting robot kept a stale scale; a test caught
+  it); `hideAtStation` puts a back-row robot in the front row at 1; the job gets `layerScale`
+  `rowScale(robot.layer)`. (4) **Legs:** a new `legTo` splits a leg into the other row: the site leg
+  uses the switch point the decision already found (`reachable` records it, so
+  `findLayerSwitchPoint` is asked once), and the station leg asks its own. A station leg with
+  none switches where the robot is, since sites with none are skipped but stations can't be. With no body there is
+  nothing to re-mount and the leg goes straight on. (5) **Re-mount:** `markLayerSwitching` /
+  `isLayerSwitching` / `clearLayerSwitching` in the registry; the loop holds each continuation in
+  `LoopRun.remounts`; `onRobotMounted` always clears the mark and runs the continuation, or adopts
+  if the leg was dropped in between; `useOrbiterMotion` (world only) shows the shown corners docked
+  at once. `RobotBody` needed no change (the decorator's registration was already silent; halo and
+  flicker play nothing on mount). (6) **`BACK_HOSTS_ENABLED` = true.** The J1–J3 `workLoop` tests
+  start with `backHosts: false` and their `SITES` fixture is built that way, so they are the "flag
+  false" run of the coverage criterion; `lifecycleSim` and the rest of the suite pass with it true.
+  (7) **Tests:** `workLoop.test.ts` +25: front → back, back → front, same-row legs, adoption and
+  Docked scale, the 0.75 value, and the flag default split in two. Interruptions covered: stop
+  mid-fade, stop before the re-mount, stop after a back → front fade, recall mid-swim, a re-mount
+  after a dropped leg, a plain re-mount mid-fade, a new switch while an old fade runs.
+  `useOrbiterMotion.test.tsx` +5, `robotMotionRegistry.test.ts` +4, `Robot.test.tsx` +3,
+  `OceanScene.test.tsx` +2. 29/29 mutants killed: 26 on the first pass, and 3 survivors closed
+  with tests (a dropped leg's stale continuation; a new switch overlapping a running fade; 0.75
+  itself, which every test read only through the constant). The overlapping-fade test failed at
+  first: an out-fade's completion removed copies *by robot id*, so a stale one could take a newer
+  copy. It now removes only its own `<use>`. Full suite 7394 green. One unrelated LFO Bank store
+  test (`audioStore.test.ts`, Attenuation-Style sync) failed once in one full run and passed alone
+  and in the next full run; not chased. **For
+  Checkpoint E:** the switch itself is unverified in a browser (jsdom has no paint). Watch the
+  copy's alignment, the 0.75 ease, and whether the robot drawn twice after a back → front fade
+  shows.
 
 ### Checkpoint E: J4 live
 - [ ] Clean build/lint/types/suite. Crawford, live: robots work among background buildings, never

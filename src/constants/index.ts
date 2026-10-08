@@ -140,11 +140,12 @@ export const BATTERY_FULL_THRESHOLD = 100;
 export const DOCKED_PITCH_DRIFT_RATIO = 0.25;
 
 /**
- * Whether background-depth buildings host work sites (jobHosts.ts's isWorkSiteEligible). False
- * until the depth-layer branch (Phase 43 J4) lands the back robot layer — until then only
- * midground and foreground actors host. See docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.10.
+ * Whether background-depth buildings host work sites (jobHosts.ts's isWorkSiteEligible). True
+ * since Phase 43 J4 (Task 34) landed the back robot row; false puts the world back to midground
+ * and foreground hosts only — J4's fallback if it misses its gates. See
+ * docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.10.
  */
-export const BACK_HOSTS_ENABLED = false;
+export const BACK_HOSTS_ENABLED = true;
 
 /**
  * How far apart findLayerSwitchPoint (animation/layerSwitch.ts) samples a leg, scene units: the
@@ -160,6 +161,13 @@ export const LAYER_SWITCH_STEP = 20;
  * sketch gate, 2026-10-08.
  */
 export const LAYER_DISSOLVE_SECONDS = 1;
+
+/**
+ * The back robot row's scale (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.10): a robot working from
+ * the back row is drawn this much smaller, eased in over the swim after its layer switch and back
+ * out the same way. Applied to Robot.tsx's `.robot__row` about the gem canvas centre.
+ */
+export const BACK_LAYER_SCALE = 0.75;
 
 /** Keep robot destinations at least this far inside every world edge (scene units). */
 export const WORLD_MARGIN = 100;

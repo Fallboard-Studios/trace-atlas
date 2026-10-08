@@ -8,6 +8,9 @@ import {
   getOrbiterWork,
   deleteOrbiterWork,
   clearRobotMotionRegistry,
+  markLayerSwitching,
+  isLayerSwitching,
+  clearLayerSwitching,
   type OrbiterWork,
 } from './robotMotionRegistry';
 import type { ArcDecorator } from '@/components/robot/gem/useHaloMotion';
@@ -94,6 +97,48 @@ describe('robotMotionRegistry — orbiter work controls', () => {
     registerArcDecorator('r1', decorator());
     registerOrbiterWork('r1', w);
     deleteArcDecorator('r1');
+    expect(getOrbiterWork('r1')).toBe(w);
+  });
+});
+
+// Phase 43 Task 34 (spec §1.10 "Re-mount without a flourish"): the work loop marks a robot before
+// it writes the robot's `layer`, so the re-mount React then does in the other robot row knows it is
+// a layer switch — RobotBody's hooks run before Robot's own mount hands the robot back to the loop,
+// which clears the mark.
+describe('robotMotionRegistry — the layerSwitching set', () => {
+  beforeEach(() => clearRobotMotionRegistry());
+
+  it('a robot is switching only between mark and clear, per robot id', () => {
+    expect(isLayerSwitching('r1')).toBe(false);
+    markLayerSwitching('r1');
+    expect(isLayerSwitching('r1')).toBe(true);
+    expect(isLayerSwitching('r2')).toBe(false);
+    clearLayerSwitching('r1');
+    expect(isLayerSwitching('r1')).toBe(false);
+  });
+
+  it('marking twice needs one clear; clearing an unmarked robot is a no-op', () => {
+    markLayerSwitching('r1');
+    markLayerSwitching('r1');
+    clearLayerSwitching('r1');
+    expect(isLayerSwitching('r1')).toBe(false);
+    expect(() => clearLayerSwitching('nobody')).not.toThrow();
+  });
+
+  it('clearRobotMotionRegistry clears it with the two maps', () => {
+    markLayerSwitching('r1');
+    clearRobotMotionRegistry();
+    expect(isLayerSwitching('r1')).toBe(false);
+  });
+
+  it('is independent of the two maps', () => {
+    const w = work();
+    registerOrbiterWork('r1', w);
+    markLayerSwitching('r1');
+    deleteOrbiterWork('r1');
+    expect(isLayerSwitching('r1')).toBe(true);
+    clearLayerSwitching('r1');
+    registerOrbiterWork('r1', w);
     expect(getOrbiterWork('r1')).toBe(w);
   });
 });

@@ -78,6 +78,7 @@ import type { Actor } from '@/types/Actor';
 import type { Robot as RobotType } from '@/types/Robot';
 import colorTheme from '@/constants/colorTheme.json';
 import { hslToString } from '@/utils/colorUtils';
+import { getRef } from '@/utils/refs';
 
 function makeRobot(overrides: Partial<RobotType> = {}): RobotType {
   return {
@@ -629,12 +630,35 @@ describe('OceanScene', () => {
       const { container } = render(<OceanScene />);
       const robotsLayer = container.querySelector('svg[data-scene-layer="robots"]')!;
       const groups = Array.from(robotsLayer.querySelectorAll(':scope > g')).map((g) => g.id);
-      expect(groups).toEqual(['station-l4-layer', 'station-l3-layer', 'robot-layer', 'station-front-layer']);
+      expect(groups).toEqual(['station-l4-layer', 'station-l3-layer', 'robot-layer', 'robot-dissolve-layer', 'station-front-layer']);
       for (const [id, fragment] of [['station-l4-layer', 'l4'], ['station-l3-layer', 'l3'], ['station-front-layer', 'front']] as const) {
         const markers = Array.from(robotsLayer.querySelectorAll(`#${id} > g[data-station-mock]`));
         expect(markers.map((m) => m.getAttribute('data-station-mock'))).toEqual(stations.map((s) => s.id));
         for (const m of markers) expect(m.getAttribute('data-fragment')).toBe(fragment);
       }
+    });
+
+    // Phase 43 Task 34 (spec §1.10): the layer-switch dissolve's `<use>` copies go here — in the
+    // front robot row, over the front robots and under the station's front fragment. The work loop
+    // fills it imperatively, so React renders it empty and registers it for getRef.
+    it('renders an empty #robot-dissolve-layer after the robots and registers it as robot-dissolve-layer', () => {
+      const { container, unmount } = render(<OceanScene />);
+      const layer = container.querySelector('svg[data-scene-layer="robots"] > #robot-dissolve-layer');
+      expect(layer).not.toBeNull();
+      expect(layer!.children).toHaveLength(0);
+      expect(getRef('robot-dissolve-layer')).toBe(layer);
+      unmount();
+      expect(getRef('robot-dissolve-layer')).toBeUndefined();
+    });
+
+    it('a copy the loop appends survives a scene re-render', () => {
+      const { container } = render(<OceanScene />);
+      const layer = getRef('robot-dissolve-layer')!;
+      const use = layer.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'use'));
+      act(() => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot({ id: 'r9' }));
+      });
+      expect(container.querySelector('#robot-dissolve-layer')!.firstChild).toBe(use);
     });
 
     it('draws no station in any other layer', () => {
