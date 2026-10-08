@@ -105,7 +105,8 @@ J2  T17 registry + orbiter lock ─┐   T18 centre/position + sceneToOrbiterLoc
                     Checkpoint C (Crawford live + Phase 41 halo gate) ─► T26 perf gate (stop) ─► T27 J2 docs
 J3  T28 trace + ring + variation ─► T29 carry + fan + spark, six-job table ─► Checkpoint D ─► T30 perf (stop) ─► T31 docs
 J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer robots + clicks
-    ─► T34 layer-aware legs + remount without flourish ─► Checkpoint E ─► T35 perf + Pixel (stop) ─► T36 final docs
+    ─► T34 layer-aware legs + remount without flourish ─► T34b station L4 + exits in the back row (Q1–Q3 first)
+    ─► Checkpoint E ─► T35 perf + Pixel (stop) ─► T36 final docs
 ```
 
 ## Task List
@@ -1691,7 +1692,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `rect[data-depth-tint]` plus the two old ids, so the same ablation runs on J3's build for T35; a
   new per-layer element-count line names all six `data-scene-layer` values ("absent" on an older
   build). (6) **Not done here:** spec §1.6 moves L4 and the exiting robots into `robots-back`; no
-  J4 task lists it (T34 doesn't), so exits still use the front-row fallback. (7) **Tests:**
+  J4 task listed it (T34 doesn't), so exits still use the front-row fallback. Now **Task 34b**. (7) **Tests:**
   `OceanScene.test.tsx` +17 (stack order, moving flags, rows per layer, the tint table, slots,
   gradients per layer, the DOM coverage readout via `compareDocumentPosition`, row routing incl.
   unset/empty/both-way moves and no re-render on a same-row write); new
@@ -1773,6 +1774,62 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   copy's alignment, the 0.75 ease, and whether the robot drawn twice after a back → front fade
   shows.
 
+- [ ] **Task 34b: The station's back fragment and exiting robots in the back row**
+
+  **Why:** spec §1.6 (the Task 0a correction) puts **L4 and the exiting robots in `robots-back`**:
+  back to front, L4 · exiting robots · L3 · entering robots · L2 · halo + ripple · L1, with the
+  exit arc growing from `STATION_PORT_SCALE` to the back row's scale. J2 shipped the fallback
+  (spec §1.6 "Shipped (J2)", plan T20 (12)): every robot, exiting ones included, draws in
+  `#robot-layer`, so an exiting robot appears *above* L3, not behind it. J2 deferred it to J4's
+  layer work, but no J4 task listed it (found at T33). Added 2026-10-08 at Crawford's request.
+
+  **Description:** `OceanScene` moves `#station-l4-layer` from `robots` to the bottom of
+  `robots-back`, under `#robot-back-layer`. `exitStation` writes `layer: 'background'` before the
+  arc (the robot is hidden at the port, `autoAlpha` 0, so the re-mount shows nothing; mark it
+  `layerSwitching` like any switch), and the spawn arc ends at the row's scale: `.robot` 0.15 → 1
+  with `.robot__row` at `BACK_LAYER_SCALE`. Its `next()` then leaves from the back row: a
+  background site is a same-row swim, and a front site or a station is a back → front leg with
+  T34's split and dissolve. Entering is unchanged (front row, between L3 and L2). Spec §1.10's
+  "Which layer" rule ("stations are front") gains the exception: `'exiting'` is back.
+
+  **Decide first (Crawford), each with the plan's recommendation:**
+  - **Q1. L4's haze.** In `robots-back`, L4 sits under tints B, C and D (1 − .75·.8·.9 = 46 %),
+    while L3–L1 sit under D only (10 %), so a station's back plate reads hazier than the rest of
+    it. *Recommend:* accept, since that is depth, and judge it live at Checkpoint E. The alternative,
+    L4 in front and only the exiting robot in the back row, breaks "L4 behind the exiting robot".
+  - **Q2. Midground in front of a station's back plate.** Stations avoid only hosts' work-site
+    bounds (`stations.ts` `hostObstacles`, and even that rule goes when no layout fits). A
+    station can overlap a midground silhouette: a rooftop greeble, non-host scenery, a pipe
+    bridge, a ground step. Wherever it does, that silhouette draws *between* L4 and L3, and in
+    front of the exiting robot. *Recommend:* measure first, over the 121-seed grid, how many
+    stations' boxes overlap `getMidgroundSilhouettes`. None: go ahead. Some: stop and report, with
+    the options (add midground silhouettes to station obstacles, which moves stations in those
+    worlds; or keep L4 in front for an overlapping station only).
+  - **Q3. Every exit to a front site becomes a back → front switch** right after the arc: a second
+    fade and a scale ease 0.75 → 1 within a second or two of appearing. *Recommend:* accept, and
+    watch it live. The alternative is to exit at scale 1 in the front row and only *look* emerged
+    from behind L3, which isn't the spec's design.
+
+  **Acceptance criteria:**
+  - [ ] DOM order: `robots-back` is `#station-l4-layer` then `#robot-back-layer`; `robots` is
+        `#station-l3-layer`, `#robot-layer`, `#robot-dissolve-layer`, `#station-front-layer`; no
+        L4 left in `robots`.
+  - [ ] An exiting robot is written `layer: 'background'` (marked, while still hidden) before its
+        arc, renders in `#robot-back-layer` above L4, and its arc ends with `.robot` at 1 and
+        `.robot__row` at `BACK_LAYER_SCALE`. No orbiter attach hop on that re-mount.
+  - [ ] After the exit: a background site is a same-row swim (no copy); a front site is a split
+        leg with the T34 dissolve; a recall mid-arc still enters from the front row.
+  - [ ] `adopt` of an `'exiting'`/`'charging'`-but-Active robot, and the power-on exits at world
+        open, go through the same path: twelve robots exiting at once re-mount without a frame
+        shown at the wrong scale or row.
+  - [ ] Q2's measurement is recorded with its numbers, and the go-ahead or the stop is recorded.
+
+  **Verification:** `npx vitest run src/systems/workLoop.test.ts src/components/panels/screen/worldView src/components/stations`.
+  **Dependencies:** T34; Q1–Q3 answered. **Files:** `OceanScene.tsx` (+ test),
+  `src/systems/workLoop.ts` (+ test), `src/components/stations/ChargingStation.tsx` (its header
+  comment), spec §1.6 / §1.10 Shipped notes, `scripts/perf/idle-paint.mjs` if its stack count
+  should report L4 under the back row. **Scope:** S–M.
+
 ### Checkpoint E: J4 live
 - [ ] Clean build/lint/types/suite. Crawford, live: robots work among background buildings, never
       pop through a midground silhouette, no hitch at a layer switch (spec §7 Q3 — a hitch is a
@@ -1780,7 +1837,8 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
       (judged on flat boxes in the sketch — background 49 %, midground 28 %, every robot 10 %; the
       sketch's readout said 44 % and 20 %, see Task 33's As shipped).
       Note for the hitch call: the split leg brings the robot to rest at the switch point (two
-      sine.inOut swims).
+      sine.inOut swims). With T34b: a robot exiting from behind L3, L4's extra haze (Q1), and the
+      back → front switch that follows an exit to a front site (Q3).
 
 - [ ] **Task 35: J4 perf gate + Pixel — stop and report**
 
