@@ -8,10 +8,14 @@ import {
   AUDIO_MODE_LABELS,
   AUDIO_STATUS_COLOR_MAP,
   AUDIBILITY_LABELS,
+  ACTIVITY_LABELS,
 } from './robotSelectionConfig';
 import { CONTENT } from '@/content';
 
-import { JobType, DockingState } from '@/types/Robot';
+import { JobType, DockingState, type RobotActivity } from '@/types/Robot';
+
+// RobotActivity is a type-only union (types/Robot.ts) — the seven spelled out, in lifecycle order.
+const ACTIVITIES = ['charging', 'exiting', 'transit', 'working', 'waiting', 'returning', 'entering'] as const satisfies readonly RobotActivity[];
 
 // Every Robot['audioMode'] value per its own type comment (Robot.ts) — no const-object export
 // exists for this union today, unlike JobType/DockingState, so the literal list is spelled out
@@ -119,6 +123,30 @@ describe('robotSelectionConfig', () => {
       expect(DOCKING_STATE_LABELS[DockingState.Undocking].humanLabel).toBe('Undocking');
       expect(DOCKING_STATE_LABELS[DockingState.Active].humanLabel).toBe('Active');
       expect(DOCKING_STATE_LABELS[DockingState.Recalled].humanLabel).toBe('Recalled');
+    });
+  });
+
+  describe('ACTIVITY_LABELS (Phase 43 Task 25, spec §1.11)', () => {
+    it('labels exactly the seven activities, in lifecycle order, with the spec\'s human words', () => {
+      expect(Object.keys(ACTIVITY_LABELS)).toEqual([...ACTIVITIES]);
+      expect(ACTIVITIES.map((a) => ACTIVITY_LABELS[a].humanLabel)).toEqual([
+        'Charging', 'Exiting', 'In transit', 'Working', 'Waiting', 'Returning', 'Entering',
+      ]);
+    });
+
+    it('gives every activity a lore line, and no two activities share a human or lore word', () => {
+      for (const a of ACTIVITIES) expect(ACTIVITY_LABELS[a].loreLabel).toBeTruthy();
+      expect(new Set(ACTIVITIES.map((a) => ACTIVITY_LABELS[a].humanLabel)).size).toBe(7);
+      expect(new Set(ACTIVITIES.map((a) => ACTIVITY_LABELS[a].loreLabel)).size).toBe(7);
+    });
+
+    it('is the probe.status.activity options record, and its row schema carries the field label', () => {
+      expect(ACTIVITY_LABELS.transit.loreLabel).toBe(CONTENT['probe.status.activity'].options.transit.lore);
+      expect(ROBOT_SELECTION_ROW_SCHEMAS.activity).toMatchObject({
+        type: 'dualLabel',
+        humanLabel: 'Activity',
+        loreLabel: CONTENT['probe.status.activity'].lore,
+      });
     });
   });
 

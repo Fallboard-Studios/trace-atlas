@@ -8,7 +8,7 @@
  * review (see docs/tasks/ROBOT_SELECTION.md Task 12).
  */
 import type { DualLabelSchema, SliderLinearSchema } from '@/types/controls';
-import type { JobType, DockingState, Robot } from '@/types/Robot';
+import type { JobType, DockingState, Robot, RobotActivity } from '@/types/Robot';
 import type { AudibilityState } from '@/utils/robotAudibility';
 import type { StatusLightState } from '@/utils/statusLightColors';
 import { labels, optionsRecord } from '@/content';
@@ -21,6 +21,8 @@ export const ROBOT_SELECTION_ROW_SCHEMAS = {
   name: { id: 'robotSelection.name', type: 'dualLabel', ...labels('probe.name') },
   job: { id: 'robotSelection.job', type: 'dualLabel', ...labels('probe.job') },
   docking: { id: 'robotSelection.docking', type: 'dualLabel', ...labels('probe.status.docking') },
+  // activity: RobotDisplaySection's row after Docked Status (Phase 43 spec §1.11).
+  activity: { id: 'robotSelection.activity', type: 'dualLabel', ...labels('probe.status.activity') },
   // status: new field-level DualLabel (Roadmap 15.3) — the Status VALUE labels (AUDIBILITY_LABELS,
   // below) already existed from Roadmap 15.2, but that card never wrapped Status in a DualLabel of
   // its own (it renders bare, combined with Docking into one line) — this is the first FIELD-level
@@ -73,6 +75,9 @@ export const JOB_TYPE_LABELS: Record<JobType, ValueLabel> = optionsRecord('probe
 export const UNASSIGNED_JOB_LABEL: ValueLabel = labels('probe.job.unassigned');
 
 export const DOCKING_STATE_LABELS: Record<DockingState, ValueLabel> = optionsRecord('probe.status.docking');
+
+/** The work loop's seven activities (Phase 43 spec §1.11), keyed by `Robot.activity`. */
+export const ACTIVITY_LABELS: Record<RobotActivity, ValueLabel> = optionsRecord('probe.status.activity');
 
 type AudioMode = NonNullable<Robot['audioMode']>;
 

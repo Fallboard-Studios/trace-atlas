@@ -30,7 +30,8 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
-import type { Robot } from '@/types/Robot';
+import { ROBOT_SELECTION_ROW_SCHEMAS, ACTIVITY_LABELS } from '@/data/robotSelectionConfig';
+import type { Robot, RobotActivity } from '@/types/Robot';
 import type { Locale } from '@/types/locale';
 
 function makeRobot(overrides: Partial<Robot> = {}): Robot {
@@ -48,6 +49,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     createdAt: Date.now(),
     masterVolume: 0.7,
     docking: 'active',
+    activity: 'working',
     batteryLevel: 82,
     audioMode: 'none',
     job: 'acousticSurvey',
@@ -153,7 +155,7 @@ describe('RobotDisplaySection', () => {
     // makeRobot() defaults to audioMode: 'none' with no other robot in the
     // locale soloed, so Status reads "Emitting" (isRobotAudible).
     const values = Array.from(container.querySelectorAll('.robot-display-section__value')).map((el) => el.textContent);
-    expect(values).toEqual(['Test Robot', 'Acoustic Survey', 'Active', 'Emitting']);
+    expect(values).toEqual(['Test Robot', 'Acoustic Survey', 'Active', 'Working', 'Emitting']);
 
     container.querySelectorAll('.robot-display-section__value').forEach((el) => {
       expect(el.closest('button, input, [role="button"], [role="radio"], [role="switch"]')).toBeNull();
@@ -171,6 +173,39 @@ describe('RobotDisplaySection', () => {
       expect(captions).toContain('Job Data');
       expect(captions).toContain('Docked Status');
       expect(captions).toContain('Status');
+    });
+
+    describe('Activity row (Phase 43 Task 25, spec §1.11)', () => {
+      const ACTIVITIES = ['charging', 'exiting', 'transit', 'working', 'waiting', 'returning', 'entering'] as const satisfies readonly RobotActivity[];
+
+      it('sits right after Docked Status, with its own Activity caption', () => {
+        const robot = makeRobot();
+        useLocaleStore.getState().addRobot(localeId, robot);
+        const { container } = render(<RobotDisplaySection robot={robot} />);
+        const fields = [...container.querySelectorAll('.robot-display-section__grid > .robot-display-section__field')];
+        const docking = fields.findIndex((f) => f.classList.contains('robot-display-section__field--docking'));
+        const activity = fields[docking + 1];
+        expect(activity.classList).toContain('robot-display-section__field--activity');
+        expect(activity.querySelector('.sc-dual-label__human')!.textContent).toBe(ROBOT_SELECTION_ROW_SCHEMAS.activity.humanLabel);
+        expect(activity.querySelector('.sc-dual-label__lore')!.textContent).toBe(ROBOT_SELECTION_ROW_SCHEMAS.activity.loreLabel);
+      });
+
+      it.each(ACTIVITIES)('reads the %s activity\'s label', (activity) => {
+        const robot = makeRobot({ activity });
+        useLocaleStore.getState().addRobot(localeId, robot);
+        const { container } = render(<RobotDisplaySection robot={robot} />);
+        const value = container.querySelector('.robot-display-section__field--activity .robot-display-section__value')!;
+        expect(value.textContent).toBe(ACTIVITY_LABELS[activity].humanLabel);
+      });
+
+      it('follows a new activity on the next robot object', () => {
+        const robot = makeRobot({ activity: 'returning', docking: 'recalled' });
+        useLocaleStore.getState().addRobot(localeId, robot);
+        const { container, rerender } = render(<RobotDisplaySection robot={robot} />);
+        rerender(<RobotDisplaySection robot={{ ...robot, activity: 'entering' }} />);
+        const value = container.querySelector('.robot-display-section__field--activity .robot-display-section__value')!;
+        expect(value.textContent).toBe(ACTIVITY_LABELS.entering.humanLabel);
+      });
     });
 
     it('renders no .robot-display-section__row anywhere — retired in favor of the grid/field classes', () => {

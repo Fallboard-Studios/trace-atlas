@@ -1209,16 +1209,43 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `src/constants/index.ts`, `docs/PROCEDURAL_GENERATION.md` and the test fixtures above.
   **Scope:** M.
 
-- [ ] **Task 25: Card states**
+- [x] **Task 25: Card states**
 
   **Description:** `probe.status.activity` with the seven activities (spec §1.11), `ACTIVITY_LABELS`,
   `RobotSelectionCard`'s status line `{docking} · {activity} · {audibility}`, and an Activity row in
   `RobotDisplaySection` after Docked Status. Lore lines flagged for Crawford's review.
 
   **Acceptance criteria:**
-  - [ ] Each activity renders its label on both surfaces; content test green; no literals.
-  - [ ] The card line holds its largest-content width (project rule: controls hold their largest
+  - [x] Each activity renders its label on both surfaces; content test green; no literals.
+  - [x] The card line holds its largest-content width (project rule: controls hold their largest
         content size) — no reflow as activities change.
+
+  **As shipped (2026-10-08):** (1) **Content.** `probe.status.activity`: field "Activity" / lore
+  "OPERATIONAL PHASE", seven options with the spec's human words. The lore lines are drafts for
+  Crawford's review: CELL REPLENISHMENT, BERTH DEPARTURE, EN ROUTE TO SITE, PROTOCOL IN PROGRESS,
+  HOLDING FOR CLEARANCE, RETURNING TO BERTH, BERTH ARRIVAL. They are ALL CAPS like the docking
+  options beside them. (2) **Config.** `ACTIVITY_LABELS = optionsRecord('probe.status.activity')`,
+  typed `Record<RobotActivity, …>`, plus `ROBOT_SELECTION_ROW_SCHEMAS.activity` for the detail
+  row's caption. (3) **Held words.** Both the docking and the activity word are held, not just the
+  activity: both have more of the line after them, and docking changes alongside activity
+  (docked→charging, active→exiting). Audibility comes last, so nothing after it can shift, and it
+  stays plain text. `HeldWord` (local to `RobotSelectionCard.tsx`) stacks every label of its set
+  in one inline-grid cell, current one `data-current`, the rest `visibility: hidden`. This is the
+  ToggleFacade technique for a set of any size. The cell is `aria-hidden`, since the card's
+  `role="button"` aria-label already names it. Start-aligned, so a short word leaves its slack
+  before the next `·`. That gap needs an eye-check at Checkpoint C. (4) **Measured in real
+  Chrome** (a throwaway page with the real card CSS, deleted afterwards): over all 28
+  docking × activity combinations, the docking cell is 66.16 px, the activity cell 60.70 px and
+  the audibility word's left edge 159.77 px, one value each. Each cell equals its widest plain
+  word (docking words 38.13–66.16 px, activity words 42.03–60.70 px). jsdom can't do layout, so
+  the CSS contract is pinned by `RobotSelectionCard.css.test.ts`. (5) **Detail row:**
+  `.robot-display-section__field--activity` right after Docked Status, with a plain value (each
+  field has its own centred row, so nothing reflows). (6) **Mutation checks:** current word never
+  set, aria-hidden dropped, wrong activity shown, activity or docking left un-held, and the
+  detail row hard-coded each fail tests (20/1/8/3/4/7). The aria-hidden test first passed
+  vacuously with zero cells, so it now asserts two. The status-line tests in
+  `RobotSelectionCard.test.tsx` and `RobotsTab.test.tsx` read the visible words, not
+  `textContent`. Suite 7000 green.
 
   **Verification:** `npx vitest run src/content src/components/selection src/components/robot/RobotDisplaySection.test.tsx`.
   **Dependencies:** T21. **Files:** `src/content/copy/probe.ts`, `src/data/robotSelectionConfig.ts`,
