@@ -1885,6 +1885,21 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 
   **Files:** `docs/PERFORMANCE.md`. **Scope:** S.
 
+  **As run (2026-10-08), harness half; the task stays open for Crawford's call and the Pixel run:**
+  branch `f6c3d16c` vs J3's tip `409957d7`, same-session A/B, pinned world, four alternated rounds
+  (PERFORMANCE.md "Robot Jobs J4"). Medians: busy 2813 vs 2665 ms (+5.5 %, inside the base's spread,
+  no change), **paint 208 vs 177 ms (+17 %, outside the base's 166–185 spread, higher in 4 of 4
+  pairs): a miss by the J1–J3 rule.** That's about +31 ms per 6 s window, under 0.1 ms per frame.
+  Localized: the extra moving layer (`robots-back` repaints every frame like `robots`; together
+  +12 ms) and a root paint that's 17 ms higher, with a matching residual with robots hidden. That
+  makes it a fixed cost of the extra layers, not of robots; the robots' own paint isn't higher.
+  The tints cost 0 at idle (static layers). **Memory:** +2 compositor layers (`robots-back`, and
+  `mid`, which Chrome must promote because it is painted over a composited layer): +8.3 MB on
+  desktop and +9.3 MB at phone width × DPR 2, estimated ≈ +17 MB on a Pixel 8. `idle-paint.mjs`
+  gained the compositor-layer readout (counts, the scene's composited layers by
+  `data-scene-layer`, an estimate in MB scaled by DPR²).
+
+
 - [ ] **Task 36: Final docs**
 
   **Description:** ANIMATION_SYSTEM.md scene stack and layer switch; ROBOT_DESIGN.md the 0.75

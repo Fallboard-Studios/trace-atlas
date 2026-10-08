@@ -246,6 +246,41 @@ async function describeNode(send, backendNodeId) {
   }
 }
 
+/**
+ * Phase 43 J4 (Task 35): the compositor layers, once, before any traced window. Memory is estimated the way
+ * DevTools' Layers panel does — width × height × 4 bytes for each layer that draws content — so it is a
+ * comparison figure, not the GPU's real allocation. LayerTree reports CSS pixels, so the estimate is scaled
+ * by the emulated device scale factor squared. The scene's own layers are named by `data-scene-layer`.
+ */
+async function printCompositorLayers({ send, onEvent }, dpr) {
+  let layers = null;
+  const stop = onEvent((m) => { if (m.method === 'LayerTree.layerTreeDidChange' && m.params.layers) layers = m.params.layers; });
+  await send('LayerTree.enable');
+  for (let i = 0; i < 30 && !layers; i++) await sleep(100);
+  await send('LayerTree.disable');
+  stop();
+  if (!layers) { console.log('Compositor layers: no layer tree reported'); return; }
+  const drawing = layers.filter((l) => l.drawsContent);
+  const mb = (ls) => (ls.reduce((s, l) => s + l.width * l.height * 4 * dpr * dpr, 0) / (1024 * 1024)).toFixed(1);
+  const owned = drawing.filter((l) => l.backendNodeId !== undefined);
+  const scene = [];
+  for (const l of owned) {
+    const name = await describeSceneLayer(send, l.backendNodeId);
+    if (name) scene.push(`${name} ${Math.round(l.width)}×${Math.round(l.height)}`);
+  }
+  console.log(`Compositor layers: ${layers.length} (${drawing.length} drawing content, ≈ ${mb(drawing)} MB at 4 B per device px, DPR ${dpr}; ${owned.length} with an owning node); scene (CSS px): ${scene.join(', ') || 'none named'}`);
+}
+
+/** A layer's `data-scene-layer` name, if its owning node is one of the scene's `<svg>`s. */
+async function describeSceneLayer(send, backendNodeId) {
+  try {
+    const { node } = await send('DOM.describeNode', { backendNodeId });
+    const attrs = node.attributes ?? [];
+    for (let i = 0; i < attrs.length; i += 2) if (attrs[i] === 'data-scene-layer') return attrs[i + 1];
+  } catch { /* not resolvable */ }
+  return null;
+}
+
 async function run(cdp) {
   const { send } = cdp;
   const evaluate = async (expression) => {
@@ -294,7 +329,9 @@ async function run(cdp) {
       l4: n('#station-l4-layer *'), l3: n('#station-l3-layer *'), robotLayer: n('#robot-layer *'), backRow: n('#robot-back-layer *'),
       backRobots: n('#robot-back-layer .robot'), front: n('#station-front-layer *'), shown };
   })()`);
-  console.log(`Robots stack: ${stack.stations} stations; elements L4 ${stack.l4}, L3 ${stack.l3}, #robot-layer ${stack.robotLayer}, front ${stack.front}; back row #robot-back-layer ${stack.backRow} (${stack.backRobots} robots); ${stack.shown} robots visible\n`);
+  console.log(`Robots stack: ${stack.stations} stations; elements L4 ${stack.l4}, L3 ${stack.l3}, #robot-layer ${stack.robotLayer}, front ${stack.front}; back row #robot-back-layer ${stack.backRow} (${stack.backRobots} robots); ${stack.shown} robots visible`);
+  await printCompositorLayers(cdp, isPhone ? 2 : 1);
+  console.log('');
 
   const wanted = opts.only ? new Set(opts.only.split(',').map((s) => s.trim())) : null;
   const rows = [];

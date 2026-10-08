@@ -1182,6 +1182,87 @@ on both: `StyleRecalc Attribute` ≈ 23–25 k (`g.robot`, `ellipse.gem__halo`).
 visible robot on both builds here (3 visible). J3's moves add nothing measurable per robot. The J2-vs-J1 gap
 is still unexplained. It's still one run per build, so it stays a lead, not a finding.
 
+## Robot Jobs J4 — the Task 35 perf gate (2026-10-08, Phase 43)
+
+Gate ([docs/tasks/ROBOT_JOBS_AND_STATIONS.md](tasks/ROBOT_JOBS_AND_STATIONS.md) Task 35, spec §5.4): J4 (the six-layer
+scene split, the back robot row, the four depth tints, layer-aware legs and the dissolve, exits from the back row,
+`BACK_HOSTS_ENABLED` on) idle busy and Paint within the noise band of J3's tip, as Tasks 26 and 30, plus the extra
+compositor layers' memory and the tints. **Harness: paint misses by the J1–J3 rule; busy passes. Stopped for
+Crawford.** His Pixel run is the gate.
+
+**Method:** as the J2 and J3 gates. Branch `feature/jobs-depth` `f6c3d16c` (Checkpoint E) on :4185
+(`index-Fsw5VSqs.js`). Base: J3's tip on main, `409957d7` (the T31 docs merge this branch was cut from), built
+in a throwaway `git worktree` (its `node_modules` a junction to the checkout's; `package.json` and the lockfile
+are identical) and served on :4186 (`index-Cl1wGU9O.js`). Each port's served bundle filename was checked against
+its build before measuring. Same pinned world: style `alpha`, `(0, 50)`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no
+overrides, encoded with `encodeSessionPayload` (version 2). `npm run perf:idle --throttle 1 --only none`,
+foreground; 0 orphaned Chrome before and after. Four rounds, order alternated (T30's first-run lesson). The
+harness was run from the branch against both ports; it gained a compositor-layer readout for this gate.
+
+| Round (order) | Branch busy / paint (ms) | Base busy / paint (ms) |
+|---|---|---|
+| 1 (branch first) | 2950 / 209 | 2894 / 185 |
+| 2 (base first) | 2855 / 216 | 2827 / 182 |
+| 3 (branch first) | 2770 / 206 | 2401 / 172 |
+| 4 (base first) | 2305 / 173 | 2503 / 166 |
+| **Median** | **2813 / 208** | **2665 / 177** |
+
+Busy **+5.5 %**, inside the base's own spread (2401–2894): **no change by the rule**. Paint **+17 %**: the branch
+median sits **outside** the base's spread (166–185), and the branch painted more in all four pairs (+24, +34,
++34, +7 ms). **A miss by the rule the J1–J3 gates used.** In absolute terms it is about +31 ms of paint per 6 s
+window, ≈ 5 ms a second, under 0.1 ms per frame at the 340 frames measured.
+
+Same scene on both builds in every window: 12 robots, 3 visible, 2 stations, L4 4 / L3 16 / front 58 elements. On
+the branch 1 of the 3 visible robots was in the back row (`#robot-back-layer` 75–76 elements), so `#robot-layer`
+read 791–796 against the base's 854–860.
+
+**Where the paint goes** (stock window, per painted node, every round):
+
+| Node | Branch (r1–r4) | Base (r1–r4) |
+|---|---|---|
+| Moving robot layers, summed | 88, 91, 87, 73 (two layers: 55–69 + 18–22) | 78, 77, 73, 70 (one layer) |
+| Root (`''`, 1280 × 900 clip) | 119, 124, 118, 99 | 106, 104, 98, 95 |
+| Static layers (back, mid, front; tints included) | 1–3 paints, 0 ms | 1–3 paints, 0 ms |
+
+- **The second moving layer.** `robots-back` repaints every frame while a robot moves in it, like `robots`. Moving
+  one robot there didn't move its cost: the two moving layers together paint about 12 ms more than the base's
+  one (medians 87.5 vs 75).
+- **The root paints more too** (medians 118.5 vs 101, +17.5 ms). The cause isn't measured. The `no-robots`
+  ablation below leaves a residual of the same size, so it reads as a fixed cost of the extra layers, not of
+  robots.
+- **The four tints cost nothing at idle.** They live in static layers, which paint 1–3 times a window at 0 ms,
+  the same as the base's two gradients.
+
+**Ablation pass** (one run per build, `--only no-robots`; read paint only, as in the J2 and J3 gates):
+
+| Build | stock busy / paint | no-robots busy / paint | Robots' paint |
+|---|---|---|---|
+| Branch | 2158 / 172 | 3534 / 73 | 99 ms |
+| Base | 2435 / 174 | 2789 / 55 | 119 ms |
+
+This run's stock windows read level (172 vs 174), unlike all four rounds. With every robot hidden the branch still
+paints 18 ms more (73 vs 55), which is the fixed overhead. The robots' own paint is not higher on the branch
+(99 vs 119).
+
+**Compositor layers and memory** (DevTools' estimate, width × height × 4 B per device pixel, for layers that draw
+content; not the GPU's real allocation):
+
+| Viewport | Branch | Base | Difference |
+|---|---|---|---|
+| Desktop 1280 × 900, DPR 1 | 29 layers (26 drawing), ≈ 32.9 MB | 27 (24), ≈ 24.6 MB | +2 layers, **+8.3 MB** |
+| Phone 412 × 844, DPR 2 | 22 (19), ≈ 40.9 MB | 20 (17), ≈ 31.6 MB | +2 layers, **+9.3 MB** |
+
+The scene's composited layers are `robots-back`, `mid`, `robots`, `front` on the branch, and `robots`, `front` on
+the base (each the world view's size: 1248 × 868 CSS px on desktop, 380 × 812 on the phone). The two new ones are
+`robots-back` (`will-change: transform`) and `mid`, which is static but painted above a composited layer, so
+Chrome must give it its own. +8.3 MB is exactly two 1248 × 868 layers. On a Pixel 8 (DPR ≈ 2.6) the same two
+layers would be ≈ +17 MB, an estimate from the phone run; it wasn't measured on the device.
+
+**For the Pixel run:** the harness can't say whether +5 ms of paint a second and two more full-size layers matter
+on the phone; the plan makes the Pixel run the gate. If it does miss, the fallback is J4 not merging and
+`BACK_HOSTS_ENABLED` staying false on main. Smaller options, all unmeasured: promote `robots-back` only while a
+robot is in it, or collapse `mid` into a non-composited layer by reordering what overlaps it.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
