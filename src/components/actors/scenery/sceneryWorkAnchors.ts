@@ -3,6 +3,7 @@
 // ========================================
 import type { Actor, SceneryKind } from '../../../types/Actor';
 import type { Vec2 } from '../../../types/Vec2';
+import type { WorkPaths } from '../../../systems/workSites';
 import {
   deriveSceneryParams,
   ventSteps,
@@ -53,8 +54,8 @@ export interface SceneryAnchors {
   outline: Vec2[];
   /** 2–4 work points. */
   points: Vec2[];
-  /** A polyline of ≥ 2 vertices. */
-  path: Vec2[];
+  /** The polylines the moves trace (spec §1.5): `outline` always, `pipe` only on a pipeline. */
+  paths: WorkPaths;
 }
 
 export interface AnchorOptions {
@@ -209,7 +210,7 @@ function tankAnchors(actor: Actor, p: TankParams, { foreground, rand }: AnchorOp
     bounds: { x0: left, y0: top, x1: right, y1: y },
     outline,
     points: foreground ? [topPoint, outline[1], outline[2]] : [gauge, topPoint, outline[1]],
-    path: outline,
+    paths: { outline },
   };
 }
 
@@ -232,7 +233,7 @@ function domeAnchors(actor: Actor, p: DomeParams, { foreground, rand }: AnchorOp
     bounds: { x0: x - rx, y0: apex, x1: x + rx, y1: y },
     outline,
     points: foreground ? [mast, portholes[i], portholes[j]] : [mast, portholes[i], hatch],
-    path: outline,
+    paths: { outline },
   };
 }
 
@@ -250,7 +251,7 @@ function scaffoldAnchors(actor: Actor, p: ScaffoldParams, { foreground, rand }: 
     bounds: { x0: x - half - SCAFFOLD_LEVEL_OVERHANG, y0: top, x1: x + half + SCAFFOLD_LEVEL_OVERHANG, y1: y },
     outline: [postTops[0], postTops[postTops.length - 1]],
     points: foreground ? [light, post] : [light, brace, post],
-    path: postTops,
+    paths: { outline: postTops },
   };
 }
 
@@ -287,7 +288,7 @@ function containersAnchors(actor: Actor, p: ContainersParams, { foreground, rand
     },
     outline,
     points: [a, b, stackTop],
-    path: outline,
+    paths: { outline },
   };
 }
 
@@ -314,7 +315,7 @@ function wreckAnchors(actor: Actor, p: WreckParams, { rand }: AnchorOptions): Sc
     bounds: { x0: left, y0: l.funnelTop, x1: l.x1, y1: y },
     outline,
     points: [stern, funnelTop, bow],
-    path: outline,
+    paths: { outline },
   };
 }
 
@@ -331,7 +332,7 @@ function ventAnchors(actor: Actor, p: VentParams): SceneryAnchors {
     bounds: { x0: x - p.w / 2, y0: top, x1: x + p.w / 2, y1: y },
     outline,
     points: [{ x, y: top }, { x, y: top - VENT_PLUME_INNER_OFFSET }],
-    path: outline,
+    paths: { outline },
   };
 }
 
@@ -352,7 +353,7 @@ function craneAnchors(actor: Actor, p: CraneParams, { foreground }: AnchorOption
     points: foreground
       ? [left, { x: l.hangerX, y: l.beamTop }, right]
       : [left, { x: l.load.x + l.load.w / 2, y: l.load.y + l.load.h / 2 }, { x: l.beamRight, y: (l.beamTop + l.beamBottom) / 2 }],
-    path: outline,
+    paths: { outline },
   };
 }
 
@@ -372,7 +373,7 @@ function pylonAnchors(actor: Actor, p: PylonParams, { foreground, rand }: Anchor
     },
     outline,
     points: foreground ? [head, outline[1], outline[2]] : [head, { x: arm.x0, y: arm.y }, { x: arm.x1, y: arm.y }],
-    path: outline,
+    paths: { outline },
   };
 }
 
@@ -397,11 +398,12 @@ function beaconAnchors(actor: Actor, p: BeaconParams, { foreground, rand }: Anch
     bounds: { x0: x - half, y0: gy0, x1: x + half, y1: y },
     outline,
     points: foreground ? [outline[1], topPoint, outline[2]] : [{ x: gem.cx, y: gem.cy }, topPoint, foot],
-    path: outline,
+    paths: { outline },
   };
 }
 
-/** Pipeline: the valve, the riser's top, and the pipe run beside the riser (the path). */
+/** Pipeline: the valve, the riser's top, and the pipe run beside the riser (the only kind with a
+ *  `pipe` path; its `outline` path is the stepped top outline). */
 function pipelineAnchors(actor: Actor, p: PipelineParams, { rand }: AnchorOptions): SceneryAnchors {
   const { x, y } = actor.position;
   const l = pipelineLayout(x, y, p);
@@ -414,7 +416,7 @@ function pipelineAnchors(actor: Actor, p: PipelineParams, { rand }: AnchorOption
   ]);
   // The run: from the flange's inner edge to the pipe's far end, never under the riser.
   const run = p.riserRight ? { a: pipe.x0, b: flange.x0 } : { a: flange.x1, b: pipe.x1 };
-  const path = [{ x: run.a, y: l.pipeTop }, { x: run.b, y: l.pipeTop }];
+  const runPath = [{ x: run.a, y: l.pipeTop }, { x: run.b, y: l.pipeTop }];
   // Every point is on or above the outline, so one set serves every depth.
   return {
     bounds: { x0: Math.min(pipe.x0, flange.x0), y0: l.flange.y, x1: Math.max(pipe.x1, flange.x1), y1: y },
@@ -422,9 +424,9 @@ function pipelineAnchors(actor: Actor, p: PipelineParams, { rand }: AnchorOption
     points: [
       { x: l.valve.cx, y: l.valve.cy },
       { x: l.valve.cx, y: l.flange.y },
-      along(path[0], path[1], between(rand, 0.2, 0.8)),
+      along(runPath[0], runPath[1], between(rand, 0.2, 0.8)),
     ],
-    path,
+    paths: { outline, pipe: runPath },
   };
 }
 
@@ -449,7 +451,7 @@ function turbineAnchors(actor: Actor, p: TurbineParams, { foreground, rand }: An
     points: foreground
       ? [along(leftmost, topmost, between(rand, 0.3, 0.8)), topmost, rightmost]
       : [l.hub, turn({ x: l.hub.x, y: l.hub.y - l.bladeR }), turn({ x: l.hub.x, y: l.hub.y + l.bladeR })],
-    path: outline,
+    paths: { outline },
   };
 }
 
@@ -465,7 +467,7 @@ function floodlightAnchors(actor: Actor, p: FloodlightParams, { foreground, rand
     points: foreground
       ? [headTop(between(rand, 0.1, 0.4)), headTop(between(rand, 0.6, 0.9))]
       : [{ x: litBar.cx, y: litBar.cy }, headTop(between(rand, 0.1, 0.9))],
-    path: [headTop(0), headTop(1)],
+    paths: { outline: [headTop(0), headTop(1)] },
   };
 }
 
@@ -485,7 +487,7 @@ function dishAnchors(actor: Actor, p: DishParams, { foreground, rand }: AnchorOp
     points: foreground
       ? [outlinePointAt(outline, between(rand, 0.1, 0.35)), top, outlinePointAt(outline, between(rand, 0.65, 0.9))]
       : [l.centre, turn({ x, y: l.feed.y0 }), outlinePointAt(outline, between(rand, 0.2, 0.8))],
-    path: outline,
+    paths: { outline },
   };
 }
 

@@ -194,14 +194,15 @@ describe('workSites — factories (Phase 43 Task 9, spec §1.5)', () => {
     });
   });
 
-  describe('points and path', () => {
-    it('2–4 points and a path of ≥ 2 vertices, every one on or above the roof and inside the box\'s x', () => {
+  describe('points and paths', () => {
+    it('2–4 points and an outline path of ≥ 2 vertices (no factory has a pipe), every one on or above the roof and inside the box\'s x', () => {
       for (const a of GRID_HOSTS) {
         const site = siteOf(a);
         expect(site.points.length, a.id).toBeGreaterThanOrEqual(2);
         expect(site.points.length, a.id).toBeLessThanOrEqual(4);
-        expect(site.path.length, a.id).toBeGreaterThanOrEqual(2);
-        for (const p of [...site.points, ...site.path]) {
+        expect(site.paths.outline.length, a.id).toBeGreaterThanOrEqual(2);
+        expect(site.paths.pipe, a.id).toBeUndefined();
+        for (const p of [...site.points, ...site.paths.outline]) {
           expect(p.y, a.id).toBeLessThanOrEqual(site.bounds.y0);
           expect(p.x, a.id).toBeGreaterThanOrEqual(site.bounds.x0);
           expect(p.x, a.id).toBeLessThanOrEqual(site.bounds.x1);
@@ -216,8 +217,8 @@ describe('workSites — factories (Phase 43 Task 9, spec §1.5)', () => {
         const g = factoryGeometry(a);
         const corner = site.bounds.x0 + (g.frontCornerX / 100) * (site.bounds.x1 - site.bounds.x0);
         const expected = corner > lo && corner < hi ? [lo, corner, hi] : [lo, hi];
-        expect(site.path.map((p) => p.x), a.id).toEqual(expected);
-        for (const p of site.path) expect(p.y).toBe(site.bounds.y0);
+        expect(site.paths.outline.map((p) => p.x), a.id).toEqual(expected);
+        for (const p of site.paths.outline) expect(p.y).toBe(site.bounds.y0);
       }
     });
 
@@ -230,7 +231,7 @@ describe('workSites — factories (Phase 43 Task 9, spec §1.5)', () => {
       for (const a of partial) {
         const site = siteOf(a);
         const mouth = ['Stacks', 'Refinery'].includes(factoryGeometry(a).variant) ? site.points.slice(1) : site.points;
-        for (const p of [...mouth, ...site.path]) {
+        for (const p of [...mouth, ...site.paths.outline]) {
           expect(p.x, a.id).toBeGreaterThanOrEqual(0);
           expect(p.x, a.id).toBeLessThanOrEqual(WORLD_WIDTH);
         }
@@ -302,7 +303,7 @@ describe('workSites — scenery group A (Phase 43 Task 10)', () => {
       const anchors = sceneryWorkAnchors(a, { foreground: site.depth === 'foreground', rand: Alea(`${a.id}:work`) })!;
       expect(site.bounds, a.id).toEqual(anchors.bounds);
       expect(site.points, a.id).toEqual(anchors.points);
-      expect(site.path, a.id).toEqual(anchors.path);
+      expect(site.paths, a.id).toEqual(anchors.paths);
     }
   });
 
@@ -374,7 +375,7 @@ describe('workSites — scenery group B and exhaustiveness (Phase 43 Task 11)', 
       const site = siteOf(a);
       const anchors = sceneryWorkAnchors(a, { foreground: site.depth === 'foreground', rand: Alea(`${a.id}:work`) })!;
       expect(site.points, a.id).toEqual(anchors.points);
-      expect(site.path, a.id).toEqual(anchors.path);
+      expect(site.paths, a.id).toEqual(anchors.paths);
       expect(site.park.y, a.id).toBe(clampY(site.bounds.y0 - PARK_CLEARANCE));
     }
   });

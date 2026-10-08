@@ -5,7 +5,7 @@ import Alea from 'alea';
 import { describe, it, expect } from 'vitest';
 
 import { workVariation, turnRanks, type WorkVariation } from './variation';
-import { RING_RADIUS_JITTER } from '../../constants';
+import { FLICKER_SPARKS, RING_RADIUS_JITTER } from '../../constants';
 
 // ========================================
 // HELPERS
@@ -59,7 +59,23 @@ describe('workVariation (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.9, Task 28)',
     }
   });
 
-  it('draws from Alea(`${gemSeed}:work`) in the sketch\'s order: shuffle, ring direction, radius, trace direction, phase', () => {
+  it('sparks: FLICKER_SPARKS draws in [0, 1) for each of the four corners, differing between corners', () => {
+    expect(FLICKER_SPARKS).toBe(3);
+    for (const seed of SEEDS) {
+      const { sparks } = workVariation(seed);
+      expect(sparks).toHaveLength(4);
+      for (const corner of sparks) {
+        expect(corner).toHaveLength(FLICKER_SPARKS);
+        for (const u of corner) {
+          expect(u).toBeGreaterThanOrEqual(0);
+          expect(u).toBeLessThan(1);
+        }
+      }
+      expect(new Set(sparks.map((c) => JSON.stringify(c))).size).toBe(4);
+    }
+  });
+
+  it('draws from Alea(`${gemSeed}:work`) in the sketch\'s order: shuffle, ring direction, radius, trace direction, phase, then Task 29\'s sparks', () => {
     // Zero, negative and fractional seeds are valid stream keys too.
     for (const seed of [GEM_SEED, 0, -42, 0.5, 123456.789]) {
       const R = Alea(`${seed}:work`);
@@ -74,6 +90,8 @@ describe('workVariation (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.9, Task 28)',
         radiusScale: 1 - RING_RADIUS_JITTER + R() * 2 * RING_RADIUS_JITTER,
         traceReversed: R() < 0.5,
         phase: R() * 2 * Math.PI,
+        // Appended after Task 28's draws, so none of those moved.
+        sparks: [0, 1, 2, 3].map(() => Array.from({ length: FLICKER_SPARKS }, () => R())),
       };
       expect(workVariation(seed)).toEqual(expected);
     }

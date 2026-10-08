@@ -1401,7 +1401,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   **Files:** `src/animation/jobMoves/trace.ts`, `ring.ts`, `variation.ts`, `buildJobTimeline.ts`
   (+ tests). **Scope:** M.
 
-- [ ] **Task 29: `carry`, `fan`, the spark flicker and the six-job table**
+- [x] **Task 29: `carry`, `fan`, the spark flicker and the six-job table**
 
   **Description:** `jobMoves/carry.ts`, `jobMoves/fan.ts`, Maintenance's opacity spark-flicker, and
   `JOB_MOVES` (spec §1.9 table); every job runs for `jobDuration(bpm)`, and the move constants
@@ -1409,8 +1409,59 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   in-place pulse for every job.
 
   **Acceptance criteria:**
-  - [ ] Each job's timeline contains its moves in order and totals `jobDuration`.
-  - [ ] Every move ends with orbiters reattached (`x: 0, y: 0`, scale and opacity restored).
+  - [x] Each job's timeline contains its moves in order and totals `jobDuration`.
+  - [x] Every move ends with orbiters reattached (`x: 0, y: 0`, scale and opacity restored).
+
+  **As shipped (2026-10-08):** (1) **`jobMoveTable.ts`.** `JOB_MOVES` is spec §1.9's table as
+  data: each step names its move and its targets. `moveWindows(count, D)` splits the time before
+  the reattach equally between the moves. The first move's approach is the detach. Each later move
+  gets min(`MOVE_APPROACH_MAX_SECONDS` 0.35, `MOVE_APPROACH_FRACTION` 0.25 × its share). The detach
+  is also capped at 40 % of the first share, as in the sketch. With today's 6–10 s jobs and at most
+  two moves that cap never binds. `buildJobTimeline` now loops over the steps, and the T28
+  `jobMove` is gone. Between moves, each orbiter flies from where the last move left it to the
+  next move's first vertex. (2) **Point roles are indices. My call, flagged.** Sites name their
+  points only by index, but the table names a valve, a mast and an a → b. `points[0]` is the main
+  point: the mouth, mast, dish centre or head. Vent Extraction, Acoustic Survey and Maintenance
+  work there. Fluid Monitoring's valve is `points[1]`, which is the Refinery's valve and the riser
+  top directly above the pipeline's valve. On a tank or dome it is the second anchor (the top
+  point or a porthole). Salvage carries `points[0] → points[1]`, the Warehouse's and the
+  containers' pick-up and drop. `stepPoint` falls back to the last point, although every site has
+  at least two. (3) **`WorkSite.path` → `paths: { outline, pipe? }`** (deferred from T19 and T28,
+  type `WorkPaths` in `workSites.ts`). Every kind's `outline` is its old `path`, so no trace moved,
+  with one exception: the pipeline's `outline` is now its stepped top outline, and its old `path`
+  (the run) is `pipe`. A derelict pipeline's Structural Inspection now traces the outline, not the
+  run. Only the pipeline has a pipe. The Refinery draws `pipesValves` greebles, but their geometry
+  isn't extracted, so Refinery, tank and dome Fluid Monitoring trace the outline (spec §1.5's
+  fallback). Flagged for J4 or later. (4) **`fan.ts`:** FAN_RADIUS 40 u, spread 120° centred on
+  straight up, left to right by slot. It doesn't turn with the robot's phase (sketch). The ping is
+  ×1.5 in turn order. `hoverPulse.ts` gained `addPulsesInTurn`, which `addHoverPulse` and `addFan`
+  share. (5) **`carry.ts`:** side by side `CARRY_SPACING` 8 u apart (the sketch's value, kept
+  local to carry.ts because spec §1.9 doesn't list it). The sketch's timing: shrink to ×0.7 by
+  10 %, at the drop by 45 %, back to rest scale by 55 %, on the pick-up by 90 %, then hold. All
+  orbiters move together. (6) **The spark flicker** lives in `ring.ts`. `variation.ts` appends
+  `sparks`, `FLICKER_SPARKS` (3) draws per corner after `phase`, so no T28 draw moved. The sketch
+  drew a `parkDx` first, but its RNG isn't Alea, so draw parity with it never held. A draw u lands
+  on chord ⌊u × 36⌋ (`sparkChords`, deduped). On that chord, opacity dips to 0.25 at the chord's
+  middle and is back at the rest opacity by its end, so every dip ends inside the ring. Sparks are
+  indexed by corner, so an orbiter keeps its sparks at any count. (7) **Constants:** `CARRY_SHRINK`
+  0.7, `FAN_RADIUS` 40, `FAN_SPREAD_DEG` 120, `FAN_PING_SCALE` 1.5, `FLICKER_OPACITY` 0.25,
+  `FLICKER_SPARKS` 3, `MOVE_APPROACH_MAX_SECONDS` 0.35, `MOVE_APPROACH_FRACTION` 0.25. (8)
+  **Tests:** each job's moves in its windows through the real transform chain. Acoustic Survey's
+  fan, ping order and the flight to the ring start, with the mid-flight point at neither end.
+  Fluid Monitoring traces the pipe, or the outline without one, then gathers on `points[1]`.
+  Salvage's four carry phases. Maintenance gets one dip per spark chord, reaching 0.25 mid-chord,
+  and no other job touches opacity. All six jobs end docked with scale and opacity restored at 0, 1
+  and 4 orbiters. Reduced motion leaves orbiter opacity alone too. Everything passed on its first
+  GREEN run. One of my tests was wrong before then: I expected adjacent spark chords to merge into
+  one dip, but they come back to full at the shared vertex. I fixed it before running anything. (9)
+  **Mutation checks:** 27 mutants, 27 killed. They covered the table's valve index, carry
+  direction and missing fan or flicker, the pipe fallback, both approach caps, spark dedupe, the
+  rest-opacity restore, sparks by slot instead of by corner, a flicker on every ring, the fan's
+  spread, centring, ping scale and ranks, the carry shrink, timing, centring and return, an
+  instant approach, a skipped reattach, the spark draw order, and the pipe on the pipeline, a tank
+  and a factory. (10) Docs: ANIMATION_SYSTEM.md's "the other jobs run hoverPulse" and
+  BUILDING_DESIGN.md's single `path` line were made true. The rest of the J3 docs are T31's. Suite
+  7168 green, types clean, lint at main's 2 warnings.
 
   **Verification:** `npx vitest run src/animation/jobMoves`. **Dependencies:** T28.
   **Files:** `src/animation/jobMoves/carry.ts`, `fan.ts`, `jobMoveTable.ts`, `buildJobTimeline.ts`

@@ -4,8 +4,8 @@
 import gsap from 'gsap';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-import { ringRadius, ringStartAngles, ringRoute, addRing } from './ring';
-import { RING_RADIUS, RING_RADIUS_JITTER, RING_REVOLUTIONS } from '../../constants';
+import { ringRadius, ringStartAngles, ringRoute, addRing, sparkChords, addSparkFlicker } from './ring';
+import { FLICKER_OPACITY, RING_RADIUS, RING_RADIUS_JITTER, RING_REVOLUTIONS } from '../../constants';
 import type { Vec2 } from '../../types/Vec2';
 
 // vitest.setup.ts mocks gsap for every file; these tests read real tween values.
@@ -138,6 +138,64 @@ describe('addRing (tweens on the job timeline)', () => {
   it('adds no tweens for no orbiters', () => {
     const tl = gsap.timeline({ paused: true });
     addRing(tl, [], [], 0, 4);
+    expect(tl.getChildren()).toHaveLength(0);
+  });
+});
+
+describe('sparkChords (Maintenance\'s flicker, Task 29)', () => {
+  it('puts each spark draw on a chord, floor(u × segments)', () => {
+    expect(sparkChords([0, 0.5, 0.99], 36)).toEqual([0, 18, 35]);
+    expect(sparkChords([0.999999], 36)).toEqual([35]);
+  });
+
+  it('two draws on one chord flicker once, and the chords come back in run order', () => {
+    expect(sparkChords([0.51, 0.1, 0.5], 36)).toEqual([3, 18]);
+  });
+
+  it('no draws, no chords', () => {
+    expect(sparkChords([], 36)).toEqual([]);
+  });
+});
+
+describe('addSparkFlicker (tweens on the job timeline, Task 29)', () => {
+  const opacity = (el: Element) => Number(gsap.getProperty(el, 'opacity'));
+
+  it('dips to FLICKER_OPACITY mid-chord on each spark chord and is back at rest by the chord\'s end', () => {
+    expect(FLICKER_OPACITY).toBe(0.25);
+    const [el] = groups(1);
+    gsap.set(el, { opacity: 1 });
+    const tl = gsap.timeline({ paused: true });
+    const segments = 36;
+    const t0 = 2;
+    const t1 = 8;
+    const c = (t1 - t0) / segments;
+    addSparkFlicker(tl, [el], [[3, 4, 20]], [1], t0, t1, segments);
+    for (let k = 0; k < segments; k++) {
+      tl.time(t0 + (k + 0.5) * c);
+      expect(opacity(el), `chord ${k}`).toBeCloseTo([3, 4, 20].includes(k) ? FLICKER_OPACITY : 1, 6);
+      tl.time(t0 + k * c);
+      expect(opacity(el), `vertex ${k}`).toBeCloseTo(1, 6);
+    }
+    tl.time(t1);
+    expect(opacity(el)).toBe(1);
+  });
+
+  it('restores each orbiter\'s own rest opacity, and flickers each on its own chords', () => {
+    const els = groups(2);
+    els.forEach((el, j) => gsap.set(el, { opacity: [0.6, 1][j] }));
+    const tl = gsap.timeline({ paused: true });
+    addSparkFlicker(tl, els, [[0], [35]], [0.6, 1], 0, 36, 36);
+    tl.time(0.5);
+    expect([opacity(els[0]), opacity(els[1])]).toEqual([FLICKER_OPACITY, 1]);
+    tl.time(35.5);
+    expect([opacity(els[0]), opacity(els[1])]).toEqual([0.6, FLICKER_OPACITY]);
+    tl.time(36);
+    expect([opacity(els[0]), opacity(els[1])]).toEqual([0.6, 1]);
+  });
+
+  it('adds no tweens for an orbiter with no spark chords', () => {
+    const tl = gsap.timeline({ paused: true });
+    addSparkFlicker(tl, groups(2), [[], []], [1, 1], 0, 6, 36);
     expect(tl.getChildren()).toHaveLength(0);
   });
 });

@@ -43,10 +43,27 @@ export function addHoverPulse(
   t1: number,
   ranks?: readonly number[],
 ): void {
+  addPulsesInTurn(tl, orbiters, restScales, HOVER_PULSE_SCALE, t0, t1, ranks);
+}
+
+/**
+ * The turn-taking pulse shared by hoverPulse and fan's ping (fan.ts): equal slots over [t0, t1],
+ * orbiter j taking slot `ranks[j]` (lock order when omitted), out to `restScales[j] × peak` at the
+ * slot's middle and back to rest by its end.
+ */
+export function addPulsesInTurn(
+  tl: gsap.core.Timeline,
+  orbiters: readonly Element[],
+  restScales: readonly number[],
+  peak: number,
+  t0: number,
+  t1: number,
+  ranks?: readonly number[],
+): void {
   const slot = (t1 - t0) / orbiters.length;
   orbiters.forEach((el, j) => {
     const start = t0 + (ranks?.[j] ?? j) * slot;
-    tl.to(el, { scale: restScales[j] * HOVER_PULSE_SCALE, duration: slot / 2, ease: 'sine.inOut' }, start);
+    tl.to(el, { scale: restScales[j] * peak, duration: slot / 2, ease: 'sine.inOut' }, start);
     tl.to(el, { scale: restScales[j], duration: slot / 2, ease: 'sine.inOut' }, start + slot / 2);
   });
 }

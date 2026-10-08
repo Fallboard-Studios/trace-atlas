@@ -34,8 +34,17 @@ export interface WorkSite {
   park: Vec2;
   /** 2–4 work points — stack mouth, valve, roof points. */
   points: Vec2[];
-  /** A polyline of ≥ 2 vertices — the top outline. */
-  path: Vec2[];
+  paths: WorkPaths;
+}
+
+/**
+ * The polylines a site's moves trace (spec §1.5, split at Phase 43 Task 29): `outline`, ≥ 2
+ * vertices along the top, always; `pipe`, the pipe run, where the kind has one (only the pipeline
+ * so far). `trace(pipe)` on a site without one traces the outline (jobMoveTable.ts `stepPath`).
+ */
+export interface WorkPaths {
+  outline: Vec2[];
+  pipe?: Vec2[];
 }
 
 // ========================================
@@ -80,7 +89,7 @@ function parkFor(actorId: string, bounds: WorkSite['bounds']): Vec2 {
 }
 
 /** The factory branch: a flat roof at the drawn box's top, worked from above (spec §1.5). */
-function factoryAnchors(actor: Actor): Pick<WorkSite, 'bounds' | 'points' | 'path'> {
+function factoryAnchors(actor: Actor): Pick<WorkSite, 'bounds' | 'points' | 'paths'> {
   const { variant, frontCornerX, box } = factoryGeometry(actor);
   const roofY = box.y0;
   const { lo, hi } = visibleSpan(box.x0, box.x1);
@@ -90,7 +99,7 @@ function factoryAnchors(actor: Actor): Pick<WorkSite, 'bounds' | 'points' | 'pat
 
   // The top outline, through the east/west face split when it shows.
   const cornerX = box.x0 + (frontCornerX / 100) * (box.x1 - box.x0);
-  const path: Vec2[] = cornerX > lo && cornerX < hi
+  const outline: Vec2[] = cornerX > lo && cornerX < hi
     ? [{ x: lo, y: roofY }, { x: cornerX, y: roofY }, { x: hi, y: roofY }]
     : [{ x: lo, y: roofY }, { x: hi, y: roofY }];
 
@@ -117,7 +126,7 @@ function factoryAnchors(actor: Actor): Pick<WorkSite, 'bounds' | 'points' | 'pat
       break;
   }
 
-  return { bounds: box, points, path };
+  return { bounds: box, points, paths: { outline } };
 }
 
 // ========================================
@@ -140,8 +149,8 @@ export function deriveWorkSite(actor: Actor): WorkSite | null {
     : sceneryWorkAnchors(actor, { foreground: depth === 'foreground', rand: Alea(`${actor.id}:work`) });
   if (!anchors) return null;
 
-  const { bounds, points, path } = anchors;
-  return { id: actor.id, depth, jobs, bounds, park: parkFor(actor.id, bounds), points, path };
+  const { bounds, points, paths } = anchors;
+  return { id: actor.id, depth, jobs, bounds, park: parkFor(actor.id, bounds), points, paths };
 }
 
 // Keyed by the actor object, not its id: factory and scenery ids repeat across locales (730 of

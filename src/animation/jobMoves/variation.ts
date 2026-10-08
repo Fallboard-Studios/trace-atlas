@@ -4,7 +4,7 @@
 // How one robot does its moves, from `Alea(gemSeed + ':work')`, so company members that look alike
 // still work differently. Ported from docs/sketches/robot-jobs-and-stations.html's `variation`,
 // same draw order: the turn-order shuffle, ring direction, radius scale, trace direction, phase.
-// Task 29's spark flicker appends its own draws after these, so nothing here moves.
+// Task 29's spark flicker appended its draws after these, so none of Task 28's moved.
 //
 // Pure and cheap, so it's computed at job start rather than cached.
 
@@ -13,7 +13,7 @@
 // ========================================
 import Alea from 'alea';
 
-import { RING_RADIUS_JITTER } from '../../constants';
+import { FLICKER_SPARKS, RING_RADIUS_JITTER } from '../../constants';
 import type { OrbiterCorner } from './sceneToOrbiterLocal';
 
 // ========================================
@@ -30,6 +30,9 @@ export interface WorkVariation {
   traceReversed: boolean;
   /** Where the gather and the ring start round their point, radians in [0, 2π). */
   phase: number;
+  /** Maintenance's flicker: FLICKER_SPARKS draws in [0, 1) per corner (indexed by corner), each a
+   *  place along the ring where that orbiter sparks (ring.ts `sparkChords`). */
+  sparks: readonly (readonly number[])[];
 }
 
 // ========================================
@@ -49,6 +52,7 @@ export function workVariation(gemSeed: number): WorkVariation {
     radiusScale: 1 - RING_RADIUS_JITTER + rand() * 2 * RING_RADIUS_JITTER,
     traceReversed: rand() < 0.5,
     phase: rand() * 2 * Math.PI,
+    sparks: [0, 1, 2, 3].map(() => Array.from({ length: FLICKER_SPARKS }, () => rand())),
   };
 }
 

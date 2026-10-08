@@ -6,16 +6,27 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 
 import { buildJobTimeline, type JobTimelineInput } from './buildJobTimeline';
 import { hoverPulseTargets } from './hoverPulse';
+import { fanTargets } from './fan';
+import { carryTargets } from './carry';
+import { JOB_MOVES, moveWindows } from './jobMoveTable';
 import { jobDuration } from './jobDuration';
 import { traceRoute, traceTimes } from './trace';
-import { ringRadius } from './ring';
+import { ringRadius, ringRoute, ringStartAngles, sparkChords } from './ring';
 import { workVariation, turnRanks } from './variation';
 import type { OrbiterCorner } from './sceneToOrbiterLocal';
 import { getTimeline, killTimeline, killAllTimelines } from '../timelineMap';
 import { AudioEngine } from '../../engine/AudioEngine';
 import { getRobotGem, gemWidth, GEM_CANVAS_H } from '../../components/robot/gem/polygon';
 import { orbiterPlan, ATTACH_DURATION } from '../../components/robot/gem/orbiterMotion';
-import { BOB_PX, BOB_CYCLE_SECONDS, HOVER_PULSE_SCALE, RING_REVOLUTIONS } from '../../constants';
+import {
+  BOB_PX,
+  BOB_CYCLE_SECONDS,
+  CARRY_SHRINK,
+  FAN_PING_SCALE,
+  FLICKER_OPACITY,
+  HOVER_PULSE_SCALE,
+  RING_REVOLUTIONS,
+} from '../../constants';
 import { JobType } from '../../types/Robot';
 import type { Vec2 } from '../../types/Vec2';
 
@@ -54,7 +65,7 @@ function input(count: number, over: Partial<Omit<JobTimelineInput, 'robot' | 'ro
   const m = mount(count, restScale, gemSeed);
   return {
     ...m,
-    site: { points: [{ x: 470, y: 420 }, { x: 380, y: 420 }], path: SITE_PATH },
+    site: { points: [{ x: 470, y: 420 }, { x: 380, y: 420 }], paths: { outline: SITE_PATH } },
     job: JobType.VentExtraction,
     bpm: 110,
     bodyScale: 1.2,
@@ -334,7 +345,7 @@ describe('buildJobTimeline — trace, ring and per-robot variation (Task 28)', (
     i.orbiters.forEach((_, j) => expect(dist(sceneCentre(i, j), route[route.length - 1])).toBeLessThan(0.01));
   });
 
-  it('acousticSurvey: every orbiter circles points[0] at the robot\'s radius ±1 u, evenly phased, in its direction, for RING_REVOLUTIONS turns', () => {
+  it('acousticSurvey\'s ring (its second move): every orbiter circles points[0] at the robot\'s radius ±1 u, evenly phased, in its direction, for RING_REVOLUTIONS turns', () => {
     for (const direction of [1, -1] as const) {
       const seed = seedWhere((v) => v.ringDirection === direction);
       const v = workVariation(seed);
@@ -344,18 +355,18 @@ describe('buildJobTimeline — trace, ring and per-robot variation (Task 28)', (
         const i = input(n, { job: JobType.AcousticSurvey, layerScale, bpm: 200 }, 1, seed);
         const centre = i.site.points[0];
         const tl = buildJobTimeline(i);
-        const D = tl.duration();
+        const ringWindow = moveWindows(2, tl.duration())[1];
         const angleOf = (j: number) => {
           const p = sceneCentre(i, j);
           return Math.atan2(p.y - centre.y, p.x - centre.x);
         };
 
-        tl.time(ATTACH_DURATION);
+        tl.time(ringWindow.start);
         expect(Math.cos(angleOf(0) - (v.phase - Math.PI / 2))).toBeCloseTo(1, 6);
 
         let swept = 0;
         let last = angleOf(0);
-        for (let t = ATTACH_DURATION; t <= D - ATTACH_DURATION + 1e-9; t += 0.05) {
+        for (let t = ringWindow.start; t <= ringWindow.end + 1e-9; t += 0.05) {
           tl.time(t);
           for (let j = 0; j < n; j++) {
             expect(Math.abs(dist(sceneCentre(i, j), centre) - r)).toBeLessThanOrEqual(1);
@@ -370,7 +381,7 @@ describe('buildJobTimeline — trace, ring and per-robot variation (Task 28)', (
           swept += step;
           last = now;
         }
-        tl.time(D - ATTACH_DURATION);
+        tl.time(ringWindow.end);
         const now = angleOf(0);
         swept += Math.atan2(Math.sin(now - last), Math.cos(now - last));
         expect(swept).toBeCloseTo(direction * 2 * Math.PI * RING_REVOLUTIONS, 2);
@@ -378,17 +389,7 @@ describe('buildJobTimeline — trace, ring and per-robot variation (Task 28)', (
     }
   });
 
-  it('fluidMonitoring, salvage and maintenance still fall back to hoverPulse (their moves land in Task 29)', () => {
-    for (const job of [JobType.FluidMonitoring, JobType.Salvage, JobType.Maintenance]) {
-      const i = input(3, { job });
-      const tl = buildJobTimeline(i);
-      const targets = hoverPulseTargets(i.site.points[0], 3, workVariation(GEM_SEED).phase);
-      tl.time(tl.duration() / 2);
-      i.orbiters.forEach((_, j) => expect(dist(sceneCentre(i, j), targets[j])).toBeLessThan(0.01));
-    }
-  });
-
-  it('every job lasts jobDuration(bpm) with 0–4 orbiters and ends with them docked, the robot at rest', () => {
+  it('every job lasts jobDuration(bpm) with 0–4 orbiters and ends with them docked (scale and opacity restored), the robot at rest', () => {
     for (const job of Object.values(JobType)) {
       for (const n of [0, 1, 4]) {
         for (const bpm of [20, 200]) {
@@ -400,6 +401,7 @@ describe('buildJobTimeline — trace, ring and per-robot variation (Task 28)', (
             expect(num(local, 'x')).toBeCloseTo(0, 9);
             expect(num(local, 'y')).toBeCloseTo(0, 9);
             expect(num(local, 'scale')).toBeCloseTo(1.1, 9);
+            expect(num(local, 'opacity')).toBeCloseTo(1, 9);
             expect(num(local.parentElement!, 'y')).toBeCloseTo(0, 9);
           }
           expect(num(i.robotEl, 'y')).toBeCloseTo(300, 9);
@@ -408,13 +410,153 @@ describe('buildJobTimeline — trace, ring and per-robot variation (Task 28)', (
     }
   });
 
-  it('reduced motion is the same in-place pulse for every job: no orbiter moves', () => {
+  it('reduced motion is the same in-place pulse for every job: no orbiter moves, scales or flickers', () => {
     for (const job of Object.values(JobType)) {
       const i = input(3, { job, reducedMotion: true });
       const tl = buildJobTimeline(i);
       for (let k = 0; k <= 20; k++) {
         tl.progress(k / 20);
-        for (const local of i.orbiters) expect([num(local, 'x'), num(local, 'y'), num(local, 'scale')]).toEqual([0, 0, 1]);
+        for (const local of i.orbiters) {
+          expect([num(local, 'x'), num(local, 'y'), num(local, 'scale'), num(local, 'opacity')]).toEqual([0, 0, 1, 1]);
+        }
+      }
+    }
+  });
+});
+
+describe('buildJobTimeline — the six-job table (Task 29)', () => {
+  const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
+  const PIPE: Vec2[] = [{ x: 400, y: 440 }, { x: 500, y: 440 }];
+
+  /** Every orbiter's scene centre is within 0.01 u of its target at time t. */
+  function expectAt(i: ReturnType<typeof input>, tl: gsap.core.Timeline, t: number, targets: readonly Vec2[], label: string) {
+    tl.time(t);
+    i.orbiters.forEach((_, j) => expect(dist(sceneCentre(i, j), targets[j]), `${label}, orbiter ${j}`).toBeLessThan(0.01));
+  }
+
+  it('each job\'s timeline runs its moves in the table\'s windows and totals jobDuration', () => {
+    for (const job of Object.values(JobType)) {
+      for (const bpm of [20, 110, 200]) {
+        const tl = buildJobTimeline(input(2, { job, bpm }));
+        expect(Math.abs(tl.duration() - jobDuration(bpm)), `${job} ${bpm}`).toBeLessThanOrEqual(FRAME);
+        expect(moveWindows(JOB_MOVES[job].length, tl.duration()).at(-1)!.end).toBeCloseTo(tl.duration() - ATTACH_DURATION, 9);
+      }
+    }
+  });
+
+  it('acousticSurvey: fans out over points[0] and pings in the robot\'s turn order, then flies to the ring\'s start', () => {
+    const n = 4;
+    const i = input(n, { job: JobType.AcousticSurvey }, 0.9);
+    const tl = buildJobTimeline(i);
+    const [fanWin, ringWin] = moveWindows(2, tl.duration());
+    const fan = fanTargets(i.site.points[0], n);
+    const ranks = turnRanks(workVariation(GEM_SEED).order, shownCorners(GEM_SEED, n));
+    expectAt(i, tl, fanWin.start, fan, 'fanned');
+    const slot = (fanWin.end - fanWin.start) / n;
+    for (let turn = 0; turn < n; turn++) {
+      tl.time(fanWin.start + (turn + 0.5) * slot);
+      i.orbiters.forEach((local, j) => expect(num(local, 'scale')).toBeCloseTo(ranks[j] === turn ? 0.9 * FAN_PING_SCALE : 0.9, 6));
+    }
+    expectAt(i, tl, fanWin.end, fan, 'still fanned at the fan\'s end');
+    const v = workVariation(GEM_SEED);
+    const ringStarts = ringStartAngles(n, v.phase).map((a) => ringRoute(i.site.points[0], ringRadius(v.radiusScale), a, v.ringDirection)[0]);
+    expectAt(i, tl, ringWin.start, ringStarts, 'at the ring\'s start');
+    // Mid-approach, every orbiter is on its way: neither at its fan slot nor at its ring start.
+    tl.time((ringWin.approach + ringWin.start) / 2);
+    i.orbiters.forEach((_, j) => {
+      expect(dist(sceneCentre(i, j), fan[j])).toBeGreaterThan(0.5);
+      expect(dist(sceneCentre(i, j), ringStarts[j])).toBeGreaterThan(0.5);
+    });
+  });
+
+  it('fluidMonitoring: traces the pipe where the site has one, then gathers and pulses round points[1] (the valve)', () => {
+    const n = 3;
+    const v = workVariation(GEM_SEED);
+    const i = input(n, { job: JobType.FluidMonitoring, site: { points: [{ x: 470, y: 420 }, { x: 380, y: 420 }], paths: { outline: SITE_PATH, pipe: PIPE } } }, 0.8);
+    const tl = buildJobTimeline(i);
+    const [traceWin, pulseWin] = moveWindows(2, tl.duration());
+    const route = traceRoute(PIPE, v.traceReversed);
+    expectAt(i, tl, traceWin.start, i.orbiters.map(() => route[0]), 'on the pipe\'s first vertex');
+    expectAt(i, tl, traceWin.end, i.orbiters.map(() => route[route.length - 1]), 'on the pipe\'s last vertex');
+    const gather = hoverPulseTargets(i.site.points[1], n, v.phase);
+    expectAt(i, tl, pulseWin.start, gather, 'gathered round the valve');
+    expectAt(i, tl, pulseWin.end, gather, 'still gathered at the move\'s end');
+    const ranks = turnRanks(v.order, shownCorners(GEM_SEED, n));
+    const slot = (pulseWin.end - pulseWin.start) / n;
+    for (let turn = 0; turn < n; turn++) {
+      tl.time(pulseWin.start + (turn + 0.5) * slot);
+      i.orbiters.forEach((local, j) => expect(num(local, 'scale')).toBeCloseTo(ranks[j] === turn ? 0.8 * HOVER_PULSE_SCALE : 0.8, 6));
+    }
+  });
+
+  it('fluidMonitoring on a site without a pipe traces the outline instead', () => {
+    const i = input(2, { job: JobType.FluidMonitoring });
+    const tl = buildJobTimeline(i);
+    const [traceWin] = moveWindows(2, tl.duration());
+    const route = traceRoute(SITE_PATH, workVariation(GEM_SEED).traceReversed);
+    expectAt(i, tl, traceWin.start, i.orbiters.map(() => route[0]), 'on the outline\'s first vertex');
+    expectAt(i, tl, traceWin.end, i.orbiters.map(() => route[route.length - 1]), 'on the outline\'s last vertex');
+  });
+
+  it('salvage: carries from points[0] to points[1] shrunk, drops, and returns, side by side', () => {
+    const n = 3;
+    const i = input(n, { job: JobType.Salvage }, 1.1);
+    const tl = buildJobTimeline(i);
+    const [win] = moveWindows(1, tl.duration());
+    const pairs = carryTargets(i.site.points[0], i.site.points[1], n);
+    const L = win.end - win.start;
+    expectAt(i, tl, win.start, pairs.map((p) => p.from), 'on the pick-up');
+    tl.time(win.start + 0.1 * L);
+    for (const local of i.orbiters) expect(num(local, 'scale')).toBeCloseTo(1.1 * CARRY_SHRINK, 6);
+    expectAt(i, tl, win.start + 0.45 * L, pairs.map((p) => p.to), 'carried to the drop');
+    for (const local of i.orbiters) expect(num(local, 'scale')).toBeCloseTo(1.1 * CARRY_SHRINK, 6);
+    tl.time(win.start + 0.55 * L);
+    for (const local of i.orbiters) expect(num(local, 'scale')).toBeCloseTo(1.1, 6);
+    expectAt(i, tl, win.end, pairs.map((p) => p.from), 'back on the pick-up');
+  });
+
+  it('maintenance: rings points[0] and each orbiter flickers to FLICKER_OPACITY on its own sparks, back to full by the end', () => {
+    const n = 4;
+    const v = workVariation(GEM_SEED);
+    const i = input(n, { job: JobType.Maintenance });
+    const tl = buildJobTimeline(i);
+    const [win] = moveWindows(1, tl.duration());
+    const r = ringRadius(v.radiusScale);
+    const lows = i.orbiters.map(() => 1);
+    const dips: number[][] = i.orbiters.map(() => []);
+    for (let t = win.start; t <= win.end + 1e-9; t += 0.01) {
+      tl.time(t);
+      i.orbiters.forEach((local, j) => {
+        expect(Math.abs(dist(sceneCentre(i, j), i.site.points[0]) - r)).toBeLessThanOrEqual(1);
+        const op = num(local, 'opacity');
+        if (op < 0.3 && lows[j] >= 0.3) dips[j].push(t);
+        lows[j] = op;
+      });
+    }
+    const shown = shownCorners(GEM_SEED, n);
+    i.orbiters.forEach((local, j) => {
+      // One dip per distinct spark chord, each reaching FLICKER_OPACITY at the chord's middle.
+      const segments = ringRoute({ x: 0, y: 0 }, 1, 0, 1).length - 1;
+      const chords = sparkChords(v.sparks[shown[j]], segments);
+      expect(chords.length).toBeGreaterThan(0);
+      const c = (win.end - win.start) / segments;
+      expect(dips[j].length, `orbiter ${j}`).toBe(chords.length);
+      for (const k of chords) {
+        tl.time(win.start + (k + 0.5) * c);
+        expect(num(local, 'opacity'), `orbiter ${j}, chord ${k}`).toBeCloseTo(FLICKER_OPACITY, 6);
+      }
+    });
+    tl.time(win.end);
+    for (const local of i.orbiters) expect(num(local, 'opacity')).toBe(1);
+  });
+
+  it('only maintenance flickers: no other job touches orbiter opacity', () => {
+    for (const job of Object.values(JobType).filter((j) => j !== JobType.Maintenance)) {
+      const i = input(4, { job });
+      const tl = buildJobTimeline(i);
+      for (let k = 0; k <= 200; k++) {
+        tl.progress(k / 200);
+        for (const local of i.orbiters) expect(num(local, 'opacity'), job).toBe(1);
       }
     }
   });

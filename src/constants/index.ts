@@ -248,6 +248,27 @@ export const RING_REVOLUTIONS = 1.5;
  *  they run the path in a staggered line. Kept as sketched (Phase 43 Task 0b). */
 export const TRACE_STAGGER = 0.12;
 
+/** carry (spec §1.9): orbiters shrink to this multiple of their rest scale while loaded. Kept as
+ *  sketched (Phase 43 Task 0b). */
+export const CARRY_SHRINK = 0.7;
+
+/** fan (spec §1.9): orbiters spread FAN_RADIUS scene units above the point over FAN_SPREAD_DEG,
+ *  then ping in turn to FAN_PING_SCALE × their rest scale. Kept as sketched (Phase 43 Task 0b). */
+export const FAN_RADIUS = 40;
+export const FAN_SPREAD_DEG = 120;
+export const FAN_PING_SCALE = 1.5;
+
+/** Maintenance's spark flicker (spec §1.9): each orbiter dips to FLICKER_OPACITY on
+ *  FLICKER_SPARKS seeded chords of its ring (jobMoves/variation.ts). Kept as sketched (Phase 43
+ *  Task 0b). */
+export const FLICKER_OPACITY = 0.25;
+export const FLICKER_SPARKS = 3;
+
+/** A job's later moves (spec §1.9) reach their first targets in min(MOVE_APPROACH_MAX_SECONDS,
+ *  MOVE_APPROACH_FRACTION × their share of the job); the first move's approach is the detach. */
+export const MOVE_APPROACH_MAX_SECONDS = 0.35;
+export const MOVE_APPROACH_FRACTION = 0.25;
+
 /** Robot swim speed, scene units per second (swimAnimation.ts; the loop sim's swims). */
 export const SWIM_SPEED = 120;
 

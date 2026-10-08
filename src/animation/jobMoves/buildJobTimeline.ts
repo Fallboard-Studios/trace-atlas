@@ -2,12 +2,11 @@
 // buildJobTimeline (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.9)
 // ========================================
 // One paused timeline per job run, keyed `work-${robotId}`, lasting exactly jobDuration(bpm):
-// the robot bobs in whole cycles; the locked orbiters detach to the move's targets
-// (ATTACH_DURATION), work, and reattach to their docks (ATTACH_DURATION), all inside the duration.
-// The move comes from the job (`jobMove`): Structural Inspection traces the site's path, Acoustic
-// Survey rings its first point, and every other job still runs hoverPulse on that point until Task
-// 29 adds carry and fan. Each robot does its move its own way (variation.ts: turn order, phase,
-// ring direction and radius, trace direction).
+// the robot bobs in whole cycles; the locked orbiters detach to the first move's targets
+// (ATTACH_DURATION), run the job's moves (JOB_MOVES, each in its moveWindows slice, flying to the
+// next move's first targets between them), and reattach to their docks (ATTACH_DURATION), all
+// inside the duration. Each robot does its moves its own way (variation.ts: turn order, phase,
+// ring direction and radius, trace direction, sparks).
 //
 // The orbiters sit inside the `.robot` group, so the bob would carry them off their targets. Each
 // orbiter's `.gem__orbiter` copy group (which useOrbiterMotion only shows and hides) gets the same
@@ -23,16 +22,19 @@
 import gsap from 'gsap';
 
 import { jobDuration } from './jobDuration';
+import { JOB_MOVES, moveWindows, stepPath, stepPoint, type MoveStep } from './jobMoveTable';
 import { addHoverPulse, hoverPulseTargets } from './hoverPulse';
 import { addTrace, traceRoute } from './trace';
-import { addRing, ringRadius, ringRoute, ringStartAngles } from './ring';
-import { turnRanks, workVariation } from './variation';
+import { addRing, addSparkFlicker, ringRadius, ringRoute, ringStartAngles, sparkChords } from './ring';
+import { addCarry, carryTargets } from './carry';
+import { addFan, fanTargets } from './fan';
+import { turnRanks, workVariation, type WorkVariation } from './variation';
 import { sceneToOrbiterLocal, type OrbiterCorner } from './sceneToOrbiterLocal';
 import { setTimeline } from '../timelineMap';
 import { getRobotGem } from '../../components/robot/gem/polygon';
 import { orbiterPlan, ATTACH_DURATION } from '../../components/robot/gem/orbiterMotion';
 import { BOB_CYCLE_SECONDS, BOB_PX } from '../../constants';
-import { JobType, type Robot } from '../../types/Robot';
+import type { JobType, Robot } from '../../types/Robot';
 import type { Vec2 } from '../../types/Vec2';
 import type { WorkSite } from '../../systems/workSites';
 
@@ -43,8 +45,8 @@ export interface JobTimelineInput {
   robot: Pick<Robot, 'id' | 'position' | 'gemSeed'>;
   /** The robot's `.robot` group (`getRef(\`robot-${id}\`)`), at `robot.position`. */
   robotEl: Element;
-  site: Pick<WorkSite, 'points' | 'path'>;
-  /** Picks the move (`jobMove`). */
+  site: Pick<WorkSite, 'points' | 'paths'>;
+  /** Picks the moves (`JOB_MOVES`). */
   job: JobType;
   /** `getOrbiterWork(id).lock()` — the shown `.gem__orbiter-local` groups, at rest, in cornerOrder. */
   orbiters: readonly Element[];
@@ -65,13 +67,26 @@ const REDUCED_PULSE_OPACITY = 0.8;
 // ========================================
 // HELPERS
 // ========================================
-type JobMove = 'hoverPulse' | 'trace' | 'ring';
-
-/** The job's move (spec §1.9 table, Task 28's part; Task 29 replaces this with the six-job table). */
-function jobMove(job: JobType): JobMove {
-  if (job === JobType.StructuralInspection) return 'trace';
-  if (job === JobType.AcousticSurvey) return 'ring';
-  return 'hoverPulse';
+/** Each orbiter's route for one step, in scene units, in slot order; its first vertex is where
+ *  the step's approach (the detach, for the first step) flies it. */
+function sceneRoutes(step: MoveStep, site: JobTimelineInput['site'], count: number, v: WorkVariation): Vec2[][] {
+  switch (step.move) {
+    case 'hoverPulse':
+      return hoverPulseTargets(stepPoint(site, step.point), count, v.phase).map((target) => [target]);
+    case 'fan':
+      return fanTargets(stepPoint(site, step.point), count).map((target) => [target]);
+    case 'trace': {
+      const route = traceRoute(stepPath(site, step.path), v.traceReversed);
+      return Array.from({ length: count }, () => route);
+    }
+    case 'ring': {
+      const radius = ringRadius(v.radiusScale);
+      const centre = stepPoint(site, step.point);
+      return ringStartAngles(count, v.phase).map((a) => ringRoute(centre, radius, a, v.ringDirection));
+    }
+    case 'carry':
+      return carryTargets(stepPoint(site, step.from), stepPoint(site, step.to), count).map((p) => [p.from, p.to]);
+  }
 }
 
 /** One sine cycle on `y` about `base` (up by `amp`, down by `amp`, back), repeated `cycles` times. */
@@ -114,8 +129,8 @@ function addReducedPulse(tl: gsap.core.Timeline, robotEl: Element, cycle: number
   );
 }
 
-/** The bob, the detach, the move and the reattach. The move ends every orbiter at its rest
- *  scale, so the reattach only flies it home. */
+/** The bob, the detach, the job's moves and the reattach. Every move ends each orbiter at its
+ *  rest scale and opacity, so the reattach only flies it home. */
 function addWork(
   tl: gsap.core.Timeline,
   { robot, robotEl, site, job, orbiters, bodyScale, layerScale }: JobTimelineInput,
@@ -127,41 +142,52 @@ function addWork(
   const shown = orbiterPlan(robot.gemSeed).cornerOrder.slice(0, orbiters.length) as OrbiterCorner[];
   const variation = workVariation(robot.gemSeed);
   const ranks = turnRanks(variation.order, shown);
+  const restScales = orbiters.map((el) => Number(gsap.getProperty(el, 'scale')));
+  const restOpacities = orbiters.map((el) => Number(gsap.getProperty(el, 'opacity')));
   const s = bodyScale * layerScale;
-  const workStart = ATTACH_DURATION;
-  const workEnd = duration - ATTACH_DURATION;
+  const toLocal = (route: Vec2[], j: number) =>
+    route.map((p) => sceneToOrbiterLocal(p, { robotPos: robot.position, gem, bodyScale, layerScale, corner: shown[j] }));
 
   tl.add(bob(robotEl, robot.position.y, BOB_PX, cycle, cycles), 0);
+  orbiters.forEach((el) => tl.add(bob(el.parentElement!, 0, -BOB_PX / s, cycle, cycles), 0));
 
-  // Each orbiter's route for the move, in scene units; the detach flies it to the first vertex.
-  const move = jobMove(job);
-  const point = site.points[0];
-  let routes: Vec2[][];
-  if (move === 'trace') {
-    routes = orbiters.map(() => traceRoute(site.path, variation.traceReversed));
-  } else if (move === 'ring') {
-    const radius = ringRadius(variation.radiusScale);
-    routes = ringStartAngles(orbiters.length, variation.phase).map((a) => ringRoute(point, radius, a, variation.ringDirection));
-  } else {
-    routes = hoverPulseTargets(point, orbiters.length, variation.phase).map((target) => [target]);
-  }
-  const localRoutes = routes.map((route, j) =>
-    route.map((p) => sceneToOrbiterLocal(p, { robotPos: robot.position, gem, bodyScale, layerScale, corner: shown[j] })),
-  );
+  const steps = JOB_MOVES[job];
+  const windows = moveWindows(steps.length, duration);
+  steps.forEach((step, k) => {
+    const { approach, start, end } = windows[k];
+    const localRoutes = sceneRoutes(step, site, orbiters.length, variation).map(toLocal);
 
-  orbiters.forEach((el, j) => {
-    const first = localRoutes[j][0];
-    tl.add(bob(el.parentElement!, 0, -BOB_PX / s, cycle, cycles), 0);
-    tl.to(el, { x: first.x, y: first.y, duration: ATTACH_DURATION, ease: 'sine.inOut' }, 0);
-    tl.to(el, { x: 0, y: 0, duration: ATTACH_DURATION, ease: 'sine.inOut' }, workEnd);
+    // The approach: from the dock (the detach) or from where the last move left the orbiter.
+    orbiters.forEach((el, j) => {
+      const first = localRoutes[j][0];
+      tl.to(el, { x: first.x, y: first.y, duration: start - approach, ease: 'sine.inOut' }, approach);
+    });
+
+    switch (step.move) {
+      case 'hoverPulse':
+        addHoverPulse(tl, orbiters, restScales, start, end, ranks);
+        break;
+      case 'fan':
+        addFan(tl, orbiters, restScales, start, end, ranks);
+        break;
+      case 'trace':
+        addTrace(tl, orbiters, localRoutes, ranks, start, end);
+        break;
+      case 'ring':
+        addRing(tl, orbiters, localRoutes, start, end);
+        if (step.flicker && orbiters.length > 0) {
+          const segments = localRoutes[0].length - 1;
+          const chords = shown.map((corner) => sparkChords(variation.sparks[corner], segments));
+          addSparkFlicker(tl, orbiters, chords, restOpacities, start, end, segments);
+        }
+        break;
+      case 'carry':
+        addCarry(tl, orbiters, localRoutes, restScales, start, end);
+        break;
+    }
   });
 
-  if (move === 'trace') {
-    addTrace(tl, orbiters, localRoutes, ranks, workStart, workEnd);
-  } else if (move === 'ring') {
-    addRing(tl, orbiters, localRoutes, workStart, workEnd);
-  } else {
-    const restScales = orbiters.map((el) => Number(gsap.getProperty(el, 'scale')));
-    addHoverPulse(tl, orbiters, restScales, workStart, workEnd, ranks);
-  }
+  orbiters.forEach((el) => {
+    tl.to(el, { x: 0, y: 0, duration: ATTACH_DURATION, ease: 'sine.inOut' }, duration - ATTACH_DURATION);
+  });
 }
