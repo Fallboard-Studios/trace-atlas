@@ -86,10 +86,16 @@ re-confirmed live at each branch's gate.
 
 ### 1.1 District pick (`src/systems/districts.ts`, D1)
 
-- `pickDistrict(noiseMap): DistrictName` — one `getSeededVal(noiseMap, 'locale.district', 0, 0, 1)`
-  draw on the **locale** map, mapped to `DISTRICT_NAMES[floor(v × 9)]`. Own dataId so it is
-  independent of every other draw; a 121-coordinate grid must land every district at least 8 times
-  (the sketch's spread was 9–18 of 121).
+- `pickDistrict(noiseMap): DistrictName` — **implementation correction (found at Task 3, carried in
+  here):** the real `simplex-noise` noise map is not uniform over [-1, 1] — it's bell-curved,
+  concentrated near 0 — so a single `getSeededVal(noiseMap, 'locale.district', 0, 0, 1)` draw fed
+  into `floor(v × 9)` starves the two edge districts (`dense`, `construction`) across many locales,
+  however the draw's offset is chosen (swept ~500 offsets; none reliably cleared the "every
+  district ≥ 8 of 121" bar). The shipped fix combines three draws at different fixed offsets on the
+  same `'locale.district'` dataId, then rehashes their concatenation through `alea()` before mapping
+  into `DISTRICT_NAMES[floor(v × 9)]` (measured ~10.9–11.3% per district over 72k locales, vs. the
+  uniform ~11.1% target). Still one dataId, independent of every other draw; a 121-coordinate grid
+  must land every district at least 8 times (the sketch's spread was 9–18 of 121).
 - `DISTRICT_NAMES` = `dense · outskirts · towers · yard · derelict · habitat · wreckfield · ventfield ·
   construction`. No `legacy`.
 - `placeFactories(localeId)` becomes `placeDistrict(localeId)`: picks the district, builds the

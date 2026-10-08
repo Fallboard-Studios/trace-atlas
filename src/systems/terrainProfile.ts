@@ -3,6 +3,7 @@
 // ========================================
 import type { NoiseFunction2D } from 'simplex-noise';
 import { getSeededVal } from '../utils/getSeededVal';
+import { WORLD_BOUNDS } from '../constants/sceneDepth';
 
 // ========================================
 // TYPES
@@ -30,10 +31,10 @@ export interface TerrainProfile {
 // CONSTANTS
 // ========================================
 
-// World viewBox width (1920x1080); duplicated here rather than imported from
-// factoryPlacementSystem.ts, which roadmap Phase 42 Task 6 centralizes into
-// constants/sceneDepth.ts alongside this one.
-const WORLD_WIDTH = 1920;
+// World viewBox width — WORLD_BOUNDS.width (constants/sceneDepth.ts, Task 6's single source of
+// truth for the scene's fixed bounds; districts.ts/factoryPlacementSystem.ts already import it
+// the same way). Aliased locally so every WORLD_WIDTH reference below stays unchanged.
+const WORLD_WIDTH = WORLD_BOUNDS.width;
 
 // Seabed ridge (spec WORLD_VIEW_DISTRICTS.md §1.3): starts at y 860, stays in
 // 640-900, flat runs of 80-260, then a step of one of these deltas.
