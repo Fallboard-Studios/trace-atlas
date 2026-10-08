@@ -351,6 +351,19 @@ interface WorkSite {
 > `src/animation/stationRipple.ts`. The station doesn't dim at night (no rule here; Checkpoint C
 > passed it). `port` = `center` stays open. Checkpoint C passed it all on 2026-10-08.
 
+> **Shipped (J4, Task 34b, 2026-10-08): exits in the back row.** `#station-l4-layer` is at the
+> bottom of `robots-back`, under `#robot-back-layer`; `robots` is L3 · `#robot-layer` ·
+> `#robot-dissolve-layer` · front. `exitStation` moves a robot not already in the back row there
+> first: its body is hidden, it is marked `layerSwitching`, `layer: 'background'` is written, and the
+> arc plays on the re-mounted body (`.robot` 0.15 → 1, `.robot__row` at `BACK_LAYER_SCALE`, so the
+> robot grows to 0.11 → 0.75 overall). From there it leaves like any back-row robot (§1.10).
+> Entering is unchanged: front row, between L3 and L2. Charging (Docked) robots stay in the front
+> row, hidden. Crawford's calls, taken as the plan recommended: L4's extra haze (46 % against the
+> rest of the station's 10 %) is accepted, and so is the back → front switch after every exit to a
+> front site; both get judged at Checkpoint E. Measured first: no station's box (0 of 284 over the
+> 121-seed grid), and no worst-case exiting robot at a port (the widest gem at body scale 1.69 ×
+> 0.75), overlaps a midground silhouette. Two guard tests in `stations.test.ts` keep it that way.
+
 ### 1.7 The work loop (J2, `src/systems/workLoop.ts`)
 
 The visual-side state machine. Module state (runtime only, never Zustand — an `Actor` write would
@@ -571,7 +584,8 @@ and the set of robots with a pending recall. Public surface:
   `pointer-events: auto`, so the front layer's full-screen `<svg>` stops blocking the back one.
 - **Which layer:** `Robot.layer` — `'background'` while the robot's current destination is a
   background site, `'foreground'` otherwise (stations are front). `OceanScene` renders each robot
-  in its layer's list.
+  in its layer's list. *(Task 34b: one exception — a robot exiting a station is in the back row,
+  §1.6; entering and charging are front.)*
 - **Switching:** `findLayerSwitchPoint(from, to, robotBox, midgroundBounds): Vec2 | null`, pure —
   the first point along the straight leg (sampled every 20 units) where the robot's box overlaps no
   midground silhouette (`midgroundSilhouettes.ts`: everything solid between the robot rows; bubbles,

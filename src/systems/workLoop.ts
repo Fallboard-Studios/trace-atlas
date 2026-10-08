@@ -571,11 +571,27 @@ function stationArc(loop: LoopRun, robot: Robot, kind: ArcKind, station: Station
   tl.play();
 }
 
-/** Out of the station: the slot frees as the robot appears, then it goes to work. */
+/**
+ * Out of the station: the slot frees as the robot appears, then it goes to work. It leaves from the
+ * back row (Task 34b, spec §1.6) — between the station's L4 and L3 — so a robot not already there is
+ * hidden and moved first; the arc plays on the re-mounted body, at the back row's scale.
+ */
 function exitStation(loop: LoopRun, robot: Robot): void {
   write(loop, robot.id, { activity: 'exiting' });
   const station = loop.stations.find((s) => s.id === robot.stationId);
-  stationArc(loop, robot, 'spawn', station, () => next(robot.id));
+  const arc = () => {
+    const here = robotOf(loop, robot.id);
+    if (!here) return;
+    placeRow(here, BACK_LAYER_SCALE);
+    stationArc(loop, here, 'spawn', station, () => next(robot.id));
+  };
+  if (rowOfRobot(robot) === 'background') {
+    arc();
+    return;
+  }
+  const el = bodyOf(robot.id);
+  if (el) place(el, { autoAlpha: 0 }); // nothing shows in the front row while it moves
+  moveToRow(loop, robot, 'background', arc);
 }
 
 /** Home: reserve a slot at the nearest station with room, swim to its port, enter. */

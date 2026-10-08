@@ -313,6 +313,13 @@ export function OceanScene({
       {/* Moving: the back robot row (Phase 43 J4) — robots whose `layer` is 'background', behind
           the midground, hazed by tints B–D like the buildings around them. */}
       <SceneLayer name="robots-back" width={width} height={height} moving>
+        {/* Each station's back fragment (L4), under the back row: a robot exiting a station is in
+            this row (Task 34b, spec §1.6), so it appears between L4 and L3. */}
+        <g id="station-l4-layer">
+          {stations.map((s) => (
+            <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l4" />
+          ))}
+        </g>
         <g id="robot-back-layer">
           {backRobotIds.map((id) => (
             <Robot key={id} robotId={id} />
@@ -351,15 +358,10 @@ export function OceanScene({
       {/* Moving: the front robot row (GSAP-driven transforms, Robot.tsx) — every robot whose
           `layer` isn't 'background'. Charging stations (docs/specs/ROBOT_JOBS_AND_STATIONS.md
           §1.6) are three fragments interleaved with the robots, back to front: L4 · exiting
-          robots · L3 · robots · L2 + halo + L1, so an entering robot passes between L2 and L3.
-          Exits still draw in this row (spec §1.6's move of L4 and the exits to robots-back isn't
-          built yet). Stations take no clicks. */}
+          robots · L3 · robots · L2 + halo + L1. L4 and the exiting robots are in robots-back
+          (Task 34b), so an exiting robot appears behind L3 and an entering one passes between L2
+          and L3. Stations take no clicks. */}
       <SceneLayer name="robots" width={width} height={height} moving>
-        <g id="station-l4-layer">
-          {stations.map((s) => (
-            <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l4" />
-          ))}
-        </g>
         <g id="station-l3-layer">
           {stations.map((s) => (
             <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l3" />

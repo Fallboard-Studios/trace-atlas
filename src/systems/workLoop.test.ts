@@ -555,6 +555,24 @@ function withReducedMotion(fn: () => void) {
   }
 }
 
+/**
+ * Stands in for React's re-mount when the loop moves a mounted robot to the other row (its
+ * `layer` changes while it is marked layerSwitching): Robot.tsx's mount would hand it back through
+ * onRobotMounted. The same body, not a new one — enough for tests that aren't about the re-mount.
+ * Returns the unsubscribe.
+ */
+function remountOnRowChange(): () => void {
+  return useLocaleStore.subscribe((state, prev) => {
+    const before = prev.locales[LOCALE]?.robots ?? [];
+    for (const r of state.locales[LOCALE]?.robots ?? []) {
+      const old = before.find((b) => b.id === r.id);
+      if (old && (old.layer ?? 'foreground') !== (r.layer ?? 'foreground') && isLayerSwitching(r.id)) {
+        onRobotMounted(LOCALE, r.id);
+      }
+    }
+  });
+}
+
 /** One site; r1 Active, working at it, mounted, the loop running. */
 function workingAtA() {
   const { a } = sitesForSwitch();
@@ -580,6 +598,16 @@ function exitingAt(stationIndex = 0) {
 }
 
 describe('workLoop — stations, recall and mounts (Phase 43 Task 23, spec §1.6/§1.7)', () => {
+  // Since Task 34b an exit first moves the robot to the back row, which in the app is a React
+  // re-mount the loop waits for. These tests are about the arcs, ripples and recall, not the
+  // re-mount, so React's part is stood in for: the same body hands itself back. The Task 34/34b
+  // block swaps in a new body instead.
+  let unsubscribe: () => void = () => {};
+  beforeEach(() => {
+    unsubscribe = remountOnRowChange();
+  });
+  afterEach(() => unsubscribe());
+
   it('the fixture world has at least two stations', () => {
     registerLocale([sitesForSwitch().a], []);
     expect(stations().length).toBeGreaterThanOrEqual(2);
@@ -1759,6 +1787,180 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       mountRow('r1');
       onRobotMounted(LOCALE, 'r1');
       expect(copies(layer)).toEqual([]);
+    });
+  });
+
+  // Task 34b (spec §1.6): a robot leaving its station is in the back row — it appears between L4 and
+  // L3, at the back row's scale. It is written there while still hidden at the port (a re-mount,
+  // marked like any layer switch), and the exit arc plays on the re-mounted body. From there it
+  // leaves like any back-row robot.
+  describe('exits from the back row (Task 34b)', () => {
+    /** One station; r1 at its port, as `over` says; the loop running with `backHosts`. */
+    function atStation(over: Partial<Robot>, actors: Actor[] = [frontSite().actor], backHosts = false) {
+      registerLocale(actors, []);
+      const s = stations()[0];
+      setRobots([robot('r1', s.port, { stationId: s.id, ...over })]);
+      const layer = dissolveLayer();
+      startWorkLoop(LOCALE, { now, backHosts });
+      const first = mountRow('r1');
+      return { s, layer, first };
+    }
+
+    it('an Active robot charging is written to the back row first — still hidden, marked — and its arc waits for the re-mount', () => {
+      const { first } = atStation({ activity: 'charging' });
+      gsap.set(first.el, { autoAlpha: 0, immediateRender: true }); // hidden in its station
+      onRobotMounted(LOCALE, 'r1'); // Active: adopt exits it
+      expect(get('r1').activity).toBe('exiting');
+      expect(get('r1').layer).toBe('background');
+      expect(isLayerSwitching('r1')).toBe(true);
+      expect(isHidden(first.el)).toBe(true);
+      expect(getTimeline('station-r1')).toBeUndefined();
+    });
+
+    it('a visible body is hidden before the switch, so nothing shows in the old row', () => {
+      const { first } = atStation({ activity: 'exiting' });
+      onRobotMounted(LOCALE, 'r1');
+      expect(get('r1').layer).toBe('background');
+      expect(isHidden(first.el)).toBe(true);
+    });
+
+    it('the re-mount plays the arc in the back row: .robot 0.15 → 1 and 0 → 1 opacity, the row at BACK_LAYER_SCALE', () => {
+      const { first } = atStation({ activity: 'charging' });
+      onRobotMounted(LOCALE, 'r1');
+      const second = remount('r1', first);
+      expect(second.markedAtMount).toBe(true);
+      expect(isLayerSwitching('r1')).toBe(false);
+      const arc = getTimeline('station-r1')!;
+      expect(arc).toBeDefined();
+      expect(scale(second.el)).toBeCloseTo(STATION_PORT_SCALE, 6);
+      expect(opacity(second.el)).toBeCloseTo(0, 6);
+      expect(rowScale(second.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
+      arc.progress(1, true); // the end state, without the arc's next()
+      expect(scale(second.el)).toBeCloseTo(1, 6);
+      expect(isShown(second.el)).toBe(true);
+      expect(rowScale(second.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
+    });
+
+    it('then a front site is a back → front leg: asked for its switch point, with the dissolve', () => {
+      const { first, layer } = atStation({ activity: 'charging' });
+      onRobotMounted(LOCALE, 'r1');
+      remount('r1', first);
+      switchSpy.mockImplementation((from, to) => midway(from, to));
+      finish('station-r1');
+      expect(get('r1').activity).toBe('transit');
+      expect(switchSpy).toHaveBeenCalledTimes(1);
+      finish('swim-r1');
+      expect(get('r1').layer).toBe('background');
+      expect(opacity(copies(layer)[0])).toBeCloseTo(0, 6);
+    });
+
+    it('a background site is a same-row swim: no switch point, no copy, still at BACK_LAYER_SCALE', () => {
+      const { first, layer } = atStation({ activity: 'charging' }, [backSite().actor], true);
+      onRobotMounted(LOCALE, 'r1');
+      const second = remount('r1', first);
+      finish('station-r1');
+      expect(get('r1').siteId).toBe(backSite().site.id);
+      expect(switchSpy).not.toHaveBeenCalled();
+      finish('swim-r1');
+      expect(get('r1').activity).toBe('working');
+      expect(copies(layer)).toEqual([]);
+      expect(rowScale(second.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
+    });
+
+    it('a robot already in the back row exits at once, with no re-mount', () => {
+      const { first } = atStation({ activity: 'exiting', layer: 'background' });
+      onRobotMounted(LOCALE, 'r1');
+      expect(isLayerSwitching('r1')).toBe(false);
+      expect(getTimeline('station-r1')).toBeDefined();
+      expect(rowScale(first.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
+    });
+
+    it('no body: the layer is written and the arc runs at once', () => {
+      registerLocale([frontSite().actor], []);
+      const s = stations()[0];
+      setRobots([robot('r1', s.port, { stationId: s.id, activity: 'charging' })]);
+      startWorkLoop(LOCALE, { now, backHosts: false });
+      onLifecycleChange(LOCALE, 'r1', 'active');
+      expect(get('r1').activity).toBe('exiting');
+      expect(get('r1').layer).toBe('background');
+      expect(isLayerSwitching('r1')).toBe(false);
+      expect(getTimeline('station-r1')).toBeDefined();
+    });
+
+    it('turn-back at the port: an entering robot that went Active again exits from the back row', () => {
+      const { s, first } = atStation({ activity: 'entering', docking: 'recalled' });
+      onRobotMounted(LOCALE, 'r1'); // adopt: home again from the port (a zero-length leg) and in
+      expect(get('r1').activity).toBe('entering');
+      expect(get('r1').layer ?? 'foreground').toBe('foreground'); // entering is in the front row
+      useLocaleStore.getState().updateRobot(LOCALE, 'r1', { docking: 'active' });
+      finish('station-r1'); // the entry ends Active: it turns back
+      expect(get('r1').activity).toBe('exiting');
+      expect(get('r1').stationId).toBe(s.id);
+      expect(get('r1').layer).toBe('background');
+      expect(isLayerSwitching('r1')).toBe(true);
+      const second = remount('r1', first);
+      expect(getTimeline('station-r1')).toBeDefined();
+      expect(rowScale(second.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
+    });
+
+    it('recalled mid-arc: the arc finishes, then it heads home from the back row', () => {
+      const { first } = atStation({ activity: 'charging' });
+      onRobotMounted(LOCALE, 'r1');
+      remount('r1', first);
+      land('r1', 'recalled', 'recalled'); // exiting: the arc finishes first
+      expect(get('r1').activity).toBe('exiting');
+      finish('station-r1');
+      expect(get('r1').activity).toBe('returning');
+      expect(get('r1').layer).toBe('background');
+      const port = portPos(stations().find((st) => st.id === get('r1').stationId)!);
+      expect(switchSpy.mock.calls.at(-1)![1]).toEqual(port);
+    });
+
+    it('power-on: robots mount hidden, then the loop moves each to the back row before any arc', () => {
+      registerLocale([frontSite().actor], []);
+      const [s0, s1] = stations();
+      setRobots([
+        robot('r1', s0.port, { stationId: s0.id, activity: 'exiting' }),
+        robot('r2', s1.port, { stationId: s1.id, activity: 'exiting' }),
+      ]);
+      dissolveLayer();
+      const bodies = ['r1', 'r2'].map((id) => {
+        const m = mountRow(id);
+        onRobotMounted(LOCALE, id); // no loop yet: hidden in place
+        return m;
+      });
+      for (const b of bodies) expect(isHidden(b.el)).toBe(true);
+      startWorkLoop(LOCALE, { now, backHosts: false });
+      for (const [i, id] of ['r1', 'r2'].entries()) {
+        expect(get(id).layer).toBe('background');
+        expect(isLayerSwitching(id)).toBe(true);
+        expect(isHidden(bodies[i].el)).toBe(true);
+        expect(getTimeline(`station-${id}`)).toBeUndefined();
+      }
+      remount('r1', bodies[0]);
+      remount('r2', bodies[1]);
+      expect(getTimeline('station-r1')).toBeDefined();
+      expect(getTimeline('station-r2')).toBeDefined();
+    });
+
+    it('reduced motion: the arc fades in place in the back row, the row at BACK_LAYER_SCALE', () => {
+      withReducedMotion(() => {
+        const { first } = atStation({ activity: 'charging' });
+        onRobotMounted(LOCALE, 'r1');
+        const second = remount('r1', first);
+        expect(getTimeline('station-r1')!.duration()).toBeCloseTo(STATION_REDUCED_ARC_SECONDS, 6);
+        expect(scale(second.el)).toBeCloseTo(1, 6);
+        expect(rowScale(second.row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
+      });
+    });
+
+    it('a Docked robot stays hidden in the front row: only an exit moves it back', () => {
+      const { first } = atStation({ activity: 'charging', docking: 'docked', layer: 'background' });
+      onRobotMounted(LOCALE, 'r1');
+      expect(get('r1').activity).toBe('charging');
+      expect(get('r1').layer).toBe('foreground');
+      expect(isHidden(first.el)).toBe(true);
+      expect(getTimeline('station-r1')).toBeUndefined();
     });
   });
 });

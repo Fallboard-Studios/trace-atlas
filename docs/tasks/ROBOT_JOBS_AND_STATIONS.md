@@ -1774,7 +1774,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   copy's alignment, the 0.75 ease, and whether the robot drawn twice after a back → front fade
   shows.
 
-- [ ] **Task 34b: The station's back fragment and exiting robots in the back row**
+- [x] **Task 34b: The station's back fragment and exiting robots in the back row**
 
   **Why:** spec §1.6 (the Task 0a correction) puts **L4 and the exiting robots in `robots-back`**:
   back to front, L4 · exiting robots · L3 · entering robots · L2 · halo + ripple · L1, with the
@@ -1829,6 +1829,37 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `src/systems/workLoop.ts` (+ test), `src/components/stations/ChargingStation.tsx` (its header
   comment), spec §1.6 / §1.10 Shipped notes, `scripts/perf/idle-paint.mjs` if its stack count
   should report L4 under the back row. **Scope:** S–M.
+
+  **As shipped (2026-10-08, `feature/jobs-depth`):** (1) **Q1–Q3.** Crawford asked for the task to
+  be implemented without answering, so the plan's recommendations stand: L4's haze and the
+  post-exit switch are accepted and get judged at Checkpoint E. Q2 was measured first and passed.
+  0 of 284 station boxes overlap a midground silhouette over the 121-seed grid (the station gem's
+  outlines are inside its box, per `stationGem.test.ts`). 0 of 284 ports overlap one even for the
+  worst-case exiting robot: the widest gem of 3 000 seeds, at body scale `calculateBodyScale([1, 3], 1)`
+  (1.69) × 0.75. Both checks are now guards in `stations.test.ts`. (2) **Scene:** `#station-l4-layer`
+  is the first group in `robots-back`, under `#robot-back-layer`; `robots` is L3 · `#robot-layer`
+  · `#robot-dissolve-layer` · front. (3) **`exitStation`:** a robot not already in the back row is
+  hidden (`autoAlpha` 0, so nothing shows in the old row, even mid-arc after an interruption), then
+  moved with T34's `moveToRow` (marked, `layer` written, the arc waits for the re-mount). The arc
+  then plays on the new body with `.robot__row` placed at `BACK_LAYER_SCALE`: `.robot` 0.15 → 1, so
+  the robot grows 0.11 → 0.75 overall, a hair smaller at the start than the spec's 0.15. A robot
+  already in the back row exits at once. With no body, the layer is written and the arc runs as a
+  timer. Every exit goes through it (adoption, `next()`, `'active'` while charging, the turn-back at
+  the port), so power-on's twelve exits do too: each is hidden on mount, then moved before any
+  arc. (4) **Test harness:** the J2 station tests and `workLoop.integration.test.ts` expect an exit
+  to start at once. In the app, React's re-mount is what continues it, so both now stand in for
+  React: when a marked robot's `layer` changes, the same body hands itself back through
+  `onRobotMounted`. The T34/T34b tests swap in a new body instead. (5) **Docs:** spec §1.6 Shipped
+  (J4) note, §1.10 "Which layer" exception, ROBOT_LIFECYCLE.md's J2 known gap closed,
+  ChargingStation.tsx's header, the perf harness's stack comment. (6) **Tests:**
+  `workLoop.test.ts` +12, `OceanScene.test.tsx` +1 (and 2 rewritten), `stations.test.ts` +2
+  guards (green from the start: they record a measurement, and a mutant with a full-screen
+  silhouette fails both). 8/8 mutants killed on the first pass. Full suite green apart from two
+  load timeouts in untouched files, both passing alone: the known Task 18 50-gem test, and a new
+  one, Task 28's `buildJobTimeline` "every job lasts" (5.1 s against vitest's 5 s, 1.7 s alone).
+  A second full run had the Task 18 timeout plus an unrelated random collision: the
+  `CompanyRenameDeleteForm` suggestion "Iron Consortium" equalled the company's own name. It passed
+  3/3 alone and wasn't chased.
 
 ### Checkpoint E: J4 live
 - [ ] Clean build/lint/types/suite. Crawford, live: robots work among background buildings, never

@@ -621,21 +621,41 @@ describe('OceanScene', () => {
   // fragments per station interleaved with the robots, back to front L4 · (exiting robots) · L3 ·
   // robots · L2 + halo + L1. Exits use the slot between L4 and L3 until J4's back row lands.
   describe('charging stations (Phase 43 Task 20)', () => {
-    it("renders every station's fragments around the robot group: L4, then L3, then the robots, then the front", () => {
+    // Phase 43 Task 34b (spec §1.6): back to front, L4 · exiting robots · L3 · entering robots · L2 ·
+    // halo + ripple · L1. L4 and the exiting robots are in the back robot row; L3 and the front
+    // fragment stay in the front row around the front robots.
+    it("renders every station's fragments around the robot rows: L4 under the back row, L3 and the front around the front row", () => {
       useLocaleStore.setState({
         locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [makeRobot({ id: 'r1' })], actors: [] } },
       });
       const stations = getStations(DEFAULT_LOCALE_ID);
       expect(stations.length).toBeGreaterThanOrEqual(2);
       const { container } = render(<OceanScene />);
-      const robotsLayer = container.querySelector('svg[data-scene-layer="robots"]')!;
-      const groups = Array.from(robotsLayer.querySelectorAll(':scope > g')).map((g) => g.id);
-      expect(groups).toEqual(['station-l4-layer', 'station-l3-layer', 'robot-layer', 'robot-dissolve-layer', 'station-front-layer']);
-      for (const [id, fragment] of [['station-l4-layer', 'l4'], ['station-l3-layer', 'l3'], ['station-front-layer', 'front']] as const) {
-        const markers = Array.from(robotsLayer.querySelectorAll(`#${id} > g[data-station-mock]`));
+      const layer = (name: string) => container.querySelector(`svg[data-scene-layer="${name}"]`)!;
+      const groupsOf = (name: string) => Array.from(layer(name).querySelectorAll(':scope > g')).map((g) => g.id);
+      expect(groupsOf('robots-back')).toEqual(['station-l4-layer', 'robot-back-layer']);
+      expect(groupsOf('robots')).toEqual(['station-l3-layer', 'robot-layer', 'robot-dissolve-layer', 'station-front-layer']);
+      for (const [name, id, fragment] of [
+        ['robots-back', 'station-l4-layer', 'l4'],
+        ['robots', 'station-l3-layer', 'l3'],
+        ['robots', 'station-front-layer', 'front'],
+      ] as const) {
+        const markers = Array.from(layer(name).querySelectorAll(`#${id} > g[data-station-mock]`));
         expect(markers.map((m) => m.getAttribute('data-station-mock'))).toEqual(stations.map((s) => s.id));
         for (const m of markers) expect(m.getAttribute('data-fragment')).toBe(fragment);
       }
+      expect(container.querySelectorAll('#station-l4-layer')).toHaveLength(1);
+    });
+
+    it('a back-row robot draws over L4 and under L3', () => {
+      useLocaleStore.setState({
+        locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [makeRobot({ id: 'r1', layer: 'background' })], actors: [] } },
+      });
+      const { container } = render(<OceanScene />);
+      const robotEl = container.querySelector('[data-robot-mock="r1"]')!;
+      const follows = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+      expect(follows(container.querySelector('#station-l4-layer')!, robotEl)).toBe(true);
+      expect(follows(robotEl, container.querySelector('#station-l3-layer')!)).toBe(true);
     });
 
     // Phase 43 Task 34 (spec §1.10): the layer-switch dissolve's `<use>` copies go here — in the
@@ -661,11 +681,15 @@ describe('OceanScene', () => {
       expect(container.querySelector('#robot-dissolve-layer')!.firstChild).toBe(use);
     });
 
-    it('draws no station in any other layer', () => {
+    it('draws no station in any other layer, and only L4 in the back row', () => {
       const { container } = render(<OceanScene />);
-      for (const name of ['back', 'robots-back', 'mid', 'bubbles', 'front']) {
+      for (const name of ['back', 'mid', 'bubbles', 'front']) {
         expect(container.querySelector(`svg[data-scene-layer="${name}"] g[data-station-mock]`)).toBeNull();
       }
+      const back = Array.from(container.querySelectorAll('svg[data-scene-layer="robots-back"] g[data-station-mock]'));
+      expect(back.length).toBeGreaterThan(0);
+      for (const m of back) expect(m.getAttribute('data-fragment')).toBe('l4');
+      expect(container.querySelector('svg[data-scene-layer="robots"] g[data-fragment="l4"]')).toBeNull();
     });
   });
 

@@ -522,9 +522,9 @@ verified requirement. `audioMode` (unaffected by the power cycle, since it lives
 
 ## Known gaps (J2)
 
-- **Exiting robots draw in the front robot group** (`#robot-layer`, between L3 and the station's
-  front fragment), not between L4 and L3 as spec §1.6 has it. That needs `OceanScene` to order
-  robots by activity without remounting them, which is J4's layer work.
+- ~~**Exiting robots draw in the front robot group**~~: closed by Phase 43 Task 34b (J4). An
+  exiting robot is moved to the back robot row (`robots-back`, over the station's L4 and under
+  L3) while hidden at the port, and its arc plays there at `BACK_LAYER_SCALE`.
 - **The orbiters' Size tween isn't stopped by the lock.** A Size edit mid-job would fight the pulse
   on `scale`.
 - **The station ignores daylight**: the robots dim at night, the station doesn't. No spec rule asks

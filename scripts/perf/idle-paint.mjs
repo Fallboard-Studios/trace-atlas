@@ -286,7 +286,7 @@ async function run(cdp) {
   })))()`);
   console.log(`Scene layers (elements): ${SCENE_LAYERS.map((name) => `${name} ${perLayer[name]}`).join(', ')}`);
   // Phase 43 J2 gate: element counts in the robots layer's stack (stations included). Before J2 only #robot-layer exists;
-  // before J4 there is no #robot-back-layer (reads 0).
+  // before J4 there is no #robot-back-layer (reads 0). Since Task 34b #station-l4-layer is in robots-back, not robots.
   const stack = await evaluate(`(() => {
     const n = (s) => document.querySelectorAll(s).length;
     const shown = [...document.querySelectorAll(${JSON.stringify(ROBOT_GROUPS)})].filter((e) => getComputedStyle(e).visibility !== 'hidden' && getComputedStyle(e).display !== 'none').length;

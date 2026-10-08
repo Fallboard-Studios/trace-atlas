@@ -18,7 +18,7 @@ import { tickRobotLifecycle } from './robotSystems';
 import { placeDistrict } from './districts';
 import { getStations } from './stations';
 import { getTimeline, killAllTimelines } from '../animation/timelineMap';
-import { registerArcDecorator, registerOrbiterWork, clearRobotMotionRegistry } from '../animation/robotMotionRegistry';
+import { registerArcDecorator, registerOrbiterWork, clearRobotMotionRegistry, isLayerSwitching } from '../animation/robotMotionRegistry';
 import { positionForCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
 import { jobDuration } from '../animation/jobMoves/jobDuration';
 import { getRobotGem } from '../components/robot/gem/polygon';
@@ -141,7 +141,21 @@ function simulate(bpm: number) {
       });
     }
   };
-  const unsubscribe = useLocaleStore.subscribe(record);
+  const unsubscribeRecord = useLocaleStore.subscribe(record);
+  // React's part of a row change (Phase 43 Tasks 34/34b): when the loop moves r1 to the other robot
+  // row it marks it and waits for the re-mount, which Robot.tsx's mount hands back. The same body
+  // stands in for the new one.
+  const unsubscribeRemount = useLocaleStore.subscribe((state, prev) => {
+    const now = state.locales[LOCALE]?.robots.find((r) => r.id === 'r1');
+    const before = prev.locales[LOCALE]?.robots.find((r) => r.id === 'r1');
+    if (now && before && (now.layer ?? 'foreground') !== (before.layer ?? 'foreground') && isLayerSwitching('r1')) {
+      onRobotMounted(LOCALE, 'r1');
+    }
+  });
+  const unsubscribe = () => {
+    unsubscribeRecord();
+    unsubscribeRemount();
+  };
   onRobotMounted(LOCALE, 'r1');
   record();
 
