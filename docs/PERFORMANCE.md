@@ -1125,6 +1125,61 @@ no-stations):
   `StyleRecalc Attribute` 25,807 (`ellipse.gem__halo`, `g.robot`), with `Layout SVG changed` 13,019. The branch
   shows more `Layout Style changed` on `g.robot` (3,899 vs 830), from the swim tweens on its visible robots.
 
+## Robot Jobs J3 — the Task 30 perf gate (2026-10-08, Phase 43)
+
+Gate ([docs/tasks/ROBOT_JOBS_AND_STATIONS.md](tasks/ROBOT_JOBS_AND_STATIONS.md) Task 30, spec §5.4): J3 (the
+six jobs' moves: trace, ring with its spark flicker, fan, carry, per-robot variation) idle busy and Paint
+within the 17.2.5 noise band of its base, as Task 26. **Passed on the harness by the J1/J2 gates' rule (each
+median inside the base's own round-to-round spread), with a lean flagged below.** Crawford's Pixel listen is
+still to come.
+
+**Method:** as the J2 gate. Branch `feature/jobs-moves` `017acd6a` (Checkpoint D) on :4183
+(`index-76-_ptck.js`). Base: J2's tip `af560c36` (Task 27), which this branch was cut from, built in a
+throwaway `git worktree` and served on :4184 (`index-DzZo4j2a.js`, the same bundle the J2 gate measured as its
+branch: Task 27 was docs only). Each port's served bundle filename was checked against its build before
+measuring. Same pinned world: style `alpha`, `(0, 50)`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides,
+encoded with `encodeSessionPayload` (version 2). `npm run perf:idle --throttle 1 --only none`, foreground;
+0 orphaned Chrome before and after. Four rounds, not three: in the first three, whichever build ran first
+read higher every time, and the rotation had put the branch first twice, so a fourth base-first round
+balanced the order.
+
+| Round (order) | Branch busy / paint (ms) | Base busy / paint (ms) |
+|---|---|---|
+| 1 (branch first) | 2161 / 185 | 1897 / 163 |
+| 2 (base first) | 2589 / 197 | 2781 / 205 |
+| 3 (branch first) | 2353 / 175 | 2129 / 162 |
+| 4 (base first) | 2887 / 217 | 2311 / 188 |
+| **Median** | **2471 / 191** | **2220 / 176** |
+
+Busy **+11 %**, paint **+9 %**. Both branch medians sit inside the base's own spread (busy 1897–2781, paint
+162–205), so by the rule the J1 and J2 gates used this reads no change.
+
+**The lean, and why it reads as noise.** The branch was higher in 3 of the 4 pairs (busy +264, −192, +224,
++576; paint +22, −8, +13, +29), so this isn't a clean zero. Three things point to run-to-run drift rather
+than a cost the moves added:
+
+- **Every bucket moves together.** In each pair `TimerFire` rises and falls with busy (branch vs base: 230 vs
+  198, 322 vs 363, 312 vs 239, 341 vs 289). J3 adds no timers (no `setTimeout`, `setInterval`,
+  `requestAnimationFrame`, `delayedCall` or `onUpdate` in its source diff; its moves are plain GSAP tweens),
+  so a real J3 cost would show in `Animation frame` alone. Instead the whole thread is slower in that window.
+- **The robots' own paint is unchanged** (ablation below): 112 vs 111 ms.
+- **The ablation run's stock windows agree:** 2007 / 160 branch vs 1987 / 158 base.
+
+Same scene on both builds in every window: 12 robots, 3 visible, 2 stations; `#robot-layer` 859–860 elements,
+L4 4, L3 16, front 58 (the J2 gate's counts; J3 draws its moves with existing elements). Top invalidation
+on both: `StyleRecalc Attribute` ≈ 23–25 k (`g.robot`, `ellipse.gem__halo`).
+
+**Ablation pass** (one run per build, `--only no-robots`; read paint only, as in the J2 gate):
+
+| Build | stock busy / paint | no-robots busy / paint | Robots' paint |
+|---|---|---|---|
+| Branch | 2007 / 160 | 2110 / 48 | 112 ms |
+| Base | 1987 / 158 | 2629 / 47 | 111 ms |
+
+**The J2 gate's open lead (≈ 30 ms paint per visible robot on J2 vs 16 on J1), re-checked:** ≈ 37 ms per
+visible robot on both builds here (3 visible). J3's moves add nothing measurable per robot. The J2-vs-J1 gap
+is still unexplained. It's still one run per build, so it stays a lead, not a finding.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

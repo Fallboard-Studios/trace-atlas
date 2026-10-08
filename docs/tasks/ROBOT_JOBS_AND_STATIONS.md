@@ -1496,6 +1496,19 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 - [ ] **Task 30: J3 perf gate — stop and report** — as T26 against J2's tip. **Files:**
   `docs/PERFORMANCE.md`. **Scope:** S.
 
+  **As run (2026-10-08), harness half; the task stays open for Crawford's Pixel listen:** branch
+  `017acd6a` vs base `af560c36` (J2's tip, the same bundle T26 measured), same-session A/B on the
+  J1/J2 gates' pinned world. Four rounds, not three: whichever build ran first read higher in each
+  of the first three rounds, and the rotation had put the branch first twice, so a fourth
+  base-first round balanced the order. Medians: busy 2471 vs 2220 ms (+11 %), paint 191 vs 176 ms
+  (+9 %). Both are inside the base's own spread, so **no miss by the rule the J1/J2 gates used**.
+  Flagged: the branch was higher in 3 of 4 pairs. The evidence points to drift, not cost. In each
+  pair the untouched `TimerFire` bucket moves with busy (J3 adds no timers or `onUpdate`). The
+  `no-robots` ablation puts the robots' paint at 112 vs 111 ms, and that run's stock windows read
+  2007/160 vs 1987/158. T26's per-visible-robot paint lead, re-checked: ≈ 37 ms on both builds, so
+  J3's moves add nothing measurable. The J2-vs-J1 gap stays an unexplained one-run lead. No
+  ablations beyond `no-robots` were needed, and no harness change.
+
 - [ ] **Task 31: J3 docs** — ANIMATION_SYSTEM.md moves section; BUILDING_DESIGN.md job → host →
   move table; spec `> **Shipped (J3)**`. **Scope:** XS.
 
