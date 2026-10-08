@@ -1862,7 +1862,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   3/3 alone and wasn't chased.
 
 ### Checkpoint E: J4 live
-- [ ] Clean build/lint/types/suite. Crawford, live: robots work among background buildings, never
+- [x] Clean build/lint/types/suite. Crawford, live: robots work among background buildings, never
       pop through a midground silhouette, no hitch at a layer switch (spec §7 Q3 — a hitch is a
       stop-and-report), the dissolve reads as a blend, and the new tints on the real buildings
       (judged on flat boxes in the sketch — background 49 %, midground 28 %, every robot 10 %; the
@@ -1870,6 +1870,13 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
       Note for the hitch call: the split leg brings the robot to rest at the switch point (two
       sine.inOut swims). With T34b: a robot exiting from behind L3, L4's extra haze (Q1), and the
       back → front switch that follows an exit to a front site (Q3).
+
+  **Passed 2026-10-08 (Crawford, live, at `a81dbeab`).** That settles T34b's Q1 (L4's haze) and Q3
+  (the switch after an exit) as accepted, and the T34 points: the back → front dissolve, the
+  copy's alignment and the 0.75 ease. The code side: `npm run build` clean (only Vite's chunk-size
+  warning), types clean, lint 0 errors (2 warnings in untouched scenery files). The suite was
+  green at T34b apart from load timeouts and one random collision in untouched files (T34b's As
+  shipped).
 
 - [ ] **Task 35: J4 perf gate + Pixel — stop and report**
 
