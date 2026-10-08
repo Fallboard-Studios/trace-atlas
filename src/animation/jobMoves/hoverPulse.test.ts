@@ -68,6 +68,20 @@ describe('hoverPulseTargets (pure)', () => {
     expect(hoverPulseTargets(point, 0)).toEqual([]);
   });
 
+  it('a robot\'s phase (Task 28) turns the whole gather round the point, keeping the radius and spacing', () => {
+    for (let n = 1; n <= 4; n++) {
+      const plain = hoverPulseTargets(point, n);
+      const turned = hoverPulseTargets(point, n, 0.9);
+      turned.forEach((t, j) => {
+        expect(Math.hypot(t.x - point.x, t.y - point.y)).toBeCloseTo(HOVER_GATHER_RADIUS, 9);
+        const a0 = Math.atan2(plain[j].y - point.y, plain[j].x - point.x);
+        const a1 = Math.atan2(t.y - point.y, t.x - point.x);
+        expect(Math.cos(a1 - a0)).toBeCloseTo(Math.cos(0.9), 9);
+        expect(Math.sin(a1 - a0)).toBeCloseTo(Math.sin(0.9), 9);
+      });
+    }
+  });
+
   it('is pure — same input, same output, input untouched', () => {
     const p = { x: 1, y: 2 };
     expect(hoverPulseTargets(p, 3)).toEqual(hoverPulseTargets(p, 3));
@@ -86,6 +100,18 @@ describe('addHoverPulse (tweens on the job timeline)', () => {
     for (let j = 0; j < 3; j++) {
       tl.time(1 + 2 * j + 1); // the middle of slot j
       els.forEach((el, k) => expect(scaleOf(el)).toBeCloseTo(k === j ? rest[k] * HOVER_PULSE_SCALE : rest[k], 6));
+    }
+  });
+
+  it('pulses in the robot\'s turn order when ranks are given (Task 28)', () => {
+    const els = groups(3);
+    const rest = [1, 1, 1];
+    const ranks = [2, 0, 1]; // orbiter 1 first, then 2, then 0
+    const tl = gsap.timeline({ paused: true });
+    addHoverPulse(tl, els, rest, 1, 7, ranks);
+    for (let turn = 0; turn < 3; turn++) {
+      tl.time(1 + 2 * turn + 1);
+      els.forEach((el, k) => expect(scaleOf(el)).toBeCloseTo(ranks[k] === turn ? HOVER_PULSE_SCALE : 1, 6));
     }
   });
 

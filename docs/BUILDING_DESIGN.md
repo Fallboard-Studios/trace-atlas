@@ -517,9 +517,10 @@ here too.
   one gap: a background Skyscraper's roof can sit as high as y = 48, so its park lands *below* the
   roof line. Background sites are ineligible until J4, and J4 must decide whether to drop such
   sites or park beside them.
-- **`points`** (2–4 work points: mouths, valves, mast heads, roof corners) and **`path`** (a
-  polyline of at least 2 points: the top outline, a pipe run, a hull line) come from the site's
-  own `Alea(id + ':work')` stream, never per robot.
+- **`points`** (2–4 work points: mouths, valves, mast heads, roof corners) and **`paths`** come
+  from the site's own `Alea(id + ':work')` stream, never per robot. `paths.outline` (a polyline of
+  at least 2 points: the top outline, a hull line) is always there; `paths.pipe` (the pipe run) is
+  only on a pipeline, and a site without one traces its outline instead.
 - **Foreground rule:** foreground buildings draw *over* the robots, so a foreground site's points
   and path lie on or above its top outline. Orbiters work at the silhouette from outside. Midground
   and background sites may also use facade points (a tank gauge, a dome hatch, container labels).

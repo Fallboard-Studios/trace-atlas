@@ -135,6 +135,9 @@ const close = (a: Vec2, b: Vec2) => {
   expect(a.y).toBeCloseTo(b.y, 6);
 };
 
+/** Every vertex of both paths (spec §1.5: outline always, pipe where the kind has one). */
+const pathVertices = (a: SceneryAnchors) => [...a.paths.outline, ...(a.paths.pipe ?? [])];
+
 // ========================================
 // TESTS
 // ========================================
@@ -188,9 +191,10 @@ describe('sceneryWorkAnchors (Phase 43 Tasks 10–11, spec §1.5)', () => {
             const a = anchorsOf(actor, foreground);
             expect(a.points.length, actor.id).toBeGreaterThanOrEqual(2);
             expect(a.points.length, actor.id).toBeLessThanOrEqual(4);
-            expect(a.path.length, actor.id).toBeGreaterThanOrEqual(2);
+            expect(a.paths.outline.length, actor.id).toBeGreaterThanOrEqual(2);
+            if (a.paths.pipe) expect(a.paths.pipe.length, actor.id).toBeGreaterThanOrEqual(2);
             expect(a.outline.length, actor.id).toBeGreaterThanOrEqual(2);
-            for (const p of [...a.points, ...a.path]) expect(within(p, a), `${actor.id} ${JSON.stringify(p)}`).toBe(true);
+            for (const p of [...a.points, ...pathVertices(a)]) expect(within(p, a), `${actor.id} ${JSON.stringify(p)}`).toBe(true);
           }
         }
       });
@@ -198,7 +202,7 @@ describe('sceneryWorkAnchors (Phase 43 Tasks 10–11, spec §1.5)', () => {
       it('foreground: every point and path vertex on or above the top outline', () => {
         for (const actor of actors) {
           const a = anchorsOf(actor, true);
-          for (const p of [...a.points, ...a.path]) {
+          for (const p of [...a.points, ...pathVertices(a)]) {
             expect(onOrAboveOutline(p, a), `${actor.id} ${JSON.stringify(p)}`).toBe(true);
           }
         }
@@ -349,9 +353,9 @@ describe('sceneryWorkAnchors (Phase 43 Tasks 10–11, spec §1.5)', () => {
         close(mid.points[0], beamLeft);
         close(mid.points[1], { x: num(load, 'x') + num(load, 'width') / 2, y: num(load, 'y') + num(load, 'height') / 2 });
         close(mid.points[2], { x: num(light, 'cx'), y: num(light, 'cy') });
-        expect(fg.path).toHaveLength(2);
-        close(fg.path[0], beamLeft);
-        close(fg.path[1], beamRight);
+        expect(fg.paths.outline).toHaveLength(2);
+        close(fg.paths.outline[0], beamLeft);
+        close(fg.paths.outline[1], beamRight);
       }
     });
 
@@ -399,7 +403,7 @@ describe('sceneryWorkAnchors (Phase 43 Tasks 10–11, spec §1.5)', () => {
       }
     });
 
-    it('pipeline: the valve, the riser\'s top, then a point on the run; path is the pipe run beside the riser', () => {
+    it('pipeline: the valve, the riser\'s top, then a point on the run; paths.pipe is the pipe run beside the riser, paths.outline the top outline', () => {
       for (const actor of [0, 1, 2, 3].map((i) => sceneryActor('pipeline', i))) {
         const c = renderKind(actor);
         const valve = c.querySelector('[data-pipeline="valve"]')!;
@@ -410,11 +414,23 @@ describe('sceneryWorkAnchors (Phase 43 Tasks 10–11, spec §1.5)', () => {
           close(a.points[0], { x: num(valve, 'cx'), y: num(valve, 'cy') });
           close(a.points[1], { x: num(flange, 'x') + num(flange, 'width') / 2, y: num(flange, 'y') });
           expect(a.points[2].y).toBeCloseTo(num(pipe, 'y'), 6);
-          for (const v of a.path) expect(v.y).toBeCloseTo(num(pipe, 'y'), 6);
+          const run = a.paths.pipe!;
+          expect(run).toHaveLength(2);
+          for (const v of run) expect(v.y).toBeCloseTo(num(pipe, 'y'), 6);
           // The run never passes under the flange.
           const fx0 = num(flange, 'x'); const fx1 = fx0 + num(flange, 'width');
-          for (const p of [a.points[2], ...a.path]) expect(p.x <= fx0 + 1e-6 || p.x >= fx1 - 1e-6).toBe(true);
-          expect(a.path[1].x - a.path[0].x).toBeGreaterThan(0);
+          for (const p of [a.points[2], ...run]) expect(p.x <= fx0 + 1e-6 || p.x >= fx1 - 1e-6).toBe(true);
+          expect(run[1].x - run[0].x).toBeGreaterThan(0);
+          expect(a.paths.outline).toEqual(a.outline);
+        }
+      }
+    });
+
+    it('only the pipeline has a pipe; every other kind\'s paths are the outline alone (spec §1.5)', () => {
+      for (const kind of HOST_KINDS.filter((k) => k !== 'pipeline')) {
+        for (const foreground of [true, false]) {
+          const a = anchorsOf(sceneryActor(kind, 0), foreground);
+          expect(Object.keys(a.paths), kind).toEqual(['outline']);
         }
       }
     });

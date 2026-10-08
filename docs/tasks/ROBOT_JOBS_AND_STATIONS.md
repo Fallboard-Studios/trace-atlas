@@ -1339,7 +1339,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 
 ### Phase J3: The move set (`feature/jobs-moves`)
 
-- [ ] **Task 28: `trace`, `ring` and per-robot variation**
+- [x] **Task 28: `trace`, `ring` and per-robot variation**
 
   **Description:** `jobMoves/trace.ts` (staggered run along `path`) and `jobMoves/ring.ts` (evenly
   phased circle at radius `r`), targets pure; `jobMoves/variation.ts` — `Alea(gemSeed + ':work')`
@@ -1347,15 +1347,61 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   Survey's ring switch from the J2 fallback.
 
   **Acceptance criteria:**
-  - [ ] Trace: every orbiter visits every path vertex in order; ring: orbiters stay at `r ± 1` and
+  - [x] Trace: every orbiter visits every path vertex in order; ring: orbiters stay at `r ± 1` and
         evenly phased; both fit the job duration.
-  - [ ] Variation deterministic per `gemSeed`; two gem seeds differ in at least one parameter.
+  - [x] Variation deterministic per `gemSeed`; two gem seeds differ in at least one parameter.
+
+  **As shipped (2026-10-08):** (1) **Branch.** The dependency "J2 merged" isn't met (J2 is
+  unpushed on `feature/job-lifecycle-2`). J3 was cut from J2's tip (`af560c36`) as
+  `feature/jobs-moves`, the plan's J3 branch, so J2's PR stays clean. (2) **`variation.ts`.**
+  `workVariation(gemSeed)` is ported from the sketch, with the same draw order: a turn-order
+  shuffle of the four corners, ring direction ±1, radius scale 0.85–1.15, trace direction, then a
+  phase in [0, 2π). T29's spark draws go after these, so nothing here moves. The sketch's
+  `parkDx` is left out: the park has its own per-site stream (spec §1.5). `turnRanks(order,
+  shown)` gives each locked orbiter its turn among the shown corners. Over 500 seeds every
+  variation is distinct, and both directions of each flag occur. A test pins the stream key and
+  draw order against a hand-rolled `Alea`. (3) **`trace.ts`.** `traceRoute(path, reversed)` drops
+  repeated vertices, so no segment has zero length. `traceTimes(ranks, t0, t1)` puts starts
+  `TRACE_STAGGER` of the window apart, by turn rank, and the last to start ends exactly at `t1`.
+  `addPolylineRun` tweens vertex to vertex at constant speed (durations in proportion to segment
+  length) and is shared with the ring. Before its turn, an orbiter waits on the first vertex,
+  where the detach left it, and after its run it holds the last vertex until the reattach. (4)
+  **`ring.ts` is a polyline, not an `onUpdate`.** 24 chords per turn (15°) sag at most 0.24 u at
+  the widest ring (27.6 u), inside ±1 u. These are plain x/y tweens, so seeks and the silent
+  finish land exactly, and they avoid T23's lazy-`gsap.set`-in-`onUpdate` gotcha. Start angles
+  are `phase − π/2 + j·2π/n` by slot (T19's slot spacing). (5) **`hoverPulse` got the variation
+  too**, as T19's note promised: an optional `phase` turns the gather, and optional `ranks` set the
+  pulse order. Defaults keep T19's behaviour, and two T19 timeline tests now expect the robot's
+  phase and turn order. That is a visible change to Vent Extraction (and the fallback jobs): the
+  first orbiter is no longer always directly above the mouth. (6) **`buildJobTimeline`:** a
+  file-local `jobMove(job)` picks the move (Structural Inspection → `trace(path)`, Acoustic Survey
+  → `ring(points[0])`, the rest → `hoverPulse(points[0])`). T29 replaces it with `JOB_MOVES`.
+  Every move builds one scene route per orbiter, the detach flies to its first vertex, and the
+  routes go through `sceneToOrbiterLocal` per corner. `site` now needs `path` too. Acoustic
+  Survey's `fan` comes first in the spec table; it's T29's, so the ring runs alone here. (7) **Not
+  done here: `WorkSite.path` → `paths`** (T19 deferred it here). `trace` reads only the outline,
+  which is today's `path`. `pipe`'s first reader is Fluid Monitoring's `trace(pipe)` in T29, so the
+  split moves there with it. (8) **Constants moved early:** `RING_RADIUS` 24,
+  `RING_RADIUS_JITTER` 0.15, `RING_REVOLUTIONS` 1.5 and `TRACE_STAGGER` 0.12 are in
+  `constants/index.ts` now (the plan had all the move constants at T29). T29 adds carry, fan and
+  flicker. (9) **Tests:** in the scene, through the real transform chain at layer scale 1 and
+  0.75, both trace directions with 1 and 4 orbiters hit every vertex to 0.01 u at the expected
+  times, in order, inside the work window. Both ring directions stay within r ± 1 and evenly
+  phased, and sweep 1.5 turns. Every job lasts `jobDuration` with 0, 1 or 4 orbiters and ends
+  docked, and reduced motion moves no orbiter for any job. Two of my tests were wrong on the first
+  GREEN run: a 1e-6 tolerance (GSAP keeps transforms to about four decimals, so they're now 1e-3)
+  and an `addTrace` fixture that never placed the orbiters on their first vertex, which the
+  detach does. (10) **Mutation checks:** 18 mutants, 18 killed. They covered trace direction,
+  repeats, rank stagger, run length, length-blind timing, ring direction, coarse chords, start
+  angle, radius jitter, stream key, turn ranks, each job's move, hover phase and ranks, ring
+  radius scale, and ring start time. (11) ANIMATION_SYSTEM.md and ROBOT_LIFECYCLE.md lost their
+  "one move for every job" lines; the rest of the J3 docs are T31's. Suite 7126 green.
 
   **Verification:** `npx vitest run src/animation/jobMoves`. **Dependencies:** J2 merged.
   **Files:** `src/animation/jobMoves/trace.ts`, `ring.ts`, `variation.ts`, `buildJobTimeline.ts`
   (+ tests). **Scope:** M.
 
-- [ ] **Task 29: `carry`, `fan`, the spark flicker and the six-job table**
+- [x] **Task 29: `carry`, `fan`, the spark flicker and the six-job table**
 
   **Description:** `jobMoves/carry.ts`, `jobMoves/fan.ts`, Maintenance's opacity spark-flicker, and
   `JOB_MOVES` (spec §1.9 table); every job runs for `jobDuration(bpm)`, and the move constants
@@ -1363,19 +1409,106 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   in-place pulse for every job.
 
   **Acceptance criteria:**
-  - [ ] Each job's timeline contains its moves in order and totals `jobDuration`.
-  - [ ] Every move ends with orbiters reattached (`x: 0, y: 0`, scale and opacity restored).
+  - [x] Each job's timeline contains its moves in order and totals `jobDuration`.
+  - [x] Every move ends with orbiters reattached (`x: 0, y: 0`, scale and opacity restored).
+
+  **As shipped (2026-10-08):** (1) **`jobMoveTable.ts`.** `JOB_MOVES` is spec §1.9's table as
+  data: each step names its move and its targets. `moveWindows(count, D)` splits the time before
+  the reattach equally between the moves. The first move's approach is the detach. Each later move
+  gets min(`MOVE_APPROACH_MAX_SECONDS` 0.35, `MOVE_APPROACH_FRACTION` 0.25 × its share). The detach
+  is also capped at 40 % of the first share, as in the sketch. With today's 6–10 s jobs and at most
+  two moves that cap never binds. `buildJobTimeline` now loops over the steps, and the T28
+  `jobMove` is gone. Between moves, each orbiter flies from where the last move left it to the
+  next move's first vertex. (2) **Point roles are indices. My call, flagged.** Sites name their
+  points only by index, but the table names a valve, a mast and an a → b. `points[0]` is the main
+  point: the mouth, mast, dish centre or head. Vent Extraction, Acoustic Survey and Maintenance
+  work there. Fluid Monitoring's valve is `points[1]`, which is the Refinery's valve and the riser
+  top directly above the pipeline's valve. On a tank or dome it is the second anchor (the top
+  point or a porthole). Salvage carries `points[0] → points[1]`, the Warehouse's and the
+  containers' pick-up and drop. `stepPoint` falls back to the last point, although every site has
+  at least two. (3) **`WorkSite.path` → `paths: { outline, pipe? }`** (deferred from T19 and T28,
+  type `WorkPaths` in `workSites.ts`). Every kind's `outline` is its old `path`, so no trace moved,
+  with one exception: the pipeline's `outline` is now its stepped top outline, and its old `path`
+  (the run) is `pipe`. A derelict pipeline's Structural Inspection now traces the outline, not the
+  run. Only the pipeline has a pipe. The Refinery draws `pipesValves` greebles, but their geometry
+  isn't extracted, so Refinery, tank and dome Fluid Monitoring trace the outline (spec §1.5's
+  fallback). Flagged for J4 or later. (4) **`fan.ts`:** FAN_RADIUS 40 u, spread 120° centred on
+  straight up, left to right by slot. It doesn't turn with the robot's phase (sketch). The ping is
+  ×1.5 in turn order. `hoverPulse.ts` gained `addPulsesInTurn`, which `addHoverPulse` and `addFan`
+  share. (5) **`carry.ts`:** side by side `CARRY_SPACING` 8 u apart (the sketch's value, kept
+  local to carry.ts because spec §1.9 doesn't list it). The sketch's timing: shrink to ×0.7 by
+  10 %, at the drop by 45 %, back to rest scale by 55 %, on the pick-up by 90 %, then hold. All
+  orbiters move together. (6) **The spark flicker** lives in `ring.ts`. `variation.ts` appends
+  `sparks`, `FLICKER_SPARKS` (3) draws per corner after `phase`, so no T28 draw moved. The sketch
+  drew a `parkDx` first, but its RNG isn't Alea, so draw parity with it never held. A draw u lands
+  on chord ⌊u × 36⌋ (`sparkChords`, deduped). On that chord, opacity dips to 0.25 at the chord's
+  middle and is back at the rest opacity by its end, so every dip ends inside the ring. Sparks are
+  indexed by corner, so an orbiter keeps its sparks at any count. (7) **Constants:** `CARRY_SHRINK`
+  0.7, `FAN_RADIUS` 40, `FAN_SPREAD_DEG` 120, `FAN_PING_SCALE` 1.5, `FLICKER_OPACITY` 0.25,
+  `FLICKER_SPARKS` 3, `MOVE_APPROACH_MAX_SECONDS` 0.35, `MOVE_APPROACH_FRACTION` 0.25. (8)
+  **Tests:** each job's moves in its windows through the real transform chain. Acoustic Survey's
+  fan, ping order and the flight to the ring start, with the mid-flight point at neither end.
+  Fluid Monitoring traces the pipe, or the outline without one, then gathers on `points[1]`.
+  Salvage's four carry phases. Maintenance gets one dip per spark chord, reaching 0.25 mid-chord,
+  and no other job touches opacity. All six jobs end docked with scale and opacity restored at 0, 1
+  and 4 orbiters. Reduced motion leaves orbiter opacity alone too. Everything passed on its first
+  GREEN run. One of my tests was wrong before then: I expected adjacent spark chords to merge into
+  one dip, but they come back to full at the shared vertex. I fixed it before running anything. (9)
+  **Mutation checks:** 27 mutants, 27 killed. They covered the table's valve index, carry
+  direction and missing fan or flicker, the pipe fallback, both approach caps, spark dedupe, the
+  rest-opacity restore, sparks by slot instead of by corner, a flicker on every ring, the fan's
+  spread, centring, ping scale and ranks, the carry shrink, timing, centring and return, an
+  instant approach, a skipped reattach, the spark draw order, and the pipe on the pipeline, a tank
+  and a factory. (10) Docs: ANIMATION_SYSTEM.md's "the other jobs run hoverPulse" and
+  BUILDING_DESIGN.md's single `path` line were made true. The rest of the J3 docs are T31's. Suite
+  7168 green, types clean, lint at main's 2 warnings.
 
   **Verification:** `npx vitest run src/animation/jobMoves`. **Dependencies:** T28.
   **Files:** `src/animation/jobMoves/carry.ts`, `fan.ts`, `jobMoveTable.ts`, `buildJobTimeline.ts`
   (+ tests), `src/constants/index.ts`. **Scope:** M.
 
+  **Code review (J3, 2026-10-08):** verdict approve. It found no correctness bugs and one stale
+  doc pair, and three fixes landed. (1) ROBOT_LIFECYCLE.md still said "the rest run `hoverPulse`
+  until Task 29 adds `carry` and `fan`", and ANIMATION_SYSTEM.md said fan, carry and the flicker
+  "land in Task 29". Item (10) above claimed both were fixed, but they weren't. Now each says
+  what every job runs. (2) `buildJobTimeline` had two `switch (step.move)` blocks, and the second
+  had no exhaustiveness check, so a new move would have got its approach flight and nothing else.
+  Now one `planStep(step, work)` returns each move's scene routes and its tween builder together.
+  Its return type makes a missing move a type error (TS2366, checked by deleting the `carry`
+  case), and the flicker's `orbiters.length > 0` guard went with the old `localRoutes[0]` read.
+  (3) `RING_SEGMENTS` (36) is exported from `ring.ts`. `buildJobTimeline` and the Maintenance
+  test no longer read it back from a route's length. Four mutants, all killed: missing case,
+  no flicker, flicker on every ring, and the wrong segment count. Left as is: `stepPoint`'s
+  last-point fallback, which can't fire because every site has ≥ 2 points (tested). FYI: under
+  full-suite load, Task 18's 50-gem round-trip test in `sceneToOrbiterLocal.test.tsx` (2.8 s
+  alone) timed out once at vitest's 5 s. It wasn't chased.
+
 ### Checkpoint D: J3 live
-- [ ] Clean build/lint/types/suite. Crawford, live: can he tell all six jobs apart at a glance?
+- [x] Clean build/lint/types/suite. Crawford, live: can he tell all six jobs apart at a glance?
       Company members visibly vary.
+
+  **Passed 2026-10-08** (Crawford: "i ran the commands, no issues. i visually confirmed things").
+  He ran the static checks at `7a5fc284`, after the J3 code-review fixes, and they came back
+  clean. In both of my full runs at that tip, Task 18's round-trip test in
+  `sceneToOrbiterLocal.test.tsx` timed out at vitest's 5 s. It is a load-dependent timeout and
+  didn't show in his run. Still open, and not chased.
 
 - [ ] **Task 30: J3 perf gate — stop and report** — as T26 against J2's tip. **Files:**
   `docs/PERFORMANCE.md`. **Scope:** S.
+
+  **As run (2026-10-08), harness half; the task stays open for Crawford's Pixel listen:** branch
+  `017acd6a` vs base `af560c36` (J2's tip, the same bundle T26 measured), same-session A/B on the
+  J1/J2 gates' pinned world. Four rounds, not three: whichever build ran first read higher in each
+  of the first three rounds, and the rotation had put the branch first twice, so a fourth
+  base-first round balanced the order. Medians: busy 2471 vs 2220 ms (+11 %), paint 191 vs 176 ms
+  (+9 %). Both are inside the base's own spread, so **no miss by the rule the J1/J2 gates used**.
+  Flagged: the branch was higher in 3 of 4 pairs. The evidence points to drift, not cost. In each
+  pair the untouched `TimerFire` bucket moves with busy (J3 adds no timers or `onUpdate`). The
+  `no-robots` ablation puts the robots' paint at 112 vs 111 ms, and that run's stock windows read
+  2007/160 vs 1987/158. T26's per-visible-robot paint lead, re-checked: ≈ 37 ms on both builds, so
+  J3's moves add nothing measurable. The J2-vs-J1 gap stays an unexplained one-run lead. No
+  ablations beyond `no-robots` were needed, and no harness change. **Crawford accepted the lean as
+  noise (2026-10-08: "passable").**
 
 - [ ] **Task 31: J3 docs** — ANIMATION_SYSTEM.md moves section; BUILDING_DESIGN.md job → host →
   move table; spec `> **Shipped (J3)**`. **Scope:** XS.

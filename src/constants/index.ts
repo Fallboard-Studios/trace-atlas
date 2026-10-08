@@ -237,6 +237,38 @@ export const BOB_CYCLE_SECONDS = 1.2;
 export const HOVER_GATHER_RADIUS = 14;
 export const HOVER_PULSE_SCALE = 1.3;
 
+/** ring (spec §1.9): orbiters circle the point at RING_RADIUS scene units, scaled per robot by up
+ *  to ±RING_RADIUS_JITTER (jobMoves/variation.ts), for RING_REVOLUTIONS turns per move. Kept as
+ *  sketched (Phase 43 Task 0b). */
+export const RING_RADIUS = 24;
+export const RING_RADIUS_JITTER = 0.15;
+export const RING_REVOLUTIONS = 1.5;
+
+/** trace (spec §1.9): each orbiter starts this fraction of the move after the one before it, so
+ *  they run the path in a staggered line. Kept as sketched (Phase 43 Task 0b). */
+export const TRACE_STAGGER = 0.12;
+
+/** carry (spec §1.9): orbiters shrink to this multiple of their rest scale while loaded. Kept as
+ *  sketched (Phase 43 Task 0b). */
+export const CARRY_SHRINK = 0.7;
+
+/** fan (spec §1.9): orbiters spread FAN_RADIUS scene units above the point over FAN_SPREAD_DEG,
+ *  then ping in turn to FAN_PING_SCALE × their rest scale. Kept as sketched (Phase 43 Task 0b). */
+export const FAN_RADIUS = 40;
+export const FAN_SPREAD_DEG = 120;
+export const FAN_PING_SCALE = 1.5;
+
+/** Maintenance's spark flicker (spec §1.9): each orbiter dips to FLICKER_OPACITY on
+ *  FLICKER_SPARKS seeded chords of its ring (jobMoves/variation.ts). Kept as sketched (Phase 43
+ *  Task 0b). */
+export const FLICKER_OPACITY = 0.25;
+export const FLICKER_SPARKS = 3;
+
+/** A job's later moves (spec §1.9) reach their first targets in min(MOVE_APPROACH_MAX_SECONDS,
+ *  MOVE_APPROACH_FRACTION × their share of the job); the first move's approach is the detach. */
+export const MOVE_APPROACH_MAX_SECONDS = 0.35;
+export const MOVE_APPROACH_FRACTION = 0.25;
+
 /** Robot swim speed, scene units per second (swimAnimation.ts; the loop sim's swims). */
 export const SWIM_SPEED = 120;
 
