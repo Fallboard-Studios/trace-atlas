@@ -2,10 +2,10 @@ import { describe, it, vi, expect, beforeEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 
 // Robot.test.tsx mocks RobotBody away to test click routing in isolation. This file renders the
-// real body end to end (Phase 40 Task 12), so it only needs idleSystem stubbed — real wander
-// behavior is unrelated to what's under test here (the orbiter motion hook actually mounting).
-vi.mock('@/systems/idleSystem', () => ({
-  handleRobotIdle: vi.fn(),
+// real body end to end (Phase 40 Task 12), so it only needs the work loop's mount hand-off stubbed
+// — the loop is unrelated to what's under test here (the orbiter motion hook actually mounting).
+vi.mock('@/systems/workLoop', () => ({
+  onRobotMounted: vi.fn(),
 }));
 
 import { Robot } from './Robot';
@@ -19,10 +19,7 @@ import type { Locale } from '@/types/locale';
 function makeRobot(overrides: Partial<RobotType> = {}): RobotType {
   return {
     id: 'r1',
-    state: 'idle',
     position: { x: 10, y: 20 },
-    destination: null,
-    direction: 'right',
     melody: [],
     audioAttributes: {
       adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.3 },

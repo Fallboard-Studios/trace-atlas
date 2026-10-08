@@ -1,0 +1,574 @@
+<!doctype html>
+<!-- Moves and jobs — sketch for roadmap Phase 43 (Robot jobs & stations), Task 0b. The station half is Task 0a,
+     docs/sketches/robot-charging-station.html (done 2026-10-07); this page is the (a)/(b) panels the plan's Task 0
+     asked for: one robot with its docked orbiters beside a Refinery-style factory and a dome, playing the five moves
+     (spec §1.9) and the six jobs' sequences, with sliders for orbiter count, JOB_WORK_RATE per job, JOB_BASE_SECONDS
+     and JOB_MIN_SECONDS, reduced motion, and the 0.75× back-layer toggle. Built 2026-10-07 on feature/job-lifecycle-2.
+     Nothing here touches the live renderer: the robot generator and shading are the Phase 39 sketch's (as trimmed for
+     Task 0a), orbiters docked at the Top's corners per Phase 40. Plain rAF with a keyframe interpolator here; the app
+     builds one GSAP timeline per job run (`work-${robotId}`).
+
+     What a job run is on this page (spec §1.9, one timeline): the robot bobs (±BOB_PX, whole cycles fitting the
+     duration); the orbiters DETACH from their dock corners to the first move's targets over ATTACH_DURATION; the
+     job's one or two moves fill the middle; the orbiters REATTACH to the corners by the end.
+     Duration — CHANGED by Crawford at the gate (2026-10-07), replacing the shipped jobDuration(job, n):
+       * Orbiter count NO LONGER drives speed ("it creates some weirdness"). JOB_WORK_RATE and JOB_MIN_SECONDS retire
+         with it; the count slider below only changes how many orbiters work.
+       * JOB_BASE_SECONDS is 6–10 s, driven by BPM: slower tempo → longer job. Linear over the Tempo slider's 20–200
+         range: base = 10 − 4 × (bpm − 20) / 180, so 20 BPM → 10 s, 110 → 8 s, 200 → 6 s. Every job runs for base.
+       * ATTACH_DURATION = 1 s (was 0.5).
+       Knock-on for the plan: Task 15's readiness sim pinned the site cooldown (0.4/3/30) with 2.2–4.3 s jobs; at
+       6–10 s it needs re-running before T17 (longer jobs = fewer free sites = longer waits).
+     Assumptions to confirm (not in the spec):
+       A1 detach + reattach are INSIDE the duration, not added to it — at 6 s and 1 s flights a two-move job gets
+          ~3.3 s of actual work. The readout prints "work" seconds so the squeeze is visible.
+       A2 a site here carries two paths (outline + pipe) and five named points (mouth, mast, valve, a, b); the spec's
+          WorkSite has one `path` and 2–4 `points`. If the two-path reading stands, §1.5 grows a second path or the
+          site's `path` is per-kind (outline for most, pipe run for refineries).
+       A3 hosts and points are hand-placed on two drawn silhouettes, not ported from factoryGeometry/sceneryWorkAnchors.
+       A4 foreground rule: when on, points below the outline move to their on-outline alternates and the pipe trace
+          falls back to the outline.
+     Verdicts (Crawford, 2026-10-07):
+       orbiter count → speed: CUT   JOB_BASE_SECONDS: 6–10 s ← BPM (above)   JOB_MIN_SECONDS / JOB_WORK_RATE: retired
+       ATTACH_DURATION: 1 s   the remaining move weights (gather 14, pulse ×1.3, ring 24 ±15 %, revs 1.5, stagger 0.12,
+       carry shrink 0.7, fan 40 / 120°, ping ×1.5, flicker 0.25 ×3, BOB_PX 6): KEEP as they stand
+       GATE PASSED 2026-10-07 ("we're good to go"): A1 flights inside the duration, A2 two paths per site, bob cycle ≈1.2 s,
+       reduced-motion pulse and moves at 0.75× all accepted as sketched. Folded into spec §1.5/§1.9; code catches up at Task 16b. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Moves and jobs — sketch</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #12161a; color: #e4e6ea; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 28px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  p.note { font-size: 12px; color: #9aa; max-width: 980px; margin: 4px 0 12px; }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; max-width: 980px; }
+  .pending b { color: #e8b84a; }
+  .controls { display: flex; gap: 10px; align-items: center; font-size: 13px; margin: 12px 0 16px; flex-wrap: wrap; }
+  .controls input[type=text] { background: #1a2027; color: #e4e6ea; border: 1px solid rgba(140,190,210,.14); padding: 4px 8px; font-family: monospace; width: 110px; }
+  button { background: #1a2027; color: #e4e6ea; border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; }
+  button.job { border-color: #e2b149; }
+  button.on { background: #41ad9f; color: #12161a; }
+  button:disabled { opacity: .4; cursor: default; }
+  .controls label, .mcol label { color: #9aa; }
+  .mgrid { display: flex; gap: 26px; flex-wrap: wrap; margin: 8px 0 14px; }
+  .mcol { font-size: 12px; color: #9aa; min-width: 290px; }
+  .mcol h3 { font-size: 12px; color: #e4e6ea; margin: 0 0 6px; text-transform: uppercase; letter-spacing: .06em; }
+  .mcol label { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+  .mcol input[type=range] { width: 120px; }
+  .mcol span { font-family: monospace; color: #e4e6ea; min-width: 40px; }
+  .mcol select, .controls select { background: #1a2027; color: #e4e6ea; border: 1px solid rgba(140,190,210,.14); padding: 2px 6px; font-family: monospace; }
+  .readout { font-family: monospace; font-size: 11px; color: #8a8f99; background: #1a2027; padding: 6px 8px; margin: 8px 0 0; border-radius: 3px; white-space: pre; }
+  .stage { background: #1a2027; border: 1px solid rgba(140,190,210,.14); border-radius: 3px; padding: 8px; font-size: 10px; color: #8a8f99; font-family: monospace; display: inline-block; }
+  .stage svg { display: block; margin: 0 auto 4px; background: #12161a; }
+  #scrub { width: 100%; }
+</style>
+</head>
+<body>
+
+<h1>Moves and jobs — sketch</h1>
+<p class="note">Task 0b of the Phase 43 sketch gate. One roster robot parks above a host and runs a job: bob, detach, the job's moves, reattach. Two hosts — a Refinery-style factory (hard edges, chimney mouth, mast, pipe run) and a dome (curved hull, crown, side vent, base pipe) — each with hand-placed work points and two paths. The five moves have their own buttons; the six jobs chain them per spec §1.9. Every job runs for <code>JOB_BASE_SECONDS</code>, 6–10 s from the tempo: slower BPM, longer job. Orbiter count only changes how many orbiters work.</p>
+<div class="pending"><b>Gate questions:</b> Can each job be told apart from across the world? Does a 10 s job at 20 BPM drag, and does a 6 s job at 200 BPM read as rushed? With 1 s flights inside the duration, is ~3.3 s of work enough for a two-move job at 6 s (A1)? Does <code>trace</code> on the dome's curved hull read as work or as a glitch? Do the moves still read at 0.75×? Is the reduced-motion pulse enough to say "working"?</div>
+
+<div class="controls">
+  <label>Seed <input type="text" id="seed" value="still-echo" /></label>
+  <label>Robot <select id="robotIdx"></select></label>
+  <button id="revar">re-roll variation</button>
+  <label>Host <select id="host"><option value="factory">factory</option><option value="dome">dome</option></select></label>
+  <label><input type="checkbox" id="fgRule" /> foreground rule (points on/above the outline)</label>
+  <label><input type="checkbox" id="overlay" checked /> show points + paths</label>
+  <label>Zoom <input type="range" id="zoom" min="1" max="2.5" step="0.25" value="1.5" /> <span id="zoomv">1.5</span>×</label>
+</div>
+
+<div class="mgrid">
+  <div class="mcol"><h3>Job time (Crawford's gate call: BPM-driven, no orbiter coupling)</h3>
+    <label>Orbiter count (visual only) <input type="range" id="count" min="1" max="4" step="1" value="4" /><span></span></label>
+    <label>BPM → JOB_BASE_SECONDS <input type="range" id="bpm" min="20" max="200" step="1" value="110" /><span></span></label>
+    <label>Base range <input type="range" id="baseMin" min="3" max="10" step="0.5" value="6" /><span></span> s at 200 BPM</label>
+    <label>&nbsp; <input type="range" id="baseMax" min="3" max="14" step="0.5" value="10" /><span></span> s at 20 BPM</label>
+    <label>ATTACH_DURATION <input type="range" id="attach" min="0.2" max="1.5" step="0.05" value="1" /><span></span> s</label>
+    <label>BOB_PX <input type="range" id="bob" min="0" max="12" step="1" value="6" /><span></span> u</label>
+    <label>Playback rate <input type="range" id="rate" min="0.25" max="2" step="0.25" value="1" /><span></span>×</label>
+  </div>
+  <div class="mcol"><h3>Move constants (not yet in the spec)</h3>
+    <label>Gather radius <input type="range" id="gatherR" min="6" max="30" step="1" value="14" /><span></span> u</label>
+    <label>Pulse scale <input type="range" id="pulse" min="1.1" max="1.8" step="0.05" value="1.3" /><span></span>×</label>
+    <label>Ring radius <input type="range" id="ringR" min="10" max="50" step="1" value="24" /><span></span> u (±15 %)</label>
+    <label>Ring revolutions <input type="range" id="revs" min="0.5" max="3" step="0.25" value="1.5" /><span></span></label>
+    <label>Trace stagger <input type="range" id="stagger" min="0" max="0.25" step="0.01" value="0.12" /><span></span></label>
+    <label>Carry shrink <input type="range" id="shrink" min="0.4" max="0.9" step="0.05" value="0.7" /><span></span>×</label>
+    <label>Fan radius <input type="range" id="fanR" min="20" max="70" step="2" value="40" /><span></span> u</label>
+    <label>Fan spread <input type="range" id="fanSpread" min="40" max="180" step="10" value="120" /><span></span>°</label>
+    <label>Fan ping scale <input type="range" id="ping" min="1.1" max="2" step="0.05" value="1.5" /><span></span>×</label>
+  </div>
+  <div class="mcol"><h3>Accessibility / depth</h3>
+    <label><input type="checkbox" id="reduced" /> reduced motion (in-place opacity pulse, orbiters stay docked)</label>
+    <label><input type="checkbox" id="backLayer" /> back layer: 0.75× under the depth tint (J4)</label>
+    <label>Back-row scale <input type="range" id="backScale" min="0.5" max="1" step="0.05" value="0.75" /><span></span></label>
+  </div>
+</div>
+
+<h2>Play</h2>
+<div class="controls">
+  <span style="color:#9aa">Moves:</span>
+  <button class="move" data-move="hoverPulse">hoverPulse(mouth)</button>
+  <button class="move" data-move="trace">trace(outline)</button>
+  <button class="move" data-move="ring">ring(mast)</button>
+  <button class="move" data-move="carry">carry(a → b)</button>
+  <button class="move" data-move="fan">fan()</button>
+</div>
+<div class="controls">
+  <span style="color:#9aa">Jobs:</span>
+  <button class="job" data-job="ventExtraction">ventExtraction</button>
+  <button class="job" data-job="acousticSurvey">acousticSurvey</button>
+  <button class="job" data-job="structuralInspection">structuralInspection</button>
+  <button class="job" data-job="fluidMonitoring">fluidMonitoring</button>
+  <button class="job" data-job="salvage">salvage</button>
+  <button class="job" data-job="maintenance">maintenance</button>
+  <button id="btnAuto">Auto: all six, alternating hosts</button>
+  <button id="btnPause">Pause</button>
+</div>
+<div class="stage" id="stage"></div>
+<div style="max-width:980px"><input type="range" id="scrub" min="0" max="1" step="0.001" value="0" /></div>
+<div class="readout" id="readout"></div>
+
+<script>
+// ---------- seeded rng + colour + geometry (Phase 39 sketch, as trimmed for Task 0a) ----------
+function rngFrom(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+  let a = (h ^= h >>> 16) >>> 0;
+  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const pick = (R, arr) => arr[Math.floor(R() * arr.length)];
+const range = (R, lo, hi) => lo + R() * (hi - lo);
+const $ = id => document.getElementById(id);
+const num = id => +$(id).value;
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+function hexToHsl(hex) {
+  const n = parseInt(hex.slice(1), 16); const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  return [h, s * 100, l * 100];
+}
+const hsl = (h, s, l) => `hsl(${h.toFixed(1)} ${clamp(s, 0, 100).toFixed(1)}% ${clamp(l, 0, 100).toFixed(1)}%)`;
+function tone(hex, dl, ds = 0) { const [h, s, l] = hexToHsl(hex); return hsl(h, s + ds, l + dl); }
+const ACCENT = { orange:'#da7e1b', red:'#cd5e57', pink:'#ae5378', purple:'#7a5484', plum:'#65617f', blue:'#4f6d7a', cyan:'#428d95', teal:'#41ad9f', green:'#68cb97', lime:'#a9e583', yellow:'#e9e377', tangerine:'#e2b149', beige:'#f7f5d3', emerald:'#4fc27a', indigo:'#5a5c9e' };
+const ACCENT_NAMES = Object.keys(ACCENT);
+const BACKING = '#0e1013', MID_DARK = '#262a31', LIGHT_DOT = '#fff3c4';
+const TAN = { 15: Math.tan(Math.PI / 12), 30: Math.tan(Math.PI / 6), 45: 1, 60: Math.tan(Math.PI / 3), 75: Math.tan(5 * Math.PI / 12) };
+const CORNERS = [
+  { p: (w, h) => [0, 0], a: [0, 1], b: [1, 0] }, { p: (w, h) => [w, 0], a: [-1, 0], b: [0, 1] },
+  { p: (w, h) => [w, h], a: [0, -1], b: [-1, 0] }, { p: (w, h) => [0, h], a: [1, 0], b: [0, -1] },
+];
+const add = (p, v, k) => [p[0] + v[0] * k, p[1] + v[1] * k];
+const ptsStr = p => p.map(q => q[0].toFixed(2) + ',' + q[1].toFixed(2)).join(' ');
+function centroid(pts) { let x = 0, y = 0; for (const p of pts) { x += p[0]; y += p[1]; } return [x / pts.length, y / pts.length]; }
+function edgeNormals(pts) {
+  let area = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; area += p[0] * q[1] - q[0] * p[1]; }
+  const sgn = area > 0 ? -1 : 1; const out = [];
+  for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; const dx = q[0] - p[0], dy = q[1] - p[1]; const len = Math.hypot(dx, dy) || 1; out.push([sgn * -dy / len, sgn * dx / len]); }
+  return out;
+}
+function inset(pts, d) {
+  const N = edgeNormals(pts); const n = pts.length; const res = [];
+  for (let i = 0; i < n; i++) {
+    const i0 = (i - 1 + n) % n;
+    const [p0, p1] = [add(pts[i0], N[i0], -d), add(pts[i], N[i0], -d)];
+    const [q0, q1] = [add(pts[i], N[i], -d), add(pts[(i + 1) % n], N[i], -d)];
+    const r = [p1[0] - p0[0], p1[1] - p0[1]], s = [q1[0] - q0[0], q1[1] - q0[1]];
+    const den = r[0] * s[1] - r[1] * s[0];
+    if (Math.abs(den) < 1e-6) { res.push(q0); continue; }
+    const t = ((q0[0] - p0[0]) * s[1] - (q0[1] - p0[1]) * s[0]) / den;
+    res.push([p0[0] + r[0] * t, p0[1] + r[1] * t]);
+  }
+  return res;
+}
+function inside(pt, pts) {
+  let ok = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) ok = !ok;
+  } return ok;
+}
+function quantize(shade, k) { if (!k || k < 2) return shade; const s = k - 1; return (2 * Math.round(((shade + 1) / 2) * s) - s) / s; }
+const LIGHT = (() => { const l = [-0.55, -0.83]; const k = Math.hypot(...l); return [l[0] / k, l[1] / k]; })();
+const TONES = 3;
+function genLine(R, inner) {
+  const n = inner.length; const safe = inset(inner, 0.4);
+  for (let tries = 0; tries < 60; tries++) {
+    const e1 = Math.floor(R() * n); let e2 = Math.floor(R() * n); if (e2 === e1) continue;
+    const at = (e, t) => { const p = safe[e], q = safe[(e + 1) % n]; return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]; };
+    const s = at(e1, range(R, .2, .8)), f = at(e2, range(R, .2, .8));
+    const dx = f[0] - s[0], dy = f[1] - s[1]; const m = Math.min(Math.abs(dx), Math.abs(dy));
+    const diag = [Math.sign(dx) * m, Math.sign(dy) * m];
+    const path = R() < .5 ? [s, [s[0] + diag[0], s[1] + diag[1]], f] : [s, [f[0] - diag[0], f[1] - diag[1]], f];
+    if (Math.hypot(dx, dy) < 4) continue;
+    let ok = true;
+    for (let k = 0; k < path.length - 1 && ok; k++) for (let t = .1; t < 1; t += .15) {
+      const p = [path[k][0] + (path[k + 1][0] - path[k][0]) * t, path[k][1] + (path[k + 1][1] - path[k][1]) * t];
+      if (!inside(p, safe)) { ok = false; break; }
+    }
+    if (ok) return path;
+  }
+  return null;
+}
+function gemMarkup(outer, bevel, toneOf, base) {
+  const shortest = Math.min(...outer.map((p, i) => Math.hypot(p[0] - outer[(i + 1) % outer.length][0], p[1] - outer[(i + 1) % outer.length][1])));
+  const d = Math.min(bevel, Math.max(0.6, shortest * 0.3));
+  const inner = inset(outer, d); const N = edgeNormals(outer); const g = [];
+  for (let i = 0; i < outer.length; i++) {
+    const j = (i + 1) % outer.length; const shade = quantize(N[i][0] * LIGHT[0] + N[i][1] * LIGHT[1], TONES);
+    g.push(`<polygon points="${ptsStr([outer[i], outer[j], inner[j], inner[i]])}" fill="${toneOf(shade)}" stroke="${toneOf(-1)}" stroke-width=".25" stroke-linejoin="round"/>`);
+  }
+  g.push(`<polygon points="${ptsStr(inner)}" fill="${base}" stroke="none"/>`);
+  return { markup: g.join(''), inner };
+}
+function genPolygon(R, w, h, opts) {
+  const minDim = Math.min(w, h);
+  for (let tries = 0; tries < 400; tries++) {
+    const pts = []; let sides = 4, right = 0, concave = 0;
+    const kinds = opts.convex ? ['none', 'chamfer', 'chamfer', 'double'] : ['none', 'chamfer', 'chamfer', 'double', 'step'];
+    for (let i = 0; i < 4; i++) {
+      const C = CORNERS[i], P = C.p(w, h); let kind = pick(R, kinds);
+      const lenA = i % 2 === 0 ? h : w, lenB = i % 2 === 0 ? w : h; const capA = 0.45 * lenA, capB = 0.45 * lenB;
+      const cut = range(R, 0.22, 0.42) * minDim;
+      if (kind === 'step') {
+        const phi = pick(R, [45, 60]); const t = TAN[phi];
+        const B = Math.min(minDim * range(R, 0.25, 0.34), capB, (capA - 0.1) / t);
+        if (B >= 0.2 * minDim) { const A = Math.min(B * t + cut * range(R, 0.3, 0.6), capA);
+          pts.push(add(P, C.a, A), add(add(P, C.a, A - B * t), C.b, B), add(P, C.b, B)); sides += 2; right += 1; concave += 1; continue; }
+        kind = 'chamfer';
+      }
+      if (kind === 'none') { pts.push(P); right++; continue; }
+      if (kind === 'chamfer') { const phi = pick(R, [15, 30, 45, 60, 75]); const t = TAN[phi];
+        let La = t >= 1 ? cut : cut * t, Lb = t >= 1 ? cut / t : cut; const k = Math.min(1, capA / La, capB / Lb); La *= k; Lb *= k;
+        pts.push(add(P, C.a, La), add(P, C.b, Lb)); sides += 1; continue; }
+      const [p1, p2] = pick(R, [[75, 15], [60, 30]]); const T1 = TAN[p1], T2 = TAN[p2];
+      const v = (1 - T2) / (T1 - T2), u = 1 - v * T1; const A = Math.min(cut, capA), B = Math.min(cut * range(R, 0.8, 1.25), capB);
+      pts.push(add(P, C.a, A), add(add(P, C.a, A * u), C.b, B * v), add(P, C.b, B)); sides += 2;
+    }
+    if (sides < 8 || sides > 12 || right > opts.maxRight || concave > opts.maxConcave) continue;
+    return { pts, w, h };
+  }
+  return null;
+}
+const CANVAS_H = 80;
+const BASE_RULES = { convex: true, maxConcave: 0, maxRight: 4 }, MAIN_RULES = { convex: false, maxConcave: 2, maxRight: 4 }, ORBIT_RULES = { convex: false, maxConcave: 4, maxRight: 4 };
+function makeRobot(seed, idx, colorName) {
+  const R = rngFrom(seed + ':' + idx);
+  const H = CANVAS_H, W = CANVAS_H * pick(R, [1, 1.25, 1.5, 1.75, 2]), k = W / CANVAS_H; const parts = [];
+  parts.push({ role: 'backing', x: (W - 25 * k) / 2, y: (H - 25) / 2, poly: genPolygon(R, 25 * k, 25, BASE_RULES), lines: 0 });
+  const orbs = []; for (let i = 0; i < 4; i++) orbs.push({ role: 'orbit', poly: genPolygon(R, 24, 16, ORBIT_RULES), lines: 1 });
+  const mw2 = range(R, 20, 24) * k, mh2 = range(R, 34, 36);
+  parts.push({ role: 'mid', x: W / 2 - mw2, y: (H - mh2) / 2, lit: R() < .7, poly: genPolygon(R, mw2, mh2, MAIN_RULES), lines: 2 });
+  const mw1 = range(R, 20, 24) * k, mh1 = range(R, 34, 36);
+  parts.push({ role: 'mid', x: W / 2, y: (H - mh1) / 2, lit: R() < .7, poly: genPolygon(R, mw1, mh1, MAIN_RULES), lines: 2 });
+  const tx = (W - 32 * k) / 2, ty = (H - 32) / 2;
+  parts.push({ role: 'top', x: tx, y: ty, poly: genPolygon(R, 32 * k, 32, MAIN_RULES), lines: 4, lights: 2 });
+  // dock corners (TL, TR, BL, BR) — orbiter centres, canvas-relative
+  const docks = [[tx, ty], [tx + 32 * k, ty], [tx, ty + 32], [tx + 32 * k, ty + 32]];
+  docks.forEach(([cx, cy], i) => { orbs[i].x = cx - 12; orbs[i].y = cy - 8; parts.push(orbs[i]); });
+  return { W, H, k, color: ACCENT[colorName], colorName, parts, docks, decoSeed: seed + ':deco:' + idx, gemSeed: seed + ':' + idx };
+}
+/** Body (backing, Mids, Top) as one markup string; orbiters as four strings each drawn about its own centre. */
+function renderRobotParts(robot, bevel) {
+  const R = rngFrom(robot.decoSeed); const body = []; const orbs = [];
+  for (const part of robot.parts) {
+    const poly = part.poly; if (!poly) continue; const g = [];
+    const isOrb = part.role === 'orbit';
+    g.push(`<g transform="translate(${isOrb ? -12 : part.x.toFixed(2)} ${isOrb ? -8 : part.y.toFixed(2)})">`);
+    if (part.role === 'backing') { g.push(`<polygon points="${ptsStr(poly.pts)}" fill="${BACKING}" stroke="#1c2026" stroke-width=".5"/></g>`); body.push(g.join('')); continue; }
+    const midLit = part.role === 'mid' && part.lit;
+    const toneOf = s => midLit ? tone(robot.color, -16 + s * 12 * .7, -18) : part.role === 'mid' ? tone(MID_DARK, s * 12 * .5) : tone(robot.color, s * 12);
+    const base = midLit ? tone(robot.color, -16, -18) : part.role === 'mid' ? MID_DARK : robot.color;
+    const { markup, inner } = gemMarkup(poly.pts, Math.min(bevel, Math.min(poly.w, poly.h) * 0.18), toneOf, base);
+    g.push(markup);
+    const lineColor = midLit ? tone(robot.color, -32, -18) : part.role === 'mid' ? tone(MID_DARK, -8) : tone(robot.color, -26);
+    for (let k = 0; k < part.lines; k++) { const path = genLine(R, inner); if (path) g.push(`<polyline points="${ptsStr(path)}" fill="none" stroke="${lineColor}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"/>`); }
+    if (part.lights) { const c = centroid(inner); for (let k = 0; k < part.lights; k++) { const v = inner[Math.floor(R() * inner.length)]; const p = [v[0] + (c[0] - v[0]) * .3, v[1] + (c[1] - v[1]) * .3];
+      g.push(`<circle cx="${p[0].toFixed(2)}" cy="${p[1].toFixed(2)}" r="3" fill="${LIGHT_DOT}" opacity=".18"/><circle cx="${p[0].toFixed(2)}" cy="${p[1].toFixed(2)}" r="1.4" fill="${LIGHT_DOT}"/>`); } }
+    g.push('</g>'); (isOrb ? orbs : body).push(g.join(''));
+  }
+  return { body: body.join(''), orbs };
+}
+
+// ---------- hosts: two hand-placed work sites (A3) ----------
+const GROUND = 270;
+const domeArc = (cx, cy, r, a0, a1, n) => { const out = []; for (let i = 0; i <= n; i++) { const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; out.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); } return out; };
+const DOME = { cx: 440, cy: GROUND, r: 85 };
+const domeHull = domeArc(DOME.cx, DOME.cy, DOME.r, 180, 360, 24);
+const hullAt = deg => { const a = deg * Math.PI / 180; return [DOME.cx + DOME.r * Math.cos(a), DOME.cy + DOME.r * Math.sin(a)]; };
+const HOSTS = {
+  factory: {
+    name: 'Refinery-style factory', centre: 130, roof: 118, kind: 'midground',
+    draw: `<polygon points="60,170 200,170 200,${GROUND} 60,${GROUND}" fill="#1b2129" stroke="#2d3540" stroke-width="1"/>` +
+          `<polygon points="170,170 170,120 186,120 186,170" fill="#232a33" stroke="#2d3540" stroke-width="1"/>` +
+          `<line x1="90" y1="170" x2="90" y2="140" stroke="#3a4552" stroke-width="2"/><circle cx="90" cy="138" r="2.5" fill="#3a4552"/>` +
+          `<polyline points="70,250 70,215 150,215 150,235 190,235" fill="none" stroke="#3a4552" stroke-width="3" stroke-linejoin="round"/>` +
+          `<circle cx="110" cy="215" r="4" fill="#2d3540" stroke="#4a5768" stroke-width="1"/>` +
+          `<rect x="84" y="196" width="12" height="8" fill="#2d3540"/>`,
+    points: { mouth: [178, 116], mast: [90, 136], valve: [110, 215], a: [90, 200], b: [236, GROUND - 6] },
+    fgPoints: { valve: [110, 168], a: [96, 168] },
+    paths: { outline: [[60, 170], [90, 170], [90, 140], [90, 170], [170, 170], [170, 120], [186, 120], [186, 170], [200, 170]],
+             pipe: [[70, 250], [70, 215], [150, 215], [150, 235], [190, 235]] },
+  },
+  dome: {
+    name: 'Dome', centre: DOME.cx, roof: 170, kind: 'midground',
+    draw: `<polygon points="${ptsStr(domeHull.concat([[DOME.cx + DOME.r, GROUND], [DOME.cx - DOME.r, GROUND]]))}" fill="#1b2129" stroke="#2d3540" stroke-width="1"/>` +
+          `<line x1="${DOME.cx}" y1="${GROUND - DOME.r}" x2="${DOME.cx}" y2="172" stroke="#3a4552" stroke-width="2"/><circle cx="${DOME.cx}" cy="171" r="2.5" fill="#3a4552"/>` +
+          `<circle cx="${hullAt(-40)[0].toFixed(1)}" cy="${hullAt(-40)[1].toFixed(1)}" r="5" fill="#232a33" stroke="#3a4552" stroke-width="1.5"/>` +
+          `<polyline points="350,268 350,255 530,255 530,268" fill="none" stroke="#3a4552" stroke-width="3" stroke-linejoin="round"/>` +
+          `<circle cx="350" cy="255" r="4" fill="#2d3540" stroke="#4a5768" stroke-width="1"/>` +
+          `<rect x="434" y="228" width="12" height="8" fill="#2d3540"/>`,
+    points: { mouth: hullAt(-40), mast: [DOME.cx, 168], valve: [350, 255], a: [DOME.cx, 232], b: [570, GROUND - 6] },
+    fgPoints: { valve: hullAt(-160), a: hullAt(-70) },
+    paths: { outline: domeHull, pipe: [[350, 268], [350, 255], [530, 255], [530, 268]] },
+  },
+};
+/** The site as the moves see it, with the foreground rule applied (A4). */
+function siteOf(hostId, fg) {
+  const h = HOSTS[hostId]; const points = { ...h.points }; const paths = { ...h.paths };
+  if (fg) { Object.assign(points, h.fgPoints); paths.pipe = h.paths.outline; }
+  return { id: hostId, points, paths, park: null, host: h };
+}
+
+// ---------- polyline helpers ----------
+function polyAt(path, u) {
+  const segs = []; let total = 0;
+  for (let i = 0; i < path.length - 1; i++) { const L = Math.hypot(path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1]); segs.push(L); total += L; }
+  let d = clamp(u, 0, 1) * total;
+  for (let i = 0; i < segs.length; i++) { if (d <= segs[i] || i === segs.length - 1) { const t = segs[i] ? d / segs[i] : 0; return [lerp(path[i][0], path[i + 1][0], t), lerp(path[i][1], path[i + 1][1], t)]; } d -= segs[i]; }
+  return path[path.length - 1];
+}
+
+// ---------- keyframes ----------
+const kf = (keys, t, x, y, s = 1, op = 1, lin = false) => keys.push({ t, x, y, s, op, lin });
+function sampleAt(keys, t) {
+  if (t <= keys[0].t) return keys[0];
+  for (let i = 1; i < keys.length; i++) if (t <= keys[i].t) {
+    const a = keys[i - 1], b = keys[i]; let u = (t - a.t) / ((b.t - a.t) || 1e-9); if (!b.lin) u = u * u * (3 - 2 * u);
+    return { x: lerp(a.x, b.x, u), y: lerp(a.y, b.y, u), s: lerp(a.s, b.s, u), op: lerp(a.op, b.op, u) };
+  }
+  return keys[keys.length - 1];
+}
+
+// ---------- the five moves (spec §1.9) — each adds keyframes for every active orbiter over [t0, t1] ----------
+// ctx: { orbs: [{ i, keys, dock }], n, v (per-robot variation), C (constants), site }
+// `travel` is how long the orbiters take to reach the move's first targets (the detach for the first move).
+const MOVES = {
+  hoverPulse(ctx, t0, t1, travel, point) {
+    const { n, C, v } = ctx; const slot = (t1 - t0 - travel) / n;
+    ctx.orbs.forEach((o, j) => {
+      const a = v.phase + o.i * 2 * Math.PI / n; const x = point[0] + C.gatherR * Math.cos(a), y = point[1] + C.gatherR * Math.sin(a);
+      kf(o.keys, t0 + travel, x, y);
+      const start = t0 + travel + v.order.indexOf(o.i) % n * slot; // pulse in turn
+      kf(o.keys, start, x, y, 1); kf(o.keys, start + slot / 2, x, y, C.pulse); kf(o.keys, start + slot, x, y, 1);
+      kf(o.keys, t1, x, y, 1);
+    });
+  },
+  trace(ctx, t0, t1, travel, path) {
+    const { n, C, v } = ctx; const P = v.traceRev ? path.slice().reverse() : path; const len = t1 - t0 - travel;
+    const stag = C.stagger * len, run = Math.max(0.1, len - (n - 1) * stag);
+    ctx.orbs.forEach((o, j) => {
+      const p0 = polyAt(P, 0); kf(o.keys, t0 + travel, p0[0], p0[1]);
+      const start = t0 + travel + j * stag; kf(o.keys, start, p0[0], p0[1], 1, 1, true);
+      for (let k = 1; k <= 24; k++) { const u = k / 24; const p = polyAt(P, u); kf(o.keys, start + u * run, p[0], p[1], 1, 1, true); }
+      const pe = polyAt(P, 1); kf(o.keys, t1, pe[0], pe[1], 1, 1, true);
+    });
+  },
+  ring(ctx, t0, t1, travel, point, opts = {}) {
+    const { n, C, v } = ctx; const r = C.ringR * v.radiusK; const len = t1 - t0 - travel;
+    ctx.orbs.forEach((o, j) => {
+      const sparks = new Set(); if (opts.flicker) for (let k = 0; k < 3; k++) sparks.add(Math.floor(v.sparks[o.i][k] * 36));
+      for (let k = 0; k <= 36; k++) {
+        const tau = k / 36; const a = v.phase + o.i * 2 * Math.PI / n + v.ringDir * 2 * Math.PI * C.revs * tau;
+        kf(o.keys, t0 + travel + tau * len, point[0] + r * Math.cos(a), point[1] + r * Math.sin(a), 1, sparks.has(k) ? 0.25 : 1, k > 0);
+      }
+    });
+  },
+  carry(ctx, t0, t1, travel, a, b) {
+    const { n, C } = ctx; const len = t1 - t0 - travel;
+    ctx.orbs.forEach((o, j) => {
+      const off = (j - (n - 1) / 2) * 8; const ax = a[0] + off, ay = a[1], bx = b[0] + off, by = b[1];
+      kf(o.keys, t0 + travel, ax, ay, 1);
+      kf(o.keys, t0 + travel + len * .1, ax, ay, C.shrink);   // load
+      kf(o.keys, t0 + travel + len * .45, bx, by, C.shrink);  // carry
+      kf(o.keys, t0 + travel + len * .55, bx, by, 1);         // drop
+      kf(o.keys, t0 + travel + len * .9, ax, ay, 1);          // return
+      kf(o.keys, t1, ax, ay, 1);
+    });
+  },
+  fan(ctx, t0, t1, travel, point) {
+    const { n, C, v } = ctx; const slot = (t1 - t0 - travel) / n; const step = n > 1 ? C.fanSpread / (n - 1) : 0;
+    ctx.orbs.forEach((o, j) => {
+      const deg = -90 + (j - (n - 1) / 2) * step; const a = deg * Math.PI / 180;
+      const x = point[0] + C.fanR * Math.cos(a), y = point[1] + C.fanR * Math.sin(a);
+      kf(o.keys, t0 + travel, x, y);
+      const start = t0 + travel + v.order.indexOf(o.i) % n * slot; // ping in sequence
+      kf(o.keys, start, x, y, 1); kf(o.keys, start + slot / 2, x, y, C.ping); kf(o.keys, start + slot, x, y, 1);
+      kf(o.keys, t1, x, y, 1);
+    });
+  },
+};
+// spec §1.9 job table: [move, target key(s), opts]
+const JOBS = {
+  ventExtraction:       [['hoverPulse', 'mouth']],
+  acousticSurvey:       [['fan', 'mast'], ['ring', 'mast']],
+  structuralInspection: [['trace', 'outline']],
+  fluidMonitoring:      [['trace', 'pipe'], ['hoverPulse', 'valve']],
+  salvage:              [['carry', 'a', 'b']],
+  maintenance:          [['ring', 'mouth', { flicker: true }]],
+};
+const MOVE_DEMO = { hoverPulse: ['hoverPulse', 'mouth'], trace: ['trace', 'outline'], ring: ['ring', 'mast'], carry: ['carry', 'a', 'b'], fan: ['fan', 'mast'] };
+
+// ---------- plan a run ----------
+function constants() {
+  return { gatherR: num('gatherR'), pulse: num('pulse'), ringR: num('ringR'), revs: num('revs'), stagger: num('stagger'), shrink: num('shrink'), fanR: num('fanR'), fanSpread: num('fanSpread'), ping: num('ping'), attach: num('attach'), bob: num('bob') };
+}
+/** Crawford's gate call: every job runs for JOB_BASE_SECONDS, linear in BPM over the Tempo slider's 20–200 — slower tempo, longer job. */
+function baseSeconds(bpm) { return lerp(num('baseMax'), num('baseMin'), clamp((bpm - 20) / 180, 0, 1)); }
+function jobDuration(job, n) { return baseSeconds(num('bpm')); } // n kept in the signature only so the readout table can show it is inert
+/** Per-robot variation (spec §1.9): Alea(gemSeed + ':work') → stagger order, ring direction, radius ±15 %, trace direction. */
+function variation(robot, salt) {
+  const R = rngFrom(robot.gemSeed + ':work' + salt);
+  const order = [0, 1, 2, 3]; for (let i = 3; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  return { order, ringDir: R() < .5 ? 1 : -1, radiusK: range(R, .85, 1.15), traceRev: R() < .5, phase: R() * 2 * Math.PI, parkDx: range(R, -40, 40), sparks: [0, 1, 2, 3].map(() => [R(), R(), R()]) };
+}
+function planRun(label, moves, job, hostId) {
+  const robot = S.robot; const C = constants(); const n = num('count'); const site = siteOf(hostId, $('fgRule').checked);
+  const park = [clamp(site.host.centre + S.v.parkDx, 60, 560), site.host.roof - 70]; // PARK_CLEARANCE 70
+  const origin = [park[0] - robot.W / 2, park[1] - robot.H / 2];
+  const D = jobDuration(job, n);
+  const active = S.v.order.slice(0, n); // which corners are shown at this count
+  const orbs = active.map(i => ({ i, keys: [], dock: [origin[0] + robot.docks[i][0], origin[1] + robot.docks[i][1]] }));
+  for (const o of orbs) kf(o.keys, 0, o.dock[0], o.dock[1]);
+  const ctx = { orbs, n, v: S.v, C, site };
+  const span = D - C.attach; const share = span / moves.length; let work = 0;
+  moves.forEach((m, idx) => {
+    const t0 = idx * share, t1 = (idx + 1) * share;
+    const travel = idx === 0 ? Math.min(C.attach, share * .4) : Math.min(0.35, share * .25); work += t1 - t0 - travel;
+    const [name, k1, k2] = m; const opts = typeof m[m.length - 1] === 'object' ? m[m.length - 1] : {};
+    const target = name === 'trace' ? site.paths[k1] : site.points[k1];
+    if (name === 'carry') MOVES.carry(ctx, t0, t1, travel, site.points[k1], site.points[k2]);
+    else MOVES[name](ctx, t0, t1, travel, target, opts);
+  });
+  for (const o of orbs) kf(o.keys, D, o.dock[0], o.dock[1]); // reattach
+  const bobCycles = Math.max(1, Math.round(D / 1.2));
+  return { label, job, hostId, D, work, n, orbs, origin, park, bobCycles, reduced: $('reduced').checked, site };
+}
+
+// ---------- stage ----------
+const S = { seed: 'still-echo', roster: [], robot: null, v: null, plan: null, t: 0, playing: false, last: null, auto: false, autoIdx: 0, autoHost: 'factory', restUntil: 0 };
+const VIEW_W = 620, VIEW_H = 300;
+function buildRoster() {
+  S.seed = $('seed').value || 'still-echo'; S.roster = [];
+  const Rc = rngFrom(S.seed + ':roster'); const names = ACCENT_NAMES.slice();
+  for (let i = 0; i < 12; i++) S.roster.push(makeRobot(S.seed, i, names.splice(Math.floor(Rc() * names.length), 1)[0]));
+  $('robotIdx').innerHTML = S.roster.map((r, i) => `<option value="${i}">${i} · ${r.colorName}</option>`).join('');
+  pickRobot(0);
+}
+function pickRobot(i) { S.robot = S.roster[i]; S.v = variation(S.robot, S.varSalt || ''); if (S.plan) replan(); else renderStage(); }
+function renderStage() {
+  const zoom = num('zoom'); const hostId = S.plan ? S.plan.hostId : $('host').value; const site = siteOf(hostId, $('fgRule').checked);
+  const parts = renderRobotParts(S.robot, 2.5);
+  const overlay = $('overlay').checked ? (() => {
+    const g = [];
+    for (const [k, p] of Object.entries(site.paths)) g.push(`<polyline points="${ptsStr(p)}" fill="none" stroke="${k === 'outline' ? '#4aa3ff' : '#e2b149'}" stroke-width=".8" stroke-dasharray="3 2" opacity=".6"/>`);
+    for (const [k, p] of Object.entries(site.points)) g.push(`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.5" fill="none" stroke="#fff3c4" stroke-width=".8"/><text x="${(p[0] + 5).toFixed(1)}" y="${(p[1] - 4).toFixed(1)}" font-size="8" fill="#9aa" font-family="monospace">${k}</text>`);
+    return g.join('');
+  })() : '';
+  $('stage').innerHTML =
+    `<svg width="${VIEW_W * zoom}" height="${VIEW_H * zoom}" viewBox="0 0 ${VIEW_W} ${VIEW_H}">` +
+    `<line x1="0" y1="${GROUND}" x2="${VIEW_W}" y2="${GROUND}" stroke="#222a33" stroke-width="1"/>` +
+    HOSTS.factory.draw + HOSTS.dome.draw +
+    `<g id="robotScale"><g id="robotG">${parts.body}</g>${[0, 1, 2, 3].map(i => `<g class="orb" data-i="${i}" opacity="0">${parts.orbs[i]}</g>`).join('')}</g>` +
+    `<rect id="tint" x="0" y="0" width="${VIEW_W}" height="${VIEW_H}" fill="#0c1c4f" opacity="0" pointer-events="none"/>` +
+    `<g id="overlay">${overlay}</g></svg>` +
+    `<div>${S.seed}:${S.robot ? S.roster.indexOf(S.robot) : 0} · ${S.robot.colorName} · ${HOSTS[hostId].name}</div>`;
+  pose();
+}
+function startRun(label, moves, job, hostId) {
+  S.plan = planRun(label, moves, job, hostId); S.t = 0; S.playing = true; $('host').value = hostId;
+  renderStage(); readout(); markButtons();
+}
+function replan() { if (!S.plan) { renderStage(); return; } const p = S.plan; const frac = p.D ? S.t / p.D : 0; S.plan = planRun(p.label, p.job ? JOBS[p.job] : [MOVE_DEMO[p.label]], p.job, p.hostId); S.t = frac * S.plan.D; renderStage(); readout(); }
+function pose() {
+  const svg = $('stage').querySelector('svg'); if (!svg) return; const p = S.plan;
+  const robotG = svg.querySelector('#robotG'), scaleG = svg.querySelector('#robotScale'); const back = $('backLayer').checked; const bs = back ? num('backScale') : 1;
+  const hostId = p ? p.hostId : $('host').value; const host = HOSTS[hostId];
+  const park = p ? p.park : [clamp(host.centre + S.v.parkDx, 60, 560), host.roof - 70];
+  const origin = p ? p.origin : [park[0] - S.robot.W / 2, park[1] - S.robot.H / 2];
+  // back layer: scale about the park point (robot centre); the whole robot + orbiters sit under the depth tint
+  scaleG.setAttribute('transform', `translate(${park[0]} ${park[1]}) scale(${bs}) translate(${-park[0]} ${-park[1]})`);
+  svg.querySelector('#tint').setAttribute('opacity', back ? '0.7' : '0');
+  const C = constants(); const n = num('count'); const shown = new Set(S.v.order.slice(0, n));
+  if (!p) {
+    robotG.setAttribute('transform', `translate(${origin[0].toFixed(2)} ${origin[1].toFixed(2)})`); robotG.setAttribute('opacity', '1');
+    for (const g of svg.querySelectorAll('.orb')) { const i = +g.dataset.i; g.setAttribute('opacity', shown.has(i) ? '1' : '0'); g.setAttribute('transform', `translate(${(origin[0] + S.robot.docks[i][0]).toFixed(2)} ${(origin[1] + S.robot.docks[i][1]).toFixed(2)})`); }
+    return;
+  }
+  const t = clamp(S.t, 0, p.D);
+  const bobY = p.reduced ? 0 : C.bob * Math.sin(2 * Math.PI * p.bobCycles * t / p.D);
+  robotG.setAttribute('transform', `translate(${p.origin[0].toFixed(2)} ${(p.origin[1] + bobY).toFixed(2)})`);
+  robotG.setAttribute('opacity', p.reduced ? (0.8 + 0.2 * Math.sin(2 * Math.PI * p.bobCycles * t / p.D)).toFixed(3) : '1');
+  for (const g of svg.querySelectorAll('.orb')) {
+    const i = +g.dataset.i; const o = p.orbs.find(q => q.i === i);
+    if (!o) { g.setAttribute('opacity', '0'); continue; }
+    if (p.reduced) { g.setAttribute('opacity', robotG.getAttribute('opacity')); g.setAttribute('transform', `translate(${o.dock[0].toFixed(2)} ${(o.dock[1]).toFixed(2)})`); continue; }
+    const k = sampleAt(o.keys, t); const docked = t < 0.001 || t >= p.D - 0.001;
+    const y = k.y + (docked ? bobY : 0); // the body's bob carries the orbiters only while they are home
+    g.setAttribute('opacity', k.op.toFixed(3)); g.setAttribute('transform', `translate(${k.x.toFixed(2)} ${y.toFixed(2)}) scale(${k.s.toFixed(3)})`);
+  }
+  $('scrub').value = (t / p.D).toFixed(3);
+}
+function readout() {
+  const p = S.plan; const n = num('count');
+  const bpms = [20, 60, 110, 160, 200];
+  const table = `${'BPM'.padEnd(10)} ${bpms.map(b => String(b).padStart(6)).join(' ')}\n${'base s'.padEnd(10)} ${bpms.map(b => baseSeconds(b).toFixed(2).padStart(6)).join(' ')}\n${'work s*'.padEnd(10)} ${bpms.map(b => (baseSeconds(b) - num('attach') - 0.35).toFixed(2).padStart(6)).join(' ')}   *two-move job: base − attach − 0.35 s second flight`;
+  $('readout').textContent = (p ? `run: ${p.label}${p.job ? '' : ' (move demo)'} on ${HOSTS[p.hostId].name}   duration ${p.D.toFixed(2)} s at ${num('bpm')} BPM   work ${p.work.toFixed(2)} s (A1: flights inside the duration)   orbiters ${p.n} (inert for timing)   bob cycles ${p.bobCycles}${p.reduced ? '   REDUCED' : ''}\n` : 'no run yet — press a move or a job\n') +
+    `variation: order ${S.v.order.join('')}  ring ${S.v.ringDir > 0 ? 'cw' : 'ccw'}  radius ×${S.v.radiusK.toFixed(2)}  trace ${S.v.traceRev ? 'reversed' : 'forward'}  park dx ${S.v.parkDx.toFixed(0)}\n` +
+    `JOB_BASE_SECONDS = ${num('baseMax')} − (${num('baseMax')} − ${num('baseMin')}) × (bpm − 20) / 180, same for every job:\n${table}`;
+}
+function markButtons() { for (const b of document.querySelectorAll('button.move, button.job')) b.classList.toggle('on', !!S.plan && (b.dataset.job === S.plan.job || (!S.plan.job && b.dataset.move === S.plan.label))); $('btnPause').textContent = S.playing ? 'Pause' : 'Play'; }
+function frame(now) {
+  if (S.last == null) S.last = now; const dt = Math.min(0.1, (now - S.last) / 1000); S.last = now;
+  if (S.plan && S.playing) {
+    S.t += dt * num('rate');
+    if (S.t >= S.plan.D) {
+      S.t = S.plan.D; pose();
+      if (S.auto) { if (!S.restUntil) S.restUntil = now + 600; if (now >= S.restUntil) { S.restUntil = 0; autoNext(); } }
+      else S.playing = false, markButtons();
+    } else pose();
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+function autoNext() {
+  const jobs = Object.keys(JOBS); const job = jobs[S.autoIdx % jobs.length]; S.autoIdx++;
+  S.autoHost = S.autoHost === 'factory' ? 'dome' : 'factory';
+  startRun(job, JOBS[job], job, S.autoHost);
+}
+
+// ---------- wiring ----------
+for (const el of document.querySelectorAll('.mcol input[type=range]')) {
+  const span = el.parentElement.querySelector('span'); const show = () => { if (span) span.textContent = el.value; }; show();
+  el.oninput = () => { show(); if (el.id === 'rate') return; replan(); };
+}
+$('zoom').oninput = () => { $('zoomv').textContent = $('zoom').value; renderStage(); };
+for (const id of ['fgRule', 'overlay', 'reduced', 'backLayer']) $(id).onchange = () => replan();
+$('host').onchange = () => { if (S.plan) startRun(S.plan.label, S.plan.job ? JOBS[S.plan.job] : [MOVE_DEMO[S.plan.label]], S.plan.job, $('host').value); else renderStage(); };
+$('seed').onchange = () => { S.plan = null; buildRoster(); readout(); };
+$('robotIdx').onchange = () => pickRobot(+$('robotIdx').value);
+$('revar').onclick = () => { S.varSalt = ':' + Math.random().toString(36).slice(2, 6); pickRobot(+$('robotIdx').value); readout(); };
+for (const b of document.querySelectorAll('button.move')) b.onclick = () => { S.auto = false; startRun(b.dataset.move, [MOVE_DEMO[b.dataset.move]], null, $('host').value); };
+for (const b of document.querySelectorAll('button.job')) b.onclick = () => { S.auto = false; startRun(b.dataset.job, JOBS[b.dataset.job], b.dataset.job, $('host').value); };
+$('btnAuto').onclick = () => { S.auto = !S.auto; $('btnAuto').classList.toggle('on', S.auto); if (S.auto) autoNext(); };
+$('btnPause').onclick = () => { if (!S.plan) return; S.playing = !S.playing; markButtons(); };
+$('scrub').oninput = () => { if (!S.plan) return; S.playing = false; S.t = +$('scrub').value * S.plan.D; pose(); markButtons(); };
+buildRoster(); readout();
+</script>
+</body>
+</html>

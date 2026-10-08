@@ -32,9 +32,13 @@ layers. This spec covers all four.
 >    18) (§1.9).
 >
 > Values measured in J1: `BATTERY_DRAIN_ACTIVE` = 6 (§5.2 drain sim), site cooldown 0.4/3/30
-> (§5.2 readiness sim, Crawford's pick). Still first guesses until the motion sketch (Task 0, not
-> yet run): the station box and port, `JOB_WORK_RATE`, `JOB_BASE_SECONDS`, `JOB_MIN_SECONDS`,
-> `STATION_ARC_SECONDS`. Per-task detail ("As shipped") is in
+> (§5.2 readiness sim, Crawford's pick) — re-pinned to **0.3/2/30** at Task 16b against the
+> longer 6–10 s jobs. Pinned by the station sketch (Task 0a, 2026-10-07):
+> the station box 200 × 200, `STATION_ARC_SECONDS` 1.0, the station design and the render-order
+> and back-row-exit corrections in §1.6. Pinned by the moves sketch (Task 0b, 2026-10-07):
+> `jobDuration(bpm)` 6–10 s from the tempo with orbiter count cut from timing, `JOB_WORK_RATE` and
+> `JOB_MIN_SECONDS` retired, `ATTACH_DURATION` 1 s, the move constants and two paths per site
+> (§1.5, §1.9). Code caught up at Task 16b. The port stays at the centre pending Crawford. Per-task detail ("As shipped") is in
 > [docs/tasks/ROBOT_JOBS_AND_STATIONS.md](../tasks/ROBOT_JOBS_AND_STATIONS.md).
 
 > **Execution Commands**
@@ -151,6 +155,12 @@ layers. This spec covers all four.
 `stationId` and `siteId` fields arrive in J2 with their writer (Task 21), and `state`,
 `destination` and `direction` go in J2 Task 24.
 
+> **Shipped (J2, 2026-10-08).** As the table says. `activity` is required since Task 24:
+> `spawnRobot` sets it from `docking` (Active → `'exiting'`, else `'charging'`) and
+> `placeRosterAtStations` sets it again at the port. `state`, `destination`, `direction` and
+> `RobotState` are gone, guarded by `types/Robot.test.ts`. `layer` is still unused (J4). Noticed,
+> not touched: `Robot.lastInteractionMeasure` has had no writer since Task 6.
+
 ### 1.3 Hosts (J1, `src/systems/jobHosts.ts`)
 
 `hostJobs(actor): JobType[]` — empty means "not a host". Factories by variant, scenery by `kind`;
@@ -228,6 +238,11 @@ interface WorkSite {
 
 - **Park:** robot centre at `(clamp(centre x ± seeded 0–40), roof − PARK_CLEARANCE)` with
   `PARK_CLEARANCE` = 70 (body half-height + margin), clamped into the world (`WORLD_MARGIN` 100).
+- *(Task 0b, A2 confirmed)* **Two paths per site.** The sketch's jobs need both a silhouette line
+  and a pipe run on the same host (structuralInspection traces the outline, fluidMonitoring the
+  pipe), so `path` becomes `paths: { outline: Vec2[]; pipe?: Vec2[] }` — `outline` always present,
+  `pipe` where the kind has one; `trace(pipe)` on a site without one falls back to the outline.
+  J1's `workSites.ts` ships a single `path`; the split lands with T19's first consumer.
 - **Foreground rule:** foreground buildings draw *over* the robots layer, so a foreground site's
   `points` and `path` lie on or above its top outline — orbiters work at the silhouette from
   outside, never behind its face. Midground and background sites may use facade points.
@@ -258,14 +273,51 @@ interface WorkSite {
   worlds, and no world rolled 3 stations. A station that finds no spot in 16 candidates restarts
   the layout, up to 16 layouts. After that, the count steps down to 2, and then the overlap rule
   is dropped (spacing always holds). Result over the grid: 50 of 121 worlds have 3 stations, and
-  no world needs the overlap fallback. **Placeholders until the sketch (Task 0):**
-  `STATION_BOX_W`/`STATION_BOX_H` = 160 × 120, and `port` = the centre.
-- **Render:** `ChargingStation.tsx` (memoised) draws each station in the **front robots layer, after
-  the robots** — a robot entering passes under it. Gem art style, placeholder geometry until the
-  sketch supplies Crawford's design; **≤ `STATION_SHAPE_BUDGET` = 16 shapes** each (merged paths,
-  3 facet tones, per Phase 39). Six slot lights; lit count = robots with that `stationId` and
-  `activity === 'charging'`, read with a narrow number selector so only a count change re-renders.
-  No continuous animation on the station itself.
+  no world needs the overlap fallback. *(Task 0a, 2026-10-07:)* the sketch pinned the box at
+  **`STATION_BOX_W`/`STATION_BOX_H` = 200 × 200** (in code since T20; the grid still needs no
+  overlap fallback at that size). `port` = the centre stays, marked open in the sketch header.
+- **Design (Task 0a, `docs/sketches/robot-charging-station.html`):** same manufacturer as the
+  robots — ACCENT palette, BACKING/MID_DARK, bevel ring with 3 facet tones, boundary lines. Four
+  loosely triangular gem layers, L1 (front) to L4 (back), each rotated against the next; L4 is one
+  solid piece in BACKING, L1–L3 are rings cut into three pieces with a gap; L1 is in the station's
+  seeded accent, L2–L3 in MID_DARK. **Six of the nine pieces are the slots** (two per broken
+  layer, seeded), lit back-to-front in the stored robot's `identityColor` in the lit-Mid style,
+  each with one light dot — so the slot lights *are* the occupancy display. A small **port gem** at
+  the centre of L1 and a **static halo** (radius 60) in the station accent both brighten with
+  occupancy. **No bob** — this bullet's no-continuous-animation rule stands (Crawford's call).
+  Four geometry dials are **driven live by the world's `GlobalAudioSettings`** (continuous in the
+  dial's natural space, same rng stream, so a drag deforms the station without a pop — the robots'
+  dial rule applied to the station): gap 10–25 u ← HPF cutoff (log 20 Hz → 20 kHz); band width
+  8–16 u ← LPF cutoff (log); rotation spread 30–60° ← EQ3 mid (−12 → +12 dB); size falloff
+  0.03–0.12 ← EQ3 tilt, low − high (−24 → +24 dB). Flat EQ and open filters give gap 10, band 16,
+  spread 45°, falloff 0.075; filter Q is unused; every station in a world shares these four, and
+  per-station variety comes from the seed (base rotation, corner jitter, cut style, slot picks).
+  Bevel depth 5. Still TBD in the sketch header: depth-tint on/off and opacity, swim speed,
+  back-row scale, enter/exit sides.
+- **Render:** ~~`ChargingStation.tsx` (memoised) draws each station in the **front robots layer, after
+  the robots** — a robot entering passes under it.~~ *(Task 0a correction:)* the station is **three
+  fragments interleaved with the robots**, back to front: **L4 · exiting robots · L3 · entering
+  robots · L2 · halo + ripple · L1**. SVG z is document order, so `OceanScene` renders the robots
+  layer as siblings sorted by activity between the station fragments (`exiting` first, then
+  everyone else), and a robot *entering* passes between L2 and L3, not under the whole station.
+  Further, the **exiting robot appears in the back robot row** (§1.10, J4): L4 and the exiting
+  robots live in `robots-back`, under the 0-1 depth gradient at `BACK_LAYER_SCALE`, and only L1–L3
+  stay in `robots`. **T20 therefore depends on J4**; until J4 lands, exits use the front row
+  (between L3 and L4 in the front layer, scale 1) as the fallback. Gem art style per the Design
+  bullet; **≤ `STATION_SHAPE_BUDGET` = 25 shapes** each *(T20, Crawford's call: 16 can't hold
+  four unshareable layers plus a colour per lit slot. Facets are shaded by one light and one dark
+  overlay path per layer, so a lit slot costs one path: 19 empty, 25 full; see the plan's Task
+  20)*. Six slot lights = the six slot pieces plus their dots. Lit = robots with that `stationId`
+  and `activity === 'charging'`, read as one primitive key of their identity colours
+  (`stationOccupancy.ts`), so only a change to this station's lit set re-renders it. No
+  continuous animation on the station itself (confirmed at the sketch).
+- **Enter / exit motion (Task 0a):** entering, the robot swims to the port and vanishes over
+  `STATION_ARC_SECONDS` = **1.0** (scale 1 → 0.15 and opacity 1 → 0) while the halo ripple runs
+  **inward** for the same arc; exiting, it appears at the port behind L3 (scale 0.15 → back-row
+  scale, opacity 0 → 1) while the ripple runs **outward**, then swims off. The ripple is Phase
+  41's ring (one whole cycle per arc, ring width 0.2) in the moving robot's `identityColor`; a
+  ripple already running means the new one is **skipped**, so twelve robots exiting at world open
+  play one ripple. Reduced motion: opacity only, no ripple.
 - **Assignment:** at locale load, **every** robot is assigned a station by roster index modulo
   station count (capacity 6 × ≥ 2 stations ≥ 12, so it always fits — `assignStationsAtLoad` throws
   rather than overfill) and starts at the port. Docked robots start hidden (`activity:
@@ -275,6 +327,19 @@ interface WorkSite {
   `stationId` and activity `returning | entering | charging`) is below capacity, reserving the slot
   on decision (`nearestFreeStation`: a missing occupancy entry is empty, ties go to the earlier
   station, `null` when all are full).
+
+> **Shipped (J2, 2026-10-08; Tasks 20, 21, 23).** Crawford's Task 0a design in
+> `src/components/stations/` (`stationGem.ts`, `stationPaint.ts`, `stationOccupancy.ts`,
+> `ChargingStation.tsx`). `OceanScene`'s robots layer is `#station-l4-layer`,
+> `#station-l3-layer`, `#robot-layer`, `#station-front-layer`. **Not as specced:** exiting robots
+> still draw in `#robot-layer` (above L3, under the front fragment), not between L4 and L3. That
+> needs `OceanScene` to order robots by activity without remounting them, so it moves to J4.
+> `STATION_SHAPE_BUDGET` is 25, not 16 (Crawford's call, Task 20). Slots light in **roster order**
+> of the charging robots, not arrival order, so colours shift one slot when a lower-roster robot
+> docks. The port scale is `STATION_PORT_SCALE` = 0.15 (this section's, over §1.7's 0.4), and the
+> eases are the sketch's: √v out, v² in, opacity linear. The station ripple is
+> `src/animation/stationRipple.ts`. The station doesn't dim at night (no rule here; Checkpoint C
+> passed it). `port` = `center` stays open. Checkpoint C passed it all on 2026-10-08.
 
 ### 1.7 The work loop (J2, `src/systems/workLoop.ts`)
 
@@ -320,8 +385,9 @@ and the set of robots with a pending recall. Public surface:
 - **Cooldown:** on leaving a site, `readyAt = now + siteCooldown(eligibleSiteCount)`, where
   `siteCooldown(n) = clamp(n × COOLDOWN_PER_SITE, COOLDOWN_MIN, COOLDOWN_MAX)` — more buildings,
   longer rest, so work spreads; few buildings, short rest, so robots don't starve. First guesses
-  were `0.6 s`, `4 s`, `30 s`. **Pinned by the readiness sim (§5.2): `0.4 s`, `3 s`, `30 s`**
-  *(J1, Crawford's pick, 2026-10-07)*.
+  were `0.6 s`, `4 s`, `30 s`. ~~Pinned by the readiness sim (§5.2): `0.4 s`, `3 s`, `30 s`
+  (J1, Crawford's pick, 2026-10-07).~~ **Re-pinned by the Task 16b re-run at 6–10 s jobs (§5.2):
+  `0.3 s`, `2 s`, `30 s`** *(Crawford, 2026-10-07)*.
 - **Stations:** `exitStation` — at the port, `autoAlpha 0 → 1`, scale `0.4 → 1`, the registered
   `decorateArc('spawn', d, tl)`, `activity: 'exiting'` → `next()`. `returnToStation` — reserve a
   slot, `activity: 'returning'`, swim to the port, then `entering`: scale `1 → 0.4`, `autoAlpha → 0`,
@@ -332,6 +398,26 @@ and the set of robots with a pending recall. Public surface:
   functions or store writes — never `AudioEngine` (Strict Separation).
 - **Hidden tabs:** the Transport keeps ticking while GSAP slows, so the lifecycle can run ahead of
   the visuals. Every `next()` reconciles against `docking` first, so the visuals always converge.
+
+> **Shipped (J2, 2026-10-08; Tasks 22–24).** `src/systems/workLoop.ts` holds the loop and
+> `onLifecycleChange` itself (type `LifecycleChange`), which `robotSystems.ts` imports. Differences
+> from the text above, each recorded in the plan: (1) **No recall flag.** Every decision reads
+> `docking` (`next()` sends the robot home unless it's Active), so a flag would duplicate it.
+> (2) **The arcs** use `STATION_PORT_SCALE` = **0.15** (§1.6's sketch value, not 0.4) and
+> `STATION_ARC_SECONDS` = **1.0** (not 0.9). Reduced motion is a 0.3 s fade
+> (`STATION_REDUCED_ARC_SECONDS`). (3) **Turn-back while entering finishes the arc first**:
+> killing it would pop the robot to full size, so the arc's end sees Active and exits from the
+> port. Returning turns back at once. (4) **`next()` does nothing while returning or entering**
+> (the leg in flight decides); charging and Active → exit. (5) **Mounts adopt**: `startWorkLoop`
+> adopts every mounted robot (a power-on mounts before the loop starts) and `onRobotMounted`
+> adopts when the loop runs. Adopting drops the legs (a job is finished silently), abandons the
+> site with no cooldown, then hides, exits or resumes the robot. With no loop, a mount only hides.
+> (6) **`stop` also kills `bob-wait-*`** and runs a job in progress to its end without its
+> callback, so the orbiters are docked when unlocked. (7) **Settle**: a leg cut short writes the
+> body's GSAP x/y back to `position` before the next leg. (8) **Turn-backs only happen in a hidden
+> tab**: critical → Active takes 20 measures, longer than any swim home.
+> `workLoop.integration.test.ts` drives both cases at 200 BPM. Docs:
+> [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md).
 
 ### 1.8 Orbiter and halo hand-off (J2, `src/animation/robotMotionRegistry.ts`)
 
@@ -346,11 +432,30 @@ and the set of robots with a pending recall. Public surface:
 - `useOrbiterMotion`'s header note that it "stays ignorant of job animations" is replaced: it knows
   only that it can be locked.
 
+> **Shipped (J2, 2026-10-08; Tasks 17, 23).** As above, plus: `lock` **finishes any hop in
+> flight** (`progress(1)`) so every group is at rest; the deletes take an optional **owner** and
+> remove only their own entry (a stale unmount can't strip a remount's); `decorateArc` is
+> memoised so audio edits don't re-register it; and both registrations moved to
+> `useLayoutEffect` so the first exit arc gets its halo ripple. **Open:** the lock doesn't stop
+> `useOrbiterMotion`'s Size tween, so a Size edit mid-job would fight the pulse on `scale`. Docs:
+> [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#robot-motion-registry).
+
 ### 1.9 Jobs and moves (J2: one move end to end; J3: all)
 
-- **Job time:** `jobDuration(job, orbiterCount) = max(JOB_MIN_SECONDS, JOB_BASE_SECONDS −
+- **Job time:** ~~`jobDuration(job, orbiterCount) = max(JOB_MIN_SECONDS, JOB_BASE_SECONDS −
   JOB_WORK_RATE[job] × orbiterCount)`; `JOB_BASE_SECONDS` = 5, `JOB_MIN_SECONDS` = 1.5, rates 0.5–0.9
-  per job (first guesses; the sketch pins them). Orbiter count is `orbiterDials().count` (1–4, never 0).
+  per job (first guesses; the sketch pins them).~~ *(Task 0b, 2026-10-07, Crawford:)* **orbiter count
+  no longer drives speed** — it "creates some weirdness" — and `JOB_WORK_RATE` and `JOB_MIN_SECONDS`
+  retire with it. Every job runs for **`jobDuration(bpm) = JOB_BASE_SECONDS(bpm)`**, linear in the
+  tempo over the Tempo slider's 20–200: `JOB_BASE_MAX_SECONDS` = **10** at 20 BPM down to
+  `JOB_BASE_MIN_SECONDS` = **6** at 200 BPM (`10 − 4 × (bpm − 20) / 180`; 110 BPM → 8 s). Slower
+  tempo, longer job. `bpm` is the live transport tempo, read at job start; a tempo change mid-job
+  doesn't retime a running timeline. Orbiter count (`orbiterDials().count`, 1–4, never 0) still
+  decides how many orbiters work. Code *(Task 16b, shipped)*: `jobDuration(bpm)` in
+  `src/animation/jobMoves/jobDuration.ts`, clamped to 10 s below 20 BPM and 6 s above 200.
+- **Flights inside the duration (Task 0b, A1 confirmed):** detach and reattach are part of
+  `jobDuration`, not added to it — `ATTACH_DURATION` = **1.0 s** (was 0.5) each way. A two-move
+  job at 6 s therefore has ≈ 3.3 s of actual work; at 10 s, ≈ 7.6 s.
 - **One timeline per job run** (`work-${robotId}`): a bob on the robot's `<g>` (`y` ± `BOB_PX` = 6,
   finite repeats fitting the duration); the orbiters' **detach** (fly from dock to the first targets,
   `ATTACH_DURATION`), the job's **moves**, and **reattach** (fly back to `x: 0, y: 0`); then
@@ -375,6 +480,15 @@ and the set of robots with a pending recall. Public surface:
 | salvage | carry(a → b) |
 | maintenance | ring(point) with an opacity spark-flicker |
 
+- **Move constants (Task 0b, kept as sketched):** gather radius 14 u and pulse ×1.3
+  (`hoverPulse`); ring radius 24 u (±15 % per robot) and 1.5 revolutions per move (`ring`);
+  trace stagger 0.12 of the move's length (`trace`); carry shrink ×0.7 (`carry`); fan radius 40 u,
+  spread 120°, ping ×1.5 (`fan`); maintenance flicker dips to opacity 0.25, three per orbiter;
+  `BOB_PX` 6 with a ≈1.2 s bob cycle (whole cycles fitting the duration). Within a job, moves
+  split the duration equally; the first move's approach is the detach, later moves get
+  min(0.35 s, 25 % of their share) to reach their first targets. Reduced motion: an in-place
+  opacity pulse 0.8–1 on the whole robot, orbiters docked, no move targets. Names and values go to
+  `constants/index.ts` at T19 (`hoverPulse`) and T29 (the rest).
 - **Coordinates:** `sceneToOrbiterLocal(point, { robotPos, gem, bodyScale, layerScale, corner })`,
   pure — inverts the robot `<g>` translate, the `g.gem` `translate(c) scale(s) translate(−c)` (with
   `s = bodyScale × layerScale`) and the corner's dock offset. `robot.position` is the gem canvas's
@@ -383,10 +497,22 @@ and the set of robots with a pending recall. Public surface:
   One pure pair, `robotCentre(robot)` / `positionForCentre(centre)` (J2 Task 18), is the only
   conversion; spawn, the loop and the layer switch all use it.
 - *(J1)* `jobDuration` shipped early, at `src/animation/jobMoves/jobDuration.ts`, for the readiness
-  sim. `JOB_WORK_RATE` is 0.7 for every job (the midpoint) until the sketch gives each its own.
+  sim, as `jobDuration(job, count)` with `JOB_WORK_RATE` 0.7. *(Task 0b)* superseded — Task 16b
+  rewrites it as `jobDuration(bpm)` and re-runs the readiness sim at 6–10 s, since Task 15 pinned
+  the cooldown 0.4/3/30 against 2.2–4.3 s jobs. *(Task 16b)* done; the cooldown moved to 0.3/2/30
+  (§1.7, §5.2).
 - **Per-robot variation:** `Alea(gemSeed + ':work')` picks stagger, ring direction, radius ±15 %
   and trace direction — company members that look alike work differently.
 - J2 ships `hoverPulse` + ventExtraction only (other jobs fall back to it); J3 adds the rest.
+
+> **Shipped (J2, 2026-10-08; Tasks 18, 19).** `buildJobTimeline` runs `hoverPulse` on the site's
+> first point for **every** job. Differences: `robotCentre(robot, gem)` / `positionForCentre(centre,
+> gem)` take **no scale** (the centre is the fixed point of `g.gem`'s scale); a **counter-bob** on
+> each `.gem__orbiter` copy keeps a detached orbiter still in the scene; gather targets are spaced
+> by **slot, not corner** (corner spacing collides at count 3), the first directly above the
+> point; the reattach restores nothing (the pulse already ends at rest — T29's flicker must too).
+> Not yet: per-robot variation, and `WorkSite.path` → `paths` (both T28). Docs:
+> [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#job-timeline).
 
 ### 1.10 Depth layers (J4, `OceanScene.tsx`)
 
@@ -422,6 +548,12 @@ and the set of robots with a pending recall. Public surface:
   `DOCKING_STATE_LABELS`; `JOB_TYPE_LABELS` reads `robot.job` directly.
 - `RobotSelectionCard`: status line `{docking} · {activity} · {audibility}`. `RobotDisplaySection`:
   an Activity row after Docked Status. No change to the avatar's orbiters.
+
+> **Shipped (J2, 2026-10-08; Task 25).** As above. `probe.status.activity`'s field lore is
+> "OPERATIONAL PHASE", with ALL-CAPS option lore lines. Both the docking and the activity word on
+> the card line are **held** at their widest label (`HeldWord`, a stacked grid cell), so nothing
+> after them reflows. `ROBOT_SELECTION_ROW_SCHEMAS.activity` captions the detail row. Checkpoint C
+> (2026-10-08) took the lore lines and the card-line gap as reviewed.
 
 ### 1.12 Performance rules
 
@@ -480,7 +612,8 @@ src/
 docs/
 ├── specs/ROBOT_JOBS_AND_STATIONS.md     # this file
 ├── tasks/ROBOT_JOBS_AND_STATIONS.md     # the plan (next)
-├── sketches/robot-jobs-and-stations.html# the motion-sketch gate
+├── sketches/robot-charging-station.html # Task 0a: the station (rolls + enter/exit), done
+├── sketches/robot-jobs-and-stations.html# Task 0b: the moves and jobs panel, done
 ├── ROBOT_LIFECYCLE.md                   # rewritten (J1 lifecycle, J2 stations/loop)
 ├── ANIMATION_SYSTEM.md                  # registry, job timelines, scene stack (J4)
 ├── BUILDING_DESIGN.md                   # hosts, work sites, coverage
@@ -607,6 +740,22 @@ Docked stay (~20 measures) outlasts the longest walk home. At 200 BPM a robot ca
 heading home up to ~17 s after it lands on Docked, which §1.7's `'docked'` rule allows. Full table:
 plan Task 15.
 
+*(Task 16b re-run, 2026-10-07.)* Jobs are now `jobDuration(bpm)`, 6–10 s, so the readiness sim
+was re-run at 20, 110 and 200 BPM (121 seeds × 600 s). Longer jobs lowered waiting rather than
+raising it, and roughly halved job switches per stint (3.92 → 1.52 at 20 BPM on 0.4/3/30). The old
+pick went 1 s over the 15 s cap at 200 BPM. Crawford chose **0.3/2/30**:
+
+| Cooldown | BPM | Mean waiting | p95 waiting | Longest wait | p95 wait | Switches / stint | Seeds missing a target |
+|---|---|---|---|---|---|---|---|
+| **0.3/2/30 (shipped)** | 20 | 1.2 % | 5.6 % | 20.0 s | 8.0 s | 1.40 | 4 / 121 |
+| **0.3/2/30 (shipped)** | 110 | 1.2 % | 5.6 % | 14.0 s | 6.0 s | 0.36 | 1 / 121 |
+| **0.3/2/30 (shipped)** | 200 | 1.3 % | 6.8 % | 10.0 s | 6.0 s | 0.23 | 1 / 121 |
+| 0.4/3/30 (Task 15 pick) | 20 | 1.9 % | 7.7 % | 35.1 s | 6.1 s | 1.52 | 7 / 121 |
+| 0.4/3/30 (Task 15 pick) | 110 | 1.8 % | 8.2 % | 14.0 s | 6.0 s | 0.44 | 1 / 121 |
+| 0.4/3/30 (Task 15 pick) | 200 | 2.2 % | 8.9 % | 16.0 s | 6.0 s | 0.26 | 5 / 121 |
+
+Turn-backs and "charging while visible" stay 0 everywhere. Full table: plan Task 16b.
+
 ### 5.3 Static checks
 
 `npm run build:types`, `npm run lint`, `npm test`, `npm run build` — clean on every branch.
@@ -624,7 +773,10 @@ is its gate.
 
 - **Sketch gate** (before J1 code): `docs/sketches/robot-jobs-and-stations.html` — the five moves on
   two host types at 1×, a station enter/exit with the halo ripple and the placeholder station.
-  Constants that pass become this spec's values.
+  Constants that pass become this spec's values. *(As run: split. Task 0a, the station, passed
+  2026-10-07 in `docs/sketches/robot-charging-station.html` — §1.6 carries its values. Task 0b,
+  the moves and jobs, passed 2026-10-07 in `docs/sketches/robot-jobs-and-stations.html` — §1.9
+  carries its values, with one change of direction: duration follows BPM, not orbiter count.)*
 - **J2/J3/J4 live:** a few worlds; can he tell what each robot is doing; no long waits; no pops at
   stations or layer switches. **Pixel listen:** no new dropouts — the hard line.
 - **Halo gate:** Phase 41's deferred halo/ripple visual gate re-runs at J2 with its original
@@ -640,7 +792,10 @@ is its gate.
 
 ## 7. Open Questions
 
-1. **Station design** — Crawford's drawing arrives via the sketch; until then a placeholder gem.
+1. ~~**Station design** — Crawford's drawing arrives via the sketch; until then a placeholder gem.~~
+   *Resolved (Task 0a, 2026-10-07):* the four-layer rotated-triangle gem in §1.6. Still open from
+   that sketch: depth tint on/off and opacity, swim speed, back-row scale, enter/exit sides, and
+   whether the port stays at the centre.
 2. ~~**Coverage top-up lists** — written per recipe once D2's real hosts exist; wreck field first.~~
    *Resolved in J1 (Task 12):* lists for every district, led by midground pylons; see §1.4.
 3. **J4 re-mount cost** — a layer switch re-mounts the robot (orbiter/halo/flicker hooks re-init).
@@ -648,7 +803,10 @@ is its gate.
    clipping) is a stop-and-report, not a silent swap.
 4. **Lore copy** for Salvage, Maintenance and the seven activities — Crawford reviews.
 5. **`BATTERY_DRAIN_ACTIVE`, cooldown constants, job rates** — pinned by §5.2 and the sketch.
-   *J1:* drain 6 and cooldown 0.4/3/30 pinned. The job rates, `JOB_BASE_SECONDS`,
-   `JOB_MIN_SECONDS`, `STATION_ARC_SECONDS` and the station box still wait for the sketch.
+   *J1:* drain 6 and cooldown 0.4/3/30 pinned. *Task 0a:* `STATION_ARC_SECONDS` = 1.0 and the
+   station box 200 × 200 pinned (code moves at T20). *Task 0b:* `jobDuration(bpm)` 6–10 s,
+   orbiter coupling cut, `JOB_WORK_RATE`/`JOB_MIN_SECONDS` retired, `ATTACH_DURATION` 1 s (code
+   moved at Task 16b). *Task 16b:* the readiness re-run moved the cooldown to 0.3/2/30.
+   **Resolved.**
 6. *(Raised in J1.)* **Background Skyscraper parks** clamp below the roof (§1.5) — J4 decides:
    drop such sites or park beside them.

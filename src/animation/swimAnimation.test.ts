@@ -11,7 +11,6 @@ function fakeRobot(overrides: Partial<Robot> = {}): Robot {
   return {
     id: 'robot-1',
     position: { x: 0, y: 0 },
-    direction: 'right',
     ...overrides,
   } as unknown as Robot;
 }
@@ -90,10 +89,10 @@ describe('createSwimTimeline — with a registered ref', () => {
   });
 
   // Phase 40 Task 7b (docs/specs/ORBITING_POLYGONS.md §1.6): robots have no discernible front any
-  // more, so the orientation (flip) phase is gone — propulsion always starts at position 0,
-  // regardless of the robot's stored `direction`.
-  it.each(['left', 'right'] as const)('propulsion starts at position 0 regardless of direction (%s)', (direction) => {
-    const robot = fakeRobot({ id: `r-${direction}`, direction });
+  // more, so the orientation (flip) phase is gone — propulsion always starts at position 0. (The
+  // stored `direction` itself went with the wandering code, Phase 43 Task 24.)
+  it('propulsion starts at position 0 — no orientation phase', () => {
+    const robot = fakeRobot({ id: 'r-propulsion' });
     registerFakeRef(robot.id, false);
     const tl = gsap.timeline();
     const toSpy = vi.spyOn(tl, 'to');
@@ -108,7 +107,7 @@ describe('createSwimTimeline — with a registered ref', () => {
   });
 
   it('adds no scaleX tween — robots no longer flip on direction change', () => {
-    const robot = fakeRobot({ id: 'r-no-flip', direction: 'left' });
+    const robot = fakeRobot({ id: 'r-no-flip' });
     registerFakeRef(robot.id, false);
     const tl = gsap.timeline();
     const toSpy = vi.spyOn(tl, 'to');

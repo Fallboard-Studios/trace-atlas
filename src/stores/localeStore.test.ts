@@ -10,7 +10,7 @@ import { computeLocaleHour } from '../constants/time';
 import type { Locale } from '../types/locale';
 import type { Company } from '../types/Company';
 import type { Robot } from '../types/Robot';
-import { RobotState, DockingState } from '../types/Robot';
+import { DockingState } from '../types/Robot';
 import { encodeSessionPayload } from '../utils/sessionShareUtils';
 import type { SessionPayload } from '../types/session';
 
@@ -23,10 +23,7 @@ const makeRobot = (id: string): Robot => ({
   compositionSeed: 0.5,
   identityColor: '#428d95',
   gemSeed: 1,
-  state: RobotState.Idle,
-  direction: 'right',
   position: { x: 0, y: 0 },
-  destination: null,
   melody: [],
   audioAttributes: {
     waveform: 'sine',
@@ -37,6 +34,7 @@ const makeRobot = (id: string): Robot => ({
   createdAt: Date.now(),
   masterVolume: 0.7,
   docking: DockingState.Active,
+  activity: 'exiting',
   batteryLevel: 100,
 });
 
@@ -242,7 +240,7 @@ describe('localeStore', () => {
       useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
       useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { masterVolume: 0.1 });
       expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].id).toBe('r1');
-      expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].state).toBe(RobotState.Idle);
+      expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].octaveRange).toEqual(makeRobot('r1').octaveRange);
     });
 
     describe('rhythmicDensity clamping (0-100% fill rate)', () => {

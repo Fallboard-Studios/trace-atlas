@@ -21,10 +21,7 @@ import type { Locale } from '@/types/locale';
 const makeRobot = (id: string, name?: string) => ({
   id,
   name,
-  state: 'idle',
   position: { x: 0, y: 0 },
-  destination: null,
-  direction: 'right',
   melody: [],
   audioAttributes: {
     adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.3 },
@@ -85,6 +82,7 @@ describe('RobotsTab', () => {
       job: 'acousticSurvey',
       batteryLevel: 63,
       docking: 'active',
+      activity: 'working',
       audioMode: 'highlight',
     } as unknown as Robot);
 
@@ -95,10 +93,14 @@ describe('RobotsTab', () => {
     // Accordion forceMount regardless of open/closed state; see RobotDisplaySection.test.tsx's
     // identical note). Docking and Status now render as one combined line, not two standalone
     // texts — 'highlight' still counts as audible (isRobotAudible), so it reads "Emitting".
+    // Phase 43 Task 25: the line is "Docking · Activity · Status", and the docking and activity
+    // words each stack every label as width sizers, so only their current words are read here.
     const card = screen.getByRole('button', { name: 'Unit One' });
     expect(within(card).getByText('Acoustic Survey')).toBeTruthy();
     expect(within(card).getByText('63%')).toBeTruthy();
-    expect(within(card).getByText('Active · Emitting')).toBeTruthy();
+    const line = card.querySelector('.robot-selection-card__status-line')!;
+    expect([...line.querySelectorAll('[data-current]')].map((w) => w.textContent)).toEqual(['Active', 'Working']);
+    expect(line.textContent).toMatch(/ · Emitting$/);
   });
 
   it('clicking a robot card selects it', () => {

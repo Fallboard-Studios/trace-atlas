@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { act, render, cleanup } from '@testing-library/react';
+import { useLayoutEffect } from 'react';
 
 import { RobotBody } from './RobotBody';
 import * as robotVisualHelpers from './robotVisualHelpers';
@@ -13,11 +14,13 @@ import { HALO_RADIUS_MIN, HALO_RADIUS_MAX } from './gem/haloDials';
 import { BODY_STRIP_OPACITY } from './gem/bodyLineDials';
 import { GEM_FACET_CONTRAST } from './gem/gemShading';
 import { orbiterPlan } from './gem/orbiterMotion';
+import type { ArcDecorator } from './gem/useHaloMotion';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import type { Locale } from '@/types/locale';
 import { useUIStore } from '@/stores/uiStore';
 import { timelineMap, killAllTimelines } from '@/animation/timelineMap';
+import { getArcDecorator, getOrbiterWork, clearRobotMotionRegistry } from '@/animation/robotMotionRegistry';
 import type { Robot } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 
@@ -32,10 +35,7 @@ const ADSR = { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 };
 function makeRobot(overrides: Partial<Robot> = {}): Robot {
   return {
     id: 'r1',
-    state: 'idle',
     position: { x: 0, y: 0 },
-    destination: null,
-    direction: 'right',
     melody: [],
     audioAttributes: { adsr: ADSR, filterFreq: 0, waveform: 'sine' },
     octaveRange: [3, 4],
@@ -558,6 +558,74 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
         const ripple = container.querySelector('.gem__ripple')!;
         expect(ripple).not.toBeNull();
         expect(ripple.getAttribute('fill')).toBe('url(#ripple-world-r1)');
+      });
+
+      describe('the motion registry (Phase 43 Task 17, spec §1.8)', () => {
+        beforeEach(() => clearRobotMotionRegistry());
+
+        it('motion="world" registers its decorateArc and the orbiter work lock under the robot id', () => {
+          draw(makeRobot({ id: 'r-reg' }), false, 'world');
+          expect(typeof getArcDecorator('r-reg')).toBe('function');
+          expect(getOrbiterWork('r-reg')).toBeDefined();
+        });
+
+        it('the registered decorateArc is useHaloMotion’s own — it writes the ripple onto the arc timeline it is given', () => {
+          draw(makeRobot({ id: 'r-reg' }), false, 'world');
+          const arcTl = { to: vi.fn() };
+          getArcDecorator('r-reg')!('spawn', 1, arcTl as unknown as Parameters<ArcDecorator>[2]);
+          expect(arcTl.to).toHaveBeenCalledTimes(1);
+        });
+
+        it('motion="avatar" and cards (no motion) never register', () => {
+          draw(makeRobot({ id: 'r-avatar' }), false, 'avatar');
+          draw(makeRobot({ id: 'r-card' }));
+          expect(getArcDecorator('r-avatar')).toBeUndefined();
+          expect(getOrbiterWork('r-avatar')).toBeUndefined();
+          expect(getArcDecorator('r-card')).toBeUndefined();
+          expect(getOrbiterWork('r-card')).toBeUndefined();
+        });
+
+        it("both are registered by the time the parent Robot's mount (layout) effect runs (Phase 43 Task 23)", () => {
+          // Robot.tsx's useGSAP mount calls onRobotMounted, which plays the exit arc at once and
+          // reads the decorator then — a passive-effect registration would miss the first arc.
+          const seen: unknown[] = [];
+          function Parent({ children }: { children: React.ReactNode }) {
+            useLayoutEffect(() => {
+              seen.push(getArcDecorator('r-mount'), getOrbiterWork('r-mount'));
+            }, []);
+            return <g>{children}</g>;
+          }
+          render(<svg><Parent><RobotBody robot={makeRobot({ id: 'r-mount' })} motion="world" /></Parent></svg>);
+          expect(typeof seen[0]).toBe('function');
+          expect(seen[1]).toBeDefined();
+        });
+
+        it('unmount deregisters both', () => {
+          const { unmount } = draw(makeRobot({ id: 'r-reg' }), false, 'world');
+          unmount();
+          expect(getArcDecorator('r-reg')).toBeUndefined();
+          expect(getOrbiterWork('r-reg')).toBeUndefined();
+        });
+
+        it('unmounting the avatar of a robot leaves its world registration in place', () => {
+          const robot = makeRobot({ id: 'r-both' });
+          draw(robot, false, 'world');
+          const decorate = getArcDecorator('r-both');
+          const work = getOrbiterWork('r-both');
+          draw(robot, false, 'avatar').unmount();
+          expect(getArcDecorator('r-both')).toBe(decorate);
+          expect(getOrbiterWork('r-both')).toBe(work);
+        });
+
+        it('an audio edit re-renders without re-registering — the same decorator and control stay', () => {
+          const robot = makeRobot({ id: 'r-reg', masterVolume: 0.5 });
+          const { rerender } = render(<svg><RobotBody robot={robot} motion="world" /></svg>);
+          const decorate = getArcDecorator('r-reg');
+          const work = getOrbiterWork('r-reg');
+          rerender(<svg><RobotBody robot={{ ...robot, masterVolume: 0.9, rhythmicDensity: 80 }} motion="world" /></svg>);
+          expect(getArcDecorator('r-reg')).toBe(decorate);
+          expect(getOrbiterWork('r-reg')).toBe(work);
+        });
       });
 
       it('motion="avatar" uses its own context throughout — halo-avatar-<id> / flicker-avatar-<id>-top / orbiters-avatar-<id>', () => {

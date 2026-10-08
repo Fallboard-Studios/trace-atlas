@@ -128,8 +128,17 @@ faded, then `back.out` into its dock). A count increase flies in the next corner
 decrease flies the last-attached corner back out in reverse (`flyOut`) and hides it. Both are
 animated, never a pop; `prefers-reduced-motion` swaps the hop for a 0.3 s opacity fade. At most one
 count-driven attach/detach runs at a time per robot, tracked by a per-corner busy set so it can
-never retarget a corner still mid-flight. A later roadmap phase will let orbiters detach again to do
-"job" animations — not built yet; this hook stays ignorant of it.
+never retarget a corner still mid-flight.
+
+**Jobs lock the orbiters** (Roadmap Phase 43). In the world context only, `useOrbiterMotion`
+registers `{ lock, unlock }` with `registerOrbiterWork` (`robotMotionRegistry.ts`). A working
+robot's job locks them: any hop in flight finishes, count changes stop moving corners, and the job
+flies the shown orbiters out to the building, works and flies them back to their docks. On unlock
+the orbiters catch up to the current count in one pass, so a density edit mid-job never interrupts
+the work and never pops. The hook knows only that it can be locked. Count still decides how many
+orbiters work; it doesn't change how long a job takes. Cards and the detail avatar never lock
+and never animate a job. The loop and the job timeline are in [ROBOT_LIFECYCLE.md](ROBOT_LIFECYCLE.md)
+and [ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#job-timeline).
 
 ## Non-audio overlays
 

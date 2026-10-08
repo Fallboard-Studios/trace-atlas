@@ -26,7 +26,6 @@ import {
   COOLDOWN_CANDIDATES,
   clampedCooldown,
   buildLoopWorld,
-  simOrbiterCounts,
   runLoopSim,
   runReadinessSim,
   formatReadinessReport,
@@ -46,7 +45,6 @@ import { isWorkSiteEligible } from './jobHosts';
 import { deriveStations, hostObstacles, type Station } from './stations';
 import { siteCooldown } from './siteChoice';
 import { jobDuration } from '../animation/jobMoves/jobDuration';
-import { orbiterDials } from '../components/robot/gem/orbiterDials';
 import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 import { useLocaleStore } from '../stores/localeStore';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
@@ -276,7 +274,7 @@ const VENT = JobType.VentExtraction;
 const SURVEY = JobType.AcousticSurvey;
 
 /** A station stub. */
-const station = (id: string, x: number, y: number, capacity = 6): Station => ({ id, center: { x, y }, port: { x, y }, capacity });
+const station = (id: string, x: number, y: number, capacity = 6): Station => ({ id, center: { x, y }, port: { x, y }, capacity, gemSeed: 0 });
 
 /** A lifecycle snapshot stub. */
 function snap(id: string, docking: DockingState): RobotLifecycleSnapshot {
@@ -294,7 +292,6 @@ const ONE_SECOND_MEASURES = 240;
 function runScenario(opts: Partial<LoopSimOptions> & Pick<LoopSimOptions, 'world' | 'roster'>): { result: LoopSimResult; trace: LoopSimEvent[] } {
   const trace: LoopSimEvent[] = [];
   const result = runLoopSim({
-    orbiterCounts: opts.roster.map(() => 1),
     bpm: ONE_SECOND_MEASURES,
     seconds: 12,
     rand: alea('scenario'),
@@ -335,11 +332,11 @@ function placedWorld(x: number, y: number): { actors: Actor[]; noiseMap: ReturnT
 describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', () => {
   it('pins the loop constants it runs on', () => {
     expect(SWIM_SPEED).toBe(120);
-    expect(STATION_ARC_SECONDS).toBe(0.9);
+    expect(STATION_ARC_SECONDS).toBe(1);
     expect(WAIT_RETRY_SECONDS).toBe(2);
     expect(BEATS_PER_MEASURE).toBe(4);
     expect(SIM_LOOP_SECONDS).toBe(600);
-    expect(SIM_LOOP_BPMS).toEqual([20, 200]);
+    expect(SIM_LOOP_BPMS).toEqual([20, 110, 200]);
   });
 
   describe('buildLoopWorld', () => {
@@ -360,35 +357,19 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
     });
   });
 
-  describe('simOrbiterCounts', () => {
-    it('matches orbiterDials().count of the real spawned roster, robot for robot, and is 1–4', () => {
-      const x = 80;
-      const y = 160;
-      const localeId = 'loop-sim-orbiter-parity';
-      registerLocale(localeId, x, y);
-      spawnInitialRoster(localeId);
-      const real = useLocaleStore.getState().getLocaleById(localeId)!.robots;
-      const counts = simOrbiterCounts(simNoiseMap(x, y));
-      expect(counts).toEqual(real.map((r) => orbiterDials(r).count));
-      for (const n of counts) expect([1, 2, 3, 4]).toContain(n);
-      // Guard against a coincidental pass on one default count.
-      expect(new Set(counts).size).toBeGreaterThan(1);
-    });
-  });
-
   describe('runLoopSim — one robot, one site (hand-worked timeline)', () => {
     const world: LoopSimWorld = { stations: [station('s0', 0, 0)], sites: [{ id: 'a', jobs: [VENT], park: { x: 120, y: 0 } }] };
-    const d = jobDuration(VENT, 1);
+    const d = jobDuration(ONE_SECOND_MEASURES);
 
     it('exits, swims at SWIM_SPEED, works for jobDuration, then waits out the cooldown in WAIT_RETRY_SECONDS bobs', () => {
       const { result, trace } = runScenario({ world, roster: [snap('r0', DockingState.Active)] });
       const r0 = eventsOf(trace, 'r0').map((e) => [e.activity, +e.t.toFixed(3)]);
-      const workEnd = 1.9 + d; // exit 0.9 + swim 120 px / 120 px/s
+      const workEnd = STATION_ARC_SECONDS + 1 + d; // exit STATION_ARC_SECONDS + swim 120 px / 120 px/s
       // Cooldown 3 > one retry, so two bobs before the site is ready again; the swim back is zero-length.
       expect(r0).toEqual([
         ['exiting', 0],
-        ['transit', 0.9],
-        ['working', 1.9],
+        ['transit', STATION_ARC_SECONDS],
+        ['working', STATION_ARC_SECONDS + 1],
         ['waiting', +workEnd.toFixed(3)],
         ['transit', +(workEnd + 4).toFixed(3)],
         ['working', +(workEnd + 4).toFixed(3)],
@@ -402,13 +383,16 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       expect(result.chargingWhileVisible).toBe(0);
     });
 
-    it('more orbiters, shorter jobs', () => {
-      const one = runScenario({ world, roster: [snap('r0', DockingState.Active)], orbiterCounts: [1] }).trace;
-      const four = runScenario({ world, roster: [snap('r0', DockingState.Active)], orbiterCounts: [4] }).trace;
-      const firstWaitAt = (t: LoopSimEvent[]) => t.find((e) => e.activity === 'waiting')!.t;
-      expect(firstWaitAt(one)).toBeCloseTo(1.9 + jobDuration(VENT, 1));
-      expect(firstWaitAt(four)).toBeCloseTo(1.9 + jobDuration(VENT, 4));
-      expect(firstWaitAt(four)).toBeLessThan(firstWaitAt(one));
+    it('a job runs for jobDuration at the sim tempo — 6 s at 240 BPM (clamped from 200)', () => {
+      expect(d).toBe(6);
+    });
+
+    it('slower tempo, longer jobs: 10 s at 20 BPM, 8 s at 110, 6 s at 200 (orbiter count no longer matters)', () => {
+      const firstWaitAt = (bpm: number) =>
+        runScenario({ world, roster: [snap('r0', DockingState.Active)], bpm, seconds: 14 }).trace.find((e) => e.activity === 'waiting')!.t;
+      expect(firstWaitAt(20)).toBeCloseTo(STATION_ARC_SECONDS + 1 + 10);
+      expect(firstWaitAt(110)).toBeCloseTo(STATION_ARC_SECONDS + 1 + 8);
+      expect(firstWaitAt(200)).toBeCloseTo(STATION_ARC_SECONDS + 1 + 6);
     });
 
     it('with no sites at all, waits the whole shift as one unbroken wait', () => {
@@ -481,22 +465,22 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       const step = scripted({ 2: { r0: DockingState.Recalled }, 3: { r1: DockingState.Active } });
       const { trace } = runScenario({ world, roster: [snap('r0', DockingState.Active), snap('r1', DockingState.Docked)], step });
       const r1 = eventsOf(trace, 'r1').map((e) => [e.activity, +e.t.toFixed(3), e.siteId]);
-      expect(r1.slice(1, 3)).toEqual([['exiting', 3, undefined], ['transit', 3.9, 'a']]);
+      expect(r1.slice(1, 3)).toEqual([['exiting', 3, undefined], ['transit', 3 + STATION_ARC_SECONDS, 'a']]);
     });
   });
 
   describe('runLoopSim — recall and handoff', () => {
     const world: LoopSimWorld = { stations: [station('s0', 0, 0)], sites: [{ id: 'a', jobs: [VENT], park: { x: 120, y: 0 } }] };
-    const d = jobDuration(VENT, 1);
+    const d = jobDuration(ONE_SECOND_MEASURES);
 
     it('recalled mid-job: finishes the job, then returns, enters and is hidden — Docked while still visible is measured', () => {
       const step = scripted({ 3: { r0: DockingState.Recalled }, 4: { r0: DockingState.Docked } });
       const { result, trace } = runScenario({ world, roster: [snap('r0', DockingState.Active)], step });
-      const workEnd = 1.9 + d;
+      const workEnd = STATION_ARC_SECONDS + 1 + d;
       expect(eventsOf(trace, 'r0').map((e) => [e.activity, +e.t.toFixed(3), e.visible])).toEqual([
         ['exiting', 0, true],
-        ['transit', 0.9, true],
-        ['working', 1.9, true],
+        ['transit', STATION_ARC_SECONDS, true],
+        ['working', STATION_ARC_SECONDS + 1, true],
         ['returning', +workEnd.toFixed(3), true],
         ['entering', +(workEnd + 1).toFixed(3), true],
         ['charging', +(workEnd + 1 + STATION_ARC_SECONDS).toFixed(3), false],
@@ -504,7 +488,7 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       expect(result.waitingSeconds).toBe(0);
       expect(result.turnBacks).toBe(0);
       expect(result.chargingWhileVisible).toBe(0);
-      // Docked at t = 4, hidden at workEnd + 1.9.
+      // Docked at t = 4, hidden at workEnd + 1 + STATION_ARC_SECONDS.
       expect(result.longestDockedVisible).toBeCloseTo(workEnd + 1 + STATION_ARC_SECONDS - 4);
       expect(result.dockedVisibleSeconds).toBeCloseTo(result.longestDockedVisible);
     });
@@ -512,13 +496,13 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
     it('recalled in transit: abandons the swim and returns from where it is', () => {
       const far: LoopSimWorld = { stations: world.stations, sites: [{ id: 'a', jobs: [VENT], park: { x: 1200, y: 0 } }] };
       const { trace } = runScenario({ world: far, roster: [snap('r0', DockingState.Active)], step: scripted({ 2: { r0: DockingState.Recalled } }) });
-      // At t = 2 it is (2 − 0.9) × 120 = 132 px out; 1.1 s home.
+      // At t = 2 it is (2 − STATION_ARC_SECONDS) × 120 = 120 px out; 1 s home.
       expect(eventsOf(trace, 'r0').map((e) => [e.activity, +e.t.toFixed(3)])).toEqual([
         ['exiting', 0],
-        ['transit', 0.9],
+        ['transit', STATION_ARC_SECONDS],
         ['returning', 2],
-        ['entering', 3.1],
-        ['charging', 4],
+        ['entering', 3],
+        ['charging', 3 + STATION_ARC_SECONDS],
       ]);
     });
 
@@ -526,12 +510,12 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       const { result, trace } = runScenario({ world: { stations: world.stations, sites: [] }, roster: [snap('r0', DockingState.Active)], step: scripted({ 3: { r0: DockingState.Recalled } }) });
       expect(eventsOf(trace, 'r0').map((e) => [e.activity, +e.t.toFixed(3)])).toEqual([
         ['exiting', 0],
-        ['waiting', 0.9],
+        ['waiting', STATION_ARC_SECONDS],
         ['returning', 3],
         ['entering', 3],
-        ['charging', 3.9],
+        ['charging', 3 + STATION_ARC_SECONDS],
       ]);
-      expect(result.waits.map((w) => +w.toFixed(3))).toEqual([2.1]);
+      expect(result.waits.map((w) => +w.toFixed(3))).toEqual([3 - STATION_ARC_SECONDS]);
     });
 
     it('recalled while exiting: finishes the exit, then turns straight round', () => {
@@ -539,19 +523,20 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       // 480 BPM → measure 1 at t = 0.5, mid-exit.
       expect(eventsOf(trace, 'r0').map((e) => [e.activity, +e.t.toFixed(3)]).slice(0, 3)).toEqual([
         ['exiting', 0],
-        ['returning', 0.9],
-        ['entering', 0.9],
+        ['returning', STATION_ARC_SECONDS],
+        ['entering', STATION_ARC_SECONDS],
       ]);
     });
 
     it('turn-back while returning: Active again before it gets home → back to work, never charging', () => {
       const mid: LoopSimWorld = { stations: world.stations, sites: [{ id: 'a', jobs: [VENT], park: { x: 240, y: 0 } }] };
-      // Work 2.9 → 2.9 + d; recalled at 3 (finishes), returning 2 s; Active at 8 → turn-back mid-swim.
-      const step = scripted({ 3: { r0: DockingState.Recalled }, 8: { r0: DockingState.Active } });
+      // Work 3 → 3 + d (d = 6: 9); recalled at 4 (finishes), returning 2 s (9 … 11); Active at 10 → turn-back mid-swim.
+      // (Recalled at 4, not 3: with the 1 s arc the robot arrives at exactly t = 3.)
+      const step = scripted({ 4: { r0: DockingState.Recalled }, 10: { r0: DockingState.Active } });
       const { result, trace } = runScenario({ world: mid, roster: [snap('r0', DockingState.Active)], step });
       const r0 = eventsOf(trace, 'r0');
       const back = r0.findIndex((e) => e.activity === 'returning');
-      expect(r0[back + 1].t).toBeCloseTo(8);
+      expect(r0[back + 1].t).toBeCloseTo(10);
       expect(r0[back + 1].activity).not.toBe('entering');
       expect(r0.some((e) => e.activity === 'charging')).toBe(false);
       expect(result.turnBacks).toBe(1);
@@ -559,14 +544,16 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
     });
 
     it('turn-back mid-entry: Active lands during the entry arc → it comes straight back out to work, never charging', () => {
-      // Work 1.9 → 1.9 + d; recalled at 3 (finishes); home 1 s; entering 2.9 + d … 3.8 + d (d = 4.3: 7.2 … 8.1).
-      const step = scripted({ 3: { r0: DockingState.Recalled }, 8: { r0: DockingState.Active } });
-      const { result, trace } = runScenario({ world, roster: [snap('r0', DockingState.Active)], step });
+      // Park 150 px out (a 1.25 s swim), so the entry arc straddles a whole measure: work 2.25 →
+      // 2.25 + d; recalled at 3 (finishes); home 1.25 s; entering 3.5 + d … 4.5 + d (d = 6: 9.5 … 10.5).
+      const near: LoopSimWorld = { stations: world.stations, sites: [{ id: 'a', jobs: [VENT], park: { x: 150, y: 0 } }] };
+      const step = scripted({ 3: { r0: DockingState.Recalled }, 10: { r0: DockingState.Active } });
+      const { result, trace } = runScenario({ world: near, roster: [snap('r0', DockingState.Active)], step });
       const r0 = eventsOf(trace, 'r0');
       const entering = r0.findIndex((e) => e.activity === 'entering');
-      expect(r0[entering].t).toBeLessThan(8);
-      expect(r0[entering + 1].t).toBeCloseTo(8);
-      expect(r0[entering + 1].activity).toBe('waiting'); // 'a' is still resting (cooldown 3 from 1.9 + d)
+      expect(r0[entering].t).toBeCloseTo(3.5 + d);
+      expect(r0[entering + 1].t).toBeCloseTo(10);
+      expect(r0[entering + 1].activity).toBe('waiting'); // 'a' is still resting (cooldown 3 from 2.25 + d)
       expect(r0.some((e) => e.activity === 'charging')).toBe(false);
       expect(result.turnBacks).toBe(1);
     });
@@ -656,6 +643,12 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       expect(c.cooldown(14)).toBeCloseTo(4.2);
       expect(c.cooldown(200)).toBe(30);
     });
+
+    it('has no duplicate rows: every label is unique, and the previous pick 0.4/3/30 is kept for comparison (Task 16b)', () => {
+      const labels = COOLDOWN_CANDIDATES.map((c) => c.label);
+      expect(new Set(labels).size).toBe(labels.length);
+      expect(labels).toEqual(['0.3/2/30', '0.4/3/30', '0.6/4/30', '0.2/2/30', '0/0/0']);
+    });
   });
 
   describe('runReadinessSim', () => {
@@ -691,7 +684,7 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       expect(at(200).longestDockedVisible).toBeGreaterThan(at(20).longestDockedVisible);
     }, 30_000);
 
-    it('over the full grid at 20 and 200 BPM for 10 minutes: zero robots charging while visible (the report is printed with LIFECYCLE_SIM_REPORT)', () => {
+    it('over the full grid at 20, 110 and 200 BPM for 10 minutes: zero robots charging while visible (the report is printed with LIFECYCLE_SIM_REPORT)', () => {
       const grid = SIM_SEED_COORDS.map(({ x, y }) => ({ x, y, actors: placedWorld(x, y).actors }));
       const { rows, seeds } = runReadinessSim({ worlds: grid });
       for (const r of rows) expect(r.chargingWhileVisible).toBe(0);

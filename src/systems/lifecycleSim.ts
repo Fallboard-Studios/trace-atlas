@@ -16,7 +16,6 @@ import { getWorkSite } from './workSites';
 import { assignStationsAtLoad, deriveStations, hostObstacles, nearestFreeStation, type Station } from './stations';
 import { chooseNextSite, heldJobs, siteCooldown } from './siteChoice';
 import { jobDuration } from '../animation/jobMoves/jobDuration';
-import { orbiterDials } from '../components/robot/gem/orbiterDials';
 import {
   MAX_ROBOTS,
   INITIAL_ACTIVE_ROBOTS_MIN,
@@ -176,8 +175,8 @@ export function formatDrainReport(rows: readonly DrainSimRow[]): string {
 /** Simulated seconds per seed (spec §5.2: 10 minutes). */
 export const SIM_LOOP_SECONDS = 600;
 
-/** The handoff tempos: the slowest and fastest measures the lifecycle runs at. */
-export const SIM_LOOP_BPMS: readonly number[] = [20, 200];
+/** The handoff tempos: the slowest and fastest measures the lifecycle runs at, and the midpoint (jobDuration 10 / 8 / 6 s). */
+export const SIM_LOOP_BPMS: readonly number[] = [20, 110, 200];
 
 /** A work site as the loop sees it. `id` is the actor's index — actor ids can repeat. */
 export interface LoopSimSite {
@@ -203,11 +202,6 @@ export function buildLoopWorld(actors: Actor[], noiseMap: NoiseFunction2D): Loop
   return { sites, stations: deriveStations(noiseMap, hostObstacles(actors)) };
 }
 
-/** Each roster robot's orbiter count (orbiterDials().count, 1–4), in buildSimRoster's order. */
-export function simOrbiterCounts(noiseMap: NoiseFunction2D): number[] {
-  return generateRobotRosterBaseline(noiseMap, MAX_ROBOTS).map((b) => orbiterDials(b).count);
-}
-
 // ========================================
 // LOOP SIM — ONE WORLD
 // ========================================
@@ -218,8 +212,6 @@ export type LifecycleStep = (roster: RobotLifecycleSnapshot[], measure: number) 
 export interface LoopSimOptions {
   world: LoopSimWorld;
   roster: RobotLifecycleSnapshot[];
-  /** Per roster robot. */
-  orbiterCounts: number[];
   bpm: number;
   seconds: number;
   /** chooseNextSite's uniform draw. */
@@ -270,7 +262,6 @@ const IN_STATION: ReadonlySet<RobotActivity> = new Set<RobotActivity>(['returnin
 
 interface SimRobot {
   id: string;
-  orbiters: number;
   activity: RobotActivity;
   visible: boolean;
   job?: JobType;
@@ -295,7 +286,7 @@ interface SimRobot {
  * the measure, then to roster order. Pure: no store, no BeatClock, no GSAP.
  */
 export function runLoopSim(options: LoopSimOptions): LoopSimResult {
-  const { world, roster, orbiterCounts, bpm, seconds, rand, step, cooldown = siteCooldown, trace } = options;
+  const { world, roster, bpm, seconds, rand, step, cooldown = siteCooldown, trace } = options;
   const measureSeconds = (BEATS_PER_MEASURE * 60) / bpm;
   const rest = cooldown(world.sites.length);
   const siteState = new Map(world.sites.map((s) => [s.id, { heldBy: undefined as string | undefined, readyAt: 0 }]));
@@ -315,9 +306,8 @@ export function runLoopSim(options: LoopSimOptions): LoopSimResult {
   };
 
   let lifecycle = roster;
-  const robots: SimRobot[] = roster.map((r, i) => ({
+  const robots: SimRobot[] = roster.map((r) => ({
     id: r.id,
-    orbiters: orbiterCounts[i],
     activity: 'charging',
     visible: false,
     stationId: assigned[r.id],
@@ -470,7 +460,7 @@ export function runLoopSim(options: LoopSimOptions): LoopSimResult {
       case 'transit':
         land(r);
         setActivity(r, 'working', t);
-        r.until = t + jobDuration(r.job!, r.orbiters);
+        r.until = t + jobDuration(bpm);
         break;
       case 'working':
         releaseSite(r, t, true);
@@ -573,14 +563,14 @@ export function clampedCooldown(perSite: number, min: number, max: number): Cool
 }
 
 /**
- * The shipped siteCooldown (0.4/3/30, Crawford's pick) first, then the 0.6/4/30 first guess and
- * shorter rests for comparison. `0/0/0` (no rest) is a reference, not a candidate: robots camp on
- * one site forever.
+ * The shipped siteCooldown (0.3/2/30, Crawford's Task 16b pick) first, then the previous pick
+ * 0.4/3/30 (Task 15), the 0.6/4/30 first guess and a shorter rest for comparison. `0/0/0` (no rest)
+ * is a reference, not a candidate: robots camp on one site forever.
  */
 export const COOLDOWN_CANDIDATES: readonly CooldownCandidate[] = [
   { label: `${COOLDOWN_PER_SITE}/${COOLDOWN_MIN}/${COOLDOWN_MAX}`, cooldown: siteCooldown },
+  clampedCooldown(0.4, 3, 30),
   clampedCooldown(0.6, 4, 30),
-  clampedCooldown(0.3, 2, 30),
   clampedCooldown(0.2, 2, 30),
   clampedCooldown(0, 0, 0),
 ];
@@ -626,7 +616,7 @@ export function runReadinessSim(options: {
   const { worlds, seconds = SIM_LOOP_SECONDS, bpms = SIM_LOOP_BPMS, candidates = COOLDOWN_CANDIDATES } = options;
   const prepared = worlds.map(({ x, y, actors }) => {
     const noiseMap = simNoiseMap(x, y);
-    return { x, y, noiseMap, world: buildLoopWorld(actors, noiseMap), roster: buildSimRoster(noiseMap), orbiterCounts: simOrbiterCounts(noiseMap) };
+    return { x, y, noiseMap, world: buildLoopWorld(actors, noiseMap), roster: buildSimRoster(noiseMap) };
   });
 
   const rows: ReadinessRow[] = [];
@@ -644,7 +634,6 @@ export function runReadinessSim(options: {
         const r = runLoopSim({
           world: w.world,
           roster: w.roster,
-          orbiterCounts: w.orbiterCounts,
           bpm,
           seconds,
           rand: alea(`loop-sim:${w.x}:${w.y}:${bpm}`),

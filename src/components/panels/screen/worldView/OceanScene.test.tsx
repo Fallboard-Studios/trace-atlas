@@ -20,6 +20,12 @@ vi.mock('@/components/actors/scenery/Scenery', () => ({
   Scenery: (props: { actor: Actor }) => <g data-scenery-mock={props.actor.id} data-row={props.actor.config?.row} />,
   default: (props: { actor: Actor }) => <g data-scenery-mock={props.actor.id} data-row={props.actor.config?.row} />,
 }));
+// A marker per station fragment, so the interleave tests read document order without the gem.
+vi.mock('@/components/stations/ChargingStation', () => ({
+  ChargingStation: (props: { station: { id: string }; fragment: string }) => (
+    <g data-station-mock={props.station.id} data-fragment={props.fragment} />
+  ),
+}));
 // Records what the scene hands its bubble layer (which actors, what total) without running
 // BubbleStream's GSAP timelines.
 const bubbleLayerMock = vi.fn((_props: { actors: { id: string }[]; totalBuildings: number }): ReactElement | null => null);
@@ -63,6 +69,7 @@ import { Robot } from '@/components/robot/Robot';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '@/stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
 import { RECIPES } from '@/systems/districtRecipes';
+import { getStations } from '@/systems/stations';
 import { ActorType } from '@/types/Actor';
 import type { Actor } from '@/types/Actor';
 import type { Robot as RobotType } from '@/types/Robot';
@@ -70,10 +77,7 @@ import type { Robot as RobotType } from '@/types/Robot';
 function makeRobot(overrides: Partial<RobotType> = {}): RobotType {
   return {
     id: 'r1',
-    state: 'idle',
     position: { x: 0, y: 0 },
-    destination: null,
-    direction: 'right',
     melody: [],
     audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.3 }, filterFreq: 0, waveform: 'sine' },
     octaveRange: [3, 4],
@@ -382,6 +386,35 @@ describe('OceanScene', () => {
       // still exists, so `npm run build:types` catches a regression even though vitest itself
       // doesn't type-check.
       render(<OceanScene backgroundColor="#000000" />);
+    });
+  });
+
+  // Charging stations (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.6, Phase 43 Task 20): three
+  // fragments per station interleaved with the robots, back to front L4 · (exiting robots) · L3 ·
+  // robots · L2 + halo + L1. Exits use the slot between L4 and L3 until J4's back row lands.
+  describe('charging stations (Phase 43 Task 20)', () => {
+    it("renders every station's fragments around the robot group: L4, then L3, then the robots, then the front", () => {
+      useLocaleStore.setState({
+        locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [makeRobot({ id: 'r1' })], actors: [] } },
+      });
+      const stations = getStations(DEFAULT_LOCALE_ID);
+      expect(stations.length).toBeGreaterThanOrEqual(2);
+      const { container } = render(<OceanScene />);
+      const robotsLayer = container.querySelector('svg[data-scene-layer="robots"]')!;
+      const groups = Array.from(robotsLayer.querySelectorAll(':scope > g')).map((g) => g.id);
+      expect(groups).toEqual(['station-l4-layer', 'station-l3-layer', 'robot-layer', 'station-front-layer']);
+      for (const [id, fragment] of [['station-l4-layer', 'l4'], ['station-l3-layer', 'l3'], ['station-front-layer', 'front']] as const) {
+        const markers = Array.from(robotsLayer.querySelectorAll(`#${id} > g[data-station-mock]`));
+        expect(markers.map((m) => m.getAttribute('data-station-mock'))).toEqual(stations.map((s) => s.id));
+        for (const m of markers) expect(m.getAttribute('data-fragment')).toBe(fragment);
+      }
+    });
+
+    it('draws no station in any other layer', () => {
+      const { container } = render(<OceanScene />);
+      for (const name of ['back', 'bubbles', 'front']) {
+        expect(container.querySelector(`svg[data-scene-layer="${name}"] g[data-station-mock]`)).toBeNull();
+      }
     });
   });
 

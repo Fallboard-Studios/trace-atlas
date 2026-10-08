@@ -39,7 +39,9 @@ repo convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence"
 ## Overview
 
 Thirty-six tasks plus a sketch gate. **Task 0** is the motion sketch: Crawford signs off the five
-moves, the station enter/exit and the placeholder station before any code. **J1** (Tasks 1–16)
+moves, the station enter/exit and the placeholder station before any code *(as shipped: split into
+0a, the station, and 0b, the moves and jobs, both passed 2026-10-07 — see Task 0; Task 16b carries
+their code changes into J2)*. **J1** (Tasks 1–16)
 changes the lifecycle underneath today's visuals — renamed states, a measured flat drain, the job out
 of replay, the legacy seam, dead code out — and builds the world data the loop will need: host
 lists, factory geometry, work sites, the coverage guarantee, stations, the pure site choice and the
@@ -121,13 +123,52 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   toggle for the back layer. Crawford can drop his own station design into one marked function.
 
   **Acceptance criteria:**
-  - [ ] Every move and job plays at 1× at world scale; orbiter count visibly changes speed.
+  - [x] Every move and job plays at 1× at world scale; ~~orbiter count visibly changes speed~~
+        *(cut at the gate: duration follows BPM, orbiter count only sets how many orbiters work)*.
   - [ ] Station enter/exit reads as "into" and "out of" the station, not a fade-out next to it.
   - [ ] Crawford's verdict recorded in the sketch header; the constants he keeps written into spec
         §1.6/§1.9 (Task 16 or the J2 task that consumes them).
 
   **Verification:** Crawford, by eye. **Dependencies:** None. **Files:**
   `docs/sketches/robot-jobs-and-stations.html`. **Scope:** M (one file, the gate before code).
+
+  **As shipped (2026-10-07): split into 0a and 0b.** The station panel ran first, as its own file,
+  because its design came out of a working session rather than the placeholder gem; the moves and
+  jobs panel is still to build.
+
+  - [x] **Task 0a: Station sketch — `docs/sketches/robot-charging-station.html`.** Six seeded
+    rolls plus a motion stage with enter/exit, built with Crawford live. Both station criteria
+    above pass. Design and verdicts are in the file header and folded into spec §1.6. Headline
+    results: box **200 × 200**; four loosely triangular gem layers, L4 solid, L1–L3 rings cut into
+    three pieces; six of the nine pieces are the slots, lit back-to-front in the stored robot's
+    identityColor with one light dot each; a port gem at the centre and a static halo (radius 60)
+    both brighten with occupancy; **no bob** (spec §1.6's no-continuous-animation rule stands);
+    `STATION_ARC_SECONDS` **1.0**, ripple one whole cycle per arc, ring width 0.2; gap, band
+    width, rotation spread and size falloff are **driven live by the world's global rig** (HPF,
+    LPF, EQ3 mid, EQ3 low−high tilt — ranges in §1.6). Two structural findings for J2: the station
+    renders as **three fragments interleaved with the robots** (L4 · exiting robots · L3 · entering
+    robots · L2 · halo · L1), and the **exiting robot appears in the back robot row** (J4's layer,
+    0.75 scale under the 0-1 depth tint) — T20 gains a J4 dependency with a front-row fallback.
+    Left TBD in the header: depth tint on/off and opacity, swim speed, back-row scale, enter/exit
+    sides, port = centre, the chosen roll. Verified in jsdom over 60 seeds × 6 stations
+    (3,240 pieces, none degenerate), not by eye in a browser beyond Crawford's session.
+  - [x] **Task 0b: Moves and jobs sketch — `docs/sketches/robot-jobs-and-stations.html`.** The
+    (a)/(b) panels above: a robot beside a Refinery-style factory and a dome playing the five moves
+    and six job sequences, with the orbiter-count, `JOB_WORK_RATE` and `JOB_BASE_SECONDS` sliders,
+    reduced motion and the 0.75× toggle. Gates T19/T20's timing constants and J3; build on the J2
+    branch before T19.
+    **As shipped (2026-10-07, passed):** built on `feature/job-lifecycle-2` right after 0a. Two
+    hand-drawn hosts with hand-placed points (mouth, mast, valve, a, b) and two paths (outline,
+    pipe); five move buttons, six job buttons chaining them per §1.9, auto-cycle alternating hosts,
+    scrubber, per-robot seeded variation, reduced motion and the 0.75× back layer under the depth
+    tint. **Crawford changed direction on timing at the gate:** orbiter count no longer drives
+    speed; `jobDuration(bpm)` = 10 s at 20 BPM → 6 s at 200 BPM, linear; `JOB_WORK_RATE` and
+    `JOB_MIN_SECONDS` retired; `ATTACH_DURATION` 1 s. Move weights kept as sketched (now listed in
+    §1.9), flights inside the duration (A1) and two paths per site (A2) confirmed — §1.5's
+    `WorkSite.path` becomes `paths: { outline, pipe? }` at T19. Verified in jsdom: 176 runs (11
+    runs × 2 hosts × foreground on/off × 4 counts), no errors, every orbiter docked at start and
+    end. **Knock-on:** Task 15's cooldown was pinned against 2.2–4.3 s jobs; Task 16b re-runs the
+    sim at 6–10 s before J2.
 
 ---
 
@@ -690,9 +731,74 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 
 ---
 
+### Between J1 and J2: the sketch gate's code (`feature/job-lifecycle-2`)
+
+- [x] **Task 16b: `jobDuration(bpm)`, the retired constants, and the readiness sim re-run**
+
+  **Description:** Carry Task 0b's timing verdicts into code before J2 builds on them. Rewrite
+  `src/animation/jobMoves/jobDuration.ts` as `jobDuration(bpm): number` = `lerp(JOB_BASE_MAX_SECONDS,
+  JOB_BASE_MIN_SECONDS, clamp((bpm − 20) / 180, 0, 1))` with `JOB_BASE_MAX_SECONDS` 10 and
+  `JOB_BASE_MIN_SECONDS` 6 in `constants/index.ts`; delete `JOB_BASE_SECONDS`, `JOB_MIN_SECONDS`
+  and `JOB_WORK_RATE`; `ATTACH_DURATION` 0.5 → 1.0 (`orbiterMotion.ts` — check Phase 40's attach
+  tests for the value). Re-run Task 15's readiness sim with the new durations at 20, 110 and 200
+  BPM (`npx vite-node` as before) and **stop and report**: longer jobs hold sites longer, so the
+  0.4/3/30 cooldown may need re-pinning. Spec §1.9 and §5.2 then record the re-run's table.
+
+  **Acceptance criteria:**
+  - [x] `jobDuration(20)` = 10, `jobDuration(110)` = 8, `jobDuration(200)` = 6; clamped outside 20–200.
+  - [x] No reference to `JOB_WORK_RATE`, `JOB_MIN_SECONDS` or `JOB_BASE_SECONDS` remains in `src/` or `scripts/` (grep; docs keep them as history).
+  - [x] The readiness sim runs and its table is in the commit message; cooldown decision recorded.
+        — table in 311716f1's message and below; **Crawford chose 0.3/2/30 (2026-10-07)**.
+
+  **As shipped:** (1) **The function** is as described, with the 20/200 BPM ends as file-local
+  constants. Tests cover the three named tempos, linearity, strict monotonicity and the clamp
+  (below 20, 0, negative, above 200, 240 and `Infinity`). (2) **The sim lost its orbiter
+  plumbing.** `simOrbiterCounts`, `LoopSimOptions.orbiterCounts` and its parity test are gone, since
+  orbiter count no longer touches timing. A job lasts `jobDuration(bpm)` at the sim's tempo.
+  `SIM_LOOP_BPMS` is now `[20, 110, 200]`. Two scripted turn-back tests were hand-timed for 4.3 s
+  jobs and were retimed for 6 s (Active at measure 10 and 9). `COOLDOWN_CANDIDATES` now leads with
+  the shipped 0.3/2/30 and keeps 0.4/3/30 as a comparison row. A test keeps labels unique. (3)
+  **No `vite-node` script was needed.** The re-run is the existing
+  `LIFECYCLE_SIM_REPORT=1 npx vitest run src/systems/lifecycleSim.test.ts` (there is no
+  `readinessSim` file; the verification line's path predates Task 15's naming). (4) **Results**
+  (121 seeds × 600 s; the 0.4/3/30 rows are the first run, at the old cooldown):
+
+  | Cooldown | BPM | Mean waiting | p95 waiting | Longest wait | p95 wait | Switches / stint | Seeds missing a target |
+  |---|---|---|---|---|---|---|---|
+  | **0.3/2/30 (shipped)** | 20 | 1.2 % | 5.6 % | 20.0 s | 8.0 s | 1.40 | 4 / 121 |
+  | **0.3/2/30 (shipped)** | 110 | 1.2 % | 5.6 % | 14.0 s | 6.0 s | 0.36 | 1 / 121 |
+  | **0.3/2/30 (shipped)** | 200 | 1.3 % | 6.8 % | 10.0 s | 6.0 s | 0.23 | 1 / 121 |
+  | 0.4/3/30 (Task 15 pick) | 20 | 1.9 % | 7.7 % | 35.1 s | 6.1 s | 1.52 | 7 / 121 |
+  | 0.4/3/30 (Task 15 pick) | 110 | 1.8 % | 8.2 % | 14.0 s | 6.0 s | 0.44 | 1 / 121 |
+  | 0.4/3/30 (Task 15 pick) | 200 | 2.2 % | 8.9 % | 16.0 s | 6.0 s | 0.26 | 5 / 121 |
+  | 0.6/4/30 | 20 | 3.6 % | 11.4 % | 38.3 s | 10.0 s | 1.85 | 21 / 121 |
+  | 0.6/4/30 | 110 | 3.7 % | 11.6 % | 22.0 s | 8.0 s | 0.55 | 13 / 121 |
+  | 0.6/4/30 | 200 | 4.2 % | 14.0 % | 17.1 s | 8.0 s | 0.35 | 14 / 121 |
+  | 0.2/2/30 | 20 | 0.8 % | 4.0 % | 40.0 s | 4.0 s | 1.10 | 2 / 121 |
+  | 0.2/2/30 | 110 | 0.7 % | 4.5 % | 12.0 s | 4.0 s | 0.29 | 0 / 121 |
+  | 0.2/2/30 | 200 | 0.8 % | 4.5 % | 8.0 s | 4.0 s | 0.17 | 0 / 121 |
+  | 0/0/0 (reference) | 20 | 0.0 % | 0.1 % | 52.0 s | 52.0 s | 0.00 | 3 / 121 |
+  | 0/0/0 (reference) | 110 | 0.1 % | 0.4 % | 12.0 s | 8.0 s | 0.00 | 0 / 121 |
+  | 0/0/0 (reference) | 200 | 0.1 % | 0.8 % | 8.0 s | 6.0 s | 0.00 | 0 / 121 |
+
+  Turn-backs and charging-while-visible are 0 in every row. Longer jobs **lowered** waiting rather
+  than raising it (robots spend more of each shift working) and roughly halved job switches per
+  stint (3.92 → 1.52 at 20 BPM on 0.4/3/30), which shrank 0.4/3/30's variety edge to 1.52 vs 1.40.
+  0.4/3/30 also went 1 s over the 15 s cap at 200 BPM. 0.3/2/30 meets the cap at 110 and 200 BPM
+  and cuts the 20 BPM longest wait from 35 s to 20 s; 20 BPM is still over it, measure-bound as
+  before. `STATION_ARC_SECONDS` stays 0.9 in code and in the sim; the sketch's 1.0 moves at Task 20.
+
+  **Verification:** `npx vitest run src/animation/jobMoves src/systems/readinessSim` + the sim.
+  **Dependencies:** Task 0b. **Files:** `src/animation/jobMoves/jobDuration.ts` (+ test),
+  `src/constants/index.ts`, `src/components/robot/gem/orbiterMotion.ts` (+ test), the Task 15 sim
+  script; as shipped also `src/systems/lifecycleSim.ts` (+ test), `src/systems/siteChoice.test.ts`,
+  docs/ROBOT_LIFECYCLE.md. **Scope:** S–M (stop gate on the sim).
+
+---
+
 ### Phase J2: Stations and the loop (`feature/jobs-loop`)
 
-- [ ] **Task 17: `robotMotionRegistry.ts` and the orbiter lock**
+- [x] **Task 17: `robotMotionRegistry.ts` and the orbiter lock**
 
   **Description:** `register/get/deleteArcDecorator` and `register/get/deleteOrbiterWork` (spec
   §1.8), mirroring `refs.ts`. `RobotBody` registers its world-context `decorateArc` on mount and
@@ -701,17 +807,34 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `unlock` clears the lock and reconciles once. No caller yet.
 
   **Acceptance criteria:**
-  - [ ] Avatar and card contexts never register.
-  - [ ] While locked, count changes 2 → 4 → 1 → 3 queue no hops; on unlock exactly the hops from the
+  - [x] Avatar and card contexts never register.
+  - [x] While locked, count changes 2 → 4 → 1 → 3 queue no hops; on unlock exactly the hops from the
         shown count to 3 play (one reconcile pass, not three).
-  - [ ] Unmount deregisters both.
+  - [x] Unmount deregisters both.
+
+  **As shipped:** (1) **Lock finishes hops in flight.** The spec doesn't say what happens if a job
+  locks while an attach or detach hop is still playing. `lock` now jumps every in-flight hop to its
+  end (`progress(1)`), which runs its own `onComplete`. That `onComplete` calls `reconcile()`, a
+  no-op while locked. So a corner that was arriving comes back at rest, a corner that was leaving is
+  hidden and not returned, and the job never tweens a group that a hop is still moving.
+  `arcKillers` became `arcTweens`, which store the tweens themselves. (2) **Owner-checked deletes.**
+  `deleteArcDecorator`/`deleteOrbiterWork(robotId, owner?)` remove the entry only if it still
+  belongs to that owner. A stale unmount after a remount (J4's layer switch) can't remove the new
+  mount's entry. Every caller passes its owner. (3) **`decorateArc` is memoised** (`useCallback` on
+  `reducedMotion`, `root`) in `useHaloMotion`. Without that, every audio edit would re-register it.
+  A test pins that the registered function survives a re-render. (4) **The control lives in refs**
+  (`lockedRef`, `lockGroupsRef`), so it survives a re-run of the mount effect. After unmount,
+  `lock` returns `[]` and `unlock` does nothing. (5) **Mutation checks:** 12 mutants, 11 killed. The
+  survivor was an `if (!locked) return` guard in `unlock`. It was redundant, because unlocked,
+  `reconcile()` is already a no-op, so it was deleted. Suite 6842 green.
 
   **Verification:** `npx vitest run src/animation/robotMotionRegistry.test.ts src/components/robot/gem/useOrbiterMotion.test.tsx src/components/robot/RobotBody.test.tsx`.
   **Dependencies:** None (J2 base). **Files:** `src/animation/robotMotionRegistry.ts` (+ test),
-  `src/components/robot/gem/useOrbiterMotion.ts`, `src/components/robot/RobotBody.tsx` (+ tests).
+  `src/components/robot/gem/useOrbiterMotion.ts`, `src/components/robot/RobotBody.tsx` (+ tests);
+  as shipped also `src/components/robot/gem/useHaloMotion.ts`.
   **Scope:** M.
 
-- [ ] **Task 18: Centre/position and scene→orbiter maths**
+- [x] **Task 18: Centre/position and scene→orbiter maths**
 
   **Description:** `jobMoves/sceneToOrbiterLocal.ts`: `robotCentre(robot, gem, scale)`,
   `positionForCentre(centre, gem, scale)` (correction 5) and `sceneToOrbiterLocal(point, { robotPos,
@@ -719,32 +842,80 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `translate(c) scale(s) translate(−c)` and the corner's dock offset.
 
   **Acceptance criteria:**
-  - [ ] Round-trip: a point mapped to local and pushed back through the real transform chain (built
+  - [x] Round-trip: a point mapped to local and pushed back through the real transform chain (built
         from `RobotGem`'s transform string) lands within 0.01 units, for 50 gems × scales 1/1.69/0.75.
-  - [ ] `positionForCentre(robotCentre(r)) === r.position`.
+  - [x] `positionForCentre(robotCentre(r)) === r.position`.
+
+  **As shipped:** (1) **No `scale` parameter on the centre pair.** `g.gem` scales about the canvas
+  centre, so a robot's centre doesn't move with body or layer scale. The pair is
+  `robotCentre(robot, gem)` / `positionForCentre(centre, gem)`. A test pins that the centre is the
+  fixed point of the rendered `g.gem` transform at every scale. (2) **"===" holds exactly only for
+  positions on a binary-exact grid** (integers, quarter units). Half the gem width is always an
+  exact integer (40–80), but `(0.1 + 70) − 70` is not `0.1` in floating point. Arbitrary fractional
+  positions round-trip to 1e-9, and that is tested separately. (3) **The output is the GSAP `x`/`y`
+  that puts the orbiter's centre on the point.** `{ x: 0, y: 0 }` is docked. The local group's own
+  scale is about the orbiter's centre, so it plays no part. (4) **The round-trip test renders the
+  real `RobotGem`** (world context) inside a translated `<g>` and walks every rendered `transform`
+  from the orbiter's part up to the `<svg>`. It covers 50 gems × 4 scale pairs (1, 1.69, 0.75,
+  1.69 × 0.75) × 4 corners. (5) **A non-positive or NaN combined scale throws `RangeError`** (no
+  inverse). (6) **The robot's swim `rotation` is not inverted.** A job runs on a robot at rest, and
+  J2 deletes the wandering code that tilts it. (7) **Mutation checks:** 10 mutants, 10 killed.
 
   **Verification:** `npx vitest run src/animation/jobMoves`. **Dependencies:** None.
-  **Files:** `src/animation/jobMoves/sceneToOrbiterLocal.ts` (+ test). **Scope:** S.
+  **Files:** `src/animation/jobMoves/sceneToOrbiterLocal.ts` (+ test, `.test.tsx` because it
+  renders `RobotGem`). **Scope:** S.
 
-- [ ] **Task 19: `hoverPulse` and `buildJobTimeline`**
+- [x] **Task 19: `hoverPulse` and `buildJobTimeline`**
 
   **Description:** `jobMoves/hoverPulse.ts` (targets pure, tweens on the timeline) and
   `jobMoves/buildJobTimeline.ts`: given a robot, its site, job and locked orbiter groups, one paused
   timeline keyed `work-${robotId}` — the bob (`BOB_PX`, finite repeats), detach (`ATTACH_DURATION`),
   the job's moves (every job → `hoverPulse` in J2), reattach to `x: 0, y: 0`, total
-  `jobDuration(job, count)` (constants from T0). Reduced motion: an in-place opacity pulse of the same
+  `jobDuration(bpm)` (Task 16b; the live tempo read at job start). Reduced motion: an in-place opacity pulse of the same
   length. `onComplete` is passed in. Registered in `timelineMap`.
 
   **Acceptance criteria:**
-  - [ ] Duration equals `jobDuration` for counts 1–4 (± one frame); floors at `JOB_MIN_SECONDS`.
-  - [ ] Orbiters end at `x: 0, y: 0`, scale and opacity restored; the bob ends where it started.
-  - [ ] The timeline never touches `AudioEngine` (spy); killing the key leaves no live tweens.
+  - [x] Duration equals `jobDuration(bpm)` at 20, 110 and 200 BPM (± one frame); orbiter count 1–4
+        changes which orbiters move, never the duration.
+  - [x] Orbiters end at `x: 0, y: 0`, scale and opacity restored; the bob ends where it started.
+  - [x] The timeline never touches `AudioEngine` (spy); killing the key leaves no live tweens.
+
+  **As shipped:** (1) **Counter-bob.** The orbiters sit inside the `.robot` group, so the bob would
+  carry a detached orbiter off its target. The sketch has them hold still unless docked. Each
+  orbiter's `.gem__orbiter` copy group gets the same bob, inverted and divided by the gem scale.
+  `useOrbiterMotion` only sets `display` on that group. The bob is zero at both ends, so a docked
+  orbiter still rides with the body. A test checks every orbiter holds its target in the scene to
+  0.01 u through the work window, at layer scale 1 and 0.75. (2) **Targets are spaced by slot,
+  not corner.** The sketch used corner index × 2π/n, which puts two orbiters on the same spot when
+  corners {0, 1, 3} are shown. The first target is directly above the point. There is no per-robot
+  phase or pulse order yet (T28's `variation.ts`); the pulse runs in lock (`cornerOrder`) order.
+  (3) **Every job runs `hoverPulse(points[0])`.** `points[0]` is the mouth (Stacks/Refinery) or the
+  mast (Monolith/Skyscraper) in `workSites.ts`. (4) **The reattach doesn't restore scale or
+  opacity.** A mutant showed it did nothing: the pulse already ends each orbiter at its rest scale,
+  and nothing changes orbiter opacity in J2. **T29's spark flicker must end at rest too,** or bring
+  the restore back with a test. (5) **`WorkSite.path` → `paths` is not done here.** The plan
+  (Task 0b note) and spec §1.5 put the split at T19, but T19 reads only `points`. It moves to T28,
+  where `trace` is the first reader of `path`. (6) **Input contract:** the caller passes the
+  `.robot` element (`getRef`), the body and layer scale, and the orbiters from `lock()`. It unlocks
+  in its own `onComplete`. The bob is centred on `robot.position.y`. Reduced motion: opacity
+  1 → 0.8 → 1 once per bob cycle, no bob, orbiters untouched. (7) Constants `BOB_PX` 6,
+  `BOB_CYCLE_SECONDS` 1.2, `HOVER_GATHER_RADIUS` 14 and `HOVER_PULSE_SCALE` 1.3 are in
+  `constants/index.ts`. `jobDuration.ts` didn't need a change. (8) The two new test files call
+  `vi.unmock('gsap')`, because `vitest.setup.ts` mocks gsap globally and these tests read real
+  tween values. (9) **Open:** `useOrbiterMotion`'s size-dial tween isn't stopped by the lock. A
+  Size edit mid-job would fight the pulse on `scale`, and the job's rest scale would be stale.
+  This is not fixed. (10) **Mutation checks:** 22 mutants. On the first run, 18 of 21 were killed.
+  The three survivors were the reattach's redundant scale restore (deleted), a wrong key in the
+  reduced-motion branch (both branches now share one `setTimeline`, and the mutant is killed) and a
+  shortened detach (a new test pins both flights to `ATTACH_DURATION`; it kills that mutant and a
+  new one that shortens the reattach).
+  Suite 6876 green.
 
   **Verification:** `npx vitest run src/animation/jobMoves`. **Dependencies:** T17, T18, T0.
   **Files:** `src/animation/jobMoves/hoverPulse.ts`, `src/animation/jobMoves/buildJobTimeline.ts`,
   `src/animation/jobMoves/jobDuration.ts` (+ tests), `src/constants/index.ts`. **Scope:** M.
 
-- [ ] **Task 20: `ChargingStation.tsx`**
+- [x] **Task 20: `ChargingStation.tsx`**
 
   **Description:** The placeholder gem station from T0 (or Crawford's design if ready), memoised,
   rendered from `getStations` in `OceanScene`'s robots layer **after** the robots. Six slot lights,
@@ -752,15 +923,68 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   selector returns 0 until T21 adds the fields). No continuous animation.
 
   **Acceptance criteria:**
-  - [ ] ≤ `STATION_SHAPE_BUDGET` (16) drawn shapes per station (counted in the test).
-  - [ ] Drawn after every `.robot` in the robots layer's DOM order.
-  - [ ] A battery tick on an unrelated robot does not re-render the station (render-count test).
+  - [x] ≤ `STATION_SHAPE_BUDGET` ~~(16)~~ **(25, Crawford's call — see As shipped)** drawn shapes
+        per station (counted in the test).
+  - [x] ~~Drawn after every `.robot` in the robots layer's DOM order.~~ *(Task 0a correction:)*
+        three fragments around the robot group — L4, L3, robots, L2 + halo + L1.
+  - [x] A battery tick on an unrelated robot does not re-render the station (render-count test).
+
+  **As shipped (2026-10-07):** (1) **Crawford's Task 0a design, not a placeholder.** Ported from
+  `docs/sketches/robot-charging-station.html` into three modules: `stationGem.ts` (pure geometry),
+  `stationPaint.ts` (pure paths and colours) and `stationOccupancy.ts` (the lit-set selector key).
+  `ChargingStation` draws one **fragment** (`l4`, `l3` or `front` = L2 · halo · ripple · L1);
+  `OceanScene`'s robots layer is `#station-l4-layer`, `#station-l3-layer`, `#robot-layer`,
+  `#station-front-layer`. Exiting robots go between the first two (T21/T23; the J4 back row
+  later). Stations are `pointer-events: none` and `aria-hidden`, so robots behind L1/L2 stay
+  clickable. (2) **Shape budget 16 → 25 (Crawford, 2026-10-07).** 16 can't hold the design:
+  the layers can't share paths (robots draw between them), and each lit slot is its robot's own
+  colour, so robot-style tones would cost 3 paths per slot (~38 full). Crawford chose **facet
+  shading by overlay**: each broken layer is a flat base path (unlit pieces), one path per lit
+  slot, then one white and one black facet-overlay path (the robots' 3-tone quantised light).
+  Lines are one dark-stroke path per layer, and slot dots are at most two paths per layer (on and off).
+  Measured: 19 empty, 21 with one stored robot, 25 at five or six. `STATION_SHAPE_BUDGET` = 25 is
+  the measured ceiling, and a test pins it as the max. A stored robot is hidden (~30 shapes out of
+  the raster), so a lit slot is a net saving. T26 judges the rest. The overlay opacities (0.25 /
+  0.4) are approximate and need an eye-check at Checkpoint C. (3) **Slot colour** = the robot's fully lit Mid face
+  (`gemMidLitFace`, new in `gemPalette.ts`), pinned equal to `gemPalette(...).midLeft.face` at
+  lit 1. Slots light back to front (L3 holds 0–1, L2 2–3, L1 4–5) in **roster order** of the
+  charging robots. When a lower-roster robot docks, the colours shift one slot. There is no stored slot
+  index; T21/T23 can add one if Crawford wants arrival order. (4) **Live rig dials** read five narrow
+  `useAudioStore` selectors (HPF/LPF cutoff, EQ3 low/mid/high). Audio Swells write those at 16n
+  cadence mid-swell, so a station re-renders (geometry only, ~1 ms) during an EQ/filter swell.
+  Spec §1.6 wants live, so this is accepted. (5) **No re-roll, by construction.** `rollStation` draws a fixed count from its
+  stream (tested). `stationGeometry` draws nothing. Boundary lines are routed once at the reference
+  dials, on their own stream, and kept in each piece's ring coordinates (u along the piece between
+  its cut faces, v across the band). Each run is resampled ×6, so a line bends with a narrowing
+  ring. Before that, 22 of 53,652 samples sat up to 1.8 u outside their piece at band 8; now 0 of
+  321,912. (6) **Three geometry fixes over the sketch**, each found by the dial-corner sweeps:
+  (a) the ring's inner edge is an **edge-dropping offset** (`offsetPolygon`), because a plain miter
+  inverts a small chamfer at band 16; (b) a cut's half-angle is capped at **0.4 × the piece's span**,
+  because at gap 25 + falloff 0.12 the front ring's inner edge is ~15 u out, and uncapped the inner
+  walk wrapped the wrong way round the ring (the sketch has the same flaw at that corner); (c) the bevel
+  is **min(5, 0.3 × band)**, not the sketch's 0.3 × shortest edge, because a cut landing next to a
+  corner made that collapse to 0.6 and jump back as a dial moved on. Faces use the same edge-dropping
+  offset, so no facet inverts. The band cap (0.7 × inradius) binds only rarely (3 of 3000 seeds at
+  full falloff); a test pins those seeds. (7) **`Station.gemSeed`** (`'station.gem.seed'`,
+  `getUniformSeededVal` per index), with the roll cached per seed like `getRobotGem`. The accent is a
+  robot identity hue. (8) **Constants moved:** `STATION_BOX_W/H` 160×120 → **200×200** (the grid
+  still needs no overlap fallback), `STATION_ARC_SECONDS` 0.9 → **1.0**, new `STATION_HALO_RADIUS`
+  60. The arc retimed the hand-worked sim tests, and two turn-back scenarios had to move off exact
+  boundaries: recall at measure 4, and a 150 u park. Readiness re-run at 0.3/2/30 (box + arc):
+  mean waiting 1.2 / 1.2 / 1.3 % (unchanged), longest wait 18.0 / 13.1 / 12.0 s at 20 / 110 /
+  200 BPM (was 20 / 14 / 10), and turn-backs and charging-while-visible are still 0. (9) **The ripple circle
+  is rendered but invisible** (opacity 0, gradient `station-ripple-<id>`, all stops clear) so
+  the budget counts it; T23 drives it. **Not done:** daylight on the station (the robots dim at
+  night, the station doesn't; no spec rule, so it's flagged for Checkpoint C). (10) **Mutation
+  checks:** 26 mutants, 25 killed and 1 control. The band-cap and more-than-six survivors got tests
+  (pinned binding seeds; halo and port saturate at six). Heavy dial sweeps carry a 30 s timeout,
+  following `lifecycleSim.test.ts`. Suite 6933 green.
 
   **Verification:** `npx vitest run src/components/stations src/components/panels/screen/worldView/OceanScene.test.tsx`.
   **Dependencies:** T13, T0. **Files:** `src/components/stations/ChargingStation.tsx` (+ test),
   `src/components/panels/screen/worldView/OceanScene.tsx`. **Scope:** S.
 
-- [ ] **Task 21: `activity`, `stationId`, `siteId`; spawn at the stations**
+- [x] **Task 21: `activity`, `stationId`, `siteId`; spawn at the stations**
 
   **Description:** Add `RobotActivity` and the three fields (spec §1.2) — `state`, `destination`
   and `direction` stay until T24 so the legacy adapter keeps working. `spawnInitialRoster` assigns
@@ -769,15 +993,35 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   selector from T20 now reads real data.
 
   **Acceptance criteria:**
-  - [ ] Every spawned robot has a `stationId` within capacity and its position at that port.
-  - [ ] Initial Docked count lights exactly that many slots across the stations.
-  - [ ] Fields JSON-serializable; session payloads unchanged (`sessionDiff` tests unmodified).
+  - [x] Every spawned robot has a `stationId` within capacity and its position at that port.
+  - [x] Initial Docked count lights exactly that many slots across the stations.
+  - [x] Fields JSON-serializable; session payloads unchanged (`sessionDiff` tests unmodified).
+
+  **As shipped (2026-10-07):** (1) **`placeRosterAtStations`** (private, `spawnSystem.ts`) runs at
+  the end of `spawnInitialRoster`: `assignStationsAtLoad` over the roster's ids, then **one**
+  `setLocaleData` write for all twelve (`position = positionForCentre(port, getRobotGem(gemSeed))`,
+  Docked → `'charging'`, Active → `'exiting'`), not twelve `updateRobot`s (a test counts the
+  writes). A lone `spawnRobot` sets none of the three fields. **(2) The fields are optional**
+  (`activity?`), though spec §1.2 types `activity` as required. `state` is still required until
+  T24, and 24 test files build `Robot` literals, so tightening it belongs with T24's deletion.
+  (3) **Port vs centre:** real stations have `port === center` (open in the sketch header), so
+  a test stubs `getStations` with offset ports. Without it, writing `center` survives. The same stub
+  pins the overfill throw (one station, twelve robots). (4) **Interim visuals until T23 (expected,
+  not a bug):** Docked robots now sit **visible** at their station ports (they used to wait off-screen
+  below) because nothing hides `'charging'` until T23. Active robots start at the port, and the
+  legacy `handleRobotIdle` swims them out from there. The legacy adapter does not write
+  `activity`, so slot lights go stale after the first undock/dock until T23/T24 take over.
+  (5) **Found, not fixed:** `audioAttributes.detune` is sometimes `-0` (`Math.round` of a small
+  negative). JSON writes it as `0`, so it's harmless, but a whole-robot `toEqual` JSON round trip
+  fails on it. The round-trip test covers only this task's fields. (6) **Mutation checks:** 7
+  mutants, 7 killed (port→centre, activity swapped, no placement call, two writes, all to the first
+  station, every robot charging, Docked without a `stationId`). Suite 6946 green.
 
   **Verification:** `npx vitest run src/systems/spawnSystem.test.ts src/components/stations src/utils/sessionDiff.test.ts`.
   **Dependencies:** T13, T18, T20. **Files:** `src/types/Robot.ts`, `src/systems/spawnSystem.ts`
   (+ test). **Scope:** S.
 
-- [ ] **Task 22: `workLoop.ts` — the site cycle**
+- [x] **Task 22: `workLoop.ts` — the site cycle**
 
   **Description:** `startWorkLoop`/`stopWorkLoop`, module `siteState`, injectable `now()`
   (`gsap.ticker.time`), and `next()` for an Active robot: `chooseNextSite` → `activity: 'transit'`,
@@ -787,36 +1031,123 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `next()`. Not yet wired to mounts or the lifecycle (tests drive it directly).
 
   **Acceptance criteria:**
-  - [ ] One robot per site; a site is not chosen again before its `readyAt`.
-  - [ ] The job sticks across sites until no ready site hosts it, then switches to an unheld job.
-  - [ ] `stopWorkLoop` kills every `work-*`, `swim-*`, `bob-wait-*` key and clears state; callbacks
+  - [x] One robot per site; a site is not chosen again before its `readyAt`.
+  - [x] The job sticks across sites until no ready site hosts it, then switches to an unheld job.
+  - [x] `stopWorkLoop` kills every `work-*`, `swim-*`, `bob-wait-*` key and clears state; callbacks
         never touch `AudioEngine` (spy).
+
+  **As shipped (2026-10-07):** (1) **Surface:** `startWorkLoop(localeId, { now?, rand? })`,
+  `stopWorkLoop()`, `next(robotId)` and a read-only `getSiteState(siteId)` (for tests and
+  diagnostics). `now` defaults to `gsap.ticker.time`. `rand` defaults to `Alea(\`${localeId}:work\`)`.
+  The eligible sites (`isWorkSiteEligible` + `getWorkSite`) are derived once per start, and
+  `siteCooldown` counts all of them. (2) **Site key = actor id.** That is safe here: a probe found
+  every eligible actor id unique *within* each of the 121 grid worlds (the cross-locale collisions
+  are J1's gotcha), and the state is cleared on every stop. (3) **A non-Active robot is a no-op in
+  `next()`** until T23 adds `returnToStation`. A job that ends after a recall still unlocks, releases
+  (with the cooldown) and clears `siteId`. (4) **My calls, flagged:** (a) `stopWorkLoop` runs a job in
+  progress to its end **silently** (`progress(1, true)`) and then unlocks, so the orbiters are docked
+  and the bob is at rest. This is the same "finish in-flight" call as T17's lock. The robot keeps
+  `activity: 'working'`, and T23's restart decides what follows. (b) **Every callback is guarded by
+  run identity**, so a leg that completes after a stop or restart writes nothing. (c) **A robot with
+  no mounted body** gets keyed, target-less timelines (travel time, `jobDuration`, the wait), because
+  `createSwimTimeline`'s no-ref fallback is an unkeyed `delayedCall` that stop can't kill. (d) **The
+  wait bob** is one yoyo up `BOB_PX` over `WAIT_RETRY_SECONDS`. Under reduced motion it's a plain
+  pause. (e) **`bodyScale`** is computed from the same two helpers as `RobotBody`'s audio memo
+  (`calculateBodyScale` × `bodyShapeFromAdsr`). `RobotBody` itself is untouched (its tests count
+  `bodyShapeFromAdsr` calls), so the formula is in two places. `layerScale` is 1 until J4.
+  (5) **Behaviour to know:** a robot already on its park swims zero distance, and GSAP lands that on
+  `play()`, so it goes `transit` → `working` in the same call. (6) **For T23:** `stopWorkLoop` kills
+  every `swim-*` key, including the legacy `idleSystem`'s, until T24 deletes it. Nothing calls stop
+  yet. (7) **Tests run on real GSAP** (`vi.unmock('gsap')`) with `gsap.globalTimeline` paused, and
+  each leg is finished by `progress(1)`. The global mock's microtask `onComplete` would spin wait →
+  next → wait forever. Fixtures are one real placed world, searched for the sites each test needs.
+  (8) **Mutation checks:** 20 mutants, 20 killed. Two survived the first pass and each got a test:
+  release-keeps-`siteId` (every path I had tested ran `next()` straight after, which overwrites it,
+  so the new test recalls the robot mid-job) and the body-less swim's travel time (that test's robot
+  started on its park). Suite 6966 green.
 
   **Verification:** `npx vitest run src/systems/workLoop.test.ts`. **Dependencies:** T14, T19, T21.
   **Files:** `src/systems/workLoop.ts` (+ test). **Scope:** M.
 
-- [ ] **Task 23: `workLoop.ts` — stations, recall and mounts**
+- [x] **Task 23: `workLoop.ts` — stations, recall and mounts**
 
   **Description:** `exitStation`, `returnToStation` + `entering` (spec §1.7, `decorateArc` from the
-  registry, `autoAlpha` and scale 0.4 at the port, `STATION_ARC_SECONDS`), recall handling (finish a
+  registry, `autoAlpha` and scale ~~0.4~~ **0.15** at the port, `STATION_ARC_SECONDS`), recall handling (finish a
   job, abandon transit/waiting), the turn-back rule, and `onRobotMounted` (charging → hidden at the
   port; exiting → `exitStation`; other Active → release + `next()`). `Robot.tsx`'s mount effect calls
   `onRobotMounted` instead of `handleRobotIdle`. `initializeLocale` and both power-off paths call
   `stopWorkLoop`/`startWorkLoop`. Reduced motion: 0.3 s fades in place.
 
   **Acceptance criteria:**
-  - [ ] Recall while working: the job completes, then the robot returns; while in transit or
+  - [x] Recall while working: the job completes, then the robot returns; while in transit or
         waiting: it returns at once and its site is released.
-  - [ ] Active landing while returning/entering: the slot is released and the robot goes back to
+  - [x] Active landing while returning/entering: the slot is released and the robot goes back to
         work; while charging: it exits.
-  - [ ] A charging robot has `visibility: hidden` and its slot is lit; the decorator is called with
+  - [x] A charging robot has `visibility: hidden` and its slot is lit; the decorator is called with
         `'spawn'` on exit and `'despawn'` on entry.
+
+  **As shipped (2026-10-08):** (1) **Port scale 0.15, not 0.4.** Spec §1.6 (the Task 0a station
+  sketch) supersedes §1.7's first-draft 0.4. New constants `STATION_PORT_SCALE` 0.15 and
+  `STATION_REDUCED_ARC_SECONDS` 0.3. The eases are the sketch's: the exit scales on √v, the entry
+  on v² (`power1.in`), and opacity is linear both ways. All three are pinned at exact values.
+  (2) **No recall flag.** Spec §1.7 keeps "the set of robots with a pending recall". Every decision
+  here reads `docking` instead (`next()` → home unless Active), and `'active'` would clear the flag
+  anyway, so the flag would duplicate `docking`. (3) **Turn-back while entering finishes the arc
+  first.** Spec §1.7 groups returning and entering as "still outside". Killing an entry mid-arc
+  would pop the robot back to full size, so `'active'` while entering does nothing. The arc's own
+  end sees `docking` Active and plays `exitStation` from where the entry left it (0.15, hidden).
+  The robot never becomes `'charging'`. `'active'` while returning kills the swim home and goes
+  back to work at once. (4) **`next()` reconciles.** While returning or entering, it does nothing
+  (the leg in flight decides). While charging, it exits if Active. Otherwise it sends the robot
+  home if it isn't Active, or on to a site. `resume()` is the same decision without the in-flight
+  guard (mounts and turn-backs). (5) **Adoption.** `startWorkLoop` adopts every robot with a
+  mounted body, because a power-on mounts the scene before `initializeLocale` starts the loop.
+  `onRobotMounted` adopts when the loop runs for that locale. With no loop, it only hides: Docked
+  or Undocking robots at their port, charging; exiting or charging ones in place. That avoids a
+  one-frame flash. Adopting drops the robot's legs (a job is finished silently), abandons its
+  site, then hides it, exits it, or shows it at full size and decides from where its body is.
+  T22's tests now call `startWorkLoop` before `mount()`. (6) **Settle.** A leg cut off mid-swim or
+  mid-bob leaves the body ahead of the store. Before the next leg, the body's GSAP x/y is written
+  back to `position`, within 0.01 u (GSAP keeps about four decimals). (7) **Abandoning a site has
+  no cooldown** (`readyAt = now`): recall in transit, remount and adopt. **Every station full**
+  (impossible at 12 robots): the robot waits and asks again. (8) **The station ripple**
+  (`src/animation/stationRipple.ts`). T20 left it for this task. It is one cycle per arc, ring
+  width 0.2, hole 0.18 and the 10 % envelope, outward on exit and inward on entry, in the moving
+  robot's `identityColor`, keyed `station-ripple-<stationId>`. A ripple already running wins, and
+  reduced motion plays none. `ChargingStation`'s front fragment registers `station-front-<id>` in a
+  layout effect. `stopWorkLoop` now kills `station-*` (arcs and ripples). (9) **Registration
+  timing.** `RobotBody`'s `registerArcDecorator` and `useOrbiterMotion`'s `registerOrbiterWork`
+  moved from `useEffect` to `useLayoutEffect`. Robot's `useGSAP` mount is a layout effect and can
+  play the exit arc at once, so a passive registration missed the first arc's halo ripple (test
+  seen RED). (10) **`initializeLocale`** drops the `assignJob` pass (the loop picks the first job)
+  and calls `stopWorkLoop(); startWorkLoop(localeId)` after the roster exists. (11) **Test-harness
+  gotcha:** with `gsap.globalTimeline` paused, a plain `gsap.set` never renders, so T22's `mount()`
+  fixture had never placed its body. The loop's instant sets go through `place()`, which adds
+  `immediateRender: true`, and the fixture does the same. A `gsap.set` inside a tween's
+  `onUpdate` is lazy too, so the ripple writes its stop attributes directly. **(12) Not done,
+  flagged:** exiting robots still render in `#robot-layer` (between L3 and L2), not between L4
+  and L3. That needs `OceanScene` to order robots by activity without remounting them, so it goes
+  to J4's layer work. **(13) Interim until T24 (expected; resolved by T24):** the tick's seam still calls the
+  legacy adapter. An undocked robot gets `handleRobotIdle` instead of `exitStation`, so it stays
+  hidden, though its invisible body may still wander. Recall swims it off-screen until its job's `next()` takes over, and the
+  'docked' landing writes the off-screen dock position. Don't judge the app live until T24.
+  (14) **Mutation checks:** 64 mutants. On the first pass, `workLoop.ts` had 42 of 52 killed. The
+  10 survivors each got a test: all stations full, turn-back with no ready site, self-occupancy on
+  a remount mid-return, a remount after Docked mid-transit, adopting an Active `'charging'` robot,
+  a restart mid-transit (settle), a stale `siteId`, a same-id robot in another locale, the no-loop
+  Docked hide, and offset ports (stubbed stations). `stationRipple.ts` had 7 of 8 killed (its
+  duration survived until a test used 2.5 s), `ChargingStation` 1 of 2 (front-only registration)
+  and `initializeLocale` 2 of 2. The layout-effect, `Robot.tsx` and power-off tests were each seen
+  RED before their change. All 64 are now killed. Suite 7016 green.
 
   **Verification:** `npx vitest run src/systems/workLoop.test.ts src/components/robot/Robot.test.tsx src/systems/worldTransition.test.ts src/systems/powerController.test.ts`.
   **Dependencies:** T17, T20, T22. **Files:** `src/systems/workLoop.ts`, `src/components/robot/Robot.tsx`,
-  `src/systems/worldTransition.ts`, `src/systems/powerController.ts` (+ tests). **Scope:** M.
+  `src/systems/worldTransition.ts`, `src/systems/powerController.ts` (+ tests); as shipped also
+  `src/animation/stationRipple.ts` (+ test), `src/components/stations/ChargingStation.tsx`,
+  `src/components/robot/RobotBody.tsx`, `src/components/robot/gem/useOrbiterMotion.ts`,
+  `src/constants/index.ts`. **Scope:** M.
 
-- [ ] **Task 24: Hand-over — the seam points at the loop; delete the legacy**
+- [x] **Task 24: Hand-over — the seam points at the loop; delete the legacy**
 
   **Description:** `onLifecycleChange` (moved into `workLoop.ts`) drives the loop; delete
   `lifecycleVisuals.ts`, `idleSystem.ts`, `RobotState`, `Robot.state`/`destination`/`direction`,
@@ -825,37 +1156,113 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `idle.target.*` dataIds.
 
   **Acceptance criteria:**
-  - [ ] No reference to any deleted name in `src/`; the lifecycle's prove-it test still passes.
-  - [ ] A full measure-driven cycle in an integration test: Active robot works → recalled → finishes
+  - [x] No reference to any deleted name in `src/`; the lifecycle's prove-it test still passes.
+  - [x] A full measure-driven cycle in an integration test: Active robot works → recalled → finishes
         → enters → charges (slot lit, hidden) → undocks → exits → works.
-  - [ ] Mutation check: removing the turn-back branch fails the integration test's 200 BPM case.
+  - [x] Mutation check: removing the turn-back branch fails the integration test's 200 BPM case.
+
+  **As shipped (2026-10-08):** (1) **The seam.** `robotSystems.ts` imports `onLifecycleChange`
+  from `./workLoop` (T23 built it there; its type is `LifecycleChange`). `robotSystems.test.ts`
+  mocks `./workLoop`, and its module-boundary test pins that import as the tick's only route to
+  visuals. (2) **Deleted:** `lifecycleVisuals.ts` and `idleSystem.ts` with their tests (the legacy
+  parity and scorer tests went with them), `RobotState`, `Robot.state`/`destination`/`direction`,
+  `JOB_MAX_ROBOTS_PER_TYPE`, `BATTERY_LOWER_THIRD_THRESHOLD` and `initRobotIdleCounter`.
+  `generateSpawnPosition` stays: a lone `spawnRobot` still places its robot there, and only its
+  dock-position reuse is gone. `dockCycles.ts` stays with one reader (pitch drift). 60 stale
+  `state`/`destination`/`direction` lines in 20 test fixtures were removed; most were hidden from
+  tsc by `as Robot` casts. (3) **Guards:** `types/Robot.test.ts` checks that both files are gone
+  and that no file in `src/` names any deleted identifier (plus `pickDestination`,
+  `handleRobotArrival`, `cancelPendingIdleDelay`) or `idle.target.`. `spawnSystem.test.ts` checks
+  that a spawned robot has no `state`/`destination`/`direction` key. (4) **`idle.target.*`
+  retired** in `docs/PROCEDURAL_GENERATION.md`'s dataId table, and its `Math.random()` fallback
+  list no longer names `idleSystem.ts`. Its other wander wording is T27's. (5) **`activity` is now
+  required** (spec §1.2; T21 deferred it here). `spawnRobot` sets it from `docking` (Active →
+  `'exiting'`, else `'charging'`), and `placeRosterAtStations` sets it again at the port. T21's
+  "lone spawn leaves activity unset" test now pins `'exiting'`. The loop's defensive
+  `!r.activity` checks (`occupancy`, `heldJobs`, `chargingColorsKey`) are now type-redundant and
+  left alone. (6) **The integration test** (`workLoop.integration.test.ts`) runs the real tick
+  into the real loop on a real placed world. Simulated time steps GSAP's paused global timeline
+  one 1/30 s frame at a time and ticks at each measure boundary. At 20/110/200 BPM, r1 runs exit
+  → transit → working → (battery set to cross critical) recall → its job finishes at full length
+  → returning → entering → charging (hidden, slot lit in its colour) → undock → exit → working.
+  The decorator sees spawn, despawn, spawn. At 110 and 200 BPM the recall provably lands mid-job.
+  (7) **The 200 BPM turn-back case is a hidden tab.** The plan assumed short measures alone would
+  cause a turn-back, but they can't: from a critical recall back to Active takes 20 measures (hold
+  + 18 recharge + hold), far longer than any swim home. This is the J1 sim's "turn-backs are
+  structurally 0". The only real path is spec §1.7's hidden tab, where the Transport runs ahead
+  of GSAP. The test fast-forwards the Transport only until r1 lands Active: during the swim home
+  (it goes back to work, never entering or charging), and during the entry arc (the arc
+  finishes, then it exits without charging). Running the fast-forward longer drains it into a
+  second recall, and the first draft of the entry case did exactly that. (8) **Mutation checks:**
+  removing the returning turn-back fails the 200 BPM swim-home case and survives the three plain
+  cycles (checked separately, so that case is the one that catches it). Removing the entering
+  turn-back, ignoring `'active'` while charging, dropping the tick's `'active'` seam call and
+  both `spawnRobot` activity mutants are each killed. The seam re-point and the guards were
+  each seen RED first. Suite 6973 green (the deleted legacy suites account for the drop), build
+  clean. **Noticed, not touched:** `Robot.lastInteractionMeasure` has no writer since T6
+  deleted `interactionSystem`.
 
   **Verification:** `npm test`; `npm run build:types`. **Dependencies:** T23. **Files:**
   `src/systems/workLoop.ts`, `src/systems/robotSystems.ts`, `src/systems/lifecycleVisuals.ts`,
-  `src/systems/idleSystem.ts` (deleted, + tests), `src/types/Robot.ts`, `src/systems/spawnSystem.ts`.
+  `src/systems/idleSystem.ts` (deleted, + tests), `src/types/Robot.ts`, `src/systems/spawnSystem.ts`;
+  as shipped also `src/systems/workLoop.integration.test.ts` (new), `src/systems/dockCycles.ts`,
+  `src/constants/index.ts`, `docs/PROCEDURAL_GENERATION.md` and the test fixtures above.
   **Scope:** M.
 
-- [ ] **Task 25: Card states**
+- [x] **Task 25: Card states**
 
   **Description:** `probe.status.activity` with the seven activities (spec §1.11), `ACTIVITY_LABELS`,
   `RobotSelectionCard`'s status line `{docking} · {activity} · {audibility}`, and an Activity row in
   `RobotDisplaySection` after Docked Status. Lore lines flagged for Crawford's review.
 
   **Acceptance criteria:**
-  - [ ] Each activity renders its label on both surfaces; content test green; no literals.
-  - [ ] The card line holds its largest-content width (project rule: controls hold their largest
+  - [x] Each activity renders its label on both surfaces; content test green; no literals.
+  - [x] The card line holds its largest-content width (project rule: controls hold their largest
         content size) — no reflow as activities change.
+
+  **As shipped (2026-10-08):** (1) **Content.** `probe.status.activity`: field "Activity" / lore
+  "OPERATIONAL PHASE", seven options with the spec's human words. The lore lines are drafts for
+  Crawford's review: CELL REPLENISHMENT, BERTH DEPARTURE, EN ROUTE TO SITE, PROTOCOL IN PROGRESS,
+  HOLDING FOR CLEARANCE, RETURNING TO BERTH, BERTH ARRIVAL. They are ALL CAPS like the docking
+  options beside them. (2) **Config.** `ACTIVITY_LABELS = optionsRecord('probe.status.activity')`,
+  typed `Record<RobotActivity, …>`, plus `ROBOT_SELECTION_ROW_SCHEMAS.activity` for the detail
+  row's caption. (3) **Held words.** Both the docking and the activity word are held, not just the
+  activity: both have more of the line after them, and docking changes alongside activity
+  (docked→charging, active→exiting). Audibility comes last, so nothing after it can shift, and it
+  stays plain text. `HeldWord` (local to `RobotSelectionCard.tsx`) stacks every label of its set
+  in one inline-grid cell, current one `data-current`, the rest `visibility: hidden`. This is the
+  ToggleFacade technique for a set of any size. The cell is `aria-hidden`, since the card's
+  `role="button"` aria-label already names it. Start-aligned, so a short word leaves its slack
+  before the next `·`. That gap needs an eye-check at Checkpoint C. (4) **Measured in real
+  Chrome** (a throwaway page with the real card CSS, deleted afterwards): over all 28
+  docking × activity combinations, the docking cell is 66.16 px, the activity cell 60.70 px and
+  the audibility word's left edge 159.77 px, one value each. Each cell equals its widest plain
+  word (docking words 38.13–66.16 px, activity words 42.03–60.70 px). jsdom can't do layout, so
+  the CSS contract is pinned by `RobotSelectionCard.css.test.ts`. (5) **Detail row:**
+  `.robot-display-section__field--activity` right after Docked Status, with a plain value (each
+  field has its own centred row, so nothing reflows). (6) **Mutation checks:** current word never
+  set, aria-hidden dropped, wrong activity shown, activity or docking left un-held, and the
+  detail row hard-coded each fail tests (20/1/8/3/4/7). The aria-hidden test first passed
+  vacuously with zero cells, so it now asserts two. The status-line tests in
+  `RobotSelectionCard.test.tsx` and `RobotsTab.test.tsx` read the visible words, not
+  `textContent`. Suite 7000 green.
 
   **Verification:** `npx vitest run src/content src/components/selection src/components/robot/RobotDisplaySection.test.tsx`.
   **Dependencies:** T21. **Files:** `src/content/copy/probe.ts`, `src/data/robotSelectionConfig.ts`,
   the two card components (+ CSS, tests). **Scope:** M.
 
 ### Checkpoint C: J2 live
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Crawford, live on a few worlds: robots exit stations, go to buildings, orbiters hover-pulse,
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
+- [x] Crawford, live on a few worlds: robots exit stations, go to buildings, orbiters hover-pulse,
       return and vanish into stations; no pops; no long waits; cards read correctly.
-- [ ] **Phase 41's deferred halo gate**, original wording: a slow outward ring on exit, inward on
+- [x] **Phase 41's deferred halo gate**, original wording: a slow outward ring on exit, inward on
       entry, fading up and down; a volume/envelope edit reflected.
+
+  **Passed 2026-10-08** (Crawford: "checkpoint c is fine"). Static checks at `a851631b`: types and
+  build clean, lint at main's 2 warnings, suite 7000 green. Taken to cover the eye-checks flagged
+  earlier in J2, as Checkpoint A's sign-off covered the T4 lore lines: T20's overlay opacities, T25's
+  card-line gap after short words, and T25's draft activity lore lines. Task 26's harness run came
+  before this checkpoint, and nothing in the robots layer changed after it, so it stands.
 
 - [ ] **Task 26: J2 perf gate — stop and report**
 
@@ -864,12 +1271,24 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   PERFORMANCE.md. Crawford's Pixel listen: no new dropouts.
 
   **Acceptance criteria:**
-  - [ ] Table recorded; a miss stops here with ablations (stations hidden, moves off) for Crawford.
+  - [x] Table recorded; a miss stops here with ablations (stations hidden, moves off) for Crawford.
 
-  **Verification:** the harness. **Dependencies:** Checkpoint C. **Files:** `docs/PERFORMANCE.md`.
-  **Scope:** S.
+  **As run (2026-10-08), harness half; the task stays open for Crawford's Pixel listen:** measured
+  **before Checkpoint C**, Crawford's call, so if Checkpoint C changes the robots layer the gate is
+  re-run. Branch `76e12e28` vs base `e4f90d1d` (the J1 merge this branch was cut from), same-session
+  A/B on the J1 gate's pinned world, three rotated rounds. Medians: busy 1798 vs 2140 ms (−16 %,
+  inside both builds' spread), paint 134 vs 356 ms (−62 %). **No miss.** Paint fell because on J2 9
+  of the 12 robots were charging (hidden, spec §1.12) at the measured moment, so the gate doesn't
+  measure a worst case with every robot Active. Stations: 2, adding 78 elements (L4 4 · L3 16 ·
+  front 58), with no measurable paint when hidden. A rough one-run ablation puts visible-robot paint
+  at about 30 ms each on J2 vs 16 on J1, cause not measured; it's flagged in PERFORMANCE.md for J3.
+  `scripts/perf/idle-paint.mjs` gained the robots-stack element counts and a `no-stations` ablation.
+  "Moves off" wasn't needed, since nothing missed.
 
-- [ ] **Task 27: J2 docs**
+  **Verification:** the harness. **Dependencies:** Checkpoint C. **Files:** `docs/PERFORMANCE.md`;
+  as run also `scripts/perf/idle-paint.mjs`. **Scope:** S.
+
+- [x] **Task 27: J2 docs**
 
   **Description:** ROBOT_LIFECYCLE.md rewritten around the two state machines, the loop, stations,
   recall and turn-back. ANIMATION_SYSTEM.md: the registry, the job timeline, the station arcs, keys.
@@ -878,7 +1297,41 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   lines.
 
   **Acceptance criteria:**
-  - [ ] Every named identifier spot-checked against source; docs tests green.
+  - [x] Every named identifier spot-checked against source; docs tests green.
+
+  **As shipped (2026-10-08):** (1) **The criteria are executable.** New
+  `src/docs/robotJobsJ2Docs.test.ts` (83 tests), following the D1 and Phase 39 docs tests. It checks
+  each doc's required sections, that relative links resolve, and that the constants in
+  ROBOT_LIFECYCLE.md carry their real values (imported from `constants`). The spot-check is a table
+  of 45 `[identifier, source file]` pairs: each name must appear, word-bounded, in its doc and in
+  its source file. (2) **ROBOT_LIFECYCLE.md** is rewritten. It has two state machines (docking on
+  the measure tick, activity on wall-clock time, with an activity table), the visual seam as a
+  `to` → behaviour table, the work loop, charging stations, Recall, Turn-back (hidden tab only; the
+  20-measure argument), mounts and the power cycle, and a "Known gaps (J2)" list. Every deleted
+  name (the legacy adapter, idle wandering, `RobotState`, affinity scoring) is now only in a closing
+  "Removed in Phase 43" history section, and the test holds that boundary. (3)
+  **ANIMATION_SYSTEM.md** gains four sections: Robot motion registry, Job timeline, Station arcs
+  (an exit/entry table), and Robot timeline keys (owner, lifetime and killer of each robot key).
+  (4) **Beyond the task's list**, because they were stale against J2: `PROCEDURAL_GENERATION.md`'s
+  two "idle/interaction behaviour" phrases (T24 left its wander wording to this task); the roadmap's
+  Phase 43 status (it still said J1 unmerged and J2 not started) and its "faster with more orbiters"
+  line; and two stale ANIMATION_SYSTEM.md pointers, to the deleted interaction systems and to a
+  `src/systems/removeSystem.ts` that doesn't exist (the link test found the second). (5)
+  **SESSION_STORAGE.md:** the old "drift continuously as the sim runs" reason was replaced. It now
+  says a restored world respawns from the seed, the replay has no consumer yet, and the work-loop
+  fields are wall-clock visual state. (6) **Spec:** `> **Shipped (J2)**` blocks in §1.2, §1.6,
+  §1.7, §1.8, §1.9 and §1.11. Each records the plan's deviations: no recall flag, port scale 0.15,
+  arc 1.0, entering finishes its arc, adoption, exits still in `#robot-layer` (J4), the Size tween
+  the lock doesn't stop, and `paths` and per-robot variation deferred to T28. The **intent**'s line
+  marks "More orbiters finish faster" as superseded. (7) **One test outside docs changed:**
+  `types/Robot.test.ts`'s deleted-identifier guard now exempts the new docs test, which has to name
+  those identifiers. A planted `handleRobotIdle` in another file still fails the guard. (8)
+  **Mutation checks:** 7 doc mutants were each run alone. They were the affinity wording back in
+  CLAUDE.md, a deleted name in a current section, a wrong port scale, the Turn-back heading
+  renamed, a broken link, `stationId` dropped from never-persisted, and a misspelt identifier. The
+  misspelt identifier (`getOrbiterWorkX`) survived, because the doc check was a substring match.
+  It's now word-bounded, and all 7 are killed. Suite 7083 green, types clean, lint at main's 2
+  warnings.
 
   **Verification:** `npm test`. **Dependencies:** T26. **Files:** the docs above. **Scope:** S.
 
@@ -905,7 +1358,8 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 - [ ] **Task 29: `carry`, `fan`, the spark flicker and the six-job table**
 
   **Description:** `jobMoves/carry.ts`, `jobMoves/fan.ts`, Maintenance's opacity spark-flicker, and
-  `JOB_MOVES` (spec §1.9 table) with each job's `JOB_WORK_RATE` from T0. Reduced motion stays the
+  `JOB_MOVES` (spec §1.9 table); every job runs for `jobDuration(bpm)`, and the move constants
+  §1.9 lists from Task 0b land in `constants/index.ts` here. Reduced motion stays the
   in-place pulse for every job.
 
   **Acceptance criteria:**

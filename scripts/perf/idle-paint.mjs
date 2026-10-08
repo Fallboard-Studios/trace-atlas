@@ -47,6 +47,8 @@ const ABLATIONS = [
   { name: 'no-rocker-pulse', css: '.rocker-light { animation: none !important; }' },
   { name: 'no-bubbles', css: `${BUBBLES} { display: none !important; }` },
   { name: 'no-robots', css: '#robot-layer { display: none !important; }' },
+  // Phase 43 J2: the charging stations' three fragments, interleaved with the robots (L4 · L3 · robots · front).
+  { name: 'no-stations', css: '#station-l4-layer, #station-l3-layer, #station-front-layer { display: none !important; }' },
   { name: 'no-factories', css: '#factory-background-layer, #factory-midground-layer, #factory-foreground-layer { display: none !important; }' },
   { name: 'no-scene', css: '.ocean-scene { display: none !important; }' },
   // Combined: nothing moves inside the scene (robots and bubbles hidden) but the per-second lighting fills still transition.
@@ -266,7 +268,15 @@ async function run(cdp) {
   const bubbles = await evaluate(`document.querySelectorAll(${JSON.stringify(BUBBLES)}).length`);
   const layers = await evaluate(`document.querySelectorAll('.ocean-scene__layer').length`);
   console.log(`Idle paint localizer — ${opts.url}, ${opts.throttle}x throttle, ${width}px, ${WINDOW_MS} ms windows`);
-  console.log(`Scene: ${robots} robots, ${factories} factories, ${bubbles} circles in the bubble/factory layers, ${layers} scene layers (0 = the pre-17.2.5 single svg)\n`);
+  console.log(`Scene: ${robots} robots, ${factories} factories, ${bubbles} circles in the bubble/factory layers, ${layers} scene layers (0 = the pre-17.2.5 single svg)`);
+  // Phase 43 J2 gate: element counts in the robots layer's stack (stations included). Before J2 only #robot-layer exists.
+  const stack = await evaluate(`(() => {
+    const n = (s) => document.querySelectorAll(s).length;
+    const shown = [...document.querySelectorAll('#robot-layer .robot')].filter((e) => getComputedStyle(e).visibility !== 'hidden' && getComputedStyle(e).display !== 'none').length;
+    return { stations: new Set([...document.querySelectorAll('[data-station-id]')].map((e) => e.dataset.stationId)).size,
+      l4: n('#station-l4-layer *'), l3: n('#station-l3-layer *'), robotLayer: n('#robot-layer *'), front: n('#station-front-layer *'), shown };
+  })()`);
+  console.log(`Robots stack: ${stack.stations} stations; elements L4 ${stack.l4}, L3 ${stack.l3}, #robot-layer ${stack.robotLayer}, front ${stack.front}; ${stack.shown} robots visible\n`);
 
   const wanted = opts.only ? new Set(opts.only.split(',').map((s) => s.trim())) : null;
   const rows = [];

@@ -14,6 +14,7 @@ import {
   JOB_TYPE_LABELS,
   UNASSIGNED_JOB_LABEL,
   DOCKING_STATE_LABELS,
+  ACTIVITY_LABELS,
   AUDIBILITY_LABELS,
   BATTERY_READOUT_GAP_SIZE,
 } from '@/data/robotSelectionConfig';
@@ -23,6 +24,30 @@ import './RobotSelectionCard.css';
 
 interface RobotSelectionCardProps {
   robotId: string;
+}
+
+interface HeldWordProps<K extends string> {
+  labels: Record<K, { humanLabel: string }>;
+  current: K;
+}
+
+/**
+ * One status-line word that holds the width of its LARGEST label (project rule: controls hold their
+ * largest content size), so the words after it never shift as the lifecycle moves on (Phase 43
+ * Task 25). Every label is a real child stacked in one grid cell (RobotSelectionCard.css), only the
+ * current one visible — the ToggleFacade technique, for a set of any size. aria-hidden: the card's
+ * own aria-label names it, and the hidden labels must never be announced.
+ */
+function HeldWord<K extends string>({ labels, current }: HeldWordProps<K>) {
+  return (
+    <span className="robot-selection-card__held" aria-hidden="true">
+      {(Object.keys(labels) as K[]).map((key) => (
+        <span key={key} className="robot-selection-card__held-word" data-current={key === current ? '' : undefined}>
+          {labels[key].humanLabel}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 /**
@@ -81,7 +106,6 @@ export const RobotSelectionCard = memo(function RobotSelectionCard({ robotId }: 
   const companyAssignmentSchema = buildCompanyAssignmentSchema(companies);
   const displayName = robot.name || robot.id;
   const jobLabel = robot.job ? JOB_TYPE_LABELS[robot.job] : UNASSIGNED_JOB_LABEL;
-  const dockingLabel = DOCKING_STATE_LABELS[robot.docking];
   const statusLabel = AUDIBILITY_LABELS[getAudibilityState(robot.audioMode, anySolo, isSounding)];
   // BATTERY_READOUT_SCHEMA is one shared, static object (robotSelectionConfig.ts) — reused as-is
   // by RobotDisplaySection, where only one robot is ever shown at a time. Here, every robot in the
@@ -129,7 +153,7 @@ export const RobotSelectionCard = memo(function RobotSelectionCard({ robotId }: 
             <span className="robot-selection-card__name">{displayName}</span>
             <span className="robot-selection-card__job">{jobLabel.humanLabel}</span>
             <span className="robot-selection-card__status-line">
-              {dockingLabel.humanLabel} · {statusLabel.humanLabel}
+              <HeldWord labels={DOCKING_STATE_LABELS} current={robot.docking} /> · <HeldWord labels={ACTIVITY_LABELS} current={robot.activity} /> · {statusLabel.humanLabel}
             </span>
           </div>
         </div>

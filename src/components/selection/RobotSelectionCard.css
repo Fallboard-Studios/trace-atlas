@@ -75,6 +75,26 @@
   white-space: nowrap;
 }
 
+/* Phase 43 Task 25 — the status line's docking and activity words hold their LARGEST label (project
+   rule: controls hold their largest content size), so the activity and audibility after them never
+   shift as the lifecycle moves on. Every label is a real child stacked in ONE grid cell (the
+   ToggleFacade.css technique); all but the current one are merely invisible, so they keep their size —
+   never display: none or overflow on a hidden label. start-aligned: the visible word sits right after
+   the separator before it and the slack trails it. Audibility is last on the line, so it isn't held. */
+.robot-selection-card__held {
+  display: inline-grid;
+  justify-items: start;
+  white-space: nowrap;
+}
+
+.robot-selection-card__held-word {
+  grid-area: 1 / 1;
+}
+
+.robot-selection-card__held-word:not([data-current]) {
+  visibility: hidden;
+}
+
 /* Company assignment (Roadmap Phase 10) — same centered treatment the old
    .robot-selection-card__row--company carried, just renamed for the new sibling structure. No
    click handling of any kind lives here anymore. */

@@ -5,6 +5,14 @@ Confirmed via `interview-me` on 2026-10-06 (five questions, every guess confirme
 [docs/ideas/robot-jobs-and-stations.md](../ideas/robot-jobs-and-stations.md) (idea-refine, same
 day). Roadmap Phase 43. Sequenced after World View Districts (Phase 42) D1 + D2.
 
+> **Shipped (J2, 2026-10-08).** Stations, the work loop, recall and turn-back and the card states
+> behave as this intent describes, with one move (`hover-pulse`) for every job until J3. Two
+> changes came from the sketches, both Crawford's: **orbiter count no longer drives job speed**
+> (every job lasts 6–10 s, set by the tempo at job start), so "More orbiters finish faster" below
+> is superseded; and the station is his own gem design, not a placeholder. Checkpoint C passed
+> 2026-10-08; Crawford's Pixel listen is still open. As built:
+> [docs/ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md).
+
 ## Outcome
 
 Each world reads as a working colony. Robots exit 2–3 seeded floating gem charging stations, go

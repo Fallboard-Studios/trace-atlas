@@ -767,7 +767,17 @@ Idea [docs/ideas/robot-jobs-and-stations.md](../ideas/robot-jobs-and-stations.md
 [docs/intent/robot-jobs-and-stations.md](../intent/robot-jobs-and-stations.md), spec
 [docs/specs/ROBOT_JOBS_AND_STATIONS.md](../specs/ROBOT_JOBS_AND_STATIONS.md), plan
 [docs/tasks/ROBOT_JOBS_AND_STATIONS.md](../tasks/ROBOT_JOBS_AND_STATIONS.md). **J1 (lifecycle +
-world data) code-complete 2026-10-07 on `feature/jobs-lifecycle`** (Tasks 1–16, unpushed, unmerged).
+world data) merged 2026-10-07** (PR #537, Tasks 1–16). **J2 (stations + the loop) shipped
+2026-10-08 on `feature/job-lifecycle-2`** (Tasks 0a, 0b, 16b, 17–27, unpushed, unmerged):
+Crawford's two motion sketches; the work loop (`workLoop.ts`) behind the `onLifecycleChange` seam,
+with the legacy adapter, idle wandering and job affinity scoring deleted; Crawford's charging
+station design (three fragments around the robots, slot lights, live rig dials, the station
+ripple); recall and turn-back; one job move (`hoverPulse`) for every job; jobs 6–10 s from the
+tempo; site cooldown 0.3/2/30; and the activity on the robot cards. Checkpoint C passed
+2026-10-08; the J2 perf gate's harness run passed (docs/PERFORMANCE.md), and Crawford's Pixel
+listen is still open. J3 (the other four moves) and J4 (depth layers) not started. Docs:
+[ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md), [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md).
+
 J1 shipped:
 - the renamed docking states;
 - the flat drain (6), with the job out of the replay;
@@ -775,9 +785,8 @@ J1 shipped:
 - host lists, work sites and the coverage top-ups (the only visible change, in 5 districts);
 - seeded stations, site choice, and the drain and readiness sims (site cooldown 0.4/3/30).
 
-Checkpoint B's static checks and idle-perf gate passed (busy −1.5 % vs main, docs/PERFORMANCE.md);
-Crawford's review and the J1 merge call remain. The motion-sketch gate (Task 0) has not run, so the
-station box and job timing constants are placeholders. J2–J4 not started. Depends on
+Checkpoint B's static checks and idle-perf gate passed (busy −1.5 % vs main, docs/PERFORMANCE.md).
+Depends on
 [42](#42-world-view-districts) (D1 + D2, for the host buildings), [40](#40-orbiting-polygons) (the
 orbiters that do the work), [41](#41-robot-halo-and-lit-lines) (the halo ripple on station
 enter/exit) and [20.5](#205-world-clock-deterministic-lifecycle-replay) (the replay this phase
@@ -790,7 +799,7 @@ a building is ready when no robot holds it and its cooldown has elapsed, and a r
 (or leaving a station) goes to the nearest ready building for its job — or switches to a job no
 other robot holds when none is ready. At the building the robot bobs while its orbiters detach and
 play the job's moves (`hover-pulse`, `trace`, `ring`, `carry`, `fan`) at the building's work anchors,
-faster with more orbiters. Low battery sends it, once the current job finishes, into one of 2–3
+for 6–10 s set by the tempo (orbiter count was cut from timing at the moves sketch). Low battery sends it, once the current job finishes, into one of 2–3
 seeded floating gem stations (capacity 6, slot lights), where it is invisible while charging. A
 second moving robot layer behind the midground lets background buildings host work.
 
@@ -806,4 +815,4 @@ assumptions to validate, MVP and Not Doing list are in the idea doc.
   ([docs/ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md)), job affinity scoring and per-job battery
   surcharges — all removed by this phase, along with the dead `interactionSystem.ts` and factory
   production fields. J1 removed the surcharges, `interactionSystem.ts` and the production fields;
-  the rest goes in J2, when the work loop replaces the legacy adapter.
+  J2 removed the rest when the work loop replaced the legacy adapter (Task 24).

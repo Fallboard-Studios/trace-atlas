@@ -16,6 +16,7 @@ import {
   JOB_TYPE_LABELS,
   UNASSIGNED_JOB_LABEL,
   DOCKING_STATE_LABELS,
+  ACTIVITY_LABELS,
   AUDIBILITY_LABELS,
   BATTERY_READOUT_GAP_SIZE,
 } from '@/data/robotSelectionConfig';
@@ -79,6 +80,10 @@ function RobotDisplaySectionInner({ robot }: RobotDisplaySectionProps) {
         <div className="robot-display-section__field robot-display-section__field--docking">
           <DualLabel {...ROBOT_SELECTION_ROW_SCHEMAS.docking} />
           <span className="robot-display-section__value">{DOCKING_STATE_LABELS[robot.docking].humanLabel}</span>
+        </div>
+        <div className="robot-display-section__field robot-display-section__field--activity">
+          <DualLabel {...ROBOT_SELECTION_ROW_SCHEMAS.activity} />
+          <span className="robot-display-section__value">{ACTIVITY_LABELS[robot.activity].humanLabel}</span>
         </div>
         <div className="robot-display-section__field robot-display-section__field--status">
           <DualLabel {...ROBOT_SELECTION_ROW_SCHEMAS.status} />

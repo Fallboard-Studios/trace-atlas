@@ -5,9 +5,15 @@
 // count-change attach/detach flights and the one-arc-at-a-time queue (Task 10, retargeted). Phase
 // 41 (Crawford): orbiters no longer drift or orbit — on spawn (initial mount, or a count increase)
 // they fly a short straight hop into their dock at Top's corner and stay rigid with the body from
-// then on; a count decrease plays the same hop in reverse, then hides. A later session's job
-// animations will detach them again to do "work" — this hook stays ignorant of that; it never
-// reads Zustand or calls AudioEngine.
+// then on; a count decrease plays the same hop in reverse, then hides. It never reads Zustand or
+// calls AudioEngine.
+//
+// Phase 43 (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.8): this hook knows only that it can be
+// locked. In the world context it registers `{ lock, unlock }` in robotMotionRegistry for the work
+// loop. `lock` finishes any hop in flight, so every group is at rest, then returns the shown
+// `.gem__orbiter-local` groups in `cornerOrder` and makes `reconcile()` return early. Count changes
+// still update `targetCountRef`. `unlock` clears the lock and reconciles once: the orbiters catch up
+// to the current count without replaying each change made while locked.
 //
 // 2026-10-06 (Crawford): this hop is density-driven (every call today traces back to
 // `rhythmicDensity` via `orbiterDials().count`), and the halo's ripple is reserved for the future
@@ -21,11 +27,12 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 
 import { setTimeline, killTimeline } from '../../../animation/timelineMap';
+import { registerOrbiterWork, deleteOrbiterWork, type OrbiterWork } from '../../../animation/robotMotionRegistry';
 import { prefersReducedMotion } from '../../../utils/reducedMotion';
 import type { RobotGem as RobotGemGeometry } from './polygon';
 import { ATTACH_DROP, ATTACH_START_SCALE, ATTACH_DURATION, type OrbiterPlan } from './orbiterMotion';
@@ -92,6 +99,33 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
     reconcileRef.current();
   }, [dials.count]);
 
+  // The work lock (Phase 43). Refs, not effect locals, so the registered control outlives a
+  // re-run of the mount effect; `lockGroupsRef` is that effect's "finish hops, return the shown
+  // groups", and returns [] once it has cleaned up.
+  const lockedRef = useRef(false);
+  const lockGroupsRef = useRef<() => SVGGElement[]>(() => []);
+  // A layout effect, registered before the parent Robot's mount hands the robot to the work loop
+  // (Task 23) — a remount already on its park starts its job, and its lock, inside that mount.
+  useLayoutEffect(() => {
+    if (!enabled || context !== 'world') return;
+    const control: OrbiterWork = {
+      lock: () => {
+        lockedRef.current = true;
+        return lockGroupsRef.current();
+      },
+      // An unlock without a lock needs no guard: unlocked, reconcile() is already a no-op.
+      unlock: () => {
+        lockedRef.current = false;
+        reconcileRef.current();
+      },
+    };
+    registerOrbiterWork(robotId, control);
+    return () => {
+      lockedRef.current = false;
+      deleteOrbiterWork(robotId, control);
+    };
+  }, [robotId, context, enabled]);
+
   // Size tween — every local group (shown and hidden, so a later spawn is already the right
   // size), keyed so a second change re-targets rather than stacking a second tween.
   useGSAP(
@@ -115,7 +149,7 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
       shownRef.current = new Set(plan.cornerOrder.slice(0, dials.count));
       targetCountRef.current = dials.count;
       const arcInFlightRef = { current: false };
-      const arcKillers = new Map<number, () => void>();
+      const arcTweens = new Map<number, ReturnType<typeof gsap.to>>();
       // Every corner currently mid-flight, from *either* source — the initial-mount batch (which
       // isn't gated by arcInFlightRef, since those all run in parallel) or a queued count-change
       // arc. reconcile() must never retarget a corner that's already animating, or two tweens would
@@ -150,13 +184,13 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
             opacity: 1,
             duration: ORBITER_FADE,
             onComplete: () => {
-              arcKillers.delete(corner);
+              arcTweens.delete(corner);
               busyCorners.delete(corner);
               if (gatesQueue) arcInFlightRef.current = false;
               reconcile();
             },
           });
-          arcKillers.set(corner, () => tween.kill());
+          arcTweens.set(corner, tween);
           return;
         }
 
@@ -169,17 +203,17 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
           duration: ATTACH_DURATION,
           ease: 'back.out(1.7)',
           onComplete: () => {
-            arcKillers.delete(corner);
+            arcTweens.delete(corner);
             busyCorners.delete(corner);
             if (gatesQueue) arcInFlightRef.current = false;
             reconcile();
           },
         });
-        arcKillers.set(corner, () => tween.kill());
+        arcTweens.set(corner, tween);
       };
 
       const settleDetach = (corner: number) => {
-        arcKillers.delete(corner);
+        arcTweens.delete(corner);
         busyCorners.delete(corner);
         const copy = queryCopy(rootEl, corner);
         if (copy) gsap.set(copy, { display: 'none' });
@@ -197,7 +231,7 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
 
         if (reducedMotion) {
           const tween = gsap.to(local, { opacity: 0, duration: ORBITER_FADE, onComplete: () => settleDetach(corner) });
-          arcKillers.set(corner, () => tween.kill());
+          arcTweens.set(corner, tween);
           return;
         }
         const tween = gsap.to(local, {
@@ -208,12 +242,12 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
           ease: 'power2.in',
           onComplete: () => settleDetach(corner),
         });
-        arcKillers.set(corner, () => tween.kill());
+        arcTweens.set(corner, tween);
       };
 
       let reconcile: () => void = () => {};
       reconcile = () => {
-        if (arcInFlightRef.current) return;
+        if (lockedRef.current || arcInFlightRef.current) return;
         const shown = shownRef.current;
         const target = targetCountRef.current;
         if (shown.size === target) return;
@@ -233,6 +267,20 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
       };
       reconcileRef.current = reconcile;
 
+      // The work lock's half of this effect: finish every hop in flight — progress(1) runs its
+      // onComplete, which settles the corner and calls reconcile(), a no-op while locked — so the
+      // job never tweens a group a hop is still moving. Then the shown groups, in cornerOrder.
+      lockGroupsRef.current = () => {
+        [...arcTweens.values()].forEach((tween) => tween.progress(1));
+        return plan.cornerOrder
+          .filter((corner) => shownRef.current.has(corner))
+          .map((corner) => {
+            const copy = queryCopy(rootEl, corner);
+            return copy && queryLocal(copy);
+          })
+          .filter((local): local is SVGGElement => local !== null);
+      };
+
       // ----------------------------------------
       // Initial mount — every initially-shown corner attaches at once (a robot powering up, not a
       // queued sequence; the queue above is only for a later count change).
@@ -248,8 +296,9 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
       setTimeline(masterKey, { kill: () => {} } as unknown as ReturnType<typeof gsap.timeline>);
       return () => {
         killTimeline(masterKey);
-        arcKillers.forEach((kill) => kill());
+        arcTweens.forEach((tween) => tween.kill());
         reconcileRef.current = () => {};
+        lockGroupsRef.current = () => [];
       };
     },
     { scope: root, dependencies: [gem, enabled, reducedMotion], revertOnUpdate: true },

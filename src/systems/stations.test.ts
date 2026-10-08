@@ -64,7 +64,7 @@ function minPairDistance(stations: Station[]): number {
 }
 
 /** A station stub at a centre, for the assignment helpers. */
-const at = (id: string, x: number, y: number): Station => ({ id, center: { x, y }, port: { x, y }, capacity: STATION_CAPACITY });
+const at = (id: string, x: number, y: number): Station => ({ id, center: { x, y }, port: { x, y }, capacity: STATION_CAPACITY, gemSeed: 0 });
 
 /** Every world the real placer builds over the 121-seed grid, with its stations. */
 const GRID = SIM_SEED_COORDS.map(({ x, y }) => {
@@ -164,6 +164,23 @@ describe('stations (Phase 43 Task 13, spec §1.6)', () => {
           expect(s.port).toEqual(s.center);
         }
       }
+    });
+
+    it('the box is the station sketch’s 200 × 200 (Task 0a), and no world needs the overlap fallback at that size', () => {
+      // "No world needs the fallback" is the overlap test above passing over the whole grid.
+      expect([STATION_BOX_W, STATION_BOX_H]).toEqual([200, 200]);
+    });
+
+    it('every station carries a gemSeed for its look: an integer in [0, 2^31), varied within and across worlds', () => {
+      for (const w of GRID) {
+        for (const s of w.stations) {
+          expect(Number.isInteger(s.gemSeed)).toBe(true);
+          expect(s.gemSeed).toBeGreaterThanOrEqual(0);
+          expect(s.gemSeed).toBeLessThan(2 ** 31);
+        }
+        expect(new Set(w.stations.map((s) => s.gemSeed)).size, w.id).toBe(w.stations.length);
+      }
+      expect(new Set(GRID.map((w) => w.stations[0].gemSeed)).size).toBeGreaterThanOrEqual(118);
     });
 
     it('stations are JSON-serializable plain data', () => {

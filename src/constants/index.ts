@@ -1,5 +1,3 @@
-import type { JobType } from '../types/Robot';
-
 /** Fixed roster size — every locale spawns exactly this many robots once, at load. */
 export const MAX_ROBOTS = 12;
 
@@ -171,55 +169,79 @@ export const STATION_MIN_SPACING = 480;
 export const STATION_X_RANGE: readonly [number, number] = [240, 1680];
 export const STATION_Y_RANGE: readonly [number, number] = [220, 560];
 /**
- * The station's box, centred on its centre, which must overlap no host's bounds. PLACEHOLDER:
- * Task 0's sketch supplies the real size with Crawford's station design.
+ * The station's box, centred on its centre, which must overlap no host's bounds. 200 × 200 from
+ * the station sketch (Task 0a, 2026-10-07; was a 160 × 120 placeholder). The gem's back layer
+ * fills 0.95 of its half short side (components/stations/stationGem.ts).
  */
-export const STATION_BOX_W = 160;
-export const STATION_BOX_H = 120;
+export const STATION_BOX_W = 200;
+export const STATION_BOX_H = 200;
+/**
+ * Drawn shapes per station, all three fragments plus the halo and ripple circles — the measured
+ * ceiling of components/stations/stationPaint.ts (Phase 43 Task 20). The spec's 16 predates the
+ * station design: Task 0a's four layers can't share paths (robots draw between them), and each
+ * lit slot is its stored robot's own colour. Crawford chose facet shading by overlay (one light +
+ * one dark path per layer, so a lit slot costs one path, not three), 2026-10-07: 19 empty, 25 at
+ * five or six stored. A stored robot is hidden (~30 shapes out of the raster), so each lit slot
+ * is a net saving; Task 26's idle-paint gate judges the rest.
+ */
+export const STATION_SHAPE_BUDGET = 25;
+/** The station's static halo and its ripple ring, scene units (Task 0a verdict: 60, was 52). */
+export const STATION_HALO_RADIUS = 60;
 
 /**
  * A work site's rest after a robot leaves it, in seconds: siteCooldown(n) = clamp(n ×
  * COOLDOWN_PER_SITE, COOLDOWN_MIN, COOLDOWN_MAX) for n eligible sites (siteChoice.ts, spec §1.7).
  * More buildings, longer rest, so work spreads; few buildings, short rest, so robots don't starve.
- * Crawford chose 0.4/3/30 from the readiness sim (Phase 43 Task 15, 2026-10-07) over the 0.6/4/30
- * first guess: mean waiting 6.4 % / 3.7 % of active time at 20 / 200 BPM, with more job variety
- * than shorter rests. The 20 BPM longest wait (34 s) is accepted — it is measure-bound, not
- * cooldown-bound (docs/tasks/ROBOT_JOBS_AND_STATIONS.md, Task 15).
+ * Crawford chose 0.3/2/30 from the readiness re-run at 6–10 s jobs (Phase 43 Task 16b, 2026-10-07):
+ * mean waiting 1.2 % / 1.2 % / 1.3 % of active time at 20 / 110 / 200 BPM, longest wait 20 / 14 /
+ * 10 s. The previous pick, 0.4/3/30 (Task 15, against 2.2–4.3 s jobs), went 1 s over the 15 s cap
+ * at 200 BPM once jobs got longer, and its variety edge had shrunk to 1.52 vs 1.40 switches per
+ * stint (docs/tasks/ROBOT_JOBS_AND_STATIONS.md, Tasks 15 and 16b).
  */
-export const COOLDOWN_PER_SITE = 0.4;
-export const COOLDOWN_MIN = 3;
+export const COOLDOWN_PER_SITE = 0.3;
+export const COOLDOWN_MIN = 2;
 export const COOLDOWN_MAX = 30;
 
 /** A waiting robot's one finite bob before it asks for a site again, in seconds (spec §1.7). */
 export const WAIT_RETRY_SECONDS = 2;
 
-/** A station enter or exit arc — scale + autoAlpha at the port — in seconds (spec §1.7). */
-export const STATION_ARC_SECONDS = 0.9;
+/** A station enter or exit arc — scale + autoAlpha at the port, the ripple's one whole cycle — in
+ *  seconds (spec §1.6/§1.7). 1.0 from the station sketch (Task 0a; was 0.9), landed at Task 20. */
+export const STATION_ARC_SECONDS = 1;
+
+/** A robot's scale at the station port, where it vanishes on entry and appears on exit (spec §1.6,
+ *  the station sketch's 0.15 — superseding §1.7's first-draft 0.4). */
+export const STATION_PORT_SCALE = 0.15;
+
+/** A station arc under reduced motion: an opacity fade in place, no scale, no ripple (spec §1.6). */
+export const STATION_REDUCED_ARC_SECONDS = 0.3;
 
 /**
- * Job time (spec §1.9): jobDuration(job, n) = max(JOB_MIN_SECONDS, JOB_BASE_SECONDS −
- * JOB_WORK_RATE[job] × n) for n orbiters. First guesses — Task 0's sketch pins them. Every rate is
- * the spec's 0.5–0.9 midpoint until then; the sketch gives each job its own.
+ * Job time (spec §1.9): jobDuration(bpm) runs from JOB_BASE_MAX_SECONDS at 20 BPM to
+ * JOB_BASE_MIN_SECONDS at 200 BPM, linear, the same for every job. Pinned by the moves sketch
+ * (Phase 43 Task 0b, 2026-10-07); orbiter count was cut from timing there.
  */
-export const JOB_BASE_SECONDS = 5;
-export const JOB_MIN_SECONDS = 1.5;
-export const JOB_WORK_RATE: Readonly<Record<JobType, number>> = {
-  ventExtraction: 0.7,
-  acousticSurvey: 0.7,
-  structuralInspection: 0.7,
-  fluidMonitoring: 0.7,
-  salvage: 0.7,
-  maintenance: 0.7,
-};
+export const JOB_BASE_MAX_SECONDS = 10;
+export const JOB_BASE_MIN_SECONDS = 6;
+
+/**
+ * A working robot's bob (spec §1.9, buildJobTimeline.ts): ±BOB_PX scene units on its `.robot` group,
+ * in whole cycles of about BOB_CYCLE_SECONDS fitting the job, so it ends where it started.
+ * Kept as sketched (Phase 43 Task 0b).
+ */
+export const BOB_PX = 6;
+export const BOB_CYCLE_SECONDS = 1.2;
+
+/** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
+ *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */
+export const HOVER_GATHER_RADIUS = 14;
+export const HOVER_PULSE_SCALE = 1.3;
 
 /** Robot swim speed, scene units per second (swimAnimation.ts; the loop sim's swims). */
 export const SWIM_SPEED = 120;
 
 /** 4/4 throughout (beatClock.ts); one measure lasts BEATS_PER_MEASURE × 60 / BPM seconds. */
 export const BEATS_PER_MEASURE = 4;
-
-/** Roster-balancing cap: at most this many robots may hold the same job type at once. */
-export const JOB_MAX_ROBOTS_PER_TYPE = 3;
 
 /**
  * Battery-level thresholds (percent) at which a robot's window/viewport and
@@ -230,14 +252,6 @@ export const JOB_MAX_ROBOTS_PER_TYPE = 3;
 export const BATTERY_DIM_THRESHOLD_LOW = 50;      // <= this: 25% dim (opacity 0.75)
 export const BATTERY_DIM_THRESHOLD_MID = 25;      // <  this: 50% dim (opacity 0.50)
 export const BATTERY_DIM_THRESHOLD_CRITICAL = 12; // <= this: 90% dim (opacity 0.10)
-
-/**
- * Below this battery level, an Active robot's idle wandering is confined to
- * the lower third of the world view (idleSystem.ts's pickDestination) — it
- * stays near its south-only exit/dock spot as it runs down, rather than
- * wandering the full map right up until it departs.
- */
-export const BATTERY_LOWER_THIRD_THRESHOLD = 15;
 
 /**
  * Companies (Roadmap Phase 10) — seeded groups of robots that let every editable Robot Options

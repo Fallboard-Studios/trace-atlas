@@ -5,7 +5,7 @@ import alea from 'alea';
 import type { NoiseFunction2D } from 'simplex-noise';
 import type { Vec2 } from '../types/Vec2';
 import type { AudioAttributes, WaveformType, Robot } from '../types/Robot';
-import { RobotState, DockingState } from '../types/Robot';
+import { DockingState } from '../types/Robot';
 import {
   generateMelodyForRobot,
   buildSeededComposition,
@@ -23,7 +23,6 @@ import {
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
 } from '../constants';
 import useLocaleStore from '../stores/localeStore';
-import { initRobotIdleCounter } from './idleSystem';
 import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
@@ -32,6 +31,9 @@ import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentCo
 import type { RobotLfoTargetId, LfoLaneId, LfoLink } from '../types/lfo';
 import { ROBOT_LFO_TARGET_IDS, LFO_DEPTH_MIN } from '../types/lfo';
 import { pickLane, tallyLanes } from '../utils/lfoLaneDraw';
+import { assignStationsAtLoad, getStations } from './stations';
+import { positionForCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
+import { getRobotGem } from '../components/robot/gem/polygon';
 
 // ========================================
 // CONSTANTS
@@ -264,13 +266,9 @@ function getAndIncrementSpawnCount(localeId: string): number {
 // ========================================
 
 /**
- * Generate a spawn position just outside the visible SVG viewBox, below the
- * bottom edge. Robots are invisible here (SVG clips to viewBox) and swim
- * inward on their first idle tick, creating a natural "surfacing from below"
- * entrance. Every robot enters and exits exclusively via the bottom of the
- * world view — this is also what lifecycleVisuals.ts's 'docked' branch reuses to
- * reposition a robot once it's actually docked, so a robot's off-screen
- * resting spot is always south too, never to the sides or above.
+ * A seeded spawn position just outside the visible SVG viewBox, below the bottom edge. Only a
+ * lone spawnRobot keeps it: spawnInitialRoster moves the whole roster to its station ports
+ * (placeRosterAtStations), and the work loop owns every position after that (Phase 43).
  */
 export function generateSpawnPosition(noiseMap: NoiseFunction2D, offset: number): Vec2 {
   return {
@@ -564,7 +562,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
 
   // 30% seeded chance to copy an existing robot's audio personality instead of generating fresh.
   // Copied robots inherit: audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength,
-  // noteVariance, lfoLinks. Always fresh: id, name, position, direction, melody (regenerated
+  // noteVariance, lfoLinks. Always fresh: id, name, position, melody (regenerated
   // from the copied octaveRange/rhythmicDensity/rhythmicMotifLength/noteVariance).
   const copyRoll = noiseMap
     ? getSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1)
@@ -669,7 +667,6 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   });
 
   const position = noiseMap ? generateSpawnPosition(noiseMap, spawnCount) : generateSpawnPosition((_x: number, _y: number) => 0 as number, spawnCount);
-  const spawnDirection: 'left' | 'right' = position.x < (WORLD_WIDTH / 2) ? 'left' : 'right';
 
   const robot: Robot = {
     id: noiseMap ? generateRobotId(noiseMap, spawnCount) : generateRobotId((_x: number, _y: number) => 0 as number, spawnCount),
@@ -681,10 +678,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     gemSeed: noiseMap
       ? generateGemSeed(noiseMap, spawnCount)
       : generateGemSeed((_x: number, _y: number) => 0 as number, spawnCount),
-    state: RobotState.Idle,
     position,
-    destination: null,
-    direction: spawnDirection,
     melody: spawnMelody,
     audioAttributes,
     octaveRange,
@@ -712,15 +706,13 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     })(),
     createdAt: Date.now(),
     docking,
+    // The work loop's starting state (spec §1.2); placeRosterAtStations sets it again at the port.
+    activity: docking === DockingState.Active ? 'exiting' : 'charging',
     batteryLevel,
   };
 
   // Add to locale store
   useLocaleStore.getState().addRobot(localeId, robot);
-
-  // Seed the idle counter to this robot's spawn index so its noise-sampled
-  // destinations are phase-shifted away from other robots in the same locale.
-  initRobotIdleCounter(robot.id, spawnCount);
 
   // Every robot gets a reserved voice and registered melody, regardless of
   // docking state — mute is enforced by AudioEngine reading `audioMode` at
@@ -757,7 +749,8 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
  * Create the full fixed-size roster (MAX_ROBOTS robots) once, at locale load.
  * A seeded count within [INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX]
  * start Active (full battery); the rest start Docked with varied seeded
- * starting battery so they don't all finish recharging in lockstep. Does
+ * starting battery so they don't all finish recharging in lockstep. Then
+ * every robot is placed at its station's port (placeRosterAtStations). Does
  * NOT assign jobs — worldTransition.ts's initializeLocale does that for the
  * initially-Active robots immediately after this returns (see
  * docs/specs/ROBOT_SYSTEMS_ENGINE.md's Architecture Decisions on why job
@@ -785,6 +778,31 @@ export function spawnInitialRoster(localeId: string): void {
       spawnRobot(localeId, { docking: DockingState.Docked, batteryLevel: dockedBattery });
     }
   }
+
+  placeRosterAtStations(localeId);
+}
+
+/**
+ * Phase 43 (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.6, correction 2): every robot starts at its
+ * station's port — assigned by roster index modulo station count — Docked ones 'charging', Active
+ * ones 'exiting'. One store write for the whole roster, after the last spawn.
+ */
+function placeRosterAtStations(localeId: string): void {
+  const robots = useLocaleStore.getState().getLocaleById(localeId)?.robots ?? [];
+  const stations = getStations(localeId);
+  const stationById = new Map(stations.map((s) => [s.id, s]));
+  const assigned = assignStationsAtLoad(robots.map((r) => r.id), stations);
+  useLocaleStore.getState().setLocaleData(localeId, {
+    robots: robots.map((r) => {
+      const station = stationById.get(assigned[r.id])!;
+      return {
+        ...r,
+        stationId: station.id,
+        position: positionForCentre(station.port, getRobotGem(r.gemSeed)),
+        activity: r.docking === DockingState.Docked ? 'charging' : 'exiting',
+      };
+    }),
+  });
 }
 
 /**

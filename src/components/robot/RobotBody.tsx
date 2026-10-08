@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { memo, useMemo, useRef } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef } from 'react';
 
 import type { Robot } from '../../types/Robot';
 import {
@@ -14,6 +14,7 @@ import {
 } from './robotVisualHelpers';
 import { useUIStore } from '../../stores/uiStore';
 import { useLocaleStore } from '../../stores/localeStore';
+import { registerArcDecorator, deleteArcDecorator } from '../../animation/robotMotionRegistry';
 import { getActiveLocaleId } from '../../utils/localeHelpers';
 import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo, type RobotGemRipple } from './gem/RobotGem';
 import { useOrbiterMotion } from './gem/useOrbiterMotion';
@@ -70,9 +71,9 @@ const FALLBACK_IDENTITY = '#78cce2';
  * its own inputs: the halo (volume, envelope, identity and the company colour — the one non-audio
  * visual input, read with a narrow selector so a company rename never re-renders the body) and
  * the Top/Mid line widths (the gain-LFO link depths). In world/avatar, `useHaloMotion` owns the
- * halo's attributes after mount; its `decorateArc` is not currently wired to anything (2026-10-06:
- * the density-driven orbiter attach/detach hop no longer decorates — the halo is reserved for a
- * future job-detach animation), so the halo is not currently visible anywhere. `useStripFlicker`
+ * halo's attributes after mount; its `decorateArc` is registered (world only) for the work loop's
+ * station exit/entry arcs (Phase 43) and has no caller yet (2026-10-06: the density-driven orbiter
+ * attach/detach hop no longer decorates), so the halo is not currently visible anywhere. `useStripFlicker`
  * plays each line's two-second flicker on its own trigger tuple. On cards (no `motion`) neither
  * hook runs — `enabled: false` returns before touching GSAP — and the halo never renders at all.
  */
@@ -185,10 +186,11 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
 
   // 2026-10-06 (Crawford): the orbiter attach/detach hop below is density-driven (every hop today
   // traces to rhythmicDensity via orbiterDials().count), and the halo's ripple is reserved for the
-  // future job-detach animation instead — so its `decorateArc` is no longer wired into
-  // useOrbiterMotion here. useHaloMotion itself is unchanged; this call still owns the halo's
-  // mount state and dial tween.
-  useHaloMotion({
+  // station exit/entry arcs instead — so its `decorateArc` is not wired into useOrbiterMotion.
+  // Phase 43 (spec §1.8): in the world context it is registered in robotMotionRegistry for the
+  // work loop, which calls it on those arcs. This call still owns the halo's mount state and dial
+  // tween.
+  const { decorateArc } = useHaloMotion({
     root: gemRef,
     robotId: robot.id,
     context: motion ?? 'world',
@@ -196,6 +198,13 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     dimOpacity,
     enabled: motionEnabled,
   });
+  // A layout effect: the parent Robot's mount (useGSAP, also layout) hands the robot to the work
+  // loop, which can play an exit arc at once and reads this decorator then (Phase 43 Task 23).
+  useLayoutEffect(() => {
+    if (motion !== 'world') return;
+    registerArcDecorator(robot.id, decorateArc);
+    return () => deleteArcDecorator(robot.id, decorateArc);
+  }, [motion, robot.id, decorateArc]);
 
   useOrbiterMotion({
     root: gemRef,

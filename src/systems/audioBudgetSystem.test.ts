@@ -20,11 +20,8 @@ import { isRobotAudible } from '../utils/robotAudibility';
 // MOCKS
 // ========================================
 
-// Same mocks robotSystems.test.ts uses, so the real lifecycle tick can run without GSAP/SVG side effects.
-vi.mock('./idleSystem', () => ({
-  handleRobotIdle: vi.fn(),
-  pickExitDestination: vi.fn(() => ({ x: -150, y: 300 })),
-}));
+// The real lifecycle tick runs without GSAP/SVG side effects: its seam reaches the work loop, which
+// does nothing while no loop is started, and swims are stubbed regardless.
 vi.mock('../animation/swimAnimation', () => ({ createSwimTimeline: vi.fn() }));
 vi.mock('../engine/beatClock', () => ({
   subscribeToMeasure: vi.fn(() => vi.fn()),
@@ -49,10 +46,7 @@ function makeRobot(id: string, overrides: Partial<Robot> = {}): Robot {
     name: id,
     identityColor: '#428d95',
     gemSeed: 1,
-    state: 'idle',
     position: { x: 100, y: 100 },
-    destination: null,
-    direction: 'right',
     melody: [{ id: `${id}-e1`, startStep: 1, length: '16n', noteIndex: 0, octave: 4 }],
     audioAttributes: {
       adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 },
@@ -64,6 +58,7 @@ function makeRobot(id: string, overrides: Partial<Robot> = {}): Robot {
     createdAt: 0,
     masterVolume: 0.7,
     docking: DockingState.Active,
+    activity: 'exiting',
     batteryLevel: 100,
     audioMode: 'none',
     ...overrides,

@@ -18,8 +18,8 @@ import { useUIStore } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
-import { JOB_TYPE_LABELS, UNASSIGNED_JOB_LABEL, DOCKING_STATE_LABELS, AUDIBILITY_LABELS } from '@/data/robotSelectionConfig';
-import type { Robot } from '@/types/Robot';
+import { JOB_TYPE_LABELS, UNASSIGNED_JOB_LABEL, DOCKING_STATE_LABELS, AUDIBILITY_LABELS, ACTIVITY_LABELS } from '@/data/robotSelectionConfig';
+import type { Robot, RobotActivity } from '@/types/Robot';
 import type { Locale } from '@/types/locale';
 
 function makeRobot(overrides: Partial<Robot> = {}): Robot {
@@ -27,10 +27,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     id: 'r1',
     name: 'Unit One',
     identityColor: '#428d95',
-    state: 'idle',
     position: { x: 0, y: 0 },
-    destination: null,
-    direction: 'right',
     melody: [],
     audioAttributes: {
       adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.3 },
@@ -41,6 +38,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     createdAt: Date.now(),
     masterVolume: 0.7,
     docking: 'active',
+    activity: 'working',
     batteryLevel: 72.4,
     gemSeed: 20261004,
     ...overrides,
@@ -57,6 +55,23 @@ function renderCard(overrides: Partial<Robot> = {}) {
   const robot = makeRobot(overrides);
   useLocaleStore.getState().addRobot(localeId, robot);
   return { robot, ...render(<RobotSelectionCard robotId={robot.id} />) };
+}
+
+const ACTIVITIES = ['charging', 'exiting', 'transit', 'working', 'waiting', 'returning', 'entering'] as const satisfies readonly RobotActivity[];
+
+/** The status line's held cells (docking, then activity) — each stacks every label of its set. */
+function heldCells(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>('.robot-selection-card__status-line .robot-selection-card__held')];
+}
+
+/** What the status line SHOWS: a held cell contributes only its current word (the rest are sizers). */
+function statusLineText(): string {
+  const line = document.querySelector('.robot-selection-card__status-line')!;
+  return [...line.childNodes]
+    .map((n) => (n instanceof HTMLElement && n.classList.contains('robot-selection-card__held')
+      ? n.querySelector('[data-current]')?.textContent ?? ''
+      : n.textContent ?? ''))
+    .join('');
 }
 
 describe('RobotSelectionCard', () => {
@@ -99,9 +114,63 @@ describe('RobotSelectionCard', () => {
     expect(screen.getByText('72%')).toBeTruthy();
   });
 
-  it('renders the docking state as part of the combined "Docking · Status" line, not standalone', () => {
-    renderCard({ docking: 'docked', audioMode: 'none' });
-    expect(screen.getByText(`${DOCKING_STATE_LABELS.docked.humanLabel} · ${AUDIBILITY_LABELS.emitting.humanLabel}`)).toBeTruthy();
+  it('renders the docking state as part of the combined "Docking · Activity · Status" line, not standalone', () => {
+    renderCard({ docking: 'docked', activity: 'charging', audioMode: 'none' });
+    expect(statusLineText()).toBe(
+      `${DOCKING_STATE_LABELS.docked.humanLabel} · ${ACTIVITY_LABELS.charging.humanLabel} · ${AUDIBILITY_LABELS.emitting.humanLabel}`,
+    );
+  });
+
+  describe('activity (Phase 43 Task 25, spec §1.11)', () => {
+    it.each(ACTIVITIES)('renders the %s activity\'s label between docking and audibility', (activity) => {
+      const docking = activity === 'charging' ? 'docked' : activity === 'returning' || activity === 'entering' ? 'recalled' : 'active';
+      renderCard({ docking, activity, audioMode: 'none' });
+      expect(statusLineText()).toBe(
+        `${DOCKING_STATE_LABELS[docking].humanLabel} · ${ACTIVITY_LABELS[activity].humanLabel} · ${AUDIBILITY_LABELS.emitting.humanLabel}`,
+      );
+    });
+
+    it('updates live when the loop writes a new activity', () => {
+      renderCard({ id: 'r1', activity: 'transit' });
+      expect(statusLineText()).toBe(`Active · ${ACTIVITY_LABELS.transit.humanLabel} · Emitting`);
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { activity: 'working' }));
+      expect(statusLineText()).toBe(`Active · ${ACTIVITY_LABELS.working.humanLabel} · Emitting`);
+    });
+
+    // Project rule (controls hold their largest content size): the activity and docking words are
+    // each followed by more of the line, so each renders EVERY label of its set stacked in one cell —
+    // only the current one visible — and the words after it never shift as the lifecycle moves on.
+    it('holds the activity word at its largest label: all seven rendered, exactly one current', () => {
+      renderCard({ activity: 'returning', docking: 'recalled' });
+      const [, activityCell] = heldCells();
+      const words = [...activityCell.children] as HTMLElement[];
+      expect(words.map((w) => w.textContent)).toEqual(ACTIVITIES.map((a) => ACTIVITY_LABELS[a].humanLabel));
+      expect(words.filter((w) => w.hasAttribute('data-current')).map((w) => w.textContent)).toEqual([ACTIVITY_LABELS.returning.humanLabel]);
+    });
+
+    it('holds the docking word the same way, since activity and audibility follow it', () => {
+      renderCard({ docking: 'undocking', activity: 'charging' });
+      const [dockingCell] = heldCells();
+      const words = [...dockingCell.children] as HTMLElement[];
+      expect(words.map((w) => w.textContent)).toEqual(Object.values(DOCKING_STATE_LABELS).map((l) => l.humanLabel));
+      expect(words.filter((w) => w.hasAttribute('data-current')).map((w) => w.textContent)).toEqual([DOCKING_STATE_LABELS.undocking.humanLabel]);
+    });
+
+    it('changing the activity changes which word is current, not the set of words in the cell', () => {
+      renderCard({ id: 'r1', activity: 'exiting' });
+      const before = heldCells()[1].textContent;
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { activity: 'waiting' }));
+      expect(heldCells()[1].textContent).toBe(before);
+      expect(statusLineText()).toContain(ACTIVITY_LABELS.waiting.humanLabel);
+    });
+
+    it('the stacked words are hidden from assistive tech — only the card\'s own aria-label names it', () => {
+      renderCard();
+      const cells = heldCells();
+      expect(cells).toHaveLength(2);
+      for (const cell of cells) expect(cell.getAttribute('aria-hidden')).toBe('true');
+      expect(screen.getByRole('button').getAttribute('aria-label')).toBe('Unit One');
+    });
   });
 
   it('renders Battery as the read-only SliderLinear (Roadmap 15.1) — role="status", not role="slider" — with its label kept', () => {
@@ -147,12 +216,12 @@ describe('RobotSelectionCard', () => {
   describe('audibility status ("Docking · Status" line, true audibility per isRobotAudible)', () => {
     it('reads "<Docking> · Emitting" for an audible robot (audioMode none, nobody soloed)', () => {
       renderCard({ docking: 'active', audioMode: 'none' });
-      expect(screen.getByText(`Active · ${AUDIBILITY_LABELS.emitting.humanLabel}`)).toBeTruthy();
+      expect(statusLineText()).toBe(`Active · Working · ${AUDIBILITY_LABELS.emitting.humanLabel}`);
     });
 
     it('reads "<Docking> · Disabled" for this robot\'s own audioMode mute', () => {
       renderCard({ docking: 'active', audioMode: 'mute' });
-      expect(screen.getByText(`Active · ${AUDIBILITY_LABELS.disabled.humanLabel}`)).toBeTruthy();
+      expect(statusLineText()).toBe(`Active · Working · ${AUDIBILITY_LABELS.disabled.humanLabel}`);
     });
 
     it('reads Disabled when ANOTHER robot in the same locale is soloed, even though this one\'s own audioMode is none', () => {
@@ -162,7 +231,7 @@ describe('RobotSelectionCard', () => {
       useLocaleStore.getState().addRobot(localeId, soloRobot);
 
       render(<RobotSelectionCard robotId="r1" />);
-      expect(screen.getByText(`Active · ${AUDIBILITY_LABELS.disabled.humanLabel}`)).toBeTruthy();
+      expect(statusLineText()).toBe(`Active · Working · ${AUDIBILITY_LABELS.disabled.humanLabel}`);
     });
 
     it('reads Emitting for the soloed robot itself', () => {
@@ -170,33 +239,33 @@ describe('RobotSelectionCard', () => {
       useLocaleStore.getState().addRobot(localeId, soloRobot);
 
       render(<RobotSelectionCard robotId="r2" />);
-      expect(screen.getByText(`Active · ${AUDIBILITY_LABELS.emitting.humanLabel}`)).toBeTruthy();
+      expect(statusLineText()).toBe(`Active · Working · ${AUDIBILITY_LABELS.emitting.humanLabel}`);
     });
 
     describe('Audio Load budget: "Standing by"', () => {
       it('reads Standing by for an eligible robot outside the sounding set', () => {
         useAudioStore.setState({ soundingRobotIds: ['someone-else'] });
         renderCard({ docking: 'active', audioMode: 'none' });
-        expect(screen.getByText(`Active · ${AUDIBILITY_LABELS.limited.humanLabel}`)).toBeTruthy();
+        expect(statusLineText()).toBe(`Active · Working · ${AUDIBILITY_LABELS.limited.humanLabel}`);
         expect(screen.queryByText(/Emitting/)).toBeNull();
       });
 
       it('reads Emitting for a robot in the sounding set', () => {
         useAudioStore.setState({ soundingRobotIds: ['r1', 'someone-else'] });
         renderCard({ id: 'r1', audioMode: 'none' });
-        expect(screen.getByText(`Active · ${AUDIBILITY_LABELS.emitting.humanLabel}`)).toBeTruthy();
+        expect(statusLineText()).toBe(`Active · Working · ${AUDIBILITY_LABELS.emitting.humanLabel}`);
       });
 
       it('still reads Disabled for a muted robot that is not in the set', () => {
         useAudioStore.setState({ soundingRobotIds: ['someone-else'] });
         renderCard({ audioMode: 'mute' });
-        expect(screen.getByText(`Active · ${AUDIBILITY_LABELS.disabled.humanLabel}`)).toBeTruthy();
+        expect(statusLineText()).toBe(`Active · Working · ${AUDIBILITY_LABELS.disabled.humanLabel}`);
       });
 
       it('reads Emitting while the sounding list is empty (budget not running: Full is unchanged)', () => {
         useAudioStore.setState({ soundingRobotIds: [] });
         renderCard({ audioMode: 'none' });
-        expect(screen.getByText(`Active · ${AUDIBILITY_LABELS.emitting.humanLabel}`)).toBeTruthy();
+        expect(statusLineText()).toBe(`Active · Working · ${AUDIBILITY_LABELS.emitting.humanLabel}`);
       });
 
       it('updates live when a slot frees and the robot is admitted, and when it is evicted again', () => {

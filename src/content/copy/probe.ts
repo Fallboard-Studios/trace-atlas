@@ -72,6 +72,22 @@ export const probe = {
       recalled: { human: 'Recalled', lore: 'RECALLED' },
     },
   },
+  /** What the work loop has the robot doing right now (Phase 43 spec §1.11) — the second word of the
+   *  selection card's status line, and its own row in the detail view. Lore lines are drafts for
+   *  Crawford's review (Task 25). */
+  'probe.status.activity': {
+    human: 'Activity',
+    lore: 'OPERATIONAL PHASE',
+    options: {
+      charging: { human: 'Charging', lore: 'CELL REPLENISHMENT' },
+      exiting: { human: 'Exiting', lore: 'BERTH DEPARTURE' },
+      transit: { human: 'In transit', lore: 'EN ROUTE TO SITE' },
+      working: { human: 'Working', lore: 'PROTOCOL IN PROGRESS' },
+      waiting: { human: 'Waiting', lore: 'HOLDING FOR CLEARANCE' },
+      returning: { human: 'Returning', lore: 'RETURNING TO BERTH' },
+      entering: { human: 'Entering', lore: 'BERTH ARRIVAL' },
+    },
+  },
   'probe.status': {
     human: 'Status',
     lore: 'ACOUSTIC EMISSION STATE',

@@ -1,8 +1,8 @@
 /**
  * Per-robot count of Docked landings. robotSystems.ts advances it on every Docked landing and
- * threads it into the lifecycle snapshot, where it seeds pitch drift; lifecycleVisuals.ts reads the
- * same count to seed the off-screen dock position (Phase 43 Task 5 — one counter, two readers, so
- * the two can never disagree). Live state only: never replayed or persisted.
+ * threads it into the lifecycle snapshot, where it seeds pitch drift. (Its second reader, the legacy
+ * off-screen dock position, went with the work loop's stations — Phase 43 Task 24.) Live state
+ * only: never replayed or persisted.
  */
 const dockCycleCounters = new Map<string, number>();
 

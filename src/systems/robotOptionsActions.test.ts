@@ -31,10 +31,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     id: 'r1',
     compositionSeed: 0.5,
     name: 'Test Robot',
-    state: 'idle',
     position: { x: 0, y: 0 },
-    destination: null,
-    direction: 'right',
     melody: [],
     audioAttributes: {
       adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 },

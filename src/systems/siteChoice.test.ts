@@ -192,13 +192,16 @@ describe('siteChoice (Phase 43 Task 14, spec §1.7)', () => {
   });
 
   describe('siteCooldown', () => {
-    it('pins the constants Crawford chose from the Task 15 readiness sim (0.4/3/30, over the 0.6/4/30 first guess)', () => {
-      expect([COOLDOWN_PER_SITE, COOLDOWN_MIN, COOLDOWN_MAX]).toEqual([0.4, 3, 30]);
+    it('pins the constants Crawford chose from the Task 16b readiness re-run (0.3/2/30 at 6–10 s jobs; was 0.4/3/30)', () => {
+      expect([COOLDOWN_PER_SITE, COOLDOWN_MIN, COOLDOWN_MAX]).toEqual([0.3, 2, 30]);
     });
 
     it('is n × COOLDOWN_PER_SITE between the clamps', () => {
-      expect(siteCooldown(14)).toBeCloseTo(5.6);
-      expect(siteCooldown(20)).toBeCloseTo(8);
+      expect(siteCooldown(14)).toBeCloseTo(4.2);
+      expect(siteCooldown(20)).toBeCloseTo(6);
+      // Either side of the low knee (2 / 0.3 ≈ 6.7 sites): 6 sites clamp, 7 don't.
+      expect(siteCooldown(6)).toBe(2);
+      expect(siteCooldown(7)).toBeCloseTo(2.1);
     });
 
     it('clamps at the low end: few sites, short rest', () => {

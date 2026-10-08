@@ -22,6 +22,9 @@ import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentCo
 import { tallyLanes } from '../utils/lfoLaneDraw';
 import { buildSeededComposition, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT } from '../engine/melodyGenerator';
 import * as robotLfoLinks from './robotLfoLinks';
+import { getStations, type Station } from './stations';
+import { positionForCentre, robotCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
+import { chargingColorsKey, parseColorsKey } from '../components/stations/stationOccupancy';
 
 // Spy on getSeededVal while keeping its real behavior (the globalAudioSeed.test.ts/
 // worldTransition.test.ts importOriginal pattern) — the lfoLinks-at-spawn tests below need to
@@ -33,6 +36,12 @@ vi.mock('../utils/getSeededVal', async (importOriginal) => {
 });
 
 import { getSeededVal } from '../utils/getSeededVal';
+
+// Real stations by default; the port-vs-centre and overfill tests swap in their own.
+vi.mock('./stations', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./stations')>();
+  return { ...actual, getStations: vi.fn(actual.getStations) };
+});
 
 /** General-purpose mock: returns a pseudo-random value in [-1, 1]. */
 const mockNoiseMap: NoiseFunction2D = () => Math.random() * 2 - 1;
@@ -346,9 +355,16 @@ describe('spawnSystem', () => {
 
       const robot = robots[0];
       expect(robot.id).toBeDefined();
-      expect(robot.state).toBe('idle');
       expect(robot.position).toBeDefined();
-      expect(robot.destination).toBeNull();
+      // The wandering fields are gone (Phase 43 Task 24); the work loop owns motion.
+      expect(robot).not.toHaveProperty('state');
+      expect(robot).not.toHaveProperty('destination');
+      expect(robot).not.toHaveProperty('direction');
+      // `activity` is required (spec §1.2): a lone spawn already has the loop's starting state.
+      expect(robot.docking).toBe('active');
+      expect(robot.activity).toBe('exiting');
+      spawnRobot(DEFAULT_LOCALE_ID, { docking: DockingState.Docked, batteryLevel: 40 });
+      expect(useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[1].activity).toBe('charging');
       expect(robot.melody).toBeDefined();
       expect(robot.melody.length).toBeGreaterThan(0);
       expect(robot.audioAttributes).toBeDefined();
@@ -1143,6 +1159,117 @@ describe('spawnSystem', () => {
       const colorsRun2 = (store2.useLocaleStore.getState().getLocaleById(attenuationStyle2.DEFAULT_LOCALE_ID)?.robots ?? []).map((r) => r.identityColor);
 
       expect(colorsRun2).toEqual(colorsRun1);
+    });
+  });
+
+  describe('spawnInitialRoster — stations (Phase 43 Task 21, spec §1.6)', () => {
+    const roster = () => useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
+
+    beforeEach(() => {
+      useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
+    });
+
+    it('assigns every robot a station by roster index modulo station count, within capacity', () => {
+      spawnInitialRoster(DEFAULT_LOCALE_ID);
+      const stations = getStations(DEFAULT_LOCALE_ID);
+      expect(stations.length).toBeGreaterThanOrEqual(2);
+      const robots = roster();
+      robots.forEach((r, i) => expect(r.stationId, r.id).toBe(stations[i % stations.length].id));
+      for (const s of stations) {
+        expect(robots.filter((r) => r.stationId === s.id).length).toBeLessThanOrEqual(s.capacity);
+      }
+    });
+
+    it("puts every robot's centre on its station's port", () => {
+      spawnInitialRoster(DEFAULT_LOCALE_ID);
+      const byId = new Map(getStations(DEFAULT_LOCALE_ID).map((s) => [s.id, s]));
+      for (const r of roster()) {
+        const gem = getRobotGem(r.gemSeed);
+        expect(r.position, r.id).toEqual(positionForCentre(byId.get(r.stationId!)!.port, gem));
+        expect(robotCentre(r, gem)).toEqual(byId.get(r.stationId!)!.port);
+      }
+    });
+
+    it("Docked robots start 'charging', Active robots 'exiting' (correction 2); nobody holds a site", () => {
+      spawnInitialRoster(DEFAULT_LOCALE_ID);
+      const robots = roster();
+      // The seeded split must include both, or this test proves only one branch.
+      expect(robots.some((r) => r.docking === DockingState.Docked)).toBe(true);
+      expect(robots.some((r) => r.docking === DockingState.Active)).toBe(true);
+      for (const r of robots) {
+        expect(r.activity, r.id).toBe(r.docking === DockingState.Docked ? 'charging' : 'exiting');
+        expect(r.siteId).toBeUndefined();
+      }
+    });
+
+    it('uses the port, not the centre, when the two differ', () => {
+      // Real stations have port === center (spec §1.6, still open in the sketch), so only a
+      // distinguishing fixture proves which one spawn reads.
+      const stations: Station[] = [
+        { id: 'station-0', center: { x: 500, y: 300 }, port: { x: 520, y: 340 }, capacity: 6, gemSeed: 1 },
+        { id: 'station-1', center: { x: 1200, y: 400 }, port: { x: 1180, y: 430 }, capacity: 6, gemSeed: 2 },
+      ];
+      vi.mocked(getStations).mockReturnValueOnce(stations);
+      spawnInitialRoster(DEFAULT_LOCALE_ID);
+      roster().forEach((r, i) => expect(robotCentre(r, getRobotGem(r.gemSeed))).toEqual(stations[i % 2].port));
+    });
+
+    it('refuses to overfill: a roster that cannot fit throws (assignStationsAtLoad), never stacks a seventh robot', () => {
+      vi.mocked(getStations).mockReturnValueOnce([
+        { id: 'station-0', center: { x: 500, y: 300 }, port: { x: 500, y: 300 }, capacity: 6, gemSeed: 1 },
+      ]);
+      expect(() => spawnInitialRoster(DEFAULT_LOCALE_ID)).toThrow(/do not fit/);
+    });
+
+    it('the initial Docked count lights exactly that many slots across the stations', () => {
+      spawnInitialRoster(DEFAULT_LOCALE_ID);
+      const robots = roster();
+      const lit = getStations(DEFAULT_LOCALE_ID).reduce((n, s) => n + parseColorsKey(chargingColorsKey(robots, s.id)).length, 0);
+      expect(lit).toBe(robots.filter((r) => r.docking === DockingState.Docked).length);
+    });
+
+    it('writes the roster in one store update after the last spawn, not one per robot', () => {
+      let writes = 0;
+      const unsubscribe = useLocaleStore.subscribe(() => { writes++; });
+      spawnInitialRoster(DEFAULT_LOCALE_ID);
+      unsubscribe();
+      // One addRobot per robot, then exactly one station write for the whole roster.
+      expect(writes).toBe(MAX_ROBOTS + 1);
+    });
+
+    it('the new fields survive a JSON round trip unchanged', () => {
+      spawnInitialRoster(DEFAULT_LOCALE_ID);
+      // Only the fields this task writes: an unrelated `audioAttributes.detune` can be -0, which
+      // JSON turns into 0 (toEqual tells them apart).
+      const fields = roster().map((r) => ({ stationId: r.stationId, activity: r.activity, position: r.position }));
+      expect(JSON.parse(JSON.stringify(fields))).toEqual(fields);
+    });
+
+    it('is deterministic — same coordinates, same stations, positions and activities', async () => {
+      const snapshot = async () => {
+        vi.resetModules();
+        const spawn = await import('./spawnSystem');
+        const store = await import('../stores/localeStore');
+        const style = await import('../stores/attenuationStyleStore');
+        store.useLocaleStore.setState({ locales: { [style.DEFAULT_LOCALE_ID]: store.DEFAULT_LOCALE } });
+        spawn.spawnInitialRoster(style.DEFAULT_LOCALE_ID);
+        return (store.useLocaleStore.getState().getLocaleById(style.DEFAULT_LOCALE_ID)?.robots ?? [])
+          .map((r) => ({ stationId: r.stationId, position: r.position, activity: r.activity }));
+      };
+      expect(await snapshot()).toEqual(await snapshot());
+    });
+
+    it('an unknown locale spawns nothing and does not throw', () => {
+      expect(() => spawnInitialRoster('no-such-locale')).not.toThrow();
+      expect(useLocaleStore.getState().getLocaleById('no-such-locale')).toBeUndefined();
+    });
+
+    it('spawnRobot alone (no roster) leaves stationId and siteId unset; activity is its docking\'s starting state (Task 24: required)', () => {
+      spawnRobot(DEFAULT_LOCALE_ID);
+      const [r] = roster();
+      expect(r.stationId).toBeUndefined();
+      expect(r.activity).toBe('exiting');
+      expect(r.siteId).toBeUndefined();
     });
   });
 

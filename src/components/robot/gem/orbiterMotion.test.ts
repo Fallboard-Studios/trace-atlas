@@ -4,7 +4,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import alea from 'alea';
 
-import { orbiterPlan, gemMotionViewBox, ATTACH_DROP } from './orbiterMotion';
+import { orbiterPlan, gemMotionViewBox, ATTACH_DROP, ATTACH_DURATION } from './orbiterMotion';
 import { ORBITER_SIZE_MAX } from './orbiterDials';
 import { getRobotGem, generateRobotGem, gemWidth, GEM_CANVAS_H, WIDTH_FACTORS, type RobotGem, type WidthFactor } from './polygon';
 import fixture from './gem.fixture.json';
@@ -58,6 +58,12 @@ describe('orbiterPlan — cornerOrder is a permutation of 0..3, over 1000 seeds'
       const plan = orbiterPlan(s + 1_000_000);
       expect([...plan.cornerOrder].sort()).toEqual([0, 1, 2, 3]);
     }
+  });
+});
+
+describe('attach/detach flight timing (Phase 43 Task 0b — flights sit inside jobDuration)', () => {
+  it('ATTACH_DURATION is 1 s each way (was 0.5)', () => {
+    expect(ATTACH_DURATION).toBe(1);
   });
 });
 

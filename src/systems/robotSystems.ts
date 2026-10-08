@@ -9,7 +9,7 @@ import useLocaleStore from '../stores/localeStore';
 import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 import { AudioEngine } from '../engine/AudioEngine';
 import { reRollMelodyPitches } from '../engine/melodyGenerator';
-import { onLifecycleChange } from './lifecycleVisuals';
+import { onLifecycleChange } from './workLoop';
 import { getDockCycleCount, recordDockLanding } from './dockCycles';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
@@ -31,7 +31,7 @@ let lifecycleUnsubscribe: (() => void) | null = null;
 // ========================================
 
 /**
- * Begin the Recalled hold. The visual consequence (today: the exit swim) is the
+ * Begin the Recalled hold. The visual consequence (the work loop sends it home) is the
  * onLifecycleChange seam's — this writes docking state only (Phase 43, spec §1.1).
  */
 function beginRecall(localeId: string, robotId: string, measure: number): void {
@@ -253,8 +253,8 @@ export function stopRobotLifecycle(): void {
 /**
  * Land on Active: unmute via `audioMode` (the same toggle Robot Options
  * exposes — RobotAudioTab's Audio Mode control — so a user can independently
- * override it), then hand the visual side (today: assign a job, restart
- * wandering) to the onLifecycleChange seam.
+ * override it), then hand the visual side (the work loop: out of the station, or a
+ * turn-back) to the onLifecycleChange seam.
  *
  * Voice reservation and melody registration are NOT done here — every robot
  * gets both once, at spawn (spawnSystem.ts's spawnRobot), regardless of
@@ -282,7 +282,7 @@ export function landOnActive(localeId: string, robotId: string): void {
  * user can flip it back in Robot Options and hear the robot anyway). The
  * melody is re-registered with AudioEngine after the drift so a manual mute
  * override plays the drifted pitches, not the stale pre-drift ones. No
- * position write — the visual side (today: the off-screen dock position) is
+ * position write — the visual side (nothing: the entry ends in charging by itself) is
  * the onLifecycleChange seam's, called last.
  *
  * `driftedMelody` is computed by the caller (tickRobotLifecycle, via
