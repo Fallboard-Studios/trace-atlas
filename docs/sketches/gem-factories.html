@@ -1,0 +1,857 @@
+<!doctype html>
+<!-- Gem factories, option A — idea sketch, 2026-10-08.
+     The question (Crawford, 2026-10-08): the gem robots (Phase 39) and the world they sit in "feel like one
+     style randomly placed on another". Would the world and buildings matching the gem style be crazy?
+     Options discussed: A = material only (keep the universal rectangle, add the gem bevel ring, three quantized
+     facet tones and an outline; windows, belts and greebles untouched); B = chamfered silhouettes;
+     C = buildings as stacked gem parts like the charging stations. Crawford asked for a sketch of A, with two
+     rulings already made: the hour-driven east/west sun wins (not the robots' fixed top-left light), and the
+     windows stay. Everything else is open.
+
+     What this sketch does: five factory variants (sizes and palette from factoryVariants.ts / colorTheme.json),
+     drawn today's way and then with the option A material, under the real getLighting curve (lightingUtils.ts),
+     with a live gem robot beside each (generator ported from gem-polygon-robots.html, drawn as the app draws it:
+     one fixed top-left light, 2.5-unit bevel, three tones). The facets on a building take their light from the
+     hour: a light vector whose sideways component is (eastL − westL) and whose downward component is fixed, so at
+     9 am the east (right) facet and the top are lit and the west and bottom are shaded; at noon the sides go
+     neutral; the quantizer is gemShading.ts's quantizeShade at 3 tones and the per-tone multipliers are
+     gemShape.tsx's (0.5 / 1.1 / 1.25). The face inside the ring is exactly today's fill, so option A is a pure
+     addition: switch the bevel to 0 and the two rows match.
+
+     Approximations (not the live code): the Phase 35 accent lean is a halfway hue pull toward one seeded accent
+     plus a saturation lift; belt courses/windows use the live grid rules but one window type; rooftop greebles
+     are a plain machinery box or two; the robot's day/night overlay is a brightness filter; depth rows are a
+     cap plus a scale. Nothing here moves. Static-layer content only (ANIMATION_SYSTEM.md "Scene layers").
+
+     Gate questions: Does the ring alone make a building and a robot read as the same material? Does the
+     east/west sun survive on the facets, or do the facets flatten it? At what bevel depth does a building stop
+     reading as a silhouette (the "silhouette-first" pillar, BUILDING_DESIGN.md)? Does a robot still pop against
+     a gem building, or do they merge? Do the windows sit happily inside the ring? Night: do lit windows plus an
+     outline read as one object? Is the outline wanted at all? Element count: each building gains 7 shapes
+     (6 facets + outline) plus 5 per bevelled roof box — fine for a static layer, but the lighting tick repaints
+     the whole layer, so read the readout's count.
+     Verdicts (Crawford, fill in):
+       material match: ___   bevel depth: ___   outline: ___ (width ___)   roof boxes bevelled: ___
+       boundary lines on faces: ___   lateral sun strength: ___   facet contrast: ___
+       next: stay at A / go to B (chamfer) / go to C (stacks) / drop -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Gem factories — option A sketch</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #12161a; color: #e4e6ea; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 28px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  p.note { font-size: 12px; color: #9aa; max-width: 980px; margin: 4px 0 12px; }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; max-width: 980px; }
+  .pending b { color: #e8b84a; }
+  .controls { display: flex; gap: 14px; align-items: center; font-size: 13px; margin: 12px 0 10px; flex-wrap: wrap; }
+  .controls input[type=text] { background: #1a2027; color: #e4e6ea; border: 1px solid rgba(140,190,210,.14); padding: 4px 8px; font-family: monospace; width: 140px; }
+  .controls button { background: #1a2027; color: #e4e6ea; border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; }
+  .controls label { color: #9aa; display: flex; align-items: center; gap: 6px; }
+  .controls input[type=range] { width: 110px; }
+  .controls select { background: #1a2027; color: #e4e6ea; border: 1px solid rgba(140,190,210,.14); padding: 2px 6px; font-family: monospace; }
+  .controls span.v { font-family: monospace; color: #e4e6ea; min-width: 44px; }
+  .controls .grp { color: #e4e6ea; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; min-width: 80px; }
+  .toggles label { padding: 2px 8px; border: 1px solid rgba(140,190,210,.14); border-radius: 3px; cursor: pointer; }
+  .toggles label.on { border-color: #41ad9f; color: #e4e6ea; }
+  .stage { background: #1a2027; border: 1px solid rgba(140,190,210,.14); border-radius: 3px; padding: 8px; display: inline-block; font-size: 11px; color: #8a8f99; font-family: monospace; vertical-align: top; margin: 0 8px 8px 0; }
+  .stage svg { display: block; margin: 0 auto 4px; background: #0a1128; }
+  .readout { font-family: monospace; font-size: 11px; color: #8a8f99; background: #1a2027; padding: 6px 8px; margin: 8px 0 0; border-radius: 3px; white-space: pre-wrap; max-width: 980px; }
+</style>
+</head>
+<body>
+
+<h1>Gem factories — option A: the gem material on today's rectangles</h1>
+<p class="note">Five factory variants at live sizes and palette, each with a gem robot floating beside it, under the real east/west sun curve. The top row is today's renderer. The second row adds only the gem material: a bevel ring with three quantized facet tones lit by the hour (east/west wins, the sun is never top-left on a building), and an outline. The rectangle, the front-corner split, the windows, the belts and the roof boxes are unchanged. Bevel 0 makes the two rows identical.</p>
+<div class="pending"><b>Gate questions:</b> Does the ring alone make a building and a robot read as one material? Does the east/west sun survive on the facets? At what bevel depth does a building stop reading as a silhouette? Does a robot still pop against a gem building? Do windows sit happily inside the ring, and does night (lit windows + outline) read as one object? Is the outline wanted at all?</div>
+
+<div class="controls">
+  <label>seed <input id="seed" type="text" value="plot 12, -40" /></label>
+  <button id="rand">random seed</button>
+  <label>hour <input id="hour" type="range" min="0" max="24" step="0.25" value="9" /><span class="v" id="hourV">9.00</span></label>
+  <label>depth row <select id="depth">
+    <option value="foreground">foreground (cap 1.0)</option>
+    <option value="midground">midground (cap 0.85)</option>
+    <option value="background">background (cap 0.7)</option>
+  </select></label>
+  <label><input id="derelict" type="checkbox" /> derelict</label>
+</div>
+<div class="controls">
+  <span class="grp">option A</span>
+  <label>bevel px <input id="bevel" type="range" min="0" max="16" step="0.5" value="8" /><span class="v" id="bevelV">8.0</span></label>
+  <label>facet contrast <input id="contrast" type="range" min="0" max="1.5" step="0.05" value="1" /><span class="v" id="contrastV">1.00</span></label>
+  <label>lateral sun <input id="lateral" type="range" min="0" max="2" step="0.1" value="1" /><span class="v" id="lateralV">1.0</span></label>
+  <label><input id="outline" type="checkbox" checked /> outline</label>
+  <label>outline px <input id="outlineW" type="range" min="0.5" max="4" step="0.5" value="2" /><span class="v" id="outlineWV">2.0</span></label>
+</div>
+<div class="controls toggles" id="toggles"><span class="grp">extras</span></div>
+
+<h2>Today</h2>
+<div class="stage"><svg id="today" viewBox="0 0 1920 800" width="960" height="400" preserveAspectRatio="xMidYMid meet"></svg><span>Monolith · Stacks · Refinery · Skyscraper · Warehouse, each with a robot. Today's renderer.</span></div>
+
+<h2>Option A — bevel ring, three facet tones, outline</h2>
+<div class="stage"><svg id="gem" viewBox="0 0 1920 800" width="960" height="400" preserveAspectRatio="xMidYMid meet"></svg><span>Same seed, same hour. Only the material changed.</span></div>
+<div class="readout" id="readout"></div>
+
+<h2>Option A through the day</h2>
+<p class="note">3 am · 9 am (east peak) · noon · 3 pm (west peak) · 9 pm. Watch which facet is lit: the ring should carry the sun, not fight it.</p>
+<div id="strip"></div>
+
+<h2>Six other seeds, option A, same settings</h2>
+<div id="seeds"></div>
+
+<h2>Past the factories — the whole world</h2>
+<p class="note">The 1920×1080 scene at half size: water column, seabed ridge, four midground factories, the stepped ground, then eleven scenery families in the foreground (pylon · tank · wall · containers · dome · scaffold · wreck · vent · crane · boulder · beacon) and two robots. Boulders, beacon and pylon heads are already gem shapes in the live app. The proposed rule: <b>mass gets the ring, members stay lines</b>. A mass is anything with a body (a tank, a wall, a dome's base, each container, a scaffold's solid block, a wreck's hull and deckhouse, each vent step, a crane's load); a member is a post, beam, mast, pylon tower or scaffold frame, which only gets the outline, and only if you turn it on. Terrain is its own switch: the ring runs along the ridge and ground profiles, so each 45° step and flat run takes the sun like a facet. The dome's curved cap stays smooth.</p>
+<div class="controls toggles" id="wtoggles"><span class="grp">ring on</span></div>
+<div class="stage"><svg id="wtoday" viewBox="0 0 1920 1080" width="960" height="540" preserveAspectRatio="xMidYMid meet"></svg><span>World today (robots as live).</span></div>
+<div class="stage"><svg id="wgem" viewBox="0 0 1920 1080" width="960" height="540" preserveAspectRatio="xMidYMid meet"></svg><span>World, option A, per the switches above. Same seed, same hour, same sliders.</span></div>
+<div class="readout" id="wreadout"></div>
+<p class="note">The same world at 9 am, 3 pm and 10 pm.</p>
+<div id="wstrip"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// ---------- rng ----------
+function rngFrom(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+  let a = (h ^= h >>> 16) >>> 0;
+  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const pick = (R, arr) => arr[Math.floor(R() * arr.length)];
+const range = (R, lo, hi) => lo + R() * (hi - lo);
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const f2 = (n) => n.toFixed(2);
+
+// ---------- colour (colorTheme.json, HSL) ----------
+const THEME = {
+  bodyBase: { h: 200, s: 15, l: 19 }, bodyHi: { h: 200, s: 13, l: 31 }, bodyShadow: { h: 203, s: 13, l: 12 },
+  shellBase: { h: 210, s: 3, l: 52 }, shellHi: { h: 206, s: 4, l: 68 },
+  ventBase: { h: 253, s: 14, l: 45 }, ventShadow: { h: 252, s: 14, l: 30 },
+  glass: { h: 192, s: 65, l: 68 },
+};
+// applyColorShift: whole-percent lightness, like colorUtils.ts.
+const col = (c, lm = 1) => `hsl(${c.h.toFixed(1)}, ${clamp(c.s, 0, 100).toFixed(1)}%, ${clamp(Math.round(c.l * lm), 0, 100)}%)`;
+// gemShape.tsx: the outline is body.shadow at 0.8 of its lightness — a material edge, never lit.
+const OUTLINE = col(THEME.bodyShadow, 0.8);
+
+function hexToHslA(hex) {
+  const n = parseInt(hex.slice(1), 16); const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  return [h, s * 100, l * 100];
+}
+const hslStr = (h, s, l) => `hsl(${h.toFixed(1)} ${clamp(s, 0, 100).toFixed(1)}% ${clamp(l, 0, 100).toFixed(1)}%)`;
+function tone(hex, dl, ds = 0) { const [h, s, l] = hexToHslA(hex); return hslStr(h, s + ds, l + dl); }
+
+const ACCENT = { orange:'#da7e1b', red:'#cd5e57', pink:'#ae5378', purple:'#7a5484', plum:'#65617f', blue:'#4f6d7a', cyan:'#428d95', teal:'#41ad9f', green:'#68cb97', lime:'#a9e583', yellow:'#e9e377', tangerine:'#e2b149', beige:'#f7f5d3', emerald:'#4fc27a', indigo:'#5a5c9e' };
+const ACCENT_NAMES = Object.keys(ACCENT);
+const BACKING = '#0e1013';
+const MID_DARK = '#262a31';
+
+// ---------- lighting (lightingUtils.ts) ----------
+const NIGHT_L = 0.15, PEAK_L = 1.05, GAMMA = 2.2;
+function getLighting(hour) {
+  const th = (hour / 24) * 2 * Math.PI;
+  const e = (Math.sin(th - Math.PI / 2 + Math.PI / 4) + 1) / 2, w = (Math.sin(th - Math.PI / 2 - Math.PI / 4) + 1) / 2;
+  return { eastL: NIGHT_L + (PEAK_L - NIGHT_L) * Math.pow(e, GAMMA), westL: NIGHT_L + (PEAK_L - NIGHT_L) * Math.pow(w, GAMMA) };
+}
+function nightDepth(e, w) { const a = (e + w) / 2; return clamp(1 - (a - NIGHT_L) / (PEAK_L - NIGHT_L), 0, 1); }
+const DEPTH = { foreground: { cap: 1.0, scale: 1 }, midground: { cap: 0.85, scale: 0.72 }, background: { cap: 0.7, scale: 0.5 } };
+
+// ---------- gem shading (gemShading.ts / gemShape.tsx) ----------
+function quantize(shade, k) { if (!k || k < 2) return shade; const s = k - 1; return (2 * Math.round(((shade + 1) / 2) * s) - s) / s; }
+const FACET_MULT = { '-1': 0.5, '0': 1.1, '1': 1.25 };
+/** The building's light: sideways from the hour (east − west, 0.7 is the curve's widest gap), always from above. */
+function lightVec(eastL, westL, lateral) { const sx = ((eastL - westL) / 0.7) * lateral; const k = Math.hypot(sx, 1); return [sx / k, -1 / k]; }
+// The robots' own light — fixed top-left (gemShading.ts GEM_LIGHT). Robots keep it; buildings don't.
+const ROBOT_LIGHT = (() => { const l = [-0.55, -0.83]; const k = Math.hypot(...l); return [l[0] / k, l[1] / k]; })();
+
+// ---------- factories (factoryVariants.ts sizes + palette) ----------
+const VARIANTS = {
+  Monolith:   { size: [120, 180, 200, 300], accent: THEME.bodyHi,   illuminated: { h: 252, s: 14, l: 60 } },
+  Stacks:     { size: [480, 520, 160, 180], accent: THEME.shellHi,  illuminated: { h: 252, s: 14, l: 60 } },
+  Refinery:   { size: [176, 264, 160, 240], accent: THEME.shellBase, illuminated: { h: 252, s: 14, l: 60 } },
+  Skyscraper: { size: [160, 240, 440, 660], accent: THEME.shellBase, illuminated: { h: 252, s: 14, l: 60 } },
+  Warehouse:  { size: [160, 240, 240, 360], accent: THEME.bodyBase, illuminated: { h: 200, s: 15, l: 49 } },
+};
+const VARIANT_ORDER = ['Monolith', 'Stacks', 'Refinery', 'Skyscraper', 'Warehouse'];
+
+function hueToward(h, target, t) { let d = ((target - h + 540) % 360) - 180; return (h + d * t + 360) % 360; }
+
+function makeBuilding(seed, name, idx) {
+  const R = rngFrom(seed + ':b:' + idx);
+  const V = VARIANTS[name];
+  const w = lerp(V.size[0], V.size[1], R()), h = lerp(V.size[2], V.size[3], R());
+  const hueShift = range(R, -15, 15), satShift = range(R, -10, 10);
+  const lean = ACCENT[pick(R, ACCENT_NAMES)];
+  // locale shift, then the Phase 35 accent lean (halfway hue pull + saturation lift) — an approximation
+  const b0 = { h: (THEME.bodyBase.h + hueShift + 360) % 360, s: clamp(THEME.bodyBase.s + satShift, 0, 100), l: THEME.bodyBase.l };
+  const body = { h: hueToward(b0.h, hexToHslA(lean)[0], 0.5), s: clamp(b0.s + 12, 0, 100), l: b0.l };
+  const fc = range(R, 0.25, 0.75);
+  const belts = pick(R, [0, 0, 1, 1, 2]);
+  const roof = []; const nRoof = pick(R, [1, 1, 2]); let rx = range(R, 0.04, 0.3);
+  for (let i = 0; i < nRoof; i++) { const rw = range(R, 0.16, 0.34); roof.push({ x: rx, w: rw, h: range(R, 0.05, 0.11) }); rx = clamp(rx + rw + range(R, 0.05, 0.2), 0, 0.64); }
+  // one boundary line per face (gem vocabulary; off by default)
+  const lines = [0, 1].map(() => { const e1 = Math.floor(R() * 4); let e2 = Math.floor(R() * 4); if (e2 === e1) e2 = (e1 + 1 + Math.floor(R() * 3)) % 4; return { e1, e2, t1: range(R, .2, .8), t2: range(R, .2, .8), flip: R() < .5 }; });
+  return { name, w, h, fc, body, accent: V.accent, illuminated: V.illuminated, belts, roof, lines, seed: seed + ':' + idx };
+}
+
+/** One face's window grid (facadeGreebles.tsx deriveWindowGrid, square windows, threshold 0.4), zoned by belts. */
+function windows(b, faceIdx, fx, fw, y0, h, m, L, o, s, faceL, unit, hour) {
+  const out = []; if (fw <= 0) return out;
+  const gap = unit * 0.5, slot = unit + gap;
+  const beltH = o.belts ? 0.02 * h : 0; const nz = o.belts ? b.belts + 1 : 1;
+  const zoneH = (h - 2 * m - (nz - 1) * beltH) / nz;
+  const epoch = Math.floor(hour / 2);
+  for (let z = 0; z < nz; z++) {
+    const zy = y0 + m + z * (zoneH + beltH);
+    const cols = Math.floor((fw + gap) / slot), rows = Math.floor((zoneH + gap) / slot);
+    if (cols <= 0 || rows <= 0) continue;
+    const offX = (fw - (cols * slot - gap)) / 2, offY = (zoneH - (rows * slot - gap)) / 2;
+    const R = rngFrom(b.seed + ':win:' + faceIdx + ':' + z);
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      if (R() >= 0.4) continue;
+      const base = 0.15 + R() * 0.3;
+      const lit = L.nd > 0 && rngFrom(b.seed + ':lit:' + faceIdx + ':' + z + ':' + r + ':' + c + ':' + epoch)() < L.nd;
+      const op = Math.round(base * (lit ? L.nd : faceL) * 100) / 100;
+      out.push(`<rect x="${f2(fx + offX + c * slot)}" y="${f2(zy + offY + r * slot)}" width="${f2(unit)}" height="${f2(unit)}" fill="${lit ? col(b.illuminated) : col(THEME.glass)}" opacity="${op}"/>`);
+    }
+  }
+  return out;
+}
+
+/** A bevel ring around rect (x,y,w,h): six facets (top/bottom split at the front corner), optional outline. */
+function ring(x, y, w, h, d, fc, wL, eL, body, LV, o, s) {
+  const out = [];
+  const fm = (sh) => { const q = quantize(sh, 3); const m = FACET_MULT[String(q)]; return 1 + (m - 1) * o.contrast; };
+  const toneOf = (faceL, sh) => col(body, faceL * fm(sh));
+  const shade = (n) => n[0] * LV[0] + n[1] * LV[1];
+  const X = x, Y = y;
+  const topBottom = fc == null
+    ? [ // unsplit (roof boxes): one top facet, one bottom facet, both at the roof's average light
+        [[[X, Y], [X + w, Y], [X + w - d, Y + d], [X + d, Y + d]], [0, -1], wL],
+        [[[X, Y + h], [X + d, Y + h - d], [X + w - d, Y + h - d], [X + w, Y + h]], [0, 1], wL],
+      ]
+    : [ // split at the front corner, so each half takes its own face's light, like the facade
+        [[[X, Y], [X + fc, Y], [X + fc, Y + d], [X + d, Y + d]], [0, -1], wL],
+        [[[X + fc, Y], [X + w, Y], [X + w - d, Y + d], [X + fc, Y + d]], [0, -1], eL],
+        [[[X, Y + h], [X + d, Y + h - d], [X + fc, Y + h - d], [X + fc, Y + h]], [0, 1], wL],
+        [[[X + fc, Y + h], [X + fc, Y + h - d], [X + w - d, Y + h - d], [X + w, Y + h]], [0, 1], eL],
+      ];
+  const polys = [
+    ...topBottom,
+    [[[X, Y], [X + d, Y + d], [X + d, Y + h - d], [X, Y + h]], [-1, 0], wL],
+    [[[X + w, Y], [X + w, Y + h], [X + w - d, Y + h - d], [X + w - d, Y + d]], [1, 0], eL],
+  ];
+  for (const [pts, n, fl] of polys) {
+    out.push(`<polygon points="${pts.map(p => f2(p[0]) + ',' + f2(p[1])).join(' ')}" fill="${toneOf(fl, shade(n))}" stroke="${toneOf(fl, -1)}" stroke-width="${f2(0.6 * s)}" stroke-linejoin="round"/>`);
+  }
+  if (o.outline) out.push(`<rect x="${f2(x)}" y="${f2(y)}" width="${f2(w)}" height="${f2(h)}" fill="none" stroke="${OUTLINE}" stroke-width="${f2(o.outlineW * s)}"/>`);
+  return out;
+}
+
+function boundaryLine(spec, x0, y0, x1, y1, stroke, sw) {
+  const at = (e, t) => e === 0 ? [lerp(x0, x1, t), y0] : e === 1 ? [x1, lerp(y0, y1, t)] : e === 2 ? [lerp(x0, x1, t), y1] : [x0, lerp(y0, y1, t)];
+  const sP = at(spec.e1, spec.t1), fP = at(spec.e2, spec.t2);
+  const dx = fP[0] - sP[0], dy = fP[1] - sP[1]; const m = Math.min(Math.abs(dx), Math.abs(dy));
+  const diag = [Math.sign(dx) * m, Math.sign(dy) * m];
+  const path = spec.flip ? [sP, [sP[0] + diag[0], sP[1] + diag[1]], fP] : [sP, [fP[0] - diag[0], fP[1] - diag[1]], fP];
+  return `<polyline points="${path.map(p => f2(p[0]) + ',' + f2(p[1])).join(' ')}" fill="none" stroke="${stroke}" stroke-width="${f2(sw)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+
+function drawBuilding(b, x0, groundY, s, L, o, gem, hour) {
+  const w = b.w * s, h = b.h * s, fc = b.fc * w, y0 = groundY - h;
+  const body = L.derelict ? { ...b.body, s: b.body.s * 0.4 } : b.body;
+  const eL = L.eastL * L.cap, wL = L.westL * L.cap, roofL = (eL + wL) / 2;
+  const out = [];
+  const d = gem ? Math.min(o.bevel * s, Math.min(w, h) * 0.18) : 0;
+  const m = gem ? Math.max(d, 0.02 * w) : 0.02 * w; // today's 2 % body clip, or the ring if deeper
+  const LV = lightVec(L.eastL, L.westL, o.lateral);
+  // faces — today's fills, untouched
+  out.push(`<rect x="${f2(x0)}" y="${f2(y0)}" width="${f2(fc)}" height="${f2(h)}" fill="${col(body, wL)}"/>`);
+  out.push(`<rect x="${f2(x0 + fc)}" y="${f2(y0)}" width="${f2(w - fc)}" height="${f2(h)}" fill="${col(body, eL)}"/>`);
+  // boundary lines (gem vocabulary, optional), behind the windows
+  if (gem && o.lines && d > 0) {
+    const pad = d + 3 * s;
+    out.push(boundaryLine(b.lines[0], x0 + pad, y0 + pad, x0 + fc - 3 * s, y0 + h - pad, col(body, wL * 0.6), 1.4 * s));
+    out.push(boundaryLine(b.lines[1], x0 + fc + 3 * s, y0 + pad, x0 + w - pad, y0 + h - pad, col(body, eL * 0.6), 1.4 * s));
+  }
+  // windows, per face, inside the ring
+  if (o.windows) {
+    const unit = Math.max(4, w * 0.06);
+    out.push(...windows(b, 0, x0 + m, fc - m, y0, h, m, L, o, s, L.westL, unit, hour));
+    out.push(...windows(b, 1, x0 + fc, w - fc - m, y0, h, m, L, o, s, L.eastL, unit, hour));
+  }
+  // belt courses, spanning the face inside the ring
+  if (o.belts && b.belts > 0) {
+    const beltH = 0.02 * h, zoneH = (h - 2 * m - b.belts * beltH) / (b.belts + 1);
+    const acc = { ...b.accent, l: clamp(b.accent.l + 5, 0, 100) };
+    for (let i = 0; i < b.belts; i++) {
+      const by = y0 + m + (i + 1) * zoneH + i * beltH;
+      out.push(`<rect x="${f2(x0 + m)}" y="${f2(by)}" width="${f2(fc - m)}" height="${f2(beltH)}" fill="${col(acc, wL)}"/>`);
+      out.push(`<rect x="${f2(x0 + fc)}" y="${f2(by)}" width="${f2(w - fc - m)}" height="${f2(beltH)}" fill="${col(acc, eL)}"/>`);
+    }
+  }
+  // the ring
+  if (gem && d > 0) out.push(...ring(x0, y0, w, h, d, fc, wL, eL, body, LV, o, s));
+  // roof boxes (a stand-in for the rooftop greebles)
+  for (const r of b.roof) {
+    const bx = x0 + r.x * w, bw = r.w * w, bh = r.h * h, by = y0 - bh;
+    const fill = L.derelict ? { ...b.accent, s: b.accent.s * 0.4 } : b.accent;
+    out.push(`<rect x="${f2(bx)}" y="${f2(by)}" width="${f2(bw)}" height="${f2(bh)}" fill="${col(fill, roofL)}"/>`);
+    if (gem && o.roof && d > 0) {
+      const d2 = Math.min(d * 0.6, Math.min(bw, bh) * 0.18);
+      out.push(...ring(bx, by, bw, bh, d2, null, roofL, roofL, fill, LV, o, s));
+    }
+  }
+  return out.join('');
+}
+
+// ---------- robots (ported from gem-polygon-robots.html, drawn as the app draws them) ----------
+const TAN = { 15: Math.tan(Math.PI / 12), 30: Math.tan(Math.PI / 6), 45: 1, 60: Math.tan(Math.PI / 3), 75: Math.tan(5 * Math.PI / 12) };
+const CORNERS = [
+  { p: (w, h) => [0, 0], a: [0, 1], b: [1, 0] }, { p: (w, h) => [w, 0], a: [-1, 0], b: [0, 1] },
+  { p: (w, h) => [w, h], a: [0, -1], b: [-1, 0] }, { p: (w, h) => [0, h], a: [1, 0], b: [0, -1] },
+];
+const add = (p, v, k) => [p[0] + v[0] * k, p[1] + v[1] * k];
+function genPolygon(R, w, h, opts) {
+  const minDim = Math.min(w, h);
+  for (let tries = 0; tries < 400; tries++) {
+    const pts = []; let sides = 4, right = 0, concave = 0;
+    const kinds = opts.convex ? ['none', 'chamfer', 'chamfer', 'double'] : ['none', 'chamfer', 'chamfer', 'double', 'step'];
+    for (let i = 0; i < 4; i++) {
+      const C = CORNERS[i], P = C.p(w, h);
+      let kind = pick(R, kinds);
+      const lenA = i % 2 === 0 ? h : w, lenB = i % 2 === 0 ? w : h;
+      const capA = 0.45 * lenA, capB = 0.45 * lenB;
+      const cut = range(R, 0.22, 0.42) * minDim;
+      if (kind === 'step') {
+        const phi = pick(R, [45, 60]); const t = TAN[phi];
+        const B = Math.min(minDim * range(R, 0.25, 0.34), capB, (capA - 0.1) / t);
+        if (B >= 0.2 * minDim) {
+          const A = Math.min(B * t + cut * range(R, 0.3, 0.6), capA);
+          pts.push(add(P, C.a, A), add(add(P, C.a, A - B * t), C.b, B), add(P, C.b, B));
+          sides += 2; right += 1; concave += 1; continue;
+        }
+        kind = 'chamfer';
+      }
+      if (kind === 'none') { pts.push(P); right++; continue; }
+      if (kind === 'chamfer') {
+        const phi = pick(R, [15, 30, 45, 60, 75]); const t = TAN[phi];
+        let La = t >= 1 ? cut : cut * t, Lb = t >= 1 ? cut / t : cut;
+        const k = Math.min(1, capA / La, capB / Lb); La *= k; Lb *= k;
+        pts.push(add(P, C.a, La), add(P, C.b, Lb)); sides += 1; continue;
+      }
+      const [p1, p2] = pick(R, [[75, 15], [60, 30]]); const T1 = TAN[p1], T2 = TAN[p2];
+      const v = (1 - T2) / (T1 - T2), u = 1 - v * T1;
+      const A = Math.min(cut, capA), B = Math.min(cut * range(R, 0.8, 1.25), capB);
+      pts.push(add(P, C.a, A), add(add(P, C.a, A * u), C.b, B * v), add(P, C.b, B)); sides += 2;
+    }
+    if (sides < 8 || sides > 12 || right > opts.maxRight || concave > opts.maxConcave) continue;
+    if (!opts.allowSymmetric && (isSymmetric(pts, w, h, 'h') || isSymmetric(pts, w, h, 'v'))) continue;
+    return { pts, sides, right, concave, w, h };
+  }
+  return null;
+}
+function isSymmetric(pts, w, h, axis) {
+  const m = pts.map(([x, y]) => axis === 'h' ? [w - x, y] : [x, h - y]);
+  return m.every(q => pts.some(p => Math.abs(p[0] - q[0]) < .3 && Math.abs(p[1] - q[1]) < .3));
+}
+function centroid(pts) { let x = 0, y = 0; for (const p of pts) { x += p[0]; y += p[1]; } return [x / pts.length, y / pts.length]; }
+function edgeNormals(pts) {
+  let area = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; area += p[0] * q[1] - q[0] * p[1]; }
+  const sgn = area > 0 ? -1 : 1; const out = [];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[(i + 1) % pts.length]; const dx = q[0] - p[0], dy = q[1] - p[1]; const len = Math.hypot(dx, dy) || 1;
+    out.push([sgn * -dy / len, sgn * dx / len]);
+  }
+  return out;
+}
+function inset(pts, d) {
+  const N = edgeNormals(pts); const n = pts.length; const res = [];
+  for (let i = 0; i < n; i++) {
+    const i0 = (i - 1 + n) % n;
+    const [p0, p1] = [add(pts[i0], N[i0], -d), add(pts[i], N[i0], -d)];
+    const [q0, q1] = [add(pts[i], N[i], -d), add(pts[(i + 1) % n], N[i], -d)];
+    const r = [p1[0] - p0[0], p1[1] - p0[1]], s = [q1[0] - q0[0], q1[1] - q0[1]];
+    const den = r[0] * s[1] - r[1] * s[0];
+    if (Math.abs(den) < 1e-6) { res.push(q0); continue; }
+    const t = ((q0[0] - p0[0]) * s[1] - (q0[1] - p0[1]) * s[0]) / den;
+    res.push([p0[0] + r[0] * t, p0[1] + r[1] * t]);
+  }
+  return res;
+}
+function inside(pt, pts) {
+  let ok = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) ok = !ok;
+  } return ok;
+}
+function genLine(R, inner) {
+  const n = inner.length; const safe = inset(inner, 0.4);
+  for (let tries = 0; tries < 60; tries++) {
+    const e1 = Math.floor(R() * n); let e2 = Math.floor(R() * n); if (e2 === e1) continue;
+    const at = (e, t) => { const p = safe[e], q = safe[(e + 1) % n]; return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]; };
+    const s = at(e1, range(R, .2, .8)), f = at(e2, range(R, .2, .8));
+    const dx = f[0] - s[0], dy = f[1] - s[1]; const m = Math.min(Math.abs(dx), Math.abs(dy));
+    const diag = [Math.sign(dx) * m, Math.sign(dy) * m];
+    const path = R() < .5 ? [s, [s[0] + diag[0], s[1] + diag[1]], f] : [s, [f[0] - diag[0], f[1] - diag[1]], f];
+    if (Math.hypot(dx, dy) < 4) continue;
+    let ok = true;
+    for (let k = 0; k < path.length - 1 && ok; k++) for (let t = .1; t < 1; t += .15) {
+      const p = [path[k][0] + (path[k + 1][0] - path[k][0]) * t, path[k][1] + (path[k + 1][1] - path[k][1]) * t];
+      if (!inside(p, safe)) { ok = false; break; }
+    }
+    if (ok) return path;
+  }
+  return null;
+}
+const CANVAS_H = 80;
+const BASE_RULES = { convex: true, allowSymmetric: true, maxConcave: 0, maxRight: 4 };
+const MAIN_RULES = { convex: false, allowSymmetric: false, maxConcave: 2, maxRight: 4 };
+const ORBIT_RULES = { convex: false, allowSymmetric: true, maxConcave: 4, maxRight: 4 };
+function makePart(R, w, h, rules, lines, lights) {
+  const poly = genPolygon(R, w, h, rules); if (!poly) return null;
+  poly.lineCount = lines; poly.lightCount = lights; return poly;
+}
+function makeRobot(seed, idx, colorName) {
+  const R = rngFrom(seed + ':' + idx);
+  const H = CANVAS_H, W = CANVAS_H * pick(R, [1, 1.25, 1.5, 1.75, 2]), k = W / CANVAS_H;
+  const parts = [];
+  parts.push({ role: 'backing', x: (W - 25 * k) / 2, y: (H - 25) / 2, poly: makePart(R, 25 * k, 25, BASE_RULES, 0, 0) });
+  // Phase 40 docks the orbiters at Top's corners; the sketch's canvas-corner layout is kept here for simplicity
+  for (const [cx, cy] of [[0, 0], [W - 24, 0], [0, H - 16], [W - 24, H - 16]])
+    parts.push({ role: 'orbit', x: cx, y: cy, poly: makePart(R, 24, 16, ORBIT_RULES, 1, 0) });
+  const mw2 = range(R, 20, 24) * k, mh2 = range(R, 34, 36);
+  parts.push({ role: 'mid', x: W / 2 - mw2, y: (H - mh2) / 2, lit: R() < .7, poly: makePart(R, mw2, mh2, MAIN_RULES, 2, 0) });
+  const mw1 = range(R, 20, 24) * k, mh1 = range(R, 34, 36);
+  parts.push({ role: 'mid', x: W / 2, y: (H - mh1) / 2, lit: R() < .7, poly: makePart(R, mw1, mh1, MAIN_RULES, 2, 0) });
+  parts.push({ role: 'top', x: (W - 32 * k) / 2, y: (H - 32) / 2, poly: makePart(R, 32 * k, 32, MAIN_RULES, 4, 2) });
+  return { seed, idx, W, H, k, color: ACCENT[colorName], colorName, parts, decoSeed: seed + ':deco:' + idx };
+}
+const ROBOT_OPT = { bevel: 2.5, contrast: 20, tones: 3 };
+function renderPart(part, robot, opt, R) {
+  const { poly } = part; if (!poly) return '';
+  const fillHex = part.role === 'backing' ? BACKING : part.role === 'mid' ? (part.lit ? null : MID_DARK) : robot.color;
+  const midLit = part.role === 'mid' && fillHex === null;
+  const base = midLit ? tone(robot.color, -16, -18) : fillHex;
+  const g = [`<g transform="translate(${f2(part.x)} ${f2(part.y)})">`];
+  const outer = poly.pts;
+  const ptsStr = p => p.map(q => f2(q[0]) + ',' + f2(q[1])).join(' ');
+  if (part.role === 'backing') { g.push(`<polygon points="${ptsStr(outer)}" fill="${BACKING}" stroke="#1c2026" stroke-width=".5"/>`); g.push('</g>'); return g.join(''); }
+  const d = Math.min(opt.bevel, Math.min(poly.w, poly.h) * 0.18);
+  const inner = inset(outer, d); const N = edgeNormals(outer);
+  const lightK = opt.contrast;
+  const toneOf = (shade) => midLit ? tone(robot.color, -16 + shade * lightK * .7, -18) : part.role === 'mid' ? tone(MID_DARK, shade * lightK * .5) : tone(robot.color, shade * lightK);
+  for (let i = 0; i < outer.length; i++) {
+    const j = (i + 1) % outer.length; const shade = quantize(N[i][0] * ROBOT_LIGHT[0] + N[i][1] * ROBOT_LIGHT[1], opt.tones);
+    g.push(`<polygon points="${ptsStr([outer[i], outer[j], inner[j], inner[i]])}" fill="${toneOf(shade)}" stroke="${toneOf(-1)}" stroke-width=".25" stroke-linejoin="round"/>`);
+  }
+  g.push(`<polygon points="${ptsStr(inner)}" fill="${base}" stroke="none"/>`);
+  const lineColor = midLit ? tone(robot.color, -32, -18) : part.role === 'mid' ? tone(MID_DARK, -8) : tone(robot.color, -26);
+  for (let k = 0; k < poly.lineCount; k++) {
+    const path = genLine(R, inner); if (!path) continue;
+    g.push(`<polyline points="${ptsStr(path)}" fill="none" stroke="${lineColor}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"/>`);
+  }
+  if (poly.lightCount) {
+    const c = centroid(inner); const used = new Set();
+    for (let k = 0; k < poly.lightCount; k++) {
+      let vi; for (let t = 0; t < 10; t++) { vi = Math.floor(R() * inner.length); if (!used.has(vi) && !used.has((vi + 1) % inner.length) && !used.has((vi - 1 + inner.length) % inner.length)) break; }
+      used.add(vi); const v = inner[vi]; const p = [v[0] + (c[0] - v[0]) * .3, v[1] + (c[1] - v[1]) * .3];
+      g.push(`<circle cx="${f2(p[0])}" cy="${f2(p[1])}" r="3" fill="#fff3c4" opacity=".18"/><circle cx="${f2(p[0])}" cy="${f2(p[1])}" r="1.4" fill="#fff3c4"/>`);
+    }
+  }
+  g.push('</g>'); return g.join('');
+}
+function drawRobot(robot, x, y, s, nd) {
+  const R = rngFrom(robot.decoSeed);
+  const body = robot.parts.map(p => renderPart(p, robot, ROBOT_OPT, R)).join('');
+  // the live day/night lightness overlay, approximated as a brightness filter
+  return `<g transform="translate(${f2(x)} ${f2(y)}) scale(${f2(s)})" style="filter:brightness(${f2(1 - 0.5 * nd)})">${body}</g>`;
+}
+
+// ---------- stage ----------
+function backdrop(id, W, H, groundY, L) {
+  const a = (L.eastL + L.westL) / 2;
+  return `<defs><linearGradient id="w-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(212, 55%, ${(5 + 20 * a).toFixed(0)}%)"/><stop offset="1" stop-color="hsl(220, 60%, ${(3 + 8 * a).toFixed(0)}%)"/></linearGradient></defs>` +
+    `<rect width="${W}" height="${H}" fill="url(#w-${id})"/>` +
+    `<rect y="${groundY}" width="${W}" height="${H - groundY}" fill="hsl(200, 15%, ${(6 + 8 * a).toFixed(0)}%)"/>`;
+}
+const countEls = (str) => (str.match(/<(rect|polygon|polyline|circle)\b/g) || []).length;
+
+function stageMarkup(id, seed, hour, o, gem, W = 1920, H = 800) {
+  const lt = getLighting(hour); const nd = o.derelict ? 0 : nightDepth(lt.eastL, lt.westL);
+  const depth = DEPTH[o.depth]; const cap = depth.cap * (o.derelict ? 0.55 : 1); let s = depth.scale;
+  const L = { eastL: lt.eastL, westL: lt.westL, nd, cap, derelict: o.derelict };
+  const RC = rngFrom(seed + ':colors'); const names = ACCENT_NAMES.slice();
+  const buildings = VARIANT_ORDER.map((v, i) => makeBuilding(seed, v, i));
+  const robots = VARIANT_ORDER.map((v, i) => { const n = names.splice(Math.floor(RC() * names.length), 1)[0]; return makeRobot(seed, i, n); });
+  // Five live-size buildings plus their robots can be wider than the frame; fit them, keeping the depth ratio.
+  const widthAt = (k) => buildings.reduce((t, b, i) => t + b.w * k + 26 * k + robots[i].W * k + 34 * k, 0) - 34 * k;
+  if (widthAt(s) > W - 80) s *= (W - 80) / widthAt(s);
+  const GAP = 34 * s, RGAP = 26 * s;
+  const total = widthAt(s);
+  let x = (W - total) / 2; const groundY = H - 40;
+  let bStr = '', rStr = '';
+  buildings.forEach((b, i) => {
+    bStr += drawBuilding(b, x, groundY, s, L, o, gem, hour);
+    x += b.w * s + RGAP;
+    const r = robots[i]; const ry = groundY - Math.min(b.h * s, 320 * s) * 0.55 - r.H * s / 2;
+    rStr += drawRobot(r, x, ry, s, nd);
+    x += r.W * s + GAP;
+  });
+  return { svg: backdrop(id, W, H, groundY, L) + bStr + rStr, L, buildingEls: countEls(bStr), robotEls: countEls(rStr) };
+}
+
+// ---------- the world past the factories ----------
+// Palette entries the scenery families use (colorTheme.json) and their renderers' constants
+// (src/components/actors/scenery/renderers/*.tsx), ported at the numbers that matter for the look.
+const SHADOW_DEPTH = { h: 0, s: 0, l: 10 };
+const SHELL_SHADOW = { h: 207, s: 5, l: 33 };
+const IND_ON = { h: 111, s: 100, l: 54 }, IND_OFF = { h: 146, s: 64, l: 22 }, ALERT_ON = { h: 351, s: 89, l: 48 };
+const lamp = (c, nd, lo = 0.5) => col(c, lerp(lo, 1, nd));
+const P = (pts) => pts.map(p => f2(p[0]) + ',' + f2(p[1])).join(' ');
+const poly = (pts, fill) => `<polygon points="${P(pts)}" fill="${fill}"/>`;
+const rect = (x, y, w, h, fill) => `<rect x="${f2(x)}" y="${f2(y)}" width="${f2(w)}" height="${f2(h)}" fill="${fill}"/>`;
+const circle = (cx, cy, r, fill, op) => `<circle cx="${f2(cx)}" cy="${f2(cy)}" r="${f2(r)}" fill="${fill}"${op != null ? ` opacity="${op}"` : ''}/>`;
+const rectPts = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+const bev = (o, s, w, h) => Math.min(o.bevel * s, Math.min(w, h) * 0.18);
+const shifted = (base, hs, ss) => ({ h: (base.h + hs + 360) % 360, s: clamp(base.s + ss, 0, 100), l: base.l });
+/** A thin outline on a structural member — only when the "members" switch is on. */
+const memberOutline = (g, s, o, pts) => g.members ? `<polygon points="${P(pts)}" fill="none" stroke="${OUTLINE}" stroke-width="${f2(Math.min(o.outlineW, 1) * s)}"/>` : '';
+
+/**
+ * The ring on any polygon: one facet per edge (the robot generator's inset + edge normals), lit by
+ * the hour's light vector, each facet toned from `faceLAt(x)` so a two-faced body keeps its own
+ * east/west light per facet. `opt.splitX` splits horizontal edges at the front corner first;
+ * `opt.skip(a, b)` drops edges that lie on the frame (terrain).
+ */
+function ringPoly(pts, d, faceLAt, body, LV, o, s, opt = {}) {
+  const out = []; if (d <= 0) return out;
+  let Q = pts;
+  if (opt.splitX != null) {
+    Q = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length]; Q.push(a);
+      if (a[1] === b[1] && (a[0] - opt.splitX) * (b[0] - opt.splitX) < 0) Q.push([opt.splitX, a[1]]);
+    }
+  }
+  const inner = inset(Q, d), N = edgeNormals(Q);
+  const fm = (sh) => { const q = quantize(sh, 3); const m = FACET_MULT[String(q)]; return 1 + (m - 1) * o.contrast; };
+  for (let i = 0; i < Q.length; i++) {
+    const j = (i + 1) % Q.length; const a = Q[i], b = Q[j];
+    if (opt.skip && opt.skip(a, b)) continue;
+    const fl = faceLAt((a[0] + b[0]) / 2);
+    const sh = N[i][0] * LV[0] + N[i][1] * LV[1];
+    out.push(`<polygon points="${P([a, b, inner[j], inner[i]])}" fill="${col(body, fl * fm(sh))}" stroke="${col(body, fl * fm(-1))}" stroke-width="${f2(0.6 * s)}" stroke-linejoin="round"/>`);
+  }
+  if (o.outline && !opt.noOutline) out.push(`<polygon points="${P(Q)}" fill="none" stroke="${OUTLINE}" stroke-width="${f2(o.outlineW * s)}"/>`);
+  return out;
+}
+
+/** scenery/gemShape.tsx — the live gem accent (boulders, beacon and pylon heads), as shipped. */
+function gemShape(cx, cy, w, h, base, lit, L, s) {
+  const c = Math.min(w, h) * 0.3, x0 = cx - w / 2, y0 = cy - h / 2;
+  const glow = lit ? lerp(0.9, 1.6, L.nd) : ((L.eastL + L.westL) / 2) * L.cap;
+  const outline = [[x0 + c, y0], [x0 + w - c, y0], [x0 + w, y0 + c], [x0 + w, y0 + h - c], [x0 + w - c, y0 + h], [x0 + c, y0 + h], [x0, y0 + h - c], [x0, y0 + c]];
+  const upper = [[x0 + c, y0], [x0 + w - c, y0], [x0 + w, y0 + c], [x0, y0 + c]];
+  const lower = [[x0 + c, y0 + h], [x0 + w - c, y0 + h], [x0 + w, y0 + h - c], [x0, y0 + h - c]];
+  const side = L.eastL >= L.westL ? [[x0 + w, y0 + c], [x0 + w, y0 + h - c], [x0 + w - c, y0 + h - c], [x0 + w - c, y0 + c]] : [[x0, y0 + c], [x0, y0 + h - c], [x0 + c, y0 + h - c], [x0 + c, y0 + c]];
+  return poly(outline, col(base, glow * 0.75)) + poly(upper, col(base, glow * 1.25)) + poly(lower, col(base, glow * 0.5)) + poly(side, col(base, glow * 1.1))
+    + `<polygon points="${P(outline)}" fill="none" stroke="${OUTLINE}" stroke-width="${f2(2 * s)}"/>`;
+}
+
+// --- terrain (systems/terrainProfile.ts rules) ---
+function profile(R, startY, band, runR, stepsV, W) {
+  const steps = []; let x = 0, y = startY;
+  while (x < W) {
+    const run = range(R, runR[0], runR[1]);
+    if (x + run >= W) { steps.push([x, y, W, y]); break; }
+    steps.push([x, y, x + run, y]); x += run;
+    let dy = pick(R, stepsV); const ny = clamp(y + dy, band[0], band[1]); dy = ny - y; const dx = Math.abs(dy);
+    steps.push([x, y, x + dx, ny]); x += dx; y = ny;
+  }
+  return steps;
+}
+const profileTop = (steps) => [[steps[0][0], steps[0][1]], ...steps.map(s => [s[2], s[3]])];
+const profilePoly = (steps, W, H) => [...profileTop(steps), [W, H], [0, H]];
+function yAt(steps, x) {
+  const st = steps.find(s => x >= s[0] && x <= s[2]) ?? steps[steps.length - 1];
+  const dx = st[2] - st[0]; return dx === 0 ? st[1] : st[1] + (st[3] - st[1]) * ((x - st[0]) / dx);
+}
+
+// --- the families (sceneryParams.ts ranges) ---
+function worldItems(seed) {
+  const R = rngFrom(seed + ':items');
+  const acc = () => hexToHslA(pick(R, Object.values(ACCENT)))[0];
+  const int = (lo, hi) => Math.floor(range(R, lo, hi + 1));
+  return [
+    { kind: 'pylon', w: range(R, 60, 90), h: range(R, 260, 420), hue: acc() },
+    { kind: 'tank', w: range(R, 90, 150), h: range(R, 140, 260), corner: range(R, .35, .65), belts: int(1, 3), hs: range(R, -20, 20), ss: range(R, -15, 15) },
+    { kind: 'wall', w: range(R, 160, 300), h: range(R, 28, 70), hs: range(R, 40, 60), ss: range(R, -30, 0) },
+    { kind: 'containers', cols: int(2, 4), rows: int(1, 3), boxW: range(R, 72, 110), boxH: range(R, 36, 44), offs: [0, 1, 2].map(() => range(R, 0, 10)), lit: Array.from({ length: 12 }, () => R() < .5), h1: acc(), h2: acc(), hs: range(R, -20, 20), ss: range(R, -15, 15) },
+    { kind: 'dome', w: range(R, 170, 300), bh: range(R, 30, 60), ryF: range(R, .28, .42), portholes: int(3, 6), rolls: [0, 1, 2, 3, 4, 5].map(() => R()), hs: range(R, -20, 20), ss: range(R, -15, 15) },
+    { kind: 'scaffold', w: range(R, 160, 260), h: range(R, 220, 380), bays: int(2, 3), solid: range(R, .25, .45), hs: range(R, -20, 20), ss: range(R, -15, 15) },
+    { kind: 'wreck', w: range(R, 340, 480), h: range(R, 70, 120), dhF: range(R, .2, .3), portholes: int(4, 9) },
+    { kind: 'vent', w: range(R, 44, 90), steps: int(4, 6) },
+    { kind: 'crane', w: range(R, 220, 300), h: range(R, 260, 380), hanger: range(R, .2, .8) },
+    { kind: 'boulder', w: range(R, 60, 150), hF: range(R, .5, .8), count: int(1, 3), hs: range(R, -20, 20) },
+    { kind: 'beacon', mastH: range(R, 120, 220), gemW: range(R, 40, 64), hue: acc() },
+  ];
+}
+function itemWidth(it) {
+  switch (it.kind) {
+    case 'containers': return it.cols * it.boxW;
+    case 'crane': return it.w + 60;
+    case 'boulder': return it.w + (it.count - 1) * it.w * .75;
+    case 'beacon': return 60;
+    case 'pylon': return it.w + 28;
+    default: return it.w;
+  }
+}
+
+function drawPylon(it, x, y, L, o, s, g) {
+  const w = it.w * s, h = it.h * s, m = (L.eastL + L.westL) / 2, steel = col(THEME.bodyShadow, m * L.cap * 1.15);
+  const thw = 4 * s, stepUpY = y - (h - (w / 2 - thw));
+  const tower = [[x - w / 2, y], [x - w / 2, stepUpY], [x - thw, y - h], [x + thw, y - h], [x + w / 2, stepUpY], [x + w / 2, y]];
+  let out = poly(tower, steel) + memberOutline(g, s, o, tower);
+  for (const i of [1, 2, 3]) { const t = i / 4, hw = (w / 2) * (1 - t) + thw, x0 = x - hw - 14 * s, x1 = x + hw + 14 * s, ay = y - h * t; out += rect(x0, ay, x1 - x0, 5 * s, steel) + memberOutline(g, s, o, rectPts(x0, ay, x1 - x0, 5 * s)); }
+  return out + gemShape(x, y - h - 14 * s, 26 * s, 18 * s, { h: it.hue, s: 55, l: 42 }, true, L, s);
+}
+function drawTank(it, x, y, L, o, s, g) {
+  const w = it.w * s, h = it.h * s, top = y - h, sh = w * 0.3, splitX = x - w / 2 + it.corner * w;
+  const body = shifted(SHELL_SHADOW, it.hs, it.ss), wL = L.westL * L.cap, eL = L.eastL * L.cap, d = g.mass ? bev(o, s, w, h) : 0;
+  let out = poly([[x - w / 2, y], [x - w / 2, top + sh], [x - w / 2 + sh, top], [splitX, top], [splitX, y]], col(body, wL))
+    + poly([[splitX, top], [x + w / 2 - sh, top], [x + w / 2, top + sh], [x + w / 2, y], [splitX, y]], col(body, eL));
+  for (let i = 0; i < it.belts; i++) { const by = top + (h * (i + 1)) / (it.belts + 1); out += rect(x - w / 2 + d, by - 2.5 * s, w - 2 * d, 5 * s, col(THEME.shellBase, (eL + wL) / 2)); }
+  if (g.mass) out += ringPoly([[x - w / 2, y], [x - w / 2, top + sh], [x - w / 2 + sh, top], [x + w / 2 - sh, top], [x + w / 2, top + sh], [x + w / 2, y]], d, (mx) => mx < splitX ? wL : eL, body, L.LV, o, s, { splitX }).join('');
+  return out + circle(x, top + 0.55 * h, 0.08 * w, lamp(IND_ON, L.nd));
+}
+function drawWall(it, x, y, L, o, s, g) {
+  const w = it.w * s, h = it.h * s, top = y - h, body = shifted(THEME.bodyBase, it.hs, it.ss);
+  const wL = L.westL * L.cap, eL = L.eastL * L.cap, d = g.mass ? bev(o, s, w, h) : 0;
+  let out = rect(x - w / 2, top, w / 2, h, col(body, wL)) + rect(x, top, w / 2, h, col(body, eL));
+  out += rect(x - w / 2 + d, top + d, w - 2 * d, 4 * s, col(SHELL_SHADOW, (eL + wL) / 2));
+  if (g.mass) out += ringPoly(rectPts(x - w / 2, top, w, h), d, (mx) => mx < x ? wL : eL, body, L.LV, o, s, { splitX: x }).join('');
+  return out;
+}
+function drawDome(it, x, y, L, o, s, g) {
+  const w = it.w * s, bh = it.bh * s, rx = w / 2, ry = it.ryF * w, top = y - bh, apex = top - ry;
+  const body = shifted(THEME.bodyBase, it.hs, it.ss), cap = shifted({ ...THEME.shellBase, s: THEME.shellBase.s + 10 }, it.hs, it.ss);
+  const wL = L.westL * L.cap, eL = L.eastL * L.cap, am = (eL + wL) / 2;
+  let out = rect(x - rx, top, rx, bh, col(body, wL)) + rect(x, top, rx, bh, col(body, eL));
+  out += rect(x - 14 * s, y - 14 * s, 28 * s, 14 * s, col(SHELL_SHADOW, am));
+  if (g.mass) out += ringPoly(rectPts(x - rx, top, w, bh), bev(o, s, w, bh), (mx) => mx < x ? wL : eL, body, L.LV, o, s, { splitX: x }).join('');
+  out += `<path d="M ${f2(x - rx)},${f2(top)} A ${f2(rx)},${f2(ry)} 0 0 1 ${f2(x)},${f2(apex)} L ${f2(x)},${f2(top)} Z" fill="${col(cap, wL)}"/>`;
+  out += `<path d="M ${f2(x)},${f2(apex)} A ${f2(rx)},${f2(ry)} 0 0 1 ${f2(x + rx)},${f2(top)} L ${f2(x)},${f2(top)} Z" fill="${col(cap, eL)}"/>`;
+  const thr = 0.4 + 0.6 * L.nd;
+  for (let i = 0; i < it.portholes; i++) { const t = it.portholes === 1 ? 0 : -1 + (2 * i) / (it.portholes - 1), th = t * 70 * Math.PI / 180; out += circle(x + rx * Math.sin(th), top - ry * Math.cos(th), 7 * s, it.rolls[i] < thr ? lamp(THEME.glass, L.nd) : col(SHADOW_DEPTH, L.cap)); }
+  const mast = rectPts(x - 2 * s, apex - 26 * s, 4 * s, 26 * s);
+  out += rect(x - 2 * s, apex - 26 * s, 4 * s, 26 * s, col(SHELL_SHADOW, am)) + memberOutline(g, s, o, mast);
+  return out + circle(x, apex - 26 * s, 5 * s, lamp(ALERT_ON, L.nd));
+}
+function drawContainers(it, x, y, L, o, s, g) {
+  const bw = it.boxW * s, bh = it.boxH * s, am = ((L.eastL + L.westL) / 2) * L.cap; let out = '', idx = 0;
+  for (let row = 0; row < it.rows; row++) {
+    const count = Math.max(1, it.cols - row), startX = x - (count * bw) / 2 + it.offs[row] * s, topY = y - row * bh - bh;
+    for (let c = 0; c < count; c++) {
+      const base = shifted({ h: c % 2 === 0 ? it.h1 : it.h2, s: 35, l: 30 }, it.hs, it.ss), bx = startX + c * bw;
+      out += rect(bx, topY, bw, bh, col(base, am));
+      if (g.mass) out += ringPoly(rectPts(bx, topY, bw, bh), bev(o, s, bw, bh), () => am, base, L.LV, o, s).join('');
+      out += rect(bx + bw / 2 - 3.5 * s, topY + bh / 2 - 3.5 * s, 7 * s, 7 * s, it.lit[idx++] ? lamp(IND_ON, L.nd) : col(IND_OFF));
+    }
+  }
+  return out;
+}
+function drawScaffold(it, x, y, L, o, s, g) {
+  const w = it.w * s, h = it.h * s, half = w / 2, top = y - h, solidH = h * it.solid, solidTop = y - solidH;
+  const body = shifted(THEME.bodyBase, it.hs, it.ss), wL = L.westL * L.cap, eL = L.eastL * L.cap, frame = col(THEME.shellBase, (eL + wL) / 2);
+  let out = rect(x - half, solidTop, half, solidH, col(body, wL)) + rect(x, solidTop, half, solidH, col(body, eL));
+  if (g.mass) out += ringPoly(rectPts(x - half, solidTop, w, solidH), bev(o, s, w, solidH), (mx) => mx < x ? wL : eL, body, L.LV, o, s, { splitX: x }).join('');
+  const bayW = w / it.bays, levels = Math.max(1, Math.floor(h / (60 * s))), pw = 6 * s, t2 = 2 * s;
+  for (let i = 0; i <= it.bays; i++) { const px = x - half + i * bayW - pw / 2; out += rect(px, top, pw, h, frame) + memberOutline(g, s, o, rectPts(px, top, pw, h)); }
+  for (let i = 0; i < levels; i++) { const ly = y - (i + 1) * 60 * s, lp = rectPts(x - half - 8 * s, ly - 2.5 * s, w + 16 * s, 5 * s); out += rect(...lp[0], w + 16 * s, 5 * s, frame) + memberOutline(g, s, o, lp); }
+  for (let lv = 0; lv < levels; lv++) for (let bay = 0; bay < it.bays; bay++) {
+    if ((bay + lv) % 2 !== 0) continue;
+    const x0 = x - half + bay * bayW, y0 = y - lv * 60 * s, d = Math.min(bayW, 60 * s);
+    const pts = [[x0 - t2, y0 - t2], [x0 + d - t2, y0 - d - t2], [x0 + d + t2, y0 - d + t2], [x0 + t2, y0 + t2]];
+    out += poly(pts, frame) + memberOutline(g, s, o, pts);
+  }
+  return out + circle(x + half, top, 5 * s, lamp(ALERT_ON, L.nd));
+}
+function drawWreck(it, x, y, L, o, s, g) {
+  const w = it.w * s, h = it.h * s, top = y - h, x1 = x + w / 2, splitX = x1 - h, deckW = w - h;
+  const cap = L.cap * 0.5, wL = L.westL * cap, eL = L.eastL * cap, am = (wL + eL) / 2, body = { ...THEME.bodyBase, s: 6 }, sup = col(SHELL_SHADOW, am);
+  const deckY = top - 5 * s, dhW = it.dhF * w, dhX = x - w / 2 + deckW / 2 - dhW / 2, dhTop = deckY - 46 * s, fW = dhW * 0.35, fX = dhX + dhW / 2 - fW / 2, fTop = dhTop - 40 * s;
+  let out = poly([[x - w / 2, y], [x - w / 2, top], [splitX, top], [splitX, y]], col(body, wL)) + poly([[splitX, top], [x1, y], [splitX, y]], col(body, eL));
+  out += rect(x - w / 2, deckY, deckW, 5 * s, sup);
+  out += rect(dhX, dhTop, dhW, 46 * s, sup); if (g.mass) out += ringPoly(rectPts(dhX, dhTop, dhW, 46 * s), bev(o, s, dhW, 46 * s), () => am, SHELL_SHADOW, L.LV, o, s).join('');
+  out += rect(fX, fTop, fW, 40 * s, sup); if (g.mass) out += ringPoly(rectPts(fX, fTop, fW, 40 * s), bev(o, s, fW, 40 * s), () => am, SHELL_SHADOW, L.LV, o, s).join('');
+  const span = deckW - 24 * s, px0 = x - w / 2 + 12 * s;
+  for (let i = 0; i < it.portholes; i++) { const t = it.portholes === 1 ? .5 : i / (it.portholes - 1); out += circle(px0 + t * span, top + h / 2, 6 * s, col(SHADOW_DEPTH, cap)); }
+  out += rect(x - w / 2, y - 10 * s, w, 10 * s, col(SHADOW_DEPTH, am));
+  if (g.mass) out += ringPoly([[x - w / 2, y], [x - w / 2, top], [splitX, top], [x1, y]], bev(o, s, w, h), (mx) => mx < splitX ? wL : eL, body, L.LV, o, s).join('');
+  return out;
+}
+function drawVent(it, x, y, L, o, s, g) {
+  // each step is its own ringed block — the union polygon's ledges (~3 px) are narrower than the bevel
+  const am = ((L.eastL + L.westL) / 2) * L.cap, fl = am * 1.3, sh = 30 * s; let out = '', wd = it.w * s;
+  for (let i = 0; i < it.steps; i++) {
+    const top = y - (i + 1) * sh; out += rect(x - wd / 2, top, wd, sh, col(SHADOW_DEPTH, fl));
+    if (g.mass) out += ringPoly(rectPts(x - wd / 2, top, wd, sh), bev(o, s, wd, sh), () => fl, SHADOW_DEPTH, L.LV, o, s).join('');
+    if (i < it.steps - 1) wd = Math.max(14 * s, wd * 0.9);
+  }
+  const mouthY = y - it.steps * sh, tw = wd;
+  out += `<ellipse cx="${f2(x)}" cy="${f2(mouthY - 10 * s)}" rx="${f2(tw * .6)}" ry="${f2(tw * .3)}" fill="${col(THEME.glass, am)}" opacity="0.06"/><ellipse cx="${f2(x)}" cy="${f2(mouthY - 24 * s)}" rx="${f2(tw * .9)}" ry="${f2(tw * .45)}" fill="${col(THEME.glass, am)}" opacity="0.03"/>`;
+  return out + circle(x, mouthY, 0.45 * tw, lamp(ALERT_ON, L.nd), (0.5 + 0.4 * L.nd).toFixed(2));
+}
+function drawCrane(it, x, y, L, o, s, g) {
+  const w = it.w * s, h = it.h * s, half = w / 2, pw = 14 * s, bH = 18 * s, ov = 30 * s, m = L.cap * 1.2;
+  const west = col(THEME.bodyShadow, L.westL * m), east = col(THEME.bodyShadow, L.eastL * m), frame = col(THEME.bodyShadow, ((L.eastL + L.westL) / 2) * m);
+  const beamBottom = y - h, beamTop = beamBottom - bH, bl = x - half - ov, br = x + half + ov, hx = x - half + it.hanger * w, hb = beamBottom + 36 * s;
+  let out = rect(x - half, beamBottom, pw, h, west) + memberOutline(g, s, o, rectPts(x - half, beamBottom, pw, h))
+    + rect(x + half - pw, beamBottom, pw, h, east) + memberOutline(g, s, o, rectPts(x + half - pw, beamBottom, pw, h))
+    + rect(bl, beamTop, br - bl, bH, frame) + memberOutline(g, s, o, rectPts(bl, beamTop, br - bl, bH));
+  const ex = x + half - pw, kl = 40 * s, t2 = 2 * s;
+  out += poly([[ex - t2, beamBottom - t2], [ex - kl - t2, beamBottom - kl - t2], [ex - kl + t2, beamBottom - kl + t2], [ex + t2, beamBottom + t2]], frame);
+  out += `<line x1="${f2(hx)}" y1="${f2(beamBottom)}" x2="${f2(hx)}" y2="${f2(hb)}" stroke="${frame}" stroke-width="${f2(3 * s)}"/>`;
+  const lw = 80 * s, lh = 50 * s, am = ((L.eastL + L.westL) / 2) * L.cap;
+  out += rect(hx - lw / 2, hb, lw, lh, col(THEME.ventBase, am));
+  if (g.mass) out += ringPoly(rectPts(hx - lw / 2, hb, lw, lh), bev(o, s, lw, lh), () => am, THEME.ventBase, L.LV, o, s).join('');
+  return out + circle(br, (beamTop + beamBottom) / 2, 5 * s, lamp(ALERT_ON, L.nd));
+}
+function drawBoulder(it, x, y, L, o, s, g) {
+  const w = it.w * s, h = w * it.hF, span = w + (it.count - 1) * w * 0.75, base = { h: (THEME.bodyBase.h + it.hs + 360) % 360, s: 12, l: THEME.bodyBase.l }; let out = '';
+  for (let i = 0; i < it.count; i++) out += gemShape(x - span / 2 + w / 2 + i * w * 0.75, y + 8 * s - h / 2, w, h, base, false, L, s);
+  return out;
+}
+function drawBeacon(it, x, y, L, o, s, g) {
+  const mastH = it.mastH * s, gw = it.gemW * s, steel = col(THEME.bodyShadow, ((L.eastL + L.westL) / 2) * L.cap * 1.15);
+  const mast = rectPts(x - 5 * s, y - mastH, 10 * s, mastH);
+  return rect(x - 5 * s, y - mastH, 10 * s, mastH, steel) + memberOutline(g, s, o, mast) + rect(x - 30 * s, y - 12 * s, 60 * s, 12 * s, steel)
+    + gemShape(x, y - mastH - gw * 0.33, gw, gw * 0.66, { h: it.hue, s: 55, l: 42 }, true, L, s);
+}
+const DRAW = { pylon: drawPylon, tank: drawTank, wall: drawWall, containers: drawContainers, dome: drawDome, scaffold: drawScaffold, wreck: drawWreck, vent: drawVent, crane: drawCrane, boulder: drawBoulder, beacon: drawBeacon };
+
+/** WaterColumn.tsx: gradient stops and the surface glow follow the hour. */
+function water(id, W, H, L, hour) {
+  const d = 1 - L.nd, topL = Math.round(lerp(8, 30, d)), botL = Math.round(lerp(4, 12, d)), glowOp = Math.round(0.08 * d * 100) / 100, gcx = lerp(300, 1620, hour / 24);
+  return `<defs><linearGradient id="wc-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(200, 45%, ${topL}%)"/><stop offset="1" stop-color="hsl(230, 45%, ${botL}%)"/></linearGradient></defs>`
+    + `<rect width="${W}" height="${H}" fill="url(#wc-${id})"/><ellipse cx="${f2(gcx)}" cy="60" rx="360" ry="70" fill="hsl(192, 50%, 70%)" opacity="${glowOp}"/>`;
+}
+
+function worldMarkup(id, seed, hour, o, gem, W = 1920, H = 1080) {
+  const lt = getLighting(hour), nd = nightDepth(lt.eastL, lt.westL);
+  const L = { eastL: lt.eastL, westL: lt.westL, nd, cap: 1, derelict: false, LV: lightVec(lt.eastL, lt.westL, o.lateral) };
+  const m = (L.eastL + L.westL) / 2, g = { mass: gem && o.wMass, members: gem && o.wMembers };
+  const R = rngFrom(seed + ':terrain');
+  const ridge = profile(R, 860, [640, 900], [80, 260], [-60, -40, 0, 0, 40, 60], W);
+  const ground = profile(R, 1050, [1035, 1075], [120, 400], [-20, 0, 0, 0, 20], W);
+  const frameSkip = (a, b) => (a[0] === 0 && b[0] === 0) || (a[0] === W && b[0] === W) || (a[1] === H && b[1] === H);
+  const terrainLine = (steps) => o.outline ? `<polyline points="${P(profileTop(steps))}" fill="none" stroke="${OUTLINE}" stroke-width="${f2(o.outlineW)}"/>` : '';
+  let scene = '';
+  // seabed ridge: shadowDepth × (1 + m × 1.2)
+  const ridgePts = profilePoly(ridge, W, H), ridgeL = 1 + m * 1.2;
+  scene += poly(ridgePts, col(SHADOW_DEPTH, ridgeL));
+  if (gem && o.wTerrain) scene += ringPoly(ridgePts, o.bevel, () => ridgeL, SHADOW_DEPTH, L.LV, o, 1, { skip: frameSkip, noOutline: true }).join('') + terrainLine(ridge);
+  // midground factories (cap 0.85), bases buried under the ground polygon
+  const Lmid = { ...L, cap: 0.85 };
+  ['Refinery', 'Skyscraper', 'Warehouse', 'Monolith'].map((v, i) => makeBuilding(seed + ':mid', v, i))
+    .forEach((b, i) => { scene += drawBuilding(b, [140, 600, 1180, 1620][i], 1060, 0.72, Lmid, o, gem && o.wFactories, hour); });
+  // stepped ground: body.shadow × (m × 0.9)
+  const groundPts = profilePoly(ground, W, H), groundL = m * 0.9;
+  scene += poly(groundPts, col(THEME.bodyShadow, groundL));
+  if (gem && o.wTerrain) scene += ringPoly(groundPts, o.bevel, () => groundL, THEME.bodyShadow, L.LV, o, 1, { skip: frameSkip, noOutline: true }).join('') + terrainLine(ground);
+  // the foreground families, fitted to the frame
+  const items = worldItems(seed), gapW = 34;
+  const widthAt = (k) => items.reduce((t, it) => t + itemWidth(it) * k + gapW * k, 0) - gapW * k;
+  const s = widthAt(1) > W - 80 ? (W - 80) / widthAt(1) : 1;
+  let x = (W - widthAt(s)) / 2;
+  for (const it of items) { const iw = itemWidth(it) * s, cx = x + iw / 2; scene += DRAW[it.kind](it, cx, yAt(ground, cx) + 4, L, o, s, g); x += iw + gapW * s; }
+  // two robots, as live, at the same fit scale as the scenery so the proportions stay honest
+  const RC = rngFrom(seed + ':wcolors'), names = ACCENT_NAMES.slice(); let robots = '';
+  [[300, 620], [1480, 680]].forEach(([rx, ry], i) => { const n = names.splice(Math.floor(RC() * names.length), 1)[0]; robots += drawRobot(makeRobot(seed + ':w', i, n), rx, ry, s, nd); });
+  return { svg: water(id, W, H, L, hour) + scene + robots, els: countEls(scene), L };
+}
+
+// ---------- page ----------
+const EXTRAS = [['lines', 'boundary lines on faces', false], ['roof', 'roof boxes bevelled', true], ['windows', 'windows', true], ['belts', 'belt courses', true]];
+const extraState = {};
+for (const [k, label, on] of EXTRAS) {
+  extraState[k] = on;
+  const el = document.createElement('label'); el.className = on ? 'on' : ''; el.innerHTML = `<input type="checkbox" data-x="${k}" ${on ? 'checked' : ''}/> ${label}`;
+  el.querySelector('input').addEventListener('change', (e) => { extraState[k] = e.target.checked; el.className = e.target.checked ? 'on' : ''; render(); });
+  $('toggles').appendChild(el);
+}
+const WEXTRAS = [
+  ['wFactories', 'factories', true],
+  ['wMass', 'mass scenery (tank, wall, dome base, containers, scaffold block, wreck, vent steps, crane load)', true],
+  ['wTerrain', 'terrain (ridge + ground)', true],
+  ['wMembers', 'members, outline only (posts, beams, masts, pylon, frames)', false],
+];
+const wState = {};
+for (const [k, label, on] of WEXTRAS) {
+  wState[k] = on;
+  const el = document.createElement('label'); el.className = on ? 'on' : ''; el.innerHTML = `<input type="checkbox" data-w="${k}" ${on ? 'checked' : ''}/> ${label}`;
+  el.querySelector('input').addEventListener('change', (e) => { wState[k] = e.target.checked; el.className = e.target.checked ? 'on' : ''; render(); });
+  $('wtoggles').appendChild(el);
+}
+function opts() {
+  return {
+    depth: $('depth').value, derelict: $('derelict').checked,
+    bevel: +$('bevel').value, contrast: +$('contrast').value, lateral: +$('lateral').value,
+    outline: $('outline').checked, outlineW: +$('outlineW').value,
+    ...extraState, ...wState,
+  };
+}
+function render() {
+  const seed = $('seed').value, hour = +$('hour').value, o = opts();
+  $('hourV').textContent = hour.toFixed(2); $('bevelV').textContent = o.bevel.toFixed(1); $('contrastV').textContent = o.contrast.toFixed(2);
+  $('lateralV').textContent = o.lateral.toFixed(1); $('outlineWV').textContent = o.outlineW.toFixed(1);
+  const today = stageMarkup('today', seed, hour, o, false); $('today').innerHTML = today.svg;
+  const gem = stageMarkup('gem', seed, hour, o, true); $('gem').innerHTML = gem.svg;
+  const LV = lightVec(gem.L.eastL, gem.L.westL, o.lateral);
+  $('readout').textContent =
+    `hour ${hour.toFixed(2)}  eastL ${gem.L.eastL.toFixed(3)}  westL ${gem.L.westL.toFixed(3)}  nightDepth ${gem.L.nd.toFixed(3)}  cap ${gem.L.cap.toFixed(2)}\n` +
+    `facet light vector [${LV[0].toFixed(2)}, ${LV[1].toFixed(2)}]  (x > 0: from the east/right)   bevel ${o.bevel} px, capped at 18 % of the short side\n` +
+    `shapes, five buildings: today ${today.buildingEls}  option A ${gem.buildingEls}  (+${gem.buildingEls - today.buildingEls})   five robots ${gem.robotEls}\n` +
+    `a world has ~60 buildings: option A adds about ${Math.round((gem.buildingEls - today.buildingEls) / 5 * 60)} static shapes, repainted once a second on the lighting tick`;
+  const strip = $('strip'); strip.innerHTML = '';
+  for (const hr of [3, 9, 12, 15, 21]) {
+    const st = stageMarkup('h' + hr, seed, hr, o, true);
+    const div = document.createElement('div'); div.className = 'stage';
+    div.innerHTML = `<svg viewBox="0 0 1920 800" width="480" height="200" preserveAspectRatio="xMidYMid meet">${st.svg}</svg><span>${hr}:00</span>`;
+    strip.appendChild(div);
+  }
+  const seeds = $('seeds'); seeds.innerHTML = '';
+  for (let i = 1; i <= 6; i++) {
+    const sd = seed + ' #' + i; const st = stageMarkup('s' + i, sd, hour, o, true);
+    const div = document.createElement('div'); div.className = 'stage';
+    div.innerHTML = `<svg viewBox="0 0 1920 800" width="480" height="200" preserveAspectRatio="xMidYMid meet">${st.svg}</svg><span>${sd}</span>`;
+    seeds.appendChild(div);
+  }
+  // the world
+  const wt = worldMarkup('wtoday', seed, hour, o, false); $('wtoday').innerHTML = wt.svg;
+  const wg = worldMarkup('wgem', seed, hour, o, true); $('wgem').innerHTML = wg.svg;
+  $('wreadout').textContent =
+    `world shapes (water and robots excluded): today ${wt.els}  option A ${wg.els}  (+${wg.els - wt.els})\n` +
+    `a live dense world is ~2,500 static shapes and costs nothing measurable at idle (PERFORMANCE.md, Districts gates); static layers repaint once a second`;
+  const wstrip = $('wstrip'); wstrip.innerHTML = '';
+  for (const hr of [9, 15, 22]) {
+    const st = worldMarkup('w' + hr, seed, hr, o, true);
+    const div = document.createElement('div'); div.className = 'stage';
+    div.innerHTML = `<svg viewBox="0 0 1920 1080" width="480" height="270" preserveAspectRatio="xMidYMid meet">${st.svg}</svg><span>${hr}:00</span>`;
+    wstrip.appendChild(div);
+  }
+}
+for (const id of ['seed', 'hour', 'depth', 'derelict', 'bevel', 'contrast', 'lateral', 'outline', 'outlineW']) $(id).addEventListener('input', render);
+$('rand').addEventListener('click', () => { $('seed').value = 'plot ' + Math.floor(Math.random() * 400 - 200) + ', ' + Math.floor(Math.random() * 400 - 200); render(); });
+render();
+</script>
+</body>
+</html>
