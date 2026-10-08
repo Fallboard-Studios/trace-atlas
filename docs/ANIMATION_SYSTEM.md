@@ -144,9 +144,13 @@ at once, and a passive effect would register too late for it.
   circle a site point, evenly phased, for `RING_REVOLUTIONS` (1.5) turns, as a polyline of 15°
   chords (plain x/y tweens, no `onUpdate`). Each robot's take comes from
   `workVariation(gemSeed)` (`variation.ts`): turn order, start phase, ring direction, radius
-  (`RING_RADIUS` 24 u ± 15 %) and trace direction. `addFan` (`fan.ts`), `addCarry` (`carry.ts`)
-  and Maintenance's spark flicker (`addSparkFlicker` in `ring.ts`) land in Task 29; every move
-  ends each orbiter at its rest scale and opacity.
+  (`RING_RADIUS` 24 u ± 15 %), trace direction and spark places. `addFan` (`fan.ts`): they
+  spread `FAN_RADIUS` (40 u) above a site point over `FAN_SPREAD_DEG` (120°), then ping to
+  ×`FAN_PING_SCALE` (1.5) in turn. `addCarry` (`carry.ts`): side by side, they shrink to
+  ×`CARRY_SHRINK` (0.7) at one point, carry to a second, grow back and return. Maintenance's
+  spark flicker (`addSparkFlicker` in `ring.ts`): on `FLICKER_SPARKS` (3) seeded chords of its
+  ring, each orbiter dips to opacity `FLICKER_OPACITY` (0.25) and back. Every move ends each
+  orbiter at its rest scale and opacity.
 - **Reattach** — back to `x: 0, y: 0` over `ATTACH_DURATION`. The flights sit inside the duration,
   not on top of it.
 - **The counter-bob** — the orbiters live inside the `.robot` group, so the bob would carry a

@@ -1467,6 +1467,22 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   **Files:** `src/animation/jobMoves/carry.ts`, `fan.ts`, `jobMoveTable.ts`, `buildJobTimeline.ts`
   (+ tests), `src/constants/index.ts`. **Scope:** M.
 
+  **Code review (J3, 2026-10-08):** verdict approve. It found no correctness bugs and one stale
+  doc pair, and three fixes landed. (1) ROBOT_LIFECYCLE.md still said "the rest run `hoverPulse`
+  until Task 29 adds `carry` and `fan`", and ANIMATION_SYSTEM.md said fan, carry and the flicker
+  "land in Task 29". Item (10) above claimed both were fixed, but they weren't. Now each says
+  what every job runs. (2) `buildJobTimeline` had two `switch (step.move)` blocks, and the second
+  had no exhaustiveness check, so a new move would have got its approach flight and nothing else.
+  Now one `planStep(step, work)` returns each move's scene routes and its tween builder together.
+  Its return type makes a missing move a type error (TS2366, checked by deleting the `carry`
+  case), and the flicker's `orbiters.length > 0` guard went with the old `localRoutes[0]` read.
+  (3) `RING_SEGMENTS` (36) is exported from `ring.ts`. `buildJobTimeline` and the Maintenance
+  test no longer read it back from a route's length. Four mutants, all killed: missing case,
+  no flicker, flicker on every ring, and the wrong segment count. Left as is: `stepPoint`'s
+  last-point fallback, which can't fire because every site has ≥ 2 points (tested). FYI: under
+  full-suite load, Task 18's 50-gem round-trip test in `sceneToOrbiterLocal.test.tsx` (2.8 s
+  alone) timed out once at vitest's 5 s. It wasn't chased.
+
 ### Checkpoint D: J3 live
 - [ ] Clean build/lint/types/suite. Crawford, live: can he tell all six jobs apart at a glance?
       Company members visibly vary.
