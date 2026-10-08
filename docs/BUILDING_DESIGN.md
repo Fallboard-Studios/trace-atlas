@@ -471,8 +471,10 @@ new design pass, not a reinstatement of what was cut.
 ## Robot jobs — hosts, work sites, coverage (Phase 43)
 
 Roadmap Phase 43 ([spec](specs/ROBOT_JOBS_AND_STATIONS.md)) gives robots work at the buildings.
-Its first branch (J1) built the world data below. The work loop that uses it lands in J2, so in J1
-nothing on screen changes except the coverage top-ups.
+J1 built the world data below, J2's work loop sends robots to it
+([ROBOT_LIFECYCLE.md](ROBOT_LIFECYCLE.md)), and J3 gave each job its moves at the sites' anchors
+("Jobs, hosts and moves" below; the tweens are in
+[ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#job-moves)).
 
 ### Hosts (`src/systems/jobHosts.ts`)
 
@@ -507,7 +509,7 @@ here too.
 ### Work sites (`src/systems/workSites.ts`)
 
 `getWorkSite(actor): WorkSite | null` returns one per host, `null` for a non-host:
-`{ id, depth, jobs, bounds, park, points, path }`.
+`{ id, depth, jobs, bounds, park, points, paths }`, with `paths` typed `WorkPaths`.
 
 - **`bounds`** is the silhouette box: `factoryGeometry`'s box for factories. For scenery it is the
   per-kind anchor function's box, which contains every drawn shape, with lights up to 40 above.
@@ -522,12 +524,12 @@ here too.
   at least 2 points: the top outline, a hull line) is always there; `paths.pipe` (the pipe run) is
   only on a pipeline, and a site without one traces its outline instead.
 - **Foreground rule:** foreground buildings draw *over* the robots, so a foreground site's points
-  and path lie on or above its top outline. Orbiters work at the silhouette from outside. Midground
+  and paths lie on or above its top outline. Orbiters work at the silhouette from outside. Midground
   and background sites may also use facade points (a tank gauge, a dome hatch, container labels).
 - **Factories** use variant-specific points. Stacks and Refinery get `[mouth, valve]`, where the
   mouth is the bubble vent's x (`factoryVentFraction`, shared with `factoryBubbleProps.ts`).
   Warehouse gets one point in each half of the roof. Monolith and Skyscraper get a seeded mid point
-  plus the roof's 10 % and 90 % points. Points and path use the visible part of the roof.
+  plus the roof's 10 % and 90 % points. Points and paths use the visible part of the roof.
 - **Scenery** uses `sceneryWorkAnchors(actor, …)` (`scenery/sceneryWorkAnchors.ts`), one anchor
   function per hosting kind (`ANCHORED_KINDS`), reading only `deriveSceneryParams(actor)`. Where a
   renderer's geometry was more than a one-liner, it moved into an exported layout helper that the
@@ -542,6 +544,56 @@ here too.
 Found while building the anchors and not fixed (it's renderer scope): the crane's knee brace in
 `renderers/crane.tsx` is a zero-area polygon, all four vertices on one 45° diagonal, so it draws
 nothing. The anchors ignore it.
+
+### Jobs, hosts and moves
+
+Which buildings host each job (`FACTORY_HOST_JOBS`, `SCENERY_HOST_JOBS`) and which moves the job
+runs there (`JOB_MOVES`, `src/animation/jobMoves/jobMoveTable.ts`). A **derelict** host hosts
+`salvage` and `structuralInspection` instead of its own row, so any derelict host can turn up under
+those two jobs.
+
+| Job | Factory hosts | Scenery hosts | Moves |
+|---|---|---|---|
+| `ventExtraction` | `Stacks`, `Refinery` | `tank`, `vent` | hoverPulse on `points[0]` |
+| `acousticSurvey` | `Skyscraper` | `pylon`, `beacon`, `dish` | fan on `points[0]` → ring on `points[0]` |
+| `structuralInspection` | `Monolith`, `Skyscraper` | `crane`, `dome`, `wreck`, `scaffold` | trace the `outline` |
+| `fluidMonitoring` | `Refinery` | `tank`, `pipeline`, `dome` | trace the `pipe` (else the `outline`) → hoverPulse on `points[1]` |
+| `salvage` | `Warehouse` | `wreck`, `containers` | carry `points[0]` → `points[1]` |
+| `maintenance` | — | `crane`, `pylon`, `beacon`, `dome`, `turbine`, `floodlight` | ring on `points[0]`, with the spark flicker |
+
+Sites name their points only by index, so the moves do too: `points[0]` is the main point,
+`points[1]` the second. What those are on each host is below. Foreground scenery draws over the
+robots, so its points stay on or above the outline, and it gets a different set from midground
+and background scenery. Factories use one set at every depth. The traced path is
+`paths.outline` unless the row says otherwise; **only the pipeline has a `pipe`**, so Fluid
+Monitoring on a Refinery, tank or dome traces the outline (`stepPath`'s fallback). Every
+factory's traced roof goes through the east/west face split when it shows. The Refinery draws pipes
+and valves, but their geometry isn't extracted yet, so its "valve" is a seeded roof point.
+
+| Host | `points` (foreground) | `points` (midground, background) | Traced path |
+|---|---|---|---|
+| `Stacks` | mouth (the bubble vent), a roof point in the other half | same | the roof |
+| `Refinery` | mouth (the bubble vent), a roof point in the other half (its "valve") | same | the roof |
+| `Warehouse` | pick-up at 10–35 % along the roof, drop at 65–90 % | same | the roof |
+| `Monolith` | a seeded mid-roof point, the roof's 10 % and 90 % points | same | the roof |
+| `Skyscraper` | a seeded mid-roof point, the roof's 10 % and 90 % points | same | the roof |
+| `tank` | a top point, the two shoulder corners | the gauge, a top point, the left shoulder corner | the shoulder line |
+| `vent` | the mouth, the plume above it | same | the stepped cone |
+| `pylon` | the head, the tower top's two corners | the head, both ends of a seeded cross-arm | the tower top |
+| `beacon` | the gem's top-left corner, a point on its top edge, its top-right corner | the gem's centre, a top-edge point, a point on the foot | the gem's top edge |
+| `dish` | a rim point, the rim's top, a second rim point | the reflector's centre, the feed's tip, a rim point | the upper rim |
+| `crane` | the beam's left end, the hanger's head, the beam's right end | the beam's left end, the load's centre, the beam-end light | the beam's top |
+| `dome` | the mast head, a porthole, the opposite porthole | the mast head, a porthole, the hatch | the arc |
+| `wreck` | the stern deck, the funnel top, the bow | same | the hull line |
+| `scaffold` | the corner light, a post head | the corner light, a brace, a post head | the post heads |
+| `pipeline` | the valve, the riser's top above it, a point on the run | same | `outline`: the stepped top; `pipe`: the run beside the riser |
+| `containers` | pick-up and drop on the stack top, the top row's centre | a label in each half of the bottom row, the top row's centre | the stepped stack top |
+| `turbine` | a point on the rotor's upper-left edge, its top, its rightmost point | the hub, both blade tips | the rotor's upper edge |
+| `floodlight` | two points on the head's top | the lit bar, a point on the head's top | the head's top |
+
+Read across the two tables for what a robot does where: Vent Extraction on a midground tank pulses
+on the gauge, and Fluid Monitoring on a pipeline traces the run, then pulses on the riser's top,
+directly above the valve.
 
 ### Coverage guarantee (`src/systems/jobCoverage.ts`)
 
@@ -576,8 +628,8 @@ It stops when the rule holds or the list runs out.
 
 Charging stations (`src/systems/stations.ts`, spec §1.6) are placed clear of every host's `bounds`
 at **every** depth (`hostObstacles`), background included. That way, turning on
-`BACK_HOSTS_ENABLED` in J4 can't move a station. The station box is a placeholder (160 × 120)
-until the motion sketch supplies Crawford's design.
+`BACK_HOSTS_ENABLED` in J4 can't move a station. The box is `STATION_BOX_W` × `STATION_BOX_H`
+(200 × 200), the size of Crawford's station design (spec §1.6).
 
 ---
 

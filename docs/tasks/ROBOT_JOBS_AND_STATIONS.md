@@ -1514,8 +1514,31 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   noise (2026-10-08: "passable").** **Pixel listen passed 2026-10-08** (Crawford: "pixel is doing
   ok"). Task 30 is done.
 
-- [ ] **Task 31: J3 docs** — ANIMATION_SYSTEM.md moves section; BUILDING_DESIGN.md job → host →
+- [x] **Task 31: J3 docs** — ANIMATION_SYSTEM.md moves section; BUILDING_DESIGN.md job → host →
   move table; spec `> **Shipped (J3)**`. **Scope:** XS.
+
+  **As shipped (2026-10-08, after J2 and J3 merged; on `features/jobs-phase-4` off main
+  `05bf21f1`):** (1) **The criteria are executable**, as at T27: new
+  `src/docs/robotJobsJ3Docs.test.ts` (63 tests). Its tables come from the code, not from a copy:
+  each job's row in ANIMATION_SYSTEM.md must list its `JOB_MOVES` steps in order, and each job's
+  row in BUILDING_DESIGN.md must name exactly the hosts `FACTORY_HOST_JOBS`/`SCENERY_HOST_JOBS`
+  give it. The 16 move constants must carry their real values, and 21 identifiers are spot-checked,
+  word-bounded, in doc and source. (2) **ANIMATION_SYSTEM.md** gets a "Job moves" section: the
+  five moves (builder, file, what the orbiters do, constants), the shared pieces, the spark
+  flicker, the job → moves table with point roles, `moveWindows` timing and `workVariation`'s
+  fields in draw order. "Job timeline"'s long moves bullet now points at it. (3)
+  **BUILDING_DESIGN.md** gets "Jobs, hosts and moves": a job → factory hosts → scenery hosts →
+  moves table, then each of the 18 hosts' `points` (foreground vs midground/background) and
+  traced path, so `points[0]`/`points[1]` mean something per building. Stale J1-era lines fixed:
+  the chapter intro ("lands in J2"), `WorkSite`'s `path` → `paths`, and the station box
+  placeholder (160 × 120 → 200 × 200). (4) **Spec:** `> **Shipped (J3)**` blocks in §1.5 (the
+  `paths` split and the pipe fallback) and §1.9 (the point-role call, the polyline ring, the
+  variation's turn order and phase and the visible Vent Extraction change, the detach cap,
+  `planStep`). (5) **Beyond the task's list**, because they were stale: the intent's Shipped (J3)
+  line, the roadmap's Phase 43 status (it still said J2 unmerged and J3 not started), and
+  ROBOT_LIFECYCLE.md's "J3 adds" line. (6) **Mutation checks:** 5 doc mutants, each run alone,
+  all killed: Acoustic Survey's moves swapped, `Monolith` added as a Maintenance host, a wrong
+  `FAN_RADIUS`, the `vent` target row deleted, and a flicker on Vent Extraction.
 
 ---
 

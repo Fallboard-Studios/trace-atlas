@@ -15,7 +15,8 @@ took the job out of the replay and routed every visual consequence of a transiti
 `onLifecycleChange`. J2 points that seam at the **work loop**: robots exit seeded charging stations,
 go to buildings that are ready for their job, work there, and swim back into a station when the
 tick recalls them. The random wandering and the off-screen dock spot are gone (see "Removed in
-Phase 43" at the end). J3 adds the remaining job moves and J4 the second robot layer; neither
+Phase 43" at the end). J3 added the remaining job moves
+([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#job-moves)) and J4 adds the second robot layer; neither
 changes anything below.
 
 ## Core Principles

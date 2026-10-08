@@ -258,6 +258,16 @@ interface WorkSite {
   renderer's geometry was more than a one-liner, it moved into an exported layout helper that the
   renderer and the anchors both call (BUILDING_DESIGN.md "Robot jobs").
 
+> **Shipped (J3, 2026-10-08; Task 29).** `path` became `paths: { outline, pipe? }` (type
+> `WorkPaths`) at Task 29, not T19: the split waited for its first reader, Fluid Monitoring's
+> `trace(pipe)`. Every kind's `outline` is its old `path` except the pipeline's, which is now its
+> stepped top; the old run is its `pipe`. So a derelict pipeline's Structural Inspection traces
+> the top, not the run. **Only the pipeline has a pipe.** The Refinery's pipes and valves aren't
+> extracted, so Fluid Monitoring on a Refinery, tank or dome traces the outline (the fallback
+> above). The background Skyscraper park clamp is still open for J4. The job → host → move table
+> and each host's points are in
+> [BUILDING_DESIGN.md](../BUILDING_DESIGN.md#jobs-hosts-and-moves).
+
 ### 1.6 Stations (J1 data, J2 render)
 
 - `getStations(localeId): Station[]`, cached like `getRobotGem`. Count 2–3 (`'station.count'`).
@@ -513,6 +523,23 @@ and the set of robots with a pending recall. Public surface:
 > point; the reattach restores nothing (the pulse already ends at rest — T29's flicker must too).
 > Not yet: per-robot variation, and `WorkSite.path` → `paths` (both T28). Docs:
 > [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#job-timeline).
+
+> **Shipped (J3, 2026-10-08; Tasks 28, 29).** All five moves and the six-job table are in
+> `src/animation/jobMoves/` (`hoverPulse.ts`, `trace.ts`, `ring.ts`, `fan.ts`, `carry.ts`,
+> `variation.ts`, `jobMoveTable.ts`), with the constants above in `constants/index.ts`, plus
+> `CARRY_SPACING` 8 u (the sketch's, kept in `carry.ts`) and `RING_SEGMENTS` 36. Differences from
+> the text: (1) **Point roles are indices**, because sites name their points only by index. The
+> mouth, mast or point is `points[0]`, Fluid Monitoring's valve is `points[1]`, and Salvage
+> carries `points[0]` → `points[1]` (flagged at Task 29). (2) **Fluid Monitoring's `trace(pipe)`**
+> traces the outline on every host but the pipeline (§1.5). (3) **The ring is a polyline** of 15°
+> chords, not an `onUpdate`. Maintenance's flicker dips on 3 seeded chords per orbiter, indexed by
+> corner. (4) **Variation also sets a turn order and a start phase**, and `hoverPulse` uses them
+> too, a visible change to Vent Extraction: the first orbiter is no longer always straight above
+> the mouth. The fan always opens upward. (5) The detach is capped at 40 % of the first move's
+> share, which never binds at 6–10 s. (6) `buildJobTimeline` picks each move's routes and tweens
+> in one exhaustive `planStep` (code review). Checkpoint D passed 2026-10-08, and so did the J3
+> perf gate and the Pixel listen. Docs:
+> [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#job-moves).
 
 ### 1.10 Depth layers (J4, `OceanScene.tsx`)
 
