@@ -26,6 +26,10 @@ import type { Vec2 } from '../../types/Vec2';
 /** Chords per turn of the ring (15° each, the sketch's 36 per 1.5 turns). */
 const RING_SEGMENTS_PER_TURN = 24;
 
+/** Chords in one ring move (36): `ringRoute` has this many + 1 vertices, and the spark flicker
+ *  slices the move into this many equal parts. */
+export const RING_SEGMENTS = Math.ceil(RING_REVOLUTIONS * RING_SEGMENTS_PER_TURN);
+
 // ========================================
 // TARGETS
 // ========================================
@@ -41,9 +45,8 @@ export function ringStartAngles(count: number, phase: number): number[] {
 
 /** One orbiter's ring: RING_REVOLUTIONS turns round `centre` from `startAngle`, as chord vertices. */
 export function ringRoute(centre: Vec2, radius: number, startAngle: number, direction: 1 | -1): Vec2[] {
-  const segments = Math.ceil(RING_REVOLUTIONS * RING_SEGMENTS_PER_TURN);
-  return Array.from({ length: segments + 1 }, (_, k) => {
-    const a = startAngle + direction * 2 * Math.PI * RING_REVOLUTIONS * (k / segments);
+  return Array.from({ length: RING_SEGMENTS + 1 }, (_, k) => {
+    const a = startAngle + direction * 2 * Math.PI * RING_REVOLUTIONS * (k / RING_SEGMENTS);
     return { x: centre.x + radius * Math.cos(a), y: centre.y + radius * Math.sin(a) };
   });
 }

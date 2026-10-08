@@ -4,7 +4,7 @@
 import gsap from 'gsap';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-import { ringRadius, ringStartAngles, ringRoute, addRing, sparkChords, addSparkFlicker } from './ring';
+import { RING_SEGMENTS, ringRadius, ringStartAngles, ringRoute, addRing, sparkChords, addSparkFlicker } from './ring';
 import { FLICKER_OPACITY, RING_RADIUS, RING_RADIUS_JITTER, RING_REVOLUTIONS } from '../../constants';
 import type { Vec2 } from '../../types/Vec2';
 
@@ -69,6 +69,12 @@ describe('ringRadius / ringStartAngles (pure)', () => {
 });
 
 describe('ringRoute (pure)', () => {
+  it('has RING_SEGMENTS chords (15° each over the 1.5 turns) for any centre, radius, angle or direction', () => {
+    expect(RING_SEGMENTS).toBe(36);
+    expect(ringRoute(CENTRE, 20, 0.7, 1)).toHaveLength(RING_SEGMENTS + 1);
+    expect(ringRoute({ x: 0, y: 0 }, 1, 0, -1)).toHaveLength(RING_SEGMENTS + 1);
+  });
+
   it('every vertex is on the circle, starting at the start angle', () => {
     const route = ringRoute(CENTRE, 20, 0.7, 1);
     for (const p of route) expect(Math.hypot(p.x - CENTRE.x, p.y - CENTRE.y)).toBeCloseTo(20, 9);

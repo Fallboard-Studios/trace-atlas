@@ -11,7 +11,7 @@ import { carryTargets } from './carry';
 import { JOB_MOVES, moveWindows } from './jobMoveTable';
 import { jobDuration } from './jobDuration';
 import { traceRoute, traceTimes } from './trace';
-import { ringRadius, ringRoute, ringStartAngles, sparkChords } from './ring';
+import { RING_SEGMENTS, ringRadius, ringRoute, ringStartAngles, sparkChords } from './ring';
 import { workVariation, turnRanks } from './variation';
 import type { OrbiterCorner } from './sceneToOrbiterLocal';
 import { getTimeline, killTimeline, killAllTimelines } from '../timelineMap';
@@ -536,10 +536,9 @@ describe('buildJobTimeline — the six-job table (Task 29)', () => {
     const shown = shownCorners(GEM_SEED, n);
     i.orbiters.forEach((local, j) => {
       // One dip per distinct spark chord, each reaching FLICKER_OPACITY at the chord's middle.
-      const segments = ringRoute({ x: 0, y: 0 }, 1, 0, 1).length - 1;
-      const chords = sparkChords(v.sparks[shown[j]], segments);
+      const chords = sparkChords(v.sparks[shown[j]], RING_SEGMENTS);
       expect(chords.length).toBeGreaterThan(0);
-      const c = (win.end - win.start) / segments;
+      const c = (win.end - win.start) / RING_SEGMENTS;
       expect(dips[j].length, `orbiter ${j}`).toBe(chords.length);
       for (const k of chords) {
         tl.time(win.start + (k + 0.5) * c);
