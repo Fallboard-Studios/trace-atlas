@@ -34,7 +34,19 @@
        Q3 Dissolve implies the robot is clear of every midground silhouette for the WHOLE fade, not just at one point:
           findLayerSwitchPoint (Task 32) would need a clear run of (fade seconds × swim speed) units. The orange
           stretch on the leg (show leg) is that run.
-       Q4 Does the back row still read as behind the midground at your values? (It must sit under some B/C haze.) -->
+       Q4 Does the back row still read as behind the midground at your values? (It must sit under some B/C haze.)
+     Verdicts (Crawford, 2026-10-08 — his settings on this page):
+       Q1 BOTH: redistribute the haze AND dissolve.
+       Q2 A 0.06 navy → vent · B 0.25 navy → vent · C 0.20 vent shadow · D 0.10 vent shadow. Coverage: background
+          buildings 44 % (was 85 %), back-row robots 46 %, midground 20 % (was 50 %), front-row robots 10 % (was 0),
+          foreground 0; pop at a switch 40 % (was 85 %), then blended by the dissolve.
+       Fade 1.0 s; scale ease after the switch on; back-row scale 0.75 (unchanged).
+       Q3 follows from Q1: the switch point becomes the start of a clear RUN. One correction to this page: here the
+          return leg fades the front copy in BEFORE the (mirrored) switch point; in the app each leg's switch point is
+          the first clear point from its start, so the dissolve runs AFTER the switch point in both directions.
+       Q4 yes.
+       Judged on simplified flat buildings — the real silhouettes, windows and gem accents get a live look at
+       Checkpoint E. GATE PASSED; folded into spec §1.10 and plan Tasks 32b–34. -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -72,9 +84,9 @@
   on the leg). Values and modes are for judging by eye — nothing here is wired to the app.</p>
 
 <div class="pending">
-  <b>Open for Crawford:</b> Q1 redistribute, dissolve, or both? · Q2 the A–D values ·
-  Q3 a dissolve needs the robot clear of the midground for the whole fade (the orange run on the leg), so Task 32's
-  switch point becomes a clear <i>run</i> · Q4 does the back row still read as behind the midground?
+  <b>Gate passed (Crawford, 2026-10-08):</b> both — redistribute and dissolve. A 0.06 · B 0.25 · C 0.20 · D 0.10,
+  fade 1.0 s (the "Chosen" preset). The switch point becomes the start of a clear run; in the app the dissolve runs
+  after the switch point in both directions (this page mirrors it on the return).
 </div>
 
 <div class="controls">
@@ -82,6 +94,7 @@
   <button id="presetToday">Today (spec §1.10)</button>
   <button id="presetSpread">Redistributed</button>
   <button id="presetEven">Even through the stack</button>
+  <button id="presetChosen">Chosen (Crawford, 2026-10-08)</button>
   <label>Speed <input type="range" id="speed" min="0.25" max="3" step="0.25" value="1" /> <span class="val" id="speedv"></span>×</label>
   <label>Hour <input type="range" id="hour" min="0" max="24" step="0.5" value="12" /> <span class="val" id="hourv"></span></label>
 </div>
@@ -97,7 +110,7 @@
   <div class="col">
     <h3>Switch</h3>
     <label>Mode <select id="mode"><option value="instant">instant re-mount</option><option value="dissolve" selected>dissolve (front copy fades)</option></select></label>
-    <label>Fade <input type="range" id="fade" min="0.1" max="2" step="0.05" value="0.8" /> <span class="val" id="fadev"></span> s</label>
+    <label>Fade <input type="range" id="fade" min="0.1" max="2" step="0.05" value="1" /> <span class="val" id="fadev"></span> s</label>
     <label>Switch at <input type="range" id="switchAt" min="0.05" max="0.6" step="0.01" value="0.35" /> <span class="val" id="switchAtv"></span> of the leg</label>
     <label><input type="checkbox" id="scaleEase" checked /> scale ease after the switch</label>
     <label>Back-row scale <input type="range" id="backScale" min="0.5" max="1" step="0.05" value="0.75" /> <span class="val" id="backScalev"></span></label>
@@ -154,6 +167,7 @@ const PRESETS = {
   presetToday: { A: 0, B: 0.7, C: 0.5, D: 0 },
   presetSpread: { A: 0.6, B: 0.2, C: 0.15, D: 0 },
   presetEven: { A: 0.35, B: 0.25, C: 0.2, D: 0.1 },
+  presetChosen: { A: 0.06, B: 0.25, C: 0.2, D: 0.1 },
 };
 
 const $ = (id) => document.getElementById(id);

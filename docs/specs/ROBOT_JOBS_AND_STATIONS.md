@@ -543,10 +543,28 @@ and the set of robots with a pending recall. Public surface:
 
 ### 1.10 Depth layers (J4, `OceanScene.tsx`)
 
-- **Layer stack:** `back` (water, terrain, background buildings) → **`robots-back`** (moving) →
-  **`mid`** (gradient 0-1, midground buildings, gradient 1-2 — split out of today's `back`) →
-  `bubbles` → `robots` → `front`. Back-layer robots sit under the 0-1 depth gradient, which tints
-  them like the background buildings — no new overlay (Visual Mapping guardrail unchanged).
+- **Layer stack:** `back` (water, ridge, background buildings, tint A) → **`robots-back`**
+  (moving) → **`mid`** (tint B, midground buildings and pipe bridges, tint C, the ground line —
+  split out of today's `back`) → `bubbles` → `robots` → `front` (tint D, foreground buildings).
+  Back-layer robots sit under tints B–D, which haze them like the buildings behind them — scene
+  haze, not a robot overlay (Visual Mapping guardrail unchanged). The ground line is in `mid`
+  because it is a midground silhouette (Task 32).
+- **Depth tints** (sketch gate, `docs/sketches/robot-depth-tint.html`, Crawford 2026-10-08):
+  four full-screen tints spread through the stack, replacing today's two (gradient-0-1 at .7 and
+  gradient-1-2 at .5, which together put ~85 % haze on a back-row robot in one frame). Each sits at
+  the edge of an existing static layer, so no new compositor layer:
+
+  | Slot | Where | Opacity | Colour |
+  |---|---|---|---|
+  | A | top of `back`: over background buildings, under the back row | 0.06 | `#0c1c4f` → `vent.shadow` |
+  | B | bottom of `mid`: over the back row, under the midground | 0.25 | `#0c1c4f` → `vent.shadow` |
+  | C | top of `mid` (under the ground line): over the midground, under the front row | 0.20 | `vent.shadow` |
+  | D | bottom of `front`: over the front row, under the foreground | 0.10 | `vent.shadow` |
+
+  Coverage (1 − Π(1 − α)): background buildings 44 % (was 85 %), back-row robots 46 %, midground
+  20 % (was 50 %), front-row robots, stations and bubbles 10 % (was 0), foreground 0. The pop at a
+  switch is B and C together, 40 % (was 85 %), and the dissolve blends it. This changes every
+  world's look, not only the robots'; Checkpoint E judges it on the real buildings.
 - **Clicks:** both robot layers get `pointer-events: none` like the rest; `.robot` gets
   `pointer-events: auto`, so the front layer's full-screen `<svg>` stops blocking the back one.
 - **Which layer:** `Robot.layer` — `'background'` while the robot's current destination is a
@@ -554,10 +572,21 @@ and the set of robots with a pending recall. Public surface:
   in its layer's list.
 - **Switching:** `findLayerSwitchPoint(from, to, robotBox, midgroundBounds): Vec2 | null`, pure —
   the first point along the straight leg (sampled every 20 units) where the robot's box overlaps no
-  midground silhouette. The leg splits there: swim to the switch point, write `layer` + `position`
-  (React re-mounts the robot in the other layer, `onRobotMounted` continues the leg), then swim on
-  while the robot `<g>` eases between scale 1 and `BACK_LAYER_SCALE` = 0.75. No clear point → the
-  site is skipped for this decision. Robots never pop through a building.
+  midground silhouette (`midgroundSilhouettes.ts`: everything solid between the robot rows; bubbles,
+  plumes and light excluded, Crawford 2026-10-08) **and stays clear for the whole dissolve**: over
+  the stretch the second swim covers in `LAYER_DISSOLVE_SECONDS`, or to the leg's end if it
+  arrives sooner (Task 32b). The leg splits there: swim to the switch point, write `layer` +
+  `position` (React re-mounts the robot in the other layer, `onRobotMounted` continues the leg),
+  then swim on while the robot `<g>` eases between scale 1 and `BACK_LAYER_SCALE` = 0.75. No clear
+  run → the site is skipped for this decision. Robots never pop through a building.
+- **Dissolve** (sketch gate, Crawford 2026-10-08): `LAYER_DISSOLVE_SECONDS` = 1.0. At the switch
+  point the robot is drawn in both rows for the dissolve: it re-mounts in its new row at full
+  opacity, and a copy in the row it left fades — out (front → back) or in (back → front) — over
+  it, so the haze blends instead of popping and the robot never goes see-through. The dissolve
+  runs after the switch point in both directions. Proposed for Task 34: the copy is an SVG
+  `<use href="#…">` of the robot's own group in the other layer's `<svg>` (one GSAP target, no
+  second React mount or registry entry); confirm it renders the live transforms before relying on
+  it.
 - **Re-mount without a flourish:** `RobotBody` skips the orbiters' initial-mount attach and the
   arc decorator re-registers silently when the remount is a layer switch (a runtime
   `layerSwitching` set in the registry, cleared after mount).

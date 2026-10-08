@@ -1598,34 +1598,77 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   survivor first — a wrong `frontCornerX` only grew the box, which a containment test can't see —
   closed with the tightness checks and an any-depth pitched-roof case). Full suite 7321 green.
 
-- [ ] **Task 33: Split the scene layers; robots per layer; clicks**
+### Sketch gate: depth tint (between T32 and T33)
 
-  **Description:** `OceanScene` (spec §1.10): `back` → `robots-back` (moving) → `mid` (gradient 0-1,
-  midground, gradient 1-2) → `bubbles` → `robots` → `front`. Robots render in the list for their
-  `Robot.layer` (all `'foreground'` until T34). Layer `pointer-events: none` everywhere; `.robot`
+- [x] **Depth-tint sketch** — `docs/sketches/robot-depth-tint.html` (14ede6c2). Found at T32: spec
+  §1.10 as written put a back-row robot under both depth gradients (.7 + .5), an ~85 % haze pop in
+  one frame at a row switch. Crawford asked for more tint layers through the stack; the sketch
+  showed that only tint *between* the robot rows makes the pop. **Gate passed 2026-10-08**
+  (Crawford's settings): both redistribute and dissolve — tints A 0.06 / B 0.25 / C 0.20 / D 0.10
+  (pop 85 % → 40 %, background buildings 85 % → 44 %, midground 50 % → 20 %, every robot 10 %),
+  `LAYER_DISSOLVE_SECONDS` 1.0. Folded into spec §1.10 and T32b–T35 below.
+
+- [ ] **Task 32b: The switch point starts a clear run**
+
+  **Description:** `findLayerSwitchPoint` (spec §1.10) returns the first sample whose robot box is
+  clear of every midground silhouette **for the whole dissolve**: from the sample to where the
+  second swim (sine.inOut from rest, `SWIM_SPEED`) is `LAYER_DISSOLVE_SECONDS` later, or to the
+  leg's end if it arrives sooner (the robot then finishes the dissolve at rest there). New
+  constant `LAYER_DISSOLVE_SECONDS` = 1.0. The work loop's skip rule is unchanged (no run → skip).
+
+  **Acceptance criteria:**
+  - [ ] A point clear itself but with a silhouette inside the run is not chosen; the first point
+        whose run is clear is.
+  - [ ] A run reaching the leg's end checks only to the end; a short leg that is clear end to end
+        returns `from`.
+  - [ ] The run length matches the swim: a long leg's run is shorter than `SWIM_SPEED` × 1 s
+        (sine.inOut starts slow), a leg shorter than the run is checked whole.
+
+  **Verification:** `npx vitest run src/animation/layerSwitch.test.ts src/systems/workLoop.test.ts`.
+  **Dependencies:** T32, the depth-tint gate. **Files:** `src/animation/layerSwitch.ts` (+ test),
+  `src/constants/index.ts`. **Scope:** S.
+
+- [ ] **Task 33: Split the scene layers; robots per layer; clicks; the four tints**
+
+  **Description:** `OceanScene` (spec §1.10): `back` (water, ridge, background buildings, tint A)
+  → `robots-back` (moving) → `mid` (tint B, midground buildings and pipe bridges, tint C, the
+  ground line) → `bubbles` → `robots` → `front` (tint D, foreground buildings). The four tints
+  replace `gradient-0-1`/`gradient-1-2` with spec §1.10's table values; the ground line moves to
+  `mid` (it is a midground silhouette, T32). Robots render in the list for their `Robot.layer`
+  (all `'foreground'` until T34). Layer `pointer-events: none` everywhere; `.robot`
   `pointer-events: auto`.
 
   **Acceptance criteria:**
-  - [ ] DOM order of `data-scene-layer` matches the stack; a robot with `layer: 'background'`
-        renders in `robots-back`.
+  - [ ] DOM order of `data-scene-layer` matches the stack; each tint sits where the table says,
+        with its opacity and colours; a robot with `layer: 'background'` renders in `robots-back`.
+  - [ ] Coverage readout from the rendered tints equals the sketch's (44 / 46 / 20 / 10 / 0 %,
+        pop 40 %) — one test computing 1 − Π(1 − α) per row from the DOM.
   - [ ] A click on a back-layer robot selects it (test dispatches through the stacked layers).
   - [ ] OceanScene and perf-harness layer selectors updated; existing scene tests pass.
 
-  **Verification:** `npx vitest run src/components/panels/screen/worldView`. **Dependencies:** T32.
+  **Verification:** `npx vitest run src/components/panels/screen/worldView`. **Dependencies:** T32b.
   **Files:** `OceanScene.tsx`, `OceanScene.css` (+ test), `scripts/perf/idle-paint.mjs` (its
-  selectors name `data-scene-layer` values — add `robots-back` and `mid`). **Scope:** M.
+  selectors name `data-scene-layer` values — add `robots-back` and `mid`; its `no-gradient-rects`
+  ablation hides `#gradient-back-mid, #gradient-mid-front` — point it at the four tints).
+  **Scope:** M.
 
-- [ ] **Task 34: Layer-aware legs; re-mount without a flourish**
+- [ ] **Task 34: Layer-aware legs; re-mount without a flourish; the dissolve**
 
   **Description:** The loop splits a leg at the switch point: swim there, write `layer` +
   `position`, mark the robot in the registry's `layerSwitching` set; `onRobotMounted` continues the
   leg; the robot `<g>` eases between scale 1 and `BACK_LAYER_SCALE` (0.75) over the second half.
   `RobotBody`/`useOrbiterMotion` skip the initial attach and re-register silently for a
-  `layerSwitching` mount. Flip `BACK_HOSTS_ENABLED` to true.
+  `layerSwitching` mount. The dissolve (spec §1.10): for `LAYER_DISSOLVE_SECONDS` after the
+  switch a copy of the robot in the row it left fades out (front → back) or in (back → front)
+  over the re-mounted robot; proposed as an SVG `<use>` of the robot's group in the other layer,
+  keyed and killed like the robot's other legs. Flip `BACK_HOSTS_ENABLED` to true.
 
   **Acceptance criteria:**
-  - [ ] A robot sent to a background site switches only at a clear point and arrives at 0.75; the
-        reverse trip restores 1 before any foreground site or station.
+  - [ ] A robot sent to a background site switches only at the start of a clear run and arrives
+        at 0.75; the reverse trip restores 1 before any foreground site or station.
+  - [ ] The dissolve: the copy fades 1 → 0 (front → back) or 0 → 1 (back → front) over
+        `LAYER_DISSOLVE_SECONDS`, the re-mounted robot stays at full opacity throughout, and the
+        copy is gone afterwards and on `stopWorkLoop`.
   - [ ] No orbiter attach hop on a layer-switch remount (spy on the attach tween).
   - [ ] Coverage still holds without background hosts (flag false → all J1–J3 tests green).
 
@@ -1637,12 +1680,15 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 ### Checkpoint E: J4 live
 - [ ] Clean build/lint/types/suite. Crawford, live: robots work among background buildings, never
       pop through a midground silhouette, no hitch at a layer switch (spec §7 Q3 — a hitch is a
-      stop-and-report).
+      stop-and-report), the dissolve reads as a blend, and the new tints on the real buildings
+      (judged on flat boxes in the sketch — background 44 %, midground 20 %, every robot 10 %).
+      Note for the hitch call: the split leg brings the robot to rest at the switch point (two
+      sine.inOut swims).
 
 - [ ] **Task 35: J4 perf gate + Pixel — stop and report**
 
-  **Description:** As T26 against J3's tip, plus the extra compositor layers' memory. Crawford's
-  Pixel run is the gate. A miss: J4 does not merge; `BACK_HOSTS_ENABLED` stays false on main.
+  **Description:** As T26 against J3's tip, plus the extra compositor layers' memory and the four
+  full-screen tints (two more than today, in static layers). Crawford's Pixel run is the gate. A miss: J4 does not merge; `BACK_HOSTS_ENABLED` stays false on main.
 
   **Files:** `docs/PERFORMANCE.md`. **Scope:** S.
 
