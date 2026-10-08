@@ -35,10 +35,7 @@ const ADSR = { attack: 0.1, decay: 0.1, sustain: 0.8, release: 0.3 };
 function makeRobot(overrides: Partial<Robot> = {}): Robot {
   return {
     id: 'r1',
-    state: 'idle',
     position: { x: 0, y: 0 },
-    destination: null,
-    direction: 'right',
     melody: [],
     audioAttributes: { adsr: ADSR, filterFreq: 0, waveform: 'sine' },
     octaveRange: [3, 4],

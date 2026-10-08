@@ -49,3 +49,24 @@ describe('DockingState (Phase 43 §1.1 — renamed so Docking no longer means le
     expect(offenders, `files still naming the old states:\n  ${offenders.join('\n  ')}`).toEqual([]);
   });
 });
+
+describe('the legacy wandering and job scorer are gone (Phase 43 Task 24)', () => {
+  it('lifecycleVisuals.ts and idleSystem.ts no longer exist', () => {
+    const files = walk(SRC).map((p) => relative(SRC, p).replace(/\\/g, '/'));
+    expect(files.filter((f) => /^systems\/(lifecycleVisuals|idleSystem)\.(test\.)?ts$/.test(f))).toEqual([]);
+  });
+
+  it('no file in src/ names a deleted identifier or the retired idle.target.* dataIds', () => {
+    const stale = new RegExp(
+      '\\b(lifecycleVisuals|idleSystem|RobotState|scoreJobAffinities|assignJob|JOB_MAX_ROBOTS_PER_TYPE|' +
+        'BATTERY_LOWER_THIRD_THRESHOLD|pickExitDestination|pickDestination|initRobotIdleCounter|handleRobotIdle|' +
+        'handleRobotArrival|cancelPendingIdleDelay)\\b|idle\\.target\\.',
+    );
+    const offenders = walk(SRC)
+      .filter((p) => p !== THIS_FILE)
+      .filter((p) => stale.test(readFileSync(p, 'utf8')))
+      .map((p) => relative(SRC, p))
+      .sort();
+    expect(offenders, `files still naming legacy identifiers:\n  ${offenders.join('\n  ')}`).toEqual([]);
+  });
+});

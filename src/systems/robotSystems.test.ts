@@ -36,12 +36,12 @@ import {
 
 // The tick reaches anything visual only through the onLifecycleChange seam (Phase 43 Task 5).
 // Mock it so these tests assert "was the seam called, with which `to`, after which writes" —
-// the adapter behind it (exit swim, dock position, job, idle restart) has its own tests in
-// lifecycleVisuals.test.ts, including an end-to-end run through the real tick.
-vi.mock('./lifecycleVisuals', () => ({
+// the work loop behind it (Task 24) has its own tests in workLoop.test.ts, and
+// workLoop.integration.test.ts runs it end to end under the real tick.
+vi.mock('./workLoop', () => ({
   onLifecycleChange: vi.fn(),
 }));
-import { onLifecycleChange } from './lifecycleVisuals';
+import { onLifecycleChange } from './workLoop';
 const seam = onLifecycleChange as ReturnType<typeof vi.fn>;
 
 vi.mock('../engine/beatClock', () => ({
@@ -64,10 +64,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     name: 'Test Robot',
     identityColor: '#428d95',
     gemSeed: 1,
-    state: 'idle',
     position: { x: 100, y: 100 },
-    destination: null,
-    direction: 'right',
     melody: [
       { id: 'e1', startStep: 1, length: '16n', noteIndex: 0, octave: 4 },
       { id: 'e2', startStep: 5, length: '16n', noteIndex: 1, octave: 4 },
@@ -84,6 +81,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
     createdAt: Date.now(),
     masterVolume: 0.7,
     docking: DockingState.Active,
+    activity: 'exiting',
     batteryLevel: 100,
     ...overrides,
   };
@@ -196,6 +194,7 @@ describe('robotSystems', () => {
     it('calls the seam with \'recalled\' the instant a robot is Recalled — once, for that robot only, after the Recalled write', () => {
       const robot = makeRobot({
         position: { x: 960, y: 540 },
+        activity: 'working',
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
       });
@@ -214,9 +213,10 @@ describe('robotSystems', () => {
       expect(dockingAtSeam).toBe(DockingState.Recalled);
     });
 
-    it('beginRecall writes no visual state itself — no swim, state, destination, direction or position', () => {
+    it('beginRecall writes no visual state itself — no position or activity (the seam tells the loop)', () => {
       const robot = makeRobot({
         position: { x: 960, y: 540 },
+        activity: 'working',
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
       });
@@ -226,10 +226,8 @@ describe('robotSystems', () => {
       tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)!;
-      expect(updated.state).toBe(robot.state);
-      expect(updated.destination).toBe(robot.destination);
-      expect(updated.direction).toBe(robot.direction);
       expect(updated.position).toEqual(robot.position);
+      expect(updated.activity).toBe(robot.activity);
     });
 
     it('Docked robot reaching full battery begins Undocking with a hold, not immediate Active', () => {
@@ -561,16 +559,15 @@ describe('robotSystems', () => {
       expect(getDockCycleCount(robot.id)).toBe(2);
     });
 
-    it('writes no position, state or destination itself — the dock position is the seam\'s', () => {
-      const robot = makeRobot({ docking: DockingState.Recalled, position: { x: 500, y: 500 }, state: 'moving', destination: { x: -150, y: 300 } });
+    it('writes no position or activity itself — the work loop owns both, through the seam', () => {
+      const robot = makeRobot({ docking: DockingState.Recalled, position: { x: 500, y: 500 }, activity: 'entering' });
       setupLocaleWithRobots([robot]);
 
       landOnDocked(DEFAULT_LOCALE_ID, robot.id, robot.melody);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)!;
       expect(updated.position).toEqual({ x: 500, y: 500 });
-      expect(updated.state).toBe('moving');
-      expect(updated.destination).toEqual({ x: -150, y: 300 });
+      expect(updated.activity).toBe('entering');
     });
 
     it('is a silent no-op for a robot that is not in the locale — no seam call, no dock cycle', () => {
@@ -584,16 +581,16 @@ describe('robotSystems', () => {
   });
 
   describe('module boundary (Phase 43 Task 5)', () => {
-    it('robotSystems.ts imports nothing visual — no idleSystem, swimAnimation or spawnSystem', async () => {
+    it('robotSystems.ts reaches visuals only through the seam — no swimAnimation or spawnSystem, the work loop by onLifecycleChange alone', async () => {
       const { readFileSync } = await import('node:fs');
       const { resolve } = await import('node:path');
       const src = readFileSync(resolve(__dirname, 'robotSystems.ts'), 'utf8');
       // Every module specifier, including the closing line of a multi-line import.
       const specifiers = [...src.matchAll(/from\s+'([^']+)'/g)].map((m) => m[1]);
-      expect(specifiers).not.toContain('./idleSystem');
       expect(specifiers).not.toContain('../animation/swimAnimation');
       expect(specifiers).not.toContain('./spawnSystem');
-      expect(specifiers).toContain('./lifecycleVisuals');
+      expect(specifiers).toContain('./workLoop');
+      expect(src).toMatch(/import \{ onLifecycleChange \} from '\.\/workLoop';/);
     });
   });
 

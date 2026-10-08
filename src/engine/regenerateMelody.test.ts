@@ -24,7 +24,6 @@ vi.mock('../stores/localeStore', () => ({
 import { regenerateMelody } from './regenerateMelody';
 import { AudioEngine } from './AudioEngine';
 import type { Robot } from '../types/Robot';
-import { RobotState } from '../types/Robot';
 
 // Hoisted mock spy references — resolved after imports so vi.mocked() works.
 const updateRobotMock = vi.fn();
@@ -37,10 +36,7 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
   return {
     id: 'robot-1',
     compositionSeed: 0.5,
-    state: RobotState.Idle,
     position: { x: 0, y: 0 },
-    destination: null,
-    direction: 'right',
     melody: [],
     audioAttributes: {
       adsr: { attack: 0.1, decay: 0.1, sustain: 0.5, release: 0.1 },

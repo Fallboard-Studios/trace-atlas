@@ -355,9 +355,16 @@ describe('spawnSystem', () => {
 
       const robot = robots[0];
       expect(robot.id).toBeDefined();
-      expect(robot.state).toBe('idle');
       expect(robot.position).toBeDefined();
-      expect(robot.destination).toBeNull();
+      // The wandering fields are gone (Phase 43 Task 24); the work loop owns motion.
+      expect(robot).not.toHaveProperty('state');
+      expect(robot).not.toHaveProperty('destination');
+      expect(robot).not.toHaveProperty('direction');
+      // `activity` is required (spec §1.2): a lone spawn already has the loop's starting state.
+      expect(robot.docking).toBe('active');
+      expect(robot.activity).toBe('exiting');
+      spawnRobot(DEFAULT_LOCALE_ID, { docking: DockingState.Docked, batteryLevel: 40 });
+      expect(useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[1].activity).toBe('charging');
       expect(robot.melody).toBeDefined();
       expect(robot.melody.length).toBeGreaterThan(0);
       expect(robot.audioAttributes).toBeDefined();
@@ -1257,11 +1264,11 @@ describe('spawnSystem', () => {
       expect(useLocaleStore.getState().getLocaleById('no-such-locale')).toBeUndefined();
     });
 
-    it('spawnRobot alone (no roster) leaves stationId, activity and siteId unset', () => {
+    it('spawnRobot alone (no roster) leaves stationId and siteId unset; activity is its docking\'s starting state (Task 24: required)', () => {
       spawnRobot(DEFAULT_LOCALE_ID);
       const [r] = roster();
       expect(r.stationId).toBeUndefined();
-      expect(r.activity).toBeUndefined();
+      expect(r.activity).toBe('exiting');
       expect(r.siteId).toBeUndefined();
     });
   });

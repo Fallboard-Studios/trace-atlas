@@ -5,7 +5,7 @@ import alea from 'alea';
 import type { NoiseFunction2D } from 'simplex-noise';
 import type { Vec2 } from '../types/Vec2';
 import type { AudioAttributes, WaveformType, Robot } from '../types/Robot';
-import { RobotState, DockingState } from '../types/Robot';
+import { DockingState } from '../types/Robot';
 import {
   generateMelodyForRobot,
   buildSeededComposition,
@@ -23,7 +23,6 @@ import {
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
 } from '../constants';
 import useLocaleStore from '../stores/localeStore';
-import { initRobotIdleCounter } from './idleSystem';
 import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
@@ -267,13 +266,9 @@ function getAndIncrementSpawnCount(localeId: string): number {
 // ========================================
 
 /**
- * Generate a spawn position just outside the visible SVG viewBox, below the
- * bottom edge. Robots are invisible here (SVG clips to viewBox) and swim
- * inward on their first idle tick, creating a natural "surfacing from below"
- * entrance. Every robot enters and exits exclusively via the bottom of the
- * world view — this is also what lifecycleVisuals.ts's 'docked' branch reuses to
- * reposition a robot once it's actually docked, so a robot's off-screen
- * resting spot is always south too, never to the sides or above.
+ * A seeded spawn position just outside the visible SVG viewBox, below the bottom edge. Only a
+ * lone spawnRobot keeps it: spawnInitialRoster moves the whole roster to its station ports
+ * (placeRosterAtStations), and the work loop owns every position after that (Phase 43).
  */
 export function generateSpawnPosition(noiseMap: NoiseFunction2D, offset: number): Vec2 {
   return {
@@ -567,7 +562,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
 
   // 30% seeded chance to copy an existing robot's audio personality instead of generating fresh.
   // Copied robots inherit: audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength,
-  // noteVariance, lfoLinks. Always fresh: id, name, position, direction, melody (regenerated
+  // noteVariance, lfoLinks. Always fresh: id, name, position, melody (regenerated
   // from the copied octaveRange/rhythmicDensity/rhythmicMotifLength/noteVariance).
   const copyRoll = noiseMap
     ? getSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1)
@@ -672,7 +667,6 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   });
 
   const position = noiseMap ? generateSpawnPosition(noiseMap, spawnCount) : generateSpawnPosition((_x: number, _y: number) => 0 as number, spawnCount);
-  const spawnDirection: 'left' | 'right' = position.x < (WORLD_WIDTH / 2) ? 'left' : 'right';
 
   const robot: Robot = {
     id: noiseMap ? generateRobotId(noiseMap, spawnCount) : generateRobotId((_x: number, _y: number) => 0 as number, spawnCount),
@@ -684,10 +678,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     gemSeed: noiseMap
       ? generateGemSeed(noiseMap, spawnCount)
       : generateGemSeed((_x: number, _y: number) => 0 as number, spawnCount),
-    state: RobotState.Idle,
     position,
-    destination: null,
-    direction: spawnDirection,
     melody: spawnMelody,
     audioAttributes,
     octaveRange,
@@ -715,15 +706,13 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     })(),
     createdAt: Date.now(),
     docking,
+    // The work loop's starting state (spec §1.2); placeRosterAtStations sets it again at the port.
+    activity: docking === DockingState.Active ? 'exiting' : 'charging',
     batteryLevel,
   };
 
   // Add to locale store
   useLocaleStore.getState().addRobot(localeId, robot);
-
-  // Seed the idle counter to this robot's spawn index so its noise-sampled
-  // destinations are phase-shifted away from other robots in the same locale.
-  initRobotIdleCounter(robot.id, spawnCount);
 
   // Every robot gets a reserved voice and registered melody, regardless of
   // docking state — mute is enforced by AudioEngine reading `audioMode` at

@@ -243,9 +243,6 @@ export const SWIM_SPEED = 120;
 /** 4/4 throughout (beatClock.ts); one measure lasts BEATS_PER_MEASURE × 60 / BPM seconds. */
 export const BEATS_PER_MEASURE = 4;
 
-/** Roster-balancing cap: at most this many robots may hold the same job type at once. */
-export const JOB_MAX_ROBOTS_PER_TYPE = 3;
-
 /**
  * Battery-level thresholds (percent) at which a robot's window/viewport and
  * status-light SVG elements progressively dim (robotVisualHelpers.ts's
@@ -255,14 +252,6 @@ export const JOB_MAX_ROBOTS_PER_TYPE = 3;
 export const BATTERY_DIM_THRESHOLD_LOW = 50;      // <= this: 25% dim (opacity 0.75)
 export const BATTERY_DIM_THRESHOLD_MID = 25;      // <  this: 50% dim (opacity 0.50)
 export const BATTERY_DIM_THRESHOLD_CRITICAL = 12; // <= this: 90% dim (opacity 0.10)
-
-/**
- * Below this battery level, an Active robot's idle wandering is confined to
- * the lower third of the world view (idleSystem.ts's pickDestination) — it
- * stays near its south-only exit/dock spot as it runs down, rather than
- * wandering the full map right up until it departs.
- */
-export const BATTERY_LOWER_THIRD_THRESHOLD = 15;
 
 /**
  * Companies (Roadmap Phase 10) — seeded groups of robots that let every editable Robot Options

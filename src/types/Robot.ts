@@ -9,19 +9,7 @@ import type { RobotLfoTargetId, LfoLink } from './lfo';
 export type NoteDuration = '32n' | '16n' | '8n' | '4n' | '2n' | '1n' | '2m' | '4m';
 
 /**
- * Robot state machine states
- */
-export const RobotState = {
-  Idle: 'idle',
-  Moving: 'moving',
-  Selected: 'selected',
-  Interacting: 'interacting',
-  Leaving: 'leaving',
-} as const;
-export type RobotState = (typeof RobotState)[keyof typeof RobotState];
-
-/**
- * Docking state machine — orthogonal to RobotState. Purely battery-driven
+ * Docking state machine — orthogonal to `activity` (the work loop's). Purely battery-driven
  * (see src/systems/robotSystems.ts): Docked/Active are the two "settled"
  * states; Undocking/Recalled are held for up to one measure as a transition
  * buffer before landing on Active/Docked respectively.
@@ -35,9 +23,8 @@ export const DockingState = {
 export type DockingState = (typeof DockingState)[keyof typeof DockingState];
 
 /**
- * The six jobs a robot can hold (Phase 43). Live visual state, never replayed or persisted.
- * The legacy scorer (lifecycleVisuals.ts's scoreJobAffinities/assignJob) still picks only the first
- * four; Salvage and Maintenance are only chosen once the work loop lands (J2).
+ * The six jobs a robot can hold (Phase 43). Live visual state, never replayed or persisted. The
+ * work loop picks them from the sites that host them (siteChoice.ts's chooseNextSite).
  */
 export const JobType = {
   VentExtraction: 'ventExtraction',
@@ -140,10 +127,8 @@ export interface Robot {
    * on the copy path, never diffed into a session — regenerated identically from the world seed.
    */
   gemSeed: number;
-  state: RobotState;
+  /** The gem canvas's top-left in the scene. Written by the work loop on every leg's arrival. */
   position: Vec2;
-  destination: Vec2 | null;
-  direction: 'left' | 'right';     // Facing direction (horizontal orientation)
   melody: MelodyEvent[];
   audioAttributes: AudioAttributes;
   /** Octave range [min, max] this robot plays within. Melody events store concrete octaves within this range. */
@@ -171,13 +156,14 @@ export interface Robot {
   dockingHoldUntilMeasure?: number;
   /** 0-100. Drains while Active, recharges while Docked. Seeded at spawn. */
   batteryLevel: number;
-  /** Assigned automatically when a robot lands on Active. Not cleared when a robot lands on Docked —
-   *  it persists, stale, until the robot next lands on Active and is assigned a fresh one. */
+  /** Taken with a site by the work loop (chooseNextSite) and kept across sites until none ready
+   *  hosts it. Undefined until the first site. Not cleared on the way home — stale while charging,
+   *  and heldJobs ignores it there. */
   job?: JobType;
-  /** The work loop's visual state (spec §1.2). Set for the whole roster at locale load
-   *  (spawnInitialRoster: Docked → 'charging', Active → 'exiting'); a lone spawnRobot leaves it
-   *  unset. Live only — never replayed, nothing audio-side reads it. */
-  activity?: RobotActivity;
+  /** The work loop's visual state (spec §1.2). Set at spawn from `docking` (Docked → 'charging',
+   *  Active → 'exiting'), the work loop's from then on. Live only — never replayed, nothing
+   *  audio-side reads it. */
+  activity: RobotActivity;
   /** The station the robot is in, heading to, or last left (spec §1.6). Assigned at locale load. */
   stationId?: string;
   /** The actor id of the work site the robot holds — heading to or working at (spec §1.7). */

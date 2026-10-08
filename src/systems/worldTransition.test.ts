@@ -39,7 +39,7 @@ import * as audioSwellsModule from './audioSwells';
 import * as workLoopModule from './workLoop';
 import { MAX_ROBOTS } from '../constants';
 import { computeLocaleHour } from '../constants/time';
-import { RobotState, DockingState } from '../types/Robot';
+import { DockingState } from '../types/Robot';
 import type { Robot } from '../types/Robot';
 
 // ========================================
@@ -57,16 +57,14 @@ const makeRobot = (id: string): Robot => ({
   compositionSeed: 0.5,
   identityColor: '#428d95',
   gemSeed: 1,
-  state: RobotState.Idle,
-  direction: 'right',
   position: { x: 0, y: 0 },
-  destination: null,
   melody: [],
   audioAttributes: { waveform: 'sine', adsr: { attack: 0, decay: 0, sustain: 0, release: 0 }, filterFreq: 0 },
   octaveRange: [3, 4],
   createdAt: Date.now(),
   masterVolume: 0.7,
   docking: DockingState.Active,
+  activity: 'exiting',
   batteryLevel: 100,
 });
 

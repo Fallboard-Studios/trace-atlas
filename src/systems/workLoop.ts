@@ -14,9 +14,9 @@
 // ripple (its registered decorateArc) and the station's own ripple (stationRipple.ts).
 //
 // Every decision reads the robot's `docking`, so the visuals converge on the lifecycle however far
-// the Transport ran ahead (a hidden tab). The lifecycle reaches this module through
-// onLifecycleChange; React reaches it through onRobotMounted. Until Task 24 re-points the tick's
-// seam here, only Robot.tsx's mount, initializeLocale and the power-off paths call in.
+// the Transport ran ahead (a hidden tab). The lifecycle tick (robotSystems.ts) reaches this module
+// only through onLifecycleChange; React reaches it through onRobotMounted (Robot.tsx); the start
+// and stop pairs are initializeLocale's and the power-off paths'.
 //
 // Module state is runtime only, never Zustand: an Actor write would re-render every factory layer
 // (spec §1.7). Site ids are actor ids — unique within a world (checked over the 121-seed grid),

@@ -3,21 +3,17 @@ import { render, fireEvent } from '@testing-library/react';
 import gsap from 'gsap';
 
 // This test is about Robot.tsx's own click/navigation behavior (Roadmap Phase 8, Task 11), not
-// about RobotBody's rendering or idleSystem's real wander behavior — same boundary
+// about RobotBody's rendering or the work loop's real motion — same boundary
 // ConsolePanel.test.tsx already draws around components that pull in real Tone.js/AudioEngine
 // machinery this test doesn't need to exercise.
 vi.mock('@/components/robot/RobotBody', () => ({
   RobotBody: () => <g data-testid="robot-body-stub" />,
-}));
-vi.mock('@/systems/idleSystem', () => ({
-  handleRobotIdle: vi.fn(),
 }));
 vi.mock('@/systems/workLoop', () => ({
   onRobotMounted: vi.fn(),
 }));
 
 import { Robot } from './Robot';
-import { handleRobotIdle } from '@/systems/idleSystem';
 import { onRobotMounted } from '@/systems/workLoop';
 import { getRef } from '@/utils/refs';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
@@ -30,10 +26,7 @@ import type { Locale } from '@/types/locale';
 function makeRobot(overrides: Partial<RobotType> = {}): RobotType {
   return {
     id: 'r1',
-    state: 'idle',
     position: { x: 10, y: 20 },
-    destination: null,
-    direction: 'right',
     melody: [],
     audioAttributes: {
       adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.3 },
@@ -174,9 +167,9 @@ describe('Robot mount transform (Phase 40 Task 7b — no flip)', () => {
     useLocaleStore.getState().setLocaleData(localeId, { robots: [] } as unknown as Partial<Locale>);
   });
 
-  it.each(['left', 'right'] as const)("the mount gsap.set has no scaleX, regardless of direction (%s)", (direction) => {
+  it('the mount gsap.set places the robot at its position with no scaleX', () => {
     const setSpy = vi.spyOn(gsap, 'set');
-    renderRobot({ id: 'r1', direction });
+    renderRobot({ id: 'r1' });
     const call = setSpy.mock.calls.find(([, vars]) => vars !== null && typeof vars === 'object' && 'x' in (vars as object));
     expect(call).toBeDefined();
     expect(call![1]).not.toHaveProperty('scaleX');
@@ -188,11 +181,10 @@ describe('Robot mount transform (Phase 40 Task 7b — no flip)', () => {
 describe('Robot mount hands the robot to the work loop (Phase 43 Task 23)', () => {
   beforeEach(() => {
     vi.mocked(onRobotMounted).mockReset();
-    vi.mocked(handleRobotIdle).mockReset();
     useLocaleStore.getState().setLocaleData(localeId, { robots: [] } as unknown as Partial<Locale>);
   });
 
-  it('calls onRobotMounted(localeId, robotId) once, with its body already registered — not handleRobotIdle', () => {
+  it('calls onRobotMounted(localeId, robotId) once, with its body already registered', () => {
     let refAtCall: unknown;
     vi.mocked(onRobotMounted).mockImplementation((_l, id) => {
       refAtCall = getRef(`robot-${id}`);
@@ -202,7 +194,6 @@ describe('Robot mount hands the robot to the work loop (Phase 43 Task 23)', () =
     expect(onRobotMounted).toHaveBeenCalledTimes(1);
     expect(onRobotMounted).toHaveBeenCalledWith(currentLocaleId, 'r1');
     expect(refAtCall).toBe(container.querySelector('g.robot'));
-    expect(handleRobotIdle).not.toHaveBeenCalled();
   });
 
   it('a re-render does not call it again', () => {

@@ -21,10 +21,7 @@ import type { Locale } from '@/types/locale';
 const makeRobot = (id: string, name?: string) => ({
   id,
   name,
-  state: 'idle',
   position: { x: 0, y: 0 },
-  destination: null,
-  direction: 'right',
   melody: [],
   audioAttributes: {
     adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.3 },

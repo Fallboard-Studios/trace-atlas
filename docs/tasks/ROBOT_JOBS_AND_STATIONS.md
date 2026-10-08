@@ -1127,7 +1127,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `onUpdate` is lazy too, so the ripple writes its stop attributes directly. **(12) Not done,
   flagged:** exiting robots still render in `#robot-layer` (between L3 and L2), not between L4
   and L3. That needs `OceanScene` to order robots by activity without remounting them, so it goes
-  to J4's layer work. **(13) Interim until T24 (expected):** the tick's seam still calls the
+  to J4's layer work. **(13) Interim until T24 (expected; resolved by T24):** the tick's seam still calls the
   legacy adapter. An undocked robot gets `handleRobotIdle` instead of `exitStation`, so it stays
   hidden, though its invisible body may still wander. Recall swims it off-screen until its job's `next()` takes over, and the
   'docked' landing writes the off-screen dock position. Don't judge the app live until T24.
@@ -1147,7 +1147,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `src/components/robot/RobotBody.tsx`, `src/components/robot/gem/useOrbiterMotion.ts`,
   `src/constants/index.ts`. **Scope:** M.
 
-- [ ] **Task 24: Hand-over — the seam points at the loop; delete the legacy**
+- [x] **Task 24: Hand-over — the seam points at the loop; delete the legacy**
 
   **Description:** `onLifecycleChange` (moved into `workLoop.ts`) drives the loop; delete
   `lifecycleVisuals.ts`, `idleSystem.ts`, `RobotState`, `Robot.state`/`destination`/`direction`,
@@ -1156,14 +1156,57 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `idle.target.*` dataIds.
 
   **Acceptance criteria:**
-  - [ ] No reference to any deleted name in `src/`; the lifecycle's prove-it test still passes.
-  - [ ] A full measure-driven cycle in an integration test: Active robot works → recalled → finishes
+  - [x] No reference to any deleted name in `src/`; the lifecycle's prove-it test still passes.
+  - [x] A full measure-driven cycle in an integration test: Active robot works → recalled → finishes
         → enters → charges (slot lit, hidden) → undocks → exits → works.
-  - [ ] Mutation check: removing the turn-back branch fails the integration test's 200 BPM case.
+  - [x] Mutation check: removing the turn-back branch fails the integration test's 200 BPM case.
+
+  **As shipped (2026-10-08):** (1) **The seam.** `robotSystems.ts` imports `onLifecycleChange`
+  from `./workLoop` (T23 built it there; its type is `LifecycleChange`). `robotSystems.test.ts`
+  mocks `./workLoop`, and its module-boundary test pins that import as the tick's only route to
+  visuals. (2) **Deleted:** `lifecycleVisuals.ts` and `idleSystem.ts` with their tests (the legacy
+  parity and scorer tests went with them), `RobotState`, `Robot.state`/`destination`/`direction`,
+  `JOB_MAX_ROBOTS_PER_TYPE`, `BATTERY_LOWER_THIRD_THRESHOLD` and `initRobotIdleCounter`.
+  `generateSpawnPosition` stays: a lone `spawnRobot` still places its robot there, and only its
+  dock-position reuse is gone. `dockCycles.ts` stays with one reader (pitch drift). 60 stale
+  `state`/`destination`/`direction` lines in 20 test fixtures were removed; most were hidden from
+  tsc by `as Robot` casts. (3) **Guards:** `types/Robot.test.ts` checks that both files are gone
+  and that no file in `src/` names any deleted identifier (plus `pickDestination`,
+  `handleRobotArrival`, `cancelPendingIdleDelay`) or `idle.target.`. `spawnSystem.test.ts` checks
+  that a spawned robot has no `state`/`destination`/`direction` key. (4) **`idle.target.*`
+  retired** in `docs/PROCEDURAL_GENERATION.md`'s dataId table, and its `Math.random()` fallback
+  list no longer names `idleSystem.ts`. Its other wander wording is T27's. (5) **`activity` is now
+  required** (spec §1.2; T21 deferred it here). `spawnRobot` sets it from `docking` (Active →
+  `'exiting'`, else `'charging'`), and `placeRosterAtStations` sets it again at the port. T21's
+  "lone spawn leaves activity unset" test now pins `'exiting'`. The loop's defensive
+  `!r.activity` checks (`occupancy`, `heldJobs`, `chargingColorsKey`) are now type-redundant and
+  left alone. (6) **The integration test** (`workLoop.integration.test.ts`) runs the real tick
+  into the real loop on a real placed world. Simulated time steps GSAP's paused global timeline
+  one 1/30 s frame at a time and ticks at each measure boundary. At 20/110/200 BPM, r1 runs exit
+  → transit → working → (battery set to cross critical) recall → its job finishes at full length
+  → returning → entering → charging (hidden, slot lit in its colour) → undock → exit → working.
+  The decorator sees spawn, despawn, spawn. At 110 and 200 BPM the recall provably lands mid-job.
+  (7) **The 200 BPM turn-back case is a hidden tab.** The plan assumed short measures alone would
+  cause a turn-back, but they can't: from a critical recall back to Active takes 20 measures (hold
+  + 18 recharge + hold), far longer than any swim home. This is the J1 sim's "turn-backs are
+  structurally 0". The only real path is spec §1.7's hidden tab, where the Transport runs ahead
+  of GSAP. The test fast-forwards the Transport only until r1 lands Active: during the swim home
+  (it goes back to work, never entering or charging), and during the entry arc (the arc
+  finishes, then it exits without charging). Running the fast-forward longer drains it into a
+  second recall, and the first draft of the entry case did exactly that. (8) **Mutation checks:**
+  removing the returning turn-back fails the 200 BPM swim-home case and survives the three plain
+  cycles (checked separately, so that case is the one that catches it). Removing the entering
+  turn-back, ignoring `'active'` while charging, dropping the tick's `'active'` seam call and
+  both `spawnRobot` activity mutants are each killed. The seam re-point and the guards were
+  each seen RED first. Suite 6973 green (the deleted legacy suites account for the drop), build
+  clean. **Noticed, not touched:** `Robot.lastInteractionMeasure` has no writer since T6
+  deleted `interactionSystem`.
 
   **Verification:** `npm test`; `npm run build:types`. **Dependencies:** T23. **Files:**
   `src/systems/workLoop.ts`, `src/systems/robotSystems.ts`, `src/systems/lifecycleVisuals.ts`,
-  `src/systems/idleSystem.ts` (deleted, + tests), `src/types/Robot.ts`, `src/systems/spawnSystem.ts`.
+  `src/systems/idleSystem.ts` (deleted, + tests), `src/types/Robot.ts`, `src/systems/spawnSystem.ts`;
+  as shipped also `src/systems/workLoop.integration.test.ts` (new), `src/systems/dockCycles.ts`,
+  `src/constants/index.ts`, `docs/PROCEDURAL_GENERATION.md` and the test fixtures above.
   **Scope:** M.
 
 - [ ] **Task 25: Card states**

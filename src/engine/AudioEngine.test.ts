@@ -202,10 +202,7 @@ describe('AudioEngine.reReserveVoice', () => {
             {
               id: 'r1',
               name: '',
-              state: 'idle',
-              direction: 'right',
               position: { x: 960, y: 0 },
-              destination: null,
               createdAt: Date.now(),
               melody: [],
               octaveRange: [3, 4],
@@ -1035,12 +1032,12 @@ describe('AudioEngine - Motif Group Accent', () => {
       melody: [],
       octaveRange: [3, 4] as [number, number],
       position: { x: 0, y: 0 },
-      destination: null,
       createdAt: Date.now(),
       name: '',
       state: 'idle' as const,
       direction: 'right' as const,
       docking: 'active' as const,
+      activity: 'exiting' as const,
       batteryLevel: 100,
     };
   }
@@ -1215,12 +1212,12 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
       melody: [],
       octaveRange: overrides.octaveRange ?? ([3, 4] as [number, number]),
       position: { x: 0, y: 0 },
-      destination: null,
       createdAt: Date.now(),
       name: '',
       state: 'idle' as const,
       direction: 'right' as const,
       docking: 'active' as const,
+      activity: 'exiting' as const,
       batteryLevel: 100,
     };
   }
@@ -1515,8 +1512,8 @@ describe('AudioEngine - Composite Voices (Layered)', () => {
         masterVolume: 0.8, melody: [], octaveRange: [3, 4] as [number, number],
         // x: 0 maps to pan -0.5 (calculatePanFromPosition) — clearly distinct from the
         // Panner mock's own default pan.value of 0, so an unwanted write is detectable.
-        position: { x: 0, y: 0 }, destination: null, createdAt: Date.now(), name: '',
-        state: 'idle' as const, direction: 'right' as const, docking: 'active' as const, batteryLevel: 100,
+        position: { x: 0, y: 0 }, createdAt: Date.now(), name: '',
+        docking: 'active' as const, activity: 'exiting' as const, batteryLevel: 100,
       }],
     });
     const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
