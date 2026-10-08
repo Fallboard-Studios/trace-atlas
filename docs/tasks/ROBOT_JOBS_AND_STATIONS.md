@@ -865,7 +865,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   **Files:** `src/animation/jobMoves/sceneToOrbiterLocal.ts` (+ test, `.test.tsx` because it
   renders `RobotGem`). **Scope:** S.
 
-- [ ] **Task 19: `hoverPulse` and `buildJobTimeline`**
+- [x] **Task 19: `hoverPulse` and `buildJobTimeline`**
 
   **Description:** `jobMoves/hoverPulse.ts` (targets pure, tweens on the timeline) and
   `jobMoves/buildJobTimeline.ts`: given a robot, its site, job and locked orbiter groups, one paused
@@ -875,10 +875,41 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   length. `onComplete` is passed in. Registered in `timelineMap`.
 
   **Acceptance criteria:**
-  - [ ] Duration equals `jobDuration(bpm)` at 20, 110 and 200 BPM (± one frame); orbiter count 1–4
+  - [x] Duration equals `jobDuration(bpm)` at 20, 110 and 200 BPM (± one frame); orbiter count 1–4
         changes which orbiters move, never the duration.
-  - [ ] Orbiters end at `x: 0, y: 0`, scale and opacity restored; the bob ends where it started.
-  - [ ] The timeline never touches `AudioEngine` (spy); killing the key leaves no live tweens.
+  - [x] Orbiters end at `x: 0, y: 0`, scale and opacity restored; the bob ends where it started.
+  - [x] The timeline never touches `AudioEngine` (spy); killing the key leaves no live tweens.
+
+  **As shipped:** (1) **Counter-bob.** The orbiters sit inside the `.robot` group, so the bob would
+  carry a detached orbiter off its target. The sketch has them hold still unless docked. Each
+  orbiter's `.gem__orbiter` copy group gets the same bob, inverted and divided by the gem scale.
+  `useOrbiterMotion` only sets `display` on that group. The bob is zero at both ends, so a docked
+  orbiter still rides with the body. A test checks every orbiter holds its target in the scene to
+  0.01 u through the work window, at layer scale 1 and 0.75. (2) **Targets are spaced by slot,
+  not corner.** The sketch used corner index × 2π/n, which puts two orbiters on the same spot when
+  corners {0, 1, 3} are shown. The first target is directly above the point. There is no per-robot
+  phase or pulse order yet (T28's `variation.ts`); the pulse runs in lock (`cornerOrder`) order.
+  (3) **Every job runs `hoverPulse(points[0])`.** `points[0]` is the mouth (Stacks/Refinery) or the
+  mast (Monolith/Skyscraper) in `workSites.ts`. (4) **The reattach doesn't restore scale or
+  opacity.** A mutant showed it did nothing: the pulse already ends each orbiter at its rest scale,
+  and nothing changes orbiter opacity in J2. **T29's spark flicker must end at rest too,** or bring
+  the restore back with a test. (5) **`WorkSite.path` → `paths` is not done here.** The plan
+  (Task 0b note) and spec §1.5 put the split at T19, but T19 reads only `points`. It moves to T28,
+  where `trace` is the first reader of `path`. (6) **Input contract:** the caller passes the
+  `.robot` element (`getRef`), the body and layer scale, and the orbiters from `lock()`. It unlocks
+  in its own `onComplete`. The bob is centred on `robot.position.y`. Reduced motion: opacity
+  1 → 0.8 → 1 once per bob cycle, no bob, orbiters untouched. (7) Constants `BOB_PX` 6,
+  `BOB_CYCLE_SECONDS` 1.2, `HOVER_GATHER_RADIUS` 14 and `HOVER_PULSE_SCALE` 1.3 are in
+  `constants/index.ts`. `jobDuration.ts` didn't need a change. (8) The two new test files call
+  `vi.unmock('gsap')`, because `vitest.setup.ts` mocks gsap globally and these tests read real
+  tween values. (9) **Open:** `useOrbiterMotion`'s size-dial tween isn't stopped by the lock. A
+  Size edit mid-job would fight the pulse on `scale`, and the job's rest scale would be stale.
+  This is not fixed. (10) **Mutation checks:** 22 mutants. On the first run, 18 of 21 were killed.
+  The three survivors were the reattach's redundant scale restore (deleted), a wrong key in the
+  reduced-motion branch (both branches now share one `setTimeline`, and the mutant is killed) and a
+  shortened detach (a new test pins both flights to `ATTACH_DURATION`; it kills that mutant and a
+  new one that shortens the reattach).
+  Suite 6876 green.
 
   **Verification:** `npx vitest run src/animation/jobMoves`. **Dependencies:** T17, T18, T0.
   **Files:** `src/animation/jobMoves/hoverPulse.ts`, `src/animation/jobMoves/buildJobTimeline.ts`,

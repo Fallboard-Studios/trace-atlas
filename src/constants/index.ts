@@ -203,6 +203,19 @@ export const STATION_ARC_SECONDS = 0.9;
 export const JOB_BASE_MAX_SECONDS = 10;
 export const JOB_BASE_MIN_SECONDS = 6;
 
+/**
+ * A working robot's bob (spec §1.9, buildJobTimeline.ts): ±BOB_PX scene units on its `.robot` group,
+ * in whole cycles of about BOB_CYCLE_SECONDS fitting the job, so it ends where it started.
+ * Kept as sketched (Phase 43 Task 0b).
+ */
+export const BOB_PX = 6;
+export const BOB_CYCLE_SECONDS = 1.2;
+
+/** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
+ *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */
+export const HOVER_GATHER_RADIUS = 14;
+export const HOVER_PULSE_SCALE = 1.3;
+
 /** Robot swim speed, scene units per second (swimAnimation.ts; the loop sim's swims). */
 export const SWIM_SPEED = 120;
 
