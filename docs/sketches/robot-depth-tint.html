@@ -40,6 +40,8 @@
        Q2 A 0.06 navy → vent · B 0.25 navy → vent · C 0.20 vent shadow · D 0.10 vent shadow. Coverage: background
           buildings 44 % (was 85 %), back-row robots 46 %, midground 20 % (was 50 %), front-row robots 10 % (was 0),
           foreground 0; pop at a switch 40 % (was 85 %), then blended by the dissolve.
+          Correction (Task 33): the readout left D out of the two building rows; the scene draws D over both, so
+          what was judged is background 49 % and midground 28 %. readout() now counts D for them.
        Fade 1.0 s; scale ease after the switch on; back-row scale 0.75 (unchanged).
        Q3 follows from Q1: the switch point becomes the start of a clear RUN. One correction to this page: here the
           return leg fades the front copy in BEFORE the (mirrored) switch point; in the app each leg's switch point is
@@ -309,9 +311,9 @@ function readout() {
   const a = Object.fromEntries(SLOTS.map((s) => [s.id, s.alpha]));
   const cov = (...ids) => 1 - ids.reduce((acc, id) => acc * (1 - a[id]), 1);
   const rows = [
-    ['Background buildings', cov('A', 'B', 'C')],
+    ['Background buildings', cov('A', 'B', 'C', 'D')],
     ['Back-row robots', cov('B', 'C', 'D')],
-    ['Midground buildings', cov('C')],
+    ['Midground buildings', cov('C', 'D')],
     ['Front-row robots', cov('D')],
     ['Foreground buildings', 0],
   ];

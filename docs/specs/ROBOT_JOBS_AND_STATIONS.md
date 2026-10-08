@@ -561,8 +561,10 @@ and the set of robots with a pending recall. Public surface:
   | C | top of `mid` (under the ground line): over the midground, under the front row | 0.20 | `vent.shadow` |
   | D | bottom of `front`: over the front row, under the foreground | 0.10 | `vent.shadow` |
 
-  Coverage (1 − Π(1 − α)): background buildings 44 % (was 85 %), back-row robots 46 %, midground
-  20 % (was 50 %), front-row robots, stations and bubbles 10 % (was 0), foreground 0. The pop at a
+  Coverage (1 − Π(1 − α)): background buildings 49 % (was 85 %), back-row robots 46 %, midground
+  28 % (was 50 %), front-row robots, stations and bubbles 10 % (was 0), foreground 0 *(Task 33
+  correction: the sketch's readout left D out of the two building rows and printed 44 % and 20 %;
+  its rendered scene, which Crawford judged, has D over them, as this stack does)*. The pop at a
   switch is B and C together, 40 % (was 85 %), and the dissolve blends it. This changes every
   world's look, not only the robots'; Checkpoint E judges it on the real buildings.
 - **Clicks:** both robot layers get `pointer-events: none` like the rest; `.robot` gets

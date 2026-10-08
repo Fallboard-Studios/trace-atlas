@@ -1605,7 +1605,8 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   one frame at a row switch. Crawford asked for more tint layers through the stack; the sketch
   showed that only tint *between* the robot rows makes the pop. **Gate passed 2026-10-08**
   (Crawford's settings): both redistribute and dissolve — tints A 0.06 / B 0.25 / C 0.20 / D 0.10
-  (pop 85 % → 40 %, background buildings 85 % → 44 %, midground 50 % → 20 %, every robot 10 %),
+  (pop 85 % → 40 %, background buildings 85 % → 49 %, midground 50 % → 28 %, every robot 10 % —
+  the sketch's readout printed 44 % and 20 % by leaving D off the buildings; corrected at T33),
   `LAYER_DISSOLVE_SECONDS` 1.0. Folded into spec §1.10 and T32b–T35 below.
 
 - [x] **Task 32b: The switch point starts a clear run**
@@ -1643,7 +1644,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   equivalent: multiplying by `LAYER_DISSOLVE_SECONDS` while it is 1. Full suite 7333 green plus
   the known Task 18 50-gem load timeout.
 
-- [ ] **Task 33: Split the scene layers; robots per layer; clicks; the four tints**
+- [x] **Task 33: Split the scene layers; robots per layer; clicks; the four tints**
 
   **Description:** `OceanScene` (spec §1.10): `back` (water, ridge, background buildings, tint A)
   → `robots-back` (moving) → `mid` (tint B, midground buildings and pipe bridges, tint C, the
@@ -1666,6 +1667,39 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   selectors name `data-scene-layer` values — add `robots-back` and `mid`; its `no-gradient-rects`
   ablation hides `#gradient-back-mid, #gradient-mid-front` — point it at the four tints).
   **Scope:** M.
+
+  **As shipped (2026-10-08, `feature/jobs-depth`):** (1) **Stack.** Six `SceneLayer`s as above;
+  `robots-back` is `moving` (its own compositor layer), `mid` static. The back row is
+  `<g id="robot-back-layer">` (rendered even when empty); the front row keeps `#robot-layer` and
+  the station fragments. Two `useShallow` id selectors, one per row (`layer === 'background'` →
+  back, anything else incl. unset → front), so a robot changing rows re-renders the scene and
+  nothing else does. (2) **Tints.** A `DEPTH_TINTS` table in `OceanScene.tsx` (top colour + α) and
+  two local helpers: `TintGradient` (`#depth-tint-{A..D}`, both stops at α, defined in the
+  `<defs>` of the layer that draws it) and `TintRect` (`data-depth-tint="{slot}"`, full-screen,
+  `pointer-events="none"`). The old `gradient-0-1`/`gradient-1-2` and their rects are gone. The
+  ground line is in `mid`, after tint C. (3) **Clicks.** `.ocean-scene__layer--robots` is deleted;
+  every layer is `pointer-events: none` and `.robot` gets `pointer-events: auto` (SVG `auto` = painted
+  and visible, so a charging robot takes none). Stations now inherit `none` too (before, they sat
+  in the click-taking robots layer). (4) **Correction — coverage figures.** The sketch's readout
+  computed the background buildings over A, B, C and the midground over C only, leaving out D,
+  which its own rendered scene (and this stack) draws over both. The true readout is background
+  49 %, back-row robots 46 %, midground 28 %, front-row robots 10 %, foreground 0 %, pop 40 %:
+  the robot rows and the pop as signed off, the two building rows hazier than the readout said
+  but as Crawford saw them. The test asserts those; spec §1.10, the gate note above, Checkpoint E
+  and the sketch's `readout()` are corrected. (5) **Perf harness.** `ROBOTS`/`ROBOT_GROUPS` cover
+  both rows in every robot ablation, count and detach; `no-gradient-rects` hides
+  `rect[data-depth-tint]` plus the two old ids, so the same ablation runs on J3's build for T35; a
+  new per-layer element-count line names all six `data-scene-layer` values ("absent" on an older
+  build). (6) **Not done here:** spec §1.6 moves L4 and the exiting robots into `robots-back`; no
+  J4 task lists it (T34 doesn't), so exits still use the front-row fallback. (7) **Tests:**
+  `OceanScene.test.tsx` +17 (stack order, moving flags, rows per layer, the tint table, slots,
+  gradients per layer, the DOM coverage readout via `compareDocumentPosition`, row routing incl.
+  unset/empty/both-way moves and no re-render on a same-row write); new
+  `OceanScene.clicks.test.tsx` (5): the real `OceanScene.css` loaded into jsdom (which cascades and
+  inherits `pointer-events`) and the real `<Robot>` in both rows — every scene node outside a
+  `.robot` resolves to `none`, both rows' robots don't, and a click on the back-row robot selects
+  it; `OceanScene.css.test.ts` rewritten for the new rule. 16/16 mutants killed. Full suite 7355
+  green (the Task 18 50-gem timeout passed this run).
 
 - [ ] **Task 34: Layer-aware legs; re-mount without a flourish; the dissolve**
 
@@ -1696,7 +1730,8 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 - [ ] Clean build/lint/types/suite. Crawford, live: robots work among background buildings, never
       pop through a midground silhouette, no hitch at a layer switch (spec §7 Q3 — a hitch is a
       stop-and-report), the dissolve reads as a blend, and the new tints on the real buildings
-      (judged on flat boxes in the sketch — background 44 %, midground 20 %, every robot 10 %).
+      (judged on flat boxes in the sketch — background 49 %, midground 28 %, every robot 10 %; the
+      sketch's readout said 44 % and 20 %, see Task 33's As shipped).
       Note for the hitch call: the split leg brings the robot to rest at the switch point (two
       sine.inOut swims).
 

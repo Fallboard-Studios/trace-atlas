@@ -1,7 +1,8 @@
-/* The scene is four stacked <svg> layers, not one (roadmap 17.2.5): static back (background +
-   midground factories and the depth gradients), moving bubbles, moving robots, static front
-   (foreground factories). Each layer fills this box and shares the same viewBox and slice fit, so
-   the four coordinate systems map to the same pixels; the moving layers are promoted to compositor
+/* The scene is six stacked <svg> layers, not one (roadmap 17.2.5; Phase 43 J4): static back
+   (background factories, tint A), moving back robot row, static mid (midground factories, tints B
+   and C, the ground line), moving bubbles, moving front robot row, static front (tint D,
+   foreground factories). Each layer fills this box and shares the same viewBox and slice fit, so
+   the six coordinate systems map to the same pixels; the moving layers are promoted to compositor
    layers of their own, so a robot's or bubble's per-frame transform write repaints only its own
    layer instead of the sixty static factories behind it. The world-view (WorldView.css) is the
    positioned ancestor. */
@@ -16,8 +17,9 @@
   display: block;
   width: 100%;
   height: 100%;
-  /* Only the robots layer takes clicks (below); the bubbles layer sits above it and must not
-     swallow them, and the static layers never needed them. */
+  /* No layer takes clicks: each is full-screen, so one that did would swallow every click meant
+     for a layer under it — the front robot row would block the back one (spec §1.10). The robots
+     themselves take them (.robot, below). */
   pointer-events: none;
 }
 
@@ -25,12 +27,11 @@
   will-change: transform;
 }
 
-.ocean-scene__layer--robots {
-  pointer-events: auto;
-}
-
 /* Robot styling */
 .robot {
+  /* Re-enables clicks inside the click-blind layers, in either robot row. SVG's `auto` hits only
+     painted, visible shapes, so a charging robot (visibility: hidden) takes none. */
+  pointer-events: auto;
   transition: filter 0.2s ease;
 }
 
