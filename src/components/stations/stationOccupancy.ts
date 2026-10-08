@@ -8,13 +8,13 @@
 // ========================================
 // IMPORTS
 // ========================================
-import type { Robot, RobotActivity } from '@/types/Robot';
+import type { Robot } from '@/types/Robot';
 
 // ========================================
 // TYPES
 // ========================================
-/** `stationId` and `activity` arrive on Robot with their writer (Task 21); read optionally here. */
-type MaybeStationed = Pick<Robot, 'identityColor'> & { stationId?: string; activity?: RobotActivity };
+/** Only the fields the key reads; `stationId`/`activity` are unset on a robot spawned outside a roster. */
+type MaybeStationed = Pick<Robot, 'identityColor' | 'stationId' | 'activity'>;
 
 // ========================================
 // API

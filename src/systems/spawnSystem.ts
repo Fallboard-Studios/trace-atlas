@@ -32,6 +32,9 @@ import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentCo
 import type { RobotLfoTargetId, LfoLaneId, LfoLink } from '../types/lfo';
 import { ROBOT_LFO_TARGET_IDS, LFO_DEPTH_MIN } from '../types/lfo';
 import { pickLane, tallyLanes } from '../utils/lfoLaneDraw';
+import { assignStationsAtLoad, getStations } from './stations';
+import { positionForCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
+import { getRobotGem } from '../components/robot/gem/polygon';
 
 // ========================================
 // CONSTANTS
@@ -757,7 +760,8 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
  * Create the full fixed-size roster (MAX_ROBOTS robots) once, at locale load.
  * A seeded count within [INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX]
  * start Active (full battery); the rest start Docked with varied seeded
- * starting battery so they don't all finish recharging in lockstep. Does
+ * starting battery so they don't all finish recharging in lockstep. Then
+ * every robot is placed at its station's port (placeRosterAtStations). Does
  * NOT assign jobs — worldTransition.ts's initializeLocale does that for the
  * initially-Active robots immediately after this returns (see
  * docs/specs/ROBOT_SYSTEMS_ENGINE.md's Architecture Decisions on why job
@@ -785,6 +789,31 @@ export function spawnInitialRoster(localeId: string): void {
       spawnRobot(localeId, { docking: DockingState.Docked, batteryLevel: dockedBattery });
     }
   }
+
+  placeRosterAtStations(localeId);
+}
+
+/**
+ * Phase 43 (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.6, correction 2): every robot starts at its
+ * station's port — assigned by roster index modulo station count — Docked ones 'charging', Active
+ * ones 'exiting'. One store write for the whole roster, after the last spawn.
+ */
+function placeRosterAtStations(localeId: string): void {
+  const robots = useLocaleStore.getState().getLocaleById(localeId)?.robots ?? [];
+  const stations = getStations(localeId);
+  const stationById = new Map(stations.map((s) => [s.id, s]));
+  const assigned = assignStationsAtLoad(robots.map((r) => r.id), stations);
+  useLocaleStore.getState().setLocaleData(localeId, {
+    robots: robots.map((r) => {
+      const station = stationById.get(assigned[r.id])!;
+      return {
+        ...r,
+        stationId: station.id,
+        position: positionForCentre(station.port, getRobotGem(r.gemSeed)),
+        activity: r.docking === DockingState.Docked ? 'charging' : 'exiting',
+      };
+    }),
+  });
 }
 
 /**

@@ -12,7 +12,8 @@ import { useAudioStore } from '@/stores/audioStore';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
 import { ACCENT_COLORS } from '@/constants/accentColors';
 import { STATION_SHAPE_BUDGET } from '@/constants';
-import type { Station } from '@/systems/stations';
+import { getStations, type Station } from '@/systems/stations';
+import { spawnInitialRoster } from '@/systems/spawnSystem';
 import type { Robot, RobotActivity } from '@/types/Robot';
 
 // ========================================
@@ -22,10 +23,7 @@ const STATION: Station = { id: 'station-0', center: { x: 600, y: 320 }, port: { 
 const OTHER: Station = { ...STATION, id: 'station-1', center: { x: 1300, y: 400 }, port: { x: 1300, y: 400 }, gemSeed: 77 };
 const FRAGMENTS: StationFragment[] = ['l4', 'l3', 'front'];
 
-/** Fields Task 21 adds to Robot; written here directly so the selector reads real data. */
-type StationedRobot = Robot & { stationId?: string; activity?: RobotActivity };
-
-function robot(id: string, identityColor: string, stationId?: string, activity?: RobotActivity): StationedRobot {
+function robot(id: string, identityColor: string, stationId?: string, activity?: RobotActivity): Robot {
   return {
     id,
     identityColor,
@@ -34,10 +32,10 @@ function robot(id: string, identityColor: string, stationId?: string, activity?:
     docking: 'active',
     ...(stationId ? { stationId } : {}),
     ...(activity ? { activity } : {}),
-  } as StationedRobot;
+  } as Robot;
 }
 
-function setRobots(robots: StationedRobot[]) {
+function setRobots(robots: Robot[]) {
   useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots, actors: [] } } });
 }
 
@@ -119,6 +117,26 @@ describe('ChargingStation (Phase 43 Task 20, spec §1.6)', () => {
     // Both lit slots are L3's (slots 0 and 1 fill first).
     const l3 = drawn(container.querySelector('g[data-station-fragment="l3"]')!).map((el) => el.getAttribute('fill'));
     expect(l3).toEqual(expect.arrayContaining([gemMidLitFace(ACCENT_COLORS.red), gemMidLitFace(ACCENT_COLORS.indigo)]));
+  });
+
+  it('a freshly spawned roster lights exactly its Docked robots, each at its own station (Task 21)', () => {
+    useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [], actors: [] } } });
+    spawnInitialRoster(DEFAULT_LOCALE_ID);
+    const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+    const docked = robots.filter((r) => r.docking === 'docked');
+    expect(docked.length).toBeGreaterThan(0);
+    let litTotal = 0;
+    for (const station of getStations(DEFAULT_LOCALE_ID)) {
+      const here = docked.filter((r) => r.stationId === station.id).map((r) => r.identityColor);
+      const roll = getStationRoll(station.gemSeed);
+      const { container, unmount } = renderAll(station);
+      expect(drawn(container).length, station.id).toBe(stationShapeCount(stationPaint(stationGeometry(roll, STATION_REFERENCE_DIALS), roll.accent, here)));
+      const fills = drawn(container).map((el) => el.getAttribute('fill'));
+      for (const c of here) expect(fills).toContain(gemMidLitFace(c));
+      litTotal += here.length;
+      unmount();
+    }
+    expect(litTotal).toBe(docked.length);
   });
 
   it('chargingColorsKey: identity colours of the robots charging at one station, in roster order', () => {

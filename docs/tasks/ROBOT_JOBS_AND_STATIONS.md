@@ -984,7 +984,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   **Dependencies:** T13, T0. **Files:** `src/components/stations/ChargingStation.tsx` (+ test),
   `src/components/panels/screen/worldView/OceanScene.tsx`. **Scope:** S.
 
-- [ ] **Task 21: `activity`, `stationId`, `siteId`; spawn at the stations**
+- [x] **Task 21: `activity`, `stationId`, `siteId`; spawn at the stations**
 
   **Description:** Add `RobotActivity` and the three fields (spec §1.2) — `state`, `destination`
   and `direction` stay until T24 so the legacy adapter keeps working. `spawnInitialRoster` assigns
@@ -993,9 +993,29 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   selector from T20 now reads real data.
 
   **Acceptance criteria:**
-  - [ ] Every spawned robot has a `stationId` within capacity and its position at that port.
-  - [ ] Initial Docked count lights exactly that many slots across the stations.
-  - [ ] Fields JSON-serializable; session payloads unchanged (`sessionDiff` tests unmodified).
+  - [x] Every spawned robot has a `stationId` within capacity and its position at that port.
+  - [x] Initial Docked count lights exactly that many slots across the stations.
+  - [x] Fields JSON-serializable; session payloads unchanged (`sessionDiff` tests unmodified).
+
+  **As shipped (2026-10-07):** (1) **`placeRosterAtStations`** (private, `spawnSystem.ts`) runs at
+  the end of `spawnInitialRoster`: `assignStationsAtLoad` over the roster's ids, then **one**
+  `setLocaleData` write for all twelve (`position = positionForCentre(port, getRobotGem(gemSeed))`,
+  Docked → `'charging'`, Active → `'exiting'`), not twelve `updateRobot`s (a test counts the
+  writes). A lone `spawnRobot` sets none of the three fields. **(2) The fields are optional**
+  (`activity?`), though spec §1.2 types `activity` as required. `state` is still required until
+  T24, and 24 test files build `Robot` literals, so tightening it belongs with T24's deletion.
+  (3) **Port vs centre:** real stations have `port === center` (open in the sketch header), so
+  a test stubs `getStations` with offset ports. Without it, writing `center` survives. The same stub
+  pins the overfill throw (one station, twelve robots). (4) **Interim visuals until T23 (expected,
+  not a bug):** Docked robots now sit **visible** at their station ports (they used to wait off-screen
+  below) because nothing hides `'charging'` until T23. Active robots start at the port, and the
+  legacy `handleRobotIdle` swims them out from there. The legacy adapter does not write
+  `activity`, so slot lights go stale after the first undock/dock until T23/T24 take over.
+  (5) **Found, not fixed:** `audioAttributes.detune` is sometimes `-0` (`Math.round` of a small
+  negative). JSON writes it as `0`, so it's harmless, but a whole-robot `toEqual` JSON round trip
+  fails on it. The round-trip test covers only this task's fields. (6) **Mutation checks:** 7
+  mutants, 7 killed (port→centre, activity swapped, no placement call, two writes, all to the first
+  station, every robot charging, Docked without a `stationId`). Suite 6946 green.
 
   **Verification:** `npx vitest run src/systems/spawnSystem.test.ts src/components/stations src/utils/sessionDiff.test.ts`.
   **Dependencies:** T13, T18, T20. **Files:** `src/types/Robot.ts`, `src/systems/spawnSystem.ts`

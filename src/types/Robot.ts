@@ -51,7 +51,7 @@ export type JobType = (typeof JobType)[keyof typeof JobType];
 
 /**
  * The work loop's live visual state (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.2). Never replayed;
- * nothing audio-side reads it. The `Robot.activity` field arrives with its writer (Phase 43 Task 21).
+ * nothing audio-side reads it. Stored on `Robot.activity`.
  */
 export type RobotActivity = 'charging' | 'exiting' | 'transit' | 'working' | 'waiting' | 'returning' | 'entering';
 
@@ -174,6 +174,14 @@ export interface Robot {
   /** Assigned automatically when a robot lands on Active. Not cleared when a robot lands on Docked —
    *  it persists, stale, until the robot next lands on Active and is assigned a fresh one. */
   job?: JobType;
+  /** The work loop's visual state (spec §1.2). Set for the whole roster at locale load
+   *  (spawnInitialRoster: Docked → 'charging', Active → 'exiting'); a lone spawnRobot leaves it
+   *  unset. Live only — never replayed, nothing audio-side reads it. */
+  activity?: RobotActivity;
+  /** The station the robot is in, heading to, or last left (spec §1.6). Assigned at locale load. */
+  stationId?: string;
+  /** The actor id of the work site the robot holds — heading to or working at (spec §1.7). */
+  siteId?: string;
   /**
    * Solo/mute/highlight mode set by the Robot Audio editor.
    * Runtime semantics (enforced by AudioEngine):
