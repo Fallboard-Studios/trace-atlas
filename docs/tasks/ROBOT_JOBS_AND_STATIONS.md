@@ -1507,7 +1507,8 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `no-robots` ablation puts the robots' paint at 112 vs 111 ms, and that run's stock windows read
   2007/160 vs 1987/158. T26's per-visible-robot paint lead, re-checked: ≈ 37 ms on both builds, so
   J3's moves add nothing measurable. The J2-vs-J1 gap stays an unexplained one-run lead. No
-  ablations beyond `no-robots` were needed, and no harness change.
+  ablations beyond `no-robots` were needed, and no harness change. **Crawford accepted the lean as
+  noise (2026-10-08: "passable").**
 
 - [ ] **Task 31: J3 docs** — ANIMATION_SYSTEM.md moves section; BUILDING_DESIGN.md job → host →
   move table; spec `> **Shipped (J3)**`. **Scope:** XS.

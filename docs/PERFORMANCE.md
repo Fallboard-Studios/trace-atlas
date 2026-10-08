@@ -1165,6 +1165,8 @@ than a cost the moves added:
 - **The robots' own paint is unchanged** (ablation below): 112 vs 111 ms.
 - **The ablation run's stock windows agree:** 2007 / 160 branch vs 1987 / 158 base.
 
+Crawford accepted the lean as noise (2026-10-08).
+
 Same scene on both builds in every window: 12 robots, 3 visible, 2 stations; `#robot-layer` 859–860 elements,
 L4 4, L3 16, front 58 (the J2 gate's counts; J3 draws its moves with existing elements). Top invalidation
 on both: `StyleRecalc Attribute` ≈ 23–25 k (`g.robot`, `ellipse.gem__halo`).
