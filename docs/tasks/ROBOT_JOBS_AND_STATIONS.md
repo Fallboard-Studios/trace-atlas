@@ -1571,14 +1571,32 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   ready site in the other layer from the robot's (`Robot.layer ?? 'foreground'` vs background
   site → back, else front) is offered as not ready when its leg has no switch point; checked
   only for ready sites, every decision. It's symmetric: a back-layer robot needs one to a front
-  site (unreachable until T34 writes `layer`). (4) **Midground silhouettes = midground hosts'
-  `WorkSite.bounds`,** every depth-midground site in the world, fixed per run. **Gap, flagged:**
-  midground non-hosts have no derived bounds — the wreck field's 4 midground boulders — so a
-  switch point may overlap one. (5) **Tests:** `src/animation/layerSwitch.test.ts` (17) sits
+  site (unreachable until T34 writes `layer`). (4) **Midground silhouettes = everything solid
+  between the two robot layers** (follow-up commit, Crawford: "let's not let robots clip through
+  anything"): new `src/systems/midgroundSilhouettes.ts` — every midground factory's body box plus
+  its rooftop-greeble box, every midground scenery actor (hosts or not: the wreck field's boulders
+  too), the midground pipe bridges (bar and post) and the ground line's steps; fixed per run. The
+  first cut used hosts' `WorkSite.bounds`, which also missed rooftop greebles (antennae to 25 % of
+  the height, pitched roofs rising by `frontCornerX`) and up to 31 above / 2 beside the anchor
+  bounds (mast lights, gem accents). Boxes are measured from the renderers' own JSX by a new pure
+  `src/utils/svgElementExtent.ts` (rect/circle/ellipse/polygon/line/arc paths, `rotate` groups,
+  strokes; throws on anything else), never a copy of their maths; the pipe-bridge geometry moved to
+  `pipeBridgeLayout.ts`, which `PipeBridges` now draws from. Factory greebles mirror Factory.tsx's
+  one suppression (a derelict's dark antenna isn't drawn). **Crawford's call:** bubbles, vent
+  plumes and floodlight beams/pools are not silhouette (translucent and moving — a robot passing
+  behind a bubble stream doesn't read as clipping). **For T33:** the ground line must render in
+  `mid` (it is a silhouette here). Render parity over the 121-seed grid with the real
+  `<Factory>`/`<Scenery>`/`<PipeBridges>`: every box holds every drawn solid shape and is tight
+  to it (≤ 1e-3), at night and noon. The shared DOM-side helper is
+  `src/testUtils/svgShapeExtents.ts` (moved out of `sceneryWorkAnchors.test.tsx`, which now uses
+  it, plus arcs, lines and strokes). (5) **Tests:** `src/animation/layerSwitch.test.ts` (17) sits
   beside its module, outside the verification line's `jobMoves` glob; 10 new `workLoop.test.ts`
   cases spy on the module for the skip and the call's arguments. 20/20 mutants killed (one
   survivor first — `to` returned aliased — closed with a test). Full suite: 7258 green plus the
-  known Task 18 50-gem load timeout.
+  known Task 18 50-gem load timeout. The silhouettes follow-up adds 62 tests
+  (`svgElementExtent.test.tsx` 33, `midgroundSilhouettes.test.tsx` 29); 24/24 mutants killed (one
+  survivor first — a wrong `frontCornerX` only grew the box, which a containment test can't see —
+  closed with the tightness checks and an any-depth pitched-roof case). Full suite 7321 green.
 
 - [ ] **Task 33: Split the scene layers; robots per layer; clicks**
 

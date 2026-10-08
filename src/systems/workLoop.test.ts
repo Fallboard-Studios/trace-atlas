@@ -10,6 +10,7 @@ import { placeDistrict } from './districts';
 import { isWorkSiteEligible } from './jobHosts';
 import { getWorkSite, type WorkSite } from './workSites';
 import { getStations, type Station } from './stations';
+import { getMidgroundSilhouettes } from './midgroundSilhouettes';
 import * as stationsModule from './stations';
 import { getTimeline, killAllTimelines, timelineMap } from '../animation/timelineMap';
 import { registerOrbiterWork, registerArcDecorator, clearRobotMotionRegistry } from '../animation/robotMotionRegistry';
@@ -1162,10 +1163,11 @@ describe('workLoop — back hosts and layer switch points (Phase 43 Task 32, spe
     .filter((s): s is { actor: Actor; site: WorkSite } => !!s.site && isWorkSiteEligible(s.actor, { backHosts: true }));
   const backSites = () => allSites().filter((s) => s.site.depth === 'background');
   const frontSite = () => allSites().find((s) => s.site.depth !== 'background')!;
-  const midgroundBounds = () => WORLD.flatMap((a) => {
-    const site = getWorkSite(a);
-    return site?.depth === 'midground' ? [site.bounds] : [];
-  });
+  /** Everything solid between the robot layers in the fixture world — hosts or not, bridges, ground. */
+  const midgroundBounds = () => {
+    registerLocale(WORLD, []);
+    return getMidgroundSilhouettes(LOCALE);
+  };
   /** Open water high above every building: a clear start for any leg. */
   const OPEN_WATER: Vec2 = { x: 960, y: 120 };
 
@@ -1177,9 +1179,10 @@ describe('workLoop — back hosts and layer switch points (Phase 43 Task 32, spe
     spy.mockRestore();
   });
 
-  it('the fixture world has background hosts and midground silhouettes', () => {
+  it('the fixture world has background hosts and midground silhouettes — more than its midground hosts', () => {
     expect(backSites().length).toBeGreaterThanOrEqual(1);
-    expect(midgroundBounds().length).toBeGreaterThanOrEqual(1);
+    const hostBounds = allSites().filter((s) => s.site.depth === 'midground').length;
+    expect(midgroundBounds().length).toBeGreaterThan(hostBounds);
   });
 
   it('backHosts defaults to BACK_HOSTS_ENABLED (false): a background host is never offered', () => {
@@ -1220,7 +1223,7 @@ describe('workLoop — back hosts and layer switch points (Phase 43 Task 32, spe
     expect(from).toEqual(r1.position);
     const scale = calculateBodyScale(r1.octaveRange, bodyShapeFromAdsr(r1.audioAttributes.adsr).scale);
     expect(box).toEqual(robotBoxAt(gem, scale));
-    expect(bounds).toEqual(midgroundBounds());
+    expect(bounds).toEqual(getMidgroundSilhouettes(LOCALE)); // the locale is the whole fixture world
   });
 
   it('no switch point: the background site is skipped for this decision and stays free', () => {

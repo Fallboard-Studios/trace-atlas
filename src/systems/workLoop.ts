@@ -40,6 +40,7 @@ import { chooseNextSite, heldJobs, siteCooldown } from './siteChoice';
 import { isWorkSiteEligible } from './jobHosts';
 import { getWorkSite, type WorkSite } from './workSites';
 import { getStations, nearestFreeStation, type Box, type Station } from './stations';
+import { getMidgroundSilhouettes } from './midgroundSilhouettes';
 import { createSwimTimeline } from '../animation/swimAnimation';
 import { getTimeline, killTimeline, setTimeline, timelineMap } from '../animation/timelineMap';
 import { getArcDecorator, getOrbiterWork } from '../animation/robotMotionRegistry';
@@ -92,7 +93,8 @@ interface LoopRun {
   localeId: string;
   /** Every eligible work site in the world, by actor id. Fixed for the run. */
   sites: Map<string, WorkSite>;
-  /** Every midground host's drawn bounds — what a layer switch must stay clear of. Fixed for the run. */
+  /** Everything solid between the robot layers (midgroundSilhouettes.ts) — what a layer switch
+   *  must stay clear of. Fixed for the run. */
   midground: Box[];
   siteState: Map<string, SiteSlot>;
   stations: Station[];
@@ -177,14 +179,6 @@ function eligibleSites(localeId: string, backHosts: boolean): Map<string, WorkSi
     if (site) sites.set(site.id, site);
   }
   return sites;
-}
-
-/** The drawn bounds of every midground host in the world (spec §1.10). */
-function midgroundBounds(localeId: string): Box[] {
-  return actorsOf(localeId).flatMap((actor) => {
-    const site = getWorkSite(actor);
-    return site?.depth === 'midground' ? [site.bounds] : [];
-  });
 }
 
 /** The robot layer a site is worked from: background sites from the back row, the rest the front. */
@@ -494,7 +488,7 @@ export function startWorkLoop(localeId: string, options: WorkLoopOptions = {}): 
   const loop: LoopRun = {
     localeId,
     sites: eligibleSites(localeId, options.backHosts ?? BACK_HOSTS_ENABLED),
-    midground: midgroundBounds(localeId),
+    midground: getMidgroundSilhouettes(localeId),
     siteState: new Map(),
     stations: getStations(localeId),
     now: options.now ?? (() => gsap.ticker.time),
