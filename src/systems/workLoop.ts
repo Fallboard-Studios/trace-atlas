@@ -13,6 +13,11 @@
 // again, it exits — 'exiting' (the arc reversed) → next(). Each arc carries the robot's halo
 // ripple (its registered decorateArc) and the station's own ripple (stationRipple.ts).
 //
+// Background buildings host only with `backHosts` (BACK_HOSTS_ENABLED, J4). A site in the other
+// robot layer from the robot's own is offered only when the leg to it has a layer switch point
+// clear of every midground silhouette (layerSwitch.ts, spec §1.10); with none it sits out that
+// decision.
+//
 // Every decision reads the robot's `docking`, so the visuals converge on the lifecycle however far
 // the Transport ran ahead (a hidden tab). The lifecycle tick (robotSystems.ts) reaches this module
 // only through onLifecycleChange; React reaches it through onRobotMounted (Robot.tsx); the start
@@ -34,11 +39,12 @@ import Alea from 'alea';
 import { chooseNextSite, heldJobs, siteCooldown } from './siteChoice';
 import { isWorkSiteEligible } from './jobHosts';
 import { getWorkSite, type WorkSite } from './workSites';
-import { getStations, nearestFreeStation, type Station } from './stations';
+import { getStations, nearestFreeStation, type Box, type Station } from './stations';
 import { createSwimTimeline } from '../animation/swimAnimation';
 import { getTimeline, killTimeline, setTimeline, timelineMap } from '../animation/timelineMap';
 import { getArcDecorator, getOrbiterWork } from '../animation/robotMotionRegistry';
 import { playStationRipple } from '../animation/stationRipple';
+import { findLayerSwitchPoint, robotBoxAt } from '../animation/layerSwitch';
 import { buildJobTimeline } from '../animation/jobMoves/buildJobTimeline';
 import { jobDuration } from '../animation/jobMoves/jobDuration';
 import { positionForCentre, robotCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
@@ -69,6 +75,8 @@ export interface WorkLoopOptions {
   now?: () => number;
   /** A uniform [0, 1) draw for job switches. Default: seeded from the locale id. */
   rand?: () => number;
+  /** Whether background buildings host work sites. Default `BACK_HOSTS_ENABLED`. */
+  backHosts?: boolean;
 }
 
 /** A site's runtime state: who holds it, and when its rest runs out. */
@@ -84,6 +92,8 @@ interface LoopRun {
   localeId: string;
   /** Every eligible work site in the world, by actor id. Fixed for the run. */
   sites: Map<string, WorkSite>;
+  /** Every midground host's drawn bounds — what a layer switch must stay clear of. Fixed for the run. */
+  midground: Box[];
   siteState: Map<string, SiteSlot>;
   stations: Station[];
   now: () => number;
@@ -156,16 +166,39 @@ function isReady(loop: LoopRun, siteId: string, t: number): boolean {
   return !slot || (!slot.heldBy && t >= slot.readyAt);
 }
 
+const actorsOf = (localeId: string) => useLocaleStore.getState().getLocaleById(localeId)?.actors ?? [];
+
 /** The world's eligible work sites (spec §1.3/§1.5), by actor id. */
-function eligibleSites(localeId: string): Map<string, WorkSite> {
-  const actors = useLocaleStore.getState().getLocaleById(localeId)?.actors ?? [];
+function eligibleSites(localeId: string, backHosts: boolean): Map<string, WorkSite> {
   const sites = new Map<string, WorkSite>();
-  for (const actor of actors) {
-    if (!isWorkSiteEligible(actor, { backHosts: BACK_HOSTS_ENABLED })) continue;
+  for (const actor of actorsOf(localeId)) {
+    if (!isWorkSiteEligible(actor, { backHosts })) continue;
     const site = getWorkSite(actor);
     if (site) sites.set(site.id, site);
   }
   return sites;
+}
+
+/** The drawn bounds of every midground host in the world (spec §1.10). */
+function midgroundBounds(localeId: string): Box[] {
+  return actorsOf(localeId).flatMap((actor) => {
+    const site = getWorkSite(actor);
+    return site?.depth === 'midground' ? [site.bounds] : [];
+  });
+}
+
+/** The robot layer a site is worked from: background sites from the back row, the rest the front. */
+const layerOf = (site: WorkSite): NonNullable<Robot['layer']> => (site.depth === 'background' ? 'background' : 'foreground');
+
+/**
+ * Whether the robot can reach the site: in its own layer always; in the other only when the leg
+ * to its park has a layer switch point (spec §1.10) — none, and the site is skipped this decision.
+ */
+function reachable(loop: LoopRun, robot: Robot, site: WorkSite): boolean {
+  if (layerOf(site) === (robot.layer ?? 'foreground')) return true;
+  const gem = getRobotGem(robot.gemSeed);
+  const park = positionForCentre(site.park, gem);
+  return findLayerSwitchPoint(robot.position, park, robotBoxAt(gem, bodyScaleOf(robot)), loop.midground) !== null;
 }
 
 /** Robots per station among its occupants, leaving `selfId` out. */
@@ -411,7 +444,12 @@ function resume(loop: LoopRun, robot: Robot): void {
   const t = loop.now();
   const choice = chooseNextSite({
     robot: { id: robot.id, job: robot.job, centre: robotCentre(robot, getRobotGem(robot.gemSeed)) },
-    sites: [...loop.sites.values()].map((s) => ({ id: s.id, jobs: s.jobs, park: s.park, ready: isReady(loop, s.id, t) })),
+    sites: [...loop.sites.values()].map((s) => ({
+      id: s.id,
+      jobs: s.jobs,
+      park: s.park,
+      ready: isReady(loop, s.id, t) && reachable(loop, robot, s),
+    })),
     heldJobs: heldJobs(robotsOf(loop.localeId), robot.id),
     rand: loop.rand,
   });
@@ -455,7 +493,8 @@ export function startWorkLoop(localeId: string, options: WorkLoopOptions = {}): 
   if (run) return;
   const loop: LoopRun = {
     localeId,
-    sites: eligibleSites(localeId),
+    sites: eligibleSites(localeId, options.backHosts ?? BACK_HOSTS_ENABLED),
+    midground: midgroundBounds(localeId),
     siteState: new Map(),
     stations: getStations(localeId),
     now: options.now ?? (() => gsap.ticker.time),

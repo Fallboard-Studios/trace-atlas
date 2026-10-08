@@ -146,6 +146,13 @@ export const DOCKED_PITCH_DRIFT_RATIO = 0.25;
  */
 export const BACK_HOSTS_ENABLED = false;
 
+/**
+ * How far apart findLayerSwitchPoint (animation/layerSwitch.ts) samples a leg, scene units: the
+ * first sample whose robot box overlaps no midground silhouette is where the robot changes layer
+ * (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.10).
+ */
+export const LAYER_SWITCH_STEP = 20;
+
 /** Keep robot destinations at least this far inside every world edge (scene units). */
 export const WORLD_MARGIN = 100;
 

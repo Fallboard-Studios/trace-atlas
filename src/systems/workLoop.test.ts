@@ -2,7 +2,7 @@
 // IMPORTS
 // ========================================
 import gsap from 'gsap';
-import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach, type MockInstance } from 'vitest';
 
 import { startWorkLoop, stopWorkLoop, next, getSiteState, onLifecycleChange, onRobotMounted } from './workLoop';
 import { siteCooldown } from './siteChoice';
@@ -16,7 +16,10 @@ import { registerOrbiterWork, registerArcDecorator, clearRobotMotionRegistry } f
 import { stationRippleKey } from '../animation/stationRipple';
 import { positionForCentre, robotCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
 import { jobDuration } from '../animation/jobMoves/jobDuration';
+import { robotBoxAt } from '../animation/layerSwitch';
+import * as layerSwitchModule from '../animation/layerSwitch';
 import { getRobotGem } from '../components/robot/gem/polygon';
+import { bodyShapeFromAdsr, calculateBodyScale } from '../components/robot/robotVisualHelpers';
 import { chargingColorsKey } from '../components/stations/stationOccupancy';
 import { setRef, clearRefs } from '../utils/refs';
 import { useLocaleStore } from '../stores/localeStore';
@@ -1150,5 +1153,150 @@ describe('workLoop — stations, recall and mounts (Phase 43 Task 23, spec §1.6
         spy.mockRestore();
       }
     });
+  });
+});
+
+describe('workLoop — back hosts and layer switch points (Phase 43 Task 32, spec §1.10)', () => {
+  /** Every site in the fixture world with back hosts on, background ones included. */
+  const allSites = () => WORLD.map((actor) => ({ actor, site: getWorkSite(actor) }))
+    .filter((s): s is { actor: Actor; site: WorkSite } => !!s.site && isWorkSiteEligible(s.actor, { backHosts: true }));
+  const backSites = () => allSites().filter((s) => s.site.depth === 'background');
+  const frontSite = () => allSites().find((s) => s.site.depth !== 'background')!;
+  const midgroundBounds = () => WORLD.flatMap((a) => {
+    const site = getWorkSite(a);
+    return site?.depth === 'midground' ? [site.bounds] : [];
+  });
+  /** Open water high above every building: a clear start for any leg. */
+  const OPEN_WATER: Vec2 = { x: 960, y: 120 };
+
+  let spy: MockInstance<typeof layerSwitchModule.findLayerSwitchPoint>;
+  beforeEach(() => {
+    spy = vi.spyOn(layerSwitchModule, 'findLayerSwitchPoint');
+  });
+  afterEach(() => {
+    spy.mockRestore();
+  });
+
+  it('the fixture world has background hosts and midground silhouettes', () => {
+    expect(backSites().length).toBeGreaterThanOrEqual(1);
+    expect(midgroundBounds().length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('backHosts defaults to BACK_HOSTS_ENABLED (false): a background host is never offered', () => {
+    expect(BACK_HOSTS_ENABLED).toBe(false);
+    registerLocale([backSites()[0].actor], [robot('r1', OPEN_WATER)]);
+    startWorkLoop(LOCALE, { now });
+    mount('r1');
+    next('r1');
+    expect(get('r1').activity).toBe('waiting');
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('backHosts: true — a background site with a clear switch point is taken', () => {
+    const { actor, site } = backSites()[0];
+    registerLocale([actor], [robot('r1', OPEN_WATER)]);
+    startWorkLoop(LOCALE, { now, backHosts: true });
+    mount('r1');
+    next('r1');
+    expect(get('r1').activity).toBe('transit');
+    expect(get('r1').siteId).toBe(site.id);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.results[0].value).not.toBeNull();
+  });
+
+  it("asks with the robot's position, the park position, its body-scaled box and every midground silhouette", () => {
+    const { site } = backSites()[0];
+    const r1 = robot('r1', OPEN_WATER);
+    registerLocale(WORLD, [r1]);
+    spy.mockReturnValue(null); // only foreground sites remain; the call is what's under test
+    startWorkLoop(LOCALE, { now, backHosts: true });
+    mount('r1');
+    next('r1');
+
+    const toPark = positionForCentre(site.park, gem);
+    const call = spy.mock.calls.find(([, to]) => to.x === toPark.x && to.y === toPark.y);
+    expect(call).toBeDefined();
+    const [from, , box, bounds] = call!;
+    expect(from).toEqual(r1.position);
+    const scale = calculateBodyScale(r1.octaveRange, bodyShapeFromAdsr(r1.audioAttributes.adsr).scale);
+    expect(box).toEqual(robotBoxAt(gem, scale));
+    expect(bounds).toEqual(midgroundBounds());
+  });
+
+  it('no switch point: the background site is skipped for this decision and stays free', () => {
+    const { actor, site } = backSites()[0];
+    registerLocale([actor], [robot('r1', OPEN_WATER)]);
+    spy.mockReturnValue(null);
+    startWorkLoop(LOCALE, { now, backHosts: true });
+    mount('r1');
+    next('r1');
+    expect(get('r1').activity).toBe('waiting');
+    expect(get('r1').siteId).toBeUndefined();
+    expect(getSiteState(site.id)).toBeUndefined();
+  });
+
+  it('a skipped background site leaves the rest offered — even over the job-keep rule', () => {
+    const back = backSites()[0];
+    const front = frontSite();
+    registerLocale([back.actor, front.actor], [robot('r1', OPEN_WATER, { job: back.site.jobs[0] })]);
+    spy.mockReturnValue(null);
+    startWorkLoop(LOCALE, { now, backHosts: true });
+    mount('r1');
+    next('r1');
+    expect(get('r1').siteId).toBe(front.site.id);
+  });
+
+  it('the next decision asks again: a skipped site is taken once its leg clears', () => {
+    const { actor, site } = backSites()[0];
+    registerLocale([actor], [robot('r1', OPEN_WATER)]);
+    spy.mockReturnValueOnce(null);
+    startWorkLoop(LOCALE, { now, backHosts: true });
+    mount('r1');
+    next('r1');
+    expect(get('r1').activity).toBe('waiting');
+    finish('bob-wait-r1');
+    expect(get('r1').siteId).toBe(site.id);
+  });
+
+  it('a front-layer robot asks for no switch point to a midground or foreground site', () => {
+    registerLocale([frontSite().actor], [robot('r1', OPEN_WATER)]);
+    startWorkLoop(LOCALE, { now, backHosts: true });
+    mount('r1');
+    next('r1');
+    expect(get('r1').activity).toBe('transit');
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("a back-layer robot asks for none to a background site, and needs one back to a front site", () => {
+    registerLocale([backSites()[0].actor], [robot('r1', OPEN_WATER, { layer: 'background' })]);
+    startWorkLoop(LOCALE, { now, backHosts: true });
+    mount('r1');
+    next('r1');
+    expect(get('r1').activity).toBe('transit');
+    expect(spy).not.toHaveBeenCalled();
+    stopWorkLoop();
+    killAllTimelines();
+
+    registerLocale([frontSite().actor], [robot('r2', OPEN_WATER, { layer: 'background' })]);
+    spy.mockReturnValue(null);
+    startWorkLoop(LOCALE, { now, backHosts: true });
+    mount('r2');
+    next('r2');
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(get('r2').activity).toBe('waiting');
+  });
+
+  it('a site that isn\'t ready is never asked about', () => {
+    const { actor, site } = backSites()[0];
+    registerLocale([actor], [robot('r1', OPEN_WATER), robot('r2', OPEN_WATER)]);
+    startWorkLoop(LOCALE, { now, backHosts: true });
+    mount('r1');
+    mount('r2');
+    next('r1');
+    expect(getSiteState(site.id)?.heldBy).toBe('r1');
+    spy.mockClear();
+    next('r2');
+    expect(spy).not.toHaveBeenCalled();
+    expect(get('r2').activity).toBe('waiting');
   });
 });

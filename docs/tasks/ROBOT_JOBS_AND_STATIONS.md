@@ -1544,7 +1544,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 
 ### Phase J4: Depth layers (`feature/jobs-depth`)
 
-- [ ] **Task 32: `findLayerSwitchPoint` and back-host plumbing**
+- [x] **Task 32: `findLayerSwitchPoint` and back-host plumbing**
 
   **Description:** Pure `findLayerSwitchPoint(from, to, robotBox, midgroundBounds)` (sampled every
   20 units, first clear point or `null`); `chooseNextSite` callers pass `backHosts:
@@ -1557,6 +1557,28 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   **Verification:** `npx vitest run src/animation/jobMoves src/systems/siteChoice.test.ts`.
   **Dependencies:** J3 merged. **Files:** `src/animation/layerSwitch.ts` (+ test),
   `src/systems/workLoop.ts`. **Scope:** S.
+
+  **As shipped (2026-10-08, on `feature/jobs-depth` off main `409957d7`):** (1) **Signature.**
+  `from`/`to` are robot *positions* (the gem canvas's top-left, what the loop writes), and
+  `robotBox` is the body's box relative to that position, so the returned point is a `position`
+  T34 can write directly. Samples `from`, every `LAYER_SWITCH_STEP` (20, in
+  `constants/index.ts`) along the leg, then `to`; touching edges are clear; always a fresh point.
+  A second pure helper, `robotBoxAt(gem, bodyScale)`, gives the box: the gem canvas scaled about
+  its centre like `g.gem` (at layer scale 1, where the switch happens). (2) **`backHosts`.**
+  `chooseNextSite` doesn't take it — eligibility already lives in the loop's site set — so the
+  callers' `backHosts` is a new `WorkLoopOptions.backHosts`, defaulting to `BACK_HOSTS_ENABLED`
+  (still false); tests turn it on per run instead of mocking the constant. (3) **Skipping.** A
+  ready site in the other layer from the robot's (`Robot.layer ?? 'foreground'` vs background
+  site → back, else front) is offered as not ready when its leg has no switch point; checked
+  only for ready sites, every decision. It's symmetric: a back-layer robot needs one to a front
+  site (unreachable until T34 writes `layer`). (4) **Midground silhouettes = midground hosts'
+  `WorkSite.bounds`,** every depth-midground site in the world, fixed per run. **Gap, flagged:**
+  midground non-hosts have no derived bounds — the wreck field's 4 midground boulders — so a
+  switch point may overlap one. (5) **Tests:** `src/animation/layerSwitch.test.ts` (17) sits
+  beside its module, outside the verification line's `jobMoves` glob; 10 new `workLoop.test.ts`
+  cases spy on the module for the skip and the call's arguments. 20/20 mutants killed (one
+  survivor first — `to` returned aliased — closed with a test). Full suite: 7258 green plus the
+  known Task 18 50-gem load timeout.
 
 - [ ] **Task 33: Split the scene layers; robots per layer; clicks**
 
