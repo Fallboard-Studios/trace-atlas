@@ -1021,7 +1021,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   **Dependencies:** T13, T18, T20. **Files:** `src/types/Robot.ts`, `src/systems/spawnSystem.ts`
   (+ test). **Scope:** S.
 
-- [ ] **Task 22: `workLoop.ts` — the site cycle**
+- [x] **Task 22: `workLoop.ts` — the site cycle**
 
   **Description:** `startWorkLoop`/`stopWorkLoop`, module `siteState`, injectable `now()`
   (`gsap.ticker.time`), and `next()` for an Active robot: `chooseNextSite` → `activity: 'transit'`,
@@ -1031,10 +1031,40 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `next()`. Not yet wired to mounts or the lifecycle (tests drive it directly).
 
   **Acceptance criteria:**
-  - [ ] One robot per site; a site is not chosen again before its `readyAt`.
-  - [ ] The job sticks across sites until no ready site hosts it, then switches to an unheld job.
-  - [ ] `stopWorkLoop` kills every `work-*`, `swim-*`, `bob-wait-*` key and clears state; callbacks
+  - [x] One robot per site; a site is not chosen again before its `readyAt`.
+  - [x] The job sticks across sites until no ready site hosts it, then switches to an unheld job.
+  - [x] `stopWorkLoop` kills every `work-*`, `swim-*`, `bob-wait-*` key and clears state; callbacks
         never touch `AudioEngine` (spy).
+
+  **As shipped (2026-10-07):** (1) **Surface:** `startWorkLoop(localeId, { now?, rand? })`,
+  `stopWorkLoop()`, `next(robotId)` and a read-only `getSiteState(siteId)` (for tests and
+  diagnostics). `now` defaults to `gsap.ticker.time`. `rand` defaults to `Alea(\`${localeId}:work\`)`.
+  The eligible sites (`isWorkSiteEligible` + `getWorkSite`) are derived once per start, and
+  `siteCooldown` counts all of them. (2) **Site key = actor id.** That is safe here: a probe found
+  every eligible actor id unique *within* each of the 121 grid worlds (the cross-locale collisions
+  are J1's gotcha), and the state is cleared on every stop. (3) **A non-Active robot is a no-op in
+  `next()`** until T23 adds `returnToStation`. A job that ends after a recall still unlocks, releases
+  (with the cooldown) and clears `siteId`. (4) **My calls, flagged:** (a) `stopWorkLoop` runs a job in
+  progress to its end **silently** (`progress(1, true)`) and then unlocks, so the orbiters are docked
+  and the bob is at rest. This is the same "finish in-flight" call as T17's lock. The robot keeps
+  `activity: 'working'`, and T23's restart decides what follows. (b) **Every callback is guarded by
+  run identity**, so a leg that completes after a stop or restart writes nothing. (c) **A robot with
+  no mounted body** gets keyed, target-less timelines (travel time, `jobDuration`, the wait), because
+  `createSwimTimeline`'s no-ref fallback is an unkeyed `delayedCall` that stop can't kill. (d) **The
+  wait bob** is one yoyo up `BOB_PX` over `WAIT_RETRY_SECONDS`. Under reduced motion it's a plain
+  pause. (e) **`bodyScale`** is computed from the same two helpers as `RobotBody`'s audio memo
+  (`calculateBodyScale` × `bodyShapeFromAdsr`). `RobotBody` itself is untouched (its tests count
+  `bodyShapeFromAdsr` calls), so the formula is in two places. `layerScale` is 1 until J4.
+  (5) **Behaviour to know:** a robot already on its park swims zero distance, and GSAP lands that on
+  `play()`, so it goes `transit` → `working` in the same call. (6) **For T23:** `stopWorkLoop` kills
+  every `swim-*` key, including the legacy `idleSystem`'s, until T24 deletes it. Nothing calls stop
+  yet. (7) **Tests run on real GSAP** (`vi.unmock('gsap')`) with `gsap.globalTimeline` paused, and
+  each leg is finished by `progress(1)`. The global mock's microtask `onComplete` would spin wait →
+  next → wait forever. Fixtures are one real placed world, searched for the sites each test needs.
+  (8) **Mutation checks:** 20 mutants, 20 killed. Two survived the first pass and each got a test:
+  release-keeps-`siteId` (every path I had tested ran `next()` straight after, which overwrites it,
+  so the new test recalls the robot mid-job) and the body-less swim's travel time (that test's robot
+  started on its park). Suite 6966 green.
 
   **Verification:** `npx vitest run src/systems/workLoop.test.ts`. **Dependencies:** T14, T19, T21.
   **Files:** `src/systems/workLoop.ts` (+ test). **Scope:** M.
