@@ -1252,11 +1252,17 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   the two card components (+ CSS, tests). **Scope:** M.
 
 ### Checkpoint C: J2 live
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Crawford, live on a few worlds: robots exit stations, go to buildings, orbiters hover-pulse,
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
+- [x] Crawford, live on a few worlds: robots exit stations, go to buildings, orbiters hover-pulse,
       return and vanish into stations; no pops; no long waits; cards read correctly.
-- [ ] **Phase 41's deferred halo gate**, original wording: a slow outward ring on exit, inward on
+- [x] **Phase 41's deferred halo gate**, original wording: a slow outward ring on exit, inward on
       entry, fading up and down; a volume/envelope edit reflected.
+
+  **Passed 2026-10-08** (Crawford: "checkpoint c is fine"). Static checks at `a851631b`: types and
+  build clean, lint at main's 2 warnings, suite 7000 green. Taken to cover the eye-checks flagged
+  earlier in J2, as Checkpoint A's sign-off covered the T4 lore lines: T20's overlay opacities, T25's
+  card-line gap after short words, and T25's draft activity lore lines. Task 26's harness run came
+  before this checkpoint, and nothing in the robots layer changed after it, so it stands.
 
 - [ ] **Task 26: J2 perf gate — stop and report**
 
