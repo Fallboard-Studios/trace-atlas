@@ -30,10 +30,12 @@
      outline read as one object? Is the outline wanted at all? Element count: each building gains 7 shapes
      (6 facets + outline) plus 5 per bevelled roof box — fine for a static layer, but the lighting tick repaints
      the whole layer, so read the readout's count.
-     Verdicts (Crawford, fill in):
-       material match: ___   bevel depth: ___   outline: ___ (width ___)   roof boxes bevelled: ___
-       boundary lines on faces: ___   lateral sun strength: ___   facet contrast: ___
-       next: stay at A / go to B (chamfer) / go to C (stacks) / drop -->
+     Verdicts (Crawford, 2026-10-08):
+       material match: keep ("a great little blend of both art styles")   bevel depth: 8 px   outline: NO
+       roof boxes bevelled: YES   boundary lines on faces: NO   lateral sun strength: 1.0   facet contrast: 1.0
+       next: stay at A, expanded past the factories (the "mass gets the ring, members stay lines" rule and the
+       terrain switch in the world section below are proposed, not yet ruled) — roadmap Phase 44,
+       docs/ideas/world-gem-material.md. The outline checkbox below now defaults off to match. -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -82,17 +84,17 @@
   <label>bevel px <input id="bevel" type="range" min="0" max="16" step="0.5" value="8" /><span class="v" id="bevelV">8.0</span></label>
   <label>facet contrast <input id="contrast" type="range" min="0" max="1.5" step="0.05" value="1" /><span class="v" id="contrastV">1.00</span></label>
   <label>lateral sun <input id="lateral" type="range" min="0" max="2" step="0.1" value="1" /><span class="v" id="lateralV">1.0</span></label>
-  <label><input id="outline" type="checkbox" checked /> outline</label>
+  <label><input id="outline" type="checkbox" /> outline (ruled out 2026-10-08; kept for comparison)</label>
   <label>outline px <input id="outlineW" type="range" min="0.5" max="4" step="0.5" value="2" /><span class="v" id="outlineWV">2.0</span></label>
 </div>
 <div class="controls toggles" id="toggles"><span class="grp">extras</span></div>
 
-<h2>Today</h2>
-<div class="stage"><svg id="today" viewBox="0 0 1920 800" width="960" height="400" preserveAspectRatio="xMidYMid meet"></svg><span>Monolith · Stacks · Refinery · Skyscraper · Warehouse, each with a robot. Today's renderer.</span></div>
-
 <h2>Option A — bevel ring, three facet tones, outline</h2>
-<div class="stage"><svg id="gem" viewBox="0 0 1920 800" width="960" height="400" preserveAspectRatio="xMidYMid meet"></svg><span>Same seed, same hour. Only the material changed.</span></div>
+<div class="stage"><svg id="gem" viewBox="0 0 1920 800" width="960" height="400" preserveAspectRatio="xMidYMid meet"></svg><span>Monolith · Stacks · Refinery · Skyscraper · Warehouse, each with a robot. The sliders above drive this stage.</span></div>
 <div class="readout" id="readout"></div>
+
+<h2>Today</h2>
+<div class="stage"><svg id="today" viewBox="0 0 1920 800" width="960" height="400" preserveAspectRatio="xMidYMid meet"></svg><span>Same seed, same hour, today's renderer — for comparison.</span></div>
 
 <h2>Option A through the day</h2>
 <p class="note">3 am · 9 am (east peak) · noon · 3 pm (west peak) · 9 pm. Watch which facet is lit: the ring should carry the sun, not fight it.</p>

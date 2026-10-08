@@ -816,3 +816,58 @@ assumptions to validate, MVP and Not Doing list are in the idea doc.
   surcharges — all removed by this phase, along with the dead `interactionSystem.ts` and factory
   production fields. J1 removed the surcharges, `interactionSystem.ts` and the production fields;
   J2 removed the rest when the work loop replaced the legacy adapter (Task 24).
+
+## 44. World Gem Material (Option A)
+
+Idea [docs/ideas/world-gem-material.md](../ideas/world-gem-material.md), sketch
+[docs/sketches/gem-factories.html](../sketches/gem-factories.html) (merged, PR #540). **Sketch gate
+passed 2026-10-08** (Crawford: "a great little blend of both art styles"; asked for the expansion past
+the factories, which the sketch now carries). Intent, spec and plan not started — the idea doc holds
+every decision made so far and the sketch's implementation notes, so the next session starts at
+`interview-me`, not at the sketch.
+
+### About
+
+The gem robots (Phase 39) and the world they sit in read as "one style randomly placed on another"
+(Crawford, 2026-10-08). Option A closes the gap by material, not form: every mass in the world gets
+the robots' bevel ring — an inset outline, one trapezoid facet per edge, three quantized tones
+(`quantizeShade` from `gemShading.ts`, the 0.5 / 1.1 / 1.25 multipliers from `gemShape.tsx`) and the
+scenery gem outline — while its silhouette, windows, belts and greebles stay exactly as they are.
+Bevel 0 is byte-identical to today's renderer. The rule for what gets it: **mass gets the ring,
+members stay lines** — factories, tanks, walls, dome bases, containers, scaffold blocks, wreck hulls
+and deckhouses, vent steps and crane loads are mass; posts, beams, masts, pylon towers and scaffold
+frames are members. Terrain is its own switch (the ring runs along the ridge and ground profiles).
+Curves stay smooth (the dome cap). Boulders, beacon heads, pylon heads and the charging stations are
+already gem and are untouched.
+
+Two rulings already made: **the hour-driven east/west sun wins** on buildings (the facet light vector
+is sideways by `eastL − westL`, always from above; the robots keep their own fixed top-left light),
+and **the windows stay**. The dials were ruled the same day: **bevel 8 px, facet contrast 1.0, lateral
+sun 1.0, no outline, no boundary lines, roof boxes bevelled** — so the material is the ring and its
+three tones alone, without the scenery gem's outline stroke. Still open: whether the world section's
+"mass gets the ring, members stay lines" rule and the terrain switch stand.
+
+Perf: static-layer content only, repainted on the once-a-second lighting tick, never per frame. Adds
+roughly 9 shapes per factory and about 170 across a world's scenery and terrain — a few hundred on top
+of the ~2,500 static shapes the Districts gates found cost nothing measurable at idle
+(docs/PERFORMANCE.md). The idle-paint harness is still the formal gate, in the D2 gate's shape, and
+the Pixel the honest one. No CSS transition on any facet fill (the 17.2.5 rule). Depends on
+[42](#42-world-view-districts) (the families) and [39](#39-gem-polygon-robots-branch-a) (the material).
+
+### Supersedes
+
+- [docs/todo/backlog.md](backlog.md) item 9 (Visuals: Better Building Details) — the material pass is
+  the building-detail work; any greeble-variety follow-up is a later, separate item.
+
+### Not Doing (and why)
+
+- **Option B (chamfered silhouettes) and Option C (buildings as stacked gem parts)** — Crawford asked
+  for A only; both change the silhouette-first pillar (BUILDING_DESIGN.md) and the greeble, clip and
+  ground-lock geometry written against the universal rectangle. Re-decide after A ships, if at all.
+- **The robots' fixed top-left light on buildings** — ruled out; the east/west sun is the world's
+  only sunlight.
+- **Replacing windows with emissive vertex lights** — ruled out; the windows stay.
+- **A ring on members or curves** — members get at most a thin outline behind a switch; arcs are
+  never faceted (the 90/45 grid rule).
+- **A union ring on the vent cone** — its ledges (~3 px) are narrower than the bevel, so the ring
+  self-intersects; each step is ringed as its own block instead.
