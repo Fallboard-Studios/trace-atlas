@@ -1484,8 +1484,14 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   alone) timed out once at vitest's 5 s. It wasn't chased.
 
 ### Checkpoint D: J3 live
-- [ ] Clean build/lint/types/suite. Crawford, live: can he tell all six jobs apart at a glance?
+- [x] Clean build/lint/types/suite. Crawford, live: can he tell all six jobs apart at a glance?
       Company members visibly vary.
+
+  **Passed 2026-10-08** (Crawford: "i ran the commands, no issues. i visually confirmed things").
+  He ran the static checks at `7a5fc284`, after the J3 code-review fixes, and they came back
+  clean. In both of my full runs at that tip, Task 18's round-trip test in
+  `sceneToOrbiterLocal.test.tsx` timed out at vitest's 5 s. It is a load-dependent timeout and
+  didn't show in his run. Still open, and not chased.
 
 - [ ] **Task 30: J3 perf gate — stop and report** — as T26 against J2's tip. **Files:**
   `docs/PERFORMANCE.md`. **Scope:** S.
