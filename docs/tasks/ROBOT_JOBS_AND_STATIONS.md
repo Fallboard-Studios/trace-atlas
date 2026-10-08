@@ -915,7 +915,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   **Files:** `src/animation/jobMoves/hoverPulse.ts`, `src/animation/jobMoves/buildJobTimeline.ts`,
   `src/animation/jobMoves/jobDuration.ts` (+ tests), `src/constants/index.ts`. **Scope:** M.
 
-- [ ] **Task 20: `ChargingStation.tsx`**
+- [x] **Task 20: `ChargingStation.tsx`**
 
   **Description:** The placeholder gem station from T0 (or Crawford's design if ready), memoised,
   rendered from `getStations` in `OceanScene`'s robots layer **after** the robots. Six slot lights,
@@ -923,9 +923,62 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   selector returns 0 until T21 adds the fields). No continuous animation.
 
   **Acceptance criteria:**
-  - [ ] ≤ `STATION_SHAPE_BUDGET` (16) drawn shapes per station (counted in the test).
-  - [ ] Drawn after every `.robot` in the robots layer's DOM order.
-  - [ ] A battery tick on an unrelated robot does not re-render the station (render-count test).
+  - [x] ≤ `STATION_SHAPE_BUDGET` ~~(16)~~ **(25, Crawford's call — see As shipped)** drawn shapes
+        per station (counted in the test).
+  - [x] ~~Drawn after every `.robot` in the robots layer's DOM order.~~ *(Task 0a correction:)*
+        three fragments around the robot group — L4, L3, robots, L2 + halo + L1.
+  - [x] A battery tick on an unrelated robot does not re-render the station (render-count test).
+
+  **As shipped (2026-10-07):** (1) **Crawford's Task 0a design, not a placeholder.** Ported from
+  `docs/sketches/robot-charging-station.html` into three modules: `stationGem.ts` (pure geometry),
+  `stationPaint.ts` (pure paths and colours) and `stationOccupancy.ts` (the lit-set selector key).
+  `ChargingStation` draws one **fragment** (`l4`, `l3` or `front` = L2 · halo · ripple · L1);
+  `OceanScene`'s robots layer is `#station-l4-layer`, `#station-l3-layer`, `#robot-layer`,
+  `#station-front-layer`. Exiting robots go between the first two (T21/T23; the J4 back row
+  later). Stations are `pointer-events: none` and `aria-hidden`, so robots behind L1/L2 stay
+  clickable. (2) **Shape budget 16 → 25 (Crawford, 2026-10-07).** 16 can't hold the design:
+  the layers can't share paths (robots draw between them), and each lit slot is its robot's own
+  colour, so robot-style tones would cost 3 paths per slot (~38 full). Crawford chose **facet
+  shading by overlay**: each broken layer is a flat base path (unlit pieces), one path per lit
+  slot, then one white and one black facet-overlay path (the robots' 3-tone quantised light).
+  Lines are one dark-stroke path per layer, and slot dots are at most two paths per layer (on and off).
+  Measured: 19 empty, 21 with one stored robot, 25 at five or six. `STATION_SHAPE_BUDGET` = 25 is
+  the measured ceiling, and a test pins it as the max. A stored robot is hidden (~30 shapes out of
+  the raster), so a lit slot is a net saving. T26 judges the rest. The overlay opacities (0.25 /
+  0.4) are approximate and need an eye-check at Checkpoint C. (3) **Slot colour** = the robot's fully lit Mid face
+  (`gemMidLitFace`, new in `gemPalette.ts`), pinned equal to `gemPalette(...).midLeft.face` at
+  lit 1. Slots light back to front (L3 holds 0–1, L2 2–3, L1 4–5) in **roster order** of the
+  charging robots. When a lower-roster robot docks, the colours shift one slot. There is no stored slot
+  index; T21/T23 can add one if Crawford wants arrival order. (4) **Live rig dials** read five narrow
+  `useAudioStore` selectors (HPF/LPF cutoff, EQ3 low/mid/high). Audio Swells write those at 16n
+  cadence mid-swell, so a station re-renders (geometry only, ~1 ms) during an EQ/filter swell.
+  Spec §1.6 wants live, so this is accepted. (5) **No re-roll, by construction.** `rollStation` draws a fixed count from its
+  stream (tested). `stationGeometry` draws nothing. Boundary lines are routed once at the reference
+  dials, on their own stream, and kept in each piece's ring coordinates (u along the piece between
+  its cut faces, v across the band). Each run is resampled ×6, so a line bends with a narrowing
+  ring. Before that, 22 of 53,652 samples sat up to 1.8 u outside their piece at band 8; now 0 of
+  321,912. (6) **Three geometry fixes over the sketch**, each found by the dial-corner sweeps:
+  (a) the ring's inner edge is an **edge-dropping offset** (`offsetPolygon`), because a plain miter
+  inverts a small chamfer at band 16; (b) a cut's half-angle is capped at **0.4 × the piece's span**,
+  because at gap 25 + falloff 0.12 the front ring's inner edge is ~15 u out, and uncapped the inner
+  walk wrapped the wrong way round the ring (the sketch has the same flaw at that corner); (c) the bevel
+  is **min(5, 0.3 × band)**, not the sketch's 0.3 × shortest edge, because a cut landing next to a
+  corner made that collapse to 0.6 and jump back as a dial moved on. Faces use the same edge-dropping
+  offset, so no facet inverts. The band cap (0.7 × inradius) binds only rarely (3 of 3000 seeds at
+  full falloff); a test pins those seeds. (7) **`Station.gemSeed`** (`'station.gem.seed'`,
+  `getUniformSeededVal` per index), with the roll cached per seed like `getRobotGem`. The accent is a
+  robot identity hue. (8) **Constants moved:** `STATION_BOX_W/H` 160×120 → **200×200** (the grid
+  still needs no overlap fallback), `STATION_ARC_SECONDS` 0.9 → **1.0**, new `STATION_HALO_RADIUS`
+  60. The arc retimed the hand-worked sim tests, and two turn-back scenarios had to move off exact
+  boundaries: recall at measure 4, and a 150 u park. Readiness re-run at 0.3/2/30 (box + arc):
+  mean waiting 1.2 / 1.2 / 1.3 % (unchanged), longest wait 18.0 / 13.1 / 12.0 s at 20 / 110 /
+  200 BPM (was 20 / 14 / 10), and turn-backs and charging-while-visible are still 0. (9) **The ripple circle
+  is rendered but invisible** (opacity 0, gradient `station-ripple-<id>`, all stops clear) so
+  the budget counts it; T23 drives it. **Not done:** daylight on the station (the robots dim at
+  night, the station doesn't; no spec rule, so it's flagged for Checkpoint C). (10) **Mutation
+  checks:** 26 mutants, 25 killed and 1 control. The band-cap and more-than-six survivors got tests
+  (pinned binding seeds; halo and port saturate at six). Heavy dial sweeps carry a 30 s timeout,
+  following `lifecycleSim.test.ts`. Suite 6933 green.
 
   **Verification:** `npx vitest run src/components/stations src/components/panels/screen/worldView/OceanScene.test.tsx`.
   **Dependencies:** T13, T0. **Files:** `src/components/stations/ChargingStation.tsx` (+ test),

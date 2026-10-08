@@ -87,6 +87,14 @@ function paintPart(part: GemPart, face: HSL, line: HSL, contrast: number, daylig
   };
 }
 
+/**
+ * A Mid's face at full lit level for this identity colour — the lit-Mid style a charging
+ * station's slot borrows for the robot stored in it (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.6).
+ */
+export function gemMidLitFace(identityHex: string, daylight = 1): string {
+  return css(shift(hexToHsl(identityHex), MID_LIT_DL, MID_LIT_DS), daylight);
+}
+
 // ========================================
 // PALETTE
 // ========================================

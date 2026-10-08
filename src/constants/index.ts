@@ -169,11 +169,24 @@ export const STATION_MIN_SPACING = 480;
 export const STATION_X_RANGE: readonly [number, number] = [240, 1680];
 export const STATION_Y_RANGE: readonly [number, number] = [220, 560];
 /**
- * The station's box, centred on its centre, which must overlap no host's bounds. PLACEHOLDER:
- * Task 0's sketch supplies the real size with Crawford's station design.
+ * The station's box, centred on its centre, which must overlap no host's bounds. 200 × 200 from
+ * the station sketch (Task 0a, 2026-10-07; was a 160 × 120 placeholder). The gem's back layer
+ * fills 0.95 of its half short side (components/stations/stationGem.ts).
  */
-export const STATION_BOX_W = 160;
-export const STATION_BOX_H = 120;
+export const STATION_BOX_W = 200;
+export const STATION_BOX_H = 200;
+/**
+ * Drawn shapes per station, all three fragments plus the halo and ripple circles — the measured
+ * ceiling of components/stations/stationPaint.ts (Phase 43 Task 20). The spec's 16 predates the
+ * station design: Task 0a's four layers can't share paths (robots draw between them), and each
+ * lit slot is its stored robot's own colour. Crawford chose facet shading by overlay (one light +
+ * one dark path per layer, so a lit slot costs one path, not three), 2026-10-07: 19 empty, 25 at
+ * five or six stored. A stored robot is hidden (~30 shapes out of the raster), so each lit slot
+ * is a net saving; Task 26's idle-paint gate judges the rest.
+ */
+export const STATION_SHAPE_BUDGET = 25;
+/** The station's static halo and its ripple ring, scene units (Task 0a verdict: 60, was 52). */
+export const STATION_HALO_RADIUS = 60;
 
 /**
  * A work site's rest after a robot leaves it, in seconds: siteCooldown(n) = clamp(n ×
@@ -192,8 +205,9 @@ export const COOLDOWN_MAX = 30;
 /** A waiting robot's one finite bob before it asks for a site again, in seconds (spec §1.7). */
 export const WAIT_RETRY_SECONDS = 2;
 
-/** A station enter or exit arc — scale + autoAlpha at the port — in seconds (spec §1.7). */
-export const STATION_ARC_SECONDS = 0.9;
+/** A station enter or exit arc — scale + autoAlpha at the port, the ripple's one whole cycle — in
+ *  seconds (spec §1.6/§1.7). 1.0 from the station sketch (Task 0a; was 0.9), landed at Task 20. */
+export const STATION_ARC_SECONDS = 1;
 
 /**
  * Job time (spec §1.9): jobDuration(bpm) runs from JOB_BASE_MAX_SECONDS at 20 BPM to

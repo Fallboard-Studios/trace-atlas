@@ -268,9 +268,8 @@ interface WorkSite {
   the layout, up to 16 layouts. After that, the count steps down to 2, and then the overlap rule
   is dropped (spacing always holds). Result over the grid: 50 of 121 worlds have 3 stations, and
   no world needs the overlap fallback. *(Task 0a, 2026-10-07:)* the sketch pinned the box at
-  **`STATION_BOX_W`/`STATION_BOX_H` = 200 × 200** (code still carries the 160 × 120 placeholder
-  until T20 moves it; the grid re-check in `stations.test.ts` must still show no overlap fallback
-  at the new size). `port` = the centre stays, marked open in the sketch header.
+  **`STATION_BOX_W`/`STATION_BOX_H` = 200 × 200** (in code since T20; the grid still needs no
+  overlap fallback at that size). `port` = the centre stays, marked open in the sketch header.
 - **Design (Task 0a, `docs/sketches/robot-charging-station.html`):** same manufacturer as the
   robots — ACCENT palette, BACKING/MID_DARK, bevel ring with 3 facet tones, boundary lines. Four
   loosely triangular gem layers, L1 (front) to L4 (back), each rotated against the next; L4 is one
@@ -299,10 +298,12 @@ interface WorkSite {
   robots live in `robots-back`, under the 0-1 depth gradient at `BACK_LAYER_SCALE`, and only L1–L3
   stay in `robots`. **T20 therefore depends on J4**; until J4 lands, exits use the front row
   (between L3 and L4 in the front layer, scale 1) as the fallback. Gem art style per the Design
-  bullet; **≤ `STATION_SHAPE_BUDGET` = 16 shapes** each (merged paths, 3 facet tones, per Phase
-  39 — the sketch's estimate is ~14 once the six light dots are one path). Six slot lights = the
-  six slot pieces plus their dots; lit count = robots with that `stationId` and `activity ===
-  'charging'`, read with a narrow number selector so only a count change re-renders. No
+  bullet; **≤ `STATION_SHAPE_BUDGET` = 25 shapes** each *(T20, Crawford's call: 16 can't hold
+  four unshareable layers plus a colour per lit slot. Facets are shaded by one light and one dark
+  overlay path per layer, so a lit slot costs one path: 19 empty, 25 full; see the plan's Task
+  20)*. Six slot lights = the six slot pieces plus their dots. Lit = robots with that `stationId`
+  and `activity === 'charging'`, read as one primitive key of their identity colours
+  (`stationOccupancy.ts`), so only a change to this station's lit set re-renders it. No
   continuous animation on the station itself (confirmed at the sketch).
 - **Enter / exit motion (Task 0a):** entering, the robot swims to the port and vanishes over
   `STATION_ARC_SECONDS` = **1.0** (scale 1 → 0.15 and opacity 1 → 0) while the halo ripple runs

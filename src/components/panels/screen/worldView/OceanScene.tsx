@@ -19,6 +19,8 @@ import { PipeBridges } from '@/components/actors/scenery/pipeBridges';
 import { BubbleLayer } from '@/components/actors/BubbleLayer';
 import { isBubbleEligible } from '@/components/actors/factoryVariants';
 import { getRecipeRow } from '@/systems/factoryPlacementSystem';
+import { getStations } from '@/systems/stations';
+import { ChargingStation } from '@/components/stations/ChargingStation';
 import { ActorType, type Actor } from '@/types/Actor';
 
 import colorTheme from '@/constants/colorTheme.json';
@@ -150,6 +152,11 @@ export function OceanScene({
   const backgroundFactories = useMemo(() => factories.filter((a) => depthOf(a) === 'background'), [factories]);
   const midgroundFactories = useMemo(() => factories.filter((a) => depthOf(a) === 'midground'), [factories]);
   const foregroundFactories = useMemo(() => factories.filter((a) => depthOf(a) === 'foreground'), [factories]);
+
+  // Derived from the seed and the placed actors (stations.ts caches per actors array), so this
+  // re-derives only when the world is re-placed.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `actors` is the cache key getStations reads
+  const stations = useMemo(() => getStations(localeId), [localeId, actors]);
 
   /** Dispatches a factory or scenery actor to its renderer (§1.8). */
   const renderActor = (actor: Actor) =>
@@ -284,11 +291,30 @@ export function OceanScene({
         <BubbleLayer actors={actors} totalBuildings={bubbleBuildingCount} />
       </SceneLayer>
 
-      {/* Moving: the robots (GSAP-driven transforms, Robot.tsx). The one layer that takes clicks. */}
+      {/* Moving: the robots (GSAP-driven transforms, Robot.tsx). The one layer that takes clicks.
+          Charging stations (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.6) are three fragments
+          interleaved with the robots, back to front: L4 · exiting robots · L3 · robots · L2 + halo
+          + L1, so an entering robot passes between L2 and L3. Exits use the L4/L3 seam here until
+          J4's back robot row lands. Stations take no clicks. */}
       <SceneLayer name="robots" width={width} height={height} moving>
+        <g id="station-l4-layer">
+          {stations.map((s) => (
+            <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l4" />
+          ))}
+        </g>
+        <g id="station-l3-layer">
+          {stations.map((s) => (
+            <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l3" />
+          ))}
+        </g>
         <g id="robot-layer">
           {robotIds.map((id) => (
             <Robot key={id} robotId={id} />
+          ))}
+        </g>
+        <g id="station-front-layer">
+          {stations.map((s) => (
+            <ChargingStation key={s.id} localeId={localeId} station={s} fragment="front" />
           ))}
         </g>
       </SceneLayer>

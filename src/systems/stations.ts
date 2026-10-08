@@ -43,6 +43,9 @@ export interface Station {
   /** Where a robot's centre goes in and comes out. The centre until the sketch says otherwise. */
   port: Vec2;
   capacity: number;
+  /** Seed for the station's look (components/stations/stationGem.ts getStationRoll) — the
+   *  station's counterpart of Robot.gemSeed, drawn once from the world ('station.gem.seed'). */
+  gemSeed: number;
 }
 
 // ========================================
@@ -54,6 +57,9 @@ const MAX_DRAWS_PER_STATION = 16;
 
 /** Layouts tried before a count is given up on. */
 const MAX_LAYOUTS = 16;
+
+/** Exclusive upper bound for Station.gemSeed (as Robot.gemSeed). */
+const GEM_SEED_MAX = 2 ** 31;
 
 // ========================================
 // HELPERS
@@ -140,7 +146,13 @@ export function deriveStations(noiseMap: NoiseFunction2D, obstacles: Box[]): Sta
     centres = [{ x: STATION_X_RANGE[0], y }, { x: STATION_X_RANGE[1], y }];
   }
 
-  return centres.map((center, i) => ({ id: `station-${i}`, center, port: { ...center }, capacity: STATION_CAPACITY }));
+  return centres.map((center, i) => ({
+    id: `station-${i}`,
+    center,
+    port: { ...center },
+    capacity: STATION_CAPACITY,
+    gemSeed: Math.floor(getUniformSeededVal(noiseMap, 'station.gem.seed', i) * GEM_SEED_MAX),
+  }));
 }
 
 // Keyed by the locale's actors array: placement writes a fresh array, so a re-placed world
