@@ -34,9 +34,10 @@ layers. This spec covers all four.
 > Values measured in J1: `BATTERY_DRAIN_ACTIVE` = 6 (§5.2 drain sim), site cooldown 0.4/3/30
 > (§5.2 readiness sim, Crawford's pick). Pinned by the station sketch (Task 0a, 2026-10-07):
 > the station box 200 × 200, `STATION_ARC_SECONDS` 1.0, the station design and the render-order
-> and back-row-exit corrections in §1.6. Still first guesses until the moves sketch (Task 0b, not
-> yet run): `JOB_WORK_RATE`, `JOB_BASE_SECONDS`, `JOB_MIN_SECONDS`; the port stays at the centre
-> pending Crawford. Per-task detail ("As shipped") is in
+> and back-row-exit corrections in §1.6. Pinned by the moves sketch (Task 0b, 2026-10-07):
+> `jobDuration(bpm)` 6–10 s from the tempo with orbiter count cut from timing, `JOB_WORK_RATE` and
+> `JOB_MIN_SECONDS` retired, `ATTACH_DURATION` 1 s, the move constants and two paths per site
+> (§1.5, §1.9). Code catches up at Task 16b. The port stays at the centre pending Crawford. Per-task detail ("As shipped") is in
 > [docs/tasks/ROBOT_JOBS_AND_STATIONS.md](../tasks/ROBOT_JOBS_AND_STATIONS.md).
 
 > **Execution Commands**
@@ -230,6 +231,11 @@ interface WorkSite {
 
 - **Park:** robot centre at `(clamp(centre x ± seeded 0–40), roof − PARK_CLEARANCE)` with
   `PARK_CLEARANCE` = 70 (body half-height + margin), clamped into the world (`WORLD_MARGIN` 100).
+- *(Task 0b, A2 confirmed)* **Two paths per site.** The sketch's jobs need both a silhouette line
+  and a pipe run on the same host (structuralInspection traces the outline, fluidMonitoring the
+  pipe), so `path` becomes `paths: { outline: Vec2[]; pipe?: Vec2[] }` — `outline` always present,
+  `pipe` where the kind has one; `trace(pipe)` on a site without one falls back to the outline.
+  J1's `workSites.ts` ships a single `path`; the split lands with T19's first consumer.
 - **Foreground rule:** foreground buildings draw *over* the robots layer, so a foreground site's
   `points` and `path` lie on or above its top outline — orbiters work at the silhouette from
   outside, never behind its face. Midground and background sites may use facade points.
@@ -386,9 +392,19 @@ and the set of robots with a pending recall. Public surface:
 
 ### 1.9 Jobs and moves (J2: one move end to end; J3: all)
 
-- **Job time:** `jobDuration(job, orbiterCount) = max(JOB_MIN_SECONDS, JOB_BASE_SECONDS −
+- **Job time:** ~~`jobDuration(job, orbiterCount) = max(JOB_MIN_SECONDS, JOB_BASE_SECONDS −
   JOB_WORK_RATE[job] × orbiterCount)`; `JOB_BASE_SECONDS` = 5, `JOB_MIN_SECONDS` = 1.5, rates 0.5–0.9
-  per job (first guesses; the sketch pins them). Orbiter count is `orbiterDials().count` (1–4, never 0).
+  per job (first guesses; the sketch pins them).~~ *(Task 0b, 2026-10-07, Crawford:)* **orbiter count
+  no longer drives speed** — it "creates some weirdness" — and `JOB_WORK_RATE` and `JOB_MIN_SECONDS`
+  retire with it. Every job runs for **`jobDuration(bpm) = JOB_BASE_SECONDS(bpm)`**, linear in the
+  tempo over the Tempo slider's 20–200: `JOB_BASE_MAX_SECONDS` = **10** at 20 BPM down to
+  `JOB_BASE_MIN_SECONDS` = **6** at 200 BPM (`10 − 4 × (bpm − 20) / 180`; 110 BPM → 8 s). Slower
+  tempo, longer job. `bpm` is the live transport tempo, read at job start; a tempo change mid-job
+  doesn't retime a running timeline. Orbiter count (`orbiterDials().count`, 1–4, never 0) still
+  decides how many orbiters work. Code: Task 16b replaces the shipped `jobDuration(job, count)`.
+- **Flights inside the duration (Task 0b, A1 confirmed):** detach and reattach are part of
+  `jobDuration`, not added to it — `ATTACH_DURATION` = **1.0 s** (was 0.5) each way. A two-move
+  job at 6 s therefore has ≈ 3.3 s of actual work; at 10 s, ≈ 7.6 s.
 - **One timeline per job run** (`work-${robotId}`): a bob on the robot's `<g>` (`y` ± `BOB_PX` = 6,
   finite repeats fitting the duration); the orbiters' **detach** (fly from dock to the first targets,
   `ATTACH_DURATION`), the job's **moves**, and **reattach** (fly back to `x: 0, y: 0`); then
@@ -413,6 +429,15 @@ and the set of robots with a pending recall. Public surface:
 | salvage | carry(a → b) |
 | maintenance | ring(point) with an opacity spark-flicker |
 
+- **Move constants (Task 0b, kept as sketched):** gather radius 14 u and pulse ×1.3
+  (`hoverPulse`); ring radius 24 u (±15 % per robot) and 1.5 revolutions per move (`ring`);
+  trace stagger 0.12 of the move's length (`trace`); carry shrink ×0.7 (`carry`); fan radius 40 u,
+  spread 120°, ping ×1.5 (`fan`); maintenance flicker dips to opacity 0.25, three per orbiter;
+  `BOB_PX` 6 with a ≈1.2 s bob cycle (whole cycles fitting the duration). Within a job, moves
+  split the duration equally; the first move's approach is the detach, later moves get
+  min(0.35 s, 25 % of their share) to reach their first targets. Reduced motion: an in-place
+  opacity pulse 0.8–1 on the whole robot, orbiters docked, no move targets. Names and values go to
+  `constants/index.ts` at T19 (`hoverPulse`) and T29 (the rest).
 - **Coordinates:** `sceneToOrbiterLocal(point, { robotPos, gem, bodyScale, layerScale, corner })`,
   pure — inverts the robot `<g>` translate, the `g.gem` `translate(c) scale(s) translate(−c)` (with
   `s = bodyScale × layerScale`) and the corner's dock offset. `robot.position` is the gem canvas's
@@ -421,7 +446,9 @@ and the set of robots with a pending recall. Public surface:
   One pure pair, `robotCentre(robot)` / `positionForCentre(centre)` (J2 Task 18), is the only
   conversion; spawn, the loop and the layer switch all use it.
 - *(J1)* `jobDuration` shipped early, at `src/animation/jobMoves/jobDuration.ts`, for the readiness
-  sim. `JOB_WORK_RATE` is 0.7 for every job (the midpoint) until the sketch gives each its own.
+  sim, as `jobDuration(job, count)` with `JOB_WORK_RATE` 0.7. *(Task 0b)* superseded — Task 16b
+  rewrites it as `jobDuration(bpm)` and re-runs the readiness sim at 6–10 s, since Task 15 pinned
+  the cooldown 0.4/3/30 against 2.2–4.3 s jobs.
 - **Per-robot variation:** `Alea(gemSeed + ':work')` picks stagger, ring direction, radius ±15 %
   and trace direction — company members that look alike work differently.
 - J2 ships `hoverPulse` + ventExtraction only (other jobs fall back to it); J3 adds the rest.
@@ -519,7 +546,7 @@ docs/
 ├── specs/ROBOT_JOBS_AND_STATIONS.md     # this file
 ├── tasks/ROBOT_JOBS_AND_STATIONS.md     # the plan (next)
 ├── sketches/robot-charging-station.html # Task 0a: the station (rolls + enter/exit), done
-├── sketches/robot-jobs-and-stations.html# Task 0b: the moves and jobs panel (open)
+├── sketches/robot-jobs-and-stations.html# Task 0b: the moves and jobs panel, done
 ├── ROBOT_LIFECYCLE.md                   # rewritten (J1 lifecycle, J2 stations/loop)
 ├── ANIMATION_SYSTEM.md                  # registry, job timelines, scene stack (J4)
 ├── BUILDING_DESIGN.md                   # hosts, work sites, coverage
@@ -665,7 +692,8 @@ is its gate.
   two host types at 1×, a station enter/exit with the halo ripple and the placeholder station.
   Constants that pass become this spec's values. *(As run: split. Task 0a, the station, passed
   2026-10-07 in `docs/sketches/robot-charging-station.html` — §1.6 carries its values. Task 0b,
-  the moves and jobs, is still to run and gates T19/T20's timing constants.)*
+  the moves and jobs, passed 2026-10-07 in `docs/sketches/robot-jobs-and-stations.html` — §1.9
+  carries its values, with one change of direction: duration follows BPM, not orbiter count.)*
 - **J2/J3/J4 live:** a few worlds; can he tell what each robot is doing; no long waits; no pops at
   stations or layer switches. **Pixel listen:** no new dropouts — the hard line.
 - **Halo gate:** Phase 41's deferred halo/ripple visual gate re-runs at J2 with its original
@@ -693,7 +721,8 @@ is its gate.
 4. **Lore copy** for Salvage, Maintenance and the seven activities — Crawford reviews.
 5. **`BATTERY_DRAIN_ACTIVE`, cooldown constants, job rates** — pinned by §5.2 and the sketch.
    *J1:* drain 6 and cooldown 0.4/3/30 pinned. *Task 0a:* `STATION_ARC_SECONDS` = 1.0 and the
-   station box 200 × 200 pinned (code moves at T20). The job rates, `JOB_BASE_SECONDS` and
-   `JOB_MIN_SECONDS` still wait for Task 0b.
+   station box 200 × 200 pinned (code moves at T20). *Task 0b:* `jobDuration(bpm)` 6–10 s,
+   orbiter coupling cut, `JOB_WORK_RATE`/`JOB_MIN_SECONDS` retired, `ATTACH_DURATION` 1 s (code
+   moves at Task 16b, which also re-runs the readiness sim). **Resolved.**
 6. *(Raised in J1.)* **Background Skyscraper parks** clamp below the roof (§1.5) — J4 decides:
    drop such sites or park beside them.

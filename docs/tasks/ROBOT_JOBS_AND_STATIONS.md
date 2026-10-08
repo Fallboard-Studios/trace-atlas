@@ -40,7 +40,8 @@ repo convention `docs/tasks/<SPEC>.md`, per CLAUDE.md "Authority and precedence"
 
 Thirty-six tasks plus a sketch gate. **Task 0** is the motion sketch: Crawford signs off the five
 moves, the station enter/exit and the placeholder station before any code *(as shipped: split into
-0a, the station, done 2026-10-07, and 0b, the moves and jobs, still open — see Task 0)*. **J1** (Tasks 1–16)
+0a, the station, and 0b, the moves and jobs, both passed 2026-10-07 — see Task 0; Task 16b carries
+their code changes into J2)*. **J1** (Tasks 1–16)
 changes the lifecycle underneath today's visuals — renamed states, a measured flat drain, the job out
 of replay, the legacy seam, dead code out — and builds the world data the loop will need: host
 lists, factory geometry, work sites, the coverage guarantee, stations, the pure site choice and the
@@ -122,7 +123,8 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   toggle for the back layer. Crawford can drop his own station design into one marked function.
 
   **Acceptance criteria:**
-  - [ ] Every move and job plays at 1× at world scale; orbiter count visibly changes speed.
+  - [x] Every move and job plays at 1× at world scale; ~~orbiter count visibly changes speed~~
+        *(cut at the gate: duration follows BPM, orbiter count only sets how many orbiters work)*.
   - [ ] Station enter/exit reads as "into" and "out of" the station, not a fade-out next to it.
   - [ ] Crawford's verdict recorded in the sketch header; the constants he keeps written into spec
         §1.6/§1.9 (Task 16 or the J2 task that consumes them).
@@ -150,11 +152,23 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
     Left TBD in the header: depth tint on/off and opacity, swim speed, back-row scale, enter/exit
     sides, port = centre, the chosen roll. Verified in jsdom over 60 seeds × 6 stations
     (3,240 pieces, none degenerate), not by eye in a browser beyond Crawford's session.
-  - [ ] **Task 0b: Moves and jobs sketch — `docs/sketches/robot-jobs-and-stations.html`.** The
+  - [x] **Task 0b: Moves and jobs sketch — `docs/sketches/robot-jobs-and-stations.html`.** The
     (a)/(b) panels above: a robot beside a Refinery-style factory and a dome playing the five moves
     and six job sequences, with the orbiter-count, `JOB_WORK_RATE` and `JOB_BASE_SECONDS` sliders,
     reduced motion and the 0.75× toggle. Gates T19/T20's timing constants and J3; build on the J2
     branch before T19.
+    **As shipped (2026-10-07, passed):** built on `feature/job-lifecycle-2` right after 0a. Two
+    hand-drawn hosts with hand-placed points (mouth, mast, valve, a, b) and two paths (outline,
+    pipe); five move buttons, six job buttons chaining them per §1.9, auto-cycle alternating hosts,
+    scrubber, per-robot seeded variation, reduced motion and the 0.75× back layer under the depth
+    tint. **Crawford changed direction on timing at the gate:** orbiter count no longer drives
+    speed; `jobDuration(bpm)` = 10 s at 20 BPM → 6 s at 200 BPM, linear; `JOB_WORK_RATE` and
+    `JOB_MIN_SECONDS` retired; `ATTACH_DURATION` 1 s. Move weights kept as sketched (now listed in
+    §1.9), flights inside the duration (A1) and two paths per site (A2) confirmed — §1.5's
+    `WorkSite.path` becomes `paths: { outline, pipe? }` at T19. Verified in jsdom: 176 runs (11
+    runs × 2 hosts × foreground on/off × 4 counts), no errors, every orbiter docked at start and
+    end. **Knock-on:** Task 15's cooldown was pinned against 2.2–4.3 s jobs; Task 16b re-runs the
+    sim at 6–10 s before J2.
 
 ---
 
@@ -717,6 +731,31 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 
 ---
 
+### Between J1 and J2: the sketch gate's code (`feature/job-lifecycle-2`)
+
+- [ ] **Task 16b: `jobDuration(bpm)`, the retired constants, and the readiness sim re-run**
+
+  **Description:** Carry Task 0b's timing verdicts into code before J2 builds on them. Rewrite
+  `src/animation/jobMoves/jobDuration.ts` as `jobDuration(bpm): number` = `lerp(JOB_BASE_MAX_SECONDS,
+  JOB_BASE_MIN_SECONDS, clamp((bpm − 20) / 180, 0, 1))` with `JOB_BASE_MAX_SECONDS` 10 and
+  `JOB_BASE_MIN_SECONDS` 6 in `constants/index.ts`; delete `JOB_BASE_SECONDS`, `JOB_MIN_SECONDS`
+  and `JOB_WORK_RATE`; `ATTACH_DURATION` 0.5 → 1.0 (`orbiterMotion.ts` — check Phase 40's attach
+  tests for the value). Re-run Task 15's readiness sim with the new durations at 20, 110 and 200
+  BPM (`npx vite-node` as before) and **stop and report**: longer jobs hold sites longer, so the
+  0.4/3/30 cooldown may need re-pinning. Spec §1.9 and §5.2 then record the re-run's table.
+
+  **Acceptance criteria:**
+  - [ ] `jobDuration(20)` = 10, `jobDuration(110)` = 8, `jobDuration(200)` = 6; clamped outside 20–200.
+  - [ ] No reference to `JOB_WORK_RATE`, `JOB_MIN_SECONDS` or `JOB_BASE_SECONDS` remains (grep).
+  - [ ] The readiness sim runs and its table is in the commit message; cooldown decision recorded.
+
+  **Verification:** `npx vitest run src/animation/jobMoves src/systems/readinessSim` + the sim.
+  **Dependencies:** Task 0b. **Files:** `src/animation/jobMoves/jobDuration.ts` (+ test),
+  `src/constants/index.ts`, `src/components/robot/gem/orbiterMotion.ts` (+ test), the Task 15 sim
+  script. **Scope:** S–M (stop gate on the sim).
+
+---
+
 ### Phase J2: Stations and the loop (`feature/jobs-loop`)
 
 - [ ] **Task 17: `robotMotionRegistry.ts` and the orbiter lock**
@@ -759,11 +798,12 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `jobMoves/buildJobTimeline.ts`: given a robot, its site, job and locked orbiter groups, one paused
   timeline keyed `work-${robotId}` — the bob (`BOB_PX`, finite repeats), detach (`ATTACH_DURATION`),
   the job's moves (every job → `hoverPulse` in J2), reattach to `x: 0, y: 0`, total
-  `jobDuration(job, count)` (constants from T0). Reduced motion: an in-place opacity pulse of the same
+  `jobDuration(bpm)` (Task 16b; the live tempo read at job start). Reduced motion: an in-place opacity pulse of the same
   length. `onComplete` is passed in. Registered in `timelineMap`.
 
   **Acceptance criteria:**
-  - [ ] Duration equals `jobDuration` for counts 1–4 (± one frame); floors at `JOB_MIN_SECONDS`.
+  - [ ] Duration equals `jobDuration(bpm)` at 20, 110 and 200 BPM (± one frame); orbiter count 1–4
+        changes which orbiters move, never the duration.
   - [ ] Orbiters end at `x: 0, y: 0`, scale and opacity restored; the bob ends where it started.
   - [ ] The timeline never touches `AudioEngine` (spy); killing the key leaves no live tweens.
 
@@ -932,7 +972,8 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 - [ ] **Task 29: `carry`, `fan`, the spark flicker and the six-job table**
 
   **Description:** `jobMoves/carry.ts`, `jobMoves/fan.ts`, Maintenance's opacity spark-flicker, and
-  `JOB_MOVES` (spec §1.9 table) with each job's `JOB_WORK_RATE` from T0. Reduced motion stays the
+  `JOB_MOVES` (spec §1.9 table); every job runs for `jobDuration(bpm)`, and the move constants
+  §1.9 lists from Task 0b land in `constants/index.ts` here. Reduced motion stays the
   in-place pulse for every job.
 
   **Acceptance criteria:**
