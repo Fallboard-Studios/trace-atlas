@@ -237,6 +237,17 @@ export const BOB_CYCLE_SECONDS = 1.2;
 export const HOVER_GATHER_RADIUS = 14;
 export const HOVER_PULSE_SCALE = 1.3;
 
+/** ring (spec §1.9): orbiters circle the point at RING_RADIUS scene units, scaled per robot by up
+ *  to ±RING_RADIUS_JITTER (jobMoves/variation.ts), for RING_REVOLUTIONS turns per move. Kept as
+ *  sketched (Phase 43 Task 0b). */
+export const RING_RADIUS = 24;
+export const RING_RADIUS_JITTER = 0.15;
+export const RING_REVOLUTIONS = 1.5;
+
+/** trace (spec §1.9): each orbiter starts this fraction of the move after the one before it, so
+ *  they run the path in a staggered line. Kept as sketched (Phase 43 Task 0b). */
+export const TRACE_STAGGER = 0.12;
+
 /** Robot swim speed, scene units per second (swimAnimation.ts; the loop sim's swims). */
 export const SWIM_SPEED = 120;
 

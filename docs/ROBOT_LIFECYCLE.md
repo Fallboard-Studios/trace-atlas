@@ -197,8 +197,9 @@ diagnostics. `stopWorkLoop` clears it.
 `swim-${id}`). On arrival `position` is written and it goes `'working'`: `buildJobTimeline` locks
 its orbiters (`getOrbiterWork(id).lock()`), runs one `work-${id}` timeline lasting exactly
 `jobDuration(bpm)` (10 s at 20 BPM down to 6 s at 200 BPM, the live tempo read at job start), and
-in its `onComplete` unlocks them, releases the site with the cooldown and calls `next()`. J2 ships
-one move (`hoverPulse`) for every job; J3 adds the rest. The timeline itself is in
+in its `onComplete` unlocks them, releases the site with the cooldown and calls `next()`. The job
+picks the move: Structural Inspection traces, Acoustic Survey rings, and the rest run `hoverPulse`
+until Task 29 adds `carry` and `fan`. The timeline itself is in
 [ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#job-timeline).
 
 **Coordinates.** Station ports and site `park`s are robot **centres**; `position` is the gem

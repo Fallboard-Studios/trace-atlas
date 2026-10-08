@@ -134,9 +134,16 @@ at once, and a passive effect would register too late for it.
   (1 s). Targets are scene points mapped into the orbiter's own frame by `sceneToOrbiterLocal`
   (which inverts the robot translate, the `g.gem` scale about its centre and the corner's dock
   offset), so the output is the GSAP `x`/`y` of `.gem__orbiter-local`; `{ x: 0, y: 0 }` is docked.
-- **The move** — J2 has one, `addHoverPulse` (`hoverPulse.ts`): the orbiters gather on a
+- **The move**, picked by the job. `addHoverPulse` (`hoverPulse.ts`): the orbiters gather on a
   `HOVER_GATHER_RADIUS` (14 u) ring around the site's first point, spaced by slot, and pulse to
-  ×`HOVER_PULSE_SCALE` (1.3) in turn, ending at their rest scale. J3 adds the other four.
+  ×`HOVER_PULSE_SCALE` (1.3) in turn, ending at their rest scale. `addTrace` (`trace.ts`,
+  Structural Inspection): they run the site's path vertex to vertex at constant speed, each
+  starting `TRACE_STAGGER` (0.12) of the move after the one before. `addRing` (`ring.ts`, Acoustic
+  Survey): they circle the first point, evenly phased, for `RING_REVOLUTIONS` (1.5) turns, as a
+  polyline of 15° chords (plain x/y tweens, no `onUpdate`). Each robot's take comes from
+  `workVariation(gemSeed)` (`variation.ts`): turn order, start phase, ring direction, radius
+  (`RING_RADIUS` 24 u ± 15 %) and trace direction. The other jobs run `hoverPulse` until Task 29
+  adds `carry` and `fan`.
 - **Reattach** — back to `x: 0, y: 0` over `ATTACH_DURATION`. The flights sit inside the duration,
   not on top of it.
 - **The counter-bob** — the orbiters live inside the `.robot` group, so the bob would carry a

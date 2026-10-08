@@ -1339,7 +1339,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 
 ### Phase J3: The move set (`feature/jobs-moves`)
 
-- [ ] **Task 28: `trace`, `ring` and per-robot variation**
+- [x] **Task 28: `trace`, `ring` and per-robot variation**
 
   **Description:** `jobMoves/trace.ts` (staggered run along `path`) and `jobMoves/ring.ts` (evenly
   phased circle at radius `r`), targets pure; `jobMoves/variation.ts` — `Alea(gemSeed + ':work')`
@@ -1347,9 +1347,55 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   Survey's ring switch from the J2 fallback.
 
   **Acceptance criteria:**
-  - [ ] Trace: every orbiter visits every path vertex in order; ring: orbiters stay at `r ± 1` and
+  - [x] Trace: every orbiter visits every path vertex in order; ring: orbiters stay at `r ± 1` and
         evenly phased; both fit the job duration.
-  - [ ] Variation deterministic per `gemSeed`; two gem seeds differ in at least one parameter.
+  - [x] Variation deterministic per `gemSeed`; two gem seeds differ in at least one parameter.
+
+  **As shipped (2026-10-08):** (1) **Branch.** The dependency "J2 merged" isn't met (J2 is
+  unpushed on `feature/job-lifecycle-2`). J3 was cut from J2's tip (`af560c36`) as
+  `feature/jobs-moves`, the plan's J3 branch, so J2's PR stays clean. (2) **`variation.ts`.**
+  `workVariation(gemSeed)` is ported from the sketch, with the same draw order: a turn-order
+  shuffle of the four corners, ring direction ±1, radius scale 0.85–1.15, trace direction, then a
+  phase in [0, 2π). T29's spark draws go after these, so nothing here moves. The sketch's
+  `parkDx` is left out: the park has its own per-site stream (spec §1.5). `turnRanks(order,
+  shown)` gives each locked orbiter its turn among the shown corners. Over 500 seeds every
+  variation is distinct, and both directions of each flag occur. A test pins the stream key and
+  draw order against a hand-rolled `Alea`. (3) **`trace.ts`.** `traceRoute(path, reversed)` drops
+  repeated vertices, so no segment has zero length. `traceTimes(ranks, t0, t1)` puts starts
+  `TRACE_STAGGER` of the window apart, by turn rank, and the last to start ends exactly at `t1`.
+  `addPolylineRun` tweens vertex to vertex at constant speed (durations in proportion to segment
+  length) and is shared with the ring. Before its turn, an orbiter waits on the first vertex,
+  where the detach left it, and after its run it holds the last vertex until the reattach. (4)
+  **`ring.ts` is a polyline, not an `onUpdate`.** 24 chords per turn (15°) sag at most 0.24 u at
+  the widest ring (27.6 u), inside ±1 u. These are plain x/y tweens, so seeks and the silent
+  finish land exactly, and they avoid T23's lazy-`gsap.set`-in-`onUpdate` gotcha. Start angles
+  are `phase − π/2 + j·2π/n` by slot (T19's slot spacing). (5) **`hoverPulse` got the variation
+  too**, as T19's note promised: an optional `phase` turns the gather, and optional `ranks` set the
+  pulse order. Defaults keep T19's behaviour, and two T19 timeline tests now expect the robot's
+  phase and turn order. That is a visible change to Vent Extraction (and the fallback jobs): the
+  first orbiter is no longer always directly above the mouth. (6) **`buildJobTimeline`:** a
+  file-local `jobMove(job)` picks the move (Structural Inspection → `trace(path)`, Acoustic Survey
+  → `ring(points[0])`, the rest → `hoverPulse(points[0])`). T29 replaces it with `JOB_MOVES`.
+  Every move builds one scene route per orbiter, the detach flies to its first vertex, and the
+  routes go through `sceneToOrbiterLocal` per corner. `site` now needs `path` too. Acoustic
+  Survey's `fan` comes first in the spec table; it's T29's, so the ring runs alone here. (7) **Not
+  done here: `WorkSite.path` → `paths`** (T19 deferred it here). `trace` reads only the outline,
+  which is today's `path`. `pipe`'s first reader is Fluid Monitoring's `trace(pipe)` in T29, so the
+  split moves there with it. (8) **Constants moved early:** `RING_RADIUS` 24,
+  `RING_RADIUS_JITTER` 0.15, `RING_REVOLUTIONS` 1.5 and `TRACE_STAGGER` 0.12 are in
+  `constants/index.ts` now (the plan had all the move constants at T29). T29 adds carry, fan and
+  flicker. (9) **Tests:** in the scene, through the real transform chain at layer scale 1 and
+  0.75, both trace directions with 1 and 4 orbiters hit every vertex to 0.01 u at the expected
+  times, in order, inside the work window. Both ring directions stay within r ± 1 and evenly
+  phased, and sweep 1.5 turns. Every job lasts `jobDuration` with 0, 1 or 4 orbiters and ends
+  docked, and reduced motion moves no orbiter for any job. Two of my tests were wrong on the first
+  GREEN run: a 1e-6 tolerance (GSAP keeps transforms to about four decimals, so they're now 1e-3)
+  and an `addTrace` fixture that never placed the orbiters on their first vertex, which the
+  detach does. (10) **Mutation checks:** 18 mutants, 18 killed. They covered trace direction,
+  repeats, rank stagger, run length, length-blind timing, ring direction, coarse chords, start
+  angle, radius jitter, stream key, turn ranks, each job's move, hover phase and ranks, ring
+  radius scale, and ring start time. (11) ANIMATION_SYSTEM.md and ROBOT_LIFECYCLE.md lost their
+  "one move for every job" lines; the rest of the J3 docs are T31's. Suite 7126 green.
 
   **Verification:** `npx vitest run src/animation/jobMoves`. **Dependencies:** J2 merged.
   **Files:** `src/animation/jobMoves/trace.ts`, `ring.ts`, `variation.ts`, `buildJobTimeline.ts`
