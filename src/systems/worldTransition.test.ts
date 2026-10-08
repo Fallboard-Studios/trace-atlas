@@ -36,6 +36,7 @@ import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { stopRobotLifecycle } from './robotSystems';
 import { stopAudioSwells } from './audioSwells';
 import * as audioSwellsModule from './audioSwells';
+import * as workLoopModule from './workLoop';
 import { MAX_ROBOTS } from '../constants';
 import { computeLocaleHour } from '../constants/time';
 import { RobotState, DockingState } from '../types/Robot';
@@ -82,6 +83,7 @@ describe('worldTransition', () => {
   afterEach(() => {
     stopRobotLifecycle();
     stopAudioSwells();
+    workLoopModule.stopWorkLoop();
   });
 
   describe('initializeLocale', () => {
@@ -92,12 +94,40 @@ describe('worldTransition', () => {
       expect(locale.robots).toHaveLength(MAX_ROBOTS);
     });
 
-    it('assigns a job to every initially-Active robot', () => {
+    it('assigns no job at load — the work loop picks each robot\'s first job at its first site (Phase 43 Task 23)', () => {
       initializeLocale(DEFAULT_LOCALE_ID);
       const locale = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!;
-      locale.robots.filter((r) => r.docking === DockingState.Active).forEach((r) => {
-        expect(r.job).toBeDefined();
+      expect(locale.robots.some((r) => r.docking === DockingState.Active)).toBe(true);
+      for (const r of locale.robots) expect(r.job).toBeUndefined();
+    });
+
+    it('calls stopWorkLoop then startWorkLoop(localeId), after the world and roster exist (Phase 43 Task 23)', () => {
+      const stopSpy = vi.spyOn(workLoopModule, 'stopWorkLoop');
+      const startSpy = vi.spyOn(workLoopModule, 'startWorkLoop').mockImplementation((id) => {
+        const locale = useLocaleStore.getState().getLocaleById(id)!;
+        seenAtStart = { actors: locale.actors.length, robots: locale.robots.length };
       });
+      let seenAtStart = { actors: 0, robots: 0 };
+      try {
+        initializeLocale(DEFAULT_LOCALE_ID);
+
+        expect(stopSpy).toHaveBeenCalledTimes(1);
+        expect(startSpy).toHaveBeenCalledTimes(1);
+        expect(startSpy).toHaveBeenCalledWith(DEFAULT_LOCALE_ID);
+        expect(stopSpy.mock.invocationCallOrder[0]).toBeLessThan(startSpy.mock.invocationCallOrder[0]);
+        expect(seenAtStart.actors).toBeGreaterThan(0);
+        expect(seenAtStart.robots).toBe(MAX_ROBOTS);
+      } finally {
+        startSpy.mockRestore();
+        stopSpy.mockRestore();
+      }
+    });
+
+    it('restarts the work loop on a second call too (a power-on or a retransmit at the same locale)', () => {
+      const startSpy = vi.spyOn(workLoopModule, 'startWorkLoop');
+      initializeLocale(DEFAULT_LOCALE_ID);
+      initializeLocale(DEFAULT_LOCALE_ID);
+      expect(startSpy).toHaveBeenCalledTimes(2);
     });
 
     it('is a no-op for factories/robots when called again on an already-populated locale', () => {

@@ -12,9 +12,8 @@ import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { placeDistrict } from './districts';
 import { spawnInitialRoster, spawnInitialCompanies } from './spawnSystem';
 import { startRobotLifecycle, stopRobotLifecycle } from './robotSystems';
-import { assignJob } from './lifecycleVisuals';
+import { startWorkLoop, stopWorkLoop } from './workLoop';
 import { startAudioSwells, stopAudioSwells } from './audioSwells';
-import { DockingState } from '../types/Robot';
 import { getCurrentMeasure } from '../engine/beatClock';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { DAY_DURATION_MS } from '../constants/time';
@@ -77,7 +76,7 @@ function buildLocale(attenuationStyleId: string, coordinates: { x: number; y: nu
 
 /**
  * Bring a locale online: guarded factory placement + fixed 12-robot roster +
- * robot-lifecycle restart + Audio Swells restart. Idempotent on
+ * robot-lifecycle, work-loop and Audio Swells restarts. Idempotent on
  * factories/robots — safe to call on an already-populated locale (matches
  * the double-spawn guard OceanScene's own mount effect already had for
  * factories; extended here to robots too) — but always restarts both
@@ -91,10 +90,8 @@ function buildLocale(attenuationStyleId: string, coordinates: { x: number; y: nu
  * the unconditional stop+start pairs below are what re-subscribe the ticks,
  * not just what handles a locale swap.
  *
- * Job assignment for the roster's initially-Active robots happens here, not
- * inside `spawnInitialRoster` itself — see
- * docs/specs/ROBOT_SYSTEMS_ENGINE.md's Architecture Decisions on avoiding an
- * import cycle between spawnSystem.ts and robotSystems.ts.
+ * No job is assigned here: the work loop (restarted below, like the ticks)
+ * picks each robot's first job at its first site (Phase 43, spec §1.1).
  *
  * Shared by OceanScene's mount effect and worldTransition so "what does
  * bringing a locale online mean" has exactly one implementation. A future
@@ -109,14 +106,14 @@ export function initializeLocale(localeId: string): void {
   if (locale.robots.length === 0) {
     spawnInitialRoster(localeId);
     spawnInitialCompanies(localeId); // Roadmap Phase 10 — same guard as the roster it depends on
-    const freshRobots = useLocaleStore.getState().getLocaleById(localeId)?.robots ?? [];
-    freshRobots
-      .filter((r) => r.docking === DockingState.Active)
-      .forEach((r) => assignJob(localeId, r.id));
   }
 
   stopRobotLifecycle();
   startRobotLifecycle(localeId);
+  // After the world and roster exist: the loop reads the world's sites and stations once at start,
+  // and adopts any robot already mounted (a power-on mounts the scene before this runs).
+  stopWorkLoop();
+  startWorkLoop(localeId);
   stopAudioSwells();
   startAudioSwells(localeId);
 }

@@ -3,6 +3,7 @@ import { useAudioStore } from '../stores/audioStore';
 import { resetHarmony } from '../engine/harmonySystem';
 import { reRegisterAllRobotsAudio } from './spawnSystem';
 import { stopRobotLifecycle } from './robotSystems';
+import { stopWorkLoop } from './workLoop';
 import { useUIStore } from '../stores/uiStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { getActiveLocaleId } from '../utils/localeHelpers';
@@ -31,6 +32,9 @@ export const powerController = {
     // tick after this power cycle. No robots are removed anymore — every robot
     // survives a power cycle now (docking replaces the old persists model).
     stopRobotLifecycle();
+    // The work loop's timelines and site state go too; initializeLocale restarts it on power-on
+    // and adopts the remounted robots (Phase 43, spec §1.1).
+    stopWorkLoop();
     AudioEngine.killAll();
     try {
       useLocaleStore.getState().setLocaleData(getActiveLocaleId(), { actors: [] });
@@ -48,6 +52,7 @@ export const powerController = {
    */
   async shutdownWithAnimation() {
     stopRobotLifecycle(); // see shutdown()'s comment on why this must precede killAll()
+    stopWorkLoop();
     AudioEngine.killAll();
     useUIStore.getState().setPowerOff();
   },

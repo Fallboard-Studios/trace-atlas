@@ -15,6 +15,7 @@ import { STATION_SHAPE_BUDGET } from '@/constants';
 import { getStations, type Station } from '@/systems/stations';
 import { spawnInitialRoster } from '@/systems/spawnSystem';
 import type { Robot, RobotActivity } from '@/types/Robot';
+import { getRef, clearRefs } from '@/utils/refs';
 
 // ========================================
 // HELPERS
@@ -220,5 +221,22 @@ describe('ChargingStation (Phase 43 Task 20, spec §1.6)', () => {
     expect(new Set(ids).size).toBe(4);
     const [a, b] = Array.from(container.querySelectorAll('g.station')).map((g) => drawn(g).map((el) => el.getAttribute('d')).join());
     expect(a).not.toEqual(b);
+  });
+
+  it("registers the front fragment as station-front-<id> for the work loop's ripple (Task 23), and only the front", () => {
+    clearRefs();
+    const { container, unmount } = renderAll();
+    const front = container.querySelector('g[data-station-fragment="front"]');
+    expect(getRef('station-front-station-0')).toBe(front);
+    unmount();
+    expect(getRef('station-front-station-0')).toBeUndefined();
+    // The back fragments hold no ripple: alone, they register nothing.
+    render(
+      <svg>
+        <ChargingStation localeId={DEFAULT_LOCALE_ID} station={STATION} fragment="l4" />
+        <ChargingStation localeId={DEFAULT_LOCALE_ID} station={STATION} fragment="l3" />
+      </svg>,
+    );
+    expect(getRef('station-front-station-0')).toBeUndefined();
   });
 });

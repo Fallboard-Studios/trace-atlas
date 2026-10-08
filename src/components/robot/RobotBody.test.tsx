@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { act, render, cleanup } from '@testing-library/react';
+import { useLayoutEffect } from 'react';
 
 import { RobotBody } from './RobotBody';
 import * as robotVisualHelpers from './robotVisualHelpers';
@@ -585,6 +586,21 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
           expect(getOrbiterWork('r-avatar')).toBeUndefined();
           expect(getArcDecorator('r-card')).toBeUndefined();
           expect(getOrbiterWork('r-card')).toBeUndefined();
+        });
+
+        it("both are registered by the time the parent Robot's mount (layout) effect runs (Phase 43 Task 23)", () => {
+          // Robot.tsx's useGSAP mount calls onRobotMounted, which plays the exit arc at once and
+          // reads the decorator then — a passive-effect registration would miss the first arc.
+          const seen: unknown[] = [];
+          function Parent({ children }: { children: React.ReactNode }) {
+            useLayoutEffect(() => {
+              seen.push(getArcDecorator('r-mount'), getOrbiterWork('r-mount'));
+            }, []);
+            return <g>{children}</g>;
+          }
+          render(<svg><Parent><RobotBody robot={makeRobot({ id: 'r-mount' })} motion="world" /></Parent></svg>);
+          expect(typeof seen[0]).toBe('function');
+          expect(seen[1]).toBeDefined();
         });
 
         it('unmount deregisters both', () => {

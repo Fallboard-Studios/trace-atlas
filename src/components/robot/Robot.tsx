@@ -10,7 +10,7 @@ import { setRef, deleteRef } from '../../utils/refs';
 import { useUIStore } from '../../stores/uiStore';
 import { useLocaleStore } from '../../stores/localeStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../../stores/attenuationStyleStore';
-import { handleRobotIdle } from '../../systems/idleSystem';
+import { onRobotMounted } from '../../systems/workLoop';
 
 // ========================================
 // TYPES
@@ -74,11 +74,9 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
         y: robot.position.y,
         transformOrigin: '50% 50%',
       });
-      // isReturning: true — the robot is entering from its south-only spawn
-      // spot (see spawnSystem.ts's generateSpawnPosition), so its first
-      // on-screen destination stays in the bottom half, same as a dock-cycle
-      // return (lifecycleVisuals.ts's 'active' branch).
-      handleRobotIdle(localeId, robotId, { isReturning: true });
+      // The work loop takes it from here (Phase 43, spec §1.7): hidden in its station if Docked,
+      // out of it if 'exiting', else on to work — also the whole remount and power-on story.
+      onRobotMounted(localeId, robotId);
     }
     return () => deleteRef(`robot-${robotId}`);
   }, { scope: ref, dependencies: [robotId] });

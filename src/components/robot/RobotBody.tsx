@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef } from 'react';
 
 import type { Robot } from '../../types/Robot';
 import {
@@ -198,7 +198,9 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     dimOpacity,
     enabled: motionEnabled,
   });
-  useEffect(() => {
+  // A layout effect: the parent Robot's mount (useGSAP, also layout) hands the robot to the work
+  // loop, which can play an exit arc at once and reads this decorator then (Phase 43 Task 23).
+  useLayoutEffect(() => {
     if (motion !== 'world') return;
     registerArcDecorator(robot.id, decorateArc);
     return () => deleteArcDecorator(robot.id, decorateArc);

@@ -209,6 +209,13 @@ export const WAIT_RETRY_SECONDS = 2;
  *  seconds (spec §1.6/§1.7). 1.0 from the station sketch (Task 0a; was 0.9), landed at Task 20. */
 export const STATION_ARC_SECONDS = 1;
 
+/** A robot's scale at the station port, where it vanishes on entry and appears on exit (spec §1.6,
+ *  the station sketch's 0.15 — superseding §1.7's first-draft 0.4). */
+export const STATION_PORT_SCALE = 0.15;
+
+/** A station arc under reduced motion: an opacity fade in place, no scale, no ripple (spec §1.6). */
+export const STATION_REDUCED_ARC_SECONDS = 0.3;
+
 /**
  * Job time (spec §1.9): jobDuration(bpm) runs from JOB_BASE_MAX_SECONDS at 20 BPM to
  * JOB_BASE_MIN_SECONDS at 200 BPM, linear, the same for every job. Pinned by the moves sketch

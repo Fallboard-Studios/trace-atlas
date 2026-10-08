@@ -9,12 +9,13 @@
 //
 // Static: no timeline, no ticker. The slot lights re-render only when this station's charging set
 // changes (stationOccupancy.ts); the geometry only when the world rig's four dials move
-// (stationGem.ts). Task 23 drives the ripple circle; nothing here animates.
+// (stationGem.ts). The work loop drives the ripple circle (stationRipple.ts, Task 23) through the
+// front fragment's `station-front-${id}` ref; nothing here animates.
 
 // ========================================
 // IMPORTS
 // ========================================
-import { memo, useMemo } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef } from 'react';
 
 import { getStationRoll, stationDials, stationGeometry } from './stationGem';
 import { STATION_HALO_PEAK, stationPaint, type StationShape } from './stationPaint';
@@ -23,6 +24,7 @@ import { useAudioStore } from '@/stores/audioStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { STATION_HALO_RADIUS } from '@/constants';
 import type { Station } from '@/systems/stations';
+import { deleteRef, setRef } from '@/utils/refs';
 
 // ========================================
 // TYPES
@@ -46,7 +48,7 @@ const HALO_STOPS: ReadonlyArray<[number, number]> = [
   [0.55, 1],
   [1, 0],
 ];
-/** The ripple gradient's stop count — Phase 41's ring (haloRipple.ts); all clear until Task 23. */
+/** The ripple gradient's stop count — Phase 41's ring; all clear until stationRipple.ts plays it. */
 const RIPPLE_STOPS = 5;
 
 function Shape({ shape }: { shape: StationShape }) {
@@ -83,12 +85,23 @@ function ChargingStationFragment({ localeId, station, fragment }: ChargingStatio
   );
   const paint = useMemo(() => stationPaint(geometry, roll.accent, parseColorsKey(litKey)), [geometry, roll.accent, litKey]);
 
+  // The front fragment holds the ripple, which the work loop drives (stationRipple.ts). A layout
+  // effect, so it's registered before the robots' own mount effects reach the loop.
+  const ref = useRef<SVGGElement>(null);
+  useLayoutEffect(() => {
+    if (fragment !== 'front' || !ref.current) return;
+    const key = `station-front-${station.id}`;
+    setRef(key, ref.current);
+    return () => deleteRef(key);
+  }, [fragment, station.id]);
+
   const haloId = `station-halo-${station.id}`;
   const rippleId = `station-ripple-${station.id}`;
   const shapes = (list: StationShape[]) => list.map((s) => <Shape key={s.key} shape={s} />);
 
   return (
     <g
+      ref={ref}
       className={`station station--${fragment}`}
       data-station-id={station.id}
       data-station-fragment={fragment}

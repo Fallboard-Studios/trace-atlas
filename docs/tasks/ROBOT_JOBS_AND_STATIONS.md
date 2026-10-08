@@ -1069,26 +1069,83 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   **Verification:** `npx vitest run src/systems/workLoop.test.ts`. **Dependencies:** T14, T19, T21.
   **Files:** `src/systems/workLoop.ts` (+ test). **Scope:** M.
 
-- [ ] **Task 23: `workLoop.ts` — stations, recall and mounts**
+- [x] **Task 23: `workLoop.ts` — stations, recall and mounts**
 
   **Description:** `exitStation`, `returnToStation` + `entering` (spec §1.7, `decorateArc` from the
-  registry, `autoAlpha` and scale 0.4 at the port, `STATION_ARC_SECONDS`), recall handling (finish a
+  registry, `autoAlpha` and scale ~~0.4~~ **0.15** at the port, `STATION_ARC_SECONDS`), recall handling (finish a
   job, abandon transit/waiting), the turn-back rule, and `onRobotMounted` (charging → hidden at the
   port; exiting → `exitStation`; other Active → release + `next()`). `Robot.tsx`'s mount effect calls
   `onRobotMounted` instead of `handleRobotIdle`. `initializeLocale` and both power-off paths call
   `stopWorkLoop`/`startWorkLoop`. Reduced motion: 0.3 s fades in place.
 
   **Acceptance criteria:**
-  - [ ] Recall while working: the job completes, then the robot returns; while in transit or
+  - [x] Recall while working: the job completes, then the robot returns; while in transit or
         waiting: it returns at once and its site is released.
-  - [ ] Active landing while returning/entering: the slot is released and the robot goes back to
+  - [x] Active landing while returning/entering: the slot is released and the robot goes back to
         work; while charging: it exits.
-  - [ ] A charging robot has `visibility: hidden` and its slot is lit; the decorator is called with
+  - [x] A charging robot has `visibility: hidden` and its slot is lit; the decorator is called with
         `'spawn'` on exit and `'despawn'` on entry.
+
+  **As shipped (2026-10-08):** (1) **Port scale 0.15, not 0.4.** Spec §1.6 (the Task 0a station
+  sketch) supersedes §1.7's first-draft 0.4. New constants `STATION_PORT_SCALE` 0.15 and
+  `STATION_REDUCED_ARC_SECONDS` 0.3. The eases are the sketch's: the exit scales on √v, the entry
+  on v² (`power1.in`), and opacity is linear both ways. All three are pinned at exact values.
+  (2) **No recall flag.** Spec §1.7 keeps "the set of robots with a pending recall". Every decision
+  here reads `docking` instead (`next()` → home unless Active), and `'active'` would clear the flag
+  anyway, so the flag would duplicate `docking`. (3) **Turn-back while entering finishes the arc
+  first.** Spec §1.7 groups returning and entering as "still outside". Killing an entry mid-arc
+  would pop the robot back to full size, so `'active'` while entering does nothing. The arc's own
+  end sees `docking` Active and plays `exitStation` from where the entry left it (0.15, hidden).
+  The robot never becomes `'charging'`. `'active'` while returning kills the swim home and goes
+  back to work at once. (4) **`next()` reconciles.** While returning or entering, it does nothing
+  (the leg in flight decides). While charging, it exits if Active. Otherwise it sends the robot
+  home if it isn't Active, or on to a site. `resume()` is the same decision without the in-flight
+  guard (mounts and turn-backs). (5) **Adoption.** `startWorkLoop` adopts every robot with a
+  mounted body, because a power-on mounts the scene before `initializeLocale` starts the loop.
+  `onRobotMounted` adopts when the loop runs for that locale. With no loop, it only hides: Docked
+  or Undocking robots at their port, charging; exiting or charging ones in place. That avoids a
+  one-frame flash. Adopting drops the robot's legs (a job is finished silently), abandons its
+  site, then hides it, exits it, or shows it at full size and decides from where its body is.
+  T22's tests now call `startWorkLoop` before `mount()`. (6) **Settle.** A leg cut off mid-swim or
+  mid-bob leaves the body ahead of the store. Before the next leg, the body's GSAP x/y is written
+  back to `position`, within 0.01 u (GSAP keeps about four decimals). (7) **Abandoning a site has
+  no cooldown** (`readyAt = now`): recall in transit, remount and adopt. **Every station full**
+  (impossible at 12 robots): the robot waits and asks again. (8) **The station ripple**
+  (`src/animation/stationRipple.ts`). T20 left it for this task. It is one cycle per arc, ring
+  width 0.2, hole 0.18 and the 10 % envelope, outward on exit and inward on entry, in the moving
+  robot's `identityColor`, keyed `station-ripple-<stationId>`. A ripple already running wins, and
+  reduced motion plays none. `ChargingStation`'s front fragment registers `station-front-<id>` in a
+  layout effect. `stopWorkLoop` now kills `station-*` (arcs and ripples). (9) **Registration
+  timing.** `RobotBody`'s `registerArcDecorator` and `useOrbiterMotion`'s `registerOrbiterWork`
+  moved from `useEffect` to `useLayoutEffect`. Robot's `useGSAP` mount is a layout effect and can
+  play the exit arc at once, so a passive registration missed the first arc's halo ripple (test
+  seen RED). (10) **`initializeLocale`** drops the `assignJob` pass (the loop picks the first job)
+  and calls `stopWorkLoop(); startWorkLoop(localeId)` after the roster exists. (11) **Test-harness
+  gotcha:** with `gsap.globalTimeline` paused, a plain `gsap.set` never renders, so T22's `mount()`
+  fixture had never placed its body. The loop's instant sets go through `place()`, which adds
+  `immediateRender: true`, and the fixture does the same. A `gsap.set` inside a tween's
+  `onUpdate` is lazy too, so the ripple writes its stop attributes directly. **(12) Not done,
+  flagged:** exiting robots still render in `#robot-layer` (between L3 and L2), not between L4
+  and L3. That needs `OceanScene` to order robots by activity without remounting them, so it goes
+  to J4's layer work. **(13) Interim until T24 (expected):** the tick's seam still calls the
+  legacy adapter. An undocked robot gets `handleRobotIdle` instead of `exitStation`, so it stays
+  hidden, though its invisible body may still wander. Recall swims it off-screen until its job's `next()` takes over, and the
+  'docked' landing writes the off-screen dock position. Don't judge the app live until T24.
+  (14) **Mutation checks:** 64 mutants. On the first pass, `workLoop.ts` had 42 of 52 killed. The
+  10 survivors each got a test: all stations full, turn-back with no ready site, self-occupancy on
+  a remount mid-return, a remount after Docked mid-transit, adopting an Active `'charging'` robot,
+  a restart mid-transit (settle), a stale `siteId`, a same-id robot in another locale, the no-loop
+  Docked hide, and offset ports (stubbed stations). `stationRipple.ts` had 7 of 8 killed (its
+  duration survived until a test used 2.5 s), `ChargingStation` 1 of 2 (front-only registration)
+  and `initializeLocale` 2 of 2. The layout-effect, `Robot.tsx` and power-off tests were each seen
+  RED before their change. All 64 are now killed. Suite 7016 green.
 
   **Verification:** `npx vitest run src/systems/workLoop.test.ts src/components/robot/Robot.test.tsx src/systems/worldTransition.test.ts src/systems/powerController.test.ts`.
   **Dependencies:** T17, T20, T22. **Files:** `src/systems/workLoop.ts`, `src/components/robot/Robot.tsx`,
-  `src/systems/worldTransition.ts`, `src/systems/powerController.ts` (+ tests). **Scope:** M.
+  `src/systems/worldTransition.ts`, `src/systems/powerController.ts` (+ tests); as shipped also
+  `src/animation/stationRipple.ts` (+ test), `src/components/stations/ChargingStation.tsx`,
+  `src/components/robot/RobotBody.tsx`, `src/components/robot/gem/useOrbiterMotion.ts`,
+  `src/constants/index.ts`. **Scope:** M.
 
 - [ ] **Task 24: Hand-over — the seam points at the loop; delete the legacy**
 

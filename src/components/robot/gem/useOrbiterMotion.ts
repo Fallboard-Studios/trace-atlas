@@ -27,7 +27,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 
@@ -104,7 +104,9 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
   // groups", and returns [] once it has cleaned up.
   const lockedRef = useRef(false);
   const lockGroupsRef = useRef<() => SVGGElement[]>(() => []);
-  useEffect(() => {
+  // A layout effect, registered before the parent Robot's mount hands the robot to the work loop
+  // (Task 23) — a remount already on its park starts its job, and its lock, inside that mount.
+  useLayoutEffect(() => {
     if (!enabled || context !== 'world') return;
     const control: OrbiterWork = {
       lock: () => {
