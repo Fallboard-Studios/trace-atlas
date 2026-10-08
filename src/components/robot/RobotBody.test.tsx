@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { act, render, cleanup } from '@testing-library/react';
 
 import { RobotBody } from './RobotBody';
@@ -13,11 +13,13 @@ import { HALO_RADIUS_MIN, HALO_RADIUS_MAX } from './gem/haloDials';
 import { BODY_STRIP_OPACITY } from './gem/bodyLineDials';
 import { GEM_FACET_CONTRAST } from './gem/gemShading';
 import { orbiterPlan } from './gem/orbiterMotion';
+import type { ArcDecorator } from './gem/useHaloMotion';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import type { Locale } from '@/types/locale';
 import { useUIStore } from '@/stores/uiStore';
 import { timelineMap, killAllTimelines } from '@/animation/timelineMap';
+import { getArcDecorator, getOrbiterWork, clearRobotMotionRegistry } from '@/animation/robotMotionRegistry';
 import type { Robot } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 
@@ -558,6 +560,59 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
         const ripple = container.querySelector('.gem__ripple')!;
         expect(ripple).not.toBeNull();
         expect(ripple.getAttribute('fill')).toBe('url(#ripple-world-r1)');
+      });
+
+      describe('the motion registry (Phase 43 Task 17, spec §1.8)', () => {
+        beforeEach(() => clearRobotMotionRegistry());
+
+        it('motion="world" registers its decorateArc and the orbiter work lock under the robot id', () => {
+          draw(makeRobot({ id: 'r-reg' }), false, 'world');
+          expect(typeof getArcDecorator('r-reg')).toBe('function');
+          expect(getOrbiterWork('r-reg')).toBeDefined();
+        });
+
+        it('the registered decorateArc is useHaloMotion’s own — it writes the ripple onto the arc timeline it is given', () => {
+          draw(makeRobot({ id: 'r-reg' }), false, 'world');
+          const arcTl = { to: vi.fn() };
+          getArcDecorator('r-reg')!('spawn', 1, arcTl as unknown as Parameters<ArcDecorator>[2]);
+          expect(arcTl.to).toHaveBeenCalledTimes(1);
+        });
+
+        it('motion="avatar" and cards (no motion) never register', () => {
+          draw(makeRobot({ id: 'r-avatar' }), false, 'avatar');
+          draw(makeRobot({ id: 'r-card' }));
+          expect(getArcDecorator('r-avatar')).toBeUndefined();
+          expect(getOrbiterWork('r-avatar')).toBeUndefined();
+          expect(getArcDecorator('r-card')).toBeUndefined();
+          expect(getOrbiterWork('r-card')).toBeUndefined();
+        });
+
+        it('unmount deregisters both', () => {
+          const { unmount } = draw(makeRobot({ id: 'r-reg' }), false, 'world');
+          unmount();
+          expect(getArcDecorator('r-reg')).toBeUndefined();
+          expect(getOrbiterWork('r-reg')).toBeUndefined();
+        });
+
+        it('unmounting the avatar of a robot leaves its world registration in place', () => {
+          const robot = makeRobot({ id: 'r-both' });
+          draw(robot, false, 'world');
+          const decorate = getArcDecorator('r-both');
+          const work = getOrbiterWork('r-both');
+          draw(robot, false, 'avatar').unmount();
+          expect(getArcDecorator('r-both')).toBe(decorate);
+          expect(getOrbiterWork('r-both')).toBe(work);
+        });
+
+        it('an audio edit re-renders without re-registering — the same decorator and control stay', () => {
+          const robot = makeRobot({ id: 'r-reg', masterVolume: 0.5 });
+          const { rerender } = render(<svg><RobotBody robot={robot} motion="world" /></svg>);
+          const decorate = getArcDecorator('r-reg');
+          const work = getOrbiterWork('r-reg');
+          rerender(<svg><RobotBody robot={{ ...robot, masterVolume: 0.9, rhythmicDensity: 80 }} motion="world" /></svg>);
+          expect(getArcDecorator('r-reg')).toBe(decorate);
+          expect(getOrbiterWork('r-reg')).toBe(work);
+        });
       });
 
       it('motion="avatar" uses its own context throughout — halo-avatar-<id> / flicker-avatar-<id>-top / orbiters-avatar-<id>', () => {

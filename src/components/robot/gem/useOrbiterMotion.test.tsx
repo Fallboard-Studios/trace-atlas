@@ -123,6 +123,7 @@ import { gemPalette } from './gemPalette';
 import { orbiterPlan, ATTACH_DROP, ATTACH_START_SCALE, ATTACH_DURATION } from './orbiterMotion';
 import type { OrbiterDials } from './orbiterDials';
 import { timelineMap, killAllTimelines } from '../../../animation/timelineMap';
+import { getOrbiterWork, clearRobotMotionRegistry } from '../../../animation/robotMotionRegistry';
 
 // ========================================
 // FIXTURES
@@ -559,5 +560,254 @@ describe('useOrbiterMotion — no halo decoration (amendment, 2026-10-06)', () =
     act(() => { vi.advanceTimersByTime(ATTACH_DURATION * 1000); });
     expect(isShown(container, nextCorner)).toBe(false);
     vi.useRealTimers();
+  });
+});
+
+// ========================================
+// The work lock (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.8, Phase 43 Task 17) — the work loop
+// locks a robot's orbiters for a job, and the count catches up in one pass on unlock.
+// ========================================
+describe('useOrbiterMotion — the work lock (Phase 43, Task 17)', () => {
+  const customPlan = { ...orbiterPlan(GEM_SEED), cornerOrder: [0, 3, 1, 2] as [number, number, number, number] };
+
+  beforeEach(() => {
+    setCalls.length = 0;
+    toCalls.length = 0;
+    createdTimelines.length = 0;
+    killAllTimelines();
+    clearRobotMotionRegistry();
+    vi.useFakeTimers();
+    setMatchMedia(false);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  function settle() {
+    act(() => { vi.advanceTimersByTime(ATTACH_DURATION * 1000); });
+  }
+
+  function attachHops(container: HTMLElement) {
+    return [0, 1, 2, 3].flatMap((c) => hopTweensFor(container, c)).filter((c) => c.vars.ease === 'back.out(1.7)');
+  }
+
+  function allHops(container: HTMLElement) {
+    return [0, 1, 2, 3].flatMap((c) => hopTweensFor(container, c));
+  }
+
+  it('world context registers { lock, unlock } under the robot id', () => {
+    render(<Harness robotId="r-work" context="world" />);
+    const control = getOrbiterWork('r-work');
+    expect(control).toBeDefined();
+    expect(typeof control!.lock).toBe('function');
+    expect(typeof control!.unlock).toBe('function');
+  });
+
+  it('avatar context never registers', () => {
+    render(<Harness robotId="r-avatar" context="avatar" />);
+    expect(getOrbiterWork('r-avatar')).toBeUndefined();
+  });
+
+  it('a disabled (card) hook never registers', () => {
+    render(<Harness robotId="r-card" context="world" enabled={false} />);
+    expect(getOrbiterWork('r-card')).toBeUndefined();
+  });
+
+  it('a world and an avatar mount of the same robot: only the world one is registered, and unmounting the avatar keeps it', () => {
+    const world = render(<Harness robotId="r-both" context="world" />);
+    const control = getOrbiterWork('r-both');
+    const avatar = render(<Harness robotId="r-both" context="avatar" />);
+    avatar.unmount();
+    expect(getOrbiterWork('r-both')).toBe(control);
+    world.unmount();
+    expect(getOrbiterWork('r-both')).toBeUndefined();
+  });
+
+  it('unmount deregisters', () => {
+    const { unmount } = render(<Harness robotId="r-gone" context="world" />);
+    expect(getOrbiterWork('r-gone')).toBeDefined();
+    unmount();
+    expect(getOrbiterWork('r-gone')).toBeUndefined();
+  });
+
+  it('a re-render (size edit) keeps the same registered control', () => {
+    const { rerender } = render(<Harness robotId="r-same" plan={customPlan} dials={dials({ size: 1 })} />);
+    const control = getOrbiterWork('r-same');
+    rerender(<Harness robotId="r-same" plan={customPlan} dials={dials({ size: 1.2 })} />);
+    expect(getOrbiterWork('r-same')).toBe(control);
+  });
+
+  it('lock returns the shown orbiters’ local groups in cornerOrder, and only those', () => {
+    const { container } = render(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 3 })} />);
+    settle();
+    const groups = getOrbiterWork('r1')!.lock();
+    expect(groups).toEqual([localEl(container, 0), localEl(container, 3), localEl(container, 1)]);
+  });
+
+  it('lock with count 1 returns one group; with count 4, all four in cornerOrder', () => {
+    const one = render(<Harness robotId="r-one" plan={customPlan} dials={dials({ count: 1 })} />);
+    settle();
+    expect(getOrbiterWork('r-one')!.lock()).toEqual([localEl(one.container, 0)]);
+    const four = render(<Harness robotId="r-four" plan={customPlan} dials={dials({ count: 4 })} />);
+    settle();
+    expect(getOrbiterWork('r-four')!.lock()).toEqual([0, 3, 1, 2].map((c) => localEl(four.container, c)));
+  });
+
+  it('while locked, count changes 2 → 4 → 1 → 3 queue no hops', () => {
+    const { rerender, container } = render(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 2 })} />);
+    settle();
+    getOrbiterWork('r1')!.lock();
+    toCalls.length = 0;
+    for (const count of [4, 1, 3] as const) {
+      act(() => { rerender(<Harness robotId="r1" plan={customPlan} dials={dials({ count })} />); });
+      settle();
+    }
+    expect(allHops(container)).toHaveLength(0);
+    expect(isShown(container, 1)).toBe(false); // the shown set did not move
+    expect(isShown(container, 0)).toBe(true);
+    expect(isShown(container, 3)).toBe(true);
+  });
+
+  it('on unlock exactly the hops from the shown count to 3 play — one attach, not a replay of 4 → 1 → 3', () => {
+    const { rerender, container } = render(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 2 })} />);
+    settle();
+    const control = getOrbiterWork('r1')!;
+    control.lock();
+    for (const count of [4, 1, 3] as const) {
+      act(() => { rerender(<Harness robotId="r1" plan={customPlan} dials={dials({ count })} />); });
+    }
+    toCalls.length = 0;
+    act(() => { control.unlock(); });
+    settle();
+    settle(); // a second hop, if one were (wrongly) queued, would land here
+    expect(allHops(container)).toHaveLength(1);
+    expect(attachHops(container)).toHaveLength(1);
+    expect(hopTweensFor(container, 1)).toHaveLength(1); // the next corner in order
+    [0, 3, 1].forEach((c) => expect(isShown(container, c)).toBe(true));
+    expect(isShown(container, 2)).toBe(false);
+  });
+
+  it('on unlock a count that ended where it started plays no hop at all', () => {
+    const { rerender, container } = render(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 2 })} />);
+    settle();
+    const control = getOrbiterWork('r1')!;
+    control.lock();
+    act(() => { rerender(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 4 })} />); });
+    act(() => { rerender(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 2 })} />); });
+    toCalls.length = 0;
+    act(() => { control.unlock(); });
+    settle();
+    expect(allHops(container)).toHaveLength(0);
+  });
+
+  it('on unlock to a lower count the catch-up detaches, one hop at a time, from the end of cornerOrder', () => {
+    const { rerender, container } = render(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 4 })} />);
+    settle();
+    const control = getOrbiterWork('r1')!;
+    control.lock();
+    act(() => { rerender(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 2 })} />); });
+    toCalls.length = 0;
+    act(() => { control.unlock(); });
+    expect(hopTweensFor(container, 2)).toHaveLength(1);
+    expect(hopTweensFor(container, 1)).toHaveLength(0); // queued behind the first
+    settle();
+    expect(hopTweensFor(container, 1)).toHaveLength(1);
+    settle();
+    expect(isShown(container, 2)).toBe(false);
+    expect(isShown(container, 1)).toBe(false);
+    expect(allHops(container)).toHaveLength(2);
+  });
+
+  it('lock during the mount attach finishes the hops: the groups come back at rest and the hops never restart', () => {
+    const { container } = render(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 2 })} />);
+    const inFlight = attachHops(container);
+    expect(inFlight).toHaveLength(2);
+    const groups = getOrbiterWork('r1')!.lock();
+    expect(groups).toEqual([localEl(container, 0), localEl(container, 3)]);
+    inFlight.forEach((hop) => expect(hop.tween._progress).toBe(1));
+    toCalls.length = 0;
+    settle();
+    expect(allHops(container)).toHaveLength(0);
+  });
+
+  it('lock during a detach finishes it: the departing corner is hidden and not returned', () => {
+    const { rerender, container } = render(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 3 })} />);
+    settle();
+    act(() => { rerender(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 2 })} />); });
+    const detach = hopTweensFor(container, 1).find((c) => c.vars.ease === 'power2.in')!;
+    expect(detach).toBeDefined();
+    let groups: SVGGElement[] = [];
+    act(() => { groups = getOrbiterWork('r1')!.lock(); });
+    expect(detach.tween._progress).toBe(1);
+    expect(isShown(container, 1)).toBe(false);
+    expect(groups).toEqual([localEl(container, 0), localEl(container, 3)]);
+  });
+
+  it('lock during a queued count increase stops the queue after the in-flight hop', () => {
+    const { rerender, container } = render(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 2 })} />);
+    settle();
+    act(() => { rerender(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 4 })} />); });
+    expect(hopTweensFor(container, 1)).toHaveLength(1); // corner 1 in flight, corner 2 queued
+    let groups: SVGGElement[] = [];
+    act(() => { groups = getOrbiterWork('r1')!.lock(); });
+    expect(groups).toEqual([0, 3, 1].map((c) => localEl(container, c)));
+    settle();
+    expect(hopTweensFor(container, 2)).toHaveLength(0);
+    expect(isShown(container, 2)).toBe(false);
+  });
+
+  it('unlock without a lock is a no-op; a second unlock plays nothing more', () => {
+    const { rerender, container } = render(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 2 })} />);
+    settle();
+    const control = getOrbiterWork('r1')!;
+    toCalls.length = 0;
+    act(() => { control.unlock(); });
+    expect(allHops(container)).toHaveLength(0);
+    control.lock();
+    act(() => { rerender(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 3 })} />); });
+    act(() => { control.unlock(); });
+    act(() => { control.unlock(); });
+    settle();
+    expect(allHops(container)).toHaveLength(1);
+  });
+
+  it('lock twice returns the same groups and needs one unlock', () => {
+    const { rerender, container } = render(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 2 })} />);
+    settle();
+    const control = getOrbiterWork('r1')!;
+    const first = control.lock();
+    expect(control.lock()).toEqual(first);
+    act(() => { rerender(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 3 })} />); });
+    toCalls.length = 0;
+    act(() => { control.unlock(); });
+    expect(attachHops(container)).toHaveLength(1);
+  });
+
+  it('a control kept after unmount is inert — lock returns [] and unlock plays nothing', () => {
+    const { unmount } = render(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 2 })} />);
+    settle();
+    const control = getOrbiterWork('r1')!;
+    unmount();
+    toCalls.length = 0;
+    expect(control.lock()).toEqual([]);
+    act(() => { control.unlock(); });
+    expect(toCalls).toHaveLength(0);
+  });
+
+  it('reduced motion: lock finishes the in-flight fades and unlock catches up with one fade', () => {
+    setMatchMedia(true);
+    const { rerender, container } = render(<Harness robotId="r1" plan={customPlan} dials={dials({ count: 2 })} />);
+    const control = getOrbiterWork('r1')!;
+    expect(control.lock()).toEqual([localEl(container, 0), localEl(container, 3)]);
+    for (const count of [4, 1, 3] as const) {
+      act(() => { rerender(<Harness robotId="r1" plan={customPlan} dials={dials({ count })} />); });
+    }
+    toCalls.length = 0;
+    act(() => { control.unlock(); });
+    settle();
+    expect([0, 1, 2, 3].flatMap((c) => fadeTweensFor(container, c))).toHaveLength(1);
+    expect(fadeTweensFor(container, 1)).toHaveLength(1);
   });
 });

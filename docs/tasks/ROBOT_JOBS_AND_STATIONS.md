@@ -798,7 +798,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 
 ### Phase J2: Stations and the loop (`feature/jobs-loop`)
 
-- [ ] **Task 17: `robotMotionRegistry.ts` and the orbiter lock**
+- [x] **Task 17: `robotMotionRegistry.ts` and the orbiter lock**
 
   **Description:** `register/get/deleteArcDecorator` and `register/get/deleteOrbiterWork` (spec
   §1.8), mirroring `refs.ts`. `RobotBody` registers its world-context `decorateArc` on mount and
@@ -807,14 +807,31 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `unlock` clears the lock and reconciles once. No caller yet.
 
   **Acceptance criteria:**
-  - [ ] Avatar and card contexts never register.
-  - [ ] While locked, count changes 2 → 4 → 1 → 3 queue no hops; on unlock exactly the hops from the
+  - [x] Avatar and card contexts never register.
+  - [x] While locked, count changes 2 → 4 → 1 → 3 queue no hops; on unlock exactly the hops from the
         shown count to 3 play (one reconcile pass, not three).
-  - [ ] Unmount deregisters both.
+  - [x] Unmount deregisters both.
+
+  **As shipped:** (1) **Lock finishes hops in flight.** The spec doesn't say what happens if a job
+  locks while an attach or detach hop is still playing. `lock` now jumps every in-flight hop to its
+  end (`progress(1)`), which runs its own `onComplete`. That `onComplete` calls `reconcile()`, a
+  no-op while locked. So a corner that was arriving comes back at rest, a corner that was leaving is
+  hidden and not returned, and the job never tweens a group that a hop is still moving.
+  `arcKillers` became `arcTweens`, which store the tweens themselves. (2) **Owner-checked deletes.**
+  `deleteArcDecorator`/`deleteOrbiterWork(robotId, owner?)` remove the entry only if it still
+  belongs to that owner. A stale unmount after a remount (J4's layer switch) can't remove the new
+  mount's entry. Every caller passes its owner. (3) **`decorateArc` is memoised** (`useCallback` on
+  `reducedMotion`, `root`) in `useHaloMotion`. Without that, every audio edit would re-register it.
+  A test pins that the registered function survives a re-render. (4) **The control lives in refs**
+  (`lockedRef`, `lockGroupsRef`), so it survives a re-run of the mount effect. After unmount,
+  `lock` returns `[]` and `unlock` does nothing. (5) **Mutation checks:** 12 mutants, 11 killed. The
+  survivor was an `if (!locked) return` guard in `unlock`. It was redundant, because unlocked,
+  `reconcile()` is already a no-op, so it was deleted. Suite 6842 green.
 
   **Verification:** `npx vitest run src/animation/robotMotionRegistry.test.ts src/components/robot/gem/useOrbiterMotion.test.tsx src/components/robot/RobotBody.test.tsx`.
   **Dependencies:** None (J2 base). **Files:** `src/animation/robotMotionRegistry.ts` (+ test),
-  `src/components/robot/gem/useOrbiterMotion.ts`, `src/components/robot/RobotBody.tsx` (+ tests).
+  `src/components/robot/gem/useOrbiterMotion.ts`, `src/components/robot/RobotBody.tsx` (+ tests);
+  as shipped also `src/components/robot/gem/useHaloMotion.ts`.
   **Scope:** M.
 
 - [ ] **Task 18: Centre/position and scene→orbiter maths**

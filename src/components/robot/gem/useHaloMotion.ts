@@ -11,7 +11,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { useEffect, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, type RefObject } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 
@@ -25,8 +25,9 @@ import { rippleCycles, ripplePosition, rippleEnvelope, rippleStops } from './hal
 // ========================================
 export type ArcKind = 'spawn' | 'despawn';
 
-/** The arc timeline's own kind and duration, and the timeline itself — `useOrbiterMotion` (Task 10)
- *  calls this once per spawn/despawn arc, after the arc timeline is built and before it plays. */
+/** The arc timeline's own kind and duration, and the timeline itself — the work loop (Phase 43)
+ *  reaches it through robotMotionRegistry and calls it once per station exit/entry arc, after the
+ *  arc timeline is built and before it plays. */
 export type ArcDecorator = (kind: ArcKind, duration: number, arcTl: ReturnType<typeof gsap.timeline>) => void;
 
 /** The halo's already-resolved per-instance shape — `RobotBody`'s `haloDials()` output turned into
@@ -165,8 +166,10 @@ export function useHaloMotion({ root, robotId, context, halo, dimOpacity, enable
   // both the ripple and halo ellipse opacity set to `dimOpacity x rippleEnvelope(u)` — fading the
   // halo up and back down to nothing across the arc, never an instant set (amendment: there is no
   // visible baseline to pop from). Reduced motion: a no-op (the arc's own 0.3s fade plays alone).
+  // Memoised (Phase 43): `RobotBody` registers it in robotMotionRegistry, and a fresh function
+  // every render would re-register on every audio edit. Everything it reads live is a ref.
   // ----------------------------------------
-  const decorateArc: ArcDecorator = (kind, duration, arcTl) => {
+  const decorateArc = useCallback<ArcDecorator>((kind, duration, arcTl) => {
     if (reducedMotion || !root.current) return;
     const haloEllipse = queryHaloEllipse(root.current);
     const rippleEllipse = queryRippleEllipse(root.current);
@@ -196,7 +199,7 @@ export function useHaloMotion({ root, robotId, context, halo, dimOpacity, enable
       },
       0,
     );
-  };
+  }, [reducedMotion, root]);
 
   return { decorateArc };
 }
