@@ -118,6 +118,11 @@ silhouette base + rooftop greebles + seeded facade/window/color variation) — s
 more likely additional greeble/variant variety within that existing system than a
 structural change, but not yet confirmed with Crawford.
 
+**Superseded (2026-10-08)** by roadmap Phase 44, World Gem Material
+([docs/ideas/world-gem-material.md](../ideas/world-gem-material.md)): the building-detail work is
+the gem bevel ring on every mass in the world, sketched and gate-passed. Any greeble-variety
+follow-up is a later, separate item. Move this item to the archive when Phase 44 ships.
+
 ### 10. Visuals: Atmospheric Animations
 
 Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Medium priority — deprioritized
