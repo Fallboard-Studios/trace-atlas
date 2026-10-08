@@ -153,6 +153,14 @@ export const BACK_HOSTS_ENABLED = false;
  */
 export const LAYER_SWITCH_STEP = 20;
 
+/**
+ * How long a layer switch's dissolve lasts, seconds: the robot is drawn in both robot rows and the
+ * copy in the row it left fades (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.10). The switch point
+ * must start a run the robot swims clear of the midground for this long. Crawford, depth-tint
+ * sketch gate, 2026-10-08.
+ */
+export const LAYER_DISSOLVE_SECONDS = 1;
+
 /** Keep robot destinations at least this far inside every world edge (scene units). */
 export const WORLD_MARGIN = 100;
 

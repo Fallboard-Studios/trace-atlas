@@ -1608,7 +1608,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   (pop 85 % → 40 %, background buildings 85 % → 44 %, midground 50 % → 20 %, every robot 10 %),
   `LAYER_DISSOLVE_SECONDS` 1.0. Folded into spec §1.10 and T32b–T35 below.
 
-- [ ] **Task 32b: The switch point starts a clear run**
+- [x] **Task 32b: The switch point starts a clear run**
 
   **Description:** `findLayerSwitchPoint` (spec §1.10) returns the first sample whose robot box is
   clear of every midground silhouette **for the whole dissolve**: from the sample to where the
@@ -1627,6 +1627,21 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   **Verification:** `npx vitest run src/animation/layerSwitch.test.ts src/systems/workLoop.test.ts`.
   **Dependencies:** T32, the depth-tint gate. **Files:** `src/animation/layerSwitch.ts` (+ test),
   `src/constants/index.ts`. **Scope:** S.
+
+  **As shipped (2026-10-08, `feature/jobs-depth`):** (1) New pure `dissolveRunLength(remaining)`:
+  a sine.inOut swim from rest over `remaining` at `SWIM_SPEED` (swimAnimation.ts's
+  distance / speed duration), `LAYER_DISSOLVE_SECONDS` in — all of `remaining` when the swim ends
+  sooner. A 1000-unit leg's run is ≈ 35 units (it starts slow); anything ≤ 120 is run whole. (2)
+  `findLayerSwitchPoint` keeps its signature: candidates as before (`from`, every
+  `LAYER_SWITCH_STEP`, `to`), each accepted only if its box is clear at every step of its run and
+  at the run's end, measured on what's left of the leg from the candidate; `to` has no run.
+  Every real robot box is wider than the 20-unit step, so the steps sweep the run without gaps;
+  the new tests use a 30-wide box for the same reason. The work loop needed no change (no run →
+  `null` → skipped). (3) 12 new tests (`layerSwitch.test.ts`, 30 in all), incl. the leg-end,
+  short-leg, diagonal and remaining-not-whole-leg cases. 10/11 mutants killed; one survivor first
+  (the run checked every 60 instead of 20) closed with a thin-post test. The other survivor is
+  equivalent: multiplying by `LAYER_DISSOLVE_SECONDS` while it is 1. Full suite 7333 green plus
+  the known Task 18 50-gem load timeout.
 
 - [ ] **Task 33: Split the scene layers; robots per layer; clicks; the four tints**
 
