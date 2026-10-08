@@ -745,8 +745,8 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   0.4/3/30 cooldown may need re-pinning. Spec §1.9 and §5.2 then record the re-run's table.
 
   **Acceptance criteria:**
-  - [ ] `jobDuration(20)` = 10, `jobDuration(110)` = 8, `jobDuration(200)` = 6; clamped outside 20–200.
-  - [ ] No reference to `JOB_WORK_RATE`, `JOB_MIN_SECONDS` or `JOB_BASE_SECONDS` remains (grep).
+  - [x] `jobDuration(20)` = 10, `jobDuration(110)` = 8, `jobDuration(200)` = 6; clamped outside 20–200.
+  - [x] No reference to `JOB_WORK_RATE`, `JOB_MIN_SECONDS` or `JOB_BASE_SECONDS` remains in `src/` or `scripts/` (grep; docs keep them as history).
   - [ ] The readiness sim runs and its table is in the commit message; cooldown decision recorded.
 
   **Verification:** `npx vitest run src/animation/jobMoves src/systems/readinessSim` + the sim.

@@ -4,49 +4,40 @@
 import { describe, it, expect } from 'vitest';
 
 import { jobDuration } from './jobDuration';
-import { JobType } from '../../types/Robot';
-import { JOB_BASE_SECONDS, JOB_MIN_SECONDS, JOB_WORK_RATE } from '../../constants';
+import { JOB_BASE_MAX_SECONDS, JOB_BASE_MIN_SECONDS } from '../../constants';
 
 // ========================================
 // TESTS
 // ========================================
 
-const ALL_JOBS = Object.values(JobType);
-
-describe('jobDuration (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.9 — pulled forward from Task 19 for the Task 15 sim)', () => {
-  it('pins the first-guess constants: base 5 s, floor 1.5 s, a rate in [0.5, 0.9] for every one of the six jobs', () => {
-    expect(JOB_BASE_SECONDS).toBe(5);
-    expect(JOB_MIN_SECONDS).toBe(1.5);
-    expect(Object.keys(JOB_WORK_RATE).sort()).toEqual([...ALL_JOBS].sort());
-    for (const job of ALL_JOBS) {
-      expect(JOB_WORK_RATE[job]).toBeGreaterThanOrEqual(0.5);
-      expect(JOB_WORK_RATE[job]).toBeLessThanOrEqual(0.9);
-    }
+describe('jobDuration(bpm) (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.9 — Task 0b timing, Task 16b)', () => {
+  it('pins the sketch constants: 10 s at the slowest tempo, 6 s at the fastest', () => {
+    expect(JOB_BASE_MAX_SECONDS).toBe(10);
+    expect(JOB_BASE_MIN_SECONDS).toBe(6);
   });
 
-  it('is JOB_BASE_SECONDS − rate × orbiter count for counts 1–4', () => {
-    for (const job of ALL_JOBS) {
-      for (const count of [1, 2, 3, 4]) {
-        expect(jobDuration(job, count)).toBeCloseTo(Math.max(JOB_MIN_SECONDS, JOB_BASE_SECONDS - JOB_WORK_RATE[job] * count));
-      }
-    }
+  it('is 10 s at 20 BPM, 8 s at 110 BPM and 6 s at 200 BPM', () => {
+    expect(jobDuration(20)).toBe(10);
+    expect(jobDuration(110)).toBeCloseTo(8);
+    expect(jobDuration(200)).toBe(6);
   });
 
-  it('more orbiters, faster work — strictly shorter from 1 to 4 while above the floor', () => {
-    for (const job of ALL_JOBS) {
-      const [one, two, three, four] = [1, 2, 3, 4].map((n) => jobDuration(job, n));
-      expect(two).toBeLessThan(one);
-      expect(three).toBeLessThan(two);
-      expect(four).toBeLessThanOrEqual(three);
-    }
+  it('is linear in the tempo between 20 and 200 BPM', () => {
+    expect(jobDuration(65)).toBeCloseTo(9);
+    expect(jobDuration(155)).toBeCloseTo(7);
+    expect(jobDuration(29)).toBeCloseTo(9.8);
   });
 
-  it('floors at JOB_MIN_SECONDS however many orbiters work', () => {
-    expect(jobDuration(JobType.Salvage, 100)).toBe(JOB_MIN_SECONDS);
-    expect(jobDuration(JobType.Maintenance, 7)).toBe(JOB_MIN_SECONDS);
+  it('strictly shortens as the tempo rises across 20–200', () => {
+    for (let bpm = 20; bpm < 200; bpm += 10) expect(jobDuration(bpm + 10)).toBeLessThan(jobDuration(bpm));
   });
 
-  it('a hand-worked value: ventExtraction with one orbiter is 5 − rate', () => {
-    expect(jobDuration(JobType.VentExtraction, 1)).toBeCloseTo(5 - JOB_WORK_RATE[JobType.VentExtraction]);
+  it('clamps outside 20–200 BPM', () => {
+    expect(jobDuration(19)).toBe(10);
+    expect(jobDuration(0)).toBe(10);
+    expect(jobDuration(-50)).toBe(10);
+    expect(jobDuration(201)).toBe(6);
+    expect(jobDuration(240)).toBe(6);
+    expect(jobDuration(Infinity)).toBe(6);
   });
 });

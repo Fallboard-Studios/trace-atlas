@@ -30,10 +30,11 @@ export interface OrbiterPlan {
 // ========================================
 /** Attach/detach flight: the orbiter starts this far below its dock (canvas units) and this much
  *  smaller, fading in, then eases into its dock position at rest scale/opacity — a quick "clicks
- *  into place" flourish, not a journey (Phase 40 amendment, Crawford: drift/orbit removed, no dial drives it). */
+ *  into place" flourish, not a journey (Phase 40 amendment, Crawford: drift/orbit removed, no dial drives it).
+ *  1 s each way (Phase 43 Task 0b, was 0.5): a job's detach and reattach sit inside its jobDuration. */
 export const ATTACH_DROP = 10;
 export const ATTACH_START_SCALE = 0.4;
-export const ATTACH_DURATION = 0.5;
+export const ATTACH_DURATION = 1;
 
 // ========================================
 // HELPERS
