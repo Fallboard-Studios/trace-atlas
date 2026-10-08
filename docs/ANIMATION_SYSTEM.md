@@ -134,23 +134,8 @@ at once, and a passive effect would register too late for it.
   (1 s). Targets are scene points mapped into the orbiter's own frame by `sceneToOrbiterLocal`
   (which inverts the robot translate, the `g.gem` scale about its centre and the corner's dock
   offset), so the output is the GSAP `x`/`y` of `.gem__orbiter-local`; `{ x: 0, y: 0 }` is docked.
-- **The moves**, from the job's row of `JOB_MOVES` (`jobMoveTable.ts`, spec §1.9's table). The
-  time before the reattach splits equally between them (`moveWindows`); a later move flies the
-  orbiters to its first targets in min(0.35 s, 25 % of its share). `addHoverPulse`
-  (`hoverPulse.ts`): the orbiters gather on a `HOVER_GATHER_RADIUS` (14 u) ring around a site
-  point, spaced by slot, and pulse to ×`HOVER_PULSE_SCALE` (1.3) in turn, ending at their rest
-  scale. `addTrace` (`trace.ts`): they run a site path vertex to vertex at constant speed, each
-  starting `TRACE_STAGGER` (0.12) of the move after the one before. `addRing` (`ring.ts`): they
-  circle a site point, evenly phased, for `RING_REVOLUTIONS` (1.5) turns, as a polyline of 15°
-  chords (plain x/y tweens, no `onUpdate`). Each robot's take comes from
-  `workVariation(gemSeed)` (`variation.ts`): turn order, start phase, ring direction, radius
-  (`RING_RADIUS` 24 u ± 15 %), trace direction and spark places. `addFan` (`fan.ts`): they
-  spread `FAN_RADIUS` (40 u) above a site point over `FAN_SPREAD_DEG` (120°), then ping to
-  ×`FAN_PING_SCALE` (1.5) in turn. `addCarry` (`carry.ts`): side by side, they shrink to
-  ×`CARRY_SHRINK` (0.7) at one point, carry to a second, grow back and return. Maintenance's
-  spark flicker (`addSparkFlicker` in `ring.ts`): on `FLICKER_SPARKS` (3) seeded chords of its
-  ring, each orbiter dips to opacity `FLICKER_OPACITY` (0.25) and back. Every move ends each
-  orbiter at its rest scale and opacity.
+- **The moves** — the job's row of `JOB_MOVES`, in order, each in its own window. See "Job moves"
+  below.
 - **Reattach** — back to `x: 0, y: 0` over `ATTACH_DURATION`. The flights sit inside the duration,
   not on top of it.
 - **The counter-bob** — the orbiters live inside the `.robot` group, so the bob would carry a
@@ -164,6 +149,62 @@ The caller (the work loop) locks the orbiters before building and unlocks them i
 `onComplete`; the timeline's only callback is that `onComplete`, never `AudioEngine`. Stopping the
 loop runs a job to its end without the callback (`progress(1, true)`), so the orbiters are docked
 and the bob at rest before the unlock.
+
+### Job moves
+[src/animation/jobMoves/](../src/animation/jobMoves/) (Phase 43 J3, spec §1.9) holds five moves.
+Each is a pure target function plus an `add…` builder that puts tweens on the job timeline for the
+locked orbiter groups. The targets are scene points; `buildJobTimeline` maps them into each
+orbiter's frame with `sceneToOrbiterLocal`, so every tween is a plain `x`/`y`/`scale`/`opacity`
+tween on `.gem__orbiter-local`, with no `onUpdate`. Seeks and the silent finish therefore land
+exactly.
+
+| Move | Builder (file) | What the orbiters do | Constants |
+|---|---|---|---|
+| `hoverPulse` | `addHoverPulse` (`hoverPulse.ts`) | gather on a ring round a site point, spaced by slot, and pulse in turn | `HOVER_GATHER_RADIUS` 14 u, `HOVER_PULSE_SCALE` 1.3 |
+| `trace` | `addTrace` (`trace.ts`) | run a site path vertex to vertex at constant speed, each starting a stagger after the one before; wait on the first vertex before their turn and hold the last after it | `TRACE_STAGGER` 0.12 of the move |
+| `ring` | `addRing` (`ring.ts`) | circle a site point, evenly phased, as a polyline of 15° chords | `RING_RADIUS` 24 u, `RING_RADIUS_JITTER` 0.15, `RING_REVOLUTIONS` 1.5, `RING_SEGMENTS` 36 |
+| `fan` | `addFan` (`fan.ts`) | spread over an arc above a site point, left to right by slot, then ping in turn | `FAN_RADIUS` 40 u, `FAN_SPREAD_DEG` 120, `FAN_PING_SCALE` 1.5 |
+| `carry` | `addCarry` (`carry.ts`) | side by side, shrink at one point (by 10 % of the move), carry to a second (45 %), set down and grow back (55 %), return (90 %), hold | `CARRY_SHRINK` 0.7, `CARRY_SPACING` 8 u |
+
+Shared pieces: `addPolylineRun` (`trace.ts`) tweens vertex to vertex at constant speed for both the
+trace and the ring, and `traceRoute` drops repeated vertices so no segment has zero length.
+`addPulsesInTurn` (`hoverPulse.ts`) is the in-turn pulse that `addHoverPulse` and `addFan` share.
+Maintenance's **spark flicker** (`addSparkFlicker`, `ring.ts`) rides on its ring: each orbiter's
+`FLICKER_SPARKS` (3) draws land on chords (`sparkChords`, deduped), and on each one the orbiter
+dips to opacity `FLICKER_OPACITY` (0.25) at the chord's middle and is back by its end.
+
+**Which job runs which moves** is `JOB_MOVES` (`jobMoveTable.ts`), spec §1.9's table as data. Steps
+name their targets by index: `points[0]` is the site's main point, Fluid Monitoring's valve is
+`points[1]`, and Salvage carries `points[0]` → `points[1]`. `stepPoint` and `stepPath` resolve them,
+and a `trace` of `pipe` on a site without one traces its `outline`. What each index is on each
+host is in [BUILDING_DESIGN.md](BUILDING_DESIGN.md#jobs-hosts-and-moves).
+
+| Job | Moves |
+|---|---|
+| `ventExtraction` | hoverPulse(`points[0]`) |
+| `acousticSurvey` | fan(`points[0]`) → ring(`points[0]`) |
+| `structuralInspection` | trace(`outline`) |
+| `fluidMonitoring` | trace(`pipe`, else `outline`) → hoverPulse(`points[1]`) |
+| `salvage` | carry(`points[0]` → `points[1]`) |
+| `maintenance` | ring(`points[0]`) with the spark flicker |
+
+**Timing.** `moveWindows(count, duration)` splits the time before the reattach equally between the
+moves. The first move's approach is the detach (`ATTACH_DURATION`, capped at 40 % of its share,
+which never binds at today's 6–10 s jobs). Each later move flies the orbiters from where the last
+one left them to its own first targets in min(`MOVE_APPROACH_MAX_SECONDS` 0.35,
+`MOVE_APPROACH_FRACTION` 0.25 × its share).
+
+**Per-robot variation.** `workVariation(gemSeed)` (`variation.ts`) draws from the
+robot's own Alea stream, keyed `` `${gemSeed}:work` ``, in this order: `order` (a shuffle of the four corners: who pulses
+first, who leads a trace), `ringDirection` (±1), `radiusScale` (1 ± `RING_RADIUS_JITTER`),
+`traceReversed`, `phase` (where the gather and the ring start round their point), then `sparks`
+(Maintenance's flicker places, indexed by corner, so an orbiter keeps its sparks at any count). New
+draws go at the end so no existing robot's take moves. `turnRanks(order, shown)` turns the order
+into each shown orbiter's turn. Company members that look alike therefore work differently. The fan
+doesn't turn with the phase: it always opens upward over the site.
+
+Every move ends each orbiter at its rest scale and opacity, so the reattach only flies them home.
+Reduced motion runs no move at all (see "Job timeline").
 
 ### Station arcs
 A robot enters and leaves a charging station through one arc timeline, keyed

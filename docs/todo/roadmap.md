@@ -767,16 +767,18 @@ Idea [docs/ideas/robot-jobs-and-stations.md](../ideas/robot-jobs-and-stations.md
 [docs/intent/robot-jobs-and-stations.md](../intent/robot-jobs-and-stations.md), spec
 [docs/specs/ROBOT_JOBS_AND_STATIONS.md](../specs/ROBOT_JOBS_AND_STATIONS.md), plan
 [docs/tasks/ROBOT_JOBS_AND_STATIONS.md](../tasks/ROBOT_JOBS_AND_STATIONS.md). **J1 (lifecycle +
-world data) merged 2026-10-07** (PR #537, Tasks 1–16). **J2 (stations + the loop) shipped
-2026-10-08 on `feature/job-lifecycle-2`** (Tasks 0a, 0b, 16b, 17–27, unpushed, unmerged):
-Crawford's two motion sketches; the work loop (`workLoop.ts`) behind the `onLifecycleChange` seam,
-with the legacy adapter, idle wandering and job affinity scoring deleted; Crawford's charging
-station design (three fragments around the robots, slot lights, live rig dials, the station
-ripple); recall and turn-back; one job move (`hoverPulse`) for every job; jobs 6–10 s from the
-tempo; site cooldown 0.3/2/30; and the activity on the robot cards. Checkpoint C passed
-2026-10-08; the J2 perf gate's harness run passed (docs/PERFORMANCE.md), and Crawford's Pixel
-listen is still open. J3 (the other four moves) and J4 (depth layers) not started. Docs:
-[ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md), [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md).
+world data) merged 2026-10-07** (PR #537, Tasks 1–16). **J2 (stations + the loop) shipped and
+merged 2026-10-08** (PR #538, `feature/job-lifecycle-2`, Tasks 0a, 0b, 16b, 17–27): Crawford's two
+motion sketches; the work loop (`workLoop.ts`) behind the `onLifecycleChange` seam, with the
+legacy adapter, idle wandering and job affinity scoring deleted; Crawford's charging station
+design (three fragments around the robots, slot lights, live rig dials, the station ripple);
+recall and turn-back; jobs 6–10 s from the tempo; site cooldown 0.3/2/30; and the activity on the
+robot cards. **J3 (the move set) shipped and merged 2026-10-08** (PR #539, `feature/jobs-moves`,
+Tasks 28–31): all five moves (`hoverPulse`, `trace`, `ring`, `fan`, `carry`), the six-job table
+and per-robot variation. Checkpoints C and D passed, and so did the J2 and J3 perf gates
+(docs/PERFORMANCE.md) and Crawford's Pixel listen, all 2026-10-08. **J4 (depth layers, Tasks
+32–36) is next and not started.** Docs: [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md),
+[ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md), [BUILDING_DESIGN.md](../BUILDING_DESIGN.md).
 
 J1 shipped:
 - the renamed docking states;

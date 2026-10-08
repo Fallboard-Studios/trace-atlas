@@ -13,6 +13,12 @@ day). Roadmap Phase 43. Sequenced after World View Districts (Phase 42) D1 + D2.
 > 2026-10-08; Crawford's Pixel listen is still open. As built:
 > [docs/ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md).
 
+> **Shipped (J3, 2026-10-08).** All six jobs now have their own moves (`hover-pulse`, `trace`,
+> `ring`, `carry`, `fan`), and each robot's seeded variation makes company members that look
+> alike work differently. Checkpoint D passed 2026-10-08 (Crawford could tell the six jobs apart),
+> and so did the J2 and J3 perf gates and the Pixel listen. As built:
+> [docs/ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#job-moves). J4 (depth layers) is still to come.
+
 ## Outcome
 
 Each world reads as a working colony. Robots exit 2–3 seeded floating gem charging stations, go
