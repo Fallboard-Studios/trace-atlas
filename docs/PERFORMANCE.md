@@ -1067,8 +1067,8 @@ show a change either way. Gate at `--throttle 1`.
 
 Gate ([docs/tasks/ROBOT_JOBS_AND_STATIONS.md](tasks/ROBOT_JOBS_AND_STATIONS.md) Task 26, spec §5.4): J2 (stations,
 the work loop, card states) idle busy and Paint within the 17.2.5 noise band of its base, with per-element
-counts for the robots layer, stations included. **Passed on the harness: no miss.** Crawford's Pixel listen is
-still to come. Measured before Checkpoint C (Crawford's call), so if Checkpoint C changes the robots layer the
+counts for the robots layer, stations included. **Passed on the harness: no miss.** Crawford's Pixel listen
+passed 2026-10-08, taken on J3, which carries J2's code. Measured before Checkpoint C (Crawford's call), so if Checkpoint C changes the robots layer the
 gate is re-run.
 
 **Method:** production builds served side by side from scratch `--outDir`s on fresh ports, checked free first.
@@ -1130,8 +1130,8 @@ no-stations):
 Gate ([docs/tasks/ROBOT_JOBS_AND_STATIONS.md](tasks/ROBOT_JOBS_AND_STATIONS.md) Task 30, spec §5.4): J3 (the
 six jobs' moves: trace, ring with its spark flicker, fan, carry, per-robot variation) idle busy and Paint
 within the 17.2.5 noise band of its base, as Task 26. **Passed on the harness by the J1/J2 gates' rule (each
-median inside the base's own round-to-round spread), with a lean flagged below.** Crawford's Pixel listen is
-still to come.
+median inside the base's own round-to-round spread), with a lean flagged below.** Crawford's Pixel listen
+passed 2026-10-08.
 
 **Method:** as the J2 gate. Branch `feature/jobs-moves` `017acd6a` (Checkpoint D) on :4183
 (`index-76-_ptck.js`). Base: J2's tip `af560c36` (Task 27), which this branch was cut from, built in a
