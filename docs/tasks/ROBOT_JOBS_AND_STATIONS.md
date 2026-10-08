@@ -1265,10 +1265,22 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   PERFORMANCE.md. Crawford's Pixel listen: no new dropouts.
 
   **Acceptance criteria:**
-  - [ ] Table recorded; a miss stops here with ablations (stations hidden, moves off) for Crawford.
+  - [x] Table recorded; a miss stops here with ablations (stations hidden, moves off) for Crawford.
 
-  **Verification:** the harness. **Dependencies:** Checkpoint C. **Files:** `docs/PERFORMANCE.md`.
-  **Scope:** S.
+  **As run (2026-10-08), harness half; the task stays open for Crawford's Pixel listen:** measured
+  **before Checkpoint C**, Crawford's call, so if Checkpoint C changes the robots layer the gate is
+  re-run. Branch `76e12e28` vs base `e4f90d1d` (the J1 merge this branch was cut from), same-session
+  A/B on the J1 gate's pinned world, three rotated rounds. Medians: busy 1798 vs 2140 ms (−16 %,
+  inside both builds' spread), paint 134 vs 356 ms (−62 %). **No miss.** Paint fell because on J2 9
+  of the 12 robots were charging (hidden, spec §1.12) at the measured moment, so the gate doesn't
+  measure a worst case with every robot Active. Stations: 2, adding 78 elements (L4 4 · L3 16 ·
+  front 58), with no measurable paint when hidden. A rough one-run ablation puts visible-robot paint
+  at about 30 ms each on J2 vs 16 on J1, cause not measured; it's flagged in PERFORMANCE.md for J3.
+  `scripts/perf/idle-paint.mjs` gained the robots-stack element counts and a `no-stations` ablation.
+  "Moves off" wasn't needed, since nothing missed.
+
+  **Verification:** the harness. **Dependencies:** Checkpoint C. **Files:** `docs/PERFORMANCE.md`;
+  as run also `scripts/perf/idle-paint.mjs`. **Scope:** S.
 
 - [ ] **Task 27: J2 docs**
 

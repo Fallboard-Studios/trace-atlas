@@ -1063,6 +1063,68 @@ frame, on both builds (106–110 ms per 6 s).
 ≈ 5950–5985 ms of the 6000 ms window in every ablation. At 4× the main thread is saturated, so busy can't
 show a change either way. Gate at `--throttle 1`.
 
+## Robot Jobs J2 — the Task 26 perf gate (2026-10-08, Phase 43)
+
+Gate ([docs/tasks/ROBOT_JOBS_AND_STATIONS.md](tasks/ROBOT_JOBS_AND_STATIONS.md) Task 26, spec §5.4): J2 (stations,
+the work loop, card states) idle busy and Paint within the 17.2.5 noise band of its base, with per-element
+counts for the robots layer, stations included. **Passed on the harness: no miss.** Crawford's Pixel listen is
+still to come. Measured before Checkpoint C (Crawford's call), so if Checkpoint C changes the robots layer the
+gate is re-run.
+
+**Method:** production builds served side by side from scratch `--outDir`s on fresh ports, checked free first.
+Branch `feature/job-lifecycle-2` `76e12e28` (Task 25) on :4181 (`index-DzZo4j2a.js`). Base: the J1 merge on
+main, `e4f90d1d`, which this branch was cut from, built in a throwaway `git worktree` and served on :4182
+(`index-Dv7Xr-Fn.js`). Each port's served bundle filename was checked against its build before measuring.
+Same pinned world as the J1 gate: style `alpha`, `(0, 50)`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides,
+encoded with `encodeSessionPayload` (version 2). `npm run perf:idle --throttle 1 --only none`; three rounds,
+order rotated, foreground; 0 orphaned Chrome after. `idle-paint.mjs` now prints the robots stack's element
+counts and has a `no-stations` ablation (this gate).
+
+| Round (order) | Branch busy / paint (ms) | Base busy / paint (ms) |
+|---|---|---|
+| 1 (branch first) | 1642 / 134 | 2140 / 356 |
+| 2 (base first) | 2637 / 221 | 2527 / 390 |
+| 3 (branch first) | 1798 / 132 | 1623 / 215 |
+| **Median** | **1798 / 134** | **2140 / 356** |
+
+Busy **−16 %**, paint **−62 %**. Busy sits inside both builds' own round-to-round spread (base 1623–2527,
+branch 1642–2637), so it reads no change. Paint is lower on every round.
+
+**Per-element counts** (after the harness's 8 s power-on settle, the same on every run):
+
+| | Stations | `#station-l4-layer` | `#station-l3-layer` | `#robot-layer` | `#station-front-layer` | Robots visible |
+|---|---|---|---|---|---|---|
+| Branch | 2 | 4 | 16 | 854–860 | 58 | 3 of 12 |
+| Base | — | — | — | 854–860 | — | 12 of 12 |
+
+The stations add 78 elements across their three fragments. `#robot-layer` is the same size on both builds;
+the 6-element swing is facet paths inserted and removed as orbiters dock, on both.
+
+**Why paint fell: fewer robots are drawn, not a faster robot.** On J2 a charging robot is `autoAlpha: 0`
+(spec §1.12), so at the measured moment 9 of 12 robots were hidden in their stations, while J1 drew all 12. So
+this gate shows J2's idle state is cheaper on this world. It doesn't show a worst case with every robot Active.
+The J1 sim puts the mean at about 5 Active.
+
+**Ablation pass** (one run per build, `--only no-stations,no-robots`; windows run stock → no-robots →
+no-stations):
+
+| Build | stock | no-robots | no-stations |
+|---|---|---|---|
+| Branch busy / paint | 1769 / 130 | 1990 / 41 | 2502 / 182 |
+| Base busy / paint | 1595 / 211 | 1804 / 21 | 2378 / 246 |
+
+- **Busy can't be read within one run.** Base has no stations, so its `no-stations` window hides nothing, yet
+  it read +49 % busy (1595 → 2378). Later windows simply ran busier on both builds. Read only paint here.
+- **The robots' paint:** 89 ms on the branch (3 visible) vs 190 ms on base (12 visible), about 30 vs 16 ms
+  per visible robot. That figure is rough (one run, three robots), and its cause isn't measured. One
+  candidate is J2's swims and exit arcs re-rasterizing more of each visible robot than J1's wander did. Worth
+  re-checking at J3, when the move set lands.
+- **Stations: no measurable paint.** Hiding them raised branch paint 130 → 182, close to the +35 the base
+  control showed with nothing hidden.
+- **Invalidations (round 1):** base's top entry was `Layout SVG changed` 33,592 (`g.gem`); the branch's was
+  `StyleRecalc Attribute` 25,807 (`ellipse.gem__halo`, `g.robot`), with `Layout SVG changed` 13,019. The branch
+  shows more `Layout Style changed` on `g.robot` (3,899 vs 830), from the swim tweens on its visible robots.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
