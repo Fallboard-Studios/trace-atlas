@@ -3,6 +3,7 @@ import { applyColorShift } from '../../../../utils/colorUtils';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import type { TurbineParams } from '../sceneryParams';
 import type { SceneryRenderer } from '../sceneryTypes';
+import { WORLD_GEM, hairline } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 turbine row)
@@ -50,15 +51,19 @@ export const turbine: SceneryRenderer = ({ actor, params, cap, eastL, westL, nig
   const postTop = y - postH;
   const { hub: { x: hubX, y: hubY }, nacelle } = turbineLayout(x, y, p);
 
+  // Thin members and curves take the hairline (docs/specs/WORLD_GEM_MATERIAL.md §1.6); lamps, lit bars,
+  // beams, pools, highlight strips, valves and floats are left exactly as they are.
+  const member = WORLD_GEM.others ? hairline() : undefined;
+
   return (
     <g data-scenery="turbine">
-      <rect data-turbine="post" x={x - POST_W / 2} y={postTop} width={POST_W} height={postH} fill={steelFill} />
-      <rect data-turbine="nacelle" x={nacelle.x0} y={nacelle.y} width={NACELLE_W} height={NACELLE_H} fill={steelFill} />
+      <rect data-turbine="post" x={x - POST_W / 2} y={postTop} width={POST_W} height={postH} fill={steelFill} {...member} />
+      <rect data-turbine="nacelle" x={nacelle.x0} y={nacelle.y} width={NACELLE_W} height={NACELLE_H} fill={steelFill} {...member} />
       <g transform={`rotate(${TURBINE_ROTOR_DEG} ${hubX} ${hubY})`}>
-        <rect data-turbine="blade" x={hubX - BLADE_W / 2} y={hubY - bladeR} width={BLADE_W} height={bladeR} fill={steelFill} />
-        <rect data-turbine="blade" x={hubX - BLADE_W / 2} y={hubY} width={BLADE_W} height={bladeR} fill={steelFill} />
+        <rect data-turbine="blade" x={hubX - BLADE_W / 2} y={hubY - bladeR} width={BLADE_W} height={bladeR} fill={steelFill} {...member} />
+        <rect data-turbine="blade" x={hubX - BLADE_W / 2} y={hubY} width={BLADE_W} height={bladeR} fill={steelFill} {...member} />
       </g>
-      <circle data-turbine="hub" cx={hubX} cy={hubY} r={HUB_R} fill={hubFill} />
+      <circle data-turbine="hub" cx={hubX} cy={hubY} r={HUB_R} fill={hubFill} {...member} />
       <circle data-turbine="hub-light" cx={hubX} cy={hubY} r={HUB_LIGHT_R} fill={lamp(colorTheme.alert.powered, nightDepth)} />
     </g>
   );

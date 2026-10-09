@@ -57,7 +57,15 @@ function renderKind(actor: Actor): HTMLElement {
     accent: { primary: 0, secondary: 30 },
     gems: true,
   };
-  return render(SCENERY_RENDERERS[kind]!(ctx)).container;
+  const container = render(SCENERY_RENDERERS[kind]!(ctx)).container;
+  // A work anchor is the geometry of the element it names; the 1.5 px hairline (Phase 44) is an
+  // outline drawn around that geometry, and would add 0.75 px to every measured extent. Work sites
+  // do not move for it, so measure the shapes without it. Gem outlines (2 px) are left as they are.
+  container.querySelectorAll('[stroke-width="1.5"]').forEach((el) => {
+    el.removeAttribute('stroke');
+    el.removeAttribute('stroke-width');
+  });
+  return container;
 }
 
 const num = (el: Element, attr: string) => Number(el.getAttribute(attr));
@@ -312,14 +320,11 @@ describe('sceneryWorkAnchors (Phase 43 Tasks 10–11, spec §1.5)', () => {
       for (const actor of [0, 1, 2, 3].map((i) => sceneryActor('pylon', i))) {
         const c = renderKind(actor);
         const head = gemCentre(c);
-        const towerEl = [...c.querySelectorAll('polygon')].find((el) => !el.closest('[data-shape="gem"]'))!;
-        // The tower's own top edge, from its points: the rendered extent would also count half the
-        // 1.5 px hairline (Phase 44), but the anchor is the geometry the hairline is drawn around.
-        const towerTop = Math.min(...towerEl.getAttribute('points')!.trim().split(/\s+/).map((p) => Number(p.split(',')[1])));
+        const tower = shapeExtents(c).find((s) => s.el.matches('polygon') &&!s.el.closest('[data-shape="gem"]'))!;
         const fg = anchorsOf(actor, true);
         close(fg.points[0], head);
-        expect(fg.points[1].y).toBeCloseTo(towerTop, 6);
-        expect(fg.points[2].y).toBeCloseTo(towerTop, 6);
+        expect(fg.points[1].y).toBeCloseTo(tower.y0, 6);
+        expect(fg.points[2].y).toBeCloseTo(tower.y0, 6);
         const mid = anchorsOf(actor, false);
         close(mid.points[0], head);
         const arms = [...c.querySelectorAll('[data-scenery="pylon"] > rect')].map((r) => ({

@@ -21,6 +21,7 @@ import { useUIStore } from '../stores/uiStore';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { shapeExtents, unionExtent, type ShapeExtent } from '../testUtils/svgShapeExtents';
 import { WORLD_BOUNDS } from '../constants/sceneDepth';
+import { WORLD_GEM } from '../components/actors/material/worldGemMaterial';
 import { ActorType, type Actor, type DistrictName } from '../types/Actor';
 
 // ========================================
@@ -230,6 +231,29 @@ describe('midground silhouettes (Phase 43 Task 32, spec §1.10) — what a layer
       expectCovered(shapeExtents(render(<svg><PipeBridges factories={factories} /></svg>).container), boxes, w.id);
     }
     expect(bridges).toBeGreaterThan(0);
+  });
+
+  it('a bridge\'s bar and post silhouettes are widened by half the hairline (0.75 px), and exact with the switch off', () => {
+    const w = WORLDS.find((world) => pipeBridgeLayout(world.actors.filter((a) => a.type === ActorType.FACTORY && depthOf(a) === 'midground')).length > 0)!;
+    const mid = w.actors.filter((a) => a.type === ActorType.FACTORY && depthOf(a) === 'midground');
+    const layout = pipeBridgeLayout(mid);
+    const bridgeBoxes = () => midgroundSilhouettes(w.actors, []).slice(-layout.length * 2);
+    const rects = layout.flatMap((b) => [b.bar, b.post]);
+    const grown = (e: number) => rects.map((r) => ({ x0: r.x - e, y0: r.y - e, x1: r.x + r.width + e, y1: r.y + r.height + e }));
+
+    const on = bridgeBoxes();
+    expect(on).toHaveLength(rects.length);
+    on.forEach((box, i) => {
+      for (const k of ['x0', 'y0', 'x1', 'y1'] as const) expect(box[k], `${i} ${k}`).toBeCloseTo(grown(0.75)[i][k], 9);
+    });
+
+    const switches = WORLD_GEM as { others: boolean };
+    switches.others = false;
+    try {
+      expect(bridgeBoxes()).toEqual(grown(0));
+    } finally {
+      switches.others = true;
+    }
   });
 
   it('the ground: one box per step, from its higher end down to the scene bottom', () => {

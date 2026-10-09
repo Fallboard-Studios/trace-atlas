@@ -3,6 +3,7 @@ import { applyColorShift } from '../../../../utils/colorUtils';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import type { PipelineParams } from '../sceneryParams';
 import type { SceneryRenderer } from '../sceneryTypes';
+import { WORLD_GEM, hairline } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 pipeline row)
@@ -60,6 +61,10 @@ export const pipeline: SceneryRenderer = ({ actor, params, cap, eastL, westL, ni
 
   const { pipeTop, riserX, riserTop, flange, valve } = pipelineLayout(x, y, p);
 
+  // Thin members and curves take the hairline (docs/specs/WORLD_GEM_MATERIAL.md §1.6); lamps, lit bars,
+  // beams, pools, highlight strips, valves and floats are left exactly as they are.
+  const member = WORLD_GEM.others ? hairline() : undefined;
+
   return (
     <g data-scenery="pipeline">
       {Array.from({ length: stanchionCount }, (_, i) => (
@@ -70,13 +75,13 @@ export const pipeline: SceneryRenderer = ({ actor, params, cap, eastL, westL, ni
           y={pipeBottom}
           width={STANCHION_W}
           height={e}
-          fill={pipeFill}
+          fill={pipeFill} {...member}
         />
       ))}
-      <rect data-pipeline="pipe" x={x - half} y={pipeTop} width={w} height={d} fill={pipeFill} />
+      <rect data-pipeline="pipe" x={x - half} y={pipeTop} width={w} height={d} fill={pipeFill} {...member} />
       <rect data-pipeline="highlight" x={x - half} y={pipeTop} width={w} height={highlightH} fill={highlightFill} />
-      <rect data-pipeline="riser" x={riserX} y={riserTop} width={d} height={riserH} fill={pipeFill} />
-      <rect data-pipeline="flange" x={flange.x} y={flange.y} width={flange.w} height={FLANGE_H} fill={highlightFill} />
+      <rect data-pipeline="riser" x={riserX} y={riserTop} width={d} height={riserH} fill={pipeFill} {...member} />
+      <rect data-pipeline="flange" x={flange.x} y={flange.y} width={flange.w} height={FLANGE_H} fill={highlightFill} {...member} />
       <circle data-pipeline="valve" cx={valve.cx} cy={valve.cy} r={valve.r} fill={lamp(colorTheme.alert.powered, nightDepth)} />
     </g>
   );

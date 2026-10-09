@@ -3,6 +3,7 @@ import { applyColorShift } from '../../../../utils/colorUtils';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import type { DishParams } from '../sceneryParams';
 import type { SceneryRenderer } from '../sceneryTypes';
+import { WORLD_GEM, hairline } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 dish row)
@@ -51,12 +52,16 @@ export const dish: SceneryRenderer = ({ actor, params, cap, eastL, westL, nightD
   const postFill = applyColorShift(colorTheme.body.shadow, NO_SHIFT, avgL * cap);
   const dishFill = applyColorShift(colorTheme.shell.highlight, NO_SHIFT, avgL * cap);
 
+  // Thin members and curves take the hairline (docs/specs/WORLD_GEM_MATERIAL.md §1.6); lamps, lit bars,
+  // beams, pools, highlight strips, valves and floats are left exactly as they are.
+  const member = WORLD_GEM.others ? hairline() : undefined;
+
   return (
     <g data-scenery="dish">
-      <rect data-dish="post" x={x - POST_W / 2} y={postTop} width={POST_W} height={postH} fill={postFill} />
+      <rect data-dish="post" x={x - POST_W / 2} y={postTop} width={POST_W} height={postH} fill={postFill} {...member} />
       <g transform={`rotate(${deg} ${x} ${postTop})`}>
-        <ellipse data-dish="reflector" cx={x} cy={postTop} rx={rx} ry={ry} fill={dishFill} />
-        <rect data-dish="feed" x={x - feed.halfW} y={feed.y0} width={FEED_W} height={FEED_LEN} fill={postFill} />
+        <ellipse data-dish="reflector" cx={x} cy={postTop} rx={rx} ry={ry} fill={dishFill} {...member} />
+        <rect data-dish="feed" x={x - feed.halfW} y={feed.y0} width={FEED_W} height={FEED_LEN} fill={postFill} {...member} />
       </g>
       <circle data-dish="centre-light" cx={x} cy={postTop} r={CENTRE_LIGHT_R} fill={lamp(colorTheme.alert.powered, nightDepth)} />
     </g>
