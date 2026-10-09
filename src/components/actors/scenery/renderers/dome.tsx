@@ -1,8 +1,10 @@
 import colorTheme from '../../../../constants/colorTheme.json';
-import { applyColorShift } from '../../../../utils/colorUtils';
+import { applyColorShift, shiftHSL } from '../../../../utils/colorUtils';
 import { DERELICT_SAT } from '../../../../constants/sceneDepth';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import type { SceneryRenderer } from '../sceneryTypes';
+import { GemRing } from '../../material/GemRing';
+import { WORLD_GEM, ringFacets, worldBevel, worldLightVector } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 dome row)
@@ -84,12 +86,25 @@ export const dome: SceneryRenderer = ({ actor, params, cap, eastL, westL, nightD
   const hatchFill = ambient;
   const mastFill = ambient;
 
+  // The world gem ring (docs/specs/WORLD_GEM_MATERIAL.md §1.5): the base block only, top and bottom
+  // split at the centre line. The curved cap is never faceted (the 90/45 rule), and the portholes,
+  // hatch and mast are left exactly as they were.
+  const ring = ringFacets(
+    [[x - rx, top], [x + rx, top], [x + rx, y], [x - rx, y]],
+    WORLD_GEM.massScenery ? worldBevel(w, bh) : 0,
+    worldLightVector(eastL, westL),
+    (midX) => (midX < x ? westMult : eastMult),
+    shiftHSL(bodyBase, bodyShift),
+    { splitX: x },
+  );
+
   return (
     <g data-scenery="dome">
       <rect x={x - rx} y={top} width={rx} height={bh} fill={westFill} />
       <rect x={x} y={top} width={rx} height={bh} fill={eastFill} />
       <path d={westArcD} fill={domeWestFill} />
       <path d={eastArcD} fill={domeEastFill} />
+      <GemRing facets={ring} />
       {portholePositions.map((porthole, i) => (
         <circle
           key={i}

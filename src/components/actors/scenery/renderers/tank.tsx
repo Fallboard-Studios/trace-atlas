@@ -3,6 +3,8 @@ import { applyColorShift, shiftHSL } from '../../../../utils/colorUtils';
 import { DERELICT_SAT } from '../../../../constants/sceneDepth';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import type { SceneryRenderer } from '../sceneryTypes';
+import { GemRing } from '../../material/GemRing';
+import { WORLD_GEM, ringFacets, worldBevel, worldLightVector } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 tank row)
@@ -64,6 +66,19 @@ export const tank: SceneryRenderer = ({ actor, params, cap, eastL, westL, nightD
     `${splitX},${y}`,
   ].join(' ');
 
+  // The world gem ring (docs/specs/WORLD_GEM_MATERIAL.md §1.5): the whole shouldered hexagon as one
+  // outline, top and bottom split at the corner so each half takes its own face's light. The belt
+  // courses sit inside it, inset by its depth on both sides. Depth 0 changes nothing.
+  const d = WORLD_GEM.massScenery ? worldBevel(w, h) : 0;
+  const ring = ringFacets(
+    [[x - w / 2, y], [x - w / 2, top + shoulder], [x - w / 2 + shoulder, top], [x + w / 2 - shoulder, top], [x + w / 2, top + shoulder], [x + w / 2, y]],
+    d,
+    worldLightVector(eastL, westL),
+    (midX) => (midX < splitX ? westL : eastL) * cap,
+    bodyColor,
+    { splitX },
+  );
+
   const gaugeR = GAUGE_R_FRAC * w;
   const gaugeY = top + TANK_GAUGE_Y_FRAC * h;
   const gaugeFill = derelict
@@ -74,9 +89,10 @@ export const tank: SceneryRenderer = ({ actor, params, cap, eastL, westL, nightD
     <g data-scenery="tank">
       <polygon points={westPoints} fill={westFill} />
       <polygon points={eastPoints} fill={eastFill} />
+      <GemRing facets={ring} />
       {Array.from({ length: beltCourses }, (_, i) => {
         const beltY = top + (h * (i + 1)) / (beltCourses + 1);
-        return <rect key={i} x={x - w / 2} y={beltY - BELT_HEIGHT / 2} width={w} height={BELT_HEIGHT} fill={beltFill} />;
+        return <rect key={i} x={x - w / 2 + d} y={beltY - BELT_HEIGHT / 2} width={w - 2 * d} height={BELT_HEIGHT} fill={beltFill} />;
       })}
       <circle cx={x} cy={gaugeY} r={gaugeR} fill={gaugeFill} />
     </g>
