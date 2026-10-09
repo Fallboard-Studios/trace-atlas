@@ -1,11 +1,11 @@
 // ========================================
 // CHARGING STATION (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.6, Phase 43 Task 20)
 // ========================================
-// One fragment of a station, drawn in the robots layer. The station is three fragments
-// interleaved with the robots, back to front: L4 · exiting robots · L3 · everyone else · L2 ·
-// halo + ripple · L1 — so a robot entering passes between L2 and L3, and an exiting robot
-// appears behind L3 (OceanScene renders the fragments around the robot group). Until J4's back
-// row lands, exits use this front-layer seam.
+// One fragment of a station, drawn in a robot row. The station is three fragments interleaved
+// with the robots, back to front: L4 · exiting robots · L3 · everyone else · L2 · halo + ripple ·
+// L1 — so a robot entering passes between L2 and L3, and an exiting robot appears behind L3.
+// OceanScene puts L4 under the back robot row, where exiting robots are (Phase 43 Task 34b), and
+// L3 and the front fragment around the front row.
 //
 // Static: no timeline, no ticker. The slot lights re-render only when this station's charging set
 // changes (stationOccupancy.ts); the geometry only when the world rig's four dials move

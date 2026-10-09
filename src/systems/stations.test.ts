@@ -17,9 +17,13 @@ import { placeDistrict } from './districts';
 import { getWorkSite } from './workSites';
 import { hostJobs } from './jobHosts';
 import { SIM_SEED_COORDS } from './lifecycleSim';
+import { getMidgroundSilhouettes } from './midgroundSilhouettes';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { useLocaleStore } from '../stores/localeStore';
+import { GEM_CANVAS_H, gemWidth, getRobotGem } from '../components/robot/gem/polygon';
+import { calculateBodyScale } from '../components/robot/robotVisualHelpers';
 import {
+  BACK_LAYER_SCALE,
   MAX_ROBOTS,
   STATION_MIN_SPACING,
   STATION_CAPACITY,
@@ -131,6 +135,36 @@ describe('stations (Phase 43 Task 13, spec §1.6)', () => {
         const obstacles = hostObstacles(w.actors);
         for (const s of w.stations) {
           const hit = obstacles.find((o) => overlaps(stationBox(s.center), o));
+          expect(hit, `${w.id} ${s.id}`).toBeUndefined();
+        }
+      }
+    });
+
+    // Phase 43 Task 34b (Q2): the station's back fragment (L4) and an exiting robot draw in the back
+    // robot row, under the midground. Stations avoid only hosts' bounds, so this is not guaranteed
+    // by placement; it holds over the grid (measured 2026-10-08: 0 of 284), and if a recipe change
+    // ever breaks it a midground silhouette would draw between L4 and L3 — revisit Task 34b's Q2.
+    it('no station box overlaps a midground silhouette (L4 sits in the back row)', () => {
+      for (const w of GRID) {
+        const silhouettes = getMidgroundSilhouettes(w.id);
+        for (const s of w.stations) {
+          const hit = silhouettes.find((o) => overlaps(stationBox(s.center), o));
+          expect(hit, `${w.id} ${s.id}`).toBeUndefined();
+        }
+      }
+    });
+
+    it('nor does the largest robot at back-row scale, exiting at any port', () => {
+      let widest = 0;
+      for (let seed = 1; seed < 3000; seed++) widest = Math.max(widest, gemWidth(getRobotGem(seed)));
+      // The body scale's ceiling: the bass register at the fastest attack (robotVisualHelpers.test.ts pins 1.69).
+      const k = calculateBodyScale([1, 3], 1) * BACK_LAYER_SCALE;
+      const half = { w: (widest * k) / 2, h: (GEM_CANVAS_H * k) / 2 };
+      for (const w of GRID) {
+        const silhouettes = getMidgroundSilhouettes(w.id);
+        for (const s of w.stations) {
+          const box = { x0: s.port.x - half.w, y0: s.port.y - half.h, x1: s.port.x + half.w, y1: s.port.y + half.h };
+          const hit = silhouettes.find((o) => overlaps(box, o));
           expect(hit, `${w.id} ${s.id}`).toBeUndefined();
         }
       }

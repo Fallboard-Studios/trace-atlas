@@ -41,8 +41,13 @@ describe('OceanScene.css scene layers', () => {
     expect(body).toContain('will-change: transform;');
   });
 
-  it('the robots layer is the one that takes pointer events', () => {
-    const body = getCssRuleBody(cssSource, '.ocean-scene__layer--robots');
+  // Phase 43 Task 33 (spec §1.10): with two robot rows, a layer that took clicks would block every
+  // layer under it — the front robots svg would swallow every click meant for a back-row robot. So
+  // no layer takes them; the robots themselves do.
+  it('no layer takes pointer events; the robots themselves do', () => {
+    expect(getCssRuleBody(cssSource, '.ocean-scene__layer--robots')).toBeNull();
+    expect(cssSource).not.toMatch(/ocean-scene__layer[^{]*\{[^}]*pointer-events:\s*(auto|all|visible)/);
+    const body = getCssRuleBody(cssSource, '.robot');
     expect(body).not.toBeNull();
     expect(body).toContain('pointer-events: auto;');
   });

@@ -8,6 +8,11 @@
 //
 // Deletes take an optional owner: a delete only removes the entry if it is still that owner's,
 // so an old mount's cleanup running after a new mount's register (a remount) can't strip the new one.
+//
+// The `layerSwitching` set (Phase 43 J4, spec §1.10): the work loop marks a robot just before it
+// writes the robot's `layer`, so the re-mount React does in the other robot row knows it is a layer
+// switch — RobotBody's hooks (children, so they mount first) skip the orbiters' attach flourish,
+// and the loop's onRobotMounted continues the leg instead of adopting the robot, then clears it.
 
 // ========================================
 // IMPORTS
@@ -31,6 +36,7 @@ export interface OrbiterWork {
 // ========================================
 const arcDecorators = new Map<string, ArcDecorator>();
 const orbiterWork = new Map<string, OrbiterWork>();
+const layerSwitching = new Set<string>();
 
 // ========================================
 // HELPERS
@@ -69,8 +75,24 @@ export function deleteOrbiterWork(robotId: string, owner?: OrbiterWork): void {
   deleteOwned(orbiterWork, robotId, owner);
 }
 
-/** Clear both maps (for testing/reset). */
+/** Marks the robot's next world mount as a layer switch (the work loop, before it writes `layer`). */
+export function markLayerSwitching(robotId: string): void {
+  layerSwitching.add(robotId);
+}
+
+/** Whether the robot's world mount now is a layer switch. */
+export function isLayerSwitching(robotId: string): boolean {
+  return layerSwitching.has(robotId);
+}
+
+/** Ends the mark (the work loop, once the re-mount is handed back — or when none will come). */
+export function clearLayerSwitching(robotId: string): void {
+  layerSwitching.delete(robotId);
+}
+
+/** Clear both maps and the layerSwitching set (for testing/reset). */
 export function clearRobotMotionRegistry(): void {
   arcDecorators.clear();
   orbiterWork.clear();
+  layerSwitching.clear();
 }

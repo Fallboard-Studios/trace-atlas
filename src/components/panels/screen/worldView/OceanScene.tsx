@@ -22,6 +22,7 @@ import { getRecipeRow } from '@/systems/factoryPlacementSystem';
 import { getStations } from '@/systems/stations';
 import { ChargingStation } from '@/components/stations/ChargingStation';
 import { ActorType, type Actor } from '@/types/Actor';
+import { setRef, deleteRef } from '@/utils/refs';
 
 import colorTheme from '@/constants/colorTheme.json';
 import { hslToString } from '@/utils/colorUtils';
@@ -40,8 +41,8 @@ interface OceanSceneProps {
 // ========================================
 
 interface SceneLayerProps {
-  /** Which of the four layers — becomes `data-scene-layer`, keyed on by tests and the perf harness. */
-  name: 'back' | 'robots' | 'bubbles' | 'front';
+  /** Which of the six layers — becomes `data-scene-layer`, keyed on by tests and the perf harness. */
+  name: 'back' | 'robots-back' | 'mid' | 'bubbles' | 'robots' | 'front';
   width: number;
   height: number;
   /** A layer whose content moves every frame — promoted to its own compositor layer (OceanScene.css). */
@@ -50,17 +51,13 @@ interface SceneLayerProps {
 }
 
 /**
- * One of the scene's stacked `<svg>` layers. All four share the viewBox and the "slice" (cover)
+ * One of the scene's stacked `<svg>` layers. All six share the viewBox and the "slice" (cover)
  * fit, and OceanScene.css makes each fill the same box, so their coordinate systems map to the
- * same pixels — a robot at scene (x, y) in the robots layer sits exactly over scene (x, y) in the
- * factory layers.
+ * same pixels — a robot at scene (x, y) in either robots layer sits exactly over scene (x, y) in
+ * the factory layers.
  */
 function SceneLayer({ name, width, height, moving = false, children }: SceneLayerProps) {
-  const className = [
-    'ocean-scene__layer',
-    moving && 'ocean-scene__layer--moving',
-    name === 'robots' && 'ocean-scene__layer--robots',
-  ].filter(Boolean).join(' ');
+  const className = ['ocean-scene__layer', moving && 'ocean-scene__layer--moving'].filter(Boolean).join(' ');
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
@@ -81,16 +78,68 @@ function SceneLayer({ name, width, height, moving = false, children }: SceneLaye
   );
 }
 
+/** Registers the dissolve copies' group for the work loop (getRef('robot-dissolve-layer')). */
+function registerDissolveLayer(el: SVGGElement | null): void {
+  if (el) setRef('robot-dissolve-layer', el);
+  else deleteRef('robot-dissolve-layer');
+}
+
+// ========================================
+// DEPTH TINTS
+// ========================================
+
+type TintSlot = 'A' | 'B' | 'C' | 'D';
+
+/**
+ * The four full-screen depth tints (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.10, the depth-tint
+ * sketch gate, Crawford 2026-10-08): A over the background buildings, B over the back robot row,
+ * C over the midground, D over the front robot row. Each runs top → bottom from `top` to
+ * vent.shadow at `alpha`. Only B and C sit between the two robot rows, so their total (40 %) is
+ * the haze a robot gains or loses at a row switch.
+ */
+const DEPTH_TINTS: Record<TintSlot, { top: string; alpha: number }> = {
+  A: { top: '#0c1c4f', alpha: 0.06 },
+  B: { top: '#0c1c4f', alpha: 0.25 },
+  C: { top: hslToString(colorTheme.vent.shadow), alpha: 0.2 },
+  D: { top: hslToString(colorTheme.vent.shadow), alpha: 0.1 },
+};
+
+/** A tint's gradient, for the `<defs>` of the layer that draws its rect. */
+function TintGradient({ slot }: { slot: TintSlot }) {
+  const { top, alpha } = DEPTH_TINTS[slot];
+  return (
+    <linearGradient id={`depth-tint-${slot}`} x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stopColor={top} stopOpacity={alpha} />
+      <stop offset="100%" stopColor={hslToString(colorTheme.vent.shadow)} stopOpacity={alpha} />
+    </linearGradient>
+  );
+}
+
+function TintRect({ slot, width, height }: { slot: TintSlot; width: number; height: number }) {
+  return (
+    <rect
+      data-depth-tint={slot}
+      x="0"
+      y="0"
+      width={width}
+      height={height}
+      fill={`url(#depth-tint-${slot})`}
+      pointerEvents="none"
+    />
+  );
+}
+
 // ========================================
 // COMPONENT
 // ========================================
 
 /**
- * Root scene component. Renders four stacked SVG layers (roadmap 17.2.5): a static back layer
- * (background → midground factories with the depth-gradient overlays between them), the moving
- * bubble layer (every building's vent bubbles), the moving robot layer, and a static front layer
- * (foreground factories). Kicks off factory placement, robot spawning and factory production
- * scheduling on mount.
+ * Root scene component. Renders six stacked SVG layers (roadmap 17.2.5; Phase 43 J4, spec §1.10),
+ * back to front: static `back` (water, ridge, background factories, tint A), the moving back robot
+ * row `robots-back`, static `mid` (tint B, midground factories, tint C, the ground line), the
+ * moving bubble layer (every building's vent bubbles), the moving front robot row `robots`, and
+ * static `front` (tint D, foreground factories). Kicks off factory placement, robot spawning and
+ * factory production scheduling on mount.
  *
  * Why layers: the idle paint localizer (scripts/perf/idle-paint.mjs) found the old single <svg>
  * repainting all sixty factories at full viewport size on every frame, because the robots and
@@ -100,7 +149,11 @@ function SceneLayer({ name, width, height, moving = false, children }: SceneLaye
  *
  * Z-order is the old order with one change: bubbles from every row rise behind the robots and
  * below the foreground factories (foreground-row bubbles used to pass in front of the robots —
- * Crawford chose behind, 2026-10-02).
+ * Crawford chose behind, 2026-10-02). J4 adds the back robot row behind the midground: the old
+ * `back` layer split in two around it, and the four depth tints replaced the old two gradients.
+ *
+ * No layer takes clicks (OceanScene.css): every layer is full-screen, so one that did would block
+ * all those under it. `.robot` takes them, in either row.
  *
  * @param width           - SVG viewBox width in pixels (default 1920).
  * @param height          - SVG viewBox height in pixels (default 1080).
@@ -122,7 +175,14 @@ export function OceanScene({
   // comparison is by value, so it correctly bails unless a robot was actually added/removed. Each
   // `<Robot>` now looks up its own current data by id (Robot.tsx's own fix), decoupled entirely
   // from this scene's own re-render cadence.
-  const robotIds = useLocaleStore(useShallow((s) => (s.locales[localeId]?.robots ?? []).map((r) => r.id)));
+  //
+  // One list per robot row (Phase 43 J4, spec §1.10): a robot draws in the row its `Robot.layer`
+  // names, unset meaning foreground. Still ids only, so the scene re-renders when a robot changes
+  // rows (its id moves list) and not for any other write.
+  const frontRobotIds = useLocaleStore(useShallow((s) =>
+    (s.locales[localeId]?.robots ?? []).filter((r) => r.layer !== 'background').map((r) => r.id)));
+  const backRobotIds = useLocaleStore(useShallow((s) =>
+    (s.locales[localeId]?.robots ?? []).filter((r) => r.layer === 'background').map((r) => r.id)));
   const actors = useLocaleStore((s) => s.locales[localeId]?.actors ?? []);
 
   // categorize factory actors by row — memoised so robot updates don't
@@ -222,18 +282,10 @@ export function OceanScene({
 
   return (
     <div className="ocean-scene">
-      {/* Static back layer: ocean floor, background → midground factories, depth gradients. */}
+      {/* Static back layer: ocean floor, background factories, tint A. */}
       <SceneLayer name="back" width={width} height={height}>
         <defs>
-          {/* Gradients between factory rows */}
-          <linearGradient id="gradient-0-1" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#0c1c4f" stopOpacity=".7" />
-            <stop offset="100%" stopColor={hslToString(colorTheme.vent.shadow)} stopOpacity=".7" />
-          </linearGradient>
-          <linearGradient id="gradient-1-2" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor={hslToString(colorTheme.vent.shadow)} stopOpacity=".5" />
-            <stop offset="100%" stopColor={hslToString(colorTheme.vent.shadow)} stopOpacity=".5" />
-          </linearGradient>
+          <TintGradient slot="A" />
         </defs>
 
         {/* Water column (§1.5): vertical gradient + surface glow, replacing the old flat
@@ -254,34 +306,46 @@ export function OceanScene({
           {backgroundActors.map(renderActor)}
         </g>
         <PipeBridges factories={backgroundFactories} />
-        {/* Gradient between background and midground layers */}
-        <rect
-          id="gradient-back-mid"
-          x="0"
-          y="0"
-          width={width}
-          height={height}
-          fill="url(#gradient-0-1)"
-          pointerEvents="none"
-        />
+        {/* Tint A: over the background buildings, under the back robot row. */}
+        <TintRect slot="A" width={width} height={height} />
+      </SceneLayer>
+
+      {/* Moving: the back robot row (Phase 43 J4) — robots whose `layer` is 'background', behind
+          the midground, hazed by tints B–D like the buildings around them. */}
+      <SceneLayer name="robots-back" width={width} height={height} moving>
+        {/* Each station's back fragment (L4), under the back row: a robot exiting a station is in
+            this row (Task 34b, spec §1.6), so it appears between L4 and L3. */}
+        <g id="station-l4-layer">
+          {stations.map((s) => (
+            <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l4" />
+          ))}
+        </g>
+        <g id="robot-back-layer">
+          {backRobotIds.map((id) => (
+            <Robot key={id} robotId={id} />
+          ))}
+        </g>
+      </SceneLayer>
+
+      {/* Static mid layer: tint B, midground factories, tint C, the ground line. */}
+      <SceneLayer name="mid" width={width} height={height}>
+        <defs>
+          <TintGradient slot="B" />
+          <TintGradient slot="C" />
+        </defs>
+        {/* Tint B: over the back robot row, under the midground. */}
+        <TintRect slot="B" width={width} height={height} />
 
         <g id="factory-midground-layer">
           {midgroundActors.map(renderActor)}
         </g>
         <PipeBridges factories={midgroundFactories} />
-        {/* Gradient between midground and foreground layers */}
-        <rect
-          id="gradient-mid-front"
-          x="0"
-          y="0"
-          width={width}
-          height={height}
-          fill="url(#gradient-1-2)"
-          pointerEvents="none"
-        />
+        {/* Tint C: over the midground, under the front robot row. */}
+        <TintRect slot="C" width={width} height={height} />
 
-        {/* Stepped ground line (§1.3), drawn after the mid/front gradient so midground
-            bases bury under it rather than floating above it. */}
+        {/* Stepped ground line (§1.3), drawn after tint C so midground bases bury under it rather
+            than floating above it. In `mid`, not `back`: it is a midground silhouette (Task 32),
+            so a back-row robot passes behind it. */}
         <TerrainLayer localeId={localeId} part="ground" width={width} height={height} />
       </SceneLayer>
 
@@ -291,27 +355,27 @@ export function OceanScene({
         <BubbleLayer actors={actors} totalBuildings={bubbleBuildingCount} />
       </SceneLayer>
 
-      {/* Moving: the robots (GSAP-driven transforms, Robot.tsx). The one layer that takes clicks.
-          Charging stations (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.6) are three fragments
-          interleaved with the robots, back to front: L4 · exiting robots · L3 · robots · L2 + halo
-          + L1, so an entering robot passes between L2 and L3. Exits use the L4/L3 seam here until
-          J4's back robot row lands. Stations take no clicks. */}
+      {/* Moving: the front robot row (GSAP-driven transforms, Robot.tsx) — every robot whose
+          `layer` isn't 'background'. Charging stations (docs/specs/ROBOT_JOBS_AND_STATIONS.md
+          §1.6) are three fragments interleaved with the robots, back to front: L4 · exiting
+          robots · L3 · robots · L2 + halo + L1. L4 and the exiting robots are in robots-back
+          (Task 34b), so an exiting robot appears behind L3 and an entering one passes between L2
+          and L3. Stations take no clicks. */}
       <SceneLayer name="robots" width={width} height={height} moving>
-        <g id="station-l4-layer">
-          {stations.map((s) => (
-            <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l4" />
-          ))}
-        </g>
         <g id="station-l3-layer">
           {stations.map((s) => (
             <ChargingStation key={s.id} localeId={localeId} station={s} fragment="l3" />
           ))}
         </g>
         <g id="robot-layer">
-          {robotIds.map((id) => (
+          {frontRobotIds.map((id) => (
             <Robot key={id} robotId={id} />
           ))}
         </g>
+        {/* Layer-switch dissolve copies (Phase 43 J4, spec §1.10): the work loop appends an SVG
+            `<use>` of a switching robot here — the front row's look of it, fading over the back
+            row's. Empty in JSX, so React never touches what the loop puts in it. */}
+        <g id="robot-dissolve-layer" ref={registerDissolveLayer} />
         <g id="station-front-layer">
           {stations.map((s) => (
             <ChargingStation key={s.id} localeId={localeId} station={s} fragment="front" />
@@ -319,8 +383,13 @@ export function OceanScene({
         </g>
       </SceneLayer>
 
-      {/* Static front layer: foreground-row factories (rendered closest to viewer). */}
+      {/* Static front layer: tint D, then the foreground-row factories (closest to the viewer). */}
       <SceneLayer name="front" width={width} height={height}>
+        <defs>
+          <TintGradient slot="D" />
+        </defs>
+        {/* Tint D: over the front robot row, under the foreground. */}
+        <TintRect slot="D" width={width} height={height} />
         <g id="factory-foreground-layer">
           {foregroundActors.map(renderActor)}
         </g>

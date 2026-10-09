@@ -19,6 +19,7 @@ import { getActorBubbleProps } from '../factoryBubbleProps';
 import { SCENERY_HOST_JOBS } from '../../../systems/jobHosts';
 import { ActorType, type Actor, type SceneryKind } from '../../../types/Actor';
 import type { Vec2 } from '../../../types/Vec2';
+import { rotationOf, shapeExtents } from '../../../testUtils/svgShapeExtents';
 
 // ========================================
 // HELPERS
@@ -60,59 +61,6 @@ function renderKind(actor: Actor): HTMLElement {
 }
 
 const num = (el: Element, attr: string) => Number(el.getAttribute(attr));
-
-/** Translucent light and water, not silhouette: plumes, the floodlight's beam and ground pool. */
-const DECORATION = '[data-vent="plume"], [data-floodlight="beam"], [data-floodlight="pool"]';
-
-/** The `rotate(deg cx cy)` on the element's nearest transformed ancestor, as a point mapper. */
-function rotationOf(el: Element): (p: Vec2) => Vec2 {
-  const g = el.closest('g[transform]');
-  const m = g?.getAttribute('transform')?.match(/rotate\(\s*([-\d.e]+)\s+([-\d.e]+)\s+([-\d.e]+)\s*\)/);
-  if (!m) return (p) => p;
-  const [deg, cx, cy] = m.slice(1).map(Number);
-  const c = Math.cos((deg * Math.PI) / 180);
-  const s = Math.sin((deg * Math.PI) / 180);
-  return ({ x, y }) => ({ x: cx + (x - cx) * c - (y - cy) * s, y: cy + (x - cx) * s + (y - cy) * c });
-}
-
-function extentOf(el: Element, pts: Vec2[]) {
-  const xs = pts.map((p) => p.x); const ys = pts.map((p) => p.y);
-  return { el, x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
-}
-
-/**
- * Every drawn rect/polygon/circle/ellipse's extent, through any `rotate` on its group (turbine
- * blades, the dish). Decoration and arc paths are skipped.
- */
-function shapeExtents(container: HTMLElement): { el: Element; x0: number; y0: number; x1: number; y1: number }[] {
-  const out: { el: Element; x0: number; y0: number; x1: number; y1: number }[] = [];
-  const drawn = (sel: string) => [...container.querySelectorAll(sel)].filter((el) => !el.matches(DECORATION));
-  for (const el of drawn('rect')) {
-    const x = num(el, 'x'); const y = num(el, 'y'); const w = num(el, 'width'); const h = num(el, 'height');
-    const rot = rotationOf(el);
-    out.push(extentOf(el, [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }].map(rot)));
-  }
-  for (const el of drawn('circle')) {
-    const cx = num(el, 'cx'); const cy = num(el, 'cy'); const r = num(el, 'r');
-    const c = rotationOf(el)({ x: cx, y: cy });
-    out.push({ el, x0: c.x - r, y0: c.y - r, x1: c.x + r, y1: c.y + r });
-  }
-  for (const el of drawn('ellipse')) {
-    // A rotated ellipse's exact box: half-sizes √(rx²cos² + ry²sin²) and √(rx²sin² + ry²cos²).
-    const rx = num(el, 'rx'); const ry = num(el, 'ry');
-    const m = el.closest('g[transform]')?.getAttribute('transform')?.match(/rotate\(\s*([-\d.e]+)/);
-    const phi = ((m ? Number(m[1]) : 0) * Math.PI) / 180;
-    const c = rotationOf(el)({ x: num(el, 'cx'), y: num(el, 'cy') });
-    const hx = Math.hypot(rx * Math.cos(phi), ry * Math.sin(phi));
-    const hy = Math.hypot(rx * Math.sin(phi), ry * Math.cos(phi));
-    out.push({ el, x0: c.x - hx, y0: c.y - hy, x1: c.x + hx, y1: c.y + hy });
-  }
-  for (const el of drawn('polygon')) {
-    const pts = (el.getAttribute('points') ?? '').trim().split(/\s+/).map((p) => p.split(',').map(Number));
-    out.push(extentOf(el, pts.map(([x, y]) => rotationOf(el)({ x, y }))));
-  }
-  return out;
-}
 
 function within(p: Vec2, a: SceneryAnchors): boolean {
   const { x0, y0, x1, y1 } = a.bounds;

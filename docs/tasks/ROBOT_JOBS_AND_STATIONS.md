@@ -105,7 +105,8 @@ J2  T17 registry + orbiter lock ─┐   T18 centre/position + sceneToOrbiterLoc
                     Checkpoint C (Crawford live + Phase 41 halo gate) ─► T26 perf gate (stop) ─► T27 J2 docs
 J3  T28 trace + ring + variation ─► T29 carry + fan + spark, six-job table ─► Checkpoint D ─► T30 perf (stop) ─► T31 docs
 J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer robots + clicks
-    ─► T34 layer-aware legs + remount without flourish ─► Checkpoint E ─► T35 perf + Pixel (stop) ─► T36 final docs
+    ─► T34 layer-aware legs + remount without flourish ─► T34b station L4 + exits in the back row (Q1–Q3 first)
+    ─► Checkpoint E ─► T35 perf + Pixel (stop) ─► T36 final docs
 ```
 
 ## Task List
@@ -1544,7 +1545,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
 
 ### Phase J4: Depth layers (`feature/jobs-depth`)
 
-- [ ] **Task 32: `findLayerSwitchPoint` and back-host plumbing**
+- [x] **Task 32: `findLayerSwitchPoint` and back-host plumbing**
 
   **Description:** Pure `findLayerSwitchPoint(from, to, robotBox, midgroundBounds)` (sampled every
   20 units, first clear point or `null`); `chooseNextSite` callers pass `backHosts:
@@ -1558,34 +1559,166 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   **Dependencies:** J3 merged. **Files:** `src/animation/layerSwitch.ts` (+ test),
   `src/systems/workLoop.ts`. **Scope:** S.
 
-- [ ] **Task 33: Split the scene layers; robots per layer; clicks**
+  **As shipped (2026-10-08, on `feature/jobs-depth` off main `409957d7`):** (1) **Signature.**
+  `from`/`to` are robot *positions* (the gem canvas's top-left, what the loop writes), and
+  `robotBox` is the body's box relative to that position, so the returned point is a `position`
+  T34 can write directly. Samples `from`, every `LAYER_SWITCH_STEP` (20, in
+  `constants/index.ts`) along the leg, then `to`; touching edges are clear; always a fresh point.
+  A second pure helper, `robotBoxAt(gem, bodyScale)`, gives the box: the gem canvas scaled about
+  its centre like `g.gem` (at layer scale 1, where the switch happens). (2) **`backHosts`.**
+  `chooseNextSite` doesn't take it — eligibility already lives in the loop's site set — so the
+  callers' `backHosts` is a new `WorkLoopOptions.backHosts`, defaulting to `BACK_HOSTS_ENABLED`
+  (still false); tests turn it on per run instead of mocking the constant. (3) **Skipping.** A
+  ready site in the other layer from the robot's (`Robot.layer ?? 'foreground'` vs background
+  site → back, else front) is offered as not ready when its leg has no switch point; checked
+  only for ready sites, every decision. It's symmetric: a back-layer robot needs one to a front
+  site (unreachable until T34 writes `layer`). (4) **Midground silhouettes = everything solid
+  between the two robot layers** (follow-up commit, Crawford: "let's not let robots clip through
+  anything"): new `src/systems/midgroundSilhouettes.ts` — every midground factory's body box plus
+  its rooftop-greeble box, every midground scenery actor (hosts or not: the wreck field's boulders
+  too), the midground pipe bridges (bar and post) and the ground line's steps; fixed per run. The
+  first cut used hosts' `WorkSite.bounds`, which also missed rooftop greebles (antennae to 25 % of
+  the height, pitched roofs rising by `frontCornerX`) and up to 31 above / 2 beside the anchor
+  bounds (mast lights, gem accents). Boxes are measured from the renderers' own JSX by a new pure
+  `src/utils/svgElementExtent.ts` (rect/circle/ellipse/polygon/line/arc paths, `rotate` groups,
+  strokes; throws on anything else), never a copy of their maths; the pipe-bridge geometry moved to
+  `pipeBridgeLayout.ts`, which `PipeBridges` now draws from. Factory greebles mirror Factory.tsx's
+  one suppression (a derelict's dark antenna isn't drawn). **Crawford's call:** bubbles, vent
+  plumes and floodlight beams/pools are not silhouette (translucent and moving — a robot passing
+  behind a bubble stream doesn't read as clipping). **For T33:** the ground line must render in
+  `mid` (it is a silhouette here). Render parity over the 121-seed grid with the real
+  `<Factory>`/`<Scenery>`/`<PipeBridges>`: every box holds every drawn solid shape and is tight
+  to it (≤ 1e-3), at night and noon. The shared DOM-side helper is
+  `src/testUtils/svgShapeExtents.ts` (moved out of `sceneryWorkAnchors.test.tsx`, which now uses
+  it, plus arcs, lines and strokes). (5) **Tests:** `src/animation/layerSwitch.test.ts` (17) sits
+  beside its module, outside the verification line's `jobMoves` glob; 10 new `workLoop.test.ts`
+  cases spy on the module for the skip and the call's arguments. 20/20 mutants killed (one
+  survivor first — `to` returned aliased — closed with a test). Full suite: 7258 green plus the
+  known Task 18 50-gem load timeout. The silhouettes follow-up adds 62 tests
+  (`svgElementExtent.test.tsx` 33, `midgroundSilhouettes.test.tsx` 29); 24/24 mutants killed (one
+  survivor first — a wrong `frontCornerX` only grew the box, which a containment test can't see —
+  closed with the tightness checks and an any-depth pitched-roof case). Full suite 7321 green.
 
-  **Description:** `OceanScene` (spec §1.10): `back` → `robots-back` (moving) → `mid` (gradient 0-1,
-  midground, gradient 1-2) → `bubbles` → `robots` → `front`. Robots render in the list for their
-  `Robot.layer` (all `'foreground'` until T34). Layer `pointer-events: none` everywhere; `.robot`
+### Sketch gate: depth tint (between T32 and T33)
+
+- [x] **Depth-tint sketch** — `docs/sketches/robot-depth-tint.html` (14ede6c2). Found at T32: spec
+  §1.10 as written put a back-row robot under both depth gradients (.7 + .5), an ~85 % haze pop in
+  one frame at a row switch. Crawford asked for more tint layers through the stack; the sketch
+  showed that only tint *between* the robot rows makes the pop. **Gate passed 2026-10-08**
+  (Crawford's settings): both redistribute and dissolve — tints A 0.06 / B 0.25 / C 0.20 / D 0.10
+  (pop 85 % → 40 %, background buildings 85 % → 49 %, midground 50 % → 28 %, every robot 10 % —
+  the sketch's readout printed 44 % and 20 % by leaving D off the buildings; corrected at T33),
+  `LAYER_DISSOLVE_SECONDS` 1.0. Folded into spec §1.10 and T32b–T35 below.
+
+- [x] **Task 32b: The switch point starts a clear run**
+
+  **Description:** `findLayerSwitchPoint` (spec §1.10) returns the first sample whose robot box is
+  clear of every midground silhouette **for the whole dissolve**: from the sample to where the
+  second swim (sine.inOut from rest, `SWIM_SPEED`) is `LAYER_DISSOLVE_SECONDS` later, or to the
+  leg's end if it arrives sooner (the robot then finishes the dissolve at rest there). New
+  constant `LAYER_DISSOLVE_SECONDS` = 1.0. The work loop's skip rule is unchanged (no run → skip).
+
+  **Acceptance criteria:**
+  - [ ] A point clear itself but with a silhouette inside the run is not chosen; the first point
+        whose run is clear is.
+  - [ ] A run reaching the leg's end checks only to the end; a short leg that is clear end to end
+        returns `from`.
+  - [ ] The run length matches the swim: a long leg's run is shorter than `SWIM_SPEED` × 1 s
+        (sine.inOut starts slow), a leg shorter than the run is checked whole.
+
+  **Verification:** `npx vitest run src/animation/layerSwitch.test.ts src/systems/workLoop.test.ts`.
+  **Dependencies:** T32, the depth-tint gate. **Files:** `src/animation/layerSwitch.ts` (+ test),
+  `src/constants/index.ts`. **Scope:** S.
+
+  **As shipped (2026-10-08, `feature/jobs-depth`):** (1) New pure `dissolveRunLength(remaining)`:
+  a sine.inOut swim from rest over `remaining` at `SWIM_SPEED` (swimAnimation.ts's
+  distance / speed duration), `LAYER_DISSOLVE_SECONDS` in — all of `remaining` when the swim ends
+  sooner. A 1000-unit leg's run is ≈ 35 units (it starts slow); anything ≤ 120 is run whole. (2)
+  `findLayerSwitchPoint` keeps its signature: candidates as before (`from`, every
+  `LAYER_SWITCH_STEP`, `to`), each accepted only if its box is clear at every step of its run and
+  at the run's end, measured on what's left of the leg from the candidate; `to` has no run.
+  Every real robot box is wider than the 20-unit step, so the steps sweep the run without gaps;
+  the new tests use a 30-wide box for the same reason. The work loop needed no change (no run →
+  `null` → skipped). (3) 12 new tests (`layerSwitch.test.ts`, 30 in all), incl. the leg-end,
+  short-leg, diagonal and remaining-not-whole-leg cases. 10/11 mutants killed; one survivor first
+  (the run checked every 60 instead of 20) closed with a thin-post test. The other survivor is
+  equivalent: multiplying by `LAYER_DISSOLVE_SECONDS` while it is 1. Full suite 7333 green plus
+  the known Task 18 50-gem load timeout.
+
+- [x] **Task 33: Split the scene layers; robots per layer; clicks; the four tints**
+
+  **Description:** `OceanScene` (spec §1.10): `back` (water, ridge, background buildings, tint A)
+  → `robots-back` (moving) → `mid` (tint B, midground buildings and pipe bridges, tint C, the
+  ground line) → `bubbles` → `robots` → `front` (tint D, foreground buildings). The four tints
+  replace `gradient-0-1`/`gradient-1-2` with spec §1.10's table values; the ground line moves to
+  `mid` (it is a midground silhouette, T32). Robots render in the list for their `Robot.layer`
+  (all `'foreground'` until T34). Layer `pointer-events: none` everywhere; `.robot`
   `pointer-events: auto`.
 
   **Acceptance criteria:**
-  - [ ] DOM order of `data-scene-layer` matches the stack; a robot with `layer: 'background'`
-        renders in `robots-back`.
+  - [ ] DOM order of `data-scene-layer` matches the stack; each tint sits where the table says,
+        with its opacity and colours; a robot with `layer: 'background'` renders in `robots-back`.
+  - [ ] Coverage readout from the rendered tints equals the sketch's (44 / 46 / 20 / 10 / 0 %,
+        pop 40 %) — one test computing 1 − Π(1 − α) per row from the DOM.
   - [ ] A click on a back-layer robot selects it (test dispatches through the stacked layers).
   - [ ] OceanScene and perf-harness layer selectors updated; existing scene tests pass.
 
-  **Verification:** `npx vitest run src/components/panels/screen/worldView`. **Dependencies:** T32.
+  **Verification:** `npx vitest run src/components/panels/screen/worldView`. **Dependencies:** T32b.
   **Files:** `OceanScene.tsx`, `OceanScene.css` (+ test), `scripts/perf/idle-paint.mjs` (its
-  selectors name `data-scene-layer` values — add `robots-back` and `mid`). **Scope:** M.
+  selectors name `data-scene-layer` values — add `robots-back` and `mid`; its `no-gradient-rects`
+  ablation hides `#gradient-back-mid, #gradient-mid-front` — point it at the four tints).
+  **Scope:** M.
 
-- [ ] **Task 34: Layer-aware legs; re-mount without a flourish**
+  **As shipped (2026-10-08, `feature/jobs-depth`):** (1) **Stack.** Six `SceneLayer`s as above;
+  `robots-back` is `moving` (its own compositor layer), `mid` static. The back row is
+  `<g id="robot-back-layer">` (rendered even when empty); the front row keeps `#robot-layer` and
+  the station fragments. Two `useShallow` id selectors, one per row (`layer === 'background'` →
+  back, anything else incl. unset → front), so a robot changing rows re-renders the scene and
+  nothing else does. (2) **Tints.** A `DEPTH_TINTS` table in `OceanScene.tsx` (top colour + α) and
+  two local helpers: `TintGradient` (`#depth-tint-{A..D}`, both stops at α, defined in the
+  `<defs>` of the layer that draws it) and `TintRect` (`data-depth-tint="{slot}"`, full-screen,
+  `pointer-events="none"`). The old `gradient-0-1`/`gradient-1-2` and their rects are gone. The
+  ground line is in `mid`, after tint C. (3) **Clicks.** `.ocean-scene__layer--robots` is deleted;
+  every layer is `pointer-events: none` and `.robot` gets `pointer-events: auto` (SVG `auto` = painted
+  and visible, so a charging robot takes none). Stations now inherit `none` too (before, they sat
+  in the click-taking robots layer). (4) **Correction — coverage figures.** The sketch's readout
+  computed the background buildings over A, B, C and the midground over C only, leaving out D,
+  which its own rendered scene (and this stack) draws over both. The true readout is background
+  49 %, back-row robots 46 %, midground 28 %, front-row robots 10 %, foreground 0 %, pop 40 %:
+  the robot rows and the pop as signed off, the two building rows hazier than the readout said
+  but as Crawford saw them. The test asserts those; spec §1.10, the gate note above, Checkpoint E
+  and the sketch's `readout()` are corrected. (5) **Perf harness.** `ROBOTS`/`ROBOT_GROUPS` cover
+  both rows in every robot ablation, count and detach; `no-gradient-rects` hides
+  `rect[data-depth-tint]` plus the two old ids, so the same ablation runs on J3's build for T35; a
+  new per-layer element-count line names all six `data-scene-layer` values ("absent" on an older
+  build). (6) **Not done here:** spec §1.6 moves L4 and the exiting robots into `robots-back`; no
+  J4 task listed it (T34 doesn't), so exits still use the front-row fallback. Now **Task 34b**. (7) **Tests:**
+  `OceanScene.test.tsx` +17 (stack order, moving flags, rows per layer, the tint table, slots,
+  gradients per layer, the DOM coverage readout via `compareDocumentPosition`, row routing incl.
+  unset/empty/both-way moves and no re-render on a same-row write); new
+  `OceanScene.clicks.test.tsx` (5): the real `OceanScene.css` loaded into jsdom (which cascades and
+  inherits `pointer-events`) and the real `<Robot>` in both rows — every scene node outside a
+  `.robot` resolves to `none`, both rows' robots don't, and a click on the back-row robot selects
+  it; `OceanScene.css.test.ts` rewritten for the new rule. 16/16 mutants killed. Full suite 7355
+  green (the Task 18 50-gem timeout passed this run).
+
+- [x] **Task 34: Layer-aware legs; re-mount without a flourish; the dissolve**
 
   **Description:** The loop splits a leg at the switch point: swim there, write `layer` +
   `position`, mark the robot in the registry's `layerSwitching` set; `onRobotMounted` continues the
   leg; the robot `<g>` eases between scale 1 and `BACK_LAYER_SCALE` (0.75) over the second half.
   `RobotBody`/`useOrbiterMotion` skip the initial attach and re-register silently for a
-  `layerSwitching` mount. Flip `BACK_HOSTS_ENABLED` to true.
+  `layerSwitching` mount. The dissolve (spec §1.10): for `LAYER_DISSOLVE_SECONDS` after the
+  switch a copy of the robot in the row it left fades out (front → back) or in (back → front)
+  over the re-mounted robot; proposed as an SVG `<use>` of the robot's group in the other layer,
+  keyed and killed like the robot's other legs. Flip `BACK_HOSTS_ENABLED` to true.
 
   **Acceptance criteria:**
-  - [ ] A robot sent to a background site switches only at a clear point and arrives at 0.75; the
-        reverse trip restores 1 before any foreground site or station.
+  - [ ] A robot sent to a background site switches only at the start of a clear run and arrives
+        at 0.75; the reverse trip restores 1 before any foreground site or station.
+  - [ ] The dissolve: the copy fades 1 → 0 (front → back) or 0 → 1 (back → front) over
+        `LAYER_DISSOLVE_SECONDS`, the re-mounted robot stays at full opacity throughout, and the
+        copy is gone afterwards and on `stopWorkLoop`.
   - [ ] No orbiter attach hop on a layer-switch remount (spy on the attach tween).
   - [ ] Coverage still holds without background hosts (flag false → all J1–J3 tests green).
 
@@ -1594,17 +1727,185 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `src/components/robot/RobotBody.tsx`, `src/components/robot/gem/useOrbiterMotion.ts`,
   `src/constants/index.ts` (+ tests). **Scope:** M.
 
+  **As shipped (2026-10-08, `feature/jobs-depth`):** (1) **Back → front differs from the
+  description** (spec §1.10 "Shipped (Task 34)"). If the robot re-mounted in front at the switch
+  point at full opacity, it would cover the back copy and the haze would pop anyway. So in both
+  directions the *front* copy fades and the *back* robot is opaque. Front → back re-mounts at the
+  switch point and the copy fades 1 → 0. Back → front keeps the robot in the back row while the copy
+  fades 0 → 1, and re-mounts in front only when the swim and the fade are both done, at rest under
+  an identical opaque copy. The criteria hold as written. (2) **The `<use>` copy, checked in
+  headless Chrome first:** it follows live transforms across the two inline `<svg>`s, an inner
+  scaled group included, and resolves the other `<svg>`'s gradient. It lives in a new empty
+  `<g id="robot-dissolve-layer">` in the robots layer (after `#robot-layer`), registered with
+  `setRef('robot-dissolve-layer')`, and points at `#world-robot-{id}`, a new id on Robot.tsx's
+  group. It is keyed `dissolve-{id}` (in `LOOP_KEY_PREFIXES`), ended (fade killed, copy removed) by
+  `killLegs`, by a new `dropLeg` (recall and turn-back, which before killed only the swim and bob)
+  and by `stopWorkLoop`. A new dissolve ends any earlier one first. (3) **Scale on a new `.robot__row`
+  wrapper,** with `svgOrigin` at the gem canvas centre, because `.robot` scales about its bounding
+  box, not the frame `sceneToOrbiterLocal` assumes. `swimTo` takes the destination row's scale and
+  eases the row over the swim when it isn't there already; `adopt` places it before any branch (the
+  first cut set it only on the resume path, so an exiting robot kept a stale scale; a test caught
+  it); `hideAtStation` puts a back-row robot in the front row at 1; the job gets `layerScale`
+  `rowScale(robot.layer)`. (4) **Legs:** a new `legTo` splits a leg into the other row: the site leg
+  uses the switch point the decision already found (`reachable` records it, so
+  `findLayerSwitchPoint` is asked once), and the station leg asks its own. A station leg with
+  none switches where the robot is, since sites with none are skipped but stations can't be. With no body there is
+  nothing to re-mount and the leg goes straight on. (5) **Re-mount:** `markLayerSwitching` /
+  `isLayerSwitching` / `clearLayerSwitching` in the registry; the loop holds each continuation in
+  `LoopRun.remounts`; `onRobotMounted` always clears the mark and runs the continuation, or adopts
+  if the leg was dropped in between; `useOrbiterMotion` (world only) shows the shown corners docked
+  at once. `RobotBody` needed no change (the decorator's registration was already silent; halo and
+  flicker play nothing on mount). (6) **`BACK_HOSTS_ENABLED` = true.** The J1–J3 `workLoop` tests
+  start with `backHosts: false` and their `SITES` fixture is built that way, so they are the "flag
+  false" run of the coverage criterion; `lifecycleSim` and the rest of the suite pass with it true.
+  (7) **Tests:** `workLoop.test.ts` +25: front → back, back → front, same-row legs, adoption and
+  Docked scale, the 0.75 value, and the flag default split in two. Interruptions covered: stop
+  mid-fade, stop before the re-mount, stop after a back → front fade, recall mid-swim, a re-mount
+  after a dropped leg, a plain re-mount mid-fade, a new switch while an old fade runs.
+  `useOrbiterMotion.test.tsx` +5, `robotMotionRegistry.test.ts` +4, `Robot.test.tsx` +3,
+  `OceanScene.test.tsx` +2. 29/29 mutants killed: 26 on the first pass, and 3 survivors closed
+  with tests (a dropped leg's stale continuation; a new switch overlapping a running fade; 0.75
+  itself, which every test read only through the constant). The overlapping-fade test failed at
+  first: an out-fade's completion removed copies *by robot id*, so a stale one could take a newer
+  copy. It now removes only its own `<use>`. Full suite 7394 green. One unrelated LFO Bank store
+  test (`audioStore.test.ts`, Attenuation-Style sync) failed once in one full run and passed alone
+  and in the next full run; not chased. **For
+  Checkpoint E:** the switch itself is unverified in a browser (jsdom has no paint). Watch the
+  copy's alignment, the 0.75 ease, and whether the robot drawn twice after a back → front fade
+  shows.
+
+- [x] **Task 34b: The station's back fragment and exiting robots in the back row**
+
+  **Why:** spec §1.6 (the Task 0a correction) puts **L4 and the exiting robots in `robots-back`**:
+  back to front, L4 · exiting robots · L3 · entering robots · L2 · halo + ripple · L1, with the
+  exit arc growing from `STATION_PORT_SCALE` to the back row's scale. J2 shipped the fallback
+  (spec §1.6 "Shipped (J2)", plan T20 (12)): every robot, exiting ones included, draws in
+  `#robot-layer`, so an exiting robot appears *above* L3, not behind it. J2 deferred it to J4's
+  layer work, but no J4 task listed it (found at T33). Added 2026-10-08 at Crawford's request.
+
+  **Description:** `OceanScene` moves `#station-l4-layer` from `robots` to the bottom of
+  `robots-back`, under `#robot-back-layer`. `exitStation` writes `layer: 'background'` before the
+  arc (the robot is hidden at the port, `autoAlpha` 0, so the re-mount shows nothing; mark it
+  `layerSwitching` like any switch), and the spawn arc ends at the row's scale: `.robot` 0.15 → 1
+  with `.robot__row` at `BACK_LAYER_SCALE`. Its `next()` then leaves from the back row: a
+  background site is a same-row swim, and a front site or a station is a back → front leg with
+  T34's split and dissolve. Entering is unchanged (front row, between L3 and L2). Spec §1.10's
+  "Which layer" rule ("stations are front") gains the exception: `'exiting'` is back.
+
+  **Decide first (Crawford), each with the plan's recommendation:**
+  - **Q1. L4's haze.** In `robots-back`, L4 sits under tints B, C and D (1 − .75·.8·.9 = 46 %),
+    while L3–L1 sit under D only (10 %), so a station's back plate reads hazier than the rest of
+    it. *Recommend:* accept, since that is depth, and judge it live at Checkpoint E. The alternative,
+    L4 in front and only the exiting robot in the back row, breaks "L4 behind the exiting robot".
+  - **Q2. Midground in front of a station's back plate.** Stations avoid only hosts' work-site
+    bounds (`stations.ts` `hostObstacles`, and even that rule goes when no layout fits). A
+    station can overlap a midground silhouette: a rooftop greeble, non-host scenery, a pipe
+    bridge, a ground step. Wherever it does, that silhouette draws *between* L4 and L3, and in
+    front of the exiting robot. *Recommend:* measure first, over the 121-seed grid, how many
+    stations' boxes overlap `getMidgroundSilhouettes`. None: go ahead. Some: stop and report, with
+    the options (add midground silhouettes to station obstacles, which moves stations in those
+    worlds; or keep L4 in front for an overlapping station only).
+  - **Q3. Every exit to a front site becomes a back → front switch** right after the arc: a second
+    fade and a scale ease 0.75 → 1 within a second or two of appearing. *Recommend:* accept, and
+    watch it live. The alternative is to exit at scale 1 in the front row and only *look* emerged
+    from behind L3, which isn't the spec's design.
+
+  **Acceptance criteria:**
+  - [ ] DOM order: `robots-back` is `#station-l4-layer` then `#robot-back-layer`; `robots` is
+        `#station-l3-layer`, `#robot-layer`, `#robot-dissolve-layer`, `#station-front-layer`; no
+        L4 left in `robots`.
+  - [ ] An exiting robot is written `layer: 'background'` (marked, while still hidden) before its
+        arc, renders in `#robot-back-layer` above L4, and its arc ends with `.robot` at 1 and
+        `.robot__row` at `BACK_LAYER_SCALE`. No orbiter attach hop on that re-mount.
+  - [ ] After the exit: a background site is a same-row swim (no copy); a front site is a split
+        leg with the T34 dissolve; a recall mid-arc still enters from the front row.
+  - [ ] `adopt` of an `'exiting'`/`'charging'`-but-Active robot, and the power-on exits at world
+        open, go through the same path: twelve robots exiting at once re-mount without a frame
+        shown at the wrong scale or row.
+  - [ ] Q2's measurement is recorded with its numbers, and the go-ahead or the stop is recorded.
+
+  **Verification:** `npx vitest run src/systems/workLoop.test.ts src/components/panels/screen/worldView src/components/stations`.
+  **Dependencies:** T34; Q1–Q3 answered. **Files:** `OceanScene.tsx` (+ test),
+  `src/systems/workLoop.ts` (+ test), `src/components/stations/ChargingStation.tsx` (its header
+  comment), spec §1.6 / §1.10 Shipped notes, `scripts/perf/idle-paint.mjs` if its stack count
+  should report L4 under the back row. **Scope:** S–M.
+
+  **As shipped (2026-10-08, `feature/jobs-depth`):** (1) **Q1–Q3.** Crawford asked for the task to
+  be implemented without answering, so the plan's recommendations stand: L4's haze and the
+  post-exit switch are accepted and get judged at Checkpoint E. Q2 was measured first and passed.
+  0 of 284 station boxes overlap a midground silhouette over the 121-seed grid (the station gem's
+  outlines are inside its box, per `stationGem.test.ts`). 0 of 284 ports overlap one even for the
+  worst-case exiting robot: the widest gem of 3 000 seeds, at body scale `calculateBodyScale([1, 3], 1)`
+  (1.69) × 0.75. Both checks are now guards in `stations.test.ts`. (2) **Scene:** `#station-l4-layer`
+  is the first group in `robots-back`, under `#robot-back-layer`; `robots` is L3 · `#robot-layer`
+  · `#robot-dissolve-layer` · front. (3) **`exitStation`:** a robot not already in the back row is
+  hidden (`autoAlpha` 0, so nothing shows in the old row, even mid-arc after an interruption), then
+  moved with T34's `moveToRow` (marked, `layer` written, the arc waits for the re-mount). The arc
+  then plays on the new body with `.robot__row` placed at `BACK_LAYER_SCALE`: `.robot` 0.15 → 1, so
+  the robot grows 0.11 → 0.75 overall, a hair smaller at the start than the spec's 0.15. A robot
+  already in the back row exits at once. With no body, the layer is written and the arc runs as a
+  timer. Every exit goes through it (adoption, `next()`, `'active'` while charging, the turn-back at
+  the port), so power-on's twelve exits do too: each is hidden on mount, then moved before any
+  arc. (4) **Test harness:** the J2 station tests and `workLoop.integration.test.ts` expect an exit
+  to start at once. In the app, React's re-mount is what continues it, so both now stand in for
+  React: when a marked robot's `layer` changes, the same body hands itself back through
+  `onRobotMounted`. The T34/T34b tests swap in a new body instead. (5) **Docs:** spec §1.6 Shipped
+  (J4) note, §1.10 "Which layer" exception, ROBOT_LIFECYCLE.md's J2 known gap closed,
+  ChargingStation.tsx's header, the perf harness's stack comment. (6) **Tests:**
+  `workLoop.test.ts` +12, `OceanScene.test.tsx` +1 (and 2 rewritten), `stations.test.ts` +2
+  guards (green from the start: they record a measurement, and a mutant with a full-screen
+  silhouette fails both). 8/8 mutants killed on the first pass. Full suite green apart from two
+  load timeouts in untouched files, both passing alone: the known Task 18 50-gem test, and a new
+  one, Task 28's `buildJobTimeline` "every job lasts" (5.1 s against vitest's 5 s, 1.7 s alone).
+  A second full run had the Task 18 timeout plus an unrelated random collision: the
+  `CompanyRenameDeleteForm` suggestion "Iron Consortium" equalled the company's own name. It passed
+  3/3 alone and wasn't chased.
+
 ### Checkpoint E: J4 live
-- [ ] Clean build/lint/types/suite. Crawford, live: robots work among background buildings, never
+- [x] Clean build/lint/types/suite. Crawford, live: robots work among background buildings, never
       pop through a midground silhouette, no hitch at a layer switch (spec §7 Q3 — a hitch is a
-      stop-and-report).
+      stop-and-report), the dissolve reads as a blend, and the new tints on the real buildings
+      (judged on flat boxes in the sketch — background 49 %, midground 28 %, every robot 10 %; the
+      sketch's readout said 44 % and 20 %, see Task 33's As shipped).
+      Note for the hitch call: the split leg brings the robot to rest at the switch point (two
+      sine.inOut swims). With T34b: a robot exiting from behind L3, L4's extra haze (Q1), and the
+      back → front switch that follows an exit to a front site (Q3).
 
-- [ ] **Task 35: J4 perf gate + Pixel — stop and report**
+  **Passed 2026-10-08 (Crawford, live, at `a81dbeab`).** That settles T34b's Q1 (L4's haze) and Q3
+  (the switch after an exit) as accepted, and the T34 points: the back → front dissolve, the
+  copy's alignment and the 0.75 ease. The code side: `npm run build` clean (only Vite's chunk-size
+  warning), types clean, lint 0 errors (2 warnings in untouched scenery files). The suite was
+  green at T34b apart from load timeouts and one random collision in untouched files (T34b's As
+  shipped).
 
-  **Description:** As T26 against J3's tip, plus the extra compositor layers' memory. Crawford's
-  Pixel run is the gate. A miss: J4 does not merge; `BACK_HOSTS_ENABLED` stays false on main.
+- [x] **Task 35: J4 perf gate + Pixel — stop and report**
+
+  **Description:** As T26 against J3's tip, plus the extra compositor layers' memory and the four
+  full-screen tints (two more than today, in static layers). Crawford's Pixel run is the gate. A miss: J4 does not merge; `BACK_HOSTS_ENABLED` stays false on main.
 
   **Files:** `docs/PERFORMANCE.md`. **Scope:** S.
+
+  **As run (2026-10-08), harness half; the task stays open for Crawford's call and the Pixel run:**
+  branch `f6c3d16c` vs J3's tip `409957d7`, same-session A/B, pinned world, four alternated rounds
+  (PERFORMANCE.md "Robot Jobs J4"). Medians: busy 2813 vs 2665 ms (+5.5 %, inside the base's spread,
+  no change), **paint 208 vs 177 ms (+17 %, outside the base's 166–185 spread, higher in 4 of 4
+  pairs): a miss by the J1–J3 rule.** That's about +31 ms per 6 s window, under 0.1 ms per frame.
+  Localized: the extra moving layer (`robots-back` repaints every frame like `robots`; together
+  +12 ms) and a root paint that's 17 ms higher, with a matching residual with robots hidden. That
+  makes it a fixed cost of the extra layers, not of robots; the robots' own paint isn't higher.
+  The tints cost 0 at idle (static layers). **Memory:** +2 compositor layers (`robots-back`, and
+  `mid`, which Chrome must promote because it is painted over a composited layer): +8.3 MB on
+  desktop and +9.3 MB at phone width × DPR 2, estimated ≈ +17 MB on a Pixel 8. `idle-paint.mjs`
+  gained the compositor-layer readout (counts, the scene's composited layers by
+  `data-scene-layer`, an estimate in MB scaled by DPR²).
+
+  **Pixel run passed 2026-10-08** (the gate). Crawford ran `89077960` on the Pixel from the LAN
+  production preview (`npm run build && npx vite preview --host --port 4173`) "on high", in landscape,
+  for 3 minutes: "it was great". So the harness's paint miss (+31 ms per 6 s, the two extra layers)
+  is accepted as J4's cost, and `BACK_HOSTS_ENABLED` stays on. "High" isn't one of the Audio Load
+  Budget's names (Light, Standard, Full); which setting it was is recorded as Crawford said it.
+  Task 35 is done.
+
 
 - [ ] **Task 36: Final docs**
 

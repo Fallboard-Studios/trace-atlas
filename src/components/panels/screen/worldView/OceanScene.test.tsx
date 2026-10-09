@@ -8,8 +8,11 @@ import type { ReactElement } from 'react';
 // A plain vi.fn(), not React.memo-wrapped — deliberately, so its own call count is a reliable
 // proxy for "did OceanScene's render body reconstruct the robot layer again" (docs/todo/
 // backlog.md #27 follow-up, 2026-09-15), the same "unmemoized mock as a render-count marker"
-// technique RobotOptionsTab.test.tsx/CompanyOptionsSection.test.tsx already use.
-vi.mock('@/components/robot/Robot', () => ({ Robot: vi.fn(() => null) }));
+// technique RobotOptionsTab.test.tsx/CompanyOptionsSection.test.tsx already use. It draws a marker
+// per robot id, so the robot-layer tests can read which row each robot landed in.
+vi.mock('@/components/robot/Robot', () => ({
+  Robot: vi.fn((props: { robotId: string }) => <g data-robot-mock={props.robotId} />),
+}));
 // Render an identifying marker (actor id + row) rather than null, so the scenery-interleave
 // tests below can assert document order without needing the real Factory/Scenery visuals.
 vi.mock('@/components/actors/Factory', () => ({
@@ -73,6 +76,9 @@ import { getStations } from '@/systems/stations';
 import { ActorType } from '@/types/Actor';
 import type { Actor } from '@/types/Actor';
 import type { Robot as RobotType } from '@/types/Robot';
+import colorTheme from '@/constants/colorTheme.json';
+import { hslToString } from '@/utils/colorUtils';
+import { getRef } from '@/utils/refs';
 
 function makeRobot(overrides: Partial<RobotType> = {}): RobotType {
   return {
@@ -244,12 +250,15 @@ describe('OceanScene', () => {
       });
     });
 
-    it('renders four svg layers in back → bubbles → robots → front order, all inside the scene box', () => {
+    // Phase 43 J4 (spec §1.10): the back robot row and the midground split out of `back`.
+    it('renders six svg layers in back → robots-back → mid → bubbles → robots → front order, all inside the scene box', () => {
       const { container } = render(<OceanScene />);
       const scene = container.querySelector('.ocean-scene');
       expect(scene?.tagName.toLowerCase()).toBe('div');
       const layers = Array.from(scene!.querySelectorAll(':scope > svg.ocean-scene__layer'));
-      expect(layers.map((l) => l.getAttribute('data-scene-layer'))).toEqual(['back', 'bubbles', 'robots', 'front']);
+      expect(layers.map((l) => l.getAttribute('data-scene-layer'))).toEqual(
+        ['back', 'robots-back', 'mid', 'bubbles', 'robots', 'front'],
+      );
     });
 
     it('every layer shares the viewBox and the cover (slice) fit of the old single svg', () => {
@@ -260,27 +269,240 @@ describe('OceanScene', () => {
       }
     });
 
-    it('marks the robots and bubbles layers as moving, and the back and front layers as not', () => {
+    it('marks both robot layers and the bubbles layer as moving, and the back, mid and front layers as not', () => {
       const { container } = render(<OceanScene />);
       const byName = (name: string) => container.querySelector(`svg[data-scene-layer="${name}"]`)!;
-      expect(byName('robots').classList.contains('ocean-scene__layer--moving')).toBe(true);
-      expect(byName('robots').classList.contains('ocean-scene__layer--robots')).toBe(true);
-      expect(byName('bubbles').classList.contains('ocean-scene__layer--moving')).toBe(true);
-      expect(byName('back').classList.contains('ocean-scene__layer--moving')).toBe(false);
-      expect(byName('front').classList.contains('ocean-scene__layer--moving')).toBe(false);
+      for (const name of ['robots-back', 'bubbles', 'robots']) {
+        expect(byName(name).classList.contains('ocean-scene__layer--moving')).toBe(true);
+      }
+      for (const name of ['back', 'mid', 'front']) {
+        expect(byName(name).classList.contains('ocean-scene__layer--moving')).toBe(false);
+      }
     });
 
-    it('keeps the factory rows and the robot layer in their layers: background + midground (with the depth gradients) in back, robots in robots, foreground in front', () => {
+    it('gives no layer a click-taking modifier — clicks are .robot\'s alone (spec §1.10)', () => {
       const { container } = render(<OceanScene />);
-      const back = container.querySelector('svg[data-scene-layer="back"]')!;
-      expect(back.querySelector('#factory-background-layer')).not.toBeNull();
-      expect(back.querySelector('#gradient-back-mid')).not.toBeNull();
-      expect(back.querySelector('#factory-midground-layer')).not.toBeNull();
-      expect(back.querySelector('#gradient-mid-front')).not.toBeNull();
-      expect(back.querySelector('#factory-foreground-layer')).toBeNull();
-      expect(container.querySelector('svg[data-scene-layer="robots"] #robot-layer')).not.toBeNull();
-      expect(container.querySelector('svg[data-scene-layer="front"] #factory-foreground-layer')).not.toBeNull();
-      expect(container.querySelector('svg[data-scene-layer="front"] #robot-layer')).toBeNull();
+      for (const layer of container.querySelectorAll('svg.ocean-scene__layer')) {
+        expect(layer.classList.contains('ocean-scene__layer--robots')).toBe(false);
+      }
+    });
+
+    it('keeps each row in its layer: background in back, midground in mid, the robot rows in robots-back and robots, foreground in front', () => {
+      const { container } = render(<OceanScene />);
+      const layerOf = (selector: string) =>
+        container.querySelector(selector)?.closest('svg.ocean-scene__layer')?.getAttribute('data-scene-layer');
+      expect(layerOf('#factory-background-layer')).toBe('back');
+      expect(layerOf('#robot-back-layer')).toBe('robots-back');
+      expect(layerOf('#factory-midground-layer')).toBe('mid');
+      expect(layerOf('#robot-layer')).toBe('robots');
+      expect(layerOf('#factory-foreground-layer')).toBe('front');
+      expect(container.querySelectorAll('#factory-background-layer, #factory-midground-layer, #factory-foreground-layer'))
+        .toHaveLength(3);
+    });
+
+    it('drops the old two depth gradients for the four tints', () => {
+      const { container } = render(<OceanScene />);
+      for (const id of ['gradient-back-mid', 'gradient-mid-front', 'gradient-0-1', 'gradient-1-2']) {
+        expect(container.querySelector(`#${id}`)).toBeNull();
+      }
+      expect(container.querySelectorAll('rect[data-depth-tint]')).toHaveLength(4);
+    });
+
+    // The four depth tints (spec §1.10's table, the depth-tint sketch gate, Crawford 2026-10-08).
+    describe('depth tints (Phase 43 Task 33)', () => {
+      const NAVY = '#0c1c4f';
+      const VENT_SHADOW = hslToString(colorTheme.vent.shadow);
+
+      /** The tint rect for a slot, and the two stops of the gradient its fill points at. */
+      function tint(container: HTMLElement, slot: 'A' | 'B' | 'C' | 'D') {
+        const rect = container.querySelector(`rect[data-depth-tint="${slot}"]`);
+        expect(rect).not.toBeNull();
+        const fill = rect!.getAttribute('fill') ?? '';
+        const gradientId = /^url\(#(.+)\)$/.exec(fill)?.[1];
+        expect(gradientId).toBeDefined();
+        const gradient = container.querySelector(`linearGradient[id="${gradientId}"]`);
+        expect(gradient).not.toBeNull();
+        const stops = Array.from(gradient!.querySelectorAll('stop')).map((s) => ({
+          color: s.getAttribute('stop-color'),
+          opacity: Number(s.getAttribute('stop-opacity')),
+        }));
+        expect(stops).toHaveLength(2);
+        return { rect: rect!, gradient: gradient!, stops };
+      }
+
+      const layerOf = (el: Element) => el.closest('svg.ocean-scene__layer')!.getAttribute('data-scene-layer');
+      /** The layer's drawn children (its <defs> aside), in document order. */
+      const drawn = (container: HTMLElement, layer: string) =>
+        Array.from(container.querySelector(`svg[data-scene-layer="${layer}"]`)!.children)
+          .filter((el) => el.tagName.toLowerCase() !== 'defs');
+
+      it('each tint covers the whole scene and takes no clicks', () => {
+        const { container } = render(<OceanScene />);
+        for (const slot of ['A', 'B', 'C', 'D'] as const) {
+          const { rect } = tint(container, slot);
+          expect(rect.getAttribute('x')).toBe('0');
+          expect(rect.getAttribute('y')).toBe('0');
+          expect(rect.getAttribute('width')).toBe('1920');
+          expect(rect.getAttribute('height')).toBe('1080');
+          expect(rect.getAttribute('pointer-events')).toBe('none');
+        }
+      });
+
+      it.each([
+        ['A', NAVY, 0.06],
+        ['B', NAVY, 0.25],
+        ['C', VENT_SHADOW, 0.2],
+        ['D', VENT_SHADOW, 0.1],
+      ] as const)('tint %s runs %s → vent.shadow at opacity %d, top to bottom', (slot, topColor, alpha) => {
+        const { container } = render(<OceanScene />);
+        const { gradient, stops } = tint(container, slot);
+        expect(gradient.getAttribute('x1')).toBe('0%');
+        expect(gradient.getAttribute('y1')).toBe('0%');
+        expect(gradient.getAttribute('x2')).toBe('0%');
+        expect(gradient.getAttribute('y2')).toBe('100%');
+        expect(stops).toEqual([
+          { color: topColor, opacity: alpha },
+          { color: VENT_SHADOW, opacity: alpha },
+        ]);
+      });
+
+      it('each tint\'s gradient lives in the layer that draws it', () => {
+        const { container } = render(<OceanScene />);
+        for (const slot of ['A', 'B', 'C', 'D'] as const) {
+          const { rect, gradient } = tint(container, slot);
+          expect(layerOf(gradient)).toBe(layerOf(rect));
+        }
+      });
+
+      it('A is the top of back, over the background buildings and their pipe bridges', () => {
+        const { container } = render(<OceanScene />);
+        const children = drawn(container, 'back');
+        expect(children.at(-1)!.getAttribute('data-depth-tint')).toBe('A');
+        expect(children.findIndex((el) => el.id === 'factory-background-layer')).toBeLessThan(children.length - 1);
+      });
+
+      it('B is the bottom of mid; C sits over the midground and its pipe bridges, under the ground line', () => {
+        const { container } = render(<OceanScene />);
+        const children = drawn(container, 'mid');
+        expect(children[0].getAttribute('data-depth-tint')).toBe('B');
+        const midground = children.findIndex((el) => el.id === 'factory-midground-layer');
+        const c = children.findIndex((el) => el.getAttribute('data-depth-tint') === 'C');
+        const ground = children.findIndex((el) => el.getAttribute('data-terrain') === 'ground');
+        expect(midground).toBeGreaterThan(0);
+        expect(c).toBeGreaterThan(midground);
+        expect(ground).toBe(children.length - 1);
+        expect(c).toBe(ground - 1);
+      });
+
+      it('D is the bottom of front, under the foreground buildings', () => {
+        const { container } = render(<OceanScene />);
+        const children = drawn(container, 'front');
+        expect(children[0].getAttribute('data-depth-tint')).toBe('D');
+        expect(children.findIndex((el) => el.id === 'factory-foreground-layer')).toBeGreaterThan(0);
+      });
+
+      // One readout of the haze each row sits under, read off the rendered DOM: the layers stack in
+      // document order, so a row is hazed by every tint that follows it. The sketch's own readout
+      // (docs/sketches/robot-depth-tint.html) left D out of the two building rows and printed 44 %
+      // and 20 %; its rendered scene, like this one, puts D over them too, so the honest figures are
+      // 1 − .94·.75·.8·.9 ≈ 49 % and 1 − .8·.9 = 28 %. The robot rows and the pop are as signed off.
+      it('coverage 1 − Π(1 − α) per row: background 49 %, back-row robots 46 %, midground 28 %, front-row robots 10 %, foreground 0 %, pop 40 %', () => {
+        const { container } = render(<OceanScene />);
+        const tints = (['A', 'B', 'C', 'D'] as const).map((slot) => {
+          const { rect, stops } = tint(container, slot);
+          return { rect, alpha: stops[0].opacity };
+        });
+        const isAfter = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+        const coverage = (pred: (rect: Element) => boolean) =>
+          1 - tints.filter((t) => pred(t.rect)).reduce((acc, t) => acc * (1 - t.alpha), 1);
+        const over = (selector: string) => {
+          const row = container.querySelector(selector)!;
+          return coverage((rect) => isAfter(row, rect));
+        };
+
+        expect(over('#factory-background-layer')).toBeCloseTo(1 - 0.94 * 0.75 * 0.8 * 0.9, 10);
+        expect(over('#robot-back-layer')).toBeCloseTo(1 - 0.75 * 0.8 * 0.9, 10);
+        expect(over('#factory-midground-layer')).toBeCloseTo(1 - 0.8 * 0.9, 10);
+        expect(over('#robot-layer')).toBeCloseTo(0.1, 10);
+        expect(over('#factory-foreground-layer')).toBe(0);
+        // Rounded, as the sketch prints them.
+        expect(Math.round(over('#factory-background-layer') * 100)).toBe(49);
+        expect(Math.round(over('#robot-back-layer') * 100)).toBe(46);
+        expect(Math.round(over('#factory-midground-layer') * 100)).toBe(28);
+        // The pop at a row switch: the tints between the two robot rows.
+        const back = container.querySelector('#robot-back-layer')!;
+        const front = container.querySelector('#robot-layer')!;
+        expect(coverage((rect) => isAfter(back, rect) && isAfter(rect, front))).toBeCloseTo(0.4, 10);
+      });
+    });
+
+    // Spec §1.10 "Which layer": each robot renders in its `Robot.layer`'s list; unset = foreground.
+    describe('robot rows (Phase 43 Task 33)', () => {
+      const idsIn = (container: HTMLElement, groupId: string) =>
+        Array.from(container.querySelectorAll(`#${groupId} > [data-robot-mock]`)).map((el) => el.getAttribute('data-robot-mock'));
+
+      it("renders a robot with layer 'background' in robots-back, and 'foreground' or unset in robots", () => {
+        useLocaleStore.setState({
+          locales: {
+            [DEFAULT_LOCALE_ID]: {
+              ...DEFAULT_LOCALE,
+              robots: [
+                makeRobot({ id: 'r1' }),
+                makeRobot({ id: 'r2', layer: 'background' }),
+                makeRobot({ id: 'r3', layer: 'foreground' }),
+                makeRobot({ id: 'r4', layer: 'background' }),
+              ],
+              actors: [],
+            },
+          },
+        });
+        const { container } = render(<OceanScene />);
+        expect(idsIn(container, 'robot-back-layer')).toEqual(['r2', 'r4']);
+        expect(idsIn(container, 'robot-layer')).toEqual(['r1', 'r3']);
+        // Each robot drawn exactly once.
+        expect(container.querySelectorAll('[data-robot-mock]')).toHaveLength(4);
+      });
+
+      it('an empty back row still renders its group (the perf harness and Task 34 key on it)', () => {
+        const { container } = render(<OceanScene />);
+        expect(container.querySelector('svg[data-scene-layer="robots-back"] > #robot-back-layer')).not.toBeNull();
+        expect(idsIn(container, 'robot-back-layer')).toEqual([]);
+        expect(idsIn(container, 'robot-layer')).toEqual(['r1']);
+      });
+
+      it('moves a robot between the rows when its layer changes, both ways', () => {
+        const { container } = render(<OceanScene />);
+        act(() => {
+          useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { layer: 'background' });
+        });
+        expect(idsIn(container, 'robot-back-layer')).toEqual(['r1']);
+        expect(idsIn(container, 'robot-layer')).toEqual([]);
+        act(() => {
+          useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { layer: 'foreground' });
+        });
+        expect(idsIn(container, 'robot-back-layer')).toEqual([]);
+        expect(idsIn(container, 'robot-layer')).toEqual(['r1']);
+      });
+
+      it("still doesn't re-render either row for a write that leaves every robot's layer alone", () => {
+        useLocaleStore.setState({
+          locales: {
+            [DEFAULT_LOCALE_ID]: {
+              ...DEFAULT_LOCALE,
+              robots: [makeRobot({ id: 'r1' }), makeRobot({ id: 'r2', layer: 'background' })],
+              actors: [],
+            },
+          },
+        });
+        render(<OceanScene />);
+        const calls = () => (Robot as unknown as ReturnType<typeof vi.fn>).mock.calls.length;
+        const callsAfterMount = calls();
+        act(() => {
+          useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r2', { batteryLevel: 40, position: { x: 5, y: 6 } });
+          useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { layer: 'foreground' });
+        });
+        expect(calls()).toBe(callsAfterMount);
+      });
     });
 
     it('hands the bubble layer every actor (all rows) and the locale-wide bubble-eligible count', () => {
@@ -333,20 +555,26 @@ describe('OceanScene', () => {
     // must stand behind every factory, and the ground must bury under midground bases, so
     // their document-order position relative to the existing groups is load-bearing, not
     // cosmetic.
-    it('renders the ridge before the background factory group, and the ground after the mid/front gradient, both in the back layer', () => {
+    // Phase 43 Task 33: the ground line is a midground silhouette (Task 32), so it moved to `mid`,
+    // still after the over-midground tint (C, today's gradient-1-2's slot) so bases bury under it.
+    it('renders the ridge before the background factory group in back, and the ground after the midground and tint C in mid', () => {
       const { container } = render(<OceanScene />);
-      const back = container.querySelector('svg[data-scene-layer="back"]')!;
-      const children = Array.from(back.children);
+      const back = Array.from(container.querySelector('svg[data-scene-layer="back"]')!.children);
+      const mid = Array.from(container.querySelector('svg[data-scene-layer="mid"]')!.children);
 
-      const ridgeIndex = children.findIndex((el) => el.getAttribute('data-terrain') === 'ridge');
-      const backgroundIndex = children.findIndex((el) => el.id === 'factory-background-layer');
-      const gradientMidFrontIndex = children.findIndex((el) => el.id === 'gradient-mid-front');
-      const groundIndex = children.findIndex((el) => el.getAttribute('data-terrain') === 'ground');
+      const ridgeIndex = back.findIndex((el) => el.getAttribute('data-terrain') === 'ridge');
+      const backgroundIndex = back.findIndex((el) => el.id === 'factory-background-layer');
+      const midgroundIndex = mid.findIndex((el) => el.id === 'factory-midground-layer');
+      const tintCIndex = mid.findIndex((el) => el.getAttribute('data-depth-tint') === 'C');
+      const groundIndex = mid.findIndex((el) => el.getAttribute('data-terrain') === 'ground');
 
       expect(ridgeIndex).toBeGreaterThanOrEqual(0);
-      expect(groundIndex).toBeGreaterThanOrEqual(0);
       expect(ridgeIndex).toBeLessThan(backgroundIndex);
-      expect(groundIndex).toBeGreaterThan(gradientMidFrontIndex);
+      expect(midgroundIndex).toBeGreaterThanOrEqual(0);
+      expect(groundIndex).toBeGreaterThan(tintCIndex);
+      expect(tintCIndex).toBeGreaterThan(midgroundIndex);
+      expect(container.querySelectorAll('[data-terrain="ground"]')).toHaveLength(1);
+      expect(container.querySelectorAll('[data-terrain="ridge"]')).toHaveLength(1);
     });
 
     // Water column (docs/specs/WORLD_VIEW_DISTRICTS.md §1.5, roadmap Phase 42 Task 8): replaces
@@ -393,28 +621,75 @@ describe('OceanScene', () => {
   // fragments per station interleaved with the robots, back to front L4 · (exiting robots) · L3 ·
   // robots · L2 + halo + L1. Exits use the slot between L4 and L3 until J4's back row lands.
   describe('charging stations (Phase 43 Task 20)', () => {
-    it("renders every station's fragments around the robot group: L4, then L3, then the robots, then the front", () => {
+    // Phase 43 Task 34b (spec §1.6): back to front, L4 · exiting robots · L3 · entering robots · L2 ·
+    // halo + ripple · L1. L4 and the exiting robots are in the back robot row; L3 and the front
+    // fragment stay in the front row around the front robots.
+    it("renders every station's fragments around the robot rows: L4 under the back row, L3 and the front around the front row", () => {
       useLocaleStore.setState({
         locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [makeRobot({ id: 'r1' })], actors: [] } },
       });
       const stations = getStations(DEFAULT_LOCALE_ID);
       expect(stations.length).toBeGreaterThanOrEqual(2);
       const { container } = render(<OceanScene />);
-      const robotsLayer = container.querySelector('svg[data-scene-layer="robots"]')!;
-      const groups = Array.from(robotsLayer.querySelectorAll(':scope > g')).map((g) => g.id);
-      expect(groups).toEqual(['station-l4-layer', 'station-l3-layer', 'robot-layer', 'station-front-layer']);
-      for (const [id, fragment] of [['station-l4-layer', 'l4'], ['station-l3-layer', 'l3'], ['station-front-layer', 'front']] as const) {
-        const markers = Array.from(robotsLayer.querySelectorAll(`#${id} > g[data-station-mock]`));
+      const layer = (name: string) => container.querySelector(`svg[data-scene-layer="${name}"]`)!;
+      const groupsOf = (name: string) => Array.from(layer(name).querySelectorAll(':scope > g')).map((g) => g.id);
+      expect(groupsOf('robots-back')).toEqual(['station-l4-layer', 'robot-back-layer']);
+      expect(groupsOf('robots')).toEqual(['station-l3-layer', 'robot-layer', 'robot-dissolve-layer', 'station-front-layer']);
+      for (const [name, id, fragment] of [
+        ['robots-back', 'station-l4-layer', 'l4'],
+        ['robots', 'station-l3-layer', 'l3'],
+        ['robots', 'station-front-layer', 'front'],
+      ] as const) {
+        const markers = Array.from(layer(name).querySelectorAll(`#${id} > g[data-station-mock]`));
         expect(markers.map((m) => m.getAttribute('data-station-mock'))).toEqual(stations.map((s) => s.id));
         for (const m of markers) expect(m.getAttribute('data-fragment')).toBe(fragment);
       }
+      expect(container.querySelectorAll('#station-l4-layer')).toHaveLength(1);
     });
 
-    it('draws no station in any other layer', () => {
+    it('a back-row robot draws over L4 and under L3', () => {
+      useLocaleStore.setState({
+        locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [makeRobot({ id: 'r1', layer: 'background' })], actors: [] } },
+      });
       const { container } = render(<OceanScene />);
-      for (const name of ['back', 'bubbles', 'front']) {
+      const robotEl = container.querySelector('[data-robot-mock="r1"]')!;
+      const follows = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+      expect(follows(container.querySelector('#station-l4-layer')!, robotEl)).toBe(true);
+      expect(follows(robotEl, container.querySelector('#station-l3-layer')!)).toBe(true);
+    });
+
+    // Phase 43 Task 34 (spec §1.10): the layer-switch dissolve's `<use>` copies go here — in the
+    // front robot row, over the front robots and under the station's front fragment. The work loop
+    // fills it imperatively, so React renders it empty and registers it for getRef.
+    it('renders an empty #robot-dissolve-layer after the robots and registers it as robot-dissolve-layer', () => {
+      const { container, unmount } = render(<OceanScene />);
+      const layer = container.querySelector('svg[data-scene-layer="robots"] > #robot-dissolve-layer');
+      expect(layer).not.toBeNull();
+      expect(layer!.children).toHaveLength(0);
+      expect(getRef('robot-dissolve-layer')).toBe(layer);
+      unmount();
+      expect(getRef('robot-dissolve-layer')).toBeUndefined();
+    });
+
+    it('a copy the loop appends survives a scene re-render', () => {
+      const { container } = render(<OceanScene />);
+      const layer = getRef('robot-dissolve-layer')!;
+      const use = layer.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'use'));
+      act(() => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot({ id: 'r9' }));
+      });
+      expect(container.querySelector('#robot-dissolve-layer')!.firstChild).toBe(use);
+    });
+
+    it('draws no station in any other layer, and only L4 in the back row', () => {
+      const { container } = render(<OceanScene />);
+      for (const name of ['back', 'mid', 'bubbles', 'front']) {
         expect(container.querySelector(`svg[data-scene-layer="${name}"] g[data-station-mock]`)).toBeNull();
       }
+      const back = Array.from(container.querySelectorAll('svg[data-scene-layer="robots-back"] g[data-station-mock]'));
+      expect(back.length).toBeGreaterThan(0);
+      for (const m of back) expect(m.getAttribute('data-fragment')).toBe('l4');
+      expect(container.querySelector('svg[data-scene-layer="robots"] g[data-fragment="l4"]')).toBeNull();
     });
   });
 

@@ -1,0 +1,379 @@
+<!doctype html>
+<!-- Depth tint — sketch for roadmap Phase 43 (Robot jobs & stations), J4, between Task 32 and Task 33. Built
+     2026-10-08 on feature/jobs-depth. Nothing here touches the live renderer.
+
+     The problem (found at Task 32): spec §1.10 puts the back robot row under BOTH depth gradients — gradient-0-1
+     (navy → vent.shadow at .7) and gradient-1-2 (vent.shadow at .5) — so a robot changing rows goes from no haze to
+     ~85 % haze in one frame. Crawford asked for more tint layers spread through the stack (2026-10-08); this page is
+     for judging that, and the alternative, by eye before Task 33 locks the scene stack.
+
+     The stack here, back to front (spec §1.10 plus four tint slots):
+       water · ridge · background buildings · [A] · ROBOTS-BACK · [B] · midground buildings · [C] · ground ·
+       ROBOTS · [D] · foreground buildings
+     Slot B is where today's gradient-0-1 lands once robots-back is inserted; slot C is today's gradient-1-2.
+     A hazes only the background buildings (free depth); B and C sit BETWEEN the robot rows, so their total is the
+     pop at a switch; D sits above both rows, hazing them equally — it never changes the pop.
+
+     Switch modes:
+       instant  — the robot re-mounts in the other row at the switch point (spec §1.10 as written).
+       dissolve — at the switch point the robot is drawn in BOTH rows; the front copy fades out over the back copy
+                  (forward) or in over it (return), so the haze blends in. The back copy stays fully opaque, so the
+                  robot never goes see-through mid-fade.
+
+     Assumptions (not the live renderer):
+       S1 buildings are flat two-face boxes with the app's body.base colour, ROW_L_CAP (0.7 / 0.85 / 1) and a simple
+          day curve; the robot is a simplified gem (dark backing, identity-colour Mid/Top, four docked orbiters).
+       S2 tint colours are the app's (#0c1c4f → vent.shadow, vent.shadow); only their opacity and slot change.
+       S3 the leg is hand-placed: open water at the switch point, then behind a tall midground building, ending at a
+          background site. Swim speed SWIM_SPEED 120 u/s on sine.inOut, as swimAnimation.ts.
+       S4 the scale ease (1 → back-row scale) runs over the leg after the switch, as spec §1.10 says.
+
+     Open (for Crawford):
+       Q1 Redistribute, dissolve, or both?
+       Q2 Slot values (A–D) — the "Today" preset is spec §1.10 as written.
+       Q3 Dissolve implies the robot is clear of every midground silhouette for the WHOLE fade, not just at one point:
+          findLayerSwitchPoint (Task 32) would need a clear run of (fade seconds × swim speed) units. The orange
+          stretch on the leg (show leg) is that run.
+       Q4 Does the back row still read as behind the midground at your values? (It must sit under some B/C haze.)
+     Verdicts (Crawford, 2026-10-08 — his settings on this page):
+       Q1 BOTH: redistribute the haze AND dissolve.
+       Q2 A 0.06 navy → vent · B 0.25 navy → vent · C 0.20 vent shadow · D 0.10 vent shadow. Coverage: background
+          buildings 44 % (was 85 %), back-row robots 46 %, midground 20 % (was 50 %), front-row robots 10 % (was 0),
+          foreground 0; pop at a switch 40 % (was 85 %), then blended by the dissolve.
+          Correction (Task 33): the readout left D out of the two building rows; the scene draws D over both, so
+          what was judged is background 49 % and midground 28 %. readout() now counts D for them.
+       Fade 1.0 s; scale ease after the switch on; back-row scale 0.75 (unchanged).
+       Q3 follows from Q1: the switch point becomes the start of a clear RUN. One correction to this page: here the
+          return leg fades the front copy in BEFORE the (mirrored) switch point; in the app each leg's switch point is
+          the first clear point from its start, so the dissolve runs AFTER the switch point in both directions.
+       Q4 yes.
+       Judged on simplified flat buildings — the real silhouettes, windows and gem accents get a live look at
+       Checkpoint E. GATE PASSED; folded into spec §1.10 and plan Tasks 32b–34. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Depth tint — sketch</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #12161a; color: #e4e6ea; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 24px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  p.note { font-size: 12px; color: #9aa; max-width: 1100px; margin: 4px 0 12px; }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin-bottom: 18px; font-size: 13px; max-width: 1100px; }
+  .pending b { color: #e8b84a; }
+  .controls { display: flex; gap: 10px; align-items: center; font-size: 13px; margin: 10px 0; flex-wrap: wrap; }
+  button { background: #1a2027; color: #e4e6ea; border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; }
+  button.on { background: #41ad9f; color: #12161a; }
+  label { color: #9aa; }
+  .grid { display: flex; gap: 26px; flex-wrap: wrap; margin: 8px 0 14px; }
+  .col { font-size: 12px; color: #9aa; min-width: 300px; }
+  .col h3 { font-size: 12px; color: #e4e6ea; margin: 0 0 6px; text-transform: uppercase; letter-spacing: .06em; }
+  .col label { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .col input[type=range] { width: 130px; }
+  .col select { background: #1a2027; color: #e4e6ea; border: 1px solid #333; font-size: 11px; }
+  .val { font-family: monospace; color: #e4e6ea; min-width: 36px; display: inline-block; }
+  #scene { width: 100%; max-width: 1100px; display: block; border: 1px solid #333; }
+  table.read { border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  table.read td { padding: 3px 10px 3px 0; }
+  table.read td.num { font-family: monospace; color: #e4e6ea; text-align: right; min-width: 48px; }
+  .bar { height: 8px; background: #8aa4c8; display: inline-block; vertical-align: middle; }
+  .pop td { color: #e8b84a; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>Depth tint — how much does a robot pop when it changes robot row?</h1>
+<p class="note">Phase 43 J4, before Task 33. Four tint slots through the scene stack; a robot swims from the front row to a
+  background site and back, passing behind a tall midground building. Watch the moment it changes row (the white tick
+  on the leg). Values and modes are for judging by eye — nothing here is wired to the app.</p>
+
+<div class="pending">
+  <b>Gate passed (Crawford, 2026-10-08):</b> both — redistribute and dissolve. A 0.06 · B 0.25 · C 0.20 · D 0.10,
+  fade 1.0 s (the "Chosen" preset). The switch point becomes the start of a clear run; in the app the dissolve runs
+  after the switch point in both directions (this page mirrors it on the return).
+</div>
+
+<div class="controls">
+  <button id="play" class="on">Pause</button>
+  <button id="presetToday">Today (spec §1.10)</button>
+  <button id="presetSpread">Redistributed</button>
+  <button id="presetEven">Even through the stack</button>
+  <button id="presetChosen">Chosen (Crawford, 2026-10-08)</button>
+  <label>Speed <input type="range" id="speed" min="0.25" max="3" step="0.25" value="1" /> <span class="val" id="speedv"></span>×</label>
+  <label>Hour <input type="range" id="hour" min="0" max="24" step="0.5" value="12" /> <span class="val" id="hourv"></span></label>
+</div>
+
+<svg id="scene" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg"></svg>
+<div style="max-width:1100px"><input type="range" id="scrub" min="0" max="1" step="0.0005" value="0" style="width:100%" /></div>
+
+<div class="grid">
+  <div class="col">
+    <h3>Tint slots (back → front)</h3>
+    <div id="slots"></div>
+  </div>
+  <div class="col">
+    <h3>Switch</h3>
+    <label>Mode <select id="mode"><option value="instant">instant re-mount</option><option value="dissolve" selected>dissolve (front copy fades)</option></select></label>
+    <label>Fade <input type="range" id="fade" min="0.1" max="2" step="0.05" value="1" /> <span class="val" id="fadev"></span> s</label>
+    <label>Switch at <input type="range" id="switchAt" min="0.05" max="0.6" step="0.01" value="0.35" /> <span class="val" id="switchAtv"></span> of the leg</label>
+    <label><input type="checkbox" id="scaleEase" checked /> scale ease after the switch</label>
+    <label>Back-row scale <input type="range" id="backScale" min="0.5" max="1" step="0.05" value="0.75" /> <span class="val" id="backScalev"></span></label>
+    <label>Robot colour <select id="color"></select></label>
+    <label><input type="checkbox" id="showLeg" checked /> show leg, switch point and clear run</label>
+    <label><input type="checkbox" id="showPair" checked /> comparison pair (front row | back row) in open water</label>
+  </div>
+  <div class="col">
+    <h3>Haze coverage (1 − Π(1 − α))</h3>
+    <table class="read" id="read"></table>
+    <p class="note" style="max-width:300px">The pop is everything between the two robot rows (B and C). D hazes both rows
+      equally and never changes it; A is free depth for the background buildings.</p>
+  </div>
+</div>
+
+<script>
+// ---------- colour helpers ----------
+function hexToHsl(hex) {
+  const n = parseInt(hex.slice(1), 16); const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  return [h, s * 100, l * 100];
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const hsl = (h, s, l) => `hsl(${h.toFixed(1)}, ${clamp(s, 0, 100).toFixed(1)}%, ${clamp(l, 0, 100).toFixed(1)}%)`;
+function tone(hex, dl) { const [h, s, l] = hexToHsl(hex); return hsl(h, s, l + dl); }
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// ---------- app colours (colorTheme.json) ----------
+const BODY = { h: 200, s: 15, l: 19 };
+const VENT_SHADOW = 'hsl(251, 17%, 26%)';
+const NAVY = '#0c1c4f';
+const ROW_L_CAP = { bg: 0.7, mid: 0.85, fg: 1 };
+const IDENTITY = { teal: '#41ad9f', tangerine: '#e2b149', pink: '#ae5378', lime: '#a9e583', cyan: '#428d95', red: '#cd5e57' };
+const SWIM_SPEED = 120;
+
+// ---------- scene layout (hand-placed, scene units) ----------
+const BG = [[60, 120, 420], [250, 95, 300], [420, 140, 470], [640, 100, 350], [1300, 150, 300], [1500, 110, 420], [1700, 140, 330]];
+const MID = [[150, 110, 230], [560, 130, 260], [880, 100, 200], [1130, 140, 420], [1600, 120, 240]];
+const FG = [[0, 150, 190], [1760, 160, 220]];
+const BG_FLOOR = 990, MID_FLOOR = 1022, GROUND = 1050;
+const LEG = { from: { x: 300, y: 420 }, to: { x: 1375, y: 620 } }; // robot centres; to = park above BG[4]
+const HOLD = 1.5; // s at each end
+
+// ---------- tint slots ----------
+const SLOTS = [
+  { id: 'A', label: 'A — over background buildings, under the back row', alpha: 0, mode: 'navyVent' },
+  { id: 'B', label: 'B — over the back row, under the midground', alpha: 0.7, mode: 'navyVent' },
+  { id: 'C', label: 'C — over the midground, under the front row', alpha: 0.5, mode: 'vent' },
+  { id: 'D', label: 'D — over the front row, under the foreground', alpha: 0, mode: 'vent' },
+];
+const PRESETS = {
+  presetToday: { A: 0, B: 0.7, C: 0.5, D: 0 },
+  presetSpread: { A: 0.6, B: 0.2, C: 0.15, D: 0 },
+  presetEven: { A: 0.35, B: 0.25, C: 0.2, D: 0.1 },
+  presetChosen: { A: 0.06, B: 0.25, C: 0.2, D: 0.1 },
+};
+
+const $ = (id) => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const svg = $('scene');
+
+// ---------- builders ----------
+function building([x, w, h], floor, cap, d) {
+  const k = lerp(0.45, 1.1, d) * cap;
+  const west = hsl(BODY.h, BODY.s, BODY.l * k);
+  const east = hsl(BODY.h, BODY.s, BODY.l * k * 1.35);
+  const corner = x + w * 0.62;
+  return `<rect x="${x}" y="${floor - h}" width="${w}" height="${h}" fill="${west}"/>` +
+    `<rect x="${corner}" y="${floor - h}" width="${x + w - corner}" height="${h}" fill="${east}"/>`;
+}
+
+/** A simplified gem robot centred on (0, 0): 100 × 80 canvas, dark backing, identity Mid/Top, four orbiters. */
+function robotMarkup(hex) {
+  const backing = '0,-40 -36,-40 -50,-20 -50,22 -32,40 34,40 50,24 50,-26';
+  const mid = '-30,-14 22,-22 34,0 20,22 -26,20 -38,4';
+  const top = '-14,-30 12,-34 22,-16 6,-4 -16,-8';
+  const orb = (cx, cy) => `<polygon points="${cx - 12},${cy - 4} ${cx - 6},${cy - 8} ${cx + 12},${cy - 8} ${cx + 12},${cy + 4} ${cx + 6},${cy + 8} ${cx - 12},${cy + 8}" fill="${tone(hex, -8)}" stroke="${tone(hex, 12)}" stroke-width="1.5"/>`;
+  return `<polygon points="${backing}" fill="#0e1013" stroke="#1c2026" stroke-width="2"/>` +
+    `<polygon points="${mid}" fill="${tone(hex, -14)}"/>` +
+    `<polygon points="-30,-14 22,-22 34,0 -38,4" fill="${tone(hex, -4)}"/>` +
+    `<polygon points="${top}" fill="${tone(hex, 6)}"/>` +
+    `<polygon points="-14,-30 12,-34 22,-16" fill="${tone(hex, 16)}"/>` +
+    `<circle cx="-4" cy="6" r="3" fill="#fff3c4"/><circle cx="12" cy="10" r="2.5" fill="#fff3c4"/>` +
+    orb(-48, -38) + orb(48, -38) + orb(-48, 38) + orb(48, 38);
+}
+
+function gradientDefs() {
+  return SLOTS.map((s) => s.mode === 'navyVent'
+    ? `<linearGradient id="tint-${s.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${NAVY}" stop-opacity="${s.alpha}"/><stop offset="1" stop-color="${VENT_SHADOW}" stop-opacity="${s.alpha}"/></linearGradient>`
+    : `<linearGradient id="tint-${s.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${VENT_SHADOW}" stop-opacity="${s.alpha}"/><stop offset="1" stop-color="${VENT_SHADOW}" stop-opacity="${s.alpha}"/></linearGradient>`).join('');
+}
+
+const tintRect = (id) => `<rect x="0" y="0" width="1920" height="1080" fill="url(#tint-${id})"/>`;
+
+// ---------- static scene (rebuilt on control change) ----------
+let robotsBack, robotsFront, legLayer;
+function buildScene() {
+  const hour = Number($('hour').value);
+  const d = (1 - Math.cos((2 * Math.PI * hour) / 24)) / 2; // 0 midnight → 1 noon
+  const topL = lerp(8, 30, d), bottomL = lerp(4, 12, d);
+  const ridge = `0,${BG_FLOOR} 0,860 220,860 280,800 520,800 580,860 900,860 960,820 1300,820 1340,860 1920,860 1920,${BG_FLOOR}`;
+  const ground = `0,1080 0,${GROUND} 420,${GROUND} 440,1030 1100,1030 1120,${GROUND} 1920,${GROUND} 1920,1080`;
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="water" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(200,45%,${topL}%)"/><stop offset="1" stop-color="hsl(230,45%,${bottomL}%)"/></linearGradient>
+      ${gradientDefs()}
+    </defs>
+    <rect width="1920" height="1080" fill="url(#water)"/>
+    <polygon points="${ridge}" fill="hsl(0,0%,${10 * (1 + d * 1.2)}%)"/>
+    <g>${BG.map((b) => building(b, BG_FLOOR, ROW_L_CAP.bg, d)).join('')}</g>
+    ${tintRect('A')}
+    <g id="robots-back"></g>
+    ${tintRect('B')}
+    <g>${MID.map((b) => building(b, MID_FLOOR, ROW_L_CAP.mid, d)).join('')}</g>
+    ${tintRect('C')}
+    <polygon points="${ground}" fill="hsl(203,13%,${12 * d * 0.9 + 3}%)"/>
+    <g id="robots-front"></g>
+    ${tintRect('D')}
+    <g>${FG.map((b) => building(b, GROUND, ROW_L_CAP.fg, d)).join('')}</g>
+    <g id="leg"></g>`;
+  robotsBack = $('robots-back'); robotsFront = $('robots-front'); legLayer = svg.querySelector('#leg');
+  drawLeg();
+}
+
+// ---------- the leg ----------
+const legLength = Math.hypot(LEG.to.x - LEG.from.x, LEG.to.y - LEG.from.y);
+const legSeconds = legLength / SWIM_SPEED;
+const cycleSeconds = 2 * legSeconds + 2 * HOLD;
+const sineInOut = (u) => (1 - Math.cos(Math.PI * u)) / 2;
+const at = (p) => ({ x: lerp(LEG.from.x, LEG.to.x, p), y: lerp(LEG.from.y, LEG.to.y, p) });
+/** Leg time (s) at which sine.inOut progress reaches p. */
+const timeAtProgress = (p) => (Math.acos(1 - 2 * p) / Math.PI) * legSeconds;
+
+function drawLeg() {
+  if (!$('showLeg').checked) { legLayer.innerHTML = ''; return; }
+  const s = Number($('switchAt').value);
+  const fade = $('mode').value === 'dissolve' ? Number($('fade').value) : 0;
+  const tS = timeAtProgress(s);
+  const pEnd = sineInOut(Math.min(1, (tS + fade) / legSeconds));
+  const a = at(s), b = at(pEnd);
+  legLayer.innerHTML =
+    `<line x1="${LEG.from.x}" y1="${LEG.from.y}" x2="${LEG.to.x}" y2="${LEG.to.y}" stroke="#fff" stroke-opacity=".25" stroke-dasharray="8 8" stroke-width="2"/>` +
+    (fade > 0 ? `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#e8b84a" stroke-opacity=".8" stroke-width="5"/>` : '') +
+    `<line x1="${a.x}" y1="${a.y - 18}" x2="${a.x}" y2="${a.y + 18}" stroke="#fff" stroke-width="3"/>`;
+}
+
+// ---------- the robot each frame ----------
+function placeRobot(group, c, scale, opacity) {
+  group.insertAdjacentHTML('beforeend', `<g transform="translate(${c.x} ${c.y}) scale(${scale})" opacity="${opacity}">${robotMarkup(IDENTITY[$('color').value])}</g>`);
+}
+
+function render(t) {
+  robotsBack.innerHTML = ''; robotsFront.innerHTML = '';
+  const s = Number($('switchAt').value);
+  const dissolve = $('mode').value === 'dissolve';
+  const fade = Number($('fade').value);
+  const backScale = Number($('backScale').value);
+  const easeScale = $('scaleEase').checked;
+  const tS = timeAtProgress(s);
+
+  if ($('showPair').checked) {
+    placeRobot(robotsFront, { x: 1560, y: 230 }, 1, 1);
+    placeRobot(robotsBack, { x: 1730, y: 230 }, backScale, 1);
+  }
+
+  // Forward leg, hold at the site, return leg, hold at the start.
+  let lt, forward;
+  if (t < legSeconds) { lt = t; forward = true; }
+  else if (t < legSeconds + HOLD) { lt = legSeconds; forward = true; }
+  else if (t < 2 * legSeconds + HOLD) { lt = 2 * legSeconds + HOLD - t; forward = false; }
+  else { lt = 0; forward = false; }
+  const p = sineInOut(lt / legSeconds);
+  const c = at(p);
+  // Scale eases over the part of the leg beyond the switch point (both directions).
+  const beyond = p <= s ? 0 : (p - s) / (1 - s);
+  const scale = easeScale ? lerp(1, backScale, sineInOut(beyond)) : (p > s ? backScale : 1);
+
+  if (p <= s) { placeRobot(robotsFront, c, scale, 1); return; }
+  // Beyond the switch point the robot lives in the back row; a dissolve keeps a front copy for `fade` seconds of
+  // wall time after the crossing (forward: fading out; return: fading in before the crossing).
+  const sinceCross = forward ? lt - tS : tS - lt; // negative on the return until it reaches the switch point
+  placeRobot(robotsBack, c, scale, 1);
+  if (!dissolve) return;
+  if (forward && sinceCross < fade) placeRobot(robotsFront, c, scale, 1 - sinceCross / fade);
+  if (!forward) {
+    // Return: lt counts down; the front copy fades in over the `fade` seconds before the crossing.
+    const untilCross = lt - tS;
+    if (untilCross < fade) placeRobot(robotsFront, c, scale, 1 - untilCross / fade);
+  }
+}
+
+// ---------- readout ----------
+function readout() {
+  const a = Object.fromEntries(SLOTS.map((s) => [s.id, s.alpha]));
+  const cov = (...ids) => 1 - ids.reduce((acc, id) => acc * (1 - a[id]), 1);
+  const rows = [
+    ['Background buildings', cov('A', 'B', 'C', 'D')],
+    ['Back-row robots', cov('B', 'C', 'D')],
+    ['Midground buildings', cov('C', 'D')],
+    ['Front-row robots', cov('D')],
+    ['Foreground buildings', 0],
+  ];
+  const pop = cov('B', 'C');
+  $('read').innerHTML = rows.map(([name, v]) => `<tr><td>${name}</td><td class="num">${Math.round(v * 100)} %</td><td><span class="bar" style="width:${v * 120}px"></span></td></tr>`).join('') +
+    `<tr class="pop"><td>Pop at a switch (B, C)</td><td class="num">${Math.round(pop * 100)} %</td><td><span class="bar" style="width:${pop * 120}px;background:#e8b84a"></span></td></tr>` +
+    `<tr><td>Back row behind midground?</td><td class="num">${a.B > 0 ? 'yes' : 'no'}</td><td></td></tr>`;
+}
+
+// ---------- controls ----------
+function slotControls() {
+  $('slots').innerHTML = SLOTS.map((s) => `
+    <label title="${s.label}"><span style="min-width:12px">${s.id}</span>
+      <input type="range" min="0" max="0.9" step="0.01" value="${s.alpha}" data-slot="${s.id}"/>
+      <span class="val">${s.alpha.toFixed(2)}</span>
+      <select data-mode="${s.id}"><option value="navyVent"${s.mode === 'navyVent' ? ' selected' : ''}>navy → vent</option><option value="vent"${s.mode === 'vent' ? ' selected' : ''}>vent shadow</option></select>
+    </label><div style="margin:-2px 0 6px 20px;font-size:11px">${s.label.slice(4)}</div>`).join('');
+  for (const input of $('slots').querySelectorAll('input[data-slot]')) {
+    input.addEventListener('input', () => {
+      SLOTS.find((s) => s.id === input.dataset.slot).alpha = Number(input.value);
+      input.nextElementSibling.textContent = Number(input.value).toFixed(2);
+      refresh();
+    });
+  }
+  for (const sel of $('slots').querySelectorAll('select[data-mode]')) {
+    sel.addEventListener('change', () => { SLOTS.find((s) => s.id === sel.dataset.mode).mode = sel.value; refresh(); });
+  }
+}
+
+for (const [id, values] of Object.entries(PRESETS)) {
+  $(id).addEventListener('click', () => { for (const s of SLOTS) s.alpha = values[s.id]; slotControls(); refresh(); });
+}
+$('color').innerHTML = Object.keys(IDENTITY).map((k) => `<option>${k}</option>`).join('');
+
+const vals = { speed: (v) => v, hour: (v) => v, fade: (v) => Number(v).toFixed(2), switchAt: (v) => Number(v).toFixed(2), backScale: (v) => Number(v).toFixed(2) };
+function syncVals() { for (const [id, f] of Object.entries(vals)) $(id + 'v').textContent = f($(id).value); }
+
+function refresh() { syncVals(); buildScene(); readout(); render(clock); }
+for (const id of ['hour', 'fade', 'switchAt', 'backScale', 'mode', 'scaleEase', 'color', 'showLeg', 'showPair', 'speed']) {
+  $(id).addEventListener('input', refresh);
+  $(id).addEventListener('change', refresh);
+}
+
+// ---------- loop (sketch only: rAF) ----------
+let clock = 0, playing = true, last = null;
+$('play').addEventListener('click', () => { playing = !playing; $('play').textContent = playing ? 'Pause' : 'Play'; $('play').classList.toggle('on', playing); last = null; });
+$('scrub').addEventListener('input', () => { playing = false; $('play').textContent = 'Play'; $('play').classList.remove('on'); clock = Number($('scrub').value) * cycleSeconds; render(clock); });
+function frame(now) {
+  if (playing) {
+    if (last !== null) clock = (clock + ((now - last) / 1000) * Number($('speed').value)) % cycleSeconds;
+    last = now;
+    $('scrub').value = String(clock / cycleSeconds);
+    render(clock);
+  }
+  requestAnimationFrame(frame);
+}
+
+slotControls();
+refresh();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

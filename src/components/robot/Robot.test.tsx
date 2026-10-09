@@ -203,3 +203,39 @@ describe('Robot mount hands the robot to the work loop (Phase 43 Task 23)', () =
     expect(onRobotMounted).toHaveBeenCalledTimes(1);
   });
 });
+
+// Phase 43 Task 34 (spec §1.10): the layer-switch dissolve draws a copy of the robot as an SVG
+// `<use>` in the other robot row, which needs the group's DOM id; the back row's 0.75 scale is a
+// wrapper's, about the gem canvas centre, so it never fights the swim's own transform on `.robot`.
+describe('Robot — the dissolve id and the row wrapper (Phase 43 Task 34)', () => {
+  beforeEach(() => {
+    useLocaleStore.getState().setLocaleData(localeId, { robots: [] } as unknown as Partial<Locale>);
+  });
+
+  it('the robot group carries world-robot-${id}, the `<use>` target', () => {
+    const { container } = renderRobot({ id: 'r1' });
+    expect(container.querySelector('g.robot')!.id).toBe('world-robot-r1');
+  });
+
+  it('the body sits in one .robot__row wrapper, the robot group\'s only child', () => {
+    const { container } = renderRobot({ id: 'r1' });
+    const robotEl = container.querySelector('g.robot')!;
+    expect(robotEl.children).toHaveLength(1);
+    const row = robotEl.children[0];
+    expect(row.tagName.toLowerCase()).toBe('g');
+    expect(row.classList.contains('robot__row')).toBe(true);
+    expect(row.querySelector('[data-testid="robot-body-stub"]')).not.toBeNull();
+  });
+
+  it('two robots get two ids', () => {
+    const { container } = render(
+      <svg>
+        {(['a', 'b'] as const).map((id) => {
+          useLocaleStore.getState().addRobot(localeId, makeRobot({ id }));
+          return <Robot key={id} robotId={id} />;
+        })}
+      </svg>,
+    );
+    expect([...container.querySelectorAll('g.robot')].map((g) => g.id)).toEqual(['world-robot-a', 'world-robot-b']);
+  });
+});

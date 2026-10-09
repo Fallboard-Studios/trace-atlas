@@ -39,6 +39,16 @@ const WINDOW_MS = Number(opts.window);
 /** The bubble circles: in their own scene layer since the 17.2.5 layer split, inside the factory layers before it. */
 const BUBBLES = 'svg[data-scene-layer="bubbles"] circle, #factory-background-layer circle, #factory-midground-layer circle, #factory-foreground-layer circle';
 
+/** Both robot rows: the front one (`#robot-layer`) and, since Phase 43 J4, the back one behind the midground. */
+const ROBOTS = '#robot-layer, #robot-back-layer';
+const ROBOT_GROUPS = '#robot-layer .robot, #robot-back-layer .robot';
+
+/** The full-screen depth overlays: J4's four tints, and the two gradient rects they replaced, so one name ablates both builds. */
+const TINTS = 'rect[data-depth-tint], #gradient-back-mid, #gradient-mid-front';
+
+/** The scene's layers, back to front, as `data-scene-layer` names them (J4 added robots-back and mid; a pre-J4 build has four). */
+const SCENE_LAYERS = ['back', 'robots-back', 'mid', 'bubbles', 'robots', 'front'];
+
 /** Each ablation is a CSS snippet injected into the page. `stock` is traced first and last so drift is visible. */
 const ABLATIONS = [
   { name: 'stock', css: '' },
@@ -46,24 +56,24 @@ const ABLATIONS = [
   { name: 'no-bridge-flicker', css: '.screen-viewport::before { animation: none !important; }' },
   { name: 'no-rocker-pulse', css: '.rocker-light { animation: none !important; }' },
   { name: 'no-bubbles', css: `${BUBBLES} { display: none !important; }` },
-  { name: 'no-robots', css: '#robot-layer { display: none !important; }' },
+  { name: 'no-robots', css: `${ROBOTS} { display: none !important; }` },
   // Phase 43 J2: the charging stations' three fragments, interleaved with the robots (L4 · L3 · robots · front).
   { name: 'no-stations', css: '#station-l4-layer, #station-l3-layer, #station-front-layer { display: none !important; }' },
   { name: 'no-factories', css: '#factory-background-layer, #factory-midground-layer, #factory-foreground-layer { display: none !important; }' },
   { name: 'no-scene', css: '.ocean-scene { display: none !important; }' },
   // Combined: nothing moves inside the scene (robots and bubbles hidden) but the per-second lighting fills still transition.
-  { name: 'no-robots+no-bubbles', css: `#robot-layer, ${BUBBLES} { display: none !important; }` },
+  { name: 'no-robots+no-bubbles', css: `${ROBOTS}, ${BUBBLES} { display: none !important; }` },
   // Combined: nothing moves AND the fill transitions are off — if the scene still repaints every frame, something else invalidates it.
-  { name: 'static-scene', css: `#robot-layer, ${BUBBLES} { display: none !important; } .ocean-scene * { transition: none !important; }` },
-  { name: 'no-gradient-rects', css: '#gradient-back-mid, #gradient-mid-front { display: none !important; }' },
+  { name: 'static-scene', css: `${ROBOTS}, ${BUBBLES} { display: none !important; } .ocean-scene * { transition: none !important; }` },
+  { name: 'no-gradient-rects', css: `${TINTS} { display: none !important; }` },
   // Everything animated that this script knows about, off at once.
-  { name: 'all-anim-off', css: `#robot-layer, ${BUBBLES} { display: none !important; } .ocean-scene * { transition: none !important; } .screen-viewport::before, .rocker-light { animation: none !important; }` },
-  { name: 'all-anim-off+no-header', css: `#robot-layer, ${BUBBLES} { display: none !important; } .ocean-scene * { transition: none !important; } .screen-viewport::before, .rocker-light { animation: none !important; } header, .header { display: none !important; }` },
+  { name: 'all-anim-off', css: `${ROBOTS}, ${BUBBLES} { display: none !important; } .ocean-scene * { transition: none !important; } .screen-viewport::before, .rocker-light { animation: none !important; }` },
+  { name: 'all-anim-off+no-header', css: `${ROBOTS}, ${BUBBLES} { display: none !important; } .ocean-scene * { transition: none !important; } .screen-viewport::before, .rocker-light { animation: none !important; } header, .header { display: none !important; }` },
   { name: 'stock (again)', css: '' },
   // Irreversible (sticky) steps, last: moving nodes are REMOVED from the DOM, not hidden — GSAP keeps writing transforms
   // to a display:none element and Blink still invalidates style/layout for it, so display:none is not "nothing moves".
   { name: 'detach-bubbles', sticky: true, js: `document.querySelectorAll(${JSON.stringify(BUBBLES)}).forEach((e) => e.remove())` },
-  { name: 'detach-bubbles+robots', sticky: true, js: `document.querySelectorAll('#robot-layer > .robot').forEach((e) => e.remove())` },
+  { name: 'detach-bubbles+robots', sticky: true, js: `document.querySelectorAll(${JSON.stringify(ROBOT_GROUPS)}).forEach((e) => e.remove())` },
   // How much of a robot's per-frame cost is the body moving vs. the propeller spinning (docs/PERFORMANCE.md, 17.2.5:
   // the propellers turned out to be a small share, and HTML-positioned robots were measured neutral and reverted).
   { name: 'detach-propellers', sticky: true, js: `document.querySelectorAll('.propeller').forEach((e) => e.remove())` },
@@ -236,6 +246,41 @@ async function describeNode(send, backendNodeId) {
   }
 }
 
+/**
+ * Phase 43 J4 (Task 35): the compositor layers, once, before any traced window. Memory is estimated the way
+ * DevTools' Layers panel does — width × height × 4 bytes for each layer that draws content — so it is a
+ * comparison figure, not the GPU's real allocation. LayerTree reports CSS pixels, so the estimate is scaled
+ * by the emulated device scale factor squared. The scene's own layers are named by `data-scene-layer`.
+ */
+async function printCompositorLayers({ send, onEvent }, dpr) {
+  let layers = null;
+  const stop = onEvent((m) => { if (m.method === 'LayerTree.layerTreeDidChange' && m.params.layers) layers = m.params.layers; });
+  await send('LayerTree.enable');
+  for (let i = 0; i < 30 && !layers; i++) await sleep(100);
+  await send('LayerTree.disable');
+  stop();
+  if (!layers) { console.log('Compositor layers: no layer tree reported'); return; }
+  const drawing = layers.filter((l) => l.drawsContent);
+  const mb = (ls) => (ls.reduce((s, l) => s + l.width * l.height * 4 * dpr * dpr, 0) / (1024 * 1024)).toFixed(1);
+  const owned = drawing.filter((l) => l.backendNodeId !== undefined);
+  const scene = [];
+  for (const l of owned) {
+    const name = await describeSceneLayer(send, l.backendNodeId);
+    if (name) scene.push(`${name} ${Math.round(l.width)}×${Math.round(l.height)}`);
+  }
+  console.log(`Compositor layers: ${layers.length} (${drawing.length} drawing content, ≈ ${mb(drawing)} MB at 4 B per device px, DPR ${dpr}; ${owned.length} with an owning node); scene (CSS px): ${scene.join(', ') || 'none named'}`);
+}
+
+/** A layer's `data-scene-layer` name, if its owning node is one of the scene's `<svg>`s. */
+async function describeSceneLayer(send, backendNodeId) {
+  try {
+    const { node } = await send('DOM.describeNode', { backendNodeId });
+    const attrs = node.attributes ?? [];
+    for (let i = 0; i < attrs.length; i += 2) if (attrs[i] === 'data-scene-layer') return attrs[i + 1];
+  } catch { /* not resolvable */ }
+  return null;
+}
+
 async function run(cdp) {
   const { send } = cdp;
   const evaluate = async (expression) => {
@@ -263,20 +308,30 @@ async function run(cdp) {
 
   await evaluate(`(() => { const b = document.querySelector('button[aria-label="Power on"]'); b.click(); return true; })()`);
   await sleep(8000); // power-on + spawn settle
-  const robots = await evaluate(`document.querySelectorAll('#robot-layer .robot').length`);
+  const robots = await evaluate(`document.querySelectorAll(${JSON.stringify(ROBOT_GROUPS)}).length`);
   const factories = await evaluate(`document.querySelectorAll('[data-factory-type]').length`);
   const bubbles = await evaluate(`document.querySelectorAll(${JSON.stringify(BUBBLES)}).length`);
   const layers = await evaluate(`document.querySelectorAll('.ocean-scene__layer').length`);
   console.log(`Idle paint localizer — ${opts.url}, ${opts.throttle}x throttle, ${width}px, ${WINDOW_MS} ms windows`);
   console.log(`Scene: ${robots} robots, ${factories} factories, ${bubbles} circles in the bubble/factory layers, ${layers} scene layers (0 = the pre-17.2.5 single svg)`);
-  // Phase 43 J2 gate: element counts in the robots layer's stack (stations included). Before J2 only #robot-layer exists.
+  // Phase 43 J4: element count per scene layer, by name (a layer the build doesn't have reads "absent").
+  const perLayer = await evaluate(`(() => Object.fromEntries(${JSON.stringify(SCENE_LAYERS)}.map((name) => {
+    const layer = document.querySelector('svg[data-scene-layer="' + name + '"]');
+    return [name, layer ? layer.querySelectorAll('*').length : 'absent'];
+  })))()`);
+  console.log(`Scene layers (elements): ${SCENE_LAYERS.map((name) => `${name} ${perLayer[name]}`).join(', ')}`);
+  // Phase 43 J2 gate: element counts in the robots layer's stack (stations included). Before J2 only #robot-layer exists;
+  // before J4 there is no #robot-back-layer (reads 0). Since Task 34b #station-l4-layer is in robots-back, not robots.
   const stack = await evaluate(`(() => {
     const n = (s) => document.querySelectorAll(s).length;
-    const shown = [...document.querySelectorAll('#robot-layer .robot')].filter((e) => getComputedStyle(e).visibility !== 'hidden' && getComputedStyle(e).display !== 'none').length;
+    const shown = [...document.querySelectorAll(${JSON.stringify(ROBOT_GROUPS)})].filter((e) => getComputedStyle(e).visibility !== 'hidden' && getComputedStyle(e).display !== 'none').length;
     return { stations: new Set([...document.querySelectorAll('[data-station-id]')].map((e) => e.dataset.stationId)).size,
-      l4: n('#station-l4-layer *'), l3: n('#station-l3-layer *'), robotLayer: n('#robot-layer *'), front: n('#station-front-layer *'), shown };
+      l4: n('#station-l4-layer *'), l3: n('#station-l3-layer *'), robotLayer: n('#robot-layer *'), backRow: n('#robot-back-layer *'),
+      backRobots: n('#robot-back-layer .robot'), front: n('#station-front-layer *'), shown };
   })()`);
-  console.log(`Robots stack: ${stack.stations} stations; elements L4 ${stack.l4}, L3 ${stack.l3}, #robot-layer ${stack.robotLayer}, front ${stack.front}; ${stack.shown} robots visible\n`);
+  console.log(`Robots stack: ${stack.stations} stations; elements L4 ${stack.l4}, L3 ${stack.l3}, #robot-layer ${stack.robotLayer}, front ${stack.front}; back row #robot-back-layer ${stack.backRow} (${stack.backRobots} robots); ${stack.shown} robots visible`);
+  await printCompositorLayers(cdp, isPhone ? 2 : 1);
+  console.log('');
 
   const wanted = opts.only ? new Set(opts.only.split(',').map((s) => s.trim())) : null;
   const rows = [];

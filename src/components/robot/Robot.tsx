@@ -100,14 +100,21 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
     .filter(Boolean)
     .join(' ');
 
+  // Phase 43 J4 (spec §1.10): the id is what a layer switch's dissolve copy (an SVG `<use>` in the
+  // other robot row) points at. `.robot__row` carries the back row's scale (BACK_LAYER_SCALE), set
+  // by the work loop about the gem canvas centre — the frame sceneToOrbiterLocal assumes — so it
+  // never shares a transform with the swim's x/y/rotation on this group.
   return (
     <g
       ref={ref}
+      id={`world-robot-${robotId}`}
       className={className}
       onClick={handleClick}
       style={{ cursor: 'pointer' }}
     >
-      <RobotBody robot={robot} motion="world" />
+      <g className="robot__row">
+        <RobotBody robot={robot} motion="world" />
+      </g>
     </g>
   );
 });
