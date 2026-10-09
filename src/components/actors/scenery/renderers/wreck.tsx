@@ -3,6 +3,8 @@ import { applyColorShift, clamp } from '../../../../utils/colorUtils';
 import { NO_SHIFT } from '../sceneryColor';
 import type { SceneryRenderer } from '../sceneryTypes';
 import type { WreckParams } from '../sceneryParams';
+import { GemRing } from '../../material/GemRing';
+import { WORLD_GEM, ringFacets, worldBevel, worldLightVector } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 wreck row)
@@ -94,6 +96,36 @@ export const wreck: SceneryRenderer = ({ actor, params, cap, eastL, westL }) => 
   const portholeFill = applyColorShift(colorTheme.shadowDepth, NO_SHIFT, effectiveCap);
   const keelFill = applyColorShift(colorTheme.shadowDepth, NO_SHIFT, avgL * effectiveCap);
 
+  // The world gem rings (docs/specs/WORLD_GEM_MATERIAL.md §1.5). The hull is one quadrilateral
+  // (stern block and raked bow together), each half lit from its own face at the wreck's own folded
+  // cap; the deckhouse and funnel ring at the superstructure's average. The hull's ring is drawn
+  // last, over the keel strip, as the sketch has it.
+  const massOn = WORLD_GEM.massScenery;
+  const light = worldLightVector(eastL, westL);
+  const hullRing = ringFacets(
+    [[x - w / 2, y], [x - w / 2, top], [splitX, top], [x1, y]],
+    massOn ? worldBevel(w, h) : 0,
+    light,
+    (midX) => (midX < splitX ? westL : eastL) * effectiveCap,
+    bodyBase,
+    { splitX },
+  );
+  const superstructureLevel = avgL * effectiveCap;
+  const deckhouseRing = ringFacets(
+    [[deckhouseX, deckhouseTop], [deckhouseX + deckhouseW, deckhouseTop], [deckhouseX + deckhouseW, deckhouseTop + DECKHOUSE_H], [deckhouseX, deckhouseTop + DECKHOUSE_H]],
+    massOn ? worldBevel(deckhouseW, DECKHOUSE_H) : 0,
+    light,
+    () => superstructureLevel,
+    colorTheme.shell.shadow,
+  );
+  const funnelRing = ringFacets(
+    [[funnelX, funnelTop], [funnelX + funnelW, funnelTop], [funnelX + funnelW, funnelTop + FUNNEL_H], [funnelX, funnelTop + FUNNEL_H]],
+    massOn ? worldBevel(funnelW, FUNNEL_H) : 0,
+    light,
+    () => superstructureLevel,
+    colorTheme.shell.shadow,
+  );
+
   const portholeSpan = deckW - PORTHOLE_R * 4;
   const portholeStartX = x - w / 2 + PORTHOLE_R * 2;
   const portholeY = top + h / 2;
@@ -104,6 +136,7 @@ export const wreck: SceneryRenderer = ({ actor, params, cap, eastL, westL }) => 
       <polygon data-wreck="bow" points={bowPoints} fill={eastFill} />
       <rect data-wreck="deck-rail" x={x - w / 2} y={deckY} width={deckW} height={DECK_RAIL_H} fill={railFill} />
       <rect data-wreck="deckhouse" x={deckhouseX} y={deckhouseTop} width={deckhouseW} height={DECKHOUSE_H} fill={superstructureFill} />
+      <GemRing facets={deckhouseRing} />
       <rect
         data-wreck="funnel"
         x={funnelX}
@@ -112,6 +145,7 @@ export const wreck: SceneryRenderer = ({ actor, params, cap, eastL, westL }) => 
         height={FUNNEL_H}
         fill={superstructureFill}
       />
+      <GemRing facets={funnelRing} />
       {Array.from({ length: portholes }, (_, i) => {
         const t = portholes === 1 ? 0.5 : i / (portholes - 1);
         return (
@@ -126,6 +160,7 @@ export const wreck: SceneryRenderer = ({ actor, params, cap, eastL, westL }) => 
         );
       })}
       <rect data-wreck="keel-shadow" x={x - w / 2} y={y - KEEL_SHADOW_H} width={w} height={KEEL_SHADOW_H} fill={keelFill} />
+      <GemRing facets={hullRing} />
     </g>
   );
 };
