@@ -72,8 +72,9 @@ const FALLBACK_IDENTITY = '#78cce2';
  * visual input, read with a narrow selector so a company rename never re-renders the body) and
  * the Top/Mid line widths (the gain-LFO link depths). In world/avatar, `useHaloMotion` owns the
  * halo's attributes after mount; its `decorateArc` is registered (world only) for the work loop's
- * station exit/entry arcs (Phase 43) and has no caller yet (2026-10-06: the density-driven orbiter
- * attach/detach hop no longer decorates), so the halo is not currently visible anywhere. `useStripFlicker`
+ * station exit/entry arcs (Phase 43), its only caller (the density-driven orbiter attach/detach
+ * hop stopped decorating on 2026-10-06), so the halo shows only as a robot exits or enters a
+ * station. `useStripFlicker`
  * plays each line's two-second flicker on its own trigger tuple. On cards (no `motion`) neither
  * hook runs — `enabled: false` returns before touching GSAP — and the halo never renders at all.
  */

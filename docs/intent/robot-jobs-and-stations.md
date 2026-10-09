@@ -17,7 +17,16 @@ day). Roadmap Phase 43. Sequenced after World View Districts (Phase 42) D1 + D2.
 > `ring`, `carry`, `fan`), and each robot's seeded variation makes company members that look
 > alike work differently. Checkpoint D passed 2026-10-08 (Crawford could tell the six jobs apart),
 > and so did the J2 and J3 perf gates and the Pixel listen. As built:
-> [docs/ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#job-moves). J4 (depth layers) is still to come.
+> [docs/ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#job-moves).
+
+> **Shipped (J4, 2026-10-08) — Phase 43 complete.** Background buildings host work: a robot
+> working there is drawn in a second robot row behind the midground at 0.75 scale, switches rows
+> only where it is clear of every midground silhouette, and blends across the switch with a 1 s
+> dissolve. Four depth tints replaced the old two, so a switch gains or loses 40 % haze, not 85 %.
+> That changes every world's look a little, which Crawford judged at Checkpoint E. The perf
+> gate's paint miss was accepted after the Pixel run on the Full Load Budget, so the "background
+> buildings don't host" fallback wasn't needed. As built:
+> [docs/ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#layer-switch).
 
 ## Outcome
 

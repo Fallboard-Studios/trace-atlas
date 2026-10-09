@@ -56,9 +56,9 @@ Reference docs
 - `docs/MELODY_SYSTEM.md`: Melody generation rules and step/registry semantics for robot melodies.
 - `docs/HARMONY_SYSTEM.md`: Harmony progression rules and chord selection used by the systems.
 - `docs/POLYPHONY_GUIDE.md`: Voice management, polyphony budget, and voice-stealing policies.
-- `docs/ANIMATION_SYSTEM.md`: GSAP timeline patterns, `timelineMap` lifecycle, and ref registry usage.
-- `docs/BUILDING_DESIGN.md`: Factory and placement rules, production cooldowns, and placement algorithms, plus the nine seeded districts, sixteen scenery families, and the light-shafts atmosphere layer (roadmap Phase 42) that replaced the single fixed row table.
-- `docs/ROBOT_DESIGN.md`: Gem polygon robots (Phase 39) — the seeded generator (`getRobotGem` from `Robot.gemSeed`), bevel and 3-tone facet shading, the identity-colour palette, the three audio dials (lights, Mid lit level, body scale), the day/night and battery overlays, and the world/avatar/card render contexts.
+- `docs/ANIMATION_SYSTEM.md`: GSAP timeline patterns, `timelineMap` lifecycle, and ref registry usage, plus the robots' swim, job, station-arc and layer-switch timelines (Phase 43) and the six-layer scene stack with its depth tints.
+- `docs/BUILDING_DESIGN.md`: Factory and placement rules and placement algorithms, plus the nine seeded districts, sixteen scenery families, and the light-shafts atmosphere layer (roadmap Phase 42) that replaced the single fixed row table, and the robot-job hosts, work sites, coverage guarantee, station placement and midground silhouettes (Phase 43).
+- `docs/ROBOT_DESIGN.md`: Gem polygon robots (Phase 39) — the seeded generator (`getRobotGem` from `Robot.gemSeed`), bevel and 3-tone facet shading, the identity-colour palette, the three audio dials (lights, Mid lit level, body scale), the day/night and battery overlays, and the world/avatar/card render contexts, including the back robot row's 0.75 scale.
 - `docs/COMPONENT_LIBRARY.md`: The 14 stateless UI primitives in `src/components/ui/controls/` and the `ControlSchema` contract they consume — the Design System foundation later drawer phases build on.
 - `docs/CONTRIBUTION_GUIDE.md`: PR process, testing expectations, and where to record exceptions.
 - `docs/UI_SHELL.md`: Sleeve & Glass UI architecture, console navigation, and `uiStore` responsibilities.

@@ -5,6 +5,20 @@ what's still open. Item numbers are preserved exactly as they were assigned in t
 — never renumbered on archive — so any existing cross-reference stays valid. Entries appear in
 their original numeric order, not archive-date order.
 
+## 8. Visuals: Job Animations
+
+Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Medium priority — deprioritized
+behind launch. `JobType` (`Robot.ts`, see `docs/ROBOT_LIFECYCLE.md`) exists and is shown
+as data/text (`RobotSelectionCard`, `RobotDisplaySection`), but nothing in the
+actor-rendering layer visually differentiates a robot by its current job today. Genuinely
+new visual work; not yet scoped.
+
+**Closed** 2026-10-08 by roadmap Phase 43, Robot Jobs and Charging Stations (all four branches merged,
+J4 = PR #544). Robots now work at host buildings: their orbiters detach and play one of six jobs'
+moves (`hoverPulse`, `trace`, `ring`, `fan`, `carry`), so what a robot is doing shows in the world,
+not only on its card. See [docs/ROBOT_LIFECYCLE.md](../../ROBOT_LIFECYCLE.md) and
+[docs/ANIMATION_SYSTEM.md](../../ANIMATION_SYSTEM.md#job-moves).
+
 ## 12. IdleSystem: console.warn Fires on the Ordinary Case, Not an Error
 
 **Closed** 2026-09-30 (`6c4657e`, branch `fixes/idlesystem-noise-wordltransition-bug`). Narrowed

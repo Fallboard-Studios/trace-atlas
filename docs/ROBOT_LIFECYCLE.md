@@ -16,8 +16,9 @@ took the job out of the replay and routed every visual consequence of a transiti
 go to buildings that are ready for their job, work there, and swim back into a station when the
 tick recalls them. The random wandering and the off-screen dock spot are gone (see "Removed in
 Phase 43" at the end). J3 added the remaining job moves
-([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#job-moves)) and J4 adds the second robot layer; neither
-changes anything below.
+([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#job-moves)) and J4 the second robot row, so background
+buildings host work too ([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#layer-switch)); neither changes
+either state machine.
 
 ## Core Principles
 
@@ -213,6 +214,15 @@ the centre (`g.gem` scales about it), so neither takes a scale.
 (the last leg's destination). Before the next leg starts, the body's GSAP `x`/`y` is written back
 to `position` if it is more than 0.01 u off.
 
+**Two robot rows** (J4). With `backHosts` (`BACK_HOSTS_ENABLED`, true), background buildings host
+too, and a robot working at one is drawn in the back robot row, behind the midground, at
+`BACK_LAYER_SCALE` (0.75); `Robot.layer` says which row. A leg into the other row splits at a
+switch point clear of every midground silhouette, where the robot re-mounts in its new row under a
+1 s dissolve; a ready site whose leg has no such point sits out that decision (it is offered as
+not ready). Stations are front-row, except that a robot exits into the back row. `layer` is live
+visual state like `activity`. The mechanics are in
+[ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#layer-switch).
+
 **No body.** A robot with no mounted body gets keyed, target-less timelines of the same length
 (travel time, `jobDuration`, the wait, the arc), so `stopWorkLoop` can still kill them.
 
@@ -240,7 +250,9 @@ and the art are in [BUILDING_DESIGN.md](BUILDING_DESIGN.md#robot-jobs--hosts-wor
   station's ripple (`playStationRipple`) plays beside it. It is then `'charging'`: hidden, `visibility: hidden`, out of
   the raster.
 - **Exiting** (`'exiting'`), the reverse: it appears at the port (scale 0.15 → 1, opacity 0 → 1),
-  ripples outward, then `next()`. A robot exits through the station it last entered.
+  ripples outward, then `next()`. A robot exits through the station it last entered, in the back
+  robot row (J4): hidden, moved there, then the arc plays between the station's back plate and the
+  rest of it, ending at the row's 0.75.
 - **Reduced motion**: both arcs are a `STATION_REDUCED_ARC_SECONDS` (0.3 s) fade in place, with no
   scale and no station ripple.
 - **Slot lights** are the occupancy display: a station lights one slot per robot with its
@@ -377,7 +389,7 @@ a target elapsed-measures count, the exact end state a real measure-by-measure r
 produced can be computed in a tight loop, with zero BeatClock subscription and zero
 AudioEngine/GSAP side effects. This is the same "store the recipe, not the derived state" principle
 melody's own base generation already follows (roadmap Phase 31). **Nothing the work loop owns is
-replayed** (Phase 43): job, activity, station, site and position are live visual state on
+replayed** (Phase 43): job, activity, station, site, position and robot row (`layer`) are live visual state on
 wall-clock time, and nothing the replay computes reads them.
 
 **`Locale.createdAtMeasure: number`** (`types/locale.ts`) — stamped once, at the same point
@@ -520,11 +532,18 @@ power cycle; the re-registration may be unnecessary defensive work carried over 
 verified requirement. `audioMode` (unaffected by the power cycle, since it lives in
 `useLocaleStore`, not `AudioEngine`) is what keeps Docked robots silent afterward.
 
-## Known gaps (J2)
+## Known gaps
 
 - ~~**Exiting robots draw in the front robot group**~~: closed by Phase 43 Task 34b (J4). An
   exiting robot is moved to the back robot row (`robots-back`, over the station's L4 and under
   L3) while hidden at the port, and its arc plays there at `BACK_LAYER_SCALE`.
+- **A few background parks sit below the roof** (spec §7 Q6, raised in J1, still open). A park is
+  `PARK_CLEARANCE` above the roof, clamped to `WORLD_MARGIN`, so the tallest background factories
+  park lower. Measured over the 121-seed grid (2026-10-08): 10 of 1 523 eligible background sites,
+  in 7 worlds, park below where they should (up to 52 units below the roof top), and in 4–7 of them,
+  depending on body size, the robot overlaps the building. It can't clip: the back row draws over
+  every background building, so the robot works in front of the facade's top instead of above
+  the roof. The spec's options are to drop such sites or park them beside the building.
 - **The orbiters' Size tween isn't stopped by the lock.** A Size edit mid-job would fight the pulse
   on `scale`.
 - **The station ignores daylight**: the robots dim at night, the station doesn't. No spec rule asks
@@ -543,6 +562,7 @@ cover:
 - the never-zero-`Active` invariant: a sole `Active` robot at/below critical battery stays `Active` (including floored at exactly 0) instead of being recalled; it is recalled on a later tick once another robot has landed back on `Active`; and when two robots cross critical in the same tick, only one is recalled while the other is held
 - `stepRobotLifecycle`/`replayLifecycle` (the injected `DrainRule`, pitch drift matching the live seed formula, no cross-robot seed collision, compounding drift, the no-op case, `fromMeasure` excluded) and the prove-it test: a real 12-robot roster run for N real ticks and separately replayed, asserted identical field for field (mutation-checked against a broken invariant guard, the pre-drift melody and a job surcharge)
 - the work loop: one robot per site, the cooldown, the job sticking until no ready site hosts it, recall in each activity, both turn-backs, adoption on mount and on start, settling, the body-less timelines, stop finishing a job silently, and callbacks that never touch `AudioEngine` (spy); every mutant run in Tasks 22–24 is killed
+- the two robot rows (J4; plus `layerSwitch.test.ts` and `midgroundSilhouettes.test.tsx`): front → back and back → front legs, the switch point's clear run, the skip with no switch point, the 0.75 row scale, the dissolve copy in both directions and every interruption of it (stop, recall, a dropped leg's re-mount, an overlapping fade), exits into the back row, and `stations.test.ts`' guards that no station box or exiting robot overlaps a midground silhouette (0 of 284 over the grid). The J1–J3 loop tests run with `backHosts: false`
 - the real tick into the real loop at 20/110/200 BPM: exit → transit → working → recall → the job finishes at full length → returning → entering → charging (hidden, slot lit) → undock → exit → working, plus the two hidden-tab turn-backs at 200 BPM (removing the returning turn-back fails that case)
 - `spawnInitialRoster`'s active/docked split, seeded battery variation, determinism, every robot at its station's port with the right `activity`, one store write, and every robot (Docked included) holding a reserved voice/registered melody with `audioMode` matching its docking state
 - `startRobotLifecycle`/`stopRobotLifecycle` and `startWorkLoop`/`stopWorkLoop` idempotency, and the power-off order

@@ -26,7 +26,7 @@ is active. Retransmitting a new Attenuation Style recolors an existing
 locale's factories in place (`recolorActorsForAttenuationStyle()` — roadmap
 Phase 42 D2 generalised it to cover every body-bearing scenery actor too,
 see "Scenery families" below) without touching any of those other fields. See
-[docs/specs/ATTENUATION_STYLE.md](specs/ATTENUATION_STYLE.md) §1.2.
+[docs/specs/archive/ATTENUATION_STYLE.md](specs/archive/ATTENUATION_STYLE.md) §1.2.
 
 A third additive step, the **accent lean** (roadmap Phase 35,
 [docs/specs/WORLD_PALETTE_PULL.md](specs/WORLD_PALETTE_PULL.md)), pulls the
@@ -493,7 +493,10 @@ overrides apply, in this order:
    tank doesn't vent). Wrecks are always derelict.
 
 `isWorkSiteEligible(actor, { backHosts })` adds the depth filter. Background hosts only count when
-`BACK_HOSTS_ENABLED` is on, and it stays `false` until the depth-layers branch (J4) passes its gate.
+`BACK_HOSTS_ENABLED` is on. It has been `true` since the depth-layers branch (J4) passed its gates,
+and a robot works at a background host from the back robot row
+([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#layer-switch)); `false` is the fallback that turns
+background hosting off.
 An unresolvable row counts as foreground, like `Factory.tsx`'s render fallback.
 
 ### Factory geometry (`src/components/actors/factoryGeometry.ts`)
@@ -517,8 +520,9 @@ here too.
   seeded ± 40 sideways from `Alea(id + ':park')`, and clamped into the world (`WORLD_MARGIN` 100).
   The sideways placement uses only the part of the roof inside `[0, WORLD_WIDTH]`. The clamp has
   one gap: a background Skyscraper's roof can sit as high as y = 48, so its park lands *below* the
-  roof line. Background sites are ineligible until J4, and J4 must decide whether to drop such
-  sites or park beside them.
+  roof line. J4 made background sites eligible without settling it: 10 of 1 523 background sites
+  over the 121-seed grid park low, and the choice (drop them, or park beside them) is still open
+  ([ROBOT_LIFECYCLE.md](ROBOT_LIFECYCLE.md#known-gaps)).
 - **`points`** (2–4 work points: mouths, valves, mast heads, roof corners) and **`paths`** come
   from the site's own `Alea(id + ':work')` stream, never per robot. `paths.outline` (a polyline of
   at least 2 points: the top outline, a hull line) is always there; `paths.pipe` (the pipe run) is
@@ -599,7 +603,7 @@ directly above the valve.
 
 Every world must have **at least 3 jobs with at least 4 eligible midground + foreground hosts
 each** (`COVERAGE_MIN_JOBS`, `COVERAGE_MIN_HOSTS`). Only those depths count, so the guarantee holds
-whether or not J4 ships. `placeDistrict` ends with `ensureJobCoverage(actors, topUps, place)`,
+with `BACK_HOSTS_ENABLED` either way. `placeDistrict` ends with `ensureJobCoverage(actors, topUps, place)`,
 which is pure (the placer is passed in). It counts hosts per job (`jobHostCounts`). While
 `meetsCoverage` is false, it places the district's next `COVERAGE_TOP_UP` item and checks again.
 It stops when the rule holds or the list runs out.
@@ -627,8 +631,23 @@ It stops when the rule holds or the list runs out.
 ### Stations avoid hosts
 
 Charging stations (`src/systems/stations.ts`, spec §1.6) are placed clear of every host's `bounds`
-at **every** depth (`hostObstacles`), background included. That way, turning on
-`BACK_HOSTS_ENABLED` in J4 can't move a station. The box is `STATION_BOX_W` × `STATION_BOX_H`
+at **every** depth (`hostObstacles`), background included. That way, turning
+`BACK_HOSTS_ENABLED` on (J4) or off can't move a station. Stations don't avoid midground
+silhouettes, but none overlaps one: a station's back plate is in the back robot row, so one that
+did would have midground drawn through it. `stations.test.ts` guards it (0 of 284 over the grid).
+
+### Midground silhouettes (`src/systems/midgroundSilhouettes.ts`)
+
+`getMidgroundSilhouettes(localeId)` returns a box for everything solid drawn between the two robot
+rows (J4, spec §1.10): every midground factory's body and its rooftop greeble, every midground
+scenery actor (hosts or not), the midground pipe bridges' bars and posts, and the ground line's
+steps. A robot changes row only where its box overlaps none of them, so it never pops through a
+building. Bubbles, vent plumes and floodlight beams and pools are left out (translucent and moving).
+Each box is measured from the renderer's own JSX by `src/utils/svgElementExtent.ts`, or taken from
+the renderer's own layout function (`pipeBridgeLayout.ts`, which `PipeBridges` draws from), never
+from a copy of its maths. `midgroundSilhouettes.test.tsx` checks over the 121-seed grid that every
+box holds every drawn shape and is tight to it. A renderer change that adds a solid shape must keep
+that test green. The box is `STATION_BOX_W` × `STATION_BOX_H`
 (200 × 200), the size of Crawford's station design (spec §1.6).
 
 ---
@@ -789,7 +808,7 @@ of the greebles above, only 5 (`pitchedRoof`/`crownSpire` rooftop; `squareWindow
 `ROOFTOP_LAYOUT_PAINT`/`FACADE_LAYOUT_PAINT` registries. Every `render<Greeble>` function
 documented above **remains the stable public entry point** — the split is an internal
 performance detail behind it, not a change to this contract. See
-[docs/specs/FACTORY_LIGHTING_RERENDER.md](specs/FACTORY_LIGHTING_RERENDER.md) for the full
+[docs/specs/archive/FACTORY_LIGHTING_RERENDER.md](specs/archive/FACTORY_LIGHTING_RERENDER.md) for the full
 design.
 
 ---

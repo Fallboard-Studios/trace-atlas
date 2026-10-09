@@ -688,8 +688,9 @@ Intent [docs/intent/robot-halo-and-lit-lines.md](../intent/robot-halo-and-lit-li
 [docs/specs/ROBOT_HALO_AND_LIT_LINES.md](../specs/ROBOT_HALO_AND_LIT_LINES.md), plan
 [docs/tasks/ROBOT_HALO_AND_LIT_LINES.md](../tasks/ROBOT_HALO_AND_LIT_LINES.md), sketch
 [docs/sketches/robot-halo-and-lit-lines.html](../sketches/robot-halo-and-lit-lines.html).
-**Merged to main (PR #528, `feature/mystery-light`), Tasks 1–13; the halo is built but has no
-caller yet.**
+**Merged to main (PR #528, `feature/mystery-light`), Tasks 1–13.** The halo ripple's first
+caller is [Phase 43](#43-robot-jobs-and-charging-stations)'s station enter/exit arcs (J2,
+2026-10-08).
 
 ### About
 
@@ -766,19 +767,34 @@ coordinates and saved `?session=` links show is accepted.
 Idea [docs/ideas/robot-jobs-and-stations.md](../ideas/robot-jobs-and-stations.md), intent
 [docs/intent/robot-jobs-and-stations.md](../intent/robot-jobs-and-stations.md), spec
 [docs/specs/ROBOT_JOBS_AND_STATIONS.md](../specs/ROBOT_JOBS_AND_STATIONS.md), plan
-[docs/tasks/ROBOT_JOBS_AND_STATIONS.md](../tasks/ROBOT_JOBS_AND_STATIONS.md). **J1 (lifecycle +
-world data) merged 2026-10-07** (PR #537, Tasks 1–16). **J2 (stations + the loop) shipped and
-merged 2026-10-08** (PR #538, `feature/job-lifecycle-2`, Tasks 0a, 0b, 16b, 17–27): Crawford's two
-motion sketches; the work loop (`workLoop.ts`) behind the `onLifecycleChange` seam, with the
-legacy adapter, idle wandering and job affinity scoring deleted; Crawford's charging station
-design (three fragments around the robots, slot lights, live rig dials, the station ripple);
-recall and turn-back; jobs 6–10 s from the tempo; site cooldown 0.3/2/30; and the activity on the
-robot cards. **J3 (the move set) shipped and merged 2026-10-08** (PR #539, `feature/jobs-moves`,
-Tasks 28–31): all five moves (`hoverPulse`, `trace`, `ring`, `fan`, `carry`), the six-job table
-and per-robot variation. Checkpoints C and D passed, and so did the J2 and J3 perf gates
-(docs/PERFORMANCE.md) and Crawford's Pixel listen, all 2026-10-08. **J4 (depth layers, Tasks
-32–36) is next and not started.** Docs: [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md),
-[ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md), [BUILDING_DESIGN.md](../BUILDING_DESIGN.md).
+[docs/tasks/ROBOT_JOBS_AND_STATIONS.md](../tasks/ROBOT_JOBS_AND_STATIONS.md). **Shipped: all four
+branches merged to main, 2026-10-07 to 2026-10-08.**
+
+| Branch | PR | Tip merged | Tasks |
+|---|---|---|---|
+| J1 lifecycle + world data, `feature/jobs-lifecycle` | #537 | `cd7f9988` | 1–16 |
+| J2 stations + the loop, `feature/job-lifecycle-2` | #538 | `af560c36` | 0a, 0b, 16b, 17–27 |
+| J3 the move set, `feature/jobs-moves` | #539 | `9f7cda8e` | 28–30 |
+| J3 docs, `features/jobs-phase-4` | #543 | `8535afd8` | 31 |
+| J4 depth layers, `feature/jobs-depth` | #544 | `c1ad9837` | 32, 32b, 33, 34, 34b, 35 |
+| Final docs, `docs/jobs-final` | — | — | 36 |
+
+**J2 (stations + the loop) shipped and merged 2026-10-08:** Crawford's two motion sketches; the
+work loop (`workLoop.ts`) behind the `onLifecycleChange` seam, with the legacy adapter, idle
+wandering and job affinity scoring deleted; Crawford's charging station design (three fragments
+around the robots, slot lights, live rig dials, the station ripple); recall and turn-back; jobs
+6–10 s from the tempo; site cooldown 0.3/2/30; and the activity on the robot cards. **J3 (the move
+set) shipped and merged 2026-10-08:** all five moves (`hoverPulse`, `trace`, `ring`, `fan`,
+`carry`), the six-job table and per-robot variation. **J4 (depth layers) shipped and merged
+2026-10-08:** a second moving robot row (`robots-back`) behind the midground, so background
+buildings host work (`BACK_HOSTS_ENABLED` true); robots switch rows only at the start of a run
+clear of every midground silhouette, under a 1 s dissolve, at 0.75 scale in the back; four depth
+tints replace the old two; exiting robots leave between the station's back plate and the rest.
+Checkpoints A–E all passed live. Every perf gate passed except J4's, whose paint miss (+31 ms per
+6 s, the two extra compositor layers) Crawford accepted after a Pixel run on the Full Load
+Budget; the J2/J3 Pixel listen passed too (docs/PERFORMANCE.md). Docs:
+[ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md), [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md),
+[BUILDING_DESIGN.md](../BUILDING_DESIGN.md), [ROBOT_DESIGN.md](../ROBOT_DESIGN.md).
 
 J1 shipped:
 - the renamed docking states;
@@ -812,12 +828,58 @@ assumptions to validate, MVP and Not Doing list are in the idea doc.
 
 ### Supersedes
 
-- [docs/todo/backlog.md](backlog.md) item 8 (Visuals: Job Animations).
+- Backlog item 8 (Visuals: Job Animations), closed by this phase and moved to
+  [docs/todo/archive/backlog-archive.md](archive/backlog-archive.md).
 - The bottom-only entry/exit, random idle wandering and low-battery lower-third rules
   ([docs/ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md)), job affinity scoring and per-job battery
   surcharges — all removed by this phase, along with the dead `interactionSystem.ts` and factory
   production fields. J1 removed the surcharges, `interactionSystem.ts` and the production fields;
   J2 removed the rest when the work loop replaced the legacy adapter (Task 24).
+
+### Decisions made while building
+
+All Crawford's unless marked; each is recorded in the plan's "As shipped" notes.
+
+- **Orbiter count no longer drives job speed** (moves sketch, 2026-10-07): every job lasts 6–10 s,
+  set by the tempo at job start. Count only decides how many orbiters work.
+- **The station is his own design** (station sketch): four rotated gem layers drawn as three
+  fragments around the robots, a 25-shape budget (raised from 16), slot lights in the stored
+  robots' identity colours, no bob, geometry driven by the global rig.
+- **Flat drain 6 and site cooldown 0.3/2/30**, both picked from headless sims.
+- **Midground silhouettes are everything solid between the robot rows** ("let's not let robots
+  clip through anything"), with bubbles, plumes and floodlight beams left out.
+- **Tints and a dissolve together** (depth-tint sketch gate): A .06 / B .25 / C .20 / D .10, so a
+  row switch moves 40 % haze instead of 85 %, blended by a 1 s dissolve.
+- **The front copy fades in both directions** (Task 34, the agent's call against the plan's
+  wording): a back → front robot re-mounts in front only after its fade, so the haze never pops.
+- **J4's paint cost accepted** (Task 35): +17 % paint at idle and ≈ +17 MB on a Pixel 8, for the
+  two extra compositor layers, after a 3-minute Pixel run on Full.
+
+### Not Doing (and why)
+
+- **Time of day in job choice**: the hour is wall-clock and measures follow tempo, so they can't
+  share a replay.
+- **Per-job or per-orbiter battery drain**: jobs change at wall-clock moments; a flat drain keeps
+  the replay exact.
+- **Jobs from audio controls or companies**: audio drives the look; companies already make their
+  members look alike.
+- **Lifecycle light colours** (low-power red, charging yellow): no change to the Visual Mapping
+  guardrail.
+- **Visible building calls and a colony economy**: timers, static-layer repaints and unreplayable
+  state.
+- **Job animations on cards or the detail avatar**: the avatar keeps its orbiters attached.
+- **Persisting or replaying job, activity, position, row or cooldowns**: a live layer by design.
+- **Power-cycle polish**: its own pass; a power cycle still kills the work, swim and station
+  animations.
+- **One robot row with midground clipping**: J4's alternative if the re-mount had hitched; it
+  didn't (Checkpoint E).
+- **The districts' `dock` pad family**: dropped; stations replace it.
+
+### Still open
+
+- **Background parks below the roof** (spec §7 Q6): 10 of 1 523 background sites over the
+  121-seed grid park low; drop them or park beside them is Crawford's call
+  ([ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md#known-gaps)).
 
 ## 44. World Gem Material (Option A)
 
