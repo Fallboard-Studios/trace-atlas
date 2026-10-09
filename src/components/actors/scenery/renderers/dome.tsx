@@ -4,7 +4,7 @@ import { DERELICT_SAT } from '../../../../constants/sceneDepth';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import type { SceneryRenderer } from '../sceneryTypes';
 import { GemRing } from '../../material/GemRing';
-import { WORLD_GEM, ringFacets, worldBevel, worldLightVector } from '../../material/worldGemMaterial';
+import { WORLD_GEM, hairline, ringFacets, worldBevel, worldLightVector } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 dome row)
@@ -85,6 +85,11 @@ export const dome: SceneryRenderer = ({ actor, params, cap, eastL, westL, nightD
 
   const hatchFill = ambient;
   const mastFill = ambient;
+  // The mast is a member and the cap is a curve: the mast takes the hairline, and the cap takes it
+  // along its arc only (one open path after the two filled halves; the base edge belongs to the
+  // ring). The arc is the same half-ellipse the cap halves trace, in one sweep.
+  const member = WORLD_GEM.members ? hairline() : undefined;
+  const capArcD = `M ${x - rx},${top} A ${rx},${ry} 0 0 1 ${x + rx},${top}`;
 
   // The world gem ring (docs/specs/WORLD_GEM_MATERIAL.md §1.5): the base block only, top and bottom
   // split at the centre line. The curved cap is never faceted (the 90/45 rule), and the portholes,
@@ -104,6 +109,7 @@ export const dome: SceneryRenderer = ({ actor, params, cap, eastL, westL, nightD
       <rect x={x} y={top} width={rx} height={bh} fill={eastFill} />
       <path d={westArcD} fill={domeWestFill} />
       <path d={eastArcD} fill={domeEastFill} />
+      {member && <path d={capArcD} fill="none" {...member} />}
       <GemRing facets={ring} />
       {portholePositions.map((porthole, i) => (
         <circle
@@ -117,7 +123,7 @@ export const dome: SceneryRenderer = ({ actor, params, cap, eastL, westL, nightD
         />
       ))}
       <rect x={x - HATCH_W / 2} y={y - DOME_HATCH_H} width={HATCH_W} height={DOME_HATCH_H} fill={hatchFill} />
-      <rect x={x - MAST_W / 2} y={apex - DOME_MAST_H} width={MAST_W} height={DOME_MAST_H} fill={mastFill} />
+      <rect x={x - MAST_W / 2} y={apex - DOME_MAST_H} width={MAST_W} height={DOME_MAST_H} fill={mastFill} {...member} />
       {!derelict && (
         <circle data-dome="mast-light" cx={x} cy={apex - DOME_MAST_H} r={MAST_LIGHT_R} fill={lamp(colorTheme.alert.powered, nightDepth)} />
       )}

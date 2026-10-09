@@ -295,7 +295,8 @@ describe('sceneryWorkAnchors (Phase 43 Tasks 10–11, spec §1.5)', () => {
         const beamRight = { x: num(beam, 'x') + num(beam, 'width'), y: num(beam, 'y') };
         const fg = anchorsOf(actor, true);
         close(fg.points[0], beamLeft);
-        close(fg.points[1], { x: num(hanger, 'x1'), y: num(beam, 'y') });
+        // the hanger is a 3 px wide rect since Phase 44 (it was a stroked line): its centre line
+        close(fg.points[1], { x: num(hanger, 'x') + num(hanger, 'width') / 2, y: num(beam, 'y') });
         close(fg.points[2], beamRight);
         const mid = anchorsOf(actor, false);
         close(mid.points[0], beamLeft);
@@ -311,11 +312,14 @@ describe('sceneryWorkAnchors (Phase 43 Tasks 10–11, spec §1.5)', () => {
       for (const actor of [0, 1, 2, 3].map((i) => sceneryActor('pylon', i))) {
         const c = renderKind(actor);
         const head = gemCentre(c);
-        const tower = shapeExtents(c).find((s) => s.el.matches('polygon') &&!s.el.closest('[data-shape="gem"]'))!;
+        const towerEl = [...c.querySelectorAll('polygon')].find((el) => !el.closest('[data-shape="gem"]'))!;
+        // The tower's own top edge, from its points: the rendered extent would also count half the
+        // 1.5 px hairline (Phase 44), but the anchor is the geometry the hairline is drawn around.
+        const towerTop = Math.min(...towerEl.getAttribute('points')!.trim().split(/\s+/).map((p) => Number(p.split(',')[1])));
         const fg = anchorsOf(actor, true);
         close(fg.points[0], head);
-        expect(fg.points[1].y).toBeCloseTo(tower.y0, 6);
-        expect(fg.points[2].y).toBeCloseTo(tower.y0, 6);
+        expect(fg.points[1].y).toBeCloseTo(towerTop, 6);
+        expect(fg.points[2].y).toBeCloseTo(towerTop, 6);
         const mid = anchorsOf(actor, false);
         close(mid.points[0], head);
         const arms = [...c.querySelectorAll('[data-scenery="pylon"] > rect')].map((r) => ({

@@ -54,13 +54,13 @@ const draw = (c: SceneryContext) => render(dome(c)).container;
 const group = (c: HTMLElement) => c.querySelector('[data-scenery="dome"]')!;
 
 describe('dome ring: geometry and order', () => {
-  it('draws exactly one ring, after the two cap paths and before the portholes', () => {
+  it('draws exactly one ring, after the two cap paths (and the hairline arc) and before the portholes', () => {
     const g = group(draw(CTX));
     expect(ringsIn(g)).toHaveLength(1);
     expect(Array.from(g.children).map((k) => k.tagName.toLowerCase())).toEqual([
-      'rect', 'rect', 'path', 'path', 'g', 'circle', 'circle', 'circle', 'circle', 'rect', 'rect', 'circle',
+      'rect', 'rect', 'path', 'path', 'path', 'g', 'circle', 'circle', 'circle', 'circle', 'rect', 'rect', 'circle',
     ]);
-    expect(g.children[4].getAttribute('data-gem')).toBe('ring');
+    expect(g.children[5].getAttribute('data-gem')).toBe('ring');
   });
 
   it('rings the base block only: 6 facets on a box from the left edge to the right, the top of the block to the ground', () => {

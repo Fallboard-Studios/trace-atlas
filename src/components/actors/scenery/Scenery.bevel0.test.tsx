@@ -5,8 +5,10 @@
  * PRE-CHANGE renderers (Task 13's RED step, for all sixteen families at once, before any of them
  * had been touched) and must match unchanged through Tasks 13-17.
  *
- * Exception, asserted separately below: the crane's hanger is a <line> before Task 16 and a <rect>
- * after it (spec §1.3), so the crane's snapshot is the one that Task 16 re-baselines.
+ * Exception: the crane's hanger was a <line> before Task 16 and is a <rect> after it, switches or
+ * no switches (spec §1.3). Task 16 re-baselined the nine crane snapshots, and checked mechanically
+ * that the only difference in each is that one element (the old line rewritten to the rect with
+ * x - 1.5, width 3 and the same top and bottom reproduces the new snapshot byte for byte).
  *
  * Real actors from the real district placer, through the real <Scenery> dispatcher, so depth caps,
  * derelicts, body shifts and every seeded parameter set are whatever the world produces.
