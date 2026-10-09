@@ -1,18 +1,11 @@
 /**
- * "Bevel 0 is proven, not promised" for scenery (docs/specs/WORLD_GEM_MATERIAL.md §3, plan Tasks
- * 13-17): with every WORLD_GEM piece off, each scenery family renders byte-for-byte as it did
- * before the world gem material existed. The snapshot file beside this test was captured on the
- * PRE-CHANGE renderers (Task 13's RED step, for all sixteen families at once, before any of them
- * had been touched) and must match unchanged through Tasks 13-17.
- *
- * Exception: the crane's hanger was a <line> before Task 16 and is a <rect> after it, switches or
- * no switches (spec §1.3). Task 16 re-baselined the nine crane snapshots, and checked mechanically
- * that the only difference in each is that one element (the old line rewritten to the rect with
- * x - 1.5, width 3 and the same top and bottom reproduces the new snapshot byte for byte).
+ * With every WORLD_GEM piece off, each scenery family renders with no ring and no hairline
+ * (docs/specs/WORLD_GEM_MATERIAL.md §3). The pre-change snapshots that proved byte-identity through
+ * Tasks 13-17 were deleted in Task 21 once the material had landed (the crane's hanger, a <line>
+ * before Task 16 and a <rect> after it whatever the switches, was the one deliberate difference).
  *
  * Real actors from the real district placer, through the real <Scenery> dispatcher, so depth caps,
  * derelicts, body shifts and every seeded parameter set are whatever the world produces.
- * Task 21 deletes this file and its snapshots once the docs land.
  */
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { act, render } from '@testing-library/react';
@@ -33,6 +26,7 @@ vi.mock('../../../systems/factoryPlacementSystem', async (importOriginal) => {
 });
 
 import { Scenery } from './Scenery';
+import { worldGemTraces } from '../material/ringTestHelpers';
 import { placeDistrict } from '../../../systems/districts';
 import { SIM_SEED_COORDS } from '../../../systems/lifecycleSim';
 import { useAttenuationStyleStore } from '../../../stores/attenuationStyleStore';
@@ -89,7 +83,13 @@ function markup(actor: Actor, hour: number): string {
   return html;
 }
 
-describe('scenery with every WORLD_GEM piece off renders as it did before the material', () => {
+/** Rendered for real (not blank) and no ring or hairline anywhere in it. */
+function expectPlain(html: string): void {
+  expect(html).toContain('data-scenery');
+  expect(worldGemTraces(html)).toEqual([]);
+}
+
+describe('scenery with every WORLD_GEM piece off carries no trace of the material', () => {
   it('the mock really turns every piece off', async () => {
     const { WORLD_GEM } = await import('../material/worldGemMaterial');
     expect((Object.values(WORLD_GEM) as boolean[]).every((on) => on === false)).toBe(true);
@@ -107,7 +107,7 @@ describe('scenery with every WORLD_GEM piece off renders as it did before the ma
     describe.each(KINDS)('%s', (kind) => {
       it.each([0, 1, 2])('actor %i', (i) => {
         const actor = BY_KIND[kind][i];
-        expect(markup(actor, hour)).toMatchSnapshot();
+        expectPlain(markup(actor, hour));
       });
     });
   });
@@ -125,7 +125,7 @@ describe('scenery with every WORLD_GEM piece off renders as it did before the ma
         const actor = DEAD[kind];
         if (!actor) return; // this family has no derelict placement in the sampled worlds
         expect(actor.config?.derelict).toBe(true);
-        expect(markup(actor, hour)).toMatchSnapshot();
+        expectPlain(markup(actor, hour));
       });
     });
   });

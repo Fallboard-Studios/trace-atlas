@@ -2,7 +2,7 @@
  * Shared helpers for tests that read the world gem material back out of rendered markup
  * (docs/specs/WORLD_GEM_MATERIAL.md §5). Test-only: nothing in the app imports this file.
  */
-import { WORLD_GEM } from './worldGemMaterial';
+import { HAIRLINE_PX, WORLD_GEM } from './worldGemMaterial';
 
 export type Pt = [number, number];
 
@@ -58,6 +58,19 @@ export function withSwitch(piece: keyof typeof WORLD_GEM, value: boolean, body: 
   } finally {
     switches[piece] = before;
   }
+}
+
+/**
+ * What of the world gem material a chunk of markup carries: `'ring'` for a `data-gem="ring"` group,
+ * `'hairline'` for a 1.5 px stroke (the only place that width is drawn — the scenery gem's own
+ * outline is 2 px and a ring facet's 0.6 px sits inside a ring group). Empty means the markup is as
+ * it was before the material existed; the switch-off tests assert exactly that.
+ */
+export function worldGemTraces(markup: string): Array<'ring' | 'hairline'> {
+  const traces: Array<'ring' | 'hairline'> = [];
+  if (markup.includes('data-gem="ring"')) traces.push('ring');
+  if (markup.includes(`stroke-width="${HAIRLINE_PX}"`)) traces.push('hairline');
+  return traces;
 }
 
 /** A root's markup with every ring group removed: what is left must equal the switched-off render. */

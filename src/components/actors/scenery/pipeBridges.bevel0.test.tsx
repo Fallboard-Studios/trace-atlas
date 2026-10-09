@@ -1,8 +1,7 @@
 /**
- * "Bevel 0 is proven, not promised" for the pipe bridges (docs/specs/WORLD_GEM_MATERIAL.md §3, plan
- * Task 17): with every WORLD_GEM piece off, a bridge renders byte-for-byte as it did before the
- * hairline existed. The snapshot beside this test was captured on the PRE-CHANGE pipeBridges.tsx
- * (Task 17's RED step). Task 21 deletes this file and its snapshot once the docs land.
+ * With every WORLD_GEM piece off, a pipe bridge draws no hairline (docs/specs/WORLD_GEM_MATERIAL.md
+ * §3). The pre-change snapshot that proved byte-identity through Task 17 was deleted in Task 21
+ * once the material had landed.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
@@ -16,6 +15,7 @@ vi.mock('../material/worldGemMaterial', async (importOriginal) => {
 });
 
 import { PipeBridges } from './pipeBridges';
+import { worldGemTraces } from '../material/ringTestHelpers';
 import { createFactory, getRecipeRow } from '../../../systems/factoryPlacementSystem';
 import { selectVariantFromSeed, VARIANT_CONF } from '../factoryVariants';
 import { calcSilhouetteSize } from '../silhouetteUtils';
@@ -36,7 +36,7 @@ function pair(gap: number, row: number, suffix: string): Actor[] {
   return [createFactory({ x: xA, y: 1000 }, row, 1, idA), createFactory({ x: xB, y: 1000 }, row, 1, idB)];
 }
 
-describe('pipe bridges with every WORLD_GEM piece off render as they did before the hairline', () => {
+describe('pipe bridges with every WORLD_GEM piece off draw no hairline', () => {
   it('the mock really turns every piece off', async () => {
     const { WORLD_GEM } = await import('../material/worldGemMaterial');
     expect((Object.values(WORLD_GEM) as boolean[]).every((on) => on === false)).toBe(true);
@@ -51,7 +51,7 @@ describe('pipe bridges with every WORLD_GEM piece off render as they did before 
     const factories = pair(gap, row, `${gap}-${row}`);
     const { container } = render(<svg><PipeBridges factories={factories} /></svg>);
     expect(container.querySelectorAll('[data-pipe-bridge]')).toHaveLength(1);
-    expect(container.innerHTML).toMatchSnapshot();
+    expect(worldGemTraces(container.innerHTML)).toEqual([]);
   });
 
   it('a row of three factories bridged pairwise', () => {
@@ -59,11 +59,11 @@ describe('pipe bridges with every WORLD_GEM piece off render as they did before 
     const c = createFactory({ x: a[1].position.x + widthOf(a[1].id, a[1].position.x, 0) + 140, y: 1000 }, 0, 1, 'bridge-c-chain');
     const { container } = render(<svg><PipeBridges factories={[...a, c]} /></svg>);
     expect(container.querySelectorAll('[data-pipe-bridge]').length).toBeGreaterThanOrEqual(1);
-    expect(container.innerHTML).toMatchSnapshot();
+    expect(worldGemTraces(container.innerHTML)).toEqual([]);
   });
 
   it('no factories draws an empty group', () => {
     const { container } = render(<svg><PipeBridges factories={[]} /></svg>);
-    expect(container.innerHTML).toMatchSnapshot();
+    expect(container.innerHTML).toBe('<svg><g data-scenery="pipe-bridges"></g></svg>');
   });
 });

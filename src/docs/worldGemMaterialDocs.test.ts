@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -248,4 +248,33 @@ describe('PERFORMANCE.md carries the Phase 44 gate (Task 19/21)', () => {
     const gate = section(perf, perf.match(/^## World Gem Material — the Task 19 perf gate.*$/m)![0]);
     for (const needle of ['6802c8b4', 'dense', 'ventfield', 'yard', '**Verdict:**']) expect(gate, needle).toContain(needle);
   });
+});
+
+describe('the transition snapshots are gone; the switch-off tests assert plainly (Task 21)', () => {
+  const BEVEL0_TESTS = [
+    'src/components/actors/Factory.bevel0.test.tsx',
+    'src/components/actors/scenery/Scenery.bevel0.test.tsx',
+    'src/components/actors/scenery/pipeBridges.bevel0.test.tsx',
+    'src/components/panels/screen/worldView/TerrainLayer.bevel0.test.tsx',
+  ];
+  const SNAPSHOT_DIRS = [
+    'src/components/actors/__snapshots__',
+    'src/components/actors/scenery/__snapshots__',
+    'src/components/panels/screen/worldView/__snapshots__',
+  ];
+
+  it.each(SNAPSHOT_DIRS)('%s no longer exists (nothing else in it was a snapshot of this phase)', (dir) => {
+    expect(existsSync(resolve(repoRoot, dir))).toBe(false);
+  });
+
+  it.each(BEVEL0_TESTS)('%s still exists and asserts through worldGemTraces, not a snapshot', (file) => {
+    const source = read(file);
+    expect(source).not.toContain('toMatchSnapshot');
+    expect(source).toContain('worldGemTraces');
+  });
+
+  it.each(BEVEL0_TESTS)('%s no longer says Task 21 will delete it', (file) => {
+    expect(read(file)).not.toMatch(/Task 21 deletes|snapshot (file )?beside this test/i);
+  });
+
 });

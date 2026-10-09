@@ -1,8 +1,7 @@
 /**
- * "Bevel 0 is proven, not promised" for the terrain (docs/specs/WORLD_GEM_MATERIAL.md §3, plan Task
- * 18): with every WORLD_GEM piece off, the terrain layer renders byte-for-byte as it did before the
- * ring existed. The snapshot beside this test was captured on the PRE-CHANGE TerrainLayer.tsx
- * (Task 18's RED step). Task 21 deletes this file and its snapshot once the docs land.
+ * With every WORLD_GEM piece off, the terrain layer draws no ring (docs/specs/WORLD_GEM_MATERIAL.md
+ * §3). The pre-change snapshot that proved byte-identity through Task 18 was deleted in Task 21 once
+ * the material had landed.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, render, cleanup } from '@testing-library/react';
@@ -16,6 +15,7 @@ vi.mock('@/components/actors/material/worldGemMaterial', async (importOriginal) 
 });
 
 import { TerrainLayer } from './TerrainLayer';
+import { worldGemTraces } from '@/components/actors/material/ringTestHelpers';
 import { __clearTerrainProfileCache } from '@/systems/terrainProfile';
 import { evictLocaleNoiseMap } from '@/utils/noiseMaps';
 import { useLocaleStore, DEFAULT_LOCALE } from '@/stores/localeStore';
@@ -39,7 +39,7 @@ afterEach(() => {
   cleanup();
 });
 
-describe('terrain with every WORLD_GEM piece off renders as it did before the ring', () => {
+describe('terrain with every WORLD_GEM piece off draws no ring', () => {
   it('the mock really turns every piece off', async () => {
     const { WORLD_GEM } = await import('@/components/actors/material/worldGemMaterial');
     expect((Object.values(WORLD_GEM) as boolean[]).every((on) => on === false)).toBe(true);
@@ -54,13 +54,14 @@ describe('terrain with every WORLD_GEM piece off renders as it did before the ri
       ])('at %s', (_name, hour) => {
         act(() => useUIStore.getState().setActiveLocaleLocalTime(hour));
         const { container } = render(<svg><TerrainLayer localeId={localeId} part={part} width={1920} height={1080} /></svg>);
-        expect(container.innerHTML).toMatchSnapshot();
+        expect(container.querySelectorAll(`polygon[data-terrain="${part}"]`)).toHaveLength(1);
+        expect(worldGemTraces(container.innerHTML)).toEqual([]);
       });
     });
   });
 
   it('an unknown locale draws nothing', () => {
     const { container } = render(<svg><TerrainLayer localeId="no-such-locale" part="ridge" width={1920} height={1080} /></svg>);
-    expect(container.innerHTML).toMatchSnapshot();
+    expect(container.innerHTML).toBe('<svg></svg>');
   });
 });
