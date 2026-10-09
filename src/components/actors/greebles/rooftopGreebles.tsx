@@ -8,6 +8,7 @@ import {
   ROOF_BOX_BEVEL_FACTOR,
   WORLD_BEVEL_PX,
   WORLD_GEM,
+  hairline,
   ringFacets,
   worldBevel,
   type RingOptions,
@@ -49,6 +50,9 @@ function roofBoxRing(
   const facets = ringFacets(pts, depth, ctx.light, faceLightAt, ctx.colors.accent, opts);
   return facets.length > 0 ? <GemRing key={key} facets={facets} /> : null;
 }
+
+/** The 1.5 px hairline for a really thin part (shaft, pipe, stilt, rod), or nothing when it is off. */
+const thinPart = () => (WORLD_GEM.members ? hairline() : undefined);
 
 const present = (els: Array<GreebleElement | null>): GreebleElement[] => els.filter((e): e is GreebleElement => e !== null);
 
@@ -395,7 +399,7 @@ export function paintCrownSpire(layout: CrownSpireLayout, ctx: GreebleRendererCo
       );
     });
     elements.push(
-      <rect key="antenna" x={layout.antenna.x} y={layout.antenna.y} width={layout.antenna.width} height={layout.antenna.height} fill={westFill} />,
+      <rect key="antenna" x={layout.antenna.x} y={layout.antenna.y} width={layout.antenna.width} height={layout.antenna.height} fill={westFill} {...thinPart()} />,
     );
     // One two-faced ring per tier: the union of its front and side rects, the top and bottom
     // facets split at the front corner so each half takes its own face's light. Drawn after all
@@ -415,7 +419,7 @@ export function paintCrownSpire(layout: CrownSpireLayout, ctx: GreebleRendererCo
       elements.push(<rect key={`step-${i}`} x={tier.x} y={tier.y} width={tier.width} height={tier.height} fill={fill} />);
     });
     elements.push(
-      <rect key="antenna" x={layout.antenna.x} y={layout.antenna.y} width={layout.antenna.width} height={layout.antenna.height} fill={fill} />,
+      <rect key="antenna" x={layout.antenna.x} y={layout.antenna.y} width={layout.antenna.width} height={layout.antenna.height} fill={fill} {...thinPart()} />,
     );
   }
 
@@ -473,7 +477,7 @@ export function renderAntennae(ctx: GreebleRendererContext): GreebleElement | nu
   const lightR = Math.max(2, lineW * 1.5);
 
   const elements: GreebleElement[] = [
-    <rect key="shaft" x={lineX} y={lineY} width={lineW} height={lineH} fill={shaftFill} />,
+    <rect key="shaft" x={lineX} y={lineY} width={lineW} height={lineH} fill={shaftFill} {...thinPart()} />,
     <circle key="top-light" cx={bw / 2} cy={lineY} r={lightR} fill={lightFill} />,
   ];
 
@@ -546,7 +550,7 @@ export function paintWaterTower(layout: WaterTowerLayout, ctx: GreebleRendererCo
     <rect key="body" x={body.x} y={body.y} width={body.w} height={body.h} fill={fill} />,
     <polygon key="cap" points={layout.capPoints} fill={fill} />,
     ...layout.stilts.map((s) => (
-      <rect key={`stilt-${s.key}`} x={s.x} y={s.y} width={s.w} height={s.h} fill={fill} />
+      <rect key={`stilt-${s.key}`} x={s.x} y={s.y} width={s.w} height={s.h} fill={fill} {...thinPart()} />
     )),
   ];
   // The tank body is the block; the cap and stilts are thin parts. Single-tone at the roof average.
@@ -575,9 +579,20 @@ export function renderCupola(ctx: GreebleRendererContext): GreebleElement | null
 
   // Upper half of an ellipse: arc from left edge to right edge along roofY,
   // sweeping clockwise (sweep-flag=1) which traces through the top of the dome.
-  const d = `M ${cx - rx},${roofY} A ${rx},${ry} 0 0 1 ${cx + rx},${roofY} Z`;
+  const arc = `M ${cx - rx},${roofY} A ${rx},${ry} 0 0 1 ${cx + rx},${roofY}`;
+  const dome = <path d={`${arc} Z`} fill={hslToString(ctx.colors.accent)} />;
 
-  return <path d={d} fill={hslToString(ctx.colors.accent)} />;
+  // The hairline runs along the arc only: the dome's base edge is not outlined. It is one open
+  // path of its own, after the filled dome (docs/specs/WORLD_GEM_MATERIAL.md §1.6). With the
+  // members switch off the cupola is the single filled path it always was.
+  const line = thinPart();
+  if (!line) return dome;
+  return (
+    <>
+      {dome}
+      <path d={arc} fill="none" {...line} />
+    </>
+  );
 }
 
 // ========================================
@@ -630,17 +645,17 @@ export function renderPipesValves(ctx: GreebleRendererContext): GreebleElement |
       const y = roofY - (prng() * 5);
       const len = bw * (0.3 + prng() * 0.4);
       const x = prng() * (bw - len);
-      elements.push(<rect key={`pipe-h-${i}`} x={x} y={y} width={len} height={2} fill={fill} />);
+      elements.push(<rect key={`pipe-h-${i}`} x={x} y={y} width={len} height={2} fill={fill} {...thinPart()} />);
       // valve at the left end sitting on roof
-      elements.push(<circle key={`valve-h-${i}`} cx={x} cy={y + 1} r={3} fill={fill} />);
+      elements.push(<circle key={`valve-h-${i}`} cx={x} cy={y + 1} r={3} fill={fill} {...thinPart()} />);
     } else {
       // vertical pipes start at roof and descend
       const len = bh * (0.1 + prng() * 0.1); // somewhat longer
       const x = prng() * bw;
       const y = roofY - len;
-      elements.push(<rect key={`pipe-v-${i}`} x={x} y={y} width={2} height={len} fill={fill} />);
+      elements.push(<rect key={`pipe-v-${i}`} x={x} y={y} width={2} height={len} fill={fill} {...thinPart()} />);
       // valve at top on roof
-      elements.push(<circle key={`valve-v-${i}`} cx={x + 1} cy={roofY} r={3} fill={fill} />);
+      elements.push(<circle key={`valve-v-${i}`} cx={x + 1} cy={roofY} r={3} fill={fill} {...thinPart()} />);
     }
   }
   return elements.length ? <>{elements}</> : null;

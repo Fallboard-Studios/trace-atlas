@@ -711,19 +711,26 @@ describe('renderWaterTower', () => {
 // ========================================
 
 describe('renderCupola', () => {
+  // renderCupola returns the filled dome followed by its hairline arc (Phase 44); these tests are
+  // about the dome. The arc has its own tests in rooftopHairlines.test.tsx.
+  const dome = (c: GreebleRendererContext): EL => {
+    const el = renderCupola(c) as EL;
+    return el.type === React.Fragment ? (React.Children.toArray(el.props.children)[0] as EL) : el;
+  };
+
   it('returns a path element', () => {
-    const el = renderCupola(ctx) as EL;
+    const el = dome(ctx);
     expect(React.isValidElement(el)).toBe(true);
     expect(el.type).toBe('path');
   });
 
   it('path contains an arc command (A)', () => {
-    const el = renderCupola(ctx) as EL;
+    const el = dome(ctx);
     expect(el.props.d).toContain('A');
   });
 
   it('path base points lie on roofY', () => {
-    const el = renderCupola(ctx) as EL;
+    const el = dome(ctx);
     // d = "M cx-rx,roofY A rx,ry 0 0 1 cx+rx,roofY Z"
     expect(el.props.d).toContain(`,${ctx.roofY}`);
   });
@@ -731,7 +738,7 @@ describe('renderCupola', () => {
   it('dome spans 40% of buildingWidth for seed=0', () => {
     // cupolaW = 100*(0.4 + (0%100)/100*0.2) = 40 → rx=20, cx=50
     // arc start x = 50-20=30, arc end x = 50+20=70
-    const el = renderCupola({ ...ctx, seed: 0 }) as EL;
+    const el = dome({ ...ctx, seed: 0 });
     expect(el.props.d).toContain('M 30,50');
     expect(el.props.d).toContain('70,50');
   });
@@ -739,19 +746,19 @@ describe('renderCupola', () => {
   it('dome spans 50% of buildingWidth for seed=50', () => {
     // cupolaW = 100*(0.4 + (50%100)/100*0.2) = 100*(0.4+0.1) = 50 → rx=25
     // arc start x = 50-25=25, arc end x = 50+25=75
-    const el = renderCupola({ ...ctx, seed: 50 }) as EL;
+    const el = dome({ ...ctx, seed: 50 });
     expect(el.props.d).toContain('M 25,50');
     expect(el.props.d).toContain('75,50');
   });
 
   it('uses accent color for fill', () => {
-    const el = renderCupola(ctx) as EL;
+    const el = dome(ctx);
     expect(el.props.fill).toBe('hsl(180, 50%, 50%)');
   });
 
   it('dome height (ry) is 12% of buildingHeight', () => {
     // cupolaH = 100*0.12 = 12; encoded in arc as second radius "A rx,12 ..."
-    const el = renderCupola({ ...ctx, seed: 0 }) as EL;
+    const el = dome({ ...ctx, seed: 0 });
     // d: "M 30,50 A 20,12 0 0 1 70,50 Z"
     expect(el.props.d).toContain('A 20,12');
   });
