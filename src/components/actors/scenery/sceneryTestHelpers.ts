@@ -5,8 +5,15 @@
  * interior is the 45° grid by construction (turbine blades, dish ellipses) and is skipped — only
  * elements outside any such group are checked. `rect` is always axis-aligned and so is skipped for
  * the edge check, but included in the NaN sweep below.
+ *
+ * A `[data-gem="ring"]` group (the world gem material's bevel ring, docs/specs/WORLD_GEM_MATERIAL.md
+ * assumption 5) is skipped the same way: a miter inset joins an outer vertex to its inner one along
+ * the corner's bisector, which is 67.5° at a 135° corner — a construction edge, not a drawn
+ * silhouette edge. The NaN sweep still covers it.
  */
 export function assertNinetyFortyFive(svgRoot: Element): void {
+  const isInRing = (el: Element): boolean => el.closest('[data-gem="ring"]') !== null;
+
   const isInRotatedGroup = (el: Element): boolean => {
     let node: Element | null = el.parentElement;
     while (node && node !== svgRoot) {
@@ -26,7 +33,7 @@ export function assertNinetyFortyFive(svgRoot: Element): void {
   };
 
   svgRoot.querySelectorAll('polygon, line').forEach((el) => {
-    if (isInRotatedGroup(el)) return;
+    if (isInRotatedGroup(el) || isInRing(el)) return;
     if (el.tagName.toLowerCase() === 'line') {
       checkEdge(
         Number(el.getAttribute('x1')), Number(el.getAttribute('y1')),
