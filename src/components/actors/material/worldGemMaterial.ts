@@ -9,8 +9,10 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { bevelDepth, type GemPoint } from '../../robot/gem/polygon';
-import { gemOutlineStroke } from '../scenery/gemShape';
+import { applyColorShift, type HSL } from '../../../utils/colorUtils';
+import { bevelDepth, edgeNormals, inset, type GemPoint } from '../../robot/gem/polygon';
+import { facetMultiplier, gemOutlineStroke } from '../scenery/gemShape';
+import { NO_SHIFT } from '../scenery/sceneryColor';
 
 // ========================================
 // CONSTANTS
@@ -69,6 +71,92 @@ export function worldLightVector(eastL: number, westL: number): GemPoint {
 export function worldBevel(w: number, h: number, scale = 1, depthPx = WORLD_BEVEL_PX): number {
   const d = bevelDepth(w, h, depthPx * scale);
   return d < RING_MIN_PX ? 0 : d;
+}
+
+// ========================================
+// RING
+// ========================================
+export interface RingOptions {
+  /** Split every horizontal edge that strictly crosses this x first, so each half takes its own
+   *  face's light — the facade's west/east split (two-faced bodies). */
+  splitX?: number;
+  /** Drop the facets of edges that lie on the frame (terrain: x = 0, x = W, the bottom). The inner
+   *  polygon is still the inset of the whole outline, so the facets that remain are unchanged. */
+  skipEdge?: (a: GemPoint, b: GemPoint) => boolean;
+}
+
+/** One merged `<path>`: every facet of this fill and stroke, as closed quads. */
+export interface RingFacet {
+  fill: string;
+  stroke: string;
+  d: string;
+}
+
+/** Two decimals (0.01 px, invisible) keeps markup compact and stable; Number() drops trailing zeros. */
+const fmt = (n: number): string => String(Number(n.toFixed(2)));
+const pt = ([x, y]: GemPoint): string => `${fmt(x)},${fmt(y)}`;
+
+/** `pts` with a vertex inserted on every horizontal edge that strictly crosses `splitX`. */
+function splitHorizontalEdges(pts: readonly GemPoint[], splitX: number): GemPoint[] {
+  const out: GemPoint[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    out.push(a);
+    const horizontal = Math.abs(a[1] - b[1]) < 1e-9;
+    if (horizontal && Math.min(a[0], b[0]) < splitX && splitX < Math.max(a[0], b[0])) out.push([splitX, a[1]]);
+  }
+  return out;
+}
+
+/**
+ * The bevel ring of a polygon, built from the robot generator's own `inset` and `edgeNormals`: one
+ * facet per outline edge, each the quad `[a, b, inner of b, inner of a]`. A facet's shade is its
+ * outward normal dotted with `light`, quantized to three levels and looked up in the shared 0.5 /
+ * 1.1 / 1.25 table (`facetMultiplier`). Its fill is `body` at `faceLightAt(edge midpoint)` × that
+ * multiplier; its stroke is the same lightness at the fully shaded tone, so the ring has no
+ * outline of its own colour. Facets sharing a (fill, stroke) pair merge into one path, in
+ * first-appearance order. Depth 0 or below, or fewer than three points, draws nothing.
+ *
+ * `faceLightAt` is the face's own lightness multiplier with its depth cap and any derelict dimming
+ * already folded in; `body` is the face's own colour. Both come from the caller — this module never
+ * derives a tone from the scene.
+ */
+export function ringFacets(
+  pts: readonly GemPoint[],
+  depth: number,
+  light: GemPoint,
+  faceLightAt: (midX: number) => number,
+  body: HSL,
+  opts: RingOptions = {},
+): RingFacet[] {
+  if (depth <= 0 || pts.length < 3) return [];
+
+  const outline = opts.splitX === undefined ? pts : splitHorizontalEdges(pts, opts.splitX);
+  const inner = inset(outline, depth);
+  const normals = edgeNormals(outline);
+  const n = outline.length;
+  const merged = new Map<string, RingFacet>();
+
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const a = outline[i];
+    const b = outline[j];
+    if (opts.skipEdge?.(a, b)) continue;
+
+    const shade = normals[i][0] * light[0] + normals[i][1] * light[1];
+    const faceL = faceLightAt((a[0] + b[0]) / 2);
+    const fill = applyColorShift(body, NO_SHIFT, faceL * facetMultiplier(shade));
+    const stroke = applyColorShift(body, NO_SHIFT, faceL * facetMultiplier(-1));
+    const quad = `M${pt(a)}L${pt(b)}L${pt(inner[j])}L${pt(inner[i])}Z`;
+
+    const key = `${fill}|${stroke}`;
+    const group = merged.get(key);
+    if (group) group.d += quad;
+    else merged.set(key, { fill, stroke, d: quad });
+  }
+
+  return [...merged.values()];
 }
 
 // ========================================
