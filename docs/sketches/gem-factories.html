@@ -33,9 +33,19 @@
      Verdicts (Crawford, 2026-10-08):
        material match: keep ("a great little blend of both art styles")   bevel depth: 8 px   outline: NO
        roof boxes bevelled: YES   boundary lines on faces: NO   lateral sun strength: 1.0   facet contrast: 1.0
-       next: stay at A, expanded past the factories (the "mass gets the ring, members stay lines" rule and the
-       terrain switch in the world section below are proposed, not yet ruled) — roadmap Phase 44,
-       docs/ideas/world-gem-material.md. The outline checkbox below now defaults off to match. -->
+       next: stay at A, expanded past the factories — roadmap Phase 44, docs/ideas/world-gem-material.md.
+       The outline checkbox below now defaults off to match.
+
+     World section, ruled later the same day (Crawford, interview-me pass): every "ring on" switch ON — factories, mass
+       scenery, terrain (ridge + ground), and members as a hairline outline. Mass keeps the ring with NO outline; everything
+       else solid gets the hairline instead: the members (pylon, scaffold, crane incl. brace and hanger, beacon mast and base),
+       the dome's curved cap, and — added after the interview, "let's see them with it" — dish, turbine, floodlight, tether,
+       pipeline and pipe bridges, which have their own scene below ("the families the world scene leaves out"). A stroked
+       line's casing is the same hairline round a thin rect (live tether/pipeline/bridge parts are 3-22 px rects, not
+       strokes; only the crane hanger was a <line>, redrawn here as a rect), so one slider, "hairline px", sets both.
+       The hairline on the curves and the six extra families is a LOOK to judge, not yet a ruling. Translucent beams, pools
+       and glows, lamps, portholes, belts and strips are left alone (lights and windows stay). In the product all of this is
+       always on — no player setting; the switches here exist for the gate and the idle-paint A/B only. -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -86,6 +96,7 @@
   <label>lateral sun <input id="lateral" type="range" min="0" max="2" step="0.1" value="1" /><span class="v" id="lateralV">1.0</span></label>
   <label><input id="outline" type="checkbox" /> outline (ruled out 2026-10-08; kept for comparison)</label>
   <label>outline px <input id="outlineW" type="range" min="0.5" max="4" step="0.5" value="2" /><span class="v" id="outlineWV">2.0</span></label>
+  <label>hairline px (world) <input id="hair" type="range" min="0.5" max="4.5" step="0.25" value="1.5" /><span class="v" id="hairV">1.50</span></label>
 </div>
 <div class="controls toggles" id="toggles"><span class="grp">extras</span></div>
 
@@ -104,13 +115,21 @@
 <div id="seeds"></div>
 
 <h2>Past the factories — the whole world</h2>
-<p class="note">The 1920×1080 scene at half size: water column, seabed ridge, four midground factories, the stepped ground, then eleven scenery families in the foreground (pylon · tank · wall · containers · dome · scaffold · wreck · vent · crane · boulder · beacon) and two robots. Boulders, beacon and pylon heads are already gem shapes in the live app. The proposed rule: <b>mass gets the ring, members stay lines</b>. A mass is anything with a body (a tank, a wall, a dome's base, each container, a scaffold's solid block, a wreck's hull and deckhouse, each vent step, a crane's load); a member is a post, beam, mast, pylon tower or scaffold frame, which only gets the outline, and only if you turn it on. Terrain is its own switch: the ring runs along the ridge and ground profiles, so each 45° step and flat run takes the sun like a facet. The dome's curved cap stays smooth.</p>
+<p class="note">The 1920×1080 scene at half size: water column, seabed ridge, four midground factories, the stepped ground, then eleven scenery families in the foreground (pylon · tank · wall · containers · dome · scaffold · wreck · vent · crane · boulder · beacon) and two robots. Boulders, beacon and pylon heads are already gem shapes in the live app. The rule, as ruled: <b>mass gets the ring, everything else solid gets a hairline</b>. A mass is anything with a body (a tank, a wall, a dome's base, each container, a scaffold's solid block, a wreck's hull and deckhouse, each vent step, a crane's load); a member is a post, beam, mast, pylon tower, scaffold frame, crane brace or beacon base, and takes the hairline. Terrain takes the ring: it runs along the ridge and ground profiles, so each 45° step and flat run takes the sun like a facet. The dome's curved cap stays smooth (never faceted) and takes the hairline along its arc. All five switches below default on; the <b>hairline px</b> slider above sets the line weight everywhere. The families this scene leaves out are in the next section, which the last switch also drives.</p>
 <div class="controls toggles" id="wtoggles"><span class="grp">ring on</span></div>
 <div class="stage"><svg id="wtoday" viewBox="0 0 1920 1080" width="960" height="540" preserveAspectRatio="xMidYMid meet"></svg><span>World today (robots as live).</span></div>
 <div class="stage"><svg id="wgem" viewBox="0 0 1920 1080" width="960" height="540" preserveAspectRatio="xMidYMid meet"></svg><span>World, option A, per the switches above. Same seed, same hour, same sliders.</span></div>
 <div class="readout" id="wreadout"></div>
 <p class="note">The same world at 9 am, 3 pm and 10 pm.</p>
 <div id="wstrip"></div>
+
+<h2>The families the world scene leaves out — dish · floodlight · turbine · tether · pipeline · pipe bridge</h2>
+<p class="note">Six scenery families are not in the world scene above, so the hairline's reach could not be judged on them. Here they are at live proportions (the ranges from <code>sceneryParams.ts</code>, the draw order and fills from each renderer), on a flat seabed, with the pipe bridge spanning a gap between two factories as the live derivation does. Everything here is thin steel or a curve, so none of it takes the ring: the posts, masts, bars, nacelle and blades are straight-edged thin rects (the live tether and pipeline parts are rects, not strokes, so a "casing" is the hairline round the rect), the dish reflector and turbine hub are curves outlined along their edge, and the lamps, the floodlight's translucent beam and pool, the pipeline's highlight strip and the tether float are left exactly as they are. The <b>everything else solid</b> switch and the <b>hairline px</b> slider drive it; the two factories keep their ring under the <b>factories</b> switch.</p>
+<div class="stage"><svg id="otoday" viewBox="0 0 1920 760" width="960" height="380" preserveAspectRatio="xMidYMid meet"></svg><span>Today (renderers as live).</span></div>
+<div class="stage"><svg id="ogem" viewBox="0 0 1920 760" width="960" height="380" preserveAspectRatio="xMidYMid meet"></svg><span>With the material, per the switches above. Same seed, hour and sliders.</span></div>
+<div class="readout" id="oreadout"></div>
+<p class="note">The same scene at 9 am, 3 pm and 10 pm.</p>
+<div id="ostrip"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -484,7 +503,7 @@ function backdrop(id, W, H, groundY, L) {
     `<rect width="${W}" height="${H}" fill="url(#w-${id})"/>` +
     `<rect y="${groundY}" width="${W}" height="${H - groundY}" fill="hsl(200, 15%, ${(6 + 8 * a).toFixed(0)}%)"/>`;
 }
-const countEls = (str) => (str.match(/<(rect|polygon|polyline|circle)\b/g) || []).length;
+const countEls = (str) => (str.match(/<(rect|polygon|polyline|circle|ellipse|path|line)\b/g) || []).length;
 
 function stageMarkup(id, seed, hour, o, gem, W = 1920, H = 800) {
   const lt = getLighting(hour); const nd = o.derelict ? 0 : nightDepth(lt.eastL, lt.westL);
@@ -524,8 +543,17 @@ const circle = (cx, cy, r, fill, op) => `<circle cx="${f2(cx)}" cy="${f2(cy)}" r
 const rectPts = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
 const bev = (o, s, w, h) => Math.min(o.bevel * s, Math.min(w, h) * 0.18);
 const shifted = (base, hs, ss) => ({ h: (base.h + hs + 360) % 360, s: clamp(base.s + ss, 0, 100), l: base.l });
-/** A thin outline on a structural member — only when the "members" switch is on. */
-const memberOutline = (g, s, o, pts) => g.members ? `<polygon points="${P(pts)}" fill="none" stroke="${OUTLINE}" stroke-width="${f2(Math.min(o.outlineW, 1) * s)}"/>` : '';
+const ellipseEl = (cx, cy, rx, ry, fill) => `<ellipse cx="${f2(cx)}" cy="${f2(cy)}" rx="${f2(rx)}" ry="${f2(ry)}" fill="${fill}"/>`;
+/** The hairline: a thin dark edge (body.shadow at 0.8, the scenery gem outline's colour) on anything that is not mass.
+ *  Weight is the "hairline px" slider × the item's scale. A stroked-line "casing" is this same line round a thin rect. */
+const hairW = (o, s) => f2(o.hair * s);
+const hairPoly = (on, s, o, pts) => on ? `<polygon points="${P(pts)}" fill="none" stroke="${OUTLINE}" stroke-width="${hairW(o, s)}"/>` : '';
+const hairEllipse = (on, s, o, cx, cy, rx, ry) => on ? `<ellipse cx="${f2(cx)}" cy="${f2(cy)}" rx="${f2(rx)}" ry="${f2(ry)}" fill="none" stroke="${OUTLINE}" stroke-width="${hairW(o, s)}"/>` : '';
+const hairCircle = (on, s, o, cx, cy, r) => hairEllipse(on, s, o, cx, cy, r, r);
+/** A hairline round a structural member — only when the "members" switch is on. */
+const memberOutline = (g, s, o, pts) => hairPoly(g.members, s, o, pts);
+/** A hairline round everything else solid (curves, thin parts of the extra families) — the "everything else" switch. */
+const otherOutline = (g, s, o, pts) => hairPoly(g.others, s, o, pts);
 
 /**
  * The ring on any polygon: one facet per edge (the robot generator's inset + edge normals), lit by
@@ -651,6 +679,8 @@ function drawDome(it, x, y, L, o, s, g) {
   if (g.mass) out += ringPoly(rectPts(x - rx, top, w, bh), bev(o, s, w, bh), (mx) => mx < x ? wL : eL, body, L.LV, o, s, { splitX: x }).join('');
   out += `<path d="M ${f2(x - rx)},${f2(top)} A ${f2(rx)},${f2(ry)} 0 0 1 ${f2(x)},${f2(apex)} L ${f2(x)},${f2(top)} Z" fill="${col(cap, wL)}"/>`;
   out += `<path d="M ${f2(x)},${f2(apex)} A ${f2(rx)},${f2(ry)} 0 0 1 ${f2(x + rx)},${f2(top)} L ${f2(x)},${f2(top)} Z" fill="${col(cap, eL)}"/>`;
+  // the curved cap is never faceted (90/45 rule) but takes the hairline along its arc only (the base edge is the ring's)
+  if (g.others) out += `<path d="M ${f2(x - rx)},${f2(top)} A ${f2(rx)},${f2(ry)} 0 0 1 ${f2(x)},${f2(apex)} A ${f2(rx)},${f2(ry)} 0 0 1 ${f2(x + rx)},${f2(top)}" fill="none" stroke="${OUTLINE}" stroke-width="${hairW(o, s)}"/>`;
   const thr = 0.4 + 0.6 * L.nd;
   for (let i = 0; i < it.portholes; i++) { const t = it.portholes === 1 ? 0 : -1 + (2 * i) / (it.portholes - 1), th = t * 70 * Math.PI / 180; out += circle(x + rx * Math.sin(th), top - ry * Math.cos(th), 7 * s, it.rolls[i] < thr ? lamp(THEME.glass, L.nd) : col(SHADOW_DEPTH, L.cap)); }
   const mast = rectPts(x - 2 * s, apex - 26 * s, 4 * s, 26 * s);
@@ -720,8 +750,11 @@ function drawCrane(it, x, y, L, o, s, g) {
     + rect(x + half - pw, beamBottom, pw, h, east) + memberOutline(g, s, o, rectPts(x + half - pw, beamBottom, pw, h))
     + rect(bl, beamTop, br - bl, bH, frame) + memberOutline(g, s, o, rectPts(bl, beamTop, br - bl, bH));
   const ex = x + half - pw, kl = 40 * s, t2 = 2 * s;
-  out += poly([[ex - t2, beamBottom - t2], [ex - kl - t2, beamBottom - kl - t2], [ex - kl + t2, beamBottom - kl + t2], [ex + t2, beamBottom + t2]], frame);
-  out += `<line x1="${f2(hx)}" y1="${f2(beamBottom)}" x2="${f2(hx)}" y2="${f2(hb)}" stroke="${frame}" stroke-width="${f2(3 * s)}"/>`;
+  const brace = [[ex - t2, beamBottom - t2], [ex - kl - t2, beamBottom - kl - t2], [ex - kl + t2, beamBottom - kl + t2], [ex + t2, beamBottom + t2]];
+  out += poly(brace, frame) + memberOutline(g, s, o, brace);
+  // the hanger was a stroked <line>; a 3 s wide rect draws the identical strip and takes the hairline like every other thin member
+  const hanger = rectPts(hx - 1.5 * s, beamBottom, 3 * s, hb - beamBottom);
+  out += rect(hanger[0][0], hanger[0][1], 3 * s, hb - beamBottom, frame) + memberOutline(g, s, o, hanger);
   const lw = 80 * s, lh = 50 * s, am = ((L.eastL + L.westL) / 2) * L.cap;
   out += rect(hx - lw / 2, hb, lw, lh, col(THEME.ventBase, am));
   if (g.mass) out += ringPoly(rectPts(hx - lw / 2, hb, lw, lh), bev(o, s, lw, lh), () => am, THEME.ventBase, L.LV, o, s).join('');
@@ -735,7 +768,7 @@ function drawBoulder(it, x, y, L, o, s, g) {
 function drawBeacon(it, x, y, L, o, s, g) {
   const mastH = it.mastH * s, gw = it.gemW * s, steel = col(THEME.bodyShadow, ((L.eastL + L.westL) / 2) * L.cap * 1.15);
   const mast = rectPts(x - 5 * s, y - mastH, 10 * s, mastH);
-  return rect(x - 5 * s, y - mastH, 10 * s, mastH, steel) + memberOutline(g, s, o, mast) + rect(x - 30 * s, y - 12 * s, 60 * s, 12 * s, steel)
+  return rect(x - 5 * s, y - mastH, 10 * s, mastH, steel) + memberOutline(g, s, o, mast) + rect(x - 30 * s, y - 12 * s, 60 * s, 12 * s, steel) + memberOutline(g, s, o, rectPts(x - 30 * s, y - 12 * s, 60 * s, 12 * s))
     + gemShape(x, y - mastH - gw * 0.33, gw, gw * 0.66, { h: it.hue, s: 55, l: 42 }, true, L, s);
 }
 const DRAW = { pylon: drawPylon, tank: drawTank, wall: drawWall, containers: drawContainers, dome: drawDome, scaffold: drawScaffold, wreck: drawWreck, vent: drawVent, crane: drawCrane, boulder: drawBoulder, beacon: drawBeacon };
@@ -750,7 +783,7 @@ function water(id, W, H, L, hour) {
 function worldMarkup(id, seed, hour, o, gem, W = 1920, H = 1080) {
   const lt = getLighting(hour), nd = nightDepth(lt.eastL, lt.westL);
   const L = { eastL: lt.eastL, westL: lt.westL, nd, cap: 1, derelict: false, LV: lightVec(lt.eastL, lt.westL, o.lateral) };
-  const m = (L.eastL + L.westL) / 2, g = { mass: gem && o.wMass, members: gem && o.wMembers };
+  const m = (L.eastL + L.westL) / 2, g = { mass: gem && o.wMass, members: gem && o.wMembers, others: gem && o.wOthers };
   const R = rngFrom(seed + ':terrain');
   const ridge = profile(R, 860, [640, 900], [80, 260], [-60, -40, 0, 0, 40, 60], W);
   const ground = profile(R, 1050, [1035, 1075], [120, 400], [-20, 0, 0, 0, 20], W);
@@ -781,6 +814,129 @@ function worldMarkup(id, seed, hour, o, gem, W = 1920, H = 1080) {
   return { svg: water(id, W, H, L, hour) + scene + robots, els: countEls(scene), L };
 }
 
+// ---------- the six families the world scene leaves out ----------
+// Ranges from sceneryParams.ts; draw order, sizes and fills from renderers/{dish,turbine,floodlight,tether,pipeline}.tsx and
+// pipeBridges.tsx. Every solid here is thin steel or a curve — none is mass, so none takes the ring; the hairline is the
+// "everything else solid" switch (g.others). Lamps, translucent beams/pools, highlight strips and the tether float stay as is.
+function otherItems(seed) {
+  const R = rngFrom(seed + ':others');
+  return [
+    { kind: 'dish', rx: range(R, 30, 48), postH: range(R, 90, 170), tiltRight: R() < .5 },
+    { kind: 'floodlight', mastH: range(R, 190, 310), headOffset: range(R, -14, 14) },
+    { kind: 'turbine', postH: range(R, 170, 290), bladeR: range(R, 60, 95) },
+    { kind: 'tether', h1: range(R, 120, 320), dx: range(R, 40, 90), hasFloat: R() < .6 },
+    { kind: 'pipeline', w: range(R, 320, 720), d: range(R, 14, 22), e: range(R, 34, 60), riserH: range(R, 90, 220), riserRight: R() < .5 },
+    { kind: 'bridge', gap: range(R, 60, 260), barSeed: R() },
+  ];
+}
+const BRIDGE_BUILDING_SCALE = 0.6;
+function otherWidth(it, A, B) {
+  switch (it.kind) {
+    case 'dish': return it.rx * 2;
+    case 'floodlight': return 90;
+    case 'turbine': return Math.max(68, it.bladeR * 1.6);
+    case 'tether': return 36 + it.dx;
+    case 'pipeline': return it.w;
+    default: return (A.w + it.gap + B.w) * BRIDGE_BUILDING_SCALE;
+  }
+}
+
+function drawDish(it, x, y, L, o, s, g) {
+  const rx = it.rx * s, ry = rx * 0.32, postW = 10 * s, postH = it.postH * s, postTop = y - postH, feedW = 3 * s, feedLen = 14 * s;
+  const am = ((L.eastL + L.westL) / 2) * L.cap, postFill = col(THEME.bodyShadow, am), dishFill = col(THEME.shellHi, am);
+  const post = rectPts(x - postW / 2, postTop, postW, postH), feed = rectPts(x - feedW / 2, postTop - ry - feedLen, feedW, feedLen);
+  return rect(post[0][0], post[0][1], postW, postH, postFill) + otherOutline(g, s, o, post)
+    + `<g transform="rotate(${(it.tiltRight ? 1 : -1) * 45} ${f2(x)} ${f2(postTop)})">`
+    + ellipseEl(x, postTop, rx, ry, dishFill) + hairEllipse(g.others, s, o, x, postTop, rx, ry)
+    + rect(feed[0][0], feed[0][1], feedW, feedLen, postFill) + otherOutline(g, s, o, feed) + `</g>`
+    + circle(x, postTop, 4 * s, lamp(ALERT_ON, L.nd));
+}
+function drawTurbine(it, x, y, L, o, s, g) {
+  const postW = 14 * s, nacW = 68 * s, nacH = 24 * s, hubR = 11 * s, bladeW = 12 * s, bladeR = it.bladeR * s, postH = it.postH * s;
+  const am = ((L.eastL + L.westL) / 2) * L.cap, steel = col(THEME.bodyShadow, am), hubFill = col(THEME.shellHi, am);
+  const postTop = y - postH, hubY = postTop - nacH;
+  const post = rectPts(x - postW / 2, postTop, postW, postH), nac = rectPts(x - nacW / 2, hubY, nacW, nacH);
+  const b1 = rectPts(x - bladeW / 2, hubY - bladeR, bladeW, bladeR), b2 = rectPts(x - bladeW / 2, hubY, bladeW, bladeR);
+  return rect(post[0][0], post[0][1], postW, postH, steel) + otherOutline(g, s, o, post)
+    + rect(nac[0][0], nac[0][1], nacW, nacH, steel) + otherOutline(g, s, o, nac)
+    + `<g transform="rotate(45 ${f2(x)} ${f2(hubY)})">`
+    + rect(b1[0][0], b1[0][1], bladeW, bladeR, steel) + otherOutline(g, s, o, b1)
+    + rect(b2[0][0], b2[0][1], bladeW, bladeR, steel) + otherOutline(g, s, o, b2) + `</g>`
+    + circle(x, hubY, hubR, hubFill) + hairCircle(g.others, s, o, x, hubY, hubR)
+    + circle(x, hubY, 4 * s, lamp(ALERT_ON, L.nd));
+}
+function drawFloodlight(it, x, y, L, o, s, g) {
+  const mastW = 10 * s, headW = 36 * s, headH = 16 * s, mastH = it.mastH * s, off = it.headOffset * s;
+  const am = ((L.eastL + L.westL) / 2) * L.cap, mastFill = col(THEME.bodyShadow, am), headFill = col(THEME.shellBase, am), glass = col(THEME.glass, 1);
+  const mastTop = y - mastH, headX = x + off, headTop = mastTop - headH, groundX = headX + (y - mastTop);
+  const mast = rectPts(x - mastW / 2, mastTop, mastW, mastH), arm = rectPts(Math.min(x, headX), mastTop - 1 * s, Math.abs(off), 2 * s), head = rectPts(headX - headW / 2, headTop, headW, headH);
+  return rect(mast[0][0], mast[0][1], mastW, mastH, mastFill) + otherOutline(g, s, o, mast)
+    + rect(arm[0][0], arm[0][1], Math.abs(off), 2 * s, mastFill) + otherOutline(g, s, o, arm)
+    + rect(head[0][0], head[0][1], headW, headH, headFill) + otherOutline(g, s, o, head)
+    + rect(headX - 14 * s, headTop + (headH - 5 * s) / 2, 28 * s, 5 * s, lamp(THEME.glass, L.nd))
+    + `<polygon points="${P([[headX, mastTop], [headX, y], [groundX, y]])}" fill="${glass}" opacity="${f2(0.04 + 0.12 * L.nd)}"/>`
+    + `<ellipse cx="${f2(groundX)}" cy="${f2(y)}" rx="${f2(30 * s)}" ry="${f2(8 * s)}" fill="${glass}" opacity="${f2(0.03 + 0.1 * L.nd)}"/>`;
+}
+function drawTether(it, x, y, L, o, s, g) {
+  // item centre is the middle of anchor + dog-leg, so shift the anchor left by half the dog-leg
+  const dx = it.dx * s, ax = x - dx / 2, anchorW = 36 * s, anchorH = 16 * s, lineW = 3 * s, half = lineW / 2;
+  const fill = col(SHELL_SHADOW, ((L.eastL + L.westL) / 2) * L.cap * 1.1);
+  const anchorTop = y - anchorH, lineTopY = anchorTop - it.h1 * s, kinkX = ax + dx, kinkY = lineTopY - dx, OFF_FRAME_Y = -20;
+  const anchor = rectPts(ax - anchorW / 2, anchorTop, anchorW, anchorH), line = rectPts(ax - half, lineTopY, lineW, anchorTop - lineTopY);
+  const dog = [[ax - half, lineTopY + half], [kinkX - half, kinkY + half], [kinkX + half, kinkY - half], [ax + half, lineTopY - half]];
+  const riser = rectPts(kinkX - half, OFF_FRAME_Y, lineW, kinkY - OFF_FRAME_Y);
+  return rect(anchor[0][0], anchor[0][1], anchorW, anchorH, fill) + otherOutline(g, s, o, anchor)
+    + rect(line[0][0], line[0][1], lineW, anchorTop - lineTopY, fill) + otherOutline(g, s, o, line)
+    + poly(dog, fill) + otherOutline(g, s, o, dog)
+    + rect(riser[0][0], riser[0][1], lineW, kinkY - OFF_FRAME_Y, fill) + otherOutline(g, s, o, riser)
+    + (it.hasFloat ? ellipseEl(kinkX, kinkY - 10 * s, 4.5 * s, 7 * s, lamp(ALERT_ON, L.nd)) : '');
+}
+function drawPipeline(it, x, y, L, o, s, g) {
+  const w = it.w * s, d = it.d * s, e = it.e * s, riserH = it.riserH * s, half = w / 2, stW = 8 * s;
+  const am = ((L.eastL + L.westL) / 2) * L.cap, pipeFill = col(SHELL_SHADOW, am), hiFill = col(THEME.shellBase, am);
+  const pipeBottom = y - e, pipeTop = pipeBottom - d;
+  const count = Math.floor((it.w - 60) / 110) + 1, step = count > 1 ? (w - stW) / (count - 1) : 0;
+  const riserX = it.riserRight ? x + half - d : x - half, riserTop = pipeTop - riserH;
+  const flangeW = d * 1.6, flangeH = 6 * s, flangeX = riserX + d / 2 - flangeW / 2, flangeTop = riserTop - flangeH, valveR = d * 0.3;
+  let out = '';
+  for (let i = 0; i < count; i++) { const st = rectPts(x - half + i * step, pipeBottom, stW, e); out += rect(st[0][0], st[0][1], stW, e, pipeFill) + otherOutline(g, s, o, st); }
+  out += rect(x - half, pipeTop, w, d, pipeFill) + otherOutline(g, s, o, rectPts(x - half, pipeTop, w, d));
+  out += rect(x - half, pipeTop, w, d * 0.35, hiFill);
+  out += rect(riserX, riserTop, d, riserH, pipeFill) + otherOutline(g, s, o, rectPts(riserX, riserTop, d, riserH));
+  out += rect(flangeX, flangeTop, flangeW, flangeH, hiFill) + otherOutline(g, s, o, rectPts(flangeX, flangeTop, flangeW, flangeH));
+  return out + circle(riserX + d / 2, flangeTop - valveR, valveR, lamp(ALERT_ON, L.nd));
+}
+const DRAW_OTHERS = { dish: drawDish, floodlight: drawFloodlight, turbine: drawTurbine, tether: drawTether, pipeline: drawPipeline };
+
+/** Two factories with a pipe bridge across their gap (pipeBridgeLayout.ts): a bar spanning the gap + 10 each side, hung
+ *  40-100 below the taller roof, and a post from the bar down to the ground. Fixed shell.shadow, no lighting. */
+function drawBridgePair(it, A, B, x, y, L, o, s, g, hour, ringFactories) {
+  const s2 = BRIDGE_BUILDING_SCALE * s, gap = it.gap * s2, wA = A.w * s2, wB = B.w * s2, x0 = x - (wA + gap + wB) / 2;
+  let out = drawBuilding(A, x0, y, s2, L, o, ringFactories, hour) + drawBuilding(B, x0 + wA + gap, y, s2, L, o, ringFactories, hour);
+  const roofY = Math.min(y - A.h * s2, y - B.h * s2), barY = roofY + (40 + it.barSeed * 60) * s2, barH = 10 * s2, inset10 = 10 * s2;
+  const barX = x0 + wA - inset10, barW = gap + inset10 * 2, postW = 8 * s2, postX = barX + barW / 2 - postW / 2, postH = Math.max(0, y - (barY + barH));
+  const fill = col(SHELL_SHADOW, 1);
+  const bar = rectPts(barX, barY, barW, barH), post = rectPts(postX, barY + barH, postW, postH);
+  return out + rect(barX, barY, barW, barH, fill) + otherOutline(g, s2, o, bar) + rect(postX, barY + barH, postW, postH, fill) + otherOutline(g, s2, o, post);
+}
+
+function othersMarkup(id, seed, hour, o, gem, W = 1920, H = 760) {
+  const lt = getLighting(hour), nd = nightDepth(lt.eastL, lt.westL);
+  const L = { eastL: lt.eastL, westL: lt.westL, nd, cap: 1, derelict: false, LV: lightVec(lt.eastL, lt.westL, o.lateral) };
+  const g = { mass: gem && o.wMass, members: gem && o.wMembers, others: gem && o.wOthers };
+  const groundY = 650, items = otherItems(seed), gapW = 40;
+  const A = makeBuilding(seed + ':pb', 'Refinery', 0), B = makeBuilding(seed + ':pb', 'Skyscraper', 1);
+  const widthAt = (k) => items.reduce((t, it) => t + otherWidth(it, A, B) * k + gapW * k, 0) - gapW * k;
+  const s = widthAt(1) > W - 80 ? (W - 80) / widthAt(1) : 1;
+  let x = (W - widthAt(s)) / 2, scene = '';
+  for (const it of items) {
+    const iw = otherWidth(it, A, B) * s, cx = x + iw / 2;
+    scene += it.kind === 'bridge' ? drawBridgePair(it, A, B, cx, groundY, L, o, s, g, hour, gem && o.wFactories) : DRAW_OTHERS[it.kind](it, cx, groundY + 4, L, o, s, g);
+    x += iw + gapW * s;
+  }
+  return { svg: backdrop(id, W, H, groundY, L) + scene, els: countEls(scene), L };
+}
+
 // ---------- page ----------
 const EXTRAS = [['lines', 'boundary lines on faces', false], ['roof', 'roof boxes bevelled', true], ['windows', 'windows', true], ['belts', 'belt courses', true]];
 const extraState = {};
@@ -794,7 +950,8 @@ const WEXTRAS = [
   ['wFactories', 'factories', true],
   ['wMass', 'mass scenery (tank, wall, dome base, containers, scaffold block, wreck, vent steps, crane load)', true],
   ['wTerrain', 'terrain (ridge + ground)', true],
-  ['wMembers', 'members, outline only (posts, beams, masts, pylon, frames)', false],
+  ['wMembers', 'members, outline only (posts, beams, masts, pylon, frames)', true],
+  ['wOthers', 'everything else solid, hairline (dome cap · dish · turbine · floodlight · tether · pipeline · pipe bridges)', true],
 ];
 const wState = {};
 for (const [k, label, on] of WEXTRAS) {
@@ -807,14 +964,14 @@ function opts() {
   return {
     depth: $('depth').value, derelict: $('derelict').checked,
     bevel: +$('bevel').value, contrast: +$('contrast').value, lateral: +$('lateral').value,
-    outline: $('outline').checked, outlineW: +$('outlineW').value,
+    outline: $('outline').checked, outlineW: +$('outlineW').value, hair: +$('hair').value,
     ...extraState, ...wState,
   };
 }
 function render() {
   const seed = $('seed').value, hour = +$('hour').value, o = opts();
   $('hourV').textContent = hour.toFixed(2); $('bevelV').textContent = o.bevel.toFixed(1); $('contrastV').textContent = o.contrast.toFixed(2);
-  $('lateralV').textContent = o.lateral.toFixed(1); $('outlineWV').textContent = o.outlineW.toFixed(1);
+  $('lateralV').textContent = o.lateral.toFixed(1); $('outlineWV').textContent = o.outlineW.toFixed(1); $('hairV').textContent = o.hair.toFixed(2);
   const today = stageMarkup('today', seed, hour, o, false); $('today').innerHTML = today.svg;
   const gem = stageMarkup('gem', seed, hour, o, true); $('gem').innerHTML = gem.svg;
   const LV = lightVec(gem.L.eastL, gem.L.westL, o.lateral);
@@ -850,8 +1007,21 @@ function render() {
     div.innerHTML = `<svg viewBox="0 0 1920 1080" width="480" height="270" preserveAspectRatio="xMidYMid meet">${st.svg}</svg><span>${hr}:00</span>`;
     wstrip.appendChild(div);
   }
+  // the six families the world scene leaves out
+  const ot = othersMarkup('otoday', seed, hour, o, false); $('otoday').innerHTML = ot.svg;
+  const og = othersMarkup('ogem', seed, hour, o, true); $('ogem').innerHTML = og.svg;
+  $('oreadout').textContent =
+    `shapes (backdrop excluded): today ${ot.els}  with the material ${og.els}  (+${og.els - ot.els})  — hairlines on thin rects, curves and the two factories' rings\n` +
+    `hairline ${o.hair.toFixed(2)} px × item scale; lamps, the floodlight's translucent beam and pool, the pipeline highlight strip and the tether float are untouched`;
+  const ostrip = $('ostrip'); ostrip.innerHTML = '';
+  for (const hr of [9, 15, 22]) {
+    const st = othersMarkup('o' + hr, seed, hr, o, true);
+    const div = document.createElement('div'); div.className = 'stage';
+    div.innerHTML = `<svg viewBox="0 0 1920 760" width="480" height="190" preserveAspectRatio="xMidYMid meet">${st.svg}</svg><span>${hr}:00</span>`;
+    ostrip.appendChild(div);
+  }
 }
-for (const id of ['seed', 'hour', 'depth', 'derelict', 'bevel', 'contrast', 'lateral', 'outline', 'outlineW']) $(id).addEventListener('input', render);
+for (const id of ['seed', 'hour', 'depth', 'derelict', 'bevel', 'contrast', 'lateral', 'outline', 'outlineW', 'hair']) $(id).addEventListener('input', render);
 $('rand').addEventListener('click', () => { $('seed').value = 'plot ' + Math.floor(Math.random() * 400 - 200) + ', ' + Math.floor(Math.random() * 400 - 200); render(); });
 render();
 </script>
