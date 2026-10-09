@@ -1,8 +1,10 @@
 import colorTheme from '../../../../constants/colorTheme.json';
-import { applyColorShift } from '../../../../utils/colorUtils';
+import { applyColorShift, shiftHSL } from '../../../../utils/colorUtils';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import type { SceneryRenderer } from '../sceneryTypes';
 import type { ContainersParams } from '../sceneryParams';
+import { GemRing } from '../../material/GemRing';
+import { WORLD_GEM, ringFacets, worldBevel, worldLightVector } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 containers row)
@@ -49,6 +51,12 @@ export const containers: SceneryRenderer = ({ actor, params, cap, eastL, westL, 
   const bodyShift = { hueShift: actor.config?.hueShift ?? 0, satShift: actor.config?.satShift ?? 0 };
   const ambient = ((eastL + westL) / 2) * cap;
 
+  // The world gem ring (docs/specs/WORLD_GEM_MATERIAL.md §1.5): each box is its own ring,
+  // single-tone at the box's ambient, drawn before its label square. Depth is the same for every
+  // box (they share a size); depth 0 changes nothing.
+  const light = worldLightVector(eastL, westL);
+  const ringDepth = WORLD_GEM.massScenery ? worldBevel(boxW, boxH) : 0;
+
   let globalIndex = 0;
 
   return (
@@ -70,6 +78,15 @@ export const containers: SceneryRenderer = ({ actor, params, cap, eastL, westL, 
               return (
                 <g key={col}>
                   <rect data-container="box" x={boxX} y={rowTopY} width={boxW} height={boxH} fill={boxFill} />
+                  <GemRing
+                    facets={ringFacets(
+                      [[boxX, rowTopY], [boxX + boxW, rowTopY], [boxX + boxW, rowTopY + boxH], [boxX, rowTopY + boxH]],
+                      ringDepth,
+                      light,
+                      () => ambient,
+                      shiftHSL(boxBase, bodyShift),
+                    )}
+                  />
                   <rect
                     data-container="label"
                     x={boxX + boxW / 2 - LABEL_SIZE / 2}

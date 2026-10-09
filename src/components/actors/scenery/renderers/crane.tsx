@@ -3,6 +3,8 @@ import { applyColorShift } from '../../../../utils/colorUtils';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import type { CraneParams } from '../sceneryParams';
 import type { SceneryRenderer } from '../sceneryTypes';
+import { GemRing } from '../../material/GemRing';
+import { WORLD_GEM, ringFacets, worldBevel, worldLightVector } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 crane row)
@@ -71,6 +73,16 @@ export const crane: SceneryRenderer = ({ actor, params, cap, eastL, westL, night
     `${eastPostX + half45},${beamBottom + half45}`,
   ].join(' ');
 
+  // The world gem ring (docs/specs/WORLD_GEM_MATERIAL.md §1.5): only the hanging load is mass; the
+  // posts, beam, brace and hanger are members. Single-tone at the load's own ambient light.
+  const loadRing = ringFacets(
+    [[load.x, load.y], [load.x + load.w, load.y], [load.x + load.w, load.y + load.h], [load.x, load.y + load.h]],
+    WORLD_GEM.massScenery ? worldBevel(load.w, load.h) : 0,
+    worldLightVector(eastL, westL),
+    () => ((eastL + westL) / 2) * cap,
+    colorTheme.vent.base,
+  );
+
   return (
     <g data-scenery="crane">
       <rect data-crane="post-west" x={westPostX} y={beamBottom} width={POST_W} height={h} fill={westFill} />
@@ -79,6 +91,7 @@ export const crane: SceneryRenderer = ({ actor, params, cap, eastL, westL, night
       <polygon data-crane="knee-brace" points={bracePoints} fill={frameFill} />
       <line data-crane="hanger" x1={hangerX} y1={beamBottom} x2={hangerX} y2={hangerBottomY} stroke={frameFill} strokeWidth={HANGER_STROKE} />
       <rect data-crane="load" x={load.x} y={load.y} width={load.w} height={load.h} fill={loadFill} />
+      <GemRing facets={loadRing} />
       <circle data-crane="beam-end-light" cx={beamRight} cy={(beamTop + beamBottom) / 2} r={CRANE_BEAM_END_LIGHT_R} fill={lamp(colorTheme.alert.powered, nightDepth)} />
     </g>
   );

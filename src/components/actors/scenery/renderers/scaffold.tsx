@@ -1,8 +1,10 @@
 import colorTheme from '../../../../constants/colorTheme.json';
-import { applyColorShift } from '../../../../utils/colorUtils';
+import { applyColorShift, shiftHSL } from '../../../../utils/colorUtils';
 import { DERELICT_SAT } from '../../../../constants/sceneDepth';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import type { SceneryRenderer } from '../sceneryTypes';
+import { GemRing } from '../../material/GemRing';
+import { WORLD_GEM, ringFacets, worldBevel, worldLightVector } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 scaffold row)
@@ -69,10 +71,23 @@ export const scaffold: SceneryRenderer = ({ actor, params, cap, eastL, westL, ni
 
   const half45 = BRACE_THICKNESS / 2;
 
+  // The world gem ring (docs/specs/WORLD_GEM_MATERIAL.md §1.5): the solid lower block only, top and
+  // bottom split at the centre line. The open frame above it (posts, levels, braces) is members,
+  // not mass, and takes no ring.
+  const ring = ringFacets(
+    [[x - half, solidTop], [x + half, solidTop], [x + half, y], [x - half, y]],
+    WORLD_GEM.massScenery ? worldBevel(w, solidH) : 0,
+    worldLightVector(eastL, westL),
+    (midX) => (midX < x ? westL : eastL) * cap,
+    shiftHSL(bodyBase, bodyShift),
+    { splitX: x },
+  );
+
   return (
     <g data-scenery="scaffold">
       <rect data-scaffold="solid" x={x - half} y={solidTop} width={half} height={solidH} fill={westFill} />
       <rect data-scaffold="solid" x={x} y={solidTop} width={half} height={solidH} fill={eastFill} />
+      <GemRing facets={ring} />
       {Array.from({ length: bays + 1 }, (_, i) => (
         <rect
           key={`post-${i}`}

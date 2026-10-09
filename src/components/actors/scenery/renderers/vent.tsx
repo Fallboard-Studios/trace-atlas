@@ -1,8 +1,12 @@
+import { Fragment } from 'react';
+
 import colorTheme from '../../../../constants/colorTheme.json';
 import { applyColorShift } from '../../../../utils/colorUtils';
 import { NO_SHIFT, lamp } from '../sceneryColor';
 import { ventSteps } from '../sceneryParams';
 import type { SceneryRenderer } from '../sceneryTypes';
+import { GemRing } from '../../material/GemRing';
+import { WORLD_GEM, ringFacets, worldBevel, worldLightVector } from '../../material/worldGemMaterial';
 
 // ========================================
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.9 vent row)
@@ -52,10 +56,27 @@ export const vent: SceneryRenderer = ({ actor, params, cap, eastL, westL, nightD
   const mouthR = MOUTH_R_FRAC * topWidth;
   const mouthOpacity = MOUTH_OPACITY_BASE + MOUTH_OPACITY_ND_SCALE * nightDepth;
 
+  // The world gem ring (docs/specs/WORLD_GEM_MATERIAL.md §1.5): every step is its own ring, lit at
+  // the body's own level. The union polygon's ledges are narrower than the bevel, so ringing the
+  // union would eat them; each step rings alone, straight after its own rect.
+  const light = worldLightVector(eastL, westL);
+  const bodyLevel = avgL * cap * BODY_LIGHTNESS_MULT;
+
   return (
     <g data-scenery="vent">
       {rects.map((r, i) => (
-        <rect key={i} data-vent="step" x={r.x} y={r.y} width={r.width} height={r.height} fill={bodyFill} />
+        <Fragment key={i}>
+          <rect data-vent="step" x={r.x} y={r.y} width={r.width} height={r.height} fill={bodyFill} />
+          <GemRing
+            facets={ringFacets(
+              [[r.x, r.y], [r.x + r.width, r.y], [r.x + r.width, r.y + r.height], [r.x, r.y + r.height]],
+              WORLD_GEM.massScenery ? worldBevel(r.width, r.height) : 0,
+              light,
+              () => bodyLevel,
+              colorTheme.shadowDepth,
+            )}
+          />
+        </Fragment>
       ))}
       <ellipse
         data-vent="plume"
