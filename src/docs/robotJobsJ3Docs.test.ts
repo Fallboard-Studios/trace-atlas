@@ -233,7 +233,7 @@ describe('spec, intent, roadmap and ROBOT_LIFECYCLE.md: J3 is shipped', () => {
     expect(read('docs/intent/robot-jobs-and-stations.md')).toMatch(/^> \*\*Shipped \(J3/m);
   });
 
-  it('the roadmap records J2 and J3 as merged and J4 as the open branch', () => {
+  it('the roadmap records J2 and J3 as merged and names J4', () => {
     const roadmap = read('docs/todo/roadmap.md');
     const at = roadmap.indexOf('## 43. Robot Jobs and Charging Stations');
     const next = roadmap.indexOf('\n## 44.', at);

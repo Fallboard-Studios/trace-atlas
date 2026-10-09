@@ -7,6 +7,11 @@ A sketch gate, then four branches in sequence — `feature/jobs-lifecycle` (J1, 
 merge), `feature/jobs-loop` (J2, from J1's tip), `feature/jobs-moves` (J3, from J2's tip),
 `feature/jobs-depth` (J4, from J3's tip). **Do not start J1 until districts D1 + D2 have merged.**
 
+> **Complete (2026-10-08).** Every task is done and J1–J4 are merged (PRs #537, #538, #539, #543,
+> #544); Task 36 and the final checkpoint are on `docs/jobs-final`. J2 was built on
+> `feature/job-lifecycle-2`, not `feature/jobs-loop`. Branch tips and decisions: roadmap Phase 43.
+> One question stays open: spec §7 Q6 (Task 36 (11)).
+
 Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run lint`, `npm run build`,
 `npm run dev`; perf gate `npm run build && npx vite preview --port 4173` then
 `npm run perf:idle --throttle 1 --only none --url http://localhost:4173/trace-atlas/?session=…`.
@@ -113,7 +118,7 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
 
 ### Sketch gate
 
-- [ ] **Task 0: Motion sketch — `docs/sketches/robot-jobs-and-stations.html`**
+- [x] **Task 0: Motion sketch — `docs/sketches/robot-jobs-and-stations.html`**
 
   **Description:** A standalone page in the style of the Phase 39–42 sketches (no build step, GSAP
   from cdnjs, the real palette tokens). Panels: a robot gem with four docked orbiters beside (a) a
@@ -126,8 +131,8 @@ J4  T32 findLayerSwitchPoint + flag plumbing ─► T33 layer split + per-layer 
   **Acceptance criteria:**
   - [x] Every move and job plays at 1× at world scale; ~~orbiter count visibly changes speed~~
         *(cut at the gate: duration follows BPM, orbiter count only sets how many orbiters work)*.
-  - [ ] Station enter/exit reads as "into" and "out of" the station, not a fade-out next to it.
-  - [ ] Crawford's verdict recorded in the sketch header; the constants he keeps written into spec
+  - [x] Station enter/exit reads as "into" and "out of" the station, not a fade-out next to it.
+  - [x] Crawford's verdict recorded in the sketch header; the constants he keeps written into spec
         §1.6/§1.9 (Task 16 or the J2 task that consumes them).
 
   **Verification:** Crawford, by eye. **Dependencies:** None. **Files:**
@@ -1900,28 +1905,67 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   `data-scene-layer`, an estimate in MB scaled by DPR²).
 
   **Pixel run passed 2026-10-08** (the gate). Crawford ran `89077960` on the Pixel from the LAN
-  production preview (`npm run build && npx vite preview --host --port 4173`) "on high", in landscape,
-  for 3 minutes: "it was great". So the harness's paint miss (+31 ms per 6 s, the two extra layers)
-  is accepted as J4's cost, and `BACK_HOSTS_ENABLED` stays on. "High" isn't one of the Audio Load
-  Budget's names (Light, Standard, Full); which setting it was is recorded as Crawford said it.
-  Task 35 is done.
+  production preview (`npm run build && npx vite preview --host --port 4173`) on the **Full** Audio
+  Load Budget, in landscape, for 3 minutes: "it was great". So the harness's paint miss (+31 ms per
+  6 s, the two extra layers) is accepted as J4's cost, and `BACK_HOSTS_ENABLED` stays on. (He first
+  said "on high", which isn't a Load Budget name, and corrected it to Full at Task 36.) Task 35 is
+  done.
 
 
-- [ ] **Task 36: Final docs**
+- [x] **Task 36: Final docs**
 
   **Description:** ANIMATION_SYSTEM.md scene stack and layer switch; ROBOT_DESIGN.md the 0.75
   back-layer scale; roadmap Phase 43 shipped with branch tips, decisions and Not Doing; backlog item
   8 moved to the archive; intent/spec/idea/sketch `> **Shipped**` headers.
 
   **Acceptance criteria:**
-  - [ ] Every named identifier spot-checked; docs tests green; CLAUDE.md reference line current.
+  - [x] Every named identifier spot-checked; docs tests green; CLAUDE.md reference line current.
 
   **Verification:** `npm test`. **Dependencies:** T35. **Scope:** S.
 
+  **As shipped (2026-10-08, `docs/jobs-final` off main `f75dfd7d`, after J4 merged as PR #544):**
+  (1) **ANIMATION_SYSTEM.md:** "Scene layers" rewritten for the six layers (a table, in
+  OceanScene's order) and the four tints with their coverage; a new "Layer switch" section (the
+  `.robot__row` scale, the switch point and its clear run, the split leg, the dissolve, the
+  re-mount, interruptions); the exit arc in the back row; the `dissolve-` key in the key table;
+  `layerSwitch.ts` in the overview; the swim's `sine.inOut`. (2) **ROBOT_DESIGN.md:** the back row
+  under Render contexts (0.75 on `.robot__row`, body scale 0.55–1.27 there, not a robot overlay).
+  (3) **ROBOT_LIFECYCLE.md:** a "Two robot rows" paragraph in the loop, the exit in the back row,
+  `layer` in the live-state list, J4 test notes; "Known gaps (J2)" became "Known gaps". (4)
+  **BUILDING_DESIGN.md:** the four J4 future-tense lines, and a new "Midground silhouettes"
+  subsection. (5) **Spec, intent, idea, three sketches:** Shipped headers. (6) **Roadmap** Phase
+  43: a branch/PR/tip table, J4's summary, "Decisions made while building", "Not Doing (and why)",
+  "Still open"; Phase 41's "no caller yet" line corrected. (7) **Backlog** item 8 archived. (8)
+  **CLAUDE.md** reference lines: ANIMATION_SYSTEM, ROBOT_DESIGN, and BUILDING_DESIGN, which still
+  said "production cooldowns" (removed at Task 6). (9) **Correction:** Crawford's Pixel run (Task
+  35) was on **Full**, not "high"; Task 35 and PERFORMANCE.md fixed. (10) New
+  `src/docs/robotJobsJ4Docs.test.ts` (66 tests): the scene table against OceanScene.tsx's
+  `SceneLayer` order and `moving` flags, the tint opacities against `DEPTH_TINTS`, the
+  stopWorkLoop line against `LOOP_KEY_PREFIXES`, constant values, 27 identifier/source pairs,
+  stale-line guards, the Shipped headers, the archive move and every relative link. 6/6 mutants
+  killed. (11) **Found, not fixed:** spec §7 Q6 (background parks below the roof) was left to J4
+  and no J4 task carried it. Measured over the 121-seed grid: 10 of 1 523 eligible background
+  sites in 7 worlds park low (up to 52 units below the roof top), and the robot overlaps the
+  building in 4–7 of them. It can't clip (the back row draws over every background building).
+  Recorded as open (spec §7, ROBOT_LIFECYCLE.md "Known gaps", roadmap "Still open"); Crawford's
+  call. (12) Side fixes: two BUILDING_DESIGN.md links to specs since moved to `specs/archive/`;
+  RobotBody.tsx's header still said the halo had no caller.
+
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean on the last branch.
-- [ ] Every perf gate recorded with Crawford's verdict; every live gate's verdict recorded.
-- [ ] Any manual check not performed is listed here explicitly, never silently skipped.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean on the last branch.
+      — at Task 36 on `docs/jobs-final`: types clean; lint 0 errors (the 2 known react-refresh
+      warnings in untouched scenery files); build clean (Vite's chunk-size warning only); suite
+      290 of 291 files green in each of two full runs. The one failure is the known Task 18 50-gem
+      round-trip load timeout (5.3 s against vitest's 5 s; 10/10 green alone in 3.5 s), carried
+      since J3's code review as Crawford's call.
+- [x] Every perf gate recorded with Crawford's verdict; every live gate's verdict recorded. —
+      Checkpoint B (J1, pass), Task 26 (J2, pass), Task 30 (J3, lean accepted as noise), Task 35
+      (J4, paint miss accepted after the Pixel run on Full), the J2/J3 Pixel listen (pass); live
+      gates: Task 0a/0b sketches, the depth-tint sketch, Checkpoints A–E, all passed.
+- [x] Any manual check not performed is listed here explicitly, never silently skipped.
+      — **Not performed:** a browser check of the docs-only Task 36 branch (nothing it changes
+      renders). **Open, not a check:** spec §7 Q6, background parks (Task 36 (11)). The Task 0
+      parent box is ticked at Task 36: 0a and 0b, which split it, both passed.
 
 ## Risks and Mitigations
 

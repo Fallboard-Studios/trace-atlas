@@ -5,6 +5,16 @@ roadmap Phase 43, sequenced **after** World View Districts (Phase 42, D1 + D2) �
 below are written against the district families. Next step: `interview-me` → intent →
 `spec-driven-development`.
 
+> **Shipped (Phase 43, 2026-10-08).** Built as roadmap Phase 43 in four branches (J1–J4, PRs
+> #537, #538, #539, #544), all merged. Intent:
+> [docs/intent/robot-jobs-and-stations.md](../intent/robot-jobs-and-stations.md); spec:
+> [docs/specs/ROBOT_JOBS_AND_STATIONS.md](../specs/ROBOT_JOBS_AND_STATIONS.md). Two directions
+> below changed on the way: orbiter count no longer drives job speed (jobs last 6–10 s from the
+> tempo, cut at the moves sketch), and the station is Crawford's own gem design. The depth layers
+> also gained four redistributed tints and a 1 s dissolve at a sketch gate of their own. This page
+> is history now; the as-built reference is [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md) and
+> [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md).
+
 ## Problem Statement
 
 How might we make every robot visibly do work its world asks for — at buildings and charging

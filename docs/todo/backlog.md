@@ -98,18 +98,6 @@ straightforward; adding a way to choose them is the real feature — needs a new
 control, location not yet decided (Sector Settings vs. Audio Rig are the likely
 candidates).
 
-### 8. Visuals: Job Animations
-
-Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Medium priority — deprioritized
-behind launch. `JobType` (`Robot.ts`, see `docs/ROBOT_LIFECYCLE.md`) exists and is shown
-as data/text (`RobotSelectionCard`, `RobotDisplaySection`), but nothing in the
-actor-rendering layer visually differentiates a robot by its current job today. Genuinely
-new visual work; not yet scoped.
-
-**Superseded (2026-10-06)** by roadmap Phase 43, Robot Jobs and Charging Stations
-([docs/ideas/robot-jobs-and-stations.md](../ideas/robot-jobs-and-stations.md)): orbiters detach
-and play the job's moves at a host building. Move this item to the archive when Phase 43 ships.
-
 ### 9. Visuals: Better Building Details
 
 Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprioritized

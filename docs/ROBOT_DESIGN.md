@@ -157,6 +157,15 @@ Both are read outside the audio memo, so the once-a-second daylight tick never r
   stopped mirroring on direction change in Phase 40, so there is no `scaleX` flip any more) and
   renders `RobotBody`, which composes `RobotGem` with the audio scale. `motion="world"` enables
   `useOrbiterMotion`.
+  - **The back row** (Roadmap Phase 43 J4). A robot working at a background building, or exiting a
+    station, is drawn in the back robot row, behind the midground, at `BACK_LAYER_SCALE` (0.75).
+    That scale is on `.robot__row`, a wrapper between the root `<g>` and `RobotBody`, about the
+    gem canvas centre, so it multiplies the body scale (0.735–1.69 becomes 0.55–1.27) without
+    touching any dial. It is depth, not audio: the work loop eases it over the swim into or out of
+    the row, never a pop, and the scene's depth tints haze that row like the buildings around it.
+    Neither is a robot overlay, so day/night and battery stay the only two. The root `<g>` carries
+    `id="world-robot-{id}"`, which the layer switch's dissolve copy points at
+    ([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#layer-switch)).
 - **Detail avatar (96 px)** — `RobotDisplaySection` passes `motion="avatar"` (orbiters attach/detach
   here too) and `viewBox={gemMotionViewBox(gem)}` — the plain `gemViewBox` canvas, padded for an
   orbiter's dock position at its maximum size and its attach/detach flight; usually a small or zero

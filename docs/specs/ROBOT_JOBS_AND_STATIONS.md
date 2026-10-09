@@ -19,6 +19,14 @@ Shipped as a **motion-sketch gate** then four branches: **J1** lifecycle + world
 stations + the loop with one move + card states, **J3** all moves and all six jobs, **J4** depth
 layers. This spec covers all four.
 
+> **Shipped (Phase 43 complete, 2026-10-08).** All four branches merged to main: J1 (PR #537),
+> J2 (PR #538), J3 (PR #539), J4 (PR #544, `feature/jobs-depth`, merge `f75dfd7d`). Every live
+> checkpoint (A–E) passed, and every perf gate passed or was accepted by Crawford: J4's paint miss
+> (+31 ms per 6 s, the two extra compositor layers) was accepted after his Pixel run on the Full
+> Load Budget. As built: [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md),
+> [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md), [BUILDING_DESIGN.md](../BUILDING_DESIGN.md),
+> [ROBOT_DESIGN.md](../ROBOT_DESIGN.md). One question stays open: §7 Q6, the background parks.
+
 > **Amended 2026-10-07 (J1 as shipped, plan Task 16).** The plan's five planning-time corrections
 > and the values J1 measured are folded in below, marked *(J1)* where they changed the text:
 > 1. **Every branch leaves the app working** — J1 adds the `onLifecycleChange` seam with a
@@ -637,6 +645,16 @@ and the set of robots with a pending recall. Public surface:
   background buildings don't host. *(Task 34 flipped it to true on `feature/jobs-depth`; the gate
   is Task 35.)*
 
+> **Shipped (J4, 2026-10-08; Tasks 32–35, PR #544).** As above with the Task 34 and 34b notes.
+> Checkpoint E passed live (no hitch at a switch; the dissolve reads as a blend; the tints on the
+> real buildings; L4's haze and the switch after an exit accepted). The Task 35 perf gate missed
+> on paint (+17 %, about +31 ms per 6 s, a fixed cost of the two extra compositor layers,
+> `robots-back` and the promoted `mid`; ≈ +17 MB on a Pixel 8). Crawford accepted it after a
+> 3-minute Pixel run on the Full Load Budget, so `BACK_HOSTS_ENABLED` stays true and the fallback
+> was never used. As built: [ANIMATION_SYSTEM.md](../ANIMATION_SYSTEM.md#layer-switch) (the
+> switch, the dissolve, the scene stack) and [ROBOT_DESIGN.md](../ROBOT_DESIGN.md#render-contexts)
+> (the 0.75 back row). Q6 below (background parks) was not settled by J4.
+
 ### 1.11 Cards and content (J2)
 
 - `src/content/copy/probe.ts`: `probe.status.docking` options become `docked · undocking · active ·
@@ -909,4 +927,8 @@ is its gate.
    moved at Task 16b). *Task 16b:* the readiness re-run moved the cooldown to 0.3/2/30.
    **Resolved.**
 6. *(Raised in J1.)* **Background Skyscraper parks** clamp below the roof (§1.5) — J4 decides:
-   drop such sites or park beside them.
+   drop such sites or park beside them. *Still open after J4* (no J4 task carried it): measured
+   2026-10-08 over the 121-seed grid, 10 of 1 523 eligible background sites in 7 worlds park
+   low (up to 52 units below the roof top), and the robot overlaps the building in 4–7 of them.
+   It can't clip (the back row draws over background buildings), so it reads as working at the
+   facade's top. Crawford's call; tracked in ROBOT_LIFECYCLE.md "Known gaps".
