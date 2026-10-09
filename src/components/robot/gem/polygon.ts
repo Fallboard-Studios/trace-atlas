@@ -51,9 +51,11 @@ export const GEM_BEVEL_DEPTH = 2.5;
 const BEVEL_SHORT_SIDE_SHARE = 0.18;
 
 /** Bevel depth for a w×h part — lives beside the generator because a polygon is only valid if
- *  its own bevel doesn't invert any edge (see `bevelHolds`). */
-export function bevelDepth(w: number, h: number): number {
-  return Math.min(GEM_BEVEL_DEPTH, BEVEL_SHORT_SIDE_SHARE * Math.min(w, h));
+ *  its own bevel doesn't invert any edge (see `bevelHolds`). `depth` is the requested depth (the
+ *  robots' default, or the world material's own — docs/specs/WORLD_GEM_MATERIAL.md §1.2); the
+ *  18% short-side cap applies to either, so it exists once. */
+export function bevelDepth(w: number, h: number, depth = GEM_BEVEL_DEPTH): number {
+  return Math.min(depth, BEVEL_SHORT_SIDE_SHARE * Math.min(w, h));
 }
 
 const TAN: Record<number, number> = {
