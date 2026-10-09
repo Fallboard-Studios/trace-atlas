@@ -1265,6 +1265,67 @@ on the phone; the plan makes the Pixel run the gate. If it does miss, the fallba
 `BACK_HOSTS_ENABLED` staying false on main. Smaller options, all unmeasured: promote `robots-back` only while a
 robot is in it, or collapse `mid` into a non-composited layer by reordering what overlaps it.
 
+## World Gem Material — the Task 19 perf gate (2026-10-09, Phase 44)
+
+Gate ([docs/tasks/WORLD_GEM_MATERIAL.md](tasks/WORLD_GEM_MATERIAL.md) Task 19): the world gem material
+(bevel ring on every mass, 1.5 px hairline on everything else solid) idle busy/Paint within each build's own
+round-to-round spread of `main`, on the three pinned worlds. **Passed** on all three — `dense`, `ventfield`
+and `yard`. No cut was needed.
+
+**Method:** production builds served side by side from scratch `--outDir`s — `main` `6802c8b4` (the
+branch's merge base, from a throwaway `git worktree`) on :4181 (`index-Fsw5VSqs.js`) and the branch tip
+`2b405cfb` (Task 18, all six `WORLD_GEM` switches on) on :4182 (`index-1APSSzjo.js`). The served bundle
+filenames were checked against each build's own before any number was taken (the D3 gate's gotcha). Worlds
+are the D2 gate's coordinates — `dense` (−500, −480), `ventfield` (−500, −495), `yard` (−500, −455) —
+re-verified against the real `pickDistrict` on this tree before the run, and encoded with
+`encodeSessionPayload` (`attenuationStyleName: 'alpha'`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides).
+`x = −500` makes the in-world hour 20 (`abs(x % 24)`), identical for both builds, so the run is a night
+look; the 9 am light vector is judged by eye at Checkpoint C / Task 20, not here. `npm run perf:idle
+--throttle 1 --only none --port 9301` (stock-only window, desktop 1280×900, headless); foreground, one
+call at a time, orphaned headless-Chrome count 0 before and after. Three rounds per world per build, order
+rotated (`dense` and `yard` M B B M M B, `ventfield` B M M B B M; M = `main`, B = branch).
+
+### Results (6 s idle window, 1×, `--only none`)
+
+| World | Build | main busy (ms) | Paint (ms) | Compositor::Update (ms) | Factories | Bubble/factory circles |
+|---|---|---|---|---|---|---|
+| dense | `main` (`6802c8b4`) | 3245 · 3349 · 3558 | 240 · 241 · 258 | 572 · 559 · 592 | 59 | 753 |
+| dense | branch (`2b405cfb`) | 3302 · 3435 · 3419 | 258 · 234 · 257 | 505 · 469 · 496 | 59 | 753 |
+| ventfield | `main` (`6802c8b4`) | 2534 · 2600 · 2445 | 181 · 192 · 183 | 192 · 204 · 192 | 4 | 149 |
+| ventfield | branch (`2b405cfb`) | 2578 · 2589 · 2569 | 184 · 197 · 181 | 192 · 205 · 189 | 4 | 149 |
+| yard | `main` (`6802c8b4`) | 3397 · 3311 · 3431 | 257 · 247 · 241 | 356 · 329 · 340 | 18 | 265 |
+| yard | branch (`2b405cfb`) | 3392 · 3410 · 3456 | 241 · 237 · 247 | 283 · 273 · 280 | 18 | 265 |
+
+(Values in run order within each build, not sorted.)
+
+Medians (branch vs `main`): **dense** busy 3419 vs 3349 (**+2.1 %**), Paint 257 vs 241 (**+6.6 %**);
+**ventfield** busy 2578 vs 2534 (**+1.7 %**), Paint 184 vs 183 (**+0.5 %**); **yard** busy 3410 vs 3397
+(**+0.4 %**), Paint 241 vs 247 (**−2.4 %**). Each delta sits inside the spread `main` shows against
+itself on the same world (busy 3245–3558, 2445–2600, 3311–3431; Paint 240–258, 181–192, 241–257) —
+`dense` Paint's +16 ms is the nearest to the edge, and the branch's own Paint rounds (234–258) straddle
+`main`'s, so it does not read as a regression. Factory and circle counts are identical build to build on
+every world: the same placement, only the material changed.
+
+- **Compositor::Update is lower on the branch on `dense` (median 496 vs 572, −13 %) and `yard` (280 vs
+  340, −18 %), flat on `ventfield`.** Every branch round is below every `main` round on those two worlds,
+  so it is not round noise, but the cause was not investigated (not a gate metric, and the gate is about
+  regressions). Recorded as observed, not claimed as a win.
+- **Ablation, one round per world, `WORLD_GEM.members`/`.others` off and `.terrain` off,** built from
+  patches never committed (:4183 `index-lhM0ZxD-.js`, :4184 `index-Bmgtymba.js`), each next to a stock-branch
+  control in the same session. Nothing separates from its control: `dense` branch 3395 / 255, no
+  hairlines 3438 / 240, no terrain 3356 / 253 (busy ms / Paint ms); `ventfield` no terrain 2646 / 195,
+  branch 2506 / 183, no hairlines 2703 / 170. So neither the hairlines nor the terrain ring carries a cost
+  the idle window can resolve, which is also why no cut order had to be exercised.
+- **`yard`'s ablation round was run twice because the machine drifted.** The first attempt's control read
+  4354 / 292 (against 3392–3456 / 237–247 in the gate rounds) with the ablated builds at 3241 · 4185, so it
+  was discarded. The re-run, controls at both ends, read branch 3733 / 259, no hairlines 3952 / 259, no
+  terrain 3708 / 250, branch 4003 / 275 — the controls themselves span 3733–4003, wider than any
+  ablation's gap to them. Same-session comparison is the only valid reading; absolute `yard` numbers in
+  the ablation round are not comparable with the gate table.
+
+**Verdict:** no miss to report. No lever was pulled — every switch stays on, and the cut order
+(hairlines, then terrain; never factories or mass) was not exercised. The Pixel is Task 20's.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
