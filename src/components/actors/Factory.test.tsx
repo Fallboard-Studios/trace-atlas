@@ -4,6 +4,7 @@ import { vi } from 'vitest';
 
 import { Factory } from './Factory';
 import { factoryGeometry } from './factoryGeometry';
+import { WORLD_GEM } from './material/worldGemMaterial';
 import { selectVariantFromSeed, VARIANT_CONF } from './factoryVariants';
 import type { FactoryVariant } from './factoryVariants';
 import * as colorUtils from '../../utils/colorUtils';
@@ -682,6 +683,159 @@ describe('Factory — the world gem body ring', () => {
       for (const p of Array.from(container.querySelectorAll('g[data-gem="ring"] path'))) {
         expect(p.getAttribute('stroke-width')).toBe('0.54');
       }
+    });
+  });
+
+  // ----------------------------------------
+  // Task 9: the window clip and the belt courses sit inside the ring
+  // ----------------------------------------
+  describe('window clip margin and belt inset (the box is 0-100, so the ring converts per axis)', () => {
+    const num = (el: Element | null | undefined, attr: string) => Number(el?.getAttribute(attr));
+    const clipRect = (c: HTMLElement) => c.querySelector('clipPath[id^="body-clip-"] rect');
+    /** Belt course rects: the height-2 rects that are direct children of the scaled body group. */
+    const beltRects = (c: HTMLElement) =>
+      Array.from(c.querySelector('g[data-rooftop-greeble]')!.children[1].children).filter(
+        (el) => el.tagName.toLowerCase() === 'rect' && el.getAttribute('height') === '2' && el.getAttribute('width') !== '100',
+      );
+    const ringDepth = (W: number, H: number, scale = 1) => Math.min(8 * scale, 0.18 * Math.min(W, H));
+    const withBelts = (id: string, belts: number, extra: Actor['config'] = {}) =>
+      makeActor({ rooftopGreeble: undefined, facadeGreeble: 'squareWindows', beltCourseCount: belts, ...extra }, id);
+
+    const wide = ALL_VARIANTS.find((v) => VARIANT_CONF[v].sizeRange.minWidth >= 480)!; // 480+ × 160+
+    const tall = ALL_VARIANTS.find((v) => VARIANT_CONF[v].sizeRange.minHeight >= 440)!; // 160+ × 440+
+
+    it('the fixtures include a wide short building and a tall narrow one', () => {
+      expect(wide).toBeDefined();
+      expect(tall).toBeDefined();
+    });
+
+    it('a wide short building keeps the 2 % side margin and takes a deeper top and bottom one', () => {
+      const actor = withBelts(idsByVariant[wide], 1);
+      setLocalTime(9);
+      const { container } = render(<Factory actor={actor} />);
+      const { W, H } = box(actor);
+      const d = ringDepth(W, H);
+      expect(100 * d / W).toBeLessThan(2); // the premise: the ring is narrower than 2 % of the width
+      expect(num(clipRect(container), 'x')).toBeCloseTo(2, 2);
+      expect(num(clipRect(container), 'y')).toBeCloseTo((100 * d) / H, 2);
+      expect(num(clipRect(container), 'y')).toBeGreaterThan(2);
+      expect(num(clipRect(container), 'width')).toBeCloseTo(96, 2);
+      expect(num(clipRect(container), 'height')).toBeCloseTo(100 - (200 * d) / H, 2);
+    });
+
+    it('a tall narrow building takes a deeper side margin and keeps the 2 % top and bottom one', () => {
+      const actor = withBelts(idsByVariant[tall], 1);
+      setLocalTime(9);
+      const { container } = render(<Factory actor={actor} />);
+      const { W, H } = box(actor);
+      const d = ringDepth(W, H);
+      expect(100 * d / H).toBeLessThan(2);
+      expect(num(clipRect(container), 'x')).toBeCloseTo((100 * d) / W, 2);
+      expect(num(clipRect(container), 'x')).toBeGreaterThan(2);
+      expect(num(clipRect(container), 'y')).toBeCloseTo(2, 2);
+      expect(num(clipRect(container), 'width')).toBeCloseTo(100 - (200 * d) / W, 2);
+      expect(num(clipRect(container), 'height')).toBeCloseTo(96, 2);
+    });
+
+    it.each(ALL_VARIANTS)('%s: the clip is max(100d/size, 2) on each axis, centred', (variant) => {
+      const actor = withBelts(idsByVariant[variant], 0);
+      setLocalTime(9);
+      const { container } = render(<Factory actor={actor} />);
+      const { W, H } = box(actor);
+      const d = ringDepth(W, H);
+      const mx = Math.max((100 * d) / W, 2);
+      const my = Math.max((100 * d) / H, 2);
+      const clip = clipRect(container);
+      expect(num(clip, 'x')).toBeCloseTo(mx, 2);
+      expect(num(clip, 'y')).toBeCloseTo(my, 2);
+      expect(num(clip, 'width')).toBeCloseTo(100 - 2 * mx, 2);
+      expect(num(clip, 'height')).toBeCloseTo(100 - 2 * my, 2);
+    });
+
+    it('scales the margin with the actor scale (the ring is 8 × scaleX deep)', () => {
+      const actor: Actor = { ...withBelts(idsByVariant[tall], 0), scaleX: 1.1, scaleY: 1.1 };
+      setLocalTime(9);
+      const { container } = render(<Factory actor={actor} />);
+      const { W } = box(actor);
+      expect(num(clipRect(container), 'x')).toBeCloseTo((100 * 8.8) / W, 2);
+    });
+
+    it('still clips the facade: the clip excludes x = 1 and y = 1, so a window there would not appear', () => {
+      const actor = withBelts(idsByVariant.Stacks, 0);
+      setLocalTime(9);
+      const { container } = render(<Factory actor={actor} />);
+      const clip = clipRect(container);
+      const clipId = clip!.parentElement!.getAttribute('id');
+      expect(container.querySelectorAll('g[clip-path]')[1].getAttribute('clip-path')).toBe(`url(#${clipId})`);
+      expect(num(clip, 'x')).toBeGreaterThan(1);
+      expect(num(clip, 'y')).toBeGreaterThan(1);
+    });
+
+    it('with the ring off the clip is exactly 2, 2, 96, 96 and the belts run the full width', () => {
+      const actor = withBelts(idsByVariant.Skyscraper, 2);
+      const factories = WORLD_GEM as { factories: boolean };
+      factories.factories = false;
+      try {
+        setLocalTime(9);
+        const { container } = render(<Factory actor={actor} />);
+        const clip = clipRect(container);
+        expect([num(clip, 'x'), num(clip, 'y'), num(clip, 'width'), num(clip, 'height')]).toEqual([2, 2, 96, 96]);
+        expect(container.querySelectorAll('g[data-gem="ring"]')).toHaveLength(0);
+        const { fc } = box(actor);
+        const fcBox = (fc / box(actor).W) * 100;
+        const belts = beltRects(container);
+        expect(belts).toHaveLength(4);
+        const west = belts.filter((b) => num(b, 'x') === 0);
+        const east = belts.filter((b) => num(b, 'x') !== 0);
+        expect(west).toHaveLength(2);
+        expect(east).toHaveLength(2);
+        for (const b of west) expect(num(b, 'width')).toBeCloseTo(fcBox, 6);
+        for (const b of east) expect(num(b, 'x') + num(b, 'width')).toBeCloseTo(100, 6);
+      } finally {
+        factories.factories = true;
+      }
+    });
+
+    describe.each([1, 2, 3])('with %i belt course(s)', (belts) => {
+      it.each(ALL_VARIANTS)('%s: the belts start at 100d/W, meet at the front corner and end at 100 - 100d/W', (variant) => {
+        const actor = withBelts(idsByVariant[variant], belts);
+        setLocalTime(9);
+        const { container } = render(<Factory actor={actor} />);
+        const { W, H, fc } = box(actor);
+        const bx = (100 * ringDepth(W, H)) / W;
+        const fcBox = (fc / W) * 100;
+        const rects = beltRects(container);
+        expect(rects).toHaveLength(belts * 2);
+        const west = rects.filter((_, i) => i % 2 === 0);
+        const east = rects.filter((_, i) => i % 2 === 1);
+        for (const b of west) {
+          expect(num(b, 'x')).toBeCloseTo(bx, 4);
+          expect(num(b, 'x') + num(b, 'width')).toBeCloseTo(fcBox, 4);
+        }
+        for (const b of east) {
+          expect(num(b, 'x')).toBeCloseTo(fcBox, 4);
+          expect(num(b, 'x') + num(b, 'width')).toBeCloseTo(100 - bx, 4);
+        }
+      });
+    });
+
+    it('the belts keep their height, y and face fills', () => {
+      const actor = withBelts(idsByVariant.Skyscraper, 2);
+      setLocalTime(9);
+      const { container } = render(<Factory actor={actor} />);
+      const rects = beltRects(container);
+      expect(rects.map((r) => r.getAttribute('height'))).toEqual(['2', '2', '2', '2']);
+      expect(num(rects[0], 'y')).toBe(num(rects[1], 'y'));
+      expect(num(rects[2], 'y')).toBe(num(rects[3], 'y'));
+      expect(rects[0].getAttribute('fill')).not.toBe(rects[1].getAttribute('fill')); // west vs east at 9 am
+    });
+
+    it('draws no belts when there are no belt courses, but still clips', () => {
+      const actor = withBelts(idsByVariant.Stacks, 0);
+      setLocalTime(9);
+      const { container } = render(<Factory actor={actor} />);
+      expect(beltRects(container)).toHaveLength(0);
+      expect(clipRect(container)).not.toBeNull();
     });
   });
 

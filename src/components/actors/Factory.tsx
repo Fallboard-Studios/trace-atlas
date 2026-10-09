@@ -45,6 +45,9 @@ const DEBUG_LIGHTING_PRESET = null as keyof typeof LIGHTING_PRESETS | null;
 /** Belt course thickness in normalised 0-100 SVG units. */
 const BELT_H = 2;
 
+/** The body clip's minimum margin on each side, in normalised 0-100 SVG units. */
+const CLIP_MARGIN = 2;
+
 // ========================================
 // STATIC/DYNAMIC GREEBLE RESOLUTION
 // (docs/specs/FACTORY_LIGHTING_RERENDER.md §1.3 — Task 4)
@@ -311,6 +314,15 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
     { splitX: frontCornerPx },
   );
 
+  // The ring's depth in the 0-100 box, per axis (the box scales non-uniformly, so 8 px is a
+  // different share of each side). The window clip keeps its 2 % margin or the ring, whichever is
+  // deeper, so no window sits half under the ring; belts are inset by the ring only. At depth 0
+  // the clip is today's 2, 2, 96, 96 and the belts span the full width.
+  const ringBoxX = (100 * ringDepth) / actualWidth;
+  const ringBoxY = (100 * ringDepth) / actualHeight;
+  const clipMarginX = Math.max(ringBoxX, CLIP_MARGIN);
+  const clipMarginY = Math.max(ringBoxY, CLIP_MARGIN);
+
   const transform = bottomAnchorTransform(actor, height);
   const safeId = String(actor.id).replace(/[^a-zA-Z0-9-_]/g, '-');
   const bodyClipId = `body-clip-${safeId}`;
@@ -378,8 +390,8 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
       const beltElements: React.ReactElement[] = beltSeparatorYs.map((by, i) => (
         // Belt separators: left rect = west face, right rect = east face
         <React.Fragment key={`belt-${i}`}>
-          <rect x={0} y={by} width={frontCornerX} height={BELT_H} fill={westBeltFill} />
-          <rect x={frontCornerX} y={by} width={100 - frontCornerX} height={BELT_H} fill={eastBeltFill} />
+          <rect x={ringBoxX} y={by} width={frontCornerX - ringBoxX} height={BELT_H} fill={westBeltFill} />
+          <rect x={frontCornerX} y={by} width={100 - frontCornerX - ringBoxX} height={BELT_H} fill={eastBeltFill} />
         </React.Fragment>
       ));
       facadeContent = <>{zoneElements}</>;
@@ -398,7 +410,7 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
         <defs>
           {/* Full body clip — keeps facade greebles inside building bounds */}
           <clipPath id={bodyClipId}>
-            <rect x="2" y="2" width="96" height="96" />
+            <rect x={clipMarginX} y={clipMarginY} width={100 - 2 * clipMarginX} height={100 - 2 * clipMarginY} />
           </clipPath>
           {/* Right-face clip (x ≥ frontCornerX) — left/west is the base rect */}
           <clipPath id={westClipId}>
