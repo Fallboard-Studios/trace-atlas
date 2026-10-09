@@ -13,6 +13,8 @@ import { ROOFTOP_RENDERERS, ROOFTOP_LAYOUT_PAINT } from './greebles/rooftopGreeb
 import { FACADE_RENDERERS, FACADE_LAYOUT_PAINT } from './greebles/facadeGreebles';
 import type { RooftopGreeble, FacadeGreeble, GreebleRendererContext, GreebleElement, GreebleRenderer } from './greebles/greebleTypes';
 import { useUIStore } from '../../stores/uiStore';
+import { GemRing } from './material/GemRing';
+import { WORLD_GEM, ringFacets, worldBevel, worldLightVector } from './material/worldGemMaterial';
 
 // ========================================
 // DEBUG LIGHTING
@@ -291,6 +293,24 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
   const eastFill = applyColorShift(bodyColor, { hueShift: 0, satShift: 0 }, eastLMultiplier * lCap);
   const westFill = applyColorShift(bodyColor, { hueShift: 0, satShift: 0 }, westLMultiplier * lCap);
 
+  // The world gem ring (docs/specs/WORLD_GEM_MATERIAL.md §1.4). Drawn in scene pixels as a sibling
+  // of the scaled body, never inside the 0-100 box: that group scales non-uniformly on every
+  // non-square building, so an 8 px ring built there would be 8 % of the width one way and 8 % of
+  // the height the other. Tick-time work outside `staticVisual`, like every lighting-driven fill.
+  const frontCornerPx = (frontCornerX / 100) * actualWidth;
+  const bodyScale = actor.scaleX ?? 1;
+  const ringDepth = WORLD_GEM.factories ? worldBevel(actualWidth, actualHeight, bodyScale) : 0;
+  const ring = ringFacets(
+    [[0, 0], [actualWidth, 0], [actualWidth, actualHeight], [0, actualHeight]],
+    ringDepth,
+    worldLightVector(eastLMultiplier, westLMultiplier),
+    // Each face's own lightness with its depth cap (and derelict dimming) folded in — exactly the
+    // multipliers `westFill` / `eastFill` use, so a derelict's ring dims with its building.
+    (midX) => (midX < frontCornerPx ? westLMultiplier : eastLMultiplier) * lCap,
+    bodyColor,
+    { splitX: frontCornerPx },
+  );
+
   const transform = bottomAnchorTransform(actor, height);
   const safeId = String(actor.id).replace(/[^a-zA-Z0-9-_]/g, '-');
   const bodyClipId = `body-clip-${safeId}`;
@@ -305,7 +325,7 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
     lMultiplier: roofLMultiplier,
     eastLMultiplier,
     westLMultiplier,
-    frontCornerX: (frontCornerX / 100) * actualWidth,
+    frontCornerX: frontCornerPx,
     nightDepth,
     flickerEpoch,
   };
@@ -400,6 +420,8 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
           {/* Belt separators rendered outside the body clip so they span full width */}
           {beltContent}
         </g>
+        {/* world gem ring: pixel space, after the scaled body and before the rooftop greeble */}
+        <GemRing facets={ring} scale={bodyScale} />
         {/* rooftop greeble rendered outside scaled group so it's not clipped */}
         {rooftopElement}
       </g>
