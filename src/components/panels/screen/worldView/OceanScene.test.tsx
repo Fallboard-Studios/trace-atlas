@@ -390,7 +390,9 @@ describe('OceanScene', () => {
         const ground = children.findIndex((el) => el.getAttribute('data-terrain') === 'ground');
         expect(midground).toBeGreaterThan(0);
         expect(c).toBeGreaterThan(midground);
-        expect(ground).toBe(children.length - 1);
+        // The ground line is the last thing drawn: its polygon, then its own world gem ring (Phase 44)
+        expect(children[ground + 1].getAttribute('data-gem')).toBe('ring');
+        expect(ground).toBe(children.length - 2);
         expect(c).toBe(ground - 1);
       });
 
