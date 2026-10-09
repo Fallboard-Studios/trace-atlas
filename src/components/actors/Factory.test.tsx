@@ -5,6 +5,7 @@ import { vi } from 'vitest';
 import { Factory } from './Factory';
 import { factoryGeometry } from './factoryGeometry';
 import { WORLD_GEM } from './material/worldGemMaterial';
+import { FACADE_LAYOUT_PAINT, computeWindowGridLayout } from './greebles/facadeGreebles';
 import { selectVariantFromSeed, VARIANT_CONF } from './factoryVariants';
 import type { FactoryVariant } from './factoryVariants';
 import * as colorUtils from '../../utils/colorUtils';
@@ -836,6 +837,208 @@ describe('Factory — the world gem body ring', () => {
       const { container } = render(<Factory actor={actor} />);
       expect(beltRects(container)).toHaveLength(0);
       expect(clipRect(container)).not.toBeNull();
+    });
+  });
+
+  // ----------------------------------------
+  // Task 10: the facade grid is centred inside the ring
+  // ----------------------------------------
+  describe('the window grid is centred on the face inside the ring', () => {
+    // Window existence is a seeded 40 % coin per slot, so "first window" and "last window" would
+    // depend on luck. Filling every slot (density 1) makes the grid itself visible, so the test
+    // reads the layout, not the dice. Factory resolves the compute function through this map at
+    // mount time, so a spy on the entry is what it calls.
+    beforeEach(() => {
+      vi.spyOn(FACADE_LAYOUT_PAINT.squareWindows!, 'compute').mockImplementation((ctx) =>
+        computeWindowGridLayout(ctx, 'squareWindows', 1),
+      );
+    });
+    afterEach(() => vi.restoreAllMocks());
+
+    interface Win {
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      face: 'west' | 'east';
+    }
+    const translateOf = (el: Element) => {
+      const m = (el.getAttribute('transform') ?? '').match(/translate\(\s*([-\d.e]+)[\s,]+([-\d.e]+)\s*\)/);
+      return m ? { x: Number(m[1]), y: Number(m[2]) } : { x: 0, y: 0 };
+    };
+    /** Every window rect of the facade in absolute box units, with the face it belongs to. */
+    function windows(container: HTMLElement): Win[] {
+      const facade = container.querySelectorAll('g[clip-path]')[1];
+      const wrapper = facade.querySelector('[data-facade-inset]');
+      const shift = wrapper ? translateOf(wrapper).x : 0;
+      return Array.from(facade.querySelectorAll('rect')).map((r) => {
+        const eastGroup = r.closest('g[transform^="translate"]:not([data-facade-inset])');
+        const east = eastGroup !== null && facade.contains(eastGroup);
+        return {
+          x: shift + (east ? translateOf(eastGroup!).x : 0) + Number(r.getAttribute('x')),
+          y: Number(r.getAttribute('y')),
+          w: Number(r.getAttribute('width')),
+          h: Number(r.getAttribute('height')),
+          face: east ? 'east' : 'west',
+        };
+      });
+    }
+    const clipOf = (c: HTMLElement) => {
+      const r = c.querySelector('clipPath[id^="body-clip-"] rect')!;
+      return { mx: Number(r.getAttribute('x')), my: Number(r.getAttribute('y')) };
+    };
+    const squareWindowsActor = (variant: FactoryVariant, belts: number, extra: Partial<Actor> = {}): Actor => ({
+      ...makeActor({ rooftopGreeble: undefined, facadeGreeble: 'squareWindows', beltCourseCount: belts }, idsByVariant[variant]),
+      ...extra,
+    });
+    const EPS = 1e-6;
+
+    describe.each([0, 1, 2])('with %i belt course(s)', (belts) => {
+      describe.each(ALL_VARIANTS)('%s', (variant) => {
+        const actor = squareWindowsActor(variant, belts);
+
+        it('keeps every window inside the ring vertically, on both faces', () => {
+          setLocalTime(9);
+          const { container } = render(<Factory actor={actor} />);
+          const { my } = clipOf(container);
+          const all = windows(container);
+          expect(all.length).toBeGreaterThan(0);
+          for (const w of all) {
+            expect(w.y).toBeGreaterThanOrEqual(my - EPS);
+            expect(w.y + w.h).toBeLessThanOrEqual(100 - my + EPS);
+          }
+        });
+
+        it('keeps every west-face window inside the ring horizontally and left of the front corner', () => {
+          setLocalTime(9);
+          const { container } = render(<Factory actor={actor} />);
+          const { mx } = clipOf(container);
+          const { W, fc } = box(actor);
+          const fcBox = (fc / W) * 100;
+          const west = windows(container).filter((w) => w.face === 'west');
+          expect(west.length).toBeGreaterThan(0);
+          for (const w of west) {
+            expect(w.x).toBeGreaterThanOrEqual(mx - EPS);
+            expect(w.x + w.w).toBeLessThanOrEqual(fcBox + EPS);
+          }
+        });
+
+        it('centres the west face: the gap from the ring to the first column equals the gap after the last', () => {
+          setLocalTime(9);
+          const { container } = render(<Factory actor={actor} />);
+          const { mx } = clipOf(container);
+          const { W, fc } = box(actor);
+          const fcBox = (fc / W) * 100;
+          const west = windows(container).filter((w) => w.face === 'west');
+          const left = Math.min(...west.map((w) => w.x)) - mx;
+          const right = fcBox - Math.max(...west.map((w) => w.x + w.w));
+          expect(Math.abs(left - right)).toBeLessThan(EPS);
+        });
+
+        it('centres the grid vertically: the gap below the ring to the first row matches the gap after the last, within one slot', () => {
+          setLocalTime(9);
+          const { container } = render(<Factory actor={actor} />);
+          const { my } = clipOf(container);
+          const all = windows(container);
+          const top = Math.min(...all.map((w) => w.y)) - my;
+          const bottom = 100 - my - Math.max(...all.map((w) => w.y + w.h));
+          const slot = all[0].h * 1.5;
+          expect(Math.abs(top - bottom)).toBeLessThanOrEqual(belts === 0 ? EPS : slot);
+        });
+
+        if (belts > 0) {
+          it('keeps every window clear of every belt course, so a shrunk zone never runs into the belt below it', () => {
+            setLocalTime(9);
+            const { container } = render(<Factory actor={actor} />);
+            const beltYs = Array.from(container.querySelector('g[data-rooftop-greeble]')!.children[1].children)
+              .filter((el) => el.tagName.toLowerCase() === 'rect' && el.getAttribute('height') === '2' && el.getAttribute('width') !== '100')
+              .map((el) => Number(el.getAttribute('y')));
+            expect(new Set(beltYs).size).toBe(belts);
+            for (const w of windows(container)) {
+              for (const by of beltYs) expect(w.y + w.h <= by + EPS || w.y >= by + 2 - EPS).toBe(true);
+            }
+          });
+        }
+
+        it('does not resize the windows: the same unit as with the ring off', () => {
+          setLocalTime(9);
+          const { container } = render(<Factory actor={actor} />);
+          const on = windows(container)[0];
+          const factories = WORLD_GEM as { factories: boolean };
+          factories.factories = false;
+          try {
+            const { container: off } = render(<Factory actor={actor} />);
+            const base = windows(off)[0];
+            expect(on.w).toBeCloseTo(base.w, 9);
+            expect(on.h).toBeCloseTo(base.h, 9);
+          } finally {
+            factories.factories = true;
+          }
+        });
+      });
+    });
+
+    it('leaves the belts where they were: no window overlaps a belt course', () => {
+      const actor = squareWindowsActor('Skyscraper', 2);
+      setLocalTime(9);
+      const { container } = render(<Factory actor={actor} />);
+      const belts = Array.from(container.querySelector('g[data-rooftop-greeble]')!.children[1].children).filter(
+        (el) => el.tagName.toLowerCase() === 'rect' && el.getAttribute('height') === '2' && el.getAttribute('width') !== '100',
+      );
+      expect(belts.length).toBe(4);
+      const beltYs = Array.from(new Set(belts.map((b) => Number(b.getAttribute('y')))));
+      for (const w of windows(container)) {
+        for (const by of beltYs) expect(w.y + w.h <= by + EPS || w.y >= by + 2 - EPS).toBe(true);
+      }
+      // and the belt y positions are the zone arithmetic's, unmoved by the ring: 33.33 + 2 + 33.33 ...
+      const zoneH = (100 - 2 * 2) / 3;
+      expect(beltYs.map((y) => Math.round(y * 1000) / 1000)).toEqual(
+        [zoneH, 2 * zoneH + 2].map((y) => Math.round(y * 1000) / 1000),
+      );
+    });
+
+    it('shifts the facade in by the clip margin only through a marked wrapper, and not at all with the ring off', () => {
+      const actor = squareWindowsActor('Skyscraper', 1);
+      setLocalTime(9);
+      const { container } = render(<Factory actor={actor} />);
+      const facade = container.querySelectorAll('g[clip-path]')[1];
+      const wrapper = facade.querySelector('[data-facade-inset]')!;
+      expect(wrapper).not.toBeNull();
+      expect(translateOf(wrapper).x).toBeCloseTo(clipOf(container).mx, 9);
+      expect(translateOf(wrapper).y).toBe(0);
+
+      const factories = WORLD_GEM as { factories: boolean };
+      factories.factories = false;
+      try {
+        const { container: off } = render(<Factory actor={actor} />);
+        expect(off.querySelector('[data-facade-inset]')).toBeNull();
+      } finally {
+        factories.factories = true;
+      }
+    });
+
+    it('scales with the actor: a 1.1 building takes the deeper margin and still centres the west face', () => {
+      const actor = squareWindowsActor('Skyscraper', 1, { scaleX: 1.1, scaleY: 1.1 });
+      setLocalTime(9);
+      const { container } = render(<Factory actor={actor} />);
+      const { mx, my } = clipOf(container);
+      const { W, fc } = box(actor);
+      const west = windows(container).filter((w) => w.face === 'west');
+      expect(west.length).toBeGreaterThan(0);
+      expect(Math.min(...west.map((w) => w.x))).toBeGreaterThanOrEqual(mx - EPS);
+      expect(Math.min(...windows(container).map((w) => w.y))).toBeGreaterThanOrEqual(my - EPS);
+      expect(Math.max(...west.map((w) => w.x + w.w))).toBeLessThanOrEqual((fc / W) * 100 + EPS);
+    });
+
+    // KNOWN QUIRK, out of scope (plan Task 10): the east face's grid is derived from the silhouette
+    // width in pixels, not box units, so it overflows past the right edge of the clip and the clip
+    // trims it there. The vertical bounds above do hold on the east face; its right edge does not.
+    it('documents the east face quirk: its grid still overflows the clip on the right', () => {
+      const actor = squareWindowsActor('Stacks', 1);
+      setLocalTime(9);
+      const { container } = render(<Factory actor={actor} />);
+      const east = windows(container).filter((w) => w.face === 'east');
+      expect(Math.max(...east.map((w) => w.x + w.w))).toBeGreaterThan(100);
     });
   });
 
