@@ -883,45 +883,65 @@ All Crawford's unless marked; each is recorded in the plan's "As shipped" notes.
 
 ## 44. World Gem Material (Option A)
 
-Idea [docs/ideas/world-gem-material.md](../ideas/world-gem-material.md), sketch
-[docs/sketches/gem-factories.html](../sketches/gem-factories.html) (merged, PR #540). **Sketch gate
-passed 2026-10-08** (Crawford: "a great little blend of both art styles"; asked for the expansion past
-the factories, which the sketch now carries). Intent, spec and plan not started — the idea doc holds
-every decision made so far and the sketch's implementation notes, so the next session starts at
-`interview-me`, not at the sketch.
+Idea [docs/ideas/world-gem-material.md](../ideas/world-gem-material.md), intent
+[docs/intent/world-gem-material.md](../intent/world-gem-material.md), spec
+[docs/specs/WORLD_GEM_MATERIAL.md](../specs/WORLD_GEM_MATERIAL.md), plan
+[docs/tasks/WORLD_GEM_MATERIAL.md](../tasks/WORLD_GEM_MATERIAL.md), sketch
+[docs/sketches/gem-factories.html](../sketches/gem-factories.html) (merged, PR #540; sketch gate passed
+2026-10-08 — Crawford: "a great little blend of both art styles"). **Built on `feature/world-gem`,
+2026-10-08 to 2026-10-09 (Tasks 1–19, 21 and 22); not yet merged.** The idle-paint perf gate (Task 19)
+passed on all three pinned worlds with no cut — docs/PERFORMANCE.md, "World Gem Material — the Task 19
+perf gate". **Still owed: Task 20** — Crawford's by-eye look at the live 1920 × 1080 world at 9 am, noon,
+3 pm and 10 pm, and the Pixel listen — then the PR.
 
 ### About
 
 The gem robots (Phase 39) and the world they sit in read as "one style randomly placed on another"
-(Crawford, 2026-10-08). Option A closes the gap by material, not form: every mass in the world gets
-the robots' bevel ring — an inset outline, one trapezoid facet per edge, three quantized tones
-(`quantizeShade` from `gemShading.ts`, the 0.5 / 1.1 / 1.25 multipliers from `gemShape.tsx`) and the
-scenery gem outline — while its silhouette, windows, belts and greebles stay exactly as they are.
-Bevel 0 is byte-identical to today's renderer. The rule for what gets it: **mass gets the ring,
-members stay lines** — factories, tanks, walls, dome bases, containers, scaffold blocks, wreck hulls
-and deckhouses, vent steps and crane loads are mass; posts, beams, masts, pylon towers and scaffold
-frames are members. Terrain is its own switch (the ring runs along the ridge and ground profiles).
-Curves stay smooth (the dome cap). Boulders, beacon heads, pylon heads and the charging stations are
-already gem and are untouched.
+(Crawford, 2026-10-08). Option A closes the gap by material, not form. The rule for what gets what:
+**mass gets the robots' bevel ring, everything else solid gets a 1.5 px hairline.**
 
-Two rulings already made: **the hour-driven east/west sun wins** on buildings (the facet light vector
-is sideways by `eastL − westL`, always from above; the robots keep their own fixed top-left light),
-and **the windows stay**. The dials were ruled the same day: **bevel 8 px, facet contrast 1.0, lateral
-sun 1.0, no outline, no boundary lines, roof boxes bevelled** — so the material is the ring and its
-three tones alone, without the scenery gem's outline stroke. Still open: whether the world section's
-"mass gets the ring, members stay lines" rule and the terrain switch stand.
+- **Mass** — factories and their rooftop blocks, tanks, walls, dome bases, containers, scaffold blocks,
+  wreck hulls, deckhouses and funnels, vent steps, crane loads, and the terrain's ridge and ground
+  profiles — gets an 8 px inset outline (× the item's own scale, through the robots' one 18 % short-side
+  cap, and no ring under 1 px), one trapezoid facet per edge, and three quantized tones (`quantizeShade`
+  from `gemShading.ts`, the 0.5 / 1.1 / 1.25 multipliers from `gemShape.tsx`). Rooftop blocks use 0.6 ×
+  the building's depth. There is no outline stroke on mass.
+- **Everything else solid** — members (posts, beams, masts, pylon towers, scaffold frames), curves (the
+  dome cap's arc, the dish reflector, the turbine hub) and the six families the world scene left out
+  (dish, turbine, floodlight, tether, pipeline, the pipe bridges) — gets the hairline, in the scenery
+  gem outline's colour. Thin rooftop parts and the cupola's arc get it too.
+- **Left alone:** silhouettes, windows (re-centred inside the ring), belts, lamps, greebles' placement,
+  boulders, beacon heads, pylon heads and the charging stations.
 
-Perf: static-layer content only, repainted on the once-a-second lighting tick, never per frame. Adds
-roughly 9 shapes per factory and about 170 across a world's scenery and terrain — a few hundred on top
-of the ~2,500 static shapes the Districts gates found cost nothing measurable at idle
-(docs/PERFORMANCE.md). The idle-paint harness is still the formal gate, in the D2 gate's shape, and
-the Pixel the honest one. No CSS transition on any facet fill (the 17.2.5 rule). Depends on
-[42](#42-world-view-districts) (the families) and [39](#39-gem-polygon-robots-branch-a) (the material).
+Three rulings were made after the idea doc and supersede it (the intent's "Supersedes the idea doc"):
+members get the hairline instead of nothing; the terrain is in (its switch survives only as a code
+constant for the A/B); and everything else solid gets the hairline too. The other rulings stand: **the
+hour-driven east/west sun wins** on buildings (`worldLightVector`; the robots keep their own fixed
+top-left light), **the windows stay**, bevel 8 px, facet contrast 1.0, lateral sun 1.0, no boundary
+lines. A bevel of 0 renders as today's renderer did; the six `WORLD_GEM` switches in
+`material/worldGemMaterial.ts` are code constants, no setting and no UI.
+
+Built differently from the spec, found while building: the terrain's 8 px bevel does not hold on the
+polygon as drawn (a miter that deep inverts on most seeded worlds), so its ring is built on an extended
+outline (`terrainRingOutline`); at 9 am only east-facing steps and flat runs are lit, west-facing steps
+are neutral; the crane hanger is a `<rect>` now whatever the switches; and `midgroundSilhouettes.ts`
+widens the bridge boxes by half a hairline. Docs: BUILDING_DESIGN.md ("World Gem Material", "World gem
+treatment"), ROBOT_DESIGN.md ("Bevel and shading"), PERFORMANCE.md, and the executable pin in
+`src/docs/worldGemMaterialDocs.test.ts`.
+
+Perf: static-layer content only, repainted on the once-a-second lighting tick, never per frame. The
+Task 19 gate (2026-10-09) ran `main` `6802c8b4` against the branch on `dense`, `ventfield` and `yard`,
+three rounds each: median main-thread busy +2.1 % / +1.7 % / +0.4 % and Paint +6.6 % / +0.5 % / −2.4 %,
+every delta inside `main`'s own round-to-round spread; one ablation round with the hairlines off and the
+terrain off separated from nothing. No cut was taken; the Pixel is Task 20's. No CSS transition on any
+facet fill (the 17.2.5 rule). Depends on [42](#42-world-view-districts) (the families) and
+[39](#39-gem-polygon-robots-branch-a) (the material).
 
 ### Supersedes
 
 - [docs/todo/backlog.md](backlog.md) item 9 (Visuals: Better Building Details) — the material pass is
-  the building-detail work; any greeble-variety follow-up is a later, separate item.
+  the building-detail work; any greeble-variety follow-up is a later, separate item. Item 9 has moved to
+  [docs/todo/archive/backlog-archive.md](archive/backlog-archive.md).
 
 ### Not Doing (and why)
 
@@ -931,7 +951,7 @@ the Pixel the honest one. No CSS transition on any facet fill (the 17.2.5 rule).
 - **The robots' fixed top-left light on buildings** — ruled out; the east/west sun is the world's
   only sunlight.
 - **Replacing windows with emissive vertex lights** — ruled out; the windows stay.
-- **A ring on members or curves** — members get at most a thin outline behind a switch; arcs are
-  never faceted (the 90/45 grid rule).
-- **A union ring on the vent cone** — its ledges (~3 px) are narrower than the bevel, so the ring
+- **A ring on members or curves** — they get the hairline, never a ring; arcs are never faceted (the
+  90/45 grid rule).
+- **A union ring on the vent cone** — its ledges are narrower than the bevel, so the ring
   self-intersects; each step is ringed as its own block instead.

@@ -1,6 +1,8 @@
 # Intent: World Gem Material (Option A)
 
-> **Intent confirmed (roadmap Phase 44, 2026-10-08)** — spec and plan not started. Idea
+> **Intent confirmed (roadmap Phase 44, 2026-10-08); built 2026-10-09** — spec
+> [docs/specs/WORLD_GEM_MATERIAL.md](../specs/WORLD_GEM_MATERIAL.md), plan
+> [docs/tasks/WORLD_GEM_MATERIAL.md](../tasks/WORLD_GEM_MATERIAL.md). Idea
 > [docs/ideas/world-gem-material.md](../ideas/world-gem-material.md), sketch
 > [docs/sketches/gem-factories.html](../sketches/gem-factories.html) (sketch gate passed; the sketch
 > was extended and re-judged the same day, see "Supersedes the idea doc" below). Where this file and the

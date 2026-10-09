@@ -19,6 +19,20 @@ moves (`hoverPulse`, `trace`, `ring`, `fan`, `carry`), so what a robot is doing 
 not only on its card. See [docs/ROBOT_LIFECYCLE.md](../../ROBOT_LIFECYCLE.md) and
 [docs/ANIMATION_SYSTEM.md](../../ANIMATION_SYSTEM.md#job-moves).
 
+## 9. Visuals: Better Building Details
+
+Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprioritized
+behind launch. Factories already have a real system to extend (`docs/BUILDING_DESIGN.md`:
+silhouette base + rooftop greebles + seeded facade/window/color variation) — scope is
+more likely additional greeble/variant variety within that existing system than a
+structural change, but not yet confirmed with Crawford.
+
+**Closed** 2026-10-09 by roadmap Phase 44, World Gem Material (built on `feature/world-gem`; the PR is not
+yet merged). Every mass in the world now wears the gem robots' bevel ring and every other solid a 1.5 px
+hairline, lit by the hour's sun; silhouettes, windows and greebles are unchanged. Any greeble-variety
+follow-up is a later, separate item. See [docs/BUILDING_DESIGN.md](../../BUILDING_DESIGN.md) ("World Gem
+Material") and [docs/todo/roadmap.md](../roadmap.md).
+
 ## 12. IdleSystem: console.warn Fires on the Ordinary Case, Not an Error
 
 **Closed** 2026-09-30 (`6c4657e`, branch `fixes/idlesystem-noise-wordltransition-bug`). Narrowed

@@ -278,3 +278,92 @@ describe('the transition snapshots are gone; the switch-off tests assert plainly
   });
 
 });
+
+describe('the roadmap, backlog and idea doc record Phase 44 (Task 22)', () => {
+  const roadmap = read('docs/todo/roadmap.md');
+  const at = roadmap.indexOf('## 44. World Gem Material');
+  const next = roadmap.indexOf('\n## 45.', at);
+  const phase = at === -1 ? '' : roadmap.slice(at, next === -1 ? undefined : next);
+
+  it('the roadmap has a Phase 44 entry linking idea, intent, spec, plan and sketch', () => {
+    expect(at, 'Phase 44 entry exists').toBeGreaterThanOrEqual(0);
+    for (const link of ['docs/ideas/world-gem-material.md', 'docs/intent/world-gem-material.md', 'docs/specs/WORLD_GEM_MATERIAL.md', 'docs/tasks/WORLD_GEM_MATERIAL.md', 'docs/sketches/gem-factories.html']) {
+      expect(phase, `Phase 44 links ${link.replace('docs/', '')}`).toContain(link.replace('docs/', ''));
+    }
+  });
+
+  it('no longer says the intent, spec and plan are not started, or that a ruling is still open', () => {
+    expect(phase).not.toMatch(/spec and plan not started/i);
+    expect(phase).not.toMatch(/Still open:/);
+    expect(phase).not.toMatch(/next session starts at/i);
+  });
+
+  it('records the status, the perf gate verdict and the manual check still owed (Task 20)', () => {
+    expect(phase).toMatch(/Built|Shipped/);
+    expect(phase).toMatch(/perf gate/i);
+    expect(phase).toMatch(/passed/i);
+    expect(phase).toContain('PERFORMANCE.md');
+    expect(phase).toMatch(/\*\*Still owed: Task 20\*\*/);
+  });
+
+  it('records the three rulings that superseded the idea doc and the rooftop rule', () => {
+    expect(phase).toMatch(/hairline/i);
+    expect(phase).toMatch(/terrain is (ruled )?in|terrain ring/i);
+    expect(phase).toMatch(/six (other )?families|everything (else )?solid/i);
+    expect(phase).toMatch(/roof/i);
+    expect(phase).toContain('0.6');
+  });
+
+  it('says backlog item 9 moved to the archive', () => {
+    const supersedes = section(phase, '### Supersedes');
+    expect(supersedes).toMatch(/item 9/);
+    expect(supersedes).toMatch(/archive/i);
+  });
+
+  it('backlog.md no longer carries item 9, and its neighbours are untouched', () => {
+    const backlog = read('docs/todo/backlog.md');
+    expect(backlog).not.toMatch(/^### 9\. /m);
+    expect(backlog).toMatch(/^### 7\. /m);
+    expect(backlog).toMatch(/^### 10\. /m);
+  });
+
+  it('the backlog archive carries item 9 in numeric order, closed by Phase 44', () => {
+    const archive = read('docs/todo/archive/backlog-archive.md');
+    const item = (n: number) => archive.search(new RegExp(`^## ${n}\\. `, 'm'));
+    expect(item(9), 'item 9 is in the archive').toBeGreaterThanOrEqual(0);
+    expect(item(8)).toBeLessThan(item(9));
+    expect(item(9)).toBeLessThan(item(12));
+    const entry = archive.slice(item(9), item(12));
+    expect(entry).toContain('Better Building Details');
+    expect(entry).toMatch(/\*\*Closed\*\*/);
+    expect(entry).toContain('Phase 44');
+  });
+
+  it('the idea doc is headed as superseded in part, pointing at the intent\'s rulings', () => {
+    const head = read('docs/ideas/world-gem-material.md').slice(0, 1400);
+    expect(head).toMatch(/Superseded/);
+    expect(head).toContain('intent/world-gem-material.md');
+    expect(head).toContain('Supersedes the idea doc');
+    expect(head).not.toMatch(/not started/i);
+  });
+
+  it('the intent doc\'s own header no longer says the spec and plan are not started', () => {
+    const head = read('docs/intent/world-gem-material.md').slice(0, 900);
+    expect(head).not.toMatch(/not started/i);
+    expect(head).toContain('specs/WORLD_GEM_MATERIAL.md');
+    expect(head).toContain('tasks/WORLD_GEM_MATERIAL.md');
+  });
+
+  it('CLAUDE.md\'s BUILDING_DESIGN.md reference line names the world gem material', () => {
+    const line = read('CLAUDE.md').split('\n').find((l) => l.includes('`docs/BUILDING_DESIGN.md`'));
+    expect(line).toBeDefined();
+    expect(line).toMatch(/world gem material/i);
+    expect(line).toContain('Phase 44');
+  });
+
+  it('keeps the reference line\'s earlier phases (42 districts, 43 jobs) in place', () => {
+    const line = read('CLAUDE.md').split('\n').find((l) => l.includes('`docs/BUILDING_DESIGN.md`'))!;
+    expect(line).toContain('Phase 42');
+    expect(line).toContain('Phase 43');
+  });
+});
