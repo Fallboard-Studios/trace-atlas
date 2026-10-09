@@ -634,11 +634,11 @@ colour is re-tuned (the lever is colour, not weight); the window grid sits centr
 ring. Then the Pixel for dropouts (none expected: nothing here touches audio or a moving layer).
 
 **Acceptance criteria:**
-- [ ] Crawford signs off, or names the change; a colour re-tune lands as one constant in the
+- [x] Crawford signs off, or names the change; a colour re-tune lands as one constant in the
       sketch first, then in `worldGemMaterial.ts`/`gemShape.tsx`.
 
 **Verification:**
-- [ ] Manual (Crawford). **Stop and report.**
+- [x] Manual (Crawford). **Stop and report.**
 
 **Dependencies:** Task 19.
 
