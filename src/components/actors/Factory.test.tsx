@@ -110,11 +110,11 @@ function getBodyFills(container: HTMLElement): string[] {
 function getRooftopHTML(container: HTMLElement): string {
   const outerG = container.querySelector('g[data-rooftop-greeble]');
   if (!outerG) return '';
-  return Array.from(outerG.children)
-    .slice(2)
-    .filter((el) => el.getAttribute('data-gem') !== 'ring')
-    .map((el) => el.outerHTML)
-    .join('');
+  const rest = Array.from(outerG.children).slice(2);
+  // The body ring comes first. A greeble's own block rings come after its fills, so a ring in
+  // first place is always the building's, and those after it are the greeble's and stay in.
+  if (rest[0]?.getAttribute('data-gem') === 'ring') rest.shift();
+  return rest.map((el) => el.outerHTML).join('');
 }
 
 /** Facade content renders inside the second `g[clip-path]` in document order (the first
@@ -197,8 +197,11 @@ describe('Factory — static-only greebles stay visually identical across a ligh
   // Per docs/specs/FACTORY_LIGHTING_RERENDER.md §1.1: these renderers read no lighting
   // field at all today, so their output must be byte-identical regardless of the tick —
   // both before and after the eventual layout/paint split (Tasks 2-4).
-  it('rooftop: machinery', () => {
-    const actor = makeActor({ rooftopGreeble: 'machinery', facadeGreeble: undefined }, idsByVariant.Monolith);
+  // (machinery left this group in Phase 44: its world gem ring is lit by the hour, so it moved to
+  // "lighting-dependent" below. cupola, antennae and pipesValves stay static: their hairline is a
+  // fixed colour.)
+  it.each(['cupola', 'pipesValves'] as const)('rooftop: %s', (rooftopGreeble) => {
+    const actor = makeActor({ rooftopGreeble, facadeGreeble: undefined }, idsByVariant.Monolith);
     setLocalTime(12);
     const { container } = render(<Factory actor={actor} />);
     const dayHTML = getRooftopHTML(container);
@@ -244,6 +247,19 @@ describe('Factory — lighting-dependent greebles change across a lighting tick'
     const { container } = render(<Factory actor={actor} />);
     const dayHTML = getRooftopHTML(container);
     expect(dayHTML).not.toBe('');
+
+    setLocalTime(0);
+    expect(getRooftopHTML(container)).not.toBe(dayHTML);
+  });
+
+  // Phase 44: these three joined ROOFTOP_LAYOUT_PAINT for their world gem ring.
+  it.each(['machinery', 'waterTower', 'steppeRoof'] as const)('rooftop: %s (ring lit by the hour)', (rooftopGreeble) => {
+    const actor = makeActor({ rooftopGreeble, facadeGreeble: undefined }, idsByVariant.Skyscraper);
+    setLocalTime(12);
+    const { container } = render(<Factory actor={actor} />);
+    const dayHTML = getRooftopHTML(container);
+    expect(dayHTML).not.toBe('');
+    expect(dayHTML).toContain('data-gem="ring"');
 
     setLocalTime(0);
     expect(getRooftopHTML(container)).not.toBe(dayHTML);
@@ -521,7 +537,11 @@ describe('Factory — the world gem body ring', () => {
     it('has exactly one ring, after the scaled body group and before the rooftop greeble', () => {
       setLocalTime(9);
       const { container } = render(<Factory actor={actor} />);
-      expect(container.querySelectorAll('g[data-gem="ring"]')).toHaveLength(1);
+      // the building's own ring is the only one among the factory group's direct children before
+      // the rooftop greeble; the greeble's block rings follow its fills
+      const outer = container.querySelector('g[data-rooftop-greeble]')!;
+      expect(Array.from(outer.children).filter((el, i) => i < 3 && el.getAttribute('data-gem') === 'ring')).toHaveLength(1);
+      expect(container.querySelectorAll('g[data-gem="ring"]').length).toBeGreaterThanOrEqual(1);
       const kids = Array.from(container.querySelector('g[data-rooftop-greeble]')!.children);
       expect(kids[0].tagName.toLowerCase()).toBe('defs');
       expect(kids[1].getAttribute('transform')).toMatch(/^scale\(/);

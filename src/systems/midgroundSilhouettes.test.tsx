@@ -88,9 +88,10 @@ function expectTight(box: Box | undefined, drawn: Box | null, where: string, tol
 }
 
 /** A rendered factory's drawn shapes in scene units: the body box (its scaled 100×100 rect) and
- *  every rooftop shape, which sits in the outer translate only. The world gem ring (Phase 44) is
- *  the body's own material, drawn in the same pixel box: it is not rooftop, and its footprint is
- *  the body box (its half-stroke overhang is pinned by the ring test below). */
+ *  every rooftop shape, which sits in the outer translate only. The world gem rings (Phase 44) are
+ *  left out: the body's ring is the body's own material in the same pixel box, and a roof block's
+ *  ring sits on its block's edge, so the footprint of each is the box already measured (the
+ *  body's half-stroke overhang is pinned by the ring test below). */
 function factoryShapes(actor: Actor): ShapeExtent[] {
   const { container } = render(<svg><Factory actor={actor} /></svg>);
   const outer = container.querySelector('g[data-factory-type]')!;

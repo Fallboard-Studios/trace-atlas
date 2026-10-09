@@ -486,8 +486,13 @@ describe('computeCrownSpireLayout / paintCrownSpire', () => {
 });
 
 describe('ROOFTOP_LAYOUT_PAINT registry shape', () => {
-  it('contains exactly pitchedRoof and crownSpire — every other RooftopGreeble is absent', () => {
-    expect(Object.keys(ROOFTOP_LAYOUT_PAINT).sort()).toEqual(['crownSpire', 'pitchedRoof']);
+  it('contains exactly the lighting-dependent greebles — every other RooftopGreeble is absent', () => {
+    // pitchedRoof/crownSpire read the east/west multipliers; machinery/waterTower/steppeRoof joined
+    // them in Phase 44 because their world gem ring needs the hour (docs/specs/WORLD_GEM_MATERIAL.md
+    // assumption 7). antennae, cupola and pipesValves stay static: their hairline never changes.
+    expect(Object.keys(ROOFTOP_LAYOUT_PAINT).sort()).toEqual(
+      ['crownSpire', 'machinery', 'pitchedRoof', 'steppeRoof', 'waterTower'],
+    );
   });
 });
 

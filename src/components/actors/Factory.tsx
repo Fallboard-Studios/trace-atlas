@@ -331,10 +331,11 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
   // non-square building, so an 8 px ring built there would be 8 % of the width one way and 8 % of
   // the height the other. Tick-time work outside `staticVisual`, like every lighting-driven fill.
   const frontCornerPx = (frontCornerX / 100) * actualWidth;
+  const light = worldLightVector(eastLMultiplier, westLMultiplier);
   const ring = ringFacets(
     [[0, 0], [actualWidth, 0], [actualWidth, actualHeight], [0, actualHeight]],
     ringDepth,
-    worldLightVector(eastLMultiplier, westLMultiplier),
+    light,
     // Each face's own lightness with its depth cap (and derelict dimming) folded in — exactly the
     // multipliers `westFill` / `eastFill` use, so a derelict's ring dims with its building.
     (midX) => (midX < frontCornerPx ? westLMultiplier : eastLMultiplier) * lCap,
@@ -359,6 +360,8 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
     frontCornerX: frontCornerPx,
     nightDepth,
     flickerEpoch,
+    // paint context only: the layout context never carries the hour (spec §1.4)
+    light,
   };
   // Derelict: the antenna's indicator light goes dark (§1.6) — it's the only rooftop greeble
   // with a lit element (ROOFTOP_RENDERERS' other 7 renderers are inert geometry), so it's
