@@ -1878,7 +1878,7 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   green at T34b apart from load timeouts and one random collision in untouched files (T34b's As
   shipped).
 
-- [ ] **Task 35: J4 perf gate + Pixel — stop and report**
+- [x] **Task 35: J4 perf gate + Pixel — stop and report**
 
   **Description:** As T26 against J3's tip, plus the extra compositor layers' memory and the four
   full-screen tints (two more than today, in static layers). Crawford's Pixel run is the gate. A miss: J4 does not merge; `BACK_HOSTS_ENABLED` stays false on main.
@@ -1898,6 +1898,13 @@ variant/size derivation gone. `ventY` is now the drawn (rounded) roof `box.y0`, 
   desktop and +9.3 MB at phone width × DPR 2, estimated ≈ +17 MB on a Pixel 8. `idle-paint.mjs`
   gained the compositor-layer readout (counts, the scene's composited layers by
   `data-scene-layer`, an estimate in MB scaled by DPR²).
+
+  **Pixel run passed 2026-10-08** (the gate). Crawford ran `89077960` on the Pixel from the LAN
+  production preview (`npm run build && npx vite preview --host --port 4173`) "on high", in landscape,
+  for 3 minutes: "it was great". So the harness's paint miss (+31 ms per 6 s, the two extra layers)
+  is accepted as J4's cost, and `BACK_HOSTS_ENABLED` stays on. "High" isn't one of the Audio Load
+  Budget's names (Light, Standard, Full); which setting it was is recorded as Crawford said it.
+  Task 35 is done.
 
 
 - [ ] **Task 36: Final docs**

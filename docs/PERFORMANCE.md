@@ -1188,7 +1188,8 @@ Gate ([docs/tasks/ROBOT_JOBS_AND_STATIONS.md](tasks/ROBOT_JOBS_AND_STATIONS.md) 
 scene split, the back robot row, the four depth tints, layer-aware legs and the dissolve, exits from the back row,
 `BACK_HOSTS_ENABLED` on) idle busy and Paint within the noise band of J3's tip, as Tasks 26 and 30, plus the extra
 compositor layers' memory and the tints. **Harness: paint misses by the J1–J3 rule; busy passes. Stopped for
-Crawford.** His Pixel run is the gate.
+Crawford.** His Pixel run is the gate. **The Pixel run passed (2026-10-08):** `89077960` from the LAN production
+preview, "on high", in landscape, for 3 minutes, "it was great". The paint miss is accepted as J4's cost.
 
 **Method:** as the J2 and J3 gates. Branch `feature/jobs-depth` `f6c3d16c` (Checkpoint E) on :4185
 (`index-Fsw5VSqs.js`). Base: J3's tip on main, `409957d7` (the T31 docs merge this branch was cut from), built
