@@ -1,0 +1,501 @@
+<!doctype html>
+<!-- Layout rework — OPTION B, "Stage & Inspector". Sketch, before any intent doc. Built 2026-10-08 on
+     feature/jobs-depth (uncommitted; nothing here touches the live renderer or any component). Option A is the
+     sibling page, docs/sketches/layout-rework.html; the problem statement and the screenshots behind both live in
+     its header comment and are not repeated here.
+
+     The split between A and B, in one line each:
+       A — content COVERS the world, so the world dims under an opaque surface; a left rail + drawer for nav; section
+           tabs; a help popover per control; Probes and Companies merged into a roster board; a fixed avatar column.
+       B — content NEVER covers the world; a bottom CONSOLE STRIP for nav, mute, volume and telemetry; an INSPECTOR
+           panel on the right; the selected robot is TRACKED in the live world instead of drawn in a separate column;
+           accordions kept but a closed one shows a VALUE STRIP and only the open one is mounted; a docked DIAGNOSTIC
+           FEED glass shows the focused control's description instead of popovers or intro panels; radios become
+           ONE-BOX SELECTS; LfoLink becomes ONE LANE DIAL per field; Probes and Companies stay separate branches.
+
+     What this page mocks up (static CSS/HTML, judged by eye, nothing wired):
+       B1 Deck, desktop — the console strip along the bottom: five branch keys, breadcrumb, telemetry, mute + a
+          small volume strip. The power corner stays top-right. The world is the whole screen above the strip.
+       B2 Robot detail, desktop — the tracked robot in the open left half (halo + name tag; the view would pan to
+          keep it there); the inspector on the right with the robot's header, the four section accordions (Envelope
+          open, the others showing value strips), and the diagnostic feed at the bottom.
+       B3 Fleet Params → LFO Bank, desktop — the inspector with one-box selects for Lane and Shape and the feed
+          describing the focused select. Toggle: which accordion is open.
+       B4 Probes, desktop — compact rows in the inspector with company filter chips; name tags on every robot in the
+          world. Toggle: filter to one company.
+       B5 Phone — Deck with the five keys as the bottom bar and mute + power at the top; robot detail as a bottom
+          sheet at half height with the tracked robot above it (toggle: sheet full); Fleet Params as the same sheet.
+
+     Assumptions (not the live renderer):
+       S1 Cabinet boxes are a flat front face with a skewed top and left wall; the GSAP pop, glow and wall fade are
+          not reproduced. "Popped" here = selected / active / open.
+       S2 Voxel rows are fixed box counts, not self-fitted. Colours are the app's trait pairs and the Ballast base;
+          fonts load from Google Fonts here instead of the self-hosted packages.
+       S3 The world is the same simplified city the other sketches draw. "Tracked" is a halo and a tag; the pan that
+          keeps the robot in the open half is described, not animated.
+       S4 The value strip on a closed accordion is hand-typed; in the app it would be derived from the same values the
+          open section's controls read.
+       S5 Copy is the app's current strings where one exists, placeholder otherwise.
+
+     Open (for Crawford):
+       Q1 Bottom console strip for nav (B) or left rail + drawer (A)? The strip costs 64 px of height everywhere and
+          no width; the rail costs 96 px of width and no height.
+       Q2 Inspector beside an always-visible world (B) or opaque content over a dimmed world (A)? The inspector is
+          560 px on desktop, so every control column is narrower than A's.
+       Q3 Tracked robot in the live world (B) or a fixed avatar column (A)? B shows the real robot, lights and all,
+          but it moves and can be behind a building; A is always framed and still.
+       Q4 Accordion-of-one with value strips (B) or section tabs (A)? Both mount one section at a time.
+       Q5 Docked diagnostic feed (B) or help popovers (A)? The feed is always there and reads as telemetry; the
+          popover is on demand and can hold more.
+       Q6 One-box selects (B) or single-line radio rows (A)? The app retired Select for RadioButton in Phase 10.5;
+          B brings a select back as a cabinet box.
+       Q7 One lane dial per field (B) or the letter row (A)?
+       Q8 Probes and Companies kept separate (B) or merged into a roster board (A)?
+       Q9 Phone bottom sheet over the world (B) or a full-height page with a sticky avatar band (A)?
+     Verdicts: (pending) -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Layout rework — option B sketch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #12161a; --surf: #1a2027; --surf2: #141a20; --line: #2a323a; --txt: #e4e6ea; --mut: #98a2ab;
+    --fs: 'Rajdhani', system-ui, sans-serif; --fc: 'Titillium Web', 'Rajdhani', system-ui, sans-serif;
+    --ac: #41ad9f; --ac2: #68cb97;
+  }
+  body { font-family: var(--fs); background: var(--bg); color: var(--txt); margin: 0; padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  p.note { font-size: 13px; color: var(--mut); max-width: 1100px; margin: 4px 0 12px; font-family: var(--fc); }
+  p.note a { color: var(--ac2); }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin: 12px 0 18px; font-size: 13px; max-width: 1100px; font-family: var(--fc); }
+  .pending b { color: #e8b84a; }
+  .pending ol { margin: 6px 0 0 18px; padding: 0; }
+  .controls { display: flex; gap: 10px; align-items: center; font-size: 13px; margin: 10px 0; flex-wrap: wrap; font-family: var(--fc); }
+  .controls button { background: var(--surf); color: var(--txt); border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; font-family: var(--fc); }
+  .controls button.on { background: #41ad9f; color: var(--bg); }
+
+  /* ---------- frames ---------- */
+  .desk { width: 1600px; height: 900px; position: relative; overflow: hidden; background: #0b0f14; border: 12px solid #1e2126; border-radius: 6px; zoom: .68; box-shadow: 0 0 0 1px #000; font-family: var(--fc); }
+  .phones { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .phone { width: 375px; height: 812px; position: relative; overflow: hidden; background: #0b0f14; border: 10px solid #1e2126; border-radius: 28px; font-family: var(--fc); }
+  .cap { font-size: 12px; color: var(--mut); margin: 6px 0 0; font-family: var(--fc); }
+
+  /* ---------- world ---------- */
+  .world { position: absolute; inset: 0; }
+  .world svg { width: 100%; height: 100%; display: block; }
+  .tag { position: absolute; transform: translate(-50%, 0); white-space: nowrap; }
+
+  /* ---------- cabinet language ---------- */
+  .cab { position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; background: var(--surf); color: var(--txt); padding: 0 12px; height: 34px; font-size: 13px; white-space: nowrap; line-height: 1.1; box-sizing: border-box; }
+  .cab .lore { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--mut); }
+  .cab.pop { background: var(--ac); color: #0b0f14; box-shadow: 0 0 12px color-mix(in srgb, var(--ac) 55%, transparent); }
+  .cab.pop .lore { color: #0b0f14; opacity: .75; }
+  .cab.pop::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; height: 4px; background: color-mix(in srgb, var(--ac), white 28%); transform: skewX(-50deg); transform-origin: bottom left; }
+  .cab.pop::after { content: ""; position: absolute; top: 0; bottom: 0; left: -4px; width: 4px; background: color-mix(in srgb, var(--ac), black 32%); transform: skewY(-50deg); transform-origin: top right; }
+  .cab.frame { background: var(--surf2); border: 1px solid var(--line); }
+  .radio { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+  .vox { display: inline-flex; gap: 4px; }
+  .vox i { width: var(--b, 26px); height: var(--b, 26px); background: #1b2128; display: block; box-sizing: border-box; }
+  .vox i.on { background: var(--ac); box-shadow: inset -3px -3px 0 color-mix(in srgb, var(--ac), black 32%), inset 2px 2px 0 color-mix(in srgb, var(--ac), white 18%); }
+  .dl { display: flex; flex-direction: column; line-height: 1.15; }
+  .dl .lore { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--mut); }
+  .dl .hum { font-size: 14px; color: #fff; }
+  .ctl { display: flex; flex-direction: column; gap: 5px; }
+  .ctl .val { font-size: 11px; color: var(--mut); font-family: ui-monospace, monospace; }
+  .ctl.focus .dl .hum { color: var(--ac2); text-shadow: 0 0 10px var(--ac); }
+  .glass { border: 3px double var(--ac2); box-shadow: inset 0 0 8px var(--ac2); text-shadow: 0 0 18px var(--ac); padding: 10px 14px; color: #fff; background: rgba(12, 16, 20, .55); letter-spacing: .03em; }
+  .glass h3 { margin: 0 0 4px; font-family: var(--fs); font-size: 16px; }
+  .glass p { margin: 0; font-size: 12.5px; line-height: 1.4; }
+  .glass.strip { padding: 6px 14px; font-size: 13px; display: inline-flex; gap: 18px; align-items: center; }
+  .glass.strip b { font-weight: 600; }
+  .glass.tagbox { padding: 3px 9px; font-size: 12px; }
+
+  /* one-box select: lore eyebrow + current value + a caret; opens a list on click (not drawn) */
+  .sel { position: relative; display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: center; background: var(--surf); border: 1px solid var(--line); padding: 4px 30px 4px 10px; min-width: 150px; height: 40px; box-sizing: border-box; line-height: 1.1; }
+  .sel .lore { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--mut); }
+  .sel .cur { font-size: 14px; color: #fff; }
+  .sel::after { content: "▾"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--ac2); font-size: 14px; }
+  .sel.open { border-color: var(--ac); box-shadow: 0 0 10px color-mix(in srgb, var(--ac) 45%, transparent); }
+  .sel-list { position: absolute; z-index: 6; background: var(--surf2); border: 1px solid var(--ac); display: flex; flex-direction: column; min-width: 190px; }
+  .sel-list .cab { height: 36px; align-items: flex-start; padding: 0 10px; border-bottom: 1px solid var(--line); }
+  /* one lane dial per linkable field: the letter, filled from the bottom to the depth */
+  .dial { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid var(--line); font-size: 15px; font-weight: 600; color: #fff; background: linear-gradient(to top, var(--ac) var(--depth, 0%), var(--surf) var(--depth, 0%)); box-sizing: border-box; }
+  .dial.off { color: var(--mut); font-size: 10px; }
+  .dial .d { position: absolute; right: 2px; bottom: 1px; font-size: 8px; color: #fff; font-weight: 400; }
+  .field { display: flex; align-items: flex-end; gap: 10px; }
+  .field .ctl { flex: 1; }
+
+  /* ---------- shell: console strip, inspector ---------- */
+  .power { position: absolute; top: 14px; right: 14px; width: 76px; height: 140px; background: #111316; border: 2px solid #26292e; border-radius: 4px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 10px; box-sizing: border-box; z-index: 4; }
+  .power .lens { width: 44px; height: 12px; border-radius: 2px; background: #2fbf4a; box-shadow: 0 0 10px #2fbf4a; }
+  .power .rocker { width: 40px; height: 78px; background: linear-gradient(#525252, #3a3a3a 48%, #2b2b2b 52%, #444); border-radius: 3px; display: flex; align-items: flex-end; justify-content: center; color: #aaa; font-size: 14px; padding-bottom: 8px; box-sizing: border-box; }
+  .console { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background: rgba(10, 13, 16, .94); border-top: 1px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 0 16px; box-sizing: border-box; z-index: 4; }
+  .console .keys { display: flex; gap: 8px; }
+  .console .keys .cab { height: 44px; width: 112px; padding: 0 6px; }
+  .console .sp { flex: 1; }
+  .console .crumb { font-size: 13px; color: var(--mut); padding: 0 12px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+  .console .crumb u { color: var(--txt); text-decoration-color: var(--ac); }
+  .console .vol { display: inline-flex; align-items: center; gap: 8px; }
+  .console .vol .cab { height: 32px; width: 36px; padding: 0; font-size: 15px; }
+  .inspector { position: absolute; right: 16px; top: 16px; bottom: 80px; width: 560px; background: var(--surf2); border: 1px solid var(--line); box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; z-index: 3; }
+  .inspector .ihead { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .inspector .ihead h2 { margin: 0; border: 0; padding: 0; font-size: 22px; }
+  .inspector .ihead .cab { height: 30px; font-size: 12px; }
+  .inspector .ibody { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; }
+  .inspector .feed { margin: 0 12px 12px; }
+  .rhead { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  .rhead svg { width: 72px; height: 58px; flex: 0 0 auto; }
+  .rhead h2 { margin: 0; border: 0; padding: 0; font-size: 22px; }
+  .rhead .st { font-size: 11px; color: var(--mut); }
+  .rhead .right { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  /* accordion-of-one: a closed row shows a value strip; the open one shows its controls */
+  .acc { border: 1px solid var(--line); background: var(--surf); }
+  .acc .bar { display: flex; align-items: center; gap: 12px; padding: 0 10px 0 0; height: 44px; }
+  .acc .bar .tog { width: 36px; height: 100%; display: inline-flex; align-items: center; justify-content: center; background: var(--surf2); border-right: 1px solid var(--line); font-size: 14px; }
+  .acc .bar .nm { font-size: 15px; color: #fff; min-width: 110px; }
+  .acc .bar .strip { font-size: 11px; color: var(--mut); font-family: ui-monospace, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; text-align: right; }
+  .acc.open { border-color: var(--ac); box-shadow: 0 0 10px color-mix(in srgb, var(--ac) 35%, transparent); }
+  .acc.open .bar .tog { background: var(--ac); color: #0b0f14; }
+  .acc.open .bar .strip { display: none; }
+  .acc .inner { padding: 12px 12px 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; border-top: 1px solid var(--line); }
+  .acc .inner.one { grid-template-columns: 1fr; }
+  .acc .inner .full { grid-column: 1 / -1; }
+  /* probes list rows */
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chips .cab { height: 28px; font-size: 12px; padding: 0 10px; }
+  .rows { display: flex; flex-direction: column; gap: 6px; }
+  .row { display: flex; align-items: center; gap: 12px; background: var(--surf); border: 1px solid var(--line); padding: 6px 10px; }
+  .row.sel-row { border-color: var(--ac); }
+  .row svg { width: 44px; height: 36px; flex: 0 0 auto; }
+  .row .nm { font-size: 14px; color: #fff; }
+  .row .st { font-size: 11px; color: var(--mut); }
+  .row .txt { flex: 1; display: flex; flex-direction: column; line-height: 1.2; }
+  .row .co { width: 10px; height: 28px; flex: 0 0 auto; }
+
+  /* ---------- phone ---------- */
+  .phone .top { position: absolute; left: 0; right: 0; top: 0; height: 64px; background: rgba(10, 13, 16, .95); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 0 12px; box-sizing: border-box; z-index: 5; }
+  .phone .top .cab { height: 40px; }
+  .phone .top .sp { flex: 1; }
+  .phone .top .pw { width: 44px; height: 44px; background: #111316; border: 2px solid #26292e; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #aaa; }
+  .phone .keys { position: absolute; left: 0; right: 0; bottom: 0; height: 60px; background: rgba(10, 13, 16, .96); border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 8px; box-sizing: border-box; z-index: 6; }
+  .phone .keys .cab { height: 44px; width: 64px; padding: 0 2px; }
+  .phone .keys .cab .hum { font-size: 10px; }
+  .phone .keys .cab .lore { font-size: 7px; }
+  .phone .sheet { position: absolute; left: 0; right: 0; bottom: 60px; height: 50%; background: var(--surf2); border-top: 1px solid var(--ac); box-shadow: 0 -8px 24px rgba(0, 0, 0, .5); display: flex; flex-direction: column; overflow: hidden; z-index: 4; transition: height .25s ease; }
+  .phone .sheet.full { height: calc(100% - 64px - 60px); }
+  .phone .sheet .handle { width: 44px; height: 4px; border-radius: 2px; background: var(--mut); margin: 8px auto 4px; flex: 0 0 auto; }
+  .phone .sheet .ihead { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px 8px; border-bottom: 1px solid var(--line); }
+  .phone .sheet .ihead h2 { margin: 0; border: 0; padding: 0; font-size: 18px; }
+  .phone .sheet .ihead .crumb { font-size: 11px; color: var(--mut); }
+  .phone .sheet .ibody { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; }
+  .phone .sheet .acc .inner { grid-template-columns: 1fr; }
+  .phone .sheet .feed { margin: 0 10px 10px; }
+  .phone .sheet .feed p { font-size: 11.5px; }
+  .phone .stage-robot { position: absolute; left: 50%; top: 150px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 2; }
+  .phone .stage-robot .halo { position: absolute; inset: -14px -14px 20px; border: 2px dashed rgba(255, 255, 255, .35); border-radius: 50%; }
+  .phone .telemetry { position: absolute; left: 10px; right: 10px; bottom: 70px; z-index: 3; }
+  .phone .telemetry .glass.strip { width: 100%; box-sizing: border-box; justify-content: center; font-size: 12px; gap: 10px; }
+</style>
+</head>
+<body>
+<h1>Layout rework — option B, "Stage &amp; Inspector"</h1>
+<p class="note">The alternative to <a href="layout-rework.html">option A</a>. A covers the world and dims it. B never covers it: nav, mute,
+  volume and telemetry live in a bottom console strip, controls live in an inspector on the right, and the selected robot is
+  tracked in the live world instead of drawn in a separate column. Same disclaimers as A: static, approximated cabinet pop,
+  judge structure and density. Desktop frames are 1600 × 900 at 68 %; phones are 375 × 812 at full size.</p>
+
+<div class="pending">
+  <b>Open for Crawford (B versus A):</b>
+  <ol>
+    <li>Bottom console strip (B) or left rail + drawer (A)? The strip costs height everywhere and no width; the rail the reverse.</li>
+    <li>Inspector beside an always-visible world (B) or opaque content over a dimmed world (A)?</li>
+    <li>Tracked robot in the live world (B) or a fixed, still avatar column (A)?</li>
+    <li>Accordion-of-one with value strips (B) or section tabs (A)? Both mount one section at a time.</li>
+    <li>Docked diagnostic feed for help (B) or popovers (A)?</li>
+    <li>One-box selects (B) or single-line radio rows (A)? Select was retired for RadioButton in Phase 10.5.</li>
+    <li>One lane dial per field (B) or the letter row (A)?</li>
+    <li>Probes and Companies kept separate (B) or merged into a roster board (A)?</li>
+    <li>Phone bottom sheet over the world (B) or a full page with a sticky avatar band (A)?</li>
+  </ol>
+</div>
+
+<h2>B1 — Deck (desktop): console strip, nothing else over the world</h2>
+<div class="desk" id="b1"></div>
+<p class="cap">Five branch keys, the breadcrumb, telemetry, mute and a small volume strip in one 64 px strip. The power corner is unchanged.
+  No welcome card; the copy moves to the off screen and the feed.</p>
+
+<h2>B2 — Robot detail (desktop): tracked robot on the stage, inspector on the right</h2>
+<div class="desk" id="b2"></div>
+<p class="cap">The robot keeps working in the world with a halo and a name tag; the view pans to keep it in the open half. The inspector header
+  carries name, status, battery and a one-box company select. Envelope is open; the other three show their values in one line.
+  The diagnostic feed at the bottom describes the focused control (Decay Time).</p>
+
+<h2>B3 — Fleet Params → LFO Bank (desktop): one-box selects, lane dial, feed</h2>
+<div class="controls">
+  <span>Open accordion:</span>
+  <button data-b3="pacing">Pacing</button>
+  <button data-b3="lfo" class="on">LFO Bank</button>
+  <button data-b3="eq">EQ &amp; Filters</button>
+  <button id="b3list">Shape list open</button>
+</div>
+<div class="desk" id="b3"></div>
+<p class="cap">Lane and Shape are one box each and open a list. EQ shows one lane dial per band instead of a five-box picker and a depth
+  slider. Closed groups still tell you their values.</p>
+
+<h2>B4 — Probes (desktop): compact rows, name tags on the stage</h2>
+<div class="controls">
+  <button id="b4filter">Filter: Rust Syndicate</button>
+</div>
+<div class="desk" id="b4"></div>
+<p class="cap">Rows are a small gem, name, job, status and a thin battery strip, with the company as a colour bar. A row click pans the stage to
+  that robot. Companies remains its own branch with the same rows grouped and rename/delete at the top.</p>
+
+<h2>B5 — Phone: Deck, robot detail as a bottom sheet, Fleet Params sheet</h2>
+<div class="controls">
+  <button id="b5full">Sheet full height</button>
+</div>
+<div class="phones" id="b5"></div>
+<p class="cap">The five keys are the bottom bar. The sheet sits at half height by default so the tracked robot stays visible above it; drag the
+  handle for full height. Mute and power are the only things at the top.</p>
+
+<script>
+// ---------- palette ----------
+const TRAIT = {
+  deck: ['#41ad9f', '#68cb97'], fleet: ['#4f6fb0', '#6c8ad0'], probes: ['#d9792b', '#e8a04a'],
+  companies: ['#6f7da8', '#8f9cc4'], settings: ['#c46a7e', '#d98aa0'], composition: ['#5bbf6a', '#8ee07c'],
+  spectral: ['#4f7fc0', '#7aa6e0'], timeSpace: ['#b05a8a', '#d07ab0'], output: ['#d9792b', '#e8a04a'],
+};
+const COMPANY = { 'Rust Syndicate': '#ae5378', 'Iron Crew': '#e8e07a', 'Neon Division': '#e2b149', 'Freelance': '#6f7da8' };
+const IDENTITY = ['#ae5378', '#e8e4d8', '#a9e583', '#cd5e57', '#f3efe6', '#e2b149', '#5bb7c6', '#e0d85a', '#5f7da0', '#e2b149', '#e8e4d8', '#e8e07a'];
+const NAMES = ['Tidal Wisp', 'Glass Drifter', 'Azure Beacon', 'Null Wisp', 'Neon Wisp', 'Neon Nomad', 'Azure Seeker', 'Neon Wisp', 'Silent Warden', 'Neon Seeker', 'Rust Wisp', 'Rust Rover'];
+const JOBS = ['Salvage', 'Structural Inspection', 'Vent Extraction', 'Structural Inspection', 'Structural Inspection', 'Maintenance', 'Vent Extraction', 'Salvage', 'Structural Inspection', 'Salvage', 'Acoustic Survey', 'Salvage'];
+const STATE = ['Docked · Charging · Disabled', 'Docked · Charging · Disabled', 'Docked · Charging · Disabled', 'Docked · Charging · Disabled', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Docked · Returning · Disabled', 'Docked · Returning · Disabled'];
+const BATT = [40, 40, 40, 40, 16, 16, 70, 28, 70, 28, 15, 10];
+const CO_OF = ['Rust Syndicate', 'Iron Crew', 'Neon Division', 'Neon Division', 'Neon Division', 'Rust Syndicate', 'Iron Crew', 'Rust Syndicate', 'Freelance', 'Iron Crew', 'Freelance', 'Rust Syndicate'];
+
+const ac = (t) => `--ac:${TRAIT[t][0]};--ac2:${TRAIT[t][1]}`;
+const acHex = (a, b) => `--ac:${a};--ac2:${b || a}`;
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+
+// ---------- colour helpers (as the earlier sketches) ----------
+function hexToHsl(hex) {
+  const n = parseInt(hex.slice(1), 16); const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  return [h, s * 100, l * 100];
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const hsl = (h, s, l) => `hsl(${h.toFixed(1)}, ${clamp(s, 0, 100).toFixed(1)}%, ${clamp(l, 0, 100).toFixed(1)}%)`;
+function tone(hex, dl) { const [h, s, l] = hexToHsl(hex); return hsl(h, s, l + dl); }
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// ---------- atoms ----------
+function vox(n, on, b = 26) { return `<span class="vox" style="--b:${b}px">${Array.from({ length: n }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('')}</span>`; }
+function voxCentered(n, v, b = 26) {
+  const half = n / 2; const k = Math.round(Math.abs(v) * half);
+  return `<span class="vox" style="--b:${b}px">${Array.from({ length: n }, (_, i) => {
+    const on = v >= 0 ? i >= half && i < half + k : i < half && i >= half - k; return `<i class="${on ? 'on' : ''}"></i>`;
+  }).join('')}</span>`;
+}
+function dl(lore, hum) { return `<div class="dl"><span class="lore">${lore}</span><span class="hum">${hum}</span></div>`; }
+function ctl(lore, hum, body, val, focus) { return `<div class="ctl${focus ? ' focus' : ''}">${dl(lore, hum)}${body}${val ? `<span class="val">${val}</span>` : ''}</div>`; }
+function cab(text, cls = '', style = '') { return `<span class="cab ${cls}" style="${style}">${text}</span>`; }
+function cab2(lore, hum, cls = '', style = '') { return `<span class="cab ${cls}" style="${style}"><span class="lore">${lore}</span><span class="hum">${hum}</span></span>`; }
+function sel(lore, cur, open) { return `<span class="sel${open ? ' open' : ''}"><span class="lore">${lore}</span><span class="cur">${cur}</span></span>`; }
+function selList(items, cur, style) { return `<div class="sel-list" style="${style}">${items.map(([l, h]) => cab2(l, h, h === cur ? 'pop' : '')).join('')}</div>`; }
+function dial(lane, depth) { return lane === 'Off' ? `<span class="dial off">off</span>` : `<span class="dial" style="--depth:${depth}%">${lane}<span class="d">${depth}</span></span>`; }
+/** A linkable field: its slider on the left, its one lane dial on the right. */
+function field(lore, hum, body, val, lane, depth, focus) { return `<div class="field">${ctl(lore, hum, body, val, focus)}${dial(lane, depth)}</div>`; }
+function acc(name, strip, open, inner, style = '', one = false) {
+  return `<div class="acc${open ? ' open' : ''}" style="${style}"><div class="bar"><span class="tog">${open ? '−' : '+'}</span><span class="nm">${name}</span><span class="strip">${strip}</span></div>${open ? `<div class="inner${one ? ' one' : ''}">${inner}</div>` : ''}</div>`;
+}
+const feed = (title, body, style = ac('deck')) => `<div class="glass feed" style="${style}"><h3>${title}</h3><p>${body}</p></div>`;
+
+/** Simplified gem robot centred on (0,0), 100 × 80, as docs/sketches/robot-depth-tint.html draws it. */
+function gemMarkup(hex) {
+  const backing = '0,-40 -36,-40 -50,-20 -50,22 -32,40 34,40 50,24 50,-26';
+  const mid = '-30,-14 22,-22 34,0 20,22 -26,20 -38,4';
+  const top = '-14,-30 12,-34 22,-16 6,-4 -16,-8';
+  const orb = (cx, cy) => `<polygon points="${cx - 12},${cy - 4} ${cx - 6},${cy - 8} ${cx + 12},${cy - 8} ${cx + 12},${cy + 4} ${cx + 6},${cy + 8} ${cx - 12},${cy + 8}" fill="${tone(hex, -8)}" stroke="${tone(hex, 12)}" stroke-width="1.5"/>`;
+  return `<polygon points="${backing}" fill="#0e1013" stroke="#1c2026" stroke-width="2"/>` +
+    `<polygon points="${mid}" fill="${tone(hex, -14)}"/>` +
+    `<polygon points="-30,-14 22,-22 34,0 -38,4" fill="${tone(hex, -4)}"/>` +
+    `<polygon points="${top}" fill="${tone(hex, 6)}"/>` +
+    `<polygon points="-14,-30 12,-34 22,-16" fill="${tone(hex, 16)}"/>` +
+    `<circle cx="-4" cy="6" r="3" fill="#fff3c4"/><circle cx="12" cy="10" r="2.5" fill="#fff3c4"/>` +
+    orb(-48, -38) + orb(48, -38) + orb(-48, 38) + orb(48, 38);
+}
+const gemSvg = (hex, w, h) => `<svg viewBox="-64 -52 128 104" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet">${gemMarkup(hex)}</svg>`;
+
+// ---------- world ----------
+const BODY = { h: 200, s: 15, l: 19 };
+const BG = [[60, 120, 420], [250, 95, 300], [420, 140, 470], [640, 100, 350], [1300, 150, 300], [1500, 110, 420], [1700, 140, 330]];
+const MID = [[150, 110, 230], [560, 130, 260], [880, 100, 200], [1130, 140, 420], [1600, 120, 240]];
+const FG = [[0, 150, 190], [1760, 160, 220]];
+/** Robots on the stage, in 1920 × 1080 scene units — index into NAMES/IDENTITY. */
+const STAGE = [
+  { i: 0, x: 520, y: 560 }, { i: 2, x: 1180, y: 640 }, { i: 8, x: 900, y: 430 }, { i: 5, x: 1500, y: 600 },
+  { i: 6, x: 300, y: 380 }, { i: 10, x: 1320, y: 820 },
+];
+const SC = 1600 / 1920;
+function building([x, w, h], floor, cap, d) {
+  const k = lerp(0.45, 1.1, d) * cap;
+  const west = hsl(BODY.h, BODY.s, BODY.l * k), east = hsl(BODY.h, BODY.s, BODY.l * k * 1.35);
+  const corner = x + w * 0.62;
+  return `<rect x="${x}" y="${floor - h}" width="${w}" height="${h}" fill="${west}"/><rect x="${corner}" y="${floor - h}" width="${x + w - corner}" height="${h}" fill="${east}"/>`;
+}
+/** opts.track: index of the robot drawn large with a halo at (620, 520); opts.tags: name tags on every robot;
+ *  opts.only: array of robot indices to tag (filter). */
+function worldSvg(opts = {}) {
+  const d = 0.35;
+  const robots = STAGE.map((r) => {
+    if (opts.track === r.i) return `<g transform="translate(620 520) scale(1.05)"><circle r="92" fill="none" stroke="${IDENTITY[r.i]}" stroke-opacity=".55" stroke-width="3" stroke-dasharray="8 8"/>${gemMarkup(IDENTITY[r.i])}</g>`;
+    return `<g transform="translate(${r.x} ${r.y}) scale(.55)">${gemMarkup(IDENTITY[r.i])}</g>`;
+  }).join('');
+  const body = `
+    <defs><linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(205,45%,16%)"/><stop offset="1" stop-color="hsl(230,45%,7%)"/></linearGradient></defs>
+    <rect width="1920" height="1080" fill="url(#w)"/>
+    <polygon points="0,990 0,860 220,860 280,800 520,800 580,860 900,860 960,820 1300,820 1340,860 1920,860 1920,990" fill="hsl(0,0%,13%)"/>
+    <g>${BG.map((b) => building(b, 990, 0.7, d)).join('')}</g>
+    <rect width="1920" height="1080" fill="#0c1c4f" opacity=".25"/>
+    <g>${MID.map((b) => building(b, 1022, 0.85, d)).join('')}</g>
+    <rect width="1920" height="1080" fill="hsl(251,17%,26%)" opacity=".2"/>
+    <polygon points="0,1080 0,1050 420,1050 440,1030 1100,1030 1120,1050 1920,1050 1920,1080" fill="hsl(203,13%,7%)"/>
+    <g transform="translate(1420 300) scale(.9)">${gemMarkup('#e2b149')}</g>
+    ${robots}
+    <g>${FG.map((b) => building(b, 1050, 1, d)).join('')}</g>`;
+  let tags = '';
+  if (opts.tags) {
+    tags = STAGE.filter((r) => !opts.only || opts.only.includes(r.i)).map((r) => {
+      const [x, y] = opts.track === r.i ? [620, 520] : [r.x, r.y];
+      return `<div class="tag glass tagbox" style="${acHex(IDENTITY[r.i])};left:${x * SC}px;top:${y * SC + 52}px">${NAMES[r.i]}${opts.track === r.i ? ' · ' + JOBS[r.i] : ''}</div>`;
+    }).join('');
+  } else if (opts.track !== undefined) {
+    tags = `<div class="tag glass tagbox" style="${acHex(IDENTITY[opts.track])};left:${620 * SC}px;top:${520 * SC + 96}px"><b>${NAMES[opts.track]}</b> · ${JOBS[opts.track]} · Emitting</div>`;
+  }
+  return `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">${body}</svg>${tags}`;
+}
+
+// ---------- shell ----------
+const power = () => `<div class="power"><div class="lens"></div><div class="rocker">⏻</div></div>`;
+const KEYS = [['deck', 'Monitor', 'Deck'], ['fleet', 'Environment', 'Fleet Params'], ['probes', 'Timbre & Color', 'Probes'], ['companies', 'Unity & Variety', 'Companies'], ['settings', 'Navigation', 'Settings']];
+function consoleStrip(active, crumbParts, telemetry = true) {
+  const keys = `<div class="keys">${KEYS.map(([t, l, h]) => cab2(l, h, t === active ? 'pop' : '', ac(t))).join('')}</div>`;
+  const crumb = crumbParts ? `<div class="crumb">${crumbParts.map((p, i) => i < crumbParts.length - 1 ? `<u>${p}</u>` : p).join(' / ')}</div>` : '';
+  const tele = telemetry ? `<div class="glass strip" style="${ac('deck')};padding:4px 12px;font-size:12px"><b>22:17</b> −57 °C <span>·</span> <b>6 / 12</b> emitting <span>·</span> qb9mezm3 @ (−86, 59)</div>` : '';
+  return `<div class="console" style="${ac('deck')}">${keys}${crumb}<span class="sp"></span>${tele}<div class="vol">${cab('🔊')}${vox(8, 8, 16)}</div></div>`;
+}
+function inspector(head, body, feedHtml, style) { return `<div class="inspector" style="${style}">${head}<div class="ibody">${body}</div>${feedHtml}</div>`; }
+function robotHead(i) {
+  return `<div class="rhead" style="${acHex(IDENTITY[i])}">${gemSvg(IDENTITY[i], 72, 58)}<div><h2>${NAMES[i]}</h2><span class="st">${JOBS[i]} · ${STATE[i]}</span><div style="margin-top:6px">${vox(14, Math.round(BATT[i] / 100 * 14), 12)} <span class="st">${BATT[i]}%</span></div></div><div class="right">${sel('Unit Affiliation', CO_OF[i])}</div></div>`;
+}
+
+// ---------- robot section accordions (shared by B2 and the phone sheet) ----------
+function robotSections(open) {
+  const levels = acc('Levels', 'Auto · 76 %', open === 'levels',
+    sel('Diagnostic Feed', 'Auto') + field('Transducer Pressure', 'Volume', vox(10, 8), '76%', 'Off', 0), ac('output'));
+  const comp = acc('Composition', '72 % · 5 · 92 % · 4 · oct 5–7', open === 'comp',
+    ctl('Payload Density', 'Note Density', vox(10, 7), '72%') + ctl('Payload Subgroups', 'Phrase Length', vox(10, 5), '5') +
+    ctl('Payload Duplication', 'Pitch Repeat', vox(10, 9), '92%') + ctl('Ping Variance', 'Note Variance', vox(10, 4), '4') +
+    ctl('Ping Floor', 'Lowest Octave', vox(10, 5), '5') + ctl('Ping Ceiling', 'Highest Octave', vox(10, 7), '7'), ac('composition'));
+  const env = acc('Envelope', 'A 0.2 s · D 0.5 s · S 60 % · R 1.2 s', open === 'env',
+    ctl('Ping Onset', 'Attack Time', vox(10, 2), '0.2 s') + ctl('Ping Settling', 'Decay Time', vox(10, 4), '0.5 s', true) +
+    ctl('Ping Hold', 'Sustain Level', vox(10, 6), '60%') + ctl('Ping Fade', 'Release Time', vox(10, 7), '1.2 s'), ac('timeSpace'));
+  const src = acc('Source', 'Pulse 1.07 · Saw 0.87 · Sine 0.40', open === 'src',
+    sel('Baseline Feed', 'Core Oscillator') + sel('Feed Geometry', 'Pulse') +
+    field('Feed Saturation', 'Core Gain', vox(10, 9), '1.07', 'D', 35) + field('Feed Drift', 'Core Detune', voxCentered(10, .1), '1 cents', 'D', 9) +
+    ctl('Feed Alignment', 'Core Phase', vox(10, 9), '254') + ctl('Feed Break', 'Core Interval', vox(10, 5), '0.5'), ac('spectral'));
+  return levels + comp + env + src;
+}
+
+// ---------- B1 ----------
+function renderB1() {
+  $('#b1').innerHTML = `<div class="world">${worldSvg({})}</div>${power()}${consoleStrip('deck', null)}`;
+}
+
+// ---------- B2 ----------
+function renderB2() {
+  $('#b2').innerHTML = `<div class="world">${worldSvg({ track: 0 })}</div>${power()}
+    ${inspector(robotHead(0), robotSections('env'), feed('Decay Time', 'How quickly a note settles from its peak down to the level it holds while it continues. Shorter is snappier; longer is a slow bloom. <span style="color:var(--mut)">Lore: Ping Settling.</span>'), ac('spectral'))}
+    ${consoleStrip('probes', ['Root', 'Probes', 'Tidal Wisp'], false)}`;
+}
+
+// ---------- B3 ----------
+function renderB3() {
+  const open = $$('[data-b3]').find((b) => b.classList.contains('on'))?.dataset.b3 ?? 'lfo';
+  const list = $('#b3list').classList.contains('on');
+  const pacing = acc('Pacing', '97 BPM · 8/measure · 5 measures · 35 %', open === 'pacing',
+    ctl('Ping Rate', 'Tempo', vox(10, 4), '97 BPM') + ctl('Trace Skip Rate', 'Automation Rate', vox(10, 8), '8/measure') +
+    ctl('Trace Runway', 'Automation Length', vox(10, 2), '5 measures') + ctl('Trace Width', 'Automation Range', vox(10, 3), '35%'), ac('composition'));
+  const lfo = acc('LFO Bank', 'A sine 4 bars · B tri 7 bars · C saw 2 bars · D sq 13 bars', open === 'lfo',
+    `<div class="full" style="display:flex;gap:10px;position:relative">${sel('Phase Locking', 'Core LFO (A)')}${sel('Mutation Type', 'Sine', list)}${list ? selList([['Sweep', 'Triangle'], ['Sway', 'Sine'], ['Binary', 'Square'], ['Kinetic', 'Sawtooth']], 'Sine', 'left:160px;top:42px') : ''}</div>` +
+    ctl('Mutation Cadence', 'Rate', vox(10, 2), '4 bars') + ctl('Anchoring', 'Tempo Sync', sel('Anchoring', 'Anchored'), '') +
+    ctl('Trace Pulse', 'Rate Drift', voxCentered(10, .3), '21%') + ctl('Trace Bending', 'Depth Drift', voxCentered(10, -.15), '−7%'), ac('timeSpace'));
+  const eq = acc('EQ & Filters', 'EQ +1.9 / +1.7 / −1.2 dB · HPF 80 Hz · LPF 9 kHz', open === 'eq',
+    field('Sub-Band', 'Bass', voxCentered(10, .3), '1.9 dB', 'C', 18) + field('Medial Band', 'Mid', voxCentered(10, .25), '1.7 dB', 'Off', 0) +
+    field('Crest Band', 'Treble', voxCentered(10, -.2), '−1.2 dB', 'A', 40) + field('Top Extraction', 'High-Pass', vox(10, 1), '80 Hz', 'Off', 0), ac('spectral'));
+  const ts = acc('Time & Space', 'Reverb 2.4 s · Delay ⅛ × 3', false, '', ac('timeSpace'));
+  const out = acc('Output', 'Comp 4:1 · Limiter −1 dB', false, '', ac('output'));
+  const feedText = open === 'lfo'
+    ? feed('Shape', 'The waveform this lane follows as it turns its knob. Sine and Triangle glide, Square snaps between two values, Sawtooth ramps then resets. <span style="color:var(--mut)">Lore: Mutation Type.</span>')
+    : open === 'eq' ? feed('Bass', 'Boost or cut the low band for every probe at once. The dial on the right links this band to an LFO lane and sets how far it swings.')
+    : feed('Tempo', 'How fast the music plays, in beats per minute. Every probe keeps time together.');
+  const head = `<div class="ihead"><h2>Fleet Params</h2>${cab('Help feed: on', 'frame', ac('deck'))}</div>`;
+  $('#b3').innerHTML = `<div class="world">${worldSvg({})}</div>${power()}
+    ${inspector(head, pacing + lfo + eq + ts + out, feedText, ac('fleet'))}${consoleStrip('fleet', ['Root', 'Fleet Params', open === 'lfo' ? 'LFO Bank' : open === 'eq' ? 'EQ & Filters' : 'Pacing'], false)}`;
+}
+
+// ---------- B4 ----------
+function renderB4() {
+  const filter = $('#b4filter').classList.contains('on') ? 'Rust Syndicate' : null;
+  const ids = NAMES.map((_, i) => i).filter((i) => !filter || CO_OF[i] === filter);
+  const chips = `<div class="chips">${['All', 'Rust Syndicate', 'Iron Crew', 'Neon Division', 'Freelance'].map((c) => cab(c, (filter ?? 'All') === c ? 'pop' : 'frame', c === 'All' ? ac('probes') : acHex(COMPANY[c]))).join('')}</div>`;
+  const rows = `<div class="rows">${ids.map((i) => `<div class="row${i === 0 ? ' sel-row' : ''}" style="${acHex(IDENTITY[i])}">${gemSvg(IDENTITY[i], 44, 36)}<div class="txt"><span class="nm">${NAMES[i]}</span><span class="st">${JOBS[i]} · ${STATE[i]}</span></div>${vox(8, Math.round(BATT[i] / 100 * 8), 8)}<span class="co" style="background:${COMPANY[CO_OF[i]]}" title="${CO_OF[i]}"></span></div>`).join('')}</div>`;
+  const head = `<div class="ihead"><h2>Probes</h2>${cab('All Probes — edit the fleet', 'frame', ac('deck'))}</div>`;
+  $('#b4').innerHTML = `<div class="world">${worldSvg({ tags: true, only: filter ? ids : undefined })}</div>${power()}
+    ${inspector(head, chips + rows, feed('Probes', 'Every unit on the mesh. Select a row to inspect and edit that probe; the stage pans to it. The colour bar is its company.'), ac('probes'))}
+    ${consoleStrip('probes', ['Root', 'Probes'], false)}`;
+}
+
+// ---------- B5 ----------
+function renderB5() {
+  const full = $('#b5full').classList.contains('on');
+  const top = `<div class="top" style="${ac('deck')}">${cab('🔊')}<span class="sp"></span><div class="pw">⏻</div></div>`;
+  const keys = (active) => `<div class="keys">${KEYS.map(([t, l, h]) => cab2(l, h, t === active ? 'pop' : '', ac(t))).join('')}</div>`;
+  const stage = `<div class="world">${worldSvg({})}</div>`;
+  const deck = `<div class="phone">${stage}${top}<div class="telemetry"><div class="glass strip" style="${ac('deck')}"><b>22:17</b> −57 °C · <b>6/12</b> emitting</div></div>${keys('deck')}</div>`;
+  const tracked = `<div class="stage-robot" style="${acHex(IDENTITY[0])}"><span class="halo"></span>${gemSvg(IDENTITY[0], 150, 120)}<div class="glass tagbox"><b>Tidal Wisp</b> · Salvage</div></div>`;
+  const robot = `<div class="phone">${stage}${full ? '' : tracked}${top}
+    <div class="sheet${full ? ' full' : ''}" style="${ac('spectral')}"><div class="handle"></div>
+      <div class="ihead"><h2>Tidal Wisp</h2><span class="crumb">Probes / Tidal Wisp</span></div>
+      <div class="ibody">${full ? robotHead(0).replace('class="rhead"', 'class="rhead" style="padding:0 0 8px"') : ''}${robotSections(full ? 'env' : 'comp')}</div>
+      ${full ? feed('Decay Time', 'How quickly a note settles from its peak down to the level it holds.') : ''}
+    </div>${keys('probes')}</div>`;
+  const fleet = `<div class="phone">${stage}${top}
+    <div class="sheet${full ? ' full' : ''}" style="${ac('fleet')}"><div class="handle"></div>
+      <div class="ihead"><h2>Fleet Params</h2><span class="crumb">Fleet Params / LFO Bank</span></div>
+      <div class="ibody">
+        ${acc('Pacing', '97 BPM · 8/measure · 5 · 35 %', false, '', ac('composition'))}
+        ${acc('LFO Bank', 'A sine 4 bars · B tri 7 bars', true, `<div style="display:flex;gap:8px">${sel('Phase Locking', 'Core LFO (A)')}${sel('Mutation Type', 'Sine')}</div>` + ctl('Mutation Cadence', 'Rate', vox(8, 2, 32), '4 bars') + ctl('Trace Pulse', 'Rate Drift', voxCentered(8, .3, 32), '21%'), ac('timeSpace'), true)}
+        ${acc('EQ & Filters', '+1.9 / +1.7 / −1.2 dB', false, '', ac('spectral'))}
+      </div>
+      ${full ? feed('Shape', 'The waveform this lane follows as it turns its knob.') : ''}
+    </div>${keys('fleet')}</div>`;
+  $('#b5').innerHTML = [deck, robot, fleet].join('');
+}
+
+// ---------- toggles ----------
+function toggle(id, fn) { $(id).addEventListener('click', (e) => { e.currentTarget.classList.toggle('on'); fn(); }); }
+for (const b of $$('[data-b3]')) b.addEventListener('click', () => { for (const o of $$('[data-b3]')) o.classList.toggle('on', o === b); renderB3(); });
+toggle('#b3list', renderB3);
+toggle('#b4filter', renderB4);
+toggle('#b5full', renderB5);
+renderB1(); renderB2(); renderB3(); renderB4(); renderB5();
+</script>
+</body>
+</html>

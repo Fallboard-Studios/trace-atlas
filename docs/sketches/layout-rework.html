@@ -1,0 +1,496 @@
+<!doctype html>
+<!-- Layout rework — sketch, before any intent doc. Built 2026-10-08 on feature/jobs-depth (uncommitted; nothing
+     here touches the live renderer or any component).
+
+     The problem (Crawford, 2026-10-08, from twelve desktop and six phone screenshots): the powered-off screen says
+     nothing about what the switch does; the header and the permanently docked nav crowd every screen; the world
+     shows through a 75 % glass under every control, so robots, station gems and glow pulses sit behind sliders;
+     the same information is stated three times per screen (nav tree depth, accordion headers, two stacked intro
+     panels); every radio option is a two-line cabinet box, so a lane picker is four rows on a phone; the Probes
+     list is twelve identical cards that are mostly company radios; the robot detail's avatar is a fixed background
+     with viewport-unit margins; on phones the fixed header hides scrolled content and the hamburger floats mid-screen.
+
+     What this page mocks up (static CSS/HTML, judged by eye, nothing wired):
+       M1 Deck, desktop — slim header (mute + small volume strip) beside the power corner, a five-box nav RAIL on the
+          left edge with the tree sliding out from it (shallow: branch + entity only), the world bright, a telemetry
+          strip bottom-left in the glow-glass style, a hover label on a robot. Toggles: drawer open, world dimmed.
+       M2 Fleet Params → LFO Bank, desktop — world dimmed under an OPAQUE content surface; one collapsible intro
+          per screen; sections as a sticky tab row (one mounted at a time) with sub-tabs for the four lanes;
+          single-line radio options; shorter voxel rows; a help popover on a control's label.
+       M3 Robot detail, desktop — a fixed avatar column (big gem, meta in two columns, battery, company) beside a
+          scrolling controls column; the compact LfoLink (Off A B C D + a short depth strip).
+       M4 Roster board, desktop — Probes and Companies merged: avatar tiles grouped under company headers,
+          Freelance as a group, All Probes as the top row; no per-card company radio.
+       M5 Phone — off screen with an etched label and a reserved picker slot; Deck with mute + power at the top and
+          menu + telemetry in a bottom bar; robot detail with a sticky avatar band (toggle: expanded / shrunk) and
+          edge-to-edge voxel rows; the header owning its band so content never scrolls under it.
+
+     Assumptions (not the live renderer):
+       S1 Cabinet boxes are drawn as a flat front face with a skewed top and left wall; the app's GSAP pop, glow and
+          wall fade are not reproduced. "Popped" here = selected / active.
+       S2 Voxel rows are fixed box counts, not self-fitted. Colours are the app's trait pairs (traitColors.ts) and
+          the Ballast base; fonts load from Google Fonts here instead of the self-hosted npm packages.
+       S3 The world is a simplified city (flat two-face boxes, three rows, a ridge and ground) with simplified gem
+          robots, as the earlier sketches draw them. The dim is a plain brightness/blur, not a tint slot.
+       S4 Copy is the app's current strings where one exists, placeholder otherwise.
+
+     Open (for Crawford):
+       Q1 Rail + drawer (M1) or a plain hamburger everywhere? The rail keeps orientation at 96 px instead of 320.
+       Q2 World dimmed and blurred under an opaque content surface (M2–M4), or keep some glass?
+       Q3 Section tabs with one section mounted at a time (M2, M3) — this reverses the 2026-09-24 stacked-scroll
+          call and retires accordionSync / scrollspy / view-fade. Yes?
+       Q4 Nav tree cut to branch + entity (M1 drawer); sections live only in the content's tab row.
+       Q5 Single-line radio options with lore in the help popover (M2, M3) — lose the lore eyebrow on options?
+       Q6 Compact LfoLink (M3): a letter row and a short depth strip. Lane names only in the popover.
+       Q7 Roster board replacing both the Probes list and the Companies index (M4) — one nav branch, not two.
+       Q8 Phone bottom bar = menu + breadcrumb/telemetry (M5); top = mute + power only; volume flies out of mute.
+       Q9 Off-screen label copy and the reserved picker slot (M5).
+     Verdicts: (pending) -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Layout rework — sketch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #12161a; --surf: #1a2027; --surf2: #141a20; --line: #2a323a; --txt: #e4e6ea; --mut: #98a2ab;
+    --fs: 'Rajdhani', system-ui, sans-serif; --fc: 'Titillium Web', 'Rajdhani', system-ui, sans-serif;
+    --ac: #41ad9f; --ac2: #68cb97;
+  }
+  body { font-family: var(--fs); background: var(--bg); color: var(--txt); margin: 0; padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  p.note { font-size: 13px; color: var(--mut); max-width: 1100px; margin: 4px 0 12px; font-family: var(--fc); }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; border-radius: 6px; padding: 12px 16px; margin: 12px 0 18px; font-size: 13px; max-width: 1100px; font-family: var(--fc); }
+  .pending b { color: #e8b84a; }
+  .pending ol { margin: 6px 0 0 18px; padding: 0; }
+  .controls { display: flex; gap: 10px; align-items: center; font-size: 13px; margin: 10px 0; flex-wrap: wrap; font-family: var(--fc); }
+  .controls button { background: var(--surf); color: var(--txt); border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; font-family: var(--fc); }
+  .controls button.on { background: #41ad9f; color: var(--bg); }
+
+  /* ---------- frames ---------- */
+  .desk { width: 1600px; height: 900px; position: relative; overflow: hidden; background: #0b0f14; border: 12px solid #1e2126; border-radius: 6px; zoom: .68; box-shadow: 0 0 0 1px #000; font-family: var(--fc); }
+  .phones { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .phone { width: 375px; height: 812px; position: relative; overflow: hidden; background: #0b0f14; border: 10px solid #1e2126; border-radius: 28px; font-family: var(--fc); }
+  .cap { font-size: 12px; color: var(--mut); margin: 6px 0 0; font-family: var(--fc); }
+
+  /* ---------- world ---------- */
+  .world { position: absolute; inset: 0; }
+  .world svg { width: 100%; height: 100%; display: block; }
+  .world.dim { filter: brightness(.42) blur(2px); }
+
+  /* ---------- cabinet language ---------- */
+  .cab { position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; background: var(--surf); color: var(--txt); padding: 0 12px; height: 34px; font-size: 13px; white-space: nowrap; line-height: 1.1; box-sizing: border-box; }
+  .cab .lore { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--mut); }
+  .cab.pop { background: var(--ac); color: #0b0f14; box-shadow: 0 0 12px color-mix(in srgb, var(--ac) 55%, transparent); }
+  .cab.pop .lore { color: #0b0f14; opacity: .75; }
+  .cab.pop::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; height: 4px; background: color-mix(in srgb, var(--ac), white 28%); transform: skewX(-50deg); transform-origin: bottom left; }
+  .cab.pop::after { content: ""; position: absolute; top: 0; bottom: 0; left: -4px; width: 4px; background: color-mix(in srgb, var(--ac), black 32%); transform: skewY(-50deg); transform-origin: top right; }
+  .cab.frame { background: var(--surf2); border: 1px solid var(--line); }
+  .radio { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+  .vox { display: inline-flex; gap: 4px; }
+  .vox i { width: var(--b, 26px); height: var(--b, 26px); background: #1b2128; display: block; box-sizing: border-box; }
+  .vox i.on { background: var(--ac); box-shadow: inset -3px -3px 0 color-mix(in srgb, var(--ac), black 32%), inset 2px 2px 0 color-mix(in srgb, var(--ac), white 18%); }
+  .vox i.mid { background: color-mix(in srgb, var(--ac) 45%, #1b2128); }
+  .dl { display: flex; flex-direction: column; line-height: 1.15; }
+  .dl .lore { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--mut); }
+  .dl .hum { font-size: 14px; color: #fff; }
+  .dl .q { display: inline-flex; width: 14px; height: 14px; border: 1px solid var(--mut); border-radius: 50%; font-size: 9px; align-items: center; justify-content: center; color: var(--mut); margin-left: 6px; vertical-align: middle; }
+  .ctl { display: flex; flex-direction: column; gap: 5px; }
+  .ctl .val { font-size: 11px; color: var(--mut); font-family: ui-monospace, monospace; }
+  .glass { border: 3px double var(--ac2); box-shadow: inset 0 0 8px var(--ac2); text-shadow: 0 0 18px var(--ac); padding: 10px 14px; color: #fff; background: rgba(12, 16, 20, .55); letter-spacing: .03em; }
+  .glass h3 { margin: 0 0 4px; font-family: var(--fs); font-size: 18px; }
+  .glass p { margin: 0; font-size: 12.5px; line-height: 1.4; }
+  .glass.strip { padding: 6px 14px; font-size: 13px; display: inline-flex; gap: 18px; align-items: center; }
+  .glass.strip b { font-weight: 600; }
+  .pop-help { position: absolute; width: 300px; z-index: 5; }
+  .pop-help::before { content: ""; position: absolute; left: 24px; top: -8px; border: 8px solid transparent; border-top: 0; border-bottom-color: var(--ac2); }
+
+  /* ---------- shell pieces (desktop) ---------- */
+  .power { position: absolute; top: 14px; right: 14px; width: 76px; height: 140px; background: #111316; border: 2px solid #26292e; border-radius: 4px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 10px; box-sizing: border-box; }
+  .power .lens { width: 44px; height: 12px; border-radius: 2px; background: #2fbf4a; box-shadow: 0 0 10px #2fbf4a; }
+  .power .lens.off { background: #c0333a; box-shadow: 0 0 8px #c0333a; }
+  .power .rocker { width: 40px; height: 78px; background: linear-gradient(#525252, #3a3a3a 48%, #2b2b2b 52%, #444); border-radius: 3px; display: flex; align-items: flex-end; justify-content: center; color: #aaa; font-size: 14px; padding-bottom: 8px; box-sizing: border-box; }
+  .hdr { position: absolute; top: 22px; right: 104px; display: inline-flex; align-items: center; gap: 10px; background: var(--surf2); border: 1px solid var(--line); padding: 8px 12px; }
+  .hdr .cab { height: 30px; width: 36px; padding: 0; font-size: 15px; }
+  .rail { position: absolute; left: 0; top: 0; bottom: 0; width: 96px; background: rgba(10, 13, 16, .92); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; padding: 14px 8px; box-sizing: border-box; }
+  .rail .cab { width: 80px; height: 46px; padding: 0 4px; }
+  .rail .cab .hum { font-size: 12px; }
+  .drawer { position: absolute; left: 96px; top: 0; bottom: 0; width: 272px; background: #101418; border-right: 1px solid var(--line); padding: 14px 12px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; overflow: hidden; transition: transform .25s ease; }
+  .drawer.closed { transform: translateX(-110%); }
+  .drawer .row { display: flex; align-items: center; gap: 8px; }
+  .drawer .row .cab { flex: 1; align-items: flex-start; padding: 0 10px; height: 40px; }
+  .drawer .row .tog { width: 32px; height: 32px; padding: 0; }
+  .drawer .kids { margin-left: 14px; padding-left: 10px; border-left: 2px solid var(--ac); display: flex; flex-direction: column; gap: 6px; }
+  .drawer .kids .cab { height: 32px; font-size: 12px; }
+  .crumb { position: absolute; left: 110px; bottom: 14px; font-size: 13px; color: var(--mut); background: rgba(10, 13, 16, .9); padding: 6px 12px; border: 1px solid var(--line); }
+  .crumb u { color: var(--txt); text-decoration-color: var(--ac); }
+  .content { position: absolute; left: 112px; top: 76px; right: 16px; bottom: 16px; background: var(--surf2); border: 1px solid var(--line); box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
+  .content .head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px 0; }
+  .content .head h2 { margin: 0; border: 0; padding: 0; font-size: 22px; }
+  .content .tabs { display: flex; gap: 8px; padding: 12px 18px 0; border-bottom: 1px solid var(--line); }
+  .content .tabs .cab { height: 36px; border-radius: 0; }
+  .content .tabs.sub { padding-top: 10px; border: 0; }
+  .content .tabs.sub .cab { height: 30px; font-size: 12px; }
+  .content .body { padding: 16px 18px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px 28px; align-content: start; overflow: hidden; }
+  .content .body.two { grid-template-columns: repeat(2, 1fr); }
+  .intro-bar { display: flex; align-items: center; gap: 10px; margin: 10px 18px 0; }
+  .intro-bar .cab { height: 28px; font-size: 12px; }
+  .split { position: absolute; left: 112px; top: 76px; right: 16px; bottom: 16px; display: grid; grid-template-columns: 400px 1fr; gap: 14px; }
+  .avcol { background: rgba(20, 26, 32, .82); border: 1px solid var(--line); padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+  .avcol .gem { width: 100%; height: 300px; display: block; }
+  .avcol h2 { margin: 0; border: 0; padding: 0; font-size: 26px; }
+  .avcol .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+  .avcol .meta .dl .hum { font-size: 15px; }
+  .split .content { position: static; }
+  .link { display: inline-flex; align-items: center; gap: 10px; }
+  .link .cab { height: 26px; width: 30px; padding: 0; font-size: 12px; }
+  .link .radio { gap: 4px; }
+
+  /* ---------- roster ---------- */
+  .roster { padding: 16px 18px; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+  .group { display: flex; flex-direction: column; gap: 8px; }
+  .group .ghead { display: flex; align-items: center; gap: 12px; }
+  .group .ghead .cab { height: 34px; }
+  .group .ghead .n { color: var(--mut); font-size: 12px; }
+  .tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  .tile { background: var(--surf); border: 1px solid var(--line); padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .tile svg { width: 120px; height: 96px; }
+  .tile .nm { font-size: 15px; color: #fff; font-weight: 600; }
+  .tile .st { font-size: 11px; color: var(--mut); }
+  .tile .vox { margin-top: 4px; }
+
+  /* ---------- phone ---------- */
+  .phone .top { position: absolute; left: 0; right: 0; top: 0; height: 64px; background: rgba(10, 13, 16, .95); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 0 12px; box-sizing: border-box; z-index: 3; }
+  .phone .top .cab { height: 40px; }
+  .phone .top .sp { flex: 1; }
+  .phone .top .pw { width: 44px; height: 44px; background: #111316; border: 2px solid #26292e; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #aaa; }
+  .phone .bot { position: absolute; left: 0; right: 0; bottom: 0; height: 56px; background: rgba(10, 13, 16, .95); border-top: 1px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 0 10px; box-sizing: border-box; z-index: 3; }
+  .phone .bot .cab { height: 40px; width: 44px; padding: 0; font-size: 18px; }
+  .phone .bot .crumb { position: static; background: none; border: 0; padding: 0; flex: 1; font-size: 12px; }
+  .phone .bot .glass.strip { flex: 1; padding: 5px 10px; font-size: 11px; gap: 10px; }
+  .phone .scroll { position: absolute; left: 0; right: 0; top: 64px; bottom: 56px; overflow: hidden; background: var(--surf2); }
+  .phone .band { position: sticky; top: 0; background: rgba(20, 26, 32, .96); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; padding: 10px 12px; box-sizing: border-box; z-index: 2; }
+  .phone .band svg { flex: 0 0 auto; }
+  .phone .band.big { flex-direction: column; align-items: center; }
+  .phone .band.big svg { width: 240px; height: 190px; }
+  .phone .band.small svg { width: 72px; height: 58px; }
+  .phone .band h2 { margin: 0; border: 0; padding: 0; font-size: 20px; }
+  .phone .band .st { font-size: 11px; color: var(--mut); }
+  .phone .tabs { display: flex; gap: 6px; padding: 10px 12px 0; overflow: hidden; white-space: nowrap; }
+  .phone .tabs .cab { height: 32px; font-size: 12px; padding: 0 10px; }
+  .phone .body { padding: 12px 12px; display: flex; flex-direction: column; gap: 14px; }
+  .phone .body .vox { --b: 36px; }
+  .phone .etch { position: absolute; left: 24px; right: 24px; top: 45%; transform: translateY(-50%); text-align: center; color: rgba(200, 220, 230, .35); text-shadow: 0 0 12px rgba(120, 200, 190, .25); letter-spacing: .12em; }
+  .phone .etch h3 { font-family: var(--fs); font-size: 26px; margin: 0 0 6px; font-weight: 700; }
+  .phone .etch p { margin: 0; font-size: 12px; letter-spacing: .06em; }
+  .phone .etch .slot { margin: 26px auto 0; width: 220px; height: 44px; border: 1px dashed rgba(200, 220, 230, .18); display: flex; align-items: center; justify-content: center; font-size: 10px; text-transform: uppercase; }
+  .phone .flyout { position: absolute; left: 12px; top: 68px; z-index: 4; background: var(--surf2); border: 1px solid var(--line); padding: 10px; display: none; }
+  .phone .flyout.show { display: block; }
+</style>
+</head>
+<body>
+<h1>Layout rework — five mockups, desktop and phone</h1>
+<p class="note">Static mockups of the proposals from the 2026-10-08 screenshot review. Nothing is wired to the app; the cabinet
+  pop, glow and wall fade are approximated. Judge structure and density, not the pixel finish. Each desktop frame is
+  1600 × 900 shown at 68 %; the phone frames are 375 × 812 at full size.</p>
+
+<div class="pending">
+  <b>Open for Crawford:</b>
+  <ol>
+    <li>Rail + drawer, or a plain hamburger everywhere? (M1)</li>
+    <li>World dimmed and blurred under an opaque content surface? (M2–M4)</li>
+    <li>Section tabs, one section mounted at a time, replacing the accordion stack? (M2, M3) — reverses the 2026-09-24 stacked-scroll call.</li>
+    <li>Nav tree cut to branch + entity? (M1 drawer)</li>
+    <li>Single-line radio options, lore moved into the help popover? (M2, M3)</li>
+    <li>Compact LfoLink: letter row + short depth strip? (M3)</li>
+    <li>Roster board replacing both the Probes list and the Companies index? (M4)</li>
+    <li>Phone: menu + breadcrumb in a bottom bar, mute + power at the top, volume flies out of mute? (M5)</li>
+    <li>Off-screen label copy and the reserved picker slot? (M5)</li>
+  </ol>
+</div>
+
+<h2>M1 — Deck (desktop): rail nav, slim header, bright world, telemetry strip</h2>
+<div class="controls">
+  <button id="m1drawer">Drawer open</button>
+  <button id="m1dim">World dimmed (as under content)</button>
+</div>
+<div class="desk" id="m1"></div>
+<p class="cap">The rail is 96 px and always visible. The tree slides out from it and stops at entity level. The telemetry strip
+  carries what the nav status block showed. The hover label on a robot shows click-to-select exists.</p>
+
+<h2>M2 — Fleet Params → LFO Bank (desktop): opaque content, one intro, section tabs, help popover</h2>
+<div class="controls">
+  <button id="m2intro">Intro expanded</button>
+  <button id="m2help" class="on">Help popover on Rate</button>
+</div>
+<div class="desk" id="m2"></div>
+<p class="cap">One section mounted at a time; lanes are sub-tabs. Radio options are single-line. Voxel rows are 12 boxes in three columns.
+  The lore name of each option lives in the popover, so the control row shrinks without losing it.</p>
+
+<h2>M3 — Robot detail (desktop): fixed avatar column, controls column, compact LfoLink</h2>
+<div class="desk" id="m3"></div>
+<p class="cap">The avatar never scrolls. Meta sits in two columns under it with battery and company. The controls column has the same tab
+  row as M2. Each linkable field carries a letter row and a short depth strip instead of a five-box two-line picker.</p>
+
+<h2>M4 — Roster board (desktop): Probes + Companies as one screen</h2>
+<div class="desk" id="m4"></div>
+<p class="cap">Company headers are cabinet boxes in the company colour with rename, delete and bulk-edit behind them. Tiles are avatar,
+  name, one status line and a thin battery strip. No per-card company radio; assignment is a move between groups.</p>
+
+<h2>M5 — Phone: off screen, Deck, robot detail, Fleet content</h2>
+<div class="controls">
+  <button id="m5band" class="on">Avatar band expanded</button>
+  <button id="m5fly">Volume flyout open</button>
+</div>
+<div class="phones" id="m5"></div>
+<p class="cap">The header owns its 64 px band and content starts under it. Menu and breadcrumb live in a 56 px bottom bar. Voxel rows run
+  edge to edge at 36 px boxes. The avatar band shrinks on scroll from 190 px to 58 px.</p>
+
+<script>
+// ---------- palette ----------
+const TRAIT = {
+  deck: ['#41ad9f', '#68cb97'], fleet: ['#4f6fb0', '#6c8ad0'], probes: ['#d9792b', '#e8a04a'],
+  companies: ['#6f7da8', '#8f9cc4'], settings: ['#c46a7e', '#d98aa0'], composition: ['#5bbf6a', '#8ee07c'],
+  spectral: ['#4f7fc0', '#7aa6e0'], timeSpace: ['#b05a8a', '#d07ab0'], output: ['#d9792b', '#e8a04a'],
+};
+const COMPANY = { 'Rust Syndicate': '#ae5378', 'Iron Crew': '#e8e07a', 'Neon Division': '#e2b149' };
+const IDENTITY = ['#ae5378', '#e8e4d8', '#a9e583', '#cd5e57', '#f3efe6', '#e2b149', '#5bb7c6', '#e0d85a', '#5f7da0', '#e2b149', '#e8e4d8', '#e8e07a'];
+const NAMES = ['Tidal Wisp', 'Glass Drifter', 'Azure Beacon', 'Null Wisp', 'Neon Wisp', 'Neon Nomad', 'Azure Seeker', 'Neon Wisp', 'Silent Warden', 'Neon Seeker', 'Rust Wisp', 'Rust Rover'];
+const JOBS = ['Salvage', 'Structural Inspection', 'Vent Extraction', 'Structural Inspection', 'Structural Inspection', 'Maintenance', 'Vent Extraction', 'Salvage', 'Structural Inspection', 'Salvage', 'Acoustic Survey', 'Salvage'];
+const STATE = ['Docked · Charging · Disabled', 'Docked · Charging · Disabled', 'Docked · Charging · Disabled', 'Docked · Charging · Disabled', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Active · Working · Emitting', 'Docked · Returning · Disabled', 'Docked · Returning · Disabled'];
+const BATT = [40, 40, 40, 40, 16, 16, 70, 28, 70, 28, 15, 10];
+
+const ac = (t) => `--ac:${TRAIT[t][0]};--ac2:${TRAIT[t][1]}`;
+const acHex = (a, b) => `--ac:${a};--ac2:${b || a}`;
+const $ = (s) => document.querySelector(s);
+
+// ---------- colour helpers (as the earlier sketches) ----------
+function hexToHsl(hex) {
+  const n = parseInt(hex.slice(1), 16); const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  return [h, s * 100, l * 100];
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const hsl = (h, s, l) => `hsl(${h.toFixed(1)}, ${clamp(s, 0, 100).toFixed(1)}%, ${clamp(l, 0, 100).toFixed(1)}%)`;
+function tone(hex, dl) { const [h, s, l] = hexToHsl(hex); return hsl(h, s, l + dl); }
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// ---------- atoms ----------
+function vox(n, on, b = 26, mid = 0) {
+  return `<span class="vox" style="--b:${b}px">${Array.from({ length: n }, (_, i) => `<i class="${i < on ? 'on' : i < on + mid ? 'mid' : ''}"></i>`).join('')}</span>`;
+}
+function voxCentered(n, v, b = 26) { // v in -1..1 around a dead-centre seam
+  const half = n / 2; const k = Math.round(Math.abs(v) * half);
+  return `<span class="vox" style="--b:${b}px">${Array.from({ length: n }, (_, i) => {
+    const on = v >= 0 ? i >= half && i < half + k : i < half && i >= half - k; return `<i class="${on ? 'on' : ''}"></i>`;
+  }).join('')}</span>`;
+}
+function dl(lore, hum, help) { return `<div class="dl"><span class="lore">${lore}</span><span class="hum">${hum}${help ? '<span class="q">?</span>' : ''}</span></div>`; }
+function ctl(lore, hum, body, val, help) { return `<div class="ctl">${dl(lore, hum, help)}${body}${val ? `<span class="val">${val}</span>` : ''}</div>`; }
+function radio(opts, sel, lore) {
+  return `<span class="radio">${opts.map((o, i) => `<span class="cab${o === sel ? ' pop' : ''}">${lore ? `<span class="lore">${lore[i]}</span>` : ''}${o}</span>`).join('')}</span>`;
+}
+function link(lane, depth, b = 16) { return `<span class="link">${radio(['Off', 'A', 'B', 'C', 'D'], lane)}${vox(8, depth, b)}</span>`; }
+function cab(text, cls = '', style = '') { return `<span class="cab ${cls}" style="${style}">${text}</span>`; }
+function cab2(lore, hum, cls = '', style = '') { return `<span class="cab ${cls}" style="${style}"><span class="lore">${lore}</span><span class="hum">${hum}</span></span>`; }
+
+/** Simplified gem robot centred on (0,0), 100 × 80, as docs/sketches/robot-depth-tint.html draws it. */
+function gemMarkup(hex) {
+  const backing = '0,-40 -36,-40 -50,-20 -50,22 -32,40 34,40 50,24 50,-26';
+  const mid = '-30,-14 22,-22 34,0 20,22 -26,20 -38,4';
+  const top = '-14,-30 12,-34 22,-16 6,-4 -16,-8';
+  const orb = (cx, cy) => `<polygon points="${cx - 12},${cy - 4} ${cx - 6},${cy - 8} ${cx + 12},${cy - 8} ${cx + 12},${cy + 4} ${cx + 6},${cy + 8} ${cx - 12},${cy + 8}" fill="${tone(hex, -8)}" stroke="${tone(hex, 12)}" stroke-width="1.5"/>`;
+  return `<polygon points="${backing}" fill="#0e1013" stroke="#1c2026" stroke-width="2"/>` +
+    `<polygon points="${mid}" fill="${tone(hex, -14)}"/>` +
+    `<polygon points="-30,-14 22,-22 34,0 -38,4" fill="${tone(hex, -4)}"/>` +
+    `<polygon points="${top}" fill="${tone(hex, 6)}"/>` +
+    `<polygon points="-14,-30 12,-34 22,-16" fill="${tone(hex, 16)}"/>` +
+    `<circle cx="-4" cy="6" r="3" fill="#fff3c4"/><circle cx="12" cy="10" r="2.5" fill="#fff3c4"/>` +
+    orb(-48, -38) + orb(48, -38) + orb(-48, 38) + orb(48, 38);
+}
+const gemSvg = (hex, w, h) => `<svg viewBox="-64 -52 128 104" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet">${gemMarkup(hex)}</svg>`;
+
+// ---------- world ----------
+const BODY = { h: 200, s: 15, l: 19 };
+const BG = [[60, 120, 420], [250, 95, 300], [420, 140, 470], [640, 100, 350], [1300, 150, 300], [1500, 110, 420], [1700, 140, 330]];
+const MID = [[150, 110, 230], [560, 130, 260], [880, 100, 200], [1130, 140, 420], [1600, 120, 240]];
+const FG = [[0, 150, 190], [1760, 160, 220]];
+function building([x, w, h], floor, cap, d) {
+  const k = lerp(0.45, 1.1, d) * cap;
+  const west = hsl(BODY.h, BODY.s, BODY.l * k), east = hsl(BODY.h, BODY.s, BODY.l * k * 1.35);
+  const corner = x + w * 0.62;
+  return `<rect x="${x}" y="${floor - h}" width="${w}" height="${h}" fill="${west}"/><rect x="${corner}" y="${floor - h}" width="${x + w - corner}" height="${h}" fill="${east}"/>`;
+}
+function worldSvg(robots = true, hover = false) {
+  const d = 0.35;
+  const sc = 1600 / 1920;
+  const body = `
+    <defs><linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(205,45%,16%)"/><stop offset="1" stop-color="hsl(230,45%,7%)"/></linearGradient></defs>
+    <rect width="1920" height="1080" fill="url(#w)"/>
+    <polygon points="0,990 0,860 220,860 280,800 520,800 580,860 900,860 960,820 1300,820 1340,860 1920,860 1920,990" fill="hsl(0,0%,13%)"/>
+    <g>${BG.map((b) => building(b, 990, 0.7, d)).join('')}</g>
+    <rect width="1920" height="1080" fill="#0c1c4f" opacity=".25"/>
+    <g>${MID.map((b) => building(b, 1022, 0.85, d)).join('')}</g>
+    <rect width="1920" height="1080" fill="hsl(251,17%,26%)" opacity=".2"/>
+    <polygon points="0,1080 0,1050 420,1050 440,1030 1100,1030 1120,1050 1920,1050 1920,1080" fill="hsl(203,13%,7%)"/>
+    ${robots ? `
+      <g transform="translate(520 560) scale(.55)">${gemMarkup('#ae5378')}</g>
+      <g transform="translate(1180 640) scale(.55)">${gemMarkup('#a9e583')}</g>
+      <g transform="translate(900 430) scale(.55)">${gemMarkup('#5bb7c6')}</g>
+      <g transform="translate(1500 600) scale(.55)">${gemMarkup('#e2b149')}</g>
+      <g transform="translate(1420 300) scale(.9)">${gemMarkup('#e2b149')}</g>` : ''}
+    <g>${FG.map((b) => building(b, 1050, 1, d)).join('')}</g>`;
+  return `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">${body}</svg>` +
+    (hover ? `<div class="glass strip" style="${ac('deck')};position:absolute;left:${430 * sc}px;top:${600 * sc + 22}px;padding:4px 10px;font-size:13px"><b>Tidal Wisp</b> Salvage · Emitting</div>` : '');
+}
+
+// ---------- shell pieces ----------
+function power(off = false) { return `<div class="power"><div class="lens${off ? ' off' : ''}"></div><div class="rocker">⏻</div></div>`; }
+function header() { return `<div class="hdr" style="${ac('deck')}">${cab('🔊')}${vox(8, 8, 18)}<span class="val" style="font-size:11px;color:var(--mut)">100%</span></div>`; }
+function rail(active) {
+  const items = [['deck', 'Monitor', 'Deck'], ['fleet', 'Environment', 'Fleet Params'], ['probes', 'Timbre & Color', 'Probes'], ['companies', 'Unity & Variety', 'Companies'], ['settings', 'Navigation', 'Settings']];
+  return `<div class="rail">${items.map(([t, l, h]) => cab2(l, h, t === active ? 'pop' : '', ac(t))).join('')}</div>`;
+}
+function drawer(closed) {
+  const robots = NAMES.slice(0, 12).map((n, i) => cab(n, i === 0 ? 'pop' : '', acHex(IDENTITY[i]))).join('');
+  return `<div class="drawer${closed ? ' closed' : ''}">
+    ${cab('Home', 'frame', ac('deck'))}
+    <div class="row">${cab2('Environment', 'Fleet Params', '', ac('fleet'))}${cab('+', 'tog frame', ac('fleet'))}</div>
+    <div class="row">${cab2('Timbre & Color', 'Probes', 'pop', ac('probes'))}${cab('−', 'tog pop', ac('probes'))}</div>
+    <div class="kids" style="${ac('probes')}">${cab('All Probes', '', ac('deck'))}${robots}</div>
+    <div class="row">${cab2('Unity & Variety', 'Companies', '', ac('companies'))}${cab('+', 'tog frame', ac('companies'))}</div>
+    <div class="row">${cab2('Navigation', 'Settings', '', ac('settings'))}${cab('+', 'tog frame', ac('settings'))}</div>
+  </div>`;
+}
+const telemetry = () => `<div class="glass strip" style="${ac('deck')};position:absolute;left:112px;bottom:14px"><b>22:17</b> −57 °C <span>·</span> <b>6 / 12</b> probes emitting <span>·</span> qb9mezm3 @ (−86, 59)</div>`;
+const crumb = (parts) => `<div class="crumb">${parts.map((p, i) => i < parts.length - 1 ? `<u>${p}</u>` : p).join(' / ')}</div>`;
+
+// ---------- M1 ----------
+function renderM1() {
+  const open = $('#m1drawer').classList.contains('on'), dim = $('#m1dim').classList.contains('on');
+  $('#m1').innerHTML = `<div class="world${dim ? ' dim' : ''}">${worldSvg(true, !dim)}</div>${power()}${header()}${rail('deck')}${drawer(!open)}${telemetry()}`;
+}
+
+// ---------- M2 ----------
+function renderM2() {
+  const intro = $('#m2intro').classList.contains('on'), help = $('#m2help').classList.contains('on');
+  const tabs = ['Pacing', 'LFO Bank', 'EQ & Filters', 'Time & Space', 'Output'];
+  const traits = ['composition', 'timeSpace', 'spectral', 'timeSpace', 'output'];
+  const lanes = ['Core LFO', 'Companion LFO', 'Accent LFO', 'Overtone LFO'];
+  $('#m2').innerHTML = `<div class="world dim">${worldSvg(true)}</div>${power()}${header()}${rail('fleet')}
+    <div class="content" style="${ac('timeSpace')}">
+      <div class="head"><h2>Fleet Params</h2>${cab('Help ?', 'frame', ac('deck'))}</div>
+      <div class="intro-bar">${cab(intro ? '− Fleet Params — your key to mesh-wide performance.' : '+ Fleet Params — your key to mesh-wide performance.', 'frame', ac('fleet'))}</div>
+      ${intro ? `<div class="glass" style="${ac('fleet')};margin:10px 18px 0"><p>Fleets of probes stay synchronized through Meridia Comms Group's Undersea Mesh Network, broadcasting the same audio signature settings to every unit at once.</p><p style="margin-top:6px;color:#cfd6dc">This screen holds every control that shapes the sound of your whole fleet at once. Changes here apply to every probe simultaneously; to adjust one probe at a time, use the Probes screen instead.</p></div>` : ''}
+      <div class="tabs">${tabs.map((t, i) => cab(t, i === 1 ? 'pop' : 'frame', ac(traits[i]))).join('')}</div>
+      <div class="tabs sub">${lanes.map((l, i) => cab(l, i === 0 ? 'pop' : 'frame')).join('')}</div>
+      <div class="body" style="position:relative">
+        ${ctl('Mutation Type', 'Shape', radio(['Triangle', 'Sine', 'Square', 'Sawtooth'], 'Sine'), '', true)}
+        ${ctl('Mutation Cadence', 'Rate', vox(12, 2), '4 bars', true)}
+        ${ctl('Anchoring', 'Tempo Sync', radio(['Float', 'Anchored'], 'Anchored'), '', true)}
+        ${ctl('Trace Pulse', 'Rate Drift', voxCentered(12, .3), '21%', true)}
+        ${ctl('Trace Bending', 'Depth Drift', voxCentered(12, -.15), '−7%', true)}
+        ${help ? `<div class="glass pop-help" style="${ac('deck')};left:calc(33% + 28px);top:78px"><h3>Rate</h3><p>How fast this lane's invisible hand turns its knob back and forth. Anchored to tempo it is measured in bars; floating it is measured in Hz.</p><p style="margin-top:6px;color:var(--mut)">Lore: Mutation Cadence.</p></div>` : ''}
+      </div>
+    </div>${crumb(['Root', 'Fleet Params', 'LFO Bank'])}`;
+}
+
+// ---------- M3 ----------
+function renderM3() {
+  const hex = '#ae5378';
+  const tabs = [['Levels', 'output'], ['Composition', 'composition'], ['Envelope', 'timeSpace'], ['Source', 'spectral']];
+  $('#m3').innerHTML = `<div class="world dim">${worldSvg(true)}</div>${power()}${header()}${rail('probes')}
+    <div class="split">
+      <div class="avcol" style="${acHex(hex)}">
+        ${gemSvg(hex, '100%', 300).replace('<svg', '<svg class="gem"')}
+        <h2>Tidal Wisp</h2>
+        <div class="meta">
+          ${dl('Assigned Protocol', 'Salvage')}${dl('Docking State', 'Docked')}
+          ${dl('Operational Phase', 'Charging')}${dl('Acoustic Emission State', 'Disabled')}
+        </div>
+        ${ctl('Power Cell Status', 'Battery Data', vox(16, 13, 18), '85%')}
+        ${ctl('Unit Affiliation', 'Company', `<span class="radio">${cab('Freelance', 'frame')}${cab('Rust Syndicate', 'pop', acHex(COMPANY['Rust Syndicate']))}${cab('Iron Crew', 'frame', acHex(COMPANY['Iron Crew']))}${cab('Neon Division', 'frame', acHex(COMPANY['Neon Division']))}</span>`)}
+      </div>
+      <div class="content" style="${ac('spectral')}">
+        <div class="tabs" style="padding-top:14px">${tabs.map(([t, tr], i) => cab(t, i === 3 ? 'pop' : 'frame', ac(tr))).join('')}</div>
+        <div class="tabs sub">${['Core Oscillator', 'Companion Oscillator', 'Accent Oscillator'].map((l, i) => cab(l, i === 0 ? 'pop' : 'frame')).join('')}</div>
+        <div class="body two">
+          ${ctl('Feed Geometry', 'Core Type', radio(['Sine', 'Triangle', 'Sawtooth', 'Square', 'Pulse'], 'Pulse'), '', true)}
+          ${ctl('Feed Saturation', 'Core Gain', vox(12, 9), '1.07', true)}
+          ${ctl('Signature Lane', 'Gain Link', link('D', 3), '35%', true)}
+          ${ctl('Feed Drift', 'Core Detune', voxCentered(12, .08), '1 cents', true)}
+          ${ctl('Signature Lane', 'Detune Link', link('D', 1), '9%', true)}
+          ${ctl('Feed Alignment', 'Core Phase', vox(12, 11), '254', true)}
+          ${ctl('Feed Break', 'Core Interval', vox(12, 6), '0.5', true)}
+        </div>
+      </div>
+    </div>${crumb(['Root', 'Probes', 'Tidal Wisp', 'Source'])}`;
+}
+
+// ---------- M4 ----------
+function renderM4() {
+  const groups = [['Rust Syndicate', [0, 5, 7, 11]], ['Iron Crew', [1, 6, 9]], ['Neon Division', [2, 3, 4]], ['Freelance', [8, 10]]];
+  const tile = (i) => `<div class="tile" style="${acHex(IDENTITY[i])}">${gemSvg(IDENTITY[i], 120, 96)}<span class="nm">${NAMES[i]}</span><span class="st">${JOBS[i]}</span><span class="st">${STATE[i]}</span>${vox(10, Math.round(BATT[i] / 10), 10)}</div>`;
+  $('#m4').innerHTML = `<div class="world dim">${worldSvg(true)}</div>${power()}${header()}${rail('probes')}
+    <div class="content" style="${ac('probes')}">
+      <div class="head"><h2>Probes</h2><span class="radio">${cab('All Probes — edit the whole fleet', 'frame', ac('deck'))}${cab('+ New company', 'frame', ac('companies'))}</span></div>
+      <div class="intro-bar">${cab('+ Probes — your fleet at a glance.', 'frame', ac('probes'))}</div>
+      <div class="roster">
+        ${groups.map(([g, ids]) => `<div class="group" style="${g === 'Freelance' ? ac('companies') : acHex(COMPANY[g])}">
+          <div class="ghead">${cab(g, g === 'Freelance' ? 'frame' : 'pop')}<span class="n">${ids.length} probes</span>${g === 'Freelance' ? '' : cab('Edit group', 'frame') + cab('Rename', 'frame') + cab('Delete', 'frame')}</div>
+          <div class="tiles">${ids.map(tile).join('')}</div>
+        </div>`).join('')}
+      </div>
+    </div>${crumb(['Root', 'Probes'])}`;
+}
+
+// ---------- M5 ----------
+function renderM5() {
+  const big = $('#m5band').classList.contains('on'), fly = $('#m5fly').classList.contains('on');
+  const hex = '#ae5378';
+  const phoneTop = (menuBottom = true) => `<div class="top" style="${ac('deck')}">${cab('🔊')}<span class="sp"></span><div class="pw">⏻</div></div>
+    <div class="flyout${fly ? ' show' : ''}" style="${ac('deck')}">${ctl('Transducer Pressure', 'Volume', vox(8, 8, 28), '100%')}</div>`;
+  const phoneBot = (inner) => `<div class="bot" style="${ac('deck')}">${cab('☰')}${inner}</div>`;
+  const off = `<div class="phone"><div class="top" style="background:none;border:0"><span class="sp"></span><div class="pw" style="border-color:#3a2a2a"><span style="width:26px;height:7px;background:#c0333a;box-shadow:0 0 8px #c0333a;display:block"></span></div></div>
+    <div class="etch"><h3>TRACE ATLAS</h3><p>A Meridia Telemetry Group product</p><p style="margin-top:14px;color:rgba(200,220,230,.55)">Press the power switch to begin.<br>Sound will play.</p><div class="slot">transmission picker — reserved</div></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(100deg,#2a2b3a 0%,#121a22 35%,#0e1a1c 60%,#1c1e2c 100%);opacity:.9;z-index:-1"></div></div>`;
+  const deck = `<div class="phone"><div class="world">${worldSvg(true)}</div>${phoneTop()}${phoneBot(`<div class="glass strip" style="${ac('deck')}"><b>22:17</b> −57 °C · <b>6/12</b> emitting</div>`)}</div>`;
+  const robot = `<div class="phone"><div class="scroll" style="${ac('spectral')}">
+      <div class="band ${big ? 'big' : 'small'}" style="${acHex(hex)}">${gemSvg(hex, 72, 58)}<div><h2>Tidal Wisp</h2><span class="st">Salvage · Docked · Charging · Disabled · 85%</span></div></div>
+      <div class="tabs">${['Levels', 'Composition', 'Envelope', 'Source'].map((t, i) => cab(t, i === 1 ? 'pop' : 'frame')).join('')}</div>
+      <div class="body" style="${ac('composition')}">
+        ${ctl('Payload Density', 'Note Density', vox(8, 6, 36), '72%', true)}
+        ${ctl('Payload Subgroups', 'Phrase Length', vox(8, 5, 36), '5', true)}
+        ${ctl('Payload Duplication', 'Pitch Repeat Chance', vox(8, 7, 36), '92%', true)}
+        ${ctl('Ping Variance', 'Note Variance', vox(8, 4, 36), '4', true)}
+        ${ctl('Ping Floor', 'Lowest Octave', vox(8, 2, 36), '2', true)}
+      </div>
+    </div>${phoneTop()}${phoneBot(`<div class="crumb"><u>Root</u> / <u>Probes</u> / Tidal Wisp</div>`)}</div>`;
+  const fleet = `<div class="phone"><div class="scroll" style="${ac('spectral')}">
+      <div style="padding:12px 12px 0"><h2 style="margin:0;border:0;padding:0;font-size:20px">Fleet Params</h2></div>
+      <div class="tabs">${['Pacing', 'LFO Bank', 'EQ & Filters', 'Time & Space'].map((t, i) => cab(t, i === 2 ? 'pop' : 'frame')).join('')}</div>
+      <div class="tabs" style="padding-top:6px">${['3-Band EQ', 'High-Pass', 'Low-Pass'].map((t, i) => cab(t, i === 0 ? 'pop' : 'frame')).join('')}</div>
+      <div class="body">
+        ${ctl('Sub-Band', 'Bass', voxCentered(8, .3, 36), '1.9 dB', true)}
+        ${ctl('Signature Lane', 'Bass Link', link('C', 2, 22), '18%', true)}
+        ${ctl('Medial Band', 'Mid', voxCentered(8, .25, 36), '1.7 dB', true)}
+        ${ctl('Signature Lane', 'Mid Link', link('Off', 0, 22), '', true)}
+        ${ctl('Crest Band', 'Treble', voxCentered(8, -.2, 36), '−1.2 dB', true)}
+      </div>
+    </div>${phoneTop()}${phoneBot(`<div class="crumb"><u>Root</u> / <u>Fleet Params</u> / EQ</div>`)}</div>`;
+  $('#m5').innerHTML = [off, deck, robot, fleet].join('');
+}
+
+// ---------- toggles ----------
+function toggle(id, fn) { $(id).addEventListener('click', (e) => { e.currentTarget.classList.toggle('on'); fn(); }); }
+toggle('#m1drawer', renderM1); toggle('#m1dim', renderM1);
+toggle('#m2intro', renderM2); toggle('#m2help', renderM2);
+toggle('#m5band', renderM5); toggle('#m5fly', renderM5);
+renderM1(); renderM2(); renderM3(); renderM4(); renderM5();
+</script>
+</body>
+</html>
