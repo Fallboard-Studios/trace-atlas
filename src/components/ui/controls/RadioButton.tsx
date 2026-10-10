@@ -101,7 +101,11 @@ interface RadioButtonProps {
  *  no new CSS needed, since CabinetBox.css's rest-state hint and RadioButton.css's
  *  [data-state='on'] front-face tint both already read those properties ambiently. An option
  *  that omits `color` renders with no inline style at all, identical to every consumer that
- *  predates this (Audio Setting, Decay Mode, per-layer Type, Header's nav group, …). */
+ *  predates this (Audio Setting, Decay Mode, per-layer Type, Header's nav group, …).
+ *
+ *  Single-line options (docs/specs/LAYOUT_REWORK.md §1.4, Task 13): each option's face is one line
+ *  of its `humanLabel`, never a DualLabel. An option's `loreLabel` is not shown; the lore names live
+ *  on the control's own label row, whose "?" (HelpPopover, via `schema.help`) opens the help. */
 function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSize }: RadioButtonProps) {
   // Reuses the same breakpoint-tier gap VoxelTrack (11.1.3) uses between its
   // own boxes — not renamed to something RadioButton-neutral; see
@@ -151,7 +155,7 @@ function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSi
               timelineKey={`cabinet-radio-${schema.id}-${instanceId}-${option.value}`}
               {...(boxSize !== undefined ? { boxHeight: boxSize, frontWidth: boxSize, frontHeight: boxSize } : {})}
             >
-              <DualLabel loreLabel={option.loreLabel} humanLabel={option.humanLabel} />
+              <span className="sc-radio-button__label">{option.humanLabel}</span>
             </CabinetBox>
           </ToggleGroup.Item>
         ))}

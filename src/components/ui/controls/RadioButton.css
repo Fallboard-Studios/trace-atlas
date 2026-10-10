@@ -33,8 +33,16 @@
   gap: var(--cabinet-radio-gap, 8px);
 }
 
+/* max-width (with border-box, so the 14px side padding counts) caps a too-long option at the
+   control's width — see .sc-radio-button__label below. */
 .sc-radio-button__root .sc-cabinet-box__front {
   width: auto !important;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.sc-radio-button__item .sc-cabinet-box {
+  max-width: 100%;
 }
 
 /* Never larger than its own content — same reasoning as Button.css's own
@@ -44,6 +52,7 @@
 .sc-radio-button__item {
   display: inline-flex;
   width: fit-content;
+  max-width: 100%;
   padding: 0;
   border: none;
   background: transparent;
@@ -66,14 +75,38 @@
   background: var(--color-accent-gradient);
 }
 
-/* Opts the selected option's own label back into the dynamic --color-text-primary DualLabel.css's
-   own default now forces white — once selected, this option's front face IS tinted to its own
+/* The option's face: one line of its human label (docs/specs/LAYOUT_REWORK.md §1.4, Task 13) — the
+   lore name lives on the control's own label row, under its help "?". Same face as DualLabel's human
+   line (font, size, the fixed white), and never wraps: a second line has no room in the fixed-height
+   front face. A label wider than the control — a user-typed company name runs to 128 characters —
+   ends in an ellipsis instead of running past the control (it scrolled a 375px page sideways, found
+   in Chrome); the item, its cabinet box and the front face above are each capped at 100% so the
+   label has a width to stop at. The radio's accessible name (aria-label) stays the full name. */
+.sc-radio-button__label {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  color: var(--color-text-primary-fixed);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Opts the selected option's own label back into the dynamic --color-text-primary from the fixed
+   white above — once selected, this option's front face IS tinted to its own
    option.color (the rule above), so black text is correct there exactly as it is for a toggled-
    on nav-tree/accordion indicator. An unselected option never gets that tint (CabinetBox.css's
    plain --color-surface default), so it stays on the forced-white default untouched — same
    on/off split as Toggle.css's own checked/unchecked rules. Crawford's own correction, 2026-10-06,
    found live on a robot's own bright Company swatch (e.g. "Freelance") reading illegible white
    on bright green. */
-.sc-radio-button__item[data-state='on'] .sc-dual-label__human {
+.sc-radio-button__item[data-state='on'] .sc-radio-button__label {
   color: var(--color-text-primary);
+}
+
+/* DualLabel.css's compact fallback, carried over for the option's own label: in a cramped control
+   (the nearest sc-control container under 120px) the label drops to the compact size. */
+@container sc-control (max-width: 120px) {
+  .sc-radio-button__label {
+    font-size: var(--font-size-label-compact);
+  }
 }

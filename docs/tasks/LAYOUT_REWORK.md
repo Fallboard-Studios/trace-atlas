@@ -1138,6 +1138,67 @@ assignment, `LfoLink`'s lane row) changes face with no prop change.
 
 **Estimated scope:** S (one primitive)
 
+**As built (2026-10-10):**
+
+**The face.** Each option's face is `<span class="sc-radio-button__label">` holding its `humanLabel`,
+inside the same `CabinetBox`. The control's own label row keeps its `DualLabel` (lore over human) and
+the Task 12 "?".
+
+The span takes DualLabel's human-line face: `--font-mono`, `--font-size-label`, the fixed white. The
+selected-option colour opt-in moved onto it from `.sc-dual-label__human`. DualLabel's compact fallback
+(`@container sc-control (max-width: 120px)`) is carried over for it. `DualLabel.css`'s comment no
+longer lists the two other opt-in places, NavCabinetRow and NavTreeNode, which went with the tree in
+Task 9.
+
+**Open for Crawford: option lore names now show nowhere.** The help popover shows the *control's*
+lore name, which is what the approved sketch's popovers draw. An option's own lore is no longer
+rendered anywhere:
+- the waveforms' Sway / Sweep / Kinetic / Binary / Burst;
+- Monitor Mode's Freeform / Standby / Featured / Elevated;
+- Decay Mode's Dissipation.
+
+The copy stays in `src/content`, so listing it in the popover later would be additive. The plan's
+"which is where the lore names go" could be read either way.
+
+**Edge case found in Chrome: long company names.** A company name is user-typed, up to 128
+characters. With a 128-character name:
+- **Old two-line face:** the name wrapped to four lines, 80 px of text in a 44 px box.
+- **One line with no cap:** at 375 px it ran 627 px past its control and scrolled the page sideways.
+
+**Fix:** every link is capped at 100% of its container: the item, its cabinet box, and the front
+face. The front face also uses `border-box`, so its 14 px side padding counts inside the cap. The
+label ends in an ellipsis. The radio's accessible name (`aria-label`) stays the full name.
+
+An ablation in Chrome at 375 px removed one link at a time. Without any one of the four, the option
+ran 14–627 px past the control and the page scrolled sideways. A fifth rule, `min-width: 0` on the
+label, changed nothing: `overflow: hidden` already zeroes a flex item's automatic minimum. It was
+deleted.
+
+**Row height.** The front face was already a fixed `height: var(--cabinet-box-height)`, so the old
+two-line face never changed the row's height either. The tier tests are regression guards that pass
+before and after. Each pins the tier height with the 44 px touch floor and a non-`autoHeight` box.
+Measured in Chrome: 48 px at 1280, 44 px at 375 and 320.
+
+**Tests:**
+- New `RadioButton.face.test.tsx`, with the real CabinetBox: the face, the label row with its lore
+  and the one "?", and the row height at all three tiers.
+- New `RadioButton.css.test.ts`: the label face, the selected colour, the compact fallback, no rule
+  into an option's DualLabel, no front-height override, and the width-cap chain.
+- `RadioButton.test.tsx`: one face assertion changed. The vocabulary test now expects the option lore
+  "Dissipation" to be absent. Every behaviour test is unmodified.
+- No consumer test needed a change.
+
+**Verified:**
+- Full suite: 316 files / 8592 tests.
+- `build:types` clean; lint at the known 25 / 4.
+
+**Mutation check:** 20, all killed:
+- the face reverting to a two-line or human-only DualLabel, preferring the lore, or appending it;
+- the label row losing its help or its lore;
+- `autoHeight`, or a fixed desktop height at every tier;
+- the CSS: wrap, colour, size, the selected selector, the compact fallback, a front `height: auto`,
+  each cap link, `border-box`, the ellipsis and the overflow.
+
 ## Task 14: `LfoLink` compact
 
 **Description:** `LfoLink.tsx` composes the single-line lane `RadioButton` (options from `ui.lfoLane`;
