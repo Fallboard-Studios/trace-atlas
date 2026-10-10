@@ -67,7 +67,7 @@ function SliderCenteredZeroInner({ schema, value, onChange, disabled, verticalHe
 
   return (
     <div ref={wrapperRef} className="sc-slider-centered-zero" data-orientation={orientation}>
-      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
+      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
       {isVertical && valueLabel}
       <Slider.Root
         className="sc-slider-centered-zero__root"

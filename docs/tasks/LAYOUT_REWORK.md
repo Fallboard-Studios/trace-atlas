@@ -970,6 +970,63 @@ Radix `Popover` styled as a well with the human description, the lore name and t
 
 **Estimated scope:** S (one primitive, one prop)
 
+**As built (2026-10-10):**
+
+**The "?".** The sketch's `.q`: a 16 px outlined circle in a 24 px button. The phone shell gets a
+44 px hit area through a `::before` keyed on `#screen-viewport[data-shell='phone']`. In Chrome at 375
+px, presses at the slider track's top edge under the "?" still land on the slider. It is not cabinetry:
+a label row stays a label row. `margin-block: -4px` gives back the layout height. Without it every
+labelled row grew 1.5 px (24 against the 22.5 px name line, measured), and with it the line is 22.5.
+Its accessible name comes from a new key, `ui.help` (`template: 'Help for {name}'`), so the 59 "?"s on
+Fleet Params are told apart. It falls back to the lore label, then to the plain "Help".
+
+**DualLabel** gains `help?`. The "?" sits *beside* the last line's name in a
+`.sc-dual-label__line` wrapper, never inside the name's span, so `getByText('Tempo')` still finds
+exactly the name. With no label at all it renders nothing, help or not.
+
+**Pass-through.** These primitives pass `schema.help` to their own label row: SliderLinear (its
+interactive path only), SliderLog, SliderCenteredZero, RadioButton (the control's label, never an
+option's), Toggle, TextInput, CoordsInput, Stepper, StepperWithToggle (into the toggle schema it
+builds), LfoLink, DirectionalPanel. TempoSyncToggle passes its own `ui.tempoSync` help.
+
+Never passed:
+- **Button, AccordionContainer, NavBox and RadioButton options:** the label is inside the button, and
+  a "?" there would be a button inside a button.
+- **SliderLinear's read-only path:** it is a readout with `role=status`.
+
+A new `helpOnLabels.test.tsx` covers all of it.
+
+**Two departures from the description, each found in Chrome:**
+- **Modal, and portalled into ScreenViewport.** Modal because spec §3 says popovers trap focus, and
+  only modal Radix returns focus to the "?" after an outside press. Left in place (no Portal, the
+  Header pop-out's way), it opened inside its panel, and the next panel's facade painted over it at
+  1280 and 375 px: every popped facade is its own stacking context. It now portals into
+  `#screen-viewport`, so it is still inside ScreenViewport (the UI Shell guardrail) and never in
+  `document.body`. With no screen on the page, as in component tests, it opens in place.
+- **The collision boundary is the screen.** Left to the window, it ran 8 px past the screen's edge into
+  the sleeve at 375 px. It now sits at 51–351 inside 16–359.
+
+**The well** uses the shared well tokens (NavBreadcrumb / MetaBox / PhoneBar), over an opaque
+`--content-surface` base, because `--well-background` is 55 % see-through and the popover sits over
+controls. Every shadow is inset: no filter, no outward glow. Its content is the title (the human
+name), the human description, and the lore name over the lore description when there is one.
+
+**Visible now, before Phase 2's screens:** every Fleet Params and Settings control in today's screens
+shows its "?" (59 on Fleet Params).
+
+**One existing test changed.** `AudioRigDrawer.test.tsx`'s "renders no accordion anywhere" asserted no
+buttons at all. It now asserts no buttons other than help "?"s, with at least one present. Its intent,
+no accordion trigger, is unchanged.
+
+**Verified:**
+- Full suite: 314 files / 8574 tests.
+- `build:types` clean; lint at the known 25 / 4; `npm run build` clean.
+- Chrome at 1280 and 375 px: the popover opens on screen, focus moves inside it, and a second press,
+  Escape or a press outside each close it with focus back on the "?".
+
+**Mutation check:** 38, all killed after one fix. The collision-boundary mutant first **survived**.
+`HelpPopover.test.tsx` now wraps the real `Popover.Content` to record the boundary it is handed.
+
 ## Task 12b: Help copy for the probe and company controls
 
 **Description:** Write `help` for every control entry in `src/content/copy/probe.ts` and `company.ts`

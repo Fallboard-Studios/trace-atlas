@@ -124,7 +124,7 @@ function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSi
 
   return (
     <div className="sc-radio-button">
-      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
+      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
       <ToggleGroup.Root
         type="single"
         className="sc-radio-button__root"

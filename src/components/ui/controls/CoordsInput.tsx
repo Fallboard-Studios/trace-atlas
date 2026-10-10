@@ -48,7 +48,7 @@ function CoordsInputInner({ schema, value, onChange }: CoordsInputProps) {
 
   return (
     <div className="sc-coords-input">
-      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
+      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
       <div className="sc-coords-input__fields">
         <TextInput schema={xSchema} value={String(value.x)} onChange={handleX} numeric />
         <TextInput schema={ySchema} value={String(value.y)} onChange={handleY} numeric />

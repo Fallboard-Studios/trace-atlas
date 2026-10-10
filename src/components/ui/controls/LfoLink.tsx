@@ -81,7 +81,7 @@ function LfoLinkInner({ schema, value, onChange, disabled, heldOff }: LfoLinkPro
       className={withActiveClass(heldOff ? 'sc-lfo-link sc-held-off' : 'sc-lfo-link', !heldOff && value.lane !== null)}
       data-orientation={orientation}
     >
-      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
+      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
       <RadioButton
         schema={laneSchema}
         value={laneDisplay}

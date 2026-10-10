@@ -1,0 +1,98 @@
+/* HelpPopover (docs/specs/LAYOUT_REWORK.md §1.4) — the sketch's ".q": a small outlined "?" after the
+   human name, opening a well. The "?" is no cabinet: a label row stays a label row. */
+.sc-help__trigger {
+  --help-trigger-size: 24px;
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--help-trigger-size);
+  height: var(--help-trigger-size);
+  /* The press area is 24 px, the line it sits on 22.5 px: without this the "?" grew every labelled
+     row by 1.5 px (measured in Chrome). The margin gives back layout height, never press area. */
+  margin-block: -4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.sc-help__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.sc-help__trigger:hover,
+.sc-help__trigger[data-state='open'] {
+  color: var(--color-text-primary-fixed);
+}
+
+.sc-help__trigger:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* The phone shell keeps every touch target at --touch-target-size (spec §3). The visible "?" stays
+   small; an invisible layer centred on it takes the 44 px of presses. */
+#screen-viewport[data-shell='phone'] .sc-help__trigger::before {
+  content: '';
+  position: absolute;
+  inset: calc((var(--help-trigger-size) - var(--touch-target-size)) / 2);
+}
+
+/* A recessed well (in = read): the shared well tokens, the way NavBreadcrumb, MetaBox and PhoneBar
+   draw theirs, over the opaque content surface, since --well-background is see-through and a popover
+   sits over other controls. Every shadow is inset; no filter, no outward glow. */
+.sc-help__content {
+  z-index: var(--z-popover);
+  box-sizing: border-box;
+  width: min(300px, calc(100vw - 2 * var(--spacing-lg)));
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  background: linear-gradient(var(--well-background), var(--well-background)), var(--content-surface);
+  box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);
+  color: var(--color-text-primary-fixed);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-label);
+  line-height: 1.4;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+}
+
+.sc-help__content:focus {
+  outline: none;
+}
+
+.sc-help__content p {
+  margin: 0;
+}
+
+.sc-help__title {
+  margin-bottom: var(--spacing-sm);
+  font-family: var(--font-mono);
+}
+
+.sc-help__lore {
+  margin-top: var(--spacing-sm);
+  color: var(--color-text-muted);
+}
+
+/* The lore name in the lore label's own face (DualLabel.css). */
+.sc-help__lore-name {
+  font-family: var(--font-controls);
+  font-size: var(--font-size-label-lore);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

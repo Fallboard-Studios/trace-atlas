@@ -110,7 +110,7 @@ function SliderLinearInner({ schema, value, onChange, disabled, verticalHeight, 
 
   return (
     <div ref={wrapperRef} className="sc-slider-linear" data-orientation={orientation}>
-      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
+      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
       {isVertical && valueLabel}
       <Slider.Root
         className="sc-slider-linear__root"

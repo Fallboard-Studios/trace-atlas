@@ -41,3 +41,10 @@
     font-size: var(--font-size-label-compact);
   }
 }
+
+/* The line carrying the help "?" (HelpPopover): the name, then the "?" after it, centred on the line. */
+.sc-dual-label__line {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}

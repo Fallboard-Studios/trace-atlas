@@ -11,6 +11,9 @@ export const ui = {
   'ui.confirm': { human: 'Confirm' },
   'ui.consolePanel': { human: 'Console Panel' },
   'ui.heldOff': { human: 'Held off by Audio Load' },
+  /** The "?" on a control's label (docs/specs/LAYOUT_REWORK.md §1.4): its accessible name, filled with
+   *  the control's own name so every "?" on a screen is told apart; `human` when there is no name. */
+  'ui.help': { human: 'Help', template: 'Help for {name}' },
   'ui.stepper.increment': { human: 'Increment', template: 'Increment {name}' },
   'ui.stepper.decrement': { human: 'Decrement', template: 'Decrement {name}' },
   'ui.power.controls': { human: 'Device power controls' },

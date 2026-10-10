@@ -1,7 +1,44 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 import { DualLabel } from './DualLabel';
+import { fill } from '@/content';
+
+// docs/tasks/LAYOUT_REWORK.md Task 12 — the help "?" sits on the label, beside the human name.
+describe('DualLabel help', () => {
+  const HELP = { human: 'Sets the pitch the melody starts from.' };
+
+  it('renders a "?" named for the control when it has help, and none when it has not', () => {
+    const { rerender } = render(<DualLabel loreLabel="CALIBRATE PING" humanLabel="Reset Melody" help={HELP} />);
+    expect(screen.getByRole('button', { name: fill('ui.help', { name: 'Reset Melody' }) })).toBeTruthy();
+
+    rerender(<DualLabel loreLabel="CALIBRATE PING" humanLabel="Reset Melody" />);
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('keeps the human name its own element, so the label still reads exactly its name', () => {
+    render(<DualLabel loreLabel="CALIBRATE PING" humanLabel="Reset Melody" help={HELP} />);
+    expect(screen.getByText('Reset Melody').textContent).toBe('Reset Melody');
+    expect(screen.getByText('Reset Melody').className).toBe('sc-dual-label__human');
+  });
+
+  it('the "?" opens that help', () => {
+    render(<DualLabel loreLabel="CALIBRATE PING" humanLabel="Reset Melody" help={HELP} />);
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByRole('dialog').textContent).toContain(HELP.human);
+    expect(screen.getByRole('dialog').textContent).toContain('CALIBRATE PING');
+  });
+
+  it('a lore-only label still carries its "?"', () => {
+    render(<DualLabel loreLabel="CALIBRATE PING" help={HELP} />);
+    expect(screen.getByRole('button', { name: fill('ui.help', { name: 'CALIBRATE PING' }) })).toBeTruthy();
+  });
+
+  it('help with no label at all renders nothing — a "?" needs a label to stand on', () => {
+    const { container } = render(<DualLabel help={HELP} />);
+    expect(container.firstChild).toBeNull();
+  });
+});
 
 describe('DualLabel', () => {
   it('renders nothing when neither loreLabel nor humanLabel is present', () => {
