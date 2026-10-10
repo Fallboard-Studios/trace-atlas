@@ -11,6 +11,13 @@ interface ButtonProps {
   schema: ButtonSchema;
   onClick: () => void;
   disabled?: boolean;
+  /** 'single' draws the human label alone on one line, the lore left to the control's label row, as
+   *  RadioButton's options do (docs/tasks/LAYOUT_REWORK.md Task 17 follow-up: Save & Share only, for
+   *  now). 'dual' (the default) is lore over human. */
+  face?: 'dual' | 'single';
+  /** Names the button apart from its face — a list row's "Load" named "Load Dusk Run". The schema's
+   *  label otherwise (resolveAccessibleName). */
+  accessibleName?: string;
 }
 
 /**
@@ -34,8 +41,9 @@ interface ButtonProps {
  * but the vulnerability is identical, so the fix is applied preemptively
  * rather than waiting for a live collision.
  */
-function ButtonInner({ schema, onClick, disabled }: ButtonProps) {
-  const accessibleName = resolveAccessibleName(schema);
+function ButtonInner({ schema, onClick, disabled, face = 'dual', accessibleName: nameOverride }: ButtonProps) {
+  const schemaName = resolveAccessibleName(schema);
+  const accessibleName = nameOverride ?? schemaName;
   const instanceId = useId();
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -60,7 +68,11 @@ function ButtonInner({ schema, onClick, disabled }: ButtonProps) {
       onPointerLeave={() => setPressed(false)}
     >
       <CabinetBox popped={popped} timelineKey={`cabinet-button-${schema.id}-${instanceId}`}>
-        <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
+        {face === 'single' ? (
+          <span className="sc-button__label">{schema.humanLabel ?? schema.loreLabel}</span>
+        ) : (
+          <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
+        )}
       </CabinetBox>
     </button>
   );

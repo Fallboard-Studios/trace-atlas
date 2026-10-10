@@ -56,3 +56,12 @@
 .sc-button .sc-cabinet-box__front {
   background: var(--color-accent-gradient);
 }
+
+/* The single-line face (docs/tasks/LAYOUT_REWORK.md Task 17 follow-up): the human label alone, in
+   DualLabel's human-line face, as RadioButton's option label is (RadioButton.css). */
+.sc-button__label {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  color: var(--color-text-primary-fixed);
+  white-space: nowrap;
+}

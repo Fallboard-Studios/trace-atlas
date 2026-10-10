@@ -266,7 +266,19 @@ no hardware keys, build on the existing components.
   (`settings.quality`: the preset `RadioButton`, Voice Limit and Effects Limit sliders, the limits
   readout as a well), Seeds (`settings.seeds`: Attenuation Style, `CoordsInput`, Retransmit / Share),
   Save & Share (`settings.sessions`: name `TextInput`, Save, Share live, the `SessionListItem` rows).
-  The panels are today's `AudioLoadPanel`, `SectorSettingsDrawer`, `SessionsPanel`, unchanged inside.
+  The panels are today's `AudioLoadPanel`, `SectorSettingsDrawer`, `SessionsPanel`, unchanged inside —
+  except Save & Share. **Amended 2026-10-10** (Crawford: "I thought the save/load session buttons would
+  get a once over"; then "Save & Share only" and "the sketch's copy"):
+  - **Layout:** Save & Share takes the sketch's layout. The name, Save Session and Share live sit in
+    one row. A Saved Sessions label row (lore Stored Traces) sits over one-line rows: name · time ·
+    Load · Share · Delete, with a divider under each. A Factory Reset label row sits over a full-width
+    Reset to Factory Settings.
+  - **Button faces:** the panel's buttons use `Button`'s opt-in single-line face (`face="single"`).
+    Every other Button keeps lore over human until Checkpoint B decides.
+  - **Accessible names:** a row's buttons keep their session in their accessible name (`accessibleName`).
+  - **Copy:** `session.shareLive` "Share live" is the live share, `session.share` "Share" a row's.
+    `session.clearStorage` is the label row and `session.clearStorage.action` the button.
+  - **Dialogs:** both confirm dialogs portal into `#screen-viewport` (the UI Shell guardrail).
 
 ### 1.9 Off screen (`OffScreen.tsx`, new; `powerController`)
 

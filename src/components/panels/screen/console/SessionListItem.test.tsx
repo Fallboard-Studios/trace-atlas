@@ -22,6 +22,7 @@ import { applySessionPayload } from '@/utils/sessionDiff';
 import { deleteNamedSession } from '@/utils/sessionStorageEngine';
 import { copySessionLink } from '@/utils/sessionShareUtils';
 import { formatSessionTimestamp } from '@/utils/helpers';
+import { CONTENT, fill } from '@/content';
 import type { SessionEntry } from '@/types/session';
 
 const fakePayload = {
@@ -43,7 +44,7 @@ describe('SessionListItem -- named entry', () => {
     render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
     expect(screen.getByText('Deep Dive')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Load Deep Dive/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Share Session Deep Dive/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Share Deep Dive$/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Delete Deep Dive/i })).toBeTruthy();
   });
 
@@ -123,17 +124,19 @@ describe('SessionListItem -- named entry', () => {
       (copySessionLink as ReturnType<typeof vi.fn>).mockResolvedValue(true);
       const { container } = render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+        fireEvent.click(screen.getByRole('button', { name: /^Share Deep Dive$/i }));
       });
       const note = screen.getByRole('status');
       expect(container.querySelector('.session-list-item__title')!.contains(note)).toBe(false);
       vi.useRealTimers();
     });
 
-    it('CSS: the title group takes the row\'s flex share and can shrink; the name itself no longer does', () => {
+    // Task 17 follow-up: the share has a basis now (it was `flex: 1`, a zero basis), so on a narrow row the
+    // button group wraps under the title instead of squeezing the name to "Nig…" (Chrome, 375 px).
+    it('CSS: the title group takes the row\'s flex share from a real basis, and can shrink; the name itself no longer does', () => {
       const title = getCssRuleBody(cssSource, '.session-list-item__title');
       expect(title).not.toBeNull();
-      expect(title).toContain('flex: 1;');
+      expect(title).toMatch(/flex: 1 1 \d+(\.\d+)?rem;/);
       expect(title).toContain('display: flex;');
       expect(title).toContain('min-width: 0;');
       expect(title).toMatch(/gap:\s*[\d.]+(rem|px);/);
@@ -235,7 +238,7 @@ describe('SessionListItem -- named entry', () => {
       render(<SessionListItem entry={entry} />);
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+        fireEvent.click(screen.getByRole('button', { name: /^Share Deep Dive$/i }));
       });
 
       expect(copySessionLink).toHaveBeenCalledWith(entry.payload);
@@ -246,7 +249,7 @@ describe('SessionListItem -- named entry', () => {
       render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+        fireEvent.click(screen.getByRole('button', { name: /^Share Deep Dive$/i }));
       });
 
       expect(screen.getByRole('status').textContent).toBe('Link copied');
@@ -258,7 +261,7 @@ describe('SessionListItem -- named entry', () => {
       render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+        fireEvent.click(screen.getByRole('button', { name: /^Share Deep Dive$/i }));
       });
 
       expect(screen.getByRole('alert').textContent).toBe('Unable to copy');
@@ -270,7 +273,7 @@ describe('SessionListItem -- named entry', () => {
       render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+        fireEvent.click(screen.getByRole('button', { name: /^Share Deep Dive$/i }));
       });
       expect(screen.getByRole('status')).toBeTruthy();
 
@@ -286,13 +289,13 @@ describe('SessionListItem -- named entry', () => {
       render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+        fireEvent.click(screen.getByRole('button', { name: /^Share Deep Dive$/i }));
       });
       await act(async () => {
         vi.advanceTimersByTime(3000);
       });
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Share Session Deep Dive/i }));
+        fireEvent.click(screen.getByRole('button', { name: /^Share Deep Dive$/i }));
       });
       // 3000ms after the SECOND click (total 6000ms elapsed) -- the first click's timer, if not
       // cleared, would have fired at 5000ms total and wrongly cleared this still-fresh note.
@@ -314,5 +317,126 @@ describe('SessionListItem reads its copy from src/content (docs/specs/CONTENT_LA
     expect(source).not.toMatch(/aria-label="[A-Za-z]/);
     expect(source).not.toMatch(/>\s*(Cancel|Link copied|Unable to copy)\s*</);
     expect(source).not.toMatch(/`(Saved|Collapse|Expand) $\{|failed to save\.|'CORRUPT NAME'|'NO TEMP'|Probes active\.|Viewing \{/);
+  });
+});
+
+// docs/tasks/LAYOUT_REWORK.md Task 17 follow-up (Crawford, 2026-10-10: the sketch's Save & Share, its
+// copy, single-line faces on this panel only). Each row is one line: name · time · Load · Share · Delete.
+describe('SessionListItem — the sketch\'s row', () => {
+  const ACTIONS = [
+    ['session.load', 'Load'],
+    ['session.share', 'Share'],
+    ['session.delete', 'Delete'],
+  ] as const;
+
+  it('each button reads its short name on its face — the session name is not repeated on it', () => {
+    render(<SessionListItem entry={makeEntry({ name: 'Night, all freelance' })} />);
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(ACTIONS.map(([key]) => CONTENT[key].human));
+    expect(CONTENT['session.share'].human).toBe('Share');
+  });
+
+  it('each button is still named for its session, so a screen reader can tell the rows apart', () => {
+    render(<SessionListItem entry={makeEntry({ name: 'Night, all freelance' })} />);
+    for (const [key] of ACTIONS) {
+      const name = fill(key, { session: 'Night, all freelance' });
+      expect(screen.getByRole('button', { name }).textContent).toBe(CONTENT[key].human);
+    }
+  });
+
+  it('the faces are single-line: no lore on any button', () => {
+    const { container } = render(<SessionListItem entry={makeEntry()} />);
+    for (const button of screen.getAllByRole('button')) {
+      expect(button.querySelector('.sc-button__label')).not.toBeNull();
+      expect(button.querySelector('.sc-dual-label')).toBeNull();
+    }
+    for (const [key] of ACTIONS) expect(container.textContent).not.toContain(CONTENT[key].lore);
+  });
+
+  it('the three buttons sit together in one actions group, after the title', () => {
+    const { container } = render(<SessionListItem entry={makeEntry()} />);
+    const actions = container.querySelector('.session-list-item__actions')!;
+    expect(actions).not.toBeNull();
+    expect([...actions.querySelectorAll('button')]).toEqual(screen.getAllByRole('button'));
+    expect(container.querySelector('.session-list-item__title')!.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  describe('CSS', () => {
+    const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'SessionListItem.css'), 'utf-8');
+
+    it('a row is one line with a divider under it, and wraps only as whole groups', () => {
+      const row = getCssRuleBody(css, '.session-list-item');
+      expect(row).toContain('display: flex;');
+      expect(row).toContain('flex-wrap: wrap;');
+      expect(row).toContain('align-items: center;');
+      expect(row).toMatch(/border-bottom: 1px solid var\(--color-border\);/);
+    });
+
+    it('the actions never split across lines or shrink', () => {
+      const actions = getCssRuleBody(css, '.session-list-item__actions');
+      expect(actions).not.toBeNull();
+      expect(actions).toContain('display: flex;');
+      expect(actions).toContain('flex: none;');
+      expect(actions).not.toMatch(/flex-wrap:\s*wrap/);
+    });
+  });
+});
+
+// The UI Shell guardrail (CLAUDE.md): interactive UI lives inside ScreenViewport — the confirm used to
+// portal to <body>. It portals into the screen, as HelpPopover does (Task 12), and opens in place when
+// there is no screen (a component test).
+describe('SessionListItem — the delete confirm stays inside the screen', () => {
+  afterEach(() => {
+    document.getElementById('screen-viewport')?.remove();
+  });
+
+  it('portals into #screen-viewport when the screen exists', () => {
+    const viewport = document.createElement('div');
+    viewport.id = 'screen-viewport';
+    document.body.appendChild(viewport);
+    render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Delete Deep Dive$/i }));
+    const dialog = screen.getByRole('alertdialog');
+    expect(viewport.contains(dialog)).toBe(true);
+  });
+
+  it('with no screen it opens in place, never as a child of <body>', () => {
+    const { container } = render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Delete Deep Dive$/i }));
+    const dialog = screen.getByRole('alertdialog');
+    expect(container.contains(dialog)).toBe(true);
+  });
+});
+
+describe('SessionListItem — the delete confirm reads, and gives focus back', () => {
+  // Found in Chrome: inside the screen the dialog inherited a dark text colour (on <body> it had been
+  // light), so its title and Cancel all but vanished on the dark panel.
+  it('CSS: the dialog sets its own text colour rather than inheriting the screen\'s', () => {
+    const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'SessionListItem.css'), 'utf-8');
+    expect(getCssRuleBody(css, '.session-delete-confirm__content')).toContain('color: var(--color-text-primary-fixed);');
+  });
+
+  // A modal Radix dialog gives focus back only to its own Trigger, and this one has none (the Delete
+  // button opens it), so without this Escape left focus on <body>.
+  it('Escape gives focus back to the Delete button that opened it', async () => {
+    render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+    const del = screen.getByRole('button', { name: /^Delete Deep Dive$/i });
+    act(() => del.focus());
+    fireEvent.click(del);
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' });
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(document.activeElement).toBe(del);
+  });
+
+  it('Cancel gives focus back too', async () => {
+    render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+    const del = screen.getByRole('button', { name: /^Delete Deep Dive$/i });
+    act(() => del.focus());
+    fireEvent.click(del);
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    expect(document.activeElement).toBe(del);
   });
 });

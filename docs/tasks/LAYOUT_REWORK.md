@@ -1837,6 +1837,98 @@ pass. At 375 px the row scrolls 1 px while Save & Share is open: the popped last
 - **The deletion gate:** a test mocking the deleted module; the stylesheet and the integration test
   restored.
 
+**Follow-up, Save & Share (Crawford, 2026-10-10):** "I thought the save/load session buttons would get
+a once over." Spec §1.8's "unchanged inside" had kept `SessionsPanel` as it was. With three saves in
+Chrome it fell well short of the approved sketch:
+- **Repeated names.** Every row's buttons read "Load Night, all freelance", "Share Session Night, all
+  freelance" and "Delete Night, all freelance". The per-row accessible names had been built by cloning
+  the schema's `humanLabel`, and `Button` draws its humanLabel as its face.
+- **The phone.** On a phone each row wrapped to three lines and the row's own name was cut to "Nig…".
+- **Two-line buttons.** Every button was lore over human, and Save and Share stacked under the input.
+
+Two calls asked and answered: the single-line face goes on **Save & Share only** (an opt-in, not
+Button-wide; every other button waits for Checkpoint B), and the panel uses **the sketch's copy**.
+Spec §1.8 is amended.
+
+**`Button`** gains two opt-in props:
+- `face="single"`: the human label alone, in DualLabel's human-line face, the lore left to the label
+  rows (as RadioButton's options went in Task 13);
+- `accessibleName`: names the button apart from its face. A row's "Load" is named "Load Dusk Run".
+
+Without them Button is unchanged; its existing tests pass as they were.
+
+**Copy:**
+- `session.share` is now a row's "Share" (template `Share {session}`, placeholder lore
+  `TRANSMIT ARCHIVE [c]`).
+- New `session.shareLive` "Share live", the live share, keeping the old `TRANSMIT COORDINATES` lore.
+- New `session.saved` (Stored Traces / Saved Sessions).
+- `session.clearStorage` is now the label row (Factory Reset / Clear Local Storage), and the new
+  `session.clearStorage.action` "Reset to Factory Settings" is the button. That swaps Crawford's
+  2026-09-28 pair, as the sketch draws it. The confirm dialog still says "Clear Local Storage".
+
+**Layout:**
+- **The save row:** the name (260 px basis), Save Session and Share live, buttons on the input's
+  bottom edge. It wraps on the phone.
+- **The saved list:** a Saved Sessions label row, shown only when something is saved, over the rows.
+- **A row:** title then a Load / Share / Delete actions group (`flex: none`), with a divider under it.
+  The title's share went from `flex: 1` (a zero basis) to `flex: 1 1 10rem`, so a narrow row wraps the
+  whole group under the title instead of squeezing the name. One pinned CSS assertion changed for it.
+- **The reset:** a Factory Reset label row over a full-width reset button.
+
+The time stays beside the name, as POST_SYNC_TOGGLE_LAYOUT_UPDATE §1.6 decided; the sketch puts it by
+the buttons. The buttons keep the panel's seed trait; the sketch draws Save Session teal.
+
+**The two confirm dialogs:**
+- **Portal into `#screen-viewport`:** they used to go to `<body>`, against the UI Shell guardrail. With
+  no screen they open in place, as HelpPopover does (Task 12).
+- **Own text colour:** found in Chrome. Inside the screen the title and Cancel inherited a dark colour
+  and all but vanished, so the dialog sets `--color-text-primary-fixed` itself.
+- **Focus return, pre-existing:** Escape or Cancel left focus on `<body>`. A modal Radix dialog gives
+  focus back only to its own `Trigger`, which these have none of, so the opener is recorded on open and
+  focused on close.
+
+`CompanyCrudControls`' delete dialog still portals to `<body>`; it is rebuilt in Task 23.
+
+**Tests changed for the new copy:** SessionsPanel's and SessionListItem's queries by name ("Share
+Session" → "Share live" / "Share Deep Dive", the opener "Clear Local Storage" → "Reset to Factory
+Settings"; the confirm's own "Clear Local Storage" is unchanged), and sessionConfig's label check.
+**Added:** Button +7, SessionListItem +11, SessionsPanel +13, sessionConfig +1 (8730 → 8762).
+
+**Measured in Chrome** with four saves, one of them a 60-character name:
+
+| Width | Save row | Rows | Reset | Document overflow |
+|---|---|---|---|---|
+| 1280 | input 173–995, then Save Session and Share live | one line each, 65 px | 173–1208 | none |
+| 700 | one line | one line each | full width | none |
+| 375 | input on its own line, Save and Share live under it | title line, then Load / Share / Delete | 32–335 | none |
+| 320 | as at 375 | as at 375; the long name ellipsizes at 148 px | 32–280 | none |
+
+The confirm sits inside `#screen-viewport`, and focus goes back to Delete after Escape at 1280 and 375.
+No console errors.
+
+**Docs:** SESSION_STORAGE.md still names "Share Session" and "Clear Local Storage" as the buttons; Task
+31 rewrites it.
+
+**Verified:**
+- Full suite: 315 files / 8762 tests.
+- `build:types` clean; lint at the known 25 / 4; `npm run build` clean.
+
+**Mutation check:** 38 killed, 1 survivor removed.
+- **Button:** the single face drawing the DualLabel, losing its lore fallback, or showing the accessible
+  name; the override ignored; the label wrapping.
+- **The row:** the two-line face back; a name without its session or from the wrong template; the old
+  name-on-the-face clone; no actions group; the confirm on `<body>`, with or without a screen; focus not
+  returned, the opener not recorded, the handler not wired; the CSS (a zero basis, shrinking or
+  wrapping actions, no divider, inherited dialog colour).
+- **The panel:** Share live reading "Share"; Save and reset on two lines; the Saved label over an empty
+  list, missing, or on the reset; no save row; the confirm on `<body>`; focus not returned; the CSS (no
+  wrap, no input basis, a narrow reset, label rows without the controls' face, inherited dialog
+  colour).
+- **Config and content:** the reset reading its label row's text; Share live named like a row's Share.
+
+The survivor was `event.preventDefault()` in the focus return. Radix's own close handler only focuses
+a `Trigger`, and there is none, so it changed nothing. It is deleted from both dialogs.
+
 ## Task 18: Retire the stacked scroll
 
 **Description:** Delete `useAccordionOpenState.ts`, `useSectionObserver.ts`, `src/utils/accordionSync.ts`,

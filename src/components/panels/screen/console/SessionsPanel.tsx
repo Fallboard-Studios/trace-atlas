@@ -1,18 +1,23 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { SessionListItem } from './SessionListItem';
 import { useShareStatus } from './useShareStatus';
 import { TextInput } from '@/components/ui/controls/TextInput';
 import { Button } from '@/components/ui/controls/Button';
+import { DualLabel } from '@/components/ui/controls/DualLabel';
 import { useSessionStore } from '@/stores/sessionStore';
 import { buildSessionPayload } from '@/utils/sessionDiff';
 import { saveNamedSession, listSessions } from '@/utils/sessionStorageEngine';
-import { SESSION_NAME_INPUT_SCHEMA, SAVE_SESSION_SCHEMA, SHARE_SESSION_SCHEMA, CLEAR_STORAGE_SCHEMA } from '@/data/sessionConfig';
-import { formatSessionTimestamp } from '@/utils/helpers';
+import { SESSION_NAME_INPUT_SCHEMA, SAVE_SESSION_SCHEMA, SHARE_LIVE_SCHEMA, CLEAR_STORAGE_SCHEMA } from '@/data/sessionConfig';
+import { formatSessionTimestamp, getScreenViewportDomNode } from '@/utils/helpers';
 import type { SessionEntry } from '@/types/session';
 
-import { CONTENT, fill } from '@/content';
+import { CONTENT, fill, labels } from '@/content';
 import './SessionsPanel.css';
+
+/** The two label rows over the list and the reset (the sketch's STORED TRACES and FACTORY RESET). */
+const SAVED_LABELS = labels('session.saved');
+const RESET_LABELS = labels('session.clearStorage');
 
 /**
  * The "Load Sessions" panel (docs/specs/SESSION_AUTOSAVE_REMOVAL.md §4.5): a required Session Name
@@ -30,6 +35,15 @@ export function SessionsPanel() {
     null,
   );
   const { shareStatus, share } = useShareStatus();
+
+  // A modal Radix dialog gives focus back only to its own Trigger, and the reset button is not one, so
+  // the button that opened it is kept and focused again on close (SessionListItem does the same).
+  const openerRef = useRef<HTMLElement | null>(null);
+  const openClearConfirm = () => {
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setClearConfirmOpen(true);
+  };
+  const returnFocus = () => openerRef.current?.focus();
 
   const refresh = () => {
     setSessions(listSessions());
@@ -68,12 +82,40 @@ export function SessionsPanel() {
   // Newest first — the row a user just saved stays at the top.
   const sorted = [...sessions].sort((a, b) => b.savedAt - a.savedAt);
 
+  // Into the screen, never <body> (the UI Shell guardrail; HelpPopover's way, Task 12); in place when
+  // there is no screen (a component test).
+  const screenNode = clearConfirmOpen ? getScreenViewportDomNode() : null;
+  const clearConfirm = (
+    <>
+      <AlertDialog.Overlay className="clear-storage-confirm__overlay" />
+      <AlertDialog.Content className="clear-storage-confirm__content" onCloseAutoFocus={returnFocus}>
+        <AlertDialog.Title className="clear-storage-confirm__title">
+          {CONTENT['session.clearStorage.confirmTitle'].human}
+        </AlertDialog.Title>
+        <AlertDialog.Description className="clear-storage-confirm__description">
+          {CONTENT['session.clearStorage.confirmBody'].human}
+        </AlertDialog.Description>
+        <div className="clear-storage-confirm__actions">
+          <AlertDialog.Cancel className="clear-storage-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
+          <AlertDialog.Action className="clear-storage-confirm__confirm" onClick={handleConfirmClearStorage}>
+            {CONTENT['session.clearStorage'].human}
+          </AlertDialog.Action>
+        </div>
+      </AlertDialog.Content>
+    </>
+  );
+
+  // The sketch's Save & Share (docs/tasks/LAYOUT_REWORK.md Task 17 follow-up, Crawford 2026-10-10): the
+  // name, Save Session and Share live in one row; a Saved Sessions label over the list; a Factory Reset
+  // label over the full-width reset. Every button has the single-line face; the lore is on the label rows.
   return (
     <div className="sessions-panel">
       <div className="sessions-panel__save">
-        <TextInput schema={SESSION_NAME_INPUT_SCHEMA} value={currentSessionName} onChange={setCurrentSessionName} />
-        <Button schema={SAVE_SESSION_SCHEMA} onClick={handleSave} disabled={nameIsBlank} />
-        <Button schema={SHARE_SESSION_SCHEMA} onClick={handleShare} />
+        <div className="sessions-panel__save-row">
+          <TextInput schema={SESSION_NAME_INPUT_SCHEMA} value={currentSessionName} onChange={setCurrentSessionName} />
+          <Button schema={SAVE_SESSION_SCHEMA} face="single" onClick={handleSave} disabled={nameIsBlank} />
+          <Button schema={SHARE_LIVE_SCHEMA} face="single" onClick={handleShare} />
+        </div>
         {saveStatus &&
           (saveStatus.success ? (
             <span className="sessions-panel__save-status" role="status">
@@ -95,32 +137,24 @@ export function SessionsPanel() {
           </span>
         )}
       </div>
-      <div className="sessions-panel__list">
-        {sorted.map((entry) => (
-          <SessionListItem key={entry.name} entry={entry} onChange={refresh} />
-        ))}
+      {sorted.length > 0 && (
+        <div className="sessions-panel__group sessions-panel__saved">
+          <DualLabel loreLabel={SAVED_LABELS.loreLabel} humanLabel={SAVED_LABELS.humanLabel} />
+          <div className="sessions-panel__list">
+            {sorted.map((entry) => (
+              <SessionListItem key={entry.name} entry={entry} onChange={refresh} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="sessions-panel__group sessions-panel__reset">
+        <DualLabel loreLabel={RESET_LABELS.loreLabel} humanLabel={RESET_LABELS.humanLabel} />
+        <Button schema={CLEAR_STORAGE_SCHEMA} face="single" onClick={openClearConfirm} />
       </div>
 
-      <Button schema={CLEAR_STORAGE_SCHEMA} onClick={() => setClearConfirmOpen(true)} />
-
       <AlertDialog.Root open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
-        <AlertDialog.Portal>
-          <AlertDialog.Overlay className="clear-storage-confirm__overlay" />
-          <AlertDialog.Content className="clear-storage-confirm__content">
-            <AlertDialog.Title className="clear-storage-confirm__title">
-              {CONTENT['session.clearStorage.confirmTitle'].human}
-            </AlertDialog.Title>
-            <AlertDialog.Description className="clear-storage-confirm__description">
-              {CONTENT['session.clearStorage.confirmBody'].human}
-            </AlertDialog.Description>
-            <div className="clear-storage-confirm__actions">
-              <AlertDialog.Cancel className="clear-storage-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
-              <AlertDialog.Action className="clear-storage-confirm__confirm" onClick={handleConfirmClearStorage}>
-                {CONTENT['session.clearStorage'].human}
-              </AlertDialog.Action>
-            </div>
-          </AlertDialog.Content>
-        </AlertDialog.Portal>
+        {screenNode ? <AlertDialog.Portal container={screenNode}>{clearConfirm}</AlertDialog.Portal> : clearConfirm}
       </AlertDialog.Root>
     </div>
   );

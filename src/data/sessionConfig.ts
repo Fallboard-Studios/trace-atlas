@@ -24,10 +24,18 @@ export const SAVE_SESSION_SCHEMA: ButtonSchema = {
   ...labels('session.save'),
 };
 
+/** A saved row's Share: shares that row's stored payload. */
 export const SHARE_SESSION_SCHEMA: ButtonSchema = {
   id: 'session.share',
   type: 'button',
   ...labels('session.share'),
+};
+
+/** The save row's Share live: shares the current live state, not a save. */
+export const SHARE_LIVE_SCHEMA: ButtonSchema = {
+  id: 'session.shareLive',
+  type: 'button',
+  ...labels('session.shareLive'),
 };
 
 export const LOAD_SESSION_SCHEMA: ButtonSchema = {
@@ -42,11 +50,12 @@ export const DELETE_SESSION_SCHEMA: ButtonSchema = {
   ...labels('session.delete'),
 };
 
-/** Bottom-of-panel destructive action (Crawford's exact copy, 2026-09-28) — wipes ALL of
- *  localStorage (not just the sessions key), behind an AlertDialog confirm like
- *  CompanyCrudControls.tsx's own delete confirmation. */
+/** Bottom-of-panel destructive action — wipes ALL of localStorage (not just the sessions key), behind
+ *  an AlertDialog confirm like CompanyCrudControls.tsx's own delete confirmation. The button reads the
+ *  action, "Reset to Factory Settings"; the label row over it is session.clearStorage (the sketch's
+ *  copy, docs/tasks/LAYOUT_REWORK.md Task 17 follow-up). */
 export const CLEAR_STORAGE_SCHEMA: ButtonSchema = {
   id: 'session.clearStorage',
   type: 'button',
-  ...labels('session.clearStorage'),
+  ...labels('session.clearStorage.action'),
 };
