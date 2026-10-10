@@ -35,10 +35,27 @@ const allConsumerText = consumerSource.map((f) => f.text).join('\n');
 
 const keys = Object.keys(CONTENT) as ContentKey[];
 
+const isReferenced = (k: string) => allConsumerText.includes(`'${k}'`) || allConsumerText.includes(`"${k}"`);
+
+/** Keys a task plan adds ahead of the component that reads them, each naming the task that wires it.
+ *  Exempt from the unreferenced check only while they are still unreferenced: the moment a consumer
+ *  lands, the self-cleaning test below fails until the key leaves this list. Empty between plans
+ *  (docs/tasks/LAYOUT_REWORK.md: empty again by Checkpoint A). */
+const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {
+  'nav.entity.newCompany': 'LAYOUT_REWORK Task 4 (NavEntityList)',
+  'ui.phoneBar.menuOpen': 'LAYOUT_REWORK Task 5 (PhoneBar)',
+};
+
 describe('content guard', () => {
   it('every key is referenced from src/ outside src/content', () => {
-    const unreferenced = keys.filter((k) => !allConsumerText.includes(`'${k}'`) && !allConsumerText.includes(`"${k}"`)).sort();
+    const unreferenced = keys.filter((k) => !isReferenced(k) && !(k in AWAITING_CONSUMER)).sort();
     expect(unreferenced, `unreferenced content keys:\n  ${unreferenced.join('\n  ')}`).toEqual([]);
+  });
+
+  it('every key awaiting a consumer exists and is still unreferenced (remove it once wired)', () => {
+    const pending = Object.keys(AWAITING_CONSUMER);
+    expect(pending.filter((k) => !(k in CONTENT)), 'awaiting-consumer keys missing from CONTENT').toEqual([]);
+    expect(pending.filter(isReferenced), 'now referenced — remove from AWAITING_CONSUMER').toEqual([]);
   });
 
   it('every entry has a non-empty human name', () => {

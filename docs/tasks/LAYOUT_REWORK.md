@@ -173,6 +173,15 @@ field names, moved from `nav.status.*` if they are not already reusable). One en
 
 **Estimated scope:** XS (content only)
 
+**As built (2026-10-09):** two keys, not five — one entry per concept (CLAUDE.md) won over the list
+above. "All Probes" already is `probe.all` (today's tree row reads it), the phone bar's menu button
+is `NavToggleButton`'s replacement and keeps `nav.toggle`, and the world line has no field names
+beyond `nav.status.*`, which `MetaBox` reuses (the plan's own "if not already reusable" clause). Added:
+`nav.entity.newCompany` (`[c]` placeholder lore) and `ui.phoneBar.menuOpen`. The content guard fails
+on any key without a consumer, so `content.test.ts` gained `AWAITING_CONSUMER`: a key listed there is
+exempt only while unreferenced — once Task 4 / Task 5 reads it, a self-cleaning test fails until the
+entry is removed, which empties the list by Checkpoint A.
+
 ## Task 2: `useShell.ts` — the one shell switch
 
 **Description:** New hook `useShell(): 'desk' | 'phone'` in `src/components/panels/screen/useShell.ts`,

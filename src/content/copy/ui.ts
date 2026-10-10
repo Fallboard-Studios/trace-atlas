@@ -18,6 +18,9 @@ export const ui = {
   'ui.power.off': { human: 'Power off' },
   'ui.power.confirmTitle': { human: 'Power off?' },
   'ui.power.confirmBody': { human: 'All audio will stop.' },
+  /** The phone bar's well while the nav sheet is open (docs/specs/LAYOUT_REWORK.md §1.1; the sketch's
+   *  wording). The bar's menu button is the nav toggle's replacement and keeps reading nav.toggle. */
+  'ui.phoneBar.menuOpen': { human: 'menu open — tap outside or pick to close' },
   'ui.lfo.shape': {
     human: 'Shape',
     lore: 'Mutation Type',
