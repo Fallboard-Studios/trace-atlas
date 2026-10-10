@@ -109,4 +109,31 @@ describe('IntroPanel.css — the expander layout', () => {
     expect(body).toContain('display: grid;');
     expect(body).toMatch(/grid-template-areas:\s*"head toggle"\s*"body body";/);
   });
+
+  // Crawford, 2026-10-10 (option a): beside a 70 px button the phone's headline wrapped to 135–270 px. On
+  // the phone shell the headline takes the full width at a smaller size, and the button gets its own line.
+  describe('on the phone shell', () => {
+    const PHONE = "#screen-viewport[data-shell='phone'] .sc-intro-panel--collapsible";
+
+    it('stacks headline, button, body, one column', () => {
+      const body = getCssRuleBody(css, PHONE);
+      expect(body).not.toBeNull();
+      expect(body).toContain('grid-template-columns: minmax(0, 1fr);');
+      expect(body).toMatch(/grid-template-areas:\s*"head"\s*"toggle"\s*"body";/);
+    });
+
+    it('sets the headline smaller than the desk h2', () => {
+      expect(getCssRuleBody(css, `${PHONE} > .loreLabel`)).toContain('font-size: var(--font-size-heading-sm);');
+    });
+
+    it('gives the text more of the pane: tighter margin and padding than the desk\'s 16 px', () => {
+      const body = getCssRuleBody(css, PHONE);
+      expect(body).toContain('margin: 8px 0;');
+      expect(body).toContain('padding: 12px;');
+    });
+
+    it('the desk rule does not carry the phone\'s headline size', () => {
+      expect(getCssRuleBody(css, '.sc-intro-panel--collapsible > .loreLabel')).not.toContain('font-size');
+    });
+  });
 });

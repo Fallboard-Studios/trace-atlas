@@ -163,6 +163,9 @@ no hardware keys, build on the existing components.
   - Each section tab's panel opens with its own intro: Fleet Params' five groups, Settings' three
     tabs, and the robot screen's Levels / Composition / Envelope / Source. Source's sits above its
     oscillator sub-tabs.
+  - On the phone shell (Crawford, option a): the headline spans the full width at
+    `--font-size-heading-sm`, the button sits on its own line under it at the right, and the panel's
+    margin and padding tighten to 8 px / 12 px.
 - **`SectionTabs`** (new, `src/components/ui/controls/SectionTabs.tsx`, a `ControlSchema` consumer):
   Radix `Tabs.Root` whose `Tabs.Trigger`s are `CabinetBox`es (popped = active, trait colour from the
   section's `trait`), with an optional second row of sub-tabs. Fleet Params tabs are the five

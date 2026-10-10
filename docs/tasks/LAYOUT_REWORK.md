@@ -2141,6 +2141,23 @@ keeps IntroPanel's large h2 and shares a narrow row with the 70 px button, so it
 At 320 px two collapsed intros, the screen's and the section's, take more than the visible pane
 before the first control. Not changed here; it is Crawford's call.
 
+**Decided, option (a) (Crawford, 2026-10-10).** On the phone shell the headline takes the full
+width at `--font-size-heading-sm` (18 px against the h2's 22.5), and the button gets its own line
+under it on the right. I also tightened the intro's own margin and padding, to 8 px / 12 px from
+16 / 16, because at the desk spacing it sat 32 px in from each side of the pane. The rules key on
+`#screen-viewport[data-shell='phone']`, so the desk is unchanged (still 88 px).
+
+Re-measured in Chrome:
+
+| Width | Collapsed intro | Headline |
+|---|---|---|
+| 375 px | 146–173 px (from 175–209) | 54–81 px |
+| 320 px | 146–173 px (from 243–310) | 54–81 px |
+
+Most of what remains is the button's own 44 px line. Mutation check: 6, all killed. The mutants:
+the phone keeping the desk row; two columns; the full-size headline; the desk spacing; the rules
+keyed on the desk; the smaller headline leaking to the desk.
+
 Mutation check: 19, all killed. The mutants: starts expanded; body never hidden; no `aria-expanded`
 or `aria-controls`; the name ignored or always "More"; the face always More; a button with nothing to
 expand; `collapsible` ignored; one shared body id; a one-column grid; and per screen, each intro
