@@ -48,6 +48,9 @@ export const probe = {
 
   // ---------------------------------------------------------------- selection card / display rows
   'probe.name': { human: 'Robot Name', lore: 'ROBOT IDENTIFIER' },
+  // The robot screen's phone band (docs/specs/LAYOUT_REWORK.md §1.4): the avatar column's meta and
+  // battery on one line, as the sketch draws it ("Salvage · Docked · Charging · Disabled · 85%").
+  'probe.band.statusLine': { human: 'Status line', template: '{job} · {dockingState} · {activity} · {status} · {battery}' },
   'probe.job': {
     human: 'Job Data',
     lore: 'ASSIGNED PROTOCOL',

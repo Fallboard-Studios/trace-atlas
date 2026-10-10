@@ -83,14 +83,16 @@ describe('RobotSelectionCard.css standalone DualLabel host', () => {
   });
 });
 
-describe('RobotDisplaySection.css standalone DualLabel host', () => {
+// RobotDisplaySection was deleted by docs/tasks/LAYOUT_REWORK.md Task 16; its standalone DualLabels (the
+// meta captions) moved into RobotScreen's avatar column, which carries the same host rules.
+describe('RobotScreen.css standalone DualLabel host (the avatar column, from RobotDisplaySection.css)', () => {
   const cssSource = readFileSync(
-    resolve(repoRoot, 'src/components/robot/RobotDisplaySection.css'),
+    resolve(repoRoot, 'src/components/panels/screen/screens/RobotScreen.css'),
     'utf-8',
   );
 
-  it('sets font-family/font-weight on the root (.robot-display-section)', () => {
-    const body = getCssRuleBody(cssSource, '.robot-display-section');
+  it('sets font-family/font-weight on the column (.robot-screen__avatar-column)', () => {
+    const body = getCssRuleBody(cssSource, '.robot-screen__avatar-column');
     expect(body).not.toBeNull();
     expect(body).toContain('font-family: var(--font-controls);');
     expect(body).toContain('font-weight: var(--font-weight-control);');
@@ -101,8 +103,8 @@ describe('RobotDisplaySection.css standalone DualLabel host', () => {
     expect(cssSource).not.toContain('container-name');
   });
 
-  it('tokenizes .__value\'s font-weight to --font-weight-medium (same 600 value, not renumbered)', () => {
-    const body = getCssRuleBody(cssSource, '.robot-display-section__value');
+  it('tokenizes the meta value\'s font-weight to --font-weight-medium (same 600 value, not renumbered)', () => {
+    const body = getCssRuleBody(cssSource, '.robot-screen__meta-value');
     expect(body).not.toBeNull();
     expect(body).toContain('font-weight: var(--font-weight-medium);');
     expect(body).not.toContain('font-weight: 600;');

@@ -8,7 +8,7 @@ import {
   type SettingsLeaf,
 } from '@/stores/uiStore';
 import type { HubTile } from '@/types/hub';
-import { ROBOT_SECTIONS_CONFIG } from '@/data/robotSubsectionConfig';
+import { ROBOT_SECTIONS_CONFIG, activeRobotSection, sectionTabContent } from '@/data/robotSubsectionConfig';
 import { LFO_BANK_LANE_CONTENT } from '@/data/lfoConfig';
 import { labels, type ContentKey } from '@/content';
 
@@ -286,8 +286,12 @@ export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): Brea
   const open = openEntity(state, roster, tile);
   if (open === null) return trail;
   trail.push({ label: open.label, go: () => selectEntity(open.entity) });
-  const section = ROBOT_SECTIONS_CONFIG.find((s) => s.id === state.selectedSection);
-  if (section) trail.push({ label: name(section.content) });
+  // A robot's screen is tabs (Task 16), so one is always open: Source when none is stored. All Probes
+  // and a company stay on their stacked screens until Task 23, so only a stored section shows there.
+  const isRobot = typeof open.entity === 'object' && 'robotId' in open.entity;
+  const sectionId = isRobot ? activeRobotSection(state.selectedSection) : state.selectedSection;
+  const section = ROBOT_SECTIONS_CONFIG.find((s) => s.id === sectionId);
+  if (section) trail.push({ label: name(sectionTabContent(section)) });
   return trail;
 }
 

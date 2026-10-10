@@ -1479,6 +1479,129 @@ routes `robots` here when `selectedRobotId` is set (the list stays `RobotsTab` u
 
 **Estimated scope:** M (one screen from two, three deletions)
 
+**As built (2026-10-10):**
+
+**`RobotSectionAccordionStack` is not deleted.** The grep gate failed: `CompanyOptionsSection` still
+renders through it, for the company screen and All Probes, until Task 23. It retires with that last
+consumer, by the plan's own "retire with their last consumer" rule. RobotDisplaySection had no
+accordion wrapper to remove, so the whole file went (its content is the avatar column now).
+RobotOptionsTab went too. Grep gate: their only importers were `ProbesContent.tsx` and their own
+tests; the gate is a test in the screen's file.
+
+**One table, two readers** (as Task 15's). `robotSubsectionConfig.ts` gains:
+- `DEFAULT_ROBOT_SECTION = 'source'`;
+- `sectionTabContent` (a tab is named after the panel it shows, as its accordion was: "Levels", not
+  the tree's old "Dynamics" row);
+- `sectionSubTabs` (a sub row only where a section has two or more panels, so only Source; the
+  merged Pitches is inside Composition's panel and gets no tab);
+- `activeRobotSection` / `activeRobotSubsection` (null or a stale value resolves to the first).
+
+The screen and the breadcrumb both read these.
+
+**The sketch draws Rhythm / Pitches sub-tabs under Composition. Not built.** The code merged them
+into one panel (`mergedInto`, docs/reference/layout-updates.md), and §1.3 keeps the section components
+as they are. A "Pitches" tab would show the same panel again.
+
+**The breadcrumb** (files beyond the list: `navActions.ts` / `.test.ts`, `NavBreadcrumb.test.tsx`):
+- A robot's trail always names its open tab: `Root / Probes / Tidal Wisp / Source` by default, as the
+  desk sketch draws it. So Task 3's `['Root', 'Probes', '<robot name>']` for "no section" is gone; with
+  tabs there is no such state.
+- The robot is now always an ancestor (a button).
+- Sections are named by their tab, so Levels reads "Levels" everywhere, All Probes included.
+- All Probes and a company keep naming only a stored section: their stacked screens have no tabs until
+  Task 23.
+- No sub-tab segment (spec §1.2's `<entity> / <section>`).
+
+**Routing:** `ProbesContent` renders RobotScreen for a selected robot, in place of RobotOptionsTab.
+It is the component ConsolePanel routes Probes to, so ConsolePanel is unchanged until Task 21.
+
+**The screen** (`screens/RobotScreen.tsx`):
+- **Tabs:** SectionTabs over `ROBOT_SECTIONS_CONFIG`. The tablist is named after the robot, falling
+  back to its id. Each section's panel sits in its trait, as its accordion was. A section pick clears
+  the sub-tab: Source / Accent → Envelope → Source opens Core again (Task 15's rule). Picking another
+  robot opens its default tab (`selectRobot` already reset the section).
+- **No intros and no accordion** (spec §1.3; the sketch's robot frame has none). The four section
+  intros still render on the company and All Probes screens until Task 23.
+- **Wiring:** each panel's value and handler logic moved verbatim from RobotOptionsTab into
+  `useRobotSubsectionRenderer`. That includes the swell cancels, the `latestRobot` ref and the per-field
+  memos. One thing was dropped: PingControlsCompositionSection's `noteVarianceAnchorId`, a sectionRefs
+  scroll anchor for the tree's Pitches row.
+- **Desk column:** the gem (avatar render context), the name as a heading, the four meta values (job,
+  docking, phase, emission) as wells in two columns with their lore captions, the battery readout and
+  the company radio.
+- **Phone band:** the gem at 72 × 58, the name, and one status line from a new template,
+  `probe.band.statusLine`: "job · docking · phase · emission · battery%". There are no wells, battery
+  readout or company radio on the phone; reassignment there is the roster's Move sheet (Task 22).
+
+**Found in Chrome:**
+- **The band showed the controls through the scroller's padding.** A sticky box sticks inside its
+  scroller's padding, so at `top: 0` the controls scrolled through the 16 px strip above it. It now
+  sticks at `calc(-1 * var(--spacing-lg))`. A test ties that to ConsolePanel's padding.
+- **The status line wraps instead of ending in an ellipsis.** At 320 px "Structural Inspection · Active ·
+  Working · Emitting · 82%" is 244 px in 164, and the ellipsis cut off the emission and the battery.
+- **The desk gem now yields first.** It is 300 px tall but shrinks to 120 px before the column scrolls.
+  At 1280 × 800 the column needed 801 px in 494; now it needs 537.
+- **The column is `min(400px, 40%)`, not a fixed 400 px** (`--avatar-column-width: 400px`, spec §4).
+  With Probes' list open (the nav panel is 260 px) a fixed 400 px left the controls under a three-box
+  slider's width below about 1100 px.
+
+**Measured** (power on → Probes → a robot → every tab):
+
+| Size | Column | Controls | Notes |
+|---|---|---|---|
+| 1280 × 800 | 360 px | 523 px | the outer scroller does not scroll; each column scrolls on its own; the company radio is 41 px below the column's fold |
+| 1024 × 768 | 242 px | 365 px | |
+| 800 × 700 | 153 px | 220 px | the section tab row scrolls (350 px in 212) |
+| 375 / 320 | band | full width | after a 400 px scroll the band sits at the scroller's edge (143) |
+
+No document overflow and no console errors at any size.
+
+**For Crawford:**
+- **Narrow desk widths, a design gap.** The sketch draws 1600 and 375 px only. From 768 to about
+  1000 px, with Probes' list open, the split leaves 153–242 px for the column and 220–365 px for the
+  controls: usable at 1024, poor at 800. Options:
+  - (a) below a content width, a container query stacks the column above the controls;
+  - (b) below a content width, use the band (small form);
+  - (c) leave it.
+
+  Not decided here.
+- **The phone breadcrumb.** `Root / Probes / Drift Warden / Source` is 225 px in the 202 px well at
+  320 px. This is the same open question as Task 15's.
+- **The company radio needs a short scroll** of the column at 1280 × 800.
+
+**Two existing tests changed, both because of the deletion:**
+- `standaloneDualLabelHosts.test.ts` read the deleted RobotDisplaySection.css. Its DualLabel-host
+  checks now target the avatar column in RobotScreen.css.
+- `Robot.test.ts`'s stale-state guard caught a `'docking'` key in the screen's meta table. That is the
+  `Robot.docking` field, not the retired state, but the guard can't tell. The key is `dockingState`.
+
+The mutation runs targeted the task's own tests and so never ran these two; the full suite caught
+them.
+
+**Comments:** comments elsewhere that name the deleted files as history are left as they are, as in
+Task 9 (about 40 files, `src/engine/` and `src/systems/` among them). The config's own header now names
+RobotScreen.
+
+**Verified:**
+- Full suite: 315 files / 8683 tests.
+- `build:types` clean; lint at the known 25 / 4; `npm run build` clean.
+
+**Mutation check:** 37, all killed:
+- **Config helpers:** the default, the sub-tab resolver (membership, stored value), the one-panel
+  sub row, the tab name, the merged panel.
+- **Breadcrumb:** the default for robots only; the tab name in the crumb.
+- **Writes:** section and sub-tab writes; the sub-tab reset.
+- **Shell:** the switch; the band's battery.
+- **Column:** the well order, Freelance → null, the company schema memo.
+- **Re-renders:** the robot and anySolo subscriptions.
+- **Colour:** section and sub-tab traits.
+- **Wiring:** the dropped anchor, the volume and ADSR swell cancels, the layer index.
+- **Fallbacks:** the name and tablist id fallbacks, battery rounding.
+- **Routing and gate:** ProbesContent's route; a test mocking a deleted module; a deleted file
+  restored.
+- **CSS:** sticky, the sticky offset, the 72 px gem, the status-line wrap, the gem's yield, the column
+  width.
+
 ## Task 17: `SettingsScreen` — section tabs over the three leaves
 
 **Description:** New `src/components/panels/screen/screens/SettingsScreen.tsx`: `SectionTabs` over

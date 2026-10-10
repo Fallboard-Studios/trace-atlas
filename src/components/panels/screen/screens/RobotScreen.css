@@ -1,0 +1,151 @@
+/* The robot screen (docs/specs/LAYOUT_REWORK.md §1.4; docs/tasks/LAYOUT_REWORK.md Task 16). Colour comes
+   inline: the robot's identity colour on the root, each section panel's trait on its wrapper. */
+.robot-screen {
+  --avatar-column-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  min-width: 0;
+}
+
+.robot-screen__empty {
+  padding: var(--spacing-lg);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.robot-screen__section {
+  min-width: 0;
+}
+
+.robot-screen__controls {
+  min-width: 0;
+}
+
+/* ----------------------------------------------------------------- desk: the avatar column */
+
+/* The sketch's split: the column beside the controls, each scrolling on its own, so the column stays put
+   while the controls scroll. The screen fills ConsolePanel's scroller (a flex item of definite height).
+   The column takes at most 40% of the screen: the sketch's 400 px is a 1600 px frame's, and with Probes'
+   list open a fixed 400 px left the controls under a three-box slider's width below about 1100 px. */
+.robot-screen--desk {
+  display: grid;
+  grid-template-columns: min(var(--avatar-column-width), 40%) minmax(0, 1fr);
+  gap: var(--spacing-lg);
+  height: 100%;
+}
+
+.robot-screen--desk > .robot-screen__avatar-column,
+.robot-screen--desk > .robot-screen__controls {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Room for a popped facade's front face, 4 px right and 2 px down of its box (cabinetGeometry.ts's
+   computeCabinetFrontFaceOffset), which a scrolling column would otherwise clip or scroll sideways to. */
+.robot-screen--desk > .robot-screen__controls {
+  padding: 0 var(--spacing-sm) var(--spacing-sm) 0;
+}
+
+.robot-screen__avatar-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  min-width: 0;
+  font-family: var(--font-controls);
+  font-weight: var(--font-weight-control);
+}
+
+/* The sketch's 300 px gem, the first thing to give way when the column is short (the column scrolls only
+   once the gem is down to 120 px): its motion canvas is mostly the orbiters' room to move. */
+.robot-screen__avatar-column .robot-screen__gem {
+  display: block;
+  flex: 0 1 auto;
+  width: 100%;
+  height: 300px;
+  min-height: 120px;
+}
+
+.robot-screen__name {
+  margin: 0;
+  color: var(--color-text-primary-fixed);
+  font-size: var(--font-size-heading-md);
+  overflow-wrap: anywhere;
+}
+
+/* The read-only meta, two columns of wells (spec §1.1: in = read), in the shared well tokens and the
+   robot's identity colour. Each caption shows its lore line; the value is the human reading. */
+.robot-screen__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.robot-screen__well {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px var(--spacing-md);
+  border: 1px solid var(--color-accent);
+  box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);
+  background: var(--well-background);
+}
+
+.robot-screen__well .sc-dual-label__human {
+  display: none;
+}
+
+/* Fixed white: the robot's identity colour on the root must not tint its readings (Crawford, 2026-10-06). */
+.robot-screen__meta-value {
+  color: var(--color-text-primary-fixed);
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.robot-screen__avatar-column .sc-slider-linear {
+  width: 100%;
+}
+
+/* ----------------------------------------------------------------- phone: the small band */
+
+/* Sticky at the top of ConsolePanel's scroller, over the controls as they scroll; opaque, and above the
+   popped facades (each its own stacking context). A sticky box sticks inside its scroller's padding, so
+   top is minus that padding (ConsolePanel.css's --spacing-lg): at 0 the controls showed through the
+   16 px strip above the band (measured in Chrome at 375 px). */
+.robot-screen__band {
+  position: sticky;
+  top: calc(-1 * var(--spacing-lg));
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) 0;
+  background: var(--content-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.robot-screen__band .robot-screen__gem {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 58px;
+}
+
+.robot-screen__band-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.robot-screen__band .robot-screen__name {
+  font-size: var(--font-size-heading-sm);
+}
+
+/* The sketch's `.st`. It wraps rather than cut: at 320 px "Structural Inspection · Active · Working ·
+   Emitting · 82%" is 244 px in 164, and an ellipsis lost the emission and the battery (measured). */
+.robot-screen__status-line {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label-compact);
+}

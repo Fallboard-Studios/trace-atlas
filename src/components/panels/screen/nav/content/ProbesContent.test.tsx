@@ -4,13 +4,13 @@ import { ProbesContent } from './ProbesContent';
 import { CONTENT } from '@/content';
 import { useUIStore } from '@/stores/uiStore';
 
-// RobotsTab/RobotOptionsTab/CompanyOptionsSection each have their own full test suite — this
+// RobotsTab/RobotScreen/CompanyOptionsSection each have their own full test suite — this
 // file is about ProbesContent's own routing between the 3, not re-testing their content.
 vi.mock('../../console/RobotsTab', () => ({
   RobotsTab: () => <div data-testid="robots-tab-stub" />,
 }));
-vi.mock('../../console/RobotOptionsTab', () => ({
-  RobotOptionsTab: () => <div data-testid="robot-options-tab-stub" />,
+vi.mock('../../screens/RobotScreen', () => ({
+  RobotScreen: () => <div data-testid="robot-screen-stub" />,
 }));
 vi.mock('@/components/company/CompanyOptionsSection', () => ({
   CompanyOptionsSection: () => <div data-testid="company-options-section-stub" />,
@@ -27,16 +27,16 @@ describe('ProbesContent — routes the Probes branch to the browse list, a singl
     render(<ProbesContent />);
 
     expect(screen.getByTestId('robots-tab-stub')).toBeTruthy();
-    expect(screen.queryByTestId('robot-options-tab-stub')).toBeNull();
+    expect(screen.queryByTestId('robot-screen-stub')).toBeNull();
     expect(screen.queryByTestId('company-options-section-stub')).toBeNull();
   });
 
-  it('shows RobotOptionsTab when a specific robot is selected — "Probes -> Probe N"', () => {
+  it('shows RobotScreen when a specific robot is selected — "Probes -> Probe N"', () => {
     useUIStore.getState().selectRobot('r1');
 
     render(<ProbesContent />);
 
-    expect(screen.getByTestId('robot-options-tab-stub')).toBeTruthy();
+    expect(screen.getByTestId('robot-screen-stub')).toBeTruthy();
     expect(screen.queryByTestId('robots-tab-stub')).toBeNull();
     expect(screen.queryByTestId('company-options-section-stub')).toBeNull();
   });
@@ -48,7 +48,7 @@ describe('ProbesContent — routes the Probes branch to the browse list, a singl
 
     expect(screen.getByTestId('company-options-section-stub')).toBeTruthy();
     expect(screen.queryByTestId('robots-tab-stub')).toBeNull();
-    expect(screen.queryByTestId('robot-options-tab-stub')).toBeNull();
+    expect(screen.queryByTestId('robot-screen-stub')).toBeNull();
   });
 
   it('prefers a specific selected robot over allProbesSelected — selecting Probe N after All Probes leaves All Probes', () => {
@@ -57,7 +57,7 @@ describe('ProbesContent — routes the Probes branch to the browse list, a singl
 
     render(<ProbesContent />);
 
-    expect(screen.getByTestId('robot-options-tab-stub')).toBeTruthy();
+    expect(screen.getByTestId('robot-screen-stub')).toBeTruthy();
     expect(screen.queryByTestId('company-options-section-stub')).toBeNull();
   });
 

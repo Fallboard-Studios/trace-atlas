@@ -31,6 +31,7 @@ const FLEET = CONTENT['fleet.root'].human;
 const LFO_BANK = CONTENT['fleet.lfoBank'].human;
 const LANE_B = CONTENT['fleet.lfoBank.laneB'].human;
 const COMPOSITION = CONTENT['probe.composition'].human;
+const SOURCE = CONTENT['probe.source'].human;
 
 /** useShell's one min-width query: `desk` decides whether it matches. */
 function stubShell(desk: boolean) {
@@ -106,7 +107,7 @@ describe('NavBreadcrumb — the path, from navActions', () => {
     setNav({ activeHubTile: 'robots', selectedRobotId: 'r1' });
     const { container } = render(<NavBreadcrumb />);
     act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { name: 'Brine Moth' }));
-    expect(crumb().textContent).toBe(`${ROOT} / ${PROBES} / Brine Moth`);
+    expect(crumb().textContent).toBe(`${ROOT} / ${PROBES} / Brine Moth / ${SOURCE}`);
     act(() => useUIStore.getState().setActiveHubTile(null));
     expect(container.firstChild).toBeNull();
   });
@@ -186,13 +187,17 @@ describe('NavBreadcrumb — every ancestor is a button that calls navActions; th
     expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${LFO_BANK} / ${CONTENT['fleet.lfoBank.laneA'].human}`);
   });
 
-  it('a robot under a section goes back to the robot', () => {
+  // Task 16: the robot screen always has a tab open (Source when none is stored), so going back to the
+  // robot lands on that tab, and the robot stays a button.
+  it('a robot under a section goes back to the robot, on its default tab', () => {
     setNav({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
     render(<NavBreadcrumb />);
     fireEvent.click(screen.getByRole('button', { name: 'Tidal Wisp' }));
     expect(useUIStore.getState().selectedRobotId).toBe('r1');
     expect(useUIStore.getState().selectedSection).toBeNull();
-    expect(screen.getByText('Tidal Wisp').tagName).toBe('SPAN');
+    expect(crumb().textContent).toBe(`${ROOT} / ${PROBES} / Tidal Wisp / ${SOURCE}`);
+    expect(buttons()).toEqual([ROOT, PROBES, 'Tidal Wisp']);
+    expect(screen.getByText(SOURCE).getAttribute('aria-current')).toBe('page');
   });
 
   it('a company under a section goes back to the company', () => {
@@ -223,7 +228,7 @@ describe('NavBreadcrumb — where it renders, by shell', () => {
     setNav({ activeHubTile: 'robots', selectedRobotId: 'r1' });
     render(<NavBreadcrumb inBar />);
     expect(crumb().classList.contains('nav-breadcrumb--bar')).toBe(true);
-    expect(crumb().textContent).toBe(`${ROOT} / ${PROBES} / Tidal Wisp`);
+    expect(crumb().textContent).toBe(`${ROOT} / ${PROBES} / Tidal Wisp / ${SOURCE}`);
     fireEvent.click(screen.getByRole('button', { name: ROOT }));
     expect(useUIStore.getState().activeHubTile).toBeNull();
   });

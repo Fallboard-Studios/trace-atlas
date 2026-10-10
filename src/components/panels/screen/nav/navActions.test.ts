@@ -463,16 +463,30 @@ describe('breadcrumbPath', () => {
     expect(path({ activeHubTile: 'settings', selectedSettingsLeaf: 'quality' })).toEqual([ROOT, SETTINGS, CONTENT['settings.quality'].human]);
   });
 
-  it('reads Root / Probes / <robot name> for a robot with no section', () => {
-    expect(path({ activeHubTile: 'robots', selectedRobotId: 'r1' })).toEqual([ROOT, PROBES, 'Tidal Wisp']);
+  // Task 16: the robot screen is tabs, so a robot always has one open — Source when none is stored.
+  it('reads Root / Probes / <robot name> / Source for a robot with no section stored', () => {
+    expect(path({ activeHubTile: 'robots', selectedRobotId: 'r1' })).toEqual([ROOT, PROBES, 'Tidal Wisp', CONTENT['probe.source'].human]);
   });
 
   it("adds the robot's section", () => {
     expect(path({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' })).toEqual([ROOT, PROBES, 'Tidal Wisp', CONTENT['probe.composition'].human]);
   });
 
+  it("names a section by its tab: Levels, not the tree's old Dynamics row", () => {
+    expect(path({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'volume' })).toEqual([ROOT, PROBES, 'Tidal Wisp', CONTENT['probe.levels'].human]);
+  });
+
+  it('names no sub-tab: a robot trail ends at its section (spec §1.2)', () => {
+    expect(path({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'source', selectedSubsection: 'coaxialOscillator' } as Partial<BreadcrumbState>)).toEqual([ROOT, PROBES, 'Tidal Wisp', CONTENT['probe.source'].human]);
+  });
+
   it("falls back to the robot's id when it has no name (as the tree did)", () => {
-    expect(path({ activeHubTile: 'robots', selectedRobotId: 'r2' })).toEqual([ROOT, PROBES, 'r2']);
+    expect(path({ activeHubTile: 'robots', selectedRobotId: 'r2' })).toEqual([ROOT, PROBES, 'r2', CONTENT['probe.source'].human]);
+  });
+
+  it('All Probes and a company name only a stored section: their stacked screens have no tabs until Task 23', () => {
+    expect(path({ activeHubTile: 'robots', allProbesSelected: true })).toEqual([ROOT, PROBES, CONTENT['probe.all'].human]);
+    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate']);
   });
 
   it('drops the entity and its section when the id is not in the roster (a stale or deleted id)', () => {
@@ -484,12 +498,12 @@ describe('breadcrumbPath', () => {
     expect(path({ activeHubTile: 'robots', selectedSection: 'source' })).toEqual([ROOT, PROBES]);
   });
 
-  it('reads All Probes from probe.all, with its section', () => {
-    expect(path({ activeHubTile: 'robots', allProbesSelected: true, selectedSection: 'volume' })).toEqual([ROOT, PROBES, CONTENT['probe.all'].human, CONTENT['probe.dynamics'].human]);
+  it('reads All Probes from probe.all, with its section (named by its tab, Levels)', () => {
+    expect(path({ activeHubTile: 'robots', allProbesSelected: true, selectedSection: 'volume' })).toEqual([ROOT, PROBES, CONTENT['probe.all'].human, CONTENT['probe.levels'].human]);
   });
 
   it('a specific robot wins over All Probes when both are set (ProbesContent routes the same way)', () => {
-    expect(path({ activeHubTile: 'robots', selectedRobotId: 'r1', allProbesSelected: true })).toEqual([ROOT, PROBES, 'Tidal Wisp']);
+    expect(path({ activeHubTile: 'robots', selectedRobotId: 'r1', allProbesSelected: true })).toEqual([ROOT, PROBES, 'Tidal Wisp', CONTENT['probe.source'].human]);
   });
 
   it('reads Root / Companies / <company name> / <section>', () => {
@@ -567,6 +581,15 @@ describe('breadcrumbTrail — each segment and the navActions call it goes to', 
     useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'eqFilters', fleetParamsSubsection: 'filterLPF', isNavPanelOpen: true });
     go(2);
     expect(ui()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'eqFilters', fleetParamsSubsection: null, isNavPanelOpen: true });
+  });
+
+  it('a robot with no section stored: the robot is an ancestor going back to itself, the Source tab the current view', () => {
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1' });
+    expect(trail().map((segment) => segment.label)).toEqual([CONTENT['nav.root'].human, CONTENT['probe.root'].human, 'Tidal Wisp', CONTENT['probe.source'].human]);
+    expect(trail()[3]?.go).toBeUndefined();
+    go(2);
+    expect(ui().selectedRobotId).toBe('r1');
+    expect(ui().selectedSection).toBeNull();
   });
 
   it('a robot goes back to the robot at no section', () => {
