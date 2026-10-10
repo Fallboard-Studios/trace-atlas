@@ -1,8 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { expandNavAncestorsForId } from './useNavTree';
 import {
   registerAccordion, unregisterAccordion, updateAccordionOpen, hasPendingNavTargetFor, attemptFulfillPendingNavTarget,
 } from '@/utils/accordionSync';
+import { useUIStore, type TopLevelBranch } from '@/stores/uiStore';
+
+const TOP_LEVEL_BRANCHES: readonly TopLevelBranch[] = ['settings', 'fleetParams', 'probes', 'companies'];
+function asTopLevelBranch(value: string): TopLevelBranch | null {
+  return (TOP_LEVEL_BRANCHES as readonly string[]).includes(value) ? (value as TopLevelBranch) : null;
+}
+
+/** Moved here verbatim from useNavTree.ts when the tree was deleted (docs/tasks/LAYOUT_REWORK.md
+ *  Task 9): this hook is its last caller, and both retire with the stacked scroll in Task 18. It still
+ *  writes `expandedTopLevelBranch`, which the new NavPanel reads for its entity list. */
+function expandNavAncestorsForId(id: string): void {
+  const [branch, entityId] = id.split('.');
+  const { setExpandedTopLevelBranch, setExpandedProbeId, setExpandedCompanyId } = useUIStore.getState();
+
+  const topLevel = asTopLevelBranch(branch);
+  if (topLevel) setExpandedTopLevelBranch(topLevel);
+  if ((branch === 'probes' || branch === 'companies') && entityId) {
+    if (branch === 'probes') setExpandedProbeId(entityId);
+    else setExpandedCompanyId(entityId);
+  }
+}
 
 export interface UseAccordionOpenStateResult {
   isOpen: (id: string) => boolean;
@@ -18,8 +38,8 @@ export interface UseAccordionOpenStateResult {
  * Params/a robot/a company) — each accordion tracks its own state; opening one never closes
  * another, and nothing here is driven by nav clicks or scrollspy (Crawford's own follow-up call,
  * 2026-09-24, reversing this pass's original derived-single-open-accordion design). A nav click
- * still scrolls to a section (`scrollToSection`, `NavTreeNode.tsx`) and scrollspy still updates
- * `selectedSection`/`selectedSubsection` for tree highlighting and the lazy-mount gate
+ * used to scroll to a section (`scrollToSection`, the deleted NavTreeNode.tsx); scrollspy still
+ * updates `selectedSection`/`selectedSubsection` for the breadcrumb and the lazy-mount gate
  * (`useSectionObserver`) — neither touches this hook's own state.
  *
  * Every id this instance manages is also mirrored into `accordionSync`'s registry (docs/specs/

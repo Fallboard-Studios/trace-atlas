@@ -142,6 +142,19 @@ describe('useAccordionOpenState — accordionSync registration (docs/tasks/NAV_A
     expect(useUIStore.getState().expandedProbeId).toBe('r1');
   });
 
+  // docs/tasks/LAYOUT_REWORK.md Task 9: expandNavAncestorsForId moved here from the deleted useNavTree.ts,
+  // whose tests covered its branch guard; this keeps that guard covered (found by the mutation check).
+  it('setOpen(id, true) expands nothing for an id that does not start with a nav branch', () => {
+    const { result } = renderHook(() => useAccordionOpenState(['home.welcome'], null));
+    useUIStore.setState({ expandedTopLevelBranch: 'companies', expandedProbeId: null });
+
+    act(() => result.current.setOpen('home.welcome', true));
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('companies');
+    expect(useUIStore.getState().expandedProbeId).toBeNull();
+    unregisterAccordion('home.welcome');
+  });
+
   it('setOpen(id, false) does NOT touch nav ancestor expansion', () => {
     const { result } = renderHook(() => useAccordionOpenState(['probes.r1.volume.audioSettings'], 'probes.r1.volume.audioSettings'));
     useUIStore.setState({ expandedTopLevelBranch: null, expandedProbeId: null });

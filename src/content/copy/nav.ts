@@ -8,14 +8,12 @@ import type { ContentEntry } from '../types';
  *  "All Probes" reads probe.all, robots and companies show their own names (data) — so the only new
  *  nav key is the one action the panel owns, `nav.entity.newCompany`. The world line kept nav.status.*
  *  when it moved from NavStatusBlock to the meta box (MetaBox.tsx, Task 8): no separate field names
- *  exist to add. */
+ *  exist to add. `nav.expand` / `nav.collapse` (the tree rows' +/- buttons) went with the tree (Task 9). */
 export const nav = {
   'nav.home': { human: 'Deck', lore: 'Monitor' },
   'nav.toggle': { human: 'Navigation' },
   'nav.breadcrumb': { human: 'Breadcrumb' },
   'nav.root': { human: 'Root' },
-  'nav.expand': { human: 'Expand', template: 'Expand {name}' },
-  'nav.collapse': { human: 'Collapse', template: 'Collapse {name}' },
   'nav.status.probesActive': { human: 'Probes active.', template: '{emitting} of {max} Probes active.' },
   'nav.status.viewing': { human: 'Viewing', template: 'Viewing {name} @ ({x}, {y}).' },
   'nav.status.unknownName': { human: 'CORRUPT NAME' },

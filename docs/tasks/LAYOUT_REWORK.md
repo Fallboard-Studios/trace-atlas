@@ -735,6 +735,58 @@ caller and are inert).
 
 **Estimated scope:** L by file count, XS by thought (mechanical deletion behind a grep gate)
 
+**As built (2026-10-09):**
+
+**Deleted (18 files):** `NavTree`, `NavTreeNode`, `NavCabinetRow` and `NavToggleButton` (each `.tsx`,
+`.css`, `.test.tsx`), `useNavTree.ts` and its test, `useNavPanelSlideAway.ts` (it had no test),
+`navPanelViewsAndContent.integration.test.ts`, and `src/data/navTreeConfig.ts` and its test.
+NavStatusBlock's three files had already gone in Task 8. `ScreenViewport.tsx` is unchanged: its
+composition was already the new one.
+
+**The grep gate is now a test.** `ScreenViewport.test.tsx` checks that:
+- none of the nine modules exists in any extension (`.ts`, `.tsx`, `.css` or a test);
+- no `.ts` / `.tsx` file under `src/` imports or `vi.mock`s one, by path or alias, stylesheets included.
+
+The rewrite also pins `.screen-content`'s six children and their order (Header, WorldView, NavPanel,
+ContentPane, NavBreadcrumb, PhoneBar) and checks nothing renders while off. The `data-shell` test is
+kept. Before deletion the gate found two live dependents: `ScreenViewport.test.tsx`'s own mock of
+`NavToggleButton` (gone with the rewrite) and `useAccordionOpenState.ts`.
+
+**`expandNavAncestorsForId` moved, verbatim, into `useAccordionOpenState.ts`**, its last caller,
+with its `asTopLevelBranch` guard. Both retire in Task 18. The plan's "the content screens' calls
+stay inert" missed this function. Its test pins that opening an accordion writes
+`expandedTopLevelBranch`, and the new panel reads that field to open its entity list. Removing
+the call would have broken that test, which this task's acceptance does not allow changing. So the
+behaviour is unchanged for now, and it is reported at Checkpoint A: an accordion opened on a
+screen can reopen an entity list the user collapsed.
+
+**Beyond the plan:**
+- **Content keys:** `nav.expand` / `nav.collapse`, the tree rows' +/− labels, lost their last
+  consumer. The content guard ("every key is referenced") failed on them, so both are removed from
+  `content/copy/nav.ts`. No doc or inventory names them.
+- **One test added** to `useAccordionOpenState.test.ts`: opening an id that does not start with a nav
+  branch expands nothing. The guard's coverage lived in the deleted useNavTree tests, and its mutant
+  survived until this test was added. It is the one test change besides the deletions and the
+  ScreenViewport rewrite.
+
+Comments that name the deleted files as history were left as they are: DualLabel.css, Toggle.css,
+TempoSyncToggle.css, CabinetBox.css, index.css, NavBox.css, the content copy files and the Phase 1
+content screens. No surviving selector targets a tree class. The docs (UI_SHELL.md,
+COMPONENT_LIBRARY.md) are Task 31's.
+
+**Verified:**
+- Full suite: 311 files / 8486 tests (from 318 / 8680; the difference is the deleted tests).
+- `build:types` clean; `lint` at the known 25 errors / 4 warnings, none in these files; `npm run build`
+  clean.
+- The UI Shell guardrail tests (`SleeveContainer.test.tsx`, `Tablet.test.tsx`) pass.
+- Headless Chrome at 1280 and 375 px: every nav pick (Fleet Params, Settings, Companies, Probes, a
+  robot) lands, with no console errors.
+
+**Mutation check:** 12, all killed. That is ten scripted (a deleted stylesheet re-imported, a test
+mocking a deleted module, a type-only import, an alias import, an extra / reordered / always-on
+shell child, three on the moved function) plus two deleted files restored. The one survivor, the
+branch guard, is the test added above.
+
 ### Checkpoint A: Shell and nav (Crawford's dev look)
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
 - [ ] Dev server at ≥ 768 px, 375 px and 320 px: the two strips, the slim header, the one panel
