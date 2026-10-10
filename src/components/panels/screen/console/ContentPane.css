@@ -47,3 +47,11 @@
   --color-surface: rgba(26, 26, 26, 0.75);
   margin-top: 64px;
 }
+/* Phone shell (docs/tasks/LAYOUT_REWORK.md Task 5): the content stops at PhoneBar's top edge and never
+   runs under it — --phone-bar-clearance is the bottom sleeve strip plus the bar (PhoneBar.css). The
+   desk keeps the height above. The top edge stays the header clearance until Tasks 6 and 7.
+   [data-shell] is ScreenViewport's, from useShell(). */
+#screen-viewport[data-shell='phone'] .content-pane {
+  height: auto;
+  bottom: var(--phone-bar-clearance);
+}

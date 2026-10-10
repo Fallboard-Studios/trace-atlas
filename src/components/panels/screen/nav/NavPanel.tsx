@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import gsap from 'gsap';
 
 import { NavBox } from './NavBox';
@@ -78,18 +80,23 @@ function useNavPanelWidth(wide: boolean): void {
  * that branch; pressing the box on its own page collapses or reopens the list (navActions.pressBranchBox).
  * Every pick goes through navActions.
  *
- * Phone shell, until the sheet (Task 5): the same panel, shown only while `isNavPanelOpen`.
+ * Phone shell (Task 5): the same panel in a sheet — a modal Radix Dialog whose open flag is
+ * `isNavPanelOpen`, opened by PhoneBar's menu, with a scrim, a focus trap and Escape. It is not in the
+ * DOM while shut. A pick closes it (navActions); collapsing a list or opening + New Company's form does
+ * not. No Dialog.Portal: the sheet renders in place, inside ScreenViewport, never out on <body> (the
+ * UI Shell guardrail, CLAUDE.md), and Radix's focus scope hands focus back to the menu on close.
  */
 export function NavPanel() {
   const shell = useShell();
   const isNavPanelOpen = useUIStore((s) => s.isNavPanelOpen);
+  const setNavPanelOpen = useUIStore((s) => s.setNavPanelOpen);
+  /** What had focus when the sheet opened — PhoneBar's menu, as a rule. */
+  const openerRef = useRef<HTMLElement | null>(null);
   const active = branchOfTile(useUIStore((s) => s.activeHubTile));
   const expandedBranch = useUIStore((s) => s.expandedTopLevelBranch);
   useNavPanelWidth(expandsInPlace(active) && expandedBranch === active);
 
-  if (shell === 'phone' && !isNavPanelOpen) return null;
-
-  return (
+  const panel = (
     <nav className="nav-panel" aria-label={NAV_LABEL}>
       <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-nav-panel-facade">
         <ul className="nav-panel__boxes">
@@ -112,6 +119,35 @@ export function NavPanel() {
         </ul>
       </CabinetBox>
     </nav>
+  );
+
+  if (shell === 'desk') return panel;
+
+  return (
+    <Dialog.Root open={isNavPanelOpen} onOpenChange={setNavPanelOpen}>
+      <Dialog.Overlay className="nav-sheet__scrim" />
+      {/* No description: the sheet is the nav itself, its boxes say what they are. A modal Radix
+          Dialog hands focus back only to its own Dialog.Trigger, and the menu is PhoneBar's, so the
+          sheet notes what had focus as it opens and returns it on close. */}
+      <Dialog.Content
+        className="nav-sheet"
+        aria-describedby={undefined}
+        onOpenAutoFocus={() => {
+          openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          // An opener that has left the document (the shell switched to desk) takes no focus.
+          openerRef.current?.focus();
+          openerRef.current = null;
+        }}
+      >
+        <VisuallyHidden asChild>
+          <Dialog.Title>{NAV_LABEL}</Dialog.Title>
+        </VisuallyHidden>
+        {panel}
+      </Dialog.Content>
+    </Dialog.Root>
   );
 }
 

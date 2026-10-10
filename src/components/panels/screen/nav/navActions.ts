@@ -16,10 +16,11 @@ import { labels, type ContentKey } from '@/content';
  * no component derives a path itself. Replaces useNavTree's select / goHome / selectedPath, which go
  * with the tree in Task 9.
  *
- * Every action starts from a clean slate — no entity, no section on any branch — then sets only what
- * it opens. Picking a parent opens that branch's own page (Crawford, 2026-10-09): the Probes box and
- * the breadcrumb's "Probes" segment return to the list, never to the last robot. The store setters
- * run through getState() so these are callable outside a component, as goHome always was.
+ * Every action starts from a clean slate — no entity, no section on any branch, the phone nav sheet
+ * shut (a pick closes it, Task 5) — then sets only what it opens. Picking a parent opens that branch's
+ * own page (Crawford, 2026-10-09): the Probes box and the breadcrumb's "Probes" segment return to the
+ * list, never to the last robot. The store setters run through getState() so these are callable
+ * outside a component, as goHome always was.
  */
 
 export type NavBranch = TopLevelBranch | 'deck';
@@ -94,8 +95,9 @@ export const SETTINGS_LEAF_CONTENT: Record<SettingsLeaf, ContentKey> = {
   sessions: 'settings.sessions',
 };
 
-function clearEntityAndSections(): void {
+function cleanSlate(): void {
   const s = useUIStore.getState();
+  s.setNavPanelOpen(false); // the phone sheet's open flag; the desk panel ignores it
   s.selectRobot(null); // also clears selectedSection / selectedSubsection
   s.selectAllRobots(); // the "no company" state: selectedCompanyId null, allRobotsSelected true
   s.setAllProbesSelected(false);
@@ -117,13 +119,13 @@ export function selectBranch(branch: NavBranch): void {
     goHome();
     return;
   }
-  clearEntityAndSections();
+  cleanSlate();
   open(branch);
 }
 
 /** An entity under Probes or Companies: opens its branch on it, at no section. */
 export function selectEntity(entity: NavEntity): void {
-  clearEntityAndSections();
+  cleanSlate();
   const s = useUIStore.getState();
   if (entity === 'all') {
     s.setAllProbesSelected(true);
@@ -158,7 +160,7 @@ export function pressBranchBox(branch: NavBranch): void {
 
 /** The Deck: no tile, nothing expanded, no entity. */
 export function goHome(): void {
-  clearEntityAndSections();
+  cleanSlate();
   const s = useUIStore.getState();
   s.setActiveHubTile(null);
   s.setExpandedTopLevelBranch(null);

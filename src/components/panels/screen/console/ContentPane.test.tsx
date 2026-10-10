@@ -79,3 +79,19 @@ describe('ContentPane reads its copy from src/content (docs/specs/CONTENT_LAYER.
     expect(source).not.toMatch(/<h2>[A-Za-z]|>Robot not found</);
   });
 });
+
+// docs/tasks/LAYOUT_REWORK.md Task 5: on the phone shell the content stops at the bottom bar's top edge
+// (PhoneBar.css's --phone-bar-clearance: the sleeve strip plus the bar) and never runs under it. The
+// shell reaches CSS as ScreenViewport's data-shell, useShell()'s value. The top edge is Tasks 6 and 7's.
+describe('ContentPane.css — the phone shell stops above the bottom bar', () => {
+  it('ends at the bar on the phone shell, in place of the desk height', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const { getCssRuleBody } = await import('@/testUtils/cssRuleBody');
+    const css = readFileSync(resolve(__dirname, 'ContentPane.css'), 'utf8');
+    const body = getCssRuleBody(css, "#screen-viewport[data-shell='phone'] .content-pane");
+    expect(body).not.toBeNull();
+    expect(body).toContain('bottom: var(--phone-bar-clearance);');
+    expect(body).toContain('height: auto;');
+  });
+});

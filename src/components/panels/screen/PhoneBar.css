@@ -1,0 +1,90 @@
+/* The bar's band, in the one place it is sized (docs/specs/LAYOUT_REWORK.md §1.1: "it owns its band").
+   Declared on #screen-viewport, beside NavPanel.css's widths. The tablet's bottom sleeve strip covers
+   the screen's last 32 px (SleeveContainer.css, height: var(--spacing-2xl), measured at every width),
+   so the bar stands on it, as the sketch's does (.phone .bot { bottom: var(--sb) }) and as
+   NavBreadcrumb.css's phone row already did. --phone-bar-clearance is where the band above ends: the
+   nav sheet, its scrim (NavPanel.css) and the content (ContentPane.css) stop there. */
+#screen-viewport {
+  --phone-bar-height: 56px;
+  --phone-bar-bottom: var(--spacing-2xl);
+  --phone-bar-clearance: calc(var(--phone-bar-bottom) + var(--phone-bar-height));
+}
+
+/* Full width along the bottom of the screen, the sketch's 56 px bar. No width of its own, so it is the
+   screen's width at 320 px as at 767; only the well flexes (below). Above the content and the
+   breadcrumb, at the header's level: it is the phone's other bar. */
+.phone-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--phone-bar-bottom);
+  z-index: var(--z-header);
+  height: var(--phone-bar-height);
+  box-sizing: border-box;
+  /* Room for the facade's walls, which sit up and left of its front face (NavPanel.css's reason). */
+  padding: var(--spacing-sm) var(--spacing-sm) 0;
+}
+
+/* CabinetBox's root is inline-flex: unstretched it hugs the menu and starves the well (measured in
+   Chrome, 86 px of row at 320 px), so it fills the bar as DirectionalPanel.css stretches its own. */
+.phone-bar > .sc-cabinet-box {
+  width: 100%;
+  height: 100%;
+}
+
+/* The static popped facade (popped + skipMountAnimation + autoHeight), as NavPanel and Header draw it:
+   its front face is the bar's plate. */
+.phone-bar > .sc-cabinet-box > .sc-cabinet-box__front {
+  --color-surface: rgba(26, 26, 26, 0.75);
+  display: block;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0;
+  background-color: var(--color-surface);
+}
+
+.phone-bar__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0 var(--spacing-sm);
+}
+
+.phone-bar__menu {
+  flex: 0 0 auto;
+}
+
+/* Toggle.css's .sc-toggle is width: 100% and an inline-size container, written for a toggle in its
+   own labelled row; in this flex row it would claim the whole bar, and a shrink-to-fit item under
+   inline-size containment collapses to 0 (TempoSyncToggle.css). Here it is just its 44 px facade box.
+   (0,2,0) beats Toggle.css's (0,1,0) whatever order the stylesheets load in. */
+.phone-bar__menu > .sc-toggle {
+  width: auto;
+  container-type: normal;
+}
+
+/* A readout, so a well (spec §1.1: in = read): the sketch's glow glass, an inner shadow in the bar's
+   accent. It takes the rest of the row and may shrink to nothing; one line, cut short with an
+   ellipsis, so nothing in the bar overflows at 320 px. A block, not a flex row: text-overflow only
+   cuts a block's own inline content (NavBreadcrumb.css), so the line-height centres the text. */
+.phone-bar__well {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+  height: var(--spacing-2xl);
+  line-height: calc(var(--spacing-2xl) - 2px);
+  padding: 0 var(--spacing-sm);
+  border: 1px solid var(--color-accent);
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.9), inset 0 0 8px var(--color-accent);
+  background: rgba(12, 16, 20, 0.55);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label-compact);
+  letter-spacing: 0.03em;
+}

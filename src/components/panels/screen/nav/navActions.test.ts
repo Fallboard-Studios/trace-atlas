@@ -114,10 +114,10 @@ describe('selectBranch', () => {
     expect(ui().expandedTopLevelBranch).toBeNull();
   });
 
-  it('leaves the phone sheet flag and power alone', () => {
-    useUIStore.setState({ isNavPanelOpen: true, isPoweredOn: true });
+  // The phone sheet flag is no longer left alone: a pick closes the sheet (Task 5, below).
+  it('leaves power alone', () => {
+    useUIStore.setState({ isPoweredOn: true });
     selectBranch('settings');
-    expect(ui().isNavPanelOpen).toBe(true);
     expect(ui().isPoweredOn).toBe(true);
   });
 });
@@ -302,6 +302,46 @@ describe('pressBranchBox', () => {
     onProbesPage();
     selectBranch('probes');
     expect(ui().expandedTopLevelBranch).toBe('probes');
+  });
+});
+
+// Task 5 (spec §1.2): on the phone the panel is a sheet whose open flag is isNavPanelOpen, and picking
+// closes it. A pick is anything that moves the selection; a collapse in place is not one (pressBranchBox's
+// "changes nothing else" test above holds the flag open).
+describe('a pick closes the phone nav sheet', () => {
+  it.each(['probes', 'companies', 'fleetParams', 'settings', 'deck'] as const)('selectBranch(%s)', (branch: NavBranch) => {
+    dirtyStore({ isNavPanelOpen: true });
+    selectBranch(branch);
+    expect(ui().isNavPanelOpen).toBe(false);
+  });
+
+  it.each([{ robotId: 'r2' }, { companyId: 'c1' }, 'all'] as const)('selectEntity(%o)', (entity) => {
+    dirtyStore({ isNavPanelOpen: true });
+    selectEntity(entity);
+    expect(ui().isNavPanelOpen).toBe(false);
+  });
+
+  it('goHome', () => {
+    dirtyStore({ isNavPanelOpen: true });
+    goHome();
+    expect(ui().isNavPanelOpen).toBe(false);
+  });
+
+  it('pressBranchBox from another branch, or back from an entity', () => {
+    dirtyStore({ isNavPanelOpen: true, activeHubTile: 'settings', expandedTopLevelBranch: null });
+    pressBranchBox('probes');
+    expect(ui().isNavPanelOpen).toBe(false);
+
+    dirtyStore({ isNavPanelOpen: true });
+    pressBranchBox('probes');
+    expect(ui().isNavPanelOpen).toBe(false);
+  });
+
+  it('a pick never opens the sheet', () => {
+    selectEntity({ robotId: 'r1' });
+    selectBranch('companies');
+    goHome();
+    expect(ui().isNavPanelOpen).toBe(false);
   });
 });
 

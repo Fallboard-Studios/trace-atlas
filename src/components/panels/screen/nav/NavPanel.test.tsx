@@ -409,21 +409,221 @@ describe('NavPanel — keyboard', () => {
   });
 });
 
-describe('NavPanel — phone shell (interim until the sheet, Task 5)', () => {
-  it('renders nothing while the nav is closed, and the same five boxes once it is open', () => {
+describe('NavPanel — the phone sheet (Task 5)', () => {
+  const sheet = () => screen.getByRole('dialog', { name: human('nav.toggle') });
+  const scrim = () => document.querySelector<HTMLElement>('.nav-sheet__scrim');
+  /** Radix arms its outside-press listener a tick after the sheet opens. */
+  const afterOpenTick = () => act(() => new Promise((r) => setTimeout(r, 0)));
+
+  function openSheet(state: Partial<ReturnType<typeof useUIStore.getState>> = {}) {
+    stubMatchMedia({ desk: false });
+    useUIStore.setState({ isNavPanelOpen: true, ...state });
+    return renderPanel();
+  }
+
+  it('on the phone shell the panel is not in the DOM until the sheet opens, then the same five boxes sit in a dialog', () => {
     stubMatchMedia({ desk: false });
     renderPanel();
     expect(screen.queryByRole('navigation')).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(scrim()).toBeNull();
 
     act(() => useUIStore.getState().setNavPanelOpen(true));
 
-    expect(within(nav()).getAllByRole('button')).toHaveLength(BOX_ORDER.length);
+    expect(sheet().contains(nav())).toBe(true);
+    expect(within(nav()).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(BOX_ORDER.map(human));
+    expect(scrim()).not.toBeNull();
   });
 
-  it('the desk shell ignores isNavPanelOpen', () => {
-    useUIStore.setState({ isNavPanelOpen: false });
+  // Radix marks a modal by hiding everything else from assistive tech, not with aria-modal.
+  it('is modal: while it is open everything outside it is hidden from assistive tech, and comes back on close', () => {
+    stubMatchMedia({ desk: false });
+    const outside = document.body.appendChild(document.createElement('div'));
+    renderPanel();
+
+    act(() => useUIStore.getState().setNavPanelOpen(true));
+    expect(outside.getAttribute('aria-hidden')).toBe('true');
+    expect(sheet().closest('[aria-hidden="true"]')).toBeNull();
+
+    act(() => useUIStore.getState().setNavPanelOpen(false));
+    expect(outside.getAttribute('aria-hidden')).toBeNull();
+    outside.remove();
+  });
+
+  // UI Shell guardrail (CLAUDE.md): interactive UI lives inside ScreenViewport only — no portal to <body>.
+  it('renders the sheet and its scrim inside the screen viewport', () => {
+    openSheet();
+    const viewport = document.getElementById(SCREEN_VIEWPORT_ID)!;
+    expect(viewport.contains(sheet())).toBe(true);
+    expect(viewport.contains(scrim())).toBe(true);
+  });
+
+  it('opens with the open branch expanded in place, as the desk panel shows it', () => {
+    openSheet({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
+    expect(within(sheet()).getByRole('button', { name: 'Tidal Wisp' })).toBeTruthy();
+  });
+
+  it.each([
+    ['nav.home', null],
+    ['fleet.root', 'audioRig'],
+    ['probe.root', 'robots'],
+    ['company.root', 'companies'],
+    ['settings.root', 'settings'],
+  ] as [ContentKey, HubTile | null][])('picking %s opens it and closes the sheet', (key, tile) => {
+    openSheet({ activeHubTile: key === 'nav.home' ? 'settings' : null });
+    fireEvent.click(box(key));
+    expect(useUIStore.getState().isNavPanelOpen).toBe(false);
+    expect(useUIStore.getState().activeHubTile).toBe(tile);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(scrim()).toBeNull();
+  });
+
+  it.each([
+    ['Tidal Wisp', { selectedRobotId: 'r1' }, 'robots', 'probes'],
+    [human('probe.all'), { allProbesSelected: true }, 'robots', 'probes'],
+    ['Rust Syndicate', { selectedCompanyId: 'c1' }, 'companies', 'companies'],
+  ] as const)('picking the entity %s selects it and closes the sheet', (name, selected, tile, branch) => {
+    openSheet({ activeHubTile: tile, expandedTopLevelBranch: branch });
+    fireEvent.click(within(sheet()).getByRole('button', { name }));
+    expect(useUIStore.getState()).toMatchObject({ ...selected, isNavPanelOpen: false });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('collapsing the open list in place is not a pick: the sheet stays open', () => {
+    openSheet({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
+    fireEvent.click(box('probe.root'));
+    expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
+    expect(useUIStore.getState().isNavPanelOpen).toBe(true);
+    expect(entityList()).toBeNull();
+  });
+
+  it('+ New Company opens its form in the sheet and is not a pick', () => {
+    openSheet({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies' });
+    const newCompany = within(sheet()).getByRole('button', { name: human('nav.entity.newCompany') });
+    fireEvent.click(newCompany);
+    expect(newCompany.getAttribute('aria-expanded')).toBe('true');
+    expect(useUIStore.getState().isNavPanelOpen).toBe(true);
+  });
+
+  it('moves focus into the sheet on open', () => {
+    openSheet();
+    expect(sheet().contains(document.activeElement)).toBe(true);
+  });
+
+  it('traps focus: Tab from the last box wraps to the first, Shift+Tab from the first to the last', () => {
+    openSheet();
+    const buttons = within(sheet()).getAllByRole('button');
+    const [first, last] = [buttons[0], buttons.at(-1)!];
+
+    act(() => last.focus());
+    fireEvent.keyDown(last, { key: 'Tab' });
+    expect(document.activeElement).toBe(first);
+
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+
+  // The menu that opens the sheet is PhoneBar's, not a Dialog.Trigger, and a modal Radix Dialog only
+  // hands focus back to its own Trigger — so NavPanel returns it to whatever had it. Radix moves focus a
+  // tick after the sheet unmounts.
+  describe('focus goes back to what opened the sheet', () => {
+    function openFrom(opener: HTMLElement) {
+      stubMatchMedia({ desk: false });
+      opener.focus();
+      renderPanel();
+      act(() => useUIStore.getState().setNavPanelOpen(true));
+      expect(sheet().contains(document.activeElement)).toBe(true);
+    }
+
+    it('on Escape', async () => {
+      const opener = document.body.appendChild(document.createElement('button'));
+      openFrom(opener);
+
+      fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+      await afterOpenTick();
+
+      expect(useUIStore.getState().isNavPanelOpen).toBe(false);
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(document.activeElement).toBe(opener);
+      opener.remove();
+    });
+
+    it('after a pick, whose box leaves with the sheet', async () => {
+      const opener = document.body.appendChild(document.createElement('button'));
+      openFrom(opener);
+
+      fireEvent.click(box('settings.root'));
+      await afterOpenTick();
+
+      expect(document.activeElement).toBe(opener);
+      opener.remove();
+    });
+
+    it('not when the opener has left the document meanwhile (no focus on a detached node, no throw)', async () => {
+      const opener = document.body.appendChild(document.createElement('button'));
+      openFrom(opener);
+      opener.remove();
+
+      fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+      await afterOpenTick();
+
+      expect(useUIStore.getState().isNavPanelOpen).toBe(false);
+      expect(document.activeElement).not.toBe(opener);
+    });
+  });
+
+  it('closes on a press on the scrim, and only outside the sheet', async () => {
+    openSheet();
+    await afterOpenTick();
+
+    fireEvent.pointerDown(box('settings.root'));
+    expect(useUIStore.getState().isNavPanelOpen).toBe(true);
+
+    fireEvent.pointerDown(scrim()!);
+    expect(useUIStore.getState().isNavPanelOpen).toBe(false);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('the desk shell renders no sheet and no scrim, whatever isNavPanelOpen says', () => {
+    useUIStore.setState({ isNavPanelOpen: true });
     renderPanel();
     expect(nav()).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(scrim()).toBeNull();
+  });
+});
+
+describe('NavPanel.css — the phone sheet', () => {
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavPanel.css'), 'utf-8');
+
+  it('the sheet is 300 px on the left edge, between the top bar and the bottom bar, never under either', () => {
+    const body = getCssRuleBody(css, '.nav-sheet');
+    expect(body).not.toBeNull();
+    for (const declaration of ['position: absolute;', 'left: 0;', 'bottom: var(--phone-bar-clearance);', 'width: min(var(--nav-sheet-width), 100%);']) {
+      expect(body).toContain(declaration);
+    }
+    expect(getCssRuleBody(css, '#screen-viewport')).toContain('--nav-sheet-width: 300px;');
+  });
+
+  it('the scrim spans the same band, full width', () => {
+    const body = getCssRuleBody(css, '.nav-sheet__scrim');
+    expect(body).not.toBeNull();
+    for (const declaration of ['position: absolute;', 'left: 0;', 'right: 0;', 'bottom: var(--phone-bar-clearance);']) {
+      expect(body).toContain(declaration);
+    }
+  });
+
+  it('the sheet and the scrim share one top edge: the top bar', () => {
+    const top = (selector: string) => getCssRuleBody(css, selector)?.match(/(^|\s)top: ([^;]+);/)?.[2];
+    expect(top('.nav-sheet')).toBeTruthy();
+    expect(top('.nav-sheet')).toBe(top('.nav-sheet__scrim'));
+  });
+
+  it('inside the sheet the panel fills it instead of sizing itself from --nav-panel-width', () => {
+    const body = getCssRuleBody(css, '.nav-sheet > .nav-panel');
+    expect(body).toContain('position: static;');
+    expect(body).toContain('width: 100%;');
+    expect(body).toContain('height: 100%;');
   });
 });
 

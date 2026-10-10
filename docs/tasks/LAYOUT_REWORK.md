@@ -347,6 +347,72 @@ the top bar and the bottom bar (CSS `top` / `bottom` from the two heights), neve
 
 **Estimated scope:** M (one component, one sheet, viewport wiring)
 
+**As built (2026-10-09):** the menu is the existing `Toggle` + `ToggleFacade` (☰ / ✕), not `Button`.
+`Button` draws only a `DualLabel`, and this is `NavToggleButton`'s own control moved into the bar
+(`nav.toggle`, as Task 1 found). Its state is in `aria-checked`, and its 44 px box never resizes on a
+flip. The bar wears the static popped facade in the header trait, the sketch's Deck colour. The well
+is a glow-glass well. It is empty while the sheet is shut, until Task 8 puts the breadcrumb and the
+telemetry in it.
+
+**A pick closes the sheet in `navActions`, not in the panel.** Every action's clean slate
+(`cleanSlate`, was `clearEntityAndSections`) now also sets `isNavPanelOpen` false. So
+`selectBranch`, `selectEntity`, `goHome` and `pressBranchBox` close the sheet when they move the
+selection. A collapse in place and + New Company's form are not picks, and leave it open. Task 3's
+test "leaves the phone sheet flag and power alone" became "leaves power alone"; the flag half moved
+to a new describe. Doing it in `NavPanel` instead would have needed callbacks through `NavEntityList`
+and a return value from `pressBranchBox`.
+
+**The sheet is a Radix `Dialog` with no `Portal`.** It renders in place, inside `ScreenViewport`,
+never out on `<body>` (the UI Shell guardrail; a test pins it). A modal Radix Dialog gives focus
+back only to its own `Dialog.Trigger`, and the menu is PhoneBar's, so after Escape focus fell to
+`<body>`. The test caught this. The sheet now records what had focus in `onOpenAutoFocus` and
+returns it in `onCloseAutoFocus`. Radix marks a modal by `aria-hidden` on everything else, not
+`aria-modal`; the test checks that. The Dialog's title is visually hidden
+(`@radix-ui/react-visually-hidden`, already a dependency), named from `nav.toggle`.
+
+**Found in Chrome:**
+- The tablet's bottom sleeve strip covers the screen's last 32 px at every width (764–796 at 375,
+  320 and 700 px), so a bar at `bottom: 0` sat half under "TRACE ATLAS". The bar now stands on the
+  strip (`--phone-bar-bottom: var(--spacing-2xl)`, the sketch's `bottom: var(--sb)`).
+  `--phone-bar-clearance` (strip + bar) is where the sheet, its scrim and the content stop.
+- `CabinetBox`'s root is inline-flex, so the bar's facade hugged the menu. That gave an 86 px row
+  and an 18 px well at 320 px. It now stretches as `DirectionalPanel.css`'s does.
+
+**The content stops at the bar.** With the bar's top at 708 px, today's content (bottom 724) would
+have run 16 px under it. `ScreenViewport` now sets `data-shell` on `#screen-viewport` from
+`useShell()`, so CSS can tell the shells apart with no media query of its own. `ContentPane.css`
+ends the phone shell's `.content-pane` at `--phone-bar-clearance`. Only the bottom edge changed; the
+top edge stays the header clearance until Tasks 6 and 7. Task 7 can key the left edge on the same
+attribute.
+
+**Measured (headless Chrome over CDP, 375 / 320 / 700 px):**
+- Bar 56 px at 708–764; menu 44 × 44.
+- Well 257 / 202 / 582 px. Content ends at 708.
+- Sheet 300 px from the left edge (288 = the whole screen at 320). Sheet and scrim end at 708.
+- No horizontal overflow; no hamburger.
+- Focus moves into the sheet on open, and back to the menu after a pick, Escape, a scrim press and
+  a press on ✕. The ✕ press does not reopen it.
+
+**Known gaps:**
+- At 320 px the hint is 212 px of text in a 202 px well: "…pick to cl…" (an ellipsis, not an
+  overflow).
+- At 320 px the sheet covers the whole screen, so "outside" is the header or the bar.
+- The sheet's top (`--nav-sheet-top`, the home card's header clearance) sits over the header's lower
+  edge: 4 px below 640 px, 16 px at 640–767, because the header's sticky offset is 20 / 32 px by
+  media query. Task 6 reshapes the top bar and should give the sheet and the content one top-bar
+  value.
+
+**Interim, until later tasks:**
+- The phone breadcrumb (`bottom: var(--spacing-2xl)`) now sits under the bar, until Task 8 moves it
+  into the well.
+- The header's nav-clearance slide still fires on `isNavPanelOpen` from 400 to 767 px. It slides the
+  volume slider under the power corner while the sheet is open, until Task 6 deletes it.
+- `NavToggleButton` is no longer rendered; its files go in Task 9.
+- `AWAITING_CONSUMER` is empty.
+
+**Mutation check:** 23 mutants, all killed. One more, the opener's `isConnected` guard, survived
+because a detached element takes no focus anyway. The guard was deleted.
+
 ## Task 6: `Header` slim — mute and volume beside the power corner
 
 **Description:** Reduce `Header.tsx` / `.css` to the mute `Toggle` and master-volume `SliderLinear` it

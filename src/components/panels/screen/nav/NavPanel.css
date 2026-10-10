@@ -9,6 +9,10 @@
   --nav-panel-wide: 260px;
   --nav-panel-expand: 0;
   --nav-panel-width: calc(var(--nav-panel-rest) + (var(--nav-panel-wide) - var(--nav-panel-rest)) * var(--nav-panel-expand));
+  /* Phone (Task 5): the sheet the same panel opens in, and the top of the band it and its scrim fill —
+     the top bar's lower edge, ContentPane.css's own header clearance (Header writes --header-height). */
+  --nav-sheet-width: 300px;
+  --nav-sheet-top: calc(var(--header-height, var(--power-corner-height)) + var(--spacing-lg));
 }
 
 /* Full height on the left edge, the sketch's rail; the padding is room for the facade's walls, which
@@ -53,4 +57,40 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* ---------- Phone: the sheet (docs/specs/LAYOUT_REWORK.md §1.2; Task 5) ----------
+   The same panel in a Radix Dialog, 300 px from the left edge, over a scrim. Both fill the band
+   between the top bar and the bottom bar (PhoneBar.css's --phone-bar-clearance) and never run under
+   either, as the sketch draws them; the bars stay visible, and a tap on either is a tap outside. */
+.nav-sheet__scrim {
+  position: absolute;
+  top: var(--nav-sheet-top);
+  left: 0;
+  right: 0;
+  bottom: var(--phone-bar-clearance);
+  z-index: var(--z-overlay);
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.nav-sheet {
+  position: absolute;
+  top: var(--nav-sheet-top);
+  left: 0;
+  bottom: var(--phone-bar-clearance);
+  width: min(var(--nav-sheet-width), 100%);
+  z-index: var(--z-popover);
+  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.6);
+}
+
+.nav-sheet:focus {
+  outline: none;
+}
+
+/* Inside the sheet the panel fills it rather than sizing itself from --nav-panel-width, which belongs
+   to the desk rail (the sketch's .navsheet .rail). */
+.nav-sheet > .nav-panel {
+  position: static;
+  width: 100%;
+  height: 100%;
 }
