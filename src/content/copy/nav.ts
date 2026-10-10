@@ -18,6 +18,7 @@ export const nav = {
   'nav.status.viewing': { human: 'Viewing', template: 'Viewing {name} @ ({x}, {y}).' },
   'nav.status.unknownName': { human: 'CORRUPT NAME' },
   'nav.status.noTemperature': { human: 'NO TEMP' },
-  /** Opens the inline create form under the Companies entity list; `[c]` = placeholder lore (spec Assumption 9). */
-  'nav.entity.newCompany': { human: '+ New Company', lore: 'New Consortium [c]' },
+  /** Opens the inline create form under the Companies entity list; `[c]` = placeholder lore (spec Assumption 9).
+   *  Also the roster head's button; `short` is its phone form (spec §1.5). */
+  'nav.entity.newCompany': { human: '+ New Company', lore: 'New Consortium [c]', short: '+' },
 } as const satisfies Record<string, ContentEntry>;

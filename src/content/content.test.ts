@@ -12,7 +12,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { CONTENT, CONTENT_AREAS, labels, type ContentKey } from './index';
+import { CONTENT, CONTENT_AREAS, fill, labels, optionsRecord, type ContentKey } from './index';
 import type { ContentEntry } from './types';
 import * as audioRigConfig from '@/data/audioRigConfig';
 import * as sectorSettingsConfig from '@/data/sectorSettingsConfig';
@@ -48,8 +48,19 @@ const isReferenced = (k: string) => allConsumerText.includes(`'${k}'`) || allCon
 /** Keys a task plan adds ahead of the component that reads them, each naming the task that wires it.
  *  Exempt from the unreferenced check only while they are still unreferenced: the moment a consumer
  *  lands, the self-cleaning test below fails until the key leaves this list. Empty between plans
- *  (docs/tasks/LAYOUT_REWORK.md: empty again by Checkpoint A). */
-const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {};
+ *  (docs/tasks/LAYOUT_REWORK.md: empty again by Checkpoint A, and again by Checkpoint C). */
+const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {
+  'probe.roster.count': 'Task 21 — RosterBoard group count',
+  'probe.roster.count.one': 'Task 21 — RosterBoard group count, one probe',
+  'probe.roster.statusLine': 'Task 21 — RosterTile status line',
+  'probe.roster.move': 'Task 22 — RosterTile Move chip',
+  'company.detail.share': 'Task 23 — CompanyScreen share well',
+  'company.detail.signal': 'Task 23 — CompanyScreen signal well',
+  'company.detail.broadcastNote': 'Task 23 — CompanyScreen broadcast note',
+  'company.detail.broadcastNote.one': 'Task 23 — CompanyScreen broadcast note, one member',
+  'company.detail.broadcastNote.none': 'Task 23 — CompanyScreen broadcast note, no members',
+  'company.detail.allForm': 'Task 23 — CompanyScreen All form eyebrow',
+};
 
 describe('content guard', () => {
   it('every key is referenced from src/ outside src/content', () => {
@@ -212,5 +223,92 @@ describe('help coverage — probe and company controls', () => {
       const helps = (['core', 'companion', 'accent'] as const).map((layer) => labels(`probe.source.${layer}.${field}`).help?.human);
       expect(new Set(helps).size, `probe.source.*.${field}`).toBe(3);
     }
+  });
+});
+
+// ----------------------------------------
+// ROSTER AND COMPANY DETAIL COPY (docs/tasks/LAYOUT_REWORK.md Task 19)
+// ----------------------------------------
+// The roster board's and the company screen's strings, added ahead of Tasks 21–23. The sentences are
+// the approved sketch's (docs/sketches/layout-rework.html); every count is a slot, the fleet size
+// included, so no "12" is written into the copy. A count of one, and a company of none, get forms of
+// their own: "1 probes" and "reach all 0 probes" are what a single plural template would say.
+
+const ROSTER_AND_DETAIL_KEYS: readonly ContentKey[] = [
+  'probe.roster.count', 'probe.roster.count.one', 'probe.roster.statusLine', 'probe.roster.move',
+  'company.detail.share', 'company.detail.signal', 'company.detail.broadcastNote', 'company.detail.broadcastNote.one',
+  'company.detail.broadcastNote.none', 'company.detail.allForm',
+];
+
+describe('roster and company detail copy', () => {
+  it('every key exists and is read by a component, or waits on the Task 21–24 that reads it', () => {
+    for (const k of ROSTER_AND_DETAIL_KEYS) {
+      expect(CONTENT[k], k).toBeDefined();
+      expect(isReferenced(k) || /Task 2[1-4]/.test(AWAITING_CONSUMER[k] ?? ''), k).toBe(true);
+    }
+  });
+
+  it('the broadcast note is the sketch sentence, filled with the member count', () => {
+    expect(fill('company.detail.broadcastNote', { n: '4' })).toBe(
+      'Edits on this screen reach all 4 probes at once — one broadcast, never a link. A probe edited on its own afterwards keeps its own value.',
+    );
+    expect(fill('company.detail.broadcastNote', { n: '12' })).toContain('reach all 12 probes at once');
+  });
+
+  it('a one-member company and an empty company get their own note, never "all 1 probes" or "all 0 probes"', () => {
+    const one = fill('company.detail.broadcastNote.one', {});
+    const none = fill('company.detail.broadcastNote.none', {});
+    expect(one).toContain('one broadcast, never a link');
+    for (const note of [one, none]) {
+      expect(note).not.toMatch(/\{|\ball [01]\b|\b1 probes\b/);
+    }
+    expect(none).not.toBe(one);
+  });
+
+  it('the share names the count and the fleet size from slots: "4 of 12 probes"', () => {
+    expect(fill('company.detail.share', { n: '4', total: '12' })).toBe('4 of 12 probes');
+    expect(fill('company.detail.share', { n: '1', total: '12' })).toBe('1 of 12 probes');
+    expect(() => fill('company.detail.share', { n: '4' })).toThrow(/total/);
+    expect(labels('company.detail.share').loreLabel).toBe('Mesh Share');
+  });
+
+  it('a group count is "4 probes" and "0 probes", but "1 probe"', () => {
+    expect(fill('probe.roster.count', { n: '4' })).toBe('4 probes');
+    expect(fill('probe.roster.count', { n: '0' })).toBe('0 probes');
+    expect(CONTENT['probe.roster.count.one'].human).toBe('1 probe');
+  });
+
+  it('a tile status line is the job and the three states, as the sketch draws it', () => {
+    expect(fill('probe.roster.statusLine', { job: 'Salvage', dockingState: 'Docked', activity: 'Charging', status: 'Disabled' }))
+      .toBe('Salvage · Docked · Charging · Disabled');
+  });
+
+  it('the Move chip: "⇄ Move" on the desk, the glyph alone on the phone, the robot in its accessible name', () => {
+    expect(CONTENT['probe.roster.move'].human).toBe('⇄ Move');
+    expect(CONTENT['probe.roster.move'].short).toBe('⇄');
+    expect(fill('probe.roster.move', { name: 'Tidal Wisp' })).toBe('Move Tidal Wisp');
+  });
+
+  it('the Move panel titles the company radio "Move {name} to"; the radio keeps its own name elsewhere', () => {
+    expect(fill('company.assign', { name: 'Tidal Wisp' })).toBe('Move Tidal Wisp to');
+    expect(labels('company.assign').humanLabel).toBe('Company');
+    expect(optionsRecord('company.assign').freelance.humanLabel).toBe('Freelance'); // the roster's Freelance group name
+  });
+
+  it('the signal readout: a halo on every member of a company, none under All', () => {
+    expect(labels('company.detail.signal').loreLabel).toBe('Affiliation Signal');
+    expect(optionsRecord('company.detail.signal').company.humanLabel).toBe('Halo on every member');
+    expect(optionsRecord('company.detail.signal').all.humanLabel).toBe('No halo — nothing to mark apart');
+  });
+
+  it('the All form is titled by All Probes under its own eyebrow', () => {
+    expect(CONTENT['company.detail.allForm'].human).toBe('Fleet-wide edit');
+    expect(CONTENT['probe.all'].human).toBe('All Probes');
+  });
+
+  it('the phone roster head\'s short forms: "All" and "+", never spread into a schema', () => {
+    expect(CONTENT['probe.all'].short).toBe('All');
+    expect(CONTENT['nav.entity.newCompany'].short).toBe('+');
+    expect(labels('probe.all')).not.toHaveProperty('short');
   });
 });

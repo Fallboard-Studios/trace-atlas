@@ -2195,6 +2195,27 @@ note template, the All-form title and note). Templates use `fill`.
 
 **Estimated scope:** XS (content only)
 
+**As built (2026-10-10):** one entry per concept again won over the list above (Task 1's precedent).
+Reused, no new key: the head's "All Probes" is `probe.all` and "+ New company" is
+`nav.entity.newCompany` (both gained a `short` — "All" / "+" — for the sketch's phone head); the
+Freelance group is `company.assign`'s `freelance` option; the Move title is a `template` on
+`company.assign` itself ("Move {name} to" — the Move panel *is* that radio, retitled), so
+**Task 22 reads `fill('company.assign', { name })`, not `probe.roster.moveTitle`**. The sketch's
+"All Probes — edit the whole fleet" tagline is dropped, as the nav's "— the whole fleet" was in Task 1.
+Added: `probe.roster.count` ("{n} probes") + `.count.one` ("1 probe"), `probe.roster.statusLine`
+("{job} · {dockingState} · {activity} · {status}", the sketch's desk tile line — the same four values
+`RobotScreen`'s `useRobotMeta` already resolves), `probe.roster.move` ("⇄ Move", `short` "⇄",
+template "Move {name}" for the accessible name); `company.detail.share` (lore "Mesh Share", template
+"{n} of {total} probes" — the fleet size is a slot, never a literal 12), `company.detail.signal` (lore
+"Affiliation Signal", options `company` / `all` = the sketch's two values — the All form's note),
+`company.detail.broadcastNote` (the sketch sentence) + `.one` / `.none` (a single plural template would
+say "all 1 probes" / "all 0 probes"; a new company starts empty), `company.detail.allForm` (the All
+form's eyebrow "Fleet-wide edit"; its title is `probe.all`). The human names "Fleet Share" / "Halo" and
+the `.one` / `.none` sentences are mine — the sketch draws only lore + value and the plural case. All
+ten new keys sit in `content.test.ts`'s `AWAITING_CONSUMER` naming Task 21 / 22 / 23; empty again by
+Checkpoint C. Not added: the sketch's phone company band line "{n} probes · edits reach every member"
+(Task 23 says name + count, which `probe.roster.count` covers).
+
 ## Task 20: `rosterRows()` and `movePanelRobotId`
 
 **Description:** Pure `src/utils/rosterRows.ts`: `rosterRows(locale): RosterRow[]` — one row per company
@@ -2258,7 +2279,7 @@ are deleted (`CompanyCrudControls`' forms survive). The roster subscribes to a n
 **Description:** `RosterTile` gains the "⇄ Move" chip (`CabinetBox`, 22 px, frame style): desk shell
 hidden until `:hover` / `:focus-within` on the tile, phone shell a small always-on glyph plus a 500 ms
 press on the tile. The chip is a Radix `Popover.Trigger` (desk) or `Dialog.Trigger` (phone) opening the
-company `RadioButton` (`buildCompanyAssignmentSchema`, title from `probe.roster.moveTitle`); the open tile
+company `RadioButton` (`buildCompanyAssignmentSchema`, title `fill('company.assign', { name })` — Task 19 as built); the open tile
 is `movePanelRobotId`. Picking calls `assignRobotToCompany` once, closes the panel, and `RosterBoard`
 runs the Flip glide (`Flip.getState` in the handler, `Flip.from` in a `useLayoutEffect` on the row
 order, `timelineMap` key `roster-move-<id>`, skipped under reduced motion). The chip stops propagation

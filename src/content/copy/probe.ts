@@ -33,6 +33,8 @@ export const probe = {
   },
   'probe.all': {
     human: 'All Probes',
+    /** The phone roster head's button (docs/specs/LAYOUT_REWORK.md §1.5; the sketch's "All"). */
+    short: 'All',
     intro: {
       lore: 'All Probes — broadcast to the entire fleet.',
       loreDescription: 'One instruction, transmitted to every probe on the mesh at once.',
@@ -45,6 +47,18 @@ export const probe = {
   'probe.list.clearFilter': { human: 'Clear Filter', lore: 'RESET UNIT ROSTER' },
   'probe.list.filteredBy': { human: 'Filtered by', template: 'Filtered by {company}' },
   'probe.list.noAssigned': { human: 'currently has no assigned robots', template: '{company} currently has no assigned robots' },
+
+  // ---------------------------------------------------------------- roster board
+  // docs/specs/LAYOUT_REWORK.md §1.5, copy from the approved sketch. The head reuses `probe.all` and
+  // `nav.entity.newCompany`, the Freelance group `company.assign`'s option, and the Move panel's title
+  // `company.assign`'s template — one entry per concept.
+  /** A group's count beside its name box. One probe has its own form (as `ui.noteValue.bar` does). */
+  'probe.roster.count': { human: 'Probes', template: '{n} probes' },
+  'probe.roster.count.one': { human: '1 probe' },
+  /** A tile's one status line: the job, then the docking, activity and emission states. */
+  'probe.roster.statusLine': { human: 'Status line', template: '{job} · {dockingState} · {activity} · {status}' },
+  /** The tile's reassignment chip: the glyph alone on the phone; the robot in its accessible name. */
+  'probe.roster.move': { human: '⇄ Move', short: '⇄', template: 'Move {name}' },
 
   // ---------------------------------------------------------------- selection card / display rows
   'probe.name': { human: 'Robot Name', lore: 'ROBOT IDENTIFIER' },
