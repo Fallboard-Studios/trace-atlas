@@ -20,7 +20,7 @@ function setStoreFixtures() {
 
 /** Stubs window.matchMedia for the three min-width queries Header's own nav-clearance shift reads
  *  (HEADER_NAV_CLEARANCE_MIN_WIDTH = 400px, HEADER_NAV_CLEARANCE_WIDE_MIN_WIDTH = 640px,
- *  NAV_PANEL_DOCK_MIN_WIDTH = 768px — see useNavPanelSlideAway.ts/NavPanel.test.tsx's own stub
+ *  NAV_PANEL_DOCK_MIN_WIDTH = 768px — see useShell.ts/NavPanel.test.tsx's own stub
  *  convention for the last one). atLeast640 defaults false (narrow tier) when omitted. */
 function stubMatchMedia({ atLeast400, atLeast640 = false, docked }: { atLeast400: boolean; atLeast640?: boolean; docked: boolean }) {
   Object.defineProperty(window, 'matchMedia', {
@@ -242,7 +242,7 @@ describe('Header', () => {
 
   // NavPanel's own slide-off overlaps Header's volume slider between HEADER_NAV_CLEARANCE_MIN_WIDTH
   // (400px) and NavPanel's own dock breakpoint (NAV_PANEL_DOCK_MIN_WIDTH, 768px — see
-  // useNavPanelSlideAway.ts). Header.tsx shifts its own cabinet box right in that range so Mute
+  // useShell.ts). Header.tsx shifts its own cabinet box right in that range so Mute
   // stays reachable while NavPanel is open.
   describe('.header>.sc-cabinet-box nav-clearance shift', () => {
     beforeEach(() => {

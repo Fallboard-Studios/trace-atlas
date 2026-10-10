@@ -1,17 +1,12 @@
 import { useSyncExternalStore } from 'react';
+import { NAV_PANEL_DOCK_MIN_WIDTH } from '../useShell';
 
-/**
- * NavPanel's own dock breakpoint — deliberately independent of the shared Cabinet tier
- * (useCabinetTier, useCabinetBoxHeight.ts, 639px) even though NavPanel originally reused that
- * value. That tier also sizes CabinetBox height and voxel-track gap everywhere else in the app,
- * so widening it just to keep the nav panel's slide-off behavior longer would widen those too.
- * A single min-width query (mobile-first, matching this codebase's CSS convention — see
- * Header.css/NavPanel.css's own `@media (min-width: ...)` tiers) rather than a max-width
- * counterpart: two numbers a pixel apart (e.g. 767/768) invite an off-by-one gap or overlap
- * between "still slid-away" and "now docked". One threshold, inverted for the slide-away read,
- * can't drift out of sync with itself. See docs/specs/NAV_LAYOUT_REWRITE.md.
+/*
+ * NavPanel's own dock breakpoint, NAV_PANEL_DOCK_MIN_WIDTH, now lives in useShell.ts (the layout
+ * rework's one shell switch splits at the same width); this file goes with the tree in Task 9 of
+ * docs/tasks/LAYOUT_REWORK.md. See docs/specs/NAV_LAYOUT_REWRITE.md for why it is a single
+ * min-width query, independent of the cabinet tier.
  */
-export const NAV_PANEL_DOCK_MIN_WIDTH = 768;
 
 function resolveIsDocked(): boolean {
   if (typeof window.matchMedia !== 'function') return true;

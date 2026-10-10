@@ -2,7 +2,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 
-import { NAV_PANEL_DOCK_MIN_WIDTH } from './nav/useNavPanelSlideAway';
+import { NAV_PANEL_DOCK_MIN_WIDTH } from './useShell';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { Toggle } from '@/components/ui/controls/Toggle';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -99,7 +99,7 @@ function Header() {
 
   const isNavPanelOpen = useUIStore((s) => s.isNavPanelOpen);
   // In range: at least HEADER_NAV_CLEARANCE_MIN_WIDTH wide, but still below NavPanel's own dock
-  // breakpoint (NAV_PANEL_DOCK_MIN_WIDTH, useNavPanelSlideAway.ts) — once NavPanel is permanently
+  // breakpoint (NAV_PANEL_DOCK_MIN_WIDTH, useShell.ts) — once NavPanel is permanently
   // docked, it no longer overlaps Header's own volume slider at all, so there's nothing to clear.
   const isAtLeastClearanceWidth = useMatchesMediaQuery(`(min-width: ${HEADER_NAV_CLEARANCE_MIN_WIDTH}px)`);
   const isNavPanelDocked = useMatchesMediaQuery(`(min-width: ${NAV_PANEL_DOCK_MIN_WIDTH}px)`);
