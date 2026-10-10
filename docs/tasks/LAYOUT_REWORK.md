@@ -330,8 +330,8 @@ the top bar and the bottom bar (CSS `top` / `bottom` from the two heights), neve
 - [ ] On the phone shell the bar renders at the bottom, the panel is not in the DOM until the menu
       button opens the sheet, and a pick closes it (`isNavPanelOpen` false).
 - [ ] On the desk shell neither the bar nor the sheet renders.
-- [ ] The sheet traps focus and closes on Escape and scrim click; the bar's well reads "menu open — tap
-      outside or pick to close" while open (content key from Task 1).
+- [ ] The sheet traps focus and closes on Escape and scrim click; the bar's well reads "tap outside or
+      pick to close" while open (content key from Task 1; shortened 2026-10-09, see As built).
 - [ ] At 320 px wide nothing in the bar overflows (CSS test on the bar's widths).
 
 **Verification:**
@@ -394,8 +394,10 @@ attribute.
   a press on ✕. The ✕ press does not reopen it.
 
 **Known gaps:**
-- At 320 px the hint is 212 px of text in a 202 px well: "…pick to cl…" (an ellipsis, not an
-  overflow).
+- ~~At 320 px the hint is 212 px of text in a 202 px well: "…pick to cl…".~~ Fixed by shorter
+  copy (Crawford, 2026-10-09: "shorter copy if possible"). The hint is now "tap outside or pick to
+  close", without the sketch's "menu open — ", which the open sheet and the ✕ already say. Measured
+  in Chrome, it fits the well whole at 320 px (202 / 202) and at 375 px (257 / 257).
 - At 320 px the sheet covers the whole screen, so "outside" is the header or the bar.
 - The sheet's top (`--nav-sheet-top`, the home card's header clearance) sits over the header's lower
   edge: 4 px below 640 px, 16 px at 640–767, because the header's sticky offset is 20 / 32 px by
