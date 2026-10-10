@@ -37,7 +37,6 @@ function dirtyStore(overrides: Partial<UIStore> = {}) {
     allProbesSelected: false,
     selectedSection: 'source',
     selectedSubsection: 'coaxialOscillator',
-    selectedFleetParamsEffect: 'delay',
     fleetParamsSection: 'output',
     fleetParamsSubsection: 'limiter',
     selectedSettingsLeaf: 'sessions',
@@ -58,7 +57,6 @@ function expectNoEntityAndNoSection() {
     allProbesSelected: false,
     selectedSection: null,
     selectedSubsection: null,
-    selectedFleetParamsEffect: null,
     // Fleet Params' tab is a section field too: every pick lands on its default (Task 15).
     fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
     fleetParamsSubsection: null,

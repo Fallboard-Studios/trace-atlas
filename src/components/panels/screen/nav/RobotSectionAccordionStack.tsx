@@ -18,10 +18,9 @@ export interface RobotSectionAccordionStackProps {
   prefix: string;
   isOpen: (id: string) => boolean;
   setOpen: (id: string, open: boolean) => void;
-  /** Lazy-mount gate (useSectionObserver) — a subsection's renderSubsection() result is only
-   *  rendered once its id has approached. */
-  hasApproached: (id: string) => boolean;
-  sectionAnchorRef: (id: string) => (el: HTMLDivElement | null) => void;
+  /** Lazy-mount gate — a subsection's renderSubsection() result is only rendered once its id's
+   *  accordion has opened (CompanyOptionsSection keeps it mounted after that). */
+  hasOpened: (id: string) => boolean;
   /** Resolves an accordion's style from its owning section's trait — RobotOptionsTab passes a
    *  fixed per-trait style, CompanyOptionsSection's own active/disabled variant. Narrower than the
    *  app-wide Trait type — RobotOptionsTrait is exactly the 4 values ROBOT_SECTIONS_CONFIG can
@@ -41,10 +40,11 @@ export interface RobotSectionAccordionStackProps {
  * every other section renders its single accordion-bearing subsection with no section-level
  * wrapping accordion at all, matching today's shipped shape exactly (spec §1.3). Callers own all
  * value/handler/disabled-state logic — this component only decides which accordions exist, their
- * ids/labels/nesting, and when their content mounts.
+ * ids/labels/nesting, and when their content mounts. Only CompanyOptionsSection still renders it
+ * (RobotScreen is on section tabs); both go in docs/tasks/LAYOUT_REWORK.md Task 23.
  */
 export function RobotSectionAccordionStack({
-  prefix, isOpen, setOpen, hasApproached, sectionAnchorRef, resolveStyle, renderSubsection,
+  prefix, isOpen, setOpen, hasOpened, resolveStyle, renderSubsection,
 }: RobotSectionAccordionStackProps) {
   return (
     <>
@@ -58,7 +58,7 @@ export function RobotSectionAccordionStack({
             const id = `${sectionId}.${sub.id}`;
             const schema: AccordionSchema = { id, type: 'accordion', humanLabel: labels(sub.accordion!).humanLabel };
             return (
-              <div key={sub.id} ref={sectionAnchorRef(id)}>
+              <div key={sub.id}>
                 <AccordionContainer
                   schema={schema}
                   open={isOpen(id)}
@@ -71,14 +71,14 @@ export function RobotSectionAccordionStack({
                       trait={section.trait}
                     />
                   )}
-                  {hasApproached(id) ? renderSubsection(sub.id, section.id) : null}
+                  {hasOpened(id) ? renderSubsection(sub.id, section.id) : null}
                 </AccordionContainer>
               </div>
             );
           });
 
         return (
-          <div key={section.id} ref={sectionAnchorRef(sectionId)}>
+          <div key={section.id}>
             {section.accordion ? (
               <AccordionContainer
                 schema={{ id: sectionId, type: 'accordion', humanLabel: labels(section.accordion).humanLabel } satisfies AccordionSchema}

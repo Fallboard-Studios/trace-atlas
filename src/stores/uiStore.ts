@@ -27,8 +27,9 @@ export type FleetParamsGroup = 'pacing' | 'lfoBank' | 'eqFilters' | 'timeSpace' 
  *  Storage's Task 10 (docs/tasks/SESSION_STORAGE.md, Roadmap Phase 20). The tree's third level
  *  under a leaf (Voice Limit, Location…) retired with the stacked screen (LAYOUT_REWORK.md Task 17). */
 export type SettingsLeaf = 'quality' | 'sectorSettings' | 'sessions';
-/** Which Fleet Params effect leaf is currently selected — added in Task 14
- *  (docs/tasks/NAV_LAYOUT_REWRITE.md), same reasoning as SettingsLeaf: Fleet Params' 5 groups
+/** A Fleet Params sub-tab — fleetParamsSubsection's type (docs/specs/LAYOUT_REWORK.md §1.10). Added in
+ *  Task 14 (docs/tasks/NAV_LAYOUT_REWRITE.md) for the tree's effect leaf, a field that retired with the
+ *  stacked scroll (LAYOUT_REWORK.md Task 18); same reasoning as SettingsLeaf: Fleet Params' 5 groups
  *  (Pacing/LFO Bank/EQ & Filters/Time & Space/Output) are category-only per spec §7 Q5, and the
  *  7 real effect leaves underneath EQ & Filters/Time & Space/Output (EQ/HPF/LPF/Reverb/Delay/
  *  Compression/Limiter) all map onto AUDIO_RIG_CONFIG's own AudioRigEffectKey — reused directly
@@ -50,10 +51,10 @@ export type RobotSubsection =
   | 'baselineOscillator'
   | 'coaxialOscillator'
   | 'harmonicOscillator';
-/** Which of the 4 top-level tree branches is peeked open — its own accordion-of-one level,
- *  independent of every per-branch expandedXxxId field below (those track which CHILD within an
- *  already-expanded branch is peeked open, not whether the branch itself is). Bugfix: this field
- *  was missing entirely through Tasks 1-18 — isExpanded/toggleExpand (useNavTree.ts) had no case
+/** Which of the 4 top-level branches is open in the nav panel (its entity list, for Probes and
+ *  Companies). The tree's per-branch fields, which tracked which probe or company was peeked
+ *  open, retired with the stacked scroll (docs/tasks/LAYOUT_REWORK.md Task 18). Bugfix: this
+ *  field was missing entirely through Tasks 1-18 — isExpanded/toggleExpand (useNavTree.ts) had no case
  *  for a bare single-segment node id ('settings', 'fleetParams', 'probes', 'companies'), so every
  *  top-level node's own +/- button was a silent no-op and its children could never render, found
  *  live by Crawford after Checkpoint 3. */
@@ -103,15 +104,9 @@ export interface UIStore {
   selectedSubsection: RobotSubsection | null;
   /** Mobile only; desktop/tablet ignore this and stay docked-open. */
   isNavPanelOpen: boolean;
-  /** Accordion-of-one within the Probes branch — peek-without-navigating expansion. */
-  expandedProbeId: string | null;
-  /** Accordion-of-one within the Companies branch. */
-  expandedCompanyId: string | null;
   /** The Settings screen's open tab — see SettingsLeaf's own doc comment. null reads as the first,
    *  Audio Quality (navActions' activeSettingsLeaf), which is what every nav pick stores. */
   selectedSettingsLeaf: SettingsLeaf | null;
-  /** Which Fleet Params effect leaf is selected — see SelectedFleetParamsEffect's own doc comment. */
-  selectedFleetParamsEffect: SelectedFleetParamsEffect | null;
   /** The Fleet Params screen's open section tab (docs/specs/LAYOUT_REWORK.md §1.10). Always one: the
    *  screen is tabs, so there is no "no section" state. */
   fleetParamsSection: FleetParamsGroup;
@@ -143,10 +138,7 @@ export interface UIStore {
   setSelectedSection: (s: RobotSection | null) => void;
   setSelectedSubsection: (s: RobotSubsection | null) => void;
   setNavPanelOpen: (open: boolean) => void;
-  setExpandedProbeId: (id: string | null) => void;
-  setExpandedCompanyId: (id: string | null) => void;
   setSelectedSettingsLeaf: (l: SettingsLeaf | null) => void;
-  setSelectedFleetParamsEffect: (e: SelectedFleetParamsEffect | null) => void;
   /** Also resets fleetParamsSubsection to null: a sub-tab belongs to its section. */
   setFleetParamsSection: (s: FleetParamsGroup) => void;
   setFleetParamsSubsection: (s: SelectedFleetParamsEffect | null) => void;
@@ -177,10 +169,7 @@ export const useUIStore = create<UIStore>((set) => ({
   selectedSection: null,
   selectedSubsection: null,
   isNavPanelOpen: false,
-  expandedProbeId: null,
-  expandedCompanyId: null,
   selectedSettingsLeaf: null,
-  selectedFleetParamsEffect: null,
   fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
   fleetParamsSubsection: null,
   expandedTopLevelBranch: null,
@@ -210,10 +199,7 @@ export const useUIStore = create<UIStore>((set) => ({
   setSelectedSection: (s) => set({ selectedSection: s }),
   setSelectedSubsection: (s) => set({ selectedSubsection: s }),
   setNavPanelOpen: (open) => set({ isNavPanelOpen: open }),
-  setExpandedProbeId: (id) => set({ expandedProbeId: id }),
-  setExpandedCompanyId: (id) => set({ expandedCompanyId: id }),
   setSelectedSettingsLeaf: (l) => set({ selectedSettingsLeaf: l }),
-  setSelectedFleetParamsEffect: (e) => set({ selectedFleetParamsEffect: e }),
   setFleetParamsSection: (s) => set({ fleetParamsSection: s, fleetParamsSubsection: null }),
   setFleetParamsSubsection: (s) => set({ fleetParamsSubsection: s }),
   setExpandedTopLevelBranch: (b) => set({ expandedTopLevelBranch: b }),

@@ -75,7 +75,7 @@ describe('ScreenViewport', () => {
 });
 
 // The grep gate, kept as a test: the tree's modules are gone and nothing under src/ imports one
-// (spec §1.11). accordionSync / sectionRefs / useAccordionOpenState stay until Task 18.
+// (spec §1.11). The stacked scroll's gate (Task 18) is screens/stackedScrollRetired.test.ts.
 describe('ScreenViewport — the nav tree is deleted', () => {
   const srcRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
   const DELETED = [

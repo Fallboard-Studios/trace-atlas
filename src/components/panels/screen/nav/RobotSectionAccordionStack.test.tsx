@@ -37,8 +37,7 @@ function makeProps(overrides: Partial<RobotSectionAccordionStackProps> = {}): Ro
     prefix: 'probes.r1',
     isOpen: () => false,
     setOpen: vi.fn(),
-    hasApproached: () => true,
-    sectionAnchorRef: vi.fn((_id: string) => () => {}),
+    hasOpened: () => true,
     resolveStyle: (trait) => ({ '--test-trait': trait }) as CSSProperties,
     renderSubsection: (subId) => <span data-testid={`rendered-${subId}`}>{subId}</span>,
     ...overrides,
@@ -91,7 +90,7 @@ describe('RobotSectionAccordionStack', () => {
     expect(screen.queryByTestId('accordion-probes.r1.volume')).toBeNull();
     expect(screen.queryByTestId('accordion-probes.r1.melody')).toBeNull();
     expect(screen.queryByTestId('accordion-probes.r1.envelope')).toBeNull();
-    // Their own single subsection accordion still renders, unwrapped, directly under the section's anchor div.
+    // Their own single subsection accordion still renders, unwrapped, directly under the section's own div.
     expect(screen.queryByTestId('accordion-probes.r1.volume.audioSettings')).not.toBeNull();
   });
 
@@ -101,10 +100,10 @@ describe('RobotSectionAccordionStack', () => {
     expect(screen.queryByText('probes.r1.melody.frequency')).toBeNull();
   });
 
-  it('only calls renderSubsection for a subsection whose id hasApproached reports true — lazy-mount gating', () => {
+  it('only calls renderSubsection for a subsection whose id hasOpened reports true — lazy-mount gating', () => {
     const renderSubsection = vi.fn((subId: string) => <span>{subId}</span>);
-    const hasApproached = (id: string) => id === 'probes.r1.envelope.pingContour';
-    render(<RobotSectionAccordionStack {...makeProps({ hasApproached, renderSubsection })} />);
+    const hasOpened = (id: string) => id === 'probes.r1.envelope.pingContour';
+    render(<RobotSectionAccordionStack {...makeProps({ hasOpened, renderSubsection })} />);
 
     expect(renderSubsection).toHaveBeenCalledWith('pingContour', 'envelope');
     expect(renderSubsection).not.toHaveBeenCalledWith('rhythm', 'melody');
@@ -124,21 +123,6 @@ describe('RobotSectionAccordionStack', () => {
     expect(resolveStyle).toHaveBeenCalledWith('spectral');
     expect(screen.getByTestId('accordion-probes.r1.volume.audioSettings').style.getPropertyValue('--trait')).toBe('output');
     expect(screen.getByTestId('accordion-probes.r1.source.baselineOscillator').style.getPropertyValue('--trait')).toBe('spectral');
-  });
-
-  it('registers a scroll anchor for every section id and every non-merged subsection id', () => {
-    const sectionAnchorRef = vi.fn((_id: string) => () => {});
-    render(<RobotSectionAccordionStack {...makeProps({ sectionAnchorRef })} />);
-
-    const calledIds = sectionAnchorRef.mock.calls.map((call) => call[0]);
-    expect(calledIds).toEqual(expect.arrayContaining([
-      'probes.r1.volume', 'probes.r1.volume.audioSettings',
-      'probes.r1.melody', 'probes.r1.melody.rhythm',
-      'probes.r1.envelope', 'probes.r1.envelope.pingContour',
-      'probes.r1.source', 'probes.r1.source.baselineOscillator', 'probes.r1.source.coaxialOscillator',
-      'probes.r1.source.harmonicOscillator',
-    ]));
-    expect(calledIds).not.toContain('probes.r1.melody.frequency');
   });
 });
 

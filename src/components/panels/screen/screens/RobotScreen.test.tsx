@@ -59,13 +59,11 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
     onOctaveMinChange: (v: number) => void;
     onOctaveMaxChange: (v: number) => void;
     onNoteVarianceChange: (v: number) => void;
-    noteVarianceAnchorId?: string;
   }) => (
     <div
       data-testid="ping-controls-composition-stub"
       data-density={props.value.rhythmicDensity}
       data-pitch-repeat={props.value.pitchRepeat}
-      data-anchor={String(props.noteVarianceAnchorId)}
     >
       <button onClick={() => props.onDensityChange(77)}>probe-density</button>
       <button onClick={() => props.onMotifLengthChange(6)}>probe-motif-length</button>
@@ -360,13 +358,12 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
   });
 
   describe('Composition (PingControlsCompositionSection)', () => {
-    it('derives its value from the robot, and passes no scroll anchor (the stacked scroll is gone)', () => {
+    it('derives its value from the robot', () => {
       selectRobot(makeRobot(), 'melody');
       render(<RobotScreen />);
       const stub = screen.getByTestId('ping-controls-composition-stub');
       expect(stub.getAttribute('data-density')).toBe('42');
       expect(stub.getAttribute('data-pitch-repeat')).toBe('33');
-      expect(stub.getAttribute('data-anchor')).toBe('undefined');
     });
 
     it.each([

@@ -139,7 +139,6 @@ function cleanSlate(): void {
   s.selectRobot(null); // also clears selectedSection / selectedSubsection
   s.selectAllRobots(); // the "no company" state: selectedCompanyId null, allRobotsSelected true
   s.setAllProbesSelected(false);
-  s.setSelectedFleetParamsEffect(null);
   s.setFleetParamsSection(DEFAULT_FLEET_PARAMS_SECTION); // also clears the sub-tab
   s.setSelectedSettingsLeaf(null); // Settings back on its first tab (Task 17)
 }

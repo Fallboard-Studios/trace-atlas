@@ -9,8 +9,6 @@ import {
   ROBOT_SECTIONS_CONFIG,
   SOURCE_OSCILLATOR_SUBSECTIONS,
   DEFAULT_ROBOT_SECTION,
-  subsectionIds,
-  accordionIds,
   sectionTabContent,
   sectionSubTabs,
   activeRobotSection,
@@ -120,37 +118,6 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
 describe('SOURCE_OSCILLATOR_SUBSECTIONS', () => {
   it('lists exactly the 3 oscillator layer ids, in layer order', () => {
     expect(SOURCE_OSCILLATOR_SUBSECTIONS).toEqual(['baselineOscillator', 'coaxialOscillator', 'harmonicOscillator']);
-  });
-});
-
-describe('subsectionIds', () => {
-  it('lists exactly the 6 accordion-bearing subsection ids, in tree order, excluding frequency', () => {
-    expect(subsectionIds('probes.r1')).toEqual([
-      'probes.r1.volume.audioSettings',
-      'probes.r1.melody.rhythm',
-      'probes.r1.envelope.pingContour',
-      'probes.r1.source.baselineOscillator',
-      'probes.r1.source.coaxialOscillator',
-      'probes.r1.source.harmonicOscillator',
-    ]);
-  });
-
-  it('reflects whatever prefix is given — company/All-Probes mode included', () => {
-    expect(subsectionIds('companies.c1')[0]).toBe('companies.c1.volume.audioSettings');
-  });
-});
-
-describe('accordionIds', () => {
-  it("lists the 6 subsection ids plus source's own wrapping accordion id, in order", () => {
-    expect(accordionIds('probes.r1')).toEqual([
-      'probes.r1.volume.audioSettings',
-      'probes.r1.melody.rhythm',
-      'probes.r1.envelope.pingContour',
-      'probes.r1.source.baselineOscillator',
-      'probes.r1.source.coaxialOscillator',
-      'probes.r1.source.harmonicOscillator',
-      'probes.r1.source',
-    ]);
   });
 });
 

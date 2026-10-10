@@ -4,13 +4,8 @@ import { PingControlsCompositionSection, type PingControlsValue } from '@/compon
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
 import { SignatureArrayLayer, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
 import { RobotSectionAccordionStack } from '@/components/panels/screen/nav/RobotSectionAccordionStack';
-import { useSectionObserver } from '@/components/panels/screen/nav/useSectionObserver';
-import { useAccordionOpenState } from '@/components/panels/screen/nav/useAccordionOpenState';
-import { setSectionRef, clearSectionRef } from '@/utils/sectionRefs';
-import { hasPendingNavTargetFor } from '@/utils/accordionSync';
-import { setViewFadeRoot } from '@/utils/viewFade';
 import { useLocaleStore } from '@/stores/localeStore';
-import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
+import { useUIStore, type RobotSubsection } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { resolveCompanyOptions, diffCompoundField } from '@/systems/companyOptions';
 import {
@@ -22,7 +17,7 @@ import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/system
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import { SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import {
-  SOURCE_OSCILLATOR_SUBSECTIONS, subsectionIds as computeSubsectionIds, accordionIds as computeAccordionIds,
+  SOURCE_OSCILLATOR_SUBSECTIONS,
   type RobotOptionsTrait,
 } from '@/data/robotSubsectionConfig';
 import { getTraitColorStyle, getDisabledTraitColorStyle } from '@/utils/traitColors';
@@ -89,11 +84,20 @@ const DISABLED_SIGNATURE_ARRAY: SignatureArrayValue = {
   lfoLinks: {},
 };
 
-function sectionAnchorRef(id: string) {
-  return (el: HTMLDivElement | null) => {
-    if (el) setSectionRef(id, el);
-    else clearSectionRef(id);
-  };
+/** Which accordions are open, and which have ever opened, for one entity (`prefix`). An accordion's
+ *  content mounts on its first open and then stays, so a close animates the content out and a
+ *  reopen keeps it: the lazy mount the stacked scroll's scrollspy used to gate on approach
+ *  (docs/tasks/LAYOUT_REWORK.md Task 18). Plain local state; nothing outside reads it. */
+interface AccordionState {
+  prefix: string;
+  open: Record<string, boolean>;
+  opened: Record<string, boolean>;
+}
+
+/** One entity's starting state: Levels open, so the screen is never all collapsed. */
+function initialAccordions(prefix: string): AccordionState {
+  const levels = `${prefix}.volume.audioSettings`;
+  return { prefix, open: { [levels]: true }, opened: { [levels]: true } };
 }
 
 /**
@@ -103,12 +107,11 @@ function sectionAnchorRef(id: string) {
  * NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, Task 13) mirrors RobotOptionsTab's own Task 11 pattern
  * directly via the same shared RobotSectionAccordionStack (docs/specs/
  * ROBOT_SECTION_CONFIG_CONSOLIDATION.md): all 5 sections' worth of subsections stacked, each in
- * its own accordion with manual, independent open/closed state (`useAccordionOpenState`) — a nav
- * click only scrolls to a section, and scrollspy only updates `selectedSection`/`selectedSubsection`
- * for tree highlighting; neither opens or closes an accordion (Crawford's own follow-up call,
- * 2026-09-24, reversing this pass's original derived-single-open-accordion design). Audio Settings
- * opens by default on mount, and again whenever `prefix` changes (switching between All Probes/a
- * different company). No top metadata block here (unlike RobotDisplaySection) — CompanyRenameDeleteForm
+ * its own accordion with manual, independent open/closed state (local `AccordionState`; the
+ * nav-synced open-state hook, the scrollspy and the scroll anchors retired with the stacked scroll,
+ * docs/tasks/LAYOUT_REWORK.md Task 18 — this screen becomes CompanyScreen's section tabs in Task 23).
+ * Audio Settings opens by default on mount, and again whenever `prefix` changes (switching between
+ * All Probes/a different company). No top metadata block here (unlike RobotDisplaySection) — CompanyRenameDeleteForm
  * plays that role, rendered by CompaniesContent.tsx above this component, not inside it; the bare
  * "All Probes" call site (ProbesContent.tsx) has no equivalent at all.
  *
@@ -136,8 +139,6 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
   const localeId = getActiveLocaleId();
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const allRobotsSelected = useUIStore((s) => s.allRobotsSelected);
-  const setSelectedSection = useUIStore((s) => s.setSelectedSection);
-  const setSelectedSubsection = useUIStore((s) => s.setSelectedSubsection);
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
   // Subscribe to the raw robots array (a stable reference — Zustand's default equality check is
   // by reference, and this only changes when the store's own robots array does) and filter
@@ -403,37 +404,20 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
     patchSnapshot({ lfoLinks: { ...resolved?.lfoLinks, [target]: value } });
   }, [localeId, patchSnapshot]);
 
-  const subsectionIdList = useMemo(() => computeSubsectionIds(prefix), [prefix]);
+  // Reset per entity: switching between All Probes and a company (a new `prefix`, the same mounted
+  // instance) starts over with only Levels open. React's "adjust state while rendering" pattern, so
+  // the old entity's open accordions never paint for the new one.
+  const [accordions, setAccordions] = useState(() => initialAccordions(prefix));
+  if (accordions.prefix !== prefix) setAccordions(initialAccordions(prefix));
 
-  const { hasApproached } = useSectionObserver(subsectionIdList, (id) => {
-    const segments = id.split('.'); // [branch, entityId, section, subsection]
-    const sec = segments[2] as RobotSection;
-    const sub = segments[3] as RobotSubsection;
-    setSelectedSection(sec);
-    setSelectedSubsection(sub);
-  });
-
-  const accordionIdList = useMemo(() => computeAccordionIds(prefix), [prefix]);
-  const { isOpen, setOpen } = useAccordionOpenState(accordionIdList, `${prefix}.volume.audioSettings`, prefix);
-
-  // Starts hidden only when a nav click was already mid-flight targeting one of this view's own
-  // accordions at the moment of this component's OWN first mount — i.e. arriving here from a
-  // genuinely different view. Evaluated once (lazy useState initializer), never re-evaluated on
-  // later re-renders, so switching between "All Probes"/a company (the same mounted instance,
-  // reset via resetKey above) never re-hides an already-visible view. NavTreeNode's own onSettled
-  // callback (scroll, then fadeInView) is what reveals it again once the target accordion(s) have
-  // actually finished opening — see src/utils/viewFade.ts.
-  const [startHidden] = useState(() => hasPendingNavTargetFor(accordionIdList));
-
-  // useCallback with an empty dependency array — a stable ref identity, unlike a plain inline
-  // arrow function (which React re-invokes with null then the element again on every single
-  // re-render, not just mount/unmount). Setting opacity via the JSX style prop instead would be
-  // reapplied on every re-render too, fighting GSAP's own inline-style tween once fadeInView()
-  // starts animating opacity back up and making the fade look instant (found live).
-  const rootRef = useCallback((el: HTMLDivElement | null) => {
-    if (el && startHidden) el.style.opacity = '0';
-    setViewFadeRoot(el);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- startHidden never changes after mount
+  const isOpen = useCallback((id: string) => !!accordions.open[id], [accordions.open]);
+  const hasOpened = useCallback((id: string) => !!accordions.opened[id], [accordions.opened]);
+  const setOpen = useCallback((id: string, open: boolean) => {
+    setAccordions((prev) => ({
+      ...prev,
+      open: { ...prev.open, [id]: open },
+      opened: open ? { ...prev.opened, [id]: true } : prev.opened,
+    }));
   }, []);
 
   const resolveStyle = useCallback((trait: RobotOptionsTrait): CSSProperties => (
@@ -442,7 +426,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
 
   // Dispatches each subsection id to its own content component, exactly as the pre-consolidation
   // JSX did per accordion — RobotSectionAccordionStack calls this only once a subsection's own id
-  // hasApproached (its lazy-mount gate), so no hasApproached check is needed here.
+  // has opened (its lazy-mount gate), so no hasOpened check is needed here.
   const renderSubsection = useCallback((subsectionId: RobotSubsection): ReactNode => {
     switch (subsectionId) {
       case 'audioSettings':
@@ -456,9 +440,7 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
           />
         );
       case 'rhythm':
-        // Rhythm/Pitches merged into one "Composition" accordion — see RobotOptionsTab.tsx's own
-        // matching case for why this reuses the '.rhythm' id, and for why noteVarianceAnchorId
-        // gives "Pitches" a real scroll target.
+        // Rhythm/Pitches merged into one "Composition" accordion, under the '.rhythm' id.
         return (
           <PingControlsCompositionSection
             value={pingControlsValue}
@@ -469,7 +451,6 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
             onOctaveMinChange={handleOctaveMinChange}
             onOctaveMaxChange={handleOctaveMaxChange}
             onNoteVarianceChange={handleNoteVarianceChange}
-            noteVarianceAnchorId={`${prefix}.melody.frequency`}
           />
         );
       case 'pingContour':
@@ -500,20 +481,19 @@ export const CompanyOptionsSection = memo(function CompanyOptionsSection() {
   }, [
     audioSettingValue, active, handleAudioModeChange, handleVolumeChange, volumeSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
-    handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, prefix,
+    handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange,
     adsrValue, handleAdsrChange, adsrSwelling,
     signatureArrayValue, handleLayerTypeChange, handleLayerParamChange, handleLayerLfoFieldChange,
     layer0Swelling, layer1Swelling, layer2Swelling,
   ]);
 
   return (
-    <div className="company-options-section" ref={rootRef}>
+    <div className="company-options-section">
       <RobotSectionAccordionStack
         prefix={prefix}
         isOpen={isOpen}
         setOpen={setOpen}
-        hasApproached={hasApproached}
-        sectionAnchorRef={sectionAnchorRef}
+        hasOpened={hasOpened}
         resolveStyle={resolveStyle}
         renderSubsection={renderSubsection}
       />

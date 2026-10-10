@@ -3,9 +3,6 @@ import { memo } from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { CompanyOptionsSection } from './CompanyOptionsSection';
 import { CONTENT } from '@/content';
-import { installIntersectionObserverStub, approachSection } from '@/testUtils/intersectionObserverStub';
-import { clearSectionRef } from '@/utils/sectionRefs';
-import { openAccordionFromNav, clearPendingNavTarget } from '@/utils/accordionSync';
 
 // AudioSettingSection/PingControlsRhythmSection/PingControlsFrequencySection/PingContourDrawer/
 // SignatureArrayLayer pull in real Tone.js/AudioEngine machinery — mocked here the
@@ -155,26 +152,16 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
   } as Robot;
 }
 
-function allSubsectionIds(prefix: string) {
-  return [
-    `${prefix}.volume.audioSettings`,
-    `${prefix}.melody.rhythm`,
-    `${prefix}.envelope.pingContour`,
-    `${prefix}.source.baselineOscillator`,
-    `${prefix}.source.coaxialOscillator`,
-    `${prefix}.source.harmonicOscillator`,
-  ];
+/** Opens an accordion by pressing its trigger, as a user does; Source's three layers sit inside
+ *  Source, so a layer needs Source opened first. */
+function openAccordion(name: string) {
+  fireEvent.click(screen.getByRole('button', { name }));
 }
+
+const isExpanded = (name: string) => screen.getByRole('button', { name }).getAttribute('aria-expanded') === 'true';
 
 describe('CompanyOptionsSection', () => {
   const localeId = getActiveLocaleId();
-
-  beforeEach(() => {
-    installIntersectionObserverStub();
-    allSubsectionIds('probes.all').forEach(clearSectionRef);
-    allSubsectionIds('companies.c1').forEach(clearSectionRef);
-    allSubsectionIds('companies.c2').forEach(clearSectionRef);
-  });
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -197,26 +184,13 @@ describe('CompanyOptionsSection', () => {
     }
   });
 
-  describe('view-fade-in on arrival from a different view', () => {
-    afterEach(() => {
-      clearPendingNavTarget();
-    });
+  // docs/tasks/LAYOUT_REWORK.md Task 18: the view fade masked a nav-driven open-and-scroll, and
+  // nothing drives one any more.
+  it('renders with no opacity override — there is no view fade', () => {
+    const { container } = render(<CompanyOptionsSection />);
 
-    it('renders normally (no opacity override) when no nav click was mid-flight', () => {
-      const { container } = render(<CompanyOptionsSection />);
-
-      const root = container.querySelector('.company-options-section') as HTMLElement;
-      expect(root.style.opacity).toBe('');
-    });
-
-    it('starts at opacity 0 when a nav click was already queued for one of this view\'s accordions', () => {
-      openAccordionFromNav('probes.all.envelope.pingContour', { closeSiblings: false });
-
-      const { container } = render(<CompanyOptionsSection />);
-
-      const root = container.querySelector('.company-options-section') as HTMLElement;
-      expect(root.style.opacity).toBe('0');
-    });
+    const root = container.querySelector('.company-options-section') as HTMLElement;
+    expect(root.style.opacity).toBe('');
   });
 
   it('renders Source\'s own 3 nested accordion triggers — no Probe Drift trigger anywhere (moved to Fleet Params\' LFO Drift accordion entirely, docs/specs/FLEET_DRIFT_CONSOLIDATION.md follow-up)', () => {
@@ -265,14 +239,83 @@ describe('CompanyOptionsSection', () => {
     expect(screen.getByRole('button', { name: 'Envelope' }).getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('a subsection\'s real content is not in the DOM until its own anchor has been approached', () => {
+  // docs/tasks/LAYOUT_REWORK.md Task 18: the lazy-mount gate was the scrollspy's "approached"; with
+  // the scrollspy gone it is the accordion's first open, so a closed section still costs nothing.
+  describe('lazy mount: a section\'s content mounts the first time its accordion opens', () => {
+    it('mounts the default-open Levels at once, and nothing that is closed', () => {
+      render(<CompanyOptionsSection />);
+      expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
+      expect(screen.queryByTestId('ping-controls-composition-stub')).toBeNull();
+      expect(screen.queryByTestId('ping-contour-drawer-stub')).toBeNull();
+      expect(screen.queryByTestId('signature-array-layer-stub-0')).toBeNull();
+    });
+
+    it('mounts a section when it opens', () => {
+      render(<CompanyOptionsSection />);
+      openAccordion('Envelope');
+      expect(screen.getByTestId('ping-contour-drawer-stub')).toBeTruthy();
+      expect(screen.queryByTestId('ping-controls-composition-stub')).toBeNull();
+    });
+
+    it('keeps it mounted after it closes, so the close can animate its content out', () => {
+      render(<CompanyOptionsSection />);
+      openAccordion('Envelope');
+      openAccordion('Envelope');
+      expect(isExpanded('Envelope')).toBe(false);
+      expect(screen.getByTestId('ping-contour-drawer-stub')).toBeTruthy();
+
+      openAccordion('Levels');
+      expect(isExpanded('Levels')).toBe(false);
+      expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
+    });
+
+    it('mounts a nested layer only when the layer itself opens, not when Source does', () => {
+      render(<CompanyOptionsSection />);
+      openAccordion('Source');
+      expect(screen.queryByTestId('signature-array-layer-stub-0')).toBeNull();
+
+      openAccordion('Core Oscillator');
+      expect(screen.getByTestId('signature-array-layer-stub-0')).toBeTruthy();
+      expect(screen.queryByTestId('signature-array-layer-stub-1')).toBeNull();
+    });
+
+    it('starts over on an entity switch: only the default is mounted for the new entity', () => {
+      const { rerender } = render(<CompanyOptionsSection />);
+      openAccordion('Envelope');
+      expect(screen.getByTestId('ping-contour-drawer-stub')).toBeTruthy();
+
+      act(() => selectActiveCompany());
+      rerender(<CompanyOptionsSection />);
+
+      expect(screen.queryByTestId('ping-contour-drawer-stub')).toBeNull();
+      expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
+    });
+
+    it('starts over on a return trip too: back on All, Envelope is closed and unmounted', () => {
+      const { rerender } = render(<CompanyOptionsSection />);
+      openAccordion('Envelope');
+
+      act(() => selectActiveCompany());
+      rerender(<CompanyOptionsSection />);
+      act(() => useUIStore.getState().selectAllRobots());
+      rerender(<CompanyOptionsSection />);
+
+      expect(isExpanded('Envelope')).toBe(false);
+      expect(screen.queryByTestId('ping-contour-drawer-stub')).toBeNull();
+    });
+  });
+
+  it('never writes the store\'s section fields — the scrollspy that did is gone', () => {
     render(<CompanyOptionsSection />);
-    expect(screen.queryByTestId('audio-setting-section-stub')).toBeNull();
+    openAccordion('Envelope');
+    openAccordion('Source');
+    openAccordion('Accent Oscillator');
+    expect(useUIStore.getState().selectedSection).toBeNull();
+    expect(useUIStore.getState().selectedSubsection).toBeNull();
   });
 
   it('renders every section disabled when the selection has no member robots (default All, empty roster)', () => {
     render(<CompanyOptionsSection />);
-    act(() => approachSection('probes.all.volume.audioSettings'));
     expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-disabled')).toBe('');
   });
 
@@ -306,7 +349,6 @@ describe('CompanyOptionsSection', () => {
       selectActiveCompany();
       const applySpy = vi.spyOn(robotOptionsActions, 'applyAudioMode').mockImplementation(() => {});
       render(<CompanyOptionsSection />);
-      act(() => approachSection('companies.c1.volume.audioSettings'));
 
       fireEvent.click(screen.getByText('probe-audio-mode'));
 
@@ -322,7 +364,7 @@ describe('CompanyOptionsSection', () => {
       useUIStore.getState().selectCompany('c1');
       const adsrSpy = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
       render(<CompanyOptionsSection />);
-      act(() => approachSection('companies.c1.envelope.pingContour'));
+      openAccordion('Envelope');
 
       fireEvent.click(screen.getByText('probe-adsr'));
 
@@ -340,7 +382,7 @@ describe('CompanyOptionsSection', () => {
       vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
       const cancelSpy = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
       render(<CompanyOptionsSection />);
-      act(() => approachSection('companies.c1.envelope.pingContour'));
+      openAccordion('Envelope');
 
       fireEvent.click(screen.getByText('probe-adsr')); // patch only changes attack (0.2 -> 0.9)
 
@@ -374,7 +416,8 @@ describe('CompanyOptionsSection', () => {
       useUIStore.getState().selectCompany('c1');
       const continuousSpy = vi.spyOn(robotOptionsActions, 'applyLayersContinuous').mockImplementation(() => {});
       render(<CompanyOptionsSection />);
-      act(() => approachSection('companies.c1.source.coaxialOscillator')); // idx 1
+      openAccordion('Source');
+      openAccordion('Companion Oscillator'); // idx 1
 
       fireEvent.click(screen.getByText('probe-layer-gain-1'));
 
@@ -409,7 +452,8 @@ describe('CompanyOptionsSection', () => {
       vi.spyOn(robotOptionsActions, 'applyLayersContinuous').mockImplementation(() => {});
       const cancelSpy = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
       render(<CompanyOptionsSection />);
-      act(() => approachSection('companies.c1.source.coaxialOscillator')); // idx 1
+      openAccordion('Source');
+      openAccordion('Companion Oscillator'); // idx 1
 
       fireEvent.click(screen.getByText('probe-layer-gain-1'));
 
@@ -429,7 +473,8 @@ describe('CompanyOptionsSection', () => {
       useUIStore.getState().selectCompany('c1');
       const linkSpy = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
       render(<CompanyOptionsSection />);
-      act(() => approachSection('companies.c1.source.coaxialOscillator')); // idx 1
+      openAccordion('Source');
+      openAccordion('Companion Oscillator'); // idx 1
 
       fireEvent.click(screen.getByText('probe-layer-lfo-lane-1'));
 
@@ -446,7 +491,8 @@ describe('CompanyOptionsSection', () => {
       useUIStore.getState().selectCompany('c1');
       const linkSpy = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
       render(<CompanyOptionsSection />);
-      act(() => approachSection('companies.c1.source.coaxialOscillator')); // idx 1
+      openAccordion('Source');
+      openAccordion('Companion Oscillator'); // idx 1
 
       fireEvent.click(screen.getByText('probe-layer-lfo-depth-1'));
 
@@ -461,7 +507,8 @@ describe('CompanyOptionsSection', () => {
       useUIStore.getState().selectCompany('c1');
       vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
       render(<CompanyOptionsSection />);
-      act(() => approachSection('companies.c1.source.coaxialOscillator')); // idx 1
+      openAccordion('Source');
+      openAccordion('Companion Oscillator'); // idx 1
 
       fireEvent.click(screen.getByText('probe-layer-lfo-lane-1'));
 
@@ -478,7 +525,6 @@ describe('CompanyOptionsSection', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
       useUIStore.getState().selectCompany('c1');
       render(<CompanyOptionsSection />);
-      act(() => approachSection('companies.c1.volume.audioSettings'));
 
       expect(screen.queryByText('probe-volume-lfo')).toBeNull();
       expect(screen.getByText('probe-volume')).toBeTruthy();
@@ -494,7 +540,6 @@ describe('CompanyOptionsSection', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
       useUIStore.getState().selectAllRobots();
       render(<CompanyOptionsSection />);
-      act(() => approachSection('probes.all.volume.audioSettings'));
 
       expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-volume')).toBe('0.6');
       expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-disabled')).toBeNull();
@@ -512,7 +557,6 @@ describe('CompanyOptionsSection', () => {
       useUIStore.getState().selectAllRobots();
       const applyVolumeSpy = vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
       render(<CompanyOptionsSection />);
-      act(() => approachSection('probes.all.volume.audioSettings'));
 
       fireEvent.click(screen.getByText('probe-volume'));
 
@@ -533,7 +577,6 @@ describe('CompanyOptionsSection', () => {
       vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
       const cancelSpy = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
       render(<CompanyOptionsSection />);
-      act(() => approachSection('probes.all.volume.audioSettings'));
 
       fireEvent.click(screen.getByText('probe-volume'));
 
@@ -550,7 +593,6 @@ describe('CompanyOptionsSection', () => {
       vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
       const updateCompanySpy = vi.spyOn(useLocaleStore.getState(), 'updateCompany');
       render(<CompanyOptionsSection />);
-      act(() => approachSection('probes.all.volume.audioSettings'));
 
       fireEvent.click(screen.getByText('probe-volume'));
 
@@ -568,13 +610,11 @@ describe('CompanyOptionsSection', () => {
 
       useUIStore.getState().selectAllRobots();
       const { unmount: unmount1 } = render(<CompanyOptionsSection />);
-      act(() => approachSection('probes.all.volume.audioSettings'));
       fireEvent.click(screen.getByText('probe-volume'));
       unmount1();
 
       useUIStore.getState().selectCompany('c1');
       render(<CompanyOptionsSection />);
-      act(() => approachSection('companies.c1.volume.audioSettings'));
       expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-volume')).toBe('0.5');
     });
   });
@@ -605,10 +645,7 @@ describe('CompanyOptionsSection', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c2', name: 'Null Syndicate', color: '#4f6d7a', robotIds: ['r2'] });
       useUIStore.getState().selectCompany('c1');
       render(<CompanyOptionsSection />);
-      act(() => {
-        approachSection('companies.c1.volume.audioSettings');
-        approachSection('companies.c1.envelope.pingContour');
-      });
+      openAccordion('Envelope');
       const countsAfterMount = callCounts();
 
       act(() => {
@@ -626,10 +663,7 @@ describe('CompanyOptionsSection', () => {
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
       useUIStore.getState().selectCompany('c1');
       render(<CompanyOptionsSection />);
-      act(() => {
-        approachSection('companies.c1.volume.audioSettings');
-        approachSection('companies.c1.envelope.pingContour');
-      });
+      openAccordion('Envelope');
       const countsAfterMount = callCounts();
 
       act(() => {

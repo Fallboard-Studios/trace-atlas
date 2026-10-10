@@ -210,64 +210,6 @@ describe('uiStore — isNavPanelOpen (mobile-only nav slide state, docs/specs/NA
   });
 });
 
-describe('uiStore — expandedProbeId (accordion-of-one within the Probes branch)', () => {
-  beforeEach(() => {
-    useUIStore.setState(INITIAL_STATE, true);
-  });
-
-  it('defaults to null — nothing expanded', () => {
-    expect(useUIStore.getState().expandedProbeId).toBeNull();
-  });
-
-  it('setExpandedProbeId sets the expanded probe, replacing any other', () => {
-    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
-    expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
-    useUIStore.getState().setExpandedProbeId('robot-1-abc');
-    expect(useUIStore.getState().expandedProbeId).toBe('robot-1-abc');
-  });
-
-  it('setExpandedProbeId(null) collapses back to nothing expanded', () => {
-    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
-    useUIStore.getState().setExpandedProbeId(null);
-    expect(useUIStore.getState().expandedProbeId).toBeNull();
-  });
-
-  it('is independent of expandedCompanyId', () => {
-    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
-    useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
-  });
-});
-
-describe('uiStore — expandedCompanyId (accordion-of-one within the Companies branch)', () => {
-  beforeEach(() => {
-    useUIStore.setState(INITIAL_STATE, true);
-  });
-
-  it('defaults to null — nothing expanded', () => {
-    expect(useUIStore.getState().expandedCompanyId).toBeNull();
-  });
-
-  it('setExpandedCompanyId sets the expanded company, replacing any other', () => {
-    useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
-    useUIStore.getState().setExpandedCompanyId('company-1-def');
-    expect(useUIStore.getState().expandedCompanyId).toBe('company-1-def');
-  });
-
-  it('setExpandedCompanyId(null) collapses back to nothing expanded', () => {
-    useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    useUIStore.getState().setExpandedCompanyId(null);
-    expect(useUIStore.getState().expandedCompanyId).toBeNull();
-  });
-
-  it('is independent of expandedProbeId — expanding a probe never collapses an expanded company', () => {
-    useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
-    expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
-  });
-});
-
 describe('uiStore — selectedSettingsLeaf (which Settings child is open, docs/tasks/NAV_LAYOUT_REWRITE.md Task 11)', () => {
   beforeEach(() => {
     useUIStore.setState(INITIAL_STATE, true);
@@ -310,31 +252,43 @@ describe('uiStore — selectedSettingsLeaf (which Settings child is open, docs/t
   });
 });
 
-describe('uiStore — selectedFleetParamsEffect (which effect leaf is open, docs/tasks/NAV_LAYOUT_REWRITE.md Task 14)', () => {
-  beforeEach(() => {
-    useUIStore.setState(INITIAL_STATE, true);
+// docs/tasks/LAYOUT_REWORK.md Task 18 (spec §1.10): the tree's accordion-of-one fields and the
+// stacked Fleet Params screen's effect leaf retired with the stacked scroll.
+describe('uiStore — the stacked scroll\'s fields are retired', () => {
+  it.each([
+    ['expandedProbeId', 'setExpandedProbeId'],
+    ['expandedCompanyId', 'setExpandedCompanyId'],
+    ['selectedFleetParamsEffect', 'setSelectedFleetParamsEffect'],
+  ])('has no %s and no %s', (field, setter) => {
+    const state = useUIStore.getState() as unknown as Record<string, unknown>;
+    expect(field in state).toBe(false);
+    expect(setter in state).toBe(false);
+    expect(field in useUIStore.getInitialState()).toBe(false);
+  });
+});
+
+describe('uiStore — the initial state is spec §1.10\'s table', () => {
+  // §1.10's kept and new fields. movePanelRobotId, the table's third row, arrives with its first
+  // consumer (Task 20), and joins this list there.
+  const NAV_FIELDS = [
+    'activeHubTile', 'selectedRobotId', 'selectedCompanyId', 'allRobotsSelected', 'allProbesSelected',
+    'expandedTopLevelBranch', 'selectedSection', 'selectedSubsection', 'selectedSettingsLeaf',
+    'isPoweredOn', 'isNavPanelOpen',
+    'fleetParamsSection', 'fleetParamsSubsection',
+  ];
+  // Not navigation, so §1.10 does not list them; the layout rework leaves them as they are.
+  const OTHER_FIELDS = ['activeView', 'theme', 'language', 'isFullscreen', 'activeLocaleLocalTime', 'activeLocaleTemperature'];
+
+  const initial = useUIStore.getInitialState() as unknown as Record<string, unknown>;
+  const fields = Object.keys(initial).filter((key) => typeof initial[key] !== 'function');
+
+  it('holds exactly those fields', () => {
+    expect([...fields].sort()).toEqual([...NAV_FIELDS, ...OTHER_FIELDS].sort());
   });
 
-  it('defaults to null — no effect leaf chosen until one is selected', () => {
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
-  });
-
-  it('setSelectedFleetParamsEffect sets one of the 7 AudioRigEffectKeys', () => {
-    useUIStore.getState().setSelectedFleetParamsEffect('eq3');
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('eq3');
-  });
-
-  it('setSelectedFleetParamsEffect(null) clears back to no leaf chosen', () => {
-    useUIStore.getState().setSelectedFleetParamsEffect('delay');
-    useUIStore.getState().setSelectedFleetParamsEffect(null);
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
-  });
-
-  it('is independent of selectedSettingsLeaf — Fleet Params and Settings are different branches', () => {
-    useUIStore.getState().setSelectedSettingsLeaf('quality');
-    useUIStore.getState().setSelectedFleetParamsEffect('compressor');
-    expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBe('compressor');
+  it('is JSON-serialisable: every field survives a round trip unchanged', () => {
+    const data = Object.fromEntries(fields.map((key) => [key, initial[key]]));
+    expect(JSON.parse(JSON.stringify(data))).toStrictEqual(data);
   });
 });
 
@@ -407,15 +361,6 @@ describe('uiStore — expandedTopLevelBranch (bugfix: the 4 top-level tree nodes
     useUIStore.getState().setExpandedTopLevelBranch('probes');
     useUIStore.getState().setExpandedTopLevelBranch(null);
     expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
-  });
-
-  it('is independent of the per-branch expandedXxxId fields — its own level, own accordion-of-one', () => {
-    useUIStore.getState().setExpandedTopLevelBranch('probes');
-    useUIStore.getState().setExpandedProbeId('robot-0-xyz');
-    useUIStore.getState().setExpandedCompanyId('company-0-abc');
-    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
-    expect(useUIStore.getState().expandedProbeId).toBe('robot-0-xyz');
-    expect(useUIStore.getState().expandedCompanyId).toBe('company-0-abc');
   });
 });
 

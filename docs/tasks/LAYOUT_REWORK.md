@@ -1958,6 +1958,97 @@ Grep gate before every deletion.
 
 **Estimated scope:** L by file count, S by thought (removal behind grep gates)
 
+**As built (2026-10-10):**
+
+**Deleted (11 files):** `useAccordionOpenState` and `useSectionObserver` (each with its test),
+`accordionSync`, `sectionRefs` and `viewFade` (each with its test), and
+`testUtils/intersectionObserverStub.ts`. All of `viewFade.ts` went: nothing on the Deck used it.
+
+**The grep gate is a test,** `screens/stackedScrollRetired.test.ts`. It checks that:
+- the six modules are gone in every extension;
+- nothing under `src/` imports, mocks or dynamically imports one, by path or alias;
+- nothing calls one of their 17 functions, so a pasted copy is caught too;
+- no file names a retired store field, except `uiStore.test.ts`, which asserts their absence.
+
+Before deletion it found only the modules, their tests and the gate itself.
+
+**Beyond the plan's list:**
+- **`AccordionContainer`'s "nav-sync props"** were one call, not props: `notifyAccordionAnimationComplete`
+  in the open tween's `onComplete`. It is gone. Its two test cases became one: the height lands on
+  `auto` after the open tween.
+- **`PingControlsCompositionSection`'s `noteVarianceAnchorId` prop** registered a `sectionRefs` anchor
+  for the tree's "Pitches" leaf. The plan's strip list missed it. The prop and its two tests are gone.
+  The wrapper `div` stays, so the row lays out as before.
+- **`robotSubsectionConfig`'s `subsectionIds` / `accordionIds`** existed to feed the scrollspy and the
+  open-state hook; only their own tests used them after this. Both are gone and are in the gate.
+- **`CompaniesContent`** had nothing left to strip: the Task 16 follow-up had already moved it onto
+  `navActions`.
+- **`AudioLoadPanel` / `SectorSettingsDrawer`:** the anchor refs are gone; their wrapper `div`s keep
+  their classes.
+
+**`CompanyOptionsSection` until Task 23.** Plain local state, `AccordionState`, replaces the
+open-state hook: which accordions are open, and which have ever opened.
+- The lazy-mount gate was the scrollspy's "approached". It is now the accordion's **first open**:
+  a section's content mounts then and stays mounted after a close, so the close animates it out.
+- The state resets per entity (`prefix`) during render, including on a return trip
+  (All → a company → All).
+- `RobotSectionAccordionStack`'s gate prop is renamed `hasApproached` → `hasOpened`, and its
+  `sectionAnchorRef` prop is gone. Both components still retire in Task 23.
+- **Behaviour change, interim:** the screen no longer writes `selectedSection` /
+  `selectedSubsection`, because the scrollspy did that. The company and All Probes crumbs therefore
+  name no section until Task 23's tabs. A test pins that the screen never writes them.
+
+**`uiStore`:** `expandedProbeId`, `expandedCompanyId`, `selectedFleetParamsEffect` and their setters
+are gone. `SelectedFleetParamsEffect` stays as `fleetParamsSubsection`'s type. `navActions`'
+`cleanSlate` lost its one call.
+
+The key-set test lists §1.10's kept and new fields, plus the six non-nav fields the table does
+not mention (`activeView`, `theme`, `language`, `isFullscreen`, `activeLocaleLocalTime`,
+`activeLocaleTemperature`). **`movePanelRobotId` is not in it yet; Task 20 adds the field and must
+add it to the list.** A second test round-trips the state through JSON with `toStrictEqual`, so an
+`undefined` field fails too.
+
+**Tests changed:**
+- `CompanyOptionsSection.test.tsx`: "approach a section" became "open its accordion". The two fade
+  tests became one no-fade test. A lazy-mount block of six tests was added.
+- `RobotSectionAccordionStack.test.tsx`: the anchor test was deleted.
+- `AccordionContainer.test.tsx`: as above.
+- `PingControlsDrawer.test.tsx`: two anchor tests were deleted.
+- `RobotScreen.test.tsx`: the anchor assertion was dropped.
+- `uiStore.test.ts`: the four retired-field describes became the retirement and key-set tests.
+- `navActions.test.ts`: the fixture field was dropped.
+- `robotSubsectionConfig.test.ts`: the id-list tests were deleted.
+
+**Measured in headless Chrome at 1280 × 800,** on a company and on All Probes, with no console errors:
+- On mount only Levels' content exists.
+- Envelope opens to its full 538 px with its four sliders. Closed, it is 0 px with the sliders still
+  mounted.
+- Source opens, then Core Oscillator: 945 px, with Companion still unmounted.
+- Sampled frame by frame, Composition's open tween runs 469 → 713 → 717 → `auto` 720 px. It was
+  aimed at the mounted height: content measured before the mount would have capped it at 269 px.
+
+**Verified:**
+- Full suite: 311 files / 8654 tests (from 315 / 8762; the difference is the deleted tests).
+- `build:types` clean; lint at the known 25 errors / 4 warnings; `npm run build` clean.
+
+**Mutation check:** 23, all killed:
+- **Mounting:** opening never mounts; a close unmounts; the gate reads open instead of opened;
+  everything mounted; no reset on an entity switch; a reset that keeps the mounted set; Levels
+  open but unmounted; nothing open by default.
+- **The stack:** its gate ignored.
+- **The store:** a retired field back; an unlisted field; a listed field dropped; a `Date` or an
+  `undefined` in state.
+- **The gate:** an import, a `vi.mock` and a dynamic import of a deleted module; a retired call
+  back; an id list back; a retired field read; a deleted file restored.
+- **AccordionContainer:** the height never freed after the tween.
+
+One survived first: the reset that keeps the mounted set. Its ids are prefix-scoped, so it only
+shows on a return trip, and the return-trip test was added for it.
+
+**Found, not touched:** `FIRST_OPEN_MAX_SETTLE_TICKS` (`accordionAnimation.ts`) and
+`testUtils/openAccordions.ts` are referenced only by their own tests. Both are dead, and neither is
+part of the stacked scroll.
+
 ### Checkpoint B: Section tabs (Crawford's dev look)
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
 - [ ] Dev server: Fleet Params, a robot, Settings — tabs with one section mounted, single-line radios,
