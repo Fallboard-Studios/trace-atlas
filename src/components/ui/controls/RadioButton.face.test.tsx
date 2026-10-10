@@ -45,22 +45,41 @@ afterEach(() => {
   Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
 });
 
-describe('RadioButton — the single-line option face', () => {
-  it('shows each option as one line of its humanLabel, with no DualLabel inside the box', () => {
+// Crawford, 2026-10-10 (spec §1.4 amended): an option with a lore name shows it again, small above its
+// human label inside the same box (the face options had before Task 13); one without stays one line.
+describe('RadioButton — the option face: lore above human when the option has one', () => {
+  it('an option with a loreLabel shows two lines, lore first, inside its box', () => {
     render(<RadioButton schema={schema} value="natural" onChange={() => {}} />);
-    for (const option of schema.options) {
-      const radio = screen.getByRole('radio', { name: option.humanLabel });
-      expect(radio.querySelector('.sc-dual-label')).toBeNull();
-      const lines = radio.querySelectorAll('.sc-radio-button__label');
-      expect(lines).toHaveLength(1);
-      expect(lines[0].textContent).toBe(option.humanLabel);
-      expect(radio.textContent).toBe(option.humanLabel);
-    }
+    const radio = screen.getByRole('radio', { name: 'Natural Decay' });
+    const face = radio.querySelector('.sc-radio-button__face')!;
+    expect([...face.children].map((line) => [line.className, line.textContent])).toEqual([
+      ['sc-radio-button__lore', 'Dissipation'],
+      ['sc-radio-button__label', 'Natural Decay'],
+    ]);
   });
 
-  it('never shows an option\'s loreLabel', () => {
-    render(<RadioButton schema={schema} value="controlled" onChange={() => {}} />);
-    expect(screen.queryByText('Dissipation')).toBeNull();
+  it('an option without one shows its human label alone, one line', () => {
+    render(<RadioButton schema={schema} value="natural" onChange={() => {}} />);
+    const radio = screen.getByRole('radio', { name: 'Controlled Decay' });
+    expect(radio.querySelector('.sc-radio-button__lore')).toBeNull();
+    expect(radio.querySelectorAll('.sc-radio-button__label')).toHaveLength(1);
+    expect(radio.textContent).toBe('Controlled Decay');
+  });
+
+  it('the accessible name stays the human label alone, lore or not', () => {
+    render(<RadioButton schema={schema} value="natural" onChange={() => {}} />);
+    expect(screen.getByRole('radio', { name: 'Natural Decay' }).getAttribute('aria-label')).toBe('Natural Decay');
+  });
+
+  it('draws the face itself, never a DualLabel (no help "?" can land inside an option)', () => {
+    render(<RadioButton schema={schema} value="natural" onChange={() => {}} />);
+    for (const radio of screen.getAllByRole('radio')) expect(radio.querySelector('.sc-dual-label')).toBeNull();
+  });
+
+  it('an empty loreLabel counts as none', () => {
+    const blank: RadioButtonSchema = { ...schema, options: [{ value: 'natural', humanLabel: 'Natural Decay', loreLabel: '' }] };
+    render(<RadioButton schema={blank} value="natural" onChange={() => {}} />);
+    expect(screen.getByRole('radio', { name: 'Natural Decay' }).querySelector('.sc-radio-button__lore')).toBeNull();
   });
 
   it('keeps the control\'s own label row: its lore, its human name, and the one help "?" outside every option', () => {

@@ -368,8 +368,9 @@ describe('RadioButton — option label vocabulary (docs/specs/CONTENT_LAYER.md, 
     render(<RadioButton schema={content} value="natural" onChange={() => {}} />);
     expect(screen.getByRole('radio', { name: 'Natural Decay' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'Controlled Decay' })).toBeTruthy();
-    // The option's lore is off its face since docs/tasks/LAYOUT_REWORK.md Task 13 (single-line options).
-    expect(screen.queryByText('Dissipation')).toBeNull();
+    // The option's lore is back on its face, above the human label (Crawford, 2026-10-10), but the
+    // accessible name stays the human label alone.
+    expect(screen.getByText('Dissipation')).toBeTruthy();
   });
 
   it('does not accept the retired `label` field on an option', () => {

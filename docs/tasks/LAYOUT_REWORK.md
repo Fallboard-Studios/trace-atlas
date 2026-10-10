@@ -1199,6 +1199,26 @@ Measured in Chrome: 48 px at 1280, 44 px at 375 and 320.
 - the CSS: wrap, colour, size, the selected selector, the compact fallback, a front `height: auto`,
   each cap link, `border-box`, the ellipsis and the overflow.
 
+**Follow-up, option lore back on the face (Crawford, 2026-10-10, after Task 18; spec §1.4 amended).**
+This closes the open question above. Asked where the lore should go, he chose the two-line face over
+"one line, lore after" and over listing it in the help popover. `RadioButton` draws
+`.sc-radio-button__face`: a `.sc-radio-button__lore` line in DualLabel's lore face, then the label.
+It is not a DualLabel, so each line keeps the nowrap / ellipsis cap and no "?" can land in an option.
+- An option without lore (company names, Off) stays one line, and an empty `loreLabel` counts as none.
+- The accessible name is still the human label alone.
+- `LfoLink` builds its lane options without lore, so its compact lane row is unchanged.
+
+Measured in Chrome at 1280, 375 and 320 px, on Fleet Params (LFO Bank, Output) and a robot (Source,
+Levels):
+- every lore face is 40 px tall inside 48 px (desk) or 44 px (phone) fronts;
+- no line is cut, and there is no sideways scroll.
+
+Options are wider now, so rows wrap sooner: at 375 px Monitor Mode is three options and one.
+
+Mutation check: 8, all killed. The mutants: lore dropped; lore after the label; the lore span always
+rendered; lore in the accessible name; the face as a DualLabel; the lore wrapping; the face not a
+column; the lore missing from the compact fallback.
+
 ## Task 14: `LfoLink` compact
 
 **Description:** `LfoLink.tsx` composes the single-line lane `RadioButton` (options from `ui.lfoLane`;

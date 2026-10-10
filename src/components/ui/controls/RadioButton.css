@@ -75,10 +75,34 @@
   background: var(--color-accent-gradient);
 }
 
-/* The option's face: one line of its human label (docs/specs/LAYOUT_REWORK.md §1.4, Task 13) — the
-   lore name lives on the control's own label row, under its help "?". Same face as DualLabel's human
-   line (font, size, the fixed white), and never wraps: a second line has no room in the fixed-height
-   front face. A label wider than the control — a user-typed company name runs to 128 characters —
+/* The option's face (docs/specs/LAYOUT_REWORK.md §1.4): the lore name, when the option has one, small
+   above the human label — DualLabel's two lines, drawn here so each can stop at the control's width
+   (Crawford, 2026-10-10; Task 13 had dropped the lore). max-width lets the face shrink to the cap
+   below. */
+.sc-radio-button__face {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100%;
+}
+
+/* DualLabel's lore face, on one line, ending in an ellipsis like the label below. */
+.sc-radio-button__lore {
+  font-family: var(--font-controls);
+  font-size: var(--font-size-label-lore);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  opacity: 0.8;
+  text-shadow: 0px 0px .25px var(--color-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The human label: same face as DualLabel's human line (font, size, the fixed white), and never
+   wraps: the fixed-height front face has room for the lore line and this one, no more. A label wider
+   than the control — a user-typed company name runs to 128 characters —
    ends in an ellipsis instead of running past the control (it scrolled a 375px page sideways, found
    in Chrome); the item, its cabinet box and the front face above are each capped at 100% so the
    label has a width to stop at. The radio's accessible name (aria-label) stays the full name. */
@@ -106,6 +130,7 @@
 /* DualLabel.css's compact fallback, carried over for the option's own label: in a cramped control
    (the nearest sc-control container under 120px) the label drops to the compact size. */
 @container sc-control (max-width: 120px) {
+  .sc-radio-button__lore,
   .sc-radio-button__label {
     font-size: var(--font-size-label-compact);
   }

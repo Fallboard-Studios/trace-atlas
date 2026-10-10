@@ -178,7 +178,11 @@ no hardware keys, build on the existing components.
 - **Single-line radios:** `RadioButton` loses its two-line (lore over human) option face; each option is
   one line of the human label, and the lore name moves into the control's help popover. This is the
   Component Library's `RadioButton` rendering, changed once for every consumer (Shape, Anchoring,
-  Audio Mode, the preset radio, company assignment).
+  Audio Mode, the preset radio, company assignment). **Amended 2026-10-10 (Crawford):** an option
+  with a lore name shows it again, small above its human label in the same fixed-height box (the
+  pre-Task-13 two-line face, drawn by `RadioButton` itself so each line ellipsizes at the control's
+  width); an option without one stays one line. The accessible name is the human label alone.
+  `LfoLink`'s lane row passes no option lore and stays single-line.
 - **Help popover** (new, `HelpPopover.tsx`): a focusable "?" on a control's label opens a well with the
   human description, the lore name and the lore description — `ControlSchema` gains an optional
   `help?: { human: string; lore: string }` filled from the content entry. **Every control whose content

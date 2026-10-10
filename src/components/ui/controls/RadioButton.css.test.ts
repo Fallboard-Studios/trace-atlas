@@ -52,6 +52,29 @@ describe('RadioButton.css — the single-line option label', () => {
     expect(body).toContain('font-size: var(--font-size-label-compact);');
   });
 
+  // Crawford, 2026-10-10: the lore name is back on the face, small above the label, in DualLabel's lore
+  // face; both lines stay single lines and stop at the control's width.
+  it('stacks the face\'s two lines, lore over label, and lets the face shrink to the cap', () => {
+    const face = getCssRuleBody(cssSource, '.sc-radio-button__face');
+    expect(face).not.toBeNull();
+    expect(face).toContain('display: flex;');
+    expect(face).toContain('flex-direction: column;');
+    expect(face).toContain('max-width: 100%;');
+  });
+
+  it('sets the lore line in DualLabel\'s lore face, on one line, ending in an ellipsis', () => {
+    const lore = getCssRuleBody(cssSource, '.sc-radio-button__lore');
+    expect(lore).not.toBeNull();
+    for (const decl of [
+      'font-family: var(--font-controls);', 'font-size: var(--font-size-label-lore);', 'text-transform: uppercase;',
+      'color: var(--color-text-muted);', 'white-space: nowrap;', 'overflow: hidden;', 'text-overflow: ellipsis;',
+    ]) expect(lore).toContain(decl);
+  });
+
+  it('shrinks the lore line too in a cramped control', () => {
+    expect(getCssRuleBody(cssSource, '@container sc-control (max-width: 120px)')).toContain('.sc-radio-button__lore');
+  });
+
   it('no rule reaches into a DualLabel inside an option any more', () => {
     expect(cssSource.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/\.sc-radio-button__item[^{}]*\.sc-dual-label/);
   });

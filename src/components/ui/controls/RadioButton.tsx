@@ -103,9 +103,11 @@ interface RadioButtonProps {
  *  that omits `color` renders with no inline style at all, identical to every consumer that
  *  predates this (Audio Setting, Decay Mode, per-layer Type, Header's nav group, …).
  *
- *  Single-line options (docs/specs/LAYOUT_REWORK.md §1.4, Task 13): each option's face is one line
- *  of its `humanLabel`, never a DualLabel. An option's `loreLabel` is not shown; the lore names live
- *  on the control's own label row, whose "?" (HelpPopover, via `schema.help`) opens the help. */
+ *  The option face (docs/specs/LAYOUT_REWORK.md §1.4): an option with a `loreLabel` shows it small
+ *  above its `humanLabel`, inside the same fixed-height box; one without is one line of its
+ *  `humanLabel` (Task 13 dropped the lore; Crawford brought it back, 2026-10-10). Drawn here, not with
+ *  DualLabel, so the lines can stop at the control's width and no help "?" can land in an option. The
+ *  accessible name is the human label alone. */
 function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSize }: RadioButtonProps) {
   // Reuses the same breakpoint-tier gap VoxelTrack (11.1.3) uses between its
   // own boxes — not renamed to something RadioButton-neutral; see
@@ -155,7 +157,10 @@ function RadioButtonInner({ schema, value, onChange, disabled, onDeselect, boxSi
               timelineKey={`cabinet-radio-${schema.id}-${instanceId}-${option.value}`}
               {...(boxSize !== undefined ? { boxHeight: boxSize, frontWidth: boxSize, frontHeight: boxSize } : {})}
             >
-              <span className="sc-radio-button__label">{option.humanLabel}</span>
+              <span className="sc-radio-button__face">
+                {option.loreLabel && <span className="sc-radio-button__lore">{option.loreLabel}</span>}
+                <span className="sc-radio-button__label">{option.humanLabel}</span>
+              </span>
             </CabinetBox>
           </ToggleGroup.Item>
         ))}
