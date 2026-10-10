@@ -230,6 +230,26 @@ describe('Button — the single-line face and the accessible-name override', () 
   });
 });
 
+// Crawford, 2026-10-10: the intro expander (IntroPanel's "More") is a Button that discloses a region,
+// so Button can carry the disclosure state.
+describe('Button — as a disclosure (expanded / controls)', () => {
+  const schema: ButtonSchema = { id: 'intro.toggle', type: 'button', humanLabel: 'More' };
+
+  it('carries aria-expanded and aria-controls when given them', () => {
+    const { rerender } = render(<Button schema={schema} onClick={() => {}} expanded={false} controls="intro-body" />);
+    expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button').getAttribute('aria-controls')).toBe('intro-body');
+    rerender(<Button schema={schema} onClick={() => {}} expanded controls="intro-body" />);
+    expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('an ordinary button carries neither', () => {
+    render(<Button schema={schema} onClick={() => {}} />);
+    expect(screen.getByRole('button').hasAttribute('aria-expanded')).toBe(false);
+    expect(screen.getByRole('button').hasAttribute('aria-controls')).toBe(false);
+  });
+});
+
 describe('Button.css — the single-line face', () => {
   it('reads as DualLabel\'s human line does, on one line', async () => {
     const { readFileSync } = await import('node:fs');

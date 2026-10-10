@@ -155,7 +155,14 @@ no hardware keys, build on the existing components.
   renders no content surface: the world stays bright and the meta box is the only overlay (§1.7).
 - **One collapsible intro per screen**: a single `AccordionContainer` + `IntroPanel` row at the top of
   each branch's content (today's `home.root` welcome stays the Deck's). The second stacked intro panel
-  per section is removed.
+  per section is removed. **Amended 2026-10-10 (Crawford): the section intros come back, and no intro
+  is an accordion.** Every intro is an `IntroPanel` expander (`collapsible`). Its headline always
+  shows; a cabinet `Button` ("More ▾" / "Less ▴", named "More about <name>") sits beside the headline
+  and reveals or folds the descriptions in place. Every intro starts collapsed.
+  - Fleet Params and Settings keep their screen intro, now an expander, above the tabs.
+  - Each section tab's panel opens with its own intro: Fleet Params' five groups, Settings' three
+    tabs, and the robot screen's Levels / Composition / Envelope / Source. Source's sits above its
+    oscillator sub-tabs.
 - **`SectionTabs`** (new, `src/components/ui/controls/SectionTabs.tsx`, a `ControlSchema` consumer):
   Radix `Tabs.Root` whose `Tabs.Trigger`s are `CabinetBox`es (popped = active, trait colour from the
   section's `trait`), with an optional second row of sub-tabs. Fleet Params tabs are the five

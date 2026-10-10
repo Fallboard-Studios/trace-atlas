@@ -18,6 +18,11 @@ interface ButtonProps {
   /** Names the button apart from its face — a list row's "Load" named "Load Dusk Run". The schema's
    *  label otherwise (resolveAccessibleName). */
   accessibleName?: string;
+  /** A disclosure button (IntroPanel's More / Less): whether the region it controls is open, carried
+   *  as aria-expanded. Absent on an ordinary button. */
+  expanded?: boolean;
+  /** The id of the region it discloses (aria-controls). */
+  controls?: string;
 }
 
 /**
@@ -41,7 +46,7 @@ interface ButtonProps {
  * but the vulnerability is identical, so the fix is applied preemptively
  * rather than waiting for a live collision.
  */
-function ButtonInner({ schema, onClick, disabled, face = 'dual', accessibleName: nameOverride }: ButtonProps) {
+function ButtonInner({ schema, onClick, disabled, face = 'dual', accessibleName: nameOverride, expanded, controls }: ButtonProps) {
   const schemaName = resolveAccessibleName(schema);
   const accessibleName = nameOverride ?? schemaName;
   const instanceId = useId();
@@ -56,6 +61,8 @@ function ButtonInner({ schema, onClick, disabled, face = 'dual', accessibleName:
       type="button"
       className="sc-button"
       aria-label={accessibleName}
+      aria-expanded={expanded}
+      aria-controls={controls}
       onClick={onClick}
       disabled={disabled}
       onMouseEnter={() => setHovered(true)}

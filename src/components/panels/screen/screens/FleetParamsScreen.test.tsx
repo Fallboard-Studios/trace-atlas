@@ -8,7 +8,7 @@ import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { FleetParamsScreen } from './FleetParamsScreen';
 import { NavBreadcrumb } from '../nav/NavBreadcrumb';
 import { FLEET_PARAMS_SUBSECTIONS } from '../nav/navActions';
-import { CONTENT, labels, type ContentEntry } from '@/content';
+import { CONTENT, fill, labels, type ContentEntry } from '@/content';
 import { useUIStore, type FleetParamsGroup, type SelectedFleetParamsEffect } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { laneTitle } from '@/data/lfoConfig';
@@ -305,38 +305,48 @@ describe('FleetParamsScreen — trait colours', () => {
   });
 });
 
-describe('FleetParamsScreen — one collapsible intro (spec §1.3)', () => {
-  // The trigger is DualLabel's lore over human, so its name ends in the human one.
-  const introTrigger = () => screen.getByRole('button', { name: new RegExp(`${human('fleet.root')}$`) });
+// Crawford, 2026-10-10 (spec §1.3 amended): the intros are back — the screen's, and each section's at the
+// top of its panel — and each is an expander (IntroPanel `collapsible`): the headline shows, a More
+// button reveals the rest. No accordion.
+describe('FleetParamsScreen — the intros, each an expander (spec §1.3)', () => {
+  const more = (key: keyof typeof CONTENT) => screen.getByRole('button', { name: fill('ui.intro.more', { name: human(key) }) });
+  const less = (key: keyof typeof CONTENT) => screen.getByRole('button', { name: fill('ui.intro.less', { name: human(key) }) });
 
-  it('is one accordion, fleet.root, collapsed until opened', () => {
+  it('the screen intro is fleet.root\'s headline and a collapsed More, with no accordion', () => {
     const { container } = render(<FleetParamsScreen />);
-    expect(container.querySelectorAll('.sc-accordion')).toHaveLength(1);
-    expect(introTrigger().getAttribute('aria-expanded')).toBe('false');
-    fireEvent.click(introTrigger());
-    expect(introTrigger().getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('.sc-accordion')).toBeNull();
     expect(screen.getByText(CONTENT['fleet.root'].intro.lore)).toBeTruthy();
+    expect(more('fleet.root').getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(more('fleet.root'));
+    expect(less('fleet.root').getAttribute('aria-expanded')).toBe('true');
   });
 
   it('sits above the section row', () => {
     render(<FleetParamsScreen />);
-    expect(introTrigger().compareDocumentPosition(sectionRow()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(more('fleet.root').compareDocumentPosition(sectionRow()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it.each(GROUPS)('no second intro: %s shows no group intro of its own', (group, key) => {
+  it.each(GROUPS)('%s opens with its own intro first in its panel, collapsed', (group, key) => {
     useUIStore.setState({ fleetParamsSection: group });
-    render(<FleetParamsScreen />);
+    const { container } = render(<FleetParamsScreen />);
     const entry: ContentEntry = CONTENT[key];
-    expect(entry.intro, key).toBeDefined();
-    expect(screen.queryByText(entry.intro!.lore)).toBeNull();
-    expect(screen.queryByText(entry.intro!.humanDescription)).toBeNull();
+    const section = container.querySelector('.fleet-params-screen__section') as HTMLElement;
+    const intro = section.firstElementChild as HTMLElement;
+    expect(intro.classList.contains('sc-intro-panel')).toBe(true);
+    expect(within(intro).getByText(entry.intro!.lore)).toBeTruthy();
+    const body = intro.querySelector('.sc-intro-panel__body') as HTMLElement;
+    expect(body.hidden).toBe(true);
+    fireEvent.click(more(key));
+    expect(body.hidden).toBe(false);
   });
 
-  it('an opened intro stays open across a tab switch', () => {
+  it('an expanded screen intro stays expanded across a tab switch; the new section\'s starts collapsed', () => {
     render(<FleetParamsScreen />);
-    fireEvent.click(introTrigger());
+    fireEvent.click(more('fleet.root'));
+    fireEvent.click(more('fleet.lfoBank'));
     pick(human('fleet.output'));
-    expect(introTrigger().getAttribute('aria-expanded')).toBe('true');
+    expect(less('fleet.root').getAttribute('aria-expanded')).toBe('true');
+    expect(more('fleet.output').getAttribute('aria-expanded')).toBe('false');
   });
 });
 

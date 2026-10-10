@@ -119,7 +119,7 @@ vi.mock('@/components/ui/controls/RadioButton', async (importOriginal) => {
 
 import { RobotScreen } from './RobotScreen';
 import { NavBreadcrumb } from '../nav/NavBreadcrumb';
-import { CONTENT, fill } from '@/content';
+import { CONTENT, fill, type ContentEntry } from '@/content';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
@@ -225,6 +225,43 @@ describe('RobotScreen — fallbacks', () => {
   });
 });
 
+// Crawford, 2026-10-10 (spec §1.3 amended): each section's intro is back, first in its panel, as an
+// expander (IntroPanel `collapsible`) — the headline shows, a More button reveals the rest.
+describe('RobotScreen — each section opens with its intro, an expander', () => {
+  const SECTIONS: readonly [RobotSection, keyof typeof CONTENT][] = [
+    ['volume', 'probe.levels'], ['melody', 'probe.composition'], ['envelope', 'probe.envelope'], ['source', 'probe.source'],
+  ];
+
+  it.each(SECTIONS)('%s: %s\'s intro, first in the panel, collapsed until More', (section, key) => {
+    selectRobot(makeRobot(), section);
+    const { container } = render(<RobotScreen />);
+    const panel = container.querySelector('.robot-screen__section') as HTMLElement;
+    const intro = panel.firstElementChild as HTMLElement;
+    expect(intro.classList.contains('sc-intro-panel')).toBe(true);
+    expect(within(intro).getByText((CONTENT[key] as ContentEntry).intro!.lore)).toBeTruthy();
+    const body = intro.querySelector('.sc-intro-panel__body') as HTMLElement;
+    expect(body.hidden).toBe(true);
+    fireEvent.click(within(intro).getByRole('button', { name: fill('ui.intro.more', { name: human(key) }) }));
+    expect(body.hidden).toBe(false);
+  });
+
+  it('Source\'s intro sits above its sub-tab row, so it stays while the oscillator changes', () => {
+    selectRobot(makeRobot(), 'source');
+    const { container } = render(<RobotScreen />);
+    const intro = container.querySelector('.robot-screen__section > .sc-intro-panel') as HTMLElement;
+    expect(intro.compareDocumentPosition(subRow()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(within(intro).getByRole('button'));
+    pick(COMPANION);
+    expect(within(intro).getByRole('button').getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('exactly one intro on the screen at a time: the open section\'s', () => {
+    selectRobot(makeRobot(), 'envelope');
+    const { container } = render(<RobotScreen />);
+    expect(container.querySelectorAll('.sc-intro-panel')).toHaveLength(1);
+  });
+});
+
 describe('RobotScreen — the section tabs (spec §1.3)', () => {
   it("opens on Source with Core Oscillator's sub-tab, and only that panel is in the DOM", () => {
     selectRobot(makeRobot());
@@ -318,11 +355,11 @@ describe('RobotScreen — the section tabs (spec §1.3)', () => {
     expect(mounted()).toEqual(['signature-array-layer-stub-0']);
   });
 
-  it('has no intro and no accordion: the tabs are the only chrome over the panels (spec §1.3)', () => {
+  // The section intros came back as expanders (Crawford, 2026-10-10); there is still no accordion.
+  it('has no accordion: the tabs and the intro expanders are the only chrome over the panels (spec §1.3)', () => {
     selectRobot(makeRobot());
     const { container } = render(<RobotScreen />);
     expect(container.querySelector('.sc-accordion')).toBeNull();
-    expect(screen.queryByText(CONTENT['probe.source'].intro!.lore)).toBeNull();
   });
 });
 

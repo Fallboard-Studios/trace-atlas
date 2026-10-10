@@ -8,6 +8,7 @@ import { PingControlsCompositionSection, type PingControlsValue } from '@/compon
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
 import { SignatureArrayLayer, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
+import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SectionTabs, type SectionTabItem } from '@/components/ui/controls/SectionTabs';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -35,7 +36,7 @@ import {
   applyAudioMode, applyVolume,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
-import { CONTENT, fill, labels } from '@/content';
+import { CONTENT, fill, introProps, labels } from '@/content';
 import type { LfoLinkValue } from '@/types/controls';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
 import type { RobotLfoTargetId } from '@/types/lfo';
@@ -116,7 +117,8 @@ interface RobotSectionTabsProps {
 }
 
 /** The section row, and Source's sub-tab row nested in its panel. Each section's panel sits in its trait,
- *  the colour its accordion gave it. */
+ *  the colour its accordion gave it, and opens with the section's intro as an expander (Crawford,
+ *  2026-10-10, spec §1.3) — above Source's sub-tabs, so it stays while the oscillator changes. */
 function RobotSectionTabs({ label, renderSubsection }: RobotSectionTabsProps) {
   const storedSection = useUIStore((s) => s.selectedSection);
   const storedSubsection = useUIStore((s) => s.selectedSubsection);
@@ -136,6 +138,12 @@ function RobotSectionTabs({ label, renderSubsection }: RobotSectionTabsProps) {
       trait: entry.trait,
       render: () => (
         <div className="robot-screen__section" style={TRAIT_STYLES[entry.trait]}>
+          <IntroPanel
+            {...introProps(sectionTabContent(entry))}
+            name={labels(sectionTabContent(entry)).humanLabel}
+            trait={entry.trait}
+            collapsible
+          />
           {subTabs.length > 0 ? (
             <SectionTabs
               variant="sub"

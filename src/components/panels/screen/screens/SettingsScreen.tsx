@@ -1,15 +1,13 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { AudioLoadPanel } from '../console/AudioLoadPanel';
 import { SectorSettingsDrawer } from '../console/SectorSettingsDrawer';
 import { SessionsPanel } from '../console/SessionsPanel';
 import { SETTINGS_LEAVES, SETTINGS_LEAF_CONTENT, activeSettingsLeaf } from '../nav/navActions';
-import { AccordionContainer } from '@/components/ui/controls/AccordionContainer';
 import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { SectionTabs, type SectionTabItem } from '@/components/ui/controls/SectionTabs';
 import { useUIStore, type SettingsLeaf } from '@/stores/uiStore';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { introProps, labels } from '@/content';
-import type { AccordionSchema } from '@/types/controls';
 import './SettingsScreen.css';
 
 /** Settings' colour (the nav box's), on the intro, every tab and the open panel, as the old screen wore it. */
@@ -28,35 +26,34 @@ const SECTION_ITEMS: readonly SectionTabItem<SettingsLeaf>[] = SETTINGS_LEAVES.m
   trait: 'seed',
   render: () => (
     <div className="settings-screen__section" style={SEED_STYLE}>
+      <IntroPanel {...introProps(SETTINGS_LEAF_CONTENT[leaf])} name={labels(SETTINGS_LEAF_CONTENT[leaf]).humanLabel} trait="seed" collapsible />
       {PANELS[leaf]()}
     </div>
   ),
 }));
 const SECTIONS_LABEL = labels('settings.root').humanLabel;
 
-const INTRO_SCHEMA: AccordionSchema = { id: 'settings.intro', type: 'accordion', ...labels('settings.root') };
+// The screen's intro and each tab's own, every one an expander (IntroPanel `collapsible`; Crawford,
+// 2026-10-10, spec §1.3).
 const INTRO = introProps('settings.root');
 
 // Module-level, so it is one stable function (SectionTabs is React.memo'd).
 const setLeaf = (leaf: SettingsLeaf) => useUIStore.getState().setSelectedSettingsLeaf(leaf);
 
 /**
- * Settings (docs/specs/LAYOUT_REWORK.md §1.3, §1.8; docs/tasks/LAYOUT_REWORK.md Task 17): one collapsible
+ * Settings (docs/specs/LAYOUT_REWORK.md §1.3, §1.8; docs/tasks/LAYOUT_REWORK.md Task 17): the screen's
  * intro, then the three leaves as tabs — Audio Quality, Seeds, Save & Share — over today's
  * AudioLoadPanel, SectorSettingsDrawer and SessionsPanel. One panel is in the DOM at a time
  * (SectionTabs, no forceMount), which carries the stacked screen's lazy-mount forward. The open tab is
  * `selectedSettingsLeaf`, resolved by navActions' activeSettingsLeaf (Audio Quality when none is
- * stored), which the breadcrumb reads too. The intro opens collapsed, as Fleet Params' does, and the
- * leaves' own intros are gone (spec §1.3: one intro per screen).
+ * stored), which the breadcrumb reads too. Each tab's panel opens with its leaf's intro; every intro is
+ * an expander that starts collapsed, its headline showing (Crawford, 2026-10-10, spec §1.3 amended).
  */
 export function SettingsScreen() {
   const stored = useUIStore((s) => s.selectedSettingsLeaf);
-  const [introOpen, setIntroOpen] = useState(false);
   return (
     <div className="settings-screen">
-      <AccordionContainer schema={INTRO_SCHEMA} open={introOpen} onOpenChange={setIntroOpen} style={SEED_STYLE}>
-        <IntroPanel {...INTRO} trait="seed" />
-      </AccordionContainer>
+      <IntroPanel {...INTRO} name={SECTIONS_LABEL} trait="seed" collapsible />
       <SectionTabs label={SECTIONS_LABEL} items={SECTION_ITEMS} value={activeSettingsLeaf(stored)} onValueChange={setLeaf} />
     </div>
   );

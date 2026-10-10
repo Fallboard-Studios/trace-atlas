@@ -8,7 +8,7 @@ import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { SettingsScreen } from './SettingsScreen';
 import { NavBreadcrumb } from '../nav/NavBreadcrumb';
 import { selectBranch } from '../nav/navActions';
-import { CONTENT, type ContentEntry } from '@/content';
+import { CONTENT, fill, type ContentEntry } from '@/content';
 import { useUIStore, type SettingsLeaf } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { getTraitColorStyle } from '@/utils/traitColors';
@@ -166,39 +166,48 @@ describe('SettingsScreen — trait colour', () => {
   });
 });
 
-describe('SettingsScreen — one collapsible intro (spec §1.3)', () => {
-  // The trigger is DualLabel's lore over human, so its name ends in the human one.
-  const introTrigger = () => screen.getByRole('button', { name: new RegExp(`${human('settings.root')}$`) });
+// Crawford, 2026-10-10 (spec §1.3 amended): the intros are back — the screen's, and each tab's at the top
+// of its panel — and each is an expander (IntroPanel `collapsible`). No accordion.
+describe('SettingsScreen — the intros, each an expander (spec §1.3)', () => {
+  const more = (key: keyof typeof CONTENT) => screen.getByRole('button', { name: fill('ui.intro.more', { name: human(key) }) });
+  const less = (key: keyof typeof CONTENT) => screen.getByRole('button', { name: fill('ui.intro.less', { name: human(key) }) });
 
-  it('is one accordion, settings.root, collapsed until opened', () => {
+  it('the screen intro is settings.root\'s headline and a collapsed More, with no accordion', () => {
     const { container } = render(<SettingsScreen />);
-    expect(container.querySelectorAll('.sc-accordion')).toHaveLength(1);
-    expect(introTrigger().getAttribute('aria-expanded')).toBe('false');
-    fireEvent.click(introTrigger());
-    expect(introTrigger().getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('.sc-accordion')).toBeNull();
     expect(screen.getByText(CONTENT['settings.root'].intro.lore)).toBeTruthy();
+    expect(more('settings.root').getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(more('settings.root'));
+    expect(less('settings.root').getAttribute('aria-expanded')).toBe('true');
   });
 
   it('sits above the section row', () => {
     render(<SettingsScreen />);
-    expect(introTrigger().compareDocumentPosition(sectionRow()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(more('settings.root').compareDocumentPosition(sectionRow()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it.each(LEAVES)('no second intro: %s shows no leaf intro of its own', (leaf, key) => {
+  it.each(LEAVES)('%s opens with its own intro first in its panel, collapsed', (leaf, key, testId) => {
     useUIStore.setState({ selectedSettingsLeaf: leaf });
-    render(<SettingsScreen />);
-    fireEvent.click(introTrigger());
+    const { container } = render(<SettingsScreen />);
     const entry: ContentEntry = CONTENT[key];
-    expect(entry.intro, key).toBeDefined();
-    expect(screen.queryByText(entry.intro!.lore)).toBeNull();
-    expect(screen.queryByText(entry.intro!.humanDescription)).toBeNull();
+    const section = container.querySelector('.settings-screen__section') as HTMLElement;
+    const intro = section.firstElementChild as HTMLElement;
+    expect(intro.classList.contains('sc-intro-panel')).toBe(true);
+    expect(within(intro).getByText(entry.intro!.lore)).toBeTruthy();
+    expect(intro.compareDocumentPosition(screen.getByTestId(testId)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const body = intro.querySelector('.sc-intro-panel__body') as HTMLElement;
+    expect(body.hidden).toBe(true);
+    fireEvent.click(more(key));
+    expect(body.hidden).toBe(false);
   });
 
-  it('an opened intro stays open across a tab switch', () => {
+  it('an expanded screen intro stays expanded across a tab switch; the new tab\'s starts collapsed', () => {
     render(<SettingsScreen />);
-    fireEvent.click(introTrigger());
+    fireEvent.click(more('settings.root'));
+    fireEvent.click(more('settings.quality'));
     pick('settings.sessions');
-    expect(introTrigger().getAttribute('aria-expanded')).toBe('true');
+    expect(less('settings.root').getAttribute('aria-expanded')).toBe('true');
+    expect(more('settings.sessions').getAttribute('aria-expanded')).toBe('false');
   });
 });
 

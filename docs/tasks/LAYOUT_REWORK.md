@@ -1436,6 +1436,7 @@ the screen.
   keeps it. Spec §1.2 amended. Built as a follow-up to Task 18 (see there).
 - **Group intros no longer render** (spec §1.3: one intro per screen). The intro copy of `fleet.pacing`
   … `fleet.output` stays in `src/content`, unrendered, like the option lore in Task 13.
+  **Decided 2026-10-10:** they are back, every intro as an expander. See the follow-up under Task 18.
 - **Lane panel headings are unchanged.** Spec §1.4 has the lane *panels* reading "Core LFO (LFO A)"
   too. LfoBankLanePanel's heading still reads "Core LFO", so it repeats the sub-tab. Its tests had to
   pass unmodified, and two of them read that heading.
@@ -2108,6 +2109,42 @@ load with a dev server up; that code is untouched, and the test passes alone in 
 
 **Narrow desk, decided (Crawford, 2026-10-10): leave it** (Task 16's option (c)). He noted that the
 top bar's space left of the power rocker reads as wasted; that is for a later pass.
+
+**Follow-up, the intros back as expanders (Crawford, 2026-10-10, spec §1.3 amended).** He said: "put
+the intros back in for now … a way to collapse them that's an expander button more than a hide it all
+accordion." From the options offered he chose the headline plus a More button, and all intros.
+- **`IntroPanel`** gains `collapsible` and `name`. The headline always shows. A cabinet `Button`
+  sits beside it ("More ▾" / "Less ▴", from new keys `ui.intro.more` / `ui.intro.less`, named
+  "More about {name}") and toggles a body region folded by its `hidden` attribute. Every intro
+  starts collapsed. With no descriptions there is no button.
+- **`Button`** gains `expanded` / `controls`, which set `aria-expanded` / `aria-controls`. This is an
+  additive disclosure state.
+- **Fleet Params and Settings:** the screen intro's accordion became the expander. Each section tab's
+  panel opens with its group's or leaf's intro.
+- **The robot screen** opens each section with its intro. Source's sits above the oscillator
+  sub-tabs, so it stays open across an oscillator change.
+- **State:** a section intro resets to collapsed when its tab unmounts. The screen intro keeps its
+  state across tab switches.
+- **No animation:** the body shows and hides at once.
+- **Tests changed:** the three screens' "no second intro" tests, and RobotScreen's "has no intro",
+  pinned the reversed decision. They were rewritten.
+
+Measured in headless Chrome. **Desk at 1280:** a collapsed intro is 88 px with a 34 px headline, and
+the open LFO Bank intro is 268 px; nothing overflows. **The phone is the open problem.** The headline
+keeps IntroPanel's large h2 and shares a narrow row with the 70 px button, so it wraps:
+
+| Width | Collapsed intro | Headline |
+|---|---|---|
+| 375 px | 175–209 px | 135–169 px |
+| 320 px | 243–310 px | 203–270 px |
+
+At 320 px two collapsed intros, the screen's and the section's, take more than the visible pane
+before the first control. Not changed here; it is Crawford's call.
+
+Mutation check: 19, all killed. The mutants: starts expanded; body never hidden; no `aria-expanded`
+or `aria-controls`; the name ignored or always "More"; the face always More; a button with nothing to
+expand; `collapsible` ignored; one shared body id; a one-column grid; and per screen, each intro
+removed, not collapsible, the wrong concept, or placed inside the sub-tab panel.
 
 ### Checkpoint B: Section tabs (Crawford's dev look)
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
