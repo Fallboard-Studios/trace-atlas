@@ -11,12 +11,11 @@ vi.mock('../nav/content/ProbesContent', () => ({
   ProbesContent: () => <div data-testid="probes-content-stub" />,
   default: () => <div data-testid="probes-content-stub" />,
 }));
-// FleetParamsContent has its own full test suite (FleetParamsContent.test.tsx,
-// docs/tasks/NAV_LAYOUT_REWRITE.md Task 14) — this file is about ConsolePanel's own tile
+// FleetParamsScreen has its own full test suite (FleetParamsScreen.test.tsx,
+// docs/tasks/LAYOUT_REWORK.md Task 15) — this file is about ConsolePanel's own tile
 // switch, not re-testing its content.
-vi.mock('../nav/content/FleetParamsContent', () => ({
-  FleetParamsContent: () => <div data-testid="fleet-params-content-stub" />,
-  default: () => <div data-testid="fleet-params-content-stub" />,
+vi.mock('../screens/FleetParamsScreen', () => ({
+  FleetParamsScreen: () => <div data-testid="fleet-params-screen-stub" />,
 }));
 // SettingsContent has its own full test suite (SettingsContent.test.tsx,
 // docs/tasks/NAV_LAYOUT_REWRITE.md Task 11) — this file is about ConsolePanel's own tile
@@ -69,10 +68,10 @@ describe('ConsolePanel', () => {
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
   });
 
-  it('renders FleetParamsContent when audioRig is active', () => {
+  it('renders FleetParamsScreen when audioRig is active', () => {
     useUIStore.getState().setActiveHubTile('audioRig');
     render(<ConsolePanel />);
-    expect(screen.getByTestId('fleet-params-content-stub')).toBeTruthy();
+    expect(screen.getByTestId('fleet-params-screen-stub')).toBeTruthy();
   });
 
   it('renders SettingsContent when settings is active', () => {

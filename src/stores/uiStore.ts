@@ -121,6 +121,12 @@ export interface UIStore {
   selectedSettingsSubsection: SettingsSubsection | null;
   /** Which Fleet Params effect leaf is selected — see SelectedFleetParamsEffect's own doc comment. */
   selectedFleetParamsEffect: SelectedFleetParamsEffect | null;
+  /** The Fleet Params screen's open section tab (docs/specs/LAYOUT_REWORK.md §1.10). Always one: the
+   *  screen is tabs, so there is no "no section" state. */
+  fleetParamsSection: FleetParamsGroup;
+  /** The open sub-tab inside that section — null reads as the section's first (navActions'
+   *  activeFleetParamsSubsection). Pacing has no sub-tabs. */
+  fleetParamsSubsection: SelectedFleetParamsEffect | null;
   /** Which top-level branch is expanded — see TopLevelBranch's own doc comment. */
   expandedTopLevelBranch: TopLevelBranch | null;
   /** Whether the "All Probes" bulk-edit leaf is selected — see its own doc comment above. */
@@ -151,9 +157,16 @@ export interface UIStore {
   setSelectedSettingsLeaf: (l: SettingsLeaf | null) => void;
   setSelectedSettingsSubsection: (s: SettingsSubsection | null) => void;
   setSelectedFleetParamsEffect: (e: SelectedFleetParamsEffect | null) => void;
+  /** Also resets fleetParamsSubsection to null: a sub-tab belongs to its section. */
+  setFleetParamsSection: (s: FleetParamsGroup) => void;
+  setFleetParamsSubsection: (s: SelectedFleetParamsEffect | null) => void;
   setExpandedTopLevelBranch: (b: TopLevelBranch | null) => void;
   setAllProbesSelected: (v: boolean) => void;
 }
+
+/** The Fleet Params tab the screen opens on, and every nav pick returns to (docs/tasks/LAYOUT_REWORK.md
+ *  Task 15: the sketch's approved frame opens on LFO Bank). */
+export const DEFAULT_FLEET_PARAMS_SECTION: FleetParamsGroup = 'lfoBank';
 
 // ========================================
 // STORE
@@ -179,6 +192,8 @@ export const useUIStore = create<UIStore>((set) => ({
   selectedSettingsLeaf: null,
   selectedSettingsSubsection: null,
   selectedFleetParamsEffect: null,
+  fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
+  fleetParamsSubsection: null,
   expandedTopLevelBranch: null,
   allProbesSelected: false,
 
@@ -211,6 +226,8 @@ export const useUIStore = create<UIStore>((set) => ({
   setSelectedSettingsLeaf: (l) => set({ selectedSettingsLeaf: l }),
   setSelectedSettingsSubsection: (s) => set({ selectedSettingsSubsection: s }),
   setSelectedFleetParamsEffect: (e) => set({ selectedFleetParamsEffect: e }),
+  setFleetParamsSection: (s) => set({ fleetParamsSection: s, fleetParamsSubsection: null }),
+  setFleetParamsSubsection: (s) => set({ fleetParamsSubsection: s }),
   setExpandedTopLevelBranch: (b) => set({ expandedTopLevelBranch: b }),
   setAllProbesSelected: (v) => set({ allProbesSelected: v }),
 }));

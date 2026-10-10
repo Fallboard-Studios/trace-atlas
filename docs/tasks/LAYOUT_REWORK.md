@@ -1331,6 +1331,121 @@ delete `src/components/panels/screen/nav/content/FleetParamsContent.tsx` + css +
 
 **Estimated scope:** M (one screen, two store fields, one deletion)
 
+**As built (2026-10-10):**
+
+**Store.** `fleetParamsSection` (default `DEFAULT_FLEET_PARAMS_SECTION = 'lfoBank'`, exported from
+uiStore) and `fleetParamsSubsection`, where null reads as the section's first sub-tab.
+`setFleetParamsSection` also resets the sub-tab, since a sub-tab belongs to its section (as
+`selectRobot` resets a robot's section).
+
+**One table, two readers.** navActions gains `FLEET_PARAMS_SUBSECTIONS`: each section's sub-tabs in
+the sketch's order, each named from the entry its panel's heading uses. Pacing has none. It also
+gains `activeFleetParamsSubsection(section, stored)`: the stored sub-tab if it is this section's,
+else the first, and none on Pacing. The screen and the breadcrumb both read these, so they always
+name the same tab. `FLEET_PARAMS_EFFECT_GROUP` lost its only consumer, the breadcrumb, and is
+deleted.
+
+**The breadcrumb** reads the new fields: `Root / Fleet Params / <section> / <sub-tab>`.
+- The sub-tab is named by its entry: "Core LFO", not the tab's "Core LFO (LFO A)". The trail stays
+  pure and does not depend on the shell.
+- Fleet Params always has a tab open, so the bare `Root / Fleet Params` state is gone. Pacing reads
+  `Root / Fleet Params / Pacing`.
+- The section segment is a button (to its first sub-tab) whenever a sub-tab follows it, per Task 8's
+  "every ancestor is a button".
+
+Files beyond the list: `navActions.ts` / `.test.ts`, `NavBreadcrumb.tsx` / `.test.tsx`,
+`PhoneBar.test.tsx`. Their Fleet Params trail tests now set the new fields instead of
+`selectedFleetParamsEffect`, which nothing reads any more. It goes in Task 18.
+
+**My call: every nav pick returns Fleet Params to LFO Bank / lane A.** `cleanSlate` resets the tab
+along with every other section field (Task 3's rule), as `selectRobot` resets a robot's section.
+- Leaving Fleet Params and coming back lands on the default tab. The breadcrumb's "Fleet Params"
+  segment goes there too.
+- A section pick resets the sub-tab: LFO Bank / lane C → Output → LFO Bank opens lane A.
+
+Remembering the tab instead would be a one-line change in `cleanSlate`. Remembering it per section
+would need a store field the spec does not have.
+
+**SectionTabs** gains `label?: string` on an item (Task 11's open note): text that replaces the
+entry's name on the trigger and in its accessible name. The lane sub-tabs pass
+`laneTitle(lane, shell)`.
+
+**The screen** (`screens/FleetParamsScreen.tsx`):
+- **Intro:** one `AccordionContainer` + `IntroPanel` (`fleet.root`, spectral, the nav box's colour).
+  It opens collapsed, as the approved sketch draws it.
+- **Tabs:** `SectionTabs` over the five sections (tablist "Fleet Params"). The sub row is named after
+  its section, with its triggers in that section's trait.
+- **Colour:** each section's panel sits in its group's trait, the colour the group accordions gave the
+  panels inside them: Pacing composition, LFO Bank and Time & Space timeSpace, EQ & Filters spectral,
+  Output output.
+- **Pacing** keeps its two rows of two and has no sub-tabs. `PacingPanel` subscribes to its three
+  values itself. The old screen subscribed at its root, so a tempo change re-rendered all of Fleet
+  Params; now it re-renders nothing unless Pacing is open. A Profiler test pins this both ways.
+  Module-level setters keep the memo'd sliders' `onChange` stable.
+- **Re-renders:** the item lists are built once per shell at load, so SectionTabs' memo holds. Only
+  `SubTabs` reads the stored sub-tab and the shell.
+- **Layout:** the per-leaf anchor `div`s are gone, so the param rows are now the DirectionalPanels'
+  direct children, which is what the row CSS targets.
+
+**Removed:** FleetParamsContent's three files. Grep gate: ConsolePanel.tsx was the only importer. The
+gate is a test in the screen's file, as Task 9's is. Comments in `AudioRigDrawer.tsx` / `.test.tsx`
+and `SignatureArrayDrawer.tsx` that named it as the current renderer now name the screen. That is the
+only change to AudioRigDrawer.test.tsx: a comment, not a test. ConsolePanel.test.tsx's mock moved to
+the screen.
+
+**For Crawford:**
+- **A miss on the phone: the breadcrumb no longer fits the bar's well.** Measured in Chrome:
+  - **320 px (202 px well):** every trail with a sub-tab overflows. The default needs 242 px, and
+    `EQ & Filters / High-Pass Filter` about 286 px. The well's ellipsis cuts the *current* segment:
+    "ROOT / FLEET PARAMS / LFO BANK / …".
+  - **375 px (257 px well):** Companion LFO, High-Pass, Low-Pass and 3-Band EQ overflow, the last by
+    8 px.
+  - **Desk and 700 px:** every trail fits.
+
+  Before this task the three-segment trail fit at 320. Options:
+  - (a) on the bar only, the ancestors shrink and ellipsize first, and the current segment never does
+    (CSS in NavBreadcrumb);
+  - (b) drop the sub-tab from the phone trail (the sketch's phone crumb is `Root / Fleet Params /
+    <group>`);
+  - (c) leave it.
+
+  Recommend (a). Not built: it changes Task 8's breadcrumb, which is your call.
+- **Group intros no longer render** (spec §1.3: one intro per screen). The intro copy of `fleet.pacing`
+  … `fleet.output` stays in `src/content`, unrendered, like the option lore in Task 13.
+- **Lane panel headings are unchanged.** Spec §1.4 has the lane *panels* reading "Core LFO (LFO A)"
+  too. LfoBankLanePanel's heading still reads "Core LFO", so it repeats the sub-tab. Its tests had to
+  pass unmodified, and two of them read that heading.
+
+**Measured in Chrome** (power on → Fleet Params → every section and sub-tab, at 1280, 700, 375 and
+320 px):
+- **1280:** intro at 193–286, the section row at 298, the sub row at 367. Pacing's rows are two-up:
+  Tempo 163–677 beside Automation Rate 685–1198.
+- **Every width:** no sideways scroll on any tab (at 1280 the scroller is 1071 / 1071 and the document
+  1280 / 1280); no console errors.
+- **Phone widths:** the section row scrolls inside itself (464 px of tabs in 303 / 248 px), as Task 11
+  built it. The lanes read LFO A–D.
+
+**Verified:**
+- Full suite: 316 files / 8653 tests.
+- `build:types` clean; lint at the known 25 / 4; `npm run build` clean.
+
+**Mutation check:** 31, all killed:
+- **SectionTabs:** the label override ignored.
+- **Store:** a section pick keeping its sub-tab; the default or the initial state changed.
+- **Clean slate:** `cleanSlate` keeping the tab.
+- **Resolver:** no membership check, or no first-tab fallback.
+- **Breadcrumb trail:** the sub-tab dropped; the section without a `go`, or Pacing with one.
+- **The table:** an order swap, a wrong entry, a missing sub-tab.
+- **Breadcrumb component:** not subscribing to the sub-tab.
+- **Re-renders:** the screen root subscribing to tempo; Pacing not subscribing.
+- **Labels and colour:** the shell ignored; the lane label dropped; a fixed sub-tab or panel trait.
+- **Intro:** open by default; a group intro brought back.
+- **Writes:** a section or sub-tab pick never reaching the store; tempo writing the wrong setter.
+- **Pacing layout:** the drawer out of its row; Pacing growing a sub-tab row.
+- **Routing:** ConsolePanel routing nowhere.
+- **Source scan and gate:** the screen importing `accordionSync`; a test mocking the deleted module; a
+  deleted file restored.
+
 ## Task 16: `RobotScreen` — avatar column + section tabs; phone small band
 
 **Description:** New `src/components/panels/screen/screens/RobotScreen.tsx` from `RobotOptionsTab` +

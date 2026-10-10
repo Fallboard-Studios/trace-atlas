@@ -33,7 +33,8 @@ export function NavBreadcrumb({ inBar = false }: NavBreadcrumbProps) {
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const allProbesSelected = useUIStore((s) => s.allProbesSelected);
   const selectedSection = useUIStore((s) => s.selectedSection);
-  const selectedFleetParamsEffect = useUIStore((s) => s.selectedFleetParamsEffect);
+  const fleetParamsSection = useUIStore((s) => s.fleetParamsSection);
+  const fleetParamsSubsection = useUIStore((s) => s.fleetParamsSubsection);
   const selectedSettingsLeaf = useUIStore((s) => s.selectedSettingsLeaf);
   const robots = useEntityRoster('robots');
   const companies = useEntityRoster('companies');
@@ -41,7 +42,7 @@ export function NavBreadcrumb({ inBar = false }: NavBreadcrumbProps) {
   if (!inBar && shell !== 'desk') return null;
 
   const trail = breadcrumbTrail(
-    { activeHubTile, selectedRobotId, selectedCompanyId, allProbesSelected, selectedSection, selectedFleetParamsEffect, selectedSettingsLeaf },
+    { activeHubTile, selectedRobotId, selectedCompanyId, allProbesSelected, selectedSection, fleetParamsSection, fleetParamsSubsection, selectedSettingsLeaf },
     { robots, companies },
   );
   if (trail.length === 0) return null;

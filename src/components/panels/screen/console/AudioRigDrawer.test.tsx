@@ -16,7 +16,7 @@ import { useAudioStore } from '@/stores/audioStore';
  *
  * As of docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1, this component no longer wraps
  * itself in an outer `.audio-rig-drawer` div or its own DirectionalPanel — it renders a bare
- * `.audio-rig-drawer__param-row` only, since it now shares FleetParamsContent's own Pacing row
+ * `.audio-rig-drawer__param-row` only, since it now shares FleetParamsScreen's Pacing row
  * panel with Frequency/Duration/Tempo instead of owning a panel of its own.
  */
 function resetAudioStore() {

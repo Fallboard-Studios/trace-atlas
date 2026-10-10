@@ -121,17 +121,16 @@ interface LfoTargetedParamSchema extends AudioRigParamSchema {
  * of Task 14 (docs/tasks/NAV_LAYOUT_REWRITE.md) this component's own scope shrank to just the one
  * control that never got a tree leaf of its own: Ping Variance Automation ("Automatic Effects").
  * Every real effect (EQ, HPF, LPF, Delay, Reverb, Compressor, Limiter) moved out to its own
- * AudioRigEffectPanel instance, rendered directly by FleetParamsContent.tsx when a specific effect
- * leaf is selected.
+ * AudioRigEffectPanel instance, rendered by FleetParamsScreen.tsx as that effect's sub-tab.
  *
  * As of docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §2.1, this component's own outer
  * wrapper (`.audio-rig-drawer` div + its own Speed & Automation DirectionalPanel) is gone too —
  * Intensity now shares a 2x2 Pacing row with Frequency/Duration/Tempo, and a panel-inside-a-panel
- * would result if this component kept wrapping itself. FleetParamsContent.tsx's own
+ * would result if this component kept wrapping itself. FleetParamsScreen.tsx's own
  * `PACING_BOTTOM_ROW_SCHEMA` DirectionalPanel is the only panel wrapping this slider now — same
  * "the call site owns the panel, not the leaf" shape AudioRigEffectPanel's siblings already use.
- * The Composition trait color reaches this slider purely via cascade, from FleetParamsContent's
- * own Pacing AccordionContainer — this component applies no trait style of its own anymore.
+ * The Composition trait color reaches this slider purely via cascade, from FleetParamsScreen's
+ * Pacing section panel — this component applies no trait style of its own anymore.
  */
 export function AudioRigDrawer() {
   const pingVarianceAutomation = useAudioStore((s) => s.pingVarianceAutomation);
@@ -165,8 +164,8 @@ interface AudioRigEffectPanelProps {
  * `lfoTarget` is present, plus the compressor-only Decay Mode radio) — as of Task 14 (docs/tasks/
  * LFO_BANK.md, inside the standalone-leaf shape docs/tasks/NAV_LAYOUT_REWRITE.md Task 14 set up),
  * this is a standalone,
- * exported component: FleetParamsContent.tsx renders exactly one instance directly, for whichever
- * effect leaf (EQ/HPF/LPF/Reverb/Delay/Compression/Limiter) is currently selected in the tree —
+ * exported component: FleetParamsScreen.tsx renders exactly one instance, for whichever effect
+ * sub-tab (EQ/HPF/LPF/Reverb/Delay/Compression/Limiter) is open —
  * no group accordion wraps it anymore, so it carries its own per-effect trait color
  * (AUDIO_RIG_EFFECT_TRAIT) directly rather than inheriting one via cascade.
  *

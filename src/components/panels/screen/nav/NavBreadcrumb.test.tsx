@@ -29,6 +29,7 @@ const PROBES = CONTENT['probe.root'].human;
 const COMPANIES = CONTENT['company.root'].human;
 const FLEET = CONTENT['fleet.root'].human;
 const LFO_BANK = CONTENT['fleet.lfoBank'].human;
+const LANE_B = CONTENT['fleet.lfoBank.laneB'].human;
 const COMPOSITION = CONTENT['probe.composition'].human;
 
 /** useShell's one min-width query: `desk` decides whether it matches. */
@@ -74,10 +75,19 @@ describe('NavBreadcrumb — the path, from navActions', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('reads Root / Fleet Params / LFO Bank with a lane selected', () => {
-    setNav({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' });
+  it('reads Root / Fleet Params / LFO Bank / <lane> with a lane selected', () => {
+    setNav({ activeHubTile: 'audioRig', fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneB' });
     render(<NavBreadcrumb />);
-    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${LFO_BANK}`);
+    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${LFO_BANK} / ${LANE_B}`);
+  });
+
+  it('follows the Fleet Params tabs as they change', () => {
+    setNav({ activeHubTile: 'audioRig' });
+    render(<NavBreadcrumb />);
+    act(() => useUIStore.getState().setFleetParamsSection('timeSpace'));
+    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${CONTENT['fleet.timeSpace'].human} / ${CONTENT['fleet.reverb'].human}`);
+    act(() => useUIStore.getState().setFleetParamsSubsection('delay'));
+    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${CONTENT['fleet.timeSpace'].human} / ${CONTENT['fleet.delay'].human}`);
   });
 
   it('reads a robot by its name, with its section', () => {
@@ -120,11 +130,27 @@ describe('NavBreadcrumb — the path, from navActions', () => {
 describe('NavBreadcrumb — every ancestor is a button that calls navActions; the current view is text', () => {
   const buttons = () => Array.from(crumb().querySelectorAll('button')).map((b) => b.textContent);
 
-  it('Fleet Params / LFO Bank: Root and Fleet Params are buttons, LFO Bank is text', () => {
-    setNav({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' });
+  it('Fleet Params / LFO Bank / <lane>: Root, Fleet Params and LFO Bank are buttons, the lane is text', () => {
+    setNav({ activeHubTile: 'audioRig', fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneB' });
+    render(<NavBreadcrumb />);
+    expect(buttons()).toEqual([ROOT, FLEET, LFO_BANK]);
+    expect(screen.getByText(LANE_B).tagName).toBe('SPAN');
+  });
+
+  it('Fleet Params / Pacing: Pacing has no sub-tab, so it is the current view, as text', () => {
+    setNav({ activeHubTile: 'audioRig', fleetParamsSection: 'pacing' });
     render(<NavBreadcrumb />);
     expect(buttons()).toEqual([ROOT, FLEET]);
-    expect(screen.getByText(LFO_BANK).tagName).toBe('SPAN');
+    expect(screen.getByText(CONTENT['fleet.pacing'].human).tagName).toBe('SPAN');
+  });
+
+  it("the group goes to the group's first sub-tab", () => {
+    setNav({ activeHubTile: 'audioRig', fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneB' });
+    render(<NavBreadcrumb />);
+    fireEvent.click(screen.getByRole('button', { name: LFO_BANK }));
+    expect(useUIStore.getState().fleetParamsSection).toBe('lfoBank');
+    expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
+    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${LFO_BANK} / ${CONTENT['fleet.lfoBank.laneA'].human}`);
   });
 
   it('a bare branch: Root is the only button', () => {
@@ -150,13 +176,14 @@ describe('NavBreadcrumb — every ancestor is a button that calls navActions; th
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
   });
 
-  it('Fleet Params goes back to the top of Fleet Params', () => {
-    setNav({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' });
+  it('Fleet Params goes back to its default tab', () => {
+    setNav({ activeHubTile: 'audioRig', fleetParamsSection: 'timeSpace', fleetParamsSubsection: 'delay' });
     render(<NavBreadcrumb />);
     fireEvent.click(screen.getByRole('button', { name: FLEET }));
     expect(useUIStore.getState().activeHubTile).toBe('audioRig');
-    expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
-    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET}`);
+    expect(useUIStore.getState().fleetParamsSection).toBe('lfoBank');
+    expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
+    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${LFO_BANK} / ${CONTENT['fleet.lfoBank.laneA'].human}`);
   });
 
   it('a robot under a section goes back to the robot', () => {
@@ -177,9 +204,9 @@ describe('NavBreadcrumb — every ancestor is a button that calls navActions; th
   });
 
   it('the current view is marked as the current location', () => {
-    setNav({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' });
+    setNav({ activeHubTile: 'audioRig', fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneB' });
     render(<NavBreadcrumb />);
-    expect(screen.getByText(LFO_BANK).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByText(LANE_B).getAttribute('aria-current')).toBe('page');
   });
 });
 

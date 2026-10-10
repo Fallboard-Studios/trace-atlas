@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useUIStore } from './uiStore';
+import { useUIStore, DEFAULT_FLEET_PARAMS_SECTION } from './uiStore';
 
 const INITIAL_STATE = useUIStore.getState();
 
@@ -321,6 +321,55 @@ describe('uiStore — selectedFleetParamsEffect (which effect leaf is open, docs
     useUIStore.getState().setSelectedFleetParamsEffect('compressor');
     expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
     expect(useUIStore.getState().selectedFleetParamsEffect).toBe('compressor');
+  });
+});
+
+// docs/tasks/LAYOUT_REWORK.md Task 15 (spec §1.10): the Fleet Params screen's tab and sub-tab.
+describe('uiStore — fleetParamsSection / fleetParamsSubsection (the Fleet Params tab and sub-tab)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('defaults to LFO Bank at no sub-tab — the screen reads null as the group\'s first, lane A', () => {
+    expect(DEFAULT_FLEET_PARAMS_SECTION).toBe('lfoBank');
+    expect(useUIStore.getState().fleetParamsSection).toBe(DEFAULT_FLEET_PARAMS_SECTION);
+    expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
+  });
+
+  it('setFleetParamsSubsection round-trips a sub-tab and leaves the section alone', () => {
+    useUIStore.getState().setFleetParamsSubsection('laneC');
+    expect(useUIStore.getState().fleetParamsSubsection).toBe('laneC');
+    expect(useUIStore.getState().fleetParamsSection).toBe('lfoBank');
+    useUIStore.getState().setFleetParamsSubsection(null);
+    expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
+  });
+
+  it('setFleetParamsSection round-trips a section and resets the sub-tab, which belonged to the old one', () => {
+    useUIStore.getState().setFleetParamsSubsection('laneC');
+    useUIStore.getState().setFleetParamsSection('timeSpace');
+    expect(useUIStore.getState().fleetParamsSection).toBe('timeSpace');
+    expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
+  });
+
+  it('re-picking the same section also resets its sub-tab (the breadcrumb\'s group segment goes to the group)', () => {
+    useUIStore.getState().setFleetParamsSection('eqFilters');
+    useUIStore.getState().setFleetParamsSubsection('filterLPF');
+    useUIStore.getState().setFleetParamsSection('eqFilters');
+    expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
+  });
+
+  it('touches no other nav field', () => {
+    useUIStore.setState({ activeHubTile: 'audioRig', selectedSettingsLeaf: 'quality', selectedSection: 'source' });
+    useUIStore.getState().setFleetParamsSection('output');
+    useUIStore.getState().setFleetParamsSubsection('limiter');
+    expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', selectedSettingsLeaf: 'quality', selectedSection: 'source' });
+  });
+
+  it('stays JSON-serialisable', () => {
+    useUIStore.getState().setFleetParamsSection('output');
+    useUIStore.getState().setFleetParamsSubsection('limiter');
+    const { fleetParamsSection, fleetParamsSubsection } = useUIStore.getState();
+    expect(JSON.parse(JSON.stringify({ fleetParamsSection, fleetParamsSubsection }))).toEqual({ fleetParamsSection: 'output', fleetParamsSubsection: 'limiter' });
   });
 });
 

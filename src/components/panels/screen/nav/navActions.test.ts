@@ -9,12 +9,16 @@ import {
   branchOfTile,
   expandsInPlace,
   branchContent,
+  FLEET_PARAMS_SUBSECTIONS,
+  activeFleetParamsSubsection,
   type NavBranch,
   type BreadcrumbState,
   type NavRoster,
 } from './navActions';
-import { useUIStore, type UIStore } from '@/stores/uiStore';
-import { CONTENT } from '@/content';
+import { useUIStore, DEFAULT_FLEET_PARAMS_SECTION, type UIStore, type FleetParamsGroup } from '@/stores/uiStore';
+import { AUDIO_RIG_CONFIG, type AudioRigEffectKey } from '@/data/audioRigConfig';
+import { LFO_BANK_LANE_CONTENT } from '@/data/lfoConfig';
+import { CONTENT, labels } from '@/content';
 
 const ui = () => useUIStore.getState();
 
@@ -30,6 +34,8 @@ function dirtyStore(overrides: Partial<UIStore> = {}) {
     selectedSection: 'source',
     selectedSubsection: 'coaxialOscillator',
     selectedFleetParamsEffect: 'delay',
+    fleetParamsSection: 'output',
+    fleetParamsSubsection: 'limiter',
     selectedSettingsLeaf: 'sessions',
     selectedSettingsSubsection: 'coordinates',
     ...overrides,
@@ -50,6 +56,9 @@ function expectNoEntityAndNoSection() {
     selectedSection: null,
     selectedSubsection: null,
     selectedFleetParamsEffect: null,
+    // Fleet Params' tab is a section field too: every pick lands on its default (Task 15).
+    fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
+    fleetParamsSubsection: null,
     selectedSettingsLeaf: null,
     selectedSettingsSubsection: null,
   });
@@ -408,36 +417,45 @@ describe('breadcrumbPath', () => {
     selectedCompanyId: null,
     allProbesSelected: false,
     selectedSection: null,
-    selectedFleetParamsEffect: null,
+    fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
+    fleetParamsSubsection: null,
     selectedSettingsLeaf: null,
   };
   const path = (s: Partial<BreadcrumbState>) => breadcrumbPath({ ...blank, ...s }, roster);
 
   it('is empty on the Deck, even with a stale entity and sections in the store', () => {
     expect(path({})).toEqual([]);
-    expect(path({ selectedRobotId: 'r1', selectedSection: 'source', selectedFleetParamsEffect: 'laneA', selectedSettingsLeaf: 'quality' })).toEqual([]);
+    expect(path({ selectedRobotId: 'r1', selectedSection: 'source', fleetParamsSection: 'output', fleetParamsSubsection: 'limiter', selectedSettingsLeaf: 'quality' })).toEqual([]);
   });
 
-  it('reads Root / Fleet Params / LFO Bank with a lane selected', () => {
-    expect(path({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' })).toEqual([ROOT, FLEET, CONTENT['fleet.lfoBank'].human]);
+  // Task 15: Fleet Params is tabs, so one tab is always open — the default is LFO Bank at lane A.
+  it('reads Root / Fleet Params / LFO Bank / Core LFO on the default tab', () => {
+    expect(path({ activeHubTile: 'audioRig' })).toEqual([ROOT, FLEET, CONTENT['fleet.lfoBank'].human, CONTENT['fleet.lfoBank.laneA'].human]);
+  });
+
+  it('reads Root / Fleet Params / <group> / <lane> with a lane picked', () => {
+    expect(path({ activeHubTile: 'audioRig', fleetParamsSubsection: 'laneB' })).toEqual([ROOT, FLEET, CONTENT['fleet.lfoBank'].human, CONTENT['fleet.lfoBank.laneB'].human]);
   });
 
   it('names the branch alone when no section is selected', () => {
-    expect(path({ activeHubTile: 'audioRig' })).toEqual([ROOT, FLEET]);
     expect(path({ activeHubTile: 'settings' })).toEqual([ROOT, SETTINGS]);
     expect(path({ activeHubTile: 'robots' })).toEqual([ROOT, PROBES]);
     expect(path({ activeHubTile: 'companies' })).toEqual([ROOT, COMPANIES]);
   });
 
-  it.each([
-    ['tempo', 'fleet.pacing'],
-    ['swellDuration', 'fleet.pacing'],
-    ['laneD', 'fleet.lfoBank'],
-    ['filterHPF', 'fleet.eqFilters'],
-    ['delay', 'fleet.timeSpace'],
-    ['limiter', 'fleet.output'],
-  ] as const)('a Fleet Params leaf %s names its group (%s)', (effect, group) => {
-    expect(path({ activeHubTile: 'audioRig', selectedFleetParamsEffect: effect })).toEqual([ROOT, FLEET, CONTENT[group].human]);
+  it.each<[FleetParamsGroup, BreadcrumbState['fleetParamsSubsection'], string[]]>([
+    ['pacing', null, [CONTENT['fleet.pacing'].human]],
+    // Pacing's four leaves are one panel, not sub-tabs, so none of them names a fourth segment.
+    ['pacing', 'tempo', [CONTENT['fleet.pacing'].human]],
+    ['lfoBank', 'laneD', [CONTENT['fleet.lfoBank'].human, CONTENT['fleet.lfoBank.laneD'].human]],
+    ['eqFilters', null, [CONTENT['fleet.eqFilters'].human, CONTENT['fleet.eq'].human]],
+    ['eqFilters', 'filterHPF', [CONTENT['fleet.eqFilters'].human, CONTENT['fleet.hpf'].human]],
+    ['timeSpace', 'delay', [CONTENT['fleet.timeSpace'].human, CONTENT['fleet.delay'].human]],
+    ['output', 'limiter', [CONTENT['fleet.output'].human, CONTENT['fleet.limiter'].human]],
+    // A sub-tab left over from another group reads as the group's first, which is what the screen shows.
+    ['output', 'laneC', [CONTENT['fleet.output'].human, CONTENT['fleet.compressor'].human]],
+  ])('Fleet Params on %s / %s names %j', (section, subsection, tail) => {
+    expect(path({ activeHubTile: 'audioRig', fleetParamsSection: section, fleetParamsSubsection: subsection })).toEqual([ROOT, FLEET, ...tail]);
   });
 
   it('a Settings leaf names its own concept (sectorSettings reads settings.seeds)', () => {
@@ -508,7 +526,8 @@ describe('breadcrumbTrail — each segment and the navActions call it goes to', 
   });
 
   it.each<[string, Partial<UIStore>]>([
-    ['Fleet Params with a lane', { activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' }],
+    ['Fleet Params with a lane', { activeHubTile: 'audioRig', fleetParamsSubsection: 'laneB' }],
+    ['Fleet Params on Pacing', { activeHubTile: 'audioRig', fleetParamsSection: 'pacing' }],
     ['Settings with a leaf', { activeHubTile: 'settings', selectedSettingsLeaf: 'sessions' }],
     ['a robot with a section', { activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' }],
     ['All Probes with a section', { activeHubTile: 'robots', allProbesSelected: true, selectedSection: 'volume' }],
@@ -536,11 +555,18 @@ describe('breadcrumbTrail — each segment and the navActions call it goes to', 
     expect(ui().expandedTopLevelBranch).toBe('probes');
   });
 
-  it('the Fleet Params branch clears its group, staying on Fleet Params', () => {
-    useUIStore.setState({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' });
+  it('the Fleet Params branch goes back to its default tab, staying on Fleet Params', () => {
+    useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'timeSpace', fleetParamsSubsection: 'delay' });
     go(1);
     expect(ui().activeHubTile).toBe('audioRig');
-    expect(ui().selectedFleetParamsEffect).toBeNull();
+    expect(ui().fleetParamsSection).toBe(DEFAULT_FLEET_PARAMS_SECTION);
+    expect(ui().fleetParamsSubsection).toBeNull();
+  });
+
+  it("the Fleet Params group goes to the group's first sub-tab, changing nothing else", () => {
+    useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'eqFilters', fleetParamsSubsection: 'filterLPF', isNavPanelOpen: true });
+    go(2);
+    expect(ui()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'eqFilters', fleetParamsSubsection: null, isNavPanelOpen: true });
   });
 
   it('a robot goes back to the robot at no section', () => {
@@ -567,12 +593,69 @@ describe('breadcrumbTrail — each segment and the navActions call it goes to', 
     expect(ui().activeHubTile).toBe('companies');
   });
 
-  it('a section, a Fleet Params group or a Settings leaf goes nowhere: it is only ever the current view', () => {
+  it('a section, a Fleet Params sub-tab, Pacing or a Settings leaf goes nowhere: it is only ever the current view', () => {
     useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
     expect(trail()[3]?.go).toBeUndefined();
-    useUIStore.setState({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' });
+    useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneB' });
+    expect(trail()).toHaveLength(4);
+    expect(trail()[3]?.go).toBeUndefined();
+    useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'pacing', fleetParamsSubsection: null });
+    expect(trail()).toHaveLength(3);
     expect(trail()[2]?.go).toBeUndefined();
     useUIStore.setState({ activeHubTile: 'settings', selectedSettingsLeaf: 'sessions' });
     expect(trail()[2]?.go).toBeUndefined();
+  });
+});
+
+// docs/tasks/LAYOUT_REWORK.md Task 15: the Fleet Params screen's sub-tabs, read by the screen and the
+// breadcrumb alike, so the two always name the same tab.
+describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
+  const ids = (group: FleetParamsGroup) => FLEET_PARAMS_SUBSECTIONS[group].map((sub) => sub.id);
+
+  it('lists each group\'s sub-tabs in the sketch\'s order; Pacing has none (its four leaves are one panel)', () => {
+    expect(ids('pacing')).toEqual([]);
+    expect(ids('lfoBank')).toEqual(['laneA', 'laneB', 'laneC', 'laneD']);
+    expect(ids('eqFilters')).toEqual(['eq3', 'filterHPF', 'filterLPF']);
+    expect(ids('timeSpace')).toEqual(['reverb', 'delay']);
+    expect(ids('output')).toEqual(['compressor', 'limiter']);
+  });
+
+  it('names each sub-tab with the concept its panel is built from', () => {
+    const lanes = FLEET_PARAMS_SUBSECTIONS.lfoBank.map((sub) => sub.content);
+    expect(lanes).toEqual([LFO_BANK_LANE_CONTENT.a, LFO_BANK_LANE_CONTENT.b, LFO_BANK_LANE_CONTENT.c, LFO_BANK_LANE_CONTENT.d]);
+    // The effect panels' headings come from the same entries (audioRigConfig's panelSchema).
+    for (const group of ['eqFilters', 'timeSpace', 'output'] as const) {
+      for (const sub of FLEET_PARAMS_SUBSECTIONS[group]) {
+        const block = AUDIO_RIG_CONFIG.find((b) => b.key === (sub.id as AudioRigEffectKey));
+        expect(block, sub.id).toBeDefined();
+        const { loreLabel, humanLabel } = labels(sub.content, { surface: 'heading' });
+        expect({ loreLabel: block!.panel.loreLabel, humanLabel: block!.panel.humanLabel }, sub.id).toEqual({ loreLabel, humanLabel });
+      }
+    }
+  });
+
+  it('covers every effect block once, in exactly one group', () => {
+    const all = (Object.keys(FLEET_PARAMS_SUBSECTIONS) as FleetParamsGroup[]).flatMap(ids);
+    expect(new Set(all).size).toBe(all.length);
+    for (const block of AUDIO_RIG_CONFIG) expect(all, block.key).toContain(block.key);
+  });
+
+  it.each<[FleetParamsGroup, BreadcrumbState['fleetParamsSubsection'], BreadcrumbState['fleetParamsSubsection']]>([
+    ['lfoBank', null, 'laneA'],
+    ['lfoBank', 'laneC', 'laneC'],
+    ['eqFilters', null, 'eq3'],
+    ['eqFilters', 'filterLPF', 'filterLPF'],
+    ['timeSpace', 'delay', 'delay'],
+    ['output', 'limiter', 'limiter'],
+    // Not this group's: its first, as SectionTabs falls back for a stale value.
+    ['output', 'laneC', 'compressor'],
+    ['lfoBank', 'reverb', 'laneA'],
+    ['eqFilters', 'tempo', 'eq3'],
+    // Pacing has no sub-tab, whatever is stored.
+    ['pacing', null, null],
+    ['pacing', 'tempo', null],
+    ['pacing', 'laneB', null],
+  ])('on %s with %s stored, the open sub-tab is %s', (section, stored, expected) => {
+    expect(activeFleetParamsSubsection(section, stored)).toBe(expected);
   });
 });

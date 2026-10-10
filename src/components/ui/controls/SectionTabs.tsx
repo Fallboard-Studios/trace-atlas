@@ -12,6 +12,9 @@ export interface SectionTabItem<Id extends string> {
   id: Id;
   /** One entry per section; the trigger reads its human name. */
   content: ContentKey;
+  /** The trigger's text in place of that name, for a label composed from content (Fleet Params' lanes
+   *  read laneTitle(), "Core LFO (LFO A)" on desk). */
+  label?: string;
   /** The trigger's accent. */
   trait: Trait;
   /** The section's panel. Called only while the section is the active one. */
@@ -70,7 +73,7 @@ function SectionTabsInner<Id extends string>({ items, value, onValueChange, labe
               popped={item.id === active || item.id === hoveredId ? true : CABINET_REST_POP}
               timelineKey={`section-tab-${instanceId}-${item.id}`}
             >
-              {labels(item.content).humanLabel}
+              {item.label ?? labels(item.content).humanLabel}
             </CabinetBox>
           </Tabs.Trigger>
         ))}

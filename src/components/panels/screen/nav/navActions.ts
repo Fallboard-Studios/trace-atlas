@@ -1,5 +1,6 @@
 import {
   useUIStore,
+  DEFAULT_FLEET_PARAMS_SECTION,
   type UIStore,
   type TopLevelBranch,
   type FleetParamsGroup,
@@ -8,6 +9,7 @@ import {
 } from '@/stores/uiStore';
 import type { HubTile } from '@/types/hub';
 import { ROBOT_SECTIONS_CONFIG } from '@/data/robotSubsectionConfig';
+import { LFO_BANK_LANE_CONTENT } from '@/data/lfoConfig';
 import { labels, type ContentKey } from '@/content';
 
 /**
@@ -16,8 +18,9 @@ import { labels, type ContentKey } from '@/content';
  * no component derives a path itself. Replaces useNavTree's select / goHome / selectedPath, which go
  * with the tree in Task 9.
  *
- * Every action starts from a clean slate — no entity, no section on any branch, the phone nav sheet
- * shut (a pick closes it, Task 5) — then sets only what it opens. Picking a parent opens that branch's
+ * Every action starts from a clean slate — no entity, no section on any branch (Fleet Params back on its
+ * default tab, Task 15), the phone nav sheet shut (a pick closes it, Task 5) — then sets only what it
+ * opens. Picking a parent opens that branch's
  * own page (Crawford, 2026-10-09): the Probes box and the breadcrumb's "Probes" segment return to the
  * list, never to the last robot. The store setters run through getState() so these are callable
  * outside a component, as goHome always was.
@@ -60,25 +63,47 @@ export function branchContent(branch: NavBranch): ContentKey {
   return branch === 'deck' ? 'nav.home' : TILE_CONTENT[BRANCH_TILE[branch]];
 }
 
-/** The group each Fleet Params leaf sits in. A Record over the whole union, so a new leaf does not
- *  compile without one. */
-export const FLEET_PARAMS_EFFECT_GROUP: Record<SelectedFleetParamsEffect, FleetParamsGroup> = {
-  tempo: 'pacing',
-  swellFrequency: 'pacing',
-  swellDuration: 'pacing',
-  automaticEffects: 'pacing',
-  laneA: 'lfoBank',
-  laneB: 'lfoBank',
-  laneC: 'lfoBank',
-  laneD: 'lfoBank',
-  eq3: 'eqFilters',
-  filterHPF: 'eqFilters',
-  filterLPF: 'eqFilters',
-  reverb: 'timeSpace',
-  delay: 'timeSpace',
-  compressor: 'output',
-  limiter: 'output',
+/** One Fleet Params sub-tab: the leaf it opens and the entry it is named from (its panel's own). */
+export interface FleetParamsSubTab {
+  id: SelectedFleetParamsEffect;
+  content: ContentKey;
+}
+
+/** Each Fleet Params section's sub-tabs, in the sketch's order (Task 15). Pacing has none: its four
+ *  leaves are one panel of two rows. The screen and the breadcrumb both read this, so they name the
+ *  same tab. */
+export const FLEET_PARAMS_SUBSECTIONS: Record<FleetParamsGroup, readonly FleetParamsSubTab[]> = {
+  pacing: [],
+  lfoBank: [
+    { id: 'laneA', content: LFO_BANK_LANE_CONTENT.a },
+    { id: 'laneB', content: LFO_BANK_LANE_CONTENT.b },
+    { id: 'laneC', content: LFO_BANK_LANE_CONTENT.c },
+    { id: 'laneD', content: LFO_BANK_LANE_CONTENT.d },
+  ],
+  eqFilters: [
+    { id: 'eq3', content: 'fleet.eq' },
+    { id: 'filterHPF', content: 'fleet.hpf' },
+    { id: 'filterLPF', content: 'fleet.lpf' },
+  ],
+  timeSpace: [
+    { id: 'reverb', content: 'fleet.reverb' },
+    { id: 'delay', content: 'fleet.delay' },
+  ],
+  output: [
+    { id: 'compressor', content: 'fleet.compressor' },
+    { id: 'limiter', content: 'fleet.limiter' },
+  ],
 };
+
+/** The sub-tab a section shows: the stored one when it is this section's, else the section's first
+ *  (null, or one left from another section — SectionTabs' own stale-value rule), and none on Pacing. */
+export function activeFleetParamsSubsection(
+  section: FleetParamsGroup,
+  stored: SelectedFleetParamsEffect | null,
+): SelectedFleetParamsEffect | null {
+  const subs = FLEET_PARAMS_SUBSECTIONS[section];
+  return subs.find((sub) => sub.id === stored)?.id ?? subs[0]?.id ?? null;
+}
 
 export const FLEET_PARAMS_GROUP_CONTENT: Record<FleetParamsGroup, ContentKey> = {
   pacing: 'fleet.pacing',
@@ -102,6 +127,7 @@ function cleanSlate(): void {
   s.selectAllRobots(); // the "no company" state: selectedCompanyId null, allRobotsSelected true
   s.setAllProbesSelected(false);
   s.setSelectedFleetParamsEffect(null);
+  s.setFleetParamsSection(DEFAULT_FLEET_PARAMS_SECTION); // also clears the sub-tab
   s.setSelectedSettingsLeaf(null);
   s.setSelectedSettingsSubsection(null);
 }
@@ -177,7 +203,8 @@ export type BreadcrumbState = Pick<
   | 'selectedCompanyId'
   | 'allProbesSelected'
   | 'selectedSection'
-  | 'selectedFleetParamsEffect'
+  | 'fleetParamsSection'
+  | 'fleetParamsSubsection'
   | 'selectedSettingsLeaf'
 >;
 
@@ -216,17 +243,18 @@ function openEntity(state: BreadcrumbState, roster: NavRoster, tile: 'robots' | 
   return state.allProbesSelected ? { label: name('probe.all'), entity: 'all' } : null;
 }
 
-/** One breadcrumb segment: its name and, for Root, the branch and the entity, the navActions call that
- *  goes there (Task 8). A section, a Fleet Params group or a Settings leaf has none: it is only ever the
- *  current view. */
+/** One breadcrumb segment: its name and, for Root, the branch, the entity and a Fleet Params section
+ *  with a sub-tab after it, the call that goes there (Tasks 8, 15). A robot section, a Fleet Params
+ *  sub-tab, Pacing or a Settings leaf has none: it is only ever the current view. */
 export interface BreadcrumbSegment {
   label: string;
   go?: () => void;
 }
 
 /** Root / branch / entity / section — `[]` on the Deck. A section shows only under an entity (Probes,
- *  Companies) or as the branch's own group or leaf (Fleet Params, Settings). The branch goes back with
- *  selectBranch, which never toggles (pressBranchBox is the panel's own). */
+ *  Companies), as Settings' leaf, or as Fleet Params' open tab and sub-tab (Root / Fleet Params /
+ *  <section> / <sub-tab>). The branch goes back with selectBranch, which never toggles (pressBranchBox
+ *  is the panel's own). */
 export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): BreadcrumbSegment[] {
   const tile = state.activeHubTile;
   if (tile === null) return [];
@@ -237,8 +265,17 @@ export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): Brea
   ];
 
   if (tile === 'audioRig') {
-    const effect = state.selectedFleetParamsEffect;
-    if (effect !== null) trail.push({ label: name(FLEET_PARAMS_GROUP_CONTENT[FLEET_PARAMS_EFFECT_GROUP[effect]]) });
+    // Always a tab open (Task 15). The section is an ancestor, going to its first sub-tab, only when a
+    // sub-tab follows it; Pacing has none, so it is the current view.
+    const section = state.fleetParamsSection;
+    const sub = FLEET_PARAMS_SUBSECTIONS[section].find((s) => s.id === activeFleetParamsSubsection(section, state.fleetParamsSubsection));
+    const label = name(FLEET_PARAMS_GROUP_CONTENT[section]);
+    if (!sub) {
+      trail.push({ label });
+      return trail;
+    }
+    trail.push({ label, go: () => useUIStore.getState().setFleetParamsSection(section) });
+    trail.push({ label: name(sub.content) });
     return trail;
   }
   if (tile === 'settings') {

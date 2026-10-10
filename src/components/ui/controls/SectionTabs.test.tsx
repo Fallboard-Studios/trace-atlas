@@ -219,6 +219,26 @@ describe('SectionTabs', () => {
       expect(faces()).toEqual(before);
     });
 
+    // Task 15: a lane tab reads laneTitle() — content too, but a composed string, not one entry's name.
+    it("an item's label replaces its entry's name on the trigger and in its accessible name; the others keep theirs", () => {
+      const items = ITEMS.map((item) => (item.id === 'lfoBank' ? { ...item, label: 'Core LFO (LFO A)' } : item));
+      render(<Host items={items} />);
+      expect(screen.getByRole('tab', { name: 'Core LFO (LFO A)' })).toBeTruthy();
+      expect(screen.queryByRole('tab', { name: name('fleet.lfoBank') })).toBeNull();
+      expect(screen.queryByText(name('fleet.lfoBank'))).toBeNull();
+      expect(tab('fleet.pacing')).toBeTruthy();
+      expect(tab('fleet.eqFilters')).toBeTruthy();
+    });
+
+    it('a labelled item still switches by its id and names its panel', () => {
+      const onChange = vi.fn();
+      const items = ITEMS.map((item) => (item.id === 'eqFilters' ? { ...item, label: 'EQ' } : item));
+      render(<Host items={items} onChange={onChange} />);
+      fireEvent.mouseDown(screen.getByRole('tab', { name: 'EQ' }));
+      expect(onChange).toHaveBeenCalledWith('eqFilters');
+      expect(screen.getByRole('tabpanel', { name: 'EQ' }).textContent).toBe('eqFilters panel');
+    });
+
     it('every trigger has its own timeline key, unique across two rows with the same ids', () => {
       render(
         <>
