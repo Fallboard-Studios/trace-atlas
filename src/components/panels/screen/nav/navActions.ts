@@ -33,7 +33,8 @@ const BRANCH_TILE: Record<TopLevelBranch, HubTile> = {
 };
 
 /** Branches whose entities list in place under their box; Fleet Params and Settings are leaves. */
-const EXPANDS_IN_PLACE: ReadonlySet<TopLevelBranch> = new Set(['probes', 'companies']);
+export type ExpandingBranch = 'probes' | 'companies';
+const EXPANDS_IN_PLACE: ReadonlySet<NavBranch> = new Set<ExpandingBranch>(['probes', 'companies']);
 
 const TILE_CONTENT: Record<HubTile, ContentKey> = {
   robots: 'probe.root',
@@ -41,6 +42,22 @@ const TILE_CONTENT: Record<HubTile, ContentKey> = {
   audioRig: 'fleet.root',
   settings: 'settings.root',
 };
+
+/** The parent box a tile belongs to (the one the panel pops) — the Deck when no tile is open. */
+export function branchOfTile(tile: HubTile | null): NavBranch {
+  if (tile === null) return 'deck';
+  return (Object.keys(BRANCH_TILE) as TopLevelBranch[]).find((branch) => BRANCH_TILE[branch] === tile)!;
+}
+
+/** Whether a branch lists its entities in place under its box — the panel widens for these. */
+export function expandsInPlace(branch: NavBranch): branch is ExpandingBranch {
+  return EXPANDS_IN_PLACE.has(branch);
+}
+
+/** A parent box's label: the Deck's own entry, else its tile's root concept (the breadcrumb's name). */
+export function branchContent(branch: NavBranch): ContentKey {
+  return branch === 'deck' ? 'nav.home' : TILE_CONTENT[BRANCH_TILE[branch]];
+}
 
 /** The group each Fleet Params leaf sits in. A Record over the whole union, so a new leaf does not
  *  compile without one. */
@@ -90,7 +107,7 @@ function clearEntityAndSections(): void {
 function open(branch: TopLevelBranch): void {
   const s = useUIStore.getState();
   s.setActiveHubTile(BRANCH_TILE[branch]);
-  s.setExpandedTopLevelBranch(EXPANDS_IN_PLACE.has(branch) ? branch : null);
+  s.setExpandedTopLevelBranch(expandsInPlace(branch) ? branch : null);
 }
 
 /** A parent box: that branch's own page, Probes / Companies expanded in place, a leaf collapsing

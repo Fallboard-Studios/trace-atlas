@@ -1,0 +1,14 @@
+/* Nested under the open parent box, ruled in that branch's accent (the parent <li> scopes it). */
+.nav-entity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: var(--spacing-sm) 0 0 var(--spacing-sm);
+  padding: 0 0 0 var(--spacing-sm);
+  border-left: 2px solid var(--color-accent);
+  list-style: none;
+}
+
+.nav-entity-list__create {
+  margin: var(--spacing-sm) 0 0 var(--spacing-sm);
+}

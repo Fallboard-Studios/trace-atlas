@@ -280,6 +280,33 @@ this task; the phone sheet is Task 5.
 
 **Estimated scope:** M (two components, one timeline)
 
+**As built (2026-10-09):** the timeline tweens a 0–1 expand factor (`--nav-panel-expand`) on
+`#screen-viewport`, and `NavPanel.css` derives `--nav-panel-width` from it on that same element:
+`calc(var(--nav-panel-rest) + (var(--nav-panel-wide) - var(--nav-panel-rest)) * var(--nav-panel-expand))`.
+That keeps 96 / 260 in CSS only. Tweening px values instead would mean reading the CSS back in JS or
+keeping a TS copy, and a derivation declared on an ancestor would not pick up the override (the
+traitColors.ts gotcha). The first value and every reduced-motion change are a `gsap.set`, with no
+timeline. Unmount kills `nav-panel-width` and removes the factor. The panel width and entity list
+follow `activeHubTile` (through `navActions.branchOfTile`), not `expandedTopLevelBranch`: a robot
+clicked in the world (`Robot.tsx`) opens the tile without setting that field.
+
+Two files beyond the list. `NavBox.tsx` / `.css` is the one box both components draw: Button has no
+"current" state, and adding one would change a primitive. `navActions.ts` now exports `branchOfTile`,
+`expandsInPlace` and `branchContent`, so the branch / tile / content tables exist once (tests in
+`navActions.test.ts`). Colours follow the sketch: the Deck box and All Probes use the header trait
+(teal), and + New Company uses the company trait. The landmark is named from `nav.toggle`
+("Navigation"). The rest width needed the compact label sizes, so each `NavBox` is an `sc-control`
+size container.
+
+Interim, until later tasks: `NavStatusBlock` is no longer rendered, so the world line is missing
+until Task 8's `MetaBox`. On the phone shell the panel shows only while `isNavPanelOpen` (the old
+hamburger still toggles it) until Task 5's sheet. The content's left edge follows the panel only
+from Task 7. + New Company toggles the form, which stays open after Create (`CompanyCreateForm` is
+unchanged). Not built: the sketch's "clicking the active box again collapses the list", which is in
+neither the spec nor this plan; left for Crawford. `nav.entity.newCompany` is off `AWAITING_CONSUMER`.
+Manual check, headless Chrome at 1280×800: 96 px on the Deck, 260 px on Probes (18 boxes) and
+Companies, back to 96 px on Fleet Params, no tree.
+
 ## Task 5: `PhoneBar` and the nav sheet (phone shell)
 
 **Description:** New `src/components/panels/screen/PhoneBar.tsx` / `.css`: a 56 px bottom bar with

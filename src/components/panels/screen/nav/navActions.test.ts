@@ -1,5 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { selectBranch, selectEntity, goHome, breadcrumbPath, type NavBranch, type BreadcrumbState, type NavRoster } from './navActions';
+import {
+  selectBranch,
+  selectEntity,
+  goHome,
+  breadcrumbPath,
+  branchOfTile,
+  expandsInPlace,
+  branchContent,
+  type NavBranch,
+  type BreadcrumbState,
+  type NavRoster,
+} from './navActions';
 import { useUIStore, type UIStore } from '@/stores/uiStore';
 import { CONTENT } from '@/content';
 
@@ -171,6 +182,50 @@ describe('goHome', () => {
     expect(ui().activeHubTile).toBeNull();
     expect(ui().expandedTopLevelBranch).toBeNull();
     expectNoEntityAndNoSection();
+  });
+});
+
+// Task 4: the panel reads which box is popped, whether it widens and each box's label from here, so
+// the branch / tile / content tables exist once.
+describe('the parent-box tables the panel reads', () => {
+  it.each([
+    [null, 'deck'],
+    ['robots', 'probes'],
+    ['companies', 'companies'],
+    ['audioRig', 'fleetParams'],
+    ['settings', 'settings'],
+  ] as const)('branchOfTile(%s) is %s', (tile, branch) => {
+    expect(branchOfTile(tile)).toBe(branch);
+  });
+
+  it('branchOfTile inverts what selectBranch opens, for every branch', () => {
+    for (const branch of ['deck', 'probes', 'companies', 'fleetParams', 'settings'] as const) {
+      selectBranch(branch);
+      expect(branchOfTile(ui().activeHubTile)).toBe(branch);
+    }
+  });
+
+  it('only Probes and Companies expand in place, the same branches selectBranch expands', () => {
+    for (const branch of ['deck', 'probes', 'companies', 'fleetParams', 'settings'] as const) {
+      selectBranch(branch);
+      expect(expandsInPlace(branch)).toBe(ui().expandedTopLevelBranch === branch);
+    }
+    expect(expandsInPlace('probes')).toBe(true);
+    expect(expandsInPlace('companies')).toBe(true);
+  });
+
+  it.each([
+    ['deck', 'nav.home'],
+    ['fleetParams', 'fleet.root'],
+    ['probes', 'probe.root'],
+    ['companies', 'company.root'],
+    ['settings', 'settings.root'],
+  ] as const)('branchContent(%s) is %s, the same name the breadcrumb shows for the branch', (branch, key) => {
+    expect(branchContent(branch)).toBe(key);
+    if (branch !== 'deck') {
+      selectBranch(branch);
+      expect(breadcrumbPath(ui(), { robots: [], companies: [] })[1]).toBe(CONTENT[key].human);
+    }
   });
 });
 

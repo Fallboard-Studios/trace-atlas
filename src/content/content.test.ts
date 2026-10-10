@@ -42,7 +42,6 @@ const isReferenced = (k: string) => allConsumerText.includes(`'${k}'`) || allCon
  *  lands, the self-cleaning test below fails until the key leaves this list. Empty between plans
  *  (docs/tasks/LAYOUT_REWORK.md: empty again by Checkpoint A). */
 const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {
-  'nav.entity.newCompany': 'LAYOUT_REWORK Task 4 (NavEntityList)',
   'ui.phoneBar.menuOpen': 'LAYOUT_REWORK Task 5 (PhoneBar)',
 };
 

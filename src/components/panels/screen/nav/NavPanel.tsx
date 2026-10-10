@@ -1,108 +1,110 @@
 import { useEffect, useRef } from 'react';
-import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
-import { NavTree } from './NavTree';
-import { NavStatusBlock } from './NavStatusBlock';
-import { useIsNavPanelSlideAway } from './useNavPanelSlideAway';
-import { goHome } from './useNavTree';
+
+import { NavBox } from './NavBox';
+import { NavEntityList } from './NavEntityList';
+import { selectBranch, branchOfTile, branchContent, expandsInPlace, type NavBranch } from './navActions';
+import { useShell } from '../useShell';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
-import { Button } from '@/components/ui/controls/Button';
 import { useUIStore } from '@/stores/uiStore';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
-import type { ButtonSchema } from '@/types/controls';
+import { getScreenViewportDomNode } from '@/utils/helpers';
+import { prefersReducedMotion } from '@/utils/reducedMotion';
+import { getTraitColorStyle } from '@/utils/traitColors';
+import type { Trait } from '@/types/traits';
 import { labels } from '@/content';
 import './NavPanel.css';
 
-const TIMELINE_KEY = 'nav-panel-slide';
-// No dedicated shared constant — this is the only consumer so far; split out if a second one
-// needs the same value.
-const SLIDE_DURATION = 0.25;
+const WIDTH_TIMELINE_KEY = 'nav-panel-width';
+/** The 0–1 factor NavPanel.css turns into --nav-panel-width on #screen-viewport. */
+const EXPAND_PROPERTY = '--nav-panel-expand';
+const WIDEN_DURATION = 0.25;
 
-// Relocated from ContentPane.tsx's own former "Close" button (docs/specs/NAV_LAYOUT_REWRITE.md
-// Task 8) — same schema-driven Button primitive, same reset behavior, just renamed and moved
-// above NavTree so it's always reachable rather than only appearing once a tile is active.
-const HOME_SCHEMA: ButtonSchema = { id: 'navPanelHome', type: 'button', ...labels('nav.home') };
+const NAV_LABEL = labels('nav.toggle').humanLabel;
+
+/** The five parent boxes in the sketch's order, each in its branch's trait (the tree's, the Deck in
+ *  the header's teal as the sketch draws it). */
+const PARENT_BOXES = (
+  [
+    ['deck', 'header'],
+    ['fleetParams', 'spectral'],
+    ['probes', 'output'],
+    ['companies', 'company'],
+    ['settings', 'seed'],
+  ] as const satisfies readonly (readonly [NavBranch, Trait])[]
+).map(([branch, trait]) => ({ branch, ...labels(branchContent(branch)), accentStyle: getTraitColorStyle(trait) }));
 
 /**
- * Docked (desktop/tablet) vs. slide-off (mobile) shell around NavTree (docs/specs/
- * NAV_LAYOUT_REWRITE.md §Task 6). Below NAV_PANEL_DOCK_MIN_WIDTH (useNavPanelSlideAway.ts,
- * its own breakpoint independent of the shared Oblique Cabinetry tier) is the slide-off state;
- * at or above it the panel is permanently docked and ignores isNavPanelOpen entirely. The slide
- * animates via a timelineMap-registered GSAP timeline, respecting prefers-reduced-motion the
- * same way the app's other GSAP timelines do. Selecting any node (a change to
- * activeHubTile/selectedRobotId/selectedCompanyId/selectedSection) closes the panel again, but
- * only while slid-off — the permanently docked state stays open regardless.
+ * Widens the panel while its branch lists entities. The width lives in NavPanel.css as
+ * `--nav-panel-width` on #screen-viewport, derived from the rest / wide sizes and an expand factor;
+ * this tweens the factor in a timelineMap timeline, so the panel and the content edge (ContentPane,
+ * Task 7) move together. The first value is set at once — nothing slides open on mount — and so is
+ * every change under reduced motion.
+ */
+function useNavPanelWidth(wide: boolean): void {
+  const appliedRef = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    const viewport = getScreenViewportDomNode();
+    if (!viewport) return;
+    const previous = appliedRef.current;
+    if (previous === wide) return;
+    appliedRef.current = wide;
+    const value = wide ? 1 : 0;
+    killTimeline(WIDTH_TIMELINE_KEY);
+    if (previous === null || prefersReducedMotion()) {
+      gsap.set(viewport, { [EXPAND_PROPERTY]: value });
+      return;
+    }
+    const tl = gsap.timeline();
+    tl.to(viewport, { [EXPAND_PROPERTY]: value, duration: WIDEN_DURATION, ease: 'power2.out' });
+    setTimeline(WIDTH_TIMELINE_KEY, tl);
+  }, [wide]);
+
+  useEffect(
+    () => () => {
+      killTimeline(WIDTH_TIMELINE_KEY);
+      getScreenViewportDomNode()?.style.removeProperty(EXPAND_PROPERTY);
+      appliedRef.current = null;
+    },
+    [],
+  );
+}
+
+/**
+ * The one nav panel (docs/specs/LAYOUT_REWORK.md §1.2; docs/tasks/LAYOUT_REWORK.md Task 4): five parent
+ * boxes in the panel's static popped facade, the open branch's box out. Probes and Companies expand in
+ * place — their entities list under the box and the panel widens. Every pick goes through navActions.
+ *
+ * Phone shell, until the sheet (Task 5): the same panel, shown only while `isNavPanelOpen`.
  */
 export function NavPanel() {
-  const isMobile = useIsNavPanelSlideAway();
-  const isOpen = useUIStore((s) => s.isNavPanelOpen);
-  const activeHubTile = useUIStore((s) => s.activeHubTile);
-  const selectedRobotId = useUIStore((s) => s.selectedRobotId);
-  const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
-  const selectedSection = useUIStore((s) => s.selectedSection);
-  const setNavPanelOpen = useUIStore((s) => s.setNavPanelOpen);
+  const shell = useShell();
+  const isNavPanelOpen = useUIStore((s) => s.isNavPanelOpen);
+  const active = branchOfTile(useUIStore((s) => s.activeHubTile));
+  useNavPanelWidth(expandsInPlace(active));
 
-  const panelRef = useRef<HTMLDivElement>(null);
-  const isFirstSelectionEffect = useRef(true);
-
-  const { contextSafe } = useGSAP({ dependencies: [] });
-
-  useEffect(() => () => killTimeline(TIMELINE_KEY), []);
-
-  // Closes the panel on a real selection change, mobile only — never on mount (that would close
-  // an already-open panel the instant it renders, before the user did anything).
-  useEffect(() => {
-    if (isFirstSelectionEffect.current) {
-      isFirstSelectionEffect.current = false;
-      return;
-    }
-    if (isMobile) setNavPanelOpen(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeHubTile, selectedRobotId, selectedCompanyId, selectedSection]);
-
-  const animateTo = contextSafe((open: boolean) => {
-    const el = panelRef.current;
-    if (!el) return;
-    killTimeline(TIMELINE_KEY);
-    const prefersReducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const duration = prefersReducedMotion ? 0 : SLIDE_DURATION;
-    const tl = gsap.timeline();
-    tl.to(el, { xPercent: open ? 0 : -100, duration, ease: 'power2.out' });
-    setTimeline(TIMELINE_KEY, tl);
-  });
-
-  // Desktop/tablet ignores isNavPanelOpen and never animates — resets any transform a prior
-  // mobile session left behind so the panel is unconditionally visible once docked.
-  useEffect(() => {
-    if (!isMobile) {
-      const el = panelRef.current;
-      killTimeline(TIMELINE_KEY);
-      if (el) gsap.set(el, { xPercent: 0 });
-      return;
-    }
-    animateTo(isOpen);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, isMobile]);
-
-  const open = !isMobile || isOpen;
+  if (shell === 'phone' && !isNavPanelOpen) return null;
 
   return (
-    <div className="nav-panel" data-testid="nav-panel" data-open={open} ref={panelRef} inert={isMobile && !isOpen ? true : undefined}>
-      {/* Oblique Cabinetry facade — decorative only, matching DirectionalPanel's
-         and Header's own top-level facade (permanently popped, non-animating:
-         `popped` + `skipMountAnimation` + `autoHeight`). Nested inside
-         .nav-panel rather than replacing it — .nav-panel itself stays the
-         GSAP slide target (panelRef, xPercent) and inert/data-open host, none
-         of which this facade participates in. See DirectionalPanel.tsx's own
-         comment and docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */}
+    <nav className="nav-panel" aria-label={NAV_LABEL}>
       <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-nav-panel-facade">
-        <NavStatusBlock />
-        <div className="nav-panel__home">
-          <Button schema={HOME_SCHEMA} onClick={goHome} />
-        </div>
-        <NavTree />
+        <ul className="nav-panel__boxes">
+          {PARENT_BOXES.map(({ branch, loreLabel, humanLabel, accentStyle }) => (
+            <li key={branch} style={accentStyle}>
+              <NavBox
+                id={branch}
+                loreLabel={loreLabel}
+                humanLabel={humanLabel}
+                current={branch === active}
+                onClick={() => selectBranch(branch)}
+              />
+              {branch === active && expandsInPlace(branch) && <NavEntityList branch={branch} />}
+            </li>
+          ))}
+        </ul>
       </CabinetBox>
-    </div>
+    </nav>
   );
 }
 
