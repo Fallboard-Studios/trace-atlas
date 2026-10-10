@@ -893,6 +893,57 @@ to top level).
 
 **Estimated scope:** S (one primitive)
 
+**As built (2026-10-10):**
+
+**API:** `{ items, value, onValueChange, label, variant? }`. Two props are additions to spec §4's
+sketch:
+- `label` is the tablist's accessible name and is required. The consumer passes content.
+- `variant: 'section' | 'sub'` marks the nested sub row with `.section-tabs--sub`.
+
+Items are as planned. React.memo'd per COMPONENT_LIBRARY.md, cast to keep the `Id` generic.
+
+**Departures from the description, each for a reason:**
+- **The trigger is the Radix `Tabs.Trigger` button itself**, carrying the trait colour, with the
+  `CabinetBox` inside only drawing (Button's split). The spec sketch had `asChild` on a `<span>`, which
+  would drop the button.
+- **The panel's `render()` runs inside `Tabs.Content`** through a tiny `SectionPanel`, so it runs
+  only while Radix has the panel mounted. The sketch's `item.id === value ? item.render() : null`
+  guard is gone because it would make the plan's own `forceMount` mutant survive.
+- **No `autoHeight`.** CabinetBox documents it for permanently popped facades. The triggers keep the
+  tier heights with the 44 px touch floor: 48 px on desk, 44 px on phone.
+- **Hover pops a resting trigger**, like RadioButton's options. Focus needs no case of its own: Radix's
+  automatic activation makes the focused tab the active one.
+- **Two edge cases decided here.** An empty list renders nothing. A `value` that no item has falls
+  back to the first item without calling `onValueChange`, so the pane is never blank and nothing
+  writes to the store during render.
+- **The sub row is "smaller" by its labels** (`--font-size-label-compact`, 11 px against 15 px), not by
+  its box height, because of the touch floor.
+
+**Measured in Chrome** with a throwaway page (deleted): at 1280 px both rows fit. At 375 / 320 px the
+five Fleet Params tabs (497 px) and the four lanes (385 px) are wider than the pane and scroll
+sideways (`overflow-x: auto`, `white-space: nowrap`); nothing wraps or clips. A popped front face
+moves 4 px right and 2 px down. Its top stays inside the row and the bottom padding holds the drop.
+
+**Left for later:**
+- The sketch's phone tab row is tighter (12 px labels, 10 px side padding). Nothing in this primitive
+  is shell-aware; that sizing belongs to the phone pass (Checkpoint B / Task 28) if Crawford wants it.
+- Task 15's lane sub-tabs need `laneTitle()` as their label. That label isn't a `ContentKey`, so Task
+  15 will need a label override on the item, which this primitive does not have yet.
+
+**Verified:** 20 tests; `build:types` and lint clean on the files. **Mutation check:** 21, all killed.
+- **Panel mounting:** `forceMount`; `render()` called eagerly.
+- **Keyboard and naming:** manual activation; no loop; an unnamed tablist.
+- **Pop state:** inactive fully popped; active at rest; hover ignored; hover never cleared.
+- **Per-trigger identity:** a timeline key without `useId`; one trait for all triggers; the label
+  swapped on active.
+- **Edge cases:** a stale value showing nothing; a stale value reporting a change; empty items
+  unguarded.
+- **Variant and memo:** the variant class lost; memo removed.
+- **CSS:** bold or padded active state; labels wrapping; the row clipping.
+
+The stale-value-reports-a-change mutant first **survived**: a deferred `onValueChange` landed after
+the synchronous assertion. The test now waits a tick before asserting.
+
 ## Task 12: `HelpPopover` primitive on the control label
 
 **Description:** New `src/components/ui/controls/HelpPopover.tsx` / `.css`: a focusable "?" button
