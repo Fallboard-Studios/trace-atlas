@@ -1222,6 +1222,83 @@ plus full slider. `LfoLinkValue` and `onChange` are unchanged.
 
 **Estimated scope:** S (one composition)
 
+**As built (2026-10-10):**
+
+**Crawford's two calls.** Asked before any code, now in spec §1.4:
+- **"App sizes, wrap".** At tier sizes with the 44 px floor, the sketch's one-row link doesn't fit. The
+  phone needs ~221 px of lanes plus a 312 px strip in a 343 px pane; the desk needs ~622 + 468 px. The
+  lane row and the strip share a line where both fit, and the strip wraps under the lanes where they
+  do not.
+- **"Keep Lane + Depth rows".** Both label rows and both "?"s stay, so no new content is needed.
+
+**Lane names.** The sketch's link row reads `name (letter)` / `letter` ("Core LFO (A)" / "A"). That is
+not `laneTitle`'s "Core LFO (LFO A)" / "LFO A", which is the LFO Bank's tab title, so "via `laneTitle`"
+above was loose. New pieces:
+- `ContentOption.short?`, never spread by `options()` / `optionsRecord()`;
+- letters `A`–`D` on `ui.lfoLane`'s options;
+- one template key, `ui.lfoLane.linkName` (`'{lane} ({short})'`).
+
+`LfoLink` builds the option lists once per shell at module level and keys the lane schema on the shell.
+Each option's text is also its accessible name: "A" on the phone, inside the group named "Lane".
+
+**Consequences for existing tests:**
+- **"Behaviour tests pass unmodified" could not hold as written.** The visible names changed, so
+  `LfoLink.test.tsx`'s radio queries were renamed to the desk forms under a mocked desk `useShell`.
+  Every asserted value transition is unchanged.
+- **The same rename landed in two consumer tests**, `SignatureArrayDrawer.test.tsx` and
+  `AudioRigEffectPanel.test.tsx` (8 failing tests). Both now pin `useShell` to desk.
+  `AudioRigEffectPanel`'s crude `matchMedia` stub answered the shell's query with its own `tablet`
+  flag, which would have flipped the names from test to test.
+
+**The strip: at most 8 boxes, not a fixed 8.** A fixed count was built first, as a SliderLinear
+`boxCount` prop. In Chrome at 320 px it ran 40 px past the 288 px pane and scrolled the page sideways:
+8 boxes at 32 px need 328 px. It was reverted. SliderLinear already fits its box count to its own
+width. So `LfoLink` sets `--lfo-link-depth-length` (an 8-box track plus the trailing reserve at the
+tier's sizes) on the row, and the slider takes it as its `flex-basis`. It is 8 boxes wherever there is
+room and 7 in the 288 px pane. SliderLinear is unchanged.
+
+**The tier switch is gone.** `useResponsivePanelOrientation`, `data-orientation`, and the old row/column
+tests and CSS rules were removed; the wrap replaces them.
+
+**CSS, ablated in Chrome.** Each declaration was removed one at a time at 1280 and 320 px. Three are
+load-bearing:
+- the lane radio's `container-type: normal`: with containment the radio collapsed to 0 px;
+- its `width: auto`: at full width the strip never shared a line;
+- the strip's `flex-basis`: without it the strip collapsed to 0 px and a 320 px page scrolled 79 px.
+
+Four were dead and deleted:
+- the row's `align-items: flex-start`;
+- the radio's `max-width: 100%` (a flex item already shrinks to its line);
+- the radio's `flex: 0 1 auto` (the default);
+- the strip's `min-width: 0` (its own containment already leaves no content minimum).
+
+**Measured in Chrome:**
+- **1280 px:** 8 boxes at 48 px. A 1,000 px container wraps (lanes 633 + strip 484); a 600 px one wraps
+  and the lane options take two lines; full width shares one line.
+- **375 px:** letters, 8 boxes at 32 px under the lanes.
+- **320 px:** 7 boxes filling 288 px.
+- No sideways scroll anywhere.
+
+**Tests:**
+- `LfoLink.test.tsx`, new: names by shell both ways, a live shell flip that keeps the selection without
+  `onChange`, a phone pick, phone `heldOff`, the two label rows each with one "?", the row structure,
+  no `data-orientation`, the length variable at all three tiers, 8 boxes at that length, and 7 at
+  288 px.
+- `LfoLink.css.test.ts`: rewritten for the wrap.
+- `index.test.ts`: `short` never spread.
+
+**Verified:**
+- Full suite: 316 files / 8602 tests.
+- `build:types` clean; lint at the known 25 / 4; `npm run build` clean.
+
+**Mutation check:** 21, all killed:
+- shells swapped; the phone showing full names; the desk dropping the letter;
+- the memo ignoring the shell; options fixed to the desk set;
+- 7 boxes; the length one box short, without the reserve, or at a fixed desktop size;
+- the row class dropped; the variable misnamed;
+- the content letter or template changed; `options()` spreading `short`;
+- each CSS declaration, plus a tier rule brought back.
+
 ## Task 15: `FleetParamsScreen` — intro + section tabs over the five groups
 
 **Description:** New `src/components/panels/screen/screens/FleetParamsScreen.tsx`: one collapsible

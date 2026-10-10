@@ -8,19 +8,34 @@
   container-name: sc-control;
 }
 
-/* Lane left, Depth right on desktop (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.5); the column
-   above is the mobile/tablet shape. LfoLink.tsx sets data-orientation from the same viewport tier
-   every 'responsive' DirectionalPanel reads. `flex: 1 1 0` + `min-width: 0` on the children is
-   DirectionalPanel.css's own row rule, restated: a zero flex-basis gives each child an equal,
-   content-independent half (no voxel-track box-count feedback loop), and it is what stops
-   RadioButton's `width: 100%` from claiming the whole row — the trap the Tempo Sync toggle hit
-   beside a slider (TempoSyncToggle.css). Pinned by LfoLink.css.test.ts. */
-.sc-lfo-link[data-orientation='row'] {
-  flex-direction: row;
-  align-items: flex-start;
+/* The compact row (docs/specs/LAYOUT_REWORK.md §1.4; Crawford, 2026-10-10, "App sizes, wrap"): the lane
+   row and the 8-box depth strip side by side where both fit, the strip wrapping under the lane row where
+   they do not. Each line is one cabinet row at the tier's size. Replaces the tier-driven row/column
+   switch (POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.5), whose equal `flex: 1 1 0` halves only worked for a
+   slider that fitted itself to its half. Pinned by LfoLink.css.test.ts; every declaration below was
+   removed one at a time in Chrome and each one changed the layout (the ones that did not were deleted). */
+.sc-lfo-link__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
 }
 
-.sc-lfo-link[data-orientation='row'] > * {
-  flex: 1 1 0;
-  min-width: 0;
+/* RadioButton's root is a full-width sc-control size container, and inline-size containment collapses an
+   element whose width comes from its content (leafControlContainerQuery.test.ts's documented bug — 0px
+   here, measured). Here the lane radio's width comes from its options, so it drops both: at full width
+   the strip could never share its line. Too wide for the row, it shrinks like any flex item and its
+   options wrap inside it. Its labels' compact fallback then queries the link's container above. */
+.sc-lfo-link__row > .sc-radio-button {
+  container-type: normal;
+  width: auto;
+}
+
+/* The depth slider fits its box count to its own width (useVoxelTrackBoxCount). LfoLink.tsx sets
+   --lfo-link-depth-length to an 8-box track at the tier's sizes: as the flex-basis it makes the line
+   break as if the strip were 8 boxes long; it never grows past it, and it shrinks with a narrower line
+   (its own size containment leaves it no content minimum) — the 288px pane of a 320px phone fits 7
+   boxes instead of running 40px past (found in Chrome). Without the basis it collapses to 0px. The
+   selector carries the orientation attribute to outrank SliderLinear.css's own horizontal rule. */
+.sc-lfo-link__row > .sc-slider-linear[data-orientation='horizontal'] {
+  flex-basis: var(--lfo-link-depth-length);
 }

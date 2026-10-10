@@ -8,6 +8,9 @@
 export interface ContentOption {
   human: string;
   lore?: string;
+  /** A compact form of the option where the phone shell has no room for `human` — the lane letter 'A'
+   *  on LfoLink's lane row. Read by its own consumer, never spread by `options()` / `optionsRecord()`. */
+  short?: string;
 }
 
 export interface ContentIntro {

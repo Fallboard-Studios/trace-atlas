@@ -1,13 +1,15 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, type CSSProperties } from 'react';
 
 import { DualLabel } from './DualLabel';
 import { RadioButton } from './RadioButton';
 import { SliderLinear } from './SliderLinear';
 import { withActiveClass } from './activeClass';
-import { useResponsivePanelOrientation } from './useResponsivePanelOrientation';
+import { useCabinetBoxHeight, useVoxelTrackGap } from './useCabinetBoxHeight';
+import { useShell, type Shell } from '@/components/panels/screen/useShell';
+import { computeVoxelTrackLength, computeVoxelTrackTrailingReserve } from '@/utils/voxelTrackMath';
 import { LFO_DEPTH_MIN, LFO_DEPTH_MAX } from '@/types/lfo';
 import type { LfoLinkSchema, LfoLinkValue, RadioButtonSchema, SliderLinearSchema } from '@/types/controls';
-import { labels, options } from '@/content';
+import { CONTENT, fill, labels } from '@/content';
 import './LfoLink.css';
 
 interface LfoLinkProps {
@@ -26,8 +28,21 @@ interface LfoLinkProps {
   heldOff?: boolean;
 }
 
-/** The 5 lane options (Off + a-d), human/lore from content's ui.lfoLane, in LFO_LANE_IDS order. */
-const LANE_OPTIONS = options('ui.lfoLane');
+/** The depth strip's fixed length (docs/specs/LAYOUT_REWORK.md §1.4): short, so the lane row and the strip
+ *  can share a line where there is room; the strip wraps under the lane row where there is not. */
+export const LFO_LINK_DEPTH_BOXES = 8;
+
+/** The 5 lane options (Off + a-d) from content's ui.lfoLane, in LFO_LANE_IDS order, as one line each
+ *  (spec §1.4): the lane's name followed by its letter on the desk shell (ui.lfoLane.linkName), the
+ *  letter alone on the phone, Off on both. The text is also each option's accessible name. Built once
+ *  per shell, so the schemas below stay stable. */
+function laneOptions(shell: Shell): RadioButtonSchema['options'] {
+  return Object.entries(CONTENT['ui.lfoLane'].options).map(([value, option]) => {
+    if (!('short' in option)) return { value, humanLabel: option.human };
+    return { value, humanLabel: shell === 'phone' ? option.short : fill('ui.lfoLane.linkName', { lane: option.human, short: option.short }) };
+  });
+}
+const LANE_OPTIONS: Record<Shell, RadioButtonSchema['options']> = { desk: laneOptions('desk'), phone: laneOptions('phone') };
 
 const OFF_VALUE = 'off';
 
@@ -39,11 +54,12 @@ const OFF_VALUE = 'off';
  * no import of src/engine/lfoEngine.ts or any Tone object, so this stays presentation-only.
  */
 function LfoLinkInner({ schema, value, onChange, disabled, heldOff }: LfoLinkProps) {
+  const shell = useShell();
   // Memoized like every other primitive's internal schema (Lfo.tsx's own precedent) — keyed on
-  // schema.id alone; every other input (LANE_OPTIONS, LFO_DEPTH_MIN/MAX) is a module-level constant.
+  // schema.id and the shell; every other input (LANE_OPTIONS, LFO_DEPTH_MIN/MAX) is a module-level constant.
   const laneSchema: RadioButtonSchema = useMemo(
-    () => ({ id: `${schema.id}.lane`, type: 'radio', ...labels('ui.lfoLane'), options: LANE_OPTIONS }),
-    [schema.id],
+    () => ({ id: `${schema.id}.lane`, type: 'radio', ...labels('ui.lfoLane'), options: LANE_OPTIONS[shell] }),
+    [schema.id, shell],
   );
   const depthSchema: SliderLinearSchema = useMemo(
     () => ({ id: `${schema.id}.depth`, type: 'sliderLinear', ...labels('ui.lfo.depth'), min: LFO_DEPTH_MIN, max: LFO_DEPTH_MAX, orientation: 'horizontal' }),
@@ -70,30 +86,33 @@ function LfoLinkInner({ schema, value, onChange, disabled, heldOff }: LfoLinkPro
   const laneDisplay = heldOff ? OFF_VALUE : value.lane ?? OFF_VALUE;
   const depthDisplay = heldOff ? 0 : value.depth;
 
-  // Lane left, Depth right on desktop; stacked below it (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md
-  // §1.5) — the same viewport tier every 'responsive' DirectionalPanel reads, so this row and the
-  // paired rows around it always agree. Its own CSS (LfoLink.css) keys off the attribute; a primitive
-  // stays a primitive, with no DirectionalPanel inside it.
-  const orientation = useResponsivePanelOrientation();
+  // The compact row (docs/specs/LAYOUT_REWORK.md §1.4; Crawford, 2026-10-10): the lane row and the 8-box
+  // depth strip, each under its own label row and "?", side by side where both fit and the strip wrapping
+  // under the lanes where they do not. App sizes (the tier boxes, the 44 px touch floor); LfoLink.css owns
+  // the wrap, which replaced the tier-driven row/column switch (POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.5).
+  // The depth slider fits its boxes to its width, so the row offers it an 8-box track's length at the
+  // tier's sizes (LfoLink.css: its flex-basis, never grown past, shrinkable on a narrower line).
+  const depthLength = computeVoxelTrackLength(LFO_LINK_DEPTH_BOXES, useCabinetBoxHeight(), useVoxelTrackGap())
+    + computeVoxelTrackTrailingReserve('horizontal');
+  const rowTokens = { '--lfo-link-depth-length': `${depthLength}px` } as CSSProperties;
 
   return (
-    <div
-      className={withActiveClass(heldOff ? 'sc-lfo-link sc-held-off' : 'sc-lfo-link', !heldOff && value.lane !== null)}
-      data-orientation={orientation}
-    >
+    <div className={withActiveClass(heldOff ? 'sc-lfo-link sc-held-off' : 'sc-lfo-link', !heldOff && value.lane !== null)}>
       <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
-      <RadioButton
-        schema={laneSchema}
-        value={laneDisplay}
-        onChange={handleLaneChange}
-        disabled={disabled}
-      />
-      <SliderLinear
-        schema={depthSchema}
-        value={depthDisplay}
-        onChange={handleDepthChange}
-        disabled={disabled}
-      />
+      <div className="sc-lfo-link__row" style={rowTokens}>
+        <RadioButton
+          schema={laneSchema}
+          value={laneDisplay}
+          onChange={handleLaneChange}
+          disabled={disabled}
+        />
+        <SliderLinear
+          schema={depthSchema}
+          value={depthDisplay}
+          onChange={handleDepthChange}
+          disabled={disabled}
+        />
+      </div>
     </div>
   );
 }

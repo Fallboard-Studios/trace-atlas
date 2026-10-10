@@ -29,6 +29,7 @@ const FIXTURE = {
   'fleet.eq.bass': { human: 'Bass', lore: 'Sub-Band', unit: 'dB', help: { human: 'Boosts or cuts the low end.', lore: 'The lowest band of the trace.' } },
   'fleet.hpf': { human: 'High-Pass Filter', lore: 'Top Extraction', heading: 'LOW-FREQUENCY MASK', help: { human: 'Cuts the bass.' } },
   'fleet.lfoBank.laneA': { human: 'Core LFO', lore: 'Apex Signature', short: 'LFO A' },
+  'ui.lfoLane': { human: 'Lane', options: { off: { human: 'Off' }, a: { human: 'Core LFO', lore: 'Apex Signature', short: 'A' } } },
 } as const satisfies Record<string, ContentEntry>;
 
 const { labels: L, options, optionsRecord, intro, introProps, fill } = makeHelpers(FIXTURE);
@@ -110,6 +111,14 @@ describe('content helpers', () => {
 
     it('throws for an entry without options', () => {
       expect(() => options('ui.cancel')).toThrow(/ui\.cancel.*no options/);
+    });
+
+    it('never returns an option\'s short — a compact face is read by its own consumer (LfoLink\'s lane row)', () => {
+      expect(options('ui.lfoLane')).toEqual([
+        { value: 'off', humanLabel: 'Off' },
+        { value: 'a', humanLabel: 'Core LFO', loreLabel: 'Apex Signature' },
+      ]);
+      expect(optionsRecord('ui.lfoLane').a).toEqual({ humanLabel: 'Core LFO', loreLabel: 'Apex Signature' });
     });
   });
 

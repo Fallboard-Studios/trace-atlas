@@ -179,7 +179,14 @@ no hardware keys, build on the existing components.
   lane names appear wherever the desk shell has room**; the letter form is the phone's.
 - **Compact `LfoLink`:** the lane row becomes a single-line `RadioButton` (Off · Core LFO (A) · … on
   desk; Off · A · B · C · D on phone) plus a short depth `VoxelTrack`, in place of the five-box
-  two-line picker. Same `LfoLink` value shape, same `onChange`.
+  two-line picker. Same `LfoLink` value shape, same `onChange`. **Amended 2026-10-10 (Crawford, at
+  Task 14):**
+  - **App sizes, wrap.** At the app's control sizes (tier boxes, the 44 px touch floor), the sketch's
+    one-row link would need ~543 px in a 343 px phone pane, and ~1,100 px on desk with full names. So
+    the lane row and the 8-box strip share a line only where both fit, and the strip wraps under the
+    lanes where they do not.
+  - **Lane + Depth label rows kept.** Each half keeps its own label row and "?", not the sketch's single
+    "Signature Lane · Gain Link" row.
 - **Robot screen** (`RobotOptionsTab` → `RobotScreen.tsx`): a fixed **avatar column** (400 px: the gem
   via the existing avatar render context, name, the read-only meta of `RobotDisplaySection` — job,
   docking, phase, emission — as wells in two columns, the battery `VoxelTrack` read-only, and the

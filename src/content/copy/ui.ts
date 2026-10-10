@@ -56,15 +56,19 @@ export const ui = {
   'ui.lfoLane': {
     human: 'Lane',
     lore: 'Signature Lane',
+    // `short` is each lane's letter, the phone shell's lane-row face; LfoLink composes the desk face
+    // "Core LFO (A)" through ui.lfoLane.linkName (docs/specs/LAYOUT_REWORK.md §1.4).
     options: {
       off: { human: 'Off' },
-      a: { human: 'Core LFO', lore: 'Apex Signature' },
-      b: { human: 'Companion LFO', lore: 'Lateral Signature' },
-      c: { human: 'Accent LFO', lore: 'Impulse Signature' },
-      d: { human: 'Overtone LFO', lore: 'Canopy Signature' },
+      a: { human: 'Core LFO', lore: 'Apex Signature', short: 'A' },
+      b: { human: 'Companion LFO', lore: 'Lateral Signature', short: 'B' },
+      c: { human: 'Accent LFO', lore: 'Impulse Signature', short: 'C' },
+      d: { human: 'Overtone LFO', lore: 'Canopy Signature', short: 'D' },
     },
     help: { human: 'Which of the four shared LFO Bank lanes moves this dial — an automatic hand turning it back and forth. Every dial on the same lane moves together; Off leaves this one alone.' },
   },
+  /** A lane option's desk-shell face on LfoLink's lane row: the lane's name, then its letter. */
+  'ui.lfoLane.linkName': { human: 'Lane option', template: '{lane} ({short})' },
   /** The Free | Sync toggle on a lane's Rate and on Delay Time (docs/specs/FREE_SYNC_TOGGLE.md §1.9),
    *  read by TempoSyncToggle. Wording confirmed 2026-10-02. TWO label pairs, which are different things:
    *  the entry's own { human: 'Tempo Sync', lore: 'Anchoring' } is the toggle's LABEL (what the control
