@@ -31,11 +31,27 @@ export const company = {
     options: {
       freelance: { human: 'Freelance' },
     },
+    help: { human: 'Which company this probe belongs to. A change to a company’s settings reaches every probe in it at that moment; moving a probe in or out changes nothing about its sound. Freelance probes belong to no company.' },
   },
-  'company.selection': { human: 'Company Selection', lore: 'REGISTERED CONSORTIA' },
-  'company.name': { human: 'Company Name', lore: 'DESIGNATION', placeholder: 'Enter a company name…' },
-  'company.name.create': { human: 'New Company Name' },
-  'company.name.rename': { human: 'Rename Company' },
+  'company.selection': {
+    human: 'Company Selection',
+    lore: 'REGISTERED CONSORTIA',
+    help: { human: 'Which company to look at. Rename or delete it below, or change a setting there to send it to every probe in that company at once.' },
+  },
+  'company.name': {
+    human: 'Company Name',
+    lore: 'DESIGNATION',
+    placeholder: 'Enter a company name…',
+    help: { human: 'The company’s name, up to 128 characters. It is only a label: it shows in the company lists and pickers, and changes nothing about the sound.' },
+  },
+  'company.name.create': {
+    human: 'New Company Name',
+    help: { human: 'A name for a new company. Press Create to make it; it starts with no probes, and you move probes into it with each probe’s Company picker.' },
+  },
+  'company.name.rename': {
+    human: 'Rename Company',
+    help: { human: 'A new name for the selected company. Press Rename to apply it; its probes and settings stay as they are.' },
+  },
   'company.create': { human: 'Create', lore: 'COMMISSION UNIT', template: 'Create {name}' },
   'company.rename': { human: 'Rename', lore: 'REDESIGNATE UNIT', template: 'Rename {company} > {name}' },
   'company.delete': { human: 'Delete', lore: 'DECOMMISSION UNIT', template: 'Delete {company}' },

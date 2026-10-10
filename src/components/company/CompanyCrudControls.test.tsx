@@ -181,7 +181,10 @@ describe('CompanyCreateForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — the ba
   it('renders with no accordion wrapper — no collapse/expand trigger, no aria-expanded anywhere', () => {
     render(<CompanyCreateForm />);
     expect(screen.queryByRole('button', { name: /manage companies/i })).toBeNull();
-    expect(document.querySelector('[aria-expanded]')).toBeNull();
+    // The only aria-expanded is the name input's help "?" (docs/tasks/LAYOUT_REWORK.md Task 12b) — no trigger.
+    const expandable = [...document.querySelectorAll('[aria-expanded]')];
+    expect(expandable.length).toBeGreaterThan(0);
+    expect(expandable.filter((el) => !el.classList.contains('sc-help__trigger'))).toEqual([]);
   });
 });
 

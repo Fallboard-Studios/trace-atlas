@@ -17,6 +17,9 @@ import type { ContentEntry } from './types';
 import * as audioRigConfig from '@/data/audioRigConfig';
 import * as sectorSettingsConfig from '@/data/sectorSettingsConfig';
 import * as sessionConfig from '@/data/sessionConfig';
+import * as robotOptionsConfig from '@/data/robotOptionsConfig';
+import { buildCompanyAssignmentSchema, buildCompanySelectionSchema, COMPANY_NAME_INPUT_SCHEMA } from '@/data/companyConfig';
+import type { Company } from '@/types/Company';
 import type { ControlSchema } from '@/types/controls';
 
 const SRC = resolve(__dirname, '..');
@@ -163,5 +166,51 @@ describe('help coverage — Fleet Params and Settings', () => {
 
   it.each(PRIMITIVE_OWNED_KEYS)('%s (built inside its primitive) has help.human', (key) => {
     expect(labels(key).help?.human.trim()).toBeTruthy();
+  });
+});
+
+// The robot screen's controls (Levels, Composition, Envelope, Source and its three layers) and the
+// company controls (docs/tasks/LAYOUT_REWORK.md Task 12b). The two company radios are built from the
+// live company list, so they are walked as built, with one company in it.
+
+const FIXTURE_COMPANY: Company = { id: 'c1', name: 'Fixture Co', color: '#336699', robotIds: [] };
+
+/** Company name inputs whose schema a component clones from COMPANY_NAME_INPUT_SCHEMA with its own key
+ *  (CompanyCrudControls.tsx). Each needs help of its own: without it, the clone keeps the base schema's. */
+const COMPONENT_OWNED_KEYS: readonly ContentKey[] = ['company.name.create', 'company.name.rename'];
+
+describe('help coverage — probe and company controls', () => {
+  const schemas = valueControlSchemas(
+    robotOptionsConfig,
+    { assign: buildCompanyAssignmentSchema([FIXTURE_COMPANY]), select: buildCompanySelectionSchema([FIXTURE_COMPANY]), name: COMPANY_NAME_INPUT_SCHEMA },
+  );
+
+  it('the walk reaches every section, the three Source layers included (never passes on an empty list)', () => {
+    const ids = schemas.map((s) => s.id);
+    for (const id of ['robotOptions.audioSetting', 'robotOptions.volume', 'robotOptions.clickTrack', 'robotOptions.density', 'robotOptions.noteVariance',
+      'robotOptions.attack', 'robotOptions.release', 'robotOptions.layer0.type', 'robotOptions.layer1.detune', 'robotOptions.layer2.pulseWidth',
+      'company.assign', 'company.select', 'company.name']) {
+      expect(ids).toContain(id);
+    }
+    expect(ids).not.toContain('robotOptions.pingContour'); // a panel
+    expect(ids).not.toContain('robotOptions.layer0.panel'); // a layer's panel
+  });
+
+  it('every value control has help.human', () => {
+    const missing = schemas.filter((s) => !s.help?.human.trim()).map((s) => s.id);
+    expect(missing, `controls without help:\n  ${missing.join('\n  ')}`).toEqual([]);
+  });
+
+  it.each(COMPONENT_OWNED_KEYS)('%s (cloned inside its component) has help.human of its own', (key) => {
+    const own = labels(key).help;
+    expect(own?.human.trim()).toBeTruthy();
+    expect(own?.human).not.toBe(COMPANY_NAME_INPUT_SCHEMA.help?.human);
+  });
+
+  it('parallel Source layers carry their own help, never one shared description', () => {
+    for (const field of ['type', 'gain', 'detune', 'phase', 'interval'] as const) {
+      const helps = (['core', 'companion', 'accent'] as const).map((layer) => labels(`probe.source.${layer}.${field}`).help?.human);
+      expect(new Set(helps).size, `probe.source.*.${field}`).toBe(3);
+    }
   });
 });

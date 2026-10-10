@@ -60,6 +60,14 @@ function renderCard(overrides: Partial<Robot> = {}) {
 const ACTIVITIES = ['charging', 'exiting', 'transit', 'working', 'waiting', 'returning', 'entering'] as const satisfies readonly RobotActivity[];
 
 /** The status line's held cells (docking, then activity) — each stacks every label of its set. */
+/** The card's own role="button" region: the one button that is not a help "?". The company radio's
+ *  label carries a "?" since docs/tasks/LAYOUT_REWORK.md Task 12b gave `company.assign` help. */
+function cardButton(): HTMLElement {
+  const buttons = screen.getAllByRole('button').filter((b) => !b.classList.contains('sc-help__trigger'));
+  expect(buttons).toHaveLength(1);
+  return buttons[0];
+}
+
 function heldCells(): HTMLElement[] {
   return [...document.querySelectorAll<HTMLElement>('.robot-selection-card__status-line .robot-selection-card__held')];
 }
@@ -169,7 +177,7 @@ describe('RobotSelectionCard', () => {
       const cells = heldCells();
       expect(cells).toHaveLength(2);
       for (const cell of cells) expect(cell.getAttribute('aria-hidden')).toBe('true');
-      expect(screen.getByRole('button').getAttribute('aria-label')).toBe('Unit One');
+      expect(cardButton().getAttribute('aria-label')).toBe('Unit One');
     });
   });
 
@@ -302,7 +310,7 @@ describe('RobotSelectionCard', () => {
 
   it('clicking the card selects the robot', () => {
     renderCard({ id: 'r1' });
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(cardButton());
     expect(useUIStore.getState().selectedRobotId).toBe('r1');
   });
 
@@ -315,25 +323,25 @@ describe('RobotSelectionCard', () => {
   it('clicking the card clears a section left open on a previously-viewed robot', () => {
     useUIStore.getState().setSelectedSection('volume');
     renderCard({ id: 'r1' });
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(cardButton());
     expect(useUIStore.getState().selectedSection).toBeNull();
   });
 
   it('pressing Enter on the card selects the robot', () => {
     renderCard({ id: 'r1' });
-    fireEvent.keyDown(screen.getByRole('button'), { key: 'Enter' });
+    fireEvent.keyDown(cardButton(), { key: 'Enter' });
     expect(useUIStore.getState().selectedRobotId).toBe('r1');
   });
 
   it('pressing Space on the card selects the robot', () => {
     renderCard({ id: 'r1' });
-    fireEvent.keyDown(screen.getByRole('button'), { key: ' ' });
+    fireEvent.keyDown(cardButton(), { key: ' ' });
     expect(useUIStore.getState().selectedRobotId).toBe('r1');
   });
 
   it('is not the Button primitive — it is a plain focusable role="button" element', () => {
     renderCard();
-    const card = screen.getByRole('button');
+    const card = cardButton();
     expect(card.tagName).not.toBe('BUTTON');
     expect(card.getAttribute('tabindex')).toBe('0');
   });
@@ -344,7 +352,7 @@ describe('RobotSelectionCard', () => {
     expect(li.getAttribute('role')).toBeNull();
     expect(li.getAttribute('tabindex')).toBeNull();
 
-    const top = screen.getByRole('button');
+    const top = cardButton();
     expect(li.contains(top)).toBe(true);
     expect(top).not.toBe(li);
   });

@@ -130,8 +130,14 @@ export const probe = {
       solo: { human: 'Solo', lore: 'Featured' },
       highlight: { human: 'Highlight', lore: 'Elevated' },
     },
+    help: { human: 'Auto plays this probe normally. Mute silences it, Solo silences every other probe so you hear this one alone, and Highlight turns the other probes down so this one stands out.' },
   },
-  'probe.volume': { human: 'Volume', lore: 'Transducer Pressure', unit: '%' },
+  'probe.volume': {
+    human: 'Volume',
+    lore: 'Transducer Pressure',
+    unit: '%',
+    help: { human: 'How loud this probe’s own melody plays, from silent at 0% to full volume at 100%.' },
+  },
 
   // ---------------------------------------------------------------- Composition
   'probe.composition': {
@@ -146,14 +152,44 @@ export const probe = {
   },
   'probe.composition.rhythm': { human: 'Rhythm', lore: 'Payload Map', heading: 'RHYTHMIC PHRASING MATRIX' },
   'probe.composition.phrasing': { human: 'Phrasing', heading: 'RHYTHMIC PHRASING MATRIX' },
-  'probe.composition.clickTrack': { human: 'Click Track', lore: 'CALIBRATION PULSE' },
-  'probe.composition.noteDensity': { human: 'Note Density', lore: 'Payload Density', unit: '%' },
-  'probe.composition.phraseLength': { human: 'Phrase Length', lore: 'Payload Subgroups' },
-  'probe.composition.pitchRepeat': { human: 'Pitch Repeat Chance', lore: 'Payload Duplication', unit: '%' },
+  'probe.composition.clickTrack': {
+    human: 'Click Track',
+    lore: 'CALIBRATION PULSE',
+    help: { human: 'A testing aid: swaps this probe’s melody for one plain note on every beat, so the tempo is easy to hear. Turn it off to bring the melody back.' },
+  },
+  'probe.composition.noteDensity': {
+    human: 'Note Density',
+    lore: 'Payload Density',
+    unit: '%',
+    help: { human: 'How many steps of the rhythm play a note instead of resting. Low values leave lots of space, down to a single note; 100% fills every step.' },
+  },
+  'probe.composition.phraseLength': {
+    human: 'Phrase Length',
+    lore: 'Payload Subgroups',
+    help: { human: 'How many steps long this probe’s rhythm pattern is before it repeats across the measure. 0 turns repeating off, and the notes are scattered across the whole measure instead.' },
+  },
+  'probe.composition.pitchRepeat': {
+    human: 'Pitch Repeat Chance',
+    lore: 'Payload Duplication',
+    unit: '%',
+    help: { human: 'How often a repeat of the rhythm pattern also repeats its notes. 0 picks fresh notes for every repeat; 100% plays the same notes every time. It does nothing while Phrase Length is 0.' },
+  },
   'probe.composition.pitches': { human: 'Pitches', lore: 'Payload Allocation', heading: 'PITCH FREQUENCY MATRIX' },
-  'probe.composition.lowestOctave': { human: 'Lowest Octave', lore: 'Ping Floor' },
-  'probe.composition.highestOctave': { human: 'Highest Octave', lore: 'Ping Ceiling' },
-  'probe.composition.noteVariance': { human: 'Note Variance', lore: 'Ping Variance' },
+  'probe.composition.lowestOctave': {
+    human: 'Lowest Octave',
+    lore: 'Ping Floor',
+    help: { human: 'The lowest octave this probe’s notes can play in, from 1 (deep) to 7 (high). Raise it to keep the melody out of the low end.' },
+  },
+  'probe.composition.highestOctave': {
+    human: 'Highest Octave',
+    lore: 'Ping Ceiling',
+    help: { human: 'The highest octave this probe’s notes can play in, from 1 (deep) to 7 (high). Lower it to keep the melody out of the high end.' },
+  },
+  'probe.composition.noteVariance': {
+    human: 'Note Variance',
+    lore: 'Ping Variance',
+    help: { human: 'How many different notes the melody leans on, out of the eight it can choose from. Low values keep it circling a few notes; 8 uses all of them. 0 picks every note at random.' },
+  },
 
   // ---------------------------------------------------------------- Envelope
   'probe.envelope': {
@@ -166,10 +202,30 @@ export const probe = {
     },
   },
   'probe.envelope.contour': { human: 'Contour', lore: 'Ping Profile' },
-  'probe.envelope.attack': { human: 'Attack Time', lore: 'Ping Onset', unit: 's' },
-  'probe.envelope.decay': { human: 'Decay Time', lore: 'Ping Settling', unit: 's' },
-  'probe.envelope.sustain': { human: 'Sustain Level', lore: 'Ping Hold', unit: '%' },
-  'probe.envelope.release': { human: 'Release Time', lore: 'Ping Fade', unit: 's' },
+  'probe.envelope.attack': {
+    human: 'Attack Time',
+    lore: 'Ping Onset',
+    unit: 's',
+    help: { human: 'How long each note takes to rise from silence to full volume. Short gives a sharp, plucked start; long fades each note in.' },
+  },
+  'probe.envelope.decay': {
+    human: 'Decay Time',
+    lore: 'Ping Settling',
+    unit: 's',
+    help: { human: 'How long each note takes to fall from its peak to the Sustain Level. Short makes a quick drop; long lets the peak linger.' },
+  },
+  'probe.envelope.sustain': {
+    human: 'Sustain Level',
+    lore: 'Ping Hold',
+    unit: '%',
+    help: { human: 'The volume a note holds at after its peak, for as long as it plays, as a share of that peak. 100% holds it at full volume; 0% lets it die away during the Decay.' },
+  },
+  'probe.envelope.release': {
+    human: 'Release Time',
+    lore: 'Ping Fade',
+    unit: 's',
+    help: { human: 'How long each note takes to fade to silence once it ends. Short cuts it off cleanly; long lets it ring on.' },
+  },
 
   // ---------------------------------------------------------------- Source
   'probe.source': {
@@ -185,21 +241,87 @@ export const probe = {
    *  inside reads the short 'Core' today — one concept, so the panel takes this entry. Listed as
    *  a conflict row in the inventory for the review gate. Same for Companion/Accent. */
   'probe.source.core': { human: 'Core Oscillator', lore: 'Baseline Feed' },
-  'probe.source.core.type': { human: 'Core Type', lore: 'Feed Geometry', options: WAVEFORMS },
-  'probe.source.core.gain': { human: 'Core Gain', lore: 'Feed Saturation' },
-  'probe.source.core.detune': { human: 'Core Detune', lore: 'Feed Drift', unit: 'cents' },
-  'probe.source.core.phase': { human: 'Core Phase', lore: 'Feed Alignment' },
-  'probe.source.core.interval': { human: 'Core Interval', lore: 'Feed Break' },
+  'probe.source.core.type': {
+    human: 'Core Type',
+    lore: 'Feed Geometry',
+    options: WAVEFORMS,
+    help: { human: 'The shape of the core layer’s sound wave. Sine is soft and pure, Triangle a little brighter, Square hollow, Sawtooth bright and buzzy, and Pulse a reedy square whose width Interval sets.' },
+  },
+  'probe.source.core.gain': {
+    human: 'Core Gain',
+    lore: 'Feed Saturation',
+    help: { human: 'How loud the core layer is in the mix of this probe’s three layers. 0 mutes it; the higher it goes, the more it stands out against the other two.' },
+  },
+  'probe.source.core.detune': {
+    human: 'Core Detune',
+    lore: 'Feed Drift',
+    unit: 'cents',
+    help: { human: 'Shifts the core layer’s pitch slightly up or down, in cents — hundredths of a semitone. A little against the other layers thickens the sound; a lot makes it sour.' },
+  },
+  'probe.source.core.phase': {
+    human: 'Core Phase',
+    lore: 'Feed Alignment',
+    help: { human: 'Where in its own wave cycle the core layer starts, from 0 to 360 degrees. Shifting it against the other layers changes how they blend.' },
+  },
+  'probe.source.core.interval': {
+    human: 'Core Interval',
+    lore: 'Feed Break',
+    help: { human: 'Narrows or widens each pulse of the core layer’s Pulse wave, moving its tone between hollow and thin. It only appears while Core Type is Pulse.' },
+  },
   'probe.source.companion': { human: 'Companion Oscillator', lore: 'Coaxial Effect' },
-  'probe.source.companion.type': { human: 'Companion Type', lore: 'Effect Geometry', options: WAVEFORMS },
-  'probe.source.companion.gain': { human: 'Companion Gain', lore: 'Effect Saturation' },
-  'probe.source.companion.detune': { human: 'Companion Detune', lore: 'Effect Drift', unit: 'cents' },
-  'probe.source.companion.phase': { human: 'Companion Phase', lore: 'Effect Alignment' },
-  'probe.source.companion.interval': { human: 'Companion Interval', lore: 'Effect Break' },
+  'probe.source.companion.type': {
+    human: 'Companion Type',
+    lore: 'Effect Geometry',
+    options: WAVEFORMS,
+    help: { human: 'The shape of the companion layer’s sound wave. Sine is soft and pure, Triangle a little brighter, Square hollow, Sawtooth bright and buzzy, and Pulse a reedy square whose width Interval sets.' },
+  },
+  'probe.source.companion.gain': {
+    human: 'Companion Gain',
+    lore: 'Effect Saturation',
+    help: { human: 'How loud the companion layer is in the mix of this probe’s three layers. 0 mutes it; the higher it goes, the more it stands out against the other two.' },
+  },
+  'probe.source.companion.detune': {
+    human: 'Companion Detune',
+    lore: 'Effect Drift',
+    unit: 'cents',
+    help: { human: 'Shifts the companion layer’s pitch slightly up or down, in cents — hundredths of a semitone. A little against the other layers thickens the sound; a lot makes it sour.' },
+  },
+  'probe.source.companion.phase': {
+    human: 'Companion Phase',
+    lore: 'Effect Alignment',
+    help: { human: 'Where in its own wave cycle the companion layer starts, from 0 to 360 degrees. Shifting it against the other layers changes how they blend.' },
+  },
+  'probe.source.companion.interval': {
+    human: 'Companion Interval',
+    lore: 'Effect Break',
+    help: { human: 'Narrows or widens each pulse of the companion layer’s Pulse wave, moving its tone between hollow and thin. It only appears while Companion Type is Pulse.' },
+  },
   'probe.source.accent': { human: 'Accent Oscillator', lore: 'Offset Matrix' },
-  'probe.source.accent.type': { human: 'Accent Type', lore: 'Matrix Geometry', options: WAVEFORMS },
-  'probe.source.accent.gain': { human: 'Accent Gain', lore: 'Matrix Saturation' },
-  'probe.source.accent.detune': { human: 'Accent Detune', lore: 'Matrix Drift', unit: 'cents' },
-  'probe.source.accent.phase': { human: 'Accent Phase', lore: 'Matrix Alignment' },
-  'probe.source.accent.interval': { human: 'Accent Interval', lore: 'Matrix Break' },
+  'probe.source.accent.type': {
+    human: 'Accent Type',
+    lore: 'Matrix Geometry',
+    options: WAVEFORMS,
+    help: { human: 'The shape of the accent layer’s sound wave. Sine is soft and pure, Triangle a little brighter, Square hollow, Sawtooth bright and buzzy, and Pulse a reedy square whose width Interval sets.' },
+  },
+  'probe.source.accent.gain': {
+    human: 'Accent Gain',
+    lore: 'Matrix Saturation',
+    help: { human: 'How loud the accent layer is in the mix of this probe’s three layers. 0 mutes it; the higher it goes, the more it stands out against the other two.' },
+  },
+  'probe.source.accent.detune': {
+    human: 'Accent Detune',
+    lore: 'Matrix Drift',
+    unit: 'cents',
+    help: { human: 'Shifts the accent layer’s pitch slightly up or down, in cents — hundredths of a semitone. A little against the other layers thickens the sound; a lot makes it sour.' },
+  },
+  'probe.source.accent.phase': {
+    human: 'Accent Phase',
+    lore: 'Matrix Alignment',
+    help: { human: 'Where in its own wave cycle the accent layer starts, from 0 to 360 degrees. Shifting it against the other layers changes how they blend.' },
+  },
+  'probe.source.accent.interval': {
+    human: 'Accent Interval',
+    lore: 'Matrix Break',
+    help: { human: 'Narrows or widens each pulse of the accent layer’s Pulse wave, moving its tone between hollow and thin. It only appears while Accent Type is Pulse.' },
+  },
 } as const satisfies Record<string, ContentEntry>;

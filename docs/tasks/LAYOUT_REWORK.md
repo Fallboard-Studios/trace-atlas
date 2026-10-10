@@ -1048,6 +1048,71 @@ radio), in the copy-tone guide's human voice at the existing intro-description l
 
 **Estimated scope:** S (copy for ~25 controls)
 
+**As built (2026-10-10):**
+
+**What the test walks.** `ROBOT_SECTIONS_CONFIG` (in `robotSubsectionConfig.ts`, not
+`robotOptionsConfig.ts`) holds section and nav ids only, no control schemas. So the new block in
+`content.test.ts` reuses Task 10's `valueControlSchemas` walker over `robotOptionsConfig.ts`'s exports,
+plus the company schemas. The two company radios are functions of the live company list, so they are
+walked as built from a one-company fixture. A reach check (the three Source layers included) keeps
+the walk from passing on an empty list.
+
+**Which controls got help.** 33 entries:
+- **Probe (28):** Monitor Mode and Volume; the seven Composition controls, including the dev-only
+  Click Track toggle (the walker counts it as a value control); the four envelope times; and Type,
+  Gain, Detune, Phase and Interval on each of the three Source layers.
+- **Company (5):** `company.assign`, `company.selection`, `company.name`, `company.name.create` and
+  `company.name.rename`.
+
+The last two are built inside `CompanyCrudControls.tsx` by spreading `COMPANY_NAME_INPUT_SCHEMA` and
+then their own labels. Without help of their own they would silently show the base input's, so the
+test checks them by key, and checks that their text differs from the base. The parallel Source layers
+each name their own layer, and a test holds the three apart.
+
+Not given help:
+- the battery readout (read-only, `role=status`);
+- the Display rows (`dualLabel`, not controls);
+- the buttons (Create / Rename / Delete, Clear Filter).
+
+**Copy facts, checked against code and docs:**
+- Highlight halves the other probes' note velocity (AUDIO_SYSTEM.md).
+- Density never drops below one note.
+- Phrase Length 0 scatters notes over the measure, and Pitch Repeat is inert while it is 0
+  (MELODY_SYSTEM.md).
+- Note Variance 0 is an unweighted random pick, and 8 uses all eight notes.
+- Ranges: octaves run 1–7, Detune ±50 cents, Phase 0–360.
+- Interval renders only on Pulse layers.
+- Reassigning a probe applies nothing (COMPANIES.md). A new company starts with no probes. Names cap
+  at 128 characters.
+
+Human voice only; lore descriptions stay Crawford's to add.
+
+**Visible now.** A "?" appears on every robot-screen and company-screen value control, and on every
+roster card's company radio. The roster cards keep theirs until Task 21 replaces the cards.
+
+**Two existing tests changed**, the same relaxation Task 12 made to `AudioRigDrawer.test.tsx`:
+- `RobotSelectionCard.test.tsx`: seven unnamed `getByRole('button')` calls now find the card's
+  "?" as well. A `cardButton()` helper picks the one non-help button and keeps the "exactly one card
+  button" property. The "?" sits in the card's bottom region, a sibling of the role="button" top, so
+  it is not a nested button.
+- `CompanyCrudControls.test.tsx`: "no aria-expanded anywhere" now allows help triggers only, with at
+  least one present.
+
+**Verified:**
+- Full suite: 314 files / 8579 tests.
+- `build:types` clean; lint at the known 25 / 4.
+
+**Mutation check:** 13, all killed. They cover:
+- help dropped from a top-level control, a nested layer control, Click Track, each company schema and
+  the Create clone;
+- the Rename clone or the companion layer repeating another entry's help word for word;
+- the walk skipping either module;
+- the card growing a second real button, and the CRUD form gaining a real `aria-expanded` trigger.
+
+A 14th mutant first **survived** because it was ill-formed: it deleted the card helper's own length
+check, which cannot fail while the card has one button. It was replaced by the second-button mutant
+above.
+
 ## Task 13: `RadioButton` — single-line options
 
 **Description:** `RadioButton.tsx` renders each option as one line of `humanLabel` (no `DualLabel`
