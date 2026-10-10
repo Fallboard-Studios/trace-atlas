@@ -3,7 +3,7 @@ import gsap from 'gsap';
 
 import { NavBox } from './NavBox';
 import { NavEntityList } from './NavEntityList';
-import { selectBranch, branchOfTile, branchContent, expandsInPlace, type NavBranch } from './navActions';
+import { pressBranchBox, branchOfTile, branchContent, expandsInPlace, type NavBranch } from './navActions';
 import { useShell } from '../useShell';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { useUIStore } from '@/stores/uiStore';
@@ -74,7 +74,9 @@ function useNavPanelWidth(wide: boolean): void {
 /**
  * The one nav panel (docs/specs/LAYOUT_REWORK.md §1.2; docs/tasks/LAYOUT_REWORK.md Task 4): five parent
  * boxes in the panel's static popped facade, the open branch's box out. Probes and Companies expand in
- * place — their entities list under the box and the panel widens. Every pick goes through navActions.
+ * place — their entities list under the box and the panel widens — while `expandedTopLevelBranch` is
+ * that branch; pressing the box on its own page collapses or reopens the list (navActions.pressBranchBox).
+ * Every pick goes through navActions.
  *
  * Phone shell, until the sheet (Task 5): the same panel, shown only while `isNavPanelOpen`.
  */
@@ -82,7 +84,8 @@ export function NavPanel() {
   const shell = useShell();
   const isNavPanelOpen = useUIStore((s) => s.isNavPanelOpen);
   const active = branchOfTile(useUIStore((s) => s.activeHubTile));
-  useNavPanelWidth(expandsInPlace(active));
+  const expandedBranch = useUIStore((s) => s.expandedTopLevelBranch);
+  useNavPanelWidth(expandsInPlace(active) && expandedBranch === active);
 
   if (shell === 'phone' && !isNavPanelOpen) return null;
 
@@ -90,18 +93,22 @@ export function NavPanel() {
     <nav className="nav-panel" aria-label={NAV_LABEL}>
       <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-nav-panel-facade">
         <ul className="nav-panel__boxes">
-          {PARENT_BOXES.map(({ branch, loreLabel, humanLabel, accentStyle }) => (
-            <li key={branch} style={accentStyle}>
-              <NavBox
-                id={branch}
-                loreLabel={loreLabel}
-                humanLabel={humanLabel}
-                current={branch === active}
-                onClick={() => selectBranch(branch)}
-              />
-              {branch === active && expandsInPlace(branch) && <NavEntityList branch={branch} />}
-            </li>
-          ))}
+          {PARENT_BOXES.map(({ branch, loreLabel, humanLabel, accentStyle }) => {
+            const listOpen = branch === active && expandedBranch === branch;
+            return (
+              <li key={branch} style={accentStyle}>
+                <NavBox
+                  id={branch}
+                  loreLabel={loreLabel}
+                  humanLabel={humanLabel}
+                  current={branch === active}
+                  expanded={expandsInPlace(branch) ? listOpen : undefined}
+                  onClick={() => pressBranchBox(branch)}
+                />
+                {listOpen && expandsInPlace(branch) && <NavEntityList branch={branch} />}
+              </li>
+            );
+          })}
         </ul>
       </CabinetBox>
     </nav>

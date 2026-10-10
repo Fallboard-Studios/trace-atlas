@@ -4,6 +4,7 @@ import {
   selectEntity,
   goHome,
   breadcrumbPath,
+  pressBranchBox,
   branchOfTile,
   expandsInPlace,
   branchContent,
@@ -182,6 +183,125 @@ describe('goHome', () => {
     expect(ui().activeHubTile).toBeNull();
     expect(ui().expandedTopLevelBranch).toBeNull();
     expectNoEntityAndNoSection();
+  });
+});
+
+// Crawford, 2026-10-09 ("back, then collapse"): the panel's parent box. On an entity it is
+// selectBranch — back to the branch's page, list open; on that page already, Probes and Companies
+// toggle their list in place. selectBranch itself never toggles.
+describe('pressBranchBox', () => {
+  /** On the Probes page with the list open and nothing selected. */
+  function onProbesPage(overrides: Partial<UIStore> = {}) {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', ...overrides });
+  }
+
+  it.each(['probes', 'companies', 'fleetParams', 'settings', 'deck'] as const)(
+    'from another branch, %s does what selectBranch does',
+    (branch: NavBranch) => {
+      dirtyStore({ activeHubTile: branch === 'settings' ? 'audioRig' : 'settings', expandedTopLevelBranch: null });
+      pressBranchBox(branch);
+      const pressed = { ...ui() };
+      dirtyStore({ activeHubTile: branch === 'settings' ? 'audioRig' : 'settings', expandedTopLevelBranch: null });
+      selectBranch(branch);
+      expect(pressed).toEqual({ ...ui() });
+    },
+  );
+
+  it('on a robot, goes back to the Probes page with the list still open', () => {
+    dirtyStore();
+    pressBranchBox('probes');
+    expect(ui().activeHubTile).toBe('robots');
+    expect(ui().expandedTopLevelBranch).toBe('probes');
+    expectNoEntityAndNoSection();
+  });
+
+  it('on All Probes, goes back to the Probes page with the list still open', () => {
+    onProbesPage({ allProbesSelected: true, selectedSection: 'volume' });
+    pressBranchBox('probes');
+    expect(ui().expandedTopLevelBranch).toBe('probes');
+    expectNoEntityAndNoSection();
+  });
+
+  it('on the Probes page, collapses the list and changes nothing else', () => {
+    onProbesPage({ isNavPanelOpen: true });
+    const before = { ...ui() };
+    pressBranchBox('probes');
+    expect({ ...ui() }).toEqual({ ...before, expandedTopLevelBranch: null });
+  });
+
+  it('on the Probes page with the list collapsed, opens it again', () => {
+    onProbesPage({ expandedTopLevelBranch: null });
+    pressBranchBox('probes');
+    expect(ui().expandedTopLevelBranch).toBe('probes');
+    expect(ui().activeHubTile).toBe('robots');
+  });
+
+  it('robot -> back -> collapse -> open, one press each', () => {
+    dirtyStore();
+    const trail: (string | null)[][] = [];
+    for (let i = 0; i < 3; i++) {
+      pressBranchBox('probes');
+      trail.push([ui().selectedRobotId, ui().expandedTopLevelBranch]);
+    }
+    expect(trail).toEqual([
+      [null, 'probes'],
+      [null, null],
+      [null, 'probes'],
+    ]);
+  });
+
+  it('with the list collapsed and a robot picked in the world, goes back and opens the list', () => {
+    onProbesPage({ expandedTopLevelBranch: null, selectedRobotId: 'r2' });
+    pressBranchBox('probes');
+    expect(ui().selectedRobotId).toBeNull();
+    expect(ui().expandedTopLevelBranch).toBe('probes');
+  });
+
+  it('Companies: on a company, back to the Companies page; then collapse; then open', () => {
+    useUIStore.setState({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies' });
+    useUIStore.getState().selectCompany('c1');
+
+    pressBranchBox('companies');
+    expect(ui().selectedCompanyId).toBeNull();
+    expect(ui().expandedTopLevelBranch).toBe('companies');
+    expectCompanyInvariant();
+
+    pressBranchBox('companies');
+    expect(ui().expandedTopLevelBranch).toBeNull();
+    expect(ui().activeHubTile).toBe('companies');
+
+    pressBranchBox('companies');
+    expect(ui().expandedTopLevelBranch).toBe('companies');
+  });
+
+  it("only the open branch's entity counts: a world-selected robot on the Companies page does not stop the collapse", () => {
+    useUIStore.setState({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies', selectedRobotId: 'r1' });
+    pressBranchBox('companies');
+    expect(ui().expandedTopLevelBranch).toBeNull();
+    expect(ui().selectedRobotId).toBe('r1');
+  });
+
+  it.each([
+    ['fleetParams', 'audioRig'],
+    ['settings', 'settings'],
+  ] as const)('a leaf (%s) never toggles: pressing it again is selectBranch', (branch, tile) => {
+    dirtyStore({ activeHubTile: tile, expandedTopLevelBranch: null, selectedRobotId: null });
+    pressBranchBox(branch);
+    expect(ui().activeHubTile).toBe(tile);
+    expect(ui().expandedTopLevelBranch).toBeNull();
+    expectNoEntityAndNoSection();
+  });
+
+  it('the Deck pressed on the Deck stays home', () => {
+    pressBranchBox('deck');
+    expect(ui().activeHubTile).toBeNull();
+    expect(ui().expandedTopLevelBranch).toBeNull();
+  });
+
+  it('selectBranch does not toggle: on the Probes page it keeps the list open', () => {
+    onProbesPage();
+    selectBranch('probes');
+    expect(ui().expandedTopLevelBranch).toBe('probes');
   });
 });
 

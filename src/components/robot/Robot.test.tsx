@@ -68,6 +68,31 @@ describe('Robot click routing (Roadmap Phase 8)', () => {
     expect(useUIStore.getState().activeHubTile).toBe('robots');
   });
 
+  // docs/tasks/LAYOUT_REWORK.md Task 4: the nav panel's Probes list shows while
+  // expandedTopLevelBranch is 'probes' (the field its box collapses), so opening Probes from the
+  // Deck goes through navActions like any other pick and lands with the list open.
+  it('from the Deck, opens Probes with its nav list expanded, through navActions', () => {
+    useUIStore.setState({ expandedTopLevelBranch: null, allProbesSelected: true });
+    const { container } = renderRobot({ id: 'r1' });
+    fireEvent.click(container.querySelector('.robot') as Element);
+
+    expect(useUIStore.getState()).toMatchObject({
+      activeHubTile: 'robots',
+      expandedTopLevelBranch: 'probes',
+      selectedRobotId: 'r1',
+      allProbesSelected: false,
+    });
+  });
+
+  it('with a tile open, leaves the nav list as it was (a halo, not a navigation)', () => {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: null });
+    const { container } = renderRobot({ id: 'r1' });
+    fireEvent.click(container.querySelector('.robot') as Element);
+
+    expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
+    expect(useUIStore.getState().selectedRobotId).toBe('r1');
+  });
+
   it('selects the robot but does not change the active tile when a tile is already open', () => {
     useUIStore.getState().setActiveHubTile('audioRig');
     const { container } = renderRobot({ id: 'r1' });

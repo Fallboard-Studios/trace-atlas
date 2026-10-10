@@ -137,6 +137,25 @@ export function selectEntity(entity: NavEntity): void {
   }
 }
 
+/** Only the open branch's own entity counts, as the breadcrumb reads it: a robot picked in the world
+ *  is not a Companies entity. */
+function branchHasEntity(s: UIStore, branch: ExpandingBranch): boolean {
+  return branch === 'probes' ? s.selectedRobotId !== null || s.allProbesSelected : s.selectedCompanyId !== null;
+}
+
+/** A parent box pressed in the panel (Crawford, 2026-10-09: "back, then collapse"). Anywhere but its
+ *  own page it is selectBranch, so on an entity it goes back to the branch's page with the list open.
+ *  On Probes' or Companies' own page it toggles the list in place and changes nothing else. Other
+ *  callers use selectBranch, which never toggles. */
+export function pressBranchBox(branch: NavBranch): void {
+  const s = useUIStore.getState();
+  if (expandsInPlace(branch) && branchOfTile(s.activeHubTile) === branch && !branchHasEntity(s, branch)) {
+    s.setExpandedTopLevelBranch(s.expandedTopLevelBranch === branch ? null : branch);
+    return;
+  }
+  selectBranch(branch);
+}
+
 /** The Deck: no tile, nothing expanded, no entity. */
 export function goHome(): void {
   clearEntityAndSections();

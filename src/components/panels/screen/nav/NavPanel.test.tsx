@@ -248,15 +248,70 @@ describe('NavPanel — Probes and Companies expand in place (desk)', () => {
     expect(expandFactor()).toBe('1');
   });
 
-  it('a robot picked in the world (the tile opened without the expanded-branch field) still widens and lists', () => {
+  it('the list and the width follow expandedTopLevelBranch: the Probes tile with its list collapsed lists nothing, at rest', () => {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: null });
     renderPanel();
-    act(() => {
-      useUIStore.getState().selectRobot('r1');
-      useUIStore.getState().setActiveHubTile('robots');
-    });
-    expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
-    expect(box('probe.root').closest('li')!.querySelector('.nav-entity-list')).not.toBeNull();
+    expect(entityList()).toBeNull();
+    expect(expandFactor()).toBe('0');
+    expect(poppedOf(box('probe.root'))).toBe('true');
+  });
+
+  it('a stale expanded field for another branch lists nothing', () => {
+    useUIStore.setState({ activeHubTile: 'audioRig', expandedTopLevelBranch: 'probes' });
+    renderPanel();
+    expect(entityList()).toBeNull();
+    expect(expandFactor()).toBe('0');
+  });
+
+  // Crawford, 2026-10-09: "back, then collapse".
+  it.each(['probe.root', 'company.root'] as ContentKey[])(
+    'clicking the open %s box on its own page collapses the list to rest, and again reopens it',
+    (key) => {
+      renderPanel();
+      fireEvent.click(box(key));
+      expect(expandFactor()).toBe('1');
+
+      fireEvent.click(box(key));
+      expect(entityList()).toBeNull();
+      expect(expandFactor()).toBe('0');
+      expect(poppedOf(box(key))).toBe('true');
+      expect(setTimeline).toHaveBeenLastCalledWith('nav-panel-width', expect.anything());
+
+      fireEvent.click(box(key));
+      expect(box(key).closest('li')!.querySelector('.nav-entity-list')).not.toBeNull();
+      expect(expandFactor()).toBe('1');
+    },
+  );
+
+  it('on a robot, clicking Probes goes back to the Probes page with the list still open; the next click collapses', () => {
+    renderPanel();
+    fireEvent.click(box('probe.root'));
+    fireEvent.click(within(entityList() as HTMLElement).getByRole('button', { name: 'Tidal Wisp' }));
+    expect(useUIStore.getState().selectedRobotId).toBe('r1');
+
+    fireEvent.click(box('probe.root'));
+    expect(useUIStore.getState().selectedRobotId).toBeNull();
+    expect(entityList()).not.toBeNull();
     expect(expandFactor()).toBe('1');
+
+    fireEvent.click(box('probe.root'));
+    expect(entityList()).toBeNull();
+    expect(expandFactor()).toBe('0');
+  });
+
+  it('marks the open Probes / Companies box aria-expanded, and only that box', () => {
+    renderPanel();
+    expect(box('probe.root').getAttribute('aria-expanded')).toBe('false');
+    expect(box('company.root').getAttribute('aria-expanded')).toBe('false');
+    expect(box('fleet.root').getAttribute('aria-expanded')).toBeNull();
+    expect(box('nav.home').getAttribute('aria-expanded')).toBeNull();
+
+    fireEvent.click(box('probe.root'));
+    expect(box('probe.root').getAttribute('aria-expanded')).toBe('true');
+    expect(box('company.root').getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(box('probe.root'));
+    expect(box('probe.root').getAttribute('aria-expanded')).toBe('false');
   });
 
   it('mounting with a branch already open sets the wide value at once, without a tween', () => {

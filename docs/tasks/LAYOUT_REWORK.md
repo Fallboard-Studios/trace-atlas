@@ -287,8 +287,8 @@ That keeps 96 / 260 in CSS only. Tweening px values instead would mean reading t
 keeping a TS copy, and a derivation declared on an ancestor would not pick up the override (the
 traitColors.ts gotcha). The first value and every reduced-motion change are a `gsap.set`, with no
 timeline. Unmount kills `nav-panel-width` and removes the factor. The panel width and entity list
-follow `activeHubTile` (through `navActions.branchOfTile`), not `expandedTopLevelBranch`: a robot
-clicked in the world (`Robot.tsx`) opens the tile without setting that field.
+follow the open branch (`navActions.branchOfTile(activeHubTile)`) while `expandedTopLevelBranch` is
+that branch — see the collapse follow-up below.
 
 Two files beyond the list. `NavBox.tsx` / `.css` is the one box both components draw: Button has no
 "current" state, and adding one would change a primitive. `navActions.ts` now exports `branchOfTile`,
@@ -302,10 +302,20 @@ Interim, until later tasks: `NavStatusBlock` is no longer rendered, so the world
 until Task 8's `MetaBox`. On the phone shell the panel shows only while `isNavPanelOpen` (the old
 hamburger still toggles it) until Task 5's sheet. The content's left edge follows the panel only
 from Task 7. + New Company toggles the form, which stays open after Create (`CompanyCreateForm` is
-unchanged). Not built: the sketch's "clicking the active box again collapses the list", which is in
-neither the spec nor this plan; left for Crawford. `nav.entity.newCompany` is off `AWAITING_CONSUMER`.
-Manual check, headless Chrome at 1280×800: 96 px on the Deck, 260 px on Probes (18 boxes) and
-Companies, back to 96 px on Fleet Params, no tree.
+unchanged). `nav.entity.newCompany` is off `AWAITING_CONSUMER`. Manual check, headless Chrome at
+1280×800: 96 px on the Deck, 260 px on Probes (18 boxes) and Companies, back to 96 px on Fleet
+Params, no tree.
+
+**Follow-up, collapse (Crawford, 2026-10-09, "back, then collapse"; spec §1.2 amended):** the
+sketch's "clicking the active box again collapses the list" was missing from the plan, and is now
+built. The list and width follow `expandedTopLevelBranch`. The parent box calls the new
+`navActions.pressBranchBox`. With an entity selected (a robot or All Probes on Probes, a company on
+Companies), it is `selectBranch`: back to the branch's page, list open. On the branch's own page it
+toggles the list and changes nothing else. A world-selected robot does not count under Companies.
+`selectBranch` never toggles. The open parent box carries `aria-expanded`. `Robot.tsx`'s world click
+from the Deck now goes through `selectEntity`, so Probes opens with its list. Before this, it set
+only the tile, and the list would have stayed shut. With a tile open, the click still only moves
+the selection. 15 mutants, all killed.
 
 ## Task 5: `PhoneBar` and the nav sheet (phone shell)
 

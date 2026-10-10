@@ -114,6 +114,12 @@ no hardware keys, build on the existing components.
   `width`, key `nav-panel-width`), the branch's entities list under the active box, and the content
   surface's left edge moves with it (`--nav-panel-width` custom property, read by `ContentPane`).
   Deck, Fleet Params and Settings are leaves and never change the panel's shape.
+- **Collapse** (Crawford, 2026-10-09, "back, then collapse"): the list shows while
+  `expandedTopLevelBranch` is the open branch. Pressing the open Probes / Companies box on an entity
+  goes back to the branch's page with the list still open (picking a parent clears the entity); on
+  the branch's own page it collapses the list, and pressing it again reopens it. A collapse changes
+  nothing but the list. `navActions.pressBranchBox` holds this; `selectBranch` never toggles. A
+  robot clicked in the world from the Deck opens Probes through `selectEntity`, so the list is open.
 - Entities: Probes = "All Probes" then the twelve robots (identity colour per box); Companies =
   "+ New Company" then each company (company colour). Picking an entity sets `selectedRobotId` /
   `selectedCompanyId` / `allProbesSelected` and `activeHubTile`; picking a parent sets `activeHubTile`

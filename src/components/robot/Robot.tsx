@@ -11,6 +11,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useLocaleStore } from '../../stores/localeStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../../stores/attenuationStyleStore';
 import { onRobotMounted } from '../../systems/workLoop';
+import { selectEntity } from '../panels/screen/nav/navActions';
 
 // ========================================
 // TYPES
@@ -49,7 +50,6 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
   const selectedRobotId = useUIStore((s) => s.selectedRobotId);
   const selectRobot = useUIStore((s) => s.selectRobot);
   const activeHubTile = useUIStore((s) => s.activeHubTile);
-  const setActiveHubTile = useUIStore((s) => s.setActiveHubTile);
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const localeId = useAttenuationStyleStore((s) => selectCurrentAttenuationStyle(s)?.currentLocaleId ?? '');
   const robot = useLocaleStore((s) => s.locales[localeId]?.robots?.find((r) => r.id === robotId));
@@ -91,9 +91,11 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
   // at all in that state (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.7) — with no .console element
   // present to block anything, this click reaches WorldView for free, no pointer-events
   // special-casing needed the way the old console--grid mechanism once provided.
+  // From the Deck it is a nav pick like any other (navActions), so Probes opens with its nav list
+  // expanded (docs/tasks/LAYOUT_REWORK.md Task 4); with a tile open it only moves the selection.
   const handleClick = () => {
-    selectRobot(robot.id);
-    if (activeHubTile === null) setActiveHubTile('robots');
+    if (activeHubTile === null) selectEntity({ robotId: robot.id });
+    else selectRobot(robot.id);
   };
 
   const className = ['robot', isSelected && 'selected', isCompanyMember && 'isCompanyMember']
