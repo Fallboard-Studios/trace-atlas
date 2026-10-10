@@ -1,0 +1,35 @@
+/* The meta box (docs/specs/LAYOUT_REWORK.md §1.7; docs/tasks/LAYOUT_REWORK.md Task 8): the Deck's
+   glow-glass well, bottom-left. It takes the corner the content surface and its breadcrumb use on every
+   other view — the same left and bottom as .content-pane (ContentPane.css): the sketch's
+   `left: 112px; bottom: calc(var(--sb) + 14px)`, right of the nav panel and above the bottom sleeve
+   strip. Positioned in .world-view (WorldView.css), which fills the screen; --nav-panel-width is
+   NavPanel.css's, declared on #screen-viewport, so the box follows the panel as it widens. */
+.meta-box {
+  position: absolute;
+  left: calc(var(--nav-panel-width) + var(--spacing-lg));
+  bottom: calc(var(--spacing-2xl) + var(--spacing-lg));
+  z-index: 1;
+  /* One line that never runs off the screen: cut short with an ellipsis instead. */
+  max-width: calc(100% - var(--nav-panel-width) - 2 * var(--spacing-lg));
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px var(--spacing-md);
+  /* A well (spec §1.1: in = read), in index.css's shared tokens and the header accent (MetaBox.tsx). */
+  border: 1px solid var(--color-accent);
+  box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);
+  background: var(--well-background);
+  color: var(--color-text-primary-fixed);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  letter-spacing: 0.03em;
+  /* A readout: a click here is meant for the robot behind it (Robot.tsx selects from the world). */
+  pointer-events: none;
+}
+
+/* The world line's three fields, spaced as the sketch's line is (gap 10px); inline, so the box's (or
+   PhoneBar's well's) one-line ellipsis cuts them. */
+.world-line__field + .world-line__field {
+  margin-left: var(--spacing-md);
+}

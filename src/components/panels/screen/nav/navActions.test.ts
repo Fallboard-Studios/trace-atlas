@@ -4,6 +4,7 @@ import {
   selectEntity,
   goHome,
   breadcrumbPath,
+  breadcrumbTrail,
   pressBranchBox,
   branchOfTile,
   expandsInPlace,
@@ -481,5 +482,97 @@ describe('breadcrumbPath', () => {
   it("only the open branch's entity counts: a world-selected robot does not appear under Companies", () => {
     expect(path({ activeHubTile: 'companies', selectedRobotId: 'r1' })).toEqual([ROOT, COMPANIES]);
     expect(path({ activeHubTile: 'robots', selectedCompanyId: 'c1' })).toEqual([ROOT, PROBES]);
+  });
+});
+
+// docs/tasks/LAYOUT_REWORK.md Task 8: the breadcrumb's ancestors are buttons that call navActions, so
+// the trail carries, with each name, where that segment goes — the path is still derived here only.
+describe('breadcrumbTrail — each segment and the navActions call it goes to', () => {
+  const roster: NavRoster = {
+    robots: [{ id: 'r1', name: 'Tidal Wisp' }],
+    companies: [{ id: 'c1', name: 'Rust Syndicate' }],
+  };
+  const trail = () => breadcrumbTrail(ui(), roster);
+  const go = (index: number) => {
+    const segment = trail()[index];
+    expect(segment?.go, `segment ${index} has somewhere to go`).toBeTypeOf('function');
+    segment!.go!();
+  };
+
+  beforeEach(() => {
+    useUIStore.setState(useUIStore.getInitialState(), true);
+  });
+
+  it('is empty on the Deck', () => {
+    expect(trail()).toEqual([]);
+  });
+
+  it.each<[string, Partial<UIStore>]>([
+    ['Fleet Params with a lane', { activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' }],
+    ['Settings with a leaf', { activeHubTile: 'settings', selectedSettingsLeaf: 'sessions' }],
+    ['a robot with a section', { activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' }],
+    ['All Probes with a section', { activeHubTile: 'robots', allProbesSelected: true, selectedSection: 'volume' }],
+    ['a company with a section', { activeHubTile: 'companies', selectedCompanyId: 'c1', selectedSection: 'envelope' }],
+    ['a stale robot id', { activeHubTile: 'robots', selectedRobotId: 'gone', selectedSection: 'source' }],
+  ])('names the same segments breadcrumbPath reads (%s)', (_case, state) => {
+    useUIStore.setState(state);
+    expect(trail().map((segment) => segment.label)).toEqual(breadcrumbPath(ui(), roster));
+  });
+
+  it('Root goes home: no tile, nothing expanded, no entity', () => {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', selectedRobotId: 'r1', selectedSection: 'melody' });
+    go(0);
+    expect(ui().activeHubTile).toBeNull();
+    expect(ui().expandedTopLevelBranch).toBeNull();
+    expect(ui().selectedRobotId).toBeNull();
+  });
+
+  it("the branch goes to the branch's own page: entity and section cleared, Probes' list open", () => {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: null, selectedRobotId: 'r1', selectedSection: 'melody' });
+    go(1);
+    expect(ui().activeHubTile).toBe('robots');
+    expect(ui().selectedRobotId).toBeNull();
+    expect(ui().selectedSection).toBeNull();
+    expect(ui().expandedTopLevelBranch).toBe('probes');
+  });
+
+  it('the Fleet Params branch clears its group, staying on Fleet Params', () => {
+    useUIStore.setState({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' });
+    go(1);
+    expect(ui().activeHubTile).toBe('audioRig');
+    expect(ui().selectedFleetParamsEffect).toBeNull();
+  });
+
+  it('a robot goes back to the robot at no section', () => {
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
+    go(2);
+    expect(ui().selectedRobotId).toBe('r1');
+    expect(ui().selectedSection).toBeNull();
+    expect(ui().activeHubTile).toBe('robots');
+  });
+
+  it('All Probes goes back to All Probes at no section', () => {
+    useUIStore.setState({ activeHubTile: 'robots', allProbesSelected: true, selectedSection: 'volume' });
+    go(2);
+    expect(ui().allProbesSelected).toBe(true);
+    expect(ui().selectedRobotId).toBeNull();
+    expect(ui().selectedSection).toBeNull();
+  });
+
+  it('a company goes back to the company at no section', () => {
+    useUIStore.setState({ activeHubTile: 'companies', selectedCompanyId: 'c1', selectedSection: 'envelope' });
+    go(2);
+    expect(ui().selectedCompanyId).toBe('c1');
+    expect(ui().selectedSection).toBeNull();
+    expect(ui().activeHubTile).toBe('companies');
+  });
+
+  it('a section, a Fleet Params group or a Settings leaf goes nowhere: it is only ever the current view', () => {
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
+    expect(trail()[3]?.go).toBeUndefined();
+    useUIStore.setState({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' });
+    expect(trail()[2]?.go).toBeUndefined();
+    useUIStore.setState({ activeHubTile: 'settings', selectedSettingsLeaf: 'sessions' });
+    expect(trail()[2]?.go).toBeUndefined();
   });
 });

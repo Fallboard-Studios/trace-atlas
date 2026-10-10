@@ -200,34 +200,61 @@ function nameOf(list: readonly NamedEntity[], id: string): string | null {
   return entity ? (entity.name ?? entity.id) : null;
 }
 
-/** Only the open branch's entity counts; a specific robot wins over All Probes, as ProbesContent routes. */
-function entityName(state: BreadcrumbState, roster: NavRoster, tile: 'robots' | 'companies'): string | null {
-  if (tile === 'companies') return state.selectedCompanyId !== null ? nameOf(roster.companies, state.selectedCompanyId) : null;
-  if (state.selectedRobotId !== null) return nameOf(roster.robots, state.selectedRobotId);
-  return state.allProbesSelected ? name('probe.all') : null;
+/** Only the open branch's entity counts; a specific robot wins over All Probes, as ProbesContent routes.
+ *  With its name, the entity selectEntity takes to go back to it. */
+function openEntity(state: BreadcrumbState, roster: NavRoster, tile: 'robots' | 'companies'): { label: string; entity: NavEntity } | null {
+  if (tile === 'companies') {
+    const id = state.selectedCompanyId;
+    const label = id !== null ? nameOf(roster.companies, id) : null;
+    return id !== null && label !== null ? { label, entity: { companyId: id } } : null;
+  }
+  if (state.selectedRobotId !== null) {
+    const id = state.selectedRobotId;
+    const label = nameOf(roster.robots, id);
+    return label !== null ? { label, entity: { robotId: id } } : null;
+  }
+  return state.allProbesSelected ? { label: name('probe.all'), entity: 'all' } : null;
+}
+
+/** One breadcrumb segment: its name and, for Root, the branch and the entity, the navActions call that
+ *  goes there (Task 8). A section, a Fleet Params group or a Settings leaf has none: it is only ever the
+ *  current view. */
+export interface BreadcrumbSegment {
+  label: string;
+  go?: () => void;
 }
 
 /** Root / branch / entity / section — `[]` on the Deck. A section shows only under an entity (Probes,
- *  Companies) or as the branch's own group or leaf (Fleet Params, Settings). */
-export function breadcrumbPath(state: BreadcrumbState, roster: NavRoster): string[] {
+ *  Companies) or as the branch's own group or leaf (Fleet Params, Settings). The branch goes back with
+ *  selectBranch, which never toggles (pressBranchBox is the panel's own). */
+export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): BreadcrumbSegment[] {
   const tile = state.activeHubTile;
   if (tile === null) return [];
-  const path = [name('nav.root'), name(TILE_CONTENT[tile])];
+  const branch = branchOfTile(tile);
+  const trail: BreadcrumbSegment[] = [
+    { label: name('nav.root'), go: goHome },
+    { label: name(TILE_CONTENT[tile]), go: () => selectBranch(branch) },
+  ];
 
   if (tile === 'audioRig') {
     const effect = state.selectedFleetParamsEffect;
-    if (effect !== null) path.push(name(FLEET_PARAMS_GROUP_CONTENT[FLEET_PARAMS_EFFECT_GROUP[effect]]));
-    return path;
+    if (effect !== null) trail.push({ label: name(FLEET_PARAMS_GROUP_CONTENT[FLEET_PARAMS_EFFECT_GROUP[effect]]) });
+    return trail;
   }
   if (tile === 'settings') {
-    if (state.selectedSettingsLeaf !== null) path.push(name(SETTINGS_LEAF_CONTENT[state.selectedSettingsLeaf]));
-    return path;
+    if (state.selectedSettingsLeaf !== null) trail.push({ label: name(SETTINGS_LEAF_CONTENT[state.selectedSettingsLeaf]) });
+    return trail;
   }
 
-  const entity = entityName(state, roster, tile);
-  if (entity === null) return path;
-  path.push(entity);
+  const open = openEntity(state, roster, tile);
+  if (open === null) return trail;
+  trail.push({ label: open.label, go: () => selectEntity(open.entity) });
   const section = ROBOT_SECTIONS_CONFIG.find((s) => s.id === state.selectedSection);
-  if (section) path.push(name(section.content));
-  return path;
+  if (section) trail.push({ label: name(section.content) });
+  return trail;
+}
+
+/** The trail's names alone. */
+export function breadcrumbPath(state: BreadcrumbState, roster: NavRoster): string[] {
+  return breadcrumbTrail(state, roster).map((segment) => segment.label);
 }

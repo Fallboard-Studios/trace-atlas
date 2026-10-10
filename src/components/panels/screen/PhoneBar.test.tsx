@@ -8,7 +8,7 @@ import { PhoneBar } from './PhoneBar';
 import { useUIStore } from '@/stores/uiStore';
 import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { facadeCurrentText, facadeStates } from '@/testUtils/toggleFacade';
-import { labels } from '@/content';
+import { CONTENT, labels } from '@/content';
 
 /*
  * docs/tasks/LAYOUT_REWORK.md Task 5 (spec §1.1, §1.2): the phone shell's 56 px bottom bar — the menu
@@ -121,10 +121,48 @@ describe('PhoneBar — the well', () => {
     fireEvent.click(menu());
     expect(well().textContent).toBe(MENU_OPEN_HINT);
   });
+
+  // Task 8 (spec §1.1, §1.7): shut, the well is the phone's meta box on the Deck and its breadcrumb
+  // everywhere else.
+  const crumb = () => well().querySelector('[role="navigation"]');
+
+  it('on the Deck reads the world line (the meta box’s telemetry), and no breadcrumb', () => {
+    render(<PhoneBar />);
+    expect(well().querySelector('.world-line')).not.toBeNull();
+    expect(well().querySelectorAll('.world-line__field')).toHaveLength(3);
+    expect(crumb()).toBeNull();
+  });
+
+  it('on a branch reads the breadcrumb, whose ancestors work from the bar', () => {
+    useUIStore.setState({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' });
+    render(<PhoneBar />);
+    expect(well().querySelector('.world-line')).toBeNull();
+    expect(crumb()?.textContent).toBe(`${CONTENT['nav.root'].human} / ${CONTENT['fleet.root'].human} / ${CONTENT['fleet.lfoBank'].human}`);
+    fireEvent.click(screen.getByRole('button', { name: CONTENT['nav.root'].human }));
+    expect(useUIStore.getState().activeHubTile).toBeNull();
+    expect(well().querySelector('.world-line')).not.toBeNull();
+  });
+
+  it('the open sheet’s hint wins over both', () => {
+    useUIStore.setState({ activeHubTile: 'settings', isNavPanelOpen: true });
+    render(<PhoneBar />);
+    expect(well().textContent).toBe(MENU_OPEN_HINT);
+    expect(crumb()).toBeNull();
+  });
 });
 
 describe('PhoneBar.css — the band and the 320 px fit', () => {
   const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'PhoneBar.css'), 'utf-8');
+
+  it('the well wears the shared well tokens (index.css), as the meta box and the breadcrumb do', () => {
+    const body = getCssRuleBody(css, '.phone-bar__well');
+    expect(body).toContain('background: var(--well-background);');
+    expect(body).toContain('box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);');
+    const index = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../index.css'), 'utf-8');
+    const root = getCssRuleBody(index, ':root');
+    expect(root).toMatch(/--well-background:\s*rgba\(12, 16, 20, 0\.55\);/);
+    expect(root).toMatch(/--well-inset:\s*inset 1px 1px 0 rgba\(0, 0, 0, 0\.9\);/);
+  });
 
   it('declares the band once, on the screen viewport, where the sheet and the content read it', () => {
     const body = getCssRuleBody(css, '#screen-viewport');

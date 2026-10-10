@@ -1,193 +1,261 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, renderHook, act, fireEvent } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { Profiler } from 'react';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { render, screen, act, fireEvent } from '@testing-library/react';
+
 import { NavBreadcrumb } from './NavBreadcrumb';
-import { useNavTree } from './useNavTree';
 import { useLocaleStore } from '@/stores/localeStore';
-import { useUIStore } from '@/stores/uiStore';
+import { useUIStore, type UIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { getCssRuleBody } from '@/testUtils/cssRuleBody';
+import { CONTENT } from '@/content';
 import type { Robot } from '@/types/Robot';
+import type { Company } from '@/types/Company';
 import type { Locale } from '@/types/locale';
 
+/*
+ * docs/tasks/LAYOUT_REWORK.md Task 8 (spec §1.2): the breadcrumb reads navActions.breadcrumbTrail — the
+ * one place the path is derived — and renders as a well. Every ancestor is a button that calls navActions;
+ * the last segment is the current view, plain text. Desk: a well at the content surface's bottom-left
+ * corner. Phone: inside PhoneBar's well (`inBar`), never on its own.
+ */
+
 const localeId = getActiveLocaleId();
-const UI_INITIAL_STATE = useUIStore.getState();
+const realMatchMedia = window.matchMedia;
 
-function makeRobot(id: string, name?: string): Robot {
-  return { id, name } as unknown as Robot;
-}
+const ROOT = CONTENT['nav.root'].human;
+const PROBES = CONTENT['probe.root'].human;
+const COMPANIES = CONTENT['company.root'].human;
+const FLEET = CONTENT['fleet.root'].human;
+const LFO_BANK = CONTENT['fleet.lfoBank'].human;
+const COMPOSITION = CONTENT['probe.composition'].human;
 
-function resetStores() {
-  useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
-  useUIStore.setState(UI_INITIAL_STATE, true);
-}
-
-/** Drives a real selection the same way a nav click would, without rendering NavTree itself —
- *  renderHook(useNavTree) + act(select) is the same technique useNavTree.test.ts already uses. */
-function select(id: string) {
-  let hookResult: ReturnType<typeof useNavTree> | undefined;
-  const { unmount } = renderHook(() => {
-    hookResult = useNavTree();
-  });
-  act(() => hookResult!.select(id));
-  unmount();
-}
-
-// Matches window.matchMedia for useIsNavPanelSlideAway (NAV_PANEL_DOCK_MIN_WIDTH, 768px) — real
-// jsdom has no matchMedia by default in this project's test env otherwise.
-function stubMatchMedia(mobile: boolean) {
+/** useShell's one min-width query: `desk` decides whether it matches. */
+function stubShell(desk: boolean) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     configurable: true,
-    value: vi.fn().mockImplementation((query: string) => ({
-      matches: !mobile,
+    value: (query: string) => ({
+      matches: query.includes('reduced-motion') ? false : desk,
       media: query,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }),
   });
 }
 
-function breadcrumbText() {
-  return screen.getByRole('navigation', { name: 'Breadcrumb' }).textContent;
+function makeRobot(id: string, name?: string): Robot {
+  return { id, name, batteryLevel: 100, audioMode: 'none' } as unknown as Robot;
 }
 
-describe('NavBreadcrumb — a "where am I" readout outside the nav tree, partly interactive', () => {
-  beforeEach(() => {
-    resetStores();
-    stubMatchMedia(false);
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+function setRoster(robots: Robot[], companies: Partial<Company>[] = []) {
+  useLocaleStore.getState().setLocaleData(localeId, { robots, companies } as unknown as Partial<Locale>);
+}
 
-  it('renders nothing at the true blank/landing state (nothing selected)', () => {
+function setNav(state: Partial<UIStore>) {
+  useUIStore.setState(state);
+}
+
+const crumb = () => screen.getByRole('navigation', { name: CONTENT['nav.breadcrumb'].human });
+
+beforeEach(() => {
+  useUIStore.setState(useUIStore.getInitialState(), true);
+  setRoster([makeRobot('r1', 'Tidal Wisp'), makeRobot('r2')], [{ id: 'c1', name: 'Rust Syndicate' }]);
+  stubShell(true);
+});
+afterEach(() => {
+  Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
+});
+
+describe('NavBreadcrumb — the path, from navActions', () => {
+  it('renders nothing on the Deck', () => {
     const { container } = render(<NavBreadcrumb />);
     expect(container.firstChild).toBeNull();
   });
 
-  it('always leads with Root, even for a bare top-level branch', () => {
-    select('probes');
+  it('reads Root / Fleet Params / LFO Bank with a lane selected', () => {
+    setNav({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' });
     render(<NavBreadcrumb />);
-    expect(breadcrumbText()).toBe('Root / Probes');
+    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${LFO_BANK}`);
   });
 
-  it('caps a deep All Probes selection at branch + entity — the section (Composition) is not shown', () => {
-    select('probes.all.melody');
+  it('reads a robot by its name, with its section', () => {
+    setNav({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
     render(<NavBreadcrumb />);
-    expect(breadcrumbText()).toBe('Root / Probes / All Probes');
+    expect(crumb().textContent).toBe(`${ROOT} / ${PROBES} / Tidal Wisp / ${COMPOSITION}`);
   });
 
-  it('shows a specific robot by its own name, not its id', () => {
-    useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
-    select('probes.r1');
+  it('reads a company by its name', () => {
+    setNav({ activeHubTile: 'companies', selectedCompanyId: 'c1' });
     render(<NavBreadcrumb />);
-    expect(breadcrumbText()).toBe('Root / Probes / Unit One');
+    expect(crumb().textContent).toBe(`${ROOT} / ${COMPANIES} / Rust Syndicate`);
   });
 
-  it('caps a Fleet Params leaf 3 levels deep at the bare branch alone — no group, no leaf', () => {
-    select('fleetParams.timeSpace.reverb');
-    render(<NavBreadcrumb />);
-    expect(breadcrumbText()).toBe('Root / Fleet Params');
+  it('follows the store: a rename shows at once, and going home empties it', () => {
+    setNav({ activeHubTile: 'robots', selectedRobotId: 'r1' });
+    const { container } = render(<NavBreadcrumb />);
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { name: 'Brine Moth' }));
+    expect(crumb().textContent).toBe(`${ROOT} / ${PROBES} / Brine Moth`);
+    act(() => useUIStore.getState().setActiveHubTile(null));
+    expect(container.firstChild).toBeNull();
   });
 
-  it('shows the bare Companies node (the create-form state)', () => {
-    select('companies');
+  // updateRobot replaces the robots array on every battery tick and swell; the breadcrumb only shows names.
+  it('does not re-render on a robot change it does not show (a battery tick)', () => {
+    setNav({ activeHubTile: 'robots', selectedRobotId: 'r1' });
+    let renders = 0;
+    render(
+      <Profiler id="crumb" onRender={() => renders++}>
+        <NavBreadcrumb />
+      </Profiler>,
+    );
+    const before = renders;
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 40 }));
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { batteryLevel: 30 }));
+    expect(renders).toBe(before);
+  });
+});
+
+describe('NavBreadcrumb — every ancestor is a button that calls navActions; the current view is text', () => {
+  const buttons = () => Array.from(crumb().querySelectorAll('button')).map((b) => b.textContent);
+
+  it('Fleet Params / LFO Bank: Root and Fleet Params are buttons, LFO Bank is text', () => {
+    setNav({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' });
     render(<NavBreadcrumb />);
-    expect(breadcrumbText()).toBe('Root / Companies');
+    expect(buttons()).toEqual([ROOT, FLEET]);
+    expect(screen.getByText(LFO_BANK).tagName).toBe('SPAN');
   });
 
-  it('shows Settings (its own humanLabel) alone for any Settings selection, however deep', () => {
-    select('settings.sectorSettings.coordinates');
+  it('a bare branch: Root is the only button', () => {
+    setNav({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
     render(<NavBreadcrumb />);
-    expect(breadcrumbText()).toBe('Root / Settings');
+    expect(buttons()).toEqual([ROOT]);
   });
 
-  it('goes back to rendering nothing once cleared back to the blank state', () => {
-    select('fleetParams.timeSpace.reverb');
-    useUIStore.getState().setActiveHubTile(null);
+  it('Root goes home', () => {
+    setNav({ activeHubTile: 'robots', selectedRobotId: 'r1' });
+    render(<NavBreadcrumb />);
+    fireEvent.click(screen.getByRole('button', { name: ROOT }));
+    expect(useUIStore.getState().activeHubTile).toBeNull();
+    expect(useUIStore.getState().selectedRobotId).toBeNull();
+  });
+
+  it('the branch goes to its own page, Probes with its list open', () => {
+    setNav({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
+    render(<NavBreadcrumb />);
+    fireEvent.click(screen.getByRole('button', { name: PROBES }));
+    expect(useUIStore.getState().activeHubTile).toBe('robots');
+    expect(useUIStore.getState().selectedRobotId).toBeNull();
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
+  });
+
+  it('Fleet Params goes back to the top of Fleet Params', () => {
+    setNav({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' });
+    render(<NavBreadcrumb />);
+    fireEvent.click(screen.getByRole('button', { name: FLEET }));
+    expect(useUIStore.getState().activeHubTile).toBe('audioRig');
+    expect(useUIStore.getState().selectedFleetParamsEffect).toBeNull();
+    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET}`);
+  });
+
+  it('a robot under a section goes back to the robot', () => {
+    setNav({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
+    render(<NavBreadcrumb />);
+    fireEvent.click(screen.getByRole('button', { name: 'Tidal Wisp' }));
+    expect(useUIStore.getState().selectedRobotId).toBe('r1');
+    expect(useUIStore.getState().selectedSection).toBeNull();
+    expect(screen.getByText('Tidal Wisp').tagName).toBe('SPAN');
+  });
+
+  it('a company under a section goes back to the company', () => {
+    setNav({ activeHubTile: 'companies', selectedCompanyId: 'c1', selectedSection: 'envelope' });
+    render(<NavBreadcrumb />);
+    fireEvent.click(screen.getByRole('button', { name: 'Rust Syndicate' }));
+    expect(useUIStore.getState().selectedCompanyId).toBe('c1');
+    expect(useUIStore.getState().selectedSection).toBeNull();
+  });
+
+  it('the current view is marked as the current location', () => {
+    setNav({ activeHubTile: 'audioRig', selectedFleetParamsEffect: 'laneB' });
+    render(<NavBreadcrumb />);
+    expect(screen.getByText(LFO_BANK).getAttribute('aria-current')).toBe('page');
+  });
+});
+
+describe('NavBreadcrumb — where it renders, by shell', () => {
+  it('on the phone shell it renders nothing on its own: the bar carries it', () => {
+    stubShell(false);
+    setNav({ activeHubTile: 'audioRig' });
     const { container } = render(<NavBreadcrumb />);
     expect(container.firstChild).toBeNull();
   });
 
-  it('applies the mobile modifier class below NavPanel\'s own dock breakpoint', () => {
-    stubMatchMedia(true);
-    select('probes');
-    const { container } = render(<NavBreadcrumb />);
-    expect(container.querySelector('.nav-breadcrumb--mobile')).toBeTruthy();
-    expect(container.querySelector('.nav-breadcrumb--desktop')).toBeNull();
+  it('inBar it renders on the phone shell, as the bar variant with the same buttons', () => {
+    stubShell(false);
+    setNav({ activeHubTile: 'robots', selectedRobotId: 'r1' });
+    render(<NavBreadcrumb inBar />);
+    expect(crumb().classList.contains('nav-breadcrumb--bar')).toBe(true);
+    expect(crumb().textContent).toBe(`${ROOT} / ${PROBES} / Tidal Wisp`);
+    fireEvent.click(screen.getByRole('button', { name: ROOT }));
+    expect(useUIStore.getState().activeHubTile).toBeNull();
   });
 
-  it('applies the desktop modifier class at or above NavPanel\'s own dock breakpoint', () => {
-    stubMatchMedia(false);
-    select('probes');
-    const { container } = render(<NavBreadcrumb />);
-    expect(container.querySelector('.nav-breadcrumb--desktop')).toBeTruthy();
-    expect(container.querySelector('.nav-breadcrumb--mobile')).toBeNull();
+  it('inBar still renders nothing on the Deck', () => {
+    stubShell(false);
+    const { container } = render(<NavBreadcrumb inBar />);
+    expect(container.firstChild).toBeNull();
   });
 
-  describe('clickable segments', () => {
-    it('Root is always a button, and clicking it clears back to the blank/landing state', () => {
-      useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
-      select('probes.r1');
-      render(<NavBreadcrumb />);
+  it('on the desk shell it is the positioned well, not the bar variant', () => {
+    setNav({ activeHubTile: 'settings' });
+    render(<NavBreadcrumb />);
+    expect(crumb().classList.contains('nav-breadcrumb--bar')).toBe(false);
+  });
+});
 
-      fireEvent.click(screen.getByRole('button', { name: 'Root' }));
+describe('NavBreadcrumb.css — a well at the content surface’s bottom-left corner', () => {
+  const css = readFileSync(resolve(__dirname, 'NavBreadcrumb.css'), 'utf8');
+  const paneCss = readFileSync(resolve(__dirname, '../console/ContentPane.css'), 'utf8');
+  const declaration = (body: string | null, property: string) => body?.match(new RegExp(`(?:^|\\s)${property}:\\s*([^;]+);`))?.[1].trim();
 
-      expect(useUIStore.getState().activeHubTile).toBeNull();
-      expect(useUIStore.getState().selectedRobotId).toBeNull();
-    });
+  it('sits on the surface’s own left and bottom edges (the same expressions ContentPane.css uses)', () => {
+    const crumbBody = getCssRuleBody(css, '.nav-breadcrumb');
+    const paneBody = getCssRuleBody(paneCss, '.content-pane');
+    expect(declaration(crumbBody, 'left')).toBeDefined();
+    expect(declaration(crumbBody, 'left')).toBe(declaration(paneBody, 'left'));
+    expect(declaration(crumbBody, 'bottom')).toBe(declaration(paneBody, 'bottom'));
+  });
 
-    it('the Probes branch segment is a button that navigates to the bare Probes list, even from a specific robot', () => {
-      useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
-      select('probes.r1');
-      render(<NavBreadcrumb />);
+  it('is one line of the band height the surface keeps free for it, so no content sits under it', () => {
+    const crumbBody = getCssRuleBody(css, '.nav-breadcrumb');
+    expect(declaration(crumbBody, 'height')).toBe('var(--nav-breadcrumb-height)');
+    expect(declaration(getCssRuleBody(css, '#screen-viewport'), '--nav-breadcrumb-height')).toBeDefined();
+    expect(declaration(getCssRuleBody(paneCss, '.content-pane'), 'padding-bottom')).toBe('var(--nav-breadcrumb-height)');
+    expect(declaration(getCssRuleBody(paneCss, "#screen-viewport[data-shell='phone'] .content-pane"), 'padding-bottom')).toBe('0');
+    for (const d of ['white-space: nowrap;', 'overflow: hidden;', 'text-overflow: ellipsis;']) expect(crumbBody).toContain(d);
+  });
 
-      fireEvent.click(screen.getByRole('button', { name: 'Probes' }));
+  it('is a well: the shared well tokens, in the accent', () => {
+    const crumbBody = getCssRuleBody(css, '.nav-breadcrumb');
+    expect(crumbBody).toContain('background: var(--well-background);');
+    expect(crumbBody).toContain('box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);');
+    expect(crumbBody).toContain('border: 1px solid var(--color-accent);');
+  });
 
-      expect(useUIStore.getState().activeHubTile).toBe('robots');
-      expect(useUIStore.getState().selectedRobotId).toBeNull();
-    });
+  it('the bar variant drops the well and its place: it is inline text inside the bar’s own well', () => {
+    const bar = getCssRuleBody(css, '.nav-breadcrumb--bar');
+    for (const d of ['position: static;', 'display: inline;', 'border: 0;', 'box-shadow: none;', 'background: none;', 'padding: 0;']) expect(bar).toContain(d);
+  });
 
-    it('the Companies branch segment is a button that navigates to the bare Companies node', () => {
-      useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
-      select('companies');
-      render(<NavBreadcrumb />);
-
-      fireEvent.click(screen.getByRole('button', { name: 'Companies' }));
-
-      expect(useUIStore.getState().activeHubTile).toBe('companies');
-    });
-
-    it('the Fleet Params branch segment is plain text, not a button — it is already the one view it names', () => {
-      select('fleetParams.timeSpace.reverb');
-      render(<NavBreadcrumb />);
-
-      expect(screen.queryByRole('button', { name: 'Fleet Params' })).toBeNull();
-      expect(screen.getByText('Fleet Params').tagName).toBe('SPAN');
-    });
-
-    it('the Settings branch segment is plain text, not a button', () => {
-      select('settings.sectorSettings');
-      render(<NavBreadcrumb />);
-
-      expect(screen.queryByRole('button', { name: 'Settings' })).toBeNull();
-      expect(screen.getByText('Settings').tagName).toBe('SPAN');
-    });
-
-    it('a probe\'s own entity segment is plain text, not a button — it is the current view, nothing to navigate to', () => {
-      useLocaleStore.getState().addRobot(localeId, makeRobot('r1', 'Unit One'));
-      select('probes.r1');
-      render(<NavBreadcrumb />);
-
-      expect(screen.queryByRole('button', { name: 'Unit One' })).toBeNull();
-      expect(screen.getByText('Unit One').tagName).toBe('SPAN');
-    });
+  it('keeps the plain parts click-through and the buttons clickable', () => {
+    expect(getCssRuleBody(css, '.nav-breadcrumb')).toContain('pointer-events: none;');
+    expect(getCssRuleBody(css, '.nav-breadcrumb__segment--link')).toContain('pointer-events: auto;');
   });
 });
 
 describe('NavBreadcrumb reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 15)', () => {
-  it('carries no copy literal of its own', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
+  it('carries no copy literal of its own', () => {
     const source = readFileSync(resolve(__dirname, 'NavBreadcrumb.tsx'), 'utf8');
     expect(source).not.toMatch(/(loreLabel|humanLabel|placeholder)\s*:\s*['"`]/);
     expect(source).not.toMatch(/aria-label="[A-Za-z]/);

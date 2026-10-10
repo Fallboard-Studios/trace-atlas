@@ -96,6 +96,12 @@
      background while a branch is open. Opaque by rule, so the world never reads through the content;
      the sketch's --surf2. */
   --content-surface: #141a20;
+  /* Readouts are wells, cut into the surface (spec §1.1: in = read): the meta box, the breadcrumb and
+     the phone bar's well. These are the accent-free parts; each well adds its own glow,
+     `inset 0 0 8px var(--color-accent)`, and a 1 px accent border, which must resolve on the element
+     that carries the accent (a var() here would resolve at :root, traitColors.ts's gotcha). */
+  --well-background: rgba(12, 16, 20, 0.55);
+  --well-inset: inset 1px 1px 0 rgba(0, 0, 0, 0.9);
   --color-border: rgba(140, 190, 210, 0.14);
   --color-accent-a: #41ad9f;
   --color-accent-b: #68cb97;

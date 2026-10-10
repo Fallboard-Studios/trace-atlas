@@ -103,6 +103,37 @@ describe('WorldView — dims while the content surface is showing', () => {
   });
 });
 
+// Task 8 (spec §1.7): the meta box is the world's own readout, bottom-left of the Deck.
+describe('WorldView — carries the meta box', () => {
+  const realMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    useAttenuationStyleStore.setState({ attenuationStyles: [{ ...DEFAULT_PELAGOS }], currentAttenuationStyleId: DEFAULT_PELAGOS.id });
+    useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [], actors: [] } } });
+    useUIStore.setState(UI_INITIAL_STATE, true);
+    // The desk shell: useShell's one min-width query matches.
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({ matches: !query.includes('reduced-motion'), media: query, addEventListener: () => {}, removeEventListener: () => {} }),
+    });
+  });
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
+  });
+
+  it('on the Deck, inside the world view', () => {
+    render(<WorldView />);
+    expect(document.querySelector('.world-view > .meta-box')).not.toBeNull();
+  });
+
+  it('not while a branch is open', () => {
+    useUIStore.getState().setActiveHubTile('audioRig');
+    render(<WorldView />);
+    expect(document.querySelector('.meta-box')).toBeNull();
+  });
+});
+
 describe('WorldView.css — the dim', () => {
   const css = readFileSync(resolve(__dirname, 'WorldView.css'), 'utf8');
 

@@ -634,6 +634,81 @@ content surface; phone: inside `PhoneBar`'s well, telemetry when the path is emp
 
 **Estimated scope:** M (one new component, one rewired)
 
+**As built (2026-10-09):**
+
+**The meta box.** `MetaBox.tsx` exports two components:
+- `WorldLine`: NavStatusBlock's three readouts (`formatClock`, the `nav.status.*` fills) in one line of
+  three inline fields. The order is clock and temperature, then probes emitting, then the place.
+- `MetaBox`: the desk Deck's well, holding the world line.
+
+`WorldView` mounts `MetaBox`, as spec §2 has it ("WorldView — meta box lines"). It renders only on
+the desk shell on the Deck. NavStatusBlock's six tests moved to `MetaBox.test.tsx` unchanged, and
+NavStatusBlock's three files are deleted (grep gate: no importers left).
+
+**Beyond verbatim: the emitting count.** It is now a selector that returns a number, not the whole
+robots array. `updateRobot` replaces that array on every battery tick and swell. The meta box sits
+on the Deck, which Task 29's idle-paint gate measures, and it now re-renders only when its line
+changes. A Profiler test pins this, and a mutant that widened the subscription was killed.
+
+**The breadcrumb.**
+- `navActions` gains `breadcrumbTrail(state, roster)`. Each segment has its label and, for Root, the
+  branch and the entity, a `go`: `goHome`, `selectBranch` (never the toggling `pressBranchBox`) or
+  `selectEntity`. `breadcrumbPath` is now the trail's labels, so the path is still derived in one
+  place, and Task 3's tests are unchanged.
+- `NavBreadcrumb` renders every ancestor as a button, per the acceptance criterion; the Fleet Params
+  and Settings branch segments used to be plain text. The current segment is text with
+  `aria-current="page"`.
+- Entity names come from `useEntityRoster`, NavEntityList's narrow roster hook, now in its own
+  module (`nav/useEntityRoster.ts`) and shared. A Profiler test shows a battery tick does not
+  re-render the breadcrumb.
+
+**Where they sit:**
+- **Desk:** the meta box (Deck) and the breadcrumb (every other view) share the content surface's
+  bottom-left corner, the same `left` / `bottom` expressions as `.content-pane` (a test compares the
+  three stylesheets). The sketch hangs the crumb over the surface's corner, but the content here
+  scrolls. So the surface keeps a 32 px band at its foot (`padding-bottom: var(--nav-breadcrumb-height)`;
+  0 on the phone) and the crumb sits in it, never over content.
+- **Phone:** PhoneBar's well shows the open sheet's hint, else `WorldLine` on the Deck, else
+  `<NavBreadcrumb inBar />` (inline, with no well of its own). On its own, NavBreadcrumb renders
+  nothing on the phone.
+- **The wells:** `index.css` gains `--well-background` and `--well-inset`, the accent-free parts of the
+  glow glass (spec §2's `--well-*`). Each well adds its own accent glow and border, since a `var()` in
+  `:root` would resolve the accent there. The meta box, the breadcrumb and PhoneBar's well all use the
+  tokens, all in the header trait.
+
+**Files beyond the list:** `navActions.ts` / `.test.ts`, `useEntityRoster.ts` (from
+`NavEntityList.tsx`), `WorldView.tsx` / `.test.tsx`, `PhoneBar.css` / `.test.tsx`, `ContentPane.css`
+(the band), `index.css` (the tokens), and two comments that named NavStatusBlock (`Header.test.tsx`,
+`content/copy/nav.ts`).
+
+**Measured (headless Chrome, CDP):**
+- **Desk at 1280 px:** the meta box spans 128–576 × 700–736 on the Deck. The crumb spans
+  128–302 × 704–736 on Fleet Params, and starts at 292 with the panel wide. The surface's content
+  ends at 704.
+- **Phone, on a branch:** every trail fits the well whole at 375 and 320 px.
+- **Phone, on the Deck:** the world line runs 69 px over the well at 375 px and 138 px at 320, and the
+  well's ellipsis cuts it. The clock, temperature and count stay visible; the place is cut, and the
+  sketch's phone line leaves it off too.
+- No document overflow at any width.
+- Settings reads `Root / Settings / Audio Quality` as it opens. Phase 1's SettingsContent scrollspy
+  writes `selectedSettingsLeaf` on mount; that is expected until Tasks 17–18.
+
+**Mutation check:** 47 mutants, all killed. One survived first: rounding the clock's minute up
+passed, because the moved tests use 14.5, a whole minute. A new edge-case test (7.26 → 07:15,
+23.999, null → 00:00, the hour clamp at 25) killed it and two more clock mutants.
+
+One mutant was not run because it is equivalent: the branch segment calling `pressBranchBox`
+instead of `selectBranch`. The branch is only an ancestor when an entity or a group follows it,
+and there the two behave the same.
+
+**For later:**
+- `MetaBox` keeps NavStatusBlock's `role="status"`. The clock ticks with the lighting tick (about
+  every second), so a screen reader may announce it constantly. That is worth a look in an a11y
+  pass; it was left as it was.
+- Pre-existing, not touched: on the phone Deck the home card (`.content-pane__home`) has no bottom
+  bound and runs under the bar. Noted for Task 28's 320 px pass.
+- Task 26 mounts WorldView while off, and the meta box should not show on the off screen then.
+
 ## Task 9: Delete the tree
 
 **Description:** Remove `NavTree.tsx`, `NavTreeNode.tsx`, `NavCabinetRow.tsx`, `NavStatusBlock.tsx`,

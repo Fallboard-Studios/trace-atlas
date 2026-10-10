@@ -170,9 +170,9 @@ describe('Header', () => {
     expect(slider.getAttribute('data-disabled')).toBe('');
   });
 
-  // Time/temp status readout moved to NavStatusBlock (nav/NavStatusBlock.tsx) as part of
-  // a232a48 "header now interacts with nav panel" — Header no longer renders it at all.
-  // See NavStatusBlock.test.tsx for the equivalent coverage (HH:MM, °C, NO TEMP fallback).
+  // Time/temp status readout moved to NavStatusBlock as part of a232a48 "header now interacts with
+  // nav panel", then to the meta box (worldView/MetaBox.tsx, layout rework Task 8) — Header no
+  // longer renders it at all. See MetaBox.test.tsx for the equivalent coverage (HH:MM, °C, NO TEMP fallback).
 
   it('renders mute as a switch reflecting audioStore.isMuted', () => {
     render(<Header />);

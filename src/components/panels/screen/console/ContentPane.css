@@ -19,15 +19,19 @@
   box-sizing: border-box;
   border: 1px solid var(--color-border);
   background-color: var(--content-surface);
+  /* The breadcrumb's band (Task 8): the breadcrumb sits in this corner over the surface
+     (NavBreadcrumb.css), and the content ends above it, so nothing scrolls out of reach under it. */
+  padding-bottom: var(--nav-breadcrumb-height);
 }
 
 /* Phone shell: edge to edge, down to PhoneBar's top (--phone-bar-clearance, the strip plus the bar).
-   The bar owns its band and the content never runs under it. [data-shell] is ScreenViewport's, from
-   useShell(). */
+   The bar owns its band and the content never runs under it; the breadcrumb lives in the bar's well,
+   so no band. [data-shell] is ScreenViewport's, from useShell(). */
 #screen-viewport[data-shell='phone'] .content-pane {
   left: 0;
   right: 0;
   bottom: var(--phone-bar-clearance);
+  padding-bottom: 0;
   border-width: 1px 0;
 }
 

@@ -66,10 +66,12 @@
   container-type: normal;
 }
 
-/* A readout, so a well (spec §1.1: in = read): the sketch's glow glass, an inner shadow in the bar's
-   accent. It takes the rest of the row and may shrink to nothing; one line, cut short with an
-   ellipsis, so nothing in the bar overflows at 320 px. A block, not a flex row: text-overflow only
-   cuts a block's own inline content (NavBreadcrumb.css), so the line-height centres the text. */
+/* A readout, so a well (spec §1.1: in = read): the sketch's glow glass in index.css's well tokens, an
+   inner shadow in the bar's accent. It reads the world line on the Deck (MetaBox.tsx's WorldLine) and
+   the breadcrumb elsewhere (NavBreadcrumb's bar variant), both inline (Task 8). It takes the rest of
+   the row and may shrink to nothing; one line, cut short with an ellipsis, so nothing in the bar
+   overflows at 320 px. A block, not a flex row: text-overflow only cuts a block's own inline content,
+   so the line-height centres the text. */
 .phone-bar__well {
   flex: 1 1 auto;
   min-width: 0;
@@ -81,8 +83,8 @@
   line-height: calc(var(--spacing-2xl) - 2px);
   padding: 0 var(--spacing-sm);
   border: 1px solid var(--color-accent);
-  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.9), inset 0 0 8px var(--color-accent);
-  background: rgba(12, 16, 20, 0.55);
+  box-shadow: var(--well-inset), inset 0 0 8px var(--color-accent);
+  background: var(--well-background);
   color: var(--color-text-muted);
   font-family: var(--font-mono);
   font-size: var(--font-size-label-compact);

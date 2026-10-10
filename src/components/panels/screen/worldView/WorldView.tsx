@@ -1,4 +1,5 @@
 import AttenuationStyleView from '@/components/panels/screen/worldView/AttenuationStyleView';
+import { MetaBox } from '@/components/panels/screen/worldView/MetaBox';
 import { useAttenuationStyleStore } from '@/stores/attenuationStyleStore';
 import { useUIStore } from '@/stores/uiStore';
 
@@ -18,6 +19,8 @@ function WorldView() {
   return (
     <div className="world-view" data-dimmed={dimmed ? '' : undefined}>
       <AttenuationStyleView attenuationStyleId={currentAttenuationStyleId} />
+      {/* The world's own readout, bottom-left of the Deck (spec §1.7). */}
+      <MetaBox />
     </div>
   );
 }
