@@ -132,10 +132,11 @@ function cleanSlate(): void {
   s.setSelectedSettingsSubsection(null);
 }
 
-function open(branch: TopLevelBranch): void {
+/** Opens a branch's tile with its entity list expanded in place (Probes / Companies) or collapsed. */
+function open(branch: TopLevelBranch, expand = expandsInPlace(branch)): void {
   const s = useUIStore.getState();
   s.setActiveHubTile(BRANCH_TILE[branch]);
-  s.setExpandedTopLevelBranch(expandsInPlace(branch) ? branch : null);
+  s.setExpandedTopLevelBranch(expand ? branch : null);
 }
 
 /** A parent box: that branch's own page, Probes / Companies expanded in place, a leaf collapsing
@@ -149,19 +150,21 @@ export function selectBranch(branch: NavBranch): void {
   open(branch);
 }
 
-/** An entity under Probes or Companies: opens its branch on it, at no section. */
+/** An entity under Probes or Companies: opens its branch on it, at no section, with the list collapsed
+ *  (Crawford, 2026-10-10: "collapse the nav when a probe or company is selected"), so the entity's
+ *  screen gets the panel's rest width. The parent box brings the list back (pressBranchBox). */
 export function selectEntity(entity: NavEntity): void {
   cleanSlate();
   const s = useUIStore.getState();
   if (entity === 'all') {
     s.setAllProbesSelected(true);
-    open('probes');
+    open('probes', false);
   } else if ('robotId' in entity) {
     s.selectRobot(entity.robotId);
-    open('probes');
+    open('probes', false);
   } else {
     s.selectCompany(entity.companyId);
-    open('companies');
+    open('companies', false);
   }
 }
 

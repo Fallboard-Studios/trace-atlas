@@ -2,28 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   registerAccordion, unregisterAccordion, updateAccordionOpen, hasPendingNavTargetFor, attemptFulfillPendingNavTarget,
 } from '@/utils/accordionSync';
-import { useUIStore, type TopLevelBranch } from '@/stores/uiStore';
-
-const TOP_LEVEL_BRANCHES: readonly TopLevelBranch[] = ['settings', 'fleetParams', 'probes', 'companies'];
-function asTopLevelBranch(value: string): TopLevelBranch | null {
-  return (TOP_LEVEL_BRANCHES as readonly string[]).includes(value) ? (value as TopLevelBranch) : null;
-}
-
-/** Moved here verbatim from useNavTree.ts when the tree was deleted (docs/tasks/LAYOUT_REWORK.md
- *  Task 9): this hook is its last caller, and both retire with the stacked scroll in Task 18. It still
- *  writes `expandedTopLevelBranch`, which the new NavPanel reads for its entity list. */
-function expandNavAncestorsForId(id: string): void {
-  const [branch, entityId] = id.split('.');
-  const { setExpandedTopLevelBranch, setExpandedProbeId, setExpandedCompanyId } = useUIStore.getState();
-
-  const topLevel = asTopLevelBranch(branch);
-  if (topLevel) setExpandedTopLevelBranch(topLevel);
-  if ((branch === 'probes' || branch === 'companies') && entityId) {
-    if (branch === 'probes') setExpandedProbeId(entityId);
-    else setExpandedCompanyId(entityId);
-  }
-}
-
 export interface UseAccordionOpenStateResult {
   isOpen: (id: string) => boolean;
   setOpen: (id: string, open: boolean) => void;
@@ -46,11 +24,11 @@ export interface UseAccordionOpenStateResult {
  * NAV_ACCORDION_SYNC.md §1.3/§6.2) — registered on mount (`defaultOpenId`) and on every
  * `setOpen`/`openExclusive` call, unregistered on unmount or when a `resetKey` change resets this
  * instance back to its default. The registry is a mirror, never the source of truth — this hook's
- * own React state remains authoritative. Opening an id (from either `setOpen` or `openExclusive`)
- * also calls `expandNavAncestorsForId` so the corresponding nav row's branch/entity ancestors are
- * expanded even if the accordion was opened by clicking its own header rather than a nav link;
- * closing never does this — nav-tree state must never collapse as a side effect of closing an
- * accordion (spec §3.1/§3.2).
+ * own React state remains authoritative. Opening or closing an accordion never writes the nav: the
+ * tree-era expandNavAncestorsForId, which re-expanded the nav when an accordion opened, was removed
+ * (Crawford, 2026-10-10, docs/tasks/LAYOUT_REWORK.md Task 16 follow-up) because picking a company
+ * or All Probes now collapses the nav's entity list, and an accordion on that screen must not open
+ * it again.
  *
  * `defaultOpenId` opens exactly one accordion on mount (so the view isn't all-collapsed on first
  * render); after that, `setOpen` is the only thing that changes state, and closing every open
@@ -117,7 +95,6 @@ export function useAccordionOpenState(ids: string[], defaultOpenId: string | nul
   const setOpen = useCallback((id: string, open: boolean) => {
     setOpenIds((prev) => ({ ...prev, [id]: open }));
     syncRegistry(id, open);
-    if (open) expandNavAncestorsForId(id);
   }, [syncRegistry]);
 
   const openExclusive = useCallback((id: string, closeSiblings: boolean) => {
@@ -134,7 +111,6 @@ export function useAccordionOpenState(ids: string[], defaultOpenId: string | nul
       }
     }
     syncRegistry(id, true);
-    expandNavAncestorsForId(id);
   }, [syncRegistry]);
 
   useEffect(() => {

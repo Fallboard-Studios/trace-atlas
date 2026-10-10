@@ -133,12 +133,13 @@ describe('selectBranch', () => {
 });
 
 describe('selectEntity', () => {
-  it('a robot: opens Probes on it, clearing the company, All Probes and any section', () => {
+  // Crawford, 2026-10-10: an entity pick collapses the list, so the screen gets the panel's rest width.
+  it('a robot: opens Probes on it with the list collapsed, clearing the company, All Probes and any section', () => {
     dirtyStore({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies', selectedRobotId: null, selectedCompanyId: 'c1', allRobotsSelected: false, allProbesSelected: true });
     selectEntity({ robotId: 'r2' });
     expect(ui()).toMatchObject({
       activeHubTile: 'robots',
-      expandedTopLevelBranch: 'probes',
+      expandedTopLevelBranch: null,
       selectedRobotId: 'r2',
       selectedCompanyId: null,
       allProbesSelected: false,
@@ -148,12 +149,12 @@ describe('selectEntity', () => {
     expectCompanyInvariant();
   });
 
-  it("'all': opens Probes on All Probes, clearing both ids", () => {
+  it("'all': opens Probes on All Probes with the list collapsed, clearing both ids", () => {
     dirtyStore({ selectedRobotId: 'r1', selectedCompanyId: 'c1', allRobotsSelected: false });
     selectEntity('all');
     expect(ui()).toMatchObject({
       activeHubTile: 'robots',
-      expandedTopLevelBranch: 'probes',
+      expandedTopLevelBranch: null,
       allProbesSelected: true,
       selectedRobotId: null,
       selectedCompanyId: null,
@@ -162,12 +163,12 @@ describe('selectEntity', () => {
     expectCompanyInvariant();
   });
 
-  it('a company: opens Companies on it, clearing the robot and All Probes', () => {
+  it('a company: opens Companies on it with the list collapsed, clearing the robot and All Probes', () => {
     dirtyStore({ allProbesSelected: true });
     selectEntity({ companyId: 'c1' });
     expect(ui()).toMatchObject({
       activeHubTile: 'companies',
-      expandedTopLevelBranch: 'companies',
+      expandedTopLevelBranch: null,
       selectedCompanyId: 'c1',
       selectedRobotId: null,
       allProbesSelected: false,
@@ -258,6 +259,20 @@ describe('pressBranchBox', () => {
       [null, null],
       [null, 'probes'],
     ]);
+  });
+
+  // Crawford, 2026-10-10: a pick from the list collapses it; the parent box brings it back.
+  it.each<[string, Parameters<typeof selectEntity>[0], 'probes' | 'companies']>([
+    ['a robot', { robotId: 'r2' }, 'probes'],
+    ['All Probes', 'all', 'probes'],
+    ['a company', { companyId: 'c1' }, 'companies'],
+  ])('list page -> pick %s (list collapses) -> its box goes back to the page with the list open', (_case, entity, branch) => {
+    useUIStore.setState({ activeHubTile: branch === 'probes' ? 'robots' : 'companies', expandedTopLevelBranch: branch });
+    selectEntity(entity);
+    expect(ui().expandedTopLevelBranch).toBeNull();
+    pressBranchBox(branch);
+    expect(ui().expandedTopLevelBranch).toBe(branch);
+    expectNoEntityAndNoSection();
   });
 
   it('with the list collapsed and a robot picked in the world, goes back and opens the list', () => {

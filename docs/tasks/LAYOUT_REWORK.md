@@ -1602,6 +1602,61 @@ RobotScreen.
 - **CSS:** sticky, the sticky offset, the 72 px gem, the status-line wrap, the gem's yield, the column
   width.
 
+**Follow-up, the nav widths and an entity pick collapsing the list.** Crawford answered the
+narrow-desk question with: "the nav items could be narrower for sure, let's cut the side padding down.
+That being said, the inactive state should be about 20px wider", and "let's collapse the nav when a
+probe or company is selected." Spec §1.2 is amended.
+
+*Widths.* `--nav-panel-rest` 96 → 116 px, `--nav-panel-wide` 260 → 200 px, and a nav box's face
+padding 8 → 4 px a side (`NavBox.css`). The values were trialled in Chrome first:
+- **At rest:** every label fits, and "ENVIRONMENT" is no longer cut. "TIMBRE & COLOR" and
+  "UNITY & VARIETY" (88 px in 84) still take two lines, as they did at 96; about 124 px would fit
+  them.
+- **Wide:** the entity boxes are 143 px (Probes, with its scrollbar) and 158 px (Companies). They
+  hold the longest robot name (83 px) and "+ New Company"'s 125 px lore line, with nothing wrapped
+  or cut.
+
+*Collapse.* `selectEntity` opens its branch with the list collapsed: `open(branch, expand)` gains
+the flag, which is false for every entity. That covers a robot, a company and All Probes, whether
+picked from the list, the breadcrumb or the world.
+- **All Probes is included** although Crawford said "a probe or company". Its screen (the company
+  screen's All form, Task 23) needs the same room. This is my reading; flagged.
+- **The parent box still goes back to the branch's page with the list open,** so "back, then
+  collapse" holds.
+- **`expandNavAncestorsForId` is deleted** from `useAccordionOpenState.ts`: the Task 9 open
+  question. Every accordion CompanyOptionsSection opened, on the company and All Probes screens until
+  Task 23, wrote `expandedTopLevelBranch` and would have reopened the list just collapsed. The hook
+  now never writes the nav.
+
+*Tests changed:* `navActions`, `NavPanel`, `NavEntityList`, `Robot` (the world click) and
+`useAccordionOpenState` now expect the list collapsed after a pick. The last of these no longer
+expects the nav written when an accordion opens. New: the list page → pick → box → list-open cycle
+for each entity, and the CSS contract for the three sizes.
+
+*Measured in Chrome, on a robot with the list collapsed* (the "before" is Task 16 with the 260 px
+list open):
+
+| Size | Column | Controls | Before |
+|---|---|---|---|
+| 1280 × 800 | 400 px (the sketch's full width) | 627 px | 360 / 523 |
+| 1024 × 768 | 315 px | 456 px | 242 / 365 |
+| 800 × 700 | 225 px | 322 px | 153 / 220 |
+
+No document overflow and no console errors. The company radio still needs a short column scroll at
+these heights.
+
+*Verified:* the full suite ran 8688 of 8689 green. The one failure was
+`sceneToOrbiterLocal.test.tsx`, "Test timed out in 5000ms" (5.6 s). That is the load-sensitive
+timeout recorded at Task 6; the test is in `src/animation/`, which this change does not touch, and
+it passed in both earlier full runs today (4.4–4.7 s). Not chased. `build:types` clean; lint at the
+known 25 / 4; `npm run build` clean.
+
+*Mutation check:* 9, all killed:
+- each of the three entity picks keeping the list open;
+- the parent box never expanding;
+- an accordion's `setOpen` and `openExclusive` writing the nav again;
+- each of the three CSS values put back.
+
 ## Task 17: `SettingsScreen` — section tabs over the three leaves
 
 **Description:** New `src/components/panels/screen/screens/SettingsScreen.tsx`: `SectionTabs` over

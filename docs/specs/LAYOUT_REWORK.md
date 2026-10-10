@@ -110,17 +110,25 @@ no hardware keys, build on the existing components.
 
 ### 1.2 Nav (`NavPanel`, replaces `NavTree` / `NavTreeNode` / `NavCabinetRow` / `useNavTree`)
 
-- One panel, five parent boxes (`CabinetBox` with lore + human from `nav.*` content), 96 px at rest. The
-  Probes and Companies boxes expand **in place**: the panel widens to 260 px (a GSAP timeline on
+- One panel, five parent boxes (`CabinetBox` with lore + human from `nav.*` content), 116 px at rest. The
+  Probes and Companies boxes expand **in place**: the panel widens to 200 px (a GSAP timeline on
   `width`, key `nav-panel-width`), the branch's entities list under the active box, and the content
   surface's left edge moves with it (`--nav-panel-width` custom property, read by `ContentPane`).
-  Deck, Fleet Params and Settings are leaves and never change the panel's shape.
+  Deck, Fleet Params and Settings are leaves and never change the panel's shape. **Amended
+  2026-10-10 (Crawford, at Task 16):** the sketch's 96 / 260 px became 116 / 200 px, with a nav box's
+  side padding cut to 4 px. Rest was "about 20 px wider"; the wide boxes had ~60 px of empty side space
+  for 56–99 px names. At 116 px, "TIMBRE & COLOR" and "UNITY & VARIETY" still take two lines; about
+  124 px would fit them on one.
 - **Collapse** (Crawford, 2026-10-09, "back, then collapse"): the list shows while
   `expandedTopLevelBranch` is the open branch. Pressing the open Probes / Companies box on an entity
-  goes back to the branch's page with the list still open (picking a parent clears the entity); on
-  the branch's own page it collapses the list, and pressing it again reopens it. A collapse changes
-  nothing but the list. `navActions.pressBranchBox` holds this; `selectBranch` never toggles. A
-  robot clicked in the world from the Deck opens Probes through `selectEntity`, so the list is open.
+  goes back to the branch's page with the list open (picking a parent clears the entity); on the
+  branch's own page it collapses the list, and pressing it again reopens it. A collapse changes
+  nothing but the list. `navActions.pressBranchBox` holds this; `selectBranch` never toggles.
+- **An entity pick collapses the list** (Crawford, 2026-10-10: "collapse the nav when a probe or
+  company is selected"): `selectEntity` (a robot, a company, or All Probes, from the list, the
+  breadcrumb or the world) opens its branch at the panel's rest width, so the entity's screen gets
+  the room. The parent box brings the list back. An accordion opened on a screen no longer writes the
+  nav (the tree-era `expandNavAncestorsForId` is gone), so it cannot reopen the list.
 - Entities: Probes = "All Probes" then the twelve robots (identity colour per box); Companies =
   "+ New Company" then each company (company colour). Picking an entity sets `selectedRobotId` /
   `selectedCompanyId` / `allProbesSelected` and `activeHubTile`; picking a parent sets `activeHubTile`

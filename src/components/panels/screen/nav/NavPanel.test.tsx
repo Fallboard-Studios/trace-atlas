@@ -283,11 +283,15 @@ describe('NavPanel — Probes and Companies expand in place (desk)', () => {
     },
   );
 
-  it('on a robot, clicking Probes goes back to the Probes page with the list still open; the next click collapses', () => {
+  // Crawford, 2026-10-10: picking a robot collapses the list, so the robot screen gets the rest width.
+  it('picking a robot collapses the list to the rest width; clicking Probes goes back to the page with the list open; the next click collapses', () => {
     renderPanel();
     fireEvent.click(box('probe.root'));
     fireEvent.click(within(entityList() as HTMLElement).getByRole('button', { name: 'Tidal Wisp' }));
     expect(useUIStore.getState().selectedRobotId).toBe('r1');
+    expect(entityList()).toBeNull();
+    expect(expandFactor()).toBe('0');
+    expect(poppedOf(box('probe.root'))).toBe('true');
 
     fireEvent.click(box('probe.root'));
     expect(useUIStore.getState().selectedRobotId).toBeNull();
@@ -636,8 +640,9 @@ describe('NavPanel.css — the width contract', () => {
   it('derives --nav-panel-width on the screen viewport from the rest and wide sizes and the expand factor', () => {
     const body = getCssRuleBody(css, '#screen-viewport');
     expect(body).not.toBeNull();
-    expect(body).toContain('--nav-panel-rest: 96px;');
-    expect(body).toContain('--nav-panel-wide: 260px;');
+    // Crawford, 2026-10-10: the rest width about 20 px wider, the wide one narrower (less side padding).
+    expect(body).toContain('--nav-panel-rest: 116px;');
+    expect(body).toContain('--nav-panel-wide: 200px;');
     expect(body).toContain('--nav-panel-expand: 0;');
     expect(body).toContain(
       '--nav-panel-width: calc(var(--nav-panel-rest) + (var(--nav-panel-wide) - var(--nav-panel-rest)) * var(--nav-panel-expand));',
@@ -646,6 +651,15 @@ describe('NavPanel.css — the width contract', () => {
 
   it('sizes the panel from --nav-panel-width', () => {
     expect(getCssRuleBody(css, '.nav-panel')).toContain('width: var(--nav-panel-width);');
+  });
+
+  // Crawford, 2026-10-10: "cut the side padding down". A box's face keeps 4 px a side, not 8.
+  it("a nav box's face has 4 px of side padding", () => {
+    const boxCss = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavBox.css'), 'utf-8');
+    // The face's own rule, not the shared `.nav-box .sc-cabinet-box, …__front` width rule before it.
+    const faceRules = [...boxCss.matchAll(/(?:^|\n)\.nav-box \.sc-cabinet-box__front \{([^}]*)\}/g)].map((m) => m[1]);
+    expect(faceRules.join('')).toMatch(/padding:\s*0 4px;/);
+    expect(faceRules.join('')).not.toMatch(/padding:\s*0 var\(--spacing-sm\)/);
   });
 });
 

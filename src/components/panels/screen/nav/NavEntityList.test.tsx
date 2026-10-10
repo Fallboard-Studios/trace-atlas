@@ -82,13 +82,13 @@ describe('NavEntityList — Probes', () => {
     );
   });
 
-  it('clicking a robot selects it through navActions: Probes open on that robot, nothing else selected', () => {
+  it('clicking a robot selects it through navActions: Probes open on that robot with the list collapsed, nothing else selected', () => {
     useUIStore.setState({ allProbesSelected: true, selectedSection: 'source' });
     render(<NavEntityList branch="probes" />);
     fireEvent.click(entity('Glass Drifter'));
     expect(useUIStore.getState()).toMatchObject({
       activeHubTile: 'robots',
-      expandedTopLevelBranch: 'probes',
+      expandedTopLevelBranch: null, // a pick collapses the list (Crawford, 2026-10-10)
       selectedRobotId: 'r2',
       allProbesSelected: false,
       selectedSection: null,
@@ -189,13 +189,13 @@ describe('NavEntityList — Companies', () => {
     expect(accentOf(newCompany())).toBe(TRAIT_COLORS.company[0]);
   });
 
-  it('clicking a company selects it through navActions: Companies open on that company', () => {
+  it('clicking a company selects it through navActions: Companies open on that company with the list collapsed', () => {
     useUIStore.setState({ selectedRobotId: 'r1' });
     render(<NavEntityList branch="companies" />);
     fireEvent.click(entity('Neon Division'));
     expect(useUIStore.getState()).toMatchObject({
       activeHubTile: 'companies',
-      expandedTopLevelBranch: 'companies',
+      expandedTopLevelBranch: null, // a pick collapses the list (Crawford, 2026-10-10)
       selectedCompanyId: 'c2',
       allRobotsSelected: false,
       selectedRobotId: null,

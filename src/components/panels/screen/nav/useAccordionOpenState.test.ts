@@ -133,26 +133,32 @@ describe('useAccordionOpenState — accordionSync registration (docs/tasks/NAV_A
     expect(isAccordionOpen('probes.r1.melody.rhythm')).toBe(false);
   });
 
-  it('setOpen(id, true) expands nav ancestors for that id via expandNavAncestorsForId', () => {
-    const { result } = renderHook(() => useAccordionOpenState(['probes.r1.volume.audioSettings'], null));
+  // Crawford, 2026-10-10: picking a company or All Probes collapses the nav's entity list. Opening an
+  // accordion on that screen (CompanyOptionsSection's, until Task 23) must not open the list again, so
+  // the tree-era expandNavAncestorsForId write is gone (the Task 9 open question).
+  it.each([
+    ['companies.c1.volume.audioSettings', 'companies'],
+    ['probes.all.melody.rhythm', 'probes'],
+    ['probes.r1.volume.audioSettings', 'probes'],
+  ])('setOpen(%s, true) leaves the collapsed nav list alone', (id) => {
+    const { result } = renderHook(() => useAccordionOpenState([id], null));
+    useUIStore.setState({ expandedTopLevelBranch: null, expandedProbeId: null, expandedCompanyId: null });
 
-    act(() => result.current.setOpen('probes.r1.volume.audioSettings', true));
+    act(() => result.current.setOpen(id, true));
 
-    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
-    expect(useUIStore.getState().expandedProbeId).toBe('r1');
+    expect(result.current.isOpen(id)).toBe(true);
+    expect(useUIStore.getState()).toMatchObject({ expandedTopLevelBranch: null, expandedProbeId: null, expandedCompanyId: null });
+    unregisterAccordion(id);
   });
 
-  // docs/tasks/LAYOUT_REWORK.md Task 9: expandNavAncestorsForId moved here from the deleted useNavTree.ts,
-  // whose tests covered its branch guard; this keeps that guard covered (found by the mutation check).
-  it('setOpen(id, true) expands nothing for an id that does not start with a nav branch', () => {
-    const { result } = renderHook(() => useAccordionOpenState(['home.welcome'], null));
-    useUIStore.setState({ expandedTopLevelBranch: 'companies', expandedProbeId: null });
+  it('setOpen(id, true) leaves an open nav list open too: it never writes the nav', () => {
+    const { result } = renderHook(() => useAccordionOpenState(['companies.c1.envelope.pingContour'], null));
+    useUIStore.setState({ expandedTopLevelBranch: 'probes' });
 
-    act(() => result.current.setOpen('home.welcome', true));
+    act(() => result.current.setOpen('companies.c1.envelope.pingContour', true));
 
-    expect(useUIStore.getState().expandedTopLevelBranch).toBe('companies');
-    expect(useUIStore.getState().expandedProbeId).toBeNull();
-    unregisterAccordion('home.welcome');
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
+    unregisterAccordion('companies.c1.envelope.pingContour');
   });
 
   it('setOpen(id, false) does NOT touch nav ancestor expansion', () => {
@@ -271,12 +277,14 @@ describe('useAccordionOpenState — openExclusive (docs/tasks/NAV_ACCORDION_SYNC
     expect(result.current.isOpen('probes.r1.melody.rhythm')).toBe(false);
   });
 
-  it('openExclusive also expands nav ancestors for the target id', () => {
-    const { result } = renderHook(() => useAccordionOpenState(['probes.r1.volume.audioSettings'], null));
+  it('openExclusive opens the target without writing the nav (the collapsed list stays collapsed)', () => {
+    const { result } = renderHook(() => useAccordionOpenState(['companies.c1.volume.audioSettings'], null));
+    useUIStore.setState({ expandedTopLevelBranch: null, expandedCompanyId: null });
 
-    act(() => result.current.openExclusive('probes.r1.volume.audioSettings', true));
+    act(() => result.current.openExclusive('companies.c1.volume.audioSettings', true));
 
-    expect(useUIStore.getState().expandedProbeId).toBe('r1');
+    expect(result.current.isOpen('companies.c1.volume.audioSettings')).toBe(true);
+    expect(useUIStore.getState()).toMatchObject({ expandedTopLevelBranch: null, expandedCompanyId: null });
   });
 });
 

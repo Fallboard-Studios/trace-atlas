@@ -68,17 +68,17 @@ describe('Robot click routing (Roadmap Phase 8)', () => {
     expect(useUIStore.getState().activeHubTile).toBe('robots');
   });
 
-  // docs/tasks/LAYOUT_REWORK.md Task 4: the nav panel's Probes list shows while
-  // expandedTopLevelBranch is 'probes' (the field its box collapses), so opening Probes from the
-  // Deck goes through navActions like any other pick and lands with the list open.
-  it('from the Deck, opens Probes with its nav list expanded, through navActions', () => {
-    useUIStore.setState({ expandedTopLevelBranch: null, allProbesSelected: true });
+  // docs/tasks/LAYOUT_REWORK.md Task 4: opening Probes from the Deck goes through navActions like any
+  // other pick. Crawford, 2026-10-10: an entity pick collapses the list, so the robot opens with the
+  // nav panel at rest.
+  it('from the Deck, opens the robot through navActions, with the nav list collapsed', () => {
+    useUIStore.setState({ expandedTopLevelBranch: 'probes', allProbesSelected: true });
     const { container } = renderRobot({ id: 'r1' });
     fireEvent.click(container.querySelector('.robot') as Element);
 
     expect(useUIStore.getState()).toMatchObject({
       activeHubTile: 'robots',
-      expandedTopLevelBranch: 'probes',
+      expandedTopLevelBranch: null,
       selectedRobotId: 'r1',
       allProbesSelected: false,
     });
