@@ -110,15 +110,16 @@ no hardware keys, build on the existing components.
 
 ### 1.2 Nav (`NavPanel`, replaces `NavTree` / `NavTreeNode` / `NavCabinetRow` / `useNavTree`)
 
-- One panel, five parent boxes (`CabinetBox` with lore + human from `nav.*` content), 116 px at rest. The
+- One panel, five parent boxes (`CabinetBox` with lore + human from `nav.*` content), 124 px at rest. The
   Probes and Companies boxes expand **in place**: the panel widens to 200 px (a GSAP timeline on
   `width`, key `nav-panel-width`), the branch's entities list under the active box, and the content
   surface's left edge moves with it (`--nav-panel-width` custom property, read by `ContentPane`).
   Deck, Fleet Params and Settings are leaves and never change the panel's shape. **Amended
-  2026-10-10 (Crawford, at Task 16):** the sketch's 96 / 260 px became 116 / 200 px, with a nav box's
-  side padding cut to 4 px. Rest was "about 20 px wider"; the wide boxes had ~60 px of empty side space
-  for 56–99 px names. At 116 px, "TIMBRE & COLOR" and "UNITY & VARIETY" still take two lines; about
-  124 px would fit them on one.
+  2026-10-10 (Crawford, at Task 16):** the sketch's 96 / 260 px became 124 / 200 px, with a nav box's
+  side padding cut to 4 px. Rest went to "about 20 px wider", 116, then 124 so that "TIMBRE & COLOR"
+  and "UNITY & VARIETY" fit on one line. The wide boxes had had ~60 px of empty side space for
+  56–99 px names. While a list is open the plate keeps 16 px on its right, so the boxes clear the
+  list's scrollbar by 12 px.
 - **Collapse** (Crawford, 2026-10-09, "back, then collapse"): the list shows while
   `expandedTopLevelBranch` is the open branch. Pressing the open Probes / Companies box on an entity
   goes back to the branch's page with the list open (picking a parent clears the entity); on the
@@ -201,6 +202,13 @@ no hardware keys, build on the existing components.
   company `RadioButton` from `buildCompanyAssignmentSchema`) beside the scrolling controls column with
   `SectionTabs`. On the phone the avatar is a **sticky band in its small form** (72 × 58 gem, name,
   one status line); the expanded band is rejected. Voxel rows run edge to edge on the phone.
+  **Amended 2026-10-10 (Crawford, at Task 16): "the robot detail page at 1024 needs to reserve more
+  space for the right column with the attributes".**
+  - The controls get first claim on 560 px.
+  - The column takes the rest, between 200 px and the sketch's 400: 203 px at 1024 px, 400 px from
+    about 1160 px.
+  - The meta wells sit two to a row where the column has room for two 120 px wells, and one to a row
+    where it does not.
 
 ### 1.5 Roster board (`RosterBoard.tsx`, replaces `ProbesContent` + `RobotsTab` and `CompaniesContent`)
 

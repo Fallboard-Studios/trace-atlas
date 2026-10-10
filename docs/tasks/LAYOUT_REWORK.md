@@ -1657,6 +1657,57 @@ known 25 / 4; `npm run build` clean.
 - an accordion's `setOpen` and `openExclusive` writing the nav again;
 - each of the three CSS values put back.
 
+**Follow-up 2, Crawford's look at 1024 × 680.** Spec §1.2 and §1.4 are amended.
+- **a2) "let's try 124px so timbre & color etc make it to one line."** Rest is 116 → 124 px. Measured
+  in Chrome, no label wraps or is cut at rest, in either list, or on a robot.
+- **2) "the robot detail page at 1024 needs to reserve more space for the right column with the
+  attributes".** Before, the controls had 451 px, so the side-by-side rows got 196 px a half (about a
+  three-box slider).
+  - The desk grid's first column is now `clamp(--avatar-column-min 200px, 100% −
+    --controls-column-reserve 560px − gap, --avatar-column-width 400px)`.
+  - The reserve of 560 was picked from a Chrome trial against 520. At 1024, 520 gave a 243 px column,
+    520 px controls and 231 px halves; 560 gives 203 / 560 / 251.
+  - At 560 the four meta wells shrank to 90 px. So they now flow two to a row where two 120 px wells
+    fit and one to a row where they don't: `repeat(auto-fit, minmax(max(120px, (100% − gap) / 2), 1fr))`.
+    The `max()` term caps a row at two; without it, the 400 px column packed three to a row.
+  - The column also gets 8 px of right padding: its own scrollbar sat on the right-hand wells, the same
+    collision Crawford found in the nav.
+- **3) "the nav container needs more padding on the right so the boxes don't collide with the scroll
+  bar".** A popped face sat 4 px from the list's scrollbar. While a list is open
+  (`.nav-panel:has(.nav-entity-list)`), the plate keeps 16 px on the right, so the boxes clear the
+  scrollbar by 12 px. At rest there is no scrollbar, and the plate keeps its 8 px, which the 124 px
+  one-line labels are sized against.
+- **The list stayed open on a robot in Crawford's screenshot.** The cause was the Probes page's robot
+  cards: `RobotSelectionCard` called `uiStore.selectRobot` directly, outside navActions. The Companies
+  page's company radio did the same with `selectCompany`. Both now call `selectEntity`, so they collapse
+  the list like every other pick. Checked in Chrome: a card click at 1024 opens the robot at the 124 px
+  rest width.
+
+*Measured in Chrome (committed CSS, robot on Envelope):*
+
+| Size | Column | Controls | Halves | Wells |
+|---|---|---|---|---|
+| 1024 × 680 | 203 px | 560 px | 251 px | one to a row, 180 px |
+| 1100 × 700 | 279 px | 560 px | 251 px | two to a row, 124 px |
+| 1280 × 800 | 400 px | 619 px | 288 px | two to a row, 185 px |
+
+At 800 px the rows already stack (the tablet tier). No document overflow and no console errors.
+
+*Verified:*
+- Full suite: 315 files / 8696 tests.
+- `build:types` clean; `npm run build` clean.
+- Lint at the known 25 / 4, after fixing one `import/order` error this change added in
+  `CompaniesContent.tsx`.
+
+*Mutation check:* 11, all killed:
+- the card and the company radio selecting without navActions;
+- rest 116;
+- the list-open padding lost, or applied at rest too;
+- the reserve and the minimum changed;
+- the split back to 40%;
+- the column's scrollbar clearance lost;
+- the wells fixed at two, or uncapped.
+
 ## Task 17: `SettingsScreen` — section tabs over the three leaves
 
 **Description:** New `src/components/panels/screen/screens/SettingsScreen.tsx`: `SectionTabs` over

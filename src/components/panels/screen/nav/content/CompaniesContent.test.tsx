@@ -80,6 +80,19 @@ describe('CompaniesContent — routes the Companies branch to Create, or Rename/
 
     expect(useUIStore.getState().selectedCompanyId).toBe('c2');
   });
+
+  // Crawford, 2026-10-10: picking a company collapses the nav's list, from this radio too.
+  it('picking a company from the radio opens it with the nav list collapsed', () => {
+    useLocaleStore.getState().setLocaleData(localeId, {
+      companies: [{ id: 'c2', name: 'Solaris Combine', color: '#a15c3f', robotIds: [] }],
+    } as unknown as Partial<Locale>);
+    useUIStore.setState({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies' });
+
+    render(<CompaniesContent />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Solaris Combine' }));
+
+    expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'companies', selectedCompanyId: 'c2', expandedTopLevelBranch: null });
+  });
 });
 
 describe('CompaniesContent reads its copy from src/content (docs/specs/CONTENT_LAYER.md, Task 13)', () => {

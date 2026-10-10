@@ -640,8 +640,9 @@ describe('NavPanel.css — the width contract', () => {
   it('derives --nav-panel-width on the screen viewport from the rest and wide sizes and the expand factor', () => {
     const body = getCssRuleBody(css, '#screen-viewport');
     expect(body).not.toBeNull();
-    // Crawford, 2026-10-10: the rest width about 20 px wider, the wide one narrower (less side padding).
-    expect(body).toContain('--nav-panel-rest: 116px;');
+    // Crawford, 2026-10-10: the rest width wider (124 px, so "TIMBRE & COLOR" fits one line), the wide
+    // one narrower (less side padding).
+    expect(body).toContain('--nav-panel-rest: 124px;');
     expect(body).toContain('--nav-panel-wide: 200px;');
     expect(body).toContain('--nav-panel-expand: 0;');
     expect(body).toContain(
@@ -651,6 +652,15 @@ describe('NavPanel.css — the width contract', () => {
 
   it('sizes the panel from --nav-panel-width', () => {
     expect(getCssRuleBody(css, '.nav-panel')).toContain('width: var(--nav-panel-width);');
+  });
+
+  // Crawford, 2026-10-10: the boxes collided with the list's scrollbar. With a list open (the panel
+  // scrolls when twelve robots outgrow it) the plate keeps 16 px on the right, 12 px clear of a popped
+  // face; at rest it keeps its 8 px, which the 124 px one-line labels were sized against.
+  it('keeps 16 px on the right of the plate while a list is open, and its 8 px padding at rest', () => {
+    const front = getCssRuleBody(css, '.nav-panel > .sc-cabinet-box > .sc-cabinet-box__front');
+    expect(front).toMatch(/padding:\s*var\(--spacing-sm\);/);
+    expect(getCssRuleBody(css, '.nav-panel:has(.nav-entity-list) > .sc-cabinet-box > .sc-cabinet-box__front')).toMatch(/padding-right:\s*16px;/);
   });
 
   // Crawford, 2026-10-10: "cut the side padding down". A box's face keeps 4 px a side, not 8.

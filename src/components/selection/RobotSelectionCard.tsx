@@ -3,7 +3,7 @@ import { RobotBody } from '@/components/robot/RobotBody';
 import { getRobotGem, gemViewBox } from '@/components/robot/gem/polygon';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
-import { useUIStore } from '@/stores/uiStore';
+import { selectEntity } from '@/components/panels/screen/nav/navActions';
 import { useAudioStore } from '@/stores/audioStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
@@ -84,7 +84,6 @@ function HeldWord<K extends string>({ labels, current }: HeldWordProps<K>) {
  * actually added/removed/reassigned, not on every field tick.
  */
 export const RobotSelectionCard = memo(function RobotSelectionCard({ robotId }: RobotSelectionCardProps) {
-  const selectRobot = useUIStore((s) => s.selectRobot);
   const localeId = getActiveLocaleId();
   const robot = useLocaleStore((s) => s.locales[localeId]?.robots?.find((r) => r.id === robotId));
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
@@ -119,8 +118,10 @@ export const RobotSelectionCard = memo(function RobotSelectionCard({ robotId }: 
   // Arrow function expressions, not function declarations — TypeScript's control-flow narrowing
   // from `if (!robot) return null` above doesn't extend into hoisted function declarations (they
   // could, in principle, be called before that check runs), only into const-bound closures.
+  // Through navActions, as every pick is: it opens the robot with the nav list collapsed (Crawford,
+  // 2026-10-10, docs/tasks/LAYOUT_REWORK.md Task 16 follow-up), from a clean slate of sections.
   const handleActivate = () => {
-    selectRobot(robot.id);
+    selectEntity({ robotId: robot.id });
   };
 
   const handleKeyDown = (event: KeyboardEvent) => {

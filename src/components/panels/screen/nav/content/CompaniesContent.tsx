@@ -1,3 +1,4 @@
+import { selectEntity } from '../navActions';
 import { CompanyCreateForm, CompanyRenameDeleteForm } from '@/components/company/CompanyCrudControls';
 import { CompanyOptionsSection } from '@/components/company/CompanyOptionsSection';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
@@ -8,6 +9,10 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { introProps } from '@/content';
+
+// A pick, through navActions like every other: it opens the company with the nav list collapsed
+// (Crawford, 2026-10-10, docs/tasks/LAYOUT_REWORK.md Task 16 follow-up).
+const pickCompany = (companyId: string) => selectEntity({ companyId });
 
 /**
  * Companies branch content (docs/specs/NAV_PANEL_VIEWS_AND_CONTENT.md §1/§2, Task 13;
@@ -26,7 +31,6 @@ import { introProps } from '@/content';
  */
 export function CompaniesContent() {
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
-  const selectCompany = useUIStore((s) => s.selectCompany);
   const localeId = getActiveLocaleId();
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
 
@@ -42,7 +46,7 @@ export function CompaniesContent() {
           <RadioButton
             schema={buildCompanySelectionSchema(companies)}
             value=""
-            onChange={selectCompany}
+            onChange={pickCompany}
           />
         )}
       </div>

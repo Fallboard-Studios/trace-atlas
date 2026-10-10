@@ -327,6 +327,18 @@ describe('RobotSelectionCard', () => {
     expect(useUIStore.getState().selectedSection).toBeNull();
   });
 
+  // Crawford, 2026-10-10: picking a probe collapses the nav's list. The Probes page's cards (until
+  // Task 21's roster) are a pick like any other, so they go through navActions.selectEntity.
+  it.each([
+    ['a click', (el: HTMLElement) => fireEvent.click(el)],
+    ['Enter', (el: HTMLElement) => fireEvent.keyDown(el, { key: 'Enter' })],
+  ])('%s on the card opens the robot with the nav list collapsed', (_how, activate) => {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', allProbesSelected: false });
+    renderCard({ id: 'r1' });
+    activate(cardButton());
+    expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'robots', selectedRobotId: 'r1', expandedTopLevelBranch: null });
+  });
+
   it('pressing Enter on the card selects the robot', () => {
     renderCard({ id: 'r1' });
     fireEvent.keyDown(cardButton(), { key: 'Enter' });

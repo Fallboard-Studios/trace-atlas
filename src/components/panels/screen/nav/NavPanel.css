@@ -1,12 +1,13 @@
 /* The panel's width, in the one place the viewport reads it (docs/specs/LAYOUT_REWORK.md §1.2, §4):
-   the sizes the sketch fixed by eye, as Crawford retuned them on 2026-10-10 (rest 96 → 116 px, wide
-   260 → 200 px: the boxes had ~60 px of empty side space for 56–99 px names), and the expand factor
+   the sizes the sketch fixed by eye, as Crawford retuned them on 2026-10-10 (rest 96 → 124 px, so the
+   longest lore line, "TIMBRE & COLOR", fits one line; wide 260 → 200 px: the boxes had ~60 px of
+   empty side space for 56–99 px names), and the expand factor
    NavPanel.tsx tweens (0 at rest, 1 while Probes or Companies list their entities). Declared on #screen-viewport itself, the element the
    factor is written on — a var() derivation declared on an ancestor would not re-resolve against
    the descendant's override (traitColors.ts's buildAccentStyle comment). ContentPane's left edge
    reads --nav-panel-width from here (Task 7). */
 #screen-viewport {
-  --nav-panel-rest: 116px;
+  --nav-panel-rest: 124px;
   --nav-panel-wide: 200px;
   --nav-panel-expand: 0;
   --nav-panel-width: calc(var(--nav-panel-rest) + (var(--nav-panel-wide) - var(--nav-panel-rest)) * var(--nav-panel-expand));
@@ -48,6 +49,14 @@
   overflow-x: hidden;
   overflow-y: auto;
   background-color: var(--color-surface);
+}
+
+/* With a list open the plate scrolls (twelve robots outgrow the screen), and its scrollbar sat 4 px from a
+   popped face (Crawford, 2026-10-10: the boxes collided with it). 16 px on the right leaves 12 px clear.
+   Only while a list is open: at rest there is no scrollbar, and the 124 px one-line labels are sized
+   against the 8 px. */
+.nav-panel:has(.nav-entity-list) > .sc-cabinet-box > .sc-cabinet-box__front {
+  padding-right: 16px;
 }
 
 .nav-panel__boxes {

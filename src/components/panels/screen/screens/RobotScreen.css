@@ -2,6 +2,8 @@
    inline: the robot's identity colour on the root, each section panel's trait on its wrapper. */
 .robot-screen {
   --avatar-column-width: 400px;
+  --avatar-column-min: 200px;
+  --controls-column-reserve: 560px;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
@@ -26,11 +28,13 @@
 
 /* The sketch's split: the column beside the controls, each scrolling on its own, so the column stays put
    while the controls scroll. The screen fills ConsolePanel's scroller (a flex item of definite height).
-   The column takes at most 40% of the screen: the sketch's 400 px is a 1600 px frame's, and with Probes'
-   list open a fixed 400 px left the controls under a three-box slider's width below about 1100 px. */
+   The controls get first claim on 560 px and the column takes what is left, between 200 px and the
+   sketch's 400 (Crawford, 2026-10-10: at 1024 px the controls' side-by-side rows were cramped, 196 px a
+   half; now 251). The column reaches 400 px once the screen is 976 px wide, a window of about 1160 px
+   with the list collapsed (measured: 279 px at 1100, 400 at 1280). */
 .robot-screen--desk {
   display: grid;
-  grid-template-columns: min(var(--avatar-column-width), 40%) minmax(0, 1fr);
+  grid-template-columns: clamp(var(--avatar-column-min), calc(100% - var(--controls-column-reserve) - var(--spacing-lg)), var(--avatar-column-width)) minmax(0, 1fr);
   gap: var(--spacing-lg);
   height: 100%;
 }
@@ -39,6 +43,12 @@
 .robot-screen--desk > .robot-screen__controls {
   min-height: 0;
   overflow-y: auto;
+}
+
+/* The column's own scrollbar sat on its right-hand wells; 8 px keeps them clear (Crawford's nav
+   scrollbar note, 2026-10-10, applies here too). */
+.robot-screen--desk > .robot-screen__avatar-column {
+  padding-right: var(--spacing-sm);
 }
 
 /* Room for a popped facade's front face, 4 px right and 2 px down of its box (cabinetGeometry.ts's
@@ -74,10 +84,12 @@
 }
 
 /* The read-only meta, two columns of wells (spec §1.1: in = read), in the shared well tokens and the
-   robot's identity colour. Each caption shows its lore line; the value is the human reading. */
+   robot's identity colour. Each caption shows its lore line; the value is the human reading. Where the
+   column is too narrow for two 120 px wells (below ~250 px, at 1024 px with the controls' reserve) they
+   stack one to a row instead of squeezing to 90 px; the max() term caps a row at two. */
 .robot-screen__meta {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(max(120px, calc((100% - var(--spacing-sm)) / 2)), 1fr));
   gap: var(--spacing-sm);
 }
 

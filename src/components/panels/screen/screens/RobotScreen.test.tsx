@@ -793,6 +793,29 @@ describe('RobotScreen — source and CSS', () => {
     expect(src).not.toMatch(/400/);
   });
 
+  // Crawford, 2026-10-10: at 1024 px the controls' side-by-side rows were cramped. The controls get
+  // first claim on 560 px; the column takes what is left, between 200 and 400 px.
+  it('reserves 560 px for the controls and gives the column the rest, 200 to 400 px', () => {
+    const root = getCssRuleBody(css, '.robot-screen')!;
+    expect(root).toMatch(/--controls-column-reserve:\s*560px/);
+    expect(root).toMatch(/--avatar-column-min:\s*200px/);
+    expect(getCssRuleBody(css, '.robot-screen--desk')).toMatch(
+      /grid-template-columns:\s*clamp\(var\(--avatar-column-min\), calc\(100% - var\(--controls-column-reserve\) - var\(--spacing-lg\)\), var\(--avatar-column-width\)\) minmax\(0, 1fr\);/,
+    );
+  });
+
+  it('the column keeps clear of its own scrollbar', () => {
+    // Its own rule, not the shared `…__avatar-column, …__controls` scroll rule before it.
+    const own = [...css.matchAll(/(?:^|\n)\.robot-screen--desk > \.robot-screen__avatar-column \{([^}]*)\}/g)].map((m) => m[1]).join('');
+    expect(own).toMatch(/padding-right:\s*var\(--spacing-sm\)/);
+  });
+
+  it('the meta wells sit two to a row where the column has room, one where it does not (never three)', () => {
+    expect(getCssRuleBody(css, '.robot-screen__meta')).toMatch(
+      /grid-template-columns:\s*repeat\(auto-fit, minmax\(max\(120px, calc\(\(100% - var\(--spacing-sm\)\) \/ 2\)\), 1fr\)\);/,
+    );
+  });
+
   it('the phone band sticks to the top and draws the 72 × 58 gem; there is no expanded form', () => {
     const bandBody = getCssRuleBody(css, '.robot-screen__band')!;
     expect(bandBody).toMatch(/position:\s*sticky/);
