@@ -223,14 +223,40 @@ describe('NavBreadcrumb — where it renders, by shell', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('inBar it renders on the phone shell, as the bar variant with the same buttons', () => {
+  // Crawford, 2026-10-10: the bar's well is narrow, so the phone crumb drops Root (the menu's Deck box
+  // is the way home there); if a long trail still overflows, the ellipsis is accepted.
+  it('inBar it renders on the phone shell, as the bar variant, without Root', () => {
     stubShell(false);
     setNav({ activeHubTile: 'robots', selectedRobotId: 'r1' });
     render(<NavBreadcrumb inBar />);
     expect(crumb().classList.contains('nav-breadcrumb--bar')).toBe(true);
+    expect(crumb().textContent).toBe(`${PROBES} / Tidal Wisp / ${SOURCE}`);
+    expect(screen.queryByRole('button', { name: ROOT })).toBeNull();
+  });
+
+  it('inBar the remaining ancestors are still buttons, and the first segment has no separator before it', () => {
+    stubShell(false);
+    setNav({ activeHubTile: 'robots', selectedRobotId: 'r1' });
+    render(<NavBreadcrumb inBar />);
+    expect(crumb().firstElementChild!.querySelector('.nav-breadcrumb__sep')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: PROBES }));
+    expect(useUIStore.getState().selectedRobotId).toBeNull();
+    expect(useUIStore.getState().activeHubTile).toBe('robots');
+  });
+
+  it('inBar on a bare branch it is the branch alone, as the current page, with no buttons', () => {
+    stubShell(false);
+    setNav({ activeHubTile: 'robots' });
+    render(<NavBreadcrumb inBar />);
+    expect(crumb().textContent).toBe(PROBES);
+    expect(crumb().querySelector('[aria-current="page"]')!.textContent).toBe(PROBES);
+    expect(crumb().querySelectorAll('button')).toHaveLength(0);
+  });
+
+  it('the desk well keeps Root', () => {
+    setNav({ activeHubTile: 'robots', selectedRobotId: 'r1' });
+    render(<NavBreadcrumb />);
     expect(crumb().textContent).toBe(`${ROOT} / ${PROBES} / Tidal Wisp / ${SOURCE}`);
-    fireEvent.click(screen.getByRole('button', { name: ROOT }));
-    expect(useUIStore.getState().activeHubTile).toBeNull();
   });
 
   it('inBar still renders nothing on the Deck', () => {

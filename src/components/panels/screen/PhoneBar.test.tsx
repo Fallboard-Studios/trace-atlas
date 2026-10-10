@@ -137,10 +137,12 @@ describe('PhoneBar — the well', () => {
     useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneB' });
     render(<PhoneBar />);
     expect(well().querySelector('.world-line')).toBeNull();
-    expect(crumb()?.textContent).toBe(`${CONTENT['nav.root'].human} / ${CONTENT['fleet.root'].human} / ${CONTENT['fleet.lfoBank'].human} / ${CONTENT['fleet.lfoBank.laneB'].human}`);
-    fireEvent.click(screen.getByRole('button', { name: CONTENT['nav.root'].human }));
-    expect(useUIStore.getState().activeHubTile).toBeNull();
-    expect(well().querySelector('.world-line')).not.toBeNull();
+    // No Root on the phone (Crawford, 2026-10-10): the menu's Deck box is the way home there.
+    expect(crumb()?.textContent).toBe(`${CONTENT['fleet.root'].human} / ${CONTENT['fleet.lfoBank'].human} / ${CONTENT['fleet.lfoBank.laneB'].human}`);
+    expect(screen.queryByRole('button', { name: CONTENT['nav.root'].human })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: CONTENT['fleet.root'].human }));
+    expect(useUIStore.getState().activeHubTile).toBe('audioRig');
+    expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
   });
 
   it('the open sheet’s hint wins over both', () => {

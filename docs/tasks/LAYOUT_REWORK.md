@@ -1410,6 +1410,10 @@ the screen.
   - (c) leave it.
 
   Recommend (a). Not built: it changes Task 8's breadcrumb, which is your call.
+
+  **Decided (Crawford, 2026-10-10):** neither (a), (b) nor (c) as written. "Remove the word root on
+  mobile, and if it happens a little still so be it." The bar's crumb drops `Root`; the desk well
+  keeps it. Spec §1.2 amended. Built as a follow-up to Task 18 (see there).
 - **Group intros no longer render** (spec §1.3: one intro per screen). The intro copy of `fleet.pacing`
   … `fleet.output` stays in `src/content`, unrendered, like the option lore in Task 13.
 - **Lane panel headings are unchanged.** Spec §1.4 has the lane *panels* reading "Core LFO (LFO A)"
@@ -1565,8 +1569,13 @@ No document overflow and no console errors at any size.
   - (c) leave it.
 
   Not decided here.
+
+  **Decided (Crawford, 2026-10-10): (c), leave it.** "I don't love it, and feel like the area to the
+  left of the power rocker switch is wasted space, but it is what it is." That top-bar space is a
+  candidate for a later layout pass, not this phase.
 - **The phone breadcrumb.** `Root / Probes / Drift Warden / Source` is 225 px in the 202 px well at
-  320 px. This is the same open question as Task 15's.
+  320 px. This is the same open question as Task 15's. **Decided 2026-10-10:** Root is dropped on the
+  phone (see Task 15).
 - **The company radio needs a short scroll** of the column at 1280 × 800.
 
 **Two existing tests changed, both because of the deletion:**
@@ -2048,6 +2057,37 @@ shows on a return trip, and the return-trip test was added for it.
 **Found, not touched:** `FIRST_OPEN_MAX_SETTLE_TICKS` (`accordionAnimation.ts`) and
 `testUtils/openAccordions.ts` are referenced only by their own tests. Both are dead, and neither is
 part of the stacked scroll.
+
+**Follow-up, the phone crumb (Crawford, 2026-10-10, spec §1.2 amended):** "remove the word root on
+mobile, and if it happens a little still so be it." `NavBreadcrumb` drops the first segment when it
+renders in the bar (`inBar`). The desk well keeps `Root`. On the phone the menu's Deck box is the way
+home. Every remaining ancestor is still a button. `PhoneBar.test.tsx`'s well test clicked Root, so it
+now clicks Fleet Params instead.
+
+Measured in headless Chrome, as text width against the well's room (186 px at 320, 241 px at 375):
+
+| Trail | 320 px | 375 px |
+|---|---|---|
+| Settings, every tab | fits (90–131) | fits |
+| Probes, All Probes and robots | fits (110–177) | fits |
+| Fleet Params / Pacing | fits (120) | fits |
+| Fleet Params / LFO Bank / Core LFO | over by 3 | fits |
+| Fleet Params / Output / Compressor | over by 13 | fits |
+| Fleet Params / Time & Space / Reverb | over by 15 | fits |
+| Fleet Params / EQ & Filters / 3-Band EQ | over by 27 | fits |
+| Fleet Params / LFO Bank / Companion LFO | over by 36 | fits |
+| Fleet Params / EQ & Filters / High-Pass Filter | over by 63 | over by 8 |
+
+So at 375 px only High-Pass is cut. At 320 px every Fleet Params trail with a sub-tab is cut by the
+well's ellipsis, which takes the end of the current segment.
+
+Mutation check: 5, all killed. The mutants: Root kept in the bar; Root dropped on the desk too; the
+branch dropped as well; a leading separator; the first remaining segment losing its button. The
+full suite has 8657 tests. Once, `sceneToOrbiterLocal`'s 5 s round-trip timed out under full-suite
+load with a dev server up; that code is untouched, and the test passes alone in 1.4 s.
+
+**Narrow desk, decided (Crawford, 2026-10-10): leave it** (Task 16's option (c)). He noted that the
+top bar's space left of the power rocker reads as wasted; that is for a later pass.
 
 ### Checkpoint B: Section tabs (Crawford's dev look)
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.

@@ -141,7 +141,10 @@ no hardware keys, build on the existing components.
 - **Phone:** the same panel renders inside a Radix `Dialog` sheet (300 px, left edge, scrim) opened by
   the bottom bar's menu button; picking closes it. `isNavPanelOpen` is the sheet's open flag.
 - **Breadcrumb** (`NavBreadcrumb`): keeps its job, restyled as a well; reads `Root / <branch> /
-  <entity> / <section>` from the store fields above instead of `useNavTree().selectedPath`.
+  <entity> / <section>` from the store fields above instead of `useNavTree().selectedPath`. On the
+  phone shell (PhoneBar's well) it drops `Root` and starts at the branch; the menu's Deck box is the
+  way home there. A long trail that still overflows the well ellipsizes, and that is accepted
+  (Crawford, 2026-10-10).
 
 ### 1.3 Content surface and section tabs (`ContentPane`, `ConsolePanel`, `SectionTabs`)
 

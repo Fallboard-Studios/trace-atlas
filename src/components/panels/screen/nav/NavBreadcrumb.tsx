@@ -22,7 +22,8 @@ interface NavBreadcrumbProps {
  * nothing on the Deck: nothing to be lost in yet.
  *
  * Desk: a well at the content surface's bottom-left corner, in the band the surface keeps free for it
- * (NavBreadcrumb.css). Phone: PhoneBar's well carries it (`inBar`); on its own it renders nothing there.
+ * (NavBreadcrumb.css). Phone: PhoneBar's well carries it (`inBar`), without Root; on its own it
+ * renders nothing there.
  *
  * Entity names come from useEntityRoster's narrow slice, so a battery tick does not re-render it.
  */
@@ -41,11 +42,14 @@ export function NavBreadcrumb({ inBar = false }: NavBreadcrumbProps) {
 
   if (!inBar && shell !== 'desk') return null;
 
-  const trail = breadcrumbTrail(
+  const fullTrail = breadcrumbTrail(
     { activeHubTile, selectedRobotId, selectedCompanyId, allProbesSelected, selectedSection, fleetParamsSection, fleetParamsSubsection, selectedSettingsLeaf },
     { robots, companies },
   );
-  if (trail.length === 0) return null;
+  if (fullTrail.length === 0) return null;
+  // The bar's well is narrow, so the phone crumb starts at the branch: Root goes, and the menu's Deck
+  // box is the way home there. A long trail may still ellipsize; that is accepted (Crawford, 2026-10-10).
+  const trail = inBar ? fullTrail.slice(1) : fullTrail;
 
   return (
     <div className={inBar ? 'nav-breadcrumb nav-breadcrumb--bar' : 'nav-breadcrumb'} style={CRUMB_ACCENT} role="navigation" aria-label={CONTENT['nav.breadcrumb'].human}>
