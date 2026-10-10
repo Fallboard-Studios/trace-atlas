@@ -214,8 +214,9 @@ branch / entity / section, using `labels()` for names and `localeStore` for enti
 `useNavTree`'s `select`, `goHome`, `selectedPath` and `trimToLowestParent`.
 
 **Acceptance criteria:**
-- [ ] `selectBranch('probes')` expands Probes and leaves `selectedRobotId` as it was;
-      `selectBranch('settings')` collapses any expanded branch and clears the entity.
+- [ ] `selectBranch('probes')` expands Probes and clears the entity, `selectedRobotId` included
+      (amended 2026-10-09, see As built); `selectBranch('settings')` collapses any expanded branch
+      and clears the entity.
 - [ ] `selectEntity({ robotId })` clears `selectedCompanyId` and `allProbesSelected`;
       `selectEntity('all')` sets `allProbesSelected` and clears both ids; `selectEntity({ companyId })`
       clears the robot and `allProbesSelected`.
@@ -231,6 +232,19 @@ branch / entity / section, using `labels()` for names and `localeStore` for enti
 **Files:** `src/components/panels/screen/nav/navActions.ts`, `.../navActions.test.ts`
 
 **Estimated scope:** S (one module)
+
+**As built (2026-10-09):** the first acceptance line was changed by Crawford's call — picking a
+parent **clears** the entity on every branch, Probes included ("Clear it"): Probes content routes on
+`selectedRobotId`, so keeping it would have sent the Probes box and the breadcrumb's "Probes" segment
+back to the last robot instead of the list. Every action starts from a clean slate (no robot, no
+company — via `selectAllRobots`, so `allRobotsSelected` always equals "no company" — no All Probes,
+and every section field null, including `selectedFleetParamsEffect` / `selectedSettingsLeaf`, which
+the old tree set to a first leaf; the Phase 1 screens only write those through scrollspy), then sets
+what it opens; `goHome` is `selectBranch('deck')`. `breadcrumbPath(state, roster)` takes the entity
+names as a second argument (pure; the caller reads `localeStore`), falls back to a robot's id when it
+has no name, and drops an entity id that is not in the roster. `FLEET_PARAMS_EFFECT_GROUP`,
+`FLEET_PARAMS_GROUP_CONTENT` and `SETTINGS_LEAF_CONTENT` are exported for the Phase 2 screens;
+`SettingsContent.tsx` and `useNavTree.ts` keep their own copies until Tasks 9 and 17 delete them.
 
 ## Task 4: `NavPanel` — one panel of five boxes that expands in place (desk)
 
