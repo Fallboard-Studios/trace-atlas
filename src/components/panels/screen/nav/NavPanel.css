@@ -9,10 +9,9 @@
   --nav-panel-wide: 260px;
   --nav-panel-expand: 0;
   --nav-panel-width: calc(var(--nav-panel-rest) + (var(--nav-panel-wide) - var(--nav-panel-rest)) * var(--nav-panel-expand));
-  /* Phone (Task 5): the sheet the same panel opens in, and the top of the band it and its scrim fill —
-     the top bar's lower edge, ContentPane.css's own header clearance (Header writes --header-height). */
+  /* Phone (Task 5): the sheet the same panel opens in. Its band runs from the top bar's lower edge
+     (Header.css's --top-bar-bottom, Task 6) to PhoneBar's top (--phone-bar-clearance). */
   --nav-sheet-width: 300px;
-  --nav-sheet-top: calc(var(--header-height, var(--power-corner-height)) + var(--spacing-lg));
 }
 
 /* Full height on the left edge, the sketch's rail; the padding is room for the facade's walls, which
@@ -65,7 +64,7 @@
    either, as the sketch draws them; the bars stay visible, and a tap on either is a tap outside. */
 .nav-sheet__scrim {
   position: absolute;
-  top: var(--nav-sheet-top);
+  top: var(--top-bar-bottom);
   left: 0;
   right: 0;
   bottom: var(--phone-bar-clearance);
@@ -75,7 +74,7 @@
 
 .nav-sheet {
   position: absolute;
-  top: var(--nav-sheet-top);
+  top: var(--top-bar-bottom);
   left: 0;
   bottom: var(--phone-bar-clearance);
   width: min(var(--nav-sheet-width), 100%);

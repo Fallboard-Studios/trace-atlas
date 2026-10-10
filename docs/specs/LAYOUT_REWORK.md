@@ -93,7 +93,8 @@ no hardware keys, build on the existing components.
   (`MUTE_SCHEMA` / `MASTER_VOLUME_SCHEMA`, `Header.tsx:57` and `:65`), in one cabinet row beside the
   power corner; its nav-clearance slide and the
   `HEADER_NAV_CLEARANCE_*` constants go (the panel never overlaps the header). On the phone shell the
-  header holds mute and power only, and volume flies out of mute (a `Popover` with the slider).
+  header holds mute and power only, and volume flies out of a ▾ box beside mute (a `Popover` with
+  the slider). Crawford, 2026-10-09, chose "Volume box beside mute": mute stays one press.
 - **Phone bottom bar** (new, `PhoneBar.tsx`): the menu `Button` (opens the nav sheet) and the breadcrumb
   or telemetry well. It owns its band: `ContentPane` scrolls between the top bar and the bottom bar, never
   under either. `NavToggleButton`'s floating hamburger is deleted; the bar is its replacement.

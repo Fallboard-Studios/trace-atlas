@@ -1,52 +1,20 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { useGSAP } from '@gsap/react';
-import gsap from 'gsap';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import * as Popover from '@radix-ui/react-popover';
 
-import { NAV_PANEL_DOCK_MIN_WIDTH } from './useShell';
+import { useShell } from './useShell';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
-import { Toggle } from '@/components/ui/controls/Toggle';
+import { Toggle, CABINET_TOGGLE_BOX_SIZE } from '@/components/ui/controls/Toggle';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { getTraitColorStyle } from '@/utils/traitColors';
-import { setTimeline, killTimeline } from '@/animation/timelineMap';
+import { CABINET_REST_POP } from '@/utils/cabinetGeometry';
+import { CABINET_BOX_HEIGHT, CABINET_VOXEL_GAP } from '@/utils/cabinetBreakpoints';
+import { computeVoxelTrackLength, computeVoxelTrackTrailingReserve, VOXEL_TRACK_MIN_BOX_COUNT } from '@/utils/voxelTrackMath';
 import type { ToggleSchema, SliderLinearSchema } from '@/types/controls';
 import { labels } from '@/content';
 
 import './Header.css';
-
-const NAV_CLEARANCE_TIMELINE_KEY = 'header-cabinet-nav-clearance';
-// Same duration NavPanel.tsx's own slide-away tween uses — no dedicated shared constant (single
-// consumer each), but kept numerically identical so the two read as one synchronized motion.
-const NAV_CLEARANCE_SLIDE_DURATION = 0.25;
-// Below this, NavPanel is slid fully off-canvas when closed rather than partially — this clearance
-// behavior only applies in the band where a NOW-open NavPanel would otherwise sit directly under
-// Header's own volume slider. Deliberately independent of NAV_PANEL_DOCK_MIN_WIDTH's own lower
-// bound (there isn't one — NavPanel slides away for any width below it); this is Header's own
-// range, min-width query to match this codebase's mobile-first CSS convention.
-const HEADER_NAV_CLEARANCE_MIN_WIDTH = 400;
-// How much of .header>.sc-cabinet-box (Mute's own box) stays visible to the left of the power
-// rocker once shifted — just enough for Mute; Volume scrolls out from under it. Two tiers within
-// the clearance range itself (Crawford's spec) — HEADER_NAV_CLEARANCE_WIDE_MIN_WIDTH is its own
-// breakpoint, independent of both HEADER_NAV_CLEARANCE_MIN_WIDTH and NAV_PANEL_DOCK_MIN_WIDTH.
-const HEADER_NAV_CLEARANCE_VISIBLE_WIDTH_NARROW = 154;
-const HEADER_NAV_CLEARANCE_VISIBLE_WIDTH_WIDE = 188;
-const HEADER_NAV_CLEARANCE_WIDE_MIN_WIDTH = 640;
-
-/** Live match for an arbitrary media query — local to Header since it's the only consumer of a
- *  min-width query outside the shared Cabinet tier / NavPanel dock breakpoint (useCabinetTier,
- *  useNavPanelSlideAway.ts); split out if a second call site needs the same thing. */
-function useMatchesMediaQuery(query: string): boolean {
-  return useSyncExternalStore(
-    (listener) => {
-      if (typeof window.matchMedia !== 'function') return () => { };
-      const mql = window.matchMedia(query);
-      mql.addEventListener('change', listener);
-      return () => mql.removeEventListener('change', listener);
-    },
-    () => (typeof window.matchMedia === 'function' ? window.matchMedia(query).matches : false),
-  );
-}
 
 /** The Mute toggle's human label (content header.mute) feeds the switch's accessible name (resolveAccessibleName).
  *  The Toggle usage below passes an icon facade (🔇/🔊, swapped on isMuted)
@@ -72,81 +40,83 @@ const MASTER_VOLUME_SCHEMA: SliderLinearSchema = {
   ...labels('header.volume'),
 };
 
+/** The phone's volume box is named for what it opens. */
+const VOLUME_NAME = MASTER_VOLUME_SCHEMA.humanLabel;
+
+/** One width for the volume slider, in the desk row and in the phone's pop-out (Header.css reads it
+ *  as --header-volume-width). The voxel boxes follow the cabinet tier and a track never draws fewer
+ *  than three, so this is the shortest track at the largest tier (three 48 px boxes and their pop
+ *  room, 184 px): no tier overflows it (a 176 px width overflowed the desk by 8 px, measured), and
+ *  the pop-out still fits left of the power corner at 320 px. Derived, so it follows the tables. */
+const HEADER_VOLUME_WIDTH =
+  computeVoxelTrackLength(VOXEL_TRACK_MIN_BOX_COUNT, CABINET_BOX_HEIGHT.desktop, CABINET_VOXEL_GAP.desktop) +
+  computeVoxelTrackTrailingReserve('horizontal');
+
+const HEADER_STYLE = {
+  ...getTraitColorStyle('header'),
+  '--header-volume-width': `${HEADER_VOLUME_WIDTH}px`,
+} as CSSProperties;
+
 /**
- * The header docked to the top of ScreenViewport (roadmap-adjacent,
- * docs/specs/HEADER_HUB_CONSOLIDATION.md), replacing TransportBar (Task 9
- * retired that file) and absorbing HubNav's tile-grid navigation into an
- * always-visible nav group. Responsive layout is now a fixed set of
- * hand-authored breakpoints in Header.css (430/480/880/1220px) rather than
- * the original spec's ResizeObserver-driven row merge — see
- * docs/tasks/HEADER_HUB_CONSOLIDATION.md's "Post-implementation follow-up".
+ * Phone shell: the ▾ box beside mute and the pop-out it opens with the volume slider (Crawford,
+ * 2026-10-09: "Volume box beside mute" — mute stays one press). A Radix Popover: Escape and a press
+ * outside close it, and focus goes back to the box. No Popover.Portal, so the pop-out stays inside
+ * the header, inside ScreenViewport (the UI Shell guardrail). Its own component so the open state
+ * goes with it when the shell widens to the desk; narrowing again finds it shut.
  *
- * Navigation moved out entirely to NavTree (docs/specs/NAV_LAYOUT_REWRITE.md
- * Task 10) — Header keeps the power rocker (rendered by SleeveContainer,
- * unaffected), a master volume slider, the Mute toggle, and the status
- * readout row. The volume slider briefly relocated to Settings -> Volume
- * only (Task 11) and was moved back here (still also in
- * SettingsContent.tsx) per Crawford's own follow-up call — volume should
- * always be reachable alongside Mute, not gated behind a nav selection.
+ * The box pops while open, as a Toggle's does while on. The pop-out wears the header's static popped
+ * facade, as every panel does (spec §1.1).
+ */
+function VolumePopout({ disabled, children }: { disabled: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <button type="button" className="header__volume-trigger" aria-label={VOLUME_NAME} disabled={disabled}>
+          <CabinetBox popped={open ? true : CABINET_REST_POP} timelineKey="cabinet-header-volume-trigger">
+            <span className="header__volume-glyph" aria-hidden="true">
+              ▾
+            </span>
+          </CabinetBox>
+        </button>
+      </Popover.Trigger>
+      {/* End-aligned under the ▾ box, it grows left, away from the power corner beside it, and its
+          width (HEADER_VOLUME_WIDTH) keeps it inside the screen: at 320 px it spans 25–225 px, the
+          screen 16–304 and the corner from 233 (measured in Chrome). */}
+      <Popover.Content className="header__volume-popover" side="bottom" align="end" sideOffset={8} collisionPadding={8}>
+        <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-volume-popover-facade">
+          {children}
+        </CabinetBox>
+      </Popover.Content>
+    </Popover.Root>
+  );
+}
+
+/**
+ * The slim header (docs/specs/LAYOUT_REWORK.md §1.1; docs/tasks/LAYOUT_REWORK.md Task 6): one cabinet
+ * row beside the power corner, in its static popped facade. On the desk shell, mute and the master
+ * volume slider; on the phone shell, mute and the ▾ box that opens the slider in a pop-out. The slide
+ * that once moved the row out of the nav panel's way is gone: the phone's nav is a sheet below the top
+ * bar and the desk panel never reaches the header, so nothing here moves with the nav.
+ *
+ * The volume slider is also in Settings -> Volume (SettingsContent.tsx), the same audioStore value:
+ * volume stays reachable beside mute, never gated behind a nav selection (Crawford, after
+ * docs/specs/NAV_LAYOUT_REWRITE.md Task 11).
  */
 function Header() {
   const headerRef = useRef<HTMLElement>(null);
+  const shell = useShell();
 
   const isPoweredOn = useUIStore((s) => s.isPoweredOn);
 
   const isMuted = useAudioStore((s) => s.isMuted);
   const volume = useAudioStore((s) => s.volume);
 
-  const isNavPanelOpen = useUIStore((s) => s.isNavPanelOpen);
-  // In range: at least HEADER_NAV_CLEARANCE_MIN_WIDTH wide, but still below NavPanel's own dock
-  // breakpoint (NAV_PANEL_DOCK_MIN_WIDTH, useShell.ts) — once NavPanel is permanently
-  // docked, it no longer overlaps Header's own volume slider at all, so there's nothing to clear.
-  const isAtLeastClearanceWidth = useMatchesMediaQuery(`(min-width: ${HEADER_NAV_CLEARANCE_MIN_WIDTH}px)`);
-  const isNavPanelDocked = useMatchesMediaQuery(`(min-width: ${NAV_PANEL_DOCK_MIN_WIDTH}px)`);
-  const isAtLeastClearanceWideWidth = useMatchesMediaQuery(`(min-width: ${HEADER_NAV_CLEARANCE_WIDE_MIN_WIDTH}px)`);
-  const inNavClearanceRange = isAtLeastClearanceWidth && !isNavPanelDocked;
-  const shiftForNavPanel = inNavClearanceRange && isNavPanelOpen;
-  const clearanceVisibleWidth = isAtLeastClearanceWideWidth ? HEADER_NAV_CLEARANCE_VISIBLE_WIDTH_WIDE : HEADER_NAV_CLEARANCE_VISIBLE_WIDTH_NARROW;
-
-  const { contextSafe } = useGSAP({ dependencies: [] });
-
-  useEffect(() => () => killTimeline(NAV_CLEARANCE_TIMELINE_KEY), []);
-
-  const animateNavClearance = contextSafe((shift: boolean, visibleWidth: number) => {
-    // .sc-cabinet-box is CabinetBox's own DOM root (CabinetBox.tsx) — it renders no forwarded
-    // ref, so this reads it straight off the DOM the same way NavTree.tsx's own roving-tabindex
-    // focus effect already does (rootRef.current?.querySelector(...)), rather than adding ref
-    // plumbing to a component with many other unrelated consumers.
-    const el = headerRef.current?.querySelector<HTMLElement>('.sc-cabinet-box');
-    if (!el) return;
-    killTimeline(NAV_CLEARANCE_TIMELINE_KEY);
-    const prefersReducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const duration = prefersReducedMotion ? 0 : NAV_CLEARANCE_SLIDE_DURATION;
-    const tl = gsap.timeline();
-    // xPercent (relative to the box's OWN rendered width) combined with a fixed x nudge, GSAP's
-    // usual way to compose "100% of my own size, plus a fixed pixel offset" into one transform —
-    // this reads as "slide right by my own width, then back left by visibleWidth".
-    // .header__row--volume's own padding-right already reserves clearance up to the power rocker
-    // (calc(var(--power-corner-width) + var(--spacing-md)), Header.css) — the box's real right
-    // edge already sits flush against the rocker's left edge regardless of breakpoint/slider
-    // width, so this shift always leaves exactly visibleWidth px of the box's left edge (Mute)
-    // visible before the rocker, with no separate need to read --power-corner-width here directly.
-    tl.to(el, { xPercent: shift ? 100 : 0, x: shift ? -visibleWidth : 0, duration, ease: 'power2.out' });
-    setTimeline(NAV_CLEARANCE_TIMELINE_KEY, tl);
-  });
-
-  useEffect(() => {
-    animateNavClearance(shiftForNavPanel, clearanceVisibleWidth);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shiftForNavPanel, clearanceVisibleWidth]);
-
-  // Console.css's vertical deadzone clearance (margin-top) needs Header's
-  // real rendered height, which varies by breakpoint/content — no longer
-  // safely assumable from the old fixed --power-corner-height constant
-  // alone (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.6). Written to
-  // document.documentElement rather than a local ref/context, since Console
-  // is a sibling of Header (not a descendant) — a plain inline custom
-  // property on this element's own subtree wouldn't reach it.
+  // The content's header clearance (ContentPane.css) and the top bar's lower edge (Header.css's
+  // --top-bar-bottom, which the nav sheet reads) need Header's real rendered height
+  // (docs/specs/HEADER_HUB_CONSOLIDATION.md §1.6). Written to document.documentElement, since those
+  // are Header's siblings, not its descendants.
   useEffect(() => {
     if (!headerRef.current) return;
     const observer = new ResizeObserver((entries) => {
@@ -161,29 +131,25 @@ function Header() {
     useAudioStore.getState().setVolume(pct / 100);
   };
 
-  // .coordinates specifically, not the whole locale object (bugfix, found live — same class as
-  // SectorSettingsDrawer.tsx's own fix): coordinates is the only field this component ever reads
-  // off the locale, but selecting the whole object meant a fresh reference — and a re-render here,
-  // on Header, which is always mounted — on every unrelated robot write anywhere in the locale
-  // (audioSwells.ts's 16n ticks included), since updateRobot (localeStore.ts) rebuilds the locale
-  // object every time it changes `robots`. .coordinates itself keeps its own reference across
-  // those writes (updateRobot only ever spreads it through, untouched), so narrowing to it
-  // directly lets Header skip re-rendering for all of that ambient churn.
+  const volumeSlider = (
+    <SliderLinear schema={MASTER_VOLUME_SCHEMA} value={volume * 100} onChange={handleVolumeChange} disabled={!isPoweredOn} />
+  );
 
   return (
-    <header ref={headerRef} className="header" style={getTraitColorStyle('header')}>
+    <header ref={headerRef} className="header" style={HEADER_STYLE}>
       {/* Oblique Cabinetry facade — decorative only, matching
          DirectionalPanel's own top-level facade (permanently popped,
          non-animating: `popped` + `skipMountAnimation` + `autoHeight`, no
          value/state tie-in). See DirectionalPanel.tsx's own comment and
          docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */}
       <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-facade">
-        <div className="header__row header__row--volume">
+        <div className="header__row">
           <Toggle
             schema={MUTE_SCHEMA}
             value={isMuted}
             onChange={(v) => useAudioStore.getState().setMuted(v)}
             disabled={!isPoweredOn}
+            boxSize={CABINET_TOGGLE_BOX_SIZE}
           >
             {/* Single glyph, swapped on isMuted — unlike the old two-string
                text facade, both icons render at the same intrinsic width so
@@ -192,12 +158,7 @@ function Header() {
                above) already carries the accessible name. */}
             <span className="header__mute-icon" aria-hidden="true">{isMuted ? '🔇' : '🔊'}</span>
           </Toggle>
-          <SliderLinear
-            schema={MASTER_VOLUME_SCHEMA}
-            value={volume * 100}
-            onChange={handleVolumeChange}
-            disabled={!isPoweredOn}
-          />
+          {shell === 'desk' ? volumeSlider : <VolumePopout disabled={!isPoweredOn}>{volumeSlider}</VolumePopout>}
         </div>
       </CabinetBox>
     </header>

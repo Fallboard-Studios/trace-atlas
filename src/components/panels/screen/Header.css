@@ -1,42 +1,44 @@
 /* ----------------------------------------
-   Header root — responsive layout is a fixed set of hand-authored
-   breakpoints below (430/480/880/1220px), not a live ResizeObserver-driven
-   row merge (the original spec's useHeaderRowFit approach — removed as dead
-   code once this restyle superseded it; see
-   docs/tasks/HEADER_HUB_CONSOLIDATION.md's "Post-implementation follow-up").
-   Horizontal deadzone clearance (padding-left: var(--power-corner-width))
-   lives on .rocker-spacer in ScreenViewport.css, not here.
-
-   The old nav RadioButton row (.header__row--nav, docs/todo/backlog.md #1)
-   is gone — navigation moved to NavTree (docs/specs/NAV_LAYOUT_REWRITE.md
-   Task 10). Header now lays out just .header__row--volume/--status.
+   The slim header (docs/specs/LAYOUT_REWORK.md §1.1; docs/tasks/LAYOUT_REWORK.md Task 6): one cabinet
+   row beside the power corner. Desk: mute and the volume slider. Phone: mute and the ▾ box that opens
+   the slider in a pop-out. No media query: what differs by shell comes from useShell (Header.tsx),
+   the one switch (spec Assumption 1). The nav-clearance slide and its 40em / 64em tiers are gone.
    ---------------------------------------- */
+
+/* The top bar's offsets, declared on #screen-viewport beside NavPanel.css's and PhoneBar.css's so
+   the nav sheet and the content read them. --header-top is the header's sticky offset: 8 px below
+   the tablet's 12 px top strip, where the sketch's desk header sits (.hdr { top: calc(var(--st) +
+   8px) }). The top bar's lower edge is the header or the power corner beside it, whichever reaches
+   lower: measured in Chrome, the corner (126 px on the phone, 160 on the desk) outreaches the slim
+   header, and the nav sheet ran 9 px under it at 320 px. --header-height is Header's own measure
+   (Header.tsx); 0 until the first measure, when the corner holds the edge. */
+#screen-viewport {
+  --header-top: 20px;
+  --top-bar-bottom: max(calc(var(--header-top) + var(--header-height, 0px)), var(--power-corner-height));
+}
+
+/* Sticky at the top, right-anchored so the row sits beside the power corner. pointer-events: none so
+   the empty band left of the row still reaches the world; the row and the pop-out take them back. */
+/* --header-volume-width, the slider's one width (desk row and phone pop-out), is set inline by
+   Header.tsx from the cabinet tier tables: the shortest track at the largest tier, so no tier overflows
+   it, and the pop-out still fits left of the power corner at 320 px. */
 .header {
   --color-surface: rgba(26, 26, 26, 0.75);
   position: sticky;
-  top: 20px;
+  top: var(--header-top);
   width: auto;
   z-index: var(--z-header);
   display: flex;
   justify-content: flex-end;
-  padding-right: var(--rocker-column-width);
-  gap: var(--spacing-md);
   pointer-events: none;
-}
-
-@media screen and (min-width: 40em) {
-  .header {
-    top: 32px;
-  }
 }
 
 /* Oblique Cabinetry facade — decorative only (CabinetBox.tsx's `popped` +
    `skipMountAnimation` + `autoHeight`, wired in Header.tsx), same pattern
    DirectionalPanel.css uses for its own top-level facade. No width:100%
    override here (unlike .sc-directional-panel-facade>.sc-cabinet-box) —
-   .header itself is already auto/content-width (sticky, right-anchored via
-   justify-content: flex-end above), so the facade should hug the row's own
-   content width, not stretch to fill .header's cross axis. */
+   .header itself is right-anchored (justify-content: flex-end above), so the
+   facade hugs the row's own content width. */
 .header>.sc-cabinet-box>.sc-cabinet-box__front {
   display: block;
   width: auto;
@@ -44,18 +46,13 @@
   padding: 0;
 }
 
-/* Row-direction flex (≥48em, below): the master volume slider claims the
-   rest of the row via flex-grow (below), the Mute toggle sits after it at
-   its own content-sized width (icon facade — see .header__mute-icon below).
-   Volume moved back here alongside Settings -> Volume's own copy (Crawford's
-   follow-up call after docs/specs/NAV_LAYOUT_REWRITE.md Task 11) — always
-   reachable next to Mute, not gated behind a nav selection. */
-.header__row--volume {
-  --mute-width: 60px;
+/* One row that never wraps. The right padding keeps the power corner clear, so the row ends where
+   the corner begins. On the phone it holds two 44 px boxes and a gap — 96 px of controls beside the
+   corner's reserve, inside 320 px. */
+.header__row {
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: center;
   flex-wrap: nowrap;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) calc(var(--power-corner-width) + var(--spacing-md)) var(--spacing-sm) var(--spacing-md);
@@ -63,49 +60,22 @@
   pointer-events: all;
 }
 
-/* SliderLinear's own self-fit assumes an externally-determined, non-content-
-sized wrapper (same reasoning audio-rig-drawer__param-row/signature-array-
-   drawer__param's column-flex stretch relies on) — flex-grow is this row's
-   own way of giving it that, now that it shares the row with Mute instead of
-   being the row's sole child. min-width: 0 lets it actually shrink below its
-   own natural content width when the row is tight, standard flex-item fix
-   for a child that would otherwise refuse to shrink past its content size.
-
-   align-self: stretch is the part actually fixing the "doesn't shrink to 3
-   boxes on a fast resize down to ~320px" bug: below 480px .header__row--volume
-   is column-direction with align-items: center (above), and align-items only
-   stretches a flex item's CROSS axis — which in a column container is WIDTH.
-   Un-stretched, this wrapper's width falls back to its own fit-content size,
-   which is a direct function of however many boxes SliderLinear last
-   rendered — exactly the "measuring my own consequence" circularity
-   useVoxelTrackBoxCount.ts's own doc comment says the horizontal
-   self-observation case must never be under (it explicitly assumes "a plain
-   block box [that] fills whatever its containing block gives it, regardless
-   of its own children's size"). A slow drag masks this because every
-   intermediate frame's ResizeObserver callback nudges the box count down by
-   roughly one step at a time, each new (still content-derived, but now
-   slightly smaller) width narrowly staying ahead of the shrinking viewport;
-   a single fast resize/snap skips straight to the final width with no
-   intermediate frames to ratchet down through, so the wrapper is left
-   holding its old, much-too-wide fit-content size and never re-measures
-   smaller. Restored to the default (align-self: auto) at ≥480px below, where
-   the row becomes flex-direction: row and flex-grow/shrink (not align-items)
-   already correctly governs this same axis without the fix's help. */
-.header__row--volume .sc-slider-linear {
-  --slider-width: 130px;
-  flex: 1 1 auto;
-  min-width: var(--slider-width);
-  width: fit-content;
-  max-width: var(--slider-width);
-  align-self: stretch;
+/* Toggle.css's .sc-toggle is width: 100% and an inline-size container, written for a toggle in its own
+   labelled row; in this flex row it is just its 44 px box (TempoSyncToggle.css's override). */
+.header__row > .sc-toggle {
+  flex: 0 0 auto;
+  width: auto;
+  container-type: normal;
 }
 
-.header__row--volume .sc-toggle {
-  min-width: var(--mute-width);
-  width: var(--mute-width);
+/* SliderLinear self-fits its box count to a width it is given, never one it derives from its own
+   content (useVoxelTrackBoxCount.ts), so it gets a fixed width: no flex, no min-width. */
+.header__row .sc-slider-linear {
+  flex: 0 0 auto;
+  width: var(--header-volume-width);
 }
 
-.header__row--volume .sc-dual-label__lore {
+.header .sc-slider-linear .sc-dual-label__lore {
   display: none;
 }
 
@@ -116,83 +86,59 @@ sized wrapper (same reasoning audio-rig-drawer__param-row/signature-array-
   line-height: 1;
 }
 
-@media screen and (min-width: 40em) {
-  .header__row--volume {
-    gap: var(--spacing-lg);
-  }
-}
+/* ---------- Phone: the volume box and its pop-out ---------- */
 
-@media screen and (min-width: 400px) {
-  .header__row--volume .sc-slider-linear {
-    --slider-width: 136px;
-  }
-}
-
-@media screen and (min-width: 440px) {
-  .header__row--volume .sc-slider-linear {
-    --slider-width: 178px;
-  }
-}
-
-@media screen and (min-width: 480px) {
-  .header__row--volume .sc-slider-linear {
-    --slider-width: 220px;
-  }
-}
-
-@media screen and (min-width: 40em) {
-  .header__row--volume {
-    padding: var(--spacing-sm) calc(var(--power-corner-width) + var(--spacing-md)) var(--spacing-sm) var(--spacing-lg);
-    gap: var(--spacing-xl);
-  }
-
-  .header__row--volume .sc-slider-linear {
-    --slider-width: 164px;
-  }
-}
-
-@media screen and (min-width: 840px) {
-  .header__row--volume .sc-slider-linear {
-    --slider-width: 220px;
-  }
-}
-
-@media screen and (min-width: 900px) {
-  .header__row--volume .sc-slider-linear {
-    --slider-width: 264px;
-  }
-}
-
-@media screen and (min-width: 64em) {
-  .header__row--volume .sc-slider-linear {
-    --slider-width: 316px;
-  }
-}
-
-/* ----------------------------------------
-   Row 2 — time + temperature
-   ---------------------------------------- */
-.header .header__row--status {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-label);
+/* The ▾ box beside mute: a fixed touch target, its button the whole hit area (Button.css's split). */
+.header__volume-trigger {
+  flex: 0 0 auto;
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--color-text-primary-fixed);
-  letter-spacing: 0.05em;
-  flex-direction: column;
-  flex-wrap: wrap;
-  width: auto;
+  cursor: pointer;
+  user-select: none;
 }
 
-.header .header__status__row {
+.header__volume-trigger:disabled {
+  cursor: default;
+}
+
+.header__volume-trigger:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The same square as mute's (Toggle.css's fixed-square face at CABINET_TOGGLE_BOX_SIZE). */
+.header__volume-trigger .sc-cabinet-box__front {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
-  gap: var(--spacing-sm);
-  flex-wrap: wrap;
+  width: var(--touch-target-size);
+  height: var(--touch-target-size);
+  padding: 0;
+  font-size: var(--font-size-heading-md);
+  line-height: 1;
 }
 
-@media screen and (min-width: 64em) {
-  .header .header__status__row {
-    flex-direction: row;
-    justify-content: flex-start;
-  }
+/* Open reads as on: the accent fill a checked Toggle gets (Toggle.css). */
+.header__volume-trigger[data-state='open'] .sc-cabinet-box__front {
+  background: var(--color-accent-gradient);
+}
+
+/* Inside the header, so it takes the header's accent and pointer events back from it. */
+.header__volume-popover {
+  z-index: var(--z-popover);
+  pointer-events: auto;
+}
+
+.header__volume-popover > .sc-cabinet-box > .sc-cabinet-box__front {
+  display: block;
+  height: auto;
+  padding: var(--spacing-sm);
+  background-color: var(--color-bg);
+}
+
+.header__volume-popover .sc-slider-linear {
+  width: var(--header-volume-width);
 }

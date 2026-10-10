@@ -613,10 +613,13 @@ describe('NavPanel.css — the phone sheet', () => {
     }
   });
 
+  // Task 6: the top bar's lower edge is Header.css's --top-bar-bottom — the header or the power corner,
+  // whichever reaches lower. Task 5's own header clearance tucked the sheet 4–16 px over the header and
+  // 9 px under the power corner (measured in Chrome).
   it('the sheet and the scrim share one top edge: the top bar', () => {
     const top = (selector: string) => getCssRuleBody(css, selector)?.match(/(^|\s)top: ([^;]+);/)?.[2];
-    expect(top('.nav-sheet')).toBeTruthy();
-    expect(top('.nav-sheet')).toBe(top('.nav-sheet__scrim'));
+    expect(top('.nav-sheet')).toBe('var(--top-bar-bottom)');
+    expect(top('.nav-sheet__scrim')).toBe('var(--top-bar-bottom)');
   });
 
   it('inside the sheet the panel fills it instead of sizing itself from --nav-panel-width', () => {

@@ -399,16 +399,15 @@ attribute.
   close", without the sketch's "menu open — ", which the open sheet and the ✕ already say. Measured
   in Chrome, it fits the well whole at 320 px (202 / 202) and at 375 px (257 / 257).
 - At 320 px the sheet covers the whole screen, so "outside" is the header or the bar.
-- The sheet's top (`--nav-sheet-top`, the home card's header clearance) sits over the header's lower
-  edge: 4 px below 640 px, 16 px at 640–767, because the header's sticky offset is 20 / 32 px by
-  media query. Task 6 reshapes the top bar and should give the sheet and the content one top-bar
-  value.
+- ~~The sheet's top (`--nav-sheet-top`, the home card's header clearance) sits over the header's
+  lower edge: 4 px below 640 px, 16 px at 640–767.~~ Fixed in Task 6: the sheet and the scrim start
+  at Header.css's `--top-bar-bottom`.
 
 **Interim, until later tasks:**
 - The phone breadcrumb (`bottom: var(--spacing-2xl)`) now sits under the bar, until Task 8 moves it
   into the well.
-- The header's nav-clearance slide still fires on `isNavPanelOpen` from 400 to 767 px. It slides the
-  volume slider under the power corner while the sheet is open, until Task 6 deletes it.
+- ~~The header's nav-clearance slide still fires on `isNavPanelOpen` from 400 to 767 px.~~ Deleted
+  in Task 6.
 - `NavToggleButton` is no longer rendered; its files go in Task 9.
 - `AWAITING_CONSUMER` is empty.
 
@@ -441,6 +440,75 @@ opens from the mute box in a Radix `Popover`. The header keeps its static popped
 **Files:** `src/components/panels/screen/Header.tsx`, `Header.css`, `Header.test.tsx`
 
 **Estimated scope:** S (one component, mostly removal)
+
+**As built (2026-10-09):**
+
+**Crawford's call, "Volume box beside mute."** The plan's "the mute box's volume affordance" did not
+say how one box both mutes and opens volume, and the sketch draws one 🔊 box. Crawford was asked and
+picked a ▾ box beside mute. Mute stays one press; the ▾ box opens the pop-out. It is a Radix
+`Popover`: a press outside, Escape or a second press closes it, and focus goes back to the box. It
+has no `Portal`, so it renders inside the header (a test pins this).
+
+The ▾ box is a native button over a `CabinetBox`. It pops while open and fills with the accent, as
+a checked Toggle does, and is disabled while powered off. Mute now passes
+`boxSize={CABINET_TOGGLE_BOX_SIZE}`, so the two are matching 44 px squares. The pop-out lives in
+its own `VolumePopout` component, so its open state goes with it when the shell widens; narrowing
+again finds it shut.
+
+**Removed:**
+- The nav-clearance slide, its `header-cabinet-nav-clearance` timeline, and the `HEADER_NAV_CLEARANCE_*`
+  constants and `useMatchesMediaQuery`.
+- Every `@media` in Header.css, including the slider-width tiers.
+- The dead status-row rules (`.header__row--status`, unrendered since the readout left the header),
+  and their guard in `remainingOneOffLiterals.test.ts`.
+- The undefined `--rocker-column-width`.
+- A stale `.coordinates` comment.
+
+Header.test.tsx's 15 behaviour tests pass unchanged. Their `describe` now pins the desk shell in
+setup: jsdom has no `matchMedia`, so it would otherwise be the phone shell, where the slider sits in
+the pop-out. The old nav-clearance block went with the slide. The file stubs `CabinetBox` to expose
+`popped`, as `NavPanel.test.tsx` does.
+
+**The top bar's lower edge, Task 5's gap.** Header.css declares `--header-top: 20px` (one sticky
+offset, 8 px below the 12 px top strip, as the sketch's desk header) and
+`--top-bar-bottom: max(calc(var(--header-top) + var(--header-height, 0px)), var(--power-corner-height))`
+on `#screen-viewport`. The power corner is part of the top bar and reaches lower than the slim header
+(126 px on the phone, 160 on the desk). Task 5's sheet had run 9 px under it at 320 px. The nav sheet
+and its scrim now start there: 142 px at 320 / 375 px, 176 at 700, with no overlap. `NavPanel.css`
+loses `--nav-sheet-top`. Task 7's content can read the same value.
+
+**Found in Chrome:**
+- **The slider's width comes from the cabinet tables.** A fixed 176 px overflowed the desk header by
+  8 px, into the power corner. Voxel boxes follow the cabinet tier (32 / 40 / 48 px) and a track never
+  draws fewer than three, so its shortest track is 128 / 156 / 184 px. Header.tsx sets
+  `--header-volume-width` inline from `CABINET_BOX_HEIGHT` / `CABINET_VOXEL_GAP` /
+  `VOXEL_TRACK_MIN_BOX_COUNT`: 184 px, three boxes on the desk. A test checks that every tier fits.
+  The desk slider was 164–316 px by breakpoint before.
+- **The pop-out's fit at 320 px.** A 244 px pop-out was pushed to x = 8, outside the screen, which
+  starts at 16 and clips. It also ran under the power corner. At 184 + 16 px, end-aligned under the
+  ▾ box, it spans 25–225 px: inside the screen and left of the corner (233). I added a
+  `collisionBoundary` on the screen, but at that width it never changes the placement (measured the
+  same without it), so it survived its mutant and was deleted.
+
+**Measured:**
+
+| Width | Header | Row | Pop-out | Overflow |
+|---|---|---|---|---|
+| 320 px | 36–96 | mute 129–173, ▾ 181–225 | 25–225 | none |
+| 375 px | 36–96 | mute 184–228, ▾ 236–280 | 80–280 | none |
+| 700 px | 36–96 | mute 490–534, ▾ 542–586 | 386–586 | none |
+| 1280 px | 36–153 | mute 930–974, slider 982–1166 | — | none |
+
+The power corner starts at 233 / 288 / 594 / 1174 px.
+
+**Mutation check:** 19 mutants, all killed. Two more survived at first:
+- "the ▾ box never pops" was invisible with the real `CabinetBox` under mocked gsap, so it is now
+  asserted through the stub.
+- The `collisionBoundary` was deleted (see above).
+
+**For later tasks:** `ContentPane.css`'s header clearance (`--header-height` + `--spacing-lg`) is
+untouched; Task 7 can move it to `--top-bar-bottom`. `NavTreeNode.css` still names
+`.header__row--volume` in a comment; it goes in Task 9.
 
 ## Task 7: `ContentPane` — the opaque content surface over the dimmed world
 
