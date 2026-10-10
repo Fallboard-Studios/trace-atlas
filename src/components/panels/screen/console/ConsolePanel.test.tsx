@@ -17,12 +17,11 @@ vi.mock('../nav/content/ProbesContent', () => ({
 vi.mock('../screens/FleetParamsScreen', () => ({
   FleetParamsScreen: () => <div data-testid="fleet-params-screen-stub" />,
 }));
-// SettingsContent has its own full test suite (SettingsContent.test.tsx,
-// docs/tasks/NAV_LAYOUT_REWRITE.md Task 11) — this file is about ConsolePanel's own tile
+// SettingsScreen has its own full test suite (SettingsScreen.test.tsx,
+// docs/tasks/LAYOUT_REWORK.md Task 17) — this file is about ConsolePanel's own tile
 // switch, not re-testing its content.
-vi.mock('../nav/content/SettingsContent', () => ({
-  SettingsContent: () => <div data-testid="settings-content-stub" />,
-  default: () => <div data-testid="settings-content-stub" />,
+vi.mock('../screens/SettingsScreen', () => ({
+  SettingsScreen: () => <div data-testid="settings-screen-stub" />,
 }));
 // CompaniesContent has its own full test suite (CompaniesContent.test.tsx,
 // docs/tasks/NAV_LAYOUT_REWRITE.md Task 20) — this file is about ConsolePanel's own tile
@@ -74,10 +73,10 @@ describe('ConsolePanel', () => {
     expect(screen.getByTestId('fleet-params-screen-stub')).toBeTruthy();
   });
 
-  it('renders SettingsContent when settings is active', () => {
+  it('renders SettingsScreen when settings is active', () => {
     useUIStore.getState().setActiveHubTile('settings');
     render(<ConsolePanel />);
-    expect(screen.getByTestId('settings-content-stub')).toBeTruthy();
+    expect(screen.getByTestId('settings-screen-stub')).toBeTruthy();
   });
 
   it('renders CompaniesContent when companies is active', () => {

@@ -113,12 +113,25 @@ export const FLEET_PARAMS_GROUP_CONTENT: Record<FleetParamsGroup, ContentKey> = 
   output: 'fleet.output',
 };
 
-/** The same keys SettingsContent.tsx's own table carries until Task 17 replaces that screen. */
+/** Settings' three tabs in the sketch's order (Task 17). The screen and the breadcrumb both read this
+ *  and the names below, so they name the same tab; it is the one order there is. */
+export const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['quality', 'sectorSettings', 'sessions'];
+
+/** Each Settings tab's concept: its title on the tab and in the breadcrumb. */
 export const SETTINGS_LEAF_CONTENT: Record<SettingsLeaf, ContentKey> = {
   quality: 'settings.quality',
   sectorSettings: 'settings.seeds',
   sessions: 'settings.sessions',
 };
+
+/** The tab Settings opens on, and every nav pick returns to (cleanSlate stores null). */
+export const DEFAULT_SETTINGS_LEAF: SettingsLeaf = SETTINGS_LEAVES[0];
+
+/** The open Settings tab: the stored one when it is a tab, else Audio Quality — the tab SectionTabs
+ *  falls back to, so the breadcrumb never names a tab the screen is not showing. */
+export function activeSettingsLeaf(stored: SettingsLeaf | null): SettingsLeaf {
+  return SETTINGS_LEAVES.find((leaf) => leaf === stored) ?? DEFAULT_SETTINGS_LEAF;
+}
 
 function cleanSlate(): void {
   const s = useUIStore.getState();
@@ -128,8 +141,7 @@ function cleanSlate(): void {
   s.setAllProbesSelected(false);
   s.setSelectedFleetParamsEffect(null);
   s.setFleetParamsSection(DEFAULT_FLEET_PARAMS_SECTION); // also clears the sub-tab
-  s.setSelectedSettingsLeaf(null);
-  s.setSelectedSettingsSubsection(null);
+  s.setSelectedSettingsLeaf(null); // Settings back on its first tab (Task 17)
 }
 
 /** Opens a branch's tile with its entity list expanded in place (Probes / Companies) or collapsed. */
@@ -282,7 +294,8 @@ export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): Brea
     return trail;
   }
   if (tile === 'settings') {
-    if (state.selectedSettingsLeaf !== null) trail.push({ label: name(SETTINGS_LEAF_CONTENT[state.selectedSettingsLeaf]) });
+    // Always a tab open (Task 17): Audio Quality when none is stored.
+    trail.push({ label: name(SETTINGS_LEAF_CONTENT[activeSettingsLeaf(state.selectedSettingsLeaf)]) });
     return trail;
   }
 

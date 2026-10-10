@@ -1731,6 +1731,112 @@ At 800 px the rows already stack (the tablet tier). No document overflow and no 
 
 **Estimated scope:** S (one screen, one deletion)
 
+**As built (2026-10-10):**
+
+**One table, two readers.** navActions gains:
+- `SETTINGS_LEAVES`, the tab order;
+- `DEFAULT_SETTINGS_LEAF` (`'quality'`, the first);
+- `activeSettingsLeaf(stored)`: the stored leaf if it is a tab, else Audio Quality.
+
+The check matters because SectionTabs falls back to its first item for a value it doesn't know, so
+the breadcrumb must not name a tab the screen isn't showing. The screen and the breadcrumb both read
+these, as Task 15's Fleet Params pair do. There is now one leaf order in `src/`. useNavTree's copy
+went in Task 9 and SettingsContent's now, which settles DUPLICATE_VALUE_AUDIT item 6 by
+construction. The audit doc is not checked off here; its rule is "once merged".
+
+**The breadcrumb always names the open tab:** `Root / Settings / Audio Quality` when nothing is stored.
+The bare `Root / Settings` is gone. Users see no change, because the old screen's scrollspy wrote
+`selectedSettingsLeaf` on mount (Task 8's note). `cleanSlate` still stores null, so every nav pick
+lands Settings on Audio Quality, the same call as Task 15's for Fleet Params. Task 3's "names the
+branch alone" breadcrumb test lost its Settings line. A new test pins the default instead.
+
+**Store.** `selectedSettingsSubsection`, its setter and the `SettingsSubsection` type are gone. Their
+only readers were SettingsContent's scrollspy and `cleanSlate`, plus the navActions test fixtures.
+
+**The screen** (`screens/SettingsScreen.tsx`):
+- one `settings.root` intro, collapsed, as Fleet Params' is;
+- `SectionTabs` (tablist "Settings") over the three leaves, every trigger in the seed trait (the
+  Settings nav box's);
+- the open panel in a seed-trait wrapper, the colour the old accordions gave it;
+- the panels themselves unchanged.
+
+The screen subscribes to `selectedSettingsLeaf` alone. A Profiler test shows the lighting tick
+(`activeLocaleLocalTime`, about once a second) and a Fleet Params tab change do not re-render it.
+
+**The limits readout is a well:**
+- `AudioLoadPanel.css` gives it the shared well tokens, the accent edge and glow, fixed white mono
+  text;
+- `align-self: flex-start`, found in Chrome: on the desk the preset row stretched it to the radio's
+  height, a 94 px well with one line at the top (it was invisible as plain text);
+- now 32 px tall at the top of its cell, content-width and left-aligned under the radio on the phone
+  (the sketch's `.limits`);
+- a DOM test checks that its nearest cabinet is the Audio Load panel's own facade (panels keep it,
+  spec §1.1) and that it is no cabinet of its own.
+
+The CSS test lives in the screen's file, so AudioLoadPanel's tests stay unmodified.
+
+**Tests:**
+- `SettingsScreen.test.tsx` (37), with the three panels stubbed.
+- `SettingsScreen.panels.test.tsx` (5), with the real panels in their tabs. It replaces the chain
+  `SettingsSubsections.integration.test.tsx` exercised and adds SessionsPanel. A limit edit survives
+  a trip to another tab.
+- uiStore +2 (the third leaf, the retired field).
+- navActions: fixtures lose the subsection, plus 12 new cases.
+- ConsolePanel's mock moved to the screen.
+
+`AudioLoadPanel`, `SectorSettingsDrawer` and `SessionsPanel`'s own test files are untouched.
+
+**Removed:** SettingsContent's three files and `SettingsSubsections.integration.test.tsx`. Grep gate:
+the only importers and readers were those files and ConsolePanel.tsx. The gate is a test in the
+screen's file, which also checks that no non-test file names `SettingsSubsection`. One comment
+changed: `AudioLoadPanel.tsx`'s docblock named SettingsContent as its renderer and now names the
+screen. Comments naming it as history were left, as Task 9 did (`Header.tsx` / `.test.tsx`,
+`AudioRigDrawer.test.tsx`, `intersectionObserverStub.ts`, `content/copy/settings.ts`).
+
+**Measured in Chrome**, every tab at 1280, 1024, 700, 375 and 320 px, no console errors:
+
+| Width | Tab row (scroll / client) | Readout | Document overflow |
+|---|---|---|---|
+| 1280 | 1035 / 1035 | 686–1198 × 428–460 | none |
+| 1024 | 779 / 779 | 558–942 × 428–460 | none |
+| 700 | 628 / 628 | 50–289 × 522–554 | none |
+| 375 | 303 / 303 (304 on Save & Share) | 50–289 × 488–520 | none |
+| 320 | 302 / 248 | 50–270 × 488–538 (two lines) | none |
+
+At 320 px the tab row scrolls sideways and "Save & Share" is half hidden until scrolled. That is
+SectionTabs' designed behaviour (Task 11); the sketch's tighter phone tabs are left for the phone
+pass. At 375 px the row scrolls 1 px while Save & Share is open: the popped last tab's front face
+(Task 11: it moves 4 px right) overhangs the row by a pixel. The crumb reads
+`Root / Settings / <tab>` on every tab, in the well on the desk and in the bar on the phone.
+
+**For Crawford:**
+- **The leaves' own intros now render nowhere** (`settings.quality` / `.seeds` / `.sessions`), as
+  with Task 15's group intros (spec §1.3: one intro per screen). The copy stays in `src/content`.
+  Audio Quality's intro was the one place that said to lower the limits if the app stutters. Its two
+  sliders' help "?"s now say the same.
+- **Inert until Task 18:** `AudioLoadPanel` and `SectorSettingsDrawer` still register `setSectionRef`
+  anchors that nothing reads now.
+
+**Verified:**
+- Full suite: 315 files / 8730 tests.
+- `build:types` clean; lint at the known 25 / 4; `npm run build` clean.
+- The first full run had one failure: `sceneToOrbiterLocal` hit its 5 s timeout. A vite server was
+  running at the time (the known load timeout); this task doesn't touch that test, and the second
+  full run passed.
+
+**Mutation check:** 31, all killed.
+- **The screen:** every panel mounted; two panels swapped; a whole-store or clock subscription; the
+  intro open, dropped, or joined by a leaf intro; the wrong trait on tabs or panel; a pick that writes
+  nothing; a wrong tablist name; a hard-coded order.
+- **navActions:** the order swapped; Seeds misnamed; the wrong default; an unchecked stored value; the
+  old "only when stored" crumb; the leaf as a link; `cleanSlate` keeping the tab.
+- **The readout CSS:** no background; an outward glow; a drop-shadow filter; no edge; muted text; no
+  `align-self` (the RED step).
+- **ConsolePanel's route.**
+- **uiStore:** the field or the type back.
+- **The deletion gate:** a test mocking the deleted module; the stylesheet and the integration test
+  restored.
+
 ## Task 18: Retire the stacked scroll
 
 **Description:** Delete `useAccordionOpenState.ts`, `useSectionObserver.ts`, `src/utils/accordionSync.ts`,

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ProbesContent } from '../nav/content/ProbesContent';
 import { FleetParamsScreen } from '../screens/FleetParamsScreen';
-import { SettingsContent } from '../nav/content/SettingsContent';
+import { SettingsScreen } from '../screens/SettingsScreen';
 import { CompaniesContent } from '../nav/content/CompaniesContent';
 import type { HubTile } from '@/types/hub';
 import { useUIStore } from '@/stores/uiStore';
@@ -20,7 +20,7 @@ import './ConsolePanel.css';
 const TILE_CONTENT: Record<HubTile, () => ReactNode> = {
   robots: () => <ProbesContent />,
   audioRig: () => <FleetParamsScreen />,
-  settings: () => <SettingsContent />,
+  settings: () => <SettingsScreen />,
   companies: () => <CompaniesContent />,
 };
 

@@ -11,11 +11,15 @@ import {
   branchContent,
   FLEET_PARAMS_SUBSECTIONS,
   activeFleetParamsSubsection,
+  SETTINGS_LEAVES,
+  SETTINGS_LEAF_CONTENT,
+  DEFAULT_SETTINGS_LEAF,
+  activeSettingsLeaf,
   type NavBranch,
   type BreadcrumbState,
   type NavRoster,
 } from './navActions';
-import { useUIStore, DEFAULT_FLEET_PARAMS_SECTION, type UIStore, type FleetParamsGroup } from '@/stores/uiStore';
+import { useUIStore, DEFAULT_FLEET_PARAMS_SECTION, type UIStore, type FleetParamsGroup, type SettingsLeaf } from '@/stores/uiStore';
 import { AUDIO_RIG_CONFIG, type AudioRigEffectKey } from '@/data/audioRigConfig';
 import { LFO_BANK_LANE_CONTENT } from '@/data/lfoConfig';
 import { CONTENT, labels } from '@/content';
@@ -37,7 +41,6 @@ function dirtyStore(overrides: Partial<UIStore> = {}) {
     fleetParamsSection: 'output',
     fleetParamsSubsection: 'limiter',
     selectedSettingsLeaf: 'sessions',
-    selectedSettingsSubsection: 'coordinates',
     ...overrides,
   });
 }
@@ -59,8 +62,8 @@ function expectNoEntityAndNoSection() {
     // Fleet Params' tab is a section field too: every pick lands on its default (Task 15).
     fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
     fleetParamsSubsection: null,
+    // Settings' tab too: null reads as its first, Audio Quality (Task 17).
     selectedSettingsLeaf: null,
-    selectedSettingsSubsection: null,
   });
   expectCompanyInvariant();
 }
@@ -452,8 +455,7 @@ describe('breadcrumbPath', () => {
     expect(path({ activeHubTile: 'audioRig', fleetParamsSubsection: 'laneB' })).toEqual([ROOT, FLEET, CONTENT['fleet.lfoBank'].human, CONTENT['fleet.lfoBank.laneB'].human]);
   });
 
-  it('names the branch alone when no section is selected', () => {
-    expect(path({ activeHubTile: 'settings' })).toEqual([ROOT, SETTINGS]);
+  it('names the branch alone when no entity is selected', () => {
     expect(path({ activeHubTile: 'robots' })).toEqual([ROOT, PROBES]);
     expect(path({ activeHubTile: 'companies' })).toEqual([ROOT, COMPANIES]);
   });
@@ -476,6 +478,18 @@ describe('breadcrumbPath', () => {
   it('a Settings leaf names its own concept (sectorSettings reads settings.seeds)', () => {
     expect(path({ activeHubTile: 'settings', selectedSettingsLeaf: 'sectorSettings' })).toEqual([ROOT, SETTINGS, CONTENT['settings.seeds'].human]);
     expect(path({ activeHubTile: 'settings', selectedSettingsLeaf: 'quality' })).toEqual([ROOT, SETTINGS, CONTENT['settings.quality'].human]);
+    expect(path({ activeHubTile: 'settings', selectedSettingsLeaf: 'sessions' })).toEqual([ROOT, SETTINGS, CONTENT['settings.sessions'].human]);
+  });
+
+  // Task 17: Settings is tabs, so one is always open — Audio Quality when none is stored, the tab the
+  // screen shows. (The old stacked screen's scrollspy wrote it on mount, so the crumb read the same.)
+  it('reads Root / Settings / Audio Quality with no leaf stored', () => {
+    expect(path({ activeHubTile: 'settings' })).toEqual([ROOT, SETTINGS, CONTENT['settings.quality'].human]);
+  });
+
+  it('a leaf stored for Settings never shows on another branch', () => {
+    expect(path({ activeHubTile: 'audioRig', fleetParamsSection: 'pacing', selectedSettingsLeaf: 'sessions' })).toEqual([ROOT, FLEET, CONTENT['fleet.pacing'].human]);
+    expect(path({ activeHubTile: 'robots', selectedSettingsLeaf: 'sessions' })).toEqual([ROOT, PROBES]);
   });
 
   // Task 16: the robot screen is tabs, so a robot always has one open — Source when none is stored.
@@ -695,5 +709,54 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     ['pacing', 'laneB', null],
   ])('on %s with %s stored, the open sub-tab is %s', (section, stored, expected) => {
     expect(activeFleetParamsSubsection(section, stored)).toBe(expected);
+  });
+});
+
+// docs/tasks/LAYOUT_REWORK.md Task 17: the Settings screen's three tabs, read by the screen and the
+// breadcrumb alike, so the two always name the same tab.
+describe('SETTINGS_LEAVES and activeSettingsLeaf', () => {
+  it('lists the three leaves in the sketch\'s order, each once', () => {
+    expect(SETTINGS_LEAVES).toEqual(['quality', 'sectorSettings', 'sessions']);
+  });
+
+  it('names every leaf it lists, and lists every leaf it names', () => {
+    expect(Object.keys(SETTINGS_LEAF_CONTENT).sort()).toEqual([...SETTINGS_LEAVES].sort());
+    expect(SETTINGS_LEAVES.map((leaf) => SETTINGS_LEAF_CONTENT[leaf])).toEqual(['settings.quality', 'settings.seeds', 'settings.sessions']);
+  });
+
+  it('opens on Audio Quality, the first tab', () => {
+    expect(DEFAULT_SETTINGS_LEAF).toBe('quality');
+    expect(DEFAULT_SETTINGS_LEAF).toBe(SETTINGS_LEAVES[0]);
+  });
+
+  it.each<[BreadcrumbState['selectedSettingsLeaf'], string]>([
+    [null, 'quality'],
+    ['quality', 'quality'],
+    ['sectorSettings', 'sectorSettings'],
+    ['sessions', 'sessions'],
+    // Not a tab (a value from before the store type changed): the first, as SectionTabs falls back.
+    ['robotLoad' as SettingsLeaf, 'quality'],
+  ])('with %s stored, the open tab is %s', (stored, expected) => {
+    expect(activeSettingsLeaf(stored)).toBe(expected);
+  });
+
+  it('a stored value that is not a tab reads as Audio Quality in the breadcrumb too, as the screen shows', () => {
+    const state: BreadcrumbState = {
+      activeHubTile: 'settings',
+      selectedRobotId: null,
+      selectedCompanyId: null,
+      allProbesSelected: false,
+      selectedSection: null,
+      fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
+      fleetParamsSubsection: null,
+      selectedSettingsLeaf: 'coordinates' as SettingsLeaf,
+    };
+    expect(breadcrumbPath(state, { robots: [], companies: [] })).toEqual([CONTENT['nav.root'].human, CONTENT['settings.root'].human, CONTENT['settings.quality'].human]);
+  });
+
+  it('every nav pick lands Settings back on its first tab', () => {
+    useUIStore.setState({ activeHubTile: 'settings', selectedSettingsLeaf: 'sessions' });
+    selectBranch('settings');
+    expect(activeSettingsLeaf(ui().selectedSettingsLeaf)).toBe('quality');
   });
 });

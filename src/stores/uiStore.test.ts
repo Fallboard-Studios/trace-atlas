@@ -294,6 +294,20 @@ describe('uiStore — selectedSettingsLeaf (which Settings child is open, docs/t
     expect(useUIStore.getState().selectedSection).toBe('melody');
     expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
   });
+
+  it('accepts the third leaf, Save & Share', () => {
+    useUIStore.getState().setSelectedSettingsLeaf('sessions');
+    expect(useUIStore.getState().selectedSettingsLeaf).toBe('sessions');
+  });
+
+  // docs/tasks/LAYOUT_REWORK.md Task 17 (spec §1.10): the leaf is the Settings tab; the subsection below
+  // it was the tree's third level, read by nothing once the stacked screen's scrollspy is gone.
+  it('has no Settings subsection: the field and its setter are retired', () => {
+    const state = useUIStore.getState() as unknown as Record<string, unknown>;
+    expect('selectedSettingsSubsection' in state).toBe(false);
+    expect('setSelectedSettingsSubsection' in state).toBe(false);
+    expect('selectedSettingsSubsection' in useUIStore.getInitialState()).toBe(false);
+  });
 });
 
 describe('uiStore — selectedFleetParamsEffect (which effect leaf is open, docs/tasks/NAV_LAYOUT_REWRITE.md Task 14)', () => {
