@@ -252,8 +252,17 @@ no hardware keys, build on the existing components.
   `applySessionPayload(loadSession(name))` (save) with no `AudioEngine` call. `initializeLocale` and
   `retransmitWorld` must therefore run with the audio context absent — Assumption 5; the plan verifies
   `spawnSystem`'s registration guards before sub-phase 4 starts.
+- **`initializeLocale` is split in two** (found at plan time, 2026-10-09): today it builds the world
+  (`placeDistrict`, `spawnInitialRoster`, `spawnInitialCompanies`) **and** starts its systems
+  (`startRobotLifecycle`, `startWorkLoop`, `startAudioSwells`, `worldTransition.ts:111–118`), so a
+  world built before power-on would start ticking. The build half runs on `WorldView`'s mount and on
+  every retransmit as now; the start half moves behind a flag (`initializeLocale(localeId, {
+  startSystems })`) that `powerController.powerOnSequence()` turns on and a powered-off boot or
+  retransmit leaves off. Powered on, a retransmit still does both. This is the one `src/systems/`
+  change beyond `powerController.ts` the scope rule (§3) allows.
 - `powerController.shutdown()` stops lifecycle, work loop and audio as today but **no longer empties
-  `actors`**: the world stays as the off screen's backdrop. `powerOnSequence()` is unchanged.
+  `actors`**: the world stays as the off screen's backdrop. `powerOnSequence()` additionally starts the
+  locale's systems for a world that was built while off.
 - The Theme row is not built (intent, out of scope). The sketch keeps it behind an option for the themes
   phase, under the same no-pop rule.
 
@@ -293,7 +302,9 @@ the sheets are new `Dialog` instances. (f) `CompanyCreateForm` and `CompanyRenam
 exports of `CompanyCrudControls.tsx`, not files of their own. (g) `gsap` is 3.14 and `gsap/Flip.js` is
 present in `node_modules`, so the glide needs no new dependency. (h) The intent said no 1024 px tier
 exists; three `64em` queries do (Header.css, RobotDisplaySection.css) — Crawford confirmed they are not
-required by the rewrite.
+required by the rewrite. (i) `initializeLocale` (`worldTransition.ts:101–118`) starts the robot
+lifecycle, the work loop and the audio swells as well as building the world; Assumption 5's "still
+world" therefore needs the build/start split in §1.9, not just a mount-order change.
 
 ## 2. Target File Structure
 
@@ -321,7 +332,8 @@ src/components/ui/controls/CabinetBox.tsx              UNCHANGED (reused everywh
 src/components/robot/Robot.tsx, worldView/OceanScene.css   CHANGED — --halo per robot / company
 src/components/panels/screen/worldView/WorldView.tsx   CHANGED — meta box lines; data-dimmed
 src/stores/uiStore.ts                                   CHANGED — §1.10
-src/systems/powerController.ts                          CHANGED — shutdown keeps actors
+src/systems/powerController.ts                          CHANGED — shutdown keeps actors; powerOnSequence starts the locale's systems
+src/systems/worldTransition.ts                          CHANGED — initializeLocale split: build the world vs start its systems (§1.9)
 src/data/transmissionPresets.ts                         NEW — three SessionPayload constants
 src/data/lfoConfig.ts                                   CHANGED — laneTitle(lane, shell)
 src/data/companyConfig.ts                               UNCHANGED — buildCompanyAssignmentSchema reused
@@ -336,8 +348,9 @@ Deleted files: §1.11. Tests are colocated with every new or changed file.
 ## 3. Implementation Boundaries & Constraints
 
 - **Strict scope:** touch only the files above (and the deletions in §1.11). Anything in `src/engine/`,
-  `src/systems/` beyond `powerController.ts`, `src/types/session.ts`, `sessionShareUtils.ts` or
-  `sessionDiff.ts` is off limits — a need to touch one is a spec change, not a task.
+  `src/systems/` beyond `powerController.ts` and the one `worldTransition.ts` change named in §1.9,
+  `src/types/session.ts`, `sessionShareUtils.ts` or `sessionDiff.ts` is off limits — a need to touch
+  one is a spec change, not a task.
 - **UI only.** The session payload, the share link's wire format and the audio path do not change.
   Every existing save and `?session=` link must load as before (a parity test, §5).
 - **No new dependency.** Radix Tabs / Popover / Dialog and gsap's Flip are already installed.
