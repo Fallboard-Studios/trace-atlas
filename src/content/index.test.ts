@@ -26,6 +26,9 @@ const FIXTURE = {
   },
   'company.delete': { human: 'Delete', lore: 'Dissolve Unit', template: 'Delete {company}' },
   'ui.stepper.increment': { human: 'Increment {name}' },
+  'fleet.eq.bass': { human: 'Bass', lore: 'Sub-Band', unit: 'dB', help: { human: 'Boosts or cuts the low end.', lore: 'The lowest band of the trace.' } },
+  'fleet.hpf': { human: 'High-Pass Filter', lore: 'Top Extraction', heading: 'LOW-FREQUENCY MASK', help: { human: 'Cuts the bass.' } },
+  'fleet.lfoBank.laneA': { human: 'Core LFO', lore: 'Apex Signature', short: 'LFO A' },
 } as const satisfies Record<string, ContentEntry>;
 
 const { labels: L, options, optionsRecord, intro, introProps, fill } = makeHelpers(FIXTURE);
@@ -65,6 +68,30 @@ describe('content helpers', () => {
 
     it('never returns heading as its own property', () => {
       expect(L('fleet.eq', { surface: 'heading' })).not.toHaveProperty('heading');
+    });
+
+    // docs/tasks/LAYOUT_REWORK.md Task 10 — a control's help travels with its labels into the schema.
+    it('includes help when the entry has it, both halves, on either surface', () => {
+      expect(L('fleet.eq.bass')).toEqual({
+        humanLabel: 'Bass',
+        loreLabel: 'Sub-Band',
+        unit: 'dB',
+        help: { human: 'Boosts or cuts the low end.', lore: 'The lowest band of the trace.' },
+      });
+      expect(L('fleet.hpf', { surface: 'heading' }).help).toEqual({ human: 'Cuts the bass.' });
+    });
+
+    it('a help without lore stays without lore — no lore: undefined', () => {
+      expect(L('fleet.hpf').help).not.toHaveProperty('lore');
+    });
+
+    it('omits help rather than emitting undefined when the entry has none', () => {
+      expect(L('fleet.pacing.tempo')).not.toHaveProperty('help');
+      expect(L('ui.cancel')).not.toHaveProperty('help');
+    });
+
+    it('never returns short as its own property — a compact form is read by its own helper', () => {
+      expect(L('fleet.lfoBank.laneA')).toEqual({ humanLabel: 'Core LFO', loreLabel: 'Apex Signature' });
     });
   });
 
@@ -149,5 +176,13 @@ describe('CONTENT', () => {
 
   it('the live helpers read CONTENT when no record is passed', () => {
     expect(labels('ui.cancel')).toEqual({ humanLabel: 'Cancel' });
+  });
+
+  it("labels('fleet.lfoBank.rateDrift').help is the entry's help; an entry without help yields undefined", () => {
+    const help = labels('fleet.lfoBank.rateDrift').help;
+    expect(help).toBeDefined();
+    expect(help).toBe(CONTENT['fleet.lfoBank.rateDrift'].help);
+    expect(help?.human.trim()).toBeTruthy();
+    expect(labels('ui.cancel').help).toBeUndefined();
   });
 });

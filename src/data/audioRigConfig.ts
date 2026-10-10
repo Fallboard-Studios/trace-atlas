@@ -14,6 +14,7 @@
  * field renders an inline LfoLink in its effect panel — this file no longer
  * carries a per-param accordion schema of its own.
  */
+import { LFO_BANK_LANE_CONTENT } from './lfoConfig';
 import type { ControlSchema, DirectionalPanelSchema, PanelOrientation, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema, SliderLogSchema } from '@/types/controls';
 import type { GlobalLfoTargetId, LfoLaneId } from '@/types/lfo';
 import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX, LFO_RATE_STEP } from '@/types/lfo';
@@ -205,15 +206,6 @@ export interface LfoBankLaneSchema {
   rateDrift: SliderCenteredZeroSchema;
   depthDrift: SliderCenteredZeroSchema;
 }
-
-/** fleet.lfoBank.laneA-D restate ui.lfoLane's own a-d names verbatim (kept in sync by hand, not by
- *  reference — see fleet.ts's own comment on these keys). */
-const LFO_BANK_LANE_CONTENT: Record<LfoLaneId, ContentKey> = {
-  a: 'fleet.lfoBank.laneA',
-  b: 'fleet.lfoBank.laneB',
-  c: 'fleet.lfoBank.laneC',
-  d: 'fleet.lfoBank.laneD',
-};
 
 function lfoBankLaneSchema(lane: LfoLaneId): LfoBankLaneSchema {
   return {

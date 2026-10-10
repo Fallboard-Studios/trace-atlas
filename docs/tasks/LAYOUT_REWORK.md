@@ -828,6 +828,46 @@ of the existing intro descriptions; lore name from the entry).
 
 **Estimated scope:** M (two type changes, copy for ~30 controls)
 
+**As built (2026-10-09):**
+
+**Types.** `ContentHelp = { human: string; lore?: string }` lives in `content/types.ts` and is
+re-exported from `@/content`. `ContentEntry.help?`, `SchemaLabels.help?` and `ControlSchemaBase.help?`
+all use that one type; `types/controls.ts` imports it rather than declaring its own copy. `lore` is
+optional, following this plan over spec §1.4's required `lore`. It is the lore *description*: the
+popover takes the lore *name* from the entry's own `lore`. `labels()` adds `help` only when the entry
+has one, on both surfaces, by reference, never as `help: undefined`. `short` is never spread.
+
+**`laneTitle(lane, shell)`** takes `LfoLaneId` (`'a'…'d'`), the real lane type; the acceptance line's
+`'laneB'` is not a lane id. `Shell` comes from `useShell.ts` as a type-only import. The desk form
+comes from a new key, `fleet.lfoBank.laneTitle` (`template: '{lane} ({short})'`), following the
+`ui.noteValue.modified` precedent, so no format string sits in `src/data`. `LFO_BANK_LANE_CONTENT`
+moved from `audioRigConfig.ts` (private) to `lfoConfig.ts` (exported) so the lane panels and
+`laneTitle` read one map.
+
+**Which controls got help.** 37 entries. Every value control (slider, radio, toggle, text input,
+coords input, `LfoLink`) reachable from `audioRigConfig.ts`, `sectorSettingsConfig.ts` and
+`sessionConfig.ts`, plus the three keys that shared primitives build schemas from: `ui.lfoLane` and
+`ui.lfo.depth` (`LfoLink`) and `ui.tempoSync`. `lfoConfig.ts` has no schemas; the lane schemas are in
+`audioRigConfig.ts`. **Buttons get no help** (Retransmit, Save, Share, Load, Delete, Clear Local
+Storage, the Random and preset buttons). A button's labels sit inside its own face, so a "?" there
+would be a button inside a button. Panels and headings are not controls. Copy is human voice only.
+No lore descriptions were written; those are Crawford's to add. Copy files touched beyond the list:
+`ui.ts`, `sector.ts`, `session.ts`.
+
+**Tests.** `content.test.ts` gained the coverage guard: a recursive walk over the three config
+modules' exports, with a check that it reaches nested lane schemas so it can never pass on an empty
+list. It also guards that help is plain text (no `<` / `>`; the popover renders text) and that every
+help has a non-empty human. `index.test.ts` has fixture cases for `help` and `short`.
+`lfoConfig.test.ts` covers `laneTitle` for all four lanes on both shells and checks that the short
+forms are distinct.
+
+**Verified:** `src/data`, `src/content`, `ui/controls` and `console` tests: 74 files / 1464 tests;
+`build:types` clean; lint at the known 25 errors / 4 warnings. **Mutation check:** 17, all killed
+(help dropped / emitted as undefined / rebuilt with `lore: undefined`, `short` spread, `laneTitle`
+shells swapped or mis-mapped, template changed, duplicate short, help removed from five controls
+including one nested lane control and one primitive-owned key, markup in help, blank help, walker cut
+to top level).
+
 ## Task 11: `SectionTabs` primitive
 
 **Description:** New `src/components/ui/controls/SectionTabs.tsx` / `.css`: Radix `Tabs.Root` with

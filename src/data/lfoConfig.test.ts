@@ -3,8 +3,9 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 
-import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from './lfoConfig';
-import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
+import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO, LFO_BANK_LANE_CONTENT, laneTitle } from './lfoConfig';
+import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS } from '../types/lfo';
+import { CONTENT, labels } from '@/content';
 
 // ========================================
 // TESTS
@@ -43,5 +44,37 @@ describe('DEFAULT_BANK_LFO', () => {
 
   it('remains JSON-serializable', () => {
     expect(() => JSON.stringify(DEFAULT_BANK_LFO)).not.toThrow();
+  });
+});
+
+// docs/specs/LAYOUT_REWORK.md §1.4 — full lane names wherever the desk shell has room, the
+// letter form on the phone.
+describe('laneTitle', () => {
+  it.each([
+    ['a', 'Core LFO (LFO A)', 'LFO A'],
+    ['b', 'Companion LFO (LFO B)', 'LFO B'],
+    ['c', 'Accent LFO (LFO C)', 'LFO C'],
+    ['d', 'Overtone LFO (LFO D)', 'LFO D'],
+  ] as const)('lane %s reads %j on desk and %j on phone', (lane, desk, phone) => {
+    expect(laneTitle(lane, 'desk')).toBe(desk);
+    expect(laneTitle(lane, 'phone')).toBe(phone);
+  });
+
+  it('composes from the lane entry, so a renamed lane renames its title on both shells', () => {
+    for (const lane of LFO_LANE_IDS) {
+      const entry = CONTENT[LFO_BANK_LANE_CONTENT[lane]];
+      expect(laneTitle(lane, 'desk')).toContain(entry.human);
+      expect(laneTitle(lane, 'desk')).toContain(entry.short);
+      expect(laneTitle(lane, 'phone')).toBe(entry.short);
+    }
+  });
+
+  it('every lane has its own short form — no two lanes share a phone title', () => {
+    const phone = LFO_LANE_IDS.map((lane) => laneTitle(lane, 'phone'));
+    expect(new Set(phone).size).toBe(LFO_LANE_IDS.length);
+  });
+
+  it('the lane panel keeps the bare lane name — short is never spread into a schema', () => {
+    expect(labels(LFO_BANK_LANE_CONTENT.a)).not.toHaveProperty('short');
   });
 });

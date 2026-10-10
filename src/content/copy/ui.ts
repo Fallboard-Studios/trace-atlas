@@ -32,9 +32,20 @@ export const ui = {
       square: { human: 'Square', lore: 'Binary' },
       sawtooth: { human: 'Sawtooth', lore: 'Kinetic' },
     },
+    help: { human: 'The shape of the lane’s back-and-forth motion. Sine and Triangle glide smoothly, Square jumps between two points, and Sawtooth ramps up then snaps back.' },
   },
-  'ui.lfo.rate': { human: 'Rate', lore: 'Mutation Cadence', unit: 'Hz' },
-  'ui.lfo.depth': { human: 'Depth', lore: 'Mutation Span', unit: '%' },
+  'ui.lfo.rate': {
+    human: 'Rate',
+    lore: 'Mutation Cadence',
+    unit: 'Hz',
+    help: { human: 'How fast the lane moves back and forth. In Free it is set in cycles per second, and 0 holds it still; in Sync it is a note length that follows the Tempo.' },
+  },
+  'ui.lfo.depth': {
+    human: 'Depth',
+    lore: 'Mutation Span',
+    unit: '%',
+    help: { human: 'How far the linked lane turns this dial. 0 leaves the dial where it is; 100% swings it as far as it can go.' },
+  },
   /** The LfoLink primitive's lane picker (docs/specs/LFO_BANK.md §1.5) — `off` plus the four
    *  world lanes, Crawford's names (2026-10-01). Reused verbatim as fleet.lfoBank.laneA–D's
    *  own names once Task 15 wires the LFO Bank accordion (kept in sync by hand, not by reference —
@@ -49,6 +60,7 @@ export const ui = {
       c: { human: 'Accent LFO', lore: 'Impulse Signature' },
       d: { human: 'Overtone LFO', lore: 'Canopy Signature' },
     },
+    help: { human: 'Which of the four shared LFO Bank lanes moves this dial — an automatic hand turning it back and forth. Every dial on the same lane moves together; Off leaves this one alone.' },
   },
   /** The Free | Sync toggle on a lane's Rate and on Delay Time (docs/specs/FREE_SYNC_TOGGLE.md §1.9),
    *  read by TempoSyncToggle. Wording confirmed 2026-10-02. TWO label pairs, which are different things:
@@ -60,6 +72,7 @@ export const ui = {
     human: 'Tempo Sync',
     lore: 'Anchoring',
     options: { free: { human: 'Free', lore: 'Float' }, sync: { human: 'Sync', lore: 'Anchored' } },
+    help: { human: 'Free sets the slider beside it in plain time. Sync locks it to note lengths — a 1/8, a bar — so it follows the Tempo.' },
   },
   /** A tempo-synced note's readout (docs/specs/FREE_SYNC_TOGGLE.md §1.9), assembled by
    *  utils/formatNoteValue.ts: `1/8`, `1 bar`, `2 bars`, and `{note} {modifier}` for dotted/triplet.

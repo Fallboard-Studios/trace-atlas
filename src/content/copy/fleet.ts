@@ -36,13 +36,33 @@ export const fleet = {
         + '</ul>',
     },
   },
-  'fleet.pacing.tempo': { human: 'Tempo', lore: 'Ping Rate', unit: 'BPM' },
-  'fleet.pacing.automationRate': { human: 'Automation Rate', lore: 'Trace Skip Rate', options: { off: { human: 'Off' } } },
+  'fleet.pacing.tempo': {
+    human: 'Tempo',
+    lore: 'Ping Rate',
+    unit: 'BPM',
+    help: { human: 'How fast the music plays, in beats per minute. Every probe keeps time to it, and so does anything set to Sync — the LFO lanes and Delay Time.' },
+  },
+  'fleet.pacing.automationRate': {
+    human: 'Automation Rate',
+    lore: 'Trace Skip Rate',
+    options: { off: { human: 'Off' } },
+    help: { human: 'How often the fleet starts a swell — a stretch where it pushes some of its own effects settings, then eases them back. It runs from once every 16 measures to 16 times a measure; Off stops swells entirely.' },
+  },
   /** The rate slider's readout for ≥1 and <1 per measure (audioRigConfig's formatSwellFrequency). */
   'fleet.pacing.automationRate.perMeasure': { human: 'per measure', template: '{n}/measure' },
   'fleet.pacing.automationRate.everyMeasures': { human: 'every … measures', template: 'every {n} measures' },
-  'fleet.pacing.automationLength': { human: 'Automation Length', lore: 'Trace Runway', unit: ' measures' },
-  'fleet.pacing.automationRange': { human: 'Automation Range', lore: 'Trace Width', unit: '%' },
+  'fleet.pacing.automationLength': {
+    human: 'Automation Length',
+    lore: 'Trace Runway',
+    unit: ' measures',
+    help: { human: 'How many measures one swell lasts, from the moment it starts pushing to the moment the settings are back where they were.' },
+  },
+  'fleet.pacing.automationRange': {
+    human: 'Automation Range',
+    lore: 'Trace Width',
+    unit: '%',
+    help: { human: 'How far a swell can push the settings it touches. Low values make gentle swells; high values make dramatic ones.' },
+  },
 
   // ---------------------------------------------------------------- EQ & Filters
   'fleet.eqFilters': {
@@ -60,15 +80,48 @@ export const fleet = {
     },
   },
   'fleet.eq': { human: '3-Band EQ', lore: 'Trace Metrics', heading: 'SPECTRAL FREQUENCY EQUALIZER' },
-  'fleet.eq.bass': { human: 'Bass', lore: 'Sub-Band', unit: 'dB' },
-  'fleet.eq.mid': { human: 'Mid', lore: 'Medial Band', unit: 'dB' },
-  'fleet.eq.treble': { human: 'Treble', lore: 'Apical Band', unit: 'dB' },
+  'fleet.eq.bass': {
+    human: 'Bass',
+    lore: 'Sub-Band',
+    unit: 'dB',
+    help: { human: 'Boosts or cuts the low end of the whole fleet’s sound — the deep, rumbling part. 0 dB leaves it as it is.' },
+  },
+  'fleet.eq.mid': {
+    human: 'Mid',
+    lore: 'Medial Band',
+    unit: 'dB',
+    help: { human: 'Boosts or cuts the middle of the sound, where most of the melodies sit. 0 dB leaves it as it is.' },
+  },
+  'fleet.eq.treble': {
+    human: 'Treble',
+    lore: 'Apical Band',
+    unit: 'dB',
+    help: { human: 'Boosts or cuts the high end — the bright, airy part of the sound. 0 dB leaves it as it is.' },
+  },
   'fleet.hpf': { human: 'High-Pass Filter', lore: 'Top Extraction', heading: 'LOW-FREQUENCY MASK' },
-  'fleet.hpf.cutoff': { human: 'Cutoff', lore: 'Extraction Ceiling', unit: 'Hz' },
-  'fleet.hpf.resonance': { human: 'Resonance', lore: 'Boundary Resonance' },
+  'fleet.hpf.cutoff': {
+    human: 'Cutoff',
+    lore: 'Extraction Ceiling',
+    unit: 'Hz',
+    help: { human: 'The pitch below which the high-pass filter starts cutting. Raise it to thin the sound out; at its lowest, nearly everything passes through.' },
+  },
+  'fleet.hpf.resonance': {
+    human: 'Resonance',
+    lore: 'Boundary Resonance',
+    help: { human: 'Adds a ringing emphasis right at the high-pass cutoff. Low values keep the filter smooth; high values make it whistle.' },
+  },
   'fleet.lpf': { human: 'Low-Pass Filter', lore: 'Bottom Extraction', heading: 'HIGH-FREQUENCY MASK' },
-  'fleet.lpf.cutoff': { human: 'Cutoff', lore: 'Extraction Floor', unit: 'Hz' },
-  'fleet.lpf.resonance': { human: 'Resonance', lore: 'Boundary Resonance' },
+  'fleet.lpf.cutoff': {
+    human: 'Cutoff',
+    lore: 'Extraction Floor',
+    unit: 'Hz',
+    help: { human: 'The pitch above which the low-pass filter starts cutting. Lower it to make the sound darker and more muffled; at its highest, nearly everything passes through.' },
+  },
+  'fleet.lpf.resonance': {
+    human: 'Resonance',
+    lore: 'Boundary Resonance',
+    help: { human: 'Adds a ringing emphasis right at the low-pass cutoff. Low values keep the filter smooth; high values make it whistle.' },
+  },
 
   // ---------------------------------------------------------------- LFO Bank (docs/specs/LFO_BANK.md
   // Task 15 — replaces the old 2-group Drift accordion above entirely: 'fleet.drift'/'.environmental'/
@@ -88,12 +141,25 @@ export const fleet = {
         + '<p>Each lane below has its own Shape and Rate, plus a Rate Drift/Depth Drift pair: Rate Drift makes the lane’s own speed wander over time, Depth Drift makes how far it swings wander instead.</p>',
     },
   },
-  'fleet.lfoBank.laneA': { human: 'Core LFO', lore: 'Apex Signature' },
-  'fleet.lfoBank.laneB': { human: 'Companion LFO', lore: 'Lateral Signature' },
-  'fleet.lfoBank.laneC': { human: 'Accent LFO', lore: 'Impulse Signature' },
-  'fleet.lfoBank.laneD': { human: 'Overtone LFO', lore: 'Canopy Signature' },
-  'fleet.lfoBank.rateDrift': { human: 'Rate Drift', lore: 'Trace Pulse', unit: '%' },
-  'fleet.lfoBank.depthDrift': { human: 'Depth Drift', lore: 'Trace Bending', unit: '%' },
+  // `short` is the phone shell's lane title; laneTitle (src/data/lfoConfig.ts) composes the desk form
+  // "Core LFO (LFO A)" through fleet.lfoBank.laneTitle's template (docs/specs/LAYOUT_REWORK.md §1.4).
+  'fleet.lfoBank.laneA': { human: 'Core LFO', lore: 'Apex Signature', short: 'LFO A' },
+  'fleet.lfoBank.laneB': { human: 'Companion LFO', lore: 'Lateral Signature', short: 'LFO B' },
+  'fleet.lfoBank.laneC': { human: 'Accent LFO', lore: 'Impulse Signature', short: 'LFO C' },
+  'fleet.lfoBank.laneD': { human: 'Overtone LFO', lore: 'Canopy Signature', short: 'LFO D' },
+  'fleet.lfoBank.laneTitle': { human: 'Lane title', template: '{lane} ({short})' },
+  'fleet.lfoBank.rateDrift': {
+    human: 'Rate Drift',
+    lore: 'Trace Pulse',
+    unit: '%',
+    help: { human: 'Makes this lane’s speed wander slowly up and down over time. 0 keeps the speed steady; the further from 0, the wider it wanders, and positive and negative start it off in opposite directions.' },
+  },
+  'fleet.lfoBank.depthDrift': {
+    human: 'Depth Drift',
+    lore: 'Trace Bending',
+    unit: '%',
+    help: { human: 'Makes how far this lane swings its linked dials wander slowly over time. 0 keeps the swing steady; the further from 0, the wider it wanders, and positive and negative start it off in opposite directions.' },
+  },
 
   // ---------------------------------------------------------------- Time & Space
   'fleet.timeSpace': {
@@ -113,13 +179,40 @@ export const fleet = {
     },
   },
   'fleet.reverb': { human: 'Reverb', lore: 'External Capacity', heading: 'SPATIAL DIFFUSION MATRIX' },
-  'fleet.reverb.length': { human: 'Reverb Length', lore: 'Dissipation Time', unit: 's' },
-  'fleet.reverb.preDelay': { human: 'Pre-Delay', lore: 'Initial Lag', unit: 's' },
-  'fleet.reverb.amount': { human: 'Reverb Amount', lore: 'Diffusion Ratio' },
+  'fleet.reverb.length': {
+    human: 'Reverb Length',
+    lore: 'Dissipation Time',
+    unit: 's',
+    help: { human: 'How long the echo of the space rings out after each sound, in seconds. Short sounds like a small room; long sounds like a vast cavern.' },
+  },
+  'fleet.reverb.preDelay': {
+    human: 'Pre-Delay',
+    lore: 'Initial Lag',
+    unit: 's',
+    help: { human: 'How long the echo waits before it starts, after the original sound. A little pre-delay keeps the original sound clear in front of its echo.' },
+  },
+  'fleet.reverb.amount': {
+    human: 'Reverb Amount',
+    lore: 'Diffusion Ratio',
+    help: { human: 'How much of the echo you hear blended in with the original sound. 0 turns the reverb off.' },
+  },
   'fleet.delay': { human: 'Delay', lore: 'Retracing', heading: 'TEMPORAL REFLECTION MATRIX' },
-  'fleet.delay.time': { human: 'Delay Time', lore: 'Propagation Lag', unit: 's' },
-  'fleet.delay.repeats': { human: 'Repeats', lore: 'Recirculation Rate' },
-  'fleet.delay.amount': { human: 'Delay Amount', lore: 'Reflection Ratio' },
+  'fleet.delay.time': {
+    human: 'Delay Time',
+    lore: 'Propagation Lag',
+    unit: 's',
+    help: { human: 'How long between the original sound and its first repeat. In Free it is set in seconds; in Sync it is a note length that follows the Tempo.' },
+  },
+  'fleet.delay.repeats': {
+    human: 'Repeats',
+    lore: 'Recirculation Rate',
+    help: { human: 'How many times the repeat echoes back before it fades. Low values give one or two repeats; high values keep it going for a long time.' },
+  },
+  'fleet.delay.amount': {
+    human: 'Delay Amount',
+    lore: 'Reflection Ratio',
+    help: { human: 'How loud the repeats are, blended in with the original sound. 0 turns the delay off.' },
+  },
 
   // ---------------------------------------------------------------- Output
   'fleet.output': {
@@ -141,11 +234,35 @@ export const fleet = {
     },
   },
   'fleet.compressor': { human: 'Compressor', lore: 'Bundler', heading: 'DYNAMIC RANGE CONDENSER' },
-  'fleet.compressor.threshold': { human: 'Threshold', lore: 'Bundle Threshold', unit: 'dB' },
-  'fleet.compressor.ratio': { human: 'Ratio', lore: 'Bundle Ratio' },
-  'fleet.compressor.attack': { human: 'Attack Time', lore: 'Bundle Onset', unit: 's' },
-  'fleet.compressor.release': { human: 'Release Time', lore: 'Bundle Recovery', unit: 's' },
-  'fleet.compressor.knee': { human: 'Knee', lore: 'Bundle Curve', unit: 'dB' },
+  'fleet.compressor.threshold': {
+    human: 'Threshold',
+    lore: 'Bundle Threshold',
+    unit: 'dB',
+    help: { human: 'How loud a sound has to get before the compressor starts turning it down. Lower it and more of the sound gets compressed.' },
+  },
+  'fleet.compressor.ratio': {
+    human: 'Ratio',
+    lore: 'Bundle Ratio',
+    help: { human: 'How strongly the compressor turns a sound down once it passes the threshold. 1 does nothing; 20 flattens it almost completely.' },
+  },
+  'fleet.compressor.attack': {
+    human: 'Attack Time',
+    lore: 'Bundle Onset',
+    unit: 's',
+    help: { human: 'How quickly the compressor reacts once a sound crosses the threshold. Fast catches every peak; slow lets the start of each note punch through.' },
+  },
+  'fleet.compressor.release': {
+    human: 'Release Time',
+    lore: 'Bundle Recovery',
+    unit: 's',
+    help: { human: 'How quickly the compressor lets go once the sound drops back below the threshold. Fast sounds lively; slow sounds smooth.' },
+  },
+  'fleet.compressor.knee': {
+    human: 'Knee',
+    lore: 'Bundle Curve',
+    unit: 'dB',
+    help: { human: 'How gradually the compressor eases in around the threshold. 0 snaps on at once; higher values blend it in softly.' },
+  },
   'fleet.output.decayMode': {
     human: 'Decay Mode',
     lore: 'Decay Protocol',
@@ -153,7 +270,13 @@ export const fleet = {
       natural: { human: 'Natural Decay', lore: 'Dissipation' },
       controlled: { human: 'Controlled Decay', lore: 'Clamped' },
     },
+    help: { human: 'Whether the compressor also evens out the echoes. Natural Decay lets Reverb’s and Delay’s echoes ring out uncompressed; Controlled Decay compresses them too.' },
   },
   'fleet.limiter': { human: 'Limiter', lore: 'Reduction', heading: 'TERMINAL CEILING GATE' },
-  'fleet.limiter.ceiling': { human: 'Ceiling', lore: 'Output Ceiling', unit: 'dB' },
+  'fleet.limiter.ceiling': {
+    human: 'Ceiling',
+    lore: 'Output Ceiling',
+    unit: 'dB',
+    help: { human: 'The loudest the fleet is ever allowed to get. Anything that would go past it is held down to it.' },
+  },
 } as const satisfies Record<string, ContentEntry>;

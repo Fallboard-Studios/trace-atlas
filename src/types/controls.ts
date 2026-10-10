@@ -7,6 +7,7 @@
  * docs/reference/ROBOT_DATA_GRID.md's Component column.
  */
 import type { LfoLink } from './lfo';
+import type { ContentHelp } from '@/content';
 
 // ========================================
 // BASE
@@ -18,6 +19,9 @@ export interface ControlSchemaBase {
    *  Rendered by this control's own internally-composed <DualLabel />. */
   loreLabel?: string;
   humanLabel?: string;
+  /** The "?" on the control's label (docs/specs/LAYOUT_REWORK.md §1.4) — spread in by `labels()` from
+   *  the content entry's `help`; absent = no "?". */
+  help?: ContentHelp;
 }
 
 // ========================================

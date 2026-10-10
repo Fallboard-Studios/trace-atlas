@@ -19,7 +19,7 @@ import { session } from './copy/session';
 import { sector } from './copy/sector';
 
 export { CONTENT_AREAS } from './types';
-export type { ContentEntry, ContentIntro, ContentOption, ContentArea, LabelSurface, SchemaLabels, SchemaOption, ValueLabelPair } from './types';
+export type { ContentEntry, ContentHelp, ContentIntro, ContentOption, ContentArea, LabelSurface, SchemaLabels, SchemaOption, ValueLabelPair } from './types';
 
 // ========================================
 // THE RECORD
@@ -54,6 +54,7 @@ export function makeHelpers<R extends Record<string, ContentEntry>>(record: R) {
     if (lore !== undefined) out.loreLabel = lore;
     if (e.placeholder !== undefined) out.placeholder = e.placeholder;
     if (e.unit !== undefined) out.unit = e.unit;
+    if (e.help !== undefined) out.help = e.help;
     return out;
   }
 
@@ -104,8 +105,8 @@ export function makeHelpers<R extends Record<string, ContentEntry>>(record: R) {
 
 const live = makeHelpers(CONTENT);
 
-/** Spread into a ControlSchema: `{ humanLabel, loreLabel?, placeholder?, unit? }` — only the fields the
- *  entry has. `{ surface: 'heading' }` resolves loreLabel as `heading ?? lore` (spec §1.6). */
+/** Spread into a ControlSchema: `{ humanLabel, loreLabel?, placeholder?, unit?, help? }` — only the fields
+ *  the entry has. `{ surface: 'heading' }` resolves loreLabel as `heading ?? lore` (spec §1.6). */
 export const labels: (key: ContentKey, opts?: { surface?: LabelSurface }) => SchemaLabels = live.labels;
 /** The entry's options as a RadioButton option list, in declaration order. */
 export const options: (key: ContentKey) => SchemaOption[] = live.options;

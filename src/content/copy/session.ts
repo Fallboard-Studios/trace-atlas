@@ -4,7 +4,12 @@ import type { ContentEntry } from '../types';
  *  SessionListItem.tsx and SessionsPanel.tsx. `template` carries each row button's dynamic
  *  accessible name (the slot is the session name — data) and the two status lines. */
 export const session = {
-  'session.name': { human: 'Session Name', lore: 'SESSION DESIGNATION', placeholder: 'Enter a session name…' },
+  'session.name': {
+    human: 'Session Name',
+    lore: 'SESSION DESIGNATION',
+    placeholder: 'Enter a session name…',
+    help: { human: 'The name your save goes under in the list below. Saves are kept in this browser only; to hand a setup to someone else, use Share.' },
+  },
   'session.save': { human: 'Save Session', lore: 'ARCHIVE STATE' },
   'session.share': { human: 'Share Session', lore: 'TRANSMIT COORDINATES', template: 'Share Session {session}' },
   'session.load': { human: 'Load', lore: 'RESTORE STATE', template: 'Load {session}' },
