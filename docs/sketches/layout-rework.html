@@ -105,6 +105,11 @@
           at you"), flat = structure (faceplate + silkscreen), in = read (wells). Gem rings on containers and a gem
           control set were sketched and rejected (gem-controls.html kept as the record); the gem material stays
           behind the glass, on the world and robots only.
+          AMENDED 2026-10-09 (spec review, Crawford: "i still want the static cabinetry effect with the trait colors
+          used … the new components should be styled to match the existing ones"): panels, section frames and the
+          nav panel KEEP today's permanently popped, non-animating CabinetBox facade in their trait colour; "flat =
+          structure" applies to the content surface over the dimmed world and to labels only; new components match
+          the existing ones. The page's material switch now defaults to cabinetry-on-panels.
        D3 NO HARDWARE KEYS beyond the power rocker — the Atlas card / sleeve transport is parked for version 2
           (punch-card-session.html) and soft keys were rejected: "too hard to always give them purpose, and it
           doesn't really work on mobile."
@@ -136,6 +141,11 @@
            See docs/ideas/themes.md. Toggle "Splash pickers" on the Off tab.
        Q10 Soft keys — VERDICT 2026-10-09: NO (see D3).
        Q1  VERDICT 2026-10-09: ONE PANEL, expanding in place for Probes / Companies — "i'm happy with the nav."
+       Q9 AMENDMENT 2026-10-09 (Crawford, during the intent interview): the splash's selection radios "shouldn't pop out at
+           this point because the power is off. at most the background should have a monochrome selected styling. it
+           can be the same shape and size as the radio buttons" — drawn as .cab.sel (monochrome fill, no walls, no
+           glow). And "we can skip the theme row for now": the Theme row belongs to the themes phase; the "Theme row"
+           option on the Off tab draws it for that later phase under the same rule.
        Q11 Phone power button with the light IN the button (Crawford's suggestion, drawn here; desktop keeps the app's
            recessed housing above the rocker). [yes]
      Shell accuracy (2026-10-09, Crawford): "the inworld tablet has a tactile border along the top and bottom within the
@@ -347,6 +357,10 @@
   .splash .prow { display: flex; flex-direction: column; align-items: center; gap: 8px; }
   .splash .prow .lore { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: rgba(200, 220, 230, .45); }
   .splash .divider { width: 1px; height: 26px; background: rgba(200, 220, 230, .25); margin: 0 6px; align-self: center; }
+  /* power is off: the splash's selected option never pops — a monochrome fill in the radio box's own shape and size, no walls, no glow */
+  .splash .cab.sel { background: rgba(207, 214, 220, .9); color: #0b0f14; border: 1px solid rgba(207, 214, 220, .9); box-shadow: none; }
+  .splash .cab.sel .lore { color: #0b0f14; opacity: .7; }
+  .splash .cab.frame { color: rgba(207, 214, 220, .75); }
   .plate .splash .divider { background: var(--ink); }
   .splash .readout { font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--ac2); text-shadow: 0 0 8px color-mix(in srgb, var(--ac) 60%, transparent); background: #070a0d; padding: 4px 12px; box-shadow: inset 1px 1px 0 rgba(0, 0, 0, .95), inset 2px 2px 4px rgba(0, 0, 0, .7), inset -1px -1px 0 rgba(255, 255, 255, .05); letter-spacing: .04em; }
   .phone .splash { top: 50%; gap: 12px; padding: 0 12px; }
@@ -470,7 +484,7 @@
   .keystrip .key.flat { background: #15181c; border: 1px solid #0a0c0f; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), inset 0 -2px 0 rgba(0, 0, 0, .5); }
 </style>
 </head>
-<body class="plate">
+<body>
 
 <div class="tabbar">
   <span class="ttl">LAYOUT REWORK</span>
@@ -484,7 +498,7 @@
   <button data-tab="company">Company</button>
   <button data-tab="settings">Settings</button>
   <span class="sp"></span>
-  <span class="mat">Panels: <button data-material class="on">faceplate + silkscreen + wells</button><span>off = cabinetry on panels, as the app is today</span></span>
+  <span class="mat">Panels: <button data-material>faceplate + silkscreen + wells (tried)</button><span>off = cabinetry on panels, as the app is today — the call (2026-10-09: the static facade in trait colours stays)</span></span>
 </div>
 
 <!-- ================= MAIN ================= -->
@@ -498,7 +512,7 @@
   <b>Decided:</b>
   <ol>
     <li><b>Option A.</b> Content covers the world, which dims under an opaque surface. "The better choice by far."</li>
-    <li><b>Depth means something.</b> Out = act (cabinetry, only on interactive things), flat = structure (faceplate + silkscreen), in = read (wells). Gem rings and gem controls were tried and rejected; the gem material stays behind the glass.</li>
+    <li><b>Depth means something.</b> Out = act (cabinetry, only on interactive things), flat = structure (faceplate + silkscreen), in = read (wells). Gem rings and gem controls were tried and rejected; the gem material stays behind the glass. Amended 2026-10-09: panels keep today's static cabinetry facade in trait colours; flat applies to the content surface and labels only.</li>
     <li><b>No hardware keys beyond the power rocker.</b> The Atlas card is parked for v2; soft keys were rejected (hard to always give them purpose, doesn't work on mobile).</li>
     <li><b>Build on the existing components.</b> A recomposition of the 14 control primitives, CabinetBox and ControlSchema, not a new widget set. Sliders keep their pop-out boxes; the nav boxes stay cabinetry (a gem-style nav was floated and not pursued).</li>
   </ol>
@@ -570,7 +584,7 @@
   <div><div class="phone" id="off-phone"></div></div>
 </div>
 <div class="fixedpanel"><div class="ttl">Off options</div>
-  <div class="controls"><button data-opt="world" class="on">World faintly visible behind the glass</button><button data-opt="splash" class="on">Splash pickers: transmission + theme</button><button data-opt="saves" class="on">User has saves</button></div>
+  <div class="controls"><button data-opt="world" class="on">World faintly visible behind the glass</button><button data-opt="splash" class="on">Splash pickers</button><button data-opt="saves" class="on">User has saves</button><button data-opt="themerow">Theme row (themes phase — skipped for now)</button></div>
   <div class="controls"><span class="lbl">Theme:</span><span class="grp"><button data-radio="theme" data-val="calm">Calm</button><button data-radio="theme" data-val="classic" class="on">Classic</button><button data-radio="theme" data-val="active">Active</button></span></div>
   <div class="controls"><span class="lbl">Picked:</span><span class="grp"><button data-radio="preset" data-val="Kryndara">Kryndara</button><button data-radio="preset" data-val="Vessport Null" class="on">Vessport Null</button><button data-radio="preset" data-val="Halcyon Drift">Halcyon Drift</button><button data-radio="preset" data-val="Dusk Run">save: Dusk Run</button><button data-radio="preset" data-val="Night, all freelance">save: Night, all freelance</button></span></div>
 </div>
@@ -965,14 +979,17 @@ function splash(o, phone = false) {
   const theme = THEMES.find((t) => t[0] === (o.theme || 'classic')) || THEMES[1];
   const preset = o.preset || 'Vessport Null';
   const saves = o.saves === false ? [] : SAVES;
-  const presets = `<span class="radio">${PRESETS.map(([n]) => cab(n, n === preset ? 'pop' : 'frame', ac('settings'))).join('')}${saves.length ? `<span class="divider"></span>${saves.map(([n]) => cab(n, n === preset ? 'pop' : 'frame', ac('deck'))).join('')}` : ''}</span>`;
-  const themes = `<span class="radio">${THEMES.map(([id, lore, hum]) => cab2(lore, hum, id === theme[0] ? 'pop' : 'frame', ac(id === 'calm' ? 'timeSpace' : id === 'active' ? 'output' : 'deck'))).join('')}</span>`;
+  // 2026-10-09 amendment (Crawford, interview): the splash pickers must NOT pop — the power is off, so nothing glows or
+  // comes off the plate; the selected option gets at most a MONOCHROME background, same shape and size as a radio box
+  // (.cab.sel). The Theme row is skipped for this phase (o.themerow draws it for the themes phase, same rule).
+  const presets = `<span class="radio">${PRESETS.map(([n]) => cab(n, n === preset ? 'sel' : 'frame', ac('settings'))).join('')}${saves.length ? `<span class="divider"></span>${saves.map(([n]) => cab(n, n === preset ? 'sel' : 'frame', ac('deck'))).join('')}` : ''}</span>`;
+  const themes = `<span class="radio">${THEMES.map(([id, lore, hum]) => cab2(lore, hum, id === theme[0] ? 'sel' : 'frame', ac(id === 'calm' ? 'timeSpace' : id === 'active' ? 'output' : 'deck'))).join('')}</span>`;
   const save = SAVES.find(([n]) => n === preset);
   const code = save ? `saved ${save[1]}` : `preset · ${PRESETS.find(([n]) => n === preset)?.[1] || '—'}`;
   return `<div class="splash" style="${ac('deck')}">
     <div class="prow"><span class="lore">Transmission${saves.length ? ' — three presets, then your saves' : ' — three presets'}</span>${presets}</div>
-    <div class="prow"><span class="lore">Theme</span>${themes}</div>
-    <span class="readout">${preset} · ${code}${phone ? '<br>' : ' · '}${theme[2]}: ${theme[3]}</span>
+    ${o.themerow ? `<div class="prow"><span class="lore">Theme</span>${themes}</div>` : ''}
+    <span class="readout">${preset} · ${code}${o.themerow ? `${phone ? '<br>' : ' · '}${theme[2]}: ${theme[3]}` : ''}</span>
   </div>`;
 }
 function offDesk(o) {
@@ -1103,7 +1120,7 @@ const RENDER = {
     $('#main-m6').innerHTML = m6static();
   },
   nav() { const o = { expanded: opt('nav', 'expanded'), hover: opt('nav', 'hover'), sheet: opt('nav', 'sheet'), branch: rad('nav', 'branch') || 'probes' }; $('#nav-crop').innerHTML = navCrop(o); $('#nav-phone').innerHTML = navPhone(o); },
-  off() { const o = { world: opt('off', 'world'), splash: opt('off', 'splash'), saves: opt('off', 'saves'), theme: rad('off', 'theme') || 'classic', preset: rad('off', 'preset') || 'Vessport Null' }; $('#off-desk').innerHTML = offDesk(o); $('#off-phone').innerHTML = offPhone(o); },
+  off() { const o = { world: opt('off', 'world'), splash: opt('off', 'splash'), saves: opt('off', 'saves'), themerow: opt('off', 'themerow'), theme: rad('off', 'theme') || 'classic', preset: rad('off', 'preset') || 'Vessport Null' }; $('#off-desk').innerHTML = offDesk(o); $('#off-phone').innerHTML = offPhone(o); },
   deck() { const o = { hover: opt('deck', 'hover'), dim: opt('deck', 'dim'), fly: opt('deck', 'fly'), halo: opt('deck', 'halo'), sel: rad('deck', 'sel') || 'none' }; $('#deck-desk').innerHTML = deckDesk(o); $('#deck-phone').innerHTML = deckPhone(o); },
   fleet() { const o = { intro: opt('fleet', 'intro'), help: opt('fleet', 'help'), links: opt('fleet', 'links'), sec: Number(rad('fleet', 'sec') ?? 1) }; $('#fleet-desk').innerHTML = fleetDesk(o); $('#fleet-phone').innerHTML = fleetPhone(o); },
   robot() { const o = { band: opt('robot', 'band'), help: opt('robot', 'help'), links: opt('robot', 'links'), sec: Number(rad('robot', 'sec') ?? 3) }; $('#robot-desk').innerHTML = robotDesk(o); $('#robot-phone').innerHTML = robotPhone(o); },
