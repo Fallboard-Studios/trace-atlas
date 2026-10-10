@@ -1,42 +1,41 @@
+/* The opaque content surface (docs/specs/LAYOUT_REWORK.md §1.3; docs/tasks/LAYOUT_REWORK.md Task 7).
+   With a branch open the content covers the world, which dims under it (WorldView's data-dimmed). It
+   is the one flat plate: no glass, so the panels inside paint the app's own --color-surface over it.
+   The band it fills runs from the top bar's lower edge (Header.css's --top-bar-bottom: the slim header
+   or the power corner, whichever reaches lower) down to the bottom of the screen. On the desk it sits
+   right of the nav panel: --nav-panel-width (NavPanel.css) is the width the panel tweens as Probes or
+   Companies open, so this edge moves with it. It stops above the bottom sleeve strip, which covers the
+   screen's last 32 px (--spacing-2xl, PhoneBar.css). A --spacing-lg gutter on the left, right and
+   bottom leaves the dimmed world showing around it, as the sketch draws the desk.
+   position: absolute, not a grid row: see .screen-content's comment (ScreenViewport.css). Above
+   WorldView (z-index 0) and under the nav panel (2). */
 .content-pane {
-  /* position: absolute (not a grid row) — see .screen-content's own comment
-     (ScreenViewport.css) for why. inset: 0 gives it the full screen area;
-     margin-top pushes just its top edge down to clear both obstacles that
-     sit in that space: Header (--header-height, a live JS-measured value —
-     Header.tsx's own ResizeObserver effect, docs/specs/
-     HEADER_HUB_CONSOLIDATION.md §1.6) and, further down and to the left,
-     the sleeve's power-switch corner (--power-corner-height, :root in
-     index.css). Using the taller of the two for the whole width is the
-     same deliberate simplicity trade-off this rule always made — the
-     corner only occupies the left ~190px, so the rest of the width gets
-     more clearance than it strictly needs, in exchange for one clearance
-     value instead of a width-dependent one. The
-     var(--header-height, var(--power-corner-height)) fallback covers the
-     one frame before Header's own ResizeObserver has fired at all — never
-     a 0/undefined margin, always at least the old safe constant.
-     Applied here rather than on .console-panel__back specifically — this
-     whole element (and everything inside it) only ever renders once a tile
-     is active (ContentPane.tsx returns null otherwise), so there's a single
-     screen shape to protect, not a separate grid-state case to also cover.
-     Ported from Console.css unchanged (docs/tasks/NAV_LAYOUT_REWRITE.md Task 8). */
   position: absolute;
-  inset: 0;
-  /* Renders above WorldView (z-index: 0, a full-bleed backdrop behind
-     everything) rather than relying on DOM-order stacking. */
+  top: var(--top-bar-bottom);
+  right: var(--spacing-lg);
+  bottom: calc(var(--spacing-2xl) + var(--spacing-lg));
+  left: calc(var(--nav-panel-width) + var(--spacing-lg));
   z-index: 1;
-  /* Every descendant surface (accordion triggers, buttons, effect blocks,
-     text inputs, ...) paints its background from var(--color-surface) —
-     overriding it here cascades a "glass" translucency through all of them
-     at once, letting the robot world read through the hub's own chrome. */
-  --color-surface: rgba(26, 26, 26, 0.75);
-  height: calc(100% - 72px);
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  background-color: var(--content-surface);
+}
+
+/* Phone shell: edge to edge, down to PhoneBar's top (--phone-bar-clearance, the strip plus the bar).
+   The bar owns its band and the content never runs under it. [data-shell] is ScreenViewport's, from
+   useShell(). */
+#screen-viewport[data-shell='phone'] .content-pane {
+  left: 0;
+  right: 0;
+  bottom: var(--phone-bar-clearance);
+  border-width: 1px 0;
 }
 
 /* The blank/landing state's own card (ContentPane.tsx, activeHubTile === null) — sized to its
-   own content and anchored top-right, deliberately NOT inset: 0 like .content-pane above. Full-
-   bleed here would sit over WorldView and swallow every click, breaking Robot.tsx's own
-   click-to-select handling (see ContentPane.tsx's comment). top reuses .content-pane's own
-   header-clearance formula; right keeps it clear of NavPanel, which is left-docked. */
+   own content and anchored top-right, deliberately NOT a surface like .content-pane above: the Deck
+   keeps a bright world (spec §1.3), and a full-bleed element here would sit over WorldView and
+   swallow every click, breaking Robot.tsx's own click-to-select handling (see ContentPane.tsx's
+   comment). right keeps it clear of NavPanel, which is left-docked. */
 .content-pane__home {
   position: absolute;
   z-index: 1;
@@ -46,12 +45,4 @@
   color: var(--text-color, #e6eef0);
   --color-surface: rgba(26, 26, 26, 0.75);
   margin-top: 64px;
-}
-/* Phone shell (docs/tasks/LAYOUT_REWORK.md Task 5): the content stops at PhoneBar's top edge and never
-   runs under it — --phone-bar-clearance is the bottom sleeve strip plus the bar (PhoneBar.css). The
-   desk keeps the height above. The top edge stays the header clearance until Tasks 6 and 7.
-   [data-shell] is ScreenViewport's, from useShell(). */
-#screen-viewport[data-shell='phone'] .content-pane {
-  height: auto;
-  bottom: var(--phone-bar-clearance);
 }

@@ -537,6 +537,74 @@ that attribute — the moving robot layer is not blurred separately (the surface
 
 **Estimated scope:** M (five files, CSS-heavy)
 
+**As built (2026-10-09):**
+
+**The surface.** `index.css` declares `--content-surface: #141a20` once in `:root`. That is the
+sketch's `--surf2`, and opaque by rule (a test parses it: one declaration, a six-digit hex).
+`.content-pane` paints it and has a 1 px `--color-border` edge. Its old glass is gone: the
+`--color-surface: rgba(26, 26, 26, 0.75)` override that tinted every panel inside. The panels now
+paint the app's own `--color-surface` over the plate. `ContentPane.tsx` is unchanged: its Deck
+branch already renders only the home card, and the card is not a surface.
+
+**Its edges** come from the variables the earlier tasks left:
+- **Top:** `--top-bar-bottom` on both shells (Header.css, Task 6).
+- **Desk:** left `calc(var(--nav-panel-width) + 16px)`, so it rides the panel's tween. Right 16 px.
+  Bottom `calc(32px + 16px)`, above the bottom sleeve strip. These are the sketch's 16 px gutters
+  (`.content { left: 112px; right: 16px; bottom: calc(var(--sb) + 16px) }`), where the dimmed world
+  shows.
+- **Phone:** left 0, right 0, bottom `--phone-bar-clearance` (the sketch's `.scroll`).
+- The old `height: calc(100% - 72px)` and the phone's `height: auto` went.
+
+`ConsolePanel.css` loses the three `--console-*-clearance` variables, their `600px` / `48em` media
+queries and the clearance padding. The scroller's padding is now `16px 8px 16px 0`.
+
+**The dim.** `WorldView` sets `data-dimmed` from `activeHubTile !== null`, the same field
+ContentPane switches on. One test renders both, for the Deck and all four tiles, and checks they
+agree. `WorldView.css` puts `filter: brightness(0.42) blur(2px)` on the static scene layers.
+
+**Beyond the plan:** the moving layers (both robot rows and the bubbles) get `brightness(0.42)`
+with no blur. The world does show around the surface: under the nav panel's 0.75 glass, in the
+gutters, and in the top band (142 px on the phone), where bubbles rise. A robot left at full
+brightness there was brighter than the dimmed world behind it. The blur stays off the layers that
+repaint every frame, as the plan said.
+
+**Found in Chrome:**
+- **A 4 px horizontal scrollbar** on Fleet Params and Settings at every width. A popped facade's
+  front face sits `computeCabinetFrontFaceOffset(1).frontFaceOffsetX` (2 × `CABINET_POP_DISTANCE`
+  = 4 px) right of its box, so each full-width accordion was 1075 px wide in a 1071 px scroller.
+  The old 32 px desk edge clearance had hidden this. The 8 px right padding holds it, and a test
+  checks the padding against that function. Afterwards `scrollWidth === clientWidth` on every view
+  at 1280, 375 and 320 px but one (next item).
+- **Probes at 320 px** is 300 px of content in a 256 px scroller. `RobotsTab.css`'s
+  `minmax(300px, 1fr)` grid causes it. It predates this task: the phone scroller was 256 px before
+  too. RobotsTab goes in Task 21; noted for Task 28's 320 px pass.
+
+**One file beyond the list:** `RobotDisplaySection.css` read ConsolePanel.css's
+`--console-nav-panel-clearance` (320 px) to centre the fixed avatar on the desk. Left undefined,
+that would have voided three declarations. It now reads `--nav-panel-width`: `(W + nav) / 2` is the
+surface's centre, since the two gutters match. The robot screen is rebuilt in Task 16. A guard test
+scans every stylesheet under `src/` for the deleted variables.
+
+**Measured (headless Chrome, CDP):**
+
+| Width | Deck | Fleet Params / Settings | Probes / Companies (list open) | Static / moving filter |
+|---|---|---|---|---|
+| 1280 | no pane, not dimmed | 128–1248 × 176–736 | 292–1248 × 176–736 | `brightness(0.42) blur(2px)` / `brightness(0.42)` |
+| 700 | no pane | 16–684 × 176–708 | 16–684 × 176–708 | same |
+| 375 | no pane | 16–359 × 142–708 | same | same |
+| 320 | no pane | 16–304 × 142–708 | same | same |
+
+The screen starts at x = 16, and the phone bar's top is 708. There is no document overflow at any
+width.
+
+**Mutation check:** 26 mutants, all killed. Four of them first missed their target because two
+stylesheets are CRLF; that was a script fix, not a surviving mutant.
+
+**For later tasks:**
+- The home card's top is still the old `--header-height` clearance, untouched.
+- The desk surface starts flush at the power corner's bottom (176 at 1280), with no top gutter.
+- The phone breadcrumb still sits under the bar until Task 8.
+
 ## Task 8: `MetaBox` (the world line) and `NavBreadcrumb` as a well
 
 **Description:** New `src/components/panels/screen/worldView/MetaBox.tsx` / `.css`: the glow-glass well

@@ -85,13 +85,16 @@
     margin-top: 30vw;
   }
 
+  /* Centred over the content right of the nav panel: --nav-panel-width (NavPanel.css) replaced
+     ConsolePanel.css's 320 px nav clearance when the content surface took the panel's edge
+     (docs/tasks/LAYOUT_REWORK.md Task 7). The robot screen is rebuilt in Task 16. */
   .robot-display-section__avatar {
     top: calc(var(--power-corner-height) * .33);
     position: fixed;
-    width: calc(100% - var(--console-nav-panel-clearance));
-    right: calc((100% - var(--console-nav-panel-clearance)) / 2);
+    width: calc(100% - var(--nav-panel-width));
+    right: calc((100% - var(--nav-panel-width)) / 2);
     transform: translateX(50%);
-    max-width: calc(100% - var(--console-nav-panel-clearance));
+    max-width: calc(100% - var(--nav-panel-width));
   }
 }
 
