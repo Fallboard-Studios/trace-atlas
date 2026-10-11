@@ -20,7 +20,7 @@ import {
 } from './deckCamera';
 import { getTimeline, timelineMap, killAllTimelines } from './timelineMap';
 import { setRef, clearRefs } from '../utils/refs';
-import { DECK_CAMERA_PAN_S, DECK_CAMERA_TIMELINE_ID } from '../constants/deckCamera';
+import { DECK_CAMERA_CUT_COOLDOWN_MS, DECK_CAMERA_IDLE_MS, DECK_CAMERA_PAN_S, DECK_CAMERA_TIMELINE_ID } from '../constants/deckCamera';
 
 // ----------------------------------------
 // RECORDING GSAP MOCK
@@ -406,6 +406,82 @@ describe('deckCamera', () => {
       const [, vars] = tl.to.mock.calls[0];
       expect(vars.scrollTo).toEqual({ x: 1732.5, autoKill: true });
       expect(getTimeline(DECK_CAMERA_TIMELINE_ID)).toBe(tl as never);
+    });
+  });
+
+  describe('cutDeckCameraTo cooldown (post-ship follow-up: no whiplash between two quick cuts)', () => {
+    it('a second cut inside the cooldown window does nothing, even to an off-screen robot', () => {
+      const fake = makeFakeScroller(3840, 375, 0);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 9.375); // off screen (5%)
+      makeRobotRef('beta', 9.375 + 1); // also off screen, a hair further along
+
+      vi.spyOn(performance, 'now').mockReturnValue(1000);
+      cutDeckCameraTo('alpha');
+      expect(gsap.timeline).toHaveBeenCalledTimes(1);
+
+      vi.spyOn(performance, 'now').mockReturnValue(1000 + DECK_CAMERA_CUT_COOLDOWN_MS - 1);
+      cutDeckCameraTo('beta');
+      expect(gsap.timeline).toHaveBeenCalledTimes(1); // still just the first
+    });
+
+    it('a cut exactly at the cooldown boundary is allowed', () => {
+      const fake = makeFakeScroller(3840, 375, 0);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 9.375);
+      makeRobotRef('beta', 9.375 + 1);
+
+      vi.spyOn(performance, 'now').mockReturnValue(1000);
+      cutDeckCameraTo('alpha');
+      vi.spyOn(performance, 'now').mockReturnValue(1000 + DECK_CAMERA_CUT_COOLDOWN_MS);
+      cutDeckCameraTo('beta');
+
+      expect(gsap.timeline).toHaveBeenCalledTimes(2);
+    });
+
+    it('a cut suppressed by the on-screen check never starts the cooldown clock', () => {
+      const fake = makeFakeScroller(3840, 375, 0);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('onscreen', 93.75); // 50% -- already on screen, suppressed
+      makeRobotRef('offscreen', 9.375); // 5% -- off screen
+
+      vi.spyOn(performance, 'now').mockReturnValue(1000);
+      cutDeckCameraTo('onscreen');
+      expect(gsap.timeline).not.toHaveBeenCalled();
+
+      cutDeckCameraTo('offscreen'); // same instant -- no time has passed
+      expect(gsap.timeline).toHaveBeenCalledTimes(1);
+    });
+
+    it('a cut suppressed by the idle gate never starts the cooldown clock', () => {
+      const fake = makeFakeScroller(3840, 375, 0);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 9.375);
+      makeRobotRef('beta', 9.375 + 1);
+
+      vi.spyOn(performance, 'now').mockReturnValue(1000);
+      noteDeckUserInput(); // not idle until 1000 + DECK_CAMERA_IDLE_MS
+
+      cutDeckCameraTo('alpha');
+      expect(gsap.timeline).not.toHaveBeenCalled();
+
+      vi.spyOn(performance, 'now').mockReturnValue(1000 + DECK_CAMERA_IDLE_MS);
+      cutDeckCameraTo('beta'); // idle again; the suppressed first cut left no cooldown behind
+      expect(gsap.timeline).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not gate panDeckCameraTo -- a tap right after a cut still moves the camera', () => {
+      const fake = makeFakeScroller(3840, 375, 0);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 9.375);
+      makeRobotRef('beta', 9.375 + 1);
+
+      vi.spyOn(performance, 'now').mockReturnValue(1000);
+      cutDeckCameraTo('alpha');
+      expect(gsap.timeline).toHaveBeenCalledTimes(1);
+
+      panDeckCameraTo('beta'); // same instant, no cooldown applies to a user tap
+      expect(gsap.timeline).toHaveBeenCalledTimes(2);
     });
   });
 

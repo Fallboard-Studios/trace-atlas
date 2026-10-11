@@ -13,7 +13,7 @@
 import gsap from 'gsap';
 import { ScrollToPlugin } from 'gsap/ScrollToPlugin';
 
-import { DECK_CAMERA_IDLE_MS, DECK_CAMERA_PAN_S, DECK_CAMERA_TIMELINE_ID } from '@/constants/deckCamera';
+import { DECK_CAMERA_CUT_COOLDOWN_MS, DECK_CAMERA_IDLE_MS, DECK_CAMERA_PAN_S, DECK_CAMERA_TIMELINE_ID } from '@/constants/deckCamera';
 import { WORLD_BOUNDS } from '@/constants/sceneDepth';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
 import { getRef } from '@/utils/refs';
@@ -26,6 +26,7 @@ gsap.registerPlugin(ScrollToPlugin);
 // ========================================
 let scroller: HTMLElement | null = null;
 let lastUserInputAt = -Infinity;
+let lastCutAt = -Infinity;
 let cameraScrolling = false;
 
 /** The scroller's own input listener: a camera tween's own scroll events don't count as the
@@ -131,23 +132,32 @@ function createCameraTween(x: number): void {
   tl.play();
 }
 
-function moveCameraTo(robotId: string): void {
+/** Builds the tween if the target resolves. Returns whether it did, so a cut knows whether to
+ *  start its own cooldown clock — a no-op (no ref, no scroller) never should. */
+function moveCameraTo(robotId: string): boolean {
   const x = targetFor(robotId);
-  if (x === null) return;
+  if (x === null) return false;
   createCameraTween(x);
+  return true;
 }
 
-/** The user's pan (spec §1.2): never idle-gated — a tap is always the user asking. */
+/** The user's pan (spec §1.2): never idle-gated — a tap is always the user asking. The cooldown
+ *  below applies only to automatic cuts, same exemption. */
 export function panDeckCameraTo(robotId: string): void {
   moveCameraTo(robotId);
 }
 
 /** The semantic cut (spec §1.2, assumptions 7, 8): does nothing while the user is not idle, or
- *  when the robot is already on screen (no cut to where we already are). */
+ *  when the robot is already on screen (no cut to where we already are), or when the last cut was
+ *  less than DECK_CAMERA_CUT_COOLDOWN_MS ago (Crawford, post-ship: two robots going active close
+ *  together whiplashed the camera from one target straight to the next, with no gap to read
+ *  either one). A cut this function suppresses never starts the cooldown clock. */
 export function cutDeckCameraTo(robotId: string): void {
   if (!isDeckCameraIdle()) return;
+  const now = performance.now();
+  if (now - lastCutAt < DECK_CAMERA_CUT_COOLDOWN_MS) return;
   if (isRobotOnScreen(robotId)) return;
-  moveCameraTo(robotId);
+  if (moveCameraTo(robotId)) lastCutAt = now;
 }
 
 // ========================================
@@ -160,8 +170,10 @@ export function __setDeckCameraScrolling(value: boolean): void {
   cameraScrolling = value;
 }
 
-/** Resets the module to its just-imported state: no input yet, camera not mid-tween. */
+/** Resets the module to its just-imported state: no input yet, camera not mid-tween, no cut
+ *  cooldown in effect. */
 export function __resetDeckCameraForTest(): void {
   lastUserInputAt = -Infinity;
+  lastCutAt = -Infinity;
   cameraScrolling = false;
 }
