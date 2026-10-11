@@ -37,6 +37,10 @@ interface OceanSceneProps {
   localTime?: number;
 }
 
+/** Quarter-stage proximity snap marks (Mobile Deck Camera, spec assumption 10, §7 Q1): a
+ *  different stride or no snap at all is a one-array edit here, not a re-plan. */
+const SNAP_FRACTIONS = [0, 25, 50, 75, 100];
+
 // ========================================
 // SCENE LAYER
 // ========================================
@@ -400,6 +404,11 @@ export function OceanScene({
         <PipeBridges factories={foregroundFactories} />
         <g id="ui-layer" />
       </SceneLayer>
+
+      {/* Snap marks (spec assumption 10): direct children of the stage box, not a layer. */}
+      {SNAP_FRACTIONS.map((fraction) => (
+        <div key={fraction} className="ocean-scene__snap" style={{ left: `${fraction}%` }} />
+      ))}
     </div>
   );
 }

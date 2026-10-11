@@ -41,6 +41,18 @@ describe('OceanScene.css scene layers', () => {
     expect(body).toContain('pointer-events: none;');
   });
 
+  // Mobile Deck Camera (spec assumption 10, Task 5): quarter-stage proximity snap marks, so a
+  // camera pan that lands between marks stays put and a swipe that stops near one settles there.
+  it('a snap mark takes no clicks, has no width, and spans the full stage height', () => {
+    const body = getCssRuleBody(cssSource, '.ocean-scene__snap');
+    expect(body).not.toBeNull();
+    expect(body).toContain('position: absolute;');
+    expect(body).toContain('width: 0;');
+    expect(body).toContain('height: 100%;');
+    expect(body).toContain('scroll-snap-align: start;');
+    expect(body).toContain('pointer-events: none;');
+  });
+
   it('a moving layer is promoted to its own compositor layer', () => {
     const body = getCssRuleBody(cssSource, '.ocean-scene__layer--moving');
     expect(body).not.toBeNull();
