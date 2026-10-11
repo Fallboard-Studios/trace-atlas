@@ -640,6 +640,31 @@ describe('NavPanel — the phone sheet (Task 5)', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  // Code review 2026-10-11: the flag outlived a rotation to the desk shell and reopened the modal sheet
+  // when the phone came back.
+  it('clears the sheet flag when the shell becomes desk, so rotating back does not reopen it', () => {
+    const listeners = new Set<() => void>();
+    let desk = false;
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query.includes('reduced-motion') ? false : desk,
+        media: query,
+        addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+      }),
+    });
+    useUIStore.setState({ isNavPanelOpen: true });
+    renderPanel();
+    expect(sheet()).toBeTruthy();
+
+    desk = true;
+    act(() => listeners.forEach((listener) => listener()));
+
+    expect(useUIStore.getState().isNavPanelOpen).toBe(false);
+  });
+
   it('the desk shell renders no sheet and no scrim, whatever isNavPanelOpen says', () => {
     useUIStore.setState({ isNavPanelOpen: true });
     renderPanel();

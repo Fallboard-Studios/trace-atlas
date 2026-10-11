@@ -102,6 +102,11 @@ export function NavPanel() {
   // Desk only: the phone sheet's dialog already hands focus back to its opener.
   useRescueLostFocus(shell === 'desk', panelRef, FOCUS_RESCUE_TARGETS, `${active}|${expandedBranch}|${selectionKey}`);
   useNavPanelWidth(expandsInPlace(active) && expandedBranch === active);
+  // The sheet's flag is the phone's; a rotation to the desk shell must not leave it set, or rotating back
+  // reopens the modal sheet unprompted.
+  useEffect(() => {
+    if (shell === 'desk' && isNavPanelOpen) setNavPanelOpen(false);
+  }, [shell, isNavPanelOpen, setNavPanelOpen]);
 
   const panel = (
     <nav ref={panelRef} className="nav-panel" aria-label={NAV_LABEL}>

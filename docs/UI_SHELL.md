@@ -76,7 +76,7 @@ Each section's panel opens with its group's intro as an expander that starts col
 
 ## The off screen
 
-`OffScreen` (`screens/OffScreen.tsx`) is what shows before power-on, over the dimmed, still `WorldView`: an etched label, the power hint, and the **Transmission** row — the `TRANSMISSION_PRESETS` (`src/data/transmissionPresets.ts`), a divider, then the user's saved sessions — as a `RadioButton` with `appearance: 'muted'` (nothing comes off the plate while the power is off) and a well naming the pick. Picking retransmits the faint world through `applySessionPayload` and never touches `AudioEngine`; only the power switch starts sound. See [SESSION_STORAGE.md](SESSION_STORAGE.md).
+`OffScreen` (`screens/OffScreen.tsx`) is what shows before power-on, over the dimmed, still `WorldView`: an etched label, the power hint, and the **Transmission** row — the `TRANSMISSION_PRESETS` (`src/data/transmissionPresets.ts`), a divider, then the user's saved sessions — as a `RadioButton` with `appearance: 'muted'` (nothing comes off the plate while the power is off) and a well naming the pick. Picking retransmits the faint world through `applySessionPayload` and never starts audio; only the power switch does. A save pick also names the session after the save, so a later Save overwrites it. See [SESSION_STORAGE.md](SESSION_STORAGE.md).
 
 ## uiStore
 

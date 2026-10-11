@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { TRANSMISSION_PRESETS } from '@/data/transmissionPresets';
 import { applySessionPayload } from '@/utils/sessionDiff';
+import { useSessionStore } from '@/stores/sessionStore';
 import { listSessions, loadSession } from '@/utils/sessionStorageEngine';
 import { fill, labels } from '@/content';
 import type { RadioButtonSchema } from '@/types/controls';
@@ -36,7 +37,8 @@ interface Pick {
  * muted RadioButton (nothing comes off the plate while the power is off), with a well naming the pick.
  *
  * Picking retransmits the faint world through applySessionPayload, the same path a Load does, and never
- * touches AudioEngine: only the power switch starts sound (powerController). The saves are read once on
+ * starts audio: only the power switch does (powerController). A save pick also names the session after the
+ * save, as loading it from the Sessions list does, so a later Save overwrites it. The saves are read once on
  * mount — nothing can add one while the power is off — and a save that has since vanished from storage
  * applies nothing and is not claimed as the pick. The Theme row is not built (the themes phase).
  */
@@ -79,6 +81,11 @@ export function OffScreen() {
     }
     if (!payload) return;
     applySessionPayload(payload);
+    if (value.startsWith(SAVE_PREFIX)) {
+      const { setCurrentSessionName, setCurrentLoadedSessionName } = useSessionStore.getState();
+      setCurrentSessionName(name);
+      setCurrentLoadedSessionName(name);
+    }
     setPick({ value, name, code: payload.attenuationStyleName });
   }, []);
 

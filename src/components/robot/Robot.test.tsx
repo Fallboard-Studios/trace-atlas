@@ -111,6 +111,17 @@ describe('Robot click routing (Roadmap Phase 8)', () => {
     expect(useUIStore.getState().selectedRobotId).toBe('r1');
     expect(useUIStore.getState().activeHubTile).toBe('robots');
   });
+
+  // Code review 2026-10-11 (spec §1.2): a pick from the world collapses the nav list like one from the list.
+  it('with the Probes list open, a world pick is a nav pick: it selects the robot and collapses the list', () => {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
+    const { container } = renderRobot({ id: 'r1' });
+    fireEvent.click(container.querySelector('.robot') as Element);
+
+    expect(useUIStore.getState().selectedRobotId).toBe('r1');
+    expect(useUIStore.getState().activeHubTile).toBe('robots');
+    expect(useUIStore.getState().expandedTopLevelBranch).not.toBe('probes');
+  });
 });
 
 describe('Robot company-member glow (Roadmap Phase 10)', () => {

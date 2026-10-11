@@ -8,13 +8,13 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
  * docs/tasks/LAYOUT_REWORK.md Task 27 (spec §1.9): the powered-off screen — the etched label and power hint
  * over the dimmed still world, and the Transmission row: three presets, a divider, then the user's saves,
  * as a muted RadioButton (nothing comes off the plate while the power is off) with a well naming the pick.
- * Picking retransmits through applySessionPayload and never touches AudioEngine; only the rocker starts sound.
+ * Picking retransmits through applySessionPayload and never starts audio; only the rocker starts sound.
  */
 vi.mock('@/utils/sessionDiff', () => ({
   applySessionPayload: vi.fn(),
 }));
 vi.mock('@/engine/AudioEngine', () => ({
-  AudioEngine: { start: vi.fn(), stop: vi.fn(), scheduleNote: vi.fn() },
+  AudioEngine: { start: vi.fn() },
 }));
 
 import { OffScreen } from './OffScreen';
@@ -22,6 +22,7 @@ import { applySessionPayload } from '@/utils/sessionDiff';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { TRANSMISSION_PRESETS } from '@/data/transmissionPresets';
 import { saveNamedSession } from '@/utils/sessionStorageEngine';
+import { useSessionStore } from '@/stores/sessionStore';
 import { CONTENT, fill } from '@/content';
 import type { SessionPayload } from '@/types/session';
 
@@ -114,14 +115,29 @@ describe('OffScreen — picking', () => {
     expect(applySessionPayload).toHaveBeenCalledWith(save);
   });
 
-  it('never starts or touches the AudioEngine: only the power switch starts sound', () => {
+  // Code review 2026-10-11: the Sessions list names the loaded save so a later Save overwrites it; the
+  // off screen's pick must too, or powering on and pressing Save writes a second entry.
+  it('picking a save names the session after it, as loading it from the Sessions list does', () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(useSessionStore.getState().currentSessionName).toBe('Dusk Run');
+    expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
+  });
+
+  it('picking a preset leaves the session name alone: a preset is not a save to overwrite', () => {
+    const before = useSessionStore.getState().currentSessionName;
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
+    expect(useSessionStore.getState().currentSessionName).toBe(before);
+  });
+
+  it('never starts the AudioEngine: only the power switch starts sound', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
     expect(AudioEngine.start).not.toHaveBeenCalled();
-    expect(AudioEngine.stop).not.toHaveBeenCalled();
-    expect(AudioEngine.scheduleNote).not.toHaveBeenCalled();
   });
 
   it('marks the picked option selected, and only it', () => {
