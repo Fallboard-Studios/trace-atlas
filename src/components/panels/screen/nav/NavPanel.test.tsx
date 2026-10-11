@@ -681,3 +681,62 @@ describe('NavPanel reads its copy from src/content (docs/specs/CONTENT_LAYER.md,
     expect(source).not.toMatch(/>\s*[A-Z][a-z]+( [A-Za-z]+)*\s*</);
   });
 });
+
+// Crawford, 2026-10-10: on the desk the rail's padding is `var(--spacing-xl) 0 40px var(--spacing-md)` and the
+// panel no longer takes the full height: its height comes from its content, capped at the screen so a long list
+// still scrolls inside the plate. The phone's sheet is not the desk rail: it keeps its own padding and fills the
+// sheet.
+describe('NavPanel.css — the desk rail sizes itself from its content', () => {
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'NavPanel.css'), 'utf-8');
+  const rail = () => getCssRuleBody(css, '.nav-panel');
+  const sheetPanel = () => getCssRuleBody(css, '.nav-sheet > .nav-panel');
+
+  it('pads 24px above, 40px below and 12px on the left, none on the right', () => {
+    expect(rail()).toContain('padding: var(--spacing-xl) 0 40px var(--spacing-md);');
+  });
+
+  it('hangs from the top and is no longer pinned to the bottom, so its height is its content', () => {
+    expect(rail()).toContain('top: 0;');
+    expect(rail()).not.toMatch(/(^|\s)bottom:/);
+    expect(rail()).not.toMatch(/(^|\s)height:/);
+  });
+
+  it('is capped at the screen, padding included, so twelve robots scroll inside the plate instead of running off', () => {
+    expect(rail()).toContain('max-height: 100%;');
+    expect(rail()).toContain('box-sizing: border-box;');
+  });
+
+  it('lets the facade shrink to that cap rather than stretch to fill it', () => {
+    const box = getCssRuleBody(css, '.nav-panel > .sc-cabinet-box');
+    expect(box).toContain('flex: 0 1 auto;');
+    expect(box).toContain('min-height: 0;');
+  });
+
+  // Found in Chrome at 560px high with the Probes list open: a percentage height inside a content-sized flex item
+  // does not resolve, so the plate's face ran to 968px inside a 464px box and off the screen instead of
+  // scrolling. The facade is a flex column and the face is its flexing child, which shrinks to the cap.
+  it('makes the facade a flex column, so its face shrinks to the capped height and scrolls', () => {
+    const box = getCssRuleBody(css, '.nav-panel > .sc-cabinet-box');
+    expect(box).toContain('display: flex;');
+    expect(box).toContain('flex-direction: column;');
+    const front = getCssRuleBody(css, '.nav-panel > .sc-cabinet-box > .sc-cabinet-box__front');
+    expect(front).toContain('flex: 1 1 auto;');
+    expect(front).toContain('min-height: 0;');
+    expect(front).toContain('overflow-y: auto;');
+    // CabinetBox.css gives every front face a fixed height; auto lets this one be its content's, then flex.
+    expect(front).toContain('height: auto;');
+  });
+
+  it('keeps the plate filling the phone sheet, as it did before the desk rail took its content height', () => {
+    const body = getCssRuleBody(css, '.nav-sheet > .nav-panel > .sc-cabinet-box');
+    expect(body).not.toBeNull();
+    expect(body).toContain('flex: 1 1 auto;');
+  });
+
+  it('keeps the phone sheet as it was: its own padding, the full sheet height, no screen cap', () => {
+    const body = sheetPanel();
+    expect(body).toContain('height: 100%;');
+    expect(body).toContain('max-height: none;');
+    expect(body).toContain('padding: var(--spacing-md) 0 var(--spacing-md) var(--spacing-sm);');
+  });
+});

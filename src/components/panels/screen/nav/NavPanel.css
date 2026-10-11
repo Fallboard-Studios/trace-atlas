@@ -16,23 +16,32 @@
   --nav-sheet-width: 300px;
 }
 
-/* Full height on the left edge, the sketch's rail; the padding is room for the facade's walls, which
-   sit up and left of its front face. */
+/* The desk rail, on the left edge (Crawford, 2026-10-10): no longer the full height — it hangs from the top
+   and its height is its content, so four boxes at rest are a short plate and a list of twelve robots grows it
+   until the cap. The cap is the screen (max-height, padding included), past which the plate scrolls
+   (below). The padding is room for the facade's walls, which sit up and left of its front face, and clearance
+   above and below. */
 .nav-panel {
   position: absolute;
   top: 0;
-  bottom: 0;
   left: 0;
   z-index: 2;
   display: flex;
   flex-direction: column;
   width: var(--nav-panel-width);
+  max-height: 100%;
   box-sizing: border-box;
-  padding: var(--spacing-md) 0 var(--spacing-md) var(--spacing-sm);
+  padding: var(--spacing-xl) 0 40px var(--spacing-md);
 }
 
+/* Takes its content's height, and shrinks (never stretches) to the panel's cap. A flex column itself (the
+   box's own rule is a row), so its face is a flexing child that shrinks to the box: a percentage height
+   would not resolve inside a content-sized flex item, and the face ran off the screen instead of scrolling
+   (found in Chrome, 560px high with the Probes list open). */
 .nav-panel > .sc-cabinet-box {
-  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
   min-height: 0;
 }
 
@@ -42,8 +51,10 @@
 .nav-panel > .sc-cabinet-box > .sc-cabinet-box__front {
   --color-surface: rgba(26, 26, 26, 0.75);
   display: block;
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
-  height: 100%;
+  height: auto;
   box-sizing: border-box;
   padding: var(--spacing-sm);
   overflow-x: hidden;
@@ -102,4 +113,12 @@
   position: static;
   width: 100%;
   height: 100%;
+  max-height: none;
+  /* The sheet is not the desk rail: its padding is the one the rail had before the desk's own. */
+  padding: var(--spacing-md) 0 var(--spacing-md) var(--spacing-sm);
+}
+
+/* The sheet is a fixed band, so its plate fills it (the desk rail's plate takes its content's height). */
+.nav-sheet > .nav-panel > .sc-cabinet-box {
+  flex: 1 1 auto;
 }
