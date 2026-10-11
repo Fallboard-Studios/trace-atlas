@@ -6,8 +6,17 @@ import { useGSAP } from '@gsap/react';
 import * as Dialog from '@radix-ui/react-dialog';
 import gsap from 'gsap';
 
+import {
+  LIGHT_PERSPECTIVE,
+  LIGHT_PRESSED_ANGLE,
+  LIGHT_REST_ANGLE,
+  POWER_SVG_PRESSED,
+  POWER_SVG_REST,
+  RIDGE_ORIGIN_PERCENT,
+  ROCKER_FACES,
+  ROCKER_VIEWBOX_HEIGHT,
+} from './rockerGeometry';
 import { useUIStore } from '@/stores/uiStore';
-import { useShell } from '@/components/panels/screen/useShell';
 
 import { powerController } from '@/systems/powerController';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
@@ -17,40 +26,14 @@ import { getStatusLightColor } from '@/utils/statusLightColors';
 import { CONTENT } from '@/content';
 import './PowerRockerSwitch.css';
 
-// ========================================
-// GEOMETRY — single source of truth for the
-// rocker's 8 SVG faces, rest vs. pressed.
-// ========================================
+// The rocker's face geometry, and the pose the light derives from it, live in rockerGeometry.ts.
 
-/** One rocker face's rest/pressed point sets. Previously each face's geometry
- *  was hand-copied 3x (initial gsap.set, animateRockerPress's press target,
- *  returnRocker's hardcoded FROM) — collapsed here into one table all three
- *  call sites read from, which also removes the drift that had crept into
- *  the loose copies (the power-glyph's pressed scaleY was 0.76 in one copy,
- *  0.74 in another — see POWER_SVG_PRESSED below; both describe the same
- *  "pressed" state and must agree). */
-interface RockerFace {
-  className: string;
-  rest: string;
-  pressed: string;
-}
-
-const ROCKER_FACES: RockerFace[] = [
-  { className: 'rocker-top-edge', rest: '0,5   100,5   94,15  6,15', pressed: '0,5   100,5   100,5  0,5' },
-  { className: 'rocker-top', rest: '6,15  94,15   97,44  3,44', pressed: '3,5   97,5    97,44  3,44' },
-  { className: 'rocker-top-left', rest: '0,5   6,15    3,44   0,44', pressed: '0,5   3,5     3,44   0,44' },
-  { className: 'rocker-top-right', rest: '94,15 100,5   100,44 97,44', pressed: '97,5  100,5   100,44 97,44' },
-  { className: 'rocker-bottom-edge', rest: '0,85  100,85  100,85 0,85', pressed: '0,85  100,85  94,75  6,75' },
-  { className: 'rocker-bottom', rest: '3,44  97,44   97,85  3,85', pressed: '3,44  97,44   94,75  6,75' },
-  { className: 'rocker-bottom-left', rest: '0,44  3,44    3,85   0,85', pressed: '0,44  3,44    6,75   0,85' },
-  { className: 'rocker-bottom-right', rest: '97,44 100,44  100,85 97,85', pressed: '97,44 100,44  100,85 94,75' },
-];
-
-/** The power-glyph nested SVG's own rest/pressed attr pair — same rest-vs-
- *  pressed shape as ROCKER_FACES, kept separate since it's one element with
- *  a different attr set (y + scaleY, not points). */
-const POWER_SVG_REST = { y: 54, scaleY: 1 };
-const POWER_SVG_PRESSED = { y: 50, scaleY: 0.76 };
+/** The light's pivot layer, in JSX so the very first paint is already tilted (GSAP takes over the transform
+ *  on mount with the same values). Constant strings, so React never rewrites it over a running tween. */
+const LIGHT_PIVOT_STYLE = {
+  transform: `perspective(${LIGHT_PERSPECTIVE}px) rotateX(${LIGHT_REST_ANGLE}deg)`,
+  transformOrigin: `50% ${RIDGE_ORIGIN_PERCENT}%`,
+};
 
 /** Indicator-light colors for the 3 fixed states — statusLightColors.ts
  *  resolves a static per-name/alpha value from colorTheme.json, so these
@@ -66,12 +49,11 @@ const LIGHT_TRANSITIONING = getStatusLightColor('amber', 0.5);
 
 export function PowerRockerSwitch() {
   const isPoweredOn = useUIStore((s) => s.isPoweredOn);
-  // The phone shell sets the light into the rocker's upper face; the desk keeps the recessed housing above it
-  // (docs/tasks/LAYOUT_REWORK.md Task 28, the sketch's Q11).
-  const lightInButton = useShell() === 'phone';
   const [showConfirm, setShowConfirm] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const rockerRef = useRef<SVGSVGElement>(null);
+  // The light's pivot layer: tilted forward at rest, rocked flat with the top face on a press (see below).
+  const lightPivotRef = useRef<HTMLDivElement>(null);
   // Cache of each rocker face's own DOM node, populated once on mount by the
   // useGSAP effect below — animateRockerPress/returnRocker read from this
   // instead of re-running gsap.utils.selector (and its querySelector call
@@ -95,6 +77,8 @@ export function PowerRockerSwitch() {
     const powerSvgEl = sel('.rocker-power-svg')[0] as Element;
     elsRef.current['rocker-power-svg'] = powerSvgEl;
     gsap.set(powerSvgEl, { attr: { y: POWER_SVG_REST.y }, scaleY: POWER_SVG_REST.scaleY });
+    // The light lies on the top face: at rest it is tilted forward like that face, about the ridge.
+    gsap.set(lightPivotRef.current, { rotateX: LIGHT_REST_ANGLE, transformPerspective: LIGHT_PERSPECTIVE, transformOrigin: LIGHT_PIVOT_STYLE.transformOrigin });
   }, { scope: rockerRef, dependencies: [] });
 
   // Kill every timeline key this component can create on unmount to prevent leaks — the two
@@ -132,6 +116,8 @@ export function PowerRockerSwitch() {
       tl.to(elsRef.current[face.className], { attr: { points: face.pressed }, duration: THUNK, ease: 'power4.in' }, ...(i === 0 ? [] : ['<'] as const));
     });
     tl.to(elsRef.current['rocker-power-svg'], { attr: { y: POWER_SVG_PRESSED.y }, scaleY: POWER_SVG_PRESSED.scaleY, transformOrigin: '50% 50%', duration: THUNK, ease: 'power4.in' }, '<')
+      // ── The light rocks flat with the top face it lies on, on the same stroke. ──
+      .to(lightPivotRef.current, { rotateX: LIGHT_PRESSED_ANGLE, duration: THUNK, ease: 'power4.in' }, '<')
       // ── Hold (button stays depressed until dialog resolves) ────────────────
       .to({}, { duration: HOLD });
     setTimeline('power-rocker', tl);
@@ -159,6 +145,8 @@ export function PowerRockerSwitch() {
     tl.fromTo(elsRef.current['rocker-power-svg'],
       { attr: { y: POWER_SVG_PRESSED.y }, scaleY: POWER_SVG_PRESSED.scaleY },
       { attr: { y: POWER_SVG_REST.y }, scaleY: POWER_SVG_REST.scaleY, transformOrigin: '50% 50%', duration: MOTOR, ease: 'none' }, '<')
+      // ── The light tilts forward again with the face, from flat. ──
+      .fromTo(lightPivotRef.current, { rotateX: LIGHT_PRESSED_ANGLE }, { rotateX: LIGHT_REST_ANGLE, duration: MOTOR, ease: 'none' }, '<')
       .call(() => setIsTransitioning(false));
     setTimeline('power-rocker-return', tl);
   });
@@ -219,24 +207,9 @@ export function PowerRockerSwitch() {
   const lightColor = isTransitioning ? LIGHT_TRANSITIONING : isPoweredOn ? LIGHT_ON : LIGHT_OFF;
   const lightGlowSpread = isPoweredOn && !isTransitioning ? '8px 3px' : '6px 2px';
 
-  // One light element in both places: only where it sits differs, so its colour, glow and pulse are the same.
-  const light = (
-    <div
-      className="rocker-light"
-      role="status"
-      aria-label={isPoweredOn ? CONTENT['ui.power.on'].human : CONTENT['ui.power.off'].human}
-      data-power-state={powerState}
-      data-transitioning={isTransitioning ? 'true' : undefined}
-      style={{ color: lightColor.color, boxShadow: `0 0 ${lightGlowSpread} ${lightColor.glow}` }}
-    />
-  );
-
   return (
     <>
-      <div className={lightInButton ? 'rocker-panel rocker-panel--in-button' : 'rocker-panel'} aria-label={CONTENT['ui.power.controls'].human}>
-        {/* Indicator light — rectangular lens in a recessed housing (desk shell) */}
-        {!lightInButton && <div className="rocker-light-housing">{light}</div>}
-
+      <div className="rocker-panel" aria-label={CONTENT['ui.power.controls'].human}>
         {/* Rocker in its molded bezel */}
         <div className="rocker-bezel">
           <button
@@ -253,7 +226,7 @@ export function PowerRockerSwitch() {
             <svg
               ref={rockerRef}
               className="rocker-svg"
-              viewBox="0 0 100 90"
+              viewBox={`0 0 100 ${ROCKER_VIEWBOX_HEIGHT}`}
               preserveAspectRatio="none"
               xmlns="http://www.w3.org/2000/svg"
               aria-hidden="true"
@@ -338,10 +311,21 @@ export function PowerRockerSwitch() {
               <rect className="rocker-ridge" x="0" y="43" width="100" height="2" />
             </svg>
           </button>
-          {/* Phone shell: the lens sits over the rocker's upper face. A sibling of the button, not inside it,
-              so it stays a status element assistive tech can announce; pointer-events: none (CSS) keeps the
-              click on the button. */}
-          {lightInButton && light}
+          {/* The indicator light — a lens lying on the rocker's top face. Its pivot layer is laid over the
+              button, rotated about the ridge (rockerGeometry.ts) by the same timelines that move the faces, so the
+              lens is tilted forward at rest and rocks up with the switch. A sibling of the button, not inside it,
+              so it stays a status element assistive tech can announce; pointer-events: none (CSS) leaves the
+              click to the button. */}
+          <div ref={lightPivotRef} className="rocker-light-pivot" style={LIGHT_PIVOT_STYLE}>
+            <div
+              className="rocker-light"
+              role="status"
+              aria-label={isPoweredOn ? CONTENT['ui.power.on'].human : CONTENT['ui.power.off'].human}
+              data-power-state={powerState}
+              data-transitioning={isTransitioning ? 'true' : undefined}
+              style={{ color: lightColor.color, boxShadow: `0 0 ${lightGlowSpread} ${lightColor.glow}` }}
+            />
+          </div>
         </div>
       </div>
 

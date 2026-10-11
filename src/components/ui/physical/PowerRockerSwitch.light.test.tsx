@@ -1,17 +1,20 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { useEffect } from 'react';
 import { describe, it, vi, beforeEach, afterEach, expect } from 'vitest';
-import { render, fireEvent, act } from '@testing-library/react';
-
-import { PowerRockerSwitch } from './PowerRockerSwitch';
-import { getCssRuleBody } from '@/testUtils/cssRuleBody';
+import { render, fireEvent } from '@testing-library/react';
 
 /*
- * Crawford, 2026-10-10 (sketch Q11, docs/tasks/LAYOUT_REWORK.md Task 28): on the phone shell the power
- * switch's light is IN the rocker, a lens set into its upper face; the desk shell keeps the recessed housing
- * above the rocker. The light is the same element in both (its colours, glow and pulse are unchanged); only
- * its place differs, and the shell is useShell()'s, the app's one switch.
+ * Crawford, 2026-10-10 (sketch Q11, docs/tasks/LAYOUT_REWORK.md Task 28), then: "have the light appear to be
+ * along the surface of the switch ... at rest it should be tilted forward like the surface of the switch is.
+ * On click the switch rocks up, and the light should rotate and move with it ... rotating around the center of
+ * the rocker switch ... use it on desktop like this."
+ *
+ * So on both shells the light is IN the rocker: a lens on a pivot layer laid over the button. The pivot is
+ * rotated about the ridge (the rocker's centre) — tilted at rest, flat when the rocker is pressed — by the same
+ * timelines, durations and eases that move the rocker's faces. The light is still the one status element, and
+ * the housing it used to sit in is gone.
  */
 vi.mock('@/systems/powerController', () => ({
   powerController: {
@@ -30,29 +33,39 @@ vi.mock('@/stores/uiStore', () => {
   return { useUIStore };
 });
 
+// A recording GSAP: every set / to / fromTo is kept with its target and vars, so the test reads what the
+// rocker was told to do. useGSAP runs its callback on mount (as the real one does) and contextSafe is a
+// pass-through; selector resolves real DOM nodes so the faces are found.
+interface Call { method: 'set' | 'to' | 'fromTo'; target: unknown; from?: Record<string, unknown>; vars: Record<string, unknown>; position?: unknown }
+const calls: Call[] = [];
+vi.mock('gsap', () => {
+  const timeline = () => {
+    const tl: Record<string, unknown> = {};
+    tl.to = (target: unknown, vars: Record<string, unknown>, position?: unknown) => { calls.push({ method: 'to', target, vars, position }); return tl; };
+    tl.fromTo = (target: unknown, from: Record<string, unknown>, vars: Record<string, unknown>, position?: unknown) => { calls.push({ method: 'fromTo', target, from, vars, position }); return tl; };
+    tl.call = () => tl;
+    tl.kill = () => undefined;
+    return tl;
+  };
+  const gsap = {
+    timeline,
+    set: (target: unknown, vars: Record<string, unknown>) => { calls.push({ method: 'set', target, vars }); },
+    utils: { selector: (root: Element) => (query: string) => Array.from(root.querySelectorAll(query)) },
+  };
+  return { default: gsap, ...gsap };
+});
+vi.mock('@gsap/react', () => ({
+  useGSAP: (callback: () => void) => {
+    useEffect(() => { callback(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    return { contextSafe: <T,>(fn: T) => fn };
+  },
+}));
+
+import { PowerRockerSwitch } from './PowerRockerSwitch';
+import { LIGHT_PERSPECTIVE, LIGHT_PRESSED_ANGLE, LIGHT_REST_ANGLE, RIDGE_ORIGIN_PERCENT } from './rockerGeometry';
 import { powerController } from '@/systems/powerController';
+import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { getStatusLightColor } from '@/utils/statusLightColors';
-
-const realMatchMedia = window.matchMedia;
-const listeners = new Set<() => void>();
-let deskWidth = false;
-
-/** A matchMedia whose desk query (useShell's min-width) answers `deskWidth`; flip() fires `change`. */
-function stubShell(desk: boolean) {
-  deskWidth = desk;
-  listeners.clear();
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    configurable: true,
-    value: (query: string) => ({
-      get matches() { return /min-width/.test(query) ? deskWidth : false; },
-      media: query,
-      addEventListener: (_: string, cb: () => void) => listeners.add(cb),
-      removeEventListener: (_: string, cb: () => void) => listeners.delete(cb),
-    }),
-  });
-}
-const flipTo = (desk: boolean) => act(() => { deskWidth = desk; listeners.forEach((cb) => cb()); });
 
 function normalizeColor(color: string): string {
   const probe = document.createElement('span');
@@ -60,37 +73,32 @@ function normalizeColor(color: string): string {
   return probe.style.color;
 }
 
+const pivotIn = (container: HTMLElement) => container.querySelector('.rocker-light-pivot') as HTMLElement;
+const callsOn = (target: unknown) => calls.filter((c) => c.target === target);
+
 beforeEach(() => {
   vi.clearAllMocks();
+  calls.length = 0;
   mockIsPoweredOn = false;
 });
-afterEach(() => {
-  Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
-});
 
-describe('PowerRockerSwitch — the light on the phone shell', () => {
-  beforeEach(() => stubShell(false));
-
-  it('has no recessed housing: the light is not a separate pocket above the rocker', () => {
+describe('PowerRockerSwitch — where the light is', () => {
+  it('sits on a pivot layer in the rocker\'s bezel, over the button, with no housing above the rocker', () => {
     const { container } = render(<PowerRockerSwitch />);
     expect(container.querySelector('.rocker-light-housing')).toBeNull();
+    const pivot = pivotIn(container);
+    expect(pivot).not.toBeNull();
+    expect(container.querySelector('.rocker-bezel')?.contains(pivot)).toBe(true);
+    expect(pivot.querySelector('.rocker-light')).not.toBeNull();
+    expect(pivot.getAttribute('aria-hidden')).toBeNull();
   });
 
-  it('sets the light inside the rocker\'s bezel, beside the button that is the click target', () => {
+  it('keeps the pivot out of the button, so the light stays an announced status element', () => {
     const { container } = render(<PowerRockerSwitch />);
-    const bezel = container.querySelector('.rocker-bezel');
-    const light = container.querySelector('.rocker-light');
-    expect(light).not.toBeNull();
-    expect(bezel?.contains(light)).toBe(true);
-    expect(container.querySelector('.rocker-panel')?.classList.contains('rocker-panel--in-button')).toBe(true);
+    expect(container.querySelector('.rocker-el')?.contains(pivotIn(container))).toBe(false);
   });
 
-  it('keeps the light out of the button: a status element inside a button is not announced as one', () => {
-    const { container } = render(<PowerRockerSwitch />);
-    expect(container.querySelector('.rocker-el')?.querySelector('.rocker-light')).toBeNull();
-  });
-
-  it('still reports the power state to assistive tech, and there is exactly one light and one button', () => {
+  it('has exactly one light and one button, and the light reports the power state', () => {
     const { container, getAllByRole } = render(<PowerRockerSwitch />);
     expect(container.querySelectorAll('.rocker-light')).toHaveLength(1);
     expect(getAllByRole('button')).toHaveLength(1);
@@ -102,7 +110,7 @@ describe('PowerRockerSwitch — the light on the phone shell', () => {
   it.each([
     ['off', false, 'red'],
     ['on', true, 'green'],
-  ] as const)('colours the in-button light for the %s state from statusLightColors', (state, powered, colour) => {
+  ] as const)('colours the light for the %s state from statusLightColors, with a glow', (state, powered, colour) => {
     mockIsPoweredOn = powered;
     const { container } = render(<PowerRockerSwitch />);
     const light = container.querySelector('.rocker-light') as HTMLElement;
@@ -111,72 +119,111 @@ describe('PowerRockerSwitch — the light on the phone shell', () => {
     expect(light.style.boxShadow).not.toBe('');
   });
 
-  it('turns the in-button light amber while the rocker is moving, and clicking the rocker still powers on', async () => {
+  it('turns amber while the rocker is moving', async () => {
     const { container, getByRole } = render(<PowerRockerSwitch />);
     await fireEvent.click(getByRole('button', { name: /Power on/i }));
-    expect(powerController.powerOnSequence).toHaveBeenCalled();
     const light = container.querySelector('.rocker-light') as HTMLElement;
     expect(light.getAttribute('data-transitioning')).toBe('true');
     expect(light.style.color).toBe(normalizeColor(getStatusLightColor('amber').color));
   });
 });
 
-describe('PowerRockerSwitch — the light on the desk shell', () => {
-  beforeEach(() => stubShell(true));
-
-  it('keeps the recessed housing above the rocker, with the light in it', () => {
+describe('PowerRockerSwitch — the light follows the rocker', () => {
+  it('starts tilted forward, rotating about the ridge, with a perspective, before any click', () => {
     const { container } = render(<PowerRockerSwitch />);
-    const housing = container.querySelector('.rocker-light-housing');
-    expect(housing).not.toBeNull();
-    expect(housing?.querySelector('.rocker-light')).not.toBeNull();
-    expect(container.querySelector('.rocker-bezel')?.querySelector('.rocker-light')).toBeNull();
-    expect(container.querySelector('.rocker-panel')?.classList.contains('rocker-panel--in-button')).toBe(false);
+    const sets = callsOn(pivotIn(container)).filter((c) => c.method === 'set');
+    expect(sets).toHaveLength(1);
+    expect(sets[0].vars).toMatchObject({
+      rotateX: LIGHT_REST_ANGLE,
+      transformPerspective: LIGHT_PERSPECTIVE,
+      transformOrigin: `50% ${RIDGE_ORIGIN_PERCENT}%`,
+    });
   });
 
-  it('colours the housed light exactly as before', () => {
-    mockIsPoweredOn = true;
+  it('gives the first paint the same tilt from JSX, before GSAP has run', () => {
+    // vitest's recording gsap does not touch the DOM, so what the pivot carries here is JSX alone.
     const { container } = render(<PowerRockerSwitch />);
-    const light = container.querySelector('.rocker-light') as HTMLElement;
-    expect(light.style.color).toBe(normalizeColor(getStatusLightColor('green').color));
+    const style = pivotIn(container).style;
+    expect(style.transform).toBe(`perspective(${LIGHT_PERSPECTIVE}px) rotateX(${LIGHT_REST_ANGLE}deg)`);
+    expect(style.transformOrigin).toBe(`50% ${RIDGE_ORIGIN_PERCENT}%`);
+  });
+
+  it('on a click, rocks the light flat in the same tween the rocker\'s faces press in', () => {
+    const { container, getByRole } = render(<PowerRockerSwitch />);
+    calls.length = 0;
+    fireEvent.click(getByRole('button', { name: /Power on/i }));
+
+    const pivotTweens = callsOn(pivotIn(container)).filter((c) => c.method === 'to');
+    expect(pivotTweens).toHaveLength(1);
+    expect(pivotTweens[0].vars.rotateX).toBe(LIGHT_PRESSED_ANGLE);
+    // Start-synced with the faces ('<'), over their duration and on their ease.
+    const topFace = calls.find((c) => c.method === 'to' && (c.target as Element)?.classList?.contains('rocker-top'));
+    expect(topFace).toBeDefined();
+    expect(pivotTweens[0].vars.duration).toBe(topFace!.vars.duration);
+    expect(pivotTweens[0].vars.ease).toBe(topFace!.vars.ease);
+    expect(pivotTweens[0].position).toBe('<');
+  });
+
+  it('on the return, rocks the light back to its tilt over the faces return time, on their ease, from flat', () => {
+    const { container, getByRole } = render(<PowerRockerSwitch />);
+    fireEvent.click(getByRole('button', { name: /Power on/i }));
+    // The power-on sequence returns the rocker in its second step (a 0.5 s delay whose onComplete is
+    // returnRocker): run it, as the timeline would.
+    const returnStep = calls.find((c) => c.method === 'to' && c.vars.duration === 0.5 && typeof c.vars.onComplete === 'function');
+    expect(returnStep).toBeDefined();
+    calls.length = 0;
+    (returnStep!.vars.onComplete as () => void)();
+
+    const pivotReturns = callsOn(pivotIn(container)).filter((c) => c.method === 'fromTo');
+    expect(pivotReturns).toHaveLength(1);
+    expect(pivotReturns[0].from).toMatchObject({ rotateX: LIGHT_PRESSED_ANGLE });
+    expect(pivotReturns[0].vars.rotateX).toBe(LIGHT_REST_ANGLE);
+    const topFace = calls.find((c) => c.method === 'fromTo' && (c.target as Element)?.classList?.contains('rocker-top'));
+    expect(topFace).toBeDefined();
+    expect(pivotReturns[0].vars.duration).toBe(topFace!.vars.duration);
+    expect(pivotReturns[0].vars.ease).toBe(topFace!.vars.ease);
+    expect(pivotReturns[0].position).toBe('<');
+  });
+
+  it('the click itself still starts the power-on sequence', () => {
+    const { getByRole } = render(<PowerRockerSwitch />);
+    fireEvent.click(getByRole('button', { name: /Power on/i }));
+    const startStep = calls.find((c) => c.method === 'to' && c.vars.duration === 0.18 && typeof c.vars.onComplete === 'function');
+    (startStep!.vars.onComplete as () => void)();
+    expect(powerController.powerOnSequence).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('PowerRockerSwitch — the shell changes under it', () => {
-  it('moves the light into the rocker when the window narrows to the phone, and back out when it widens', () => {
-    stubShell(true);
-    const { container } = render(<PowerRockerSwitch />);
-    expect(container.querySelector('.rocker-light-housing')).not.toBeNull();
-    flipTo(false);
-    expect(container.querySelector('.rocker-light-housing')).toBeNull();
-    expect(container.querySelector('.rocker-bezel .rocker-light')).not.toBeNull();
-    flipTo(true);
-    expect(container.querySelector('.rocker-light-housing .rocker-light')).not.toBeNull();
-    expect(container.querySelector('.rocker-bezel .rocker-light')).toBeNull();
-  });
-
-  it('keeps the light\'s power state across the move', () => {
-    mockIsPoweredOn = true;
-    stubShell(true);
-    const { container } = render(<PowerRockerSwitch />);
-    flipTo(false);
-    expect((container.querySelector('.rocker-light') as HTMLElement).getAttribute('data-power-state')).toBe('on');
-  });
-});
-
-describe('PowerRockerSwitch.css — the in-button light', () => {
+describe('PowerRockerSwitch.css — the pivot', () => {
   const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'PowerRockerSwitch.css'), 'utf-8');
 
-  it('makes the bezel the light\'s positioning context', () => {
-    expect(getCssRuleBody(css, '.rocker-panel--in-button .rocker-bezel')).toContain('position: relative;');
-  });
-
-  it('lays the light over the rocker\'s upper face as a small lens, never taking a click', () => {
-    const body = getCssRuleBody(css, '.rocker-panel--in-button .rocker-light');
+  it('lays the pivot over exactly the button: inside the bezel\'s padding, and never taking a click', () => {
+    const body = getCssRuleBody(css, '.rocker-light-pivot');
     expect(body).not.toBeNull();
     expect(body).toContain('position: absolute;');
     expect(body).toContain('pointer-events: none;');
+    expect(body).toContain('inset: var(--rocker-bezel-padding);');
+    expect(getCssRuleBody(css, '.rocker-bezel')).toContain('position: relative;');
+  });
+
+  it('keeps the transform out of the stylesheet: GSAP owns it', () => {
+    expect(getCssRuleBody(css, '.rocker-light-pivot')).not.toMatch(/transform/);
+  });
+
+  it('lays the lens on the top face, small and centred', () => {
+    const body = getCssRuleBody(css, '.rocker-light-pivot .rocker-light');
+    expect(body).not.toBeNull();
+    expect(body).toContain('position: absolute;');
     expect(body).toMatch(/top:/);
     expect(body).toMatch(/width:/);
     expect(body).toMatch(/height:/);
   });
+
+  it('has no housing rule left', () => {
+    expect(css).not.toContain('.rocker-light-housing');
+  });
+});
+
+afterEach(() => {
+  calls.length = 0;
 });
