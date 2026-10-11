@@ -2426,6 +2426,43 @@ colour swatch, name, count).
 
 **Estimated scope:** M
 
+**As built (2026-10-10):** `useCompanyOptions(target: string)` (`ALL_TARGET = 'all'`, else a company id)
+returns `{ company, members, options }`; `options` is one memoized bag (the four values, the swelling
+flags, `active` and twelve handlers) that keeps its identity through any edit that changes none of
+them, and `company` / `members` stay outside it so a roster change does not rebuild it. The sections
+file is `useCompanySubsectionRenderer(options)` (one stable function from a subsection id to its panel)
+and `companyTraitStyle(trait, active)` (the full or the desaturated pair). `CompanyScreen` reads the
+selection itself — `selectedCompanyId ?? 'all'` — so a delete (which selects All) re-renders the same
+screen as its All form. Tests moved as follows: the broadcast, value and stability tests to
+`useCompanyOptions.test.ts` (real store, `renderHook`, handlers called directly); the wiring, disabled
+state and re-render-cascade tests stayed in `CompanyOptionsSection.test.tsx` over a hook-plus-renderer
+harness. The accordion tests (triggers, default-open Levels, lazy mount, entity-switch reset, "never
+writes the section fields") went with the accordions. Departures and calls beyond the text above:
+- **`RobotSectionAccordionStack` is deleted** (its last consumer left; the grep gate is in
+  `RobotScreen.test.tsx` beside the other two). `RobotSectionTabs` is now exported from `RobotScreen.tsx`
+  with an optional `traitStyle`, which the company screen uses to mute the panels while there is nothing
+  to edit — the robot screen is unchanged.
+- **Deleting a company calls `selectEntity('all')`**, not `selectAllRobots()`: with a company's screen
+  and the All form as one screen, "select All" is the nav's own action (it also sets `allProbesSelected`
+  and opens Probes on All Probes). `CompanyCrudControls.test.tsx` passes unmodified.
+  `CompanyRenameDeleteForm` gained `showSummary` (default true); the screen passes false, since the name
+  box is the summary.
+- **The breadcrumb names a section for All Probes and a company**, Source when none is stored, as it
+  does for a robot (`navActions.ts`; its comment said "until Task 23"). Two tests changed with it.
+- **The intros stay** (open for Crawford): `company.profile` and `probe.all` are collapsible expanders
+  above the tabs. The sketch draws none, but dropping them leaves `company.profile` unreferenced, which
+  the content guard rejects, and the old forms showed them. `AWAITING_CONSUMER` is empty again.
+- **Phone:** the band is a swatch (`var(--color-accent)`), name and count (`probe.roster.count`), then the
+  member tiles and Rename / Delete. The broadcast note and the two wells are desk-column only, as the
+  task text has it.
+- **A stale selected id renders nothing** (a company deleted elsewhere or a reseed); the old form
+  rendered disabled panels with no summary.
+- Mutants: hook 2 equivalent survivors (a memo dep on an identity-stable handler; keying `resolved` on
+  `members` instead of `firstMember`, which the resolved fields' references hide); renderer, screen and
+  the shared edits all killed after four tests were added or tightened.
+- **Not checked:** the screen in a browser. The CSS (the name box's face, the tile grid, the swatch) is
+  unseen; that is Checkpoint C's look at 1280, 800, 375 and 320 px.
+
 ## Task 24: Deck — halo colours and the meta box's selection lines
 
 **Description:** `Robot.tsx` sets `--halo` on the `.robot` element (`identityColor` when selected,

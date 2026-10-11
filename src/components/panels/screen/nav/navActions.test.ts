@@ -511,9 +511,15 @@ describe('breadcrumbPath', () => {
     expect(path({ activeHubTile: 'robots', selectedRobotId: 'r2' })).toEqual([ROOT, PROBES, 'r2', CONTENT['probe.source'].human]);
   });
 
-  it('All Probes and a company name only a stored section: their stacked screens have no tabs until Task 23', () => {
-    expect(path({ activeHubTile: 'robots', allProbesSelected: true })).toEqual([ROOT, PROBES, CONTENT['probe.all'].human]);
-    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate']);
+  // Task 23: the company screen is the robot screen's tabs, so All Probes and a company, like a robot,
+  // always have a section open — Source when none is stored.
+  it('All Probes and a company always name a section, Source when none is stored (their screen is tabs)', () => {
+    expect(path({ activeHubTile: 'robots', allProbesSelected: true })).toEqual([ROOT, PROBES, CONTENT['probe.all'].human, CONTENT['probe.source'].human]);
+    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate', CONTENT['probe.source'].human]);
+  });
+
+  it("adds a company's stored section, named by its tab", () => {
+    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1', selectedSection: 'envelope' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate', CONTENT['probe.envelope'].human]);
   });
 
   it('drops the entity and its section when the id is not in the roster (a stale or deleted id)', () => {
@@ -534,7 +540,7 @@ describe('breadcrumbPath', () => {
   });
 
   it('reads Root / Companies / <company name> / <section>', () => {
-    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate']);
+    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate', CONTENT['probe.source'].human]);
     expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1', selectedSection: 'envelope' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate', CONTENT['probe.envelope'].human]);
   });
 

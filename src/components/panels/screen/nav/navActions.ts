@@ -301,11 +301,9 @@ export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): Brea
   const open = openEntity(state, roster, tile);
   if (open === null) return trail;
   trail.push({ label: open.label, go: () => selectEntity(open.entity) });
-  // A robot's screen is tabs (Task 16), so one is always open: Source when none is stored. All Probes
-  // and a company stay on their stacked screens until Task 23, so only a stored section shows there.
-  const isRobot = typeof open.entity === 'object' && 'robotId' in open.entity;
-  const sectionId = isRobot ? activeRobotSection(state.selectedSection) : state.selectedSection;
-  const section = ROBOT_SECTIONS_CONFIG.find((s) => s.id === sectionId);
+  // A robot's screen is tabs (Task 16), and so are a company's and All Probes' (Task 23: the same
+  // SectionTabs), so one is always open: Source when none is stored.
+  const section = ROBOT_SECTIONS_CONFIG.find((s) => s.id === activeRobotSection(state.selectedSection));
   if (section) trail.push({ label: name(sectionTabContent(section)) });
   return trail;
 }

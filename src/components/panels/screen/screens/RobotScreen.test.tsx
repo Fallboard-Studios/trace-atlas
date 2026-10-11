@@ -878,11 +878,15 @@ describe('RobotScreen — source and CSS', () => {
   });
 });
 
-// The grep gate, kept as a test (as Task 9's is). RobotSectionAccordionStack stays: CompanyOptionsSection
-// still renders through it until Task 23.
-describe('RobotOptionsTab and RobotDisplaySection are deleted', () => {
+// The grep gate, kept as a test (as Task 9's is). RobotSectionAccordionStack went with its last consumer,
+// CompanyOptionsSection, when Task 23 made that the company screen's section panels.
+describe('RobotOptionsTab, RobotDisplaySection and RobotSectionAccordionStack are deleted', () => {
   const srcRoot = resolve(here, '../../../..');
-  const DELETED = ['components/panels/screen/console/RobotOptionsTab', 'components/robot/RobotDisplaySection'];
+  const DELETED = [
+    'components/panels/screen/console/RobotOptionsTab',
+    'components/robot/RobotDisplaySection',
+    'components/panels/screen/nav/RobotSectionAccordionStack',
+  ];
 
   it.each(DELETED)('%s is gone, with its stylesheet and tests', (module) => {
     for (const ext of ['.ts', '.tsx', '.css', '.test.ts', '.test.tsx']) {
@@ -891,7 +895,7 @@ describe('RobotOptionsTab and RobotDisplaySection are deleted', () => {
   });
 
   it('nothing under src/ imports or mocks one', () => {
-    const importOf = /(from|import|vi\.mock\()\s*['"][^'"]*\/(RobotOptionsTab|RobotDisplaySection)(\.css)?['"]/;
+    const importOf = /(from|import|vi\.mock\()\s*['"][^'"]*\/(RobotOptionsTab|RobotDisplaySection|RobotSectionAccordionStack)(\.css)?['"]/;
     const importers = (readdirSync(srcRoot, { recursive: true }) as string[])
       .filter((file) => /\.(ts|tsx)$/.test(file))
       .filter((file) => importOf.test(readFileSync(join(srcRoot, file), 'utf8')));

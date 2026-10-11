@@ -100,7 +100,7 @@ describe('NavBreadcrumb — the path, from navActions', () => {
   it('reads a company by its name', () => {
     setNav({ activeHubTile: 'companies', selectedCompanyId: 'c1' });
     render(<NavBreadcrumb />);
-    expect(crumb().textContent).toBe(`${ROOT} / ${COMPANIES} / Rust Syndicate`);
+    expect(crumb().textContent).toBe(`${ROOT} / ${COMPANIES} / Rust Syndicate / ${SOURCE}`);
   });
 
   it('follows the store: a rename shows at once, and going home empties it', () => {

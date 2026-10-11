@@ -1,0 +1,120 @@
+/* The company screen (docs/specs/LAYOUT_REWORK.md §1.6; docs/tasks/LAYOUT_REWORK.md Task 23). It is the robot
+   screen with its column swapped, so the grid, the column, the wells, the band and the controls column are
+   RobotScreen.css's; only the company's own parts are here. Colour comes inline on the root: the company's
+   colour, or the Deck's for the All form. */
+
+/* The name box: a popped facade (static), sized to its content. The sketch's 52 px box, 22 px name. */
+.company-screen__title .sc-cabinet-box,
+.company-screen__title .sc-cabinet-box__front {
+  max-width: 100%;
+}
+
+.company-screen__title .sc-cabinet-box__front {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  height: auto;
+  padding: 8px 16px;
+}
+
+/* On the box's own face, so the readable text colour the root resolved for the company's colour (dark on
+   a light company colour) applies, not the robot name's fixed white. */
+.company-screen__eyebrow {
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label-compact);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.company-screen__name {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-heading-md);
+  overflow-wrap: anywhere;
+}
+
+/* ----------------------------------------------------------------- the members */
+
+.company-screen__members {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: var(--spacing-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.company-screen__members > li {
+  display: flex;
+  min-width: 0;
+}
+
+.company-screen__member {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 2px;
+  border: 1px solid var(--color-accent);
+  background: var(--well-background);
+  color: var(--color-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.company-screen__member:hover,
+.company-screen__member:focus-visible {
+  box-shadow: inset 0 0 8px var(--color-accent);
+}
+
+.company-screen__member-gem {
+  display: block;
+  width: 64px;
+  height: 52px;
+}
+
+.company-screen__member-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--font-size-label-compact);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ----------------------------------------------------------------- the broadcast note */
+
+.company-screen__note {
+  font-size: var(--font-size-label);
+  line-height: 1.4;
+}
+
+/* ----------------------------------------------------------------- phone */
+
+/* The band's swatch: a flat patch of the screen's colour where the robot's gem sat (spec §1.6). */
+.company-screen__swatch {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 58px;
+  background: var(--color-accent);
+}
+
+.company-screen__phone-members {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+.company-screen--phone .company-screen__members {
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+}
+
+.company-screen--phone .company-screen__member-gem {
+  width: 44px;
+  height: 36px;
+}

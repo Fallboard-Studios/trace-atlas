@@ -4,6 +4,7 @@ import { TextInput } from '@/components/ui/controls/TextInput';
 import { Button } from '@/components/ui/controls/Button';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
+import { selectEntity } from '@/components/panels/screen/nav/navActions';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { generateCompanyName } from '@/systems/spawnSystem';
 import { COMPANY_NAME_INPUT_SCHEMA, CREATE_COMPANY_SCHEMA, RENAME_COMPANY_SCHEMA, DELETE_COMPANY_SCHEMA } from '@/data/companyConfig';
@@ -147,11 +148,10 @@ function CompanySummary({ company }: { company: Company }) {
  * only opening state (never itself calling removeCompany) — confirming or cancelling inside the
  * dialog is what actually commits or discards.
  */
-export function CompanyRenameDeleteForm() {
+export function CompanyRenameDeleteForm({ showSummary = true }: { showSummary?: boolean } = {}) {
   const localeId = getActiveLocaleId();
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
-  const selectAllRobots = useUIStore((s) => s.selectAllRobots);
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
 
   // See CompanyCrudControls' own pre-split history for why this resets on SELECTION change
@@ -193,13 +193,15 @@ export function CompanyRenameDeleteForm() {
   const handleConfirmDelete = () => {
     if (!selectedCompany) return;
     useLocaleStore.getState().removeCompany(localeId, selectedCompany.id);
-    selectAllRobots();
+    // The All form, not the roster: the screen this was on is the company's, and the company screen's
+    // other form is the whole fleet's (docs/tasks/LAYOUT_REWORK.md Task 23).
+    selectEntity('all');
     setConfirmOpen(false);
   };
 
   return (
     <div className="company-rename-delete-form">
-      {selectedCompany && <CompanySummary company={selectedCompany} />}
+      {showSummary && selectedCompany && <CompanySummary company={selectedCompany} />}
 
       <div className="company-rename-delete-form__rename">
         <TextInput

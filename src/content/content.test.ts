@@ -49,14 +49,7 @@ const isReferenced = (k: string) => allConsumerText.includes(`'${k}'`) || allCon
  *  Exempt from the unreferenced check only while they are still unreferenced: the moment a consumer
  *  lands, the self-cleaning test below fails until the key leaves this list. Empty between plans
  *  (docs/tasks/LAYOUT_REWORK.md: empty again by Checkpoint A, and again by Checkpoint C). */
-const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {
-  'company.detail.share': 'Task 23 — CompanyScreen share well',
-  'company.detail.signal': 'Task 23 — CompanyScreen signal well',
-  'company.detail.broadcastNote': 'Task 23 — CompanyScreen broadcast note',
-  'company.detail.broadcastNote.one': 'Task 23 — CompanyScreen broadcast note, one member',
-  'company.detail.broadcastNote.none': 'Task 23 — CompanyScreen broadcast note, no members',
-  'company.detail.allForm': 'Task 23 — CompanyScreen All form eyebrow',
-};
+const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {};
 
 describe('content guard', () => {
   it('every key is referenced from src/ outside src/content', () => {

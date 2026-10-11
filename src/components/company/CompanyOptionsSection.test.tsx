@@ -1,20 +1,16 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { memo } from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
-import { CompanyOptionsSection } from './CompanyOptionsSection';
-import { CONTENT } from '@/content';
+import { Fragment, memo } from 'react';
+import { render, screen, fireEvent, act, renderHook } from '@testing-library/react';
+import { useCompanySubsectionRenderer, companyTraitStyle } from './CompanyOptionsSection';
+import { useCompanyOptions } from './useCompanyOptions';
 
-// AudioSettingSection/PingControlsRhythmSection/PingControlsFrequencySection/PingContourDrawer/
-// SignatureArrayLayer pull in real Tone.js/AudioEngine machinery — mocked here the
-// same way RobotOptionsTab.test.tsx mocks the same components, for the same reason. This test is
-// about CompanyOptionsSection's own value-derivation, broadcast wiring, and accordion stacking —
-// not about the leaf components' own rendered content (each has its own full test suite).
-//
-// Every probe button below builds its onChange payload the same way the real leaf components do —
-// spreading the received `props.value` (CompanyOptionsSection's shared `resolved` baseline) and
-// touching only one field, e.g. PingContourDrawer's real `onChange({ ...adsr, attack: v })` — so
-// the "other members' own untouched sub-fields survive" regression tests below exercise the real
-// diff-and-preserve broadcast logic, not a stub shortcut.
+// The four section panels' call site in company mode (docs/tasks/LAYOUT_REWORK.md Task 23): the hook's
+// values and handlers handed to AudioSettingSection / PingControlsCompositionSection / PingContourDrawer /
+// SignatureArrayLayer. The value derivation and the broadcast logic have their own suite
+// (useCompanyOptions.test.ts); this one is about the wiring between the two, so the leaf components are
+// stubbed the way RobotScreen.test.tsx stubs them — they pull in Tone.js / AudioEngine, and each has its
+// own full suite. Every probe button builds its payload the way the real leaf does, from the `value` it
+// was handed.
 const renderCounts = {
   audioSettingSection: vi.fn(),
   pingControlsComposition: vi.fn(),
@@ -26,6 +22,8 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
     value: { audioMode: string; masterVolume: number };
     onAudioModeChange: (mode: string) => void;
     onVolumeChange: (pct: number) => void;
+    onVolumeLfoChange?: unknown;
+    volumeSwelling?: boolean;
     disabled?: boolean;
   }) => {
     renderCounts.audioSettingSection();
@@ -34,10 +32,12 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         data-testid="audio-setting-section-stub"
         data-audio-mode={props.value.audioMode}
         data-volume={props.value.masterVolume}
+        data-swelling={props.volumeSwelling ? '' : undefined}
         data-disabled={props.disabled ? '' : undefined}
       >
         <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
         <button onClick={() => props.onVolumeChange(77)}>probe-volume</button>
+        {props.onVolumeLfoChange ? <button>probe-volume-lfo</button> : null}
       </div>
     );
   }),
@@ -49,6 +49,7 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
     onMotifLengthChange: (v: number) => void;
     onPitchRepeatChange: (v: number) => void;
     onOctaveMinChange: (v: number) => void;
+    onOctaveMaxChange: (v: number) => void;
     onNoteVarianceChange: (v: number) => void;
     disabled?: boolean;
   }) => {
@@ -66,15 +67,27 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
         <button onClick={() => props.onMotifLengthChange(12)}>probe-motif-length</button>
         <button onClick={() => props.onPitchRepeatChange(90)}>probe-pitch-repeat</button>
         <button onClick={() => props.onOctaveMinChange(4)}>probe-octave-min</button>
+        <button onClick={() => props.onOctaveMaxChange(6)}>probe-octave-max</button>
+        <button onClick={() => props.onNoteVarianceChange(33)}>probe-note-variance</button>
       </div>
     );
   }),
 }));
 vi.mock('@/components/robot/PingContourDrawer', () => ({
-  PingContourDrawer: memo((props: { value: { attack: number }; onChange: (next: unknown) => void; disabled?: boolean }) => {
+  PingContourDrawer: memo((props: {
+    value: { attack: number };
+    onChange: (next: unknown) => void;
+    swelling?: { attack: boolean };
+    disabled?: boolean;
+  }) => {
     renderCounts.pingContourDrawer();
     return (
-      <div data-testid="ping-contour-drawer-stub" data-attack={props.value.attack} data-disabled={props.disabled ? '' : undefined}>
+      <div
+        data-testid="ping-contour-drawer-stub"
+        data-attack={props.value.attack}
+        data-swelling-attack={props.swelling?.attack ? '' : undefined}
+        data-disabled={props.disabled ? '' : undefined}
+      >
         <button onClick={() => props.onChange({ ...(props.value as object), attack: 0.9 })}>probe-adsr</button>
       </div>
     );
@@ -85,12 +98,18 @@ vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
     idx: number;
     layer: { type: string; gain: number; detune: number; phase: number };
     lfoLinks?: Record<string, { lane: string | null; depth: number }>;
+    swelling?: { gain: boolean };
     disabled?: boolean;
     onTypeChange: (idx: number, type: string) => void;
     onParamChange: (idx: number, field: string, v: number) => void;
     onLfoFieldChange: (idx: number, target: string, value: { lane: string | null; depth: number }) => void;
   }) => (
-    <div data-testid={`signature-array-layer-stub-${props.idx}`} data-type={props.layer.type} data-disabled={props.disabled ? '' : undefined}>
+    <div
+      data-testid={`signature-array-layer-stub-${props.idx}`}
+      data-type={props.layer.type}
+      data-swelling-gain={props.swelling?.gain ? '' : undefined}
+      data-disabled={props.disabled ? '' : undefined}
+    >
       <button onClick={() => props.onParamChange(props.idx, 'gain', 0.4)}>probe-layer-gain-{props.idx}</button>
       <button onClick={() => props.onTypeChange(props.idx, 'square')}>probe-layer-type-{props.idx}</button>
       <button
@@ -101,28 +120,19 @@ vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
       >
         probe-layer-lfo-lane-{props.idx}
       </button>
-      <button
-        onClick={() => {
-          const current = props.lfoLinks?.[`layer${props.idx}.gain`] ?? { lane: null, depth: 0 };
-          props.onLfoFieldChange(props.idx, `layer${props.idx}.gain`, { ...current, depth: 55 });
-        }}
-      >
-        probe-layer-lfo-depth-{props.idx}
-      </button>
     </div>
   )),
 }));
 
 import { useLocaleStore } from '@/stores/localeStore';
-import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import * as robotOptionsActions from '@/systems/robotOptionsActions';
 import * as audioSwells from '@/systems/audioSwells';
 import { ACCENT_COLORS } from '@/constants/accentColors';
-import { desaturateHex } from '@/utils/traitColors';
+import { getTraitColorStyle, getDisabledTraitColorStyle } from '@/utils/traitColors';
+import type { RobotSubsection } from '@/stores/uiStore';
 import type { Robot } from '@/types/Robot';
 import type { Locale } from '@/types/locale';
-import type { RobotLfoTargetId } from '@/types/lfo';
 
 function makeRobot(overrides: Partial<Robot> = {}): Robot {
   return {
@@ -152,533 +162,332 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
   } as Robot;
 }
 
-/** Opens an accordion by pressing its trigger, as a user does; Source's three layers sit inside
- *  Source, so a layer needs Source opened first. */
-function openAccordion(name: string) {
-  fireEvent.click(screen.getByRole('button', { name }));
+const ALL_IDS: RobotSubsection[] = [
+  'audioSettings', 'rhythm', 'pingContour', 'baselineOscillator', 'coaxialOscillator', 'harmonicOscillator',
+];
+
+/** The hook and the renderer, wired the way CompanyScreen wires them, with the listed subsections mounted. */
+function Sections({ target, ids = ALL_IDS }: { target: string; ids?: readonly RobotSubsection[] }) {
+  const { options } = useCompanyOptions(target);
+  const renderSubsection = useCompanySubsectionRenderer(options);
+  return <>{ids.map((id) => <Fragment key={id}>{renderSubsection(id)}</Fragment>)}</>;
 }
 
-const isExpanded = (name: string) => screen.getByRole('button', { name }).getAttribute('aria-expanded') === 'true';
-
-describe('CompanyOptionsSection', () => {
+describe('CompanyOptionsSection: the four section panels in company mode', () => {
   const localeId = getActiveLocaleId();
+
+  beforeEach(() => {
+    useLocaleStore.getState().setLocaleData(localeId, {
+      robots: [], companies: [], allRobotsLastEditedOptions: undefined,
+    } as unknown as Partial<Locale>);
+  });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
-    useUIStore.getState().selectAllRobots();
-    useUIStore.getState().setSelectedSection(null);
-    useUIStore.getState().setSelectedSubsection(null);
   });
 
-  function selectActiveCompany() {
-    useLocaleStore.getState().addRobot(localeId, makeRobot({ id: 'r1', companyId: 'c1' }));
-    useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
-    useUIStore.getState().selectCompany('c1');
+  const addCompany = (id: string, robotIds: string[]) =>
+    useLocaleStore.getState().addCompany(localeId, { id, name: 'Iron Consortium', color: '#4f6d7a', robotIds });
+  const addRobot = (robot: Robot) => useLocaleStore.getState().addRobot(localeId, robot);
+  const click = (name: string) => fireEvent.click(screen.getByText(name));
+
+  function activeCompany() {
+    addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+    addCompany('c1', ['r1']);
   }
 
-  it('renders the top-level accordion triggers as shells, regardless of active/disabled', () => {
-    render(<CompanyOptionsSection />);
-    for (const label of [CONTENT['probe.levels'].human, CONTENT['probe.composition'].human, CONTENT['probe.envelope'].human, CONTENT['probe.source'].human]) {
-      expect(screen.getByRole('button', { name: label })).toBeTruthy();
-    }
-  });
-
-  // docs/tasks/LAYOUT_REWORK.md Task 18: the view fade masked a nav-driven open-and-scroll, and
-  // nothing drives one any more.
-  it('renders with no opacity override — there is no view fade', () => {
-    const { container } = render(<CompanyOptionsSection />);
-
-    const root = container.querySelector('.company-options-section') as HTMLElement;
-    expect(root.style.opacity).toBe('');
-  });
-
-  it('renders Source\'s own 3 nested accordion triggers — no Probe Drift trigger anywhere (moved to Fleet Params\' LFO Drift accordion entirely, docs/specs/FLEET_DRIFT_CONSOLIDATION.md follow-up)', () => {
-    render(<CompanyOptionsSection />);
-    for (const label of [CONTENT['probe.source.core'].human, CONTENT['probe.source.companion'].human, CONTENT['probe.source.accent'].human]) {
-      expect(screen.getByRole('button', { name: label })).toBeTruthy();
-    }
-    expect(screen.queryByRole('button', { name: 'Probe Drift' })).toBeNull();
-  });
-
-  it('opens Levels by default when no section is chosen — first-leaf fallback (spec §1.5)', () => {
-    render(<CompanyOptionsSection />);
-    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Composition' }).getAttribute('aria-expanded')).toBe('false');
-  });
-
-  it('clicking a subsection\'s own trigger opens it directly, without touching selectedSection/selectedSubsection or closing any other open accordion', () => {
-    render(<CompanyOptionsSection />);
-    fireEvent.click(screen.getByRole('button', { name: 'Envelope' }));
-    expect(screen.getByRole('button', { name: 'Envelope' }).getAttribute('aria-expanded')).toBe('true');
-    // Levels (the default-open one) stays open too — multiple accordions can be open at once.
-    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
-    expect(useUIStore.getState().selectedSection).toBeNull();
-    expect(useUIStore.getState().selectedSubsection).toBeNull();
-  });
-
-  it('selecting a subsection via the nav tree does not open or close any accordion — nav selection only drives tree highlighting now', () => {
-    render(<CompanyOptionsSection />);
-    act(() => {
-      useUIStore.getState().setSelectedSection('source');
-      useUIStore.getState().setSelectedSubsection('harmonicOscillator');
-    });
-    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Source' }).getAttribute('aria-expanded')).toBe('false');
-  });
-
-  it('switching entity (All Probes -> a company) resets accordion state back to the default', () => {
-    const { rerender } = render(<CompanyOptionsSection />);
-    fireEvent.click(screen.getByRole('button', { name: 'Envelope' }));
-    expect(screen.getByRole('button', { name: 'Envelope' }).getAttribute('aria-expanded')).toBe('true');
-
-    act(() => selectActiveCompany());
-    rerender(<CompanyOptionsSection />);
-
-    expect(screen.getByRole('button', { name: 'Levels' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Envelope' }).getAttribute('aria-expanded')).toBe('false');
-  });
-
-  // docs/tasks/LAYOUT_REWORK.md Task 18: the lazy-mount gate was the scrollspy's "approached"; with
-  // the scrollspy gone it is the accordion's first open, so a closed section still costs nothing.
-  describe('lazy mount: a section\'s content mounts the first time its accordion opens', () => {
-    it('mounts the default-open Levels at once, and nothing that is closed', () => {
-      render(<CompanyOptionsSection />);
-      expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
-      expect(screen.queryByTestId('ping-controls-composition-stub')).toBeNull();
-      expect(screen.queryByTestId('ping-contour-drawer-stub')).toBeNull();
-      expect(screen.queryByTestId('signature-array-layer-stub-0')).toBeNull();
-    });
-
-    it('mounts a section when it opens', () => {
-      render(<CompanyOptionsSection />);
-      openAccordion('Envelope');
-      expect(screen.getByTestId('ping-contour-drawer-stub')).toBeTruthy();
-      expect(screen.queryByTestId('ping-controls-composition-stub')).toBeNull();
-    });
-
-    it('keeps it mounted after it closes, so the close can animate its content out', () => {
-      render(<CompanyOptionsSection />);
-      openAccordion('Envelope');
-      openAccordion('Envelope');
-      expect(isExpanded('Envelope')).toBe(false);
-      expect(screen.getByTestId('ping-contour-drawer-stub')).toBeTruthy();
-
-      openAccordion('Levels');
-      expect(isExpanded('Levels')).toBe(false);
+  describe('which panel each subsection id renders', () => {
+    it('Levels is the audio-setting panel', () => {
+      render(<Sections target="all" ids={['audioSettings']} />);
       expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
     });
 
-    it('mounts a nested layer only when the layer itself opens, not when Source does', () => {
-      render(<CompanyOptionsSection />);
-      openAccordion('Source');
-      expect(screen.queryByTestId('signature-array-layer-stub-0')).toBeNull();
+    it('Composition (the \'rhythm\' id) is the merged Rhythm-and-Pitches panel', () => {
+      render(<Sections target="all" ids={['rhythm']} />);
+      expect(screen.getByTestId('ping-controls-composition-stub')).toBeTruthy();
+    });
 
-      openAccordion('Core Oscillator');
-      expect(screen.getByTestId('signature-array-layer-stub-0')).toBeTruthy();
+    it('Envelope is the ping-contour panel', () => {
+      render(<Sections target="all" ids={['pingContour']} />);
+      expect(screen.getByTestId('ping-contour-drawer-stub')).toBeTruthy();
+    });
+
+    it.each([['baselineOscillator', 0], ['coaxialOscillator', 1], ['harmonicOscillator', 2]] as const)(
+      '%s is signature-array layer %i',
+      (id, idx) => {
+        activeCompany();
+        render(<Sections target="c1" ids={[id]} />);
+        expect(screen.getByTestId(`signature-array-layer-stub-${idx}`)).toBeTruthy();
+        expect(screen.getAllByTestId(/signature-array-layer-stub-/)).toHaveLength(1);
+      },
+    );
+
+    it('renders nothing for an id it has no panel for (\'frequency\', folded into Composition)', () => {
+      const { container } = render(<Sections target="all" ids={['frequency']} />);
+      expect(container.firstChild).toBeNull();
+    });
+
+    it('renders nothing for an oscillator whose layer is absent', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', audioAttributes: { adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 }, filterFreq: 0, waveform: 'sine', layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] } }));
+      addCompany('c1', ['r1']);
+      const { container } = render(<Sections target="c1" ids={['baselineOscillator', 'coaxialOscillator']} />);
+      expect(screen.queryByTestId('signature-array-layer-stub-0')).toBeTruthy();
       expect(screen.queryByTestId('signature-array-layer-stub-1')).toBeNull();
-    });
-
-    it('starts over on an entity switch: only the default is mounted for the new entity', () => {
-      const { rerender } = render(<CompanyOptionsSection />);
-      openAccordion('Envelope');
-      expect(screen.getByTestId('ping-contour-drawer-stub')).toBeTruthy();
-
-      act(() => selectActiveCompany());
-      rerender(<CompanyOptionsSection />);
-
-      expect(screen.queryByTestId('ping-contour-drawer-stub')).toBeNull();
-      expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
-    });
-
-    it('starts over on a return trip too: back on All, Envelope is closed and unmounted', () => {
-      const { rerender } = render(<CompanyOptionsSection />);
-      openAccordion('Envelope');
-
-      act(() => selectActiveCompany());
-      rerender(<CompanyOptionsSection />);
-      act(() => useUIStore.getState().selectAllRobots());
-      rerender(<CompanyOptionsSection />);
-
-      expect(isExpanded('Envelope')).toBe(false);
-      expect(screen.queryByTestId('ping-contour-drawer-stub')).toBeNull();
+      expect(container.children).toHaveLength(1); // the absent layer leaves no empty element behind
     });
   });
 
-  it('never writes the store\'s section fields — the scrollspy that did is gone', () => {
-    render(<CompanyOptionsSection />);
-    openAccordion('Envelope');
-    openAccordion('Source');
-    openAccordion('Accent Oscillator');
-    expect(useUIStore.getState().selectedSection).toBeNull();
-    expect(useUIStore.getState().selectedSubsection).toBeNull();
-  });
-
-  it('renders every section disabled when the selection has no member robots (default All, empty roster)', () => {
-    render(<CompanyOptionsSection />);
-    expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-disabled')).toBe('');
-  });
-
-  // Roadmap Phase 14 (docs/specs/COLOR_SCHEME_TRAIT_THEMING.md §1.5): each accordion gets the
-  // identical trait style RobotOptionsTab passes it once active (a non-empty company selected).
-  it('gives the Audio Settings accordion the Output trait\'s style (burnt orange/orange) when active', () => {
-    selectActiveCompany();
-    const { container } = render(<CompanyOptionsSection />);
-    const root = container.querySelector('.sc-accordion') as HTMLElement;
-    expect(root.style.getPropertyValue('--color-accent-a')).toBe(ACCENT_COLORS.burntOrange);
-    expect(root.style.getPropertyValue('--color-accent-b')).toBe(ACCENT_COLORS.orange);
-  });
-
-  it('gives the Audio Settings accordion Output\'s own tones, desaturated, when disabled (no company selected)', () => {
-    const { container } = render(<CompanyOptionsSection />);
-    const root = container.querySelector('.sc-accordion') as HTMLElement;
-    expect(root.style.getPropertyValue('--color-accent-a')).toBe(desaturateHex(ACCENT_COLORS.orange, 0.8));
-    expect(root.style.getPropertyValue('--color-accent-b')).toBe(desaturateHex(ACCENT_COLORS.burntOrange, 0.6));
-  });
-
-  it('stays on the disabled (desaturated) style when a company is selected but has zero members', () => {
-    useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
-    useUIStore.getState().selectCompany('c1');
-    const { container } = render(<CompanyOptionsSection />);
-    const root = container.querySelector('.sc-accordion') as HTMLElement;
-    expect(root.style.getPropertyValue('--color-accent-a')).toBe(desaturateHex(ACCENT_COLORS.orange, 0.8));
-  });
-
-  describe('values and broadcast wiring, once approached', () => {
-    it('wires onAudioModeChange to applyAudioMode once per member', () => {
-      selectActiveCompany();
-      const applySpy = vi.spyOn(robotOptionsActions, 'applyAudioMode').mockImplementation(() => {});
-      render(<CompanyOptionsSection />);
-
-      fireEvent.click(screen.getByText('probe-audio-mode'));
-
-      expect(applySpy).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1' }), localeId, 'solo');
+  describe('disabled state', () => {
+    it('hands every panel disabled when the selection has no member robots (\'all\' on an empty roster)', () => {
+      render(<Sections target="all" />);
+      for (const id of ['audio-setting-section-stub', 'ping-controls-composition-stub', 'ping-contour-drawer-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2']) {
+        expect(screen.getByTestId(id).getAttribute('data-disabled')).toBe('');
+      }
     });
 
-    it('editing Attack broadcasts only attack — each member keeps its own Decay/Sustain/Release', () => {
-      const r1 = makeRobot({ id: 'r1', companyId: 'c1', audioAttributes: { adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 }, filterFreq: 0, waveform: 'sine', layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] } });
-      const r2 = makeRobot({ id: 'r2', companyId: 'c1', audioAttributes: { adsr: { attack: 0.1, decay: 0.9, sustain: 0.1, release: 0.4 }, filterFreq: 0, waveform: 'sine', layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] } });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addRobot(localeId, r2);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
-      useUIStore.getState().selectCompany('c1');
-      const adsrSpy = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
-      render(<CompanyOptionsSection />);
-      openAccordion('Envelope');
-
-      fireEvent.click(screen.getByText('probe-adsr'));
-
-      const r2Call = adsrSpy.mock.calls.find((c) => c[0].id === 'r2');
-      expect(r2Call?.[2]).toEqual({ attack: 0.9, decay: 0.9, sustain: 0.1, release: 0.4 });
+    it('hands every panel disabled for a company with zero members', () => {
+      addCompany('c1', []);
+      render(<Sections target="c1" />);
+      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-disabled')).toBe('');
+      expect(screen.getByTestId('signature-array-layer-stub-2').getAttribute('data-disabled')).toBe('');
     });
 
-    it('a broadcast Attack edit interrupts every member\'s own Attack swell only, never Decay/Sustain/Release', () => {
-      const r1 = makeRobot({ id: 'r1', companyId: 'c1', audioAttributes: { adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 }, filterFreq: 0, waveform: 'sine', layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] } });
-      const r2 = makeRobot({ id: 'r2', companyId: 'c1', audioAttributes: { adsr: { attack: 0.1, decay: 0.9, sustain: 0.1, release: 0.4 }, filterFreq: 0, waveform: 'sine', layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] } });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addRobot(localeId, r2);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
-      useUIStore.getState().selectCompany('c1');
-      vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
-      const cancelSpy = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
-      render(<CompanyOptionsSection />);
-      openAccordion('Envelope');
-
-      fireEvent.click(screen.getByText('probe-adsr')); // patch only changes attack (0.2 -> 0.9)
-
-      expect(cancelSpy).toHaveBeenCalledWith('r1', 'adsr.attack');
-      expect(cancelSpy).toHaveBeenCalledWith('r2', 'adsr.attack');
-      expect(cancelSpy).not.toHaveBeenCalledWith('r1', 'adsr.decay');
-      expect(cancelSpy).not.toHaveBeenCalledWith('r1', 'adsr.sustain');
-      expect(cancelSpy).not.toHaveBeenCalledWith('r1', 'adsr.release');
-    });
-
-    it('editing one Signature Array layer\'s Gain broadcasts only that layer\'s gain — other layers and other members\' own layer values survive', () => {
-      const r1 = makeRobot({
-        id: 'r1', companyId: 'c1',
-        audioAttributes: { adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 }, filterFreq: 0, waveform: 'sine', layers: [
-          { type: 'sine', gain: 1, detune: 0, phase: 0 },
-          { type: 'square', gain: 0.8, detune: 5, phase: 10 },
-          { type: 'triangle', gain: 0.6, detune: -5, phase: 20 },
-        ] },
-      });
-      const r2 = makeRobot({
-        id: 'r2', companyId: 'c1',
-        audioAttributes: { adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 }, filterFreq: 0, waveform: 'sine', layers: [
-          { type: 'pulse', gain: 0.2, detune: 40, phase: 90 },
-          { type: 'triangle', gain: 0.5, detune: -10, phase: 30 },
-          { type: 'sine', gain: 0.9, detune: 15, phase: 5 },
-        ] },
-      });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addRobot(localeId, r2);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
-      useUIStore.getState().selectCompany('c1');
-      const continuousSpy = vi.spyOn(robotOptionsActions, 'applyLayersContinuous').mockImplementation(() => {});
-      render(<CompanyOptionsSection />);
-      openAccordion('Source');
-      openAccordion('Companion Oscillator'); // idx 1
-
-      fireEvent.click(screen.getByText('probe-layer-gain-1'));
-
-      const r2Call = continuousSpy.mock.calls.find((c) => c[0].id === 'r2');
-      const r2Layers = r2Call?.[2] as { type: string; gain: number; detune: number; phase: number }[];
-      expect(r2Layers[0]).toEqual({ type: 'pulse', gain: 0.2, detune: 40, phase: 90 });
-      expect(r2Layers[1]).toEqual({ type: 'triangle', gain: 0.4, detune: -10, phase: 30 });
-      expect(r2Layers[2]).toEqual({ type: 'sine', gain: 0.9, detune: 15, phase: 5 });
-    });
-
-    it('a broadcast layer-param edit interrupts every member\'s own swell on that layer attribute', () => {
-      const r1 = makeRobot({
-        id: 'r1', companyId: 'c1',
-        audioAttributes: { adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 }, filterFreq: 0, waveform: 'sine', layers: [
-          { type: 'sine', gain: 1, detune: 0, phase: 0 },
-          { type: 'square', gain: 0.8, detune: 5, phase: 10 },
-          { type: 'triangle', gain: 0.6, detune: -5, phase: 20 },
-        ] },
-      });
-      const r2 = makeRobot({
-        id: 'r2', companyId: 'c1',
-        audioAttributes: { adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 }, filterFreq: 0, waveform: 'sine', layers: [
-          { type: 'pulse', gain: 0.2, detune: 40, phase: 90 },
-          { type: 'triangle', gain: 0.5, detune: -10, phase: 30 },
-          { type: 'sine', gain: 0.9, detune: 15, phase: 5 },
-        ] },
-      });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addRobot(localeId, r2);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
-      useUIStore.getState().selectCompany('c1');
-      vi.spyOn(robotOptionsActions, 'applyLayersContinuous').mockImplementation(() => {});
-      const cancelSpy = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
-      render(<CompanyOptionsSection />);
-      openAccordion('Source');
-      openAccordion('Companion Oscillator'); // idx 1
-
-      fireEvent.click(screen.getByText('probe-layer-gain-1'));
-
-      expect(cancelSpy).toHaveBeenCalledWith('r1', 'layer1.gain');
-      expect(cancelSpy).toHaveBeenCalledWith('r2', 'layer1.gain');
-    });
-
-    // LFO Bank Task 13: Signature Array's layer LfoLinks broadcast through applyLayerLfoLink
-    // (the bank engine), diffing lane/depth independently via diffCompoundField. A member's own
-    // untouched field (the one not edited) survives.
-    it('editing a layer\'s LFO lane broadcasts only the lane — each member keeps its own depth', () => {
-      const r1 = makeRobot({ id: 'r1', companyId: 'c1', lfoLinks: { 'layer1.gain': { lane: 'a', depth: 40 } } as unknown as Robot['lfoLinks'] });
-      const r2 = makeRobot({ id: 'r2', companyId: 'c1', lfoLinks: { 'layer1.gain': { lane: 'c', depth: 70 } } as unknown as Robot['lfoLinks'] });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addRobot(localeId, r2);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
-      useUIStore.getState().selectCompany('c1');
-      const linkSpy = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
-      render(<CompanyOptionsSection />);
-      openAccordion('Source');
-      openAccordion('Companion Oscillator'); // idx 1
-
-      fireEvent.click(screen.getByText('probe-layer-lfo-lane-1'));
-
-      const r2Call = linkSpy.mock.calls.find((c) => c[0].id === 'r2');
-      expect(r2Call?.[3]).toEqual({ lane: 'b', depth: 70 });
-    });
-
-    it('editing a layer\'s LFO depth broadcasts only the depth — each member keeps its own lane', () => {
-      const r1 = makeRobot({ id: 'r1', companyId: 'c1', lfoLinks: { 'layer1.gain': { lane: 'a', depth: 40 } } as unknown as Robot['lfoLinks'] });
-      const r2 = makeRobot({ id: 'r2', companyId: 'c1', lfoLinks: { 'layer1.gain': { lane: 'c', depth: 70 } } as unknown as Robot['lfoLinks'] });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addRobot(localeId, r2);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
-      useUIStore.getState().selectCompany('c1');
-      const linkSpy = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
-      render(<CompanyOptionsSection />);
-      openAccordion('Source');
-      openAccordion('Companion Oscillator'); // idx 1
-
-      fireEvent.click(screen.getByText('probe-layer-lfo-depth-1'));
-
-      const r2Call = linkSpy.mock.calls.find((c) => c[0].id === 'r2');
-      expect(r2Call?.[3]).toEqual({ lane: 'c', depth: 55 });
-    });
-
-    it('a layer LFO edit patches the company snapshot with the full new link, not just the changed field', () => {
-      const r1 = makeRobot({ id: 'r1', companyId: 'c1', lfoLinks: { 'layer1.gain': { lane: 'a', depth: 40 } } as unknown as Robot['lfoLinks'] });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
-      useUIStore.getState().selectCompany('c1');
-      vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
-      render(<CompanyOptionsSection />);
-      openAccordion('Source');
-      openAccordion('Companion Oscillator'); // idx 1
-
-      fireEvent.click(screen.getByText('probe-layer-lfo-lane-1'));
-
-      const snapshot = useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions;
-      expect(snapshot?.lfoLinks?.['layer1.gain' as RobotLfoTargetId]).toEqual({ lane: 'b', depth: 40 });
-    });
-
-    // The Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md assumption 9, Task 2): the
-    // company Output section broadcasts Mode and Volume only. Layer-LFO broadcast (above) is the
-    // one remaining compound-LFO broadcast path and keeps its own one-field-per-edit test.
-    it('passes no Volume LFO handler to the Audio Setting section', () => {
-      const r1 = makeRobot({ id: 'r1', companyId: 'c1' });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
-      useUIStore.getState().selectCompany('c1');
-      render(<CompanyOptionsSection />);
-
-      expect(screen.queryByText('probe-volume-lfo')).toBeNull();
-      expect(screen.getByText('probe-volume')).toBeTruthy();
+    it('hands none of them disabled once the company has a member', () => {
+      activeCompany();
+      render(<Sections target="c1" />);
+      for (const id of ['audio-setting-section-stub', 'ping-controls-composition-stub', 'ping-contour-drawer-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2']) {
+        expect(screen.getByTestId(id).getAttribute('data-disabled')).toBeNull();
+      }
     });
   });
 
-  describe('"All" selection (CompanyButtonRow\'s All button)', () => {
-    it('populates every section\'s value from the first robot in the locale, across companies and Freelance alike', () => {
-      const r1 = makeRobot({ id: 'r1', companyId: 'c1', masterVolume: 0.6, rhythmicDensity: 42 });
-      const r2 = makeRobot({ id: 'r2', companyId: undefined });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addRobot(localeId, r2);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
-      useUIStore.getState().selectAllRobots();
-      render(<CompanyOptionsSection />);
+  describe('values', () => {
+    it('reach each panel from the first member', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', masterVolume: 0.6, rhythmicDensity: 42, pitchRepeat: 30, audioMode: 'solo' }));
+      addCompany('c1', ['r1']);
+      render(<Sections target="c1" />);
+
+      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-volume')).toBe('0.6');
+      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-audio-mode')).toBe('solo');
+      expect(screen.getByTestId('ping-controls-composition-stub').getAttribute('data-density')).toBe('42');
+      expect(screen.getByTestId('ping-controls-composition-stub').getAttribute('data-pitch-repeat')).toBe('30');
+      expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-attack')).toBe('0.2');
+      expect(screen.getByTestId('signature-array-layer-stub-1').getAttribute('data-type')).toBe('square');
+    });
+
+    it('for \'all\', come from the first robot in the locale, across companies and Freelance alike', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1', masterVolume: 0.6 }));
+      addRobot(makeRobot({ id: 'r2', companyId: undefined, masterVolume: 0.1 }));
+      addCompany('c1', ['r1']);
+      render(<Sections target="all" ids={['audioSettings']} />);
 
       expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-volume')).toBe('0.6');
       expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-disabled')).toBeNull();
     });
 
-    it('editing Volume while All is selected calls applyVolume once per robot in the locale, regardless of company', () => {
-      const r1 = makeRobot({ id: 'r1', companyId: 'c1' });
-      const r2 = makeRobot({ id: 'r2', companyId: 'c2' });
-      const r3 = makeRobot({ id: 'r3', companyId: undefined });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addRobot(localeId, r2);
-      useLocaleStore.getState().addRobot(localeId, r3);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
-      useLocaleStore.getState().addCompany(localeId, { id: 'c2', name: 'Null Syndicate', color: '#4f6d7a', robotIds: ['r2'] });
-      useUIStore.getState().selectAllRobots();
-      const applyVolumeSpy = vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
-      render(<CompanyOptionsSection />);
+    it('carry the swelling flags to the panels that ease their sliders', () => {
+      activeCompany();
+      vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation(
+        (_id, attr) => attr === 'volume' || attr === 'adsr.attack' || attr === 'layer1.gain',
+      );
+      render(<Sections target="c1" />);
 
-      fireEvent.click(screen.getByText('probe-volume'));
-
-      expect(applyVolumeSpy).toHaveBeenCalledTimes(3);
-      expect(applyVolumeSpy.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2', 'r3']);
-    });
-
-    it('editing Volume while All is selected interrupts every robot\'s own Volume swell, regardless of company', () => {
-      const r1 = makeRobot({ id: 'r1', companyId: 'c1' });
-      const r2 = makeRobot({ id: 'r2', companyId: 'c2' });
-      const r3 = makeRobot({ id: 'r3', companyId: undefined });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addRobot(localeId, r2);
-      useLocaleStore.getState().addRobot(localeId, r3);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
-      useLocaleStore.getState().addCompany(localeId, { id: 'c2', name: 'Null Syndicate', color: '#4f6d7a', robotIds: ['r2'] });
-      useUIStore.getState().selectAllRobots();
-      vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
-      const cancelSpy = vi.spyOn(audioSwells, 'cancelSwellForRobotAttribute');
-      render(<CompanyOptionsSection />);
-
-      fireEvent.click(screen.getByText('probe-volume'));
-
-      expect(cancelSpy).toHaveBeenCalledTimes(3);
-      expect(cancelSpy.mock.calls.map((c) => c[0]).sort()).toEqual(['r1', 'r2', 'r3']);
-      expect(cancelSpy.mock.calls.every((c) => c[1] === 'volume')).toBe(true);
-    });
-
-    it('editing one field while All is selected patches locale.allRobotsLastEditedOptions, not any company\'s lastEditedOptions', () => {
-      const r1 = makeRobot({ id: 'r1', companyId: 'c1', masterVolume: 0.6 });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
-      useUIStore.getState().selectAllRobots();
-      vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
-      const updateCompanySpy = vi.spyOn(useLocaleStore.getState(), 'updateCompany');
-      render(<CompanyOptionsSection />);
-
-      fireEvent.click(screen.getByText('probe-volume'));
-
-      expect(updateCompanySpy).not.toHaveBeenCalled();
-      const editedVolume = useLocaleStore.getState().getLocaleById(localeId)?.allRobotsLastEditedOptions?.masterVolume;
-      expect(editedVolume).toBeCloseTo(0.77, 5);
-      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toBeUndefined();
-    });
-
-    it('All\'s last-edited value is independent of any company\'s — switching between them shows each one\'s own snapshot', () => {
-      const r1 = makeRobot({ id: 'r1', companyId: 'c1', masterVolume: 0.5 });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
-      vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
-
-      useUIStore.getState().selectAllRobots();
-      const { unmount: unmount1 } = render(<CompanyOptionsSection />);
-      fireEvent.click(screen.getByText('probe-volume'));
-      unmount1();
-
-      useUIStore.getState().selectCompany('c1');
-      render(<CompanyOptionsSection />);
-      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-volume')).toBe('0.5');
+      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-swelling')).toBe('');
+      expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-swelling-attack')).toBe('');
+      expect(screen.getByTestId('signature-array-layer-stub-1').getAttribute('data-swelling-gain')).toBe('');
+      expect(screen.getByTestId('signature-array-layer-stub-0').getAttribute('data-swelling-gain')).toBeNull();
     });
   });
 
-  describe('re-render cascade regression (docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md follow-up)', () => {
-    function callCounts() {
-      return {
-        audioSettingSection: renderCounts.audioSettingSection.mock.calls.length,
-        pingContourDrawer: renderCounts.pingContourDrawer.mock.calls.length,
-      };
+  describe('each panel\'s change reaches the members once (the broadcast itself is useCompanyOptions\' suite)', () => {
+    function twoMembers() {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1' }));
+      addCompany('c1', ['r1', 'r2']);
     }
+    const ids = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map((c) => (c[0] as Robot).id).sort();
+
+    it('Levels: audio mode', () => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, 'applyAudioMode').mockImplementation(() => {});
+      render(<Sections target="c1" ids={['audioSettings']} />);
+      click('probe-audio-mode');
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect(spy.mock.calls[0][2]).toBe('solo');
+    });
+
+    it('Levels: volume — applyVolume once per member, and only masterVolume recorded in the snapshot', () => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
+      render(<Sections target="c1" ids={['audioSettings']} />);
+      click('probe-volume');
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ masterVolume: 0.77 });
+    });
+
+    it.each([
+      ['probe-density', 'applyDensity'],
+      ['probe-motif-length', 'applyMotifLength'],
+      ['probe-pitch-repeat', 'applyPitchRepeat'],
+      ['probe-octave-min', 'applyOctaveMin'],
+      ['probe-octave-max', 'applyOctaveMax'],
+      ['probe-note-variance', 'applyNoteVariance'],
+    ] as const)('Composition: %s calls %s once per member', (probe, action) => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+      render(<Sections target="c1" ids={['rhythm']} />);
+      click(probe);
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+    });
+
+    it('Envelope: applyAdsr once per member', () => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
+      render(<Sections target="c1" ids={['pingContour']} />);
+      click('probe-adsr');
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect((spy.mock.calls[0][2] as { attack: number }).attack).toBe(0.9);
+    });
+
+    it('Source: a layer\'s gain reaches the right layer index', () => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, 'applyLayersContinuous').mockImplementation(() => {});
+      render(<Sections target="c1" ids={['coaxialOscillator']} />);
+      click('probe-layer-gain-1');
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect((spy.mock.calls[0][2] as { gain: number }[])[1].gain).toBe(0.4);
+    });
+
+    it('Source: a layer\'s type', () => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, 'applyLayersStructural').mockImplementation(() => {});
+      render(<Sections target="c1" ids={['harmonicOscillator']} />);
+      click('probe-layer-type-2');
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect((spy.mock.calls[0][2] as { type: string }[])[2].type).toBe('square');
+    });
+
+    it('Source: a layer\'s LFO link', () => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, 'applyLayerLfoLink').mockImplementation(() => {});
+      render(<Sections target="c1" ids={['coaxialOscillator']} />);
+      click('probe-layer-lfo-lane-1');
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect(spy.mock.calls[0][2]).toBe('layer1.gain');
+    });
+
+    it('passes no Volume LFO handler to the audio-setting panel (the target was removed, docs/specs/LFO_LOAD_FIX.md)', () => {
+      activeCompany();
+      render(<Sections target="c1" ids={['audioSettings']} />);
+      expect(screen.queryByText('probe-volume-lfo')).toBeNull();
+      expect(screen.getByText('probe-volume')).toBeTruthy();
+    });
+
+    it('for \'all\', Volume reaches every robot in the locale, regardless of company', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c2' }));
+      addRobot(makeRobot({ id: 'r3', companyId: undefined }));
+      const spy = vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
+      render(<Sections target="all" ids={['audioSettings']} />);
+      click('probe-volume');
+      expect(ids(spy)).toEqual(['r1', 'r2', 'r3']);
+    });
+
+    it('a disabled panel (no members) broadcasts to nobody', () => {
+      addCompany('c1', []);
+      const spy = vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
+      render(<Sections target="c1" ids={['audioSettings']} />);
+      click('probe-volume');
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
+
+  // docs/tasks/ROBOT_OPTIONS_TAB_MEMOIZATION.md follow-up: the hook subscribes to the whole locale's
+  // robots array, which gets a new reference on any robot edit anywhere — these prove a mounted panel
+  // re-renders only for an edit to a value it shows.
+  describe('re-render cascade regression', () => {
+    const counts = () => ({
+      audioSettingSection: renderCounts.audioSettingSection.mock.calls.length,
+      pingContourDrawer: renderCounts.pingContourDrawer.mock.calls.length,
+    });
 
     beforeEach(() => {
       renderCounts.audioSettingSection.mockClear();
       renderCounts.pingContourDrawer.mockClear();
     });
 
-    // The end-to-end proof this whole follow-up exists for: this component subscribes to the
-    // *whole locale's* robots array, which gets a new reference on any robot edit anywhere in the
-    // locale — editing a robot that isn't even a member of the selected company used to still
-    // re-render every mounted section here.
-    it('editing a robot that is NOT a member of the selected company leaves mounted sections un-re-rendered', () => {
-      const member = makeRobot({ id: 'r1', companyId: 'c1' });
-      const stranger = makeRobot({ id: 'r2', companyId: 'c2' });
-      useLocaleStore.getState().addRobot(localeId, member);
-      useLocaleStore.getState().addRobot(localeId, stranger);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
-      useLocaleStore.getState().addCompany(localeId, { id: 'c2', name: 'Null Syndicate', color: '#4f6d7a', robotIds: ['r2'] });
-      useUIStore.getState().selectCompany('c1');
-      render(<CompanyOptionsSection />);
-      openAccordion('Envelope');
-      const countsAfterMount = callCounts();
+    it('editing a robot that is NOT a member of the selected company leaves mounted panels un-re-rendered', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c2' }));
+      addCompany('c1', ['r1']);
+      addCompany('c2', ['r2']);
+      render(<Sections target="c1" ids={['audioSettings', 'pingContour']} />);
+      const afterMount = counts();
 
-      act(() => {
-        useLocaleStore.getState().updateRobot(localeId, stranger.id, { rhythmicDensity: 91 });
-      });
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { rhythmicDensity: 91 }));
 
-      expect(callCounts()).toEqual(countsAfterMount);
+      expect(counts()).toEqual(afterMount);
     });
 
-    it('editing one field on the selected company\'s own member re-renders only that field\'s own section', () => {
+    it('editing one field on a member re-renders only that field\'s own panel', () => {
       const r1 = makeRobot({ id: 'r1', companyId: 'c1' });
-      const r2 = makeRobot({ id: 'r2', companyId: 'c1' });
-      useLocaleStore.getState().addRobot(localeId, r1);
-      useLocaleStore.getState().addRobot(localeId, r2);
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
-      useUIStore.getState().selectCompany('c1');
-      render(<CompanyOptionsSection />);
-      openAccordion('Envelope');
-      const countsAfterMount = callCounts();
+      addRobot(r1);
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1' }));
+      addCompany('c1', ['r1', 'r2']);
+      render(<Sections target="c1" ids={['audioSettings', 'pingContour']} />);
+      const afterMount = counts();
 
       act(() => {
-        useLocaleStore.getState().updateRobot(localeId, r1.id, {
+        useLocaleStore.getState().updateRobot(localeId, 'r1', {
           audioAttributes: { ...r1.audioAttributes, adsr: { attack: 0.9, decay: 0.1, sustain: 0.5, release: 0.2 } },
         });
       });
 
-      const countsAfterEdit = callCounts();
-      expect(countsAfterEdit.pingContourDrawer).toBeGreaterThan(countsAfterMount.pingContourDrawer);
-      expect(countsAfterEdit.audioSettingSection).toBe(countsAfterMount.audioSettingSection);
+      const afterEdit = counts();
+      expect(afterEdit.pingContourDrawer).toBeGreaterThan(afterMount.pingContourDrawer);
+      expect(afterEdit.audioSettingSection).toBe(afterMount.audioSettingSection);
+    });
+
+    it('the renderer keeps its identity through an edit that changes nothing it reads', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c2' }));
+      addCompany('c1', ['r1']);
+      addCompany('c2', ['r2']);
+      const { result } = renderHook(() => useCompanySubsectionRenderer(useCompanyOptions('c1').options));
+      const before = result.current;
+
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { rhythmicDensity: 91 }));
+
+      expect(result.current).toBe(before);
     });
   });
+});
 
-  it('is a React.memo-wrapped component', () => {
-    expect((CompanyOptionsSection as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+describe('companyTraitStyle', () => {
+  it('is the trait\'s full-saturation style while the panels are active', () => {
+    expect(companyTraitStyle('output', true)).toEqual(getTraitColorStyle('output'));
+    expect(companyTraitStyle('output', true)['--color-accent-a' as never]).toBe(ACCENT_COLORS.burntOrange);
+  });
+
+  it('is the trait\'s own two tones, desaturated, while they are disabled', () => {
+    expect(companyTraitStyle('output', false)).toEqual(getDisabledTraitColorStyle('output'));
+    expect(companyTraitStyle('output', false)).not.toEqual(companyTraitStyle('output', true));
+  });
+
+  it.each(['output', 'composition', 'timeSpace', 'spectral'] as const)('has both states for the %s trait', (trait) => {
+    expect(companyTraitStyle(trait, true)).toEqual(getTraitColorStyle(trait));
+    expect(companyTraitStyle(trait, false)).toEqual(getDisabledTraitColorStyle(trait));
+  });
+});
+
+describe('CompanyOptionsSection is the sections only', () => {
+  it('no longer owns an accordion stack, a selection read or a layout of its own', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const source = readFileSync(resolve(__dirname, 'CompanyOptionsSection.tsx'), 'utf8');
+    expect(source).not.toMatch(/RobotSectionAccordionStack/);
+    expect(source).not.toMatch(/useUIStore/);
+    expect(source).not.toMatch(/useLocaleStore/);
+    expect(source).not.toMatch(/AccordionState/);
   });
 });

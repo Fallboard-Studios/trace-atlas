@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 import { ConsolePanel } from './ConsolePanel';
-import { CONTENT } from '@/content';
 import { useUIStore } from '@/stores/uiStore';
 
 // Each screen has its own full test suite — this file is about ConsolePanel's own routing, not
@@ -19,16 +18,11 @@ vi.mock('../screens/FleetParamsScreen', () => ({
 vi.mock('../screens/SettingsScreen', () => ({
   SettingsScreen: () => <div data-testid="settings-screen-stub" />,
 }));
-// The company and All Probes forms stay as they were until CompanyScreen replaces them (Task 23).
-vi.mock('@/components/company/CompanyCrudControls', () => ({
-  CompanyCreateForm: () => <div data-testid="company-create-form-stub" />,
-  CompanyRenameDeleteForm: () => <div data-testid="company-rename-delete-form-stub" />,
-}));
-vi.mock('@/components/company/CompanyOptionsSection', () => ({
-  CompanyOptionsSection: () => <div data-testid="company-options-section-stub" />,
+vi.mock('../screens/CompanyScreen', () => ({
+  CompanyScreen: () => <div data-testid="company-screen-stub" />,
 }));
 
-const ROUTED = ['roster-board-stub', 'robot-screen-stub', 'company-options-section-stub', 'company-rename-delete-form-stub', 'fleet-params-screen-stub', 'settings-screen-stub'];
+const ROUTED = ['roster-board-stub', 'robot-screen-stub', 'company-screen-stub', 'fleet-params-screen-stub', 'settings-screen-stub'];
 /** Every routed screen in the DOM, by its stub's test id. */
 const shown = () => ROUTED.filter((id) => screen.queryByTestId(id));
 
@@ -80,11 +74,10 @@ describe('ConsolePanel — the Probes branch', () => {
     expect(shown()).toEqual(['robot-screen-stub']);
   });
 
-  it('shows the All Probes form, with its intro, when All Probes is selected', () => {
+  it('shows the company screen, as its All form, when All Probes is selected', () => {
     useUIStore.getState().setAllProbesSelected(true);
     render(<ConsolePanel />);
-    expect(shown()).toEqual(['company-options-section-stub']);
-    expect(screen.getByText(CONTENT['probe.all'].intro.lore)).toBeTruthy();
+    expect(shown()).toEqual(['company-screen-stub']);
   });
 
   it('prefers a selected robot over All Probes', () => {
@@ -107,11 +100,16 @@ describe('ConsolePanel — the Companies branch', () => {
     expect(screen.queryByTestId('company-create-form-stub')).toBeNull();
   });
 
-  it('shows the company form — its intro, Rename / Delete and the broadcast sections — when a company is selected', () => {
+  it('shows the company screen when a company is selected', () => {
     useUIStore.getState().selectCompany('c1');
     render(<ConsolePanel />);
-    expect(shown()).toEqual(['company-options-section-stub', 'company-rename-delete-form-stub']);
-    expect(screen.getByText(CONTENT['company.profile'].intro.lore)).toBeTruthy();
+    expect(shown()).toEqual(['company-screen-stub']);
+  });
+
+  it("keeps the roster board for the Companies page even if All Probes was left selected (that form belongs to the Probes branch)", () => {
+    useUIStore.getState().setAllProbesSelected(true);
+    render(<ConsolePanel />);
+    expect(shown()).toEqual(['roster-board-stub']);
   });
 });
 
