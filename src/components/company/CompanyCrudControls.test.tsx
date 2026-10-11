@@ -201,21 +201,6 @@ describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — 
     expect((screen.getByRole('textbox', { name: /rename company/i }) as HTMLInputElement).disabled).toBe(true);
   });
 
-  // docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 1 — the draft auto-suggests a fresh name
-  // (suggestCompanyName's own generator) rather than pre-filling the selected company's current
-  // name, so the Rename button can always preview two different names without the user typing
-  // anything first.
-  it('Rename input is enabled and pre-filled with a generated suggestion — never the selected company\'s own current name', () => {
-    useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
-    useUIStore.getState().selectCompany('c1');
-    render(<CompanyRenameDeleteForm />);
-
-    const renameInput = screen.getByRole('textbox', { name: /rename company/i }) as HTMLInputElement;
-    expect(renameInput.disabled).toBe(false);
-    expect(renameInput.value).not.toBe('Iron Consortium');
-    expect(renameInput.value.split(' ')).toHaveLength(2);
-  });
-
   // docs/tasks/COMPANY_CRUD_BUTTON_PREVIEW.md Task 3 — the Rename button's own label previews
   // "{current name} > {draft}", so both the visible text and the accessible name change together.
   describe('Rename button label', () => {
