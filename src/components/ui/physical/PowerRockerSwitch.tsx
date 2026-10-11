@@ -175,7 +175,7 @@ export function PowerRockerSwitch() {
     returnRocker();
     // Delegate orchestrated shutdown (plays sleeve drain, stops systems,
     // and runs the tablet power-off UI animation).
-    await powerController.shutdownWithAnimation();
+    await powerController.shutdown();
   }
 
   // ----------------------------------------

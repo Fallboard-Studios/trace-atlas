@@ -3,7 +3,6 @@ import {
   selectBranch,
   selectEntity,
   goHome,
-  breadcrumbPath,
   breadcrumbTrail,
   pressBranchBox,
   branchOfTile,
@@ -25,6 +24,9 @@ import { LFO_BANK_LANE_CONTENT } from '@/data/lfoConfig';
 import { CONTENT, labels } from '@/content';
 
 const ui = () => useUIStore.getState();
+
+/** The trail's names alone. */
+const breadcrumbPath = (state: BreadcrumbState, roster: NavRoster) => breadcrumbTrail(state, roster).map((segment) => segment.label);
 
 /** A store with every nav field set to something non-default, so a test can see each one cleared. */
 function dirtyStore(overrides: Partial<UIStore> = {}) {
@@ -570,19 +572,6 @@ describe('breadcrumbTrail — each segment and the navActions call it goes to', 
 
   it('is empty on the Deck', () => {
     expect(trail()).toEqual([]);
-  });
-
-  it.each<[string, Partial<UIStore>]>([
-    ['Fleet Params with a lane', { activeHubTile: 'audioRig', fleetParamsSubsection: 'laneB' }],
-    ['Fleet Params on Pacing', { activeHubTile: 'audioRig', fleetParamsSection: 'pacing' }],
-    ['Settings with a leaf', { activeHubTile: 'settings', selectedSettingsLeaf: 'sessions' }],
-    ['a robot with a section', { activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' }],
-    ['All Probes with a section', { activeHubTile: 'robots', allProbesSelected: true, selectedSection: 'volume' }],
-    ['a company with a section', { activeHubTile: 'companies', selectedCompanyId: 'c1', selectedSection: 'envelope' }],
-    ['a stale robot id', { activeHubTile: 'robots', selectedRobotId: 'gone', selectedSection: 'source' }],
-  ])('names the same segments breadcrumbPath reads (%s)', (_case, state) => {
-    useUIStore.setState(state);
-    expect(trail().map((segment) => segment.label)).toEqual(breadcrumbPath(ui(), roster));
   });
 
   it('Root goes home: no tile, nothing expanded, no entity', () => {

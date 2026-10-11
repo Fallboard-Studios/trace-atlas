@@ -131,11 +131,6 @@ export interface UIStore {
   selectRobot: (id: string | null) => void;
   selectCompany: (id: string) => void;
   selectAllRobots: () => void;
-  /** Clears selectedCompanyId alone — distinct from selectAllRobots, which also flips
-   *  allRobotsSelected (the Robots tab's own, unrelated company filter default). Added Task 20
-   *  (docs/tasks/NAV_LAYOUT_REWRITE.md): navigating to the bare "Companies" tree node must show
-   *  the Create form regardless of whatever the Robots tab's own filter is doing. */
-  clearSelectedCompany: () => void;
   setActiveHubTile: (tile: HubTile | null) => void;
   setActiveLocaleTemperature: (t: number | null) => void;
   setSelectedSection: (s: RobotSection | null) => void;
@@ -199,7 +194,6 @@ export const useUIStore = create<UIStore>((set) => ({
   selectRobot: (id) => set({ selectedRobotId: id, selectedSection: null, selectedSubsection: null }),
   selectCompany: (id) => set({ selectedCompanyId: id, allRobotsSelected: false }),
   selectAllRobots: () => set({ allRobotsSelected: true, selectedCompanyId: null }),
-  clearSelectedCompany: () => set({ selectedCompanyId: null }),
   setActiveHubTile: (tile) => set({ activeHubTile: tile }),
   setActiveLocaleTemperature: (t) => set({ activeLocaleTemperature: t }),
   setSelectedSection: (s) => set({ selectedSection: s }),

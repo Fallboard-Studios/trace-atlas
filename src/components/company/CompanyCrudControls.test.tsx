@@ -368,30 +368,6 @@ describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — 
     });
   });
 
-  describe('summary (the "RobotDisplaySection-equivalent" read-only glance)', () => {
-    it('shows the selected company\'s name and current member count', () => {
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1', 'r2'] });
-      useUIStore.getState().selectCompany('c1');
-      render(<CompanyRenameDeleteForm />);
-
-      expect(screen.getByText('Iron Consortium')).toBeTruthy();
-      expect(screen.getByText('2 robots')).toBeTruthy();
-    });
-
-    it('uses singular "robot" for exactly one member', () => {
-      useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: ['r1'] });
-      useUIStore.getState().selectCompany('c1');
-      render(<CompanyRenameDeleteForm />);
-
-      expect(screen.getByText('1 robot')).toBeTruthy();
-    });
-
-    it('renders nothing when no company is selected', () => {
-      render(<CompanyRenameDeleteForm />);
-      expect(screen.queryByText(/robots?$/)).toBeNull();
-    });
-  });
-
   describe('Delete', () => {
     it('is disabled when no company is selected', () => {
       render(<CompanyRenameDeleteForm />);

@@ -89,7 +89,6 @@ const REWORK_CLAIMS: Array<{ doc: string; symbols: Array<[symbol: string, file: 
       ['pressBranchBox', 'src/components/panels/screen/nav/navActions.ts'],
       ['goHome', 'src/components/panels/screen/nav/navActions.ts'],
       ['breadcrumbTrail', 'src/components/panels/screen/nav/navActions.ts'],
-      ['breadcrumbPath', 'src/components/panels/screen/nav/navActions.ts'],
       ['FLEET_PARAMS_SUBSECTIONS', 'src/components/panels/screen/nav/navActions.ts'],
       ['SETTINGS_LEAVES', 'src/components/panels/screen/nav/navActions.ts'],
       ['PhoneBar', 'src/components/panels/screen/PhoneBar.tsx'],

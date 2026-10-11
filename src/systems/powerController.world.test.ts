@@ -103,17 +103,6 @@ describe('power cycle over a world built while off', () => {
     expect(useUIStore.getState().isPoweredOn).toBe(false);
   });
 
-  it('shutdownWithAnimation leaves the world standing too', async () => {
-    initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
-    await powerController.powerOnSequence();
-    const actorCount = locale().actors.length;
-
-    await powerController.shutdownWithAnimation();
-
-    expect(locale().actors).toHaveLength(actorCount);
-    expect(useUIStore.getState().isPoweredOn).toBe(false);
-  });
-
   it('a second power-on after a shutdown restarts the systems without leaving two ticks running', async () => {
     const unsubscribes: ReturnType<typeof vi.fn>[] = [];
     vi.mocked(subscribeToMeasure).mockImplementation(() => {

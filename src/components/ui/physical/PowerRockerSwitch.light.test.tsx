@@ -21,7 +21,6 @@ vi.mock('@/systems/powerController', () => ({
     start: vi.fn(),
     shutdown: vi.fn().mockResolvedValue(undefined),
     powerOnSequence: vi.fn().mockResolvedValue(undefined),
-    shutdownWithAnimation: vi.fn().mockResolvedValue(undefined),
   },
 }));
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));

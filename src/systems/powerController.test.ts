@@ -43,9 +43,7 @@ describe('powerController', () => {
   });
 
   it('shutdown halts systems and flips power off, leaving the world standing (Task 26: the off screen\'s backdrop)', async () => {
-    // shutdown returns after running its small timeline; call and await
-    const p = powerController.shutdown();
-    await p;
+    await powerController.shutdown();
     expect(stopRobotLifecycle).toHaveBeenCalled();
     expect(stopWorkLoop).toHaveBeenCalledTimes(1); // Phase 43 Task 23
     expect(AudioEngine.killAll).toHaveBeenCalled();
@@ -77,7 +75,7 @@ describe('powerController', () => {
 
   it('powerOnSequence starts the locale systems again on a second power-on (the stop-then-start pairs inside hold the line)', async () => {
     await powerController.powerOnSequence();
-    await powerController.shutdownWithAnimation();
+    await powerController.shutdown();
     await powerController.powerOnSequence();
     expect(startLocaleSystems).toHaveBeenCalledTimes(2);
     expect(AudioEngine.killAll).toHaveBeenCalledTimes(1);
@@ -90,12 +88,4 @@ describe('powerController', () => {
     expect(useUIStore.getState().setPowerOn).not.toHaveBeenCalled();
   });
 
-  it('shutdownWithAnimation halts systems and flips power state off, without touching locale actors', async () => {
-    await powerController.shutdownWithAnimation();
-    expect(stopRobotLifecycle).toHaveBeenCalled();
-    expect(stopWorkLoop).toHaveBeenCalledTimes(1); // Phase 43 Task 23
-    expect(AudioEngine.killAll).toHaveBeenCalled();
-    expect(useUIStore.getState().setPowerOff).toHaveBeenCalled();
-    expect(useLocaleStore.getState().setLocaleData).not.toHaveBeenCalled();
-  });
 });

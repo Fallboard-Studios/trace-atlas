@@ -106,28 +106,6 @@ export function CompanyCreateForm() {
 }
 
 /**
- * A read-only glance at the selected company — name, its own identity color swatch, and current
- * member count — the "RobotDisplaySection-equivalent summary" spec §2's Node -> Content Mapping
- * table calls for on a bare "Company X" tree node. Genuinely needed, not just decorative: Rename's
- * own input below is pre-filled with a fresh SUGGESTED name (docs/tasks/
- * COMPANY_CRUD_BUTTON_PREVIEW.md Task 1), never the company's actual current name, so without this
- * summary there would be no visible read-only display of what the company is actually called
- * right now (Delete's own button label is the only other place it survives). Minimal by design —
- * the spec names no further fields, and this mirrors RobotDisplaySection's own scope (a handful of
- * read-only identity rows, not a full editor).
- */
-function CompanySummary({ company }: { company: Company }) {
-  const robotCount = company.robotIds.length;
-  return (
-    <div className="company-summary">
-      <span className="company-summary__swatch" style={{ backgroundColor: company.color }} aria-hidden="true" />
-      <span className="company-summary__name">{company.name}</span>
-      <span className="company-summary__count">{robotCount} {robotCount === 1 ? 'robot' : 'robots'}</span>
-    </div>
-  );
-}
-
-/**
  * Rename/Delete half of Companies CRUD (Roadmap Phase 10; relocated into the nav tree by
  * docs/tasks/NAV_LAYOUT_REWRITE.md Task 20, spec §2 — this is a specific "Company X" tree node's
  * own content, rendered only once a company is actually selected). Split out of the old combined
@@ -149,7 +127,7 @@ function CompanySummary({ company }: { company: Company }) {
  * only opening state (never itself calling removeCompany) — confirming or cancelling inside the
  * dialog is what actually commits or discards.
  */
-export function CompanyRenameDeleteForm({ showSummary = true }: { showSummary?: boolean } = {}) {
+export function CompanyRenameDeleteForm() {
   const localeId = getActiveLocaleId();
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
@@ -234,8 +212,6 @@ export function CompanyRenameDeleteForm({ showSummary = true }: { showSummary?: 
 
   return (
     <div className="company-rename-delete-form">
-      {showSummary && selectedCompany && <CompanySummary company={selectedCompany} />}
-
       <div className="company-rename-delete-form__rename">
         <TextInput
           schema={RENAME_NAME_SCHEMA}

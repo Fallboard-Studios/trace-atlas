@@ -119,7 +119,7 @@ function CompanyColumn({ all, name, members, total }: IdentityProps & { total: n
       </div>
       <MemberTiles members={members} />
       <div className="robot-screen__well company-screen__note">{broadcastNote(members.length)}</div>
-      {!all && <CompanyRenameDeleteForm showSummary={false} />}
+      {!all && <CompanyRenameDeleteForm />}
     </div>
   );
 }
@@ -139,7 +139,7 @@ function CompanyBand({ all, name, members }: IdentityProps) {
       </div>
       <div className="company-screen__phone-members">
         <MemberTiles members={members} />
-        {!all && <CompanyRenameDeleteForm showSummary={false} />}
+        {!all && <CompanyRenameDeleteForm />}
       </div>
     </>
   );

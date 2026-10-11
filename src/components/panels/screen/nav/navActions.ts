@@ -307,8 +307,3 @@ export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): Brea
   if (section) trail.push({ label: name(sectionTabContent(section)) });
   return trail;
 }
-
-/** The trail's names alone. */
-export function breadcrumbPath(state: BreadcrumbState, roster: NavRoster): string[] {
-  return breadcrumbTrail(state, roster).map((segment) => segment.label);
-}

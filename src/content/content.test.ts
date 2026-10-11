@@ -230,10 +230,10 @@ const ROSTER_AND_DETAIL_KEYS: readonly ContentKey[] = [
 ];
 
 describe('roster and company detail copy', () => {
-  it('every key exists and is read by a component, or waits on the Task 21–24 that reads it', () => {
+  it('every key exists and is read by a component', () => {
     for (const k of ROSTER_AND_DETAIL_KEYS) {
       expect(CONTENT[k], k).toBeDefined();
-      expect(isReferenced(k) || /Task 2[1-4]/.test(AWAITING_CONSUMER[k] ?? ''), k).toBe(true);
+      expect(isReferenced(k), k).toBe(true);
     }
   });
 

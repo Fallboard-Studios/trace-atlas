@@ -42,7 +42,7 @@ On the phone shell the same panel renders inside a modal Radix `Dialog` whose op
 - `selectEntity(entity)` opens a robot, a company or `'all'` (All Probes) with the list collapsed, so the entity's screen gets the panel's rest width.
 - `pressBranchBox(branch)` is what a box press calls: on a branch's own page, Probes and Companies toggle their list in place; anywhere else it is `selectBranch`.
 - `goHome()` is the Deck: no tile, nothing expanded, no entity.
-- `breadcrumbTrail(state, roster)` returns the segments (each knows how to go back); `breadcrumbPath` is its labels. `FLEET_PARAMS_SUBSECTIONS` and `SETTINGS_LEAVES` are the one table each of the Fleet Params sub-tabs and the Settings tabs, read by the screen and the breadcrumb alike, so they always name the same tab.
+- `breadcrumbTrail(state, roster)` returns the segments (each knows how to go back). `FLEET_PARAMS_SUBSECTIONS` and `SETTINGS_LEAVES` are the one table each of the Fleet Params sub-tabs and the Settings tabs, read by the screen and the breadcrumb alike, so they always name the same tab.
 
 `NavBreadcrumb` is a passive "where am I" readout (a recessed well, `inBar` on the phone) built from `breadcrumbTrail`; reads `Root / branch / entity / section` (Root is left out on the phone), every ancestor a button that calls the matching navAction and the last segment plain text; it renders nothing on the Deck. `useEntityRoster` (`nav/useEntityRoster.ts`) is the narrow robots/companies subscription both the entity list and the breadcrumb share.
 
