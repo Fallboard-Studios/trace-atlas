@@ -1,6 +1,10 @@
 // ========================================
 // IMPORTS
 // ========================================
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import gsap from 'gsap';
 
@@ -9,20 +13,66 @@ import {
   noteDeckUserInput,
   isDeckCameraIdle,
   deckCameraTargetFor,
+  panDeckCameraTo,
+  cutDeckCameraTo,
   __setDeckCameraScrolling,
   __resetDeckCameraForTest,
 } from './deckCamera';
+import { getTimeline, timelineMap, killAllTimelines } from './timelineMap';
 import { setRef, clearRefs } from '../utils/refs';
+import { DECK_CAMERA_PAN_S, DECK_CAMERA_TIMELINE_ID } from '../constants/deckCamera';
 
-// Real tween values: vitest.setup.ts mocks gsap globally and discards every tween's vars, which
-// would make gsap.getProperty(ref, 'x') always read 0. stationRipple.test.ts and
-// workLoop.test.ts unmock gsap for the same reason.
-vi.unmock('gsap');
+// ----------------------------------------
+// RECORDING GSAP MOCK
+// ----------------------------------------
+// Overrides the global mock in vitest.setup.ts: that one discards every tween's vars and has no
+// getProperty, and this file needs both — `deckCameraTargetFor` reads a seeded x back via
+// gsap.getProperty (Task 6), and the pan/cut tests need to see exactly what config reached
+// gsap.to (Task 7, the BubbleStream.test.tsx pattern). `timeline`/`to` are vi.fn so a test can
+// read `.mock.results`/`.mock.calls`; `set`/`getProperty` share a WeakMap-backed prop store so
+// gsap.set(el, { x }) is readable back as the same x.
+interface RecordingTimeline {
+  kill: ReturnType<typeof vi.fn>;
+  play: ReturnType<typeof vi.fn>;
+  to: ReturnType<typeof vi.fn>;
+}
+
+vi.mock('gsap', () => {
+  const props = new WeakMap<object, Record<string, number>>();
+  const propsOf = (target: object): Record<string, number> => {
+    let p = props.get(target);
+    if (!p) {
+      p = {};
+      props.set(target, p);
+    }
+    return p;
+  };
+
+  const timeline = vi.fn((): RecordingTimeline => {
+    const tl: RecordingTimeline = {
+      kill: vi.fn(),
+      play: vi.fn(() => tl),
+      to: vi.fn(() => tl),
+    };
+    return tl;
+  });
+
+  const mocked = {
+    timeline,
+    set: vi.fn((target: object, vars: Record<string, number>) => Object.assign(propsOf(target), vars)),
+    getProperty: vi.fn((target: object, prop: string) => propsOf(target)[prop] ?? 0),
+    registerPlugin: vi.fn(),
+  };
+  return { default: mocked, ...mocked };
+});
+
+vi.mock('gsap/ScrollToPlugin', () => ({ ScrollToPlugin: {} }));
 
 // ========================================
 // FIXTURES
 // ========================================
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const here = dirname(fileURLToPath(import.meta.url));
 
 interface FakeScroller {
   scrollWidth: number;
@@ -36,12 +86,12 @@ interface FakeScroller {
 /** The fake scroller object Task 6's spec calls for: `{ scrollWidth, clientWidth, scrollLeft,
  *  addEventListener, removeEventListener, dispatchEvent }`, with a working listener registry so
  *  `dispatchEvent` actually reaches what `registerDeckScroller` attached. */
-function makeFakeScroller(scrollWidth = 3840, clientWidth = 375): FakeScroller {
+function makeFakeScroller(scrollWidth = 3840, clientWidth = 375, scrollLeft = 0): FakeScroller {
   const listeners = new Map<string, Set<(e: { type: string }) => void>>();
   return {
     scrollWidth,
     clientWidth,
-    scrollLeft: 0,
+    scrollLeft,
     addEventListener: vi.fn((type: string, fn: (e: { type: string }) => void) => {
       if (!listeners.has(type)) listeners.set(type, new Set());
       listeners.get(type)!.add(fn);
@@ -64,10 +114,22 @@ function makeRobotRef(id: string, x: number): SVGGElement {
   return g;
 }
 
+/** The single timeline the mock's `gsap.timeline()` most recently created. */
+function lastCreatedTimeline(): RecordingTimeline {
+  const results = vi.mocked(gsap.timeline).mock.results;
+  return results[results.length - 1].value as RecordingTimeline;
+}
+
+/** The `vars` object a timeline's `.to()` was last called with. */
+function lastToVars(tl: RecordingTimeline): Record<string, unknown> {
+  const calls = tl.to.mock.calls;
+  return calls[calls.length - 1][1] as Record<string, unknown>;
+}
+
 // ========================================
 // TESTS
 // ========================================
-describe('deckCamera — register, idle gate, target (Task 6)', () => {
+describe('deckCamera', () => {
   beforeEach(() => {
     __resetDeckCameraForTest();
   });
@@ -75,10 +137,11 @@ describe('deckCamera — register, idle gate, target (Task 6)', () => {
   afterEach(() => {
     registerDeckScroller(null);
     clearRefs();
+    killAllTimelines();
     vi.restoreAllMocks();
   });
 
-  describe('isDeckCameraIdle', () => {
+  describe('isDeckCameraIdle (Task 6)', () => {
     it('is true before any input has ever been seen', () => {
       expect(isDeckCameraIdle()).toBe(true);
     });
@@ -93,7 +156,7 @@ describe('deckCamera — register, idle gate, target (Task 6)', () => {
     });
   });
 
-  describe('scroller input listeners', () => {
+  describe('scroller input listeners (Task 6)', () => {
     it('attaches pointerdown, touchstart, wheel and scroll on registration', () => {
       const fake = makeFakeScroller();
       registerDeckScroller(fake as unknown as HTMLElement);
@@ -135,9 +198,23 @@ describe('deckCamera — register, idle gate, target (Task 6)', () => {
       // Never stamped — still idle at the very moment of the (ignored) event.
       expect(isDeckCameraIdle(5000)).toBe(true);
     });
+
+    it('registerDeckScroller(null) kills the registered deck-camera timeline', () => {
+      const fake = makeFakeScroller();
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 960);
+      panDeckCameraTo('alpha');
+      const tl = getTimeline(DECK_CAMERA_TIMELINE_ID);
+      expect(tl).toBeDefined();
+
+      registerDeckScroller(null);
+
+      expect(tl!.kill).toHaveBeenCalled();
+      expect(timelineMap.has(DECK_CAMERA_TIMELINE_ID)).toBe(false);
+    });
   });
 
-  describe('deckCameraTargetFor', () => {
+  describe('deckCameraTargetFor (Task 6)', () => {
     it('scales the robot x to the stage pixel width and centres it in the viewport', () => {
       const fake = makeFakeScroller(3840, 375);
       registerDeckScroller(fake as unknown as HTMLElement);
@@ -173,6 +250,170 @@ describe('deckCamera — register, idle gate, target (Task 6)', () => {
       makeRobotRef('alpha', 960);
 
       expect(deckCameraTargetFor('alpha')).toBeNull();
+    });
+  });
+
+  describe('panDeckCameraTo (Task 7)', () => {
+    it('does nothing when the robot has no ref', () => {
+      const fake = makeFakeScroller();
+      registerDeckScroller(fake as unknown as HTMLElement);
+
+      panDeckCameraTo('nobody');
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+    });
+
+    it('tweens scrollLeft to the resolved target with autoKill', () => {
+      const fake = makeFakeScroller(3840, 375);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 960);
+
+      panDeckCameraTo('alpha');
+
+      const tl = lastCreatedTimeline();
+      const [target, vars] = tl.to.mock.calls[0];
+      expect(target).toBe(fake);
+      expect(vars.scrollTo).toEqual({ x: 1732.5, autoKill: true });
+      expect(tl.play).toHaveBeenCalled();
+    });
+
+    it('still tweens even while the user is not idle — a tap is never idle-gated', () => {
+      const fake = makeFakeScroller(3840, 375);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 960);
+      noteDeckUserInput();
+
+      panDeckCameraTo('alpha');
+
+      expect(gsap.timeline).toHaveBeenCalledTimes(1);
+    });
+
+    it('full duration without reduced motion, 0 under prefers-reduced-motion', () => {
+      const fake = makeFakeScroller(3840, 375);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 960);
+
+      panDeckCameraTo('alpha');
+      expect(lastToVars(lastCreatedTimeline()).duration).toBe(DECK_CAMERA_PAN_S);
+
+      const original = window.matchMedia;
+      window.matchMedia = vi.fn((query: string) => ({
+        matches: query.includes('prefers-reduced-motion'),
+      })) as unknown as typeof window.matchMedia;
+
+      panDeckCameraTo('alpha');
+      expect(lastToVars(lastCreatedTimeline()).duration).toBe(0);
+
+      window.matchMedia = original;
+    });
+
+    it('registers the tween as deck-camera and a second pan kills and replaces the first', () => {
+      const fake = makeFakeScroller(3840, 375);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 960);
+      makeRobotRef('beta', 100);
+
+      panDeckCameraTo('alpha');
+      const first = getTimeline(DECK_CAMERA_TIMELINE_ID);
+
+      panDeckCameraTo('beta');
+      const second = getTimeline(DECK_CAMERA_TIMELINE_ID);
+
+      expect(second).not.toBe(first);
+      expect(first!.kill).toHaveBeenCalled();
+      expect(getTimeline(DECK_CAMERA_TIMELINE_ID)).toBe(second);
+    });
+
+    it('cameraScrolling is set between onStart and onComplete, driven by the tween callbacks', () => {
+      const fake = makeFakeScroller(3840, 375);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 960);
+
+      panDeckCameraTo('alpha');
+      const vars = lastToVars(lastCreatedTimeline());
+      vi.spyOn(performance, 'now').mockReturnValue(9000);
+
+      (vars.onStart as () => void)();
+      fake.dispatchEvent({ type: 'scroll' });
+      // Mid-tween: the camera's own scroll did not stamp user input, so idle stays true at 9000.
+      expect(isDeckCameraIdle(9000)).toBe(true);
+
+      (vars.onComplete as () => void)();
+      fake.dispatchEvent({ type: 'scroll' });
+      // After onComplete, the flag is clear again: this scroll is the user's and does stamp.
+      expect(isDeckCameraIdle(9000 + 7999)).toBe(false);
+    });
+
+    it('onInterrupt clears cameraScrolling too, so the next scroll stamps input', () => {
+      const fake = makeFakeScroller(3840, 375);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 960);
+
+      panDeckCameraTo('alpha');
+      const vars = lastToVars(lastCreatedTimeline());
+      vi.spyOn(performance, 'now').mockReturnValue(9000);
+
+      (vars.onStart as () => void)();
+      (vars.onInterrupt as () => void)();
+      fake.dispatchEvent({ type: 'scroll' });
+
+      expect(isDeckCameraIdle(9000 + 7999)).toBe(false);
+    });
+  });
+
+  describe('cutDeckCameraTo (Task 7)', () => {
+    it('does nothing while the user is not idle', () => {
+      const fake = makeFakeScroller(3840, 375, 0);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 1910); // 5% of the window — off screen, were idle checked second
+      noteDeckUserInput();
+
+      cutDeckCameraTo('alpha');
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when the robot centre is at 50% of the window (already on screen)', () => {
+      // scrollLeft 0, scale 2: a robot at scene x 93.75 sits at pixel 187.5 — exactly 50% of 375.
+      const fake = makeFakeScroller(3840, 375, 0);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 93.75);
+
+      cutDeckCameraTo('alpha');
+
+      expect(gsap.timeline).not.toHaveBeenCalled();
+    });
+
+    it('tweens when the robot centre is at 5% of the window (off screen)', () => {
+      // scale 2: scene x 9.375 -> pixel 18.75 == 5% of 375.
+      const fake = makeFakeScroller(3840, 375, 0);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 9.375);
+
+      cutDeckCameraTo('alpha');
+
+      expect(gsap.timeline).toHaveBeenCalledTimes(1);
+    });
+
+    it('is otherwise identical to a pan: same target, autoKill, registered as deck-camera', () => {
+      const fake = makeFakeScroller(3840, 375, 0);
+      registerDeckScroller(fake as unknown as HTMLElement);
+      makeRobotRef('alpha', 960);
+
+      cutDeckCameraTo('alpha');
+
+      const tl = lastCreatedTimeline();
+      const [, vars] = tl.to.mock.calls[0];
+      expect(vars.scrollTo).toEqual({ x: 1732.5, autoKill: true });
+      expect(getTimeline(DECK_CAMERA_TIMELINE_ID)).toBe(tl as never);
+    });
+  });
+
+  describe('source boundaries (Task 7)', () => {
+    it('imports nothing from @/engine or @/stores — the camera never reaches audio or the store', () => {
+      const source = readFileSync(resolve(here, 'deckCamera.ts'), 'utf-8');
+      expect(source).not.toMatch(/@\/engine/);
+      expect(source).not.toMatch(/@\/stores/);
     });
   });
 });
