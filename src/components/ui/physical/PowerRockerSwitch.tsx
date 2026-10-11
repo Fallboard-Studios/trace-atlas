@@ -7,6 +7,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import gsap from 'gsap';
 
 import { useUIStore } from '@/stores/uiStore';
+import { useShell } from '@/components/panels/screen/useShell';
 
 import { powerController } from '@/systems/powerController';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
@@ -65,6 +66,9 @@ const LIGHT_TRANSITIONING = getStatusLightColor('amber', 0.5);
 
 export function PowerRockerSwitch() {
   const isPoweredOn = useUIStore((s) => s.isPoweredOn);
+  // The phone shell sets the light into the rocker's upper face; the desk keeps the recessed housing above it
+  // (docs/tasks/LAYOUT_REWORK.md Task 28, the sketch's Q11).
+  const lightInButton = useShell() === 'phone';
   const [showConfirm, setShowConfirm] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const rockerRef = useRef<SVGSVGElement>(null);
@@ -215,20 +219,23 @@ export function PowerRockerSwitch() {
   const lightColor = isTransitioning ? LIGHT_TRANSITIONING : isPoweredOn ? LIGHT_ON : LIGHT_OFF;
   const lightGlowSpread = isPoweredOn && !isTransitioning ? '8px 3px' : '6px 2px';
 
+  // One light element in both places: only where it sits differs, so its colour, glow and pulse are the same.
+  const light = (
+    <div
+      className="rocker-light"
+      role="status"
+      aria-label={isPoweredOn ? CONTENT['ui.power.on'].human : CONTENT['ui.power.off'].human}
+      data-power-state={powerState}
+      data-transitioning={isTransitioning ? 'true' : undefined}
+      style={{ color: lightColor.color, boxShadow: `0 0 ${lightGlowSpread} ${lightColor.glow}` }}
+    />
+  );
+
   return (
     <>
-      <div className="rocker-panel" aria-label={CONTENT['ui.power.controls'].human}>
-        {/* Indicator light — rectangular lens in a recessed housing */}
-        <div className="rocker-light-housing">
-          <div
-            className="rocker-light"
-            role="status"
-            aria-label={isPoweredOn ? CONTENT['ui.power.on'].human : CONTENT['ui.power.off'].human}
-            data-power-state={powerState}
-            data-transitioning={isTransitioning ? 'true' : undefined}
-            style={{ color: lightColor.color, boxShadow: `0 0 ${lightGlowSpread} ${lightColor.glow}` }}
-          />
-        </div>
+      <div className={lightInButton ? 'rocker-panel rocker-panel--in-button' : 'rocker-panel'} aria-label={CONTENT['ui.power.controls'].human}>
+        {/* Indicator light — rectangular lens in a recessed housing (desk shell) */}
+        {!lightInButton && <div className="rocker-light-housing">{light}</div>}
 
         {/* Rocker in its molded bezel */}
         <div className="rocker-bezel">
@@ -331,6 +338,10 @@ export function PowerRockerSwitch() {
               <rect className="rocker-ridge" x="0" y="43" width="100" height="2" />
             </svg>
           </button>
+          {/* Phone shell: the lens sits over the rocker's upper face. A sibling of the button, not inside it,
+              so it stays a status element assistive tech can announce; pointer-events: none (CSS) keeps the
+              click on the button. */}
+          {lightInButton && light}
         </div>
       </div>
 

@@ -291,3 +291,26 @@
 
   /* No will-change override needed — SVG attr tweens don't use compositing */
 }
+/* ----------------------------------------
+   Phone shell: the light is IN the rocker
+   (docs/tasks/LAYOUT_REWORK.md Task 28, the sketch's Q11 — Crawford, 2026-10-10). There is no housing
+   above the rocker; the same light is laid over the rocker's upper face as a small lens, centred, clear of
+   the power glyph on the lower face. The bezel is its positioning context. Its colour, glow and pulse are
+   the desk light's own (PowerRockerSwitch.tsx sets colour and glow inline). It never takes a click: the
+   rocker button under it is the target. It sits at 22% of the bezel's height, inside the top face both at
+   rest (y 15–44 of 90) and pressed (y 5–44), so it stays on the face through the press.
+   ---------------------------------------- */
+.rocker-panel--in-button .rocker-bezel {
+  position: relative;
+}
+
+.rocker-panel--in-button .rocker-light {
+  position: absolute;
+  top: 22%;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: 60%;
+  height: 5px;
+  pointer-events: none;
+}
