@@ -159,7 +159,7 @@
   max-width: 100%;
   box-sizing: border-box;
   background: transparent;
-  border: 1px solid rgba(207, 214, 220, 0.35);
+  border: 1px solid rgba(207, 214, 220, 0.55);
 }
 
 /* The selected option: one flat light fill, no walls, no glow, no shadow (the sketch's .cab.sel). */

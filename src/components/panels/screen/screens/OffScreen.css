@@ -14,7 +14,7 @@
   padding: var(--spacing-lg);
   box-sizing: border-box;
   overflow: hidden;
-  background: rgba(5, 8, 11, 0.82);
+  background: rgba(5, 8, 11, 0.67);
 }
 
 .off-screen__etch {
@@ -23,7 +23,7 @@
   align-items: center;
   gap: var(--spacing-sm);
   text-align: center;
-  color: rgba(200, 220, 230, 0.35);
+  color: rgba(200, 220, 230, 0.65);
   letter-spacing: 0.12em;
 }
 
@@ -44,7 +44,7 @@
 }
 
 .off-screen__hint {
-  color: rgba(200, 220, 230, 0.55);
+  color: rgba(200, 220, 230, 0.88);
 }
 
 .off-screen__picker {
@@ -75,7 +75,7 @@
   box-shadow: var(--well-inset);
   font-family: var(--font-mono);
   font-size: var(--font-size-label);
-  color: var(--color-text-muted);
+  color: var(--color-text-primary-fixed);
   letter-spacing: 0.04em;
   text-align: center;
 }
