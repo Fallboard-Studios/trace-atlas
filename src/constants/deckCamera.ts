@@ -9,3 +9,8 @@ export const DECK_CAMERA_PAN_S = 1.4;
 
 /** timelineMap id for the deck camera's tween (spec §1.2). */
 export const DECK_CAMERA_TIMELINE_ID = 'deck-camera';
+
+/** A lifecycle cut's chance of targeting the departing robot's station instead of a robot
+ *  currently working a site, when at least one exists (Crawford, post-ship: the station-only cut
+ *  read as uninteresting; prefer live work). Always the station when nothing is being worked. */
+export const DECK_CAMERA_STATION_CHANCE = 0.15;

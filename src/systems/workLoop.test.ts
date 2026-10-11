@@ -1036,6 +1036,55 @@ describe('workLoop — stations, recall and mounts (Phase 43 Task 23, spec §1.6
       onLifecycleChange('elsewhere', 'r1', 'active');
       expect(cutDeckCameraTo).not.toHaveBeenCalled();
     });
+
+    // Post-ship follow-up: a station-departure cut shows an empty port, so prefer a robot already
+    // working a site. chooseDeckCameraCutTarget has its own pure-function suite
+    // (deckCameraTarget.test.ts); these cover only the wiring — the right inputs reach it.
+    describe('prefers a working robot over the station (deckCameraTarget wiring)', () => {
+      it('with no robot working, the station still wins regardless of the draw', () => {
+        const { a } = sitesForSwitch();
+        registerLocale([a], []);
+        const s = stations()[0];
+        setRobots([
+          robot('r1', s.port, { activity: 'charging', stationId: s.id }),
+          robot('r2', { x: 400, y: 400 }, { activity: 'waiting' }),
+          robot('r3', { x: 500, y: 500 }, { activity: 'transit' }),
+        ]);
+        startWorkLoop(LOCALE, { now, backHosts: false, rand: () => 0 }); // would pick a worker if any existed
+
+        onLifecycleChange(LOCALE, 'r1', 'active');
+        expect(cutDeckCameraTo).toHaveBeenCalledWith('r1');
+      });
+
+      it('with robots working, the station draw losing sends the camera to one of them, not the station', () => {
+        const { a } = sitesForSwitch();
+        registerLocale([a], []);
+        const s = stations()[0];
+        setRobots([
+          robot('r1', s.port, { activity: 'charging', stationId: s.id }),
+          robot('r2', { x: 400, y: 400 }, { activity: 'working' }),
+        ]);
+        const draws = [0.99, 0]; // station draw loses (>= chance), then picks index 0
+        startWorkLoop(LOCALE, { now, backHosts: false, rand: () => draws.shift()! });
+
+        onLifecycleChange(LOCALE, 'r1', 'active');
+        expect(cutDeckCameraTo).toHaveBeenCalledWith('r2');
+      });
+
+      it('with robots working, the station draw winning still cuts to the station', () => {
+        const { a } = sitesForSwitch();
+        registerLocale([a], []);
+        const s = stations()[0];
+        setRobots([
+          robot('r1', s.port, { activity: 'charging', stationId: s.id }),
+          robot('r2', { x: 400, y: 400 }, { activity: 'working' }),
+        ]);
+        startWorkLoop(LOCALE, { now, backHosts: false, rand: () => 0 }); // station draw wins (< chance)
+
+        onLifecycleChange(LOCALE, 'r1', 'active');
+        expect(cutDeckCameraTo).toHaveBeenCalledWith('r1');
+      });
+    });
   });
 
   it('stop kills the station arcs and ripples too', () => {

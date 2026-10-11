@@ -48,6 +48,7 @@ import gsap from 'gsap';
 import Alea from 'alea';
 
 import { chooseNextSite, heldJobs, siteCooldown } from './siteChoice';
+import { chooseDeckCameraCutTarget } from './deckCameraTarget';
 import { isWorkSiteEligible } from './jobHosts';
 import { getWorkSite, type WorkSite } from './workSites';
 import { getStations, nearestFreeStation, type Box, type Station } from './stations';
@@ -761,6 +762,11 @@ export function next(robotId: string): void {
  * and its next() sends it home. `'active'`: charging, it exits; returning, it turns back (the slot
  * frees with the activity) and goes to work; entering, the arc finishes and turns it back at the
  * port. `'docked'`: nothing — the entry ends in 'charging' on its own.
+ *
+ * `'active'` is also when the deck camera decides whether to cut: not to this robot's own station
+ * (an empty departure point), but to a robot already `'working'` a site when one exists — the
+ * station only `DECK_CAMERA_STATION_CHANCE` of the time, always when nothing is being worked
+ * (`chooseDeckCameraCutTarget`, Crawford's post-ship follow-up).
  */
 export function onLifecycleChange(localeId: string, robotId: string, to: LifecycleChange): void {
   const loop = run;
@@ -768,7 +774,10 @@ export function onLifecycleChange(localeId: string, robotId: string, to: Lifecyc
   const robot = robotOf(loop, robotId);
   if (!robot) return;
 
-  if (to === 'active') cutDeckCameraTo(robotId);
+  if (to === 'active') {
+    const workingRobotIds = robotsOf(loop.localeId).filter((r) => r.activity === 'working').map((r) => r.id);
+    cutDeckCameraTo(chooseDeckCameraCutTarget({ triggerRobotId: robotId, workingRobotIds, rand: loop.rand }));
+  }
 
   if (to === 'recalled') {
     if (robot.activity !== 'transit' && robot.activity !== 'waiting') return;
