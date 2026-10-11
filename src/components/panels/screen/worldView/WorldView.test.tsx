@@ -13,12 +13,16 @@ vi.mock('@/components/panels/screen/console/ConsolePanel', () => ({
   ConsolePanel: () => <div data-testid="console-panel-stub" />,
   default: () => <div data-testid="console-panel-stub" />,
 }));
+// Mobile Deck Camera (Task 8): deckCamera.test.ts already covers registerDeckScroller's own
+// behaviour; this file only needs to see that WorldView calls it, not what it does.
+vi.mock('@/animation/deckCamera', () => ({ registerDeckScroller: vi.fn() }));
 
 // ========================================
 // IMPORTS
 // ========================================
 import WorldView from './WorldView';
 import ContentPane from '@/components/panels/screen/console/ContentPane';
+import { registerDeckScroller } from '@/animation/deckCamera';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '@/stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -183,6 +187,53 @@ describe('WorldView — the deck scroller (Mobile Deck Camera)', () => {
       scrollWidthSpy.mockRestore();
       clientWidthSpy.mockRestore();
     }
+  });
+});
+
+// Mobile Deck Camera (Task 8, spec §1.1): the scroller hands itself to the camera module on
+// mount and unmount, and only then — a re-render in between must not re-register it.
+describe('WorldView — hands the scroller to the camera module', () => {
+  const realMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    useAttenuationStyleStore.setState({ attenuationStyles: [{ ...DEFAULT_PELAGOS }], currentAttenuationStyleId: DEFAULT_PELAGOS.id });
+    useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [], actors: [] } } });
+    useUIStore.setState(UI_INITIAL_STATE, true);
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({ matches: !query.includes('reduced-motion'), media: query, addEventListener: () => {}, removeEventListener: () => {} }),
+    });
+    vi.mocked(registerDeckScroller).mockClear();
+  });
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
+  });
+
+  it('calls registerDeckScroller once with the scroller element on mount', () => {
+    render(<WorldView />);
+    const scroller = document.querySelector('.world-view__scroller');
+    expect(registerDeckScroller).toHaveBeenCalledTimes(1);
+    expect(registerDeckScroller).toHaveBeenCalledWith(scroller);
+  });
+
+  it('calls registerDeckScroller(null) on unmount', () => {
+    const { unmount } = render(<WorldView />);
+    vi.mocked(registerDeckScroller).mockClear();
+
+    unmount();
+
+    expect(registerDeckScroller).toHaveBeenCalledTimes(1);
+    expect(registerDeckScroller).toHaveBeenCalledWith(null);
+  });
+
+  it('calls neither again on a re-render in between', () => {
+    const { rerender } = render(<WorldView />);
+    vi.mocked(registerDeckScroller).mockClear();
+
+    rerender(<WorldView />);
+
+    expect(registerDeckScroller).not.toHaveBeenCalled();
   });
 });
 
