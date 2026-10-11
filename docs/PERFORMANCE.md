@@ -1464,6 +1464,53 @@ specifically. Candidate next steps if this is worth chasing: `contain: paint` or
 write-up names), tried one at a time; or accept it as the scroller's cost, same as the Phase 45
 Fleet-Params-vs-Deck Compositor::Update difference was accepted as structural. **Crawford's call.**
 
+### Root-cause follow-up (same day): two separate causes, not one
+
+The "isolated to neither" line above was resolved by building a third variant — `e4cba4f4` (Task 5's
+tip: the scroller and snap marks, no camera module or triggers yet) — and serving it alongside `main`
+and the finished branch, 3 rotated rounds at 375 px. Medians: `main` busy 1336 / Paint 155 /
+Compositor 96; **scroller-only** busy 1365 / Paint 152 / Compositor 107; **full branch** busy 1407 /
+Paint 171 / Compositor 131. Two distinct, additive causes, not one:
+
+1. **The aspect-ratio stage box rasters at its full stage width, not the visible slice — on every
+   viewport narrower than 16:9, including this gate's own 1280×900 default-width round.** `.ocean-scene`
+   reported `scrollWidth` 1444 px at a 375 px viewport (DPR 2, ≈ 106.7 MB of compositor-layer memory)
+   against `main`'s exactly-viewport-sized 343 px (≈ 34.7 MB) — a ≈ 3× bigger raster surface for the
+   same four moving SVG layers, because the browser must be ready to show any scrolled position, not
+   just the part on screen right now. **This also fires at 1280×900**: that viewport's own aspect ratio
+   (1.42:1) is narrower than 16:9, so the stage box is 1543 px wide against a 1248 px client width — a
+   1.24× area increase that lines up almost exactly with the measured +24 % Compositor::Update at that
+   width. The spec's assumption 2 ("every desktop frame... is byte-identical") only holds at or above a
+   true 16:9 viewport (1920×1080, 1600×900) — **1280×900 is not wide enough**, so the gate's own
+   "default width" round was never a clean no-scroll control to begin with. This cause alone explains
+   essentially all of the 1280 px delta and roughly a third of the 375 px delta (scroller-only vs `main`:
+   +11 ms Compositor, +2 % busy, flat Paint).
+2. **A real, deterministic deck-camera cut fires inside the nominally-idle 375 px trace window on this
+   pinned world, and accounts for the rest.** Probed directly: `.world-view__scroller.scrollLeft` reads
+   551 (the centred start, `(1444−343)/2`) immediately before the stock trace begins and **0**
+   immediately after, on every run tried. Cause: the deck camera's idle gate is keyed to *user* input
+   (`noteDeckUserInput`), and the headless harness never performs any — so `isDeckCameraIdle()` is
+   unconditionally true for the harness's entire life, and the first robot in this world
+   (Attenuation Style `alpha`, locale `(0, 50)`) to reach `'active'` inside the 8–14 s settle/window
+   fires a real `cutDeckCameraTo`, landing off-screen and panning the full width. This is not a bug —
+   it is the feature working as designed — but it means the "stock" window compared one build doing a
+   real 1.4 s animated scroll against another doing nothing, which is not the steady-state idle
+   comparison the gate intends. It explains the *remaining* 375 px gap beyond cause 1 (scroller-only
+   vs full branch: +19 ms Paint, +24 ms Compositor, both beyond cause 1's share) and the one stray long
+   task recorded above. The forced-cut round Task 11 asks for turned out to already be sitting inside
+   the "stock" numbers, unlabelled.
+
+**Revised reading:** the steady-state, no-cut cost of this feature is cause 1 alone — modest (+11 ms
+Compositor at 375 px; the ≈ +24 % at 1280 px is explained by the harness's own too-narrow default
+viewport, not a 1600×900+ phone-or-desktop frame) and the expected, spec-acknowledged price of a
+scroller that must be ready to show the whole stage. Cause 2 is not a steady-state cost at all; it is
+what a cut genuinely costs, and the gate's "stock" window picked it up only because this pinned
+world's timing happens to line up with it. **Re-measurement options, Crawford's call:** (a) re-run
+with a wider default-width comparison (≥ 1600×900) so cause 1 reads correctly as near-zero on desktop,
+and a 375 px pinned world/locale chosen so no robot goes `'active'` in the window, reporting the cut's
+cost as its own separately-labelled round per the original Task 11 wording; or (b) accept both causes
+as read here and move on — neither is a surprise relative to the spec's own named risks.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
