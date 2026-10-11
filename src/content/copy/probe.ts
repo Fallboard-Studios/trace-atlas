@@ -43,10 +43,6 @@ export const probe = {
   },
   'probe.notFound': { human: 'Robot not found' },
   'probe.selectPrompt': { human: 'Select a robot from the list, or use Robots to spawn one.' },
-  'probe.list': { human: 'Robots' },
-  'probe.list.clearFilter': { human: 'Clear Filter', lore: 'RESET UNIT ROSTER' },
-  'probe.list.filteredBy': { human: 'Filtered by', template: 'Filtered by {company}' },
-  'probe.list.noAssigned': { human: 'currently has no assigned robots', template: '{company} currently has no assigned robots' },
 
   // ---------------------------------------------------------------- roster board
   // docs/specs/LAYOUT_REWORK.md §1.5, copy from the approved sketch. The head reuses `probe.all` and

@@ -35,11 +35,6 @@ export const company = {
     },
     help: { human: 'Which company this probe belongs to. A change to a company’s settings reaches every probe in it at that moment; moving a probe in or out changes nothing about its sound. Freelance probes belong to no company.' },
   },
-  'company.selection': {
-    human: 'Company Selection',
-    lore: 'REGISTERED CONSORTIA',
-    help: { human: 'Which company to look at. Rename or delete it below, or change a setting there to send it to every probe in that company at once.' },
-  },
   'company.name': {
     human: 'Company Name',
     lore: 'DESIGNATION',

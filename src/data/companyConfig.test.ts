@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   FREELANCE_VALUE,
   buildCompanyAssignmentSchema,
-  buildCompanySelectionSchema,
   CREATE_COMPANY_SCHEMA,
   RENAME_COMPANY_SCHEMA,
   COMPANY_NAME_INPUT_SCHEMA,
@@ -67,31 +66,6 @@ describe('companyConfig', () => {
       const schema = buildCompanyAssignmentSchema(companies);
       expect(schema.options[0]).not.toHaveProperty('color');
       expect(schema.options[1]).toHaveProperty('color', '#4f6d7a');
-    });
-  });
-
-  describe('buildCompanySelectionSchema', () => {
-    it('lists one entry per company, in order, with no Freelance option', () => {
-      const companies: Company[] = [
-        { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] },
-        { id: 'c2', name: 'Null Syndicate', color: '#65617f', robotIds: [] },
-      ];
-
-      const schema = buildCompanySelectionSchema(companies);
-
-      expect(schema.type).toBe('radio');
-      expect(schema.options).toEqual([
-        { value: 'c1', humanLabel: 'Iron Consortium', color: '#4f6d7a' },
-        { value: 'c2', humanLabel: 'Null Syndicate', color: '#65617f' },
-      ]);
-    });
-
-    it('returns an empty option list when there are no companies yet', () => {
-      expect(buildCompanySelectionSchema([]).options).toEqual([]);
-    });
-
-    it('is namespaced under "company." like every other schema in this file', () => {
-      expect(buildCompanySelectionSchema([]).id.startsWith('company.')).toBe(true);
     });
   });
 

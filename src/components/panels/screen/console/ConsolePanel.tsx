@@ -1,27 +1,65 @@
 import type { ReactNode } from 'react';
-import { ProbesContent } from '../nav/content/ProbesContent';
 import { FleetParamsScreen } from '../screens/FleetParamsScreen';
+import { RobotScreen } from '../screens/RobotScreen';
+import { RosterBoard } from '../screens/RosterBoard';
 import { SettingsScreen } from '../screens/SettingsScreen';
-import { CompaniesContent } from '../nav/content/CompaniesContent';
+import { CompanyRenameDeleteForm } from '@/components/company/CompanyCrudControls';
+import { CompanyOptionsSection } from '@/components/company/CompanyOptionsSection';
+import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import type { HubTile } from '@/types/hub';
 import { useUIStore } from '@/stores/uiStore';
-import { CONTENT } from '@/content';
+import { getTraitColorStyle } from '@/utils/traitColors';
+import { CONTENT, introProps } from '@/content';
 import './ConsolePanel.css';
+
+/**
+ * The Probes branch (docs/specs/LAYOUT_REWORK.md §1.4–§1.5): a selected robot's screen wins, then the
+ * All Probes form, then the roster board. The All Probes form is the old one — its intro over
+ * CompanyOptionsSection's broadcast sections — until CompanyScreen's All form replaces it (Task 23).
+ */
+function ProbesBranch() {
+  const selectedRobotId = useUIStore((s) => s.selectedRobotId);
+  const allProbesSelected = useUIStore((s) => s.allProbesSelected);
+  if (selectedRobotId) return <RobotScreen />;
+  if (allProbesSelected) {
+    return (
+      <div style={getTraitColorStyle('header')}>
+        <IntroPanel {...introProps('probe.all')} trait="header" />
+        <CompanyOptionsSection />
+      </div>
+    );
+  }
+  return <RosterBoard />;
+}
+
+/**
+ * The Companies branch: a selected company's form, else the same roster board (it replaced the
+ * Companies index, spec §1.5). The company form is the old one — its intro, Rename / Delete, then the
+ * broadcast sections — until CompanyScreen replaces it (Task 23).
+ */
+function CompaniesBranch() {
+  const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
+  if (!selectedCompanyId) return <RosterBoard />;
+  return (
+    <div style={getTraitColorStyle('company')}>
+      <IntroPanel {...introProps('company.profile')} trait="company" />
+      <CompanyRenameDeleteForm />
+      <CompanyOptionsSection />
+    </div>
+  );
+}
 
 /**
  * One entry per HubTile, keyed by a Record so TypeScript itself enforces
  * every tile is covered — a new HubTile value that's missing an entry here
  * is a compile error, not a silent blank render. Adding a future tile is one
- * new entry, not a switch case to remember. `robots`' own list/detail (and,
- * since Task 19, All Probes bulk-edit) switch lives inside ProbesContent
- * itself now, reading selectedRobotId/allProbesSelected straight from
- * uiStore — no passthrough parameter needed here anymore.
+ * new entry, not a switch case to remember.
  */
 const TILE_CONTENT: Record<HubTile, () => ReactNode> = {
-  robots: () => <ProbesContent />,
+  robots: () => <ProbesBranch />,
   audioRig: () => <FleetParamsScreen />,
   settings: () => <SettingsScreen />,
-  companies: () => <CompaniesContent />,
+  companies: () => <CompaniesBranch />,
 };
 
 export function ConsolePanel() {

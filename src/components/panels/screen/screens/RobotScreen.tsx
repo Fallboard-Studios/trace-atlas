@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
 import { useShell } from '../useShell';
+import { useRobotMeta, type RobotMetaField } from './useRobotMeta';
 import { RobotBody } from '@/components/robot/RobotBody';
 import { getRobotGem } from '@/components/robot/gem/polygon';
 import { gemMotionViewBox } from '@/components/robot/gem/orbiterMotion';
@@ -14,9 +15,7 @@ import { SectionTabs, type SectionTabItem } from '@/components/ui/controls/Secti
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
-import { useAudioStore } from '@/stores/audioStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
-import { getAudibilityState, isRobotSounding } from '@/utils/robotAudibility';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE } from '@/engine/melodyGenerator';
 import { SIGNATURE_ARRAY_CONFIG, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
@@ -27,7 +26,6 @@ import {
 } from '@/data/robotSubsectionConfig';
 import {
   ROBOT_SELECTION_ROW_SCHEMAS, BATTERY_READOUT_SCHEMA, BATTERY_READOUT_BOX_SIZE, BATTERY_READOUT_GAP_SIZE,
-  JOB_TYPE_LABELS, UNASSIGNED_JOB_LABEL, DOCKING_STATE_LABELS, ACTIVITY_LABELS, AUDIBILITY_LABELS,
 } from '@/data/robotSelectionConfig';
 import { FREELANCE_VALUE, buildCompanyAssignmentSchema } from '@/data/companyConfig';
 import {
@@ -37,7 +35,7 @@ import {
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { CONTENT, fill, introProps, labels } from '@/content';
-import type { LfoLinkValue } from '@/types/controls';
+import type { DualLabelSchema, LfoLinkValue } from '@/types/controls';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
 import type { RobotLfoTargetId } from '@/types/lfo';
 import type { Company } from '@/types/Company';
@@ -330,25 +328,12 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
 // THE AVATAR COLUMN AND BAND
 // ========================================
 
-const META_FIELDS = [
+const META_FIELDS: readonly (readonly [RobotMetaField, DualLabelSchema])[] = [
   ['job', ROBOT_SELECTION_ROW_SCHEMAS.job],
   ['dockingState', ROBOT_SELECTION_ROW_SCHEMAS.docking],
   ['activity', ROBOT_SELECTION_ROW_SCHEMAS.activity],
   ['status', ROBOT_SELECTION_ROW_SCHEMAS.status],
-] as const;
-
-/** The read-only meta's four values: job, docking, phase and emission (true audibility, the Audio Load
- *  budget's standing-by included). Booleans from the stores, so another robot's tick re-renders nothing. */
-function useRobotMeta(robot: Robot, localeId: string): Record<(typeof META_FIELDS)[number][0], string> {
-  const anySolo = useLocaleStore((s) => (s.locales[localeId]?.robots ?? []).some((r) => r.audioMode === 'solo'));
-  const isSounding = useAudioStore((s) => isRobotSounding(s.soundingRobotIds, robot.id));
-  return {
-    job: (robot.job ? JOB_TYPE_LABELS[robot.job] : UNASSIGNED_JOB_LABEL).humanLabel,
-    dockingState: DOCKING_STATE_LABELS[robot.docking].humanLabel,
-    activity: ACTIVITY_LABELS[robot.activity].humanLabel,
-    status: AUDIBILITY_LABELS[getAudibilityState(robot.audioMode, anySolo, isSounding)].humanLabel,
-  };
-}
+];
 
 /** The gem in the avatar render context: day/night-invariant, at scale 1, framed to its motion canvas. */
 function AvatarGem({ robot }: { robot: Robot }) {

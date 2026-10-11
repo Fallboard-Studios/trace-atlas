@@ -2281,6 +2281,33 @@ are deleted (`CompanyCrudControls`' forms survive). The roster subscribes to a n
 **Files:** `RosterBoard.tsx`, `.css`, `.test.tsx`, `RosterTile.tsx`, `.css`, `.test.tsx`,
 `ConsolePanel.tsx`; deletions listed above
 
+**As built (2026-10-10):** `ConsolePanel` now routes both branches itself (`ProbesBranch`: robot screen >
+the All Probes form > the board; `CompaniesBranch`: the company form > the board). The All Probes and
+company forms are ProbesContent's / CompaniesContent's old ones, moved in unchanged until Task 23. Grep
+gate = `screens/rosterBoardRetired.test.ts`. Departures from the text above:
+- **`robotSelectionConfig.ts` is NOT deleted** (spec §1.11 lists it): every export still has a reader —
+  `RobotScreen` (row schemas, battery readout), `AudioStatusBadge`, and the tile's status line (the
+  value labels). Open for Crawford: keep it, or rename it now that no selection card exists.
+- `useRobotMeta` moved out of `RobotScreen` into `screens/useRobotMeta.ts`, shared with the tile.
+- The board subscribes narrower than the plan's slice: `{ id, companyId }` per robot plus
+  `useEntityRoster('companies')`; each tile reads its own robot, memo'd, as RobotSelectionCard did.
+- Freelance's leading cell is a flat `CabinetBox` label, not a button (there is no company to open).
+  The phone head shows the `short` faces ("All", "+") with the full names as accessible names. No
+  "Probes" heading: no other screen has one; the crumb names it.
+- Dead with the deletions and removed: `buildCompanySelectionSchema` + `company.selection`, the
+  `probe.list*` keys. `company.root`'s intro block is now unread (the key stays as the nav label).
+  `AudioStatusBadge` had no component consumer before this task either; left alone.
+- **Found in Chrome and fixed:** VoxelTrack is an absolute overlay, so the battery strip covered the
+  whole tile; it now sits in a positioned box at the track's own length.
+- **Manual check (CDP, 1280×800 / 1024×768 / 375×760 / 320×640):** no sideways scroll anywhere; six
+  companies + Freelance = seven rows, Freelance never clipped, but the board scrolls — already at 3
+  companies at 1280×800 (778 / 526 px). Open for Crawford: (a) the four-part status line is ellipsized
+  on every tile (260 px of text in a 162 px column on desk, 215 on phone; the sketch drew two parts);
+  (b) gems draw ~31×12 px — the card render context's 160×80 `gemViewBox` in a 56×44 box, the framing
+  RobotSelectionCard had too; (c) at 1024 px the row's tile column (489 px) fits one 250 px tile, not two.
+- 37/37 mutants killed (one survivor first: the create form's "mounted only while open" check could not
+  see under `hidden`; the test now queries `{ hidden: true }`).
+
 **Estimated scope:** M (two components) + L deletions
 
 ## Task 22: The Move chip, its popover and sheet, and the glide

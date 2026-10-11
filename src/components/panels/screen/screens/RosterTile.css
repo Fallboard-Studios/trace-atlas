@@ -1,0 +1,77 @@
+/* A roster row-tile (docs/specs/LAYOUT_REWORK.md §1.5): a fixed width, so a status word changing or the
+   battery draining never resizes it, and the row's tiles wrap on a steady grid. --roster-tile-width lives
+   on the board (RosterBoard.css). */
+.roster-tile {
+  position: relative;
+  width: var(--roster-tile-width);
+  box-sizing: border-box;
+  list-style: none;
+}
+
+/* The whole face is the button: the gem, then the name, status line and battery stacked beside it. */
+.roster-tile__face {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: var(--color-surface);
+  color: var(--color-text-primary-fixed);
+  font-family: var(--font-controls);
+  font-weight: var(--font-weight-control);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Engaged, the tile wears its robot's colour, as the sketch's hovered tile does. */
+.roster-tile__face:hover,
+.roster-tile__face:focus-visible {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent), 0 0 14px color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+
+.roster-tile__face:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.roster-tile__gem {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 44px;
+}
+
+.roster-tile__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* The name stays white whatever the identity colour, as the selection card's did (Crawford, 2026-10-06). */
+.roster-tile__name {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-tile__status {
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The positioned box VoxelTrack overlays; its size comes inline (RosterTile.tsx). */
+.roster-tile__battery {
+  position: relative;
+  display: block;
+  margin-top: 4px;
+}

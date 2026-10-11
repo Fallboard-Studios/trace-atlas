@@ -18,7 +18,7 @@ import * as audioRigConfig from '@/data/audioRigConfig';
 import * as sectorSettingsConfig from '@/data/sectorSettingsConfig';
 import * as sessionConfig from '@/data/sessionConfig';
 import * as robotOptionsConfig from '@/data/robotOptionsConfig';
-import { buildCompanyAssignmentSchema, buildCompanySelectionSchema, COMPANY_NAME_INPUT_SCHEMA } from '@/data/companyConfig';
+import { buildCompanyAssignmentSchema, COMPANY_NAME_INPUT_SCHEMA } from '@/data/companyConfig';
 import type { Company } from '@/types/Company';
 import type { ControlSchema } from '@/types/controls';
 
@@ -50,9 +50,6 @@ const isReferenced = (k: string) => allConsumerText.includes(`'${k}'`) || allCon
  *  lands, the self-cleaning test below fails until the key leaves this list. Empty between plans
  *  (docs/tasks/LAYOUT_REWORK.md: empty again by Checkpoint A, and again by Checkpoint C). */
 const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {
-  'probe.roster.count': 'Task 21 — RosterBoard group count',
-  'probe.roster.count.one': 'Task 21 — RosterBoard group count, one probe',
-  'probe.roster.statusLine': 'Task 21 — RosterTile status line',
   'probe.roster.move': 'Task 22 — RosterTile Move chip',
   'company.detail.share': 'Task 23 — CompanyScreen share well',
   'company.detail.signal': 'Task 23 — CompanyScreen signal well',
@@ -193,14 +190,14 @@ const COMPONENT_OWNED_KEYS: readonly ContentKey[] = ['company.name.create', 'com
 describe('help coverage — probe and company controls', () => {
   const schemas = valueControlSchemas(
     robotOptionsConfig,
-    { assign: buildCompanyAssignmentSchema([FIXTURE_COMPANY]), select: buildCompanySelectionSchema([FIXTURE_COMPANY]), name: COMPANY_NAME_INPUT_SCHEMA },
+    { assign: buildCompanyAssignmentSchema([FIXTURE_COMPANY]), name: COMPANY_NAME_INPUT_SCHEMA },
   );
 
   it('the walk reaches every section, the three Source layers included (never passes on an empty list)', () => {
     const ids = schemas.map((s) => s.id);
     for (const id of ['robotOptions.audioSetting', 'robotOptions.volume', 'robotOptions.clickTrack', 'robotOptions.density', 'robotOptions.noteVariance',
       'robotOptions.attack', 'robotOptions.release', 'robotOptions.layer0.type', 'robotOptions.layer1.detune', 'robotOptions.layer2.pulseWidth',
-      'company.assign', 'company.select', 'company.name']) {
+      'company.assign', 'company.name']) {
       expect(ids).toContain(id);
     }
     expect(ids).not.toContain('robotOptions.pingContour'); // a panel
