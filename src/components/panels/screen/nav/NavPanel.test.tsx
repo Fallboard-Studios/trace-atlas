@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent, within } from '@testing-library/react';
 
 import { NavPanel } from './NavPanel';
+import { goHome } from './navActions';
 import { useUIStore } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
@@ -410,6 +411,57 @@ describe('NavPanel — keyboard', () => {
       expect(b.getAttribute('tabindex')).toBeNull();
       expect((b as HTMLButtonElement).disabled).toBe(false);
     }
+  });
+});
+
+// Code review 2026-10-11: a pick collapses the list, which unmounts the very button that had focus; the
+// browser then drops focus on <body> and a keyboard user restarts from the top of the page.
+describe('NavPanel — focus survives the focused box leaving (desk)', () => {
+  const openProbes = () => {
+    renderPanel();
+    fireEvent.click(box('probe.root'));
+    return within(entityList() as HTMLElement).getByRole('button', { name: 'Tidal Wisp' });
+  };
+
+  it('picking the focused entity leaves focus on the open branch box', () => {
+    const tidal = openProbes();
+    act(() => tidal.focus());
+
+    fireEvent.click(tidal);
+
+    expect(entityList()).toBeNull();
+    expect(document.activeElement).toBe(box('probe.root'));
+  });
+
+  it('going home (a breadcrumb Root press) while an entity has focus lands on the Deck box', () => {
+    const tidal = openProbes();
+    act(() => tidal.focus());
+
+    act(() => goHome());
+
+    expect(entityList()).toBeNull();
+    expect(document.activeElement).toBe(box('nav.home'));
+  });
+
+  it('leaves focus alone while the focused box is still there', () => {
+    openProbes();
+    act(() => box('probe.root').focus());
+
+    fireEvent.click(box('probe.root'));
+
+    expect(document.activeElement).toBe(box('probe.root'));
+  });
+
+  it('leaves focus alone when it was never in the panel', () => {
+    const tidal = openProbes();
+    const outside = document.createElement('input');
+    document.body.appendChild(outside);
+    act(() => outside.focus());
+
+    fireEvent.click(tidal);
+
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
   });
 });
 

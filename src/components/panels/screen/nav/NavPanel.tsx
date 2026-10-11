@@ -5,6 +5,7 @@ import gsap from 'gsap';
 
 import { NavBox } from './NavBox';
 import { NavEntityList } from './NavEntityList';
+import { useRescueLostFocus } from './useRescueLostFocus';
 import { pressBranchBox, branchOfTile, branchContent, expandsInPlace, type NavBranch } from './navActions';
 import { useShell } from '../useShell';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
@@ -23,6 +24,8 @@ const EXPAND_PROPERTY = '--nav-panel-expand';
 const WIDEN_DURATION = 0.25;
 
 const NAV_LABEL = labels('nav.toggle').humanLabel;
+/** Where focus goes when a pick takes its own button away: the box for where you now are, else the first. */
+const FOCUS_RESCUE_TARGETS = ['.nav-box[aria-current="true"]', '.nav-box'] as const;
 
 /** The five parent boxes in the sketch's order, each in its branch's trait (the tree's, the Deck in
  *  the header's teal as the sketch draws it). */
@@ -94,10 +97,14 @@ export function NavPanel() {
   const openerRef = useRef<HTMLElement | null>(null);
   const active = branchOfTile(useUIStore((s) => s.activeHubTile));
   const expandedBranch = useUIStore((s) => s.expandedTopLevelBranch);
+  const selectionKey = useUIStore((s) => `${s.selectedRobotId}|${s.selectedCompanyId}|${s.allProbesSelected}`);
+  const panelRef = useRef<HTMLElement>(null);
+  // Desk only: the phone sheet's dialog already hands focus back to its opener.
+  useRescueLostFocus(shell === 'desk', panelRef, FOCUS_RESCUE_TARGETS, `${active}|${expandedBranch}|${selectionKey}`);
   useNavPanelWidth(expandsInPlace(active) && expandedBranch === active);
 
   const panel = (
-    <nav className="nav-panel" aria-label={NAV_LABEL}>
+    <nav ref={panelRef} className="nav-panel" aria-label={NAV_LABEL}>
       <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-nav-panel-facade">
         <ul className="nav-panel__boxes">
           {PARENT_BOXES.map(({ branch, loreLabel, humanLabel, accentStyle }) => {
