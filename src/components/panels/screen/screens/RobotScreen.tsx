@@ -34,6 +34,7 @@ import {
   applyAudioMode, applyVolume,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
+import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
 import { CONTENT, fill, introProps, labels } from '@/content';
 import type { DualLabelSchema, LfoLinkValue } from '@/types/controls';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
@@ -182,37 +183,10 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   // audioSwells.ts's module-scope Map, which React does not track: each memo's deps are the robot field
   // a swell tick writes, so it recomputes at that moment even though the body never reads them.
   const volumeSwelling = isRobotAttributeSwelling(robot.id, 'volume');
-  const adsrSwelling = useMemo(() => ({
-    attack: isRobotAttributeSwelling(robot.id, 'adsr.attack'),
-    decay: isRobotAttributeSwelling(robot.id, 'adsr.decay'),
-    sustain: isRobotAttributeSwelling(robot.id, 'adsr.sustain'),
-    release: isRobotAttributeSwelling(robot.id, 'adsr.release'),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- robot.audioAttributes.adsr gates recompute timing (see above)
-  }), [robot.id, robot.audioAttributes.adsr]);
-  const layer0 = robot.audioAttributes.layers?.[0];
-  const layer1 = robot.audioAttributes.layers?.[1];
-  const layer2 = robot.audioAttributes.layers?.[2];
-  const layer0Swelling = useMemo(() => ({
-    gain: isRobotAttributeSwelling(robot.id, 'layer0.gain'),
-    detune: isRobotAttributeSwelling(robot.id, 'layer0.detune'),
-    phase: isRobotAttributeSwelling(robot.id, 'layer0.phase'),
-    pulseWidth: isRobotAttributeSwelling(robot.id, 'layer0.pulseWidth'),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- layer0 gates recompute timing (see above)
-  }), [robot.id, layer0]);
-  const layer1Swelling = useMemo(() => ({
-    gain: isRobotAttributeSwelling(robot.id, 'layer1.gain'),
-    detune: isRobotAttributeSwelling(robot.id, 'layer1.detune'),
-    phase: isRobotAttributeSwelling(robot.id, 'layer1.phase'),
-    pulseWidth: isRobotAttributeSwelling(robot.id, 'layer1.pulseWidth'),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- layer1 gates recompute timing (see above)
-  }), [robot.id, layer1]);
-  const layer2Swelling = useMemo(() => ({
-    gain: isRobotAttributeSwelling(robot.id, 'layer2.gain'),
-    detune: isRobotAttributeSwelling(robot.id, 'layer2.detune'),
-    phase: isRobotAttributeSwelling(robot.id, 'layer2.phase'),
-    pulseWidth: isRobotAttributeSwelling(robot.id, 'layer2.pulseWidth'),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- layer2 gates recompute timing (see above)
-  }), [robot.id, layer2]);
+  const adsrSwelling = useAdsrSwellingFlags(robot.id, robot.audioAttributes.adsr);
+  const layer0Swelling = useLayerSwellingFlags(robot.id, 0, robot.audioAttributes.layers?.[0]);
+  const layer1Swelling = useLayerSwellingFlags(robot.id, 1, robot.audioAttributes.layers?.[1]);
+  const layer2Swelling = useLayerSwellingFlags(robot.id, 2, robot.audioAttributes.layers?.[2]);
 
   const audioSettingValue: AudioSettingValue = useMemo(() => ({
     audioMode: robot.audioMode ?? 'none',

@@ -11,6 +11,7 @@ import {
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
+import { useAdsrSwellingFlags, useLayerSwellingFlags } from '@/components/robot/useSwellingFlags';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import type { SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
 import type { ADSREnvelope, Robot, WaveformType } from '@/types/Robot';
@@ -165,49 +166,11 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
   // that happens to target some OTHER member never shows here, same as its value wouldn't either.
   const firstMemberId = firstMember?.id;
   const volumeSwelling = firstMemberId !== undefined && isRobotAttributeSwelling(firstMemberId, 'volume');
-  // isRobotAttributeSwelling reads a plain module-scope Map (audioSwells.ts's own runtime state,
-  // deliberately kept out of Zustand per CLAUDE.md), not anything React tracks — these deps exist
-  // purely so this memo recomputes at the exact same moment the corresponding field's own swell
-  // tick writes a new value, even though the callback itself never reads them.
-  const adsrSwelling = useMemo(() => (
-    firstMemberId === undefined ? undefined : {
-      attack: isRobotAttributeSwelling(firstMemberId, 'adsr.attack'),
-      decay: isRobotAttributeSwelling(firstMemberId, 'adsr.decay'),
-      sustain: isRobotAttributeSwelling(firstMemberId, 'adsr.sustain'),
-      release: isRobotAttributeSwelling(firstMemberId, 'adsr.release'),
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- resolved?.adsr gates recompute timing, not read in the body (see comment above)
-  ), [firstMemberId, resolved?.adsr]);
-  const layer0 = resolved?.layers[0];
-  const layer1 = resolved?.layers[1];
-  const layer2 = resolved?.layers[2];
-  const layer0Swelling = useMemo(() => (
-    firstMemberId === undefined ? undefined : {
-      gain: isRobotAttributeSwelling(firstMemberId, 'layer0.gain'),
-      detune: isRobotAttributeSwelling(firstMemberId, 'layer0.detune'),
-      phase: isRobotAttributeSwelling(firstMemberId, 'layer0.phase'),
-      pulseWidth: isRobotAttributeSwelling(firstMemberId, 'layer0.pulseWidth'),
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- layer0 gates recompute timing, not read in the body (see comment above adsrSwelling)
-  ), [firstMemberId, layer0]);
-  const layer1Swelling = useMemo(() => (
-    firstMemberId === undefined ? undefined : {
-      gain: isRobotAttributeSwelling(firstMemberId, 'layer1.gain'),
-      detune: isRobotAttributeSwelling(firstMemberId, 'layer1.detune'),
-      phase: isRobotAttributeSwelling(firstMemberId, 'layer1.phase'),
-      pulseWidth: isRobotAttributeSwelling(firstMemberId, 'layer1.pulseWidth'),
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- layer1 gates recompute timing, not read in the body (see comment above adsrSwelling)
-  ), [firstMemberId, layer1]);
-  const layer2Swelling = useMemo(() => (
-    firstMemberId === undefined ? undefined : {
-      gain: isRobotAttributeSwelling(firstMemberId, 'layer2.gain'),
-      detune: isRobotAttributeSwelling(firstMemberId, 'layer2.detune'),
-      phase: isRobotAttributeSwelling(firstMemberId, 'layer2.phase'),
-      pulseWidth: isRobotAttributeSwelling(firstMemberId, 'layer2.pulseWidth'),
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- layer2 gates recompute timing, not read in the body (see comment above adsrSwelling)
-  ), [firstMemberId, layer2]);
+  // The flags recompute when the field a swell tick writes changes (useSwellingFlags).
+  const adsrSwelling = useAdsrSwellingFlags(firstMemberId, resolved?.adsr);
+  const layer0Swelling = useLayerSwellingFlags(firstMemberId, 0, resolved?.layers[0]);
+  const layer1Swelling = useLayerSwellingFlags(firstMemberId, 1, resolved?.layers[1]);
+  const layer2Swelling = useLayerSwellingFlags(firstMemberId, 2, resolved?.layers[2]);
 
   // `resolved` bundles every field into one shared snapshot object, so handing it whole to every
   // section would make ANY field edit on members[0] invalidate all of them at once — the identical

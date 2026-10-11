@@ -78,3 +78,16 @@ describe('laneTitle', () => {
     expect(labels(LFO_BANK_LANE_CONTENT.a)).not.toHaveProperty('short');
   });
 });
+
+// The lane names are written twice on purpose (the content model has no cross-key lookup): fleet.lfoBank.laneA-D
+// for the lane panels and tabs, ui.lfoLane's a-d options for LfoLink's lane row. Nothing else keeps them
+// equal, so this does (the duplicate-value audit's class of bug).
+describe('the lane names written in fleet and in ui.lfoLane', () => {
+  it.each(LFO_LANE_IDS)('lane %s has the same name and lore in both places, and its letter ends the fleet short form', (lane) => {
+    const fleet = CONTENT[LFO_BANK_LANE_CONTENT[lane]];
+    const option = CONTENT['ui.lfoLane'].options[lane];
+    expect(option.human).toBe(fleet.human);
+    expect(option.lore).toBe(fleet.lore);
+    expect(fleet.short).toBe(`LFO ${option.short}`);
+  });
+});

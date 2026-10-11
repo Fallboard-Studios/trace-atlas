@@ -83,7 +83,7 @@ const PRESET_A_PAYLOAD: SessionPayload = {
   lfoBank: {
     a: {
       shape: 'triangle',
-      rate: 0.30000000000000004,
+      rate: 0.3,
       rateDrift: 0.42,
       depthDrift: 0.14,
       sync: {
@@ -201,7 +201,7 @@ const PRESET_B_PAYLOAD: SessionPayload = {
   lfoBank: {
     a: {
       shape: 'sine',
-      rate: 0.15000000000000002,
+      rate: 0.15,
       rateDrift: -0.41,
       depthDrift: -0.34,
       sync: {
@@ -331,7 +331,7 @@ const PRESET_C_PAYLOAD: SessionPayload = {
   lfoBank: {
     a: {
       shape: 'sine',
-      rate: 0.15000000000000002,
+      rate: 0.15,
       rateDrift: -0.21,
       depthDrift: -0.13,
       sync: {
@@ -341,7 +341,7 @@ const PRESET_C_PAYLOAD: SessionPayload = {
     },
     b: {
       shape: 'triangle',
-      rate: 0.6000000000000001,
+      rate: 0.6,
       rateDrift: -0.15,
       depthDrift: -0.28,
       sync: {

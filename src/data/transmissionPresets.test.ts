@@ -74,6 +74,23 @@ describe('TRANSMISSION_PRESETS', () => {
     expect(new Set(worlds).size).toBe(3);
   });
 
+  // Code review 2026-10-11: payloads captured from a live session carried floating-point noise
+  // (0.30000000000000004); the session save path strips it, so a hand-kept payload must too.
+  it('holds no floating-point noise: every number survives rounding to 10 decimals unchanged', () => {
+    const noisy: string[] = [];
+    const walk = (value: unknown, path: string) => {
+      if (typeof value === 'number') {
+        if (Number(value.toFixed(10)) !== value) noisy.push(`${path} = ${value}`);
+      } else if (Array.isArray(value)) {
+        value.forEach((item, i) => walk(item, `${path}[${i}]`));
+      } else if (value && typeof value === 'object') {
+        for (const [key, item] of Object.entries(value)) walk(item, `${path}.${key}`);
+      }
+    };
+    for (const preset of TRANSMISSION_PRESETS) walk(preset.payload, preset.id);
+    expect(noisy).toEqual([]);
+  });
+
   it('shares no object between presets, so a change to one can never leak into another', () => {
     const [a, b, c] = TRANSMISSION_PRESETS.map((p) => p.payload);
     expect(a.globalAudio).not.toBe(b.globalAudio);
