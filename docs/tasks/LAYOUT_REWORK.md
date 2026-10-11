@@ -2527,6 +2527,10 @@ selection lines**; `DeckWell` is the phone's well. Calls beyond the text above:
 - Mutants: every one killed (hook 12/12, line components 9/9, MetaBox 8/8, PhoneBar 3/3, Robot 7/7 + the
   label guard, CSS 2/2). **Not checked in a browser:** the lines' look in the well and the halo colours.
 
+**Removed after the code review (2026-10-11):** the selection lines above (`SelectionLines.tsx`/`.css`,
+`useSelectionLines.ts`, `DeckWell`, the two copy keys and their tests) were unreachable, as found above, and
+were deleted rather than kept dead; the meta box shows the world line alone again. The halo stays.
+
 ### Checkpoint C: Roster and company (Crawford's dev look)
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
 - [ ] Dev server: the board with rows, the hover chip and a glide, a company screen editing its

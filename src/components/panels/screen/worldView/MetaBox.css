@@ -31,14 +31,6 @@
   pointer-events: none;
 }
 
-/* The world line sits in a block of its own now that selection lines stack under it (Task 24): that block
-   holds the one-line ellipsis the box itself used to, since an ellipsis only cuts a block's own text. */
-.meta-box__line {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* The world line's three fields, spaced as the sketch's line is (gap 10px); inline, so the box's (or
    PhoneBar's well's) one-line ellipsis cuts them. */
 .world-line__field + .world-line__field {

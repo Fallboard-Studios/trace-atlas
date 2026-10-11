@@ -1023,8 +1023,9 @@ payload, the share link and the audio path are untouched.
 ### Open
 
 - **Task 30**, as above, and any follow-up it finds.
-- The selection lines on the Deck can never show: every selection opens a branch and `goHome` clears both ids,
-  so the Deck never has a selection. The halo is live; the lines are built and tested but unreachable.
+- The meta box's selection lines were deleted after the code review (2026-10-11): every selection opens a branch
+  and `goHome` clears both ids, so the Deck never has a selection. The halo stays; bring the lines back from git
+  history (commit before this note) if a surface ever shows them.
 - Compositor::Update is about 15–20 % higher on Fleet Params than on `main` (not a gate metric, not
   investigated).
 - The Move sheet's 500 ms tap-hold was not tested on a touch device.

@@ -10,9 +10,6 @@ import { useAudioStore } from '@/stores/audioStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAttenuationStyleStore, DEFAULT_LOCALE_ID } from '@/stores/attenuationStyleStore';
 import { getCssRuleBody } from '@/testUtils/cssRuleBody';
-import { getRobotColorStyle } from '@/utils/traitColors';
-import { CONTENT } from '@/content';
-import { JOB_TYPE_LABELS, DOCKING_STATE_LABELS, UNASSIGNED_JOB_LABEL } from '@/data/robotSelectionConfig';
 import type { Robot } from '@/types/Robot';
 
 /*
@@ -150,7 +147,7 @@ describe('MetaBox — the world line (NavStatusBlock’s telemetry, moved verbat
 describe('MetaBox — the Deck’s well on the desk shell', () => {
   it('reads as one status line: time and temperature, probes emitting, then the place', () => {
     render(<MetaBox />);
-    const box = screen.getByRole('status');
+    const box = document.querySelector('.meta-box') as HTMLElement;
     expect(box.classList.contains('meta-box')).toBe(true);
     expect(Array.from(box.querySelectorAll('.world-line__field')).map((f) => f.textContent)).toEqual([
       '14:30 -45°C',
@@ -169,7 +166,7 @@ describe('MetaBox — the Deck’s well on the desk shell', () => {
     useUIStore.setState({ activeHubTile: 'audioRig' });
     render(<MetaBox />);
     act(() => useUIStore.getState().setActiveHubTile(null));
-    expect(screen.getByRole('status')).toBeTruthy();
+    expect(document.querySelector('.meta-box')).not.toBeNull();
   });
 
   it('renders nothing on the phone shell: PhoneBar’s well carries the world line there', () => {
@@ -216,192 +213,6 @@ describe('MetaBox — renders only when its line changes', () => {
     countRenders();
     act(() => useAudioStore.setState({ soundingRobotIds: [] }));
     expect(screen.getByText(/^2 of \d+ Probes active\.$/)).toBeTruthy();
-  });
-});
-
-// docs/tasks/LAYOUT_REWORK.md Task 24 (spec §1.7): robots carry no text box in the world, so a selected
-// robot's line (name · job · state) and a selected company's line (name · count) read here, under the
-// world line, the latest selection on top.
-describe('MetaBox — the selection lines', () => {
-  const ROBOT_ACCENT = '#ae5378';
-  const COMPANY_ACCENT = '#b5502a';
-  const robotBody = (name: string, job = 'acousticSurvey', docking = 'active') =>
-    `${name} · ${JOB_TYPE_LABELS[job as keyof typeof JOB_TYPE_LABELS].humanLabel} · ${DOCKING_STATE_LABELS[docking as keyof typeof DOCKING_STATE_LABELS].humanLabel}`;
-
-  beforeEach(() => {
-    const fleet = (id: string, name: string, companyId?: string) =>
-      makeRobot(id, { name, identityColor: ROBOT_ACCENT, job: 'acousticSurvey', docking: 'active', activity: 'working', companyId } as Partial<Robot>);
-    useLocaleStore.setState((s) => ({
-      locales: {
-        ...s.locales,
-        [DEFAULT_LOCALE_ID]: {
-          ...s.locales[DEFAULT_LOCALE_ID],
-          robots: [fleet('r1', 'Tidal Wisp', 'c1'), fleet('r2', 'Coral Drift', 'c1'), fleet('r3', 'Brine Hawk')],
-          companies: [
-            { id: 'c1', name: 'Rust Syndicate', color: COMPANY_ACCENT, robotIds: ['r1', 'r2'] },
-            { id: 'c2', name: 'Blue Crew', color: '#3355aa', robotIds: [] },
-          ],
-        },
-      },
-    }));
-  });
-
-  const lines = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('.selection-line')];
-  const bodies = (container: HTMLElement) => lines(container).map((l) => l.querySelector('.selection-line__body')!.textContent);
-  const captions = (container: HTMLElement) => lines(container).map((l) => l.querySelector('.selection-line__caption')!.textContent);
-  const pick = (patch: Partial<ReturnType<typeof useUIStore.getState>>) => act(() => useUIStore.setState(patch));
-
-  it('has no selection line with nothing selected: the world line alone', () => {
-    const { container } = render(<MetaBox />);
-    expect(lines(container)).toHaveLength(0);
-    expect(screen.getByRole('status').children).toHaveLength(1);
-  });
-
-  it('a selected robot reads name · job · docking state, captioned as a probe', () => {
-    pick({ selectedRobotId: 'r1' });
-    const { container } = render(<MetaBox />);
-    expect(bodies(container)).toEqual([robotBody('Tidal Wisp')]);
-    expect(captions(container)).toEqual([CONTENT['nav.status.selectedRobot'].human]);
-  });
-
-  it('a robot with no job yet reads the unassigned job', () => {
-    useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { job: undefined } as Partial<Robot>);
-    pick({ selectedRobotId: 'r1' });
-    const { container } = render(<MetaBox />);
-    expect(bodies(container)[0]).toBe(`Tidal Wisp · ${UNASSIGNED_JOB_LABEL.humanLabel} · ${DOCKING_STATE_LABELS.active.humanLabel}`);
-  });
-
-  it("a robot with no name reads by its id, as the roster's tile does", () => {
-    useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { name: '' } as Partial<Robot>);
-    pick({ selectedRobotId: 'r1' });
-    const { container } = render(<MetaBox />);
-    expect(bodies(container)).toEqual([robotBody('r1')]);
-  });
-
-  it('keeps the order of picks made while the box was hidden (a branch open): the latest is on top when it returns', () => {
-    pick({ activeHubTile: 'robots', selectedRobotId: 'r1' });
-    const { container } = render(<MetaBox />);
-    pick({ selectedCompanyId: 'c1' });
-    pick({ activeHubTile: null });
-    expect(captions(container)).toEqual([CONTENT['nav.status.selectedCompany'].human, CONTENT['nav.status.selectedRobot'].human]);
-  });
-
-  it('a selected company reads name · member count, captioned as a company', () => {
-    pick({ selectedCompanyId: 'c1' });
-    const { container } = render(<MetaBox />);
-    expect(bodies(container)).toEqual(['Rust Syndicate · 2 probes']);
-    expect(captions(container)).toEqual([CONTENT['nav.status.selectedCompany'].human]);
-  });
-
-  it.each([
-    ['c2', 'Blue Crew · 0 probes'],
-  ])('counts a company by its members: %s reads %s', (id, body) => {
-    pick({ selectedCompanyId: id });
-    const { container } = render(<MetaBox />);
-    expect(bodies(container)).toEqual([body]);
-  });
-
-  it('counts one member in the singular', () => {
-    useLocaleStore.getState().assignRobotToCompany(DEFAULT_LOCALE_ID, 'r2', null);
-    pick({ selectedCompanyId: 'c1' });
-    const { container } = render(<MetaBox />);
-    expect(bodies(container)).toEqual(['Rust Syndicate · 1 probe']);
-  });
-
-  it('All Probes is not a company: it adds no line', () => {
-    pick({ allProbesSelected: true });
-    const { container } = render(<MetaBox />);
-    expect(lines(container)).toHaveLength(0);
-  });
-
-  it('the world line stays first, the selection lines under it', () => {
-    pick({ selectedRobotId: 'r1', selectedCompanyId: 'c1' });
-    render(<MetaBox />);
-    const box = screen.getByRole('status');
-    expect(box.children).toHaveLength(3);
-    expect(box.children[0].querySelector('.world-line')).toBeTruthy();
-    expect(box.children[0].classList.contains('meta-box__line')).toBe(true); // the block MetaBox.css cuts with an ellipsis
-    expect(box.children[1].classList.contains('selection-line')).toBe(true);
-  });
-
-  it('with both selected, the latest picked is on top: a company after a robot', () => {
-    pick({ selectedRobotId: 'r1' });
-    const { container } = render(<MetaBox />);
-    pick({ selectedCompanyId: 'c1' });
-    expect(captions(container)).toEqual([CONTENT['nav.status.selectedCompany'].human, CONTENT['nav.status.selectedRobot'].human]);
-  });
-
-  it('and a robot after a company', () => {
-    pick({ selectedCompanyId: 'c1' });
-    const { container } = render(<MetaBox />);
-    pick({ selectedRobotId: 'r1' });
-    expect(captions(container)).toEqual([CONTENT['nav.status.selectedRobot'].human, CONTENT['nav.status.selectedCompany'].human]);
-  });
-
-  it('picking another robot brings the robot line back on top', () => {
-    pick({ selectedRobotId: 'r1' });
-    const { container } = render(<MetaBox />);
-    pick({ selectedCompanyId: 'c1' });
-    pick({ selectedRobotId: 'r3' });
-    expect(captions(container)[0]).toBe(CONTENT['nav.status.selectedRobot'].human);
-    expect(bodies(container)[0]).toBe(robotBody('Brine Hawk'));
-  });
-
-  it('mounted with both already selected, the robot is on top', () => {
-    pick({ selectedRobotId: 'r1', selectedCompanyId: 'c1' });
-    const { container } = render(<MetaBox />);
-    expect(captions(container)).toEqual([CONTENT['nav.status.selectedRobot'].human, CONTENT['nav.status.selectedCompany'].human]);
-  });
-
-  it('clearing the top line leaves the other', () => {
-    pick({ selectedRobotId: 'r1' });
-    const { container } = render(<MetaBox />);
-    pick({ selectedCompanyId: 'c1' });
-    pick({ selectedCompanyId: null });
-    expect(captions(container)).toEqual([CONTENT['nav.status.selectedRobot'].human]);
-  });
-
-  it("each line wears its own accent: the robot's identityColor, the company's colour", () => {
-    pick({ selectedRobotId: 'r1', selectedCompanyId: 'c1' });
-    const { container } = render(<MetaBox />);
-    const [robotLine, companyLine] = lines(container);
-    const accentOf = (color: string) => String(getRobotColorStyle(color)['--color-accent' as never]);
-    expect(robotLine.style.getPropertyValue('--color-accent')).toBe(accentOf(ROBOT_ACCENT));
-    expect(companyLine.style.getPropertyValue('--color-accent')).toBe(accentOf(COMPANY_ACCENT));
-    expect(accentOf(ROBOT_ACCENT)).not.toBe(accentOf(COMPANY_ACCENT));
-  });
-
-  it('a selected id that names nothing adds no line (a stale selection)', () => {
-    pick({ selectedRobotId: 'gone', selectedCompanyId: 'gone' });
-    const { container } = render(<MetaBox />);
-    expect(lines(container)).toHaveLength(0);
-  });
-
-  it('follows the store: a rename and a member leaving show at once', () => {
-    pick({ selectedRobotId: 'r1', selectedCompanyId: 'c1' });
-    const { container } = render(<MetaBox />);
-    act(() => useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { name: 'Brine Moth', docking: 'docked' } as Partial<Robot>));
-    act(() => useLocaleStore.getState().assignRobotToCompany(DEFAULT_LOCALE_ID, 'r2', null));
-    expect(bodies(container)).toEqual([robotBody('Brine Moth', 'acousticSurvey', 'docked'), 'Rust Syndicate · 1 probe']);
-  });
-
-  it('adds no line off the Deck, as before: the breadcrumb has the corner', () => {
-    pick({ selectedRobotId: 'r1', activeHubTile: 'robots' });
-    const { container } = render(<MetaBox />);
-    expect(container.firstChild).toBeNull();
-  });
-
-  it('does not re-render on another robot’s battery tick while a robot and a company are selected', () => {
-    pick({ selectedRobotId: 'r1', selectedCompanyId: 'c1' });
-    const counter = { renders: 0 };
-    render(
-      <Profiler id="meta" onRender={() => counter.renders++}>
-        <MetaBox />
-      </Profiler>,
-    );
-    const before = counter.renders;
-    act(() => useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r3', { batteryLevel: 12 } as Partial<Robot>));
-    expect(counter.renders).toBe(before);
   });
 });
 

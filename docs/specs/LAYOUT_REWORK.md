@@ -268,10 +268,10 @@ no hardware keys, build on the existing components.
 
 ### 1.7 Deck: meta box and halos (`WorldView`, `OceanScene`, `Robot.tsx`)
 
-- Robots carry no text box in the world. The **meta box** (the existing glow-glass well bottom-left,
-  `WorldView`) reads the world line, plus a selected robot's line (name · job · state) and / or a
-  selected company's line (name · count), the latest selection on top. In the phone's 56 px bottom bar
-  only the latest selection's line shows; tapping the bar cycles to the other (Crawford, 2026-10-09).
+- Robots carry no text box in the world. The **meta box** (the existing glow-glass well, `WorldView`)
+  reads the world line, on the Deck only. It once also drew a selected robot's and company's line; that was
+  cut after review (2026-10-11) because every selection opens a branch, so the Deck never has one — the
+  halo and the opened screen name the selection.
 - Selection is a **halo only**: `.robot.selected` uses `--halo: <identityColor>`,
   `.robot.isCompanyMember` uses `--halo: <Company.color>` (Assumption 2). "All Probes" halos nothing
   (`isCompanyMember` is already false for everyone under All). Phase 41's mysterious-light halo is a

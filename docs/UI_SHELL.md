@@ -56,9 +56,9 @@ On the phone shell the same panel renders inside a modal Radix `Dialog` whose op
 
 `ConsolePanel` routes by `activeHubTile` through a `Record<HubTile, …>` (a missing tile is a compile error): `robots` → `RobotScreen` when a robot is selected, `CompanyScreen` for All Probes, else `RosterBoard`; `companies` → `CompanyScreen` when a company is selected, else the same `RosterBoard`; `audioRig` → `FleetParamsScreen`; `settings` → `SettingsScreen`.
 
-### The meta box and the selection lines
+### The meta box
 
-`MetaBox` (`worldView/MetaBox.tsx`) is the glow-glass well at the top of the Deck, desk shell only. It carries the `WorldLine` — clock and temperature, robots emitting against the Audio Load budget's cap, and the current Attenuation Style with its coordinates — and below it a line for the selected robot and one for the selected company, the latest selection on top (`useSelectionLines`, whose `nextSelectionOrder` derives "latest" from id changes; no store field). On the phone, `DeckWell` in `PhoneBar` shows the world line, or only the latest selection's line, and a tap cycles when both are selected. A selected robot or a company member also gets a halo in the world: `Robot.tsx` sets `--halo` inline, the robot's own identity colour when selected, its company's when a member.
+`MetaBox` (`worldView/MetaBox.tsx`) is the glow-glass well at the top of the Deck, desk shell only. It carries the `WorldLine` — clock and temperature, robots emitting against the Audio Load budget's cap, and the current Attenuation Style with its coordinates. On the phone, `PhoneBar` shows the same `WorldLine` in its well on the Deck. A selection reads as a halo, not as text: `Robot.tsx` sets `--halo` inline, the robot's own identity colour when selected, its company's when a member.
 
 ## The screens
 
