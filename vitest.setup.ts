@@ -138,6 +138,10 @@ vi.mock('gsap', () => {
     },
     // No-op — killTweensOf targets a real Tween's internal registry this mock never populates.
     killTweensOf: () => { },
+    // No-op — RosterBoard registers gsap's Flip plugin at module load (docs/tasks/LAYOUT_REWORK.md
+    // Task 22), so every test that imports the board, or a screen that renders it, reaches this. A test
+    // that drives the glide mocks 'gsap/dist/Flip' itself (RosterBoard.test.tsx).
+    registerPlugin: () => { },
     utils: { selector: () => () => [] },
   };
   return { default: mocked, ...mocked };

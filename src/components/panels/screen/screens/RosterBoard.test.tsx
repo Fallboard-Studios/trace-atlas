@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 
 /*
@@ -48,6 +48,20 @@ vi.mock('./useRobotMeta', async (importOriginal) => {
   return { ...actual, useRobotMeta: vi.fn(actual.useRobotMeta) };
 });
 
+// A recording Flip (the global gsap mock has no layout engine): getState notes which tiles it measured
+// and when, from() hands back a timeline the test can watch being finished and killed.
+const flip = vi.hoisted(() => {
+  const ids = (targets: Iterable<Element>) => [...targets].map((el) => el.getAttribute('data-flip-id'));
+  return {
+    getState: vi.fn((targets: Iterable<Element>) => ({ measured: ids(targets) })),
+    from: vi.fn((_state: unknown, vars: { targets: Iterable<Element>; onComplete?: () => void }) => {
+      const timeline = { targets: ids(vars.targets), vars, progress: vi.fn(() => timeline), kill: vi.fn() };
+      return timeline;
+    }),
+  };
+});
+vi.mock('gsap/dist/Flip', () => ({ Flip: flip }));
+
 import { RosterBoard } from './RosterBoard';
 import { useRobotMeta } from './useRobotMeta';
 import { rosterRows } from '@/utils/rosterRows';
@@ -58,6 +72,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 import { getCssRuleBody } from '@/testUtils/cssRuleBody';
+import { killAllTimelines, timelineMap } from '@/animation/timelineMap';
 import type { Company } from '@/types/Company';
 import type { Robot } from '@/types/Robot';
 import type { Locale } from '@/types/locale';
@@ -274,6 +289,177 @@ describe('RosterBoard — re-render discipline (backlog item 27)', () => {
     const before = vi.mocked(rosterRows).mock.calls.length;
     act(() => useLocaleStore.getState().assignRobotToCompany(localeId, 'r0', 'iron'));
     expect(vi.mocked(rosterRows).mock.calls.length).toBeGreaterThan(before);
+  });
+});
+
+describe('RosterBoard — moving a probe (Task 22)', () => {
+  const chip = (name: string) => screen.getByRole('button', { name: fill('probe.roster.move', { name }) });
+  const pick = (robotName: string, option: string) => {
+    fireEvent.click(chip(robotName));
+    const panel = screen.getByRole('group', { name: fill('company.assign', { name: robotName }) });
+    fireEvent.click(within(panel).getByRole('radio', { name: option }));
+  };
+  const realMatchMedia = window.matchMedia;
+  const realAssign = useLocaleStore.getState().assignRobotToCompany;
+  let assign: ReturnType<typeof vi.fn>;
+
+  function stubReducedMotion(reduce: boolean) {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query.includes('reduced-motion') ? reduce : false,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        onchange: null,
+        dispatchEvent: () => false,
+      }),
+    });
+  }
+
+  beforeEach(() => {
+    killAllTimelines();
+    flip.getState.mockClear();
+    flip.from.mockClear();
+    assign = vi.fn(realAssign);
+    useLocaleStore.setState({ assignRobotToCompany: assign });
+    seed(
+      [company('iron', 'Iron Crew'), company('rust', 'Rust Syndicate')],
+      [{ ...makeRobot('r0', 'rust'), name: 'Tidal Wisp' } as Robot, makeRobot('r1', 'rust'), makeRobot('r2')],
+    );
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
+    useLocaleStore.setState({ assignRobotToCompany: realAssign });
+    killAllTimelines();
+  });
+
+  it('picking Iron Crew for Tidal Wisp writes the store once, closes the panel, and the tile lands in Iron Crew', () => {
+    render(<RosterBoard />);
+    pick('Tidal Wisp', 'Iron Crew');
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(assign).toHaveBeenCalledWith(localeId, 'r0', 'iron');
+    expect(useUIStore.getState().movePanelRobotId).toBeNull();
+    expect(tileNames(rowNamed('Iron Crew'))).toEqual(['Tidal Wisp']);
+    expect(tileNames(rowNamed('Rust Syndicate'))).toEqual(['Unit r1']);
+    expect(countOf(rowNamed('Iron Crew'))).toBe(CONTENT['probe.roster.count.one'].human);
+  });
+
+  it('picking Freelance passes null, and the tile lands in Freelance', () => {
+    render(<RosterBoard />);
+    pick('Tidal Wisp', FREELANCE);
+    expect(assign).toHaveBeenCalledWith(localeId, 'r0', null);
+    expect(tileNames(rowNamed(FREELANCE))).toEqual(['Tidal Wisp', 'Unit r2']);
+  });
+
+  it('Escape closes the panel with no store write', async () => {
+    render(<RosterBoard />);
+    fireEvent.click(chip('Tidal Wisp'));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(assign).not.toHaveBeenCalled();
+    expect(useUIStore.getState().movePanelRobotId).toBeNull();
+    expect(tileNames(rowNamed('Rust Syndicate'))).toEqual(['Tidal Wisp', 'Unit r1']);
+  });
+
+  it('records every tile before the store write, then flips from that record once the rows re-render', () => {
+    render(<RosterBoard />);
+    pick('Tidal Wisp', 'Iron Crew');
+    expect(flip.getState).toHaveBeenCalledTimes(1);
+    expect(flip.getState.mock.results[0].value.measured).toEqual(['r0', 'r1', 'r2']);
+    expect(flip.getState.mock.invocationCallOrder[0]).toBeLessThan(assign.mock.invocationCallOrder[0]);
+    expect(flip.from).toHaveBeenCalledTimes(1);
+    expect(flip.from.mock.calls[0][0]).toBe(flip.getState.mock.results[0].value);
+    // The new layout: Tidal Wisp now leads, in Iron Crew's row.
+    expect(flip.from.mock.results[0].value.targets).toEqual(['r0', 'r1', 'r2']);
+    expect(rowNamed('Iron Crew').querySelector('[data-flip-id="r0"]')).toBeTruthy();
+  });
+
+  it('the moved tile glides: a roster-move-<id> timeline is registered, and killed when the board unmounts', () => {
+    const { unmount } = render(<RosterBoard />);
+    pick('Tidal Wisp', 'Iron Crew');
+    const timeline = flip.from.mock.results[0].value;
+    expect(timelineMap.get('roster-move-r0')).toBe(timeline);
+    unmount();
+    expect(timelineMap.has('roster-move-r0')).toBe(false);
+    expect(timeline.kill).toHaveBeenCalled();
+  });
+
+  it('a finished glide leaves timelineMap', () => {
+    render(<RosterBoard />);
+    pick('Tidal Wisp', 'Iron Crew');
+    act(() => flip.from.mock.calls[0][1].onComplete?.());
+    expect(timelineMap.has('roster-move-r0')).toBe(false);
+  });
+
+  it('under reduced motion there is no glide: no timeline, and the tile still lands', () => {
+    stubReducedMotion(true);
+    render(<RosterBoard />);
+    pick('Tidal Wisp', 'Iron Crew');
+    expect(flip.getState).not.toHaveBeenCalled();
+    expect(flip.from).not.toHaveBeenCalled();
+    expect([...timelineMap.keys()].filter((key) => key.startsWith('roster-move-'))).toEqual([]);
+    expect(tileNames(rowNamed('Iron Crew'))).toEqual(['Tidal Wisp']);
+  });
+
+  it('a second move while the first still glides finishes the first: one glide at a time', () => {
+    render(<RosterBoard />);
+    pick('Tidal Wisp', 'Iron Crew');
+    const first = flip.from.mock.results[0].value;
+    pick('Unit r1', FREELANCE);
+    expect(first.progress).toHaveBeenCalledWith(1);
+    expect(first.kill).toHaveBeenCalled();
+    // Measured after the first was finished, so the second glide starts from where the tiles stand.
+    expect(first.progress.mock.invocationCallOrder[0]).toBeGreaterThan(flip.getState.mock.invocationCallOrder[1]);
+    expect([...timelineMap.keys()].filter((key) => key.startsWith('roster-move-'))).toEqual(['roster-move-r1']);
+  });
+
+  it('a pick glides once: a later membership change from elsewhere does not replay it', () => {
+    render(<RosterBoard />);
+    pick('Tidal Wisp', 'Iron Crew');
+    act(() => useLocaleStore.getState().assignRobotToCompany(localeId, 'r2', 'iron'));
+    expect(flip.from).toHaveBeenCalledTimes(1);
+  });
+
+  it('a membership change from elsewhere (the robot screen radio) does not glide', () => {
+    render(<RosterBoard />);
+    act(() => useLocaleStore.getState().assignRobotToCompany(localeId, 'r2', 'iron'));
+    expect(flip.from).not.toHaveBeenCalled();
+    expect([...timelineMap.keys()].filter((key) => key.startsWith('roster-move-'))).toEqual([]);
+  });
+
+  // The panel would hand focus back to its chip, but the chip left with the tile's old row. The face, not
+  // the new chip: a freshly mounted desk tile swaps its chip element once just after mount (Radix's
+  // Popover.Trigger wraps itself in a Popper anchor until Popover.Anchor registers), taking focus with it.
+  it('focus follows the moved tile to its face in the new row, and stays there', async () => {
+    render(<RosterBoard />);
+    pick('Tidal Wisp', 'Iron Crew');
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Tidal Wisp' }));
+    expect(rowNamed('Iron Crew').contains(document.activeElement)).toBe(true);
+  });
+
+  it('a pick under reduced motion moves focus the same way', async () => {
+    stubReducedMotion(true);
+    render(<RosterBoard />);
+    pick('Tidal Wisp', FREELANCE);
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Tidal Wisp' }));
+    expect(rowNamed(FREELANCE).contains(document.activeElement)).toBe(true);
+  });
+
+  it('on the phone the sheet moves the tile the same way', () => {
+    shell.set('phone');
+    render(<RosterBoard />);
+    fireEvent.click(chip('Tidal Wisp'));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('radio', { name: 'Iron Crew' }));
+    expect(assign).toHaveBeenCalledWith(localeId, 'r0', 'iron');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(tileNames(rowNamed('Iron Crew'))).toEqual(['Tidal Wisp']);
   });
 });
 

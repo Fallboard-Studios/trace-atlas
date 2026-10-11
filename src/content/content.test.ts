@@ -50,7 +50,6 @@ const isReferenced = (k: string) => allConsumerText.includes(`'${k}'`) || allCon
  *  lands, the self-cleaning test below fails until the key leaves this list. Empty between plans
  *  (docs/tasks/LAYOUT_REWORK.md: empty again by Checkpoint A, and again by Checkpoint C). */
 const AWAITING_CONSUMER: Partial<Record<ContentKey, string>> = {
-  'probe.roster.move': 'Task 22 — RosterTile Move chip',
   'company.detail.share': 'Task 23 — CompanyScreen share well',
   'company.detail.signal': 'Task 23 — CompanyScreen signal well',
   'company.detail.broadcastNote': 'Task 23 — CompanyScreen broadcast note',

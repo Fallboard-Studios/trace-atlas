@@ -2342,6 +2342,56 @@ so the tile's own click does not fire.
 
 **Estimated scope:** M
 
+**As built (2026-10-10):** the tile takes an `onMove(robotId, companyId | null)` prop from the board
+(the board must measure before the store write, so the write lives there); the tile closes its panel.
+The open state is a per-tile boolean selector on `movePanelRobotId`, so one panel opening re-renders one
+tile, and only the open panel subscribes to the company list. Desk = a modal `Popover` anchored on the
+whole `<li>` (`Popover.Anchor`), the chip its trigger; phone = a `Dialog` sheet over a scrim, in the nav
+sheet's band. Both portal into `#screen-viewport` (in place inside the tile, the positioned `<li>` would
+lay the sheet out against itself; HelpPopover's stacking finding too). Departures and calls beyond the
+text above:
+- **No help "?" in the Move panel** — the robot screen's company radio carries it, and a modal popover
+  inside a modal popover is one too many (my call, open for Crawford).
+- **Re-picking the current company closes the panel** with no move (Radix's deselect → `onDeselect`).
+- **The 500 ms hold** is a plain `setTimeout` in the tile (a UI gesture, not musical timing); release,
+  `pointercancel` (a scroll) or leaving the tile cancels it; the click that ends a hold is swallowed, so
+  the robot does not open; the tile's `contextmenu` is prevented on the phone so the browser's touch
+  menu stays away. Desk tiles have no hold.
+- **Focus follows the moved tile to its face** in the new row (the opener left with the old row). Not
+  the chip: a freshly mounted desk tile swaps its chip element once just after mount (Radix's
+  `Popover.Trigger` wraps itself in a Popper anchor until `Popover.Anchor` registers), which took focus
+  with it — found by a failing test.
+- **One glide at a time:** a second pick runs the first `progress(1)` and kills it, measured after, so
+  the next glide starts from where the tiles stand. A finished glide deletes its own timelineMap entry.
+  Duration 0.45 s, `power2.inOut` (`ROSTER_GLIDE_DURATION`).
+- **`gsap/dist/Flip`, not `gsap/Flip`:** gsap's exports map types `gsap/Flip` as `types/Flip.d.ts` while
+  its `index.d.ts` references `types/flip.d.ts`, and tsc on a case-insensitive disk rejects the pair
+  (TS1149). The dist path types through gsap's ambient `declare module` and is Flip alone (`gsap/all`
+  would pull every plugin into the dev pre-bundle). `vitest.setup.ts`'s gsap mock gained a no-op
+  `registerPlugin`; `RosterBoard.test.tsx` mocks `gsap/dist/Flip` with a recording fake.
+- **Chip height:** one value, `MOVE_CHIP_HEIGHT = 22` (CabinetBox needs a number), set inline on the
+  tile as `--move-chip-height` for the CSS (the `--header-volume-width` way). The desk name line keeps a
+  constant 72 px reserve so it never reflows as the chip fades in; the phone glyph is a 22 px box in a
+  44 px press area.
+- **Found in Chrome and fixed:** the desk panel folded to **26 px wide** — `RadioButton` is an
+  inline-size container with no intrinsic width, so a shrink-to-fit popover collapses around it. It now
+  has a set width, `min(--move-panel-width 480px, 100vw − 2 × spacing-lg)`, and the options **wrap** (the
+  sketch's single nowrap row cannot hold six companies + Freelance). The screen is the collision
+  boundary: without it the rightmost tile's panel ran 8 px into the sleeve at 800 px. A dead
+  `align-items: stretch` on the sheet's options was deleted (options are `fit-content`).
+- **Manual check (CDP, 1280×800, 800×700, 375×760):** chip opacity 0 at rest → 1 on hover; panel
+  480×119, 8 px under the tile, inside the screen; picking glides the tile with a real Flip (e.g.
+  (463, 391) → mid `translate3d(−171, −78)` → (721, 509), transform cleared after) into its new row,
+  focus on its face, panel closed; phone: 44×44 glyph, 650 ms hold opens the sheet without opening the
+  robot, Escape closes, sheet 343×270 ends above the bar; no sideways scroll anywhere. Not checked: a
+  real touch device (the hold was driven with mouse pointer events).
+- **Open for Crawford:** the sketch's phone bar well reads "moving Tidal Wisp — tap outside or pick to
+  close" while the sheet is open; the bar keeps its breadcrumb (not in this task's text). After a mouse
+  pick the moved tile wears a light ring and its chip stays shown (it holds focus) until focus moves on —
+  seen in the 1280 screenshot, not measured.
+- 44/44 mutants killed (after 4 survivors in the first run: three got tests, and one showed my focus
+  timing explanation was wrong, so the code was simplified to the plain layout-effect focus).
+
 ## Task 23: `CompanyScreen` and `useCompanyOptions()`
 
 **Description:** `CompanyOptionsSection.tsx` splits into `useCompanyOptions(companyId | 'all')` (the
