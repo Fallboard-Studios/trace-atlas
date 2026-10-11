@@ -97,9 +97,13 @@ describe('MetaBox — the world line (NavStatusBlock’s telemetry, moved verbat
     expect(screen.getByText(/^1 of \d+ Probes active\.$/)).toBeTruthy();
   });
 
+  // The clock sits in its own span (the min-width below), so the row's text is read off the field, not matched
+  // as one text node.
+  const timeField = () => document.querySelector('.world-line__field')!.textContent;
+
   it('renders the time/temp row as "{HH}:{MM} {temp}°C"', () => {
     render(<MetaBox />);
-    expect(screen.getByText('14:30 -45°C')).toBeTruthy();
+    expect(timeField()).toBe('14:30 -45°C');
   });
 
   // Found by the mutation check: 14.5 is a whole minute, so rounding the minute up passed the moved tests.
@@ -111,13 +115,13 @@ describe('MetaBox — the world line (NavStatusBlock’s telemetry, moved verbat
   ])('formats the clock at the edges (%s -> %s)', (localTime, clock) => {
     useUIStore.setState({ activeLocaleLocalTime: localTime });
     render(<MetaBox />);
-    expect(screen.getByText(`${clock} -45°C`)).toBeTruthy();
+    expect(timeField()).toBe(`${clock} -45°C`);
   });
 
   it('falls back to "NO TEMP" when temperature is null', () => {
     useUIStore.setState({ activeLocaleTemperature: null });
     render(<MetaBox />);
-    expect(screen.getByText('14:30 NO TEMP')).toBeTruthy();
+    expect(timeField()).toBe('14:30 NO TEMP');
   });
 
   it('counts every robot as emitting when the Audio Load budget system is not running (soundingRobotIds empty)', () => {
@@ -426,6 +430,53 @@ describe('MetaBox.css — the glow-glass well bottom-left of the Deck', () => {
     const box = getCssRuleBody(css, '.meta-box');
     for (const d of ['white-space: nowrap;', 'overflow: hidden;', 'text-overflow: ellipsis;']) expect(box).toContain(d);
     expect(declaration(box, 'max-width')).toMatch(/var\(--nav-panel-width\)/);
+  });
+});
+
+describe('the clock holds its width (Crawford, 2026-10-10: the time display changes width on updates, resizing its container)', () => {
+  const css = readFileSync(resolve(__dirname, 'MetaBox.css'), 'utf8');
+  const clock = () => document.querySelector('.world-line__clock');
+
+  it.each([
+    [14.5, '14:30'],
+    [11.25, '11:15'],
+    [0, '00:00'],
+    [null, '00:00'],
+    [23.999, '23:59'],
+  ])('puts the clock (%s -> %s) in its own element, with only the time in it', (localTime, text) => {
+    useUIStore.setState({ activeLocaleLocalTime: localTime });
+    render(<MetaBox />);
+    expect(clock()?.textContent).toBe(text);
+  });
+
+  it('keeps the time then the temperature in the first field, one space between, as before', () => {
+    render(<MetaBox />);
+    const field = document.querySelector('.world-line__field')!;
+    expect(field.firstElementChild).toBe(clock());
+    expect(field.textContent).toBe('14:30 -45°C');
+  });
+
+  it('draws one clock, in the world line the phone bar shares', () => {
+    render(<MetaBox />);
+    expect(document.querySelectorAll('.world-line__clock')).toHaveLength(1);
+  });
+
+  it('is a block with a min-width wide enough for the widest time, so a tick never resizes the well', () => {
+    const body = getCssRuleBody(css, '.world-line__clock');
+    expect(body).not.toBeNull();
+    expect(body).toContain('display: inline-block;');
+    // 4 digits and a colon: at most 5 characters of the font's "0", the widest digit.
+    expect(Number(body!.match(/min-width:\s*([\d.]+)ch;/)?.[1])).toBeGreaterThanOrEqual(5);
+  });
+
+  it('sets the digits at one width each, so the times that fit the min-width are all the same width', () => {
+    expect(getCssRuleBody(css, '.world-line__clock')).toContain('font-variant-numeric: tabular-nums;');
+  });
+
+  it('never wraps or shrinks below the min-width inside the one-line well', () => {
+    const body = getCssRuleBody(css, '.world-line__clock');
+    expect(body).toContain('white-space: nowrap;');
+    expect(body).toContain('flex-shrink: 0;');
   });
 });
 

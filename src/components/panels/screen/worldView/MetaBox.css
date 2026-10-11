@@ -41,3 +41,16 @@
 .world-line__field + .world-line__field {
   margin-left: var(--spacing-md);
 }
+
+/* The clock holds its width (Crawford, 2026-10-10): its digits are not the same width (a proportional font
+   draws "11:11" narrower than "00:00"), so each tick resized the line, and the well around it, and shifted
+   everything after it. A block of at least 5ch — four digits and a colon at the width of the "0", the widest
+   digit — with the digits set tabular (one width each), so no time is wider than the min-width and none
+   narrower than the next. It stays on one line and never shrinks below that inside the one-line well. */
+.world-line__clock {
+  display: inline-block;
+  min-width: 5ch;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}

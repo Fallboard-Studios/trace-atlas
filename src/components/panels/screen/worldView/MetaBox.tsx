@@ -68,7 +68,7 @@ export function WorldLine() {
 
   return (
     <span className="world-line">
-      <span className="world-line__field">{formatClock(localTime)} {tempLabel}</span>
+      <span className="world-line__field"><span className="world-line__clock">{formatClock(localTime)}</span> {tempLabel}</span>
       <span className="world-line__field">{fill('nav.status.probesActive', { emitting: String(emittingCount), max: String(maxAudibleRobots) })}</span>
       <span className="world-line__field">{fill('nav.status.viewing', { name: styleName, x: String(x), y: String(y) })}</span>
     </span>
