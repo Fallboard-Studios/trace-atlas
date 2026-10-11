@@ -4,11 +4,17 @@
    foreground factories). Each layer fills this box and shares the same viewBox and slice fit, so
    the six coordinate systems map to the same pixels; the moving layers are promoted to compositor
    layers of their own, so a robot's or bubble's per-frame transform write repaints only its own
-   layer instead of the sixty static factories behind it. The world-view (WorldView.css) is the
-   positioned ancestor. */
+   layer instead of the sixty static factories behind it. The world-view's scroller
+   (WorldView.css's .world-view__scroller) is the positioned ancestor, and this box is the stage
+   it scrolls: 16:9 or wider (every desktop frame, landscape phones, tablets), min-width: 100%
+   wins and the box is exactly the viewport, pixel-identical to the old fixed box; narrower than
+   16:9 (portrait phones), the box is taller than wide and overflows horizontally, which is what
+   the scroller pans (Mobile Deck Camera, spec assumption 2). */
 .ocean-scene {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  height: 100%;
+  min-width: 100%;
+  aspect-ratio: 16 / 9;
 }
 
 .ocean-scene__layer {
