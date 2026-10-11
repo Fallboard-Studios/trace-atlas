@@ -122,3 +122,13 @@ describe('RadioButton.css — the muted appearance', () => {
     expect(body).toContain('width: 1px;');
   });
 });
+
+describe('RadioButton.css — a muted option at 320 px', () => {
+  // A user-typed save name runs to 128 characters (Task 28): the flat face carries the same cap the cabinet
+  // front does, so the label ends in an ellipsis and the picker never scrolls the page sideways.
+  it('caps the flat face at the control\'s width, border-box so its padding counts', () => {
+    const body = getCssRuleBody(cssSource, '.sc-radio-button__flat');
+    expect(body).toContain('max-width: 100%;');
+    expect(body).toContain('box-sizing: border-box;');
+  });
+});

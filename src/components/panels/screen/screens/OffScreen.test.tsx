@@ -197,3 +197,38 @@ describe('OffScreen — muted: nothing comes off the plate', () => {
     expect(css).not.toMatch(/cabinet|popped|glow/i);
   });
 });
+
+describe('OffScreen — on the phone shell (Task 28)', () => {
+  // jsdom computes no layout, so "no horizontal overflow" is pinned at the source (OffScreen.css.test.ts,
+  // RadioButton.css.test.ts, shell320.css.test.ts); here the phone shell's DOM is checked: ScreenViewport marks
+  // itself with data-shell, and every preset, and a save with the longest legal name, is still in the picker.
+  const renderOnPhone = () =>
+    render(
+      <main id="screen-viewport" data-shell="phone">
+        <OffScreen />
+      </main>,
+    );
+
+  it('renders all three presets in the picker', () => {
+    renderOnPhone();
+    expect(within(picker()).getAllByRole('radio').map((r) => r.getAttribute('aria-label'))).toEqual([presetName(0), presetName(1), presetName(2)]);
+  });
+
+  it('keeps a 128-character save name whole in its accessible name, drawn in the single-line label that ends in an ellipsis', () => {
+    const longName = 'N'.repeat(128);
+    saveNamedSession(longName, savedPayload('long'));
+    renderOnPhone();
+    const radio = screen.getByRole('radio', { name: longName });
+    const label = radio.querySelector('.sc-radio-button__label');
+    expect(label?.textContent).toBe(longName);
+    expect(radio.querySelector('.sc-radio-button__flat')).not.toBeNull();
+  });
+
+  it('names a long pick in the readout whole, so the wrapping readout can take a second line', () => {
+    const longName = 'N'.repeat(128);
+    saveNamedSession(longName, savedPayload('long'));
+    renderOnPhone();
+    fireEvent.click(screen.getByRole('radio', { name: longName }));
+    expect(screen.getByTestId('off-screen-readout').textContent).toBe(fill('home.off.readout', { name: longName, code: 'long' }));
+  });
+});
