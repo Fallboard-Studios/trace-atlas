@@ -203,6 +203,23 @@ describe('SectionTabs', () => {
       expect(poppedOf(tab('fleet.pacing'))).toBe('true');
     });
 
+    // Code review 2026-10-11 (RadioButton's own bugfix): park the pointer on a tab, then arrow to another.
+    // Radix moves the active tab without a mouseleave, so the parked tab kept its hover pop and looked
+    // exactly like the new active one.
+    it('a hover left behind when the active tab changes does not keep its pop', async () => {
+      render(<Host />);
+      fireEvent.mouseEnter(tab('fleet.eqFilters'));
+      expect(poppedOf(tab('fleet.eqFilters'))).toBe('true');
+      act(() => tab('fleet.pacing').focus());
+
+      fireEvent.keyDown(tab('fleet.pacing'), { key: 'ArrowRight' });
+      await flush();
+
+      expect(tab('fleet.lfoBank').getAttribute('aria-selected')).toBe('true');
+      expect(poppedOf(tab('fleet.lfoBank'))).toBe('true');
+      expect(poppedOf(tab('fleet.eqFilters'))).toBe(String(CABINET_REST_POP));
+    });
+
     it("each trigger carries its own section's trait colour", () => {
       render(<Host />);
       for (const item of ITEMS) {

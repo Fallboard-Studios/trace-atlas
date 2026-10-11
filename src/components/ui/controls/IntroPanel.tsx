@@ -1,4 +1,4 @@
-import { memo, useCallback, useId, useState } from 'react';
+import { memo, useCallback, useId, useMemo, useState } from 'react';
 import DOMPurify from 'dompurify';
 import type { Trait } from '../../../types/traits';
 import { Button } from './Button';
@@ -33,13 +33,14 @@ function IntroPanelInner({ loreLabel, loreDescription, humanDescription, trait =
     const toggle = useCallback(() => setExpanded((open) => !open), []);
     const bodyId = useId();
 
-    const sanitizedLoreDescription = loreDescription && DOMPurify.sanitize(loreDescription);
+    // The content never changes between More / Less presses, so each is sanitized once per value.
+    const sanitizedLoreDescription = useMemo(() => loreDescription && DOMPurify.sanitize(loreDescription), [loreDescription]);
 
     const loreDescriptionHTML = sanitizedLoreDescription && (
         <div className="sc-intro-panel__content lore" dangerouslySetInnerHTML={{ __html: sanitizedLoreDescription }} />
     );
 
-    const sanitizedHumanDescription = humanDescription && DOMPurify.sanitize(humanDescription);
+    const sanitizedHumanDescription = useMemo(() => humanDescription && DOMPurify.sanitize(humanDescription), [humanDescription]);
 
     const humanDescriptionHTML = sanitizedHumanDescription && (
         <div className="sc-intro-panel__content human" dangerouslySetInnerHTML={{ __html: sanitizedHumanDescription }} />

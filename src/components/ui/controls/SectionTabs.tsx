@@ -49,6 +49,14 @@ function SectionPanel({ render }: { render: () => ReactNode }) {
 function SectionTabsInner<Id extends string>({ items, value, onValueChange, label, variant = 'section' }: SectionTabsProps<Id>) {
   const instanceId = useId();
   const [hoveredId, setHoveredId] = useState<Id | null>(null);
+  // A keyboard move changes the active tab without a mouseleave, so a hover parked on another tab would
+  // keep its pop and look exactly like the new active one. Clear it when the value changes, as
+  // RadioButton does (adjusting state during render, so the stale frame never commits).
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
+    setHoveredId(null);
+  }
 
   if (items.length === 0) return null;
   const active = items.some((item) => item.id === value) ? value : items[0].id;

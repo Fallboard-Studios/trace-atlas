@@ -106,8 +106,9 @@ interface RadioButtonProps {
  *  The option face (docs/specs/LAYOUT_REWORK.md §1.4): an option with a `loreLabel` shows it small
  *  above its `humanLabel`, inside the same fixed-height box; one without is one line of its
  *  `humanLabel` (Task 13 dropped the lore; Crawford brought it back, 2026-10-10). Drawn here, not with
- *  DualLabel, so the lines can stop at the control's width and no help "?" can land in an option. The
- *  accessible name is the human label alone.
+ *  DualLabel: the face is two small spans so each line can stop at the control's width with its own
+ *  one-line ellipsis cap (RadioButton.css), which DualLabel's wrapping lines cannot. The accessible name
+ *  is the human label alone.
  *
  *  `schema.appearance === 'muted'` (docs/tasks/LAYOUT_REWORK.md Task 27) swaps each CabinetBox for a
  *  flat `.sc-radio-button__flat` face of the same height: no walls, no pop timeline, no hover pop, no

@@ -31,7 +31,9 @@ function HelpPopoverInner({ help, humanLabel, loreLabel }: HelpPopoverProps) {
   const [open, setOpen] = useState(false);
   const controlName = humanLabel ?? loreLabel;
   const name = controlName ? fill('ui.help', { name: controlName }) : CONTENT['ui.help'].human;
-  const screen = open ? getScreenViewportDomNode() : null;
+  // Resolved whether open or not, so the tree is the same shape on both sides of a close (a Portal on
+  // one side and in-place content on the other would remount the focus scope as it hands focus back).
+  const screen = getScreenViewportDomNode();
 
   const content = (
     <Popover.Content

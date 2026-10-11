@@ -12,8 +12,9 @@ interface ButtonProps {
   onClick: () => void;
   disabled?: boolean;
   /** 'single' draws the human label alone on one line, the lore left to the control's label row, as
-   *  RadioButton's options do (docs/tasks/LAYOUT_REWORK.md Task 17 follow-up: Save & Share only, for
-   *  now). 'dual' (the default) is lore over human. */
+   *  RadioButton's options do (docs/tasks/LAYOUT_REWORK.md Task 17 follow-up). Used where the control's
+   *  label row already carries the lore: Save & Share, the session list's rows and IntroPanel's More /
+   *  Less. 'dual' (the default) is lore over human. */
   face?: 'dual' | 'single';
   /** Names the button apart from its face — a list row's "Load" named "Load Dusk Run". The schema's
    *  label otherwise (resolveAccessibleName). */

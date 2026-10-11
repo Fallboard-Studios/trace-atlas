@@ -85,7 +85,7 @@ All 13 live in `src/components/ui/controls/`. Naming: PascalCase files, CSS clas
 | Component | `ControlSchema` variant | Props | `ROBOT_DATA_GRID.md` row(s) |
 |---|---|---|---|
 | `DualLabel` | `DualLabelSchema` (standalone) or composed inside every other primitive | `{ loreLabel?: string; humanLabel?: string }` | Robot Name, Job Data, Battery Data, Docked Status |
-| `Button` | `ButtonSchema` | `{ schema: ButtonSchema; onClick: () => void }` | Reset Melody |
+| `Button` | `ButtonSchema` | `{ schema: ButtonSchema; onClick: () => void; disabled?: boolean; face?: 'dual' | 'single'; accessibleName?: string; expanded?: boolean; controls?: string }` — see the section below for the last four | Reset Melody |
 | `Toggle` | `ToggleSchema` | `{ schema: ToggleSchema; value: boolean; onChange: (value: boolean) => void }` | Layer 2/3 Active, LFO Active |
 | `TextInput` | `TextInputSchema` | `{ schema: TextInputSchema; value: string; onChange: (value: string) => void; numeric?: boolean }` — `numeric` renders `type="number"`/`inputMode="decimal"` instead of plain text; it's a rendering-only prop, not part of `TextInputSchema` (the schema still describes generic text entry) | Not in the robot grid — roadmap Phase 5's Sector Settings (About text) |
 | `Stepper` | `StepperSchema` | `{ schema: StepperSchema; value: number; onChange: (value: number) => void; disabled?: boolean }` | None — every former consumer (Density, Octave Range Min/Max, and Compressor Ratio in `audioRigConfig.ts`) moved to `SliderLinear`; see `SliderLinear`'s row below and docs/specs/STEPPER_TO_SLIDER.md. Kept in the codebase, unused by any real app schema. |
@@ -119,6 +119,14 @@ Full design rationale, including the original `LfoTargetGroup` composability che
 ### `Button`'s Oblique Cabinetry rendering (Roadmap Phase 11.1.1)
 
 `Button`'s internal rendering changed — it now renders through `CabinetBox` (`src/components/ui/controls/CabinetBox.tsx`), a 2.5D "physical switch" overlay (SVG walls + an HTML front face) that pops fully out on hover/focus/press and stays flat otherwise, glowing more the further it's popped, while its `ControlSchema`/props contract (`{ schema: ButtonSchema; onClick: () => void; disabled?: boolean }`) stayed byte-for-byte identical. No call site needed to change. `CabinetBox` — including the glow and its sharp (no `border-radius`) front-face corners — is the shared foundation and reference example for the rest of the Oblique Cabinetry series (`Toggle` and the 3 sliders, roadmap 11.1.2–11.1.5); `Button` is its first real consumer. `.sc-button` itself became a transparent click target — the same "real interactive element stays in charge, a decorative SVG child renders the visuals" split `PowerRockerSwitch.tsx`'s `.rocker-el` already uses — so `:focus-visible`'s outline still renders on the actual `<button>`, on top of the popped box, with no extra `z-index` work needed. Full design rationale: `docs/specs/OBLIQUE_CABINETRY_FOUNDATION.md`; geometry/shading/glow notes: `docs/CONSOLE_THEMING.md`.
+
+### `Button`'s layout-rework props (docs/specs/LAYOUT_REWORK.md §1.3, §1.8)
+
+`face="single"` draws the human label alone on one line (the lore stays on the control's label row), as `RadioButton`'s options do; the default `'dual'` is lore over human. It is used by Save & Share, the session list's rows and `IntroPanel`'s More / Less. `accessibleName` names a button apart from its face when the face repeats (a list row's "Load" is named "Load Dusk Run"); without it the schema's label names it. `expanded` and `controls` make it a disclosure: they pass straight through to `aria-expanded` and `aria-controls`.
+
+### `IntroPanel`'s expander (docs/specs/LAYOUT_REWORK.md §1.3)
+
+`collapsible` turns the panel into an expander: the headline (`loreLabel`) always shows and a `Button` ("More ▾" / "Less ▴") reveals or folds the descriptions in place; it starts collapsed, and a panel with nothing to fold shows no button. `name` is the intro's concept name and names the button apart from any other on the screen ("More about Fleet Params"); pass it whenever `collapsible` is set, or the button's accessible name falls back to its face. Without `collapsible` the whole intro shows, as it always has.
 
 ### `Toggle`'s Oblique Cabinetry rendering (Roadmap Phase 11.1.2)
 

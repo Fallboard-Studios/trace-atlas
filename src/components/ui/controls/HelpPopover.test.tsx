@@ -7,6 +7,7 @@ import { render, screen, act, fireEvent } from '@testing-library/react';
 import { HelpPopover } from './HelpPopover';
 import { CONTENT, fill } from '@/content';
 import { getCssRuleBody } from '@/testUtils/cssRuleBody';
+import { SCREEN_VIEWPORT_ID } from '@/utils/helpers';
 
 /*
  * docs/tasks/LAYOUT_REWORK.md Task 12 (spec §1.4): a focusable "?" on a control's label opens a well
@@ -86,6 +87,26 @@ describe('HelpPopover', () => {
     act(() => trigger().focus());
     fireEvent.click(trigger());
     await tick();
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await tick();
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger());
+  });
+
+  // Code review 2026-10-11: the app always has a #screen-viewport, so the portal path is the one in use;
+  // closing used to swap the tree between <Portal> and in-place content, remounting the focus scope.
+  it('in the screen viewport, Escape closes it and focus returns to the "?"', async () => {
+    render(
+      <main id={SCREEN_VIEWPORT_ID}>
+        <HelpPopover help={HELP} humanLabel="Tempo" />
+      </main>,
+    );
+    act(() => trigger().focus());
+    fireEvent.click(trigger());
+    await tick();
+    expect(document.getElementById(SCREEN_VIEWPORT_ID)!.contains(screen.getByRole('dialog'))).toBe(true);
 
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     await tick();
