@@ -216,7 +216,9 @@ describe('PowerRockerSwitch.css — the pivot', () => {
     expect(body).toContain('position: absolute;');
     expect(body).toMatch(/top:/);
     expect(body).toMatch(/width:/);
-    expect(body).toMatch(/height:/);
+    expect(body).toContain('height: 10px;');
+    // Twice the earlier 5px, grown about the same centre (22% down, plus half the old height) so it stays on the face.
+    expect(body).toContain('top: calc(22% - 2.5px);');
   });
 
   it('has no housing rule left', () => {
