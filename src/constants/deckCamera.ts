@@ -15,7 +15,10 @@ export const DECK_CAMERA_TIMELINE_ID = 'deck-camera';
  *  read as uninteresting; prefer live work). Always the station when nothing is being worked. */
 export const DECK_CAMERA_STATION_CHANCE = 0.15;
 
-/** The minimum time between two automatic (lifecycle) cuts (Crawford, post-ship: with none, two
- *  robots going active close together whiplashed the camera from one target straight to the next).
- *  Never applies to a tap-to-pan — that is the user asking, same exemption as the idle gate. */
-export const DECK_CAMERA_CUT_COOLDOWN_MS = 4000;
+/** The minimum time between two automatic (lifecycle) cuts, and so the camera's minimum dwell
+ *  time on whatever it last cut to. Raised from an initial 4000 (Crawford, second phone pass: with
+ *  a job lasting only JOB_BASE_MIN/MAX_SECONDS (6-10s) and 12 robots cycling through one, the
+ *  camera had a legitimate reason to cut again every few seconds almost continuously, which read
+ *  as randomly jumping even with no whiplash bug left — this is restraint, not a bug fix). Never
+ *  applies to a tap-to-pan — that is the user asking, same exemption as the idle gate. */
+export const DECK_CAMERA_CUT_COOLDOWN_MS = 20000;
