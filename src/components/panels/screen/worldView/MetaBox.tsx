@@ -68,16 +68,16 @@ export function WorldLine() {
 
   return (
     <span className="world-line">
-      <span className="world-line__field"><span className="world-line__clock">{formatClock(localTime)}</span> {tempLabel}</span>
-      <span className="world-line__field">{fill('nav.status.probesActive', { emitting: String(emittingCount), max: String(maxAudibleRobots) })}</span>
+      <span className="world-line__field"><span className="world-line__clock">{formatClock(localTime)}</span> <span className="world-line__temp">{tempLabel}</span></span>
+      <span className="world-line__field"><span className="world-line__count">{fill('nav.status.probesActive', { emitting: String(emittingCount), max: String(maxAudibleRobots) })}</span></span>
       <span className="world-line__field">{fill('nav.status.viewing', { name: styleName, x: String(x), y: String(y) })}</span>
     </span>
   );
 }
 
 /**
- * The meta box (spec §1.7; docs/tasks/LAYOUT_REWORK.md Task 8): the glow-glass well bottom-left of the
- * Deck, in the corner the content surface and the breadcrumb take on the other views, carrying the
+ * The meta box (spec §1.7; docs/tasks/LAYOUT_REWORK.md Task 8): the glow-glass well at the top of the
+ * Deck, right of the nav and level with the header (it began in the corner the content surface and the breadcrumb take on the other views; Crawford moved it up, 2026-10-10), carrying the
  * world line. It replaces NavStatusBlock, the panel's old status readout. Desk shell, Deck only: on a
  * branch the breadcrumb has the corner and the world sits under the surface, and on the phone the world
  * line shows in PhoneBar's well. Below the world line, a selected robot's line (name · job · state) and a

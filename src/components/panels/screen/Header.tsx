@@ -106,6 +106,7 @@ function VolumePopout({ disabled, children }: { disabled: boolean; children: Rea
  */
 function Header() {
   const headerRef = useRef<HTMLElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
   const shell = useShell();
 
   const isPoweredOn = useUIStore((s) => s.isPoweredOn);
@@ -126,6 +127,26 @@ function Header() {
     return () => observer.disconnect();
   }, []);
 
+  // The meta box sits at the top of the screen, level with this row, and must stop short of it: it needs the
+  // row's real width (the volume slider's width and the power corner's reserve, so not a constant to type in a
+  // second time), which is a sibling's to read, so it goes to the root beside --header-height. The row, not the
+  // header root: the root spans the screen, and the facade hugs the row. Border box, since the row's padding is
+  // the corner's reserve. Removed with the header (powered off), so no stale width survives.
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      const width = entry.borderBoxSize?.[0]?.inlineSize ?? row.getBoundingClientRect().width;
+      document.documentElement.style.setProperty('--header-width', `${width}px`);
+    });
+    observer.observe(row);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty('--header-width');
+    };
+  }, []);
+
   const handleVolumeChange = (pct: number) => {
     if (!isPoweredOn) return;
     useAudioStore.getState().setVolume(pct / 100);
@@ -143,7 +164,7 @@ function Header() {
          value/state tie-in). See DirectionalPanel.tsx's own comment and
          docs/specs/OBLIQUE_CABINETRY_DIRECTIONAL_PANEL.md §1. */}
       <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-header-facade">
-        <div className="header__row">
+        <div ref={rowRef} className="header__row">
           <Toggle
             schema={MUTE_SCHEMA}
             value={isMuted}

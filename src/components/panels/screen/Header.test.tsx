@@ -114,6 +114,11 @@ class MockResizeObserver {
   fire(height: number) {
     this.callback([{ contentRect: { height } } as ResizeObserverEntry], this as unknown as ResizeObserver);
   }
+
+  /** A width report as a real observer's: the border box's inline size (the row's padding counts). */
+  fireWidth(width: number) {
+    this.callback([{ contentRect: { width: width - 100 }, borderBoxSize: [{ inlineSize: width, blockSize: 0 }] } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
+  }
 }
 
 /** CabinetBox (Toggle's mute box + RadioButton's 3 option boxes — 4 real
@@ -144,6 +149,7 @@ describe('Header', () => {
   afterEach(() => {
     (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = originalResizeObserver;
     document.documentElement.style.removeProperty('--header-height');
+    document.documentElement.style.removeProperty('--header-width');
     Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
   });
 
@@ -256,6 +262,57 @@ describe('Header', () => {
       expect(observer.disconnected).toBe(false);
       unmount();
       expect(observer.disconnected).toBe(true);
+    });
+  });
+
+  // Crawford, 2026-10-10: the meta box sits at the top, level with the header, and must stop short of it. The
+  // header's width is as content-sized as its height (the volume slider's width plus the power corner's
+  // reserve), so it is measured, not typed in twice: the row's border-box width, written to the root the same
+  // way --header-height is, for MetaBox.css to subtract.
+  describe('--header-width measurement', () => {
+    const rowObserver = (container: HTMLElement) => {
+      const row = container.querySelector('.header__row')!;
+      const found = MockResizeObserver.instances.find((o) => o.observedTargets.includes(row));
+      if (!found) throw new Error('No MockResizeObserver observed .header__row');
+      return found;
+    };
+
+    it('writes the border-box width of the row to document.documentElement as --header-width', () => {
+      const { container } = render(<Header />);
+      act(() => rowObserver(container).fireWidth(372));
+      expect(document.documentElement.style.getPropertyValue('--header-width')).toBe('372px');
+    });
+
+    it('updates it when the row resizes, not just once on mount', () => {
+      const { container } = render(<Header />);
+      const observer = rowObserver(container);
+      act(() => observer.fireWidth(372));
+      act(() => observer.fireWidth(296));
+      expect(document.documentElement.style.getPropertyValue('--header-width')).toBe('296px');
+    });
+
+    it('measures the row separately from the header root, so --header-height stays the height of the header', () => {
+      const { container } = render(<Header />);
+      const root = findHeaderHeightObserver(container.querySelector('header')!);
+      expect(root.observedTargets).not.toContain(container.querySelector('.header__row'));
+      act(() => root.fire(140));
+      expect(document.documentElement.style.getPropertyValue('--header-height')).toBe('140px');
+      expect(document.documentElement.style.getPropertyValue('--header-width')).toBe('');
+    });
+
+    it('disconnects the width observer on unmount', () => {
+      const { container, unmount } = render(<Header />);
+      const observer = rowObserver(container);
+      expect(observer.disconnected).toBe(false);
+      unmount();
+      expect(observer.disconnected).toBe(true);
+    });
+
+    it('does not leave a stale width behind when the header unmounts (powered off)', () => {
+      const { container, unmount } = render(<Header />);
+      act(() => rowObserver(container).fireWidth(372));
+      unmount();
+      expect(document.documentElement.style.getPropertyValue('--header-width')).toBe('');
     });
   });
 

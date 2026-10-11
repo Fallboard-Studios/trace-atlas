@@ -19,7 +19,7 @@ function WorldView() {
   return (
     <div className="world-view" data-dimmed={dimmed ? '' : undefined}>
       <AttenuationStyleView attenuationStyleId={currentAttenuationStyleId} />
-      {/* The world's own readout, bottom-left of the Deck (spec §1.7). */}
+      {/* The world's own readout, top of the Deck, right of the nav (spec §1.7). */}
       <MetaBox />
     </div>
   );
