@@ -134,6 +134,58 @@ describe('WorldView — carries the meta box', () => {
   });
 });
 
+// Mobile Deck Camera (spec §1.1, assumptions 1, 3): the scroller wraps AttenuationStyleView
+// alone — MetaBox stays pinned, a direct sibling of .world-view — and centres itself once, on
+// mount, so an unpanned phone sees the same middle slice it always has.
+describe('WorldView — the deck scroller (Mobile Deck Camera)', () => {
+  const realMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    useAttenuationStyleStore.setState({ attenuationStyles: [{ ...DEFAULT_PELAGOS }], currentAttenuationStyleId: DEFAULT_PELAGOS.id });
+    useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [], actors: [] } } });
+    useUIStore.setState(UI_INITIAL_STATE, true);
+    // MetaBox reads useShell(), which reads matchMedia — the desk shell's query.
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({ matches: !query.includes('reduced-motion'), media: query, addEventListener: () => {}, removeEventListener: () => {} }),
+    });
+  });
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
+  });
+
+  it('wraps the attenuation-style view in .world-view__scroller, and keeps the meta box out of it', () => {
+    render(<WorldView />);
+    const scroller = document.querySelector('.world-view__scroller');
+    expect(scroller).not.toBeNull();
+    expect(scroller!.querySelector('.attenuation-style-view')).not.toBeNull();
+    expect(scroller!.querySelector('.meta-box')).toBeNull();
+    expect(document.querySelector('.world-view > .meta-box')).not.toBeNull();
+  });
+
+  it('centres scrollLeft on mount: (scrollWidth − clientWidth) / 2, seeded with non-default sizes', () => {
+    // jsdom lays nothing out (scrollWidth/clientWidth are always 0 there), so the sizes are
+    // stubbed on the element's own prototype before mount — the ref callback reads them
+    // synchronously while the node is attached, before the test gets control back, so there is
+    // no later point at which stubbing the found element itself would still run in time.
+    const scrollWidthSpy = vi
+      .spyOn(HTMLElement.prototype, 'scrollWidth', 'get')
+      .mockReturnValue(2000);
+    const clientWidthSpy = vi
+      .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+      .mockReturnValue(500);
+    try {
+      render(<WorldView />);
+      const scroller = document.querySelector('.world-view__scroller') as HTMLDivElement;
+      expect(scroller.scrollLeft).toBe(750);
+    } finally {
+      scrollWidthSpy.mockRestore();
+      clientWidthSpy.mockRestore();
+    }
+  });
+});
+
 describe('WorldView.css — the dim', () => {
   const css = readFileSync(resolve(__dirname, 'WorldView.css'), 'utf8');
 

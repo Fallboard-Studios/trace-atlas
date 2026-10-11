@@ -1,3 +1,5 @@
+import { useCallback } from 'react';
+
 import AttenuationStyleView from '@/components/panels/screen/worldView/AttenuationStyleView';
 import { MetaBox } from '@/components/panels/screen/worldView/MetaBox';
 import { useAttenuationStyleStore } from '@/stores/attenuationStyleStore';
@@ -16,9 +18,19 @@ function WorldView() {
   // ContentPane renders exactly while a branch is open; the Deck has none and stays bright.
   const dimmed = useUIStore((s) => s.activeHubTile !== null);
 
+  // Centres the scroller once, on mount (Mobile Deck Camera, spec assumption 3): an unpanned
+  // phone sees the same middle slice it always has, and scrollWidth is read once here, not
+  // watched. Task 8 extends this same callback to hand the element to the camera module.
+  const registerScroller = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+  }, []);
+
   return (
     <div className="world-view" data-dimmed={dimmed ? '' : undefined}>
-      <AttenuationStyleView attenuationStyleId={currentAttenuationStyleId} />
+      <div className="world-view__scroller" ref={registerScroller}>
+        <AttenuationStyleView attenuationStyleId={currentAttenuationStyleId} />
+      </div>
       {/* The world's own readout, top of the Deck, right of the nav (spec §1.7). */}
       <MetaBox />
     </div>
