@@ -134,15 +134,17 @@ no store. Exports:
 - `panDeckCameraTo(robotId: string): void` — the user's pan. Never idle-gated. Resolves the target
   (assumption 5); if the robot's ref or the scroller is missing, returns. Creates
   `gsap.to(scroller, { scrollTo: { x: target, autoKill: true }, duration: DECK_CAMERA_PAN_S,
-  ease: 'power2.inOut', paused: true })`, wraps it in a timeline registered as `deck-camera`, plays
-  it. Duration 0 under reduced motion.
+  ease: 'sine.inOut', paused: true })`, wraps it in a timeline registered as `deck-camera`, plays
+  it. Duration 0 under reduced motion. (Crawford, manual check after Tasks 9–10: the spec's
+  original `power2.inOut` over `DECK_CAMERA_PAN_S = 0.8` read as a snap, not a pan; raised to
+  `1.4`s with the gentler `sine.inOut`.)
 - `cutDeckCameraTo(robotId: string): void` — the semantic cut. Returns without moving when the
   user is not idle (assumption 8) or when the target is already within the visible window (the
   robot is on screen; no cut to where we already are). Otherwise identical to the pan.
 - `noteDeckUserInput(): void` — stamps `lastUserInputAt`. Exported for tests and for the
   scroller's listeners.
 - `isDeckCameraIdle(now = performance.now()): boolean` — the gate, exported for tests.
-- Constants: `DECK_CAMERA_IDLE_MS = 8000`, `DECK_CAMERA_PAN_S = 0.8`, `DECK_CAMERA_TIMELINE_ID =
+- Constants: `DECK_CAMERA_IDLE_MS = 8000`, `DECK_CAMERA_PAN_S = 1.4`, `DECK_CAMERA_TIMELINE_ID =
   'deck-camera'`, in `src/constants/deckCamera.ts`.
 - `gsap.registerPlugin(ScrollToPlugin)` happens once in this module, at import.
 
