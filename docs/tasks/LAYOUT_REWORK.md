@@ -2238,6 +2238,15 @@ empty companies keep their row. `uiStore` gains `movePanelRobotId: string | null
 
 **Estimated scope:** S
 
+**As built (2026-10-10):** `rosterRows({ robots, companies })` takes the structural narrow shapes
+(`{ id, companyId? }` / `{ id }`), not a full `Locale` — Task 21's board calls it on its narrow roster
+slice. `RosterRow` = `{ companyId: string | null; robotIds: string[] }`, `null` = Freelance. Three calls
+beyond the text above (open for Crawford): the **Freelance row is always present, even empty** (it is a
+Move target, as an empty company's row is); membership reads `Robot.companyId` in the locale's robot
+order (as `getCompanyMembers` does), not `Company.robotIds`; a `companyId` naming no company (or `''`)
+files the robot under **Freelance**, so every robot sits in exactly one row. `movePanelRobotId` joined
+the uiStore key-set test's `NAV_FIELDS`. 12/12 mutants killed.
+
 ## Task 21: `RosterBoard` and `RosterTile` (no Move chip yet)
 
 **Description:** New `src/components/panels/screen/screens/RosterBoard.tsx` / `RosterTile.tsx`: the head

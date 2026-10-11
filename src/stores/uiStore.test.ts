@@ -268,13 +268,12 @@ describe('uiStore — the stacked scroll\'s fields are retired', () => {
 });
 
 describe('uiStore — the initial state is spec §1.10\'s table', () => {
-  // §1.10's kept and new fields. movePanelRobotId, the table's third row, arrives with its first
-  // consumer (Task 20), and joins this list there.
+  // §1.10's kept and new fields.
   const NAV_FIELDS = [
     'activeHubTile', 'selectedRobotId', 'selectedCompanyId', 'allRobotsSelected', 'allProbesSelected',
     'expandedTopLevelBranch', 'selectedSection', 'selectedSubsection', 'selectedSettingsLeaf',
     'isPoweredOn', 'isNavPanelOpen',
-    'fleetParamsSection', 'fleetParamsSubsection',
+    'fleetParamsSection', 'fleetParamsSubsection', 'movePanelRobotId',
   ];
   // Not navigation, so §1.10 does not list them; the layout rework leaves them as they are.
   const OTHER_FIELDS = ['activeView', 'theme', 'language', 'isFullscreen', 'activeLocaleLocalTime', 'activeLocaleTemperature'];
@@ -430,5 +429,41 @@ describe('uiStore — allProbesSelected (which Probes content view is active, do
     useUIStore.getState().setAllProbesSelected(true);
     expect(useUIStore.getState().allRobotsSelected).toBe(false);
     expect(useUIStore.getState().allProbesSelected).toBe(true);
+  });
+});
+
+// docs/tasks/LAYOUT_REWORK.md Task 20 (spec §1.10): which roster tile's Move popover / sheet is open.
+describe('uiStore — movePanelRobotId (the open Move panel)', () => {
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('starts closed', () => {
+    expect(useUIStore.getInitialState().movePanelRobotId).toBeNull();
+  });
+
+  it('openMovePanel then closeMovePanel round-trips', () => {
+    useUIStore.getState().openMovePanel('r4');
+    expect(useUIStore.getState().movePanelRobotId).toBe('r4');
+    useUIStore.getState().closeMovePanel();
+    expect(useUIStore.getState().movePanelRobotId).toBeNull();
+  });
+
+  it('opening another tile panel replaces the first: one panel at a time', () => {
+    useUIStore.getState().openMovePanel('r4');
+    useUIStore.getState().openMovePanel('r7');
+    expect(useUIStore.getState().movePanelRobotId).toBe('r7');
+  });
+
+  it('closing when nothing is open stays closed', () => {
+    useUIStore.getState().closeMovePanel();
+    expect(useUIStore.getState().movePanelRobotId).toBeNull();
+  });
+
+  it('touches no other field', () => {
+    const before = useUIStore.getState();
+    useUIStore.getState().openMovePanel('r4');
+    useUIStore.getState().closeMovePanel();
+    expect(useUIStore.getState()).toStrictEqual(before);
   });
 });

@@ -117,6 +117,9 @@ export interface UIStore {
   expandedTopLevelBranch: TopLevelBranch | null;
   /** Whether the "All Probes" bulk-edit leaf is selected — see its own doc comment above. */
   allProbesSelected: boolean;
+  /** Which roster tile's Move popover (desk) / sheet (phone) is open — null when none. One at a time:
+   *  opening another tile's replaces it (docs/specs/LAYOUT_REWORK.md §1.5, §1.10). */
+  movePanelRobotId: string | null;
   setActiveLocaleLocalTime: (t: number | null) => void;
   setActiveView: (v: ActiveView) => void;
   setTheme: (t: Theme) => void;
@@ -144,6 +147,8 @@ export interface UIStore {
   setFleetParamsSubsection: (s: SelectedFleetParamsEffect | null) => void;
   setExpandedTopLevelBranch: (b: TopLevelBranch | null) => void;
   setAllProbesSelected: (v: boolean) => void;
+  openMovePanel: (robotId: string) => void;
+  closeMovePanel: () => void;
 }
 
 /** The Fleet Params tab the screen opens on, and every nav pick returns to (docs/tasks/LAYOUT_REWORK.md
@@ -174,6 +179,7 @@ export const useUIStore = create<UIStore>((set) => ({
   fleetParamsSubsection: null,
   expandedTopLevelBranch: null,
   allProbesSelected: false,
+  movePanelRobotId: null,
 
   setActiveView: (v) => set({ activeView: v }),
   setTheme: (t) => set({ theme: t }),
@@ -204,6 +210,8 @@ export const useUIStore = create<UIStore>((set) => ({
   setFleetParamsSubsection: (s) => set({ fleetParamsSubsection: s }),
   setExpandedTopLevelBranch: (b) => set({ expandedTopLevelBranch: b }),
   setAllProbesSelected: (v) => set({ allProbesSelected: v }),
+  openMovePanel: (robotId) => set({ movePanelRobotId: robotId }),
+  closeMovePanel: () => set({ movePanelRobotId: null }),
 }));
 
 // ========================================
