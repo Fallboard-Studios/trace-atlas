@@ -46,8 +46,7 @@ const TILE_CONTENT: Record<HubTile, () => ReactNode> = {
 export function ConsolePanel() {
   const activeHubTile = useUIStore((s) => s.activeHubTile);
 
-  // Navigation moved into Header's always-visible row 3 (docs/specs/
-  // HEADER_HUB_CONSOLIDATION.md §1.7) — no tile grid to render here anymore.
+  // The Deck: navigation is NavPanel's (and PhoneBar's), so there is no tile grid to render here.
   // A genuinely empty return, not a wrapper div with nothing in it, so
   // WorldView's robots show through unobstructed.
   if (activeHubTile === null) {

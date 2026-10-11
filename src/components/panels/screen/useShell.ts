@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
+import type { Shell } from '@/types/shell';
+
 /**
  * The one shell switch (docs/specs/LAYOUT_REWORK.md Assumption 1): the desk shell — side panel, slim
  * header, breadcrumb well — from this width up; the phone shell — top bar, bottom bar, sheets — below.
@@ -14,7 +16,7 @@ export const NAV_PANEL_DOCK_MIN_WIDTH = 768;
 /** The narrowest viewport the phone shell must hold (Crawford: "I do want to handle down to 320"). */
 export const SHELL_MIN_WIDTH = 320;
 
-export type Shell = 'desk' | 'phone';
+export type { Shell } from '@/types/shell';
 
 const DESK_QUERY = `(min-width: ${NAV_PANEL_DOCK_MIN_WIDTH}px)`;
 

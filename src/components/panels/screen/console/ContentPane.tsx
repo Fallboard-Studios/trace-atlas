@@ -15,9 +15,10 @@ const HOME_INTRO = introProps('home.root');
 const HOME_ACCORDION_SCHEMA: AccordionSchema = { id: 'home.welcome', type: 'accordion', ...labels('home.root') };
 
 /**
- * Repurposed from Console.tsx (spec §7 Q6, docs/specs/NAV_LAYOUT_REWRITE.md Task 8) — the single
- * content area the new nav tree opens into. activeHubTile === null is the blank/landing state
- * (nothing selected in the tree yet): a small "Welcome" AccordionContainer wrapping an IntroPanel,
+ * The single content area the nav opens into (repurposed from Console.tsx, spec §7 Q6,
+ * docs/specs/NAV_LAYOUT_REWRITE.md Task 8; the opaque content surface is docs/specs/LAYOUT_REWORK.md §1.3).
+ * activeHubTile === null is the Deck, the landing state (nothing picked in the nav yet): a small
+ * "Welcome" AccordionContainer wrapping an IntroPanel,
  * deliberately NOT a full-bleed overlay like the active-tile case below — Robot.tsx's own click
  * handler relies on nothing blocking WorldView at this state (its own comment: "this click
  * reaches WorldView for free, no pointer-events special-casing needed"), so covering the whole
@@ -29,8 +30,7 @@ const HOME_ACCORDION_SCHEMA: AccordionSchema = { id: 'home.welcome', type: 'acco
  * while other phases are worked on) otherwise reuses only existing components: AccordionContainer
  * + IntroPanel, same as every other drawer section. Once a tile is active, still renders through
  * the existing, unmigrated ConsolePanel/TILE_CONTENT dispatch — no content component changes
- * here. The close control that used to live here now lives in NavPanel as "Home" (relocated, same
- * reset behavior — see NavPanel.tsx's handleHome).
+ * here. The close control that used to live here is NavPanel's "Deck" box (navActions.goHome).
  */
 export function ContentPane() {
   const activeHubTile = useUIStore((s) => s.activeHubTile);

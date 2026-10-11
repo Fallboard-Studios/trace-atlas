@@ -237,17 +237,18 @@ describe('roster and company detail copy', () => {
     }
   });
 
-  it('the broadcast note is the sketch sentence, filled with the member count', () => {
-    expect(fill('company.detail.broadcastNote', { n: '4' })).toBe(
-      'Edits on this screen reach all 4 probes at once — one broadcast, never a link. A probe edited on its own afterwards keeps its own value.',
-    );
-    expect(fill('company.detail.broadcastNote', { n: '12' })).toContain('reach all 12 probes at once');
+  // The sentences are placeholders awaiting review (home.ts says so), so these pin the slots and the
+  // plural forms, never the wording.
+  it('the broadcast note fills the member count from its slot', () => {
+    const four = fill('company.detail.broadcastNote', { n: '4' });
+    expect(four).toContain('all 4 probes');
+    expect(four).not.toContain('{');
+    expect(fill('company.detail.broadcastNote', { n: '12' })).toContain('all 12 probes');
   });
 
   it('a one-member company and an empty company get their own note, never "all 1 probes" or "all 0 probes"', () => {
     const one = fill('company.detail.broadcastNote.one', {});
     const none = fill('company.detail.broadcastNote.none', {});
-    expect(one).toContain('one broadcast, never a link');
     for (const note of [one, none]) {
       expect(note).not.toMatch(/\{|\ball [01]\b|\b1 probes\b/);
     }
@@ -284,15 +285,16 @@ describe('roster and company detail copy', () => {
     expect(optionsRecord('company.assign').freelance.humanLabel).toBe('Freelance'); // the roster's Freelance group name
   });
 
-  it('the signal readout: a halo on every member of a company, none under All', () => {
-    expect(labels('company.detail.signal').loreLabel).toBe('Affiliation Signal');
-    expect(optionsRecord('company.detail.signal').company.humanLabel).toBe('Halo on every member');
-    expect(optionsRecord('company.detail.signal').all.humanLabel).toBe('No halo — nothing to mark apart');
+  it('the signal readout has one line for a company and a different one for All', () => {
+    const signal = optionsRecord('company.detail.signal');
+    expect(signal.company.humanLabel.trim()).not.toBe('');
+    expect(signal.all.humanLabel.trim()).not.toBe('');
+    expect(signal.company.humanLabel).not.toBe(signal.all.humanLabel);
   });
 
-  it('the All form is titled by All Probes under its own eyebrow', () => {
-    expect(CONTENT['company.detail.allForm'].human).toBe('Fleet-wide edit');
-    expect(CONTENT['probe.all'].human).toBe('All Probes');
+  it('the All form has a title of its own, apart from All Probes', () => {
+    expect(CONTENT['company.detail.allForm'].human.trim()).not.toBe('');
+    expect(CONTENT['company.detail.allForm'].human).not.toBe(CONTENT['probe.all'].human);
   });
 
   it('the phone roster head\'s short forms: "All" and "+", never spread into a schema', () => {

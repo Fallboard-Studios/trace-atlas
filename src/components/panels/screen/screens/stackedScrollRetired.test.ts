@@ -31,13 +31,15 @@ const RETIRED_CALLS = [
   'notifyAccordionAnimationComplete', 'onceAccordionAnimationComplete', 'registerAccordion',
   'setSectionRef', 'getSectionRef', 'clearSectionRef', 'scrollToSection', 'scrollToSectionSettled',
   'setViewFadeRoot', 'fadeInView', 'approachSection',
-  // robotSubsectionConfig's id lists, which existed to feed the scrollspy and the open-state hook.
-  'subsectionIds', 'accordionIds',
 ];
 
-function sourceFiles(): string[] {
-  return (readdirSync(srcRoot, { recursive: true }) as string[])
-    .filter((file) => /\.(ts|tsx)$/.test(file) && file !== SELF);
+let cached: [file: string, text: string][] | null = null;
+/** Every src/ ts/tsx file and its text, read once for the whole file (each test below scans all of them). */
+function sources(): [file: string, text: string][] {
+  cached ??= (readdirSync(srcRoot, { recursive: true }) as string[])
+    .filter((file) => /\.(ts|tsx)$/.test(file) && file !== SELF)
+    .map((file) => [file, readFileSync(join(srcRoot, file), 'utf8')]);
+  return cached;
 }
 
 describe('the stacked scroll is retired (LAYOUT_REWORK.md Task 18)', () => {
@@ -50,22 +52,23 @@ describe('the stacked scroll is retired (LAYOUT_REWORK.md Task 18)', () => {
   it('nothing under src/ imports or mocks one of them, by path or alias', () => {
     const names = DELETED.map((module) => module.split('/').pop()!).join('|');
     const importOf = new RegExp(`(from|import|vi\\.mock\\()\\s*\\(?\\s*['"][^'"]*/(${names})['"]`);
-    const importers = sourceFiles().filter((file) => importOf.test(readFileSync(join(srcRoot, file), 'utf8')));
+    const importers = sources().filter(([, text]) => importOf.test(text)).map(([file]) => file);
     expect(importers).toEqual([]);
   });
 
   it('nothing under src/ calls one of their functions', () => {
     const callOf = new RegExp(`\\b(${RETIRED_CALLS.join('|')})\\s*\\(`);
-    const callers = sourceFiles().filter((file) => callOf.test(readFileSync(join(srcRoot, file), 'utf8')));
+    const callers = sources().filter(([, text]) => callOf.test(text)).map(([file]) => file);
     expect(callers).toEqual([]);
   });
 
   it('nothing under src/ reads a retired uiStore field', () => {
     const fieldOf = new RegExp(`\\b(${RETIRED_FIELDS.join('|')})\\b`);
     // uiStore.test.ts names each field once to assert it is absent from the store.
-    const readers = sourceFiles()
-      .filter((file) => file !== join('stores', 'uiStore.test.ts'))
-      .filter((file) => fieldOf.test(readFileSync(join(srcRoot, file), 'utf8')));
+    const readers = sources()
+      .filter(([file]) => file !== join('stores', 'uiStore.test.ts'))
+      .filter(([, text]) => fieldOf.test(text))
+      .map(([file]) => file);
     expect(readers).toEqual([]);
   });
 });

@@ -24,12 +24,9 @@ import './Header.css';
  *  renders alongside the facade icon rather than replacing it. */
 const MUTE_SCHEMA: ToggleSchema = { id: 'headerMute', type: 'toggle', ...labels('header.mute') };
 
-/** Distinct id from SettingsContent.tsx's own VOLUME_SCHEMA ('headerVolume')
- *  — Header is always mounted, so if Settings -> Volume is open at the same
- *  time both SliderLinears are live simultaneously; sharing an id would
- *  collide in timelineMap (same bug class Toggle's own timelineKey comment
- *  describes for RadioButton). Same range/step/unit, same audioStore.volume
- *  binding — just a second, always-visible control on the same value. */
+/** The master volume control's schema. Header is always mounted and is the only place the volume is set
+ *  (Settings has no volume control), so the id only has to be unique among live SliderLinears: an id shared
+ *  with another would collide in timelineMap (the bug class Toggle's own timelineKey comment describes). */
 const MASTER_VOLUME_SCHEMA: SliderLinearSchema = {
   id: 'masterVolume',
   min: 0,
@@ -100,8 +97,7 @@ function VolumePopout({ disabled, children }: { disabled: boolean; children: Rea
  * that once moved the row out of the nav panel's way is gone: the phone's nav is a sheet below the top
  * bar and the desk panel never reaches the header, so nothing here moves with the nav.
  *
- * The volume slider is also in Settings -> Volume (SettingsContent.tsx), the same audioStore value:
- * volume stays reachable beside mute, never gated behind a nav selection (Crawford, after
+ * Volume stays reachable beside mute, never gated behind a nav selection (Crawford, after
  * docs/specs/NAV_LAYOUT_REWRITE.md Task 11).
  */
 function Header() {

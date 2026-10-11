@@ -26,7 +26,8 @@ interface NavBoxProps {
  * CabinetBox, engaged on hover / focus / press exactly as Button is (resting at CABINET_REST_POP).
  * What Button has no notion of is a box that stays out — the current branch or entity, or an open
  * disclosure — so out = act reads as "you are here" (the depth rule, spec §3). `timelineKey` carries
- * useId() for the reason Button's does: the phone sheet may mount a second panel.
+ * useId() for the reason Button's does: timelineMap is keyed globally, so two boxes with one id (a remount
+ * overlapping its predecessor, a test rendering twice) would share a timeline.
  */
 export function NavBox({ id, loreLabel, humanLabel, current = false, expanded, controls, accentStyle, onClick }: NavBoxProps) {
   const instanceId = useId();

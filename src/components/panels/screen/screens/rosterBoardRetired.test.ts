@@ -20,9 +20,13 @@ const DELETED = [
 // What they exported or alone used, so a copy pasted into another file is caught too.
 const RETIRED_CALLS = ['filterRobotsByCompanyFocus', 'sortRobotsByCompanyFocus', 'buildCompanySelectionSchema'];
 
-function sourceFiles(): string[] {
-  return (readdirSync(srcRoot, { recursive: true }) as string[])
-    .filter((file) => /\.(ts|tsx)$/.test(file) && file !== SELF);
+let cached: [file: string, text: string][] | null = null;
+/** Every src/ ts/tsx file and its text, read once for the whole file (each test below scans all of them). */
+function sources(): [file: string, text: string][] {
+  cached ??= (readdirSync(srcRoot, { recursive: true }) as string[])
+    .filter((file) => /\.(ts|tsx)$/.test(file) && file !== SELF)
+    .map((file) => [file, readFileSync(join(srcRoot, file), 'utf8')]);
+  return cached;
 }
 
 describe('the Probes list and the Companies index are retired (LAYOUT_REWORK.md Task 21)', () => {
@@ -39,13 +43,13 @@ describe('the Probes list and the Companies index are retired (LAYOUT_REWORK.md 
   it('nothing under src/ imports or mocks one of them, by path or alias', () => {
     const names = DELETED.map((module) => module.split('/').pop()!).join('|');
     const importOf = new RegExp(`(from|import|vi\\.mock\\()\\s*\\(?\\s*['"][^'"]*/(${names})(\\.css)?['"]`);
-    const importers = sourceFiles().filter((file) => importOf.test(readFileSync(join(srcRoot, file), 'utf8')));
+    const importers = sources().filter(([, text]) => importOf.test(text)).map(([file]) => file);
     expect(importers).toEqual([]);
   });
 
   it('nothing under src/ names one of their functions', () => {
     const callOf = new RegExp(`\\b(${RETIRED_CALLS.join('|')})\\b`);
-    const callers = sourceFiles().filter((file) => callOf.test(readFileSync(join(srcRoot, file), 'utf8')));
+    const callers = sources().filter(([, text]) => callOf.test(text)).map(([file]) => file);
     expect(callers).toEqual([]);
   });
 });

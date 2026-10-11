@@ -15,8 +15,7 @@ import { labels, type ContentKey } from '@/content';
 /**
  * Nav selection, in one place (docs/specs/LAYOUT_REWORK.md §1.2; docs/tasks/LAYOUT_REWORK.md Task 3):
  * the panel, its entity list, the breadcrumb, the roster and the company column all call these, and
- * no component derives a path itself. Replaces useNavTree's select / goHome / selectedPath, which go
- * with the tree in Task 9.
+ * no component derives a path itself. It replaced the old nav tree's select / goHome / selectedPath.
  *
  * Every action starts from a clean slate — no entity, no section on any branch (Fleet Params back on its
  * default tab, Task 15), the phone nav sheet shut (a pick closes it, Task 5) — then sets only what it

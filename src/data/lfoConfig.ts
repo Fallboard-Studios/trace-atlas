@@ -16,7 +16,7 @@ import {
   type LfoLaneId,
 } from '../types/lfo';
 import { CONTENT, fill } from '@/content';
-import type { Shell } from '@/components/panels/screen/useShell';
+import type { Shell } from '@/types/shell';
 
 // ========================================
 // LFO BANK (docs/specs/LFO_BANK.md §1.1)

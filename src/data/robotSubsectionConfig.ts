@@ -1,8 +1,8 @@
 /**
  * Canonical section/subsection shape for a robot/company's Levels/Composition/Envelope/Source
  * stacked view (docs/specs/ROBOT_SECTION_CONFIG_CONSOLIDATION.md) — one source of truth for
- * RobotScreen.tsx (its section tabs, docs/tasks/LAYOUT_REWORK.md Task 16), the breadcrumb
- * (navActions.ts) and CompanyOptionsSection.tsx (its stacked accordion view, until Task 23), which
+ * RobotScreen.tsx and CompanyScreen.tsx (their section tabs, docs/tasks/LAYOUT_REWORK.md Tasks 16 and 23)
+ * and the breadcrumb (navActions.ts), which
  * otherwise each hand-duplicate the exact same id/label/trait table and risk
  * drifting apart (e.g. a future label rename landing in only one of the several places it used to
  * be typed out).
@@ -50,9 +50,8 @@ export interface RobotSectionEntry {
   subsections: RobotSubsectionEntry[];
 }
 
-/** Render order, for the robot screen's tabs (RobotScreen.tsx) and the stacked company view
- *  (CompanyOptionsSection.tsx) — one array, both consumers iterate it directly instead of each
- *  hand-declaring their own order. */
+/** Render order, for the robot and company screens' tabs (RobotScreen.tsx, CompanyScreen.tsx) — one
+ *  array, both consumers iterate it directly instead of each hand-declaring their own order. */
 export const ROBOT_SECTIONS_CONFIG: RobotSectionEntry[] = [
   {
     id: 'volume', content: 'probe.dynamics', trait: 'output',

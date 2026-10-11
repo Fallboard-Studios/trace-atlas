@@ -153,7 +153,7 @@ describe('Header', () => {
     Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
   });
 
-  it('renders a master volume slider bound to audioStore.volume, always visible alongside Mute (moved back after Task 11 per Crawford\'s follow-up call — still also present at Settings -> Volume, see SettingsContent.test.tsx)', () => {
+  it('renders a master volume slider bound to audioStore.volume, always visible alongside Mute (moved back after Task 11 per Crawford\'s follow-up call)', () => {
     render(<Header />);
     const slider = screen.getByRole('slider', { name: /volume/i });
     expect(slider.getAttribute('aria-valuenow')).toBe('60');
@@ -220,7 +220,7 @@ describe('Header', () => {
     expect((screen.getByRole('switch', { name: /mute/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('renders no nav RadioButton — navigation now lives entirely in NavTree (docs/tasks/NAV_LAYOUT_REWRITE.md Task 10)', () => {
+  it('renders no nav RadioButton — navigation lives entirely in NavPanel (docs/specs/LAYOUT_REWORK.md §1.2)', () => {
     render(<Header />);
     expect(screen.queryByRole('radio')).toBeNull();
     expect(screen.queryByRole('radiogroup')).toBeNull();
