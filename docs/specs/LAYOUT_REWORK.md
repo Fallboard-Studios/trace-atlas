@@ -10,7 +10,7 @@
 >   `npm run perf:idle --throttle 1 --only none --port 9301 --url <pinned ?session= link>` (PERFORMANCE.md)
 > - Dev server: `npm run dev`
 
-**Status: built** on `feature/layout-rework`, 2026-10-09 to 2026-10-10 (Task 30, Crawford's screenshot check, still owed). Roadmap [Phase 45](../todo/roadmap.md#45-layout-rework-shell-nav-section-tabs-roster-off-screen). Intent:
+**Status: built** on `feature/layout-rework`, 2026-10-09 to 2026-10-11 (Task 30, Crawford's screenshot check, signed off 2026-10-11). Roadmap [Phase 45](../todo/roadmap.md#45-layout-rework-shell-nav-section-tabs-roster-off-screen). Intent:
 [docs/intent/layout-rework.md](../intent/layout-rework.md) (confirmed 2026-10-09; where the intent and
 this spec differ, the intent wins). Sketch: [docs/sketches/layout-rework.html](../sketches/layout-rework.html)
 — every view tab approved; its header comment is the running record (D1–D4, Q1–Q11 with verdicts, the

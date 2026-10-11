@@ -4,7 +4,7 @@ import { TextInput } from '@/components/ui/controls/TextInput';
 import { Button } from '@/components/ui/controls/Button';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
-import { selectEntity } from '@/components/panels/screen/nav/navActions';
+import { selectBranch } from '@/components/panels/screen/nav/navActions';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getScreenViewportDomNode } from '@/utils/helpers';
 import { generateCompanyName } from '@/systems/spawnSystem';
@@ -181,9 +181,9 @@ export function CompanyRenameDeleteForm() {
   const handleConfirmDelete = () => {
     if (!selectedCompany) return;
     useLocaleStore.getState().removeCompany(localeId, selectedCompany.id);
-    // The All form, not the roster: the screen this was on is the company's, and the company screen's
-    // other form is the whole fleet's (docs/tasks/LAYOUT_REWORK.md Task 23).
-    selectEntity('all');
+    // Back to the Companies page (the roster board), where the company's row is now gone (Crawford,
+    // 2026-10-11). The company's own screen no longer has anything to show.
+    selectBranch('companies');
     setConfirmOpen(false);
   };
 

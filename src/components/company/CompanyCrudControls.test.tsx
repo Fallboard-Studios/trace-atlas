@@ -469,9 +469,10 @@ describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — 
         expect(screen.queryByRole('alertdialog')).toBeNull();
       });
 
-      it('after confirming, the selection falls back to All (not an empty/None state)', () => {
+      it('after confirming, no company is selected and you stay on Companies (Crawford, 2026-10-11)', () => {
         useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
         useUIStore.getState().selectCompany('c1');
+        useUIStore.getState().setActiveHubTile('companies');
         render(<CompanyRenameDeleteForm />);
 
         act(() => fireEvent.click(screen.getByRole('button', { name: /^delete\b/i })));
@@ -479,6 +480,7 @@ describe('CompanyRenameDeleteForm (docs/tasks/NAV_LAYOUT_REWRITE.md Task 20 — 
 
         expect(useUIStore.getState().allRobotsSelected).toBe(true);
         expect(useUIStore.getState().selectedCompanyId).toBeNull();
+        expect(useUIStore.getState().activeHubTile).toBe('companies');
       });
     });
   });

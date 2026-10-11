@@ -2411,7 +2411,8 @@ colour swatch, name, count).
 - [ ] The column shows "4 of 12 probes", four tiles, the note with "4", Rename and Delete; the All
       form shows twelve tiles and no Rename / Delete.
 - [ ] Rename and Delete behave as `CompanyCrudControls.test.tsx` asserts (tests pass unmodified);
-      deleting selects All and the screen becomes the All form.
+      deleting selects All and the screen becomes the All form. **Amended 2026-10-11 (Crawford): deleting a
+      company leaves you on Companies, on the roster board** — see the Task 23 as-built note.
 
 **Verification:**
 - [ ] `npx vitest run src/components/panels/screen/screens/CompanyScreen.test.tsx src/components/company` passes.
@@ -2444,9 +2445,11 @@ writes the section fields") went with the accordions. Departures and calls beyon
   to edit — the robot screen is unchanged.
 - **Deleting a company calls `selectEntity('all')`**, not `selectAllRobots()`: with a company's screen
   and the All form as one screen, "select All" is the nav's own action (it also sets `allProbesSelected`
-  and opens Probes on All Probes). `CompanyCrudControls.test.tsx` passes unmodified.
-  `CompanyRenameDeleteForm` gained `showSummary` (default true); the screen passes false, since the name
-  box is the summary.
+  and opens Probes on All Probes). **Amended 2026-10-11 (Crawford: "deleting a company should leave you on
+  companies"):** it now calls `selectBranch('companies')` instead, which clears both ids and opens the
+  Companies page, where ConsolePanel shows the roster board; `CompanyCrudControls.test.tsx` and
+  `CompanyScreen.test.tsx` assert it. `CompanyRenameDeleteForm` once gained a `showSummary` prop (the screen passed
+  false, since the name box is the summary); the code review removed it, as the summary was never rendered.
 - **The delete confirm is rebuilt** (Task 17's deferral; not in this task's text): it portals into
   `#screen-viewport` (in place with no screen), sets its own text colour and gives focus back to the
   Delete button, exactly as the Settings confirms do; five tests added to `CompanyCrudControls.test.tsx`,
@@ -2698,11 +2701,12 @@ phone shell at 320 px, each read against the intent's problem statement; no list
 becomes a follow-up task here before Phase 6.
 
 **Acceptance criteria:**
-- [ ] Every complaint in the problem statement is gone in the retaken set, or a follow-up task is
+- [x] Every complaint in the problem statement is gone in the retaken set, or a follow-up task is
       written for it.
 
 **Verification:**
-- [ ] Crawford's sign-off, recorded in this file.
+- [x] Crawford's sign-off, recorded in this file: **Crawford called Task 30 done on 2026-10-11** ("we can
+      call task 30 done"), after the code-review fixes landed. No follow-up task was written.
 
 **Dependencies:** Task 29.
 

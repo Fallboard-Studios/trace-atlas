@@ -340,19 +340,19 @@ describe('CompanyScreen', () => {
   });
 
   describe('deleting the company', () => {
-    it('lands on the All form: the company is gone, All is selected, and the screen is the All form', () => {
+    // Crawford, 2026-10-11: deleting a company leaves you on Companies (ConsolePanel then shows the roster
+    // board, since no company is selected), not on Probes → All Probes.
+    it('leaves you on the Companies page: the company is gone, nothing is selected, and the tile stays Companies', () => {
       openCompany(RUST.id);
-      const { container } = render(<CompanyScreen />);
+      render(<CompanyScreen />);
 
       fireEvent.click(screen.getByRole('button', { name: /^delete\b/i }));
       act(() => fireEvent.click(screen.getAllByRole('button', { name: /^delete$/i })[0]));
 
       expect(useLocaleStore.getState().getCompanyById(localeId, RUST.id)).toBeUndefined();
       expect(useUIStore.getState().selectedCompanyId).toBeNull();
-      expect(useUIStore.getState().allProbesSelected).toBe(true);
-      expect(screen.getByRole('heading', { name: human('probe.all') })).toBeTruthy();
-      expect(tiles(container)).toHaveLength(12);
-      expect(screen.queryByRole('button', { name: /^rename\b/i })).toBeNull();
+      expect(useUIStore.getState().allProbesSelected).toBe(false);
+      expect(useUIStore.getState().activeHubTile).toBe('companies');
     });
   });
 

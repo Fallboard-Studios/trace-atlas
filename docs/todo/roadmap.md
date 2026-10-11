@@ -965,10 +965,9 @@ Intent [docs/intent/layout-rework.md](../intent/layout-rework.md) (confirmed via
 is the record of the design, no longer the plan). Docs: [UI_SHELL.md](../UI_SHELL.md),
 [COMPONENT_LIBRARY.md](../COMPONENT_LIBRARY.md), [COMPANIES.md](../COMPANIES.md),
 [SESSION_STORAGE.md](../SESSION_STORAGE.md). **Built on `feature/layout-rework`, 2026-10-09 to
-2026-10-10 (Tasks 1–29, 31, 32); not yet merged.** The idle-paint gate (Task 29) passed after one fix —
-docs/PERFORMANCE.md, "Layout Rework — the Task 29 perf gate". **Still owed: Task 30** — Crawford's
-screenshot check of the original twelve desktop and six phone screens plus the phone at 320 px, and the
-Pixel listen — then the PR.
+2026-10-11 (Tasks 1–32); not yet merged.** The idle-paint gate (Task 29) passed after one fix —
+docs/PERFORMANCE.md, "Layout Rework — the Task 29 perf gate". Task 30 (Crawford's screenshot check) was
+signed off on 2026-10-11. **Still owed: the Pixel listen** — then the PR.
 
 ### About
 
@@ -1022,7 +1021,6 @@ payload, the share link and the audio path are untouched.
 
 ### Open
 
-- **Task 30**, as above, and any follow-up it finds.
 - The meta box's selection lines were deleted after the code review (2026-10-11): every selection opens a branch
   and `goHome` clears both ids, so the Deck never has a selection. The halo stays; bring the lines back from git
   history (commit before this note) if a surface ever shows them.
