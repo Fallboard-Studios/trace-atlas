@@ -2447,6 +2447,10 @@ writes the section fields") went with the accordions. Departures and calls beyon
   and opens Probes on All Probes). `CompanyCrudControls.test.tsx` passes unmodified.
   `CompanyRenameDeleteForm` gained `showSummary` (default true); the screen passes false, since the name
   box is the summary.
+- **The delete confirm is rebuilt** (Task 17's deferral; not in this task's text): it portals into
+  `#screen-viewport` (in place with no screen), sets its own text colour and gives focus back to the
+  Delete button, exactly as the Settings confirms do; five tests added to `CompanyCrudControls.test.tsx`,
+  none of the existing ones touched. Its body is still plain Radix buttons, not the Button primitive.
 - **The breadcrumb names a section for All Probes and a company**, Source when none is stored, as it
   does for a robot (`navActions.ts`; its comment said "until Task 23"). Two tests changed with it.
 - **The intros stay** (open for Crawford): `company.profile` and `probe.all` are collapsible expanders

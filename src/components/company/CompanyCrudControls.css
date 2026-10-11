@@ -58,6 +58,9 @@
   padding: 1.25rem;
   max-width: 360px;
   background: var(--color-surface);
+  /* Its own text colour: inside the screen it would inherit a dark one and the title would vanish
+     (found in Chrome for the Settings confirms once they portalled into #screen-viewport, Task 17). */
+  color: var(--color-text-primary-fixed);
   border: 1px solid var(--color-border);
   border-radius: 8px;
 }

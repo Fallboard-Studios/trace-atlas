@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { TextInput } from '@/components/ui/controls/TextInput';
 import { Button } from '@/components/ui/controls/Button';
@@ -6,6 +6,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { selectEntity } from '@/components/panels/screen/nav/navActions';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { getScreenViewportDomNode } from '@/utils/helpers';
 import { generateCompanyName } from '@/systems/spawnSystem';
 import { COMPANY_NAME_INPUT_SCHEMA, CREATE_COMPANY_SCHEMA, RENAME_COMPANY_SCHEMA, DELETE_COMPANY_SCHEMA } from '@/data/companyConfig';
 import { MAX_COMPANIES } from '@/constants';
@@ -165,6 +166,15 @@ export function CompanyRenameDeleteForm({ showSummary = true }: { showSummary?: 
 
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  // A modal Radix dialog gives focus back only to its own Trigger, and the Delete button is not one, so
+  // the button that opened it is kept and focused again on close (SessionsPanel's confirm does the same).
+  const openerRef = useRef<HTMLElement | null>(null);
+  const openConfirm = () => {
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setConfirmOpen(true);
+  };
+  const returnFocus = () => openerRef.current?.focus();
+
   // selectedCompany, not selectedCompanyId — uiStore isn't reset by a locale reseed, so
   // selectedCompanyId can point at a company that no longer exists even when the id itself is
   // non-null. Gating on the resolved company object covers both "nothing selected" and "selection
@@ -199,6 +209,29 @@ export function CompanyRenameDeleteForm({ showSummary = true }: { showSummary?: 
     setConfirmOpen(false);
   };
 
+  // Into the screen, never <body> (the UI Shell guardrail; HelpPopover's way); in place when there is no
+  // screen (a component test).
+  const screenNode = confirmOpen ? getScreenViewportDomNode() : null;
+  const deleteConfirm = (
+    <>
+      <AlertDialog.Overlay className="company-delete-confirm__overlay" />
+      <AlertDialog.Content className="company-delete-confirm__content" onCloseAutoFocus={returnFocus}>
+        <AlertDialog.Title className="company-delete-confirm__title">
+          {fill('company.delete.confirmTitle', { company: selectedCompany?.name ?? '' })}
+        </AlertDialog.Title>
+        <AlertDialog.Description className="company-delete-confirm__description">
+          {CONTENT['company.delete.confirmBody'].human}
+        </AlertDialog.Description>
+        <div className="company-delete-confirm__actions">
+          <AlertDialog.Cancel className="company-delete-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
+          <AlertDialog.Action className="company-delete-confirm__confirm" onClick={handleConfirmDelete}>
+            {CONTENT['company.delete'].human}
+          </AlertDialog.Action>
+        </div>
+      </AlertDialog.Content>
+    </>
+  );
+
   return (
     <div className="company-rename-delete-form">
       {showSummary && selectedCompany && <CompanySummary company={selectedCompany} />}
@@ -217,26 +250,10 @@ export function CompanyRenameDeleteForm({ showSummary = true }: { showSummary?: 
         />
       </div>
 
-      <Button schema={deleteSchema} onClick={() => setConfirmOpen(true)} disabled={!hasSelectedCompany} />
+      <Button schema={deleteSchema} onClick={openConfirm} disabled={!hasSelectedCompany} />
 
       <AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialog.Portal>
-          <AlertDialog.Overlay className="company-delete-confirm__overlay" />
-          <AlertDialog.Content className="company-delete-confirm__content">
-            <AlertDialog.Title className="company-delete-confirm__title">
-              {fill('company.delete.confirmTitle', { company: selectedCompany?.name ?? '' })}
-            </AlertDialog.Title>
-            <AlertDialog.Description className="company-delete-confirm__description">
-              {CONTENT['company.delete.confirmBody'].human}
-            </AlertDialog.Description>
-            <div className="company-delete-confirm__actions">
-              <AlertDialog.Cancel className="company-delete-confirm__cancel">{CONTENT['ui.cancel'].human}</AlertDialog.Cancel>
-              <AlertDialog.Action className="company-delete-confirm__confirm" onClick={handleConfirmDelete}>
-                {CONTENT['company.delete'].human}
-              </AlertDialog.Action>
-            </div>
-          </AlertDialog.Content>
-        </AlertDialog.Portal>
+        {screenNode ? <AlertDialog.Portal container={screenNode}>{deleteConfirm}</AlertDialog.Portal> : deleteConfirm}
       </AlertDialog.Root>
     </div>
   );

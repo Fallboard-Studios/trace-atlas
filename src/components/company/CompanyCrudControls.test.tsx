@@ -1,10 +1,14 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 import { CompanyCreateForm, CompanyRenameDeleteForm } from './CompanyCrudControls';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { MAX_COMPANIES } from '@/constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '@/constants/accentColors';
 import { ADJECTIVES, COMPANY_NOUNS } from '@/systems/spawnSystem';
@@ -513,5 +517,68 @@ describe('CompanyCrudControls reads its copy from src/content (docs/specs/CONTEN
     expect(source).not.toMatch(/aria-label="[A-Za-z]/);
     expect(source).not.toMatch(/>\s*(Cancel|Link copied|Unable to copy)\s*</);
     expect(source).not.toMatch(/`(Saved|Collapse|Expand) $\{|failed to save\.|'CORRUPT NAME'|'NO TEMP'|Probes active\.|Viewing \{/);
+  });
+});
+
+// docs/tasks/LAYOUT_REWORK.md Task 23 (Task 17's deferral): the delete confirm used to portal to <body>,
+// against the UI Shell guardrail. It goes into #screen-viewport like the Settings confirms, sets its own
+// text colour there, and gives focus back to the button that opened it.
+describe('CompanyRenameDeleteForm — the delete confirm stays inside the screen (the UI Shell guardrail)', () => {
+  const localeId = getActiveLocaleId();
+
+  beforeEach(() => {
+    useLocaleStore.getState().setLocaleData(localeId, {
+      robots: [], companies: [{ id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] }],
+    } as unknown as Partial<Locale>);
+    useUIStore.getState().selectCompany('c1');
+  });
+
+  afterEach(() => {
+    document.getElementById('screen-viewport')?.remove();
+  });
+
+  const openDelete = () => fireEvent.click(screen.getByRole('button', { name: /^delete\b/i }));
+
+  it('portals into #screen-viewport when the screen exists', () => {
+    const viewport = document.createElement('div');
+    viewport.id = 'screen-viewport';
+    document.body.appendChild(viewport);
+    render(<CompanyRenameDeleteForm />);
+    openDelete();
+    expect(viewport.contains(screen.getByRole('alertdialog'))).toBe(true);
+  });
+
+  it('with no screen it opens in place, never as a child of <body>', () => {
+    const { container } = render(<CompanyRenameDeleteForm />);
+    openDelete();
+    expect(container.contains(screen.getByRole('alertdialog'))).toBe(true);
+  });
+
+  it('CSS: the dialog sets its own text colour rather than inheriting the screen\'s', () => {
+    const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'CompanyCrudControls.css'), 'utf-8');
+    expect(getCssRuleBody(css, '.company-delete-confirm__content')).toContain('color: var(--color-text-primary-fixed);');
+  });
+
+  it('Escape gives focus back to the Delete button that opened it', async () => {
+    render(<CompanyRenameDeleteForm />);
+    const del = screen.getByRole('button', { name: /^delete\b/i });
+    act(() => del.focus());
+    fireEvent.click(del);
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' });
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(document.activeElement).toBe(del);
+  });
+
+  it('Cancel gives focus back too', async () => {
+    render(<CompanyRenameDeleteForm />);
+    const del = screen.getByRole('button', { name: /^delete\b/i });
+    act(() => del.focus());
+    fireEvent.click(del);
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    expect(document.activeElement).toBe(del);
   });
 });
