@@ -38,7 +38,7 @@ vi.mock('@/components/actors/BubbleLayer', () => ({
 
 const initializeLocaleMock = vi.fn();
 vi.mock('@/systems/worldTransition', () => ({
-  initializeLocale: (localeId: string) => initializeLocaleMock(localeId),
+  initializeLocale: (localeId: string, options?: { startSystems?: boolean }) => initializeLocaleMock(localeId, options),
 }));
 
 const stopRobotLifecycleMock = vi.fn();
@@ -71,6 +71,7 @@ import { OceanScene } from './OceanScene';
 import { Robot } from '@/components/robot/Robot';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '@/stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
+import { useUIStore } from '@/stores/uiStore';
 import { RECIPES } from '@/systems/districtRecipes';
 import { getStations } from '@/systems/stations';
 import { ActorType } from '@/types/Actor';
@@ -103,7 +104,8 @@ describe('OceanScene', () => {
   beforeEach(() => {
     useAttenuationStyleStore.setState({ attenuationStyles: [{ ...DEFAULT_PELAGOS }], currentAttenuationStyleId: DEFAULT_PELAGOS.id });
     useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [], actors: [] } } });
-    initializeLocaleMock.mockClear();
+    initializeLocaleMock.mockReset();
+    useUIStore.setState({ isPoweredOn: false });
     stopRobotLifecycleMock.mockClear();
     getSessionSharePayloadMock.mockReset().mockReturnValue(null);
     consumeSessionSharePayloadMock.mockReset().mockReturnValue(null);
@@ -156,8 +158,50 @@ describe('OceanScene', () => {
   it('calls initializeLocale with the active locale id on mount, exactly once', () => {
     render(<OceanScene />);
     expect(initializeLocaleMock).toHaveBeenCalledTimes(1);
-    expect(initializeLocaleMock).toHaveBeenCalledWith(DEFAULT_LOCALE_ID);
+    expect(initializeLocaleMock).toHaveBeenCalledWith(DEFAULT_LOCALE_ID, expect.anything());
     cleanup();
+  });
+
+  // Task 26 (docs/tasks/LAYOUT_REWORK.md): WorldView mounts in both power states, so the scene builds the
+  // world on mount but only starts its systems when the tablet is already on; powerOnSequence starts them
+  // for a world built while off.
+  describe('the mount builds the world in either power state', () => {
+    it('passes startSystems: false while powered off', () => {
+      useUIStore.setState({ isPoweredOn: false });
+      render(<OceanScene />);
+      expect(initializeLocaleMock).toHaveBeenCalledTimes(1);
+      expect(initializeLocaleMock).toHaveBeenCalledWith(DEFAULT_LOCALE_ID, { startSystems: false });
+      cleanup();
+    });
+
+    it('passes startSystems: true while powered on', () => {
+      useUIStore.setState({ isPoweredOn: true });
+      render(<OceanScene />);
+      expect(initializeLocaleMock).toHaveBeenCalledTimes(1);
+      expect(initializeLocaleMock).toHaveBeenCalledWith(DEFAULT_LOCALE_ID, { startSystems: true });
+      cleanup();
+    });
+
+    it('does not rebuild or restart when the power state flips after mount (powerOnSequence owns that)', () => {
+      render(<OceanScene />);
+      act(() => useUIStore.setState({ isPoweredOn: true }));
+      act(() => useUIStore.setState({ isPoweredOn: false }));
+      expect(initializeLocaleMock).toHaveBeenCalledTimes(1);
+      expect(stopRobotLifecycleMock).not.toHaveBeenCalled();
+      cleanup();
+    });
+
+    it('still applies a ?session= payload once on a powered-off mount, after the world is built', () => {
+      const payload = { attenuationStyleName: 'x' };
+      consumeSessionSharePayloadMock.mockReturnValueOnce(payload);
+      const callOrder: string[] = [];
+      initializeLocaleMock.mockImplementation(() => callOrder.push('initializeLocale'));
+      applySessionPayloadMock.mockImplementation(() => callOrder.push('applySessionPayload'));
+      render(<OceanScene />);
+      expect(callOrder).toEqual(['initializeLocale', 'applySessionPayload']);
+      expect(applySessionPayloadMock).toHaveBeenCalledWith(payload, { skipLocaleRebuild: true });
+      cleanup();
+    });
   });
 
   it('calls stopRobotLifecycle on unmount', () => {

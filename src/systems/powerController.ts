@@ -5,10 +5,8 @@ import { reRegisterAllRobotsAudio } from './spawnSystem';
 import { stopRobotLifecycle } from './robotSystems';
 import { stopWorkLoop } from './workLoop';
 import { useUIStore } from '../stores/uiStore';
-import { useLocaleStore } from '../stores/localeStore';
+import { startLocaleSystems } from './worldTransition';
 import { getActiveLocaleId } from '../utils/localeHelpers';
-import { swallow } from '../utils/helpers';
-import { DEV_TUNING } from '../constants';
 
 /**
  * powerController centralizes power on/off side effects so components stay thin.
@@ -31,16 +29,13 @@ export const powerController = {
     // it's "already running" and skip resubscribing, permanently killing the
     // tick after this power cycle. No robots are removed anymore — every robot
     // survives a power cycle now (docking replaces the old persists model).
+    // The world itself stays too (Task 26, docs/specs/LAYOUT_REWORK.md §1.9): actors are no longer
+    // emptied, because the powered-off screen's backdrop is this same still world.
     stopRobotLifecycle();
-    // The work loop's timelines and site state go too; initializeLocale restarts it on power-on
-    // and adopts the remounted robots (Phase 43, spec §1.1).
+    // The work loop's timelines and site state go too; powerOnSequence restarts it on power-on
+    // (Phase 43, spec §1.1).
     stopWorkLoop();
     AudioEngine.killAll();
-    try {
-      useLocaleStore.getState().setLocaleData(getActiveLocaleId(), { actors: [] });
-    } catch (e) {
-      if (DEV_TUNING) swallow(e, 'powerController.setActors');
-    }
     useUIStore.getState().setPowerOff();
   },
 
@@ -57,9 +52,13 @@ export const powerController = {
     useUIStore.getState().setPowerOff();
   },
 
-  // High-level power-on sequence that mounts UI in caller when appropriate.
+  // High-level power-on sequence. The world was already built (WorldView mounts in both power states
+  // and its mount effect builds it with its systems held back), so this is where it comes alive:
+  // audio first, every robot's voice registered by start(), then the lifecycle tick, work loop and
+  // swells for the active locale. Last, the power flag flips, which reveals the chrome.
   async powerOnSequence() {
     await this.start();
+    startLocaleSystems(getActiveLocaleId());
     useUIStore.getState().setPowerOn();
   }
 };

@@ -25,7 +25,9 @@ function ScreenViewport({ isPoweredOn }: ScreenViewportProps) {
 
       <div className="screen-content">
         {isPoweredOn && <Header />}
-        {isPoweredOn && <WorldView />}
+        {/* Mounted in both power states (docs/specs/LAYOUT_REWORK.md §1.9): the world is built before
+            power-on and is the off screen's backdrop. Its systems start on the rocker, not here. */}
+        <WorldView />
         {isPoweredOn && <NavPanel />}
         {isPoweredOn && <ContentPane />}
         {isPoweredOn && <NavBreadcrumb />}

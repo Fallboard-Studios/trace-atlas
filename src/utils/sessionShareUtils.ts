@@ -397,10 +397,10 @@ let sessionShareConsumed = false;
 /** Returns the decoded share payload the FIRST time it's called, then null on every subsequent
  *  call for the rest of the page load. OceanScene.tsx's mount effect uses this (not
  *  getSessionSharePayload) so its applySessionPayload side effect (re-registering every robot's
- *  melody, reapplying company membership) fires exactly once per page load -- not again on every
- *  power cycle, which fully unmounts/remounts OceanScene without a page reload (ScreenViewport.tsx:
- *  `{isPoweredOn && <WorldView />}`), and would otherwise re-run it on every power-on for as long
- *  as `?session=` stays in the URL (durable/bookmarkable by design -- it's never cleared). */
+ *  melody, reapplying company membership) fires exactly once per page load -- not again on any
+ *  remount of OceanScene without a page reload (a power cycle no longer remounts it: ScreenViewport
+ *  renders WorldView in both power states), which would otherwise re-run it for as long as
+ *  `?session=` stays in the URL (durable/bookmarkable by design -- it's never cleared). */
 export function consumeSessionSharePayload(): SessionPayload | null {
   if (sessionShareConsumed) return null;
   sessionShareConsumed = true;

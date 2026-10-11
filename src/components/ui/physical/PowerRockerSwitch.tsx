@@ -163,8 +163,8 @@ export function PowerRockerSwitch() {
   // Power On
   // ----------------------------------------
   async function handlePowerOn() {
-    // Centralized power startup — powerController handles audio/system init,
-    // then flips isPoweredOn (which mounts Header/WorldView/Console).
+    // Centralized power startup — powerController handles audio/system init (including starting the
+    // already-built world's systems), then flips isPoweredOn (which mounts Header/Console).
     await powerController.powerOnSequence();
   }
 

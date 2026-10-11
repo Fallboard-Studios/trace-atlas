@@ -45,10 +45,22 @@ describe('ScreenViewport', () => {
     expect(children.map((child) => child.getAttribute('data-testid'))).toEqual(COMPOSITION);
   });
 
-  it('renders none of them when powered off', () => {
+  // Task 26 (spec §1.9): the world is built before power-on and is the off screen's backdrop, so
+  // WorldView is the one child that renders in both power states; the chrome waits for power.
+  it('renders only WorldView when powered off', () => {
     const { container } = render(<ScreenViewport isPoweredOn={false} />);
-    for (const id of COMPOSITION) expect(screen.queryByTestId(id)).toBeNull();
-    expect(container.querySelector('.screen-content')!.children).toHaveLength(0);
+    for (const id of COMPOSITION.filter((id) => id !== 'world-view-stub')) expect(screen.queryByTestId(id)).toBeNull();
+    const children = Array.from(container.querySelector('.screen-content')!.children);
+    expect(children.map((child) => child.getAttribute('data-testid'))).toEqual(['world-view-stub']);
+  });
+
+  it('keeps the same WorldView instance across a power cycle: it never unmounts, so it never rebuilds the world', () => {
+    const { container, rerender } = render(<ScreenViewport isPoweredOn={false} />);
+    const worldBefore = container.querySelector('[data-testid="world-view-stub"]');
+    rerender(<ScreenViewport isPoweredOn={true} />);
+    expect(container.querySelector('[data-testid="world-view-stub"]')).toBe(worldBefore);
+    rerender(<ScreenViewport isPoweredOn={false} />);
+    expect(container.querySelector('[data-testid="world-view-stub"]')).toBe(worldBefore);
   });
 
   // The shell reaches CSS here, from the one switch (useShell), so a stylesheet never needs a media query
