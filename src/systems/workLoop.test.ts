@@ -4,7 +4,7 @@
 import gsap from 'gsap';
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach, type MockInstance } from 'vitest';
 
-// Task 10: only the call out to the deck camera is tested here; its own idle/target/tween
+// Deck-camera follow Task 3: the camera is mocked only to prove the work loop never calls it; its own
 // behaviour has its own suite (deckCamera.test.ts).
 vi.mock('@/animation/deckCamera', () => ({ cutDeckCameraTo: vi.fn() }));
 
@@ -37,7 +37,7 @@ import {
 import type { Actor } from '../types/Actor';
 import type { DockingState, JobType, Robot } from '../types/Robot';
 import type { Vec2 } from '../types/Vec2';
-import { cutDeckCameraTo } from '@/animation/deckCamera';
+import * as deckCameraModule from '@/animation/deckCamera';
 
 // vitest.setup.ts mocks gsap and fires every timeline's onComplete on a microtask, which would
 // spin the wait → next → wait cycle forever. Real GSAP with the global timeline paused: nothing
@@ -1005,85 +1005,39 @@ describe('workLoop — stations, recall and mounts (Phase 43 Task 23, spec §1.6
     expect(get('r1').activity).toBe('returning'); // control: its own locale reacts
   });
 
-  // Task 10 (spec §1.3, assumption 7): 'active' is the only lifecycle change that cuts the deck
-  // camera, and only while this robot's own locale has the loop running.
-  describe('onLifecycleChange cuts the deck camera on \'active\' (Task 10)', () => {
+  // Deck-camera follow, Task 3: the work loop no longer talks to the camera at all. Every export of
+  // the (mocked) module is a spy; none may be called by any lifecycle change.
+  describe('lifecycle changes leave the deck camera alone (deck-camera follow, Task 3)', () => {
+    const cameraSpies = () => Object.values(deckCameraModule).filter((v) => vi.isMockFunction(v));
+
     beforeEach(() => {
-      vi.mocked(cutDeckCameraTo).mockClear();
+      cameraSpies().forEach((spy) => spy.mockClear());
     });
 
-    it('calls cutDeckCameraTo(id) once for \'active\'; never for \'recalled\' or \'docked\'', () => {
+    it('mocks at least one camera export, so the guard below can fail', () => {
+      expect(cameraSpies().length).toBeGreaterThan(0);
+    });
+
+    it.each(['active', 'recalled', 'docked'] as const)('%s calls nothing on the camera, with a loop running and a station robot', (to) => {
       const { a } = sitesForSwitch();
       registerLocale([a], []);
       const s = stations()[0];
-      setRobots([robot('r1', s.port, { activity: 'charging', stationId: s.id })]);
-      startWorkLoop(LOCALE, { now, backHosts: false });
-
-      onLifecycleChange(LOCALE, 'r1', 'active');
-      expect(cutDeckCameraTo).toHaveBeenCalledTimes(1);
-      expect(cutDeckCameraTo).toHaveBeenCalledWith('r1');
-
-      onLifecycleChange(LOCALE, 'r1', 'recalled');
-      onLifecycleChange(LOCALE, 'r1', 'docked');
-      expect(cutDeckCameraTo).toHaveBeenCalledTimes(1);
+      setRobots([
+        robot('r1', s.port, { activity: 'charging', stationId: s.id }),
+        robot('r2', { x: 400, y: 400 }, { activity: 'working' }), // a working robot: the old cut preferred it
+      ]);
+      startWorkLoop(LOCALE, { now, backHosts: false, rand: () => 0 });
+      onLifecycleChange(LOCALE, 'r1', to);
+      cameraSpies().forEach((spy) => expect(spy).not.toHaveBeenCalled());
     });
 
-    it('does not call it with no loop running, or for another locale', () => {
+    it('also stays silent with no loop running, or for another locale', () => {
       const { a } = sitesForSwitch();
       registerLocale([a], [robot('r1', siteOf(a).park, { activity: 'waiting' })]);
-      onLifecycleChange(LOCALE, 'r1', 'active'); // no loop running yet
+      onLifecycleChange(LOCALE, 'r1', 'active');
       startWorkLoop(LOCALE, { now, backHosts: false });
       onLifecycleChange('elsewhere', 'r1', 'active');
-      expect(cutDeckCameraTo).not.toHaveBeenCalled();
-    });
-
-    // Post-ship follow-up: a station-departure cut shows an empty port, so prefer a robot already
-    // working a site. chooseDeckCameraCutTarget has its own pure-function suite
-    // (deckCameraTarget.test.ts); these cover only the wiring — the right inputs reach it.
-    describe('prefers a working robot over the station (deckCameraTarget wiring)', () => {
-      it('with no robot working, the station still wins regardless of the draw', () => {
-        const { a } = sitesForSwitch();
-        registerLocale([a], []);
-        const s = stations()[0];
-        setRobots([
-          robot('r1', s.port, { activity: 'charging', stationId: s.id }),
-          robot('r2', { x: 400, y: 400 }, { activity: 'waiting' }),
-          robot('r3', { x: 500, y: 500 }, { activity: 'transit' }),
-        ]);
-        startWorkLoop(LOCALE, { now, backHosts: false, rand: () => 0 }); // would pick a worker if any existed
-
-        onLifecycleChange(LOCALE, 'r1', 'active');
-        expect(cutDeckCameraTo).toHaveBeenCalledWith('r1');
-      });
-
-      it('with robots working, the station draw losing sends the camera to one of them, not the station', () => {
-        const { a } = sitesForSwitch();
-        registerLocale([a], []);
-        const s = stations()[0];
-        setRobots([
-          robot('r1', s.port, { activity: 'charging', stationId: s.id }),
-          robot('r2', { x: 400, y: 400 }, { activity: 'working' }),
-        ]);
-        const draws = [0.99, 0]; // station draw loses (>= chance), then picks index 0
-        startWorkLoop(LOCALE, { now, backHosts: false, rand: () => draws.shift()! });
-
-        onLifecycleChange(LOCALE, 'r1', 'active');
-        expect(cutDeckCameraTo).toHaveBeenCalledWith('r2');
-      });
-
-      it('with robots working, the station draw winning still cuts to the station', () => {
-        const { a } = sitesForSwitch();
-        registerLocale([a], []);
-        const s = stations()[0];
-        setRobots([
-          robot('r1', s.port, { activity: 'charging', stationId: s.id }),
-          robot('r2', { x: 400, y: 400 }, { activity: 'working' }),
-        ]);
-        startWorkLoop(LOCALE, { now, backHosts: false, rand: () => 0 }); // station draw wins (< chance)
-
-        onLifecycleChange(LOCALE, 'r1', 'active');
-        expect(cutDeckCameraTo).toHaveBeenCalledWith('r1');
-      });
+      cameraSpies().forEach((spy) => expect(spy).not.toHaveBeenCalled());
     });
   });
 
