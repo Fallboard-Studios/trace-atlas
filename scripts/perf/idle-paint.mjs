@@ -12,6 +12,11 @@
  * Needs Node 22+ (built-in WebSocket) and Chrome/Edge. Serve a production build first (`npm run build && npx vite preview --port 4173`).
  *
  *   node scripts/perf/idle-paint.mjs [--throttle 4] [--window 6000] [--url http://localhost:4173/trace-atlas/] [--only a,b,c]
+ *                                    [--stay-off] [--steps "Fleet Params,Spectral"]
+ *
+ * `--stay-off` measures the powered-off screen (layout rework, roadmap Phase 45): no power-on click, so the window is the still
+ * world behind the off screen. `--steps` clicks each named button in turn after power-on (first button whose aria-label or text
+ * contains the name, case-insensitive) to measure a content screen instead of the Deck.
  */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
@@ -29,6 +34,8 @@ const { values: opts } = parseArgs({
     chrome: { type: 'string' },
     port: { type: 'string', default: '9223' },
     attribution: { type: 'boolean', default: true },
+    'stay-off': { type: 'boolean', default: false },
+    steps: { type: 'string' },
     help: { type: 'boolean', default: false },
   },
 });
@@ -165,11 +172,15 @@ async function traceWindow({ send, onEvent }, ms) {
   }
   const paintBy = new Map();
   const runTaskBy = new Map();
+  const longTaskBy = new Map(); // RunTask slices over 50 ms, the long-task threshold
   for (const ev of events) {
     const k = `${ev.pid}:${ev.tid}`;
     if (!rendererMains.has(k) || ev.ph !== 'X' || !ev.dur) continue;
     if (ev.name === 'Paint') paintBy.set(k, (paintBy.get(k) ?? 0) + 1);
-    if (ev.name === 'RunTask') runTaskBy.set(k, (runTaskBy.get(k) ?? 0) + ev.dur / 1000);
+    if (ev.name === 'RunTask') {
+      runTaskBy.set(k, (runTaskBy.get(k) ?? 0) + ev.dur / 1000);
+      if (ev.dur > 50_000) longTaskBy.set(k, (longTaskBy.get(k) ?? 0) + 1);
+    }
   }
   const mainKey = [...rendererMains].sort((a, b) => (paintBy.get(b) ?? 0) - (paintBy.get(a) ?? 0) || (runTaskBy.get(b) ?? 0) - (runTaskBy.get(a) ?? 0))[0] ?? '';
   const mainBusy = runTaskBy.get(mainKey) ?? 0;
@@ -215,6 +226,7 @@ async function traceWindow({ send, onEvent }, ms) {
   const get = (n) => byName.get(n) ?? { count: 0, ms: 0 };
   return {
     'main busy (ms)': Math.round(mainBusy),
+    'long tasks': longTaskBy.get(mainKey) ?? 0,
     frames,
     'Paint n': get('Paint').count,
     'Paint ms': Math.round(get('Paint').ms),
@@ -306,13 +318,39 @@ async function run(cdp) {
   await sleep(1500);
   await send('Emulation.setCPUThrottlingRate', { rate: Number(opts.throttle) });
 
-  await evaluate(`(() => { const b = document.querySelector('button[aria-label="Power on"]'); b.click(); return true; })()`);
-  await sleep(8000); // power-on + spawn settle
+  // A real mouse click: the layout-rework rocker ignores a scripted `.click()`; the older power button took either.
+  const clickAt = async (selector) => {
+    const { x, y } = await evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+    for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) {
+      await send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: type === 'mouseMoved' ? 0 : 1 });
+    }
+  };
+  if (!opts['stay-off']) await clickAt('button[aria-label="Power on"]');
+  await sleep(8000); // power-on + spawn settle (or, with --stay-off, the still world settling)
+  for (const step of (opts.steps ?? '').split(',').map((t) => t.trim()).filter(Boolean)) {
+    const marked = await evaluate(`(() => {
+      const wanted = ${JSON.stringify(step.toLowerCase())};
+      const el = [...document.querySelectorAll('button')].find((b) => (b.getAttribute('aria-label') || b.textContent || '').trim().toLowerCase().includes(wanted));
+      if (!el) return false;
+      el.setAttribute('data-perf-step', '1');
+      return true;
+    })()`);
+    if (!marked) throw new Error(`--steps: no button matching "${step}".`);
+    await clickAt('[data-perf-step="1"]');
+    await evaluate(`document.querySelector('[data-perf-step="1"]')?.removeAttribute('data-perf-step')`);
+    await sleep(1500);
+  }
+  if (opts.steps) {
+    // Which screen did the steps land on? Counts of what it mounted, so two builds can be checked for like-for-like content.
+    const screen = await evaluate(`({ tabs: document.querySelectorAll('[role="tab"]').length, sliders: document.querySelectorAll('[role="slider"]').length,
+      cabinetBoxes: document.querySelectorAll('.sc-cabinet-box').length, heading: (document.querySelector('h1, h2, [role="heading"]')?.textContent ?? '').trim().slice(0, 60) })`);
+    console.log(`Screen after steps: ${JSON.stringify(screen)}`);
+  }
   const robots = await evaluate(`document.querySelectorAll(${JSON.stringify(ROBOT_GROUPS)}).length`);
   const factories = await evaluate(`document.querySelectorAll('[data-factory-type]').length`);
   const bubbles = await evaluate(`document.querySelectorAll(${JSON.stringify(BUBBLES)}).length`);
   const layers = await evaluate(`document.querySelectorAll('.ocean-scene__layer').length`);
-  console.log(`Idle paint localizer — ${opts.url}, ${opts.throttle}x throttle, ${width}px, ${WINDOW_MS} ms windows`);
+  console.log(`Idle paint localizer — ${opts.url}, ${opts.throttle}x throttle, ${width}px, ${WINDOW_MS} ms windows${opts['stay-off'] ? ', powered off' : ''}${opts.steps ? `, after: ${opts.steps}` : ''}`);
   console.log(`Scene: ${robots} robots, ${factories} factories, ${bubbles} circles in the bubble/factory layers, ${layers} scene layers (0 = the pre-17.2.5 single svg)`);
   // Phase 43 J4: element count per scene layer, by name (a layer the build doesn't have reads "absent").
   const perLayer = await evaluate(`(() => Object.fromEntries(${JSON.stringify(SCENE_LAYERS)}.map((name) => {
@@ -361,7 +399,7 @@ async function run(cdp) {
       }
     }
     rows.push({ ablation: ab.name, ...metrics });
-    process.stdout.write(`  ${ab.name}: main busy ${metrics['main busy (ms)']} ms, paint ${metrics['Paint ms']} ms, compositor ${metrics['Compositor::Update ms']} ms\n`);
+    process.stdout.write(`  ${ab.name}: main busy ${metrics['main busy (ms)']} ms, paint ${metrics['Paint ms']} ms, compositor ${metrics['Compositor::Update ms']} ms, Paint n ${metrics['Paint n']}, long tasks ${metrics['long tasks']}\n`);
     if (ab.undo) await evaluate(`(() => { ${ab.undo}; return true; })()`);
   }
   await evaluate(`(() => { document.getElementById('__ablate')?.remove(); return true; })()`);
