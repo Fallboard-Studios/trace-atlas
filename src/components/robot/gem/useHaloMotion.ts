@@ -132,6 +132,9 @@ export function useHaloMotion({ root, robotId, context, halo, dimOpacity, enable
   // opacity writer). Skips its own first run (that's the mount effect's job, above) so a volume
   // or envelope edit never plays a spurious tween from zero on the very first render.
   // ----------------------------------------
+  // Keyed on the dial's values: RobotBody hands over a brand-new object every render, and a tween per
+  // render (0.5 s of attribute writes each) kept every halo writing on every frame while nothing changed.
+  const stopsKey = halo.stops.map((s) => `${s.offset}:${s.opacity}`).join('|');
   const mountedRef = useRef(false);
   useGSAP(
     () => {
@@ -156,7 +159,7 @@ export function useHaloMotion({ root, robotId, context, halo, dimOpacity, enable
       setTimeline(key, tl);
       return () => killTimeline(key);
     },
-    { scope: root, dependencies: [halo, enabled, reducedMotion], revertOnUpdate: true },
+    { scope: root, dependencies: [halo.rx, halo.ry, stopsKey, enabled, reducedMotion], revertOnUpdate: true },
   );
 
   // ----------------------------------------
