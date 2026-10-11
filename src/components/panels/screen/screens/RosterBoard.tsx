@@ -7,6 +7,7 @@ import { Flip } from 'gsap/dist/Flip';
 import { selectEntity } from '../nav/navActions';
 import { useEntityRoster, type RosterEntry } from '../nav/useEntityRoster';
 import { useShell } from '../useShell';
+import { probeCountText } from '../probeCountText';
 import { RosterTile, type RosterMoveHandler } from './RosterTile';
 import { CompanyCreateForm } from '@/components/company/CompanyCrudControls';
 import { Button } from '@/components/ui/controls/Button';
@@ -18,7 +19,7 @@ import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { prefersReducedMotion } from '@/utils/reducedMotion';
 import { rosterRows, type RosterRow } from '@/utils/rosterRows';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
-import { CONTENT, fill, introProps, labels } from '@/content';
+import { CONTENT, introProps, labels } from '@/content';
 import type { ButtonSchema } from '@/types/controls';
 import './RosterBoard.css';
 
@@ -150,8 +151,6 @@ function useRosterGlide(members: readonly MemberEntry[]) {
   return { boardRef, onMove };
 }
 
-const countText = (n: number) => (n === 1 ? CONTENT['probe.roster.count.one'].human : fill('probe.roster.count', { n: String(n) }));
-
 interface RosterRowViewProps {
   row: RosterRow;
   /** The row's company, or undefined for Freelance. */
@@ -182,7 +181,7 @@ function RosterRowView({ row, company, onMove }: RosterRowViewProps) {
             <span className="roster-board__name">{name}</span>
           </CabinetBox>
         )}
-        <span className="roster-board__count">{countText(row.robotIds.length)}</span>
+        <span className="roster-board__count">{probeCountText(row.robotIds.length)}</span>
       </div>
       <ul className="roster-board__tiles">
         {row.robotIds.map((id) => <RosterTile key={id} robotId={id} onMove={onMove} />)}

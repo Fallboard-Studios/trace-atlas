@@ -1,4 +1,7 @@
+import { useState } from 'react';
 import { useShell } from '../useShell';
+import { SelectionLine } from './SelectionLines';
+import { useSelectionLines, type SelectionLineRef } from './useSelectionLines';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
@@ -77,18 +80,48 @@ export function WorldLine() {
  * Deck, in the corner the content surface and the breadcrumb take on the other views, carrying the
  * world line. It replaces NavStatusBlock, the panel's old status readout. Desk shell, Deck only: on a
  * branch the breadcrumb has the corner and the world sits under the surface, and on the phone the world
- * line shows in PhoneBar's well. Phase 3 (Task 24) adds the selected robot's and company's lines.
+ * line shows in PhoneBar's well. Below the world line, a selected robot's line (name · job · state) and a
+ * selected company's line (name · count), the latest selection on top (Task 24): robots carry no text box
+ * in the world, so selection reads here and as a halo.
  */
 export function MetaBox() {
   const shell = useShell();
   const onDeck = useUIStore((s) => s.activeHubTile === null);
+  // Before the early return: the order follows the selection even while the box is hidden.
+  const lines = useSelectionLines();
 
   if (shell !== 'desk' || !onDeck) return null;
 
   return (
     <div className="meta-box" role="status" style={META_ACCENT}>
-      <WorldLine />
+      <div className="meta-box__line">
+        <WorldLine />
+      </div>
+      {lines.map((line) => (
+        <SelectionLine key={line.kind} kind={line.kind} id={line.id} />
+      ))}
     </div>
+  );
+}
+
+/**
+ * The phone's meta well on the Deck (spec §1.7): the world line while nothing is selected, else only the
+ * latest selection's line. With both a robot and a company selected the well is a button, and tapping it
+ * shows the other; a new selection shows the latest again.
+ */
+export function DeckWell({ lines }: { lines: readonly SelectionLineRef[] }) {
+  const key = lines.map((line) => `${line.kind}:${line.id}`).join('|');
+  const [cycle, setCycle] = useState({ key, n: 0 });
+  if (cycle.key !== key) setCycle({ key, n: 0 });
+
+  if (lines.length === 0) return <WorldLine />;
+  const shown = lines[cycle.n % lines.length];
+  const line = <SelectionLine kind={shown.kind} id={shown.id} />;
+  if (lines.length < 2) return line;
+  return (
+    <button type="button" className="selection-cycle" onClick={() => setCycle((c) => ({ key, n: c.n + 1 }))}>
+      {line}
+    </button>
   );
 }
 

@@ -40,8 +40,10 @@
 }
 
 /* Roadmap Phase 10: isCompanyMember reuses the exact same glow — one declaration, not a second
-   visual language for "highlighted." */
+   visual language for "highlighted." Its colour is --halo, set on the group by Robot.tsx (docs/specs/
+   LAYOUT_REWORK.md §1.7): the robot's identityColor when selected, the company's colour for a member.
+   Where none is set the old cyan stays. */
 .robot.selected,
 .robot.isCompanyMember {
-  filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.8)) drop-shadow(0 0 16px rgba(0, 255, 255, 0.4));
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--halo, #00ffff) 80%, transparent)) drop-shadow(0 0 16px color-mix(in srgb, var(--halo, #00ffff) 40%, transparent));
 }

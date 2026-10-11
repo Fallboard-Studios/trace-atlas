@@ -2497,6 +2497,36 @@ renders in the world for a selected robot.
 
 **Estimated scope:** S
 
+**As built (2026-10-10):** `Robot.tsx` sets `--halo` inline on the group: the robot's `identityColor` when
+selected, the company's colour (a string selector, read only for a member) when it is a member of the
+selected company; **a robot that is both keeps its own colour** (the more specific selection; the sketch
+draws the same). `OceanScene.css` keeps one declaration for both classes, now
+`color-mix(in srgb, var(--halo, #00ffff) 80%/40%, transparent)` — the old cyan is the fallback for a
+robot with no colour (a stale company id, a fixture). The meta box: new `worldView/SelectionLines.tsx`
+(the line components), `useSelectionLines.ts` (`nextSelectionOrder`, a pure function, and the hook) and
+`SelectionLines.css`, `probeCountText.ts` (the count `RosterBoard` and `CompanyScreen` each wrote, now
+shared); `MetaBox` stacks the world line, then the selection lines under it, **latest on top among the
+selection lines**; `DeckWell` is the phone's well. Calls beyond the text above:
+- **"Latest" is derived, not stored.** The store has the two ids but not which was picked last, so
+  `nextSelectionOrder(prev, before, after)` puts a kind whose id changed on top; the hook keeps the order in
+  render-time state and runs before the early return, so picks made while a branch hides the box still
+  count. Two picked at once (a mount with both set) put the robot on top. No new uiStore field.
+- **"State" is the docking state** (Active, Docked…): the spec says `name · job · state` and the sketch's
+  fuller line (job · docking · emitting · battery · company) is not built. Open for Crawford.
+- **Copy:** `nav.status.selectedRobot` ("Probe", template `{name} · {job} · {state}`) and
+  `nav.status.selectedCompany` ("Company", `{name} · {count}`); the count is the roster's ("2 probes",
+  "1 probe", "0 probes"). All Probes adds no line (it is not a company).
+- **Phone:** with a selection the well shows only the latest line instead of the world line, and with both
+  selected it is a bare button that cycles to the other; a new selection shows the latest again.
+- **Found, not fixed — open for Crawford: the lines cannot show today.** The meta box is Deck-only (Task 8)
+  and the phone well shows these lines only on the Deck, but every selection goes through `navActions`
+  (`selectEntity` opens a branch; `goHome` clears both ids), so the Deck never has a selection. The halo is
+  live (behind the dimmed pane); the lines are built and tested but unreachable until the corner shows them
+  on a branch too, or the world click stops opening one. The spec's "In the phone's 56 px bottom bar…"
+  assumes the reverse.
+- Mutants: every one killed (hook 12/12, line components 9/9, MetaBox 8/8, PhoneBar 3/3, Robot 7/7 + the
+  label guard, CSS 2/2). **Not checked in a browser:** the lines' look in the well and the halo colours.
+
 ### Checkpoint C: Roster and company (Crawford's dev look)
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
 - [ ] Dev server: the board with rows, the hover chip and a glide, a company screen editing its

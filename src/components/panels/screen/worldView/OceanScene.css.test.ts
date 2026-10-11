@@ -52,3 +52,28 @@ describe('OceanScene.css scene layers', () => {
     expect(body).toContain('pointer-events: auto;');
   });
 });
+
+// docs/tasks/LAYOUT_REWORK.md Task 24 (spec §1.7): selection is a halo whose colour is the robot's
+// (selected) or the company's (member), set as --halo on the robot group (Robot.tsx). The CSS reads it for
+// both drop-shadows, and a robot with none keeps the old cyan.
+describe('OceanScene.css selection halo', () => {
+  const selected = getCssRuleBody(cssSource, '.robot.selected');
+  const member = getCssRuleBody(cssSource, '.robot.isCompanyMember');
+
+  it('selected and company-member robots share one halo declaration', () => {
+    expect(selected).not.toBeNull();
+    expect(member).toBe(selected);
+  });
+
+  it('both drop-shadows take their colour from --halo, at the old strengths (80% and 40%)', () => {
+    const shadows = (selected ?? '').match(/drop-shadow\([^;]*?\)\)/g) ?? [];
+    expect(shadows).toHaveLength(2);
+    expect(shadows[0]).toMatch(/0 0 8px color-mix\(in srgb, var\(--halo, #00ffff\) 80%, transparent\)/);
+    expect(shadows[1]).toMatch(/0 0 16px color-mix\(in srgb, var\(--halo, #00ffff\) 40%, transparent\)/);
+  });
+
+  it('keeps no fixed cyan of its own outside the --halo fallback', () => {
+    expect(selected).not.toMatch(/rgba?\(\s*0,\s*255,\s*255/);
+    expect((selected ?? '').replace(/var\(--halo, #00ffff\)/g, '')).not.toMatch(/#0ff|#00ffff|cyan/i);
+  });
+});

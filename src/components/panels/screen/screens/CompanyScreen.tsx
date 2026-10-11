@@ -1,6 +1,7 @@
 import { memo, useCallback, useId, useMemo, type CSSProperties } from 'react';
 import { selectEntity } from '../nav/navActions';
 import { useShell } from '../useShell';
+import { probeCountText } from '../probeCountText';
 import { RobotSectionTabs } from './RobotScreen';
 import { RobotBody } from '@/components/robot/RobotBody';
 import { getRobotGem, gemViewBox } from '@/components/robot/gem/polygon';
@@ -31,8 +32,6 @@ const SIGNAL_LABELS = labels('company.detail.signal');
 const SIGNAL_VALUES = optionsRecord('company.detail.signal');
 const COMPANY_EYEBROW = CONTENT['company.assign'].lore;
 const ALL_EYEBROW = CONTENT['company.detail.allForm'].human;
-
-const countText = (n: number) => (n === 1 ? CONTENT['probe.roster.count.one'].human : fill('probe.roster.count', { n: String(n) }));
 
 /** The broadcast, stated once. One member and none read differently from the plural. */
 function broadcastNote(n: number): string {
@@ -135,7 +134,7 @@ function CompanyBand({ all, name, members }: IdentityProps) {
         <span className="company-screen__swatch" aria-hidden="true" />
         <div className="robot-screen__band-text">
           <h2 className="robot-screen__name">{name}</h2>
-          <span className="robot-screen__status-line">{countText(members.length)}</span>
+          <span className="robot-screen__status-line">{probeCountText(members.length)}</span>
         </div>
       </div>
       <div className="company-screen__phone-members">

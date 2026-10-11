@@ -16,6 +16,10 @@ export const nav = {
   'nav.root': { human: 'Root' },
   'nav.status.probesActive': { human: 'Probes active.', template: '{emitting} of {max} Probes active.' },
   'nav.status.viewing': { human: 'Viewing', template: 'Viewing {name} @ ({x}, {y}).' },
+  /** The meta box's selection lines (docs/specs/LAYOUT_REWORK.md §1.7): `human` is the line's caption, the
+   *  template its body. A robot's `state` is its docking state; a company's `count` reads as the roster's. */
+  'nav.status.selectedRobot': { human: 'Probe', template: '{name} · {job} · {state}' },
+  'nav.status.selectedCompany': { human: 'Company', template: '{name} · {count}' },
   'nav.status.unknownName': { human: 'CORRUPT NAME' },
   'nav.status.noTemperature': { human: 'NO TEMP' },
   /** Opens the inline create form under the Companies entity list; `[c]` = placeholder lore (spec Assumption 9).

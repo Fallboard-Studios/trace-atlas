@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, act } from '@testing-library/react';
 import gsap from 'gsap';
 
 // This test is about Robot.tsx's own click/navigation behavior (Roadmap Phase 8, Task 11), not
@@ -262,5 +262,112 @@ describe('Robot — the dissolve id and the row wrapper (Phase 43 Task 34)', () 
       </svg>,
     );
     expect([...container.querySelectorAll('g.robot')].map((g) => g.id)).toEqual(['world-robot-a', 'world-robot-b']);
+  });
+});
+
+// docs/tasks/LAYOUT_REWORK.md Task 24 (spec §1.7): selection is a halo only. The group carries --halo, which
+// OceanScene.css reads for its drop-shadows: the robot's identityColor when it is selected, the company's
+// colour when it is a member of the selected company.
+describe('Robot halo colour (--halo)', () => {
+  const IDENTITY = '#428d95';
+  const RUST = '#b5502a';
+  const halo = (container: HTMLElement) => (container.querySelector('g.robot') as SVGGElement).style.getPropertyValue('--halo');
+  const addCompany = (id: string, color: string) =>
+    useLocaleStore.getState().addCompany(localeId, { id, name: id, color, robotIds: [] });
+
+  beforeEach(() => {
+    useUIStore.getState().selectRobot(null);
+    useUIStore.getState().setActiveHubTile(null);
+    useUIStore.getState().selectAllRobots();
+    useUIStore.getState().setAllProbesSelected(false);
+    useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
+  });
+
+  it('a selected robot carries its own identityColor', () => {
+    useUIStore.getState().selectRobot('r1');
+    const { container } = renderRobot({ id: 'r1', identityColor: IDENTITY });
+    expect(halo(container)).toBe(IDENTITY);
+  });
+
+  it("a member of the selected company carries the company's colour, not its own", () => {
+    addCompany('c1', RUST);
+    useUIStore.getState().selectCompany('c1');
+    const { container } = renderRobot({ id: 'r1', companyId: 'c1', identityColor: IDENTITY });
+    expect(halo(container)).toBe(RUST);
+  });
+
+  it('a robot that is selected and a member keeps its own colour (the selection is the more specific)', () => {
+    addCompany('c1', RUST);
+    useUIStore.getState().selectCompany('c1');
+    useUIStore.getState().selectRobot('r1');
+    const { container } = renderRobot({ id: 'r1', companyId: 'c1', identityColor: IDENTITY });
+    expect(halo(container)).toBe(IDENTITY);
+  });
+
+  it('a robot that is neither selected nor a member carries no halo colour', () => {
+    addCompany('c1', RUST);
+    addCompany('c2', '#112233');
+    useUIStore.getState().selectCompany('c1');
+    useUIStore.getState().selectRobot('someone-else');
+    const { container } = renderRobot({ id: 'r1', companyId: 'c2', identityColor: IDENTITY });
+    expect(halo(container)).toBe('');
+  });
+
+  it('a Freelance robot carries none when a company is selected', () => {
+    addCompany('c1', RUST);
+    useUIStore.getState().selectCompany('c1');
+    const { container } = renderRobot({ id: 'r1', companyId: undefined, identityColor: IDENTITY });
+    expect(halo(container)).toBe('');
+  });
+
+  it('under All Probes nobody carries one: no company is selected, so no one is a member', () => {
+    addCompany('c1', RUST);
+    useUIStore.getState().setAllProbesSelected(true);
+    const { container } = renderRobot({ id: 'r1', companyId: 'c1', identityColor: IDENTITY });
+    expect(container.querySelector('.robot.isCompanyMember')).toBeNull();
+    expect(halo(container)).toBe('');
+  });
+
+  it('a member of a company the roster no longer has carries none (the CSS falls back), but keeps its class', () => {
+    useUIStore.getState().selectCompany('gone');
+    const { container } = renderRobot({ id: 'r1', companyId: 'gone', identityColor: IDENTITY });
+    expect(container.querySelector('.robot.isCompanyMember')).toBeTruthy();
+    expect(halo(container)).toBe('');
+  });
+
+  it('a selected robot with no identityColor carries none rather than the string undefined', () => {
+    useUIStore.getState().selectRobot('r1');
+    const { container } = renderRobot({ id: 'r1' });
+    expect(halo(container)).toBe('');
+  });
+
+  it('follows the selection: picking another company repaints the members, and clearing it removes the halo', () => {
+    addCompany('c1', RUST);
+    addCompany('c2', '#112233');
+    useUIStore.getState().selectCompany('c1');
+    const { container } = renderRobot({ id: 'r1', companyId: 'c2', identityColor: IDENTITY });
+    expect(halo(container)).toBe('');
+
+    act(() => useUIStore.getState().selectCompany('c2'));
+    expect(halo(container)).toBe('#112233');
+
+    act(() => useUIStore.getState().selectAllRobots());
+    expect(halo(container)).toBe('');
+  });
+
+  it("follows the company's colour when it changes", () => {
+    addCompany('c1', RUST);
+    useUIStore.getState().selectCompany('c1');
+    const { container } = renderRobot({ id: 'r1', companyId: 'c1', identityColor: IDENTITY });
+
+    act(() => useLocaleStore.getState().updateCompany(localeId, 'c1', { color: '#00aa00' }));
+
+    expect(halo(container)).toBe('#00aa00');
+  });
+
+  it("keeps the click handler's cursor style", () => {
+    useUIStore.getState().selectRobot('r1');
+    const { container } = renderRobot({ id: 'r1', identityColor: IDENTITY });
+    expect((container.querySelector('g.robot') as SVGGElement).style.cursor).toBe('pointer');
   });
 });

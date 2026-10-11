@@ -8,7 +8,11 @@ import { PhoneBar } from './PhoneBar';
 import { useUIStore } from '@/stores/uiStore';
 import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { facadeCurrentText, facadeStates } from '@/testUtils/toggleFacade';
+import { useLocaleStore } from '@/stores/localeStore';
+import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { CONTENT, labels } from '@/content';
+import type { Robot } from '@/types/Robot';
+import type { Locale } from '@/types/locale';
 
 /*
  * docs/tasks/LAYOUT_REWORK.md Task 5 (spec §1.1, §1.2): the phone shell's 56 px bottom bar — the menu
@@ -212,6 +216,117 @@ describe('PhoneBar.css — the band and the 320 px fit', () => {
     for (const declaration of ['flex: 1 1 auto;', 'min-width: 0;', 'overflow: hidden;', 'text-overflow: ellipsis;', 'white-space: nowrap;']) {
       expect(body).toContain(declaration);
     }
+  });
+});
+
+// docs/tasks/LAYOUT_REWORK.md Task 24 (spec §1.7, §7 Q3): on the Deck the well shows only the latest
+// selection's line; with both a robot and a company selected, tapping the well cycles to the other.
+describe('PhoneBar — the selection lines on the Deck', () => {
+  const localeId = getActiveLocaleId();
+  const robotCaption = CONTENT['nav.status.selectedRobot'].human;
+  const companyCaption = CONTENT['nav.status.selectedCompany'].human;
+  const caption = () => well().querySelector('.selection-line__caption')?.textContent;
+  const body = () => well().querySelector('.selection-line__body')?.textContent;
+  const cycle = () => well().querySelector<HTMLButtonElement>('button');
+  const pick = (patch: Partial<ReturnType<typeof useUIStore.getState>>) => act(() => useUIStore.setState(patch));
+
+  beforeEach(() => {
+    const fleet = (id: string, name: string) =>
+      ({ id, name, identityColor: '#ae5378', job: 'acousticSurvey', docking: 'active', activity: 'working', companyId: 'c1', audioMode: 'none' }) as unknown as Robot;
+    useLocaleStore.getState().setLocaleData(localeId, {
+      robots: [fleet('r1', 'Tidal Wisp'), fleet('r2', 'Coral Drift')],
+      companies: [{ id: 'c1', name: 'Rust Syndicate', color: '#b5502a', robotIds: ['r1', 'r2'] }],
+    } as unknown as Partial<Locale>);
+  });
+
+  it('with nothing selected the well is still the world line, with no button in it', () => {
+    render(<PhoneBar />);
+    expect(well().querySelector('.world-line')).not.toBeNull();
+    expect(cycle()).toBeNull();
+  });
+
+  it('a selected robot replaces the world line with its own, and there is nothing to cycle', () => {
+    pick({ selectedRobotId: 'r1' });
+    render(<PhoneBar />);
+    expect(caption()).toBe(robotCaption);
+    expect(body()).toMatch(/^Tidal Wisp · /);
+    expect(well().querySelector('.world-line')).toBeNull();
+    expect(cycle()).toBeNull();
+  });
+
+  it('a selected company shows its name and count', () => {
+    pick({ selectedCompanyId: 'c1' });
+    render(<PhoneBar />);
+    expect(caption()).toBe(companyCaption);
+    expect(body()).toBe('Rust Syndicate · 2 probes');
+    expect(cycle()).toBeNull();
+  });
+
+  it('with both selected only the latest shows, and the well becomes a button that cycles to the other', () => {
+    pick({ selectedRobotId: 'r1' });
+    render(<PhoneBar />);
+    pick({ selectedCompanyId: 'c1' });
+    expect(well().querySelectorAll('.selection-line')).toHaveLength(1);
+    expect(caption()).toBe(companyCaption);
+
+    fireEvent.click(cycle()!);
+    expect(caption()).toBe(robotCaption);
+    expect(well().querySelectorAll('.selection-line')).toHaveLength(1);
+
+    fireEvent.click(cycle()!);
+    expect(caption()).toBe(companyCaption);
+  });
+
+  it('a new selection puts the latest back on show, whatever the cycle had reached', () => {
+    pick({ selectedRobotId: 'r1' });
+    render(<PhoneBar />);
+    pick({ selectedCompanyId: 'c1' });
+    fireEvent.click(cycle()!);
+    expect(caption()).toBe(robotCaption);
+
+    pick({ selectedRobotId: 'r2' });
+    expect(caption()).toBe(robotCaption);
+    expect(body()).toMatch(/^Coral Drift · /);
+
+    fireEvent.click(cycle()!);
+    expect(caption()).toBe(companyCaption);
+    pick({ selectedCompanyId: null });
+    expect(caption()).toBe(robotCaption);
+    expect(cycle()).toBeNull();
+  });
+
+  it('keeps the order of picks made while the breadcrumb had the well: the latest shows when the Deck returns', () => {
+    pick({ activeHubTile: 'robots', selectedRobotId: 'r1' });
+    render(<PhoneBar />);
+    pick({ selectedCompanyId: 'c1' });
+    pick({ activeHubTile: null });
+    expect(caption()).toBe(companyCaption);
+    fireEvent.click(cycle()!);
+    expect(caption()).toBe(robotCaption);
+  });
+
+  it('a selection that names nothing leaves the world line', () => {
+    pick({ selectedRobotId: 'gone', selectedCompanyId: 'gone' });
+    render(<PhoneBar />);
+    expect(well().querySelector('.world-line')).not.toBeNull();
+    expect(cycle()).toBeNull();
+  });
+
+  it('cycles only between the lines that exist: a stale robot id leaves the company alone, no button', () => {
+    pick({ selectedRobotId: 'gone', selectedCompanyId: 'c1' });
+    render(<PhoneBar />);
+    expect(caption()).toBe(companyCaption);
+    expect(cycle()).toBeNull();
+  });
+
+  it('the menu hint and the breadcrumb still win where they did: sheet open, or off the Deck', () => {
+    pick({ selectedRobotId: 'r1', isNavPanelOpen: true });
+    render(<PhoneBar />);
+    expect(well().textContent).toBe(MENU_OPEN_HINT);
+
+    pick({ isNavPanelOpen: false, activeHubTile: 'robots' });
+    expect(well().querySelector('.selection-line')).toBeNull();
+    expect(well().querySelector('.world-line')).toBeNull();
   });
 });
 

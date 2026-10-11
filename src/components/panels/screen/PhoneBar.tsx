@@ -1,6 +1,7 @@
 import { useShell } from './useShell';
 import { NavBreadcrumb } from './nav/NavBreadcrumb';
-import { WorldLine } from './worldView/MetaBox';
+import { DeckWell } from './worldView/MetaBox';
+import { useSelectionLines } from './worldView/useSelectionLines';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { Toggle, CABINET_TOGGLE_BOX_SIZE } from '@/components/ui/controls/Toggle';
 import { ToggleFacade } from '@/components/ui/controls/ToggleFacade';
@@ -34,6 +35,7 @@ export function PhoneBar() {
   const setNavPanelOpen = useUIStore((s) => s.setNavPanelOpen);
   // The breadcrumb's path is empty exactly on the Deck (navActions.breadcrumbTrail).
   const onDeck = useUIStore((s) => s.activeHubTile === null);
+  const selectionLines = useSelectionLines();
 
   if (shell !== 'phone') return null;
 
@@ -48,7 +50,7 @@ export function PhoneBar() {
               <ToggleFacade value={isOpen} off="☰" on="✕" />
             </Toggle>
           </div>
-          <div className="phone-bar__well">{isOpen ? MENU_OPEN_HINT : onDeck ? <WorldLine /> : <NavBreadcrumb inBar />}</div>
+          <div className="phone-bar__well">{isOpen ? MENU_OPEN_HINT : onDeck ? <DeckWell lines={selectionLines} /> : <NavBreadcrumb inBar />}</div>
         </div>
       </CabinetBox>
     </div>
