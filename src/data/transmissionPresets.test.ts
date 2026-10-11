@@ -1,0 +1,183 @@
+import { describe, it, expect, vi, afterEach } from 'vitest';
+
+// Same mock sessionDiff.test.ts uses: applySessionPayload retransmits the world, which starts the
+// robot-lifecycle / audio-swells ticks, and those subscribe to BeatClock (no AudioContext in jsdom).
+vi.mock('../engine/beatClock', () => ({
+  subscribeToMeasure: vi.fn(() => vi.fn()),
+  getCurrentMeasure: vi.fn(() => 0),
+  scheduleRepeat: vi.fn(() => 'schedule-id'),
+  cancelSchedule: vi.fn(),
+  getCurrentMeasurePrecise: vi.fn(() => 0),
+}));
+
+import { TRANSMISSION_PRESETS } from './transmissionPresets';
+import { applySessionPayload } from '../utils/sessionDiff';
+import { encodeSessionPayload, decodeSessionPayload } from '../utils/sessionShareUtils';
+import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
+import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
+import { useAudioStore } from '../stores/audioStore';
+import { stopRobotLifecycle } from '../systems/robotSystems';
+import { stopAudioSwells } from '../systems/audioSwells';
+import { CONTENT, fill, labels } from '../content';
+import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
+
+afterEach(() => {
+  stopRobotLifecycle();
+  stopAudioSwells();
+});
+
+let localeIdCounter = 0;
+/** A fresh world for an apply to land on: one default Attenuation Style (whose name no preset shares)
+ *  with an empty locale, so each test starts from the same blank state. */
+function setupWorld(): string {
+  const localeId = `transmission-presets-locale-${localeIdCounter++}`;
+  useAttenuationStyleStore.setState({
+    attenuationStyles: [{ ...DEFAULT_PELAGOS, name: 'not-a-preset', currentLocaleId: localeId }],
+    currentAttenuationStyleId: DEFAULT_PELAGOS.id,
+  });
+  useLocaleStore.setState({ locales: { [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [], companies: [] } } });
+  return localeId;
+}
+
+function currentLocale() {
+  const style = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
+  return style?.currentLocaleId ? useLocaleStore.getState().getLocaleById(style.currentLocaleId) : undefined;
+}
+
+describe('TRANSMISSION_PRESETS', () => {
+  it('has exactly three presets', () => {
+    expect(TRANSMISSION_PRESETS).toHaveLength(3);
+  });
+
+  it('gives each preset a distinct, non-empty, stable id', () => {
+    const ids = TRANSMISSION_PRESETS.map((p) => p.id);
+    expect(ids.every((id) => id.trim() !== '')).toBe(true);
+    expect(new Set(ids).size).toBe(3);
+    expect(ids).toEqual(['a', 'b', 'c']);
+  });
+
+  it('names each preset through a content key that exists, in the home.off.presets group', () => {
+    for (const preset of TRANSMISSION_PRESETS) {
+      expect(preset.nameKey).toBe(`home.off.presets.${preset.id}`);
+      expect(preset.nameKey in CONTENT).toBe(true);
+    }
+  });
+
+  it('shows three distinct, non-empty names', () => {
+    const names = TRANSMISSION_PRESETS.map((p) => labels(p.nameKey).humanLabel);
+    expect(names.every((n) => n.trim() !== '')).toBe(true);
+    expect(new Set(names).size).toBe(3);
+  });
+
+  it('gives each preset its own world, so picking one is visible on the faint backdrop', () => {
+    const worlds = TRANSMISSION_PRESETS.map((p) => `${p.payload.attenuationStyleName}@${p.payload.coordinates.x},${p.payload.coordinates.y}`);
+    expect(new Set(worlds).size).toBe(3);
+  });
+
+  it('shares no object between presets, so a change to one can never leak into another', () => {
+    const [a, b, c] = TRANSMISSION_PRESETS.map((p) => p.payload);
+    expect(a.globalAudio).not.toBe(b.globalAudio);
+    expect(b.globalAudio).not.toBe(c.globalAudio);
+    expect(a.lfoBank).not.toBe(b.lfoBank);
+    expect(a.coordinates).not.toBe(b.coordinates);
+  });
+
+  describe.each(TRANSMISSION_PRESETS.map((p) => [p.id, p] as const))('preset %s payload', (_id, preset) => {
+    const { payload } = preset;
+
+    it('is a plain version-2 payload with no per-robot or per-company edits', () => {
+      expect(payload.version).toBe(2);
+      expect(payload.robotOverrides).toEqual({});
+      expect(payload.companyDiffs).toEqual({});
+      expect(payload.userCreatedCompanies).toEqual([]);
+    });
+
+    it('carries every LFO lane and every global LFO link, never a partial set', () => {
+      expect(Object.keys(payload.lfoBank ?? {}).sort()).toEqual([...LFO_LANE_IDS].sort());
+      expect(Object.keys(payload.globalLfoLinks ?? {}).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
+    });
+
+    it('has a non-empty Attenuation Style name and finite coordinates and pacing numbers', () => {
+      expect(payload.attenuationStyleName.trim()).not.toBe('');
+      for (const n of [payload.coordinates.x, payload.coordinates.y, payload.bpm, payload.swellFrequency, payload.swellDuration, payload.pingVarianceAutomation]) {
+        expect(Number.isFinite(n)).toBe(true);
+      }
+    });
+
+    it('is JSON-serialisable and survives a JSON round trip unchanged (no undefined holes)', () => {
+      expect(JSON.parse(JSON.stringify(payload))).toEqual(payload);
+    });
+
+    it('passes the same wire validation a shared link passes, and decodes back to the same payload', () => {
+      const decoded = decodeSessionPayload(encodeSessionPayload(payload));
+      expect(decoded).not.toBeNull();
+      expect(decoded?.attenuationStyleName).toBe(payload.attenuationStyleName);
+      expect(decoded?.coordinates).toEqual(payload.coordinates);
+      expect(decoded?.globalAudio).toEqual(payload.globalAudio);
+      expect(decoded?.lfoBank).toEqual(payload.lfoBank);
+      expect(decoded?.globalLfoLinks).toEqual(payload.globalLfoLinks);
+    });
+
+    it('is accepted by applySessionPayload, which retransmits the world it names', () => {
+      setupWorld();
+      expect(() => applySessionPayload(payload)).not.toThrow();
+      expect(selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())?.name).toBe(payload.attenuationStyleName);
+      expect(currentLocale()?.coordinates).toEqual(payload.coordinates);
+    });
+
+    it('lands its pacing and LFO settings in the stores', () => {
+      setupWorld();
+      applySessionPayload(payload);
+      const audio = useAudioStore.getState();
+      expect(audio.bpm).toBe(payload.bpm);
+      expect(audio.swellFrequency).toBe(payload.swellFrequency);
+      expect(audio.swellDuration).toBe(payload.swellDuration);
+      expect(audio.pingVarianceAutomation).toBe(payload.pingVarianceAutomation);
+      expect(audio.lfoBank).toEqual(payload.lfoBank);
+      expect(audio.globalLfoLinks).toEqual(payload.globalLfoLinks);
+    });
+
+    it('is left untouched by applying it, so the constant can be picked again', () => {
+      const before = structuredClone(payload);
+      setupWorld();
+      applySessionPayload(payload);
+      expect(payload).toEqual(before);
+    });
+
+    it('applies twice in a row (the second pick names the already-current style)', () => {
+      setupWorld();
+      applySessionPayload(payload);
+      expect(() => applySessionPayload(payload)).not.toThrow();
+      expect(selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())?.name).toBe(payload.attenuationStyleName);
+    });
+  });
+
+  it('switches from one preset to another', () => {
+    setupWorld();
+    const [first, second] = TRANSMISSION_PRESETS;
+    applySessionPayload(first.payload);
+    applySessionPayload(second.payload);
+    expect(selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())?.name).toBe(second.payload.attenuationStyleName);
+    expect(currentLocale()?.coordinates).toEqual(second.payload.coordinates);
+  });
+});
+
+describe('the off-screen content', () => {
+  it('has the etched label, the power hint and the picker row name', () => {
+    for (const key of ['home.off.label', 'home.off.powerHint', 'home.off.transmission'] as const) {
+      expect(labels(key).humanLabel.trim()).not.toBe('');
+    }
+  });
+
+  it('says pressing power will play sound', () => {
+    expect(labels('home.off.powerHint').humanLabel.toLowerCase()).toContain('sound');
+  });
+
+  it('fills the readout well from a preset name and its code', () => {
+    expect(fill('home.off.readout', { name: 'Kryndara', code: 'kr1nd4ra' })).toBe('Kryndara · kr1nd4ra');
+  });
+
+  it('refuses to fill the readout without its slots', () => {
+    expect(() => fill('home.off.readout', { name: 'Kryndara' })).toThrow();
+  });
+});
