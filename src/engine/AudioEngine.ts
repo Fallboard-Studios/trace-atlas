@@ -132,6 +132,29 @@ const compositeVoices: Map<string, {
   busFilter: Tone.Filter;
 }> = new Map();
 
+/** Tear down one robot's voice graph: the composite, then its panner, bus gain and bus filter. */
+function disposeVoiceNodes(comp: { composite: CompositeVoice; panner: Tone.Panner; busGain: Tone.Gain; busFilter: Tone.Filter }): void {
+  try {
+    try { comp.composite.dispose?.(); } catch (err) { devWarn('[AudioEngine] composite.dispose failed', err); }
+    comp.panner.disconnect();
+    comp.busGain.disconnect();
+    comp.busFilter.disconnect();
+    // Tone nodes may implement dispose; call when available
+    try { comp.panner.dispose?.(); } catch { devWarn('[AudioEngine] Failed disposing panner'); }
+    try { comp.busGain.dispose?.(); } catch { devWarn('[AudioEngine] Failed disposing busGain'); }
+    try { comp.busFilter.dispose?.(); } catch { devWarn('[AudioEngine] Failed disposing busFilter'); }
+  } catch (err) {
+    devWarn('[AudioEngine] Failed to cleanup composite nodes', err);
+  }
+}
+
+/** Store a robot's new voice, tearing down the one it replaces so a second reservation never orphans a live graph. */
+function storeVoice(robotId: string, entry: { composite: CompositeVoice; panner: Tone.Panner; busGain: Tone.Gain; busFilter: Tone.Filter }): void {
+  const previous = compositeVoices.get(robotId);
+  if (previous) disposeVoiceNodes(previous);
+  compositeVoices.set(robotId, entry);
+}
+
 // Per-robot note counter used for deterministic seeded sampling (mod 97)
 const robotNoteIndex = new Map<string, number>();
 
@@ -676,7 +699,7 @@ export const AudioEngine = {
         devWarn('[AudioEngine] busFilter connection failed', e);
       }
 
-      compositeVoices.set(robotId, { composite, panner, busGain, busFilter });
+      storeVoice(robotId, { composite, panner, busGain, busFilter });
       // Apply optional top-level detune/phase/pulseWidth across composite layers when provided
       try {
         if (typeof detune === 'number' || typeof phase === 'number' || typeof pulseWidth === 'number') {
@@ -709,7 +732,7 @@ export const AudioEngine = {
       const panner = makeStubPanner() as unknown as Tone.Panner;
       const busGain = makeStubGain(volumePositionToGain(masterVolume ?? 1)) as unknown as Tone.Gain;
       const busFilter = makeStubFilter() as unknown as Tone.Filter;
-      compositeVoices.set(robotId, { composite: stubComposite, panner, busGain, busFilter });
+      storeVoice(robotId, { composite: stubComposite, panner, busGain, busFilter });
       return false;
     }
   },
@@ -718,18 +741,7 @@ export const AudioEngine = {
   releaseVoice(robotId: string): void {
     const comp = compositeVoices.get(robotId);
     if (!comp) return;
-    try {
-      try { comp.composite.dispose?.(); } catch (err) { devWarn('[AudioEngine] composite.dispose failed', err); }
-      comp.panner.disconnect();
-      comp.busGain.disconnect();
-      comp.busFilter.disconnect();
-      // Tone nodes may implement dispose; call when available
-      try { comp.panner.dispose?.(); } catch { devWarn('[AudioEngine] Failed disposing panner'); }
-      try { comp.busGain.dispose?.(); } catch { devWarn('[AudioEngine] Failed disposing busGain'); }
-      try { comp.busFilter.dispose?.(); } catch { devWarn('[AudioEngine] Failed disposing busFilter'); }
-    } catch (err) {
-      devWarn('[AudioEngine] Failed to cleanup composite nodes', err);
-    }
+    disposeVoiceNodes(comp);
     compositeVoices.delete(robotId);
     robotNoteIndex.delete(robotId);
     lastPanByRobot.delete(robotId);
