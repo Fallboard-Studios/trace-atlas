@@ -1402,6 +1402,68 @@ about 4 per second, long tasks 0. Not zero: something still ticks once a second 
 
 **Verdict:** no miss remains. No cut was needed. The Pixel is not part of this gate.
 
+## Mobile Deck Camera — the Task 11 perf gate (Phase 46)
+
+Gate ([docs/tasks/MOBILE_DECK_CAMERA.md](tasks/MOBILE_DECK_CAMERA.md) Task 11): idle busy and Paint on
+the finished branch within `main`'s round-to-round spread, at the default width and at 375 px (where
+the new scroller overflows), plus one round with a camera cut forced inside the idle window.
+
+**No "Checkpoint A" (scroller-only) baseline exists in this file** — Tasks 1–10 were built and
+committed without that intermediate measurement being recorded here, so this gate compares the
+*finished* branch against `main` directly; there is no scroller-alone number to isolate the scroller's
+share of any delta from the camera module's.
+
+**Method:** `main` (`26afd526`, the branch's own merge-base — a clean checkout, no other product
+difference) on :4182, this branch at `7c8ea183` **plus its uncommitted Checkpoint-B ease/duration
+tweak** (`power1.inOut`, 1.4 s — the working tree as it stands) on :4181. Both production builds
+(`npm run build` + `vite preview`), served side by side, headless Chrome, desktop 1280×900 and
+375×812, `npm run perf:idle --throttle 1 --only none`, one pinned world (`?session=`, Attenuation
+Style `alpha`, locale `(0, 50)`, `DEFAULT_GLOBAL_AUDIO_SETTINGS`, no overrides, version 2 — the same
+world the Phase 45 Task 29 gate used). Three rounds per build per width, foreground, one call at a
+time, start order rotated each round, orphaned-Chrome count 0 before and after (checked by filtered
+`Win32_Process` query). Cells read `median (min–max)`.
+
+### Results (6 s idle window, 1×, `--only none`)
+
+| Width | Build | busy (ms) | Paint (ms) | Compositor::Update (ms) | long tasks |
+|---|---|---|---|---|---|
+| 1280 | `main` | 1363 (1360–1400) | 143 (142–147) | 125 (123–126) | 0 |
+| 1280 | branch | **1456** (1448–1458) | **165** (161–169) | **155** (150–161) | 0 |
+| 375 | `main` | 1337 (1283–1385) | 153 (151–157) | 95 (95–98) | 0 |
+| 375 | branch | **1441** (1407–1441) | **170** (167–174) | **132** (128–133) | 0 · 0 · 1 |
+
+### Reading
+
+**Does not cleanly pass the stated criterion.** At both widths the branch's busy/Paint/Compositor
+medians sit *outside* `main`'s own round-to-round spread, not inside it: at 375 px the branch's lowest
+busy round (1407 ms) is still above `main`'s highest (1385 ms) — a consistent gap, not round noise.
+
+- **1280 px:** busy +93 ms (+6.8 %), Paint +22 ms (+15.4 %), Compositor::Update +30 ms (+24 %).
+- **375 px:** busy +104 ms (+7.8 %), Paint +17 ms (+11.1 %), Compositor::Update +37 ms (+38.9 %).
+- Compositor::Update carries the largest relative increase at both widths — consistent with the
+  risk this phase's plan called out (a scroll container changing how the six absolutely positioned
+  layers composite), though whether it is the scroller, the extra `.ocean-scene__snap` marks, or the
+  `deckCamera.ts` module's own `scroll`/`pointerdown`/`wheel` listeners was not isolated (no
+  scroller-only build exists to test against).
+- One of three 375 px branch rounds logged 1 long task (≥ 50 ms, Chrome's own threshold, not the
+  ≥ 100 ms audible-pause line); the other two rounds, and every 1280 px round on either build, logged
+  none. Not treated as a pattern on a single occurrence.
+- Absolute deltas are small (17–37 ms inside a 6 s window) and no round crossed the ≥ 100 ms
+  audible-pause threshold on either build. Compositor layer counts at 375 px (branch, one sample):
+  25 layers, 19 drawing content, 16 with an owning node, DPR 2 — the four moving-layer elements
+  (`robots-back`, `mid`, `robots`, `front`) each reported at the stage's own CSS size (1444×812 at
+  375 px, wider than the 375 px viewport), consistent with them still being separately composited
+  rather than collapsed into the static layers; this was read from the harness's own layer summary,
+  not DevTools' Layers panel directly.
+
+**Not declared PASS.** Per the gate's own wording ("miss: stop and report") this is reported rather
+than waved through: a real, repeatable, three-round-consistent regression, modest in absolute terms,
+concentrated in Compositor::Update, isolated to neither the Phase-1 scroller nor the camera module
+specifically. Candidate next steps if this is worth chasing: `contain: paint` or
+`will-change: scroll-position` on `.world-view__scroller` (the mitigations Checkpoint A's own
+write-up names), tried one at a time; or accept it as the scroller's cost, same as the Phase 45
+Fleet-Params-vs-Deck Compositor::Update difference was accepted as structural. **Crawford's call.**
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
