@@ -776,31 +776,38 @@ describe('RobotScreen — the phone band (spec §1.4: small form only)', () => {
   });
 });
 
-describe('RobotScreen — the gem button pans the deck camera (Task 9)', () => {
-  const panName = (name: string) => fill('probe.band.panToRobot', { name });
-
-  it.each(['desk', 'phone'] as const)('%s: the gem is a button named for the robot that pans on click', (shellKind) => {
+describe('RobotScreen — the gem is not a camera control (deck-camera follow, Task 2)', () => {
+  it.each(['desk', 'phone'] as const)('%s: the gem renders bare, with no button around it', (shellKind) => {
     shell.set(shellKind);
     selectRobot(makeRobot('r1', { name: 'Tidal Wisp' }));
-    render(<RobotScreen />);
-    const button = screen.getByRole('button', { name: panName('Tidal Wisp') });
-    expect(button.querySelector('svg.robot-screen__gem')).not.toBeNull();
-    fireEvent.click(button);
-    expect(panDeckCameraTo).toHaveBeenCalledWith('r1');
+    const { container } = render(<RobotScreen />);
+    const gem = container.querySelector('svg.robot-screen__gem');
+    expect(gem).not.toBeNull();
+    expect(gem!.closest('button')).toBeNull();
+    expect(container.querySelector('.robot-screen__pan')).toBeNull();
   });
 
-  it('falls back to the robot id for an unnamed robot', () => {
+  it.each(['desk', 'phone'] as const)('%s: clicking the gem never reaches the deck camera', (shellKind) => {
+    shell.set(shellKind);
+    selectRobot(makeRobot('r1', { name: 'Tidal Wisp' }));
+    const { container } = render(<RobotScreen />);
+    fireEvent.click(container.querySelector('svg.robot-screen__gem')!);
+    expect(panDeckCameraTo).not.toHaveBeenCalled();
+  });
+
+  it('an unnamed robot gets no pan button either', () => {
     selectRobot(makeRobot('r9', { name: '' }));
-    render(<RobotScreen />);
-    fireEvent.click(screen.getByRole('button', { name: panName('r9') }));
-    expect(panDeckCameraTo).toHaveBeenCalledWith('r9');
+    const { container } = render(<RobotScreen />);
+    const gem = container.querySelector('svg.robot-screen__gem');
+    expect(gem).not.toBeNull();
+    expect(gem!.closest('button')).toBeNull();
   });
 
-  it('leaves selectedRobotId and activeHubTile unchanged', () => {
+  it('leaves selectedRobotId and activeHubTile unchanged when the gem is clicked', () => {
     selectRobot(makeRobot('r1', { name: 'Tidal Wisp' }));
     useUIStore.getState().setActiveHubTile('robots');
-    render(<RobotScreen />);
-    fireEvent.click(screen.getByRole('button', { name: panName('Tidal Wisp') }));
+    const { container } = render(<RobotScreen />);
+    fireEvent.click(container.querySelector('svg.robot-screen__gem')!);
     expect(useUIStore.getState().selectedRobotId).toBe('r1');
     expect(useUIStore.getState().activeHubTile).toBe('robots');
   });
