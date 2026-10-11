@@ -52,6 +52,7 @@ import { isWorkSiteEligible } from './jobHosts';
 import { getWorkSite, type WorkSite } from './workSites';
 import { getStations, nearestFreeStation, type Box, type Station } from './stations';
 import { getMidgroundSilhouettes } from './midgroundSilhouettes';
+import { cutDeckCameraTo } from '../animation/deckCamera';
 import { createSwimTimeline } from '../animation/swimAnimation';
 import { getTimeline, killTimeline, setTimeline, timelineMap } from '../animation/timelineMap';
 import { clearLayerSwitching, getArcDecorator, getOrbiterWork, markLayerSwitching } from '../animation/robotMotionRegistry';
@@ -766,6 +767,8 @@ export function onLifecycleChange(localeId: string, robotId: string, to: Lifecyc
   if (!loop || loop.localeId !== localeId) return;
   const robot = robotOf(loop, robotId);
   if (!robot) return;
+
+  if (to === 'active') cutDeckCameraTo(robotId);
 
   if (to === 'recalled') {
     if (robot.activity !== 'transit' && robot.activity !== 'waiting') return;

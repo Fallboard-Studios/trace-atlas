@@ -4,6 +4,10 @@
 import gsap from 'gsap';
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach, type MockInstance } from 'vitest';
 
+// Task 10: only the call out to the deck camera is tested here; its own idle/target/tween
+// behaviour has its own suite (deckCamera.test.ts).
+vi.mock('@/animation/deckCamera', () => ({ cutDeckCameraTo: vi.fn() }));
+
 import { startWorkLoop, stopWorkLoop, next, getSiteState, onLifecycleChange, onRobotMounted } from './workLoop';
 import { siteCooldown } from './siteChoice';
 import { placeDistrict } from './districts';
@@ -33,6 +37,7 @@ import {
 import type { Actor } from '../types/Actor';
 import type { DockingState, JobType, Robot } from '../types/Robot';
 import type { Vec2 } from '../types/Vec2';
+import { cutDeckCameraTo } from '@/animation/deckCamera';
 
 // vitest.setup.ts mocks gsap and fires every timeline's onComplete on a microtask, which would
 // spin the wait → next → wait cycle forever. Real GSAP with the global timeline paused: nothing
@@ -998,6 +1003,39 @@ describe('workLoop — stations, recall and mounts (Phase 43 Task 23, spec §1.6
     expect(timelineMap.size).toBe(0);
     land('r1', 'recalled', 'recalled');
     expect(get('r1').activity).toBe('returning'); // control: its own locale reacts
+  });
+
+  // Task 10 (spec §1.3, assumption 7): 'active' is the only lifecycle change that cuts the deck
+  // camera, and only while this robot's own locale has the loop running.
+  describe('onLifecycleChange cuts the deck camera on \'active\' (Task 10)', () => {
+    beforeEach(() => {
+      vi.mocked(cutDeckCameraTo).mockClear();
+    });
+
+    it('calls cutDeckCameraTo(id) once for \'active\'; never for \'recalled\' or \'docked\'', () => {
+      const { a } = sitesForSwitch();
+      registerLocale([a], []);
+      const s = stations()[0];
+      setRobots([robot('r1', s.port, { activity: 'charging', stationId: s.id })]);
+      startWorkLoop(LOCALE, { now, backHosts: false });
+
+      onLifecycleChange(LOCALE, 'r1', 'active');
+      expect(cutDeckCameraTo).toHaveBeenCalledTimes(1);
+      expect(cutDeckCameraTo).toHaveBeenCalledWith('r1');
+
+      onLifecycleChange(LOCALE, 'r1', 'recalled');
+      onLifecycleChange(LOCALE, 'r1', 'docked');
+      expect(cutDeckCameraTo).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not call it with no loop running, or for another locale', () => {
+      const { a } = sitesForSwitch();
+      registerLocale([a], [robot('r1', siteOf(a).park, { activity: 'waiting' })]);
+      onLifecycleChange(LOCALE, 'r1', 'active'); // no loop running yet
+      startWorkLoop(LOCALE, { now, backHosts: false });
+      onLifecycleChange('elsewhere', 'r1', 'active');
+      expect(cutDeckCameraTo).not.toHaveBeenCalled();
+    });
   });
 
   it('stop kills the station arcs and ripples too', () => {
