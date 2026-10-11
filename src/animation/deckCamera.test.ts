@@ -432,6 +432,21 @@ describe('deckCamera', () => {
     // off-mark landing lets the browser "correct" it — a pan that visibly finishes, then an
     // instant, unrequested shift. The camera now re-forces snap off itself after every tween and
     // only lets a real user gesture turn it back on.
+    // The gap this closes: GSAP's ScrollToPlugin only disables-then-restores scroll-snap-type for
+    // a tween if it finds snap ALREADY on at init() time. Suppressing only reactively (onComplete)
+    // left the very FIRST tween of a session unprotected -- nothing had set it to 'none' yet, so
+    // GSAP's own init->disable->restore dance ran for that one tween exactly where the race lives,
+    // and never again afterward (every later tween's init() already finds it off and skips the
+    // dance entirely). Matches what was seen live: only ever the first camera move, deterministically.
+    it('forces scroll-snap-type off immediately on registration, before any tween ever runs', () => {
+      const fake = makeFakeScroller(3840, 375);
+      fake.style.scrollSnapType = 'x proximity'; // the CSS rule's cascaded value, pre-registration
+
+      registerDeckScroller(fake as unknown as HTMLElement);
+
+      expect(fake.style.scrollSnapType).toBe('none');
+    });
+
     it('forces scroll-snap-type off once a pan completes', () => {
       const fake = makeFakeScroller(3840, 375);
       registerDeckScroller(fake as unknown as HTMLElement);

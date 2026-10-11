@@ -67,7 +67,11 @@ export function isDeckCameraIdle(now = performance.now()): boolean {
 
 /**
  * Remembers (or forgets) the deck's scroll container and attaches/detaches the four user-input
- * listeners that keep the idle clock honest (spec §1.1, §1.2).
+ * listeners that keep the idle clock honest (spec §1.1, §1.2). Also forces scroll-snap off right
+ * away: GSAP's ScrollToPlugin only runs its own disable/restore dance for a tween when it finds
+ * snap already ON at that tween's start, so suppressing it only reactively (after a move
+ * completes) left the very first tween of a session — the one with no prior override yet —
+ * exposed to the restore race every time (`suppressScrollSnap`'s doc comment has the full story).
  */
 export function registerDeckScroller(el: HTMLElement | null): void {
   if (scroller) {
@@ -82,6 +86,7 @@ export function registerDeckScroller(el: HTMLElement | null): void {
     scroller.addEventListener('touchstart', handleScrollerInput);
     scroller.addEventListener('wheel', handleScrollerInput);
     scroller.addEventListener('scroll', handleScrollerInput);
+    suppressScrollSnap();
   } else {
     killTimeline(DECK_CAMERA_TIMELINE_ID);
   }
