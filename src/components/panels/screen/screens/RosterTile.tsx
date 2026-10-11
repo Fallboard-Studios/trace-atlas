@@ -86,12 +86,16 @@ function RosterTileFace({ robot, localeId, onMove }: { robot: Robot; localeId: s
     (open: boolean) => (open ? useUIStore.getState().openMovePanel(robot.id) : useUIStore.getState().closeMovePanel()),
     [robot.id],
   );
+  // Stable, so the open panel's pick handler is not rebuilt on every render of the tile.
+  const closeMove = useCallback(() => setMoveOpen(false), [setMoveOpen]);
+  const statusId = `${instanceId}-status`;
 
   const faceButton = (
     <button
       type="button"
       className="roster-tile__face"
       aria-label={name}
+      aria-describedby={statusId}
       onClick={() => {
         if (longPress.consumeClick()) return;
         selectEntity({ robotId: robot.id });
@@ -103,7 +107,7 @@ function RosterTileFace({ robot, localeId, onMove }: { robot: Robot; localeId: s
       </svg>
       <span className="roster-tile__text">
         <span className="roster-tile__name">{name}</span>
-        <span className="roster-tile__status">{fill('probe.roster.statusLine', meta)}</span>
+        <span className="roster-tile__status" id={statusId}>{fill('probe.roster.statusLine', meta)}</span>
         <span className="roster-tile__battery" style={BATTERY_BOX_STYLE}>
           <VoxelTrack
             states={batteryStates}
@@ -119,7 +123,7 @@ function RosterTileFace({ robot, localeId, onMove }: { robot: Robot; localeId: s
 
   const chipLabel = shell === 'phone' ? MOVE_CHIP.short : MOVE_CHIP.human;
   const chipButton = <MoveChipButton label={chipLabel} name={fill('probe.roster.move', { name })} timelineKey={`cabinet-roster-move-${robot.id}-${instanceId}`} />;
-  const body = moveOpen ? <MovePanelBody robot={robot} name={name} onMove={onMove} close={() => setMoveOpen(false)} /> : null;
+  const body = moveOpen ? <MovePanelBody robot={robot} name={name} onMove={onMove} close={closeMove} /> : null;
   const tileClass = `roster-tile roster-tile--${shell}`;
 
   if (shell === 'phone') {

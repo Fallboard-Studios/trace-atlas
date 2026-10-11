@@ -81,7 +81,9 @@ const FALLBACK_IDENTITY = '#78cce2';
 export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignoreScale, motion }: RobotBodyProps) {
   // Day/night from the active locale's local time (0..24, written once a second by
   // AttenuationStyleView) — the same curve buildings use.
-  const localTime = useUIStore((s) => s.activeLocaleLocalTime ?? 12);
+  // A body that ignores daylight (the roster's gems) reads a constant, so the once-a-second clock tick
+  // does not re-render it.
+  const localTime = useUIStore((s) => (ignoreDaylight ? 12 : (s.activeLocaleLocalTime ?? 12)));
   const daylight = ignoreDaylight ? 1 : 0.5 + 0.5 * Math.sin(((localTime - 6) / 24) * Math.PI * 2);
 
   // Battery is not audio — outside the memo.

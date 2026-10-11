@@ -17,6 +17,7 @@ import { killTimeline, setTimeline, timelineMap } from '@/animation/timelineMap'
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { prefersReducedMotion } from '@/utils/reducedMotion';
+import { useStableSelector } from '@/utils/useStableSelector';
 import { rosterRows, type RosterRow } from '@/utils/rosterRows';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 import { CONTENT, introProps, labels } from '@/content';
@@ -61,18 +62,16 @@ function membersEqual(a: readonly MemberEntry[], b: readonly MemberEntry[]): boo
 /**
  * Which robots exist and which company each is in — all the board itself needs (spec §4's memo
  * boundary). `updateRobot` replaces the robots array on every battery tick and swell, so the previous
- * array is returned while ids and memberships are unchanged (the wrapping-selector technique
- * useEntityRoster uses; Zustand 5 takes no equality argument). The tiles read their own robots.
+ * array is returned while ids and memberships are unchanged (useStableSelector). The tiles read their
+ * own robots.
  */
 function useMembership(): MemberEntry[] {
   const localeId = getActiveLocaleId();
-  const prevRef = useRef<MemberEntry[]>([]);
-  return useLocaleStore((s) => {
-    const next = (s.locales[localeId]?.robots ?? []).map((robot) => ({ id: robot.id, companyId: robot.companyId }));
-    if (membersEqual(prevRef.current, next)) return prevRef.current;
-    prevRef.current = next;
-    return next;
-  });
+  return useStableSelector(
+    useLocaleStore,
+    (s) => (s.locales[localeId]?.robots ?? []).map((robot) => ({ id: robot.id, companyId: robot.companyId })),
+    membersEqual,
+  );
 }
 
 gsap.registerPlugin(Flip);
@@ -107,7 +106,8 @@ function useRosterGlide(members: readonly MemberEntry[]) {
   const finishGlide = useCallback(() => {
     const key = activeKeyRef.current;
     if (key === null) return;
-    // To the end first, so its tiles drop their in-flight transforms before the next is measured from.
+    // To the end, so the tiles drop their in-flight transforms; the next pick has already recorded its
+    // rects (onMove calls getState first), so its glide starts from where the tiles visibly were.
     timelineMap.get(key)?.progress(1);
     killTimeline(key);
     activeKeyRef.current = null;

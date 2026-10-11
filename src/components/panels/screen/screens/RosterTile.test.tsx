@@ -142,6 +142,17 @@ describe('RosterTile — what it shows', () => {
     }));
   });
 
+  // Code review 2026-10-11: the face button's aria-label replaces its content for assistive tech, so the
+  // status line and battery were never announced; the status describes the button.
+  it('describes the face button by its status line, so assistive tech hears more than the name', () => {
+    addRobots(makeRobot('r0', { name: 'Tidal Wisp' }));
+    const { container } = renderTile('r0');
+    const button = face('Tidal Wisp');
+    const status = container.querySelector('.roster-tile__status') as HTMLElement;
+    expect(button.getAttribute('aria-describedby')).toBe(status.id);
+    expect(status.id).not.toBe('');
+  });
+
   it('reads the unassigned job for a robot with no job yet', () => {
     addRobots(makeRobot('r0', { job: undefined }));
     const { container } = renderTile('r0');
