@@ -306,7 +306,7 @@ Every robot key in `timelineMap`, and who kills it:
 | `` `dissolve-${robotId}` `` | the work loop's `dissolve` | one layer-switch fade | its own end, the robot's next dissolve, a recall or turn-back (`dropLeg`), an adoption (`killLegs`), `stopWorkLoop` — each removes the `<use>` copy too |
 | `` `orbiters-${context}-${robotId}` `` | `useOrbiterMotion` | the mount | unmount (a no-op stub, see above) |
 | `` `orbiter-size-${context}-${robotId}` `` | `useOrbiterMotion` | one Size tween | the next Size edit, unmount |
-| `` `halo-${context}-${robotId}` `` | `useHaloMotion` | one halo-dial tween | the next dial change, unmount |
+| `` `halo-${context}-${robotId}` `` | `useHaloMotion` | one halo-dial tween, started only when the dial's values change (`rx`, `ry` or a stop's offset or opacity), never by a re-render alone | the next dial change, unmount |
 
 `stopWorkLoop` kills every `work-`, `swim-`, `bob-wait-`, `station-` and `dissolve-` key
 (`LOOP_KEY_PREFIXES`; power-off, and before every `startWorkLoop` in `initializeLocale`), removes
@@ -349,6 +349,18 @@ describes before it ships, not after.
 - No CSS `transition`/`animation` on scene SVG fills or attributes — a running transition style-invalidates its element every frame, which is how the old `fill 4.8s` lighting fade kept the whole scene repainting. Lighting steps once a second instead.
 
 Measure with `npm run perf:idle` before and after any change to what moves in the scene (docs/PERFORMANCE.md, "Idle paint & composite").
+
+### Layout-rework timelines (Phase 45)
+
+Three families of UI timelines, all in `timelineMap`, none touching audio:
+
+| Key | Owner | Lives | Killed by |
+|---|---|---|---|
+| `nav-panel-width` | `NavPanel` (`useNavPanelWidth`) | one 0.25 s tween of the `--nav-panel-expand` factor on `#screen-viewport`, as Probes or Companies open or close their entity list; `NavPanel.css` derives `--nav-panel-width` from it and `ContentPane`'s left edge reads the same variable | the next change, unmount (which also removes the property). The first value is set at once, and so is every change under reduced motion |
+| ``roster-move-${robotId}`` | `RosterBoard` (`useRosterGlide`) | one `ROSTER_GLIDE_DURATION` (0.45 s) `Flip` glide of the roster tiles after a Move pick: `Flip.getState` before the `assignRobotToCompany` write, `Flip.from` in a `useLayoutEffect` keyed on the row order | its own end, a second pick (the first is finished to its end first), unmount. Skipped under reduced motion (focus still follows the tile) |
+| ``section-tab-${instanceId}-${itemId}`` | `SectionTabs`, one per trigger | the `CabinetBox` pop of a tab | unmount (the same `CabinetBox` pop timeline every cabinet control registers) |
+
+The glide imports `Flip` from `gsap/dist/Flip`: `gsap/Flip` fails type-checking on Windows (`TS1149`, the `Flip.d.ts`/`flip.d.ts` casing); the global gsap mock in tests has a no-op `registerPlugin` and the tests mock `gsap/dist/Flip` with a recording fake. The header's old slide out of the nav's way is gone: the nav no longer reaches the header.
 
 ### UI and system animations
 Other systems follow the same model:
