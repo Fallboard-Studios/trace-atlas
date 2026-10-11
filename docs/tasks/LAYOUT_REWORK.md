@@ -4,7 +4,7 @@ Spec: [docs/specs/LAYOUT_REWORK.md](../specs/LAYOUT_REWORK.md). Intent:
 [docs/intent/layout-rework.md](../intent/layout-rework.md). Sketch (every tab approved 2026-10-09):
 [docs/sketches/layout-rework.html](../sketches/layout-rework.html). Branch `feature/layout-rework`
 from `feature/world-gem` (`ced07eb5`); first commit `d9cb97bb` (intent + spec + sketch amendments).
-Roadmap Phase 45 (entry written in Task 32).
+Roadmap Phase 45 (entry written in Task 32; Mobile Deck Camera and the later entries moved up by one to make room).
 
 Commands: `npx vitest run <path>`, `npm test`, `npm run build:types`, `npm run lint`, `npm run build`,
 `npm run dev`, `node docs/sketches/tools/smoke-layout-rework.cjs`, `npm run perf:idle` (after

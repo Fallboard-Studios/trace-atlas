@@ -60,3 +60,25 @@ workaround" scope note is resolved by this fix; the deeper bookkeeping question 
 own "needs its own scoping pass" caveat raised (what happens to the *reused* entry's own
 previously-current locale) remains genuinely open but is now a documented, intentional
 limitation rather than silent corruption — see the fix's own doc comments.
+
+## 2. Onload: Power-Off Intro Text
+
+**Closed** 2026-10-10 (`feature/layout-rework`, roadmap Phase 45; `769982a5` the world before power-on, `0bde15c3` OffScreen and the muted RadioButton, `37f3878e` the phone off screen). The powered-off screen now carries an etched label, a power hint and a Transmission row (three preset worlds and the user's saves) over the dimmed, still world. The copy is placeholder until Crawford curates it. The original request follows.
+
+Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Medium priority. Today, powering
+off shows nothing but the static sleeve shell + rocker switch (`SleeveContainer.tsx` has
+no off-state content at all) — a new user gets no explanation of what powering on will
+do. Needs a small text block added to the off-state UI, plus actual copy explaining what
+happens on power-on. Content not yet written; a placeholder can stand in until Crawford
+has final copy.
+
+## 4. Helper Text on Inputs (Info Icon)
+
+**Closed** 2026-10-10 (`feature/layout-rework`, roadmap Phase 45; `3a5d1538` `ContentEntry.help`, `e513c808` the `HelpPopover` primitive, `7fcc49f1` the help copy for the probe and company controls). The schema-wide shape was built after all: a content entry carries `help`, `labels()` puts it on the schema and `DualLabel` renders the "?" for every control that has one. The original request follows.
+
+Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Very low priority — mainly
+blocked on the amount of content (a blurb per control) needed, not on technical
+complexity. `ControlSchema` (`src/types/controls.ts`) has no helper/hint-text field
+today. Concept: a small "i"/"?" icon per control that reveals a short blurb about what it
+does on tap/hover. Deliberately scoped small (Crawford's own call) rather than a
+schema-wide addition touching all 14 primitives.

@@ -7,7 +7,8 @@
 > `bad = 0`). Sibling records: `layout-rework-option-b.html` (option B, not chosen), `gem-controls.html`
 > (gem containers and controls, tried and rejected), `punch-card-session.html` (the Atlas card, parked for
 > v2), `docs/ideas/themes.md` (a later phase). Where this file and the sketch header differ, this file wins.
-> Roadmap entry: to be written with the spec.
+> **Built 2026-10-09 to 2026-10-10** on `feature/layout-rework`; roadmap entry: [Phase 45](../todo/roadmap.md#45-layout-rework-shell-nav-section-tabs-roster-off-screen).
+> Task 30 (Crawford's screenshot check) is still owed.
 
 Confirmed via `interview-me` on 2026-10-09, ahead of a `spec-driven-development` pass.
 
