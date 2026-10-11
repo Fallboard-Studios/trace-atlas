@@ -55,7 +55,7 @@
      entirely (length * (number / number) has always been universally valid). */
   --power-switch-coefficient: 70;
   --power-switch-width: 55px;
-  --power-switch-height: calc(var(--power-switch-width) * 2);
+  --power-switch-height: calc(var(--power-switch-width) * 1.75);
   /* --power-corner-margin-coefficient: calc(var(--power-switch-width) * (20 / var(--power-switch-coefficient))); */
   --power-corner-margin-width: 10;
   --power-corner-margin: calc(var(--power-switch-width) * (var(--power-corner-margin-width) / var(--power-switch-coefficient)));

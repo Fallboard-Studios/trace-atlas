@@ -279,7 +279,7 @@
    tilted forward at rest, rocked flat with the top face on a press — so there is no transform here. It never
    takes a click: the button under it is the target.
    The lens is 10px tall, centred 22% of the rocker's height (plus 2.5px) down, on the top face (y 15–44 of 90 at rest, 5–44 pressed), centred
-   across it and clear of the power glyph on the lower face. A 3px black border rings the lens; it is drawn
+   across it and clear of the power glyph on the lower face. A 2px black border rings the lens; it is drawn
    outside the 10px (content-box) and the top offset takes it back, so the lens itself has not moved.
    ---------------------------------------- */
 .rocker-light-pivot {
@@ -289,7 +289,7 @@
 }
 
 .rocker-light-pivot .rocker-light {
-  --rocker-light-border: 3px;
+  --rocker-light-border: 2px;
   position: absolute;
   top: calc(22% - 2.5px - var(--rocker-light-border));
   left: 0;

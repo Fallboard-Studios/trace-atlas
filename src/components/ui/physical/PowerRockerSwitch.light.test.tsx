@@ -219,9 +219,9 @@ describe('PowerRockerSwitch.css — the pivot', () => {
     expect(body).toContain('height: 10px;');
     // Twice the earlier 5px, grown about the same centre (22% down, plus half the old height) so it stays on the face.
     expect(body).toContain('top: calc(22% - 2.5px - var(--rocker-light-border));');
-    // A thin black border around the lens (Crawford, 2026-10-10), 3px, drawn outside it: the lens keeps its size
+    // A thin black border around the lens (Crawford, 2026-10-10), 3px then 2px, drawn outside it: the lens keeps its size
     // and place, and the border adds to the box rather than eating the 10px.
-    expect(body).toContain('--rocker-light-border: 3px;');
+    expect(body).toContain('--rocker-light-border: 2px;');
     expect(body).toContain('border: var(--rocker-light-border) solid #000;');
     expect(body).toContain('box-sizing: content-box;');
   });
