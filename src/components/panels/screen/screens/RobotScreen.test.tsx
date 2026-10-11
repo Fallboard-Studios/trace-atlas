@@ -117,8 +117,13 @@ vi.mock('@/components/ui/controls/RadioButton', async (importOriginal) => {
   return { ...actual, RadioButton: RadioButtonSchemaCapture };
 });
 
+// Task 9: the gem button's click wiring is tested here; the module's own pan/idle/target behaviour
+// has its own suite (deckCamera.test.ts).
+vi.mock('@/animation/deckCamera', () => ({ panDeckCameraTo: vi.fn() }));
+
 import { RobotScreen } from './RobotScreen';
 import { NavBreadcrumb } from '../nav/NavBreadcrumb';
+import { panDeckCameraTo } from '@/animation/deckCamera';
 import { CONTENT, fill, type ContentEntry } from '@/content';
 import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -768,6 +773,36 @@ describe('RobotScreen — the phone band (spec §1.4: small form only)', () => {
     act(() => shell.set('phone'));
     expect(band(container)).not.toBeNull();
     expect(mounted()).toEqual(['ping-contour-drawer-stub']);
+  });
+});
+
+describe('RobotScreen — the gem button pans the deck camera (Task 9)', () => {
+  const panName = (name: string) => fill('probe.band.panToRobot', { name });
+
+  it.each(['desk', 'phone'] as const)('%s: the gem is a button named for the robot that pans on click', (shellKind) => {
+    shell.set(shellKind);
+    selectRobot(makeRobot('r1', { name: 'Tidal Wisp' }));
+    render(<RobotScreen />);
+    const button = screen.getByRole('button', { name: panName('Tidal Wisp') });
+    expect(button.querySelector('svg.robot-screen__gem')).not.toBeNull();
+    fireEvent.click(button);
+    expect(panDeckCameraTo).toHaveBeenCalledWith('r1');
+  });
+
+  it('falls back to the robot id for an unnamed robot', () => {
+    selectRobot(makeRobot('r9', { name: '' }));
+    render(<RobotScreen />);
+    fireEvent.click(screen.getByRole('button', { name: panName('r9') }));
+    expect(panDeckCameraTo).toHaveBeenCalledWith('r9');
+  });
+
+  it('leaves selectedRobotId and activeHubTile unchanged', () => {
+    selectRobot(makeRobot('r1', { name: 'Tidal Wisp' }));
+    useUIStore.getState().setActiveHubTile('robots');
+    render(<RobotScreen />);
+    fireEvent.click(screen.getByRole('button', { name: panName('Tidal Wisp') }));
+    expect(useUIStore.getState().selectedRobotId).toBe('r1');
+    expect(useUIStore.getState().activeHubTile).toBe('robots');
   });
 });
 

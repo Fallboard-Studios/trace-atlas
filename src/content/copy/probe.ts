@@ -55,6 +55,9 @@ export const probe = {
   'probe.roster.statusLine': { human: 'Status line', template: '{job} · {dockingState} · {activity} · {status}' },
   /** The tile's reassignment chip: the glyph alone on the phone; the robot in its accessible name. */
   'probe.roster.move': { human: '⇄ Move', short: '⇄', template: 'Move {name}' },
+  /** The avatar gem's own button (docs/specs/MOBILE_DECK_CAMERA.md §1.3): its accessible name, filled
+   *  with the robot's name. */
+  'probe.band.panToRobot': { human: 'Show on deck', template: 'Show {name} on the deck' },
 
   // ---------------------------------------------------------------- selection card / display rows
   'probe.name': { human: 'Robot Name', lore: 'ROBOT IDENTIFIER' },

@@ -4,6 +4,7 @@ import { useRobotMeta, type RobotMetaField } from './useRobotMeta';
 import { RobotBody } from '@/components/robot/RobotBody';
 import { getRobotGem } from '@/components/robot/gem/polygon';
 import { gemMotionViewBox } from '@/components/robot/gem/orbiterMotion';
+import { panDeckCameraTo } from '@/animation/deckCamera';
 import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
 import { PingControlsCompositionSection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
 import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
@@ -324,6 +325,21 @@ function AvatarGem({ robot }: { robot: Robot }) {
   );
 }
 
+/** The gem, as a tap target that pans the deck camera to this robot (docs/specs/MOBILE_DECK_CAMERA.md
+ *  §1.3). Fixed to the gem's own size, so pressing it never reflows the column or band. */
+function PanToRobotButton({ robot }: { robot: Robot }) {
+  return (
+    <button
+      type="button"
+      className="robot-screen__pan"
+      aria-label={fill('probe.band.panToRobot', { name: robot.name || robot.id })}
+      onClick={() => panDeckCameraTo(robot.id)}
+    >
+      <AvatarGem robot={robot} />
+    </button>
+  );
+}
+
 /** Desk: the gem, the name, the meta as wells (in = read), the battery readout and the company radio. No
  *  job reassignment and no docking override: both stay system-driven. */
 const RobotAvatarColumn = memo(function RobotAvatarColumn({ robot, localeId }: RobotPanelProps) {
@@ -336,7 +352,7 @@ const RobotAvatarColumn = memo(function RobotAvatarColumn({ robot, localeId }: R
 
   return (
     <div className="robot-screen__avatar-column">
-      <AvatarGem robot={robot} />
+      <PanToRobotButton robot={robot} />
       <h2 className="robot-screen__name">{robot.name || robot.id}</h2>
       <div className="robot-screen__meta">
         {META_FIELDS.map(([field, schema]) => (
@@ -366,7 +382,7 @@ function RobotAvatarBand({ robot, localeId }: RobotPanelProps) {
   const battery = `${Math.round(robot.batteryLevel)}${BATTERY_READOUT_SCHEMA.unit ?? ''}`;
   return (
     <div className="robot-screen__band">
-      <AvatarGem robot={robot} />
+      <PanToRobotButton robot={robot} />
       <div className="robot-screen__band-text">
         <h2 className="robot-screen__name">{robot.name || robot.id}</h2>
         <span className="robot-screen__status-line">{fill('probe.band.statusLine', { ...meta, battery })}</span>
