@@ -62,7 +62,7 @@ vi.mock('@gsap/react', () => ({
 }));
 
 import { PowerRockerSwitch } from './PowerRockerSwitch';
-import { LIGHT_PERSPECTIVE, LIGHT_PRESSED_ANGLE, LIGHT_REST_ANGLE, RIDGE_ORIGIN_PERCENT } from './rockerGeometry';
+import { LIGHT_PERSPECTIVE, LIGHT_PRESSED_ANGLE, LIGHT_REST_ANGLE, POWER_GLYPH, POWER_GLYPH_ORIGIN, POWER_GLYPH_PRESSED, RIDGE_ORIGIN_PERCENT } from './rockerGeometry';
 import { powerController } from '@/systems/powerController';
 import { getCssRuleBody } from '@/testUtils/cssRuleBody';
 import { getStatusLightColor } from '@/utils/statusLightColors';
@@ -233,4 +233,63 @@ describe('PowerRockerSwitch.css — the pivot', () => {
 
 afterEach(() => {
   calls.length = 0;
+});
+
+/*
+ * The power glyph rides the bottom face on the same orbit as the faces and the light: a scale about the ridge,
+ * pressed on the face's stroke and released on its return, with no separate y tween (that tween, plus a scale
+ * about the glyph's own centre, left it ~3 viewBox units off the face when pressed; measured in Chrome).
+ */
+describe('PowerRockerSwitch — the power glyph follows the bottom face', () => {
+  const glyphIn = (container: HTMLElement) => container.querySelector('.rocker-power-svg') as Element;
+  const origin = `${POWER_GLYPH_ORIGIN.x} ${POWER_GLYPH_ORIGIN.y}`;
+
+  it('is laid out from POWER_GLYPH in JSX, so the first paint is already on the face', () => {
+    const { container } = render(<PowerRockerSwitch />);
+    const glyph = glyphIn(container);
+    expect(glyph.getAttribute('x')).toBe(String(POWER_GLYPH.x));
+    expect(glyph.getAttribute('y')).toBe(String(POWER_GLYPH.y));
+    expect(glyph.getAttribute('width')).toBe(String(POWER_GLYPH.width));
+    expect(glyph.getAttribute('height')).toBe(String(POWER_GLYPH.height));
+  });
+
+  it('starts flat on the face, turning about the ridge', () => {
+    const { container } = render(<PowerRockerSwitch />);
+    const sets = callsOn(glyphIn(container)).filter((c) => c.method === 'set');
+    expect(sets).toHaveLength(1);
+    expect(sets[0].vars).toMatchObject({ scaleX: 1, scaleY: 1, svgOrigin: origin });
+    expect(sets[0].vars.attr).toBeUndefined();
+  });
+
+  it('on a click, presses to the face scale about the ridge in the stroke the bottom face presses in, never tweening y', () => {
+    const { container, getByRole } = render(<PowerRockerSwitch />);
+    calls.length = 0;
+    fireEvent.click(getByRole('button', { name: /Power on/i }));
+    const tweens = callsOn(glyphIn(container)).filter((c) => c.method === 'to');
+    expect(tweens).toHaveLength(1);
+    expect(tweens[0].vars).toMatchObject({ scaleX: POWER_GLYPH_PRESSED.scaleX, scaleY: POWER_GLYPH_PRESSED.scaleY, svgOrigin: origin });
+    expect(tweens[0].vars.attr).toBeUndefined();
+    const bottom = calls.find((c) => c.method === 'to' && (c.target as Element)?.classList?.contains('rocker-bottom'));
+    expect(bottom).toBeDefined();
+    expect(tweens[0].vars.duration).toBe(bottom!.vars.duration);
+    expect(tweens[0].vars.ease).toBe(bottom!.vars.ease);
+    expect(tweens[0].position).toBe('<');
+  });
+
+  it('on the return, releases from the pressed scale to flat over the bottom face\'s own time and ease', () => {
+    const { container, getByRole } = render(<PowerRockerSwitch />);
+    fireEvent.click(getByRole('button', { name: /Power on/i }));
+    const returnStep = calls.find((c) => c.method === 'to' && c.vars.duration === 0.5 && typeof c.vars.onComplete === 'function');
+    calls.length = 0;
+    (returnStep!.vars.onComplete as () => void)();
+    const returns = callsOn(glyphIn(container)).filter((c) => c.method === 'fromTo');
+    expect(returns).toHaveLength(1);
+    expect(returns[0].from).toMatchObject({ scaleX: POWER_GLYPH_PRESSED.scaleX, scaleY: POWER_GLYPH_PRESSED.scaleY, svgOrigin: origin });
+    expect(returns[0].vars).toMatchObject({ scaleX: 1, scaleY: 1 });
+    expect(returns[0].vars.attr).toBeUndefined();
+    const bottom = calls.find((c) => c.method === 'fromTo' && (c.target as Element)?.classList?.contains('rocker-bottom'));
+    expect(bottom).toBeDefined();
+    expect(returns[0].vars.duration).toBe(bottom!.vars.duration);
+    expect(returns[0].vars.ease).toBe(bottom!.vars.ease);
+  });
 });

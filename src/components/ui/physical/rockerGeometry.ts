@@ -28,20 +28,50 @@ export const ROCKER_FACES: RockerFace[] = [
   { className: 'rocker-bottom-right', rest: '97,44 100,44  100,85 97,85', pressed: '97,44 100,44  100,85 94,75' },
 ];
 
-/** The power-glyph nested SVG's own rest/pressed attr pair — same rest-vs-
- *  pressed shape as ROCKER_FACES, kept separate since it's one element with
- *  a different attr set (y + scaleY, not points). */
-export const POWER_SVG_REST = { y: 54, scaleY: 1 };
-export const POWER_SVG_PRESSED = { y: 50, scaleY: 0.76 };
-
 /** Height of the rocker SVG's viewBox (`0 0 100 90`). */
 export const ROCKER_VIEWBOX_HEIGHT = 90;
 
-const pointYs = (points: string) => points.trim().split(/\s+/).map((pair) => Number(pair.split(',')[1]));
+const pointsOf = (points: string) => points.trim().split(/\s+/).map((pair) => pair.split(',').map(Number) as [number, number]);
+const pointYs = (points: string) => pointsOf(points).map((point) => point[1]);
 const topFace = ROCKER_FACES.find((face) => face.className === 'rocker-top')!;
+const bottomFace = ROCKER_FACES.find((face) => face.className === 'rocker-bottom')!;
 
 /** The ridge: the line the top and bottom faces meet on, and the rocker's centre. The rocker rocks about it. */
 export const RIDGE_Y = Math.max(...pointYs(topFace.rest));
+
+// ----------------------------------------
+// The power glyph is printed on the BOTTOM face, so it takes that face's pose, turned about the same ridge as
+// the faces and the light. The bottom face is flat at rest; pressed, it is drawn foreshortened (its far edge
+// comes in toward the ridge) and narrower at that far edge. The glyph's pose is a scale about the ridge, derived
+// from those points. It used to be tweened as a `y` attribute plus a scale about its own centre, which landed it
+// ~3 units too high when pressed (measured in Chrome): that moved it as if it were not on the face.
+// ----------------------------------------
+
+/** The nested SVG that holds the glyph, in the rocker's viewBox units (JSX and the pose below read this).
+ *  Its own 100×100 viewBox is stretched to this rect (preserveAspectRatio none), so 51×23 here draws square. */
+export const POWER_GLYPH = { x: 25, y: 54, width: 51, height: 23 };
+
+/** The pivot, in viewBox coordinates (GSAP svgOrigin): the ridge, on the face's centre line. */
+export const POWER_GLYPH_ORIGIN = { x: 50, y: RIDGE_Y };
+
+const bottomRest = pointsOf(bottomFace.rest);
+const bottomPressed = pointsOf(bottomFace.pressed);
+const farEdgeRest = Math.max(...bottomRest.map((point) => point[1]));
+const farEdgePressed = Math.max(...bottomPressed.map((point) => point[1]));
+// Where the glyph's centre sits down the face, 0 at the ridge and 1 at the far edge.
+const glyphCentreDownFace = (POWER_GLYPH.y + POWER_GLYPH.height / 2 - RIDGE_Y) / (farEdgeRest - RIDGE_Y);
+const widthAtRidge = bottomPressed[1][0] - bottomPressed[0][0];
+const widthAtFarEdge = bottomPressed[2][0] - bottomPressed[3][0];
+const restWidth = bottomRest[1][0] - bottomRest[0][0];
+
+/** The glyph's scale when the rocker is pressed: the face's foreshortening, and its width where the glyph sits. */
+export const POWER_GLYPH_PRESSED = {
+  scaleX: (widthAtRidge + (widthAtFarEdge - widthAtRidge) * glyphCentreDownFace) / restWidth,
+  scaleY: (farEdgePressed - RIDGE_Y) / (farEdgeRest - RIDGE_Y),
+};
+
+/** The glyph's scale at rest: the face is flat. */
+export const POWER_GLYPH_REST = { scaleX: 1, scaleY: 1 };
 
 /** The ridge as a percentage of the rocker's height: the light's pivot (transform-origin y). */
 export const RIDGE_ORIGIN_PERCENT = (RIDGE_Y / ROCKER_VIEWBOX_HEIGHT) * 100;

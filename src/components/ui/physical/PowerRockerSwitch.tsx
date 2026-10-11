@@ -10,8 +10,10 @@ import {
   LIGHT_PERSPECTIVE,
   LIGHT_PRESSED_ANGLE,
   LIGHT_REST_ANGLE,
-  POWER_SVG_PRESSED,
-  POWER_SVG_REST,
+  POWER_GLYPH,
+  POWER_GLYPH_ORIGIN,
+  POWER_GLYPH_PRESSED,
+  POWER_GLYPH_REST,
   RIDGE_ORIGIN_PERCENT,
   ROCKER_FACES,
   ROCKER_VIEWBOX_HEIGHT,
@@ -27,6 +29,9 @@ import { CONTENT } from '@/content';
 import './PowerRockerSwitch.css';
 
 // The rocker's face geometry, and the pose the light derives from it, live in rockerGeometry.ts.
+
+/** The power glyph's pivot as GSAP's svgOrigin string: the ridge, in the rocker's viewBox coordinates. */
+const POWER_GLYPH_SVG_ORIGIN = `${POWER_GLYPH_ORIGIN.x} ${POWER_GLYPH_ORIGIN.y}`;
 
 /** The light's pivot layer, in JSX so the very first paint is already tilted (GSAP takes over the transform
  *  on mount with the same values). Constant strings, so React never rewrites it over a running tween. */
@@ -76,7 +81,8 @@ export function PowerRockerSwitch() {
     }
     const powerSvgEl = sel('.rocker-power-svg')[0] as Element;
     elsRef.current['rocker-power-svg'] = powerSvgEl;
-    gsap.set(powerSvgEl, { attr: { y: POWER_SVG_REST.y }, scaleY: POWER_SVG_REST.scaleY });
+    // The power glyph is printed on the bottom face: flat at rest, turning about the same ridge as the faces.
+    gsap.set(powerSvgEl, { ...POWER_GLYPH_REST, svgOrigin: POWER_GLYPH_SVG_ORIGIN });
     // The light lies on the top face: at rest it is tilted forward like that face, about the ridge.
     gsap.set(lightPivotRef.current, { rotateX: LIGHT_REST_ANGLE, transformPerspective: LIGHT_PERSPECTIVE, transformOrigin: LIGHT_PIVOT_STYLE.transformOrigin });
   }, { scope: rockerRef, dependencies: [] });
@@ -115,7 +121,7 @@ export function PowerRockerSwitch() {
     ROCKER_FACES.forEach((face, i) => {
       tl.to(elsRef.current[face.className], { attr: { points: face.pressed }, duration: THUNK, ease: 'power4.in' }, ...(i === 0 ? [] : ['<'] as const));
     });
-    tl.to(elsRef.current['rocker-power-svg'], { attr: { y: POWER_SVG_PRESSED.y }, scaleY: POWER_SVG_PRESSED.scaleY, transformOrigin: '50% 50%', duration: THUNK, ease: 'power4.in' }, '<')
+    tl.to(elsRef.current['rocker-power-svg'], { ...POWER_GLYPH_PRESSED, svgOrigin: POWER_GLYPH_SVG_ORIGIN, duration: THUNK, ease: 'power4.in' }, '<')
       // ── The light rocks flat with the top face it lies on, on the same stroke. ──
       .to(lightPivotRef.current, { rotateX: LIGHT_PRESSED_ANGLE, duration: THUNK, ease: 'power4.in' }, '<')
       // ── Hold (button stays depressed until dialog resolves) ────────────────
@@ -143,8 +149,8 @@ export function PowerRockerSwitch() {
         ...(i === 0 ? [] : ['<'] as const));
     });
     tl.fromTo(elsRef.current['rocker-power-svg'],
-      { attr: { y: POWER_SVG_PRESSED.y }, scaleY: POWER_SVG_PRESSED.scaleY },
-      { attr: { y: POWER_SVG_REST.y }, scaleY: POWER_SVG_REST.scaleY, transformOrigin: '50% 50%', duration: MOTOR, ease: 'none' }, '<')
+      { ...POWER_GLYPH_PRESSED, svgOrigin: POWER_GLYPH_SVG_ORIGIN },
+      { ...POWER_GLYPH_REST, svgOrigin: POWER_GLYPH_SVG_ORIGIN, duration: MOTOR, ease: 'none' }, '<')
       // ── The light tilts forward again with the face, from flat. ──
       .fromTo(lightPivotRef.current, { rotateX: LIGHT_PRESSED_ANGLE }, { rotateX: LIGHT_REST_ANGLE, duration: MOTOR, ease: 'none' }, '<')
       .call(() => setIsTransitioning(false));
@@ -282,19 +288,20 @@ export function PowerRockerSwitch() {
                 51×23 outer units → 27×27 screen px (square).
                 preserveAspectRatio="none" + pre-compensated h ensures each
                 inner-viewBox unit maps equally in both axes (≈0.27px/unit).
-                GSAP attr-tweens `y`: 54 at rest, 50 when pressed. Bugfix, found live
-                (docs/todo/backlog.md #20): y also needs a real JSX default (POWER_SVG_REST.y)
-                — left GSAP-only, this SVG-length attribute had no valid value on the very
-                first paint, before useGSAP's mount effect runs, which Chrome logged as
+                Its rect is POWER_GLYPH (rockerGeometry.ts). It does not move by a `y` tween: it is printed on
+                the bottom face, so GSAP scales it about the ridge (svgOrigin) by the face's own foreshortening,
+                the same orbit as the faces and the light. x/y/width/height still need real JSX values
+                (docs/todo/backlog.md #20): left GSAP-only, an SVG-length attribute has no valid value on the
+                very first paint, before useGSAP's mount effect runs, which Chrome logged as
                 `<svg> attribute y: ... Expected length, ""`.
                 Sits before rocker-ridge so the ridge shadow paints over it.
               */}
               <svg
                 className="rocker-power-svg"
-                x="25"
-                y={POWER_SVG_REST.y}
-                width="51"
-                height="23"
+                x={POWER_GLYPH.x}
+                y={POWER_GLYPH.y}
+                width={POWER_GLYPH.width}
+                height={POWER_GLYPH.height}
                 viewBox="0 0 100 100"
                 preserveAspectRatio="none"
                 aria-hidden="true"
