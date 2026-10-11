@@ -30,9 +30,24 @@ let lastCutAt = -Infinity;
 let cameraScrolling = false;
 
 /** The scroller's own input listener: a camera tween's own scroll events don't count as the
- *  user asking for something (spec assumption 8); `cameraScrolling` excludes them. */
+ *  user asking for something (spec assumption 8); `cameraScrolling` excludes them. A real gesture
+ *  also clears the forced-off scroll-snap override below, so native swipe-to-snap resumes. */
 function handleScrollerInput(): void {
-  if (!cameraScrolling) noteDeckUserInput();
+  if (cameraScrolling) return;
+  noteDeckUserInput();
+  scroller?.style.removeProperty('scroll-snap-type');
+}
+
+/**
+ * Forces scroll-snap-type off on the scroller (root cause: node_modules/gsap/src/ScrollToPlugin.js
+ * disables scroll-snap-type for the duration of its own tween to avoid fighting it, then restores
+ * the original value at the end via a scrollLeft nudge; our quarter-stage snap marks have no
+ * relation to a robot's position, so restoring it at an off-mark landing let the browser visibly
+ * "correct" the camera a moment after it had already settled). Re-forced after every camera move;
+ * cleared only by a real user gesture (handleScrollerInput above).
+ */
+function suppressScrollSnap(): void {
+  if (scroller) scroller.style.scrollSnapType = 'none';
 }
 
 // ========================================
@@ -123,9 +138,11 @@ function createCameraTween(x: number): void {
     },
     onComplete: () => {
       cameraScrolling = false;
+      suppressScrollSnap();
     },
     onInterrupt: () => {
       cameraScrolling = false;
+      suppressScrollSnap();
     },
   });
   setTimeline(DECK_CAMERA_TIMELINE_ID, tl);
