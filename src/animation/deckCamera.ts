@@ -113,10 +113,10 @@ function createCameraTween(x: number): void {
   tl.to(scroller, {
     scrollTo: { x, autoKill: true },
     duration,
-    // sine.inOut, not power2.inOut (Crawford, manual check: power2's sharper accel/decel over the
-    // spec's short duration read as a snap, not a pan) — the gentlest built-in ease, for a camera
-    // move rather than a UI transition.
-    ease: 'sine.inOut',
+    // power1.inOut, not power2 (too sharp at the spec's 0.8s, read as a snap) or sine (too flat
+    // in the middle, still read as abrupt — Crawford, manual check): a stronger, longer slow-in
+    // and slow-out than sine, short of power2's sharper curve.
+    ease: 'power1.inOut',
     onStart: () => {
       cameraScrolling = true;
     },
