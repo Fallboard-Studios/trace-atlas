@@ -17,6 +17,9 @@ vi.mock('@/components/panels/screen/Header', () => ({
 vi.mock('@/components/panels/screen/worldView/WorldView', () => ({
   default: () => <div data-testid="world-view-stub" />,
 }));
+vi.mock('@/components/panels/screen/screens/OffScreen', () => ({
+  OffScreen: () => <div data-testid="off-screen-stub" />,
+}));
 vi.mock('@/components/panels/screen/console/ContentPane', () => ({
   default: () => <div data-testid="content-pane-stub" />,
 }));
@@ -47,11 +50,26 @@ describe('ScreenViewport', () => {
 
   // Task 26 (spec §1.9): the world is built before power-on and is the off screen's backdrop, so
   // WorldView is the one child that renders in both power states; the chrome waits for power.
-  it('renders only WorldView when powered off', () => {
+  // Task 27: the off screen goes over it (OffScreen), and only while the power is off.
+  it('renders only WorldView and the off screen when powered off', () => {
     const { container } = render(<ScreenViewport isPoweredOn={false} />);
     for (const id of COMPOSITION.filter((id) => id !== 'world-view-stub')) expect(screen.queryByTestId(id)).toBeNull();
     const children = Array.from(container.querySelector('.screen-content')!.children);
-    expect(children.map((child) => child.getAttribute('data-testid'))).toEqual(['world-view-stub']);
+    expect(children.map((child) => child.getAttribute('data-testid'))).toEqual(['world-view-stub', 'off-screen-stub']);
+  });
+
+  it('does not render the off screen while powered on', () => {
+    render(<ScreenViewport isPoweredOn={true} />);
+    expect(screen.queryByTestId('off-screen-stub')).toBeNull();
+  });
+
+  it('mounts and unmounts the off screen across a power cycle', () => {
+    const { rerender } = render(<ScreenViewport isPoweredOn={false} />);
+    expect(screen.getByTestId('off-screen-stub')).toBeTruthy();
+    rerender(<ScreenViewport isPoweredOn={true} />);
+    expect(screen.queryByTestId('off-screen-stub')).toBeNull();
+    rerender(<ScreenViewport isPoweredOn={false} />);
+    expect(screen.getByTestId('off-screen-stub')).toBeTruthy();
   });
 
   it('keeps the same WorldView instance across a power cycle: it never unmounts, so it never rebuilds the world', () => {

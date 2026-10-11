@@ -85,3 +85,40 @@ describe('RadioButton.css — the single-line option label', () => {
     expect(body).not.toMatch(/height\s*:/);
   });
 });
+
+// docs/tasks/LAYOUT_REWORK.md Task 27. The muted appearance is the off screen's picker: the box's own shape and
+// size with no walls, no pop and no glow, the selected one a monochrome fill (the sketch's `.cab.sel`).
+describe('RadioButton.css — the muted appearance', () => {
+  it('gives the flat face the cabinet front\'s own height, padding and sharp corners', () => {
+    const body = getCssRuleBody(cssSource, '.sc-radio-button__flat');
+    expect(body).not.toBeNull();
+    expect(body).toContain('height: var(--cabinet-box-height);');
+    expect(body).toContain('padding: 0 14px;');
+    expect(body).not.toContain('border-radius');
+  });
+
+  it('fills the selected option with one flat colour — no gradient, no glow, no shadow', () => {
+    const body = getCssRuleBody(cssSource, ".sc-radio-button--muted .sc-radio-button__item[data-state='on'] .sc-radio-button__flat");
+    expect(body).not.toBeNull();
+    expect(body).toContain('box-shadow: none;');
+    expect(body).not.toContain('gradient');
+    expect(body).toContain('background:');
+  });
+
+  it('turns the selected label dark so it reads on the light fill', () => {
+    const body = getCssRuleBody(cssSource, ".sc-radio-button--muted .sc-radio-button__item[data-state='on'] .sc-radio-button__label");
+    expect(body).not.toBeNull();
+    expect(body).toContain('color:');
+  });
+
+  it('never references the cabinet glow or pop in a muted rule', () => {
+    const muted = cssSource.split('\n').filter((l) => l.includes('muted')).join('\n');
+    expect(muted).not.toMatch(/cabinet-glow|popped/);
+  });
+
+  it('sizes the divider as a thin vertical rule between options', () => {
+    const body = getCssRuleBody(cssSource, '.sc-radio-button__divider');
+    expect(body).not.toBeNull();
+    expect(body).toContain('width: 1px;');
+  });
+});

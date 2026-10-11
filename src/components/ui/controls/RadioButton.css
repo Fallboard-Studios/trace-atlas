@@ -135,3 +135,41 @@
     font-size: var(--font-size-label-compact);
   }
 }
+
+/* A thin vertical rule between two options (the off screen's line between the presets and the user's
+   saves). Either appearance; decorative, so it is aria-hidden in the DOM. */
+.sc-radio-button__divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 0 6px;
+  background: var(--color-text-muted);
+  opacity: 0.4;
+}
+
+/* The muted appearance (docs/tasks/LAYOUT_REWORK.md Task 27): the cabinet front's own height, side
+   padding and sharp corners with no walls behind it, so a muted option is the same size as a cabinet
+   one. --cabinet-box-height is set inline from the cabinet tier (RadioButton.tsx). The max-width and
+   border-box carry the same cap the cabinet front has, so a long name still ends in an ellipsis. */
+.sc-radio-button__flat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--cabinet-box-height);
+  padding: 0 14px;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: 1px solid rgba(207, 214, 220, 0.35);
+}
+
+/* The selected option: one flat light fill, no walls, no glow, no shadow (the sketch's .cab.sel). */
+.sc-radio-button--muted .sc-radio-button__item[data-state='on'] .sc-radio-button__flat {
+  background: rgba(207, 214, 220, 0.9);
+  border-color: rgba(207, 214, 220, 0.9);
+  box-shadow: none;
+}
+
+.sc-radio-button--muted .sc-radio-button__item[data-state='on'] .sc-radio-button__label,
+.sc-radio-button--muted .sc-radio-button__item[data-state='on'] .sc-radio-button__lore {
+  color: #0b0f14;
+}

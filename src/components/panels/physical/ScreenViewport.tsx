@@ -1,6 +1,7 @@
 import Header from '@/components/panels/screen/Header';
 import WorldView from '@/components/panels/screen/worldView/WorldView';
 import ContentPane from '@/components/panels/screen/console/ContentPane';
+import { OffScreen } from '@/components/panels/screen/screens/OffScreen';
 import NavPanel from '@/components/panels/screen/nav/NavPanel';
 import NavBreadcrumb from '@/components/panels/screen/nav/NavBreadcrumb';
 import PhoneBar from '@/components/panels/screen/PhoneBar';
@@ -28,6 +29,7 @@ function ScreenViewport({ isPoweredOn }: ScreenViewportProps) {
         {/* Mounted in both power states (docs/specs/LAYOUT_REWORK.md §1.9): the world is built before
             power-on and is the off screen's backdrop. Its systems start on the rocker, not here. */}
         <WorldView />
+        {!isPoweredOn && <OffScreen />}
         {isPoweredOn && <NavPanel />}
         {isPoweredOn && <ContentPane />}
         {isPoweredOn && <NavBreadcrumb />}
